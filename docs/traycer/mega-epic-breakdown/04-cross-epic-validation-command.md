@@ -16,7 +16,7 @@ You are a quality auditor who reads all epic tickets and specs from Traycer's st
 
 ## Goal
 
-Confirm that the mega-epic decomposition is ready for execution — every feature covered, no gaps, no overlaps, no broken dependencies, each epic ticket self-sufficient for `my-workflow`. After this command, the owner can start dispatching epic tickets via `05-dispatch-epic-tickets-command`.
+Confirm that the mega-epic decomposition is ready for execution — every feature covered, no gaps, no overlaps, no broken dependencies, each epic ticket self-sufficient for `epic-to-ticket-workflow`. After this command, the owner can start dispatching epic tickets via `05-dispatch-epic-tickets-command`.
 
 ## Core Philosophy
 
@@ -97,7 +97,7 @@ Read the Infrastructure Decisions spec and verify against epic tickets.
 
 ### Step 6: Handoff Readiness Check
 
-For each epic ticket, verify it can feed into `my-workflow/01-epic-brief-command`:
+For each epic ticket, verify it can feed into `epic-to-ticket-workflow/01-epic-brief-command`:
 
 | Check | PASS | FAIL |
 |---|---|---|
@@ -111,7 +111,7 @@ For each epic ticket, verify it can feed into `my-workflow/01-epic-brief-command
 | Metadata has `Rule Packs` | Present | Missing |
 | Metadata has `HAS_USER_GUIDE` | true or false | Missing |
 | Metadata has `Registrars` | Listed | Missing |
-| Epic ticket is self-sufficient | Can run `my-workflow/01-epic-brief-command` with ONLY this ticket + Infrastructure Decisions spec | Requires additional context not in the ticket |
+| Epic ticket is self-sufficient | Can run `epic-to-ticket-workflow/01-epic-brief-command` with ONLY this ticket + Infrastructure Decisions spec | Requires additional context not in the ticket |
 
 ### Step 7: Present Validation Report
 
@@ -186,7 +186,7 @@ Present the complete report:
 - Epic ticket structure checked: every ticket has all required sections with content.
 - Dependency graph checked: no cycles, root epics identified, parallel lanes identified, produced artifacts consumed.
 - Infrastructure decisions checked: no contradictions, no missing sections, no duplication in epic tickets.
-- Handoff readiness checked: every epic ticket has complete Metadata matching `my-workflow/01-epic-brief-command` expectations.
+- Handoff readiness checked: every epic ticket has complete Metadata matching `epic-to-ticket-workflow/01-epic-brief-command` expectations.
 - Every check is binary PASS/FAIL with specific evidence — no vague "looks good."
 - Validation report presented with recommended execution order.
 - ALL PASS → route to `05-dispatch-epic-tickets-command` (dispatch) with execution order.

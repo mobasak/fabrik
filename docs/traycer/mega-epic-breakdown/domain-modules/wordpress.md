@@ -34,7 +34,9 @@ A dimension belongs at intake **only if** wrong = **irreversible** or **kills be
 
 ---
 
-## Part 1 — Mega-Epic (paste with 00 + 02)
+## Part 1 — Mega-Epic Decomposition Guidance
+
+*Consumed by `02-epic-decomposition-command` (and `00-trigger-workflow-command` Step E4 in EXISTING mode) to drive WordPress-specific epic patterns.*
 
 ### 1A. Vision Intake Dimensions
 
@@ -249,11 +251,13 @@ WordPress projects naturally split into these parallel lanes after the foundatio
 
 ---
 
-## Part 2 — Per-Epic (paste when starting my-workflow for a WordPress epic)
+## Part 2 — Per-Epic Implementation Guidance
 
-These directives apply throughout all my-workflow steps when the epic belongs to a WordPress project. Traycer carries them from epic-brief through ticket-breakdown and into execution plans.
+*Reserved for future per-epic loading by `epic-to-ticket-workflow` command files (`01-epic-brief`, `02-core-flows`, `03-tech-plan`, `04-deploy-plan`, `05-ticket-outline`, `06-ticket-breakdown`). Not currently auto-wired — those command files do not yet `read domain-modules/wordpress.md`. Surfaced here so the patterns are co-located with Part 1; load order can be wired later.*
 
-### 2A. Epic Brief (my-workflow/01)
+These directives apply throughout all epic-to-ticket-workflow steps when the epic belongs to a WordPress project. Traycer carries them from epic-brief through ticket-breakdown and into execution plans.
+
+### 2A. Epic Brief (epic-to-ticket-workflow/01)
 
 When creating the epic brief for a WordPress epic:
 
@@ -265,7 +269,7 @@ When creating the epic brief for a WordPress epic:
 - If this epic owns content (§11), the brief must include: production model, quality bar, cadence, topic clusters.
 - Success Criteria must include at least one criterion per dimension this epic addresses.
 
-### 2B. Core Flows (my-workflow/02)
+### 2B. Core Flows (epic-to-ticket-workflow/02)
 
 When mapping core flows for a WordPress epic, include these WP-specific flows if the epic touches them:
 
@@ -283,7 +287,7 @@ When mapping core flows for a WordPress epic, include these WP-specific flows if
 
 Each flow must identify the `[PRIMARY PATH]` — the happy path.
 
-### 2C. Tech Plan (my-workflow/03)
+### 2C. Tech Plan (epic-to-ticket-workflow/03)
 
 When creating the tech plan for a WordPress epic, enforce:
 
@@ -297,7 +301,7 @@ When creating the tech plan for a WordPress epic, enforce:
 - **Ecommerce architecture (if applicable):** WooCommerce, payment gateway (iyzico/PayTR for TR physical, Paddle for digital), shipping plugin, tax config, inventory model.
 - **Affiliate program architecture (if applicable):** AffiliateWP/SliceWP, tracking method, commission tiers, payout schedule, fraud prevention.
 
-### 2D. Ticket Outline (my-workflow/05)
+### 2D. Ticket Outline (epic-to-ticket-workflow/05)
 
 When creating the ticket outline for a WordPress epic, verify coverage:
 
@@ -311,7 +315,7 @@ When creating the ticket outline for a WordPress epic, verify coverage:
 - Analytics instrumentation belongs inside each feature ticket as an AC, not a separate ticket.
 - Backup verification (Backrest to B2) is a ticket in the foundation epic.
 
-### 2E. Ticket Breakdown (my-workflow/06)
+### 2E. Ticket Breakdown (epic-to-ticket-workflow/06)
 
 When Traycer creates full ticket specs and agent execution plans for a WordPress epic:
 

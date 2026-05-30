@@ -95,7 +95,7 @@ If a vision (NEW) cannot pass through all 4 stages, state this explicitly and ju
 
 ## Architectural Mandates (non-negotiable — single source of truth)
 
-These are **vision-level architectural commitments**. Every epic dispatched from this vision inherits them. **Violations block vision confirmation.** Per-epic verification happens later in `my-workflow/00` Step 5 (overlay constraints #17–#24) — but the commitment is made here.
+These are **vision-level architectural commitments**. Every epic dispatched from this vision inherits them. **Violations block vision confirmation.** Per-epic verification happens later in `epic-to-ticket-workflow/00` Step 5 (overlay constraints #17–#24) — but the commitment is made here.
 
 - **12-Factor App** — every service satisfies [The Twelve-Factor App](https://12factor.net/). Key factors: III (config via env only), VI (stateless processes), IX (fast startup + SIGTERM), XI (structured stdout logs). A "file-based sessions" choice violates Factor VI — use Redis.
 - **Concurrency** — every service handles multiple simultaneous requests. Never single-threaded blocking.
@@ -238,7 +238,7 @@ Do NOT estimate ticket counts — that belongs to `05-ticket-outline-command` af
 - Classify each feature as: `small` (single endpoint/page), `medium` (multi-component), `large` (cross-cutting system).
 - Count how many `large` features exist.
 - Assess (signal only — do NOT assign features to epics, that is `02-epic-decomposition-command`'s job):
-  - All features small/medium, <8 total → **single epic** (use my-workflow directly).
+  - All features small/medium, <8 total → **single epic** (use epic-to-ticket-workflow directly).
   - Mix of small/medium/large, 8–15 total → **likely 2–3 epics**.
   - Multiple large features, 15+ total → **likely 4–7 epics**.
   - Massive scope, many large features → re-scope or accept 7+ epics.
@@ -376,7 +376,7 @@ If no open questions: state "None — research was comprehensive."]
 - Classification: [single-epic / multi-epic (~N epics)]
 - Reasoning: [why this classification — based on feature count and complexity, NOT which features become which epics]
 - Next step:
-  - If single-epic: "Proceed to my-workflow/00-trigger-workflow-command. Confirm?"
+  - If single-epic: "Proceed to epic-to-ticket-workflow/00-trigger-workflow-command. Confirm?"
   - If multi-epic: "Proceed to 02-epic-decomposition-command to define epic boundaries."
 ```
 
@@ -395,7 +395,7 @@ Iterate until the owner explicitly confirms:
 **CRITICAL: STOP GENERATION after presenting.** Do NOT simulate the owner's response. Do NOT self-confirm. Wait for explicit user input.
 
 **Routing after confirmation:**
-- Single-epic → "This fits a single epic. Proceed to `my-workflow/00-trigger-workflow-command`." Stop.
+- Single-epic → "This fits a single epic. Proceed to `epic-to-ticket-workflow/00-trigger-workflow-command`." Stop.
 - Multi-epic → "Proceed to `02-epic-decomposition-command` to define epic boundaries."
 
 ---
@@ -659,7 +659,7 @@ one Retrofit epic per Fix-now item, alongside the delta-feature epics.]
 - Classification: [single-epic / multi-epic (~N epics)]
 - Reasoning: [why this classification — based on feature + retrofit complexity, NOT which become which epics]
 - Next step:
-  - If single-epic: "Proceed to `my-workflow/00-trigger-workflow-command`."
+  - If single-epic: "Proceed to `epic-to-ticket-workflow/00-trigger-workflow-command`."
   - If multi-epic: "Proceed to `02-epic-decomposition-command` to define epic boundaries."
 ```
 
@@ -668,7 +668,7 @@ one Retrofit epic per Fix-now item, alongside the delta-feature epics.]
 Wait for explicit confirmation. **STOP GENERATION HERE.** Silence ≠ confirmation.
 
 **Routing after confirmation:**
-- Single-epic → "This fits a single epic. Proceed to `my-workflow/00-trigger-workflow-command`."
+- Single-epic → "This fits a single epic. Proceed to `epic-to-ticket-workflow/00-trigger-workflow-command`."
 - Multi-epic → "Proceed to `02-epic-decomposition-command` to define epic boundaries."
 
 ---
@@ -687,7 +687,7 @@ Wait for explicit confirmation. **STOP GENERATION HERE.** Silence ≠ confirmati
 - **Compliance Report drives Retrofit epics in 02.**
 
 **Both modes:**
-- **Key routing output:** Scale Assessment determines whether this is a single-epic (→ my-workflow) or multi-epic (→ `02-epic-decomposition-command`).
+- **Key routing output:** Scale Assessment determines whether this is a single-epic (→ epic-to-ticket-workflow) or multi-epic (→ `02-epic-decomposition-command`).
 - **Lives in:** Traycer conversation context as a spec titled "Vision Summary."
 - **Consumed by:** `02-epic-decomposition-command` reads the Vision Summary from conversation context. In Existing mode, 02 also reads Locked Decisions (inherits them into Infrastructure Decisions) and Compliance Report (emits one Retrofit epic per fix-now item).
 - **Persisted by:** Traycer's spec store (automatic). `03-expand-epic-files-command` creates tickets per epic from the confirmed decomposition.
@@ -726,7 +726,7 @@ Wait for explicit confirmation. **STOP GENERATION HERE.** Silence ≠ confirmati
 **NEW mode adds:**
 - Multiple research files handled: conflicts flagged in Open Questions, not silently resolved.
 - Multi-scaffold visions identified (e.g., python-api + saas-skeleton + wordpress in one vision).
-- Single-epic visions routed to `my-workflow`, not forced through mega-epic-breakdown.
+- Single-epic visions routed to `epic-to-ticket-workflow`, not forced through mega-epic-breakdown.
 - One checkpoint after analysis + constraints (owner answers gaps, resolves conflicts). Then draft summary presented for final confirmation.
 
 **EXISTING mode adds:**
@@ -829,7 +829,7 @@ monitoring in under 5 minutes via API. For digital agencies managing
 ## Scale Assessment
 - Feature count: 10 (3 small, 4 medium, 3 large)
 - Classification: multi-epic (~4 epics)
-- Reasoning: 3 large features + 4 medium features + multiple scaffold types → too broad for a single my-workflow run.
+- Reasoning: 3 large features + 4 medium features + multiple scaffold types → too broad for a single epic-to-ticket-workflow run.
 - Next step: Proceed to `02-epic-decomposition-command` to define epic boundaries.
 ```
 
@@ -920,6 +920,6 @@ R2. Retrofit: add Resilience layer to YouTube Data API calls — medium
 - New feature count: 4 (1 small, 2 medium, 1 large)
 - Retrofit count: 2 (both medium)
 - Classification: multi-epic (~3 epics)
-- Reasoning: 1 large + 2 medium new features + 2 retrofits → too broad for a single my-workflow run.
+- Reasoning: 1 large + 2 medium new features + 2 retrofits → too broad for a single epic-to-ticket-workflow run.
 - Next step: Proceed to `02-epic-decomposition-command` to define epic boundaries. 02 will emit Retrofit epics R1 and R2 alongside the delta-feature epics.
 ```

@@ -29,7 +29,9 @@ A dimension belongs at intake **only if** wrong = **irreversible** or **kills be
 
 ---
 
-## Part 1 — Mega-Epic (paste with 00 + 02)
+## Part 1 — Mega-Epic Decomposition Guidance
+
+*Consumed by `02-epic-decomposition-command` (and `00-trigger-workflow-command` Step E4 in EXISTING mode) to drive mobile-specific epic patterns.*
 
 ### 1A. Vision Intake Dimensions
 
@@ -254,11 +256,13 @@ After foundation:
 
 ---
 
-## Part 2 — Per-Epic (paste when starting my-workflow for a mobile epic)
+## Part 2 — Per-Epic Implementation Guidance
 
-These directives apply throughout all my-workflow steps when the epic belongs to a mobile app project. Traycer carries them from epic-brief through ticket-breakdown and into execution plans.
+*Reserved for future per-epic loading by `epic-to-ticket-workflow` command files (`01-epic-brief`, `02-core-flows`, `03-tech-plan`, `04-deploy-plan`, `05-ticket-outline`, `06-ticket-breakdown`). Not currently auto-wired — those command files do not yet `read domain-modules/mobile-app.md`. Surfaced here so the patterns are co-located with Part 1; load order can be wired later.*
 
-### 2A. Epic Brief (my-workflow/01)
+These directives apply throughout all epic-to-ticket-workflow steps when the epic belongs to a mobile app project. Traycer carries them from epic-brief through ticket-breakdown and into execution plans.
+
+### 2A. Epic Brief (epic-to-ticket-workflow/01)
 
 When creating the epic brief for a mobile epic:
 
@@ -269,7 +273,7 @@ When creating the epic brief for a mobile epic:
 - If this epic touches monetization (§5), the brief must include: IAP product types, RevenueCat offering IDs, entitlement gating matrix, pricing tiers. The coding agent implements a decided design.
 - If this epic touches compliance (§13), the brief must include: which privacy labels, which permissions, account deletion flow.
 
-### 2B. Core Flows (my-workflow/02)
+### 2B. Core Flows (epic-to-ticket-workflow/02)
 
 When mapping core flows for a mobile epic, include these mobile-specific flows if the epic touches them:
 
@@ -284,7 +288,7 @@ Each flow must identify the `[PRIMARY PATH]` — the happy path. These become Ma
 
 **Screen inventory:** `.windsurf/rules/mobile-app/80-mobile.md` § Screen Inventory lists the 17 mandatory screens every mobile app ships. Core-flows must map to these screens + derive any project-specific screens not in the inventory.
 
-### 2C. Tech Plan (my-workflow/03)
+### 2C. Tech Plan (epic-to-ticket-workflow/03)
 
 When creating the tech plan for a mobile epic, enforce:
 
@@ -297,7 +301,7 @@ When creating the tech plan for a mobile epic, enforce:
 - **API versioning:** backend supports N and N-1 API versions simultaneously. Forced upgrade gate in client for breaking changes.
 - **Compliance architecture:** Privacy Manifest, ATT prompt before tracking, GDPR consent gate, account deletion endpoint. Reference `.windsurf/rules/mobile-app/80-mobile.md` § Compliance.
 
-### 2D. Ticket Outline (my-workflow/05)
+### 2D. Ticket Outline (epic-to-ticket-workflow/05)
 
 When creating the ticket outline for a mobile epic, verify coverage:
 
@@ -312,7 +316,7 @@ When creating the ticket outline for a mobile epic, verify coverage:
 - Every ticket that touches UI must have `80-mobile.md` in its Rule Packs.
 - E2E test target: every `[PRIMARY PATH]` flow gets a Maestro YAML (reference `mobile-app/80-mobile.md` § Testing).
 
-### 2E. Ticket Breakdown (my-workflow/06)
+### 2E. Ticket Breakdown (epic-to-ticket-workflow/06)
 
 When Traycer creates full ticket specs and agent execution plans for a mobile epic:
 

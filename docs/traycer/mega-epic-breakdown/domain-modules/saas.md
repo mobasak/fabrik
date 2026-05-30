@@ -25,7 +25,9 @@ A dimension belongs at intake **only if** getting it wrong is **irreversible** o
 
 ---
 
-## Part 1 — Mega-Epic (paste with 00 + 02)
+## Part 1 — Mega-Epic Decomposition Guidance
+
+*Consumed by `02-epic-decomposition-command` (and `00-trigger-workflow-command` Step E4 in EXISTING mode) to drive SaaS-specific epic patterns.*
 
 ### 1A. Vision Intake Dimensions
 
@@ -231,11 +233,13 @@ Reference `.windsurf/rules/saas/88-saas-launch-checklist.md` phases:
 
 ---
 
-## Part 2 — Per-Epic (paste when starting my-workflow for a SaaS epic)
+## Part 2 — Per-Epic Implementation Guidance
 
-These directives apply throughout all my-workflow steps when the epic belongs to a SaaS project. Traycer carries them from epic-brief through ticket-breakdown and into execution plans.
+*Reserved for future per-epic loading by `epic-to-ticket-workflow` command files (`01-epic-brief`, `02-core-flows`, `03-tech-plan`, `04-deploy-plan`, `05-ticket-outline`, `06-ticket-breakdown`). Not currently auto-wired — those command files do not yet `read domain-modules/saas.md`. Surfaced here so the patterns are co-located with Part 1; load order can be wired later.*
 
-### 2A. Epic Brief (my-workflow/01)
+These directives apply throughout all epic-to-ticket-workflow steps when the epic belongs to a SaaS project. Traycer carries them from epic-brief through ticket-breakdown and into execution plans.
+
+### 2A. Epic Brief (epic-to-ticket-workflow/01)
 
 When creating the epic brief for a SaaS epic:
 
@@ -245,7 +249,7 @@ When creating the epic brief for a SaaS epic:
 - If this epic touches billing (§4/§7), the brief must include: pricing tiers, gating matrix, trial type, expansion triggers. The coding agent cannot design billing — it implements a decided design.
 - Success Criteria must include at least one criterion per dimension this epic addresses.
 
-### 2B. Core Flows (my-workflow/02)
+### 2B. Core Flows (epic-to-ticket-workflow/02)
 
 When mapping core flows for a SaaS epic, include these SaaS-specific flows if the epic touches them:
 
@@ -259,7 +263,7 @@ Each flow must identify the `[PRIMARY PATH]` — the happy path a new user takes
 
 **Page inventory:** `.windsurf/rules/saas/60-saas-ui.md` § Page Inventory lists the 20 mandatory pages every SaaS ships (one — `[Core feature pages]` — is a project-specific placeholder). Core-flows must map to these pages + derive any project-specific pages not in the inventory.
 
-### 2C. Tech Plan (my-workflow/03)
+### 2C. Tech Plan (epic-to-ticket-workflow/03)
 
 When creating the tech plan for a SaaS epic, enforce:
 
@@ -270,7 +274,7 @@ When creating the tech plan for a SaaS epic, enforce:
 - **Analytics instrumentation:** product events to structured log (activation, feature usage, conversion). UTM/source capture at signup. AARRR stage tags on each event.
 - **Data isolation:** tenant-scoped queries enforced at the ORM/repository layer (not just RLS). Cross-tenant data access = security incident.
 
-### 2D. Ticket Outline (my-workflow/05)
+### 2D. Ticket Outline (epic-to-ticket-workflow/05)
 
 When creating the ticket outline for a SaaS epic, verify coverage:
 
@@ -283,7 +287,7 @@ When creating the ticket outline for a SaaS epic, verify coverage:
 - Analytics instrumentation is NOT a separate ticket — it belongs inside each feature ticket as an AC.
 - The closure ticket must include AARRR dashboard verification.
 
-### 2E. Ticket Breakdown (my-workflow/06)
+### 2E. Ticket Breakdown (epic-to-ticket-workflow/06)
 
 When Traycer creates full ticket specs and agent execution plans for a SaaS epic:
 

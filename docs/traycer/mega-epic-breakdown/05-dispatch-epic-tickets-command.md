@@ -18,7 +18,7 @@ You are a dispatcher. You verify that all epic tickets from `03-expand-epic-file
 
 - **Tickets are already persisted.** `03-expand-epic-files-command` created them in Traycer's ticket store. There is nothing to write to disk.
 - **Dispatch is the only action here.** Read the ticket list, confirm they exist, route to execution.
-- **One epic at a time through my-workflow.** Dependency Graph determines which epic goes next. Parallel-labeled epics in the same batch can execute in any order — but the owner runs one my-workflow cycle at a time.
+- **One epic at a time through epic-to-ticket-workflow.** Dependency Graph determines which epic goes next. Parallel-labeled epics in the same batch can execute in any order — but the owner runs one epic-to-ticket-workflow cycle at a time.
 
 ## Processing User Request
 
@@ -46,7 +46,7 @@ Batch 2 (parallel): Epic Z          (depends on Batch 1)
 
 State dispatch instructions:
 
-"To execute an epic: select its ticket → run `my-workflow/00-trigger-workflow-command` in **consume mode** — it reads the epic ticket's Metadata block as the INFRA-CHECK input instead of deriving it from scratch. Then continue through `01-epic-brief-command` as normal. The ticket description IS the Epic Brief input."
+"To execute an epic: select its ticket → run `epic-to-ticket-workflow/00-trigger-workflow-command` in **consume mode** — it reads the epic ticket's Metadata block as the INFRA-CHECK input instead of deriving it from scratch. Then continue through `01-epic-brief-command` as normal. The ticket description IS the Epic Brief input."
 
 "Dispatch order per Dependency Graph:"
 
@@ -54,7 +54,7 @@ State dispatch instructions:
 - Batch 2: [Epic Z] — dispatch after Batch 1 completes
 - ...
 
-"After all epics execute, run `my-workflow/08-implementation-validation-command` per epic to verify implementation."
+"After all epics execute, run `epic-to-ticket-workflow/08-implementation-validation-command` per epic to verify implementation."
 
 ## Does NOT
 
@@ -67,4 +67,4 @@ State dispatch instructions:
 - `list_tickets` confirms all epic tickets exist.
 - Ticket count matches epic count from `02-epic-decomposition-command`.
 - Dispatch order stated per Dependency Graph.
-- Route to `my-workflow` implementation validation stated after execution.
+- Route to `epic-to-ticket-workflow` implementation validation stated after execution.

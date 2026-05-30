@@ -1690,12 +1690,12 @@ def scaffold(
 
         # G-B4 (T1-02): point the operator at the current Traycer planning flow.
         # Multi-epic projects start at mega-epic-breakdown/00-trigger;
-        # the per-epic flow lives in my-workflow/ (consumed after epic dispatch).
+        # the per-epic flow lives in epic-to-ticket-workflow/ (consumed after epic dispatch).
         click.echo(
             f"\n# Next: cd /opt/{name}; open Traycer and paste "
             f"docs/traycer/mega-epic-breakdown/00-trigger-workflow-command.md "
             f"to begin vision intake. The flow goes: vision → epic decomposition "
-            f"→ ticket expansion → dispatch → per-epic my-workflow."
+            f"→ ticket expansion → dispatch → per-epic epic-to-ticket-workflow."
         )
 
     except ValueError as e:

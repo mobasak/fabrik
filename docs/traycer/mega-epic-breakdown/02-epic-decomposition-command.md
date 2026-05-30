@@ -31,7 +31,7 @@ This command produces the compact epic proposal + Infrastructure Decisions in co
 - **Every epic must be independently deployable.** After an epic completes, something works end-to-end that the owner can see and use. No "foundation-only" epics that produce nothing visible.
 - **Maximize parallelism between epics.** If two epics share no mutable state, they can run in parallel. Fewer sequential dependencies = faster delivery.
 - **Draw boundaries by DOMAIN, not by layer.** "User management" is an epic. "Database layer" is not. Each epic delivers a vertical slice — from DB to API to UI (if applicable).
-- **Plan for a solo dev + AI fleet.** One epic runs through my-workflow at a time. Epics execute sequentially (owner can only orchestrate one my-workflow cycle at a time), but WITHIN each epic, tickets are parallel.
+- **Plan for a solo dev + AI fleet.** One epic runs through epic-to-ticket-workflow at a time. Epics execute sequentially (owner can only orchestrate one epic-to-ticket-workflow cycle at a time), but WITHIN each epic, tickets are parallel.
 - **Token budget matters.** This command stays lean — compact proposal, not full epic files. Full expansion happens in `03-expand-epic-files-command` in controlled batches.
 
 ## Input Contract
@@ -165,7 +165,7 @@ Produce the shared infrastructure document (≤5,000 tokens). These decisions ar
 # Infrastructure Decisions — Shared Across All Epics
 
 [These decisions are made ONCE. Each epic inherits them.
-Do NOT re-decide in my-workflow. Do NOT copy into epic files.]
+Do NOT re-decide in epic-to-ticket-workflow. Do NOT copy into epic files.]
 
 ## Database Strategy
 - [which DB holds what, shared schemas, per-epic schemas]
@@ -297,8 +297,8 @@ Iterate until the owner explicitly confirms:
 
 - Does NOT re-derive the vision, features, or technology decisions — consumes `00-trigger-workflow-command`'s confirmed output.
 - Does NOT produce full epic tickets — that is `03-expand-epic-files-command`. This command produces the compact proposal only.
-- Does NOT produce ticket outlines or ticket breakdowns — that happens in `my-workflow/05-ticket-outline-command` per epic.
-- Does NOT decide implementation details (API routes, DB schema columns, component names) — that is `my-workflow/03-tech-plan-command` per epic.
+- Does NOT produce ticket outlines or ticket breakdowns — that happens in `epic-to-ticket-workflow/05-ticket-outline-command` per epic.
+- Does NOT decide implementation details (API routes, DB schema columns, component names) — that is `epic-to-ticket-workflow/03-tech-plan-command` per epic.
 - Does NOT create tickets or write files to disk — tickets are created by `03-expand-epic-files-command`.
 
 ## Acceptance Criteria

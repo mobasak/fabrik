@@ -70,7 +70,7 @@ These are enforced at planning time. Violations block the workflow.
 
 ## **Entry Points**
 
-This command (`00-trigger`) is the **mandatory entry point** for every my-workflow run — both single-epic and multi-epic.
+This command (`00-trigger`) is the **mandatory entry point** for every epic-to-ticket-workflow run — both single-epic and multi-epic.
 
 **Single-epic (standalone projects):** Full processing — scaffold detection, research discovery, all 26 constraints, INFRA-CHECK from scratch.
 

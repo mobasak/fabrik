@@ -15,7 +15,7 @@
 | 1   | **CLI**               | `fabrik` (40+ subcommands)                                                                   | scaffold, apply (single deploy entry — `deploy` removed/folded in), redeploy, destroy, verify, audit, dev, review, logs, domain, seo, ai                                                                                |
 | 2   | **Scaffolding**       | `scaffold.py`                                                                                | Creates projects with governance + infra wiring (11 types)                                                                                                                                                             |
 | 3   | **Planning**          | mega-epic-breakdown (5 commands: 00-trigger, 02-05)                                          | Large vision → epics → tickets → dispatch. `00-trigger` is a single entry point serving both new and existing projects via owner-declared mode (Step 0).                                                                |
-| 4   | **Planning**          | my-workflow (00-11)                                                                          | Single-epic planning + execution. Also the execution engine per epic after mega-epic dispatch.                                                                                                                          |
+| 4   | **Planning**          | epic-to-ticket-workflow (00-11)                                                                          | Single-epic planning + execution. Also the execution engine per epic after mega-epic dispatch.                                                                                                                          |
 | 5   | **Governance**        | `AGENTS.md` / `CLAUDE.md` / `.windsurfrules` / `AGENTS-compact.md` / `opencode.json`        | Agent bootstraps (5 files)                                                                                                                                                                                             |
 | 6   | **Rules**             | `.windsurf/rules/**/*.md`                                                                    | 30 domain discipline packs                                                                                                                                                                                             |
 | 7   | **Enforcement**       | `final_gate.py` + 34 checks in `enforcement/`                                               | Task completion + structural validation                                                                                                                                                                                |
@@ -43,13 +43,13 @@
 
 Two entry paths depending on scope:
 
-**Single-epic:** `docs/traycer/my-workflow/` — `00-trigger` → `01-epic-brief` → `02-core-flows` → `03-tech-plan` → `04-deploy-plan` → `05-ticket-outline` → implementation (`06-07-08`) → validation (`09-11`).
+**Single-epic:** `docs/traycer/epic-to-ticket-workflow/` — `00-trigger` → `01-epic-brief` → `02-core-flows` → `03-tech-plan` → `04-deploy-plan` → `05-ticket-outline` → implementation (`06-07-08`) → validation (`09-11`).
 
-**Multi-epic (large vision):** `docs/traycer/mega-epic-breakdown/` — `00-trigger` (vision intake + scale assessment) → `02-epic-decomposition` → `03-expand-epic-files` → `04-cross-epic-validation` → `05-dispatch`. Each dispatched epic then runs `my-workflow` in consume mode (00-trigger reads the epic ticket's Metadata as its INFRA-CHECK input).
+**Multi-epic (large vision):** `docs/traycer/mega-epic-breakdown/` — `00-trigger` (vision intake + scale assessment) → `02-epic-decomposition` → `03-expand-epic-files` → `04-cross-epic-validation` → `05-dispatch`. Each dispatched epic then runs `epic-to-ticket-workflow` in consume mode (00-trigger reads the epic ticket's Metadata as its INFRA-CHECK input).
 
 **Existing project continuation:** use `mega-epic-breakdown/00-trigger-workflow-command` and declare **EXISTING mode** when prompted at Step 0. The command branches into the continuation path (project snapshot + Compliance Detection with mechanical / rule-pack / owner-decision sub-steps + delta scoping). Output is a Vision Summary in the same shape as new-mode + two extra sections (`Locked Decisions`, `Compliance Report`). `02-epic-decomposition` consumes the Vision Summary identically and emits **Retrofit epics** for every `fix-now` row in the Compliance Report alongside the delta-feature epics.
 
-**Scale decision:** `00-trigger` (mega-epic) decides single vs multi-epic based on feature count and complexity. Single-epic routes directly to `my-workflow`. Multi-epic routes to `02-epic-decomposition`.
+**Scale decision:** `00-trigger` (mega-epic) decides single vs multi-epic based on feature count and complexity. Single-epic routes directly to `epic-to-ticket-workflow`. Multi-epic routes to `02-epic-decomposition`.
 
 **Pre-research drop point:** `docs/development/plans/00-research.md` (the owner drops external research from ChatGPT/Claude/Gemini here before planning).
 
@@ -59,11 +59,11 @@ Full lifecycle from vision to running service — what is automated vs what requ
 
 **Phase 1 — Planning (Traycer, mostly automated):**
 1. Owner drops research file in `docs/development/plans/` or `docs/preplans/`.
-2. Traycer runs `mega-epic-breakdown` or `my-workflow` to produce epic tickets.
+2. Traycer runs `mega-epic-breakdown` or `epic-to-ticket-workflow` to produce epic tickets.
 3. Owner confirms decomposition and dispatches epic tickets. **Human gate: epic confirmation.**
 
 **Phase 2 — Implementation (coding agents: Claude Code / Windsurf / Kilo):**
-4. Each epic ticket runs `my-workflow` (00-trigger consume mode → 01-epic-brief → ... → 09-11).
+4. Each epic ticket runs `epic-to-ticket-workflow` (00-trigger consume mode → 01-epic-brief → ... → 09-11).
 5. Coding agent implements, passes `scripts/final_gate.py`, stages changes.
 6. Owner reviews gate output and commits + pushes. **Human gate: commit/push decision.**
 
@@ -86,7 +86,7 @@ Traycer plans against `AGENTS.md`. Agent-execution contracts, rule packs, and wo
 | File / Path | Owner | Traycer May Edit? |
 |---|---|---|
 | `AGENTS.md` | Traycer (this file — planner context) | ✅ Yes |
-| `docs/traycer/my-workflow/**` + `docs/traycer/mega-epic-breakdown/**` | Traycer (workflow definitions) | ✅ Yes |
+| `docs/traycer/epic-to-ticket-workflow/**` + `docs/traycer/mega-epic-breakdown/**` | Traycer (workflow definitions) | ✅ Yes |
 | `docs/traycer/fabrik-workflow.md` | Reference copy (do not diverge from workflow definitions) | ✅ Yes |
 | `CLAUDE.md` | Claude Code bootstrap | ❌ No |
 | `.windsurfrules` | Windsurf Cascade bootstrap | ❌ No |
@@ -427,7 +427,7 @@ Organized by folder:
 
 ### Planning Protocol (epic-brief, decomposition, expand)
 
-During **planning** — `my-workflow/01-epic-brief`, `mega-epic-breakdown/02-epic-decomposition`, `mega-epic-breakdown/03-expand-epic-files` — Traycer must **read the full `.windsurf/rules/**/<file>.md`** for every applicable pack. Rule pack mandates are constraints on the plan. A plan that violates a rule pack mandate is wrong.
+During **planning** — `epic-to-ticket-workflow/01-epic-brief`, `mega-epic-breakdown/02-epic-decomposition`, `mega-epic-breakdown/03-expand-epic-files` — Traycer must **read the full `.windsurf/rules/**/<file>.md`** for every applicable pack. Rule pack mandates are constraints on the plan. A plan that violates a rule pack mandate is wrong.
 
 **Which packs to read during planning:**
 
@@ -574,5 +574,5 @@ Traycer plans against these rules but does NOT inline them into tickets — the 
 | AI Agent Directives | `docs/reference/ai_agent_prompt_directives.md` | Copy-paste phrases for steering agent quality |
 | GPU Workers Guide | `.windsurf/rules/core/76-gpu-workers.md` | GPU cloud decisions — when to self-host vs managed API, provider selection |
 | Lessons Learnt | `docs/LESSONS_LEARNT.md` | Past incidents, decisions, anti-patterns |
-| my-workflow | `docs/traycer/my-workflow/` | Single-epic planning + execution (00-11); also the per-epic execution engine in mega-epic runs |
+| epic-to-ticket-workflow | `docs/traycer/epic-to-ticket-workflow/` | Single-epic planning + execution (00-11); also the per-epic execution engine in mega-epic runs |
 | mega-epic-breakdown | `docs/traycer/mega-epic-breakdown/` | Large vision → epics → tickets → dispatch (5 commands); `00-trigger` is the single entry serving both new and existing projects (owner declares mode at Step 0) |

@@ -21,7 +21,7 @@ nextSteps:
 
 ## Role
 
-You are a ticket breakdown orchestrator. You read the confirmed compact epic proposal from `02-epic-decomposition-command` and create one Traycer ticket per epic. Each ticket is the complete spec a coding agent needs to run `my-workflow` for that epic — nothing more, nothing less.
+You are a ticket breakdown orchestrator. You read the confirmed compact epic proposal from `02-epic-decomposition-command` and create one Traycer ticket per epic. Each ticket is the complete spec a coding agent needs to run `epic-to-ticket-workflow` for that epic — nothing more, nothing less.
 
 ## Core Philosophy
 
@@ -114,8 +114,8 @@ Inherited from Infrastructure Decisions spec (do not duplicate here).
 ### Execution Order
 [From Dependency Graph — where this epic sits in the execution sequence]
 
-### Entry Point for my-workflow
-When dispatched, run `my-workflow/01-epic-brief-command` using this ticket as the Epic Brief.
+### Entry Point for epic-to-ticket-workflow
+When dispatched, run `epic-to-ticket-workflow/01-epic-brief-command` using this ticket as the Epic Brief.
 Infrastructure Decisions spec provides the shared infra context.
 ```
 
@@ -155,7 +155,7 @@ Total: [N] tickets. Each is dispatchable independently.
 - Description: self-sufficient spec derived verbatim from 02's confirmed output
 - Status: TODO (ready for dispatch)
 
-**Consumed by:** coding agents running `my-workflow/01-epic-brief-command` when the ticket is dispatched.
+**Consumed by:** coding agents running `epic-to-ticket-workflow/01-epic-brief-command` when the ticket is dispatched.
 
 ## Does NOT
 
@@ -168,7 +168,7 @@ Total: [N] tickets. Each is dispatchable independently.
 
 - All epics from the confirmed proposal have a corresponding Traycer ticket.
 - Each ticket title follows the format: `Epic N — [Name]`.
-- Each ticket description is self-sufficient: a coding agent can run `my-workflow/01-epic-brief-command` using only the ticket + Infrastructure Decisions spec.
+- Each ticket description is self-sufficient: a coding agent can run `epic-to-ticket-workflow/01-epic-brief-command` using only the ticket + Infrastructure Decisions spec.
 - Each ticket has ALL required sections: Summary, Scope (In/Out), Success Criteria (5-8 measurable), Out of Scope, Dependencies (with specific artifacts), Metadata (all fields), Infrastructure reference, Execution Order, Entry Point.
 - Success Criteria are testable — "user can do X", not "system supports X."
 - Dependencies name specific artifacts (tables, functions, endpoints, env vars), not vague references.

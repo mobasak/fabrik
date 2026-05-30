@@ -6,7 +6,7 @@
 
 # Mega-Epic Command Evaluation Checklist
 
-Every command in mega-epic-breakdown (00, 02-05) must be evaluated against this list before it's considered complete. This checklist is for DECOMPOSITION quality — splitting a large vision into independent epics. For TICKET quality, see `my-workflow/EVALUATION_CHECKLIST.md`.
+Every command in mega-epic-breakdown (00, 02-05) must be evaluated against this list before it's considered complete. This checklist is for DECOMPOSITION quality — splitting a large vision into independent epics. For TICKET quality, see `epic-to-ticket-workflow/EVALUATION_CHECKLIST.md`.
 
 ---
 
@@ -28,7 +28,7 @@ Every command in mega-epic-breakdown (00, 02-05) must be evaluated against this 
 11. Are epic boundaries drawn along DOMAIN lines (not layer lines)? Domain = "user management" not "database layer"
 12. Does NO epic share mutable state with a parallel epic? (shared DB schema = sequential dependency, not parallel)
 13. Could a different AGENT team work each epic without coordinating mid-epic? (independence test)
-14. Is each epic SELF-CONTAINED enough to go through my-workflow/00-11 independently?
+14. Is each epic SELF-CONTAINED enough to go through epic-to-ticket-workflow/00-11 independently?
 
 ## Dependency Graph Quality
 
@@ -51,13 +51,13 @@ Every command in mega-epic-breakdown (00, 02-05) must be evaluated against this 
 28. Scaffold type per epic: which of the 11 scaffold types applies?
 29. Shape block per epic: what registrars will each epic's `fabrik apply` activate?
 
-## Handoff to my-workflow
+## Handoff to epic-to-ticket-workflow
 
-30. Does each epic output file contain enough context for my-workflow/01-epic-brief to START? (scope, success criteria, constraints, metadata)
+30. Does each epic output file contain enough context for epic-to-ticket-workflow/01-epic-brief to START? (scope, success criteria, constraints, metadata)
 31. Does each epic output file reference the shared infrastructure decisions? (not duplicate them)
 32. Does each epic output file state what PRIOR EPICS produced that this epic consumes? (DB tables, API contracts, env vars)
 33. Does each epic output file state what THIS EPIC produces that later epics need? (contracts, not implementation details)
-34. Can Traycer run my-workflow/01-epic-brief with ONLY the epic output file + the infrastructure decisions file? (no need to re-read the full vision research)
+34. Can Traycer run epic-to-ticket-workflow/01-epic-brief with ONLY the epic output file + the infrastructure decisions file? (no need to re-read the full vision research)
 
 ## Context Window Respect
 
@@ -128,16 +128,16 @@ Every command in mega-epic-breakdown (00, 02-05) must be evaluated against this 
 75. **Vision Summary** (00 output): ≤5,000 tokens. Sections: Product Vision, Personas, Value Streams, Full Feature Inventory, Backing Services, External Services, Technology Decisions, Constraints, Out of Scope, Open Questions, Scale Assessment.
 76. **Infrastructure Decisions** (02 output): ≤5,000 tokens. Sections: Scaffold Type(s), Database Strategy, Auth Strategy, Email Strategy, Background Processing, Embedding Model (if RAG), Backing Services, External Services, Domain/Routing, Shared Environment Variables, Shared Shape Block Decisions.
 77. **Compact Epic Proposal** (02 output): Scope summary, features, scaffold, dependencies, parallel lanes, port, delivers, rule packs, HAS_USER_GUIDE per epic.
-78. **Full Epic File** (03 output, one per epic): ≤10,000 tokens. Sections: Summary, Scope, Success Criteria, Out of Scope, Dependencies (produces/consumes), Technology Stack, Metadata for my-workflow/01-epic-brief, Estimated Scale.
+78. **Full Epic File** (03 output, one per epic): ≤10,000 tokens. Sections: Summary, Scope, Success Criteria, Out of Scope, Dependencies (produces/consumes), Technology Stack, Metadata for epic-to-ticket-workflow/01-epic-brief, Estimated Scale.
 79. **Dependency Graph** (02 output): Mermaid diagram + execution order table + parallel lanes identified.
 80. **Validation Report** (05 output): Feature Coverage, Epic Tickets (per-epic PASS/FAIL), Dependency Graph, Infrastructure Decisions, Handoff Readiness, Overall result, Recommended Execution Order.
 
-## Handoff Format (epic file → my-workflow/01-epic-brief)
+## Handoff Format (epic file → epic-to-ticket-workflow/01-epic-brief)
 
-81. Each epic output file MUST contain a `## Metadata` section with: scaffold type, shape flags, concurrency model, i18n requirement, Responsive, Dark+Light, port assignment, rule packs list — matching what my-workflow/01-epic-brief expects in its "Metadata" field.
-82. Each epic output file MUST contain a `## Success Criteria` section with numbered, testable criteria — matching what my-workflow/01-epic-brief uses to validate coverage.
+81. Each epic output file MUST contain a `## Metadata` section with: scaffold type, shape flags, concurrency model, i18n requirement, Responsive, Dark+Light, port assignment, rule packs list — matching what epic-to-ticket-workflow/01-epic-brief expects in its "Metadata" field.
+82. Each epic output file MUST contain a `## Success Criteria` section with numbered, testable criteria — matching what epic-to-ticket-workflow/01-epic-brief uses to validate coverage.
 83. Each epic output file MUST contain a `## Dependencies` section stating: what prior epics produced (DB tables, API contracts, env vars) that this epic assumes exist.
-84. Each epic output file MUST be SELF-SUFFICIENT — Traycer running my-workflow/01 reads ONLY this file + infrastructure-decisions.md. No need to load the full vision research.
+84. Each epic output file MUST be SELF-SUFFICIENT — Traycer running epic-to-ticket-workflow/01 reads ONLY this file + infrastructure-decisions.md. No need to load the full vision research.
 
 ## Iterative Convergence
 
