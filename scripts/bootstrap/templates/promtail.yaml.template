@@ -1,0 +1,51 @@
+# Promtail configuration on each Fabrik spoke.
+# Ships container stdout/stderr to vps1's Loki over the Wireguard mesh.
+# {{SPOKE_NAME}} label so Grafana can filter by host.
+
+server:
+  # Bind to mesh IP only — vps1's Prometheus scrapes promtail's /metrics here.
+  http_listen_address: {{SPOKE_MESH_IP}}
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /run/promtail/positions.yaml
+
+clients:
+  # Push logs to vps1's Loki over the mesh.
+  - url: http://{{HUB_MESH_IP}}:3100/loki/api/v1/push
+
+scrape_configs:
+  - job_name: containers
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: containerlogs
+          host: {{SPOKE_NAME}}
+          __path__: /var/lib/docker/containers/*/*log
+
+    pipeline_stages:
+      # Parse Docker JSON log format
+      - json:
+          expressions:
+            output: log
+            stream: stream
+            attrs:
+
+      # Extract container name from attrs.tag
+      - json:
+          expressions:
+            tag:
+          source: attrs
+
+      - regex:
+          expression: (?P<container_name>(?:[a-zA-Z0-9][a-zA-Z0-9_.-]+))
+          source: tag
+
+      - labels:
+          container_name:
+          stream:
+
+      - output:
+          source: output

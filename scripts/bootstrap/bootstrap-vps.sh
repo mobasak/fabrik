@@ -537,9 +537,49 @@ step_10_apply_firewall_rules() {
 }
 
 step_11_install_monitoring_agents() {
-    log "step 11: install lightweight monitoring agents shipping to vps1 over mesh"
-    warn "step 11 stub — TODO: render promtail.yml + node-exporter + cadvisor compose, push to /opt/monitoring-agent/, docker compose up -d"
-    # Not implementing in M1a — defer to M1b after multipass testing proves the rest works.
+    log "step 11: install monitoring agents shipping to vps1 over mesh"
+    if $DRY_RUN; then
+        dim "    [dry-run] would scp 2 templates to /opt/monitoring-agent/ and docker compose up -d"
+        return 0
+    fi
+
+    # Render the compose + promtail config locally with the spoke's mesh IP,
+    # spoke name, hub mesh IP. Push via /tmp then sudo mv to /opt/monitoring-agent/.
+    local tmpdir
+    tmpdir=$(mktemp -d -t fabrik-monitoring-agent-XXXX)
+    trap "rm -rf '$tmpdir'" RETURN
+
+    # Substitute templates (envsubst would also work; using sed for portability)
+    sed \
+        -e "s|{{SPOKE_NAME}}|${SPOKE_NAME}|g" \
+        -e "s|{{SPOKE_MESH_IP}}|${SPOKE_MESH_IP}|g" \
+        -e "s|{{HUB_MESH_IP}}|${FABRIK_WG_HUB_IP}|g" \
+        "${SCRIPT_DIR}/templates/monitoring-agent.compose.yaml.template" \
+        > "${tmpdir}/compose.yaml"
+    sed \
+        -e "s|{{SPOKE_NAME}}|${SPOKE_NAME}|g" \
+        -e "s|{{SPOKE_MESH_IP}}|${SPOKE_MESH_IP}|g" \
+        -e "s|{{HUB_MESH_IP}}|${FABRIK_WG_HUB_IP}|g" \
+        "${SCRIPT_DIR}/templates/promtail.yaml.template" \
+        > "${tmpdir}/promtail.yaml"
+
+    # scp to /tmp on the spoke, then sudo mv into place
+    scp -q "${tmpdir}/compose.yaml" "${tmpdir}/promtail.yaml" \
+        "${EFFECTIVE_REMOTE}:/tmp/"
+    remote "sudo mkdir -p /opt/monitoring-agent && \
+        sudo mv /tmp/compose.yaml /opt/monitoring-agent/compose.yaml && \
+        sudo mv /tmp/promtail.yaml /opt/monitoring-agent/promtail.yaml && \
+        sudo chown -R root:root /opt/monitoring-agent && \
+        sudo chmod 644 /opt/monitoring-agent/*.yaml"
+
+    # Bring up the stack
+    remote "cd /opt/monitoring-agent && sudo docker compose up -d --remove-orphans"
+
+    # Verify all 3 containers up
+    sleep 4
+    remote 'sudo docker ps --filter name=node-exporter --filter name=cadvisor --filter name=promtail --format "{{.Names}} {{.Status}}"'
+
+    ok "step 11 done — monitoring agents shipping to vps1's Loki + ready to be scraped"
 }
 
 step_12_create_dns_records() {
