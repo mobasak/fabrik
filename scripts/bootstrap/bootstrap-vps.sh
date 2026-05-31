@@ -207,8 +207,12 @@ preflight() {
 
 step_01_harden_ssh() {
     log "step 01: harden SSH (no root login, no password auth)"
+    # BUG-FIX 2026-05-31: was 'PermitRootLogin no' which blocked ALL root login
+    # including key auth — locked out vps2 on first bootstrap. Correct hardening
+    # is 'prohibit-password' which keeps key-based root login working (we use that)
+    # but blocks any future password attempt.
     remote "sudo sed -i \
-        -e 's/^#*PermitRootLogin.*/PermitRootLogin no/' \
+        -e 's/^#*PermitRootLogin.*/PermitRootLogin prohibit-password/' \
         -e 's/^#*PasswordAuthentication.*/PasswordAuthentication no/' \
         /etc/ssh/sshd_config && \
         sudo systemctl reload ssh 2>/dev/null || sudo systemctl reload sshd"
