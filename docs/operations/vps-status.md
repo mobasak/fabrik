@@ -1,6 +1,6 @@
 # VPS Status
 
-**Last Updated:** 2026-05-29 11:58 UTC
+**Last Updated:** 2026-05-31 09:56 UTC
 **Host:** vps1.ocoron.com (172.93.160.197)
 **Provider:** Psychz Networks (AS32421) — Los Angeles, CA, USA
 **SSH:** `ssh vps` (ozgur@vps1.ocoron.com, Ed25519 key-only, root disabled)
@@ -11,11 +11,11 @@
 ## System Overview
 
 <!-- AUTO:system_overview -->
-| **Containers running** | 31 |
-| **Disk** | 108G total, 37G used, 71G free (34%) |
-| **Memory** | 11Gi total, 5.1Gi used, 453Mi free |
-| **Uptime** | up 10 weeks, 1 day, 13 hours, 38 minutes |
-| **Last snapshot** | 2026-05-29 11:58 UTC |
+| **Containers running** | 28 |
+| **Disk** | 108G total, 28G used, 81G free (26%) |
+| **Memory** | 11Gi total, 3.1Gi used, 3.6Gi free |
+| **Uptime** | up 12 hours, 35 minutes |
+| **Last snapshot** | 2026-05-31 09:56 UTC |
 <!-- /AUTO -->
 
 | **OS** | Ubuntu 24.04 LTS |
@@ -70,37 +70,34 @@
 <!-- AUTO:container_status -->
 | Container | Status | Memory limit |
 |---|---|---|
-| `alertmanager` | ✅ Up 41 hours (healthy) | — |
-| `apprise` | ✅ Up 41 hours (healthy) | 768m |
-| `authelia` | ✅ Up 41 hours (healthy) | 512m |
-| `backrest` | ✅ Up 41 hours | 512m |
-| `browserless` | ✅ Up 40 hours | 2g |
-| `cadvisor` | ✅ Up 41 hours (healthy) | — |
-| `gatus` | ✅ Up 41 hours | 256m |
-| `glitchtip-web` | ✅ Up 41 hours | 512m |
-| `glitchtip-worker` | ✅ Up 41 hours | 512m |
-| `gotenberg` | ✅ Up 40 hours | 512m |
-| `grafana` | ✅ Up 41 hours (healthy) | — |
-| `image-broker` | ✅ Up 40 hours (healthy) | 512m |
-| `loki` | ✅ Up 41 hours (healthy) | — |
-| `meilisearch` | ✅ Up 40 hours | 512m |
-| `n8n` | ✅ Up 41 hours | 2g |
-| `netdata` | ✅ Up 41 hours (healthy) | 1g |
-| `node-exporter` | ✅ Up 41 hours | — |
-| `ocoron-com-backup-1` | ✅ Up 9 days | 128m |
-| `ocoron-com-db-1` | ✅ Up 9 days (healthy) | 1g |
-| `ocoron-com-nginx-1` | ✅ Up 9 days | 256m |
-| `ocoron-com-redis-1` | ✅ Up 9 days (healthy) | 256m |
-| `ocoron-com-wordpress-1` | ✅ Up 9 days | 512m |
-| `postgres-exporter` | ✅ Up 9 days (healthy) | 64m |
-| `postgres-main` | ✅ Up 41 hours (healthy) | 2g |
-| `prometheus` | ✅ Up 9 days (healthy) | 1g |
-| `promtail` | ✅ Up 41 hours | — |
-| `pushgateway` | ✅ Up 41 hours (healthy) | 64m |
-| `redis-exporter` | ✅ Up 9 days | 64m |
-| `redis-main` | ✅ Up 9 days (healthy) | 512m |
-| `site-provisioner` | ✅ Up 40 hours (healthy) | 512m |
-| `traefik` | ✅ Up 9 days | 256m |
+| `alertmanager` | ✅ Up 11 hours (healthy) | — |
+| `apprise` | ✅ Up 11 hours (healthy) | 768m |
+| `authelia` | ✅ Up 11 hours (healthy) | 512m |
+| `backrest` | ✅ Up 11 hours | 512m |
+| `browserless` | ✅ Up 11 hours | 2g |
+| `cadvisor` | ✅ Up 11 hours (healthy) | — |
+| `gatus` | ✅ Up 11 hours | 256m |
+| `glitchtip-web` | ✅ Up 11 hours | 512m |
+| `glitchtip-worker` | ✅ Up 11 hours | 512m |
+| `gotenberg` | ✅ Up 11 hours | 512m |
+| `grafana` | ✅ Up 11 hours (healthy) | — |
+| `loki` | ✅ Up 11 hours (healthy) | — |
+| `meilisearch` | ✅ Up 11 hours | 512m |
+| `n8n` | ✅ Up 11 hours | 2g |
+| `node-exporter` | ✅ Up 11 hours | — |
+| `ocoron-com-backup-1` | ✅ Up 11 hours | — |
+| `ocoron-com-db-1` | ✅ Up 11 hours (healthy) | — |
+| `ocoron-com-nginx-1` | ✅ Up 11 hours | — |
+| `ocoron-com-redis-1` | ✅ Up 11 hours (healthy) | — |
+| `ocoron-com-wordpress-1` | ✅ Up 11 hours | — |
+| `postgres-exporter` | ✅ Up 11 hours (healthy) | — |
+| `postgres-main` | ✅ Up 11 hours (healthy) | 2g |
+| `prometheus` | ✅ Up 11 hours (healthy) | 1g |
+| `promtail` | ✅ Up 11 hours | — |
+| `pushgateway` | ✅ Up 11 hours (healthy) | 64m |
+| `redis-exporter` | ✅ Up 11 hours | — |
+| `redis-main` | ✅ Up 11 hours (healthy) | — |
+| `traefik` | ✅ Up 11 hours | — |
 <!-- /AUTO -->
 
 ---
@@ -119,7 +116,6 @@
 | `ocoron-com-www-redirect@docker` | redirectregex |
 | `redirect-to-https@docker` | redirectscheme |
 | `redirect-web-to-websecure@internal` | redirectscheme |
-| `site-provisioner-ipallowlist@docker` | ipallowlist |
 <!-- /AUTO -->
 
 ---
@@ -243,23 +239,11 @@ For new single-image Application: see `.windsurf/rules/core/55-observability.md`
 | `glitchtip-web` | 512m |
 | `glitchtip-worker` | 512m |
 | `gotenberg` | 512m |
-| `image-broker` | 512m |
 | `meilisearch` | 512m |
 | `n8n` | 2g |
-| `netdata` | 1g |
-| `ocoron-com-backup-1` | 128m |
-| `ocoron-com-db-1` | 1g |
-| `ocoron-com-nginx-1` | 256m |
-| `ocoron-com-redis-1` | 256m |
-| `ocoron-com-wordpress-1` | 512m |
-| `postgres-exporter` | 64m |
 | `postgres-main` | 2g |
 | `prometheus` | 1g |
 | `pushgateway` | 64m |
-| `redis-exporter` | 64m |
-| `redis-main` | 512m |
-| `site-provisioner` | 512m |
-| `traefik` | 256m |
 <!-- /AUTO -->
 
 ---
