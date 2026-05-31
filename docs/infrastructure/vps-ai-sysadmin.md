@@ -51,7 +51,7 @@ An on-demand AI system administrator. Not a monitoring tool — a thinking sysad
 
 ## Infrastructure APIs (queried locally)
 
-Claude Code reaches these from inside the Docker `coolify` network via `sudo docker exec` or `sudo docker run --rm --network coolify curlimages/curl:latest`.
+Claude Code reaches these from inside the Docker `fabrik` network via `sudo docker exec` or `sudo docker run --rm --network fabrik curlimages/curl:latest`.
 
 | Service | URL | What the sysadmin gets |
 |---|---|---|
@@ -107,11 +107,46 @@ Claude Code reaches these from inside the Docker `coolify` network via `sudo doc
 | Log pipeline dead | Loki ingestion rate = 0 | Matches alert, backup detection |
 | TLS cert expiry | <14 days on 5 domains | Auto-renewal may have failed |
 
+### Layer 3 — Spoke-aware checks (added 2026-05-31)
+
+`proactive-check.sh` now tags every anomaly with the originating host (e.g. `cpu_high[vps2]` instead of `cpu_high`). A new `prom_hosts()` helper extracts the unique `host` label values from each PromQL result. All existing queries naturally cover vps1 + vps2 + vps3 because Prometheus on vps1 scrapes spoke `node-exporter` / `cadvisor` / `promtail` over the Wireguard mesh — no per-host check duplication needed.
+
+New Prometheus alert rules in group `spoke_health`:
+
+| Rule | Catches | Condition |
+| :--- | :--- | :--- |
+| SpokeDown | Spoke target stops reporting | `up{job=~"node-spokes\|cadvisor-spokes\|promtail-spokes"} == 0` for 5 m |
+| SpokeHighCPU | Spoke vCPU > 85 % sustained | for 10 m, warning |
+| SpokeHighRAM | Spoke RAM > 85 % sustained | for 10 m, warning |
+
+Routed via Alertmanager → Apprise → Telegram with the existing config; bot is notified through the same channel.
+
+## Multi-host scope (2026-05-31)
+
+The sysadmin operates from vps1 but has **read + restart access on vps2 and vps3** via SSH (`ssh vps2`, `ssh vps3` as `ozgur` with NOPASSWD sudo). Container actions on spokes use the same patterns:
+
+```bash
+ssh vps2 'sudo docker ps'              # list spoke containers
+ssh vps2 'sudo docker stats --no-stream'
+ssh vps2 'sudo docker logs <name> --tail 100'
+ssh vps2 'cd /opt/<svc> && sudo docker compose restart <name>'
+```
+
+Metric + log queries stay local to vps1 (Prometheus + Loki contain fleet-wide data via the mesh — see `grafana-dashboards-setup.md § Multi-host considerations`).
+
+Container classification on spokes (post-bootstrap):
+
+| Category | Spoke containers | Permissions |
+| :--- | :--- | :--- |
+| critical-infra | traefik | READ ONLY |
+| monitoring agents | node-exporter, cadvisor, promtail | READ ONLY |
+| application | (future spoke tenants) | Full autonomous |
+
 ## Container Classification
 
 | Category | Containers | Claude's permissions |
 |---|---|---|
-| **critical-infra** | traefik, postgres-main, redis-main | READ ONLY. Never restart/stop/scale. (Pre-migration entry also listed coolify + coolify-db/redis/realtime/sentinel — all removed 2026-05.) |
+| **critical-infra** | traefik, postgres-main, redis-main | READ ONLY. Never restart/stop/scale. |
 | **monitoring** | prometheus, grafana, loki, promtail, alertmanager, cadvisor, node-exporter, netdata, gatus, pushgateway, exporters | READ ONLY. Touching these blinds Claude. |
 | **platform** | authelia, apprise, backrest, n8n, glitchtip-web/worker, meilisearch, gotenberg, browserless | Restart autonomously. Report after. |
 | **application** | image-broker, site-provisioner, ocoron-com-*, any future service | Full autonomous management. |
@@ -222,24 +257,32 @@ sudo tail -20 /var/log/sysadmin-proactive.log
 The VPS has a two-layer firewall. The sysadmin must understand both but **NEVER modify either**.
 
 **Layer 1: UFW** — host-level, controls SSH + direct ports:
-```
-22/tcp ALLOW (SSH), 80/tcp ALLOW (HTTP), 443/tcp ALLOW (HTTPS+OpenVPN)
-1194/tcp ALLOW (VPN), 6001-6002/tcp ALLOW (Coolify WebSocket)
-8000/tcp DENY (Coolify raw — must use coolify.vps1.ocoron.com)
+
+```text
+22/tcp     ALLOW (SSH, key-only, no root)
+80/tcp     ALLOW (HTTP)
+443/tcp    ALLOW (HTTPS)
+1194/tcp   ALLOW (OpenVPN — user's personal VPN)
+51820/udp  ALLOW (Wireguard mesh)
+6001-6002  ALLOW (stale Coolify Realtime — pending cleanup, harmless)
+8000/tcp   DENY (stale comment, rule itself is fine)
 ```
 
 **Layer 2: DOCKER-USER iptables chain** — Docker bypasses UFW. This is the REAL perimeter for container traffic:
+
+```text
+Rule 1:    RETURN ESTABLISHED,RELATED (don't break existing sessions)
+Rule 2:    ACCEPT -i wg0 (trust everything from the Wireguard mesh)
+Rule 3:    RETURN 10.0.0.0/8 (container→container traffic)
+Rule 4:    RETURN 172.16.0.0/12 (Docker internal)
+Rule 5:    RETURN 192.168.0.0/16 (private ranges)
+Rule 6:    RETURN tcp dport 80 (Traefik HTTP)
+Rule 7:    RETURN tcp dport 443 (Traefik HTTPS)
+Rule 8:    DROP   -i ens3 -p tcp -m multiport --dports 5432,6379,9090,9091,9100,8080,3100,7700,8000 (mesh-only ports blocked from public)
+Final:     fall through to DROP (catch-all — blocks everything else from external)
 ```
-Rule 1: RETURN ESTABLISHED,RELATED (don't break existing sessions)
-Rule 2: RETURN 10.0.0.0/8 (container→container traffic)
-Rule 3: RETURN 172.16.0.0/12 (Docker internal)
-Rule 4: RETURN 192.168.0.0/16 (private ranges)
-Rule 5: RETURN tcp dport 80 (Traefik HTTP)
-Rule 6: RETURN tcp dport 443 (Traefik HTTPS)
-Rule 7: RETURN tcp dport 6001 (Coolify realtime)
-Rule 8: RETURN tcp dport 6002 (Coolify realtime)
-Rule 9: DROP all (catch-all — blocks everything else from external)
-```
+
+Mesh-only services (postgres-main, redis-main, glitchtip-web, authelia, loki, etc.) bind their host ports to `10.99.0.1:<port>` and are reachable only via wg0 — the DOCKER-USER rules block public attempts as belt-and-suspenders.
 
 **Script:** `/etc/iptables/add-docker-user-rules.sh` (re-applied on boot by `iptables-docker-user.service`)
 
@@ -505,7 +548,7 @@ The system prompt defines:
 
 ## Replication — Set Up on a New VPS from Scratch
 
-Complete recipe. Assumes fresh Ubuntu 24.04 with Docker, Coolify, and the monitoring stack already deployed.
+Complete recipe. Assumes fresh Ubuntu 24.04 with Docker, the `fabrik` Docker network, and the monitoring stack (`/opt/monitoring/compose.yaml`) already deployed via `scripts/bootstrap/bootstrap-vps.sh` + manual hub setup.
 
 ### Step 1: Install Node.js + Claude Code
 
@@ -667,7 +710,7 @@ Everything needed to rebuild the sysadmin bot from scratch:
 | Correlates metrics with logs before acting | OOM test: checked docker events, docker stats, Prometheus failcnt, dmesg, container logs — all before concluding "no OOM" |
 | Tracks patterns across sessions | Detected 4th consecutive false-positive OOM report via shift notes, flagged "upstream prompt source needs investigation" |
 | Backs up before modifying | Apprise memory bump: saved compose backup before editing |
-| Warns about downstream risks | After editing compose: "Coolify UI may revert this on redeploy" |
+| Warns about downstream risks | After editing compose: "remember to `git commit && git push` before `fabrik redeploy` so the VPS-side `git pull` picks it up" |
 | Knows when NOT to act | Restart-loop playbook: "Do NOT restart a container that's already restart-looping" |
 | Reports with evidence tables | OOM report included 8-row evidence table with specific values |
 | Finds real issues proactively | Monthly backup verify found: postgres-dumps hook broken (exit 127), stale e2e plan, recovery confidence LOW |

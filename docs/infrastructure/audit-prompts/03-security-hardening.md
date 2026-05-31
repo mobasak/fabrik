@@ -4,7 +4,7 @@ Analyze the security posture of this Ubuntu 24.04 VPS. Focus on attack surface r
 
 ## Stack Context
 
-- Traefik v2.11 terminates HTTPS (Let's Encrypt), routes to containers on `coolify` network
+- Traefik v2.11 terminates HTTPS (Let's Encrypt), routes to containers on `fabrik` network
 - Authelia provides 2FA forward-auth for admin dashboards (Grafana, Coolify UI, Netdata, Backrest, GlitchTip)
 - M2M auth: `X-Internal-Token` header with shared `SERVICE_INTERNAL_SECRET_KEY`
 - API services (image-broker, site-provisioner) bypass Authelia, use app-layer token auth

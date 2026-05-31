@@ -54,26 +54,26 @@ else:
 "
 
 # 4. Loki — is it receiving logs?
-sudo docker run --rm --network coolify curlimages/curl:latest -sS "http://loki:3100/ready"
-sudo docker run --rm --network coolify curlimages/curl:latest -sS "http://loki:3100/loki/api/v1/labels"
-sudo docker run --rm --network coolify curlimages/curl:latest -sS "http://loki:3100/loki/api/v1/label/container_name/values" | python3 -c "import json,sys; d=json.load(sys.stdin); print(f\"{len(d.get('data',[]))} container labels in Loki\")"
+sudo docker run --rm --network fabrik curlimages/curl:latest -sS "http://loki:3100/ready"
+sudo docker run --rm --network fabrik curlimages/curl:latest -sS "http://loki:3100/loki/api/v1/labels"
+sudo docker run --rm --network fabrik curlimages/curl:latest -sS "http://loki:3100/loki/api/v1/label/container_name/values" | python3 -c "import json,sys; d=json.load(sys.stdin); print(f\"{len(d.get('data',[]))} container labels in Loki\")"
 
 # 5. Promtail — shipping metrics
-sudo docker run --rm --network coolify curlimages/curl:latest -sS "http://promtail:9080/metrics" | grep -E "promtail_sent_entries_total|promtail_dropped_entries_total|promtail_targets_active"
+sudo docker run --rm --network fabrik curlimages/curl:latest -sS "http://promtail:9080/metrics" | grep -E "promtail_sent_entries_total|promtail_dropped_entries_total|promtail_targets_active"
 
 # 6. Grafana — datasources + dashboards
 TOKEN=$(grep '^GRAFANA_SERVICE_ACCOUNT_TOKEN=' /opt/fabrik/.env | cut -d= -f2-)
-sudo docker run --rm --network coolify curlimages/curl:latest -sf -H "Authorization: Bearer $TOKEN" "http://grafana:3000/api/datasources" | python3 -c "import json,sys; [print(f\"{d['name']:15s} {d['type']:12s} {d['url']}\") for d in json.load(sys.stdin)]"
-sudo docker run --rm --network coolify curlimages/curl:latest -sf -H "Authorization: Bearer $TOKEN" "http://grafana:3000/api/search?type=dash-db" | python3 -c "import json,sys; print(f\"{len(json.load(sys.stdin))} dashboards\")"
+sudo docker run --rm --network fabrik curlimages/curl:latest -sf -H "Authorization: Bearer $TOKEN" "http://grafana:3000/api/datasources" | python3 -c "import json,sys; [print(f\"{d['name']:15s} {d['type']:12s} {d['url']}\") for d in json.load(sys.stdin)]"
+sudo docker run --rm --network fabrik curlimages/curl:latest -sf -H "Authorization: Bearer $TOKEN" "http://grafana:3000/api/search?type=dash-db" | python3 -c "import json,sys; print(f\"{len(json.load(sys.stdin))} dashboards\")"
 
 # 7. GlitchTip — API health + project count
-sudo docker run --rm --network coolify curlimages/curl:latest -sS -o /dev/null -w "%{http_code}" "http://glitchtip-web:8000/api/0/"
+sudo docker run --rm --network fabrik curlimages/curl:latest -sS -o /dev/null -w "%{http_code}" "http://glitchtip-web:8000/api/0/"
 GT_TOKEN=$(grep '^GLITCHTIP_AUTH_TOKEN=' /opt/fabrik/.env | cut -d= -f2-)
 GT_ORG=$(grep '^GLITCHTIP_ORG_SLUG=' /opt/fabrik/.env | cut -d= -f2-)
-sudo docker run --rm --network coolify curlimages/curl:latest -sS -H "Authorization: Bearer $GT_TOKEN" "http://glitchtip-web:8000/api/0/organizations/$GT_ORG/projects/" | python3 -c "import json,sys; projects=json.load(sys.stdin); print(f\"{len(projects)} GlitchTip projects\"); [print(f\"  {p['slug']:30s} firstEvent={p.get('firstEvent','none')}\") for p in projects]"
+sudo docker run --rm --network fabrik curlimages/curl:latest -sS -H "Authorization: Bearer $GT_TOKEN" "http://glitchtip-web:8000/api/0/organizations/$GT_ORG/projects/" | python3 -c "import json,sys; projects=json.load(sys.stdin); print(f\"{len(projects)} GlitchTip projects\"); [print(f\"  {p['slug']:30s} firstEvent={p.get('firstEvent','none')}\") for p in projects]"
 
 # 8. Gatus — endpoint status
-sudo docker run --rm --network coolify curlimages/curl:latest -sS "http://gatus:8080/api/v1/endpoints/statuses" 2>/dev/null | python3 -c "
+sudo docker run --rm --network fabrik curlimages/curl:latest -sS "http://gatus:8080/api/v1/endpoints/statuses" 2>/dev/null | python3 -c "
 import json,sys
 data=json.load(sys.stdin)
 for ep in data:
@@ -86,7 +86,7 @@ for ep in data:
 " 2>/dev/null | head -30
 
 # 9. Pushgateway — has metrics?
-sudo docker run --rm --network coolify curlimages/curl:latest -sS "http://pushgateway:9091/metrics" | grep "fabrik_audit" | head -5
+sudo docker run --rm --network fabrik curlimages/curl:latest -sS "http://pushgateway:9091/metrics" | grep "fabrik_audit" | head -5
 
 # 10. Container health of observability stack itself
 for c in prometheus grafana loki promtail gatus alertmanager glitchtip-web glitchtip-worker netdata cadvisor node-exporter pushgateway redis-exporter postgres-exporter; do

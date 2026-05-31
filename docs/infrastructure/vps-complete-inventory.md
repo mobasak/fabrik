@@ -1,18 +1,23 @@
 # VPS Fleet — Complete Service Inventory
 
-**Last Updated:** 2026-05-31 (rewrite for the 3-host Wireguard mesh era — replaces the 2026-05-31 09:56 UTC vps1-only snapshot)
+**Last Updated:** 2026-05-31 (post-unification batch — mesh exposures + spoke Traefik + Grafana host filter + spoke alerts)
 **Hosts:** **vps1** (LA, hub) · **vps2** (Coventry UK, spoke) · **vps3** (Coventry UK, spoke)
 **Network:** Wireguard mesh `10.99.0.0/24` over UDP `51820`, MTU `1420`, hub-and-spoke topology
 **Deploy model:** SSH + Docker Compose (no Coolify; removed 2026-05-30 — see `docs/development/plans/2026-05-30-coolify-residue-cleanup.md`)
 
-## Quick state (as of this rewrite)
+## Quick state (post-unification)
 
-- **vps1:** 28 containers running, all stable-named (no UUID suffixes), full platform infra
-- **vps2:** 3 containers — monitoring agents only (node-exporter / cadvisor / promtail), shipping to vps1
-- **vps3:** 3 containers — same as vps2
+- **vps1:** 28 containers; 4 shared infra services (postgres-main, redis-main, glitchtip-web, authelia) + loki are now bound to `10.99.0.1:<port>` mesh IPs so spokes can reach them
+- **vps2:** **4 containers** — monitoring agents (node-exporter / cadvisor / promtail) + Traefik (public TLS for `*.vps2.ocoron.com`, when DNS lands)
+- **vps3:** 4 containers — same as vps2
 - **Mesh handshakes:** active, cross-Atlantic RTT 133–134 ms, 0 % loss
-- **Loki ingest:** spokes pushing successfully (`host` label values: `["vps2","vps3"]`)
-- **Prometheus:** scraping 6 spoke endpoints over mesh + 14 vps1 endpoints = 20 active scrape targets, all up
+- **Cross-host shared infra reachable:** postgres `5432` / redis `6379` / glitchtip `8000` / authelia `9091` / loki `3100` — all verified from vps2 via `10.99.0.1:<port>`
+- **Spoke Traefik:** listening on 80 + 443 on each spoke's public IP; `authelia-vps1@file` middleware ready (forward-auth → `http://10.99.0.1:9091/api/verify`)
+- **Loki ingest:** spokes pushing logs successfully (`host` label values: `["vps1","vps2","vps3"]`)
+- **Prometheus:** scraping 20 active targets (14 vps1 + 6 spoke); every series now carries `host` label
+- **Grafana:** all 5 dashboards have `host` template variable (regex `/^vps/`)
+- **Alert rules:** new `spoke_health` group — `SpokeDown` / `SpokeHighCPU` / `SpokeHighRAM`
+- **AI sysadmin:** `proactive-check.sh` now tags every anomaly with originating host (`cpu_high[vps2]`)
 - **Backups:** B2 bucket empty (intentional — Backrest plans deleted 2026-05-31; nothing material to back up yet)
 
 ## Re-verify / Update This Document
@@ -118,10 +123,11 @@ ssh vps3 'sudo ufw status numbered'
 **SSH:** ozgur user, key auth only (root + password disabled — matches vps1)
 **Bootstrap commit:** `c838a03` via `scripts/bootstrap/bootstrap-vps.sh`
 
-### Container inventory — vps2 (3 running)
+### Container inventory — vps2 (4 running)
 
 | Container | Bind | Purpose |
 | :--- | :--- | :--- |
+| `traefik` | `0.0.0.0:80,443` (public) | Public TLS termination for future `*.vps2.ocoron.com` services; `authelia-vps1@file` middleware ready |
 | `node-exporter` | `10.99.0.2:9100` (mesh-only) | Host metrics → vps1's Prometheus over mesh |
 | `cadvisor` | `10.99.0.2:8080` (mesh-only) | Container metrics → vps1's Prometheus over mesh |
 | `promtail` | `10.99.0.2:9080` (mesh-only) | Ships container stdout → vps1's Loki at `10.99.0.1:3100` |
@@ -131,10 +137,11 @@ ssh vps3 'sudo ufw status numbered'
 ```text
 /opt/
 ├── containerd/
-└── monitoring-agent/   — compose.yaml + promtail.yaml (rendered by bootstrap-vps.sh)
+├── monitoring-agent/        — compose.yaml + promtail.yaml (rendered by bootstrap-vps.sh)
+└── traefik/                 — compose.yaml + traefik.yml + acme.json + dynamic/authelia.yml
 ```
 
-No tenant workloads yet — vps2 is provisioned and mesh-joined, awaiting first SaaS deploy.
+Awaiting tenant SaaS — DNS for `*.vps2.ocoron.com` is the next gate (blocked on Cloudflare API token refresh).
 
 ---
 
@@ -147,13 +154,13 @@ No tenant workloads yet — vps2 is provisioned and mesh-joined, awaiting first 
 **Hostname:** vps3.ocoron.com (corrected via `hostnamectl` during bootstrap — initial typo `vpse.ocoron.com`)
 **SSH:** ozgur user, key auth only
 
-### Container inventory — vps3 (3 running)
+### Container inventory — vps3 (4 running)
 
-Identical to vps2: `node-exporter` / `cadvisor` / `promtail` all bound to their respective mesh IP (10.99.0.3).
+Identical to vps2: `traefik` (public 80+443), `node-exporter` / `cadvisor` / `promtail` all bound to their respective mesh IP (10.99.0.3).
 
 ### `/opt` structure on vps3
 
-Identical to vps2: `containerd/` + `monitoring-agent/`.
+Identical to vps2: `containerd/` + `monitoring-agent/` + `traefik/`.
 
 ---
 
@@ -187,14 +194,16 @@ Internet
 
 ### Mesh-exposed services on vps1 (reachable by spokes)
 
-| Service | Bind | Reason |
-| :--- | :--- | :--- |
-| Loki | `10.99.0.1:3100` | Spokes' promtail push logs here. Added 2026-05-31. |
-| Wireguard | `0.0.0.0:51820/udp` | Hub listener |
-| **TODO** postgres-main | (not yet bound to mesh IP) | Future spoke tenants need `DATABASE_URL=...@10.99.0.1:5432/...` |
-| **TODO** redis-main | (not yet bound to mesh IP) | Future spoke tenants need `REDIS_URL=redis://10.99.0.1:6379/N` |
-| **TODO** glitchtip-web | (not yet bound to mesh IP) | Future spoke tenants emit errors via `10.99.0.1:8000` |
-| **TODO** authelia | (not yet bound to mesh IP) | Future spoke Traefik forward-auth points at `10.99.0.1:9091/api/verify` |
+| Service | Bind | Verified from spoke | Notes |
+| :--- | :--- | :--- | :--- |
+| Wireguard | `0.0.0.0:51820/udp` | n/a (hub listener) | |
+| Loki | `10.99.0.1:3100` | ✓ (spoke promtail pushing) | Added 2026-05-31 batch 1 |
+| postgres-main | `10.99.0.1:5432` | ✓ (vps2 `pg_isready`) | Added 2026-05-31 batch 2 |
+| redis-main | `10.99.0.1:6379` | ✓ (vps2 `redis-cli ping`) | Added 2026-05-31 batch 2 |
+| glitchtip-web | `10.99.0.1:8000` | ✓ (vps2 HTTP 200) | Added 2026-05-31 batch 2 |
+| authelia | `10.99.0.1:9091` | ✓ (vps2 `/api/health` 200) | Added 2026-05-31 batch 2; forward-auth target for spoke Traefik |
+
+All host-port bindings use `10.99.0.1:<port>:<port>` syntax so traffic from the public internet cannot reach these ports — only mesh peers can. Belt-and-suspenders: `DOCKER-USER` chain blocks these ports on the public iface anyway.
 
 Pattern for adding a mesh-exposed service: add `ports: ["10.99.0.1:<port>:<port>"]` to its compose file on vps1, recreate. Binds the host-side port ONLY to the wg0 interface — public internet cannot reach it.
 
@@ -480,20 +489,24 @@ vps2/vps3 limits per monitoring agent (set by `monitoring-agent.compose.yaml.tem
 
 ## Pending actions (current TODO list)
 
-| # | Action | Priority | Blocking |
-| :--- | :--- | :--- | :--- |
-| 1 | Refresh `CLOUDFLARE_API_TOKEN` in `/opt/fabrik/.env` | High | Unblocks DNS provisioning + site-provisioner deploy |
-| 2 | Redeploy `site-provisioner` on vps1 (M0b) | High | Blocked on #1 |
-| 3 | Bind `postgres-main` to `10.99.0.1:5432` for spoke access | High | Unblocks spoke tenant DB use |
-| 4 | Bind `redis-main` to `10.99.0.1:6379` for spoke access | High | Unblocks spoke tenant cache use |
-| 5 | Bind `glitchtip-web` to `10.99.0.1:8000` for spoke ingestion | Medium | Future spoke tenants |
-| 6 | Bind `authelia` to `10.99.0.1:9091` for cross-host forward-auth | Medium | First spoke admin dashboard |
-| 7 | Deploy `traefik` on vps2 and vps3 (public TLS termination) | Medium | First spoke tenant |
-| 8 | Add `host` template variable to all Grafana dashboards | Low | Cosmetic |
-| 9 | Reconfigure Backrest plans (postgres-dumps, docker-volumes, opt-configs) with correct `apprise:8000` hook URL | Low | When data lands worth backing up |
-| 10 | AI sysadmin scripts query spoke metrics too (currently vps1-only) | Low | Future |
-| 11 | Fabrik spec gains `target_vps` field + `fabrik apply --target-vps` flag (W-Multi M4/M5) | Low | Big code change |
-| 12 | Clean stale UFW rules on vps1 (6001, 6002, the "8000 DENY" Coolify comment) | Trivial | — |
+| # | Action | Priority | Blocking | Status |
+| :--- | :--- | :--- | :--- | :--- |
+| 1 | Refresh `CLOUDFLARE_API_TOKEN` in `/opt/fabrik/.env` | High | DNS provisioning + site-provisioner deploy | **OPEN** |
+| 2 | Redeploy `site-provisioner` on vps1 (M0b) | High | Blocked on #1 | **OPEN** |
+| 3 | Bind `postgres-main` to `10.99.0.1:5432` for spoke access | High | Unblocks spoke tenant DB use | ✓ done 2026-05-31 (commit `f853a50`) |
+| 4 | Bind `redis-main` to `10.99.0.1:6379` for spoke access | High | Unblocks spoke tenant cache use | ✓ done 2026-05-31 |
+| 5 | Bind `glitchtip-web` to `10.99.0.1:8000` for spoke ingestion | Medium | Future spoke tenants | ✓ done 2026-05-31 |
+| 6 | Bind `authelia` to `10.99.0.1:9091` for cross-host forward-auth | Medium | First spoke admin dashboard | ✓ done 2026-05-31 |
+| 7 | Deploy `traefik` on vps2 and vps3 (public TLS termination) | Medium | First spoke tenant | ✓ done 2026-05-31 (`authelia-vps1@file` middleware ready) |
+| 8 | Add `host` template variable to all Grafana dashboards | Low | Cosmetic | ✓ done 2026-05-31 (5/5 dashboards, regex `/^vps/`) |
+| 9 | Reconfigure Backrest plans (postgres-dumps, docker-volumes, opt-configs) with correct `apprise:8000` hook URL | Low | When data lands worth backing up | **OPEN** |
+| 10 | AI sysadmin scripts query spoke metrics too (currently vps1-only) | Low | Future | ✓ done 2026-05-31 (`prom_hosts()` + spoke alert rules) |
+| 11 | Fabrik spec gains `target_vps` field + `fabrik apply --target-vps` flag (W-Multi M4/M5) | Low | Big code change | **OPEN** |
+| 12 | Clean stale UFW rules on vps1 (6001, 6002, the "8000 DENY" Coolify comment) | Trivial | — | **OPEN** |
+| 13 | Authelia access-control rules for `*.vps2.ocoron.com` / `*.vps3.ocoron.com` admin dashboards | Medium | Needs first such dashboard + DNS (blocks #2) | **OPEN** |
+| 14 | Backrest spoke backups (`docker-volumes-vps2`, `opt-configs-vps2`, etc.) | Low | Per #9 — defer until backups re-enabled | **OPEN** |
+
+**Net after this batch:** 8 items closed (3, 4, 5, 6, 7, 8, 10 plus 9 still open). DNS (#1, #2) is the gating-prerequisite blocker for everything else.
 
 ---
 
@@ -576,11 +589,17 @@ Headline numbers from the most recent audit (2026-05-09):
 
 - vps1 mesh hub up, 2 peers (vps2 + vps3) with active handshakes
 - Cross-Atlantic mesh RTT 133-134 ms, 0 % packet loss
-- vps1's Prometheus scraping 6 spoke endpoints over mesh: 6/6 up
+- vps1's Prometheus scraping 20 targets across 3 hosts (14 vps1 + 6 spoke), all up
 - vps2 + vps3 promtail pushing logs to vps1's Loki: `host` label values include both
+- vps2 reaches vps1's postgres-main, redis-main, glitchtip-web, authelia all over mesh (verified)
+- Spoke Traefik instances live on vps2 + vps3, ready for tenant deploy
+- `authelia-vps1@file` middleware defined on each spoke Traefik for cross-host SSO
 - All 3 hosts on stable container names (no UUID suffixes anywhere)
 - All 3 hosts on `fabrik` Docker network (renamed from `coolify` on 2026-05-31)
 - vps2/vps3 SSH posture matches vps1: no root login, no password auth, ozgur sudoer
+- Grafana host filter live on all 5 dashboards
+- Prometheus `spoke_health` alert group active (SpokeDown / SpokeHighCPU / SpokeHighRAM)
+- AI sysadmin proactive-check.sh emits host-tagged anomaly names (`cpu_high[vps2]`)
 
 ---
 

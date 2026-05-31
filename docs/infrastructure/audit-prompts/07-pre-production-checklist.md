@@ -22,11 +22,11 @@ for domain in ocoron.com www.ocoron.com status.vps1.ocoron.com monitor.vps1.ocor
 done
 
 # 2. Health endpoints (internal)
-sudo docker run --rm --network coolify curlimages/curl:latest -sS -o /dev/null -w "%{http_code}" http://prometheus:9090/-/ready
-sudo docker run --rm --network coolify curlimages/curl:latest -sS -o /dev/null -w "%{http_code}" http://loki:3100/ready
-sudo docker run --rm --network coolify curlimages/curl:latest -sS -o /dev/null -w "%{http_code}" http://grafana:3000/api/health
-sudo docker run --rm --network coolify curlimages/curl:latest -sS -o /dev/null -w "%{http_code}" http://glitchtip-web:8000/api/0/
-sudo docker run --rm --network coolify curlimages/curl:latest -sS -o /dev/null -w "%{http_code}" http://gatus:8080/api/v1/endpoints/statuses
+sudo docker run --rm --network fabrik curlimages/curl:latest -sS -o /dev/null -w "%{http_code}" http://prometheus:9090/-/ready
+sudo docker run --rm --network fabrik curlimages/curl:latest -sS -o /dev/null -w "%{http_code}" http://loki:3100/ready
+sudo docker run --rm --network fabrik curlimages/curl:latest -sS -o /dev/null -w "%{http_code}" http://grafana:3000/api/health
+sudo docker run --rm --network fabrik curlimages/curl:latest -sS -o /dev/null -w "%{http_code}" http://glitchtip-web:8000/api/0/
+sudo docker run --rm --network fabrik curlimages/curl:latest -sS -o /dev/null -w "%{http_code}" http://gatus:8080/api/v1/endpoints/statuses
 
 # 3. DNS resolution (external)
 for domain in ocoron.com status.vps1.ocoron.com monitor.vps1.ocoron.com; do

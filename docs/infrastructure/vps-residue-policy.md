@@ -1,16 +1,7 @@
 # VPS Residue Policy — Lean Hygiene
 
-> Mandate (2026-05-06): never leave residue on the VPS from Fabrik test, throwaway, or deprecated work. Keep it lean.
->
-> **⚠️ Partially pre-migration vintage.** Rows that describe residue as
-> "orphan Coolify app" / "Gatus alias pinned to Coolify UUID hostname" /
-> "destroy via Coolify UI" are historical. Post-migration the equivalent
-> residue is an orphan `/opt/<app>/` Compose directory; cleanup is
-> `cd /opt/<app> && sudo docker compose down -v && sudo rm -rf /opt/<app>`
-> (which `fabrik destroy` does via the SSH deployer's `delete()`). Gatus
-> alias drift is no longer a concern — `container_name:` in compose files
-> guarantees stable Docker DNS. Other policy items (memory limits,
-> Authelia rules, DNS records, .env hygiene) are unchanged.
+**Last Updated:** 2026-05-31 (post-Coolify-removal — rewrites + multi-host considerations added)
+**Mandate (2026-05-06):** never leave residue on the VPS from Fabrik test, throwaway, or deprecated work. Keep it lean.
 
 ## TL;DR
 
@@ -20,54 +11,85 @@ fabrik vps-sync --verify
 # Exit 0 = clean. Exit 1 = drift found. Exit 2 = scan failed.
 ```
 
-Implementation: `scripts/vps_sync.py::verify_residue()` (full 12-point audit) + `verify_gatus_aliases()` (stale Coolify hostnames) + `verify_limits()` (memory-limit drift after reboot).
+Implementation: `scripts/vps_sync.py::verify_residue()` (multi-point audit) + `verify_limits()` (memory-limit drift after reboot). Gatus alias drift is no longer a separate concern — stable `container_name:` in compose files guarantees Docker DNS stability.
 
 ## Pre-action discipline
 
-1. **Always use `fabrik destroy --drop-data -y`** for throwaway test specs. Reverses the 7-registrar provision chain in inverse order (DEPLOYMENT.md §9.4: meilisearch → authelia → glitchtip → backrest → gatus → postgres → coolify → DNS → files).
+1. **Always use `fabrik destroy --drop-data -y`** for throwaway test specs. Reverses the 9-registrar provision chain in inverse order (`docs/operations/deployment.md` § destroy: meilisearch → authelia → glitchtip → backrest → gatus → postgres → compose stack → DNS → state file).
 2. **Never use long-lived test names** like `fabrik-test`, `proxy-test`. Use timestamped throwaways (e.g. `fabrik-e2e-2026-05-17`).
 3. **After ANY `fabrik destroy`, run `fabrik vps-sync --verify`** to confirm orphans are zero across all registrars.
 
 ## What the verifier checks
 
-`fabrik vps-sync --verify` calls three scanners. Combined coverage:
+`fabrik vps-sync --verify` calls the residue scanners. Combined coverage on **vps1**:
 
 | # | Surface | What it flags |
-|---|---|---|
-| 1 | Coolify apps | `fabrik-*-test*`, `*-e2e-*`, `integration-test*`, any `_is_test_name` match |
+| :--- | :--- | :--- |
+| 1 | Compose stacks | `/opt/fabrik-*-test*/`, `/opt/*-e2e-*/`, `/opt/integration-test*/`, any `_is_test_name` match — orphan compose directories left behind by partial destroys |
 | 2 | GlitchTip projects | `GET /api/0/organizations/ocoron/projects/` returning test/e2e slugs |
-| 3 | Gatus configs | `*.bak.*` files in `/opt/monitoring/configs/gatus/apps/`; duplicate endpoints |
-| 4 | Authelia rules | Orphan `access_control` entries for domains with no live Coolify app |
+| 3 | Gatus configs | `*.bak.*` files in `/opt/monitoring/configs/gatus/apps/`; duplicate endpoints; endpoints pointing at deleted services |
+| 4 | Authelia rules | Orphan `access_control` entries for domains with no live service |
 | 5 | Postgres DBs | `fabrik_*_test*` or `*_e2e_*` databases on `postgres-main` |
 | 6 | Meilisearch indexes | Test indexes |
 | 7 | DNS A records | Records pointing to destroyed services |
-| 8 | Docker volumes | `docker volume ls -f dangling=true`; especially `<svc>_postgres_data` after migration to `postgres-main` |
+| 8 | Docker volumes | `docker volume ls -f dangling=true`; especially `<svc>_postgres_data` left behind after moving to shared `postgres-main`; pre-migration legacy (`coolify-db`, `coolify-redis`, etc.) |
 | 9 | Dangling images | `docker images -f dangling=true` non-empty |
 | 10 | `/tmp` locks | Stale `/tmp/fabrik-*-test-*.lock` files (`run_locked` should clean; verify) |
 | 11 | `/opt/` | `test-*`, `*-test`, `wp-test` ad-hoc files / orphan project trees |
-| 12 | Backrest | Test repos at `/srv/backrest/repos/<test-name>/` |
-| 13 | Gatus aliases | URLs pinned to Coolify auto-generated container hostnames (`<svc>-<24chars>-<13digits>`) — break on every redeploy |
-| 14 | Memory limits | Containers with `HostConfig.Memory=0` (limits reset on reboot; rerun `vps_apply_limits.sh`) |
+| 12 | Backrest | Test plans / repos at `/srv/backrest/repos/<test-name>/` (currently 0 active plans — see "Multi-host" section below) |
+| 13 | Memory limits | Containers with `HostConfig.Memory=0` (limits reset on reboot; rerun `vps_apply_limits.sh`) |
+
+## Multi-host residue (vps2 / vps3, added 2026-05-31)
+
+The mandate now extends to spokes. Same rules apply: never leave residue from test workloads. Per-spoke residue check:
+
+```bash
+for spoke in vps2 vps3; do
+  echo "=== $spoke ==="
+  ssh $spoke 'sudo ls /opt/ | grep -E "test|e2e|integration" || true'
+  ssh $spoke 'sudo docker ps -a --filter status=exited --format "{{.Names}}" || true'
+  ssh $spoke 'sudo docker volume ls -f dangling=true --format "{{.Name}}"'
+done
+```
+
+Spokes currently host only `/opt/monitoring-agent/` + `/opt/traefik/` (no tenants yet). Any other `/opt/*` directory on a spoke is by definition residue from a test or partial deploy.
+
+When `fabrik destroy --target-vps <spokeN>` is implemented (W-Multi M4/M5), it will run the SSH deployer's `delete()` against the spoke and leave no compose dir behind. Until then, manual destroy on a spoke:
+
+```bash
+ssh vpsN 'cd /opt/<svc> && sudo docker compose down -v && sudo rm -rf /opt/<svc>'
+```
 
 ## Manual recovery if `--verify` exits 1
 
 The script prints exact remediation commands per finding. Common patterns:
 
 | Finding | Fix |
-|---|---|
-| Stale Gatus alias | Update `/opt/monitoring/configs/gatus/apps/<svc>.yaml` to use stable Docker DNS name (compose service name or registered alias from `scripts/vps_apply_limits.sh`); restart Gatus |
-| Orphan Coolify app | `fabrik destroy specs/services/<id>.yaml --drop-data -y` if spec exists, else delete via `fabrik apply` (SSH + Docker Compose) UI + manual DB drop |
+| :--- | :--- |
+| Orphan compose stack at `/opt/<svc>` | `fabrik destroy specs/services/<id>.yaml --drop-data -y` if spec exists; else manual: `cd /opt/<svc> && sudo docker compose down -v && sudo rm -rf /opt/<svc>` |
+| Orphan Postgres DB | `ssh vps "sudo docker exec postgres-main psql -U postgres -c 'DROP DATABASE <name>;'"` |
+| Orphan Authelia rule | edit `/opt/authelia/config/configuration.yml` (working copy); `authelia-config-sync.service` propagates to volume + restarts container |
+| Orphan Gatus endpoint | delete the file under `/opt/monitoring/configs/gatus/apps/<svc>.yaml`; Gatus auto-reloads within 30 s |
 | Dangling Docker volume | `ssh vps 'sudo docker volume rm <name>'` after confirming no live container references it |
-| Memory limit reset | `ssh vps 'bash /opt/fabrik/scripts/vps_apply_limits.sh'` |
+| Memory limit reset (post-reboot) | `ssh vps 'bash /opt/fabrik/scripts/vps_apply_limits.sh'` |
 | `/tmp` lock | `ssh vps 'rm /tmp/fabrik-*-test-*.lock'` after confirming no live process holds it |
+
+## Pre-migration residue still on disk (vps1)
+
+Items intentionally retained for historical reference, not residue per the policy:
+
+- `/opt/.archive/` — archived configs from W1 cleanup (apprise plugin volumes, prometheus.yml backups, etc.)
+- `/opt/backups/` — postgres dumps + Coolify env backups in `/opt/.archive/coolify-env-backups/` (preserved)
+- `/opt/prometheus/` — stale standalone Prometheus compose from pre-rename era; the real Prometheus runs in `/opt/monitoring/compose.yaml`. Can be deleted; see vps-complete-inventory § Known Issues.
+- `coolify-db` / `coolify-redis` Docker volumes — pre-migration legacy. Deleted on 2026-05-30 cleanup; verify with `ssh vps 'sudo docker volume ls'` (should not appear).
 
 ## Cross-references
 
-- Destroy mechanics: `docs/DEPLOYMENT.md` §9.4 (Tear down a service)
-- e2e validation playbook (which generates throwaway state): `docs/DEPLOYMENT.md` §9.6
-- Coolify alias persistence: `docs/reference/coolify-stable-aliases.md` + `scripts/vps_apply_limits.sh`
-- 7-registrar provisioner inverse: `src/fabrik/orchestrator/destroyer.py::destroy_deployment()`
+- Deploy + destroy mechanics: `docs/operations/deployment.md`
+- DR (full restore from B2): `docs/operations/disaster-recovery.md`
+- 9-registrar provisioner: `src/fabrik/orchestrator/infrastructure.py` (provision side) + `src/fabrik/orchestrator/destroyer.py::destroy_deployment()` (inverse)
+- Backups status: `docs/infrastructure/vps-complete-inventory.md § Backups` (currently 0 plans; bucket empty; intentional)
 
 ## Why this matters
 
-Every residue item is silent cost: orphan Postgres DBs eat disk, dangling Docker volumes eat inodes, stale Gatus targets emit false-positive alerts, orphan Authelia rules expand the attack surface. A 30-second `fabrik vps-sync --verify` after each destroy keeps the VPS in a state that matches `data/projects.yaml`.
+Every residue item is silent cost: orphan Postgres DBs eat disk, dangling Docker volumes eat inodes, stale Gatus targets emit false-positive alerts, orphan Authelia rules expand the attack surface, leftover `/opt/<svc>` compose dirs confuse `fabrik audit-registrars`. A 30-second `fabrik vps-sync --verify` after each destroy keeps the VPS fleet in a state that matches `data/projects.yaml`.

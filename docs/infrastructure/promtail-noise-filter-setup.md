@@ -1,30 +1,27 @@
 # Promtail Log Noise Filter — Setup
 
-> **⚠️ Container name is pre-migration.** Was `promtail-w0000ckgsgg048w0848okk08`
-> under Coolify's UUID-suffix naming. Post-migration container is named
-> `promtail` (via `container_name:` in the compose stack). Filter config
-> and behavior are unchanged.
-
-**Status:** ✅ Live on VPS (2026-05-08)
-**Container:** `promtail` (was `promtail-w0000ckgsgg048w0848okk08` pre-migration)
+**Last Updated:** 2026-05-31 (post-Coolify-removal — most originally-filtered containers no longer exist; multi-host section added)
+**Status:** ✅ Live on vps1
+**Container:** `promtail` (stable name)
 **Config:** `/opt/monitoring/configs/promtail/promtail-config.yaml` (host bind mount)
+**Spoke promtails:** `vps2`, `vps3` — rendered by `scripts/bootstrap/bootstrap-vps.sh` step 11 (different config, see § Multi-host)
 
 ---
 
 ## Goal
 
-Promtail by default tails every Docker container log under `/var/lib/docker/containers/*/*log` and ships them all to Loki. On a 40-container VPS this includes Coolify's internal containers (database, redis, sentinel, realtime) that produce no actionable signal — only Docker daemon noise.
+Promtail by default tails every Docker container log under `/var/lib/docker/containers/*/*log` and ships them all to Loki. Some containers produce only Docker-daemon noise with no actionable signal — the WordPress backup sidecar's cron loop is the classic example post-Coolify. A `drop` stage in the Promtail pipeline filters these by container name before shipping, reducing Loki ingestion volume + query noise.
 
-A `drop` stage in the Promtail pipeline filters these by container name before shipping, reducing Loki ingestion volume and query noise.
+The original filter set (2026-05-08) included Coolify-internal containers (`coolify-db`, `coolify-redis`, `coolify-realtime`, `coolify-sentinel`) that no longer exist — Coolify itself was removed on 2026-05-30. The filter is now down to one container (`ocoron-com-backup-1`).
 
 ## Prerequisites
 
-- **Docker daemon must emit container name in log attrs.** Requires `"tag": "{{.Name}}"` in `/etc/docker/daemon.json` under `log-opts`. Without this, Docker's default JSON log driver does NOT include `attrs.tag`, the `container_name` label is never extracted, and the drop filter silently does nothing. Applied 2026-05-19 — see daemon.json setup below.
-- Promtail running as a Coolify service (already deployed in monitoring stack)
+- **Docker daemon must emit container name in log attrs.** Requires `"tag": "{{.Name}}"` in `/etc/docker/daemon.json` under `log-opts`. Without this, Docker's default JSON log driver does NOT include `attrs.tag`, the `container_name` label is never extracted, and the drop filter silently does nothing.
+- Promtail running on vps1 from `/opt/monitoring/compose.yaml`
 - Config volume bind-mounted from host to container at `/etc/promtail/config.yml`
-- Loki running and reachable at `http://loki:3100` from the `coolify` network
+- Loki running and reachable at `http://loki:3100` from the `fabrik` network
 
-### Docker daemon.json (required)
+### Docker daemon.json (required on every host)
 
 ```json
 {
@@ -39,7 +36,9 @@ A `drop` stage in the Promtail pipeline filters these by container name before s
 
 After changing `daemon.json`: `systemctl restart docker`. **Existing containers must be recreated** (restart alone keeps the old log format) — `docker compose up -d --force-recreate` for each compose project. New containers automatically get the tag.
 
-## Reproducible Setup
+On spokes (vps2/vps3), `bootstrap-vps.sh` step 03 writes the `daemon.json` with `max-size`+`max-file` but does NOT include the `tag` field. **This is a known gap** — add `"tag": "{{.Name}}"` to the bootstrap template if you want host-aware container_name labels on spoke logs. Until then, spoke logs land in Loki without `container_name` extracted (they still carry `host: vpsN` so per-host queries work fine).
+
+## Reproducible Setup (vps1)
 
 ### 1. Write the Promtail config to host
 
@@ -62,6 +61,7 @@ scrape_configs:
           - localhost
         labels:
           job: containerlogs
+          host: vps1
           __path__: /var/lib/docker/containers/*/*log
 
     pipeline_stages:
@@ -86,11 +86,11 @@ scrape_configs:
           container_name:
           stream:
 
-      # Drop pure Coolify infrastructure noise — these containers are
-      # managed by Coolify itself and produce no actionable log signal.
-      # All Fabrik services, apps, monitoring, and WordPress are kept.
+      # Drop pure noise — the WordPress backup sidecar runs a tight cron
+      # loop that fills Loki with non-actionable output. Update the regex
+      # when more drop candidates surface.
       - drop:
-          expression: '^(coolify-db|coolify-redis|coolify-realtime|coolify-sentinel|ocoron-com-backup-1)\$'
+          expression: '^(ocoron-com-backup-1)\$'
           source: container_name
 
       - output:
@@ -103,7 +103,7 @@ PROMTAIL"
 Promtail does not hot-reload; it must be restarted:
 
 ```bash
-ssh vps "sudo docker restart promtail-w0000ckgsgg048w0848okk08"
+ssh vps "sudo docker restart promtail"
 ```
 
 ### 3. Verify the filter is applied
@@ -111,19 +111,19 @@ ssh vps "sudo docker restart promtail-w0000ckgsgg048w0848okk08"
 Confirm zero startup errors:
 
 ```bash
-ssh vps "sudo docker logs promtail-w0000ckgsgg048w0848okk08 --tail 20 2>&1 | grep -iE 'error|level=err'"
+ssh vps 'sudo docker logs promtail --tail 20 2>&1 | grep -iE "error|level=err"'
 ```
 
 Expected: no output (silent = healthy).
 
-Confirm filtered containers no longer appear in Loki. From any container with `wget`:
+Confirm the filtered container no longer appears in Loki:
 
 ```bash
-ssh vps "sudo docker exec prometheus wget -qO- 'http://loki:3100/loki/api/v1/labels' | python3 -m json.tool"
-ssh vps "sudo docker exec prometheus wget -qO- 'http://loki:3100/loki/api/v1/label/container_name/values' | python3 -m json.tool"
+ssh vps 'sudo docker exec prometheus wget -qO- "http://loki:3100/loki/api/v1/label/container_name/values"' \
+  | python3 -m json.tool
 ```
 
-The `container_name` values list should NOT include: `coolify-db`, `coolify-redis`, `coolify-realtime`, `coolify-sentinel`, `ocoron-com-backup-1`.
+The `container_name` values list should NOT include `ocoron-com-backup-1`.
 
 ## How to Add or Remove Filtered Containers
 
@@ -138,37 +138,60 @@ Edit the regex in the `drop` stage — the pattern is a pipe-separated list of e
 After editing, restart Promtail:
 
 ```bash
-ssh vps "sudo docker restart promtail-w0000ckgsgg048w0848okk08"
+ssh vps "sudo docker restart promtail"
 ```
 
 ## Containers Currently Kept (Not Filtered)
 
-- All Fabrik services (`fabrik-*`)
-- Monitoring stack (`grafana`, `loki`, `prometheus`, `alertmanager`, `gatus`, `cadvisor`, `node-exporter`, `netdata`)
-- Authelia, Apprise, Backrest, MeiliSearch
-- WordPress containers (`ocoron-com-nginx-1`, `ocoron-com-wordpress-1`, `ocoron-com-db-1`, `ocoron-com-redis-1`)
-- All Coolify single-image Applications (browserless, gotenberg, glitchtip-web, file-api, etc.)
+On vps1, that's all 28 running containers minus `ocoron-com-backup-1`. Full list in `docs/infrastructure/vps-complete-inventory.md § vps1 container inventory`.
 
-## Why These 5 Are Filtered
+## Why `ocoron-com-backup-1` Is Filtered
 
-| Container | Reason |
-|---|---|
-| `coolify-db` | Internal Postgres for Coolify itself; not ours |
-| `coolify-redis` | Internal Redis for Coolify itself; not ours |
-| `coolify-realtime` | Soketi WebSocket for Coolify UI live logs only |
-| `coolify-sentinel` | Coolify's Redis Sentinel (HA failover for `coolify-redis`) |
-| `ocoron-com-backup-1` | WordPress backup loop; cron-style noise |
+The WordPress backup sidecar runs a cron-style loop that logs heartbeat lines every minute. Zero actionable signal; pure noise that takes up Loki retention budget. If backup failures need to be surfaced, route them through `apprise` or a Prometheus alert on `wp_backup_last_success` (would need to be added) rather than via log scraping.
+
+## Multi-host
+
+### Spoke promtails
+
+vps2 and vps3 each run a promtail container deployed by `scripts/bootstrap/bootstrap-vps.sh` step 11. Their config lives at `/opt/monitoring-agent/promtail.yaml` on each spoke and is rendered from `scripts/bootstrap/templates/promtail.yaml.template` at bootstrap time.
+
+Key differences from vps1's promtail:
+
+| Aspect | vps1 promtail | Spoke promtail |
+| :--- | :--- | :--- |
+| Loki target | `http://loki:3100` (local Docker DNS) | `http://10.99.0.1:3100` (over mesh) |
+| `host` label | `vps1` | `vps2` or `vps3` |
+| `server.http_listen_address` | `0.0.0.0` (Docker network) | `10.99.0.X` (mesh-only) |
+| Drop filter | yes (`ocoron-com-backup-1`) | no (spokes don't have tenants yet) |
+
+When a spoke's first tenant ships and starts producing noisy logs, mirror the drop filter into the spoke's `promtail.yaml`. Restart that spoke's promtail: `ssh vpsN 'cd /opt/monitoring-agent && sudo docker compose restart promtail'`.
+
+### Cross-host log queries in Grafana
+
+The `host` label is set on every Loki stream — `vps1` / `vps2` / `vps3`. So:
+
+```logql
+{host="vps2"}                            # all logs from vps2
+{host="vps2", container_name="n8n"}     # n8n logs on vps2
+{host=~"vps[23]"}                        # both spokes
+```
+
+Drop filters apply per-host — vps1's drop filter does NOT remove `ocoron-com-backup-1` from spokes (it doesn't exist there). Each spoke's promtail is independently configured.
 
 ## Troubleshooting
 
 | Symptom | Cause | Fix |
-|---|---|---|
-| Logs from filtered container still appearing in Grafana/Loki | Promtail wasn't restarted | `sudo docker restart promtail-...` |
+| :--- | :--- | :--- |
+| Logs from filtered container still appearing in Grafana/Loki | Promtail wasn't restarted | `sudo docker restart promtail` (or spoke equivalent) |
 | Promtail logs show `error parsing config` | YAML syntax error (often indentation) | `yamllint /opt/monitoring/configs/promtail/promtail-config.yaml` |
 | Container missing from Loki entirely (filter too broad) | Regex matches more than intended | Test the regex with `echo 'name' \| grep -E 'pattern'` first |
-| `container_name` label is empty in Loki | Docker log tag format changed | Check `attrs.tag` field in raw log: `sudo cat /var/lib/docker/containers/*/<id>-json.log \| head -1` |
+| `container_name` label is empty in Loki | Docker log tag format not configured | Confirm `daemon.json` has `"tag": "{{.Name}}"` under `log-opts`; recreate containers (`docker compose up -d --force-recreate`) |
+| Spoke logs missing `container_name` label | bootstrap-vps.sh's daemon.json lacks the `tag` field | Edit `daemon.json` on the spoke and recreate containers; or update the bootstrap template |
+| No logs from a spoke arrive at vps1 Loki | Loki isn't bound to mesh IP, or wg0 down on spoke, or firewall blocks | Check `ssh vps "sudo ss -tlnp \| grep 10.99.0.1:3100"`; mesh ping `ssh vpsN ping 10.99.0.1` |
 
 ## References
 
-- Promtail pipeline stages: https://grafana.com/docs/loki/latest/clients/promtail/stages/
-- `drop` stage: https://grafana.com/docs/loki/latest/clients/promtail/stages/drop/
+- Promtail pipeline stages: <https://grafana.com/docs/loki/latest/send-data/promtail/stages/>
+- `drop` stage: <https://grafana.com/docs/loki/latest/send-data/promtail/stages/drop/>
+- Sister doc: [`grafana-dashboards-setup.md`](grafana-dashboards-setup.md) (Loki dashboards + host filter)
+- Bootstrap script: [`scripts/bootstrap/bootstrap-vps.sh`](../../scripts/bootstrap/bootstrap-vps.sh) step 11 + [`templates/promtail.yaml.template`](../../scripts/bootstrap/templates/promtail.yaml.template)

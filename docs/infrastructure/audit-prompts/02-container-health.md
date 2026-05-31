@@ -79,7 +79,7 @@ sudo docker inspect $(sudo docker ps -q) --format "{{.Name}} health={{.State.Hea
 - Total Docker disk usage vs VPS capacity
 
 ### 3. Networking
-- Are all containers on the `coolify` network?
+- Are all containers on the `fabrik` network?
 - Are DNS aliases intact for Coolify Applications (meilisearch, gotenberg, browserless, glitchtip-web)?
 - Any IP address conflicts?
 

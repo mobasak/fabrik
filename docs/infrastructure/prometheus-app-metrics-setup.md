@@ -1,39 +1,74 @@
 # Prometheus app-level metrics — runbook
 
-> **⚠️ Container names + URLs may be pre-migration.** Anywhere this runbook
-> references Coolify UUID-suffix container names (e.g. `prometheus-xxxx`),
-> the post-migration name is just `prometheus` (set via `container_name:`).
-> Scrape config behavior, target syntax, and metric semantics are unchanged.
+**Last Updated:** 2026-05-31 (post-Coolify-removal + `coolify` → `fabrik` network rename; multi-host scrape patterns added)
+**Status:** ✅ Live (originally 2026-05-08)
+**Prometheus container:** `prometheus` (stable name)
+**Scrape config:** `/opt/monitoring/configs/prometheus/prometheus.yml`
 
-Status: **DEPLOYED 2026-05-08**
-
-This runbook covers Prometheus scrape configuration for application-level metrics from infrastructure services. It complements `cadvisor` (container-level) and `node-exporter` (host-level) which were already in place.
+This runbook covers Prometheus scrape configuration for application-level metrics from infrastructure services. It complements `cadvisor` (container-level) and `node-exporter` (host-level), which were already in place.
 
 ## What's scraped
 
+### vps1-local app metrics
+
 | Job | Endpoint | Auth | Why this job |
-|---|---|---|---|
+| :--- | :--- | :--- | :--- |
 | `grafana` | `http://grafana:3000/metrics` | none (anonymous) | dashboard query rates, datasource health |
 | `authelia` | `http://authelia:9959/metrics` | none (telemetry port) | auth success/fail rates, session counts, request latency |
 | `meilisearch` | `http://meilisearch:7700/metrics` | Bearer token (master key) | search latency, index size, HTTP request counters |
+| `pushgateway` | `http://pushgateway:9091/metrics` | none | short-lived metric pushes (used by `audit_all_registrars.py` cron) |
 | ~~glitchtip~~ | — | — | **NOT SCRAPED.** GlitchTip ships without `django-prometheus`. cAdvisor + Gatus cover it. |
+
+### vps1-local platform metrics (already present pre-2026-05-08)
+
+| Job | Endpoint | Notes |
+| :--- | :--- | :--- |
+| `prometheus` | `http://localhost:9090/metrics` | Prometheus self-monitoring |
+| `node` | `http://node-exporter:9100/metrics` | vps1 host metrics |
+| `cadvisor` | `http://cadvisor:8080/metrics` | vps1 container metrics |
+| `loki` | `http://loki:3100/metrics` | Loki ingest stats |
+| `alertmanager` | `http://alertmanager:9093/metrics` | Alert dispatch counters |
+| `gatus` | `http://gatus:8080/metrics` | Synthetic check results |
+| `postgres` | `http://postgres-exporter:9187/metrics` | Connections, slow queries, replication |
+| `redis` | `http://redis-exporter:9121/metrics` | Hit ratio, memory, ops/sec |
+
+### Spoke metrics (added 2026-05-31)
+
+| Job | Targets | Per-target label |
+| :--- | :--- | :--- |
+| `node-spokes` | `10.99.0.2:9100`, `10.99.0.3:9100` | `host: vps2` / `host: vps3` |
+| `cadvisor-spokes` | `10.99.0.2:8080`, `10.99.0.3:8080` | `host: vps2` / `host: vps3` |
+| `promtail-spokes` | `10.99.0.2:9080`, `10.99.0.3:9080` | `host: vps2` / `host: vps3` |
+
+Every scrape target now carries a `host` label so dashboards + alerts can filter per-host. vps1-local jobs get `host: vps1`; spoke jobs split per-target. See § Multi-host below for the pattern.
 
 ## Sample useful queries
 
 ```promql
-# Authelia auth failure rate
-rate(authelia_request{code!~"2.."}[5m])
+# Authelia auth failure rate (host-aware)
+rate(authelia_request{code!~"2..", host="vps1"}[5m])
 
 # Grafana dashboard render latency (p95)
-histogram_quantile(0.95, sum(rate(grafana_http_request_duration_seconds_bucket{handler!~"/api/health|/api/.*/metrics"}[5m])) by (le, handler))
+histogram_quantile(0.95,
+  sum(rate(grafana_http_request_duration_seconds_bucket{handler!~"/api/health|/api/.*/metrics"}[5m])) by (le, handler))
 
 # Meilisearch search QPS
 rate(meilisearch_http_requests_total{path="/indexes/{uid}/search"}[5m])
+
+# Container memory across all hosts, top 10
+topk(10, container_memory_usage_bytes{name!=""})
+
+# Spoke vs hub CPU comparison
+sum(rate(node_cpu_seconds_total{mode!="idle"}[5m])) by (host)
+
+# Any container restart in the last 15 min (any host)
+changes(container_start_time_seconds{name!=""}[15m]) > 0
 ```
 
 ## Configuration setup steps reproduced
 
 ### 1. Authelia — enable telemetry server
+
 Authelia's metrics are disabled by default. Append to `configuration.yml`:
 
 ```yaml
@@ -43,60 +78,142 @@ telemetry:
     address: tcp://0.0.0.0:9959
 ```
 
-**Important — config drift**: on this VPS, the file at `/opt/authelia/config/configuration.yml` is a **working copy only** — it is NOT the file Authelia loads. The container mounts a Docker volume (`hks48k8sg8o4co4co08co00o_authelia-config`) at `/config/`. The actual loaded file is at `/var/lib/docker/volumes/hks48k8sg8o4co4co08co00o_authelia-config/_data/configuration.yml`.
+**Important — config drift**: on vps1, the working copy at `/opt/authelia/config/configuration.yml` is watched by `authelia-config-sync.service` (inotify-driven). On save, the file is copied into the named volume (`hks48k8sg8o4co4co08co00o_authelia-config`) where Authelia actually reads it from `/config/configuration.yml`, and the Authelia container is restarted (~2 s reaction time). Drift between the two no longer happens.
 
-Edit that file (with sudo) and `docker restart authelia-...` (NEVER SIGHUP — Authelia exits on SIGHUP). Then sync `/opt/authelia/config/` so the working copy doesn't drift.
+Authelia exits on SIGHUP — does NOT hot-reload. The config-sync service does the restart automatically; no manual `docker restart` needed after editing the working copy.
 
 After restart, look for log line:
-```
+
+```text
 "Listening for non-TLS connections on '[::]:9959' path '/metrics'","server":"metrics"
 ```
 
 ### 2. Grafana — already exposed
+
 Grafana exposes `/metrics` on port 3000 anonymously by default. Just add the scrape job.
 
 ### 3. Meilisearch — needs experimental flag
+
 Meilisearch requires `MEILI_EXPERIMENTAL_ENABLE_METRICS=true` env var AND the master key as Bearer token to expose `/metrics`.
 
 ```bash
-# Push env var via `fabrik apply` (SSH + Docker Compose) (Application UUID for meilisearch)
-curl -X POST -H "Authorization: Bearer $COOLIFY_API_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"key":"MEILI_EXPERIMENTAL_ENABLE_METRICS","value":"true","is_preview":false,"is_literal":true}' \
-  "https://coolify.vps1.ocoron.com/api/v1/applications/<MEILI_UUID>/envs"
-
-# Trigger redeploy
-curl -X POST -H "Authorization: Bearer $COOLIFY_API_TOKEN" \
-  "https://coolify.vps1.ocoron.com/api/v1/deploy?uuid=<MEILI_UUID>&force=false"
+# Set env var in the service's .env on the VPS (no Coolify API anymore):
+ssh vps 'sudo bash -c "
+  cd /opt/meilisearch
+  cp .env .env.bak-\$(date +%Y%m%d-%H%M%S)
+  grep -q ^MEILI_EXPERIMENTAL_ENABLE_METRICS= .env && \
+    sed -i \"s|^MEILI_EXPERIMENTAL_ENABLE_METRICS=.*|MEILI_EXPERIMENTAL_ENABLE_METRICS=true|\" .env || \
+    echo \"MEILI_EXPERIMENTAL_ENABLE_METRICS=true\" >> .env
+  docker compose up -d
+"'
 ```
 
-### 4. Coolify drops network aliases on redeploy
+The `fabrik apply` orchestrator's glitchtip / postgres / etc. registrars also do `inject_env()` via the SSH deployer for env additions — the script above is the manual one-off equivalent.
 
-**Operational gotcha** — when a Coolify Application is redeployed, the new container retains only the timestamped UUID alias (`<uuid>-<timestamp>`). Friendly aliases like `meilisearch`, `glitchtip-web`, `gotenberg`, `browserless` that other services depend on are **dropped**.
-
-Workaround applied for meilisearch:
-```bash
-sudo docker network disconnect coolify <new-container-name>
-sudo docker network connect --alias meilisearch coolify <new-container-name>
-```
-
-This is **temporary** — survives until next redeploy, then drops again. Permanent fix requires either:
-- Adding `networks: { coolify: { aliases: [meilisearch] } }` to the Coolify Application's docker-compose
-- OR a watcher script that re-applies aliases when Coolify deploys these UUIDs
-
-This affects every service that depends on these aliases: prometheus scraping, gatus monitoring, fabrik microservices reaching shared utilities. Worth a separate hardening task.
-
-### 5. Reload Prometheus (no restart needed)
+### 4. Reload Prometheus (no restart needed)
 
 ```bash
-sudo docker exec prometheus wget -qO- --post-data="" http://localhost:9090/-/reload
+ssh vps "sudo docker kill -s HUP prometheus"
+# or via the lifecycle endpoint:
+ssh vps 'sudo docker exec prometheus wget -qO- --post-data="" http://localhost:9090/-/reload'
 ```
+
+Either works since Prometheus is started with `--web.enable-lifecycle`.
 
 ## Verifying targets are up
 
 ```bash
-sudo docker exec prometheus wget -qO- "http://localhost:9090/api/v1/targets?state=any" | \
-  python3 -c "import json,sys; d=json.load(sys.stdin); [print(f\"{t['labels']['job']:14s} {t['health']:6s}\") for t in d['data']['activeTargets']]"
+ssh vps 'sudo docker exec prometheus wget -qO- "http://localhost:9090/api/v1/targets?state=any"' \
+  | python3 -c "
+import json, sys
+for t in json.load(sys.stdin)['data']['activeTargets']:
+    print(f\"{t['labels']['job']:18s} {t['labels'].get('host','?'):6s} {t['health']:6s} {t['labels'].get('instance','')}\")"
 ```
 
-Or via Grafana → Explore → Prometheus datasource → run `up{job=~\"authelia|grafana|meilisearch\"}` — all should return 1.
+Or via Grafana → Explore → Prometheus datasource → run `up{job=~"authelia|grafana|meilisearch"}` — all should return 1.
+
+For spoke target health, use `up{job=~".*-spokes"}` — expects 6 series UP (3 jobs × 2 spokes).
+
+## Multi-host
+
+### Adding a new spoke
+
+When provisioning vps4 (or later), `scripts/bootstrap/bootstrap-vps.sh` step 11 deploys node-exporter / cadvisor / promtail on the new spoke, bound to its mesh IP. To make Prometheus on vps1 scrape it, append per-target blocks to the spoke jobs in `prometheus.yml`:
+
+```yaml
+- job_name: node-spokes
+  static_configs:
+    - targets: [10.99.0.2:9100]
+      labels: {host: vps2}
+    - targets: [10.99.0.3:9100]
+      labels: {host: vps3}
+    - targets: [10.99.0.4:9100]    # NEW
+      labels: {host: vps4}          # NEW
+```
+
+Same for `cadvisor-spokes` and `promtail-spokes`. SIGHUP Prometheus and verify targets.
+
+### Adding host label to a new vps1-local job
+
+Every static_configs block should include a `labels: {host: vps1}` so the dashboards + alert rules filter cleanly. Example:
+
+```yaml
+- job_name: new-service
+  static_configs:
+    - targets: [new-service:8000]
+      labels: {host: vps1}
+```
+
+Without the `host` label, dashboard panels filtering on `{host=~"$host"}` will silently exclude the series.
+
+### App-level metrics from spoke services
+
+Future spoke tenants that expose `/metrics`:
+
+- Bind their `/metrics` endpoint to the mesh IP (e.g. `10.99.0.2:<port>`) so only mesh peers reach it
+- Add a per-host scrape block in vps1's `prometheus.yml`:
+
+  ```yaml
+  - job_name: new-saas-on-vps2
+    static_configs:
+      - targets: [10.99.0.2:9123]
+        labels: {host: vps2, service: new-saas}
+  ```
+
+- SIGHUP Prometheus; verify in `/targets`.
+
+When the spec-driven `fabrik apply --target-vps` workflow lands (W-Multi M4/M5), the spec's `shape.exposes_metrics: true` will auto-emit this scrape block via the prometheus registrar.
+
+## Alert rules — spoke health
+
+Live as of 2026-05-31 in `/opt/monitoring/configs/prometheus/rules/alerts.yml` group `spoke_health`:
+
+| Alert | Expr | for | Severity |
+| :--- | :--- | :--- | :--- |
+| `SpokeDown` | `up{job=~"node-spokes\|cadvisor-spokes\|promtail-spokes"} == 0` | 5 m | critical |
+| `SpokeHighCPU` | `(1 - rate(node_cpu_seconds_total{mode="idle", host=~"vps[23]"}[5m])) > 0.85` | 10 m | warning |
+| `SpokeHighRAM` | `(1 - node_memory_MemAvailable_bytes{host=~"vps[23]"}/node_memory_MemTotal_bytes{host=~"vps[23]"}) > 0.85` | 10 m | warning |
+
+Routed via Alertmanager → Apprise → Telegram with the existing config.
+
+## Common operations
+
+### Add a new app-level scrape job
+
+1. Edit `/opt/monitoring/configs/prometheus/prometheus.yml`
+2. Add the new `- job_name: ...` block under `scrape_configs:` with a `labels: {host: vpsN}` line
+3. SIGHUP Prometheus
+4. Verify via `/api/v1/targets`
+
+### Why we don't scrape GlitchTip
+
+GlitchTip ships without `django-prometheus`. Adding it would mean forking the image — not worth the maintenance cost. cAdvisor covers GlitchTip container metrics; Gatus covers its HTTP health. Errors arriving INTO GlitchTip count themselves (visible in the GlitchTip UI directly).
+
+## References
+
+- Prometheus scrape config syntax: <https://prometheus.io/docs/prometheus/latest/configuration/configuration/#scrape_config>
+- Authelia telemetry: <https://www.authelia.com/configuration/telemetry/metrics/>
+- Meilisearch metrics: <https://docs.meilisearch.com/learn/experimental/metrics_endpoint.html>
+- Sister docs:
+  - [`grafana-dashboards-setup.md`](grafana-dashboards-setup.md) (dashboards + host filter variable)
+  - [`grafana-provisioning-setup.md`](grafana-provisioning-setup.md) (datasource provisioning)

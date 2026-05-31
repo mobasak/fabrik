@@ -1,121 +1,104 @@
-# VPS Bootstrap Automation — Future Plan
+# VPS Bootstrap Automation
 
-> **⚠️ Pre-migration capture (2026-05-20).** This plan was authored when
-> Coolify v4 was still the deploy control plane on the VPS. Sections that
-> install Coolify, manage Coolify env vars, or rely on
-> `coolify-alias-watcher` are now superseded by the SSH+Compose bootstrap
-> path (Compose stacks under `/opt/<app>/` with `container_name:` for
-> stable naming — no alias watcher). Use this doc for the rest (firewall,
-> base packages, monitoring stack bind mounts, secrets layout). A
-> Coolify-free bootstrap plan supersedes this for new VPS provisioning.
+**Last Updated:** 2026-05-31 (replaces the 2026-05-20 Coolify-era plan; the spoke-bootstrap script is now live and tested)
+**Status:** Spoke bootstrap **shipped + verified on vps2 + vps3**; hub bootstrap remains manual (documented below)
 
-**Status:** Planned
-**Created:** 2026-05-20
-**State capture:** `docs/infrastructure/vps-captured-state-20260520.txt` (737 lines, full VPS config dump)
+## What's actually done
 
-## Goal
+The bootstrap automation that was planned in 2026-05 is now real for spokes. The single command:
 
-Fresh Ubuntu 24.04 → fully provisioned VPS with complete stack in ~15 minutes via automated script. Eliminates manual setup, ensures reproducibility, enables instant VPS cloning.
+```bash
+./scripts/bootstrap/bootstrap-vps.sh ozgur@<new-vps> vpsN
+```
 
-## Approach
+takes a fresh GreenCloudVPS Ubuntu 24.04 instance to a state where it's a fully-joined Fabrik mesh spoke. Verified against vps2 + vps3 on 2026-05-31 (commits `c838a03`, `f853a50`).
 
-Two scripts:
+Full reference: [`scripts/bootstrap/README.md`](../../scripts/bootstrap/README.md).
 
-1. **`scripts/provision-vps.sh`** — runs on fresh Ubuntu, installs and configures everything
-2. **`scripts/configure-vps-instance.sh`** — per-instance customization (hostname, secrets, domains)
+### What `bootstrap-vps.sh` does (12 steps)
 
-After both succeed → Hetzner snapshot → golden image for instant clones.
+1. Create `ozgur` user, install SSH key, grant NOPASSWD sudo — verified working before disabling root SSH
+2. Harden SSH (PermitRootLogin no, PasswordAuthentication no)
+3. Install UFW + fail2ban; open 22/80/443/51820
+4. Install Docker + log rotation; create `fabrik` external network
+5. Install Wireguard + iptables-persistent
+6. Generate Wireguard keypair on the spoke (private key never leaves)
+7. Register the spoke as a peer on vps1's `wg0.conf` (over the dev machine's `ssh vps` alias to the hub)
+8. Render the spoke's `wg0.conf` with the hub's endpoint
+9. Bring up `wg-quick@wg0`
+10. PMTU probe (fallback MTU=1380 then 1300 if 1420 fails)
+11. Apply DOCKER-USER iptables chain rules
+12. (step 11 in code) Deploy monitoring agents — `node-exporter` + `cadvisor` + `promtail` configured to ship to vps1's Prometheus + Loki over mesh
 
-## What the Provisioning Script Must Codify
+### What's NOT in the script (deferred / out of scope)
 
-Extracted from VPS state capture 2026-05-20:
+- **DNS records** for `*.vps<N>.ocoron.com` — blocked on Cloudflare API token refresh + site-provisioner redeploy
+- **Tenant Traefik** on each spoke is **now deployed manually** (see `docs/infrastructure/vps-complete-inventory.md` § vps2 inventory) — pending: bake it into a bootstrap step
+- **`fabrik apply --target-vps vps2 specs/services/foo.yaml`** — needs spec model + CLI changes (~2-3 h code change); tracked as W-Multi M4 / M5
 
-### System Hardening
-- SSH: Ed25519 keys, `PermitRootLogin No`, `PasswordAuthentication No`
-- UFW: ports 22, 80, 443, 1194, 6001, 6002 ALLOW; 8000 DENY
-- DOCKER-USER iptables chain: 9 rules (`/etc/iptables/add-docker-user-rules.sh`)
-- `iptables-docker-user.service` (systemd, after docker)
-- fail2ban for SSH jail
-- sysctl: `vm.swappiness=10`, `net.ipv4.ip_forward=1` (OpenVPN)
-- Kernel hardening: all `/etc/sysctl.d/10-*.conf` files (Ubuntu defaults — verify present)
+## What's still manual: the hub (vps1)
 
-### Docker
-- Docker CE install
-- `/etc/docker/daemon.json`: json-file driver, max-size 10m, max-file 3, tag `{{.Name}}`, DNS 1.1.1.1/8.8.8.8, address pool 10.0.0.0/8
+The hub itself (vps1) was built incrementally over months and the current state is not reproducible from a single script. The "hub bootstrap" would need to:
 
-### Coolify
-- Coolify v4 install (official one-liner)
-- Traefik v2.11 configuration
+- Install Docker + create `fabrik` network
+- Bring up postgres-main, redis-main, traefik, authelia, monitoring stack, etc. — each `/opt/<svc>/compose.yaml`
+- Restore data from B2 or a fresh provision
+- Install Wireguard hub + open UDP 51820
 
-### OpenVPN
-- Server config at `/etc/openvpn/server/`
-- `iptables-openvpn.service` + NAT rules
-- sysctl `ip_forward=1`
+For now, hub recovery is a copy-and-customize of `docs/operations/disaster-recovery.md § Path B — B2 cold restore`. Writing a true hub bootstrap script is on the platform-to-A+ plan as W-Multi M0 (~4 h work).
 
-### Monitoring Stack (non-Coolify managed)
-- `/opt/monitoring/compose.yaml`: prometheus, alertmanager, node-exporter, cadvisor, postgres-exporter, redis-exporter, pushgateway
-- `/opt/monitoring/configs/prometheus/prometheus.yml` + rules/alerts.yml + rules/fabrik-drift.yml
-- `/opt/monitoring/configs/alertmanager/alertmanager.yml`
-- `/opt/monitoring/configs/loki/loki-config.yaml`
-- `/opt/monitoring/configs/promtail/promtail-config.yaml`
-- `/opt/monitoring/configs/grafana/provisioning/` (datasources + dashboards + json-dashboards)
-- `/opt/monitoring/configs/gatus/` (all endpoint YAML files)
-- `/opt/monitoring/configs/redis/assignments.json`
-- `/opt/monitoring/configs/postgres/allocations.json`
+## Operating notes (for now)
 
-### Coolify Services (deployed via `fabrik apply` (SSH + Docker Compose)/UI)
-- Grafana, Loki, Promtail, Gatus, cAdvisor, node-exporter, Alertmanager
-- Authelia, Apprise, Backrest, n8n, Netdata
-- GlitchTip (web + worker)
-- Postgres-main, Redis-main
-- Meilisearch, Gotenberg, Browserless
+### Provisioning a new spoke
 
-### Custom Systemd Services
-- `authelia-config-sync.service` — watches `/opt/authelia/config/`, syncs to Docker volume, restarts Authelia
-- `coolify-alias-watcher.service` — re-applies friendly DNS aliases on Coolify redeploy
-- `iptables-docker-user.service` — firewall rules after Docker starts
-- `iptables-openvpn.service` — OpenVPN NAT rules
+1. Buy a GreenCloudVPS instance (see `docs/infrastructure/vps-complete-inventory.md` § vps2 / vps3 for spec patterns; `BudgetKVMCUK-3` for budget hosts in UK).
+2. Install Ubuntu 24.04 LTS in VirtFusion with your SSH key attached, swap = 2 GB, VNC disabled, DNS = `1.1.1.1` + `8.8.8.8`.
+3. Confirm `ssh root@<new-ip>` works (key-only). Add a `Host vps<N>` block to `~/.ssh/config` on the dev machine.
+4. Run `./scripts/bootstrap/bootstrap-vps.sh root@<new-ip> vps<N>` — ~5–10 min.
+5. Verify mesh: `ssh vps<N> ping -c 3 10.99.0.1` (expect 130–150 ms RTT cross-region).
+6. Verify Prometheus picks up the new spoke: `ssh vps 'sudo docker exec prometheus wget -qO- http://localhost:9090/api/v1/label/host/values'` should include `vps<N>`. If not, edit `/opt/monitoring/configs/prometheus/prometheus.yml` to add the new spoke's `10.99.0.<N>:<port>` targets to the spoke jobs.
+7. **Manual one-time:** deploy Traefik on the new spoke (`/opt/traefik/compose.yaml` + `traefik.yml` + `dynamic/authelia.yml`) — same pattern used for vps2 + vps3. Templates documented in `docs/infrastructure/vps-complete-inventory.md` and lifted from vps1's working config.
 
-### Supporting Scripts
-- `/opt/fabrik/scripts/vps_apply_limits.sh` — memory limits + alias application
-- `/opt/coolify-alias-watcher/watcher.sh` + `aliases.json`
-- `/opt/authelia-config-sync/sync.sh`
-- `/opt/backrest/config/config.json` (with retention policies)
-- Root crontab: `/opt/backups/pre-backup.sh` at 07:45
+### Bootstrap script idempotency
 
-## Per-Instance Configuration (configure-vps-instance.sh)
+Safe to re-run after partial failures:
 
-These vary per VPS and must be provided at setup time:
-- Hostname
-- VPS IP address
-- SSH authorized keys
-- `/opt/fabrik/.env` (all secrets: Coolify, Cloudflare, GlitchTip, Grafana tokens)
-- Backrest B2 credentials
-- Authelia TOTP secrets
-- Domain names + DNS records
-- Let's Encrypt certificates (auto-generated on first deploy)
-- OpenVPN keys + certificates
+- Step 00 (`ozgur` user creation) — `useradd` guarded by `id` check; key install uses `grep -qxF` before append
+- Step 06 (peer registration) — uses a regex marker on hub-side wg0.conf; idempotent replace
+- Step 11 (monitoring agents) — `docker compose up -d --remove-orphans`
 
-## Dead Stuff to Clean First
+If a step fails partway, fix it, then re-run the script with the same arguments. Earlier successful steps detect existing state and short-circuit.
 
-Before codifying, these must be removed from the VPS (legacy, replaced, or never configured):
+## File manifest
 
-- `/opt/duplicati/` — old backup tool, replaced by Backrest
-- `/opt/uptime-kuma/` — old monitoring, replaced by Gatus
-- `/opt/apps/` — legacy deploy convention
-- `/opt/_archive/` — old archived stuff
-- `/opt/namecheap/` — old DNS tool, replaced by site-provisioner
-- `/opt/email-reader/` — old project (not deployed)
-- `/opt/infrastructure/` — unclear purpose
-- `/opt/scripts/` — unclear purpose
-- `proxy_sync_scheduled.service` — template never configured (references `/home/your_user/`)
-- `vps-backup.service` — disabled
-- `coolify-ssh-permissions.service` — disabled
-- `.bak` files in monitoring configs (6 files)
+| Path | Purpose |
+| :--- | :--- |
+| [`scripts/bootstrap/bootstrap-vps.sh`](../../scripts/bootstrap/bootstrap-vps.sh) | The actual script (522 lines) |
+| [`scripts/bootstrap/bootstrap-config.sh`](../../scripts/bootstrap/bootstrap-config.sh) | Locked params (subnet, port, MTU, mesh-only port list, sudoer username) |
+| [`scripts/bootstrap/templates/wg0.spoke.conf.template`](../../scripts/bootstrap/templates/wg0.spoke.conf.template) | Spoke Wireguard config |
+| [`scripts/bootstrap/templates/wg-peer.append.template`](../../scripts/bootstrap/templates/wg-peer.append.template) | `[Peer]` block appended to hub on peer-add |
+| [`scripts/bootstrap/templates/iptables-mesh.sh.template`](../../scripts/bootstrap/templates/iptables-mesh.sh.template) | DOCKER-USER chain rules |
+| [`scripts/bootstrap/templates/monitoring-agent.compose.yaml.template`](../../scripts/bootstrap/templates/monitoring-agent.compose.yaml.template) | Spoke node-exporter + cadvisor + promtail |
+| [`scripts/bootstrap/templates/promtail.yaml.template`](../../scripts/bootstrap/templates/promtail.yaml.template) | Spoke promtail config — pushes to `10.99.0.1:3100` |
+| [`scripts/bootstrap/README.md`](../../scripts/bootstrap/README.md) | Architecture map + future usage |
 
-## References
+## Lessons captured (from the bootstrap shipping process)
 
-- VPS state capture: `docs/infrastructure/vps-captured-state-20260520.txt`
-- VPS inventory: `docs/infrastructure/vps-complete-inventory.md`
-- Audit prompts: `docs/infrastructure/audit-prompts/`
-- Architecture: `docs/reference/architecture.md`
+- **Lesson 65** — three bugs surfaced during vps2/vps3 bootstrap: `PermitRootLogin no` locked us out before sudoer existed (now: create user first, verify, then disable root); `ssh -G` returns `id_rsa.pub` even when `id_ed25519` is in use (now: scan candidate list); `wg syncconf <(...)` process substitution doesn't survive SSH single-quote wrapping (now: tempfile in `/run/`). Full writeup: `docs/LESSONS_LEARNT.md § Lesson 65`.
+- **Lesson 11** — silence the `ContainerDown` alert rule before any planned downtime > 2 min (otherwise Telegram floods).
+- **Single-operator threat model** — don't add CIS-checklist security hardening (perm tightening, rotation theater) without naming a realistic attacker.
+
+## Pending follow-ups for the bootstrap pipeline
+
+1. **Bake spoke Traefik into step 11 or a new step 11.5.** Currently manual. ~30 min to template + add to script.
+2. **Add `tag: "{{.Name}}"` to spoke `daemon.json`** so promtail extracts `container_name` labels. ~5 min.
+3. **Add DNS step (12)** once Cloudflare API token is refreshed + site-provisioner is redeployed.
+4. **Hub bootstrap (W-Multi M0)** — multi-hour ticket; deferred until first vps1 rebuild.
+
+---
+
+## Original 2026-05-20 plan (archived for reference)
+
+The original plan from `vps-captured-state-20260520.txt` proposed a single end-to-end script. Most of it materialized; the parts that didn't are listed above as "Pending follow-ups". The plan-era doc has been superseded — no longer maintained.
+
+State capture from that era: `docs/infrastructure/vps-captured-state-20260520.txt` (737 lines, vps1 only, Coolify-era — historical reference).
