@@ -1,0 +1,27 @@
+# Wireguard spoke configuration (vps2, vps3, ...).
+# Rendered by scripts/bootstrap/bootstrap-vps.sh during M1d on the new VPS.
+#
+# Variables (envsubst):
+#   {{SPOKE_PRIVATE_KEY}} — generated locally on the spoke; never leaves it
+#   {{SPOKE_MESH_IP}}     — e.g. 10.99.0.2 for vps2
+#   {{WG_MTU}}            — 1420 (or fallback if PMTU probe found lower)
+#   {{HUB_PUBLIC_KEY}}    — vps1's public key (read by spoke from vps1)
+#   {{HUB_PUBLIC_ENDPOINT}} — vps1's public IP + port, e.g. 172.93.160.197:51820
+#   {{WG_SUBNET}}         — 10.99.0.0/24 (what the hub routes to)
+#   {{WG_KEEPALIVE}}      — 25 (keeps NAT mappings alive)
+
+[Interface]
+PrivateKey = {{SPOKE_PRIVATE_KEY}}
+Address = {{SPOKE_MESH_IP}}/24
+MTU = {{WG_MTU}}
+
+# MSS clamping for outbound mesh traffic.
+PostUp = iptables -t mangle -A FORWARD -o %i -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu
+PostDown = iptables -t mangle -D FORWARD -o %i -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu
+
+[Peer]
+# vps1 (hub)
+PublicKey = {{HUB_PUBLIC_KEY}}
+Endpoint = {{HUB_PUBLIC_ENDPOINT}}
+AllowedIPs = {{WG_SUBNET}}
+PersistentKeepalive = {{WG_KEEPALIVE}}

@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+# DOCKER-USER chain rules for the Fabrik mesh.
+# Applied on every VPS (hub and spokes) after Docker + Wireguard are running.
+#
+# WHY DOCKER-USER:
+# Docker injects DNAT rules in the nat table on container start, which
+# bypass UFW's INPUT chain. The DOCKER-USER chain is the only iptables
+# hook Docker honors before its own auto-rules. UFW alone CANNOT block
+# Docker-exposed ports.
+#
+# RULES:
+# 1. ACCEPT everything coming in on the Wireguard interface (wg0).
+#    Trust is established by the WG handshake; if a packet arrived on wg0,
+#    it came from a verified mesh peer.
+# 2. DROP all mesh-only ports if they arrived on the public interface.
+#    This is the actual security boundary against the internet.
+# 3. Don't touch traffic on ports 80/443 — Traefik serves the public there.
+#
+# IDEMPOTENCY:
+# This script uses `iptables -C` to check rule existence before -A appending.
+# Safe to run repeatedly.
+#
+# PERSISTENCE:
+# Rules are saved to /etc/iptables/rules.v4 via iptables-persistent.
+# Loaded at boot by the netfilter-persistent service.
+#
+# Variables (envsubst):
+#   {{PUBLIC_IFACE}}  — e.g. ens3
+#   {{MESH_IFACE}}    — e.g. wg0
+#   {{MESH_PORTS}}    — space-separated list, e.g. "5432 6379 9090 9100 8080"
+
+set -euo pipefail
+
+PUBLIC_IFACE="{{PUBLIC_IFACE}}"
+MESH_IFACE="{{MESH_IFACE}}"
+MESH_PORTS="{{MESH_PORTS}}"
+
+# Convert space-separated ports into iptables multiport format (comma-separated).
+MESH_PORTS_CSV="${MESH_PORTS// /,}"
+
+# Helper: ensure a rule exists in DOCKER-USER (insert if missing).
+ensure_rule() {
+    local rule_spec=("$@")
+    if ! iptables -C DOCKER-USER "${rule_spec[@]}" 2>/dev/null; then
+        iptables -I DOCKER-USER "${rule_spec[@]}"
+        echo "  + added: ${rule_spec[*]}"
+    else
+        echo "  = exists: ${rule_spec[*]}"
+    fi
+}
+
+echo "Configuring DOCKER-USER chain for Fabrik mesh ..."
+
+# Rule 1: trust everything from the mesh interface.
+ensure_rule -i "$MESH_IFACE" -j ACCEPT
+
+# Rule 2: block mesh-only ports from the public interface.
+ensure_rule -i "$PUBLIC_IFACE" -p tcp -m multiport --dports "$MESH_PORTS_CSV" -j DROP
+
+echo "Saving rules to /etc/iptables/rules.v4 ..."
+mkdir -p /etc/iptables
+iptables-save > /etc/iptables/rules.v4
+
+echo "Verifying netfilter-persistent service is enabled ..."
+systemctl enable netfilter-persistent >/dev/null 2>&1 || true
+
+echo "Done. Current DOCKER-USER chain:"
+iptables -L DOCKER-USER -n -v --line-numbers

@@ -1,0 +1,6 @@
+
+# === peer: {{SPOKE_NAME}} (added {{TIMESTAMP}}) ===
+[Peer]
+PublicKey = {{SPOKE_PUBLIC_KEY}}
+AllowedIPs = {{SPOKE_MESH_IP}}/32
+PersistentKeepalive = {{WG_KEEPALIVE}}
