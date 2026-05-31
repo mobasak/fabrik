@@ -965,7 +965,7 @@ A one-line copy-paste set for tracking. Tick as you go.
 - [ ] Telegram silenced for the W2 window (W1 already done as of 2026-05-31 evening — no silence needed retroactively)
 - [x] W1 step 3 — iptables backend confirmed consistent on vps2/vps3 (`iptables-nft` on all 3 hosts) — DONE
 - [x] W1 step 4 — UFW installed + enabled on vps2, vps3 (8 ALLOW rules each) — DONE
-- [ ] W1 step 5 — Bootstrap script patched to handle `rc`-state edge case (see Lesson 68) — PENDING
+- [x] W1 step 5 — Bootstrap script patched to handle `rc`-state edge case (Lesson 68) — DONE (commit `4e8e9c9`; step_02 now uses `apt install --reinstall` on `rc`-state OR missing binary, then self-verifies `command -v ufw` + `dpkg ii` + `ufw status: active` before returning success)
 - [ ] W6 step 1 — `scripts/audit_infra_vs_docs.py` written + executable
 - [ ] W6 step 2 — `data/infra-probe-YYYYMMDD-HHMM.yaml` committed
 - [ ] W6 step 3-4 — 4 infra docs updated with `Last probe report:` header
