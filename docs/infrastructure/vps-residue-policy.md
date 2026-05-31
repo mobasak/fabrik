@@ -80,8 +80,21 @@ Items intentionally retained for historical reference, not residue per the polic
 
 - `/opt/.archive/` — archived configs from W1 cleanup (apprise plugin volumes, prometheus.yml backups, etc.)
 - `/opt/backups/` — postgres dumps + Coolify env backups in `/opt/.archive/coolify-env-backups/` (preserved)
-- `/opt/prometheus/` — stale standalone Prometheus compose from pre-rename era; the real Prometheus runs in `/opt/monitoring/compose.yaml`. Can be deleted; see vps-complete-inventory § Known Issues.
+- ~~`/opt/prometheus/`~~ — stale standalone Prometheus compose from pre-rename era. **Deleted 2026-05-31 evening** during the residue sweep; real Prometheus runs from `/opt/monitoring/compose.yaml`.
 - `coolify-db` / `coolify-redis` Docker volumes — pre-migration legacy. Deleted on 2026-05-30 cleanup; verify with `ssh vps 'sudo docker volume ls'` (should not appear).
+
+### Other residue items cleared 2026-05-31 evening (one-pass sweep)
+
+- 6 stale CF DNS A records (`coolify`, `control`, `dns`, `fabrik-e2e-timing`, `images`, `netdata`.vps1.ocoron.com) — deleted
+- Authelia rule #6 trimmed from 10 hosts (5 were dead microservices + 1 stale alias) to 4 alive
+- Authelia rule #7 dropped `coolify.vps1.ocoron.com`
+- Orphan Postgres role `proxy_user` — dropped
+- UFW rules 6001/tcp + 6002/tcp (Coolify Realtime) — deleted
+- `/opt/opt.code-workspace` stray file — deleted
+- 6 orphan `.fabrik/state/*.json` files — moved to `.fabrik/state/_destroyed/`
+- 2 `.bak` Gatus config files — deleted
+
+Net: post-sweep, the only "residue still on disk" entries are `/opt/.archive/` and `/opt/backups/`, both intentionally preserved.
 
 ## Cross-references
 

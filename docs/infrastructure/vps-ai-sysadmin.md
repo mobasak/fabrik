@@ -144,12 +144,14 @@ Container classification on spokes (post-bootstrap):
 
 ## Container Classification
 
-| Category | Containers | Claude's permissions |
+| Category | Containers (vps1 + spokes) | Claude's permissions |
 |---|---|---|
-| **critical-infra** | traefik, postgres-main, redis-main | READ ONLY. Never restart/stop/scale. |
-| **monitoring** | prometheus, grafana, loki, promtail, alertmanager, cadvisor, node-exporter, netdata, gatus, pushgateway, exporters | READ ONLY. Touching these blinds Claude. |
+| **critical-infra** | traefik (every host), postgres-main, redis-main, wg0 (mesh) | READ ONLY. Never restart/stop/scale. |
+| **monitoring** | prometheus, grafana, loki, promtail (every host), alertmanager, cadvisor (every host), node-exporter (every host), gatus, pushgateway, exporters | READ ONLY. Touching these blinds Claude. (`netdata` is in this list pattern but **not deployed today**.) |
 | **platform** | authelia, apprise, backrest, n8n, glitchtip-web/worker, meilisearch, gotenberg, browserless | Restart autonomously. Report after. |
-| **application** | image-broker, site-provisioner, ocoron-com-*, any future service | Full autonomous management. |
+| **application** | site-provisioner (interim, vps1), ocoron-com-* (vps1), any spoke tenants deployed via `fabrik apply --target-vps vpsN` | Full autonomous management. |
+
+**Note (2026-05-31):** the 7 historical microservices (captcha, image-broker, translator, proxy, emailgateway, file-api, file-worker) are **not deployed** — they show in old runbooks as examples. Same rules apply when they're redeployed.
 
 ## Operating Mode
 

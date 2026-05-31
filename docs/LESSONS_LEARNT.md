@@ -4179,3 +4179,15 @@ After all three fixes, the script completed cleanly on both vps2 and vps3 (fresh
 - vps1's `wg show` reports both peers with active handshakes
 
 **Commit trail:** `7fbd580` (PermitRootLogin no → prohibit-password), `59bf3a8` (step 00 + sudoer-first), `14d3972` (tempfile syncconf).
+
+---
+
+## Lesson 66 — Validators must reference, not silently duplicate, canonical enums
+
+**Context (2026-05-31):** Crowdlex's `tools/validate.py` (the `Validate Project State` CI gate) carried a **hand-maintained enum** of allowed `project.yaml` types. It drifted from Fabrik's canonical template set in `src/fabrik/spec_loader.py` (template table ~L232) — it listed `python-worker`/`python-cli`/`next-app` but was **missing `file-worker` and `file-api`**, both real scaffold templates (`templates/file-worker/`, `templates/file-api/` exist). A legitimate `type: file-worker` project failed CI as an "invalid type" — and had been **failing on every push for days** before the failure email was traced. This drift class recurs whenever Fabrik adds a scaffold type and a downstream mirror isn't updated.
+
+**Rule:** Any validator enforcing "valid X" against an enum owned elsewhere must **import the canonical list when feasible**. When the canonical lives in a package unavailable at run time (CI installs only `pyyaml`+`jsonschema`, not `fabrik`) **and exposes no importable constant** (spec_loader's list lives in a docstring/table, not a symbol), the fallback inline enum **must carry a back-reference comment naming the source `file:line`** so the next maintainer knows where to resync. A hand-maintained mirror **without** that back-reference is the bug.
+
+**Don't over-correct:** `project.yaml::type` (project identity / scaffold) and `spec.template` (deploy shape) are **distinct** — a `file-worker` project that exposes HTTP can legitimately deploy via a `python-api`/`file-api` template (`is_public: true`); the mere existence of a `file-worker/` template dir does NOT mean the deploy spec should switch to it. Verify the deploy shape, don't conflate the two fields.
+
+**Fix:** crowdlex `tools/validate.py` enum synced to the spec_loader template table + back-reference comment (commit `8e4bb3d`). Follow-up backlog (Fabrik-side): a propagator so downstream validators consume the canonical enum from a single source instead of mirroring it.

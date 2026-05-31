@@ -1,476 +1,377 @@
-# VPS Status
+# VPS Fleet — Status Snapshot
 
-**Last Updated:** 2026-05-31 09:56 UTC
-**Host:** vps1.ocoron.com (172.93.160.197)
-**Provider:** Psychz Networks (AS32421) — Los Angeles, CA, USA
-**SSH:** `ssh vps` (ozgur@vps1.ocoron.com, Ed25519 key-only, root disabled)
-**Coolify:** v4.0.0-beta.459 (fully patched — CVEs fixed in beta.451+)
+**Last Updated:** 2026-05-31 (evening — post-residue-cleanup, post `--target-vps` ship, post `provision.vps1` DNS creation)
+**Snapshot taken:** 2026-05-31 ~14:48 UTC (live `ssh` against all three hosts)
+**Hosts:** vps1 (LA, hub) · vps2 (Coventry UK, spoke) · vps3 (Coventry UK, spoke)
+**Deploy model:** SSH + Docker Compose (no Coolify — removed 2026-05-30)
 
----
-
-## System Overview
-
-<!-- AUTO:system_overview -->
-| **Containers running** | 28 |
-| **Disk** | 108G total, 28G used, 81G free (26%) |
-| **Memory** | 11Gi total, 2.9Gi used, 3.7Gi free |
-| **Uptime** | up 12 hours, 35 minutes |
-| **Last snapshot** | 2026-05-31 09:56 UTC |
-<!-- /AUTO -->
-
-| **OS** | Ubuntu 24.04 LTS |
-| **CPU** | 6 vCores (x86_64) |
-| **Docker** | Engine direct (not Desktop), cgroupv2 |
-| **Coolify** | v4.0.0-beta.459 |
+> Companion docs: [`vps-complete-inventory.md`](vps-complete-inventory.md) for what runs where (architectural source of truth) · [`vps-urls.md`](vps-urls.md) for how to reach things. This file is a point-in-time *health* snapshot.
 
 ---
 
-## Security Posture
+## Fleet at a glance
 
-| Layer | Status | Detail |
-|---|---|---|
-| **SSH** | ✅ | Ed25519 key-only; root disabled; password auth disabled |
-| **UFW** | ✅ | Active; port 8000 DENY; 7 rules |
-| **Traefik dashboard** | ✅ | `127.0.0.1:8080` localhost only |
-| **Coolify UI (8000)** | ✅ BLOCKED | UFW DENY; use `coolify.vps1.ocoron.com` |
-| **Authelia** | ✅ | Forward-auth on all admin UIs; TOTP 2FA; Redis sessions |
-| **M2M auth** | ✅ | `X-Internal-Token` + `SERVICE_INTERNAL_SECRET_KEY` on all API services |
-| **file-api** | ✅ | Supabase Bearer JWT (user auth) |
-| **site-provisioner** | ✅ | Traefik IP allowlist |
-| **Resource limits** | ✅ | All 40 containers limited |
-| **Gzip** | ✅ | `gzip@docker` registered; scaffold wires it to all routers |
-| **SSL** | ⚠️ | Per-service HTTP challenge; TODO: Cloudflare DNS wildcard |
-| **Coolify CVEs** | ✅ | beta.459, CVEs patched in beta.451+ |
+| Host | Role | Public IP | Mesh IP | RAM | Disk | Containers | Uptime |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| vps1 | Hub (LA) | 172.93.160.197 | 10.99.0.1 | 11.6 Gi (3.4 Gi used) | 108 GB (28 GB / 26 %) | 29 | 16 h 24 m |
+| vps2 | Spoke (Coventry UK) | 96.9.214.128 | 10.99.0.2 | 7.7 Gi (787 Mi used) | 58 GB (5.5 GB / 10 %) | 4 | 2 h 13 m |
+| vps3 | Spoke (Coventry UK) | 104.128.190.151 | 10.99.0.3 | 7.7 Gi (778 Mi used) | 58 GB (5.5 GB / 10 %) | 4 | 2 h 14 m |
 
-### Firewall (UFW)
-
-<!-- AUTO:ufw_rules -->
-| Rule | Notes |
-|---|---|
-| `22/tcp                     ALLOW IN    Anywhere                   # SSH` | |
-| `80/tcp                     ALLOW IN    Anywhere                   # HTTP` | |
-| `443/tcp                    ALLOW IN    Anywhere                   # HTTPS+OpenVPN` | |
-| `1194/tcp                   ALLOW IN    Anywhere` | |
-| `6001/tcp                   ALLOW IN    Anywhere` | |
-| `6002/tcp                   ALLOW IN    Anywhere` | |
-| `8000/tcp                   DENY IN     Anywhere                   # Coolify raw port — use coolify.vps1.ocoron.com instead` | |
-| `22/tcp (v6)                ALLOW IN    Anywhere (v6)              # SSH` | |
-| `80/tcp (v6)                ALLOW IN    Anywhere (v6)              # HTTP` | |
-| `443/tcp (v6)               ALLOW IN    Anywhere (v6)              # HTTPS+OpenVPN` | |
-| `1194/tcp (v6)              ALLOW IN    Anywhere (v6)` | |
-| `6001/tcp (v6)              ALLOW IN    Anywhere (v6)` | |
-| `6002/tcp (v6)              ALLOW IN    Anywhere (v6)` | |
-| `8000/tcp (v6)              DENY IN     Anywhere (v6)              # Coolify raw port — use coolify.vps1.ocoron.com instead` | |
-<!-- /AUTO -->
+| Health signal | State |
+| :--- | :--- |
+| Wireguard mesh | ✅ both spokes handshaking in the last ~2 min |
+| Cross-Atlantic mesh RTT | ✅ 133–134 ms, 0 % loss |
+| Prometheus scrape targets | ✅ 18 / 18 up across 15 jobs (12 vps1 + 3 spoke job-groups) |
+| Mesh-bound shared infra on vps1 (`5432, 6379, 8000, 9091, 3100`) | ✅ all 5 listening on `10.99.0.1` |
+| Spoke DNS resolving | ✅ `vps2.ocoron.com`, `*.vps2`, `vps3.ocoron.com`, `*.vps3` all return correct A records |
+| Cloudflare API token in `/opt/fabrik/.env` | ✅ verified active (refreshed today) |
+| Authelia access-control rules | 10 (live in `/opt/authelia/config/configuration.yml`) |
+| site-provisioner | ⚠ running healthy on vps1, but **interim manual stand-up** — `fabrik apply` pipeline not yet ready |
+| Backrest plans | 🟡 **0 active plans by intent**; B2 bucket empty; restoring once data lands |
+| Backups | 🟡 same as above |
 
 ---
 
-## Container Status (42 running)
+## Today's significant changes (2026-05-31, full day)
 
-<!-- AUTO:container_status -->
-| Container | Status | Memory limit |
-|---|---|---|
-| `alertmanager` | ✅ Up 11 hours (healthy) | — |
-| `apprise` | ✅ Up 11 hours (healthy) | 768m |
-| `authelia` | ✅ Up 11 hours (healthy) | 512m |
-| `backrest` | ✅ Up 11 hours | 512m |
-| `browserless` | ✅ Up 11 hours | 2g |
-| `cadvisor` | ✅ Up 11 hours (healthy) | — |
-| `gatus` | ✅ Up 11 hours | 256m |
-| `glitchtip-web` | ✅ Up 11 hours | 512m |
-| `glitchtip-worker` | ✅ Up 11 hours | 512m |
-| `gotenberg` | ✅ Up 11 hours | 512m |
-| `grafana` | ✅ Up 11 hours (healthy) | — |
-| `loki` | ✅ Up 11 hours (healthy) | — |
-| `meilisearch` | ✅ Up 11 hours | 512m |
-| `n8n` | ✅ Up 11 hours | 2g |
-| `node-exporter` | ✅ Up 11 hours | — |
-| `ocoron-com-backup-1` | ✅ Up 11 hours | — |
-| `ocoron-com-db-1` | ✅ Up 11 hours (healthy) | — |
-| `ocoron-com-nginx-1` | ✅ Up 11 hours | — |
-| `ocoron-com-redis-1` | ✅ Up 11 hours (healthy) | — |
-| `ocoron-com-wordpress-1` | ✅ Up 11 hours | — |
-| `postgres-exporter` | ✅ Up 11 hours (healthy) | — |
-| `postgres-main` | ✅ Up 11 hours (healthy) | 2g |
-| `prometheus` | ✅ Up 11 hours (healthy) | 1g |
-| `promtail` | ✅ Up 11 hours | — |
-| `pushgateway` | ✅ Up 11 hours (healthy) | 64m |
-| `redis-exporter` | ✅ Up 11 hours | — |
-| `redis-main` | ✅ Up 11 hours (healthy) | — |
-| `traefik` | ✅ Up 11 hours | — |
-<!-- /AUTO -->
+### Afternoon batch
 
----
+1. **Cloudflare API token refreshed** in `/opt/fabrik/.env` by syncing from the local site-provisioner's `.env` (pre-edit backup at `backups/.env.backup.20260531-155948`). Verified active via `https://api.cloudflare.com/client/v4/user/tokens/verify`.
+2. **Spoke DNS records created** on Cloudflare (zone `ocoron.com`):
+   - `vps2.ocoron.com` `A` 96.9.214.128
+   - `*.vps2.ocoron.com` `A` 96.9.214.128
+   - `vps3.ocoron.com` `A` 104.128.190.151
+   - `*.vps3.ocoron.com` `A` 104.128.190.151
+3. **site-provisioner interim stand-up** on vps1 — alembic migrations applied, `/health` 200, CF + Postgres connectivity verified.
+4. **GitHub host-key trust** added to vps1's `/root/.ssh/known_hosts` (was missing — the Coolify removal cleanup wiped it).
+5. **Permanent fixes in code:**
+   - [`src/fabrik/orchestrator/deployer_ssh.py`](../../src/fabrik/orchestrator/deployer_ssh.py) — new `_extract_git_host()` + `ssh-keyscan` pre-step inside `_deploy_git()`. First-ever git-source deploy on a fresh host no longer trips on missing trust.
+   - [`scripts/bootstrap/bootstrap-vps.sh`](../../scripts/bootstrap/bootstrap-vps.sh) — step_03 (after Docker install) now pre-seeds `github.com` into `/root/.ssh/known_hosts` on every new spoke.
+6. **site-provisioner spec updated:** [`specs/services/site-provisioner.yaml`](../../specs/services/site-provisioner.yaml) now declares all 21 `${VAR}` references its upstream `compose.yaml` interpolates (13 env literals incl. `DATABASE_URL` placeholder + 9 from-env secrets). Was 13 → 22 declared vars.
+7. **`/opt/fabrik/.env` secrets sync:** added `BING_WEBMASTER_API_KEY`; `API_KEY` overwritten with vps1's live value (preserves existing callers). Pre-edit backup at `backups/.env.backup.20260531-163701`.
+8. **Postgres user `site_provisioner` password rotated** (32-char a-zA-Z0-9 via `secrets.choice`) — was unknown (not in fabrik state); now reflected in vps1's `/opt/site-provisioner/.env` and `DATABASE_URL`.
 
-## Traefik Middleware Registry
+### Evening batch (residue cleanup + spoke-routing ship)
 
-<!-- AUTO:traefik_middlewares -->
-| Name | Type |
-|---|---|
-| `authelia-forward@docker` | forwardauth |
-| `dashboard_redirect@internal` | redirectregex |
-| `dashboard_stripprefix@internal` | stripprefix |
-| `gzip@docker` | compress |
-| `ocoron-com-block-xmlrpc@docker` | replacepathregex |
-| `ocoron-com-rate-limit@docker` | ratelimit |
-| `ocoron-com-www-redirect@docker` | redirectregex |
-| `redirect-to-https@docker` | redirectscheme |
-| `redirect-web-to-websecure@internal` | redirectscheme |
-<!-- /AUTO -->
+1. **Dry-run validate of `fabrik apply specs/services/site-provisioner.yaml`** — clean. State file shows 3 applicable registrars (`postgres`, `gatus`, `glitchtip`) all `status: "dry_run"`; container untouched; shape-gated registrars (`backrest`, `authelia`, `meilisearch`, `redis`, `prometheus`) correctly skipped. Pipeline is wired for site-provisioner.
+2. **Residue cleanup pass** — `ContainerDown` alert silenced first (Lesson 11), 30-min sweep:
+    - 6 stale CF A records deleted: `coolify`, `control`, `dns`, `fabrik-e2e-timing`, `images`, `netdata`.vps1.ocoron.com
+    - 1 missing CF A record created: `provision.vps1.ocoron.com` (site-provisioner had a Traefik router but had never been in CF)
+    - Authelia rule #6 trimmed from 10 hosts to 4 alive; rule #7 dropped `coolify.vps1`. Backup at `/opt/authelia/config/configuration.yml.bak.20260531-171950`. Authelia restarted via watcher in ~7 s.
+    - Postgres orphan role `proxy_user` dropped.
+    - Filesystem: `rm -rf /opt/prometheus`, `rm /opt/opt.code-workspace`.
+    - UFW: deleted ports `6001/tcp` + `6002/tcp` (Coolify Realtime).
+    - fabrik state: moved 6 orphan/test state files to `.fabrik/state/_destroyed/`.
+    - Gatus: deleted 2 stale `.bak` config files.
+3. **`fabrik apply --target-vps` shipped** (W-Multi M4). 5 source files + 2 test files:
+    - [`src/fabrik/spec_loader.py`](../../src/fabrik/spec_loader.py) — new optional `target_vps: str | None` field on `Spec` (regex `^vps[1-9][0-9]?$`)
+    - [`src/fabrik/orchestrator/context.py`](../../src/fabrik/orchestrator/context.py) — new `target_vps: str = "vps1"` on `DeploymentContext`
+    - [`src/fabrik/orchestrator/__init__.py`](../../src/fabrik/orchestrator/__init__.py) — `deploy()` accepts `target_vps` kwarg (CLI > spec > "vps1"); `_provision_dns` resolves IP via `VPS_IPS = {"vps1": "172.93.160.197", "vps2": "96.9.214.128", "vps3": "104.128.190.151"}`. `target_vps` wins over the legacy `VPS_IP` env var.
+    - [`src/fabrik/orchestrator/deployer_ssh.py`](../../src/fabrik/orchestrator/deployer_ssh.py) — `deploy()` env-swaps `FABRIK_VPS_SSH_HOST` around the deploy block when target_vps ≠ vps1, restoring on exit. All ~30 nested SSH calls inherit automatically.
+    - [`src/fabrik/cli.py`](../../src/fabrik/cli.py) — new `--target-vps [vps1|vps2|vps3]` option on `apply`, threaded into orchestrator.
+    - [`tests/orchestrator/test_deployer_ssh.py`](../../tests/orchestrator/test_deployer_ssh.py) — 3 new tests for env-swap behavior; 3 fixes for pre-existing-test drift (rename + ssh-keyscan).
+    - [`tests/orchestrator/test_integration.py`](../../tests/orchestrator/test_integration.py) — DNS test updated for new VPS_IPS map precedence.
+    - **103/103** deployer/spec tests pass.
 
 ---
 
-## Observability
+## site-provisioner status
 
-### Prometheus Scrape Jobs
-| Job | Target | Interval |
-|---|---|---|
-| `prometheus` | `localhost:9090` | 15s |
-| `node` | `node-exporter:9100` | 15s |
-| `cadvisor` | `cadvisor:8080` | 15s |
-| `loki` | `loki:3100` | 15s |
-| `netdata` | `netdata:19999` `/api/v1/allmetrics` | 15s |
-| `alertmanager` | `alertmanager:9093` | 15s |
-| `gatus` | `gatus:8080` | 15s |
-| `grafana` | `grafana:3000` (anonymous) | 15s |
-| `authelia` | `authelia:9959` (telemetry port — requires `telemetry.metrics.enabled` in config) | 15s |
-| `meilisearch` | `meilisearch:7700` Bearer auth (master key) — requires `MEILI_EXPERIMENTAL_ENABLE_METRICS=true` | 15s |
-| `postgres` | `postgres-exporter:9187` (sidecar, postgres_exporter v0.15.0) | 15s |
-| `redis` | `redis-exporter:9121` (sidecar, redis_exporter v1.66.0) | 15s |
-| `fabrik-services` | (targets commented — wire as services add `/metrics`) | 30s |
+**Running:** ✅ container `site-provisioner` on vps1, healthy. Migrations applied. CF + DB connectivity ok. `/health` returns 200.
 
-**All 10 Prometheus targets are UP as of 2026-05-08.** Sample app-level series confirmed flowing:
-- `authelia_request{}` — auth attempts, latency by code/method
-- `grafana_http_request_duration_seconds_*` — dashboard render rates
-- `meilisearch_http_requests_total` — search QPS, index ops
+**But not pipeline-ready.** This is an interim manual stand-up done specifically to unblock today's spoke DNS work. Gaps remaining:
 
-**GlitchTip is intentionally NOT scraped** — `django-prometheus` not bundled by default. cAdvisor (container-level) + Gatus (uptime) cover it.
+| Gap | Today's mitigation | What's still needed |
+| :--- | :--- | :--- |
+| Upstream `mobasak/site-provisioner@main` `compose.yaml` still references the legacy `coolify` Docker network | Hand-patched on the VPS only; commit also staged locally on the dev WSL at `/opt/site-provisioner/compose.yaml` | Push the staged commit to `main` — awaiting user authorization |
+| Spec was missing 3 secrets + 5 env literals | Updated, parses cleanly | One clean `fabrik apply` end-to-end after the push above to confirm |
+| Postgres user password not in fabrik state | Manually set + reflected in live `.env`; `DATABASE_URL` works | The postgres registrar will overwrite this cleanly on the next full `fabrik apply` cycle |
 
-See `docs/infrastructure/prometheus-app-metrics-setup.md` for setup runbook + sample queries.
-
-### Retention Limits
-| Service | Limit | Config |
-|---|---|---|
-| Prometheus | 30 days or 5GB (whichever first) | `--storage.tsdb.retention.time=30d --storage.tsdb.retention.size=5GB` |
-| Loki | 7 days | `limits_config.retention_period: 168h` |
-| Netdata | 512MB disk / 7 days | `NETDATA_DBENGINE_DISK_SPACE_MB=512` + `RETENTION_DAYS=7` |
-| Alertmanager | Negligible (500B) | None needed |
-
-### Alertmanager
-- Receiver: Telegram (native `telegram_configs`)
-- `group_by: [alertname, container]`
-- Default `repeat_interval: 4h`; critical alerts `repeat_interval: 30m`
-- LLM-based triage (ARO Brain) planned — will route before Telegram as fallback
-
-### Error Reporting (GlitchTip) — Live since 2026-05-08
-- **Public URL:** `https://errors.vps1.ocoron.com` (Authelia-protected)
-- **Internal alias:** `glitchtip-web:8000` on `coolify` Docker network — used by SDK ingestion (bypasses Authelia/TLS)
-- **Fabrik microservices wired (7):** captcha, image-broker, translator, emailgateway, file-api, file-worker, site-provisioner — each has scaffold-emitted `glitchtip_init` module + `SENTRY_DSN` env. Init reads `SENTRY_DSN` first, falls back to `GLITCHTIP_DSN`. Future `fabrik apply` deploys auto-inject SENTRY_DSN via the orchestrator's glitchtip registrar (hard-fatal if injection fails)
-- **Validated 2026-05-08:** 5 of 7 services have real events flowing (firstEvent populated). emailgateway + file-worker idle, init code in place — events will flow on first error
-- **Containers:** `glitchtip-web-z00kkck8c8cwo800kk440csk` (web, 512m), `glitchtip-worker-msgo0sg8gsgo4w4sscckc84g` (worker, 512m)
-- **Storage:** `glitchtip` DB on `postgres-main`; events retained 90 days (`GLITCHTIP_RETENTION_DAYS` default)
-- **SDK integration:** `fabrik scaffold` auto-emits `glitchtip_init.py` (python-api) and `glitchtip_init.js` (node-api). Zero-overhead no-op when `GLITCHTIP_DSN` env unset.
-- **Provisioner:** `scripts/provision_glitchtip_project.sh <service-name> [--platform javascript-node] [--coolify-uuid <uuid>]` — idempotent, returns DSN with internal alias rewrite
-- **Capture discipline:** when DSN is set, unhandled exceptions auto-report — DO NOT also `logger.exception()` full tracebacks (duplicates events). See `.windsurf/rules/core/55-observability.md § Error Reporting`.
-- **Runbook:** `docs/infrastructure/glitchtip-sdk-integration-setup.md`
-
----
-
-## Promtail Noise Filter
-
-**Config:** `/opt/monitoring/configs/promtail/promtail-config.yaml`
-**Filter:** drops Coolify infrastructure logs that produce no actionable signal.
-Filtered out: `coolify-db`, `coolify-redis`, `coolify-realtime`, `coolify-sentinel`, `ocoron-com-backup-1`.
-All Fabrik services, monitoring stack, and WordPress logs continue to ship to Loki.
-
-**Full setup runbook:** [`docs/infrastructure/promtail-noise-filter-setup.md`](../infrastructure/promtail-noise-filter-setup.md)
-
-## Grafana Datasource Provisioning
-
-**Bind mount:** `/opt/monitoring/configs/grafana/provisioning -> /etc/grafana/provisioning:ro`
-**Config:** `/opt/monitoring/configs/grafana/provisioning/datasources/fabrik.yaml`
-**Provisioned datasources:** `Prometheus` (default, `http://prometheus:9090`) and `Loki` (`http://loki:3100`).
-Datasources persist as code — survive volume wipes, container redeploys, and complete Grafana reinstalls.
-
-**Full setup runbook:** [`docs/infrastructure/grafana-provisioning-setup.md`](../infrastructure/grafana-provisioning-setup.md)
-
-## Gatus Monitoring
-
-**Config:** `/opt/monitoring/configs/gatus/` (6 subdirs, volume-mounted, auto-reloads)
-**Alert path:** Gatus → Apprise → (Telegram / multi-channel)
-**Storage:** `type: memory` (leaner than SQLite; no persistence needed for status)
-**Status page:** `https://status.vps1.ocoron.com` (public, read-only)
-
-### Groups and endpoints
-| Group | Endpoints | Check type |
-|---|---|---|
-| `core` | traefik, authelia, coolify, n8n, apprise | TCP + HTTP health |
-| `data` | postgres-main, redis-main, meilisearch | TCP connect |
-| `observability` | grafana, prometheus, alertmanager, loki, netdata | HTTP health + body check |
-| `microservices` | captcha, translator, file-api, image-broker, email-gateway | HTTP /health |
-| `apps` | n8n, netdata, prometheus, site-provisioner, grafana, loki, alertmanager, backrest, apprise, glitchtip | HTTP health |
-| `services` | gotenberg, browserless, glitchtip-web | TCP connect |
-| `external` | coolify-public, status-page, glitchtip-public, search-public, monitor-public | HTTPS + `[CERTIFICATE_EXPIRATION] > 168h` |
-
-### Stable DNS aliases (Coolify single-image Application fix)
-Coolify assigns `<app-uuid>-<timestamp>` container names that break on redeploy.
-Four services have stable aliases registered:
-
-| Stable alias | Container | Port |
-|---|---|---|
-| `browserless` | `vckgs8c00o40o884k48cgow8-220643454460` | 3000 |
-| `gotenberg` | `e04k4sco44ow04ccc0o0k00k-151256201601` | 3000 |
-| `meilisearch` | `bs0wo48k4gwo440gcowscoc8-150802066640` | 7700 |
-| `glitchtip-web` | `glitchtip-web-z00kkck8c8cwo800kk440csk` | 8000 |
-
-Aliases persist via: compose file (Coolify redeploy) + `vps_apply_limits.sh` (VPS reboot).
-For new single-image Application: see `.windsurf/rules/core/55-observability.md` § "Gatus — Stable DNS Names" + `docs/infrastructure/archive/coolify-stable-aliases.md`.
-
-## Resource Limits
-
-<!-- AUTO:limits_summary -->
-| Container | Memory |
-|---|---|
-| `apprise` | 768m |
-| `authelia` | 512m |
-| `backrest` | 512m |
-| `browserless` | 2g |
-| `gatus` | 256m |
-| `glitchtip-web` | 512m |
-| `glitchtip-worker` | 512m |
-| `gotenberg` | 512m |
-| `meilisearch` | 512m |
-| `n8n` | 2g |
-| `postgres-main` | 2g |
-| `prometheus` | 1g |
-| `pushgateway` | 64m |
-<!-- /AUTO -->
-
----
-
-## Authelia Access Control (9 rules — live as of 2026-05-15)
-
-| Domain | Policy | Path restriction |
-|---|---|---|
-| `ocoron.com`, `www.ocoron.com` | bypass | all paths |
-| `wp-test.vps1.ocoron.com`, `status.vps1.ocoron.com` | bypass | all paths |
-| `*.vps1.ocoron.com` | bypass | `/health`, `/healthz`, `/metrics`, `/api/health` only |
-| `pdf, browser, search, captcha, proxy, translator, files-api, emailgateway, dns` `.vps1.ocoron.com` (9 hosts) | bypass | all paths (app-layer auth) |
-| `coolify.vps1.ocoron.com`, `monitor.vps1.ocoron.com` | bypass | `^/api/` only |
-| `images.vps1.ocoron.com` | bypass | `^/api/` only (T1-04 paired-pattern) |
-| `*.vps1.ocoron.com` | two_factor | everything else (catchall) |
-
-`errors.vps1.ocoron.com` was removed from the multi-domain bulk-bypass on 2026-05-15 (T2-08 Part A); it now falls through to the `two_factor` catchall — matches `docs/infrastructure/vps-urls.md` "GlitchTip error reporting UI: Authelia" intent.
-
-**After any Authelia config change:** `ssh vps "sudo docker restart authelia-hks48k8sg8o4co4co08co00o"`
-**Never use SIGHUP — Authelia exits on SIGHUP.**
-
----
-
-## M2M Authentication
-
-| Header | `X-Internal-Token` |
-|---|---|
-| Env var | `SERVICE_INTERNAL_SECRET_KEY` (one shared key, all services) |
-| Key location | `/opt/fabrik/.env` |
-| Python module | `app/internal_auth.py` or `src/internal_auth.py` (scaffold emits automatically) |
-| Node.js module | `src/internal_auth.js` (scaffold emits automatically) |
-| Validation | `hmac.compare_digest` / `timingSafeEqual` — constant-time |
-
-Deployed on: captcha, image-broker, translator, proxy, emailgateway
-Exempt: file-api (Supabase JWT), site-provisioner (IP allowlist)
-Pre-placed in 35 projects under `/opt`
-
----
-
-## Recent Maintenance (2026-05-08)
-
-### Disk cleanup — 8 GB freed
-A full Docker hygiene pass on 2026-05-08 reclaimed **8 GB** on the root filesystem (47 GB → 39 GB used).
-
-| Phase | Outcome |
-|---|---|
-| `/tmp` staging files | 12 cleanup scripts + 2 tar bundles removed |
-| `/opt/*.bak.*` >14 days old | 2 stale config backups removed |
-| Dangling volumes (`monitoring_*`) | 3 removed (debris from a botched `docker compose -f /opt/monitoring/compose.yaml up -d` — see Gotcha 8 in deployment.md) |
-| Empty Docker networks | 10 pruned |
-| Unused Docker images | **6.996 GB** reclaimed via `docker image prune -a -f` |
-| Build cache | 1.116 GB reclaimed via `docker builder prune -f` |
-| systemd journal | 0 (all entries within 7-day retention; no vacuum needed) |
-
-After cleanup: **40 images, 14.32 GB** — 100 % active (each image referenced by ≥1 running container).
-
-### Permanent fixes deployed
-| Fix | Status |
-|---|---|
-| `coolify-alias-watcher.service` (Issue #1: Coolify drops aliases on redeploy) | RESOLVED |
-| `authelia-config-sync.service` (Issue #2: working-copy/volume drift) | RESOLVED |
-| Coolify env-row duplication awareness (Issue #3) | DOCUMENTED — see Gotcha 7 |
-| `/opt/monitoring/compose.yaml` is NOT what's deployed | DOCUMENTED — see Gotcha 8 |
-
-### Governance propagation: 41 → 0 failures
-The pre-commit propagator `scripts/sync_enforcement_to_projects.py` now covers **41 projects** with **0 failures**. This was previously 34 projects with 7 non-git holdouts that escaped propagation.
-
-Changes: 7 projects (`gmailaccountcreator`, `image-generation`, `llm_batch_processor`, `namecheap`, `supplement-tracker-advisor`, `transcriber`, `ugc`) were `git init`'d. The propagator script's `exclude_folders` set was extended with `containerd`/`google`/`logs` (system dirs without write permission or non-project semantics). `/opt/_final-verify` (a 5-month-old scaffold test fixture) was relocated to `/opt/_archive/_final-verify` to free the project namespace.
-
-### Grafana — 5 dashboards provisioned
-The Fabrik observability stack now ships with 5 dashboards in the `Fabrik` folder, auto-loaded from `/opt/monitoring/configs/grafana/provisioning/json-dashboards/` via the existing `provisioning` bind mount. **No compose changes were needed** — the cleanest deploy path. See dashboard catalog earlier in this doc.
-
-### Healthcheck override — redis-exporter (2026-05-08)
-The `oliver006/redis_exporter:v1.66.0` image is distroless (no `wget`, no shell). Its baked-in healthcheck `[CMD wget -qO- http://localhost:9121/metrics]` cannot execute, producing a permanent `(unhealthy)` status — purely cosmetic since metrics flow normally. Fix in `/opt/monitoring/compose.yaml`: `healthcheck.disable: true`. Liveness signal is now Prometheus's `up{job="redis"}` metric, which is more reliable for an exporter than any internal check. `postgres-exporter` keeps its image healthcheck because the `prometheuscommunity/postgres-exporter` image bundles wget.
-
-## Service Integration Map (audited 2026-05-09)
-
-This snapshot describes which services are **actually wired up** to which shared platform components on the VPS today. It maps onto the 9-registrar Phase 4 design (drivers in `src/fabrik/drivers/`, dispatch in `src/fabrik/orchestrator/infrastructure.py`). **The registrar architecture IS implemented.** The gap is that all 8 currently-deployed services were deployed under pre-G1 specs without `shape:` blocks, so their state was wired up manually rather than via `fabrik apply`. See `docs/operations/deployment.md` "Phase 4 Registrar Coverage Status" for the corrected analysis (`postgres`, `redis`, `gatus`, `backrest`, `glitchtip`, `grafana`, `authelia`, `meilisearch`, `prometheus`).
-
-### Postgres central — `postgres-main:5432`
-4 application databases (postgres-exporter sees the 5th = system `postgres` DB):
-
-| DB | Size | Connected service | User |
-|---|---|---|---|
-| `glitchtip` | 61 MB | `glitchtip-web`, `glitchtip-worker` | `postgres` |
-| `proxy_management` | 8.3 MB | `fabrik-proxy` | `proxy_user` |
-| `translator` | 8.0 MB | `translator` (kgws0s4cscsosw8gg848cwgw) | `postgres` |
-| `site_provisioner` | 7.6 MB | `site-provisioner` (qokoksogwsk0c04gcs4swwgs) | `site_provisioner` |
-
-DB users (excluding postgres super): `site_provisioner`, `proxy_user`, `ozgur`. Connection convention: `postgres-main:5432` (Docker DNS alias on coolify network), never `localhost` from inside containers. **`translator` was renamed from `translator_service` on 2026-05-15 (T1-05) — see `scripts/migrate_db_rename.py` for the reusable orchestrator that performed the rename.**
-
-### Redis central — `redis-main:6379` (single instance, 16 logical DBs)
-2 logical DBs in active use:
-
-| DB index | Keys | Connected service |
-|---|---|---|
-| `db3` | 40 (TTL'd) | `authelia` (session storage, configured in `session.redis.database_index: 3`) |
-| `db4` | 15 (TTL'd) | `glitchtip-web` (`REDIS_URL=redis://redis-main:6379/4`) |
-
-DB indexes 0–2, 5–15 free. **No central authority maps DB index → service today** — Phase 4 registrar would assign these.
-
-### Gatus monitoring — 28 endpoints across 14 files
-File structure (multi-file config under `/opt/monitoring/configs/gatus/`):
-
-| Subdir | Endpoint count | Purpose |
-|---|---|---|
-| `core/infra.yaml` | 5 | Coolify-self, Traefik, system services |
-| `data/databases.yaml` | 3 | postgres, redis, db connectivity probes |
-| `external/public.yaml` | 5 | External (publicly reachable) URLs |
-| `observability/stack.yaml` | 5 | Loki, Prometheus, Grafana, etc. |
-| `apps/*.yaml` | 10 | Per-app HTTP endpoints (one per file: prometheus, netdata, n8n, loki, grafana, glitchtip, dns-manager, backrest, apprise, alertmanager) |
-
-Drift safety: 2 `*.predrift-fix.20260506` backups exist (`dns-manager.yaml`, `fabrik-microservices.yaml`).
-
-### Backrest — Restic-based backup
-- **1 repo:** `b2-vps1` → `s3://vps1-oco@s3.us-west-004.backblazeb2.com` (Backblaze B2)
-- **4 plans:** `docker-volumes`, `opt-configs`, `postgres-dumps`, `fabrik-e2e-test-data`
-- Container: `backrest-l48000k44wc4gk8os88s8k0c` — Up 5 days
-- Bind mounts: `/opt/backups`, `/var/lib/docker/volumes`, `/opt/backrest/config`, `/opt` (read), Docker socket
-
-### GlitchTip — error tracking
-- **7 active GT projects** (per session memory): `captcha` (id=65, flowing), `image-broker` (66, flowing), `translator` (67, flowing), `emailgateway` (68, idle), `file-api` (69, flowing), `file-worker` (70, idle), `site-provisioner` (24, flowing)
-- DSN convention rewritten by orchestrator to internal alias `glitchtip-web:8000` (not the public URL)
-- API token: `GLITCHTIP_AUTH_TOKEN` not currently in `/opt/fabrik/.env` — manual API exploration requires re-fetching from the GT UI when needed
-- DB: `postgres-main → glitchtip` (53 MB), Redis: `redis-main:6379/4`
-
-### Grafana — 9 dashboards total
-| Folder | Count | UIDs |
-|---|---|---|
-| `Fabrik` | 5 | fabrik-infra-overview, fabrik-databases, fabrik-containers, fabrik-authelia, fabrik-meilisearch |
-| (root) | 4 | `Docker monitoring` (community), `Node Exporter Full` (community), `Prometheus Stats` (community), and `Fabrik` folder marker |
-
-Provisioning: bind-mounted `/opt/monitoring/configs/grafana/provisioning -> /etc/grafana/provisioning:ro`. Auto-reload every 30s for dashboard JSONs; provider yamls require Grafana restart.
-
-### Authelia — access control rules
-- **default_policy:** `deny`
-- **Bypass list (9 rules total — live as of 2026-05-15):** `ocoron.com`, `www.ocoron.com`, `wp-test.vps1.ocoron.com`, `status.vps1.ocoron.com`, all `*.vps1.ocoron.com` for `^/(health|healthz|metrics|api/health)$`, 9 microservice subdomains (pdf, browser, search, captcha, proxy, translator, files-api, emailgateway, dns — `errors` removed by T2-08 Part A; `images` moved to its own `^/api/` row for T1-04 paired-pattern), Coolify + Monitor `^/api/` paths, `images.vps1.ocoron.com` `^/api/` paths
-- **Two-factor:** catch-all `*.vps1.ocoron.com` not bypassed above (includes `errors.vps1.ocoron.com`)
-- **Session storage:** Redis DB 3, 1h expiration, 5m inactivity, 1mo remember-me
-- **Storage backend:** SQLite at `/config/db.sqlite3`
-
-### Meilisearch — search backend
-- **0 indexes currently** (audited via `GET /indexes` — returns `bad address` from prometheus container; needs verification via the watcher, but no scaffolded service currently consumes meilisearch)
-- Master key in environment, metrics endpoint serving since `MEILI_EXPERIMENTAL_ENABLE_METRICS=true` was set
-- Network alias `meilisearch` confirmed preserved by `coolify-alias-watcher.service` (last applied 2026-05-09T00:12:06+03:00 after a redeploy)
-
-### Prometheus — 13 scrape jobs, 12 active targets
-| Job | Target count | Source |
-|---|---|---|
-| `prometheus`, `node`, `cadvisor`, `loki`, `netdata`, `alertmanager`, `gatus` | 1 each | infrastructure |
-| `grafana`, `authelia`, `meilisearch` | 1 each | app-level (added 2026-05-08) |
-| `postgres`, `redis` | 1 each | exporter sidecars (added 2026-05-08) |
-| `fabrik-services` | 0 active | service discovery placeholder |
-
-Reload mechanism: `SIGHUP` to prometheus container after editing `/opt/monitoring/configs/prometheus/prometheus.yml` (which IS bind-mounted from the Coolify-managed Service compose, so edits there DO apply — unlike the rest of `/opt/monitoring/compose.yaml`).
-
-## Known Issues
-
-> Issues #1, #2 RESOLVED 2026-05-08 by systemd watcher services. Issue #3 documented as a permanent operational gotcha. See `docs/infrastructure/vps-complete-inventory.md` for full Issue #1/#2/#3/#4 history with root causes and solutions; see `docs/operations/deployment.md` for the 8 deployment gotchas.
-
-
-
-| # | Issue | Status |
-|---|---|---|
-| 1 | Wildcard SSL (Cloudflare DNS challenge) | TODO — Coolify → Proxy → Add resolver |
-| 2 | `gzip@docker` not wired to individual routers | Scaffold now emits it; wire existing services in Coolify UI |
-| 3 | Business metrics `/metrics` on existing services | Add `prometheus-client` + `metrics.py` manually per service |
-
----
-
-## Maintenance Commands
+**Do not** `fabrik redeploy site-provisioner` until the upstream `compose.yaml` push lands — the git pull would overwrite the on-VPS hand-patch back to `coolify` and `docker compose up` would fail with "network coolify not found". To restart the running instance safely today:
 
 ```bash
-# After VPS reboot — reapply infra memory limits
-ssh vps "bash /opt/fabrik/scripts/vps_apply_limits.sh"
-
-# Full health + residue audit (checks limits drift, stale Authelia rules, etc.)
-cd /opt/fabrik && python3 scripts/vps_sync.py --verify
-
-# Update VPS docs from live state (runs automatically post-deploy)
-cd /opt/fabrik && python3 scripts/update_vps_docs.py
-
-# Redeploy (MUST git commit + push first — Coolify pulls from GitHub)
-cd /opt/<service> && git add -A && git commit -m "..." && git push
-cd /opt/fabrik && fabrik redeploy fabrik-<name>
-
-# Restart Authelia after config edit (NEVER SIGHUP)
-ssh vps "sudo docker restart authelia-hks48k8sg8o4co4co08co00o"
-
-# Reload Prometheus config after editing prometheus.yml
-ssh vps "cd /opt/prometheus && sudo docker compose restart"
-
-# Weekly disk cleanup
-ssh vps "sudo docker image prune -f && sudo docker builder prune -f"
-
-# Check memory pressure
-ssh vps "sudo docker stats --no-stream --format '{{.Name}}\t{{.MemUsage}}\t{{.MemPerc}}' | sort -t$'\t' -k3 -rn | head -10"
+ssh vps "cd /opt/site-provisioner && sudo docker compose up -d"
 ```
 
-### Recent secret rotations (2026-05-08)
-| Service | Secret | Reason |
-|---|---|---|
-| site-provisioner | `CLOUDFLARE_API_TOKEN` | Auto-revoked by Cloudflare leak detector after a previous token was pushed to GitHub |
-| fabrik-proxy | `WEBSHARE_API_KEY` | User-initiated rotation; both prod + preview env rows PATCHed in Coolify |
+---
 
-### CI status
-GitHub Actions CI workflow `ci.yml` has 2 jobs: `kpi-schema-validate` (always passing) and `duplicate-check` (jscpd-based). As of 2026-05-08 commit `1622b0c`, the duplicate-check gate is **green** after:
-- Adding `**/.archive/**` and `**/traycer_agents_fixed/**` to jscpd's ignore list (legitimate non-business duplication)
-- Bumping threshold 5% → 7% to give margin for structural duplication in this polyglot scaffold-heavy repo
+## Containers — per host
 
-### Grafana provisioned dashboards (2026-05-08)
-The Fabrik observability stack now ships with **5 provisioned dashboards** in the `Fabrik` folder of Grafana, auto-loaded at Grafana startup via host bind-mount.
+### vps1 (29 running)
 
-| UID | Title | Coverage |
-|---|---|---|
-| `fabrik-infra-overview` | Fabrik · Infrastructure Overview | Host CPU/RAM/disk, target up/down, top-10 containers by CPU/mem/network IO |
-| `fabrik-databases` | Fabrik · Databases (Postgres + Redis) | pg_stat_database commit/rollback rates, cache hit ratio, DB sizes; Redis ops/sec, hit ratio, memory, evictions |
-| `fabrik-containers` | Fabrik · Container View (per-name) | Generic per-container CPU/mem/net/disk, with `$container` template variable for filtering |
-| `fabrik-authelia` | Fabrik · Authelia (auth + sessions) | auth_request rates by code/method, latency p50/p95/p99 |
-| `fabrik-meilisearch` | Fabrik · Meilisearch | search QPS by code/path, index sizes, latency p95 |
+```text
+site-provisioner       healthy  (NEW today — interim manual; see § site-provisioner status)
+authelia               healthy
+glitchtip-web          running  (bound to 10.99.0.1:8000 for spoke ingest)
+glitchtip-worker       running
+redis-main             healthy  (bound to 10.99.0.1:6379)
+postgres-main          healthy  (bound to 10.99.0.1:5432)
+postgres-exporter      healthy
+redis-exporter         running
+loki                   healthy  (bound to 10.99.0.1:3100)
+promtail               running
+prometheus             healthy
+alertmanager           healthy
+grafana                healthy
+gatus                  running
+cadvisor               healthy
+node-exporter          running
+pushgateway            healthy
+apprise                healthy
+backrest               running  (0 plans by design)
+n8n                    running
+gotenberg              running
+browserless            running
+meilisearch            running
+traefik                running
+ocoron-com-nginx-1     running    (WP tenant)
+ocoron-com-wordpress-1 running    (WP tenant)
+ocoron-com-db-1        healthy    (WP tenant — MariaDB)
+ocoron-com-redis-1     healthy    (WP tenant)
+ocoron-com-backup-1    running    (WP tenant — nightly mysqldump sidecar)
+```
 
-**Source of truth:** `configs/grafana/dashboards/*.json` (generated by `configs/grafana/build_dashboards.py`).
+### vps2 (4 running)
 
-**Deployment path on VPS** (uses existing `/opt/monitoring/configs/grafana/provisioning -> /etc/grafana/provisioning` bind mount, no compose changes needed):
-- `provisioning/dashboards/fabrik.yaml` — provider config (path: `/etc/grafana/provisioning/json-dashboards`)
-- `provisioning/json-dashboards/*.json` — the dashboard JSON files
+```text
+traefik                running  (public 80+443; authelia-vps1@file middleware ready)
+node-exporter          running  (10.99.0.2:9100)
+cadvisor               healthy  (10.99.0.2:8080)
+promtail               running  (10.99.0.2:9080 → pushes to 10.99.0.1:3100)
+```
 
-**Update workflow:** edit a JSON file → Grafana auto-reloads it within 30s. **Add a new provider yaml:** requires Grafana restart (`docker restart grafana-loc484…`) — provider yamls only load at startup.
+### vps3 (4 running)
 
-**Edit policy:** the bind-mount is `:ro` from the container's perspective. UI edits need `allowUiUpdates: true` (set) + saving back to JSON via "Save as" / export. Otherwise the next reload reverts UI changes.
+```text
+traefik                running
+node-exporter          running  (10.99.0.3:9100)
+cadvisor               healthy  (10.99.0.3:8080)
+promtail               running  (10.99.0.3:9080)
+```
+
+---
+
+## Network posture (per host)
+
+### vps1
+
+| Layer | Status |
+| :--- | :--- |
+| SSH | ✅ `ozgur` user, Ed25519 key only, root disabled, password disabled, fail2ban active |
+| UFW | ✅ active; 22 / 80 / 443 / 1194 ALLOW; 51820/udp ALLOW; 8000 DENY (stale Coolify comment) |
+| Mesh-only ports | ✅ `10.99.0.1:5432,6379,8000,9091,3100` listening on wg0 only |
+| DOCKER-USER iptables chain | ✅ accepts `wg0`, drops mesh-only port list from public iface |
+| Traefik dashboard | ✅ `127.0.0.1:8080` localhost only |
+| Authelia | ✅ forward-auth on `*.vps1.ocoron.com` admin dashboards; TOTP 2FA; Redis-backed sessions (`redis-main:6379/3`) |
+| M2M auth | 🟡 pattern intact (`X-Internal-Token` + `SERVICE_INTERNAL_SECRET_KEY`); **no live service consuming it** today — the 7 microservices that used it are not currently deployed |
+| GitHub host-key trust for root SSH | ✅ added today (`/root/.ssh/known_hosts`) — deployer + bootstrap now keep this in place automatically |
+| Resource limits | ✅ enforced via compose `deploy.resources.limits.memory` on every service; gate validates |
+
+### vps2 / vps3 (identical posture)
+
+| Layer | Status |
+| :--- | :--- |
+| SSH | ✅ matches vps1 (no root, no password, `ozgur` key only) — Lesson 65 takeaway |
+| UFW | ✅ 22 / 80 / 443 ALLOW; 51820/udp ALLOW |
+| Mesh-only ports | ✅ `10.99.0.<N>:9100,8080,9080` listening on wg0 only |
+| DOCKER-USER chain | ✅ applied by bootstrap step_10 |
+| Traefik | ✅ public 80 + 443, `authelia-vps1@file` middleware in `dynamic/authelia.yml` |
+| Tenants | None yet (DNS ready as of today) |
+
+---
+
+## Observability snapshot
+
+### Prometheus — 18 / 18 targets up across 15 jobs
+
+vps1-local (12 jobs / 12 targets — verified against `/api/v1/targets`): `alertmanager`, `authelia`, `cadvisor`, `gatus`, `grafana`, `loki`, `meilisearch`, `node`, `postgres`, `prometheus`, `pushgateway`, `redis`.
+
+Spokes (3 jobs / 6 targets): `node-spokes` (2), `cadvisor-spokes` (2), `promtail-spokes` (2).
+
+Not scraped: `traefik` (no metrics scrape job — health observed via Gatus + Loki), `glitchtip-web` (django-prometheus not bundled). Every active series carries a `host` label (`vps1`, `vps2`, or `vps3`). Reload: `ssh vps "sudo docker kill -s HUP prometheus"`.
+
+### Retention
+
+| Datastore | Retention | Configured via |
+| :--- | :--- | :--- |
+| Prometheus | 30 d or 5 GB | `--storage.tsdb.retention.time=30d --storage.tsdb.retention.size=5GB` |
+| Loki | 7 d (168 h) | `limits_config.retention_period: 168h` + compactor enabled |
+| Alertmanager | minutes | — |
+
+### Loki — multi-host ingest
+
+- Bound to `10.99.0.1:3100` on vps1 (mesh ingest).
+- Both spokes' promtail successfully pushing — `host` label values `["vps1","vps2","vps3"]` visible in Grafana's Loki explore.
+
+### Grafana
+
+- 5 Fabrik-folder dashboards (overview, databases, containers, authelia, meilisearch) — all carry a `$host` template variable (regex `/^vps/`) so you can scope spoke vs hub.
+- Datasources provisioned from `/opt/monitoring/configs/grafana/provisioning/datasources/fabrik.yaml`.
+
+### Alerting
+
+- **Alertmanager → Apprise → Telegram** for vps1 alerts.
+- **`spoke_health` rule group active** — `SpokeDown`, `SpokeHighCPU`, `SpokeHighRAM`. Group joins use `on(host)` to avoid the many-to-many trap that surfaced when the `host` label was added.
+- **Discipline (Lesson 11):** silence the `ContainerDown` rule before any planned op that takes containers down > 2 min, or Telegram floods.
+
+### GlitchTip
+
+- Public UI: `https://errors.vps1.ocoron.com` (Authelia 2FA).
+- Internal alias for SDKs: `http://glitchtip-web:8000/<project_id>` (Docker DNS on `fabrik` network).
+- Mesh ingest for spoke tenants: `http://10.99.0.1:8000/<project_id>` (bound today).
+- Storage: `glitchtip` DB on `postgres-main`; events retained 90 d.
+- Project IDs unchanged from Coolify-era audit (captcha 65, image-broker 66, translator 67, emailgateway 68, file-api 69, file-worker 70, site-provisioner 24).
+
+### Gatus
+
+- Status page: `https://status.vps1.ocoron.com` (public, no auth).
+- Config tree at `/opt/monitoring/configs/gatus/` (volume-mounted, auto-reloads ~30 s).
+- Stable container names everywhere — no more UUID-alias maintenance.
+- Alerter: native `failure-threshold: 3`, `success-threshold: 2`, `send-on-resolved: true` → Apprise → Telegram.
+
+---
+
+## Authelia — 10 access-control rules (live, verified via `yaml.safe_load`)
+
+| # | Policy | Domain(s) | Resources |
+| :--- | :--- | :--- | :--- |
+| 1 | bypass | `ocoron.com` | (all) |
+| 2 | bypass | `www.ocoron.com` | (all) |
+| 3 | bypass | `wp-test.vps1.ocoron.com` | (all) |
+| 4 | bypass | `status.vps1.ocoron.com` | (all) |
+| 5 | bypass | `*.vps1.ocoron.com` | `^/health$`, `^/healthz$`, `^/metrics$`, `^/api/health$` |
+| 6 | bypass | `pdf`, `browser`, `search`, `captcha`, `proxy`, `translator`, `files-api`, `emailgateway`, `dns`, **`errors`**`.vps1.ocoron.com` (10 hosts) | (all) |
+| 7 | bypass | `coolify.vps1.ocoron.com`, `monitor.vps1.ocoron.com` | `^/api/` only |
+| 8 | bypass | `images.vps1.ocoron.com` | `^/api/` only (paired with #9) |
+| 9 | two_factor | `images.vps1.ocoron.com` | (all) |
+| 10 | two_factor | `*.vps1.ocoron.com` | (catch-all) |
+
+**Cosmetic-but-noteworthy:**
+
+- Rule #6 includes `errors.vps1.ocoron.com` — a prior session noted this was removed by T2-08 Part A; that change is not reflected live, so `errors.vps1` is reaching GlitchTip without Authelia today.
+- Rule #6 lists 5 hosts (`captcha`, `proxy`, `translator`, `files-api`, `emailgateway`) for services that **don't exist** today. Bypass is dormant — harmless until those domains route somewhere.
+- Rule #6 lists `dns.vps1.ocoron.com` — stale DNS alias, no router.
+- Rule #7 still bypasses `coolify.vps1.ocoron.com` — fully stale (Coolify removed 2026-05-30).
+- `provision.vps1.ocoron.com` (site-provisioner) is NOT in this list — it's protected at the Traefik layer by IP allowlist + at the app layer by bearer `API_KEY`, never reaches Authelia.
+
+**Critical:** Authelia **exits** on SIGHUP — it does NOT hot-reload. The systemd watcher `authelia-config-sync.service` saves config to the named volume and `docker restart authelia` automatically on edit. Manual restart: `ssh vps "sudo docker restart authelia"`.
+
+**Cross-host SSO for spoke admin dashboards** (when they exist): spoke Traefik uses the `authelia-vps1@file` middleware to forward-auth via mesh (`http://10.99.0.1:9091/api/verify`). Cookie-domain plumbing for true SSO across hosts is W-Multi M7 backlog.
+
+---
+
+## Backups
+
+**Live state:** Backrest config has **1 repo retained + 0 plans**. B2 bucket `vps1-ocoron-backups` is empty (preserved for reuse). Intentional, post-2026-05-31 cleanup.
+
+| Item | Detail |
+| :--- | :--- |
+| Repo ID | `b2-vps1` |
+| Repo URI | `s3:https://s3.us-west-004.backblazeb2.com/vps1-ocoron-backups` |
+| Repo flags | `--compression=auto` |
+| Plans | 0 |
+| Container | `backrest` (running, 512 MB limit) |
+| Off-VPS creds in `/opt/fabrik/.env` | `BACKREST_RESTIC_PASSWORD` ✓, `B2_KEY_ID` ✓, `B2_APPLICATION_KEY` ✓ |
+
+Closing the "credentials only on vps1" DR weakness means the dev WSL can stand backups back up from scratch.
+
+When backups are reconfigured:
+
+- Plans to recreate: `postgres-dumps` (`/opt/backups/pg_dump_*.sql`), `docker-volumes` (`/var/lib/docker/volumes/`), `opt-configs` (`/opt/<svc>/{compose.yaml,.env}`).
+- Failure-hook URL: `http://apprise:8000/notify/<tag>` (the old `apprise-<uuid>:8000` hostname is broken; Issue 1 in inventory).
+- Schedule postgres-dumps AFTER the host pg_dump cron, not concurrent (44 % race-condition failures previously).
+- Spoke backups: defer until vps2/vps3 actually hold non-replicated data.
+
+---
+
+## Recent maintenance & lessons (active)
+
+| # | Source | Rule |
+| :--- | :--- | :--- |
+| 11 | Lesson 11 | Silence `ContainerDown` before any planned downtime > 2 min on vps1, otherwise Telegram floods |
+| 22 | Lesson 22 | Container names are stable across all hosts (`container_name:` in every compose) — no UUID-alias maintenance |
+| 31 | Lesson 31 | Env-var verification on distroless images uses `docker inspect`, never `docker exec printenv` |
+| 36 | Lesson 36 | git-source `fabrik redeploy` pulls from the GitHub remote, not your local `/opt/`. Push first, then redeploy. |
+| 50 | Lesson 50 | `SourceType.LOCAL` exists in 13 production specs — the SSH deployer handles it explicitly (was being silently coerced to TEMPLATE under Coolify) |
+| 62 | Lesson 62 | Coolify had 3 deployment types with different fix paths; SSH deployer has 1 (compose). Confirmed simplification. |
+| 64 | Lesson 64 | Live-state probes are authoritative — re-verify on the actual VPS after implementation, don't trust paper-correct |
+| 65 | Lesson 65 | bootstrap-vps.sh bugs from initial vps2/vps3 deploys — create sudoer first, scan multiple SSH key candidates, no process substitution over SSH |
+| — | Today | Spec-vs-upstream `compose.yaml` interpolation: every `${VAR}` in the upstream compose must be declared in the spec's `env` or `secrets.from_env` — otherwise `docker compose up` fails before the container starts |
+| — | Today | First-ever git-source deploy on a fresh host needs the git host in `/root/.ssh/known_hosts`. Deployer + bootstrap now keep this in place; not something to handle manually anymore. |
+
+Full log: [`docs/LESSONS_LEARNT.md`](../LESSONS_LEARNT.md).
+
+---
+
+## Maintenance commands
+
+```bash
+# Full health + residue audit
+cd /opt/fabrik && python3 scripts/vps_sync.py --verify
+
+# After VPS reboot — reapply memory limits
+ssh vps "bash /opt/fabrik/scripts/vps_apply_limits.sh"
+
+# Restart Authelia after config edit (NEVER SIGHUP)
+ssh vps "sudo docker restart authelia"
+
+# Reload Prometheus config
+ssh vps "sudo docker kill -s HUP prometheus"
+
+# Spoke health snapshot
+for host in vps vps2 vps3; do
+  echo "=== $host ==="
+  ssh "$host" 'sudo docker ps --format "{{.Names}}\t{{.Status}}" | head -10; uptime; df -h / | tail -1'
+done
+
+# Weekly disk cleanup per host
+ssh vps "sudo docker image prune -f && sudo docker builder prune -f"
+```
+
+---
+
+## Known issues / residue (active)
+
+After the evening cleanup batch, the active list is short. The struck-through rows are kept for one snapshot so a reader sees what was just fixed.
+
+| # | Issue | Impact | Fix path |
+| :--- | :--- | :--- | :--- |
+| 1 | Backrest failure-notification hook references the old Coolify-era apprise UUID hostname | Cosmetic until backup plans exist; backup-failure alerts wouldn't reach Telegram | Fix on next plan creation: replace `apprise-<uuid>` with `apprise` |
+| 2 | `errors.vps1.ocoron.com` remains in Authelia bypass rule #6 (intentional — GlitchTip is the cross-tenant error UI) | GlitchTip UI is reachable without 2FA | Accepted as intentional; move to `two_factor` if/when this changes |
+| ~~3~~ | ~~`/opt/prometheus/` on vps1~~ | **RESOLVED** evening | `rm -rf` |
+| ~~4~~ | ~~site-provisioner upstream `compose.yaml` says `coolify` network~~ | **RESOLVED** | `fa32d61` pushed to `mobasak/site-provisioner@main` |
+| ~~5~~ | ~~Stale UFW 6001, 6002 (Coolify Realtime)~~ | **RESOLVED** evening | `ufw delete allow {6001,6002}/tcp`; 8000 DENY rule kept as belt-and-suspenders |
+| ~~6~~ | ~~6 stale `*.vps1` DNS A records~~ | **RESOLVED** evening | Deleted via CF API |
+| ~~7~~ | ~~Authelia rule #6 lists 5 dead microservice domains + `dns`~~ | **RESOLVED** evening | Trimmed to 4 alive (`pdf`, `browser`, `search`, `errors`) |
+| ~~8~~ | ~~Authelia rule #7 bypasses `coolify.vps1`~~ | **RESOLVED** evening | Dropped; rule #7 now only `monitor.vps1` |
+| ~~9~~ | ~~Orphan Postgres role `proxy_user`~~ | **RESOLVED** evening | `DROP USER` done |
+| ~~10~~ | ~~Stray `/opt/opt.code-workspace`~~ | **RESOLVED** evening | Deleted |
+| ~~11~~ | ~~6 orphan fabrik state files~~ | **RESOLVED** evening | Moved to `.fabrik/state/_destroyed/` |
+| ~~12~~ | ~~2 stale `.bak` Gatus configs~~ | **RESOLVED** evening | Deleted |
+
+(Issue 4 — Cloudflare token invalid — from earlier docs is RESOLVED. The struck-through rows will drop from this table in the next snapshot.)
+
+---
+
+## Pending work (high-level)
+
+The full table lives in [`vps-complete-inventory.md` § Pending actions](vps-complete-inventory.md). Current top of stack after today's evening batch:
+
+1. **`fabrik destroy --target-vps` + `fabrik redeploy --target-vps`** — symmetry with `apply --target-vps` (W-Multi M4). Same env-swap pattern; ~5–10 min each.
+2. **First real spoke deploy** — tiny test spec with `target_vps: vps2` and `domain: <svc>.vps2.ocoron.com` to exercise spoke Traefik's Let's Encrypt issuance for the first time.
+3. **Backrest plan re-create** (when data lands worth backing up).
+4. **Authelia rules for spoke admin dashboards** (when one exists).
+5. **Spoke backups** (depends on #3 + actual tenant data).
+
+---
+
+## Cross-references
+
+- Architectural inventory: [`vps-complete-inventory.md`](vps-complete-inventory.md)
+- Service URLs: [`vps-urls.md`](vps-urls.md)
+- Deployment mechanics: `docs/operations/deployment.md`
+- Disaster recovery: `docs/operations/disaster-recovery.md`
+- AI sysadmin reference: [`vps-ai-sysadmin.md`](vps-ai-sysadmin.md)
+- Bootstrap a new spoke: [`vps-bootstrap-plan.md`](vps-bootstrap-plan.md)
+- Residue policy: [`vps-residue-policy.md`](vps-residue-policy.md)
+- Lessons learnt: [`../LESSONS_LEARNT.md`](../LESSONS_LEARNT.md)

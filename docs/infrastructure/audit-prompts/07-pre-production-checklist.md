@@ -16,7 +16,7 @@ Run the full system audit (01) + security audit (03) + observability audit (05) 
 
 ```bash
 # 1. Public endpoint verification
-for domain in ocoron.com www.ocoron.com status.vps1.ocoron.com monitor.vps1.ocoron.com errors.vps1.ocoron.com backup.vps1.ocoron.com coolify.vps1.ocoron.com; do
+for domain in ocoron.com www.ocoron.com status.vps1.ocoron.com monitor.vps1.ocoron.com errors.vps1.ocoron.com backup.vps1.ocoron.com provision.vps1.ocoron.com; do
   code=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 10 "https://$domain/" 2>/dev/null)
   echo "$domain: HTTP $code"
 done

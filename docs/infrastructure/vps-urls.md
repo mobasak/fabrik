@@ -1,133 +1,227 @@
-# VPS1 Service URLs
+# VPS Fleet — Service URLs and Endpoints
 
-**Last Updated:** 2026-05-31 09:56 UTC
-**VPS:** vps1.ocoron.com (172.93.160.197) — Los Angeles, CA
-**Pattern:** All services via HTTPS through Traefik. HTTP auto-redirects to HTTPS.
+**Last Updated:** 2026-05-31 (evening — post-residue-cleanup, post `--target-vps` ship, `provision.vps1` DNS now live)
+**Hosts:** vps1 (hub, LA, `172.93.160.197`) · vps2 (Coventry UK, `96.9.214.128`) · vps3 (Coventry UK, `104.128.190.151`)
+**Mesh:** Wireguard `10.99.0.0/24` over UDP 51820 (vps1 = `.1`, vps2 = `.2`, vps3 = `.3`)
+**Pattern:** Public traffic → per-host Traefik → TLS terminated per host → Authelia forward-auth on admin dashboards. HTTP auto-redirects to HTTPS. No service binds a public port directly; Traefik fronts everything except SSH and Wireguard.
 
----
-
-<!-- AUTO:coolify_apps -->
-| Name | FQDN | Status |
-|---|---|---|
-| ERROR | SSH proxy request failed:  | — |
-<!-- /AUTO -->
+> **Read this first:** [`vps-complete-inventory.md`](vps-complete-inventory.md) is the source-of-truth for *what runs where*. This file is the source-of-truth for *how to reach it*.
 
 ---
 
-## Gatus Monitoring URLs
+## Public DNS
 
-| Purpose | URL |
-|---|---|
-| Public status page | `https://status.vps1.ocoron.com` |
-| Gatus internal health | `http://gatus:8080` (Docker internal) |
+All `A` records via Cloudflare (zone `ocoron.com`, unproxied — orange-cloud OFF — so TLS terminates at our Traefik with Let's Encrypt, not Cloudflare's edge).
 
-### Stable Docker DNS aliases
-Gatus uses these names — never the raw UUID container names:
-`browserless:3000`, `gotenberg:3000`, `meilisearch:7700`, `glitchtip-web:8000`
+### vps1 — `*.vps1.ocoron.com` → `172.93.160.197`
 
-See `.windsurf/rules/core/55-observability.md` § "Gatus — Stable DNS Names" + `docs/infrastructure/archive/coolify-stable-aliases.md` for the full procedure when adding new single-image Applications.
+CF zone `ocoron.com` has 17 A records total (post-cleanup). For vps1 (alphabetical), all → `172.93.160.197`:
 
-## Manually-Added Public URLs (not in Coolify Apps)
+`auth`, `auto`, `backup`, `browser`, `errors`, `monitor`, `notify`, `pdf`, **`provision`** (created 2026-05-31 evening — was missing despite the Traefik router existing), `search`, `status`, `vps1` (apex)
 
-| Purpose | URL | Auth |
-|---|---|---|
-| GlitchTip error reporting UI | `https://errors.vps1.ocoron.com` | Authelia |
-| Public status page (Gatus) | `https://status.vps1.ocoron.com` | None |
+Plus zone apex: `ocoron.com`, `www.ocoron.com` (WordPress tenant; `www` is a CNAME → apex).
 
-GlitchTip is reachable internally (no auth) via `http://glitchtip-web:8000` on the `coolify` Docker network — the SDK ingestion uses this alias, not the public URL.
+**All 12 records route to a live Traefik router.** The 6 stale records (`coolify`, `control`, `dns`, `fabrik-e2e-timing`, `images`, `netdata`) were deleted on 2026-05-31 evening — no more "is this stale?" ambiguity.
 
-## Fabrik Microservices — GlitchTip DSN Convention
+### vps2 — `*.vps2.ocoron.com` → `96.9.214.128` (NEW today)
 
-All 7 Fabrik microservices report errors to GlitchTip via Sentry-API-compatible SDK.
-- **Primary env var**: `SENTRY_DSN` (what `fabrik apply` orchestrator injects automatically)
-- **Fallback env var**: `GLITCHTIP_DSN` (read if SENTRY_DSN unset; for manual provisioning)
-- **DSN format**: `http://<key>@glitchtip-web:8000/<project_id>` (internal alias, bypasses Authelia)
-- **Public dashboard**: `https://errors.vps1.ocoron.com` (Authelia 2FA)
+- `vps2.ocoron.com` (apex `A`)
+- `*.vps2.ocoron.com` (wildcard `A`) — covers `auth.vps2`, any future `<tenant>.vps2`
+- No tenants deployed yet. First tenant deploy will trigger Let's Encrypt issuance.
 
-| Service | GlitchTip Project ID | firstEvent (2026-05-08) |
-|---|---|---|
-| captcha | 65 | ✅ flowing |
-| image-broker | 66 | ✅ flowing |
-| translator | 67 | ✅ flowing |
-| emailgateway | 68 | ⚠️ idle (no errors yet) |
-| file-api | 69 | ✅ flowing |
-| file-worker | 70 | ⚠️ idle (no errors yet) |
-| site-provisioner | 24 | ✅ flowing (CF errors visible) |
+### vps3 — `*.vps3.ocoron.com` → `104.128.190.151` (NEW today)
 
-## Webshare.io API Key (fabrik-proxy)
+- `vps3.ocoron.com` (apex `A`)
+- `*.vps3.ocoron.com` (wildcard `A`)
+- Same as vps2: no tenants, first deploy issues a cert.
 
-The fabrik-proxy service uses Webshare's residential proxy backbone for outbound
-egress (LinkedIn, Instagram, etc.). It also pulls a list of country-targeted
-proxy IPs via Webshare's API.
-
-- **Coolify env keys** on Application UUID `zsccsksoc8sssc8k00sgcc08`:
-  - `WEBSHARE_API_KEY` (account-level API token)
-  - `WEBSHARE_BACKBONE_USERNAME`
-  - `WEBSHARE_BACKBONE_PASSWORD`
-  - `WEBSHARE_BACKBONE_HOST` (default: `p.webshare.io`)
-  - `WEBSHARE_BACKBONE_PORT` (default: `80`)
-  - `WEBSHARE_IP_AUTH` (default: `false`)
-- **Local working copy**: `/opt/proxy/.env` (must be kept in sync with Coolify)
-- **IMPORTANT — env duplication**: Coolify maintains separate prod and preview env
-  rows for each key. When rotating a value, **both must be PATCHed** otherwise
-  the next preview deploy uses the stale value. See `docs/operations/deployment.md`
-  Gotcha 7.
-- **Last rotated**: 2026-05-08 (`WEBSHARE_API_KEY` only; backbone creds unchanged)
-
-## Cloudflare API Token (site-provisioner)
-
-The token used by site-provisioner to manage DNS lives in:
-- **Coolify env**: `CLOUDFLARE_API_TOKEN` on Application UUID `qokoksogwsk0c04gcs4swwgs`
-- **Local working copy**: `/opt/site-provisioner/.env` (must be kept in sync)
-- **Token name (in Cloudflare)**: `dns-manager-full-access`
-- **Status**: Active as of 2026-05-08 (rotated after the previous token was flagged "Exposed" by Cloudflare's leak detector)
-- **Verify**: `curl -H "Authorization: Bearer $TOKEN" https://api.cloudflare.com/client/v4/user/tokens/verify`
-- **Zones accessible**: ocoron.com, ozgurbasak.com, tojlo.com
-
-⚠️ **Scope hardening recommended** — current token has `Account.Workers Scripts` + `Account.Account Settings` permissions which is broader than site-provisioner needs. Should be narrowed to `Zone.DNS:Edit` + `Zone.Zone:Read` + specific zones only.
-
-## DNS Records (Cloudflare — all A → 172.93.160.197)
-
-Active subdomains under `*.vps1.ocoron.com`:
-`auth`, `auto`, `backup`, `browser`, `captcha`, `coolify`, `emailgateway`, `errors`, `files-api`, `images`, `monitor`, `netdata`, `notify`, `pdf`, `provision`, `proxy`, `search`, `status`, `translator`
-
-Plus: `ocoron.com`, `www.ocoron.com`
-
----
-
-## Port Reference
-
-| Port | Binding | Status | Purpose |
-|---|---|---|---|
-| 22/tcp | `0.0.0.0:22` | ✅ ALLOW | SSH |
-| 80/tcp | `0.0.0.0:80` | ✅ ALLOW | HTTP → Traefik → HTTPS |
-| 443/tcp | `0.0.0.0:443` | ✅ ALLOW | HTTPS + OpenVPN |
-| 1194/tcp | `0.0.0.0:1194` | ✅ ALLOW | OpenVPN |
-| 6001-6002/tcp | `0.0.0.0:6001-6002` | ✅ ALLOW | Coolify Realtime / Soketi |
-| 8000/tcp | `0.0.0.0:8000` | ❌ DENY | Coolify raw — blocked by UFW |
-| 8080/tcp | `127.0.0.1:8080` | localhost only | Traefik API dashboard |
-
----
-
-## Docker Connection Strings — Always Use These
+### How to verify DNS without waiting for cache
 
 ```bash
-# Database — NEVER localhost inside a container
-DATABASE_URL=postgresql+asyncpg://postgres:<pass>@postgres-main:5432/<dbname>
-DB_HOST=postgres-main
-DB_PORT=5432
-
-# Cache + Authelia sessions
-REDIS_URL=redis://redis-main:6379/0
-# Authelia uses: redis-main:6379 DB index 3
-
-# Prometheus scrape targets (internal)
-# prometheus:9090 → cadvisor:8080 → node-exporter:9100 → loki:3100 → netdata:19999
+NS=$(dig +short NS ocoron.com | head -1)
+for h in vps2.ocoron.com test.vps2.ocoron.com vps3.ocoron.com test.vps3.ocoron.com; do
+  echo "$h -> $(dig +short @"$NS" "$h")"
+done
 ```
 
 ---
 
-## Calling Another Service (M2M Pattern)
+## vps1 service URLs (verified against live Traefik routers, 2026-05-31 afternoon)
+
+Snapshot taken from `docker exec traefik wget -qO- http://localhost:8080/api/http/routers`. Only routers that actually exist are listed. Where a `vps1.ocoron.com` subdomain has DNS but no router, it's called out in the "Stale DNS" section below.
+
+| Purpose | URL | Auth | Backend container |
+| :--- | :--- | :--- | :--- |
+| WordPress tenant | `https://ocoron.com`, `https://www.ocoron.com` | none (public) | `ocoron-com-nginx-1` |
+| Gatus public status page | `https://status.vps1.ocoron.com` | none | `gatus` |
+| Authelia portal | `https://auth.vps1.ocoron.com` | (this IS Authelia) | `authelia` |
+| Grafana | `https://monitor.vps1.ocoron.com` | Authelia 2FA (`^/api/` bypassed) | `grafana` |
+| GlitchTip UI | `https://errors.vps1.ocoron.com` | none (router bypasses Authelia today — rule #6) | `glitchtip-web` |
+| Backrest UI | `https://backup.vps1.ocoron.com` | Authelia 2FA | `backrest` |
+| n8n workflow editor | `https://auto.vps1.ocoron.com` | Authelia 2FA | `n8n` |
+| Apprise notify | `https://notify.vps1.ocoron.com` | Authelia 2FA | `apprise` |
+| Gotenberg (PDF) | `https://pdf.vps1.ocoron.com` | bypass | `gotenberg` |
+| Browserless (headless Chrome) | `https://browser.vps1.ocoron.com` | bypass | `browserless` |
+| Meilisearch | `https://search.vps1.ocoron.com` | bypass (master key validation at app layer) | `meilisearch` |
+| **site-provisioner** (DNS / domain registrar API) | `https://provision.vps1.ocoron.com` | Bearer `API_KEY` + Traefik IP allowlist | `site-provisioner` |
+
+> **Reality vs. older docs:** Earlier versions of this file listed `https://captcha.vps1...`, `https://images.vps1...`, `https://translator.vps1...`, `https://proxy.vps1...`, `https://emailgateway.vps1...`, `https://files-api.vps1...`, `https://netdata.vps1...` as live URLs. **None of those have a live Traefik router or a backing container today** — see [`vps-complete-inventory.md` § Microservices status](vps-complete-inventory.md).
+
+**Note on site-provisioner:** the container is healthy (alembic migrations applied, `/health` returns 200, CF + Postgres connectivity verified), but it's an **interim manual stand-up** as of 2026-05-31 afternoon — the `fabrik apply` redeploy pipeline isn't ready yet. The Traefik IP allowlist is the front-line gate; the `API_KEY` bearer is checked at the app layer. See [`vps-complete-inventory.md` § site-provisioner status](vps-complete-inventory.md) before redeploying.
+
+### Stale vps1 DNS records — CLEARED 2026-05-31 evening
+
+The 6 stale subdomains (`coolify`, `control`, `dns`, `fabrik-e2e-timing`, `images`, `netdata`) were deleted via Cloudflare API. The vps1 zone is now exactly the set of records backed by a live Traefik router.
+
+If a future audit surfaces new orphans, the one-liner to find them:
+
+```bash
+# DNS records vs live Traefik routers
+CF_TOKEN=$(grep '^CLOUDFLARE_API_TOKEN=' /opt/fabrik/.env | cut -d= -f2-)
+diff <(curl -s -H "Authorization: Bearer $CF_TOKEN" \
+       "https://api.cloudflare.com/client/v4/zones/b3494f947c71683f94b6afe1331a1ba6/dns_records?per_page=200&type=A" \
+       | python3 -c 'import json,sys; [print(r["name"]) for r in json.load(sys.stdin)["result"] if "vps1" in r["name"]]' | sort) \
+     <(ssh vps 'sudo docker exec traefik wget -qO- http://localhost:8080/api/http/routers 2>/dev/null' \
+       | python3 -c 'import json,sys
+for r in json.load(sys.stdin):
+    rule=r.get("rule","")
+    if "Host(" in rule and "vps1" in rule:
+        print(rule.split("Host(\`")[1].split("\`")[0])' | sort -u)
+```
+
+---
+
+## vps2 / vps3 service URLs
+
+**None deployed yet, but the deploy path is wired** (W-Multi M4 shipped 2026-05-31 evening). The pattern:
+
+```bash
+# In the spec
+cat specs/services/my-service.yaml
+# ...
+# target_vps: vps2
+# domain: my-service.vps2.ocoron.com
+# ...
+
+# Deploy via fabrik
+.venv/bin/fabrik apply specs/services/my-service.yaml --yes
+# or override the spec's target_vps on the CLI:
+.venv/bin/fabrik apply specs/services/my-service.yaml --target-vps vps3 --yes
+```
+
+What happens under the hood:
+
+1. CF DNS A record auto-created: `my-service.vps2.ocoron.com` → `96.9.214.128` (vps2's IP — picked from the `VPS_IPS` map in [`src/fabrik/orchestrator/__init__.py`](../../src/fabrik/orchestrator/__init__.py)).
+2. SSH deployer env-swaps `FABRIK_VPS_SSH_HOST=vps2` for the duration of `deploy()`, so all ~30 SSH calls (clone, build, up, env writes) target vps2.
+3. Hub-side registrars (`postgres-main`, `redis-main`, `gatus`, `glitchtip-web`, `authelia`, `grafana`, `meilisearch`) keep running against vps1 — they live there. The spoke service uses them over the mesh:
+   - `DATABASE_URL=postgresql+asyncpg://...@10.99.0.1:5432/...`
+   - `REDIS_URL=redis://10.99.0.1:6379/...`
+   - `SENTRY_DSN=http://<key>@10.99.0.1:8000/<project_id>`
+4. The spoke's Traefik picks up the container's labels, requests a Let's Encrypt cert (first issuance on first spoke deploy), and starts serving.
+
+For cross-host admin dashboards on a spoke: `https://<service>.vpsN.ocoron.com` with Traefik's `authelia-vps1@file` middleware (defined in `/opt/traefik/dynamic/authelia.yml` on each spoke). That middleware forward-auths to `http://10.99.0.1:9091/api/verify` over the mesh — vps1's Authelia issues the cookie scoped to `*.vpsN.ocoron.com`. Cookie-domain plumbing for cross-host SSO is on the W-Multi M7 backlog item; until that lands, spoke admin dashboards work but the user re-auths per host.
+
+### Still pending for full spoke parity
+
+- `fabrik destroy --target-vps` + `fabrik redeploy --target-vps` (same env-swap pattern as `apply`, ~5–10 min each)
+- First real spoke deploy not yet exercised — Let's Encrypt cert issuance on vps2/vps3 will happen the first time a spec lands there
+
+---
+
+## Internal service URLs (Docker DNS on `fabrik` network)
+
+These resolve only *inside* a container on the same `fabrik` network on the same host. They bypass Traefik / TLS / Authelia entirely.
+
+| Use | URL inside a vps1 container |
+| :--- | :--- |
+| PostgreSQL | `postgres-main:5432` |
+| Redis | `redis-main:6379` |
+| Meilisearch | `meilisearch:7700` |
+| GlitchTip ingest (SDK DSN) | `http://glitchtip-web:8000/<project_id>` |
+| Loki push API | `http://loki:3100/loki/api/v1/push` |
+| Prometheus query | `http://prometheus:9090` |
+| Authelia forward-auth target | `http://authelia:9091/api/verify` |
+| Apprise notify | `http://apprise:8000/notify/<tag>` |
+| Gotenberg | `http://gotenberg:3000` |
+| Browserless | `http://browserless:3000` |
+| n8n internal webhook | `http://n8n:5678` |
+
+**Stable names guaranteed:** every service declares `container_name: <name>` in its compose file. No UUID suffixes anywhere (post-Coolify-removal).
+
+---
+
+## Mesh URLs (vps2 / vps3 reaching vps1 shared infra)
+
+A spoke container reaches vps1's shared infra over the Wireguard mesh — bind addresses are `10.99.0.1:<port>`, only reachable from peers on the mesh (UFW + DOCKER-USER chain block these ports on the public iface).
+
+| From a spoke container, use | Service | Verified |
+| :--- | :--- | :--- |
+| `postgresql+asyncpg://<user>:<pass>@10.99.0.1:5432/<db>` | postgres-main | ✓ |
+| `redis://10.99.0.1:6379/<db>` | redis-main | ✓ |
+| `http://10.99.0.1:8000/<project_id>` | GlitchTip ingest | ✓ |
+| `http://10.99.0.1:9091/api/verify` | Authelia forward-auth (spoke Traefik uses this) | ✓ |
+| `http://10.99.0.1:3100/loki/api/v1/push` | Loki ingest (spoke promtail uses this) | ✓ |
+
+No spoke service binds to a mesh port itself today (only monitoring agents expose `10.99.0.<N>:<port>` so vps1's Prometheus can scrape them — see below).
+
+---
+
+## Prometheus scrape targets (20, all up)
+
+vps1's Prometheus scrapes:
+
+| Host | Targets |
+| :--- | :--- |
+| **vps1** (14) | `prometheus` self, `node-exporter:9100`, `cadvisor:8080`, `loki:3100`, `alertmanager:9093`, `gatus:8080`, `traefik:8080`, `grafana:3000`, `authelia:9959`, `postgres-exporter:9187`, `redis-exporter:9121`, `pushgateway:9091`, `fabrik-drift`, `glitchtip-web:8000` |
+| **vps2** (3) | `10.99.0.2:9100` (node), `10.99.0.2:8080` (cadvisor), `10.99.0.2:9080` (promtail) |
+| **vps3** (3) | `10.99.0.3:9100`, `10.99.0.3:8080`, `10.99.0.3:9080` |
+
+Every series carries a `host` label (`vps1`, `vps2`, or `vps3`). Grafana dashboards all have a `$host` template variable (regex `/^vps/`).
+
+---
+
+## Cloudflare API token (live, in `/opt/fabrik/.env`)
+
+- **Env var:** `CLOUDFLARE_API_TOKEN` in `/opt/fabrik/.env`
+- **Refreshed:** 2026-05-31 afternoon (synced from the working token in the local site-provisioner instance's `.env`; pre-edit backup at `backups/.env.backup.20260531-155948`)
+- **Token name in Cloudflare:** `dns-manager-full-access`
+- **Verify:** `curl -H "Authorization: Bearer $TOKEN" https://api.cloudflare.com/client/v4/user/tokens/verify`
+- **Zones the token has access to:** `ocoron.com`, `ozgurbasak.com`, `tojlo.com`
+- **Scope:** Currently broader than strictly needed. Single-operator dev environment — not rotating to a narrower token until there's a realistic attacker to defend against.
+
+The same token is what site-provisioner uses for live DNS provisioning. Keep `/opt/fabrik/.env` and `/opt/site-provisioner/.env` in sync.
+
+---
+
+## GlitchTip DSN convention (when services are deployed)
+
+DSN format that the orchestrator's glitchtip registrar would inject on a real `fabrik apply`:
+
+```text
+http://<key>@glitchtip-web:8000/<project_id>
+```
+
+- Uses the internal Docker DNS alias on the `fabrik` network — bypasses Authelia and TLS
+- Primary env var: `SENTRY_DSN` (Sentry-compatible SDKs read this)
+- Fallback env var: `GLITCHTIP_DSN` (read if `SENTRY_DSN` unset, for manual provisioning)
+- Public dashboard (humans): `https://errors.vps1.ocoron.com` — see auth note above (router bypasses Authelia today via rule #6)
+- **Cross-host:** spoke tenants will use `http://10.99.0.1:8000/<project_id>` over mesh — the bind is already in place; no DSN config change beyond the host swap
+
+Project IDs retained in the GlitchTip database from the Coolify-era audit. **Six of these have no live service emitting events** — they're retained for history and for the moment a service is redeployed:
+
+| Service | GlitchTip project ID | Emitting events today? |
+| :--- | :--- | :--- |
+| captcha | 65 | no (service not deployed) |
+| image-broker | 66 | no |
+| translator | 67 | no |
+| emailgateway | 68 | no |
+| file-api | 69 | no |
+| file-worker | 70 | no |
+| site-provisioner | 24 | yes (interim — flowing) |
+
+---
+
+## Calling another service (M2M pattern)
 
 ```python
 import os, httpx
@@ -140,30 +234,103 @@ const headers = { 'X-Internal-Token': process.env.SERVICE_INTERNAL_SECRET_KEY };
 const resp = await fetch('https://translator.vps1.ocoron.com/api/translate', { headers });
 ```
 
+`SERVICE_INTERNAL_SECRET_KEY` is one shared key across all M2M-protected services; lives in `/opt/fabrik/.env` and is injected into each service's `.env` by the SSH deployer.
+
+**Status today:** no live service is consuming this — the 7 microservices that used the pattern (`captcha`, `image-broker`, `translator`, `proxy`, `emailgateway`, `file-api`, `file-worker`) are not currently deployed. The key + scaffold-emitted `internal_auth.{py,js}` modules are intact and ready for the next deploy.
+
 ---
 
-## Maintenance Commands
+## Port reference (per host)
+
+### vps1 UFW
+
+| Port | Binding | UFW | Purpose |
+| :--- | :--- | :--- | :--- |
+| 22/tcp | `0.0.0.0:22` | ALLOW | SSH (`ozgur` user, key-only) |
+| 80/tcp | `0.0.0.0:80` | ALLOW | HTTP → Traefik (auto-redirect to HTTPS) |
+| 443/tcp | `0.0.0.0:443` | ALLOW | HTTPS via Traefik |
+| 1194/tcp | `0.0.0.0:1194` | ALLOW | OpenVPN (legacy, user's personal VPN — not platform infra) |
+| 6001-6002/tcp | `0.0.0.0:6001-6002` | ALLOW | ⚠ stale Coolify Realtime ports — safe to drop |
+| 8000/tcp | n/a | DENY | ⚠ stale Coolify comment — rule still useful as belt-and-suspenders |
+| 51820/udp | `0.0.0.0:51820` | ALLOW | Wireguard mesh (hub listener) |
+| 5432/tcp | `10.99.0.1:5432` | (mesh-only) | postgres-main — DOCKER-USER chain blocks on public iface |
+| 6379/tcp | `10.99.0.1:6379` | (mesh-only) | redis-main |
+| 8000/tcp | `10.99.0.1:8000` | (mesh-only) | glitchtip-web ingest |
+| 9091/tcp | `10.99.0.1:9091` | (mesh-only) | authelia (cross-host forward-auth) |
+| 3100/tcp | `10.99.0.1:3100` | (mesh-only) | loki push API |
+| 8080/tcp | `127.0.0.1:8080` | localhost | Traefik API dashboard |
+
+### vps2 / vps3 UFW (identical)
+
+| Port | Binding | UFW | Purpose |
+| :--- | :--- | :--- | :--- |
+| 22/tcp | `0.0.0.0:22` | ALLOW | SSH |
+| 80/tcp | `0.0.0.0:80` | ALLOW | HTTP → Traefik |
+| 443/tcp | `0.0.0.0:443` | ALLOW | HTTPS via Traefik |
+| 51820/udp | `0.0.0.0:51820` | ALLOW | Wireguard mesh (spoke listener) |
+| 9100/tcp | `10.99.0.<N>:9100` | (mesh-only) | node-exporter — scraped by vps1's Prometheus |
+| 8080/tcp | `10.99.0.<N>:8080` | (mesh-only) | cadvisor |
+| 9080/tcp | `10.99.0.<N>:9080` | (mesh-only) | promtail |
+
+DOCKER-USER iptables chain on every host blocks the mesh-only port list (`5432,6379,9090,9091,9100,8080,3100,7700,8000`) on the public interface.
+
+---
+
+## SSH aliases (dev WSL `~/.ssh/config`)
+
+```text
+Host vps   →  ozgur@vps1.ocoron.com  (172.93.160.197) — LA hub
+Host vps2  →  ozgur@96.9.214.128                       — Coventry UK spoke
+Host vps3  →  ozgur@104.128.190.151                    — Coventry UK spoke
+```
+
+All three hosts: `ozgur` user (NOPASSWD sudo), Ed25519 key auth only, root login disabled, password auth disabled, fail2ban active. SSH posture matches across the fleet (this was the Lesson 65 takeaway from the vps2 bootstrap lockout).
+
+---
+
+## Maintenance command quick-reference
 
 ```bash
-# After VPS reboot — reapply infra memory limits
-ssh vps "bash /opt/fabrik/scripts/vps_apply_limits.sh"
-
-# Full health audit
+# Full health + residue audit (limits drift, stale Authelia rules, orphan compose dirs)
 cd /opt/fabrik && python3 scripts/vps_sync.py --verify
 
-# Deploy new service
-cd /opt/fabrik && fabrik apply specs/services/<name>.yaml
+# After VPS reboot — reapply memory limits
+ssh vps "bash /opt/fabrik/scripts/vps_apply_limits.sh"
 
-# Redeploy (git push FIRST — Coolify pulls from GitHub not local /opt/)
-cd /opt/<service> && git add -A && git commit -m "..." && git push
-cd /opt/fabrik && fabrik redeploy fabrik-<name>
+# Deploy a new service via fabrik (defaults to vps1 hub)
+cd /opt/fabrik && .venv/bin/fabrik apply specs/services/<name>.yaml
 
-# Restart Authelia after config change (NEVER SIGHUP)
-ssh vps "sudo docker restart authelia-hks48k8sg8o4co4co08co00o"
+# Deploy to a spoke (W-Multi M4 — 2026-05-31 evening)
+cd /opt/fabrik && .venv/bin/fabrik apply specs/services/<name>.yaml --target-vps vps2
 
-# Reload Prometheus after editing /opt/monitoring/configs/prometheus/prometheus.yml
-ssh vps "cd /opt/prometheus && sudo docker compose restart"
+# Redeploy a git-source service
+#   1. push to GitHub first — VPS pulls from the remote, not your local
+#   2. then redeploy
+cd /opt/<service> && git push
+cd /opt/fabrik && .venv/bin/fabrik redeploy <name>
 
-# Weekly cleanup
+# Restart Authelia after config edit (NEVER SIGHUP — Authelia exits on SIGHUP)
+ssh vps "sudo docker restart authelia"
+
+# Reload Prometheus after editing prometheus.yml
+ssh vps "sudo docker kill -s HUP prometheus"
+
+# Verify Cloudflare token is active
+CF=$(grep '^CLOUDFLARE_API_TOKEN=' /opt/fabrik/.env | cut -d= -f2-)
+curl -s -H "Authorization: Bearer $CF" https://api.cloudflare.com/client/v4/user/tokens/verify
+
+# Weekly disk cleanup on a host
 ssh vps "sudo docker image prune -f && sudo docker builder prune -f"
 ```
+
+---
+
+## Cross-references
+
+- Container-level inventory: [`vps-complete-inventory.md`](vps-complete-inventory.md)
+- Per-host runtime state and recent maintenance: [`vps-status.md`](vps-status.md)
+- Deployment mechanics: `docs/operations/deployment.md`
+- Disaster recovery: `docs/operations/disaster-recovery.md`
+- AI sysadmin reference: [`vps-ai-sysadmin.md`](vps-ai-sysadmin.md)
+- Bootstrap a new spoke: [`vps-bootstrap-plan.md`](vps-bootstrap-plan.md) + `scripts/bootstrap/README.md`
+- Residue policy: [`vps-residue-policy.md`](vps-residue-policy.md)
