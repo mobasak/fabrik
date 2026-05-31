@@ -1,6 +1,6 @@
 # Kilo Agents Master Table
 
-**Last Updated:** 2026-05-30T12:22:06.915071
+**Last Updated:** 2026-05-31T12:50:47.022270
 **Source:** [openlm.ai/chatbot-arena](https://openlm.ai/chatbot-arena/) | [tbench.ai](https://www.tbench.ai/leaderboard/terminal-bench/2.0)
 
 ## Top 60 Agents Ranked by Chatbot Arena Elo
@@ -46,7 +46,7 @@
 | 37 | **gpt-5.1** | openai | 1450 | 47.6 | $1.25 | $10.00 | 400K | ✓ | ✓ | ✓ | 3 | 186 | ✅ |
 | 38 | **minimax-m2.7** | minimax | 1448 | 45.1 | $0.30 | $1.20 | 204K |  | ✓ | ✓ | 2 | 1485 | ✅ |
 | 39 | **glm-4.5** | z-ai | 1448 | ~ | $0.60 | $2.20 | 131K |  | ✓ | ✓ | 2 | 804 | ✅ |
-| 40 | **qwen3-235b-a22b-thinking-2507** | qwen | 1442 | ~ | $0.15 | $1.50 | 262K |  | ✓ | ✓ | 2 | 1245 | ✅ |
+| 40 | **qwen3-235b-a22b-thinking-2507** | qwen | 1442 | ~ | $0.10 | $0.10 | 262K |  | ✓ | ✓ | 1 | 14420 | ✅ |
 | 41 | **grok-4-fast** | x-ai | 1441 | ~ | $0.20 | $0.50 | 2000K | ✓ | ✓ | ✓ | 1 | 3391 | ✅ |
 | 42 | **mimo-v2-pro** | xiaomi | 1441 | ~ | $1.00 | $3.00 | 1048K |  | ✓ | ✓ | 2 | 576 | ✅ |
 | 43 | **claude-haiku-4.5** | anthropic | 1436 | 35.5 | $1.00 | $5.00 | 200K | ✓ | ✓ | ✓ | 2 | 359 | ✅ |
@@ -80,4 +80,4 @@
 - **Agentic**: Has reasoning/thinking capabilities
 - **Tier**: 1=cheap, 2=balanced, 3=heavy
 - **$/Perf**: Performance per dollar (Elo / blended cost)
-- **2026-05-30:** Auto-updated from benchmarks
+- **2026-05-31:** Auto-updated from benchmarks

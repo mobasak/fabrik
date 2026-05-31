@@ -56,7 +56,7 @@ Migrating standalone infrastructure services from manual Docker Compose to Cooli
 
 ## Documentation
 
-- **Main runbook:** `docs/operations/coolify-migration.md`
+- **Main runbook:** `docs/infrastructure/archive/coolify-migration.md`
 - **Step-by-step guide:** `docs/infrastructure/coolify-migration-step-by-step.md`
 - **Migration logs:** `docs/infrastructure/migration-log-phase1.md`, `migration-log-phase2.md`
 - **Lessons learnt:** `docs/LESSONS_LEARNT.md`

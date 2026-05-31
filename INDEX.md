@@ -278,15 +278,25 @@ docs/
 ├── infrastructure                  # Infrastructure docs
 │   ├── WSL2-DNS-FIX.md             # WSL2 DNS resolution fix
 │   ├── archive                     # Archived and completed documentation
+│   │   ├── coolify-api-reference.md  # Coolify v4 API (historical — Coolify removed 2026-05)
+│   │   ├── coolify-migration.md      # Coolify migration procedures (historical)
+│   │   └── coolify-stable-aliases.md # UUID-alias watcher (historical)
 │   ├── grafana-dashboards-setup.md
+│   ├── glitchtip-sdk-integration-setup.md
+│   ├── grafana-provisioning-setup.md
+│   ├── prometheus-app-metrics-setup.md
+│   ├── promtail-noise-filter-setup.md
+│   ├── vps-ai-sysadmin.md           # AI sysadmin reference (host process)
+│   ├── vps-bootstrap-plan.md        # Bootstrap automation (pointer to scripts/bootstrap/)
+│   ├── vps-residue-policy.md        # Residue / hygiene policy
+│   ├── vps-status.md                # Current VPS fleet state
+│   ├── vps-urls.md                  # All deployed service URLs
+│   ├── audit-prompts/               # 8 self-contained AI audit prompts
 │   └── vps-complete-inventory.md
 ├── operations                      # Operational runbooks and VPS state
 │   ├── backup-strategy.md          # VPS backup strategy
-│   ├── coolify-migration.md        # Coolify migration procedures
 │   ├── disaster-recovery.md        # Backup and recovery procedures
 │   ├── n8n-webhooks.md             # n8n webhook configuration
-│   ├── vps-status.md               # Current VPS state and configuration
-│   └── vps-urls.md                 # All deployed service URLs
 ├── owner_ozgur_basak.md            # Owner profile & AI instructions
 ├── reference                       # Technical reference and module documentation
 │   ├── AI_TAXONOMY.md              # AI categories & tool selection
@@ -304,8 +314,6 @@ docs/
 │   ├── ai_agent_prompt_directives.html
 │   ├── ai_agent_prompt_directives.md # AI agent prompt directives
 │   ├── architecture.md             # System architecture overview
-│   ├── coolify-api-reference.md
-│   ├── coolify-openapi.json
 │   ├── drivers.md                  # Fabrik driver API (Coolify, DNS, etc.)
 │   ├── exampleconsultancysitemap.md
 │   ├── fabrik-cli-reference.md     # Fabrik CLI command reference
@@ -468,11 +476,11 @@ docs/
 
 | Document | Purpose |
 |----------|--------|
-| [vps-status.md](docs/operations/vps-status.md) | Current VPS state and configuration |
-| [vps-urls.md](docs/operations/vps-urls.md) | All deployed service URLs |
+| [vps-status.md](docs/infrastructure/vps-status.md) | Current VPS state and configuration |
+| [vps-urls.md](docs/infrastructure/vps-urls.md) | All deployed service URLs |
 | [disaster-recovery.md](docs/operations/disaster-recovery.md) | Backup and recovery procedures |
 <!-- duplicati-setup.md archived 2026-04-28; Backrest is the live backup tool — see backup.vps1.ocoron.com and AGENTS.md -->
-| [coolify-migration.md](docs/operations/coolify-migration.md) | Coolify migration procedures |
+| [coolify-migration.md](docs/infrastructure/archive/coolify-migration.md) | Coolify migration procedures |
 
 ### Guides
 

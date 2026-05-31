@@ -257,5 +257,5 @@ echo "✓ Cleanup complete"
 
 - Migration summary: `docs/infrastructure/MIGRATION_SUMMARY.md`
 - Coolify status: `docs/infrastructure/COOLIFY_STATUS.md`
-- Migration runbook: `docs/operations/coolify-migration.md`
+- Migration runbook: `docs/infrastructure/archive/coolify-migration.md`
 - Lessons learnt: `docs/LESSONS_LEARNT.md`

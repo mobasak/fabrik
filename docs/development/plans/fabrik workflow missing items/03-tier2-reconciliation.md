@@ -696,7 +696,7 @@ fabrik destroy specs/services/proxy.yaml --partial authelia --yes
 ### Audit evidence
 
 ```bash
-# Drift A: errors.vps1.ocoron.com publicly reachable despite docs/operations/vps-urls.md
+# Drift A: errors.vps1.ocoron.com publicly reachable despite docs/infrastructure/vps-urls.md
 # saying it's Authelia-gated.
 curl -sS -o /dev/null -w "%{http_code}\n" https://errors.vps1.ocoron.com/
 # Observed: 200 (no redirect to auth.vps1.ocoron.com)
@@ -722,7 +722,7 @@ curl -sS https://status.vps1.ocoron.com/api/v1/endpoints/statuses 2>/dev/null \
 
 | Option | Behavior | Rationale |
 | --- | --- | --- |
-| **A1 — Gate with Authelia (RECOMMENDED)** | `errors.vps1.ocoron.com` falls under `*.vps1.ocoron.com two_factor` catchall. User logs in to Authelia first (2FA), then GlitchTip's own auth as second factor inside the gate. | Defense-in-depth: matches `monitor` (Grafana) and `auto` (n8n) admin-UI pattern. Removes any reliance on GlitchTip's own session security. **Aligns with current docs/operations/vps-urls.md line 59.** |
+| **A1 — Gate with Authelia (RECOMMENDED)** | `errors.vps1.ocoron.com` falls under `*.vps1.ocoron.com two_factor` catchall. User logs in to Authelia first (2FA), then GlitchTip's own auth as second factor inside the gate. | Defense-in-depth: matches `monitor` (Grafana) and `auto` (n8n) admin-UI pattern. Removes any reliance on GlitchTip's own session security. **Aligns with current docs/infrastructure/vps-urls.md line 59.** |
 | **A2 — Public, rely on GlitchTip auth only** | Leave in bulk-bypass list. GlitchTip's own login is the only gate. | Simpler for invited error-report viewers (1-click signup, no Authelia account creation). **Requires updating vps-urls.md to say "GlitchTip native auth only".** |
 
 **Recommended: A1.** Reasoning: the audit found this drift because docs say one thing and live says another. A1 restores the documented design and aligns with how every other admin UI on vps1 is gated. A2 is defensible but introduces inconsistency for a marginal UX gain — and GlitchTip's own auth has had CVEs (e.g. CVE-2024-32869 on its upstream Sentry).
@@ -765,7 +765,7 @@ ssh vps 'sudo docker ps --filter "name=authelia" --format "{{.Status}}"'  # expe
 - After Authelia login (manual browser test), errors.vps1 loads the GlitchTip UI
 - Regression: `pdf.vps1.ocoron.com`, `captcha.vps1.ocoron.com`, `translator.vps1.ocoron.com` etc. all still return 200 on `/` (still in bulk-bypass — these are correct API-only services)
 - Regression: `monitor.vps1.ocoron.com` still returns 302 (still in two_factor catchall — unchanged)
-- `docs/operations/vps-urls.md` line 59 already says "Authelia"; no doc update needed
+- `docs/infrastructure/vps-urls.md` line 59 already says "Authelia"; no doc update needed
 
 ### Part B — G-G6: Fix Gatus `external/monitor-public` check
 
@@ -972,7 +972,7 @@ If Part C unit tests fail: revert the `add_access_rule` change; the live Autheli
 ### Pre-flight checklist
 
 - [ ] Authelia config backup taken (Part A)
-- [ ] `docs/operations/vps-urls.md` line 59 decision aligned with Part A choice
+- [ ] `docs/infrastructure/vps-urls.md` line 59 decision aligned with Part A choice
 - [ ] Gatus config repo cloned or mount path located (Part B)
 - [ ] Grafana `/api/health` confirmed reachable internally (Part B)
 - [ ] Lesson 56 read for context (Part C)

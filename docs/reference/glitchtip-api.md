@@ -161,7 +161,7 @@ Used to discover `TEAM_SLUG=vps1` for the Fabrik VPS.
 4. **GlitchTip's own django-allauth auth** — second factor for admin login behind Authelia (defense in depth)
 5. **Bearer-token auth** on all `/api/0/*` paths for machine-to-machine calls
 
-**Important for Sentry SDK ingestion:** Fabrik microservices send Sentry-compatible events to the **internal** `http://glitchtip-web:8000` Docker DNS alias, NOT the public `https://errors.vps1.ocoron.com`. The Authelia gate at the public hostname does not affect SDK ingestion — see `docs/operations/vps-urls.md` "Fabrik Microservices — GlitchTip DSN Convention".
+**Important for Sentry SDK ingestion:** Fabrik microservices send Sentry-compatible events to the **internal** `http://glitchtip-web:8000` Docker DNS alias, NOT the public `https://errors.vps1.ocoron.com`. The Authelia gate at the public hostname does not affect SDK ingestion — see `docs/infrastructure/vps-urls.md` "Fabrik Microservices — GlitchTip DSN Convention".
 
 ## Running the probe (contract test)
 

@@ -4,8 +4,8 @@ update_vps_docs.py — regenerate dynamic sections of VPS documentation.
 
 Reads live state from VPS (SSH + Coolify API + Cloudflare API) and rewrites
 the marked dynamic sections in:
-  docs/operations/vps-status.md
-  docs/operations/vps-urls.md
+  docs/infrastructure/vps-status.md
+  docs/infrastructure/vps-urls.md
   docs/infrastructure/vps-complete-inventory.md
 
 Static sections (architecture notes, how-to guides, maintenance procedures,
@@ -355,8 +355,8 @@ def main() -> int:
                 "-C",
                 str(REPO),
                 "add",
-                "docs/operations/vps-status.md",
-                "docs/operations/vps-urls.md",
+                "docs/infrastructure/vps-status.md",
+                "docs/infrastructure/vps-urls.md",
                 "docs/infrastructure/vps-complete-inventory.md",
             ],
             check=True,

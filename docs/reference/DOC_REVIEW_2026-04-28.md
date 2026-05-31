@@ -71,7 +71,7 @@ These are real currency gaps the owner should be aware of. Not actioned this pas
 - **Why it matters:** Disagrees with the active plan doc.
 - **Suggested fix:** reconcile with `docs/development/plans/2026-04-18-zero-touch-deployment.md` and `docs/development/PLANS.md`. Decide: is the roadmap authoritative, or are the plan docs? Probably plan docs win and the roadmap should be retired or auto-generated.
 
-### B8. `docs/operations/coolify-migration.md`
+### B8. `docs/infrastructure/archive/coolify-migration.md`
 
 - **Current state:** Modified (per `git status`) but not yet committed; needs a check whether content matches the **completed** migration state (2026-04-17).
 - **Suggested fix:** read the diff, confirm it reflects the completed migration, then either land it or revert.
@@ -90,7 +90,7 @@ These are real currency gaps the owner should be aware of. Not actioned this pas
 - **Current state:** lowercase smashed-together filename; clearly a one-shot artifact.
 - **Suggested fix:** archive or rename `docs/reference/research/example-consultancy-sitemap.md`.
 
-### B11. `docs/operations/n8n-webhooks.md`, `docs/operations/vps-status.md`, `docs/operations/vps-urls.md`
+### B11. `docs/operations/n8n-webhooks.md`, `docs/infrastructure/vps-status.md`, `docs/infrastructure/vps-urls.md`
 
 - **Current state:** not audited this pass; high probability of drift after the Coolify migration (2026-04-17) and the addition of Authelia (2026-04-17), Gotenberg (2026-04-14), Meilisearch (2026-04-14), Backrest (2026-04-17).
 - **Suggested fix:** spot-check `vps-urls.md` at minimum — it's a frequently-referenced quick-reference.
@@ -156,7 +156,7 @@ If a follow-up agent (or the owner) wants to keep going, the highest-leverage ta
 1. **B5: `docs/FAQ.md`** — biggest staleness, most user-visible.
 2. **B1 + B3: `docs/reference/scripts.md` + `docs/reference/health-monitoring.md`** — small, mechanical, completes the B23–B46 doc trail.
 3. **B2: `docs/reference/templates.md`** — count drift; quick fix or auto-gen.
-4. **B11: `docs/operations/vps-urls.md`** — operational quick-reference; small.
+4. **B11: `docs/infrastructure/vps-urls.md`** — operational quick-reference; small.
 5. **B7: `docs/reference/roadmap.md`** — reconcile with active plan docs.
 6. **B6: `docs/FEATURES.md`** — owner-driven revision; defer.
 

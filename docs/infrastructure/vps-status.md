@@ -224,7 +224,7 @@ Four services have stable aliases registered:
 | `glitchtip-web` | `glitchtip-web-z00kkck8c8cwo800kk440csk` | 8000 |
 
 Aliases persist via: compose file (Coolify redeploy) + `vps_apply_limits.sh` (VPS reboot).
-For new single-image Application: see `.windsurf/rules/core/55-observability.md` § "Gatus — Stable DNS Names" + `docs/reference/coolify-stable-aliases.md`.
+For new single-image Application: see `.windsurf/rules/core/55-observability.md` § "Gatus — Stable DNS Names" + `docs/infrastructure/archive/coolify-stable-aliases.md`.
 
 ## Resource Limits
 
@@ -260,7 +260,7 @@ For new single-image Application: see `.windsurf/rules/core/55-observability.md`
 | `images.vps1.ocoron.com` | bypass | `^/api/` only (T1-04 paired-pattern) |
 | `*.vps1.ocoron.com` | two_factor | everything else (catchall) |
 
-`errors.vps1.ocoron.com` was removed from the multi-domain bulk-bypass on 2026-05-15 (T2-08 Part A); it now falls through to the `two_factor` catchall — matches `docs/operations/vps-urls.md` "GlitchTip error reporting UI: Authelia" intent.
+`errors.vps1.ocoron.com` was removed from the multi-domain bulk-bypass on 2026-05-15 (T2-08 Part A); it now falls through to the `two_factor` catchall — matches `docs/infrastructure/vps-urls.md` "GlitchTip error reporting UI: Authelia" intent.
 
 **After any Authelia config change:** `ssh vps "sudo docker restart authelia-hks48k8sg8o4co4co08co00o"`
 **Never use SIGHUP — Authelia exits on SIGHUP.**

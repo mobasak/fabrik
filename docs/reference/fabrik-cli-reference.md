@@ -395,7 +395,7 @@ fabrik scan [--health] [--base <path>]
 ### `fabrik vps-sync` — refresh VPS state docs
 
 **Defined:** `cli.py:1135`
-**Purpose:** Pull live VPS state and regenerate `docs/operations/vps-status.md`, `docs/operations/vps-urls.md`, and `docs/infrastructure/vps-complete-inventory.md`. **Read-only on the VPS.**
+**Purpose:** Pull live VPS state and regenerate `docs/infrastructure/vps-status.md`, `docs/infrastructure/vps-urls.md`, and `docs/infrastructure/vps-complete-inventory.md`. **Read-only on the VPS.**
 
 ```bash
 fabrik vps-sync [--dry-run]

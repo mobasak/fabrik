@@ -1,6 +1,6 @@
 {
-  "timestamp": "2026-05-30T02:08:01.013206",
-  "total_models": 341,
+  "timestamp": "2026-05-31T12:50:53.269200",
+  "total_models": 337,
   "models": {
     "~anthropic/claude-haiku-latest": {
       "id": "~anthropic/claude-haiku-latest",
@@ -64,11 +64,6 @@
     },
     "aion-labs/aion-rp-llama-3.1-8b": {
       "id": "aion-labs/aion-rp-llama-3.1-8b",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
-    "alfredpros/codellama-7b-instruct-solidity": {
-      "id": "alfredpros/codellama-7b-instruct-solidity",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
@@ -209,16 +204,6 @@
     },
     "arcee-ai/virtuoso-large": {
       "id": "arcee-ai/virtuoso-large",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
-    "baidu/ernie-4.5-21b-a3b": {
-      "id": "baidu/ernie-4.5-21b-a3b",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
-    "baidu/ernie-4.5-21b-a3b-thinking": {
-      "id": "baidu/ernie-4.5-21b-a3b-thinking",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
@@ -699,11 +684,6 @@
     },
     "mistralai/ministral-8b-2512": {
       "id": "mistralai/ministral-8b-2512",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
-    "mistralai/mistral-7b-instruct-v0.1": {
-      "id": "mistralai/mistral-7b-instruct-v0.1",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
@@ -1552,6 +1532,11 @@
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
+    "stepfun/step-3.7-flash:free": {
+      "id": "stepfun/step-3.7-flash:free",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
     "switchpoint/router": {
       "id": "switchpoint/router",
       "url": "https://api.kilo.ai/api/openrouter/",
@@ -1589,11 +1574,6 @@
     },
     "undi95/remm-slerp-l2-13b": {
       "id": "undi95/remm-slerp-l2-13b",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
-    "upstage/solar-pro-3": {
-      "id": "upstage/solar-pro-3",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },

@@ -224,7 +224,7 @@ Parallel testing workflow:
 
 ## 5. Integration: Rule Update
 
-- **Target File:** `docs/operations/coolify-migration.md`
+- **Target File:** `docs/infrastructure/archive/coolify-migration.md`
 - **New Instruction:** "For critical services, use parallel testing: deploy test container first, verify, then deploy production."
 
 ## 6. Triggered By
@@ -382,7 +382,7 @@ docker restart coolify
 
 ## 5. Integration: Rule Update
 
-- **Target File:** `docs/operations/coolify-migration.md`
+- **Target File:** `docs/infrastructure/archive/coolify-migration.md`
 - **New Instruction:** "After Coolify installation, always set APP_URL in .env to the public HTTPS domain before first use."
 
 ## 6. Triggered By
@@ -439,7 +439,7 @@ docker restart gatus
 
 ## 5. Integration: Rule Update
 
-- **Target File:** `docs/operations/coolify-migration.md`
+- **Target File:** `docs/infrastructure/archive/coolify-migration.md`
 - **New Instruction:** "After each service migration, update Gatus configs in `/opt/monitoring/configs/gatus/` with new Coolify container names. Restart Gatus to apply."
 
 ## 6. Triggered By
@@ -490,7 +490,7 @@ The migration pattern is now established:
 
 ## 5. Integration: Rule Update
 
-- **Target File:** `docs/operations/coolify-migration.md`
+- **Target File:** `docs/infrastructure/archive/coolify-migration.md`
 - **New Instruction:** "Follow the established 8-step pattern for all migrations. Don't reinvent the wheel."
 
 ## 6. Triggered By
