@@ -1,9 +1,10 @@
 # VPS Disaster Recovery Guide
 
-**Last Updated:** 2026-05-31 (post-Backrest-wipe revision)
+**Last Updated:** 2026-06-01 (W9 shipped — credential recovery now automated via [`credential-recovery.md`](credential-recovery.md))
 **Previous version:** 2025-12-22 (Duplicati/Coolify era — archived in git history)
 **Recovery Time Objective (RTO):** 60–90 min (with VirtFusion image). Path B (B2 cold restore) currently unavailable — see below.
 **Recovery Point Objective (RPO):** depends on path — see below.
+**Credential prerequisite for every path below:** `BACKREST_RESTIC_PASSWORD` (and the rest of `/opt/fabrik/.env`) must be recoverable from the GitHub DR mirror — see [`credential-recovery.md`](credential-recovery.md). One-command recovery if the dev WSL is gone: `gh repo clone mobasak/fabrik-dr-store /opt/fabrik-dr-store && sudo cp /opt/fabrik-dr-store/env/latest /opt/fabrik/.env`. As of W9 (2026-06-01), env changes mirror to GitHub within seconds via inotify + systemd (`fabrik-dr-watcher.service`) plus a daily safety-net cron and a weekly recovery self-test cron.
 
 > **⚠️ CURRENT STATE (2026-05-31, 01:15 UTC):** All Backrest plans have been deleted and the B2 bucket `vps1-ocoron-backups` is empty (0 objects). The repo definition (`b2-vps1`) and B2 credentials remain in Backrest so plans can be reconfigured later. **Until plans are restored:**
 >
