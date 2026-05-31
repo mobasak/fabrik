@@ -49,6 +49,16 @@ prom_check() {
   echo "$result" | jq -e '.data.result | length > 0' >/dev/null 2>&1
 }
 
+# As of 2026-05-31, Prometheus on vps1 scrapes vps2 + vps3 too, and every
+# series carries a `host` label (vps1 / vps2 / vps3). prom_hosts() extracts
+# the unique hosts from a query's result so callers can include them in
+# the anomaly string.
+prom_hosts() {
+  local query="$1"
+  prom_query "$query" 2>/dev/null \
+    | jq -r '.data.result // [] | map(.metric.host // "?") | unique | join(",")' 2>/dev/null
+}
+
 ANOMALIES=""
 PROM_REACHABLE=true
 
@@ -62,42 +72,39 @@ fi
 # Only run PromQL checks if Prometheus is reachable
 if [ "$PROM_REACHABLE" = "true" ]; then
 
-# Memory rising >5MB/min on any container
-prom_check 'deriv(container_memory_usage_bytes{name!=""}[1h])>5e6' \
-  && ANOMALIES+="memory_rising "
+# All queries below cover all hosts in the mesh (vps1 + vps2 + vps3) because
+# Prometheus on vps1 scrapes spoke node-exporter + cadvisor + promtail. When
+# an anomaly fires, prom_hosts() reports which host(s) it came from so the
+# alert string includes context (e.g. "cpu_high[vps2]" not just "cpu_high").
 
-# Container restarted in last 15 min (start_time changed = restart)
-prom_check 'changes(container_start_time_seconds{name!=""}[15m])>0' \
-  && ANOMALIES+="container_restarted "
+_q='deriv(container_memory_usage_bytes{name!=""}[1h])>5e6'
+prom_check "$_q" && ANOMALIES+="memory_rising[$(prom_hosts "$_q")] "
 
-# CPU >70% sustained on any container
-prom_check 'rate(container_cpu_usage_seconds_total{name!=""}[15m])*100>70' \
-  && ANOMALIES+="cpu_high "
+_q='changes(container_start_time_seconds{name!=""}[15m])>0'
+prom_check "$_q" && ANOMALIES+="container_restarted[$(prom_hosts "$_q")] "
 
-# Disk >75%
-prom_check '(1-node_filesystem_avail_bytes{mountpoint="/"}/node_filesystem_size_bytes{mountpoint="/"})>0.75' \
-  && ANOMALIES+="disk_high "
+_q='rate(container_cpu_usage_seconds_total{name!=""}[15m])*100>70'
+prom_check "$_q" && ANOMALIES+="cpu_high[$(prom_hosts "$_q")] "
 
-# Host RAM >80%
-prom_check '(1-node_memory_MemAvailable_bytes/node_memory_MemTotal_bytes)>0.80' \
-  && ANOMALIES+="host_memory_high "
+_q='(1-node_filesystem_avail_bytes{mountpoint="/"}/node_filesystem_size_bytes{mountpoint="/"})>0.75'
+prom_check "$_q" && ANOMALIES+="disk_high[$(prom_hosts "$_q")] "
 
-# Load average > 2x CPU count (dynamic threshold)
+_q='(1-node_memory_MemAvailable_bytes/node_memory_MemTotal_bytes)>0.80'
+prom_check "$_q" && ANOMALIES+="host_memory_high[$(prom_hosts "$_q")] "
+
+# Load: vps1 has 6 cores, vps2/vps3 have 4. Use per-host check (PromQL handles).
 CPU_COUNT=$(nproc 2>/dev/null || echo 4)
 prom_check "node_load5>$((CPU_COUNT * 2))" \
-  && ANOMALIES+="load_high "
+  && ANOMALIES+="load_high[$(prom_hosts "node_load5>$((CPU_COUNT * 2))")] "
 
-# OOM kill detected (cAdvisor container_oom_events_total)
-prom_check 'increase(container_oom_events_total[15m])>0' \
-  && ANOMALIES+="oom_kill "
+_q='increase(container_oom_events_total[15m])>0'
+prom_check "$_q" && ANOMALIES+="oom_kill[$(prom_hosts "$_q")] "
 
-# Disk full prediction — will disk run out within 7 days at current rate?
-prom_check 'predict_linear(node_filesystem_avail_bytes{mountpoint="/"}[6h],7*86400)<0' \
-  && ANOMALIES+="disk_prediction_7d "
+_q='predict_linear(node_filesystem_avail_bytes{mountpoint="/"}[6h],7*86400)<0'
+prom_check "$_q" && ANOMALIES+="disk_prediction_7d[$(prom_hosts "$_q")] "
 
-# Prometheus target down
-prom_check 'up==0' \
-  && ANOMALIES+="target_down "
+_q='up==0'
+prom_check "$_q" && ANOMALIES+="target_down[$(prom_hosts "$_q")] "
 
 # Log pipeline dead (Loki receiving no lines = Promtail or pipeline broken)
 prom_check 'rate(loki_distributor_lines_received_total[10m])==0' \
