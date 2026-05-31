@@ -19,7 +19,7 @@ Full reference: [`scripts/bootstrap/README.md`](../../scripts/bootstrap/README.m
 
 1. Create `ozgur` user, install SSH key, grant NOPASSWD sudo — verified working before disabling root SSH
 2. Harden SSH (PermitRootLogin no, PasswordAuthentication no)
-3. Install UFW + fail2ban; open 22/80/443/51820
+3. Install UFW + fail2ban; open 22/80/443/51820 (hardened 2026-05-31 for Lesson 68 — explicitly handles the `rc`-state edge case where a prior `apt remove ufw` leaves config files but no binary; self-verifies `command -v ufw` + `dpkg ii` + `ufw status: active` before returning)
 4. Install Docker + log rotation; create `fabrik` external network
 5. Install Wireguard + iptables-persistent
 6. Generate Wireguard keypair on the spoke (private key never leaves)

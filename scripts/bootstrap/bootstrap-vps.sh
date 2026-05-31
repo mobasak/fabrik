@@ -320,6 +320,16 @@ step_02_install_firewall_fail2ban() {
     log "step 02: install UFW + fail2ban; open public ports"
     remote 'sudo DEBIAN_FRONTEND=noninteractive apt-get update -qq && \
         sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq ufw fail2ban'
+    # Lesson 68 hardening: a prior `apt remove ufw` (without --purge) leaves the
+    # package in `rc` state (config files remain, binary purged). `apt install`
+    # normally brings it back to `ii`, but if `ufw` is still missing from PATH,
+    # the install was incomplete — force a reinstall.
+    remote 'STATUS=$(dpkg -l ufw 2>/dev/null | awk "/^(ii|rc)/ {print \$1; exit}")
+        if [ "$STATUS" = "rc" ] || ! command -v ufw >/dev/null; then
+            sudo DEBIAN_FRONTEND=noninteractive apt-get install --reinstall -y -qq ufw
+        fi
+        command -v ufw >/dev/null || { echo "ERR: ufw binary missing after reinstall"; exit 1; }
+        sudo systemctl is-active ufw >/dev/null 2>&1 || sudo systemctl enable ufw'
     for port in "${FABRIK_PUBLIC_PORTS_TCP[@]}"; do
         remote "sudo ufw allow ${port}/tcp 2>&1 | tail -1"
     done
@@ -328,6 +338,11 @@ step_02_install_firewall_fail2ban() {
     done
     remote 'echo y | sudo ufw enable 2>&1 | tail -1'
     remote 'sudo systemctl enable --now fail2ban'
+    # Self-verify (Lesson 68): both must be true at end of step.
+    remote 'command -v ufw >/dev/null && [ "$(dpkg -l ufw | awk "/^ii/ {print \$2}")" = "ufw" ]' \
+        || { err "step 02: ufw not properly installed (rc-state or binary missing)"; return 1; }
+    remote 'sudo systemctl is-active ufw >/dev/null && sudo ufw status | grep -q "Status: active"' \
+        || { err "step 02: ufw service or status not active"; return 1; }
     ok "step 02 done"
 }
 

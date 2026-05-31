@@ -4191,3 +4191,27 @@ After all three fixes, the script completed cleanly on both vps2 and vps3 (fresh
 **Don't over-correct:** `project.yaml::type` (project identity / scaffold) and `spec.template` (deploy shape) are **distinct** — a `file-worker` project that exposes HTTP can legitimately deploy via a `python-api`/`file-api` template (`is_public: true`); the mere existence of a `file-worker/` template dir does NOT mean the deploy spec should switch to it. Verify the deploy shape, don't conflate the two fields.
 
 **Fix:** crowdlex `tools/validate.py` enum synced to the spec_loader template table + back-reference comment (commit `8e4bb3d`). Follow-up backlog (Fabrik-side): a propagator so downstream validators consume the canonical enum from a single source instead of mirroring it.
+
+---
+
+## Lesson 68 — `dpkg` status `rc` ≠ "not installed"; `systemctl is-active` ≠ "the binary works"
+
+**Context (2026-05-31 evening):** the fleet-hardening plan's pre-flight reported UFW as "not installed on vps2/vps3" because `dpkg -l ufw | awk '/^ii/'` returned empty. The plan's W1 was written to "install UFW" from a clean state. During W1 execution it surfaced that the actual state was **package status `rc`** — "removed but config files remain". The init script + `/etc/ufw/user.rules` (with all 4 expected ALLOW rules) had survived a prior `apt remove ufw` (not `apt purge`). So:
+
+- `dpkg -l ufw | awk '/^ii/'` returns empty (status is `rc`, not `ii`) → "not installed" by that filter
+- `systemctl is-active ufw` returns `active` (init script still present) → "active" by that probe
+- `command -v ufw` returns nothing (binary purged on remove) → "no command" by that probe
+- The rules in `/etc/ufw/user.rules` never apply (no binary to apply them)
+- Front-line firewall comes from DOCKER-USER iptables chain only
+
+**Rule:** "is the binary actually installed and the rules actually enforced?" needs **three** probes, not one:
+
+1. `dpkg -l <pkg> 2>/dev/null | awk '/^(ii|rc)/ {print $1, $2}'` — distinguishes `ii` (installed) from `rc` (config remains) from "no match" (truly never installed)
+2. `command -v <bin>` — confirms the binary exists in PATH
+3. `systemctl is-active <svc>` — confirms the service runs (but tells you nothing about whether the service has anything to do without the binary)
+
+**How to apply:** When a probe-audit script reports a security primitive as "active" or "installed," verify ALL THREE before trusting the headline. The probe-audit script `scripts/audit_infra_vs_docs.py` was extended on this date to add `ufw_installed_or_rc` distinguishing the two; same pattern applies to fail2ban, netfilter-persistent, etc.
+
+**Recovery from `rc` state:** `apt install <pkg>` brings the package back from `rc → ii` without losing the config files. `apt purge` is only needed if config corruption is suspected.
+
+**Bootstrap hardening:** `scripts/bootstrap/bootstrap-vps.sh` step_02 now runs `dpkg -l ufw | awk '/^(ii|rc)/'` after install and re-runs `apt install` if status is `rc`; if status is `ii` but `command -v ufw` is empty, `apt reinstall` is called.

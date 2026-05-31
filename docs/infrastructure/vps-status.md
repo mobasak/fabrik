@@ -169,14 +169,16 @@ promtail               running  (10.99.0.3:9080)
 
 ### vps2 / vps3 (identical posture)
 
+**Last probe report:** [`data/infra-probe-2026-05-31T22-36Z.yaml`](../../data/infra-probe-2026-05-31T22-36Z.yaml)
+
 | Layer | Status |
 | :--- | :--- |
 | SSH | ✅ matches vps1 (no root, no password, `ozgur` key only) — Lesson 65 takeaway |
-| UFW | ✅ 22 / 80 / 443 ALLOW; 51820/udp ALLOW |
-| Mesh-only ports | ✅ `10.99.0.<N>:9100,8080,9080` listening on wg0 only |
-| DOCKER-USER chain | ✅ applied by bootstrap step_10 |
+| UFW | ✅ installed (`dpkg ii`) + active; 8 ALLOW rules (22/80/443/51820 IPv4+IPv6); default policy `deny (incoming) / allow (outgoing) / deny (routed)` — shipped by W1 2026-05-31 evening; pre-W1 was `rc` state (Lesson 68) |
+| Mesh-only ports | ✅ `10.99.0.<N>:9100,8080,9080` listening on wg0 only; mesh-only port DROP verified via tcpdump (SYN arrives, no SYN-ACK) |
+| DOCKER-USER chain | ✅ applied by bootstrap step_10; unchanged by W1 |
 | Traefik | ✅ public 80 + 443, `authelia-vps1@file` middleware in `dynamic/authelia.yml` |
-| Tenants | None yet (DNS ready as of today) |
+| Tenants | None yet (DNS ready) |
 
 ---
 

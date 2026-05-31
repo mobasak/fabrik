@@ -260,7 +260,7 @@ const resp = await fetch('https://translator.vps1.ocoron.com/api/translate', { h
 | 3100/tcp | `10.99.0.1:3100` | (mesh-only) | loki push API |
 | 8080/tcp | `127.0.0.1:8080` | localhost | Traefik API dashboard |
 
-### vps2 / vps3 UFW (identical)
+### vps2 / vps3 UFW (identical) — active + enforcing as of 2026-05-31 evening (W1 shipped)
 
 | Port | Binding | UFW | Purpose |
 | :--- | :--- | :--- | :--- |

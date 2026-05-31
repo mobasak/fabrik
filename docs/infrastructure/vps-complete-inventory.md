@@ -278,7 +278,9 @@ Pattern for adding a mesh-exposed service: add `ports: ["10.99.0.1:<port>:<port>
 
 (Plus IPv6 duplicates of each rule.) The previously-stale `6001/tcp` + `6002/tcp` ALLOW rules (Coolify Realtime) were removed in the cleanup sweep.
 
-#### vps2 / vps3 UFW (matching, applied by bootstrap)
+#### vps2 / vps3 UFW (verified live 2026-05-31 22:36 UTC — installed and active)
+
+UFW was installed + enabled by W1 of the fleet-hardening plan on 2026-05-31 evening. Package status `ii` (installed), service active, 8 ALLOW rules each (4 IPv4 + 4 IPv6 mirrors), default policy `deny (incoming) / allow (outgoing) / deny (routed)`. Verified via `data/infra-probe-2026-05-31T22-36Z.yaml`.
 
 ```text
 22/tcp                     ALLOW   # SSH
@@ -286,6 +288,8 @@ Pattern for adding a mesh-exposed service: add `ports: ["10.99.0.1:<port>:<port>
 443/tcp                    ALLOW   # HTTPS
 51820/udp                  ALLOW   # Wireguard mesh
 ```
+
+**Pre-W1 footnote (Lesson 68):** before W1, UFW was in package status `rc` ("removed but config files remain") on both spokes — `systemctl is-active ufw` reported "active" because the init script remained, but the `ufw` binary was missing so rules were never applied. Front-line firewall was DOCKER-USER chain only. W1 reinstalled the package (`rc → ii`) and ran `ufw --force enable`, which applied the pre-existing `/etc/ufw/user.rules` content.
 
 Plus on every host: `DOCKER-USER` iptables chain (`/etc/iptables/rules.v4`, loaded at boot via `netfilter-persistent.service`). Rules:
 
