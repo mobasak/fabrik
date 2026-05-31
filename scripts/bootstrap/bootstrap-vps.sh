@@ -136,9 +136,26 @@ warn()  { echo -e "${c_yellow}[WARN]${c_reset} $*"; }
 err()   { echo -e "${c_red}[FAIL]${c_reset} $*" >&2; }
 dim()   { echo -e "${c_dim}$*${c_reset}"; }
 
+# Effective SSH target. Starts as ${REMOTE} (typically root@<ip> on a freshly
+# provisioned VPS). Step 00 creates the unprivileged sudoer user matching
+# vps1's posture (default 'ozgur') and switches EFFECTIVE_REMOTE to that user.
+# All subsequent steps run as the sudoer, not as root.
+EFFECTIVE_REMOTE="${REMOTE}"
+
 # Run a command on the remote VPS. In dry-run, print only.
 # In verify, only allow read-only commands (best-effort; not enforced strictly).
 remote() {
+    local cmd="$*"
+    if $DRY_RUN; then
+        dim "    [dry-run] ssh ${EFFECTIVE_REMOTE} '${cmd}'"
+        return 0
+    fi
+    ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new "${EFFECTIVE_REMOTE}" "${cmd}"
+}
+
+# Run a command on the remote VPS as the INITIAL user (root). Used by step 00
+# only — before we've created the sudoer.
+remote_as_initial() {
     local cmd="$*"
     if $DRY_RUN; then
         dim "    [dry-run] ssh ${REMOTE} '${cmd}'"
@@ -205,18 +222,82 @@ preflight() {
 # Step blocks — each block is idempotent
 # ---------------------------------------------------------------------------
 
+step_00_create_sudo_user() {
+    # Match vps1's posture: no root SSH, no password SSH, all work via an
+    # unprivileged sudoer (default: 'ozgur') with NOPASSWD. This step runs
+    # FIRST as root, creates the user, copies the SSH key, adds sudoers entry,
+    # and switches EFFECTIVE_REMOTE so subsequent steps run as the sudoer.
+    local user="${FABRIK_SUDOER_USER}"
+    log "step 00: create sudoer user '${user}' (matches vps1 posture)"
+
+    # Determine the public key to install for the sudoer.
+    # Strategy: read the public key from the file ssh would use to connect
+    # to REMOTE. That's the same key we just authenticated with — the user
+    # already has it.
+    local pubkey=""
+    if ! $DRY_RUN; then
+        local identity
+        identity=$(ssh -G "${REMOTE}" 2>/dev/null | awk '/^identityfile / {print $2; exit}')
+        # Expand ~ if present
+        identity="${identity/#\~/$HOME}"
+        if [[ -f "${identity}.pub" ]]; then
+            pubkey=$(cat "${identity}.pub")
+        fi
+        if [[ -z "$pubkey" ]]; then
+            err "step 00: cannot determine your public key (looked at ${identity}.pub)"
+            err "         add IdentityFile to ~/.ssh/config or set it explicitly"
+            return 1
+        fi
+    fi
+
+    # Create the user, install the SSH key, grant NOPASSWD sudo. Idempotent.
+    remote_as_initial "sudo bash -c '
+        if ! id ${user} >/dev/null 2>&1; then
+            useradd -m -s /bin/bash ${user}
+        fi
+        mkdir -p /home/${user}/.ssh
+        # Append key if not already present (idempotent)
+        grep -qxF \"${pubkey}\" /home/${user}/.ssh/authorized_keys 2>/dev/null || \
+            echo \"${pubkey}\" >> /home/${user}/.ssh/authorized_keys
+        chown -R ${user}:${user} /home/${user}/.ssh
+        chmod 700 /home/${user}/.ssh
+        chmod 600 /home/${user}/.ssh/authorized_keys
+        # NOPASSWD sudoers entry (in /etc/sudoers.d/ to avoid editing main file)
+        echo \"${user} ALL=(ALL) NOPASSWD:ALL\" > /etc/sudoers.d/90-${user}
+        chmod 440 /etc/sudoers.d/90-${user}
+    '"
+
+    # Verify the new user works with SSH + sudo
+    if ! $DRY_RUN; then
+        local host="${REMOTE#*@}"
+        local sudo_check
+        sudo_check=$(ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new \
+            "${user}@${host}" "sudo -n whoami" 2>&1 || echo FAIL)
+        if [[ "$sudo_check" != "root" ]]; then
+            err "step 00: sudoer ${user}@${host} cannot run sudo without password"
+            err "         got: ${sudo_check}"
+            return 1
+        fi
+    fi
+
+    # Switch EFFECTIVE_REMOTE so all subsequent steps run as the sudoer
+    local host="${REMOTE#*@}"
+    EFFECTIVE_REMOTE="${user}@${host}"
+    ok "step 00 done — subsequent steps run as ${EFFECTIVE_REMOTE}"
+}
+
 step_01_harden_ssh() {
-    log "step 01: harden SSH (no root login, no password auth)"
-    # BUG-FIX 2026-05-31: was 'PermitRootLogin no' which blocked ALL root login
-    # including key auth — locked out vps2 on first bootstrap. Correct hardening
-    # is 'prohibit-password' which keeps key-based root login working (we use that)
-    # but blocks any future password attempt.
+    log "step 01: harden SSH (no root login, no password auth) — matches vps1"
+    # SAFE NOW: step 00 created '${FABRIK_SUDOER_USER}' with key + NOPASSWD sudo
+    # AND verified it works. So disabling root SSH entirely (matching vps1's
+    # posture) is safe — we always have the sudoer to fall back on. This is
+    # the correct, strict posture: 'PermitRootLogin no' (not prohibit-password).
     remote "sudo sed -i \
-        -e 's/^#*PermitRootLogin.*/PermitRootLogin prohibit-password/' \
+        -e 's/^#*PermitRootLogin.*/PermitRootLogin no/' \
         -e 's/^#*PasswordAuthentication.*/PasswordAuthentication no/' \
         /etc/ssh/sshd_config && \
         sudo systemctl reload ssh 2>/dev/null || sudo systemctl reload sshd"
-    ok "step 01 done"
+    ok "step 01 done — root SSH disabled, password auth disabled"
 }
 
 step_02_install_firewall_fail2ban() {
@@ -500,6 +581,7 @@ main() {
         exit 0
     fi
 
+    step_00_create_sudo_user
     step_01_harden_ssh
     step_02_install_firewall_fail2ban
     step_03_install_docker

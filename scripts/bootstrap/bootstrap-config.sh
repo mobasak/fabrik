@@ -69,6 +69,12 @@ FABRIK_VPS_SUBDOMAIN_PATTERN="vps{N}.${FABRIK_DOMAIN_ROOT}"
 # Uses the dev machine's existing `ssh vps` Host alias from ~/.ssh/config.
 FABRIK_HUB_SSH_HOST="vps"
 
+# --- Sudoer user on each VPS (matches vps1's posture) ---
+# vps1 disables root SSH + password SSH and does all work via this user
+# with NOPASSWD sudo. Bootstrap creates this user on each spoke as step 00,
+# then disables root + password SSH after the user is verified to work.
+FABRIK_SUDOER_USER="ozgur"
+
 # --- Generated keys storage ---
 # Bootstrap writes generated WG keypairs here on the dev machine for safe-keeping
 # (one source of truth for the mesh). Mode 600.
