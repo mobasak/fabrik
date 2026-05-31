@@ -1,7 +1,7 @@
 # VPS Fleet — Service URLs and Endpoints
 
 **Last Updated:** 2026-06-01 (post-W1 ship — UFW active on spokes; probe reports moved to tracked location)
-**Last probe report:** [`probe-reports/infra-probe-2026-05-31T22-36Z.yaml`](probe-reports/infra-probe-2026-05-31T22-36Z.yaml)
+**Last probe report:** [`probe-reports/infra-probe-2026-05-31T23-07Z.yaml`](probe-reports/infra-probe-2026-05-31T23-07Z.yaml)
 **Hosts:** vps1 (hub, LA, `172.93.160.197`) · vps2 (Coventry UK, `96.9.214.128`) · vps3 (Coventry UK, `104.128.190.151`)
 **Mesh:** Wireguard `10.99.0.0/24` over UDP 51820 (vps1 = `.1`, vps2 = `.2`, vps3 = `.3`)
 **Pattern:** Public traffic → per-host Traefik → TLS terminated per host → Authelia forward-auth on admin dashboards. HTTP auto-redirects to HTTPS. No service binds a public port directly; Traefik fronts everything except SSH and Wireguard.

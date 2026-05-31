@@ -5,7 +5,7 @@ Analyze the security posture of this Ubuntu 24.04 VPS. Focus on attack surface r
 ## Stack Context
 
 - Traefik v2.11 terminates HTTPS (Let's Encrypt), routes to containers on `fabrik` network
-- Authelia provides 2FA forward-auth for admin dashboards (Grafana, Coolify UI, Netdata, Backrest, GlitchTip)
+- Authelia provides 2FA forward-auth for admin dashboards (Grafana, Backrest, n8n, Apprise). GlitchTip UI is in Authelia rule #6 bypass (accepted intentional — public error-report UI; see `vps-complete-inventory.md § Authelia access control rules`). Note: Coolify removed 2026-05-30 — its UI is no longer on the protection list.
 - M2M auth: `X-Internal-Token` header with shared `SERVICE_INTERNAL_SECRET_KEY`
 - API services (image-broker, site-provisioner) bypass Authelia, use app-layer token auth
 - Health endpoints (`/health`, `/healthz`, `/metrics`) bypass Authelia via wildcard rule
@@ -104,7 +104,7 @@ sudo docker ps --format "{{.Names}}" -f "volume=/var/run/docker.sock"
 - Any privileged containers? (should be only cAdvisor + Netdata)
 - Any containers with `--cap-add`?
 - Any containers with host PID/network mode?
-- Docker socket mounted to any non-Coolify container?
+- Docker socket mounted to any container that doesn't strictly need it? (Backrest needs it for snapshot orchestration; cAdvisor needs it for stats; promtail needs it for log tailing. Anything else exposes container-escape risk.)
 
 ### 6. Secret Hygiene
 - Any secrets visible in container env vars that should be in .env files?

@@ -169,7 +169,7 @@ promtail               running  (10.99.0.3:9080)
 
 ### vps2 / vps3 (identical posture)
 
-**Last probe report:** [`probe-reports/infra-probe-2026-05-31T22-36Z.yaml`](probe-reports/infra-probe-2026-05-31T22-36Z.yaml)
+**Last probe report:** [`probe-reports/infra-probe-2026-05-31T23-07Z.yaml`](probe-reports/infra-probe-2026-05-31T23-07Z.yaml)
 
 | Layer | Status |
 | :--- | :--- |

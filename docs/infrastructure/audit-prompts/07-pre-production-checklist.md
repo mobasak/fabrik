@@ -63,7 +63,8 @@ sudo docker ps --format "{{.Names}} {{.RestartCount}}" | sort -t' ' -k2 -rn | he
 - [ ] Docker log tag configured (daemon.json: `tag: {{.Name}}`)
 
 ### Security Layer
-- [ ] UFW active with only ports 22, 80, 443, 6001, 6002 allowed
+- [ ] **vps1** UFW active with only 22, 80, 443, 1194, 51820/udp allowed (6001/6002 Coolify-era ports removed in 2026-05-31 residue sweep)
+- [ ] **vps2 + vps3** UFW active with only 22, 80, 443, 51820/udp allowed (shipped 2026-05-31 evening by W1 of fleet-hardening plan; verify all 3 of `dpkg ii` + `command -v ufw` + `ufw status` per Lesson 68)
 - [ ] DOCKER-USER chain has 9 rules (catch-all DROP at end)
 - [ ] SSH: key-only, no root, Ed25519
 - [ ] Authelia: all admin dashboards behind 2FA

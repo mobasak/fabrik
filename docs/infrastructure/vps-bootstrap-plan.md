@@ -1,7 +1,7 @@
 # VPS Bootstrap Automation
 
 **Last Updated:** 2026-06-01 (step_02 hardened for Lesson 68 — `rc`-state handling + 3-probe self-verify)
-**Last probe report:** [`probe-reports/infra-probe-2026-05-31T22-36Z.yaml`](probe-reports/infra-probe-2026-05-31T22-36Z.yaml)
+**Last probe report:** [`probe-reports/infra-probe-2026-05-31T23-07Z.yaml`](probe-reports/infra-probe-2026-05-31T23-07Z.yaml)
 **Status:** Spoke bootstrap **shipped + verified on vps2 + vps3**; hub bootstrap remains manual (documented below)
 
 ## What's actually done

@@ -1,5 +1,7 @@
 # VPS AI System Administrator — Reference
 
+**Last Updated:** 2026-06-01 (post-W1 ship — Container Classification table reflects UFW now active on spokes)
+**Last probe report:** [`probe-reports/infra-probe-2026-05-31T23-07Z.yaml`](probe-reports/infra-probe-2026-05-31T23-07Z.yaml)
 **Status:** Live since 2026-05-20
 **Service:** `vps-sysadmin-bot.service` (systemd, `Restart=always`)
 **Bot:** Telegram (`@ocoron_bot`), same bot as Alertmanager notifications
