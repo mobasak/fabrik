@@ -392,6 +392,16 @@ class Spec(BaseModel):
 
     wordpress: WordPressConfig | None = None
 
+    # W-Multi M4 — which host in the fleet this service deploys to.
+    # Maps to an ~/.ssh/config alias (vps1 / vps2 / vps3) and to a public IP
+    # the DNS provisioner uses for the A record. Defaults to vps1 (hub).
+    # CLI --target-vps overrides this.
+    target_vps: str | None = Field(
+        default=None,
+        pattern=r"^vps[1-9][0-9]?$",
+        description="Target host alias: vps1 (hub), vps2/vps3 (spokes). None = vps1.",
+    )
+
     @field_validator("id")
     @classmethod
     def validate_id(cls, v: str) -> str:

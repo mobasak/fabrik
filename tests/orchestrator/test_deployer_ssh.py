@@ -428,7 +428,7 @@ class TestSSHDeployerInjectEnv:
         ctx = _ctx({"name": "my-app"})
         ctx.coolify_uuid = None
         deployer = SSHDeployer()
-        with pytest.raises(DeployError, match="coolify_uuid is not set"):
+        with pytest.raises(DeployError, match="app_name is not set"):
             deployer.inject_env(ctx, {"KEY": "val"})
 
 
@@ -617,6 +617,7 @@ class TestDeployGit:
             # test -d .git fails (not cloned yet)
             mock_ssh.side_effect = [
                 RuntimeError("not exists"),  # test -d .git
+                "",  # ssh-keyscan github.com → known_hosts (added 2026-05-31)
                 "",  # git clone
                 "",  # docker compose build
                 "",  # docker compose up -d
@@ -624,7 +625,11 @@ class TestDeployGit:
             deployer = SSHDeployer()
             deployer._deploy_git(ctx, "my-app", ctx.spec["source"], None)
 
-        clone_cmd = mock_ssh.call_args_list[1].args[0]
+        # Index 1 is the ssh-keyscan; clone is index 2 now
+        keyscan_cmd = mock_ssh.call_args_list[1].args[0]
+        assert "ssh-keyscan" in keyscan_cmd
+        assert "github.com" in keyscan_cmd
+        clone_cmd = mock_ssh.call_args_list[2].args[0]
         assert "git clone" in clone_cmd
         assert "git@github.com:user/repo.git" in clone_cmd
 
@@ -637,6 +642,7 @@ class TestDeployGit:
              patch("fabrik.orchestrator.deployer_ssh._write_file_to_vps"):
             mock_ssh.side_effect = [
                 "exists",  # test -d .git → exists
+                "",  # ssh-keyscan github.com → known_hosts
                 "",  # git pull
                 "",  # docker compose build
                 "",  # docker compose up -d
@@ -644,7 +650,8 @@ class TestDeployGit:
             deployer = SSHDeployer()
             deployer._deploy_git(ctx, "my-app", ctx.spec["source"], None)
 
-        pull_cmd = mock_ssh.call_args_list[1].args[0]
+        # Pull is now index 2 (after keyscan)
+        pull_cmd = mock_ssh.call_args_list[2].args[0]
         assert "git pull" in pull_cmd
 
     def test_missing_repository_raises(self):
@@ -899,3 +906,72 @@ class TestDestroyApp:
         with patch("fabrik.drivers.ssh.ssh", side_effect=fake_ssh):
             _destroy_compose("my-app", dry_run=False, drop_data=True)
         assert any("compose down -v" in c for c in calls)
+
+
+# ======================================================================
+# W-Multi M4 — target_vps routing
+# ======================================================================
+
+
+class TestTargetVpsRouting:
+    """Verify that ctx.target_vps env-swaps FABRIK_VPS_SSH_HOST around deploy."""
+
+    def test_target_vps_vps2_sets_env(self):
+        """When target_vps='vps2', _deploy_inner sees FABRIK_VPS_SSH_HOST=vps2."""
+        import os
+
+        os.environ.pop("FABRIK_VPS_SSH_HOST", None)
+        ctx = DeploymentContext(spec_path=Path("/tmp/x"))
+        ctx.spec = {"name": "app", "source": {"type": "template"}}
+        ctx.target_vps = "vps2"
+        ctx.dry_run = True
+
+        deployer = SSHDeployer()
+        seen = []
+        real = deployer._deploy_inner
+
+        def spy(c):
+            seen.append(os.environ.get("FABRIK_VPS_SSH_HOST"))
+            return real(c)
+
+        deployer._deploy_inner = spy
+        deployer.deploy(ctx)
+        assert seen[0] == "vps2"
+
+    def test_target_vps_vps1_does_not_swap(self):
+        """target_vps='vps1' is the hub default — no env-swap should occur."""
+        import os
+
+        os.environ.pop("FABRIK_VPS_SSH_HOST", None)
+        ctx = DeploymentContext(spec_path=Path("/tmp/x"))
+        ctx.spec = {"name": "app", "source": {"type": "template"}}
+        ctx.target_vps = "vps1"
+        ctx.dry_run = True
+
+        deployer = SSHDeployer()
+        seen = []
+        real = deployer._deploy_inner
+
+        def spy(c):
+            seen.append(os.environ.get("FABRIK_VPS_SSH_HOST"))
+            return real(c)
+
+        deployer._deploy_inner = spy
+        deployer.deploy(ctx)
+        # vps1 means no swap; env stays at whatever it was (None here)
+        assert seen[0] is None
+
+    def test_env_restored_after_deploy(self):
+        """Pre-existing FABRIK_VPS_SSH_HOST restored after deploy returns."""
+        import os
+
+        os.environ["FABRIK_VPS_SSH_HOST"] = "prior-alias"
+        try:
+            ctx = DeploymentContext(spec_path=Path("/tmp/x"))
+            ctx.spec = {"name": "app", "source": {"type": "template"}}
+            ctx.target_vps = "vps2"
+            ctx.dry_run = True
+            SSHDeployer().deploy(ctx)
+            assert os.environ.get("FABRIK_VPS_SSH_HOST") == "prior-alias"
+        finally:
+            os.environ.pop("FABRIK_VPS_SSH_HOST", None)

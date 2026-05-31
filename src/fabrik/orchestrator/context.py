@@ -43,6 +43,12 @@ class DeploymentContext:
     dns_record_id: str | None = None
     deployed_url: str | None = None
 
+    # Target host in the fleet (hub or spoke). Maps to an ~/.ssh/config alias
+    # that the SSHDeployer uses to route deploy commands. The hub-side
+    # registrars (postgres, redis, gatus, glitchtip, authelia, etc.) keep
+    # running against vps1 regardless of target_vps — they live there.
+    target_vps: str = "vps1"
+
     # Error tracking
     error: str | None = None
     error_step: str | None = None

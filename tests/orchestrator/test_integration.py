@@ -198,6 +198,10 @@ class TestDeploymentOrchestrator:
         mock_dns_client = MagicMock()
         mock_dns_client.add_subdomain.return_value = {"success": True}
 
+        # W-Multi M4: ctx.target_vps maps to a fleet IP (vps1 = 172.93.160.197
+        # by default). The VPS_IP env var is now a fallback used only when
+        # target_vps is not a known fleet alias — kept here for documentation
+        # but no longer the primary signal.
         with patch("fabrik.orchestrator.DNSClient", return_value=mock_dns_client), \
              patch.dict("os.environ", {"VPS_IP": "1.2.3.4"}):
             orchestrator = DeploymentOrchestrator(
@@ -208,7 +212,10 @@ class TestDeploymentOrchestrator:
             ctx = orchestrator.deploy(test_spec_path)
 
         assert ctx.state == DeploymentState.COMPLETE
-        mock_dns_client.add_subdomain.assert_called_once_with("example.com", "test", "1.2.3.4")
+        # Default target_vps="vps1" → 172.93.160.197 (from VPS_IPS map).
+        mock_dns_client.add_subdomain.assert_called_once_with(
+            "example.com", "test", "172.93.160.197"
+        )
         dns_resources = ctx.get_resources_by_type("dns")
         assert len(dns_resources) == 1
         assert dns_resources[0].resource_id == "test.example.com"

@@ -26,6 +26,20 @@ logger = logging.getLogger(__name__)
 _NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}$")
 
 
+def _extract_git_host(repository: str) -> str | None:
+    """Extract hostname from a git URL — `git@host:path` or `https://host/path`."""
+    import re
+    if not repository:
+        return None
+    m = re.match(r"^[^@]+@([^:]+):", repository)
+    if m:
+        return m.group(1)
+    m = re.match(r"^https?://([^/]+)/", repository)
+    if m:
+        return m.group(1)
+    return None
+
+
 def _validate_name(name: str) -> None:
     """Raise ``DeployError`` if *name* is not a valid compose app name."""
     if not _NAME_RE.match(name):
@@ -49,12 +63,35 @@ class SSHDeployer:
 
         Dispatches by ``source.type`` from the spec.  Returns the app name
         (stored in ``ctx.app_name`` for backward compat).
+
+        W-Multi M4 — if ``ctx.target_vps`` is set to a non-default spoke alias
+        (``vps2`` / ``vps3``), the entire deploy block runs against that host
+        by env-swapping ``FABRIK_VPS_SSH_HOST``. Every nested SSH call resolves
+        the alias at call time, so a single env-swap routes ~30 call sites
+        without per-site changes. Restored on exit so post-deploy registrars
+        run against vps1 (the hub) as designed.
         """
+        target_vps = getattr(ctx, "target_vps", None) or "vps1"
+        if target_vps != "vps1":
+            import os
+            prev = os.environ.get("FABRIK_VPS_SSH_HOST")
+            os.environ["FABRIK_VPS_SSH_HOST"] = target_vps
+            try:
+                return self._deploy_inner(ctx)
+            finally:
+                if prev is None:
+                    os.environ.pop("FABRIK_VPS_SSH_HOST", None)
+                else:
+                    os.environ["FABRIK_VPS_SSH_HOST"] = prev
+        return self._deploy_inner(ctx)
+
+    def _deploy_inner(self, ctx: DeploymentContext) -> str:
+        """Actual deploy logic (env-swap wrapped by :meth:`deploy`)."""
         name = ctx.spec["name"]
         _validate_name(name)
 
         if ctx.dry_run:
-            logger.info("[DRY RUN] Would deploy %s", name)
+            logger.info("[DRY RUN] Would deploy %s on %s", name, getattr(ctx, "target_vps", "vps1"))
             return "dry-run-uuid"
 
         source = ctx.spec.get("source", {})
@@ -357,6 +394,18 @@ class SSHDeployer:
             is_cloned = True
         except RuntimeError:
             is_cloned = False
+
+        # Ensure the git host is trusted by root's SSH (git clone/pull runs as root).
+        # Extracts the host from either SSH form (git@host:path) or HTTPS (https://host/...).
+        git_host = _extract_git_host(repository)
+        if git_host:
+            _ssh(
+                f"sudo bash -c 'mkdir -p /root/.ssh && chmod 700 /root/.ssh && "
+                f"touch /root/.ssh/known_hosts && chmod 644 /root/.ssh/known_hosts && "
+                f"grep -q \"^{git_host} \" /root/.ssh/known_hosts || "
+                f"ssh-keyscan -t ed25519,rsa {git_host} 2>/dev/null >> /root/.ssh/known_hosts'",
+                timeout=30,
+            )
 
         if is_cloned:
             _ssh(f"cd /opt/{name} && sudo git pull", timeout=60)

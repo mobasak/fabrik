@@ -379,6 +379,17 @@ def plan(spec_path: str, secrets: tuple):
         "deploys should NOT pass this flag \u2014 default behavior is fail-closed."
     ),
 )
+@click.option(
+    "--target-vps",
+    type=click.Choice(["vps1", "vps2", "vps3"]),
+    default=None,
+    help=(
+        "W-Multi M4: which host to deploy the application to. Overrides the "
+        "spec's target_vps field. Default: spec value, or vps1 if unset. "
+        "Hub-side registrars (postgres, redis, gatus, glitchtip, authelia) "
+        "stay on vps1 \u2014 only the application container is routed."
+    ),
+)
 def apply(
     spec_path: str | None,
     secrets: tuple,
@@ -390,6 +401,7 @@ def apply(
     legacy: bool,
     skip_health_check: bool,
     keep_on_failure: bool,
+    target_vps: str | None,
 ):
     """Deploy a service from spec.
 
@@ -467,6 +479,7 @@ def apply(
             dry_run=dry_run,
             skip_health_check=skip_health_check,
             keep_on_failure=keep_on_failure,
+            target_vps=target_vps,
         )
 
         if ctx.state == DeploymentState.COMPLETE:

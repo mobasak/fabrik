@@ -82,6 +82,7 @@ class DeploymentOrchestrator:
         dry_run: bool = False,
         skip_health_check: bool = False,
         keep_on_failure: bool = False,
+        target_vps: str | None = None,
     ) -> DeploymentContext:
         """Run full deployment pipeline.
 
@@ -94,6 +95,10 @@ class DeploymentOrchestrator:
                 etc. all stay in place. Used by the proof-run harness so build
                 logs and container state survive long enough to be inspected.
                 Default ``False`` preserves the production fail-closed behavior.
+            target_vps: Which host to deploy the application to (W-Multi M4).
+                Overrides the spec's ``target_vps`` field if set. Falls back to
+                spec value, then to "vps1" (hub). Hub-side registrars stay on
+                vps1 regardless — only the application deploy is routed.
 
         Returns:
             DeploymentContext with deployment details
@@ -112,6 +117,9 @@ class DeploymentOrchestrator:
             spec, spec_hash, warnings = self.validator.load_and_validate(spec_path)
             ctx.spec = spec
             ctx.spec_hash = spec_hash
+
+            # Resolve target_vps: CLI flag > spec field > default vps1
+            ctx.target_vps = target_vps or spec.get("target_vps") or "vps1"
             for w in warnings:
                 logger.warning("Validation warning: %s", w)
 
@@ -416,7 +424,16 @@ class DeploymentOrchestrator:
             logger.info("Domain %s has no subdomain — skipping DNS provisioning", domain)
             return
 
-        vps_ip = os.getenv("VPS_IP", "172.93.160.197")
+        # W-Multi M4 — route DNS to the right host IP based on ctx.target_vps.
+        # Precedence: ctx.target_vps (set by spec or --target-vps) wins, since
+        # a spoke deploy explicitly targets a different host than vps1.
+        # VPS_IP env var is a final fallback for one-off overrides (tests).
+        VPS_IPS = {
+            "vps1": "172.93.160.197",
+            "vps2": "96.9.214.128",
+            "vps3": "104.128.190.151",
+        }
+        vps_ip = VPS_IPS.get(ctx.target_vps) or os.getenv("VPS_IP") or VPS_IPS["vps1"]
 
         if ctx.dry_run:
             logger.info(
