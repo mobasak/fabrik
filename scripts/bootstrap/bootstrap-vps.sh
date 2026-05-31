@@ -231,21 +231,37 @@ step_00_create_sudo_user() {
     log "step 00: create sudoer user '${user}' (matches vps1 posture)"
 
     # Determine the public key to install for the sudoer.
-    # Strategy: read the public key from the file ssh would use to connect
-    # to REMOTE. That's the same key we just authenticated with — the user
-    # already has it.
+    # Strategy: scan common pubkey paths in modern→legacy order and pick the
+    # first existing one. SSH itself may have many IdentityFile candidates;
+    # we just need ONE working pubkey to install. (Earlier we tried ssh -G's
+    # first identityfile, which on Ubuntu defaults to id_rsa even when the
+    # user actually uses id_ed25519 — wrong.)
     local pubkey=""
     if ! $DRY_RUN; then
-        local identity
-        identity=$(ssh -G "${REMOTE}" 2>/dev/null | awk '/^identityfile / {print $2; exit}')
-        # Expand ~ if present
-        identity="${identity/#\~/$HOME}"
-        if [[ -f "${identity}.pub" ]]; then
-            pubkey=$(cat "${identity}.pub")
-        fi
+        local candidates=(
+            "${HOME}/.ssh/id_ed25519.pub"
+            "${HOME}/.ssh/id_ecdsa.pub"
+            "${HOME}/.ssh/id_rsa.pub"
+        )
+        # Also probe whatever ssh -G says, in case the user has a custom key
+        local ssh_g_identity
+        ssh_g_identity=$(ssh -G "${REMOTE}" 2>/dev/null | awk '/^identityfile / {print $2}' | head -3)
+        while IFS= read -r f; do
+            f="${f/#\~/$HOME}"
+            [[ -n "$f" ]] && candidates+=("${f}.pub")
+        done <<<"$ssh_g_identity"
+
+        for candidate in "${candidates[@]}"; do
+            if [[ -f "$candidate" ]]; then
+                pubkey=$(cat "$candidate")
+                log "  using key: ${candidate}"
+                break
+            fi
+        done
+
         if [[ -z "$pubkey" ]]; then
-            err "step 00: cannot determine your public key (looked at ${identity}.pub)"
-            err "         add IdentityFile to ~/.ssh/config or set it explicitly"
+            err "step 00: cannot find any public key in:"
+            printf '         %s\n' "${candidates[@]}" >&2
             return 1
         fi
     fi
@@ -398,8 +414,13 @@ c = c.rstrip() + peer_block
 with open('/etc/wireguard/wg0.conf', 'w') as f: f.write(c)
 print('hub config updated')
 \""
-        # Reload the hub's wg interface
-        hub 'sudo wg syncconf wg0 <(sudo wg-quick strip wg0)'
+        # Reload the hub's wg interface. Use a tempfile instead of process
+        # substitution because <(...) doesn't survive single-quote wrapping
+        # through the SSH command chain. (Confirmed by vps2 bootstrap 2026-05-31:
+        # fopen failed with "No such file or directory" on /dev/fd/<N>.)
+        hub 'sudo bash -c "wg-quick strip wg0 > /run/wg0.stripped.tmp && \
+            wg syncconf wg0 /run/wg0.stripped.tmp; rc=\$?; \
+            rm -f /run/wg0.stripped.tmp; exit \$rc"'
     fi
     ok "step 06 done"
 }
