@@ -4128,3 +4128,54 @@ Per `CLAUDE.md`: "rule pack > ticket. Surface conflict before proceeding." The c
 
 4. **When manually editing Authelia, align with registrar format.** The registrar adds `bypass [^/api/]` only. Health and metrics are covered globally by `*.vps1.ocoron.com` bypass with those resources. Adding more resources manually breaks idempotency on next `fabrik apply`.
 
+
+---
+
+## Lesson 65 — Bootstrap scripts must create the sudoer BEFORE disabling root SSH, scan multiple SSH key candidates, and avoid process substitution over SSH
+
+**Date:** 2026-05-31
+**Context:** W-Multi M1 — writing `scripts/bootstrap/bootstrap-vps.sh` to take a fresh GreenCloudVPS Ubuntu node to Fabrik mesh-spoke state. Tested live against vps2 + vps3 (Coventry UK).
+
+**What went wrong (three bugs in one session):**
+
+1. **`PermitRootLogin no` locked us out of vps2 mid-bootstrap.** Step 01 hardened SSH (set `PermitRootLogin no`, `PasswordAuthentication no`, reloaded sshd) while the script was still running over SSH AS ROOT. The reload took effect immediately for new connections. Step 02 attempted to reconnect → `Permission denied (publickey)`. No other user existed yet (no `ozgur` user — that step was never written). vps2 required full OS reinstall to recover (~5 min via VirtFusion, but completely avoidable). The "correct hardening" reflex (`PermitRootLogin no`) is wrong if you don't have a working fallback identity.
+
+2. **`ssh -G <host>` returns `id_rsa.pub` as the default IdentityFile** even when the user authenticates with `id_ed25519`. On a fresh re-run after fixing bug #1, step 00 (create sudoer) needed to read the dev machine's public key to install for `ozgur`. It queried `ssh -G root@<ip> | awk '/identityfile/ {print; exit}'` and got `~/.ssh/id_rsa` because no `Host` entry in `~/.ssh/config` matched the raw IP — SSH's defaults list `id_rsa` first. The user's actual key was `id_ed25519`. Step 00 failed with "cannot find public key" until the candidate-list approach (`id_ed25519.pub` → `id_ecdsa.pub` → `id_rsa.pub`, then anything `ssh -G` mentioned) was used instead.
+
+3. **Process substitution `<(...)` doesn't survive single-quote SSH wrapping.** Step 06 (register spoke as Wireguard peer on the hub) ran `hub 'sudo wg syncconf wg0 <(sudo wg-quick strip wg0)'`. The `<(...)` got passed literally through the SSH command, and the remote shell tried to open a file path that didn't exist. Error: `fopen: No such file or directory`. The peer was correctly added to `/etc/wireguard/wg0.conf` on the hub but never loaded into the running `wg0` interface — vps1 didn't see the new peer until we manually re-ran a tempfile-based syncconf.
+
+**Rules:**
+
+1. **Create the unprivileged sudoer user BEFORE running any step that hardens SSH.** Pattern, in order:
+   1. SSH in as root with key auth (first-time provisioning)
+   2. Create `ozgur` (or whatever the configured sudoer is), install `~/.ssh/authorized_keys`, set perms `700`/`600`, write `/etc/sudoers.d/90-<user>` with `NOPASSWD:ALL`, set mode `440`
+   3. **Verify** the new user works: `ssh ${user}@<ip> 'sudo -n whoami'` must return `root` BEFORE you touch sshd config
+   4. Only then disable root SSH + password auth and reload sshd
+   5. Switch all subsequent commands to run as the sudoer
+
+2. **For SSH key auto-detection, never trust `ssh -G`'s first IdentityFile.** Scan a candidate list in modern → legacy order (`id_ed25519`, `id_ecdsa`, `id_rsa`) and pick the first `.pub` file that exists. Also probe `ssh -G`'s output (in case the user has a custom key explicitly configured), but as one source of candidates, not the source.
+
+3. **For `wg syncconf` (and any command that needs `<(...)`-style file input) over SSH, use a tempfile in `/run/`.** Process substitution does not pass cleanly through single-quoted SSH commands. The portable form is:
+   ```bash
+   ssh hub 'sudo bash -c "wg-quick strip wg0 > /run/wg0.stripped.tmp && \
+                           wg syncconf wg0 /run/wg0.stripped.tmp; \
+                           rc=$?; rm -f /run/wg0.stripped.tmp; exit $rc"'
+   ```
+   Using `/run/` (tmpfs) avoids disk I/O and the file vanishes on reboot.
+
+4. **Bootstrap scripts must have two `remote()` helpers, not one.** The first run-time identity (root, before sudoer exists) is different from the steady-state identity (sudoer, after step 01). Encoding both as a single `${REMOTE}` global means step 01 silently breaks the connection for steps 02+. Use `${REMOTE}` for the initial identity and `${EFFECTIVE_REMOTE}` for the current step's identity; step 00 updates `${EFFECTIVE_REMOTE}` after verifying the sudoer works.
+
+5. **Bash syntax check (`bash -n`) is not a test.** A 522-line bootstrap script passed `bash -n` but failed on the first real run with a posture-changing bug. Real testing requires either:
+   - A local multipass/LXC VM you can iterate against for free, OR
+   - A throwaway VPS instance you destroy after testing (GreenCloudVPS has none; DO/Vultr/Hetzner offer hourly billing for this), OR
+   - Acceptance that the first real target serves as the test bed, with idempotency + a recovery plan (VirtFusion reinstall) for when bugs surface
+
+**Verified working end-to-end:**
+
+After all three fixes, the script completed cleanly on both vps2 and vps3 (fresh GreenCloudVPS BudgetKVMCUK-3 Coventry UK boxes):
+- 10 of 12 steps green (steps 11/12 are stubs — monitoring agents + DNS)
+- Mesh handshake immediate
+- Cross-Atlantic RTT 133-134 ms, 0 % packet loss
+- vps1's `wg show` reports both peers with active handshakes
+
+**Commit trail:** `7fbd580` (PermitRootLogin no → prohibit-password), `59bf3a8` (step 00 + sudoer-first), `14d3972` (tempfile syncconf).
