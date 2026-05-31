@@ -346,6 +346,12 @@ EOF
     sudo systemctl restart docker'
     # Create fabrik network if missing
     remote 'sudo docker network inspect fabrik >/dev/null 2>&1 || sudo docker network create fabrik'
+    # Pre-seed github.com host key for root (fabrik SSH deployer git-clones as root).
+    # Without this, every first git-source deploy fails with "Host key verification failed".
+    remote 'sudo bash -c "mkdir -p /root/.ssh && chmod 700 /root/.ssh && \
+        touch /root/.ssh/known_hosts && chmod 644 /root/.ssh/known_hosts && \
+        grep -q \"^github.com \" /root/.ssh/known_hosts || \
+        ssh-keyscan -t ed25519,rsa github.com 2>/dev/null >> /root/.ssh/known_hosts"'
     ok "step 03 done"
 }
 

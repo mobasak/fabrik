@@ -27,9 +27,22 @@ source:
   branch: main
 
 
-# Non-secret runtime config. Hardcoded values; NAMECHEAP_CLIENT_IP must be the
-# VPS public IP (Namecheap validates source IP against this), not a dev IP —
-# this is why it's here and NOT in secrets.from_env.
+# Non-secret runtime config. NAMECHEAP_CLIENT_IP must be the VPS public IP
+# (Namecheap validates source IP), not a dev IP.
+#
+# DOMAINNAMEAPI_* are declared (empty) because the upstream compose.yaml
+# references them via ${VAR} — compose interpolation requires the key exist
+# in .env even if the value is empty. The DomainNameAPI driver is unused.
+#
+# GIT_SHA placeholder satisfies compose interpolation; empty is acceptable
+# (used only as a label/version string).
+#
+# GOOGLE_APPLICATION_CREDENTIALS is an in-container file path (the service
+# account JSON is COPYed into the image during build); not a secret value.
+#
+# DATABASE_URL: placeholder satisfies first compose-up; the postgres
+# registrar (shape.needs_database=true) overwrites it post-deploy via
+# inject_env() and restarts the container with the real DSN.
 env:
   API_HOST: "0.0.0.0"
   API_PORT: "8001"
@@ -38,23 +51,27 @@ env:
   NAMECHEAP_USE_PROXY: "true"
   NAMECHEAP_SANDBOX: "false"
   NAMECHEAP_CLIENT_IP: "172.93.160.197"
+  GOOGLE_APPLICATION_CREDENTIALS: /app/service-account.json
+  DOMAINNAMEAPI_USERNAME: ""
+  DOMAINNAMEAPI_PASSWORD: ""
+  GIT_SHA: ""
+  DATABASE_URL: "postgresql+asyncpg://placeholder:placeholder@postgres-main:5432/placeholder"
 
 secrets:
-  # Pulled from /opt/fabrik/.env at apply time. Values verified to match
-  # live Coolify state (2026-04-22) except DOMAINNAMEAPI_* which are currently
-  # empty on both sides (driver not in use).
+  # Pulled from /opt/fabrik/.env at apply time. Every var below is also
+  # referenced by the upstream compose.yaml via ${VAR} — keep this list in
+  # sync with:
+  #   grep -oE '\$\{[A-Z_]+' compose.yaml | sort -u
   from_env:
     - NAMECHEAP_API_KEY
     - NAMECHEAP_API_USER
+    - NAMECHEAP_PROXY_URL
     - CLOUDFLARE_API_TOKEN
     - CLOUDFLARE_ACCOUNT_ID
     - CLOUDFLARE_GLOBAL_API_KEY
     - CLOUDFLARE_EMAIL
-
-# NOTE: These live env vars are NOT in our spec and remain untouched by
-# bulk_update_env_vars (additive-only): API_KEY, DATABASE_URL,
-# BING_WEBMASTER_API_KEY, GOOGLE_APPLICATION_CREDENTIALS,
-# DOMAINNAMEAPI_USERNAME, DOMAINNAMEAPI_PASSWORD, NAMECHEAP_PROXY_URL.
+    - API_KEY
+    - BING_WEBMASTER_API_KEY
 
 resources:
   memory: 512M
