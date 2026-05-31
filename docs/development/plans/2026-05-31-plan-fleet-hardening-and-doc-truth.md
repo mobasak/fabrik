@@ -2,7 +2,7 @@
 
 **Date created:** 2026-05-31 (evening)
 **Author:** Özgür Mobasak + Claude
-**Plan version:** v3 (deep-review pass — veteran sysadmin grade)
+**Plan version:** v3.4 (external-AI review pass — 6 verified defects fixed inline)
 **Status:** OPEN
 **Estimated total effort:** 8–10 h active across 3 sessions (was 6h in v2 — v2 was optimistic)
 **Trigger:** The 2026-05-31 evening doc-truth audit said UFW was active on vps2/vps3 with a "verified live" tag. `dpkg -l ufw` returned empty on both spokes. UFW is **not installed**. The front-line firewall on spokes is actually the DOCKER-USER iptables chain (functionally adequate but not what was documented). Three prior verification passes missed this because each grepped for *failure symptoms* (stale port allows, dead Coolify references) instead of *probing for presence*. Symptom-grep cannot find an absence. This plan fixes that posture, closes adjacent gaps surfaced in the same audit, makes the DR chain whole, and installs a process guardrail.
@@ -13,6 +13,7 @@
 | :--- | :--- |
 | v1 → v2 | Added W9 (env offsite recovery — the DR keystone). Added W8 (sysadmin smoke). Replaced W6's regex linter with a probe-vs-doc script. Resolved 2 open questions inline. Sequencing fix: W7 snapshot before W2. Hardened acceptance with exact commands. |
 | v2 → v3 | **Backrest password canonicalization** — direction of reconciliation specified (config.json is canonical at init; copy → .env), plus Lesson 67 about restic password immutability post-init. **W4 fixed:** `template: python-api` (not `docker` — wouldn't validate), Let's Encrypt **staging first** before production cert, spoke daemon.json tag prereq, vps3 uses a separate spec. **W2 hardened:** pg_dump completion marker prevents mid-write snapshots, postgres-dumps path excludes the Coolify-era subdir, failure-hook test now uses `on_snapshot_success` (always-fires, no break-things). **W5 :8017** prefers service rebind over iptables drop; pace probes to avoid fail2ban banning our own dev IP. **W9** scoped to the irrecoverable key + age-encrypted bulk backup. **Pre-mortem section** (§4.5). **Cost analysis** (§4.6). **Daily execution checklist** (§5). **W1** adds iptables backend consistency check. **W3** adds state-file atomic-write verification + missing/corrupt handling. **W8** adds spoke-anomaly safety probe. |
+| v3.3 → v3.4 | **External-AI review (2026-05-31 evening) found 6 verified defects; all 6 fixed inline.** B1: W9 recovery test rewritten to route restic through Backrest's in-container `/bin/restic` via SSH (host-side restic NOT installed on WSL — `command -v restic` returned empty). B2: W9 step 1 switched from `git clone git@github.com:...` (SSH) to `gh repo clone` (HTTPS, matching `gh auth status` protocol). B3: W3 step 4 atomic-write claim corrected — `_persist_state` delegates to `state.py::save()` which already has temp-file + `os.replace()` AND per-PID-suffix concurrency protection at `state.py:164-168`. Plan now reads "already done, confirm by reading those lines." B4: W3 destroyer instructions rewritten — destroyer.py uses module-level functions (`_destroy_compose`, `destroy_deployment`, `destroy_from_state`) with no `ctx`; threading `target_vps` requires 3 signature changes, not a copy-paste wrap. B5: W10 dr-store watcher language fixed — "anonymous-API with token" was a contradiction; now uses `Authorization: Bearer ${GITHUB_TOKEN}` (token already in `.env` per pre-flight #11). B6: W4 acceptance table — removed unreachable "Staging cert chain shows Fake LE Intermediate X1" row since v3.2 dropped staging-first (staging is now a fallback only if first prod issuance fails). |
 | v3.2 → v3.3 | **Veteran-review blockers B3–B8 resolved with verification (not assumption):** B3 — `_persist_state` grep-confirmed at line 364 of `orchestrator/__init__.py`. B4 — `templates/python-api/` confirmed exists (`ls templates/` shows 16 templates incl. `file-worker`, `file-api`, `node-api`, `saas-skeleton`). B5 — W8 induced spike uses `nohup bash -c ... </dev/null >/dev/null 2>&1 &` (survives SSH teardown). B6 — W9 backup uses `cmp -s` content check before writing the timestamped file (no commit noise). B7 — W10 cooldowns moved from `/var/run/` (tmpfs) to `/var/lib/sysadmin/cooldowns/` (persistent). B8 — `action_restart_wg_hub` gated by `SYSADMIN_AUTONOMOUS_WG_RESTART=false` opt-in default. **W2 paths corrected:** plan-creation uses Backrest's container-internal mount points (`/backup-opt`, `/backup-postgres`, `/backup-volumes`) verified via `docker inspect backrest`. Restic password held in 3 synced locations (host `/opt/backrest/.restic-password` file → container `/restic-password`, plus `.env` and `config.json` for compat). **W9 rewritten for WSL transience:** inotify file-watcher (change-driven push within seconds) + daily cron safety net + `@reboot sleep 60` catch-up. AI sysadmin alert threshold = 30 days (env rarely changes). **3 open assertions documented** with explicit fallback paths (Backrest plan JSON schema, hook event name, REST API trigger path) — verify at execution time, not assumption-time. |
 | v3 → v3.2 | **Operator directives applied:** "no manual GUI work" + "no extra encryption (Backrest restic encryption is structural and stays)" + "AI sysadmin watches + fixes infra." **W7 DROPPED** — GreenCloud doesn't expose VirtFusion API; provider snapshots removed from plan; rollback for W2 is config.json git diff + restic forget. **W9 rewritten** — no password manager, no paper, no `age` layer. Simple: `/opt/fabrik/.env` mirrored to a private GitHub repo (`mobasak/fabrik-dr-store`) via nightly cron; private-repo privacy IS the security boundary (same threat model as the main code repo). Weekly DR self-test cron runs `restic snapshots` with recovered creds. **W10 NEW** — extends `proactive-check.sh` with 4 watchers (backup snapshot age, cert expiry, Wireguard mesh handshake age, DR-store last-commit age) + Tier A action handlers (force backup, restart traefik, restart wg-quick) + cooldown system. **W2 simplified** — no Backrest UI step; plans created by editing `config.json` directly + `docker restart backrest`. **Pre-flight log** (§10) — 8 probes run pre-execution, findings folded back into W2/W4. Key findings: passwords already match (W2 step 3 is no-op); spoke Traefik has no caServer line so prod is the default (W4 staging-first dropped); restic lives at `/bin/restic` inside backrest container. |
 
@@ -222,18 +223,19 @@ Each is independently shippable. Sequencing in §3. Pre-mortem (§4.5) lists lik
 
 **Plan of action.**
 
-1. **`fabrik destroy --target-vps`** — extend `src/fabrik/cli.py::destroy` with the Click option. In `src/fabrik/orchestrator/destroyer.py`:
-   - Resolve `target_vps`: CLI flag > state file > spec > "vps1".
-   - Wrap `_destroy_compose()` with the env-swap pattern from `SSHDeployer.deploy()`.
-2. **`fabrik redeploy --target-vps`** — same on `src/fabrik/cli.py::redeploy`. Wrap the redeploy SSH block.
-3. **State-file annotation** — `SSHDeployer.deploy()` writes `target_vps` into `.fabrik/state/<id>.json` on success. Update `src/fabrik/orchestrator/__init__.py::_persist_state` (verified at line 364 per pre-flight 2026-05-31). **Always write the field** (even when `vps1`) so the file is self-describing.
-4. **Atomic write** — verify `_persist_state` uses temp-file + `os.replace()`. If it doesn't, fix:
+1. **`fabrik destroy --target-vps`** — extend `src/fabrik/cli.py::destroy` with the Click option. **The destroyer is NOT a class method — it's module-level functions with no `ctx` (external-AI review B4 fix).** Signatures today (verified 2026-05-31):
+   - `_destroy_compose(name: str, dry_run: bool, drop_data: bool = False)` at `destroyer.py:314`
+   - `destroy_deployment(...)` at `destroyer.py:472`
+   - `destroy_from_state(...)` at `destroyer.py:616`
 
-   ```python
-   tmp = path.with_suffix('.json.tmp')
-   tmp.write_text(json.dumps(data, indent=2))
-   tmp.replace(path)  # atomic on POSIX
-   ```
+   So the work is **threading the value through 3 function signatures**, not a copy-paste of `SSHDeployer.deploy()`'s `try/finally`. Concrete change:
+   - Add `target_vps: str = "vps1"` kwarg to `_destroy_compose`, `destroy_deployment`, `destroy_from_state`
+   - Resolve at the CLI layer: CLI flag > state file (`.fabrik/state/<id>.json::target_vps`) > spec field > "vps1"
+   - Apply the env-swap at `_destroy_compose` (the only layer that owns the actual SSH calls — the higher functions only orchestrate)
+
+2. **`fabrik redeploy --target-vps`** — same on `src/fabrik/cli.py::redeploy`. The redeploy command is simpler (it's a single SSH session for git pull + compose up), so the env-swap can wrap the SSH block directly without a signature change. Read `redeploy()` first to confirm shape before patching.
+3. **State-file annotation** — `SSHDeployer.deploy()` writes `target_vps` into `.fabrik/state/<id>.json` on success. Update `src/fabrik/orchestrator/__init__.py::_persist_state` (verified at line 364 per pre-flight 2026-05-31). **Always write the field** (even when `vps1`) so the file is self-describing.
+4. **Atomic write — ALREADY DONE (external-AI review B3 fix).** `_persist_state` in `__init__.py:364` only assembles the payload then delegates to `src/fabrik/state.py::save()`. The atomic write already lives at `state.py:164-168` and is *better* than what an earlier draft of this plan proposed — it uses a per-PID-suffixed temp file (`.tmp.{os.getpid()}`) + `file_lock()` + `os.replace()`, which protects against both crashes *and* concurrent applies. Nothing to fix here. Confirm by reading those lines once before writing W3 code.
 
 5. **Missing/corrupt state-file handling** — both new commands MUST default to vps1 + emit `WARN: state file missing or has no target_vps key; defaulting to vps1`. Never refuse to operate.
 6. **Cross-host registrar cleanup research** (record finding, don't fix here): does the current `destroy_deployment()` clean up Authelia rules / Gatus probes / postgres DBs when the target service was on a spoke? If those resources were registered against the hub (which they were — registrars all run on vps1), the destroy already cleans them up by hitting vps1 directly. Verify with a grep — confirm none of the registrar destroy paths require ssh-ing to the spoke. Add finding to plan execution log.
@@ -395,16 +397,16 @@ rm /tmp/patch_daemon_json.py
 
 | Check | Expected |
 | :--- | :--- |
-| Staging cert chain shows `Fake LE Intermediate X1` | yes |
 | Production cert chain shows `Let's Encrypt` (not Fake) | yes |
 | `curl https://spoke-canary.vps2.ocoron.com/` returns `200` | yes |
 | `ssh vps2 'sudo wc -c /opt/traefik/acme.json'` > 1000 | yes |
-| Same on vps3 after stage 2 | yes |
+| Same on vps3 after second deploy | yes |
 | Gatus shows `spoke-canary` + `spoke-canary-vps3` both green within 90 s of deploy | yes |
 | Loki returns `{host="vps2", container_name="spoke-canary"}` lines | yes |
 | Loki returns `{host="vps3", container_name="spoke-canary-vps3"}` lines | yes |
 | Post-destroy: `fabrik vps-sync --verify` returns 0 on all 3 hosts | yes |
 | `docs/operations/first-spoke-deploy-log-2026-05-3X.md` exists with timestamps | yes |
+| (Staging cert chain row removed per external-AI review B6 — v3.2 dropped staging-first; staging is a step-3 fallback only if first prod issuance fails) | n/a |
 
 **Let's Encrypt accounting.** Current week's prod cert usage on `ocoron.com`: ~12 active (renewals, don't count against new-issuance limit). This plan adds: 2 new prod certs (vps2 + vps3 canary) + their staging precursors. Far below the 50/week limit. Staging has no rate limit.
 
@@ -661,8 +663,11 @@ This frees ~25 min from Day 1 and removes the only GUI step from the plan.
 1. Create the private GitHub DR repo (gh CLI is pre-authenticated as `mobasak` per pre-flight 2026-05-31; full `repo` + `delete_repo` scopes):
 
    ```bash
+   # External-AI review B2 fix: use `gh repo clone` not `git clone git@github.com:...`
+   # — pre-flight 2026-05-31 confirmed gh auth protocol = HTTPS (not SSH), so the
+   # SSH-form clone would fail if no SSH key is registered on the GitHub account.
    gh repo create mobasak/fabrik-dr-store --private --description "DR mirror: /opt/fabrik/.env"
-   git clone git@github.com:mobasak/fabrik-dr-store /opt/fabrik-dr-store
+   gh repo clone mobasak/fabrik-dr-store /opt/fabrik-dr-store
    cd /opt/fabrik-dr-store
    printf '# Fabrik DR Store\n\nPlain mirror of /opt/fabrik/.env (private repo = security boundary).\n\nRecovery: gh repo clone mobasak/fabrik-dr-store && cp fabrik-dr-store/env/latest /opt/fabrik/.env\n' > README.md
    echo "*.tmp" > .gitignore
@@ -739,6 +744,10 @@ This frees ~25 min from Day 1 and removes the only GUI step from the plan.
 
    ```bash
    #!/usr/bin/env bash
+   # External-AI review B1 fix: restic is NOT installed on WSL; route through
+   # the Backrest container's /bin/restic via SSH to vps1 (consistent with W2
+   # step 4). This proves recovered creds work end-to-end against the live B2
+   # repo without depending on a host-side restic install.
    set -euo pipefail
    LATEST="/opt/fabrik-dr-store/env/latest"
 
@@ -748,11 +757,12 @@ This frees ~25 min from Day 1 and removes the only GUI step from the plan.
    B2_KEY=$(grep '^B2_KEY_ID=' "$LATEST" | cut -d= -f2-)
    B2_SECRET=$(grep '^B2_APPLICATION_KEY=' "$LATEST" | cut -d= -f2-)
 
-   # Verify recovered creds can read the B2 restic repo (valid after W2 init):
-   COUNT=$(RESTIC_PASSWORD="$RESTIC_PW" \
-     AWS_ACCESS_KEY_ID="$B2_KEY" \
-     AWS_SECRET_ACCESS_KEY="$B2_SECRET" \
-     restic -r s3:https://s3.us-west-004.backblazeb2.com/vps1-ocoron-backups snapshots --json 2>/dev/null \
+   # Verify recovered creds can read the B2 restic repo through Backrest's in-container restic:
+   COUNT=$(ssh vps "sudo docker exec \
+     -e RESTIC_PASSWORD='${RESTIC_PW}' \
+     -e AWS_ACCESS_KEY_ID='${B2_KEY}' \
+     -e AWS_SECRET_ACCESS_KEY='${B2_SECRET}' \
+     backrest /bin/restic -r s3:https://s3.us-west-004.backblazeb2.com/vps1-ocoron-backups snapshots --json 2>/dev/null" \
      | python3 -c "import json,sys; print(len(json.load(sys.stdin)))")
 
    echo "$(date -u +%FT%TZ) OK: ${COUNT} snapshots readable with recovered creds"
@@ -826,7 +836,7 @@ This frees ~25 min from Day 1 and removes the only GUI step from the plan.
 4. **DR store staleness** (`check_dr_store`):
    - From vps1's sysadmin context, this runs against the dev WSL via SSH back-channel — or simpler, the dev WSL exposes a `GET /dr-status` endpoint on `127.0.0.1` over Wireguard reverse tunnel.
    - **Simpler v1 approach:** the dev WSL's `dr_env_backup.sh` writes a heartbeat file to `/opt/fabrik-dr-store/.last-success` on every successful run. A GitHub-Actions cron (15 min cadence on the `fabrik-dr-store` repo) checks the file timestamp and fails if >36h old. The failure surfaces as a GitHub email notification + (optionally) a webhook to apprise.
-   - Even simpler: `proactive-check.sh` polls `https://api.github.com/repos/mobasak/fabrik-dr-store/commits` (anonymous, public-API for private repos works with a fine-grained token) and alerts if the latest commit is >36h old.
+   - Even simpler (external-AI review B5 fix — anonymous-API on a private repo returns 404, full stop): `proactive-check.sh` polls `https://api.github.com/repos/mobasak/fabrik-dr-store/commits` **with `Authorization: Bearer ${GITHUB_TOKEN}`** (token already in `/opt/fabrik/.env` per pre-flight #11; scope `repo:read` on `mobasak/fabrik-dr-store` only). Alerts if the latest commit is >30 days old (env rarely changes when stable).
 
 5. **Wire all 4 into `proactive-check.sh`:**
    - Append calls after the existing CPU/RAM checks.
