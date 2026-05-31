@@ -66,6 +66,7 @@ Apply when working on background job processing, task queues, workers, scheduled
 
 - Jobs exceeding `max_retries` must transition to `status = 'failed'` (in-place) or move to a dedicated `dead_letters` table.
 - Poison-pill messages must never loop infinitely. The DLQ is for human inspection — automated agents do not resolve DLQ entries.
+- **A dead-lettered job carries WHY, and the why must be honest about transport vs content.** A job that died from an operational cause (hard-timeout/poison, network, proxy, lock contention, worker restart) is an **operational** terminal — record it as `processing_timeout`/transient and present it as "timed out, will retry / re-runnable", and keep it resettable. **Never** stamp it with a *content* verdict (`deleted`, `unavailable`, `no_captions`) — that tells the user the content is gone when only the transport failed, and it's silent unrecoverable loss. A content terminal requires positive content evidence. See `58-resilience.md` § Operational failures are transient and `docs/LESSONS_LEARNT.md` Lesson 73.
 
 ---
 
@@ -171,6 +172,31 @@ Workers need the same observability as any Fabrik service:
 - Execute job handlers in **forked child processes**. The parent monitors via `os.waitpid()`. If the child OOMs or segfaults, the parent marks the job failed and continues.
 - Workers must trap `SIGTERM` and `SIGINT` via Python's `signal` module. On signal: stop accepting new jobs, finish the current task, then exit cleanly.
 - Docker Compose `stop_grace_period` must be >= the longest possible task execution time (default: 45s).
+
+---
+
+## External Subprocess Lifecycle
+
+When a job handler shells out to an external CLI (yt-dlp, ffmpeg, a scraper, a downloader) via `subprocess`/`Popen`, that subprocess is a **resilience surface, not a function call**. It forks its own children (yt-dlp spawns ffmpeg; scrapers spawn helpers), so killing the direct child orphans the tree. The YouTube pipeline accumulated 100+ zombie subprocesses this way and froze workers for 20–30 min (`docs/LESSONS_LEARNT.md` Lesson 75). Four mandatory rules:
+
+1. **Spawn as a process-group leader.** Always `subprocess.Popen(..., start_new_session=True)` so the subprocess and everything it forks share a new process group you can signal as a unit.
+2. **Kill the group, never just the child.** On timeout/early-exit, `os.killpg(os.getpgid(proc.pid), SIGTERM)` then escalate to `SIGKILL` after a grace period. `proc.terminate()` signals only the direct child — grandchildren keep running, keep burning bandwidth/proxy, and keep per-resource locks held.
+
+   ```python
+   import os, signal
+   def terminate_group(proc, grace=10.0):
+       if proc.poll() is not None:
+           return
+       pgid = os.getpgid(proc.pid)
+       os.killpg(pgid, signal.SIGTERM)
+       try:
+           proc.wait(timeout=grace)
+       except subprocess.TimeoutExpired:
+           os.killpg(pgid, signal.SIGKILL)
+   ```
+
+3. **Enforce a per-subprocess hard-timeout wall AND a kill-count poison cap.** The parent watchdog kills a subprocess that exceeds its hard limit, increments a DB `timeout_kill_count`, and after `TIMEOUT_KILL_MAX` (default 3) marks the job terminal. **That terminal is operational** — classify it transient/`processing_timeout` and surface it as "timed out, will retry", **never** as a content verdict like "unavailable" (see Dead-Letter Handling below and `58-resilience.md` § Operational failures are transient).
+4. **Run an OS-process orphan reaper — distinct from the DB orphan-*job* sweep.** A Beat/cron sweep that SIGKILLs known subprocess names whose **parent is not a live worker** (build a live-worker-PID set; do NOT test `PPID == 1` — orphans reparent to the init system, and on WSL to `/init`, not PID 1) or that exceed the hard-limit age. The DB sweep reconciles queue rows; this reconciles OS processes — you need both.
 
 ---
 
@@ -359,6 +385,11 @@ CMD ["python", "-m", "src.worker"]
 | `asyncio.create_task()` / `BackgroundTasks` for durable work | PostgreSQL job queue via outbox pattern |
 | Shell-form `CMD python worker.py` | JSON exec form `CMD ["python", "-m", "src.worker"]` |
 | Worker without `signal.SIGTERM` handler | Trap SIGTERM, drain current job, exit cleanly |
+| `subprocess.Popen(...)` without `start_new_session=True` | Spawn as a process-group leader so the whole tree is signalable |
+| `proc.terminate()`/`proc.kill()` on a subprocess that forks children | `os.killpg(os.getpgid(pid), SIGTERM→SIGKILL)` — kill the group, not just the child |
+| Identifying orphaned subprocesses by `PPID == 1` | Test "parent is not a live worker" (orphans reparent to the init system; WSL → `/init`, not PID 1) |
+| Stamping a hard-kill/poison/timeout job as a content verdict (`deleted`/`unavailable`) | Operational terminal → `processing_timeout`/transient, resettable, "will retry" |
+| OS subprocess cleanup folded into the DB orphan-job sweep | Two separate sweeps: DB reconciles queue rows, an OS reaper reconciles processes |
 | Queue table without partial index on `status = 'pending'` | `CREATE INDEX ... WHERE status = 'pending'` |
 | Missing `updated_at` on job rows | Required for orphan detection |
 | `print()` in worker code | `structlog` structured logger |
@@ -398,6 +429,9 @@ CMD ["python", "-m", "src.worker"]
 - [ ] Orphan sweep runs via Beat task, reclaims stale `processing` jobs.
 - [ ] Beat scheduler uses single-leader lock (`pg_advisory_lock` or Redis `SET NX EX`).
 - [ ] Worker traps `SIGTERM` and drains cleanly before exit.
+- [ ] External subprocesses spawned with `start_new_session=True`; timeouts kill the **group** (`killpg`), not just the child.
+- [ ] Per-subprocess hard-timeout wall + kill-count poison cap; poison classified as operational/transient, never a content verdict.
+- [ ] OS-process orphan reaper runs (separate from the DB orphan-job sweep); identifies orphans by "parent not a live worker", not `PPID == 1`.
 - [ ] Dockerfile uses `tini` as ENTRYPOINT, JSON exec form for CMD, `slim-bookworm` base.
 - [ ] `stop_grace_period` in compose >= longest task execution time.
 - [ ] `deploy.resources.limits.memory` set in compose.yaml.

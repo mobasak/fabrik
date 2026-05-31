@@ -85,6 +85,29 @@ async def get_item(item_id: str) -> dict | None:
 - **Retry with exponential backoff.** Use `tenacity` (Python) — 3 attempts, 1-10s backoff. Retry transient errors: timeout, connection, and 5xx (502/503/504 are transient gateway errors). Never retry 4xx.
 - **Graceful fallback.** The caller must handle the failure case — return cached data, a default, or a user-facing error message. Never let an external service failure crash your endpoint.
 
+### The timeout you didn't set (third-party libraries, shared sessions, DNS)
+
+"Every external call has a timeout" is necessary but NOT sufficient. Three gaps bite repeatedly (YouTube pipeline, 2026-05-31 — `docs/LESSONS_LEARNT.md` Lessons 72 & 74):
+
+1. **A library you call may make an un-timeout'd request through *your* session.** You set a proxy on a shared `requests.Session`/client and hand it to a third-party library; the library's internal `session.get(url)` sets no timeout → a stalled proxy (connection accepted, no bytes) blocks the socket read **forever**, hanging the whole worker until something external kills it. The fix is to put a **default timeout on the session itself**, so every request the library makes inherits it:
+
+   ```python
+   # Force a default (connect, read) timeout on EVERY request a handed-off
+   # session makes. setdefault (NOT functools.partial) so callers that pass
+   # timeout explicitly aren't clobbered with "got multiple values for 'timeout'".
+   _orig = session.request
+   def _request(method, url, **kw):
+       kw.setdefault("timeout", (10, 30))
+       return _orig(method, url, **kw)
+   session.request = _request
+   ```
+
+   **Verify in the library source** that every request path is timeout-bounded — "the library has timeouts" is not the same as "every call has one" (the offending lib timed out its AJAX calls but not its initial page fetch).
+
+2. **A request `timeout=` does NOT bound DNS resolution.** `requests`/`httpx`/`urllib3` timeouts cover connect + read, not `getaddrinfo` — a stalled resolver hangs *through* the timeout. On WSL/containers/flaky-resolver hosts, harden the resolver (static public DNS, made immutable) — don't rely on `timeout=`. Diagnose with `getent ahostsv4 <host>` (hangs) vs `getent ahostsv6` / `nslookup -type=A <host> 1.1.1.1` (instant). For long-lived clients, give them a resolver with its own deadline rather than the system stub.
+
+3. **A `while not <flag>: sleep()` wait is an unbounded hang in disguise.** Any "wait for condition" loop (network-up flag, lock acquired, dependency ready) MUST have a ceiling, then proceed/bail to a transient error. An unbounded conditional wait burns the job's whole hard-timeout budget exactly like a missing socket timeout.
+
 ### Node.js / TypeScript
 
 ```typescript
@@ -296,6 +319,20 @@ TRANSIENT_PATTERNS: list[tuple[re.Pattern, str, int]] = [
 ]
 ```
 
+### Operational failures are transient — never a terminal *content* verdict
+
+The classifier maps transient signals → pause. Its mirror-image rule is just as load-bearing: **an operational failure must never be written as a terminal *content* verdict.** Model the outcome on two axes — **(transport outcome) × (content evidence)** — and only ever record a content terminal (`deleted`, `private`, `unavailable`, `no_captions`, etc.) when there is **positive content evidence** for it. Everything else is transient/retryable.
+
+| Outcome | Classify as | NOT as |
+|---|---|---|
+| Timeout / hard-kill (poison) / worker restart | transient · `processing_timeout` · retry (don't burn retry budget) | `unavailable` / `deleted` |
+| Network / proxy / DNS error | transient → pause/retry | `no_captions` / `unavailable` |
+| Lock contention (another worker holds the per-resource lock) | transient → short defer | a content failure |
+| Empty API response *after* a timeout | inconclusive → re-verify | `deleted` (an empty body is not proof of removal) |
+| API confirms removal / metadata says private / transcript genuinely empty after fallback | **terminal content verdict** (evidence exists) | — |
+
+Why it matters: a terminal mislabeled as transient just costs a retry; a **transient mislabeled as terminal is silent, unrecoverable data loss** — the user is told "unavailable" for content that's actually fine. Make the classifier's **default transient**, and require explicit evidence to escalate to a content terminal. (YouTube pipeline 2026-05-31: poison/`retry_exhausted`, API-verify→`deleted`, restart retry-burn, and a comments lock-collision→`captions_unavailable` were all this bug — `docs/LESSONS_LEARNT.md` Lesson 73.)
+
 ---
 
 ## Banned Patterns
@@ -304,6 +341,10 @@ TRANSIENT_PATTERNS: list[tuple[re.Pattern, str, int]] = [
 |---|---|
 | `requests.get()` (sync, blocks event loop) | `httpx.AsyncClient` with explicit timeout |
 | `httpx.get()` without explicit timeout | `httpx.Timeout(connect=5, read=30, write=10, pool=5)` |
+| Handing a `requests.Session`/client to a 3rd-party library without a **default timeout on the session** | Wrap `session.request` with `kwargs.setdefault('timeout', (c, r))` — the library's internal calls may set none |
+| Trusting a request `timeout=` to bound DNS | It doesn't cover `getaddrinfo`. Harden the resolver (static/immutable DNS) or give the client its own resolver deadline |
+| `while not <flag>: sleep()` with no ceiling | Bound every conditional wait; then proceed or bail to a transient error |
+| Recording an operational failure (timeout/network/proxy/hard-kill/lock) as a terminal **content** verdict | Default transient/retryable; terminal-content requires positive content evidence (see § Operational failures are transient) |
 | External call site with no row in §2a of RESILIENCE.md | Add the row first, then the call site |
 | `time.sleep(N)` on transient error | Retry with backoff (`tenacity`) or `set_pause(key, ttl)` for workers |
 | No fallback on external call failure | Graceful degradation: cached data, default, or clear error state |
