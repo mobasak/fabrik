@@ -3,7 +3,7 @@
 
 Runs a fixed set of presence-probes against vps1/vps2/vps3 via SSH and emits:
 
-1. YAML report → data/infra-probe-YYYYMMDD-HHMM.yaml  (machine-readable, commit)
+1. YAML report → docs/infrastructure/probe-reports/infra-probe-YYYYMMDD-HHMM.yaml  (tracked; commit alongside doc edits per Lesson 66)
 2. Markdown table → stdout  (paste-ready for vps-status.md § Verification log)
 
 Designed to close the gap exposed on 2026-05-31 evening: three doc-audit passes
@@ -31,7 +31,7 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-DATA_DIR = REPO_ROOT / "data"
+DATA_DIR = REPO_ROOT / "docs" / "infrastructure" / "probe-reports"
 INFRA_DOCS = [
     REPO_ROOT / "docs/infrastructure/vps-complete-inventory.md",
     REPO_ROOT / "docs/infrastructure/vps-status.md",
@@ -136,9 +136,9 @@ def emit_markdown(report: dict) -> str:
 
 def check_doc_headers() -> int:
     """Lint: every infra doc must have a `Last probe report:` line pointing
-    to a real file under data/. Returns count of warnings."""
+    to a real file under docs/infrastructure/probe-reports/. Returns count of warnings."""
     pattern = re.compile(
-        r"\*\*Last probe report:\*\*\s*\[`?(data/infra-probe-[^\)`]+\.yaml)`?\]"
+        r"\*\*Last probe report:\*\*\s*\[`?((?:\.\./)*(?:docs/infrastructure/)?probe-reports/infra-probe-[^\)`]+\.yaml)`?\]"
     )
     warnings = 0
     for doc in INFRA_DOCS:
@@ -152,10 +152,15 @@ def check_doc_headers() -> int:
             print(f"WARN: {doc.relative_to(REPO_ROOT)} missing 'Last probe report:' header")
             warnings += 1
             continue
-        cited = REPO_ROOT / m.group(1)
+        # Resolve relative to the doc's directory (markdown link semantics)
+        cited = (doc.parent / m.group(1)).resolve()
         if not cited.exists():
+            try:
+                rel = cited.relative_to(REPO_ROOT)
+            except ValueError:
+                rel = cited
             print(
-                f"WARN: {doc.relative_to(REPO_ROOT)} cites {cited.relative_to(REPO_ROOT)} but file does not exist"
+                f"WARN: {doc.relative_to(REPO_ROOT)} cites {rel} but file does not exist"
             )
             warnings += 1
     return warnings

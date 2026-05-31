@@ -42,12 +42,15 @@ Paste the unified report from audits 01-06 (or the individual reports). The AI w
 
 ### A. Network Perimeter
 
-- [ ] UFW active with explicit ALLOW for 22, 80, 443, 6001, 6002 and DENY for 8000
-- [ ] DOCKER-USER iptables chain has 9 rules with catch-all DROP
-- [ ] `iptables-docker-user.service` enabled and running (survives reboot)
-- [ ] No container publishes ports to 0.0.0.0 outside Traefik
-- [ ] Port 1194 (OpenVPN) documented if intentional, closed if not
-- [ ] fail2ban installed and active for SSH
+**Per-host UFW expectations** (verify all three: `dpkg -l <pkg> | awk '/^ii/'`, `command -v ufw`, `sudo ufw status` — see Lesson 68 for why one probe is insufficient):
+
+- [ ] **vps1**: UFW active with ALLOW for 22, 80, 443, 1194, 51820/udp; DENY for 8000 (stale Coolify comment — kept as belt-and-suspenders). Ports 6001/6002 (Coolify Realtime) were removed during the 2026-05-31 residue sweep.
+- [ ] **vps2 + vps3**: UFW active with ALLOW for 22, 80, 443, 51820/udp; default `deny (incoming) / allow (outgoing) / deny (routed)`. Shipped 2026-05-31 evening (W1 of fleet-hardening plan).
+- [ ] DOCKER-USER iptables chain present on every host: `DROP -i ens3` for mesh-only port list (5432, 6379, 9090, 9091, 9100, 8080, 3100, 7700, 8000) + `ACCEPT -i wg0`
+- [ ] `iptables-persistent` (netfilter-persistent.service) enabled — DOCKER-USER rules survive reboot via `/etc/iptables/rules.v{4,6}`
+- [ ] No container publishes ports to `0.0.0.0` outside Traefik on any host (verify via `docker ps --format '{{.Ports}}'`)
+- [ ] Port 1194 (OpenVPN) on vps1 documented as operator's personal VPN (out-of-platform-scope)
+- [ ] fail2ban installed and active for SSH on every host (`sudo systemctl is-active fail2ban` + `sudo fail2ban-client status sshd`)
 
 ### B. Container Resource Limits
 

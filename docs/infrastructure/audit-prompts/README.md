@@ -53,7 +53,7 @@ When auditing the fleet, scope each audit per host. SSH aliases (already in `~/.
 
 For fleet-wide observability checks (audit 05), run them against vps1 since Prometheus + Loki on vps1 have data from all hosts via mesh.
 
-## Lessons Learned (2026-05-19 + 2026-05-31)
+## Lessons Learned (2026-05-19 + 2026-05-31 + 2026-06-01)
 
 1. **All scripts must use `sudo`** for: docker, ufw, iptables, dmesg, journalctl, sshd, aa-status, last, and any file under `/var/lib/docker/volumes/`. SSH user is not root and not in the docker group.
 2. **Scripts that read `/opt/fabrik/.env`** must account for the fact that `.env` lives on the WSL dev machine, not the VPS. Tokens for Grafana/GlitchTip/etc. need to be passed as env vars or read from VPS-local paths.
@@ -61,6 +61,7 @@ For fleet-wide observability checks (audit 05), run them against vps1 since Prom
 4. **`ip -s link`** without a specific interface dumps all Docker bridges + wg0. Always detect primary interface first.
 5. **Container names** are now stable (post-2026-05-30) — use `--filter name=<exact-name>` directly. Old prompts that say "use `name=<pattern>`" because Coolify UUID-suffixed names can use exact-match now.
 6. **Mesh-bound services** on vps1 (postgres-main, redis-main, glitchtip-web, authelia, loki) listen on `10.99.0.1:<port>` in addition to internal Docker DNS. Audit scripts checking external reachability should test `0.0.0.0:<port>` (should fail — public should not reach these) AND `10.99.0.1:<port>` (should succeed from other hosts on mesh).
+7. **Verify UFW with all 3 probes — Lesson 68 (2026-06-01)**: a package in `rc` state ("removed but config files remain") returns empty from `dpkg -l ufw \| awk '/^ii/'` while `systemctl is-active ufw` returns "active" — and the binary is missing. Single-probe checks of "is UFW installed and enforcing?" mislead. Audit scripts must run all three: `dpkg -l ufw \| awk '/^(ii|rc)/'` (distinguishes installed from removed-with-config from never-installed), `command -v ufw` (binary present), `sudo ufw status` (rules + default policy). Pre-W1 vps2 + vps3 had `rc`-state UFW for weeks; only DOCKER-USER was actually enforcing. Captured in `docs/LESSONS_LEARNT.md § Lesson 68`.
 
 ## Stack Context (paste into any prompt if needed)
 

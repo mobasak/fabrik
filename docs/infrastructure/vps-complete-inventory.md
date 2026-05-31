@@ -1,6 +1,7 @@
 # VPS Fleet — Complete Service Inventory
 
-**Last Updated:** 2026-05-31 (evening — post-residue-cleanup + post `fabrik apply --target-vps` (W-Multi M4) ship)
+**Last Updated:** 2026-06-01 (post-W1 ship — UFW installed + active on vps2/vps3; Lesson 68 captured; probe reports tracked under `docs/infrastructure/probe-reports/`)
+**Last probe report:** [`probe-reports/infra-probe-2026-05-31T22-36Z.yaml`](probe-reports/infra-probe-2026-05-31T22-36Z.yaml)
 **Hosts:** **vps1** (LA, hub) · **vps2** (Coventry UK, spoke) · **vps3** (Coventry UK, spoke)
 **Network:** Wireguard mesh `10.99.0.0/24` over UDP `51820`, MTU `1420`, hub-and-spoke topology
 **Deploy model:** SSH + Docker Compose (no Coolify; removed 2026-05-30 — see `docs/development/plans/2026-05-30-coolify-residue-cleanup.md`)

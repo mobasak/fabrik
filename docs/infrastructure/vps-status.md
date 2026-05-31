@@ -1,6 +1,6 @@
 # VPS Fleet — Status Snapshot
 
-**Last Updated:** 2026-05-31 (evening — post-residue-cleanup, post `--target-vps` ship, post `provision.vps1` DNS creation)
+**Last Updated:** 2026-06-01 (post-W1 ship — UFW installed + active on vps2/vps3; Lesson 68 captured; probe reports moved to tracked `docs/infrastructure/probe-reports/`)
 **Snapshot taken:** 2026-05-31 ~14:48 UTC (live `ssh` against all three hosts)
 **Hosts:** vps1 (LA, hub) · vps2 (Coventry UK, spoke) · vps3 (Coventry UK, spoke)
 **Deploy model:** SSH + Docker Compose (no Coolify — removed 2026-05-30)
@@ -169,7 +169,7 @@ promtail               running  (10.99.0.3:9080)
 
 ### vps2 / vps3 (identical posture)
 
-**Last probe report:** [`data/infra-probe-2026-05-31T22-36Z.yaml`](../../data/infra-probe-2026-05-31T22-36Z.yaml)
+**Last probe report:** [`probe-reports/infra-probe-2026-05-31T22-36Z.yaml`](probe-reports/infra-probe-2026-05-31T22-36Z.yaml)
 
 | Layer | Status |
 | :--- | :--- |

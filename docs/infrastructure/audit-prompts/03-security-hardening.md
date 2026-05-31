@@ -9,7 +9,7 @@ Analyze the security posture of this Ubuntu 24.04 VPS. Focus on attack surface r
 - M2M auth: `X-Internal-Token` header with shared `SERVICE_INTERNAL_SECRET_KEY`
 - API services (image-broker, site-provisioner) bypass Authelia, use app-layer token auth
 - Health endpoints (`/health`, `/healthz`, `/metrics`) bypass Authelia via wildcard rule
-- UFW + DOCKER-USER iptables chain (Docker bypasses UFW — DOCKER-USER is the real perimeter)
+- Two-layer firewall: **UFW** (host-level — controls SSH + direct host services) + **DOCKER-USER iptables chain** (container-level — controls Docker traffic via the FORWARD chain). UFW shipped on spokes 2026-05-31 (W1). **Lesson 68:** verify UFW with all 3 of `dpkg -l ufw \| awk '/^ii/'`, `command -v ufw`, `sudo ufw status` — single-probe checks miss the `rc`-state pitfall.
 - SSH: Ed25519 key only, root login disabled, port 22
 
 ## Data Collection
@@ -23,11 +23,14 @@ Analyze the security posture of this Ubuntu 24.04 VPS. Focus on attack surface r
 sudo ss -tlnp | sort
 sudo ss -ulnp | sort
 
-# 2. UFW
-sudo ufw status verbose
+# 2. UFW — verify all 3 (Lesson 68: any single probe can mislead)
+dpkg -l ufw 2>/dev/null | awk '/^(ii|rc)/ {print $1, $2}'  # ii = installed, rc = removed-with-config
+command -v ufw                                             # binary in PATH?
+sudo ufw status verbose                                    # rules + default policy
 
-# 3. DOCKER-USER chain (real perimeter — Docker bypasses UFW)
+# 3. DOCKER-USER chain (Docker traffic perimeter — Docker bypasses UFW's INPUT chain)
 sudo iptables -L DOCKER-USER -n --line-numbers -v
+sudo update-alternatives --display iptables | grep currently  # nft vs legacy — must be consistent
 
 # 4. Traefik middlewares (what's protected)
 sudo docker exec traefik wget -qO- http://localhost:8080/api/http/middlewares 2>/dev/null | python3 -m json.tool | head -80
