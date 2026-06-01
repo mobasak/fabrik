@@ -1,6 +1,6 @@
 # VPS Fleet — Status Snapshot
 
-**Last Updated:** 2026-06-01 (post-W1 ship — UFW installed + active on vps2/vps3; Lesson 68 captured; probe reports moved to tracked `docs/infrastructure/probe-reports/`)
+**Last Updated:** 2026-06-01 (post-W1 + post-W9 ship — UFW active on spokes; `/opt/fabrik/.env` mirrored to private GitHub via inotify+cron; Lesson 68 captured)
 **Snapshot taken:** 2026-05-31 ~14:48 UTC (live `ssh` against all three hosts)
 **Hosts:** vps1 (LA, hub) · vps2 (Coventry UK, spoke) · vps3 (Coventry UK, spoke)
 **Deploy model:** SSH + Docker Compose (no Coolify — removed 2026-05-30)
@@ -27,7 +27,8 @@
 | Cloudflare API token in `/opt/fabrik/.env` | ✅ verified active (refreshed today) |
 | Authelia access-control rules | 10 (live in `/opt/authelia/config/configuration.yml`) |
 | site-provisioner | ⚠ running healthy on vps1, but **interim manual stand-up** — `fabrik apply` pipeline not yet ready |
-| Backrest plans | 🟡 **0 active plans by intent**; B2 bucket empty; restoring once data lands |
+| Backrest plans | 🟡 **0 active plans by intent**; B2 bucket empty; restoring once data lands (W2 of fleet-hardening plan) |
+| Credential recovery (`/opt/fabrik/.env`) | ✅ **W9 shipped 2026-06-01.** Inotify + systemd watcher (`fabrik-dr-watcher.service`) pushes every change to private `mobasak/fabrik-dr-store` within seconds; daily safety-net cron + reboot catch-up + weekly self-test. See [`docs/operations/credential-recovery.md`](../operations/credential-recovery.md). |
 | Backups | 🟡 same as above |
 
 ---
@@ -276,6 +277,8 @@ Not scraped: `traefik` (no metrics scrape job — health observed via Gatus + Lo
 | Off-VPS creds in `/opt/fabrik/.env` | `BACKREST_RESTIC_PASSWORD` ✓, `B2_KEY_ID` ✓, `B2_APPLICATION_KEY` ✓ |
 
 Closing the "credentials only on vps1" DR weakness means the dev WSL can stand backups back up from scratch.
+
+**Credential off-site mirror (W9 shipped 2026-06-01).** The dev WSL was itself a single point of failure until W9: `/opt/fabrik/.env` (including the irrecoverable `BACKREST_RESTIC_PASSWORD`) existed only on disk there. Now mirrored to **`mobasak/fabrik-dr-store`** (private GitHub repo) within seconds of every change via `fabrik-dr-watcher.service` (inotify) + daily safety-net cron + `@reboot` catch-up + weekly recovery self-test. One-command recovery on a fresh WSL: `gh repo clone mobasak/fabrik-dr-store && sudo cp fabrik-dr-store/env/latest /opt/fabrik/.env`. Full runbook: [`docs/operations/credential-recovery.md`](../operations/credential-recovery.md).
 
 When backups are reconfigured:
 

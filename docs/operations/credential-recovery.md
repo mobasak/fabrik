@@ -46,7 +46,7 @@ Three trigger paths:
 
 Plus a weekly recovery self-test:
 
-4. **`0 4 * * 0`** — `scripts/dr_env_recovery_test.sh` reads `/opt/fabrik-dr-store/env/latest`, extracts credentials, and confirms they can read the B2 restic repo via Backrest's in-container restic. Logs to `/var/log/dr-env-recovery-test.log`. Until W2 of the fleet-hardening plan inits the B2 repo, this script logs `AWAITING-W2: DR pipeline configured + creds valid; restic repo not yet init'd on B2` and exits 0 — it does NOT fake a DR failure during the pre-W2 window.
+- **`0 4 * * 0`** — `scripts/dr_env_recovery_test.sh` reads `/opt/fabrik-dr-store/env/latest`, extracts credentials, and confirms they can read the B2 restic repo via Backrest's in-container restic. Logs to `/var/log/dr-env-recovery-test.log`. Until W2 of the fleet-hardening plan inits the B2 repo, this script logs `AWAITING-W2: DR pipeline configured + creds valid; restic repo not yet init'd on B2` and exits 0 — it does NOT fake a DR failure during the pre-W2 window.
 
 ## Security model
 
@@ -129,6 +129,16 @@ The weekly cron at `0 4 * * 0` runs a more limited variant — it doesn't touch 
 | `mobasak/fabrik-dr-store` | The GitHub private repo; `env/latest` is the recovery source |
 | `crontab -l` on dev WSL | 3 entries: daily backup, reboot backup, weekly test |
 
+## Known operational quirks
+
+### `cmp -s` exit 2 when the file is unreadable to ozgur
+
+`dr_env_backup.sh` does `if [ -f "$REPO/env/latest" ] && cmp -s "$ENV_PATH" "$REPO/env/latest"`. If the bash conditional sees `cmp -s` exit with code 2 (file unreadable — distinct from exit 1 "files differ"), it treats the result as falsy and falls through to push. In practice this happens only when `/opt/fabrik/.env` is momentarily owned by root (e.g., between a `sudo cp` and a `sudo chown`). The DR self-test in step 7 of W9 exercised this path and produced one extra "no-content-change" commit because the test used `sudo cp` to restore. In real-world use where edits happen as `ozgur`, this edge case never fires. Safe-default behavior: when uncertain, back up.
+
+### Log files are not rotated
+
+`/var/log/dr-env-{watcher,backup,recovery-test}.log` grow without bound. Current growth rate is a few hundred bytes per day (each backup adds one line; recovery test adds one line per week). Not urgent. When it becomes an issue, drop a `/etc/logrotate.d/fabrik-dr` file rotating these three weekly with `delaycompress` + 8 keep.
+
 ## Routine maintenance
 
 None expected. The system is push-driven and self-validating. The weekly cron's log will show one of three states forever:
@@ -138,6 +148,7 @@ None expected. The system is push-driven and self-validating. The weekly cron's 
 - `FAIL: <reason>` — real DR-chain failure, investigate
 
 If you ever see the `FAIL` state, that's a real DR incident. Check:
+
 1. SSH to vps1 working (`ssh vps echo OK`)
 2. Backrest container running (`ssh vps 'sudo docker ps --filter name=backrest'`)
 3. B2 still reachable (`ssh vps 'sudo docker exec backrest /bin/restic -r s3:... cat config'`)

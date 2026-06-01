@@ -1,6 +1,6 @@
 # VPS Fleet — Complete Service Inventory
 
-**Last Updated:** 2026-06-01 (post-W1 ship — UFW installed + active on vps2/vps3; Lesson 68 captured; probe reports tracked under `docs/infrastructure/probe-reports/`)
+**Last Updated:** 2026-06-01 (post-W1 + post-W9 ship — UFW active on spokes; `/opt/fabrik/.env` mirrored to private GitHub via inotify+cron; Lesson 68 captured)
 **Last probe report:** [`probe-reports/infra-probe-2026-05-31T23-07Z.yaml`](probe-reports/infra-probe-2026-05-31T23-07Z.yaml)
 **Hosts:** **vps1** (LA, hub) · **vps2** (Coventry UK, spoke) · **vps3** (Coventry UK, spoke)
 **Network:** Wireguard mesh `10.99.0.0/24` over UDP `51820`, MTU `1420`, hub-and-spoke topology
@@ -516,6 +516,7 @@ The repo is retained so plan reconfiguration only needs new plans (not also re-p
 - All prior plans deleted (3 active + 5 stale test plans, ~94 failures in 30 days were mostly the stale test plans)
 - B2 bucket emptied; bucket + the `b2-vps1` Backrest repo entry preserved for reuse
 - Restic password + B2 keys saved off-VPS to `/opt/fabrik/.env` on the dev machine — closes the "credentials only on vps1" DR weakness. **Verified present:** `BACKREST_RESTIC_PASSWORD` ✓, `B2_KEY_ID` ✓, `B2_APPLICATION_KEY` ✓. (`B2_ACCOUNT_ID` not stored; the master `B2_KEY_ID` is sufficient for restic's S3 driver against the B2 endpoint.)
+- **Dev WSL itself is no longer a SPoF for credentials (W9 shipped 2026-06-01).** `/opt/fabrik/.env` mirrors to private GitHub repo `mobasak/fabrik-dr-store` within seconds of every change via `fabrik-dr-watcher.service` (inotify + systemd) + daily safety-net cron + `@reboot` catch-up + weekly recovery self-test. The repo is hardened: no Issues/Projects/Wiki/Discussions, no Actions, no collaborators. One-command recovery on a fresh WSL: `gh repo clone mobasak/fabrik-dr-store && sudo cp fabrik-dr-store/env/latest /opt/fabrik/.env`. Full runbook: [`docs/operations/credential-recovery.md`](../operations/credential-recovery.md).
 
 When backups are reconfigured:
 
