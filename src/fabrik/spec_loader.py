@@ -332,6 +332,193 @@ class WordPressConfig(BaseModel):
     disable_file_edit: bool = True
 
 
+class WatchdogConfig(BaseModel):
+    """Per-project AI watchdog sidecar configuration (T-P2 watchdog platform).
+
+    Lives at top-level of the spec as ``watchdog:``. Provisioned by
+    :func:`fabrik.orchestrator.infrastructure._register_watchdog` at
+    ``fabrik apply`` time. Defaults derived from ``spec.shape.kind`` —
+    service/worker/wordpress get ``enabled=true``; static gets ``enabled=false``.
+    Default-by-kind logic lives in the dispatcher (``_register_watchdog``),
+    not in this Pydantic class, because Pydantic doesn't know about Shape.
+
+    See ``docs/development/plans/2026-05-30-ai-watchdog-platform.md``
+    § Watchdog architecture for the full design and
+    ``docs/development/plans/2026-05-30-ai-watchdog-platform-P2-subplan.md`` § 1
+    for the field-by-field design notes.
+    """
+
+    model_config = {"extra": "forbid"}
+
+    enabled: bool = Field(
+        default=False,
+        description=(
+            "True to inject the watchdog sidecar into the project's compose. "
+            "Default is computed by the dispatcher from spec.shape.kind: True "
+            "for service|worker|wordpress, False for static. Owner can override."
+        ),
+    )
+
+    # Cost caps — exactly one MUST be > 0 if enabled=True (validator below).
+    daily_budget_usd: float = Field(
+        default=1.0,
+        ge=0.0,
+        description=(
+            "Daily USD cap for LLM calls (Anthropic billing — Claude Code OAuth "
+            "OR fallback OpenRouter API). Per-project. Resets at midnight UTC. "
+            "0.0 disables USD-cap enforcement (relies on daily_invocations_cap)."
+        ),
+    )
+    daily_invocations_cap: int = Field(
+        default=200,
+        ge=0,
+        description=(
+            "Daily invocation-count cap for LLM calls (primarily for Claude Code "
+            "subscription-quota visibility; OpenRouter calls count too). Per-project. "
+            "Resets at midnight UTC. 0 disables count-cap enforcement."
+        ),
+    )
+
+    auto_tier_b: bool = Field(
+        default=False,
+        description=(
+            "True to allow autonomous Tier B actions (wipe Redis cache, reset DB "
+            "connection pool). Default False — Tier B requires opt-in per project. "
+            "Tier A is always autonomous; Tier C always escalates regardless."
+        ),
+    )
+
+    escalation_channel: str = Field(
+        default="apprise",
+        description=(
+            "Where the sidecar sends owner alerts. v1 supports 'apprise' (sends "
+            "via http://apprise:8000/notify). Future: 'telegram' (direct bot)."
+        ),
+    )
+
+    # LLM provider chain.
+    llm_provider_primary: Literal["claude-code", "openrouter"] = Field(
+        default="claude-code",
+        description=(
+            "Primary LLM provider. 'claude-code' invokes the local `claude -p` "
+            "subprocess inheriting host OAuth from /home/watchdog/.claude/. "
+            "'openrouter' uses the HTTP API directly."
+        ),
+    )
+    llm_provider_fallback: Literal["claude-code", "openrouter", "none"] = Field(
+        default="openrouter",
+        description=(
+            "Fallback when the primary fails (exit non-zero, timeout, classifier "
+            "abort, rate-limit). 'none' disables fallback (sidecar drops to "
+            "rule-only mode on primary failure)."
+        ),
+    )
+
+    # Per-tier model selection — applies to whichever provider is active.
+    # NOTE: Claude Code internally routes Haiku→Opus already (verified live).
+    # We expose explicit fields anyway so OpenRouter callers have the same shape.
+    cheap_model: str = Field(
+        default="haiku",
+        description=(
+            "First-pass model alias. For claude-code: 'haiku' (Claude routes). "
+            "For openrouter: full id like 'google/gemini-2.5-flash' or 'anthropic/claude-haiku-4.5'."
+        ),
+    )
+    expensive_model: str = Field(
+        default="sonnet",
+        description=(
+            "Escalation model alias. For claude-code: 'sonnet' or 'opus'. "
+            "For openrouter: full id like 'anthropic/claude-sonnet-4.6'."
+        ),
+    )
+
+    # Per-incident hard ceiling. Sidecar passes this to `claude -p --max-budget-usd`.
+    per_incident_budget_usd: float = Field(
+        default=0.50,
+        ge=0.0,
+        description=(
+            "Hard per-incident USD ceiling passed to `claude -p --max-budget-usd`. "
+            "0.0 disables the per-incident cap (only daily caps apply). Recommended "
+            "starting value: $0.50 (≈20 Haiku diagnosis calls or 1–2 Sonnet escalations)."
+        ),
+    )
+
+    # ── v1 capability fields (locked 2026-06-02 during artifact 2 review) ──
+    # These 3 fields were added in an artifact 1 amendment after the
+    # claude-settings.json.template's v1 capability matrix was finalized.
+    # See P2 sub-plan § 4.6 "v1 capability expansion" and the per-field
+    # rationale below. All have backwards-compatible defaults so existing
+    # specs and tests pass without modification.
+
+    deadman_timeout_seconds: int = Field(
+        default=300,
+        ge=60,
+        le=3600,
+        description=(
+            "Tier C escalation deadman timer. If a Tier C alert (code/secret/"
+            "shared-infra change, restore-from-snapshot) goes unacknowledged "
+            "by the operator for this many seconds, the agent (agent.py, "
+            "artifact 8) restarts <main_container> as a bleed-stop and "
+            "re-alerts with a [DEADMAN-TIMEOUT] prefix. Bleed-stop relies on "
+            "the already-allowed `docker restart <main_container>` permission "
+            "— no new sidecar privilege required. 60s minimum (avoid alert "
+            "storms); 3600s maximum (operator workflow sanity). Default 300s "
+            "balances bleed limits vs operator response latency."
+        ),
+    )
+
+    external_docs_enabled: bool = Field(
+        default=True,
+        description=(
+            "Runtime gate for external documentation lookups. The "
+            "claude-settings.json.template always declares WebSearch + "
+            "WebFetch as allowed with a 29-domain allow-list "
+            "(docs.python.org, stripe.com, docs.aws.amazon.com, MDN, "
+            "stackoverflow.com, etc.). This flag is the per-project runtime "
+            "switch the agent honors before invoking those tools. Off => "
+            "sidecar runs as if WebFetch/WebSearch were denied. Default "
+            "True — doc lookups are the watchdog's most cost-effective "
+            "diagnosis aid (an error-code lookup avoids many speculation "
+            "calls)."
+        ),
+    )
+
+    propose_fix_prs: bool = Field(
+        default=False,
+        description=(
+            "Allow the sidecar to push proposed-fix PRs to a "
+            "`watchdog/<incident_id>` branch when triaging a Tier C incident. "
+            "Workspace is /var/lib/watchdog/proposed/<project_id>/; "
+            "operator reviews and merges (the sidecar never merges and "
+            "cannot push to main/master/develop/staging/production/release/* "
+            "branches — those refs are explicit-denied in "
+            "claude-settings.json.template). REQUIRES a per-project git "
+            "deploy key configured at the GitHub repo with a CODEOWNERS-"
+            "enforced ruleset restricting Write to `watchdog/*` refs only. "
+            "Default False — opt-in per project once the operator has set "
+            "up the deploy key and ruleset. Off => sidecar still detects "
+            "code-fix opportunities but escalates them as a Tier C alert "
+            "with a human-readable patch description instead of opening "
+            "the PR."
+        ),
+    )
+
+    @model_validator(mode="after")
+    def _check_caps_set_when_enabled(self) -> "WatchdogConfig":
+        """If enabled=true, at least one cap must be > 0.
+
+        Defense against accidentally-uncapped projects: either USD cap > 0
+        OR invocations cap > 0. Disabled watchdogs skip the check (no cost
+        to cap).
+        """
+        if self.enabled and self.daily_budget_usd <= 0 and self.daily_invocations_cap <= 0:
+            raise ValueError(
+                "watchdog: enabled=true requires at least one of "
+                "daily_budget_usd > 0 or daily_invocations_cap > 0"
+            )
+        return self
+
+
 # --- Main Spec Model ---
 
 
@@ -391,6 +578,16 @@ class Spec(BaseModel):
     backup: Backup = Field(default_factory=Backup)
 
     wordpress: WordPressConfig | None = None
+
+    # Per-project AI watchdog sidecar configuration (T-P2 watchdog platform).
+    # Consumed by ``orchestrator/infrastructure.py::_register_watchdog`` (added
+    # in T-P2 artifact 12). The default-by-kind logic (enable for
+    # service|worker|wordpress, disable for static) lives in the dispatcher,
+    # not in the Pydantic class — see ``WatchdogConfig`` docstring.
+    watchdog: WatchdogConfig = Field(
+        default_factory=WatchdogConfig,
+        description="Per-project AI watchdog sidecar config. See WatchdogConfig.",
+    )
 
     # W-Multi M4 — which host in the fleet this service deploys to.
     # Maps to an ~/.ssh/config alias (vps1 / vps2 / vps3) and to a public IP

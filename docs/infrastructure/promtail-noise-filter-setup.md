@@ -36,7 +36,7 @@ The original filter set (2026-05-08) included Coolify-internal containers (`cool
 
 After changing `daemon.json`: `systemctl restart docker`. **Existing containers must be recreated** (restart alone keeps the old log format) — `docker compose up -d --force-recreate` for each compose project. New containers automatically get the tag.
 
-On spokes (vps2/vps3), `bootstrap-vps.sh` step 03 writes the `daemon.json` with `max-size`+`max-file` but does NOT include the `tag` field. **This is a known gap** — add `"tag": "{{.Name}}"` to the bootstrap template if you want host-aware container_name labels on spoke logs. Until then, spoke logs land in Loki without `container_name` extracted (they still carry `host: vpsN` so per-host queries work fine).
+On spokes (vps2/vps3), `bootstrap-vps.sh` step 03 emits `daemon.json` with the `tag: "{{.Name}}"` field since 2026-06-02 (W4 pre-step). The previously-flagged gap is closed — spoke logs now carry the `container_name` label in Loki same as vps1. The existing vps2 + vps3 had docker restarted as part of W4-pre (2026-06-02), so the new tag applies to all running spoke containers immediately, and any spoke provisioned via `bootstrap-vps.sh` going forward gets it on first bootstrap.
 
 ## Reproducible Setup (vps1)
 

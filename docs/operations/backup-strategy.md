@@ -1,5 +1,18 @@
 # VPS Backup Strategy
 
+> **⚠️ DEPRECATED 2026-06-02.** This document is pre-migration vintage — describes Duplicati (replaced by **Backrest** 2026-04-17) and Coolify (removed from VPS 2026-05-30). The active backup mechanism is **Backrest + restic → Backblaze B2**, with 4 hub plans + 2 per-spoke plans live. See the current docs:
+>
+> - **DR runbook (operator):** [`docs/operations/disaster-recovery.md`](disaster-recovery.md)
+> - **Hub rebuild (scripted):** [`docs/infrastructure/vps-hub-rebuild.md`](../infrastructure/vps-hub-rebuild.md) + [`scripts/bootstrap/bootstrap-hub.sh`](../../scripts/bootstrap/bootstrap-hub.sh)
+> - **Spoke rebuild (scripted):** [`docs/infrastructure/vps-spoke-rebuild.md`](../infrastructure/vps-spoke-rebuild.md) + [`scripts/bootstrap/bootstrap-spoke-restore.sh`](../../scripts/bootstrap/bootstrap-spoke-restore.sh)
+> - **Live backup status:** [`docs/infrastructure/vps-complete-inventory.md` § Backups](../infrastructure/vps-complete-inventory.md)
+>
+> The Duplicati/Coolify content below is retained for historical reference only.
+
+---
+
+## Historical (pre-migration) configuration
+
 Duplicati → Backblaze B2 for disaster recovery.
 
 ## Access

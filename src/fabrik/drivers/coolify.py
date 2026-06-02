@@ -1,8 +1,15 @@
 """
-Coolify API Client - Driver for Coolify deployment platform.
+Coolify API Client - LEGACY driver, retained for archived CLI commands only.
 
-Coolify API v4 documentation: https://coolify.io/docs/api-reference
-API Base: http://<ip>:8000/api/v1
+DEPRECATED 2026-05-30: Coolify was fully removed from production. This client
+no longer reaches a live endpoint and any call will fail at the network layer.
+Retained because `fabrik status`, `fabrik logs`, and `fabrik reconcile-all`
+still import it; those commands are explicitly labeled legacy in their help
+text and are non-functional post-migration. New code must NOT import this —
+use `deployer_ssh.SSHDeployer`.
+
+Coolify API v4 documentation: https://coolify.io/docs/api-reference (archived)
+API Base (no longer reachable): http://<ip>:8000/api/v1
 """
 
 import base64

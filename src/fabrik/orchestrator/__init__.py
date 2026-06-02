@@ -118,7 +118,13 @@ class DeploymentOrchestrator:
             ctx.spec = spec
             ctx.spec_hash = spec_hash
 
-            # Resolve target_vps: CLI flag > spec field > default vps1
+            # Resolve target_vps: CLI flag > spec field > default vps1.
+            # The env-swap for FABRIK_VPS_SSH_HOST is NOT done here at the
+            # pipeline level (W14 hoist was reverted 2026-06-02): hub-side
+            # registrars (gatus on vps1, postgres-main on vps1, authelia on
+            # vps1) would then SSH to the spoke and fail. Only the calls
+            # that target the app's location (SSHDeployer.deploy, inject_env)
+            # swap; they read ctx.target_vps themselves.
             ctx.target_vps = target_vps or spec.get("target_vps") or "vps1"
             for w in warnings:
                 logger.warning("Validation warning: %s", w)
@@ -387,6 +393,7 @@ class DeploymentOrchestrator:
                 coolify_app_name=spec.get("name") or spec.get("id") or "",
                 registrars_applied=registrars_applied,
                 domain=spec.get("domain") or "",
+                target_vps=getattr(ctx, "target_vps", None) or "vps1",
             )
         except Exception as e:  # noqa: BLE001
             logger.warning("state.save failed (non-fatal): %s", e)

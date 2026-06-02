@@ -1,0 +1,16 @@
+# Cross-host Authelia forward-auth.
+# Services on this spoke that need SSO should reference this middleware:
+#   traefik.http.routers.<svc>.middlewares=authelia-vps1@file
+# Authelia issues cookies scoped to the request's domain (e.g. *.vps2.ocoron.com),
+# so SSO works across all *.vpsN.ocoron.com subdomains automatically.
+http:
+  middlewares:
+    authelia-vps1:
+      forwardAuth:
+        address: "http://{{HUB_MESH_IP}}:9091/api/verify?rd=https%3A%2F%2Fauth.vps1.{{FABRIK_DOMAIN_ROOT}}%2F"
+        trustForwardHeader: true
+        authResponseHeaders:
+          - Remote-User
+          - Remote-Groups
+          - Remote-Name
+          - Remote-Email

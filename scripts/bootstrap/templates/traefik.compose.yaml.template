@@ -1,0 +1,35 @@
+services:
+  traefik:
+    image: traefik:v2.11
+    container_name: traefik
+    # W15 labels block (2026-06-02). Spoke traefik.yml has
+    # providers.docker.exposedByDefault=false, so the docker provider
+    # only reads labels from containers that also declare
+    # traefik.enable=true. We use that to publish the `gzip` middleware
+    # definition from the Traefik container itself — no carrier container
+    # required. The orchestrator emits `gzip@docker` on every router it
+    # creates; this label block is what makes that reference resolve.
+    # The Traefik container has no router labels of its own, so
+    # traefik.enable=true has no public-routing side effect.
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.middlewares.gzip.compress=true"
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - DOCKER_API_VERSION=1.44
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik.yml:/traefik.yml:ro
+      - ./dynamic:/dynamic:ro
+      - ./acme.json:/acme.json
+    command:
+      - "--configFile=/traefik.yml"
+    networks:
+      - fabrik
+
+networks:
+  fabrik:
+    external: true

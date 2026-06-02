@@ -1,16 +1,16 @@
 # VPS Fleet — Complete Service Inventory
 
 **Last Updated:** 2026-06-01 (post-W1 + post-W9 ship — UFW active on spokes; `/opt/fabrik/.env` mirrored to private GitHub via inotify+cron; Lesson 68 captured)
-**Last probe report:** [`probe-reports/infra-probe-2026-05-31T23-07Z.yaml`](probe-reports/infra-probe-2026-05-31T23-07Z.yaml)
+**Last probe report:** [`probe-reports/infra-probe-2026-06-01T22-50Z.yaml`](probe-reports/infra-probe-2026-06-01T22-50Z.yaml)
 **Hosts:** **vps1** (LA, hub) · **vps2** (Coventry UK, spoke) · **vps3** (Coventry UK, spoke)
 **Network:** Wireguard mesh `10.99.0.0/24` over UDP `51820`, MTU `1420`, hub-and-spoke topology
-**Deploy model:** SSH + Docker Compose (no Coolify; removed 2026-05-30 — see `docs/development/plans/2026-05-30-coolify-residue-cleanup.md`)
+**Deploy model:** SSH + Docker Compose (no Coolify; removed 2026-05-30 — see `docs/development/plans/archived/2026-05-30-coolify-residue-cleanup.md`)
 
 ## Quick state (current)
 
 - **vps1:** 29 containers — the original 28 shared-infra services plus `site-provisioner` (running but **interim manual stand-up**, not yet redeployable via `fabrik apply` — see "site-provisioner status" below). 4 shared infra services (postgres-main, redis-main, glitchtip-web, authelia) + loki are bound to `10.99.0.1:<port>` mesh IPs so spokes can reach them.
-- **vps2:** 4 containers — monitoring agents (node-exporter / cadvisor / promtail) + Traefik (public TLS for `*.vps2.ocoron.com`). DNS is **live** as of 2026-05-31 afternoon.
-- **vps3:** 4 containers — same as vps2. DNS is **live** as of 2026-05-31 afternoon.
+- **vps2:** 5 containers — monitoring agents (node-exporter / cadvisor / promtail) + Traefik (public TLS for `*.vps2.ocoron.com`). DNS is **live** as of 2026-05-31 afternoon.
+- **vps3:** 5 containers — same as vps2. DNS is **live** as of 2026-05-31 afternoon.
 - **Mesh handshakes:** active, cross-Atlantic RTT 133–134 ms, 0 % loss
 - **Cross-host shared infra reachable:** postgres `5432` / redis `6379` / glitchtip `8000` / authelia `9091` / loki `3100` — all verified from vps2 via `10.99.0.1:<port>`
 - **Spoke DNS (NEW today):** `vps2.ocoron.com` + `*.vps2.ocoron.com` → `96.9.214.128`; `vps3.ocoron.com` + `*.vps3.ocoron.com` → `104.128.190.151`. Wildcards cover `auth.vpsN`, `<tenant>.vpsN`, etc. Apex + wildcard each, no per-service A records needed.
@@ -20,10 +20,11 @@
 - **Grafana:** all 5 dashboards have `host` template variable (regex `/^vps/`)
 - **Alert rules:** `spoke_health` group active — `SpokeDown` / `SpokeHighCPU` / `SpokeHighRAM`
 - **AI sysadmin:** `proactive-check.sh` tags every anomaly with originating host (`cpu_high[vps2]`)
-- **Backups:** B2 bucket empty (intentional — Backrest plans deleted 2026-05-31; nothing material to back up yet)
+- **Backups:** B2 bucket holds restic repo `a256277c45` with **4 plans live** (`postgres-dumps`, `docker-volumes`, `opt-configs`, `host-state`) since 2026-06-01. First snapshots: 117 MiB on B2 (612 MiB uncompressed, 5.23× compression). Path-preserving bind mounts on the Backrest container — see [`vps-hub-rebuild.md`](vps-hub-rebuild.md) for the rebuild contract.
 - **Cloudflare API token (`/opt/fabrik/.env`):** refreshed 2026-05-31 afternoon by syncing the working token from the local site-provisioner instance (`/opt/site-provisioner/.env`). Pre-edit backup at `backups/.env.backup.20260531-155948`. Verified active via `curl /user/tokens/verify`.
 - **DNS state (post-residue-cleanup, evening):** 17 A records in CF zone `ocoron.com`. vps1 has 12 live subdomains (auth, auto, backup, browser, errors, monitor, notify, pdf, **provision** [new — was never in CF; site-provisioner had a Traefik router but no public DNS — created during the cleanup], search, status, vps1 apex). vps2 + vps3 each have apex + wildcard. **6 stale subdomains deleted** (`coolify`, `control`, `dns`, `fabrik-e2e-timing`, `images`, `netdata`).
-- **`fabrik apply --target-vps`:** shipped this evening as W-Multi M4. Specs gain optional `target_vps: vps1|vps2|vps3` field (regex-validated). CLI `--target-vps` flag overrides spec. Deployer env-swaps `FABRIK_VPS_SSH_HOST` around the deploy block so ~30 SSH call sites route to the spoke without per-site changes. DNS provisioner picks the right IP from the `VPS_IPS` map. Hub-side registrars (postgres, redis, gatus, glitchtip, authelia, grafana, meilisearch) stay on vps1 by design. 3 new tests + 4 pre-existing tests fixed; all 103 deployer/spec tests pass. CLI: `.venv/bin/fabrik apply specs/services/<id>.yaml --target-vps vps2`.
+- **`fabrik apply --target-vps`:** shipped 2026-05-31 as W-Multi M4; **destroy + redeploy parity** shipped 2026-06-02 as W3; **`inject_env` + compose rollback parity** shipped 2026-06-02 as W14. Specs gain optional `target_vps: vps1|vps2|vps3` field (regex-validated). CLI `--target-vps` flag overrides spec for all three verbs. A single `contextlib.contextmanager` `_target_vps_env(ctx)` in `deployer_ssh.py` env-swaps `FABRIK_VPS_SSH_HOST` around (a) the app deploy block, (b) post-deploy DSN/Redis-URL injection, and (c) compose rollback (reads `target_vps` from the resource record's metadata). DNS provisioner picks the right IP from the `VPS_IPS` map. Hub-side registrars (postgres, redis, gatus, glitchtip, authelia, grafana, meilisearch) run **outside** the swap and stay on vps1 by design. 130/130 deployer + integration + rollback tests pass after W14. CLI: `.venv/bin/fabrik apply specs/services/<id>.yaml --target-vps vps2`.
+- **First spoke deploy attempted 2026-06-02 (W14 live-verify):** `specs/services/spoke-canary.yaml` (`nginx:alpine`, target_vps=vps2). Container deployed healthy on vps2 (`Up (healthy)`), hub-side registrars stayed on vps1, but **verifier returned 404 from `https://canary.vps2.ocoron.com/`** because vps2's Traefik has no `gzip@docker` middleware defined (the orchestrator emits `traefik.http.routers.<svc>.middlewares=gzip@docker` on every service deploy; on vps1 that middleware is defined as a label on the `meilisearch` container, on spokes no carrier exists). Rollback correctly tore the canary down on vps2 (not the hub). **W15 in the active plan** is the remediation: declare `traefik.http.middlewares.gzip.compress=true` on the spoke Traefik container itself in `bootstrap-vps.sh` step_03.
 
 ## site-provisioner status — INTERIM, not pipeline-ready
 
@@ -32,12 +33,12 @@
 | Gap | What's done today | What's still needed |
 | :--- | :--- | :--- |
 | Upstream repo's `compose.yaml` still references the legacy `coolify` Docker network | **RESOLVED** — committed in `fa32d61` (bundled into a docs commit) and pushed to `mobasak/site-provisioner@main`. Local + origin in sync. | none |
-| Spec `secrets.from_env` was missing 3 keys + 5 env literals referenced by the repo's compose.yaml at interpolation time | [`specs/services/site-provisioner.yaml`](../../specs/services/site-provisioner.yaml) now declares all 21 `${VAR}` references (13 literals incl. `DATABASE_URL` placeholder + 9 from-env secrets) | Verify a full `fabrik apply` once the compose.yaml push lands |
+| Spec `secrets.from_env` was missing 3 keys + 5 env literals referenced by the repo's compose.yaml at interpolation time | [`specs/services/site-provisioner.yaml`](../../specs/services/site-provisioner.yaml) now declares all 21 `${VAR}` references (13 literals incl. `DATABASE_URL` placeholder + 9 from-env secrets) | One clean end-to-end `fabrik apply` round-trip (pending — gated on operator authorization since the deploy would rotate the postgres password) |
 | `/opt/fabrik/.env` was missing `BING_WEBMASTER_API_KEY` and had a different `API_KEY` than vps1's live value | Synced both from vps1's live `.env`; preserved vps1's API_KEY value so existing callers do not break | None |
 | GitHub host-key trust missing on vps1's root SSH (post-Coolify-removal cleanup wiped it) | Added `github.com` to `/root/.ssh/known_hosts` on vps1; **and** patched the deployer + bootstrap so this re-creates itself going forward (see "Permanent fixes shipped today" below) | None |
 | Postgres user `site_provisioner` password was unknown (not in fabrik state) | Rotated to a fresh 32-char a-zA-Z0-9 password; live `.env` on vps1 updated; `DATABASE_URL` resolved | The new password is not yet captured in fabrik state — when `fabrik apply` runs end-to-end the postgres registrar will overwrite it cleanly |
 
-**Operational implication:** until the upstream `compose.yaml` push happens and one clean `fabrik apply` cycle is verified, treat the running container as a one-off. Do not `fabrik redeploy site-provisioner` — it will git-pull the repo (still says `coolify`) and `docker compose up` will fail. To restart the running instance safely today: `ssh vps "cd /opt/site-provisioner && sudo docker compose up -d"` (uses the locally-patched compose.yaml that exists only on the VPS).
+**Operational implication (as of 2026-06-02):** the upstream `compose.yaml` rename push HAS landed — `vps:/opt/site-provisioner/compose.yaml` now declares `networks: [fabrik]` (verified live, no `coolify` references). What remains: one clean end-to-end `fabrik apply` round-trip to confirm the postgres-registrar password handoff cleanly captures into fabrik state. Until then, treat the running container as a one-off; safest restart is `ssh vps "cd /opt/site-provisioner && sudo docker compose up -d"`.
 
 ## Permanent fixes shipped today (deployer + bootstrap)
 
@@ -53,8 +54,8 @@ These prevent today's failure modes from recurring:
 ```bash
 # Container counts per host
 ssh vps  'sudo docker ps --format "{{.Names}}" | wc -l'   # expect 29 (28 shared + site-provisioner interim)
-ssh vps2 'sudo docker ps --format "{{.Names}}" | wc -l'   # expect 4
-ssh vps3 'sudo docker ps --format "{{.Names}}" | wc -l'   # expect 4
+ssh vps2 'sudo docker ps --format "{{.Names}}" | wc -l'   # expect 5
+ssh vps3 'sudo docker ps --format "{{.Names}}" | wc -l'   # expect 5
 
 # Mesh handshake state
 ssh vps 'sudo wg show'
@@ -114,7 +115,7 @@ ssh vps 'sudo docker exec site-provisioner curl -sf http://localhost:8001/health
 | `pushgateway` | 64m | Short-lived metric pushes (used by `audit_all_registrars.py` cron) |
 | `gatus` | 256m | Synthetic health probes for all services |
 | `apprise` | 768m | Notification dispatcher (Alertmanager → Telegram) — gunicorn workers 2 |
-| `backrest` | 512m | restic-based backups → B2 (currently 0 active plans, intentional) |
+| `backrest` | 512m | restic-based backups → B2 (4 plans live since 2026-06-01: `postgres-dumps`, `docker-volumes`, `opt-configs`, `host-state`). Path-preserving bind mounts: `/opt`, `/etc`, `/usr/local/bin`, `/root/.ssh`, `/home/ozgur/.ssh`, `/var/lib/docker/volumes` all RO. Restic repo `a256277c45`. See [`vps-hub-rebuild.md`](vps-hub-rebuild.md). |
 | `glitchtip-web` | 512m | Self-hosted Sentry-compat error tracker. UI at `errors.vps1.ocoron.com` |
 | `glitchtip-worker` | 512m | GlitchTip background worker (Celery) |
 | `meilisearch` | 512m | Shared search engine, per-service index via registrar |
@@ -167,14 +168,15 @@ ssh vps 'sudo docker exec site-provisioner curl -sf http://localhost:8001/health
 **SSH:** ozgur user, key auth only (root + password disabled — matches vps1)
 **Bootstrap commit:** `c838a03` via `scripts/bootstrap/bootstrap-vps.sh`
 
-### Container inventory — vps2 (4 running)
+### Container inventory — vps2 (5 running)
 
 | Container | Bind | Purpose |
 | :--- | :--- | :--- |
-| `traefik` | `0.0.0.0:80,443` (public) | Public TLS termination for future `*.vps2.ocoron.com` services; `authelia-vps1@file` middleware ready |
+| `traefik` | `0.0.0.0:80,443` (public) | Public TLS termination for `*.vps2.ocoron.com`. `authelia-vps1@file` middleware ready. **`gzip@docker` middleware now defined (W15 ship 2026-06-02)** via labels on the Traefik container itself. First Let's Encrypt cert issued live (for `canary.vps2.ocoron.com`) confirms the routing path works end-to-end. |
 | `node-exporter` | `10.99.0.2:9100` (mesh-only) | Host metrics → vps1's Prometheus over mesh |
 | `cadvisor` | `10.99.0.2:8080` (mesh-only) | Container metrics → vps1's Prometheus over mesh |
 | `promtail` | `10.99.0.2:9080` (mesh-only) | Ships container stdout → vps1's Loki at `10.99.0.1:3100` |
+| `backrest` | no public/mesh bind | W11 — writes backups to own restic repo at `b2:vps1-ocoron-backups/spokes/vps2/`. 2 plans: `host-state` + `opt-configs`. Restic password mirrored to DR-store as `vps2-restic-password-latest`. |
 
 ### `/opt` structure on vps2
 
@@ -182,7 +184,8 @@ ssh vps 'sudo docker exec site-provisioner curl -sf http://localhost:8001/health
 /opt/
 ├── containerd/
 ├── monitoring-agent/        — compose.yaml + promtail.yaml (rendered by bootstrap-vps.sh)
-└── traefik/                 — compose.yaml + traefik.yml + acme.json + dynamic/authelia.yml
+├── traefik/                 — compose.yaml + traefik.yml + acme.json + dynamic/authelia.yml
+└── backrest/                — compose.yaml + .env.backrest + config/config.json + .restic-password (W11)
 ```
 
 **DNS live as of 2026-05-31 afternoon:** `vps2.ocoron.com` + `*.vps2.ocoron.com` → `96.9.214.128` (Cloudflare, unproxied). Wildcard covers `auth.vps2`, `<tenant>.vps2`, etc. Awaiting first tenant deploy; first Let's Encrypt issuance will happen on that deploy.
@@ -198,13 +201,13 @@ ssh vps 'sudo docker exec site-provisioner curl -sf http://localhost:8001/health
 **Hostname:** vps3.ocoron.com (corrected via `hostnamectl` during bootstrap — initial typo `vpse.ocoron.com`)
 **SSH:** ozgur user, key auth only
 
-### Container inventory — vps3 (4 running)
+### Container inventory — vps3 (5 running)
 
-Identical to vps2: `traefik` (public 80+443), `node-exporter` / `cadvisor` / `promtail` all bound to their respective mesh IP (10.99.0.3).
+Identical to vps2: `traefik` (public 80+443, with the W15 `labels:` block now in place), `node-exporter` / `cadvisor` / `promtail` bound to mesh IP (10.99.0.3), and `backrest` (W11) writing to its own restic repo at `b2:vps1-ocoron-backups/spokes/vps3/`.
 
 ### `/opt` structure on vps3
 
-Identical to vps2: `containerd/` + `monitoring-agent/` + `traefik/`.
+Identical to vps2: `containerd/` + `monitoring-agent/` + `traefik/` + `backrest/`.
 
 **DNS live as of 2026-05-31 afternoon:** `vps3.ocoron.com` + `*.vps3.ocoron.com` → `104.128.190.151` (Cloudflare, unproxied). Wildcard covers `auth.vps3`, `<tenant>.vps3`, etc.
 
@@ -272,16 +275,16 @@ Pattern for adding a mesh-exposed service: add `ports: ["10.99.0.1:<port>:<port>
 [ 1] 22/tcp                     ALLOW   # SSH
 [ 2] 80/tcp                     ALLOW   # HTTP
 [ 3] 443/tcp                    ALLOW   # HTTPS
-[ 4] 1194/tcp                   ALLOW   # OpenVPN (legacy — user's personal VPN)
+[ 4] 1194/tcp                   ALLOW   # OpenVPN — out-of-platform-scope (operator's personal VPN); W5 documented, no probe required
 [ 5] 8000/tcp                   DENY    # belt-and-suspenders (stale Coolify comment, rule retained)
 [ 6] 51820/udp                  ALLOW   # Wireguard mesh
 ```
 
 (Plus IPv6 duplicates of each rule.) The previously-stale `6001/tcp` + `6002/tcp` ALLOW rules (Coolify Realtime) were removed in the cleanup sweep.
 
-#### vps2 / vps3 UFW (verified live 2026-05-31 22:36 UTC — installed and active)
+#### vps2 / vps3 UFW (verified live 2026-06-01 — installed and active)
 
-UFW was installed + enabled by W1 of the fleet-hardening plan on 2026-05-31 evening. Package status `ii` (installed), service active, 8 ALLOW rules each (4 IPv4 + 4 IPv6 mirrors), default policy `deny (incoming) / allow (outgoing) / deny (routed)`. Verified via `data/infra-probe-2026-05-31T22-36Z.yaml`.
+UFW was installed + enabled by W1 of the fleet-hardening plan on 2026-05-31 evening. Package status `ii` (installed, version `0.36.2-6`), service active, 8 ALLOW rules each (4 IPv4 + 4 IPv6 mirrors), default policy `deny (incoming) / allow (outgoing) / deny (routed)`. Verified via [`probe-reports/infra-probe-2026-06-01T22-50Z.yaml`](probe-reports/infra-probe-2026-06-01T22-50Z.yaml) (W6) plus W5's rule-by-rule IPv4↔IPv6 mirror check (2026-06-01T00:43Z).
 
 ```text
 22/tcp                     ALLOW   # SSH
@@ -311,8 +314,9 @@ Each host runs its own Traefik (`v2.11`). They do NOT share state — each termi
 
 ACME (Let's Encrypt) state per host:
 
-- vps1: `/opt/traefik/acme.json` (mode 600)
-- vps2/vps3: TODO — first tenant deploy auto-generates
+- vps1: `/opt/traefik/acme.json` (mode 600) — populated; many subdomains served
+- vps2: `/opt/traefik/acme.json` (mode 600) **populated 2026-06-02** during W15 live-verify — first LE cert issued for `canary.vps2.ocoron.com` (`Issuer: Let's Encrypt YR2`, `notAfter: Aug 30 2026 GMT`). Even though the canary was destroyed after verification, the cert sits in acme.json until rotation.
+- vps3: `/opt/traefik/acme.json` (mode 600) **still empty** — no spec has targeted vps3 yet. The W15 fix is in place so the first spoke deploy targeting vps3 will issue its cert cleanly.
 
 ### Traefik label patterns (used by scaffold-emitted compose templates)
 
@@ -322,7 +326,24 @@ ACME (Let's Encrypt) state per host:
 | API service (X-Internal-Token) | `gzip@docker` | scaffold emits |
 | Public service (no auth) | (none) | scaffold emits |
 
-For services on vps2/vps3 that need Authelia, the forward-auth middleware will point at `http://10.99.0.1:9091/api/verify` (over mesh) — but this requires binding Authelia to the mesh IP first (see TODO list above).
+**Middleware definition prerequisites (per host):**
+
+- On **vps1**, `gzip@docker` is defined by a label on the `meilisearch` container (`traefik.http.middlewares.gzip.compress=true`). Meilisearch already has Traefik routers so `traefik.enable=true` is implicit, and the docker provider picks up the middleware definition automatically.
+- On **vps2 / vps3** (as of W15, 2026-06-02), the `gzip` middleware is defined by labels on the **Traefik container itself** in `/opt/traefik/compose.yaml`. Because spoke `traefik.yml` has `providers.docker.exposedByDefault: false`, the Traefik container's own labels are normally ignored — so the fix had to add **both** labels:
+
+  ```yaml
+  services:
+    traefik:
+      container_name: traefik
+      labels:
+        - "traefik.enable=true"                                  # required to make the docker provider read this container's labels
+        - "traefik.http.middlewares.gzip.compress=true"          # publishes gzip@docker
+  ```
+
+  The Traefik container does NOT get any router labels of its own, so `traefik.enable=true` has no public-routing side effects — it only unlocks label discovery. Both spokes were live-verified by re-deploying spoke-canary, which then returned HTTP 200 with a Let's Encrypt cert (first LE issuance on a spoke ever).
+- **W16 shipped 2026-06-02:** spoke Traefik is now templated in `scripts/bootstrap/templates/{traefik.compose.yaml,traefik.yml,traefik-dynamic-authelia.yml}.template` and brought up by `step_12_install_spoke_traefik()` in `bootstrap-vps.sh`. The compose template carries the W15 `labels:` block (verified byte-perfect against live vps2 modulo an explainer comment). A fresh spoke gets the gzip-middleware definition on first bootstrap with no manual edit.
+
+For services on vps2/vps3 that need Authelia, the forward-auth middleware will point at `http://10.99.0.1:9091/api/verify` (over mesh) — but this requires binding Authelia to the mesh IP first (see TODO list above). The Authelia rule registrar itself is FQDN-pattern-agnostic and handles `*.vps2 / *.vps3` patterns without code change (W13 verified 2026-06-02).
 
 ---
 
@@ -358,7 +379,7 @@ Rule precedence: Authelia is first-match-wins. Specific `^/api/` bypasses for ad
 
 **CRITICAL:** Authelia exits on SIGHUP — does NOT hot-reload. The `authelia-config-sync.service` handles the restart correctly. Manual reload: `ssh vps "sudo docker restart authelia"` (just the container name now — no UUID suffix).
 
-**Cross-host pattern (not yet wired):** for `*.vps2.ocoron.com` admin dashboards, the plan is to add `auth.vps2.ocoron.com` as a CNAME → vps1 and let vps1's Authelia issue cookies scoped to `*.vps2.ocoron.com`. See `docs/development/plans/2026-05-30-platform-to-a-plus.md` § W-Multi M7.
+**Cross-host pattern (not yet wired):** for `*.vps2.ocoron.com` admin dashboards, the plan is to add `auth.vps2.ocoron.com` as a CNAME → vps1 and let vps1's Authelia issue cookies scoped to `*.vps2.ocoron.com`. See `docs/development/plans/archived/2026-05-30-platform-to-a-plus.md` § W-Multi M7.
 
 ---
 
@@ -505,28 +526,25 @@ Reload: `ssh vps "sudo docker kill -s HUP prometheus"`.
 
 ## Backups (Backrest)
 
-**Status (live, 2026-05-31 afternoon):** Backrest config has **1 repo retained + 0 plans**. B2 bucket `vps1-ocoron-backups` exists but is empty.
+**Status (live, 2026-06-02 — post-W2 + W11 ship):** Backrest is the front-end for restic; restic writes to Backblaze B2. Verified live on vps1: `plans=4 repos=1; plan ids: ['postgres-dumps','docker-volumes','opt-configs','host-state']`. All 4 hub plans had their first snapshot 2026-06-01 (W2 ship) — combined 612 MiB uncompressed → 117 MiB on B2 (5.23× compression). Each spoke runs its own Backrest container against its own restic repo at a bucket-prefix path.
 
-| Repo ID | URI | Flags |
-| :--- | :--- | :--- |
-| `b2-vps1` | `s3:https://s3.us-west-004.backblazeb2.com/vps1-ocoron-backups` | `--compression=auto` |
+| Host | Restic repo | Plans live | First snapshot |
+| :--- | :--- | :--- | :--- |
+| vps1 (hub) | `b2-vps1` → `s3:https://s3.us-west-004.backblazeb2.com/vps1-ocoron-backups` | 4: `postgres-dumps`, `docker-volumes`, `opt-configs`, `host-state` | 2026-06-01 (W2) |
+| vps2 (spoke) | `b2-vps2` → `s3:.../vps1-ocoron-backups/spokes/vps2/` | 2: `host-state`, `opt-configs` | 2026-06-01 (W11) |
+| vps3 (spoke) | `b2-vps3` → `s3:.../vps1-ocoron-backups/spokes/vps3/` | 2: `host-state`, `opt-configs` | 2026-06-01 (W11) |
 
-The repo is retained so plan reconfiguration only needs new plans (not also re-pairing a repo). The plan count was zeroed deliberately in the morning cleanup. Per the session 2026-05-31 cleanup:
+Each repo has its own restic password — **immutable post-init** (Lesson 67), so re-keying means re-init. Hub password lives in `/opt/backrest/.restic-password` on vps1 + `BACKREST_RESTIC_PASSWORD` in `/opt/fabrik/.env` (dev WSL canonical). Spoke passwords live in `/opt/backrest/.restic-password` on the spoke + mirrored to the DR-store as `vps{2,3}-restic-password-latest` (W9 extension shipped with W11).
 
-- All prior plans deleted (3 active + 5 stale test plans, ~94 failures in 30 days were mostly the stale test plans)
-- B2 bucket emptied; bucket + the `b2-vps1` Backrest repo entry preserved for reuse
-- Restic password + B2 keys saved off-VPS to `/opt/fabrik/.env` on the dev machine — closes the "credentials only on vps1" DR weakness. **Verified present:** `BACKREST_RESTIC_PASSWORD` ✓, `B2_KEY_ID` ✓, `B2_APPLICATION_KEY` ✓. (`B2_ACCOUNT_ID` not stored; the master `B2_KEY_ID` is sufficient for restic's S3 driver against the B2 endpoint.)
-- **Dev WSL itself is no longer a SPoF for credentials (W9 shipped 2026-06-01).** `/opt/fabrik/.env` mirrors to private GitHub repo `mobasak/fabrik-dr-store` within seconds of every change via `fabrik-dr-watcher.service` (inotify + systemd) + daily safety-net cron + `@reboot` catch-up + weekly recovery self-test. The repo is hardened: no Issues/Projects/Wiki/Discussions, no Actions, no collaborators. One-command recovery on a fresh WSL: `gh repo clone mobasak/fabrik-dr-store && sudo cp fabrik-dr-store/env/latest /opt/fabrik/.env`. Full runbook: [`docs/operations/credential-recovery.md`](../operations/credential-recovery.md).
+**Bind mounts are path-preserving (`:ro`).** Plan paths mount the actual host directory at the same path inside the Backrest container (`/opt`, `/etc`, `/usr/local/bin`, `/root/.ssh`, `/home/ozgur/.ssh`, plus `/opt/backups` for pg dumps and `/var/lib/docker/volumes` for docker-volumes). A restic restore lands files at the exact path the OS expects — no path translation. Spoke plans mirror the pattern at smaller scope (no PG, no Docker volumes yet — those join when the first tenant ships under W4).
 
-When backups are reconfigured:
+**Offsite credentials** (W9 shipped 2026-06-01, extended 2026-06-01 for W11): `/opt/fabrik/.env` and `/opt/fabrik/.env.sysadmin` plus the 4 spoke files (`vps{2,3}-backrest-env-latest`, `vps{2,3}-restic-password-latest`) mirror to private GitHub repo `mobasak/fabrik-dr-store` within seconds of every change via `fabrik-dr-watcher.service` (inotify) + daily safety-net cron + `@reboot` catch-up + weekly recovery self-test. Repo hardened: no Issues/Projects/Wiki/Discussions/Actions/collaborators. One-command recovery on a fresh WSL: `gh repo clone mobasak/fabrik-dr-store && sudo cp fabrik-dr-store/env/latest /opt/fabrik/.env`. Full runbook: [`docs/operations/credential-recovery.md`](../operations/credential-recovery.md).
 
-- Active plans: `postgres-dumps` (`/opt/backups/pg_dump_*.sql`), `docker-volumes` (`/var/lib/docker/volumes/`), `opt-configs` (`/opt/<svc>/{compose.yaml,.env}`)
-- Failure hook URL needs to be `apprise:8000` (NOT the old Coolify UUID-suffix hostname `apprise-lcocgs4gs8ksg4g08w40ows8` — that's why prior failure alerts never reached Telegram)
-- Schedule postgres-dumps AFTER the host's pg_dump cron completes (prior 44 % failure rate was due to the race)
+**Known cosmetic issue (Issue 1 below):** plan failure hooks in `/opt/backrest/config/config.json` still reference the Coolify-era UUID-suffix container name `apprise-lcocgs4gs8ksg4g08w40ows8` instead of the stable `apprise`. **Effect:** if a plan fails, the Telegram failure alert never reaches the operator. The 4 hub plans have been running 24 h without failure as of 2026-06-02 — low-risk; fix on next config edit.
 
-Spoke backups (vps2/vps3): not yet configured. Pattern when needed: Backrest on vps1 has SSH access to spokes via `ssh vps2`/`ssh vps3` (mesh + key auth); plan paths can include `vps2:/opt/` etc.
+Spoke tenant backups (`docker-volumes-vpsN`, `postgres-dumps-vpsN`) defer to W4 — zero tenants on spokes yet.
 
-Full runbook: `docs/operations/disaster-recovery.md`
+DR runbooks: [`vps-hub-rebuild.md`](vps-hub-rebuild.md) (hub, ≤ 90 min undrilled) · [`vps-spoke-rebuild.md`](vps-spoke-rebuild.md) (spoke, ≤ 30 min undrilled) · [`docs/operations/disaster-recovery.md`](../operations/disaster-recovery.md) (cross-cutting).
 
 ---
 
@@ -612,9 +630,9 @@ vps2/vps3 limits per monitoring agent (set by `monitoring-agent.compose.yaml.tem
 | 6 | Bind `authelia` to `10.99.0.1:9091` for cross-host forward-auth | Medium | First spoke admin dashboard | ✓ done 2026-05-31 |
 | 7 | Deploy `traefik` on vps2 and vps3 (public TLS termination) | Medium | First spoke tenant | ✓ done 2026-05-31 (`authelia-vps1@file` middleware ready) |
 | 8 | Add `host` template variable to all Grafana dashboards | Low | Cosmetic | ✓ done 2026-05-31 (5/5 dashboards, regex `/^vps/`) |
-| 9 | Reconfigure Backrest plans (postgres-dumps, docker-volumes, opt-configs) with correct `apprise:8000` hook URL | Low | When data lands worth backing up | **OPEN** |
+| 9 | Reconfigure Backrest plans (postgres-dumps, docker-volumes, opt-configs) with correct `apprise:8000` hook URL | Low | When data lands worth backing up | **CLOSED 2026-06-01** — DR-in-hours track shipped 4 plans (added `host-state`); first snapshot per plan committed 2026-06-01 to B2 repo `a256277c45` (1 snapshot per plan from first run; more accumulate via daily cron). Hook URL still references the Coolify-era UUID-suffix `apprise-lcoc...` — deferred to next config edit (see Issue 1). See [`vps-hub-rebuild.md`](vps-hub-rebuild.md). |
 | 10 | AI sysadmin scripts query spoke metrics too (currently vps1-only) | Low | Future | ✓ done 2026-05-31 (`prom_hosts()` + spoke alert rules) |
-| 11 | Fabrik spec gains `target_vps` field + `fabrik apply --target-vps` flag (W-Multi M4) | Low | Big code change | ✓ done 2026-05-31 evening — see § Permanent fixes shipped today; spec field + CLI flag + DNS routing + deployer env-swap + 3 new tests + 4 pre-existing-test fixes; 103/103 deployer/spec tests pass. `fabrik destroy --target-vps` + `fabrik redeploy --target-vps` follow-ups still open. |
+| 11 | Fabrik spec gains `target_vps` field + `fabrik apply --target-vps` flag (W-Multi M4) | Low | Big code change | ✓ done 2026-05-31 evening — see § Permanent fixes shipped today; spec field + CLI flag + DNS routing + deployer env-swap + 3 new tests + 4 pre-existing-test fixes; 103/103 deployer/spec tests pass. Symmetric `--target-vps` for destroy + redeploy shipped 2026-06-02 (W3). Env-swap extended to `inject_env` + compose rollback 2026-06-02 (W14). |
 | 12 | Clean stale UFW rules on vps1 (6001, 6002 Coolify Realtime) | Trivial | — | ✓ done 2026-05-31 evening (UFW rules 6001 + 6002 removed; 8000 DENY rule kept as belt-and-suspenders even with stale Coolify comment) |
 | 13 | Authelia access-control rules for `*.vps2.ocoron.com` / `*.vps3.ocoron.com` admin dashboards | Medium | Needs first such dashboard | **OPEN** (no longer blocked on DNS — DNS landed today) |
 | 14 | Backrest spoke backups (`docker-volumes-vps2`, `opt-configs-vps2`, etc.) | Low | Per #9 — defer until backups re-enabled | **OPEN** |
@@ -625,10 +643,14 @@ vps2/vps3 limits per monitoring agent (set by `monitoring-agent.compose.yaml.tem
 | 19 | `/opt/fabrik/.env` carries the secrets the site-provisioner spec now expects (`API_KEY` synced from vps1 live value; `BING_WEBMASTER_API_KEY` added) | High | Same as #18 | ✓ done 2026-05-31 afternoon (backup at `backups/.env.backup.20260531-163701`) |
 | 20 | Dry-run validate `fabrik apply specs/services/site-provisioner.yaml` end-to-end (proves all 4 fixes wire together cleanly) | Medium | Trust in the pipeline for the first post-Coolify spec | ✓ done 2026-05-31 evening — clean dry-run; state file shows `postgres`, `gatus`, `glitchtip` registrars as `status: "dry_run"`; container untouched; shape-gated registrars (backrest, authelia, meilisearch, redis, prometheus) correctly skipped |
 | 21 | Create `provision.vps1.ocoron.com` DNS record (discovered missing during residue sweep) | Medium | External reach to site-provisioner | ✓ done 2026-05-31 evening |
-| 22 | `fabrik destroy --target-vps` + `fabrik redeploy --target-vps` (same env-swap pattern as W-Multi M4) | Low | Symmetric ops for spoke services | **OPEN** — ~5–10 min each |
-| 23 | First real spoke deploy (e.g. tiny test spec with `target_vps: vps2`, domain `<svc>.vps2.ocoron.com`) | Medium | Exercises spoke Traefik's Let's Encrypt issuance for the first time | **OPEN** |
+| 22 | `fabrik destroy --target-vps` + `fabrik redeploy --target-vps` (same env-swap pattern as W-Multi M4) | Low | Symmetric ops for spoke services | ✓ done 2026-06-02 (W3) — CLI flag on both commands; resolution order CLI > state-file > spec > vps1; live-verified destroy on vps2 |
+| 23 | First real spoke deploy (e.g. tiny test spec with `target_vps: vps2`, domain `<svc>.vps2.ocoron.com`) | Medium | Exercises spoke Traefik's Let's Encrypt issuance for the first time | ✓ done 2026-06-02 — `spoke-canary` (nginx:alpine) deployed clean on vps2, `curl https://canary.vps2.ocoron.com` returned HTTP 200, LE cert issued (`Let's Encrypt YR2`, expires Aug 30 2026). Container destroyed cleanly afterwards. |
+| 24 | Spoke Traefik defines the `gzip` middleware so `traefik.http.routers.<svc>.middlewares=gzip@docker` resolves | Medium | First end-to-end spoke deploy | ✓ done 2026-06-02 (W15) — added `traefik.enable=true` + `traefik.http.middlewares.gzip.compress=true` labels to the Traefik container in `/opt/traefik/compose.yaml` on both spokes. Verified live via item 23. Future-spoke template work tracked separately as item 27 below. |
+| 25 | `SSHDeployer.inject_env()` env-swaps to `ctx.target_vps` | Low | Glitchtip DSN / Redis URL injection on spoke apps | ✓ done 2026-06-02 (W14) |
+| 26 | Compose rollback honors `target_vps` from the resource record | Low | Failed spoke deploy cleans up on the spoke, not the hub | ✓ done 2026-06-02 (W14) |
+| 27 | Bake spoke Traefik compose (with the W15 `labels:` block) into `bootstrap-vps.sh` so future spokes get the `gzip` middleware on first bootstrap | Medium | Fresh-spoke automation | ✓ done 2026-06-02 (W16) — `step_12_install_spoke_traefik()` + 3 templates; rendered output diffed byte-perfect against live vps2; idempotency proven by re-running step 12 against vps2 with no recreate. |
 
-**Net after the full day's work (morning + afternoon + evening):** 11 items closed today (1, 3, 4, 5, 6, 7, 8, 10, 11, 12, 15, 16, 17, 18, 19, 20, 21 plus 2/2a marked done after the upstream push). The remaining `--target-vps` symmetry items (#22) + first-real-spoke-deploy (#23) are the natural next steps.
+**Net after the full day's work (morning + afternoon + evening):** 11 items closed 2026-05-31; 2026-06-02 closed items 22 (W3), 23 + 24 (W14 + W15 together), 25 + 26 (W14), 27 (W16 Traefik), and the DNS step in `bootstrap-vps.sh` (now step 13) shipped end-to-end via site-provisioner under the W16 second pass (idempotent `ensure_record()` calls, live-verified on vps2 + vps3). Open: item 13 (Authelia spoke rules — registrar verified pattern-agnostic by W13 but no live dashboard exists yet); items 9/14 (spoke tenant backups, gated on actual tenant data).
 
 ---
 
@@ -636,7 +658,7 @@ vps2/vps3 limits per monitoring agent (set by `monitoring-agent.compose.yaml.tem
 
 ### Issue 1: Backrest failure-notification webhook is broken
 
-`/opt/backrest/config/config.json` plan hooks reference `http://apprise-lcocgs4gs8ksg4g08w40ows8:8000/notify/alerts` — the old Coolify-era UUID-suffix container name. After the W1 container-name standardization on 2026-05-30, `apprise` is the stable name. **Effect:** if any future backup plan fails, the failure alert never reaches Telegram. Currently irrelevant (zero plans), but fix on next plan creation: replace `apprise-lcocgs4gs8ksg4g08w40ows8` with `apprise`.
+`/opt/backrest/config/config.json` plan hooks reference `http://apprise-lcocgs4gs8ksg4g08w40ows8:8000/notify/alerts` — the old Coolify-era UUID-suffix container name. After the 2026-05-30 container-name standardization, the stable name is `apprise`. **Effect:** if any of the 4 live hub plans (or 2 per-spoke plans) fails, the failure alert never reaches Telegram via the hook path. The 24 h since W2/W11 ship had zero failures, but the gap is real. Fix on next config edit: replace `apprise-lcocgs4gs8ksg4g08w40ows8` with `apprise` (one place per spoke + one place on hub).
 
 ### Issue 2: `errors.vps1.ocoron.com` predates T2-08 Part A in `audit_authelia_gates.py`
 
@@ -650,9 +672,9 @@ Pre-fabrik-network-rename. Real Prometheus runs from `/opt/monitoring/compose.ya
 
 Was returning `Invalid access token` after the session 2026-05-31 morning cleanup. Resolved by syncing the working token from the local site-provisioner instance's `.env` (`/opt/site-provisioner/.env` on the dev WSL) — that token had stayed in sync with Cloudflare. Pre-edit backup at `backups/.env.backup.20260531-155948`. Verified active via `https://api.cloudflare.com/client/v4/user/tokens/verify`.
 
-### Issue 5: site-provisioner upstream `compose.yaml` still says `coolify` network — OPEN
+### Issue 5: site-provisioner upstream `compose.yaml` `coolify` → `fabrik` rename — RESOLVED
 
-The repo `mobasak/site-provisioner@main` declares `networks: [coolify]` in `compose.yaml`. The Docker network was renamed to `fabrik` on 2026-05-31 (commit `89879e4`). On the VPS today, `compose.yaml` was hand-patched (`sed -i s/coolify/fabrik/g`) so the running container is fine, but the next `git pull` (e.g. via `fabrik redeploy`) will overwrite it back to `coolify` and `docker compose up` will fail with "network coolify not found". Fix: push the locally-staged commit on `/opt/site-provisioner` to `mobasak/site-provisioner@main`. Awaiting user authorization.
+`mobasak/site-provisioner@main` originally declared `networks: [coolify]`. Resolved by commit `fa32d61` (rename to `fabrik`), pushed 2026-05-31 evening. Verified live on vps1 2026-06-02: `/opt/site-provisioner/compose.yaml` declares `networks: [fabrik]`, no `coolify` references. A `fabrik redeploy` would now `git pull` a `fabrik`-network compose cleanly. The remaining gate before declaring the pipeline production-grade is one clean end-to-end `fabrik apply` round-trip — see § site-provisioner status.
 
 ---
 
@@ -664,7 +686,7 @@ The AI sysadmin runs as a **systemd service** on vps1, not a Docker container. D
 | :--- | :--- | :--- |
 | `vps-sysadmin-bot.service` | systemd, `Restart=always` | Active — Telegram bot, spawns Claude Opus on demand |
 | `/etc/cron.d/vps-sysadmin` | cron | Active — 5 scheduled routines (proactive / morning / security / maintenance / backup) |
-| Health endpoint | HTTP `:8017/health` | Active — bound locally, blocked from Docker via `DOCKER-USER` |
+| Health endpoint | HTTP `:8017/health` | **Bound `127.0.0.1:8017`** since W5 ship 2026-06-01 (`SYSADMIN_HEALTH_HOST` env var added to [`bot.py`](../../scripts/sysadmin/bot.py); default `127.0.0.1`). Local loopback returns `{"status":"ok",...}`. External probes from off-mesh nodes (vps2, vps3) confirm filtered/timeout. The aspirational "for Gatus monitoring" comment is currently a no-op — no Gatus endpoint or Prometheus job actually consumes it; if a future need arises, set `SYSADMIN_HEALTH_HOST=10.99.0.1` via systemd `Environment=` to expose on the mesh interface (still off-public). |
 
 Logs: `/var/log/vps-sysadmin-bot.log`, `/var/log/sysadmin-proactive.log`
 Action log: `/opt/fabrik/logs/sysadmin-actions.jsonl`
@@ -673,6 +695,18 @@ Shift notes: `/opt/fabrik/logs/sysadmin-shift-notes.md`
 **The AI sysadmin already queries Prometheus directly** via `scripts/sysadmin/proactive-check.sh::prom_query()` — see Lesson noted during the 2026-05-30 plan audit. It currently scopes to vps1 metrics only; broadening to include `host="vps2"` / `host="vps3"` is on the pending list.
 
 Full reference: `docs/infrastructure/vps-ai-sysadmin.md`.
+
+### Per-project watchdog sidecars (T-P2 — in progress, 2 of 15 artifacts shipped)
+
+A **second** AI layer distinct from the host-level sysadmin above. The host sysadmin watches the platform; per-project watchdog sidecars watch one tenant each. **Not yet a runtime artifact** — when shipped, each project with `watchdog.enabled: true` in its spec will gain a `watchdog-<project_id>` container next to its main container at `fabrik apply` time.
+
+| Artifact | Path | Status |
+| :--- | :--- | :--- |
+| `WatchdogConfig` Pydantic class + `Spec.watchdog` field + 3 amendment fields (`deadman_timeout_seconds`, `external_docs_enabled`, `propose_fix_prs`) | [`src/fabrik/spec_loader.py:335-524`](../../src/fabrik/spec_loader.py) (190 lines, 15 tests in [`tests/test_spec_loader.py::TestWatchdogConfig`](../../tests/test_spec_loader.py)) | ✅ shipped 2026-06-02 (original 10 fields + amendment landing same day) |
+| `claude-settings.json.template` (sidecar permission boundaries; v1 with 10 locked capabilities) | [`/opt/fabrik-lib/watchdog/sidecar/claude-settings.json.template`](../../../fabrik-lib/watchdog/sidecar/claude-settings.json.template) (200 lines, 50 allow / 55 deny entries, 29-domain WebFetch allow-list) | ✅ shipped 2026-06-02 |
+| 13 remaining artifacts: `hooks/PreToolUse.sh`, Dockerfile, `llm_client.py`, `actions.py`, `state.py`, `agent.py`, SQLite state schema, emitter library, `core/watchdog.md` rule pack, `_register_watchdog()` registrar, `drivers/watchdog.py`, fabrik-lib README update, test spec | mostly under `/opt/fabrik-lib/watchdog/` | ⏳ pending |
+
+When fully shipped, the registrar (`infrastructure.py::_register_watchdog`) injects the sidecar into the project's compose at `fabrik apply` time. Default-by-kind: `service`/`worker`/`wordpress` → `enabled=True`; `static` → `enabled=False`. Hub-side P1 plumbing is already live (`fabrik_analytics` DB + `cost_ledger` table). Subplan with the locked v1 capability matrix: [`docs/development/plans/2026-05-30-ai-watchdog-platform-P2-subplan.md`](../development/plans/2026-05-30-ai-watchdog-platform-P2-subplan.md) § 4.6.
 
 ---
 
@@ -711,8 +745,8 @@ DB users (`pg_user`, verified live post-cleanup): `postgres` (super), `ozgur` (s
 
 - Postgres: **2 app DBs** (glitchtip, site_provisioner) on `postgres-main`. Reduced from the Coolify-era 4 (`translator` + `proxy_management` removed with those services).
 - Redis: 2 logical DBs in use (`db3` = authelia, 26 keys with TTL; `db4` = glitchtip, 8 keys); 14 indexes free.
-- Gatus: ~28 endpoints across 15 config files (`apps/` 13 + `core/` 5 + `data/` 3 + `external/` 5 + `observability/` 4 + 1 empty `services.yaml`). Includes endpoints probing services that are no longer deployed — see "Stale/residue" section below.
-- Backrest: **1 repo retained** (`b2-vps1`) + **0 plans**.
+- Gatus: **21 endpoints across 16 config files** (re-verified 2026-06-02 live; `apps/` gained 1 file since the prior count). Top-level breakdown: `apps/` 11 files / 8 endpoints; `core/` 1 file / 5 endpoints; `data/` 1 file / 3 endpoints; `external/` 1 file / 5 endpoints; `observability/` 1 file / 0 endpoints. Some `apps/` files probe services no longer deployed — see "Stale/residue" section below. Endpoint count is the stable signal; file count drifts as endpoints are split into per-service files.
+- Backrest (hub): **1 repo** (`b2-vps1`) + **4 plans live** (postgres-dumps, docker-volumes, opt-configs, host-state) — first ship 2026-06-01 (W2). Each spoke runs its own Backrest container with own repo + 2 plans (W11).
 - GlitchTip: 7 project IDs retained from Coolify-era audit (captcha=65, image-broker=66, translator=67, emailgateway=68, file-api=69, file-worker=70, site-provisioner=24). Six of those projects no longer have a corresponding live service emitting events.
 - Grafana: 5 Fabrik-folder dashboards (overview, databases, containers, authelia, meilisearch) + community dashboards. Every dashboard now has `$host` template variable.
 - Authelia: **10 access control rules** (see § Authelia access control rules above).
@@ -767,8 +801,8 @@ The full residue sweep happened in the evening. All items below were resolved in
 
 - DR runbook: `docs/operations/disaster-recovery.md`
 - Bootstrap script: `scripts/bootstrap/bootstrap-vps.sh` + templates in `scripts/bootstrap/templates/`
-- Platform-to-A+ plan: `docs/development/plans/2026-05-30-platform-to-a-plus.md`
-- W1 Coolify residue cleanup: `docs/development/plans/2026-05-30-coolify-residue-cleanup.md`
+- Platform-to-A+ plan: `docs/development/plans/archived/2026-05-30-platform-to-a-plus.md`
+- W1 Coolify residue cleanup: `docs/development/plans/archived/2026-05-30-coolify-residue-cleanup.md`
 - Lessons learnt (latest = 65): `docs/LESSONS_LEARNT.md`
 - GlitchTip integration: `docs/infrastructure/glitchtip-sdk-integration-setup.md`
 - AI sysadmin reference: `docs/infrastructure/vps-ai-sysadmin.md`

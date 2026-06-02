@@ -1,158 +1,259 @@
-# Post-Audit Hardening — Make VPS Production-Grade
+# 08 — Hardening Remediation (per host)
 
-> **DANGER — READ BEFORE EXECUTING ANYTHING**
+> **⚠ READ BEFORE EXECUTING ANYTHING.**
 >
-> This is a live VPS. Loss of SSH access or boot failure is unrecoverable without hosting provider intervention.
->
-> **NEVER touch:**
-> - `/etc/docker/daemon.json` (Docker daemon config — restart kills all containers)
-> - `iptables` / `nftables` / UFW rules (firewall — wrong rule locks you out)
-> - `/etc/fstab` (boot config — bad entry prevents boot)
-> - `/etc/netplan/` or `/etc/network/` (network config — wrong change = lost SSH)
-> - `systemctl disable` on `docker`, `ssh`, `coolify`, `iptables-docker-user` (breaks everything)
-> - Docker socket permissions or Docker group membership changes
->
-> **ALWAYS:**
-> - Back up any config file before editing: `cp <file> <file>.backup.$(date +%Y%m%d-%H%M%S)`
-> - Test one change at a time, verify SSH still works after each
-> - Use `docker update --memory` for live limits (no restart), not compose edits
-> - Use Prometheus `/-/reload` for rule changes (no restart), not container restart
-> - Gatus auto-reloads config within 30s — no restart needed
+> This prompt produces commands that **change live state** on a target VPS. Use after audits 01-06 have surfaced findings. Every command must be reviewed, dry-run-equivalent-tested, and applied with `ContainerDown` alerts silenced for any op > 2 min (operator discipline: silence-alerts-before-downtime).
 
-Execute after running audits 01-06. This prompt takes their findings and turns them into a prioritized remediation plan. The goal: a VPS that is secure, performant, resource-efficient, measurable, and recoverable.
+**Last Updated:** 2026-06-02 (rewritten for 3-VPS fleet + W14/W15/W16 ship state — patched 2026-06-02 evening after live-validation: category E hub promtail filename corrected from `promtail.yaml` to `promtail-config.yaml`; category E example job_name corrected to `containers` to match the actual scrape config)
+**Run mode:** **per host** — execute fixes on one target VPS at a time.
+**Scope:** apply findings from audits 01-06; verify after.
+**Time budget:** highly variable per fix list.
 
-## Design Principles
+---
 
-1. **Defense in depth** — every layer (network, container, application) enforces its own security. No single layer is trusted.
-2. **Resource accounting** — every container has explicit CPU and memory limits. No container can OOM the host.
-3. **Observable by default** — every service is monitored, every failure triggers an alert, every metric has a dashboard.
-4. **Recoverable** — every stateful component is backed up with tested retention. Recovery time is documented.
-5. **Minimal attack surface** — only required ports open, only required services running, only required privileges granted.
-6. **Automated hygiene** — destroyed services leave zero residue. Drift is detected and alerted within 1 hour.
+## Design principles
 
-## Input: Audit Findings
+1. **Idempotent commands.** Re-running must not break things.
+2. **Backup before destruct.** Touching `.env`, `compose.yaml`, `traefik.yml`, `authelia/configuration.yml`, restic password, or any `*.key` → `cp <f> backups/<f>.backup.$(date +%Y%m%d-%H%M%S)` first.
+3. **Silence alerts** during planned ops > 2 min (operator discipline: silence-alerts-before-downtime).
+4. **Single-operator threat model.** Don't propose perm/rotation/audit work that doesn't name a realistic attacker (Memory: `feedback_threat_model_single_operator.md`).
+5. **One workstream at a time.** Apply all of category A before starting category B. Verify between categories.
+6. **The `coolify` Docker network name was renamed to `fabrik`** on 2026-05-31. New code must reference `fabrik`. Old code in archived legacy modules still references `coolify`; don't change those.
 
-Paste the unified report from audits 01-06 (or the individual reports). The AI will:
-1. Categorize each finding as: security / performance / reliability / hygiene
-2. Assess blast radius (host-level / container-level / cosmetic)
-3. Order by: risk × ease-of-fix
-4. Generate exact commands, grouped by execution phase
+---
 
-## Hardening Checklist
+## Input: audit findings
 
-### A. Network Perimeter
+This prompt assumes the operator has already run audits 01-06 and is feeding the prioritized findings here. Paste the findings as a numbered list with severity, evidence, host, and proposed fix.
 
-**Per-host UFW expectations** (verify all three: `dpkg -l <pkg> | awk '/^ii/'`, `command -v ufw`, `sudo ufw status` — see Lesson 68 for why one probe is insufficient):
+```text
+Findings to remediate (paste from audits 01-06):
+1. [vps2 / SEV-HIGH] W15 gzip middleware missing on Traefik
+   Evidence: docker inspect traefik | grep gzip → empty
+   Proposed fix: add labels block to /opt/traefik/compose.yaml + restart
+2. ...
+```
 
-- [ ] **vps1**: UFW active with ALLOW for 22, 80, 443, 1194, 51820/udp; DENY for 8000 (stale Coolify comment — kept as belt-and-suspenders). Ports 6001/6002 (Coolify Realtime) were removed during the 2026-05-31 residue sweep.
-- [ ] **vps2 + vps3**: UFW active with ALLOW for 22, 80, 443, 51820/udp; default `deny (incoming) / allow (outgoing) / deny (routed)`. Shipped 2026-05-31 evening (W1 of fleet-hardening plan).
-- [ ] DOCKER-USER iptables chain present on every host: `DROP -i ens3` for mesh-only port list (5432, 6379, 9090, 9091, 9100, 8080, 3100, 7700, 8000) + `ACCEPT -i wg0`
-- [ ] `iptables-persistent` (netfilter-persistent.service) enabled — DOCKER-USER rules survive reboot via `/etc/iptables/rules.v{4,6}`
-- [ ] No container publishes ports to `0.0.0.0` outside Traefik on any host (verify via `docker ps --format '{{.Ports}}'`)
-- [ ] Port 1194 (OpenVPN) on vps1 documented as operator's personal VPN (out-of-platform-scope)
-- [ ] fail2ban installed and active for SSH on every host (`sudo systemctl is-active fail2ban` + `sudo fail2ban-client status sshd`)
+---
 
-### B. Container Resource Limits
+## Stack context
 
-Every container must have explicit `deploy.resources.limits.memory` set. Recommended baseline:
+```text
+- 3 hosts under management. Each owns its own compose stacks, Backrest,
+  Traefik. Fixes apply to one host at a time.
+- Compose files at /opt/<svc>/compose.yaml (root-owned, 644).
+- .env files at /opt/<svc>/.env (root-owned, 600 for ones with secrets).
+- All containers stable-named via compose `container_name:` (a Fabrik convention since the 2026-05-30 Coolify removal — replaces UUID-suffix names). `fabrik` Docker network is shared.
+- vps1 has Authelia + Traefik dashboard + 29 containers. Spokes have 5.
+- /opt/fabrik-lib/ on dev WSL is the vendor source for module copies; not
+  on VPS.
+- Memory limit invariant: every compose service must declare
+  deploy.resources.limits.memory. The orchestrator validates this.
+- DNS via site-provisioner on vps1; idempotent ensure_record API at
+  /api/cloudflare/dns/<root>/subdomain.
+```
 
-| Category | Memory limit | CPU limit | Examples |
-|----------|-------------|-----------|---------|
-| Infrastructure (heavy) | 1-2g | 1.0 | postgres-main, n8n, browserless |
-| Infrastructure (medium) | 512m | 0.5 | grafana, loki, prometheus, authelia, glitchtip-web |
-| Infrastructure (light) | 256m | 0.25 | alertmanager, gatus, apprise, backrest, pushgateway |
-| Monitoring agents | 512m | 0.5 | netdata (if kept), cadvisor |
-| Exporters | 128m | 0.1 | node-exporter, postgres-exporter, redis-exporter, promtail |
-| Application services | 512m | 0.5 | site-provisioner, image-broker, any fabrik-deployed app |
-| WordPress stack | per-container | 0.5 | ocoron-com-wordpress 512m, ocoron-com-db 1g, ocoron-com-nginx 256m, ocoron-com-redis 256m |
-| Coolify core | — | — | Managed by Coolify itself, don't override |
+---
 
-Verification: `docker stats --no-stream` — no container should show `/11.63GiB` as its limit.
+## Hardening checklist — categorized
 
-### C. System Tuning
+Categories are independent — apply in any order, but complete one before starting the next. After each category, re-run the relevant audit (01-06) to confirm the finding cleared.
 
-- [ ] `vm.swappiness=10` (persist in `/etc/sysctl.d/99-tuning.conf`)
-- [ ] `net.core.somaxconn=65535` (connection queue for Traefik)
-- [ ] `net.ipv4.tcp_tw_reuse=1` (reduce TIME_WAIT buildup)
-- [ ] `fs.file-max=1048576` (file descriptor ceiling)
-- [ ] `fs.inotify.max_user_watches=524288` (for Gatus, Promtail, file watchers)
-- [ ] Journal capped: `SystemMaxUse=500M` in `/etc/systemd/journald.conf`
-- [ ] Docker log rotation: `daemon.json` has `max-size: 10m`, `max-file: 3`, `tag: {{.Name}}`
-- [ ] Root mount has `noatime` in fstab
+### A. Network perimeter
 
-### D. Monitoring Completeness
+```bash
+ssh <target> bash <<'EOF'
+# A1. Tighten UFW (idempotent; --force needed in non-interactive)
+sudo ufw default deny incoming
+sudo ufw default allow outgoing
+# Only add rules you don't already have (ufw status numbered to check first)
 
-- [ ] All containers have a Gatus health endpoint OR are scraped by Prometheus
-- [ ] Alert rules exist for: HostHighCPU, HostHighMemory, HostDiskFull, ContainerOOM, PromtailNotShipping, FabrikRegistrarDrift, BackupStale
-- [ ] Grafana has datasources connected (Prometheus + Loki)
-- [ ] Grafana has all expected dashboards (currently 8)
-- [ ] GlitchTip projects exist for all deployed services, all have `firstEvent`
-- [ ] Promtail noise filter working (5 containers excluded, container_name label populated)
+# A2. Add mesh-allow on spokes if missing (W8 fix, may need re-apply)
+sudo ufw allow from 10.99.0.0/24
 
-### E. Backup & Recovery
+# A3. Confirm DOCKER-USER chain still blocks mesh-only ports from public iface
+sudo iptables -L DOCKER-USER -n --line-numbers
 
-- [ ] Backrest running with all plans on schedule
-- [ ] Retention policy set on all plans: `keepDaily:7, keepWeekly:4, keepMonthly:6`
-- [ ] Coverage: postgres-main, redis-main, WordPress volumes, Authelia config, monitoring configs
-- [ ] Coolify state (`/data/coolify/`) added to backup plan
-- [ ] WSL `.env` backed up locally in `backups/` dir
-- [ ] Recovery tested: can restore a single postgres DB from latest snapshot
-- [ ] RTO documented (estimated time to rebuild from scratch vs restore)
+# A4. fail2ban refresh
+sudo systemctl restart fail2ban
+sudo fail2ban-client status sshd
+EOF
+```
 
-### F. Hygiene
+### B. Container resource limits
 
-- [ ] Zero dangling Docker volumes
-- [ ] Zero dangling Docker images
-- [ ] Zero orphan Docker networks
-- [ ] Zero stale Created containers
-- [ ] Zero zombie processes
-- [ ] `fabrik vps-sync --verify` returns clean
-- [ ] `fabrik audit-registrars` returns zero drift
-- [ ] VPS inventory doc matches live state (`generate_vps_inventory.py --update`)
+```bash
+# B1. Find services without memory limits
+ssh <target> 'sudo docker ps --format "{{.Names}}" | while read n; do l=$(sudo docker inspect --format="{{.HostConfig.Memory}}" "$n"); [ "$l" = "0" ] && echo "NO LIMIT: $n"; done'
 
-### G. Monitoring Stack Optimization
+# B2. For each NO-LIMIT service, edit its compose to add the limit
+# Example for /opt/<svc>/compose.yaml:
+#   services:
+#     <svc>:
+#       deploy:
+#         resources:
+#           limits:
+#             memory: 512M
+#             cpus: "0.5"
 
-Evaluate whether the current monitoring stack is right-sized:
+# B3. Apply
+ssh <target> 'cd /opt/<svc> && sudo docker compose up -d'
 
-| Component | Current CPU | Current RAM | Question |
-|-----------|-----------|-----------|---------|
-| Netdata | ~10-16% | 382 MiB | Do we need Netdata AND Prometheus+cAdvisor+node-exporter? They overlap on host + container metrics. |
-| cAdvisor | ~1% | 28 MiB | Needed — feeds container metrics to Prometheus. Keep. |
-| Prometheus | ~0.6% | 120 MiB | Core metrics store. Keep. Verify retention (30d/5GB). |
-| Grafana | ~0.9% | 93 MiB | Core dashboards. Keep. |
-| Loki | ~0.5% | 81 MiB | Core log store. Keep. Verify retention (7d). |
-| Promtail | ~1% | 40 MiB | Log shipper. Keep. |
-| node-exporter | ~0.1% | 10 MiB | Host metrics. Keep. |
-| postgres-exporter | ~0.1% | 17 MiB | DB metrics. Keep. |
-| redis-exporter | ~0.1% | 17 MiB | Cache metrics. Keep. |
-| Pushgateway | ~0% | 8 MiB | Drift alert push target. Keep. |
+# B4. Verify
+ssh <target> 'sudo docker inspect --format="{{.HostConfig.Memory}}" <svc>'
+```
 
-**Decision point:** Remove Netdata (saves ~10% CPU, 380 MiB) OR reduce its collection frequency from 1s to 5s and disable `apps.plugin`. Prometheus+cAdvisor+node-exporter cover all the same ground.
+### C. W15 spoke Traefik labels (CRITICAL if missing on a spoke)
 
-## Execution Phases
+```bash
+# C1. Verify
+ssh vps2 'sudo docker inspect traefik --format "{{range \$k,\$v := .Config.Labels}}{{\$k}}={{\$v}}{{println}}{{end}}" | grep -E "traefik\.enable|gzip\.compress"'
 
-### Phase 1: Non-Intrusive (safe now, zero downtime)
+# C2. If missing, fix by editing /opt/traefik/compose.yaml (the spoke's Traefik compose):
+# Add to the traefik service:
+#   labels:
+#     - "traefik.enable=true"
+#     - "traefik.http.middlewares.gzip.compress=true"
 
-Commands that tune the host, clean residue, and cap resources without restarting anything.
+# C3. Apply
+ssh vps2 'cd /opt/traefik && sudo cp compose.yaml compose.yaml.backup.$(date +%Y%m%d-%H%M%S) && sudo docker compose up -d'
 
-### Phase 2: Container Restarts (one-at-a-time, <30s per container)
+# C4. Verify by deploying a canary spec or re-running 02-container-health on vps2
+```
 
-Set memory limits, remove Netdata or reconfigure, restart containers that need config changes.
+### D. Backrest failure-notification hook (currently unconfigured on all 3 hosts)
 
-### Phase 3: Structural Changes (planned maintenance window)
+```bash
+# Verified live 2026-06-02: no apprise hook configured in /opt/backrest/config/config.json
+# on any of vps1/vps2/vps3. Backup-failure Telegram alerts are silently lost.
+# If a hook IS later configured pointing at the Coolify-era UUID-suffix
+# `apprise-lcocgs4gs8ksg4g08w40ows8`, also fix it to the stable `apprise` name.
 
-Backup plan changes, alert rule additions, Gatus endpoint additions, monitoring stack reorganization.
+# Step 1: backup the config
+ssh <target> bash <<'EOF'
+sudo cp /opt/backrest/config/config.json \
+        /opt/backrest/config/config.json.backup.$(date +%Y%m%d-%H%M%S)
+EOF
 
-## Output Format
+# Step 2: add hooks to each plan via the Backrest UI (auth-disabled on spokes;
+# vps1 has auth — use the UI at https://backup.vps1.ocoron.com).
+# Each plan's hooks block should look like:
+#   "hooks": [
+#     {
+#       "conditions": ["CONDITION_ANY_ERROR"],
+#       "actionWebhook": {
+#         "url": "http://apprise:8000/notify/alerts",
+#         "method": "POST",
+#         "body": "{\"title\":\"Backrest [{{.Plan.Id}}] failed\",\"body\":\"{{.Error}}\"}"
+#       }
+#     }
+#   ]
 
-For each finding from the audit reports:
+# Step 3: if config.json was edited directly, restart backrest:
+ssh <target> 'sudo docker restart backrest'
 
-1. **Finding** — what was reported
-2. **Category** — security / performance / reliability / hygiene
-3. **Blast radius** — host / container / cosmetic
-4. **Phase** — 1 / 2 / 3
-5. **Command** — exact command(s) to execute
-6. **Verification** — how to confirm the fix worked
-7. **Rollback** — how to undo if something breaks
+# Step 4: verify the hook fires by manually triggering a failure (e.g. point
+# a plan at a non-existent path with --dry-run=false) — check that an
+# Apprise notification arrives in Telegram.
 
-End with a **completion checklist** — every item from sections A-G above, marked done/not-done with evidence.
+# If you find a stale Coolify-era UUID-suffix instead of `apprise`:
+ssh <target> "sudo sed -i 's|apprise-lcocgs4gs8ksg4g08w40ows8|apprise|g' /opt/backrest/config/config.json && sudo docker restart backrest"
+```
+
+### E. Promtail noise filter for tenant containers
+
+If a tenant container floods Loki with noisy logs (e.g. nightly backup container looping), add a `drop` stage to that host's `promtail.yaml`:
+
+```yaml
+# /opt/monitoring-agent/promtail.yaml (spoke) or
+# /opt/monitoring/configs/promtail/promtail-config.yaml (hub — note `-config` suffix)
+scrape_configs:
+  - job_name: containers
+    pipeline_stages:
+      - drop:
+          source: container_name
+          expression: "^<noisy-container-name>$"
+```
+
+```bash
+ssh vps  'sudo nano /opt/monitoring/configs/promtail/promtail-config.yaml'   # hub
+ssh vps2 'sudo nano /opt/monitoring-agent/promtail.yaml'                     # spoke
+ssh <target> 'sudo docker restart promtail'
+```
+
+### F. site-provisioner DNS step (W16-DNS) — verify creates records
+
+If a new spoke comes online and the operator did not run `bootstrap-vps.sh step_13`, ensure DNS A records exist:
+
+```bash
+# Probes
+dig +short vpsN.ocoron.com @1.1.1.1
+dig +short '*.vpsN.ocoron.com' @1.1.1.1   # any random subdomain to test wildcard
+
+# If missing, ensure via site-provisioner (idempotent; call from vps1):
+ssh vps 'API=$(sudo grep "^API_KEY=" /opt/site-provisioner/.env | cut -d= -f2- | tr -d "\""); for sd in vpsN "*.vpsN"; do
+  curl -fsS -X POST -H "X-API-Key: $API" -H "Content-Type: application/json" \
+    -d "{\"subdomain\":\"$sd\",\"ip\":\"<public-ipv4>\",\"proxied\":false}" \
+    https://provision.vps1.ocoron.com/api/cloudflare/dns/ocoron.com/subdomain
+done'
+```
+
+### G. Authelia rule for a new admin dashboard
+
+```bash
+ssh vps bash <<'EOF'
+sudo cp /opt/authelia/config/configuration.yml \
+        /opt/authelia/config/configuration.yml.backup.$(date +%Y%m%d-%H%M%S)
+# Edit to add a new rule under access_control.rules, then:
+sudo docker restart authelia   # do NOT SIGHUP — Authelia exits; restart is required
+EOF
+```
+
+### H. /data/coolify cleanup (hub only)
+
+```bash
+# Defer until next DR drill confirms no in-use dependency.
+# When ready (irreversible — review du -sh first):
+ssh vps 'sudo du -sh /data/coolify; sudo ls /data/coolify/'
+# If genuinely safe:
+ssh vps 'sudo rm -rf /data/coolify'
+```
+
+---
+
+## Verification after each category
+
+Run the relevant audit (01-06) again to confirm:
+
+- A → 03-security-hardening
+- B → 02-container-health
+- C → 02-container-health on the spoke
+- D → 06-backup-disaster-recovery
+- E → 05-observability-pipeline
+- F → bootstrap-vps.sh --verify shows the DNS row green
+- G → 03-security-hardening (auth section)
+- H → 01-full-system-audit (disk section)
+
+---
+
+## Output format
+
+```markdown
+## Hardening Run — <hostN> — <UTC date>
+
+**Trigger:** audit XX (date)
+**Categories applied:** A | B | C | D | E | F | G | H
+
+### What changed
+1. [category] <description>
+   - Before: <state>
+   - Command: <one-line>
+   - After: <state>
+   - Backup created: <path>
+
+### Findings closed (with audit cross-ref)
+- ...
+
+### Carry-over to next session
+- ...
+```

@@ -1,12 +1,6 @@
 # Fabrik External Systems & APIs
 
-> **⚠️ Pre-migration vintage on the Coolify section.** Coolify was removed
-> from the VPS in 2026-05; `COOLIFY_API_TOKEN` is no longer used by the
-> active deploy path. `drivers/coolify.py` remains as legacy only for a
-> handful of unported CLI commands. All other external systems
-> (Cloudflare, Backblaze B2, Namecheap, Anthropic API, etc.) are unchanged.
-
-**Last Updated:** 2026-03-15
+**Last Updated:** 2026-06-02 (Coolify section removed; deploy mechanism is now SSH+Compose via `fabrik apply`)
 
 This document catalogs all external systems, APIs, and services that Fabrik integrates with, along with their API documentation links, authentication methods, and usage patterns.
 
@@ -31,38 +25,26 @@ This document catalogs all external systems, APIs, and services that Fabrik inte
 
 ## Infrastructure & Deployment
 
-### Coolify
+### SSH + Docker Compose (active deploy mechanism since 2026-05-30)
 
-**Purpose:** Application deployment platform (PaaS)
+**Purpose:** Fabrik's active deploy mechanism — replaces Coolify (removed 2026-05-30).
 
-**API Documentation:**
-- Official Docs: https://coolify.io/docs
-- API Reference: https://coolify.io/docs/api-reference
-- GitHub: https://github.com/coollabsio/coolify
+**How it works:**
+- `fabrik apply specs/services/<id>.yaml` SSHes to the target VPS (`vps1`/`vps2`/`vps3`) and runs `docker compose up -d`
+- Per-spec `target_vps` field routes to the right host (default `vps1`)
+- All containers have stable `container_name:` (Lesson 22) so `docker exec` / `docker inspect` targeting is deterministic
 
-**Authentication:**
-- Type: Bearer Token
-- Env Var: `COOLIFY_API_TOKEN`
-- Generate at: Coolify UI → Settings → Keys & Tokens → API tokens
+**Code:**
+- Driver: [`src/fabrik/orchestrator/deployer_ssh.py`](../src/fabrik/orchestrator/deployer_ssh.py)
+- Bootstrap a fresh spoke: [`scripts/bootstrap/bootstrap-vps.sh`](../scripts/bootstrap/bootstrap-vps.sh) (14 idempotent steps)
 
-**Key Endpoints:**
-- Base URL: `http://<vps-ip>:8000/api/v1`
-- List Applications: `GET /applications`
-- Get Application: `GET /applications/{uuid}`
-- Deploy Application: `POST /applications/{uuid}/deploy`
-- List Servers: `GET /servers`
-- Get Server: `GET /servers/{uuid}`
+**No external API; no rate limits.**
 
-**Usage in Fabrik:**
-- Driver: `/opt/fabrik/src/fabrik/drivers/coolify.py`
-- Functions: Deploy applications, list services, check status
-
-**Rate Limits:** None documented (self-hosted)
-
-**Notes:**
-- Self-hosted on VPS
-- Requires API token with appropriate permissions
-- Supports Docker container deployments
+<!-- Coolify "external system" entry removed 2026-06-02 (coolify-residue-cleanup plan).
+     `drivers/coolify.py` remains as archived legacy for the few CLI commands
+     (`fabrik status`, `fabrik logs`, `fabrik reconcile-all`) that haven't been
+     ported off the legacy API client; they are non-functional since the
+     Coolify removal but the modules are intentionally retained. -->
 
 ---
 

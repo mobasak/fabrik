@@ -267,3 +267,254 @@ def test_post_merge_resolves_full_registrar_set(tmp_fabrik_root: Path) -> None:
         f"expected python-api shape-less spec to resolve to "
         f"{{gatus, glitchtip, grafana, prometheus}}; got {runs}"
     )
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# WatchdogConfig — T-P2 artifact 1
+#
+# Pins the contract from
+# `docs/development/plans/2026-05-30-ai-watchdog-platform-P2-subplan.md` § 1
+# so future refactors can't silently drift the defaults or weaken the
+# at-least-one-cap validator (the defense against accidentally-uncapped
+# projects). The validator is the only behavior in this artifact — every
+# other field is a typed default; tests assert exact defaults so a typo
+# in a future PR surfaces here, not in production cost-budget enforcement.
+# ──────────────────────────────────────────────────────────────────────────
+
+
+class TestWatchdogConfig:
+    """T-P2 artifact 1 contract — WatchdogConfig + Spec.watchdog field."""
+
+    def test_default_values_match_subplan(self) -> None:
+        """All 10 field defaults match the P2 sub-plan § 1 verbatim."""
+        from fabrik.spec_loader import WatchdogConfig
+
+        w = WatchdogConfig()
+        assert w.enabled is False
+        assert w.daily_budget_usd == 1.0
+        assert w.daily_invocations_cap == 200
+        assert w.auto_tier_b is False
+        assert w.escalation_channel == "apprise"
+        assert w.llm_provider_primary == "claude-code"
+        assert w.llm_provider_fallback == "openrouter"
+        assert w.cheap_model == "haiku"
+        assert w.expensive_model == "sonnet"
+        assert w.per_incident_budget_usd == 0.50
+
+    def test_extra_keys_forbidden(self) -> None:
+        """``model_config = {"extra": "forbid"}`` — typos in spec YAML fail loud."""
+        from pydantic import ValidationError
+
+        from fabrik.spec_loader import WatchdogConfig
+
+        with pytest.raises(ValidationError):
+            WatchdogConfig(unknown_field="foo")  # type: ignore[call-arg]
+
+    def test_literal_rejects_unknown_provider(self) -> None:
+        """``llm_provider_primary`` is ``Literal["claude-code","openrouter"]``."""
+        from pydantic import ValidationError
+
+        from fabrik.spec_loader import WatchdogConfig
+
+        with pytest.raises(ValidationError):
+            WatchdogConfig(llm_provider_primary="gpt-4")  # type: ignore[arg-type]
+
+    def test_caps_validator_blocks_uncapped_enabled(self) -> None:
+        """When ``enabled=True``, at least one cap must be > 0.
+
+        Defense against accidentally-uncapped projects — without this
+        check, a typo or copy-paste error could land a watchdog with
+        zero budget enforcement.
+        """
+        from pydantic import ValidationError
+
+        from fabrik.spec_loader import WatchdogConfig
+
+        with pytest.raises(ValidationError, match="requires at least one of"):
+            WatchdogConfig(enabled=True, daily_budget_usd=0.0, daily_invocations_cap=0)
+
+    def test_caps_validator_passes_with_usd_cap_only(self) -> None:
+        """USD cap > 0 alone satisfies the at-least-one-cap rule."""
+        from fabrik.spec_loader import WatchdogConfig
+
+        w = WatchdogConfig(enabled=True, daily_budget_usd=1.0, daily_invocations_cap=0)
+        assert w.enabled is True
+
+    def test_caps_validator_passes_with_count_cap_only(self) -> None:
+        """Invocation cap > 0 alone satisfies the at-least-one-cap rule."""
+        from fabrik.spec_loader import WatchdogConfig
+
+        w = WatchdogConfig(enabled=True, daily_budget_usd=0.0, daily_invocations_cap=50)
+        assert w.enabled is True
+
+    def test_caps_validator_skipped_when_disabled(self) -> None:
+        """``enabled=False`` skips the cap check — disabled watchdogs cost nothing."""
+        from fabrik.spec_loader import WatchdogConfig
+
+        w = WatchdogConfig(enabled=False, daily_budget_usd=0.0, daily_invocations_cap=0)
+        assert w.enabled is False
+
+    def test_negative_budget_rejected(self) -> None:
+        """``ge=0.0`` on USD fields — negative budgets are nonsense."""
+        from pydantic import ValidationError
+
+        from fabrik.spec_loader import WatchdogConfig
+
+        with pytest.raises(ValidationError):
+            WatchdogConfig(daily_budget_usd=-1.0)
+        with pytest.raises(ValidationError):
+            WatchdogConfig(per_incident_budget_usd=-0.5)
+        with pytest.raises(ValidationError):
+            WatchdogConfig(daily_invocations_cap=-1)
+
+    def test_spec_accepts_watchdog_block_from_yaml(self) -> None:
+        """A spec YAML with a ``watchdog:`` block loads into ``Spec.watchdog``."""
+        import yaml
+
+        from fabrik.spec_loader import Spec
+
+        yaml_doc = """
+        id: testsvc
+        template: python-api
+        domain: test.vps1.ocoron.com
+        watchdog:
+          enabled: true
+          daily_budget_usd: 2.5
+          per_incident_budget_usd: 0.25
+          auto_tier_b: true
+        """
+        spec = Spec.model_validate(yaml.safe_load(yaml_doc))
+        assert spec.watchdog.enabled is True
+        assert spec.watchdog.daily_budget_usd == 2.5
+        assert spec.watchdog.per_incident_budget_usd == 0.25
+        assert spec.watchdog.auto_tier_b is True
+        # Unset fields stay at their defaults
+        assert spec.watchdog.llm_provider_primary == "claude-code"
+
+    def test_spec_default_watchdog_when_absent(self) -> None:
+        """A spec without a ``watchdog:`` block gets the default (disabled) config."""
+        import yaml
+
+        from fabrik.spec_loader import Spec
+
+        yaml_doc = """
+        id: bare
+        template: python-api
+        domain: bare.vps1.ocoron.com
+        """
+        spec = Spec.model_validate(yaml.safe_load(yaml_doc))
+        assert spec.watchdog.enabled is False
+        assert spec.watchdog.daily_budget_usd == 1.0
+
+    def test_spec_model_dump_roundtrip(self) -> None:
+        """``Spec.model_dump`` → ``Spec.model_validate`` round-trip is stable."""
+        import yaml
+
+        from fabrik.spec_loader import Spec
+
+        yaml_doc = """
+        id: round
+        template: python-api
+        domain: round.vps1.ocoron.com
+        watchdog:
+          enabled: true
+          daily_budget_usd: 3.0
+        """
+        spec = Spec.model_validate(yaml.safe_load(yaml_doc))
+        dumped = spec.model_dump(exclude_none=True)
+        # The dumped dict has all 13 watchdog keys (10 original + 3 added in
+        # the artifact 1 amendment) even though only 2 were specified — same
+        # pattern as every other defaulted sub-model (expose, source, etc.).
+        assert "watchdog" in dumped
+        assert dumped["watchdog"]["enabled"] is True
+        assert dumped["watchdog"]["daily_budget_usd"] == 3.0
+        assert dumped["watchdog"]["llm_provider_primary"] == "claude-code"  # default
+        roundtrip = Spec.model_validate(dumped)
+        assert roundtrip.watchdog == spec.watchdog
+
+    # ──────────────────────────────────────────────────────────────────────
+    # Artifact 1 amendment — v1 capability fields (locked 2026-06-02 during
+    # artifact 2 review). Pins defaults + ranges so future refactors can't
+    # silently weaken bleed-stop timing, accidentally enable PR-pushing on
+    # uncoordinated projects, or disable doc lookups by default.
+    # ──────────────────────────────────────────────────────────────────────
+
+    def test_deadman_timeout_default_and_range(self) -> None:
+        """Deadman timer: 300s default; 60s floor; 3600s ceiling.
+
+        - 60s floor avoids alert storms (a re-alert every 60s for the same
+          unresponded incident is the practical lower bound).
+        - 3600s ceiling enforces "operator workflow sanity" — beyond 1 h the
+          bleed-stop semantics stop being credible as a deadman.
+        - 300s default = "5 minutes to acknowledge before we restart it for
+          you" — the documented v1 trade-off between bleed limits and
+          operator response latency.
+        """
+        from pydantic import ValidationError
+
+        from fabrik.spec_loader import WatchdogConfig
+
+        assert WatchdogConfig().deadman_timeout_seconds == 300
+        # Floor: 59 rejected, 60 accepted
+        with pytest.raises(ValidationError):
+            WatchdogConfig(deadman_timeout_seconds=59)
+        assert WatchdogConfig(deadman_timeout_seconds=60).deadman_timeout_seconds == 60
+        # Ceiling: 3600 accepted, 3601 rejected
+        assert WatchdogConfig(deadman_timeout_seconds=3600).deadman_timeout_seconds == 3600
+        with pytest.raises(ValidationError):
+            WatchdogConfig(deadman_timeout_seconds=3601)
+
+    def test_external_docs_enabled_default_true(self) -> None:
+        """External doc lookups (WebSearch + WebFetch) default ON.
+
+        Doc lookups are the watchdog's most cost-effective diagnosis aid
+        (an error-code lookup avoids many speculation calls), so the v1
+        ship default is ON. The flag is the runtime gate; the
+        claude-settings.json.template already declares the tools allowed
+        and the 29-domain allow-list at the sandbox layer.
+        """
+        from fabrik.spec_loader import WatchdogConfig
+
+        assert WatchdogConfig().external_docs_enabled is True
+        assert WatchdogConfig(external_docs_enabled=False).external_docs_enabled is False
+
+    def test_propose_fix_prs_default_false(self) -> None:
+        """PR-proposal capability defaults OFF — opt-in per project.
+
+        The sidecar can push to `watchdog/<incident_id>` branches when this
+        is True. REQUIRES a pre-configured per-project git deploy key with
+        a CODEOWNERS-enforced ruleset restricting Write to `watchdog/*`
+        refs only. Off by default means a fresh `fabrik apply` cannot
+        accidentally start pushing PRs on a repo that hasn't been wired
+        for it. The deploy-key setup is operator work, not derivable from
+        the spec, so the safe default is False.
+        """
+        from fabrik.spec_loader import WatchdogConfig
+
+        assert WatchdogConfig().propose_fix_prs is False
+        assert WatchdogConfig(propose_fix_prs=True).propose_fix_prs is True
+
+    def test_amendment_fields_roundtrip_through_spec_yaml(self) -> None:
+        """A spec YAML can set the 3 amendment fields and survive roundtrip."""
+        import yaml
+
+        from fabrik.spec_loader import Spec
+
+        yaml_doc = """
+        id: amend
+        template: python-api
+        domain: amend.vps1.ocoron.com
+        watchdog:
+          enabled: true
+          daily_budget_usd: 1.5
+          deadman_timeout_seconds: 120
+          external_docs_enabled: false
+          propose_fix_prs: true
+        """
+        spec = Spec.model_validate(yaml.safe_load(yaml_doc))
+        assert spec.watchdog.deadman_timeout_seconds == 120
+        assert spec.watchdog.external_docs_enabled is False
+        assert spec.watchdog.propose_fix_prs is True
+        # Roundtrip is stable
+        roundtrip = Spec.model_validate(spec.model_dump(exclude_none=True))
+        assert roundtrip.watchdog == spec.watchdog

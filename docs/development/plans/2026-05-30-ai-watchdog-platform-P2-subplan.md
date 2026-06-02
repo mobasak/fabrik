@@ -3,10 +3,10 @@
 **Date:** 2026-05-30
 **Phase:** P2 of the AI Watchdog Platform plan (15–18-day build)
 **Parent plan:** [2026-05-30-ai-watchdog-platform.md](2026-05-30-ai-watchdog-platform.md)
-**P1 status:** Shipped (commits `fd32c3e` + `929dbf2` + `e7a64f5` in `/opt/fabrik`, `a2ecf4b` + `c9b6203` in `/opt/fabrik-lib`)
+**P1 status:** Shipped (commits `fd32c3e` + `929dbf2` + `e7a64f5` in `/opt/fabrik`, `a2ecf4b` + `c9b6203` in `/opt/fabrik-lib`). P1 subplan archived 2026-06-02 to [`archived/2026-05-30-ai-watchdog-platform-P1-subplan.md`](archived/2026-05-30-ai-watchdog-platform-P1-subplan.md).
 **Prompt that produced this:** [2026-05-30-ai-watchdog-platform-prompts.md § P2.A](2026-05-30-ai-watchdog-platform-prompts.md)
-**Status:** Approved — architecture locked 2026-05-30. **Code execution gated on completion of the VPS Remediation plan** ([2026-05-30-vps-remediation.md](2026-05-30-vps-remediation.md)) — Coolify-residue cleanup must land before WatchdogConfig is added to spec_loader.py so the new field doesn't sit next to the stale `coolify:` block.
-**Effort:** 6–8 days (per parent plan), runs after VPS remediation completes.
+**Status:** ✅ Architecture approved 2026-05-30. **Gate cleared 2026-06-02** — `CoolifyConfig` already removed from `spec_loader.py` (verified by live grep); WatchdogConfig can be added cleanly without sitting next to a stale `coolify:` block. The VPS Remediation plan (archived 2026-06-02 to [`archived/2026-05-30-vps-remediation.md`](archived/2026-05-30-vps-remediation.md)) was closed with 8 of 10 workstreams shipped. Ready to execute the P2.B code prompts artifact-by-artifact.
+**Effort:** 6–8 days (per parent plan).
 
 ---
 
@@ -705,7 +705,36 @@ esac
 
 ### 4.6 `claude-settings.json.template`
 
-Exactly the shape from plan v2 § Locked decisions (§ Claude Code permission boundaries → "Concrete `claude-settings.json` shape"). Driver fills `<project_id>` and `<main_container>` at apply time. Schema verified against `claude --help --settings` shape (the file is a JSON dict at top level; Claude Code's documented `permissions` / `autoMode` / `sandbox` keys are honored).
+Started from plan v2 § Locked decisions (§ Claude Code permission boundaries → "Concrete `claude-settings.json` shape"). Driver fills `<project_id>`, `<main_container>`, and **`<project_prefix>`** at apply time (the third placeholder added by the v1 capability expansion below). Schema verified against `claude --help --settings` shape (the file is a JSON dict at top level; Claude Code's documented `permissions` / `autoMode` / `sandbox` keys are honored).
+
+**v1 capability expansion (decision-locked 2026-06-02 during artifact 2 review).** The parent plan's v2 settings shape was reviewed and **5 over-restrictions were corrected** plus **1 deadman-timer hint added**, all targeting v1 (no v2 deferral). Settings file went from 70 → 200 lines, 13 → 50 allow entries, 15 → 55 deny entries. Each capability is paired with explicit deny entries that preserve defense-in-depth.
+
+| # | Capability widened in v1 | Settings change | Defense-in-depth |
+| :--- | :--- | :--- | :--- |
+| 1 | **Multi-container project diagnosis** | New `<project_prefix>` placeholder; `docker logs/inspect/stats <project_prefix>*` allowed | Mutation stays surgical: `docker restart <project_prefix>*` and `docker exec <project_prefix>* *` explicit-denied. Only `<main_container>` can be restarted or exec'd into. |
+| 2 | **Runtime introspection via `docker exec`** | `docker exec <main_container>` allowed for `ps *`, `df *`, `cat /proc/*`, `head /proc/*`, `tail /proc/*` | `sh*`, `bash*`, `/bin/sh*`, `/bin/bash*`, `rm *` explicit-denied — no shell escape, no mutation. Hard-deny: "Never open an interactive shell inside any container." |
+| 3 | **Flexible `tail`/`head` flag patterns** | `tail * /opt/<id>/logs/*` and `head * /opt/<id>/logs/*` (any flags) | Path constraint preserved — only project logs. Streaming risk bounded by `WatchdogConfig.per_incident_budget_usd`. |
+| 4 | **Sidecar self-diagnostics** | `free *`, `df *`, `uptime`, `uname *` allowed | All read-only. |
+| 5 | **SQLite state.db queryability** | `sqlite3 -readonly /var/lib/watchdog/state.db *` allowed | Triple defense: (a) `-readonly` flag forces SQLite engine read-only; (b) belt-and-braces deny on `UPDATE/DELETE/DROP/CREATE/INSERT/PRAGMA/ATTACH` keywords; (c) `sandbox.denyWrite` blocks file-level writes to `state.db`. |
+| 6 | **Env-key visibility (NOT values)** | `printenv \| cut -d= -f1`, `env \| cut -d= -f1`, `compgen -e` allowed | Raw `printenv`, `env`, `printenv *`, `env *` all denied. `cat .env`, `cat .env.*`, `cat secrets/*`, `grep/head/tail` of `.env` denied. Hard-deny: "Never read or print environment variable VALUES — only KEY names." Defense against prompt-injection exfil where an attacker-controlled log line tricks Claude into echoing a secret. |
+| 7 | **External documentation lookups** | `WebSearch` and `WebFetch` allowed; `sandbox.network.allowedDomains` populated with 29 doc domains (python/django/fastapi/redis/postgres/aws/gcp/azure/MDN/stripe/github/stackoverflow/readthedocs/pypi/npmjs/k8s/nginx/traefik/docker/anthropic/openrouter/hashicorp) | Direct `curl http://*` / `curl http*://*` still denied — only Claude-Code-controlled WebFetch/WebSearch paths, and only to allowed domains. Hard-deny: "Never fetch from a domain not in sandbox.network.allowedDomains." |
+| 8 | **Tier B log-pipeline drop-rule install for detected leakage** | `autoMode.environment` declares the capability; actual rule install is in `actions.py` (artifact 6), not Bash-direct | Hard-deny: "Never edit Promtail/Loki/observability config directly — DETECT leakage and call the actions.py handler, which validates the pattern before applying." Settings file has no Bash allow for Promtail edits. |
+| 9 | **Code-fix PROPOSALS via PR workspace** | `Edit` and `Write` allowed (removed from deny); PR workspace at `/var/lib/watchdog/proposed/` added to `sandbox.allowWrite`; safe git subcommands (`status`/`diff`/`log`/`branch`/`add`/`commit -m`) allowed; `git checkout -b watchdog/* *`, `git push origin watchdog/* *`, `git push -u origin watchdog/* *` allowed for the watchdog-branch namespace only | Deny: pushes to `main`, `master`, `develop`, `staging`, `production`, `release/*`; force-push (`--force`, `-f`); branch deletion (`:*`, `--delete`); `git config`, `git remote`, `git rebase`, `git reset --hard`, `git reset *`, `git tag *`, `git checkout main *`, `git checkout master *`. Hard-deny: "Never edit source code in-place under /opt/`<id>`/src — use the PR workspace and push to watchdog/`<incident_id>`." Operator reviews and merges; watchdog never merges. |
+| 10 | **Deadman timer for unresponded Tier C** | `autoMode.environment` declares: "if a Tier C escalation goes unacknowledged for >300s, agent restarts `<main_container>` as bleed-stop and re-alerts". Actual timer logic is in `agent.py` (artifact 8), not in settings. | Bleed-stop is `docker restart <main_container>` which is already allowed. No new settings privilege required. |
+
+**Downstream artifact implications** (must land together for v1 — no v2):
+
+- **Artifact 4.1 — Dockerfile**: must install `git`, `sqlite3`, `curl`, `procps` (for `ps`/`free`), `coreutils` (for `head`/`tail`/`cut`), and the bash builtin `compgen` (default in bash). Also: mount a deploy SSH key at `/var/lib/watchdog/keys/git-deploy.key` (mode 600) for the watchdog-branch push, and set `GIT_SSH_COMMAND='ssh -i /var/lib/watchdog/keys/git-deploy.key -o StrictHostKeyChecking=no'`. The git deploy key is per-project, generated by the driver (artifact 13), and given GitHub repo-level "Write to watchdog/* refs only" permission via a CODEOWNERS-enforced ruleset (operator-configured per repo).
+- **Artifact 4.2 — `agent.py`**: gains a deadman timer for Tier C escalations (default 300s, sourced from `WatchdogConfig.deadman_timeout_seconds` — **needs adding to artifact 1; see § 1 amendment below**). On timeout: `docker restart <main_container>` + Apprise re-alert with `[DEADMAN-TIMEOUT]` prefix. Also: gains a `propose_fix(incident_id, files_to_edit, summary)` helper that bootstraps the PR workspace at `/var/lib/watchdog/proposed/<project_id>/`, clones the project repo, creates `watchdog/<incident_id>` branch, and returns a `Workspace` object the actions.py PR-create handler uses.
+- **Artifact 4.5 — `actions.py`**: gains 2 new Tier B/C action handlers — `install_log_drop_rule(pattern, severity)` (Tier B; opt-in via `auto_tier_b`; calls the Promtail config API, validates the regex, restarts Promtail) and `create_fix_pr(incident_id, summary, files_changed, body)` (Tier C; commits the staged changes in the PR workspace, pushes to watchdog/`<incident_id>`, posts the PR URL via Apprise).
+- **Artifact 4.7 — state schema**: gains a `proposed_prs` table tracking `(incident_id, branch_name, pushed_at, pr_url, merge_state)` so re-runs don't duplicate PRs for the same incident.
+- **Artifact 1 — `WatchdogConfig`**: needs 3 new fields (re-opening artifact 1 for an additive amendment — defaults preserve current behavior so existing tests pass):
+  - `deadman_timeout_seconds: int = Field(default=300, ge=60, le=3600, description="Tier C deadman timer; restart main container on unresponded alert.")`
+  - `external_docs_enabled: bool = Field(default=True, description="Enable WebSearch + WebFetch for documentation lookups. Settings always include them; this flag controls runtime use.")`
+  - `propose_fix_prs: bool = Field(default=False, description="Allow watchdog to push proposed-fix PRs to watchdog/<incident_id> branches. Requires git deploy key configured per project. Off by default — opt-in per project.")`
+  - 3 new persistent tests covering the defaults and ranges.
+
+**Implementation order amendment**: artifact 1 needs a same-file follow-up (the 3 new fields above) BEFORE artifact 12 (`_register_watchdog`) lands. Order becomes: 1 → 1' (amendment) → 2 (current) → 3 → 4 → ... .
 
 ### 4.7 State schema (SQLite at `/var/lib/watchdog/state.db`)
 

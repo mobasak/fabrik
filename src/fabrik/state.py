@@ -108,6 +108,7 @@ def save(
     domain: str = "",
     applied_at: str | None = None,
     git_sha: str | None = None,
+    target_vps: str = "vps1",
 ) -> Path:
     """Atomically write ``.fabrik/state/<spec_id>.json``.
 
@@ -157,6 +158,7 @@ def save(
         "registrars_applied": normalized,
         "spec_hash": spec_hash,
         "spec_path": spec_path,
+        "target_vps": target_vps,
     }
 
     STATE_DIR.mkdir(parents=True, exist_ok=True)

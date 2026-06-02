@@ -2,7 +2,7 @@
 
 **Date:** 2026-05-28
 **Status:** Design approved, pending implementation plan
-**Depends on:** SSH Deployer (Phase 11-1, `docs/development/plans/2026-05-28-ssh-deployer.md`) — implement SSH deployer first, then layer mobile changes on top. Cross-reference note added to SSH plan's "Cross-Reference" section.
+**Depends on:** SSH Deployer (Phase 11-1, `docs/development/plans/archived/2026-05-28-ssh-deployer.md`) — implement SSH deployer first, then layer mobile changes on top. Cross-reference note added to SSH plan's "Cross-Reference" section.
 **Canonical lifecycle doc:** `docs/reference/fabrik-lifecycle.md` (updated inline with each decision)
 
 ---

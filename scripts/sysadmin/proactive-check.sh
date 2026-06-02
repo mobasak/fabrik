@@ -113,8 +113,13 @@ prom_check 'rate(loki_distributor_lines_received_total[10m])==0' \
 fi  # PROM_REACHABLE
 
 # ── TLS certificate expiry check (no Prometheus needed) ──────────────────
+#
+# Stale subdomains removed 2026-06-01 W10: coolify.vps1 was deleted in
+# residue cleanup (2026-05-31 evening) — would always fail check + add noise.
+# Spoke apex + wildcard added; cert is issued on first tenant deploy (W4)
+# and timeout indicates "no cert yet" which is intentional pre-W4.
 
-DOMAINS="ocoron.com status.vps1.ocoron.com monitor.vps1.ocoron.com errors.vps1.ocoron.com coolify.vps1.ocoron.com"
+DOMAINS="ocoron.com status.vps1.ocoron.com monitor.vps1.ocoron.com errors.vps1.ocoron.com"
 for domain in $DOMAINS; do
   expiry=$(echo | timeout 5 openssl s_client -servername "$domain" -connect "$domain":443 2>/dev/null | openssl x509 -noout -enddate 2>/dev/null | cut -d= -f2)
   if [ -n "$expiry" ]; then
@@ -126,6 +131,119 @@ for domain in $DOMAINS; do
     fi
   fi
 done
+
+# ── W10: Backup health (restic snapshot age across all 3 hosts' Backrest stacks) ──
+#
+# Each host's Backrest writes to a distinct restic repo. Hub at bucket root,
+# spokes at /spokes/vpsN/ prefix. Stale = no snapshot for any plan in >36h.
+# All 3 hosts: each Backrest's snapshots --json --last 1 per plan.
+# Failure modes: Backrest container down → empty result; B2 unreachable →
+# timeout. Both are themselves anomalies the bot should know about.
+#
+# Hub-only check here to keep proactive-check.sh fast (15-min cron); spokes'
+# Backrest is monitored indirectly via the spoke-promtail-positions and via
+# Backrest health probes (future W10.b — Gatus). The hub repo failing is the
+# canonical "backups not happening" signal.
+
+if command -v docker >/dev/null 2>&1 && sudo docker ps --format '{{.Names}}' 2>/dev/null | grep -q '^backrest$'; then
+    BACKREST_PW_FILE=/opt/backrest/.restic-password
+    if [ -r "$BACKREST_PW_FILE" ] || sudo test -r "$BACKREST_PW_FILE"; then
+        RESTIC_PW=$(sudo cat "$BACKREST_PW_FILE" 2>/dev/null)
+    else
+        # Fallback: hub stores password in config.json (legacy)
+        RESTIC_PW=$(sudo python3 -c "import json; print(json.load(open('/opt/backrest/config/config.json'))['repos'][0]['password'])" 2>/dev/null)
+    fi
+    if [ -n "$RESTIC_PW" ]; then
+        # 36h = 129600s
+        STALE_THRESHOLD=$((36 * 3600))
+        NOW_EPOCH=$(date +%s)
+        for plan in postgres-dumps docker-volumes opt-configs host-state; do
+            LATEST=$(sudo docker exec -e RESTIC_PASSWORD="$RESTIC_PW" backrest /bin/restic \
+                -r s3:https://s3.us-west-004.backblazeb2.com/vps1-ocoron-backups \
+                snapshots --tag plan:${plan} --last --json 2>/dev/null \
+                | python3 -c "import json,sys
+d=json.load(sys.stdin)
+print(d[-1]['time'] if d else '')" 2>/dev/null)
+            if [ -z "$LATEST" ]; then
+                ANOMALIES+="backup_missing[hub:${plan}] "
+            else
+                LATEST_EPOCH=$(date -d "$LATEST" +%s 2>/dev/null || echo 0)
+                AGE=$((NOW_EPOCH - LATEST_EPOCH))
+                if [ "$AGE" -gt "$STALE_THRESHOLD" ]; then
+                    HOURS=$((AGE / 3600))
+                    ANOMALIES+="backup_stale[hub:${plan}:${HOURS}h] "
+                fi
+            fi
+        done
+    fi
+fi
+
+# ── W10: Mesh health (wg handshake age per peer) ──────────────────────────
+#
+# Only run on the hub (the only host that has multi-peer view). On spokes
+# this would only check the hub which is redundant. Hub age thresholds:
+#   - <5 min: healthy
+#   - 5-15 min: Tier B suspicion (was peer rebooting?)
+#   - >15 min: Tier C critical (mesh broken to that peer)
+
+if [ -e /etc/wireguard/wg0.conf ] && sudo wg show wg0 >/dev/null 2>&1; then
+    NOW_EPOCH=$(date +%s)
+    while read -r pubkey ts; do
+        [ -z "$pubkey" ] && continue
+        [ "$ts" = "0" ] && { ANOMALIES+="mesh_no_handshake[${pubkey:0:12}] "; continue; }
+        AGE=$((NOW_EPOCH - ts))
+        if   [ "$AGE" -gt 900 ];  then ANOMALIES+="mesh_broken[${pubkey:0:12}:$((AGE/60))m] "
+        elif [ "$AGE" -gt 300 ];  then ANOMALIES+="mesh_degraded[${pubkey:0:12}:$((AGE/60))m] "
+        fi
+    done < <(sudo wg show wg0 latest-handshakes 2>/dev/null)
+fi
+
+# ── W10: DR store staleness (GitHub API last-commit age) ─────────────────
+#
+# W9 mirrors /opt/fabrik/.env continuously via inotify; if commits stop landing
+# the dev WSL watcher is broken OR the dev WSL itself is down. Either is
+# operator-relevant. Token from .env (scope: repo:read on mobasak/fabrik-dr-store).
+# Threshold: >30d (env rarely changes; 30 days is "something is wrong").
+
+# Token lookup: vps1 doesn't carry /opt/fabrik/.env (canonical lives on dev WSL,
+# mirrored via W9). The sysadmin bot's own env file /opt/fabrik/.env.sysadmin
+# DOES exist on vps1 and is root-readable — the right place for the GH token
+# that drives this watcher. Check both for robustness.
+GH_TOKEN=""
+for env_file in /opt/fabrik/.env.sysadmin /opt/fabrik/.env; do
+    if sudo test -r "$env_file"; then
+        v=$(sudo grep -E '^(GITHUB_TOKEN|GH_TOKEN)=' "$env_file" 2>/dev/null | head -1 | cut -d= -f2- | tr -d '"')
+        [ -n "$v" ] && { GH_TOKEN="$v"; break; }
+    fi
+done
+
+if true; then
+    if [ -n "$GH_TOKEN" ]; then
+        LATEST=$(timeout 8 curl -sS -H "Authorization: Bearer ${GH_TOKEN}" \
+            "https://api.github.com/repos/mobasak/fabrik-dr-store/commits?per_page=1" 2>/dev/null \
+            | python3 -c "import json,sys
+d=json.load(sys.stdin)
+print(d[0]['commit']['committer']['date'] if isinstance(d, list) and d else '')" 2>/dev/null)
+        if [ -n "$LATEST" ]; then
+            LATEST_EPOCH=$(date -d "$LATEST" +%s 2>/dev/null || echo 0)
+            AGE=$(($(date +%s) - LATEST_EPOCH))
+            if [ "$AGE" -gt $((30 * 86400)) ]; then
+                ANOMALIES+="dr_store_stale[$((AGE / 86400))d] "
+            fi
+        fi
+        # If LATEST is empty (auth fail, rate limit, or repo gone) we silently
+        # skip — Tier C would be too noisy for transient API issues.
+    else
+        # Once-per-hour warning so the operator notices the watcher is dormant.
+        # Stamp file prevents flooding /var/log/sysadmin-proactive.log.
+        STAMP=/var/lib/sysadmin/.dr_store_dormant_warned
+        sudo mkdir -p "$(dirname "$STAMP")" 2>/dev/null || true
+        if [ ! -f "$STAMP" ] || [ "$(( $(date +%s) - $(stat -c %Y "$STAMP" 2>/dev/null || echo 0) ))" -gt 3600 ]; then
+            echo "$(date -Iseconds) WARN: dr_store watcher dormant — GITHUB_TOKEN (or GH_TOKEN) not set in /opt/fabrik/.env.sysadmin or /opt/fabrik/.env. Add a fine-grained token with 'Contents: Read' on mobasak/fabrik-dr-store to enable. Until then, dev-WSL watcher loss won't be auto-detected by the bot." >&2
+            sudo touch "$STAMP" 2>/dev/null || true
+        fi
+    fi
+fi
 
 # ── All clear? Exit silently. ─────────────────────────────────────────────
 

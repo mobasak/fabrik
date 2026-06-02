@@ -1,7 +1,12 @@
 # Credential Recovery
 
 **Created:** 2026-06-01 (W9 of fleet-hardening plan)
-**Purpose:** Recover `/opt/fabrik/.env` after dev WSL loss, file corruption, or any other event that wipes the working copy.
+**Last Updated:** 2026-06-01 (post-deep-review extension — `.env.sysadmin` added to mirror scope)
+**Purpose:** Recover credentials after dev WSL loss, file corruption, or any other event that wipes the working copy. Two credential files are mirrored:
+
+- `/opt/fabrik/.env` (~15 KB, dev-WSL canonical) — fleet credentials, encrypted-only-once master.
+- `vps1:/opt/fabrik/.env.sysadmin` (~100 B, vps1-only) — Telegram bot token + owner ID for the AI sysadmin. Added 2026-06-01 after a deep-review pass found the original W9 omitted it, leaving the sysadmin bot's recovery dependent on user memory + a fresh BotFather token reissue.
+
 **Companion to:** [`disaster-recovery.md`](disaster-recovery.md) — every DR path through that doc depends on `BACKREST_RESTIC_PASSWORD` being recoverable; this doc is how that works.
 
 ## What's at stake
@@ -19,30 +24,33 @@ The single key that **must** survive is `BACKREST_RESTIC_PASSWORD`. Everything e
 ## How the mirror works
 
 ```text
-┌──────────────────────────────────┐         ┌────────────────────────────────┐
-│ dev WSL                          │         │ GitHub (private)               │
-│                                  │  push   │                                │
-│ /opt/fabrik/.env  ─┐             │ ──────▶ │ mobasak/fabrik-dr-store       │
-│                    │             │         │   env/latest                   │
-│ fabrik-dr-watcher  │             │         │   env/fabrik-env-YYYYMM…Z      │
-│  (inotify, systemd)│             │         │     (last 60 retained)        │
-│                    │             │         │                                │
-│ scripts/           │             │         │                                │
-│  dr_env_backup.sh ─┘             │         │                                │
-│                                  │         │                                │
-│ cron:                            │         │                                │
-│  30 3 * * *  (daily safety net)  │         │                                │
-│  @reboot     (catch up on boot)  │         │                                │
-│  0 4 * * 0   (weekly recovery    │         │                                │
-│              self-test)          │         │                                │
-└──────────────────────────────────┘         └────────────────────────────────┘
+┌──────────────────────────────┐  push   ┌──────────────────────────────────────┐
+│ dev WSL                      │ ──────▶ │ GitHub (private)                     │
+│                              │         │   mobasak/fabrik-dr-store            │
+│  /opt/fabrik/.env  ─────┐    │         │     env/latest                       │
+│   (canonical, local)    │    │         │     env/fabrik-env-YYYYMM…Z          │
+│                         │    │         │       (last 60 retained)             │
+│  vps1:                  │    │         │                                      │
+│  /opt/fabrik/           │    │         │     env/sysadmin-latest              │
+│  .env.sysadmin   ┐ SSH  │    │         │     env/fabrik-env-sysadmin-YYYY…Z   │
+│   (vps1-only)    └─pull─┤    │         │       (last 60 retained)             │
+│                         ▼    │         │                                      │
+│  scripts/dr_env_backup.sh   ─┼────────▶│                                      │
+│                              │         │                                      │
+│  cron:                       │         └──────────────────────────────────────┘
+│   30 3 * * *  daily safety
+│   @reboot     boot catchup
+│   0 4 * * 0   weekly self-test
+└──────────────────────────────┘
 ```
 
-Three trigger paths:
+Three trigger paths for the **main `.env`**:
 
 1. **Inotify** (`fabrik-dr-watcher.service`) — fires on every `close_write` or `moved_to` event on `/opt/fabrik/.env`. Covers append-style edits (`echo >>`, `cat >`) and save-via-tempfile editors (vim, sed `-i`, VSCode). Sub-second latency.
 2. **Daily cron** (`30 3 * * *`) — safety net for any edit that somehow slipped past inotify (e.g., WSL was down when the change happened, then came back up without restarting the watcher).
 3. **`@reboot` cron** (`sleep 60 && ...`) — catches up after WSL boots if env changed while WSL was down. The 60-second sleep lets network come up.
+
+**`.env.sysadmin` (vps1-only) is mirrored on the cron paths only** — no inotify since the file does not exist on dev WSL. Latency is therefore up to ~24 h (daily 03:30 + `@reboot`). Acceptable because the sysadmin token changes <once per year (BotFather token rotation). The pull uses `ssh -o BatchMode=yes -o ConnectTimeout=8 vps 'sudo cat /opt/fabrik/.env.sysadmin'`; failure (vps1 briefly unreachable, NOPASSWD revoked, etc.) logs a warning and the main mirror still proceeds — the sysadmin file is **soft-required**, not blocking.
 
 Plus a weekly recovery self-test:
 
@@ -77,7 +85,28 @@ sudo chown ozgur:ozgur /opt/fabrik/.env
 sudo chmod 600 /opt/fabrik/.env
 ```
 
-That's the full recovery. The watcher + cron will resume from the next change.
+That's the full recovery for the main `.env`. The watcher + cron will resume from the next change.
+
+## Recovery — sysadmin bot creds (vps1 wipe or fresh rebuild)
+
+`env/sysadmin-latest` holds the Telegram bot token + owner ID. When standing up a fresh vps1 (after disk loss, full rebuild, or DR drill):
+
+```bash
+# Pull the sysadmin creds from the DR store (assumes you've already cloned it per above)
+sudo install -m 600 -o ozgur -g ozgur /opt/fabrik-dr-store/env/sysadmin-latest \
+  /tmp/.env.sysadmin.recovered
+
+# Push to the rebuilt vps1
+scp /tmp/.env.sysadmin.recovered vps:/tmp/.env.sysadmin.recovered
+ssh vps 'sudo install -m 600 -o root -g root /tmp/.env.sysadmin.recovered /opt/fabrik/.env.sysadmin \
+  && rm /tmp/.env.sysadmin.recovered \
+  && sudo systemctl restart vps-sysadmin-bot.service \
+  && sudo systemctl is-active vps-sysadmin-bot.service'
+
+rm /tmp/.env.sysadmin.recovered
+```
+
+Verify the bot is talking again by messaging it on Telegram, or check the heartbeat via `curl http://127.0.0.1:8017/health` on vps1.
 
 ## Recovery — lost GitHub access
 

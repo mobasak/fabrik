@@ -42,7 +42,7 @@ Fabrik is an **internal platform** enabling rapid deployment of revenue-generati
 |---------|-------------|-------|
 | Claude/OpenAI | Per token | Content generation |
 | Namecheap API | Free | DNS management |
-| Coolify | Free (self-hosted) | Deployment |
+| Fabrik CLI (SSH + Docker Compose) | Free (self-hosted) | Deployment |
 
 ## Break-Even Analysis
 
@@ -91,8 +91,8 @@ With ~$50/month infrastructure cost:
 ## Project Portfolio
 
 <!-- AUTO-GENERATED:PROJECTS:START -->
-<!-- Last synced: 2026-05-31 17:22:46 -->
-<!-- Total projects: 35 -->
+<!-- Last synced: 2026-06-02 18:30:31 -->
+<!-- Total projects: 36 -->
 
 ### Production Services (5 projects)
 
@@ -123,7 +123,7 @@ With ~$50/month infrastructure cost:
 | **triggered-content-orchestration** | Multi-platform content orchestration pipeline for automated content creation and distribution. | FastAPI | 🔨 Development | https://triggered-content-orchestration.vps1.ocoron.com | ✅ Current |
 | **wpf** | WordPress Factory — Python orchestrator (CLI now, FastAPI in Phase 3, Next.js wizard in Phase 4... | Python | 🔨 Development | - | ✅ Current |
 
-### Planning/Research (15 projects)
+### Planning/Research (16 projects)
 
 | Project | Purpose | Stack | Status | URL | Scaffold |
 |---------|---------|-------|--------|-----|----------|
@@ -134,6 +134,7 @@ With ~$50/month infrastructure cost:
 | **email-reader** | A Python service to read Gmail and Microsoft 365 emails, extracting verification codes or login... | Python | 🔨 Development | https://email-reader.vps1.ocoron.com | ✅ Current |
 | **emailgateway** | No description available | Unknown | 🔨 Development | - | ⚠️ No project.yaml |
 | **exam-coach** | AI-powered exam preparation and coaching assistant. | Python | 🔨 Development | https://exam-coach.vps1.ocoron.com | ✅ Current |
+| **fabrik-dr-store** | Plain mirror of `/opt/fabrik/.env` from the dev WSL machine. | Unknown | 🔨 Development | - | ⚠️ No project.yaml |
 | **gmailaccountcreator** | Automated Gmail account creation and management tool. | Python | 🔨 Development | - | ✅ Current |
 | **image-generation** | Complete product photography system with platform-specific requirements and DIY setup guidance. | Python | 🔨 Development | - | ✅ Current |
 | **iterative_image_editor** | AI-powered product photography tool for automated background removal and scene placement. | Python | 🔨 Development | https://iterative-image-editor.vps1.ocoron.com | ✅ Current |

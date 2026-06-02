@@ -2,7 +2,7 @@
 
 ## Context
 
-Coolify has been removed from the VPS (Phases 0-10, 13 of `docs/development/plans/2026-05-27-coolify-migration.md`). All 31 containers run on standalone Docker Compose. But `fabrik apply/deploy/redeploy/destroy` are broken — the deployer (`src/fabrik/orchestrator/deployer.py`) talks to Coolify API which no longer exists.
+Coolify has been removed from the VPS (Phases 0-10, 13 of `docs/development/plans/archived/2026-05-27-coolify-migration.md`). All 31 containers run on standalone Docker Compose. But `fabrik apply/deploy/redeploy/destroy` are broken — the deployer (`src/fabrik/orchestrator/deployer.py`) talks to Coolify API which no longer exists.
 
 This plan implements Phase 11-1: replace the Coolify deployer with an SSH+Docker Compose deployer. The registrar pipeline (postgres, gatus, authelia, glitchtip, backrest, meilisearch, prometheus, grafana, redis) stays intact — only the "how to get a container running" part changes.
 

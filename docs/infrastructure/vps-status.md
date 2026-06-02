@@ -1,7 +1,7 @@
 # VPS Fleet — Status Snapshot
 
-**Last Updated:** 2026-06-01 (post-W1 + post-W9 ship — UFW active on spokes; `/opt/fabrik/.env` mirrored to private GitHub via inotify+cron; Lesson 68 captured)
-**Snapshot taken:** 2026-05-31 ~14:48 UTC (live `ssh` against all three hosts)
+**Last Updated:** 2026-06-01 evening (W2 + W11 SHIPPED — fleet-wide symmetric DR: 3 Backrest stacks → B2, `bootstrap-hub.sh` + `bootstrap-spoke-restore.sh` end-to-end)
+**Snapshot taken:** 2026-06-01 19:02 UTC (live probe via `scripts/audit_infra_vs_docs.py` against all 3 hosts)
 **Hosts:** vps1 (LA, hub) · vps2 (Coventry UK, spoke) · vps3 (Coventry UK, spoke)
 **Deploy model:** SSH + Docker Compose (no Coolify — removed 2026-05-30)
 
@@ -13,9 +13,9 @@
 
 | Host | Role | Public IP | Mesh IP | RAM | Disk | Containers | Uptime |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| vps1 | Hub (LA) | 172.93.160.197 | 10.99.0.1 | 11.6 Gi (3.4 Gi used) | 108 GB (28 GB / 26 %) | 29 | 16 h 24 m |
-| vps2 | Spoke (Coventry UK) | 96.9.214.128 | 10.99.0.2 | 7.7 Gi (787 Mi used) | 58 GB (5.5 GB / 10 %) | 4 | 2 h 13 m |
-| vps3 | Spoke (Coventry UK) | 104.128.190.151 | 10.99.0.3 | 7.7 Gi (778 Mi used) | 58 GB (5.5 GB / 10 %) | 4 | 2 h 14 m |
+| vps1 | Hub (LA) | 172.93.160.197 | 10.99.0.1 | 11.6 Gi (3.8 Gi used) | 108 GB (28 GB / 26 %) | 29 | 1 d 21 h 41 m |
+| vps2 | Spoke (Coventry UK) | 96.9.214.128 | 10.99.0.2 | 7.7 Gi (867 Mi used) | 58 GB (5.8 GB / 11 %) | 5 | 1 d 7 h 30 m |
+| vps3 | Spoke (Coventry UK) | 104.128.190.151 | 10.99.0.3 | 7.7 Gi (855 Mi used) | 58 GB (5.8 GB / 11 %) | 5 | 1 d 7 h 31 m |
 
 | Health signal | State |
 | :--- | :--- |
@@ -27,9 +27,47 @@
 | Cloudflare API token in `/opt/fabrik/.env` | ✅ verified active (refreshed today) |
 | Authelia access-control rules | 10 (live in `/opt/authelia/config/configuration.yml`) |
 | site-provisioner | ⚠ running healthy on vps1, but **interim manual stand-up** — `fabrik apply` pipeline not yet ready |
-| Backrest plans | 🟡 **0 active plans by intent**; B2 bucket empty; restoring once data lands (W2 of fleet-hardening plan) |
-| Credential recovery (`/opt/fabrik/.env`) | ✅ **W9 shipped 2026-06-01.** Inotify + systemd watcher (`fabrik-dr-watcher.service`) pushes every change to private `mobasak/fabrik-dr-store` within seconds; daily safety-net cron + reboot catch-up + weekly self-test. See [`docs/operations/credential-recovery.md`](../operations/credential-recovery.md). |
-| Backups | 🟡 same as above |
+| Backrest — vps1 hub | ✅ **4 active plans** (`postgres-dumps` 02:00, `docker-volumes` 03:00, `opt-configs` 03:00, `host-state` 03:30). Restic repo `a256277c45`. First snapshots: 117 MiB on B2 (612 MiB raw, 5.23×). |
+| Backrest — vps2 spoke (W11) | ✅ **2 active plans** (`host-state` 02:00, `opt-configs` 02:30). Restic repo `56b40b8c84` at `vps1-ocoron-backups/spokes/vps2/`. First snapshots: 16.9 KiB on B2 (2.31×). Independent restic password mirrored via W9. |
+| Backrest — vps3 spoke (W11) | ✅ **2 active plans** (same schedule as vps2). Restic repo `350e752618` at `vps1-ocoron-backups/spokes/vps3/`. First snapshots: 16.5 KiB on B2 (2.33×). |
+| Hub disaster-recovery | ✅ **Scripted** via [`bootstrap-hub.sh`](../../scripts/bootstrap/bootstrap-hub.sh) — 18 idempotent steps, target wall-clock ≤ 90 min. **Drill pending.** Operator doc: [`vps-hub-rebuild.md`](vps-hub-rebuild.md). |
+| Spoke disaster-recovery | ✅ **Scripted** via [`bootstrap-spoke-restore.sh`](../../scripts/bootstrap/bootstrap-spoke-restore.sh) — 13 steps, ≤ 30 min target, **preserves Wireguard identity** (hub peer-table unchanged through outage). **Drill pending.** Operator doc: [`vps-spoke-rebuild.md`](vps-spoke-rebuild.md). |
+| Credential recovery (`/opt/fabrik/.env`) | ✅ **W9 shipped 2026-06-01.** Inotify + systemd watcher (`fabrik-dr-watcher.service`) pushes every change to private `mobasak/fabrik-dr-store` within seconds; daily safety-net cron + reboot catch-up + weekly self-test. **Sysadmin token added to scope** via SSH-pull (W9 extension, same day). See [`docs/operations/credential-recovery.md`](../operations/credential-recovery.md). |
+| Backups | ✅ same as Backrest plans row — first real backup chain since the 2026-05-31 wipe. |
+
+---
+
+## 2026-06-02 — first end-to-end spoke deploy (W14 + W15 SHIPPED)
+
+W14 fixed the deployer's env-routing so `inject_env` + compose rollback honor `ctx.target_vps`. W15 then defined the `gzip` Traefik middleware on each spoke (it had only ever existed on vps1, via a label on `meilisearch`). Together: the first-ever end-to-end spoke deploy succeeded.
+
+**Live evidence (2026-06-02):**
+
+- `fabrik apply specs/services/spoke-canary.yaml --target-vps vps2` → `✅ Deployment complete: https://canary.vps2.ocoron.com`.
+- `curl -sS canary.vps2.ocoron.com` → HTTP 200.
+- TLS chain: `Subject CN=canary.vps2.ocoron.com`, `Issuer=Let's Encrypt YR2`, `notAfter Aug 30 20:44:57 2026 GMT` — **first Let's Encrypt issuance on a spoke ever** (vps2's `/opt/traefik/acme.json` populated for the first time).
+- `fabrik destroy --target-vps vps2` cleaned the container + compose dir; CF DNS A record deleted directly via CF API (DNS deprovision tripped on a pre-existing site-provisioner SSH-proxy bug).
+- New `/opt/traefik/compose.yaml` on both spokes snapshotted into B2 via the host-state plan (count 4 → 5 per spoke).
+
+**Spoke Traefik labels block now** (live state on both vps2 + vps3, in `/opt/traefik/compose.yaml`):
+
+```yaml
+services:
+  traefik:
+    # ... existing config ...
+    container_name: traefik
+    labels:
+      - "traefik.enable=true"                                  # required because providers.docker.exposedByDefault=false
+      - "traefik.http.middlewares.gzip.compress=true"          # publishes gzip@docker for orchestrator-emitted routers
+    # ... rest unchanged ...
+```
+
+**W16 SHIPPED later the same day (2026-06-02), in two passes.**
+
+- **Pass 1 — Traefik:** `bootstrap-vps.sh` gained `step_12_install_spoke_traefik()` driving 3 new templates under `scripts/bootstrap/templates/traefik*.template`. The compose template carries this exact `labels:` block; the existing DNS step renumbered to step 13. New `FABRIK_LE_EMAIL` constant in `bootstrap-config.sh`. `--verify` mode gained a Traefik row. Idempotency verified live by re-running step 12 against vps2: `Container traefik Running` (no recreate), uptime preserved.
+- **Pass 2 — DNS:** `step_13_create_dns_records()` rewritten from stub to live caller. Probes the spoke's public IPv4 (`curl -4`), then SSHes to vps1 and POSTs `/api/cloudflare/dns/${FABRIK_DOMAIN_ROOT}/subdomain` twice (apex + wildcard). Idempotent via `ensure_record()` — re-runs return `action: unchanged`. The call goes via vps1 because (a) site-provisioner's IP allowlist includes vps1's public IP but not dev-WSL's, and (b) the production `API_KEY` stays on the VPS. `--verify` mode gained a DNS row that `dig`s the apex + a wildcard-probe FQDN against `1.1.1.1`. Live-verified against vps2 + vps3: all 4 calls returned `unchanged`.
+
+A fresh `./scripts/bootstrap/bootstrap-vps.sh root@<new-ip> vpsN` now produces a spoke ready for `fabrik apply --target-vps vpsN` end-to-end: monitoring agents, Traefik with the W15 labels, public DNS, no `--skip-dns`.
 
 ---
 
@@ -68,7 +106,7 @@
     - [`src/fabrik/spec_loader.py`](../../src/fabrik/spec_loader.py) — new optional `target_vps: str | None` field on `Spec` (regex `^vps[1-9][0-9]?$`)
     - [`src/fabrik/orchestrator/context.py`](../../src/fabrik/orchestrator/context.py) — new `target_vps: str = "vps1"` on `DeploymentContext`
     - [`src/fabrik/orchestrator/__init__.py`](../../src/fabrik/orchestrator/__init__.py) — `deploy()` accepts `target_vps` kwarg (CLI > spec > "vps1"); `_provision_dns` resolves IP via `VPS_IPS = {"vps1": "172.93.160.197", "vps2": "96.9.214.128", "vps3": "104.128.190.151"}`. `target_vps` wins over the legacy `VPS_IP` env var.
-    - [`src/fabrik/orchestrator/deployer_ssh.py`](../../src/fabrik/orchestrator/deployer_ssh.py) — `deploy()` env-swaps `FABRIK_VPS_SSH_HOST` around the deploy block when target_vps ≠ vps1, restoring on exit. All ~30 nested SSH calls inherit automatically.
+    - [`src/fabrik/orchestrator/deployer_ssh.py`](../../src/fabrik/orchestrator/deployer_ssh.py) — `_target_vps_env(ctx)` contextmanager env-swaps `FABRIK_VPS_SSH_HOST` when `target_vps != "vps1"`, restoring on exit. Applied around (1) `SSHDeployer.deploy()` (W-Multi M4 2026-05-31), (2) `SSHDeployer.inject_env()` so post-deploy DSN / Redis-URL writes on spoke apps land on the spoke (W14 2026-06-02), and (3) `RollbackManager._rollback_compose()` via `resource.metadata["target_vps"]` so a failed verify on a spoke tears the container down on the spoke (W14 2026-06-02). Hub-side registrars (gatus, postgres-main, authelia on vps1) run **outside** this scope on purpose and keep talking to vps1.
     - [`src/fabrik/cli.py`](../../src/fabrik/cli.py) — new `--target-vps [vps1|vps2|vps3]` option on `apply`, threaded into orchestrator.
     - [`tests/orchestrator/test_deployer_ssh.py`](../../tests/orchestrator/test_deployer_ssh.py) — 3 new tests for env-swap behavior; 3 fixes for pre-existing-test drift (rename + ssh-keyscan).
     - [`tests/orchestrator/test_integration.py`](../../tests/orchestrator/test_integration.py) — DNS test updated for new VPS_IPS map precedence.
@@ -84,15 +122,17 @@
 
 | Gap | Today's mitigation | What's still needed |
 | :--- | :--- | :--- |
-| Upstream `mobasak/site-provisioner@main` `compose.yaml` still references the legacy `coolify` Docker network | Hand-patched on the VPS only; commit also staged locally on the dev WSL at `/opt/site-provisioner/compose.yaml` | Push the staged commit to `main` — awaiting user authorization |
+| Upstream `mobasak/site-provisioner@main` `compose.yaml` `coolify` → `fabrik` network rename | **RESOLVED 2026-05-31 evening** (commit `fa32d61`, pushed to `main`). Verified live on vps1 2026-06-02: `compose.yaml` declares `networks: [fabrik]`, no `coolify` references. | none |
 | Spec was missing 3 secrets + 5 env literals | Updated, parses cleanly | One clean `fabrik apply` end-to-end after the push above to confirm |
 | Postgres user password not in fabrik state | Manually set + reflected in live `.env`; `DATABASE_URL` works | The postgres registrar will overwrite this cleanly on the next full `fabrik apply` cycle |
 
-**Do not** `fabrik redeploy site-provisioner` until the upstream `compose.yaml` push lands — the git pull would overwrite the on-VPS hand-patch back to `coolify` and `docker compose up` would fail with "network coolify not found". To restart the running instance safely today:
+**Safe restart** (does NOT exercise the pending end-to-end pipeline gate):
 
 ```bash
 ssh vps "cd /opt/site-provisioner && sudo docker compose up -d"
 ```
+
+A full `fabrik redeploy site-provisioner` would now `git pull` a `fabrik`-network compose cleanly (rename pushed 2026-05-31 evening), but the round-trip itself has not yet been exercised against state — gated on operator authorization since the postgres registrar would rotate the DB password.
 
 ---
 
@@ -119,7 +159,7 @@ cadvisor               healthy
 node-exporter          running
 pushgateway            healthy
 apprise                healthy
-backrest               running  (0 plans by design)
+backrest               running  (4 plans live: postgres-dumps + docker-volumes + opt-configs + host-state; first snapshot 2026-06-01, W2)
 n8n                    running
 gotenberg              running
 browserless            running
@@ -132,22 +172,24 @@ ocoron-com-redis-1     healthy    (WP tenant)
 ocoron-com-backup-1    running    (WP tenant — nightly mysqldump sidecar)
 ```
 
-### vps2 (4 running)
+### vps2 (5 running)
 
 ```text
 traefik                running  (public 80+443; authelia-vps1@file middleware ready)
 node-exporter          running  (10.99.0.2:9100)
 cadvisor               healthy  (10.99.0.2:8080)
 promtail               running  (10.99.0.2:9080 → pushes to 10.99.0.1:3100)
+backrest               running  (W11 — own restic repo at b2:vps1-ocoron-backups/spokes/vps2/; 2 plans: host-state + opt-configs)
 ```
 
-### vps3 (4 running)
+### vps3 (5 running)
 
 ```text
 traefik                running
 node-exporter          running  (10.99.0.3:9100)
 cadvisor               healthy  (10.99.0.3:8080)
 promtail               running  (10.99.0.3:9080)
+backrest               running  (W11 — own restic repo at b2:vps1-ocoron-backups/spokes/vps3/; 2 plans: host-state + opt-configs)
 ```
 
 ---
@@ -170,14 +212,15 @@ promtail               running  (10.99.0.3:9080)
 
 ### vps2 / vps3 (identical posture)
 
-**Last probe report:** [`probe-reports/infra-probe-2026-05-31T23-07Z.yaml`](probe-reports/infra-probe-2026-05-31T23-07Z.yaml)
+**Last probe report:** [`probe-reports/infra-probe-2026-06-01T22-50Z.yaml`](probe-reports/infra-probe-2026-06-01T22-50Z.yaml) (post-W14 sweep)
 
 | Layer | Status |
 | :--- | :--- |
 | SSH | ✅ matches vps1 (no root, no password, `ozgur` key only) — Lesson 65 takeaway |
 | UFW | ✅ installed (`dpkg ii`) + active; 8 ALLOW rules (22/80/443/51820 IPv4+IPv6); default policy `deny (incoming) / allow (outgoing) / deny (routed)` — shipped by W1 2026-05-31 evening; pre-W1 was `rc` state (Lesson 68) |
 | Mesh-only ports | ✅ `10.99.0.<N>:9100,8080,9080` listening on wg0 only; mesh-only port DROP verified via tcpdump (SYN arrives, no SYN-ACK) |
-| DOCKER-USER chain | ✅ applied by bootstrap step_10; unchanged by W1 |
+| Promtail gRPC | 🟡 binds `*:<random>` (`promtail.yaml: grpc_listen_port: 0`) — observed `*:38969` (vps2) / `*:44987` (vps3) at 2026-06-01T00-14Z probe. **UFW shields it** (default deny on 1–65535 except 22/80/443/51820), so not internet-reachable. Pin to a known port or `127.0.0.1` if a future audit needs determinism. |
+| DOCKER-USER chain | ✅ applied by bootstrap step_10; unchanged by W1 (probe: 2 rules each host) |
 | Traefik | ✅ public 80 + 443, `authelia-vps1@file` middleware in `dynamic/authelia.yml` |
 | Tenants | None yet (DNS ready) |
 
@@ -185,11 +228,11 @@ promtail               running  (10.99.0.3:9080)
 
 ## Observability snapshot
 
-### Prometheus — 18 / 18 targets up across 15 jobs
+### Prometheus — 18 / 18 targets up across 15 jobs (re-verified 2026-06-01T19:50Z post-W8)
 
 vps1-local (12 jobs / 12 targets — verified against `/api/v1/targets`): `alertmanager`, `authelia`, `cadvisor`, `gatus`, `grafana`, `loki`, `meilisearch`, `node`, `postgres`, `prometheus`, `pushgateway`, `redis`.
 
-Spokes (3 jobs / 6 targets): `node-spokes` (2), `cadvisor-spokes` (2), `promtail-spokes` (2).
+Spokes (3 jobs / 6 targets): `node-spokes` (2), `cadvisor-spokes` (2), `promtail-spokes` (2). **Note: spoke scrapes were silently 0/6 from 2026-05-31 evening (W1 UFW ship) until 2026-06-01 evening (W8 found + fixed) — added `ufw allow from 10.99.0.0/24` on each spoke + into `bootstrap-vps.sh` step_02.** Trust-the-mesh rule, single-operator threat model.
 
 Not scraped: `traefik` (no metrics scrape job — health observed via Gatus + Loki), `glitchtip-web` (django-prometheus not bundled). Every active series carries a `host` label (`vps1`, `vps2`, or `vps3`). Reload: `ssh vps "sudo docker kill -s HUP prometheus"`.
 
@@ -362,11 +405,138 @@ After the evening cleanup batch, the active list is short. The struck-through ro
 
 The full table lives in [`vps-complete-inventory.md` § Pending actions](vps-complete-inventory.md). Current top of stack after today's evening batch:
 
-1. **`fabrik destroy --target-vps` + `fabrik redeploy --target-vps`** — symmetry with `apply --target-vps` (W-Multi M4). Same env-swap pattern; ~5–10 min each.
-2. **First real spoke deploy** — tiny test spec with `target_vps: vps2` and `domain: <svc>.vps2.ocoron.com` to exercise spoke Traefik's Let's Encrypt issuance for the first time.
-3. **Backrest plan re-create** (when data lands worth backing up).
-4. **Authelia rules for spoke admin dashboards** (when one exists).
-5. **Spoke backups** (depends on #3 + actual tenant data).
+1. **T-P2 Watchdog Platform — 13 of 15 artifacts remaining.** Artifacts 1 (`WatchdogConfig` spec field, including the 3-field amendment locked during artifact 2 review: `deadman_timeout_seconds`, `external_docs_enabled`, `propose_fix_prs`) + 2 (`claude-settings.json.template` with the 10-capability v1 lock) both shipped 2026-06-02. Next: artifact 3 (`hooks/PreToolUse.sh`). Subplan + capability matrix: [`docs/development/plans/2026-05-30-ai-watchdog-platform-P2-subplan.md`](../development/plans/2026-05-30-ai-watchdog-platform-P2-subplan.md) § 4.6.
+2. **Authelia rules for spoke admin dashboards** (when one exists — registrar is already FQDN-pattern-agnostic per W13 verify).
+3. **Spoke tenant backups** (`docker-volumes-vpsN` + `postgres-dumps-vpsN` plans on spoke Backrest — gated on first actual tenant data landing).
+
+---
+
+## Verification log
+
+### Probe report — 2026-06-01T22-50Z (post-W14)
+
+Generated by `scripts/audit_infra_vs_docs.py`. Source YAML: [`probe-reports/infra-probe-2026-06-01T22-50Z.yaml`](probe-reports/infra-probe-2026-06-01T22-50Z.yaml). Captured after W14 shipped + spoke-canary live-verify on vps2 (deployed healthy, verifier 404 from W15 gap, rollback clean).
+
+| Probe | vps1 | vps2 | vps3 |
+| :--- | :--- | :--- | :--- |
+| container_count | 29 | 5 | 5 |
+| ufw_installed | ufw | ufw | ufw |
+| ufw_active | active | active | active |
+| ufw_rule_count_v4 | 5 | 4 | 4 |
+| fail2ban_active | active | active | active |
+| fail2ban_total_ban | 891 | 73 | 72 |
+| listening_public | `0.0.0.0:1194,:22,:443,:80` | `*:33245,0.0.0.0:22,:443,:80` | `*:37509,0.0.0.0:22,:443,:80` |
+| listening_mesh | `10.99.0.1:3100,:5432,:6379,:80,...` (truncated in YAML) | `10.99.0.2:8080,:9080,:9100` | `10.99.0.3:8080,:9080,:9100` |
+| docker_user_rules | 1 | 2 | 2 |
+| iptables_backend | iptables-nft | iptables-nft | iptables-nft |
+| wg_peers_alive | 2 | 1 | 1 |
+| kernel | 6.8.0-117-generic | 6.8.0-63-generic | 6.8.0-63-generic |
+| disk_root_pct | 27 | 11 | 11 |
+| ram_used_mb / total | 3936 / 11913 | 876 / 7894 | 851 / 7894 |
+| docker_network_fabrik | fabrik | fabrik | fabrik |
+
+Notable deltas since the 21-59Z probe earlier the same day:
+
+- vps2 + vps3 container counts rose 4 → 5 — `backrest` per spoke (W11 first verified live here).
+- vps1 dropped `:8017` from `listening_public` permanently — W5 remediation now durable across reboots.
+- fail2ban totals climbed (493 → 891 hub; 17 → 73 / 25 → 72 on spokes) — passive scanner background, no platform impact.
+
+### Probe report — 2026-06-01T00-14Z
+
+### External-exposure probe — 2026-06-01T00:43Z (W5)
+
+Run from off-mesh source `vps2` (Coventry UK) because the dev-WSL exit (Türk Telekom AS9121, IP `176.219.28.59`) returned **false-positive TCP "succeeded" reads on `:8017`** when the bind was already `127.0.0.1` only. Cross-checked against vps3: timeouts. **Lesson 72:** never trust TTNet for TCP-state probes — confirmed SYN-ACK middlebox on assorted ports. Use a clean-AS off-mesh node (vps2 / vps3 / GitHub Actions) for authoritative external probing.
+
+#### `:8017` (vps1 sysadmin-bot health) — remediated
+
+Pre-remediation: bound `0.0.0.0:8017`, externally TCP-reachable. Patched [`scripts/sysadmin/bot.py`](../../scripts/sysadmin/bot.py) to honor a new `SYSADMIN_HEALTH_HOST` env var (default `127.0.0.1`). Mirrored on vps1 (backed up to `/opt/fabrik/backups/bot.py.backup.20260601-033756` first), service restarted, post-remediation socket:
+
+```text
+$ ssh vps 'sudo ss -tnlp | grep ":8017"'
+LISTEN 0  5  127.0.0.1:8017  0.0.0.0:*  users:(("python3",pid=1509156,fd=3))
+```
+
+External re-probe from vps2 + vps3 (clean AS, off-mesh):
+
+```text
+# from vps2 (96.9.214.128 → 172.93.160.197:8017)
+$ timeout 5 nc -zv 172.93.160.197 8017 2>&1 | head -1
+nc: connect to 172.93.160.197 port 8017 (tcp) failed: Connection timed out
+
+# from vps3 (104.128.190.151 → 172.93.160.197:8017)
+$ timeout 5 nc -zv 172.93.160.197 8017 → exit 124 (timed out, no output)
+
+# from vps1 to its OWN public IP (kernel routes via lo, hits no listener)
+$ curl -sS -m 5 http://172.93.160.197:8017/health
+curl: (7) Failed to connect to 172.93.160.197 port 8017 after 0 ms: Couldn't connect to server
+```
+
+Local-loopback from vps1 itself still returns `{"status": "ok", ...}` ✅. No Gatus endpoint, Prometheus job, or `/etc/cron.d/` entry depended on the public bind (the "for Gatus monitoring" comment in bot.py was aspirational, never wired — `/opt/monitoring/configs/gatus/` searched: 0 hits; `/etc/cron.d/` searched: 0 hits).
+
+#### Tcpdump forensic — Lesson 72 confirmed at 2026-06-01T04:00:42Z
+
+Captured on vps1 (`tcpdump -i any -nn 'tcp port 8017 and host 176.219.28.59'`) while the dev-WSL ran `nc -zv` + `curl` in the same second:
+
+```text
+04:00:42.750325 ens3  In  IP 176.219.28.59.12701 > 172.93.160.197.8017: Flags [S], seq 340446579, win 65535
+04:00:42.813219 ens3  In  IP 176.219.28.59.12639 > 172.93.160.197.8017: Flags [S], seq 4162728737, win 65535
+```
+
+**Two inbound SYNs, zero outbound SYN-ACK from vps1.** The kernel correctly refused (no listener on the public IP). Yet dev-WSL's `nc` reported `Connection ... succeeded!`. The SYN-ACK that nc saw **cannot have come from vps1** — it was injected by an upstream middlebox on the TTNet path. This is the forensic basis of Lesson 72.
+
+#### Mesh-only ports — externally unreachable on all 3 hosts
+
+Paced probe (3 s timeout, 0.5 s inter-port, 1 s inter-host) from vps2 against 9 ports × 3 hosts = **27 probes; 0 connects.** Raw per-host breakdown:
+
+```text
+=== W5 step 3 mesh-port probe — 2026-06-01T00:43:42Z — source: vps2.ocoron.com ===
+--- vps1 (172.93.160.197) ---     all 9 ports: timed out (filtered)   ← DROP at DOCKER-USER + UFW deny
+  :5432, :6379, :8000, :9091, :3100, :9090, :9100, :8080, :7700  →  timed out
+--- vps2 (96.9.214.128) ---       all 9 ports: refused (RST from own kernel — no listener on public IP)
+  :5432, :6379, :8000, :9091, :3100, :9090, :9100, :8080, :7700  →  Connection refused
+--- vps3 (104.128.190.151) ---    all 9 ports: timed out (filtered)
+  :5432, :6379, :8000, :9091, :3100, :9090, :9100, :8080, :7700  →  timed out
+Summary: 0 connect(s) — expect 0
+```
+
+Any future regression that surfaces a "succeeded" line here is a security defect — re-run [`/tmp/w5_mesh_probe.sh`](../../scripts/audit_infra_vs_docs.py) (script body archived in convergence log v3.6 → v3.7) from vps2 to reproduce.
+
+#### UFW IPv4/IPv6 rule mirror — port-by-port match
+
+```text
+vps1:  v4 = {22, 80, 443, 1194, 8000-DENY, 51820}    v6 = {22, 80, 443, 1194, 8000-DENY, 51820}    MATCH (6/6)
+vps2:  v4 = {22, 80, 443, 51820}                     v6 = {22, 80, 443, 51820}                     MATCH (4/4)
+vps3:  v4 = {22, 80, 443, 51820}                     v6 = {22, 80, 443, 51820}                     MATCH (4/4)
+```
+
+vps1's v6 row for `443/tcp` carries the comment `# HTTPS+OpenVPN`; the "+OpenVPN" is a stale annotation (port 443 is HTTPS only — OpenVPN binds 1194). Comment-only drift; rule is correct.
+
+#### Fail2ban hygiene
+
+Probe-source IP `176.219.28.59` not banned on any host post-probe:
+
+```text
+ssh vps  'sudo fail2ban-client status sshd | grep 176.219.28.59 || echo clean'   → clean
+ssh vps2 'sudo fail2ban-client status sshd | grep 176.219.28.59 || echo clean'   → clean
+ssh vps3 'sudo fail2ban-client status sshd | grep 176.219.28.59 || echo clean'   → clean
+```
+
+Pacing (0.5 s inter-port, 1 s inter-host) held under all three jails' default `findtime`/`maxretry` thresholds.
+
+#### Plan-letter divergences (recorded for honesty)
+
+1. **Plan §step1 said "edit the systemd unit file"** to apply the bind change. The bind lives in `bot.py`, not the unit — replaced with `SYSADMIN_HEALTH_HOST` env var + bot.py source patch. No `systemctl daemon-reload` needed (only `restart`). Convergence log v3.6 → v3.7.
+2. **Plan §3 said "run from the dev WSL".** Used vps2 + vps3 as authoritative sources after Lesson 72 surfaced. The dev-WSL probe was attempted (for compliance with the literal instruction) and produced the false-positive that drove Lesson 72 — preserved above as evidence.
+
+---
+
+**Findings the probe surfaced** (folded into the inventory + posture tables above):
+
+1. **vps1 `:8017` is `0.0.0.0`-bound, not loopback.** Prior inventory wording said "blocked from Docker via DOCKER-USER" — that's true for container→host traffic, false for internet→host. Reachable from the public net today; W5 of [`docs/development/plans/archived/2026-05-31-plan-fleet-hardening-and-doc-truth.md`](../development/plans/2026-05-31-plan-fleet-hardening-and-doc-truth.md) is the remediation.
+2. **Promtail's gRPC server on spokes binds `*:<random>`** (`grpc_listen_port: 0` in `promtail.yaml`). UFW shields it — not externally reachable — but it's an undeterministic surface. Pin to a known port or `127.0.0.1` if a future audit needs reproducibility.
+3. **vps1 has 5 IPv4 UFW ALLOW rules** vs spokes' 4: extra slot is `1194/tcp` (operator's OpenVPN, documented in [`vps-urls.md`](vps-urls.md) § Port reference). Not platform infra.
+4. **vps1 UFW rule #5 still carries a stale Coolify-era comment** (`8000/tcp DENY` with comment "Coolify raw port"). Coolify is removed; the DENY itself is still useful (defense-in-depth against any future bind on :8000), but the comment should be retitled in the next cleanup pass.
+5. **fail2ban active bans:** vps1 = 493, vps2 = 17, vps3 = 25. Confirms vps1 is the internet-facing target; spokes are largely invisible.
 
 ---
 

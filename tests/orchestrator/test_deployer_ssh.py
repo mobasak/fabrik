@@ -160,9 +160,9 @@ class TestValidateCompose:
             "        limits:\n"
             "          memory: 256M\n"
             "    networks:\n"
-            "      - coolify\n"
+            "      - fabrik\n"
             "networks:\n"
-            "  coolify:\n"
+            "  fabrik:\n"
             "    external: true\n"
         )
 
@@ -914,7 +914,17 @@ class TestDestroyApp:
 
 
 class TestTargetVpsRouting:
-    """Verify that ctx.target_vps env-swaps FABRIK_VPS_SSH_HOST around deploy."""
+    """Verify that ctx.target_vps env-swaps FABRIK_VPS_SSH_HOST around the
+    deployer's app-targeted calls (``deploy`` and ``inject_env``).
+
+    W14 (2026-06-02): the env-swap is intentionally scoped to ``deploy()``
+    and ``inject_env()`` only — i.e. the calls that target the app's
+    location on the spoke. Hub-side registrars (gatus, postgres-main,
+    authelia) run outside this scope and stay on vps1. An earlier W14
+    iteration hoisted the swap up to ``DeploymentOrchestrator.deploy()``,
+    which broke hub-side registrars when target_vps != vps1; that hoist
+    was reverted and the swap re-applied here + extended to inject_env.
+    """
 
     def test_target_vps_vps2_sets_env(self):
         """When target_vps='vps2', _deploy_inner sees FABRIK_VPS_SSH_HOST=vps2."""
@@ -958,7 +968,6 @@ class TestTargetVpsRouting:
 
         deployer._deploy_inner = spy
         deployer.deploy(ctx)
-        # vps1 means no swap; env stays at whatever it was (None here)
         assert seen[0] is None
 
     def test_env_restored_after_deploy(self):
@@ -974,4 +983,43 @@ class TestTargetVpsRouting:
             SSHDeployer().deploy(ctx)
             assert os.environ.get("FABRIK_VPS_SSH_HOST") == "prior-alias"
         finally:
+            os.environ.pop("FABRIK_VPS_SSH_HOST", None)
+
+    def test_inject_env_swaps_for_spoke(self):
+        """inject_env must env-swap to ctx.target_vps too (W14 motivation).
+
+        Without this swap, post-deploy registrars (GlitchTip DSN, Redis URL)
+        on a spoke-targeted app try to mv .env into /opt/<app>/ on vps1
+        where the directory does not exist — the inject_env call fails and
+        the orchestrator rolls back a healthy spoke deploy.
+        """
+        import os
+
+        import fabrik.orchestrator.deployer_ssh as mod
+
+        os.environ.pop("FABRIK_VPS_SSH_HOST", None)
+        ctx = DeploymentContext(spec_path=Path("/tmp/x"))
+        ctx.spec = {"name": "app", "source": {"type": "docker"}}
+        ctx.target_vps = "vps2"
+        ctx.dry_run = False  # dry_run short-circuits before the swap window
+        ctx.app_name = "app"
+
+        seen = {}
+        real_write = mod._write_file_to_vps
+
+        def fake_write(name, fname, content):
+            seen["env"] = os.environ.get("FABRIK_VPS_SSH_HOST")
+            raise RuntimeError("stop-after-checking-env")
+
+        mod._write_file_to_vps = fake_write
+        try:
+            try:
+                SSHDeployer().inject_env(ctx, {"X": "1"})
+            except RuntimeError as e:
+                assert "stop-after-checking-env" in str(e)
+            assert seen.get("env") == "vps2"
+            # And env must be restored after the contextmanager exits.
+            assert os.environ.get("FABRIK_VPS_SSH_HOST") is None
+        finally:
+            mod._write_file_to_vps = real_write
             os.environ.pop("FABRIK_VPS_SSH_HOST", None)

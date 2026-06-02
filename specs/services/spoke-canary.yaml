@@ -1,0 +1,36 @@
+id: spoke-canary
+kind: service
+# source.type=docker generates compose from the spec — no local source needed,
+# no `network: coolify` issue (orchestrator emits the current `fabrik` network).
+# template field is REQUIRED by schema but unused for docker source.
+template: python-api
+domain: canary.vps2.ocoron.com
+target_vps: vps2
+
+shape:
+  kind: service
+  is_public: true
+  is_admin_dashboard: false
+  needs_database: false
+  needs_cache: false
+  has_persistent_data: false
+  has_search_feature: false
+  exposes_metrics: false
+
+source:
+  type: docker
+  image: nginx:alpine
+  image_port: 80
+
+env:
+  NGINX_HOST: canary.vps2.ocoron.com
+
+resources:
+  memory: 64M
+  cpu: "0.1"
+
+health:
+  path: /
+  interval: 30s
+  timeout: 5s
+  retries: 3

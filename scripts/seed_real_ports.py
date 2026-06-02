@@ -31,7 +31,6 @@ KNOWN_PORTS: dict[str, list[int]] = {
     "proxy": [18013],
     "site-provisioner": [18014],
     "file-api": [18015],
-    "image-broker": [18016],
     "emailgateway": [18017],
     "email-reader": [18018],
 }

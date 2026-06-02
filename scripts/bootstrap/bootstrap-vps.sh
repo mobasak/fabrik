@@ -336,6 +336,13 @@ step_02_install_firewall_fail2ban() {
     for port in "${FABRIK_PUBLIC_PORTS_UDP[@]}"; do
         remote "sudo ufw allow ${port}/udp 2>&1 | tail -1"
     done
+    # Allow ANY port inbound from the WG mesh subnet (10.99.0.0/24).
+    # Without this, vps1's Prometheus cannot scrape spoke node-exporter:9100 /
+    # cadvisor:8080 / promtail:9080 — UFW default-deny silently breaks spoke
+    # observability. Single-operator threat model: mesh is trusted; no per-port
+    # filtering needed for cross-host traffic. (W8 finding 2026-06-01: this gap
+    # silently broke spoke scrape targets for ~24h after W1 enabled UFW.)
+    remote "sudo ufw allow from ${FABRIK_WG_SUBNET} comment 'mesh — fleet observability + cross-host calls' 2>&1 | tail -1"
     remote 'echo y | sudo ufw enable 2>&1 | tail -1'
     remote 'sudo systemctl enable --now fail2ban'
     # Self-verify (Lesson 68): both must be true at end of step.
@@ -352,10 +359,18 @@ step_03_install_docker() {
         curl -fsSL https://get.docker.com | sudo sh; \
         fi'
     # Log rotation policy matches vps1 (10m × 3 files)
+    # daemon.json — log rotation + container tag for promtail's container_name
+    # label extraction. The `tag` field was missing pre-W4 (2026-06-02) which
+    # left spoke logs in Loki without container_name, breaking per-container
+    # log queries. Bootstrap now emits it always.
     remote 'sudo tee /etc/docker/daemon.json >/dev/null <<EOF
 {
   "log-driver": "json-file",
-  "log-opts": {"max-size": "10m", "max-file": "3"}
+  "log-opts": {
+    "max-size": "10m",
+    "max-file": "3",
+    "tag": "{{.Name}}"
+  }
 }
 EOF
     sudo systemctl restart docker'
@@ -603,14 +618,120 @@ step_11_install_monitoring_agents() {
     ok "step 11 done — monitoring agents shipping to vps1's Loki + ready to be scraped"
 }
 
-step_12_create_dns_records() {
-    log "step 12: create DNS records via site-provisioner"
-    if $SKIP_DNS; then
-        warn "step 12 skipped (--skip-dns)"
+step_12_install_spoke_traefik() {
+    log "step 12: install spoke Traefik (TLS termination + Let's Encrypt + W15 gzip middleware)"
+    if $DRY_RUN; then
+        dim "    [dry-run] would scp 3 templates to /opt/traefik/ and docker compose up -d"
         return 0
     fi
-    warn "step 12 stub — TODO: call site-provisioner API to create *.${SPOKE_NAME}.${FABRIK_DOMAIN_ROOT} A record + auth.${SPOKE_NAME}.${FABRIK_DOMAIN_ROOT} CNAME → vps1"
-    # Not implementing in M1a — defer to M1b after multipass testing.
+
+    # Bootstrapped from W16 (2026-06-02). Replaces the prior manual step
+    # documented in vps-bootstrap-plan.md. Bakes in the W15 labels block
+    # from the live vps2/vps3 fix so future spokes get the `gzip@docker`
+    # middleware definition on first bootstrap — no post-bootstrap edit
+    # required.
+
+    local tmpdir
+    tmpdir=$(mktemp -d -t fabrik-spoke-traefik-XXXX)
+    trap "rm -rf '$tmpdir'" RETURN
+
+    # Render templates. compose.yaml has no substitutions (W15 labels are
+    # static); traefik.yml needs the LE email; authelia.yml needs the hub
+    # mesh IP + domain root for the forward-auth address.
+    cp "${SCRIPT_DIR}/templates/traefik.compose.yaml.template" \
+       "${tmpdir}/compose.yaml"
+
+    sed \
+        -e "s|{{LE_EMAIL}}|${FABRIK_LE_EMAIL}|g" \
+        "${SCRIPT_DIR}/templates/traefik.yml.template" \
+        > "${tmpdir}/traefik.yml"
+
+    sed \
+        -e "s|{{HUB_MESH_IP}}|${FABRIK_WG_HUB_IP}|g" \
+        -e "s|{{FABRIK_DOMAIN_ROOT}}|${FABRIK_DOMAIN_ROOT}|g" \
+        "${SCRIPT_DIR}/templates/traefik-dynamic-authelia.yml.template" \
+        > "${tmpdir}/authelia.yml"
+
+    # scp to /tmp on the spoke, then sudo mv into /opt/traefik/.
+    scp -q "${tmpdir}/compose.yaml" \
+           "${tmpdir}/traefik.yml" \
+           "${tmpdir}/authelia.yml" \
+        "${EFFECTIVE_REMOTE}:/tmp/"
+
+    remote "sudo mkdir -p /opt/traefik/dynamic && \
+        sudo mv /tmp/compose.yaml /opt/traefik/compose.yaml && \
+        sudo mv /tmp/traefik.yml /opt/traefik/traefik.yml && \
+        sudo mv /tmp/authelia.yml /opt/traefik/dynamic/authelia.yml && \
+        sudo touch /opt/traefik/acme.json && \
+        sudo chmod 600 /opt/traefik/acme.json && \
+        sudo chown -R root:root /opt/traefik && \
+        sudo chmod 644 /opt/traefik/compose.yaml /opt/traefik/traefik.yml /opt/traefik/dynamic/authelia.yml"
+
+    # Bring up the stack.
+    remote "cd /opt/traefik && sudo docker compose up -d"
+
+    # Verify.
+    sleep 3
+    remote 'sudo docker ps --filter name=traefik --format "{{.Names}} {{.Status}}"'
+
+    ok "step 12 done — Traefik up; gzip@docker middleware published; ready for fabrik apply"
+}
+
+step_13_create_dns_records() {
+    log "step 13: create DNS records (apex + wildcard) via site-provisioner"
+    if $SKIP_DNS; then
+        warn "step 13 skipped (--skip-dns)"
+        return 0
+    fi
+    if $DRY_RUN; then
+        dim "    [dry-run] would call site-provisioner to ensure:"
+        dim "      ${SPOKE_NAME}.${FABRIK_DOMAIN_ROOT}   A → <spoke public IP>"
+        dim "      *.${SPOKE_NAME}.${FABRIK_DOMAIN_ROOT} A → <spoke public IP>"
+        return 0
+    fi
+
+    # Wired by W16 part 2 (2026-06-02). Calls site-provisioner from vps1
+    # because (a) vps1's public IP is in the Traefik IP allowlist, and (b)
+    # the production API_KEY lives in /opt/site-provisioner/.env on vps1
+    # — never travels to the dev machine. The /subdomain endpoint uses
+    # ensure_record() which is idempotent: re-running returns
+    # `action: unchanged` instead of touching Cloudflare.
+
+    # Discover the spoke's public IPv4. The mesh IP (10.99.0.x) is internal
+    # and would not satisfy Let's Encrypt's HTTP-01 challenge (which must
+    # reach the spoke from the public internet). Use ifconfig.me with an
+    # icanhazip.com fallback.
+    local spoke_pub_ip
+    spoke_pub_ip=$(remote 'curl -4 -fsS -m 10 https://ifconfig.me 2>/dev/null || curl -4 -fsS -m 10 https://ipv4.icanhazip.com 2>/dev/null' | tr -d '[:space:]')
+    if [[ -z "${spoke_pub_ip}" ]]; then
+        err "step 13: could not discover ${SPOKE_NAME} public IPv4 — both ifconfig.me and icanhazip.com failed"
+        return 1
+    fi
+    log "    ${SPOKE_NAME} public IP: ${spoke_pub_ip}"
+
+    # Call site-provisioner from vps1. The /subdomain endpoint takes the
+    # bare subdomain label (`vps4` or `*.vps4`) and the spoke's public IP;
+    # ensure_record composes `<subdomain>.<FABRIK_DOMAIN_ROOT>` and either
+    # creates or no-ops the A record. Two calls: apex + wildcard.
+    local cf_endpoint="https://provision.vps1.ocoron.com/api/cloudflare/dns/${FABRIK_DOMAIN_ROOT}/subdomain"
+
+    for sd in "${SPOKE_NAME}" "*.${SPOKE_NAME}"; do
+        local fqdn="${sd}.${FABRIK_DOMAIN_ROOT}"
+        # POST body. Quoting: outer single-quotes hold the remote shell
+        # script; inside, $API_KEY expands on vps1, $sd / $spoke_pub_ip
+        # expand here on the dev machine.
+        local response
+        response=$(ssh "${FABRIK_HUB_SSH_HOST}" "API=\$(sudo grep '^API_KEY=' /opt/site-provisioner/.env | cut -d= -f2- | tr -d '\"'); curl -fsS -X POST -H \"X-API-Key: \$API\" -H 'Content-Type: application/json' -d '{\"subdomain\":\"${sd}\",\"ip\":\"${spoke_pub_ip}\",\"proxied\":false}' '${cf_endpoint}'") || {
+            err "step 13: site-provisioner call failed for ${fqdn}"
+            return 1
+        }
+        # Surface created vs unchanged for operator visibility
+        local action
+        action=$(echo "${response}" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("result",{}).get("action","?"))' 2>/dev/null || echo "?")
+        ok "    ${fqdn} → ${spoke_pub_ip} (${action})"
+    done
+
+    ok "step 13 done — DNS A records ensured for ${SPOKE_NAME}.${FABRIK_DOMAIN_ROOT} + *.${SPOKE_NAME}.${FABRIK_DOMAIN_ROOT}"
 }
 
 # ---------------------------------------------------------------------------
@@ -640,6 +761,28 @@ run_verify() {
 
     echo "--- DOCKER-USER chain ---"
     remote 'sudo iptables -L DOCKER-USER -n --line-numbers' 2>/dev/null || warn "DOCKER-USER chain missing"
+
+    echo "--- Traefik (W16) ---"
+    remote 'sudo docker ps --filter name=traefik --format "{{.Names}} {{.Status}}" | grep traefik || echo MISSING' 2>/dev/null || warn "Traefik not running"
+    remote 'sudo docker inspect traefik --format "{{range \$k,\$v := .Config.Labels}}{{\$k}}={{\$v}}{{println}}{{end}}" 2>/dev/null | grep "middlewares.gzip" || echo "W15 gzip middleware label MISSING (W16 not run, or live edit reverted)"' 2>/dev/null || true
+
+    echo "--- DNS (apex + wildcard) ---"
+    # Public-resolver dig so we see what Let's Encrypt would see during HTTP-01
+    local apex="${SPOKE_NAME}.${FABRIK_DOMAIN_ROOT}"
+    local wildcard_test="${SPOKE_NAME}-verify-probe.${SPOKE_NAME}.${FABRIK_DOMAIN_ROOT}"
+    local apex_ip wildcard_ip
+    apex_ip=$(dig +short "${apex}" @1.1.1.1 2>/dev/null | head -1)
+    wildcard_ip=$(dig +short "${wildcard_test}" @1.1.1.1 2>/dev/null | head -1)
+    if [[ -z "${apex_ip}" ]]; then
+        echo "${apex} → MISSING (step 13 not run or DNS not propagated)"
+    else
+        echo "${apex} → ${apex_ip}"
+    fi
+    if [[ -z "${wildcard_ip}" ]]; then
+        echo "*.${SPOKE_NAME}.${FABRIK_DOMAIN_ROOT} → MISSING"
+    else
+        echo "*.${SPOKE_NAME}.${FABRIK_DOMAIN_ROOT} → ${wildcard_ip} (via wildcard match on ${wildcard_test})"
+    fi
 
     echo
     log "verify complete"
@@ -679,7 +822,8 @@ main() {
         warn "skipping mesh setup (--skip-mesh)"
     fi
     step_11_install_monitoring_agents
-    step_12_create_dns_records
+    step_12_install_spoke_traefik
+    step_13_create_dns_records
 
     echo
     ok "bootstrap complete for ${SPOKE_NAME}"

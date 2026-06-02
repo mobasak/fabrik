@@ -4,11 +4,12 @@ Deploys services by rendering compose files locally, copying them to the VPS
 via SCP, and running ``docker compose up -d`` over SSH.  Supports all four
 source types: TEMPLATE, GIT, DOCKER, LOCAL.
 
-Design doc: ``docs/development/plans/2026-05-28-ssh-deployer.md``
+Design doc: ``docs/development/plans/archived/2026-05-28-ssh-deployer.md``
 """
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import os
 import re
@@ -46,6 +47,35 @@ def _validate_name(name: str) -> None:
         raise DeployError(f"Invalid app name: {name!r} — must match ^[a-z0-9][a-z0-9-]{{0,62}}$")
 
 
+@contextlib.contextmanager
+def _target_vps_env(ctx: DeploymentContext):
+    """Swap ``FABRIK_VPS_SSH_HOST`` to ``ctx.target_vps`` for the block.
+
+    The SSH driver reads ``FABRIK_VPS_SSH_HOST`` per call, so wrapping just
+    the calls that target the app's location (``SSHDeployer.deploy`` and
+    ``inject_env``) is enough to route them to the spoke. Hub-side
+    registrars (gatus on vps1, postgres-main on vps1, authelia on vps1)
+    outside this scope continue to talk to vps1 as intended.
+
+    ``vps1`` is treated as a no-op so the env stays unchanged for
+    hub-targeted deploys.
+    """
+    target = getattr(ctx, "target_vps", None) or "vps1"
+    if target == "vps1":
+        yield
+        return
+    prev = os.environ.get("FABRIK_VPS_SSH_HOST")
+    os.environ["FABRIK_VPS_SSH_HOST"] = target
+    logger.info("Routing SSH to %s for app-targeted op", target)
+    try:
+        yield
+    finally:
+        if prev is None:
+            os.environ.pop("FABRIK_VPS_SSH_HOST", None)
+        else:
+            os.environ["FABRIK_VPS_SSH_HOST"] = prev
+
+
 class SSHDeployer:
     """Deploy services via SSH + Docker Compose.
 
@@ -61,29 +91,17 @@ class SSHDeployer:
     def deploy(self, ctx: DeploymentContext) -> str:
         """Deploy or update a service on the VPS.
 
-        Dispatches by ``source.type`` from the spec.  Returns the app name
+        Dispatches by ``source.type`` from the spec. Returns the app name
         (stored in ``ctx.app_name`` for backward compat).
 
-        W-Multi M4 — if ``ctx.target_vps`` is set to a non-default spoke alias
-        (``vps2`` / ``vps3``), the entire deploy block runs against that host
-        by env-swapping ``FABRIK_VPS_SSH_HOST``. Every nested SSH call resolves
-        the alias at call time, so a single env-swap routes ~30 call sites
-        without per-site changes. Restored on exit so post-deploy registrars
-        run against vps1 (the hub) as designed.
+        Env-swap (W-Multi M4): when ``ctx.target_vps != "vps1"``, swap
+        ``FABRIK_VPS_SSH_HOST`` so the SSH driver routes app writes
+        (compose.yaml, .env, ``docker compose up``) to the spoke. Restored
+        in ``finally`` so the surrounding pipeline's hub-side registrars
+        (gatus, postgres, authelia on vps1) keep talking to vps1.
         """
-        target_vps = getattr(ctx, "target_vps", None) or "vps1"
-        if target_vps != "vps1":
-            import os
-            prev = os.environ.get("FABRIK_VPS_SSH_HOST")
-            os.environ["FABRIK_VPS_SSH_HOST"] = target_vps
-            try:
-                return self._deploy_inner(ctx)
-            finally:
-                if prev is None:
-                    os.environ.pop("FABRIK_VPS_SSH_HOST", None)
-                else:
-                    os.environ["FABRIK_VPS_SSH_HOST"] = prev
-        return self._deploy_inner(ctx)
+        with _target_vps_env(ctx):
+            return self._deploy_inner(ctx)
 
     def _deploy_inner(self, ctx: DeploymentContext) -> str:
         """Actual deploy logic (env-swap wrapped by :meth:`deploy`)."""
@@ -129,7 +147,12 @@ class SSHDeployer:
 
         # Track newly created resource (not updates)
         if not existing:
-            ctx.add_resource("compose", name, name=name)
+            ctx.add_resource(
+                "compose",
+                name,
+                name=name,
+                target_vps=getattr(ctx, "target_vps", None) or "vps1",
+            )
 
         ctx.app_name = name
         return name
@@ -174,6 +197,12 @@ class SSHDeployer:
 
         Used by registrars (GlitchTip, Redis) to inject DSNs / URLs after
         the initial deploy.
+
+        W14 (2026-06-02): env-swap to ``ctx.target_vps`` for the duration of
+        this call, matching ``deploy()``'s scope. Without it, spoke apps
+        get their DSN/URL injection misdirected to vps1 where /opt/<app>/
+        doesn't exist — the deploy succeeds but the orchestrator marks the
+        whole pipeline rolled-back.
         """
         from fabrik.drivers.ssh import ssh as _ssh
 
@@ -186,19 +215,22 @@ class SSHDeployer:
             logger.info("[DRY RUN] Would inject %d env vars into %s", len(env_vars), name)
             return
 
-        # Read existing .env (may not exist yet)
-        try:
-            existing_content = _ssh(f"sudo cat /opt/{name}/.env 2>/dev/null || echo ''", timeout=10)
-        except RuntimeError:
-            existing_content = ""
+        with _target_vps_env(ctx):
+            # Read existing .env (may not exist yet)
+            try:
+                existing_content = _ssh(
+                    f"sudo cat /opt/{name}/.env 2>/dev/null || echo ''", timeout=10
+                )
+            except RuntimeError:
+                existing_content = ""
 
-        merged = _parse_env(existing_content)
-        merged.update(env_vars)
-        env_content = _format_env(merged)
+            merged = _parse_env(existing_content)
+            merged.update(env_vars)
+            env_content = _format_env(merged)
 
-        _write_file_to_vps(name, ".env", env_content)
-        _ssh(f"cd /opt/{name} && sudo docker compose up -d --wait", timeout=120)
-        logger.info("Injected %d env vars into %s and restarted", len(env_vars), name)
+            _write_file_to_vps(name, ".env", env_content)
+            _ssh(f"cd /opt/{name} && sudo docker compose up -d --wait", timeout=120)
+            logger.info("Injected %d env vars into %s and restarted", len(env_vars), name)
 
     def restart(self, name: str, dry_run: bool = False) -> None:
         """Restart the compose stack (recreates changed containers)."""
@@ -686,7 +718,7 @@ def _validate_compose(content: str) -> list[str]:
             if dep in ("postgres-main", "redis-main"):
                 errors.append(
                     f"Service '{svc_name}': depends_on '{dep}' forbidden — "
-                    "use Docker DNS on coolify network instead"
+                    "use Docker DNS on the fabrik network instead"
                 )
 
         # No localhost in DATABASE_URL / REDIS_URL
@@ -700,12 +732,21 @@ def _validate_compose(content: str) -> list[str]:
                         "use Docker DNS (postgres-main:5432 / redis-main:6379)"
                     )
 
-    # Network: coolify external
+    # Network: fabrik external (renamed from `coolify` 2026-05-31; W12 of fleet-hardening plan).
     networks = data.get("networks", {})
+    if "fabrik" in networks:
+        fabrik_net = networks["fabrik"]
+        if isinstance(fabrik_net, dict) and not fabrik_net.get("external"):
+            errors.append("Network 'fabrik' must be declared as external: true")
+    # Legacy `coolify` network = unmigrated spec; reject loudly so the operator
+    # knows to rename before retrying (otherwise docker compose up fails with
+    # "network coolify declared as external, but could not be found").
     if "coolify" in networks:
-        coolify_net = networks["coolify"]
-        if isinstance(coolify_net, dict) and not coolify_net.get("external"):
-            errors.append("Network 'coolify' must be declared as external: true")
+        errors.append(
+            "Network 'coolify' is deprecated — rename to 'fabrik' in your compose.yaml "
+            "(both the service's `networks:` list and the top-level `networks:` block). "
+            "The fabrik external network was renamed on 2026-05-31."
+        )
     # Note: not all composes declare networks at top level (some inherit)
 
     return errors
@@ -722,6 +763,16 @@ def _generate_docker_compose(
     resources = spec.get("resources", {})
     memory = resources.get("memory", "256M") if isinstance(resources, dict) else "256M"
 
+    # Health: read from spec (W12.b 2026-06-02 — was hardcoded /health + curl).
+    # `curl` is not in nginx:alpine or many other small images; use a wget/Python
+    # 2-step that handles whichever exists. `wget -q --spider` returns 0 on 2xx,
+    # nonzero otherwise — works in alpine, debian, ubuntu, distroless-busybox.
+    health = spec.get("health", {}) if isinstance(spec.get("health"), dict) else {}
+    health_path = health.get("path", "/health")
+    health_interval = health.get("interval", "30s")
+    health_timeout = health.get("timeout", "10s")
+    health_retries = int(health.get("retries", 3))
+
     lines = [
         "services:",
         f"  {name}:",
@@ -735,13 +786,13 @@ def _generate_docker_compose(
         "        limits:",
         f"          memory: {memory}",
         "    healthcheck:",
-        f'      test: ["CMD", "curl", "-f", "http://localhost:{port}/health"]',
-        "      interval: 30s",
+        f'      test: ["CMD-SHELL", "wget -q --spider http://localhost:{port}{health_path} || exit 1"]',
+        f"      interval: {health_interval}",
         "      timeout: 10s",
         "      retries: 3",
         "      start_period: 20s",
         "    networks:",
-        "      - coolify",
+        "      - fabrik",
     ]
 
     if domain:
@@ -762,7 +813,7 @@ def _generate_docker_compose(
         [
             "",
             "networks:",
-            "  coolify:",
+            "  fabrik:",
             "    external: true",
         ]
     )

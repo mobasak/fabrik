@@ -43,16 +43,18 @@ python -m fabrik.config --verify
    ssh-copy-id deploy@your-vps
    ```
 
-### Coolify API Token (legacy — only for pre-migration Coolify-managed services)
+<!--
+Coolify API Token section — REMOVED 2026-06-02 (coolify-residue-cleanup plan).
 
-**Status:** Fabrik no longer deploys via the Coolify API. The active deploy path is SSH + Docker Compose (`fabrik apply`). This section remains only for legacy CLI commands (`fabrik status`, `fabrik logs`, `fabrik reconcile-all`) that still talk to the Coolify API for services that were never migrated. New projects do NOT need a Coolify API token.
+Coolify was fully removed from vps1 on 2026-05-30 (no containers, no binary;
+only /data/coolify/ filesystem residue remains). The active deploy path is
+SSH + Docker Compose (`fabrik apply`). The legacy CLI commands (`fabrik status`,
+`fabrik logs`, `fabrik reconcile-all`) that historically talked to the Coolify
+API are now non-functional and listed under "Known broken" in the SSH-deployer
+archived plan.
 
-**Legacy how-to (only if you still have Coolify-managed services):**
-
-1. Coolify dashboard: `https://your-vps:8000`
-2. Settings → API Keys → Create New
-3. Copy token (shown once)
-4. Server/Project UUIDs auto-detected on first run
+New projects never needed a Coolify API token.
+-->
 
 ### FABRIK_EXEC_MODE — WordPress driver execution mode (T1.1)
 
@@ -297,23 +299,17 @@ Stage 1 of the Fabrik lifecycle captures project intent in `docs/preplans/<YYYY-
 
 No new env vars. The workflow is documented in `docs/preplans/README.md` and Traycer ingests it via Step 2.5 of `docs/traycer/fabrik-workflow.md`.
 
-### `coolify.alias` spec field (T2-04 G-J3)
+<!--
+`coolify.alias` spec field section — OBSOLETE 2026-06-02.
 
-Coolify renames single-image Application containers on every redeploy: `<24-char-uuid>-<10-digit-timestamp>`. Any Gatus monitor or inter-service URL that resolves the container by name breaks silently after the next redeploy. The fix is a stable Docker DNS alias re-applied by `/opt/coolify-alias-watcher/` on every container start.
-
-Opt a service in by setting the field in its spec's `coolify:` block:
-
-```yaml
-coolify:
-  project: fabrik-services
-  alias: my-friendly-name
-```
-
-When set, `fabrik apply` (and `fabrik redeploy --refresh-infrastructure`) calls `coolify_alias.add_alias(ctx.coolify_uuid, "my-friendly-name")` after the Coolify create-app step succeeds. The helper writes to `/opt/coolify-alias-watcher/aliases.json` atomically (`tee → /tmp tmp → chown root:root + chmod 644 + mv`) and restarts the `coolify-alias-watcher.service`. Restart cost is sub-second; the unit's `Restart=always` + missing `ExecReload` means reload always fails, so we always restart.
-
-WSL mirror of the watcher lives at `ops/coolify-alias-watcher/` and stays byte-identical to the VPS copy. Hand-edits there (e.g. retiring an old alias) should be `scp`'d to `/opt/coolify-alias-watcher/` on the VPS and the service restarted.
-
-**Skip the field** if your service is a Coolify Service stack (multi-container under `/data/coolify/services/<uuid>/`) — those get stable names from compose automatically, so the alias-watcher is a no-op.
+The Coolify Application UUID-suffix container renaming this section worked
+around no longer happens — Coolify was fully removed from vps1 on 2026-05-30.
+All containers now have stable names via compose `container_name:` fields
+(Lesson 22). The `coolify-alias-watcher.service` was decommissioned with
+Coolify. Code references to `coolify.alias` / `coolify_alias.add_alias()`
+remain in archived legacy modules (`src/fabrik/orchestrator/coolify_alias.py`)
+but are no longer called from any active code path.
+-->
 
 ---
 
@@ -330,17 +326,15 @@ ssh-copy-id deploy@your-vps
 VPS_SSH_KEY=  # Remove from .env
 ```
 
-### Coolify API 401 Unauthorized (legacy)
+<!--
+"Coolify API 401" troubleshooting section — REMOVED 2026-06-02.
 
-Only affects the legacy CLI commands that still talk to the Coolify API
-(`fabrik status`, `fabrik logs`, `fabrik reconcile-all`). The active deploy
-path (`fabrik apply` / SSH + Docker Compose) is unaffected.
-
-**Causes:**
-
-1. Token expired → Regenerate in Coolify dashboard
-2. Wrong token → Check for copy/paste errors
-3. Coolify not running → `systemctl status coolify`
+Coolify is fully removed from vps1 (2026-05-30). The legacy CLI commands
+that used to call the Coolify API (`fabrik status`, `fabrik logs`,
+`fabrik reconcile-all`) are non-functional and listed under "Known broken"
+in the archived SSH-deployer plan. New troubleshooting starts from
+`docs/operations/deployment.md` (`fabrik apply` / SSH + Docker Compose).
+-->
 
 ### Database connection refused
 
@@ -431,7 +425,7 @@ CLOUDFLARE_ZONE_ID=xxx
 Before deploying:
 
 - [ ] `.env` created from `.env.example`
-- [ ] All required credentials obtained (VPS, Coolify, B2)
+- [ ] All required credentials obtained (VPS, Cloudflare, B2)
 - [ ] SSH access verified: `ssh deploy@$VPS_HOST`
 - [ ] Database accessible: `psql $DATABASE_URL`
 - [ ] Backups configured: Backrest configured at `backup.vps1.ocoron.com` (Backblaze B2 remote)

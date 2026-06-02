@@ -1,119 +1,202 @@
-# Security Hardening Audit — Attack Surface & Access Control
+# 03 — Security Hardening (fleet-wide, per-host probes)
 
-Analyze the security posture of this Ubuntu 24.04 VPS. Focus on attack surface reduction, authentication, encryption, and defense-in-depth. This VPS will serve real users — every unnecessary exposure is a liability.
+**Last Updated:** 2026-06-02 (rewritten for 3-VPS fleet + Wireguard mesh + Authelia — patched 2026-06-02 evening after live-validation: SSH probe now also dumps `sshd_config.d/*.conf` and notes the cloud-init override trap; container host-port probe fixed for `grep --` leading-dash issue; analysis checklist gained the grep-vs-`sshd -T` divergence rule)
+**Run mode:** **fleet-wide**. Probes run separately on each VPS; analysis treats the 3 hosts as one attack surface.
+**Scope:** SSH posture, UFW + DOCKER-USER, mesh trust boundary, TLS, Authelia, fail2ban, secret hygiene, container isolation.
+**Time budget:** ~10 min collection per host (30 min total) + ~20 min analysis.
 
-## Stack Context
+---
 
-- Traefik v2.11 terminates HTTPS (Let's Encrypt), routes to containers on `fabrik` network
-- Authelia provides 2FA forward-auth for admin dashboards (Grafana, Backrest, n8n, Apprise). GlitchTip UI is in Authelia rule #6 bypass (accepted intentional — public error-report UI; see `vps-complete-inventory.md § Authelia access control rules`). Note: Coolify removed 2026-05-30 — its UI is no longer on the protection list.
-- M2M auth: `X-Internal-Token` header with shared `SERVICE_INTERNAL_SECRET_KEY`
-- API services (image-broker, site-provisioner) bypass Authelia, use app-layer token auth
-- Health endpoints (`/health`, `/healthz`, `/metrics`) bypass Authelia via wildcard rule
-- Two-layer firewall: **UFW** (host-level — controls SSH + direct host services) + **DOCKER-USER iptables chain** (container-level — controls Docker traffic via the FORWARD chain). UFW shipped on spokes 2026-05-31 (W1). **Lesson 68:** verify UFW with all 3 of `dpkg -l ufw \| awk '/^ii/'`, `command -v ufw`, `sudo ufw status` — single-probe checks miss the `rc`-state pitfall.
-- SSH: Ed25519 key only, root login disabled, port 22
+## Stack context
 
-## Data Collection
-
-**Automated:** `ssh vps 'sudo bash -s' < /opt/fabrik/scripts/audit/03-security.sh`
-
-**Or manual:**
-
-```bash
-# 1. Listening ports — what's exposed
-sudo ss -tlnp | sort
-sudo ss -ulnp | sort
-
-# 2. UFW — verify all 3 (Lesson 68: any single probe can mislead)
-dpkg -l ufw 2>/dev/null | awk '/^(ii|rc)/ {print $1, $2}'  # ii = installed, rc = removed-with-config
-command -v ufw                                             # binary in PATH?
-sudo ufw status verbose                                    # rules + default policy
-
-# 3. DOCKER-USER chain (Docker traffic perimeter — Docker bypasses UFW's INPUT chain)
-sudo iptables -L DOCKER-USER -n --line-numbers -v
-sudo update-alternatives --display iptables | grep currently  # nft vs legacy — must be consistent
-
-# 4. Traefik middlewares (what's protected)
-sudo docker exec traefik wget -qO- http://localhost:8080/api/http/middlewares 2>/dev/null | python3 -m json.tool | head -80
-sudo docker exec traefik wget -qO- http://localhost:8080/api/http/routers 2>/dev/null | python3 -m json.tool | head -120
-
-# 5. Authelia config (access rules)
-sudo cat /var/lib/docker/volumes/hks48k8sg8o4co4co08co00o_authelia-config/_data/configuration.yml | grep -A50 "access_control:"
-
-# 6. TLS certificates
-for domain in $(sudo docker exec traefik wget -qO- http://localhost:8080/api/http/routers 2>/dev/null | python3 -c "import json,sys; [print(r.get('rule','').split('\`')[1]) for r in json.load(sys.stdin) if 'Host' in r.get('rule','')]" 2>/dev/null | sort -u); do
-  expiry=$(echo | openssl s_client -servername "$domain" -connect "$domain":443 2>/dev/null | openssl x509 -noout -enddate 2>/dev/null)
-  echo "$domain: $expiry"
-done
-
-# 7. SSH security
-sudo sshd -T 2>/dev/null | grep -E "passwordauthentication|permitrootlogin|pubkeyauthentication|maxauthtries|allowusers|port"
-sudo journalctl -u ssh --since "7 days ago" | grep -c "Failed password"
-sudo journalctl -u ssh --since "7 days ago" | grep "Failed password" | awk '{print $(NF-3)}' | sort | uniq -c | sort -rn | head -10
-last -20
-
-# 8. Publicly reachable ports (from outside Docker network)
-sudo ss -tlnp | grep -v "127.0.0.1\|::1\|10\.0\." | grep "0.0.0.0\|::0"
-
-# 9. Container privilege audit
-for c in $(sudo docker ps --format "{{.Names}}"); do
-  priv=$(sudo docker inspect $c --format "{{.HostConfig.Privileged}}")
-  caps=$(sudo docker inspect $c --format "{{.HostConfig.CapAdd}}")
-  pid=$(sudo docker inspect $c --format "{{.HostConfig.PidMode}}")
-  net=$(sudo docker inspect $c --format "{{.HostConfig.NetworkMode}}")
-  if [ "$priv" = "true" ] || [ "$caps" != "[]" ] || [ "$pid" = "host" ] || [ "$net" = "host" ]; then
-    echo "ELEVATED: $c priv=$priv caps=$caps pid=$pid net=$net"
-  fi
-done
-
-# 10. AppArmor
-sudo aa-status 2>/dev/null | head -30
-
-# 11. Secrets exposure check
-sudo docker inspect $(sudo docker ps -q) --format "{{.Name}}={{range .Config.Env}}{{println .}}{{end}}" 2>/dev/null | grep -iE "password|secret|token|key|api_key" | grep -v "SERVICE_INTERNAL_SECRET_KEY\|COOLIFY_\|SENTRY_DSN" | head -20
-
-# 12. Docker socket exposure
-ls -la /var/run/docker.sock
-sudo docker ps --format "{{.Names}}" -f "volume=/var/run/docker.sock"
+```text
+- 3-VPS fleet on a Wireguard mesh (10.99.0.0/24). Single-operator threat model:
+  the mesh is fully trusted (no per-port filtering for 10.99.0.0/24).
+- All 3 hosts: Ubuntu 24.04, root SSH disabled, password SSH disabled,
+  ozgur user with NOPASSWD sudo + ed25519 key only.
+- UFW active on all 3 (W1 ship 2026-05-31). Hub has 5 v4 ALLOW + 1 DENY rules
+  (DENY on 8000 carries a stale "Coolify raw port" comment; defense-in-depth);
+  spokes have 4 v4 ALLOW + 1 ALLOW from `10.99.0.0/24` for mesh observability
+  (W8 fix 2026-06-01).
+- fail2ban active on all 3. Hub takes the brunt (~hundreds of bans);
+  spokes see passive scanner background (~tens).
+- TLS: Let's Encrypt via per-host Traefik. Hub serves *.vps1.ocoron.com
+  (production traffic). Spokes serve *.vpsN.ocoron.com (first spoke cert
+  issued 2026-06-02 for canary.vps2 — W14/W15 verify).
+- Authelia 2FA on vps1 protects all admin dashboards via Traefik forward-auth.
+- Secrets: /opt/fabrik/.env on dev WSL is canonical; mirrored offsite to
+  private GitHub mobasak/fabrik-dr-store (W9 2026-06-01) + .env.sysadmin
+  on vps1 also mirrored. Restic passwords mirrored per-host (W11.6).
+- Container isolation: `fabrik` Docker network is the shared bus. Mesh-only
+  services bind 10.99.0.1 on hub; spoke agents push outbound to hub mesh IP.
 ```
 
-## Analysis Checklist
+---
 
-### 1. Network Perimeter
-- What ports are bound to 0.0.0.0? (Only 22, 80, 443, 6001, 6002 should be)
-- Is DOCKER-USER chain complete (9 rules: ESTABLISHED, 3x private ranges, 80, 443, 6001, 6002, DROP)?
-- Any container publishing ports directly to host (bypassing Traefik)?
+## Data collection — RUN ON EACH HOST
 
-### 2. TLS Health
-- All domains have valid Let's Encrypt certs?
-- Any cert expiring within 14 days?
-- TLS version: is TLS 1.2+ enforced? Any TLS 1.0/1.1?
+```bash
+ssh vps bash <<'EOF'    # repeat with vps2, vps3
+echo "=== SSH POSTURE ==="
+sudo grep -E "^(Permit|Password|Pubkey|AllowUsers|MaxAuth)" /etc/ssh/sshd_config
+echo "(includes from /etc/ssh/sshd_config.d/ — Ubuntu cloud-init drops 50-cloud-init.conf here which can re-enable PasswordAuthentication; the *first* matching directive in alphabetical-glob order wins)"
+sudo grep -EH "Password|Permit" /etc/ssh/sshd_config.d/*.conf 2>&1 | head -10
+echo "(effective config via sshd -T — compare against the file content above; divergence = an include file is overriding)"
+sudo sshd -T 2>&1 | grep -E "^(permitrootlogin|passwordauthentication|pubkeyauthentication|kbdinteractiveauthentication)"
+sudo find /home -name ".ssh" -exec ls -la {} \;
+echo
+echo "=== UFW STATE ==="
+sudo ufw status verbose
+sudo dpkg -l ufw 2>&1 | awk '/^(ii|rc)/'
+echo
+echo "=== DOCKER-USER CHAIN ==="
+sudo iptables -L DOCKER-USER -n --line-numbers
+sudo ip6tables -L DOCKER-USER -n --line-numbers 2>&1 | head -10
+echo
+echo "=== FAIL2BAN ==="
+sudo systemctl is-active fail2ban
+sudo fail2ban-client status
+sudo fail2ban-client status sshd
+sudo fail2ban-client banned 2>&1 | head -5
+echo
+echo "=== AUTHENTICATION LOGS ==="
+sudo last -n 20
+sudo journalctl -u sshd --since "1 day ago" 2>/dev/null | grep -iE "fail|invalid" | tail -20
+sudo grep -E "Accepted|Failed" /var/log/auth.log 2>/dev/null | tail -10
+echo
+echo "=== LISTENING SOCKETS (with binding interface) ==="
+sudo ss -tlnp 2>&1 | sort -k4
+echo
+echo "=== TLS CERTS ==="
+ls -la /opt/traefik/acme.json 2>&1
+sudo cat /opt/traefik/acme.json 2>/dev/null | python3 -c "
+import json, sys
+try:
+    d = json.load(sys.stdin)
+    le = d.get('letsencrypt', d.get('le', {}))
+    certs = le.get('Certificates', [])
+    print(f'  {len(certs)} certificate(s)')
+    for c in certs:
+        domain = c.get('domain', {}).get('main', '?')
+        sans = c.get('domain', {}).get('sans', [])
+        print(f'    - {domain}{(\" + \" + str(len(sans)) + \" SANs\") if sans else \"\"}')
+except Exception as e:
+    print(f'  (acme.json parse: {e})')
+"
+echo
+echo "=== AUTHELIA (vps1 ONLY) — number of access-control rules ==="
+[ "$(hostname)" = "vps1.ocoron.com" ] && sudo cat /opt/authelia/config/configuration.yml | python3 -c "
+import yaml, sys
+cfg = yaml.safe_load(sys.stdin)
+rules = cfg.get('access_control', {}).get('rules', [])
+print(f'  {len(rules)} rules (expected: 10 — verify against vps-complete-inventory.md)')
+for i, r in enumerate(rules, 1):
+    doms = r.get('domain', [])
+    if isinstance(doms, str): doms = [doms]
+    print(f'    #{i}: policy={r.get(\"policy\")}, n_domains={len(doms)}')
+"
+echo
+echo "=== CONTAINER ISOLATION ==="
+sudo docker network ls
+sudo docker network inspect fabrik --format '{{.Driver}} (bridge), {{len .Containers}} containers'
+sudo docker ps --format "{{.Names}}" | xargs -I{} sh -c 'p=$(sudo docker inspect --format="{{json .NetworkSettings.Ports}}" {} 2>/dev/null); echo "{} $p"' | grep -vE -- "(\"null\"$| \{\}$)" | head -20
+# Also: any container with a HOST-bound port (-> in `docker ps -Ports`)?
+# Use grep -E -- so the leading `-` in the pattern isn't read as an option.
+sudo docker ps --format "{{.Names}}\t{{.Ports}}" | grep -E -- "->|0\.0\.0\.0:" | head -10 || echo "  (no host-bound ports — all routed via Traefik on fabrik net, as expected)"
+echo
+echo "=== SECRETS HYGIENE (file permissions on key paths) ==="
+sudo ls -la /root/.ssh/ /home/ozgur/.ssh/ /etc/wireguard/ /opt/backrest/.restic-password 2>&1
+sudo find /opt -name ".env" -exec stat -c "%a %U:%G %n" {} \; 2>&1 | head -10
+EOF
+```
 
-### 3. Authentication Layers
-- Authelia: all admin dashboards protected with 2FA?
-- Health/metrics endpoints: bypassed correctly (not exposing data)?
-- M2M: SERVICE_INTERNAL_SECRET_KEY rotated recently? (32+ chars, alphanumeric)
-- SSH: key-only, no passwords, root disabled?
+---
 
-### 4. Brute Force & Intrusion
-- SSH failed login count in 7 days
-- Top attacker IPs
-- Any successful logins from unexpected sources?
-- fail2ban installed? (should be for SSH)
+## Analysis checklist
 
-### 5. Container Isolation
-- Any privileged containers? (should be only cAdvisor + Netdata)
-- Any containers with `--cap-add`?
-- Any containers with host PID/network mode?
-- Docker socket mounted to any container that doesn't strictly need it? (Backrest needs it for snapshot orchestration; cAdvisor needs it for stats; promtail needs it for log tailing. Anything else exposes container-escape risk.)
+### 1. Network perimeter (each host)
 
-### 6. Secret Hygiene
-- Any secrets visible in container env vars that should be in .env files?
-- Any hardcoded passwords (not from env)?
+- Public TCP listeners only on: `22` (SSH), `80` (HTTP redirect), `443` (HTTPS). Hub adds `1194` (OpenVPN); spokes nothing else.
+- Mesh-only services on hub bind `10.99.0.1` (not `0.0.0.0`): `5432`, `6379`, `3100`, `8000`, `9091`. Probe from off-mesh node to confirm filtered/timeout.
+- `wg0` UDP `51820` listening on all 3.
+- No surprise listeners (promtail gRPC `*:<random>` is known but UFW-shielded — Lesson 72).
 
-## Output Format
+### 2. SSH posture (each host)
 
-1. **SECURITY POSTURE** — Green / Yellow / Red with evidence
-2. **CRITICAL VULNERABILITIES** — exploitable now
-3. **HARDENING GAPS** — not exploitable but increase risk
-4. **COMPLIANCE** — TLS, auth, secrets management status
-5. **REMEDIATION** — ordered by severity, with exact commands
+- `PermitRootLogin no`. `PasswordAuthentication no`. `PubkeyAuthentication yes`.
+- **Cross-check `grep` against `sshd -T`** — divergence means an include file in `/etc/ssh/sshd_config.d/` is overriding. Specifically, Ubuntu cloud-init writes `50-cloud-init.conf` with `PasswordAuthentication yes`, and the **first matching directive in alphabetical-glob order wins** in sshd. Hub vs spokes are known to drift on this — the spokes' cloud-init was hardened during bootstrap, the hub's was not.
+- `authorized_keys` files have correct mode 600, owned by user.
+- `last` shows expected operator only; no surprise root sessions.
+- `sshd` auth-fail volume reasonable (high = scanner background; fail2ban catching them = healthy).
+
+### 3. Mesh trust boundary
+
+- `wg show wg0` shows handshake age < 5 min on each peer.
+- Hub `wg0` shows both spokes as peers; spokes show hub only.
+- Spoke UFW rule `allow from 10.99.0.0/24` exists (W8 fix).
+- Mesh-only services on hub: confirm bind to `10.99.0.1` not `0.0.0.0` via `ss -tlnp`.
+
+### 4. TLS & certificate hygiene
+
+- Hub `/opt/traefik/acme.json` populated with all `*.vps1.ocoron.com` certs.
+- Spokes: `acme.json` may be empty (vps3) or have first cert (vps2 has canary.vps2.ocoron.com from 2026-06-02 W14/W15 verify).
+- No cert expiring < 30 days without renewal in flight.
+
+### 5. Authelia (vps1 only)
+
+- 10 access-control rules (verify against `vps-complete-inventory.md`).
+- `auth.vps1.ocoron.com` reachable; portal returns login form.
+- Forward-auth middleware in Traefik dynamic config.
+- 2FA enrolled for the operator account.
+
+### 6. Container isolation
+
+- Only the expected Docker networks: `fabrik` + `bridge` + `host` + `none` (+ tenant-internal nets like `ocoron-com_ocoron-com-internal`).
+- No containers bind `0.0.0.0:<port>` for mesh-only services (port-binding bypasses UFW).
+- `fabrik` network is a regular bridge; no privileged containers without justification.
+
+### 7. Brute force & intrusion
+
+- `fail2ban` jails active: `sshd` at minimum. Ban-count proportional to internet exposure.
+- No bans against legitimate operator IP (would indicate misconfig).
+- `auth.log` shows no successful logins from unexpected IPs.
+
+### 8. Secret hygiene
+
+- `/root/.ssh/`, `/home/ozgur/.ssh/`: mode 700; key files mode 600.
+- `/etc/wireguard/` files mode 600.
+- `/opt/backrest/.restic-password`: mode 600 root.
+- `/opt/<svc>/.env` files: mode 600 (or 644 if no secrets — verify).
+- Live `/opt/fabrik/.env` exists only on dev WSL (not on VPS); `.env.sysadmin` on vps1 only.
+
+### 9. Fleet-aggregate concerns
+
+- Hub and spokes have **identical UFW posture** (per the W1 + W8 ship). Any drift = remediate.
+- Hub and spokes have **identical SSH config** (no root, no password). Any drift = remediate.
+- Hub-only services (Authelia, Traefik dashboard) never exposed on spokes.
+
+---
+
+## Output format
+
+```markdown
+## Security Audit — Fleet (vps1 + vps2 + vps3) — <UTC date>
+
+**Verdict:** GREEN / YELLOW / RED
+**Summary:** one-paragraph
+
+### Per-host findings
+| Host | Worst severity | Key finding |
+| :--- | :--- | :--- |
+| vps1 | ... | ... |
+| vps2 | ... | ... |
+| vps3 | ... | ... |
+
+### Fleet-level findings (drift, mesh, cross-host)
+1. [severity] <description>
+   - Evidence
+   - Fix
+
+### Aggregated remediation queue (ranked)
+1. ...
+```

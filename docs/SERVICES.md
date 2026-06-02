@@ -1,15 +1,6 @@
 # Required Services
 
-> **⚠️ Partially pre-migration vintage.** The table lists Coolify as the
-> deployment control plane. As of 2026-05-30 Coolify has been removed —
-> the control plane is now the local `fabrik` CLI which SSHes to the VPS
-> and runs `docker compose`. All other services (postgres-main, redis-main,
-> traefik, gatus, authelia, glitchtip, backrest, monitoring stack, etc.)
-> are still running, now as standalone Compose stacks under `/opt/<svc>/`
-> with stable `container_name:`. Drop the Coolify row; everything else
-> reads correctly.
-
-**Last Updated:** 2026-04-28 (services table refreshed — Backrest replaces Duplicati [migrated 2026-04-17]; Authelia, Gotenberg, MeiliSearch added; monitoring stack [Prometheus/Grafana/Loki/Promtail/Alertmanager/cAdvisor/node-exporter] migrated to Coolify management)
+**Last Updated:** 2026-06-02 (Coolify rows removed; all services now run as standalone Compose stacks under `/opt/<svc>/` with stable `container_name:` and are deployed via `fabrik apply` SSH+Compose). Backrest replaces Duplicati [migrated 2026-04-17]; Authelia, Gotenberg, MeiliSearch present; monitoring stack [Prometheus/Grafana/Loki/Promtail/Alertmanager/cAdvisor/node-exporter] runs as `/opt/monitoring/`.
 
 Services Fabrik needs to function.
 
@@ -33,19 +24,18 @@ fabrik plan my-api      # Execute and exit
 
 | Service | Required | Purpose | Fallback |
 |---------|----------|---------|----------|
-| **Coolify** | Yes | Container deployment | None |
-| **PostgreSQL** | Yes | Database (via Coolify) | None |
-| **DNS Manager** | Yes | DNS management | — |
-| **Backblaze B2** | Yes | Backup storage | None |
-| **Redis** | Optional | Caching | Works without |
+| **SSH access to VPS** | Yes | Container deployment via `fabrik apply` (SSH + Docker Compose) | None |
+| **PostgreSQL** (`postgres-main`) | Yes | Shared database | None |
+| **DNS Manager** (site-provisioner / Cloudflare) | Yes | DNS management | — |
+| **Backblaze B2** | Yes | Backup storage (via Backrest + restic) | None |
+| **Redis** (`redis-main`) | Optional | Caching | Works without |
 
 
-## VPS Services (Managed by Coolify)
+## VPS Services (managed by fabrik via SSH + Docker Compose)
 
 | Service | Container | Port | URL | Protection | Purpose |
 |---------|-----------|------|-----|------------|---------|
-| Coolify | coolify | 8000* | `https://vps1.ocoron.com:8000` | 🔐 Password | Deployment control plane |
-| PostgreSQL | postgres-main | 5432 | - (internal) | 🔐 Password | Shared database |
+| PostgreSQL | postgres-main | 5432 | - (mesh-only via 10.99.0.1) | 🔐 Password | Shared database |
 | Redis | redis-main | 6379 | - (internal) | 🔒 Internal | Caching (optional) |
 | Netdata | netdata | 19999 | `https://netdata.vps1.ocoron.com` | 🔐 Password | System monitoring |
 | Gatus | gatus | 3001 | `https://status.vps1.ocoron.com` | 🔐 Password | Service monitoring |
@@ -68,7 +58,7 @@ fabrik plan my-api      # Execute and exit
 | Grafana | grafana | 3002 | `https://monitor.vps1.ocoron.com` | 🔐 Password | Dashboards & alerting |
 | n8n | n8n | 5678 | `https://auto.vps1.ocoron.com` | 🔐 Password | Business automation & webhook pipelines |
 
-*Coolify port 8000 is exposed directly on host. All other services use Traefik reverse proxy on port 443.
+All services use Traefik reverse proxy on ports 80/443. Mesh-only services (postgres-main, redis-main, loki, etc.) bind only to `10.99.0.1` (Wireguard hub interface).
 
 **Protection Legend:**
 - 🔐 **Password** — Requires login (basicauth or app login)
@@ -80,27 +70,14 @@ See [vps-urls.md](operations/vps-urls.md) for complete URL reference.
 
 ## Startup Order
 
-For VPS setup (one-time):
-
-1. Docker (system service)
-2. Coolify (self-managing)
-3. postgres-main (Coolify database)
-4. redis-main (Coolify database)
-5. Gatus (Coolify application)
+For VPS setup (one-time): run `./scripts/bootstrap/bootstrap-vps.sh root@<new-ip> vpsN` — see [`docs/infrastructure/vps-bootstrap-plan.md`](infrastructure/vps-bootstrap-plan.md). Order (per the script's 14 steps): system → Docker + fabrik network → Wireguard mesh → DOCKER-USER chain → monitoring agents → Traefik → DNS records.
 
 For Fabrik usage (each run):
 
-1. Ensure VPS is accessible
-2. Ensure Coolify API is reachable
-3. Run `fabrik` commands
+1. Ensure VPS is accessible via SSH (`ssh vps1`)
+2. Run `fabrik apply specs/services/<id>.yaml` (auto-routes to the right host via `target_vps`)
 
 ## Health Checks
-
-### Coolify
-
-```bash
-curl -s https://coolify.yourdomain.com/api/health
-```
 
 ### PostgreSQL
 
@@ -514,7 +491,6 @@ Expected output:
 
 ```text
 NAMES           STATUS
-coolify         Up 2 days
 postgres-main   Up 2 days
 redis-main      Up 2 days
 netdata         Up 2 days

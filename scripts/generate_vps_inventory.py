@@ -56,7 +56,6 @@ PURPOSE_MAP = {
     "fabrik-emailgateway": "Provider-agnostic email gateway",
     "fabrik-file-api": "Presigned URL service for R2",
     "fabrik-file-worker": "Background file processing",
-    "fabrik-image-broker": "Stock image API (Pexels, Pixabay)",
     "fabrik-proxy": "Proxy management API",
     "fabrik-translator": "DeepL + Azure translation service",
     "gatus": "Uptime monitoring → status.vps1.ocoron.com",

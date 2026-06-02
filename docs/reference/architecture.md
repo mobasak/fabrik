@@ -15,7 +15,7 @@
 
 ## Overview
 
-Fabrik is a **spec-driven, shape-gated deployment automation CLI**. You write a YAML spec describing what you want deployed; the orchestrator runs a state machine that provisions Coolify + Traefik + every relevant registrar (Postgres, Gatus, Backrest, GlitchTip, Grafana, Authelia, MeiliSearch) and verifies the result — all atomic, with automatic rollback on failure.
+Fabrik is a **spec-driven, shape-gated deployment automation CLI**. You write a YAML spec describing what you want deployed; the orchestrator runs a state machine that provisions the compose stack via SSH + Docker Compose + Traefik + every relevant registrar (Postgres, Gatus, Backrest, GlitchTip, Grafana, Authelia, MeiliSearch) and verifies the result — all atomic, with automatic rollback on failure. (Pre-2026-05-30 the deploy mechanism was the Coolify API; legacy code modules remain for `fabrik status`/`logs` against unmigrated services.)
 
 **Entry point of truth:** `docs/DEPLOYMENT.md` — single canonical reference. This file is the quick architectural map.
 

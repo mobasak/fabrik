@@ -1,4 +1,10 @@
-"""Compose YAML updater for Coolify-managed resources.
+"""Compose YAML updater for Coolify-managed resources — LEGACY MODULE.
+
+DEPRECATED 2026-05-30: this updater mutated docker-compose YAML stored
+inside Coolify's database via the Coolify API. The SSH+Compose deploy
+path writes compose files directly to `/opt/<name>/compose.yaml` on the
+VPS without any database mutation, so this module's purpose no longer
+exists. New code paths must NOT use this module.
 
 Plan §9 / acceptance criterion at
 ``docs/development/plans/2026-04-18-zero-touch-deployment.md:2089``:

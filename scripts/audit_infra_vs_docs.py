@@ -3,7 +3,7 @@
 
 Runs a fixed set of presence-probes against vps1/vps2/vps3 via SSH and emits:
 
-1. YAML report → docs/infrastructure/probe-reports/infra-probe-YYYYMMDD-HHMM.yaml  (tracked; commit alongside doc edits per Lesson 66)
+1. YAML report → docs/infrastructure/probe-reports/infra-probe-YYYYMMDD-HHMM.yaml  (tracked; commit alongside doc edits per Lesson 69)
 2. Markdown table → stdout  (paste-ready for vps-status.md § Verification log)
 
 Designed to close the gap exposed on 2026-05-31 evening: three doc-audit passes
@@ -11,7 +11,7 @@ claimed UFW was active on vps2/vps3 because each grepped for failure symptoms.
 None ran `dpkg -l ufw`. Symptom-grep cannot find an absence — this script does
 presence-probing instead.
 
-Lesson 66 in docs/LESSONS_LEARNT.md.
+Lesson 69 in docs/LESSONS_LEARNT.md.
 
 Usage:
     scripts/audit_infra_vs_docs.py                  # run probes, write report
@@ -33,10 +33,20 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = REPO_ROOT / "docs" / "infrastructure" / "probe-reports"
 INFRA_DOCS = [
+    # Plan W6 § Acceptance originally listed 4 docs; we extended to 6, then to
+    # 7 with vps-hub-rebuild.md (2026-06-01, DR-in-hours track) since it makes
+    # provenance-bearing claims about backup-snapshot freshness + service
+    # counts that age out fast if a future drill doesn't re-anchor them.
+    # Linter enforces fresh-report citation on all 7.
     REPO_ROOT / "docs/infrastructure/vps-complete-inventory.md",
     REPO_ROOT / "docs/infrastructure/vps-status.md",
     REPO_ROOT / "docs/infrastructure/vps-urls.md",
     REPO_ROOT / "docs/infrastructure/vps-bootstrap-plan.md",
+    REPO_ROOT / "docs/infrastructure/vps-ai-sysadmin.md",
+    REPO_ROOT / "docs/infrastructure/vps-residue-policy.md",
+    REPO_ROOT / "docs/infrastructure/vps-hub-rebuild.md",
+    REPO_ROOT / "docs/infrastructure/vps-fleet-architecture.md",
+    REPO_ROOT / "docs/infrastructure/vps-spoke-rebuild.md",
 ]
 
 # Probes are plain strings (NOT f-strings) — the Docker `{{.Names}}` format must
@@ -80,8 +90,71 @@ def _run_ssh(host: str, cmd: str, timeout: int = 15) -> tuple[int, str, str]:
         return 1, "", repr(e)
 
 
+_MARKER = "===W6PROBE-MARKER==="  # unlikely to appear in any probe output
+
+
 def probe_host(host: str) -> dict[str, str]:
-    """Run all PROBES against a host. Returns name -> value string."""
+    """Run all PROBES against a host in a SINGLE SSH session and demux the output.
+
+    Performance: this collapses ~17 sequential ssh calls (each paying TCP+TLS
+    handshake + auth + shell startup) into 1 ssh call running 17 commands in
+    one remote shell. Empirical speedup ~10x for 17 probes; brings the audit
+    runtime from ~75s (51 connections across 3 hosts) under the plan's <10s
+    target. Lesson 70.
+
+    Each probe's output is preceded by a marker line that names the probe;
+    the demuxer reassembles the per-probe dict on the parser side. Each
+    probe is `|| true`-guarded so a failure in one doesn't truncate the
+    rest of the session.
+    """
+    parts: list[str] = []
+    for name, cmd in PROBES.items():
+        # Force a newline BEFORE the marker so probes whose output has no
+        # trailing newline (e.g. `tr '\n' ',' | sed 's/,$//'`) don't cause
+        # the next marker to concatenate onto the same line as the prior
+        # probe's last byte. Without the leading \n, listening_public-style
+        # probes silently leaked the marker into their value. Lesson 71.
+        parts.append(f"printf '\\n%s\\n' '{_MARKER}{name}'")
+        parts.append(f"({cmd}) 2>&1 || true")
+    parts.append(f"printf '\\n%s\\n' '{_MARKER}END'")
+    bundled = "\n".join(parts)
+
+    rc, out, _err = _run_ssh(host, bundled, timeout=60)
+    if rc != 0 and not out:
+        # Total failure — return error placeholders for every probe.
+        return {name: f"ERR ssh rc={rc}" for name in PROBES}
+
+    # Demux
+    results: dict[str, str] = {}
+    current: str | None = None
+    buf: list[str] = []
+    for line in out.split("\n"):
+        if line.startswith(_MARKER):
+            # Close out the previous probe (if any)
+            if current is not None:
+                results[current] = "\n".join(buf).strip() or "(empty)"
+            tag = line[len(_MARKER):].strip()
+            current = tag if tag != "END" else None
+            buf = []
+        elif current is not None:
+            buf.append(line)
+    # In case the trailing marker was lost, flush whatever remains.
+    if current is not None and current not in results:
+        results[current] = "\n".join(buf).strip() or "(empty)"
+
+    # Fill any probe the host didn't return (shouldn't happen, but be defensive).
+    for name in PROBES:
+        if name not in results:
+            results[name] = "ERR: missing from bundled output"
+    return results
+
+
+def _legacy_probe_host_per_call(host: str) -> dict[str, str]:
+    """Legacy per-probe-per-ssh implementation, kept for fallback. Slow.
+
+    Retained only so a future bug in the demuxer can be sanity-checked by
+    swapping `probe_host = _legacy_probe_host_per_call` at the call site.
+    """
     results: dict[str, str] = {}
     for name, cmd in PROBES.items():
         rc, out, err = _run_ssh(host, cmd)
@@ -198,7 +271,11 @@ def main() -> int:
     data_dir.mkdir(parents=True, exist_ok=True)
     yaml_path = data_dir / f"infra-probe-{timestamp}.yaml"
     emit_yaml(report, yaml_path)
-    print(f"# wrote {yaml_path.relative_to(REPO_ROOT)}", file=sys.stderr)
+    try:
+        display = yaml_path.relative_to(REPO_ROOT)
+    except ValueError:
+        display = yaml_path  # --data-dir outside repo: log absolute path
+    print(f"# wrote {display}", file=sys.stderr)
     print()
     print(emit_markdown(report))
     return 0

@@ -1,103 +1,115 @@
-# VPS Audit Prompts
+# VPS Audit Prompts — Fleet Edition
 
-**Last Updated:** 2026-05-31 (banner refreshed for post-Coolify-removal + 3-host mesh)
+**Last Updated:** 2026-06-02 (full rewrite of all 8 prompts for the 3-VPS fleet; previous version was 2026-05-19 Coolify-era single-VPS vintage)
 
-> **⚠️ Partial-rewrite needed.** All 8 audit prompts in this directory were authored 2026-05-19 during the Coolify era. They reference Coolify dashboards, UUID-suffix container names, and `coolify` Docker network. As of 2026-05-30:
->
-> - Coolify is **gone** — replaced with SSH + Docker Compose (`/opt/<svc>/compose.yaml`)
-> - Container names are **stable** (no UUID suffix) — `traefik`, `postgres-main`, `grafana`, etc.
-> - Network renamed `coolify` → `fabrik` on 2026-05-31
-> - Fleet grew vps1-only → **vps1 + vps2 + vps3** (Wireguard mesh)
->
-> A targeted `coolify` → `fabrik` network rename has been swept across the 8 files. Other Coolify-isms (UI references, UUID lookups, `/data/coolify/` paths) remain — apply mental substitutions as you read:
->
-> | Old (Coolify-era) | New (current) |
-> | :--- | :--- |
-> | "Check the Coolify dashboard" | `sudo docker compose -f /opt/<svc>/compose.yaml ps` |
-> | "Edit env in Coolify UI" | edit `/opt/<svc>/.env` and `cd /opt/<svc> && sudo docker compose up -d` |
-> | `<svc>-<24chars>-<timestamp>` container name | just `<svc>` (stable via `container_name:`) |
-> | "Coolify v4" | "SSH + Docker Compose (Coolify removed 2026-05-30)" |
-> | `/data/coolify/applications/<uuid>/` | `/opt/<svc>/` |
-> | `/data/coolify/services/<uuid>/` | `/opt/<svc>/` |
-> | "coolify network" | `fabrik` network |
+Structured prompts for comprehensive infrastructure auditing of the 3-VPS Fabrik fleet. Each prompt is a self-contained brief designed to be pasted into an AI assistant (Claude Code, ChatGPT, etc.) alongside the diagnostic output it requests.
 
-Structured prompts for comprehensive VPS health auditing. Each file is a self-contained prompt designed to be pasted into an AI assistant (Claude Code, ChatGPT, etc.) alongside the diagnostic output it requests.
+## Quick-start
 
-## Usage
+1. Pick the audit you need (table below).
+2. Note the **run mode** — some audits are per-host, some are fleet-wide.
+3. Run the listed commands and collect the output.
+4. Paste the prompt body + your command output + the stack context block into Claude.
+5. Apply the findings via prompt #08 (hardening remediation).
 
-1. Pick the audit you need
-2. SSH to vps1 (or a spoke) and run the listed commands
-3. Paste the prompt + command output into your AI assistant
-4. Follow the remediation roadmap
+## The 8 prompts
 
-## Prompts
+| # | File | Run mode | Scope | When to use |
+| :--- | :--- | :--- | :--- | :--- |
+| 01 | [01-full-system-audit.md](01-full-system-audit.md) | **per host** | Identity, CPU, memory, disk, network, services, security overview | Monthly per host, after incidents, before going live |
+| 02 | [02-container-health.md](02-container-health.md) | **per host** | Container fleet stability, resources, health, log hygiene, W15 spoke check | After deploys, when services slow/crash, during/after `fabrik apply` |
+| 03 | [03-security-hardening.md](03-security-hardening.md) | **fleet-wide, per-host probes** | SSH, UFW, DOCKER-USER, mesh trust, TLS, Authelia, fail2ban, container isolation, secrets | Before production launch, quarterly review, after any access change |
+| 04 | [04-performance-bottleneck.md](04-performance-bottleneck.md) | **per host** | CPU, memory, disk I/O, network — identify what's slow + why | When a host is slow, load is high, or users report latency |
+| 05 | [05-observability-pipeline.md](05-observability-pipeline.md) | **fleet-wide, hub-rooted** | Prometheus + Grafana + Loki + Alertmanager + GlitchTip + Gatus end-to-end | When dashboards are empty, alerts aren't firing, logs missing, or after W8-style observability changes |
+| 06 | [06-backup-disaster-recovery.md](06-backup-disaster-recovery.md) | **per host** for probes, fleet-wide for analysis | Backrest config + B2 reachability + snapshot freshness + DR scripts + DR-store mirror | Monthly, before major changes, before DR drill |
+| 07 | [07-pre-production-checklist.md](07-pre-production-checklist.md) | **per spec** (`target_vps`-aware) | Go-live readiness for a new spec against the spec's target host | Before first real users hit a new service |
+| 08 | [08-hardening-remediation.md](08-hardening-remediation.md) | **per host** | Execute fixes from audits 01-06; backup-before-destruct discipline | After running audits 01-06 to make the fleet production-grade |
 
-| File | Scope | When to use | Rewrite priority |
-| :--- | :--- | :--- | :--- |
-| [01-full-system-audit.md](01-full-system-audit.md) | Complete 8-domain VPS health check | Monthly, after incidents, before going live | medium |
-| [02-container-health.md](02-container-health.md) | Docker container diagnostics | After deploys, when services are slow/crashing | high (12 mentions) |
-| [03-security-hardening.md](03-security-hardening.md) | Firewall, auth, TLS, attack surface | Before production launch, quarterly review | low |
-| [04-performance-bottleneck.md](04-performance-bottleneck.md) | CPU, memory, disk I/O, network deep-dive | When VPS is slow, load is high, or users report latency | low |
-| [05-observability-pipeline.md](05-observability-pipeline.md) | Prometheus, Loki, Grafana, GlitchTip, Gatus | When dashboards are empty, alerts aren't firing, logs are missing | low |
-| [06-backup-disaster-recovery.md](06-backup-disaster-recovery.md) | Backrest, B2, volume integrity, recovery testing | Monthly, before major changes, after data incidents | medium (Backrest is now 0 plans; B2 empty) |
-| [07-pre-production-checklist.md](07-pre-production-checklist.md) | Go-live readiness for a new service deployment | Before first real users hit the VPS | low |
-| [08-hardening-remediation.md](08-hardening-remediation.md) | Post-audit hardening — execute fixes from findings | After running audits 01-06, to make VPS production-grade | low |
+## Run-mode legend
 
-## Multi-host notes (2026-05-31)
+- **per host** — pick a host, run the prompt's data-collection commands against just that host, get a per-host report. To audit the whole fleet, run it 3× (once each for vps1/vps2/vps3) and compare reports.
+- **fleet-wide, per-host probes** — collect data from all 3 hosts, analyze them together. The findings often surface as drift between hosts.
+- **fleet-wide, hub-rooted** — most probes run on vps1 (the host that centralizes the data); spoke-side probes confirm agents are pushing.
+- **per spec** — runs against the spec's `target_vps`, not a host you pick. The prompt parses the spec to determine the target.
 
-When auditing the fleet, scope each audit per host. SSH aliases (already in `~/.ssh/config`):
-
-- `ssh vps` → vps1.ocoron.com (hub, LA, 11.6 GB / 6 cores)
-- `ssh vps2` → 96.9.214.128 (Coventry UK spoke, 8 GB / 4 cores)
-- `ssh vps3` → 104.128.190.151 (Coventry UK spoke, 8 GB / 4 cores)
-
-For fleet-wide observability checks (audit 05), run them against vps1 since Prometheus + Loki on vps1 have data from all hosts via mesh.
-
-## Lessons Learned (2026-05-19 + 2026-05-31 + 2026-06-01)
-
-1. **All scripts must use `sudo`** for: docker, ufw, iptables, dmesg, journalctl, sshd, aa-status, last, and any file under `/var/lib/docker/volumes/`. SSH user is not root and not in the docker group.
-2. **Scripts that read `/opt/fabrik/.env`** must account for the fact that `.env` lives on the WSL dev machine, not the VPS. Tokens for Grafana/GlitchTip/etc. need to be passed as env vars or read from VPS-local paths.
-3. **Time-series commands** (`vmstat 1 5`, `iostat -x 1 3`) add 3-15 s per script. Acceptable for parallel execution but not for sequential.
-4. **`ip -s link`** without a specific interface dumps all Docker bridges + wg0. Always detect primary interface first.
-5. **Container names** are now stable (post-2026-05-30) — use `--filter name=<exact-name>` directly. Old prompts that say "use `name=<pattern>`" because Coolify UUID-suffixed names can use exact-match now.
-6. **Mesh-bound services** on vps1 (postgres-main, redis-main, glitchtip-web, authelia, loki) listen on `10.99.0.1:<port>` in addition to internal Docker DNS. Audit scripts checking external reachability should test `0.0.0.0:<port>` (should fail — public should not reach these) AND `10.99.0.1:<port>` (should succeed from other hosts on mesh).
-7. **Verify UFW with all 3 probes — Lesson 68 (2026-06-01)**: a package in `rc` state ("removed but config files remain") returns empty from `dpkg -l ufw \| awk '/^ii/'` while `systemctl is-active ufw` returns "active" — and the binary is missing. Single-probe checks of "is UFW installed and enforcing?" mislead. Audit scripts must run all three: `dpkg -l ufw \| awk '/^(ii|rc)/'` (distinguishes installed from removed-with-config from never-installed), `command -v ufw` (binary present), `sudo ufw status` (rules + default policy). Pre-W1 vps2 + vps3 had `rc`-state UFW for weeks; only DOCKER-USER was actually enforcing. Captured in `docs/LESSONS_LEARNT.md § Lesson 68`.
-
-## Stack Context (paste into any prompt if needed)
+## Fleet topology — share this with Claude
 
 ```text
-Fleet: 3 hosts, Wireguard mesh 10.99.0.0/24 (UDP 51820, MTU 1420)
-  vps1 (10.99.0.1): Ubuntu 24.04 LTS, 6 vCores, 11.6 GB RAM, 108 GB disk
-  vps2 (10.99.0.2): Ubuntu 24.04 LTS, 4 vCores, 8 GB RAM, 60 GB NVMe
-  vps3 (10.99.0.3): Ubuntu 24.04 LTS, 4 vCores, 8 GB RAM, 60 GB NVMe
-
-Orchestration: SSH + Docker Compose (no Coolify; removed 2026-05-30)
-                Traefik v2.11 on each host (per-host TLS termination)
-                Authelia v4 on vps1 (forward-auth for *.vps1.ocoron.com;
-                  cross-host pattern: 10.99.0.1:9091 via spoke Traefik
-                  authelia-vps1@file middleware)
-
-Data (all on vps1, mesh-exposed):
-  PostgreSQL 16 (postgres-main) on 10.99.0.1:5432
-  Redis 7 (redis-main) on 10.99.0.1:6379
-  Meilisearch (per-service index) on http://meilisearch:7700 (vps1 only)
-
-Observability (centralized on vps1):
-  Prometheus + Alertmanager + Grafana + Loki + Promtail + Gatus + GlitchTip
-  Loki accepts pushes at 10.99.0.1:3100 (mesh); spokes' promtail uses it
-  Prometheus scrapes 20 targets (14 vps1 + 6 spoke) — every series has
-    host label (vps1/vps2/vps3) for filtering
-
-Backups: Backrest → Backblaze B2 (CURRENTLY 0 PLANS, intentional;
-  see docs/operations/disaster-recovery.md)
-
-Docker:
-  vps1: ~28 containers
-  vps2 + vps3: 4 containers each (traefik + node-exporter + cadvisor + promtail)
-  Network: fabrik (renamed from coolify on 2026-05-31)
-  daemon.json: log tag enabled on vps1; PENDING on spokes
-
-Compose layout: /opt/<svc>/compose.yaml on every host
-.env files: /opt/<svc>/.env on every host (the SSH deployer's inject_env()
-  writes here; never edit in a "dashboard")
+- 3-VPS Wireguard mesh (10.99.0.0/24):
+  - vps1 hub:  10.99.0.1 (LA, GreenCloudVPS, 172.93.160.197, 11.6 GiB / 6 cores)
+  - vps2 spoke: 10.99.0.2 (Coventry UK, GreenCloudVPS, 96.9.214.128, 7.7 GiB / 4 cores)
+  - vps3 spoke: 10.99.0.3 (Coventry UK, GreenCloudVPS, 104.128.190.151, 7.7 GiB / 4 cores)
+- Single-operator threat model. Mesh is fully trusted.
+- All hosts: Ubuntu 24.04 LTS; UFW + fail2ban + DOCKER-USER chain; root SSH disabled;
+  password SSH disabled; `ozgur` user with NOPASSWD sudo + ed25519 key.
+- Deploy mechanism: SSH + Docker Compose via `fabrik apply` since 2026-05-30
+  (Coolify removed). Spec field `target_vps: vpsN` routes deploys.
+- Network: containers use the `fabrik` Docker network (renamed from `coolify`
+  on 2026-05-31; some compose files still reference `coolify` as a
+  historical artifact — intentional per deploy invariants).
 ```
+
+## Container counts (current)
+
+```text
+vps1: 29 containers — site-provisioner + authelia + glitchtip-web/worker +
+      redis-main + postgres-main + postgres-exporter + redis-exporter +
+      loki + promtail + prometheus + alertmanager + grafana + gatus +
+      cadvisor + node-exporter + pushgateway + apprise + backrest + n8n +
+      gotenberg + browserless + meilisearch + traefik + 5 ocoron-com tenant
+vps2 + vps3: 5 containers each — traefik + node-exporter + cadvisor +
+      promtail + backrest (per W11 ship 2026-06-01)
+```
+
+## Observability (centralized on vps1)
+
+```text
+Prometheus + Alertmanager + Grafana + Loki + Promtail + Gatus + GlitchTip
+- Loki accepts mesh pushes at 10.99.0.1:3100; spokes' promtail uses it
+- Prometheus scrapes 18 targets across 15 jobs (12 vps1 + 3 spoke job-groups)
+- Every series has `host` label (vps1/vps2/vps3) for fleet filtering
+- spoke_health rule group: SpokeDown / SpokeHighCPU / SpokeHighRAM
+- AI sysadmin: vps-sysadmin-bot.service on vps1 ONLY
+```
+
+## Backups (Backrest → Backblaze B2 in us-west-004)
+
+```text
+vps1 hub: 4 plans (postgres-dumps, docker-volumes, opt-configs, host-state)
+          repo: vps1-ocoron-backups (a256277c45) — first ship 2026-06-01 (W2)
+vps2 + vps3 spokes: 2 plans each (host-state, opt-configs)
+          repos at b2:vps1-ocoron-backups/spokes/vps{2,3}/
+          first ship 2026-06-01 (W11)
+DR scripts:
+  scripts/bootstrap/bootstrap-hub.sh (18 steps, ≤90 min target, UNDRILLED)
+  scripts/bootstrap/bootstrap-spoke-restore.sh (13 steps, ≤30 min, UNDRILLED)
+DR-store mirror (W9, extended for W11): private GitHub mobasak/fabrik-dr-store
+  carries /opt/fabrik/.env + .env.sysadmin + per-spoke restic passwords +
+  per-spoke .env.backrest. Inotify watcher pushes within seconds.
+```
+
+## Latest probe report
+
+Run `python3 scripts/audit_infra_vs_docs.py` to refresh. The script writes timestamped YAML to `docs/infrastructure/probe-reports/`.
+
+**Most recent (cite this as ground truth in audit prompts):** [`../probe-reports/infra-probe-2026-06-01T22-50Z.yaml`](../probe-reports/infra-probe-2026-06-01T22-50Z.yaml) (post-W14 sweep). Counts: 29/5/5. UFW active on all 3. Mesh peers alive: vps1=2, vps2=1, vps3=1. fail2ban totals: 891/73/72.
+
+## Lessons captured (relevant to auditing)
+
+1. **Symptom-grep cannot find an absence.** Pre-W1 UFW state was `rc` (removed-with-config), not "never installed". Audits must probe for *presence* (3 probes — `dpkg -l`, `command -v`, `ufw status`), not just for *failure symptoms*. (Lesson 68)
+2. **dev-WSL TCP probes lie.** Türk Telekom AS9121 has a middlebox that spoofs SYN-ACKs, making `nc -zv` report "succeeded" against ports that aren't actually open. Probe from a clean-AS off-mesh node (the other spokes work). (Lesson 72)
+3. **Env-var verification uses `docker inspect`**, NEVER `docker exec printenv`. Distroless / scratch images have no shell. (Lesson 31)
+4. **Health checks test real deps** (`SELECT 1`, Redis `PING`), not a static 200. (Lesson 30)
+5. **Silence ContainerDown** before any planned op > 2 min, or Telegram floods. (Operator discipline; not a numbered Lesson but a hard-won habit.)
+6. **`docker logs` is per-container.** Loki + Grafana queries are how you audit fleet-wide log behavior; raw `docker logs` is only useful when you already suspect a specific container.
+
+## Cross-references
+
+- Architecture: [`../vps-fleet-architecture.md`](../vps-fleet-architecture.md) — the "fleet as one system" picture
+- Live inventory: [`../vps-complete-inventory.md`](../vps-complete-inventory.md) — source of truth for what runs where
+- Status snapshot: [`../vps-status.md`](../vps-status.md) — point-in-time health
+- URLs: [`../vps-urls.md`](../vps-urls.md) — how to reach things
+- Bootstrap: [`../vps-bootstrap-plan.md`](../vps-bootstrap-plan.md) — provisioning a new VPS
+- AI sysadmin (host-level): [`../vps-ai-sysadmin.md`](../vps-ai-sysadmin.md) — the second AI layer (per-project watchdog) is separately documented there
+- Residue policy: [`../vps-residue-policy.md`](../vps-residue-policy.md) — what stays vs gets cleaned
+- Lessons learnt: [`../../LESSONS_LEARNT.md`](../../LESSONS_LEARNT.md)

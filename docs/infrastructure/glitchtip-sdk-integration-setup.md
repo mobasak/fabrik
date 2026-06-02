@@ -138,19 +138,9 @@ DSN host: `glitchtip-web:8000`. Same Docker network, fastest path. No change fro
 
 ### Path B — services on vps2 / vps3
 
-DSN host: `10.99.0.1:8000` over the mesh. This requires GlitchTip's `glitchtip-web` container port 8000 to be bound to vps1's mesh IP (`10.99.0.1`), the same pattern we used for Loki on 2026-05-31. As of this rewrite, **that binding has not yet been added** — when the first service lands on vps2/vps3 that needs GlitchTip, add this to `/opt/glitchtip/compose.yaml`:
+DSN host: `10.99.0.1:8000` over the mesh. The `glitchtip-web` container's port 8000 is bound to vps1's mesh IP — verified live: `LISTEN 0 4096 10.99.0.1:8000 0.0.0.0:* docker-proxy` (probe 2026-06-02). Spoke services use `SENTRY_DSN=http://<key>@10.99.0.1:8000/<project_id>` and ingest over Wireguard (private, no Authelia hop).
 
-```yaml
-services:
-  glitchtip-web:
-    # existing config ...
-    ports:
-      - "10.99.0.1:8000:8000"   # mesh only, NOT 0.0.0.0
-```
-
-Then `cd /opt/glitchtip && sudo docker compose up -d` to recreate. After that, services on vps2/vps3 can use `SENTRY_DSN=http://<key>@10.99.0.1:8000/<project_id>` and ingest over Wireguard (private, no Authelia hop).
-
-The provisioner script should grow a `--target-vps` flag that picks the right host rewrite (`glitchtip-web:8000` for vps1, `10.99.0.1:8000` for vps2/vps3). Tracking as a follow-up.
+Since W14 (2026-06-02), the SSH deployer's `inject_env()` itself env-swaps `FABRIK_VPS_SSH_HOST` to `ctx.target_vps` for the duration of the call — so when the glitchtip registrar runs `inject_env(ctx, {"SENTRY_DSN": dsn})` for a spoke-deployed service, the DSN is written to `/opt/<svc>/.env` on the **spoke**, not on vps1. The DSN's mesh-IP host (`10.99.0.1:8000`) stays the same because the spoke container reaches glitchtip over the mesh.
 
 ### Path C — fallback, public URL
 

@@ -135,7 +135,6 @@ ALL_PROJECTS = [
     "candle",
     "emailgateway",
     "full-wf-test",
-    "image-broker",
     "job-agent",
     "proposal-creator",
     "seo",

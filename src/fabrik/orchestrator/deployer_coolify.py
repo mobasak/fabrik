@@ -1,4 +1,14 @@
-"""Coolify deployment with idempotency."""
+"""Coolify deployment with idempotency.
+
+LEGACY MODULE — RETAINED FOR ``fabrik status`` / ``logs`` / ``reconcile-all``.
+
+The active deploy mechanism is SSH + Docker Compose
+(``src/fabrik/orchestrator/deployer_ssh.py``). Coolify was fully removed
+from production on 2026-05-30. This module is intentionally retained
+because a handful of CLI commands still import the legacy Coolify API
+client to look up service state for pre-migration services. New code
+paths must NOT import from this module — use ``deployer_ssh.SSHDeployer``.
+"""
 
 import logging
 import os

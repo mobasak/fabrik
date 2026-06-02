@@ -1,112 +1,206 @@
-# Pre-Production Checklist — Go-Live Readiness
+# 07 — Pre-Production Checklist (per-spec, per-target_vps)
 
-Run this audit before the VPS serves its first real user. Covers every layer from infrastructure to application to operational readiness. Not a theoretical checklist — every item is verified against live state.
+**Last Updated:** 2026-06-02 (rewritten for spec-driven multi-host deploys; was single-VPS Coolify-era — patched 2026-06-02 evening after live-validation against `image-broker`: fixed two bash bugs — SSH alias mismatch on hub, and `<<EOF` heredoc breaking the nested python `[p['id']` parse — and tightened the Authelia rule probe to report all matches in file order)
+**Run mode:** **per spec** — before `fabrik apply` on a new service that will see real traffic.
+**Scope:** confirm infra/security/observability/backup posture is correct **on the spec's `target_vps`** before traffic lands.
+**Time budget:** ~15 min including the `fabrik apply --dry-run` step.
+
+---
 
 ## Context
 
-This VPS will host:
-- SaaS products (ocoron.com WordPress site, future GUI apps)
-- Backend APIs (site-provisioner, image-broker)
-- Observability stack (Grafana, Prometheus, Gatus, GlitchTip)
-- Deployment platform (Coolify)
-
-## Commands to Run
-
-Run the full system audit (01) + security audit (03) + observability audit (05) + backup audit (06) commands. Then add:
-
-```bash
-# 1. Public endpoint verification
-for domain in ocoron.com www.ocoron.com status.vps1.ocoron.com monitor.vps1.ocoron.com errors.vps1.ocoron.com backup.vps1.ocoron.com provision.vps1.ocoron.com; do
-  code=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 10 "https://$domain/" 2>/dev/null)
-  echo "$domain: HTTP $code"
-done
-
-# 2. Health endpoints (internal)
-sudo docker run --rm --network fabrik curlimages/curl:latest -sS -o /dev/null -w "%{http_code}" http://prometheus:9090/-/ready
-sudo docker run --rm --network fabrik curlimages/curl:latest -sS -o /dev/null -w "%{http_code}" http://loki:3100/ready
-sudo docker run --rm --network fabrik curlimages/curl:latest -sS -o /dev/null -w "%{http_code}" http://grafana:3000/api/health
-sudo docker run --rm --network fabrik curlimages/curl:latest -sS -o /dev/null -w "%{http_code}" http://glitchtip-web:8000/api/0/
-sudo docker run --rm --network fabrik curlimages/curl:latest -sS -o /dev/null -w "%{http_code}" http://gatus:8080/api/v1/endpoints/statuses
-
-# 3. DNS resolution (external)
-for domain in ocoron.com status.vps1.ocoron.com monitor.vps1.ocoron.com; do
-  ip=$(dig +short $domain @1.1.1.1 2>/dev/null)
-  echo "$domain → $ip"
-done
-
-# 4. WordPress-specific
-curl -sS -o /dev/null -w "%{http_code}" "https://ocoron.com/"
-curl -sS -o /dev/null -w "%{http_code}" "https://ocoron.com/wp-json/wp/v2/users"
-curl -sS -o /dev/null -w "%{http_code}" "https://ocoron.com/xmlrpc.php"
-
-# 5. System resource headroom
-free -h | grep Mem | awk '{printf "Memory: %s used of %s (%.0f%% free)\n", $3, $2, ($4/$2)*100}'
-df -h / | tail -1 | awk '{printf "Disk: %s used of %s (%s free)\n", $3, $2, $4}'
-
-# 6. Cron jobs (WSL + VPS)
-crontab -l 2>/dev/null
-ssh vps "crontab -l" 2>/dev/null
-
-# 7. Auto-restart verification
-sudo docker ps --format "{{.Names}} {{.RestartCount}}" | sort -t' ' -k2 -rn | head -10
+```text
+- Fabrik specs live at specs/services/<id>.yaml. Each carries:
+  - shape: drives which of 9 registrars fire (postgres, redis, gatus,
+    glitchtip, backrest, grafana, authelia, meilisearch, prometheus)
+  - target_vps: vps1 | vps2 | vps3 (default vps1)
+  - domain: must match the spec's target_vps subdomain
+    (`<svc>.vps1.ocoron.com` for vps1, `<svc>.vps2.ocoron.com` for vps2, etc.)
+  - resources, health, expose, secrets blocks
+- Active deploy: SSH + Docker Compose. fabrik apply orchestrates
+  validate → DNS → SSH+Compose → 9 registrars → verifier (HTTPS health).
+- Spoke deploys verified end-to-end 2026-06-02 with spoke-canary on vps2
+  (HTTP 200 + Let's Encrypt YR2 cert).
+- W15 prerequisite: spoke Traefik has the `gzip@docker` middleware label.
+  Verify before deploying anything to a spoke.
 ```
 
-## Go-Live Checklist
+---
 
-### Infrastructure Layer
-- [ ] All containers healthy (0 unhealthy, 0 restarting)
-- [ ] Memory headroom > 1GB free
-- [ ] Disk headroom > 20GB free
-- [ ] Swap usage = 0 (no memory pressure)
-- [ ] Load average < 3.0 (50% of 6 cores)
-- [ ] Docker log rotation configured (daemon.json: max-size 10m, max-file 3)
-- [ ] Docker log tag configured (daemon.json: `tag: {{.Name}}`)
+## Inputs you need
 
-### Security Layer
-- [ ] **vps1** UFW active with only 22, 80, 443, 1194, 51820/udp allowed (6001/6002 Coolify-era ports removed in 2026-05-31 residue sweep)
-- [ ] **vps2 + vps3** UFW active with only 22, 80, 443, 51820/udp allowed (shipped 2026-05-31 evening by W1 of fleet-hardening plan; verify all 3 of `dpkg ii` + `command -v ufw` + `ufw status` per Lesson 68)
-- [ ] DOCKER-USER chain has 9 rules (catch-all DROP at end)
-- [ ] SSH: key-only, no root, Ed25519
-- [ ] Authelia: all admin dashboards behind 2FA
-- [ ] All public-facing TLS certs valid (>14 days to expiry)
-- [ ] No containers running in privileged mode (except cAdvisor/Netdata)
-- [ ] SERVICE_INTERNAL_SECRET_KEY is 32+ chars, not a default
+- The spec path: e.g. `specs/services/<id>.yaml`
+- The spec's `target_vps`: read with `python3 -c "import yaml; print(yaml.safe_load(open('specs/services/<id>.yaml')).get('target_vps','vps1'))"`
+- The spec's `domain`: must match `<svc>.${target_vps}.ocoron.com`
 
-### Observability Layer
-- [ ] Prometheus: all scrape targets UP
-- [ ] Loki: receiving logs, container_name label populated
-- [ ] Grafana: datasources connected, 8 dashboards present
-- [ ] GlitchTip: API reachable, projects with firstEvent
-- [ ] Gatus: all endpoints monitored, alerts → Telegram working
-- [ ] Alertmanager: drift alert rule loaded
-- [ ] Promtail: noise filter dropping coolify-db/redis/realtime/sentinel
+## Commands to run
 
-### Backup Layer
-- [ ] Backrest: last backup < 24h ago
-- [ ] postgres-main volume in backup plan
-- [ ] WordPress volumes in backup plan
-- [ ] /opt/fabrik/.env backed up locally
-- [ ] Recovery tested at least once
+```bash
+SPEC=specs/services/<id>.yaml
+TARGET=$(python3 -c "import yaml; print(yaml.safe_load(open('$SPEC')).get('target_vps','vps1'))")
+SVC=$(python3 -c "import yaml; print(yaml.safe_load(open('$SPEC'))['id'])")
+DOMAIN=$(python3 -c "import yaml; print(yaml.safe_load(open('$SPEC')).get('domain',''))")
 
-### Application Layer
-- [ ] ocoron.com: HTTP 200, valid cert, language switcher working
-- [ ] ocoron.com: /wp-json/wp/v2/users returns 403 (REST hardening)
-- [ ] ocoron.com: /xmlrpc.php returns 403 (xmlrpc blocked)
-- [ ] All API services: /health returns 200
-- [ ] DNS resolves correctly for all domains
+# SSH alias translation: dev-WSL ~/.ssh/config uses `vps` for the hub
+# (historical, predates the multi-host fleet). Spokes use the spec name.
+case "$TARGET" in
+  vps1) SSH_HOST=vps ;;
+  vps2|vps3) SSH_HOST=$TARGET ;;
+  *) echo "BAIL: unknown target_vps: $TARGET"; exit 1 ;;
+esac
+echo "Spec: $SPEC | target_vps: $TARGET | ssh-alias: $SSH_HOST | service id: $SVC | domain: $DOMAIN"
+echo
 
-### Operational Layer
-- [ ] WSL cron: hourly registrar audit running
-- [ ] WSL cron: weekly Authelia audit running
-- [ ] WSL cron: daily kilo_model_sync running
-- [ ] `fabrik audit-registrars` returns 0 drift
-- [ ] `fabrik vps-sync --verify` returns clean
-- [ ] VPS inventory doc (`generate_vps_inventory.py --update`) matches live state
-- [ ] LESSONS_LEARNT.md reviewed — no known gotchas unaddressed
+echo "=== SPEC VALIDATION ==="
+.venv/bin/fabrik apply "$SPEC" --dry-run
 
-## Output Format
+echo
+echo "=== INFRA STATE ON TARGET HOST ==="
+# Note: heredoc is QUOTED ('EOF') so the python -c block's brackets/quotes
+# pass through unmolested. Pass needed locals via inline env-passing.
+ssh "$SSH_HOST" "TARGET=$TARGET bash -s" <<'EOF'
+echo "host: $(hostname)"
+echo "container count: $(sudo docker ps -q | wc -l)"
+echo "ufw: $(sudo ufw status | head -1)"
+echo "fabrik network: $(sudo docker network inspect fabrik --format '{{len .Containers}} containers' 2>&1)"
+echo "traefik: $(sudo docker ps --filter name=traefik --format '{{.Names}} {{.Status}}')"
+if [ "$TARGET" != "vps1" ]; then
+  echo "spoke W15 labels:"
+  sudo docker inspect traefik --format '{{range $k,$v := .Config.Labels}}{{$k}}={{$v}}{{println}}{{end}}' | grep -E "traefik\.enable|gzip\.compress"
+fi
+sudo cat /opt/backrest/config/config.json | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+print('backrest plans:', [p['id'] for p in d.get('plans', [])])
+"
+EOF
 
-1. **GO/NO-GO DECISION** — with evidence for each failing item
-2. **BLOCKING ISSUES** — must fix before go-live
-3. **KNOWN RISKS** — acceptable for launch, fix within first week
-4. **POST-LAUNCH MONITORING PLAN** — what to watch in the first 48 hours
+echo
+echo "=== DNS A-RECORD STATE ==="
+dig +short "$DOMAIN" @1.1.1.1
+dig +short "$DOMAIN" @8.8.8.8
+case "$TARGET" in
+  vps1) EXPECTED_IP="172.93.160.197" ;;
+  vps2) EXPECTED_IP="96.9.214.128" ;;
+  vps3) EXPECTED_IP="104.128.190.151" ;;
+esac
+echo "Expected: $EXPECTED_IP"
+
+echo
+echo "=== SHARED INFRA REACHABILITY FROM TARGET (over mesh) ==="
+ssh "$SSH_HOST" 'ping -c 2 -W 3 10.99.0.1'
+# postgres-main/redis-main are docker DNS names — only resolve INSIDE the
+# fabrik network. Probe from a throwaway container on that network, not
+# the host shell.
+ssh "$SSH_HOST" 'sudo docker run --rm --network fabrik alpine sh -c "nc -zv postgres-main 5432; nc -zv redis-main 6379" 2>&1 | tail -5'
+
+echo
+echo "=== HUB SHAPE-DRIVEN REGISTRAR DRY-RUN (expect dry_run statuses) ==="
+.venv/bin/fabrik apply "$SPEC" --dry-run 2>&1 | grep -E "registrar|dry_run|skipped" | head -30
+
+echo
+echo "=== AUTHELIA RULE WILL BE ADDED FOR THIS DOMAIN? ==="
+# Use the SSH_HOST alias, not literal `vps` — single-source the alias mapping.
+ssh "$SSH_HOST" "sudo cat /opt/authelia/config/configuration.yml" | DOMAIN="$DOMAIN" python3 -c "
+import os, yaml, sys
+cfg = yaml.safe_load(sys.stdin)
+rules = cfg.get('access_control', {}).get('rules', [])
+domain = os.environ['DOMAIN']
+matches = []
+for r in rules:
+    doms = r.get('domain', [])
+    if isinstance(doms, str): doms = [doms]
+    for d in doms:
+        if d == domain or (d.startswith('*.') and domain.endswith(d[2:])):
+            matches.append((r.get('policy'), d, r.get('resources', ['(any)'])))
+if not matches:
+    print('  (no existing rule for this domain; registrar will add)')
+else:
+    print(f'  {len(matches)} matching rule(s) (Authelia evaluates in file-order — first match wins):')
+    for i, (pol, dom, res) in enumerate(matches, 1):
+        print(f'  {i}. policy={pol}  domain={dom}  resources={res}')
+"
+```
+
+---
+
+## Go-live checklist (target: `target_vps` of the spec)
+
+### Infrastructure layer
+
+- [ ] **Spec validates clean** — `fabrik apply --dry-run` returns no errors.
+- [ ] **`target_vps` is set** (vps1 default; spokes require explicit `target_vps: vps2` or `vps3`).
+- [ ] **`domain` matches target** — `<svc>.${target_vps}.ocoron.com`. Mismatch = router never matches.
+- [ ] **DNS A record exists and resolves to the target's public IP** — bootstrap-vps.sh step_13 should have created it; verify with `dig`.
+- [ ] **`fabrik` Docker network present on target host.**
+- [ ] **Traefik running on target host.** Spokes: confirm W15 labels (`traefik.enable=true` + `gzip.compress=true`).
+- [ ] **Shared infra reachable** from target host over mesh (postgres-main, redis-main, etc. via `10.99.0.1`).
+
+### Security layer
+
+- [ ] **UFW active** on target with default deny.
+- [ ] **fail2ban active** on target.
+- [ ] **No `ports:` block in spec's compose** (Traefik fronts everything).
+- [ ] **Authelia rule for the domain** — either already exists or will be added by the authelia registrar at apply time (verify via dry-run output).
+- [ ] **Service-internal secret** (`SERVICE_INTERNAL_SECRET_KEY`) present if the spec has M2M callers.
+- [ ] **No localhost in DB URLs** — `DATABASE_URL` must use `postgres-main:5432` or `10.99.0.1:5432` from spokes.
+
+### Observability layer
+
+- [ ] **`shape.is_public: true`** → expect Gatus endpoint to be created at apply time.
+- [ ] **`shape.exposes_metrics: true`** → expect Prometheus scrape job to be added.
+- [ ] **Service emits GlitchTip events** via SDK with `SENTRY_DSN` (registrar injects this; verify post-deploy via `docker inspect <main> | grep SENTRY_DSN` per Lesson 31 — NOT `docker exec printenv` because distroless).
+- [ ] **Service's `/health` returns 200 with real dep checks** — must `await db.execute("SELECT 1")`, not return a static 200.
+- [ ] **Promtail will pick up the container** (docker.sock auto-discovery; nothing to configure).
+
+### Backup layer
+
+- [ ] **DB / volume / config will be covered** by an existing Backrest plan after apply. For spokes, tenant data is NOT in the spoke's plans by design — operator must enable `docker-volumes-vpsN` / `postgres-dumps-vpsN` plans when actual data lands (W11.5 deferral).
+- [ ] **Service has no other persistent state** that's outside the backup paths.
+
+### Application layer
+
+- [ ] **Image specifies a stable tag** (no `:latest` without a digest pin).
+- [ ] **Memory limit set** (`deploy.resources.limits.memory` — gate enforces).
+- [ ] **CPU limit set** (`deploy.resources.limits.cpus` — recommended).
+- [ ] **`restart: unless-stopped`** on every service.
+- [ ] **`container_name: <id>`** matches spec id (Fabrik convention since 2026-05-30 Coolify removal — required for stable `docker exec`/`docker inspect` targeting).
+- [ ] **`HEALTHCHECK` in compose** with `start_period: 20s` minimum.
+- [ ] **Traefik labels match service-category template** (admin → `authelia-forward@docker,gzip@docker`; api → `gzip@docker`; public → none).
+
+### Operational layer
+
+- [ ] **`CHANGELOG.md [Unreleased]` entry written.**
+- [ ] **`docs/FEATURES.md` row added** (if user-visible feature).
+- [ ] **`PORTS.md` updated** if a new port is allocated (rare — all should route via Traefik).
+- [ ] **Operator silenced ContainerDown alerts** if the apply will take > 2 min (operator discipline; otherwise Telegram floods during the deploy).
+- [ ] **Rollback plan exists** — `fabrik destroy --use-state` is the default. State file at `.fabrik/state/<id>.json` will be written on success.
+
+---
+
+## Output format
+
+```markdown
+## Pre-Prod Checklist — `<spec>` → `<target_vps>` — <UTC date>
+
+**Verdict:** READY / NOT READY / READY WITH CAVEATS
+**Spec:** specs/services/<id>.yaml
+**Target host:** <vpsN>  (public IP <ip>, mesh IP 10.99.0.<N>)
+**Domain:** <svc>.<vpsN>.ocoron.com
+
+### Layer summary
+| Layer | State | Notes |
+| :--- | :--- | :--- |
+| Infrastructure  | ✓ / ✗ | <one-line> |
+| Security        | ✓ / ✗ | <one-line> |
+| Observability   | ✓ / ✗ | <one-line> |
+| Backup          | ✓ / ✗ | <one-line> |
+| Application     | ✓ / ✗ | <one-line> |
+| Operational     | ✓ / ✗ | <one-line> |
+
+### Blockers (must fix before apply)
+1. ...
+
+### Cautions (can apply; track in CHANGELOG)
+1. ...
+```

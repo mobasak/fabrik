@@ -15,23 +15,39 @@ scrape_configs:
           - localhost
         labels:
           job: containerlogs
+          host: vps1
           __path__: /var/lib/docker/containers/*/*log
 
     pipeline_stages:
+      # Parse Docker JSON log format
       - json:
           expressions:
             output: log
             stream: stream
             attrs:
+
+      # Extract container name from attrs tag
       - json:
           expressions:
             tag:
           source: attrs
+
       - regex:
           expression: (?P<container_name>(?:[a-zA-Z0-9][a-zA-Z0-9_.-]+))
           source: tag
+
+      # Label the stream
       - labels:
           container_name:
           stream:
+
+      # Drop pure Coolify infrastructure noise — these containers are
+      # managed by Coolify itself and produce no actionable log signal.
+      # All Fabrik services, apps, monitoring, and WordPress are kept.
+      - drop:
+          expression: '^(coolify-db|coolify-redis|coolify-realtime|coolify-sentinel|ocoron-com-backup-1)$'
+          source: container_name
+
+      # Final output
       - output:
           source: output

@@ -12,7 +12,7 @@
 1. **Git-sourced services require `git push` before `fabrik redeploy`.** Redeploy runs `git pull` on the VPS, which pulls from the GitHub remote configured in `/opt/<name>/.git/config` — not from your local WSL filesystem. (Local-sourced services skip the git pull step.)
 2. **DB connection strings use Docker DNS names**, never `localhost`: `postgres-main:5432`, `redis-main:6379`. Inside a container, `localhost` is the container itself, not the shared database.
 3. **Never SIGHUP Authelia** — it exits. Always `sudo docker restart authelia` after config changes. (Config is `/config/configuration.yml` inside the container, bind-mounted from `/opt/authelia/config/configuration.yml` on the host — editing either path touches the same file. The authelia driver still writes via `docker cp` and reads via `docker exec cat`, so go through the driver rather than hand-editing.)
-4. **No `ports:` in compose.yaml** — binding ports bypasses UFW and exposes services directly. All traffic routes through Traefik on the `coolify` Docker network.
+4. **No `ports:` in compose.yaml** — binding ports bypasses UFW and exposes services directly. All traffic routes through Traefik on the `fabrik` Docker network (renamed from `coolify` on 2026-05-31).
 5. **Every service must have `container_name:`** in its compose.yaml — provides stable names for `docker exec`, `docker inspect`, and Gatus monitoring. Without it, Docker generates random suffixed names.
 6. **All `docker` commands on VPS require `sudo`** — root-owned containers and directories.
 7. **The `.env` file on VPS is root-owned** at `/opt/<name>/.env`. Never edit it directly — use `fabrik apply` or `fabrik redeploy --refresh-infra` to update. Direct edits get overwritten on next deploy.
@@ -35,7 +35,7 @@ fabrik CLI                               /opt/<name>/
   │
   ├── InfrastructureProvisioner            Docker Engine
   │     ├── postgres driver (CREATE DB)      └── container: <name>
-  │     ├── redis driver (allocate index)        ├── network: coolify (external)
+  │     ├── redis driver (allocate index)        ├── network: fabrik (external)
   │     ├── gatus driver (add endpoint)          ├── Traefik labels → HTTPS routing
   │     ├── glitchtip driver (create project)    └── healthcheck: /health
   │     ├── authelia driver (access rule)
@@ -345,7 +345,7 @@ The deployer validates compose.yaml for **template and docker** source types bef
 | `ports` | Forbidden (no `ports:` section) | All traffic through Traefik; direct ports bypass UFW |
 | `restart` | Required (presence checked, not value) | Auto-recovery after crashes |
 | `container_name` | Required on every service | Stable `docker exec`/`docker inspect` targeting |
-| `networks` | `coolify` declared as `external: true` | Shared network for inter-service communication + Traefik routing |
+| `networks` | `fabrik` declared as `external: true` (network was renamed from `coolify` on 2026-05-31) | Shared network for inter-service communication + Traefik routing |
 | `depends_on` | No `postgres-main` or `redis-main` | These are external services, not compose dependencies |
 | Traefik labels | Must use `websecure` entrypoint (not `http`/`https`) | Coolify-era labels used wrong names |
 | Traefik labels | `loadbalancer.server.port` required when `traefik.enable=true` | Traefik needs to know which port to route to |
@@ -441,7 +441,7 @@ Fix: `git push && fabrik redeploy <service>`.
 
 **Symptom: service can't reach postgres-main or redis-main.**
 Cause: container on wrong Docker network, or `DATABASE_URL` uses `localhost`.
-Fix: check `sudo docker inspect <container> | grep -A 5 Networks` — must be on `coolify` network. Check `.env` — must use `postgres-main:5432`, not `localhost`.
+Fix: check `sudo docker inspect <container> | grep -A 5 Networks` — must be on `fabrik` network (renamed from `coolify` 2026-05-31). Check `.env` — must use `postgres-main:5432`, not `localhost`.
 
 **Symptom: 401 from a service that should be public.**
 Cause: Authelia caught it.

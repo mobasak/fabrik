@@ -227,16 +227,35 @@ class RollbackManager:
         logger.info("Would delete monitor: %s (legacy stub)", monitor_id)
 
     def _rollback_compose(self, resource: ResourceRecord) -> None:
-        """Tear down a compose-deployed app via SSHDeployer.delete()."""
+        """Tear down a compose-deployed app via SSHDeployer.delete().
+
+        Honors ``resource.metadata['target_vps']`` so spoke-targeted apps
+        are rolled back on the spoke, not on vps1. Without this, a failed
+        verify on a vps2-targeted deploy tries to ``cd /opt/<app>`` on the
+        hub and silently misses the actual leftover container on the spoke.
+        """
+        import os
+
         from fabrik.orchestrator.deployer_ssh import SSHDeployer
 
         deployer = self._deployer or SSHDeployer()
         name = resource.resource_id
+        target = resource.metadata.get("target_vps") or "vps1"
+
+        prev = os.environ.get("FABRIK_VPS_SSH_HOST")
+        if target != "vps1":
+            os.environ["FABRIK_VPS_SSH_HOST"] = target
         try:
             deployer.delete(name)
-            logger.info("Rolled back compose app: %s", name)
+            logger.info("Rolled back compose app: %s (on %s)", name, target)
         except Exception as e:  # noqa: BLE001
             logger.warning("compose rollback failed for %s (non-fatal): %s", name, e)
+        finally:
+            if target != "vps1":
+                if prev is None:
+                    os.environ.pop("FABRIK_VPS_SSH_HOST", None)
+                else:
+                    os.environ["FABRIK_VPS_SSH_HOST"] = prev
 
     # =========================================================================
     # Phase 4i — Infrastructure registrar rollback handlers

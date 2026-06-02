@@ -492,8 +492,8 @@ fabrik wp deploy specs/sites/my-site.yaml
 4. **Container networking?**
    ```bash
    docker network ls
-   docker network inspect coolify
-   # Service should be in coolify network
+   docker network inspect fabrik
+   # Service should be in fabrik network (network was renamed coolify→fabrik 2026-05-31)
    ```
 
 ### "Module not found" errors

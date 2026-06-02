@@ -43,6 +43,7 @@ OWNER_ID = int(os.environ["TELEGRAM_OWNER_ID"])
 PROJECT_DIR = os.environ.get("SYSADMIN_PROJECT_DIR", "/opt/fabrik")
 SYSTEM_PROMPT_FILE = Path(__file__).parent / "system-prompt.txt"
 HEALTH_PORT = int(os.environ.get("SYSADMIN_HEALTH_PORT", "8017"))
+HEALTH_HOST = os.environ.get("SYSADMIN_HEALTH_HOST", "127.0.0.1")
 MODEL = os.environ.get("SYSADMIN_MODEL", "opus")
 
 SESSION_TIMEOUT_SECONDS = 600  # 10 minutes idle → session ends
@@ -102,7 +103,7 @@ class HealthHandler(BaseHTTPRequestHandler):
 
 
 def _start_health_server():
-    server = HTTPServer(("0.0.0.0", HEALTH_PORT), HealthHandler)
+    server = HTTPServer((HEALTH_HOST, HEALTH_PORT), HealthHandler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     logger.info("Health endpoint listening on :%d/health", HEALTH_PORT)

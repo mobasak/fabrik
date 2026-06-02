@@ -335,7 +335,7 @@ def plan(spec_path: str, secrets: tuple):
     click.echo(f"   1. Generate deployment files in apps/{spec.id}/")
     if spec.domain:
         click.echo(f"   2. Create DNS record: {spec.domain}")
-    click.echo("   3. Deploy to Coolify")
+    click.echo("   3. Deploy via SSH + Docker Compose")
     click.echo("   4. Add Gatus monitor")
     click.echo()
 
@@ -349,7 +349,7 @@ def plan(spec_path: str, secrets: tuple):
 @click.option("--secrets", "-s", multiple=True, help="Secret in KEY=VALUE format")
 @click.option("--yes", "-y", is_flag=True, help="Skip confirmation prompt")
 @click.option("--skip-dns", is_flag=True, help="Skip DNS record creation")
-@click.option("--skip-deploy", is_flag=True, help="Skip Coolify deployment (files only)")
+@click.option("--skip-deploy", is_flag=True, help="Skip deployment (render files only)")
 @click.option("--dry-run", is_flag=True, help="Simulate deployment without making changes")
 @click.option(
     "--use-orchestrator",
@@ -373,7 +373,7 @@ def plan(spec_path: str, secrets: tuple):
     is_flag=True,
     default=False,
     help=(
-        "B27: do NOT roll back created resources (Coolify app, DNS, GlitchTip, "
+        "B27: do NOT roll back created resources (compose stack, DNS, GlitchTip, "
         "etc.) if the deployment fails. Used by the proof-run harness to "
         "preserve build logs and container state for diagnosis. Production "
         "deploys should NOT pass this flag \u2014 default behavior is fail-closed."
@@ -913,6 +913,17 @@ def logs(
     ),
 )
 @click.option("--dry-run", is_flag=True, default=False, help="Plan only; mutate nothing")
+@click.option(
+    "--target-vps",
+    type=click.Choice(["vps1", "vps2", "vps3"]),
+    default=None,
+    help=(
+        "W3: which host the app lives on. Resolution order: this flag > "
+        "state file `.fabrik/state/<id>.json::target_vps` > spec's "
+        "`target_vps` field > vps1. Required to be correct on multi-host "
+        "fleet — otherwise destroy hits the wrong host."
+    ),
+)
 def destroy(
     spec_path: str,
     yes: bool,
@@ -921,6 +932,7 @@ def destroy(
     partial: tuple,
     use_state: bool,
     dry_run: bool,
+    target_vps: str | None,
 ):
     """Tear down every resource ``fabrik apply`` created for SPEC_PATH.
 
@@ -944,6 +956,26 @@ def destroy(
     except Exception as e:
         click.echo(f"Error loading spec: {e}", err=True)
         raise SystemExit(1)
+
+    # W3 target-vps resolution: CLI flag > state file > spec field > vps1.
+    # Env-swap FABRIK_VPS_SSH_HOST around the destroy so every nested SSH call
+    # resolves the right alias — same pattern as SSHDeployer.deploy() in W-Multi M4.
+    import os as _os
+    _state_target_vps = None
+    _spec_target_vps = getattr(spec, "target_vps", None) if not isinstance(spec, dict) else spec.get("target_vps")
+    try:
+        _state_path = Path(".fabrik/state") / f"{spec.id if not isinstance(spec, dict) else spec['id']}.json"
+        if _state_path.exists():
+            import json as _json
+            with open(_state_path) as _f:
+                _state_target_vps = _json.load(_f).get("target_vps")
+    except Exception:
+        pass
+    _effective_target_vps = target_vps or _state_target_vps or _spec_target_vps or "vps1"
+    _prev_ssh_host = _os.environ.get("FABRIK_VPS_SSH_HOST")
+    if _effective_target_vps != "vps1":
+        _os.environ["FABRIK_VPS_SSH_HOST"] = _effective_target_vps
+        click.echo(f"  Target host: {_effective_target_vps} (env-swapped from default vps1)")
 
     # T4-02 G-F4 state-driven destroy branch: replay registrars from the
     # state file rather than the current shape. Refuses without --drop-data
@@ -1144,6 +1176,12 @@ def destroy(
         )
         raise SystemExit(2)
 
+    # W3: restore FABRIK_VPS_SSH_HOST after destroy completes (mirror SSHDeployer.deploy()).
+    if _prev_ssh_host is None:
+        _os.environ.pop("FABRIK_VPS_SSH_HOST", None)
+    else:
+        _os.environ["FABRIK_VPS_SSH_HOST"] = _prev_ssh_host
+
     click.echo("=" * 60)
     click.echo(f"✅ Destroyed: {spec.id}")
     click.echo("=" * 60)
@@ -1199,7 +1237,17 @@ def vps_sync(dry_run: bool):
 @click.option(
     "--dry-run", is_flag=True, help="Simulate without making changes (--refresh-infra only)."
 )
-def redeploy(app: str | None, force: bool, refresh_infra: bool, spec: Path | None, dry_run: bool):
+@click.option(
+    "--target-vps",
+    type=click.Choice(["vps1", "vps2", "vps3"]),
+    default=None,
+    help=(
+        "W3: which host the app lives on. Resolution order: this flag > "
+        "state file `.fabrik/state/<app>.json::target_vps` > vps1. Required "
+        "to be correct on multi-host fleet — otherwise redeploy hits the wrong host."
+    ),
+)
+def redeploy(app: str | None, force: bool, refresh_infra: bool, spec: Path | None, dry_run: bool, target_vps: str | None):
     """Redeploy an application by name.
 
     Example:
@@ -1240,6 +1288,24 @@ def redeploy(app: str | None, force: bool, refresh_infra: bool, spec: Path | Non
         click.echo("✗ Missing APP argument (or use --refresh-infra --spec PATH)", err=True)
         raise SystemExit(2)
 
+    # W3 target-vps resolution: CLI flag > state file > vps1.
+    # Env-swap FABRIK_VPS_SSH_HOST so SSHDeployer.find_existing / .redeploy hit the right host.
+    import os as _os
+    import json as _json
+    _state_target_vps = None
+    _state_path = Path(".fabrik/state") / f"{app}.json"
+    if _state_path.exists():
+        try:
+            with open(_state_path) as _f:
+                _state_target_vps = _json.load(_f).get("target_vps")
+        except Exception:
+            pass
+    _effective_target_vps = target_vps or _state_target_vps or "vps1"
+    _prev_ssh_host = _os.environ.get("FABRIK_VPS_SSH_HOST")
+    if _effective_target_vps != "vps1":
+        _os.environ["FABRIK_VPS_SSH_HOST"] = _effective_target_vps
+        click.echo(f"  Target host: {_effective_target_vps} (env-swapped from default vps1)")
+
     try:
         from fabrik.drivers.ssh import ssh as _ssh
         from fabrik.orchestrator.deployer_ssh import SSHDeployer
@@ -1270,6 +1336,11 @@ def redeploy(app: str | None, force: bool, refresh_infra: bool, spec: Path | Non
         )
 
         click.echo(f"✅ Redeployed: {app}")
+        # W3: restore FABRIK_VPS_SSH_HOST after redeploy completes.
+        if _prev_ssh_host is None:
+            _os.environ.pop("FABRIK_VPS_SSH_HOST", None)
+        else:
+            _os.environ["FABRIK_VPS_SSH_HOST"] = _prev_ssh_host
         _post_deploy_sync()
     except SystemExit:
         raise

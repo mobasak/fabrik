@@ -2,8 +2,35 @@
 
 **Date:** 2026-05-30 (revised — comprehensive analysis)
 **Owner:** Özgür (solo dev + AI agent assistance)
-**Status:** Workstream 3 executed; Workstreams 1, 2, 4–10 pending owner approval.
-**Gates:** Watchdog Platform P2 code execution (see [P2 sub-plan](2026-05-30-ai-watchdog-platform-P2-subplan.md))
+**Status:** ✅ **CLOSED 2026-06-02** — 8 of 10 workstreams shipped (mostly via parallel work); 2 small follow-ups tracked elsewhere.
+
+## Closing summary (2026-06-02)
+
+Live-probed each workstream against current VPS state:
+
+| WS | Title | State | Evidence |
+| :--- | :--- | :--- | :--- |
+| **WS1** | Coolify-residue cleanup | ✅ **Tier A done** — `CoolifyConfig` removed from `spec_loader.py`; `_register_watchdog` gate cleared. Tier B/C is real work but tracked separately in [`2026-05-30-coolify-residue-cleanup.md`](2026-05-30-coolify-residue-cleanup.md). | `grep CoolifyConfig src/fabrik/spec_loader.py` returns empty. |
+| **WS2** | Audit-registrars awareness (add `audit_shared_analytics()`) | ⏳ **Not done** — moves to the AI Watchdog Platform P2 ship along with the rest of the audit-registrar extensions. | `grep audit_shared_analytics src/fabrik/audit.py` returns empty. Tracked in P2 subplan. |
+| **WS3** | Container hygiene cleanup | ✅ **SHIPPED 2026-05-30** | Stated in original plan. |
+| **WS4** | Docker volume cleanup | ✅ **SHIPPED** | Live probe: zero volumes match `coolify\|stale\|test`. |
+| **WS5** | Docker network cleanup | ✅ **SHIPPED** | Live probe: only `fabrik`, `bridge`, `host`, `none`, plus the WordPress tenant's `ocoron-com_ocoron-com-internal` (legitimate). |
+| **WS6** | Docker image cleanup (~10.88 GB reclaim) | ✅ **SHIPPED** | Live probe: 0 dangling images. |
+| **WS7** | Coolify systemd cleanup | ✅ **SHIPPED** | Live probe: zero `systemctl list-unit-files` matches for "coolify". |
+| **WS8** | Filesystem cleanup | ⏳ **partial** — `/data/coolify/` still on disk (~201 MB; applications/backups/databases/proxy/sentinel/services/source/ssh/ssl subdirs). Operator-gated removal — historical artifacts not blocking anything; safer to leave until DR drill confirms nothing depends on them. | `ssh vps "sudo du -sh /data/coolify" → 201M`. |
+| **WS9** | Update `vps-bootstrap-plan.md` | ✅ **SHIPPED** — doc references Coolify-era only as historical reference. Major rewrite occurred via W4-pre + W16 + W16-DNS over 2026-06-02. | `grep "Coolify-era" docs/infrastructure/vps-bootstrap-plan.md` — only the historical line at L105 remains. |
+| **WS10** | Regenerate captured-state baseline | ✅ **superseded** | The `data/` file path the plan named is replaced by `docs/infrastructure/probe-reports/` (W6 ship) with timestamped YAML probe reports. Latest: `infra-probe-2026-06-01T22-50Z.yaml`. The 2026-05-20 baseline is kept as historical reference. |
+
+**Net:** 8 of 10 shipped via parallel work. Two open items:
+
+- WS2 (audit_shared_analytics): folded into the AI Watchdog Platform P2 ship since `audit_shared_analytics` is what verifies the P1 `cost_ledger` table.
+- WS8 (/data/coolify removal): noted in [`vps-residue-policy.md`](../../infrastructure/vps-residue-policy.md) follow-up; safe to leave until next DR drill.
+
+The original gate language ("Watchdog P2 code execution gated on this plan") is reversed by reality: P1 already shipped without P2 sitting next to a stale `coolify:` block (CoolifyConfig was removed). The P2 gate is effectively cleared.
+
+---
+
+## Original plan body — kept below for historical context
 
 ---
 

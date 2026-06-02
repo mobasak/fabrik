@@ -1,6 +1,7 @@
 # VPS Residue Policy — Lean Hygiene
 
-**Last Updated:** 2026-05-31 (post-Coolify-removal — rewrites + multi-host considerations added)
+**Last Updated:** 2026-06-02 (post-W14 sweep — probe report refreshed)
+**Last probe report:** [`probe-reports/infra-probe-2026-06-01T22-50Z.yaml`](probe-reports/infra-probe-2026-06-01T22-50Z.yaml)
 **Mandate (2026-05-06):** never leave residue on the VPS from Fabrik test, throwaway, or deprecated work. Keep it lean.
 
 ## TL;DR
@@ -36,7 +37,7 @@ Implementation: `scripts/vps_sync.py::verify_residue()` (multi-point audit) + `v
 | 9 | Dangling images | `docker images -f dangling=true` non-empty |
 | 10 | `/tmp` locks | Stale `/tmp/fabrik-*-test-*.lock` files (`run_locked` should clean; verify) |
 | 11 | `/opt/` | `test-*`, `*-test`, `wp-test` ad-hoc files / orphan project trees |
-| 12 | Backrest | Test plans / repos at `/srv/backrest/repos/<test-name>/` (currently 0 active plans — see "Multi-host" section below) |
+| 12 | Backrest | 4 live plans on hub + 2 per spoke (W2/W11). Watch for stray test-named plans (`test-*`, `*-tmp`) and abandoned repos under `/srv/backrest/repos/<test-name>/` left over from one-off experiments. |
 | 13 | Memory limits | Containers with `HostConfig.Memory=0` (limits reset on reboot; rerun `vps_apply_limits.sh`) |
 
 ## Multi-host residue (vps2 / vps3, added 2026-05-31)
@@ -101,7 +102,7 @@ Net: post-sweep, the only "residue still on disk" entries are `/opt/.archive/` a
 - Deploy + destroy mechanics: `docs/operations/deployment.md`
 - DR (full restore from B2): `docs/operations/disaster-recovery.md`
 - 9-registrar provisioner: `src/fabrik/orchestrator/infrastructure.py` (provision side) + `src/fabrik/orchestrator/destroyer.py::destroy_deployment()` (inverse)
-- Backups status: `docs/infrastructure/vps-complete-inventory.md § Backups` (currently 0 plans; bucket empty; intentional)
+- Backups status: [`vps-complete-inventory.md § Backups`](vps-complete-inventory.md) — 4 hub plans + 2 plans per spoke shipped 2026-06-01 (W2 + W11)
 
 ## Why this matters
 

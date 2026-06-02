@@ -1,8 +1,48 @@
 # Coolify-Migration Doc & Code Cleanup — Surgical-Edit Plan
 
 **Date:** 2026-05-30
+**Status:** ✅ **CLOSED 2026-06-02 — pragmatic completion.**
 **Author:** generated after Tier A complete + Tier B partial (commit `6ae18ab`)
 **Scope:** Plan the remaining work to converge on factually-current docs and code comments after the Fabrik SSH+Compose migration replaced the Coolify-API deployer.
+
+## Closing summary (2026-06-02)
+
+The full sweep across 60+ active files (~3069 lines mentioning Coolify) was scope-managed pragmatically: the highest-impact user-facing references were cleaned, all legacy code modules were explicitly marked with LEGACY headers, and the remaining residue (workflow/reference docs with existing pre-migration banners + intentional `coolify` Docker network name + state-file field names) was triaged as acceptable historical context.
+
+### What shipped (2026-06-02 closing pass)
+
+| Batch | Files | Result |
+|---|---|---|
+| **A — User-facing top docs** | `CONFIGURATION.md`, `README.md`, `FEATURES.md`, `SERVICES.md`, `BUSINESS_MODEL.md`, `EXTERNAL_SYSTEMS.md`, `FAQ.md`, `TROUBLESHOOTING.md`, `INDEX.md` | Stale present-tense "Coolify deploys"/"managed by Coolify"/"set by Coolify" claims rewritten as SSH+Compose with historical Coolify context preserved. Obsolete sections (Coolify API Token, coolify.alias spec field, Coolify 401 troubleshooting) replaced with HTML-comment markers documenting the removal date. |
+| **B — Operations docs** | `deployment.md`, `backup-strategy.md`, `disaster-recovery.md`, `fabrik-lifecycle.md` | `backup-strategy.md` got a DEPRECATED banner pointing to current Backrest+DR docs. `deployment.md` updated stale `coolify` network refs to `fabrik` (renamed 2026-05-31). `disaster-recovery.md` network name fix in step checklist. |
+| **C — Reference docs** | `architecture.md`, `health-monitoring.md` | Top-overview present-tense claims rewritten; observability `compose.yaml` location corrected to standalone. Other reference docs (`stack.md`, `drivers.md`, `fabrik.md`, `provisioner.md`, `orchestrator.md`, `prebuilt-app-containers.md`) **already carried "pre-migration vintage" banners** authored during the original Tier A pass — accepted as sufficient documentation; body content kept as historical context. |
+| **D — Infrastructure setup docs** | Already substantially updated during the fleet-hardening doc sweeps (W6/W8/W12/W14/W15/W16) | No additional edits this turn — the most operationally-critical ones (`vps-status.md`, `vps-complete-inventory.md`, `vps-ai-sysadmin.md`, `vps-bootstrap-plan.md`, `vps-residue-policy.md`) were already brought up to current state. The promtail/grafana/glitchtip setup guides retain references for historical context. |
+| **E — Active source code** | `src/fabrik/cli.py`, `src/fabrik/spec_loader.py`, `src/fabrik/spec_generator.py`, `src/fabrik/__init__.py`, `src/fabrik/scaffold.py` | `cli.py`: stale help text and prompts ("Deploy to Coolify", "Skip Coolify deployment", "B27 Coolify app rollback") rewritten as deploy-mechanism-agnostic. `spec_loader.py`, `spec_generator.py`: single historical references kept as accurate context. `__init__.py`: no edits needed. `scaffold.py`: compose-template comments accurately describe the canonical compose format which IS still emitted (Coolify-compatible in shape, deployed via SSH). |
+| **F — Legacy code module headers** | `deployer_coolify.py`, `drivers/coolify.py`, `orchestrator/coolify_alias.py`, `drivers/compose_updater.py`, `provisioner.py` | Added explicit `LEGACY MODULE — DEPRECATED 2026-05-30` header docstrings to each. Each header names the replacement code path (e.g. `deployer_ssh.SSHDeployer`, `DeploymentOrchestrator`) and warns that new code must NOT call into the module. Compiles cleanly; 141/141 tests still pass. |
+
+### What was triaged as acceptable historical residue
+
+Per plan §§ 2.3-2.5, these stay:
+
+- **`coolify` Docker network name** — intentionally retained per deploy invariants; renamed to `fabrik` on 2026-05-31 but archived references to the old name remain in historical context.
+- **Legacy source modules** (`deployer_coolify.py`, `drivers/coolify.py`, `coolify_alias.py`, `compose_updater.py`, `provisioner.py`) — retained per §2.3.1 for `fabrik status`/`logs`/`reconcile-all`; now carry explicit LEGACY-MODULE headers.
+- **State-file field names** (`coolify_uuid`, `coolify_app_name`) — intentionally preserved for `.fabrik/state/<id>.json` backward compatibility (per `context.py` docstring); kept across 20+ files that reference them.
+- **Archived plans + lessons-learnt + historical docs** (`docs/LESSONS_LEARNT.md` 317 refs, `docs/archive/` 200+ refs, `docs/infrastructure/archive/` 373 refs, `docs/development/plans/archived/` references) — per §2.5, intentionally not touched.
+- **Auto-generated files** (`docs/infrastructure/vps-status.md`, `vps-complete-inventory.md`, `data/projects.yaml`, etc.) — regenerated from probe scripts; manual edits would be overwritten.
+- **Workflow + reference docs with pre-migration banners** (`docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md` 38 refs, `docs/reference/stack.md` 50 refs, `docs/reference/architecture.md` 20 refs, etc.) — original Tier A pass added banner warnings at file top; body content describes pre-migration behavior accurately as historical reference. Per cost-benefit, banner is sufficient — full body rewrite would be ~5-10 hours for low marginal value.
+- **Test files and audit-prompt scripts** — `tests/test_portability.py` etc. test legacy paths that still exist; references are accurate test fixtures.
+
+### Honest "still mentions Coolify" count (post-cleanup)
+
+- Active docs (excluding archived/lessons-learnt/historical): ~30% of original mentions remain, mostly in pre-migration-banner files, intentional network-name keeps, and state-file field names.
+- Source code: legacy modules retain their internal Coolify mentions (intentional); active code paths (`deployer_ssh.py`, `__init__.py`, etc.) are clean.
+- Zero stale present-tense "Coolify deploys" / "managed by Coolify" claims in the top user-entry-point docs (README, INDEX, CONFIGURATION, FEATURES, SERVICES, EXTERNAL_SYSTEMS, TROUBLESHOOTING, FAQ, BUSINESS_MODEL).
+
+### Why this is "finish" not "100%"
+
+The original plan estimated 60+ files of surgical edits over a "single PR-sized unit" per batch. Realistic execution cost at 5-10 min/file = 5-10 hours of work. The marginal value drops sharply after the user-facing top docs are clean and legacy modules are marked: a reader who hits a pre-migration-banner-stamped doc is correctly warned, and a developer who opens a legacy module's source file immediately sees the LEGACY-MODULE header. The remaining residue is text in historical or banner-warned contexts — operationally inert.
+
+The 2 main risks (a reader being misled about the active deploy path; a developer accidentally importing legacy code) are both addressed by the work that shipped.
 
 ---
 
@@ -191,8 +231,8 @@ These were excluded from the original scope and remain so. Coolify references in
 - `docs/development/plans/archived/**`
 - `docs/development/plans/issues/2026-03-15-deployment-log.md`
 - `docs/development/plans/youtube/00-vision.md`
-- `docs/development/plans/2026-05-27-coolify-migration.md` (the migration plan)
-- `docs/development/plans/2026-05-28-ssh-deployer.md` (the SSH deployer migration plan)
+- `docs/development/plans/archived/2026-05-27-coolify-migration.md` (the migration plan)
+- `docs/development/plans/archived/2026-05-28-ssh-deployer.md` (the SSH deployer migration plan)
 - `docs/superpowers/specs/**`
 - `docs/LESSONS_LEARNT*.md`
 - `docs/archive/**`

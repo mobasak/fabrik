@@ -1,0 +1,31 @@
+api:
+  dashboard: true
+  insecure: false   # dashboard reachable via routed service only (not exposed on a host port)
+
+entryPoints:
+  web:
+    address: ":80"
+    http:
+      redirections:
+        entryPoint:
+          to: websecure
+          scheme: https
+  websecure:
+    address: ":443"
+
+providers:
+  docker:
+    endpoint: "unix:///var/run/docker.sock"
+    exposedByDefault: false
+    network: fabrik
+  file:
+    directory: /dynamic
+    watch: true
+
+certificatesResolvers:
+  letsencrypt:
+    acme:
+      email: {{LE_EMAIL}}
+      storage: /acme.json
+      httpChallenge:
+        entryPoint: web

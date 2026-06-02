@@ -6,7 +6,7 @@
 
 Fabrik is three things:
 
-1. **A deployment CLI** — takes a YAML spec (`specs/services/<id>.yaml`) with a `shape:` block and runs the full lifecycle: scaffold → plan → apply → verify. 9 registrars (postgres, redis, gatus, backrest, glitchtip, grafana, authelia, meilisearch, prometheus) fire automatically based on shape flags. Saga-pattern orchestrator with rollback. 11 scaffold types. 20+ drivers (Coolify, Cloudflare, Backrest, Supabase, R2, etc.).
+1. **A deployment CLI** — takes a YAML spec (`specs/services/<id>.yaml`) with a `shape:` block and runs the full lifecycle: scaffold → plan → apply → verify. 9 registrars (postgres, redis, gatus, backrest, glitchtip, grafana, authelia, meilisearch, prometheus) fire automatically based on shape flags. Saga-pattern orchestrator with rollback. 11 scaffold types. 20+ drivers (Cloudflare, Backrest, Supabase, R2, etc., plus archived legacy Coolify modules retained for `fabrik status` / `fabrik logs` against the few pre-2026-05-30 services).
 
 2. **An AI development workflow** — Traycer (Windsurf IDE extension) drives spec-to-ticket planning. Kilo CLI runs iterative multi-model code reviews with fix-and-revalidate loops. Final Gate runs 25 deterministic enforcement checks before and after review. Every project gets a `.droid/` workspace that stores review sessions, transcripts, cost tracking, and model sync state.
 
@@ -95,11 +95,11 @@ Fabrik is a **development methodology as code**—not just infrastructure automa
 | **Enforcement** | 19 Enforcement Scripts | 2,230 | Security, structure, docs, conventions, health checks |
 | **Review** | Kilo CLI Integration | 2,996 | Iterative AI code review with fix loops |
 | **Orchestration** | DeploymentOrchestrator | 147 | State machine: validate → provision → deploy → verify → rollback |
-| **Provisioning** | SiteProvisioner | 782 | Saga pattern: domain → DNS → Coolify → health (15 granular states) |
+| **Provisioning** | SiteProvisioner | 782 | Saga pattern: domain → DNS → SSH+Compose → health (15 granular states; was Coolify pre-2026-05-30) |
 | **WordPress** | WordPress Automation | 2,500+ | Theme, pages, SEO, analytics, multilingual, content generation |
 | **Content Pipeline** | ContentPublisher | ~600 | SEO brief-drain → TCO generation → Image Broker → WordPress publish |
 | **CLI** | Fabrik CLI | 828 | Commands: new, plan, apply, status, templates, scaffold, content publish |
-| **Drivers** | External Integrations | 3,000+ | Coolify, Cloudflare, Namecheap, Supabase, R2, WordPress API, SEO service, TCO, Image Broker |
+| **Drivers** | External Integrations | 3,000+ | SSH+Compose (deployer_ssh), Cloudflare, Namecheap, Supabase, R2, WordPress API, SEO service, TCO, Image Broker (legacy Coolify modules retained for `fabrik status`/`logs`) |
 | **Templates** | 18 Project Templates | - | SaaS skeleton, APIs, WordPress, workers, Chrome extensions |
 
 **Total Production Code:** 13,565 lines
@@ -388,8 +388,8 @@ class ProvisionState(str, Enum):
 ## Production Infrastructure
 
 | Service | Location | Purpose |
-| **VPS** | Hetzner LA (172.93.160.197) | x86_64 (amd64) server running all services |
-| **Coolify** | http://172.93.160.197:8000 | Container orchestration + deployment |
+| **VPS** | GreenCloud LA (172.93.160.197) | x86_64 hub running shared services; vps2/vps3 are Coventry UK spokes |
+| **Deploy mechanism** | SSH + Docker Compose via `fabrik apply` | Replaced Coolify 2026-05-30; deployer at [`src/fabrik/orchestrator/deployer_ssh.py`](src/fabrik/orchestrator/deployer_ssh.py) |
 | **Traefik** | VPS (ports 80/443) | Reverse proxy + automatic HTTPS |
 | **PostgreSQL** | postgres-main container | Shared database |
 | **Redis** | redis-main container | Shared cache |
@@ -450,7 +450,7 @@ Create production-ready services instantly:
 
 - VPS with SSH access (Hetzner, DigitalOcean, etc.) — Docker + Docker Compose installed
 - Domain you control
-- (Optional, legacy) Coolify installed on VPS — only needed if you have services that weren't migrated to the SSH+Compose path
+<!-- Coolify prerequisite removed 2026-06-02: Coolify is no longer required, used, or installed (removed from production 2026-05-30). -->
 
 ### Installation
 
@@ -474,7 +474,6 @@ nano .env
 
 **Required:**
 - `VPS_HOST`, `VPS_USER` - SSH access to your VPS (used by SSH+Compose deployer)
-- `COOLIFY_API_URL`, `COOLIFY_API_TOKEN` - Coolify API (legacy — only for `fabrik status` / `fabrik logs` / `fabrik reconcile-all` against pre-migration Coolify-managed services)
 - `DNS_MANAGER_URL` or `CLOUDFLARE_API_TOKEN` - DNS provider
 
 ### Create Your First Project
@@ -517,7 +516,7 @@ fabrik plan specs/my-api.yaml
 # Deploy to production
 fabrik apply specs/my-api.yaml
 
-# Check status — handles both `fabrik-<id>` (Coolify-prefixed) and `<id>` lookups
+# Check status — handles both `fabrik-<id>` (pre-2026-05-30 prefixed names) and `<id>` lookups
 # transparently; works for fabrik-proxy, fabrik-file-worker, site-provisioner, etc.
 fabrik status specs/my-api.yaml
 
@@ -633,7 +632,7 @@ fabrik import /tmp/vps1-base.tar.gz                      # dry-run plan on targe
 fabrik import /tmp/vps1-base.tar.gz --apply              # stubbed real run (import path untested in epic)
 ```
 
-Bundle contents: `specs/`, `.fabrik/state/` (UUIDs stripped), Coolify Applications + Services + Projects (UUIDs recursively stripped), monitoring configs, Authelia + Backrest configs, redacted `.env` key list, restore README. **Security invariants** (test-enforced): NO plaintext secret values, NO Coolify UUIDs, NO private-key references in the bundle. Import is shipped untested in this epic — real roundtrip lands with vps2 stand-up. Live sample: 44 KB tarball, 26 Coolify apps, 348 redacted keys, zero UUID leaks.
+Bundle contents: `specs/`, `.fabrik/state/` (UUIDs stripped), monitoring configs, Authelia + Backrest configs, redacted `.env` key list, restore README. **Security invariants** (test-enforced): NO plaintext secret values, NO infrastructure UUIDs, NO private-key references in the bundle. Import is shipped untested in this epic — real roundtrip lands with vps2 stand-up. Live sample: 44 KB tarball, 26 apps, 348 redacted keys, zero UUID leaks. (Pre-2026-05-30 bundles also stripped Coolify Applications + Services + Projects; that path is archived in `deployer_coolify.py`.)
 
 ### 5. State-Driven Destroy (T4-02)
 
@@ -645,7 +644,7 @@ fabrik destroy <spec> --use-state -y                    # safe path
 fabrik destroy <spec> --use-state --drop-data -y        # required if state has postgres/redis/meilisearch
 ```
 
-Three phases: (0) data-bearing guard refuses without `--drop-data`; (1) canonical reverse-order registrar teardown `prometheus → meilisearch → authelia → glitchtip → backrest → gatus → redis → postgres` (grafana skipped by design); (2) Coolify + DNS + files. On success, state file is archived to `_destroyed/<id>.json.<ts>` for audit. Mutually exclusive with `--partial`.
+Three phases: (0) data-bearing guard refuses without `--drop-data`; (1) canonical reverse-order registrar teardown `prometheus → meilisearch → authelia → glitchtip → backrest → gatus → redis → postgres` (grafana skipped by design); (2) compose down + DNS + files. On success, state file is archived to `_destroyed/<id>.json.<ts>` for audit. Mutually exclusive with `--partial`.
 
 ### 6. Local Dev Loop (T3-03)
 

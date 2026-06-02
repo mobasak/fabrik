@@ -1,7 +1,7 @@
 # VPS Bootstrap Automation
 
 **Last Updated:** 2026-06-01 (step_02 hardened for Lesson 68 — `rc`-state handling + 3-probe self-verify)
-**Last probe report:** [`probe-reports/infra-probe-2026-05-31T23-07Z.yaml`](probe-reports/infra-probe-2026-05-31T23-07Z.yaml)
+**Last probe report:** [`probe-reports/infra-probe-2026-06-01T22-50Z.yaml`](probe-reports/infra-probe-2026-06-01T22-50Z.yaml)
 **Status:** Spoke bootstrap **shipped + verified on vps2 + vps3**; hub bootstrap remains manual (documented below)
 
 ## What's actually done
@@ -16,7 +16,7 @@ takes a fresh GreenCloudVPS Ubuntu 24.04 instance to a state where it's a fully-
 
 Full reference: [`scripts/bootstrap/README.md`](../../scripts/bootstrap/README.md).
 
-### What `bootstrap-vps.sh` does (12 steps)
+### What `bootstrap-vps.sh` does (13 steps, post-W16)
 
 1. Create `ozgur` user, install SSH key, grant NOPASSWD sudo — verified working before disabling root SSH
 2. Harden SSH (PermitRootLogin no, PasswordAuthentication no)
@@ -29,24 +29,23 @@ Full reference: [`scripts/bootstrap/README.md`](../../scripts/bootstrap/README.m
 9. Bring up `wg-quick@wg0`
 10. PMTU probe (fallback MTU=1380 then 1300 if 1420 fails)
 11. Apply DOCKER-USER iptables chain rules
-12. (step 11 in code) Deploy monitoring agents — `node-exporter` + `cadvisor` + `promtail` configured to ship to vps1's Prometheus + Loki over mesh
+12. Deploy monitoring agents — `node-exporter` + `cadvisor` + `promtail` configured to ship to vps1's Prometheus + Loki over mesh
+13. **(NEW, W16 2026-06-02)** Deploy spoke Traefik — renders 3 templates into `/opt/traefik/{compose.yaml,traefik.yml,dynamic/authelia.yml}` and brings up the stack. The compose template carries the **W15 `labels:` block** (`traefik.enable=true` + `traefik.http.middlewares.gzip.compress=true`) so the `gzip@docker` middleware that the Fabrik orchestrator emits on every router is defined on the spoke from minute one. Templates diffed byte-perfect against the live state on vps2 + vps3.
+14. **(NEW, W16-DNS 2026-06-02)** Create DNS records via site-provisioner — probes the spoke's public IPv4 (`curl -4 ifconfig.me`, `ipv4.icanhazip.com` fallback), then SSHes to vps1 and `curl POST`s `https://provision.vps1.ocoron.com/api/cloudflare/dns/ocoron.com/subdomain` twice (apex + wildcard). Calls go through `ensure_record()` so re-runs return `action: unchanged` instead of touching Cloudflare. The call goes via vps1 because (a) site-provisioner's IP allowlist includes vps1's public IP but not dev-WSL's, and (b) the production `API_KEY` lives in `/opt/site-provisioner/.env` on vps1 and never travels.
 
 ### What's NOT in the script (deferred / out of scope)
 
-- **DNS records** for `*.vps<N>.ocoron.com` — blocked on Cloudflare API token refresh + site-provisioner redeploy
-- **Tenant Traefik** on each spoke is **now deployed manually** (see `docs/infrastructure/vps-complete-inventory.md` § vps2 inventory) — pending: bake it into a bootstrap step
-- **`fabrik apply --target-vps vps2 specs/services/foo.yaml`** — needs spec model + CLI changes (~2-3 h code change); tracked as W-Multi M4 / M5
+- ~~**DNS records** for `*.vps<N>.ocoron.com` — stubbed at step 14~~ — ✅ shipped at step 14 (W16-DNS 2026-06-02). Idempotent via `ensure_record()`; re-runs return `action: unchanged`.
+- ~~**Tenant Traefik** on each spoke is deployed manually~~ — ✅ shipped at step 13 (W16, 2026-06-02). The "manual one-time Traefik deploy" prerequisite is retired.
+- **`fabrik apply --target-vps vps2 specs/services/foo.yaml`** — ✅ shipped 2026-05-31 (W-Multi M4) + 2026-06-02 (W3 + W14 + W15). Full spoke-deploy round-trip verified live against vps2.
 
-## What's still manual: the hub (vps1)
+## Hub (vps1) — now scripted (2026-06-01)
 
-The hub itself (vps1) was built incrementally over months and the current state is not reproducible from a single script. The "hub bootstrap" would need to:
+**The hub IS reproducible from a single script** as of 2026-06-01. Until then it was a copy-and-customize manual runbook (the prior paragraph here said `docs/operations/disaster-recovery.md § Path B`); now it's `scripts/bootstrap/bootstrap-hub.sh` — 18 idempotent steps + numbered preflight, target wall-clock ≤ 90 min from fresh VPS to "all 29 containers running, Telegram bot answering, Gatus all green."
 
-- Install Docker + create `fabrik` network
-- Bring up postgres-main, redis-main, traefik, authelia, monitoring stack, etc. — each `/opt/<svc>/compose.yaml`
-- Restore data from B2 or a fresh provision
-- Install Wireguard hub + open UDP 51820
+**Single-source operator doc:** [`vps-hub-rebuild.md`](vps-hub-rebuild.md). That doc holds the 5-command operator runbook, the per-step walkthrough, the 7-check end-state contract, and the same-IP vs new-IP decision.
 
-For now, hub recovery is a copy-and-customize of `docs/operations/disaster-recovery.md § Path B — B2 cold restore`. Writing a true hub bootstrap script is on the platform-to-A+ plan as W-Multi M0 (~4 h work).
+The hub script and the spoke script share `bootstrap-config.sh` (locked WG/firewall constants) but have different step counts (12 for spoke, 18 for hub) because the hub also restores from Backrest + W9 and handles the Cloudflare DNS rewrite. The script does what the manual paragraph used to describe — install Docker, create `fabrik` network, bring up `/opt/<svc>/compose.yaml` stacks in dependency order, restore from B2, install Wireguard hub + open UDP 51820 — but verifies each step instead of trusting the operator to remember.
 
 ## Operating notes (for now)
 
@@ -58,7 +57,7 @@ For now, hub recovery is a copy-and-customize of `docs/operations/disaster-recov
 4. Run `./scripts/bootstrap/bootstrap-vps.sh root@<new-ip> vps<N>` — ~5–10 min.
 5. Verify mesh: `ssh vps<N> ping -c 3 10.99.0.1` (expect 130–150 ms RTT cross-region).
 6. Verify Prometheus picks up the new spoke: `ssh vps 'sudo docker exec prometheus wget -qO- http://localhost:9090/api/v1/label/host/values'` should include `vps<N>`. If not, edit `/opt/monitoring/configs/prometheus/prometheus.yml` to add the new spoke's `10.99.0.<N>:<port>` targets to the spoke jobs.
-7. **Manual one-time:** deploy Traefik on the new spoke (`/opt/traefik/compose.yaml` + `traefik.yml` + `dynamic/authelia.yml`) — same pattern used for vps2 + vps3. Templates documented in `docs/infrastructure/vps-complete-inventory.md` and lifted from vps1's working config.
+7. ~~Manual one-time: deploy Traefik on the new spoke~~ — **NO LONGER NEEDED.** As of W16 (2026-06-02), step 13 of `bootstrap-vps.sh` deploys Traefik automatically using the 3 templates under `scripts/bootstrap/templates/traefik*.template`. The new spoke is ready for `fabrik apply` immediately after the script returns.
 
 ### Bootstrap script idempotency
 
@@ -91,10 +90,11 @@ If a step fails partway, fix it, then re-run the script with the same arguments.
 
 ## Pending follow-ups for the bootstrap pipeline
 
-1. **Bake spoke Traefik into step 11 or a new step 11.5.** Currently manual. ~30 min to template + add to script.
-2. **Add `tag: "{{.Name}}"` to spoke `daemon.json`** so promtail extracts `container_name` labels. ~5 min.
-3. **Add DNS step (12)** once Cloudflare API token is refreshed + site-provisioner is redeployed.
-4. **Hub bootstrap (W-Multi M0)** — multi-hour ticket; deferred until first vps1 rebuild.
+1. ~~**Define the `gzip` Traefik middleware on each spoke (W15).**~~ — ✅ **SHIPPED 2026-06-02.** Added a `labels:` block to the Traefik service in `/opt/traefik/compose.yaml` on both spokes declaring `traefik.enable=true` (required because spoke `traefik.yml` has `providers.docker.exposedByDefault: false`) **and** `traefik.http.middlewares.gzip.compress=true`. Recreate Traefik (~5 s downtime). First end-to-end spoke deploy succeeded immediately afterwards: `https://canary.vps2.ocoron.com` returned HTTP 200 with a fresh Let's Encrypt cert (first LE issuance on a spoke). New `compose.yaml` snapshotted into B2 via host-state plan on both spokes (count 4 → 5).
+2. ~~**Bake the full spoke Traefik compose into the script.**~~ — ✅ **SHIPPED 2026-06-02 (W16).** Added `step_12_install_spoke_traefik()` in `bootstrap-vps.sh` driving 3 new templates (`traefik.compose.yaml.template`, `traefik.yml.template`, `traefik-dynamic-authelia.yml.template`). New `FABRIK_LE_EMAIL` constant in `bootstrap-config.sh`. Existing DNS step renamed step 13. `--verify` mode gained a Traefik row that reports container state + gzip-middleware-label presence. Idempotency verified live on vps2 (re-run produced `Container traefik Running`, no recreate, uptime preserved).
+3. ~~**Add `tag: "{{.Name}}"` to spoke `daemon.json`**~~ — ✅ **SHIPPED 2026-06-02 (W4-pre).** `bootstrap-vps.sh` step_03 emits the field; vps2 + vps3 had docker restarted to apply it live; future spokes inherit on first bootstrap.
+4. ~~**Wire DNS step (now step 13) to call site-provisioner.**~~ — ✅ **SHIPPED 2026-06-02 (W16-DNS).** Probes spoke's public IPv4, then SSHes to vps1 and calls `https://provision.vps1.ocoron.com/api/cloudflare/dns/ocoron.com/subdomain` twice (apex + wildcard). Idempotent via `ensure_record()` — re-runs return `action: unchanged`. Live-verified against vps2 + vps3.
+5. **Hub bootstrap (W-Multi M0)** — multi-hour ticket; deferred until first vps1 rebuild. ([`scripts/bootstrap/bootstrap-hub.sh`](../../scripts/bootstrap/bootstrap-hub.sh) shipped 2026-06-01 as part of the DR-in-hours track, but it has not been drilled against a fresh VPS — see [`vps-hub-rebuild.md`](vps-hub-rebuild.md).)
 
 ---
 

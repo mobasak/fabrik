@@ -1,0 +1,200 @@
+# VPS Fleet — Architecture & Single-System Wiring
+
+**Last Updated:** 2026-06-01 (W11 SHIPPED — spoke DR symmetric to hub)
+**Last probe report:** [`probe-reports/infra-probe-2026-06-01T22-50Z.yaml`](probe-reports/infra-probe-2026-06-01T22-50Z.yaml)
+**Purpose:** Single architectural picture of the 3-host fleet — what runs where, how they're wired together, what role each plays. Read this when onboarding new infra work, before designing anything that touches multiple hosts.
+
+This doc answers: "we own 3 VPSes — what do we have, what's planned, and how is it one system?"
+
+## Roles in one line
+
+| Host | Public IP | Mesh IP | Role | Containers |
+|---|---|---|---|---|
+| **vps1** | 172.93.160.197 (LA) | 10.99.0.1 | **Hub** — mesh root + shared data plane + observability HQ + AI sysadmin HQ + backup destination for self + admin ingress | 29 |
+| **vps2** | 96.9.214.128 (Coventry UK) | 10.99.0.2 | **Spoke** — tenant compute + local Traefik + monitoring agents shipping to vps1 + own backup destination | 5 |
+| **vps3** | 104.128.190.151 (Coventry UK) | 10.99.0.3 | **Spoke** — same shape as vps2 | 5 |
+
+**All 3 are fleet members:** W1 firewall posture, W11 backup chain (SHIPPED), W6 probe-audited posture, observability flow via mesh.
+
+---
+
+## vps1 — hub services + mechanisms
+
+### Application services (29 containers)
+
+| Layer | Services |
+|---|---|
+| Front door + auth | `traefik` (HTTPS, Let's Encrypt, all `*.vps1.ocoron.com`); `authelia` (forward-auth, TOTP, Redis-backed); `ocoron-com` tenant (WordPress) |
+| Shared data plane (mesh-only) | `postgres-main` (`10.99.0.1:5432`), `redis-main` (`:6379`), `meilisearch` (`:7700`), `glitchtip-web` (`:8000` — Sentry DSN), `pushgateway` (`:9091`), `loki` (`:3100`) |
+| Observability | `prometheus`, `grafana`, `loki`, `alertmanager`, `cadvisor`, `node-exporter`, `promtail`, `gatus` |
+| Backups | `backrest` — 4 plans → B2 (see § Backups below) |
+| Notification | `apprise` — Telegram routing for `alertmanager` |
+| Workflow / utility | `n8n`, `glitchtip-worker`, `browserless`, `gotenberg` |
+| Provisioning | `site-provisioner` — Cloudflare + Namecheap API gateway |
+
+### Host-level mechanisms
+
+| Mechanism | Where |
+|---|---|
+| AI sysadmin bot | `vps-sysadmin-bot.service` (systemd, NOT a container) — Telegram bot, spawns Claude Code per message |
+| Proactive checks | `proactive-check.sh` cron — 15-min intervals, spoke-aware (W-Multi M2) |
+| Mesh hub | `wg-quick@wg0` (Wireguard hub at `10.99.0.1`, UDP 51820) |
+| iptables boot units | `iptables-docker-user.service` (DOCKER-USER ACCEPT-from-wg0 + DROP mesh-only-from-public); `iptables-openvpn.service` (operator's personal VPN forwards) |
+| Firewall | UFW 5 v4 ALLOW rules (22, 80, 443, 1194, 51820) + 1 v4 DENY rule (8000, stale-comment Coolify-era) + 6 v6 mirrors; fail2ban active (891 historical bans as of 2026-06-02 probe — internet-facing target, counts drift continuously) |
+| Cron | `pre-backup.sh` 01:30 nightly (pg_dumpall + crontab dump); `/etc/cron.d/vps-sysadmin` (proactive checks); 4 Backrest plan schedules |
+| Custom binaries | `/usr/local/bin/zellij` (operator-installed) |
+
+### DR
+
+- **Script:** `scripts/bootstrap/bootstrap-hub.sh` (18 idempotent steps). ✅ Shipped 2026-06-01.
+- **Target wall-clock:** ≤ 90 min, undrilled.
+- **Operator doc:** [`vps-hub-rebuild.md`](vps-hub-rebuild.md).
+- **Inventory:** [`../operations/hub-restore-inventory.md`](../operations/hub-restore-inventory.md).
+
+---
+
+## vps2 + vps3 — spoke services + mechanisms
+
+### Today (5 containers each — post-W11)
+
+| Layer | Service |
+|---|---|
+| Monitoring agents | `node-exporter`, `cadvisor`, `promtail` (compose `/opt/monitoring-agent/`) — ship data to vps1 over mesh |
+| Spoke ingress | `traefik` (`/opt/traefik/`) — Let's Encrypt-ready, untested in production (W4 will exercise) |
+| Backups | `backrest` (compose `/opt/backrest/`, 256m RAM, no Traefik labels, no public UI exposure) — writes to own restic repo at `vps1-ocoron-backups/spokes/vpsN/` — added by W11 (2026-06-01) |
+
+### Host-level state
+
+| Mechanism | Where |
+|---|---|
+| Wireguard spoke | `wg-quick@wg0` (10.99.0.{2,3}, peer of vps1 hub) — own spoke privkey from `bootstrap-vps.sh` step_05 |
+| iptables | `rules.v4` + `rules.v6` (DOCKER-USER chain from bootstrap-vps.sh step_10); no OpenVPN |
+| Firewall | UFW 5 v4 + 4 v6 rules: public-port allows (22, 80, 443, 51820) + **mesh-allow `from 10.99.0.0/24`** (added by W8 2026-06-01, also pushed into `bootstrap-vps.sh` step_02 so future spokes get it on first bootstrap). Single-operator threat model: mesh is fully trusted. fail2ban active per host. |
+| sysctl tuning | `99-cloudimg-ipv6.conf` (cloud-init) + `99-sysctl.conf` (OS default) |
+| Sudoers | `/etc/sudoers.d/90-ozgur` (NOPASSWD line — `90-` prefix from `bootstrap-vps.sh` step_00; differs from hub's `/etc/sudoers.d/ozgur`) |
+| SSH state | `authorized_keys` for root + ozgur (no outbound keys — spokes don't SSH outward) |
+
+### Planned (workstream → ship state)
+
+| What | Workstream | Status |
+|---|---|---|
+| Per-spoke Backrest stack (own restic repo at `vps1-ocoron-backups/spokes/vpsN/`) | W11.3+W11.4 | ✅ **SHIPPED 2026-06-01** |
+| `restic init` for each spoke + first backups (2 plans each: host-state + opt-configs) | W11.5 | ✅ **SHIPPED** — 6 successful snapshots per spoke as of 2026-06-02 probe (host-state ×4, opt-configs ×2), via Backrest cron + manual re-triggers from W4-pre/W8 |
+| W9 mirror extension for spoke `.env.backrest` + restic password | W11.6 | ✅ **SHIPPED** — 4 new files in DR-store |
+| `scripts/bootstrap/bootstrap-spoke-restore.sh` — full spoke DR rebuild | W11.7 | ✅ **SHIPPED** — 548 lines, 13 steps |
+| `docs/infrastructure/vps-spoke-rebuild.md` — spoke DR operator runbook | W11.8 | ✅ **SHIPPED** |
+| First real tenant on a spoke | W4 | pending (operator-gated; no tenant to deploy yet) |
+| Add `docker-volumes` + `postgres-dumps` plans once tenants land with state | future | gated on W4 |
+| AI sysadmin watchers for backup freshness + mesh handshake age + cert expiry + DR-store staleness | W10 | ✅ **SHIPPED 2026-06-01** |
+| `fabrik destroy --target-vps` + `fabrik redeploy --target-vps` symmetry | W3 | ✅ **SHIPPED 2026-06-02** |
+| Spoke `daemon.json` gains `tag: "{{.Name}}"` so promtail container_name labels work | W4 pre-step | ✅ **SHIPPED 2026-06-02** |
+| Orchestrator `coolify` → `fabrik` network rename in code (was hardcoded in `_generate_docker_compose`) | W12 | ✅ **SHIPPED 2026-06-02** |
+| Orchestrator healthcheck reads spec.health.path + uses wget (not hardcoded curl/health) | W12.b | ✅ **SHIPPED 2026-06-02** |
+| Authelia registrar handles spoke subdomain rules | W13 | ✅ **VERIFIED 2026-06-02** (no code change needed; FQDN-pattern-agnostic) |
+| `SSHDeployer.inject_env()` + compose-rollback honor `ctx.target_vps` (env-swap context manager `_target_vps_env`) | W14 | ✅ **SHIPPED 2026-06-02** — spoke deploy lands + rolls back on the correct host; hub-side registrars (gatus/postgres/authelia) stay on vps1 |
+| Spoke Traefik defines the `gzip` middleware so orchestrator-emitted `gzip@docker` labels resolve | W15 | ✅ **SHIPPED 2026-06-02** — added `traefik.enable=true` + `traefik.http.middlewares.gzip.compress=true` to Traefik's own `labels:` block in `/opt/traefik/compose.yaml` on both spokes (needed both — spoke `traefik.yml` has `exposedByDefault: false`). First end-to-end spoke deploy verified live: `https://canary.vps2.ocoron.com` returned HTTP 200 with a Let's Encrypt cert (first LE issuance on a spoke ever). Fresh host-state Backrest snapshot 4 → 5 on each spoke so the change is in B2 DR scope. |
+| Bake spoke Traefik compose (including the W15 `labels:` block) into `bootstrap-vps.sh` so future spokes get the middleware on first bootstrap | W16 | ✅ **SHIPPED 2026-06-02** — `step_12_install_spoke_traefik()` + 3 templates under `scripts/bootstrap/templates/traefik*.template`; `FABRIK_LE_EMAIL` constant; existing DNS step renumbered 13; `--verify` mode gained a Traefik row. Live idempotency verified on vps2 (re-run = no-op). |
+
+### DR (shipped)
+
+- **Script:** [`scripts/bootstrap/bootstrap-spoke-restore.sh`](../../scripts/bootstrap/bootstrap-spoke-restore.sh) — 548 lines, 13 steps, target wall-clock ≤ 30 min, undrilled.
+- **Operator doc:** [`vps-spoke-rebuild.md`](vps-spoke-rebuild.md).
+- **Inventory:** [`../operations/spoke-restore-inventory.md`](../operations/spoke-restore-inventory.md).
+
+---
+
+## How the fleet is one system
+
+### 1. Wireguard mesh — the substrate
+
+- Subnet `10.99.0.0/24`, UDP 51820, hub-and-spoke topology (spokes do NOT talk directly to each other, all through hub).
+- vps1 = hub at `10.99.0.1`. Spokes at `10.99.0.2` (vps2), `10.99.0.3` (vps3). Spokes get sequential IPs.
+- MTU 1420 with fallbacks to 1380 / 1300 (PMTU probed by `bootstrap-vps.sh` step_09).
+- 25 s keepalive on spoke side.
+- All cross-host services use mesh IPs. Nothing internal binds to public.
+- Cross-Atlantic mesh RTT: ~133 ms with 0% loss.
+
+### 2. Observability — single pane on vps1
+
+- `prometheus` scrapes spoke `node-exporter` + `cadvisor` + `promtail` via mesh. Spoke-specific scrape jobs: `node-spokes`, `cadvisor-spokes`, `promtail-spokes`.
+- Every series carries `host=vpsN` label. Spoke alert rules: `SpokeDown`, `SpokeHighCPU`, `SpokeHighRAM` (group `spoke_health`).
+- `loki` receives logs from promtail on every host (promtail pushes to `10.99.0.1:3100` from spokes).
+- `grafana` (vps1) shows fleet-wide dashboards. Both Prometheus + Loki as datasources.
+- `alertmanager` routes via `apprise` → Telegram.
+- `gatus` probes 30+ endpoints across all 3 hosts via mesh.
+- Total: 18/18 scrape targets up across 15 jobs (12 vps1-local + 3 spoke-jobs × 2 spokes).
+
+### 3. Backups (as of 2026-06-01, W11 shipped)
+
+- Each host runs its own Backrest. Each writes to its own restic repo in the same B2 bucket:
+  - vps1: `s3:.../vps1-ocoron-backups/` (root, existing)
+  - vps2: `s3:.../vps1-ocoron-backups/spokes/vps2/` (new W11)
+  - vps3: `s3:.../vps1-ocoron-backups/spokes/vps3/` (new W11)
+- **Independent restic passwords per host** — compromise of one doesn't expose the others.
+- **No cross-host dependency at backup time** — spoke backups continue even if vps1 is down.
+- All 3 restic passwords + B2 keys mirrored via W9 to private GitHub `mobasak/fabrik-dr-store`.
+
+### 4. DNS — Cloudflare, single zone
+
+- Zone `ocoron.com` (Cloudflare zone ID `b3494f947c71683f94b6afe1331a1ba6`).
+- vps1: `*.vps1.ocoron.com` + apex + `www`. 12 records, all → 172.93.160.197.
+- vps2: wildcard A `*.vps2.ocoron.com` → 96.9.214.128.
+- vps3: wildcard A `*.vps3.ocoron.com` → 104.128.190.151.
+- `site-provisioner` on vps1 owns the CF API; `bootstrap-vps.sh` (spoke setup) and `fabrik apply --target-vps` call it.
+- On hub DR with new IP, `bootstrap-hub.sh --cf-rewrite-dns <new-ip>` retags all `*.vps1.ocoron.com` records via API.
+
+### 5. Deployment pipeline
+
+- `fabrik apply --target-vps vps2 specs/services/foo.yaml` env-swaps `FABRIK_VPS_SSH_HOST=vps2` via the `_target_vps_env(ctx)` contextmanager around three windows: `SSHDeployer.deploy()` (W-Multi M4 shipped 2026-05-31), `SSHDeployer.inject_env()` (W14 shipped 2026-06-02 — DSN/URL writes on spoke apps land on the spoke), and compose rollback (W14 — `_rollback_compose` reads `target_vps` from the resource record). Hub-side registrars (postgres, redis, gatus, glitchtip, authelia, grafana, meilisearch) run **outside** the swap windows and stay on vps1.
+- `--target-vps` for `destroy` + `redeploy` parity **shipped 2026-06-02 (W3)** — resolution order CLI flag > state-file > spec field > vps1.
+- Per-spoke Let's Encrypt happens on first tenant deploy. First attempt 2026-06-02 (`spoke-canary` on vps2) deployed healthy but failed the verifier 404 because vps2's Traefik lacks the `gzip` middleware definition (W15 — see Planned table). Rollback was clean.
+- Tenant containers on a spoke connect to shared infrastructure (Postgres, Redis, etc.) via mesh IP `10.99.0.1:<port>`, not public.
+
+### 6. AI sysadmin oversight
+
+- `vps-sysadmin-bot.service` on vps1 — Telegram bot, spawns Claude Code on demand to investigate.
+- `proactive-check.sh` cron every 15 min — spoke-aware (queries `up{host="vps2"}` etc.).
+- 13 Prometheus alert rules — hub + spoke variants.
+- Planned W10: 4 new watcher modules (backup health, cert expiry, mesh handshake age, DR-store staleness) — each with Tier A autonomous fix where safe.
+
+### 7. DR — fleet-wide resilience claim
+
+| Failure mode | Recovery |
+|---|---|
+| vps1 disk dies | `bootstrap-hub.sh` against fresh VPS → ≤ 90 min target |
+| vps2 or vps3 disk dies | `bootstrap-spoke-restore.sh` against fresh VPS → ≤ 30 min target (W11, in progress) |
+| vps1 down, spokes up | Spokes keep running locally; observability + tenants stay served from spokes; mesh reconverges when hub comes back |
+| vps2/vps3 down, others up | Hub + other spoke unaffected; tenant on dead spoke redeployed via `fabrik apply --target-vps <other>` |
+| Full fleet loss (all 3 + B2 wiped) | Out of scope. Path C in `../operations/disaster-recovery.md` — GitHub-only rebuild ~half day, secrets gone |
+| Operator workstation (dev WSL) wiped | W9 DR-store on GitHub: `gh repo clone mobasak/fabrik-dr-store` → `cp env/latest /opt/fabrik/.env`. Done. |
+
+### 8. Spoke-tenant independence (the point of the fleet)
+
+The reason vps2 + vps3 exist is **independent tenant landing zones**. A tenant deployed to vps2 has:
+
+- Its own public IP (96.9.214.128) — `tenant.vps2.ocoron.com` resolves there.
+- Its own Traefik fronting it (cert issued via Let's Encrypt to that IP).
+- Logs + metrics shipped to vps1's observability via mesh (no public exposure).
+- Database + cache via mesh IP to vps1's `postgres-main` / `redis-main`.
+- Backed up by vps2's own Backrest (after W11) — vps1 outage doesn't stop vps2 backups.
+
+A second tenant can land on vps3 (or vps2 again) and is isolated from the first by being on a separate spoke compute environment, sharing only the mesh data plane.
+
+When the fleet is sized up, the pattern extends: vps4, vps5, etc. all join as spokes via `bootstrap-vps.sh`, get added to W11's per-spoke Backrest pattern, and start receiving tenants via `fabrik apply --target-vps`.
+
+---
+
+## Cross-references
+
+- [`vps-hub-rebuild.md`](vps-hub-rebuild.md) — vps1 DR runbook (the "if vps1 is gone" doc).
+- [`vps-spoke-rebuild.md`](vps-spoke-rebuild.md) — planned (W11.8). vps2/vps3 DR runbook.
+- [`vps-bootstrap-plan.md`](vps-bootstrap-plan.md) — spoke fresh-bootstrap (`bootstrap-vps.sh`).
+- [`vps-complete-inventory.md`](vps-complete-inventory.md) — full container-by-container catalog of what runs where.
+- [`vps-status.md`](vps-status.md) — point-in-time health snapshot.
+- [`vps-urls.md`](vps-urls.md) — how to reach things from outside.
+- [`vps-ai-sysadmin.md`](vps-ai-sysadmin.md) — bot reference.
+- [`vps-residue-policy.md`](vps-residue-policy.md) — hygiene policy.
+- [`../operations/disaster-recovery.md`](../operations/disaster-recovery.md) — DR scenarios A/B/C/D.
+- [`../operations/credential-recovery.md`](../operations/credential-recovery.md) — W9 mirror.
+- [`../operations/hub-restore-inventory.md`](../operations/hub-restore-inventory.md) — hub DR path list.
+- [`../operations/spoke-restore-inventory.md`](../operations/spoke-restore-inventory.md) — spoke DR path list.

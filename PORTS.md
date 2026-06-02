@@ -45,6 +45,7 @@ This document tracks port allocations for all Fabrik services to prevent conflic
 
 | Port | Service | Project | Notes |
 |------|---------|---------|-------|
+| 8017 | **vps-sysadmin-bot health** | `/opt/fabrik/scripts/sysadmin/bot.py` | systemd service on vps1 host; **binds `127.0.0.1:8017` only** since W5 of fleet-hardening plan (2026-06-01). Distinct socket from the `:8017` container-internal allocation under "Python APIs" below — host-loopback and container-internal do not collide at the OS level. Override via `SYSADMIN_HEALTH_HOST=<ip>` in `/opt/fabrik/.env.sysadmin`. |
 | 8050 | fabrik-api | /opt/fabrik-api | FastAPI bridge — native VPS host process, binds `127.0.0.1` only |
 | 3004 | fabrik-control-plane | /opt/fabrik-control-plane | Next.js 14 chat UI — Coolify-managed container |
 
@@ -57,7 +58,6 @@ This document tracks port allocations for all Fabrik services to prevent conflic
 | 18013 | Proxy Manager | /opt/proxy | https://proxy.vps1.ocoron.com |
 | 18014 | DNS Manager | /opt/dns-manager | https://dns.vps1.ocoron.com |
 | 18015 | File API | /opt/file-api | https://files-api.vps1.ocoron.com |
-| 18016 | Image Broker | /opt/image-broker | https://images.vps1.ocoron.com |
 | 18017 | Email Gateway | /opt/emailgateway | https://email.vps1.ocoron.com |
 | 18018 | Email Reader | /opt/email-reader | — |
 
@@ -83,7 +83,7 @@ If you encounter a port conflict:
 
 
 <!-- AUTO-GENERATED:PORTS:START -->
-<!-- Last synced: 2026-05-31 17:22:46 -->
+<!-- Last synced: 2026-06-02 18:30:31 -->
 
 ### Project Port Allocations (from project.yaml)
 
@@ -121,7 +121,6 @@ If you encounter a port conflict:
 | 18011 | **captcha** | python-api | /opt/captcha |
 | 18013 | **proxy** | python-api | /opt/proxy |
 | 18014 | **site-provisioner** | python-api | /opt/site-provisioner |
-| 18016 | **image-broker** | python-api | /opt/image-broker |
 | 18018 | **email-reader** | python-api | /opt/email-reader |
 
 <!-- AUTO-GENERATED:PORTS:END -->

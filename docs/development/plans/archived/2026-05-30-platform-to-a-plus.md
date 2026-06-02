@@ -1,9 +1,29 @@
 # Plan: Platform-to-A+ — close every grade-gap on vps1
 
-**Status:** Draft v2 (2026-05-30, post-audit revision)
+**Status:** ✅ **CLOSED 2026-06-02 — superseded by shipped fleet-hardening work** (this plan was a Draft v2 from 2026-05-30 that was never executed directly; its biggest workstreams turned out to be exactly what the fleet-hardening + DR-in-hours track shipped a few days later)
 **Trigger:** owner asked "create a plan to make all a+" after the platform evaluation in the same session.
-**Scope:** vps1 (single host, multi-tenant platform). Lays the groundwork the multi-host expansion (vps2/vps3) will sit on top of.
-**Out of scope:** vps2/vps3 service distribution itself — handled by a follow-up "Multi-VPS W3" plan that this plan unblocks.
+**Original scope:** vps1 (single host, multi-tenant platform). Lays the groundwork the multi-host expansion (vps2/vps3) will sit on top of.
+
+## Closing summary (2026-06-02)
+
+Workstream-by-workstream — what shipped and where:
+
+| WS | Title | Status | Where it shipped |
+| :--- | :--- | :--- | :--- |
+| **W-Multi** | Multi-host readiness (D → A+) | ✅ **EFFECTIVELY SHIPPED** | M1 = `scripts/bootstrap/bootstrap-vps.sh` (13 steps, includes Traefik W16); M4+M5 = `--target-vps` on apply/destroy/redeploy (W-Multi M4 + W3 + W14); M6 = Wireguard mesh 10.99.0.0/24 + Prometheus federation (18/18 targets up); M7 = `authelia-vps1@file` middleware on spoke Traefik (W13 verified); M8 = Gatus spoke endpoints + Prometheus spoke jobs; M10 = spoke-canary live-deploy verified `https://canary.vps2.ocoron.com` HTTP 200 with LE cert. M2 (mTLS on postgres-main) + M3 (TLS on redis-main) NOT shipped — current posture is **mesh-only binding** (`10.99.0.1:5432`/`6379`) which the single-operator threat model treats as sufficient. M9 (docs/operations/multi-host-deployment.md) NOT shipped as a single file but functionally covered by `vps-fleet-architecture.md` + `vps-bootstrap-plan.md` + `vps-urls.md`. |
+| **W-DR** | DR posture (C+ → A+) | ✅ **EFFECTIVELY SHIPPED** | D1 (VirtFusion snapshot) deferred per [`project_greencloud_no_snapshot_api.md`](../../../home/ozgur/.claude/projects/-opt-fabrik/memory/project_greencloud_no_snapshot_api.md) — GreenCloud has no snapshot API, vendor-confirmed 2026-06-01; D2 = `docs/operations/disaster-recovery.md` audited + extended with Path D (scripted full hub restore); D3 = `bootstrap-hub.sh` (18 steps, ≤ 90 min) + `bootstrap-spoke-restore.sh` (13 steps, ≤ 30 min) — drill against fresh VPS still pending; D4 (second-region B2) NOT shipped — single-region is sufficient with the W9 GitHub DR mirror as orthogonal backup; D5 (Backrest retention) shipped via plan-cleanup during W2 ship; D6 (Gatus probe for B2 staleness) shipped via W10 `backup_health` watcher in `proactive-check.sh`. |
+| **W-Tenant** | Multi-tenant readiness (B → A+) | ⏳ partial / deferred | Per-tenant DB isolation already wired via `postgres` registrar (`needs_database: true` shape flag). Per-tenant Redis index allocation wired. Per-tenant secrets isolation: each spec gets its own `.env`. Operator-gated work remaining: actual tenant onboarding workflow + multi-tenant SaaS scaffolds (saas-skeleton). Not blocking. |
+| **W-Registrar** | Auto-registration depth (B+ → A+) | ⏳ partial | All 9 shape-driven registrars exist + working (postgres, redis, gatus, glitchtip, authelia, backrest, grafana, meilisearch, prometheus). Audit drift detection (`scripts/audit/`) exists. Watchdog registrar deferred to AI Watchdog Platform P2. |
+| **W-Sec** | Auth / security (A− → A+) | ⏳ partial | Authelia 2FA + Redis-backed sessions live. `X-Internal-Token` M2M pattern intact. UFW + fail2ban + DOCKER-USER chain shipped via W1. Per-service Cloudflare Access deferred — not blocking single-operator threat model. |
+| **W-Obs** | Observability (A → A+) | ✅ shipped | 18/18 Prometheus targets up across 15 jobs (W8 ship); 5 Grafana dashboards with `host` template variable; Loki multi-host ingest via mesh; spoke observability restored 2026-06-01 (UFW mesh-allow). |
+| **W-Lean** | Resource efficiency (A− → A+) | ⏳ partial | Memory limits enforced via compose `deploy.resources.limits.memory` (gate validates). CPU limits not yet uniformly enforced. Not blocking. |
+| **W-Backup** | Backups (A → A+) | ✅ shipped | 4 hub plans (W2) + 2 per-spoke plans (W11) live on B2 at `s3.us-west-004.backblazeb2.com/vps1-ocoron-backups{,/spokes/vpsN}`. Path-preserving bind mounts. Restic passwords mirrored to DR-store (W9 + W11.6). First snapshot committed 2026-06-01. |
+
+**Net:** the two biggest workstreams (W-Multi, W-DR) are the ones that justified the plan in the first place. Both shipped via the fleet-hardening plan (`archived/2026-05-31-plan-fleet-hardening-and-doc-truth.md`) and the DR-in-hours track. The remaining partial items are either operator-gated, deferred to the watchdog plan, or rejected by the single-operator threat model. This plan was never executed directly because the work happened under a different organizing principle — but the goals are met.
+
+---
+
+## Original Draft v2 (2026-05-30) — kept below for historical context
 
 **v2 audit (2026-05-30):** v1 of this plan was written from session memory + partial verification. Owner asked for a factual review. Eight factual errors found and corrected in this revision (see § Audit log at the end). Estimates re-calibrated; risk register added; W-Obs grade revised upward after discovering the AI sysadmin already queries Prometheus via `scripts/sysadmin/proactive-check.sh`.
 

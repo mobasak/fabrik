@@ -1,7 +1,7 @@
 # VPS Fleet — Service URLs and Endpoints
 
 **Last Updated:** 2026-06-01 (post-W1 ship — UFW active on spokes; probe reports moved to tracked location)
-**Last probe report:** [`probe-reports/infra-probe-2026-05-31T23-07Z.yaml`](probe-reports/infra-probe-2026-05-31T23-07Z.yaml)
+**Last probe report:** [`probe-reports/infra-probe-2026-06-01T22-50Z.yaml`](probe-reports/infra-probe-2026-06-01T22-50Z.yaml)
 **Hosts:** vps1 (hub, LA, `172.93.160.197`) · vps2 (Coventry UK, `96.9.214.128`) · vps3 (Coventry UK, `104.128.190.151`)
 **Mesh:** Wireguard `10.99.0.0/24` over UDP 51820 (vps1 = `.1`, vps2 = `.2`, vps3 = `.3`)
 **Pattern:** Public traffic → per-host Traefik → TLS terminated per host → Authelia forward-auth on admin dashboards. HTTP auto-redirects to HTTPS. No service binds a public port directly; Traefik fronts everything except SSH and Wireguard.
@@ -94,7 +94,9 @@ for r in json.load(sys.stdin):
 
 ## vps2 / vps3 service URLs
 
-**None deployed yet, but the deploy path is wired** (W-Multi M4 shipped 2026-05-31 evening). The pattern:
+**None production yet, but the path is proven end-to-end (2026-06-02).** `spoke-canary` (`nginx:alpine`, `target_vps=vps2`) deployed clean, `curl https://canary.vps2.ocoron.com` returned HTTP 200, Let's Encrypt cert issued (`Issuer: Let's Encrypt YR2`, `notAfter: Aug 30 2026 GMT`) — first LE issuance on a spoke ever. Canary destroyed afterwards (cert sits in `/opt/traefik/acme.json` on vps2 until rotation). vps3 still untested but the W15 Traefik fix is in place on both spokes.
+
+**Deploy path is wired** end-to-end as of 2026-06-02 (W-Multi M4 + W3 + W14 + W15). The pattern:
 
 ```bash
 # In the spec
@@ -113,19 +115,18 @@ cat specs/services/my-service.yaml
 What happens under the hood:
 
 1. CF DNS A record auto-created: `my-service.vps2.ocoron.com` → `96.9.214.128` (vps2's IP — picked from the `VPS_IPS` map in [`src/fabrik/orchestrator/__init__.py`](../../src/fabrik/orchestrator/__init__.py)).
-2. SSH deployer env-swaps `FABRIK_VPS_SSH_HOST=vps2` for the duration of `deploy()`, so all ~30 SSH calls (clone, build, up, env writes) target vps2.
-3. Hub-side registrars (`postgres-main`, `redis-main`, `gatus`, `glitchtip-web`, `authelia`, `grafana`, `meilisearch`) keep running against vps1 — they live there. The spoke service uses them over the mesh:
+2. SSH deployer env-swaps `FABRIK_VPS_SSH_HOST=vps2` via the `_target_vps_env(ctx)` contextmanager around three windows: `SSHDeployer.deploy()` (W-Multi M4), `SSHDeployer.inject_env()` (W14 — so glitchtip DSN / redis URL writes land on vps2), and compose rollback (W14 — reads `target_vps` from the resource record so a failed verify on a spoke tears the container down on the spoke).
+3. Hub-side registrars (`postgres-main`, `redis-main`, `gatus`, `glitchtip-web`, `authelia`, `grafana`, `meilisearch`) run **outside** the swap windows and keep talking to vps1 — they live there. The spoke service uses them over the mesh:
    - `DATABASE_URL=postgresql+asyncpg://...@10.99.0.1:5432/...`
    - `REDIS_URL=redis://10.99.0.1:6379/...`
    - `SENTRY_DSN=http://<key>@10.99.0.1:8000/<project_id>`
-4. The spoke's Traefik picks up the container's labels, requests a Let's Encrypt cert (first issuance on first spoke deploy), and starts serving.
+4. The spoke's Traefik picks up the container's labels, requests a Let's Encrypt cert (first issuance on first spoke deploy), and starts serving. The `gzip@docker` middleware that the orchestrator emits on every router is now defined on both spokes via labels on the Traefik container itself (W15, 2026-06-02). vps2 verified live: HTTP 200 + Let's Encrypt YR2 cert. vps3 untested but the same fix is in place.
 
-For cross-host admin dashboards on a spoke: `https://<service>.vpsN.ocoron.com` with Traefik's `authelia-vps1@file` middleware (defined in `/opt/traefik/dynamic/authelia.yml` on each spoke). That middleware forward-auths to `http://10.99.0.1:9091/api/verify` over the mesh — vps1's Authelia issues the cookie scoped to `*.vpsN.ocoron.com`. Cookie-domain plumbing for cross-host SSO is on the W-Multi M7 backlog item; until that lands, spoke admin dashboards work but the user re-auths per host.
+For cross-host admin dashboards on a spoke: `https://<service>.vpsN.ocoron.com` with Traefik's `authelia-vps1@file` middleware (defined in `/opt/traefik/dynamic/authelia.yml` on each spoke). That middleware forward-auths to `http://10.99.0.1:9091/api/verify` over the mesh — vps1's Authelia issues the cookie scoped to `*.vpsN.ocoron.com`. Cookie-domain plumbing for cross-host SSO is on the W-Multi M7 backlog item; until that lands, spoke admin dashboards work but the user re-auths per host. The Authelia rule registrar itself is FQDN-pattern-agnostic and handles `*.vps2 / *.vps3` patterns without code change (W13 verified 2026-06-02).
 
-### Still pending for full spoke parity
+### Spoke parity status
 
-- `fabrik destroy --target-vps` + `fabrik redeploy --target-vps` (same env-swap pattern as `apply`, ~5–10 min each)
-- First real spoke deploy not yet exercised — Let's Encrypt cert issuance on vps2/vps3 will happen the first time a spec lands there
+Fully automated end-to-end (no manual steps) since W16 ship 2026-06-02. A new spoke gets its Traefik stack — including the W15 `labels:` block that publishes `gzip@docker` — from `step_12_install_spoke_traefik()` in `bootstrap-vps.sh`. The DNS records (apex + wildcard `*.vpsN.ocoron.com`) are created at `step_13_create_dns_records()` via a `curl POST` to `/api/cloudflare/dns/ocoron.com/subdomain` on `provision.vps1.ocoron.com`, executed from vps1 (allowlisted IP + in-VPS `API_KEY`). The call is idempotent: re-runs return `action: unchanged` from `ensure_record()`. No `--skip-dns` workaround needed.
 
 ---
 
@@ -250,7 +251,7 @@ const resp = await fetch('https://translator.vps1.ocoron.com/api/translate', { h
 | 22/tcp | `0.0.0.0:22` | ALLOW | SSH (`ozgur` user, key-only) |
 | 80/tcp | `0.0.0.0:80` | ALLOW | HTTP → Traefik (auto-redirect to HTTPS) |
 | 443/tcp | `0.0.0.0:443` | ALLOW | HTTPS via Traefik |
-| 1194/tcp | `0.0.0.0:1194` | ALLOW | OpenVPN (legacy, user's personal VPN — not platform infra) |
+| 1194/tcp | `0.0.0.0:1194` | ALLOW | OpenVPN — **out-of-platform-scope (operator's personal VPN)**. Documented per W5 of fleet-hardening plan; not platform infra, no probe required. |
 | 6001-6002/tcp | `0.0.0.0:6001-6002` | ALLOW | ⚠ stale Coolify Realtime ports — safe to drop |
 | 8000/tcp | n/a | DENY | ⚠ stale Coolify comment — rule still useful as belt-and-suspenders |
 | 51820/udp | `0.0.0.0:51820` | ALLOW | Wireguard mesh (hub listener) |

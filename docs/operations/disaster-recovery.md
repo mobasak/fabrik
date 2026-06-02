@@ -1,28 +1,25 @@
 # VPS Disaster Recovery Guide
 
-**Last Updated:** 2026-06-01 (W9 shipped — credential recovery now automated via [`credential-recovery.md`](credential-recovery.md))
+**Last Updated:** 2026-06-01 (DR-in-hours track shipped — `bootstrap-hub.sh` Path D is now the primary DR path; 4 Backrest plans live on B2)
 **Previous version:** 2025-12-22 (Duplicati/Coolify era — archived in git history)
-**Recovery Time Objective (RTO):** 60–90 min (with VirtFusion image). Path B (B2 cold restore) currently unavailable — see below.
-**Recovery Point Objective (RPO):** depends on path — see below.
-**Credential prerequisite for every path below:** `BACKREST_RESTIC_PASSWORD` (and the rest of `/opt/fabrik/.env`) must be recoverable from the GitHub DR mirror — see [`credential-recovery.md`](credential-recovery.md). One-command recovery if the dev WSL is gone: `gh repo clone mobasak/fabrik-dr-store /opt/fabrik-dr-store && sudo cp /opt/fabrik-dr-store/env/latest /opt/fabrik/.env`. As of W9 (2026-06-01), env changes mirror to GitHub within seconds via inotify + systemd (`fabrik-dr-watcher.service`) plus a daily safety-net cron and a weekly recovery self-test cron.
+**Recovery Time Objective (RTO):** ≤90 min via Path D (`bootstrap-hub.sh`). Path A (VirtFusion image) ~60 min IF a recent snapshot exists.
+**Recovery Point Objective (RPO):** up to 24 h on Path D (Backrest plans run nightly 02:00–03:30). Path A RPO = time since last manual snapshot.
+**Credential prerequisite for every path:** `BACKREST_RESTIC_PASSWORD` (and the rest of `/opt/fabrik/.env`) recoverable from the GitHub DR mirror — see [`credential-recovery.md`](credential-recovery.md). One-command recovery if dev WSL is gone: `gh repo clone mobasak/fabrik-dr-store /opt/fabrik-dr-store && sudo cp /opt/fabrik-dr-store/env/latest /opt/fabrik/.env`. Mirror is continuous via inotify + systemd (`fabrik-dr-watcher.service`).
 
-> **⚠️ CURRENT STATE (2026-05-31, 01:15 UTC):** All Backrest plans have been deleted and the B2 bucket `vps1-ocoron-backups` is empty (0 objects). The repo definition (`b2-vps1`) and B2 credentials remain in Backrest so plans can be reconfigured later. **Until plans are restored:**
+> **CURRENT STATE (2026-06-01):** 4 Backrest plans live on B2 (`postgres-dumps`, `docker-volumes`, `opt-configs`, `host-state`) since the DR-in-hours track shipped. First snapshots: 117 MiB compressed on B2 (612 MiB raw). Path D is the primary DR path. `bootstrap-hub.sh` exists end-to-end; drill on a throwaway VPS still pending — until drilled, RTO ≤90 min is a target, not measured.
 >
-> - **Path A (VirtFusion image) is the ONLY working DR path.** Image `pre-golden-20260530` is current.
-> - **Path B (B2 cold restore) does NOT apply** — there's nothing in B2 to restore from.
-> - **RPO for non-VirtFusion changes since 2026-05-30 is INFINITE** until backups are reconfigured.
->
-> Rationale: nothing material to back up today (no live tenants except ocoron.com WP; postgres-main is empty; no SaaS workloads). Owner deferred backup configuration until real data lands. This is an intentional posture, not a bug — but it is a real risk if the VPS dies in the gap. **Mitigation: take a fresh VirtFusion snapshot any time material state changes** (e.g., before a big deploy, after onboarding a tenant). The VirtFusion slot is free.
+> **Path A (VirtFusion) caveat — vendor confirmed 2026-06-01:** GreenCloud Senior Technician Tu Do Anh confirmed that VirtFusion **has no API for automated or scheduled snapshots** ("Your VPS currently only includes manual backup, which needs to be triggered through the control panel"). The paid backup add-on still goes through their panel for setup. **Path A is only available if the operator has manually clicked "snapshot" in the panel recently** — it's not a drilled or automated DR path. Treat Path A as a bonus shortcut for incidents that happen to fall after a manual snapshot, not as a reliable RPO/RTO commitment. **Path D is the only DR path that works without operator-recent-action.**
 
 ---
 
 ## Recovery scenarios — pick one
 
-- **Path A — VirtFusion restore (~60 min).** VPS booted into bad state (kernel panic, fs corruption, accidental wipe) but a VirtFusion image exists. Minimal data loss.
-- **Path B — B2 cold restore (~2–3 h).** VPS lost or unrecoverable, but B2 backups intact and a fresh VPS provisioned. Up to 24 h of changes lost since last Backrest run.
+- **Path A — VirtFusion restore (~60 min).** VPS booted into bad state (kernel panic, fs corruption, accidental wipe) but a VirtFusion image exists. Minimal data loss. **Only works if the operator has manually clicked "snapshot" in the GreenCloud panel recently** — vendor confirmed 2026-06-01 there is no API to automate this. Treat as a bonus shortcut, not a reliable path.
+- **Path B — B2 cold restore (~2–3 h).** VPS lost or unrecoverable, but B2 backups intact and a fresh VPS provisioned. Up to 24 h of changes lost since last Backrest run. **DEPRECATED 2026-06-01 in favor of Path D, which automates the whole process.**
 - **Path C — GitHub-only rebuild (~half day).** Both VPS and B2 lost. Possible because all `compose.yaml` are checked into `mobasak/fabrik`; secrets are gone. Out of scope for this doc.
+- **Path D — `bootstrap-hub.sh` scripted full restore (≤90 min target).** VPS lost or unrecoverable, fresh VPS provisioned (any IP). Single command does everything Path B did manually. **PRIMARY DR PATH AS OF 2026-06-01.** See [§ Full hub restore — Path D](#full-hub-restore--path-d-bootstrap-hubsh) below.
 
-Most real disasters are Path A. Document path B in full so we can drill it.
+**Path D is the primary DR path** because it's the only one that works without operator-recent-action (Path A needs a recent manual snapshot; Path B is deprecated; Path C is unscripted). Use Path A as a bonus shortcut if and only if you happen to have a fresh manual snapshot.
 
 ---
 
@@ -386,7 +383,7 @@ PATH B (B2 cold restore):
 [ ] New VPS provisioned
 [ ] SSH hardened (no root, no password)
 [ ] UFW + fail2ban enabled
-[ ] Docker + `coolify` bridge network created
+[ ] Docker + `fabrik` bridge network created (renamed from `coolify` 2026-05-31)
 [ ] restic + rclone installed, B2 configured
 [ ] B2 access key + secret + restic password recovered from your password manager
 [ ] /opt/* configs restored from `opt-configs` snapshot
@@ -410,6 +407,82 @@ These are real gaps in DR posture — not theater.
 - **LOW: No second-region B2 bucket.** Single-region means a B2 us-west outage during a vps1 disaster = no restore. B2 multi-region failures are rare. **Fix:** W-DR D4 adds `rclone sync` to an eu-central B2 bucket weekly.
 - **LOW: DNS still on Cloudflare only.** If Cloudflare goes down, traffic can't move. Out of scope for this doc; covered in network-redundancy plans.
 - **NOT A REAL RISK: 3 world-readable `.env` files** on the host (browserless, gotenberg, meilisearch). Single-operator VPS, no other users. Cosmetic only. See W-Sec in the Platform-to-A+ plan; deprioritized after threat-model review.
+
+---
+
+## Full hub restore — Path D (bootstrap-hub.sh)
+
+**Status:** Primary DR path. Replaces Path B's manual sequence. Drilled separately — see [`hub-restore-inventory.md` § End-state contract](hub-restore-inventory.md).
+
+**Target wall-clock:** ≤ 90 min on a 100 Mbit pipe between dev WSL and the new VPS. Most of the time is image pulls (step 13) + B2 bandwidth for the docker-volumes snapshot (~599 MiB) + initial Let's Encrypt cert issuance.
+
+**Inputs (all already in place on dev WSL):**
+
+1. `/opt/fabrik-dr-store/env/latest` — fleet `.env` (W9 mirror). Has `B2_KEY_ID`, `B2_APPLICATION_KEY`, `BACKREST_RESTIC_PASSWORD`, `CLOUDFLARE_API_TOKEN`.
+2. `/opt/fabrik-dr-store/env/sysadmin-latest` — Telegram bot creds (W9 extension).
+3. `gh` CLI authenticated for `mobasak/fabrik-dr-store` HTTPS access.
+4. Local Docker (used by `bootstrap-hub.sh` preflight to verify B2 reachability via `docker run restic`).
+5. The bootstrap-hub script itself at `scripts/bootstrap/bootstrap-hub.sh` (this repo).
+
+**Operator commands (5 steps):**
+
+```bash
+# 1. Provision the new VPS — GreenCloudVPS panel, Ubuntu 24.04 LTS, root SSH enabled,
+#    your pubkey in /root/.ssh/authorized_keys. ~5 min manual.
+
+# 2. Confirm reachability + W9 mirror is fresh.
+ssh root@<new-ip> 'echo ok'
+ls -la /opt/fabrik-dr-store/env/latest /opt/fabrik-dr-store/env/sysadmin-latest
+
+# 3. Dry-run preflight (no changes). Confirms env source, B2 creds, snapshot count.
+cd /opt/fabrik
+./scripts/bootstrap/bootstrap-hub.sh --verify root@<new-ip>
+
+# 4. Real run. Add --cf-rewrite-dns ONLY if the new VPS has a different public IP
+#    than the dead vps1 (most providers reassign on disk-wipe rebuild).
+./scripts/bootstrap/bootstrap-hub.sh --cf-rewrite-dns <new-ip> root@<new-ip>
+#    or, same-IP rebuild:
+./scripts/bootstrap/bootstrap-hub.sh root@<new-ip>
+
+# 5. After "✓ HUB READY" prints, confirm by hitting Gatus.
+curl -fsS https://status.vps1.ocoron.com | head -5
+```
+
+**What the script does, condensed:** create sudoer → harden SSH → install Docker/WG/UFW/fail2ban/gh/inotify/jq → install Claude Code → place `/opt/fabrik/.env` + `.env.sysadmin` from W9 mirror → write Docker `daemon.json` → restic restore host-state (25 KB of `/etc/*`, `/root/.ssh/*`, `/home/ozgur/.ssh/*`, `/usr/local/bin/zellij`) → enable UFW + Wireguard + iptables boot units → create `fabrik` Docker network → restic restore `/opt/` (excludes `containerd`, `fabrik/.git`, `backups/coolify_env_*`) → restic restore 10 named Docker volumes → `docker compose up -d` in dep order (postgres → redis → traefik → authelia → monitoring → apprise → backrest → gatus → glitchtip → browserless → gotenberg → meilisearch → n8n → site-provisioner → ocoron-com) with pg_isready/PING gates → pg_dump fallback if `postgres-data` volume came up empty → enable `vps-sysadmin-bot` + `authelia-config-sync` → replay root crontab from `/opt/backups/root-crontab.txt` → (optional) rewrite Cloudflare A records to new IP → run 7-check end-state contract.
+
+**End-state contract (must pass all 7):**
+
+1. `wg show wg0` → 2 peers handshaking (vps2 + vps3)
+2. `docker ps | wc -l` ≥ 29
+3. `curl -s https://status.vps1.ocoron.com` → HTTP 200
+4. `psql -U postgres -l` lists `glitchtip` + `site_provisioner`
+5. `curl -s http://127.0.0.1:8017/health` → `{"status":"ok",...}`
+6. `restic snapshots` from inside the new `backrest` container → ≥ 1 snapshot (W2 loop closure: backup chain still works post-DR)
+7. Wall-clock ≤ 90 min
+
+Failure of any item = drill failed = bootstrap-hub.sh has a gap. Re-open against `hub-restore-inventory.md` to find what's missing.
+
+**Idempotency:** every step checks current state before mutating. Safe to re-run after a partial failure (network blip, missing image, etc.) — already-completed steps detect their done-state and short-circuit.
+
+**Flags worth knowing:**
+
+| Flag | When |
+|---|---|
+| `--dry-run` | Print every command, change nothing. Use during DR drill planning. |
+| `--verify` | Read-only preflight only. Confirms env source, B2 reachability, target SSH. |
+| `--snapshot <ID>` | Use a specific restic snapshot (default `latest`). For point-in-time restores. |
+| `--env-from <path>` | Override `/opt/fabrik-dr-store/env/latest`. For test runs with a synthetic env. |
+| `--cf-rewrite-dns <new-ip>` | Update every `*.vps1.ocoron.com` A record. Skip if same IP. |
+| `--skip-services` | Stop after step 12 (host restored, no containers started). For debugging restore steps. |
+
+**Logging:** script tees the full run to `/tmp/bootstrap-hub-<TS>.log` on the dev machine. Keep this file from each drill — it's the only way to find which step took longest.
+
+**What the script does NOT do:**
+
+- Provision the VPS (still manual via GreenCloudVPS panel — ~5 min).
+- Re-issue Let's Encrypt certs (handled automatically by Traefik on first request to `https://*.vps1.ocoron.com` after start; ~5 min for first cert, rate-limit safe because `acme.json` IS in the `opt-configs` snapshot so re-issuance is usually skipped).
+- Bring back spokes (vps2 + vps3 keep running through the hub outage; mesh reconverges automatically once `wg-quick@wg0` comes up on the rebuilt hub).
+- Authenticate Claude Code (manual: `claude auth login` once, post-bootstrap, before the sysadmin bot can make real LLM calls).
 
 ---
 

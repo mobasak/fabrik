@@ -1,5 +1,12 @@
 """
-Site Provisioner - Orchestrate Steps 0-1-2 for new site deployment.
+Site Provisioner - LEGACY (pre-orchestrator) Steps 0-1-2 for new site deployment.
+
+DEPRECATED 2026-05-30: this saga uses the Coolify API which is no longer
+reachable. The active provisioning path is `DeploymentOrchestrator` in
+`src/fabrik/orchestrator/__init__.py` (state machine with 9 shape-gated
+registrars). This module is retained for the few legacy CLI commands
+(`fabrik status`, `fabrik logs`, `fabrik reconcile-all`) that haven't
+been ported. New code must NOT call into this module.
 
 Implements a saga pattern with granular states for safe retries and
 partial failure recovery.

@@ -495,7 +495,7 @@ docs/
 
 | Document | Purpose |
 |----------|--------|
-| [wordpress-site-workflow.md](docs/workflows/wordpress-site-workflow.md) | End-to-end WordPress site lifecycle: domain → plan → Coolify deploy → WP config → verify → content publish |
+| [wordpress-site-workflow.md](docs/workflows/wordpress-site-workflow.md) | End-to-end WordPress site lifecycle: domain → plan → SSH+Compose deploy → WP config → verify → content publish (pre-2026-05-30 was Coolify deploy) |
 
 ### WordPress
 

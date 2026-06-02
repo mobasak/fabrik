@@ -1,7 +1,7 @@
 # VPS AI System Administrator — Reference
 
-**Last Updated:** 2026-06-01 (post-W1 ship — Container Classification table reflects UFW now active on spokes)
-**Last probe report:** [`probe-reports/infra-probe-2026-05-31T23-07Z.yaml`](probe-reports/infra-probe-2026-05-31T23-07Z.yaml)
+**Last Updated:** 2026-06-02 (post-W14 sweep — probe report refreshed; deployer + rollback honor `target_vps` end-to-end)
+**Last probe report:** [`probe-reports/infra-probe-2026-06-01T22-50Z.yaml`](probe-reports/infra-probe-2026-06-01T22-50Z.yaml)
 **Status:** Live since 2026-05-20
 **Service:** `vps-sysadmin-bot.service` (systemd, `Restart=always`)
 **Bot:** Telegram (`@ocoron_bot`), same bot as Alertmanager notifications
@@ -14,6 +14,43 @@
 An on-demand AI system administrator. Not a monitoring tool — a thinking sysadmin that runs locally on the VPS, queries all infrastructure APIs directly, diagnoses root causes, acts autonomously on safe operations, and reports what it did.
 
 **On-demand, not persistent.** Dormant 99% of the time. Zero tokens unless triggered. Session starts when you message or when a proactive check detects an anomaly. Session ends on "done" or 10 minutes of silence.
+
+### Two AI layers in the platform — do not confuse them
+
+The platform is gaining a **second** AI layer that is distinct from the host-level sysadmin described in this document. New readers conflate the two; this section disambiguates.
+
+| Layer | Where it runs | Scope | Lifecycle | Auth | Status |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Host-level AI sysadmin** (this doc) | `vps-sysadmin-bot.service` on vps1 only — a systemd unit, NOT a container | Whole-VPS infrastructure: containers, mesh, backups, alerts | One persistent systemd service; spawns Claude Code sessions on demand | Claude Code Max subscription via `claude auth login` on vps1 | ✅ LIVE since 2026-05-20 |
+| **Per-project watchdog sidecar** (T-P2 watchdog platform) | One sidecar **container** injected next to every project app at `fabrik apply` time | One project's health: its own containers, its own DB, its own cost-budget | Per-project; lives as long as the project's compose stack does | Inherits host OAuth via a mount of `/home/watchdog/.claude/` into the sidecar; can also fall back to OpenRouter API key | ⏳ **T-P2 in progress** — artifact 1 (`WatchdogConfig` spec field with all 13 fields including the 3-field amendment locked during artifact 2 review) + artifact 2 (`claude-settings.json.template` with the 10-capability v1 lock) both shipped 2026-06-02. 13 artifacts remaining (sidecar Dockerfile, agent.py, llm_client.py, actions.py, emitter, registrar, driver, rule pack, test spec). Subplan: [`docs/development/plans/2026-05-30-ai-watchdog-platform-P2-subplan.md`](../development/plans/2026-05-30-ai-watchdog-platform-P2-subplan.md). |
+
+Concretely:
+
+- The host sysadmin watches **the platform**. It restarts containers, silences alerts during planned ops, knows about Wireguard mesh state, etc.
+- The watchdog sidecar watches **one tenant**. It diagnoses why `acme-saas` is throwing 500s, runs cost-budgeted LLM calls for triage, escalates to the operator if it can't fix the issue, and writes audit-log rows so the operator can review.
+- They share **Apprise → Telegram** as the escalation channel by default (`watchdog.escalation_channel: "apprise"`). They share Claude Code as the LLM (the watchdog sidecar inherits the host's OAuth via a read-only mount).
+- They do NOT share state. Watchdog cost ledgers live in `fabrik_analytics.cost_ledger` (a shared Postgres table created by the T-P1 ship). Host-sysadmin proactive logs live in `/var/log/sysadmin-proactive.log`.
+
+Per-project enablement is controlled by the `watchdog:` block in each spec (`src/fabrik/spec_loader.py::WatchdogConfig`). Defaults are computed by the dispatcher from `shape.kind`: service/worker/wordpress get `enabled=True`; static sites get `enabled=False`. The operator can override per-spec. See [`docs/development/plans/2026-05-30-ai-watchdog-platform-P2-subplan.md`](../development/plans/2026-05-30-ai-watchdog-platform-P2-subplan.md) for the full architecture.
+
+**Per-project watchdog capability scope (v1, locked 2026-06-02 during artifact 2 review):**
+
+| Capability | What Claude can do | Defense-in-depth |
+| :--- | :--- | :--- |
+| Container introspection | `docker logs/inspect/stats` on `<main_container>` AND `<project_prefix>*` (multi-container projects) | Restart/stop/kill is surgical: ONLY `<main_container>`. Sibling containers are read-only. |
+| Runtime introspection | `docker exec <main_container>` for `ps`, `df`, `cat /proc/*`, `head /proc/*`, `tail /proc/*` | No shell escape: `sh*`, `bash*`, `/bin/sh*`, `/bin/bash*`, `rm` denied. |
+| Logs + metrics | `tail/head/grep/cat` on `/opt/<id>/logs/*` (any flag); `curl localhost:*/{metrics,health}` | Path-constrained; only project logs. |
+| Self-diagnostics | `free`, `df`, `uptime`, `uname` for sidecar's own state | Read-only. |
+| State queries | `sqlite3 -readonly /var/lib/watchdog/state.db` for incident/action history | Triple defense: `-readonly` flag + keyword deny (UPDATE/DELETE/DROP/etc.) + sandbox denyWrite. |
+| Env visibility | `printenv \| cut -d= -f1`, `compgen -e` — KEY names only | Raw `printenv`, `env`, `cat .env`, `cat secrets/*` denied. Hard-deny: "Never read or print environment variable VALUES." Defends against prompt-injection exfil. |
+| External docs | `WebSearch` always; `WebFetch` restricted to 29-domain allow-list (python/django/fastapi/redis/postgres/aws/gcp/azure/MDN/stripe/github/stackoverflow/readthedocs/pypi/npmjs/k8s/nginx/traefik/docker/anthropic/openrouter/hashicorp) | Direct `curl http://*`/`https://*` denied. |
+| Tier B log redaction | Detect leakage → call `actions.py::install_log_drop_rule(pattern, severity)` which validates regex + restarts Promtail | Sidecar never edits Promtail config directly. Opt-in per project via `auto_tier_b: true`. |
+| Tier C code-fix proposals | Open a PR on `watchdog/<incident_id>` branch using `/var/lib/watchdog/proposed/<project_id>/` workspace. `Edit`/`Write` allowed in workspace; safe git subcommands allowed | NEVER push to `main`/`master`/`develop`/`staging`/`production`; force-push, reset, rebase, tag, config, remote — all denied. Operator reviews + merges. Opt-in per project via `propose_fix_prs: true`. |
+| Deadman timer | If Tier C escalation unresponded > 300s (default), `agent.py` restarts `<main_container>` as bleed-stop + re-alerts with `[DEADMAN-TIMEOUT]` prefix | Bleed-stop is read-only deescalation; no new permission needed. Timeout configurable via `WatchdogConfig.deadman_timeout_seconds` (60–3600s). |
+
+Full settings template lives at [`/opt/fabrik-lib/watchdog/sidecar/claude-settings.json.template`](../../../fabrik-lib/watchdog/sidecar/claude-settings.json.template) (200 lines, 50 allow / 55 deny / 12-line autoMode.environment / 11-line hardDeny / 29 allowed-domains).
+
+The rest of this document covers the **host-level layer only**.
 
 ## Architecture
 
@@ -123,6 +160,28 @@ New Prometheus alert rules in group `spoke_health`:
 
 Routed via Alertmanager → Apprise → Telegram with the existing config; bot is notified through the same channel.
 
+### Layer 4 — Self-watched chain (W10, 2026-06-01)
+
+`proactive-check.sh` now monitors the automation chain itself — surfaces that don't crash anything but silently stop working. Each watcher feeds the existing tier-A/B/C anomaly pipeline.
+
+| Watcher | What it sees | Anomaly emit | Threshold |
+| :--- | :--- | :--- | :--- |
+| `backup_health` | Hub Backrest restic snapshot age per plan (`postgres-dumps`, `docker-volumes`, `opt-configs`, `host-state`) | `backup_stale[hub:<plan>:<h>h]` or `backup_missing[hub:<plan>]` | > 36 h since last snapshot |
+| `mesh_health` | Hub-side `wg show wg0 latest-handshakes` per peer | `mesh_degraded[<pk>:<m>m]` at 5–15 m, `mesh_broken[<pk>:<m>m]` > 15 m, `mesh_no_handshake[<pk>]` if peer never handshook | 5 m / 15 m |
+| `dr_store` | GitHub API `commits?per_page=1` on `mobasak/fabrik-dr-store` (W9 mirror) | `dr_store_stale[<d>d]` if last commit > 30 d ago | 30 d |
+| `cert_expiry` (existing, scrubbed in W10) | `openssl s_client` against domain list (now: `ocoron.com`, `status/monitor/errors.vps1.ocoron.com`; dropped stale `coolify.vps1.ocoron.com`) | `cert_expiring:<domain>:<d>d` | < 14 d to expiry |
+
+**`dr_store` token requirement:** the watcher reads `GITHUB_TOKEN` (or `GH_TOKEN`) from `/opt/fabrik/.env.sysadmin` (preferred — it's root-readable and already in scope) or `/opt/fabrik/.env`. Token scope: fine-grained PAT with `Contents: Read` on `mobasak/fabrik-dr-store` only. **Until a token is added, the watcher logs a one-per-hour `WARN: dr_store watcher dormant` line to `/var/log/sysadmin-proactive.log` so the operator knows it's not running.** Adding it:
+
+```bash
+ssh vps 'sudo bash -c "echo GITHUB_TOKEN=ghp_xxx >> /opt/fabrik/.env.sysadmin"'
+# Next proactive-check tick activates the watcher; W9 cron mirrors the file to private repo within 24h.
+```
+
+**Wall-clock impact:** the W10 additions take ~3 s (1 restic call + 1 wg show + 1 curl). Total `proactive-check.sh` runtime ≈ 6 s on the live hub — well within the 15-min cron interval.
+
+**Live-state at W10 ship (2026-06-01 evening):** all watchers green. Hub backups 2 h old, mesh handshakes < 1 min, no certs < 14 d, dr_store dormant (no token yet). Action log file `/opt/fabrik/logs/sysadmin-actions.jsonl` does not exist — bot has never autonomously acted since 2026-05-20 deployment (safe default).
+
 ## Multi-host scope (2026-05-31)
 
 The sysadmin operates from vps1 but has **read + restart access on vps2 and vps3** via SSH (`ssh vps2`, `ssh vps3` as `ozgur` with NOPASSWD sudo). Container actions on spokes use the same patterns:
@@ -188,7 +247,7 @@ Default: **autonomous**. Acts first, reports after.
 |---|---|---|
 | `bot.py` | `/opt/fabrik/scripts/sysadmin/bot.py` | Telegram bot (332 lines) — spawns Claude Opus per message, JSON output parsing, session management, action logging, health endpoint `:8017` |
 | `system-prompt.txt` | `/opt/fabrik/scripts/sysadmin/system-prompt.txt` | Sysadmin brain (232 lines) — role, APIs, classification, playbooks, shift notes, criticality tiers, communication protocol, safety rules |
-| `.env.sysadmin` | `/opt/fabrik/.env.sysadmin` | `TELEGRAM_BOT_TOKEN` + `TELEGRAM_OWNER_ID` |
+| `.env.sysadmin` | `/opt/fabrik/.env.sysadmin` | Required: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_OWNER_ID`. Optional (with defaults): `SYSADMIN_PROJECT_DIR=/opt/fabrik`, `SYSADMIN_HEALTH_PORT=8017`, **`SYSADMIN_HEALTH_HOST=127.0.0.1`** (added W5 2026-06-01 — set to `10.99.0.1` to expose `:8017` on the WG mesh interface for future Gatus/Prometheus), `SYSADMIN_MODEL=opus`. |
 | Service unit | `/etc/systemd/system/vps-sysadmin-bot.service` | systemd service (`Restart=always`, `After=network.target docker.service`) |
 
 ### Scheduled Routines (cron — `/etc/cron.d/vps-sysadmin`)
@@ -237,7 +296,7 @@ StartLimitBurst=5
 
 1. **Systemd `Restart=always`** — crashes auto-recover in 30 seconds. Max 5 restarts in 5 minutes before giving up.
 2. **Daily heartbeat** — bot sends a "💚 Sysadmin Bot — Daily Heartbeat" to Telegram at 08:00 local time with uptime, model, call stats. If you don't see it, the bot is dead.
-3. **Health endpoint** — `:8017/health` returns JSON with status, uptime, model, call counts. Available for local checks (`curl localhost:8017/health`). Not reachable from Docker containers (DOCKER-USER chain blocks host ports from forwarded traffic — by design, the bot is NOT a public service).
+3. **Health endpoint** — `:8017/health` returns JSON with status, uptime, model, call counts. Available for local checks (`curl localhost:8017/health`). **Since W5 of fleet-hardening plan (2026-06-01), bound to `127.0.0.1` only via `SYSADMIN_HEALTH_HOST` env var (default `127.0.0.1`)** — not reachable from anywhere except the vps1 host loopback. Prior to W5 the bind was `0.0.0.0:8017` and the bot WAS externally reachable on the public IP; the previously-stated "DOCKER-USER chain blocks host ports from forwarded traffic" was true only for *container→host* traffic, not for internet→host. Override the bind to the mesh interface (`10.99.0.1`) by setting `SYSADMIN_HEALTH_HOST=10.99.0.1` in `/opt/fabrik/.env.sysadmin` if a future Gatus/Prometheus integration needs it.
 4. **Proactive cron is independent** — `proactive-check.sh` runs as root cron, NOT through the bot. If the bot dies, proactive checks still detect issues and alert via Apprise.
 
 ### Manual check
@@ -290,7 +349,7 @@ Mesh-only services (postgres-main, redis-main, glitchtip-web, authelia, loki, et
 
 **Script:** `/etc/iptables/add-docker-user-rules.sh` (re-applied on boot by `iptables-docker-user.service`)
 
-**Why the health endpoint (:8017) can't be reached from Docker:** The bot runs on the host. Docker containers trying to reach host port 8017 go through the FORWARD chain → DOCKER-USER → rule 9 DROP. This is correct — the bot is NOT a network service, it's a local process. Health checks use `curl localhost:8017/health` from the host only.
+**Why the health endpoint (:8017) can't be reached from anywhere except the host:** Since W5 (2026-06-01), the listener binds `127.0.0.1:8017` only — neither containers nor the public internet can reach it; only `curl http://127.0.0.1:8017/health` from the vps1 host shell works. The DOCKER-USER chain (rule 9 DROP on host-port range) still provides defense-in-depth for the container→host path, but the binding itself is now the primary control. Pre-W5 history: bind was `0.0.0.0:8017`; DOCKER-USER blocked the container→host path but NOT internet→host, so the bot WAS reachable from the public internet via vps1's public IP — a security gap caught by W6 probing and closed by W5.
 
 ## Common Operations
 
@@ -500,9 +559,11 @@ Claude formats Telegram messages using these templates (enforced in system-promp
 ```
 **Target:** glitchtip-web
 **Issue:** Memory at 89% of 512MB limit (4 weeks since last restart)
-**Action:** sudo docker restart glitchtip-web-z00kkck8c8cwo800kk440csk
+**Action:** sudo docker restart glitchtip-web
 **Result:** ✅ Memory 456MB → 89MB. Container healthy.
 ```
+
+(Container names are stable post-Coolify-removal — `glitchtip-web`, not the old `glitchtip-web-<24chars>` UUID-suffix form. Same applies to every other container name in templates and prompts below.)
 
 **Proactive finding:**
 ```
@@ -599,8 +660,15 @@ ssh vps 'chmod +x /opt/fabrik/scripts/sysadmin/bot.py /opt/fabrik/scripts/sysadm
 
 ```bash
 ssh vps 'cat > /opt/fabrik/.env.sysadmin << EOF
+# Required
 TELEGRAM_BOT_TOKEN=<your-bot-token-from-botfather>
 TELEGRAM_OWNER_ID=<your-numeric-telegram-user-id>
+
+# Optional — uncomment to override defaults
+# SYSADMIN_HEALTH_HOST=127.0.0.1   # set to 10.99.0.1 to expose health on WG mesh (W5, 2026-06-01)
+# SYSADMIN_HEALTH_PORT=8017
+# SYSADMIN_MODEL=opus
+# SYSADMIN_PROJECT_DIR=/opt/fabrik
 EOF'
 ```
 

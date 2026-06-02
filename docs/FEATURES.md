@@ -99,7 +99,7 @@ Every `fabrik apply` writes `.fabrik/state/<id>.json` — see [Deploy State Stor
 ### Technical Details
 
 - **Orchestrator:** `src/fabrik/orchestrator/` — `deployer.py` (state machine), `infrastructure.py` (registrar dispatch), `rollback.py` (reverse cleanup), `secrets.py`, `verifier.py`
-- **Drivers:** `src/fabrik/drivers/` — 20+ integrations (coolify, postgres, redis, gatus, backrest, glitchtip, grafana, authelia, meilisearch, prometheus, cloudflare, dns, ssh, r2, supabase, etc.)
+- **Drivers:** `src/fabrik/drivers/` — 20+ integrations (postgres, redis, gatus, backrest, glitchtip, grafana, authelia, meilisearch, prometheus, cloudflare, dns, ssh, r2, supabase, etc.) plus archived legacy `coolify` driver for `fabrik status`/`logs` against pre-2026-05-30 services
 - **Spec loader:** `src/fabrik/spec_loader.py` — YAML parsing, shape validation, template merging
 - **State:** `src/fabrik/state.py` — 8-field manifest written after each successful apply
 
@@ -819,7 +819,7 @@ Each audit covers one domain of VPS health. The prompt defines what to check, th
 | Audit | Script | Prompt | Scope |
 |---|---|---|---|
 | Full system | `01-full-system.sh` | `01-full-system-audit.md` | CPU, memory, disk, network, services, security, Docker — all 8 domains |
-| Container health | `02-container-health.sh` | `02-container-health.md` | Fleet stability, resource pressure, crash loops, Coolify issues |
+| Container health | `02-container-health.sh` | `02-container-health.md` | Fleet stability, resource pressure, crash loops, compose-stack issues |
 | Security | `03-security.sh` | `03-security-hardening.md` | Firewall, TLS, SSH, Authelia, container isolation, secrets |
 | Performance | `04-performance.sh` | `04-performance-bottleneck.md` | CPU/memory/disk/network bottleneck identification |
 | Observability | `05-observability.sh` | `05-observability-pipeline.md` | Prometheus, Loki, Grafana, GlitchTip, Gatus pipeline health |
@@ -861,7 +861,7 @@ done; wait
 
 ### History
 
-The WordPress automation engine (13-stage deployer, planner, preset loader, WP-CLI driver, REST API client, theme/page/SEO/analytics/forms/menu modules — ~9,700 LoC) was originally built inside fabrik as Phase 2. It used fabrik's drivers (Coolify, Backrest, Gatus, Cloudflare via site-provisioner) to deploy WordPress sites from YAML specs.
+The WordPress automation engine (13-stage deployer, planner, preset loader, WP-CLI driver, REST API client, theme/page/SEO/analytics/forms/menu modules — ~9,700 LoC) was originally built inside fabrik as Phase 2. It used fabrik's drivers (SSH+Compose, Backrest, Gatus, Cloudflare via site-provisioner; pre-2026-05-30 was Coolify) to deploy WordPress sites from YAML specs.
 
 In May 2026, the engine was extracted to `/opt/wpf/` as a standalone project because:
 
@@ -873,7 +873,7 @@ In May 2026, the engine was extracted to `/opt/wpf/` as a standalone project bec
 
 - **fabrik:** WordPress scaffold type still exists (creates the project structure), but `deploy_router.py` raises `NotImplementedError` for WordPress deploys — use wpf instead
 - **wpf (`/opt/wpf/`):** Has the full engine, golden-base Docker image system, 133 premium plugin zips, and site specs. Currently in Phase 1+2 (Foundation + Golden Base) — first deploy target is `ocoron.com`
-- **Shared drivers:** wpf calls the same VPS infrastructure fabrik does (Coolify API via `COOLIFY_API_TOKEN`, site-provisioner at `:18014`, redis-main, Backrest) but manages WordPress site lifecycle independently
+- **Shared drivers:** wpf calls the same VPS infrastructure fabrik does (SSH+Compose deployer, site-provisioner at `:18014`, redis-main, Backrest; pre-2026-05-30 was Coolify API via `COOLIFY_API_TOKEN`) but manages WordPress site lifecycle independently
 
 ---
 

@@ -4215,3 +4215,48 @@ After all three fixes, the script completed cleanly on both vps2 and vps3 (fresh
 **Recovery from `rc` state:** `apt install <pkg>` brings the package back from `rc → ii` without losing the config files. `apt purge` is only needed if config corruption is suspected.
 
 **Bootstrap hardening:** `scripts/bootstrap/bootstrap-vps.sh` step_02 now runs `dpkg -l ufw | awk '/^(ii|rc)/'` after install and re-runs `apt install` if status is `rc`; if status is `ii` but `command -v ufw` is empty, `apt reinstall` is called.
+
+---
+
+## Lesson 69 — "Verified live" requires presence-probing, not symptom-grep
+
+**Context (2026-06-01, W6 of fleet-hardening plan):** the plan was triggered by an incident where `docs/infrastructure/vps-*.md` claimed UFW was active on vps2 + vps3. Three doc-audit passes that day repeated the claim. Each pass had grep'd for failure symptoms — stale 6001/6002 port allows, dead Coolify references, microservice URL claims — and finding none, declared the firewall doc accurate. The actual state was UFW completely uninstalled on both spokes (binary missing, `dpkg -l ufw` empty, only DOCKER-USER chain enforcing). **Symptom-grep can confirm "this stale thing is gone" but cannot confirm "this expected thing is present."** Lesson 68 is the specific manifestation on UFW's `rc` package state; this lesson is the general principle.
+
+**Rule:** Any doc that tags an infra primitive as "verified live" or "active" must back the claim with a per-host presence-probe whose output is captured in `docs/infrastructure/probe-reports/`. The probe report is committed alongside the doc edit that cites it. `scripts/audit_infra_vs_docs.py --check` enforces the citation: every infra doc with a "Last probe report:" header is checked that the cited YAML exists.
+
+**How to apply:** Before editing `vps-complete-inventory.md`, `vps-status.md`, `vps-urls.md`, `vps-bootstrap-plan.md`, `vps-ai-sysadmin.md`, or any descendant infra doc, run `scripts/audit_infra_vs_docs.py`, commit the resulting `docs/infrastructure/probe-reports/infra-probe-*.yaml`, and link it from the doc's header. Don't write "verified" without a probe in hand. Hand-maintained mirrors with no link are the bug.
+
+---
+
+## Lesson 70 — SSH per-call cost dominates wall-clock when probing across hosts
+
+**Context (2026-06-01, W6 audit-script work):** `scripts/audit_infra_vs_docs.py` v1 ran one ssh call per probe per host — 17 probes × 3 hosts = 51 sequential SSH connections. Each connection paid ~1.5 s of TCP + TLS handshake + auth + remote shell startup. The fleet ran fast (probes themselves finished in <50 ms each) but the wall-clock was ~75 s. The plan's target of "<10 s" was set without accounting for that overhead.
+
+**Rule:** When probing N things on the same host, build a single bundled shell command and parse the output. One ssh call per host, not N. The bundled form ran the same 17 probes in 6.2 s.
+
+**How to apply:** For any auditor / collector script with > 3 commands per host, bundle from day 1. Pattern: emit each probe's output between unambiguous marker lines, demux on the parser side. See `probe_host()` in `scripts/audit_infra_vs_docs.py` for the reference shape.
+
+---
+
+## Lesson 71 — Bundled-command demuxers need newline-bracketed delimiters, not just trailing markers
+
+**Context (2026-06-01):** First implementation of the bundled-probe demuxer in `probe_host()` placed marker lines using `printf '%s\n' '===MARKER===<probe-name>'` between probes. It looked right. It silently corrupted any probe whose output ended without a newline. The `listening_public` probe uses `tr '\n' ',' | sed 's/,$//'` to compress its output to one comma-separated line with no trailing newline. The next probe's marker concatenated directly onto the last byte: `0.0.0.0:8017===MARKER===listening_mesh\n...`. The marker became part of `listening_public`'s value AND `listening_mesh`'s value was never parsed as its own probe. Three hosts all silently corrupted.
+
+**Rule:** Demuxer delimiters that depend on the previous output ending in `\n` are fragile. Either force a newline BEFORE the marker (`printf '\n%s\n' '===MARKER==='`) so the marker is always on its own line regardless of what came before, OR pipe all output through a normalizer (`awk '{print} END {print ""}'`) that guarantees a final newline.
+
+**How to apply:** For any future bundled-stream parser, treat trailing-newline-stripped output as the common case, not the edge. The leading-newline form costs nothing and survives every output convention encountered in our probe set.
+
+---
+
+## Lesson 72 — Some ISPs spoof TCP SYN-ACKs; external probes need a clean-AS source
+
+**Context (2026-06-01, W5 of fleet-hardening plan):** While verifying that vps1 `:8017` was no longer externally reachable after rebinding the sysadmin-bot from `0.0.0.0` to `127.0.0.1`, the probe from the dev WSL (Türk Telekom AS9121, exit `176.219.28.59`) reported the TCP handshake as **succeeded** via both `nc -zv` and `bash /dev/tcp/...`. Curl on the same socket immediately got `Empty reply from server` / timeout. Same probe from vps2 (Coventry UK, different AS) and vps3 reported `timed out (filtered)` — the correct result. Vps1's own listener confirmed `127.0.0.1:8017` only; no iptables NAT or Traefik mapping for that port.
+
+**Forensic confirmation (2026-06-01T04:00:42Z):** `tcpdump -i any -nn 'tcp port 8017 and host 176.219.28.59'` on vps1 during a re-probe captured TWO inbound `Flags [S]` SYN packets from `176.219.28.59:12701` and `:12639` (the nc and curl initiators) and **zero outbound SYN-ACK** from vps1. The kernel correctly never replied. Yet dev-WSL's `nc` reported `Connection ... succeeded!`. The SYN-ACK that nc saw cannot have come from vps1 — it was injected by an upstream middlebox on the TTNet path. The TCP "succeeded" reads were a Türk Telekom transparent-middlebox artifact, not a vps1 leak. Capture preserved in `docs/infrastructure/vps-status.md` § Verification log under the 2026-06-01T00:43Z entry.
+
+**Rule:** Turkish ISPs (TTNet / Türk Telekom and several MVNOs) operate transparent TCP middleboxes that spoof SYN-ACKs on a moving set of ports for content-blocking, traffic-shaping, and (apparently) idle SYN handling. A returned SYN-ACK from a TTNet exit is **not evidence** that the destination is listening. Any external-exposure verification done from a TTNet exit can produce false positives that mask successful remediation — and, more dangerously, false negatives that hide a real exposure.
+
+**How to apply:** For W5-style external-exposure probes — and for any "is port X reachable from outside" check the operator runs from the dev WSL — run the authoritative probe from a clean-AS off-mesh source (vps2 or vps3 are convenient; a tiny GitHub Actions runner works too). If only the dev WSL is available, cross-check with at least one of: `curl` (the HTTP layer will time out even if TCP "succeeds" against a middlebox), `hping3 -S` (SYN-only, no auto-ACK), or `tcpdump` on the destination side to confirm whether the SYN actually arrived. Linked from `docs/infrastructure/vps-status.md` § Verification log under the 2026-06-01T00:43Z entry.
+
+---
+

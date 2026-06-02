@@ -1,13 +1,6 @@
 # Troubleshooting
 
-> **⚠️ Coolify-flavored symptoms are pre-migration.** Entries that say
-> "Coolify shows the container as ..." / "Coolify's inline-compose
-> endpoint" / etc. are historical. Post-migration the same root causes
-> still apply (health verifier, terminal grace, source.type validation)
-> but the symptom surfaces in `docker compose ps` / `docker inspect`
-> instead of the Coolify UI.
-
-**Last Updated:** 2026-04-28 (added B23 verifier 404 / Docusaurus terminal grace entries from B23–B46 proof mission; replaced Duplicati block with one-paragraph migration notice — Backrest is the live backup tool since 2026-04-17)
+**Last Updated:** 2026-06-02 (Coolify-flavored historical symptoms preserved as past-tense; symptoms now surface in `docker compose ps` / `docker inspect` instead of the Coolify UI which was removed 2026-05-30). Added B23 verifier 404 / Docusaurus terminal grace entries from B23–B46 proof mission; Backrest is the live backup tool since 2026-04-17.
 
 Common issues and solutions.
 
@@ -90,9 +83,9 @@ docker system prune -a
 du -sh /var/lib/docker/containers/*
 ```
 
-### Deploy succeeds in Coolify but `fabrik apply` reports "Health check failed: 404"
+### Deploy succeeds (`docker compose ps` shows healthy) but `fabrik apply` reports "Health check failed: 404"
 
-**Symptom:** Coolify shows the container as `Up (healthy)`, but the orchestrator rolls the deploy back with a 404. Curl-ing the live URL works.
+**Symptom:** `docker compose ps` shows the container as `Up (healthy)` (pre-2026-05-30 the same was visible in the Coolify UI), but the orchestrator rolls the deploy back with a 404. Curl-ing the live URL works.
 
 **Cause (historical):** Pre-2026-04-28, the verifier read `spec["healthcheck"]["path"]` but the spec generator emitted `health.path`. The silent fallback was `/health`. For any scaffold type whose healthcheck wasn't `/health` (`saas-skeleton`, `static-site`, `node-api`, `file-api` all use `/api/health`; `docusaurus` uses `/docs/intro`), the verifier always probed `/health` and 404'd. Fixed in B23 (see `CHANGELOG.md [Unreleased]` and Lesson 32).
 
@@ -115,9 +108,9 @@ If the manual curl succeeds but the orchestrator still 404s, the verifier is rea
 
 ### Docusaurus deploy reaches `running:healthy` after orchestrator gives up
 
-**Symptom:** `fabrik apply <docusaurus-spec>` fails verification, but `coolify` shows the container as `running:healthy` 1–2 minutes later.
+**Symptom:** `fabrik apply <docusaurus-spec>` fails verification, but `docker compose ps` shows the container as `running:healthy` 1–2 minutes later.
 
-**Cause:** Multi-stage Node builds (`docusaurus`, `saas-skeleton`) take 60–90s during which Coolify reports the application as `exited:unhealthy` (old container removed, new one not yet running). Pre-2026-04-28 the orchestrator's `terminal_grace_period` was 30s — it gave up before the new container even started. Fixed in B46 (now 180s).
+**Cause:** Multi-stage Node builds (`docusaurus`, `saas-skeleton`) take 60–90s during which the container reports `exited:unhealthy` (old container removed, new one not yet running; pre-2026-05-30 this was visible as Coolify reporting `exited:unhealthy`). Pre-2026-04-28 the orchestrator's `terminal_grace_period` was 30s — it gave up before the new container even started. Fixed in B46 (now 180s).
 
 **If you still see this with another slow-build type:** bump `terminal_grace_period` further in `@/opt/fabrik/src/fabrik/orchestrator/deployer.py::_wait_for_app_status`. Genuine failures still terminate via `fabrik apply` (SSH + Docker Compose)'s explicit `failed` deployment-job state, so longer grace only affects the legitimate deploy-recreate path.
 
@@ -135,7 +128,7 @@ If the manual curl succeeds but the orchestrator still 404s, the verifier is rea
 
 **Symptom:** `fabrik apply specs/services/<name>.yaml` fail-fasts before deploying with the message `source.type is 'template' (not 'git'). Coolify's inline-compose endpoint has no source for 'build:' to consume — the build will never run.`
 
-**Cause:** The project has no git remote. `spec_generator.detect_git_source()` (`src/fabrik/spec_generator.py` line 291) runs `git -C <project> remote get-url origin` with 5s timeout at scaffold time. Without a remote, the emitted spec keeps `source.type: template`, and the deployer's B7 preflight in `src/fabrik/orchestrator/deployer.py` rejects the deploy. A `WARNING` is logged at scaffold time (`spec_generator.py` line 426): *"No git remote configured at <path> — emitting source.type=template. This spec will fail Coolify deploy..."*
+**Cause:** The project has no git remote. `spec_generator.detect_git_source()` (`src/fabrik/spec_generator.py` line 291) runs `git -C <project> remote get-url origin` with 5s timeout at scaffold time. Without a remote, the emitted spec keeps `source.type: template`, and the deployer's B7 preflight in `src/fabrik/orchestrator/deployer_ssh.py` rejects the deploy. A `WARNING` is logged at scaffold time (`spec_generator.py` line 426): *"No git remote configured at `<path>` — emitting source.type=template. This spec will fail the deployer's build-source check..."* (older versions of the warning said "Coolify deploy").
 
 **Fix:** Add a remote and re-emit the spec.
 

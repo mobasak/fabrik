@@ -1,131 +1,221 @@
-# Observability Pipeline Audit — Metrics, Logs, Alerts, Errors
+# 05 — Observability Pipeline (fleet-wide, hub-rooted)
 
-Verify the entire observability stack is functioning end-to-end: metrics are scraped, logs are shipped, alerts fire, errors are captured. A broken observability pipeline is worse than no observability — it gives false confidence.
+**Last Updated:** 2026-06-02 (rewritten — observability is centralized on vps1; spokes are agents — patched 2026-06-02 evening after live-validation: fixed 3 probe bugs — Loki probe was via `docker exec prometheus` but prometheus can't resolve `loki:3100` from its compose network, Grafana datasources probe used invalid `Bearer admin` auth, GlitchTip probe used `wget` which isn't in its python-only image)
+**Run mode:** **fleet-wide, hub-rooted.** Most probes from vps1 (Prometheus / Grafana / Loki / Alertmanager queries). Spoke-side checks confirm agents are pushing.
+**Scope:** end-to-end check that metrics are scraped, logs shipped, alerts fire, errors captured, status probes green.
+**Time budget:** ~15 min probes + ~15 min analysis.
 
-## Stack
+---
 
-| Component | Container | Purpose | Internal URL |
-|-----------|-----------|---------|-------------|
-| Prometheus | `prometheus` | Metrics collection | `http://prometheus:9090` |
-| Alertmanager | `alertmanager-*` | Alert routing → Telegram | `http://alertmanager:9093` |
-| Grafana | `grafana-*` | Dashboards | `http://grafana:3000` |
-| Loki | `loki-*` | Log aggregation | `http://loki:3100` |
-| Promtail | `promtail-*` | Log shipping (Docker → Loki) | `http://promtail:9080` |
-| Gatus | `gatus-*` | Uptime monitoring | `http://gatus:8080` |
-| GlitchTip | `glitchtip-web-*` + `glitchtip-worker-*` | Error tracking (Sentry-compatible) | `http://glitchtip-web:8000` |
-| Netdata | `netdata-*` | Real-time system metrics | `http://netdata:19999` |
-| Pushgateway | `pushgateway` | Push-based metrics (drift alerts) | `http://pushgateway:9091` |
-| cAdvisor | `cadvisor-*` | Container-level metrics | `http://cadvisor:8080` |
-| Node Exporter | `node-exporter-*` | Host-level metrics | `http://node-exporter:9100` |
+## Stack context
 
-## Data Collection
-
-**Automated:** `ssh vps 'sudo bash -s' < /opt/fabrik/scripts/audit/05-observability.sh`
-
-**Or manual:**
-
-```bash
-# 1. Prometheus — targets health
-sudo docker exec prometheus wget -qO- "http://localhost:9090/api/v1/targets?state=any" 2>/dev/null | python3 -c "
-import json,sys
-d=json.load(sys.stdin)
-for t in d['data']['activeTargets']:
-    print(f\"{t['labels']['job']:20s} {t['health']:8s} {t['scrapeUrl']}\")
-"
-
-# 2. Prometheus — alert rules
-sudo docker exec prometheus wget -qO- "http://localhost:9090/api/v1/rules" 2>/dev/null | python3 -c "
-import json,sys
-d=json.load(sys.stdin)
-for g in d['data']['groups']:
-    for r in g['rules']:
-        state = r.get('state','')
-        print(f\"{r['name']:40s} {state:10s} {r['type']}\")
-"
-
-# 3. Alertmanager — active alerts
-sudo docker exec $(sudo docker ps --filter name=alertmanager --format "{{.Names}}") wget -qO- "http://localhost:9093/api/v2/alerts" 2>/dev/null | python3 -c "
-import json,sys
-alerts=json.load(sys.stdin)
-if not alerts: print('No active alerts')
-else:
-    for a in alerts:
-        print(f\"{a['labels'].get('alertname','?'):30s} {a['status']['state']:10s}\")
-"
-
-# 4. Loki — is it receiving logs?
-sudo docker run --rm --network fabrik curlimages/curl:latest -sS "http://loki:3100/ready"
-sudo docker run --rm --network fabrik curlimages/curl:latest -sS "http://loki:3100/loki/api/v1/labels"
-sudo docker run --rm --network fabrik curlimages/curl:latest -sS "http://loki:3100/loki/api/v1/label/container_name/values" | python3 -c "import json,sys; d=json.load(sys.stdin); print(f\"{len(d.get('data',[]))} container labels in Loki\")"
-
-# 5. Promtail — shipping metrics
-sudo docker run --rm --network fabrik curlimages/curl:latest -sS "http://promtail:9080/metrics" | grep -E "promtail_sent_entries_total|promtail_dropped_entries_total|promtail_targets_active"
-
-# 6. Grafana — datasources + dashboards
-TOKEN=$(grep '^GRAFANA_SERVICE_ACCOUNT_TOKEN=' /opt/fabrik/.env | cut -d= -f2-)
-sudo docker run --rm --network fabrik curlimages/curl:latest -sf -H "Authorization: Bearer $TOKEN" "http://grafana:3000/api/datasources" | python3 -c "import json,sys; [print(f\"{d['name']:15s} {d['type']:12s} {d['url']}\") for d in json.load(sys.stdin)]"
-sudo docker run --rm --network fabrik curlimages/curl:latest -sf -H "Authorization: Bearer $TOKEN" "http://grafana:3000/api/search?type=dash-db" | python3 -c "import json,sys; print(f\"{len(json.load(sys.stdin))} dashboards\")"
-
-# 7. GlitchTip — API health + project count
-sudo docker run --rm --network fabrik curlimages/curl:latest -sS -o /dev/null -w "%{http_code}" "http://glitchtip-web:8000/api/0/"
-GT_TOKEN=$(grep '^GLITCHTIP_AUTH_TOKEN=' /opt/fabrik/.env | cut -d= -f2-)
-GT_ORG=$(grep '^GLITCHTIP_ORG_SLUG=' /opt/fabrik/.env | cut -d= -f2-)
-sudo docker run --rm --network fabrik curlimages/curl:latest -sS -H "Authorization: Bearer $GT_TOKEN" "http://glitchtip-web:8000/api/0/organizations/$GT_ORG/projects/" | python3 -c "import json,sys; projects=json.load(sys.stdin); print(f\"{len(projects)} GlitchTip projects\"); [print(f\"  {p['slug']:30s} firstEvent={p.get('firstEvent','none')}\") for p in projects]"
-
-# 8. Gatus — endpoint status
-sudo docker run --rm --network fabrik curlimages/curl:latest -sS "http://gatus:8080/api/v1/endpoints/statuses" 2>/dev/null | python3 -c "
-import json,sys
-data=json.load(sys.stdin)
-for ep in data:
-    name = ep.get('name','?')
-    group = ep.get('group','?')
-    results = ep.get('results',[])
-    last = results[-1] if results else {}
-    status = 'UP' if last.get('success') else 'DOWN'
-    print(f\"{group:20s} {name:30s} {status}\")
-" 2>/dev/null | head -30
-
-# 9. Pushgateway — has metrics?
-sudo docker run --rm --network fabrik curlimages/curl:latest -sS "http://pushgateway:9091/metrics" | grep "fabrik_audit" | head -5
-
-# 10. Container health of observability stack itself
-for c in prometheus grafana loki promtail gatus alertmanager glitchtip-web glitchtip-worker netdata cadvisor node-exporter pushgateway redis-exporter postgres-exporter; do
-  match=$(sudo docker ps --format "{{.Names}} {{.Status}}" | grep "$c" | head -1)
-  echo "${match:-$c: NOT FOUND}"
-done
+```text
+- Hub (vps1) centralizes the observability stack:
+  - Prometheus (15-job scrape target list; 18/18 active targets)
+  - Grafana (5 Fabrik-folder dashboards with $host template variable)
+  - Loki (mesh-bound at 10.99.0.1:3100 for spoke push)
+  - Alertmanager → Apprise → Telegram
+  - Gatus (synthetic uptime probes)
+  - GlitchTip (error tracking; UI + worker + clickhouse)
+  - cadvisor, node-exporter, promtail, postgres-exporter, redis-exporter,
+    pushgateway (vps1's own agents)
+- Spokes (vps2/vps3) run agents only:
+  - node-exporter (host metrics → Prometheus over mesh)
+  - cadvisor (container metrics → Prometheus over mesh)
+  - promtail (container logs → Loki over mesh)
+- Spoke observability was broken 2026-05-31 evening → 2026-06-01 evening
+  because UFW default-deny didn't have a mesh-allow rule (W8 finding).
+  Fixed with `ufw allow from 10.99.0.0/24` on each spoke.
+- 'host' label is propagated to every metric and log stream (W11 work).
+  Filter dashboards/alerts with $host or {host=...}.
+- Alert rule group 'spoke_health' active (SpokeDown / SpokeHighCPU / SpokeHighRAM).
 ```
 
-## Analysis Checklist
+---
 
-### Metrics Pipeline (Prometheus → Grafana)
-- All scrape targets healthy? Any `down`?
-- Prometheus retention adequate? (default 30d/5GB)
-- Grafana datasources connected?
-- Dashboard count matches expected (8 dashboards)?
+## Data collection — HUB (vps1)
 
-### Log Pipeline (Docker → Promtail → Loki)
-- Promtail `sent_entries_total` increasing? (>0 = shipping)
-- Promtail `dropped_entries_total` zero? (>0 = Loki rejecting)
-- Loki `container_name` label populated? (requires daemon.json tag)
-- Loki has container labels for all running containers?
+```bash
+ssh vps bash <<'EOF'
+echo "=== PROMETHEUS TARGETS (expect 18/18 up across 15 jobs) ==="
+sudo docker exec prometheus wget -qO- http://localhost:9090/api/v1/targets 2>&1 | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+targets = d['data']['activeTargets']
+up = [t for t in targets if t['health']=='up']
+down = [t for t in targets if t['health']!='up']
+jobs = sorted({t['labels'].get('job') for t in targets})
+print(f'  Targets total: {len(targets)} (up: {len(up)}, down: {len(down)})')
+print(f'  Jobs ({len(jobs)}): {jobs}')
+for t in down:
+    print(f'  DOWN: {t[\"labels\"].get(\"job\")} {t.get(\"scrapeUrl\")} — {t.get(\"lastError\")[:80]}')
+"
+echo
+echo "=== PROMETHEUS RECENT SCRAPE ERRORS ==="
+sudo docker logs prometheus --since 1h 2>&1 | grep -iE "error|warn" | tail -15
+echo
+echo "=== ALERTMANAGER ==="
+sudo docker exec alertmanager wget -qO- http://localhost:9093/api/v2/status 2>&1 | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+print('  Cluster: ', d.get('cluster',{}).get('status'))
+print('  Uptime:  ', d.get('uptime'))
+"
+sudo docker exec alertmanager wget -qO- http://localhost:9093/api/v2/alerts 2>&1 | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+print(f'  Active alerts: {len(d)}')
+for a in d[:10]:
+    print(f'    [{a.get(\"status\",{}).get(\"state\")}] {a[\"labels\"].get(\"alertname\")} on {a[\"labels\"].get(\"host\",\"?\")}')
+"
+echo
+echo "=== ALERTING SILENCES ==="
+sudo docker exec alertmanager wget -qO- http://localhost:9093/api/v2/silences 2>&1 | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+print(f'  Silences: {len(d)} (any current ones during this audit?)')
+for s in d[:5]:
+    print(f'    [{s.get(\"status\",{}).get(\"state\")}] {s.get(\"comment\",\"-\")[:60]} (ends {s.get(\"endsAt\",\"?\")})')
+"
+echo
+echo "=== LOKI INGEST + HOST LABEL VALUES ==="
+# Probe via a throwaway alpine on the `fabrik` network — `docker exec prometheus`
+# does NOT work: prometheus is on a separate compose network and can't resolve
+# `loki:3100` ("bad address"). The fabrik-network probe is the canonical path.
+sudo docker run --rm --network fabrik alpine sh -c 'wget -qO- http://loki:3100/loki/api/v1/label/host/values' 2>&1 | python3 -m json.tool 2>&1 | head -10
+echo "(expect [\"vps1\",\"vps2\",\"vps3\"] — if vps1 is missing, hub promtail isn't tagging its own stream; fix by adding a static label_config in /opt/monitoring/configs/promtail/promtail-config.yaml)"
+echo
+echo "=== GATUS ENDPOINT COUNT ==="
+sudo find /opt/monitoring/configs/gatus -name "*.yaml" | xargs grep -h "^  - name:" 2>/dev/null | wc -l | xargs echo "Gatus endpoint count:"
+sudo find /opt/monitoring/configs/gatus -name "*.yaml" | wc -l | xargs echo "Gatus config files:"
+echo
+echo "=== GRAFANA LIVENESS ==="
+# Grafana /api/datasources REQUIRES auth and `Bearer admin` is not a real token.
+# Datasources are stored in /var/lib/grafana/grafana.db (no host-side provisioning
+# files in this deployment) and the grafana image lacks sqlite3, so listing them
+# from the shell is awkward. /api/health is anonymous and confirms both grafana
+# liveness AND DB reachability — that's the right probe for an audit. To inspect
+# datasources, use the UI at https://grafana.vps1.ocoron.com/datasources.
+sudo docker exec grafana wget -qO- http://localhost:3000/api/health 2>&1 | head -c 200
 
-### Alert Pipeline (Prometheus → Alertmanager → Telegram)
-- Alert rules loaded? Any in `firing` state?
-- Alertmanager has active route to Telegram?
-- Pushgateway has `fabrik_audit_drift_total` metrics? (hourly drift audit)
+echo
+echo "=== GLITCHTIP HEALTH ==="
+# glitchtip-web is python-only (no wget/curl). Use the in-container python3.
+sudo docker exec glitchtip-web python3 -c "
+import urllib.request
+r = urllib.request.urlopen('http://localhost:8000/_health/')
+print(f'  status: {r.status}  body[:80]: {r.read()[:80]!r}')
+" 2>&1 | head -3
+echo
+echo "=== AGENTS LOCAL ON HUB ==="
+sudo docker ps --filter "name=cadvisor" --filter "name=node-exporter" --filter "name=promtail" --filter "name=postgres-exporter" --filter "name=redis-exporter" --filter "name=pushgateway" --format "{{.Names}} {{.Status}}"
+EOF
+```
 
-### Error Pipeline (App → Sentry SDK → GlitchTip)
-- GlitchTip API reachable on internal network?
-- `glitchtip-web` alias on coolify network?
-- Projects have `firstEvent` populated? (null = no events ever received)
+## Data collection — SPOKES (vps2, vps3) — confirm agents push to hub
 
-### Uptime Monitoring (Gatus → Apprise → Telegram)
-- All endpoints reporting UP?
-- Any endpoint showing DOWN that should be UP?
+```bash
+ssh vps2 bash <<'EOF'    # repeat for vps3
+echo "=== AGENT CONTAINERS ==="
+sudo docker ps --filter "name=node-exporter" --filter "name=cadvisor" --filter "name=promtail" --format "table {{.Names}}\t{{.Status}}"
+echo
+echo "=== AGENT BIND ADDRESSES (mesh-only) ==="
+sudo ss -tlnp | grep -E ':9100|:8080|:9080'
+echo
+echo "=== OUTBOUND PUSH CONNS TO HUB ==="
+sudo ss -tnp 2>&1 | grep -E "10\\.99\\.0\\.1:(3100|9090|9091)" | head -10
+echo
+echo "=== UFW MESH-ALLOW (must exist; W8 fix) ==="
+sudo ufw status verbose | grep -E "10\\.99\\.0\\.0/24"
+echo
+echo "=== PROMTAIL CONFIG (target Loki at 10.99.0.1:3100) ==="
+sudo grep -A2 "url:" /opt/monitoring-agent/promtail.yaml 2>/dev/null | head -10
+echo
+echo "=== AGENT LOGS (last 5 min, any errors?) ==="
+sudo docker logs --since 5m node-exporter 2>&1 | tail -5
+sudo docker logs --since 5m cadvisor 2>&1 | tail -5
+sudo docker logs --since 5m promtail 2>&1 | tail -5
+EOF
+```
 
-## Output Format
+---
 
-1. **PIPELINE STATUS** — per-pipeline: Metrics / Logs / Alerts / Errors / Uptime — each OK or BROKEN
-2. **BLIND SPOTS** — what's NOT being monitored that should be
-3. **DATA GAPS** — metrics/logs that exist but nobody looks at
-4. **REMEDIATION** — what to fix, what to add
+## Analysis checklist
+
+### Metrics pipeline (Prometheus → Grafana)
+
+- 18 / 18 targets `up` (12 vps1-local jobs + 3 spoke job-groups × 2 targets = 6).
+- `host` label present on every active series.
+- Scrape errors in last hour: ideally zero.
+- Grafana dashboards load + render historical 7d range.
+- `$host` template variable on all 5 Fabrik dashboards works (regex `/^vps/`).
+
+### Log pipeline (Docker → Promtail → Loki)
+
+- Hub: `promtail` container running; Loki ingests local + spoke logs.
+- Spokes: outbound TCP conns to `10.99.0.1:3100` visible in `ss -tn`.
+- Loki returns `host` label with values `["vps1", "vps2", "vps3"]`.
+- Spoke `promtail.yaml` `clients[].url` points at `http://10.99.0.1:3100/loki/api/v1/push`.
+
+### Alert pipeline (Prometheus → Alertmanager → Apprise → Telegram)
+
+- Alertmanager cluster status `ready` / `active`.
+- `spoke_health` rule group loaded (`SpokeDown`, `SpokeHighCPU`, `SpokeHighRAM`).
+- Active alerts: only expected ones (or none). Investigate firing.
+- Active silences: only legitimate planned-downtime silences; expired ones cleaned.
+- Apprise reachable from vps1 cluster on `http://apprise:8000/notify/alerts`.
+
+### Error pipeline (App → Sentry SDK → GlitchTip)
+
+- `glitchtip-web` `/_health/` returns 200.
+- DSN injection verified for any app shape with `exposes_metrics`: see W14 — `docker inspect <main> | grep SENTRY_DSN` (Lesson 31).
+- GlitchTip not blocked by Authelia for the SDK ingest path (`/api/<id>/store/`).
+
+### Uptime monitoring (Gatus → Apprise → Telegram)
+
+- 16 Gatus config files, 21 endpoint definitions (verify against `vps-complete-inventory.md`; the file count drifts up when new endpoint files are added — endpoint count is the more stable signal).
+- No persistently-failing endpoints (would indicate a real outage OR a stale endpoint).
+- Authelia bypass on `*.vps1.ocoron.com → /health` working.
+
+### Spoke observability health
+
+- Each spoke's 3 agents (node-exporter, cadvisor, promtail) running.
+- UFW mesh-allow rule present (W8 fix).
+- No agent log errors in last 5 min.
+- Hub Prometheus shows `node-spokes` / `cadvisor-spokes` / `promtail-spokes` jobs each with 2 targets up.
+
+### W14 / W15 spoke-deploy verification path
+
+- vps2 + vps3 Traefik exposed publicly with W15 `gzip@docker` middleware (per `docker inspect traefik`).
+- vps2 `/opt/traefik/acme.json` populated (first cert issued 2026-06-02 W14/W15 verify).
+- Verifier path `https://<spec>.vps2.ocoron.com/health` returns 200 for deployed services.
+
+---
+
+## Output format
+
+```markdown
+## Observability Audit — Fleet — <UTC date>
+
+**Verdict:** GREEN / YELLOW / RED
+**Per-pipeline status:**
+| Pipeline | State | Notes |
+| :--- | :--- | :--- |
+| Metrics (Prometheus → Grafana)        | GREEN/YELLOW/RED | <one-line> |
+| Logs (Promtail → Loki)                | ... | <one-line> |
+| Alerts (Alertmanager → Apprise)       | ... | <one-line> |
+| Errors (GlitchTip)                    | ... | <one-line> |
+| Uptime (Gatus)                        | ... | <one-line> |
+
+### Per-host agent status
+| Host | node-exporter | cadvisor | promtail | mesh push |
+| :--- | :--- | :--- | :--- | :--- |
+| vps1 | running | running | running | local |
+| vps2 | ... | ... | ... | ✓/✗ |
+| vps3 | ... | ... | ... | ✓/✗ |
+
+### Findings
+1. [severity] <pipeline> — <issue>
+   - Evidence
+   - Fix
+```

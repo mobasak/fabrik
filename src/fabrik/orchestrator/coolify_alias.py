@@ -1,4 +1,12 @@
-"""Coolify alias-watcher write side (T2-04 G-J3).
+"""Coolify alias-watcher write side (T2-04 G-J3) — LEGACY MODULE.
+
+DECOMMISSIONED 2026-05-30: Coolify is gone; all containers now have stable
+`container_name:` (Lesson 22) so the alias-watcher's whole reason to exist
+(working around Coolify renaming single-image Applications on every redeploy)
+no longer applies. The `/opt/coolify-alias-watcher/` directory on the VPS is
+also decommissioned. New code paths must NOT call into this module.
+
+Original docstring follows:
 
 Companion to ``/opt/coolify-alias-watcher/`` on the VPS — that script is
 the READ side (event-driven docker-events listener that re-applies
