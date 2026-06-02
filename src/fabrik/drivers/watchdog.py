@@ -63,6 +63,13 @@ IMAGE_REPO = "fabrik/watchdog"
 # under /tmp so a failed build doesn't leave a per-project residue under
 # /opt; cleaned up by the driver in finally{}.
 VPS_BUILD_ROOT = "/tmp/fabrik-watchdog-build"
+# Path on the VPS where the operator's Claude Code OAuth credentials live.
+# Mounted RO into the sidecar so it inherits the subscription. Defaults to
+# /home/ozgur/.claude (matches the current single-operator fleet) but
+# overridable via FABRIK_VPS_CLAUDE_HOME for future multi-operator setups
+# or different VPS user accounts. The directory must already exist on the
+# target VPS — the driver does not create it.
+VPS_CLAUDE_HOME = os.environ.get("FABRIK_VPS_CLAUDE_HOME", "/home/ozgur/.claude")
 
 # Placeholders that get substituted at render time. The PreToolUse.sh hook
 # also references these but reads them from env at runtime — only the
@@ -97,6 +104,10 @@ class _RenderContext:
     expensive_model: str
     project_system_prompt: str
     project_git_remote: str
+    # Operator-tunable runtime knobs — agent.py has defaults if absent.
+    check_interval_seconds: int = 60
+    log_level: str = "INFO"
+    promtail_update_url: str = ""
     image_tag: str = ""
     # Filled in by _build_context.
     build_ctx_local: Path | None = None
@@ -216,6 +227,9 @@ class WatchdogDriver:
             expensive_model=wcfg.get("expensive_model", "anthropic/claude-opus-4"),
             project_system_prompt=wcfg.get("project_system_prompt", ""),
             project_git_remote=wcfg.get("project_git_remote", ""),
+            check_interval_seconds=int(wcfg.get("check_interval_seconds", 60)),
+            log_level=str(wcfg.get("log_level", "INFO")),
+            promtail_update_url=str(wcfg.get("promtail_update_url", "")),
             image_tag=image_tag,
         )
 
@@ -279,8 +293,9 @@ class WatchdogDriver:
                     "restart": "unless-stopped",
                     "depends_on": [rctx.main_container],
                     "volumes": [
-                        # OAuth — read-only from host (operator's ~/.claude).
-                        "/home/ozgur/.claude:/home/watchdog/.claude:ro",
+                        # OAuth — read-only from VPS user's ~/.claude. Path
+                        # is operator-configurable via FABRIK_VPS_CLAUDE_HOME.
+                        f"{VPS_CLAUDE_HOME}:/home/watchdog/.claude:ro",
                         # State + PR workspace + deploy key — RW.
                         f"watchdog-state-{rctx.project_id}:/var/lib/watchdog",
                         # docker.sock — scoped via PreToolUse hook + claude-settings.
@@ -350,6 +365,9 @@ class WatchdogDriver:
             "WATCHDOG_EXPENSIVE_MODEL": rctx.expensive_model,
             "WATCHDOG_SYSTEM_PROMPT": rctx.project_system_prompt,
             "WATCHDOG_PROJECT_GIT_REMOTE": rctx.project_git_remote,
+            "WATCHDOG_CHECK_INTERVAL": str(rctx.check_interval_seconds),
+            "WATCHDOG_LOG_LEVEL": rctx.log_level,
+            "WATCHDOG_PROMTAIL_UPDATE_URL": rctx.promtail_update_url,
         }
         # OpenRouter key + Postgres password come from the project's .env via
         # docker-compose env-file inclusion; we don't ship secrets in compose.
