@@ -696,17 +696,22 @@ Shift notes: `/opt/fabrik/logs/sysadmin-shift-notes.md`
 
 Full reference: `docs/infrastructure/vps-ai-sysadmin.md`.
 
-### Per-project watchdog sidecars (T-P2 — in progress, 2 of 15 artifacts shipped)
+### Per-project watchdog sidecars (T-P2 — ✅ COMPLETE 2026-06-03, all 15 artifacts shipped)
 
-A **second** AI layer distinct from the host-level sysadmin above. The host sysadmin watches the platform; per-project watchdog sidecars watch one tenant each. **Not yet a runtime artifact** — when shipped, each project with `watchdog.enabled: true` in its spec will gain a `watchdog-<project_id>` container next to its main container at `fabrik apply` time.
+A **second** AI layer distinct from the host-level sysadmin above. The host sysadmin watches the platform; per-project watchdog sidecars watch one tenant each. With T-P2 complete, every spec carrying `watchdog: { enabled: true }` (the WatchdogConfig default) will gain a `<project_id>-watchdog` container at `fabrik apply` time — the registrar resolves the applicability, the driver builds the per-project image from `/opt/fabrik-lib/watchdog/sidecar/`, writes `compose.watchdog.yaml` next to the spec's `compose.yaml`, and brings the sidecar up via `docker compose -f compose.yaml -f compose.watchdog.yaml up -d watchdog`.
 
-| Artifact | Path | Status |
-| :--- | :--- | :--- |
-| `WatchdogConfig` Pydantic class + `Spec.watchdog` field + 3 amendment fields (`deadman_timeout_seconds`, `external_docs_enabled`, `propose_fix_prs`) | [`src/fabrik/spec_loader.py:335-524`](../../src/fabrik/spec_loader.py) (190 lines, 15 tests in [`tests/test_spec_loader.py::TestWatchdogConfig`](../../tests/test_spec_loader.py)) | ✅ shipped 2026-06-02 (original 10 fields + amendment landing same day) |
-| `claude-settings.json.template` (sidecar permission boundaries; v1 with 10 locked capabilities) | [`/opt/fabrik-lib/watchdog/sidecar/claude-settings.json.template`](../../../fabrik-lib/watchdog/sidecar/claude-settings.json.template) (200 lines, 50 allow / 55 deny entries, 29-domain WebFetch allow-list) | ✅ shipped 2026-06-02 |
-| 13 remaining artifacts: `hooks/PreToolUse.sh`, Dockerfile, `llm_client.py`, `actions.py`, `state.py`, `agent.py`, SQLite state schema, emitter library, `core/watchdog.md` rule pack, `_register_watchdog()` registrar, `drivers/watchdog.py`, fabrik-lib README update, test spec | mostly under `/opt/fabrik-lib/watchdog/` | ⏳ pending |
+| Layer | Artifacts | Where | Lines |
+| :--- | :--- | :--- | :--- |
+| **Sidecar code** (in-container) | claude-settings template + PreToolUse hook + Dockerfile + llm_client + actions + state + agent + vendored cost_budget + (inline) SQLite schema | [`/opt/fabrik-lib/watchdog/sidecar/`](../../../fabrik-lib/watchdog/sidecar/) | ~2,134 |
+| **Orchestrator wire-up** | `_register_watchdog` resolver + dispatch in [`infrastructure.py`](../../src/fabrik/orchestrator/infrastructure.py) + 387-line driver at [`drivers/watchdog.py`](../../src/fabrik/drivers/watchdog.py) | `/opt/fabrik/src/fabrik/` | 387 + 63 |
+| **Spec field** | `WatchdogConfig` Pydantic class with 13 fields (10 base + 3 amendment) + 22 tests | [`src/fabrik/spec_loader.py`](../../src/fabrik/spec_loader.py) + [`tests/test_spec_loader.py`](../../tests/test_spec_loader.py) | 190 |
+| **Operator surface** | emitter library + rule pack + fabrik-lib README row + test spec | [`fabrik-lib/watchdog/emitter/`](../../../fabrik-lib/watchdog/emitter/), [`.windsurf/rules/core/60-watchdog.md`](../../.windsurf/rules/core/60-watchdog.md), [`/opt/fabrik-lib/README.md`](../../../fabrik-lib/README.md), [`specs/services/watchdog-test.yaml`](../../specs/services/watchdog-test.yaml) | 143 (rule pack) + 58 (emitter) + 2 (README rows) + 80 (test spec) |
 
-When fully shipped, the registrar (`infrastructure.py::_register_watchdog`) injects the sidecar into the project's compose at `fabrik apply` time. Default-by-kind: `service`/`worker`/`wordpress` → `enabled=True`; `static` → `enabled=False`. Hub-side P1 plumbing is already live (`fabrik_analytics` DB + `cost_ledger` table). Subplan with the locked v1 capability matrix: [`docs/development/plans/2026-05-30-ai-watchdog-platform-P2-subplan.md`](../development/plans/2026-05-30-ai-watchdog-platform-P2-subplan.md) § 4.6.
+End-to-end wire-up verified via the `spec_loader.load_spec` → `resolve_applicability` → `WatchdogDriver().provision(dry_run=True)` chain — returns `watchdog: RUNS (spec.watchdog.enabled=true)` and `{'status': 'dry-run', 'image_tag': 'fabrik/watchdog:watchdog-test'}`. 40/40 orchestrator tests green. Cross-process emitter→sidecar integration smoke (emit 5 → read 5 → mark processed → next read 0) confirms the shared `state.db` contract holds. Subplan archived to [`archived/2026-05-30-ai-watchdog-platform-P2-subplan.md`](../development/plans/archived/2026-05-30-ai-watchdog-platform-P2-subplan.md) on T-P2 close.
+
+Default applicability: `WatchdogConfig.enabled` defaults to True, so every spec gets a sidecar unless the operator sets `watchdog: { enabled: false }`. Shape-kind-driven recommendation (operator discipline, NOT encoded in the registrar) lives in [`.windsurf/rules/core/60-watchdog.md`](../../.windsurf/rules/core/60-watchdog.md) — on for `service`/`worker`/`wordpress`; off for `static-site`/`docusaurus`. Hub-side P1 plumbing (`fabrik_analytics` DB + `cost_ledger` table) is live and consumed by the sidecar's vendored `cost_budget.py`.
+
+**Next phase: T-P3** — self-healing synthesis (1 day per parent plan, no subplan needed). Parent plan: [`2026-05-30-ai-watchdog-platform.md`](../development/plans/2026-05-30-ai-watchdog-platform.md).
 
 ---
 
