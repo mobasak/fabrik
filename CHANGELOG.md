@@ -14,6 +14,31 @@ All notable changes to this project will be documented in this file.
 - **Live defect #4 — `image-broker` spec orphaned post-Coolify removal**, never re-deployed under SSH+Compose. No `/opt/image-broker/` on hub, no container, NXDOMAIN at Cloudflare, but 2 Authelia rules + an unused LE cert still on file. Operator confirmed the original deployment was a test and the service is not in scope. **Removed:** [`specs/services/image-broker.yaml`](specs/services/image-broker.yaml), [`.fabrik/state/image-broker.json`](.fabrik/state/image-broker.json), [`infra/image-broker/`](infra/image-broker/) directory, 2 rows in [`PORTS.md`](PORTS.md) (18016), the `fabrik-image-broker` description entry in [`scripts/generate_vps_inventory.py`](scripts/generate_vps_inventory.py), the `image-broker: [18016]` row in [`scripts/seed_real_ports.py`](scripts/seed_real_ports.py), the `image-broker` line in [`scripts/audit_all_projects.py`](scripts/audit_all_projects.py)'s spec walk list, and 2 Authelia rules (bypass `^/api/` + 2FA root) from `/opt/authelia/config/configuration.yml` (authelia container restarted, 8 rules remain). The LE cert in `acme.json` is left to expire naturally — irreversible-touch on `acme.json` is the kind of move that breaks Traefik silently and Let's Encrypt will sweep it in ~90 days regardless. Stale comment references to `image-broker` in `src/fabrik/spec_loader.py` and `src/fabrik/dev_tools.py` (illustrative "pre-G1 specs" lists) and the historical incident note in `scripts/enforcement/check_no_host_ports.py` were left intact as accurate-at-the-time documentation.
 - **Bonus side-find — hub promtail wasn't tagging its own log stream with `host=vps1`.** Discovered while patching prompt 05's Loki probe — Loki returned `["vps2","vps3"]` only. Hub's `/opt/monitoring/configs/promtail/promtail-config.yaml` had no static `host:` label in the `containers` scrape job. **Fixed:** added `host: vps1` under `labels:` in the static_configs block, restarted promtail, Loki now returns `["vps1","vps2","vps3"]`. Closes the "every series has host label" W11 invariant for the LOG pipeline (it was already true for metrics). Repo copy at [`configs/promtail/promtail-config.yaml`](configs/promtail/promtail-config.yaml) synced — turned out to be drifted from live by several edits including the Coolify-residue container-name drop rule.
 
+### Added — T-P2 watchdog artifact 15: end-to-end wire-up verified + /opt/test-saas-for-epic-wf retired (2026-06-03)
+
+**Artifact 15 — test spec opt-in proving end-to-end wire-up.** New [`specs/services/watchdog-test.yaml`](specs/services/watchdog-test.yaml) — minimal docker-sourced nginx with `watchdog: { enabled: true, daily_budget_usd: 0.50, per_incident_budget_usd: 0.05, daily_invocations_cap: 20, deadman_timeout_seconds: 120, ... }` block. Conservative caps so an accidental real deploy can't ring up surprise spend. Header comment documents the manual prerequisites (sidecar source vendored at `/opt/fabrik-lib/watchdog/sidecar/`, host OAuth at `$FABRIK_VPS_CLAUDE_HOME` on vps1, cost_ledger table provisioned by T-P1).
+
+**End-to-end verification** via the same path `fabrik apply` follows:
+
+```text
+1. spec_loader.load_spec('specs/services/watchdog-test.yaml')
+   → Pydantic WatchdogConfig populated with all 13 fields (10 from spec
+     + 3 defaults: escalation_channel=apprise, etc.)
+
+2. resolve_applicability(spec_dict)
+   → watchdog: RUNS (spec.watchdog.enabled=true)
+   → Proceeding with 4 registrars (gatus + glitchtip + grafana + watchdog)
+
+3. WatchdogDriver().provision(ctx, dry_run=True)
+   → {'status': 'dry-run', 'image_tag': 'fabrik/watchdog:watchdog-test'}
+```
+
+All three stages clean: artifact 1 (config) parses the spec, artifact 12 (registrar) routes through `_provision_watchdog`, artifact 13 (driver) computes the image tag and would build + push overlay + bring up in real mode. No imports broken, no Pydantic validation surprises.
+
+**Retired test project**: `/opt/test-saas-for-epic-wf/` directory (5.5 MB, single "Initial commit", no remote, no GitHub) deleted along with its matching spec at `specs/services/test-saas-for-epic-wf.yaml`. It was a one-off P2 dogfood target — never put into the DR mirror, never deployed. Removed both file + spec to keep state consistent (the spec was a local-source pointer at the now-gone path).
+
+**T-P2 progress: 15 / 15 artifacts shipped. T-P2 complete.** Watchdog platform ships in three layers: the in-container sidecar (`/opt/fabrik-lib/watchdog/sidecar/` ~2,134 lines), the orchestrator wire-up (`infrastructure.py` registrar + `drivers/watchdog.py` 387-line driver), and the operator-facing contract (rule pack `60-watchdog.md`, fabrik-lib README row, this test spec). Next step is T-P3 (self-healing synthesis, 1 day per parent plan, no subplan needed).
+
 ### Added — T-P2 watchdog artifact 14 + artifact 13 review fixes (2026-06-03)
 
 **Artifact 14** — [`/opt/fabrik-lib/README.md`](/opt/fabrik-lib/README.md) modules tables both updated. New `watchdog/` row in the descriptive modules table (between `upstream-quota/` and `webhooks/` alphabetically) names the two sub-trees (`watchdog/sidecar/` ~2,134 lines + `watchdog/emitter/`), the template substitution flow, the Fabrik driver entry point, the rule pack pointer, and the `cost-budget/` dependency. New `watchdog/` row in the "Which Modules Do I Need?" matrix (✓ for SaaS / API / Worker / RAG; — for Chrome Ext / Mobile, matching the rule pack's when-to-enable matrix). Closes the discovery gap: future Claude sessions browsing `/opt/fabrik-lib/README.md` now see watchdog as a first-class module instead of having to find it via the rule pack or subplan.

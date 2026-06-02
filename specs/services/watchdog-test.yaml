@@ -1,0 +1,72 @@
+# T-P2 artifact 15 — end-to-end watchdog wire-up verification spec.
+#
+# Minimal docker-sourced nginx with watchdog explicitly enabled. The point
+# is NOT to test nginx; it's to prove the orchestrator (artifact 12) and
+# driver (artifact 13) correctly resolve, render, and inject the sidecar
+# given a real spec that opts into watchdog.
+#
+# Workflow:
+#   .venv/bin/fabrik apply specs/services/watchdog-test.yaml --dry-run
+# Expected output should include:
+#   resolved registrars: watchdog: RUNS (spec.watchdog.enabled=true)
+#   [dry-run] watchdog: would build fabrik/watchdog:watchdog-test + write
+#     /opt/watchdog-test/compose.watchdog.yaml + docker compose up -d watchdog
+#
+# Do NOT deploy this without first verifying that:
+#   (1) /opt/fabrik-lib/watchdog/sidecar/ exists on dev WSL
+#   (2) operator's ~/.claude/.credentials.json is on vps1 at
+#       $FABRIK_VPS_CLAUDE_HOME (default /home/ozgur/.claude)
+#   (3) the cost_ledger table exists on postgres-main:fabrik_analytics
+#       (T-P1 provisioning ran)
+
+id: watchdog-test
+kind: service
+template: python-api
+domain: watchdog-test.vps1.ocoron.com
+
+shape:
+  kind: service
+  is_public: true
+  is_admin_dashboard: false
+  needs_database: false
+  needs_cache: false
+  has_persistent_data: false
+  has_search_feature: false
+  exposes_metrics: false
+
+source:
+  type: docker
+  image: nginx:alpine
+  image_port: 80
+
+env:
+  NGINX_HOST: watchdog-test.vps1.ocoron.com
+
+# Watchdog opt-in — defaults are documented in src/fabrik/spec_loader.py
+# (WatchdogConfig). We override only what's interesting for the test:
+#   - lower budget to avoid surprise spend if a real deploy happens
+#   - lower deadman timeout to make verification faster
+#   - leave auto_tier_b off (default) and propose_fix_prs off (default)
+watchdog:
+  enabled: true
+  daily_budget_usd: 0.50
+  per_incident_budget_usd: 0.05
+  daily_invocations_cap: 20
+  deadman_timeout_seconds: 120
+  external_docs_enabled: true
+  auto_tier_b: false
+  propose_fix_prs: false
+  llm_provider_primary: claude-code
+  llm_provider_fallback: openrouter
+  cheap_model: anthropic/claude-3.5-haiku
+  expensive_model: anthropic/claude-opus-4
+
+resources:
+  memory: 64M
+  cpu: "0.1"
+
+health:
+  path: /
+  interval: 30s
+  timeout: 5s
+  retries: 3
