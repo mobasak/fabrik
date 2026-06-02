@@ -61,7 +61,7 @@ Every Fabrik spec declares a `source.type` that controls how code reaches the VP
 | **git** | `git clone` / `git pull` on VPS from GitHub | `source: { type: git, repository: "https://github.com/...", branch: main }` | 11 services (site-provisioner, youtube, fabrik-citation-verifier, fabrik-test-* series, etc.) |
 | **template** | Fabrik renders compose.yaml from `templates/<type>/*.j2`, SCPs to VPS | `source: { type: template }` | Scaffolded services (gate-*, test-*, guide-proj, etc.) |
 | **docker** | Deployer generates minimal compose.yaml from `source.image`, SCPs to VPS | `source: { type: docker, image: "nginx:latest", image_port: 80 }` | Single-image services (fabrik-smoke-test) |
-| **local** | Compose.yaml already exists on VPS at `source.path`; deployer only writes .env | `source: { type: local, path: "/opt/my-app" }` | 9 services (image-broker, translator, job-agent, trading-core, seo, etc.) |
+| **local** | Compose.yaml already exists on VPS at `source.path`; deployer only writes .env | `source: { type: local, path: "/opt/my-app" }` | 8 services (translator, job-agent, trading-core, seo, etc.) — image-broker was the 9th, retired 2026-06-02 |
 
 **Production services are git-sourced or local-sourced.** Template and docker source types are used for scaffolding and one-off deployments.
 
@@ -367,8 +367,6 @@ Every deployed service lives at `/opt/<name>/` on the VPS:
 │   ├── .env              ← root-owned, written by deployer
 │   ├── Dockerfile
 │   └── src/
-├── image-broker/         ← local-sourced service
-│   └── ...
 ├── monitoring/           ← infrastructure stack (prometheus, grafana, etc.)
 │   └── compose.yaml
 ├── authelia/             ← auth gateway

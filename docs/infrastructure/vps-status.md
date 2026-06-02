@@ -224,7 +224,7 @@ backrest               running  (W11 — own restic repo at b2:vps1-ocoron-backu
 | DOCKER-USER iptables chain | ✅ accepts `wg0`, drops mesh-only port list from public iface |
 | Traefik dashboard | ✅ `127.0.0.1:8080` localhost only |
 | Authelia | ✅ forward-auth on `*.vps1.ocoron.com` admin dashboards; TOTP 2FA; Redis-backed sessions (`redis-main:6379/3`) |
-| M2M auth | 🟡 pattern intact (`X-Internal-Token` + `SERVICE_INTERNAL_SECRET_KEY`); **no live service consuming it** today — the 7 microservices that used it are not currently deployed |
+| M2M auth | 🟡 pattern intact (`X-Internal-Token` + `SERVICE_INTERNAL_SECRET_KEY`); **no live service consuming it** today — the 6 microservices that used it are not currently deployed (the 7th, image-broker, was retired 2026-06-02) |
 | GitHub host-key trust for root SSH | ✅ added today (`/root/.ssh/known_hosts`) — deployer + bootstrap now keep this in place automatically |
 | Resource limits | ✅ enforced via compose `deploy.resources.limits.memory` on every service; gate validates |
 

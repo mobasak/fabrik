@@ -33,6 +33,8 @@ fabrik plan my-api      # Execute and exit
 
 ## VPS Services (managed by fabrik via SSH + Docker Compose)
 
+> **⚠️ Service-status drift warning (2026-06-02):** the table below lists services that were planned/deployed under the Coolify era. **Many are not currently live**. Authoritative inventory: [`docs/infrastructure/vps-complete-inventory.md`](infrastructure/vps-complete-inventory.md) (live state) and [`docs/infrastructure/vps-urls.md`](infrastructure/vps-urls.md) (URL reality vs. claims). Specifically: `image-broker` was retired 2026-06-02 (row kept here only for historical reference); `dns-manager`, `translator`, `captcha`, `file-api`, `netdata` have no live Traefik router or backing container today either. The infra rows (`postgres-main`, `redis-main`, `backrest`, `gatus`, `gotenberg`, `browserless`, `meilisearch`, `n8n`, `apprise`, `traefik`, `authelia`, `prometheus`, `grafana`, `loki`, `glitchtip-*`) ARE live.
+
 | Service | Container | Port | URL | Protection | Purpose |
 |---------|-----------|------|-----|------------|---------|
 | PostgreSQL | postgres-main | 5432 | - (mesh-only via 10.99.0.1) | 🔐 Password | Shared database |
@@ -40,7 +42,7 @@ fabrik plan my-api      # Execute and exit
 | Netdata | netdata | 19999 | `https://netdata.vps1.ocoron.com` | 🔐 Password | System monitoring |
 | Gatus | gatus | 3001 | `https://status.vps1.ocoron.com` | 🔐 Password | Service monitoring |
 | Backrest | backrest | 9898 | `https://backup.vps1.ocoron.com` | 🔐 Authelia 2FA | Backup management (restic + Backblaze B2; replaced Duplicati 2026-04-17) |
-| Image Broker | image-broker | 8010 | `https://images.vps1.ocoron.com` | ⚠️ Open | Stock image API |
+| ~~Image Broker~~ | ~~image-broker~~ | ~~8010~~ | ~~`https://images.vps1.ocoron.com`~~ | — | **REMOVED 2026-06-02** — spec retired; row kept for history |
 | DNS Manager | dns-manager | 8001 | `https://dns.vps1.ocoron.com` | ⚠️ Open | DNS record management |
 | Translator | translator | 8000 | `https://translator.vps1.ocoron.com` | 🔑 API Key | Translation API |
 | Captcha | captcha | 8000 | `https://captcha.vps1.ocoron.com` | ⚠️ Open | Captcha solver (Anti-Captcha) |
@@ -91,7 +93,9 @@ ssh deploy@vps "docker exec postgres-main pg_isready"
 curl -s https://status.vps1.ocoron.com
 ```
 
-### Image Broker
+### ~~Image Broker~~ (REMOVED 2026-06-02)
+
+Historical — the spec was retired. The example below will fail (NXDOMAIN); kept for reference.
 
 ```bash
 curl -s https://images.vps1.ocoron.com/api/v1/health
@@ -162,7 +166,7 @@ DNS_MANAGER_URL=http://localhost:8001
 | DNS Manager | `dns-manager` | 8001 | `DNS_MANAGER_URL` | None |
 | Translator | `translator` | 8000 | `TRANSLATOR_URL` | `X-API-Key` header |
 | File API | `file-api` | 8004 | `FILE_API_URL` | None |
-| Image Broker | `image-broker` | 8010 | `IMAGE_BROKER_URL` | None |
+| ~~Image Broker~~ | ~~`image-broker`~~ | ~~8010~~ | ~~`IMAGE_BROKER_URL`~~ | **REMOVED 2026-06-02** |
 | PostgreSQL | `postgres-main` | 5432 | `DATABASE_URL` | Password |
 
 ---
@@ -352,7 +356,9 @@ See `/opt/dns-manager/README.md` for full API documentation.
 
 ---
 
-## Image Broker Service Integration
+## ~~Image Broker Service Integration~~ (REMOVED 2026-06-02)
+
+> Historical section. The image-broker spec was retired and removed; the integration commands below will not work. Section retained for reference until a clean rewrite of SERVICES.md happens.
 
 **Purpose:** Unified stock image API (Pexels, Pixabay) with smart routing and caching
 

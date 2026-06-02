@@ -212,7 +212,7 @@ Container classification on spokes (post-bootstrap):
 | **platform** | authelia, apprise, backrest, n8n, glitchtip-web/worker, meilisearch, gotenberg, browserless | Restart autonomously. Report after. |
 | **application** | site-provisioner (interim, vps1), ocoron-com-* (vps1), any spoke tenants deployed via `fabrik apply --target-vps vpsN` | Full autonomous management. |
 
-**Note (2026-05-31):** the 7 historical microservices (captcha, image-broker, translator, proxy, emailgateway, file-api, file-worker) are **not deployed** — they show in old runbooks as examples. Same rules apply when they're redeployed.
+**Note (2026-05-31, updated 2026-06-02):** the 6 historical microservices (captcha, translator, proxy, emailgateway, file-api, file-worker) are **not deployed** — they show in old runbooks as examples. Same rules apply when they're redeployed. The 7th historical service, `image-broker`, was retired 2026-06-02 (spec + state + infra deleted).
 
 ## Operating Mode
 
@@ -491,8 +491,8 @@ Message 1: "status"
   → response → Telegram
   → session_id saved, last_activity = now
 
-Message 2: "restart image-broker" (within 10 min)
-  → bot runs: claude -p "restart image-broker" --resume {same_uuid}
+Message 2: "restart site-provisioner" (within 10 min)
+  → bot runs: claude -p "restart site-provisioner" --resume {same_uuid}
   → Claude has context from message 1
   → response → Telegram
 
