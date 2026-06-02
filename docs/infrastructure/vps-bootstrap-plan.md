@@ -19,7 +19,7 @@ Full reference: [`scripts/bootstrap/README.md`](../../scripts/bootstrap/README.m
 ### What `bootstrap-vps.sh` does (13 steps, post-W16)
 
 1. Create `ozgur` user, install SSH key, grant NOPASSWD sudo — verified working before disabling root SSH
-2. Harden SSH (PermitRootLogin no, PasswordAuthentication no)
+2. Harden SSH (PermitRootLogin no, PasswordAuthentication no) — drop-in must be `00-fabrik-hardening.conf` (NOT `99-`), since Ubuntu cloud-init's `50-cloud-init.conf` wins in first-match-wins order. The script verifies effectiveness via `sshd -T` post-edit to catch the override silently. (Trap surfaced live on the hub 2026-06-02 — fleet drift fixed in the same session.)
 3. Install UFW + fail2ban; open 22/80/443/51820 (hardened 2026-05-31 for Lesson 68 — explicitly handles the `rc`-state edge case where a prior `apt remove ufw` leaves config files but no binary; self-verifies `command -v ufw` + `dpkg ii` + `ufw status: active` before returning)
 4. Install Docker + log rotation; create `fabrik` external network
 5. Install Wireguard + iptables-persistent

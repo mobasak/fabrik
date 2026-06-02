@@ -37,6 +37,24 @@
 
 ---
 
+## 2026-06-02 evening — fleet hardening pass + image-broker retirement + T-P2 sidecar ships
+
+End-to-end audit-prompt validation against live state surfaced + closed four fleet defects, plus shipped T-P2 sidecar artifacts 2-8 in `/opt/fabrik-lib/watchdog/sidecar/`.
+
+**Live changes on vps1:**
+
+- **SSH posture aligned with spokes.** `/etc/ssh/sshd_config.d/50-cloud-init.conf` had `PasswordAuthentication yes` (Ubuntu cloud-init drop-in) and was winning over the main `sshd_config` in alphabetical-glob order. Spokes already had `no`. Patched the drop-in to `no`, `sudo systemctl reload ssh`, verified `sshd -T` shows `passwordauthentication no` across all 3 hosts. Key-only auth verified in a fresh SSH session before relying on the change.
+- **Hub Backrest `restic forget` lock contention fixed.** Three of four plans were failing the post-backup `forget` step nightly with "repository is already locked" — backups themselves ran fine but the pruning ran ~500ms after the backup lock was taken and conflicted. Added `--retry-lock=10m` to the `b2-vps1` repo `flags` in `/opt/backrest/config/config.json`; backrest container restarted. Confirmation deferred to next nightly window.
+- **`.restic-password` mode 711 → 600** (spokes were already 600 — fleet-drift fix, single chmod).
+- **Hub promtail now tags its own stream `host=vps1`.** Loki used to return only `["vps2","vps3"]` for the `host` label — hub stream was unlabelled because the static `host:` was missing from the `containers` scrape job. Added the label, restarted promtail, Loki now returns `["vps1","vps2","vps3"]`. Repo copy at `configs/promtail/promtail-config.yaml` synced (was drifted, also missing the Coolify-residue container-name drop rule).
+- **`image-broker` spec retired.** Spec at `specs/services/image-broker.yaml` was orphaned — no `/opt/image-broker/`, no container, NXDOMAIN at Cloudflare; only the 2 Authelia rules survived from a prior registration. Removed the spec + `.fabrik/state/image-broker.json` + `infra/image-broker/` + 2 rows in PORTS.md + 3 script entries (`generate_vps_inventory.py`, `seed_real_ports.py`, `audit_all_projects.py`) + the 2 live Authelia rules. Authelia restarted via `docker restart authelia` → healthy. GlitchTip project id=66 left in place; safe to delete in the UI when convenient. LE cert in `acme.json` left to expire naturally (~90d).
+
+**Audit-prompt fixes** — patched bugs in 6 of 8 prompts after live-run validation: 01 (false-negative hub `.env` probe), 03 (grep leading-dash, cloud-init override visibility), 04 (`conntrack` not installed → `sysctl`), 05 (Loki via wrong network, Grafana fake-Bearer auth, GlitchTip wget-in-python-image), 06 (B2 repo name singular), 07 (hub SSH alias mapping, heredoc python parse, Authelia all-matches reporter), 08 (hub promtail filename). See `docs/infrastructure/audit-prompts/` for the per-file patches.
+
+**T-P2 watchdog sidecar ships (in `/opt/fabrik-lib/watchdog/sidecar/`, on `mobasak/fabrik-lib`):** artifacts 2-8 of 15 — `claude-settings.json.template`, `hooks/PreToolUse.sh`, `Dockerfile`, `requirements.txt`, `llm_client.py`, `actions.py`, `state.py`, `agent.py` + vendored `cost_budget.py`. Sidecar code is at 2076 lines total; runs through to a working `python3 agent.py` once env vars are set by the driver (artifact 13, not yet shipped).
+
+---
+
 ## 2026-06-02 — first end-to-end spoke deploy (W14 + W15 SHIPPED)
 
 W14 fixed the deployer's env-routing so `inject_env` + compose rollback honor `ctx.target_vps`. W15 then defined the `gzip` Traefik middleware on each spoke (it had only ever existed on vps1, via a label on `meilisearch`). Together: the first-ever end-to-end spoke deploy succeeded.
@@ -266,7 +284,7 @@ Not scraped: `traefik` (no metrics scrape job — health observed via Gatus + Lo
 - Internal alias for SDKs: `http://glitchtip-web:8000/<project_id>` (Docker DNS on `fabrik` network).
 - Mesh ingest for spoke tenants: `http://10.99.0.1:8000/<project_id>` (bound today).
 - Storage: `glitchtip` DB on `postgres-main`; events retained 90 d.
-- Project IDs unchanged from Coolify-era audit (captcha 65, image-broker 66, translator 67, emailgateway 68, file-api 69, file-worker 70, site-provisioner 24).
+- Project IDs unchanged from Coolify-era audit (captcha 65, translator 67, emailgateway 68, file-api 69, file-worker 70, site-provisioner 24). Project id=66 was for image-broker, orphaned after the spec removal 2026-06-02 — safe to delete in the GlitchTip UI.
 
 ### Gatus
 
@@ -277,7 +295,7 @@ Not scraped: `traefik` (no metrics scrape job — health observed via Gatus + Lo
 
 ---
 
-## Authelia — 10 access-control rules (live, verified via `yaml.safe_load`)
+## Authelia — 8 access-control rules (live, verified via `yaml.safe_load` 2026-06-02 evening)
 
 | # | Policy | Domain(s) | Resources |
 | :--- | :--- | :--- | :--- |
@@ -286,18 +304,18 @@ Not scraped: `traefik` (no metrics scrape job — health observed via Gatus + Lo
 | 3 | bypass | `wp-test.vps1.ocoron.com` | (all) |
 | 4 | bypass | `status.vps1.ocoron.com` | (all) |
 | 5 | bypass | `*.vps1.ocoron.com` | `^/health$`, `^/healthz$`, `^/metrics$`, `^/api/health$` |
-| 6 | bypass | `pdf`, `browser`, `search`, `captcha`, `proxy`, `translator`, `files-api`, `emailgateway`, `dns`, **`errors`**`.vps1.ocoron.com` (10 hosts) | (all) |
-| 7 | bypass | `coolify.vps1.ocoron.com`, `monitor.vps1.ocoron.com` | `^/api/` only |
-| 8 | bypass | `images.vps1.ocoron.com` | `^/api/` only (paired with #9) |
-| 9 | two_factor | `images.vps1.ocoron.com` | (all) |
-| 10 | two_factor | `*.vps1.ocoron.com` | (catch-all) |
+| 6 | bypass | `pdf`, `browser`, `search`, `errors`.vps1.ocoron.com (4 hosts) | (all) |
+| 7 | bypass | `monitor.vps1.ocoron.com` | `^/api/` only |
+| 8 | two_factor | `*.vps1.ocoron.com` | (catch-all for everything else) |
+
+**Cleanup history:**
+
+- 2026-05-31 evening — rule #6 went 10 hosts → 4 hosts (dropped dead microservice subdomains + stale `dns` alias); rule #7 dropped `coolify.vps1.ocoron.com` (Coolify removed 2026-05-30).
+- 2026-06-02 evening — removed the 2 `images.vps1.ocoron.com` rules (bypass `^/api/` + 2FA catch-all) after the image-broker spec was retired. Rule count 10 → 8.
 
 **Cosmetic-but-noteworthy:**
 
-- Rule #6 includes `errors.vps1.ocoron.com` — a prior session noted this was removed by T2-08 Part A; that change is not reflected live, so `errors.vps1` is reaching GlitchTip without Authelia today.
-- Rule #6 lists 5 hosts (`captcha`, `proxy`, `translator`, `files-api`, `emailgateway`) for services that **don't exist** today. Bypass is dormant — harmless until those domains route somewhere.
-- Rule #6 lists `dns.vps1.ocoron.com` — stale DNS alias, no router.
-- Rule #7 still bypasses `coolify.vps1.ocoron.com` — fully stale (Coolify removed 2026-05-30).
+- Rule #6 includes `errors.vps1.ocoron.com` — GlitchTip UI is reachable without Authelia. A prior session note claimed T2-08 Part A removed it; the change never landed and after review it stays (GlitchTip is a public error-report UI used cross-tenant). Move it out of #6 into the `two_factor` catch-all later if you want 2FA in front of it.
 - `provision.vps1.ocoron.com` (site-provisioner) is NOT in this list — it's protected at the Traefik layer by IP allowlist + at the app layer by bearer `API_KEY`, never reaches Authelia.
 
 **Critical:** Authelia **exits** on SIGHUP — it does NOT hot-reload. The systemd watcher `authelia-config-sync.service` saves config to the named volume and `docker restart authelia` automatically on edit. Manual restart: `ssh vps "sudo docker restart authelia"`.

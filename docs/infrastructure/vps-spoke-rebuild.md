@@ -89,7 +89,7 @@ That's it. No Step 6.
 | # | Step | What |
 |---|---|---|
 | 00 | create sudoer | `useradd ozgur` + install pubkey + `/etc/sudoers.d/90-ozgur` NOPASSWD |
-| 01 | harden SSH | `PermitRootLogin no` + `PasswordAuthentication no` + drop-in |
+| 01 | harden SSH | `PermitRootLogin no` + `PasswordAuthentication no` via drop-in **`00-fabrik-hardening.conf`** (NOT `99-`). Ubuntu cloud-init ships `50-cloud-init.conf` and sshd uses first-match-wins in alphabetical order — anything `99-*` is overridden. Verified live 2026-06-02: spokes show `passwordauthentication no` from cloud-init (their `50-cloud-init.conf` already says `no` from initial bootstrap), but a rebuild script must not depend on cloud-init's content. Cross-check with `sshd -T`. |
 | 02 | install OS packages | Docker (via `get.docker.com`), wireguard, iptables-persistent, ufw, fail2ban, python3, inotify-tools, jq |
 | 03 | place Backrest creds | scp W9 mirror's `vpsN-restic-password-latest` → `/opt/backrest/.restic-password` and `vpsN-backrest-env-latest` → `/opt/backrest/.env` |
 | 04 | restic restore host-state | `/etc/wireguard` (preserves spoke privkey!), `/etc/iptables`, `/etc/ufw/user*.rules`, `/etc/docker/daemon.json`, `/etc/sysctl.d/99-*`, `/etc/sudoers.d/90-ozgur`, `/root/.ssh/authorized_keys`, `/home/ozgur/.ssh/authorized_keys` |

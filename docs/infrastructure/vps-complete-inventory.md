@@ -356,7 +356,7 @@ For services on vps2/vps3 that need Authelia, the forward-auth middleware will p
 **TOTP:** `ocoron.com` issuer, 30 s period
 **Storage:** SQLite `/config/db.sqlite3` (named volume)
 
-### Access control rules — 10 rules live (verified against `/opt/authelia/config/configuration.yml`, post-cleanup)
+### Access control rules — 8 rules live (verified against `/opt/authelia/config/configuration.yml`, post-cleanup 2026-06-02)
 
 | # | Policy | Domain(s) | Resources (path regex) |
 | :--- | :--- | :--- | :--- |
@@ -367,11 +367,11 @@ For services on vps2/vps3 that need Authelia, the forward-auth middleware will p
 | 5 | bypass | `*.vps1.ocoron.com` | `^/health$`, `^/healthz$`, `^/metrics$`, `^/api/health$` |
 | 6 | bypass | 4 hosts: `pdf`, `browser`, `search`, `errors`.vps1.ocoron.com | (all paths — public or app-layer-protected) |
 | 7 | bypass | `monitor.vps1.ocoron.com` | `^/api/` only |
-| 8 | bypass | `images.vps1.ocoron.com` | `^/api/` only (paired-pattern with #9) |
-| 9 | two_factor | `images.vps1.ocoron.com` | (all paths) |
-| 10 | two_factor | `*.vps1.ocoron.com` | (catch-all for everything else) |
+| 8 | two_factor | `*.vps1.ocoron.com` | (catch-all for everything else) |
 
 **Cleaned 2026-05-31 evening:** rule #6 went from 10 dormant hosts (incl. 5 dead microservices + `dns` stale alias) down to 4 live hosts; rule #7 dropped `coolify.vps1.ocoron.com` (Coolify removed 2026-05-30). Backup at `/opt/authelia/config/configuration.yml.bak.20260531-171950`. Authelia restarted cleanly via `authelia-config-sync.service` (~7 s).
+
+**Cleaned 2026-06-02 evening:** removed 2 rules for `images.vps1.ocoron.com` (bypass `^/api/` + 2FA catch-all). The image-broker spec was orphaned post-Coolify (no `/opt/image-broker/`, no container, NXDOMAIN) and the spec + state + infra files were deleted; the Authelia rules that survived from a prior registration were cleaned in the same pass. Backup at `/opt/authelia/config/configuration.yml.backup.20260602-205402`. Authelia restarted via `docker restart authelia` (5s start → healthy). Rule count went 10 → 8.
 
 **Note on `errors.vps1.ocoron.com` in rule #6:** the GlitchTip UI is reachable *without* Authelia. A prior session note claimed T2-08 Part A removed it; the change never landed and after review it stays — GlitchTip is a public error-report UI used cross-tenant. If you want it 2FA-protected later, move it out of rule #6 into the catch-all `two_factor`.
 
@@ -397,7 +397,7 @@ Rule precedence: Authelia is first-match-wins. Specific `^/api/` bypasses for ad
 | `/metrics` endpoint | Authelia-bypassed by the global `*.vps1.ocoron.com → /metrics` rule; no auth required (Prometheus scrapes anonymously) |
 
 **Scaffold auto-emits:** `internal_auth.py` (Python), `src/internal_auth.js` (Node), `metrics.py`
-**Deployed services using this:** **none currently.** The 7 microservices that previously consumed this pattern (`captcha`, `image-broker`, `translator`, `proxy`, `emailgateway`, `file-api`, `file-worker`) are not currently deployed on vps1 — no `/opt/<svc>/` directory, no container, no Traefik router. The pattern is available the moment any new spec opts into it.
+**Deployed services using this:** **none currently.** The 6 microservices that previously consumed this pattern (`captcha`, `translator`, `proxy`, `emailgateway`, `file-api`, `file-worker`) are not currently deployed on vps1 — no `/opt/<svc>/` directory, no container, no Traefik router. The pattern is available the moment any new spec opts into it. (The 7th, `image-broker`, was removed 2026-06-02 — spec + state + infra + Authelia rules deleted; never re-deployed under SSH+Compose after the Coolify rip.)
 
 ---
 
@@ -459,7 +459,7 @@ Spokes (3 jobs / 6 targets):
 - `traefik` — no metrics endpoint job; routing health is observed via Gatus + Loki.
 - `glitchtip-web` — `django-prometheus` not bundled by default in GlitchTip 6.x.
 - `fabrik-drift` — placeholder job referenced in earlier docs; no live job by this name.
-- 7 ex-microservices (`captcha`, `image-broker`, `translator`, `proxy`, `emailgateway`, `file-api`, `file-worker`) — not deployed, so no `/metrics` to scrape. When/if redeployed, scaffold-emitted `metrics.py` re-enables.
+- 6 ex-microservices (`captcha`, `translator`, `proxy`, `emailgateway`, `file-api`, `file-worker`) — not deployed, so no `/metrics` to scrape. When/if redeployed, scaffold-emitted `metrics.py` re-enables. (`image-broker` was the 7th in this list; its spec was removed 2026-06-02.)
 
 Reload: `ssh vps "sudo docker kill -s HUP prometheus"`.
 
@@ -555,7 +555,7 @@ Seven application microservices were running pre-Coolify-removal. As of 2026-05-
 | Service | Spec | DNS still exists? | Traefik router? | Container? | GlitchTip project still in DB? |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | `captcha` | yes | no | no | no | yes (id=65) |
-| `image-broker` | yes | `images.vps1` exists (stale) | no | no | yes (id=66) |
+| `image-broker` | **removed 2026-06-02** | no (was stale) | no | no | id=66 (orphaned; can be deleted in GlitchTip UI) |
 | `translator` | yes | no | no | no | yes (id=67) |
 | `proxy` (fabrik-proxy) | yes | no | no | no | — |
 | `emailgateway` | yes | no | no | no | yes (id=68) |
@@ -747,9 +747,9 @@ DB users (`pg_user`, verified live post-cleanup): `postgres` (super), `ozgur` (s
 - Redis: 2 logical DBs in use (`db3` = authelia, 26 keys with TTL; `db4` = glitchtip, 8 keys); 14 indexes free.
 - Gatus: **21 endpoints across 16 config files** (re-verified 2026-06-02 live; `apps/` gained 1 file since the prior count). Top-level breakdown: `apps/` 11 files / 8 endpoints; `core/` 1 file / 5 endpoints; `data/` 1 file / 3 endpoints; `external/` 1 file / 5 endpoints; `observability/` 1 file / 0 endpoints. Some `apps/` files probe services no longer deployed — see "Stale/residue" section below. Endpoint count is the stable signal; file count drifts as endpoints are split into per-service files.
 - Backrest (hub): **1 repo** (`b2-vps1`) + **4 plans live** (postgres-dumps, docker-volumes, opt-configs, host-state) — first ship 2026-06-01 (W2). Each spoke runs its own Backrest container with own repo + 2 plans (W11).
-- GlitchTip: 7 project IDs retained from Coolify-era audit (captcha=65, image-broker=66, translator=67, emailgateway=68, file-api=69, file-worker=70, site-provisioner=24). Six of those projects no longer have a corresponding live service emitting events.
+- GlitchTip: 7 project IDs retained from Coolify-era audit (captcha=65, image-broker=66, translator=67, emailgateway=68, file-api=69, file-worker=70, site-provisioner=24). Six of those projects no longer have a corresponding live service emitting events; project id=66 in particular is orphaned after the 2026-06-02 image-broker removal and can be deleted in the GlitchTip UI when convenient.
 - Grafana: 5 Fabrik-folder dashboards (overview, databases, containers, authelia, meilisearch) + community dashboards. Every dashboard now has `$host` template variable.
-- Authelia: **10 access control rules** (see § Authelia access control rules above).
+- Authelia: **8 access control rules** (see § Authelia access control rules above; was 10, dropped to 8 on 2026-06-02 when the orphaned image-broker rules were removed).
 - Meilisearch: 0 indexes (no consumers).
 - Prometheus: **18 active targets / 15 jobs**, all up. (Was 13 jobs in Coolify-era; added 3 spoke jobs on 2026-05-31.)
 

@@ -214,7 +214,7 @@ Project IDs retained in the GlitchTip database from the Coolify-era audit. **Six
 | Service | GlitchTip project ID | Emitting events today? |
 | :--- | :--- | :--- |
 | captcha | 65 | no (service not deployed) |
-| image-broker | 66 | no |
+| image-broker | 66 | **orphaned — spec removed 2026-06-02; safe to delete in GlitchTip UI** |
 | translator | 67 | no |
 | emailgateway | 68 | no |
 | file-api | 69 | no |
@@ -238,7 +238,7 @@ const resp = await fetch('https://translator.vps1.ocoron.com/api/translate', { h
 
 `SERVICE_INTERNAL_SECRET_KEY` is one shared key across all M2M-protected services; lives in `/opt/fabrik/.env` and is injected into each service's `.env` by the SSH deployer.
 
-**Status today:** no live service is consuming this — the 7 microservices that used the pattern (`captcha`, `image-broker`, `translator`, `proxy`, `emailgateway`, `file-api`, `file-worker`) are not currently deployed. The key + scaffold-emitted `internal_auth.{py,js}` modules are intact and ready for the next deploy.
+**Status today:** no live service is consuming this — the 6 microservices that used the pattern (`captcha`, `translator`, `proxy`, `emailgateway`, `file-api`, `file-worker`) are not currently deployed. The key + scaffold-emitted `internal_auth.{py,js}` modules are intact and ready for the next deploy. (`image-broker` was the 7th in this group; its spec was removed 2026-06-02.)
 
 ---
 

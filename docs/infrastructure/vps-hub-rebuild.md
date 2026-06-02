@@ -78,7 +78,7 @@ That's it. There is no Step 6.
 | # | Step | What | Notes |
 |---|---|---|---|
 | 00 | create sudoer | `useradd ozgur` + install pubkey + NOPASSWD sudo | Matches vps1 posture from spoke bootstrap |
-| 01 | harden SSH | `PermitRootLogin no` + `PasswordAuthentication no` + drop-in `99-fabrik-hardening.conf` | After 00 so we don't lock ourselves out |
+| 01 | harden SSH | `PermitRootLogin no` + `PasswordAuthentication no` via drop-in **`00-fabrik-hardening.conf`** (NOT `99-`) | After 00 so we don't lock ourselves out. **First-match-wins trap (verified live 2026-06-02 on the existing hub):** Ubuntu cloud-init drops `50-cloud-init.conf` with `PasswordAuthentication yes`. sshd processes drop-ins in alphabetical-glob order and the **first** matching directive wins, so anything `99-*` loses to cloud-init's `50-*`. The Fabrik drop-in MUST sort BEFORE cloud-init's — use `00-fabrik-hardening.conf`, or edit `50-cloud-init.conf` in place. Always cross-check with `sshd -T` afterwards. |
 | 02 | install OS packages | Docker via `get.docker.com`, wireguard, iptables-persistent, ufw, fail2ban, python3, inotify-tools, gh, jq | NoninteractiVE apt; gh repo set up if missing |
 | 03 | install Claude Code | `curl -fsSL https://claude.ai/install.sh \| sh` + symlink to `/usr/local/bin/claude` | Needed by `vps-sysadmin-bot` |
 | 04 | scp W9 env | dev WSL `/opt/fabrik-dr-store/env/latest` → `/opt/fabrik/.env` (mode 600) + sysadmin equivalent | Source for steps 06+ B2 creds |
