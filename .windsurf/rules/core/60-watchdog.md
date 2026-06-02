@@ -31,7 +31,7 @@ Defaults preserve current behavior — existing specs without a `watchdog:` bloc
 
 ## Architecture summary
 
-- **One sidecar per spec.** Image: `fabrik/watchdog:<project_id>`. Built by the watchdog driver (`src/fabrik/drivers/watchdog.py`) at `fabrik apply` time with placeholders rendered.
+- **One sidecar per spec.** Image: `fabrik/watchdog:<project_id>`. Built by the watchdog driver (`src/fabrik/drivers/watchdog.py` — T-P2 artifact 13, not yet shipped at the time of this pack) at `fabrik apply` time with placeholders rendered.
 - **Mounts (all per-project, set by driver):**
   - `~/.claude/` (RO from host) → `/home/watchdog/.claude/` — Claude Code OAuth credentials. Sidecar does NOT carry an API key.
   - `/var/lib/watchdog/` (RW, named volume) — `state.db` + `cost_wal.db` + `proposed/<project_id>/` PR workspace + `keys/git-deploy.key` (RO, 600).
