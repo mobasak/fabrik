@@ -20,6 +20,12 @@ Applicability matrix (locked 2026-04-18, Plan §Phase 7):
               (+ ``^/api/`` bypass first if ``shape.has_bearer_api``,
                Critical Success Factor §10)
  meilisearch  ``shape.has_search_feature``
+ prometheus   ``shape.exposes_metrics`` AND ``spec.domain`` set
+ redis        ``shape.needs_cache``
+ watchdog     ``spec.watchdog.enabled`` (default True; operator opts out
+              with ``watchdog: { enabled: false }``; rule pack
+              ``.windsurf/rules/core/60-watchdog.md`` documents the
+              shape-kind-driven recommendation operators implement)
 ===========  =============================================================
 
 Error philosophy (mostly non-fatal):
@@ -91,6 +97,7 @@ _REGISTRAR_ORDER = (
     "authelia",
     "meilisearch",
     "prometheus",
+    "watchdog",
 )
 
 
@@ -251,6 +258,22 @@ def resolve_applicability(spec: dict[str, Any]) -> dict[str, tuple[bool, str]]:
         )
         out["prometheus"] = (False, reason)
 
+    # watchdog (T-P2). WatchdogConfig.enabled defaults to True so the
+    # registrar runs by default; operator opts a spec out with
+    # `watchdog: { enabled: false }`. The shape-kind-driven matrix in
+    # `.windsurf/rules/core/60-watchdog.md` is operator discipline (e.g.
+    # disable for static-site / docusaurus), not encoded here — keeping the
+    # gate one-line keeps applicability honest to what the spec actually says.
+    watchdog_cfg = spec.get("watchdog", {}) or {}
+    if watchdog_cfg.get("enabled", True):
+        out["watchdog"] = (
+            _enabled(infra, "watchdog"),
+            "spec.watchdog.enabled=true"
+            + ("" if _enabled(infra, "watchdog") else " (infra.watchdog=false override)"),
+        )
+    else:
+        out["watchdog"] = (False, "not applicable: spec.watchdog.enabled=false")
+
     return out
 
 
@@ -359,6 +382,9 @@ class InfrastructureProvisioner:
 
         if should_run["prometheus"]:
             self._provision_prometheus(name, domain, spec, ctx, dry_run)
+
+        if should_run["watchdog"]:
+            self._provision_watchdog(name, ctx, dry_run)
 
         logger.info("Infrastructure provisioning complete for %s", name)
 
@@ -661,6 +687,43 @@ class InfrastructureProvisioner:
             logger.info("meilisearch: %s → %s", index_uid, result.get("status"))
         except Exception as e:  # noqa: BLE001
             logger.warning("meilisearch provisioning failed (non-fatal): %s", e)
+
+    def _provision_watchdog(self, name: str, ctx: DeploymentContext, dry_run: bool) -> None:
+        """Build/refresh the per-project watchdog sidecar image + inject sidecar service.
+
+        Real work happens in the watchdog driver (T-P2 artifact 13). Until that
+        driver ships, this method is a wire-up stub: it logs the intended action
+        in dry-run mode and lazily-imports the driver in real mode, falling back
+        to a WARNING (non-fatal — every registrar's failure is bounded) if the
+        driver module isn't present yet. That keeps `fabrik apply` working on
+        existing specs that don't depend on the watchdog while T-P2 finishes.
+        """
+        if dry_run:
+            logger.info(
+                "[dry-run] watchdog: would build fabrik/watchdog:%s + inject sidecar service "
+                "alongside main container",
+                name,
+            )
+            ctx.add_resource("watchdog", name, status="dry-run")
+            return
+        try:
+            from fabrik.drivers.watchdog import WatchdogDriver  # T-P2 artifact 13
+        except ImportError:
+            logger.warning(
+                "watchdog registrar reached but fabrik.drivers.watchdog is not installed yet "
+                "(T-P2 artifact 13 pending — see "
+                "docs/development/plans/2026-05-30-ai-watchdog-platform-P2-subplan.md). "
+                "Skipping for spec '%s'.",
+                name,
+            )
+            return
+        try:
+            driver = WatchdogDriver()
+            result = driver.provision(ctx, dry_run=dry_run)
+            ctx.add_resource("watchdog", name, status=result.get("status") if result else "ok")
+            logger.info("watchdog: %s → %s", name, result.get("status") if result else "ok")
+        except Exception as e:  # noqa: BLE001
+            logger.warning("watchdog provisioning failed (non-fatal): %s", e)
 
 
 __all__ = (

@@ -313,9 +313,13 @@ class TestFormatResolvedSummary:
             "grafana",
             "authelia",
             "meilisearch",
+            "watchdog",
         ):
             assert reg in summary
-        assert "Proceeding with 3 registrars" in summary  # gatus + glitchtip + grafana
+        # 4 default-RUN registrars on a minimal service spec with a domain:
+        # gatus + glitchtip + grafana + watchdog (T-P2 artifact 12; defaults
+        # to True via WatchdogConfig.enabled).
+        assert "Proceeding with 4 registrars" in summary
 
     def test_counts_runs_not_skips(self):
         spec = _spec(
@@ -327,8 +331,10 @@ class TestFormatResolvedSummary:
             }
         )
         summary = format_resolved_summary(resolve_applicability(spec))
-        # All 7 should run (universal grafana + all shape flags set).
-        assert "Proceeding with 7 registrars" in summary
+        # 8 should run: postgres, gatus, backrest, glitchtip, grafana (universal),
+        # authelia, meilisearch, watchdog (T-P2 artifact 12; defaults to True via
+        # WatchdogConfig.enabled).
+        assert "Proceeding with 8 registrars" in summary
 
 
 # --------------------------------------------------------------------------- #
