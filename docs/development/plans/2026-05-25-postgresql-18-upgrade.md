@@ -14,17 +14,25 @@
 
 ## What We Have
 
-| Environment | Current version | Data |
-|---|---|---|
-| WSL (local dev) | PostgreSQL 16.14 | Dev databases per project (~40 DBs) |
-| VPS (postgres-main) | PostgreSQL 16.x (Coolify Docker) | Production data for all deployed services |
+| Environment | Current version | Data | Who controls upgrades |
+| --- | --- | --- | --- |
+| WSL (local dev) | PostgreSQL 16.14 | Dev databases per project (~40 DBs) | Us — direct `apt` upgrade |
+| VPS (postgres-main) | PostgreSQL 16.x (Docker, Fabrik-managed since 2026-05-30 Coolify removal) | Production data for all deployed services | Us — compose image bump + dump/restore |
+| Supabase (`trade-intelligence`) | PostgreSQL **17.6** | Trade-intelligence app data | **Supabase manages** — we can't choose PG18; we move when they move (note 2026-06-02) |
+
+## Constraint added 2026-06-02 — Supabase pins our upper bound
+
+Supabase's managed Postgres for `trade-intelligence` is at 17.6 today. Supabase rolls Postgres major-version upgrades on their own cadence (currently 17.x; 18.x not yet GA on their platform as of this note). **The fleet can run PG18 on WSL + postgres-main even while Supabase stays on 17.6 — wire compatibility is fine across 16 ↔ 17 ↔ 18 for the queries we issue** — but anywhere our code uses PG18-only features (the headline `uuidv7()` DEFAULT, certain JSON path operators added in 17/18) it must degrade gracefully when the connection is to Supabase. Practical rule: **PG18-only features stay opt-in per service**; the cross-env code uses PG17-compatible constructs (e.g. `uuid_utils.compat.uuid7()` app-side, the very thing we wanted to retire).
+
+This means the upgrade is still worth doing — WSL + postgres-main move together to PG18, and we keep the app-side UUID generator for the Supabase code path until Supabase's PG version catches up. Re-evaluate Supabase pinning at every Supabase major-version bump.
 
 ## Risks
 
 - **Data loss** if backup/restore fails
 - **Extension compatibility** — pgvector, pg_trgm, pg_cron must support PG18
-- **Application compatibility** — asyncpg driver must support PG18
+- **Application compatibility** — asyncpg driver must support PG18 (and PG17 since we'll talk to Supabase 17.6 in parallel)
 - **Downtime** — VPS services unavailable during migration
+- **Cross-version drift** — services that talk to Supabase must not regress to PG18-only syntax that PG17 can't parse
 
 ---
 
