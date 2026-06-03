@@ -4,7 +4,27 @@
 **Phase:** P5 of the AI Watchdog Platform plan (3-day phase per parent plan)
 **Parent plan:** [`2026-05-30-ai-watchdog-platform.md`](2026-05-30-ai-watchdog-platform.md) § "Acceptance criteria (whole plan)" (line 346)
 **Prompt that motivated this sub-plan:** [`2026-05-30-ai-watchdog-platform-prompts.md` § P5 — Dogfood E2E](2026-05-30-ai-watchdog-platform-prompts.md) (lines 464–542)
-**Status:** ✅ Sub-plan draft — awaiting owner confirmation. **No code edits performed in this turn (META-RULE 5).**
+**Status:** ✅ Sub-plan r1 — owner answered all 4 open questions 2026-06-03; side-finding addresses defined; 1 small driver code-fix surfaced as a pre-T-P5 dependency.
+
+**Owner decisions captured (r1, 2026-06-03):**
+
+| Q | Owner answer | Sub-plan resolution |
+| --- | --- | --- |
+| 1. Sub-goal A (Traycer dogfood Steps 1-4) — ship or defer? | Defer | T-P5 executes only Sub-goal B (Steps 5-9). Sub-goal A documented in parent plan's "Out of scope" before archive. |
+| 2. Step 9 postgres-main outage — green-light or skip? | Green-light — "we dont have data in the database, so test is not risky" | Verified live: `fabrik_analytics` has only `cost_ledger` (no operational data at risk). 60s < 2-min silence-alerts memory threshold anyway. Risk row in § 8 downgraded. |
+| 3. OPENROUTER_KEY location? | `.env` file in `/opt/<project>/` folder | Verified gap: driver currently has no `env_file` support → would not propagate to sidecar container. **New pre-T-P5 driver code-fix dependency added in § 14 below** (~3-line change to `_push_overlay`). |
+| 4. Hub OOM risk? | "why?" | Retracted. Live: 7.9 GiB available + 80 GB free disk; build peak <2 GiB. § 8 row removed. |
+
+**Side-finding addresses (r1):**
+
+| # | Side finding | Address |
+| --- | --- | --- |
+| 1 | Shared `audit_log` on postgres-main — unknown | Verified ABSENT. Use sidecar's local `state.db actions` table (already in § 4 Step 6); track audit_log table ship as separate T-P6 or future. |
+| 2 | `clear_file_cache` vs RO `/project` mount | Skip in T-P5; add to `60-watchdog.md § Anti-patterns` as a known limitation; defer real fix (separate `/project-cache` RW mount, OR drop from registry). |
+| 3 | Traycer cache hazard | Moot — Sub-goal A deferred. When eventually run: paste 02 + 03 fresh into Traycer GUI. |
+| 4 | Parent plan archive timing | Archive after Sub-goal B + Sub-goal A documented in parent plan's "Out of scope" section as operator-deferred. |
+| 5 | Lesson 31 verified correctly used | No action. |
+
 **Why a sub-plan when parent plan says none needed:** T-P5 touches live infra on the hub (docker build of a per-project image, compose-overlay write, sidecar container lifecycle, postgres-main reads, optional postgres-main outage chaos test). Doc + rule-pack edits like T-P3 / T-P4 are idempotent and easy to roll back; T-P5 is not. A 60-line sub-plan defines what we touch, how we abort, and what passes vs fails.
 **Prior work shipped:** T-P1 + T-P2 + T-P3 + T-P4 — all 4 complete as of `4e9674a` (this morning). T-P5 is the only remaining watchdog phase.
 
@@ -285,10 +305,10 @@ These are read-only probes; safe to run repeatedly.
 
 | Risk | Likelihood | Mitigation |
 | --- | --- | --- |
-| Sidecar Docker build OOMs on hub (hub has 11.6 GiB / 6 cores; build pulls Node.js + Claude Code CLI) | Low | Hub had ~7.7 GiB free on last check; build peak < 1 GiB. If OOM: run build on dev WSL via `docker save → scp → docker load`. |
+| ~~Sidecar Docker build OOMs on hub~~ | ~~Low~~ | **Retracted (r1, 2026-06-03):** live probe shows 7.9 GiB available + 80 GB free disk. Build peak <2 GiB on a base image that's 600 MB final. Risk negligible. |
 | Sidecar memory limit (1024m per Dockerfile) too tight | Low–Medium | If sidecar OOMs at runtime: bump memory to 2048m via spec override (`watchdog.memory_limit` — not yet a config field; would need T-P5.5 amendment). |
 | Step 7 rollback skipped → all fleet watchdog sidecars fall back to OpenRouter | High impact, low likelihood with discipline | Acceptance A4 below makes Step 7 rollback a HARD requirement. Add explicit "Step 7-DONE" checklist. |
-| Step 9 cascades alerts → Telegram flood (memory: silence alerts before downtime) | High | Silence ContainerDown for postgres-main + dependent services BEFORE Step 9. |
+| Step 9 cascades alerts → Telegram flood (memory: silence alerts before downtime) | ~~High~~ → **Low (r1)** | **Owner-cleared 2026-06-03: "we dont have data in the database, so test is not risky."** Live verified: only `cost_ledger` table in `fabrik_analytics`; no operational data at risk. 60s < 2-min silence-alerts memory threshold anyway. Still recommended to silence ContainerDown for postgres-main if convenient, but not blocking. |
 | Build context tar.gz on hub fills `/tmp` if disk pressure | Low | Driver cleans `/tmp/fabrik-watchdog-build/<project>/` in `finally`. Acceptance A3 verifies post-run. |
 | Apprise message arrives but operator misses it on phone | Medium | Operator self-paces; we don't push past Apprise verification without operator ack. |
 | OpenRouter cost overrun if Step 7 fires repeatedly | Low (caps + WATCHDOG_PER_INCIDENT_BUDGET_USD=0.05 enforced) | Spec's `daily_budget_usd: 0.50` is the hard ceiling. Worst case 1 day = $0.50. |
@@ -330,10 +350,14 @@ After T-P5 close:
 
 ## 11. Open questions for owner before T-P5 execution starts
 
-1. **Sub-goal A (Traycer dogfood Steps 1–4) — ship or defer?** Per § 1 above, Steps 1–4 require an operator-driven Traycer GUI session against a NEW SaaS vision. They exercise T-P4's universal-coverage edits. If deferred, T-P5 ships only Sub-goal B (runtime dogfood) and parent-plan acceptance is met but Sub-goal A is documented as a pending operator action.
-2. **Step 9 (postgres-main outage) — green-light or skip?** This is the riskiest step. The pre-existing 60-second postgres-main outage cascades alerts across every tenant. If operator prefers to skip: A6 becomes "verified separately via cost-budget unit tests" (T-P1 already shipped tests for `replay_wal`).
-3. **OpenRouter API key on the sidecar — set or not?** Determines whether Step 7 verifies the OpenRouter fallback path or the rule-only-mode fallback path. Both are valid T-P5 outcomes; just need to know which.
-4. **Sidecar image build location — hub or dev WSL?** Driver builds on hub by default. If hub disk pressure is a concern, can pre-build on dev WSL and `docker save → scp → docker load` instead. Adds ~3 min round-trip but avoids any hub-side OOM risk.
+**All 4 resolved 2026-06-03 (r1).** History retained for traceability:
+
+1. **Sub-goal A (Traycer dogfood Steps 1–4) — ship or defer?** → **Answer: defer.** Documented in parent plan's "Out of scope" before archive.
+2. **Step 9 (postgres-main outage) — green-light or skip?** → **Answer: green-light** ("we dont have data in the database, so test is not risky"). Live verified: `fabrik_analytics` carries only `cost_ledger` with no operational data; 60s < 2-min silence-alerts threshold.
+3. **OpenRouter API key on the sidecar — set or not?** → **Answer: set, in `.env` file in `/opt/<project>/` folder.** Surfaced a pre-T-P5 driver code-fix dependency (§ 14 below).
+4. **Sidecar image build location — hub or dev WSL?** → **Answer: hub is fine** (OOM risk retracted; 7.9 GiB available).
+
+**Ready for T-P5 execution after the § 14 driver fix lands.**
 
 ---
 
@@ -344,6 +368,40 @@ After T-P5 close:
 3. **Driver's `_push_overlay` mounts `/opt/<project_id>` RO into sidecar at `/project`.** Step 6's "clear_file_cache" Tier A handler writes to `/project/<subpath>/*` — that's a RO mount, so `clear_file_cache` is a no-op for read-only project trees. **For watchdog-test (nginx default content), this means clear_file_cache cannot succeed.** Sub-plan §4 doesn't test this Tier A action; flagging because P5 prompt acceptance "Tier A action handlers work" would fail for this specific handler against this specific test target.
 4. **Sub-step 2h (T-P4) requires Traycer to actually read 02 fresh.** If operator runs Sub-goal A but Traycer has 02 cached, the new sub-step 2h may not execute. Operator should paste 02's content into Traycer fresh, not "load from My Workflows" — per the source-file header comment.
 5. **Parent plan archive timing.** Per § 10 above, parent plan archives after T-P5. If T-P5 Sub-goal A is deferred indefinitely, parent plan never archives. Operator decides whether "Sub-goal B complete + Sub-goal A documented as deferred" is sufficient to archive the parent plan, or whether the parent plan stays open until Sub-goal A ships.
+
+---
+
+## 14. Pre-T-P5 driver code-fix dependency (added r1 from Q3 resolution)
+
+**Problem surfaced 2026-06-03 by Q3 verification:** the driver at `src/fabrik/drivers/watchdog.py` builds the sidecar's `compose.watchdog.yaml` with an explicit `environment:` dict (the 19 `WATCHDOG_*` keys `_render_env` emits) but **no `env_file:` directive**. Operator-supplied env vars in `/opt/<project>/.env` (the natural location per the owner's Q3 answer) therefore do NOT propagate to the sidecar container. The most important one this blocks: `WATCHDOG_OPENROUTER_KEY` — without it, T-P5 Step 7 (provider fallback) can't verify the OpenRouter path; it can only verify the rule-only-mode path.
+
+**Fix:** in `WatchdogDriver._push_overlay`, add one line to the watchdog service block:
+
+```python
+"env_file": [".env"],  # operator-supplied vars (e.g. WATCHDOG_OPENROUTER_KEY)
+                       # live in /opt/<project_id>/.env, written by the
+                       # SSHDeployer at deploy time. docker-compose auto-
+                       # loads this since it sits next to compose.yaml.
+```
+
+Operator then drops `WATCHDOG_OPENROUTER_KEY=sk-or-...` into `/opt/watchdog-test/.env` (manually, or via the spec's `secrets.required` block + secrets manager). docker-compose merges it into the sidecar's runtime env at `up -d` time. `llm_client._invoke_openrouter` reads it via `os.environ.get("WATCHDOG_OPENROUTER_KEY")` — already correctly coded.
+
+**Why this is a pre-T-P5 dependency, not a T-P5 step:**
+
+- It's a code change to `src/fabrik/drivers/watchdog.py` (T-P2 artifact 13). One artifact per turn per META-RULE 3.
+- The change is small (~3 lines of YAML emission + a comment) but it's still a separate artifact from the sub-plan + the T-P5 execution.
+- It must land + be verified via `--dry-run` BEFORE T-P5 Step 5 (`fabrik apply`).
+
+**Estimated scope:** 1 code edit + 1 smoke test (dry-run produces compose YAML containing the `env_file` directive). ~10 min.
+
+**Acceptance for the fix:**
+
+- `fabrik apply specs/services/watchdog-test.yaml --dry-run` succeeds.
+- Inspect-the-rendered-compose path shows `env_file: ['.env']` on the watchdog service block.
+- 40/40 `tests/orchestrator/test_infrastructure.py` still pass (no behaviour change to other registrars).
+- No new lint warnings.
+
+**Why not bundle into T-P5 Step 5:** META-RULE 4 (scope discipline). Step 5 is "run `fabrik apply`"; this is "change the driver's compose-emission code". Different concerns; commit them separately.
 
 ---
 
