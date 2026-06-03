@@ -394,6 +394,12 @@ Iterate until the owner explicitly confirms:
 - Infrastructure Decisions document produced — shared across all epics, ≤5,000 tokens.
 - Ports assigned per epic from `PORTS.md`.
 - Compact proposal format — NOT full epic files (those come in 03).
+- Universal Coverage Check sub-step (2h) produced a verdict for every one of the 14 universal categories. No category left unaudited.
+- Every "COVERED by Epic X" verdict in 2h matches an epic actually present in the compact proposal.
+- Every "ABSORBED in Step 3 § X" verdict in 2h matches a sub-section actually drafted in Step 3.
+- Every "N/A" verdict in 2h carries an explicit trigger-not-met reason cited from the spec shape block or Vision Summary.
+- Overlay-merge rule applied: no overlay-mandated epic is duplicated by a universal-category epic, and no overlay-mandated coverage is dropped.
+- Each per-epic compact entry carries the 6 metadata fields (Shape, Concurrency, i18n, Responsive, Dark+Light, Registrars) plus `Universal categories` — total 16 fields, matching `03-expand-epic-files-command`'s Metadata block expectation (per sub-plan § 7.3).
 - Owner explicitly confirms. Silence ≠ confirmation.
 
 **Existing mode adds:**
