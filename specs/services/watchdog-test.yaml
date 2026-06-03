@@ -61,6 +61,19 @@ watchdog:
   cheap_model: anthropic/claude-3.5-haiku
   expensive_model: anthropic/claude-opus-4
 
+# Operator-supplied secrets — SSHDeployer reads from /opt/fabrik/.env on
+# dev WSL and writes to /opt/watchdog-test/.env on the hub at apply time.
+# docker-compose then loads /opt/watchdog-test/.env into the sidecar runtime
+# env via the env_file: ['.env'] directive added by drivers/watchdog.py
+# (see § 14 of docs/development/plans/2026-06-03-watchdog-P5-subplan.md).
+secrets:
+  required:
+    # Fallback LLM provider; primary is claude-code via the operator's
+    # ~/.claude/.credentials.json mount (configured by FABRIK_VPS_CLAUDE_HOME,
+    # defaults /home/ozgur/.claude). Used only when claude-code is
+    # unreachable (Step 7 verification path).
+    - WATCHDOG_OPENROUTER_KEY
+
 resources:
   memory: 64M
   cpu: "0.1"
