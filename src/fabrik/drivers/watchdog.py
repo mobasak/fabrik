@@ -304,6 +304,13 @@ class WatchdogDriver:
                         f"/opt/{rctx.project_id}:/project:ro",
                     ],
                     "environment": self._render_env(rctx),
+                    # Operator-supplied env vars (e.g. WATCHDOG_OPENROUTER_KEY,
+                    # WATCHDOG_PG_PASSWORD for the pg_dsn interpolation) live
+                    # in /opt/<project_id>/.env, written by SSHDeployer at
+                    # deploy time. docker-compose auto-loads this since the
+                    # overlay sits next to compose.yaml in /opt/<project_id>/.
+                    # Anything NOT in _render_env above falls through here.
+                    "env_file": [".env"],
                     "networks": ["fabrik"],
                     "deploy": {
                         "resources": {
