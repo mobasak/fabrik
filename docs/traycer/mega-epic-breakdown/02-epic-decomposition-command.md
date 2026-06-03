@@ -155,6 +155,55 @@ Do NOT present the proposal until every parallel-labeled epic has a PASS verdict
 - Check `PORTS.md` for each epic's service.
 - Assign ports. State them.
 
+**2h. Universal Coverage Check:**
+
+Before drafting Infrastructure Decisions, audit the candidate epic set against the 14 universal categories defined in `docs/development/plans/2026-05-30-ai-watchdog-platform.md § What 02 will enforce after P4`. Each category is either (a) covered by an existing candidate epic, (b) covered by a Step 3 Infrastructure Decisions sub-section drafted in the next step, or (c) explicitly N/A because its trigger condition is false for this vision. Produce one verdict line per category. If any category is unassigned, return to 2a and revise the epic grouping before continuing — Step 3 must NOT proceed against an incomplete epic set.
+
+**Emit 14 verdict lines in this shape:**
+
+```text
+[Category N: <name>] — trigger: <met | not met (<why>)> →
+  status: COVERED by Epic <X> | ABSORBED in Step 3 § <name> | N/A — <reason>
+  cites: <rule pack file path or vendor module>
+```
+
+**Per-category citation map (cite each verdict against the corresponding rule pack or fabrik-lib module):**
+
+| # | Category | Trigger | Cite |
+| --- | --- | --- | --- |
+| 1 | Foundation | Always | scaffold sync, AI guardrails, `.windsurf/rules/` sync (via `fabrik fix`), `.env.example`, `project.yaml`, spec `shape:` block, `docs/RESILIENCE.md` |
+| 2 | Features | Always (one or more per Vision § Full Feature Inventory) | Vision Summary |
+| 3 | Persistence | `shape.needs_database` | `core/25-data-postgres.md` |
+| 4 | Workers | If pipeline/async work | `core/75-workers-jobs.md` + `pause-state/` |
+| 5 | External integrations | Any upstream API use | `core/58-resilience.md` + `async-http-client/circuit_breaker.py` + `upstream-quota/` |
+| 6 | Self-healing | `shape.kind ∈ {service, worker, wordpress}` | `core/self-healing.md` |
+| 7 | Watchdog wiring | `watchdog.enabled` (default per `kind`) | `core/60-watchdog.md` |
+| 8 | Observability | Always | `core/55-observability.md` |
+| 9 | Cost guardrails | Any LLM/paid-API use | `core/cost-budget.md` + `cost-budget/` |
+| 10 | Deployment | Always | `core/30-ops.md` |
+| 11 | Documentation | Always | `core/40-documentation.md` |
+| 12 | Security | Always | `core/35-security-auth.md` + `saas/87-abuse-detection.md` (if signup) + `core/app-audit-log.md` |
+| 13 | Testing | Always | `core/45-testing-strategy.md` |
+| 14 | Retrofit | EXISTING mode only — one per `fix-now` Compliance Report row | Compliance Report from `00-trigger-workflow-command` Step E5 (consumed in 2b above) |
+
+**Output produced by 2h into the proposal:**
+
+1. A 14-line verdict block stored under the heading `### Universal Coverage Check` on the proposal.
+2. For each "COVERED by Epic X" verdict: append `Universal categories: <numbers>` to that epic's compact entry so the operator can audit at a glance which categories each epic owns.
+3. For each "ABSORBED in Step 3 § X" verdict: a stub-line in the Infrastructure Decisions document referencing the matching sub-section drafted in Step 3 (cross-link, not duplicate content).
+4. For each "N/A" verdict: a one-line note kept inside the `### Universal Coverage Check` block (audit trail; does not pollute the epic set).
+
+**Overlay-merge rule — apply AFTER the 14 verdicts (handles scaffold-type overlays loaded per Input Contract lines 62–68):**
+
+For each loaded scaffold overlay, walk its Mandatory Epic Coverage rows (e.g., `domain-modules/saas.md § 1B Mandatory Epic Coverage`). For each overlay row:
+
+- Identify which universal category(ies) the overlay row satisfies (e.g., "Billing + Gating" satisfies #4 Features AND #9 Cost Guardrails).
+- If the universal category was COVERED by a candidate epic in 2a–2g AND the overlay row matches the same epic → **merge**: cite both in that epic's compact entry. No new epic created.
+- If the universal category was COVERED by a different epic OR ABSORBED in Step 3 § X AND the overlay row demands its own epic → **add** the overlay's epic to the candidate set as a new entry; assign `Universal categories: <numbers>`; re-run 2c (dependency analysis) for the new epic before continuing.
+- If the universal category was N/A but the overlay demands the coverage → flip the category to COVERED by the overlay's epic; update the 2h verdict line.
+
+Loading is best-effort: if a scaffold type identified in the Vision Summary has no matching `domain-modules/<type>.md` file on disk (e.g., `docusaurus`, `static-site`), the read is a no-op — the universal-category check still runs (`watchdog` flips to N/A for `kind ∈ {static-site, docusaurus}` per `core/60-watchdog.md` matrix).
+
 ### Step 3: Draft Infrastructure Decisions
 
 Produce the shared infrastructure document (≤5,000 tokens). These decisions are made ONCE here, referenced by each epic — never duplicated.
