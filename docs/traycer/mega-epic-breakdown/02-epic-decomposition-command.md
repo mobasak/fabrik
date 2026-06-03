@@ -247,6 +247,10 @@ Do NOT re-decide in epic-to-ticket-workflow. Do NOT copy into epic files.]
 - [Universal category #8 — Observability. Per `core/55-observability.md § Per-Scaffold Observability Matrix`: structured logs (Python: structlog; Node: pino — no print/console.log), `/health` with real dep checks (`SELECT 1` on postgres, `PING` on redis — never a static 200), `/metrics` only when `shape.exposes_metrics: true` (Prometheus scrape via Traefik), GlitchTip DSN injected by the registrar at `fabrik apply` time (verify via `docker inspect <main> | grep SENTRY_DSN` per Lesson 31 — NEVER `docker exec printenv` because distroless images have no shell). Gatus uptime probe is registered automatically when `shape.is_public: true` AND `spec.domain` is set.]
 - [Per-epic tickets do NOT re-derive the matrix; they pick the row matching the epic's scaffold and inherit it.]
 
+## Cost Guardrails (any LLM / paid-API use)
+- [Universal category #9 — Cost guardrails. Any epic that calls a paid LLM API or other metered third-party service MUST vendor `cost-budget/` from `/opt/fabrik-lib/cost-budget/`; writes flow through `record_cost(pg_conn, wal_path, event)` to the shared `cost_ledger` table on `postgres-main:fabrik_analytics` (provisioned once by T-P1; SQLite WAL fail-open). Per-spec caps live in the spec's `watchdog:` block (`daily_budget_usd` default 5.0, `per_incident_budget_usd` default 0.25, `daily_invocations_cap` default 200) — `cost_budget.check_caps()` + `drop_to_rule_only_mode()` enforce; over-cap routes the incident to rule-only escalation per `core/cost-budget.md`. The watchdog sidecar vendors `cost_budget.py` directly — host-app epics that call paid APIs vendor it the same way (never `import` from `/opt/fabrik-lib/` at runtime).]
+- [N/A when no paid-API call exists in the epic. Free-tier APIs (e.g., Cloudflare Free, GitHub-hosted public APIs without quota) do NOT trigger this category.]
+
 ## Backing Services
 - [carried from Vision Summary — not re-derived]
 
