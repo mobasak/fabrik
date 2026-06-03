@@ -222,6 +222,7 @@ Do NOT re-decide in epic-to-ticket-workflow. Do NOT copy into epic files.]
 
 ## Auth Strategy
 - [carried from Vision Summary Technology Decisions — not re-derived]
+- **Universal category #12 — Security.** Sensitive ops (auth events, billing mutations, admin actions, GDPR data-rights flows, watchdog Tier B/C actions) MUST write to the hash-chained audit log per `core/app-audit-log.md` + `app-audit-log/` vendor module. The Universal Coverage Check in 2h asserts both auth strategy and audit-log coverage; missing audit-log integration fails acceptance A1.
 
 ## Email Strategy
 - [Transactional: Resend (default). Marketing: Resend Broadcasts → Listmonk+SES at scale.]
