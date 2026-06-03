@@ -73,6 +73,9 @@ secrets:
     # defaults /home/ozgur/.claude). Used only when claude-code is
     # unreachable (Step 7 verification path).
     - WATCHDOG_OPENROUTER_KEY
+    # cost-budget writes to fabrik_analytics.cost_ledger via this role
+    # (provisioned 2026-06-03 with INSERT/SELECT/UPDATE grants only).
+    - WATCHDOG_PG_PASSWORD
 
 resources:
   memory: 64M
