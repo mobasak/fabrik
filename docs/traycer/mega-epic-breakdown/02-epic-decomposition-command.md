@@ -243,6 +243,10 @@ Do NOT re-decide in epic-to-ticket-workflow. Do NOT copy into epic files.]
 - [Universal category #7 — Watchdog wiring. The `watchdog` registrar in `src/fabrik/orchestrator/infrastructure.py::_register_watchdog` fires at `fabrik apply` time when `spec.watchdog.enabled` is `True` (default per `core/60-watchdog.md` when-to-enable matrix: on for `kind ∈ {service, worker, wordpress}`; off for `static-site` / `docusaurus`). The driver at `src/fabrik/drivers/watchdog.py` builds `fabrik/watchdog:<project_id>` from `/opt/fabrik-lib/watchdog/sidecar/`, writes `compose.watchdog.yaml` overlay alongside the spec's compose, and brings the sidecar up. Operators emit incidents from the host app via the vendored `watchdog/emitter/` module — never call the sidecar directly. Per-spec caps (`daily_budget_usd`, `per_incident_budget_usd`, `daily_invocations_cap`, `deadman_timeout_seconds`, `auto_tier_b`, `propose_fix_prs`) belong in the spec's `watchdog:` block, not in epic tickets.]
 - [Opt-out: `watchdog: { enabled: false }` in the spec. Honored by both resolver and dispatch.]
 
+## Observability Defaults (always — per-scaffold matrix in `core/55-observability.md`)
+- [Universal category #8 — Observability. Per `core/55-observability.md § Per-Scaffold Observability Matrix`: structured logs (Python: structlog; Node: pino — no print/console.log), `/health` with real dep checks (`SELECT 1` on postgres, `PING` on redis — never a static 200), `/metrics` only when `shape.exposes_metrics: true` (Prometheus scrape via Traefik), GlitchTip DSN injected by the registrar at `fabrik apply` time (verify via `docker inspect <main> | grep SENTRY_DSN` per Lesson 31 — NEVER `docker exec printenv` because distroless images have no shell). Gatus uptime probe is registered automatically when `shape.is_public: true` AND `spec.domain` is set.]
+- [Per-epic tickets do NOT re-derive the matrix; they pick the row matching the epic's scaffold and inherit it.]
+
 ## Backing Services
 - [carried from Vision Summary — not re-derived]
 
