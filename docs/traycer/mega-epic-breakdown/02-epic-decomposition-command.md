@@ -239,6 +239,7 @@ Do NOT re-decide in epic-to-ticket-workflow. Do NOT copy into epic files.]
 
 ## External Services
 - [carried from Vision Summary — not re-derived]
+- **Universal category #5 — External integrations.** Each entry above MUST have a corresponding row in the consuming epic's `docs/RESILIENCE.md` per `core/58-resilience.md § Per-Project Contract` (timeout, retry, circuit-breaker, fallback, error classifier). The Universal Coverage Check in 2h verifies this; missing rows fail acceptance A1.
 
 ## Domain Structure
 - [URL routing, subdomains, path-based routing — whichever was decided]
