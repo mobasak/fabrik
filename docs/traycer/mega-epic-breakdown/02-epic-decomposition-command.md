@@ -235,6 +235,10 @@ Do NOT re-decide in epic-to-ticket-workflow. Do NOT copy into epic files.]
 ## Embedding Model (if RAG/search features exist)
 - [ONE model for the entire pipeline — both ingest and query. See `core/65-rag-search.md` § Embedding Models for current roster.]
 
+## Self-Healing Ladder (if `shape.kind` ∈ `{service, worker, wordpress}`)
+- [Universal category #6 — Self-healing. Each epic's `docs/RESILIENCE.md` carries one row per failure class drawn from `core/self-healing.md § The escalation ladder` (OOM, queue backlog, upstream rate-limit, upstream timeout, signup flood, DB connection-pool exhaustion, sustained 5xx burst, stuck row locks). Operators implement the ladder via the primitives already shipped in fabrik-lib (`pause-state/`, `async-http-client/circuit_breaker.py`, `abuse-prevention/`) plus Watchdog Tier A/B actions — this command does NOT design new primitives, only asserts coverage in 2h.]
+- [N/A for `static-site` / `docusaurus` / `chrome-extension` / `mobile-app` (packaged artefacts; no in-cluster failure classes to recover from).]
+
 ## Backing Services
 - [carried from Vision Summary — not re-derived]
 
