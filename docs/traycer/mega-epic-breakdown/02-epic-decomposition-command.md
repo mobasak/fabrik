@@ -285,6 +285,13 @@ Epic [N]: [Name]
   Delivers: [what the owner can see/use after this epic ships]
   Rule Packs: [IDs from .windsurf/rules/]
   HAS_USER_GUIDE: [true/false]
+  Shape: [flags from spec shape block: kind, needs_database, needs_cache, is_public, is_admin_dashboard, has_persistent_data, has_search_feature, exposes_metrics, watchdog.enabled]
+  Concurrency: [pause-state | adaptive-pool | none — derived from category 4 (Workers) coverage in 2h]
+  i18n: [en+tr | en-only | N/A — derived from saas overlay or kind]
+  Responsive: [375px–2560px mandatory | N/A — non-GUI scaffold]
+  Dark+Light: [mandatory | N/A — non-GUI scaffold]
+  Registrars: [which of the 9 fire for this epic's deploy unit(s) — derived from shape block + watchdog.enabled]
+  Universal categories: [comma-separated numbers from 1–14 this epic owns, per 2h verdict block]
 ```
 
 **2. Infrastructure Decisions** — the full document from Step 3.
