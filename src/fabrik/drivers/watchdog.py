@@ -267,7 +267,12 @@ class WatchdogDriver:
         with tarfile.open(tar_path, "w:gz") as tar:
             tar.add(str(local_ctx), arcname=rctx.project_id)
         remote_tar = f"{VPS_BUILD_ROOT}/{rctx.project_id}.tar.gz"
-        ssh(f"sudo mkdir -p {VPS_BUILD_ROOT}", timeout=15)
+        # /tmp is world-writable + sticky (1777); mkdir as the SSH user (no
+        # sudo) so the user can scp into the dir without permission denied.
+        # An earlier driver version used `sudo mkdir` which left the dir
+        # root-owned 755 — operator hit that on T-P5 Step 5 2026-06-03;
+        # fixed in fabrik:HEAD + one-time hub cleanup at apply time.
+        ssh(f"mkdir -p {VPS_BUILD_ROOT}", timeout=15)
         scp_to_vps(str(tar_path), remote_tar)
         ssh(f"sudo tar -xzf {remote_tar} -C {VPS_BUILD_ROOT} && sudo rm {remote_tar}", timeout=60)
         # 5. docker build. Cache-friendly: rebuilds only invalidated layers.
