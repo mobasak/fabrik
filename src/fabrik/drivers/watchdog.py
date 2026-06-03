@@ -278,7 +278,11 @@ class WatchdogDriver:
         # 5. docker build. Cache-friendly: rebuilds only invalidated layers.
         build_cmd = (
             f"cd {VPS_BUILD_ROOT}/{rctx.project_id} && "
-            f"sudo docker build -t {rctx.image_tag} . 2>&1 | tail -50"
+            # NO `| tail -N` — that masks the docker build's exit code with
+            # tail's-always-zero. Without pipefail (off by default), a build
+            # failure passes silently and the driver thinks success.
+            # If output volume is a concern, trim Python-side after the call.
+            f"sudo docker build -t {rctx.image_tag} . 2>&1"
         )
         logger.info("watchdog: building %s on VPS (may take ~3min cold, ~5s warm)", rctx.image_tag)
         ssh(build_cmd, timeout=600)
@@ -394,7 +398,8 @@ class WatchdogDriver:
         cmd = (
             f"cd {self._compose_dir(rctx)} && "
             f"sudo docker compose -f compose.yaml -f compose.watchdog.yaml "
-            f"up -d watchdog 2>&1 | tail -20"
+            # NO `| tail -N` (same trap as _build_image — masks exit code).
+            f"up -d watchdog 2>&1"
         )
         ssh(cmd, timeout=120)
         # Verify the container is alive (not just `up`d).
