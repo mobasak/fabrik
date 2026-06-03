@@ -359,6 +359,12 @@ After T-P5 close:
 
 **Ready for T-P5 execution after the § 14 driver fix lands.**
 
+### 11b. Operator-side notes captured 2026-06-03 (post-r1)
+
+- **OpenRouter key landed in `/opt/fabrik/.env`** (mode 600, gitignored). DR mirror caught it in commit `b8615b3` of `mobasak/fabrik-dr-store` at 18:13 local 2026-06-03. **Correction to my earlier flag:** the systemd inotify watcher `fabrik-dr-watcher.service` IS installed — at the **system** level (`/etc/systemd/system/fabrik-dr-watcher.service`), `Active: active (running) since Mon 2026-06-01 03:04:04 +03`. My initial `systemctl --user` probe queried the wrong scope and falsely reported "not-found". `credential-recovery.md` § Mirror paths is correct; memory is correct. No fix needed — DR mirror is fully operational.
+- **Claude Code `--effort` switched from `low` (Haiku-class) to `high` (Opus-class)** per operator preference: "first choice is always opus from claude code". Affects every watchdog sidecar built from `fabrik-lib` commit `53ba976` forward. Subscription burn ~10× higher per diagnosis call, but smarter diagnoses are preferable for operational actions. OpenRouter fallback path unchanged.
+- **Claude Code on spokes** — vps2 + vps3 have NO `claude-code` CLI installed. The current T-P5 target spec (`watchdog-test.yaml`, `target_vps: vps1`) is unaffected. Future watchdog-enabled specs targeted at spokes would need one of: (a) install `claude-code` on the spoke during `bootstrap-vps.sh` (~1 hour install + verify; would land as a small follow-up ticket), (b) accept that spoke-watchdog sidecars fall straight through to OpenRouter (sets `WATCHDOG_LLM_PRIMARY=openrouter` in the spec), or (c) bind-mount the hub's `claude-code` over the mesh (operationally fragile — not recommended). **Deferred until a real spoke-targeted watchdog spec is staged**; reopens at that point.
+
 ---
 
 ## 12. Side findings (META-RULE 4 — flagged, NOT fixed)
