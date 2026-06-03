@@ -107,6 +107,7 @@ Epic N — [Name]
 - Rule Packs: [IDs]
 - HAS_USER_GUIDE: [true/false]
 - Registrars: [which of the 9 fire for this epic's deploy unit(s)]
+- Universal categories: [comma-separated numbers from 1–14 this epic owns; copied verbatim from the per-epic compact entry produced by `02-epic-decomposition-command` sub-step 2h]
 
 ### Infrastructure
 Inherited from Infrastructure Decisions spec (do not duplicate here).
