@@ -711,7 +711,7 @@ End-to-end wire-up verified via the `spec_loader.load_spec` → `resolve_applica
 
 Default applicability: `WatchdogConfig.enabled` defaults to True, so every spec gets a sidecar unless the operator sets `watchdog: { enabled: false }`. Shape-kind-driven recommendation (operator discipline, NOT encoded in the registrar) lives in [`.windsurf/rules/core/60-watchdog.md`](../../.windsurf/rules/core/60-watchdog.md) — on for `service`/`worker`/`wordpress`; off for `static-site`/`docusaurus`. Hub-side P1 plumbing (`fabrik_analytics` DB + `cost_ledger` table) is live and consumed by the sidecar's vendored `cost_budget.py`.
 
-**Next phase: T-P3** — self-healing synthesis (1 day per parent plan, no subplan needed). Parent plan: [`2026-05-30-ai-watchdog-platform.md`](../development/plans/2026-05-30-ai-watchdog-platform.md).
+**Phases shipped 2026-06-03:** T-P3 (`core/self-healing.md` rule pack — 8-row escalation ladder + 5 anti-patterns + signup-flood worked example) and T-P4 (universal-coverage overlay into `docs/traycer/mega-epic-breakdown/02-epic-decomposition-command.md` via 12 surgical edits totaling ~84 lines, plus 1-line sync to `03-expand-epic-files-command.md`'s Metadata block). Both subplans archived. **Next phase: T-P5** — dogfood E2E (3 days, no subplan needed per parent plan): build per-project sidecar image, inject overlay, fire fake incident from emitter, verify diagnose→act→record loop end-to-end. Parent plan: [`2026-05-30-ai-watchdog-platform.md`](../development/plans/2026-05-30-ai-watchdog-platform.md).
 
 ---
 
