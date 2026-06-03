@@ -43,6 +43,7 @@ ALLOWED_NEW_DOCS_SCAFFOLD = frozenset(
         "docs/QUICKSTART.md",
         "docs/CONFIGURATION.md",
         "docs/TROUBLESHOOTING.md",
+        "docs/SERVICES.md",
         "docs/BUSINESS_MODEL.md",
         "docs/FEATURES.md",
         "docs/development/PLANS.md",
