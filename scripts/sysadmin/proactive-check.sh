@@ -198,16 +198,38 @@ if [ -e /etc/wireguard/wg0.conf ] && sudo wg show wg0 >/dev/null 2>&1; then
     done < <(sudo wg show wg0 latest-handshakes 2>/dev/null)
 fi
 
-# ── aro-wake health (trio plan §3.4 — push-trigger service per host) ──────
+# ── aro-wake health (trio plan §3 — push-trigger service per host) ───────
 #
 # aro-wake is the push-trigger entry point: Alertmanager webhook + peer
 # consult land here. If it's down, peers can't reach us and Alertmanager
 # rules fall through to telegram_configs (the existing fallback). Both
 # safe; both visible to operator. But we want to know.
-ARO_WAKE_HOST="${SYSADMIN_HOST_IP:-127.0.0.1}"
+#
+# Source of SYSADMIN_HOST_IP: aro-wake binds the host's wg0 mesh IP
+# (10.99.0.<N>), NOT loopback. Cron runs as root with a minimal env, so
+# the systemd Environment= we set on vps-sysadmin-bot.service doesn't
+# propagate here. Load .env.sysadmin (created by bootstrap step_14)
+# directly. On dev WSL or pre-step_14 hosts the file is absent — we
+# fall back to deriving the wg0 IP from `wg show` so the check still
+# works pre-bootstrap; only if BOTH fail do we default to 127.0.0.1
+# (which will mis-flag aro-wake as down, but that's a true positive
+# since aro-wake isn't enabled in that case).
+if [ -r /opt/fabrik/.env.sysadmin ]; then
+    # shellcheck disable=SC1091
+    set -a; . /opt/fabrik/.env.sysadmin 2>/dev/null; set +a
+fi
+ARO_WAKE_HOST="${SYSADMIN_HOST_IP:-}"
+if [ -z "${ARO_WAKE_HOST}" ]; then
+    # Derive the wg0 IP from `ip addr` — works on pre-bootstrap hosts that
+    # don't have /opt/fabrik/.env.sysadmin yet. Returns empty on dev WSL
+    # (no wg0 interface); we then fall through to 127.0.0.1.
+    ARO_WAKE_HOST=$(ip -4 -o addr show wg0 2>/dev/null \
+        | awk '{print $4}' | cut -d/ -f1 | head -1)
+fi
+ARO_WAKE_HOST="${ARO_WAKE_HOST:-127.0.0.1}"
 if systemctl is-enabled --quiet aro-wake.service 2>/dev/null; then
     if ! curl -sf --max-time 5 "http://${ARO_WAKE_HOST}:8201/health" >/dev/null 2>&1; then
-        ANOMALIES+="aro_wake_unhealthy "
+        ANOMALIES+="aro_wake_unhealthy[${ARO_WAKE_HOST}] "
     fi
 fi
 

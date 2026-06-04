@@ -4,6 +4,118 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Trio Phase 1+2+3 fourth + fifth deep review passes: plan/code reconciliation + bootstrap idempotency + proactive-check env loading + dead-code cleanup (2026-06-04 evening, batches 4+5)
+
+Two more review passes after batch 3 (`cb153f8`). Operator's "iterate
+your reviews to reach full alignment" instruction — each pass surfacing
+a different class of issue until the reviews converge to zero new
+findings. Batches 4+5 closed 5 code bugs + 3 plan/code drift items;
+batch 5 (a self-review of batch 4) found 1 dead-code defect introduced
+during batch 4 itself and zero other new issues — at convergence the
+plan + code + docs are now consistent.
+
+Pass 4 findings + fixes
+-----------------------
+
+1. CRITICAL: step_14 + step_15 `cp -R src dst` nests on re-run
+
+   `sudo cp -R /tmp/sysadmin /opt/fabrik/scripts/sysadmin` — if dst
+   exists (which it WILL on the hub since we ship from there, and on
+   any re-bootstrap of an existing spoke) cp puts src INSIDE dst,
+   creating `/opt/fabrik/scripts/sysadmin/sysadmin/...`. First install
+   works; idempotent re-run creates a garbage tree.
+
+   FIX: switched both step_14 and step_15 to `rsync -a --delete src/ dst/`
+   form (trailing slashes; --delete removes stale files so prior-version
+   scripts don't linger). Verified rsync is default-installed on Ubuntu
+   24.04 (`dpkg -l rsync` shows ii on vps1).
+
+2. proactive-check.sh `aro_wake_unhealthy` false positive
+
+   The aro-wake health check used `${SYSADMIN_HOST_IP:-127.0.0.1}` but
+   proactive-check is cron-fired as root with a minimal environment —
+   SYSADMIN_HOST_IP is unset, fallback to 127.0.0.1, curl hits loopback,
+   but aro-wake binds the mesh IP. Operator would get a spurious
+   `aro_wake_unhealthy` anomaly every 15 minutes once aro-wake is
+   enabled.
+
+   FIX: load /opt/fabrik/.env.sysadmin at script start
+   (`set -a; . file 2>/dev/null; set +a`) — gives proactive-check the
+   correct SYSADMIN_HOST_IP. Fall back to deriving the wg0 IP from
+   `ip -4 -o addr show wg0` for pre-bootstrap hosts that don't have
+   the env file yet. Only default to 127.0.0.1 if BOTH fail — in which
+   case aro-wake isn't enabled either, so the alert IS a true positive
+   (the check is now self-consistent).
+
+3. Trio plan §3.1 + §1.7.1 said aro-wake deploy is Docker Compose at
+   `/opt/aro-wake/` bound to `127.0.0.1+10.99.0.<host>:8201`. Shipped
+   code is systemd-managed at `/opt/fabrik/scripts/aro-wake/` with venv
+   at `/opt/fabrik/.venv-aro-wake/` bound to `10.99.0.<host>:8201` only
+   (mesh-only).
+
+   Each shipped choice solved a real problem (Docker Compose adds the
+   sandbox + OAuth complexity surface that T-P5 dogfood spent half a
+   day debugging; systemd matches the production pattern from
+   vps-sysadmin-bot.service since 2026-05-20; multi-IP binding adds
+   complexity without proxy and isn't needed since the host can self-
+   probe via its own mesh IP).
+
+   FIX: updated §3.1 to reflect shipped reality with explicit "r8"
+   tag + preserved the r1 design rationale in §11 r8 entry for
+   traceability. §1.7.1 ASCII diagram bind line corrected from
+   "127.0.0.1+10.99.0.N:8201" to "10.99.0.N:8201 (mesh-only)".
+
+Pass 5 findings + fixes (self-review of pass 4)
+-----------------------------------------------
+
+4. Dead code introduced in pass 4 proactive-check.sh edit
+
+   I added a fallback chain in pass 4:
+     if [ -z "${ARO_WAKE_HOST}" ] && command -v wg ...; then
+         ARO_WAKE_HOST=$(sudo wg show wg0 ... | awk '... END{}' || true)
+         # Cheaper + more reliable: read from ip addr
+         ARO_WAKE_HOST=$(ip -4 -o addr show wg0 ...)
+     fi
+
+   The first awk block has `END{}` with no action — returns empty.
+   The second assignment unconditionally overrides it. Dead code.
+
+   FIX: removed the awk block; kept only the `ip -4 -o addr show wg0`
+   path which returns 10.99.0.1 on vps1 (verified) and empty on dev
+   WSL (also verified — falls through to 127.0.0.1 correctly).
+
+Pass 5 self-review found zero other new issues. Verified:
+  - No 8002 stragglers anywhere in code (port collision class is fully
+    resolved)
+  - No PEER_HOSTS_JSON stragglers (CSV migration is complete)
+  - FastAPI lifespan handler in place; on_event deprecation gone
+  - Bash syntax clean for bootstrap + proactive-check
+  - daily-digest.sh runs cleanly on dev WSL (smoke test passes;
+    fields populate with sane "not configured" / "MISSING" status
+    indicators where the dev WSL lacks the live pieces)
+  - Trio plan §1.7.1 ASCII diagram line 115 matches shipped binding
+  - Trio plan §3.1 r8 update preserves original r1 intent in the
+    iteration ledger
+
+Trio plan iteration ledger advanced
+-----------------------------------
+
+§11 gains r8 entry documenting:
+
+  - 3 plan/code drift items: path, deploy shape, binding
+  - 4 code bugs from pass 4+5: cp -R nesting (×2), env loading, dead
+    code (note: numbered 39-44 in r8 for clarity; #41 covered both
+    step_14 + step_15 nesting)
+  - "Convergence verdict at r8: the plan now matches the shipped code
+    in path, deploy shape, and binding. The shipped code is idempotent
+    + free of false-positive monitoring on aro-wake."
+
+Today: 8 plan revisions + 8 git commits + 0 production regressions.
+The "iterate until convergence" pattern reached a stable state at r8
+plus this commit's pass 5.
+
+Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>
+
 ### Fixed — Trio Phase 1+2+3 third deep review pass: systemd-strips-JSON-quotes + session-id-from-envelope + lock-skip + list-envelope + keepalive-log-perms (2026-06-04 evening, batch 3)
 
 User asked for a third deep review pass after batches 1 (commit `6d65606`)

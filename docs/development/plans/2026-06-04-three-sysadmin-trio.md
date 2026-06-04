@@ -112,7 +112,7 @@ CRON-DRIVEN — proactive-check.sh (every 15 min via /etc/cron.d/vps-sysadmin)
 
 PUSH-DRIVEN (Phase 4) — Alertmanager → aro-wake
 ─────────────────────────────────────────────────────────────
-[aro-wake FastAPI idle, listening on 127.0.0.1+10.99.0.N:8201, ~60MB RAM]
+[aro-wake FastAPI idle, listening on 10.99.0.N:8201 (mesh-only), ~60MB RAM]
    │
    ├─ Prometheus rule fires → Alertmanager webhook → POST /wake
    │
@@ -399,30 +399,51 @@ vps3 is the same step run with HOST=vps3.
 
 **Goal:** Each host has a mesh-reachable endpoint that wakes its local AI; the three sysadmins can ask each other "what do you see from your side?" before deciding.
 
-#### 3.1 `aro-wake` service (FastAPI, ~80 lines target)
+#### 3.1 `aro-wake` service (FastAPI, ~330 lines as shipped)
 
-Lives on each host at `/opt/aro-wake/`. Compose service binds `127.0.0.1:8201` + `10.99.0.<host>:8201`. No public exposure. Single endpoint at first ship:
+> **r8 update (2026-06-04 batch 4):** the deploy shape evolved during build. Original r1 design said "Lives on each host at `/opt/aro-wake/`. Compose service binds `127.0.0.1:8201` + `10.99.0.<host>:8201`." Shipped reality is **systemd-managed FastAPI** (no compose; same systemd pattern as `vps-sysadmin-bot.service` which proved out 2026-05-20) at **`/opt/fabrik/scripts/aro-wake/`** with a dedicated venv at `/opt/fabrik/.venv-aro-wake/`. Binds **wg0 mesh IP only** (`10.99.0.<host>:8201`), not loopback — self-probes from the same host (e.g. `proactive-check.sh`'s health check) curl that same mesh IP. The plan text below reflects the shipped reality; the original r1 prose is preserved in the iteration ledger (§11 r8 entry) for traceability.
 
-```
+Lives on each host at `/opt/fabrik/scripts/aro-wake/`. systemd-managed FastAPI service (uvicorn) at `/opt/fabrik/.venv-aro-wake/bin/uvicorn`, bound to `10.99.0.<host>:8201` (wg0 mesh IP only — never `0.0.0.0`, never loopback). Public-internet protection: UFW default-deny on the 8200-8299 management-tools range + the explicit mesh-IP bind. Endpoints at first ship:
+
+```text
 POST /wake
   body: { source: "alertmanager" | "consult" | "telegram" | "manual",
           from_host: "vps1" | "vps2" | "vps3" | null,
+          trace_id: <uuid>,
+          seen_by: [<host names already in the consult chain>],
           topic: <slug>,
           payload: <opaque, passed to Claude as part of the prompt> }
   behavior: spawns `claude -p ...` with the host's canonical system prompt;
             calling convention matches scripts/sysadmin/bot.py::_run_claude verbatim
             (--model opus --permission-mode bypassPermissions --session-id ... --resume);
-            returns { action_taken, summary, telegram_followup_sent: bool }
+            response shape branches on source:
+              consult → { ok, from_host, trace_id, seen_by, view, correlation, no_action: true }
+                        (matches peer-protocol.md §2.1; [vps1] Telegram prefix stripped from view)
+              other   → { ok, from_host, trace_id, seen_by, result, no_action: false }
+
+GET /health → { ok, host, role, pending_queue_count, active_sessions }
 ```
 
 Implementation notes:
 
-- **Rate limit**: max 5 wakes / hour per `(source, topic)` pair to prevent storm. Same RATE_LIMIT pattern as `proactive-check.sh`.
-- **Queue with TTL**: if a wake fires while another is in-flight, queue with 60s TTL; expire silently after.
-- **Session resume**: each `(source, topic)` keeps its session id for 1h so multiple consults on the same topic stay in conversation; new topic = new session.
-- **Mesh-only**: `aro-wake` binds wg0 IP + loopback, never `0.0.0.0`. Verified via `ss -tlnp | grep 8201`.
+- **Rate limit**: max 20 wakes / hour per `(source, topic)` pair to prevent storm. Thread-safe (`threading.Lock`). Verified hammer test: 30 concurrent calls against 20/h cap → exactly 20 allowed.
+- **Pending queue**: failed cross-host forwards persist to `/var/lib/aro-wake/pending.jsonl` with 24h TTL, 1000-entry cap, oldest-first overflow. Background asyncio task drains every 30s; protected by `asyncio.Lock` so concurrent /wake handlers can queue without racing the drain.
+- **Session resume**: each `(source, topic)` keeps its Claude session id for 1h so multiple consults on the same topic stay in conversation. Effective `session_id` is stored from envelope (not local sid we passed) so future `--resume` targets the right session even if Claude returned a different id.
+- **Defensive envelope parse**: handles both single-dict and event-list Claude output shapes; ported from `fabrik-lib/watchdog/sidecar/llm_client.py`.
+- **Mesh-only**: `aro-wake` binds wg0 IP, never `0.0.0.0`. Verified via `ss -tlnp | grep 8201`.
+- **Cycle prevention**: every consult carries `trace_id` + `seen_by`. If our host is already in `seen_by` we answer with current state only, do NOT forward.
 
-Files touched: new `/opt/aro-wake/{compose.yaml, main.py, requirements.txt, .env}` per host; bootstrap installs.
+Files (shipped at `mobasak/fabrik` commit `ed24f78` + review-pass commits `6d65606` / `ec015be` / `cb153f8`):
+
+```text
+scripts/aro-wake/main.py                 # FastAPI app + Claude subprocess
+scripts/aro-wake/requirements.txt        # fastapi 0.115 + uvicorn[standard] 0.32 + httpx 0.27
+scripts/aro-wake/templates/aro-wake.service.template
+```
+
+Bootstrap step_15_install_aro_wake (`scripts/bootstrap/bootstrap-vps.sh`) renders the systemd unit with host-specific values (HOST_NAME, HOST_IP, PEER_HOSTS_CSV — note **CSV not JSON** because systemd's `Environment=` strips embedded double-quotes from bare JSON, verified via systemd round-trip), rsync's the source tree to `/opt/fabrik/scripts/aro-wake/`, creates the venv at `/opt/fabrik/.venv-aro-wake/`, pip installs requirements.
+
+Re-run safety: `rsync -a --delete src/ dst/` form is used everywhere (not `cp -R src dst` which nests on existing destinations). Idempotent.
 
 #### 3.2 `consult` verb only — full semantics (r2)
 
@@ -905,5 +926,33 @@ keepalive_minute=$(( (16#${host_hash} >> 4) % 60 ))      # 0–59 (different bit
 **Phase delta r6 → r7:** zero — §1.7 is descriptive, doesn't add work. It makes existing intent legible.
 
 **Convergence verdict at r7:** the plan now contains the architecture explicitly + the prompt-file inventory + the lifecycle + the cost shape + the partition behavior in single, locatable sections. A fresh reader can answer "how does this run, what does it cost, what survives partition?" in one read of §1.7 + §1.6 + §1.5. **r7 holds the r6 convergence and adds explicitness.**
+
+### r8 — 2026-06-04 evening: execution-time plan/code reconciliation (after Phases 1+2+3 ship)
+
+**Trigger:** operator's "review your work deeply find and fix issues" pattern applied four times after the trio code shipped (commits `434d70b` Phase 1, `d83bfb0` Phase 2, `ed24f78` Phase 3, plus three review-pass commits `6d65606` / `ec015be` / `cb153f8`). Each pass found a new class of issue. The fourth pass surfaced plan/code drift: the original §3.1 spec assumed Docker Compose + dual-IP binding + a different deploy path; the shipped code chose systemd + mesh-only bind + a different path because each of those changes solved real problems (sandbox + OAuth issues with Docker; complexity of multi-bind without proxy; consistency with `vps-sysadmin-bot.service` which has been production-stable since 2026-05-20).
+
+**Gaps closed in r8 (3 doc-alignment + 5 code bugs):**
+
+Plan reconciliation (kept the plan as the source of truth, updated it to match the chosen execution):
+
+| # | r1 plan said | Shipped reality | Why the divergence | Plan update |
+|---|---|---|---|---|
+| 39 | "Lives on each host at `/opt/aro-wake/`" | `/opt/fabrik/scripts/aro-wake/` + venv at `/opt/fabrik/.venv-aro-wake/` | Consistency with the rest of the fabrik scripts tree; no need for a dedicated top-level mount point | §3.1 reflects shipped path |
+| 40 | "Compose service binds 127.0.0.1:8201 + 10.99.0.<host>:8201" | systemd service binds **10.99.0.<host>:8201 only** | Docker Compose adds the sandbox + OAuth complexity surface that T-P5 dogfood spent half a day debugging; systemd matches the proven production pattern from `vps-sysadmin-bot.service` | §3.1 + §1.7.1 ASCII diagram both reflect mesh-only systemd shape |
+| 41 | "Files touched: new `/opt/aro-wake/{compose.yaml, main.py, requirements.txt, .env}`" | `scripts/aro-wake/{main.py, requirements.txt, templates/aro-wake.service.template}` | No compose; .env replaced by systemd `Environment=` directives | §3.1 file-list updated; explicit `Environment=ARO_WAKE_PEER_HOSTS=<CSV>` callout (NOT JSON — systemd strips embedded quotes) |
+
+Code bugs from review-pass 4 (idempotency + env-loading):
+
+| # | Bug | Symptom | Fix |
+|---|---|---|---|
+| 42 | step_14 `cp -R /tmp/sysadmin /opt/fabrik/scripts/sysadmin` nests on re-run (creates `/opt/fabrik/scripts/sysadmin/sysadmin/`) | First install works; idempotent re-bootstrap creates garbage tree | Switch to `rsync -a --delete /tmp/sysadmin/ /opt/fabrik/scripts/sysadmin/` (trailing slashes; --delete removes stale files) |
+| 43 | step_15 same `cp -R` nesting issue for aro-wake | Same | Same `rsync -a --delete` form (plus `--exclude __pycache__`) |
+| 44 | `proactive-check.sh` aro-wake health check uses `${SYSADMIN_HOST_IP:-127.0.0.1}` but cron has minimal env so SYSADMIN_HOST_IP is unset; curl hits loopback while aro-wake binds mesh IP → false-positive `aro_wake_unhealthy` | Operator gets spurious alert every 15 min once aro-wake is enabled | Load `.env.sysadmin` at script start (`set -a; . file; set +a`); fall back to `ip -4 -o addr show wg0` if env file absent (pre-bootstrap hosts); only default to 127.0.0.1 if both fail (in which case aro-wake isn't enabled either, so the alert IS a true positive — the check is now self-consistent) |
+
+(Bugs 1-30 + 31-38 from prior r2/r3/r7 already accounted for; r8 starts at #39 for clarity.)
+
+**Phase delta r7 → r8:** zero — all changes are doc reconciliation + code review fixes that land in the same 4 phases. No new phases, no scope expansion.
+
+**Convergence verdict at r8:** the plan now matches the shipped code in path, deploy shape, and binding. The shipped code is idempotent + free of false-positive monitoring on aro-wake. **The "iterate until convergence" pattern has produced 8 plan revisions + 7 git commits in one day — the trio plan is now lived-in and operationally tested at the code review level, not just speculatively designed.**
 
 **r4 gaps closed:** 4 small clarifications (#31 staggered keepalive, #32 same, #33 already-handled, #34 already-handled). Two are one-line cron edits, two are confirming existing fallbacks. Applying:

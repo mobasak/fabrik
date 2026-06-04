@@ -866,8 +866,13 @@ step_14_install_sysadmin_pack() {
               "${tmpdir}/sysadmin" \
         "${EFFECTIVE_REMOTE}:/tmp/"
 
-    remote "sudo mkdir -p /opt/fabrik/scripts /opt/fabrik/logs /var/log && \
-        sudo cp -R /tmp/sysadmin /opt/fabrik/scripts/sysadmin && \
+    # Idempotency note: `cp -R src dst` nests when dst exists (creates
+    # dst/src/...). Using `rsync -a src/ dst/` with trailing slashes is the
+    # canonical safe form — merges contents, --delete removes stale files.
+    # Without --delete a second `step_14` after a sysadmin-script removal
+    # would leave the deleted file in place; we use --delete here.
+    remote "sudo mkdir -p /opt/fabrik/scripts/sysadmin /opt/fabrik/logs /var/log && \
+        sudo rsync -a --delete /tmp/sysadmin/ /opt/fabrik/scripts/sysadmin/ && \
         sudo chown -R ozgur:ozgur /opt/fabrik/scripts/sysadmin && \
         sudo chmod 755 /opt/fabrik/scripts/sysadmin/*.sh /opt/fabrik/scripts/sysadmin/bot.py 2>/dev/null || true && \
         sudo install -m 644 -o root -g root /tmp/vps-sysadmin-bot.service /etc/systemd/system/vps-sysadmin-bot.service && \
@@ -961,8 +966,10 @@ step_15_install_aro_wake() {
               "${tmpdir}/aro-wake" \
         "${EFFECTIVE_REMOTE}:/tmp/"
 
-    remote 'sudo mkdir -p /opt/fabrik/scripts /opt/fabrik /var/lib/aro-wake && \
-        sudo cp -R /tmp/aro-wake /opt/fabrik/scripts/aro-wake && \
+    # Idempotency: use rsync -a --delete to merge src/ → dst/ cleanly on
+    # re-runs (avoids the cp -R nesting trap when dst already exists).
+    remote 'sudo mkdir -p /opt/fabrik/scripts/aro-wake /var/lib/aro-wake && \
+        sudo rsync -a --delete --exclude __pycache__ /tmp/aro-wake/ /opt/fabrik/scripts/aro-wake/ && \
         sudo chown -R ozgur:ozgur /opt/fabrik/scripts/aro-wake && \
         sudo chmod 755 /opt/fabrik/scripts/aro-wake && \
         sudo chown ozgur:ozgur /var/lib/aro-wake && \
