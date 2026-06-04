@@ -1,0 +1,37 @@
+[Unit]
+Description=aro-wake — push-trigger entry point for the {{HOST_NAME}} sysadmin AI
+After=network.target wg-quick@wg0.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ozgur
+WorkingDirectory=/opt/fabrik/scripts/aro-wake
+ExecStart=/opt/fabrik/.venv-aro-wake/bin/uvicorn main:app \
+    --host {{BIND_HOST}} \
+    --port 8002 \
+    --no-access-log
+Restart=always
+RestartSec=10
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+# Host identity passed to main.py via env
+Environment=ARO_WAKE_HOST_NAME={{HOST_NAME}}
+Environment=ARO_WAKE_HOST_ROLE={{HOST_ROLE}}
+Environment=ARO_WAKE_HOST_IP={{HOST_IP}}
+Environment=ARO_WAKE_PEER_HOSTS={{PEER_HOSTS_JSON}}
+Environment=CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
+
+# Loopback + mesh-IP bind; never 0.0.0.0. Public-internet protection is
+# defense-in-depth via UFW (rejects :8002 by default) + the wg0 binding.
+# To allow peers to call in, the systemd unit binds on the mesh IP; to
+# allow local probes, also on loopback. ExecStart above uses {{BIND_HOST}}
+# which is rendered at bootstrap time to the mesh IP only — operators on
+# the host who want to curl from loopback can ssh-tunnel or use the mesh IP.
+
+StandardOutput=append:/var/log/aro-wake.log
+StandardError=append:/var/log/aro-wake.log
+
+[Install]
+WantedBy=multi-user.target

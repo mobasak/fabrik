@@ -906,6 +906,78 @@ step_14_install_sysadmin_pack() {
     log "    cron slots assigned for ${SPOKE_NAME}: digest=09:${digest_minute} UTC, keepalive=:${keepalive_minute} hourly"
 }
 
+step_15_install_aro_wake() {
+    # Trio plan Phase 3 (2026-06-04). aro-wake is the push-trigger entry
+    # point for this host's sysadmin AI — a tiny FastAPI service that
+    # receives consult/wake calls (over wg0 mesh from peers, or locally
+    # from Alertmanager in Phase 4), spawns Claude via the same calling
+    # convention as bot.py + llm_client.py, and returns the result.
+    #
+    # Bound to the host's mesh IP only (never 0.0.0.0). Peers reach it at
+    # http://10.99.0.<N>:8002/wake. systemd-managed, Restart=always.
+    log "step 15: install aro-wake push-trigger service (peer consult endpoint)"
+    if $DRY_RUN; then
+        dim "    [dry-run] would scp aro-wake source + create venv + render systemd unit"
+        return 0
+    fi
+
+    # Resolve peer hosts as JSON for the ARO_WAKE_PEER_HOSTS env var.
+    local peer_hosts_json
+    case "${SPOKE_NAME}" in
+        vps2) peer_hosts_json='{"vps1":"'${FABRIK_WG_HUB_IP}'","vps3":"10.99.0.3"}' ;;
+        vps3) peer_hosts_json='{"vps1":"'${FABRIK_WG_HUB_IP}'","vps2":"10.99.0.2"}' ;;
+        *)    peer_hosts_json='{}' ;;
+    esac
+
+    local tmpdir
+    tmpdir=$(mktemp -d -t fabrik-aro-wake-XXXX)
+    trap "rm -rf '$tmpdir'" RETURN
+
+    # Render systemd unit
+    sed \
+        -e "s|{{HOST_NAME}}|${SPOKE_NAME}|g" \
+        -e "s|{{HOST_ROLE}}|spoke|g" \
+        -e "s|{{HOST_IP}}|${SPOKE_MESH_IP}|g" \
+        -e "s|{{BIND_HOST}}|${SPOKE_MESH_IP}|g" \
+        -e "s|{{PEER_HOSTS_JSON}}|${peer_hosts_json}|g" \
+        "${SCRIPT_DIR}/../aro-wake/templates/aro-wake.service.template" \
+        > "${tmpdir}/aro-wake.service"
+
+    # Ship the aro-wake source tree (excluding the templates subdir; the
+    # rendered unit is the only template artifact that lands on the spoke).
+    rsync -a --exclude __pycache__ --exclude '*.pyc' --exclude templates \
+        "${SCRIPT_DIR}/../aro-wake/" \
+        "${tmpdir}/aro-wake/"
+
+    scp -q -r "${tmpdir}/aro-wake.service" \
+              "${tmpdir}/aro-wake" \
+        "${EFFECTIVE_REMOTE}:/tmp/"
+
+    remote 'sudo mkdir -p /opt/fabrik/scripts /opt/fabrik /var/lib/aro-wake && \
+        sudo cp -R /tmp/aro-wake /opt/fabrik/scripts/aro-wake && \
+        sudo chown -R ozgur:ozgur /opt/fabrik/scripts/aro-wake && \
+        sudo chmod 755 /opt/fabrik/scripts/aro-wake && \
+        sudo chown ozgur:ozgur /var/lib/aro-wake && \
+        sudo chmod 750 /var/lib/aro-wake && \
+        \
+        if [ ! -d /opt/fabrik/.venv-aro-wake ]; then \
+            sudo -u ozgur python3 -m venv /opt/fabrik/.venv-aro-wake; \
+        fi && \
+        sudo -u ozgur /opt/fabrik/.venv-aro-wake/bin/pip install --quiet --upgrade pip && \
+        sudo -u ozgur /opt/fabrik/.venv-aro-wake/bin/pip install --quiet -r /opt/fabrik/scripts/aro-wake/requirements.txt && \
+        \
+        sudo install -m 644 -o root -g root /tmp/aro-wake.service /etc/systemd/system/aro-wake.service && \
+        sudo touch /var/log/aro-wake.log && \
+        sudo chown ozgur:ozgur /var/log/aro-wake.log && \
+        sudo systemctl daemon-reload && \
+        rm -rf /tmp/aro-wake /tmp/aro-wake.service'
+
+    remote 'systemctl cat aro-wake.service >/dev/null && echo "unit installed OK"; \
+        ls -la /opt/fabrik/scripts/aro-wake/main.py /opt/fabrik/.venv-aro-wake/bin/uvicorn 2>&1 | head -3'
+
+    ok "step 15 done — aro-wake installed; enable + verify with: sudo systemctl enable --now aro-wake.service && curl http://${SPOKE_MESH_IP}:8002/health"
+}
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
@@ -943,6 +1015,7 @@ main() {
     step_12_install_spoke_traefik
     step_13_create_dns_records
     step_14_install_sysadmin_pack
+    step_15_install_aro_wake
 
     echo
     ok "bootstrap complete for ${SPOKE_NAME}"
@@ -952,8 +1025,9 @@ main() {
     log "manual finish required (operator action, can't be automated):"
     log "    1. fill in TELEGRAM_BOT_TOKEN + TELEGRAM_OWNER_ID in /opt/fabrik/.env.sysadmin"
     log "    2. ssh ${SPOKE_NAME} 'claude' on the spoke (device-flow OAuth handshake)"
-    log "    3. ssh ${SPOKE_NAME} 'sudo systemctl enable --now vps-sysadmin-bot.service'"
+    log "    3. ssh ${SPOKE_NAME} 'sudo systemctl enable --now vps-sysadmin-bot.service aro-wake.service'"
     log "    4. send a test Telegram message; expect a [${SPOKE_NAME}] reply"
+    log "    5. from the hub, curl http://10.99.0.\${spoke_ip_last_octet}:8002/health → expect 200"
 }
 
 main "$@"

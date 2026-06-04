@@ -198,6 +198,19 @@ if [ -e /etc/wireguard/wg0.conf ] && sudo wg show wg0 >/dev/null 2>&1; then
     done < <(sudo wg show wg0 latest-handshakes 2>/dev/null)
 fi
 
+# ── aro-wake health (trio plan §3.4 — push-trigger service per host) ──────
+#
+# aro-wake is the push-trigger entry point: Alertmanager webhook + peer
+# consult land here. If it's down, peers can't reach us and Alertmanager
+# rules fall through to telegram_configs (the existing fallback). Both
+# safe; both visible to operator. But we want to know.
+ARO_WAKE_HOST="${SYSADMIN_HOST_IP:-127.0.0.1}"
+if systemctl is-enabled --quiet aro-wake.service 2>/dev/null; then
+    if ! curl -sf --max-time 5 "http://${ARO_WAKE_HOST}:8002/health" >/dev/null 2>&1; then
+        ANOMALIES+="aro_wake_unhealthy "
+    fi
+fi
+
 # ── OAuth keepalive heartbeat (trio plan §2.5 + Lesson 75) ────────────────
 #
 # /etc/cron.d/vps-sysadmin runs `claude -p "ping" > /var/log/claude-keepalive.log`
