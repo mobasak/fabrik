@@ -16,11 +16,15 @@ RestartSec=10
 StartLimitIntervalSec=300
 StartLimitBurst=5
 
-# Host identity passed to main.py via env
+# Host identity passed to main.py via env.
+# ARO_WAKE_PEER_HOSTS uses CSV format (name:ip,name:ip) — NOT bare JSON.
+# Verified 2026-06-04: systemd's bare Environment=KEY={"a":"b"} STRIPS the
+# embedded double-quotes (so Python sees `{a:b}`, which json.loads rejects).
+# CSV has no quoting hazard and parses cleanly in main.py::_parse_peer_hosts.
 Environment=ARO_WAKE_HOST_NAME={{HOST_NAME}}
 Environment=ARO_WAKE_HOST_ROLE={{HOST_ROLE}}
 Environment=ARO_WAKE_HOST_IP={{HOST_IP}}
-Environment=ARO_WAKE_PEER_HOSTS={{PEER_HOSTS_JSON}}
+Environment=ARO_WAKE_PEER_HOSTS={{PEER_HOSTS_CSV}}
 Environment=CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
 
 # Loopback + mesh-IP bind; never 0.0.0.0. Public-internet protection is

@@ -1,6 +1,6 @@
 # VPS Fleet — Status Snapshot
 
-**Last Updated:** 2026-06-04 (T-P5 dogfood Step 6 — `watchdog-test-watchdog` self-heals `watchdog-test` via Claude Code Opus end-to-end; 4 silent-failure modes found + fixed; sidecar `llm_client` rewritten to mirror production sysadmin pattern; signal → AI wake-up matrix added to inventory)
+**Last Updated:** 2026-06-04 evening — batch 3 (Trio Phase 1+2+3 SHIPPED code-side + 3 review passes: port conflict + race conditions + FastAPI lifespan + daily-digest stub + response-shape docs/code alignment + Backrest cruft investigation + **third pass found: systemd-strips-JSON-quotes bug, session-id-from-envelope, lock-skip on session-pop, list-envelope defensive parse, /var/log file pre-create for ozgur-run keepalive cron** — all fixed and verified via systemd round-trip + Python hammer test before any production enable)
 **Snapshot taken:** 2026-06-04 (live probe via `ssh` + `docker ps` + `docker inspect` against all 3 hosts; container counts + interconnect verified per-host)
 **Hosts:** vps1 (LA, hub) · vps2 (Coventry UK, spoke) · vps3 (Coventry UK, spoke)
 **Deploy model:** SSH + Docker Compose (no Coolify — removed 2026-05-30)
@@ -34,6 +34,38 @@
 | Spoke disaster-recovery | ✅ **Scripted** via [`bootstrap-spoke-restore.sh`](../../scripts/bootstrap/bootstrap-spoke-restore.sh) — 13 steps, ≤ 30 min target, **preserves Wireguard identity** (hub peer-table unchanged through outage). **Drill pending.** Operator doc: [`vps-spoke-rebuild.md`](vps-spoke-rebuild.md). |
 | Credential recovery (`/opt/fabrik/.env`) | ✅ **W9 shipped 2026-06-01.** Inotify + systemd watcher (`fabrik-dr-watcher.service`) pushes every change to private `mobasak/fabrik-dr-store` within seconds; daily safety-net cron + reboot catch-up + weekly self-test. **Sysadmin token added to scope** via SSH-pull (W9 extension, same day). See [`docs/operations/credential-recovery.md`](../operations/credential-recovery.md). |
 | Backups | ✅ same as Backrest plans row — first real backup chain since the 2026-05-31 wipe. |
+
+---
+
+## 2026-06-04 evening (batch 3) — third deep review pass: 5 more bugs fixed before any production enable
+
+The third review pass found a class of bugs invisible to syntax checks and module-import smokes: **systemd's `Environment=` directive strips embedded JSON double-quotes**, which would have crashed uvicorn at startup on every spoke. Plus 4 quieter bugs in the same review.
+
+| # | Bug | Symptom | Verification | Fix |
+|---|---|---|---|---|
+| 1 | systemd strips bare JSON quotes from `Environment=` value | aro-wake's `ARO_WAKE_PEER_HOSTS={"vps1":"10.99.0.1"}` arrived at Python as `{vps1:10.99.0.1}` — invalid JSON → `json.loads()` throws → uvicorn lifespan startup fails → systemd restarts endlessly | systemd unit round-trip on host: `Environment=` → ExecStart-visible value showed quotes stripped | Switched to CSV format `vps1:10.99.0.1,vps3:10.99.0.3` — no quoting hazard. `main.py::_parse_peer_hosts()` accepts either CSV (preferred) or JSON (backward compat). Bootstrap step_15 now renders CSV via `PEER_HOSTS_CSV` placeholder. |
+| 2 | `_set_session` stored local `sid` before parsing Claude's envelope | If Claude returned a different `session_id` than the one we passed via `--session-id`, future `--resume` would target the wrong session | source-code inspection of `_run_claude` | Moved `_set_session` to AFTER envelope parse; uses `envelope.get("session_id", sid)` so the effective sid is stored |
+| 3 | `_sessions.pop` in resume-failure path skipped `_sessions_lock` | Race: concurrent `/wake` on same (source, topic) could observe stale sid mid-pop and resume against a session we just dropped | source-code inspection | Wrapped the pop in `with _sessions_lock:` |
+| 4 | aro-wake assumed Claude envelope is always a dict | Some Claude versions stream a list of events; `envelope.get("result")` would `AttributeError` | source-code inspection (`fabrik-lib/watchdog/sidecar/llm_client.py` has the defensive parse pattern at line ~392) | Defensive parse: if `envelope is list`, take the last dict element that carries a `result`; if not a dict at all, return error |
+| 5 | OAuth keepalive cron runs as `ozgur` but `/var/log/claude-keepalive.log` doesn't exist (default-root in `/var/log`) | Cron would silently fail with permission denied; token would silently go stale; AI would fall back to OpenRouter / rule-only mode after ~4 days | live `proactive-check.sh` `oauth_keepalive_stale` rule would catch it eventually | `step_14` now pre-creates `/var/log/claude-keepalive.log` + `/var/log/sysadmin-proactive.log` + `/var/log/vps-sysadmin-bot.log` with correct ownership |
+
+**Verification:**
+
+```text
+=== systemd-managed CSV round-trip ===
+Value as seen by ExecStart: <<<vps1:10.99.0.1,vps3:10.99.0.3>>>   ✓
+
+=== module re-smoke ===
+PEER_HOSTS parsed from CSV: {'vps1': '10.99.0.1', 'vps3': '10.99.0.3'}   ✓
+JSON backward-compat ✓
+session_id from envelope used (Bug A) ✓
+_sessions.pop guarded by lock (Bug B) ✓
+list envelope defensive parse (Bug C) ✓
+```
+
+All 5 fixes land BEFORE any host enables `aro-wake.service` or runs the OAuth keepalive cron, so no in-flight state is affected.
+
+**OpenRouter dispatch contract verified (Bug F from review notes — false alarm):** both `_invoke_claude_code` (line 339) AND `_invoke_openrouter` (line 459) in `fabrik-lib/watchdog/sidecar/llm_client.py` correctly append `_WATCHDOG_DISPATCH_CONTRACT` after the canonical prompt. Not a bug.
 
 ---
 

@@ -876,6 +876,9 @@ step_14_install_sysadmin_pack() {
         sudo touch /opt/fabrik/logs/sysadmin-actions.jsonl && \
         sudo chown ozgur:ozgur /opt/fabrik/logs/sysadmin-actions.jsonl && \
         sudo chmod 644 /opt/fabrik/logs/sysadmin-actions.jsonl && \
+        sudo touch /var/log/claude-keepalive.log /var/log/sysadmin-proactive.log /var/log/vps-sysadmin-bot.log && \
+        sudo chown ozgur:ozgur /var/log/claude-keepalive.log && \
+        sudo chmod 644 /var/log/claude-keepalive.log /var/log/sysadmin-proactive.log /var/log/vps-sysadmin-bot.log && \
         sudo systemctl daemon-reload && \
         rm -rf /tmp/sysadmin /tmp/vps-sysadmin-bot.service /tmp/vps-sysadmin-cron /tmp/.env.sysadmin"
 
@@ -921,12 +924,17 @@ step_15_install_aro_wake() {
         return 0
     fi
 
-    # Resolve peer hosts as JSON for the ARO_WAKE_PEER_HOSTS env var.
-    local peer_hosts_json
+    # Resolve peer hosts as CSV for the ARO_WAKE_PEER_HOSTS env var.
+    # CSV (name:ip,name:ip) is used instead of JSON because systemd's bare
+    # Environment= directive strips embedded double-quotes from the value;
+    # JSON with literal quotes would arrive at Python as invalid syntax and
+    # crash uvicorn at startup (verified by test on 2026-06-04). CSV has no
+    # quoting hazard.
+    local peer_hosts_csv
     case "${SPOKE_NAME}" in
-        vps2) peer_hosts_json='{"vps1":"'${FABRIK_WG_HUB_IP}'","vps3":"10.99.0.3"}' ;;
-        vps3) peer_hosts_json='{"vps1":"'${FABRIK_WG_HUB_IP}'","vps2":"10.99.0.2"}' ;;
-        *)    peer_hosts_json='{}' ;;
+        vps2) peer_hosts_csv="vps1:${FABRIK_WG_HUB_IP},vps3:10.99.0.3" ;;
+        vps3) peer_hosts_csv="vps1:${FABRIK_WG_HUB_IP},vps2:10.99.0.2" ;;
+        *)    peer_hosts_csv="" ;;
     esac
 
     local tmpdir
@@ -939,7 +947,7 @@ step_15_install_aro_wake() {
         -e "s|{{HOST_ROLE}}|spoke|g" \
         -e "s|{{HOST_IP}}|${SPOKE_MESH_IP}|g" \
         -e "s|{{BIND_HOST}}|${SPOKE_MESH_IP}|g" \
-        -e "s|{{PEER_HOSTS_JSON}}|${peer_hosts_json}|g" \
+        -e "s|{{PEER_HOSTS_CSV}}|${peer_hosts_csv}|g" \
         "${SCRIPT_DIR}/../aro-wake/templates/aro-wake.service.template" \
         > "${tmpdir}/aro-wake.service"
 

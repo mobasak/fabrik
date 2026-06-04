@@ -4,6 +4,135 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Trio Phase 1+2+3 third deep review pass: systemd-strips-JSON-quotes + session-id-from-envelope + lock-skip + list-envelope + keepalive-log-perms (2026-06-04 evening, batch 3)
+
+User asked for a third deep review pass after batches 1 (commit `6d65606`)
+and 2 (commit `ec015be`). This pass found 5 more bugs — a class invisible
+to syntax checks and module-import smokes. Critical one would have crashed
+aro-wake on every spoke at first systemd-enable.
+
+Bugs found + fixed
+------------------
+
+1. CRITICAL: systemd `Environment=` STRIPS bare JSON quotes
+
+   The aro-wake systemd unit template had:
+     Environment=ARO_WAKE_PEER_HOSTS={{PEER_HOSTS_JSON}}
+   Rendered:
+     Environment=ARO_WAKE_PEER_HOSTS={"vps1":"10.99.0.1","vps3":"10.99.0.3"}
+
+   Per systemd.exec(5), bare values are subject to shell-style quote
+   stripping. Round-trip test on a real systemd user unit confirmed:
+
+     ExecStart sees: <<<{vps1:10.99.0.1,vps3:10.99.0.3}>>>
+
+   Quotes stripped. `json.loads("{vps1:10.99.0.1,...}")` throws
+   JSONDecodeError. Lifespan startup fails. systemd Restart=always
+   triggers endless restart loop. aro-wake would have never come up on
+   any spoke.
+
+   FIX:
+     - main.py: new `_parse_peer_hosts()` accepts CSV
+       (`vps1:10.99.0.1,vps3:10.99.0.3`) as primary format; falls back
+       to JSON for backward compat.
+     - aro-wake.service.template: `Environment=ARO_WAKE_PEER_HOSTS={{PEER_HOSTS_CSV}}`
+       with a multi-line comment explaining the systemd-quote-strip
+       hazard so a future change doesn't regress.
+     - bootstrap-vps.sh step_15: renders `peer_hosts_csv` instead of
+       `peer_hosts_json`.
+
+   VERIFIED via systemd unit round-trip:
+     Value as seen by ExecStart: <<<vps1:10.99.0.1,vps3:10.99.0.3>>>   ✓
+     Python parse: {'vps1':'10.99.0.1','vps3':'10.99.0.3'}             ✓
+
+2. _set_session called with LOCAL sid before envelope parse
+
+   Claude can return a session_id different from the one we passed via
+   --session-id (rare, but possible). Storing the local `sid` would
+   mean future --resume targets the wrong session.
+
+   FIX: moved `_set_session` call to AFTER envelope parse; reads
+   `effective_sid = envelope.get("session_id", sid) or sid` and stores
+   the effective sid. The return value's `session_id` field also uses
+   effective_sid for consistency.
+
+3. _sessions.pop in resume-failure path skipped _sessions_lock
+
+   Race: two concurrent /wake calls on the same (source, topic) — first
+   resume fails, calls `_sessions.pop`; second observes stale sid mid-
+   pop and resumes against a session we just dropped (now invalid).
+
+   FIX: wrapped the pop in `with _sessions_lock:` block.
+
+4. List-style Claude envelope not handled
+
+   Some Claude versions stream a list of events instead of a single
+   envelope dict. `envelope.get("result")` would AttributeError.
+   `fabrik-lib/watchdog/sidecar/llm_client.py` has the defensive parse
+   at line ~392 — aro-wake didn't.
+
+   FIX: ported the defensive parse — if `isinstance(envelope, list)`,
+   take the last dict element that carries a result; if envelope is
+   neither a dict nor a parseable list, return an error with stdout
+   head for debugging.
+
+5. /var/log/claude-keepalive.log not pre-created for ozgur-run cron
+
+   The OAuth keepalive cron line in sysadmin-cron.template runs as
+   `ozgur` user but writes to /var/log/claude-keepalive.log. /var/log
+   is root:root by default, so the cron would silently fail with
+   permission denied. Token would silently go stale; AI would fall
+   back to OpenRouter / rule-only mode after ~4 days. proactive-check.sh
+   would eventually catch via `oauth_keepalive_stale` rule, but only
+   after several days of degraded operation.
+
+   FIX: step_14_install_sysadmin_pack now pre-creates:
+     /var/log/claude-keepalive.log    chown ozgur:ozgur chmod 644
+     /var/log/sysadmin-proactive.log  chmod 644
+     /var/log/vps-sysadmin-bot.log    chmod 644
+   The latter two are owned root since they're written by root-run
+   crons / systemd; only claude-keepalive runs as ozgur.
+
+False alarm noted: Bug F (OpenRouter path missing dispatch contract)
+-------------------------------------------------------------------
+
+While reviewing, I checked whether both Claude and OpenRouter paths in
+`fabrik-lib/watchdog/sidecar/llm_client.py` include the
+`_WATCHDOG_DISPATCH_CONTRACT` addendum. Both DO (line 339 for Claude,
+line 459 for OpenRouter). Not a bug.
+
+Verification
+------------
+
+  systemd round-trip on real user unit:
+    ExecStart sees: <<<vps1:10.99.0.1,vps3:10.99.0.3>>>   ✓
+
+  Module re-smoke with all fixes applied:
+    PEER_HOSTS parsed from CSV: {'vps1':'10.99.0.1','vps3':'10.99.0.3'}   ✓
+    JSON backward-compat ✓
+    session_id from envelope used (Bug 2) ✓
+    _sessions.pop guarded by lock (Bug 3) ✓
+    list envelope defensive parse (Bug 4) ✓
+
+No production code path touched
+-------------------------------
+
+aro-wake is not yet enabled on any host. The OAuth keepalive cron is
+not yet installed anywhere (step_14 hasn't run yet on any host). All
+5 fixes land BEFORE first deploy, so no in-flight state is affected.
+
+Infrastructure docs synced
+--------------------------
+
+- vps-status.md: new 2026-06-04 batch-3 entry at top documents all 5
+  bugs + verification + the OpenRouter false alarm. "Last Updated"
+  header bumped.
+- vps-complete-inventory.md: Signal → AI matrix row #7 (aro-wake)
+  amended to note the CSV-vs-JSON env-var format + the
+  systemd-quote-strip hazard for future reference.
+
+Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>
+
 ### Fixed — Trio Phase 1+2+3 second review pass: docs/code drift in aro-wake response shape + Backrest cruft investigation + known-limitation docs (2026-06-04 evening, batch 2)
 
 Second deep review of today's trio commits. The first review pass (commit

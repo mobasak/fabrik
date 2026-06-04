@@ -45,7 +45,36 @@ from fastapi.responses import JSONResponse
 HOST_NAME = os.environ.get("ARO_WAKE_HOST_NAME", "vps1")
 HOST_ROLE = os.environ.get("ARO_WAKE_HOST_ROLE", "hub")
 HOST_IP = os.environ.get("ARO_WAKE_HOST_IP", "10.99.0.1")
-PEER_HOSTS = json.loads(os.environ.get("ARO_WAKE_PEER_HOSTS", '{"vps2":"10.99.0.2","vps3":"10.99.0.3"}'))
+
+
+def _parse_peer_hosts(raw: str) -> dict[str, str]:
+    """Parse the ARO_WAKE_PEER_HOSTS env var.
+
+    Accepts either CSV (``name:ip,name:ip``) or JSON (``{"name":"ip",...}``).
+    CSV is the preferred form because systemd's ``Environment=`` directive
+    strips bare double-quotes when an embedded-JSON value isn't itself
+    wrapped in escaped outer quotes — so the JSON form is fragile across
+    systemd unit renders (verified 2026-06-04). CSV has no quoting hazard.
+    """
+    raw = (raw or "").strip()
+    if not raw:
+        return {}
+    if raw.startswith("{"):
+        return json.loads(raw)
+    out: dict[str, str] = {}
+    for token in raw.split(","):
+        token = token.strip()
+        if not token:
+            continue
+        name, _, ip = token.partition(":")
+        if name and ip:
+            out[name.strip()] = ip.strip()
+    return out
+
+
+PEER_HOSTS = _parse_peer_hosts(
+    os.environ.get("ARO_WAKE_PEER_HOSTS", "vps2:10.99.0.2,vps3:10.99.0.3")
+)
 WAKE_TIMEOUT = int(os.environ.get("ARO_WAKE_TIMEOUT", "300"))
 RATE_LIMIT_PER_HOUR = int(os.environ.get("ARO_WAKE_RATE_LIMIT", "20"))
 PENDING_QUEUE_PATH = Path(os.environ.get("ARO_WAKE_QUEUE_PATH", "/var/lib/aro-wake/pending.jsonl"))
@@ -273,9 +302,13 @@ def _run_claude(
 
     if proc.returncode != 0:
         # Resume can fail if session was pruned; drop sid and retry as new
-        # (same fallback as bot.py and llm_client.py).
+        # (same fallback as bot.py and llm_client.py). Lock-guarded — without
+        # the lock, a concurrent /wake on the same (source, topic) could
+        # observe a stale sid mid-pop and resume against a session we just
+        # decided to drop.
         if resume_sid and "session" in (proc.stderr or "").lower():
-            _sessions.pop((source, topic), None)
+            with _sessions_lock:
+                _sessions.pop((source, topic), None)
             return _run_claude(message, source=source, topic=topic, system_prompt=system_prompt)
         return {
             "ok": False,
@@ -284,7 +317,6 @@ def _run_claude(
             "session_id": sid,
         }
 
-    _set_session(source, topic, sid)
     try:
         envelope = json.loads(proc.stdout)
     except json.JSONDecodeError:
@@ -294,11 +326,32 @@ def _run_claude(
             "stdout_head": proc.stdout[:200],
             "session_id": sid,
         }
+    # Some Claude versions stream a list of events instead of a single
+    # envelope. Defensive parse mirrors fabrik-lib/watchdog/sidecar/
+    # llm_client.py: take the last dict element that carries a result.
+    if isinstance(envelope, list):
+        envelope = next(
+            (e for e in reversed(envelope) if isinstance(e, dict) and "result" in e),
+            {},
+        )
+    if not isinstance(envelope, dict):
+        return {
+            "ok": False,
+            "error": "stdout JSON not a dict or event-list",
+            "stdout_head": proc.stdout[:200],
+            "session_id": sid,
+        }
+    # Store the EFFECTIVE session id (whatever Claude actually used) so a
+    # future --resume targets the right session. If Claude returned a
+    # session_id different from the one we passed via --session-id, the
+    # local `sid` we used to spawn would be the wrong one to resume against.
+    effective_sid = envelope.get("session_id", sid) or sid
+    _set_session(source, topic, effective_sid)
     return {
         "ok": True,
         "result": envelope.get("result", ""),
         "cost_usd": envelope.get("total_cost_usd", 0.0),
-        "session_id": envelope.get("session_id", sid),
+        "session_id": effective_sid,
     }
 
 
