@@ -49,9 +49,14 @@ env:
 #   - leave auto_tier_b off (default) and propose_fix_prs off (default)
 watchdog:
   enabled: true
-  daily_budget_usd: 0.50
-  per_incident_budget_usd: 0.05
-  daily_invocations_cap: 20
+  # No per-call $ cap on the sysadmin path. Watchdog IS the sysadmin — it
+  # runs whatever it needs to keep the fleet healthy, and Claude Code is
+  # subscription-billed so per-call caps are meaningless cost-wise and just
+  # break the diagnose loop (operator directive 2026-06-03). Daily-cap +
+  # invocations-cap remain as soft circuit-breakers via the WAL kill-switch.
+  daily_budget_usd: 5.00
+  per_incident_budget_usd: 1.00
+  daily_invocations_cap: 50
   deadman_timeout_seconds: 120
   external_docs_enabled: true
   auto_tier_b: false

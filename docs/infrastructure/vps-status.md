@@ -1,7 +1,7 @@
 # VPS Fleet — Status Snapshot
 
-**Last Updated:** 2026-06-01 evening (W2 + W11 SHIPPED — fleet-wide symmetric DR: 3 Backrest stacks → B2, `bootstrap-hub.sh` + `bootstrap-spoke-restore.sh` end-to-end)
-**Snapshot taken:** 2026-06-01 19:02 UTC (live probe via `scripts/audit_infra_vs_docs.py` against all 3 hosts)
+**Last Updated:** 2026-06-04 (T-P5 dogfood Step 6 — `watchdog-test-watchdog` self-heals `watchdog-test` via Claude Code Opus end-to-end; 4 silent-failure modes found + fixed; sidecar `llm_client` rewritten to mirror production sysadmin pattern; signal → AI wake-up matrix added to inventory)
+**Snapshot taken:** 2026-06-04 (live probe via `ssh` + `docker ps` + `docker inspect` against all 3 hosts; container counts + interconnect verified per-host)
 **Hosts:** vps1 (LA, hub) · vps2 (Coventry UK, spoke) · vps3 (Coventry UK, spoke)
 **Deploy model:** SSH + Docker Compose (no Coolify — removed 2026-05-30)
 
@@ -13,7 +13,7 @@
 
 | Host | Role | Public IP | Mesh IP | RAM | Disk | Containers | Uptime |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| vps1 | Hub (LA) | 172.93.160.197 | 10.99.0.1 | 11.6 Gi (3.8 Gi used) | 108 GB (28 GB / 26 %) | 29 | 1 d 21 h 41 m |
+| vps1 | Hub (LA) | 172.93.160.197 | 10.99.0.1 | 11.6 Gi (3.8 Gi used) | 108 GB (28 GB / 26 %) | 31 (29 platform + 2 T-P5 dogfood) | 1 d 21 h 41 m |
 | vps2 | Spoke (Coventry UK) | 96.9.214.128 | 10.99.0.2 | 7.7 Gi (867 Mi used) | 58 GB (5.8 GB / 11 %) | 5 | 1 d 7 h 30 m |
 | vps3 | Spoke (Coventry UK) | 104.128.190.151 | 10.99.0.3 | 7.7 Gi (855 Mi used) | 58 GB (5.8 GB / 11 %) | 5 | 1 d 7 h 31 m |
 
@@ -34,6 +34,42 @@
 | Spoke disaster-recovery | ✅ **Scripted** via [`bootstrap-spoke-restore.sh`](../../scripts/bootstrap/bootstrap-spoke-restore.sh) — 13 steps, ≤ 30 min target, **preserves Wireguard identity** (hub peer-table unchanged through outage). **Drill pending.** Operator doc: [`vps-spoke-rebuild.md`](vps-spoke-rebuild.md). |
 | Credential recovery (`/opt/fabrik/.env`) | ✅ **W9 shipped 2026-06-01.** Inotify + systemd watcher (`fabrik-dr-watcher.service`) pushes every change to private `mobasak/fabrik-dr-store` within seconds; daily safety-net cron + reboot catch-up + weekly self-test. **Sysadmin token added to scope** via SSH-pull (W9 extension, same day). See [`docs/operations/credential-recovery.md`](../operations/credential-recovery.md). |
 | Backups | ✅ same as Backrest plans row — first real backup chain since the 2026-05-31 wipe. |
+
+---
+
+## 2026-06-04 — T-P5 dogfood Step 6 SHIPPED: watchdog self-heals via Claude Code Opus end-to-end
+
+**Live evidence (2026-06-04):**
+
+```text
+incident:  container_not_running urgent  (rule: container-state pass)
+  detected at:  T+34s after `docker kill watchdog-test`
+  resolved at:  T+37s  (auto)
+
+action:    restart_container   tier=A   result=success
+
+nginx:     Status=running RestartCount=0   StartedAt=T+37s
+```
+
+The first end-to-end per-project watchdog → Claude Code Opus → Tier A self-heal in the platform's history. Spec: [`specs/services/watchdog-test.yaml`](../../specs/services/watchdog-test.yaml). Sub-plan: [`2026-06-03-watchdog-P5-subplan.md`](../development/plans/2026-06-03-watchdog-P5-subplan.md). Container count on vps1: 29 → 31.
+
+**What got there in the end** — Step 6 surfaced **five** silent-failure modes in the sidecar's docker-probe + Claude subprocess paths, all root-caused and committed. The full table is in [`vps-complete-inventory.md`](vps-complete-inventory.md#per-project-watchdog-sidecars-t-p2--complete-2026-06-03-all-15-artifacts-shipped); summary:
+
+| # | Failure | Fix |
+| :--- | :--- | :--- |
+| 1 | `gather_snapshot()` returned `{container, ts}` only — docker.sock GID mismatch (sidecar UID 1000 vs sock GID 988) | Driver `_detect_docker_sock_gid()` injects `group_add: [<gid>]` into compose overlay (auto-detected via `stat -c %g` at apply time) |
+| 2 | `docker inspect` exit 1: "client version 1.41 is too old. Minimum supported API version is 1.44" | `Dockerfile`: `ENV DOCKER_API_VERSION=1.44` |
+| 3 | Claude exit 1: "sandbox required but unavailable: bubblewrap (bwrap) not installed, socat not installed" | `Dockerfile`: install `bubblewrap` + `socat` |
+| 4 | Claude exit 1: "Claude configuration file not found at: /home/watchdog/.claude.json" | Driver adds second bind-mount: `{VPS_CLAUDE_HOME}.json:/home/watchdog/.claude.json:ro` |
+| 5 | Claude exit 1 / silent rc=0 empty stdout / "envelope missing/malformed result" — **`--max-budget-usd` was the recurring killer**, Opus session-init cost alone exceeds any sane per-call cap | Drop `--max-budget-usd`. Drop `--effort` (silent rc=0 with `-p` in 2.1.144). Drop `--json-schema` (Claude puts structured output elsewhere). Rewrite `_invoke_claude_code` to mirror production sysadmin pattern at `scripts/sysadmin/bot.py::_run_claude` (`--model opus`, `--permission-mode bypassPermissions`, session-id + resume for warm cache, defensive JSON parse). |
+
+**Operator directive captured** (memory + Lessons #14–17): no per-call $ caps on sysadmin-class agents — subscription is the budget; daily-cap + invocations-cap via the WAL kill-switch remain as soft circuit-breakers.
+
+**Doc surface changes:**
+
+- [`vps-complete-inventory.md`](vps-complete-inventory.md): container count 29 → 31; new "Signal → AI wake-up matrix" section documenting **which signals do/don't trigger AI today**, verified live (Prometheus via cron-fired `proactive-check.sh` is currently the only Alertmanager-style signal source wired to AI; Loki / Gatus / GlitchTip / Apprise / Backrest all route to Telegram-for-humans).
+- [`vps-fleet-architecture.md`](vps-fleet-architecture.md): two-layer AI ops described (host sysadmin + per-project watchdog); gap explicitly flagged that **AI auto-action is vps1-only today** (no AI on spokes; no AI receiver in Alertmanager).
+- [`vps-ai-sysadmin.md`](vps-ai-sysadmin.md): T-P5 row updated to "live end-to-end on vps1".
 
 ---
 

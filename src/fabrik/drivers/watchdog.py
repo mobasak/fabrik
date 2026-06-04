@@ -42,7 +42,6 @@ from __future__ import annotations
 import logging
 import os
 import shutil
-import subprocess
 import tarfile
 import tempfile
 from dataclasses import dataclass, field
@@ -112,6 +111,12 @@ class _RenderContext:
     # Filled in by _build_context.
     build_ctx_local: Path | None = None
     extra_env: dict[str, str] = field(default_factory=dict)
+    # Trio plan Phase 1.3 (2026-06-04): which host the sidecar will run on.
+    # Used at build time to render {{ HOST_NAME }} / {{ HOST_IP }} / etc. in
+    # the vendored sysadmin prompt. Sourced from ctx.target_vps in
+    # _build_render_context; defaults to "vps1" so existing single-host
+    # behavior is preserved if the orchestrator didn't set target_vps.
+    target_vps: str = "vps1"
 
 
 # ── Driver ────────────────────────────────────────────────────────────────
@@ -231,6 +236,7 @@ class WatchdogDriver:
             log_level=str(wcfg.get("log_level", "INFO")),
             promtail_update_url=str(wcfg.get("promtail_update_url", "")),
             image_tag=image_tag,
+            target_vps=getattr(ctx, "target_vps", None) or spec.get("target_vps") or "vps1",
         )
 
     # ── Build flow ────────────────────────────────────────────────────────
@@ -255,6 +261,49 @@ class WatchdogDriver:
         content = content.replace("<project_prefix>", rctx.project_prefix)
         tpl_out.write_text(content)
         tpl_src.unlink()  # don't ship the unrendered template
+        # 2b. Copy + render the canonical veteran-sysadmin prompt + peer protocol.
+        # Trio plan Phase 1.3 (2026-06-04): the canonical prompt lives at
+        # /opt/fabrik/scripts/sysadmin/system-prompt.txt on the dev WSL. The
+        # driver renders host-substitution markers for the host the sidecar will
+        # run on (vps1 today; per-spec target_vps in future). peer-protocol.md
+        # is copied unchanged — it's reference doc the AI may Read at runtime.
+        sysadmin_source = Path("/opt/fabrik/scripts/sysadmin")
+        prompt_src = sysadmin_source / "system-prompt.txt"
+        protocol_src = sysadmin_source / "peer-protocol.md"
+        if not prompt_src.exists():
+            raise WatchdogProvisionError(
+                f"sysadmin prompt not found at {prompt_src} — trio plan Phase 1.1 "
+                f"should have created it; run that first"
+            )
+        # Resolve host substitution values from rctx.target_vps (populated in
+        # _build_render_context). For the watchdog-test deploy on vps1 these
+        # are static; spoke deploys via target_vps would populate from the
+        # deploy target's IP/role.
+        target_host = rctx.target_vps
+        host_substitutions = {
+            "vps1": {"name": "vps1", "ip": "10.99.0.1", "role": "hub",
+                     "peers": "vps2 (10.99.0.2), vps3 (10.99.0.3)"},
+            "vps2": {"name": "vps2", "ip": "10.99.0.2", "role": "spoke",
+                     "peers": "vps1 (10.99.0.1), vps3 (10.99.0.3)"},
+            "vps3": {"name": "vps3", "ip": "10.99.0.3", "role": "spoke",
+                     "peers": "vps1 (10.99.0.1), vps2 (10.99.0.2)"},
+        }.get(target_host, {"name": target_host, "ip": "unknown",
+                            "role": "unknown", "peers": "unknown"})
+        prompt_text = prompt_src.read_text(encoding="utf-8")
+        prompt_text = prompt_text.replace("{{ HOST_NAME }}", host_substitutions["name"])
+        prompt_text = prompt_text.replace("{{ HOST_IP }}", host_substitutions["ip"])
+        prompt_text = prompt_text.replace("{{ HOST_ROLE }}", host_substitutions["role"])
+        prompt_text = prompt_text.replace("{{ PEER_HOSTS }}", host_substitutions["peers"])
+        (local_ctx / "system-prompt.txt").write_text(prompt_text, encoding="utf-8")
+        if protocol_src.exists():
+            shutil.copy2(protocol_src, local_ctx / "peer-protocol.md")
+        else:
+            # Tolerate missing protocol doc — Phase 1.2 may not have shipped yet
+            # on this branch; sidecar still works, just without the reference.
+            (local_ctx / "peer-protocol.md").write_text(
+                "# peer-protocol.md not yet vendored on this build\n",
+                encoding="utf-8",
+            )
         # 3. Patch the Dockerfile so COPY picks up the rendered file.
         dockerfile = local_ctx / "Dockerfile"
         df_content = dockerfile.read_text().replace(
@@ -292,8 +341,26 @@ class WatchdogDriver:
     def _compose_dir(self, rctx: _RenderContext) -> str:
         return f"/opt/{rctx.project_id}"
 
+    def _detect_docker_sock_gid(self) -> int:
+        """Return the GID owning /var/run/docker.sock on the hub.
+
+        The sidecar runs as UID/GID 1000 (Dockerfile-fixed so a bind-mounted
+        ~/.claude/ owned by the operator works without chown). docker.sock is
+        owned by root with group=docker; without group_add the sidecar can't
+        call `docker inspect` / `docker logs` at all and detect_anomalies
+        silently returns []. Caught on T-P5 dogfood 2026-06-03 — state.db had
+        zero incidents after a kill because every docker probe was returning
+        "permission denied".
+
+        Using `stat` (not `getent group docker`) handles the edge case where
+        the GID owning the socket differs from the `docker` group GID.
+        """
+        result = ssh("stat -c %g /var/run/docker.sock", timeout=10)
+        return int(result.strip())
+
     def _push_overlay(self, rctx: _RenderContext) -> None:
         """Write ``compose.watchdog.yaml`` to ``/opt/<project_id>/``."""
+        docker_gid = self._detect_docker_sock_gid()
         compose = {
             "services": {
                 "watchdog": {
@@ -301,10 +368,24 @@ class WatchdogDriver:
                     "container_name": f"{rctx.project_id}-watchdog",
                     "restart": "unless-stopped",
                     "depends_on": [rctx.main_container],
+                    # Add the hub's docker.sock GID as a supplementary group so
+                    # the watchdog user (UID 1000) can call `docker inspect`
+                    # and `docker logs` against the mounted socket. Without
+                    # this, every detect_anomalies tick silently returns [].
+                    "group_add": [str(docker_gid)],
                     "volumes": [
                         # OAuth — read-only from VPS user's ~/.claude. Path
                         # is operator-configurable via FABRIK_VPS_CLAUDE_HOME.
                         f"{VPS_CLAUDE_HOME}:/home/watchdog/.claude:ro",
+                        # Claude CLI's per-user config file lives ALONGSIDE
+                        # ~/.claude/, not inside it. Without this second mount
+                        # `claude -p` exits with "Claude configuration file
+                        # not found at: /home/watchdog/.claude.json" and the
+                        # primary LLM path is dead — caught on T-P5 dogfood
+                        # Step 6 2026-06-03. The file is gitignored on the
+                        # host and contains OAuth session state; mounting RO
+                        # avoids the sidecar mutating it.
+                        f"{VPS_CLAUDE_HOME}.json:/home/watchdog/.claude.json:ro",
                         # State + PR workspace + deploy key — RW.
                         f"watchdog-state-{rctx.project_id}:/var/lib/watchdog",
                         # docker.sock — scoped via PreToolUse hook + claude-settings.

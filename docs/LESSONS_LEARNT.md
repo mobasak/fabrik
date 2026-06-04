@@ -4260,3 +4260,60 @@ After all three fixes, the script completed cleanly on both vps2 and vps3 (fresh
 
 ---
 
+## Lesson 73 — A container that mounts `/var/run/docker.sock` must `group_add` the host's docker GID, or every probe fails silently
+
+**Context (2026-06-04, T-P5 dogfood Step 6):** Watchdog sidecar bind-mounts `/var/run/docker.sock` so its `agent.py` can run `docker inspect <main>` + `docker logs <main>` each tick. Sidecar runs as UID/GID 1000 (Dockerfile-fixed so a bind-mounted `~/.claude/` owned by the operator works without chown). docker.sock on vps1 is `root:988 mode 660` (the host's `docker` group GID). The sidecar user has no membership in GID 988 → every `docker ...` call returns `permission denied while trying to connect to the Docker daemon socket at unix:///var/run/docker.sock`. `agent.py::gather_snapshot()` catches only `subprocess.TimeoutExpired`/`FileNotFoundError`, not non-zero exit + stderr message, so the resulting snapshot has `container` + `ts` keys only — no `status`, `health`, `restart_count`. `detect_anomalies()` returns `[]` on every tick. The sidecar appears healthy (`/health` returns 200) but is completely blind. Took several hours to surface because there were no log lines past startup.
+
+**Rule:** Any container that mounts `/var/run/docker.sock` and runs as non-root MUST be a member of the host's `docker` group GID, OR the GID owning the socket if different. The GID is **host-specific** (Debian/Ubuntu varies, but always check) so it can't be baked into the image — it has to be injected at deploy time. Use `docker inspect -f '{{ index .Config.User }}'` and `stat -c %g /var/run/docker.sock` to verify.
+
+**How to apply:** In the deployer/driver, run `stat -c %g /var/run/docker.sock` on the target host at apply time, emit `group_add: [<gid>]` into the compose service block. Pattern verified in [`src/fabrik/drivers/watchdog.py::_detect_docker_sock_gid()`](../../src/fabrik/drivers/watchdog.py) (T-P5 2026-06-04). For any future component that mounts docker.sock (a fleet-coordinator, a host-level Loki shipper, etc.), use the same pattern. **Defensive instrumentation:** if your loop runs `docker` commands, log non-zero rc + stderr at WARN level on the first non-success per process lifetime — silent docker probes are an anti-pattern.
+
+---
+
+## Lesson 74 — Claude Code CLI in `-p` (non-interactive) mode has several silent-failure flag combos; mirror the production sysadmin's argv verbatim
+
+**Context (2026-06-04, T-P5 dogfood Step 6):** Watchdog sidecar `llm_client.py` invocation evolved through five distinct failure modes before working end-to-end. Each failure had a different symptom, all silent at first glance:
+
+1. `--max-budget-usd $X` with any X ≤ ~$0.30 on Opus — claude exits 1 with `error_max_budget_usd`; error envelope goes to **stdout**, non-zero rc + empty stderr → `llm_client`'s `if rc != 0: raise stderr` swallows the envelope. Session-init `cache_creation` cost on Opus alone exceeds any sane per-call cap before tokens are spent.
+2. `--effort <level>` at any level (`low|medium|high|xhigh|max`) — claude exits 0 with EMPTY stdout AND EMPTY stderr. Silent death. Apparently the flag is incompatible with `-p` (non-interactive) mode in 2.1.144.
+3. `--json-schema <schema>` — in 2.1.144, claude returns structured output in `envelope["structured_output"]` as a real dict (not stringified `result`). Older parsers looking at `result` get plain text "OK" and fail JSON.loads.
+4. `--no-session-persistence` — cold cache every tick. Real diagnose ran 60-180s consistently; sidecar timed out at 60s.
+5. `--permission-mode auto` (not `bypassPermissions`) — tool calls fail differently, hard to diagnose because the symptom is "claude proposes nothing actionable."
+
+Meanwhile, the **production** `scripts/sysadmin/bot.py::_run_claude` has been running cleanly on vps1 since 2026-05-29 with a much simpler argv that none of the failure modes above hit.
+
+**Rule:** When invoking Claude Code via Python subprocess for sysadmin-class autonomous work, mirror the production sysadmin's argv verbatim — don't experiment with non-essential flags. The known-good pattern:
+
+```
+claude -p <message>
+  --model opus
+  --output-format json
+  --permission-mode bypassPermissions
+  --session-id <uuid>   --system-prompt <prompt>     # first call
+  --resume <prev-session-id>                          # subsequent
+env: CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
+cwd: <project root>
+timeout: 300s
+parse: data["result"] as plain text → defensive JSON extract (plain → ```json fenced → greedy {...})
+```
+
+**How to apply:** For any new place that invokes Claude Code CLI as a subprocess, copy the working pattern from `scripts/sysadmin/bot.py::_run_claude` or `fabrik-lib/watchdog/sidecar/llm_client.py::_invoke_claude_code` (T-P5 2026-06-04 rewrite). Don't pass `--effort`, `--max-budget-usd`, `--json-schema`, or `--no-session-persistence` without explicit re-verification on the current Claude CLI version. Use `--session-id` + `--resume` to keep the prompt cache warm across ticks (cost drops from $0.06-0.30/tick cold to ~$0.005/tick warm). The operator directive `feedback_no_budget_caps_sysadmin` is the policy form: no per-call $ caps on sysadmin; subscription is the budget.
+
+---
+
+## Lesson 75 — RO-mounted Claude OAuth credentials go stale ~4 days; sidecars need a periodic host refresh
+
+**Context (2026-06-04, T-P5 dogfood Step 6):** Watchdog sidecar bind-mounts `~/.claude/.credentials.json` from the host as `ro`. Claude Code's OAuth token in that file has a refresh cycle of a few days. The HOST refreshes it in-place when the operator runs `claude` interactively; the sidecar's RO mount picks up the new contents on next read. But if the host hasn't been used recently (e.g. token written 2026-05-30, sidecar started 2026-06-03), the token can be stale at sidecar boot. Symptom: `claude -p ...` returns valid JSON envelope with `is_error: true, api_error_status: 401, result: "Failed to authenticate. API Error: 401 Invalid authentication credentials"`. Sidecar falls back to OpenRouter (or rule-only mode if OpenRouter also unreachable / out of credits).
+
+**Rule:** Any long-running Claude Code subprocess that depends on a RO-mounted credentials file needs a periodic host-side refresh trigger, or the token will eventually expire mid-operation. Today the workaround is manual: run `claude -p hi` on the host once when 401 appears in sidecar logs.
+
+**How to apply:** Three options, increasing complexity:
+
+1. **Manual** (today): operator runs `claude -p hi` on the host when 401 surfaces. Acceptable since the sidecar's safety net (rule-only + deadman bleed-stop) keeps the platform healing even with no LLM.
+2. **Host cron**: `*/12 * * * * claude -p "ping" >/dev/null 2>&1` keeps the token refreshed silently. Cheap (`ping` reply is ~$0.005 cached).
+3. **RW mount of just `.credentials.json`**: requires the sidecar to NOT corrupt the file (safe if the sidecar only ever runs `claude` which itself manages the file via atomic writes). Cleanest but needs verification that the sidecar's `bypassPermissions` mode can't accidentally chown/overwrite it.
+
+OpenRouter as fallback (configured via `WATCHDOG_OPENROUTER_KEY` in `/opt/<project>/.env`) keeps the diagnose loop alive when the primary token is stale — but only if OpenRouter has credits and the chosen model supports the response shape (Lesson 76 / open).
+
+---
+

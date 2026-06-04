@@ -1,6 +1,6 @@
 # VPS Fleet — Architecture & Single-System Wiring
 
-**Last Updated:** 2026-06-01 (W11 SHIPPED — spoke DR symmetric to hub)
+**Last Updated:** 2026-06-04 (T-P5 dogfood Step 6 — per-project watchdog self-heal verified live on `watchdog-test`; AI wake-up matrix added)
 **Last probe report:** [`probe-reports/infra-probe-2026-06-01T22-50Z.yaml`](probe-reports/infra-probe-2026-06-01T22-50Z.yaml)
 **Purpose:** Single architectural picture of the 3-host fleet — what runs where, how they're wired together, what role each plays. Read this when onboarding new infra work, before designing anything that touches multiple hosts.
 
@@ -10,9 +10,9 @@ This doc answers: "we own 3 VPSes — what do we have, what's planned, and how i
 
 | Host | Public IP | Mesh IP | Role | Containers |
 |---|---|---|---|---|
-| **vps1** | 172.93.160.197 (LA) | 10.99.0.1 | **Hub** — mesh root + shared data plane + observability HQ + AI sysadmin HQ + backup destination for self + admin ingress | 29 |
-| **vps2** | 96.9.214.128 (Coventry UK) | 10.99.0.2 | **Spoke** — tenant compute + local Traefik + monitoring agents shipping to vps1 + own backup destination | 5 |
-| **vps3** | 104.128.190.151 (Coventry UK) | 10.99.0.3 | **Spoke** — same shape as vps2 | 5 |
+| **vps1** | 172.93.160.197 (LA) | 10.99.0.1 | **Hub** — mesh root + shared data plane + observability HQ + **two-layer AI ops** (host sysadmin + per-project watchdog) + backup destination for self + admin ingress | 31 (29 platform + 2 T-P5 dogfood) |
+| **vps2** | 96.9.214.128 (Coventry UK) | 10.99.0.2 | **Spoke** — tenant compute + local Traefik + monitoring agents shipping to vps1 + own backup destination. **No AI agent running on this host yet.** | 5 |
+| **vps3** | 104.128.190.151 (Coventry UK) | 10.99.0.3 | **Spoke** — same shape as vps2. **No AI agent running on this host yet.** | 5 |
 
 **All 3 are fleet members:** W1 firewall posture, W11 backup chain (SHIPPED), W6 probe-audited posture, observability flow via mesh.
 
@@ -20,7 +20,7 @@ This doc answers: "we own 3 VPSes — what do we have, what's planned, and how i
 
 ## vps1 — hub services + mechanisms
 
-### Application services (29 containers)
+### Application services (31 containers — 29 platform + 2 T-P5 dogfood)
 
 | Layer | Services |
 |---|---|
@@ -31,13 +31,15 @@ This doc answers: "we own 3 VPSes — what do we have, what's planned, and how i
 | Notification | `apprise` — Telegram routing for `alertmanager` |
 | Workflow / utility | `n8n`, `glitchtip-worker`, `browserless`, `gotenberg` |
 | Provisioning | `site-provisioner` — Cloudflare + Namecheap API gateway |
+| **Per-project watchdog dogfood** | `watchdog-test` (nginx:alpine target) + `watchdog-test-watchdog` (Claude-driven sidecar). T-P5 dogfood live since 2026-06-03; self-heal verified end-to-end 2026-06-04. Sidecar pattern: 60s poll → rule detect → Claude Opus diagnose → Tier A `restart_container`. |
 
 ### Host-level mechanisms
 
 | Mechanism | Where |
 |---|---|
-| AI sysadmin bot | `vps-sysadmin-bot.service` (systemd, NOT a container) — Telegram bot, spawns Claude Code per message |
-| Proactive checks | `proactive-check.sh` cron — 15-min intervals, spoke-aware (W-Multi M2) |
+| AI sysadmin bot | `vps-sysadmin-bot.service` (systemd, NOT a container) — Telegram bot, spawns Claude Code per message. Pattern: `--model opus --permission-mode bypassPermissions --session-id <uuid> --system-prompt ...`. This is the production reference pattern that the watchdog sidecar's `llm_client.py` was rewritten to mirror in T-P5 (2026-06-04). |
+| Proactive checks | `proactive-check.sh` cron — 15-min intervals, spoke-aware (W-Multi M2). Queries Prometheus across all 3 hosts; **acts via local `sudo docker` only** (no SSH-out to spokes) so vps2/vps3 issues this finds get reported but not auto-fixed. |
+| Per-project watchdog driver | Deployed via `fabrik apply` for any spec with `watchdog.enabled: true` (default True). Driver at [`src/fabrik/drivers/watchdog.py`](../../src/fabrik/drivers/watchdog.py); detects host docker.sock GID, mounts `~/.claude` + `~/.claude.json` from `FABRIK_VPS_CLAUDE_HOME`, builds per-project image from `/opt/fabrik-lib/watchdog/sidecar/`, writes `compose.watchdog.yaml` overlay. |
 | Mesh hub | `wg-quick@wg0` (Wireguard hub at `10.99.0.1`, UDP 51820) |
 | iptables boot units | `iptables-docker-user.service` (DOCKER-USER ACCEPT-from-wg0 + DROP mesh-only-from-public); `iptables-openvpn.service` (operator's personal VPN forwards) |
 | Firewall | UFW 5 v4 ALLOW rules (22, 80, 443, 1194, 51820) + 1 v4 DENY rule (8000, stale-comment Coolify-era) + 6 v6 mirrors; fail2ban active (891 historical bans as of 2026-06-02 probe — internet-facing target, counts drift continuously) |
@@ -150,12 +152,20 @@ This doc answers: "we own 3 VPSes — what do we have, what's planned, and how i
 - Per-spoke Let's Encrypt happens on first tenant deploy. First attempt 2026-06-02 (`spoke-canary` on vps2) deployed healthy but failed the verifier 404 because vps2's Traefik lacks the `gzip` middleware definition (W15 — see Planned table). Rollback was clean.
 - Tenant containers on a spoke connect to shared infrastructure (Postgres, Redis, etc.) via mesh IP `10.99.0.1:<port>`, not public.
 
-### 6. AI sysadmin oversight
+### 6. AI sysadmin oversight (two layers, both on vps1 only today)
 
-- `vps-sysadmin-bot.service` on vps1 — Telegram bot, spawns Claude Code on demand to investigate.
-- `proactive-check.sh` cron every 15 min — spoke-aware (queries `up{host="vps2"}` etc.).
-- 13 Prometheus alert rules — hub + spoke variants.
-- Planned W10: 4 new watcher modules (backup health, cert expiry, mesh handshake age, DR-store staleness) — each with Tier A autonomous fix where safe.
+- **Layer 1 — Host-level AI sysadmin (vps1):**
+  - `vps-sysadmin-bot.service` on vps1 — Telegram bot, spawns Claude Code on demand to investigate. Pattern: `--model opus --permission-mode bypassPermissions --session-id <uuid> --system-prompt <prompt>`.
+  - `proactive-check.sh` cron every 15 min — spoke-aware (queries `up{host="vps2"}` etc.). Can act on vps1 via local `sudo docker`; **cannot act on vps2/vps3** (no SSH-out path from cron).
+  - 13 Prometheus alert rules — hub + spoke variants.
+  - W10 shipped 2026-06-01: 4 new watcher modules (backup health, cert expiry, mesh handshake age, DR-store staleness) — each with Tier A autonomous fix where safe.
+- **Layer 2 — Per-project watchdog sidecars (default-on for new specs):**
+  - One sidecar container per opted-in project (`watchdog.enabled: true` in spec, default True via `WatchdogConfig`).
+  - Today: 1 live (`watchdog-test-watchdog` on vps1, T-P5 dogfood).
+  - 60s poll → rule detect → Claude Opus diagnose → Tier A action allow-list (`restart_container`, `clear_redis_cache`, `rotate_logs`) → state.db + cost_ledger.
+  - Deadman bleed-stop: if Tier C escalation stays unacked for `deadman_timeout_seconds`, sidecar fires `docker restart <main>` as last resort.
+  - `llm_client.py` mirrors the production sysadmin pattern exactly (T-P5 2026-06-04 rewrite).
+- **Gap (acknowledged):** AI auto-action coverage is **vps1-only** today. Alertmanager and Apprise both route to Telegram-for-humans rather than to an AI receiver. See "Signal → AI wake-up matrix" in [`vps-complete-inventory.md`](vps-complete-inventory.md) for the verified-live matrix of which signals do/don't trigger AI.
 
 ### 7. DR — fleet-wide resilience claim
 

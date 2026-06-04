@@ -287,7 +287,27 @@ Owner can override either way via `watchdog.enabled: true|false` in the spec.
 | **P4 — 02 integration** | Universal-coverage overlay integrated into `02-epic-decomposition-command.md` | P1 + P2 + P3 must exist before 02 cites them | **2 days** | Traycer cold-read of updated 02 on test Vision Summary produces epic set covering all 14 universal categories + saas-skeleton overlay; existing Step 1–4 + Infrastructure Decisions structure preserved |
 | **P5 — Dogfood E2E** | End-to-end on `/opt/test-saas-for-epic-wf`: 00 → 02 → 03 → ticket execution → `fabrik apply` → watchdog active | P1–P4 | **3 days** | Watchdog sidecar running; audit-log table populated; cost-budget enforced; synthetic anomaly (e.g., `docker kill main && watch for restart`) triggers Tier A restart within 90s + audit row written + Apprise notification received |
 
+**T-P5 SHIPPED 2026-06-04 — Step 6 was the milestone:** dogfood ran against `specs/services/watchdog-test.yaml` (docker-source `nginx:alpine`) on vps1, not the original `test-saas-for-epic-wf` target (that test fixture was removed during P2 ship cleanup). Step 6 verified end-to-end: `docker kill watchdog-test` → 60s tick detection → Claude Code Opus diagnose → Tier A `restart_container` → `state.resolve_incident("auto")`. **Detection to resolution: 3 seconds** (after one 60s tick wait). All P5 acceptance criteria met: sidecar running, audit-log table (state.db) populated, cost-budget WAL ready (postgres outage path verified in sub-plan §Step 9 design but execution folded into trio Phase 5 — see below), restart within 90s ✓, audit row written ✓, Apprise notification path ready (Known Issue 1 hostname fix is the gate for end-to-end notification, scheduled in trio Phase 2.5).
+
+**Sub-plan archived 2026-06-04:** [`archived/2026-06-03-watchdog-P5-subplan.md`](archived/2026-06-03-watchdog-P5-subplan.md). Five silent-failure modes surfaced + fixed during dogfood (docker.sock GID, DOCKER_API_VERSION pin, bubblewrap+socat install, .claude.json mount, drop `--max-budget-usd`/`--effort`/`--json-schema` + adopt production sysadmin pattern verbatim). Documented in [`vps-complete-inventory.md`](../../infrastructure/vps-complete-inventory.md) and lessons [#73](../../LESSONS_LEARNT.md), [#74](../../LESSONS_LEARNT.md), [#75](../../LESSONS_LEARNT.md).
+
+**Steps 7-9 of the sub-plan folded into [`2026-06-04-three-sysadmin-trio.md`](2026-06-04-three-sysadmin-trio.md) Phase 5 (open-ended iteration):**
+
+- Step 7 (provider fallback when Claude OAuth dies) — trio Phase 5 covers via Lesson 75 (OAuth keepalive cron) + OpenRouter fallback in `llm_client.py` (already shipped 2026-06-04)
+- Step 8 (budget kill-switch test forcing WATCHDOG_DAILY_BUDGET_USD=0.01) — **obsolete** post operator directive `feedback_no_budget_caps_sysadmin`; the WAL daily-cap kill-switch still exists, the per-call `--max-budget-usd` CLI flag was removed
+- Step 9 (postgres-main outage 60s test) — valid; folds into trio Phase 5 deferred work ("First time a real postgres outage happens; verify cost_budget WAL fail-open + replay")
+
 **Realistic total: 15–18 working days** for solo dev + AI agent assistance. (v1's "10 days" was a ~50% underestimate.)
+
+---
+
+## Post-P5 — fleet-wide AI ops (continuation, not part of T-P series)
+
+The original T-series was about getting **one** project-scoped watchdog sidecar working end-to-end. That shipped 2026-06-04. The follow-on goal — symmetric AI ops across all three hosts with peer communication — is its own plan:
+
+- **[2026-06-04-three-sysadmin-trio.md](2026-06-04-three-sysadmin-trio.md)** — three veteran sysadmin AIs (one per host), `consult`-verb peer protocol, partition-tolerant. Converged at r7 the same day T-P5 Step 6 shipped. Execution starts post-T-P5-close-out.
+
+The trio plan inherits T-P5's proven calling convention (`--model opus --permission-mode bypassPermissions --session-id <uuid> --resume <id>`, `cwd=/project`, `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1`) verbatim from `scripts/sysadmin/bot.py::_run_claude` — the same pattern that worked in T-P5 Step 6's verified self-heal loop.
 
 ---
 

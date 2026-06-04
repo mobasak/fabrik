@@ -1,6 +1,6 @@
 # VPS Fleet — Complete Service Inventory
 
-**Last Updated:** 2026-06-01 (post-W1 + post-W9 ship — UFW active on spokes; `/opt/fabrik/.env` mirrored to private GitHub via inotify+cron; Lesson 68 captured)
+**Last Updated:** 2026-06-04 (T-P5 dogfood Step 6 — watchdog Claude Code Opus self-heal verified end-to-end on `watchdog-test`; 4 silent-failure modes found + fixed; llm_client rewritten to mirror production sysadmin pattern)
 **Last probe report:** [`probe-reports/infra-probe-2026-06-01T22-50Z.yaml`](probe-reports/infra-probe-2026-06-01T22-50Z.yaml)
 **Hosts:** **vps1** (LA, hub) · **vps2** (Coventry UK, spoke) · **vps3** (Coventry UK, spoke)
 **Network:** Wireguard mesh `10.99.0.0/24` over UDP `51820`, MTU `1420`, hub-and-spoke topology
@@ -8,7 +8,7 @@
 
 ## Quick state (current)
 
-- **vps1:** 29 containers — the original 28 shared-infra services plus `site-provisioner` (running but **interim manual stand-up**, not yet redeployable via `fabrik apply` — see "site-provisioner status" below). 4 shared infra services (postgres-main, redis-main, glitchtip-web, authelia) + loki are bound to `10.99.0.1:<port>` mesh IPs so spokes can reach them.
+- **vps1:** 31 containers — the 29 documented below plus `watchdog-test` + `watchdog-test-watchdog` (T-P5 dogfood test running since 2026-06-03; sidecar self-heals nginx via Claude Code Opus diagnose + `restart_container` Tier A action; verified end-to-end 2026-06-04 with 34s incident→action close time). 4 shared infra services (postgres-main, redis-main, glitchtip-web, authelia) + loki are bound to `10.99.0.1:<port>` mesh IPs so spokes can reach them.
 - **vps2:** 5 containers — monitoring agents (node-exporter / cadvisor / promtail) + Traefik (public TLS for `*.vps2.ocoron.com`). DNS is **live** as of 2026-05-31 afternoon.
 - **vps3:** 5 containers — same as vps2. DNS is **live** as of 2026-05-31 afternoon.
 - **Mesh handshakes:** active, cross-Atlantic RTT 133–134 ms, 0 % loss
@@ -95,7 +95,7 @@ ssh vps 'sudo docker exec site-provisioner curl -sf http://localhost:8001/health
 **Hostname:** vps1.ocoron.com
 **SSH:** ozgur user, key auth only (root disabled, password auth disabled)
 
-### Container inventory (29 running)
+### Container inventory (31 running — 29 platform + 2 watchdog dogfood)
 
 | Container | Memory limit | Purpose |
 | :--- | :--- | :--- |
@@ -128,6 +128,8 @@ ssh vps 'sudo docker exec site-provisioner curl -sf http://localhost:8001/health
 | `ocoron-com-db-1` | — | Tenant: MariaDB (WP-specific, not on shared postgres-main) |
 | `ocoron-com-redis-1` | — | Tenant: per-WP Redis cache |
 | `ocoron-com-backup-1` | — | Tenant: nightly mysqldump sidecar |
+| `watchdog-test` | 64m | T-P5 dogfood — nginx:alpine target. Container the sidecar watches. |
+| `watchdog-test-watchdog` | 1024m | T-P5 dogfood — per-project Claude-driven watchdog sidecar. Bind-mounts `~/.claude/` + `~/.claude.json` from host (`FABRIK_VPS_CLAUDE_HOME`), `/var/run/docker.sock`, project tree RO. Self-heals via Tier A `restart_container` when the main container exits. Verified end-to-end 2026-06-04: `docker kill watchdog-test` → detection in 60s → Opus diagnose → restart → resolved in 3s. |
 
 ### `/opt` service stacks on vps1
 
@@ -614,6 +616,11 @@ vps2/vps3 limits per monitoring agent (set by `monitoring-agent.compose.yaml.tem
 | 10 | bootstrap-vps.sh shipped 3 bugs in one session (Lesson 65) | Create sudoer FIRST, scan multiple SSH key candidates, no process substitution over SSH |
 | 11 | Alert spam during planned downtime | Silence the `ContainerDown` rule before any op that takes containers down >2 min (Telegram floods otherwise) |
 | 12 | "Security theater" pattern on single-operator dev VPS | Don't propose perm changes / credential rotations without naming a realistic attacker |
+| 13 | Watchdog sidecar's docker probes silently returned empty due to docker.sock GID mismatch (T-P5 dogfood) | Driver injects `group_add: [<host docker.sock gid>]` into the compose overlay at apply time (auto-detected via `stat -c %g`). Pairs with `DOCKER_API_VERSION` env to handle CLI/daemon API skew. |
+| 14 | Claude Code `-p` mode + `--effort <level>` exits 0 with EMPTY stdout AND stderr (silent death) in 2.1.144 | Don't pass `--effort` to non-interactive Claude. Use default effort + `--model opus` for Opus-class diagnosis. Re-evaluate when Anthropic ships `-p`+`--effort` compatibility. |
+| 15 | Per-call `--max-budget-usd` on sysadmin LLM calls breaks the diagnose loop (session-init cache cost alone exceeds any sane cap) | No per-call $ caps on watchdog / sysadmin agents. Subscription is the budget. Daily-cap + invocations-cap via the WAL kill-switch remain as soft circuit-breakers. Operator directive 2026-06-03. |
+| 16 | Bind-mounted `~/.claude/.credentials.json` (RO) goes stale every ~4 days; sidecar can't write back the refreshed token → 401 → fallback to OpenRouter / rule-only mode | On a stale-token symptom, run `claude -p hi` ONCE on the host (refreshes the file in place; RO mount picks up the new contents on next read). Permanent fix would be a credentials-refresh sidecar or RW-mount of just `.credentials.json`. |
+| 17 | OpenRouter routes Anthropic models through Amazon Bedrock by default, and Bedrock-served Claude IGNORES `response_format: json_schema` — returns plain text | Don't depend on `response_format` for Anthropic-via-OpenRouter. Instruct JSON via the system prompt + parse defensively (plain → ```json fenced → greedy `{...}` regex). Same pattern as Claude Code CLI 2.1.144 with `--json-schema`. |
 
 ---
 
@@ -678,6 +685,54 @@ Was returning `Invalid access token` after the session 2026-05-31 morning cleanu
 
 ---
 
+## Signal → AI wake-up matrix (verified live 2026-06-04)
+
+This table answers "when X breaks, what wakes up an AI to look at it?" — and lists what currently does NOT trigger AI. Verified against live state on all three hosts.
+
+### Signal sources (things that detect problems)
+
+| Source | What it observes | Where the signal lands | Wakes an AI? |
+| :--- | :--- | :--- | :--- |
+| `prometheus` (vps1) | metrics from node-exporter, cAdvisor, postgres-exporter, redis-exporter, pushgateway, cAdvisor-spokes, node-spokes, promtail-spokes (18 active targets, all up) | `alertmanager` → Telegram **AND** queried by `proactive-check.sh` cron | ✅ via `proactive-check.sh` (every 15 min, rate-limited 5 Claude wakes/h) |
+| `alertmanager` (vps1) | Prometheus rule alerts (spoke_health group: SpokeDown / SpokeHighCPU / SpokeHighRAM, ContainerDown, plus drift, registrar, etc.) | Native `telegram_configs` → Telegram | ❌ (operator-in-loop by design; ARO-Brain receiver stub in config but not built) |
+| `loki` (vps1) | logs from promtail on all 3 hosts (`host` label vps1/vps2/vps3) | Grafana dashboards; **no ruler / log-alert wiring** | ❌ |
+| `gatus` (vps1) | 21 synthetic endpoints across 16 config files (apps/core/data/observability/external) | Custom alerter → Apprise → Telegram | ❌ |
+| `glitchtip-web` + `glitchtip-worker` (vps1) | Sentry-compat exception ingest from instrumented apps; 7 retained projects | DSN → web UI; per-project alerts → Apprise → Telegram | ❌ |
+| `backrest` (each host) | backup plan run results | container logs only; failure hook in `config.json` is **currently broken** — points at stale Coolify-UUID Apprise hostname (Known Issue 1) | ❌ |
+| `traefik` (each host) | HTTP traffic, 5xx ratios | scraped by Prometheus (when enabled) → Alertmanager → Telegram | indirectly via Prometheus path |
+| **emitter library** (per-project) | application code calls `from watchdog_emitter import emit(name, severity, details)` to push structured events to its sidecar's `state.db emitter_inbox` | sidecar drains inbox each tick → `_handle_incident()` → Claude diagnose | ✅ when project has a watchdog sidecar (today: only `watchdog-test`) |
+| **per-project sidecar** rule pass (T-P5 dogfood) | per-project: 60s `docker inspect` + `docker logs --tail 200 --since 120s` against the main container; container-state pass (`status != running`, RestartCount delta) + log-trigger pass (`oom_kill`, `panic`, `traceback`, `http_5xx_spike` regex) | Claude Code Opus diagnose subprocess → Tier A action (`actions.execute`) → state.db + cost_ledger | ✅ for projects with `watchdog.enabled: true` |
+
+### AI wake mechanisms (the actual triggers, verified live)
+
+| # | Mechanism | Implemented as | Cadence | Scope today |
+| :--- | :--- | :--- | :--- | :--- |
+| 1 | **Host-level AI sysadmin — Telegram-driven Q&A** | `vps-sysadmin-bot.service` (systemd on vps1, NOT a container) — `bot.py` polls `getUpdates` ~10s, spawns `claude -p ... --model opus --permission-mode bypassPermissions --session-id ... --system-prompt ...`. Pattern doc: [`scripts/sysadmin/bot.py`](../../scripts/sysadmin/bot.py). | On operator message | **vps1 only**. Can act with `sudo docker` directly. The watchdog sidecar's `llm_client.py` (T-P5, 2026-06-04) now mirrors this exact pattern. |
+| 2 | **Host-level AI sysadmin — proactive cron** | `/etc/cron.d/vps-sysadmin` → `proactive-check.sh` (every 15 min) — pure-bash PromQL threshold pre-checks; on anomaly, wakes Claude with bypassPermissions + Apprise → Telegram report. Spoke-aware: queries `up{host="vps2"}`, `up{host="vps3"}`, etc. Rate limit: 5 Claude wakes / hour (`/tmp/sysadmin-proactive-rate`). | Every 15 min | **vps1 only**. Reads Prometheus metrics for all 3 hosts; **acts via local `sudo docker` so cannot fix vps2/vps3 directly** — there's no SSH-out path from this cron. |
+| 3 | **Host-level AI sysadmin — scheduled routines** | Same cron file: `morning-report.sh` (08:00 daily), `weekly-security.sh` (Mon 08:30), `weekly-maintenance.sh` (Sun 03:00), `monthly-backup-verify.sh` (1st of month 04:00). | per their schedules | **vps1 only**. Each can wake Claude; Telegram report-back. |
+| 4 | **Per-project watchdog sidecar — poll loop** | `<project>-watchdog` container running `agent.py` on a 60s loop; rule-based `detect_anomalies()` (container-state + log triggers) → Claude Code Opus diagnose → Tier A action (`restart_container` / `clear_redis_cache` / `rotate_logs`) | Every 60s | **One project (`watchdog-test`) on vps1.** Default `watchdog.enabled: True` in `WatchdogConfig` means every future spec gets a sidecar unless opted out. Per-project `state.db` isolates blast radius. |
+| 5 | **Per-project watchdog sidecar — emitter inbox** | Project code calls `emit(name, severity, details)` → SQLite write to its sidecar's `state.db.emitter_inbox` → sidecar drains each tick → same diagnose path as rule fires | Bounded by sidecar tick (60s) | Same scope as mech #4 — projects with sidecar opted in. |
+| 6 | **Per-project watchdog sidecar — deadman bleed-stop** | `DeadmanTimer` — if Tier C escalation stays unacknowledged for `deadman_timeout_seconds` (default 120s, watchdog-test 120s), sidecar fires `docker restart <main>` + re-alerts with `[DEADMAN-TIMEOUT]` prefix | One-shot per unack incident, after timeout | Same scope as mech #4. Safety net when LLM diagnose is unavailable (e.g. stale OAuth token, OpenRouter credit exhaustion). |
+
+### What is NOT yet wired to wake an AI (the gaps)
+
+| Gap | Impact | Smallest path to close |
+| :--- | :--- | :--- |
+| Alertmanager → AI (webhook receiver) | ALL Prometheus rule alerts on the fleet go directly to Telegram. The Alertmanager config already has a comment-stub `ARO Brain (LLM-based alert triage) is planned but not yet developed; when it ships, add it as a new receiver routed BEFORE telegram`. Until that receiver exists, AI gets no Prometheus-rule events between cron ticks. | Add one webhook receiver in `alertmanager.yml` pointing at a tiny FastAPI service that calls Claude with the alert payload using the same sysadmin pattern. Fall through to `telegram` on AI error. |
+| Apprise → AI (notify-tag receiver) | All Gatus, GlitchTip, and per-service push notifications converge on Apprise → Telegram. AI never sees them. | Add an Apprise notify tag that pre-calls the same AI wake endpoint, then forwards to Telegram. |
+| Loki ruler not configured | Log-pattern alerts (5xx spike, repeated traceback, unauthorized-burst) aren't fired by Loki at all today. Sidecars detect their own container's log triggers, but cross-container/log-only signals on vps1 aren't observed at the ruler layer. | Configure Loki ruler with a small set of alert rules → Alertmanager → (post-receiver-wire above) → AI. |
+| AI sysadmin on vps2 + vps3 | If anything goes wrong on a spoke, the only watcher is vps1's `proactive-check.sh` via Prometheus, and it can't act there (no SSH-out path). | Deploy the `vps-sysadmin-bot.service` + cron pack on each spoke. Each spoke self-heals locally via its own `sudo docker`. Pattern is identical to vps1; only state to replicate is the systemd unit + cron file + `/opt/fabrik/.env.sysadmin`. |
+| Per-project watchdog on vps2 + vps3 apps | When tenant apps start landing on spokes (`fabrik apply --target-vps vps2`), the watchdog driver currently writes the compose overlay to the spoke but the rest of the wiring (FABRIK_VPS_CLAUDE_HOME mount on the spoke, OAuth credentials on the spoke, build context tar over SSH) needs end-to-end verification — not yet exercised since no tenant on a spoke has `watchdog.enabled: true` yet. | When the first spoke tenant deploys with watchdog enabled, dogfood it the same way T-P5 dogfooded `watchdog-test` on vps1. |
+| Backrest failure → AI | Webhook URL stale (Known Issue 1); even if fixed, only routes to Telegram, not AI. | After fixing Known Issue 1's hostname, point the same hook at the AI wake endpoint. |
+| Cross-container correlation | Each watchdog sidecar sees one container; the host sysadmin sees Prometheus state. Neither sees "service A 5xx burst correlates with service B restart 10s prior on the same host." | A future host-level correlator could subscribe to Loki + Prometheus + sidecar event streams. Not built; out of scope for T-P5. |
+| Kernel panic / Docker daemon death | Both AI layers require Docker to be running. If the daemon dies, sidecars die too; host sysadmin systemd survives but can't act via `sudo docker`. | Out of scope for the watchdog. Would need an out-of-band path (IPMI, neighboring-host failover, or a sidecar-of-sidecars at the systemd layer). |
+
+### One-line summary
+
+> **Today, AI auto-action covers: (a) ALL Prometheus signals across vps1+vps2+vps3 via the 15-min `proactive-check.sh` cron on vps1 — limited to vps1-side `sudo docker` actions; (b) one project's container-state + log triggers on vps1 via the per-project watchdog sidecar (T-P5 dogfood, default-on for future specs). Everything else (Alertmanager push, Loki, Gatus, GlitchTip, Backrest failure, anything on vps2/vps3 not visible in Prometheus) routes only to Telegram-for-humans.**
+
+---
+
 ## AI Sysadmin (host process on vps1, not a container)
 
 The AI sysadmin runs as a **systemd service** on vps1, not a Docker container. Does not appear in `docker ps`.
@@ -711,7 +766,23 @@ End-to-end wire-up verified via the `spec_loader.load_spec` → `resolve_applica
 
 Default applicability: `WatchdogConfig.enabled` defaults to True, so every spec gets a sidecar unless the operator sets `watchdog: { enabled: false }`. Shape-kind-driven recommendation (operator discipline, NOT encoded in the registrar) lives in [`.windsurf/rules/core/60-watchdog.md`](../../.windsurf/rules/core/60-watchdog.md) — on for `service`/`worker`/`wordpress`; off for `static-site`/`docusaurus`. Hub-side P1 plumbing (`fabrik_analytics` DB + `cost_ledger` table) is live and consumed by the sidecar's vendored `cost_budget.py`.
 
-**Phases shipped 2026-06-03:** T-P3 (`core/self-healing.md` rule pack — 8-row escalation ladder + 5 anti-patterns + signup-flood worked example) and T-P4 (universal-coverage overlay into `docs/traycer/mega-epic-breakdown/02-epic-decomposition-command.md` via 12 surgical edits totaling ~84 lines, plus 1-line sync to `03-expand-epic-files-command.md`'s Metadata block). Both subplans archived. **Next phase: T-P5** — dogfood E2E (3 days, no subplan needed per parent plan): build per-project sidecar image, inject overlay, fire fake incident from emitter, verify diagnose→act→record loop end-to-end. Parent plan: [`2026-05-30-ai-watchdog-platform.md`](../development/plans/2026-05-30-ai-watchdog-platform.md).
+**Phases shipped 2026-06-03:** T-P3 (`core/self-healing.md` rule pack — 8-row escalation ladder + 5 anti-patterns + signup-flood worked example) and T-P4 (universal-coverage overlay into `docs/traycer/mega-epic-breakdown/02-epic-decomposition-command.md` via 12 surgical edits totaling ~84 lines, plus 1-line sync to `03-expand-epic-files-command.md`'s Metadata block). Both subplans archived.
+
+**T-P5 progress (2026-06-03 → 2026-06-04) — dogfood E2E live:** `specs/services/watchdog-test.yaml` (docker-source `nginx:alpine` + watchdog enabled) deployed on vps1. Steps 5–6 surfaced **five** silent-failure modes in the sidecar's docker-probe + Claude subprocess paths — all root-caused, fixed, and committed to `mobasak/fabrik-lib` + the watchdog driver. End-to-end self-heal verified live 2026-06-04: `docker kill watchdog-test` → 60s tick → rule fires `container_not_running` urgent → Claude Opus returns Tier A `restart_container` → `_restart_main` → `state.resolve_incident("auto")`. **Detection to resolution: 3 s** (with one 60 s tick wait). T-P5 subplan: [`2026-06-03-watchdog-P5-subplan.md`](../development/plans/2026-06-03-watchdog-P5-subplan.md). Parent plan: [`2026-05-30-ai-watchdog-platform.md`](../development/plans/2026-05-30-ai-watchdog-platform.md).
+
+The five failure modes (all visible only with the sidecar dogfooded against a real Docker daemon — none surfaced in unit tests):
+
+| # | Symptom | Root cause | Fix |
+| :--- | :--- | :--- | :--- |
+| 1 | `gather_snapshot()` returned `{container, ts}` only — no `status`, `health`, `restart_count`. Every tick saw `detect_anomalies() == []`. | `docker.sock` owned by `root:988` mode 660; sidecar runs as UID/GID 1000 (no `docker` group membership) → "permission denied" on every probe → exit 1 silently swallowed. | `src/fabrik/drivers/watchdog.py::_detect_docker_sock_gid()` runs `stat -c %g /var/run/docker.sock` on the hub at apply time and emits `group_add: [<gid>]` in `compose.watchdog.yaml`. |
+| 2 | After fixing #1, `docker inspect` exited 1 with `"client version 1.41 is too old. Minimum supported API version is 1.44"`. | Debian Bookworm ships `docker.io` CLI 1.41; hub runs Docker engine 29.0.2 with `MinAPIVersion: 1.44`. | `Dockerfile`: `ENV DOCKER_API_VERSION=1.44`. Forward-compatible until hub bumps MinAPI. |
+| 3 | Claude exited 1 with `"sandbox required but unavailable: bubblewrap (bwrap) not installed, socat not installed · sandbox.failIfUnavailable is set"`. | Claude Code 2.1.144 wraps tool calls in a `bwrap`+`socat` sandbox on Linux; sidecar's image lacked the binaries. Operator's `sandbox.failIfUnavailable: true` posture is correct for a watchdog running arbitrary shell — install the deps, don't relax the policy. | `Dockerfile`: add `bubblewrap` + `socat` to the apt install list (~2 MB combined). |
+| 4 | After #3, Claude exited 1 with `"Claude configuration file not found at: /home/watchdog/.claude.json"`. | The CLI's per-user config file lives **alongside** `~/.claude/`, not inside it. Driver only bind-mounted the dir. | `src/fabrik/drivers/watchdog.py::_push_overlay()` adds a second bind-mount: `{VPS_CLAUDE_HOME}.json:/home/watchdog/.claude.json:ro`. |
+| 5 | After #1–4, claude exited 0 / 1 / timed out depending on flag combo; **the killer** was `--max-budget-usd $X` (any X ≤ ~$0.30 on Opus). Session-init `cache_creation` cost on Opus already exceeds any sane per-call cap before any diagnose tokens are spent — error JSON went to stdout, non-zero rc swallowed it. | Per-call $ caps are wrong for a sysadmin-class agent. Operator directive 2026-06-03: `"do not set budgets for sysadmin why are you doing this"`. | Drop `--max-budget-usd` entirely. Also drop `--effort <level>` (incompatible with `-p` in 2.1.144 — silent rc=0 empty-stdout death) and `--json-schema` (Claude 2.1.144 puts structured output in a separate envelope field and tool-use changes the result shape). Rewrite `_invoke_claude_code` to mirror the **production sysadmin pattern** at [`scripts/sysadmin/bot.py::_run_claude`](../../scripts/sysadmin/bot.py): `--model opus`, `--permission-mode bypassPermissions`, `--session-id <uuid>` first call + `--resume <id>` subsequent (warm cache), `cwd=/project`, `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1`, parse `data["result"]` as plain text with defensive JSON extraction. 300s timeout. Daily-cap + invocations-cap remain as soft circuit-breakers via the WAL kill-switch — that's the only ceiling worth keeping for sysadmin work. |
+
+Net code surface this added (committed):
+- `mobasak/fabrik-lib`: 6 commits — agent.py container-state pass, Dockerfile API-version pin + bwrap/socat, llm_client.py drop --effort, llm_client.py drop --max-budget + structured-output parse, llm_client.py timeout 60→300s, llm_client.py adopt sysadmin pattern + defensive JSON parse.
+- `mobasak/fabrik` (this repo): watchdog driver gained `_detect_docker_sock_gid()` + `group_add` injection + second `.claude.json` bind-mount; watchdog-test spec bumped `daily_budget_usd 0.50 → 5.00`, `per_incident_budget_usd 0.05 → 1.00`, `daily_invocations_cap 20 → 50` (no per-call CLI enforcement now; values feed only the cost_budget WAL bookkeeping).
 
 ---
 
