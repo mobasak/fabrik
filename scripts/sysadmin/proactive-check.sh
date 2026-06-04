@@ -198,6 +198,26 @@ if [ -e /etc/wireguard/wg0.conf ] && sudo wg show wg0 >/dev/null 2>&1; then
     done < <(sudo wg show wg0 latest-handshakes 2>/dev/null)
 fi
 
+# ── OAuth keepalive heartbeat (trio plan §2.5 + Lesson 75) ────────────────
+#
+# /etc/cron.d/vps-sysadmin runs `claude -p "ping" > /var/log/claude-keepalive.log`
+# once per hour to keep this host's Claude Code OAuth token fresh (tokens go
+# stale every ~4 days when the host is idle). The log file's mtime is the
+# heartbeat. If mtime > 90 minutes, the cron itself is dead — the primary
+# LLM path will silently degrade to 401 within days. Escalate to operator.
+KEEPALIVE_LOG=/var/log/claude-keepalive.log
+if [ ! -e "$KEEPALIVE_LOG" ]; then
+    # File doesn't exist yet — first-boot or cron never fired. Allow 2h grace.
+    if [ -e /etc/cron.d/vps-sysadmin ] && [ "$(stat -c %Y /etc/cron.d/vps-sysadmin 2>/dev/null)" -lt "$(($(date +%s) - 7200))" ]; then
+        ANOMALIES+="oauth_keepalive_never_ran "
+    fi
+else
+    KEEPALIVE_AGE=$(( $(date +%s) - $(stat -c %Y "$KEEPALIVE_LOG") ))
+    if [ "$KEEPALIVE_AGE" -gt 5400 ]; then  # 90 minutes
+        ANOMALIES+="oauth_keepalive_stale[${KEEPALIVE_AGE}s] "
+    fi
+fi
+
 # ── W10: DR store staleness (GitHub API last-commit age) ─────────────────
 #
 # W9 mirrors /opt/fabrik/.env continuously via inotify; if commits stop landing

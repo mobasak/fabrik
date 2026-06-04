@@ -788,6 +788,124 @@ run_verify() {
     log "verify complete"
 }
 
+step_14_install_sysadmin_pack() {
+    # Trio plan Phase 2 (2026-06-04) — symmetric AI ops across vps1+vps2+vps3.
+    # Each host runs its own veteran-sysadmin Claude (systemd) + cron pack +
+    # peer-protocol-aware /wake endpoint (Phase 3). This step installs the
+    # systemd unit, cron file, scripts, env template, and the rendered
+    # canonical sysadmin prompt with this host's substitutions baked in.
+    log "step 14: install AI sysadmin pack (systemd unit + cron + scripts)"
+    if $DRY_RUN; then
+        dim "    [dry-run] would scp bot.py + 5 cron scripts + system-prompt.txt + peer-protocol.md to spoke,"
+        dim "             write rendered systemd unit + cron file + .env.sysadmin template"
+        return 0
+    fi
+
+    # Compute deterministic cron-minute slots from a SHA1 hash of the host
+    # name (trio plan r5 #35/#36). Avoids concurrent Claude API hits across
+    # 3 hosts and extends cleanly to a 4th/5th spoke without touching this
+    # script.
+    local host_hash digest_minute keepalive_minute
+    host_hash=$(echo -n "${SPOKE_NAME}" | sha1sum | head -c 8)
+    digest_minute=$(( 16#${host_hash} % 30 ))            # 0–29
+    keepalive_minute=$(( (16#${host_hash#?} ) % 60 ))    # 0–59 (different bits)
+
+    # Resolve peer-host string for the system prompt substitution. Hub is
+    # always vps1 at FABRIK_WG_HUB_IP; the other spoke is whichever fleet
+    # member isn't us.
+    local peer_hosts
+    case "${SPOKE_NAME}" in
+        vps2) peer_hosts="vps1 (${FABRIK_WG_HUB_IP}), vps3 (10.99.0.3)" ;;
+        vps3) peer_hosts="vps1 (${FABRIK_WG_HUB_IP}), vps2 (10.99.0.2)" ;;
+        *)    peer_hosts="vps1 (${FABRIK_WG_HUB_IP}) and other fleet members" ;;
+    esac
+
+    local tmpdir
+    tmpdir=$(mktemp -d -t fabrik-sysadmin-pack-XXXX)
+    trap "rm -rf '$tmpdir'" RETURN
+
+    # Render systemd unit + cron file + .env template with host-specific
+    # values. The system prompt itself is rendered by the watchdog driver
+    # at fabrik apply time (see src/fabrik/drivers/watchdog.py); here we
+    # ship the un-rendered source-of-truth at /opt/fabrik/scripts/sysadmin/
+    # so other consumers (proactive-check.sh, morning-report.sh, future
+    # aro-wake) can read + render it themselves with the same host values.
+    sed \
+        -e "s|{{HOST_NAME}}|${SPOKE_NAME}|g" \
+        -e "s|{{HOST_ROLE}}|spoke|g" \
+        -e "s|{{HOST_IP}}|${SPOKE_MESH_IP}|g" \
+        "${SCRIPT_DIR}/templates/vps-sysadmin-bot.service.template" \
+        > "${tmpdir}/vps-sysadmin-bot.service"
+
+    sed \
+        -e "s|{{HOST_NAME}}|${SPOKE_NAME}|g" \
+        -e "s|{{DIGEST_MINUTE}}|${digest_minute}|g" \
+        -e "s|{{KEEPALIVE_MINUTE}}|${keepalive_minute}|g" \
+        "${SCRIPT_DIR}/templates/sysadmin-cron.template" \
+        > "${tmpdir}/vps-sysadmin-cron"
+
+    sed \
+        -e "s|{{HOST_NAME}}|${SPOKE_NAME}|g" \
+        -e "s|{{HOST_ROLE}}|spoke|g" \
+        -e "s|{{HOST_IP}}|${SPOKE_MESH_IP}|g" \
+        -e "s|{{PEER_HOSTS}}|${peer_hosts}|g" \
+        "${SCRIPT_DIR}/templates/env.sysadmin.template" \
+        > "${tmpdir}/.env.sysadmin"
+
+    # Ship the sysadmin source tree (scripts + canonical prompt + peer protocol).
+    # Excludes __pycache__ and any local-only artifacts.
+    rsync -a --exclude __pycache__ --exclude '*.pyc' \
+        "${SYSADMIN_SOURCE:-/opt/fabrik/scripts/sysadmin/}" \
+        "${tmpdir}/sysadmin/"
+
+    # scp the rendered files + the sysadmin tree to /tmp on the spoke,
+    # then sudo-move into place with correct ownership/mode.
+    scp -q -r "${tmpdir}/vps-sysadmin-bot.service" \
+              "${tmpdir}/vps-sysadmin-cron" \
+              "${tmpdir}/.env.sysadmin" \
+              "${tmpdir}/sysadmin" \
+        "${EFFECTIVE_REMOTE}:/tmp/"
+
+    remote "sudo mkdir -p /opt/fabrik/scripts /opt/fabrik/logs /var/log && \
+        sudo cp -R /tmp/sysadmin /opt/fabrik/scripts/sysadmin && \
+        sudo chown -R ozgur:ozgur /opt/fabrik/scripts/sysadmin && \
+        sudo chmod 755 /opt/fabrik/scripts/sysadmin/*.sh /opt/fabrik/scripts/sysadmin/bot.py 2>/dev/null || true && \
+        sudo install -m 644 -o root -g root /tmp/vps-sysadmin-bot.service /etc/systemd/system/vps-sysadmin-bot.service && \
+        sudo install -m 644 -o root -g root /tmp/vps-sysadmin-cron /etc/cron.d/vps-sysadmin && \
+        sudo install -m 600 -o ozgur -g ozgur /tmp/.env.sysadmin /opt/fabrik/.env.sysadmin && \
+        sudo touch /opt/fabrik/logs/sysadmin-actions.jsonl && \
+        sudo chown ozgur:ozgur /opt/fabrik/logs/sysadmin-actions.jsonl && \
+        sudo chmod 644 /opt/fabrik/logs/sysadmin-actions.jsonl && \
+        sudo systemctl daemon-reload && \
+        rm -rf /tmp/sysadmin /tmp/vps-sysadmin-bot.service /tmp/vps-sysadmin-cron /tmp/.env.sysadmin"
+
+    # Known Issue 1 hostname fix (trio plan §2.5 + vps-complete-inventory):
+    # Backrest plan-failure webhook hooks reference the Coolify-UUID-suffix
+    # `apprise-lcocgs4gs8ksg4g08w40ows8` instead of the stable `apprise`.
+    # One-shot sed fix at install time so future plan failures actually
+    # reach Telegram via the Apprise hook path.
+    remote 'if sudo test -f /opt/backrest/config/config.json && \
+            sudo grep -q "apprise-lcocgs4gs8ksg4g08w40ows8" /opt/backrest/config/config.json; then \
+            sudo cp /opt/backrest/config/config.json /opt/backrest/config/config.json.bak.$(date +%Y%m%d-%H%M%S) && \
+            sudo sed -i "s|apprise-lcocgs4gs8ksg4g08w40ows8|apprise|g" /opt/backrest/config/config.json && \
+            sudo docker restart backrest >/dev/null && \
+            echo "Backrest hostname fix applied"; \
+        else \
+            echo "Backrest hostname fix not needed (no stale UUID found)"; \
+        fi'
+
+    # Verify: files in place, systemd recognizes the unit, cron file syntax OK.
+    remote 'systemctl cat vps-sysadmin-bot.service >/dev/null && \
+        sudo crontab -T /etc/cron.d/vps-sysadmin 2>/dev/null; \
+        ls -la /opt/fabrik/scripts/sysadmin/system-prompt.txt \
+               /opt/fabrik/scripts/sysadmin/peer-protocol.md \
+               /opt/fabrik/scripts/sysadmin/bot.py \
+               /opt/fabrik/.env.sysadmin 2>&1 | head -5'
+
+    ok "step 14 done — sysadmin pack installed; operator action required to activate (see post-bootstrap message)"
+    log "    cron slots assigned for ${SPOKE_NAME}: digest=09:${digest_minute} UTC, keepalive=:${keepalive_minute} hourly"
+}
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
@@ -824,11 +942,18 @@ main() {
     step_11_install_monitoring_agents
     step_12_install_spoke_traefik
     step_13_create_dns_records
+    step_14_install_sysadmin_pack
 
     echo
     ok "bootstrap complete for ${SPOKE_NAME}"
     log "next: from your dev machine, run:"
     log "    fabrik apply specs/services/<your-service>.yaml --target-vps ${SPOKE_NAME}"
+    log ""
+    log "manual finish required (operator action, can't be automated):"
+    log "    1. fill in TELEGRAM_BOT_TOKEN + TELEGRAM_OWNER_ID in /opt/fabrik/.env.sysadmin"
+    log "    2. ssh ${SPOKE_NAME} 'claude' on the spoke (device-flow OAuth handshake)"
+    log "    3. ssh ${SPOKE_NAME} 'sudo systemctl enable --now vps-sysadmin-bot.service'"
+    log "    4. send a test Telegram message; expect a [${SPOKE_NAME}] reply"
 }
 
 main "$@"

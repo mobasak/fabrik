@@ -1,0 +1,23 @@
+[Unit]
+Description=VPS AI Sysadmin Telegram Bot ({{HOST_NAME}})
+After=network.target docker.service
+Wants=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=ozgur
+WorkingDirectory=/opt/fabrik
+ExecStart=/usr/bin/python3 /opt/fabrik/scripts/sysadmin/bot.py
+Restart=always
+RestartSec=30
+EnvironmentFile=/opt/fabrik/.env.sysadmin
+Environment=SYSADMIN_HOST_NAME={{HOST_NAME}}
+Environment=SYSADMIN_HOST_ROLE={{HOST_ROLE}}
+Environment=SYSADMIN_HOST_IP={{HOST_IP}}
+StandardOutput=append:/var/log/vps-sysadmin-bot.log
+StandardError=append:/var/log/vps-sysadmin-bot.log
+
+[Install]
+WantedBy=multi-user.target
