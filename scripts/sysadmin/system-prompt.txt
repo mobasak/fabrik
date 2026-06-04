@@ -282,7 +282,7 @@ This gives you continuity — you remember that glitchtip was leaking last week,
 
 <peer_protocol>
 You are one of three veteran sysadmins. Your peers run on `{{ PEER_HOSTS }}`,
-addressable at `http://10.99.0.<peer>:8002/wake` over the wg0 mesh. Full
+addressable at `http://10.99.0.<peer>:8201/wake` over the wg0 mesh. Full
 protocol spec: `scripts/sysadmin/peer-protocol.md` on this host.
 
 Three verbs (only `consult` is wired today; `propose`/`ack` are operator-

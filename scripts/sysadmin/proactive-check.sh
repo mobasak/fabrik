@@ -206,7 +206,7 @@ fi
 # safe; both visible to operator. But we want to know.
 ARO_WAKE_HOST="${SYSADMIN_HOST_IP:-127.0.0.1}"
 if systemctl is-enabled --quiet aro-wake.service 2>/dev/null; then
-    if ! curl -sf --max-time 5 "http://${ARO_WAKE_HOST}:8002/health" >/dev/null 2>&1; then
+    if ! curl -sf --max-time 5 "http://${ARO_WAKE_HOST}:8201/health" >/dev/null 2>&1; then
         ANOMALIES+="aro_wake_unhealthy "
     fi
 fi

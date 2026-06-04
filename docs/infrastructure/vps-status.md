@@ -37,6 +37,53 @@
 
 ---
 
+## 2026-06-04 evening — Trio Phase 1+2+3 SHIPPED: code-side complete, three-veteran-sysadmin model deployable to spokes
+
+Three commits land in `mobasak/fabrik` + one in `mobasak/fabrik-lib`, bringing the symmetric AI-ops layer from plan to deployable code. Live deploy on spokes is gated on operator action (three @BotFather tokens + `claude auth login` per spoke).
+
+**`mobasak/fabrik`:**
+
+- `434d70b` — trio Phase 1 + T-P5 close: canonical veteran-sysadmin prompt restored to watchdog + peer-protocol primitive defined.
+- `d83bfb0` — trio Phase 2 code: bootstrap `step_14_install_sysadmin_pack` + OAuth keepalive heartbeat in proactive-check.
+- `ed24f78` — trio Phase 3 code: aro-wake push-trigger service per host (consult verb live; propose/ack deferred to Phase 5).
+
+**`mobasak/fabrik-lib`:**
+
+- `d48c2df` — watchdog/sidecar: revert narrow `_WATCHDOG_SYS_PROMPT`, load canonical prompt + append dispatch contract.
+
+**What's live on vps1 right now:**
+
+- `watchdog-test-watchdog` sidecar runs the canonical 353-line veteran-sysadmin prompt + the watchdog dispatch contract addendum. Functional verification: `docker kill watchdog-test` → detection 60s → Claude Opus diagnose → Tier A `restart_container` → resolved in 6s end-to-end. Reasoning: *"Container watchdog-test has exited with 0 restarts, indicating a clean failure. Container is marked unhealthy. Standard auto-heal protocol for clean exit is immediate container restart to restore service state."* — veteran-shaped (correlates two pieces of evidence + names the protocol), vs yesterday's narrow prompt which produced no reasoning at all.
+- vps1's `bot.py` + `proactive-check.sh` continue to use the same prompt (no regression).
+
+**Trio Phase 2/3 code shipped but NOT yet deployed on spokes (operator action gates):**
+
+| Gate | Owner |
+|---|---|
+| Three @BotFather Telegram bots (or one shared with prefix routing per §7 Q1) | operator |
+| `claude auth login` device-flow handshake on vps2 + vps3 | operator (browser) |
+| `./scripts/bootstrap/bootstrap-vps.sh --spoke vps2` runs `step_14` + `step_15` cleanly | code-ready; needs operator-provided tokens |
+| `ssh vps2 'sudo systemctl enable --now vps-sysadmin-bot.service aro-wake.service'` | post-bootstrap operator step |
+| `curl http://10.99.0.2:8201/health` from hub | smoke test |
+
+**Cron-slot allocation (hash-stable, computed at install time so vps4/vps5 join cleanly):**
+
+- vps2: daily digest 09:09 UTC, OAuth keepalive every hour at :11
+- vps3: daily digest 09:24 UTC, OAuth keepalive every hour at :44
+
+**Port allocation (added to PORTS.md):**
+
+- 8201 — aro-wake push-trigger AI endpoint. Range 8200-8299 ("Management tools"; 8200 was retired Duplicati 2026-04-17). Each host binds its wg0 IP only.
+
+**Issues found and fixed in the same review pass:**
+
+1. **Port conflict** — initial code used `8002` which collides with `fabrik-claim-validator` per PORTS.md. Renamed across 7 files (main.py + service template + bootstrap step + proactive-check + peer-protocol.md + trio plan + system-prompt.txt).
+2. **aro-wake race conditions** — `_sessions` dict, rate-limiter buckets, and pending.jsonl writes were unprotected against concurrent `/wake` requests. Added `threading.Lock` for the synchronous structures + `asyncio.Lock` for the file. Hammer test: 30 concurrent calls against a 20/h cap allowed exactly 20.
+3. **FastAPI `@app.on_event` deprecation** — replaced with `asynccontextmanager` lifespan handler (`lifespan` param on FastAPI 0.115).
+4. **`daily-digest.sh` missing** (referenced in cron template but didn't exist) — created the script with full health-heartbeat output; Apprise-routed to Telegram on hosts where Apprise is reachable (vps1); spokes log-only until §7 Q1 routing lands.
+
+---
+
 ## 2026-06-04 — T-P5 dogfood Step 6 SHIPPED: watchdog self-heals via Claude Code Opus end-to-end
 
 **Live evidence (2026-06-04):**

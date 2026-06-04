@@ -48,6 +48,7 @@ This document tracks port allocations for all Fabrik services to prevent conflic
 | 8017 | **vps-sysadmin-bot health** | `/opt/fabrik/scripts/sysadmin/bot.py` | systemd service on vps1 host; **binds `127.0.0.1:8017` only** since W5 of fleet-hardening plan (2026-06-01). Distinct socket from the `:8017` container-internal allocation under "Python APIs" below — host-loopback and container-internal do not collide at the OS level. Override via `SYSADMIN_HEALTH_HOST=<ip>` in `/opt/fabrik/.env.sysadmin`. |
 | 8050 | fabrik-api | /opt/fabrik-api | FastAPI bridge — native VPS host process, binds `127.0.0.1` only |
 | 3004 | fabrik-control-plane | /opt/fabrik-control-plane | Next.js 14 chat UI — Coolify-managed container |
+| 8201 | **aro-wake** (per-host push-trigger AI endpoint) | `/opt/fabrik/scripts/aro-wake/` | Trio plan Phase 3 (2026-06-04). systemd service on every fleet host; binds the host's wg0 mesh IP (`10.99.0.<N>:8201`), NEVER `0.0.0.0`. Endpoint: `POST /wake` for peer consult / Alertmanager webhook (Phase 4) / manual ops curl. Reaches Claude via the same calling convention as `bot.py::_run_claude`. Allocated from the 8200-8299 "Management tools" range (Duplicati 8200 retired 2026-04-17; 8201 onward free). Mesh-only access enforced by UFW (default-deny on this range) + the explicit bind. Operator probe: `curl http://10.99.0.<N>:8201/health` from the hub or any peer. |
 
 ### Fabrik Microservices (VPS Host Ports)
 
@@ -83,7 +84,7 @@ If you encounter a port conflict:
 
 
 <!-- AUTO-GENERATED:PORTS:START -->
-<!-- Last synced: 2026-06-03 00:57:15 -->
+<!-- Last synced: 2026-06-04 14:46:08 -->
 
 ### Project Port Allocations (from project.yaml)
 

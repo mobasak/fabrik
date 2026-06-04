@@ -152,20 +152,33 @@ This doc answers: "we own 3 VPSes — what do we have, what's planned, and how i
 - Per-spoke Let's Encrypt happens on first tenant deploy. First attempt 2026-06-02 (`spoke-canary` on vps2) deployed healthy but failed the verifier 404 because vps2's Traefik lacks the `gzip` middleware definition (W15 — see Planned table). Rollback was clean.
 - Tenant containers on a spoke connect to shared infrastructure (Postgres, Redis, etc.) via mesh IP `10.99.0.1:<port>`, not public.
 
-### 6. AI sysadmin oversight (two layers, both on vps1 only today)
+### 6. AI sysadmin oversight (three layers — Phase 1 live on vps1, Phases 2+3 code-shipped + operator-gated for vps2/vps3)
 
-- **Layer 1 — Host-level AI sysadmin (vps1):**
-  - `vps-sysadmin-bot.service` on vps1 — Telegram bot, spawns Claude Code on demand to investigate. Pattern: `--model opus --permission-mode bypassPermissions --session-id <uuid> --system-prompt <prompt>`.
-  - `proactive-check.sh` cron every 15 min — spoke-aware (queries `up{host="vps2"}` etc.). Can act on vps1 via local `sudo docker`; **cannot act on vps2/vps3** (no SSH-out path from cron).
+- **Layer 1 — Host-level AI sysadmin (live on vps1; code shipped for vps2 + vps3 via trio plan Phase 2):**
+  - `vps-sysadmin-bot.service` on each host — Telegram bot, spawns Claude Code on demand. Pattern: `--model opus --permission-mode bypassPermissions --session-id <uuid> --system-prompt <prompt>`.
+  - `proactive-check.sh` cron every 15 min — spoke-aware (queries `up{host="vps2"}` etc.). Can act on its own host via local `sudo docker`; **on vps1 today, also reads vps2/vps3 metrics but cannot act there**. With trio Phase 2 deployed, each host's cron acts locally on its own host (no cross-host SSH needed).
   - 13 Prometheus alert rules — hub + spoke variants.
-  - W10 shipped 2026-06-01: 4 new watcher modules (backup health, cert expiry, mesh handshake age, DR-store staleness) — each with Tier A autonomous fix where safe.
-- **Layer 2 — Per-project watchdog sidecars (default-on for new specs):**
+  - W10 shipped 2026-06-01: 4 watcher modules (backup health, cert expiry, mesh handshake age, DR-store staleness) — each with Tier A autonomous fix where safe.
+  - Trio Phase 2 (2026-06-04) adds: OAuth keepalive cron (hourly, hash-stable minute per host — closes Lesson 75); aro-wake health check (mech #7); Backrest webhook hostname fix (Known Issue 1) baked into `bootstrap-vps.sh step_14`.
+- **Layer 2 — Per-project watchdog sidecars (live on vps1; default-on for new specs):**
   - One sidecar container per opted-in project (`watchdog.enabled: true` in spec, default True via `WatchdogConfig`).
-  - Today: 1 live (`watchdog-test-watchdog` on vps1, T-P5 dogfood).
+  - Today: 1 live (`watchdog-test-watchdog` on vps1).
   - 60s poll → rule detect → Claude Opus diagnose → Tier A action allow-list (`restart_container`, `clear_redis_cache`, `rotate_logs`) → state.db + cost_ledger.
   - Deadman bleed-stop: if Tier C escalation stays unacked for `deadman_timeout_seconds`, sidecar fires `docker restart <main>` as last resort.
-  - `llm_client.py` mirrors the production sysadmin pattern exactly (T-P5 2026-06-04 rewrite).
-- **Gap (acknowledged):** AI auto-action coverage is **vps1-only** today. Alertmanager and Apprise both route to Telegram-for-humans rather than to an AI receiver. See "Signal → AI wake-up matrix" in [`vps-complete-inventory.md`](vps-complete-inventory.md) for the verified-live matrix of which signals do/don't trigger AI.
+  - **Trio Phase 1.3 (2026-06-04):** `llm_client.py` reverted to load the canonical veteran-sysadmin prompt from file at sidecar start + appends a watchdog-specific dispatch contract. Veteran reasoning preserved (yesterday's narrow `_WATCHDOG_SYS_PROMPT` produced no `reasoning` field; today's verifies with full 2-3 sentence audit-trail reasoning).
+- **Layer 3 — aro-wake push-trigger endpoint (trio Phase 3, code shipped 2026-06-04, operator-gated for deploy):**
+  - FastAPI service on each host. Single endpoint: `POST /wake`. Three sources today: `consult` (LIVE — peer asks "what do you see?"), `manual` (operator curl for testing), and `alertmanager` placeholder (Phase 4 wires it).
+  - Binds wg0 mesh IP `:8201`, never `0.0.0.0`. Public-internet protection: UFW default-deny on the management-tools port range (8200-8299) + explicit bind.
+  - Calling convention: `--model opus --permission-mode bypassPermissions --session-id <uuid> --resume` (mirrors `bot.py::_run_claude` verbatim — the same production pattern proven on vps1 since 2026-05-29).
+  - Thread-safe rate limiter (20/h per (source, topic)), per-(source,topic) Claude session reuse for warm cache, disk-backed pending queue (24h TTL, 1000-entry cap) for failed cross-host forwards with mesh-recovery drain.
+  - Peer protocol: `consult` is live; `propose`/`ack` deferred to Phase 5 (cross-host destructive actions bridge via operator Telegram `reply "go"` until then).
+- **Three-veteran-sysadmin model — what's true after Phases 1+2+3 deploy:**
+  - Each host owns its docker.sock + journald + local exporters + has full sysadmin authority over what runs on its host.
+  - Knows the other two are addressable at `http://10.99.0.<peer>:8201/wake` over the wg0 mesh.
+  - Uses peers as senior colleagues via `consult` ("what do you see from your side?") — diagnosis-only; consult responses NEVER authorize action on the recipient side.
+  - Authorship rule: the host whose resource is affected AUTHORS the action; peers diagnose.
+  - Partition tolerance: when a peer is unreachable, local AI keeps healing local issues and explicitly annotates "(peer X unreachable; acting on local view only)" in its Telegram report — no silent decisions.
+- **Remaining gap:** Alertmanager → aro-wake webhook wire is Phase 4 — code stub exists in `aro-wake/main.py`, Alertmanager config not yet edited. See "Signal → AI wake-up matrix" in [`vps-complete-inventory.md`](vps-complete-inventory.md) for the per-mechanism row table updated 2026-06-04 evening.
 
 ### 7. DR — fleet-wide resilience claim
 

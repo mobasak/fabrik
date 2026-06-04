@@ -28,7 +28,7 @@ Use this BEFORE acting on anything that could span hosts. Diagnostic only — ne
 **HTTP call:**
 
 ```http
-POST http://10.99.0.<peer>:8002/wake
+POST http://10.99.0.<peer>:8201/wake
 Content-Type: application/json
 
 {
@@ -157,7 +157,7 @@ restarts: none. fabrik apply history on vps2: no recent. Suspect upstream
 cause.
 
 vps2 consults vps1:
-  POST http://10.99.0.1:8002/wake
+  POST http://10.99.0.1:8201/wake
     { source: consult, from_host: vps2, trace_id: <new>,
       seen_by: [vps2], topic: 5xx_burst_ocoron_apex,
       payload: { my_view: "nginx 5xx 30/s since 14:02; upstream errs

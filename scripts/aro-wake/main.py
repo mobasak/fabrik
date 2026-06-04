@@ -15,9 +15,9 @@ Deferred (Phase 4):
 Calling convention: mirrors scripts/sysadmin/bot.py::_run_claude verbatim
 (operator's working production sysadmin pattern since 2026-05-29).
 
-Binding: 127.0.0.1:8002 (loopback) + 10.99.0.<host>:8002 (wg0 mesh).
+Binding: 127.0.0.1:8201 (loopback) + 10.99.0.<host>:8201 (wg0 mesh).
 NEVER 0.0.0.0. Spokes have UFW rules allowing only :22, :80, :443, :51820
-inbound from public; UFW + DOCKER-USER prevent public reach to :8002 even
+inbound from public; UFW + DOCKER-USER prevent public reach to :8201 even
 if accidentally bound wider.
 """
 
@@ -28,9 +28,11 @@ import json
 import logging
 import os
 import subprocess
+import threading
 import time
 import uuid
 from collections import deque
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
@@ -65,23 +67,30 @@ log = logging.getLogger(__name__)
 # ── Rate limiter ──────────────────────────────────────────────────────────
 
 class RateLimiter:
-    """Per-(source, topic) tracker; drops events past the hourly cap."""
+    """Per-(source, topic) tracker; drops events past the hourly cap.
+
+    Thread-safe via threading.Lock — uvicorn handles concurrent /wake requests
+    via asyncio + asyncio.to_thread, so two requests can hit allow() at the
+    same wall-clock instant on different OS threads.
+    """
 
     def __init__(self, limit: int) -> None:
         self.limit = limit
         self._buckets: dict[tuple[str, str], deque[float]] = {}
+        self._lock = threading.Lock()
 
     def allow(self, source: str, topic: str) -> bool:
         now = time.time()
         key = (source, topic)
-        bucket = self._buckets.setdefault(key, deque())
-        # Evict events older than 1 hour
-        while bucket and now - bucket[0] > 3600:
-            bucket.popleft()
-        if len(bucket) >= self.limit:
-            return False
-        bucket.append(now)
-        return True
+        with self._lock:
+            bucket = self._buckets.setdefault(key, deque())
+            # Evict events older than 1 hour
+            while bucket and now - bucket[0] > 3600:
+                bucket.popleft()
+            if len(bucket) >= self.limit:
+                return False
+            bucket.append(now)
+            return True
 
 
 _rate = RateLimiter(RATE_LIMIT_PER_HOUR)
@@ -90,28 +99,45 @@ _rate = RateLimiter(RATE_LIMIT_PER_HOUR)
 # ── Per-(source, topic) session memory (warm prompt cache) ────────────────
 
 # Maps (source, topic) → Claude session-id. Lifetime 1h; new topic = new sid.
+# Lock guards against the race where two simultaneous wakes on the same
+# (source, topic) both observe "no session" and both spawn a fresh Claude
+# session — wastes one warm-cache cycle.
 _sessions: dict[tuple[str, str], tuple[str, float]] = {}
+_sessions_lock = threading.Lock()
 
 
 def _session_for(source: str, topic: str) -> str | None:
     key = (source, topic)
-    entry = _sessions.get(key)
-    if entry is None:
-        return None
-    sid, ts = entry
-    if time.time() - ts > 3600:
-        del _sessions[key]
-        return None
-    return sid
+    with _sessions_lock:
+        entry = _sessions.get(key)
+        if entry is None:
+            return None
+        sid, ts = entry
+        if time.time() - ts > 3600:
+            del _sessions[key]
+            return None
+        return sid
 
 
 def _set_session(source: str, topic: str, sid: str) -> None:
-    _sessions[(source, topic)] = (sid, time.time())
+    with _sessions_lock:
+        _sessions[(source, topic)] = (sid, time.time())
 
 
 # ── Pending queue (disk-backed; replays on mesh recovery) ─────────────────
+#
+# A single asyncio.Lock guards every read+write of pending.jsonl. Without
+# it, _queue_pending() (called from a /wake handler) and _drain_pending_loop
+# (background task) could race: drain reads the file, queue appends + may
+# truncate, drain writes back its now-stale view. Lock is per-event-loop
+# and held only across the read+write critical section; the actual peer
+# HTTP forwards inside drain run OUTSIDE the lock (so a slow forward to
+# one peer doesn't block /wake handlers from queueing for another peer).
 
-def _queue_pending(intended_for: str, payload: dict[str, Any]) -> None:
+_pending_lock = asyncio.Lock()
+
+
+async def _queue_pending(intended_for: str, payload: dict[str, Any]) -> None:
     """Append a failed forward to /var/lib/aro-wake/pending.jsonl."""
     PENDING_QUEUE_PATH.parent.mkdir(parents=True, exist_ok=True)
     entry = {
@@ -121,15 +147,17 @@ def _queue_pending(intended_for: str, payload: dict[str, Any]) -> None:
         "payload": payload,
         "attempts": 1,
     }
-    # Bound the queue (overflow drops oldest first)
-    if PENDING_QUEUE_PATH.exists():
-        lines = PENDING_QUEUE_PATH.read_text().splitlines()
-        if len(lines) >= PENDING_MAX_ENTRIES:
-            log.warning("pending_queue_overflow: dropping %d oldest entries", len(lines) - PENDING_MAX_ENTRIES + 1)
-            lines = lines[-(PENDING_MAX_ENTRIES - 1):]
-            PENDING_QUEUE_PATH.write_text("\n".join(lines) + "\n")
-    with PENDING_QUEUE_PATH.open("a") as fh:
-        fh.write(json.dumps(entry) + "\n")
+    async with _pending_lock:
+        # Bound the queue (overflow drops oldest first)
+        if PENDING_QUEUE_PATH.exists():
+            lines = PENDING_QUEUE_PATH.read_text().splitlines()
+            if len(lines) >= PENDING_MAX_ENTRIES:
+                log.warning("pending_queue_overflow: dropping %d oldest entries",
+                            len(lines) - PENDING_MAX_ENTRIES + 1)
+                lines = lines[-(PENDING_MAX_ENTRIES - 1):]
+                PENDING_QUEUE_PATH.write_text("\n".join(lines) + "\n")
+        with PENDING_QUEUE_PATH.open("a") as fh:
+            fh.write(json.dumps(entry) + "\n")
 
 
 async def _drain_pending_loop() -> None:
@@ -138,25 +166,41 @@ async def _drain_pending_loop() -> None:
         await asyncio.sleep(30)
         if not PENDING_QUEUE_PATH.exists():
             continue
-        try:
-            lines = PENDING_QUEUE_PATH.read_text().splitlines()
-        except OSError:
+        # Snapshot under lock, forward outside lock (so slow forwards don't
+        # block /wake handlers), write back under lock.
+        async with _pending_lock:
+            try:
+                snapshot = PENDING_QUEUE_PATH.read_text().splitlines()
+            except OSError:
+                continue
+        if not snapshot:
             continue
         now = time.time()
         keep: list[str] = []
-        for raw in lines:
+        for raw in snapshot:
             try:
                 entry = json.loads(raw)
             except json.JSONDecodeError:
                 continue
             if entry["ttl_until"] < now:
-                log.warning("pending entry expired: intended_for=%s topic=%s", entry["intended_for"], entry["payload"].get("topic"))
+                log.warning("pending entry expired: intended_for=%s topic=%s",
+                            entry["intended_for"], entry["payload"].get("topic"))
                 continue
-            ok = await _try_forward(entry["intended_for"], entry["payload"])
-            if not ok:
+            ok_fwd = await _try_forward(entry["intended_for"], entry["payload"])
+            if not ok_fwd:
                 entry["attempts"] = entry.get("attempts", 0) + 1
                 keep.append(json.dumps(entry))
-        PENDING_QUEUE_PATH.write_text("\n".join(keep) + ("\n" if keep else ""))
+        # Merge any entries queued by /wake handlers DURING our drain.
+        async with _pending_lock:
+            try:
+                final = PENDING_QUEUE_PATH.read_text().splitlines()
+            except OSError:
+                final = []
+            seen_snapshot = set(snapshot)
+            new_during_drain = [line for line in final if line not in seen_snapshot]
+            PENDING_QUEUE_PATH.write_text(
+                "\n".join(keep + new_during_drain) + ("\n" if keep or new_during_drain else "")
+            )
 
 
 # ── Forwarding (cross-host consult) ───────────────────────────────────────
@@ -167,7 +211,7 @@ async def _try_forward(target_host: str, payload: dict[str, Any]) -> bool:
     if not target_ip:
         log.error("unknown peer host: %s", target_host)
         return False
-    url = f"http://{target_ip}:8002/wake"
+    url = f"http://{target_ip}:8201/wake"
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             resp = await client.post(url, json=payload)
@@ -291,23 +335,32 @@ def _load_prompt() -> str:
 
 # ── FastAPI app ───────────────────────────────────────────────────────────
 
-app = FastAPI(title="aro-wake", version="0.1.0")
 
-
-@app.on_event("startup")
-async def _startup() -> None:
+@asynccontextmanager
+async def _lifespan(_app: FastAPI):
+    # Startup
     PENDING_QUEUE_PATH.parent.mkdir(parents=True, exist_ok=True)
     # Sanity-check the prompt is loadable; fail fast at startup, not on first wake.
-    try:
-        _load_prompt()
-    except RuntimeError as e:
-        log.error("startup failed: %s", e)
-        raise
-    asyncio.create_task(_drain_pending_loop())
+    _load_prompt()
+    drain_task = asyncio.create_task(_drain_pending_loop())
     log.info(
         "aro-wake up: host=%s role=%s ip=%s peers=%s timeout=%ds rate_limit=%d/h",
-        HOST_NAME, HOST_ROLE, HOST_IP, list(PEER_HOSTS.keys()), WAKE_TIMEOUT, RATE_LIMIT_PER_HOUR,
+        HOST_NAME, HOST_ROLE, HOST_IP, list(PEER_HOSTS.keys()),
+        WAKE_TIMEOUT, RATE_LIMIT_PER_HOUR,
     )
+    try:
+        yield
+    finally:
+        # Shutdown — give the drain loop one tick to finish cleanly.
+        drain_task.cancel()
+        try:
+            await drain_task
+        except asyncio.CancelledError:
+            pass
+        log.info("aro-wake shutting down")
+
+
+app = FastAPI(title="aro-wake", version="0.1.0", lifespan=_lifespan)
 
 
 @app.get("/health")

@@ -112,7 +112,7 @@ CRON-DRIVEN — proactive-check.sh (every 15 min via /etc/cron.d/vps-sysadmin)
 
 PUSH-DRIVEN (Phase 4) — Alertmanager → aro-wake
 ─────────────────────────────────────────────────────────────
-[aro-wake FastAPI idle, listening on 127.0.0.1+10.99.0.N:8002, ~60MB RAM]
+[aro-wake FastAPI idle, listening on 127.0.0.1+10.99.0.N:8201, ~60MB RAM]
    │
    ├─ Prometheus rule fires → Alertmanager webhook → POST /wake
    │
@@ -401,7 +401,7 @@ vps3 is the same step run with HOST=vps3.
 
 #### 3.1 `aro-wake` service (FastAPI, ~80 lines target)
 
-Lives on each host at `/opt/aro-wake/`. Compose service binds `127.0.0.1:8002` + `10.99.0.<host>:8002`. No public exposure. Single endpoint at first ship:
+Lives on each host at `/opt/aro-wake/`. Compose service binds `127.0.0.1:8201` + `10.99.0.<host>:8201`. No public exposure. Single endpoint at first ship:
 
 ```
 POST /wake
@@ -420,7 +420,7 @@ Implementation notes:
 - **Rate limit**: max 5 wakes / hour per `(source, topic)` pair to prevent storm. Same RATE_LIMIT pattern as `proactive-check.sh`.
 - **Queue with TTL**: if a wake fires while another is in-flight, queue with 60s TTL; expire silently after.
 - **Session resume**: each `(source, topic)` keeps its session id for 1h so multiple consults on the same topic stay in conversation; new topic = new session.
-- **Mesh-only**: `aro-wake` binds wg0 IP + loopback, never `0.0.0.0`. Verified via `ss -tlnp | grep 8002`.
+- **Mesh-only**: `aro-wake` binds wg0 IP + loopback, never `0.0.0.0`. Verified via `ss -tlnp | grep 8201`.
 
 Files touched: new `/opt/aro-wake/{compose.yaml, main.py, requirements.txt, .env}` per host; bootstrap installs.
 
@@ -432,7 +432,7 @@ The system prompt teaches Claude when to call `consult`:
 When you see a condition that might span hosts (DNS, CF, hub-side services,
 upstream registrar state, fleet-wide capacity), call your peers BEFORE
 acting on anything that could be wrong on a peer's host:
-  POST http://10.99.0.<peer>:8002/wake
+  POST http://10.99.0.<peer>:8201/wake
     { source: "consult", from_host: "{{ HOST_NAME }}", trace_id: <uuid>,
       seen_by: [<list of hosts that have already seen this trace_id>],
       topic: <slug>, payload: { my_view: <2-3 sentence summary>,
@@ -478,11 +478,11 @@ This means: hub goes down for 20 minutes; vps2 sees something it wants to consul
 
 | Test | Pass condition |
 |---|---|
-| `aro-wake` running on all three hosts | `ssh vpsN 'curl -sf http://127.0.0.1:8002/health'` returns 200 |
-| Mesh reachability | `ssh vps2 'curl -sf http://10.99.0.1:8002/health'` and `vps3 → vps1` both 200 |
-| Public reachability blocked | `curl http://<vpsN public IP>:8002/health` connects refused or times out (verified from off-mesh) |
+| `aro-wake` running on all three hosts | `ssh vpsN 'curl -sf http://127.0.0.1:8201/health'` returns 200 |
+| Mesh reachability | `ssh vps2 'curl -sf http://10.99.0.1:8201/health'` and `vps3 → vps1` both 200 |
+| Public reachability blocked | `curl http://<vpsN public IP>:8201/health` connects refused or times out (verified from off-mesh) |
 | Synthetic consult | from vps2, `claude -p "consult vps1 about: do you see traefik 5xx?"` → vps1's aro-wake handles → vps1's Claude replies with current traefik state → vps2's report includes the answer |
-| Partition behavior | block 10.99.0.1:8002 on vps2 via iptables → vps2's consult times out at 5s → final report has the "(peer vps1 unreachable; acting on local view only)" annotation |
+| Partition behavior | block 10.99.0.1:8201 on vps2 via iptables → vps2's consult times out at 5s → final report has the "(peer vps1 unreachable; acting on local view only)" annotation |
 | Rate limit | 6 rapid wakes of the same `(source, topic)` → 6th returns 429 |
 
 #### 3.4 Risks (Phase 3)
@@ -507,7 +507,7 @@ In [`/opt/monitoring/configs/alertmanager/alertmanager.yml`](../../infrastructur
 receivers:
   - name: aro-wake-routed
     webhook_configs:
-      - url: http://aro-wake-router:8002/wake?source=alertmanager
+      - url: http://aro-wake-router:8201/wake?source=alertmanager
         send_resolved: true
         max_alerts: 0
   - name: telegram
@@ -533,7 +533,7 @@ route:
 When `aro-wake` receives an Alertmanager webhook, it reads the alert's `host` label and forwards to the right host:
 
 - `host=vps1` → process locally
-- `host=vps2` → `POST http://10.99.0.2:8002/wake` (re-source `alertmanager-proxied`)
+- `host=vps2` → `POST http://10.99.0.2:8201/wake` (re-source `alertmanager-proxied`)
 - `host=vps3` → similar
 - **no `host` label** (r3): default to vps1's `aro-wake` for triage AND emit a `low_quality_alert` Loki entry naming the alertname; operator fixes the upstream rule to emit `host` labels properly. Don't fail silently.
 - **multiple `host` labels or contradictory** (r3): rare but possible (e.g., a rule about cross-host services); fan out to all named hosts; each one's AI receives the same payload; consult semantics in §3.2 prevent double-action via authorship rule.
@@ -664,11 +664,11 @@ The plan succeeds when ALL of the following are true and remain true for 7 conse
 | # | Criterion | How verified |
 |---|---|---|
 | 1 | Three sysadmin bots active across the fleet | `for h in vps vps2 vps3; do ssh $h 'sudo systemctl is-active vps-sysadmin-bot.service'; done` → all `active` |
-| 2 | Three aro-wake services active across the fleet | same form, port 8002 health 200 from each host's loopback |
+| 2 | Three aro-wake services active across the fleet | same form, port 8201 health 200 from each host's loopback |
 | 3 | Each host's AI uses the canonical veteran-sysadmin prompt (not a narrow JSON picker) | grep each host's prompt source; lint check that no `_WATCHDOG_SYS_PROMPT` constant exists anywhere |
 | 4 | Cross-host consult works end-to-end | live test: vps2 consults vps1 about a synthetic topic, receives + uses the answer in its report |
 | 5 | Alertmanager rule fires wake the correct host's AI within 30s | inject a labeled test alert; observe wake path in aro-wake logs of the right host |
-| 6 | Partition tolerance demonstrated | block 10.99.0.1:8002 from vps2 via iptables for 5 min; vps2 keeps healing locally with annotated reports; restoring connectivity restores consult |
+| 6 | Partition tolerance demonstrated | block 10.99.0.1:8201 from vps2 via iptables for 5 min; vps2 keeps healing locally with annotated reports; restoring connectivity restores consult |
 | 7 | Audit trail visible in Grafana | Loki query `{job="sysadmin-actions"}` returns entries from all 3 hosts |
 | 8 | Operator interruption rate ≤ baseline / 2 | Telegram message count to operator for week N+30 ≤ 50% of week N (before plan) |
 | 9 | No single-AI-failure regression | force-kill aro-wake on vps1 → vps2 and vps3 sysadmins keep working on their hosts uninterrupted |

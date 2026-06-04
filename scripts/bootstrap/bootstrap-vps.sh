@@ -914,7 +914,7 @@ step_15_install_aro_wake() {
     # convention as bot.py + llm_client.py, and returns the result.
     #
     # Bound to the host's mesh IP only (never 0.0.0.0). Peers reach it at
-    # http://10.99.0.<N>:8002/wake. systemd-managed, Restart=always.
+    # http://10.99.0.<N>:8201/wake. systemd-managed, Restart=always.
     log "step 15: install aro-wake push-trigger service (peer consult endpoint)"
     if $DRY_RUN; then
         dim "    [dry-run] would scp aro-wake source + create venv + render systemd unit"
@@ -975,7 +975,7 @@ step_15_install_aro_wake() {
     remote 'systemctl cat aro-wake.service >/dev/null && echo "unit installed OK"; \
         ls -la /opt/fabrik/scripts/aro-wake/main.py /opt/fabrik/.venv-aro-wake/bin/uvicorn 2>&1 | head -3'
 
-    ok "step 15 done — aro-wake installed; enable + verify with: sudo systemctl enable --now aro-wake.service && curl http://${SPOKE_MESH_IP}:8002/health"
+    ok "step 15 done — aro-wake installed; enable + verify with: sudo systemctl enable --now aro-wake.service && curl http://${SPOKE_MESH_IP}:8201/health"
 }
 
 # ---------------------------------------------------------------------------
@@ -1027,7 +1027,7 @@ main() {
     log "    2. ssh ${SPOKE_NAME} 'claude' on the spoke (device-flow OAuth handshake)"
     log "    3. ssh ${SPOKE_NAME} 'sudo systemctl enable --now vps-sysadmin-bot.service aro-wake.service'"
     log "    4. send a test Telegram message; expect a [${SPOKE_NAME}] reply"
-    log "    5. from the hub, curl http://10.99.0.\${spoke_ip_last_octet}:8002/health → expect 200"
+    log "    5. from the hub, curl http://10.99.0.\${spoke_ip_last_octet}:8201/health → expect 200"
 }
 
 main "$@"
