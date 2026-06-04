@@ -456,11 +456,36 @@ async def wake(request: Request) -> JSONResponse:
             content={"ok": False, "error": result.get("error"), "trace_id": trace_id},
         )
 
-    return JSONResponse(content={
+    raw = result["result"] or ""
+    # Strip the canonical "[<host>]" Telegram-prefix the veteran-sysadmin
+    # prompt instructs the model to add — for consult responses going to
+    # peers, the prefix is noise. The caller already knows from_host from
+    # the JSON envelope. Defense in depth: model sometimes echoes the
+    # prefix at start, sometimes not.
+    cleaned = raw.lstrip()
+    if cleaned.startswith(f"[{HOST_NAME}]"):
+        cleaned = cleaned[len(f"[{HOST_NAME}]"):].lstrip()
+
+    response_body: dict[str, Any] = {
         "ok": True,
         "from_host": HOST_NAME,
         "trace_id": trace_id,
         "seen_by": seen_by,
-        "result": result["result"],
-        "no_action": (source == "consult"),
-    })
+    }
+    if source == "consult":
+        # Match the response shape documented in peer-protocol.md §2.1:
+        # {from_host, trace_id, view, correlation, no_action}.
+        # We can't reliably split the model's free text into view +
+        # correlation; put the whole answer in `view` and leave
+        # `correlation` empty for the caller to parse (or just read view).
+        response_body["view"] = cleaned
+        response_body["correlation"] = ""
+        response_body["no_action"] = True
+    else:
+        # For non-consult sources (alertmanager, manual, future), keep
+        # the unstructured `result` field — these consumers parse the
+        # full report directly.
+        response_body["result"] = cleaned
+        response_body["no_action"] = False
+
+    return JSONResponse(content=response_body)
