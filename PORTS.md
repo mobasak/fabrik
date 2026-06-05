@@ -48,7 +48,7 @@ This document tracks port allocations for all Fabrik services to prevent conflic
 | 8017 | **vps-sysadmin-bot health** | `/opt/fabrik/scripts/sysadmin/bot.py` | systemd service on vps1 host; **binds `127.0.0.1:8017` only** since W5 of fleet-hardening plan (2026-06-01). Distinct socket from the `:8017` container-internal allocation under "Python APIs" below — host-loopback and container-internal do not collide at the OS level. Override via `SYSADMIN_HEALTH_HOST=<ip>` in `/opt/fabrik/.env.sysadmin`. |
 | 8050 | fabrik-api | /opt/fabrik-api | FastAPI bridge — native VPS host process, binds `127.0.0.1` only |
 | 3004 | fabrik-control-plane | /opt/fabrik-control-plane | Next.js 14 chat UI — Coolify-managed container |
-| 8201 | **aro-wake** (per-host push-trigger AI endpoint) | `/opt/fabrik/scripts/aro-wake/` | Trio plan Phase 3 (2026-06-04). systemd service on every fleet host; binds the host's wg0 mesh IP (`10.99.0.<N>:8201`), NEVER `0.0.0.0`. Endpoint: `POST /wake` for peer consult / Alertmanager webhook (Phase 4) / manual ops curl. Reaches Claude via the same calling convention as `bot.py::_run_claude`. Allocated from the 8200-8299 "Management tools" range (Duplicati 8200 retired 2026-04-17; 8201 onward free). Mesh-only access enforced by UFW (default-deny on this range) + the explicit bind. Operator probe: `curl http://10.99.0.<N>:8201/health` from the hub or any peer. |
+| 8201 | **aro-wake** (per-host push-trigger AI endpoint) | `/opt/fabrik/scripts/aro-wake/` | Trio plan Phase 3 (2026-06-04). systemd service on every fleet host; **binds `0.0.0.0:8201`** (changed 2026-06-05 batch-6 from mesh-only because Alertmanager's docker container can't reach the host's wg0 IP from its network namespace; verified via `docker exec alertmanager wget http://10.99.0.1:8201` → timeout). Endpoint: `POST /wake` for peer consult (LIVE) / Alertmanager webhook (Phase 4, LIVE on vps1) / manual ops curl. Reaches Claude via the same calling convention as `bot.py::_run_claude`. Allocated from the 8200-8299 "Management tools" range (Duplicati 8200 retired 2026-04-17). **Access control via UFW + iptables**: default-deny incoming on UFW (allow-list is 22/80/443/1194/51820 — 8201 not listed) blocks public ingress; explicit allow rules `from 10.0.0.0/8 to any port 8201 proto tcp` (docker bridge for Alertmanager + other containers) and `from 10.99.0.0/24 to any port 8201 proto tcp` (wg0 peer consults) permit the legitimate callers without exposing publicly. Reachability matrix verified live on vps1 2026-06-05: container on `fabrik` net via `10.0.1.1:8201` ✓; host loopback / wg0 IP ✓; peer over wg0 ✓; **public internet timeout (UFW deny) ✓**. Operator probe from host: `curl http://10.99.0.<N>:8201/health`. Alertmanager probe: `docker exec alertmanager wget -qO- http://10.0.1.1:8201/health`. |
 
 ### Fabrik Microservices (VPS Host Ports)
 
@@ -84,7 +84,7 @@ If you encounter a port conflict:
 
 
 <!-- AUTO-GENERATED:PORTS:START -->
-<!-- Last synced: 2026-06-04 14:46:08 -->
+<!-- Last synced: 2026-06-05 23:07:14 -->
 
 ### Project Port Allocations (from project.yaml)
 

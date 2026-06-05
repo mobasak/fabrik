@@ -163,8 +163,20 @@ A spoke container reaches vps1's shared infra over the Wireguard mesh — bind a
 | `http://10.99.0.1:8000/<project_id>` | GlitchTip ingest | ✓ |
 | `http://10.99.0.1:9091/api/verify` | Authelia forward-auth (spoke Traefik uses this) | ✓ |
 | `http://10.99.0.1:3100/loki/api/v1/push` | Loki ingest (spoke promtail uses this) | ✓ |
+| `http://10.99.0.1:8201/wake` | aro-wake peer-protocol consult / Alertmanager webhook on vps1 (trio Phase 3+4 LIVE 2026-06-05) | ✓ |
+
+aro-wake on vps1 binds `0.0.0.0:8201`; UFW rule `from 10.99.0.0/24 to any port 8201 proto tcp` permits peer access while public ingress is denied. Spokes that run aro-wake (Phase 2 deploy gate) will be reachable at `http://10.99.0.<N>:8201/wake` symmetrically.
 
 No spoke service binds to a mesh port itself today (only monitoring agents expose `10.99.0.<N>:<port>` so vps1's Prometheus can scrape them — see below).
+
+## Internal docker-bridge URLs (for Alertmanager / other fabrik-network containers reaching aro-wake on the host)
+
+aro-wake binds the host's `0.0.0.0:8201`, but containers on the `fabrik` network can't reach the host via wg0 (different namespace). They reach the host via the fabrik bridge gateway:
+
+| From a fabrik-network container, use | Service | Notes |
+| :--- | :--- | :--- |
+| `http://10.0.1.1:8201/wake?source=alertmanager` | aro-wake on the local host | Used by Alertmanager's `aro-wake-routed` webhook receiver. UFW rule `from 10.0.0.0/8 to any port 8201 proto tcp` covers this access path. Returns 202 in ~36ms (async); Claude processes in background. |
+| `http://10.0.1.1:8201/health` | aro-wake health probe | Operator check from inside `alertmanager`: `docker exec alertmanager wget -qO- http://10.0.1.1:8201/health` |
 
 ---
 

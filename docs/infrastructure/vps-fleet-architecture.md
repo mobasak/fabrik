@@ -166,8 +166,8 @@ This doc answers: "we own 3 VPSes — what do we have, what's planned, and how i
   - 60s poll → rule detect → Claude Opus diagnose → Tier A action allow-list (`restart_container`, `clear_redis_cache`, `rotate_logs`) → state.db + cost_ledger.
   - Deadman bleed-stop: if Tier C escalation stays unacked for `deadman_timeout_seconds`, sidecar fires `docker restart <main>` as last resort.
   - **Trio Phase 1.3 (2026-06-04):** `llm_client.py` reverted to load the canonical veteran-sysadmin prompt from file at sidecar start + appends a watchdog-specific dispatch contract. Veteran reasoning preserved (yesterday's narrow `_WATCHDOG_SYS_PROMPT` produced no `reasoning` field; today's verifies with full 2-3 sentence audit-trail reasoning).
-- **Layer 3 — aro-wake push-trigger endpoint (trio Phase 3, code shipped 2026-06-04, operator-gated for deploy):**
-  - FastAPI service on each host. Single endpoint: `POST /wake`. Three sources today: `consult` (LIVE — peer asks "what do you see?"), `manual` (operator curl for testing), and `alertmanager` placeholder (Phase 4 wires it).
+- **Layer 3 — aro-wake push-trigger endpoint (trio Phase 3 LIVE on vps1 since 2026-06-05; Phase 4 wire LIVE on vps1 same day):**
+  - FastAPI service on each host. Single endpoint: `POST /wake`. Three sources LIVE: `consult` (peer-protocol synchronous), `alertmanager` (Alertmanager webhook, async 202+background pattern), `manual` (operator curl).
   - Binds wg0 mesh IP `:8201`, never `0.0.0.0`. Public-internet protection: UFW default-deny on the management-tools port range (8200-8299) + explicit bind.
   - Calling convention: `--model opus --permission-mode bypassPermissions --session-id <uuid> --resume` (mirrors `bot.py::_run_claude` verbatim — the same production pattern proven on vps1 since 2026-05-29).
   - Thread-safe rate limiter (20/h per (source, topic)), per-(source,topic) Claude session reuse for warm cache, disk-backed pending queue (24h TTL, 1000-entry cap) for failed cross-host forwards with mesh-recovery drain.
@@ -178,7 +178,7 @@ This doc answers: "we own 3 VPSes — what do we have, what's planned, and how i
   - Uses peers as senior colleagues via `consult` ("what do you see from your side?") — diagnosis-only; consult responses NEVER authorize action on the recipient side.
   - Authorship rule: the host whose resource is affected AUTHORS the action; peers diagnose.
   - Partition tolerance: when a peer is unreachable, local AI keeps healing local issues and explicitly annotates "(peer X unreachable; acting on local view only)" in its Telegram report — no silent decisions.
-- **Remaining gap:** Alertmanager → aro-wake webhook wire is Phase 4 — code stub exists in `aro-wake/main.py`, Alertmanager config not yet edited. See "Signal → AI wake-up matrix" in [`vps-complete-inventory.md`](vps-complete-inventory.md) for the per-mechanism row table updated 2026-06-04 evening.
+- **Phase 4 SHIPPED 2026-06-05**: Alertmanager → aro-wake webhook wire applied on vps1. `aro-wake-routed` receiver added in `/opt/monitoring/configs/alertmanager/alertmanager.yml`; route entry matches `severity=~"critical|warning"` and has `continue: true` so the existing telegram fallback stays intact. Verified by amtool synthetic + REAL `ContainerHighMemory` alert both reaching aro-wake within seconds. **Remaining**: Phase 2/3 spoke deploys (gated on `claude auth login` + 3 @BotFather tokens); Phase 5 deferred items (Apprise pre-route, Loki ruler, propose/ack peer verbs). See "Signal → AI wake-up matrix" in [`vps-complete-inventory.md`](vps-complete-inventory.md) for the per-mechanism row table updated 2026-06-05.
 
 ### 7. DR — fleet-wide resilience claim
 
