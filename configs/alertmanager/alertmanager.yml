@@ -23,11 +23,34 @@ route:
   group_interval: 5m
   repeat_interval: 4h
   routes:
+    # Trio plan Phase 4 (2026-06-05): route critical+warning to aro-wake first,
+    # then fall through to telegram so AI gets a swing at every actionable alert
+    # while the human-readable Telegram path stays intact as a safety net.
+    - matchers:
+        - severity =~ "critical|warning"
+      receiver: aro-wake-routed
+      continue: true
+      group_wait: 10s
+      group_interval: 5m
+      repeat_interval: 30m
     # Critical alerts — shorter repeat interval
     - match:
         severity: critical
       receiver: telegram
       repeat_interval: 30m
+    # T4-04 G-G5 (2026-05-16): per-registrar drift route.
+    # Reuses the existing 'telegram' receiver (NO new receiver per pack v2-S4).
+    # Matches the 'alert_class: registrar_drift' label emitted by
+    # rules/fabrik-drift.yml. Less-noisy schedule than the critical route.
+    - match:
+        alert_class: registrar_drift
+      receiver: telegram
+      group_by: ['registrar', 'spec_id']
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 12h
+      continue: false
+
 
 receivers:
   # Primary: Alertmanager native Telegram integration.
@@ -47,6 +70,23 @@ receivers:
           • {{ .Annotations.summary }}{{ if .Annotations.description }}
             {{ .Annotations.description }}{{ end }}
           {{ end }}
+
+  # Trio plan Phase 4 (2026-06-05): AI triage receiver. aro-wake binds host
+  # 10.0.1.1:8201 (fabrik bridge gateway from inside Alertmanager's container).
+  # Returns 202 immediately + processes Claude in the background — fast HTTP
+  # response avoids the Alertmanager webhook timeout retry storm.
+  # See scripts/aro-wake/templates/alertmanager-aro-wake-snippet.yaml in the
+  # fabrik repo for the canonical version of this block.
+  - name: aro-wake-routed
+    webhook_configs:
+      - url: http://10.0.1.1:8201/wake?source=alertmanager
+        send_resolved: true
+        max_alerts: 0
+        http_config:
+          # 5s is plenty since aro-wake returns 202 in ~36ms (verified live).
+          # Belt-and-suspenders: actual Claude call happens async in the
+          # background; this timeout only covers the accept-and-route path.
+          # (no override; uses Prometheus library default 10s)
 
 inhibit_rules:
   # If a node is down, suppress all container alerts on that node
