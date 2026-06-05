@@ -433,6 +433,46 @@ async def health() -> dict[str, Any]:
     }
 
 
+def _extract_alertmanager_host(body: dict[str, Any]) -> tuple[str | None, str]:
+    """Return (host, alert_summary) from an Alertmanager v4 webhook payload.
+
+    Looks at commonLabels.host, alerts[*].labels.host, then alerts[*].labels.instance
+    (parsed for hostname). Returns None if no host can be resolved — the receiver
+    will then process locally with a low_quality_alert tag for operator review.
+    """
+    host: str | None = None
+    common = body.get("commonLabels", {}) or {}
+    if isinstance(common, dict):
+        host = common.get("host") or host
+    if not host:
+        for alert in body.get("alerts", []) or []:
+            labels = (alert.get("labels", {}) or {}) if isinstance(alert, dict) else {}
+            host = labels.get("host")
+            if not host:
+                inst = labels.get("instance", "")
+                # instance is often "host:port" or "host" — take first token
+                if isinstance(inst, str) and inst:
+                    host = inst.split(":")[0].split(".")[0]
+            if host:
+                break
+    # Build a one-line summary of the alert set for Claude
+    parts: list[str] = []
+    status = body.get("status", "firing")
+    alerts = body.get("alerts", []) or []
+    parts.append(f"status={status} alerts={len(alerts)}")
+    for a in alerts[:5]:  # cap to 5 to keep prompt size sane
+        if not isinstance(a, dict):
+            continue
+        lbls = a.get("labels", {}) or {}
+        ann = a.get("annotations", {}) or {}
+        nm = lbls.get("alertname", "?")
+        sev = lbls.get("severity", "?")
+        ctr = lbls.get("container") or lbls.get("instance") or "?"
+        summary = ann.get("summary") or ann.get("description") or ""
+        parts.append(f"  [{sev}] {nm} on {ctr}: {summary}"[:200])
+    return host, "\n".join(parts)
+
+
 @app.post("/wake")
 async def wake(request: Request) -> JSONResponse:
     try:
@@ -445,6 +485,59 @@ async def wake(request: Request) -> JSONResponse:
     trace_id = body.get("trace_id") or str(uuid.uuid4())
     seen_by = body.get("seen_by") or []
     payload = body.get("payload") or {}
+
+    # Alertmanager webhook payloads don't carry our internal source/topic
+    # shape — they have alerts[], commonLabels, etc. Wrap them into our
+    # format so the rest of the handler (rate limit + dedupe + cycle) just
+    # works. The host label drives routing: if the alert is about a peer's
+    # host, forward to that peer's aro-wake; otherwise process locally.
+    alertmanager_target_host: str | None = None
+    if source == "alertmanager" or "alerts" in body and isinstance(body.get("alerts"), list):
+        source = "alertmanager"
+        alertmanager_target_host, am_summary = _extract_alertmanager_host(body)
+        # Derive a stable topic from the alert group key (Alertmanager dedupe key)
+        if not body.get("topic"):
+            topic = (body.get("groupKey") or "alertmanager_unknown")[:120]
+        # If host is a peer, forward (only if mesh is reachable). Process
+        # locally otherwise (host = this host, or no label).
+        if alertmanager_target_host and alertmanager_target_host in PEER_HOSTS:
+            fwd_payload = {
+                **body,
+                "source": "alertmanager-proxied",
+                "from_host": HOST_NAME,
+                "trace_id": trace_id,
+                "seen_by": [*seen_by, HOST_NAME] if HOST_NAME not in seen_by else seen_by,
+                "topic": topic,
+            }
+            ok_fwd = await _try_forward(alertmanager_target_host, fwd_payload)
+            if ok_fwd:
+                return JSONResponse(content={
+                    "ok": True,
+                    "from_host": HOST_NAME,
+                    "trace_id": trace_id,
+                    "forwarded_to": alertmanager_target_host,
+                })
+            # Forward failed → queue for retry + still surface 5xx to
+            # Alertmanager so its `continue: true` route picks up the
+            # telegram fallback.
+            await _queue_pending(alertmanager_target_host, fwd_payload)
+            return JSONResponse(
+                status_code=503,
+                content={
+                    "ok": False,
+                    "error": f"peer {alertmanager_target_host} unreachable; queued for retry",
+                    "trace_id": trace_id,
+                },
+            )
+        # Local processing: pack the summary into payload so Claude has it
+        payload = {
+            "alert_summary": am_summary,
+            "host_label": alertmanager_target_host or "(unset — low_quality_alert)",
+            "alertmanager_body": body,
+        }
+        if not alertmanager_target_host:
+            log.warning("low_quality_alert source=alertmanager topic=%s no host label",
+                        topic)
 
     # Rate limit per (source, topic)
     if not _rate.allow(source, topic):
@@ -474,6 +567,23 @@ async def wake(request: Request) -> JSONResponse:
             f"under 200 words.\n"
             + ("\n(NOTE: cycle detected — your host is already in seen_by; "
                "answer with current state only, do not forward.)\n" if is_cycle else "")
+        )
+    elif source == "alertmanager":
+        message = (
+            f"ALERTMANAGER WEBHOOK (trace_id={trace_id[:8]}, topic={topic}):\n"
+            f"{payload.get('alert_summary', '(no summary)')}\n"
+            f"\n"
+            f"Affected host label: {payload.get('host_label', 'unknown')}.\n"
+            f"You are running on {HOST_NAME}; act per your veteran-sysadmin "
+            f"authority for THIS host only. If the alert targets a different "
+            f"host, this is a routing fallback — diagnose locally only.\n"
+            f"\n"
+            f"Per the incident_playbooks section of your system prompt:\n"
+            f"  - For CONTAINER OOM, RESTART LOOP, DISK HIGH: act per playbook\n"
+            f"  - For MONITORING-tier alerts: read-only, escalate\n"
+            f"  - For CRITICAL-INFRA: read-only, escalate\n"
+            f"  - Use deconfliction rule (check for *-watchdog sidecar) before any restart\n"
+            f"Report what you did + evidence."
         )
     else:
         message = (

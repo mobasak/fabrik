@@ -1,0 +1,54 @@
+# Snippet for /opt/monitoring/configs/alertmanager/alertmanager.yml on vps1.
+# Adds an AI triage receiver so every firing alert with severity critical|warning
+# wakes the host's aro-wake (which spawns Claude, runs veteran-sysadmin diagnose,
+# routes to the affected host's local AI when host label matches a peer).
+#
+# Operator action (vps1 host):
+#   1. Backup current config:  sudo cp /opt/monitoring/configs/alertmanager/alertmanager.yml{,.bak.$(date +%Y%m%d-%H%M%S)}
+#   2. Patch in the receiver + route shown below (preserve existing receivers + routes).
+#   3. Reload Alertmanager:    sudo docker kill -s HUP alertmanager
+#   4. Verify:                 sudo docker logs alertmanager --tail 30 | grep -i "reload\|aro"
+#
+# Trio plan Phase 4 (2026-06-05). Bind reachability + UFW posture verified live.
+#
+# The aro-wake URL uses the fabrik docker bridge IP (10.0.1.1) for the hub case
+# because Alertmanager (the caller) is a container ON the fabrik network. From
+# its perspective, the host appears at the bridge gateway. UFW rule on the host:
+#     ufw allow from 10.0.0.0/8 to any port 8201 proto tcp
+# permits this without exposing 8201 publicly.
+
+# ---- receivers section: ADD this block alongside existing 'telegram' receiver ----
+receivers:
+  # ... existing receivers (telegram, etc.) preserved above ...
+
+  - name: aro-wake-routed
+    webhook_configs:
+      - url: http://10.0.1.1:8201/wake?source=alertmanager
+        send_resolved: true
+        max_alerts: 0  # send all alerts in a group; aro-wake's prompt summarizes them
+        http_config:
+          # 10s is more than enough for aro-wake's accept-and-route logic.
+          # Claude diagnose itself happens asynchronously inside aro-wake.
+          # Alertmanager doesn't wait on the Claude call — aro-wake returns
+          # 200 immediately after deciding the route (locally or to peer).
+          # However, the current main.py blocks until claude completes — so
+          # bump this. See Phase 5 deferred for the truly-async receiver
+          # pattern (aro-wake accepts → 202, processes in background).
+          # Until then: 180s aligns with WAKE_TIMEOUT.
+
+# ---- route section: ADD this match block as a child of the existing route ----
+route:
+  receiver: telegram   # existing default - preserve
+  # ... existing group_by / group_wait / repeat_interval preserved ...
+  routes:
+    # NEW: send critical+warning to aro-wake AND continue to existing telegram
+    # path so we never lose the Telegram fallback even if aro-wake is down.
+    - matchers:
+        - severity =~ "critical|warning"
+      receiver: aro-wake-routed
+      continue: true   # CRITICAL: must be true so telegram still fires as fallback
+      group_wait: 10s  # short wait; we want AI to see alerts fast
+      group_interval: 5m
+      repeat_interval: 30m
+
+    # ... existing routes (registrar_drift, etc.) preserved below ...

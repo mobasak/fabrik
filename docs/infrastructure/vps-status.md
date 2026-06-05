@@ -37,6 +37,85 @@
 
 ---
 
+## 2026-06-05 — aro-wake LIVE on vps1 + Phase 4 code shipped (Alertmanager → aro-wake)
+
+**aro-wake.service ACTIVE on vps1** (hub) — first cross-host comms primitive in the fleet is now operational. Today's session moved from "all code-shipped, none enabled" to "Phase 3 verified live; Phase 4 code shipped, config gate remaining."
+
+**A — Live deploy on vps1 (`Option A` from today's choice):**
+
+- Refreshed `/opt/fabrik/scripts/sysadmin/system-prompt.txt` on vps1 from 232 → 354 lines (trio Phase 1.1 prompt). `bot.py` restarted to pick up new prompt. `peer-protocol.md` copied to `/opt/fabrik/scripts/sysadmin/peer-protocol.md`.
+- Installed aro-wake source tree at `/opt/fabrik/scripts/aro-wake/`, venv at `/opt/fabrik/.venv-aro-wake/` (FastAPI 0.115 + uvicorn[standard] 0.32 + httpx 0.27), systemd unit at `/etc/systemd/system/aro-wake.service`.
+- `systemctl enable --now aro-wake.service` → active in 4s, idle ~32MB RAM, 0% CPU.
+- Live verification: `curl http://10.99.0.1:8201/health` → `{"ok":true,"host":"vps1","role":"hub","pending_queue_count":0,"active_sessions":0}`.
+- All five batch-3 fixes verified in production: port 8201 (no conflict), CSV env var (no JSON quote-strip crash), lifespan handler (clean startup), log file owned ozgur (writable), bind initially mesh-only (no public exposure).
+
+**A2 — Synthetic consult posing as vps3 (real Claude spawn, full E2E):**
+
+```
+POST /wake source=consult from_host=vps3 seen_by=[vps3] topic=mesh_handshake_check
+  payload: { my_view: "vps3→vps1 handshake 22s old", asking: "any hub-side blip 22:00-22:30 UTC?" }
+```
+
+Claude's response (verbatim shape, peer-protocol.md §2.1 compliant):
+
+```json
+{
+  "ok": true,
+  "from_host": "vps1",
+  "trace_id": "3c5306c7-...",
+  "seen_by": ["vps3", "vps1"],
+  "view": "CONSULT RESPONSE to vps3 (trace_id=3c5306c7)\n\n**Time check:** current is 19:31 UTC; the 22:00–22:30 window you reference is ~21h ago...\n\n**Hub view, 22:00–22:30 UTC 2026-06-04:**\n- ALERTS at 22:30 UTC: `ContainerHighMemory` firing, severity=warning, on **prometheus** container (MONITORING tier — local self-pressure, not mesh-side)...\n\n**Correlation:** I don't see a mesh signal that would correlate with degraded perf you'd notice from vps3...",
+  "correlation": "",
+  "no_action": true
+}
+```
+
+What Claude did autonomously:
+1. Caught the time mismatch in my synthetic payload (current 19:31 UTC vs reference window 21h ago)
+2. Actually queried Prometheus + Alertmanager for the requested window
+3. Found a real `ContainerHighMemory` alert and correctly classified it as MONITORING-tier self-pressure
+4. Checked wg0 handshakes — confirmed peer's claim of 22s old
+5. Drew a correlation: hub-side issue would affect query reliability, not mesh
+6. Honored consult contract: `No action taken (consult-only per peer-protocol §3.3)`
+7. Invited follow-up
+
+**This is the trio plan working in production.** Cost: $0.39 cold-cache manual selftest + $0.15 cold-cache consult = ~$0.54 of subscription burn for full E2E proof.
+
+**B — Phase 4 code shipped (Alertmanager → aro-wake):**
+
+`main.py` gains a `source=alertmanager` branch in the `/wake` handler:
+
+- `_extract_alertmanager_host()` parses Alertmanager v4 webhook body → finds `host` label from `commonLabels` first, then per-alert `labels.host`, then `labels.instance` (stripped to hostname). Returns `None` if no host can be resolved → local processing with `low_quality_alert` warning for operator review.
+- Host-routing: if `host` is a peer in `PEER_HOSTS`, forward to that peer's `aro-wake` via the existing `_try_forward()`; on success return 200 with `{forwarded_to: <peer>}`; on failure queue in `/var/lib/aro-wake/pending.jsonl` (24h TTL) and return 503 so Alertmanager's `continue: true` route falls through to telegram fallback.
+- Local processing: pack alert summary into payload, prompt Claude with explicit incident-playbook reminder + deconfliction rule (`*-watchdog` sidecar check before any restart).
+- Smoke tests verified live:
+  - `host=vps3` (unreachable peer) → 503 + queued → drain retries every 30s as designed. Verified in `/var/lib/aro-wake/pending.jsonl`: entry with `intended_for=vps3`, `attempts=N`, `ttl_until=+24h`.
+  - `host=vps1` (local) → spawns Claude with playbook-aware prompt → Claude correctly refused to act on MONITORING-tier prometheus container, returned proper Target/Issue/Action/Result format.
+
+**B Phase 4 — bind + UFW posture changes:**
+
+- aro-wake systemd unit `--host` changed from `10.99.0.1` (mesh-only) → `0.0.0.0`. Reason: Alertmanager runs in a docker container on the `fabrik` network and cannot reach the host's wg0 IP from inside its network namespace (verified: container→10.99.0.1:8201 times out). Binding 0.0.0.0 + UFW protection covers all access patterns.
+- UFW posture verified on vps1: default-deny incoming + explicit allow-list (22/80/443/1194/51820); port 8201 not in allow-list so PUBLIC ingress is blocked (`exit=000 time=3.002` from off-host probe).
+- New UFW rules added (vps1 + future spokes via `bootstrap-vps.sh step_15`):
+  - `ufw allow from 10.0.0.0/8 to any port 8201 proto tcp` — docker bridge (Alertmanager + other containers)
+  - `ufw allow from 10.99.0.0/24 to any port 8201 proto tcp` — wg0 peer consults
+- Reachability matrix verified after rule add:
+
+| From | Probe | Result |
+|---|---|---|
+| Container on `fabrik` net | `wget http://10.0.1.1:8201/health` | ✓ 200 OK |
+| Host (loopback) | `curl http://10.99.0.1:8201/health` | ✓ 200 OK |
+| Public internet | `curl http://<vps1-public-ip>:8201/health` | ✗ timeout (UFW deny) |
+| Peer over wg0 (future) | `curl http://10.99.0.1:8201/health` | ✓ allowed by rule |
+
+**B Phase 4 — operator action remaining (NOT applied today):**
+
+Alertmanager config edit at `/opt/monitoring/configs/alertmanager/alertmanager.yml` to add the aro-wake receiver + route. Snippet shipped at `scripts/aro-wake/templates/alertmanager-aro-wake-snippet.yaml` documents the exact `webhook_configs` block + the `continue: true` route entry (preserves telegram fallback so we never lose visibility if aro-wake is down). Operator applies + `docker kill -s HUP alertmanager` to reload.
+
+**Trio plan status:** Phase 1 live ✓ · Phase 2 code-shipped, operator-gated · Phase 3 LIVE ✓ · Phase 4 code-shipped, Alertmanager config gate remaining · Phase 5 deferred to iteration.
+
+---
+
 ## 2026-06-04 evening (batch 3) — third deep review pass: 5 more bugs fixed before any production enable
 
 The third review pass found a class of bugs invisible to syntax checks and module-import smokes: **systemd's `Environment=` directive strips embedded JSON double-quotes**, which would have crashed uvicorn at startup on every spoke. Plus 4 quieter bugs in the same review.

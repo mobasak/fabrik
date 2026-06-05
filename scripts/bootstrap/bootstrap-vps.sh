@@ -990,6 +990,15 @@ step_15_install_aro_wake() {
     remote 'systemctl cat aro-wake.service >/dev/null && echo "unit installed OK"; \
         ls -la /opt/fabrik/scripts/aro-wake/main.py /opt/fabrik/.venv-aro-wake/bin/uvicorn 2>&1 | head -3'
 
+    # Phase 4 UFW rules — needed for Alertmanager (in docker) and peers
+    # (over wg0) to reach aro-wake. Public side stays blocked by UFW
+    # default-deny. Verified on vps1 hub 2026-06-05: UFW with these two
+    # allows + default deny leaves public probes timing out while docker
+    # net + mesh callers reach /wake cleanly.
+    remote 'sudo ufw allow from 10.0.0.0/8 to any port 8201 proto tcp comment "aro-wake — allow Alertmanager & other docker containers to reach the push-trigger AI endpoint" 2>&1 | tail -1
+        sudo ufw allow from 10.99.0.0/24 to any port 8201 proto tcp comment "aro-wake — allow peer-protocol consults from peer hosts over wg0" 2>&1 | tail -1
+        sudo ufw status | grep 8201'
+
     ok "step 15 done — aro-wake installed; enable + verify with: sudo systemctl enable --now aro-wake.service && curl http://${SPOKE_MESH_IP}:8201/health"
 }
 

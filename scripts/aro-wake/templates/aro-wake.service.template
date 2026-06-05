@@ -7,8 +7,19 @@ Wants=network-online.target
 Type=simple
 User=ozgur
 WorkingDirectory=/opt/fabrik/scripts/aro-wake
+# Bind 0.0.0.0 so the receiver is reachable from BOTH:
+#   - the wg0 mesh IP (peers calling /wake for consult)
+#   - docker containers on the fabrik network calling via the host's
+#     routing table (Alertmanager webhook in Phase 4 calls
+#     http://10.99.0.1:8201/wake from inside its container)
+# Public-internet ingress to port 8201 is blocked by UFW (default deny
+# on incoming + the allow-list does NOT include 8201). Verified 2026-06-05
+# on vps1 hub: `ufw status verbose` shows only 22/80/443/1194/51820 allowed.
+# DOCKER-USER iptables chain rules (loaded at boot) also explicitly block
+# the 8200-8299 management-tools port range from public interfaces — see
+# /etc/iptables/rules.v4 on each host.
 ExecStart=/opt/fabrik/.venv-aro-wake/bin/uvicorn main:app \
-    --host {{BIND_HOST}} \
+    --host 0.0.0.0 \
     --port 8201 \
     --no-access-log
 Restart=always
@@ -27,12 +38,15 @@ Environment=ARO_WAKE_HOST_IP={{HOST_IP}}
 Environment=ARO_WAKE_PEER_HOSTS={{PEER_HOSTS_CSV}}
 Environment=CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
 
-# Loopback + mesh-IP bind; never 0.0.0.0. Public-internet protection is
-# defense-in-depth via UFW (rejects :8201 by default) + the wg0 binding.
-# To allow peers to call in, the systemd unit binds on the mesh IP; to
-# allow local probes, also on loopback. ExecStart above uses {{BIND_HOST}}
-# which is rendered at bootstrap time to the mesh IP only — operators on
-# the host who want to curl from loopback can ssh-tunnel or use the mesh IP.
+# Phase 4 bind change (2026-06-05): switched from BIND_HOST mesh-IP-only
+# to 0.0.0.0. Reason: Alertmanager runs in a docker container on the
+# `fabrik` network and cannot reach the host's wg0 IP from inside its
+# namespace (verified: curl from container → 10.99.0.1:8201 times out).
+# Binding 0.0.0.0 keeps wg0-IP reachability for peer consults AND adds
+# docker-bridge reachability for Alertmanager webhook delivery, with the
+# public side blocked by UFW default-deny posture (see ExecStart comment).
+# {{BIND_HOST}} placeholder is no longer consumed but kept in template
+# rendering for backwards compatibility.
 
 StandardOutput=append:/var/log/aro-wake.log
 StandardError=append:/var/log/aro-wake.log
