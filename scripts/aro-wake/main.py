@@ -135,6 +135,14 @@ _sessions: dict[tuple[str, str], tuple[str, float]] = {}
 _sessions_lock = threading.Lock()
 
 
+# Module-level set of background asyncio tasks (used by the alertmanager
+# async-response path). Holding strong refs here prevents the event loop
+# from garbage-collecting in-flight tasks mid-execution (a known asyncio
+# pitfall). `task.add_done_callback(_bg_tasks.discard)` cleans up on
+# completion.
+_bg_tasks: set[asyncio.Task] = set()
+
+
 def _session_for(source: str, topic: str) -> str | None:
     key = (source, topic)
     with _sessions_lock:
@@ -492,7 +500,10 @@ async def wake(request: Request) -> JSONResponse:
     # works. The host label drives routing: if the alert is about a peer's
     # host, forward to that peer's aro-wake; otherwise process locally.
     alertmanager_target_host: str | None = None
-    if source == "alertmanager" or "alerts" in body and isinstance(body.get("alerts"), list):
+    is_alertmanager = (source == "alertmanager") or (
+        "alerts" in body and isinstance(body.get("alerts"), list)
+    )
+    if is_alertmanager:
         source = "alertmanager"
         alertmanager_target_host, am_summary = _extract_alertmanager_host(body)
         # Derive a stable topic from the alert group key (Alertmanager dedupe key)
@@ -503,7 +514,7 @@ async def wake(request: Request) -> JSONResponse:
         if alertmanager_target_host and alertmanager_target_host in PEER_HOSTS:
             fwd_payload = {
                 **body,
-                "source": "alertmanager-proxied",
+                "source": "alertmanager",  # peer normalizes back via is_alertmanager check
                 "from_host": HOST_NAME,
                 "trace_id": trace_id,
                 "seen_by": [*seen_by, HOST_NAME] if HOST_NAME not in seen_by else seen_by,
@@ -529,15 +540,90 @@ async def wake(request: Request) -> JSONResponse:
                     "trace_id": trace_id,
                 },
             )
-        # Local processing: pack the summary into payload so Claude has it
+        # Local processing: pack the summary into payload so Claude has it.
+        # Don't bloat the payload with the full alertmanager_body — only the
+        # parsed summary reaches Claude via the prompt; the body itself is
+        # consumed in _extract_alertmanager_host above.
         payload = {
             "alert_summary": am_summary,
             "host_label": alertmanager_target_host or "(unset — low_quality_alert)",
-            "alertmanager_body": body,
         }
         if not alertmanager_target_host:
             log.warning("low_quality_alert source=alertmanager topic=%s no host label",
                         topic)
+        # ASYNC PATTERN for alertmanager: return 202 immediately + process
+        # Claude in a background task. Reason: Alertmanager's webhook_configs
+        # default timeout (~10s) is much less than Claude's wall-clock
+        # (60-180s). Without the async hop, Alertmanager would time out,
+        # retry per its retry policy, and we'd get duplicate wakes. consult
+        # + manual paths STAY synchronous (caller needs the response).
+        # Rate-limit check runs synchronously before scheduling so we don't
+        # leak background tasks past the cap.
+        if not _rate.allow(source, topic):
+            return JSONResponse(
+                status_code=429,
+                content={"ok": False, "error": "rate_limited", "trace_id": trace_id},
+            )
+        is_cycle_am = HOST_NAME in seen_by
+        if not is_cycle_am:
+            seen_by = [*seen_by, HOST_NAME]
+        message_am = (
+            f"ALERTMANAGER WEBHOOK (trace_id={trace_id[:8]}, topic={topic}):\n"
+            f"{payload['alert_summary']}\n"
+            f"\n"
+            f"Affected host label: {payload['host_label']}.\n"
+            f"You are running on {HOST_NAME}; act per your veteran-sysadmin "
+            f"authority for THIS host only. If the alert targets a different "
+            f"host, this is a routing fallback — diagnose locally only.\n"
+            f"\n"
+            f"Per the incident_playbooks section of your system prompt:\n"
+            f"  - For CONTAINER OOM, RESTART LOOP, DISK HIGH: act per playbook\n"
+            f"  - For MONITORING-tier alerts: read-only, escalate\n"
+            f"  - For CRITICAL-INFRA: read-only, escalate\n"
+            f"  - Use deconfliction rule (check for *-watchdog sidecar) before any restart\n"
+            f"Report what you did + evidence."
+        )
+        # Spawn background processing; we hold the task reference on a
+        # module-level set so the event loop doesn't GC it mid-flight (a
+        # known asyncio pitfall — see Python docs for asyncio.create_task).
+        async def _bg_alertmanager() -> None:
+            try:
+                result_bg = await asyncio.to_thread(
+                    _run_claude,
+                    message_am,
+                    source=source,
+                    topic=topic,
+                    system_prompt=_load_prompt() if _session_for(source, topic) is None else None,
+                )
+                _log_action({
+                    "source": source,
+                    "topic": topic,
+                    "from_host": from_host,
+                    "trace_id": trace_id,
+                    "cycle": is_cycle_am,
+                    "claude_ok": result_bg.get("ok", False),
+                    "cost_usd": result_bg.get("cost_usd", 0.0),
+                    "result_excerpt": (result_bg.get("result", "") or
+                                        result_bg.get("error", ""))[:200],
+                    "async": True,
+                })
+            except Exception as e:  # noqa: BLE001
+                log.exception("background alertmanager processing failed: %s", e)
+        task = asyncio.create_task(_bg_alertmanager())
+        _bg_tasks.add(task)
+        task.add_done_callback(_bg_tasks.discard)
+        log.info("wake source=alertmanager topic=%s trace=%s scheduled-async",
+                 topic, trace_id[:8])
+        return JSONResponse(
+            status_code=202,
+            content={
+                "ok": True,
+                "accepted": True,
+                "from_host": HOST_NAME,
+                "trace_id": trace_id,
+                "scope": "local",
+            },
+        )
 
     # Rate limit per (source, topic)
     if not _rate.allow(source, topic):
@@ -568,24 +654,11 @@ async def wake(request: Request) -> JSONResponse:
             + ("\n(NOTE: cycle detected — your host is already in seen_by; "
                "answer with current state only, do not forward.)\n" if is_cycle else "")
         )
-    elif source == "alertmanager":
-        message = (
-            f"ALERTMANAGER WEBHOOK (trace_id={trace_id[:8]}, topic={topic}):\n"
-            f"{payload.get('alert_summary', '(no summary)')}\n"
-            f"\n"
-            f"Affected host label: {payload.get('host_label', 'unknown')}.\n"
-            f"You are running on {HOST_NAME}; act per your veteran-sysadmin "
-            f"authority for THIS host only. If the alert targets a different "
-            f"host, this is a routing fallback — diagnose locally only.\n"
-            f"\n"
-            f"Per the incident_playbooks section of your system prompt:\n"
-            f"  - For CONTAINER OOM, RESTART LOOP, DISK HIGH: act per playbook\n"
-            f"  - For MONITORING-tier alerts: read-only, escalate\n"
-            f"  - For CRITICAL-INFRA: read-only, escalate\n"
-            f"  - Use deconfliction rule (check for *-watchdog sidecar) before any restart\n"
-            f"Report what you did + evidence."
-        )
     else:
+        # NOTE: source="alertmanager" never reaches this branch — handled
+        # synchronously above with rate-limit + cycle + scheduled-async
+        # background task + 202 return. The legacy elif here was removed
+        # 2026-06-05 batch-6 review pass when the async pattern shipped.
         message = (
             f"WAKE from source={source} topic={topic}:\n"
             f"{json.dumps(payload, indent=2)}\n"
