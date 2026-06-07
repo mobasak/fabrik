@@ -44,7 +44,7 @@ Findings to remediate (paste from audits 01-06):
 - Compose files at /opt/<svc>/compose.yaml (root-owned, 644).
 - .env files at /opt/<svc>/.env (root-owned, 600 for ones with secrets).
 - All containers stable-named via compose `container_name:` (a Fabrik convention since the 2026-05-30 Coolify removal — replaces UUID-suffix names). `fabrik` Docker network is shared.
-- vps1 has Authelia + Traefik dashboard + 29 containers. Spokes have 5.
+- vps1 has Authelia + Traefik dashboard + 31 containers (29 platform + 2 dogfood). Spokes have 5.
 - /opt/fabrik-lib/ on dev WSL is the vendor source for module copies; not
   on VPS.
 - Memory limit invariant: every compose service must declare

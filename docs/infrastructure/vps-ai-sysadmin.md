@@ -99,7 +99,7 @@ Claude Code reaches these from inside the Docker `fabrik` network via `sudo dock
 | Loki | `loki:3100` | All container logs — errors, stack traces, crash messages |
 | Grafana | `grafana:3000` | Dashboard + datasource health (8 dashboards, 2 datasources) |
 | Alertmanager | `alertmanager:9093` | Active firing alerts, silences |
-| Gatus | `gatus:8080` | Uptime status for 30+ endpoints |
+| Gatus | `gatus:8080` | Uptime status for 36 endpoints across 7 groups (verified 2026-06-07) |
 | GlitchTip | `glitchtip-web:8000` | Application errors, unhandled exceptions |
 | Apprise | `apprise:8000` | Send notifications to Telegram |
 | ~~Netdata~~ | ~~`netdata:19999`~~ | **REMOVED 2026-05-30** (container retired); scrape job removed 2026-06-07 after a stale entry caused a 24× Telegram flood overnight via the Phase 4 wire's `repeat_interval: 30m` |

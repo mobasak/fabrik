@@ -524,6 +524,24 @@ Every value below was confirmed against the **live Vultr API** (read-only, real 
 | Tests | `@patch("fabrik.drivers.<mod>.httpx.Client")`; live in `tests/drivers/` |
 | Monitoring | aro-wake job in `configs/prometheus/prometheus.yml` (targets `10.99.0.N:8201`); Gatus `apps/<name>.yaml` via `gatus.py`; Backrest `/opt/backrest/config/config.json` via `backrest.py` (jq+flock) |
 
+### §J.4 — Exact create/response schemas (official GoVultr SDK `master`, iteration 3)
+
+Verified from the canonical `vultr/govultr` source — the structs the API literally accepts/returns. **Zero ambiguity for Phase 1.**
+
+**Instances** — `/v2/instances` (covers `vc2`/`vhf`/`vhp`/`voc`/`vcg` GPU):
+- **Create body (JSON):** `region`, `plan`, `os_id`(int), `label`, `hostname`, **`sshkey_id`** (array of key IDs — exact field name), `tags`(array), `enable_ipv6`(bool); optional `backups`("enabled"/"disabled"), `user_data`, `snapshot_id`, `ddos_protection`, `disable_public_ipv4`, `firewall_group_id`. **Never send `tag` (singular) — deprecated.**
+- **Response wrapper:** create/get → `{"instance": {…}}`; list → `{"instances":[…],"meta":{…}}`.
+- **`Instance` fields we use:** `id`, `main_ip` (=`"0.0.0.0"` until ready), `status` (`pending`→`active`), `power_status` (`running`), `server_status` (`none`→`installingbooting`→`ok`), `default_password`, `region`, `plan`, `os_id`, `tags`.
+- **`wait_for_active` (instances):** poll `GET /v2/instances/<id>` until `status=="active" && power_status=="running" && server_status=="ok" && main_ip!="0.0.0.0"`.
+
+**Bare Metal** — `/v2/bare-metals` (`vbm`):
+- **Create body (`BareMetalCreate`):** `region`, `plan`, `os_id`, `label`, `hostname`, **`sshkey_id`** (array), `tags`, `enable_ipv6`; optional `mdisk_mode` (RAID1/none), `persistent_pxe`, `user_data`, `reserved_ipv4`.
+- **Response wrapper:** `{"bare_metal": {…}}`; list → `{"bare_metals":[…],"meta":{…}}`.
+- **Schema differs from Instance:** `ram`/`disk` are **strings**; field is **`cpu_count`** (not `vcpu_count`); **NO `power_status`/`server_status`** fields exist.
+- **`wait_for_active` (bare metal):** poll `GET /v2/bare-metals/<id>` until `status=="active" && main_ip!="0.0.0.0"` (no power/server status; "IP info only available in active state").
+
+**Common:** Bearer auth; object returned inside a single-key wrapper; `DELETE /<id>` → 204 no body; `POST /<id>/{reboot,halt,start}` empty body. **VPC2 is fully deprecated** ("no longer supported" in both SDKs) — never use. → `VultrClient.create_instance()` dispatches to the bare-metal path + poll when `plan.startswith("vbm-")`, and each path unwraps its own wrapper key.
+
 ### §K. Corrections to the draft body (these supersede earlier text)
 
 1. **Phase 3 step 9** ("after step_01, switch SSH user to ozgur") — **remove**; the script handles the transition internally (EFFECTIVE_REMOTE). The drill just runs `bootstrap-vps.sh --skip-mesh --skip-dns root@<ip> vps<N>`.
@@ -571,7 +589,7 @@ Each phase ships only when its gate passes. Gates are concrete commands with exp
 
 ### Convergence status
 
-With §J–§L there are **no remaining unknowns resolvable from code / state / API**: all IDs (`os_id 2284`, ssh key, plan IDs, regions), every code anchor (file:line), the exact create payloads + binding deprecations, and the correct local-lock / atomic-state / `--verify` patterns are pinned to ground truth. The **only** non-code dependencies are operator actions, and both are satisfied or expected: the API key already exists ✓; running live drills spends real (cents) money and must be operator-initiated. **No room left to iterate — plan is ready to implement.**
+Three convergence iterations were run: (1) live API + code agents + changelog; (2) corrected §C/§D/§E + added §J–§L; (3) pinned the exact create/response schemas + `wait_for_active` criteria from the official GoVultr SDK (§J.4). With §J–§L there are **no remaining unknowns resolvable from code / state / API**: all IDs (`os_id 2284`, ssh key, plan IDs, 33 regions), every code anchor (file:line), the **exact request fields + response wrappers + poll criteria for both `/v2/instances` and `/v2/bare-metals`**, the binding deprecations (v1 dead, `tag`→`tags`, VPC/VPC2 dead), and the correct local-lock / atomic-state / `--verify` patterns are pinned to ground truth. The **only** non-code dependencies are operator actions, and both are satisfied or expected: the API key already exists ✓; running live drills spends real (cents) money and must be operator-initiated. **No room left to iterate — plan is ready to implement.**
 
 ---
 

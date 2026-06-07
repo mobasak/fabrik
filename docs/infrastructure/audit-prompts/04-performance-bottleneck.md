@@ -10,7 +10,7 @@
 ## Stack context
 
 ```text
-- Hub vps1: 11.6 GiB RAM, 6 vCores, 108 GB NVMe (LA). 29 containers.
+- Hub vps1: 11.6 GiB RAM, 6 vCores, 112 GB NVMe (LA). 31 containers (29 platform + 2 dogfood).
   ~3-4 GiB RAM used typically. ~27% disk.
 - Spokes vps2/vps3: 7.7 GiB RAM, 4 vCores, 58 GB NVMe RAID-10 (Coventry UK).
   5 containers each. ~850 MiB RAM used typically. ~11% disk.

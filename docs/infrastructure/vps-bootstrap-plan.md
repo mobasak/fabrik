@@ -52,7 +52,7 @@ Full reference: [`scripts/bootstrap/README.md`](../../scripts/bootstrap/README.m
 
 ## Hub (vps1) — now scripted (2026-06-01)
 
-**The hub IS reproducible from a single script** as of 2026-06-01. Until then it was a copy-and-customize manual runbook (the prior paragraph here said `docs/operations/disaster-recovery.md § Path B`); now it's `scripts/bootstrap/bootstrap-hub.sh` — 18 idempotent steps + numbered preflight, target wall-clock ≤ 90 min from fresh VPS to "all 29 containers running, Telegram bot answering, Gatus all green."
+**The hub IS reproducible from a single script** as of 2026-06-01. Until then it was a copy-and-customize manual runbook (the prior paragraph here said `docs/operations/disaster-recovery.md § Path B`); now it's `scripts/bootstrap/bootstrap-hub.sh` — 18 idempotent steps + numbered preflight, target wall-clock ≤ 90 min from fresh VPS to "all 31 containers running, Telegram bot answering, Gatus all green."
 
 **Single-source operator doc:** [`vps-hub-rebuild.md`](vps-hub-rebuild.md). That doc holds the 5-command operator runbook, the per-step walkthrough, the 7-check end-state contract, and the same-IP vs new-IP decision.
 

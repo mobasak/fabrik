@@ -42,7 +42,7 @@ This doc answers: "we own 3 VPSes — what do we have, what's planned, and how i
 | Per-project watchdog driver | Deployed via `fabrik apply` for any spec with `watchdog.enabled: true` (default True). Driver at [`src/fabrik/drivers/watchdog.py`](../../src/fabrik/drivers/watchdog.py); detects host docker.sock GID, mounts `~/.claude` + `~/.claude.json` from `FABRIK_VPS_CLAUDE_HOME`, builds per-project image from `/opt/fabrik-lib/watchdog/sidecar/`, writes `compose.watchdog.yaml` overlay. |
 | Mesh hub | `wg-quick@wg0` (Wireguard hub at `10.99.0.1`, UDP 51820) |
 | iptables boot units | `iptables-docker-user.service` (DOCKER-USER ACCEPT-from-wg0 + DROP mesh-only-from-public); `iptables-openvpn.service` (operator's personal VPN forwards) |
-| Firewall | UFW 5 v4 ALLOW rules (22, 80, 443, 1194, 51820) + 1 v4 DENY rule (8000, stale-comment Coolify-era) + 6 v6 mirrors; fail2ban active (891 historical bans as of 2026-06-02 probe — internet-facing target, counts drift continuously) |
+| Firewall | UFW 16 numbered rules (verified 2026-06-07): 5 v4 ALLOW (22, 80, 443, 1194, 51820) + 1 v4 DENY (8000, stale-comment Coolify-era) + 2 v4 ALLOW aro-wake on 8201 (`from 10.0.0.0/8` + `from 10.99.0.0/24`, added 2026-06-05) + 1 v4 routed-ALLOW `wg0→wg0` (spoke↔spoke routing, added 2026-06-06) + 6 v6 mirrors + 1 v6 routed-ALLOW; fail2ban active (150 historical bans as of 2026-06-07T20:20Z probe — internet-facing target, counts drift continuously) |
 | Cron | `pre-backup.sh` 01:30 nightly (pg_dumpall + crontab dump); `/etc/cron.d/vps-sysadmin` (proactive checks); 4 Backrest plan schedules |
 | Custom binaries | `/usr/local/bin/zellij` (operator-installed) |
 
@@ -123,7 +123,7 @@ This doc answers: "we own 3 VPSes — what do we have, what's planned, and how i
 - `loki` receives logs from promtail on every host (promtail pushes to `10.99.0.1:3100` from spokes).
 - `grafana` (vps1) shows fleet-wide dashboards. Both Prometheus + Loki as datasources.
 - `alertmanager` routes via `apprise` → Telegram.
-- `gatus` probes 30+ endpoints across all 3 hosts via mesh.
+- `gatus` probes 36 endpoints across all 3 hosts via mesh (verified 2026-06-07T20:20Z).
 - Total: 18/18 scrape targets up across 15 jobs (12 vps1-local + 3 spoke-jobs × 2 spokes).
 
 ### 3. Backups (as of 2026-06-01, W11 shipped)

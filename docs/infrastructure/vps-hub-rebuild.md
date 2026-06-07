@@ -12,7 +12,7 @@ This document is the definitive answer to "vps1 is gone — how do I get it back
 
 - vps1 disk loss / VPS rebuild / fresh-provision-and-restore.
 - Both same-IP rebuild (provider gives you back the IP) and new-IP rebuild (CF DNS retag needed).
-- Bringing back all 29 containers, the mesh hub, the AI sysadmin bot, and the backup chain itself.
+- Bringing back all 31 containers (29 platform + 2 T-P5 dogfood), the mesh hub, the AI sysadmin bot, and the backup chain itself.
 
 **Does NOT cover:**
 
@@ -95,7 +95,7 @@ If the bootstrap fails partway and you need to re-run, the SSH login user change
 | 04 | scp W9 env | dev WSL `/opt/fabrik-dr-store/env/latest` → `/opt/fabrik/.env` (mode 600) + sysadmin equivalent | Source for steps 06+ B2 creds |
 | 05 | write Docker `daemon.json` | Log rotation 10m × 3, promtail tag, address pool, DNS | Before any container start so first runs use it |
 | 06 | restic restore host-state | `/etc/wireguard`, `/etc/iptables`, `/etc/ufw/user*.rules`, `/etc/sudoers.d/ozgur`, `/etc/sysctl.d/99-*`, `/etc/cron.d/vps-sysadmin`, custom systemd units, `/root/.ssh/*`, `/home/ozgur/.ssh/*`, `/usr/local/bin/zellij` | 24 explicit paths; `--target /host` so writes hit the host filesystem |
-| 07 | enable UFW | `ufw --force enable` + `ufw reload` (rules already on disk from step 06) | Sanity-checks 12 rules present |
+| 07 | enable UFW | `ufw --force enable` + `ufw reload` (rules already on disk from step 06) | Sanity-checks ≥ 16 rules present (was 12 pre-2026-06-06; +2 aro-wake allows + 1 `ufw route allow in on wg0 out on wg0` + ipv6 mirrors) |
 | 08 | bring up mesh | `systemctl enable --now wg-quick@wg0` | Spokes reconverge within ~3 min |
 | 09 | apply iptables boot state | `netfilter-persistent` + `iptables-docker-user.service` + `iptables-openvpn.service` | Order matters: netfilter first, then chain rules |
 | 10 | `fabrik` Docker network | `docker network create fabrik` (idempotent) | External network referenced by every stack |
@@ -167,7 +167,7 @@ If unsure, just pass `--cf-rewrite-dns <new-ip>` always — the script is idempo
 - [`../operations/disaster-recovery.md`](../operations/disaster-recovery.md) § "Full hub restore — Path D" — the operator runbook version of this doc with fewer narrative explanations.
 - [`../operations/credential-recovery.md`](../operations/credential-recovery.md) — what `/opt/fabrik/.env` + `.env.sysadmin` are and how they're DR-mirrored to GitHub.
 - [`vps-bootstrap-plan.md`](vps-bootstrap-plan.md) — spoke (vps2 / vps3) bootstrap. Different path; do not use that script for the hub.
-- [`vps-complete-inventory.md`](vps-complete-inventory.md) — the source-of-truth for what's on vps1. The end-state contract's "≥ 29 containers" is anchored against this.
+- [`vps-complete-inventory.md`](vps-complete-inventory.md) — the source-of-truth for what's on vps1. The end-state contract's "≥ 31 containers" is anchored against this.
 - [`vps-ai-sysadmin.md`](vps-ai-sysadmin.md) — the bot the script restarts in step 15.
 - `scripts/bootstrap/bootstrap-hub.sh` — the script itself, 996 lines, run `--help` for the full flag list.
 - `scripts/bootstrap/bootstrap-config.sh` — locked constants (restic repo URI, CF zone ID, service start order, volume restore list).

@@ -11,7 +11,11 @@
 
 ```text
 - Hub (vps1) centralizes the observability stack:
-  - Prometheus (16-job scrape target list — aro-wake added 2026-06-06)
+  - Prometheus (13 jobs configured in `prometheus.yml`, 12 active with targets,
+    14 active scrape targets total — verified 2026-06-07T20:20Z; `fabrik-services`
+    is a placeholder job with no targets yet; `node-spokes`/`cadvisor-spokes`/
+    `promtail-spokes` jobs were removed/never-shipped; spokes are scraped only
+    via the `aro-wake` job which has 3 targets covering hub+vps2+vps3)
   - Grafana (5 Fabrik-folder dashboards with $host template variable; aro-wake
     dashboard deliberately deferred — PromQL + alert rules suffice today)
   - Loki (mesh-bound at 10.99.0.1:3100 for spoke push)
@@ -33,8 +37,16 @@
   Fixed with `ufw allow from 10.99.0.0/24` on each spoke.
 - 'host' label is propagated to every metric and log stream (W11 work).
   Filter dashboards/alerts with $host or {host=...}.
-- Alert rule groups: 'spoke_health' (SpokeDown/SpokeHighCPU/SpokeHighRAM) +
-  'aro_wake' (AroWakeLowSuccessRate/AroWakeCostBurnHigh, per-host since 2026-06-06).
+- Alert rule groups (verified live 2026-06-07T20:20Z): `aro_wake` (2 rules:
+  AroWakeLowSuccessRate, AroWakeCostBurnHigh — both per-host); `container_health`
+  (6 rules: ContainerDown, ContainerHighCPU, ContainerHighMemory,
+  ContainerMemoryHighOfHost, ContainerOOMKilled, ContainerRestarting);
+  `host_health` (3 rules: HostHighCPU, HostHighMemory, HostDiskFull);
+  `service_health` (1 rule: ServiceUnhealthy — note: the `netdata` instance
+  this used to fire for was removed 2026-06-07 after a 24× Telegram flood);
+  `fabrik-registrar-drift` (1 rule). TOTAL: 13 rules across 5 groups.
+  **No** `spoke_health` group exists today (earlier docs referenced
+  SpokeDown/SpokeHighCPU/SpokeHighRAM which never landed or were removed).
 ```
 
 ---
@@ -43,7 +55,7 @@
 
 ```bash
 ssh vps bash <<'EOF'
-echo "=== PROMETHEUS TARGETS (expect 21/21 up across 16 jobs after aro-wake added 2026-06-06) ==="
+echo "=== PROMETHEUS TARGETS (expect 14/14 up across 12 jobs as of 2026-06-07 (spoke-side scrape jobs are NOT in current prometheus.yml — aro-wake covers all 3 hosts in a single job)) ==="
 sudo docker exec prometheus wget -qO- http://localhost:9090/api/v1/targets 2>&1 | python3 -c "
 import json, sys
 d = json.load(sys.stdin)
@@ -150,7 +162,7 @@ EOF
 
 ### Metrics pipeline (Prometheus → Grafana)
 
-- 21 / 21 targets `up` (13 vps1-local jobs + 3 spoke job-groups × 2 targets = 6 + aro-wake job × 3 hosts = 3).
+- 14 / 14 targets `up` (11 vps1-local jobs + aro-wake job covering all 3 hosts = 3). The earlier spoke-side jobs (node-spokes, cadvisor-spokes, promtail-spokes) are NOT in the current `prometheus.yml`.
 - `host` label present on every active series.
 - Scrape errors in last hour: ideally zero.
 - Grafana dashboards load + render historical 7d range.
@@ -168,7 +180,7 @@ EOF
 ### Alert pipeline (Prometheus → Alertmanager → Apprise → Telegram)
 
 - Alertmanager cluster status `ready` / `active`.
-- `spoke_health` rule group loaded (`SpokeDown`, `SpokeHighCPU`, `SpokeHighRAM`).
+- ~~`spoke_health` rule group loaded (`SpokeDown`, `SpokeHighCPU`, `SpokeHighRAM`).~~ — **NOT PRESENT** as of 2026-06-07T20:20Z. The current rule groups are listed above in § Stack context. If a future drill confirms spoke_health is wanted, add via `configs/prometheus/rules/alerts.yml`; otherwise drop this expectation from audits.
 - **`aro_wake` rule group loaded (since 2026-06-06): `AroWakeLowSuccessRate` + `AroWakeCostBurnHigh`, both per-host via `by (host)`; both `inactive` is the healthy state.**
 - Active alerts: only expected ones (or none). Investigate firing.
 - Active silences: only legitimate planned-downtime silences; expired ones cleaned.
@@ -183,7 +195,7 @@ EOF
 
 ### Uptime monitoring (Gatus → Apprise → Telegram)
 
-- 16 Gatus config files, 21 endpoint definitions (verify against `vps-complete-inventory.md`; the file count drifts up when new endpoint files are added — endpoint count is the more stable signal).
+- 18 Gatus config files, 36 endpoint definitions across 7 groups (verified live 2026-06-07T20:20Z: `apps:8`, `core:5`, `data:3`, `external:5`, `observability:7`, `services:5`, `trio-aro-wake:3`). Endpoint count is the stable signal; file count drifts as endpoints are split.
 - No persistently-failing endpoints (would indicate a real outage OR a stale endpoint).
 - Authelia bypass on `*.vps1.ocoron.com → /health` working.
 

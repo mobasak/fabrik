@@ -12,7 +12,7 @@
 ```text
 - Deploy: SSH + Docker Compose via `fabrik apply`. All containers stable-named
   (no UUID suffix). Network: `fabrik` (renamed from `coolify` 2026-05-31).
-- Hub (vps1): 29 containers. Mix of shared infra (postgres-main, redis-main,
+- Hub (vps1): 31 containers (29 platform + 2 T-P5 watchdog dogfood). Mix of shared infra (postgres-main, redis-main,
   authelia, glitchtip-{web,worker}, loki, traefik), monitoring (prometheus,
   grafana, alertmanager, gatus, cadvisor, node-exporter, promtail, pushgateway,
   postgres-exporter, redis-exporter), utility (n8n, browserless, gotenberg,
