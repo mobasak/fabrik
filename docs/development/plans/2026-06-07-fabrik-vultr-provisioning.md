@@ -51,6 +51,7 @@ Throwaway VPS for DR drills, experiments, one-off validations. Auto-destroyed at
 ### In scope
 
 - Vultr API v2 integration (auth, instance CRUD, snapshot, billing)
+- **Any Vultr compute product line, on demand** — `vc2`/`vdc`/`vhf`/`vhp`/`voc`/`vcg` (incl. Cloud GPU) via `/v2/instances`, and `vbm` Bare Metal via `/v2/bare-metals`. Operator can buy/deploy/configure/use any server type at any time (see Addendum §A).
 - Two modes: permanent, disposable
 - `fabrik vultr` CLI subcommand with discoverable subcommands
 - State store: `data/vultr-instances.json` — tracks active permanent instances, recent disposable instances (last 30 days)
@@ -63,10 +64,11 @@ Throwaway VPS for DR drills, experiments, one-off validations. Auto-destroyed at
 
 - Other providers (DigitalOcean, Hetzner, AWS) — Vultr only this iteration
 - Multi-region failover orchestration
-- Vultr GPU/Bare Metal instances
-- Block storage (volumes), VPC networks, reserved IPs — basic compute only
+- Block storage (volumes), VPC/VPC 2.0 networks, reserved IPs — *server* provisioning only this iteration (these are attachable add-ons, not server types; revisit if a workload needs them)
 - Cost forecasting / monthly budget alerting — minimal cost-tracking only
 - Managed databases via Vultr — we use our own postgres-main
+
+> **Note:** GPU (`vcg`) and Bare Metal (`vbm`) are now **in scope** — see In-scope above + Addendum §A. The operator requirement is to be able to buy/deploy/configure/use *any* Vultr server type on demand.
 
 ---
 
@@ -86,6 +88,11 @@ Vultr REST API v2 documentation: <https://www.vultr.com/api/>
 | `/v2/plans` | GET | List available plans + pricing |
 | `/v2/os` | GET | List available OS images (need Ubuntu 24.04 LTS ID) |
 | `/v2/account` | GET | Verify auth, get account balance |
+| `/v2/plans?type=<tag>` | GET | List plans for a product line (`vc2`/`vdc`/`vhf`/`vhp`/`voc`/`vcg`) + pricing |
+| `/v2/bare-metals` | POST/GET | Create / list **Bare Metal** instances (`vbm`) — separate endpoint family |
+| `/v2/bare-metals/<id>` | GET/DELETE | Get / destroy a Bare Metal instance |
+| `/v2/bare-metals/<id>/reboot` | POST | Reboot a Bare Metal instance |
+| `/v2/plans-metal` | GET | List Bare Metal plans (`vbm-*`) + pricing (separate from `/v2/plans`) |
 
 **Auth**: Bearer token in `Authorization` header. Token stored in `/opt/fabrik/.env.sysadmin` as `VULTR_API_KEY` (mode 600).
 
@@ -400,6 +407,79 @@ That's enough state for Phase 1-3 to function.
 3. Per-call cost cap: should be per-drill or per-fabrik-invocation? **Recommendation**: per-drill, with config in `.env.sysadmin` for fleet-wide cap.
 4. Region picking: pin a single region for drills (faster + cheaper)? **Recommendation**: yes — `lax` for now since vps1 is in LA. Operator can override per-call.
 5. What about Vultr's snapshot/backup feature for permanent instances? Out of scope this iteration; we use Backrest.
+
+---
+
+## Addendum — completed gaps (2026-06-07)
+
+Fills the parts the first draft left open. Verified against Vultr API v2 docs (<https://www.vultr.com/api/>) on 2026-06-07.
+
+### §A. Supporting *any* Vultr server type (operator requirement)
+
+The operator must be able to buy/deploy/configure/use **any** Vultr server type, any time. Vultr exposes seven compute product lines, selectable via the `type` filter on `/v2/plans?type=<tag>`:
+
+| Tag | Product line | Create endpoint | Plans endpoint |
+|---|---|---|---|
+| `vc2` | Regular Cloud Compute | `/v2/instances` | `/v2/plans?type=vc2` |
+| `vdc` | Dedicated Cloud | `/v2/instances` | `/v2/plans?type=vdc` |
+| `vhf` | High-Frequency Compute | `/v2/instances` | `/v2/plans?type=vhf` |
+| `vhp` | High Performance | `/v2/instances` | `/v2/plans?type=vhp` |
+| `voc` | Optimized Cloud Compute | `/v2/instances` | `/v2/plans?type=voc` |
+| `vcg` | Cloud GPU (A100/A40/A16) | `/v2/instances` | `/v2/plans?type=vcg` |
+| `vbm` | **Bare Metal** | **`/v2/bare-metals`** | **`/v2/plans-metal`** |
+
+**Key fact:** every line *except* Bare Metal creates through `/v2/instances` — only the `plan` value changes (e.g. `vcg-a100-12c-120g-80vram` for GPU). **Bare Metal is the sole exception** — distinct endpoint family (`/v2/bare-metals`, `/v2/plans-metal`) with parallel create/get/delete/reboot/reinstall verbs. So `VultrClient` needs one extra thin path for `vbm`; all other types are a single parameterized path.
+
+- CLI: `--plan <id>` accepts any plan. Client auto-routes to `/v2/bare-metals` when the plan starts `vbm-` (or `--bare-metal` is passed).
+- New discovery command: `fabrik vultr plans [--type vhf|vcg|vbm|…]` — lists plans + monthly cost for any line (queries `/v2/plans` or `/v2/plans-metal`).
+- `VultrClient` (Phase 1) gains: `list_plans(type=None)`, `list_bare_metal_plans()`, and bare-metal variants `create_bare_metal()`, `get_bare_metal()`, `destroy_bare_metal()`, `reboot_bare_metal()`. `create_instance(...)` dispatches to the bare-metal path when `plan.startswith("vbm-")`.
+
+### §B. ID resolution + catalog caching
+
+Human inputs (`--region lhr`, `--plan vc2-2c-4gb`, `"Ubuntu 24.04"`) must resolve to API IDs (`os_id` is an int). Cache the four stable catalogs — `/v2/regions`, `/v2/plans` (all types), `/v2/plans-metal`, `/v2/os` — in `data/vultr-catalog.json` with a 24h TTL; `fabrik vultr plans --refresh` forces a re-fetch. Fail loudly with the valid set if a name doesn't resolve.
+
+### §C. Mesh IP allocation (permanent mode)
+
+Permanent spokes need a unique `10.99.0.x` wg0 address. Allocation = "lowest free host in `10.99.0.0/24` not already a peer on vps1's wg0," read from the live peer list (and cross-checked against `vultr-instances.json`). Recorded as `mesh_ip` in state; collision → abort before create. (This was shown as `10.99.0.4` in the schema but never specified.)
+
+### §D. Concurrency + locking
+
+All writes to `data/vultr-instances.json` and `data/vultr-catalog.json` go through the existing `drivers/locks.py::run_locked("vultr-state", …)` flock — **required** because the AI sysadmin on vps1 may call `fabrik vultr` concurrently with the operator on WSL. Read-modify-write without the lock would corrupt state.
+
+### §E. Cost estimation method
+
+Vultr bills hourly, capped at the monthly price (672h month). So `hourly = plan.monthly_cost / 672`; `cost_estimate_usd = hourly × wall_clock_hours`, rounded up to the hour for safety. Bare Metal pulls `monthly_cost` from `/v2/plans-metal`. Pre-flight checks `/v2/account` balance and refuses if balance can't cover the estimate (or the configured cap).
+
+### §F. Permanent-mode rollback — concrete steps
+
+`fabrik vultr destroy <name> --reverse-fleet-add` undoes provision steps 6–12 in **reverse** order (each idempotent, best-effort, continue-on-error):
+1. Remove Gatus `aro-wake-<name>` endpoint
+2. Remove Prometheus scrape targets (node/cadvisor/promtail spokes)
+3. Remove Backrest plans for the spoke
+4. Remove DNS records via site-provisioner
+5. Deregister the wg0 peer on vps1 (free the `mesh_ip`)
+6. Update `PEER_HOSTS` on all remaining spokes
+7. `DELETE` the instance (or `/v2/bare-metals/<id>` for `vbm`)
+8. Mark `destroyed_at` in state
+
+Without `--reverse-fleet-add`, destroy refuses on a permanent instance (prevents orphaned mesh/DNS/monitoring residue).
+
+### §G. Execution context + autonomous use
+
+- Runs from **operator WSL** (primary) and from **vps1** (for the AI sysadmin). The Vultr API-key IP allowlist must include both public IPs (WSL dev IP + `172.93.160.197`).
+- **Autonomy boundary:** the AI sysadmin may auto-run **disposable** drills (`fabrik vultr drill …`) within the cost cap, posting a Telegram notice on each create/destroy. **Permanent** `provision` always requires interactive human confirmation — it is irreversible billing and a fleet topology change. (Consistent with operator policy: real-money caps are fine; the "no caps" rule applies only to LLM calls, not cloud spend.)
+
+### §H. Secrets + doc-sync obligations
+
+- `VULTR_API_KEY` + `VULTR_SSHKEY_ID` live in `/opt/fabrik/.env.sysadmin` (mode 600 — the autonomous-agent secrets file, deliberately separate from the app `/opt/fabrik/.env`).
+- Doc Sync Matrix obligations when implemented: add both vars to `.env.example` (names only, no values) + `docs/CONFIGURATION.md`; add the new `drivers/vultr.py` + `orchestrator/vultr_state.py` to `INDEX.md`; `CHANGELOG.md` entry per phase.
+
+### §I. Testing + gate
+
+- `tests/test_vultr_client.py` — mock `httpx`: both the `/v2/instances` and `/v2/bare-metals` paths, ID resolution, 4xx-vs-5xx handling, retry/backoff. No real network.
+- `tests/test_vultr_state.py` — load/save/reconcile, lock contention, drift detection.
+- `fabrik vultr drill bare` is the **live** integration smoke (operator-run, ~$0.005) — not in CI.
+- `scripts/final_gate.py --lean` must stay green; unit tests never hit the network.
 
 ---
 
