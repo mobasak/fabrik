@@ -204,7 +204,7 @@ EOF
 - Each spoke's 3 agents (node-exporter, cadvisor, promtail) running.
 - UFW mesh-allow rule present (W8 fix).
 - No agent log errors in last 5 min.
-- Hub Prometheus shows `node-spokes` / `cadvisor-spokes` / `promtail-spokes` jobs each with 2 targets up.
+- ~~Hub Prometheus shows `node-spokes` / `cadvisor-spokes` / `promtail-spokes` jobs each with 2 targets up~~ — **NOT in `prometheus.yml` as of 2026-06-07T20:20Z**. Live spoke-side scrape is the `aro-wake` job (3 targets: vps1, vps2, vps3 over mesh). Spoke node/container exporters are running on each spoke but not currently scraped from vps1 — to restore, add the static_configs blocks back to `prometheus.yml` and SIGHUP. Mesh + UFW are already permissive.
 
 ### W14 / W15 spoke-deploy verification path
 

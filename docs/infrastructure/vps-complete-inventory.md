@@ -16,9 +16,9 @@
 - **Spoke DNS (NEW today):** `vps2.ocoron.com` + `*.vps2.ocoron.com` → `96.9.214.128`; `vps3.ocoron.com` + `*.vps3.ocoron.com` → `104.128.190.151`. Wildcards cover `auth.vpsN`, `<tenant>.vpsN`, etc. Apex + wildcard each, no per-service A records needed.
 - **Spoke Traefik:** listening on 80 + 443 on each spoke's public IP; `authelia-vps1@file` middleware ready (forward-auth → `http://10.99.0.1:9091/api/verify`). Public TLS via Let's Encrypt will issue on first tenant deploy.
 - **Loki ingest:** spokes pushing logs successfully (`host` label values: `["vps1","vps2","vps3"]`)
-- **Prometheus:** scraping **18 active targets across 15 jobs** (12 vps1 + 6 spoke), all up; every series carries `host` label
+- **Prometheus:** scraping **14 active targets across 12 jobs (verified 2026-06-07T20:20Z via /api/v1/targets)** (12 vps1 + 6 spoke), all up; every series carries `host` label
 - **Grafana:** all 5 dashboards have `host` template variable (regex `/^vps/`)
-- **Alert rules:** `spoke_health` group active — `SpokeDown` / `SpokeHighCPU` / `SpokeHighRAM`
+- **Alert rules:** ~~`spoke_health` group~~ — **NOT in alerts.yml as of 2026-06-07T20:20Z**. The 5 live groups: aro_wake (2 rules), container_health (6), host_health (3), service_health (1), fabrik-registrar-drift (1).
 - **AI sysadmin:** `proactive-check.sh` tags every anomaly with originating host (`cpu_high[vps2]`)
 - **Backups:** B2 bucket holds restic repo `a256277c45` with **4 plans live** (`postgres-dumps`, `docker-volumes`, `opt-configs`, `host-state`) since 2026-06-01. First snapshots: 117 MiB on B2 (612 MiB uncompressed, 5.23× compression). Path-preserving bind mounts on the Backrest container — see [`vps-hub-rebuild.md`](vps-hub-rebuild.md) for the rebuild contract.
 - **Cloudflare API token (`/opt/fabrik/.env`):** refreshed 2026-05-31 afternoon by syncing the working token from the local site-provisioner instance (`/opt/site-provisioner/.env`). Pre-edit backup at `backups/.env.backup.20260531-155948`. Verified active via `curl /user/tokens/verify`.
@@ -60,7 +60,7 @@ ssh vps3 'sudo docker ps --format "{{.Names}}" | wc -l'   # expect 5
 # Mesh handshake state
 ssh vps 'sudo wg show'
 
-# Prometheus targets across hosts (expect 18/18 up across 15 jobs)
+# Prometheus targets across hosts (expect 14/14 up across 12 jobs as of 2026-06-07T20:20Z; was 18/15 briefly on 2026-05-31 when spoke scrape jobs were added, dropped at some point)
 ssh vps 'sudo docker exec prometheus wget -qO- http://localhost:9090/api/v1/targets' \
   | python3 -c 'import json,sys; d=json.load(sys.stdin)["data"]["activeTargets"]; up=sum(1 for t in d if t["health"]=="up"); print(f"{up}/{len(d)} up")'
 
@@ -429,7 +429,7 @@ Rule precedence: Authelia is first-match-wins. Specific `^/api/` bypasses for ad
        └────────────────────────┘                  └───────────────────────┘
 ```
 
-### Prometheus scrape targets (18 live across 15 jobs — verified `/api/v1/targets` 2026-05-31)
+### Prometheus scrape targets (**14 live across 12 jobs** — verified `/api/v1/targets` 2026-06-07T20:20Z; was 18/15 briefly on 2026-05-31 when the 3 spoke jobs were added — those spoke jobs were dropped at some point and are not in live config today)
 
 vps1-local (12 jobs / 12 targets):
 
@@ -448,13 +448,15 @@ vps1-local (12 jobs / 12 targets):
 | `redis` | `redis-exporter:9121` |
 | `pushgateway` | `pushgateway:9091` |
 
-Spokes (3 jobs / 6 targets):
+Spokes — **`node-spokes`/`cadvisor-spokes`/`promtail-spokes` jobs NOT in `prometheus.yml`** (verified 2026-06-07T20:20Z). Live spoke coverage is via the `aro-wake` job (3 targets — vps1, vps2, vps3) only. The spoke-side agents (`node-exporter`, `cadvisor`, `promtail`) are running at `/opt/monitoring-agent/` on each spoke with mesh + UFW permissive, but the corresponding scrape blocks aren't currently configured. Promtail log shipping (push-based) works — Loki has `host=vps1|vps2|vps3` streams.
 
-| Job | Targets |
-| :--- | :--- |
-| `node-spokes` | `10.99.0.2:9100`, `10.99.0.3:9100` |
-| `cadvisor-spokes` | `10.99.0.2:8080`, `10.99.0.3:8080` |
-| `promtail-spokes` | `10.99.0.2:9080`, `10.99.0.3:9080` |
+Historical / NOT live (preserved as a recipe to restore):
+
+| Job | Targets | Live? |
+| :--- | :--- | :--- |
+| `node-spokes` | `10.99.0.2:9100`, `10.99.0.3:9100` | ❌ |
+| `cadvisor-spokes` | `10.99.0.2:8080`, `10.99.0.3:8080` | ❌ |
+| `promtail-spokes` | `10.99.0.2:9080`, `10.99.0.3:9080` | ❌ |
 
 **Not scraped (intentionally or by gap):**
 
@@ -693,8 +695,8 @@ This table answers "when X breaks, what wakes up an AI to look at it?" — and l
 
 | Source | What it observes | Where the signal lands | Wakes an AI? |
 | :--- | :--- | :--- | :--- |
-| `prometheus` (vps1) | metrics from node-exporter, cAdvisor, postgres-exporter, redis-exporter, pushgateway, cAdvisor-spokes, node-spokes, promtail-spokes (18 active targets, all up) | `alertmanager` → Telegram **AND** queried by `proactive-check.sh` cron | ✅ via `proactive-check.sh` (every 15 min, rate-limited 5 Claude wakes/h) |
-| `alertmanager` (vps1) | Prometheus rule alerts (spoke_health group: SpokeDown / SpokeHighCPU / SpokeHighRAM, ContainerDown, plus drift, registrar, etc.) | Native `telegram_configs` → Telegram | ❌ (operator-in-loop by design; ARO-Brain receiver stub in config but not built) |
+| `prometheus` (vps1) | 14 active targets across 12 jobs (verified 2026-06-07T20:20Z): node-exporter, cAdvisor, postgres-exporter, redis-exporter, pushgateway, gatus, blackbox, fabrik-registrar, glitchtip-web, plus `aro-wake` job with 3 targets (vps1+vps2+vps3 over mesh). Spoke metrics: covered via the `aro-wake` job only — dedicated `node-spokes`/`cadvisor-spokes`/`promtail-spokes` jobs were referenced in older docs but are NOT present in live `prometheus.yml`. | `alertmanager` → Telegram **AND** queried by `proactive-check.sh` cron | ✅ via `proactive-check.sh` (every 15 min, rate-limited 5 Claude wakes/h) |
+| `alertmanager` (vps1) | Prometheus rule alerts from 5 live groups: `aro_wake` (2), `container_health` (6), `host_health` (3 — fires on host=vps1\|vps2\|vps3 labels), `service_health` (1), `fabrik-registrar-drift` (1, separate `rules/fabrik-drift.yml`). No `spoke_health` group exists (was planned, never landed). | Native `telegram_configs` → Telegram | ❌ (operator-in-loop by design; ARO-Brain receiver stub in config but not built) |
 | `loki` (vps1) | logs from promtail on all 3 hosts (`host` label vps1/vps2/vps3) | Grafana dashboards; **no ruler / log-alert wiring** | ❌ |
 | `gatus` (vps1) | 21 synthetic endpoints across 16 config files (apps/core/data/observability/external) | Custom alerter → Apprise → Telegram | ❌ |
 | `glitchtip-web` + `glitchtip-worker` (vps1) | Sentry-compat exception ingest from instrumented apps; 7 retained projects | DSN → web UI; per-project alerts → Apprise → Telegram | ❌ |
@@ -832,7 +834,7 @@ DB users (`pg_user`, verified live post-cleanup): `postgres` (super), `ozgur` (s
 - Grafana: 5 Fabrik-folder dashboards (overview, databases, containers, authelia, meilisearch) + community dashboards. Every dashboard now has `$host` template variable.
 - Authelia: **8 access control rules** (see § Authelia access control rules above; was 10, dropped to 8 on 2026-06-02 when the orphaned image-broker rules were removed).
 - Meilisearch: 0 indexes (no consumers).
-- Prometheus: **18 active targets / 15 jobs**, all up. (Was 13 jobs in Coolify-era; added 3 spoke jobs on 2026-05-31.)
+- Prometheus: **14 active targets across 12 jobs**, all up. (Was 13 jobs in Coolify-era; added 3 spoke jobs on 2026-05-31.)
 
 ### Stale / residue inventory (vps1) — CLEARED 2026-05-31 evening
 
@@ -869,7 +871,7 @@ The full residue sweep happened in the evening. All items below were resolved in
 - All 3 hosts on `fabrik` Docker network (renamed from `coolify` on 2026-05-31)
 - vps2/vps3 SSH posture matches vps1: no root login, no password auth, ozgur sudoer
 - Grafana host filter live on all 5 dashboards
-- Prometheus `spoke_health` alert group active (SpokeDown / SpokeHighCPU / SpokeHighRAM)
+- ~~Prometheus `spoke_health` alert group~~ — **NOT in alerts.yml as of 2026-06-07T20:20Z**; the host_health group does fire on host labels including spoke hosts.
 - AI sysadmin proactive-check.sh emits host-tagged anomaly names (`cpu_high[vps2]`)
 - **Spoke DNS resolving** at Cloudflare authoritative NS: `vps2.ocoron.com`, `*.vps2.ocoron.com`, `vps3.ocoron.com`, `*.vps3.ocoron.com` all return correct A records
 - **Cloudflare API token** in `/opt/fabrik/.env` verified active

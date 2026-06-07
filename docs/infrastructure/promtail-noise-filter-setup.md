@@ -1,7 +1,7 @@
 # Promtail Log Noise Filter — Setup
 
 **Last Updated:** 2026-06-06 (filters unchanged; aro-wake on full fleet writes to host journald + `/var/log/aro-wake.log` — those aren't shipped by Promtail's docker-socket discovery, so no aro-wake noise filter is needed. Each host's Loki ingest stream for `host="vpsN"` will not include aro-wake-internal logs; operators read those locally via `sudo tail /var/log/aro-wake.log`.)
-**Status:** ✅ Live on vps1; spokes ship via the `promtail-spokes` Prometheus scrape job in `prometheus.yml`
+**Status:** ✅ Live on vps1. Spoke-side promtail containers are running at `/opt/monitoring-agent/` on vps2/vps3 and push logs to `loki:3100` via mesh (verified 2026-06-07T20:20Z — Loki has streams labelled `host=vps1`, `host=vps2`, `host=vps3`). The `promtail-spokes` Prometheus scrape job that previously scraped each spoke promtail's `/metrics` endpoint is **NOT in `prometheus.yml` today** — promtail log shipping continues to work (it's push-based, not scrape-based) but promtail-internal metrics aren't currently scraped.
 **Container:** `promtail` (stable name)
 **Config:** `/opt/monitoring/configs/promtail/promtail-config.yaml` (host bind mount)
 **Spoke promtails:** `vps2`, `vps3` — rendered by `scripts/bootstrap/bootstrap-vps.sh` step 11 (different config, see § Multi-host)

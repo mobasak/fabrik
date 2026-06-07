@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Infrastructure docs third truth-sync pass — strike stale claims against live state (2026-06-08)
+
+Third comprehensive truth-sync of `docs/infrastructure/` after the user pushed back on incremental fixes. Probed all 3 hosts for live state (containers, listening ports, UFW rules, cron entries, Prometheus jobs/targets/rules, Authelia rules, Loki streams, /opt/ contents, Backrest plans) at 2026-06-07T20:20Z and corrected every doc that contradicted it.
+
+**Largest corrections:**
+
+- **`spoke_health` rule group does NOT exist in `alerts.yml`.** 5 live rule groups: `aro_wake` (2), `container_health` (6), `host_health` (3 — covers spoke hosts via `host` label), `service_health` (1), `fabrik-registrar-drift` (1, in separate `rules/fabrik-drift.yml`). The dedicated `spoke_health`/`SpokeDown`/`SpokeHighCPU`/`SpokeHighRAM` group documented in 4 docs was either pre-deployment design or got reverted at some point. Struck through with `~~`+disclaimer in: `prometheus-app-metrics-setup.md`, `vps-ai-sysadmin.md`, `vps-fleet-architecture.md`, `vps-status.md`, `vps-complete-inventory.md`, `audit-prompts/README.md`.
+- **`node-spokes`/`cadvisor-spokes`/`promtail-spokes` scrape jobs NOT in live `prometheus.yml`.** Live: 14 active targets across 12 jobs (was 18/15 briefly on 2026-05-31 when those 3 spoke jobs were added; dropped at some point). Spoke node/container exporters ARE running at `/opt/monitoring-agent/` on each spoke and mesh+UFW are permissive — agents are there, scrape config isn't. Spoke-side observability today flows via the `aro-wake` job (3 mesh targets). Loki promtail push-based ingest works (all 3 host labels present). Corrected in: `prometheus-app-metrics-setup.md` (job table + alert rules table), `vps-ai-sysadmin.md`, `vps-fleet-architecture.md`, `vps-status.md`, `vps-complete-inventory.md`, `grafana-dashboards-setup.md`, `promtail-noise-filter-setup.md`, `audit-prompts/05-observability-pipeline.md` + `README.md`.
+- **Authelia rules: 8, not 10.** Was 10 pre-2026-06-02 cleanup that removed the 2 orphaned `images.vps1.ocoron.com` rules. Updated `vps-status.md` L28.
+- **Asymmetric cron between hub and spokes documented for the first time.** vps1 has 6 entries (`proactive-check.sh`, `detect_reversals.py`, `morning-report.sh`, `weekly-security.sh`, `weekly-maintenance.sh`, `monthly-backup-verify.sh`). vps2 + vps3 each have 8 (the 6 above + `claude-keepalive` at hash-staggered minute + `daily-digest.sh`). Backporting keepalive + digest to vps1 is on the deferred list. Documented in `vps-ai-sysadmin.md` § Scheduled Routines.
+- **Bootstrap-plan items 6 + 7 marked SHIPPED** — both landed in commit `175ea69` (4 spoke deps baked into `bootstrap-vps.sh`; spoke↔spoke `ufw route allow in on wg0 out on wg0` baked into `bootstrap-hub.sh` step_07).
+
 ### Added — `fabrik vultr` Phase 1: VultrClient driver + plan convergence (2026-06-08)
 
 - **New driver** [`src/fabrik/drivers/vultr.py`](src/fabrik/drivers/vultr.py) — Vultr API v2 client for `fabrik vultr` (on-demand VPS provisioning, permanent spokes + disposable DR drills). Covers **all** compute product lines: `vc2/vdc/vhf/vhp/voc/vcg` (incl. Cloud GPU) via `/v2/instances`, and `vbm` Bare Metal via `/v2/bare-metals` (auto-dispatched on `vbm-` plan prefix). Bearer auth from `/opt/fabrik/.env.sysadmin` (explicitly loaded — `config.py` doesn't). Retries 5xx only (4xx fail fast); `wait_for_active` enforces the live-verified 4-condition readiness for instances and status+main_ip for bare metal.

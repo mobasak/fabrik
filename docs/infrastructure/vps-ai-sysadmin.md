@@ -149,17 +149,21 @@ Claude Code reaches these from inside the Docker `fabrik` network via `sudo dock
 
 ### Layer 3 — Spoke-aware checks (added 2026-05-31)
 
-`proactive-check.sh` now tags every anomaly with the originating host (e.g. `cpu_high[vps2]` instead of `cpu_high`). A new `prom_hosts()` helper extracts the unique `host` label values from each PromQL result. All existing queries naturally cover vps1 + vps2 + vps3 because Prometheus on vps1 scrapes spoke `node-exporter` / `cadvisor` / `promtail` over the Wireguard mesh — no per-host check duplication needed.
+`proactive-check.sh` tags every anomaly with the originating host (e.g. `cpu_high[vps2]` instead of `cpu_high`). A `prom_hosts()` helper extracts the unique `host` label values from each PromQL result.
 
-New Prometheus alert rules in group `spoke_health`:
+> **⚠ Truth check 2026-06-07T20:20Z:** earlier versions of this doc said proactive-check covers vps1+vps2+vps3 because Prometheus on vps1 scrapes spoke `node-exporter`/`cadvisor`/`promtail` over the mesh. The spoke-side `node-exporter`/`cadvisor`/`promtail` agents ARE running on each spoke (compose at `/opt/monitoring-agent/`) and the mesh + UFW are permissive, but the **`node-spokes`/`cadvisor-spokes`/`promtail-spokes` scrape jobs are NOT in `prometheus.yml` today**. As a result, `proactive-check.sh` queries against `node_cpu_seconds_total{host=~"vps[23]"}` etc. return no rows for spokes right now. Spoke coverage today flows via: (a) the per-spoke `aro-wake` job, scraped via `aro-wake` Prometheus job (3 targets — vps1+vps2+vps3 over mesh); (b) the spoke's own `vps-sysadmin-bot.service` + `proactive-check.sh` cron on that spoke, which uses its own local Prometheus-less heuristics. Re-adding the spoke scrape jobs to vps1's `prometheus.yml` is on the deferred list.
 
-| Rule | Catches | Condition |
-| :--- | :--- | :--- |
-| SpokeDown | Spoke target stops reporting | `up{job=~"node-spokes\|cadvisor-spokes\|promtail-spokes"} == 0` for 5 m |
-| SpokeHighCPU | Spoke vCPU > 85 % sustained | for 10 m, warning |
-| SpokeHighRAM | Spoke RAM > 85 % sustained | for 10 m, warning |
+~~New Prometheus alert rules in group `spoke_health`~~ — **NOT in alerts.yml as of 2026-06-07T20:20Z**. The 5 actual live groups: `aro_wake` (2), `container_health` (6), `host_health` (3 — fires on `host=vps2|vps3` labels for host-level metrics that ARE available), `service_health` (1), `fabrik-registrar-drift` (1, separate file).
 
-Routed via Alertmanager → Apprise → Telegram with the existing config; bot is notified through the same channel.
+Originally designed (kept as a recipe, NOT live):
+
+| Rule | Catches | Condition | Live? |
+| :--- | :--- | :--- | :--- |
+| SpokeDown | Spoke target stops reporting | `up{job=~"node-spokes\|cadvisor-spokes\|promtail-spokes"} == 0` for 5 m | ❌ |
+| SpokeHighCPU | Spoke vCPU > 85 % sustained | for 10 m, warning | ❌ |
+| SpokeHighRAM | Spoke RAM > 85 % sustained | for 10 m, warning | ❌ |
+
+When deployed (along with the spoke scrape jobs above), they route via Alertmanager → Apprise → Telegram.
 
 ### Layer 4 — Self-watched chain (W10, 2026-06-01)
 
@@ -253,13 +257,25 @@ Default: **autonomous**. Acts first, reports after.
 
 ### Scheduled Routines (cron — `/etc/cron.d/vps-sysadmin`)
 
+> **⚠ Live state truth check 2026-06-07T20:20Z:** the cron table is **asymmetric between hub and spokes**. vps1 has **6 cron entries** (no `claude-keepalive`, no `daily-digest`); vps2 and vps3 each have **8 entries** (the 6 below + `claude-keepalive` at a hash-staggered minute + `daily-digest.sh` at 09:09 / 09:24). The hub-spoke asymmetry exists because the AI-sysadmin trio was rolled out to vps1 first and 2 newer cron entries (keepalive + digest) landed only on the spokes; backporting to vps1 is on the deferred list.
+
+**vps1 (6 entries):**
+
 | Script | Schedule | Uses Claude? | Purpose |
 |---|---|---|---|
 | `proactive-check.sh` | Every 15 min | Only on anomaly | 11 checks (10 PromQL + Prometheus connectivity) + cert expiry. Bash prefilter (zero tokens when healthy). Claude wakes, diagnoses, acts, reports only when something is wrong. |
+| `detect_reversals.py` | Every 5 min | Never (data-only) | Phase 5.1.a operator-reversal correlator — joins watchdog `state.db` actions against `journalctl _COMM=sudo` operator docker commands within a 5-min window; writes matches to `/opt/fabrik/logs/lessons-pending.jsonl`. |
 | `morning-report.sh` | Daily 08:00 | Always | Collects system state + trends + shift notes + yesterday's actions. Claude formats a concise morning briefing for Telegram. |
 | `weekly-security.sh` | Monday 08:30 | Always | Runs `scripts/audit/03-security.sh`, Claude analyzes against `audit-prompts/03-security-hardening.md` checklist. Reports GREEN/YELLOW/RED. |
 | `weekly-maintenance.sh` | Sunday 03:00 | Never | Pure bash — checks dangling images/volumes, journal size, backup freshness, restart counts, stale containers, cert expiry. Reports what it found. |
 | `monthly-backup-verify.sh` | 1st of month 04:00 | Always | Runs `scripts/audit/06-backup.sh`, Claude analyzes against `audit-prompts/06-backup-disaster-recovery.md` checklist. Reports coverage gaps + recovery confidence. |
+
+**vps2 + vps3 (8 entries each — the 6 above plus):**
+
+| Script | Schedule | Uses Claude? | Purpose |
+|---|---|---|---|
+| `/usr/bin/claude -p "ping"` | Hourly at minute 11 (vps2) / 44 (vps3) — runs as `ozgur`, not root | Always | Keepalive ping to keep Claude CLI's session warm; output to `/var/log/claude-keepalive.log`. Hash-staggered minute so vps2 and vps3 don't slam the API at the same moment. |
+| `daily-digest.sh` | Daily 09:09 (vps2) / 09:24 (vps3) | Always | Per-spoke daily summary — Telegrammed via the spoke's own `@SysAdminVPSn` bot. Staggered so vps2/vps3 digests don't collide. |
 
 ### Operational Records (persistent across sessions)
 

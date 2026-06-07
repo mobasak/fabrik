@@ -58,7 +58,7 @@ Use it to filter dashboards by host:
 
 For the variable to work, panels must include `{host=~"$host"}` in their PromQL. The variable is in place on all 5 Fabrik dashboards; panel-level filtering is added incrementally as panels are touched. Until then, panels show fleet-wide data regardless of variable selection — flat-out OK behavior, just less filterable than possible.
 
-The `host` label is added at Prometheus scrape time via per-target labels in `/opt/monitoring/configs/prometheus/prometheus.yml`. Spoke jobs (`node-spokes`, `cadvisor-spokes`, `promtail-spokes`) split per-target so each gets the right `host` label (`vps2` or `vps3`). vps1-local jobs use `host: vps1`. Promtail also sets `host: vpsN` on log streams so Loki queries can filter the same way (`{host="vps2"}`).
+The `host` label is added at Prometheus scrape time via per-target labels in `/opt/monitoring/configs/prometheus/prometheus.yml`. vps1-local jobs use `host: vps1`. The `aro-wake` job (live, 3 targets) carries `host=vps1|vps2|vps3`. **Note (verified 2026-06-07T20:20Z):** the previously documented `node-spokes` / `cadvisor-spokes` / `promtail-spokes` scrape jobs are **NOT in current prometheus.yml** — so node/container metrics filtered by `host=vps2` or `host=vps3` return empty in Grafana right now (the host-variable dropdown still shows the values because they exist in the `aro-wake` job's series, but spoke node/container panels will show no data). Loki side is unaffected: Promtail on each spoke pushes to `loki:3100` with `host: vpsN` labels and ALL three values (vps1, vps2, vps3) are present in live Loki (verified 2026-06-07T20:20Z) — `{host="vps2"}` filters work in Loki-backed dashboards.
 
 ---
 

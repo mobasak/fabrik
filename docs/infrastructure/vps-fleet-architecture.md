@@ -118,13 +118,13 @@ This doc answers: "we own 3 VPSes — what do we have, what's planned, and how i
 
 ### 2. Observability — single pane on vps1
 
-- `prometheus` scrapes spoke `node-exporter` + `cadvisor` + `promtail` via mesh. Spoke-specific scrape jobs: `node-spokes`, `cadvisor-spokes`, `promtail-spokes`.
-- Every series carries `host=vpsN` label. Spoke alert rules: `SpokeDown`, `SpokeHighCPU`, `SpokeHighRAM` (group `spoke_health`).
+- `prometheus` on vps1 has 12 active scrape jobs / 14 targets (verified 2026-06-07T20:20Z). Spoke node/container metrics: ~~`node-spokes` / `cadvisor-spokes` / `promtail-spokes` jobs~~ — **NOT in `prometheus.yml` today** (spoke-side `node-exporter`/`cadvisor`/`promtail` agents ARE running at `/opt/monitoring-agent/` and the mesh is permissive; the scrape jobs were briefly live on 2026-05-31 but were dropped at some point). Spoke coverage currently flows via the `aro-wake` job (3 mesh targets: vps1:10.0.1.1:8201, vps2:10.99.0.2:8201, vps3:10.99.0.3:8201) exposing SLI counters; full node/container metrics from spokes are NOT in vps1 Prometheus today.
+- vps1-local series carry `host=vps1` label. ~~Spoke alert rules `spoke_health` group~~ — **NOT in alerts.yml**. The 5 live rule groups: `aro_wake` (2), `container_health` (6), `host_health` (3), `service_health` (1), `fabrik-registrar-drift` (1, separate file). `host_health` matches on `host` label — for spokes the only series with that label are the `aro-wake` job's, so spoke-side host-level alerting is currently aro-wake-flavored only.
 - `loki` receives logs from promtail on every host (promtail pushes to `10.99.0.1:3100` from spokes).
 - `grafana` (vps1) shows fleet-wide dashboards. Both Prometheus + Loki as datasources.
 - `alertmanager` routes via `apprise` → Telegram.
 - `gatus` probes 36 endpoints across all 3 hosts via mesh (verified 2026-06-07T20:20Z).
-- Total: 18/18 scrape targets up across 15 jobs (12 vps1-local + 3 spoke-jobs × 2 spokes).
+- Total: **14/14 scrape targets up across 12 jobs** (verified 2026-06-07T20:20Z via `/api/v1/targets`). 12 vps1-local + `aro-wake` job (3 targets: vps1, vps2, vps3 over mesh). Was 18/15 briefly on 2026-05-31 when 3 spoke-side jobs were added; those jobs are no longer in `prometheus.yml`.
 
 ### 3. Backups (as of 2026-06-01, W11 shipped)
 

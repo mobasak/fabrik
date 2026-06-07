@@ -66,9 +66,9 @@ vps2 + vps3: 5 containers each — traefik + node-exporter + cadvisor +
 ```text
 Prometheus + Alertmanager + Grafana + Loki + Promtail + Gatus + GlitchTip
 - Loki accepts mesh pushes at 10.99.0.1:3100; spokes' promtail uses it
-- Prometheus scrapes 18 targets across 15 jobs (12 vps1 + 3 spoke job-groups)
+- Prometheus scrapes 14 active targets across 12 jobs (was 18/15 in pre-aro-wake era; spoke-specific node-spokes/cadvisor-spokes/promtail-spokes jobs were never re-added after a config drift, plus netdata scrape removed 2026-06-07) (12 vps1 + 3 spoke job-groups)
 - Every series has `host` label (vps1/vps2/vps3) for fleet filtering
-- spoke_health rule group: SpokeDown / SpokeHighCPU / SpokeHighRAM
+- ~~spoke_health rule group~~ — **NOT in alerts.yml as of 2026-06-07T20:20Z**; planned but never landed
 - AI sysadmin: vps-sysadmin-bot.service on vps1 ONLY
 ```
 

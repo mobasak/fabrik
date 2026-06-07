@@ -32,15 +32,17 @@ This runbook covers Prometheus scrape configuration for application-level metric
 | `postgres` | `http://postgres-exporter:9187/metrics` | Connections, slow queries, replication |
 | `redis` | `http://redis-exporter:9121/metrics` | Hit ratio, memory, ops/sec |
 
-### Spoke metrics (added 2026-05-31)
+### Spoke metrics — historical (jobs NOT in live config as of 2026-06-07T20:20Z)
 
-| Job | Targets | Per-target label |
-| :--- | :--- | :--- |
-| `node-spokes` | `10.99.0.2:9100`, `10.99.0.3:9100` | `host: vps2` / `host: vps3` |
-| `cadvisor-spokes` | `10.99.0.2:8080`, `10.99.0.3:8080` | `host: vps2` / `host: vps3` |
-| `promtail-spokes` | `10.99.0.2:9080`, `10.99.0.3:9080` | `host: vps2` / `host: vps3` |
+> **⚠ Truth check 2026-06-07:** the spoke-specific scrape jobs (`node-spokes`, `cadvisor-spokes`, `promtail-spokes`) listed below were briefly live on 2026-05-31 but are **NOT in `prometheus.yml` today** (12 jobs, 14 active targets verified via `/api/v1/targets`). Spoke-side observability is currently covered by the `aro-wake` job below (3 targets across vps1+vps2+vps3 over mesh) — which exposes a different surface (push-trigger SLI counters, not node/container exporters). Mesh + UFW are in place to re-add these jobs cleanly when needed; the bootstrap script still deploys `node-exporter` + `cadvisor` + `promtail` agents on each spoke.
 
-Every scrape target now carries a `host` label so dashboards + alerts can filter per-host. vps1-local jobs get `host: vps1`; spoke jobs split per-target. See § Multi-host below for the pattern.
+| Job | Targets | Per-target label | Live? |
+| :--- | :--- | :--- | :--- |
+| `node-spokes` | `10.99.0.2:9100`, `10.99.0.3:9100` | `host: vps2` / `host: vps3` | ❌ not in prometheus.yml 2026-06-07 |
+| `cadvisor-spokes` | `10.99.0.2:8080`, `10.99.0.3:8080` | `host: vps2` / `host: vps3` | ❌ not in prometheus.yml 2026-06-07 |
+| `promtail-spokes` | `10.99.0.2:9080`, `10.99.0.3:9080` | `host: vps2` / `host: vps3` | ❌ not in prometheus.yml 2026-06-07 |
+
+When restored, every scrape target carries a `host` label so dashboards + alerts can filter per-host. vps1-local jobs get `host: vps1`; spoke jobs split per-target. See § Multi-host below for the pattern.
 
 ### aro-wake SLI metrics (added 2026-06-06 — full fleet)
 
@@ -210,9 +212,11 @@ Future spoke tenants that expose `/metrics`:
 
 When the spec-driven `fabrik apply --target-vps` workflow lands (W-Multi M4/M5), the spec's `shape.exposes_metrics: true` will auto-emit this scrape block via the prometheus registrar.
 
-## Alert rules — spoke health
+## Alert rules — spoke health (historical — NOT in live alerts.yml)
 
-Live as of 2026-05-31 in `/opt/monitoring/configs/prometheus/rules/alerts.yml` group `spoke_health`:
+> **⚠ Truth check 2026-06-07T20:20Z:** the `spoke_health` rule group described below is **NOT in `/opt/monitoring/configs/prometheus/rules/alerts.yml`**. The 5 live rule groups are: `aro_wake` (2 rules), `container_health` (6), `host_health` (3 — fires on `host=vps1|vps2|vps3` labels), `service_health` (1), `fabrik-registrar-drift` (1, lives in separate `rules/fabrik-drift.yml`). Spoke-host alerting is currently covered by `host_health` matching on the `host` label.
+
+~~Live as of 2026-05-31~~ Originally designed (preserved here as a recipe to re-deploy if the spoke scrape jobs are added back; SpokeDown specifically depends on the node-spokes/cadvisor-spokes/promtail-spokes jobs that aren't currently in prometheus.yml):
 
 | Alert | Expr | for | Severity |
 | :--- | :--- | :--- | :--- |
@@ -220,7 +224,7 @@ Live as of 2026-05-31 in `/opt/monitoring/configs/prometheus/rules/alerts.yml` g
 | `SpokeHighCPU` | `(1 - rate(node_cpu_seconds_total{mode="idle", host=~"vps[23]"}[5m])) > 0.85` | 10 m | warning |
 | `SpokeHighRAM` | `(1 - node_memory_MemAvailable_bytes{host=~"vps[23]"}/node_memory_MemTotal_bytes{host=~"vps[23]"}) > 0.85` | 10 m | warning |
 
-Routed via Alertmanager → Apprise → Telegram with the existing config.
+When deployed, these route via Alertmanager → Apprise → Telegram with the existing config.
 
 ## Common operations
 

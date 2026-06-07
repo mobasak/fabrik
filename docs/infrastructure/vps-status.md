@@ -25,7 +25,7 @@
 | Mesh-bound shared infra on vps1 (`5432, 6379, 8000, 9091, 3100`) | ✅ all 5 listening on `10.99.0.1` |
 | Spoke DNS resolving | ✅ `vps2.ocoron.com`, `*.vps2`, `vps3.ocoron.com`, `*.vps3` all return correct A records |
 | Cloudflare API token in `/opt/fabrik/.env` | ✅ verified active (refreshed today) |
-| Authelia access-control rules | 10 (live in `/opt/authelia/config/configuration.yml`) |
+| Authelia access-control rules | **8** (live in `/opt/authelia/config/configuration.yml`, verified 2026-06-07T20:20Z via `yaml.safe_load`; was 10 pre-2026-06-02 cleanup that removed 2 image-broker rules) |
 | site-provisioner | ⚠ running healthy on vps1, but **interim manual stand-up** — `fabrik apply` pipeline not yet ready |
 | Backrest — vps1 hub | ✅ **4 active plans** (`postgres-dumps` 02:00, `docker-volumes` 03:00, `opt-configs` 03:00, `host-state` 03:30). Restic repo `a256277c45`. First snapshots: 117 MiB on B2 (612 MiB raw, 5.23×). |
 | Backrest — vps2 spoke (W11) | ✅ **2 active plans** (`host-state` 02:00, `opt-configs` 02:30). Restic repo `56b40b8c84` at `vps1-ocoron-backups/spokes/vps2/`. First snapshots: 16.9 KiB on B2 (2.31×). Independent restic password mirrored via W9. |
@@ -603,7 +603,7 @@ backrest               running  (W11 — own restic repo at b2:vps1-ocoron-backu
 
 vps1-local (12 jobs / 12 targets — verified against `/api/v1/targets`): `alertmanager`, `authelia`, `cadvisor`, `gatus`, `grafana`, `loki`, `meilisearch`, `node`, `postgres`, `prometheus`, `pushgateway`, `redis`.
 
-Spokes (3 jobs / 6 targets): `node-spokes` (2), `cadvisor-spokes` (2), `promtail-spokes` (2). **Note: spoke scrapes were silently 0/6 from 2026-05-31 evening (W1 UFW ship) until 2026-06-01 evening (W8 found + fixed) — added `ufw allow from 10.99.0.0/24` on each spoke + into `bootstrap-vps.sh` step_02.** Trust-the-mesh rule, single-operator threat model.
+Spoke scrape jobs (`node-spokes`, `cadvisor-spokes`, `promtail-spokes`) — **NOT in current `prometheus.yml`** (verified 2026-06-07T20:20Z via `/api/v1/jobs`). Live spoke coverage comes from the `aro-wake` job (3 targets: vps1:10.0.1.1:8201, vps2:10.99.0.2:8201, vps3:10.99.0.3:8201) which exposes SLI/health/metrics. Spoke `node-exporter`/`cadvisor`/`promtail` agents ARE running at `/opt/monitoring-agent/` on each spoke, and the mesh + UFW permit scrapes (the `ufw allow from 10.99.0.0/24` rule from W8 2026-06-01 is still in place via `bootstrap-vps.sh` step_02), but the scrape blocks themselves aren't currently configured in vps1's `prometheus.yml`. Loki side: promtail push-based ingest works — Loki has `host=vps1|vps2|vps3` log streams (verified 2026-06-07T20:20Z).
 
 Not scraped: `traefik` (no metrics scrape job — health observed via Gatus + Loki), `glitchtip-web` (django-prometheus not bundled). Every active series carries a `host` label (`vps1`, `vps2`, or `vps3`). Reload: `ssh vps "sudo docker kill -s HUP prometheus"`.
 
@@ -628,7 +628,7 @@ Not scraped: `traefik` (no metrics scrape job — health observed via Gatus + Lo
 ### Alerting
 
 - **Alertmanager → Apprise → Telegram** for vps1 alerts.
-- **`spoke_health` rule group active** — `SpokeDown`, `SpokeHighCPU`, `SpokeHighRAM`. Group joins use `on(host)` to avoid the many-to-many trap that surfaced when the `host` label was added.
+- ~~`spoke_health` rule group active — `SpokeDown`, `SpokeHighCPU`, `SpokeHighRAM`~~ — **NOT in `alerts.yml` as of 2026-06-07T20:20Z probe**. The 5 actual live groups: `aro_wake` (2 rules), `container_health` (6), `host_health` (3), `service_health` (1), `fabrik-registrar-drift` (1, lives in separate `rules/fabrik-drift.yml`). `host_health` does fire on `host=vps2|vps3` labels so spoke-level CPU/RAM/down alerting still works through those rules; the dedicated spoke-named group never landed.
 - **Discipline (Lesson 11):** silence the `ContainerDown` rule before any planned op that takes containers down > 2 min, or Telegram floods.
 
 ### GlitchTip
