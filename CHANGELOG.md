@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Live spoke DR drill end-to-end against vps4 — drove out 4 real bugs (2026-06-08)
+
+Operator-authorized live drill: provisioned a real billed `vps4` spoke on Vultr (lax, vc2-2c-4gb), let it run through `bootstrap-vps.sh` end-to-end with mesh + DNS + monitoring fleet-add, then destroyed it with `--reverse-fleet-add`. Round-trip ~5-6 min, $0.06 cost. Closes the M-tier "Spoke DR end-to-end measured recovery" item in [`STRATEGIC_BACKLOG.md`](docs/STRATEGIC_BACKLOG.md).
+
+**Bugs caught + fixed in the same session:**
+
+1. **`fabrik vultr provision` had no `-y/--yes` flag.** `click.confirm("Proceed?")` reads `/dev/tty`, so `echo y | provision …` hangs. Added `-y/--yes` flag in [`src/fabrik/cli.py`](src/fabrik/cli.py) with explicit "automation use only — still mutates vps1 + bills real money" note.
+2. **DNS driver defaulted to dead `coolify` docker network.** `DNSClient._container_network` defaulted to `coolify`, but post-Coolify-migration site-provisioner runs on the `fabrik` network. Result: `docker inspect site-provisioner --format '{{...coolify...}}'` returned empty, breaking `--reverse-fleet-add` DNS unwind for any operator that hadn't set the env override. Changed default in [`src/fabrik/drivers/dns.py`](src/fabrik/drivers/dns.py); +3 unit tests in new [`tests/drivers/test_dns_client.py`](tests/drivers/test_dns_client.py).
+3. **`provision` had no sshd-ready poll** between `wait_for_active` and `bootstrap-vps.sh`. Vultr API reports `status==active && power_status==running && server_status==ok && main_ip!="0.0.0.0"` 10-30s before cloud-init finishes binding sshd. `bootstrap-vps.sh`'s preflight (BatchMode, no retries) failed on the first try with "cannot SSH". Added [`_wait_for_ssh()`](src/fabrik/orchestrator/vultr_provision.py) — polls every 5s up to 120s using the same BatchMode probe as the preflight, so passing here guarantees preflight passes. +1 regression test (`test_provision_ssh_never_comes_up_leaves_instance`).
+4. **`bootstrap-vps.sh` step_02 aborted on `sudo ufw enable`.** UFW activation triggers a netfilter ruleset reload; the active SSH session drops with rc=255 (port 22 IS in the allow list — next session connects fine). `set -euo pipefail` killed the bootstrap mid-step despite the operation being successful. Added `|| true` + 2s settle + fresh-session re-probe via the verify block in [`scripts/bootstrap/bootstrap-vps.sh`](scripts/bootstrap/bootstrap-vps.sh) step_02.
+
+**Bug also surfaced during destroy — fixed:**
+
+- **`reverse_fleet_destroy` wg0 peer removal used invalid `wg set wg0 peer-remove-by-ip <ip>` syntax** (no such subcommand). Silently failed under `|| true`, reported "ok" — leaving stale vps4 peer on vps1's wg0 after a "successful" destroy. Fixed in [`src/fabrik/orchestrator/vultr_provision.py`](src/fabrik/orchestrator/vultr_provision.py): look up the pubkey by `allowed-ip` match via `wg show wg0 allowed-ips`, then `wg set wg0 peer <pubkey> remove`.
+
+**Not yet fixed — follow-ups recorded in [`docs/reference/fabrik-vultr.md`](docs/reference/fabrik-vultr.md):**
+
+- `bootstrap-vps.sh` step_04's `apt install iptables-persistent` silently removes ufw on Ubuntu 24.04 (verified in `/var/log/apt/history.log`). step_15's aro-wake UFW rules then fail with `sudo: ufw: command not found`. vps2/vps3 don't hit this because they were bootstrapped before the conflict.
+- `fabrik vultr provision` does NOT register the new spoke in vps1's Prometheus `aro-wake` job or add a Gatus endpoint. Live verification of vps4: 14 active Prometheus targets before + after provision. Manual `sed` into `prometheus.yml` + SIGHUP fills the gap today.
+- `reverse_fleet_destroy` DNS step false-negative: site-provisioner returns 500 for "record not found", `_try` records it as error, but the records ARE removed (verified via `dig +short @<cf-ns>`). Cosmetic — cleanup is correct.
+
 ### Changed — STRATEGIC_BACKLOG honesty pass + new `fabrik-vultr.md` quick reference (2026-06-08)
 
 Earlier today I (this AI) overclaimed in conversation that the "DR drill on a throwaway VPS" backlog item was done. It wasn't — what shipped is the **OS+bootstrap** half of the drill path:

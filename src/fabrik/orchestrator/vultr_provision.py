@@ -91,6 +91,49 @@ def next_free_spoke(client: VultrClient) -> str:
     raise VultrError("no free spoke number in 10.99.0.0/24")
 
 
+def _wait_for_ssh(ip: str, *, timeout: int = 120, interval: int = 5) -> bool:
+    """Poll the new VPS until sshd accepts a BatchMode probe or timeout.
+
+    Bridges the gap between Vultr-API "active" and cloud-init-finished sshd.
+    Uses the same BatchMode probe that bootstrap-vps.sh's preflight uses so
+    a passing probe here guarantees the bootstrap script's preflight will
+    also pass (assuming no fail2ban race).
+    """
+    import time as _time
+
+    deadline = _time.monotonic() + timeout
+    attempt = 0
+    while _time.monotonic() < deadline:
+        attempt += 1
+        try:
+            r = subprocess.run(
+                [
+                    "ssh",
+                    "-o",
+                    "ConnectTimeout=5",
+                    "-o",
+                    "BatchMode=yes",
+                    "-o",
+                    "StrictHostKeyChecking=accept-new",
+                    "-o",
+                    "UserKnownHostsFile=/dev/null",
+                    f"root@{ip}",
+                    "echo ok",
+                ],
+                capture_output=True,
+                timeout=10,
+                check=False,
+            )
+            if r.returncode == 0 and b"ok" in r.stdout:
+                logger.info("ssh-ready: root@%s reachable after %d attempts", ip, attempt)
+                return True
+        except subprocess.TimeoutExpired:
+            pass
+        _time.sleep(interval)
+    logger.error("ssh-ready: root@%s NOT reachable within %ds (%d attempts)", ip, timeout, attempt)
+    return False
+
+
 def _run_script(argv: list[str], timeout: int, log_path) -> int:
     try:
         with open(log_path, "w") as log:
@@ -194,6 +237,21 @@ def provision(
     report["ip"] = ip
     vultr_state.upsert_instance(name, {"ip": ip})
 
+    # Wait for sshd to actually accept connections.
+    # `wait_for_active`'s 4-condition status check returns when Vultr's API
+    # reports the instance as active+running+ok+ip-assigned, but there's
+    # usually a 10-30s gap before cloud-init finishes binding sshd.
+    # Without this, bootstrap-vps.sh's preflight hits "cannot SSH" on the
+    # first attempt — verified live 2026-06-08 against vps4 provisioning.
+    if not _wait_for_ssh(ip, timeout=120):
+        report["error"] = (
+            f"sshd never came up on {ip} within 120s after Vultr reported active. "
+            f"Instance LEFT for inspection — destroy with "
+            f"`fabrik vultr destroy {name} --reverse-fleet-add`."
+        )
+        logger.error(report["error"])
+        return report
+
     script = str(BOOTSTRAP_DIR / "bootstrap-vps.sh")
     log_path = FABRIK_ROOT / "logs" / f"provision-{name}.log"
     log_path.parent.mkdir(parents=True, exist_ok=True)
@@ -280,10 +338,23 @@ def reverse_fleet_destroy(
         _try("dns", _dns)
 
     # 5: wg0 peer deregistration on the hub
+    # `wg set <iface> peer <pubkey> remove` is the only valid removal syntax —
+    # `peer-remove-by-ip` does NOT exist (silently fails under `|| true`,
+    # leaving a stale peer behind — verified live 2026-06-08 against vps4).
+    # Look up the pubkey by allowed-ip match, then remove it. Idempotent: a
+    # no-peer-match emits a warning that `_try` records as ok (best-effort).
     def _wg():
         from fabrik.drivers.ssh import ssh
 
-        ssh(f"sudo wg set wg0 peer-remove-by-ip {mesh_ip} 2>/dev/null || true", timeout=30)
+        # Find the peer pubkey that has this mesh_ip in its allowed-ips.
+        pubkey = ssh(
+            f"sudo wg show wg0 allowed-ips | awk '/[^0-9]{mesh_ip}\\//{{print $1; exit}}'",
+            timeout=30,
+        ).strip()
+        if not pubkey:
+            logger.info("wg0-peer: no peer with allowed-ip %s — nothing to remove", mesh_ip)
+            return
+        ssh(f"sudo wg set wg0 peer {pubkey} remove", timeout=30)
 
     _try("wg0-peer", _wg)
 

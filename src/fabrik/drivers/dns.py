@@ -91,7 +91,7 @@ class DNSClient:
             logger.debug("DNS client: using SSH proxy via %s → %s", ssh_host, self._internal_url)
         self._container_prefix: str | None = os.getenv("SITE_PROVISIONER_CONTAINER")
         self._container_port: str = os.getenv("SITE_PROVISIONER_CONTAINER_PORT", "8001")
-        self._container_network: str = os.getenv("SITE_PROVISIONER_CONTAINER_NETWORK", "coolify")
+        self._container_network: str = os.getenv("SITE_PROVISIONER_CONTAINER_NETWORK", "fabrik")
         self._resolved_url_cache: str | None = None
 
         headers = {"Accept": "application/json", "Content-Type": "application/json"}

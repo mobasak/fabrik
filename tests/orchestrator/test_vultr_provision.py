@@ -71,6 +71,7 @@ def test_provision_collision_local_state():
 
 def test_provision_happy_path_runs_bootstrap_and_records(monkeypatch):
     monkeypatch.setattr(prov, "_run_script", lambda *a, **k: 0)
+    monkeypatch.setattr(prov, "_wait_for_ssh", lambda *a, **k: True)
     c = _client()
     rep = prov.provision("vps4", sshkey_ids=["k"], region="lhr", confirm=True, client=c)
     assert rep["success"] is True and rep["ip"] == "9.9.9.9"
@@ -81,11 +82,34 @@ def test_provision_happy_path_runs_bootstrap_and_records(monkeypatch):
 
 def test_provision_bootstrap_failure_leaves_instance(monkeypatch):
     monkeypatch.setattr(prov, "_run_script", lambda *a, **k: 1)
+    monkeypatch.setattr(prov, "_wait_for_ssh", lambda *a, **k: True)
     c = _client()
     rep = prov.provision("vps4", sshkey_ids=["k"], region="lhr", confirm=True, client=c)
     assert rep["success"] is False
     c.destroy.assert_not_called()                       # permanent: left for inspection
     assert vultr_state.get_instance("vps4")["bootstrap_completed_at"] is None
+
+
+def test_provision_ssh_never_comes_up_leaves_instance(monkeypatch):
+    """When sshd never binds within the timeout, leave the instance + return error.
+
+    Regression for the 2026-06-08 live failure: Vultr API returned active
+    before cloud-init had finished binding sshd, so bootstrap-vps.sh's
+    preflight hit "cannot SSH" on the first try (BatchMode=yes, no retries).
+    `_wait_for_ssh()` polls between active and bootstrap. When the poll
+    times out, provision must abort cleanly (instance LEFT for inspection,
+    no bootstrap attempted) rather than fall through to the bootstrap with
+    a known-unreachable host.
+    """
+    bootstrap_called: list[bool] = []
+    monkeypatch.setattr(prov, "_run_script", lambda *a, **k: bootstrap_called.append(True) or 0)
+    monkeypatch.setattr(prov, "_wait_for_ssh", lambda *a, **k: False)
+    c = _client()
+    rep = prov.provision("vps4", sshkey_ids=["k"], region="lhr", confirm=True, client=c)
+    assert rep["success"] is False
+    assert "sshd never came up" in (rep.get("error") or "")
+    assert bootstrap_called == []                         # bootstrap MUST NOT run
+    c.destroy.assert_not_called()                         # permanent: left for inspection
 
 
 def test_reverse_fleet_destroy_dry_run_lists_steps():

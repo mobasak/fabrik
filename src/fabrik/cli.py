@@ -3059,7 +3059,14 @@ def vultr_drill_history(lines: int):
 @click.option("--region", default="lax", help="Vultr region")
 @click.option("--plan", "plan_id", default="vc2-2c-4gb", help="Vultr plan (vbm-* = bare metal)")
 @click.option("--dry-run", is_flag=True, help="Print the plan; create nothing")
-def vultr_provision(name: str | None, region: str, plan_id: str, dry_run: bool):
+@click.option(
+    "--yes",
+    "-y",
+    "skip_confirm",
+    is_flag=True,
+    help="Skip the interactive confirm (automation use only — still mutates vps1 + bills real money)",
+)
+def vultr_provision(name: str | None, region: str, plan_id: str, dry_run: bool, skip_confirm: bool):
     """Provision a PERMANENT spoke (real billing + fleet change). Prompts to confirm."""
     import os
 
@@ -3090,7 +3097,9 @@ def vultr_provision(name: str | None, region: str, plan_id: str, dry_run: bool):
             f"⚠️  PERMANENT provision of {name} ({region}, {plan_id}) — real billing + "
             "fleet topology change (vps1 wg0, DNS, monitoring)."
         )
-        if not click.confirm("Proceed?", default=False):
+        if skip_confirm:
+            click.echo("   --yes passed; skipping interactive confirm")
+        elif not click.confirm("Proceed?", default=False):
             click.echo("aborted.")
             return
         rep = prov.provision(

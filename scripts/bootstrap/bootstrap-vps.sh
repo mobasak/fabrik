@@ -378,7 +378,17 @@ step_02_install_firewall_fail2ban() {
     # filtering needed for cross-host traffic. (W8 finding 2026-06-01: this gap
     # silently broke spoke scrape targets for ~24h after W1 enabled UFW.)
     remote "sudo ufw allow from ${FABRIK_WG_SUBNET} comment 'mesh — fleet observability + cross-host calls' 2>&1 | tail -1"
-    remote 'echo y | sudo ufw enable 2>&1 | tail -1'
+    # UFW activation can drop the active SSH session even when port 22 is
+    # already in the allow list (kernel reloads the netfilter ruleset). This
+    # is benign: port 22 is allowed; the NEXT SSH session reconnects fine.
+    # Without `|| true` here, the rc=255 from the dropped session aborts the
+    # whole bootstrap mid-step. Verified live 2026-06-08 during vps4 drill —
+    # UFW was active + listening but bootstrap had already exited.
+    # The verify block below confirms UFW is actually active before continuing.
+    remote 'echo y | sudo ufw enable 2>&1 | tail -1' || true
+    # Give the kernel a moment to settle the netfilter reload, then re-probe
+    # with a fresh SSH session.
+    sleep 2
     remote 'sudo systemctl enable --now fail2ban'
     # Self-verify (Lesson 68): both must be true at end of step.
     remote 'command -v ufw >/dev/null && [ "$(dpkg -l ufw | awk "/^ii/ {print \$2}")" = "ufw" ]' \
