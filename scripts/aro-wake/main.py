@@ -853,6 +853,7 @@ async def wake(request: Request) -> JSONResponse:
         # Rate-limit check runs synchronously before scheduling so we don't
         # leak background tasks past the cap.
         if not _rate.allow(source, topic):
+            M_REQUESTS.labels(source=source, status="rate_limited").inc()
             return JSONResponse(
                 status_code=429,
                 content={"ok": False, "error": "rate_limited", "trace_id": trace_id},
@@ -929,6 +930,7 @@ async def wake(request: Request) -> JSONResponse:
 
     # Rate limit per (source, topic)
     if not _rate.allow(source, topic):
+        M_REQUESTS.labels(source=source, status="rate_limited").inc()
         return JSONResponse(
             status_code=429,
             content={"ok": False, "error": "rate_limited", "trace_id": trace_id},

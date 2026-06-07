@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — aro-wake SLI: rate-limited wakes now tracked + alert denominator excludes them (2026-06-07)
+
+Closes the acknowledged gap from yesterday's SLI work: rate-limited (HTTP 429) wakes were not visible in any metric. Operator couldn't see "we dropped N wakes to rate-limit" through Prometheus.
+
+**Code** (`scripts/aro-wake/main.py`): two new `M_REQUESTS.labels(source=source, status="rate_limited").inc()` calls — one in the alertmanager-path rate-limit branch (~line 856), one in the main-path rate-limit branch (~line 933). Both fire just before the 429 return. Counter now has 3 status values: `success`, `failure`, `rate_limited`.
+
+**Alert rule** (`configs/prometheus/rules/alerts.yml`): `AroWakeLowSuccessRate` denominator changed from `aro_wake_requests_total` to `aro_wake_requests_total{status!="rate_limited"}`. Rationale: rate-limited wakes were refused at the gate — Claude didn't run — so they shouldn't count as failures of the LLM path. The SLI ratio now honestly reflects (successful Claude calls) / (attempted Claude calls), not (all received requests).
+
+**Smoke test verified live**: bumped `ARO_WAKE_RATE_LIMIT=1` via drop-in unit, fired 2 wakes on the same (source, topic), confirmed `aro_wake_requests_total{source="consult",status="rate_limited"} 1.0` appears in `/metrics`. Drop-in cleaned up after.
+
 ### Added — Trio Phase 5 first iteration: Gatus endpoints for aro-wake + bake spoke deps into bootstrap (2026-06-07)
 
 Three follow-ups from the 2026-06-06 fleet rollout shipped today.

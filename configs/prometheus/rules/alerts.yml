@@ -123,15 +123,19 @@ groups:
   - name: aro_wake
     rules:
       - alert: AroWakeLowSuccessRate
+        # Denominator excludes `rate_limited` (we refused at the gate, Claude
+        # didn't run — not a failure of the LLM path). Excluding it keeps the
+        # SLI honest: ratio = (successful Claude calls) / (attempted Claude
+        # calls), not (all received requests).
         expr: |
           sum(rate(aro_wake_requests_total{status="success"}[10m])) by (host)
-            / sum(rate(aro_wake_requests_total[10m])) by (host) < 0.90
+            / sum(rate(aro_wake_requests_total{status!="rate_limited"}[10m])) by (host) < 0.90
         for: 15m
         labels:
           severity: warning
         annotations:
           summary: "aro-wake success rate < 90% on {{ $labels.host }} for 15m"
-          description: "Claude calls from aro-wake on {{ $labels.host }} are failing >10% over the last 10m window. Check /var/log/aro-wake.log + Claude OAuth token freshness."
+          description: "Claude calls from aro-wake on {{ $labels.host }} are failing >10% over the last 10m window (rate-limited wakes excluded from denominator). Check /var/log/aro-wake.log + Claude OAuth token freshness."
 
       - alert: AroWakeCostBurnHigh
         expr: sum(rate(aro_wake_cost_usd_total[1h])) by (host) > 5
