@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — `fabrik vultr` Phase 1: VultrClient driver + plan convergence (2026-06-08)
+
+- **New driver** [`src/fabrik/drivers/vultr.py`](src/fabrik/drivers/vultr.py) — Vultr API v2 client for `fabrik vultr` (on-demand VPS provisioning, permanent spokes + disposable DR drills). Covers **all** compute product lines: `vc2/vdc/vhf/vhp/voc/vcg` (incl. Cloud GPU) via `/v2/instances`, and `vbm` Bare Metal via `/v2/bare-metals` (auto-dispatched on `vbm-` plan prefix). Bearer auth from `/opt/fabrik/.env.sysadmin` (explicitly loaded — `config.py` doesn't). Retries 5xx only (4xx fail fast); `wait_for_active` enforces the live-verified 4-condition readiness for instances and status+main_ip for bare metal.
+- **Ground-truthed against the live API + GoVultr SDK + a real create→destroy round-trip** (2026-06-08, ~$0.02, zero orphans): `os_id 2284`, create→202/delete→204, response wrappers, and the non-monotonic `status==active`-while-`stopped/locked` transition (active at t+23s, ready at t+58s) that mandates the 4-condition poll.
+- **Tests** [`tests/drivers/test_vultr_client.py`](tests/drivers/test_vultr_client.py) — 10 cases (httpx mocked, no network/spend): instance vs bare-metal dispatch, `sshkey_id`/`tags` body shape, 4xx-no-retry vs 5xx-retry, and the non-monotonic `wait_for_active`. Live auth smoke confirmed against the real account.
+- **Plan converged** [`docs/development/plans/2026-06-07-fabrik-vultr-provisioning.md`](docs/development/plans/2026-06-07-fabrik-vultr-provisioning.md) — 4 iterations to zero unknowns (live API → GoVultr SDK schemas → live round-trip), corrected §C/§D/§E, added §J ground-truth reference + §L per-phase validation gates. Phases 2–6 remain.
+
 ### Added — Operator-reversal detection cron (trio plan Phase 5.1.a) shipped LIVE on full fleet (2026-06-07)
 
 New `scripts/sysadmin/detect_reversals.py` + cron entry (`*/5 * * * *`) on every fleet host. Correlates AI actions against subsequent operator-issued docker commands within a 5-minute window. Matches go to `/opt/fabrik/logs/lessons-pending.jsonl` for weekly review.
