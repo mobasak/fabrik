@@ -88,6 +88,33 @@ def test_max_cost_guard_refuses_before_create():
     c.create_instance.assert_not_called()
 
 
-def test_unimplemented_kind_raises():
+def test_unknown_kind_raises():
     with pytest.raises(NotImplementedError):
-        vultr_drill.drill("spoke", sshkey_ids=["k"], client=_mock_client())
+        vultr_drill.drill("wat", sshkey_ids=["k"], client=_mock_client())
+
+
+def test_spoke_dispatch_runs_validate_then_destroys(monkeypatch):
+    c = _mock_client()
+    captured = {}
+
+    def fake_validate(ip, name):
+        captured["ip"] = ip
+        return {"ssh_ready": True, "bootstrap": True, "verify": True, "success": True}
+
+    monkeypatch.setattr(vultr_drill, "_validate_spoke", fake_validate)
+    rep = vultr_drill.drill("spoke", sshkey_ids=["k"], client=c)
+    assert rep["success"] is True
+    assert rep["plan"] == "vc2-1c-2gb"            # fixed spoke plan
+    assert captured["ip"] == "1.2.3.4"
+    c.destroy.assert_called_once_with("instance", "i-123")  # always destroyed
+
+
+def test_spoke_failed_verify_still_destroys(monkeypatch):
+    c = _mock_client()
+    monkeypatch.setattr(
+        vultr_drill, "_validate_spoke",
+        lambda ip, name: {"bootstrap": True, "verify": False, "success": False},
+    )
+    rep = vultr_drill.drill("spoke", sshkey_ids=["k"], client=c)
+    assert rep["success"] is False
+    c.destroy.assert_called_once()                # no orphan even when verify fails

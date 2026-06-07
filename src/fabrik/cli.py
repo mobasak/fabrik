@@ -3054,6 +3054,135 @@ def vultr_drill_history(lines: int):
         )
 
 
+@vultr.command("provision")
+@click.argument("name", required=False)
+@click.option("--region", default="lax", help="Vultr region")
+@click.option("--plan", "plan_id", default="vc2-2c-4gb", help="Vultr plan (vbm-* = bare metal)")
+@click.option("--dry-run", is_flag=True, help="Print the plan; create nothing")
+def vultr_provision(name: str | None, region: str, plan_id: str, dry_run: bool):
+    """Provision a PERMANENT spoke (real billing + fleet change). Prompts to confirm."""
+    import os
+
+    from fabrik.drivers.vultr import VultrClient
+    from fabrik.orchestrator import vultr_provision as prov
+
+    client = VultrClient()
+    sshkey = os.getenv("VULTR_SSHKEY_ID")
+    if not sshkey:
+        click.echo("✗ VULTR_SSHKEY_ID not set", err=True)
+        raise SystemExit(1)
+    if not name:
+        name = prov.next_free_spoke(client)
+        click.echo(f"ℹ no name given — next free spoke is {name}")
+    try:
+        if dry_run:
+            rep = prov.provision(
+                name, sshkey_ids=[sshkey], region=region, plan=plan_id, dry_run=True, client=client
+            )
+            click.echo(
+                f"🧪 dry-run provision {rep['name']} (mesh {rep['mesh_ip']}) "
+                f"region={rep['region']} plan={rep['plan']}"
+            )
+            for s in rep["steps"]:
+                click.echo(f"   - {s}")
+            return
+        click.echo(
+            f"⚠️  PERMANENT provision of {name} ({region}, {plan_id}) — real billing + "
+            "fleet topology change (vps1 wg0, DNS, monitoring)."
+        )
+        if not click.confirm("Proceed?", default=False):
+            click.echo("aborted.")
+            return
+        rep = prov.provision(
+            name, sshkey_ids=[sshkey], region=region, plan=plan_id, confirm=True, client=client
+        )
+    except Exception as e:  # noqa: BLE001
+        click.echo(f"❌ provision error: {e}", err=True)
+        raise SystemExit(1) from e
+    ok = rep["success"]
+    click.echo(
+        f"{'✅' if ok else '❌'} provision {name}: ip={rep.get('ip')} "
+        f"mesh={rep['mesh_ip']} bootstrap_rc={rep.get('bootstrap_rc')}"
+    )
+    if rep.get("error"):
+        click.echo(f"   {rep['error']}", err=True)
+    if not ok:
+        raise SystemExit(1)
+
+
+@vultr.command("destroy")
+@click.argument("name")
+@click.option(
+    "--reverse-fleet-add",
+    "reverse",
+    is_flag=True,
+    help="Required for permanent spokes: unwind mesh/DNS/monitoring first",
+)
+@click.option("--keep-dns", is_flag=True, help="Leave DNS records")
+@click.option("--dry-run", is_flag=True, help="Print the teardown plan only")
+@click.option("--yes", "-y", is_flag=True, help="Skip confirmation")
+def vultr_destroy(name: str, reverse: bool, keep_dns: bool, dry_run: bool, yes: bool):
+    """Destroy a tracked instance by NAME. Permanent spokes need --reverse-fleet-add."""
+    from fabrik.drivers.vultr import VultrClient
+    from fabrik.orchestrator import vultr_provision as prov
+    from fabrik.orchestrator import vultr_state
+
+    rec = vultr_state.get_instance(name)
+    if not rec:
+        click.echo(f"✗ no tracked instance named {name!r}", err=True)
+        raise SystemExit(1)
+    client = VultrClient()
+    if rec.get("mode") == "permanent" and not reverse and not dry_run:
+        click.echo(
+            "✗ permanent spoke — pass --reverse-fleet-add to unwind mesh/DNS/monitoring", err=True
+        )
+        raise SystemExit(2)
+    if reverse or rec.get("mode") == "permanent":
+        if dry_run:
+            rep = prov.reverse_fleet_destroy(name, keep_dns=keep_dns, dry_run=True, client=client)
+            click.echo(f"🧪 dry-run teardown {name} (mesh {rep['mesh_ip']}):")
+            for s in rep["steps"]:
+                click.echo(f"   - {s}")
+            return
+        if not yes and not click.confirm(f"Tear down permanent spoke {name}?", default=False):
+            click.echo("aborted.")
+            return
+        rep = prov.reverse_fleet_destroy(name, keep_dns=keep_dns, client=client)
+        for step, status in rep["results"]:
+            click.echo(f"  {step}: {status}")
+        click.echo(f"✅ {name} torn down")
+        return
+    # disposable / simple destroy
+    if dry_run:
+        click.echo(f"🧪 would destroy {name} (vultr_id={rec.get('vultr_id')})")
+        return
+    client.destroy(rec.get("kind", "instance"), rec["vultr_id"])
+    vultr_state.mark_destroyed(name)
+    click.echo(f"✅ destroyed {name}")
+
+
+@vultr.command("cost")
+def vultr_cost():
+    """Show this month's Vultr charges + estimated monthly run-rate of tracked instances."""
+    from fabrik.drivers.vultr import VultrClient
+    from fabrik.orchestrator import vultr_state
+
+    client = VultrClient()
+    acct = client.get_account()
+    click.echo(
+        f"💳 account: pending_charges=${acct.get('pending_charges')} "
+        f"balance=${acct.get('balance')} (negative balance = prepaid credit)"
+    )
+    plans = {p["id"]: p["monthly_cost"] for p in client.list_plans()}
+    plans.update({p["id"]: p["monthly_cost"] for p in client.list_bare_metal_plans()})
+    total = 0.0
+    for name, rec in sorted(vultr_state.active_instances().items()):
+        mc = plans.get(rec.get("plan"), 0.0)
+        total += mc
+        click.echo(f"  {name}  [{rec.get('mode')}]  {rec.get('plan')}  ~${mc}/mo")
+    click.echo(f"📊 tracked monthly run-rate: ~${round(total, 2)}/mo")
+
+
 def main():
     """Entry point for the CLI."""
     cli()

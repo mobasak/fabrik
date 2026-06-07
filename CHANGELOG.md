@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — `fabrik vultr` Phases 3b/4/5/6: spoke/hub drills + permanent provision + cost (2026-06-08)
+
+- **Phase 3b/4** ([`orchestrator/vultr_drill.py`](src/fabrik/orchestrator/vultr_drill.py)): `drill spoke` runs `bootstrap-vps.sh --skip-mesh --skip-dns` (hermetic) then `--verify` as the end-state contract; `drill hub` runs `bootstrap-hub.sh` against a DR snapshot (~90 min, operator-run). Always-destroy preserved.
+- **Phase 5** ([`orchestrator/vultr_provision.py`](src/fabrik/orchestrator/vultr_provision.py)): `provision <name>` — permanent spoke (deterministic mesh IP `10.99.0.N`, full `bootstrap-vps.sh`, `mode=permanent` state). Requires explicit confirm (irreversible billing); bootstrap failure LEAVES the box for inspection. `next_free_spoke()` picker. `destroy <name> --reverse-fleet-add` unwinds Gatus→Prometheus→Backrest→DNS→wg0-peer→instance (best-effort).
+- **Phase 6**: `fabrik vultr cost` (account charges + tracked run-rate) + [`scripts/vultr_weekly_maintenance.sh`](scripts/vultr_weekly_maintenance.sh) (weekly cron: cleanup + cost + reconcile).
+- **Full CLI surface**: `list/status/reconcile/cleanup/drill/drill-history/provision/destroy/cost`.
+- **Gates:** 35 vultr unit tests pass (drill 10, state 7, provision 8, client 10); ruff + `final_gate --lean` clean; spoke/hub/provision dry-runs verified; live `cost` against the real account. Permanent provision + hub drill are operator-triggered live by design (production change / 90 min).
+
 ### Changed — Plan files cleanup: archive shipped plans, move PG18 to STRATEGIC_BACKLOG (2026-06-08)
 
 Cleared bookkeeping debt in `docs/development/plans/`. The directory listed 5 active plans but only 2 were genuinely in progress; the other 3 were either shipped (P1–P5 sub-plans already archived but parents left behind) or never started (PG18 — a deferred item, not an active plan).

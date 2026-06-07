@@ -1,12 +1,17 @@
-"""Disposable DR drills for ``fabrik vultr drill`` (Phase 3).
+"""Disposable DR drills for ``fabrik vultr drill`` (Phases 3-4).
 
 Creates a throwaway Vultr instance, runs a kind-specific validation, then ALWAYS
 destroys it (try/finally — no orphan even on failure or Ctrl-C), and appends one
 JSON line per drill to ``logs/dr-drill-history.jsonl``.
 
-Phase 3a implements ``bare`` — the smallest/cheapest instance, validating the
-Vultr API create→active→destroy plumbing + (best-effort) SSH reachability against
-stock Ubuntu. ``spoke``/``hub`` (which invoke the bootstrap scripts) are Phase 3b/4.
+Kinds:
+- ``bare``  — smallest/cheapest IPv4 instance; validates Vultr API create→active→
+  destroy + best-effort SSH reachability against stock Ubuntu. ~2 min.
+- ``spoke`` — runs ``bootstrap-vps.sh --skip-mesh --skip-dns root@<ip> vps4``
+  (hermetic: no prod mesh/DNS touch), then ``bootstrap-vps.sh --verify`` as the
+  end-state contract. ~5-15 min.
+- ``hub``   — runs ``bootstrap-hub.sh`` against a DR snapshot, then verify. ~90 min;
+  requires snapshot + W9 env mirror present (operator-run, quarterly).
 
 Cost: Vultr bills hourly, capped monthly → ``hourly = monthly_cost / 672``; a drill
 is rounded up to a whole hour for the estimate (Vultr's minimum billing increment).
@@ -29,9 +34,19 @@ from fabrik.orchestrator import vultr_state
 logger = logging.getLogger(__name__)
 
 DRILL_LOG = FABRIK_ROOT / "logs" / "dr-drill-history.jsonl"
+BOOTSTRAP_DIR = FABRIK_ROOT / "scripts" / "bootstrap"
 DEFAULT_REGION = "lax"  # vps1 is in LA; cheapest round-trip for drills
 DISPOSABLE_TTL_HOURS = 4
 _HOURS_PER_MONTH = 672  # Vultr's monthly-cap divisor
+
+# Fixed plans for spoke/hub drills (bare uses the cheapest IPv4 plan available).
+# spoke mirrors a real spoke size; hub needs ~8GB for the full restore.
+SPOKE_DRILL_PLAN = "vc2-1c-2gb"
+HUB_DRILL_PLAN = "vc2-4c-8gb"
+DRILL_SPOKE_NAME = "vps4"  # conventionally reserved drill identity (90-bootstrap-scripts.md)
+_BOOTSTRAP_TIMEOUT = 1200  # 20 min — spoke bootstrap headroom
+_VERIFY_TIMEOUT = 300
+_HUB_BOOTSTRAP_TIMEOUT = 5400  # 90 min
 
 
 def estimate_cost(monthly_cost: float, seconds: float) -> float:
@@ -55,9 +70,25 @@ def cheapest_ipv4_plan(
     return cand[0]["id"], cand[0]["monthly_cost"]
 
 
+def _plan_monthly_cost(client: VultrClient, plan_id: str) -> float:
+    for p in client.list_plans():
+        if p["id"] == plan_id:
+            return p["monthly_cost"]
+    raise VultrError(f"plan {plan_id!r} not found")
+
+
+def _resolve_plan(client: VultrClient, kind: str, region: str) -> tuple[str, float]:
+    if kind == "bare":
+        return cheapest_ipv4_plan(client, region)
+    if kind == "spoke":
+        return SPOKE_DRILL_PLAN, _plan_monthly_cost(client, SPOKE_DRILL_PLAN)
+    if kind == "hub":
+        return HUB_DRILL_PLAN, _plan_monthly_cost(client, HUB_DRILL_PLAN)
+    raise NotImplementedError(f"unknown drill kind {kind!r}")
+
+
 def _ssh_probe(ip: str, *, attempts: int = 6, interval: int = 5) -> bool:
-    """Best-effort: can we SSH root@ip and run a command? Records reachability;
-    never raises (a fresh droplet's key may not match the local private key)."""
+    """Best-effort: can we SSH root@ip and run a command? Never raises."""
     for _ in range(attempts):
         try:
             r = subprocess.run(
@@ -87,6 +118,62 @@ def _ssh_probe(ip: str, *, attempts: int = 6, interval: int = 5) -> bool:
     return False
 
 
+def _run_script(argv: list[str], timeout: int, log_path) -> int:
+    """Run a bootstrap script, tee output to log_path, return exit code (124 on timeout)."""
+    try:
+        with open(log_path, "w") as log:
+            r = subprocess.run(
+                argv, stdout=log, stderr=subprocess.STDOUT, timeout=timeout, check=False
+            )
+        return r.returncode
+    except subprocess.TimeoutExpired:
+        return 124
+    except OSError as e:
+        logger.error("drill: failed to run %s: %s", argv, e)
+        return 127
+
+
+def _wait_ssh(ip: str, *, attempts: int = 20, interval: int = 6) -> bool:
+    return _ssh_probe(ip, attempts=attempts, interval=interval)
+
+
+def _validate_spoke(ip: str, name: str) -> dict[str, Any]:
+    """Run bootstrap-vps.sh hermetically (--skip-mesh --skip-dns), then --verify."""
+    script = str(BOOTSTRAP_DIR / "bootstrap-vps.sh")
+    boot_log = FABRIK_ROOT / "logs" / f"drill-{name}.bootstrap.log"
+    verify_log = FABRIK_ROOT / "logs" / f"drill-{name}.verify.log"
+    checks: dict[str, Any] = {}
+    checks["ssh_ready"] = _wait_ssh(ip)
+    boot_rc = _run_script(
+        [script, "--skip-mesh", "--skip-dns", f"root@{ip}", DRILL_SPOKE_NAME],
+        _BOOTSTRAP_TIMEOUT,
+        boot_log,
+    )
+    checks["bootstrap_rc"] = boot_rc
+    checks["bootstrap"] = boot_rc == 0
+    if boot_rc == 0:
+        # step_01 disabled root login -> verify as the ozgur sudoer
+        verify_rc = _run_script(
+            [script, "--verify", f"ozgur@{ip}", DRILL_SPOKE_NAME], _VERIFY_TIMEOUT, verify_log
+        )
+        checks["verify_rc"] = verify_rc
+        checks["verify"] = verify_rc == 0
+    checks["success"] = checks.get("bootstrap") and checks.get("verify", False)
+    return checks
+
+
+def _validate_hub(ip: str, name: str) -> dict[str, Any]:
+    """Run bootstrap-hub.sh against the latest DR snapshot, then --verify."""
+    script = str(BOOTSTRAP_DIR / "bootstrap-hub.sh")
+    boot_log = FABRIK_ROOT / "logs" / f"drill-{name}.bootstrap.log"
+    checks: dict[str, Any] = {"ssh_ready": _wait_ssh(ip)}
+    boot_rc = _run_script([script, f"root@{ip}"], _HUB_BOOTSTRAP_TIMEOUT, boot_log)
+    checks["bootstrap_rc"] = boot_rc
+    checks["bootstrap"] = boot_rc == 0
+    checks["success"] = checks["bootstrap"]
+    return checks
+
+
 def write_report(report: dict[str, Any]) -> None:
     """Append one JSON line to the drill history (best-effort)."""
     try:
@@ -107,17 +194,19 @@ def drill(
     max_cost: float | None = None,
     client: VultrClient | None = None,
 ) -> dict[str, Any]:
-    """Run a disposable drill of ``kind``. Returns the drill report dict.
+    """Run a disposable drill of ``kind`` (bare|spoke|hub). Returns the report dict.
 
-    ``bare`` is implemented in Phase 3a. The instance is ALWAYS destroyed unless
-    the drill failed AND ``keep_on_failure`` is set (then it's left for the operator).
+    The instance is ALWAYS destroyed unless the drill failed AND ``keep_on_failure``
+    is set (then it's left running for the operator to inspect).
     """
-    if kind != "bare":
-        raise NotImplementedError(f"drill kind {kind!r} not implemented yet (Phase 3b/4)")
+    if kind not in ("bare", "spoke", "hub"):
+        raise NotImplementedError(f"unknown drill kind {kind!r}")
 
     client = client or VultrClient()
-    plan, monthly = cheapest_ipv4_plan(client, region)
-    est = estimate_cost(monthly, DISPOSABLE_TTL_HOURS * 3600)
+    plan, monthly = _resolve_plan(client, kind, region)
+    # cost horizon: bare ~ TTL; spoke ~1h; hub ~2h
+    horizon_s = {"bare": DISPOSABLE_TTL_HOURS * 3600, "spoke": 3600, "hub": 2 * 3600}[kind]
+    est = estimate_cost(monthly, horizon_s)
     if max_cost is not None and est > max_cost:
         raise VultrError(f"estimated cost ${est} exceeds --max-cost ${max_cost} (plan {plan})")
 
@@ -183,17 +272,27 @@ def drill(
         report["step_durations"]["provision_to_ready"] = round(time.monotonic() - t0, 1)
         ip = ready.get("main_ip")
         report["checks"]["active"] = True
+
         t1 = time.monotonic()
-        report["checks"]["ssh_reachable"] = _ssh_probe(ip) if ip else False
-        report["step_durations"]["ssh_probe"] = round(time.monotonic() - t1, 1)
-        report["success"] = True
+        if kind == "bare":
+            report["checks"]["ssh_reachable"] = _ssh_probe(ip) if ip else False
+            report["success"] = bool(report["checks"]["ssh_reachable"])
+        elif kind == "spoke":
+            sc = _validate_spoke(ip, name)
+            report["checks"].update(sc)
+            report["success"] = bool(sc.get("success"))
+        else:  # hub
+            hc = _validate_hub(ip, name)
+            report["checks"].update(hc)
+            report["success"] = bool(hc.get("success"))
+        report["step_durations"]["validate"] = round(time.monotonic() - t1, 1)
     except Exception as e:  # noqa: BLE001 - report every failure, then clean up
         failed = True
         report["error"] = str(e)
         logger.warning("drill %s failed: %s", name, e)
     finally:
         report["wall_clock_seconds"] = round(time.monotonic() - start, 1)
-        keep = failed and keep_on_failure
+        keep = (failed or not report["success"]) and keep_on_failure
         if rid and not keep:
             try:
                 client.destroy(res_kind, rid)
