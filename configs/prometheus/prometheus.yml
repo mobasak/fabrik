@@ -50,12 +50,12 @@ scrape_configs:
     static_configs:
       - targets: ['loki:3100']
 
-  - job_name: netdata
-    metrics_path: /api/v1/allmetrics
-    params:
-      format: [prometheus]
-    static_configs:
-      - targets: ['netdata:19999']
+  # netdata scrape job removed 2026-06-07: container retired 2026-05-30 but
+  # the scrape job was left behind, causing `ServiceUnhealthy` to fire every
+  # 2m and the Alertmanager `aro-wake-routed` receiver's `repeat_interval:
+  # 30m` flooded Telegram with notifications every 30 min for ~12h overnight.
+  # If netdata ever comes back, re-add the job and verify the container is
+  # actually deployed via `docker ps --filter name=netdata`.
 
   - job_name: alertmanager
     static_configs:
