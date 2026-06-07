@@ -6,6 +6,8 @@
 
 This document is the definitive answer to "vps1 is gone — how do I get it back?" It supersedes the prior advice in `vps-bootstrap-plan.md` § "What's still manual: the hub" (which said copy-and-customize the disaster-recovery runbook by hand).
 
+> **Throwaway-VPS hub drill (Step 8 of the DR-in-hours track) is now `fabrik vultr drill hub`** (shipped 2026-06-08). It provisions an 8GB Vultr droplet, runs `bootstrap-hub.sh` against the latest DR snapshot, then auto-destroys — one command, cost-capped, drill report to `logs/dr-drill-history.jsonl`. ~90 min; operator-run (quarterly). The shared `step_00/01/02/14` paths are already drill-proven via `fabrik vultr drill spoke` (live 2026-06-08, bootstrap+verify rc=0). See the plan [`docs/development/plans/2026-06-07-fabrik-vultr-provisioning.md`](../development/plans/2026-06-07-fabrik-vultr-provisioning.md).
+
 ## Scope
 
 **Covers:**

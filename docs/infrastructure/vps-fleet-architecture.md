@@ -16,6 +16,8 @@ This doc answers: "we own 3 VPSes — what do we have, what's planned, and how i
 
 **All 3 are fleet members:** W1 firewall posture, W11 backup chain (SHIPPED), W6 probe-audited posture, observability flow via mesh.
 
+**On-demand fleet growth + DR drilling via `fabrik vultr`** (shipped + live-validated 2026-06-08): a 4th+ spoke is now `fabrik vultr provision vps4 --region <r>` (deterministic mesh IP `10.99.0.N`, full `bootstrap-vps.sh`, `mode=permanent`; interactive confirm). Throwaway DR drills are `fabrik vultr drill {bare|spoke|hub}` (auto-destroy, cost-capped). Covers every Vultr product line (Cloud Compute / High-Frequency / GPU / Bare Metal). Driver `src/fabrik/drivers/vultr.py`; state `data/vultr-instances.json` (gitignored); auth in `/opt/fabrik/.env.sysadmin`. Full reference: the plan [`docs/development/plans/2026-06-07-fabrik-vultr-provisioning.md`](../development/plans/2026-06-07-fabrik-vultr-provisioning.md).
+
 ---
 
 ## vps1 — hub services + mechanisms

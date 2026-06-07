@@ -6,6 +6,11 @@
 
 This document is the definitive answer to "vps2 (or vps3) is gone — how do I get it back **with the same mesh identity**?" Companion to [`vps-hub-rebuild.md`](vps-hub-rebuild.md) but specialized for the spoke role.
 
+> **Now automated via `fabrik vultr`** (shipped + live-validated 2026-06-08). The manual "dashboard → copy IP → `bootstrap-vps.sh` → destroy" drill is wrapped in one command:
+> - **DR drill (throwaway):** `fabrik vultr drill spoke` — creates a Vultr droplet, runs `bootstrap-vps.sh --skip-mesh --skip-dns` (hermetic — no prod mesh/DNS touch), runs `bootstrap-vps.sh --verify` as the end-state contract, then **always auto-destroys** (even on failure). Live run 2026-06-08: bootstrap_rc=0 + verify_rc=0, 483s, 0 orphans, 0 `vps4` peers left on vps1 wg0.
+> - **New permanent spoke:** `fabrik vultr provision vps4 --region <r>` — full `bootstrap-vps.sh` (no skip flags), mesh IP auto = `10.99.0.N`, `mode=permanent` state, interactive confirm required (real billing + fleet change).
+> See the plan [`docs/development/plans/2026-06-07-fabrik-vultr-provisioning.md`](../development/plans/2026-06-07-fabrik-vultr-provisioning.md) and `fabrik vultr --help`. (This runbook remains the source of truth for the **same-identity restore** path via `bootstrap-spoke-restore.sh`, which the drill does not cover.)
+
 ## Scope
 
 **Covers:**
