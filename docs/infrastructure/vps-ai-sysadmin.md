@@ -1,7 +1,7 @@
 # VPS AI System Administrator — Reference
 
-**Last Updated:** 2026-06-06 (Trio Phase 1+2+3+4 LIVE across the FULL FLEET — aro-wake on vps1/vps2/vps3, spoke Telegram bots active (`SysAdminVPS2`, `SysAdminVPS3`), spoke↔spoke wg0 routing enabled, 4 loop-prevention guards shipped in aro-wake, Prometheus SLI metrics LIVE on all 3 hosts via job `aro-wake` with 2 alert rules.)
-**Last probe report:** [`probe-reports/infra-probe-2026-06-06T22-39Z.yaml`](probe-reports/infra-probe-2026-06-06T22-39Z.yaml)
+**Last Updated:** 2026-06-07 (Trio Phase 1+2+3+4 LIVE across the FULL FLEET since 2026-06-06; **Phase 5.1.a operator-reversal cron LIVE on full fleet 2026-06-07** via `detect_reversals.py` + `*/5 min` cron entry; **rate-limited 429 wakes now tracked** via `aro_wake_requests_total{status="rate_limited"}` + `AroWakeLowSuccessRate` denominator updated; **stale netdata scrape job removed** 2026-06-07 (caused overnight 24× Telegram flood); **6 bootstrap defenses shipped** including preflight SSH-user-transition trap detection in `bootstrap-vps.sh` + `bootstrap-hub.sh` + new rule pack `.windsurf/rules/core/90-bootstrap-scripts.md`; **DR drill MEASURED end-to-end 2026-06-07**: bootstrap-vps.sh → 3m 13s wall-clock, 9.3× under the ≤30 min target, 15/15 substantive end-state checks.)
+**Last probe report:** [`probe-reports/infra-probe-2026-06-07T20-20Z.yaml`](probe-reports/infra-probe-2026-06-07T20-20Z.yaml)
 **Status:** Live since 2026-05-20
 **Service:** `vps-sysadmin-bot.service` (systemd, `Restart=always`)
 **Bot:** Telegram (`@ocoron_bot`), same bot as Alertmanager notifications
@@ -102,7 +102,7 @@ Claude Code reaches these from inside the Docker `fabrik` network via `sudo dock
 | Gatus | `gatus:8080` | Uptime status for 30+ endpoints |
 | GlitchTip | `glitchtip-web:8000` | Application errors, unhandled exceptions |
 | Apprise | `apprise:8000` | Send notifications to Telegram |
-| Netdata | `netdata:19999` | Real-time per-second system metrics |
+| ~~Netdata~~ | ~~`netdata:19999`~~ | **REMOVED 2026-05-30** (container retired); scrape job removed 2026-06-07 after a stale entry caused a 24× Telegram flood overnight via the Phase 4 wire's `repeat_interval: 30m` |
 | Pushgateway | `pushgateway:9091` | Drift audit metrics from hourly fabrik cron |
 | Meilisearch | `meilisearch:7700` | Search index health |
 | Docker | local CLI | Container lifecycle — ps, stats, logs, restart, update, inspect |
@@ -322,7 +322,7 @@ aro-wake on every fleet host exposes 8 Prometheus metrics at `:8201/metrics` map
 
 | Metric | Type | Labels | Maps to doc SLI |
 |---|---|---|---|
-| `aro_wake_requests_total` | counter | `source, status` | Task Success Rate |
+| `aro_wake_requests_total` | counter | `source, status` (status ∈ {`success`, `failure`, `rate_limited`} — `rate_limited` added 2026-06-07) | Task Success Rate |
 | `aro_wake_cost_usd_total` | counter | `source` | Cost Per Task |
 | `aro_wake_dedup_drops_total` | counter | — | (loop guard #1) |
 | `aro_wake_hop_limit_exceeded_total` | counter | — | Scope Chain Depth |
@@ -333,10 +333,10 @@ aro-wake on every fleet host exposes 8 Prometheus metrics at `:8201/metrics` map
 
 Two alert rules ship pre-configured in `configs/prometheus/rules/alerts.yml` under the `aro_wake` group, both evaluated per-host via `by (host)`:
 
-- **`AroWakeLowSuccessRate`** — fires when `sum(rate(aro_wake_requests_total{status="success"}[10m])) by (host) / sum(rate(aro_wake_requests_total[10m])) by (host) < 0.90` for 15m. A vps3 problem doesn't get diluted by healthy vps1/vps2.
+- **`AroWakeLowSuccessRate`** — fires when `sum(rate(aro_wake_requests_total{status="success"}[10m])) by (host) / sum(rate(aro_wake_requests_total{status!="rate_limited"}[10m])) by (host) < 0.90` for 15m. Denominator excludes `rate_limited` (refused at the gate before Claude ran — not a failure of the LLM path) since 2026-06-07. A vps3 problem doesn't get diluted by healthy vps1/vps2.
 - **`AroWakeCostBurnHigh`** — fires when `sum(rate(aro_wake_cost_usd_total[1h])) by (host) > 5` for 10m. Catches runaway reasoning loops early.
 
-Skipped SLIs from the doc: Hallucination Rate and Tool Call Accuracy — require ground-truth eval data we don't have today. Rate-limited (HTTP 429) wakes are not currently tracked in any metric; the rate limit is high (20/h per `(source, topic)`) so the observability gap is low-impact (acknowledged follow-up).
+Skipped SLIs from the doc: Hallucination Rate and Tool Call Accuracy — require ground-truth eval data we don't have today. Rate-limited (HTTP 429) wakes ARE tracked since 2026-06-07 via `aro_wake_requests_total{status="rate_limited"}` (counter has 3 status values: `success`, `failure`, `rate_limited`). The `AroWakeLowSuccessRate` denominator excludes `rate_limited` so refused-at-the-gate drops don't lower the LLM success-rate SLI.
 
 Counters are in-memory; restart = reset = safe default. `rate()` and `increase()` PromQL handle this correctly via the `_created` timestamps prometheus_client emits — alert evaluation is unaffected.
 
@@ -353,6 +353,25 @@ sum(rate(aro_wake_cost_usd_total[1h])) by (host) * 3600
 # Loop-guard activity: are we suppressing forwards?
 sum(rate(aro_wake_forward_suppressed_total[5m])) by (host, reason)
 ```
+
+### Operator-reversal detection (trio plan Phase 5.1.a, LIVE on full fleet since 2026-06-07)
+
+`/opt/fabrik/scripts/sysadmin/detect_reversals.py` runs as a `*/5 min` cron on every host. Correlates AI actions (watchdog sidecar `state.db` actions + `/opt/fabrik/logs/sysadmin-actions.jsonl`) against subsequent operator-issued docker commands within a 5-minute window. Matches go to `/opt/fabrik/logs/lessons-pending.jsonl` for weekly review.
+
+**Reversal classes detected today**: `restart_container` → operator `docker (restart|stop|kill|rm|up)` on the same container within 5 min.
+
+**Scaffolded for future expansion** (live when the sidecar gains those action verbs): `clear_redis_cache`, `rotate_logs`.
+
+**Data sources**:
+
+- AI actions: each `*-watchdog` sidecar's `state.db` read via `docker exec <sidecar> sqlite3 -readonly` (default list-mode pipe-separator — NOT `-csv` which quotes timestamp fields and breaks `strptime`).
+- Operator actions: `journalctl _COMM=sudo --output json --since "-10min"`; regex extracts `docker (restart|stop|kill|rm|start|up) <target>` from MESSAGE.
+
+**Idempotency**: pre-existing entries deduplicated by `(ai_source, ai_ts, operator_ts)` tuple. Re-running 2× after a match produces 0 new entries.
+
+**Defensive design (cron-grade)**: 10–15s subprocess timeouts; `state.db` read fail → single-line WARN to stderr, continue; SQL parse error → skip row. Never crashes a cron job over an observability gap.
+
+**Weekly review rule** (trio plan §5.1.a): 3+ reversals of the same action class in a week → that class moves from AUTONOMOUS → ASK OWNER FIRST in `system-prompt.txt`. Single-incident reversals are noise; sustained pattern is a signal.
 
 ## Firewall Architecture
 

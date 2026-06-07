@@ -1,7 +1,7 @@
 # VPS1 Hub — How to Bring It Back
 
-**Last Updated:** 2026-06-06 (DR-in-hours track shipped 2026-06-01; aro-wake + Phase 4 wire LIVE on vps1 since 2026-06-05 + Prometheus SLI metrics + 2 alert rules LIVE 2026-06-06 — on hub rebuild, additional manual after-steps: (1) re-apply `sudo ufw route allow in on wg0 out on wg0` so spoke↔spoke traffic continues to route through the hub; (2) re-deploy `prometheus.yml` with the `aro-wake` scrape job + `alerts.yml` with the `aro_wake` rule group from repo; (3) verify all 3 aro-wake scrape targets `up` after monitoring stack restarts.)
-**Last probe report:** [`probe-reports/infra-probe-2026-06-06T22-39Z.yaml`](probe-reports/infra-probe-2026-06-06T22-39Z.yaml)
+**Last Updated:** 2026-06-07 (DR-in-hours track shipped 2026-06-01; aro-wake + Phase 4 wire LIVE on vps1 since 2026-06-05 + Prometheus SLI metrics + 2 alert rules LIVE 2026-06-06; `bootstrap-hub.sh` step_07 gained spoke↔spoke wg0 routing backstop 2026-06-07 + safe-rerun preflight trap detecting `root@<ip>` after step_01 disabled root login — see [`90-bootstrap-scripts.md`](../../.windsurf/rules/core/90-bootstrap-scripts.md) Rule 1. Hub-rebuild drill (Step 8 of DR-in-hours track) still pending, but the parallel `bootstrap-vps.sh` drilled clean 2026-06-07 (3m 13s, 9.3× under target) — validates the shared step_00/01/02/14 code paths.)
+**Last probe report:** [`probe-reports/infra-probe-2026-06-07T20-20Z.yaml`](probe-reports/infra-probe-2026-06-07T20-20Z.yaml)
 **Status:** Scripted end-to-end. DR drill on a throwaway VPS pending (Step 8 of the DR-in-hours track) — until that drill closes, the wall-clock figure below is the **target**, not measured.
 
 This document is the definitive answer to "vps1 is gone — how do I get it back?" It supersedes the prior advice in `vps-bootstrap-plan.md` § "What's still manual: the hub" (which said copy-and-customize the disaster-recovery runbook by hand).

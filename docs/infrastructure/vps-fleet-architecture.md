@@ -1,7 +1,7 @@
 # VPS Fleet — Architecture & Single-System Wiring
 
-**Last Updated:** 2026-06-06 (Trio Phase 1+2+3+4 LIVE across the FULL FLEET — aro-wake on all 3 hosts; spoke↔spoke wg0 routing enabled via single `ufw route allow in on wg0 out on wg0` on vps1; 4 loop-prevention guards shipped in aro-wake; Prometheus SLI metrics LIVE on all 3 hosts via job `aro-wake`)
-**Last probe report:** [`probe-reports/infra-probe-2026-06-06T22-39Z.yaml`](probe-reports/infra-probe-2026-06-06T22-39Z.yaml)
+**Last Updated:** 2026-06-07 (Trio Phase 1+2+3+4 LIVE across the FULL FLEET since 2026-06-06; **Phase 5.1.a operator-reversal cron LIVE on full fleet 2026-06-07** via `detect_reversals.py` + `*/5 min` cron; **rate-limited 429 wakes now tracked**; **stale netdata scrape job removed**; **6 bootstrap defenses shipped** including preflight SSH-user-transition trap; **DR drill MEASURED end-to-end** 2026-06-07 — `bootstrap-vps.sh --skip-mesh --skip-dns` → 3m 13s wall-clock, 9.3× under target, 15/15 substantive checks.)
+**Last probe report:** [`probe-reports/infra-probe-2026-06-07T20-20Z.yaml`](probe-reports/infra-probe-2026-06-07T20-20Z.yaml)
 **Purpose:** Single architectural picture of the 3-host fleet — what runs where, how they're wired together, what role each plays. Read this when onboarding new infra work, before designing anything that touches multiple hosts.
 
 This doc answers: "we own 3 VPSes — what do we have, what's planned, and how is it one system?"
@@ -11,8 +11,8 @@ This doc answers: "we own 3 VPSes — what do we have, what's planned, and how i
 | Host | Public IP | Mesh IP | Role | Containers |
 |---|---|---|---|---|
 | **vps1** | 172.93.160.197 (LA) | 10.99.0.1 | **Hub** — mesh root + shared data plane + observability HQ + **two-layer AI ops** (host sysadmin + per-project watchdog) + backup destination for self + admin ingress | 31 (29 platform + 2 T-P5 dogfood) |
-| **vps2** | 96.9.214.128 (Coventry UK) | 10.99.0.2 | **Spoke** — tenant compute + local Traefik + monitoring agents shipping to vps1 + own backup destination. **No AI agent running on this host yet.** | 5 |
-| **vps3** | 104.128.190.151 (Coventry UK) | 10.99.0.3 | **Spoke** — same shape as vps2. **No AI agent running on this host yet.** | 5 |
+| **vps2** | 96.9.214.128 (Coventry UK) | 10.99.0.2 | **Spoke** — tenant compute + local Traefik + monitoring agents shipping to vps1 + own backup destination. **Own AI agent LIVE since 2026-06-06**: aro-wake.service + vps-sysadmin-bot.service (`@SysAdminVPS2` Telegram bot) + proactive-check + detect_reversals (Phase 5.1.a). | 5 |
+| **vps3** | 104.128.190.151 (Coventry UK) | 10.99.0.3 | **Spoke** — same shape as vps2. **Own AI agent LIVE since 2026-06-06**: aro-wake.service + vps-sysadmin-bot.service (`@SysAdminVPS3` Telegram bot) + proactive-check + detect_reversals (Phase 5.1.a). | 5 |
 
 **All 3 are fleet members:** W1 firewall posture, W11 backup chain (SHIPPED), W6 probe-audited posture, observability flow via mesh.
 
@@ -49,7 +49,7 @@ This doc answers: "we own 3 VPSes — what do we have, what's planned, and how i
 ### DR
 
 - **Script:** `scripts/bootstrap/bootstrap-hub.sh` (18 idempotent steps). ✅ Shipped 2026-06-01.
-- **Target wall-clock:** ≤ 90 min, undrilled.
+- **Target wall-clock:** ≤ 90 min, undrilled at the hub level. The parallel `bootstrap-vps.sh` was drilled clean 2026-06-07 (3m 13s, 9.3× under its ≤30 min spoke target) — validates the shared step_00/01/02/14 code paths that hub also uses.
 - **Operator doc:** [`vps-hub-rebuild.md`](vps-hub-rebuild.md).
 - **Inventory:** [`../operations/hub-restore-inventory.md`](../operations/hub-restore-inventory.md).
 
@@ -99,7 +99,7 @@ This doc answers: "we own 3 VPSes — what do we have, what's planned, and how i
 
 ### DR (shipped)
 
-- **Script:** [`scripts/bootstrap/bootstrap-spoke-restore.sh`](../../scripts/bootstrap/bootstrap-spoke-restore.sh) — 548 lines, 13 steps, target wall-clock ≤ 30 min, undrilled.
+- **Script:** [`scripts/bootstrap/bootstrap-spoke-restore.sh`](../../scripts/bootstrap/bootstrap-spoke-restore.sh) — 548 lines, 13 steps, target wall-clock ≤ 30 min. Forward-install path (`bootstrap-vps.sh`) drilled clean 2026-06-07 (3m 13s); restic-restore-with-identity-preservation path still undrilled (separate ticket in `docs/STRATEGIC_BACKLOG.md`).
 - **Operator doc:** [`vps-spoke-rebuild.md`](vps-spoke-rebuild.md).
 - **Inventory:** [`../operations/spoke-restore-inventory.md`](../operations/spoke-restore-inventory.md).
 

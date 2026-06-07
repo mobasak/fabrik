@@ -1,6 +1,6 @@
 # Prometheus app-level metrics — runbook
 
-**Last Updated:** 2026-06-06 (aro-wake SLI scrape job added — full-fleet coverage of vps1+vps2+vps3 via the same `aro-wake` job; cross-mesh container→host NAT path documented below as a worked example for future host-services scrape patterns)
+**Last Updated:** 2026-06-07 (aro-wake SLI scrape job covers full fleet of vps1+vps2+vps3 via the same `aro-wake` job; cross-mesh container→host NAT path documented below as a worked example. **Two updates 2026-06-07**: `aro_wake_requests_total` counter now has `status="rate_limited"` value alongside `success` + `failure`; `AroWakeLowSuccessRate` alert rule denominator updated from `aro_wake_requests_total` to `aro_wake_requests_total{status!="rate_limited"}` so refused-at-the-gate drops don't unfairly lower the LLM success-rate SLI. The stale `netdata` scrape job is REMOVED from `prometheus.yml` — caused a 24× Telegram flood overnight before removal via the Phase 4 wire's `repeat_interval: 30m`.)
 **Status:** ✅ Live (originally 2026-05-08)
 **Prometheus container:** `prometheus` (stable name)
 **Scrape config:** `/opt/monitoring/configs/prometheus/prometheus.yml`

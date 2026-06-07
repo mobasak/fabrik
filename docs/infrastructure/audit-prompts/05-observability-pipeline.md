@@ -1,6 +1,6 @@
 # 05 — Observability Pipeline (fleet-wide, hub-rooted)
 
-**Last Updated:** 2026-06-06 (added aro-wake SLI scrape coverage to the per-host probe list — full-fleet `aro-wake` job at `10.0.1.1:8201` (hub via docker-bridge) + `10.99.0.{2,3}:8201` (spokes via wg0); audit must confirm all 3 targets `up` and the 2 alert rules `AroWakeLowSuccessRate`+`AroWakeCostBurnHigh` are loaded in the `aro_wake` rule group)
+**Last Updated:** 2026-06-07 (aro-wake SLI scrape coverage on the full-fleet `aro-wake` job at `10.0.1.1:8201` (hub via docker-bridge) + `10.99.0.{2,3}:8201` (spokes via wg0); audit must confirm all 3 targets `up` and the 2 alert rules `AroWakeLowSuccessRate`+`AroWakeCostBurnHigh` are loaded in the `aro_wake` rule group. **Two updates 2026-06-07**: `AroWakeLowSuccessRate` denominator now excludes `status="rate_limited"`; the stale `netdata` scrape job has been REMOVED from `prometheus.yml` after it caused a 24× Telegram flood overnight via the Phase 4 wire's `repeat_interval: 30m`. Audit must verify no `up == 0` for the `netdata` job (job no longer exists).)
 **Run mode:** **fleet-wide, hub-rooted.** Most probes from vps1 (Prometheus / Grafana / Loki / Alertmanager queries). Spoke-side checks confirm agents are pushing.
 **Scope:** end-to-end check that metrics are scraped, logs shipped, alerts fire, errors captured, status probes green.
 **Time budget:** ~15 min probes + ~15 min analysis.

@@ -1,7 +1,7 @@
 # VPS Fleet — Status Snapshot
 
-**Last Updated:** 2026-06-06 — fleet rollout day (Trio Phase 1+2+3+4 LIVE across ALL 3 HOSTS: aro-wake systemd service active on vps1/vps2/vps3 with `/wake`+`/health`+`/metrics` endpoints; spoke Telegram bots `SysAdminVPS2`+`SysAdminVPS3` polling cleanly; spoke↔spoke wg0 routing enabled (one `ufw route allow in on wg0 out on wg0` on vps1 — 266ms via hub-hop); 4 in-memory loop-prevention guards added to aro-wake (trace dedup / hop cap / forward-target intersection / storm breaker); Prometheus SLI metrics LIVE on all 3 hosts via job `aro-wake`; 2 alert rules `AroWakeLowSuccessRate`+`AroWakeCostBurnHigh` evaluated per-host.)
-**Snapshot taken:** 2026-06-06 (live probe via `ssh` + `docker ps` + `docker inspect` + Prometheus `/api/v1/targets` + per-spoke `curl :8201/metrics`)
+**Last Updated:** 2026-06-07 — iteration day after 2026-06-06 fleet rollout (Trio Phase 1+2+3+4 LIVE across ALL 3 HOSTS since 2026-06-06; today added: **Phase 5.1.a operator-reversal detection cron LIVE on all 3 hosts** via new `detect_reversals.py` + `*/5 min` cron entry, writes to `/opt/fabrik/logs/lessons-pending.jsonl`; **rate-limited 429 wakes now tracked** via `aro_wake_requests_total{status="rate_limited"}` + `AroWakeLowSuccessRate` denominator updated to `status!="rate_limited"`; **stale netdata scrape job removed** (caused 24× Telegram flood overnight); **6 bootstrap defenses** added (preflight SSH-user-transition trap in both bootstrap scripts + remote-bash quote-escape fix + new rule pack `.windsurf/rules/core/90-bootstrap-scripts.md` + AFCL entries + 2 rebuild-doc updates); **DR drill MEASURED** end-to-end: `bootstrap-vps.sh --skip-mesh --skip-dns root@<vultr-ip> vps4` → 3m 13s wall-clock, 9.3× under the ≤30 min target, 15/15 substantive end-state checks, $0.04 total cost.)
+**Snapshot taken:** 2026-06-07 20:20 UTC (live probe via `scripts/audit_infra_vs_docs.py --hosts vps,vps2,vps3` + `ssh` + `docker ps` + Prometheus `/api/v1/targets` + per-spoke `curl :8201/metrics` + Vultr API `/v2/instances` for drill-instance cleanup)
 **Hosts:** vps1 (LA, hub) · vps2 (Coventry UK, spoke) · vps3 (Coventry UK, spoke)
 **Deploy model:** SSH + Docker Compose (no Coolify — removed 2026-05-30)
 
@@ -34,6 +34,98 @@
 | Spoke disaster-recovery | ✅ **Scripted** via [`bootstrap-spoke-restore.sh`](../../scripts/bootstrap/bootstrap-spoke-restore.sh) — 13 steps, ≤ 30 min target, **preserves Wireguard identity** (hub peer-table unchanged through outage). **Drill pending.** Operator doc: [`vps-spoke-rebuild.md`](vps-spoke-rebuild.md). |
 | Credential recovery (`/opt/fabrik/.env`) | ✅ **W9 shipped 2026-06-01.** Inotify + systemd watcher (`fabrik-dr-watcher.service`) pushes every change to private `mobasak/fabrik-dr-store` within seconds; daily safety-net cron + reboot catch-up + weekly self-test. **Sysadmin token added to scope** via SSH-pull (W9 extension, same day). See [`docs/operations/credential-recovery.md`](../operations/credential-recovery.md). |
 | Backups | ✅ same as Backrest plans row — first real backup chain since the 2026-05-31 wipe. |
+
+---
+
+## 2026-06-07 — iteration discipline day: Phase 5.1.a LIVE + SLI gap closed + netdata cleanup + bootstrap defenses + first measured DR drill
+
+Day-after consolidation. Yesterday's fleet rollout shipped 10 commits' worth of substrate; today consolidated five gaps, measured one target, and codified the operator-discipline traps surfaced along the way.
+
+### A — Stale `netdata` scrape job removed (cause of overnight Telegram flood)
+
+24 spurious Telegram messages between 2026-06-06 21:00 and 2026-06-07 11:47 — every 30 min for ~12h. Root cause: `netdata` container was retired 2026-05-30 (backup file `prometheus.yml.bak-netdata-removal-20260530-223414` confirms intent) but the `netdata` scrape job in `configs/prometheus/prometheus.yml` was left behind. `up{job="netdata"} == 0` from then on, triggering `ServiceUnhealthy`. The 2026-06-05 Phase 4 wire routes every `severity=~"critical|warning"` alert to BOTH aro-wake AND Telegram (`continue: true`), and the receiver's `repeat_interval: 30m` cycled the message until alert state cleared. Fix: silenced active alert via `amtool` for immediate relief, removed the job from `prometheus.yml` with a 6-line comment explaining, SIGHUP-reloaded Prometheus, verified 14/14 remaining targets up + 0 active alerts. Commit `f5c6e48`.
+
+### B — Spoke-bootstrap deps baked into `bootstrap-vps.sh` + Gatus endpoints + UFW route backstop
+
+Three follow-ups from 2026-06-06's spoke rollout shipped in commit `175ea69`:
+
+- **`bootstrap-vps.sh` step_02** now installs `python3-venv` + `python3-pip` apt packages (needed by step_15's aro-wake venv create and step_14b's pip install)
+- **`bootstrap-vps.sh` step_14a (NEW)** installs Node.js 22 + `@anthropic-ai/claude-code` via npm (idempotent: skips if `command -v claude` succeeds)
+- **`bootstrap-vps.sh` step_14b (NEW)** installs `python-telegram-bot==22.7` via `sudo pip install --break-system-packages` (idempotent: skips if `python3 -c "import telegram"` succeeds)
+- **`bootstrap-vps.sh` step_14 mkdir block** adds `sudo chown ozgur:ozgur /opt/fabrik /opt/fabrik/scripts /opt/fabrik/logs` so step_15's `sudo -u ozgur python3 -m venv` can write
+- **`bootstrap-hub.sh` step_07** adds defensive `sudo ufw route allow in on wg0 out on wg0` as backstop for the spoke↔spoke routing rule (idempotent — UFW dedupes; covers the case where hub rebuild happens before the 2026-06-07 02:00 Backrest snapshot captures the rule in `user.rules`)
+- **Gatus** gains an `aro-wake.yaml` config file at `/opt/monitoring/configs/gatus/apps/` on vps1 — 3 endpoints in the `trio-aro-wake` group (vps1 via docker-bridge `10.0.1.1:8201`, vps2/vps3 via wg0 `10.99.0.{2,3}:8201`), all `success=True` on first poll. (Gatus configs not yet in source control — separate follow-up tracked in `docs/STRATEGIC_BACKLOG.md`.)
+
+### C — Rate-limited 429 wakes now tracked (SLI gap closed)
+
+Yesterday's acknowledged SLI gap closed in commit `febc475`. Two `M_REQUESTS.labels(source=source, status="rate_limited").inc()` calls added — one in the alertmanager-path rate-limit branch (`main.py` ~L856), one in the main-path rate-limit branch (~L933). `aro_wake_requests_total` counter now has three status values: `success`, `failure`, `rate_limited`. `AroWakeLowSuccessRate` alert denominator updated from `aro_wake_requests_total` to `aro_wake_requests_total{status!="rate_limited"}` so rate-limited drops (refused at the gate before Claude ran) don't unfairly lower the LLM success-rate SLI. Smoke-verified live with `ARO_WAKE_RATE_LIMIT=1` drop-in: counter went `{status="rate_limited"} 1.0` after the second wake; drop-in cleaned up after.
+
+### D — Phase 5.1.a operator-reversal detection cron LIVE on FULL fleet
+
+Per trio plan Phase 5.1.a. New `/opt/fabrik/scripts/sysadmin/detect_reversals.py` correlates AI actions (watchdog sidecar `state.db` + `sysadmin-actions.jsonl`) against subsequent operator-issued docker commands within a 5-minute window. Matches go to `/opt/fabrik/logs/lessons-pending.jsonl` for weekly review. Reversal classes detected today: `restart_container → docker (restart|stop|kill|rm|up) <same_name>`. Classes scaffolded for future expansion: `clear_redis_cache`, `rotate_logs`.
+
+Idempotency by `(ai_source, ai_ts, operator_ts)` tuple: pre-existing entries deduplicated, re-running 2× after a match produces 0 new entries (verified live). Defensive design (cron-grade): 10–15s subprocess timeouts; state.db read fail → single-line WARN to stderr, continue; SQL parse error → skip row. Never crashes a cron job over an observability gap.
+
+End-to-end test verified live on vps1: `docker kill watchdog-test` → 90s wait → sidecar autonomous `restart_container` lands in state.db → `sudo docker restart watchdog-test` simulates operator reversal → detector wrote 1 entry to `lessons-pending.jsonl` with class=restart_container, delta_seconds=41.6. Cron entries added to `/etc/cron.d/vps-sysadmin` on vps1+vps2+vps3 (appended; existing routines untouched). `bootstrap-vps.sh templates/sysadmin-cron.template` also updated for future spoke installs. Commit `08d257e`.
+
+### E — `STRATEGIC_BACKLOG.md` created from scaffold template
+
+Until today, every Fabrik scaffolded project had a `docs/STRATEGIC_BACKLOG.md` but the Fabrik repo itself didn't. Created from `templates/scaffold/docs/STRATEGIC_BACKLOG_TEMPLATE.md` per `src/fabrik/scaffold.py:196` mapping. Populated with 10 deferred items across Now (2)/Later (8)/Context (7 lessons + invariants) tiers. Each "Later" item names its triggering condition explicitly so future-you doesn't re-derive why an item was deferred. INDEX.md updated with the docs/ row per CLAUDE.md doc-sync matrix. Commit `9759f9e`.
+
+### F — 6 bootstrap defenses (caught by first DR drill 2026-06-07 evening)
+
+First DR drill on a Vultr throwaway droplet (`vc2-1c-2gb`, region `lax`, $0.02) caught two real bugs in today's bootstrap-vps.sh edits AND surfaced one operator-discipline trap. All three closed with code + docs + rule pack so the next person doesn't re-discover them:
+
+| # | Defense | Where |
+|---|---|---|
+| 1 | `bootstrap-vps.sh` preflight auto-detects `root@` failure when `ozgur@` works; aborts with actionable error BEFORE the 3rd-retry fail2ban trigger | `scripts/bootstrap/bootstrap-vps.sh` preflight (~50 lines) |
+| 2 | `bootstrap-hub.sh` preflight: same hardening, same error message | `scripts/bootstrap/bootstrap-hub.sh` (~28 lines) |
+| 3 | step_14a + step_14b: dropped the cosmetic version-print on the "already installed" branch (eliminated nested `$(...)` inside `echo "..."` inside `remote '...'` that crashed on remote bash with a "syntax error near unexpected token" on the Python dunder version attribute) | `scripts/bootstrap/bootstrap-vps.sh` step_14a + step_14b |
+| 4 | `vps-spoke-rebuild.md` + `vps-hub-rebuild.md`: new "Re-run discipline" section with the SSH user-transition table | both rebuild docs |
+| 5 | NEW rule pack `.windsurf/rules/core/90-bootstrap-scripts.md` (force-added through gitignore): 6 numbered rules triggered by globs on `scripts/bootstrap/**/*.sh` + the rebuild docs | rule pack |
+| 6 | `AFCL.md`: 2 new rows under "Identified Constraints" — Operator Discipline + Quote Escaping, both High severity | AFCL |
+
+Commits `ae5f20f` (defenses) + `11efe1c` (rule pack force-add).
+
+### G — `docs/development/plans/2026-06-07-fabrik-vultr-provisioning.md` plan SAVED
+
+New plan covering on-demand VPS provisioning (permanent fleet members AND disposable drills) via Vultr API v2. Two modes documented: `fabrik vultr provision <name>` for permanent fleet members (auto-runs bootstrap, mesh+DNS+Backrest+observability registration) and `fabrik vultr drill <kind>` for throwaway drills (auto-destroyed, drill report written to `logs/dr-drill-history.jsonl`). 7 phases of implementation work, ~4-5 days focused. Plan extended by operator/linter to cover all 7 Vultr compute product lines (`vc2`/`vdc`/`vhf`/`vhp`/`voc`/`vcg` Cloud GPU + `vbm` Bare Metal). Commits `accb2b5` + `675f7a3`.
+
+### H — DR drill MEASURED end-to-end (Drill #2)
+
+First measured drill of the spoke-bootstrap path. The ≤30 min wall-clock target is no longer aspirational.
+
+| Metric | Value |
+|---|---|
+| Provider | Vultr Cloud Compute, `vc2-1c-2gb`, region `lax`, Ubuntu 24.04 LTS x64 |
+| Invocation | `bootstrap-vps.sh --skip-mesh --skip-dns root@149.28.70.237 vps4` |
+| Wall-clock | **3m 13s (193s)** — 9.3× under the ≤30 min target |
+| End-state contract | **15/15 substantive checks passed** |
+| Open finding | `sshd PasswordAuthentication=yes` despite step_01 hardening attempt (investigate next drill) |
+| Total cost | $0.04 (instance up ~30 min between provisioning and destroy) |
+| Cleanup | `DELETE /v2/instances/<id>` → HTTP 204, 0 instances remaining |
+
+**Today's 4 new bootstrap edits — all validated live**:
+
+- `python3-venv` 3.12.3-0ubuntu2.1 + `python3-pip` 24.0+dfsg-1ubuntu1.3 installed ✓
+- Node.js v22.22.3 + `claude --version` returns `2.1.168 (Claude Code)` ✓
+- `python-telegram-bot` 22.7 importable in system Python ✓
+- `/opt/fabrik` ownership = `ozgur:ozgur` (recursive) ✓
+
+**Today's quote-escape fix validated**: Drill #1 crashed at step_14b on the bash syntax error in the now-removed nested `$()` cosmetic version-print. Drill #2 ran clean through step_14b → step_15.
+
+Drill report at `/opt/fabrik/logs/dr-drill-history.jsonl` (gitignored). The future `fabrik vultr drill spoke` command will append entries to this same file.
+
+### Vultr API integration confirmed working
+
+- `VULTR_API_KEY` saved to `/opt/fabrik/.env.sysadmin` mode 600 (also `VULTR_SSHKEY_ID=fff13c0e-de4a-4027-aee1-68efad7e53ae`)
+- `.env.sysadmin` was NOT in `.gitignore` before today — explicitly added in commit `675f7a3` (would have leaked the API key on next `git add -A`)
+- `/v2/account` auth probe ✓
+- `/v2/instances` enumeration ✓
+- `/v2/ssh-keys` lookup ✓
+- `DELETE /v2/instances/<id>` returns HTTP 204 ✓
+
+**Trio plan status:** Phase 1 LIVE ✓ · Phase 2 LIVE on full fleet ✓ · Phase 3 LIVE on full fleet ✓ · Phase 4 LIVE on vps1 ✓ · **Phase 5.1.a operator-reversal cron LIVE on full fleet ✓** · Phase 5 remaining items (propose/ack peer verbs, Apprise pre-route, Loki ruler, repeated-flag-no-action detector) explicitly deferred until incident-driven per `docs/STRATEGIC_BACKLOG.md` Later tier.
 
 ---
 
@@ -491,7 +583,7 @@ backrest               running  (W11 — own restic repo at b2:vps1-ocoron-backu
 
 ### vps2 / vps3 (identical posture)
 
-**Last probe report:** [`probe-reports/infra-probe-2026-06-06T22-39Z.yaml`](probe-reports/infra-probe-2026-06-06T22-39Z.yaml) (post-W14 sweep)
+**Last probe report:** [`probe-reports/infra-probe-2026-06-07T20-20Z.yaml`](probe-reports/infra-probe-2026-06-07T20-20Z.yaml) (post-W14 sweep)
 
 | Layer | Status |
 | :--- | :--- |
@@ -694,7 +786,7 @@ The full table lives in [`vps-complete-inventory.md` § Pending actions](vps-com
 
 ### Probe report — 2026-06-01T22-50Z (post-W14)
 
-Generated by `scripts/audit_infra_vs_docs.py`. Source YAML: [`probe-reports/infra-probe-2026-06-06T22-39Z.yaml`](probe-reports/infra-probe-2026-06-06T22-39Z.yaml). Captured after W14 shipped + spoke-canary live-verify on vps2 (deployed healthy, verifier 404 from W15 gap, rollback clean).
+Generated by `scripts/audit_infra_vs_docs.py`. Source YAML: [`probe-reports/infra-probe-2026-06-07T20-20Z.yaml`](probe-reports/infra-probe-2026-06-07T20-20Z.yaml). Captured after W14 shipped + spoke-canary live-verify on vps2 (deployed healthy, verifier 404 from W15 gap, rollback clean).
 
 | Probe | vps1 | vps2 | vps3 |
 | :--- | :--- | :--- | :--- |

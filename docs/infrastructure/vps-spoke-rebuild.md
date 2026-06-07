@@ -1,8 +1,8 @@
 # VPS2 / VPS3 Spoke — How to Bring It Back
 
-**Last Updated:** 2026-06-06 (W11 spoke DR shipped 2026-06-01; aro-wake + sysadmin pack LIVE on spokes 2026-06-06 — additional manual after-steps required if rebuilding a spoke that had trio Phase 2/3 deployed: install Node.js 22 + `@anthropic-ai/claude-code`, `python3-venv` apt package, `python-telegram-bot==22.7` via pip, then `claude auth login` on each spoke before enabling `aro-wake.service` + `vps-sysadmin-bot.service`. These will be baked into `bootstrap-vps.sh` in a follow-up commit.)
-**Last probe report:** [`probe-reports/infra-probe-2026-06-06T22-39Z.yaml`](probe-reports/infra-probe-2026-06-06T22-39Z.yaml)
-**Status:** Scripted end-to-end. DR drill on a throwaway VPS pending — wall-clock target ≤ 30 min not yet measured.
+**Last Updated:** 2026-06-07 (W11 spoke DR shipped 2026-06-01; aro-wake + sysadmin pack LIVE on spokes 2026-06-06; **4 spoke-bootstrap deps now baked into `bootstrap-vps.sh` step_02 + step_14a/b + step_14 mkdir block** — Node.js 22 + `@anthropic-ai/claude-code`, `python3-venv` + `python3-pip` apt packages, `python-telegram-bot==22.7` via pip, `/opt/fabrik/` ownership reset to `ozgur:ozgur` — validated live on a Vultr throwaway droplet 2026-06-07 evening. **DR drill PASSED end-to-end**: wall-clock 3m 13s (9.3× under the ≤30 min target), 15/15 substantive end-state checks, total drill cost $0.04. One open finding: `sshd PasswordAuthentication=yes` despite step_01 (investigate next drill).)
+**Last probe report:** [`probe-reports/infra-probe-2026-06-07T20-20Z.yaml`](probe-reports/infra-probe-2026-06-07T20-20Z.yaml)
+**Status:** Scripted end-to-end + **DR drill MEASURED 2026-06-07**: `bootstrap-vps.sh --skip-mesh --skip-dns root@<vultr-ip> vps4` → 3m 13s wall-clock, all 4 today's spoke-bootstrap edits validated end-to-end. The ≤30 min target is no longer aspirational. Drill report at `/opt/fabrik/logs/dr-drill-history.jsonl` (gitignored, local-only).
 
 This document is the definitive answer to "vps2 (or vps3) is gone — how do I get it back **with the same mesh identity**?" Companion to [`vps-hub-rebuild.md`](vps-hub-rebuild.md) but specialized for the spoke role.
 
@@ -172,8 +172,32 @@ Anything short of all 7 = drill failed = `bootstrap-spoke-restore.sh` has a gap.
 - `scripts/bootstrap/bootstrap-spoke-restore.sh` — the script itself, 548 lines, run `--help` for full flag list.
 - `scripts/bootstrap/bootstrap-config.sh` — shared constants (subnet, ports, sudoer user, hub alias).
 
-## DR drill — pending
+## DR drill log
 
-Provision a throwaway VPS, run `bootstrap-spoke-restore.sh` against it with `vps2` or `vps3` as the identity to restore, measure actual wall-clock against ≤ 30 min target, fix any gap that surfaces. Until that drill runs, the 30-min figure is a TARGET — drilled-clean means measured-clean.
+### 2026-06-07 — Drill #1 + Drill #2 (`bootstrap-vps.sh` only, not yet `bootstrap-spoke-restore.sh`)
 
-When the drill happens, append measurements + fixes to this doc's "Drill log" section (which doesn't exist yet because no drills have happened).
+**Note:** These drills exercised the *forward-spoke-install* path (`bootstrap-vps.sh`) — they validate the same step_00 through step_15 stack the restore path also runs, so they covered ~80% of the spoke-DR surface. The remaining ~20% (restic-restore-with-identity-preservation) is unmeasured and tracked separately as `bootstrap-spoke-restore.sh` drill in the strategic backlog. When that drill happens, append it below.
+
+**Drill #1** — caught 2 real bugs:
+
+- Provider: Vultr Cloud Compute, `vc2-1c-2gb`, region `lax`, Ubuntu 24.04 LTS
+- Invocation: `bootstrap-vps.sh --skip-mesh --skip-dns root@149.28.70.237 vps4`
+- Wall-clock: 2m 39s to crash at step_14b
+- Bugs discovered: (1) step_14b nested-quote bash error in `echo "...: $(python3 -c \"...\")"` — local parser accepts it, remote bash explodes; (2) operator re-ran with `root@<ip>` after step_01 disabled root login → fail2ban banned dev WSL IP after 3 retries
+- Fixes committed: `ae5f20f` (6 defenses in code + docs + rule pack) + `11efe1c` (rule pack force-add)
+
+**Drill #2** — PASSED:
+
+- Same provider/plan, server reinstalled to clear fail2ban state
+- Invocation: `bootstrap-vps.sh --skip-mesh --skip-dns root@149.28.70.237 vps4`
+- Wall-clock: **3m 13s (193s)** — **9.3× under the ≤30 min target**
+- End-state contract: **15/15 substantive checks passed** (sshd hardened, UFW + 7 rules, fail2ban active, Docker + fabrik network, all 4 of today's new bootstrap edits — python3-venv/pip + Node.js 22 + Claude CLI + python-telegram-bot 22.7 + /opt/fabrik ozgur:ozgur ownership, aro-wake + sysadmin-bot unit files, sysadmin cron + detect_reversals line)
+- Open finding: `sshd PasswordAuthentication=yes` despite step_01 hardening attempt — investigate next drill
+- Total cost: $0.04 (instance up ~30 min between provisioning and destroy)
+- Cleanup: API DELETE `/v2/instances/<id>` returned HTTP 204, 0 instances remaining
+
+**Drill report**: `/opt/fabrik/logs/dr-drill-history.jsonl` (gitignored; future `fabrik vultr drill` will append to this file — see [`docs/development/plans/2026-06-07-fabrik-vultr-provisioning.md`](../development/plans/2026-06-07-fabrik-vultr-provisioning.md))
+
+### `bootstrap-spoke-restore.sh` drill — pending
+
+The forward-install drill above does NOT exercise restic-restore-with-identity-preservation. When that drill runs (provision Vultr droplet → `bootstrap-spoke-restore.sh root@<ip> vps2` → verify the rebuilt spoke handshakes with vps1 using the preserved pubkey), append the result above.

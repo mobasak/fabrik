@@ -280,9 +280,9 @@ Skip the permanent flow until disposable is rock-solid.
 6. Wait for SSH (poll ssh root@<ip> 'echo ok' every 3s, timeout 60s)
 7. Record start of drill timer
 8. Run bootstrap-vps.sh --skip-mesh --skip-dns root@<ip> vps4 (capture output to /tmp/drill-<id>.log)
-9. After step_01 completes (detect by parsing log for "step 01 done"), switch SSH user to ozgur@<ip>
+9. (No manual SSH-user switch — the script handles root→ozgur internally via EFFECTIVE_REMOTE; see §K.1)
 10. Continue tailing log; wait for bootstrap completion or timeout (15 min)
-11. Verify end-state contract: ssh ozgur@<ip> per the 7-check list from vps-spoke-rebuild.md
+11. Verify end-state by running `bootstrap-vps.sh --verify ozgur@<ip> vps4` (its own run_verify); pass = exit 0. (NOT vps-spoke-rebuild.md's restore contract — see §K.2)
 12. Record end of drill timer
 13. ALWAYS destroy instance (try/finally) — no orphans even on failure
 14. Write drill report to logs/dr-drill-history.jsonl
@@ -438,17 +438,17 @@ The operator must be able to buy/deploy/configure/use **any** Vultr server type,
 
 Human inputs (`--region lhr`, `--plan vc2-2c-4gb`, `"Ubuntu 24.04"`) must resolve to API IDs (`os_id` is an int). Cache the four stable catalogs — `/v2/regions`, `/v2/plans` (all types), `/v2/plans-metal`, `/v2/os` — in `data/vultr-catalog.json` with a 24h TTL; `fabrik vultr plans --refresh` forces a re-fetch. Fail loudly with the valid set if a name doesn't resolve.
 
-### §C. Mesh IP allocation (permanent mode)
+### §C. Mesh IP allocation (permanent mode) — CORRECTED from ground truth
 
-Permanent spokes need a unique `10.99.0.x` wg0 address. Allocation = "lowest free host in `10.99.0.0/24` not already a peer on vps1's wg0," read from the live peer list (and cross-checked against `vultr-instances.json`). Recorded as `mesh_ip` in state; collision → abort before create. (This was shown as `10.99.0.4` in the schema but never specified.)
+**The mesh IP is deterministic, not "lowest free."** `bootstrap-vps.sh:110` derives `SPOKE_MESH_IP="10.99.0.${SPOKE_NUM}"` where `SPOKE_NUM="${SPOKE_NAME#vps}"` — i.e. `vps4` → `10.99.0.4`, always. The spoke **name** is the only choice; the IP follows. Constraints (verified `bootstrap-vps.sh:104-115`): name must match `^vps[0-9]+$`, `SPOKE_NUM` in **2-254** (hub is `vps1`=`10.99.0.1`; 0/255 reserved). Subnet/hub constants live in `scripts/bootstrap/bootstrap-config.sh:14-16` (`10.99.0.0/24`, hub `10.99.0.1`, WG UDP `51820`). So `fabrik vultr provision` picks the **next free `vpsN`** (lowest N≥2 not present on vps1's wg0 nor in `vultr-instances.json`); the IP is then fixed as `10.99.0.N`. `bootstrap-vps.sh` preflight already collision-checks both name and IP on the hub (lines 237-244) — reuse it, don't reimplement.
 
-### §D. Concurrency + locking
+### §D. Concurrency + locking — CORRECTED from ground truth
 
-All writes to `data/vultr-instances.json` and `data/vultr-catalog.json` go through the existing `drivers/locks.py::run_locked("vultr-state", …)` flock — **required** because the AI sysadmin on vps1 may call `fabrik vultr` concurrently with the operator on WSL. Read-modify-write without the lock would corrupt state.
+**Use the LOCAL lock, not `run_locked`.** `drivers/locks.py::run_locked()` runs a bash script **on the VPS** via `ssh … flock /tmp/fabrik-<resource>.lock` (`locks.py:68-113`) — wrong layer for a WSL-local JSON file. The correct primitive is the one `state.py` already uses for local files: **`fabrik.locks_local.file_lock(name, timeout_seconds)`** (`state.py:168`, `locks_local.py:60-108`). Pattern to mirror verbatim (`state.py:164-170`): write to `target.with_suffix(f".tmp.{os.getpid()}")`, then `os.replace(tmp, target)` **inside** `with file_lock("vultr-state", timeout_seconds=15.0):`. This is atomic + lock-safe and matches the codebase. (The race still matters: the AI sysadmin on vps1 and the operator on WSL can both invoke `fabrik vultr` — but each writes its own local copy; if state ever needs to be shared cross-host, that's a separate sync concern, out of scope.)
 
-### §E. Cost estimation method
+### §E. Cost estimation method — CORRECTED from ground truth
 
-Vultr bills hourly, capped at the monthly price (672h month). So `hourly = plan.monthly_cost / 672`; `cost_estimate_usd = hourly × wall_clock_hours`, rounded up to the hour for safety. Bare Metal pulls `monthly_cost` from `/v2/plans-metal`. Pre-flight checks `/v2/account` balance and refuses if balance can't cover the estimate (or the configured cap).
+Vultr bills hourly, capped at the monthly price (672h month). So `hourly = plan.monthly_cost / 672`; `cost_estimate_usd = hourly × wall_clock_hours`, rounded up to the hour. Bare Metal pulls `monthly_cost` from `/v2/plans-metal`. **Do NOT gate on account balance** — verified live, `/v2/account` returns `{"account": {...}}` (wrapper key `account`) and this account shows `balance: -305` with `pending_charges` (it is postpaid, balance runs negative), so a "refuse if balance < cost" check would always refuse. **Gate on the configured caps instead**: per-call `--max-cost` and a monthly cap in `.env.sysadmin`; surface `account.pending_charges` for visibility only. (`/v2/account` is still useful as the auth pre-check — a 200 with an `account` object means the token works.)
 
 ### §F. Permanent-mode rollback — concrete steps
 
@@ -480,6 +480,98 @@ Without `--reverse-fleet-add`, destroy refuses on a permanent instance (prevents
 - `tests/test_vultr_state.py` — load/save/reconcile, lock contention, drift detection.
 - `fabrik vultr drill bare` is the **live** integration smoke (operator-run, ~$0.005) — not in CI.
 - `scripts/final_gate.py --lean` must stay green; unit tests never hit the network.
+
+---
+
+## Iteration 2 — convergence to ground truth (verified 2026-06-07)
+
+Every value below was confirmed against the **live Vultr API** (read-only, real token), the **Vultr API changelog + create-instance/bare-metal docs**, or **existing fabrik code** (file:line). No item is assumed.
+
+### §J. Verified ground-truth reference (zero unknowns)
+
+**J.1 — Live Vultr API (queried with the real `.env.sysadmin` token, GETs only):**
+
+| Fact | Verified value |
+|---|---|
+| Auth / ACL | Token works; ACL = `root` (full). `/v2/account` wraps in **`{"account": {...}}`** |
+| Ubuntu 24.04 `os_id` | **`2284`** (`Ubuntu 24.04 LTS x64`) |
+| SSH key | `VULTR_SSHKEY_ID=fff13c0e-de4a-4027-aee1-68efad7e53ae` (name `ssh-key-for-all`) — valid; **must be sent as `sshkey_id: ["<id>"]`** in create or the box has no key |
+| Regions | 33 total; `lax`=Los Angeles (drill default — vps1 is in LA), `lhr`=London |
+| Current instances | **0** (clean baseline) |
+| Account balance | `balance: -305`, `pending_charges` present → **postpaid**; do not gate on balance (see §E) |
+| Plan IDs (live `monthly_cost`) | `vc2-1c-2gb` **$10** (drill spoke), `vc2-2c-4gb` **$20** (perm spoke default), `vc2-1c-0.5gb-v6` **$2.5** (cheapest, IPv6-only → `drill bare`), `vhf-1c-1gb` $6, `vhp-1c-1gb-amd` $6, `voc-c-1c-2gb-25s-amd` $28, `vcg-a16-2c-8g-2vram` **$43** (GPU), `vbm-4c-32gb` **$120** (bare metal) |
+| `vdc` (Dedicated Cloud) | **Zero plans returned — not offered on this account.** Drop from the supported list. |
+
+**J.2 — Create payloads + changelog (Vultr docs):**
+
+- `POST /v2/instances` (vc2/vhf/vhp/voc/**vcg GPU**): body `{region, plan, os_id, label, hostname, sshkey_id:[<id>], enable_ipv6, tags:[…]}`. GPU is the **same** endpoint.
+- `POST /v2/bare-metals` (`vbm`): same body shape. Plans from `/v2/plans-metal`.
+- **Changelog deprecations that bind us:** API **v1 is offline — v2 only** (Oct 2023); **`tag` (singular) is deprecated → use `tags` (list)** (Apr/Nov 2022) — `VultrClient` must send `tags`, never `tag`; `enable_private_network`→`enable_vpc` (we use neither — VPC is out of scope).
+- New instance returns `main_ip:"0.0.0.0"` until active → `wait_for_active` polls `GET /v2/instances/<id>` until `status=="active" && main_ip!="0.0.0.0" && power_status=="running"` (bare metal: poll `status=="active"`).
+
+**J.3 — Existing-code anchors (file:line, verified):**
+
+| Concern | Anchor + fact |
+|---|---|
+| Bootstrap invocation | `scripts/bootstrap/bootstrap-vps.sh` — `[OPTIONS] root@<ip> <vpsN>`; 15 steps; `--skip-mesh` skips 04-10; `--skip-dns` skips 13; **`--verify` runs `run_verify()`** (reuse as drill end-state, don't reimplement) |
+| Root→ozgur transition | Internal via `EFFECTIVE_REMOTE` (`step_00` creates `ozgur`, `step_01` disables root). **The drill must NOT manually switch users** |
+| Mesh IP | `bootstrap-vps.sh:110` `10.99.0.${N}`; constants `bootstrap-config.sh:14-16` |
+| HTTP driver shape | `drivers/cloudflare.py:40-58` — `httpx.Client(base_url=, headers={"Authorization": f"Bearer {token}"}, timeout=30)`; `VultrClient` mirrors this |
+| SSH/SCP | `drivers/ssh.py:46-127` (`ssh()`, `scp_to_vps()`) |
+| Local state | `src/fabrik/state.py:100-184` — atomic `tmp` + `os.replace` inside `locks_local.file_lock(...)`; store at `data/vultr-instances.json` (registry style, like `data/projects.yaml`) |
+| CLI group | `cli.py:2205` `@cli.group() def domain()` + `@domain.command("provision")`; options at `apply` `347-382`; `_post_deploy_sync()` `59-108` |
+| `.env.sysadmin` | **Not auto-loaded** by `config.py` (it only `load_dotenv()`s the default `.env`) → the vultr CLI/driver must `load_dotenv("/opt/fabrik/.env.sysadmin")` explicitly |
+| Tests | `@patch("fabrik.drivers.<mod>.httpx.Client")`; live in `tests/drivers/` |
+| Monitoring | aro-wake job in `configs/prometheus/prometheus.yml` (targets `10.99.0.N:8201`); Gatus `apps/<name>.yaml` via `gatus.py`; Backrest `/opt/backrest/config/config.json` via `backrest.py` (jq+flock) |
+
+### §K. Corrections to the draft body (these supersede earlier text)
+
+1. **Phase 3 step 9** ("after step_01, switch SSH user to ozgur") — **remove**; the script handles the transition internally (EFFECTIVE_REMOTE). The drill just runs `bootstrap-vps.sh --skip-mesh --skip-dns root@<ip> vps<N>`.
+2. **Phase 3 step 11 end-state contract** — do **not** reimplement checks, and do **not** use `vps-spoke-rebuild.md`'s contract (that is the *restore-from-backup* contract — it checks WG handshake / hub peer table, which need mesh that the drill skips). Pass = **`bootstrap-vps.sh --verify ozgur@<ip> vps<N>` exits 0**.
+3. **Phase 5 step 9** ("node-spokes / cadvisor-spokes / promtail-spokes" scrape targets) — no such separate files exist; node/cadvisor bind `SPOKE_MESH_IP` and are covered. Correct action: add the spoke's **aro-wake target** to `configs/prometheus/prometheus.yml` + reload.
+4. **`vdc`** removed from supported product lines (not offered — J.1).
+
+### §L. Validation gates (per step — for 100%-accurate implementation)
+
+Each phase ships only when its gate passes. Gates are concrete commands with explicit pass criteria.
+
+**Phase 1 — VultrClient**
+- **G1.1** `pytest tests/drivers/test_vultr_client.py -q` green — covers `/v2/instances` + `/v2/bare-metals` create paths, `sshkey_id` sent as list, **`tags` not `tag`**, 4xx (no retry) vs 5xx (3× backoff), `wait_for_active` polling. httpx mocked, no network.
+- **G1.2** Live auth smoke (operator): `VultrClient().get_account()["name"]` returns the account name (proves auth + `.account` unwrap).
+- **G1.3** `ruff check src/fabrik/drivers/vultr.py` clean + `scripts/final_gate.py --lean` green.
+
+**Phase 2 — state + reconcile**
+- **G2.1** `pytest tests/test_vultr_state.py -q` green — save/load round-trip, atomic write, `file_lock` contention, reconcile drift both directions.
+- **G2.2** `fabrik vultr list` on empty state prints 0 and reconciles cleanly vs live (0 instances).
+
+**Phase 3a — drill bare**
+- **G3a.1** `fabrik vultr drill bare --dry-run` prints the planned create (region `lax`, cheapest plan) and touches nothing.
+- **G3a.2** `fabrik vultr drill bare` creates → SSH-ready → destroys; `logs/dr-drill-history.jsonl` gains one `success:true` line; `cost_estimate_usd ≤ 0.01`.
+- **G3a.3** Orphan check: `GET /v2/instances` count returns to **0** (try/finally destroy verified).
+
+**Phase 3b — drill spoke**
+- **G3b.1** Runs `bootstrap-vps.sh --skip-mesh --skip-dns root@<ip> vps<N>`; end-state = `bootstrap-vps.sh --verify` exits 0; droplet destroyed; report has `success:true` + `step_durations`.
+- **G3b.2** Hermetic: after the drill, `ssh vps 'sudo wg show wg0'` shows **no new peer** and no `*.vps<N>` DNS exists (both `--skip` flags honored → zero production residue).
+- **G3b.3** Failure path: force a bootstrap failure → droplet **still destroyed** (no orphan), report `success:false` with the failing step.
+
+**Phase 4 — drill hub:** **G4.1** completes < 120 min · **G4.2** destroyed · **G4.3** report `success:true`.
+
+**Phase 5 — provision (permanent)**
+- **G5.1** `--dry-run` prints the next free `vpsN` + `10.99.0.N` + all 13 steps; touches nothing.
+- **G5.2** Interactive confirmation **required** (no `-y` bypass for permanent — irreversible billing).
+- **G5.3** Post: `bootstrap-vps.sh --verify ozgur@<ip> vps<N>` exits 0; spoke in `ssh vps 'sudo wg show wg0'`; DNS resolves; aro-wake target in `prometheus.yml`; Gatus endpoint present; state `mode=permanent`.
+- **G5.4** Rollback: `fabrik vultr destroy vps<N> --reverse-fleet-add --dry-run` lists the 8 reverse steps in order; real run leaves **zero residue** (no wg peer, no DNS, no prometheus/gatus/backrest entries, instance gone).
+
+**Phase 6 — guardrails**
+- **G6.1** `--max-cost 0.001` on any drill refuses **before** create.
+- **G6.2** `fabrik vultr cleanup` destroys a deliberately-orphaned disposable (past `destroy_after`) and prints a cost report.
+- **G6.3** Monthly-cap breach → create refused + Telegram alert.
+
+**Cross-phase doc-sync gate (every phase):** new env vars in `.env.example` + `docs/CONFIGURATION.md`; new files in `INDEX.md`; `CHANGELOG.md` entry; `final_gate.py --lean` green.
+
+### Convergence status
+
+With §J–§L there are **no remaining unknowns resolvable from code / state / API**: all IDs (`os_id 2284`, ssh key, plan IDs, regions), every code anchor (file:line), the exact create payloads + binding deprecations, and the correct local-lock / atomic-state / `--verify` patterns are pinned to ground truth. The **only** non-code dependencies are operator actions, and both are satisfied or expected: the API key already exists ✓; running live drills spends real (cents) money and must be operator-initiated. **No room left to iterate — plan is ready to implement.**
 
 ---
 
