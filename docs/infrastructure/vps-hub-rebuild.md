@@ -71,6 +71,17 @@ curl -fsS https://status.vps1.ocoron.com | head -5
 
 That's it. There is no Step 6.
 
+### ⚠ Re-run discipline — read before retrying the script
+
+If the bootstrap fails partway and you need to re-run, the SSH login user changes after `step_01`:
+
+| Run | Use this user | Why |
+|---|---|---|
+| First (fresh VPS) | `root@<new-ip>` | step_00 hasn't created `ozgur` yet |
+| Any re-run after step_01 succeeded | **`ozgur@<new-ip>`** | step_01 has disabled root SSH |
+
+**If you re-run with `root@<new-ip>` after step_01 ran, the SSH preflight fails — and three quick retries trip the target's fail2ban (default 3 failures / 10 min), locking you out for 10 minutes.** The script's preflight has a safe-rerun trap (added 2026-06-07) that auto-detects this and tells you to switch to `ozgur@<new-ip>` BEFORE attempting the SSH that would trigger the ban. If you somehow trip it anyway: wait 10 min, or reboot the VPS via the provider's web console to clear fail2ban state.
+
 ## What `bootstrap-hub.sh` does, step by step
 
 18 idempotent steps. Each prints `[ ok ]` on success, `[WARN]` on soft failure, `[FAIL]` + exit on hard failure.

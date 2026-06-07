@@ -181,9 +181,37 @@ hub() {
 preflight() {
     log "preflight checks ..."
 
-    # 1. We can reach the remote VPS via SSH
+    # 1. We can reach the remote VPS via SSH.
+    #
+    # SAFE-RERUN TRAP (added 2026-06-07 after a DR drill walked straight into
+    # this). On a freshly provisioned VPS the script is called as root@<ip>.
+    # step_01 disables root login (correctly). On a subsequent re-run with
+    # the same root@<ip> argv, the SSH preflight will fail — and three quick
+    # retries trip fail2ban (default 3-failure threshold within 10min),
+    # locking the operator out for 10min. We catch this case BEFORE
+    # triggering the ban by:
+    #   a) trying root@<host>
+    #   b) on auth failure, trying ozgur@<host> (the sudoer step_00 creates)
+    #   c) if ozgur@ works, emitting an actionable error telling the operator
+    #      EXACTLY how to re-invoke the script, then exiting cleanly before
+    #      any more failed-auth attempts hit fail2ban.
     if ! ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new \
             -o BatchMode=yes "${REMOTE}" 'echo ok' &>/dev/null; then
+        # Probe whether ozgur@<host> works — implies step_00+step_01 ran already.
+        local host_part="${REMOTE#*@}"
+        if [[ "${REMOTE%%@*}" == "root" ]] \
+           && ssh -o ConnectTimeout=10 -o BatchMode=yes \
+                  -o StrictHostKeyChecking=accept-new \
+                  "ozgur@${host_part}" 'sudo -n id' &>/dev/null; then
+            err "SSH to ${REMOTE} failed BUT ssh ozgur@${host_part} works."
+            err "step_01 has already run on this host (root login disabled)."
+            err ""
+            err "Re-run as the sudoer:"
+            err "  $0 $(printf "'%s' " "$@" 2>/dev/null) ozgur@${host_part} ${SPOKE_NAME}"
+            err ""
+            err "Stopping now — additional root@<ip> retries WILL trip fail2ban (default 3 failures / 10 min) and lock you out."
+            return 1
+        fi
         err "cannot SSH to ${REMOTE}. Confirm: (a) the host is reachable, (b) your SSH key is in the new VPS's authorized_keys, (c) the user exists."
         return 1
     fi
@@ -825,22 +853,30 @@ step_14_install_sysadmin_pack() {
     # fleet host today (2026-06-06). Bumping is fine but verify the
     # Application/MessageHandler/filters API shape hasn't shifted.
 
+    # Idempotency checks drop the version-print on the "already installed"
+    # branch to avoid nested-quote bash gymnastics inside the remote 'cmd'
+    # single-quoted ssh string. Live-discovered 2026-06-07 during first DR
+    # drill on a Vultr droplet: `echo "...: $(python3 -c \"...\")"` survived
+    # local parsing but exploded on the remote bash ("syntax error near
+    # unexpected token `telegram.__version__'"). Knowing it's installed is
+    # sufficient — operator can query the version manually if needed.
+
     log "    step 14a: install Node.js 22 + Claude Code CLI"
-    remote 'if ! command -v claude >/dev/null; then \
+    remote 'if command -v claude >/dev/null; then \
+        echo "Claude Code already installed"; \
+    else \
         if ! command -v node >/dev/null || ! node --version | grep -qE "^v2[2-9]\."; then \
             curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - >/dev/null 2>&1 && \
             sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq nodejs; \
         fi && \
         sudo npm install -g --silent @anthropic-ai/claude-code 2>&1 | tail -3; \
-    else \
-        echo "Claude Code already installed: $(claude --version 2>&1 | head -1)"; \
     fi'
 
     log "    step 14b: install python-telegram-bot==22.7 (system Python)"
-    remote 'if ! python3 -c "import telegram" 2>/dev/null; then \
-        sudo pip install --quiet --break-system-packages python-telegram-bot==22.7 2>&1 | tail -3; \
+    remote 'if python3 -c "import telegram" 2>/dev/null; then \
+        echo "python-telegram-bot already installed"; \
     else \
-        echo "python-telegram-bot already installed: $(python3 -c \"import telegram; print(telegram.__version__)\")"; \
+        sudo pip install --quiet --break-system-packages python-telegram-bot==22.7 2>&1 | tail -3; \
     fi'
 
     # Compute deterministic cron-minute slots from a SHA1 hash of the host

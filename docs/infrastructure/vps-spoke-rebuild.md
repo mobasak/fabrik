@@ -80,6 +80,17 @@ cd /opt/fabrik
 ssh vps 'sudo wg show wg0 latest-handshakes | awk "(systime()-\$2) < 180 {print}"'
 ```
 
+### ⚠ Re-run discipline — read before retrying the script
+
+The script is idempotent, BUT the SSH login user changes after `step_01`:
+
+| Run | Use this user | Why |
+|---|---|---|
+| First (fresh VPS) | `root@<new-ip>` | step_00 hasn't created `ozgur` yet |
+| Any re-run after step_01 succeeded | **`ozgur@<new-ip>`** | step_01 has disabled root SSH; the script handles either user but you MUST switch on retries |
+
+**If you re-run with `root@<new-ip>` after step_01 ran, the SSH preflight fails — and three quick retries trip the target's fail2ban (default 3 failures / 10 min), locking you out for 10 minutes.** The script's preflight has a safe-rerun trap (added 2026-06-07) that detects this and tells you to switch user BEFORE attempting the SSH that would trigger the ban — but if you ignore the hint or hit the trap from an older script revision, recovery options are: (a) wait 10 min for the ban to expire, or (b) reboot the VPS via the provider's web console (clears fail2ban state).
+
 That's it. No Step 6.
 
 ## What `bootstrap-spoke-restore.sh` does, step by step

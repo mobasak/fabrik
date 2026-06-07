@@ -253,9 +253,35 @@ preflight() {
     fi
     ok "local docker available"
 
-    # 4. Remote: SSH works to the new VPS
+    # 4. Remote: SSH works to the new VPS.
+    #
+    # SAFE-RERUN TRAP (added 2026-06-07 after first DR drill on bootstrap-vps.sh
+    # tripped fail2ban on root@<ip> re-runs). On a freshly provisioned VPS the
+    # script is called as root@<ip>. step_01 disables root login. On a re-run
+    # with the same root@<ip> argv, the SSH preflight fails; three quick
+    # retries trip fail2ban (default 3-failure threshold / 10min). Detect
+    # this case BEFORE triggering the ban:
+    #   a) try root@<host>
+    #   b) on failure, try ozgur@<host> (the sudoer step_00 creates)
+    #   c) if ozgur@ works, emit an actionable error telling the operator
+    #      EXACTLY how to re-invoke, then exit cleanly before more failed
+    #      auth attempts hit fail2ban.
     if ! ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new \
             -o BatchMode=yes "${REMOTE}" 'echo ok' &>/dev/null; then
+        local host_part="${REMOTE#*@}"
+        if [[ "${REMOTE%%@*}" == "root" ]] \
+           && ssh -o ConnectTimeout=10 -o BatchMode=yes \
+                  -o StrictHostKeyChecking=accept-new \
+                  "ozgur@${host_part}" 'sudo -n id' &>/dev/null; then
+            err "SSH to ${REMOTE} failed BUT ssh ozgur@${host_part} works."
+            err "step_01 has already run on this host (root login disabled)."
+            err ""
+            err "Re-run as the sudoer:"
+            err "  $0 ozgur@${host_part} [other-args]"
+            err ""
+            err "Stopping now — additional root@<ip> retries WILL trip fail2ban (default 3 failures / 10 min) and lock you out."
+            return 1
+        fi
         err "cannot SSH to ${REMOTE}. Confirm: (a) host reachable, (b) your pubkey in target's authorized_keys."
         return 1
     fi

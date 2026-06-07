@@ -9,6 +9,8 @@
 | :--- | :--- | :--- | :--- |
 | Context Drift | Forgot PostgreSQL 16 naming conventions | Med | Syntax Errors |
 | Logic Gap | Attempted to use Client-side hooks in Server Components | High | Build Failure |
+| Operator Discipline | Re-ran `bootstrap-vps.sh` as `root@<ip>` after `step_01` had disabled root SSH login, triggering fail2ban after 3 failed retries — locked dev WSL out for 10 min. Mitigated 2026-06-07 by adding preflight auto-detection that suggests `ozgur@<ip>` BEFORE the third retry triggers the ban. New rule pack `.windsurf/rules/core/90-bootstrap-scripts.md` codifies the SSH-user-transition trap so any future AI agent reads the rule before walking into it. | High | Lost 10 min recovering from a 1-line operator mistake; would have wasted the entire DR drill window |
+| Quote Escaping | Nested `$(...)` inside `echo "..."` inside `remote '...'` survives local bash parsing but explodes on the remote bash ("syntax error near unexpected token"). Discovered 2026-06-07 in step_14b (`python-telegram-bot` version-print). Mitigated by always capturing version-strings into a variable first OR dropping the cosmetic version-print entirely. Rule encoded in `.windsurf/rules/core/90-bootstrap-scripts.md` Rule 2. | High | Script aborts with cryptic remote-bash error mid-bootstrap; only caught by actual ssh execution, NOT by `bash -n` |
 
 ## 3. The "Silicon Ceiling" Event
 **Scenario:** [Describe the specific coding task where the AI failed]
