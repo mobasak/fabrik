@@ -4,6 +4,33 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Operator-reversal detection cron (trio plan Phase 5.1.a) shipped LIVE on full fleet (2026-06-07)
+
+New `scripts/sysadmin/detect_reversals.py` + cron entry (`*/5 * * * *`) on every fleet host. Correlates AI actions against subsequent operator-issued docker commands within a 5-minute window. Matches go to `/opt/fabrik/logs/lessons-pending.jsonl` for weekly review.
+
+**Sources of AI actions** (read-only, defensive):
+
+- Watchdog sidecar `state.db` actions table via `docker exec <sidecar> sqlite3 -readonly` — for every container named `*-watchdog`, reads recent rows where `action_name IN ('restart_container','clear_redis_cache','rotate_logs') AND result='success'`. Output mode = default pipe-separated list (NOT `-csv` because it quotes the ts field with embedded space, breaking strptime).
+- `/opt/fabrik/logs/sysadmin-actions.jsonl` — currently a stub-collector (only fires when entries have `action_name` + `target` fields; today's host-sysadmin entries are diagnose-only).
+
+**Source of operator counter-actions**: `journalctl _COMM=sudo --output json --since "-10min"`. Regex extracts `docker (restart|stop|kill|rm|start|up) <target>` from MESSAGE field. Per-entry `__REALTIME_TIMESTAMP` (µs) → epoch float for window correlation.
+
+**Reversal correlator**: for each AI `restart_container` action on container `C`, find any operator `docker {restart|stop|kill|rm|up}` on the same `C` within 5 min (forward delta only — operator action must come AFTER the AI). Match → one-line JSON entry to lessons-pending.jsonl with `class`, `ai_source`, `ai_ts`, `ai_target`, `operator_ts`, `operator_verb`, `operator_cmd`, `delta_seconds`.
+
+**Idempotency**: pre-existing entries deduplicated by `(ai_source, ai_ts, operator_ts)` tuple. Re-running detector twice after a match produces 0 new entries.
+
+**Defensive design** (cron-grade): all subprocess calls have a 10–15s timeout; state.db read fail → single-line WARN to stderr, continue; journalctl fail → same; SQL parse error → skip that row, continue. Script never crashes a cron job over an observability gap.
+
+**End-to-end test verified live on vps1**: `docker kill watchdog-test` → 90s wait → sidecar's autonomous `restart_container` action lands in `state.db` (success) → manual `sudo docker restart watchdog-test` simulates operator reversal → `detect_reversals.py` writes 1 entry to `lessons-pending.jsonl`:
+
+```json
+{"ts":1780827614.93069,"host":"vps1","class":"restart_container","ai_source":"watchdog_sidecar","ai_ts":1780827450.0,"ai_target":"watchdog-test","operator_ts":1780827491.632482,"operator_verb":"restart","operator_cmd":"   ozgur : PWD=/home/ozgur ; USER=root ; COMMAND=/usr/bin/docker restart watchdog-test","delta_seconds":41.6}
+```
+
+Subsequent re-runs produce 0 new entries (idempotency confirmed). Cron entries added to live `/etc/cron.d/vps-sysadmin` on vps1+vps2+vps3; bootstrap-vps.sh `sysadmin-cron.template` also updated so future spoke installs inherit the cron line.
+
+**What this catches that today's netdata flood DIDN'T**: the netdata case was repeated benign-anomaly diagnosis with no AI action taken → no reversal pattern to detect. Detection of that pattern ("AI flagged N times, operator never acted → either AI is wrong or alert is misconfigured") is a separate Phase 5 follow-up — same `lessons-pending.jsonl` output stream, different correlator. Noted in `2026-06-04-three-sysadmin-trio.md` §5.1.
+
 ### Added — aro-wake SLI: rate-limited wakes now tracked + alert denominator excludes them (2026-06-07)
 
 Closes the acknowledged gap from yesterday's SLI work: rate-limited (HTTP 429) wakes were not visible in any metric. Operator couldn't see "we dropped N wakes to rate-limit" through Prometheus.

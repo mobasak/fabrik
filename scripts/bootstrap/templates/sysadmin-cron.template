@@ -36,3 +36,11 @@
 # heartbeats. Posted to Telegram once per day per host so the operator sees
 # a single 3-message digest at 09:00 UTC instead of per-action chatter.
 {{DIGEST_MINUTE}} 9 * * * root /opt/fabrik/scripts/sysadmin/daily-digest.sh >> /var/log/sysadmin-proactive.log 2>&1
+
+# Operator-reversal detection — every 5 min (trio plan §5.1.a).
+# Correlates AI actions (watchdog sidecar state.db + sysadmin-actions.jsonl)
+# against subsequent operator sudo-docker commands within a 5-min window.
+# Matches go to /opt/fabrik/logs/lessons-pending.jsonl for weekly review;
+# 3+ reversals of the same action class in a week → move that class from
+# AUTONOMOUS to ASK OWNER FIRST in system-prompt.txt.
+*/5 * * * * root /opt/fabrik/scripts/sysadmin/detect_reversals.py >> /var/log/sysadmin-proactive.log 2>&1
