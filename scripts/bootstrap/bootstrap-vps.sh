@@ -317,9 +317,16 @@ step_01_harden_ssh() {
 }
 
 step_02_install_firewall_fail2ban() {
-    log "step 02: install UFW + fail2ban; open public ports"
+    log "step 02: install UFW + fail2ban + python3-venv + python-pip; open public ports"
+    # python3-venv is required by step_15 (aro-wake venv creation). On Ubuntu
+    # 24.04 the venv module isn't bundled with python3 — `python3 -m venv`
+    # fails with "ensurepip is not available" until python3.12-venv is
+    # installed. Surfaced live 2026-06-06 during the first spoke trio
+    # rollout. Installing here (step_02) keeps the apt phase atomic.
+    # python3-pip is also required so step_14 can install python-telegram-bot
+    # for the sysadmin bot (system Python, since the bot doesn't use a venv).
     remote 'sudo DEBIAN_FRONTEND=noninteractive apt-get update -qq && \
-        sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq ufw fail2ban'
+        sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq ufw fail2ban python3-venv python3-pip'
     # Lesson 68 hardening: a prior `apt remove ufw` (without --purge) leaves the
     # package in `rc` state (config files remain, binary purged). `apt install`
     # normally brings it back to `ii`, but if `ufw` is still missing from PATH,
@@ -794,12 +801,47 @@ step_14_install_sysadmin_pack() {
     # peer-protocol-aware /wake endpoint (Phase 3). This step installs the
     # systemd unit, cron file, scripts, env template, and the rendered
     # canonical sysadmin prompt with this host's substitutions baked in.
-    log "step 14: install AI sysadmin pack (systemd unit + cron + scripts)"
+    log "step 14: install AI sysadmin pack (Node.js + Claude CLI + python-telegram-bot + systemd unit + cron + scripts)"
     if $DRY_RUN; then
-        dim "    [dry-run] would scp bot.py + 5 cron scripts + system-prompt.txt + peer-protocol.md to spoke,"
+        dim "    [dry-run] would install Node.js 22 + @anthropic-ai/claude-code globally,"
+        dim "             install python-telegram-bot==22.7 (system Python),"
+        dim "             scp bot.py + 5 cron scripts + system-prompt.txt + peer-protocol.md to spoke,"
         dim "             write rendered systemd unit + cron file + .env.sysadmin template"
         return 0
     fi
+
+    # ── Spoke deps discovered LIVE 2026-06-06 (now baked in) ──────────
+    #
+    # The sysadmin bot needs:
+    #   1. The `claude` binary on PATH (bot.py spawns it via subprocess).
+    #      Claude Code ships via npm; npm needs Node.js. NodeSource 22.x is
+    #      the official channel.
+    #   2. `python-telegram-bot==22.7` in system Python (the bot doesn't
+    #      use a venv — it's a systemd unit running /usr/bin/python3 -m).
+    #      Ubuntu 24.04 enforces PEP 668, so --break-system-packages is
+    #      required.
+    #
+    # Pinning python-telegram-bot to 22.7 matches what runs LIVE on every
+    # fleet host today (2026-06-06). Bumping is fine but verify the
+    # Application/MessageHandler/filters API shape hasn't shifted.
+
+    log "    step 14a: install Node.js 22 + Claude Code CLI"
+    remote 'if ! command -v claude >/dev/null; then \
+        if ! command -v node >/dev/null || ! node --version | grep -qE "^v2[2-9]\."; then \
+            curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - >/dev/null 2>&1 && \
+            sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq nodejs; \
+        fi && \
+        sudo npm install -g --silent @anthropic-ai/claude-code 2>&1 | tail -3; \
+    else \
+        echo "Claude Code already installed: $(claude --version 2>&1 | head -1)"; \
+    fi'
+
+    log "    step 14b: install python-telegram-bot==22.7 (system Python)"
+    remote 'if ! python3 -c "import telegram" 2>/dev/null; then \
+        sudo pip install --quiet --break-system-packages python-telegram-bot==22.7 2>&1 | tail -3; \
+    else \
+        echo "python-telegram-bot already installed: $(python3 -c \"import telegram; print(telegram.__version__)\")"; \
+    fi'
 
     # Compute deterministic cron-minute slots from a SHA1 hash of the host
     # name (trio plan r5 #35/#36). Avoids concurrent Claude API hits across
@@ -872,6 +914,7 @@ step_14_install_sysadmin_pack() {
     # Without --delete a second `step_14` after a sysadmin-script removal
     # would leave the deleted file in place; we use --delete here.
     remote "sudo mkdir -p /opt/fabrik/scripts/sysadmin /opt/fabrik/logs /var/log && \
+        sudo chown ozgur:ozgur /opt/fabrik /opt/fabrik/scripts /opt/fabrik/logs && \
         sudo rsync -a --delete /tmp/sysadmin/ /opt/fabrik/scripts/sysadmin/ && \
         sudo chown -R ozgur:ozgur /opt/fabrik/scripts/sysadmin && \
         sudo chmod 755 /opt/fabrik/scripts/sysadmin/*.sh /opt/fabrik/scripts/sysadmin/bot.py 2>/dev/null || true && \

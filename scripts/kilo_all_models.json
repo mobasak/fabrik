@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-06-02T11:59:05.369075",
+  "timestamp": "2026-06-07T11:59:05.300640",
   "total_models": 330,
   "models": {
     "~anthropic/claude-haiku-latest": {
@@ -187,11 +187,6 @@
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
-    "arcee-ai/spotlight": {
-      "id": "arcee-ai/spotlight",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
     "arcee-ai/trinity-large-thinking": {
       "id": "arcee-ai/trinity-large-thinking",
       "url": "https://api.kilo.ai/api/openrouter/",
@@ -204,11 +199,6 @@
     },
     "arcee-ai/virtuoso-large": {
       "id": "arcee-ai/virtuoso-large",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
-    "baidu/ernie-4.5-vl-28b-a3b": {
-      "id": "baidu/ernie-4.5-vl-28b-a3b",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
@@ -642,6 +632,11 @@
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
+    "minimax/minimax-m3:discounted": {
+      "id": "minimax/minimax-m3:discounted",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
     "mistralai/codestral-2508": {
       "id": "mistralai/codestral-2508",
       "url": "https://api.kilo.ai/api/openrouter/",
@@ -777,11 +772,6 @@
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
-    "nousresearch/hermes-2-pro-llama-3-8b": {
-      "id": "nousresearch/hermes-2-pro-llama-3-8b",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
     "nousresearch/hermes-3-llama-3.1-405b": {
       "id": "nousresearch/hermes-3-llama-3.1-405b",
       "url": "https://api.kilo.ai/api/openrouter/",
@@ -827,6 +817,21 @@
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
+    "nvidia/nemotron-3-ultra-550b-a55b": {
+      "id": "nvidia/nemotron-3-ultra-550b-a55b",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "nvidia/nemotron-3-ultra-550b-a55b:free": {
+      "id": "nvidia/nemotron-3-ultra-550b-a55b:free",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "nvidia/nemotron-3.5-content-safety:free": {
+      "id": "nvidia/nemotron-3.5-content-safety:free",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
     "nvidia/nemotron-nano-9b-v2": {
       "id": "nvidia/nemotron-nano-9b-v2",
       "url": "https://api.kilo.ai/api/openrouter/",
@@ -854,16 +859,6 @@
     },
     "openai/gpt-4": {
       "id": "openai/gpt-4",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
-    "openai/gpt-4-0314": {
-      "id": "openai/gpt-4-0314",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
-    "openai/gpt-4-1106-preview": {
-      "id": "openai/gpt-4-1106-preview",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
@@ -1134,6 +1129,11 @@
     },
     "openrouter/free": {
       "id": "openrouter/free",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "openrouter/fusion": {
+      "id": "openrouter/fusion",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
@@ -1422,6 +1422,11 @@
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
+    "qwen/qwen3.7-plus": {
+      "id": "qwen/qwen3.7-plus",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
     "rekaai/reka-edge": {
       "id": "rekaai/reka-edge",
       "url": "https://api.kilo.ai/api/openrouter/",
@@ -1439,11 +1444,6 @@
     },
     "relace/relace-search": {
       "id": "relace/relace-search",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
-    "sao10k/l3-euryale-70b": {
-      "id": "sao10k/l3-euryale-70b",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },

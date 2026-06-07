@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Trio Phase 5 first iteration: Gatus endpoints for aro-wake + bake spoke deps into bootstrap (2026-06-07)
+
+Three follow-ups from the 2026-06-06 fleet rollout shipped today.
+
+**1. Gatus endpoints for `aro-wake` on all 3 hosts** — deployed to `/opt/monitoring/configs/gatus/apps/aro-wake.yaml` on vps1 (the gatus config directory is NOT yet in this repo — separate follow-up to pull it under `/opt/fabrik/configs/gatus/` alongside `prometheus/` + `alertmanager/`). The cross-host consult yesterday explicitly flagged this gap ("I don't see vps2 endpoints registered in Gatus yet" — vps1's response to vps2's first real cross-host consult). New `trio-aro-wake` group with 3 endpoints — vps1 via docker-bridge `10.0.1.1:8201/health` (1ms), vps2/vps3 via wg0 mesh `10.99.0.{2,3}:8201/health` (~270ms each). Conditions check `[STATUS] == 200 && [BODY].ok == true && [BODY].host == vpsN`. All 3 endpoints `success=True` on first Gatus poll.
+
+**2. Bake the 4 spoke bootstrap deps discovered 2026-06-06 into `bootstrap-vps.sh`**. Without this, the next spoke install would re-discover the same traps:
+
+| Dep | Where it lands | What it gates |
+|---|---|---|
+| `python3-venv` (apt) | new in `step_02` | `step_15` aro-wake venv creation (`python3 -m venv` fails on ensurepip without it) |
+| `python3-pip` (apt) | new in `step_02` | `step_14` python-telegram-bot install |
+| Node.js 22 + `@anthropic-ai/claude-code` (npm) | new in `step_14a` | `bot.py` subprocess invocation of `claude` |
+| `python-telegram-bot==22.7` (pip --break-system-packages) | new in `step_14b` | `bot.py` import `telegram` at module load |
+| `/opt/fabrik/` ownership = `ozgur:ozgur` | one line added to `step_14`'s mkdir block | `step_15`'s `sudo -u ozgur python3 -m venv /opt/fabrik/.venv-aro-wake` write |
+
+All steps are idempotent (`if ! command -v claude` / `if ! python3 -c "import telegram"` / etc.) — live-verified by running the checks against vps2 (which already has all four installed). Re-running bootstrap on an existing spoke prints "already installed" for each.
+
+**3. Bake `ufw route allow in on wg0 out on wg0` into `bootstrap-hub.sh`** as a defensive backstop in `step_07`. Normally `/etc/ufw/user.rules` includes the rule and gets restored via the existing `step_06` restic-pull of `/etc/ufw/user*.rules` — but if the hub rebuild happens BEFORE 2026-06-07 02:00 UTC (the first nightly Backrest snapshot containing the rule), the restore would miss it and vps2↔vps3 direct mesh reach silently breaks. The new `ufw route allow` is idempotent (UFW deduplicates), so adding it unconditionally costs nothing. Sanity check expected-rule-count bumped from 12 → 12-15 to account for the 2 aro-wake allows + 1 route rule shipped 2026-06-06.
+
 ### Added — aro-wake Prometheus SLI metrics + 2 alert rules across the full trio fleet (2026-06-06)
 
 Operationalises the agent-sre framing from `docs/reference/AI for Autonomous System Administration.md` (Microsoft AGT's `agent-sre` package). 8 metrics exposed on the existing `aro-wake` FastAPI app at `/metrics` (reuses port 8201 — no new port allocated, no new env var, no UFW change):

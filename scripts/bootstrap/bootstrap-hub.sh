@@ -553,12 +553,25 @@ step_07_apply_ufw() {
     # `ufw --force enable` is idempotent and doesn't prompt.
     remote 'sudo ufw --force enable && sudo ufw reload'
     remote 'sudo systemctl enable --now ufw fail2ban'
-    # Sanity: expect 12 rules (vps1 had 6 IPv4 + 6 IPv6 mirrors per W5 audit).
+
+    # Defensive backstop: re-apply the spoke↔spoke wg0 routing rule (shipped
+    # 2026-06-06). This is normally restored as part of /etc/ufw/user.rules,
+    # but if the hub rebuild happens BEFORE the first Backrest snapshot that
+    # includes the rule (the rule was applied 2026-06-06 ~21:00 UTC; nightly
+    # backup at 02:00 UTC captured it after that), the restored user.rules
+    # won't have it and vps2↔vps3 direct mesh reach silently breaks. Re-
+    # applying here is idempotent — UFW deduplicates identical route rules.
+    # vps1 already has net.ipv4.ip_forward=1 from the OpenVPN sysctl set
+    # which is restored via /etc/sysctl.d/99-* in step_06.
+    remote 'sudo ufw route allow in on wg0 out on wg0 2>&1 | tail -1'
+
+    # Sanity: expect 12+ rules (vps1 had 6 IPv4 + 6 IPv6 mirrors per W5 audit;
+    # 2026-06-06 added 2 aro-wake allow rules + 1 route rule = 12 → 15).
     local rule_count
     if ! $DRY_RUN; then
         rule_count=$(remote 'sudo ufw status numbered 2>/dev/null | grep -cE "^\["') || rule_count=0
         if (( rule_count < 12 )); then
-            warn "step_07: only ${rule_count} UFW rules active (expected 12: 6 v4 + 6 v6 mirrors); restore may be incomplete"
+            warn "step_07: only ${rule_count} UFW rules active (expected 12-15: 6 v4 + 6 v6 mirrors + post-2026-06-06 trio rules); restore may be incomplete"
         else
             ok "step_07 done — ${rule_count} UFW rules active"
         fi
