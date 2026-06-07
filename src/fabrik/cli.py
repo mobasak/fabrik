@@ -2856,6 +2856,125 @@ def import_(bundle: Path, real_run: bool):
         click.echo(f"  action: {action}")
 
 
+@cli.group()
+def vultr():
+    """Vultr VPS provisioning — permanent spokes + disposable DR drills."""
+    pass
+
+
+@vultr.command("list")
+def vultr_list():
+    """List Fabrik-tracked Vultr instances + reconcile against the live account."""
+    from fabrik.drivers.vultr import VultrClient
+    from fabrik.orchestrator import vultr_state
+
+    state = vultr_state.load_state()
+    active = vultr_state.active_instances()
+    click.echo(f"📦 Tracked instances: {len(active)} active / {len(state['instances'])} total")
+    click.echo(f"   last reconciled: {state.get('last_reconciled') or 'never'}")
+    for name, rec in sorted(active.items()):
+        click.echo(
+            f"  {name}  [{rec.get('mode', '?')}/{rec.get('kind', 'instance')}]  "
+            f"{rec.get('ip', '-')}  {rec.get('region', '-')} {rec.get('plan', '-')}  "
+            f"vultr_id={rec.get('vultr_id', '-')}"
+        )
+    try:
+        rep = vultr_state.reconcile(VultrClient())
+    except Exception as e:  # noqa: BLE001 - reconcile is best-effort here
+        click.echo(f"⚠️  reconcile skipped: {e}", err=True)
+        return
+    if rep["in_state_not_live"]:
+        click.echo(
+            f"⚠️  in state but NOT on Vultr (deleted out-of-band): {rep['in_state_not_live']}"
+        )
+    if rep["in_live_not_state"]:
+        click.echo(f"⚠️  on Vultr but NOT tracked (created out-of-band): {rep['in_live_not_state']}")
+    if not rep["in_state_not_live"] and not rep["in_live_not_state"]:
+        click.echo(f"✅ in sync (live={rep['live_count']}, tracked={rep['tracked_active_count']})")
+
+
+@vultr.command("status")
+@click.argument("name")
+def vultr_status(name: str):
+    """Show one tracked instance: local state + live Vultr state."""
+    from fabrik.drivers.vultr import VultrClient
+    from fabrik.orchestrator import vultr_state
+
+    rec = vultr_state.get_instance(name)
+    if not rec:
+        click.echo(f"✗ no tracked instance named {name!r}", err=True)
+        raise SystemExit(1)
+    click.echo(f"=== {name} (local state) ===")
+    for k, v in sorted(rec.items()):
+        click.echo(f"  {k}: {v}")
+    vultr_id = rec.get("vultr_id")
+    if not vultr_id or rec.get("destroyed_at"):
+        return
+    kind = rec.get("kind", "instance")
+    try:
+        c = VultrClient()
+        live = c.get_bare_metal(vultr_id) if kind == "bare_metal" else c.get_instance(vultr_id)
+        click.echo(f"=== {name} (live Vultr) ===")
+        for k in ("status", "power_status", "server_status", "main_ip", "region", "plan"):
+            if k in live:
+                click.echo(f"  {k}: {live[k]}")
+    except Exception as e:  # noqa: BLE001
+        click.echo(f"⚠️  live lookup failed: {e}", err=True)
+
+
+@vultr.command("reconcile")
+def vultr_reconcile():
+    """Compare local state to the live Vultr account and print the drift report."""
+    from fabrik.drivers.vultr import VultrClient
+    from fabrik.orchestrator import vultr_state
+
+    rep = vultr_state.reconcile(VultrClient())
+    click.echo(f"matched ({len(rep['matched'])}): {rep['matched']}")
+    click.echo(f"in_state_not_live ({len(rep['in_state_not_live'])}): {rep['in_state_not_live']}")
+    click.echo(f"in_live_not_state ({len(rep['in_live_not_state'])}): {rep['in_live_not_state']}")
+    click.echo(f"live={rep['live_count']} tracked_active={rep['tracked_active_count']}")
+
+
+@vultr.command("cleanup")
+@click.option("--yes", "-y", is_flag=True, help="Actually destroy (default: dry-run)")
+def vultr_cleanup(yes: bool):
+    """Destroy disposable instances past their destroy_after deadline (orphan recovery)."""
+    from datetime import UTC, datetime
+
+    from fabrik.drivers.vultr import VultrClient
+    from fabrik.orchestrator import vultr_state
+
+    now = datetime.now(UTC)
+    overdue = []
+    for name, rec in vultr_state.active_instances().items():
+        if rec.get("mode") != "disposable":
+            continue
+        da = rec.get("destroy_after")
+        if not da:
+            continue
+        try:
+            if datetime.fromisoformat(da) < now:
+                overdue.append((name, rec))
+        except ValueError:
+            continue
+    if not overdue:
+        click.echo("✅ no overdue disposable instances")
+    c = VultrClient()
+    for name, rec in overdue:
+        if not yes:
+            click.echo(f"🧪 would destroy {name} (destroy_after={rec.get('destroy_after')})")
+            continue
+        try:
+            c.destroy(rec.get("kind", "instance"), rec["vultr_id"])
+            vultr_state.mark_destroyed(name)
+            click.echo(f"✅ destroyed overdue {name}")
+        except Exception as e:  # noqa: BLE001
+            click.echo(f"❌ failed to destroy {name}: {e}", err=True)
+    gc = vultr_state.gc_old_disposables()
+    if gc:
+        click.echo(f"🧹 garbage-collected {len(gc)} old records: {gc}")
+
+
 def main():
     """Entry point for the CLI."""
     cli()

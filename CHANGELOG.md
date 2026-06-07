@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — `fabrik vultr` Phase 2: state store + reconcile + `list/status/reconcile/cleanup` (2026-06-08)
+
+- **New module** [`src/fabrik/orchestrator/vultr_state.py`](src/fabrik/orchestrator/vultr_state.py) — JSON registry at `data/vultr-instances.json` (gitignored runtime state). Atomic write (`tmp`+`os.replace`) under `locks_local.file_lock` (mirrors `state.py`); `upsert_instance`/`mark_destroyed`/`gc_old_disposables` (30-day audit window); `reconcile(client)` surfaces drift both directions.
+- **New CLI group** `fabrik vultr` in [`src/fabrik/cli.py`](src/fabrik/cli.py): `list`, `status <name>`, `reconcile`, `cleanup` (destroy disposables past `destroy_after`; dry-run default).
+- **Gates passed:** G2.1 tests 7/7; ruff + `final_gate --lean` clean; **G2.2 live** `fabrik vultr reconcile` against the real account (live=0, tracked=0, in sync).
+
 ### Changed — Infrastructure docs third truth-sync pass — strike stale claims against live state (2026-06-08)
 
 Third comprehensive truth-sync of `docs/infrastructure/` after the user pushed back on incremental fixes. Probed all 3 hosts for live state (containers, listening ports, UFW rules, cron entries, Prometheus jobs/targets/rules, Authelia rules, Loki streams, /opt/ contents, Backrest plans) at 2026-06-07T20:20Z and corrected every doc that contradicted it.
