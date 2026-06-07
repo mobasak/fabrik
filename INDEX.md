@@ -39,6 +39,7 @@
 | **docs/CONFIGURATION.md** | Configuration GUIDE - how to get credentials, architecture context, troubleshooting (NOT variable tables - see .env.example) | New services, config patterns, troubleshooting cases | Step 5 (WARN) |
 | **docs/TROUBLESHOOTING.md** | Developer troubleshooting - dependency issues, deployment errors | New complex dependencies | Step 5 (WARN) |
 | **docs/BUSINESS_MODEL.md** | Go-to-market + monetization strategy + AUTO-GENERATED project catalog | Manual updates for strategy; AUTO-GENERATED:PROJECTS block syncs via `python scripts/sync_projects.py` or `fabrik scaffold` completion | Step 7 (auto-sync catalog only) |
+| **docs/STRATEGIC_BACKLOG.md** | Strategic backlog — Now / Later / Context for deferred work; one row per item with explicit "ready when" trigger | When an item gets deferred from a session OR when a deferred item gains a triggering incident | Manual |
 
 ---
 
