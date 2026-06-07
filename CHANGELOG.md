@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — STRATEGIC_BACKLOG honesty pass + new `fabrik-vultr.md` quick reference (2026-06-08)
+
+Earlier today I (this AI) overclaimed in conversation that the "DR drill on a throwaway VPS" backlog item was done. It wasn't — what shipped is the **OS+bootstrap** half of the drill path:
+
+- `fabrik vultr drill spoke` is hermetic (`bootstrap-vps.sh --skip-mesh --skip-dns + --verify`, ~8m, live-proven).
+- `fabrik vultr drill bare` is API+SSH plumbing only (~98s, live-proven).
+- `fabrik vultr drill hub` ships but the heavy hub bootstrap (~90m) has not been measured against a real fresh droplet.
+- **None of the drills exercise the mesh + DNS + monitoring fleet-add path** that the real disaster would hit. That path lives in `fabrik vultr provision <name>`, which mutates vps1 and so can't be drilled hermetically — it needs a real billed test spoke + `destroy --reverse-fleet-add` to validate.
+- **None of the drills exercise B2 restore.** Bootstrap path only.
+
+Corrected this in [`docs/STRATEGIC_BACKLOG.md`](docs/STRATEGIC_BACKLOG.md):
+
+- The old single-line "DR drill on a throwaway VPS" item is split into two **honest** "Now" tier items: (1) Spoke DR — end-to-end measured recovery via a real `provision` test run, (2) Hub DR — measured recovery against a real billed test hub with B2 restore.
+- The old `fabrik vultr` L-tier item is struck through and marked ✅ SHIPPED 2026-06-08 with explicit note that it does NOT close the two measured-recovery items above.
+
+Added [`docs/reference/fabrik-vultr.md`](docs/reference/fabrik-vultr.md) — quick CLI reference + programmatic API + gotchas + the explicit "what this does NOT close" section. Source content is the other AI's handoff from the `fabrik vultr` implementation arc (commits `93de0fc` → `963beb7`). Allowlisted path per CLAUDE.md (`docs/reference/**/*.md`).
+
 ### Fixed — `fabrik vultr` next_free_spoke now consults vps1 wg0 (2026-06-08)
 
 - Found while testing every plan item: `next_free_spoke()` suggested `vps2` (already a real spoke) because it only checked local state + Vultr labels, not vps1's wg0 where the existing spokes live. Now reads `wg show wg0 allowed-ips` on vps1 (per plan §C) so it correctly skips `vps2`/`vps3` and returns `vps4`. +1 test. Full `fabrik vultr` surface re-tested live: G1–G6 gates green, live `drill spoke` end-to-end (bootstrap_rc=0, verify_rc=0, hermetic — 0 `vps4` peers on wg0, 0 orphans).
