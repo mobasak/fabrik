@@ -1,5 +1,7 @@
 # Infrastructure Probe Reports
 
+**Last Updated:** 2026-06-06 (added `infra-probe-2026-06-06T22-39Z.yaml` — current fleet-state baseline post aro-wake rollout: 31/5/5 containers, `:8201` listening on all 3 hosts with new UFW rules for `from 10.0.0.0/8` + `from 10.99.0.0/24`; all 7 prior probe-report YAMLs flagged with a `# SUPERSEDED` banner pointing here.)
+
 YAML snapshots of live VPS state captured by [`scripts/audit_infra_vs_docs.py`](../../../scripts/audit_infra_vs_docs.py).
 
 ## Purpose

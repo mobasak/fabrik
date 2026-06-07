@@ -1,7 +1,7 @@
 # VPS AI System Administrator — Reference
 
-**Last Updated:** 2026-06-05 (Trio Phase 1 + 3 + 4 LIVE on vps1 — canonical prompt + aro-wake systemd service + Alertmanager → aro-wake wire all operational; synthetic peer consult + real `ContainerHighMemory` alert both verified end-to-end. Phase 2 sysadmin pack + Phase 3/4 on spokes still operator-gated on Telegram tokens + spoke `claude auth login`.)
-**Last probe report:** [`probe-reports/infra-probe-2026-06-01T22-50Z.yaml`](probe-reports/infra-probe-2026-06-01T22-50Z.yaml)
+**Last Updated:** 2026-06-06 (Trio Phase 1+2+3+4 LIVE across the FULL FLEET — aro-wake on vps1/vps2/vps3, spoke Telegram bots active (`SysAdminVPS2`, `SysAdminVPS3`), spoke↔spoke wg0 routing enabled, 4 loop-prevention guards shipped in aro-wake, Prometheus SLI metrics LIVE on all 3 hosts via job `aro-wake` with 2 alert rules.)
+**Last probe report:** [`probe-reports/infra-probe-2026-06-06T22-39Z.yaml`](probe-reports/infra-probe-2026-06-06T22-39Z.yaml)
 **Status:** Live since 2026-05-20
 **Service:** `vps-sysadmin-bot.service` (systemd, `Restart=always`)
 **Bot:** Telegram (`@ocoron_bot`), same bot as Alertmanager notifications
@@ -21,8 +21,8 @@ The platform now has **three** AI layers (was two before trio plan Phase 3, 2026
 
 | Layer | Where it runs | Scope | Lifecycle | Auth | Status |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Host-level AI sysadmin** (this doc) | `vps-sysadmin-bot.service` on each fleet host — a systemd unit, NOT a container. Live on vps1; **code shipped for vps2 + vps3 via `bootstrap-vps.sh step_14_install_sysadmin_pack` (trio Phase 2, 2026-06-04)**. | Whole-VPS infrastructure: containers, mesh, backups, alerts | One persistent systemd service per host; spawns Claude Code sessions on demand | Per-host Claude Code Max subscription via `claude auth login` on that host (browser device-flow, operator action) | ✅ LIVE on vps1 since 2026-05-20. Code shipped for vps2 + vps3 2026-06-04; operator-gated on Telegram tokens + spoke claude auth. |
-| **aro-wake push-trigger endpoint** (trio Phase 3 + Phase 4 LIVE on vps1 2026-06-05) | systemd-managed FastAPI on each fleet host, **binds `0.0.0.0:8201`** (mesh + docker bridge + loopback; UFW + iptables enforce 10.0.0.0/8 + 10.99.0.0/24 allow + public deny). Sleeps when idle (~32MB RAM measured live); spawns Claude on POST `/wake`. Async-response pattern for `source=alertmanager` (202 in 36ms + background asyncio.Task processes Claude) — avoids Alertmanager webhook timeout. | Push-triggered: peer `consult` (LIVE), Alertmanager webhook (LIVE on vps1 via the `aro-wake-routed` receiver in `alertmanager.yml`), `manual` ops curl (LIVE) | One systemd unit per host; spawns Claude Code subprocess per wake; per-(source,topic) session reuse with effective session_id from envelope | Same per-host OAuth as host-level sysadmin | ✅ **LIVE on vps1 since 2026-06-05.** Verified end-to-end: synthetic vps3→vps1 consult exercised the full peer-protocol §2.1 shape; synthetic + REAL `ContainerHighMemory` alert both caught through Alertmanager route. Smoke: `curl http://10.99.0.<N>:8201/health`. Peer protocol: `consult` is the only LIVE verb; `propose`/`ack` deferred to Phase 5 (cross-host destructive bridges via operator Telegram `reply "go"` until then). Spoke deploy still gated on `claude auth login` + `bootstrap-vps.sh step_15` + `systemctl enable --now aro-wake.service`. |
+| **Host-level AI sysadmin** (this doc) | `vps-sysadmin-bot.service` on each fleet host — a systemd unit, NOT a container. **LIVE on all 3 hosts**: vps1 since 2026-05-20, vps2 + vps3 since 2026-06-06. Each spoke has its own @BotFather bot (`SysAdminVPS2`, `SysAdminVPS3`) and prefixes every Telegram reply with `[vpsN]`. | Whole-VPS infrastructure: containers, mesh, backups, alerts | One persistent systemd service per host; spawns Claude Code sessions on demand | Per-host Claude Code Max subscription via `claude auth login` on that host (browser device-flow, operator action) | ✅ **LIVE on all 3 hosts**. vps1 since 2026-05-20; vps2 + vps3 since 2026-06-06 after operator delivered @BotFather tokens + `claude auth login` + `python-telegram-bot==22.7` pip install. |
+| **aro-wake push-trigger endpoint** (trio Phase 3 LIVE on full fleet 2026-06-06; Phase 4 LIVE on vps1 2026-06-05) | systemd-managed FastAPI on every fleet host, **binds `0.0.0.0:8201`** (mesh + docker bridge + loopback; UFW enforces `10.0.0.0/8` + `10.99.0.0/24` allow + public deny). Sleeps when idle (~32MB RAM measured live); spawns Claude on POST `/wake`. Also exposes `GET /health` (JSON) + `GET /metrics` (Prometheus exposition). Async-response pattern for `source=alertmanager` (202 in 36ms + background asyncio.Task processes Claude). **4 in-memory loop-prevention guards** (added 2026-06-06): trace-id dedup (5-min LRU), hop cap (`len(seen_by) > fleet_size`), forward-target intersection (PRIMARY — `_try_forward` + AM cycle pre-check both emit `M_FWD_SUPPR{reason="seen_by"}`), per-target storm breaker (8/10min). | Push-triggered: peer `consult` (LIVE — real cross-host vps2→vps1 + vps3→vps1 verified 2026-06-06), Alertmanager webhook (LIVE on vps1), `manual` ops curl (LIVE) | One systemd unit per host; spawns Claude Code subprocess per wake; per-(source,topic) session reuse with effective session_id from envelope | Same per-host OAuth as host-level sysadmin | ✅ **LIVE on FULL FLEET since 2026-06-06.** Verified end-to-end: real cross-host consults vps2→vps1 + vps3→vps1 both returned rich diagnostic responses; vps3's queued forward from the prior day's outage auto-drained at first drain tick post-aro-wake; spoke↔spoke direct reach LIVE via wg0 routing through hub (266ms). Smoke: `curl http://10.99.0.<N>:8201/health`. Peer protocol: `consult` is the only LIVE verb; `propose`/`ack` deferred to Phase 5. |
 | **Per-project watchdog sidecar** (T-P2 watchdog platform) | One sidecar **container** injected next to every project app at `fabrik apply` time | One project's health: its own containers, its own DB, its own cost-budget | Per-project; lives as long as the project's compose stack does | Inherits host OAuth via a mount of the VPS user's `~/.claude/` AND `~/.claude.json` (path configurable via `FABRIK_VPS_CLAUDE_HOME`, defaults `/home/ozgur/.claude`); fallback to OpenRouter API key when subscription unreachable. Sidecar runs as UID/GID 1000 with `group_add: [<host docker.sock gid>]` (driver auto-detects via `stat -c %g`). `bubblewrap` + `socat` shipped in image so Claude's sandbox starts cleanly. | ✅ **T-P1+T-P2+T-P3+T-P4 complete (2026-06-03).** ✅ **T-P5 Step 6 SHIPPED 2026-06-04 — first end-to-end Claude Opus self-heal LIVE on vps1.** `docker kill watchdog-test` → 60s tick detection → Tier A `restart_container` → resolved in 3s. Five silent-failure modes surfaced + fixed during dogfood (docker.sock GID, DOCKER_API_VERSION pin, bwrap+socat install, .claude.json second mount, **drop `--max-budget-usd`/`--effort`/`--json-schema` + adopt this doc's host-sysadmin argv pattern verbatim** — see [`vps-complete-inventory.md`](vps-complete-inventory.md#per-project-watchdog-sidecars-t-p2--complete-2026-06-03-all-15-artifacts-shipped) for the table). Sidecar `llm_client.py` now mirrors `scripts/sysadmin/bot.py::_run_claude` exactly: `--model opus`, `--permission-mode bypassPermissions`, `--session-id <uuid>` + `--system-prompt` first call → `--resume <id>` subsequent (warm cache), `cwd=/project`, `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1`, 300s timeout, parse `data["result"]` as plain text with defensive JSON extraction. **Remaining T-P5 steps (Step 7 OpenRouter fallback, Step 8 budget kill-switch, Step 9 postgres-main outage)** pending operator green-light. |
 
 Concretely:
@@ -314,6 +314,44 @@ claude --version
 
 # Proactive check logs
 sudo tail -20 /var/log/sysadmin-proactive.log
+```
+
+### SLI metrics (Prometheus, since 2026-06-06)
+
+aro-wake on every fleet host exposes 8 Prometheus metrics at `:8201/metrics` mapping to the `agent-sre` SLI framing from [`docs/reference/AI for Autonomous System Administration.md`](../reference/AI%20for%20Autonomous%20System%20Administration.md). Hub-side Prometheus scrapes all 3 hosts via job `aro-wake` in `configs/prometheus/prometheus.yml` — vps1 via docker-bridge gateway `10.0.1.1:8201`, spokes via wg0 mesh `10.99.0.{2,3}:8201`. The cross-mesh container→host path works because docker MASQUERADE on vps1 rewrites Prometheus container's outbound source IP to `10.99.0.1`, which the spokes' existing `from 10.99.0.0/24 to any port 8201 proto tcp` UFW rule already permits.
+
+| Metric | Type | Labels | Maps to doc SLI |
+|---|---|---|---|
+| `aro_wake_requests_total` | counter | `source, status` | Task Success Rate |
+| `aro_wake_cost_usd_total` | counter | `source` | Cost Per Task |
+| `aro_wake_dedup_drops_total` | counter | — | (loop guard #1) |
+| `aro_wake_hop_limit_exceeded_total` | counter | — | Scope Chain Depth |
+| `aro_wake_forward_suppressed_total` | counter | `target_host, reason` | (loop guard ops) |
+| `aro_wake_storm_breaker_trips_total` | counter | `target_host` | (loop guard #4) |
+| `aro_wake_pending_queue_size` | gauge | — | (queue health) |
+| `aro_wake_active_sessions` | gauge | — | (session warmth) |
+
+Two alert rules ship pre-configured in `configs/prometheus/rules/alerts.yml` under the `aro_wake` group, both evaluated per-host via `by (host)`:
+
+- **`AroWakeLowSuccessRate`** — fires when `sum(rate(aro_wake_requests_total{status="success"}[10m])) by (host) / sum(rate(aro_wake_requests_total[10m])) by (host) < 0.90` for 15m. A vps3 problem doesn't get diluted by healthy vps1/vps2.
+- **`AroWakeCostBurnHigh`** — fires when `sum(rate(aro_wake_cost_usd_total[1h])) by (host) > 5` for 10m. Catches runaway reasoning loops early.
+
+Skipped SLIs from the doc: Hallucination Rate and Tool Call Accuracy — require ground-truth eval data we don't have today. Rate-limited (HTTP 429) wakes are not currently tracked in any metric; the rate limit is high (20/h per `(source, topic)`) so the observability gap is low-impact (acknowledged follow-up).
+
+Counters are in-memory; restart = reset = safe default. `rate()` and `increase()` PromQL handle this correctly via the `_created` timestamps prometheus_client emits — alert evaluation is unaffected.
+
+Quick PromQL recipes:
+
+```promql
+# Per-host success rate over the last 10m
+sum(rate(aro_wake_requests_total{status="success"}[10m])) by (host)
+  / sum(rate(aro_wake_requests_total[10m])) by (host)
+
+# Per-host hourly Claude cost
+sum(rate(aro_wake_cost_usd_total[1h])) by (host) * 3600
+
+# Loop-guard activity: are we suppressing forwards?
+sum(rate(aro_wake_forward_suppressed_total[5m])) by (host, reason)
 ```
 
 ## Firewall Architecture

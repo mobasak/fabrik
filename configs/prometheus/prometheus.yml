@@ -19,6 +19,29 @@ scrape_configs:
     static_configs:
       - targets: ['node-exporter:9100']
 
+  # aro-wake — per-host AI sysadmin SLI metrics (trio plan Phase 3 follow-up,
+  # added 2026-06-06). Full fleet coverage: vps1 via docker-bridge (10.0.1.1),
+  # spokes via wg0 mesh (10.99.0.2, 10.99.0.3). Cross-mesh container→host
+  # NAT path verified 2026-06-06 — Prometheus container's outbound traffic
+  # gets SNAT'd to vps1's wg0 IP (10.99.0.1), which the spokes' UFW rule
+  # `from 10.99.0.0/24 to any port 8201 proto tcp` already allows.
+  - job_name: aro-wake
+    metrics_path: /metrics
+    scheme: http
+    static_configs:
+      - targets: ['10.0.1.1:8201']
+        labels:
+          host: vps1
+          role: hub
+      - targets: ['10.99.0.2:8201']
+        labels:
+          host: vps2
+          role: spoke
+      - targets: ['10.99.0.3:8201']
+        labels:
+          host: vps3
+          role: spoke
+
   - job_name: cadvisor
     static_configs:
       - targets: ['cadvisor:8080']

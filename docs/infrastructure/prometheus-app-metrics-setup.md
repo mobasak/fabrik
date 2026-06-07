@@ -1,6 +1,6 @@
 # Prometheus app-level metrics — runbook
 
-**Last Updated:** 2026-05-31 (post-Coolify-removal + `coolify` → `fabrik` network rename; multi-host scrape patterns added)
+**Last Updated:** 2026-06-06 (aro-wake SLI scrape job added — full-fleet coverage of vps1+vps2+vps3 via the same `aro-wake` job; cross-mesh container→host NAT path documented below as a worked example for future host-services scrape patterns)
 **Status:** ✅ Live (originally 2026-05-08)
 **Prometheus container:** `prometheus` (stable name)
 **Scrape config:** `/opt/monitoring/configs/prometheus/prometheus.yml`
@@ -41,6 +41,32 @@ This runbook covers Prometheus scrape configuration for application-level metric
 | `promtail-spokes` | `10.99.0.2:9080`, `10.99.0.3:9080` | `host: vps2` / `host: vps3` |
 
 Every scrape target now carries a `host` label so dashboards + alerts can filter per-host. vps1-local jobs get `host: vps1`; spoke jobs split per-target. See § Multi-host below for the pattern.
+
+### aro-wake SLI metrics (added 2026-06-06 — full fleet)
+
+| Job | Targets | Per-target labels | Path |
+| :--- | :--- | :--- | :--- |
+| `aro-wake` | `10.0.1.1:8201` (vps1, docker-bridge), `10.99.0.2:8201` (vps2, wg0), `10.99.0.3:8201` (vps3, wg0) | `host: vps1`+`role: hub`, `host: vps2`+`role: spoke`, `host: vps3`+`role: spoke` | `/metrics` |
+
+Eight metric families exposed by the FastAPI app (`scripts/aro-wake/main.py`) via `prometheus-client==0.21.1`: 6 counters (`aro_wake_requests_total{source,status}`, `aro_wake_cost_usd_total{source}`, `aro_wake_dedup_drops_total`, `aro_wake_hop_limit_exceeded_total`, `aro_wake_forward_suppressed_total{target_host,reason}`, `aro_wake_storm_breaker_trips_total{target_host}`) + 2 gauges (`aro_wake_pending_queue_size`, `aro_wake_active_sessions`).
+
+**Hub-side scrape path** for vps1 uses the same `10.0.1.1:8201` docker-bridge gateway that Alertmanager already uses to reach `/wake`. Scrape latency ~1.4ms.
+
+**Cross-mesh scrape path** for vps2 + vps3 (FIRST host-service scraped via wg0 — worth documenting):
+
+- Prometheus container is on the `coolify` Docker network.
+- Outbound traffic from the container to a wg0 IP (e.g. `10.99.0.2`) leaves the host through `eth0` → kernel routing decides this is a wg0 destination → encapsulates via `wg0` interface → emerges on the spoke.
+- Docker MASQUERADE on vps1 rewrites the container's source IP from its docker-bridge IP (e.g. `10.0.1.x`) to vps1's wg0 IP `10.99.0.1` when the packet leaves the host.
+- The spoke's UFW rule `from 10.99.0.0/24 to any port 8201 proto tcp` accepts the rewritten source. No spoke-side firewall change needed.
+- Verified via tcpdump on vps2's wg0 interface: `IP 10.99.0.1.<port> > 10.99.0.2.8201: Flags [S]` — the SNAT works as expected.
+- Scrape latency ~270ms (transcontinental wg0 RTT ~133ms + connection handshake overhead).
+
+The aro-wake-specific alert rules ship in `configs/prometheus/rules/alerts.yml` under group `aro_wake`. Both are evaluated per-host via `by (host)`:
+
+- `AroWakeLowSuccessRate` — `sum(rate(aro_wake_requests_total{status="success"}[10m])) by (host) / sum(rate(aro_wake_requests_total[10m])) by (host) < 0.90` for 15m (warning)
+- `AroWakeCostBurnHigh` — `sum(rate(aro_wake_cost_usd_total[1h])) by (host) > 5` for 10m (warning, runaway-reasoning early-warning)
+
+See [`vps-ai-sysadmin.md` § SLI metrics](vps-ai-sysadmin.md#sli-metrics-prometheus-since-2026-06-06) for the full SLI framing.
 
 ## Sample useful queries
 

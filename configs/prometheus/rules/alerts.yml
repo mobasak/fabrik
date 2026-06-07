@@ -117,3 +117,27 @@ groups:
         annotations:
           summary: "Prometheus target {{ $labels.job }} is down"
           description: "Target {{ $labels.instance }} in job {{ $labels.job }} has been down for 2 minutes."
+
+  # aro-wake SLI alerts (agent-sre framing per Gemini deep research doc).
+  # Added 2026-06-06 alongside the /metrics endpoint on vps1.
+  - name: aro_wake
+    rules:
+      - alert: AroWakeLowSuccessRate
+        expr: |
+          sum(rate(aro_wake_requests_total{status="success"}[10m])) by (host)
+            / sum(rate(aro_wake_requests_total[10m])) by (host) < 0.90
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "aro-wake success rate < 90% on {{ $labels.host }} for 15m"
+          description: "Claude calls from aro-wake on {{ $labels.host }} are failing >10% over the last 10m window. Check /var/log/aro-wake.log + Claude OAuth token freshness."
+
+      - alert: AroWakeCostBurnHigh
+        expr: sum(rate(aro_wake_cost_usd_total[1h])) by (host) > 5
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "aro-wake spending >$5/h on {{ $labels.host }}"
+          description: "Runaway reasoning loop suspected — aro-wake on {{ $labels.host }} has been burning >$5/h Claude cost for the last 10m. Inspect actions log."

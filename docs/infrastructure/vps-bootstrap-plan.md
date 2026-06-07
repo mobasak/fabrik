@@ -1,7 +1,7 @@
 # VPS Bootstrap Automation
 
-**Last Updated:** 2026-06-01 (step_02 hardened for Lesson 68 — `rc`-state handling + 3-probe self-verify)
-**Last probe report:** [`probe-reports/infra-probe-2026-06-01T22-50Z.yaml`](probe-reports/infra-probe-2026-06-01T22-50Z.yaml)
+**Last Updated:** 2026-06-06 (Trio Phase 2+3 LIVE on full fleet via inlined `step_14` + `step_15` logic — four additional spoke deps discovered + applied live: Node.js 22 + Claude Code CLI, `python3-venv` apt, `python-telegram-bot==22.7` pip, `/opt/fabrik/` ownership reset to `ozgur:ozgur`. These must be baked into bootstrap proper in a follow-up commit — captured below in "Pending follow-ups" + tracked as gaps for next spoke install.)
+**Last probe report:** [`probe-reports/infra-probe-2026-06-06T22-39Z.yaml`](probe-reports/infra-probe-2026-06-06T22-39Z.yaml)
 **Status:** Spoke bootstrap **shipped + verified on vps2 + vps3**; hub bootstrap remains manual (documented below)
 
 ## What's actually done
@@ -32,6 +32,15 @@ Full reference: [`scripts/bootstrap/README.md`](../../scripts/bootstrap/README.m
 12. Deploy monitoring agents — `node-exporter` + `cadvisor` + `promtail` configured to ship to vps1's Prometheus + Loki over mesh
 13. **(NEW, W16 2026-06-02)** Deploy spoke Traefik — renders 3 templates into `/opt/traefik/{compose.yaml,traefik.yml,dynamic/authelia.yml}` and brings up the stack. The compose template carries the **W15 `labels:` block** (`traefik.enable=true` + `traefik.http.middlewares.gzip.compress=true`) so the `gzip@docker` middleware that the Fabrik orchestrator emits on every router is defined on the spoke from minute one. Templates diffed byte-perfect against the live state on vps2 + vps3.
 14. **(NEW, W16-DNS 2026-06-02)** Create DNS records via site-provisioner — probes the spoke's public IPv4 (`curl -4 ifconfig.me`, `ipv4.icanhazip.com` fallback), then SSHes to vps1 and `curl POST`s `https://provision.vps1.ocoron.com/api/cloudflare/dns/ocoron.com/subdomain` twice (apex + wildcard). Calls go through `ensure_record()` so re-runs return `action: unchanged` instead of touching Cloudflare. The call goes via vps1 because (a) site-provisioner's IP allowlist includes vps1's public IP but not dev-WSL's, and (b) the production `API_KEY` lives in `/opt/site-provisioner/.env` on vps1 and never travels.
+15. **(Trio Phase 2 — code in `step_14_install_sysadmin_pack`, INLINED LIVE 2026-06-06 on vps2 + vps3)** Install the per-host AI sysadmin pack: `vps-sysadmin-bot.service` + `/etc/cron.d/vps-sysadmin` (hash-staggered minutes per host via sha1sum-of-HOST_NAME modulo). Operator-gated on `claude auth login` + @BotFather token in `/opt/fabrik/.env.sysadmin`.
+16. **(Trio Phase 3 — code in `step_15_install_aro_wake`, INLINED LIVE 2026-06-06 on vps2 + vps3)** Install `aro-wake.service` (FastAPI on `0.0.0.0:8201`) with `_dedup`/`_HOP_LIMIT`/`_FWD_SUPPR`/`_STORM_BREAKER` loop guards + Prometheus `/metrics` exposition. `ARO_WAKE_PEER_HOSTS` rendered as CSV (NOT JSON — systemd strips embedded quotes).
+
+**Spoke deps discovered LIVE 2026-06-06 (not yet in script — pending follow-up):**
+
+- **Node.js 22 + Claude Code CLI**: `curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -` → `apt-get install -y nodejs` → `npm install -g @anthropic-ai/claude-code` (the `claude` binary lands at `/usr/bin/claude`)
+- **`python3-venv`**: Ubuntu 24.04 needs `python3.12-venv` apt package or `python3 -m venv` fails on `ensurepip` error during `step_15`
+- **`python-telegram-bot==22.7`**: `sudo pip install --break-system-packages python-telegram-bot==22.7` — without this the sysadmin bot stays in `activating` state on `ModuleNotFoundError: No module named 'telegram'`
+- **`/opt/fabrik/` ownership**: after sudo creates the venv, `sudo chown -R ozgur:ozgur /opt/fabrik/` (or set ownership BEFORE the venv step). Otherwise operator can't manage files going forward.
 
 ### What's NOT in the script (deferred / out of scope)
 
@@ -95,6 +104,8 @@ If a step fails partway, fix it, then re-run the script with the same arguments.
 3. ~~**Add `tag: "{{.Name}}"` to spoke `daemon.json`**~~ — ✅ **SHIPPED 2026-06-02 (W4-pre).** `bootstrap-vps.sh` step_03 emits the field; vps2 + vps3 had docker restarted to apply it live; future spokes inherit on first bootstrap.
 4. ~~**Wire DNS step (now step 13) to call site-provisioner.**~~ — ✅ **SHIPPED 2026-06-02 (W16-DNS).** Probes spoke's public IPv4, then SSHes to vps1 and calls `https://provision.vps1.ocoron.com/api/cloudflare/dns/ocoron.com/subdomain` twice (apex + wildcard). Idempotent via `ensure_record()` — re-runs return `action: unchanged`. Live-verified against vps2 + vps3.
 5. **Hub bootstrap (W-Multi M0)** — multi-hour ticket; deferred until first vps1 rebuild. ([`scripts/bootstrap/bootstrap-hub.sh`](../../scripts/bootstrap/bootstrap-hub.sh) shipped 2026-06-01 as part of the DR-in-hours track, but it has not been drilled against a fresh VPS — see [`vps-hub-rebuild.md`](vps-hub-rebuild.md).)
+6. **Bake the 4 spoke deps discovered 2026-06-06 into `bootstrap-vps.sh`** — Node.js 22 + Claude Code CLI, `python3-venv` apt, `python-telegram-bot==22.7` pip, `/opt/fabrik/` ownership reset. Should land before next spoke install. Inlined live this round but not yet in the script — see `docs/infrastructure/vps-spoke-rebuild.md` "Trio Phase 2/3 spoke deps" for the exact commands.
+7. **Bake the spoke↔spoke wg0 routing rule** into hub bootstrap or post-bootstrap step: `sudo ufw route allow in on wg0 out on wg0` on vps1. Today's hub rebuild needs a manual after-step for this (see [`vps-hub-rebuild.md`](vps-hub-rebuild.md)).
 
 ---
 

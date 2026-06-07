@@ -1,7 +1,7 @@
 # VPS2 / VPS3 Spoke — How to Bring It Back
 
-**Last Updated:** 2026-06-01 (W11 of fleet-hardening plan — spoke DR shipped)
-**Last probe report:** [`probe-reports/infra-probe-2026-06-01T22-50Z.yaml`](probe-reports/infra-probe-2026-06-01T22-50Z.yaml)
+**Last Updated:** 2026-06-06 (W11 spoke DR shipped 2026-06-01; aro-wake + sysadmin pack LIVE on spokes 2026-06-06 — additional manual after-steps required if rebuilding a spoke that had trio Phase 2/3 deployed: install Node.js 22 + `@anthropic-ai/claude-code`, `python3-venv` apt package, `python-telegram-bot==22.7` via pip, then `claude auth login` on each spoke before enabling `aro-wake.service` + `vps-sysadmin-bot.service`. These will be baked into `bootstrap-vps.sh` in a follow-up commit.)
+**Last probe report:** [`probe-reports/infra-probe-2026-06-06T22-39Z.yaml`](probe-reports/infra-probe-2026-06-06T22-39Z.yaml)
 **Status:** Scripted end-to-end. DR drill on a throwaway VPS pending — wall-clock target ≤ 30 min not yet measured.
 
 This document is the definitive answer to "vps2 (or vps3) is gone — how do I get it back **with the same mesh identity**?" Companion to [`vps-hub-rebuild.md`](vps-hub-rebuild.md) but specialized for the spoke role.
@@ -135,6 +135,13 @@ Anything short of all 7 = drill failed = `bootstrap-spoke-restore.sh` has a gap.
 
 - **First tenant deploy** — if a tenant was running on the spoke at the moment of disaster, the volume restore won't recreate that tenant (tenant data is only in W11 scope when a `docker-volumes` plan exists; today's spoke plans don't include it because no tenants have landed yet). When the first tenant ships (W4), the `docker-volumes` plan needs to be added and this row becomes "tenant data auto-restored."
 - **Let's Encrypt cert** — Traefik will request a fresh cert on first request after restore. No manual action needed; just expect a 30-second delay on first `https://*.vpsN.ocoron.com` hit while the cert issues.
+- **Trio Phase 2/3 spoke deps** (until baked into `bootstrap-vps.sh`): on the freshly-restored spoke, the AI layer needs four manual installs before `aro-wake.service` + `vps-sysadmin-bot.service` will start cleanly:
+  1. **Node.js 22 + Claude Code CLI**: `curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -` → `sudo apt-get install -y nodejs` → `sudo npm install -g @anthropic-ai/claude-code`
+  2. **`python3-venv` apt package** (Ubuntu 24.04 LTS): `sudo apt-get install -y python3.12-venv` (without this, `python3 -m venv /opt/fabrik/.venv-aro-wake` fails on `ensurepip` error)
+  3. **`python-telegram-bot==22.7` system pip**: `sudo pip install --break-system-packages python-telegram-bot==22.7` (the sysadmin bot imports `telegram` at module load; without this, `vps-sysadmin-bot.service` stays in `activating` state forever)
+  4. **`/opt/fabrik/` ownership**: after sudo creates the venv, `sudo chown -R ozgur:ozgur /opt/fabrik/` so the operator can manage files going forward
+- **Per-spoke @BotFather token**: each spoke has its own Telegram bot (`SysAdminVPS2` / `SysAdminVPS3`). Operator must register the bot once with `@BotFather` and put the token in `/opt/fabrik/.env.sysadmin` on that spoke. Also write `TELEGRAM_OWNER_ID=<your-user-id>` in the same file.
+- **`claude auth login` on the spoke**: device-flow login via the operator's Claude Code Max subscription. One-time browser-side action per spoke.
 
 ## What is NOT covered
 

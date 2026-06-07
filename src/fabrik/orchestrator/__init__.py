@@ -435,7 +435,7 @@ class DeploymentOrchestrator:
         # Precedence: ctx.target_vps (set by spec or --target-vps) wins, since
         # a spoke deploy explicitly targets a different host than vps1.
         # VPS_IP env var is a final fallback for one-off overrides (tests).
-        VPS_IPS = {
+        VPS_IPS = {  # noqa: N806 — constant-style lookup table, uppercase intentional
             "vps1": "172.93.160.197",
             "vps2": "96.9.214.128",
             "vps3": "104.128.190.151",

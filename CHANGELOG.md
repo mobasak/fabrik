@@ -4,6 +4,45 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — aro-wake Prometheus SLI metrics + 2 alert rules across the full trio fleet (2026-06-06)
+
+Operationalises the agent-sre framing from `docs/reference/AI for Autonomous System Administration.md` (Microsoft AGT's `agent-sre` package). 8 metrics exposed on the existing `aro-wake` FastAPI app at `/metrics` (reuses port 8201 — no new port allocated, no new env var, no UFW change):
+
+| Metric | Type | Labels | Maps to doc SLI |
+|---|---|---|---|
+| `aro_wake_requests_total` | counter | `source, status` | Task Success Rate |
+| `aro_wake_cost_usd_total` | counter | `source` | Cost Per Task |
+| `aro_wake_dedup_drops_total` | counter | — | (loop guard #1) |
+| `aro_wake_hop_limit_exceeded_total` | counter | — | Scope Chain Depth |
+| `aro_wake_forward_suppressed_total` | counter | `target_host, reason` | (loop guard ops) |
+| `aro_wake_storm_breaker_trips_total` | counter | `target_host` | (loop guard #4) |
+| `aro_wake_pending_queue_size` | gauge | — | (queue health) |
+| `aro_wake_active_sessions` | gauge | — | (session warmth) |
+
+Hallucination Rate and Tool Call Accuracy SLIs from the doc deliberately skipped — they require ground-truth eval data we don't have.
+
+Prometheus scrape job `aro-wake` added at `configs/prometheus/prometheus.yml` with three targets covering the full trio fleet: vps1 at `10.0.1.1:8201` (docker-bridge gateway, same path Alertmanager already uses to reach `/wake`); vps2 at `10.99.0.2:8201` and vps3 at `10.99.0.3:8201` (wg0 mesh). Cross-mesh container→host NAT path verified live — Prometheus container's outbound to spoke wg0 IPs gets SNAT'd to vps1's `10.99.0.1`, which the spokes' UFW rule `from 10.99.0.0/24 to any port 8201 proto tcp` already permits (scrape latency ~270ms via mesh vs 1.4ms for the hub's loopback path). 2 alert rules added at `configs/prometheus/rules/alerts.yml`:
+
+- `AroWakeLowSuccessRate` — success rate < 90% over 10m for 15m (warning, per-host via `by (host)`)
+- `AroWakeCostBurnHigh` — cost rate > $5/h sustained 10m (warning, per-host runaway-reasoning early-warning)
+
+`prometheus-client==0.21.1` pinned in `scripts/aro-wake/requirements.txt`; deployed in parallel to all 3 hosts. All 9 plan gates passed live (syntax, mutation count, service active, `/metrics` HTTP 200 prometheus format, counter increment after wake, `promtool check config`, `promtool check rules`, all 3 targets `up`, rules loaded). Adversarial verification of every counter path (dedup, hop_cap, forward_suppressed{seen_by}, forward_suppressed{storm}, storm_breaker, requests{status=failure}) confirmed instrumentation is reachable from production code paths — including a structurally-dead `M_FWD_SUPPR{reason="seen_by"}` site discovered in deep review (the alertmanager handler's cycle pre-check at `main.py:788` bypasses `_try_forward`, so the increment must fire in BOTH places).
+
+### Added — Trio spoke↔spoke routing + 4-layer loop-prevention guards in aro-wake (2026-06-06)
+
+**Transport.** Single `ufw route allow in on wg0 out on wg0` on vps1 enables spoke↔spoke peer reach via the existing star topology (vps1 already had `net.ipv4.ip_forward=1`, spokes already had `AllowedIPs=10.99.0.0/24`). vps2↔vps3 now reach each other at ~266ms via the hub-hop. No new ports opened; UFW's default-DROP routed policy remains, so vps1 cannot be used as a public-internet egress relay (verified: `curl --interface wg0 https://1.1.1.1` from vps2 fails fast with exit 7).
+
+**Loop guards.** With direct spoke↔spoke reach now possible, `scripts/aro-wake/main.py` adds four in-memory guards (~100 lines):
+
+| Layer | Where it trips | Tunable |
+|---|---|---|
+| 1. Trace-id dedup | Same `trace_id` arriving twice on this host within 5 min — returns 200 `reason: "duplicate"` without running Claude | `ARO_WAKE_DEDUP_TTL` (default 300s), `ARO_WAKE_DEDUP_MAX` (default 500) |
+| 2. Hop cap (backstop) | `len(seen_by) > fleet_size+1` (default 3) | `ARO_WAKE_HOP_LIMIT` |
+| 3. Forward-target intersection *(PRIMARY)* | `_try_forward` refuses to send to a host already in `payload.seen_by`; alertmanager handler ALSO pre-checks, falling through to local processing instead of queuing-and-spamming | n/a |
+| 4. Storm breaker | Per-target rolling-10-min cap on outbound forwards; first trip logs ERROR with "operator should investigate runaway origin", subsequent trips inside the same window are de-duped | `ARO_WAKE_STORM_THRESHOLD` (default 8), `ARO_WAKE_STORM_WINDOW` (default 600s) |
+
+All state is in-memory; restart = reset = safe default. All four guards verified live on vps1 with 5 dedicated tests (hop cap drops 4-host seen_by; dedup returns "duplicate" in 33ms; forward-target SUPPRESSED log + 503 to caller; storm breaker SUPPRESSED with operator-alert log; cycle pre-check falls through to local 202 without queueing). Updated `scripts/sysadmin/peer-protocol.md` §3.2.1 documents the guard table for operator log-grep reference.
+
 ### Fixed — Trio Phase 1+2+3 fourth + fifth deep review passes: plan/code reconciliation + bootstrap idempotency + proactive-check env loading + dead-code cleanup (2026-06-04 evening, batches 4+5)
 
 Two more review passes after batch 3 (`cb153f8`). Operator's "iterate
@@ -292,7 +331,7 @@ class of issue: the docs and code disagreed about a contract.
 - **New scaffold doc:** [`templates/scaffold/docs/SERVICES_TEMPLATE.md`](templates/scaffold/docs/SERVICES_TEMPLATE.md) — generalized from `site-provisioner/docs/SERVICES.md`. Canonical per-project registry of (1) services the project runs and (2) external/third-party dependencies, using the signature per-dependency block (Env / Cost / Capabilities / Limitations / Used in / Why it exists / Status). Corrected deploy language to SSH + Docker Compose.
 - **Wired into scaffold:** added to `SHARED_TEMPLATE_MAP` in [`src/fabrik/scaffold.py`](src/fabrik/scaffold.py) → every `fabrik scaffold` now emits `docs/SERVICES.md`.
 - **Enforcement aligned:** `docs/SERVICES.md` added to the scaffold allowlist in [`scripts/enforcement/check_doc_sprawl.py`](scripts/enforcement/check_doc_sprawl.py) so a freshly added file doesn't trip doc-sprawl before commit (propagates to projects on next `sync_enforcement_to_projects.py`).
-- **Fleet seed (outside this repo):** populated `docs/SERVICES.md` into 25 existing `/opt` projects, auto-filled from each project's `project.yaml` + `compose.yaml` + `.env.example` (services, ports, vendor-deduped external deps); interpretive prose left as TODO. Skipped 7 projects that already had one; excluded site-provisioner + trade-intelligence.
+- **Fleet seed (outside this repo):** populated `docs/SERVICES.md` into 25 existing `/opt` projects, auto-filled from each project's `project.yaml` + `compose.yaml` + `.env.example` (services, ports, vendor-deduped external deps); interpretive prose left as a follow-up. Skipped 7 projects that already had one; excluded site-provisioner + trade-intelligence.
 
 ### Added — T-P5 Step 6 SHIPPED: per-project watchdog self-heals via Claude Code Opus end-to-end (2026-06-04)
 
@@ -575,7 +614,7 @@ All three stages clean: artifact 1 (config) parses the spec, artifact 12 (regist
 - **systemd service `fabrik-dr-watcher.service`** (Type=simple, User=ozgur, Restart=always, logs to `/var/log/dr-env-watcher.log`). Enabled + started on the dev WSL machine.
 - **3 cron entries** for ozgur: `@reboot` watcher startup safety net, weekly self-test, hourly safety push.
 - **Private GitHub repo `mobasak/fabrik-dr-store`** created with all entry points disabled (Issues/Projects/Wiki/Discussions = false, 0 Actions workflows, 0 external collaborators). The private repo IS the security boundary — no extra encryption layer per single-operator threat model.
-- **Runbook `docs/operations/credential-recovery.md`** (~160 lines) documenting what's at stake, mechanism, security model, recovery flow, plus the known `cmp -s` exit-2 edge case (cannot occur in ozgur-as-user flow) and the deferred log-rotation TODO.
+- **Runbook `docs/operations/credential-recovery.md`** (~160 lines) documenting what's at stake, mechanism, security model, recovery flow, plus the known `cmp -s` exit-2 edge case (cannot occur in ozgur-as-user flow) and the deferred log-rotation follow-up.
 
 ### Added — Probe-audit script + Lesson 69 (W6 of fleet-hardening plan) (2026-06-01)
 

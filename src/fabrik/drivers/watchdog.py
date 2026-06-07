@@ -281,14 +281,28 @@ class WatchdogDriver:
         # deploy target's IP/role.
         target_host = rctx.target_vps
         host_substitutions = {
-            "vps1": {"name": "vps1", "ip": "10.99.0.1", "role": "hub",
-                     "peers": "vps2 (10.99.0.2), vps3 (10.99.0.3)"},
-            "vps2": {"name": "vps2", "ip": "10.99.0.2", "role": "spoke",
-                     "peers": "vps1 (10.99.0.1), vps3 (10.99.0.3)"},
-            "vps3": {"name": "vps3", "ip": "10.99.0.3", "role": "spoke",
-                     "peers": "vps1 (10.99.0.1), vps2 (10.99.0.2)"},
-        }.get(target_host, {"name": target_host, "ip": "unknown",
-                            "role": "unknown", "peers": "unknown"})
+            "vps1": {
+                "name": "vps1",
+                "ip": "10.99.0.1",
+                "role": "hub",
+                "peers": "vps2 (10.99.0.2), vps3 (10.99.0.3)",
+            },
+            "vps2": {
+                "name": "vps2",
+                "ip": "10.99.0.2",
+                "role": "spoke",
+                "peers": "vps1 (10.99.0.1), vps3 (10.99.0.3)",
+            },
+            "vps3": {
+                "name": "vps3",
+                "ip": "10.99.0.3",
+                "role": "spoke",
+                "peers": "vps1 (10.99.0.1), vps2 (10.99.0.2)",
+            },
+        }.get(
+            target_host,
+            {"name": target_host, "ip": "unknown", "role": "unknown", "peers": "unknown"},
+        )
         prompt_text = prompt_src.read_text(encoding="utf-8")
         prompt_text = prompt_text.replace("{{ HOST_NAME }}", host_substitutions["name"])
         prompt_text = prompt_text.replace("{{ HOST_IP }}", host_substitutions["ip"])

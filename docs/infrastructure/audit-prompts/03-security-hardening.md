@@ -1,6 +1,6 @@
 # 03 — Security Hardening (fleet-wide, per-host probes)
 
-**Last Updated:** 2026-06-02 (rewritten for 3-VPS fleet + Wireguard mesh + Authelia — patched 2026-06-02 evening after live-validation: SSH probe now also dumps `sshd_config.d/*.conf` and notes the cloud-init override trap; container host-port probe fixed for `grep --` leading-dash issue; analysis checklist gained the grep-vs-`sshd -T` divergence rule)
+**Last Updated:** 2026-06-06 (procedure unchanged from 2026-06-02; today's posture changes auditors should EXPECT and NOT flag: (a) all 3 hosts have new UFW allow rules `from 10.0.0.0/8 to any port 8201 proto tcp` AND `from 10.99.0.0/24 to any port 8201 proto tcp` for aro-wake reachability (docker bridge + wg0 peer access); (b) vps1 has new routed-policy rule `Anywhere on wg0 ALLOW FWD Anywhere on wg0` enabling spoke↔spoke transit — UFW default-DROP routed policy remains, so this does NOT enable public-internet egress relay (verifiable via `curl --interface wg0 https://1.1.1.1` from a spoke → fails fast with exit 7); (c) `:8201` listener is intentional on all 3 hosts (aro-wake) — covered by UFW deny for public).
 **Run mode:** **fleet-wide**. Probes run separately on each VPS; analysis treats the 3 hosts as one attack surface.
 **Scope:** SSH posture, UFW + DOCKER-USER, mesh trust boundary, TLS, Authelia, fail2ban, secret hygiene, container isolation.
 **Time budget:** ~10 min collection per host (30 min total) + ~20 min analysis.

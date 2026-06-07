@@ -1,3 +1,7 @@
+# SUPERSEDED 2026-06-06: this is the initial fleet-state capture taken 2026-05-20.
+# Frozen as historical baseline; current state lives in probe-reports/infra-probe-2026-06-06T22-39Z.yaml
+# and the live docs (vps-status.md, vps-complete-inventory.md). Do NOT edit the captured values below.
+#
 ========== 1. SYSCTL CUSTOM ==========
 fs.file-max = 9223372036854775807
 fs.inotify.max_user_watches = 92647

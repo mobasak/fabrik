@@ -1,6 +1,6 @@
 # 07 — Pre-Production Checklist (per-spec, per-target_vps)
 
-**Last Updated:** 2026-06-02 (rewritten for spec-driven multi-host deploys; was single-VPS Coolify-era — patched 2026-06-02 evening after live-validation against `image-broker`: fixed two bash bugs — SSH alias mismatch on hub, and `<<EOF` heredoc breaking the nested python `[p['id']` parse — and tightened the Authelia rule probe to report all matches in file order)
+**Last Updated:** 2026-06-06 (procedure unchanged from 2026-06-02; today's fleet additions auditors should confirm BEFORE first traffic on a new spec: (a) on the target spoke, `aro-wake.service` is `active` and reachable from the Prometheus container — query Prometheus for `up{job="aro-wake",host="<target_vps>"}` should return 1; (b) the new service does NOT pick port 8201 (now occupied by aro-wake fleet-wide); (c) if the new service emits its own SLI metrics, follow the same scrape pattern documented in `prometheus-app-metrics-setup.md` § "aro-wake SLI metrics" — use docker bridge `10.0.1.1:<port>` for hub-resident services and wg0 mesh `10.99.0.<N>:<port>` for spoke-resident services.)
 **Run mode:** **per spec** — before `fabrik apply` on a new service that will see real traffic.
 **Scope:** confirm infra/security/observability/backup posture is correct **on the spec's `target_vps`** before traffic lands.
 **Time budget:** ~15 min including the `fabrik apply --dry-run` step.

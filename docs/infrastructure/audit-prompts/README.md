@@ -92,7 +92,7 @@ DR-store mirror (W9, extended for W11): private GitHub mobasak/fabrik-dr-store
 
 Run `python3 scripts/audit_infra_vs_docs.py` to refresh. The script writes timestamped YAML to `docs/infrastructure/probe-reports/`.
 
-**Most recent (cite this as ground truth in audit prompts):** [`../probe-reports/infra-probe-2026-06-01T22-50Z.yaml`](../probe-reports/infra-probe-2026-06-01T22-50Z.yaml) (post-W14 sweep). Counts: 29/5/5. UFW active on all 3. Mesh peers alive: vps1=2, vps2=1, vps3=1. fail2ban totals: 891/73/72.
+**Most recent (cite this as ground truth in audit prompts):** [`../probe-reports/infra-probe-2026-06-06T22-39Z.yaml`](../probe-reports/infra-probe-2026-06-06T22-39Z.yaml) (post-W14 sweep). Counts: 29/5/5. UFW active on all 3. Mesh peers alive: vps1=2, vps2=1, vps3=1. fail2ban totals: 891/73/72.
 
 ## Lessons captured (relevant to auditing)
 

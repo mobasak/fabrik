@@ -1,6 +1,6 @@
 # 01 — Full System Audit (per host)
 
-**Last Updated:** 2026-06-02 (rewritten for the 3-VPS fleet — was single-VPS Coolify-era — patched 2026-06-02 evening after live-validation: hub `/opt/fabrik/.env` check removed; that file is dev-WSL-only and the probe was a false-negative)
+**Last Updated:** 2026-06-06 (procedure unchanged from 2026-06-02; today's fleet additions auditors should be aware of: (a) `aro-wake.service` runs on every host since 2026-06-06 (`sudo systemctl is-active aro-wake.service` → `active`) binding `0.0.0.0:8201`; (b) per-host AI sysadmin bot also runs on every host now (`SysAdminVPS2`+`SysAdminVPS3` for spokes); (c) `ufw status verbose` on vps1 includes `Anywhere on wg0 ALLOW FWD Anywhere on wg0` — the spoke↔spoke routing rule shipped 2026-06-06; (d) `listening_public` row now includes `0.0.0.0:8201` on all 3 hosts (aro-wake bind) — this is expected, NOT a finding)
 **Run mode:** **per host**. Run once on each VPS you want audited; collect outputs separately.
 **Scope:** vps1 (hub, LA) ‖ vps2 (spoke, Coventry UK) ‖ vps3 (spoke, Coventry UK)
 **Time budget:** ~15 min of command output + ~10 min of analysis per host.

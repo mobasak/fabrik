@@ -1,7 +1,7 @@
 # VPS Fleet — Service URLs and Endpoints
 
-**Last Updated:** 2026-06-01 (post-W1 ship — UFW active on spokes; probe reports moved to tracked location)
-**Last probe report:** [`probe-reports/infra-probe-2026-06-01T22-50Z.yaml`](probe-reports/infra-probe-2026-06-01T22-50Z.yaml)
+**Last Updated:** 2026-06-06 (aro-wake LIVE on full fleet — `/wake`+`/health`+`/metrics` on every host at `:8201`; spoke↔spoke wg0 routing LIVE via vps1 hub-hop; Prometheus SLI scrape job `aro-wake` covers all 3 targets)
+**Last probe report:** [`probe-reports/infra-probe-2026-06-06T22-39Z.yaml`](probe-reports/infra-probe-2026-06-06T22-39Z.yaml)
 **Hosts:** vps1 (hub, LA, `172.93.160.197`) · vps2 (Coventry UK, `96.9.214.128`) · vps3 (Coventry UK, `104.128.190.151`)
 **Mesh:** Wireguard `10.99.0.0/24` over UDP 51820 (vps1 = `.1`, vps2 = `.2`, vps3 = `.3`)
 **Pattern:** Public traffic → per-host Traefik → TLS terminated per host → Authelia forward-auth on admin dashboards. HTTP auto-redirects to HTTPS. No service binds a public port directly; Traefik fronts everything except SSH and Wireguard.
@@ -164,8 +164,13 @@ A spoke container reaches vps1's shared infra over the Wireguard mesh — bind a
 | `http://10.99.0.1:9091/api/verify` | Authelia forward-auth (spoke Traefik uses this) | ✓ |
 | `http://10.99.0.1:3100/loki/api/v1/push` | Loki ingest (spoke promtail uses this) | ✓ |
 | `http://10.99.0.1:8201/wake` | aro-wake peer-protocol consult / Alertmanager webhook on vps1 (trio Phase 3+4 LIVE 2026-06-05) | ✓ |
+| `http://10.99.0.1:8201/metrics` | aro-wake Prometheus exposition on vps1 (8 SLI metrics, scraped 15s) — LIVE 2026-06-06 | ✓ |
+| `http://10.99.0.2:8201/wake` | aro-wake peer-protocol consult on vps2 — LIVE 2026-06-06 (real cross-host vps2→vps1 verified) | ✓ |
+| `http://10.99.0.2:8201/metrics` | aro-wake Prometheus exposition on vps2 — scraped by hub Prometheus over wg0 (~270ms) | ✓ |
+| `http://10.99.0.3:8201/wake` | aro-wake peer-protocol consult on vps3 — LIVE 2026-06-06 | ✓ |
+| `http://10.99.0.3:8201/metrics` | aro-wake Prometheus exposition on vps3 — scraped by hub Prometheus over wg0 (~270ms) | ✓ |
 
-aro-wake on vps1 binds `0.0.0.0:8201`; UFW rule `from 10.99.0.0/24 to any port 8201 proto tcp` permits peer access while public ingress is denied. Spokes that run aro-wake (Phase 2 deploy gate) will be reachable at `http://10.99.0.<N>:8201/wake` symmetrically.
+aro-wake on EVERY host binds `0.0.0.0:8201`; UFW rule `from 10.99.0.0/24 to any port 8201 proto tcp` permits peer access on every host while public ingress is denied. aro-wake LIVE on all 3 hosts since 2026-06-06 — `http://10.99.0.<N>:8201/wake` is fully symmetric. **Spoke↔spoke routing also LIVE**: single `ufw route allow in on wg0 out on wg0` on vps1 enables direct vps2↔vps3 reach at ~266ms via hub-hop (vps1 acts as wg0 router, kernel forwarding was already enabled, spokes already had `AllowedIPs=10.99.0.0/24`). vps1 is NOT a public-internet egress relay for spokes (UFW default-DROP routed policy + tcpdump-verified that the routed allow is strictly wg0→wg0, never wg0→eth0).
 
 No spoke service binds to a mesh port itself today (only monitoring agents expose `10.99.0.<N>:<port>` so vps1's Prometheus can scrape them — see below).
 

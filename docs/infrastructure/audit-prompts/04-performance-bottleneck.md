@@ -1,6 +1,6 @@
 # 04 — Performance Bottleneck (per host)
 
-**Last Updated:** 2026-06-02 (rewritten for 3-VPS fleet; hub has 29 containers, spokes 5 each — patched 2026-06-02 evening after live-validation: `conntrack -L` probe replaced with `sysctl net.netfilter.nf_conntrack_count/_max` — `conntrack` CLI is not installed on any host, and the old probe silently returned the first NAT entry rather than the count)
+**Last Updated:** 2026-06-06 (procedure unchanged; container counts now hub=31, spokes=5 each. Today's new host processes auditors should expect in `ps`/`top`: `uvicorn main:app --host 0.0.0.0 --port 8201` (aro-wake — ~32 MB RSS idle, 0% CPU when not waking) and `python3 /opt/fabrik/scripts/sysadmin/bot.py` (sysadmin bot — also idle most of the time). Neither is a bottleneck — both sleep until pushed. **New SLI metrics available for cost-bottleneck analysis**: query `sum(rate(aro_wake_cost_usd_total[1h])) by (host)` in Prometheus to see per-host Claude $ burn rate; `AroWakeCostBurnHigh` alert fires if > $5/h sustained (runaway-reasoning early-warning).)
 **Run mode:** **per host**. Resource budgets differ (hub: 11.6 GiB / 6 cores; spokes: 7.7 GiB / 4 cores).
 **Scope:** CPU, memory, disk I/O, network — identify what's slow, why, how to fix.
 **Time budget:** ~10 min probes + ~15 min analysis per host.

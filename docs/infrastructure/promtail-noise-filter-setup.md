@@ -1,7 +1,7 @@
 # Promtail Log Noise Filter — Setup
 
-**Last Updated:** 2026-05-31 (post-Coolify-removal — most originally-filtered containers no longer exist; multi-host section added)
-**Status:** ✅ Live on vps1
+**Last Updated:** 2026-06-06 (filters unchanged; aro-wake on full fleet writes to host journald + `/var/log/aro-wake.log` — those aren't shipped by Promtail's docker-socket discovery, so no aro-wake noise filter is needed. Each host's Loki ingest stream for `host="vpsN"` will not include aro-wake-internal logs; operators read those locally via `sudo tail /var/log/aro-wake.log`.)
+**Status:** ✅ Live on vps1; spokes ship via the `promtail-spokes` Prometheus scrape job in `prometheus.yml`
 **Container:** `promtail` (stable name)
 **Config:** `/opt/monitoring/configs/promtail/promtail-config.yaml` (host bind mount)
 **Spoke promtails:** `vps2`, `vps3` — rendered by `scripts/bootstrap/bootstrap-vps.sh` step 11 (different config, see § Multi-host)

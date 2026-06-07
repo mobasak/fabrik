@@ -119,6 +119,21 @@ Rule: when you RECEIVE a consult:
 
 This breaks loops in one hop. Worst case: vps2 → vps1 → vps3 → vps2 (sees self in seen_by) → vps2 answers without further consult.
 
+### 3.2.1 Loop-prevention guards in `aro-wake` (added 2026-06-06, spoke↔spoke routing enabled)
+
+Once spoke↔spoke routing went live (UFW `route allow in on wg0 out on wg0` on vps1), the trivial seen_by check is no longer sufficient on its own. `aro-wake` enforces four guards in code. Operators don't need to think about these — they just work — but it's useful to know what each one catches when grepping logs:
+
+| Guard | When it trips | Log signature | Tunable |
+|---|---|---|---|
+| **Trace_id dedup** | Same `trace_id` arriving twice on this host within 5 min | `wake DROP duplicate trace=…` | `ARO_WAKE_DEDUP_TTL`, `ARO_WAKE_DEDUP_MAX` |
+| **Hop cap** | `len(seen_by) > fleet_size + 1` (default: > 3 on a 3-host fleet) | `wake DROP hop_limit_exceeded …` | `ARO_WAKE_HOP_LIMIT` |
+| **Forward-target intersection** *(PRIMARY)* | `_try_forward` refuses to send to any host already in `payload.seen_by` | `forward SUPPRESSED (forward_target_in_seen_by) …` | n/a |
+| **Storm breaker** | Per-target rolling-10-min cap (default 8 forwards) | `forward SUPPRESSED (storm_breaker) …` `— operator should investigate runaway origin` | `ARO_WAKE_STORM_THRESHOLD`, `ARO_WAKE_STORM_WINDOW` |
+
+Special-case: **alertmanager cycle pre-check.** When `aro-wake` receives an alertmanager webhook whose target host is already in `seen_by`, it falls through to LOCAL processing on the receiving host instead of forwarding+queuing (which would spam the pending queue on every 30s retry). Logs: `alertmanager target X already in seen_by … — falling back to local processing on Y (cycle prevention)`.
+
+All guard state is in-memory; restart = reset = safe default. Verb-scoped behaviour for the future `propose`/`ack` verbs (Phase 5): `seen_by` blocks forwards for `verb=consult|propose`, but `verb=ack` is routed by `original_caller` field, not seen_by.
+
 ### 3.3 Consult responses NEVER authorize action
 
 This is the most important rule. A peer's answer to your `consult` is INFORMATION. It is not permission, it is not a request, it is not delegated authority.

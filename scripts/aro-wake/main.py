@@ -31,7 +31,7 @@ import subprocess
 import threading
 import time
 import uuid
-from collections import deque
+from collections import OrderedDict, deque
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
@@ -81,8 +81,12 @@ PENDING_QUEUE_PATH = Path(os.environ.get("ARO_WAKE_QUEUE_PATH", "/var/lib/aro-wa
 PENDING_TTL_SECONDS = int(os.environ.get("ARO_WAKE_PENDING_TTL", str(24 * 3600)))
 PENDING_MAX_ENTRIES = int(os.environ.get("ARO_WAKE_PENDING_MAX", "1000"))
 PROJECT_DIR = Path(os.environ.get("ARO_WAKE_PROJECT_DIR", "/opt/fabrik"))
-SYSTEM_PROMPT_PATH = Path(os.environ.get("ARO_WAKE_SYSTEM_PROMPT", "/opt/fabrik/scripts/sysadmin/system-prompt.txt"))
-ACTIONS_LOG_PATH = Path(os.environ.get("ARO_WAKE_ACTIONS_LOG", "/opt/fabrik/logs/sysadmin-actions.jsonl"))
+SYSTEM_PROMPT_PATH = Path(
+    os.environ.get("ARO_WAKE_SYSTEM_PROMPT", "/opt/fabrik/scripts/sysadmin/system-prompt.txt")
+)
+ACTIONS_LOG_PATH = Path(
+    os.environ.get("ARO_WAKE_ACTIONS_LOG", "/opt/fabrik/logs/sysadmin-actions.jsonl")
+)
 
 # ── Logging ───────────────────────────────────────────────────────────────
 
@@ -94,6 +98,7 @@ log = logging.getLogger(__name__)
 
 
 # ── Rate limiter ──────────────────────────────────────────────────────────
+
 
 class RateLimiter:
     """Per-(source, topic) tracker; drops events past the hourly cap.
@@ -123,6 +128,152 @@ class RateLimiter:
 
 
 _rate = RateLimiter(RATE_LIMIT_PER_HOUR)
+
+
+# ── Loop-prevention guards (4 layers) ─────────────────────────────────────
+#
+# Spoke↔spoke routing went LIVE 2026-06-06 (ufw route allow in on wg0 out on
+# wg0 on vps1; spokes already had AllowedIPs 10.99.0.0/24). With direct peer
+# reach now possible, the protocol needs hardened cycle prevention. The four
+# guards, in order of when they trip:
+#
+#   1. Trace-id dedup     — same trace_id arriving twice on this host (via
+#                           any path) within 5 min is dropped. Catches the
+#                           "different code paths re-injected the same
+#                           logical event" case.
+#   2. Hop cap (backstop) — len(seen_by) > fleet_size means a bug in
+#                           seen_by handling. Cheap insurance.
+#   3. Forward-target intersection — _try_forward refuses to send to any
+#                           host already in payload.seen_by. PRIMARY guard;
+#                           naturally terminates chains when all peers are
+#                           covered.
+#   4. Storm breaker      — per-target-host rolling-10-min cap on outbound
+#                           forwards from THIS host. Trips at 8/10min.
+#                           Prevents incident storms from amplifying.
+#
+# All state is in-memory: restart = reset = safe default (no recent activity).
+
+_DEDUP_TTL = int(os.environ.get("ARO_WAKE_DEDUP_TTL", "300"))  # 5 min
+_DEDUP_MAX = int(os.environ.get("ARO_WAKE_DEDUP_MAX", "500"))
+_HOP_LIMIT = int(os.environ.get("ARO_WAKE_HOP_LIMIT", str(len(PEER_HOSTS) + 1)))
+_STORM_WINDOW = int(os.environ.get("ARO_WAKE_STORM_WINDOW", "600"))  # 10 min
+_STORM_THRESHOLD = int(os.environ.get("ARO_WAKE_STORM_THRESHOLD", "8"))
+
+_recent_traces: OrderedDict[str, float] = OrderedDict()
+_forwards_by_host: dict[str, deque[float]] = {}
+_storm_alerted_at: dict[str, float] = {}
+_guards_lock = threading.Lock()
+
+
+def _dedup_trace(trace_id: str) -> bool:
+    """True if trace_id was already seen on this host within _DEDUP_TTL."""
+    now = time.time()
+    with _guards_lock:
+        # Evict expired entries from the front (OrderedDict insertion-ordered)
+        while _recent_traces:
+            oldest_id, oldest_ts = next(iter(_recent_traces.items()))
+            if now - oldest_ts > _DEDUP_TTL:
+                _recent_traces.popitem(last=False)
+            else:
+                break
+        if trace_id in _recent_traces:
+            return True
+        _recent_traces[trace_id] = now
+        # Bound memory: drop oldest if over cap
+        while len(_recent_traces) > _DEDUP_MAX:
+            _recent_traces.popitem(last=False)
+        return False
+
+
+def _storm_check(target_host: str) -> tuple[bool, int]:
+    """Per-target-host rolling-window forward counter.
+
+    Returns (ok_to_forward, current_count_in_window). When ok_to_forward is
+    False, the caller should drop the forward (log + apprise once per window).
+    """
+    now = time.time()
+    with _guards_lock:
+        forwards = _forwards_by_host.setdefault(target_host, deque())
+        while forwards and now - forwards[0] > _STORM_WINDOW:
+            forwards.popleft()
+        if len(forwards) >= _STORM_THRESHOLD:
+            return False, len(forwards)
+        forwards.append(now)
+        return True, len(forwards)
+
+
+def _storm_should_alert(target_host: str) -> bool:
+    """True iff we haven't alerted for this host within the current window.
+
+    Prevents log/apprise spam when the breaker is stuck-tripped.
+    """
+    now = time.time()
+    with _guards_lock:
+        last = _storm_alerted_at.get(target_host, 0.0)
+        if now - last < _STORM_WINDOW:
+            return False
+        _storm_alerted_at[target_host] = now
+        return True
+
+
+# ── Prometheus SLI metrics (agent-sre framing per docs/reference/AI for ──
+# Autonomous System Administration.md). Mounted at /metrics on the existing
+# 0.0.0.0:8201 binding (no new port; UFW already permits 10.0.0.0/8 → 8201
+# per PORTS.md). Counters are cumulative since process start (acceptable
+# baseline; Prometheus rate() handles restart resets).
+from prometheus_client import (  # noqa: E402
+    CONTENT_TYPE_LATEST,
+    CollectorRegistry,
+    Counter,
+    Gauge,
+    generate_latest,
+)
+
+_REGISTRY = CollectorRegistry()
+M_REQUESTS = Counter(
+    "aro_wake_requests_total",
+    "Total /wake requests processed, by source and outcome",
+    ["source", "status"],
+    registry=_REGISTRY,
+)
+M_COST = Counter(
+    "aro_wake_cost_usd_total",
+    "Cumulative Claude USD cost across /wake calls, by source",
+    ["source"],
+    registry=_REGISTRY,
+)
+M_DEDUP = Counter(
+    "aro_wake_dedup_drops_total",
+    "Duplicate trace_id drops (loop guard #1)",
+    registry=_REGISTRY,
+)
+M_HOP = Counter(
+    "aro_wake_hop_limit_exceeded_total",
+    "len(seen_by) > _HOP_LIMIT drops (loop guard #2)",
+    registry=_REGISTRY,
+)
+M_FWD_SUPPR = Counter(
+    "aro_wake_forward_suppressed_total",
+    "Outbound forward suppressions, by target and reason",
+    ["target_host", "reason"],
+    registry=_REGISTRY,
+)
+M_STORM = Counter(
+    "aro_wake_storm_breaker_trips_total",
+    "Storm-breaker trips, by target host (loop guard #4)",
+    ["target_host"],
+    registry=_REGISTRY,
+)
+M_QUEUE = Gauge(
+    "aro_wake_pending_queue_size",
+    "Current pending.jsonl queue depth",
+    registry=_REGISTRY,
+)
+M_SESSIONS = Gauge(
+    "aro_wake_active_sessions",
+    "Active (source, topic) Claude session-id entries",
+    registry=_REGISTRY,
+)
 
 
 # ── Per-(source, topic) session memory (warm prompt cache) ────────────────
@@ -189,9 +340,11 @@ async def _queue_pending(intended_for: str, payload: dict[str, Any]) -> None:
         if PENDING_QUEUE_PATH.exists():
             lines = PENDING_QUEUE_PATH.read_text().splitlines()
             if len(lines) >= PENDING_MAX_ENTRIES:
-                log.warning("pending_queue_overflow: dropping %d oldest entries",
-                            len(lines) - PENDING_MAX_ENTRIES + 1)
-                lines = lines[-(PENDING_MAX_ENTRIES - 1):]
+                log.warning(
+                    "pending_queue_overflow: dropping %d oldest entries",
+                    len(lines) - PENDING_MAX_ENTRIES + 1,
+                )
+                lines = lines[-(PENDING_MAX_ENTRIES - 1) :]
                 PENDING_QUEUE_PATH.write_text("\n".join(lines) + "\n")
         with PENDING_QUEUE_PATH.open("a") as fh:
             fh.write(json.dumps(entry) + "\n")
@@ -220,8 +373,11 @@ async def _drain_pending_loop() -> None:
             except json.JSONDecodeError:
                 continue
             if entry["ttl_until"] < now:
-                log.warning("pending entry expired: intended_for=%s topic=%s",
-                            entry["intended_for"], entry["payload"].get("topic"))
+                log.warning(
+                    "pending entry expired: intended_for=%s topic=%s",
+                    entry["intended_for"],
+                    entry["payload"].get("topic"),
+                )
                 continue
             ok_fwd = await _try_forward(entry["intended_for"], entry["payload"])
             if not ok_fwd:
@@ -242,11 +398,57 @@ async def _drain_pending_loop() -> None:
 
 # ── Forwarding (cross-host consult) ───────────────────────────────────────
 
+
 async def _try_forward(target_host: str, payload: dict[str, Any]) -> bool:
-    """POST a wake payload to a peer's aro-wake. Returns True on 2xx."""
+    """POST a wake payload to a peer's aro-wake. Returns True on 2xx.
+
+    Applies two loop guards BEFORE the network call:
+      (a) forward-target intersection — refuses to forward to any host that's
+          already in payload.seen_by (PRIMARY chain-termination guard).
+      (b) storm breaker — refuses if this host has authored >=_STORM_THRESHOLD
+          forwards to target_host in the last _STORM_WINDOW seconds. Logs
+          loudly + alerts once per window on first trip.
+
+    Returns False for both suppression cases so callers (alertmanager forward
+    path + _drain_pending_loop) treat them the same as a network failure —
+    the pending queue then retries the unforwardable payload, which itself
+    is bounded by TTL.
+    """
     target_ip = PEER_HOSTS.get(target_host)
     if not target_ip:
         log.error("unknown peer host: %s", target_host)
+        return False
+    seen_by = payload.get("seen_by") or []
+    trace_id = payload.get("trace_id", "?")
+    if target_host in seen_by:
+        log.warning(
+            "forward SUPPRESSED (forward_target_in_seen_by): target=%s seen_by=%s trace=%s",
+            target_host,
+            seen_by,
+            trace_id[:8],
+        )
+        M_FWD_SUPPR.labels(target_host=target_host, reason="seen_by").inc()
+        return False
+    ok, count = _storm_check(target_host)
+    if not ok:
+        if _storm_should_alert(target_host):
+            log.error(
+                "forward SUPPRESSED (storm_breaker): target=%s count=%d/%d in %ds "
+                "— operator should investigate runaway origin trace=%s",
+                target_host,
+                count,
+                _STORM_THRESHOLD,
+                _STORM_WINDOW,
+                trace_id[:8],
+            )
+        else:
+            log.warning(
+                "forward SUPPRESSED (storm_breaker, alerted earlier): target=%s trace=%s",
+                target_host,
+                trace_id[:8],
+            )
+        M_FWD_SUPPR.labels(target_host=target_host, reason="storm").inc()
+        M_STORM.labels(target_host=target_host).inc()
         return False
     url = f"http://{target_ip}:8201/wake"
     try:
@@ -259,6 +461,7 @@ async def _try_forward(target_host: str, payload: dict[str, Any]) -> bool:
 
 
 # ── Claude subprocess (mirrors bot.py::_run_claude pattern verbatim) ──────
+
 
 def _run_claude(
     message: str,
@@ -275,10 +478,14 @@ def _run_claude(
     """
     cmd = [
         "claude",
-        "-p", message,
-        "--model", os.environ.get("ARO_WAKE_MODEL", "opus"),
-        "--output-format", "json",
-        "--permission-mode", "bypassPermissions",
+        "-p",
+        message,
+        "--model",
+        os.environ.get("ARO_WAKE_MODEL", "opus"),
+        "--output-format",
+        "json",
+        "--permission-mode",
+        "bypassPermissions",
     ]
     resume_sid = _session_for(source, topic)
     if resume_sid:
@@ -406,8 +613,12 @@ async def _lifespan(_app: FastAPI):
     drain_task = asyncio.create_task(_drain_pending_loop())
     log.info(
         "aro-wake up: host=%s role=%s ip=%s peers=%s timeout=%ds rate_limit=%d/h",
-        HOST_NAME, HOST_ROLE, HOST_IP, list(PEER_HOSTS.keys()),
-        WAKE_TIMEOUT, RATE_LIMIT_PER_HOUR,
+        HOST_NAME,
+        HOST_ROLE,
+        HOST_IP,
+        list(PEER_HOSTS.keys()),
+        WAKE_TIMEOUT,
+        RATE_LIMIT_PER_HOUR,
     )
     try:
         yield
@@ -422,6 +633,25 @@ async def _lifespan(_app: FastAPI):
 
 
 app = FastAPI(title="aro-wake", version="0.1.0", lifespan=_lifespan)
+
+# Prometheus exposition endpoint on the SAME 8201 binding (no new port).
+# Use a regular route (not ASGI mount) so /metrics doesn't 307→/metrics/.
+# Gauges refresh inline at scrape time — Prometheus default 15s interval is
+# the de-facto refresh cadence.
+from fastapi.responses import Response as _PromResponse  # noqa: E402
+
+
+@app.get("/metrics")
+async def metrics() -> _PromResponse:
+    try:
+        M_SESSIONS.set(len(_sessions))
+        if PENDING_QUEUE_PATH.exists():
+            M_QUEUE.set(sum(1 for ln in PENDING_QUEUE_PATH.read_text().splitlines() if ln.strip()))
+        else:
+            M_QUEUE.set(0)
+    except OSError:
+        pass
+    return _PromResponse(content=generate_latest(_REGISTRY), media_type=CONTENT_TYPE_LATEST)
 
 
 @app.get("/health")
@@ -494,6 +724,46 @@ async def wake(request: Request) -> JSONResponse:
     seen_by = body.get("seen_by") or []
     payload = body.get("payload") or {}
 
+    # Loop guard #1 — trace_id dedup (5-min in-memory LRU).
+    # Same trace_id arriving twice on THIS host means it reached us via two
+    # paths (legitimate alertmanager retry, or a cross-host re-injection).
+    # Drop the duplicate before any work. Operator who genuinely wants to
+    # re-fire a trace_id manually should mint a new uuid.
+    if _dedup_trace(trace_id):
+        log.info("wake DROP duplicate trace=%s source=%s topic=%s", trace_id[:8], source, topic)
+        M_DEDUP.inc()
+        return JSONResponse(
+            content={
+                "ok": False,
+                "reason": "duplicate",
+                "trace_id": trace_id,
+                "from_host": HOST_NAME,
+            }
+        )
+
+    # Loop guard #2 — hop cap (belt-and-suspenders).
+    # On a 3-host fleet, legitimate max(seen_by) = 3 (all hosts saw it). If
+    # we receive a payload where seen_by already exceeds fleet size, that's
+    # a bug in seen_by handling somewhere upstream. Drop loudly.
+    if len(seen_by) > _HOP_LIMIT:
+        log.warning(
+            "wake DROP hop_limit_exceeded trace=%s seen_by=%s limit=%d",
+            trace_id[:8],
+            seen_by,
+            _HOP_LIMIT,
+        )
+        M_HOP.inc()
+        return JSONResponse(
+            content={
+                "ok": False,
+                "reason": "hop_limit_exceeded",
+                "trace_id": trace_id,
+                "from_host": HOST_NAME,
+                "seen_by": seen_by,
+                "limit": _HOP_LIMIT,
+            }
+        )
+
     # Alertmanager webhook payloads don't carry our internal source/topic
     # shape — they have alerts[], commonLabels, etc. Wrap them into our
     # format so the rest of the handler (rate limit + dedupe + cycle) just
@@ -511,6 +781,28 @@ async def wake(request: Request) -> JSONResponse:
             topic = (body.get("groupKey") or "alertmanager_unknown")[:120]
         # If host is a peer, forward (only if mesh is reachable). Process
         # locally otherwise (host = this host, or no label).
+        # Cycle pre-check: if the target peer already appears in seen_by, the
+        # forward would be SUPPRESSED by _try_forward's guard AND then
+        # queued+retried-pointlessly every 30s until TTL. Skip both: fall
+        # through to local processing as the cycle fallback.
+        if (
+            alertmanager_target_host
+            and alertmanager_target_host in PEER_HOSTS
+            and alertmanager_target_host in seen_by
+        ):
+            log.warning(
+                "alertmanager target %s already in seen_by=%s — falling back "
+                "to local processing on %s (cycle prevention) trace=%s",
+                alertmanager_target_host,
+                seen_by,
+                HOST_NAME,
+                trace_id[:8],
+            )
+            # Same operator-visible event as _try_forward's seen_by suppress;
+            # this branch is the optimized path that avoids the _try_forward
+            # call altogether (so _try_forward's metric would never fire here).
+            M_FWD_SUPPR.labels(target_host=alertmanager_target_host, reason="seen_by").inc()
+            alertmanager_target_host = None  # forces local-processing branch
         if alertmanager_target_host and alertmanager_target_host in PEER_HOSTS:
             fwd_payload = {
                 **body,
@@ -522,12 +814,14 @@ async def wake(request: Request) -> JSONResponse:
             }
             ok_fwd = await _try_forward(alertmanager_target_host, fwd_payload)
             if ok_fwd:
-                return JSONResponse(content={
-                    "ok": True,
-                    "from_host": HOST_NAME,
-                    "trace_id": trace_id,
-                    "forwarded_to": alertmanager_target_host,
-                })
+                return JSONResponse(
+                    content={
+                        "ok": True,
+                        "from_host": HOST_NAME,
+                        "trace_id": trace_id,
+                        "forwarded_to": alertmanager_target_host,
+                    }
+                )
             # Forward failed → queue for retry + still surface 5xx to
             # Alertmanager so its `continue: true` route picks up the
             # telegram fallback.
@@ -549,8 +843,7 @@ async def wake(request: Request) -> JSONResponse:
             "host_label": alertmanager_target_host or "(unset — low_quality_alert)",
         }
         if not alertmanager_target_host:
-            log.warning("low_quality_alert source=alertmanager topic=%s no host label",
-                        topic)
+            log.warning("low_quality_alert source=alertmanager topic=%s no host label", topic)
         # ASYNC PATTERN for alertmanager: return 202 immediately + process
         # Claude in a background task. Reason: Alertmanager's webhook_configs
         # default timeout (~10s) is much less than Claude's wall-clock
@@ -583,6 +876,7 @@ async def wake(request: Request) -> JSONResponse:
             f"  - Use deconfliction rule (check for *-watchdog sidecar) before any restart\n"
             f"Report what you did + evidence."
         )
+
         # Spawn background processing; we hold the task reference on a
         # module-level set so the event loop doesn't GC it mid-flight (a
         # known asyncio pitfall — see Python docs for asyncio.create_task).
@@ -595,25 +889,33 @@ async def wake(request: Request) -> JSONResponse:
                     topic=topic,
                     system_prompt=_load_prompt() if _session_for(source, topic) is None else None,
                 )
-                _log_action({
-                    "source": source,
-                    "topic": topic,
-                    "from_host": from_host,
-                    "trace_id": trace_id,
-                    "cycle": is_cycle_am,
-                    "claude_ok": result_bg.get("ok", False),
-                    "cost_usd": result_bg.get("cost_usd", 0.0),
-                    "result_excerpt": (result_bg.get("result", "") or
-                                        result_bg.get("error", ""))[:200],
-                    "async": True,
-                })
+                _log_action(
+                    {
+                        "source": source,
+                        "topic": topic,
+                        "from_host": from_host,
+                        "trace_id": trace_id,
+                        "cycle": is_cycle_am,
+                        "claude_ok": result_bg.get("ok", False),
+                        "cost_usd": result_bg.get("cost_usd", 0.0),
+                        "result_excerpt": (
+                            result_bg.get("result", "") or result_bg.get("error", "")
+                        )[:200],
+                        "async": True,
+                    }
+                )
+                M_REQUESTS.labels(
+                    source=source,
+                    status="success" if result_bg.get("ok") else "failure",
+                ).inc()
+                M_COST.labels(source=source).inc(float(result_bg.get("cost_usd", 0.0)))
             except Exception as e:  # noqa: BLE001
                 log.exception("background alertmanager processing failed: %s", e)
+
         task = asyncio.create_task(_bg_alertmanager())
         _bg_tasks.add(task)
         task.add_done_callback(_bg_tasks.discard)
-        log.info("wake source=alertmanager topic=%s trace=%s scheduled-async",
-                 topic, trace_id[:8])
+        log.info("wake source=alertmanager topic=%s trace=%s scheduled-async", topic, trace_id[:8])
         return JSONResponse(
             status_code=202,
             content={
@@ -651,8 +953,12 @@ async def wake(request: Request) -> JSONResponse:
             f"responses are diagnosis-only per peer-protocol.md §3.3. If you "
             f"see a correlation with the peer's view, name it. Keep response "
             f"under 200 words.\n"
-            + ("\n(NOTE: cycle detected — your host is already in seen_by; "
-               "answer with current state only, do not forward.)\n" if is_cycle else "")
+            + (
+                "\n(NOTE: cycle detected — your host is already in seen_by; "
+                "answer with current state only, do not forward.)\n"
+                if is_cycle
+                else ""
+            )
         )
     else:
         # NOTE: source="alertmanager" never reaches this branch — handled
@@ -666,8 +972,14 @@ async def wake(request: Request) -> JSONResponse:
             f"Diagnose and act per your veteran-sysadmin authority on {HOST_NAME}."
         )
 
-    log.info("wake source=%s topic=%s from=%s trace=%s cycle=%s",
-             source, topic, from_host, trace_id[:8], is_cycle)
+    log.info(
+        "wake source=%s topic=%s from=%s trace=%s cycle=%s",
+        source,
+        topic,
+        from_host,
+        trace_id[:8],
+        is_cycle,
+    )
     result = await asyncio.to_thread(
         _run_claude,
         message,
@@ -675,16 +987,23 @@ async def wake(request: Request) -> JSONResponse:
         topic=topic,
         system_prompt=_load_prompt() if _session_for(source, topic) is None else None,
     )
-    _log_action({
-        "source": source,
-        "topic": topic,
-        "from_host": from_host,
-        "trace_id": trace_id,
-        "cycle": is_cycle,
-        "claude_ok": result.get("ok", False),
-        "cost_usd": result.get("cost_usd", 0.0),
-        "result_excerpt": (result.get("result", "") or result.get("error", ""))[:200],
-    })
+    _log_action(
+        {
+            "source": source,
+            "topic": topic,
+            "from_host": from_host,
+            "trace_id": trace_id,
+            "cycle": is_cycle,
+            "claude_ok": result.get("ok", False),
+            "cost_usd": result.get("cost_usd", 0.0),
+            "result_excerpt": (result.get("result", "") or result.get("error", ""))[:200],
+        }
+    )
+    M_REQUESTS.labels(
+        source=source,
+        status="success" if result.get("ok") else "failure",
+    ).inc()
+    M_COST.labels(source=source).inc(float(result.get("cost_usd", 0.0)))
 
     if not result["ok"]:
         return JSONResponse(
@@ -700,7 +1019,7 @@ async def wake(request: Request) -> JSONResponse:
     # prefix at start, sometimes not.
     cleaned = raw.lstrip()
     if cleaned.startswith(f"[{HOST_NAME}]"):
-        cleaned = cleaned[len(f"[{HOST_NAME}]"):].lstrip()
+        cleaned = cleaned[len(f"[{HOST_NAME}]") :].lstrip()
 
     response_body: dict[str, Any] = {
         "ok": True,

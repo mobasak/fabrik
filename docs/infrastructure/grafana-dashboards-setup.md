@@ -1,6 +1,6 @@
 # Grafana Provisioning & Dashboards
 
-**Last Updated:** 2026-05-31 (post-multi-host: `coolify` → `fabrik` network rename, stable container names, host filter variable on all dashboards)
+**Last Updated:** 2026-06-06 (post-multi-host setup unchanged; aro-wake SLI metrics LIVE on full fleet — dashboard for `aro_wake_*` series is deliberately deferred. PromQL + the 2 alert rules `AroWakeLowSuccessRate` + `AroWakeCostBurnHigh` cover operator needs today; a Grafana panel can be added when ad-hoc PromQL gets tedious. See [`prometheus-app-metrics-setup.md`](prometheus-app-metrics-setup.md#aro-wake-sli-metrics-added-2026-06-06--full-fleet) for the SLI series + scrape pattern.)
 **Status:** ✅ Live
 **Grafana URL:** <https://monitor.vps1.ocoron.com> (Authelia 2FA required for UI)
 **Automation:** `scripts/provision_grafana.sh` — idempotent, re-runnable

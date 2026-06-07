@@ -1,7 +1,7 @@
 # WSL2 DNS Resolution Fix
 
 **Date:** 2026-03-16
-**Status:** ✅ APPLIED
+**Status:** ✅ APPLIED — re-confirmed in effect 2026-06-06 (no change to mechanism; dev-WSL DNS still resolves cleanly. This fix is orthogonal to the VPS fleet — applies only to the local development environment, doesn't affect aro-wake / loop guards / SLI metrics / spoke routing work shipped today.)
 **Affects:** All WSL2 environments running Fabrik
 
 ---

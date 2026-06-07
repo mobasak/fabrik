@@ -91,7 +91,7 @@ With ~$50/month infrastructure cost:
 ## Project Portfolio
 
 <!-- AUTO-GENERATED:PROJECTS:START -->
-<!-- Last synced: 2026-06-02 18:30:31 -->
+<!-- Last synced: 2026-06-06 13:01:07 -->
 <!-- Total projects: 36 -->
 
 ### Production Services (5 projects)
@@ -104,7 +104,7 @@ With ~$50/month infrastructure cost:
 | **site-provisioner** | Unified site provisioning API - domain registration, DNS, SSL, CDN, analytics, and webmaster to... | Python | ✅ Production | https://provision.vps1.ocoron.com | ✅ Current |
 | **youtube** | **Status:** Production Ready - Multi-Tenant SaaS ✅ | Python | ✅ Production | Multi-tenant SaaS | ✅ Current |
 
-### Active Development (14 projects)
+### Active Development (13 projects)
 
 | Project | Purpose | Stack | Status | URL | Scaffold |
 |---------|---------|-------|--------|-----|----------|
@@ -116,14 +116,13 @@ With ~$50/month infrastructure cost:
 | **obsidian-agents** | Obsidian plugin: right-pane chat view that drives Claude Code and Kilo CLI agents via headless ... | Node.js | 🔨 Development | - | ✅ Current |
 | **proposal-creator** | A professional B2B proposal generation system based on best practices from McKinsey, Shipley, a... | FastAPI | 🔨 Development | https://proposal-creator.vps1.ocoron.com | ✅ Current |
 | **seo** | SEO keyword research and long-tail keyword generation for AI content creation | FastAPI | 🔨 Development | https://seo.vps1.ocoron.com | ✅ Current |
-| **test-saas-for-epic-wf** | Editorial — content portfolio SaaS for small B2B media teams (dogfood: testing epic workflow) | Node.js | 🔨 Development | - | ✅ Current |
 | **test-saas-platform** | Full-blown SaaS platform for testing mega-epic workflow | Node.js | 🔨 Development | - | ✅ Current |
 | **trade-intelligence** | **Last Updated:** 2026-03-10 | FastAPI | 🔨 Development | https://trade-intelligence.vps1.ocoron.com | ✅ Current |
 | **trading-core** | Crash-safe Python FX trading service with Pepperstone/cTrader integration and risk gates. | FastAPI | 🔨 Development | - | ✅ Current |
 | **triggered-content-orchestration** | Multi-platform content orchestration pipeline for automated content creation and distribution. | FastAPI | 🔨 Development | https://triggered-content-orchestration.vps1.ocoron.com | ✅ Current |
 | **wpf** | WordPress Factory — Python orchestrator (CLI now, FastAPI in Phase 3, Next.js wizard in Phase 4... | Python | 🔨 Development | - | ✅ Current |
 
-### Planning/Research (16 projects)
+### Planning/Research (17 projects)
 
 | Project | Purpose | Stack | Status | URL | Scaffold |
 |---------|---------|-------|--------|-----|----------|
@@ -141,6 +140,7 @@ With ~$50/month infrastructure cost:
 | **llm_batch_processor** | A self-hosted automation tool for processing documents through Claude and ChatGPT web interface... | Python | 🔨 Development | - | ✅ Current |
 | **marketing-argumant-generator** | AI-powered marketing argument and copy generation tool. | Python | 🔨 Development | https://marketing-argument-generator.vps1.ocoron.com | ✅ Current |
 | **supplement-tracker-advisor** | Health supplement tracking and personalized advisory system. | Python | 🔨 Development | - | ✅ Current |
+| **test-saas-for-epic-wf** | No description available | Unknown | 🔨 Development | - | ⚠️ No project.yaml |
 | **ugc** | User-generated content data scraping system for social media platforms. | Python | 🔨 Development | - | ✅ Current |
 | **web-scraper** | Scrapy + Playwright web scraper extracting content for AI training pipelines. | Flask | 🔨 Development | - | ✅ Current |
 

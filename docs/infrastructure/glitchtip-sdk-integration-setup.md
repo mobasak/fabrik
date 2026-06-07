@@ -1,5 +1,6 @@
 # GlitchTip SDK Integration — Setup
 
+**Last Updated:** 2026-06-06 (no change to SDK integration mechanics; aro-wake itself does NOT use the GlitchTip SDK today — its error reporting goes through Telegram via the alertmanager fallback path + `/var/log/aro-wake.log`. If a future iteration wants aro-wake errors in GlitchTip, the integration follows the standard scaffold pattern documented below.)
 **Status:** ✅ Live (originally 2026-05-08; rewritten 2026-05-31 after Coolify removal + `coolify` → `fabrik` network rename + multi-host Wireguard mesh)
 **Scaffold-emitted:** `glitchtip_init.py` / `glitchtip_init.js` per project
 **Provisioner:** `/opt/fabrik/scripts/provision_glitchtip_project.sh`

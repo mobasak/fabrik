@@ -1,6 +1,6 @@
 # 05 — Observability Pipeline (fleet-wide, hub-rooted)
 
-**Last Updated:** 2026-06-02 (rewritten — observability is centralized on vps1; spokes are agents — patched 2026-06-02 evening after live-validation: fixed 3 probe bugs — Loki probe was via `docker exec prometheus` but prometheus can't resolve `loki:3100` from its compose network, Grafana datasources probe used invalid `Bearer admin` auth, GlitchTip probe used `wget` which isn't in its python-only image)
+**Last Updated:** 2026-06-06 (added aro-wake SLI scrape coverage to the per-host probe list — full-fleet `aro-wake` job at `10.0.1.1:8201` (hub via docker-bridge) + `10.99.0.{2,3}:8201` (spokes via wg0); audit must confirm all 3 targets `up` and the 2 alert rules `AroWakeLowSuccessRate`+`AroWakeCostBurnHigh` are loaded in the `aro_wake` rule group)
 **Run mode:** **fleet-wide, hub-rooted.** Most probes from vps1 (Prometheus / Grafana / Loki / Alertmanager queries). Spoke-side checks confirm agents are pushing.
 **Scope:** end-to-end check that metrics are scraped, logs shipped, alerts fire, errors captured, status probes green.
 **Time budget:** ~15 min probes + ~15 min analysis.
@@ -11,24 +11,30 @@
 
 ```text
 - Hub (vps1) centralizes the observability stack:
-  - Prometheus (15-job scrape target list; 18/18 active targets)
-  - Grafana (5 Fabrik-folder dashboards with $host template variable)
+  - Prometheus (16-job scrape target list — aro-wake added 2026-06-06)
+  - Grafana (5 Fabrik-folder dashboards with $host template variable; aro-wake
+    dashboard deliberately deferred — PromQL + alert rules suffice today)
   - Loki (mesh-bound at 10.99.0.1:3100 for spoke push)
-  - Alertmanager → Apprise → Telegram
+  - Alertmanager → Apprise → Telegram (with aro-wake routed receiver since
+    2026-06-05 Phase 4; severity=~"critical|warning" routes to aro-wake FIRST,
+    `continue: true` keeps telegram fallback)
   - Gatus (synthetic uptime probes)
   - GlitchTip (error tracking; UI + worker + clickhouse)
   - cadvisor, node-exporter, promtail, postgres-exporter, redis-exporter,
     pushgateway (vps1's own agents)
-- Spokes (vps2/vps3) run agents only:
+- Spokes (vps2/vps3) run agents AND aro-wake:
   - node-exporter (host metrics → Prometheus over mesh)
   - cadvisor (container metrics → Prometheus over mesh)
   - promtail (container logs → Loki over mesh)
+  - aro-wake (since 2026-06-06; FastAPI on 0.0.0.0:8201 exposing
+    `POST /wake` + `GET /health` + `GET /metrics`)
 - Spoke observability was broken 2026-05-31 evening → 2026-06-01 evening
   because UFW default-deny didn't have a mesh-allow rule (W8 finding).
   Fixed with `ufw allow from 10.99.0.0/24` on each spoke.
 - 'host' label is propagated to every metric and log stream (W11 work).
   Filter dashboards/alerts with $host or {host=...}.
-- Alert rule group 'spoke_health' active (SpokeDown / SpokeHighCPU / SpokeHighRAM).
+- Alert rule groups: 'spoke_health' (SpokeDown/SpokeHighCPU/SpokeHighRAM) +
+  'aro_wake' (AroWakeLowSuccessRate/AroWakeCostBurnHigh, per-host since 2026-06-06).
 ```
 
 ---
@@ -37,7 +43,7 @@
 
 ```bash
 ssh vps bash <<'EOF'
-echo "=== PROMETHEUS TARGETS (expect 18/18 up across 15 jobs) ==="
+echo "=== PROMETHEUS TARGETS (expect 21/21 up across 16 jobs after aro-wake added 2026-06-06) ==="
 sudo docker exec prometheus wget -qO- http://localhost:9090/api/v1/targets 2>&1 | python3 -c "
 import json, sys
 d = json.load(sys.stdin)
@@ -144,11 +150,12 @@ EOF
 
 ### Metrics pipeline (Prometheus → Grafana)
 
-- 18 / 18 targets `up` (12 vps1-local jobs + 3 spoke job-groups × 2 targets = 6).
+- 21 / 21 targets `up` (13 vps1-local jobs + 3 spoke job-groups × 2 targets = 6 + aro-wake job × 3 hosts = 3).
 - `host` label present on every active series.
 - Scrape errors in last hour: ideally zero.
 - Grafana dashboards load + render historical 7d range.
 - `$host` template variable on all 5 Fabrik dashboards works (regex `/^vps/`).
+- **aro-wake job (since 2026-06-06)**: 3 targets up (vps1 at `10.0.1.1:8201`, vps2 at `10.99.0.2:8201`, vps3 at `10.99.0.3:8201`); 8 metric families present (`aro_wake_requests_total`, `aro_wake_cost_usd_total`, `aro_wake_dedup_drops_total`, `aro_wake_hop_limit_exceeded_total`, `aro_wake_forward_suppressed_total`, `aro_wake_storm_breaker_trips_total`, `aro_wake_pending_queue_size`, `aro_wake_active_sessions`); cross-mesh scrape latency on spokes ~270ms is normal (vs ~1.4ms hub).
 
 ### Log pipeline (Docker → Promtail → Loki)
 
@@ -156,14 +163,17 @@ EOF
 - Spokes: outbound TCP conns to `10.99.0.1:3100` visible in `ss -tn`.
 - Loki returns `host` label with values `["vps1", "vps2", "vps3"]`.
 - Spoke `promtail.yaml` `clients[].url` points at `http://10.99.0.1:3100/loki/api/v1/push`.
+- **aro-wake logs are host-local** (not shipped via Promtail's docker-socket discovery): operators read `/var/log/aro-wake.log` directly via SSH; not in Loki.
 
 ### Alert pipeline (Prometheus → Alertmanager → Apprise → Telegram)
 
 - Alertmanager cluster status `ready` / `active`.
 - `spoke_health` rule group loaded (`SpokeDown`, `SpokeHighCPU`, `SpokeHighRAM`).
+- **`aro_wake` rule group loaded (since 2026-06-06): `AroWakeLowSuccessRate` + `AroWakeCostBurnHigh`, both per-host via `by (host)`; both `inactive` is the healthy state.**
 - Active alerts: only expected ones (or none). Investigate firing.
 - Active silences: only legitimate planned-downtime silences; expired ones cleaned.
 - Apprise reachable from vps1 cluster on `http://apprise:8000/notify/alerts`.
+- **Alertmanager → aro-wake wire (since 2026-06-05 Phase 4): `aro-wake-routed` receiver exists, `severity=~"critical|warning"` route matches it with `continue: true` so the telegram fallback stays.**
 
 ### Error pipeline (App → Sentry SDK → GlitchTip)
 

@@ -30,6 +30,7 @@ _NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}$")
 def _extract_git_host(repository: str) -> str | None:
     """Extract hostname from a git URL — `git@host:path` or `https://host/path`."""
     import re
+
     if not repository:
         return None
     m = re.match(r"^[^@]+@([^:]+):", repository)
@@ -434,7 +435,7 @@ class SSHDeployer:
             _ssh(
                 f"sudo bash -c 'mkdir -p /root/.ssh && chmod 700 /root/.ssh && "
                 f"touch /root/.ssh/known_hosts && chmod 644 /root/.ssh/known_hosts && "
-                f"grep -q \"^{git_host} \" /root/.ssh/known_hosts || "
+                f'grep -q "^{git_host} " /root/.ssh/known_hosts || '
                 f"ssh-keyscan -t ed25519,rsa {git_host} 2>/dev/null >> /root/.ssh/known_hosts'",
                 timeout=30,
             )
@@ -770,8 +771,6 @@ def _generate_docker_compose(
     health = spec.get("health", {}) if isinstance(spec.get("health"), dict) else {}
     health_path = health.get("path", "/health")
     health_interval = health.get("interval", "30s")
-    health_timeout = health.get("timeout", "10s")
-    health_retries = int(health.get("retries", 3))
 
     lines = [
         "services:",

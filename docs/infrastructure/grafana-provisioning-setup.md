@@ -1,6 +1,6 @@
 # Grafana Datasource Provisioning — Setup
 
-**Last Updated:** 2026-05-31 (post-Coolify-removal + `coolify` → `fabrik` network rename + stable `container_name:`)
+**Last Updated:** 2026-06-06 (no change to datasource provisioning — Prometheus + Loki datasources already cover the new `aro-wake` job's metrics; aro-wake series appear under the existing Prometheus datasource without any reconfiguration)
 **Status:** ✅ Live
 **Container:** `grafana` (stable name; no UUID suffix)
 **Compose file:** `/opt/monitoring/compose.yaml` (services block under `grafana:`)

@@ -1,7 +1,7 @@
 # VPS Fleet — Status Snapshot
 
-**Last Updated:** 2026-06-04 evening — batch 3 (Trio Phase 1+2+3 SHIPPED code-side + 3 review passes: port conflict + race conditions + FastAPI lifespan + daily-digest stub + response-shape docs/code alignment + Backrest cruft investigation + **third pass found: systemd-strips-JSON-quotes bug, session-id-from-envelope, lock-skip on session-pop, list-envelope defensive parse, /var/log file pre-create for ozgur-run keepalive cron** — all fixed and verified via systemd round-trip + Python hammer test before any production enable)
-**Snapshot taken:** 2026-06-04 (live probe via `ssh` + `docker ps` + `docker inspect` against all 3 hosts; container counts + interconnect verified per-host)
+**Last Updated:** 2026-06-06 — fleet rollout day (Trio Phase 1+2+3+4 LIVE across ALL 3 HOSTS: aro-wake systemd service active on vps1/vps2/vps3 with `/wake`+`/health`+`/metrics` endpoints; spoke Telegram bots `SysAdminVPS2`+`SysAdminVPS3` polling cleanly; spoke↔spoke wg0 routing enabled (one `ufw route allow in on wg0 out on wg0` on vps1 — 266ms via hub-hop); 4 in-memory loop-prevention guards added to aro-wake (trace dedup / hop cap / forward-target intersection / storm breaker); Prometheus SLI metrics LIVE on all 3 hosts via job `aro-wake`; 2 alert rules `AroWakeLowSuccessRate`+`AroWakeCostBurnHigh` evaluated per-host.)
+**Snapshot taken:** 2026-06-06 (live probe via `ssh` + `docker ps` + `docker inspect` + Prometheus `/api/v1/targets` + per-spoke `curl :8201/metrics`)
 **Hosts:** vps1 (LA, hub) · vps2 (Coventry UK, spoke) · vps3 (Coventry UK, spoke)
 **Deploy model:** SSH + Docker Compose (no Coolify — removed 2026-05-30)
 
@@ -34,6 +34,73 @@
 | Spoke disaster-recovery | ✅ **Scripted** via [`bootstrap-spoke-restore.sh`](../../scripts/bootstrap/bootstrap-spoke-restore.sh) — 13 steps, ≤ 30 min target, **preserves Wireguard identity** (hub peer-table unchanged through outage). **Drill pending.** Operator doc: [`vps-spoke-rebuild.md`](vps-spoke-rebuild.md). |
 | Credential recovery (`/opt/fabrik/.env`) | ✅ **W9 shipped 2026-06-01.** Inotify + systemd watcher (`fabrik-dr-watcher.service`) pushes every change to private `mobasak/fabrik-dr-store` within seconds; daily safety-net cron + reboot catch-up + weekly self-test. **Sysadmin token added to scope** via SSH-pull (W9 extension, same day). See [`docs/operations/credential-recovery.md`](../operations/credential-recovery.md). |
 | Backups | ✅ same as Backrest plans row — first real backup chain since the 2026-05-31 wipe. |
+
+---
+
+## 2026-06-06 — full-fleet rollout day: aro-wake LIVE on spokes + spoke↔spoke routing + loop guards + Prometheus SLI metrics
+
+**Trio plan crossed the "all 3 hosts running the same AI" line.** Yesterday vps1 was the only host with aro-wake. Today all three hosts run identical aro-wake code with the same loop guards and the same metric exposition. Two real cross-host consults (vps2→vps1, vps3→vps1) returned rich diagnostic responses end-to-end.
+
+### A — Phase 2 + Phase 3 spoke deploys SHIPPED (vps2 + vps3)
+
+Operator delivered prerequisites: `claude auth login` on each spoke, `@BotFather` token for `SysAdminVPS2` + `SysAdminVPS3`. Deploy inlined `bootstrap-vps.sh step_14` (sysadmin pack) + `step_15` (aro-wake) bypassing the full bootstrap because the rest of the spoke is already running. Gaps discovered + fixed live:
+
+1. **Node.js 22 + Claude Code CLI missing** on spokes — installed via NodeSource + `npm install -g @anthropic-ai/claude-code`; both spokes now run Claude 2.1.165 at `/usr/bin/claude`.
+2. **`python3-venv` apt package missing** on Ubuntu spokes (`ensurepip` error) — `sudo apt-get install -y python3.12-venv` on both spokes.
+3. **`/opt/fabrik/` was root-owned on spokes** — `sudo chown -R ozgur:ozgur /opt/fabrik/` after venv creation under sudo.
+4. **`python-telegram-bot==22.7` library missing** — `vps-sysadmin-bot.service` was failing on `ModuleNotFoundError: No module named 'telegram'`. Fixed via `sudo pip install --break-system-packages python-telegram-bot==22.7` on both spokes.
+
+After fixes: `vps-sysadmin-bot.service` and `aro-wake.service` both `active` on both spokes. `/health` from hub over wg0 mesh returned `{"ok":true,"host":"vps2","role":"spoke",...}` and same for vps3. Yesterday's queued vps3 forward auto-drained at the first drain tick post-aro-wake (vps1 logs show `aro-wake HTTP Request: POST http://10.99.0.3:8201/wake "HTTP/1.1 202 Accepted"` once vps3 became reachable).
+
+**Real cross-host consults — first time the trio actually talked to each other:**
+
+- vps2→vps1: vps1 responded with mesh handshake age (50s), Prometheus `up=1` on all 3 spoke scrape jobs, Loki ingesting 25 lines/5m for `host="vps2"`, zero active alerts referencing vps2, plus a real follow-up flag ("I don't see vps2 endpoints registered in Gatus yet"). 133ms RTT (cross-region) confirmed.
+- vps3→vps1: vps1 correlated against the vps2 consult ("identical shape. Both spokes are mesh-up + log-shipping but hold zero sessions on hub postgres/redis. That's the expected baseline — no tenant workloads deployed on spokes yet"). Pointed to `pg_stat_activity` as the follow-up signal.
+
+### B — Spoke↔spoke wg0 routing SHIPPED
+
+Single UFW rule on vps1 opened the path: `sudo ufw route allow in on wg0 out on wg0`. vps1 already had `net.ipv4.ip_forward=1` (from OpenVPN setup); spokes already had `AllowedIPs=10.99.0.0/24` (routing the full mesh subnet via hub). The only missing piece was UFW's default-DROP routed-policy gate.
+
+After: `ssh vps2 ping 10.99.0.3` → 0% loss, 266ms via hub-hop (vs 133ms hub↔spoke — the doubled latency is the extra hop). vps3↔vps2 symmetric. **`curl --interface wg0 https://1.1.1.1` from vps2 still fails fast with exit 7** — UFW's default-DROP routed policy remains, so vps1 cannot be used as a public-internet egress relay (verified by tcpdump that the routed allow is strictly wg0→wg0, not wg0→eth0).
+
+### C — 4 loop-prevention guards in aro-wake
+
+With direct spoke↔spoke reach now possible, the protocol needed hardened cycle prevention. `scripts/aro-wake/main.py` added ~100 lines covering 4 in-memory guards:
+
+| Layer | Where it trips | Tunable env vars |
+|---|---|---|
+| 1. Trace-id dedup | Same `trace_id` arriving twice on this host within 5 min — returns 200 `reason:"duplicate"` without running Claude | `ARO_WAKE_DEDUP_TTL`, `ARO_WAKE_DEDUP_MAX` |
+| 2. Hop cap (backstop) | `len(seen_by) > fleet_size + 1` (default 3) — drops with `reason:"hop_limit_exceeded"` | `ARO_WAKE_HOP_LIMIT` |
+| 3. Forward-target intersection *(PRIMARY)* | `_try_forward` refuses to send to a host already in `payload.seen_by`; the alertmanager handler ALSO pre-checks before the forward call (the pre-check is the optimized path, both emit `M_FWD_SUPPR{reason="seen_by"}`) | n/a |
+| 4. Storm breaker | Per-target rolling-10-min cap on outbound forwards (default 8) — first trip logs ERROR "operator should investigate runaway origin", subsequent trips inside window are deduped | `ARO_WAKE_STORM_THRESHOLD`, `ARO_WAKE_STORM_WINDOW` |
+
+All state in-memory; restart = reset = safe default. Verified live with 6 adversarial tests (hop cap on 4-entry seen_by; dedup returns "duplicate" in 33ms; forward-target seen_by suppress; storm breaker; cycle pre-check falls through to local 202 without queue spam; failure-path `status="failure"` synthesized via `WAKE_TIMEOUT=1`).
+
+### D — Prometheus SLI metrics SHIPPED on full fleet
+
+aro-wake exposes 8 metrics at `/metrics` on every host (counters: `aro_wake_requests_total{source,status}`, `aro_wake_cost_usd_total{source}`, `aro_wake_dedup_drops_total`, `aro_wake_hop_limit_exceeded_total`, `aro_wake_forward_suppressed_total{target_host,reason}`, `aro_wake_storm_breaker_trips_total{target_host}`; gauges: `aro_wake_pending_queue_size`, `aro_wake_active_sessions`). Reuses port 8201 — no new port allocated.
+
+Prometheus scrape job `aro-wake` in `configs/prometheus/prometheus.yml` covers all 3 hosts. vps1 via docker-bridge gateway `10.0.1.1:8201` (1.4ms scrape); vps2/vps3 via wg0 mesh `10.99.0.{2,3}:8201` (~270ms scrape). Cross-mesh container→host NAT path verified via tcpdump on vps2's wg0: Prometheus container's outbound SYN arrived with source `10.99.0.1.<port>` — docker MASQUERADE rewrites the source to vps1's wg0 IP, which the spokes' existing `from 10.99.0.0/24 to any port 8201` UFW rule already permits.
+
+Two alert rules in the new `aro_wake` group at `configs/prometheus/rules/alerts.yml`, both evaluated per-host via `by (host)`:
+
+- **`AroWakeLowSuccessRate`** — warning at <90% success rate over 10m for 15m
+- **`AroWakeCostBurnHigh`** — warning at >$5/h sustained 10m (runaway-reasoning early-warning)
+
+Both `inactive` at end of day (success rate 100%, cost rate ~$0/h on all 3 hosts). Hallucination Rate + Tool Call Accuracy SLIs from the source doc explicitly skipped (no ground-truth eval data); rate-limited 429 wakes not currently tracked (acknowledged follow-up, low priority).
+
+### E — Spoke bootstrap gaps captured for tomorrow's `bootstrap-vps.sh` commit
+
+The four spoke gaps discovered today must be baked into bootstrap for future spoke installs:
+
+1. Install Node.js 22 + Claude Code CLI (`npm install -g @anthropic-ai/claude-code`)
+2. Install `python3-venv` apt package (Ubuntu 24.04 needs `python3.12-venv`)
+3. Install `python-telegram-bot==22.7` via `sudo pip install --break-system-packages`
+4. Pre-create `/opt/fabrik/` ownership = `ozgur:ozgur` before venv steps
+
+**Open security follow-up**: operator should rotate the two bot tokens that were pasted in chat history (`/revoke` → `/token` in `@BotFather`).
+
+**Trio plan status:** Phase 1 LIVE ✓ · Phase 2 LIVE on full fleet ✓ · Phase 3 LIVE on full fleet ✓ · Phase 4 LIVE on vps1 ✓ · Phase 5 deferred (propose/ack peer verbs, Apprise pre-route, Loki ruler).
 
 ---
 
@@ -424,7 +491,7 @@ backrest               running  (W11 — own restic repo at b2:vps1-ocoron-backu
 
 ### vps2 / vps3 (identical posture)
 
-**Last probe report:** [`probe-reports/infra-probe-2026-06-01T22-50Z.yaml`](probe-reports/infra-probe-2026-06-01T22-50Z.yaml) (post-W14 sweep)
+**Last probe report:** [`probe-reports/infra-probe-2026-06-06T22-39Z.yaml`](probe-reports/infra-probe-2026-06-06T22-39Z.yaml) (post-W14 sweep)
 
 | Layer | Status |
 | :--- | :--- |
@@ -627,7 +694,7 @@ The full table lives in [`vps-complete-inventory.md` § Pending actions](vps-com
 
 ### Probe report — 2026-06-01T22-50Z (post-W14)
 
-Generated by `scripts/audit_infra_vs_docs.py`. Source YAML: [`probe-reports/infra-probe-2026-06-01T22-50Z.yaml`](probe-reports/infra-probe-2026-06-01T22-50Z.yaml). Captured after W14 shipped + spoke-canary live-verify on vps2 (deployed healthy, verifier 404 from W15 gap, rollback clean).
+Generated by `scripts/audit_infra_vs_docs.py`. Source YAML: [`probe-reports/infra-probe-2026-06-06T22-39Z.yaml`](probe-reports/infra-probe-2026-06-06T22-39Z.yaml). Captured after W14 shipped + spoke-canary live-verify on vps2 (deployed healthy, verifier 404 from W15 gap, rollback clean).
 
 | Probe | vps1 | vps2 | vps3 |
 | :--- | :--- | :--- | :--- |

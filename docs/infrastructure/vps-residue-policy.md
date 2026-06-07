@@ -1,7 +1,7 @@
 # VPS Residue Policy — Lean Hygiene
 
-**Last Updated:** 2026-06-02 (post-W14 sweep — probe report refreshed)
-**Last probe report:** [`probe-reports/infra-probe-2026-06-01T22-50Z.yaml`](probe-reports/infra-probe-2026-06-01T22-50Z.yaml)
+**Last Updated:** 2026-06-06 (post-aro-wake fleet rollout — policy unchanged; today's new residue surfaces to watch: `/etc/systemd/system/aro-wake.service.d/*.conf` drop-in units created for `ARO_WAKE_STORM_THRESHOLD=0` test runs must be removed after the test (see `vps-status.md` 2026-06-06 entry for the cleanup pattern); `/var/lib/aro-wake/pending.jsonl` may accumulate suppressed-but-not-dropped entries if a real loop is suppressed for >24h — TTL handles the bulk but `sudo truncate -s 0 /var/lib/aro-wake/pending.jsonl` is the manual clean if needed)
+**Last probe report:** [`probe-reports/infra-probe-2026-06-06T22-39Z.yaml`](probe-reports/infra-probe-2026-06-06T22-39Z.yaml)
 **Mandate (2026-05-06):** never leave residue on the VPS from Fabrik test, throwaway, or deprecated work. Keep it lean.
 
 ## TL;DR

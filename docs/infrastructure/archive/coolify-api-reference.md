@@ -1,5 +1,7 @@
 # Coolify API Reference (historical — Coolify removed 2026-05)
 
+> **📌 ARCHIVED 2026-06-06.** Historical document preserved as-is for context. Frozen at the time of original ship. For current fleet state see [`vps-status.md`](../vps-status.md), [`vps-complete-inventory.md`](../vps-complete-inventory.md), and [`vps-fleet-architecture.md`](../vps-fleet-architecture.md). Do NOT update the content below — that would defeat the archive.
+
 > **⚠️ Historical.** Coolify was removed from the VPS in May 2026. This API
 > reference is preserved for the handful of legacy CLI commands (`fabrik
 > status`, `fabrik logs`, `fabrik reconcile-all`) still targeting Coolify-era

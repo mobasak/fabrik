@@ -1,5 +1,7 @@
 # Authelia Phase 12A Completion Report
 
+> **📌 ARCHIVED 2026-06-06.** Historical document preserved as-is for context. Frozen at the time of original ship. For current fleet state see [`vps-status.md`](../vps-status.md), [`vps-complete-inventory.md`](../vps-complete-inventory.md), and [`vps-fleet-architecture.md`](../vps-fleet-architecture.md). Do NOT update the content below — that would defeat the archive.
+
 **Date:** 2026-04-17 23:09 (UTC+3)
 **Status:** ✅ COMPLETE
 **Phase:** 12A - Test Instance Deployment

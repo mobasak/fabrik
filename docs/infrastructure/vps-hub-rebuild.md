@@ -1,7 +1,7 @@
 # VPS1 Hub — How to Bring It Back
 
-**Last Updated:** 2026-06-01 (DR-in-hours track shipped)
-**Last probe report:** [`probe-reports/infra-probe-2026-06-01T22-50Z.yaml`](probe-reports/infra-probe-2026-06-01T22-50Z.yaml)
+**Last Updated:** 2026-06-06 (DR-in-hours track shipped 2026-06-01; aro-wake + Phase 4 wire LIVE on vps1 since 2026-06-05 + Prometheus SLI metrics + 2 alert rules LIVE 2026-06-06 — on hub rebuild, additional manual after-steps: (1) re-apply `sudo ufw route allow in on wg0 out on wg0` so spoke↔spoke traffic continues to route through the hub; (2) re-deploy `prometheus.yml` with the `aro-wake` scrape job + `alerts.yml` with the `aro_wake` rule group from repo; (3) verify all 3 aro-wake scrape targets `up` after monitoring stack restarts.)
+**Last probe report:** [`probe-reports/infra-probe-2026-06-06T22-39Z.yaml`](probe-reports/infra-probe-2026-06-06T22-39Z.yaml)
 **Status:** Scripted end-to-end. DR drill on a throwaway VPS pending (Step 8 of the DR-in-hours track) — until that drill closes, the wall-clock figure below is the **target**, not measured.
 
 This document is the definitive answer to "vps1 is gone — how do I get it back?" It supersedes the prior advice in `vps-bootstrap-plan.md` § "What's still manual: the hub" (which said copy-and-customize the disaster-recovery runbook by hand).
@@ -139,7 +139,9 @@ If unsure, just pass `--cf-rewrite-dns <new-ip>` always — the script is idempo
 
 **Needs one-time manual after-step:**
 
-- `claude auth login` on the new vps1 (the Claude Code CLI needs an auth flow that can't be scripted). After this, `vps-sysadmin-bot` can make real LLM calls. The bot will run with `claude --version` working but failing on actual LLM calls until you do this.
+- `claude auth login` on the new vps1 (the Claude Code CLI needs an auth flow that can't be scripted). After this, `vps-sysadmin-bot` + `aro-wake.service` can make real LLM calls. The bot will run with `claude --version` working but failing on actual LLM calls until you do this.
+- **Re-apply UFW spoke↔spoke routing rule** (since 2026-06-06): `sudo ufw route allow in on wg0 out on wg0`. Without this, vps2↔vps3 direct mesh reach is broken (would have to re-discover the gap during the next cross-spoke consult). UFW's default-DROP routed policy remains untouched, so this doesn't open egress relaying.
+- **Verify Prometheus aro-wake job** (since 2026-06-06): after monitoring stack comes back up, confirm all 3 aro-wake targets are `up` via `sudo docker exec prometheus wget -qO- http://localhost:9090/api/v1/targets | grep aro-wake`. If a spoke is still down at recovery time, its scrape target will be `down` until the spoke's aro-wake.service comes back.
 - (Optional) Re-anchor any out-of-band integrations: external monitoring services pointing at vps1, third-party webhook destinations expecting our public IP, etc. None in current setup.
 
 ## What is NOT covered

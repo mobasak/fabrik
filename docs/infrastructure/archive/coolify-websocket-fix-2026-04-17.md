@@ -1,5 +1,7 @@
 # Coolify Real-time WebSocket Fix
 
+> **📌 ARCHIVED 2026-06-06.** Historical document preserved as-is for context. Frozen at the time of original ship. For current fleet state see [`vps-status.md`](../vps-status.md), [`vps-complete-inventory.md`](../vps-complete-inventory.md), and [`vps-fleet-architecture.md`](../vps-fleet-architecture.md). Do NOT update the content below — that would defeat the archive.
+
 **Date:** 2026-04-17
 **Issue:** Coolify real-time service warning: "Cannot connect to real-time service"
 **Root Cause:** Soketi WebSocket (ports 6001/6002) not accessible via HTTPS

@@ -961,12 +961,18 @@ def destroy(
     # Env-swap FABRIK_VPS_SSH_HOST around the destroy so every nested SSH call
     # resolves the right alias — same pattern as SSHDeployer.deploy() in W-Multi M4.
     import os as _os
+
     _state_target_vps = None
-    _spec_target_vps = getattr(spec, "target_vps", None) if not isinstance(spec, dict) else spec.get("target_vps")
+    _spec_target_vps = (
+        getattr(spec, "target_vps", None) if not isinstance(spec, dict) else spec.get("target_vps")
+    )
     try:
-        _state_path = Path(".fabrik/state") / f"{spec.id if not isinstance(spec, dict) else spec['id']}.json"
+        _state_path = (
+            Path(".fabrik/state") / f"{spec.id if not isinstance(spec, dict) else spec['id']}.json"
+        )
         if _state_path.exists():
             import json as _json
+
             with open(_state_path) as _f:
                 _state_target_vps = _json.load(_f).get("target_vps")
     except Exception:
@@ -1247,7 +1253,14 @@ def vps_sync(dry_run: bool):
         "to be correct on multi-host fleet — otherwise redeploy hits the wrong host."
     ),
 )
-def redeploy(app: str | None, force: bool, refresh_infra: bool, spec: Path | None, dry_run: bool, target_vps: str | None):
+def redeploy(
+    app: str | None,
+    force: bool,
+    refresh_infra: bool,
+    spec: Path | None,
+    dry_run: bool,
+    target_vps: str | None,
+):
     """Redeploy an application by name.
 
     Example:
@@ -1290,8 +1303,9 @@ def redeploy(app: str | None, force: bool, refresh_infra: bool, spec: Path | Non
 
     # W3 target-vps resolution: CLI flag > state file > vps1.
     # Env-swap FABRIK_VPS_SSH_HOST so SSHDeployer.find_existing / .redeploy hit the right host.
-    import os as _os
     import json as _json
+    import os as _os
+
     _state_target_vps = None
     _state_path = Path(".fabrik/state") / f"{app}.json"
     if _state_path.exists():

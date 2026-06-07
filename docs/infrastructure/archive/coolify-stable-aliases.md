@@ -1,5 +1,7 @@
 # Coolify Stable Aliases for Single-Image Applications (historical)
 
+> **📌 ARCHIVED 2026-06-06.** Historical document preserved as-is for context. Frozen at the time of original ship. For current fleet state see [`vps-status.md`](../vps-status.md), [`vps-complete-inventory.md`](../vps-complete-inventory.md), and [`vps-fleet-architecture.md`](../vps-fleet-architecture.md). Do NOT update the content below — that would defeat the archive.
+
 > **⚠️ Historical — no longer needed post-migration.** With Coolify removed
 > and `compose.yaml` files now emitting `container_name: <name>` directly
 > (enforced by `compose_linter.py`), container names are stable across

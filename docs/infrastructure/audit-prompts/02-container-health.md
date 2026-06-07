@@ -1,7 +1,7 @@
 # 02 — Container Health (per host)
 
-**Last Updated:** 2026-06-02 (rewritten for 3-VPS fleet; no Coolify since 2026-05-30)
-**Run mode:** **per host**. The container fleet differs (hub: 29; spokes: 5 each), so run separately and compare.
+**Last Updated:** 2026-06-06 (procedure unchanged; container counts now: hub=31 (29 platform + 2 T-P5 watchdog dogfood), spokes=5 each. Note: `aro-wake.service` and `vps-sysadmin-bot.service` run as systemd UNITS, not containers — they will NOT show in `docker ps` output. Auditors should still check them via `sudo systemctl status aro-wake vps-sysadmin-bot` after the container probes.)
+**Run mode:** **per host**. The container fleet differs (hub: 31; spokes: 5 each), so run separately and compare.
 **Scope:** Docker container fleet stability, resource usage, networking, log hygiene.
 **Time budget:** ~10 min collection + ~10 min analysis per host.
 
