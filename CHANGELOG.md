@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Plan files cleanup: archive shipped plans, move PG18 to STRATEGIC_BACKLOG (2026-06-08)
+
+Cleared bookkeeping debt in `docs/development/plans/`. The directory listed 5 active plans but only 2 were genuinely in progress; the other 3 were either shipped (P1–P5 sub-plans already archived but parents left behind) or never started (PG18 — a deferred item, not an active plan).
+
+**Archived (work shipped, parent file was orphaned when sub-plans moved):**
+
+- `2026-05-30-ai-watchdog-platform.md` → `archived/` — P1–P5 all shipped; T-P5 dogfood completed 2026-06-04. All 4 sub-plans already in `archived/` since 2026-06-04.
+- `2026-05-30-ai-watchdog-platform-prompts.md` → `archived/` — companion copy-paste prompts for P1–P5; same status.
+
+**Archived (never started; moved to STRATEGIC_BACKLOG instead):**
+
+- `2026-05-25-postgresql-18-upgrade.md` → `archived/` — PG16 EOL is 2028-11, no urgency. Added as a "Later" tier item in [`docs/STRATEGIC_BACKLOG.md`](docs/STRATEGIC_BACKLOG.md) with activation criteria (focus window OR PG18-only feature need). Plan stays referenced from the backlog for when work resumes.
+
+**Remaining active plans (2):**
+
+- `2026-06-04-three-sysadmin-trio.md` — Phases 1–4 + 5.1.a shipped; Phase 5 is "iteration discipline (open-ended)" by design and serves as the iteration ledger for incident-driven Phase 5 work tracked in STRATEGIC_BACKLOG.
+- `2026-06-07-fabrik-vultr-provisioning.md` — Phases 1–3a shipped (driver + state store + disposable bare drill); Phases 3b (spoke drill), 4 (hub drill), 5 (permanent provision), 6 (cost guardrails) remain.
+
 ### Added — `fabrik vultr` Phase 3a: disposable `drill bare` (live-validated) (2026-06-08)
 
 - **New module** [`src/fabrik/orchestrator/vultr_drill.py`](src/fabrik/orchestrator/vultr_drill.py) — disposable DR-drill flow: create cheapest IPv4 plan in region → `wait_for_active` → best-effort SSH probe → **always destroy** (try/finally, no orphan even on failure/Ctrl-C). Cost guard (`--max-cost`, hourly=monthly/672 rounded up), `--keep-on-failure`, and a per-drill JSONL report to `logs/dr-drill-history.jsonl` (gitignored).
