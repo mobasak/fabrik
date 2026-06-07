@@ -15,6 +15,7 @@ from fabrik.orchestrator import vultr_state
 @pytest.fixture(autouse=True)
 def _isolate(tmp_path, monkeypatch):
     monkeypatch.setattr(vultr_state, "STATE_FILE", tmp_path / "state.json")
+    monkeypatch.setattr(prov, "_wg0_used_numbers", lambda: set())  # no real ssh in units
     yield
 
 
@@ -40,6 +41,12 @@ def test_next_free_spoke_skips_used():
     c = _client()
     c.list_instances.return_value = [{"label": "vps3"}]
     assert prov.next_free_spoke(c) == "vps4"   # 2 (state) + 3 (live) used -> 4
+
+
+def test_next_free_spoke_consults_wg0(monkeypatch):
+    # existing real spokes on vps1 wg0 (predating state) must be skipped
+    monkeypatch.setattr(prov, "_wg0_used_numbers", lambda: {2, 3})
+    assert prov.next_free_spoke(_client()) == "vps4"
 
 
 def test_dry_run_creates_nothing():

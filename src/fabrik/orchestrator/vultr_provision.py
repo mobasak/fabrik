@@ -53,13 +53,29 @@ def mesh_ip_for(name: str) -> str:
     return f"{MESH_SUBNET_PREFIX}.{spoke_number(name)}"
 
 
-def next_free_spoke(client: VultrClient) -> str:
-    """Lowest free vpsN (>=2) not in active local state nor a live Vultr label.
-
-    bootstrap-vps.sh preflight does the authoritative wg0 collision check, so this
-    is a convenience picker; a race still fails safe at bootstrap.
-    """
+def _wg0_used_numbers() -> set[int]:
+    """Spoke numbers already on vps1's wg0 (authoritative — 10.99.0.N/32). Best-effort:
+    existing real spokes (vps2/vps3) live here even if they predate this tool's state."""
     used: set[int] = set()
+    try:
+        from fabrik.drivers.ssh import ssh
+
+        out = ssh("sudo wg show wg0 allowed-ips 2>/dev/null || true", timeout=20)
+        for m in re.finditer(r"10\.99\.0\.(\d+)/32", out):
+            used.add(int(m.group(1)))
+    except Exception as e:  # noqa: BLE001 - best-effort; bootstrap preflight is authoritative
+        logger.warning("next_free_spoke: could not read vps1 wg0 (%s); using state+live only", e)
+    return used
+
+
+def next_free_spoke(client: VultrClient) -> str:
+    """Lowest free vpsN (>=2) not on vps1's wg0, in active local state, or a live Vultr label.
+
+    Consults vps1's wg0 so it doesn't collide with existing real spokes (vps2/vps3) that
+    predate this tool's state file. bootstrap-vps.sh preflight is the authoritative check;
+    a race still fails safe at bootstrap.
+    """
+    used: set[int] = _wg0_used_numbers()
     for name, rec in vultr_state.active_instances().items():
         sn = rec.get("spoke_name") or name
         m = SPOKE_NAME_RE.match(sn)

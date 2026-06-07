@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — `fabrik vultr` next_free_spoke now consults vps1 wg0 (2026-06-08)
+
+- Found while testing every plan item: `next_free_spoke()` suggested `vps2` (already a real spoke) because it only checked local state + Vultr labels, not vps1's wg0 where the existing spokes live. Now reads `wg show wg0 allowed-ips` on vps1 (per plan §C) so it correctly skips `vps2`/`vps3` and returns `vps4`. +1 test. Full `fabrik vultr` surface re-tested live: G1–G6 gates green, live `drill spoke` end-to-end (bootstrap_rc=0, verify_rc=0, hermetic — 0 `vps4` peers on wg0, 0 orphans).
+
 ### Added — `fabrik vultr` Phases 3b/4/5/6: spoke/hub drills + permanent provision + cost (2026-06-08)
 
 - **Phase 3b/4** ([`orchestrator/vultr_drill.py`](src/fabrik/orchestrator/vultr_drill.py)): `drill spoke` runs `bootstrap-vps.sh --skip-mesh --skip-dns` (hermetic) then `--verify` as the end-state contract; `drill hub` runs `bootstrap-hub.sh` against a DR snapshot (~90 min, operator-run). Always-destroy preserved.
