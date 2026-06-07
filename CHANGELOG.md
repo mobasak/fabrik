@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — `fabrik vultr` Phase 3a: disposable `drill bare` (live-validated) (2026-06-08)
+
+- **New module** [`src/fabrik/orchestrator/vultr_drill.py`](src/fabrik/orchestrator/vultr_drill.py) — disposable DR-drill flow: create cheapest IPv4 plan in region → `wait_for_active` → best-effort SSH probe → **always destroy** (try/finally, no orphan even on failure/Ctrl-C). Cost guard (`--max-cost`, hourly=monthly/672 rounded up), `--keep-on-failure`, and a per-drill JSONL report to `logs/dr-drill-history.jsonl` (gitignored).
+- **CLI**: `fabrik vultr drill {bare|spoke|hub}` (+ `--dry-run/--region/--keep-on-failure/--max-cost`) and `fabrik vultr drill-history`. `bare` implemented; `spoke`/`hub` raise NotImplementedError (Phase 3b/4).
+- **Gates passed:** G3a unit tests 8/8 (dry-run, happy-path-destroys, failure-still-destroys, keep-on-failure, max-cost guard); ruff + `final_gate --lean` clean. **G3a.2 LIVE**: real `drill bare` succeeded — 98s wall, active+ssh_reachable+destroyed, ~$0.03; **G3a.3 zero orphans** (live instance count back to 0).
+
 ### Added — `fabrik vultr` Phase 2: state store + reconcile + `list/status/reconcile/cleanup` (2026-06-08)
 
 - **New module** [`src/fabrik/orchestrator/vultr_state.py`](src/fabrik/orchestrator/vultr_state.py) — JSON registry at `data/vultr-instances.json` (gitignored runtime state). Atomic write (`tmp`+`os.replace`) under `locks_local.file_lock` (mirrors `state.py`); `upsert_instance`/`mark_destroyed`/`gc_old_disposables` (30-day audit window); `reconcile(client)` surfaces drift both directions.

@@ -2975,6 +2975,85 @@ def vultr_cleanup(yes: bool):
         click.echo(f"🧹 garbage-collected {len(gc)} old records: {gc}")
 
 
+@vultr.command("drill")
+@click.argument("kind", type=click.Choice(["bare", "spoke", "hub"]))
+@click.option("--region", default="lax", help="Vultr region (default: lax)")
+@click.option("--dry-run", is_flag=True, help="Print the plan; create nothing")
+@click.option("--keep-on-failure", is_flag=True, help="Leave the droplet if the drill fails")
+@click.option(
+    "--max-cost", type=float, default=None, help="Refuse if estimated cost exceeds this (USD)"
+)
+def vultr_drill(
+    kind: str, region: str, dry_run: bool, keep_on_failure: bool, max_cost: float | None
+):
+    """Run a disposable DR drill (auto-destroys). Phase 3a: `bare`."""
+    import os
+
+    from fabrik.drivers.vultr import VultrClient
+    from fabrik.orchestrator import vultr_drill as drill_mod
+
+    client = VultrClient()  # loads .env.sysadmin
+    sshkey = os.getenv("VULTR_SSHKEY_ID")
+    if not sshkey:
+        click.echo("✗ VULTR_SSHKEY_ID not set (in /opt/fabrik/.env.sysadmin)", err=True)
+        raise SystemExit(1)
+    try:
+        report = drill_mod.drill(
+            kind,
+            sshkey_ids=[sshkey],
+            region=region,
+            dry_run=dry_run,
+            keep_on_failure=keep_on_failure,
+            max_cost=max_cost,
+            client=client,
+        )
+    except NotImplementedError as e:
+        click.echo(f"✗ {e}", err=True)
+        raise SystemExit(2) from e
+    except Exception as e:  # noqa: BLE001
+        click.echo(f"❌ drill error: {e}", err=True)
+        raise SystemExit(1) from e
+
+    if report.get("dry_run"):
+        click.echo(
+            f"🧪 dry-run {kind}: region={report['region']} plan={report['plan']} "
+            f"(${report['monthly_cost']}/mo) est=${report['cost_estimate_usd']} name={report['name']}"
+        )
+        return
+    ok = report["success"]
+    click.echo(
+        f"{'✅' if ok else '❌'} drill {kind} {report['name']}: success={ok} "
+        f"wall={report['wall_clock_seconds']}s est=${report['cost_estimate_usd']}"
+    )
+    click.echo(f"   checks: {report['checks']}  steps: {report['step_durations']}")
+    if report.get("error"):
+        click.echo(f"   error: {report['error']}", err=True)
+    if not ok:
+        raise SystemExit(1)
+
+
+@vultr.command("drill-history")
+@click.option("-n", "--lines", default=10, help="How many recent drills to show")
+def vultr_drill_history(lines: int):
+    """Tail the drill history (logs/dr-drill-history.jsonl)."""
+    import json as _json
+
+    from fabrik.orchestrator.vultr_drill import DRILL_LOG
+
+    if not DRILL_LOG.exists():
+        click.echo("(no drills yet)")
+        return
+    for line in DRILL_LOG.read_text().splitlines()[-lines:]:
+        try:
+            r = _json.loads(line)
+        except _json.JSONDecodeError:
+            continue
+        click.echo(
+            f"  {r.get('drill_kind')}  success={r.get('success')}  "
+            f"wall={r.get('wall_clock_seconds')}s  ${r.get('cost_estimate_usd')}  {r.get('name')}"
+        )
+
+
 def main():
     """Entry point for the CLI."""
     cli()
