@@ -156,3 +156,24 @@ def test_is_bare_metal_classification():
     assert VultrClient.is_bare_metal("vbm-4c-32gb") is True
     assert VultrClient.is_bare_metal("vc2-1c-2gb") is False
     assert VultrClient.is_bare_metal("vcg-a16-2c-8g-2vram") is False
+
+
+@patch("fabrik.drivers.vultr.httpx.Client")
+def test_request_returns_empty_dict_not_none_for_204(mock_cls):
+    """G10: chains like `_request(...).get('account', {})` must not
+    AttributeError when the API returns 204 No Content. Returning `{}`
+    instead of `None` keeps every `.get()` call site safe by construction.
+    Never observed in practice (DELETEs don't `.get()`); added so a future
+    API regression (unexpected empty 200 on a `get_*` route) fails as a
+    routine empty result instead of a hard crash.
+    """
+    c = _client(mock_cls)
+    # Empty 200 body — caller does `.get("foo", default)` and expects
+    # `default` back, NOT an AttributeError.
+    empty_resp = MagicMock()
+    empty_resp.status_code = 200
+    empty_resp.content = b""
+    c._client.request.return_value = empty_resp
+    result = c._request("GET", "/account")
+    assert result == {}
+    assert result.get("account", {}) == {}                # no AttributeError

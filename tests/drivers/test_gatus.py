@@ -131,9 +131,11 @@ class TestAddEndpoint:
         mv_cmd = next(c for c in calls if "sudo mv" in c)
         assert GATUS_CONFIG_DIR in mv_cmd
         assert "my-proj.yaml" in mv_cmd
-        # Gatus restart via prefix match
+        # Gatus restart via name pattern. Updated 2026-06-08 from `^gatus-`
+        # (Coolify-era suffix-only) to `^gatus(-|$)` so the bare-named
+        # `gatus` container that's live post-migration actually matches.
         restart_cmd = next(c for c in calls if "docker restart" in c)
-        assert "^gatus-" in restart_cmd
+        assert "^gatus(-|$)" in restart_cmd
 
     def test_new_endpoint_local_tmpfile_cleaned_up(self):
         """The staging tempfile must be removed even if scp/ssh raise."""

@@ -125,8 +125,14 @@ class VultrClient:
                     f"Vultr {resp.status_code} on {method} {path}: {msg}", resp.status_code, body
                 )
 
+            # G10 hardening (2026-06-08): always return a dict for safe `.get()`
+            # chaining at the call sites (most callers do `_request(...).get("foo", [])`).
+            # 204 No Content (DELETE) and unexpected empty 200 bodies become `{}`
+            # rather than `None` — eliminates the latent `AttributeError: 'NoneType'
+            # object has no attribute 'get'` that would surface only on a Vultr
+            # API regression and is hard to catch in unit tests.
             if resp.status_code == 204 or not resp.content:
-                return None
+                return {}
             return resp.json()
 
         raise last_exc or VultrError("Vultr request failed")  # defensive; unreachable

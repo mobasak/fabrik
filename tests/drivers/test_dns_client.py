@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
+import pytest
+
 from fabrik.drivers.dns import DNSClient
 
 
@@ -67,3 +69,40 @@ def test_container_resolution_uses_chosen_network(monkeypatch):
     )
     assert "fabrik" in inspect_cmd
     assert "coolify" not in inspect_cmd
+
+
+# ---------------------------------------------------------------------------
+# G4: delete_record idempotency when site-provisioner returns
+# `500 Internal Server Error` body for "record not found".
+# Live regression from the vps4 drill 2026-06-08: the second destroy against
+# already-cleaned vps4 emitted `dns: error: SSH proxy returned non-JSON:
+# Internal Server Error` — even though `dig` confirmed the records were
+# already gone. The fix swallows the specific shape inside `delete_record`.
+# ---------------------------------------------------------------------------
+
+
+def test_delete_record_swallows_internal_server_error_for_idempotency(monkeypatch):
+    """The not-found case (site-provisioner returns 500 plaintext) is success."""
+    monkeypatch.setenv("SITE_PROVISIONER_CONTAINER", "site-provisioner")
+    client = DNSClient(api_key="test", ssh_host="vps")
+
+    def _boom(*a, **k):
+        raise RuntimeError("SSH proxy returned non-JSON: Internal Server Error")
+
+    with patch.object(client, "_request", side_effect=_boom):
+        result = client.delete_record("ocoron.com", "A", "vps4")
+    assert result == {"status": "absent"}
+
+
+def test_delete_record_propagates_unrelated_ssh_errors(monkeypatch):
+    """Anything that isn't the 'Internal Server Error + non-JSON' shape
+    must still bubble up. A real SSH failure is NOT silently swallowed."""
+    monkeypatch.setenv("SITE_PROVISIONER_CONTAINER", "site-provisioner")
+    client = DNSClient(api_key="test", ssh_host="vps")
+
+    def _real_failure(*a, **k):
+        raise RuntimeError("SSH proxy request failed: connection refused")
+
+    with patch.object(client, "_request", side_effect=_real_failure):
+        with pytest.raises(RuntimeError, match="connection refused"):
+            client.delete_record("ocoron.com", "A", "vps4")

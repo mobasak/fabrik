@@ -201,7 +201,7 @@ def add_endpoint(
         )
         # Restart Gatus — prefix-matched because the Coolify UUID changes on recreate.
         ssh(
-            "GATUS_CONTAINER=$(sudo docker ps --format '{{.Names}}' | grep '^gatus-') "
+            "GATUS_CONTAINER=$(sudo docker ps --format '{{.Names}}' | grep -E '^gatus(-|$)') "
             '&& sudo docker restart "$GATUS_CONTAINER"'
         )
         logger.info("Added Gatus endpoint: %s -> https://%s%s", project_name, domain, health_path)
@@ -253,17 +253,17 @@ for path in glob.glob('{GATUS_CONFIG_DIR}/*.yaml'):
         if len(data['endpoints']) < original_count:
             with open(path, 'w') as f:
                 yaml.dump(data, f, default_flow_style=False)
-            print(f'removed from {{path}}')
+            sys.stderr.write(f'removed from {{path}}\\n')
             removed = True
     except Exception:
         pass
 if not removed:
-    print('not in shared files')
+    sys.stderr.write('not in shared files\\n')
 """
         ssh(f"sudo python3 -c {shlex.quote(_remove_from_shared)}")
 
         ssh(
-            "GATUS_CONTAINER=$(sudo docker ps --format '{{.Names}}' | grep '^gatus-') "
+            "GATUS_CONTAINER=$(sudo docker ps --format '{{.Names}}' | grep -E '^gatus(-|$)') "
             '&& sudo docker restart "$GATUS_CONTAINER"'
         )
         logger.info("Removed Gatus endpoint: %s", project_name)
@@ -280,4 +280,119 @@ __all__ = (
     "DEFAULT_FAILURE_THRESHOLD",
     "add_endpoint",
     "remove_endpoint",
+    "add_aro_wake_endpoint",
 )
+
+
+# ---------------------------------------------------------------------------
+# aro-wake spoke endpoint
+#
+# Used by `fabrik vultr provision <spoke>` to make the new spoke's aro-wake
+# /health visible on the Gatus status page. Mirrors the live shape of the
+# existing aro-wake-vps[1-3] entries verified 2026-06-08:
+#
+#   - name: aro-wake-vps2
+#     group: trio-aro-wake
+#     url: http://10.99.0.2:8201/health
+#     interval: 60s
+#     client: {timeout: 10s}
+#     conditions:
+#     - '[STATUS] == 200'
+#     - '[BODY].ok == true'
+#     - '[BODY].host == vps2'
+#
+# Writes a per-spoke file `<GATUS_CONFIG_DIR>/aro-wake-<spoke>.yaml` so the
+# existing `remove_endpoint("aro-wake-<spoke>")` path (already wired into
+# reverse_fleet_destroy) cleans it up via `sudo rm -f` without touching the
+# shared `aro-wake.yaml` file.
+# ---------------------------------------------------------------------------
+
+ARO_WAKE_GROUP = "trio-aro-wake"
+ARO_WAKE_PORT = 8201
+
+
+def add_aro_wake_endpoint(spoke_name: str, mesh_ip: str, *, dry_run: bool = False) -> dict:
+    """Add a Gatus health endpoint for ``aro-wake`` on ``<spoke>``.
+
+    Endpoint name is ``aro-wake-<spoke>`` (filename
+    ``<GATUS_CONFIG_DIR>/aro-wake-<spoke>.yaml``). Idempotent: returns
+    ``status=exists`` if the file is already present (no rewrite, no
+    Gatus restart).
+
+    Args:
+        spoke_name: e.g. ``vps4``. Must match
+            ``[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}`` (project-name regex).
+        mesh_ip: wg0 mesh IP for the spoke, e.g. ``10.99.0.4``.
+        dry_run: log + return without touching the VPS.
+
+    Returns:
+        ``{"status": "created" | "exists" | "dry_run", "endpoint": "aro-wake-<spoke>"}``.
+    """
+    endpoint_name = f"aro-wake-{spoke_name}"
+    _validate_project_name(endpoint_name)
+
+    config_file = f"{GATUS_CONFIG_DIR}/{endpoint_name}.yaml"
+
+    if dry_run:
+        logger.info(
+            "[DRY RUN] Would add Gatus aro-wake endpoint %s -> http://%s:%d/health",
+            endpoint_name,
+            mesh_ip,
+            ARO_WAKE_PORT,
+        )
+        return {"status": "dry_run", "endpoint": endpoint_name}
+
+    check = ssh(f"test -f {shlex.quote(config_file)} && echo exists || echo missing")
+    if check.strip() == "exists":
+        logger.info("Gatus aro-wake endpoint already exists for %s", spoke_name)
+        return {"status": "exists", "endpoint": endpoint_name}
+
+    endpoint = {
+        "endpoints": [
+            {
+                "name": endpoint_name,
+                "group": ARO_WAKE_GROUP,
+                "url": f"http://{mesh_ip}:{ARO_WAKE_PORT}/health",
+                "interval": "60s",
+                "client": {"timeout": "10s"},
+                "conditions": [
+                    "[STATUS] == 200",
+                    "[BODY].ok == true",
+                    f"[BODY].host == {spoke_name}",
+                ],
+                "alerts": [
+                    {
+                        "type": "custom",
+                        "failure-threshold": DEFAULT_FAILURE_THRESHOLD,
+                        "send-on-resolved": True,
+                    }
+                ],
+            }
+        ]
+    }
+    yaml_body = yaml_lib.dump(endpoint, default_flow_style=False, sort_keys=False)
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+        f.write(yaml_body)
+        local_tmp = f.name
+    vps_tmp = f"/tmp/gatus-endpoint-{endpoint_name}.yaml"  # nosec B108 — single-tenant staging
+    try:
+        scp_to_vps(local_tmp, vps_tmp)
+        ssh(
+            f"sudo mv {shlex.quote(vps_tmp)} {shlex.quote(config_file)} && "
+            f"sudo chown root:root {shlex.quote(config_file)}"
+        )
+        ssh(
+            "GATUS_CONTAINER=$(sudo docker ps --format '{{.Names}}' | grep -E '^gatus(-|$)') "
+            '&& sudo docker restart "$GATUS_CONTAINER"'
+        )
+        logger.info(
+            "Added Gatus aro-wake endpoint %s -> http://%s:%d/health",
+            endpoint_name,
+            mesh_ip,
+            ARO_WAKE_PORT,
+        )
+    finally:
+        Path(local_tmp).unlink(missing_ok=True)
+
+    return {"status": "created", "endpoint": endpoint_name}

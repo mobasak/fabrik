@@ -260,6 +260,16 @@ def provision(
     if rc == 0:
         vultr_state.upsert_instance(name, {"bootstrap_completed_at": datetime.now(UTC).isoformat()})
         report["success"] = True
+        # Register the spoke with hub observability — symmetric with the
+        # `reverse_fleet_destroy` unwind (gatus + prometheus removal both
+        # already wired in). Without these, a provisioned spoke ships logs
+        # to Loki (bootstrap step_11) but is invisible to Prometheus +
+        # Gatus. Verified live during the vps4 drill 2026-06-08: 14 active
+        # Prometheus targets before + after provision until this landed.
+        # Best-effort: any failure here is logged but does NOT fail the
+        # provision report — the box is up + mesh + DNS + bootstrap all
+        # succeeded; observability registration can be re-driven.
+        _register_observability(name, mesh_ip, report)
     else:
         report["error"] = (
             f"bootstrap failed (rc={rc}); instance LEFT for inspection (see {log_path}). "
@@ -267,6 +277,34 @@ def provision(
         )
         logger.error(report["error"])
     return report
+
+
+def _register_observability(name: str, mesh_ip: str, report: dict[str, Any]) -> None:
+    """Wire a freshly-provisioned spoke into Prometheus + Gatus.
+
+    Each step is best-effort; failures land under ``report['observability']``
+    instead of bubbling up. SIGHUPs happen inside the driver helpers.
+    """
+    obs: dict[str, str] = {}
+    try:
+        from fabrik.drivers.prometheus import add_aro_wake_target
+
+        r = add_aro_wake_target(name, mesh_ip)
+        obs["prometheus"] = r.get("status", "?")
+    except Exception as e:  # noqa: BLE001 — best-effort post-deploy registration
+        obs["prometheus"] = f"error: {e}"
+        logger.warning("prometheus aro-wake register %s failed: %s", name, e)
+
+    try:
+        from fabrik.drivers.gatus import add_aro_wake_endpoint
+
+        r = add_aro_wake_endpoint(name, mesh_ip)
+        obs["gatus"] = r.get("status", "?")
+    except Exception as e:  # noqa: BLE001
+        obs["gatus"] = f"error: {e}"
+        logger.warning("gatus aro-wake register %s failed: %s", name, e)
+
+    report["observability"] = obs
 
 
 def reverse_fleet_destroy(
@@ -314,9 +352,15 @@ def reverse_fleet_destroy(
     _try("gatus", _gatus)
 
     def _prom():
-        from fabrik.drivers.prometheus import remove_scrape_target
+        # Use the aro-wake-target remover, NOT the general
+        # `remove_scrape_target` (which only handles `fabrik-<name>` jobs).
+        # `add_aro_wake_target` in provision() registers the spoke inside
+        # the shared `aro-wake` job's `static_configs` list — that's what
+        # we need to undo here. The old call path was symmetric-looking
+        # but a no-op in practice (no `fabrik-vps4` job ever got created).
+        from fabrik.drivers.prometheus import remove_aro_wake_target
 
-        remove_scrape_target(name)
+        remove_aro_wake_target(name)
 
     _try("prometheus", _prom)
 
@@ -337,24 +381,63 @@ def reverse_fleet_destroy(
 
         _try("dns", _dns)
 
-    # 5: wg0 peer deregistration on the hub
+    # 5: wg0 peer deregistration on the hub — runtime removal + persistence.
     # `wg set <iface> peer <pubkey> remove` is the only valid removal syntax —
     # `peer-remove-by-ip` does NOT exist (silently fails under `|| true`,
     # leaving a stale peer behind — verified live 2026-06-08 against vps4).
-    # Look up the pubkey by allowed-ip match, then remove it. Idempotent: a
-    # no-peer-match emits a warning that `_try` records as ok (best-effort).
+    # The runtime remove alone is NOT enough: vps1's wg0.conf still carries
+    # the `[Peer]` block, so a vps1 reboot restores the stale peer (verified
+    # live 2026-06-08 — vps4's marker block was still on disk after a
+    # "successful" destroy until manual cleanup).
+    #
+    # IMPORTANT: do NOT use `wg-quick save wg0` — it round-trips through
+    # `wg showconf`, which omits wg-quick extensions (`Address`, `MTU`,
+    # `PostUp`, `PostDown`). vps1's `PostUp` carries the MSS-clamp rule
+    # that keeps cross-Atlantic mesh TCP from fragmenting; losing it would
+    # be a mesh regression for the whole fleet.
+    #
+    # So: targeted block removal keyed on the marker comment step_06 writes
+    #     `# === peer: <SPOKE_NAME> (added <ISO timestamp>) ===`
+    # Delete from that marker line through end-of-next-marker-or-EOF.
+    # Preserves [Interface] + every other peer block exactly.
     def _wg():
         from fabrik.drivers.ssh import ssh
 
-        # Find the peer pubkey that has this mesh_ip in its allowed-ips.
+        # 5a — runtime remove via pubkey lookup
         pubkey = ssh(
             f"sudo wg show wg0 allowed-ips | awk '/[^0-9]{mesh_ip}\\//{{print $1; exit}}'",
             timeout=30,
         ).strip()
-        if not pubkey:
-            logger.info("wg0-peer: no peer with allowed-ip %s — nothing to remove", mesh_ip)
-            return
-        ssh(f"sudo wg set wg0 peer {pubkey} remove", timeout=30)
+        if pubkey:
+            ssh(f"sudo wg set wg0 peer {pubkey} remove", timeout=30)
+        else:
+            logger.info(
+                "wg0-peer: no peer with allowed-ip %s — nothing to remove at runtime", mesh_ip
+            )
+
+        # 5b — strip the [Peer] block from /etc/wireguard/wg0.conf so the
+        # change survives a hub reboot. Mirror step_06's regex pattern.
+        # Exit-code is the contract; diagnostic messages go to stderr so the
+        # main process logger surfaces them but stdout stays empty.
+        ssh(
+            f'sudo python3 -c "\n'
+            f"import re, sys\n"
+            f"path = '/etc/wireguard/wg0.conf'\n"
+            f"with open(path) as f: c = f.read()\n"
+            f"marker = '# === peer: {name} '\n"
+            f"if marker not in c:\n"
+            f"    sys.stderr.write('no marker for {name} — already clean\\n')\n"
+            f"    raise SystemExit(0)\n"
+            f"pattern = r'\\n# === peer: {name} .*?(?=\\n# === peer:|\\Z)'\n"
+            f"c2 = re.sub(pattern, '', c, flags=re.DOTALL)\n"
+            f"if c2 == c:\n"
+            f"    sys.stderr.write('marker matched but regex removed nothing — refusing to write\\n')\n"
+            f"    raise SystemExit(1)\n"
+            f"with open(path, 'w') as f: f.write(c2)\n"
+            f"sys.stderr.write('removed [Peer] block for {name}\\n')\n"
+            f'"',
+            timeout=30,
+        )
 
     _try("wg0-peer", _wg)
 

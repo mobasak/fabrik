@@ -147,7 +147,7 @@ sudo mv "$CFG.tmp" "$CFG"
 sudo bash -c 'ls -t '"$CFG"'.bak.* 2>/dev/null | tail -n +11 | xargs -r rm -f' || true
 
 # 7. Restart Backrest (UUID-suffixed, prefix-matched at runtime)
-sudo docker restart $(sudo docker ps --format '{{{{.Names}}}}' | grep '^backrest-')
+sudo docker restart $(sudo docker ps --format '{{{{.Names}}}}' | grep -E '^backrest(-|$)')
 echo CREATED
 """
 
@@ -175,7 +175,7 @@ if ! sudo python3 -m json.tool "$CFG.tmp" >/dev/null; then
 fi
 sudo mv "$CFG.tmp" "$CFG"
 sudo bash -c 'ls -t '"$CFG"'.bak.* 2>/dev/null | tail -n +11 | xargs -r rm -f' || true
-sudo docker restart $(sudo docker ps --format '{{{{.Names}}}}' | grep '^backrest-')
+sudo docker restart $(sudo docker ps --format '{{{{.Names}}}}' | grep -E '^backrest(-|$)')
 echo REMOVED
 """
 

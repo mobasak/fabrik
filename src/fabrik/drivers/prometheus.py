@@ -148,10 +148,16 @@ def _reload_prometheus() -> bool:
     """
     # Hot-reload first (fast, no scrape-gap). Run from inside alertmanager
     # since it shares the monitoring Docker network and has curl.
+    # Container name pattern: `^<name>(-|$)` matches both the canonical bare
+    # name (e.g. `alertmanager` — what's live since the Coolify migration)
+    # AND any legacy `<name>-<suffix>` form. The old pattern `^alertmanager-`
+    # silently no-matched the bare names and `_reload_prometheus` always
+    # fell through to "non-fatal" — verified live 2026-06-08 during the vps4
+    # drill follow-up cleanup.
     try:
         ssh(
             f"sudo docker exec $(sudo docker ps --format '{{{{.Names}}}}' "
-            f"| grep '^alertmanager-' | head -1) "
+            f"| grep -E '^alertmanager(-|$)' | head -1) "
             f"wget -qO- --post-data='' {shlex.quote(PROMETHEUS_RELOAD_URL)}",
             timeout=15,
         )
@@ -163,7 +169,7 @@ def _reload_prometheus() -> bool:
     try:
         ssh(
             "PROM_CONTAINER=$(sudo docker ps --format '{{.Names}}' "
-            "| grep '^prometheus-' | head -1) && "
+            "| grep -E '^prometheus(-|$)' | head -1) && "
             'sudo docker restart "$PROM_CONTAINER"',
             timeout=30,
         )
@@ -354,13 +360,121 @@ def list_scrape_targets() -> list[dict[str, Any]]:
     return list(config.get("scrape_configs") or [])
 
 
+# ---------------------------------------------------------------------------
+# aro-wake job: add/remove spoke targets inside the SHARED `aro-wake` scrape
+# job (NOT a new `fabrik-<spoke>` job — the trio uses a single job with one
+# `static_configs` entry per fleet host). Used by `fabrik vultr provision`
+# to make a new spoke metrics-visible, and by `... destroy --reverse-fleet-add`
+# to remove it cleanly. Added 2026-06-08 after the live vps4 drill caught
+# that `provision` left the spoke invisible to Prometheus.
+# ---------------------------------------------------------------------------
+
+ARO_WAKE_JOB_NAME = "aro-wake"
+ARO_WAKE_PORT = 8201
+
+
+def add_aro_wake_target(spoke_name: str, mesh_ip: str, *, dry_run: bool = False) -> dict[str, Any]:
+    """Add ``<spoke_name>`` as a target inside the existing ``aro-wake`` job.
+
+    Appends a ``{targets: [<mesh_ip>:8201], labels: {host: <spoke>, role: spoke}}``
+    entry — matching the live shape verified 2026-06-08:
+
+        - job_name: aro-wake
+          static_configs:
+            - targets: ['10.0.1.1:8201']
+              labels: {host: vps1, role: hub}
+            - targets: ['10.99.0.2:8201']
+              labels: {host: vps2, role: spoke}
+            ...
+
+    Idempotent: if ``<mesh_ip>:8201`` is already in any ``static_configs``
+    entry of the ``aro-wake`` job, returns ``status=exists`` without
+    rewriting the file.
+
+    Raises ``RuntimeError`` if the ``aro-wake`` job itself doesn't exist
+    in ``prometheus.yml`` — the caller should not have asked us to graft
+    a spoke onto a non-existent job.
+    """
+    _validate_name(spoke_name)
+    target = f"{mesh_ip}:{ARO_WAKE_PORT}"
+    if dry_run:
+        logger.info("[DRY RUN] Would add aro-wake target %s (host=%s)", target, spoke_name)
+        return {"status": "dry_run", "target": target, "host": spoke_name}
+
+    config = _read_config()
+    job = next(
+        (j for j in config.get("scrape_configs", []) if j.get("job_name") == ARO_WAKE_JOB_NAME),
+        None,
+    )
+    if job is None:
+        raise RuntimeError(
+            f"aro-wake job not present in {PROMETHEUS_CONFIG_PATH}; cannot add spoke target"
+        )
+
+    for sc in job.get("static_configs", []) or []:
+        if target in (sc.get("targets") or []):
+            logger.info("Prometheus aro-wake already has target %s; no-op", target)
+            return {"status": "exists", "target": target, "host": spoke_name}
+
+    job.setdefault("static_configs", []).append(
+        {
+            "targets": [target],
+            "labels": {"host": spoke_name, "role": "spoke"},
+        }
+    )
+    _write_config(config)
+    _reload_prometheus()
+    logger.info("Added aro-wake target %s (host=%s)", target, spoke_name)
+    return {"status": "created", "target": target, "host": spoke_name}
+
+
+def remove_aro_wake_target(spoke_name: str, *, dry_run: bool = False) -> bool:
+    """Remove ``<spoke_name>`` from the ``aro-wake`` job's static_configs.
+
+    Matches by ``labels.host`` (NOT by target IP) — so even if the spoke's
+    mesh IP rotated between provision and destroy, we still pull the right
+    entry. Idempotent: returns True when nothing matched.
+    """
+    _validate_name(spoke_name)
+    if dry_run:
+        logger.info("[DRY RUN] Would remove aro-wake target with host=%s", spoke_name)
+        return True
+
+    config = _read_config()
+    job = next(
+        (j for j in config.get("scrape_configs", []) if j.get("job_name") == ARO_WAKE_JOB_NAME),
+        None,
+    )
+    if job is None:
+        logger.info("aro-wake job not in prometheus.yml; nothing to remove")
+        return True
+
+    static_configs = job.get("static_configs", []) or []
+    before = len(static_configs)
+    job["static_configs"] = [
+        sc for sc in static_configs if (sc.get("labels") or {}).get("host") != spoke_name
+    ]
+    if len(job["static_configs"]) == before:
+        logger.info("aro-wake had no target for host=%s; nothing to remove", spoke_name)
+        return True
+
+    _write_config(config)
+    _reload_prometheus()
+    logger.info("Removed aro-wake target for host=%s", spoke_name)
+    return True
+
+
 __all__ = (
     "PROMETHEUS_CONFIG_PATH",
     "PROMETHEUS_RELOAD_URL",
     "DEFAULT_METRICS_PATH",
     "DEFAULT_INTERVAL",
     "JOB_PREFIX",
+    "ARO_WAKE_JOB_NAME",
+    "ARO_WAKE_PORT",
     "add_scrape_target",
     "remove_scrape_target",
     "list_scrape_targets",
+    "add_aro_wake_target",
+    "remove_aro_wake_target",
 )

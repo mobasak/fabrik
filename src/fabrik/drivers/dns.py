@@ -354,19 +354,51 @@ class DNSClient:
         """
         Delete a Cloudflare DNS record by type and name.
 
+        Idempotent: site-provisioner returns HTTP 500 + plain-text
+        ``Internal Server Error`` body when the record doesn't exist
+        (instead of the more correct 404). The SSH-proxy layer then
+        surfaces that as ``RuntimeError("SSH proxy returned non-JSON:
+        Internal Server Error")``. For a DELETE this is the desired
+        end-state, not a failure — so catch the specific shape and
+        return ``{"status": "absent"}`` rather than re-raising.
+
+        Verified live during the vps4 DR drill 2026-06-08: the second
+        ``destroy --reverse-fleet-add`` against an already-cleaned vps4
+        emitted ``dns: error: SSH proxy returned non-JSON: Internal
+        Server Error`` even though ``dig`` confirmed the records were
+        already gone. With this guard, subsequent destroys (or re-runs
+        after a partial failure) report ``ok`` instead.
+
         Args:
             domain: Root domain
             record_type: A, AAAA, CNAME, MX, TXT, NS, CAA
             name: Record name (use "@" for root)
 
         Returns:
-            Result dict from site-provisioner
+            Result dict from site-provisioner, or ``{"status": "absent"}``
+            when the record didn't exist.
         """
-        return self._request(
-            "DELETE",
-            f"/api/cloudflare/dns/{domain}",
-            params={"record_type": record_type, "name": name},
-        )
+        try:
+            return self._request(
+                "DELETE",
+                f"/api/cloudflare/dns/{domain}",
+                params={"record_type": record_type, "name": name},
+            )
+        except RuntimeError as e:
+            # Narrow match: the specific "not found surfaced as 500" shape
+            # site-provisioner emits. Any other RuntimeError (real SSH
+            # failure, malformed config, etc.) still propagates.
+            msg = str(e)
+            if "Internal Server Error" in msg and "non-JSON" in msg:
+                logger.info(
+                    "DNS delete_record(%s, %s, %s): record already absent "
+                    "(site-provisioner 500 → treating as success)",
+                    domain,
+                    record_type,
+                    name,
+                )
+                return {"status": "absent"}
+            raise
 
     # =========================================================================
     # Nameservers

@@ -74,7 +74,10 @@ class TestBuildAddScript:
 
     def test_backrest_container_matched_by_prefix(self):
         script = _build_add_script("Zm9v", "test-plan")
-        assert "^backrest-" in script
+        # Updated 2026-06-08 from `^backrest-` (Coolify-era suffix-only)
+        # to `^backrest(-|$)` so the bare-named `backrest` container that's
+        # live post-migration actually matches.
+        assert "^backrest(-|$)" in script
         # The docker format literal must survive f-string escaping
         assert "{{.Names}}" in script
 
