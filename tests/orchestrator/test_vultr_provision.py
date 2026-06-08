@@ -169,6 +169,84 @@ def test_provision_bootstrap_failure_leaves_instance(monkeypatch):
     assert vultr_state.get_instance("vps4")["bootstrap_completed_at"] is None
 
 
+def test_provision_g6_retries_as_ozgur_on_safe_rerun_trap_signal(monkeypatch):
+    """G6: when the first bootstrap pass dies AFTER step_01 disabled root SSH,
+    `_probe_ozgur_works(ip)` returns True (sudoer ready, NOPASSWD) and root@
+    is now broken. Provision auto-retries `bootstrap-vps.sh ozgur@<ip>` and
+    reports success after the retry succeeds. Mirrors the SAFE-RERUN-TRAP
+    signal that bootstrap-vps.sh's preflight uses for humans.
+    """
+    monkeypatch.setattr(prov, "_wait_for_ssh", lambda *a, **k: True)
+    monkeypatch.setattr(prov, "_register_observability", lambda *a, **k: None)
+
+    invocations: list[list[str]] = []
+
+    def _fake_run_script(argv, *a, **k):
+        invocations.append(argv)
+        # First pass (root@): dies post-step_01 (any non-zero rc).
+        # Second pass (ozgur@): succeeds.
+        return 1 if "root@" in argv[1] else 0
+
+    monkeypatch.setattr(prov, "_run_script", _fake_run_script)
+    # SAFE-RERUN-TRAP signal: ozgur@ probe must say "yes, ready"
+    monkeypatch.setattr(prov, "_probe_ozgur_works", lambda *a, **k: True)
+
+    rep = prov.provision("vps4", sshkey_ids=["k"], region="lhr", confirm=True, client=_client())
+    assert rep["success"] is True
+    assert rep["bootstrap_rc"] == 0
+    assert rep.get("bootstrap_retry_as_ozgur") is True
+    # Two invocations: root@ then ozgur@ with the SAME spoke name
+    assert len(invocations) == 2
+    assert invocations[0][1].startswith("root@")
+    assert invocations[1][1].startswith("ozgur@")
+    assert invocations[0][2] == "vps4" and invocations[1][2] == "vps4"
+
+
+def test_provision_g6_no_retry_when_root_path_succeeds(monkeypatch):
+    """First-pass success must NOT probe ozgur or re-invoke bootstrap."""
+    monkeypatch.setattr(prov, "_wait_for_ssh", lambda *a, **k: True)
+    monkeypatch.setattr(prov, "_register_observability", lambda *a, **k: None)
+
+    invocations: list[list[str]] = []
+    monkeypatch.setattr(
+        prov,
+        "_run_script",
+        lambda argv, *a, **k: invocations.append(argv) or 0,
+    )
+    probed: list[bool] = []
+    monkeypatch.setattr(
+        prov,
+        "_probe_ozgur_works",
+        lambda *a, **k: probed.append(True) or True,
+    )
+
+    rep = prov.provision("vps4", sshkey_ids=["k"], region="lhr", confirm=True, client=_client())
+    assert rep["success"] is True
+    assert rep.get("bootstrap_retry_as_ozgur") is None     # absent, not False
+    assert len(invocations) == 1
+    assert probed == []                                     # never asked
+
+
+def test_provision_g6_no_retry_when_ozgur_probe_fails(monkeypatch):
+    """If ozgur@ probe ALSO fails (step_00 never ran, or genuine SSH issue),
+    don't retry — fall through to the existing 'left for inspection' path."""
+    monkeypatch.setattr(prov, "_wait_for_ssh", lambda *a, **k: True)
+
+    invocations: list[list[str]] = []
+    monkeypatch.setattr(
+        prov,
+        "_run_script",
+        lambda argv, *a, **k: invocations.append(argv) or 1,
+    )
+    monkeypatch.setattr(prov, "_probe_ozgur_works", lambda *a, **k: False)
+
+    rep = prov.provision("vps4", sshkey_ids=["k"], region="lhr", confirm=True, client=_client())
+    assert rep["success"] is False
+    assert rep.get("bootstrap_retry_as_ozgur") is None
+    assert len(invocations) == 1                            # one pass only
+    assert "bootstrap failed (rc=1)" in (rep.get("error") or "")
+
+
 def test_provision_ssh_never_comes_up_leaves_instance(monkeypatch):
     """When sshd never binds within the timeout, leave the instance + return error.
 
@@ -254,6 +332,10 @@ def test_reverse_fleet_destroy_wg_peer_strips_conf_block_via_marker(monkeypatch)
     assert "# === peer: vps4 " in joined
     # MUST NOT: the conf-stripping `wg-quick save` round-trip
     assert "wg-quick save" not in joined
+    # Trailing-newline guard: removing the LAST [Peer] block (vps4 was
+    # the last in vps1's live wg0.conf when first run 2026-06-08) left
+    # the file with no terminating \n. The G3 strip now appends one.
+    assert "c2 += '\\n'" in joined
 
 
 def test_reverse_fleet_destroy_calls_aro_wake_remover_not_generic_scrape(monkeypatch):

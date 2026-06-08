@@ -134,6 +134,46 @@ def _wait_for_ssh(ip: str, *, timeout: int = 120, interval: int = 5) -> bool:
     return False
 
 
+def _probe_ozgur_works(ip: str, *, timeout: int = 10) -> bool:
+    """SAFE-RERUN-TRAP signal probe: does ``ozgur@<ip> 'sudo -n id'`` succeed?
+
+    Mirrors the exact check `bootstrap-vps.sh`'s `preflight()` does after
+    a `root@<ip>` failure (see `scripts/bootstrap/bootstrap-vps.sh:198-217`
+    SAFE-RERUN-TRAP block + `.windsurf/rules/core/90-bootstrap-scripts.md`
+    Rule 1). When this returns True AND `root@<ip>` BatchMode SSH fails,
+    that's the unambiguous signal that step_00 + step_01 already ran on
+    this VPS (sudoer exists with NOPASSWD, root login disabled) — the
+    bootstrap can be safely re-invoked as `ozgur@<ip>` instead of failing
+    to "left for inspection".
+
+    The probe itself is `sudo -n id` (not just `id`) so that we only
+    return True when the user can ALSO get root non-interactively — which
+    is what bootstrap-vps.sh needs to run its sudo'd steps.
+    """
+    try:
+        r = subprocess.run(
+            [
+                "ssh",
+                "-o",
+                "ConnectTimeout=5",
+                "-o",
+                "BatchMode=yes",
+                "-o",
+                "StrictHostKeyChecking=accept-new",
+                "-o",
+                "UserKnownHostsFile=/dev/null",
+                f"ozgur@{ip}",
+                "sudo -n id",
+            ],
+            capture_output=True,
+            timeout=timeout,
+            check=False,
+        )
+        return r.returncode == 0 and b"uid=0" in r.stdout
+    except (subprocess.TimeoutExpired, OSError):
+        return False
+
+
 def _run_script(argv: list[str], timeout: int, log_path) -> int:
     try:
         with open(log_path, "w") as log:
@@ -257,6 +297,31 @@ def provision(
     log_path.parent.mkdir(parents=True, exist_ok=True)
     rc = _run_script([script, f"root@{ip}", name], _BOOTSTRAP_TIMEOUT, log_path)
     report["bootstrap_rc"] = rc
+
+    # G6: SAFE-RERUN-TRAP auto-retry as ozgur@.
+    # When the first bootstrap pass dies AFTER step_01 has already
+    # disabled root SSH login (e.g. mid-step crash, network blip,
+    # step_02 SSH session drop pre-fix), re-invoking as `root@<ip>` will
+    # fail at the preflight's BatchMode SSH probe and trip fail2ban.
+    # Bootstrap-vps.sh's preflight detects this case and exits with rc=1
+    # plus an actionable message — but that's for humans. Automation key
+    # off the same signal: if ozgur@<ip> can `sudo -n id` AND
+    # root@<ip> is now broken, step_00+step_01 ran, the bootstrap is
+    # idempotent step-by-step, and we can safely resume as the sudoer.
+    if rc != 0 and _probe_ozgur_works(ip):
+        logger.warning(
+            "bootstrap rc=%d as root@%s but ozgur@%s 'sudo -n id' works "
+            "(SAFE-RERUN-TRAP signal — step_01 already disabled root SSH). "
+            "Re-invoking bootstrap as ozgur@%s to resume idempotently.",
+            rc,
+            ip,
+            ip,
+            ip,
+        )
+        rc = _run_script([script, f"ozgur@{ip}", name], _BOOTSTRAP_TIMEOUT, log_path)
+        report["bootstrap_rc"] = rc
+        report["bootstrap_retry_as_ozgur"] = True
+
     if rc == 0:
         vultr_state.upsert_instance(name, {"bootstrap_completed_at": datetime.now(UTC).isoformat()})
         report["success"] = True
@@ -433,6 +498,14 @@ def reverse_fleet_destroy(
             f"if c2 == c:\n"
             f"    sys.stderr.write('marker matched but regex removed nothing — refusing to write\\n')\n"
             f"    raise SystemExit(1)\n"
+            # Ensure the file always ends with a single newline. The regex
+            # boundary is `\\Z` (end-of-string), so removing the last
+            # [Peer] block leaves the file with no trailing newline —
+            # cosmetically off and breaks `wc -l` / diff comparisons.
+            # Verified live 2026-06-08 on vps1's wg0.conf after the first
+            # production G3 strip: file ended with `\\ No newline at end
+            # of file` per diff output.
+            f"if not c2.endswith('\\n'): c2 += '\\n'\n"
             f"with open(path, 'w') as f: f.write(c2)\n"
             f"sys.stderr.write('removed [Peer] block for {name}\\n')\n"
             f'"',

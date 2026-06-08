@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — fabrik vultr PR2: G6 SAFE-RERUN-TRAP auto-retry + G3 trailing-newline guard (2026-06-08)
+
+**G6 — `provision()` auto-retries as `ozgur@<ip>` on the SAFE-RERUN-TRAP signal** ([`src/fabrik/orchestrator/vultr_provision.py`](src/fabrik/orchestrator/vultr_provision.py)). When the first bootstrap pass dies after step_01 has already disabled root SSH (mid-step crash, network blip, the step_02 SSH-drop fixed yesterday), a naive retry as `root@<ip>` would trip fail2ban at the BatchMode preflight. Bootstrap-vps.sh's preflight detects this case for humans and emits an actionable "re-invoke as ozgur@" message — automation now keys off the same signal. New `_probe_ozgur_works(ip)` mirrors the trap's exact probe: `ssh -o BatchMode=yes ozgur@<ip> 'sudo -n id'`. If that succeeds, step_00 created the sudoer + step_01 disabled root login; the bootstrap is idempotent step-by-step, so we re-invoke `bootstrap-vps.sh ozgur@<ip>` and let it resume. Eliminates the "instance LEFT for inspection — fix + re-run" trap for the common case where the box is actually fine, just past step_01. Report surfaces `bootstrap_retry_as_ozgur=True` when it fires.
+
+**G3 trailing-newline guard** in the wg0.conf `[Peer]`-block strip. Caught live 2026-06-08 during the first production run of the new code against vps1's residue (vps4 was the last `[Peer]` block, so the regex's `\Z` boundary left no terminating `\n` — `diff` showed `\ No newline at end of file`). `wg-quick` is fine with the missing newline but tooling isn't. The strip now appends `\n` if the rewritten content doesn't end in one.
+
+**+3 new G6 tests** in [`tests/orchestrator/test_vultr_provision.py`](tests/orchestrator/test_vultr_provision.py): retry-fires-when-trap-condition-true, no-retry-when-first-pass-succeeds, no-retry-when-ozgur-probe-also-fails. **+1 assertion** in the existing destroy regression test that the `c2 += '\n'` line is in the emitted command.
+
+**Followups still tracked, NOT in PR2:**
+
+- **G5b** (the other AI's surfaced follow-up): `bootstrap-spoke-restore.sh` still apt-installs `iptables-persistent` and runs `systemctl enable --now netfilter-persistent` in step_07. Aligning to the new `iptables-docker-user.service` shape requires backup-shape detection (pre-G5 backups have `rules.v4` + netfilter-persistent loader; post-G5 backups have the add-script + systemd unit). >5-line change, deferred.
+- Live shakedown of G5 + G6 happens together on the next `fabrik vultr drill spoke` or `provision <name>` cycle.
+
 ### Fixed — bootstrap-vps.sh G5: drop iptables-persistent (ufw conflict) → iptables-docker-user.service (2026-06-08)
 
 - **Root cause:** `step_04` installed `iptables-persistent`, which on Ubuntu 24.04 declares `Conflicts: ufw` → `apt` silently **removed ufw**, so `step_15`'s aro-wake UFW rule failed (`ufw: command not found`). Surfaced in the 2026-06-08 vps4 live drill.
