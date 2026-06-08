@@ -45,8 +45,8 @@
 # What this script DOES (numbered to match step_NN_ functions):
 #   00. Create sudoer 'ozgur' + install pubkey + NOPASSWD sudo (mirror spoke bootstrap step_00).
 #   01. Harden SSH (no root login, no password auth).
-#   02. apt install OS packages: Docker, WG, iptables-persistent, ufw, fail2ban,
-#       python3, inotify-tools, jq, curl.
+#   02. apt install OS packages: Docker, WG, ufw, fail2ban,
+#       python3, inotify-tools, jq, curl. (NO iptables-persistent — ufw conflict, G5b)
 #   03. scp spoke's restic password + Backrest .env from W9 mirror → /opt/backrest/
 #   04. restic restore host-state from B2 (spoke's own repo at /spokes/<name>/):
 #       /etc/wireguard/{spoke.privatekey,spoke.publickey,wg0.conf},
@@ -56,7 +56,7 @@
 #   05. systemctl enable --now ufw + fail2ban (rules already on disk).
 #   06. systemctl enable --now wg-quick@wg0 — mesh reconverges to hub with
 #       SAME identity (hub's peer table entry unchanged).
-#   07. systemctl enable --now netfilter-persistent (loads rules.v4 + v6).
+#   07. Regenerate DOCKER-USER chain + persist via iptables-docker-user.service (G5b).
 #   08. docker network create fabrik (idempotent).
 #   09. restic restore /opt/ (monitoring-agent + traefik + backrest scaffolding).
 #   10. docker compose up -d for /opt/monitoring-agent/ + /opt/traefik/.
@@ -300,13 +300,16 @@ EOF
 step_02_install_packages() {
     log "step_02: install OS packages ($(elapsed))"
     remote 'command -v docker >/dev/null || (curl -fsSL https://get.docker.com | sudo sh)'
+    # NOTE: do NOT install iptables-persistent here. On Ubuntu 24.04 it declares
+    # Conflicts: ufw, so `apt-get install iptables-persistent` silently REMOVES ufw
+    # and step_05's `ufw --force enable` then fails. DOCKER-USER persistence is
+    # instead provided by iptables-docker-user.service (regenerated in step_07),
+    # matching the vps1 hub and the fresh-spoke bootstrap (bootstrap-vps.sh
+    # step_10, G5). (G5b)
     remote 'sudo bash -c "
-        echo iptables-persistent iptables-persistent/autosave_v4 boolean true | debconf-set-selections
-        echo iptables-persistent iptables-persistent/autosave_v6 boolean true | debconf-set-selections
         DEBIAN_FRONTEND=noninteractive apt-get update -qq
         DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
             wireguard wireguard-tools \
-            iptables-persistent \
             ufw fail2ban \
             python3 python3-pip \
             inotify-tools \
@@ -355,7 +358,10 @@ step_04_restic_pull_host_state() {
     done
     restic_remote "restore ${SNAPSHOT_ID} --target /host${includes} --tag host-state"
     remote 'sudo systemctl daemon-reload'
-    remote 'test -f /etc/wireguard/wg0.conf && test -f /etc/iptables/rules.v4 && test -f /etc/sudoers.d/90-ozgur' \
+    # NOTE: do NOT assert /etc/iptables/rules.v4 — post-G5 backups don't carry it
+    # (DOCKER-USER persistence moved to iptables-docker-user.service). The chain is
+    # regenerated from config in step_07, not restored from the saved table. (G5b)
+    remote 'test -f /etc/wireguard/wg0.conf && test -f /etc/sudoers.d/90-ozgur' \
         || { err "step_04: critical host-state file missing post-restore"; return 1; }
     ok "step_04 done"
 }
@@ -387,14 +393,83 @@ step_06_bring_up_mesh() {
 }
 
 step_07_apply_iptables() {
-    log "step_07: enable netfilter-persistent (loads rules.v4 + v6) ($(elapsed))"
-    remote 'sudo systemctl enable --now netfilter-persistent'
-    if ! $DRY_RUN; then
-        local r; r=$(remote 'sudo iptables -L DOCKER-USER -n 2>/dev/null | grep -cE "DROP|ACCEPT"') || r=0
-        (( r >= 1 )) && ok "step_07 done — DOCKER-USER chain: ${r} rules" \
-                     || warn "step_07: DOCKER-USER chain empty — rules.v4 may not have been restored"
-    else ok "step_07 done (dry-run)"
+    log "step_07: DOCKER-USER chain + persist via iptables-docker-user.service (hub-matching) ($(elapsed))"
+    if $DRY_RUN; then
+        dim "    [dry-run] would scp /etc/iptables/{add,rm}-docker-user-rules.sh + iptables-docker-user.service, then enable --now"
+        ok "step_07 done (dry-run)"
+        return 0
     fi
+
+    # DOCKER-USER persistence is provided by a oneshot systemd unit identical in
+    # shape to vps1's and the fresh-spoke bootstrap (bootstrap-vps.sh step_10, G5)
+    # — NOT netfilter-persistent loading a saved rules.v4. The firewall policy is
+    # deterministic and fleet-uniform, so we regenerate it from config rather than
+    # trust the restored table (restoring a full save can clobber Docker's live
+    # chains on a Docker host). Works for pre-G5 AND post-G5 backups. (G5b)
+    local public_iface
+    public_iface=$(remote "ip route get 1.1.1.1 | awk '/dev/ {print \$5; exit}'")
+    if [[ -z "$public_iface" ]]; then
+        warn "could not auto-detect public interface; falling back to ${FABRIK_PUBLIC_IFACE_DEFAULT}"
+        public_iface="$FABRIK_PUBLIC_IFACE_DEFAULT"
+    fi
+
+    local mesh_ports="${FABRIK_MESH_ONLY_PORTS[*]}"
+    local mesh_ports_csv="${mesh_ports// /,}"
+
+    # Build add/rm scripts + the unit locally, then scp + sudo install — the
+    # scp-to-/tmp pattern avoids the remote-bash quote-nesting hazard (Rule 2).
+    local tmpdir
+    tmpdir=$(mktemp -d -t fabrik-iptables-XXXX)
+
+    cat > "${tmpdir}/add-docker-user-rules.sh" <<EOF
+#!/bin/bash
+# Spoke DOCKER-USER rules — regenerated by bootstrap-spoke-restore.sh step_07.
+# Run at boot by iptables-docker-user.service (After=docker.service). Idempotent.
+iptables -C DOCKER-USER -i ${FABRIK_MESH_IFACE} -j ACCEPT 2>/dev/null || iptables -I DOCKER-USER -i ${FABRIK_MESH_IFACE} -j ACCEPT
+iptables -C DOCKER-USER -i ${public_iface} -p tcp -m multiport --dports ${mesh_ports_csv} -j DROP 2>/dev/null || iptables -I DOCKER-USER -i ${public_iface} -p tcp -m multiport --dports ${mesh_ports_csv} -j DROP
+EOF
+
+    cat > "${tmpdir}/rm-docker-user-rules.sh" <<EOF
+#!/bin/bash
+iptables -D DOCKER-USER -i ${FABRIK_MESH_IFACE} -j ACCEPT 2>/dev/null || true
+iptables -D DOCKER-USER -i ${public_iface} -p tcp -m multiport --dports ${mesh_ports_csv} -j DROP 2>/dev/null || true
+EOF
+
+    cat > "${tmpdir}/iptables-docker-user.service" <<'EOF'
+[Unit]
+Description=Docker-User iptables rules (block external access to internal ports)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/etc/iptables/add-docker-user-rules.sh
+ExecStop=/etc/iptables/rm-docker-user-rules.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+    scp -q -o StrictHostKeyChecking=accept-new \
+        "${tmpdir}/add-docker-user-rules.sh" \
+        "${tmpdir}/rm-docker-user-rules.sh" \
+        "${tmpdir}/iptables-docker-user.service" \
+        "${EFFECTIVE_REMOTE}:/tmp/"
+
+    remote 'sudo mkdir -p /etc/iptables && \
+        sudo install -m 755 -o root -g root /tmp/add-docker-user-rules.sh /etc/iptables/add-docker-user-rules.sh && \
+        sudo install -m 755 -o root -g root /tmp/rm-docker-user-rules.sh /etc/iptables/rm-docker-user-rules.sh && \
+        sudo install -m 644 -o root -g root /tmp/iptables-docker-user.service /etc/systemd/system/iptables-docker-user.service && \
+        sudo systemctl daemon-reload && \
+        sudo systemctl enable --now iptables-docker-user.service && \
+        rm -f /tmp/add-docker-user-rules.sh /tmp/rm-docker-user-rules.sh /tmp/iptables-docker-user.service'
+
+    rm -rf "${tmpdir}"
+
+    local r; r=$(remote 'sudo iptables -L DOCKER-USER -n 2>/dev/null | grep -cE "DROP|ACCEPT"') || r=0
+    (( r >= 1 )) && ok "step_07 done — DOCKER-USER chain: ${r} rules (via iptables-docker-user.service)" \
+                 || warn "step_07: DOCKER-USER chain empty — unit may not have applied"
 }
 
 step_08_create_fabrik_network() {

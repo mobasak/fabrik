@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — bootstrap-spoke-restore.sh G5b: align DR restore to iptables-docker-user.service (2026-06-08)
+
+The spoke disaster-recovery restore path ([`scripts/bootstrap/bootstrap-spoke-restore.sh`](scripts/bootstrap/bootstrap-spoke-restore.sh)) still apt-installed `iptables-persistent` (step_02) and did `systemctl enable --now netfilter-persistent` (step_07) — the same Ubuntu 24.04 `Conflicts: ufw` trap G5 fixed in the fresh-bootstrap path. On a rebuilt spoke that install silently removes `ufw`, so step_05's `ufw --force enable` would fail. Now aligned to the G5 shape: step_02 drops `iptables-persistent` (UFW stays canonical), and step_07 regenerates the DOCKER-USER `add`/`rm` scripts + `iptables-docker-user.service` from config (identical to bootstrap-vps.sh step_10) and enables the oneshot unit.
+
+This sidesteps the originally-scoped pre-G5/post-G5 backup-shape *fork* entirely: the firewall policy is deterministic and fleet-uniform, so the restore **regenerates** the chain from config rather than trusting the restored `rules.v4` — which it shouldn't anyway, since restoring a full saved table on a Docker host can clobber Docker's live chains (the same rationale as G5). Works identically for pre-G5 backups (carry `rules.v4`) and post-G5 backups (carry the add-script but not the systemd unit, which isn't in the restic include set). step_04's post-restore assertion no longer requires `/etc/iptables/rules.v4` (shape-dependent); it checks `wg0.conf` + `90-ozgur` (the true identity files). `bash -n` clean; no `iptables-persistent`/`netfilter-persistent` install or enable remains (only explanatory comments). Live-validated on the next spoke restore drill.
+
 ### Fixed — fabrik vultr PR2: G6 SAFE-RERUN-TRAP auto-retry + G3 trailing-newline guard (2026-06-08)
 
 **G6 — `provision()` auto-retries as `ozgur@<ip>` on the SAFE-RERUN-TRAP signal** ([`src/fabrik/orchestrator/vultr_provision.py`](src/fabrik/orchestrator/vultr_provision.py)). When the first bootstrap pass dies after step_01 has already disabled root SSH (mid-step crash, network blip, the step_02 SSH-drop fixed yesterday), a naive retry as `root@<ip>` would trip fail2ban at the BatchMode preflight. Bootstrap-vps.sh's preflight detects this case for humans and emits an actionable "re-invoke as ozgur@" message — automation now keys off the same signal. New `_probe_ozgur_works(ip)` mirrors the trap's exact probe: `ssh -o BatchMode=yes ozgur@<ip> 'sudo -n id'`. If that succeeds, step_00 created the sudoer + step_01 disabled root login; the bootstrap is idempotent step-by-step, so we re-invoke `bootstrap-vps.sh ozgur@<ip>` and let it resume. Eliminates the "instance LEFT for inspection — fix + re-run" trap for the common case where the box is actually fine, just past step_01. Report surfaces `bootstrap_retry_as_ozgur=True` when it fires.
@@ -14,7 +20,7 @@ All notable changes to this project will be documented in this file.
 
 **Followups still tracked, NOT in PR2:**
 
-- **G5b** (the other AI's surfaced follow-up): `bootstrap-spoke-restore.sh` still apt-installs `iptables-persistent` and runs `systemctl enable --now netfilter-persistent` in step_07. Aligning to the new `iptables-docker-user.service` shape requires backup-shape detection (pre-G5 backups have `rules.v4` + netfilter-persistent loader; post-G5 backups have the add-script + systemd unit). >5-line change, deferred.
+- **G5b** — ✅ DONE in its own entry above. Aligned `bootstrap-spoke-restore.sh` to `iptables-docker-user.service` by *regenerating* the chain from config rather than forking on backup shape.
 - Live shakedown of G5 + G6 happens together on the next `fabrik vultr drill spoke` or `provision <name>` cycle.
 
 ### Fixed — bootstrap-vps.sh G5: drop iptables-persistent (ufw conflict) → iptables-docker-user.service (2026-06-08)

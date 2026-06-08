@@ -4317,3 +4317,15 @@ OpenRouter as fallback (configured via `WATCHDOG_OPENROUTER_KEY` in `/opt/<proje
 
 ---
 
+## Lesson 77 — DR restore on a Docker host must regenerate deterministic firewall config from source, not restore a saved iptables table
+
+**Context (2026-06-08, G5/G5b):** The fresh-spoke bootstrap and the spoke DR-restore both persisted the mesh DOCKER-USER chain via `iptables-persistent` + `netfilter-persistent` (load `/etc/iptables/rules.v4` at boot). Two problems surfaced:
+1. On **Ubuntu 24.04**, `iptables-persistent` declares `Conflicts: ufw`, so `apt-get install iptables-persistent` **silently removes ufw** — a later `ufw enable` then fails with `ufw: command not found` (G5, caught in the vps4 live drill). The hub (vps1) had already moved to a oneshot `iptables-docker-user.service` that runs an idempotent add-script after `docker.service`; the spoke paths hadn't.
+2. The DR restore additionally tried to *restore* the saved `rules.v4`. A saved table on a Docker host captures Docker's own dynamically-managed chains at save time; replaying it can **clobber Docker's live chains**. And it forces a pre-G5 vs post-G5 backup-shape fork (old backups carry `rules.v4`; new ones carry the add-script but NOT the systemd unit, which isn't in the restic include set).
+
+**Rule:** When the firewall policy is deterministic and fleet-uniform, **regenerate it from config** at restore time rather than restoring a host's saved iptables table. This (a) avoids the Docker-chain clobber, (b) avoids the `iptables-persistent`/ufw conflict by never installing the package, and (c) makes the restore backup-shape-agnostic — pre-G5 and post-G5 backups converge to the same end state with no fork.
+
+**How to apply:** For any host that runs Docker, persist custom DOCKER-USER rules via a oneshot systemd unit (`After=docker.service`, `RemainAfterExit=yes`) whose `ExecStart` runs an idempotent `iptables -C … || iptables -I …` add-script — NOT `iptables-restore` of a full save and NOT `iptables-persistent`. Both `bootstrap-vps.sh` step_10 and `bootstrap-spoke-restore.sh` step_07 now build the add/rm scripts + unit locally from `bootstrap-config.sh` (`FABRIK_MESH_IFACE`, `FABRIK_MESH_ONLY_PORTS`) and scp+`install` them (the scp-to-/tmp pattern, Rule 2). When changing the persistence mechanism, also drop any post-restore assertion that a shape-specific file exists (e.g. step_04's old `test -f /etc/iptables/rules.v4` — post-G5 backups don't carry it; assert only the true identity files `wg0.conf` + `90-ozgur`).
+
+---
+
