@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — bootstrap-vps.sh G5: drop iptables-persistent (ufw conflict) → iptables-docker-user.service (2026-06-08)
+
+- **Root cause:** `step_04` installed `iptables-persistent`, which on Ubuntu 24.04 declares `Conflicts: ufw` → `apt` silently **removed ufw**, so `step_15`'s aro-wake UFW rule failed (`ufw: command not found`). Surfaced in the 2026-06-08 vps4 live drill.
+- **Fix (Option 1):** `step_04` no longer installs `iptables-persistent` (UFW stays the canonical spoke firewall). `step_10` now persists the DOCKER-USER chain via a new **`iptables-docker-user.service`** — a oneshot unit + `add-/rm-docker-user-rules.sh` scripts, **identical in shape to the vps1 hub's unit** (`After=docker.service`, `RemainAfterExit=yes`, ExecStart=add / ExecStop=rm). Replaces the old `iptables-save`+`netfilter-persistent` path. Chose the hub's add-script pattern over `iptables-restore <rules.v4>` because a full restore can clobber Docker's live chains on a Docker host.
+- Files written via the scp-to-/tmp-then-`sudo install` pattern (no remote-bash quote nesting — 90-bootstrap-scripts.md Rule 2). `bash -n` clean; live-validated by the next `drill spoke`/`provision`.
+- **Follow-up (G5b):** `bootstrap-spoke-restore.sh` still `systemctl enable netfilter-persistent` — a spoke bootstrapped by the new code won't have that package; align the restore path to the unit-based approach for consistency.
+
 ### Changed — fabrik vultr PR1: provision/destroy symmetry + 6 hardening fixes (2026-06-08)
 
 Closes the P0 + P1 gaps the vps4 drill surfaced. A `fabrik vultr provision <spoke>` now leaves a real, observable, cleanly-removable fleet member; `... destroy --reverse-fleet-add` is symmetric, persists across a hub reboot, and is idempotent on partial state. Six discrete fixes:
