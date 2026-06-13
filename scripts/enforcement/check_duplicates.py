@@ -23,7 +23,17 @@ def run_jscpd(report_path: Path) -> dict:
             "--output",
             str(report_path.parent),
             "--ignore",
-            "**/.venv/**,**/node_modules/**,**/__pycache__/**,**/dist/**,**/.git/**,**/.archive/**,**/traycer_agents_fixed/**",
+            # Generated DATA (caches, scraped HTML, model dumps, sqlite) is not
+            # hand-written code — excluding it keeps jscpd a copy-paste-CODE check.
+            # Without this, kilo-benchmarks caches + model JSON dumps alone push
+            # duplication ~3x over threshold (surfaced 2026-06-13 after an
+            # unpinned jscpd version bump tipped CI red).
+            "**/.venv/**,**/node_modules/**,**/__pycache__/**,**/dist/**,**/.git/**,"
+            "**/.archive/**,**/archive/**,**/traycer_agents_fixed/**,"
+            "**/kilo-benchmarks/**,scripts/*.json,scripts/.*.json,"
+            # Backup/snapshot artifacts (a *_bckp copy of a live file is the
+            # single biggest false-positive: 5768 dup lines on its own).
+            "**/*_bckp.*,**/*.old,**/*.bak",
             "--min-lines",
             "10",
             "--min-tokens",

@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — CI duplicate-check: exclude generated-data/backup artifacts + pin jscpd (2026-06-13)
+
+The `duplicate-check` CI job went red on every push (master) after an **unpinned `jscpd` bump to 5.0.9** silently re-scored pre-existing duplication from 19.8% past the 7% threshold — independent of commit content (a docs-only commit and a Prometheus commit both failed identically). The flagged "duplication" was not live code: `scripts/kilo_code_review_bckp.py` (a backup copy of a live file, **5,768 dup lines alone**), `kilo-benchmarks/` HTML+JSON caches, model-dump JSONs, `*.old`/`scripts/archive/` snapshots. Two-part fix in [`scripts/enforcement/check_duplicates.py`](scripts/enforcement/check_duplicates.py) + [`.github/workflows/ci.yml`](.github/workflows/ci.yml): (1) extend jscpd `--ignore` to drop generated-data + backup artifacts (`**/kilo-benchmarks/**`, `scripts/*.json`, `**/archive/**`, `**/*_bckp.*`, `**/*.old`, `**/*.bak`) so the check measures copy-paste *code* only; (2) pin `jscpd@5.0.9` for reproducible CI. Verified locally with jscpd 5.0.9: duplication **19.8% → 1.73%** (PASS). No source files deleted — artifacts are excluded from the check, not removed.
+
 ### Fixed — Prometheus config drift: source control + secret extraction + dual-write driver (2026-06-13)
 
 Closes the prometheus follow-up surfaced earlier today by the Gatus-into-git work — same git-vs-live drift pattern, same root cause (`drivers/prometheus.py::add_scrape_target` writes to vps1 live, never to git), but with an additional secret-in-config wrinkle that needed live remediation before any commit was safe.
