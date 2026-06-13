@@ -94,7 +94,7 @@ IMAGE_REPO = "fabrik/watchdog"
 # Where on the VPS the build context lands while docker reads it. Always
 # under /tmp so a failed build doesn't leave a per-project residue under
 # /opt; cleaned up by the driver in finally{}.
-VPS_BUILD_ROOT = "/tmp/fabrik-watchdog-build"
+VPS_BUILD_ROOT = "/tmp/fabrik-watchdog-build"  # nosec B108 — path on the REMOTE VPS (docker build context), not a local temp; cleaned in finally
 # Path on the VPS where the operator's Claude Code OAuth credentials live.
 # Mounted RO into the sidecar so it inherits the subscription. Defaults to
 # /home/ozgur/.claude (matches the current single-operator fleet) but
@@ -455,7 +455,7 @@ class WatchdogDriver:
             fh.write(yaml_text)
             local_tmp = fh.name
         try:
-            remote_tmp = f"/tmp/{rctx.project_id}-compose.watchdog.yaml"
+            remote_tmp = f"/tmp/{rctx.project_id}-compose.watchdog.yaml"  # nosec B108 — REMOTE VPS scp target, not a local temp file
             scp_to_vps(local_tmp, remote_tmp)
             ssh(
                 f"sudo mv {remote_tmp} {self._compose_dir(rctx)}/compose.watchdog.yaml && "

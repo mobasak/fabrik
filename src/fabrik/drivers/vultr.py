@@ -271,7 +271,7 @@ class VultrClient:
                 if last.get("status") == "active" and last.get("main_ip") not in (
                     None,
                     "",
-                    "0.0.0.0",
+                    "0.0.0.0",  # nosec B104 — string compare vs Vultr's "IP not yet assigned" placeholder, not a bind
                 ):
                     return last
             else:
@@ -280,7 +280,7 @@ class VultrClient:
                     last.get("status") == "active"
                     and last.get("power_status") == "running"
                     and last.get("server_status") == "ok"
-                    and last.get("main_ip") not in (None, "", "0.0.0.0")
+                    and last.get("main_ip") not in (None, "", "0.0.0.0")  # nosec B104 — placeholder compare, not a bind
                 ):
                     return last
             time.sleep(interval)

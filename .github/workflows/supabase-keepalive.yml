@@ -1,0 +1,42 @@
+name: Supabase keep-alive
+
+# Supabase free-tier projects auto-pause after ~7 days with no API activity.
+# This pings the project's REST endpoint twice a week (Mon + Thu) — comfortably
+# under the pause window — so the `fabrik` project stays warm without manual
+# un-pausing. A real authenticated request resets the inactivity timer.
+#
+# Operator setup (one-time): add a repo secret SUPABASE_FABRIK_ANON_KEY with the
+# project's anon (public) key — Supabase dashboard → Project Settings → API.
+# The project ref is not secret. To keep additional projects alive, add another
+# step with its ref + a matching secret.
+#
+# Scope note: this intentionally keeps ONLY `fabrik` warm. `trade-intelligence`
+# is managed separately by the operator; `ComplianceDesk` is left paused.
+
+on:
+  schedule:
+    - cron: "0 6 * * 1,4" # Mon + Thu 06:00 UTC
+  workflow_dispatch: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping fabrik REST endpoint
+        env:
+          REF: xjmsceegyztgtcpywhry
+          KEY: ${{ secrets.SUPABASE_FABRIK_ANON_KEY }}
+        run: |
+          if [ -z "$KEY" ]; then
+            echo "::error::SUPABASE_FABRIK_ANON_KEY secret not set — add it in repo settings (see workflow header)."
+            exit 1
+          fi
+          code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 \
+            -H "apikey: $KEY" "https://${REF}.supabase.co/rest/v1/")
+          echo "fabrik REST endpoint returned HTTP $code"
+          # 200 (OpenAPI spec) is the healthy response; any 2xx/4xx still reached
+          # the project (resets the timer). 000/5xx = unreachable or paused.
+          case "$code" in
+            2??|4??) echo "keep-alive ping OK"; exit 0 ;;
+            *) echo "::error::fabrik unreachable (HTTP $code) — project may be paused or down"; exit 1 ;;
+          esac

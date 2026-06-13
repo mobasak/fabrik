@@ -114,6 +114,21 @@ def check_structure(project_root: Path, files: list[str] | None = None) -> list[
         if any(p in EXCLUDED_DIRS for p in parts):
             continue
 
+        # README.md is the universal "document this directory" convention —
+        # allow it anywhere (scripts/bootstrap/, configs/<svc>/, etc.). The
+        # NO_MD_DIRS / location rules target stray docs & plans, not the
+        # directory-README that explains a code/config folder. (2026-06-13)
+        if rel_path.name == "README.md":
+            continue
+
+        # scripts/sysadmin/ holds runtime-loaded sysadmin-pack assets — the
+        # Claude system prompt + peer-protocol.md that bot.py and watchdog.py
+        # vendor and read at runtime (watchdog.py: `sysadmin_source /
+        # "peer-protocol.md"`). These are code-adjacent runtime assets, not
+        # stray docs, so .md is allowed here. (2026-06-13)
+        if len(parts) >= 2 and parts[0] == "scripts" and parts[1] == "sysadmin":
+            continue
+
         # Flag forbidden directories as errors (not skip!)
         forbidden_dir = next((p for p in parts if p in NO_MD_DIRS), None)
         if forbidden_dir:
