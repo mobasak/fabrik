@@ -335,6 +335,9 @@ def provision(
         # provision report — the box is up + mesh + DNS + bootstrap all
         # succeeded; observability registration can be re-driven.
         _register_observability(name, mesh_ip, report)
+        # PR3: auto-install the spoke's AI sysadmin (token from pool, enable
+        # units, verify). Best-effort — never fails the up-and-bootstrapped box.
+        _provision_sysadmin(name, ip, mesh_ip, report)
     else:
         report["error"] = (
             f"bootstrap failed (rc={rc}); instance LEFT for inspection (see {log_path}). "
@@ -372,6 +375,192 @@ def _register_observability(name: str, mesh_ip: str, report: dict[str, Any]) -> 
     report["observability"] = obs
 
 
+# ── PR3: spoke AI-sysadmin auto-provision ──────────────────────────────────
+
+ARO_WAKE_HEALTH_PORT = 8201  # mesh-facing; the bot's own health is 8017 (loopback)
+
+
+def _ssh_ozgur(ip: str, remote_cmd: str, *, timeout: int = 30) -> subprocess.CompletedProcess:
+    """Run a command on the bootstrapped spoke as ``ozgur@<ip>`` (root login is
+    disabled by bootstrap step_01, so post-bootstrap access is the sudoer)."""
+    return subprocess.run(
+        [
+            "ssh",
+            "-o",
+            "ConnectTimeout=5",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "StrictHostKeyChecking=accept-new",
+            "-o",
+            "UserKnownHostsFile=/dev/null",
+            f"ozgur@{ip}",
+            remote_cmd,
+        ],
+        capture_output=True,
+        timeout=timeout,
+        check=False,
+    )
+
+
+def _local_env_sysadmin() -> dict[str, str]:
+    """Fleet-uniform sysadmin values from the local ``.env.sysadmin`` (the host
+    running provision is a fleet member — vps1). ``{}`` if absent."""
+    path = FABRIK_ROOT / ".env.sysadmin"
+    if not path.exists():
+        return {}
+    out: dict[str, str] = {}
+    for line in path.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        k, _, v = line.partition("=")
+        out[k.strip()] = v.strip()
+    return out
+
+
+def _check_aro_wake_health(mesh_ip: str, *, timeout: int = 10, attempts: int = 3) -> str:
+    """Bounded health probe of the spoke's aro-wake from this host (works on the
+    mesh, e.g. the hub). Never hangs (``--max-time``); annotates if off-mesh.
+
+    Retries a few times because the probe fires immediately after
+    ``systemctl enable --now`` — aro-wake needs ~1-2s to bind its socket, and a
+    single connection-refused in that window would wrongly report a healthy box
+    as ``unhealthy`` and send the operator chasing a non-issue.
+    """
+    import time as _time
+
+    url = f"http://{mesh_ip}:{ARO_WAKE_HEALTH_PORT}/health"
+    last = "no-response"
+    for attempt in range(attempts):
+        try:
+            r = subprocess.run(
+                [
+                    "curl",
+                    "-s",
+                    "-o",
+                    "/dev/null",
+                    "-w",
+                    "%{http_code}",
+                    "--max-time",
+                    str(timeout),
+                    url,
+                ],
+                capture_output=True,
+                text=True,
+                timeout=timeout + 5,
+                check=False,
+            )
+            code = (r.stdout or "").strip()
+            if code == "200":
+                return "200"
+            last = f"http={code or 'no-response'}"
+        except (subprocess.TimeoutExpired, OSError) as e:
+            last = str(e)
+        if attempt < attempts - 1:
+            _time.sleep(3)
+    return f"unhealthy ({last}) after {attempts} tries — verify from a mesh host: curl {url}"
+
+
+def _check_bot_token(token: str, *, timeout: int = 10) -> str:
+    """Validate the Telegram bot token via getMe (no message sent). The token is
+    never logged or returned — only the boolean result is surfaced."""
+    try:
+        r = subprocess.run(
+            [
+                "curl",
+                "-s",
+                "--max-time",
+                str(timeout),
+                f"https://api.telegram.org/bot{token}/getMe",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=timeout + 5,
+            check=False,
+        )
+        import json as _json
+
+        ok = _json.loads(r.stdout or "{}").get("ok") is True
+        return "valid" if ok else "invalid (getMe ok!=true)"
+    except (subprocess.TimeoutExpired, OSError, ValueError):
+        return "unverified (getMe call failed)"
+
+
+def _provision_sysadmin(name: str, ip: str, mesh_ip: str, report: dict[str, Any]) -> None:
+    """Auto-install the spoke's AI sysadmin (PR3). Best-effort: failures land in
+    ``report['sysadmin']`` and never fail the provision (the box is already up,
+    mesh+DNS+bootstrap all succeeded). Reduces the post-bootstrap manual finish
+    from 5 steps to 1 (the operator's one remaining action is the Claude
+    device-flow). Constraint C2: NO creds are copied — device-flow stays manual.
+    """
+    from fabrik.orchestrator import sysadmin_tokens
+
+    sysd: dict[str, str] = {}
+    report["sysadmin"] = sysd
+
+    env = _local_env_sysadmin()
+    owner = env.get("TELEGRAM_OWNER_ID", "")
+    orkey = env.get("WATCHDOG_OPENROUTER_KEY", "")
+    have_owner = bool(owner) and "__OPERATOR" not in owner
+
+    # C4: an empty/exhausted pool returns None — we then SKIP enabling the bot
+    # rather than write the placeholder token (which crash-loops bot.py into
+    # StartLimitBurst). Same if the fleet-uniform owner ID isn't resolvable.
+    # ``bot_skip_reason`` distinguishes the three skip causes (no token / no
+    # owner / write failed) so the operator message points at the real fix
+    # rather than misattributing a failed write to a missing token.
+    tok = sysadmin_tokens.claim_bot_token(name)
+    if not tok:
+        bot_skip_reason: str | None = "token pool empty/exhausted"
+    elif not have_owner:
+        bot_skip_reason = "fleet TELEGRAM_OWNER_ID unresolved"
+    else:
+        bot_skip_reason = None
+
+    if bot_skip_reason is None:
+        # Edit the spoke's already-rendered .env.sysadmin in place (bootstrap
+        # step_14 wrote it with placeholders + correct host identity). Values
+        # contain no '|' or quotes, so single-quoted sed exprs are Rule-2 safe.
+        seds = (
+            f"-e 's|^TELEGRAM_BOT_TOKEN=.*|TELEGRAM_BOT_TOKEN={tok}|' "
+            f"-e 's|^TELEGRAM_OWNER_ID=.*|TELEGRAM_OWNER_ID={owner}|' "
+            f"-e 's|^WATCHDOG_OPENROUTER_KEY=.*|WATCHDOG_OPENROUTER_KEY={orkey}|' "
+        )
+        r = _ssh_ozgur(ip, f"sudo sed -i {seds} /opt/fabrik/.env.sysadmin")
+        if r.returncode == 0:
+            sysd["env_sysadmin"] = "written"
+        else:
+            sysd["env_sysadmin"] = f"error (rc={r.returncode})"
+            bot_skip_reason = f".env.sysadmin write failed (rc={r.returncode})"
+    else:
+        sysd["env_sysadmin"] = f"skipped: {bot_skip_reason}"
+
+    bot_enable = bot_skip_reason is None
+
+    # Enable aro-wake always (no Claude dep); the bot only with a real token.
+    units = "aro-wake.service" + (" vps-sysadmin-bot.service" if bot_enable else "")
+    r = _ssh_ozgur(ip, f"sudo systemctl enable --now {units}")
+    sysd["units_enabled"] = units if r.returncode == 0 else f"error (rc={r.returncode}): {units}"
+
+    if not bot_enable:
+        sysd["bot"] = (
+            f"NOT enabled ({bot_skip_reason}) — resolve, then "
+            f"`ssh {name} 'sudo systemctl enable --now vps-sysadmin-bot.service'`"
+        )
+
+    # Verify gate — bounded, never hangs, never hard-fails the provision.
+    sysd["aro_wake_health"] = _check_aro_wake_health(mesh_ip)
+    if bot_enable:
+        sysd["bot_token_valid"] = _check_bot_token(tok)
+
+    # The single remaining manual step (constraint C2 — proven-safe path).
+    sysd["operator_next"] = (
+        f"ssh {name} 'claude'   # one-time device-flow OAuth to unlock claude -p"
+    )
+    logger.info("sysadmin auto-provision for %s: %s", name, sysd)
+
+
 def reverse_fleet_destroy(
     name: str,
     *,
@@ -386,6 +575,7 @@ def reverse_fleet_destroy(
     mesh_ip = rec.get("mesh_ip") or mesh_ip_for(name)
     domain_root = f"{name}.ocoron.com"
     plan_steps = [
+        f"sysadmin: release bot-token pool slot for {name}",
         f"gatus: remove aro-wake-{name} endpoint",
         f"prometheus: remove {name} scrape target",
         f"backrest: remove {name} backup plan",
@@ -407,6 +597,15 @@ def reverse_fleet_destroy(
         except Exception as e:  # noqa: BLE001 - best-effort teardown
             results.append((step, f"error: {e}"))
             logger.warning("reverse_fleet_destroy %s: %s failed: %s", name, step, e)
+
+    # 0: release the bot-token pool slot (reverse of PR3's last provision step —
+    # so a destroyed/rebuilt spoke frees its token for the next provision).
+    def _sysadmin_token():
+        from fabrik.orchestrator import sysadmin_tokens
+
+        sysadmin_tokens.release_bot_token(name)
+
+    _try("sysadmin token", _sysadmin_token)
 
     # 1-3: monitoring/backup registrars (best-effort; import lazily)
     def _gatus():

@@ -191,7 +191,8 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 │   │   ├── secrets.py               # SecretsManager
 │   │   ├── states.py                # DeploymentState
 │   │   ├── validator.py             # SpecValidator
-│   │   └── verifier.py              # DeploymentVerifier
+│   │   ├── verifier.py              # DeploymentVerifier
+│   │   └── sysadmin_tokens.py       # PR3 — per-host Telegram bot-token pool (DR-store) for spoke sysadmin auto-provision; claim/release, no double-assign
 │   ├── content/                     # Content publishing package
 │   │   ├── __init__.py              # Package marker
 │   │   └── orchestrator.py          # Canonical module — re-exports ContentPublisher, PublishResult, PublishSummary, PublishContext

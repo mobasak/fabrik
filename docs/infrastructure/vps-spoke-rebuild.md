@@ -8,7 +8,7 @@ This document is the definitive answer to "vps2 (or vps3) is gone — how do I g
 
 > **Now automated via `fabrik vultr`** (shipped + live-validated 2026-06-08). The manual "dashboard → copy IP → `bootstrap-vps.sh` → destroy" drill is wrapped in one command:
 > - **DR drill (throwaway):** `fabrik vultr drill spoke` — creates a Vultr droplet, runs `bootstrap-vps.sh --skip-mesh --skip-dns` (hermetic — no prod mesh/DNS touch), runs `bootstrap-vps.sh --verify` as the end-state contract, then **always auto-destroys** (even on failure). Live run 2026-06-08: bootstrap_rc=0 + verify_rc=0, 483s, 0 orphans, 0 `vps4` peers left on vps1 wg0.
-> - **New permanent spoke:** `fabrik vultr provision vps4 --region <r>` — full `bootstrap-vps.sh` (no skip flags), mesh IP auto = `10.99.0.N`, `mode=permanent` state, interactive confirm required (real billing + fleet change).
+> - **New permanent spoke:** `fabrik vultr provision vps4 --region <r>` — full `bootstrap-vps.sh` (no skip flags), mesh IP auto = `10.99.0.N`, `mode=permanent` state, interactive confirm required (real billing + fleet change). **PR3 (2026-06-13)** then auto-installs the spoke's AI sysadmin (claims a bot token from the DR-store pool, writes `.env.sysadmin`, enables aro-wake + sysadmin-bot, verifies) — only `ssh <spoke> 'claude'` device-flow remains manual. Fleet is settled at 3, so this is a ready capability, not active growth.
 > See the plan [`docs/archive/2026-06-07-fabrik-vultr-provisioning.md`](../archive/2026-06-07-fabrik-vultr-provisioning.md) and `fabrik vultr --help`. (This runbook remains the source of truth for the **same-identity restore** path via `bootstrap-spoke-restore.sh`, which the drill does not cover.)
 
 ## Scope
@@ -106,12 +106,12 @@ That's it. No Step 6.
 |---|---|---|
 | 00 | create sudoer | `useradd ozgur` + install pubkey + `/etc/sudoers.d/90-ozgur` NOPASSWD |
 | 01 | harden SSH | `PermitRootLogin no` + `PasswordAuthentication no` via drop-in **`00-fabrik-hardening.conf`** (NOT `99-`). Ubuntu cloud-init ships `50-cloud-init.conf` and sshd uses first-match-wins in alphabetical order — anything `99-*` is overridden. Verified live 2026-06-02: spokes show `passwordauthentication no` from cloud-init (their `50-cloud-init.conf` already says `no` from initial bootstrap), but a rebuild script must not depend on cloud-init's content. Cross-check with `sshd -T`. |
-| 02 | install OS packages | Docker (via `get.docker.com`), wireguard, iptables-persistent, ufw, fail2ban, python3, inotify-tools, jq |
+| 02 | install OS packages | Docker (via `get.docker.com`), wireguard, ufw, fail2ban, python3, inotify-tools, jq. **(G5b 2026-06-13: no longer installs `iptables-persistent` — on Ubuntu 24.04 it `Conflicts: ufw` and silently removes it; DOCKER-USER persistence is the systemd unit in step 07.)** |
 | 03 | place Backrest creds | scp W9 mirror's `vpsN-restic-password-latest` → `/opt/backrest/.restic-password` and `vpsN-backrest-env-latest` → `/opt/backrest/.env` |
 | 04 | restic restore host-state | `/etc/wireguard` (preserves spoke privkey!), `/etc/iptables`, `/etc/ufw/user*.rules`, `/etc/docker/daemon.json`, `/etc/sysctl.d/99-*`, `/etc/sudoers.d/90-ozgur`, `/root/.ssh/authorized_keys`, `/home/ozgur/.ssh/authorized_keys` |
 | 05 | enable UFW + fail2ban | `ufw --force enable` (rules already restored in step 04) |
 | 06 | bring up mesh | `wg-quick@wg0` — hub instantly handshakes because peer-table entry preserved across outage |
-| 07 | enable netfilter-persistent | loads `rules.v4` + `v6` → DOCKER-USER chain back |
+| 07 | DOCKER-USER chain via `iptables-docker-user.service` | **(G5b 2026-06-13)** regenerates the `add`/`rm` DOCKER-USER scripts + the oneshot systemd unit from config (identical to `bootstrap-vps.sh` step_10 / the vps1 hub), then `systemctl enable --now`. Replaces `netfilter-persistent`+`rules.v4` — backup-shape-agnostic (pre-G5 backups carry `rules.v4`, post-G5 carry the add-script; the chain is regenerated either way, avoiding a Docker live-chain clobber). |
 | 08 | docker network create fabrik | idempotent |
 | 09 | restic restore `/opt/` | monitoring-agent + traefik + backrest scaffolding (compose.yaml + .env per service) |
 | 10 | compose up: monitoring-agent + traefik | `docker compose up -d` in each `/opt/<svc>/` |

@@ -29,12 +29,9 @@ ALLOWED_ROOT_MD = {
     "AFCL.md",
     "PROOF.md",
     "FOLLOWUPS.md",
-    # T3-02 (2026-05-16): KILO_CLI_RULES.md is Kilo CLI's per-project rules
-    # file, loaded via opencode.json `instructions:` array alongside
-    # AGENTS-compact.md. Lives in root by architectural decision (same
-    # rationale as CLAUDE.md / AFCL.md siblings — agent bootstrap files
-    # belong at the conventional load location, not under docs/).
-    "KILO_CLI_RULES.md",
+    # KILO_CLI_RULES.md removed 2026-06-13 — not used for any AI (operator
+    # directive); the file does not exist in the repo, so the root allowance
+    # was dead. opencode.json loads AGENTS-compact.md alone.
 }
 
 # Valid docs/ subdirectories

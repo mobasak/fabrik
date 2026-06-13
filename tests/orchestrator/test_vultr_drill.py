@@ -97,7 +97,7 @@ def test_spoke_dispatch_runs_validate_then_destroys(monkeypatch):
     c = _mock_client()
     captured = {}
 
-    def fake_validate(ip, name):
+    def fake_validate(ip, name, *, g0_smoke=False):
         captured["ip"] = ip
         return {"ssh_ready": True, "bootstrap": True, "verify": True, "success": True}
 
@@ -118,3 +118,74 @@ def test_spoke_failed_verify_still_destroys(monkeypatch):
     rep = vultr_drill.drill("spoke", sshkey_ids=["k"], client=c)
     assert rep["success"] is False
     c.destroy.assert_called_once()                # no orphan even when verify fails
+
+
+# ── PR3: partial-G0 creds-copy smoke (opt-in) ──────────────────────────────
+
+
+def test_g0_smoke_pass_when_claude_p_exit0(monkeypatch):
+    from fabrik.orchestrator import vultr_drill as d
+
+    # local creds present
+    monkeypatch.setattr(d.Path, "home", staticmethod(lambda: __import__("pathlib").Path("/tmp")))
+    creds = d.Path("/tmp") / ".claude" / ".credentials.json"
+    creds.parent.mkdir(parents=True, exist_ok=True)
+    creds.write_text("{}")
+
+    calls = []
+
+    class _R:
+        def __init__(self, stdout="", rc=0):
+            self.stdout = stdout
+            self.returncode = rc
+
+    def fake_ssh(ip, cmd, *, timeout=60):
+        calls.append(cmd)
+        if "sha256sum" in cmd:
+            return _R(stdout="abc123  /home/ozgur/.claude/.credentials.json")
+        if cmd.startswith("claude -p"):
+            return _R(stdout="RC=0")
+        return _R()
+
+    monkeypatch.setattr(d, "_ssh_ozgur_drill", fake_ssh)
+    monkeypatch.setattr(d.subprocess, "run", lambda *a, **k: _R(rc=0))  # scp ok
+
+    res = d._g0_creds_smoke("1.2.3.4")
+    assert res["attempted"] is True
+    assert res["claude_p_rc"] == 0
+    assert res["pass"] is True
+    assert "refresh-token rotation race is NOT exercised" in res["note"]
+
+
+def test_g0_smoke_fail_when_claude_p_nonzero(monkeypatch):
+    from fabrik.orchestrator import vultr_drill as d
+
+    monkeypatch.setattr(d.Path, "home", staticmethod(lambda: __import__("pathlib").Path("/tmp")))
+    creds = d.Path("/tmp") / ".claude" / ".credentials.json"
+    creds.parent.mkdir(parents=True, exist_ok=True)
+    creds.write_text("{}")
+
+    class _R:
+        def __init__(self, stdout="", rc=0):
+            self.stdout = stdout
+            self.returncode = rc
+
+    def fake_ssh(ip, cmd, *, timeout=60):
+        if "sha256sum" in cmd:
+            return _R(stdout="h  x")
+        if cmd.startswith("claude -p"):
+            return _R(stdout="RC=1")  # auth rejected
+        return _R()
+
+    monkeypatch.setattr(d, "_ssh_ozgur_drill", fake_ssh)
+    monkeypatch.setattr(d.subprocess, "run", lambda *a, **k: _R(rc=0))
+    res = d._g0_creds_smoke("1.2.3.4")
+    assert res["immediate_auth_ok"] is False and res["pass"] is False
+
+
+def test_g0_smoke_skipped_when_no_local_creds(monkeypatch, tmp_path):
+    from fabrik.orchestrator import vultr_drill as d
+
+    monkeypatch.setattr(d.Path, "home", staticmethod(lambda: tmp_path))  # no .claude here
+    res = d._g0_creds_smoke("1.2.3.4")
+    assert res == {"attempted": False, "reason": "no local ~/.claude/.credentials.json to copy"}

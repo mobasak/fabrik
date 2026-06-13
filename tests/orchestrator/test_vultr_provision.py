@@ -16,6 +16,16 @@ from fabrik.orchestrator import vultr_state
 def _isolate(tmp_path, monkeypatch):
     monkeypatch.setattr(vultr_state, "STATE_FILE", tmp_path / "state.json")
     monkeypatch.setattr(prov, "_wg0_used_numbers", lambda: set())  # no real ssh in units
+    # PR3: provision() now calls _provision_sysadmin on rc==0. Stub its network
+    # primitives so the provision-FLOW tests stay hermetic + fast (no real SSH to
+    # the fake IP, no curl retries). The dedicated _provision_sysadmin tests
+    # override these per-test via _stub_sysadmin_env (later setattr wins). DR
+    # store -> tmp so claim_bot_token reads an empty pool fast (returns None).
+    monkeypatch.setenv("FABRIK_DR_STORE", str(tmp_path / "dr-store"))
+    monkeypatch.setattr(prov, "_local_env_sysadmin", lambda: {})
+    monkeypatch.setattr(prov, "_ssh_ozgur", lambda *a, **k: MagicMock(returncode=0, stdout=""))
+    monkeypatch.setattr(prov, "_check_aro_wake_health", lambda *a, **k: "200")
+    monkeypatch.setattr(prov, "_check_bot_token", lambda *a, **k: "valid")
     yield
 
 
@@ -392,3 +402,106 @@ def test_reverse_fleet_destroy_calls_aro_wake_remover_not_generic_scrape(monkeyp
     prov.reverse_fleet_destroy("vps4", client=_client())
     assert aro_wake_calls == ["vps4"]
     assert generic_calls == []                              # NEVER call the generic remover
+
+
+# ── PR3: _provision_sysadmin stage ─────────────────────────────────────────
+
+
+class _Rc:
+    def __init__(self, returncode=0):
+        self.returncode = returncode
+        self.stdout = ""
+        self.stderr = ""
+
+
+def _stub_sysadmin_env(monkeypatch, *, owner="123456", orkey="sk-or-x", ssh_rc=0,
+                       health="200", token_valid="valid"):
+    """Wire up the _provision_sysadmin collaborators; returns recorded ssh cmds."""
+    calls = []
+
+    def fake_ssh(ip, cmd, *, timeout=30):
+        calls.append(cmd)
+        return _Rc(ssh_rc)
+
+    monkeypatch.setattr(prov, "_ssh_ozgur", fake_ssh)
+    monkeypatch.setattr(prov, "_local_env_sysadmin",
+                        lambda: {"TELEGRAM_OWNER_ID": owner, "WATCHDOG_OPENROUTER_KEY": orkey})
+    monkeypatch.setattr(prov, "_check_aro_wake_health", lambda mesh_ip, **k: health)
+    monkeypatch.setattr(prov, "_check_bot_token", lambda tok, **k: token_valid)
+    return calls
+
+
+def test_provision_sysadmin_happy_path(monkeypatch):
+    from fabrik.orchestrator import sysadmin_tokens
+    monkeypatch.setattr(sysadmin_tokens, "claim_bot_token", lambda name: "TOK123:abc")
+    calls = _stub_sysadmin_env(monkeypatch)
+
+    report = {}
+    prov._provision_sysadmin("vps4", "1.2.3.4", "10.99.0.4", report)
+    s = report["sysadmin"]
+    assert s["env_sysadmin"] == "written"
+    assert "vps-sysadmin-bot.service" in s["units_enabled"]
+    assert s["aro_wake_health"] == "200"
+    assert s["bot_token_valid"] == "valid"
+    assert "ssh vps4 'claude'" in s["operator_next"]
+    # the bot token must have been written into .env.sysadmin
+    assert any("TELEGRAM_BOT_TOKEN=TOK123:abc" in c for c in calls)
+
+
+def test_provision_sysadmin_empty_pool_skips_bot_no_placeholder(monkeypatch):
+    from fabrik.orchestrator import sysadmin_tokens
+    monkeypatch.setattr(sysadmin_tokens, "claim_bot_token", lambda name: None)  # exhausted
+    calls = _stub_sysadmin_env(monkeypatch)
+
+    report = {}
+    prov._provision_sysadmin("vps4", "1.2.3.4", "10.99.0.4", report)
+    s = report["sysadmin"]
+    assert s["env_sysadmin"] == "skipped: token pool empty/exhausted"
+    assert s["units_enabled"] == "aro-wake.service"            # bot NOT enabled
+    assert "vps-sysadmin-bot.service" not in s["units_enabled"]
+    assert "NOT enabled" in s["bot"]
+    # CRITICAL: no sed/placeholder ever written to .env.sysadmin
+    assert not any("sed" in c and ".env.sysadmin" in c for c in calls)
+    assert "bot_token_valid" not in s
+
+
+def test_provision_sysadmin_env_write_failure_attributes_correctly(monkeypatch):
+    """Deep-review fix: a claimed token + present owner but a FAILED .env.sysadmin
+    write must NOT report 'no valid token/owner' — it must name the write failure,
+    and the bot must not be enabled (the token stays claimed for an idempotent re-run).
+    """
+    from fabrik.orchestrator import sysadmin_tokens
+    monkeypatch.setattr(sysadmin_tokens, "claim_bot_token", lambda name: "TOK")
+    _stub_sysadmin_env(monkeypatch, ssh_rc=1)  # every ssh (incl. the sed) fails
+
+    report = {}
+    prov._provision_sysadmin("vps4", "1.2.3.4", "10.99.0.4", report)
+    s = report["sysadmin"]
+    assert s["env_sysadmin"] == "error (rc=1)"
+    assert "vps-sysadmin-bot.service" not in s["units_enabled"]
+    assert "write failed (rc=1)" in s["bot"]        # accurate cause, not "no token/owner"
+    assert "no valid token/owner" not in s["bot"]
+
+
+def test_provision_sysadmin_missing_owner_skips_bot(monkeypatch):
+    from fabrik.orchestrator import sysadmin_tokens
+    monkeypatch.setattr(sysadmin_tokens, "claim_bot_token", lambda name: "TOK")
+    # owner still the template placeholder -> unresolved
+    _stub_sysadmin_env(monkeypatch, owner="__OPERATOR_TO_FILL__")
+
+    report = {}
+    prov._provision_sysadmin("vps4", "1.2.3.4", "10.99.0.4", report)
+    s = report["sysadmin"]
+    assert s["env_sysadmin"] == "skipped: fleet TELEGRAM_OWNER_ID unresolved"
+    assert "vps-sysadmin-bot.service" not in s["units_enabled"]
+
+
+def test_provision_sysadmin_health_unverified_does_not_raise(monkeypatch):
+    from fabrik.orchestrator import sysadmin_tokens
+    monkeypatch.setattr(sysadmin_tokens, "claim_bot_token", lambda name: "TOK")
+    _stub_sysadmin_env(monkeypatch, health="unverified (timeout) — verify from a mesh host: curl ...")
+
+    report = {}
+    prov._provision_sysadmin("vps4", "1.2.3.4", "10.99.0.4", report)  # must not raise
+    assert report["sysadmin"]["aro_wake_health"].startswith("unverified")
+    # provision-level success is unaffected (stage is best-effort)

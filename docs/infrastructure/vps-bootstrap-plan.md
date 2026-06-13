@@ -22,13 +22,13 @@ Full reference: [`scripts/bootstrap/README.md`](../../scripts/bootstrap/README.m
 2. Harden SSH (PermitRootLogin no, PasswordAuthentication no) — drop-in must be `00-fabrik-hardening.conf` (NOT `99-`), since Ubuntu cloud-init's `50-cloud-init.conf` wins in first-match-wins order. The script verifies effectiveness via `sshd -T` post-edit to catch the override silently. (Trap surfaced live on the hub 2026-06-02 — fleet drift fixed in the same session.)
 3. Install UFW + fail2ban; open 22/80/443/51820 (hardened 2026-05-31 for Lesson 68 — explicitly handles the `rc`-state edge case where a prior `apt remove ufw` leaves config files but no binary; self-verifies `command -v ufw` + `dpkg ii` + `ufw status: active` before returning)
 4. Install Docker + log rotation; create `fabrik` external network
-5. Install Wireguard + iptables-persistent
+5. Install Wireguard (**G5 2026-06-13: no `iptables-persistent` — it `Conflicts: ufw` on Ubuntu 24.04 and would silently remove ufw; DOCKER-USER persistence is the systemd unit in step 11**)
 6. Generate Wireguard keypair on the spoke (private key never leaves)
 7. Register the spoke as a peer on vps1's `wg0.conf` (over the dev machine's `ssh vps` alias to the hub)
 8. Render the spoke's `wg0.conf` with the hub's endpoint
 9. Bring up `wg-quick@wg0`
 10. PMTU probe (fallback MTU=1380 then 1300 if 1420 fails)
-11. Apply DOCKER-USER iptables chain rules
+11. Apply DOCKER-USER iptables chain rules — persisted via **`iptables-docker-user.service`** (G5: oneshot unit running an idempotent add-script after `docker.service`, identical shape to the vps1 hub; replaces `iptables-save`/`netfilter-persistent`)
 12. Deploy monitoring agents — `node-exporter` + `cadvisor` + `promtail` configured to ship to vps1's Prometheus + Loki over mesh
 13. **(NEW, W16 2026-06-02)** Deploy spoke Traefik — renders 3 templates into `/opt/traefik/{compose.yaml,traefik.yml,dynamic/authelia.yml}` and brings up the stack. The compose template carries the **W15 `labels:` block** (`traefik.enable=true` + `traefik.http.middlewares.gzip.compress=true`) so the `gzip@docker` middleware that the Fabrik orchestrator emits on every router is defined on the spoke from minute one. Templates diffed byte-perfect against the live state on vps2 + vps3.
 14. **(NEW, W16-DNS 2026-06-02)** Create DNS records via site-provisioner — probes the spoke's public IPv4 (`curl -4 ifconfig.me`, `ipv4.icanhazip.com` fallback), then SSHes to vps1 and `curl POST`s `https://provision.vps1.ocoron.com/api/cloudflare/dns/ocoron.com/subdomain` twice (apex + wildcard). Calls go through `ensure_record()` so re-runs return `action: unchanged` instead of touching Cloudflare. The call goes via vps1 because (a) site-provisioner's IP allowlist includes vps1's public IP but not dev-WSL's, and (b) the production `API_KEY` lives in `/opt/site-provisioner/.env` on vps1 and never travels.

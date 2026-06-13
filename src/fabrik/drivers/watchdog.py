@@ -41,6 +41,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import shutil
 import tarfile
 import tempfile
@@ -51,6 +52,38 @@ from typing import Any
 import yaml
 
 from fabrik.drivers.ssh import scp_to_vps, ssh
+
+# Deterministic per-host sysadmin prompt substitutions. Replaces a hardcoded
+# vps1/2/3 dict so a NEWLY PROVISIONED spoke (vpsN) renders real peers + its
+# own mesh IP/role instead of "unknown" (PR3). The established fleet every host
+# peers with is settled at 3; a new spoke peers with these and derives its own
+# ip/role from its name. NOTE: the live trio's prompts are baked at bootstrap —
+# adding a host to THEIR peer awareness still requires re-rendering them; this
+# only fixes what a fresh provision renders for the new host.
+_VPS_RE = re.compile(r"^vps(\d+)$")
+FLEET_PEER_HOSTS = ("vps1", "vps2", "vps3")
+
+
+def _mesh_ip(host: str) -> str | None:
+    m = _VPS_RE.match(host)
+    return f"10.99.0.{m.group(1)}" if m else None
+
+
+def host_prompt_substitutions(host: str) -> dict[str, str]:
+    """Deterministic {name, ip, role, peers} for the sysadmin system prompt.
+
+    Byte-identical to the former hardcoded map for vps1/2/3; for any other
+    ``vpsN`` it derives a real mesh IP/role and peers = the fleet minus self.
+    A non-``vpsN`` name still falls back to ``unknown`` (true unknown host).
+    """
+    ip = _mesh_ip(host)
+    if ip is None:
+        return {"name": host, "ip": "unknown", "role": "unknown", "peers": "unknown"}
+    n = int(ip.rsplit(".", 1)[1])
+    role = "hub" if n == 1 else "spoke"
+    peers = ", ".join(f"{p} ({_mesh_ip(p)})" for p in FLEET_PEER_HOSTS if p != host)
+    return {"name": host, "ip": ip, "role": role, "peers": peers or "none"}
+
 
 logger = logging.getLogger(__name__)
 
@@ -280,29 +313,7 @@ class WatchdogDriver:
         # are static; spoke deploys via target_vps would populate from the
         # deploy target's IP/role.
         target_host = rctx.target_vps
-        host_substitutions = {
-            "vps1": {
-                "name": "vps1",
-                "ip": "10.99.0.1",
-                "role": "hub",
-                "peers": "vps2 (10.99.0.2), vps3 (10.99.0.3)",
-            },
-            "vps2": {
-                "name": "vps2",
-                "ip": "10.99.0.2",
-                "role": "spoke",
-                "peers": "vps1 (10.99.0.1), vps3 (10.99.0.3)",
-            },
-            "vps3": {
-                "name": "vps3",
-                "ip": "10.99.0.3",
-                "role": "spoke",
-                "peers": "vps1 (10.99.0.1), vps2 (10.99.0.2)",
-            },
-        }.get(
-            target_host,
-            {"name": target_host, "ip": "unknown", "role": "unknown", "peers": "unknown"},
-        )
+        host_substitutions = host_prompt_substitutions(target_host)
         prompt_text = prompt_src.read_text(encoding="utf-8")
         prompt_text = prompt_text.replace("{{ HOST_NAME }}", host_substitutions["name"])
         prompt_text = prompt_text.replace("{{ HOST_IP }}", host_substitutions["ip"])

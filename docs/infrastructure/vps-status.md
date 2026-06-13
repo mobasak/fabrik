@@ -7,6 +7,14 @@
 
 > Companion docs: [`vps-complete-inventory.md`](vps-complete-inventory.md) for what runs where (architectural source of truth) · [`vps-urls.md`](vps-urls.md) for how to reach things. This file is a point-in-time *health* snapshot.
 
+## Tooling/code changes since this 2026-06-07 health probe (not yet re-probed live)
+
+- **Fleet size settled at 3** (vps1+vps2+vps3) — no 4th permanent spoke planned.
+- **`fabrik vultr` hardening:** PR1 (provision/destroy symmetry), PR2 (G6 SAFE-RERUN-TRAP auto-retry + G3 wg0-peer removal that persists to `wg0.conf`), and **PR3 — `provision` now auto-installs a new spoke's AI sysadmin** (token pool + enable + verify; 5 manual steps → 1). PR3 is staged/under review at the time of writing.
+- **Spoke iptables (G5/G5b):** `bootstrap-vps.sh` + `bootstrap-spoke-restore.sh` moved DOCKER-USER persistence to `iptables-docker-user.service` (dropped `iptables-persistent`, which `Conflicts: ufw` on Ubuntu 24.04). Hub unchanged (still `netfilter-persistent`).
+- **Observability source-control (peer AI):** Gatus configs pulled into git + sync helper; Prometheus config-drift fix (secret extraction to `credentials_file:`, dual-write driver) — fixed two live vps1 perm bugs (`prometheus.yml` 0600, `secrets/` dir 0750).
+- **CI:** `duplicate-check` fixed (excluded generated-data/backup artifacts + pinned `jscpd@5.0.9`); stale `KILO_CLI_RULES.md` enforcement expectation removed.
+
 ---
 
 ## Fleet at a glance

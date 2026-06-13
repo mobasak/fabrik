@@ -297,7 +297,7 @@ UFW was installed + enabled by W1 of the fleet-hardening plan on 2026-05-31 even
 
 **Pre-W1 footnote (Lesson 68):** before W1, UFW was in package status `rc` ("removed but config files remain") on both spokes — `systemctl is-active ufw` reported "active" because the init script remained, but the `ufw` binary was missing so rules were never applied. Front-line firewall was DOCKER-USER chain only. W1 reinstalled the package (`rc → ii`) and ran `ufw --force enable`, which applied the pre-existing `/etc/ufw/user.rules` content.
 
-Plus on every host: `DOCKER-USER` iptables chain (`/etc/iptables/rules.v4`, loaded at boot via `netfilter-persistent.service`). Rules:
+Plus on every host: `DOCKER-USER` iptables chain. **Persistence differs by role/vintage:** the hub (vps1) and the current pre-G5 live spokes load it via `netfilter-persistent.service` (`/etc/iptables/rules.v4`). **Spokes (re)bootstrapped after G5/G5b (2026-06-13) use `iptables-docker-user.service` instead** — a oneshot unit running an idempotent add-script after `docker.service` — because `iptables-persistent` `Conflicts: ufw` on Ubuntu 24.04. Same chain rules either way:
 
 - `ACCEPT -i wg0` (trust everything from the mesh — handshake established trust)
 - `DROP -i <public-iface> -p tcp -m multiport --dports 5432,6379,9090,9091,9100,8080,3100,7700,8000` (block mesh-only ports from public)

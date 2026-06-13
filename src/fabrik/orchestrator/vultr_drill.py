@@ -25,6 +25,7 @@ import math
 import subprocess
 import time
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Any
 
 from fabrik.config import FABRIK_ROOT
@@ -137,7 +138,85 @@ def _wait_ssh(ip: str, *, attempts: int = 20, interval: int = 6) -> bool:
     return _ssh_probe(ip, attempts=attempts, interval=interval)
 
 
-def _validate_spoke(ip: str, name: str) -> dict[str, Any]:
+def _ssh_ozgur_drill(ip: str, cmd: str, *, timeout: int = 60) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        [
+            "ssh",
+            "-o",
+            "ConnectTimeout=5",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "StrictHostKeyChecking=accept-new",
+            "-o",
+            "UserKnownHostsFile=/dev/null",
+            f"ozgur@{ip}",
+            cmd,
+        ],
+        capture_output=True,
+        text=True,
+        timeout=timeout + 5,
+        check=False,
+    )
+
+
+def _g0_creds_smoke(ip: str) -> dict[str, Any]:
+    """Partial-G0: copy the warm local Claude creds to the throwaway drill spoke
+    and run one ``claude -p`` to check the COPIED-CREDS hypothesis (plan C2 part 2).
+
+    Catches *immediate* single-session rejection only. It explicitly does NOT
+    exercise the ~4-day OAuth refresh-token rotation race — that needs a
+    multi-day observation, not a seconds-long smoke. Hashes the spoke's creds
+    before/after to record whether first use rotated the token. Best-effort;
+    never flips the drill's bootstrap+verify ``success``.
+    """
+    local = Path.home() / ".claude" / ".credentials.json"
+    if not local.exists():
+        return {"attempted": False, "reason": "no local ~/.claude/.credentials.json to copy"}
+    try:
+        _ssh_ozgur_drill(ip, "mkdir -p ~/.claude && chmod 700 ~/.claude")
+        scp = subprocess.run(
+            [
+                "scp",
+                "-q",
+                "-o",
+                "BatchMode=yes",
+                "-o",
+                "StrictHostKeyChecking=accept-new",
+                "-o",
+                "UserKnownHostsFile=/dev/null",
+                str(local),
+                f"ozgur@{ip}:.claude/.credentials.json",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+        if scp.returncode != 0:
+            return {"attempted": True, "pass": False, "reason": f"scp failed (rc={scp.returncode})"}
+        _ssh_ozgur_drill(ip, "chmod 600 ~/.claude/.credentials.json")
+        before = _ssh_ozgur_drill(ip, "sha256sum ~/.claude/.credentials.json").stdout.split()[:1]
+        # exit code of claude -p is the immediate-auth signal
+        rc = _ssh_ozgur_drill(ip, "claude -p ok >/dev/null 2>&1; echo RC=$?", timeout=120)
+        claude_rc = next((int(t[3:]) for t in rc.stdout.split() if t.startswith("RC=")), 127)
+        after = _ssh_ozgur_drill(ip, "sha256sum ~/.claude/.credentials.json").stdout.split()[:1]
+        return {
+            "attempted": True,
+            "claude_p_rc": claude_rc,
+            "immediate_auth_ok": claude_rc == 0,
+            "spoke_creds_rotated_on_first_use": before != after,
+            "pass": claude_rc == 0,
+            "note": (
+                "immediate single-session check only; the ~4-day refresh-token "
+                "rotation race is NOT exercised here"
+            ),
+        }
+    except (subprocess.TimeoutExpired, OSError) as e:
+        return {"attempted": True, "pass": False, "reason": f"smoke error: {e}"}
+
+
+def _validate_spoke(ip: str, name: str, *, g0_smoke: bool = False) -> dict[str, Any]:
     """Run bootstrap-vps.sh hermetically (--skip-mesh --skip-dns), then --verify."""
     script = str(BOOTSTRAP_DIR / "bootstrap-vps.sh")
     boot_log = FABRIK_ROOT / "logs" / f"drill-{name}.bootstrap.log"
@@ -158,6 +237,9 @@ def _validate_spoke(ip: str, name: str) -> dict[str, Any]:
         )
         checks["verify_rc"] = verify_rc
         checks["verify"] = verify_rc == 0
+        # Opt-in partial-G0 diagnostic — does NOT affect bootstrap+verify success.
+        if g0_smoke and verify_rc == 0:
+            checks["g0_smoke"] = _g0_creds_smoke(ip)
     checks["success"] = checks.get("bootstrap") and checks.get("verify", False)
     return checks
 
@@ -192,6 +274,7 @@ def drill(
     dry_run: bool = False,
     keep_on_failure: bool = False,
     max_cost: float | None = None,
+    g0_smoke: bool = False,
     client: VultrClient | None = None,
 ) -> dict[str, Any]:
     """Run a disposable drill of ``kind`` (bare|spoke|hub). Returns the report dict.
@@ -278,7 +361,7 @@ def drill(
             report["checks"]["ssh_reachable"] = _ssh_probe(ip) if ip else False
             report["success"] = bool(report["checks"]["ssh_reachable"])
         elif kind == "spoke":
-            sc = _validate_spoke(ip, name)
+            sc = _validate_spoke(ip, name, g0_smoke=g0_smoke)
             report["checks"].update(sc)
             report["success"] = bool(sc.get("success"))
         else:  # hub

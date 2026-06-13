@@ -687,6 +687,8 @@ The system prompt defines:
 
 ## Replication — Set Up on a New VPS from Scratch
 
+> **Automated since PR3 (2026-06-13) for `fabrik vultr provision`-created spokes.** A spoke provisioned via `fabrik vultr provision vpsN` no longer needs this manual recipe: `bootstrap-vps.sh` step_14 installs the pack, and PR3's post-bootstrap stage claims a per-host bot token from the DR-store pool (`/opt/fabrik-dr-store/env/sysadmin-bot-tokens.json`), writes `.env.sysadmin` (token + fleet-uniform `TELEGRAM_OWNER_ID`/`WATCHDOG_OPENROUTER_KEY`), enables `aro-wake.service` + `vps-sysadmin-bot.service`, and verifies health + token validity. The peer map is fleet-derived (`drivers/watchdog.py::host_prompt_substitutions`) so the new host renders real peers, not `unknown`. **The only remaining manual step is `claude auth login` (Step 2 below — the proven-safe device-flow).** Operator prerequisite: pre-stage per-host bot tokens in the pool once (the `@BotFather` batch); an empty pool ⇒ the bot is cleanly skipped (no crash-loop) and you finish it manually. The recipe below remains the canonical reference for a from-scratch / non-Vultr host.
+
 Complete recipe. Assumes fresh Ubuntu 24.04 with Docker, the `fabrik` Docker network, and the monitoring stack (`/opt/monitoring/compose.yaml`) already deployed via `scripts/bootstrap/bootstrap-vps.sh` + manual hub setup.
 
 ### Step 1: Install Node.js + Claude Code

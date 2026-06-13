@@ -2983,8 +2983,19 @@ def vultr_cleanup(yes: bool):
 @click.option(
     "--max-cost", type=float, default=None, help="Refuse if estimated cost exceeds this (USD)"
 )
+@click.option(
+    "--g0-smoke",
+    is_flag=True,
+    help="(spoke) Copy hub Claude creds to the throwaway + run one `claude -p` to check "
+    "immediate copied-creds auth (partial G0; NOT the 4-day refresh race)",
+)
 def vultr_drill(
-    kind: str, region: str, dry_run: bool, keep_on_failure: bool, max_cost: float | None
+    kind: str,
+    region: str,
+    dry_run: bool,
+    keep_on_failure: bool,
+    max_cost: float | None,
+    g0_smoke: bool,
 ):
     """Run a disposable DR drill (auto-destroys). Phase 3a: `bare`."""
     import os
@@ -3005,6 +3016,7 @@ def vultr_drill(
             dry_run=dry_run,
             keep_on_failure=keep_on_failure,
             max_cost=max_cost,
+            g0_smoke=g0_smoke,
             client=client,
         )
     except NotImplementedError as e:

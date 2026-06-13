@@ -16,7 +16,11 @@ This doc answers: "we own 3 VPSes — what do we have, what's planned, and how i
 
 **All 3 are fleet members:** W1 firewall posture, W11 backup chain (SHIPPED), W6 probe-audited posture, observability flow via mesh.
 
-**On-demand fleet growth + DR drilling via `fabrik vultr`** (shipped + live-validated 2026-06-08): a 4th+ spoke is now `fabrik vultr provision vps4 --region <r>` (deterministic mesh IP `10.99.0.N`, full `bootstrap-vps.sh`, `mode=permanent`; interactive confirm). Throwaway DR drills are `fabrik vultr drill {bare|spoke|hub}` (auto-destroy, cost-capped). Covers every Vultr product line (Cloud Compute / High-Frequency / GPU / Bare Metal). Driver `src/fabrik/drivers/vultr.py`; state `data/vultr-instances.json` (gitignored); auth in `/opt/fabrik/.env.sysadmin`. Full reference: the plan [`docs/archive/2026-06-07-fabrik-vultr-provisioning.md`](../archive/2026-06-07-fabrik-vultr-provisioning.md).
+**Fleet size is settled at 3 (vps1+vps2+vps3).** No 4th permanent spoke is planned; the provisioning capability below is kept ready, not actively growing the fleet.
+
+**On-demand fleet growth + DR drilling via `fabrik vultr`** (shipped + live-validated 2026-06-08): a 4th+ spoke is `fabrik vultr provision vps4 --region <r>` (deterministic mesh IP `10.99.0.N`, full `bootstrap-vps.sh`, `mode=permanent`; interactive confirm). Throwaway DR drills are `fabrik vultr drill {bare|spoke|hub}` (auto-destroy, cost-capped; `drill spoke --g0-smoke` opt-in copies hub Claude creds to the throwaway to check immediate copied-creds auth). Covers every Vultr product line (Cloud Compute / High-Frequency / GPU / Bare Metal). Driver `src/fabrik/drivers/vultr.py`; state `data/vultr-instances.json` (gitignored); auth in `/opt/fabrik/.env.sysadmin`.
+
+**PR3 (2026-06-13) — `provision` auto-installs the spoke's AI sysadmin**, collapsing the post-bootstrap manual finish from 5 steps to 1: it claims a per-host Telegram bot token from the DR-store pool (`/opt/fabrik-dr-store/env/sysadmin-bot-tokens.json`), writes `.env.sysadmin` (token + fleet-uniform owner/OpenRouter), enables `aro-wake.service` + `vps-sysadmin-bot.service`, and verifies aro-wake health + token validity. The peer map is fleet-derived so the new host renders real peers (not `unknown`). The **one** remaining manual step is the proven-safe `ssh <spoke> 'claude'` device-flow (copied-creds zero-touch is deferred on the OAuth refresh-token race). Empty token pool ⇒ bot cleanly skipped (never crash-loops). Full reference: the plan [`docs/archive/2026-06-07-fabrik-vultr-provisioning.md`](../archive/2026-06-07-fabrik-vultr-provisioning.md) + PR3 plan [`docs/development/plans/2026-06-13-pr3-spoke-sysadmin-autoprovision.md`](../development/plans/2026-06-13-pr3-spoke-sysadmin-autoprovision.md).
 
 ---
 
@@ -210,7 +214,7 @@ The reason vps2 + vps3 exist is **independent tenant landing zones**. A tenant d
 
 A second tenant can land on vps3 (or vps2 again) and is isolated from the first by being on a separate spoke compute environment, sharing only the mesh data plane.
 
-When the fleet is sized up, the pattern extends: vps4, vps5, etc. all join as spokes via `bootstrap-vps.sh`, get added to W11's per-spoke Backrest pattern, and start receiving tenants via `fabrik apply --target-vps`.
+When the fleet is sized up (not currently planned — settled at 3), the pattern extends: vps4, vps5, etc. all join as spokes via `fabrik vultr provision` (full `bootstrap-vps.sh` + PR3 auto-install of their own AI sysadmin), get added to W11's per-spoke Backrest pattern, and start receiving tenants via `fabrik apply --target-vps`.
 
 ---
 
