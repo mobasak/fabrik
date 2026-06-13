@@ -1,7 +1,7 @@
 # Plan: `fabrik vultr` — on-demand VPS provisioning (permanent + disposable)
 
 **Created:** 2026-06-07
-**Status:** Planned — not started
+**Status:** ✅ Shipped & archived 2026-06-08 — Phases 1–6 implemented, gated, and core live-validated (drill bare 98s / drill spoke vps4 rc=0 / live create→destroy round-trip ~$0.02). Hardening landed on top: PR1 (`c48f3c0`, G1/G2/G4/G10 + Coolify cleanup), G5 (`c158ee2`, ufw conflict), PR2 (`cbbdb99`, G6/G3), G5b (`658a68f`, DR-restore alignment). 45/45 unit tests green. Post-plan follow-ups tracked separately (NOT part of this plan's scope): G8 `fabrik apply --target-vps` live test, G9 hub DR + B2 restore drill, G11 Phase 7 snapshot/restore enhancement, G12 Gatus configs to source control; plus live shakedown of G5/G6/G5b on the next real drill.
 **Priority:** Now (per `docs/STRATEGIC_BACKLOG.md` Now tier)
 **Trigger:** 2026-06-07 DR drill burned 10 min on operator-discipline traps (root@ re-runs, fail2ban ban, etc.) that a thin Vultr API wrapper would have eliminated by running the whole drill end-to-end as a single command.
 

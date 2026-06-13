@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-06-08
 **Status:** ✅ Live on master (commits `93de0fc` → `963beb7`, 2026-06-08).
-**Plan / ground truth:** [`docs/development/plans/2026-06-07-fabrik-vultr-provisioning.md`](../development/plans/2026-06-07-fabrik-vultr-provisioning.md) — §J verified API facts, §L per-phase validation gates.
+**Plan / ground truth:** [`docs/archive/2026-06-07-fabrik-vultr-provisioning.md`](../archive/2026-06-07-fabrik-vultr-provisioning.md) — §J verified API facts, §L per-phase validation gates.
 
 On-demand Vultr VPS — any product line, permanent spokes + disposable drills. Single CLI entrypoint, single state file, always-destroy semantics on drill paths, full unwind on permanent destroy.
 

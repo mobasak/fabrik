@@ -9,7 +9,7 @@ This document is the definitive answer to "vps2 (or vps3) is gone — how do I g
 > **Now automated via `fabrik vultr`** (shipped + live-validated 2026-06-08). The manual "dashboard → copy IP → `bootstrap-vps.sh` → destroy" drill is wrapped in one command:
 > - **DR drill (throwaway):** `fabrik vultr drill spoke` — creates a Vultr droplet, runs `bootstrap-vps.sh --skip-mesh --skip-dns` (hermetic — no prod mesh/DNS touch), runs `bootstrap-vps.sh --verify` as the end-state contract, then **always auto-destroys** (even on failure). Live run 2026-06-08: bootstrap_rc=0 + verify_rc=0, 483s, 0 orphans, 0 `vps4` peers left on vps1 wg0.
 > - **New permanent spoke:** `fabrik vultr provision vps4 --region <r>` — full `bootstrap-vps.sh` (no skip flags), mesh IP auto = `10.99.0.N`, `mode=permanent` state, interactive confirm required (real billing + fleet change).
-> See the plan [`docs/development/plans/2026-06-07-fabrik-vultr-provisioning.md`](../development/plans/2026-06-07-fabrik-vultr-provisioning.md) and `fabrik vultr --help`. (This runbook remains the source of truth for the **same-identity restore** path via `bootstrap-spoke-restore.sh`, which the drill does not cover.)
+> See the plan [`docs/archive/2026-06-07-fabrik-vultr-provisioning.md`](../archive/2026-06-07-fabrik-vultr-provisioning.md) and `fabrik vultr --help`. (This runbook remains the source of truth for the **same-identity restore** path via `bootstrap-spoke-restore.sh`, which the drill does not cover.)
 
 ## Scope
 
@@ -201,7 +201,7 @@ Anything short of all 7 = drill failed = `bootstrap-spoke-restore.sh` has a gap.
 - Total cost: $0.04 (instance up ~30 min between provisioning and destroy)
 - Cleanup: API DELETE `/v2/instances/<id>` returned HTTP 204, 0 instances remaining
 
-**Drill report**: `/opt/fabrik/logs/dr-drill-history.jsonl` (gitignored; future `fabrik vultr drill` will append to this file — see [`docs/development/plans/2026-06-07-fabrik-vultr-provisioning.md`](../development/plans/2026-06-07-fabrik-vultr-provisioning.md))
+**Drill report**: `/opt/fabrik/logs/dr-drill-history.jsonl` (gitignored; future `fabrik vultr drill` will append to this file — see [`docs/archive/2026-06-07-fabrik-vultr-provisioning.md`](../archive/2026-06-07-fabrik-vultr-provisioning.md))
 
 ### `bootstrap-spoke-restore.sh` drill — pending
 
