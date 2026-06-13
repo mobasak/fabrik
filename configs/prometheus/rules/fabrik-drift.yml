@@ -1,0 +1,24 @@
+# T4-04 G-G5 (2026-05-16): per-registrar drift alert
+#
+# Source metric pushed by WSL-side `scripts/audit_all_registrars.py` to the
+# loopback-bound pushgateway, scraped by prometheus's `pushgateway` job
+# (honor_labels: true so `spec_id`/`registrar` survive the scrape).
+#
+# Alert fires when ANY (spec_id, registrar) reports drift for `for:` window
+# minutes — long enough that a transient cron miss doesn't page.
+groups:
+  - name: fabrik-registrar-drift
+    interval: 1m
+    rules:
+      - alert: FabrikRegistrarDrift
+        expr: fabrik_audit_drift_total > 0
+        for: 10m
+        labels:
+          severity: warning
+          alert_class: registrar_drift   # ← Alertmanager route key
+        annotations:
+          summary: "Fabrik registrar drift: {{ $labels.registrar }} / {{ $labels.spec_id }}"
+          description: |
+            {{ $labels.registrar }} reports {{ $value }} drift entries for spec {{ $labels.spec_id }}.
+            Live state diverges from spec. Investigate:
+              fabrik audit-registrars --spec /opt/fabrik/specs/services/{{ $labels.spec_id }}.yaml

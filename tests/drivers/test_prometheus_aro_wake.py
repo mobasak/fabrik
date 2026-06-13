@@ -139,3 +139,55 @@ def test_reload_prometheus_uses_bare_container_name_pattern():
     assert "'^prometheus(-|$)'" in src or '"^prometheus(-|$)"' in src
     assert "'^alertmanager-'" not in src                   # no bare prefix-only
     assert "'^prometheus-'" not in src
+
+
+def test_write_config_mirrors_to_git_after_vps_write(monkeypatch, tmp_path):
+    """Dual-write: `_write_config` ships the same body to both vps1 (via scp+ssh)
+    AND the local source-controlled mirror at `configs/prometheus/prometheus.yml`.
+
+    Regression for the 2026-06-13 drift audit: until that day, the driver wrote
+    to vps1 LIVE only, never to git, so `configs/prometheus/prometheus.yml`
+    silently rotted for an unknown number of weeks (md5 mismatch verified live).
+    """
+    # Point the mirror at a tmpdir so the test doesn't touch the real repo
+    fake_mirror = tmp_path / "configs" / "prometheus" / "prometheus.yml"
+    monkeypatch.setattr(prom, "_LOCAL_PROMETHEUS_CONFIG_PATH", fake_mirror)
+
+    # Mock the runtime path so no real SSH happens
+    scp_calls: list[tuple[str, str]] = []
+    ssh_calls: list[str] = []
+    monkeypatch.setattr(
+        prom,
+        "scp_to_vps",
+        lambda src, dst, **kw: scp_calls.append((src, dst)),
+    )
+    monkeypatch.setattr(prom, "ssh", lambda cmd, **kw: ssh_calls.append(cmd) or "")
+
+    cfg = {"scrape_configs": [{"job_name": "demo", "static_configs": [{"targets": ["x:1"]}]}]}
+    prom._write_config(cfg)
+
+    # vps1 leg: scp staged + sudo mv into PROMETHEUS_CONFIG_PATH ran
+    assert len(scp_calls) == 1
+    assert scp_calls[0][1] == "/tmp/prometheus.yml.staged"
+    assert any("sudo mv" in c and prom.PROMETHEUS_CONFIG_PATH in c for c in ssh_calls)
+
+    # Git mirror leg: file exists, contains the same YAML body
+    assert fake_mirror.exists()
+    import yaml as yaml_lib
+    parsed = yaml_lib.safe_load(fake_mirror.read_text())
+    assert parsed["scrape_configs"][0]["job_name"] == "demo"
+
+
+def test_write_config_does_not_raise_when_mirror_write_fails(monkeypatch, tmp_path):
+    """Git mirror is best-effort: read-only FS, missing dir, etc. must NOT
+    break the runtime write — vps1 is the source of truth at runtime."""
+    # Point mirror at a path whose parent CAN'T be created (file in the way)
+    blocker = tmp_path / "configs"
+    blocker.write_text("not a directory")          # parent path is a file
+    fake_mirror = blocker / "prometheus.yml"
+    monkeypatch.setattr(prom, "_LOCAL_PROMETHEUS_CONFIG_PATH", fake_mirror)
+    monkeypatch.setattr(prom, "scp_to_vps", lambda *a, **k: None)
+    monkeypatch.setattr(prom, "ssh", lambda *a, **k: "")
+
+    # Must not raise even though the mirror parent is unwriteable
+    prom._write_config({"scrape_configs": []})

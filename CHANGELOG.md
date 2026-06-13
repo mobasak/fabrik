@@ -4,6 +4,35 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Prometheus config drift: source control + secret extraction + dual-write driver (2026-06-13)
+
+Closes the prometheus follow-up surfaced earlier today by the Gatus-into-git work — same git-vs-live drift pattern, same root cause (`drivers/prometheus.py::add_scrape_target` writes to vps1 live, never to git), but with an additional secret-in-config wrinkle that needed live remediation before any commit was safe.
+
+**What landed (all in one cycle to keep state consistent):**
+
+1. **Live secret extraction.** `prometheus.yml` had a Meilisearch Bearer token **inline** (`credentials: <32-char-token>` under `job_name: meilisearch`). Cannot commit a secret to git. Switched the live config on vps1 to Prometheus's native `credentials_file: /etc/prometheus/secrets/meilisearch-key` directive; secret value moved to `/opt/monitoring/configs/prometheus/secrets/meilisearch-key` (mode `0640 root:nogroup` — `nobody`-running container can read). Verified live: reload succeeded, `meilisearch` scrape target stays `health=up` with empty `lastError`. **Two perm bugs surfaced during the reload:** `prometheus.yml` was `0600 root:root` (container ran as `nobody` couldn't read it — explains why every prior POST `/-/reload` returned 500), and the new `secrets/` directory was created at `0750 root:root` so the container couldn't traverse into it. Both fixed (config to `0644`, secrets dir to `0750 root:nogroup`).
+
+2. **3 yaml files snapshotted to git** under [`configs/prometheus/`](configs/prometheus/) — `prometheus.yml` (now-cleaned), `rules/alerts.yml`, `rules/fabrik-drift.yml`. md5-round-tripped against live. No `credentials:` inline values anywhere, only the path-only `credentials_file:` directives.
+
+3. **[`scripts/sync_prometheus_to_vps.sh`](scripts/sync_prometheus_to_vps.sh)** — companion to the gatus sync helper from earlier today. Four modes:
+   - `--diff` — drift report (RO, exit 1 on mismatch)
+   - `--push` (default) — scp-to-/tmp-then-sudo-install; reloads prometheus only if any tracked file changed; uses the same `^alertmanager(-|$)` container-name pattern as PR1 c48f3c0 to find the reload-proxy container
+   - `--dry-run` — print without scp'ing
+   - `--verify-secrets` — read `prometheus.yml`, list every `credentials_file:` path, check each one exists on the host AND is readable inside the container
+   - Backup files (`*.bak-*`) on vps1 are intentionally filtered out — operator artifacts, not source.
+
+4. **Driver dual-write** in [`src/fabrik/drivers/prometheus.py::_write_config`](src/fabrik/drivers/prometheus.py): now writes to both `/opt/monitoring/configs/prometheus/prometheus.yml` on vps1 AND `/opt/fabrik/configs/prometheus/prometheus.yml` in git atomically (vps1 first as the runtime gate; git mirror best-effort, never throws). Every future `add_scrape_target` / `add_aro_wake_target` call keeps the snapshot truthful — drift can no longer accumulate silently. Also chmod's the live file back to `0644` on every write to defend against the perm-creep that bit us today.
+
+5. **[`configs/prometheus/README.md`](configs/prometheus/README.md)** — documents the layout, the secrets contract, the sync workflow, the driver dual-write, and the restore path.
+
+6. **+2 unit tests** in [`tests/drivers/test_prometheus_aro_wake.py`](tests/drivers/test_prometheus_aro_wake.py): `test_write_config_mirrors_to_git_after_vps_write` (positive — both legs ran) and `test_write_config_does_not_raise_when_mirror_write_fails` (negative — mirror failure must not block runtime). Full suite 408/408.
+
+**Also closed today (same cycle, same scope):** the S-tier "Pull Gatus configs into source control" item from `STRATEGIC_BACKLOG.md` — see the entry below.
+
+**Vultr API key IP allowlist surfaced** during this work: the `reconcile` command 401's on my current WSL IP. No v2 endpoint exists to manage this — operator-action only at <https://my.vultr.com/settings/#settingsapi> (Access Control → clear the subnet list).
+
+**PR3 review pact respected:** `vultr_provision.py` and everything downstream of the PR3 surface untouched. The driver dual-write only affects `prometheus.py::_write_config`, which is upstream of and orthogonal to PR3's provision-side changes.
+
 ### Added — Pull Gatus configs into source control + sync helper (2026-06-13)
 
 Closes the S-tier "Pull Gatus configs into source control" item in [`STRATEGIC_BACKLOG.md`](docs/STRATEGIC_BACKLOG.md) — the lone monitoring-config asymmetry where every *other* stack (prometheus, alertmanager, loki, grafana, promtail) had a `configs/<service>/` git mirror but gatus did not. The `aro-wake.yaml` shipped in 2026-06-07 was the trigger: it lived only on vps1 disk + the Backrest snapshot, never in git, until now.

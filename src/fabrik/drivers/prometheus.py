@@ -61,6 +61,22 @@ logger = logging.getLogger(__name__)
 PROMETHEUS_CONFIG_PATH = "/opt/monitoring/configs/prometheus/prometheus.yml"
 """VPS path holding the single prometheus.yml file."""
 
+# Local source-controlled mirror of the VPS config. Until 2026-06-13 the
+# driver wrote to vps1 LIVE only, never to git, so the file in this repo
+# silently drifted from production (md5 mismatch verified). The dual-write
+# in `_write_config` below now updates both atomically: vps1 first (since
+# that's the runtime gate — reload failure surfaces there), then the git
+# mirror gets the same body on success. Operators commit the resulting
+# diff like any other code change. See [`configs/prometheus/README.md`].
+try:
+    from fabrik.config import FABRIK_ROOT as _FABRIK_ROOT_FOR_LOCAL_MIRROR
+
+    _LOCAL_PROMETHEUS_CONFIG_PATH = (
+        _FABRIK_ROOT_FOR_LOCAL_MIRROR / "configs" / "prometheus" / "prometheus.yml"
+    )
+except Exception:  # noqa: BLE001 — defensive: tests can monkeypatch
+    _LOCAL_PROMETHEUS_CONFIG_PATH = None
+
 PROMETHEUS_RELOAD_URL = "http://prometheus:9090/-/reload"
 """Lifecycle endpoint for hot-reload. Reachable from the VPS host via
 the ``coolify`` Docker network alias; we curl it from inside the
@@ -122,7 +138,22 @@ def _read_config() -> dict[str, Any]:
 
 
 def _write_config(data: dict[str, Any]) -> None:
-    """Atomically replace prometheus.yml on the VPS."""
+    """Atomically replace prometheus.yml on the VPS — AND mirror to git.
+
+    Order:
+      1. Dump YAML body once.
+      2. scp + sudo install on vps1 (runtime gate — if reload would fail,
+         it'll fail here and we know not to mirror).
+      3. Mirror the same body to the local source-controlled copy under
+         ``configs/prometheus/prometheus.yml`` (best-effort; never throws).
+
+    The git mirror was added 2026-06-13 after a drift audit found
+    `configs/prometheus/prometheus.yml` md5 != vps1's for an unknown number
+    of weeks — every `add_scrape_target` / `add_aro_wake_target` call since
+    PR1 had written to vps1 only. With the mirror, the operator's `git
+    status` surfaces the diff on the next commit; the snapshot stays
+    truthful instead of bit-rotting.
+    """
     body = yaml_lib.dump(data, default_flow_style=False, sort_keys=False)
     with tempfile.NamedTemporaryFile(mode="w", suffix=".yml", delete=False) as f:
         f.write(body)
@@ -132,10 +163,20 @@ def _write_config(data: dict[str, Any]) -> None:
         scp_to_vps(local_tmp, vps_tmp)
         ssh(
             f"sudo mv {shlex.quote(vps_tmp)} {shlex.quote(PROMETHEUS_CONFIG_PATH)} && "
-            f"sudo chown root:root {shlex.quote(PROMETHEUS_CONFIG_PATH)}"
+            f"sudo chown root:root {shlex.quote(PROMETHEUS_CONFIG_PATH)} && "
+            f"sudo chmod 644 {shlex.quote(PROMETHEUS_CONFIG_PATH)}"
         )
     finally:
         Path(local_tmp).unlink(missing_ok=True)
+    # Git mirror — best-effort. A read-only filesystem, missing directory,
+    # or unset FABRIK_ROOT in CI/test must not block the runtime write.
+    if _LOCAL_PROMETHEUS_CONFIG_PATH is not None:
+        try:
+            _LOCAL_PROMETHEUS_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+            _LOCAL_PROMETHEUS_CONFIG_PATH.write_text(body)
+            logger.debug("mirrored prometheus.yml to %s", _LOCAL_PROMETHEUS_CONFIG_PATH)
+        except Exception as e:  # noqa: BLE001 — mirror is best-effort
+            logger.warning("failed to mirror prometheus.yml to git: %s", e)
 
 
 def _reload_prometheus() -> bool:
