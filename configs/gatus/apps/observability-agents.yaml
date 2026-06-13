@@ -1,0 +1,36 @@
+# Health checks for observability agents that lack dedicated Gatus endpoints.
+# Added 2026-05-20 per audit finding #12.
+
+endpoints:
+- name: promtail
+  group: observability
+  url: http://promtail:9080/ready
+  interval: 60s
+  conditions:
+  - '[STATUS] == 200'
+  alerts:
+  - type: custom
+    failure-threshold: 3
+    send-on-resolved: true
+
+- name: pushgateway
+  group: observability
+  url: http://pushgateway:9091/-/ready
+  interval: 60s
+  conditions:
+  - '[STATUS] == 200'
+  alerts:
+  - type: custom
+    failure-threshold: 3
+    send-on-resolved: true
+
+- name: cadvisor
+  group: observability
+  url: http://cadvisor:8080/healthz
+  interval: 60s
+  conditions:
+  - '[STATUS] == 200'
+  alerts:
+  - type: custom
+    failure-threshold: 3
+    send-on-resolved: true

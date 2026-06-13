@@ -1,0 +1,9 @@
+endpoints:
+  - name: loki
+    group: apps
+    url: "http://loki:3100/ready"
+    interval: 60s
+    conditions:
+      - "[STATUS] == 200"
+    alerts:
+      - type: custom

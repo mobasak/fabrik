@@ -1,11 +1,13 @@
 # AI TAXONOMY - Mainstream Categories (2026)
 
+> **Last verified:** 2026-06-13. Verified this pass: current Claude lineup (Opus 4.8 / Sonnet 4.6 / Haiku 4.5 / Fable 5), Soniox TTS (now offers text-to-speech, not transcription-only), Recraft v4.1 + FLUX (BFL) image gen. Other tool/version names are indicative, not all re-checked — verify version + price before committing in a project.
+
 ## Quick Reference
 
 **16 Categories → Subcategories → Tools**
 
-1. **Speech/Audio**: Transcription (Soniox, Whisper), TTS (ElevenLabs), Voice Clone
-2. **Vision**: Image Gen (Midjourney, DALL·E), Video Gen (Runway), OCR (Tesseract)
+1. **Speech/Audio**: Transcription (Soniox, Whisper), TTS (Soniox, ElevenLabs), Voice Clone
+2. **Vision**: Image Gen (Recraft, FLUX, Midjourney), Video Gen (Runway), OCR (Tesseract)
 3. **Language**: LLMs (ChatGPT, Claude), Translation (DeepL), Embeddings (Cohere)
 4. **Multimodal**: Vision+Language (GPT-4o, Gemini, Claude), Visual QA
 5. **Agentic**: Multi-step reasoning (OpenAI o1, LangChain), Automation
@@ -19,7 +21,7 @@
 13. **Edge/Embedded**: TensorFlow Lite, on-device inference
 14. **Governance/Trust**: Content moderation, bias detection, LLaMA Guard
 15. **Generative Design**: Autodesk, nTopology, optimization
-16. **Long-Context**: Gemini 2.5 Pro (1M), Claude Opus 4.6 (1M), codebase analysis
+16. **Long-Context**: Gemini 2.5 Pro (1M), Claude Opus 4.8 (1M), codebase analysis
 
 **4 Selection Rules:**
 - Match task to category first (prevents wrong tool type)
@@ -35,7 +37,7 @@
 
 **Subcategories:**
 - **Transcription (Speech-to-Text):** Soniox, Whisper, Deepgram, AssemblyAI
-- **Speech Synthesis (Text-to-Speech):** ElevenLabs, Play.ht, Amazon Polly
+- **Speech Synthesis (Text-to-Speech):** Soniox TTS (60+ langs, hallucination-free, native EN/TR + mid-sentence language switching, EU residency/GDPR — preferred for faithful pronunciation & multilingual cards), ElevenLabs (more expressive voices), Play.ht, Amazon Polly
 - **Voice Cloning:** Resemble AI, ElevenLabs VoiceLab
 - **Audio Classification:** Google AudioSet, YAMNet
 - **Music Generation:** Suno, Udio, Mubert, Meta MusicGen
@@ -49,7 +51,7 @@
 **Purpose:** Interpret or generate images/video
 
 **Subcategories:**
-- **Image Generation:** Midjourney, DALL·E, Stable Diffusion
+- **Image Generation:** Recraft (v4.1 — flat/vector/illustration, style consistency, Fabrik default for branded & illustration work via BFL-style API), FLUX (BFL — FLUX.1/FLUX.2, photoreal, owned `BFL_API_KEY`), Replicate (model host/fallback), Midjourney, DALL·E, Stable Diffusion
 - **Video Generation:** Runway, Pika, Synthesia
 - **Object/Scene Recognition:** YOLOv8, Detectron2, Google Vision API
 - **OCR (Text from images):** Tesseract, AWS Textract
@@ -77,7 +79,7 @@
 
 **Purpose:** Combine text, image, audio, video understanding
 
-**Examples:** GPT-4o, Gemini 2.5 Pro, Claude Opus 4.6, LLaVA, Kosmos-2
+**Examples:** GPT-4o, Gemini 2.5 Pro, Claude Opus 4.8, LLaVA, Kosmos-2
 
 **Use cases:** Image captioning, visual QA, document understanding, video analysis
 
@@ -197,7 +199,7 @@
 
 **Purpose:** Process extremely long documents, codebases, or conversations
 
-**Examples:** Gemini 2.5 Pro (1M), Claude Opus 4.6 (1M), GPT-4o (128K)
+**Examples:** Gemini 2.5 Pro (1M), Claude Opus 4.8 (1M), Claude Fable 5 (Mythos-class), GPT-4o (128K)
 
 **Use cases:** Codebase analysis, book summarization, long document QA, multi-file reasoning
 
@@ -240,7 +242,7 @@ When starting AI project:
 6. **Before-Writing-Code:** Justify chosen tool vs top alternative
 
 **Common mistakes to avoid:**
-- Using general LLM for specialized task (e.g., GPT for transcription instead of Soniox)
+- Using general LLM for specialized task (e.g., general LLM for transcription instead of Soniox; translation TTS instead of Soniox/ElevenLabs)
 - Choosing tool before identifying category
 - Not documenting alternative considered
 - Using expensive model when free Kilo alternative exists

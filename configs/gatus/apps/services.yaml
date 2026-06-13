@@ -1,0 +1,31 @@
+endpoints:
+- alerts:
+  - failure-threshold: 2
+    send-on-resolved: true
+    type: custom
+  conditions:
+  - '[CONNECTED] == true'
+  group: services
+  interval: 60s
+  name: gotenberg
+  url: tcp://gotenberg:3000
+- alerts:
+  - failure-threshold: 2
+    send-on-resolved: true
+    type: custom
+  conditions:
+  - '[CONNECTED] == true'
+  group: services
+  interval: 60s
+  name: browserless
+  url: tcp://browserless:3000
+- alerts:
+  - failure-threshold: 2
+    send-on-resolved: true
+    type: custom
+  conditions:
+  - '[CONNECTED] == true'
+  group: services
+  interval: 60s
+  name: glitchtip
+  url: tcp://glitchtip-web:8000

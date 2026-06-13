@@ -1,0 +1,9 @@
+endpoints:
+  - name: prometheus
+    group: apps
+    url: "http://prometheus:9090/-/healthy"
+    interval: 60s
+    conditions:
+      - "[STATUS] == 200"
+    alerts:
+      - type: custom

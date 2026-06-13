@@ -1,0 +1,55 @@
+endpoints:
+  - name: traefik
+    group: core
+    url: "tcp://traefik:80"
+    interval: 30s
+    conditions:
+      - "[CONNECTED] == true"
+    alerts:
+      - type: custom
+        failure-threshold: 1
+        send-on-resolved: true
+
+  - name: authelia
+    group: core
+    url: "http://authelia:9091/api/health"
+    interval: 30s
+    conditions:
+      - "[STATUS] == 200"
+    alerts:
+      - type: custom
+        failure-threshold: 1
+        send-on-resolved: true
+
+  - name: coolify
+    group: core
+    url: "http://coolify:8000/api/health"
+    interval: 60s
+    conditions:
+      - "[STATUS] < 500"
+    alerts:
+      - type: custom
+        failure-threshold: 2
+        send-on-resolved: true
+
+  - name: n8n
+    group: core
+    url: "http://n8n:5678/healthz"
+    interval: 60s
+    conditions:
+      - "[STATUS] == 200"
+    alerts:
+      - type: custom
+        failure-threshold: 2
+        send-on-resolved: true
+
+  - name: apprise
+    group: core
+    url: "tcp://apprise:8000"
+    interval: 60s
+    conditions:
+      - "[CONNECTED] == true"
+    alerts:
+      - type: custom
+        failure-threshold: 2
+        send-on-resolved: true

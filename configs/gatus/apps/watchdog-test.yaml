@@ -1,0 +1,13 @@
+endpoints:
+- name: watchdog-test
+  group: apps
+  url: https://watchdog-test.vps1.ocoron.com/
+  interval: 60s
+  client:
+    timeout: 30s
+  conditions:
+  - '[STATUS] == 200'
+  alerts:
+  - type: custom
+    failure-threshold: 3
+    send-on-resolved: true

@@ -49,6 +49,11 @@ ENV/
 
 # Project directories (per .windsurfrules)
 data/
+# Re-include the gatus data subtree (source-controlled probes mirror,
+# snapshotted from vps1 2026-06-13). Top-level `data/` stays ignored
+# (runtime state files like data/vultr-instances.json).
+!configs/gatus/data/
+!configs/gatus/data/**
 .tmp/
 .cache/
 output/

@@ -1,0 +1,50 @@
+# Health checks for aro-wake on every fleet host (trio Phase 3 LIVE 2026-06-06).
+# Hub via docker-bridge gateway; spokes via wg0 mesh. Same reachability path
+# Prometheus uses (verified via tcpdump 2026-06-06 — docker MASQUERADE rewrites
+# source to vps1's wg0 IP, spokes' UFW `from 10.99.0.0/24` rule permits).
+
+endpoints:
+- name: aro-wake-vps1
+  group: trio-aro-wake
+  url: http://10.0.1.1:8201/health
+  interval: 60s
+  client:
+    timeout: 10s
+  conditions:
+  - '[STATUS] == 200'
+  - '[BODY].ok == true'
+  - '[BODY].host == vps1'
+  alerts:
+  - type: custom
+    failure-threshold: 3
+    send-on-resolved: true
+
+- name: aro-wake-vps2
+  group: trio-aro-wake
+  url: http://10.99.0.2:8201/health
+  interval: 60s
+  client:
+    timeout: 10s
+  conditions:
+  - '[STATUS] == 200'
+  - '[BODY].ok == true'
+  - '[BODY].host == vps2'
+  alerts:
+  - type: custom
+    failure-threshold: 3
+    send-on-resolved: true
+
+- name: aro-wake-vps3
+  group: trio-aro-wake
+  url: http://10.99.0.3:8201/health
+  interval: 60s
+  client:
+    timeout: 10s
+  conditions:
+  - '[STATUS] == 200'
+  - '[BODY].ok == true'
+  - '[BODY].host == vps3'
+  alerts:
+  - type: custom
+    failure-threshold: 3
+    send-on-resolved: true

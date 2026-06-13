@@ -1,0 +1,38 @@
+metrics: true
+
+connectivity:
+  checker:
+    target: "1.1.1.1:53"
+    interval: 60s
+
+storage:
+  type: memory
+
+ui:
+  title: "ocoron.com Status"
+  description: "vps1 service health"
+  badge:
+    response-time:
+      thresholds: [150, 300, 500, 1000]
+
+alerting:
+  custom:
+    url: "http://apprise:8000/notify/alerts"
+    method: "POST"
+    headers:
+      Content-Type: "application/json"
+    body: |
+      {
+        "title": "[ENDPOINT_NAME] is [ALERT_TRIGGERED_OR_RESOLVED]",
+        "body": "[ENDPOINT_NAME] - [ALERT_DESCRIPTION]\nGroup: [ENDPOINT_GROUP]",
+        "type": "[ALERT_TRIGGERED_OR_RESOLVED]",
+        "format": "text"
+      }
+    default-alert:
+      failure-threshold: 3
+      success-threshold: 2
+      send-on-resolved: true
+    placeholders:
+      ALERT_TRIGGERED_OR_RESOLVED:
+        TRIGGERED: "failure"
+        RESOLVED: "success"

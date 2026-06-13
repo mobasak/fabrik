@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Pull Gatus configs into source control + sync helper (2026-06-13)
+
+Closes the S-tier "Pull Gatus configs into source control" item in [`STRATEGIC_BACKLOG.md`](docs/STRATEGIC_BACKLOG.md) — the lone monitoring-config asymmetry where every *other* stack (prometheus, alertmanager, loki, grafana, promtail) had a `configs/<service>/` git mirror but gatus did not. The `aro-wake.yaml` shipped in 2026-06-07 was the trigger: it lived only on vps1 disk + the Backrest snapshot, never in git, until now.
+
+**What landed:**
+
+- **18 yaml files snapshotted from vps1 → [`configs/gatus/`](configs/gatus/)** — full tree (`_base.yaml`, `apps/` × 13, `core/`, `data/`, `external/`, `observability/`). All md5-round-tripped against live before commit. No secrets (verified with grep for `password|secret|token|api.?key|bearer` across every file).
+- **[`scripts/sync_gatus_to_vps.sh`](scripts/sync_gatus_to_vps.sh)** — idempotent push helper with `--diff` (drift report, read-only, exit 1 on mismatch), `--push` (default, scp-to-/tmp-then-sudo-install pattern, only restarts gatus if any file changed), and `--dry-run`. Container restart uses the `^gatus(-|$)` pattern from PR1 c48f3c0 so it matches the bare-named container post-Coolify migration.
+- **[`configs/gatus/README.md`](configs/gatus/README.md)** — documents the workflow + the known drift sources the drivers still introduce + the restore path.
+
+**Follow-up surfaced during this work (NOT in this commit):** verified `configs/prometheus/prometheus.yml` md5 ≠ vps1's. Same root cause — `drivers/prometheus.py::add_scrape_target` writes to vps1 live, never to git. A prometheus sync is harder than gatus's snapshot-replace because scrape jobs accumulate (multiple drivers contribute), so the design call is deferred. Flagged in `STRATEGIC_BACKLOG.md` under the closed Gatus entry.
+
+**Note on the running PR3 review pact:** this work is in `configs/gatus/`, `scripts/sync_gatus_to_vps.sh`, README + backlog/CHANGELOG only. No touch of `vultr_provision.py` or anywhere downstream of the PR3 surface — review pass for PR3 stays clean.
+
 ### Fixed — bootstrap-spoke-restore.sh G5b: align DR restore to iptables-docker-user.service (2026-06-08)
 
 The spoke disaster-recovery restore path ([`scripts/bootstrap/bootstrap-spoke-restore.sh`](scripts/bootstrap/bootstrap-spoke-restore.sh)) still apt-installed `iptables-persistent` (step_02) and did `systemctl enable --now netfilter-persistent` (step_07) — the same Ubuntu 24.04 `Conflicts: ufw` trap G5 fixed in the fresh-bootstrap path. On a rebuilt spoke that install silently removes `ufw`, so step_05's `ufw --force enable` would fail. Now aligned to the G5 shape: step_02 drops `iptables-persistent` (UFW stays canonical), and step_07 regenerates the DOCKER-USER `add`/`rm` scripts + `iptables-docker-user.service` from config (identical to bootstrap-vps.sh step_10) and enables the oneshot unit.

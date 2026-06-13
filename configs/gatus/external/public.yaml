@@ -1,0 +1,61 @@
+endpoints:
+  - name: coolify-public
+    group: external
+    url: "https://coolify.vps1.ocoron.com"
+    interval: 5m
+    conditions:
+      - "[STATUS] < 500"
+      - "[CERTIFICATE_EXPIRATION] > 168h"
+    alerts:
+      - type: custom
+        failure-threshold: 2
+        send-on-resolved: true
+
+  - name: status-page
+    group: external
+    url: "https://status.vps1.ocoron.com"
+    interval: 5m
+    conditions:
+      - "[STATUS] == 200"
+      - "[CERTIFICATE_EXPIRATION] > 168h"
+    alerts:
+      - type: custom
+        failure-threshold: 2
+        send-on-resolved: true
+
+  - name: glitchtip-public
+    group: external
+    url: "https://errors.vps1.ocoron.com"
+    interval: 5m
+    conditions:
+      - "[STATUS] < 500"
+      - "[CERTIFICATE_EXPIRATION] > 168h"
+    alerts:
+      - type: custom
+        failure-threshold: 2
+        send-on-resolved: true
+
+  - name: search-public
+    group: external
+    url: "https://search.vps1.ocoron.com"
+    interval: 5m
+    conditions:
+      - "[STATUS] < 500"
+      - "[CERTIFICATE_EXPIRATION] > 168h"
+    alerts:
+      - type: custom
+        failure-threshold: 2
+        send-on-resolved: true
+
+  - name: monitor-public
+    group: external
+    url: "https://monitor.vps1.ocoron.com/api/health"
+    interval: 5m
+    conditions:
+      - "[STATUS] == 200"
+      - "[BODY].database == ok"
+      - "[CERTIFICATE_EXPIRATION] > 168h"
+    alerts:
+      - type: custom
+        failure-threshold: 2
+        send-on-resolved: true

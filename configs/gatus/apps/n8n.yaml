@@ -1,0 +1,9 @@
+endpoints:
+  - name: n8n
+    group: apps
+    url: "http://n8n:5678/healthz"
+    interval: 60s
+    conditions:
+      - "[STATUS] == 200"
+    alerts:
+      - type: custom

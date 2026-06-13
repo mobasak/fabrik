@@ -1,0 +1,11 @@
+endpoints:
+  - name: glitchtip-web
+    group: services
+    url: "http://glitchtip-web:8000/api/0/"
+    interval: 60s
+    conditions:
+      - "[STATUS] < 500"
+    alerts:
+      - type: custom
+        failure-threshold: 2
+        send-on-resolved: true

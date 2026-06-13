@@ -1,0 +1,9 @@
+endpoints:
+  - name: alertmanager
+    group: apps
+    url: "http://alertmanager:9093/-/healthy"
+    interval: 60s
+    conditions:
+      - "[STATUS] == 200"
+    alerts:
+      - type: custom

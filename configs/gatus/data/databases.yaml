@@ -1,0 +1,33 @@
+endpoints:
+  - name: postgres-main
+    group: data
+    url: "tcp://postgres-main:5432"
+    interval: 30s
+    conditions:
+      - "[CONNECTED] == true"
+    alerts:
+      - type: custom
+        failure-threshold: 2
+        send-on-resolved: true
+
+  - name: redis-main
+    group: data
+    url: "tcp://redis-main:6379"
+    interval: 30s
+    conditions:
+      - "[CONNECTED] == true"
+    alerts:
+      - type: custom
+        failure-threshold: 2
+        send-on-resolved: true
+
+  - name: meilisearch
+    group: data
+    url: "tcp://meilisearch:7700"
+    interval: 60s
+    conditions:
+      - "[CONNECTED] == true"
+    alerts:
+      - type: custom
+        failure-threshold: 2
+        send-on-resolved: true

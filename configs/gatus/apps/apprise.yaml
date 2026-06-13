@@ -1,0 +1,9 @@
+endpoints:
+  - name: apprise
+    group: apps
+    url: "http://apprise:8000/"
+    interval: 120s
+    conditions:
+      - "[STATUS] == 200"
+    alerts:
+      - type: custom

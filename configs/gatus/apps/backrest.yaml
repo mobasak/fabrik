@@ -1,0 +1,11 @@
+endpoints:
+  - name: backrest
+    group: services
+    url: "tcp://backrest:9898"
+    interval: 120s
+    conditions:
+      - "[CONNECTED] == true"
+    alerts:
+      - type: custom
+        failure-threshold: 2
+        send-on-resolved: true
