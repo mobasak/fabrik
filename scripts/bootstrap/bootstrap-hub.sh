@@ -104,6 +104,12 @@ source "${SCRIPT_DIR}/bootstrap-config.sh"
 DRY_RUN=false
 VERIFY_ONLY=false
 SKIP_SERVICES=false
+SKIP_MESH=false                # NEW 2026-06-14 — for `fabrik vultr drill hub`:
+                               # skip step_08 wg-quick@wg0 bring-up so the
+                               # drill droplet (which restored vps1's real
+                               # private key) does NOT initiate handshakes
+                               # to vps2/vps3 — that would update the live
+                               # spokes' peer endpoint and break the mesh.
 SNAPSHOT_ID="latest"
 ENV_FROM="/opt/fabrik-dr-store/env/latest"
 SYSADMIN_ENV_FROM="/opt/fabrik-dr-store/env/sysadmin-latest"
@@ -128,6 +134,7 @@ while [[ $# -gt 0 ]]; do
         --dry-run) DRY_RUN=true; shift ;;
         --verify) VERIFY_ONLY=true; shift ;;
         --skip-services) SKIP_SERVICES=true; shift ;;
+        --skip-mesh) SKIP_MESH=true; shift ;;
         --snapshot) SNAPSHOT_ID="$2"; shift 2 ;;
         --env-from) ENV_FROM="$2"; shift 2 ;;
         --sysadmin-env-from) SYSADMIN_ENV_FROM="$2"; shift 2 ;;
@@ -607,6 +614,10 @@ step_07_apply_ufw() {
 }
 
 step_08_bring_up_mesh() {
+    if $SKIP_MESH; then
+        log "step_08: SKIPPED (--skip-mesh — drill safety: would handshake with vps2/vps3 using restored vps1 key and overwrite live spokes' peer endpoint)"
+        return 0
+    fi
     log "step_08: bring up Wireguard mesh (wg-quick@wg0) ($(elapsed))"
     remote 'sudo systemctl enable --now wg-quick@wg0'
     # Give the kernel a moment to come up + spokes time to handshake (cross-Atlantic).

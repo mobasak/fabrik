@@ -245,11 +245,37 @@ def _validate_spoke(ip: str, name: str, *, g0_smoke: bool = False) -> dict[str, 
 
 
 def _validate_hub(ip: str, name: str) -> dict[str, Any]:
-    """Run bootstrap-hub.sh against the latest DR snapshot, then --verify."""
+    """Run bootstrap-hub.sh against the latest DR snapshot, then --verify.
+
+    Drill safety contract — these flags are MANDATORY here and are why the
+    drill cannot break the live mesh even though the droplet restores
+    vps1's real private key:
+
+    - ``--skip-mesh``: skips step_08 ``wg-quick@wg0`` bring-up. Without
+      this, the drill droplet would handshake with vps2/vps3 using the
+      restored vps1 keypair and the spokes would update their peer
+      endpoint to point at the drill droplet's public IP — breaking the
+      live vps1↔spoke mesh until the drill is destroyed.
+    - ``--skip-services``: stops after step_12 (after the restic restores
+      complete). Skips step_13 (compose-up — backrest container would
+      start writing to B2 with vps1's restic identity), step_15
+      (vps-sysadmin-bot enable — would Telegram from the drill), step_17
+      (Cloudflare DNS rewrite — flag-gated default-off anyway).
+
+    What the drill DOES measure with these guards: bootstrap-hub.sh
+    steps 00-07 + iptables-docker-user.service path + step_09 +
+    step_10 + the big restic pulls (host-state, opt-configs,
+    docker-volumes). That's the slow part of the 90-min target — and
+    the part where unknown-unknown bugs would surface.
+    """
     script = str(BOOTSTRAP_DIR / "bootstrap-hub.sh")
     boot_log = FABRIK_ROOT / "logs" / f"drill-{name}.bootstrap.log"
     checks: dict[str, Any] = {"ssh_ready": _wait_ssh(ip)}
-    boot_rc = _run_script([script, f"root@{ip}"], _HUB_BOOTSTRAP_TIMEOUT, boot_log)
+    boot_rc = _run_script(
+        [script, "--skip-mesh", "--skip-services", f"root@{ip}"],
+        _HUB_BOOTSTRAP_TIMEOUT,
+        boot_log,
+    )
     checks["bootstrap_rc"] = boot_rc
     checks["bootstrap"] = boot_rc == 0
     checks["success"] = checks["bootstrap"]

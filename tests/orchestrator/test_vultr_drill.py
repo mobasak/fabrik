@@ -109,6 +109,30 @@ def test_spoke_dispatch_runs_validate_then_destroys(monkeypatch):
     c.destroy.assert_called_once_with("instance", "i-123")  # always destroyed
 
 
+def test_validate_hub_passes_safety_flags(monkeypatch):
+    """``_validate_hub`` MUST invoke ``bootstrap-hub.sh`` with both
+    ``--skip-mesh`` and ``--skip-services``. Without ``--skip-mesh`` the
+    drill droplet (restoring vps1's real wg keypair) would handshake with
+    vps2/vps3 and overwrite their peer endpoints — breaking the live mesh.
+    Without ``--skip-services`` step_13 starts the backrest container which
+    writes to B2 with vps1's restic identity. Lock the contract here so a
+    future refactor that drops either flag fails loudly.
+    """
+    captured: dict[str, list[str]] = {}
+    monkeypatch.setattr(vultr_drill, "_wait_ssh", lambda *_a, **_k: True)
+    monkeypatch.setattr(
+        vultr_drill,
+        "_run_script",
+        lambda argv, *a, **k: captured.setdefault("argv", argv) and 0 or 0,
+    )
+    vultr_drill._validate_hub("9.9.9.9", "dr-drill-hub-fake")
+    argv = captured["argv"]
+    assert "--skip-mesh" in argv, "MUST pass --skip-mesh to bootstrap-hub.sh"
+    assert "--skip-services" in argv, "MUST pass --skip-services to bootstrap-hub.sh"
+    # And the target must be root@<ip> as the last positional.
+    assert argv[-1] == "root@9.9.9.9"
+
+
 def test_spoke_failed_verify_still_destroys(monkeypatch):
     c = _mock_client()
     monkeypatch.setattr(
