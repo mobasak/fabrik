@@ -754,14 +754,39 @@ step_10_create_fabrik_network() {
 
 step_11_restic_pull_opt() {
     log "step_11: restic restore /opt/ from B2 ($(elapsed))"
-    # Excludes from bootstrap-config.sh::FABRIK_OPT_RESTORE_EXCLUDES — match
-    # the path-preserving bind-mount convention from Step 5.
-    local excludes=""
-    for p in "${FABRIK_OPT_RESTORE_EXCLUDES[@]}"; do
-        excludes+=" --exclude ${p}"
-    done
+    # Bug #4 also bites here (same root cause as step_06): restic 0.18.1
+    # rejects --include + --exclude together. UNLIKE step_06 — where the
+    # EXCLUDES were documentation-only safety — these EXCLUDES are
+    # FUNCTIONAL and CANNOT be silently dropped. They prevent the
+    # restored hub from inheriting:
+    #   - /opt/containerd/** : the dead host's containerd state, which
+    #     would corrupt the new Docker install (new Docker uses /var/lib/
+    #     containerd; any restored /opt/containerd would be wrong-version
+    #     state from the dead host).
+    #   - /opt/fabrik/.git/** : not needed — regenerated from `gh repo
+    #     clone mobasak/fabrik` in the DR runbook.
+    #   - /opt/backups/coolify_env_*.env : Coolify-era secret leakage.
+    #   - /opt/*restic-cache* : cache, regenerated on first use.
+    #   - /opt/manually_installed.txt : human-edited marker file.
+    #
+    # FIX: do a single restore --include /opt, then rm the EXCLUDES
+    # patterns post-restore. Restic restores everything; the explicit
+    # rm cleans up what shouldn't survive. Semantically equivalent to
+    # the original include+exclude intent, but actually works with
+    # restic 0.18.1.
+    restic_remote "restore ${SNAPSHOT_ID} --target /host --include /opt --tag opt-configs"
 
-    restic_remote "restore ${SNAPSHOT_ID} --target /host --include /opt${excludes} --tag opt-configs"
+    # Post-restore cleanup: rm paths the original FABRIK_OPT_RESTORE_EXCLUDES
+    # was trying to prevent from restoring. Each maps to a glob below.
+    # Failures non-fatal — `rm -f` and `rm -rf` already tolerate missing
+    # paths; this just makes sure none of them survive into the new hub.
+    remote 'sudo bash -c "
+        rm -rf /opt/containerd
+        rm -rf /opt/fabrik/.git
+        rm -f  /opt/backups/coolify_env_*.env
+        rm -rf /opt/*restic-cache*
+        rm -f  /opt/manually_installed.txt
+    "' || warn "step_11: post-restore cleanup of exclude paths returned non-zero (non-fatal)"
 
     # Sanity: at least the critical dirs landed.
     if ! $DRY_RUN; then
