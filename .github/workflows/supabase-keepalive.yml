@@ -1,7 +1,7 @@
 name: Supabase keep-alive
 
 # Supabase free-tier projects auto-pause after ~7 days with no API activity.
-# This pings the project's REST endpoint twice a week (Mon + Thu) — comfortably
+# This pings the project's auth health endpoint twice a week (Mon + Thu) — comfortably
 # under the pause window — so the `fabrik` project stays warm without manual
 # un-pausing. A real authenticated request resets the inactivity timer.
 #
@@ -31,12 +31,16 @@ jobs:
             echo "::error::SUPABASE_FABRIK_ANON_KEY secret not set — add it in repo settings (see workflow header)."
             exit 1
           fi
+          # Ping GoTrue's health endpoint WITH the anon apikey. This is
+          # anon-accessible and returns a clean 200 (proven 2026-06-14), so it's
+          # an honest activity signal. NOTE: do NOT ping `/rest/v1/` — its root
+          # (OpenAPI spec) is service_role-only and 401s for anon keys on EVERY
+          # Supabase project, which would mask real failures behind a fake 4xx-OK.
           code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 \
-            -H "apikey: $KEY" "https://${REF}.supabase.co/rest/v1/")
-          echo "fabrik REST endpoint returned HTTP $code"
-          # 200 (OpenAPI spec) is the healthy response; any 2xx/4xx still reached
-          # the project (resets the timer). 000/5xx = unreachable or paused.
+            -H "apikey: $KEY" "https://${REF}.supabase.co/auth/v1/health")
+          echo "fabrik /auth/v1/health returned HTTP $code"
           case "$code" in
-            2??|4??) echo "keep-alive ping OK"; exit 0 ;;
+            200) echo "keep-alive ping OK"; exit 0 ;;
+            401|403) echo "::error::auth failed (HTTP $code) — anon key wrong/disabled"; exit 1 ;;
             *) echo "::error::fabrik unreachable (HTTP $code) — project may be paused or down"; exit 1 ;;
           esac
