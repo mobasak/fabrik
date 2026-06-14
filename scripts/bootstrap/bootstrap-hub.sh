@@ -239,7 +239,19 @@ restic_remote() {
         dim "    [dry-run] restic_remote: ${cmd}"
         return 0
     fi
-    remote "set -a; source /opt/fabrik/.env; set +a; \
+    # Read /opt/fabrik/.env via `sudo cat` then source from a process
+    # substitution. Bug #3 (Hub DR Drill #3 finding, 2026-06-14): the
+    # original `source /opt/fabrik/.env` ran as the EFFECTIVE_REMOTE
+    # user (ozgur after step_00), but step_04 installs the file mode
+    # 600 root:root (correct security posture — secrets MUST NOT be
+    # readable by non-root). Source as ozgur failed with "Permission
+    # denied", leaving B2_KEY_ID / B2_APPLICATION_KEY /
+    # BACKREST_RESTIC_PASSWORD empty in the subprocess env. The fix
+    # keeps the .env at 600 root:root + reads via sudo. Process
+    # substitution survives the ssh+bash quote layers cleanly; the
+    # alternative (`sudo bash -c '...'`) would need triple-escaping
+    # every $var inside.
+    remote "set -a; source <(sudo cat /opt/fabrik/.env); set +a; \
         sudo docker run --rm \
             -e AWS_ACCESS_KEY_ID=\"\$B2_KEY_ID\" \
             -e AWS_SECRET_ACCESS_KEY=\"\$B2_APPLICATION_KEY\" \
@@ -601,21 +613,33 @@ EOF
 
 step_06_restic_pull_host_state() {
     log "step_06: restic restore host-level state from B2 ($(elapsed))"
-    # Build the --include list from FABRIK_HOST_STATE_INCLUDES + --exclude list.
-    # Both lists live in bootstrap-config.sh so they stay in lockstep with the
-    # `host-state` Backrest plan from Step 5.
+    # Build the --include list from FABRIK_HOST_STATE_INCLUDES.
+    #
+    # Bug #4 (Hub DR Drill #3 finding, 2026-06-14): restic 0.18.1 errors
+    # immediately with "Fatal: exclude and include patterns are mutually
+    # exclusive" when --include and --exclude are passed together on
+    # `restic restore`. The original code built both lists and passed
+    # them in the same command, which never worked on 0.18.1. (Some
+    # older restic versions allowed it; we don't pin to one of those.)
+    #
+    # Manual analysis 2026-06-14 confirmed no FABRIK_HOST_STATE_EXCLUDES
+    # entry overlaps with any FABRIK_HOST_STATE_INCLUDES entry — the
+    # INCLUDES list is a specific whitelist of files/dirs (no broad
+    # `/etc` parent that could pull in `/etc/netplan/` or `/etc/hosts`).
+    # So the EXCLUDES were effectively a no-op even on a restic version
+    # that accepted them. We drop --exclude here; the EXCLUDES array
+    # stays in bootstrap-config.sh as a SAFETY DOCUMENT — if INCLUDES
+    # ever grows to a broader parent, revisit this step and either
+    # (a) add a second `restic restore` call with --exclude only, OR
+    # (b) restore-then-rm the excluded subpaths post-restore.
     local includes=""
     for p in "${FABRIK_HOST_STATE_INCLUDES[@]}"; do
         includes+=" --include ${p}"
     done
-    local excludes=""
-    for p in "${FABRIK_HOST_STATE_EXCLUDES[@]}"; do
-        excludes+=" --exclude ${p}"
-    done
 
     # `--target /host` so restored files land on the host filesystem (mount at /).
     # `--path /` from the latest snapshot's host-state tree.
-    restic_remote "restore ${SNAPSHOT_ID} --target /host${includes}${excludes} --tag host-state"
+    restic_remote "restore ${SNAPSHOT_ID} --target /host${includes} --tag host-state"
 
     # Reload systemd so newly-restored unit files are picked up before later
     # steps try to enable them.
