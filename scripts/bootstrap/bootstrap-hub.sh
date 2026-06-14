@@ -239,26 +239,38 @@ restic_remote() {
         dim "    [dry-run] restic_remote: ${cmd}"
         return 0
     fi
-    # Read /opt/fabrik/.env via `sudo cat` then source from a process
-    # substitution. Bug #3 (Hub DR Drill #3 finding, 2026-06-14): the
-    # original `source /opt/fabrik/.env` ran as the EFFECTIVE_REMOTE
-    # user (ozgur after step_00), but step_04 installs the file mode
-    # 600 root:root (correct security posture — secrets MUST NOT be
-    # readable by non-root). Source as ozgur failed with "Permission
-    # denied", leaving B2_KEY_ID / B2_APPLICATION_KEY /
-    # BACKREST_RESTIC_PASSWORD empty in the subprocess env. The fix
-    # keeps the .env at 600 root:root + reads via sudo. Process
-    # substitution survives the ssh+bash quote layers cleanly; the
-    # alternative (`sudo bash -c '...'`) would need triple-escaping
-    # every $var inside.
-    remote "set -a; source <(sudo cat /opt/fabrik/.env); set +a; \
-        sudo docker run --rm \
-            -e AWS_ACCESS_KEY_ID=\"\$B2_KEY_ID\" \
-            -e AWS_SECRET_ACCESS_KEY=\"\$B2_APPLICATION_KEY\" \
-            -e RESTIC_PASSWORD=\"\$BACKREST_RESTIC_PASSWORD\" \
+    # Read the 3 specific values we need from /opt/fabrik/.env via grep+cut
+    # inside a sudo bash -c subshell. The .env file:
+    #   - is 600 root:root (correct security; secrets MUST NOT be readable
+    #     by non-root) — Bug #3 fix: don't try to source as ozgur.
+    #   - contains MANY non-restic vars, some with shell-incompatible
+    #     values (e.g. `GMAIL_QUERY=is:unread newer_than:2d
+    #     subject:("Login" OR ...)`) — Bug #5 (Hub DR Drill #4 finding,
+    #     2026-06-14): we CANNOT `source` the file because bash parses
+    #     unquoted parens etc. as syntax errors. Cascades to Bug #6:
+    #     restic 0.18.1 refuses to run with an empty RESTIC_PASSWORD.
+    #
+    # Fix (drill #5): extract only the 3 specific values we need with
+    # grep+cut, never touching the bash parser on the file. The
+    # remainder of the .env stays untouched. The sudo bash -c subshell
+    # runs everything as root (so grep + docker run both have the right
+    # perms in one wrapper).
+    remote "sudo bash -c '
+        B2_KEY=\$(grep \"^B2_KEY_ID=\" /opt/fabrik/.env | cut -d= -f2-)
+        B2_SECRET=\$(grep \"^B2_APPLICATION_KEY=\" /opt/fabrik/.env | cut -d= -f2-)
+        B2_PW=\$(grep \"^BACKREST_RESTIC_PASSWORD=\" /opt/fabrik/.env | cut -d= -f2-)
+        if [[ -z \"\$B2_KEY\" || -z \"\$B2_SECRET\" || -z \"\$B2_PW\" ]]; then
+            echo \"step_06/11/12: one of B2_KEY_ID / B2_APPLICATION_KEY / BACKREST_RESTIC_PASSWORD missing from /opt/fabrik/.env\" >&2
+            exit 1
+        fi
+        docker run --rm \
+            -e AWS_ACCESS_KEY_ID=\"\$B2_KEY\" \
+            -e AWS_SECRET_ACCESS_KEY=\"\$B2_SECRET\" \
+            -e RESTIC_PASSWORD=\"\$B2_PW\" \
             -e RESTIC_REPOSITORY=\"${FABRIK_RESTIC_REPO_URI}\" \
             -v /:/host \
-            restic/restic:0.18.1 ${cmd}"
+            restic/restic:0.18.1 ${cmd}
+    '"
 }
 
 # ---------------------------------------------------------------------------
