@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Hub DR Drill #3 (live, 2026-06-14): G5-for-hub fix validated + 2 NEW step_06 bugs surfaced
+
+Drill #3 against the [G5-for-hub commit](https://github.com/mobasak/fabrik/commit/90b4702) — **the fix works**. Total wall-clock 216.6s (3m37s), ~$0.119 cost, mesh untouched (vps2+vps3 only, both before and after), zero orphans.
+
+**G5-for-hub fix VALIDATED** ([`90b4702`](https://github.com/mobasak/fabrik/commit/90b4702)). Before this commit, drill #2 died at step_02 in 156.9s with `apt: held broken packages`. Drill #3 sailed past step_02 in 72s (apt install: `wireguard ufw fail2ban python3 python3-pip inotify-tools jq curl ca-certificates gnupg` — no `iptables-persistent`, no conflict). step_03 (Claude Code) + step_04 (scp env mirror) + step_05 (docker daemon.json) all passed clean.
+
+**Drill #3 died at step_06** (restic restore host-level state from B2 — the FIRST restic op on the target droplet, not the operator). Two new DR-blockers found:
+
+- **Bug #3**: `restic_remote()` runs `source /opt/fabrik/.env` WITHOUT sudo as the `ozgur` user. The .env was scp'd + installed mode 600 root:root in step_04 — source fails with `bash: line 1: /opt/fabrik/.env: Permission denied`. B2 credentials end up empty in the subprocess env. The bug is silent until the next restic command fails (here, masked by bug #4).
+- **Bug #4**: step_06 builds a restic CLI string passing BOTH `--include` and `--exclude` patterns. Restic 0.18.1 errors immediately: `Fatal: exclude and include patterns are mutually exclusive`. This is a CLI parse error that fires before auth — so it would have failed even with valid B2 creds.
+
+Both are well-understood + small fixes. Bug #3: `chmod 640 root:ozgur` on /opt/fabrik/.env OR wrap source in `sudo -E bash -c`. Bug #4: split the restore into two calls (one with includes, one with excludes — they're separate use cases), or restrict to one filter type.
+
+**Three drills so far this session, total $0.36 spend** (2 DR-blockers fixed in the script + 2 more surfaced + 3 safety flags shipped + ~6 commits). vps1/vps2/vps3 mesh state: unchanged across all 3 drills. dr-drill-history.jsonl entry #9 added (gitignored).
+
 ### Fixed — Hub DR Drill (live, 2026-06-14): 2 real DR-blocking bugs surfaced + 1 fixed
 
 First live Hub DR drill. Two runs against fresh Vultr droplets, total ~7 min wall-clock, **$0.119 cost**, vps1/2/3 untouched (3 safety flags verified). Surfaced TWO real DR-blocking bugs in `bootstrap-hub.sh`. One fixed in this commit; the second requires a design call (see "Open finding" below). Full report appended to [`logs/dr-drill-history.jsonl`](logs/dr-drill-history.jsonl) entry #8.
