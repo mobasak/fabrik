@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Hub DR Drill (live, 2026-06-14): 2 real DR-blocking bugs surfaced + 1 fixed
+
+First live Hub DR drill. Two runs against fresh Vultr droplets, total ~7 min wall-clock, **$0.119 cost**, vps1/2/3 untouched (3 safety flags verified). Surfaced TWO real DR-blocking bugs in `bootstrap-hub.sh`. One fixed in this commit; the second requires a design call (see "Open finding" below). Full report appended to [`logs/dr-drill-history.jsonl`](logs/dr-drill-history.jsonl) entry #8.
+
+**Drill safety machinery shipped** ([`80736f5`](https://github.com/mobasak/fabrik/commit/80736f5)):
+
+- `--skip-mesh` flag on `bootstrap-hub.sh` skips step_08 `wg-quick@wg0` bring-up. Without it, the drill droplet (which restored vps1's real wg keypair) would handshake with vps2/vps3 and update their peer endpoint to the drill droplet's public IP — breaking the live mesh.
+- `--skip-services` flag (pre-existing) stops after step_12 — skips step_13 compose-up (backrest container would write to B2 with vps1's restic identity), step_15 (vps-sysadmin-bot enable would Telegram from drill).
+- `vultr_drill.py::_validate_hub` now passes BOTH flags mandatorily with a docstring + regression test locking the argv contract.
+
+**Bug #1 caught in Drill #1, FIXED** ([`d1be672`](https://github.com/mobasak/fabrik/commit/d1be672)) — preflight check #6 ran `docker run restic snapshots` from the OPERATOR's machine to verify B2. But the actual restic restore runs on the TARGET (via `restic_remote()`). So the check tests if the operator can reach B2, not if the target can. On networks where B2's regional S3 endpoint is unreachable from the operator (e.g. WSL on a Turkish ISP — `SSL_ERROR_SYSCALL` on TLS Client Hello to `s3.us-west-004.backblazeb2.com`; Vultr LAX has no such block), the preflight would burn 10× exponential-backoff retries (~10 min) before the script gave up. Added `--skip-local-b2-check` flag + helpful error message that points operators at it.
+
+**Bug #2 caught in Drill #2, NOT YET FIXED** — `bootstrap-hub.sh` step_02 `apt-get install` includes BOTH `iptables-persistent` AND `ufw` in the same command. On Ubuntu 24.04 noble, `iptables-persistent` declares `Conflicts: ufw`, so apt refuses to install both and exits 100 with `E: Unable to correct problems, you have held broken packages.`. **Hub bootstrap is broken on fresh Ubuntu 24.04.** Same G5 root cause we fixed for spokes ([`c158ee2`](https://github.com/mobasak/fabrik/commit/c158ee2)), but different manifestation: the hub's apt install bundles them together upfront (refuses), whereas the old spoke install added them sequentially (silently removed ufw). The G5 fix for spokes was to drop `iptables-persistent` entirely and persist the DOCKER-USER chain via `iptables-docker-user.service` (oneshot unit). The hub already has that unit (custom systemd unit, installed via host-state restore from B2). Step_09 currently enables BOTH `netfilter-persistent` (from the package) AND `iptables-docker-user.service` (the custom unit) — the fix decouples them and lets the custom unit be authoritative. **Mirrors the G5/G5b decisions** made for spokes earlier this month.
+
+**Open finding** (handed back to the operator for path-decision):
+
+The G5-for-hub fix is the same shape as `c158ee2` (G5 for `bootstrap-vps.sh`) and `658a68f` (G5b for `bootstrap-spoke-restore.sh`) — but lands on bootstrap-hub.sh which is the production DR script for the live vps1 hub. Decision needed: implement now in this session vs. design-review with the peer AI first vs. defer to next session. The fix itself is mechanical (drop the package install, make the unit enable optional, hub already has the unit installed live). Marked as the only blocker against being able to claim "Hub DR works end-to-end."
+
+**Three drill safety flags validated live** (`--skip-mesh`, `--skip-services`, `--skip-local-b2-check`): mesh state before drill = vps1+vps2+vps3 active peers; after drill = vps1+vps2+vps3 active peers. No live-state mutation. Zero orphans (both droplets destroyed via `finally`).
+
 ### Changed — Plan files: archive both shipped plans, active plans dir is now empty (2026-06-14)
 
 Both remaining active plans archived after live validation. Status headers updated with shipped commits + live-validation evidence before moving.
