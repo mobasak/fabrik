@@ -53,8 +53,11 @@
 # What this script DOES (numbered to match the step_NN_ functions below):
 #   00. Create sudoer 'ozgur' on the new VPS; install operator's pubkey.
 #   01. Harden SSH (disable root login, disable password auth) AFTER 00 verified.
-#   02. Install OS packages: Docker, WG, iptables-persistent, UFW, fail2ban,
-#       python3, inotify-tools, gh, jq, curl.
+#   02. Install OS packages: Docker, WG, UFW, fail2ban, python3,
+#       inotify-tools, gh, jq, curl. (G5-for-hub 2026-06-14: NO
+#       iptables-persistent — `Conflicts: ufw` on Ubuntu 24.04 makes apt
+#       refuse the install. DOCKER-USER persistence moves to the custom
+#       iptables-docker-user.service in step 09.)
 #   03. npm install -g @anthropic-ai/claude-code (for vps-sysadmin-bot).
 #   04. Pull the W9 DR-store env mirror; place /opt/fabrik/.env + .env.sysadmin.
 #   05. Write /etc/docker/daemon.json BEFORE starting any container (log rotation +
@@ -65,7 +68,10 @@
 #   07. Apply UFW rules (rules already restored in step 06, just enable + reload).
 #   08. systemctl enable --now wg-quick@wg0 (mesh comes back up to spokes).
 #   09. systemctl enable --now iptables-docker-user iptables-openvpn
-#       netfilter-persistent (DOCKER-USER chain + OpenVPN forwards).
+#       (DOCKER-USER chain + OpenVPN forwards). Also tries
+#       netfilter-persistent IF the unit exists (legacy pre-G5 hubs);
+#       post-G5 fresh installs don't have it and the custom units alone
+#       are authoritative.
 #   10. docker network create fabrik (idempotent).
 #   11. restic restore /opt/ (everything except /opt/containerd, /opt/fabrik/.git,
 #       /opt/backups/coolify_env_*, restic-cache subdirs).
@@ -471,15 +477,27 @@ step_02_install_packages() {
     # Docker via official one-liner (matches bootstrap-vps.sh step_03 + vps1's history).
     remote 'command -v docker >/dev/null || (curl -fsSL https://get.docker.com | sudo sh)'
 
-    # System packages. iptables-persistent's debconf prompts must be pre-answered
-    # for noninteractive install.
+    # System packages. NOTE (G5-for-hub, 2026-06-14): do NOT install
+    # `iptables-persistent` here. On Ubuntu 24.04 noble it declares
+    # `Conflicts: ufw`, and apt refuses to install both in the same
+    # command — exits 100 with "E: Unable to correct problems, you have
+    # held broken packages." (Verified live in Hub DR Drill #2: drill
+    # surfaced this DR-blocker as the first measured live failure of
+    # bootstrap-hub.sh on a fresh Ubuntu 24.04 droplet.)
+    #
+    # DOCKER-USER chain persistence is provided by
+    # `iptables-docker-user.service` (custom oneshot unit, identical
+    # shape to the spoke unit shipped in G5 / `c158ee2`). OpenVPN
+    # forward-rule persistence is provided by `iptables-openvpn.service`.
+    # Both units are restored from the host-state Backrest snapshot in
+    # step_06. step_09 enables them and treats `netfilter-persistent`
+    # (from this dropped package) as optional — present on pre-G5 hubs,
+    # absent on post-G5 fresh installs, either way the custom units do
+    # the work.
     remote 'sudo bash -c "
-        echo iptables-persistent iptables-persistent/autosave_v4 boolean true | debconf-set-selections
-        echo iptables-persistent iptables-persistent/autosave_v6 boolean true | debconf-set-selections
         DEBIAN_FRONTEND=noninteractive apt-get update -qq
         DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
             wireguard wireguard-tools \
-            iptables-persistent \
             ufw fail2ban \
             python3 python3-pip \
             inotify-tools \
@@ -672,12 +690,22 @@ step_08_bring_up_mesh() {
 }
 
 step_09_apply_iptables_boot_state() {
-    log "step_09: enable iptables boot units (netfilter-persistent + docker-user + openvpn) ($(elapsed))"
+    log "step_09: enable iptables boot units (netfilter-persistent? + docker-user + openvpn) ($(elapsed))"
     # Order matters:
-    #  1. netfilter-persistent first — loads /etc/iptables/rules.v4 + v6
+    #  1. (optional) netfilter-persistent — loads /etc/iptables/rules.v4 + v6.
+    #     Only present on pre-G5 hubs that still had `iptables-persistent`
+    #     installed. Post-G5 fresh installs (step_02 no longer apt-installs
+    #     the package because it `Conflicts: ufw` on Ubuntu 24.04 — see G5-
+    #     for-hub note in step_02) won't have this unit, and the custom
+    #     units below provide the actual DOCKER-USER + OpenVPN persistence.
     #  2. iptables-docker-user — applies DOCKER-USER chain rules (depends on wg0 from step_08)
     #  3. iptables-openvpn — applies OpenVPN forward rules (depends on wg0 + docker bridge)
-    remote 'sudo systemctl enable --now netfilter-persistent'
+    if remote 'systemctl list-unit-files netfilter-persistent.service 2>/dev/null | grep -q "^netfilter-persistent\.service"'; then
+        remote 'sudo systemctl enable --now netfilter-persistent'
+        ok "  netfilter-persistent enabled (legacy iptables-persistent path)"
+    else
+        log "  netfilter-persistent absent (post-G5 install) — skipped; DOCKER-USER + OpenVPN handled by custom units below"
+    fi
     remote 'sudo systemctl enable --now iptables-docker-user iptables-openvpn'
 
     # Sanity: DOCKER-USER chain has rules.
