@@ -4,6 +4,35 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Hub DR Drill #4 + #5 (2026-06-14): step_06 env-extraction works; surfaced configuration gap (no host-state Backrest snapshot in B2)
+
+**Two more drills shipped after #3** — all bugs identified in #3 verified fixed, plus 2 more code bugs found+fixed, plus 1 **CONFIGURATION GAP** that requires operator action.
+
+**Drill #4** ($0.119, 249s, mesh untouched) — against [`30d93d7`](https://github.com/mobasak/fabrik/commit/30d93d7) (step_06 fixes) + [`8a5f30b`](https://github.com/mobasak/fabrik/commit/8a5f30b) (step_11 fix). Verified bug #3 (permission denied) and bug #4 (--include + --exclude) FIXED. But surfaced TWO new step_06 issues:
+
+- **Bug #5**: `source <(sudo cat /opt/fabrik/.env)` read the file fine, BUT bash couldn't parse all values. e.g. `GMAIL_QUERY=is:unread newer_than:2d subject:("Login" OR ...)` — the unquoted parens triggered `syntax error near unexpected token '('`. Source halted, later env vars never exported (incl. `BACKREST_RESTIC_PASSWORD`).
+- **Bug #6**: Cascade from #5 — restic 0.18.1 errored `Fatal: an empty password is not allowed by default. Pass the flag --insecure-no-password to restic to disable this check.`
+
+Fixed in [`3e8d4ea`](https://github.com/mobasak/fabrik/commit/3e8d4ea): replaced source-the-whole-file with grep+cut extraction of ONLY the 3 specific env vars restic needs (B2_KEY_ID, B2_APPLICATION_KEY, BACKREST_RESTIC_PASSWORD). Added empty-value guard.
+
+**Drill #5** ($0.119, 233s, mesh untouched) — against `3e8d4ea`. Bugs #5 + #6 FIXED. Restic auth worked, B2 reachable, query succeeded. But hit:
+
+- **Bug #7 — CONFIGURATION gap, not a code bug**: `Fatal: failed to find snapshot: snapshot filter (Tags:[[host-state]]): no snapshot found`. **bootstrap-hub.sh expects a Backrest plan on vps1 that pushes snapshots tagged `host-state` to B2 — and there isn't one.** Spokes have host-state plans (G5b shipped those); the hub does not. The plan is documented in `bootstrap-config.sh:151` as "Step 5 of [the DR-in-hours track]" — designed but apparently not shipped on vps1.
+
+**OPERATOR ACTION NEEDED for Bug #7**: configure a `host-state` Backrest plan on vps1 that backs up `FABRIK_HOST_STATE_INCLUDES` paths to B2 with tag `host-state`. Until that plan exists + has run at least once, Hub DR cannot complete the restore. Drill #5 confirms everything else (provision, bootstrap up through step_05, restic auth, B2 connectivity, env extraction) works — the missing piece is operational, not in code.
+
+### Session summary — 5 drills, $0.36 total, vps1/vps2/vps3 mesh untouched
+
+| Drill | wall (s) | $ | Outcome |
+|---|---|---|---|
+| #1 | 270 | 0 | found `--skip-local-b2-check` need → fixed `d1be672` |
+| #2 | 156.9 | 0.119 | found G5-for-hub bug → fixed `90b4702` |
+| #3 | 216.6 | 0.119 | G5-for-hub validated; found bugs #3 + #4 → fixed `30d93d7` + `8a5f30b` |
+| #4 | 249.2 | 0.119 | bugs #3 + #4 validated; found bugs #5 + #6 → fixed `3e8d4ea` |
+| #5 | 233.1 | 0.119 | bugs #5 + #6 validated; **found bug #7 (config gap on vps1)** |
+
+**Net**: 6 code bugs fixed in bootstrap-hub.sh (+ 3 drill-safety flags shipped + 1 driver test contract locked). 1 DR-blocker on vps1 surfaced (no host-state backup plan) requiring operator action. The DR-in-hours claim now has a clear gating item rather than being paper-only.
+
 ### Fixed — Hub DR Drill #3 (live, 2026-06-14): G5-for-hub fix validated + 2 NEW step_06 bugs surfaced
 
 Drill #3 against the [G5-for-hub commit](https://github.com/mobasak/fabrik/commit/90b4702) — **the fix works**. Total wall-clock 216.6s (3m37s), ~$0.119 cost, mesh untouched (vps2+vps3 only, both before and after), zero orphans.
