@@ -271,8 +271,28 @@ def _validate_hub(ip: str, name: str) -> dict[str, Any]:
     script = str(BOOTSTRAP_DIR / "bootstrap-hub.sh")
     boot_log = FABRIK_ROOT / "logs" / f"drill-{name}.bootstrap.log"
     checks: dict[str, Any] = {"ssh_ready": _wait_ssh(ip)}
+    # Three drill-safety flags, all MANDATORY here (see docstring):
+    #
+    # --skip-mesh: skips step_08 (live-mesh-break risk; see above).
+    # --skip-services: stops after step_12 (live-state-write risks).
+    # --skip-local-b2-check: skips preflight check #6's local restic
+    #     query against B2. The check predicts whether the OPERATOR can
+    #     reach B2, but the actual restore runs on the TARGET (see
+    #     bootstrap-hub.sh::restic_remote). A drill from a network where
+    #     B2's regional S3 endpoint is unreachable (e.g. WSL on a Turkish
+    #     ISP — SSL_ERROR_SYSCALL on Client Hello to
+    #     s3.us-west-004.backblazeb2.com) would otherwise burn 10×
+    #     exponential-backoff retries (~10 min) before the script gives
+    #     up — even though the target droplet's Vultr datacenter IP has
+    #     no such block. Hub DR Drill #1 surfaced this 2026-06-14.
     boot_rc = _run_script(
-        [script, "--skip-mesh", "--skip-services", f"root@{ip}"],
+        [
+            script,
+            "--skip-mesh",
+            "--skip-services",
+            "--skip-local-b2-check",
+            f"root@{ip}",
+        ],
         _HUB_BOOTSTRAP_TIMEOUT,
         boot_log,
     )

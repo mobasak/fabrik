@@ -129,6 +129,10 @@ def test_validate_hub_passes_safety_flags(monkeypatch):
     argv = captured["argv"]
     assert "--skip-mesh" in argv, "MUST pass --skip-mesh to bootstrap-hub.sh"
     assert "--skip-services" in argv, "MUST pass --skip-services to bootstrap-hub.sh"
+    # Hub DR Drill #1 finding (2026-06-14): preflight check #6 is over-conservative
+    # (tests B2 from operator, not target). Drill MUST skip it so a drill from a
+    # B2-unreachable network doesn't burn ~10 min on retries.
+    assert "--skip-local-b2-check" in argv, "MUST pass --skip-local-b2-check"
     # And the target must be root@<ip> as the last positional.
     assert argv[-1] == "root@9.9.9.9"
 

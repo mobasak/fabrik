@@ -110,6 +110,24 @@ SKIP_MESH=false                # NEW 2026-06-14 — for `fabrik vultr drill hub`
                                # private key) does NOT initiate handshakes
                                # to vps2/vps3 — that would update the live
                                # spokes' peer endpoint and break the mesh.
+SKIP_LOCAL_B2_CHECK=false      # NEW 2026-06-14 — surfaced by Hub DR Drill #1:
+                               # preflight check #6 runs `docker run restic
+                               # snapshots` from the OPERATOR's machine to
+                               # verify B2 access. But the actual restore
+                               # runs on the TARGET (restic_remote() at
+                               # line 211), which has a Vultr datacenter
+                               # egress IP. So if the operator is on a
+                               # network that can't reach the B2 regional
+                               # S3 endpoint (geo-block, ISP-level TLS RST,
+                               # etc. — verified: WSL on a Turkish ISP gets
+                               # SSL_ERROR_SYSCALL on Client Hello to
+                               # s3.us-west-004.backblazeb2.com, while
+                               # vps2/3 + a fresh Vultr droplet have no
+                               # problem), the preflight fails on a check
+                               # that isn't actually predictive of restore
+                               # success. This flag skips JUST check #6;
+                               # all other preflight (env, SSH, freshness)
+                               # still runs.
 SNAPSHOT_ID="latest"
 ENV_FROM="/opt/fabrik-dr-store/env/latest"
 SYSADMIN_ENV_FROM="/opt/fabrik-dr-store/env/sysadmin-latest"
@@ -135,6 +153,7 @@ while [[ $# -gt 0 ]]; do
         --verify) VERIFY_ONLY=true; shift ;;
         --skip-services) SKIP_SERVICES=true; shift ;;
         --skip-mesh) SKIP_MESH=true; shift ;;
+        --skip-local-b2-check) SKIP_LOCAL_B2_CHECK=true; shift ;;
         --snapshot) SNAPSHOT_ID="$2"; shift 2 ;;
         --env-from) ENV_FROM="$2"; shift 2 ;;
         --sysadmin-env-from) SYSADMIN_ENV_FROM="$2"; shift 2 ;;
@@ -303,7 +322,21 @@ preflight() {
         ok "target VPS is fresh (no existing /opt/fabrik)"
     fi
 
-    # 6. Local: B2 bucket reachable + restic repo accessible (verify creds before SSHing further)
+    # 6. Local: B2 bucket reachable + restic repo accessible (verify creds before SSHing further).
+    # SKIPPED when --skip-local-b2-check is passed (Hub DR Drill #1 finding,
+    # 2026-06-14): the actual restic restore runs on the TARGET (see
+    # restic_remote()), so the only thing this check predicts is whether
+    # the OPERATOR's machine can reach B2 — not whether the target can.
+    # On networks where B2's regional S3 endpoint is unreachable (e.g.
+    # WSL on a Turkish ISP — SSL_ERROR_SYSCALL during TLS Client Hello to
+    # s3.us-west-004.backblazeb2.com), this check fails 10× before giving
+    # up, while a `fabrik vultr drill hub` from the same operator would
+    # have succeeded because the target droplet's Vultr datacenter IP
+    # has no such block.
+    if $SKIP_LOCAL_B2_CHECK; then
+        warn "preflight check #6 SKIPPED (--skip-local-b2-check) — caller asserts target can reach B2"
+        return 0
+    fi
     local snapshots
     snapshots=$(docker run --rm \
         -e AWS_ACCESS_KEY_ID="$b2_key" \
@@ -313,6 +346,10 @@ preflight() {
         restic/restic:0.18.1 snapshots --json 2>&1) || {
         err "restic could not list snapshots in $FABRIK_RESTIC_REPO_URI"
         err "  output: $snapshots"
+        err ""
+        err "  If your network can't reach the B2 regional S3 endpoint but"
+        err "  you have other evidence the target droplet can, re-run with"
+        err "  --skip-local-b2-check. The actual restore runs on the target."
         return 1
     }
     local snapshot_count
@@ -1013,6 +1050,7 @@ main() {
     if $DRY_RUN; then log "  DRY-RUN mode (no changes)"; fi
     if $VERIFY_ONLY; then log "  VERIFY mode (read-only)"; fi
     if $SKIP_SERVICES; then log "  --skip-services: stop after step_12"; fi
+    if $SKIP_MESH; then log "  --skip-mesh: skip step_08 wg-quick@wg0 bring-up"; fi
     echo
 
     preflight || { err "preflight failed; aborting"; exit 1; }
