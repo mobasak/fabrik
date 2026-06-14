@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Plan files: archive both shipped plans, active plans dir is now empty (2026-06-14)
+
+Both remaining active plans archived after live validation. Status headers updated with shipped commits + live-validation evidence before moving.
+
+**Archived:**
+
+- `2026-06-04-three-sysadmin-trio.md` → `archived/` — Phases 1+2+3+4 LIVE on full fleet since 2026-06-06; Phase 5.1.a (operator-reversal cron) LIVE since 2026-06-07. Phase 5 is "iteration discipline (open-ended)" by design — never completes. The 8 Phase 5 deferred items already live in `STRATEGIC_BACKLOG.md` "Later" tier, each gated on a real triggering incident. Header now lists them as a table with the unlock condition per item.
+- `2026-06-13-pr3-spoke-sysadmin-autoprovision.md` → `archived/` — SHIPPED [`0dc92e3`](https://github.com/mobasak/fabrik/commit/0dc92e3); live-validated 2026-06-14 via `fabrik vultr drill spoke --g0-smoke` (bootstrap_rc=0, verify_rc=0, 0 orphans, 528s, ~$0.015). G0 copied-creds zero-touch branch **closed by decision** (not pursued — immediate auth works but the 4-day refresh-token race observation would itself risk rotating live vps1's token, risk ≫ reward with fleet settled at 3).
+
+**Fixed `<TBD>` commit-ref placeholders in `STRATEGIC_BACKLOG.md`:**
+
+- Spoke DR drill: `f8a5359` → `c48f3c0` → `cbbdb99`
+- Gatus configs into git: `8bbd047`
+- Prometheus drift + secret extraction + dual-write: `d0ae9d8`
+
+**State after this commit:** `docs/development/plans/*.md` is empty. All current substantive work is shipped + live-validated. Future work tracked in `STRATEGIC_BACKLOG.md`:
+
+- **Now tier — one item remaining: Hub DR end-to-end measured recovery with B2 restore.** ~3-hour operator-attended exercise.
+- **Later tier:** PG18 upgrade (focus-window gated) + 7 Phase 5 incident-gated items + 1 operator-decision-gated. All correctly waiting for real triggers, not for available cycles.
+
 ### Changed — milestone-gate debt cleared to green + Supabase keep-alive (2026-06-13)
 
 Cleared the remaining milestone-tier (`final_gate.py --json`) failures (now **34 passed / 0 failed**) and added a Supabase keep-alive.

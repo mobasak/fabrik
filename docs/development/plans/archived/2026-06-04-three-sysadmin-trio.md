@@ -1,10 +1,24 @@
 # Plan — Three Veteran Sysadmin Trio: symmetric AI ops across vps1 + vps2 + vps3
 
 **Created:** 2026-06-04
+**Status:** ✅ **All concrete phases SHIPPED.** Phases 1+2+3+4 live across the full fleet since 2026-06-06; Phase 5.1.a (operator-reversal cron via `detect_reversals.py` + `*/5 min` cron) live since 2026-06-07. **Phase 5 is "iteration discipline (open-ended)" by design** — it has no terminal state and never "completes." Its deferred items are tracked in [`docs/STRATEGIC_BACKLOG.md`](../../STRATEGIC_BACKLOG.md) "Later" tier, each gated on a real triggering incident (the whole point: don't speculate). Verified live state 2026-06-13: `vps-sysadmin-bot.service` + `aro-wake.service` ACTIVE on vps1+vps2+vps3, `.env.sysadmin` present on all three, real cross-host consults end-to-end (vps2→vps1, vps3→vps1) returned diagnostic responses.
 **Last iterated:** 2026-06-04 r3 — self-iteration against r2's own additions (10 new internal-consistency gaps surfaced and closed); see § 11 for the iteration ledger
 **Author intent:** AI-managed, auto self-healing infra with one veteran-sysadmin Claude per host, communicating peer-to-peer over the wg0 mesh, triggered by signal not by polling. No single point of AI failure.
-**Parent context:** Direct continuation of [`2026-05-30-ai-watchdog-platform.md`](2026-05-30-ai-watchdog-platform.md) T-P5 Step 6 (per-project sidecar self-heal verified end-to-end on vps1 2026-06-04). This plan generalizes the same calling convention to host-level operations on all three hosts.
+**Parent context:** Direct continuation of [`archived/2026-05-30-ai-watchdog-platform.md`](archived/2026-05-30-ai-watchdog-platform.md) T-P5 Step 6 (per-project sidecar self-heal verified end-to-end on vps1 2026-06-04). This plan generalizes the same calling convention to host-level operations on all three hosts.
 **Scope:** AI ops layer only. Does NOT touch backups (Backrest stays as-is), DR scripts (`bootstrap-hub.sh` / `bootstrap-spoke-restore.sh` stay), tenant code, or operator-driven strategic decisions.
+
+**Plan archived 2026-06-14.** All concrete phases shipped + live-validated. The Phase 5 deferred items live in `STRATEGIC_BACKLOG.md` and unlock incident-by-incident:
+
+| Phase 5 deferred item | Unlocks when |
+| :--- | :--- |
+| `propose`/`ack` peer-protocol verbs | First real cross-host destructive action that `consult` + Telegram-bridge can't handle |
+| Apprise pre-route through aro-wake | First incident proving Alertmanager-only triage missed something |
+| Loki ruler with starting rule set | First incident a log-pattern rule would have caught earlier than container-state probe |
+| Grafana `aro-wake` dashboard | Operator running the same PromQL recipe 3+ times in a week |
+| "Repeated-flag-no-action" detector (complement to `detect_reversals.py`) | Second occurrence of the netdata-flood pattern |
+| Cert expiry auto-renew | First near-expiry surfaced via Gatus that wasn't auto-fixed by Traefik restart |
+| Authelia auth-failure burst escalation | First sustained burst that the existing fail2ban-direct doesn't already catch |
+| Backup-plan-fail auto-retry | After Known Issue 1 hostname fix lands in restic-store (separate concern) |
 
 ---
 

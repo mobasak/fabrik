@@ -1,9 +1,11 @@
 # Plan: PR3 — `fabrik vultr provision` auto-installs the spoke's AI sysadmin
 
 **Created:** 2026-06-13
-**Status:** Planned — approved, not yet implemented
-**Owner:** Claude Code (this agent). Review: the peer AI runs the 5-axis verification before any code merges.
-**Trigger:** Post-bootstrap a new spoke needs 5 manual operator steps before its AI sysadmin is live ([bootstrap-vps.sh:1186-1192](../../../scripts/bootstrap/bootstrap-vps.sh#L1186-L1192)). PR3 collapses that to **1** on infra that is live and proven today.
+**Status:** ✅ **SHIPPED 2026-06-13** (commit [`0dc92e3`](https://github.com/mobasak/fabrik/commit/0dc92e3)) — live-validated 2026-06-14 via `fabrik vultr drill spoke --g0-smoke`: bootstrap_rc=0, verify_rc=0, 0 orphans, 528s wall-clock, ~$0.015 cost. **G0 copied-creds branch closed by decision** (not pursued) — `immediate_auth_ok=True` proved the copy works for first use, but the 4-day refresh-token rotation race can only be observed multi-day AND that observation risks rotating the live vps1 sysadmin's token. Risk ≫ reward with the fleet settled at 3; keep the proven per-spoke `ssh <spoke> 'claude'` device-flow.
+**Owner:** Claude Code (this agent). Review: the peer AI ran the 5-axis verification — all green before merge.
+**Trigger:** Post-bootstrap a new spoke needed 5 manual operator steps before its AI sysadmin was live ([bootstrap-vps.sh:1186-1192](../../../scripts/bootstrap/bootstrap-vps.sh#L1186-L1192)). PR3 collapsed that to **1** (the `ssh <spoke> 'claude'` device-flow).
+
+**Plan archived 2026-06-14 after live validation.** All concrete deliverables shipped + drilled. Any future enhancement (copied-creds zero-touch, satellite refactor) tracked in [`docs/STRATEGIC_BACKLOG.md`](../../../STRATEGIC_BACKLOG.md), not here.
 
 ---
 
