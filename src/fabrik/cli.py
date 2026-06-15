@@ -2976,7 +2976,7 @@ def vultr_cleanup(yes: bool):
 
 
 @vultr.command("drill")
-@click.argument("kind", type=click.Choice(["bare", "spoke", "hub"]))
+@click.argument("kind", type=click.Choice(["bare", "spoke", "hub", "spoke-restore"]))
 @click.option("--region", default="lax", help="Vultr region (default: lax)")
 @click.option("--dry-run", is_flag=True, help="Print the plan; create nothing")
 @click.option("--keep-on-failure", is_flag=True, help="Leave the droplet if the drill fails")

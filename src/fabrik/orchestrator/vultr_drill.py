@@ -48,6 +48,12 @@ DRILL_SPOKE_NAME = "vps4"  # conventionally reserved drill identity (90-bootstra
 _BOOTSTRAP_TIMEOUT = 1200  # 20 min — spoke bootstrap headroom
 _VERIFY_TIMEOUT = 300
 _HUB_BOOTSTRAP_TIMEOUT = 5400  # 90 min
+_SPOKE_RESTORE_BOOTSTRAP_TIMEOUT = 1800  # 30 min — spoke DR restore (smaller than hub)
+# Which live spoke's snapshot the spoke-restore drill restores from. vps2
+# chosen arbitrarily; either works. The drill droplet ends up with vps2's
+# wg identity — --skip-mesh prevents it from handshaking with vps1 (which
+# would steal vps2's peer endpoint and lock out the real vps2).
+SPOKE_RESTORE_DRILL_SPOKE = "vps2"
 
 
 def estimate_cost(monthly_cost: float, seconds: float) -> float:
@@ -85,6 +91,10 @@ def _resolve_plan(client: VultrClient, kind: str, region: str) -> tuple[str, flo
         return SPOKE_DRILL_PLAN, _plan_monthly_cost(client, SPOKE_DRILL_PLAN)
     if kind == "hub":
         return HUB_DRILL_PLAN, _plan_monthly_cost(client, HUB_DRILL_PLAN)
+    if kind == "spoke-restore":
+        # Spoke restore is smaller than hub (no /opt/coolify, fewer volumes)
+        # — the cheap spoke plan handles it fine.
+        return SPOKE_DRILL_PLAN, _plan_monthly_cost(client, SPOKE_DRILL_PLAN)
     raise NotImplementedError(f"unknown drill kind {kind!r}")
 
 
@@ -302,6 +312,57 @@ def _validate_hub(ip: str, name: str) -> dict[str, Any]:
     return checks
 
 
+def _validate_spoke_restore(ip: str, name: str) -> dict[str, Any]:
+    """Run bootstrap-spoke-restore.sh against the latest spoke snapshot.
+
+    Mirror of ``_validate_hub`` for the spoke-DR path. SAME drill safety
+    contract — these flags are MANDATORY here:
+
+    - ``--skip-mesh``: skips step_06 ``wg-quick@wg0`` bring-up. Without
+      this, the drill droplet (which restored vps2's real wg keypair)
+      would handshake with vps1 as vps2 — vps1's peer table for vps2
+      would update to the drill droplet's IP, locking out the real vps2
+      until the drill is destroyed.
+    - ``--skip-services``: skips step_10 (monitoring-agent + traefik
+      compose-up) and step_11 (backrest compose-up). Without it, the
+      drill's backrest container would start writing snapshots to B2 under
+      the ``spokes/vps2`` prefix with vps2's restic identity, corrupting
+      the canonical backup chain.
+    - ``--skip-local-b2-check``: skips preflight #5's operator-side
+      restic-snapshots query. Same rationale as the hub drill — operator
+      network may be flaky to B2 even when the target Vultr DC isn't.
+
+    What the drill DOES validate: steps 00-04 (sudoer, ssh hardening,
+    apt install, scp creds, restic restore of host-state +
+    authorized_keys merge), steps 07-09 (DOCKER-USER chain, docker
+    network, /opt restore). That's the part where bugs hide.
+
+    The drill restores from ``SPOKE_RESTORE_DRILL_SPOKE`` (default vps2)
+    snapshot. Either spoke's snapshot would work; choosing one is enough
+    coverage since the script is symmetric in vps2 vs vps3.
+    """
+    script = str(BOOTSTRAP_DIR / "bootstrap-spoke-restore.sh")
+    boot_log = FABRIK_ROOT / "logs" / f"drill-{name}.bootstrap.log"
+    checks: dict[str, Any] = {"ssh_ready": _wait_ssh(ip)}
+    boot_rc = _run_script(
+        [
+            script,
+            "--skip-mesh",
+            "--skip-services",
+            "--skip-local-b2-check",
+            f"root@{ip}",
+            SPOKE_RESTORE_DRILL_SPOKE,
+        ],
+        _SPOKE_RESTORE_BOOTSTRAP_TIMEOUT,
+        boot_log,
+    )
+    checks["bootstrap_rc"] = boot_rc
+    checks["bootstrap"] = boot_rc == 0
+    checks["success"] = checks["bootstrap"]
+    checks["restored_spoke"] = SPOKE_RESTORE_DRILL_SPOKE
+    return checks
+
+
 def write_report(report: dict[str, Any]) -> None:
     """Append one JSON line to the drill history (best-effort)."""
     try:
@@ -328,13 +389,18 @@ def drill(
     The instance is ALWAYS destroyed unless the drill failed AND ``keep_on_failure``
     is set (then it's left running for the operator to inspect).
     """
-    if kind not in ("bare", "spoke", "hub"):
+    if kind not in ("bare", "spoke", "hub", "spoke-restore"):
         raise NotImplementedError(f"unknown drill kind {kind!r}")
 
     client = client or VultrClient()
     plan, monthly = _resolve_plan(client, kind, region)
     # cost horizon: bare ~ TTL; spoke ~1h; hub ~2h
-    horizon_s = {"bare": DISPOSABLE_TTL_HOURS * 3600, "spoke": 3600, "hub": 2 * 3600}[kind]
+    horizon_s = {
+        "bare": DISPOSABLE_TTL_HOURS * 3600,
+        "spoke": 3600,
+        "hub": 2 * 3600,
+        "spoke-restore": 3600,  # similar wall to spoke fresh install
+    }[kind]
     est = estimate_cost(monthly, horizon_s)
     if max_cost is not None and est > max_cost:
         raise VultrError(f"estimated cost ${est} exceeds --max-cost ${max_cost} (plan {plan})")
@@ -410,6 +476,10 @@ def drill(
             sc = _validate_spoke(ip, name, g0_smoke=g0_smoke)
             report["checks"].update(sc)
             report["success"] = bool(sc.get("success"))
+        elif kind == "spoke-restore":
+            sr = _validate_spoke_restore(ip, name)
+            report["checks"].update(sr)
+            report["success"] = bool(sr.get("success"))
         else:  # hub
             hc = _validate_hub(ip, name)
             report["checks"].update(hc)

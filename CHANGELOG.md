@@ -4,6 +4,31 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Spoke DR end-to-end VALIDATED (2026-06-15): new `fabrik vultr drill spoke-restore`, 4 drills, 3 bugs, first green
+
+**`bootstrap-spoke-restore.sh` was never live-exercised before today.** `fabrik vultr drill spoke` runs `bootstrap-vps.sh` (the FRESH-install path), not the DR path. Spoke DR was a paper contract.
+
+Drill spoke-restore #4 (`dr-drill-spoke-restore-20260615-125146`) finished `success=True bootstrap_rc=0 wall=246.8s` — first end-to-end validation. Restored host-state (22 files / 9.7 KiB: wg keys, iptables, ufw, sudoers, authkeys) + /opt (2435 files / 48.9 MiB) from vps2's snapshots. Steps 06 mesh + 10–11 services + 12 contract correctly skip under drill safety flags. Total spend across the spoke-restore sweep: **$0.060** (4 drills × $0.015). Live mesh untouched.
+
+**3 new bugs in `bootstrap-spoke-restore.sh`:**
+
+| bug | site | fix |
+|---|---|---|
+| 13 | apostrophe in step_00 comment (`hub's plain ozgur`) closed the inner `'...'` of `sudo bash -c '...'` mid-comment, causing remote bash syntax error | reword comment without apostrophe |
+| 14 | my hub-style B2-cred extraction (drilled-in via `bc356a7`) read from `/opt/fabrik/.env` with key `BACKREST_RESTIC_PASSWORD` — wrong shape for spoke, which uses `/opt/backrest/.env` (AWS keys) + `/opt/backrest/.restic-password` (single-line) | rewrite step_04 inline to `set -a; source /opt/backrest/.env; set +a` + `cat /opt/backrest/.restic-password` (clean key=value file, no shell metacharacters — safe to source) |
+| 15 | `restic_remote()` ran `source /opt/backrest/.env` as user `ozgur` (after step_00), but the file is mode 600 root:root → `Permission denied` → empty creds → restic "no credentials found" — same class as Hub DR Drill #3 bug #3 | wrap the whole pipeline in `sudo bash -c '...'` so source + cat run as root |
+
+**3 new safety flags added to bootstrap-spoke-restore.sh:**
+- `--skip-mesh` → skip step_06 wg-quick@wg0 bring-up (would handshake with vps1 as vps2 → vps1's peer table for vps2 redirects to drill IP → locks out live vps2)
+- `--skip-services` → skip step_10 (monitoring + traefik) + step_11 (backrest — would write to `spokes/vps2` prefix on B2 with vps2's restic identity)
+- `--skip-local-b2-check` → skip preflight #5 operator-side restic query (flaky operator network blocks the drill from running even when the target Vultr DC reaches B2 fine)
+
+**New orchestrator hook:** `fabrik.orchestrator.vultr_drill._validate_spoke_restore` mirrors `_validate_hub`. New CLI kind `spoke-restore`. The drill restores from `SPOKE_RESTORE_DRILL_SPOKE` (default `vps2`); symmetric in vps2 vs vps3 so one is enough coverage.
+
+**What spoke-restore drill validates:** steps 00–05 (sudoer, ssh hardening, apt install, scp creds, restic restore of host-state + authkeys merge) + steps 07–09 (DOCKER-USER chain, docker network, /opt restore). The slow + buggy bits.
+
+**What it does NOT validate (skipped intentionally):** step_06 mesh bring-up, step_10 monitoring/traefik compose-up, step_11 backrest compose-up, step_12 contract checks. Same caveat as hub drill: real DR confidence needs a non-drill exercise on isolated hardware.
+
 ### Added — Hub DR end-to-end VALIDATED (2026-06-15): drill #6 sweep, 9 drills, 6 bugs, first green
 
 **Hub DR is now end-to-end validated via live drill.** Drill #6i (`dr-drill-hub-20260615-111639`) finished `success=True bootstrap_rc=0 wall=453.8s` after 8 prior fail-then-fix iterations the same morning. Mesh untouched throughout (vps2 + vps3 handshakes <2 min), zero orphan droplets, total spend **$1.071** for 9 drills.

@@ -88,6 +88,13 @@ SPOKE_NAME=""
 EFFECTIVE_REMOTE=""
 BOOT_START_TS=0
 BOOT_LOG_FILE=""
+# Drill-safety flags (mirror bootstrap-hub.sh). All three are MANDATORY when
+# invoked by `fabrik vultr drill spoke-restore` — without them the drill
+# would break the live mesh + write to B2 with the spoke's identity. See
+# docs/operations/spoke-restore-inventory.md § Drill safety contract.
+SKIP_MESH=false                # skip step_06 wg-quick@wg0 bring-up
+SKIP_SERVICES=false            # skip step_10 (monitoring+traefik) + step_11 (backrest)
+SKIP_LOCAL_B2_CHECK=false      # skip preflight #5 (B2 query from operator)
 
 usage() {
     awk 'NR>1 { if (/^[^#]/) exit; sub(/^# ?/,""); print }' "$0"
@@ -100,6 +107,9 @@ while [[ $# -gt 0 ]]; do
         --verify) VERIFY_ONLY=true; shift ;;
         --snapshot) SNAPSHOT_ID="$2"; shift 2 ;;
         --env-from) ENV_FROM_DIR="$2"; shift 2 ;;
+        --skip-mesh) SKIP_MESH=true; shift ;;
+        --skip-services) SKIP_SERVICES=true; shift ;;
+        --skip-local-b2-check) SKIP_LOCAL_B2_CHECK=true; shift ;;
         --help|-h) usage 0 ;;
         --*) echo "unknown flag: $1" >&2; usage 2 ;;
         *)
@@ -155,14 +165,22 @@ remote_as_initial() {
 restic_remote() {
     local cmd="$*"
     $DRY_RUN && { dim "    [dry-run] restic_remote: ${cmd}"; return 0; }
-    remote "set -a; source /opt/backrest/.env; set +a; \
-        sudo docker run --rm \
+    # Hub DR Drill #3 bug #3 pattern (2026-06-14): /opt/backrest/.env and
+    # /opt/backrest/.restic-password are mode 600 root:root. The remote()
+    # function ssh-es as ozgur after step_00, so `source` and `cat` against
+    # those paths fail with "Permission denied" — silently making the env
+    # vars empty and restic crashes with "no credentials found". Wrap the
+    # whole pipeline in `sudo bash -c` so the source+cat run as root.
+    remote "sudo bash -c '
+        set -a; source /opt/backrest/.env; set +a
+        docker run --rm \
             -e AWS_ACCESS_KEY_ID=\"\$AWS_ACCESS_KEY_ID\" \
             -e AWS_SECRET_ACCESS_KEY=\"\$AWS_SECRET_ACCESS_KEY\" \
             -e RESTIC_PASSWORD=\"\$(cat /opt/backrest/.restic-password)\" \
             -e RESTIC_REPOSITORY=\"${RESTIC_REPO_URI}\" \
             -v /:/host \
-            restic/restic:0.18.1 ${cmd}"
+            restic/restic:0.18.1 ${cmd}
+    '"
 }
 
 elapsed() {
@@ -207,7 +225,10 @@ preflight() {
     fi
     ok "SSH to ${REMOTE} works"
 
-    # 5. B2 reachable + spoke's restic repo exists with the stored password
+    # 5. B2 reachable + spoke's restic repo exists with the stored password.
+    # Identical Hub DR Drill #1 finding (2026-06-14) applies: operator network
+    # to B2 may be flaky (Turkish ISP SSL_ERROR_SYSCALL) even when the target
+    # Vultr DC reaches B2 fine. Skip when caller asserts target reachability.
     local b2_key b2_secret restic_pw
     b2_key=$(grep '^AWS_ACCESS_KEY_ID=' "$SPOKE_BACKREST_ENV_FROM" | cut -d= -f2-)
     b2_secret=$(grep '^AWS_SECRET_ACCESS_KEY=' "$SPOKE_BACKREST_ENV_FROM" | cut -d= -f2-)
@@ -215,6 +236,10 @@ preflight() {
     if [[ -z "$b2_key" || -z "$b2_secret" || -z "$restic_pw" ]]; then
         err "spoke creds incomplete (key/secret/password length: ${#b2_key}/${#b2_secret}/${#restic_pw})"
         return 1
+    fi
+    if $SKIP_LOCAL_B2_CHECK; then
+        warn "preflight check #5 SKIPPED (--skip-local-b2-check) — caller asserts target can reach B2"
+        return 0
     fi
     local snap_count
     snap_count=$(docker run --rm \
@@ -268,7 +293,7 @@ step_00_create_sudo_user() {
         if ! grep -qxF \"${pubkey}\" /home/${user}/.ssh/authorized_keys; then
             echo \"${pubkey}\" >> /home/${user}/.ssh/authorized_keys
         fi
-        # Spokes use the 90- prefix convention (different from hub's plain ozgur).
+        # Spokes use the 90- prefix convention (the hub uses plain ozgur).
         echo \"${user} ALL=(ALL) NOPASSWD:ALL\" > /etc/sudoers.d/90-${user}
         chmod 0440 /etc/sudoers.d/90-${user}
         visudo -cf /etc/sudoers.d/90-${user} >/dev/null
@@ -372,24 +397,29 @@ step_04_restic_pull_host_state() {
     # and /home/ozgur/.ssh/authorized_keys, losing the access key currently in use.
     # Fix: backup pre-restore + inline restic + merge in ONE ssh session.
     # Bug #7: Backrest writes snapshots tagged plan:<id>, not the bare id.
+    # Spoke creds are in /opt/backrest/.env + /opt/backrest/.restic-password
+    # (placed there by step_03 scp from the W9 mirror) — different shape from
+    # the hub which uses /opt/fabrik/.env. set -a; source ...; set +a is safe
+    # here because /opt/backrest/.env is a clean key=value file with no shell
+    # metacharacters in values (unlike /opt/fabrik/.env which has GMAIL_QUERY
+    # with unquoted parens — drill #4 bug #5).
     remote "sudo bash -c '
         set -e
         mkdir -p /tmp/preboot-keys
         cp /home/ozgur/.ssh/authorized_keys /tmp/preboot-keys/ozgur.authkeys 2>/dev/null || true
         cp /root/.ssh/authorized_keys      /tmp/preboot-keys/root.authkeys  2>/dev/null || true
 
-        B2_KEY=\$(grep \"^B2_KEY_ID=\" /opt/fabrik/.env | cut -d= -f2-)
-        B2_SECRET=\$(grep \"^B2_APPLICATION_KEY=\" /opt/fabrik/.env | cut -d= -f2-)
-        B2_PW=\$(grep \"^BACKREST_RESTIC_PASSWORD=\" /opt/fabrik/.env | cut -d= -f2-)
-        if [[ -z \"\$B2_KEY\" || -z \"\$B2_SECRET\" || -z \"\$B2_PW\" ]]; then
-            echo \"step_04: B2_KEY_ID / B2_APPLICATION_KEY / BACKREST_RESTIC_PASSWORD missing from /opt/fabrik/.env\" >&2
+        set -a; source /opt/backrest/.env; set +a
+        RESTIC_PW=\$(cat /opt/backrest/.restic-password)
+        if [[ -z \"\$AWS_ACCESS_KEY_ID\" || -z \"\$AWS_SECRET_ACCESS_KEY\" || -z \"\$RESTIC_PW\" ]]; then
+            echo \"step_04: B2 creds or restic password missing from /opt/backrest/\" >&2
             exit 1
         fi
         docker run --rm \
-            -e AWS_ACCESS_KEY_ID=\"\$B2_KEY\" \
-            -e AWS_SECRET_ACCESS_KEY=\"\$B2_SECRET\" \
-            -e RESTIC_PASSWORD=\"\$B2_PW\" \
-            -e RESTIC_REPOSITORY=\"${FABRIK_RESTIC_REPO_URI}\" \
+            -e AWS_ACCESS_KEY_ID=\"\$AWS_ACCESS_KEY_ID\" \
+            -e AWS_SECRET_ACCESS_KEY=\"\$AWS_SECRET_ACCESS_KEY\" \
+            -e RESTIC_PASSWORD=\"\$RESTIC_PW\" \
+            -e RESTIC_REPOSITORY=\"${RESTIC_REPO_URI}\" \
             -v /:/host \
             restic/restic:0.18.1 restore ${SNAPSHOT_ID} --target /host${includes} --tag plan:host-state
 
@@ -436,6 +466,10 @@ step_05_apply_ufw() {
 }
 
 step_06_bring_up_mesh() {
+    if $SKIP_MESH; then
+        log "step_06: SKIPPED (--skip-mesh — drill would handshake with hub using restored spoke key and break live mesh)"
+        return 0
+    fi
     log "step_06: enable wg-quick@wg0 — mesh reconverges with PRESERVED spoke identity ($(elapsed))"
     remote 'sudo systemctl enable --now wg-quick@wg0'
     if ! $DRY_RUN; then
@@ -551,6 +585,10 @@ step_09_restic_pull_opt() {
 }
 
 step_10_compose_up_services() {
+    if $SKIP_SERVICES; then
+        log "step_10: SKIPPED (--skip-services — drill would start monitoring-agent + traefik bound to live infra)"
+        return 0
+    fi
     log "step_10: docker compose up -d on /opt/monitoring-agent + /opt/traefik ($(elapsed))"
     for svc in monitoring-agent traefik; do
         if remote "test -f /opt/${svc}/compose.yaml"; then
@@ -564,6 +602,10 @@ step_10_compose_up_services() {
 }
 
 step_11_compose_up_backrest() {
+    if $SKIP_SERVICES; then
+        log "step_11: SKIPPED (--skip-services — drill would start backrest writing to B2 under spoke identity)"
+        return 0
+    fi
     log "step_11: docker compose up -d on /opt/backrest (restore spoke's own backup chain) ($(elapsed))"
     if remote 'test -f /opt/backrest/compose.yaml'; then
         remote 'cd /opt/backrest && sudo docker compose up -d'
@@ -582,6 +624,13 @@ step_11_compose_up_backrest() {
 step_12_verify_end_state() {
     log "step_12: verify end-state contract (spoke-restore-inventory.md § G) ($(elapsed))"
     if $DRY_RUN; then ok "step_12 done (dry-run)"; return 0; fi
+    # Bug #12 pattern (Hub DR Drill #6g, 2026-06-15): contract checks need
+    # the mesh + services up. Both are intentionally skipped in drill mode;
+    # short-circuit cleanly instead of reporting fake contract failures.
+    if $SKIP_SERVICES || $SKIP_MESH; then
+        ok "step_12 SKIPPED (--skip-services or --skip-mesh active — contract checks need running services + mesh)"
+        return 0
+    fi
     local fail=0
 
     # 1. WG handshake to hub
