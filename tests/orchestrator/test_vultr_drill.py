@@ -136,6 +136,20 @@ def test_validate_hub_passes_safety_flags(monkeypatch):
     # Bucket C1 (2026-06-15): start core services (postgres + redis only) so
     # the drill verifies restored volumes actually boot.
     assert "--drill-start-core-only" in argv, "MUST pass --drill-start-core-only (C1)"
+    # Items 1/2/3 finish (2026-06-15): exercise step_17 against tojlo.com sandbox
+    # zone with the drill droplet's IP. MUST point at tojlo.com (NOT ocoron.com).
+    assert "--cf-rewrite-dns" in argv, "MUST pass --cf-rewrite-dns to exercise step_17"
+    assert "--cf-zone-name" in argv, "MUST pass --cf-zone-name to override prod zone"
+    assert vultr_drill.CF_DRILL_ZONE_NAME in argv, (
+        f"MUST use sandbox zone {vultr_drill.CF_DRILL_ZONE_NAME}, NOT production ocoron.com"
+    )
+    assert "ocoron.com" not in argv, "MUST NOT touch ocoron.com from drill"
+    # Item 2 finish (2026-06-15): LE-staging cert acquisition test.
+    # Validates step_17's DNS cutover end-to-end via real ACME flow.
+    assert "--drill-test-le-staging" in argv, "MUST pass --drill-test-le-staging"
+    assert vultr_drill.LE_STAGING_TEST_HOSTNAME in argv, (
+        f"MUST use sandbox hostname {vultr_drill.LE_STAGING_TEST_HOSTNAME}"
+    )
     # And the target must be root@<ip> as the last positional.
     assert argv[-1] == "root@9.9.9.9"
 

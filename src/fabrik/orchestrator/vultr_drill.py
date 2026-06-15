@@ -54,6 +54,15 @@ _SPOKE_RESTORE_BOOTSTRAP_TIMEOUT = 1800  # 30 min — spoke DR restore (smaller 
 # wg identity — --skip-mesh prevents it from handshaking with vps1 (which
 # would steal vps2's peer endpoint and lock out the real vps2).
 SPOKE_RESTORE_DRILL_SPOKE = "vps2"
+# Sandbox CF zone for hub-drill step_17 exercise. Records `vps1.tojlo.com`
+# and `*.vps1.tojlo.com` are pre-seeded with vps1's placeholder IP; the drill
+# rewrites them to the drill droplet's IP, proving step_17's logic works
+# end-to-end without touching ocoron.com production records.
+CF_DRILL_ZONE_NAME = "tojlo.com"
+CF_DRILL_ZONE_ID = "d6421553dec1222294328b3c1721b544"
+# Hostname certbot acquires a STAGING cert for. Must be a record that
+# step_17 rewrites — i.e. vps1.${CF_DRILL_ZONE_NAME}.
+LE_STAGING_TEST_HOSTNAME = f"vps1.{CF_DRILL_ZONE_NAME}"
 
 
 def estimate_cost(monthly_cost: float, seconds: float) -> float:
@@ -302,6 +311,12 @@ def _validate_hub(ip: str, name: str) -> dict[str, Any]:
     #     actually boot bootable DB state (pg_isready + redis PING). These
     #     2 services don't write to B2/Telegram/CF — safe under all 3
     #     other safety flags.
+    # --cf-rewrite-dns + --cf-zone-{id,name}: exercise step_17 against the
+    # tojlo.com SANDBOX zone (no production records touched). The records
+    # vps1.tojlo.com + *.vps1.tojlo.com are pre-seeded with vps1's IP; the
+    # drill rewrites them to the drill droplet's IP. Verifies the CF token
+    # has WRITE perms (c-dry/6 only checks READ) and that the record-sweep
+    # logic targets the right names.
     boot_rc = _run_script(
         [
             script,
@@ -309,6 +324,14 @@ def _validate_hub(ip: str, name: str) -> dict[str, Any]:
             "--skip-services",
             "--skip-local-b2-check",
             "--drill-start-core-only",
+            "--cf-rewrite-dns",
+            ip,
+            "--cf-zone-id",
+            CF_DRILL_ZONE_ID,
+            "--cf-zone-name",
+            CF_DRILL_ZONE_NAME,
+            "--drill-test-le-staging",
+            LE_STAGING_TEST_HOSTNAME,
             f"root@{ip}",
         ],
         _HUB_BOOTSTRAP_TIMEOUT,
@@ -317,6 +340,8 @@ def _validate_hub(ip: str, name: str) -> dict[str, Any]:
     checks["bootstrap_rc"] = boot_rc
     checks["bootstrap"] = boot_rc == 0
     checks["success"] = checks["bootstrap"]
+    checks["cf_drill_zone"] = CF_DRILL_ZONE_NAME
+    checks["le_staging_test_host"] = LE_STAGING_TEST_HOSTNAME
     return checks
 
 

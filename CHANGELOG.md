@@ -4,6 +4,38 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Items 1/2/3 fully closed END-TO-END (2026-06-15): CF DNS rewrite + LE-staging cert acquisition validated
+
+Earlier today these items were "partly closed" — WG verified, CF token smoke checked, LE skipped because the site-provisioner CLI proxy was broken. The user pushed back: "the blocker IS the work." Backed up, fixed the blocker, then drove items 2 + 3 to actual end-to-end empirical proof in a real drill.
+
+**Blocker fix: site-provisioner CLI proxy**
+- vps1 site-provisioner was returning 500 to all proxied calls. Root cause: operator's `.env` had `SITE_PROVISIONER_API_KEY=DKIMnKHFgWxfRnnIXG3uuu1D7JVSeQ6T` (a strong 32-char key), but vps1's `/opt/site-provisioner/.env` had `API_KEY=dev-test-key` (a placeholder). Mismatch → 401 (which the middleware then re-emitted as 500 to the proxy).
+- Fix: backed up vps1's `.env` to `.env.before-api-key-fix.20260615-184024`, updated `API_KEY` to match operator's strong key, restarted the container (`docker compose up -d --force-recreate`, ~5s downtime). Health restored, `fabrik domain zones` now returns the 4 CF zones (`ocoron.com`, `ocoron.com.tr`, `ozgurbasak.com`, `tojlo.com`).
+
+**Item 3 (CF DNS cutover) — closed via real DNS rewrite against sandbox zone**
+- Pre-seeded sandbox records: `tojlo.com`, `vps1.tojlo.com`, `*.vps1.tojlo.com` → `172.93.160.197` (vps1 placeholder).
+- New `bootstrap-hub.sh` flags `--cf-zone-id` + `--cf-zone-name` override the production `FABRIK_CF_ZONE_ID`/`FABRIK_CF_ZONE_NAME` (`ocoron.com`) for drill testing. Production DR path is unchanged when overrides are empty.
+- Orchestrator (`_validate_hub`) now passes `--cf-rewrite-dns <drill-ip> --cf-zone-id <tojlo-id> --cf-zone-name tojlo.com`. Test contract locked: `tests/orchestrator/test_vultr_drill.py::test_validate_hub_passes_safety_flags` asserts `--cf-zone-name tojlo.com` is in argv AND `ocoron.com` is NOT.
+- Drill `dr-drill-hub-20260615-160819`: step_17 rewrote all 3 records from `172.93.160.197` → `66.42.96.255` (drill IP). After drill destroyed, records reset to placeholder. Total: 0 production records touched.
+
+**Item 2 (LE cert provisioning) — closed via real ACME-staging cert acquisition**
+- New `bootstrap-hub.sh` flag `--drill-test-le-staging <hostname>` invokes a new `step_17b_drill_le_staging_test` after step_17's DNS rewrite.
+- Step_17b waits 30s for DNS propagation, verifies the hostname now resolves to the drill droplet's IP, `apt install certbot`, then runs `certbot certonly --standalone --staging -d <hostname> --register-unsafely-without-email`. ACME HTTP-01 challenge: LE staging server queries DNS → resolves to drill droplet → connects to `:80` → certbot responds with the challenge token → cert issued. Issuer verified against `(STAGING)` marker to prove it's not somehow a production cert (which would be a credentials-leak indicator).
+- Orchestrator passes `--drill-test-le-staging vps1.tojlo.com`. Test contract locked.
+- Drill `dr-drill-hub-20260615-160819`: `DNS check: vps1.tojlo.com → 66.42.96.255 ✓`, `certbot: LE-staging cert acquired ✓`, `cert chain issuer: C = US, O = Let's Encrypt, CN = (STAGING) Artificial Amaranth YE1 ✓`. The full ACME flow worked end-to-end from a fresh Vultr droplet in LAX.
+
+**Why "ACME staging" and not production**: rate limits (5 dups/wk on prod) and avoiding pollution of LE's account database. Staging certs are signed by `(STAGING) Pretend Pear` family CAs and untrusted by browsers, but the protocol path is identical to production — so a green staging acquisition proves the production path would work too.
+
+**Drill ladder for this addition:**
+
+| Drill | wall | rc | finding |
+|---|---|---|---|
+| hub-154530 | 524s | 0 | item 3 GREEN: 3 records rewritten on tojlo.com |
+| hub-155915 | 182s | - | Vultr provisioning timeout → orphan, cleaned |
+| hub-160819 | 688s | 0 | item 2 GREEN: ACME-staging cert acquired, issuer verified |
+
+Total spend ~$0.36 for the items-1/2/3 closing sweep.
+
 ### Changed — docs/infrastructure accuracy sweep: all 15 docs verified against repo + live fleet (2026-06-15)
 
 Systematic extract-claims → verify → fix pass across the whole `docs/infrastructure/` set (audit by 5 parallel agents; fixes verified against the repo and against read-only SSH to vps1/2/3). Corrections: stale `coolify` network refs → `fabrik` (`PORTS.md`, `prometheus-app-metrics-setup.md`); broken plan links repointed to `development/plans/archived/` + `docs/archive/`; bootstrap step/line counts re-aligned to the current scripts and brittle exact line-counts replaced with `wc -l`/`grep -c` pointers; `vps-hub-rebuild` step_02 `iptables-persistent` removal (G5) + hub DR "pending" → green 2026-06-15; `vps-spoke-rebuild` adds steps 09b/09c + drill-safety flags; `vps-ai-sysadmin` `.env.sysadmin` key list (+`WATCHDOG_OPENROUTER_KEY`/`SYSADMIN_HOST_*`), cron 5→8 routines, pre-trio replication recipe modernized; `vps-complete-inventory` gains the `fabrik vultr` drill subsystem + PR3 auto-provision + spec-`shape:`→registrar contract; Prometheus reconciled to 12 active/14 targets/13 configured; `vps-urls` Prometheus-targets table rebuilt from live; Gatus endpoint count corrected to **33 across 18 files** (was variously "21"/"36"); live counts re-verified (vps1 31 ctr/16 UFW/8 Authelia rules, spokes 5 ctr/11 UFW, RTT ~135–136ms) and snapshots re-dated. `configs/grafana,promtail,loki,alertmanager` confirmed **already in git** — the "configs-as-code is incomplete" audit premise was wrong and was NOT applied.

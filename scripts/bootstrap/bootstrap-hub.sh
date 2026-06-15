@@ -110,6 +110,15 @@ source "${SCRIPT_DIR}/bootstrap-config.sh"
 DRY_RUN=false
 VERIFY_ONLY=false
 SKIP_SERVICES=false
+DRILL_TEST_LE_STAGING=""       # NEW 2026-06-15 (items 1/2/3 finish):
+                               # if set to a hostname (e.g. vps1.tojlo.com),
+                               # the drill acquires a real LE-staging cert
+                               # for that hostname via certbot standalone.
+                               # Validates step_17's DNS cutover end-to-end:
+                               # if certbot succeeds, the ACME HTTP-01
+                               # challenge against the rewritten DNS worked.
+                               # Off by default (empty); only set by the
+                               # orchestrator under --cf-rewrite-dns.
 DRILL_START_CORE_ONLY=false    # NEW 2026-06-15 (Bucket C1): under --skip-services
                                # mode, OPT-IN to actually starting the core
                                # stateful services (postgres-main + redis-main)
@@ -144,6 +153,12 @@ SNAPSHOT_ID="latest"
 ENV_FROM="/opt/fabrik-dr-store/env/latest"
 SYSADMIN_ENV_FROM="/opt/fabrik-dr-store/env/sysadmin-latest"
 CF_REWRITE_TARGET=""   # empty = skip step 17
+# Override the production CF zone (ocoron.com, hard-coded in bootstrap-config.sh)
+# for drill testing of step_17 against a sandbox zone. When empty, the production
+# zone is used (production DR path). Drill mode passes both to redirect the
+# record sweep to a throwaway zone.
+CF_ZONE_OVERRIDE_ID=""
+CF_ZONE_OVERRIDE_NAME=""
 REMOTE=""              # set from positional arg
 EFFECTIVE_REMOTE=""    # mutated by step_00 from root@ to ozgur@
 
@@ -171,6 +186,9 @@ while [[ $# -gt 0 ]]; do
         --env-from) ENV_FROM="$2"; shift 2 ;;
         --sysadmin-env-from) SYSADMIN_ENV_FROM="$2"; shift 2 ;;
         --cf-rewrite-dns) CF_REWRITE_TARGET="$2"; shift 2 ;;
+        --cf-zone-id) CF_ZONE_OVERRIDE_ID="$2"; shift 2 ;;
+        --cf-zone-name) CF_ZONE_OVERRIDE_NAME="$2"; shift 2 ;;
+        --drill-test-le-staging) DRILL_TEST_LE_STAGING="$2"; shift 2 ;;
         --help|-h) usage 0 ;;
         --*) echo "unknown flag: $1" >&2; usage 2 ;;
         *)
@@ -1370,7 +1388,14 @@ step_17_cf_rewrite_dns() {
         log "step_17: SKIPPED (no --cf-rewrite-dns flag)"
         return 0
     fi
-    log "step_17: rewrite *.vps1.ocoron.com A records → ${CF_REWRITE_TARGET} ($(elapsed))"
+    # Override CF zone for drill mode (sandbox zone testing). When both
+    # overrides are empty, use the production config from bootstrap-config.sh.
+    local cf_zone_id="${CF_ZONE_OVERRIDE_ID:-$FABRIK_CF_ZONE_ID}"
+    local cf_zone_name="${CF_ZONE_OVERRIDE_NAME:-$FABRIK_CF_ZONE_NAME}"
+    log "step_17: rewrite *.vps1.${cf_zone_name} A records → ${CF_REWRITE_TARGET} ($(elapsed))"
+    if [[ -n "$CF_ZONE_OVERRIDE_NAME" ]]; then
+        log "  (zone overridden: ${cf_zone_name} id=${cf_zone_id:0:8} — drill mode)"
+    fi
     # Read CF_TOKEN from the restored .env on the new host.
     local cf_token
     if ! $DRY_RUN; then
@@ -1393,15 +1418,15 @@ step_17_cf_rewrite_dns() {
 
     local records
     records=$(curl -fsSL -H "Authorization: Bearer ${cf_token}" \
-        "https://api.cloudflare.com/client/v4/zones/${FABRIK_CF_ZONE_ID}/dns_records?per_page=200&type=A")
+        "https://api.cloudflare.com/client/v4/zones/${cf_zone_id}/dns_records?per_page=200&type=A")
     local count_updated=0 count_skipped=0
     while IFS=$'\t' read -r rec_id rec_name rec_content; do
         [[ -z "$rec_id" ]] && continue
-        # Only touch names containing 'vps1' OR the apex 'ocoron.com'.
-        if [[ "$rec_name" == "vps1.${FABRIK_CF_ZONE_NAME}" ]] || \
-           [[ "$rec_name" == *.vps1.${FABRIK_CF_ZONE_NAME} ]] || \
-           [[ "$rec_name" == "${FABRIK_CF_ZONE_NAME}" ]] || \
-           [[ "$rec_name" == "www.${FABRIK_CF_ZONE_NAME}" ]]; then
+        # Only touch names containing 'vps1' OR the apex zone.
+        if [[ "$rec_name" == "vps1.${cf_zone_name}" ]] || \
+           [[ "$rec_name" == *.vps1.${cf_zone_name} ]] || \
+           [[ "$rec_name" == "${cf_zone_name}" ]] || \
+           [[ "$rec_name" == "www.${cf_zone_name}" ]]; then
             if [[ "$rec_content" == "$CF_REWRITE_TARGET" ]]; then
                 log "  ${rec_name} already → ${CF_REWRITE_TARGET}; skip"
                 count_skipped=$((count_skipped+1))
@@ -1411,12 +1436,91 @@ step_17_cf_rewrite_dns() {
             curl -fsS -X PATCH \
                 -H "Authorization: Bearer ${cf_token}" \
                 -H "Content-Type: application/json" \
-                "https://api.cloudflare.com/client/v4/zones/${FABRIK_CF_ZONE_ID}/dns_records/${rec_id}" \
+                "https://api.cloudflare.com/client/v4/zones/${cf_zone_id}/dns_records/${rec_id}" \
                 --data "{\"content\":\"${CF_REWRITE_TARGET}\"}" >/dev/null
             count_updated=$((count_updated+1))
         fi
     done < <(echo "$records" | jq -r '.result[] | "\(.id)\t\(.name)\t\(.content)"')
     ok "step_17 done — ${count_updated} record(s) updated, ${count_skipped} already correct"
+}
+
+step_17b_drill_le_staging_test() {
+    # Items 1/2/3 finish (2026-06-15): direct ACME-staging cert acquisition
+    # test. Validates the END-TO-END DR cutover chain that step_17 enables:
+    # CF DNS now points at this droplet, so an HTTP-01 challenge from
+    # Let's Encrypt STAGING should resolve to us, hit our :80 listener,
+    # and produce a valid (staging-CA-signed) cert. Uses certbot standalone
+    # mode instead of traefik because traefik orchestration adds 200+ lines
+    # for what is fundamentally a ~30s ACME flow we just want to prove works.
+    #
+    # Production-LE staging endpoint:
+    #   https://acme-staging-v02.api.letsencrypt.org/directory
+    # Staging certs are signed by "(STAGING) Pretend Pear" — never trusted
+    # by browsers, but valid for our "did the ACME flow succeed" check.
+    if [[ -z "$DRILL_TEST_LE_STAGING" ]]; then
+        return 0
+    fi
+    log "step_17b: ACME-staging cert acquisition for ${DRILL_TEST_LE_STAGING} ($(elapsed))"
+
+    # DNS just got rewritten in step_17; need to wait for propagation.
+    # With TTL=300 and CF's fast propagation, ~30s is usually enough.
+    log "  waiting 30s for DNS propagation to LE's resolvers..."
+    sleep 30
+
+    # Verify DNS now points at us (sanity before burning the ACME attempt).
+    local resolved_ip
+    resolved_ip=$(remote "getent hosts ${DRILL_TEST_LE_STAGING} 2>/dev/null | awk '{print \$1}' | head -1" || echo "")
+    local target_ip="${REMOTE#*@}"
+    if [[ "$resolved_ip" != "$target_ip" ]]; then
+        warn "  ${DRILL_TEST_LE_STAGING} → ${resolved_ip:-(no resolution)} on target; expected ${target_ip}. ACME may fail."
+    else
+        ok "  DNS check: ${DRILL_TEST_LE_STAGING} → ${target_ip}"
+    fi
+
+    # Install certbot (apt; --skip-services means docker compose isn't up,
+    # so we can't use a containerized cert tool conveniently).
+    log "  installing certbot..."
+    if ! remote 'sudo bash -c "DEBIAN_FRONTEND=noninteractive apt-get -o DPkg::Lock::Timeout=300 install -y -qq certbot 2>&1 | tail -2"'; then
+        err "step_17b: certbot install failed"
+        return 1
+    fi
+
+    # Run certbot in standalone HTTP-01 mode against LE STAGING.
+    # --staging: use LE staging endpoint (no rate limits, untrusted certs)
+    # --standalone: certbot spins up its own :80 listener for the challenge
+    # --non-interactive --agree-tos --register-unsafely-without-email:
+    #     drill mode; we don't want to pollute LE's account database
+    # --preferred-challenges http-01: explicit (the default in standalone)
+    log "  requesting LE-staging cert for ${DRILL_TEST_LE_STAGING}..."
+    local certbot_log
+    certbot_log=$(remote "sudo certbot certonly --standalone --staging \
+        --non-interactive --agree-tos --register-unsafely-without-email \
+        --preferred-challenges http-01 \
+        -d ${DRILL_TEST_LE_STAGING} 2>&1 | tail -10" || echo "FAIL")
+
+    if echo "$certbot_log" | grep -qE 'Successfully received certificate'; then
+        ok "  certbot: LE-staging cert acquired"
+    else
+        err "step_17b: certbot failed: ${certbot_log}"
+        return 1
+    fi
+
+    # Verify the issuer is the LE-staging CA — proves we got a real cert,
+    # not a self-signed fallback or somehow a production cert (which would
+    # be a credentials leak we'd want to surface immediately).
+    local cert_issuer
+    cert_issuer=$(remote "sudo openssl x509 -in /etc/letsencrypt/live/${DRILL_TEST_LE_STAGING}/fullchain.pem -issuer -noout 2>/dev/null") || cert_issuer=""
+    if echo "$cert_issuer" | grep -qiE 'STAGING|Pretend'; then
+        ok "  cert chain issuer: ${cert_issuer#issuer=}"
+        ok "step_17b done — ACME HTTP-01 challenge against rewritten DNS WORKED end-to-end"
+    elif echo "$cert_issuer" | grep -qiE "Let's Encrypt|R10|R11|R3"; then
+        err "  cert chain shows PRODUCTION LE issuer: ${cert_issuer}"
+        err "step_17b: got a PROD cert via --staging flag — credentials misconfig?"
+        return 1
+    else
+        warn "  cert chain unclear: ${cert_issuer}"
+        warn "step_17b: cert acquired but issuer not recognized; not fatal"
+    fi
 }
 
 step_18_verify_end_state() {
@@ -1575,6 +1679,7 @@ main() {
     step_15_enable_custom_services
     step_16_install_root_crontab
     step_17_cf_rewrite_dns
+    step_17b_drill_le_staging_test
     step_18_verify_end_state
 
     echo
