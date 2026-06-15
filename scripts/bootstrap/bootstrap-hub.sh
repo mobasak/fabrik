@@ -691,7 +691,7 @@ step_06_restic_pull_host_state() {
 
         # restic restore (inlined restic_remote logic — must run in this
         # shell, NOT a separate remote() call).
-        # Tag is `plan:host-state` (Backrest namespacing — drill #5 finding).
+        # Tag is plan:host-state (Backrest namespacing — drill #5 finding).
         B2_KEY=\$(grep \"^B2_KEY_ID=\" /opt/fabrik/.env | cut -d= -f2-)
         B2_SECRET=\$(grep \"^B2_APPLICATION_KEY=\" /opt/fabrik/.env | cut -d= -f2-)
         B2_PW=\$(grep \"^BACKREST_RESTIC_PASSWORD=\" /opt/fabrik/.env | cut -d= -f2-)
