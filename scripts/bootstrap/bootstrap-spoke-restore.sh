@@ -722,6 +722,51 @@ step_09b_verify_restored_configs() {
         fi
     fi
 
+    if $SKIP_MESH; then
+        # [c-dry/4] WG identity self-consistency. Verifies the restored
+        # spoke identity is cryptographically valid even though we won't
+        # bring up the interface.
+        local derived_pub
+        derived_pub=$(remote 'sudo bash -c "
+            grep \"^PrivateKey\" /etc/wireguard/wg0.conf | head -1 | cut -d= -f2- | tr -d \" \" | wg pubkey 2>/dev/null
+        "' 2>/dev/null | tr -d '[:space:]') || derived_pub=""
+        if [[ -z "$derived_pub" ]]; then
+            err "  [c-dry/4] WG: could not derive pubkey from /etc/wireguard/wg0.conf — privkey malformed"
+            issues=$((issues + 1))
+        else
+            # Also verify the derived pubkey matches /etc/wireguard/spoke.publickey
+            # (the spoke restore plan stores both files — they MUST agree).
+            local stored_pub
+            stored_pub=$(remote 'sudo cat /etc/wireguard/spoke.publickey 2>/dev/null | tr -d "[:space:]"' 2>/dev/null) || stored_pub=""
+            if [[ -n "$stored_pub" && "$derived_pub" == "$stored_pub" ]]; then
+                ok "  [c-dry/4] WG: privkey derives pubkey that matches stored spoke.publickey (${derived_pub:0:12}...)"
+            elif [[ -z "$stored_pub" ]]; then
+                warn "  [c-dry/4] WG: privkey derives valid pubkey but spoke.publickey missing"
+            else
+                err "  [c-dry/4] WG: derived pubkey != stored spoke.publickey (snapshot mismatch — spoke identity is broken)"
+                issues=$((issues + 1))
+            fi
+        fi
+        # Verify hub-peer entry has all required fields.
+        local peer_issues
+        peer_issues=$(remote 'sudo bash -c "
+            awk \"
+                /^\\[Peer\\]/ { in_peer=1; pub=0; ep=0; aip=0; next }
+                /^\\[/ { if (in_peer) { if (!pub || !ep || !aip) bad++; in_peer=0 } }
+                in_peer && /^PublicKey/ && length(\\\$3) > 30 { pub=1 }
+                in_peer && /^Endpoint/ && \\\$3 ~ /:/ { ep=1 }
+                in_peer && /^AllowedIPs/ && length(\\\$3) > 0 { aip=1 }
+                END { if (in_peer && (!pub || !ep || !aip)) bad++; print bad+0 }
+            \" /etc/wireguard/wg0.conf
+        "' 2>/dev/null | tr -d '[:space:]') || peer_issues=0
+        if (( peer_issues == 0 )); then
+            ok "  [c-dry/4] WG: hub-peer entry has PublicKey + Endpoint + AllowedIPs"
+        else
+            err "  [c-dry/4] WG: ${peer_issues} peer entries missing required fields"
+            issues=$((issues + peer_issues))
+        fi
+    fi
+
     if (( issues == 0 )); then
         ok "step_09b done — all dry-validations PASS (would-run config is good)"
     else

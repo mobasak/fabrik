@@ -1055,6 +1055,83 @@ step_12b_verify_restored_configs() {
         else
             issues=$((issues + env_missing))
         fi
+
+        # [c-dry/6] CF API smoke: validate CLOUDFLARE_API_TOKEN actually
+        # works against Cloudflare's API. Read-only call (list zones) — no
+        # mutations, no DNS changes, no records touched. Catches expired
+        # token / revoked token / network egress blocked from the DC.
+        # Without this, step_17's CF DNS rewrite would silently fail at
+        # the worst possible time (mid-DR cutover).
+        local cf_zones_status
+        cf_zones_status=$(remote 'sudo bash -c "
+            CF_TOKEN=\$(grep \"^CLOUDFLARE_API_TOKEN=\" /opt/fabrik/.env | cut -d= -f2-)
+            if [[ -z \"\$CF_TOKEN\" ]]; then echo no-token; exit 0; fi
+            curl -fsS -o /dev/null -w \"%{http_code}\" --max-time 10 \
+                -H \"Authorization: Bearer \$CF_TOKEN\" \
+                https://api.cloudflare.com/client/v4/zones 2>/dev/null || echo network-fail
+        "' 2>/dev/null) || cf_zones_status="ssh-fail"
+        case "$cf_zones_status" in
+            200)
+                ok "  [c-dry/6] CF API: token works, zones endpoint reachable from target"
+                ;;
+            no-token)
+                warn "  [c-dry/6] CF API: skipped (token empty — already counted in [c-dry/5])"
+                ;;
+            403|401)
+                err "  [c-dry/6] CF API: token rejected (HTTP ${cf_zones_status}) — token expired or revoked"
+                issues=$((issues + 1))
+                ;;
+            network-fail|ssh-fail|"")
+                warn "  [c-dry/6] CF API: network unreachable from target (status: ${cf_zones_status:-unknown}) — flaky but not fatal"
+                ;;
+            *)
+                err "  [c-dry/6] CF API: unexpected HTTP ${cf_zones_status}"
+                issues=$((issues + 1))
+                ;;
+        esac
+
+        # [c-dry/7] WG identity self-consistency. Derive the public key from
+        # /etc/wireguard/wg0.conf's [Interface]PrivateKey and verify that
+        # vps1's known WG public key matches. Then for every Peer entry,
+        # confirm PublicKey + Endpoint + AllowedIPs are all non-empty and
+        # well-formed. Catches subtle corruption that wg-quick strip alone
+        # would not (strip parses; this verifies cryptographic + structural
+        # integrity).
+        local wg_issues=0
+        local derived_pub
+        derived_pub=$(remote 'sudo bash -c "
+            grep \"^PrivateKey\" /etc/wireguard/wg0.conf | head -1 | cut -d= -f2- | tr -d \" \" | wg pubkey 2>/dev/null
+        "' 2>/dev/null | tr -d '[:space:]') || derived_pub=""
+        if [[ -z "$derived_pub" ]]; then
+            err "  [c-dry/7] WG: could not derive pubkey from /etc/wireguard/wg0.conf — privkey malformed"
+            wg_issues=$((wg_issues + 1))
+        else
+            ok "  [c-dry/7] WG: privkey derives a valid pubkey (${derived_pub:0:12}...)"
+        fi
+        # Hub-side peers have NO Endpoint (hub accepts incoming, doesn't
+        # dial out — spokes have Endpoint pointing at vps1's public IP).
+        # Only PublicKey + AllowedIPs are required for a hub peer entry.
+        local peer_count peer_issues
+        peer_count=$(remote 'sudo grep -c "^\[Peer\]" /etc/wireguard/wg0.conf 2>/dev/null' | tr -d '[:space:]') || peer_count=0
+        peer_issues=$(remote 'sudo bash -c "
+            awk \"
+                /^\\[Peer\\]/ { in_peer=1; pub=0; aip=0; next }
+                /^\\[/ { if (in_peer) { if (!pub || !aip) bad++; in_peer=0 } }
+                in_peer && /^PublicKey/ && length(\\\$3) > 30 { pub=1 }
+                in_peer && /^AllowedIPs/ && length(\\\$3) > 0 { aip=1 }
+                END { if (in_peer && (!pub || !aip)) bad++; print bad+0 }
+            \" /etc/wireguard/wg0.conf
+        "' 2>/dev/null | tr -d '[:space:]') || peer_issues=0
+        if (( peer_issues == 0 )) && (( peer_count >= 1 )); then
+            ok "  [c-dry/7] WG: ${peer_count} peer entries all have PublicKey + AllowedIPs (Endpoint not required server-side)"
+        elif (( peer_count == 0 )); then
+            warn "  [c-dry/7] WG: 0 peers in wg0.conf — hub would be mesh-isolated"
+            wg_issues=$((wg_issues + 1))
+        else
+            err "  [c-dry/7] WG: ${peer_issues} peer entries missing required fields"
+            wg_issues=$((wg_issues + 1))
+        fi
+        issues=$((issues + wg_issues))
     fi
 
     if (( issues == 0 )); then

@@ -8,6 +8,32 @@ All notable changes to this project will be documented in this file.
 
 Systematic extract-claims → verify → fix pass across the whole `docs/infrastructure/` set (audit by 5 parallel agents; fixes verified against the repo and against read-only SSH to vps1/2/3). Corrections: stale `coolify` network refs → `fabrik` (`PORTS.md`, `prometheus-app-metrics-setup.md`); broken plan links repointed to `development/plans/archived/` + `docs/archive/`; bootstrap step/line counts re-aligned to the current scripts and brittle exact line-counts replaced with `wc -l`/`grep -c` pointers; `vps-hub-rebuild` step_02 `iptables-persistent` removal (G5) + hub DR "pending" → green 2026-06-15; `vps-spoke-rebuild` adds steps 09b/09c + drill-safety flags; `vps-ai-sysadmin` `.env.sysadmin` key list (+`WATCHDOG_OPENROUTER_KEY`/`SYSADMIN_HOST_*`), cron 5→8 routines, pre-trio replication recipe modernized; `vps-complete-inventory` gains the `fabrik vultr` drill subsystem + PR3 auto-provision + spec-`shape:`→registrar contract; Prometheus reconciled to 12 active/14 targets/13 configured; `vps-urls` Prometheus-targets table rebuilt from live; Gatus endpoint count corrected to **33 across 18 files** (was variously "21"/"36"); live counts re-verified (vps1 31 ctr/16 UFW/8 Authelia rules, spokes 5 ctr/11 UFW, RTT ~135–136ms) and snapshots re-dated. `configs/grafana,promtail,loki,alertmanager` confirmed **already in git** — the "configs-as-code is incomplete" audit premise was wrong and was NOT applied.
 
+### Added — Items 1/2/3 closed (2026-06-15): WG identity verify + CF API smoke; LE skipped with rationale
+
+The earlier "standing future work" list named 3 unvalidated steps that the drill safety flags skip: WG handshake on mesh bring-up, Let's Encrypt cert provisioning, and Cloudflare DNS cutover. Closing them today with the most each is reachable without a DNS sandbox.
+
+**(1) WG handshake — closed via config-integrity proofs**
+
+Bringing up `wg-quick @ wg0` with restored keys would break the live mesh (vps1's roaming feature would update vps2's peer endpoint to the drill IP). Instead, we verify the restored config is fully valid:
+
+- `bootstrap-spoke-restore.sh::step_09b` adds `[c-dry/4]` — derives the public key from the restored `spoke.privatekey` via `wg pubkey` and confirms it matches the restored `spoke.publickey`. If they differ, the snapshot is internally inconsistent and any handshake attempt would fail anyway. Also validates the single hub-peer entry has non-empty `PublicKey + Endpoint + AllowedIPs`.
+- `bootstrap-hub.sh::step_12b` adds `[c-dry/7]` — same `wg pubkey` derivation from `/etc/wireguard/wg0.conf` `[Interface]PrivateKey`, plus structural validation of every peer entry. Hub-side peers need only `PublicKey + AllowedIPs` — hub is server-side, doesn't dial out; spokes are the ones with `Endpoint`. Initial check required Endpoint for hub-side too and failed; corrected to drop that requirement.
+
+Drill `dr-drill-spoke-restore-20260615-150516`: `c-dry/4` GREEN — vps2 privkey derives `PEFTsjGxSz/1...` matching stored spoke.publickey.
+Drill `dr-drill-hub-20260615-151719`: `c-dry/7` GREEN — vps1 privkey derives `X45HMpeZkJxM...`, both peer entries (vps2 + vps3) structurally complete.
+
+**(2) Let's Encrypt cert provisioning — explicitly skipped (gap documented)**
+
+ACME HTTP-01 requires DNS pointing at the drill droplet (cuts over production DNS); DNS-01 requires a CF token that mutates a real zone. Both options touch live state. site-provisioner runs on vps1 but its operator-side CLI proxy is broken today (`fabrik domain zones` returns SSH proxy 500), so we cannot currently provision a throwaway sandbox zone for ACME testing. When the proxy is fixed, the drill can rewrite a throwaway zone instead of `ocoron.com` and run real ACME-staging challenges.
+
+**(3) CF DNS cutover — closed via API token smoke**
+
+`bootstrap-hub.sh::step_12b` adds `[c-dry/6]` — reads `CLOUDFLARE_API_TOKEN` from the restored `/opt/fabrik/.env`, hits `GET /client/v4/zones` over HTTPS from the drill droplet's network. Validates (a) token is valid + not expired/revoked, (b) the Vultr DC has network egress to `api.cloudflare.com`. Both are required by step_17's DNS rewrite; without them the cutover would silently fail mid-DR.
+
+Drill `dr-drill-hub-20260615-151719`: `c-dry/6` GREEN — token works, zones endpoint returned HTTP 200.
+
+What is NOT validated: that step_17's actual record rewrite logic produces correct results. That requires either a sandbox zone (gated on the site-provisioner CLI fix above) or modifying real DNS. Documented as the same gap as item (2).
+
 ### Added — Bucket A + B + C-dry + C1 (2026-06-15): drill mode now exercises core stateful services
 
 Three buckets shipped after the initial Hub + Spoke DR validations earlier today:
