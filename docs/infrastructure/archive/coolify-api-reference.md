@@ -7,7 +7,7 @@
 > status`, `fabrik logs`, `fabrik reconcile-all`) still targeting Coolify-era
 > endpoints for services that were never migrated. New deploys go through
 > `orchestrator/deployer_ssh.py` (SSH + Docker Compose). See
-> [docs/operations/deployment.md](../operations/deployment.md).
+> [docs/operations/deployment.md](../../operations/deployment.md).
 
 **Last Updated:** 2026-04-27 (verified live against `coolify.vps1.ocoron.com` running Coolify v4.0.0-beta.459 — host removed post-migration)
 **Authoritative source:** https://coolify.io/docs/api-reference/

@@ -61,7 +61,7 @@ Eight metric families exposed by the FastAPI app (`scripts/aro-wake/main.py`) vi
 - Docker MASQUERADE on vps1 rewrites the container's source IP from its docker-bridge IP (e.g. `10.0.1.x`) to vps1's wg0 IP `10.99.0.1` when the packet leaves the host.
 - The spoke's UFW rule `from 10.99.0.0/24 to any port 8201 proto tcp` accepts the rewritten source. No spoke-side firewall change needed.
 - Verified via tcpdump on vps2's wg0 interface: `IP 10.99.0.1.<port> > 10.99.0.2.8201: Flags [S]` — the SNAT works as expected.
-- Scrape latency ~270ms (transcontinental wg0 RTT ~133ms + connection handshake overhead).
+- Scrape latency ~270ms (transcontinental wg0 RTT ~135ms + connection handshake overhead).
 
 The aro-wake-specific alert rules ship in `configs/prometheus/rules/alerts.yml` under group `aro_wake`. Both are evaluated per-host via `by (host)`:
 
