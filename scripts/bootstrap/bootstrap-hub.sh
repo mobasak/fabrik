@@ -1120,6 +1120,20 @@ step_18_verify_end_state() {
         ok "step_18 done (dry-run)"
         return 0
     fi
+    # Bug #12 (Hub DR Drill #6g, 2026-06-15): the contract checks (wg0
+    # handshakes ≥2, containers running ≥29, postgres DBs present,
+    # sysadmin-bot /health, backrest restic snapshots) ALL assume services
+    # are up. With --skip-mesh, wg0 is never brought up; with --skip-services,
+    # docker-compose up never runs. Both flags are MANDATORY in drill mode
+    # (see vultr_drill._validate_hub docstring — without them the drill would
+    # break the live mesh / write to B2 with vps1's restic identity).
+    # So in drill mode, step_18 cannot meaningfully run. Short-circuit with
+    # an informative skip rather than emit a fake "5 of 7 contract items FAILED"
+    # finding that lies about what's actually broken.
+    if $SKIP_SERVICES || $SKIP_MESH; then
+        ok "step_18 SKIPPED (--skip-services or --skip-mesh active — contract checks need running services + mesh)"
+        return 0
+    fi
 
     local fail=0
 
