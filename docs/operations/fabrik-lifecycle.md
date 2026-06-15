@@ -1,6 +1,6 @@
 # Fabrik Lifecycle — Runtime Behavior & Data Safety
 
-**Last reviewed:** 2026-05-29
+**Last reviewed:** 2026-06-15 (added the `--target-vps` / multi-host section; verified against `cli.py` + `deployer_ssh.py` + `context.py`)
 **Purpose:** What happens to running containers, data, volumes, and env vars during each Fabrik operation. Read this before running any command on a system with live data.
 
 ---
@@ -244,6 +244,23 @@ If SSH to the VPS fails during deploy:
 - Check VPS health separately: `ping vps1.ocoron.com`, direct SSH
 
 ---
+
+## Targeting a host — `--target-vps` (multi-host)
+
+Fabrik is a 3-host fleet (vps1 hub + vps2/vps3 spokes), so every lifecycle command resolves **which host** it acts on. `apply`, `redeploy`, and `destroy` all accept `--target-vps <vpsN>`; everything in the sections above (the `ssh:` / `cd /opt/<app>` steps, the safety matrix, the recovery commands) runs **on the resolved host**.
+
+**Resolution order (highest wins):**
+
+```text
+--target-vps  <CLI flag>
+  > state file   .fabrik/state/<id>.json :: target_vps   (where the service was last deployed)
+  > spec field   target_vps:
+  > vps1         (default if nothing else set)
+```
+
+- **Get it right on multi-host.** If a service lives on vps2 and a `redeploy` resolves to vps1, you act on the wrong box. The state file records where each service was last deployed, so re-runs target the same host without re-passing the flag.
+- **Spokes are full deploy targets.** `fabrik apply <spec> --target-vps vps2` deploys on vps2 (its own Traefik); the spec's `shape:` registrars still wire to the **shared vps1 data plane** — `postgres-main:5432` / `redis-main:6379` over the mesh, Gatus/Prometheus on vps1. `destroy --target-vps vps2` tears down on vps2.
+- **Not the same as Vultr drills.** Throwaway drill droplets are created/destroyed by `fabrik vultr drill`, never by `apply` / `destroy --target-vps`.
 
 ## Operational Gotchas
 
