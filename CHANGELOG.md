@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Hub DR Drill #5 root cause re-identified: tag-prefix mismatch in bootstrap-hub.sh (2026-06-14)
+
+**Bug #7 was misdiagnosed.** The original drill #5 writeup called it a "configuration gap (no host-state Backrest plan on vps1)" — that's wrong. Live diagnosis on vps1 (oplog.sqlite + WAL via `sudo docker exec backrest restic snapshots --json`) confirmed:
+
+- vps1 **does** have a `host-state` Backrest plan (`schedule.cron: "30 3 * * *"` daily, retention 30d)
+- 165 SUCCESS backup ops, 0 ERROR ops, 15 WARNING ops (all `restic forget` lock conflicts during retention prune — harmless)
+- **14 host-state snapshots exist** in B2; latest `21816f37a35c4763...` from today 00:30 UTC
+
+The **actual** bug: Backrest writes snapshots with the tag `plan:<id>` (e.g. `plan:host-state`), not the bare id. `bootstrap-hub.sh` step_06/11/12 queried `--tag host-state` → 0 matches → "no snapshot found".
+
+Fix (this commit): 3-line tag-prefix correction in `scripts/bootstrap/bootstrap-hub.sh`:
+
+| line | before | after |
+|---|---|---|
+| 658 | `--tag host-state` | `--tag plan:host-state` |
+| 794 | `--tag opt-configs` | `--tag plan:opt-configs` |
+| 843 | `--tag docker-volumes` | `--tag plan:docker-volumes` |
+
+Drill #6 against this fix is the end-to-end Hub DR proof.
+
 ### Fixed — Hub DR Drill #4 + #5 (2026-06-14): step_06 env-extraction works; surfaced configuration gap (no host-state Backrest snapshot in B2)
 
 **Two more drills shipped after #3** — all bugs identified in #3 verified fixed, plus 2 more code bugs found+fixed, plus 1 **CONFIGURATION GAP** that requires operator action.

@@ -651,7 +651,11 @@ step_06_restic_pull_host_state() {
 
     # `--target /host` so restored files land on the host filesystem (mount at /).
     # `--path /` from the latest snapshot's host-state tree.
-    restic_remote "restore ${SNAPSHOT_ID} --target /host${includes} --tag host-state"
+    # Tag is `plan:host-state` because Backrest writes snapshots with the
+    # `plan:<id>` namespace, not the bare id. Drill #5 (2026-06-14) hit
+    # "no snapshot found" with `--tag host-state` even though 14 snapshots
+    # existed in B2 — actual tag confirmed via `restic snapshots --json`.
+    restic_remote "restore ${SNAPSHOT_ID} --target /host${includes} --tag plan:host-state"
 
     # Reload systemd so newly-restored unit files are picked up before later
     # steps try to enable them.
@@ -786,7 +790,8 @@ step_11_restic_pull_opt() {
     # rm cleans up what shouldn't survive. Semantically equivalent to
     # the original include+exclude intent, but actually works with
     # restic 0.18.1.
-    restic_remote "restore ${SNAPSHOT_ID} --target /host --include /opt --tag opt-configs"
+    # Tag is `plan:opt-configs` (Backrest namespacing — see step_06 note).
+    restic_remote "restore ${SNAPSHOT_ID} --target /host --include /opt --tag plan:opt-configs"
 
     # Post-restore cleanup: rm paths the original FABRIK_OPT_RESTORE_EXCLUDES
     # was trying to prevent from restoring. Each maps to a glob below.
@@ -832,9 +837,10 @@ step_12_restic_pull_docker_volumes() {
         remote "sudo docker volume create ${vol} >/dev/null"
         # Restore only this volume's path. Restic --include filters by path
         # prefix so this scopes the restore tightly.
+        # Tag is `plan:docker-volumes` (Backrest namespacing — see step_06 note).
         restic_remote "restore ${SNAPSHOT_ID} --target /host \
             --include /var/lib/docker/volumes/${vol} \
-            --tag docker-volumes" && restored=$((restored+1)) || {
+            --tag plan:docker-volumes" && restored=$((restored+1)) || {
             warn "  volume ${vol} restore returned non-zero — may be empty in snapshot"
             skipped=$((skipped+1))
         }

@@ -1,6 +1,6 @@
 # Cascade Models and Credits
 
-**Last Updated:** 2026-06-09
+**Last Updated:** 2026-06-15
 
 > 📋 **Source:** Automatically extracted from https://docs.windsurf.com/plugins/cascade/models
 >
@@ -12,7 +12,7 @@
 
 ## Overview
 
-**Total Models:** 135 across 7 provider categories
+**Total Models:** 141 across 7 provider categories
 
 ---
 
@@ -27,11 +27,12 @@
 | Claude Sonnet 4.5 | 3 | 1464 | 46.5% |  |
 | Claude Sonnet 4.6 | 4 | 1500 | 53.4% |  |
 | Claude Opus 4.5 | 6 | 1496 | 63.1% |  |
-| Claude Opus 4.8 (Low Thinking) | 7.5 | — | — | Promo pricing |
-| Claude Opus 4.8 (Medium Thinking) | 15 | — | — | Promo pricing |
-| Claude Opus 4.8 (High Thinking) | 25 | — | — | Promo pricing |
-| Claude Opus 4.8 (XHigh Thinking) | 28 | — | — | Promo pricing |
-| Claude Opus 4.8 (Max Thinking) | 30 | — | — | Promo pricing |
+| Claude Opus 4.8 (Medium Thinking) | 25 | — | — |  |
+| Claude Fable 5 (Low Thinking) | 40 | 1566 | — | Promo pricing |
+| Claude Fable 5 (Medium Thinking) | 50 | 1566 | — | Promo pricing |
+| Claude Fable 5 (High Thinking) | 70 | 1566 | — | Promo pricing |
+| Claude Fable 5 (XHigh Thinking) | 80 | 1566 | — | Promo pricing |
+| Claude Fable 5 (Max Thinking) | 100 | 1566 | — | Promo pricing |
 
 ---
 
@@ -60,29 +61,34 @@
 | Claude Opus 4.6 | 6 | 1535 | 76.4% |  |
 | Claude Sonnet 4.6 (Thinking) | 6 | 1500 | 53.4% |  |
 | Claude Opus 4.5 | 6 | 1496 | 63.1% |  |
-| Claude Opus 4.8 (Low Thinking) | 7.5 | — | — | Promo pricing |
 | Claude Opus 4.6 (Thinking) | 8 | 1535 | 76.4% |  |
 | Claude Opus 4.5 (Thinking) | 8 | 1496 | 63.1% |  |
 | Claude Opus 4.6 1M | 10 | 1535 | 76.4% |  |
 | Claude Opus 4.6 Thinking 1M | 12 | 1535 | 76.4% |  |
 | Claude Sonnet 4.6 1M | 12 | 1500 | 53.4% |  |
-| Claude Opus 4.8 (Medium Thinking) | 15 | — | — | Promo pricing |
-| Claude Opus 4.8 Fast (Low Thinking) | 15 | — | — | Promo pricing |
 | Claude Sonnet 4.6 Thinking 1M | 16 | 1500 | 53.4% |  |
-| Claude Opus 4.7 (Low Thinking) | 20 | 1554 | 90.2% |  |
+| Claude Opus 4.7 (Low Thinking) | 20 | 1554 | 80.2% |  |
+| Claude Opus 4.8 (Low Thinking) | 20 | — | — |  |
 | Claude Opus 4.6 Fast | 24 | 1535 | 76.4% |  |
-| Claude Opus 4.8 (High Thinking) | 25 | — | — | Promo pricing |
-| Claude Opus 4.8 (XHigh Thinking) | 28 | — | — | Promo pricing |
+| Claude Opus 4.8 (Medium Thinking) | 25 | — | — |  |
 | Claude Opus 4.6 Fast Thinking | 30 | 1535 | 76.4% |  |
-| Claude Opus 4.8 (Max Thinking) | 30 | — | — | Promo pricing |
-| Claude Opus 4.8 Fast (Medium Thinking) | 30 | — | — | Promo pricing |
-| Claude Opus 4.7 (Medium Thinking) | 40 | 1554 | 90.2% |  |
-| Claude Opus 4.8 Fast (High Thinking) | 50 | — | — | Promo pricing |
-| Claude Opus 4.8 Fast (XHigh Thinking) | 56 | — | — | Promo pricing |
-| Claude Opus 4.7 (High Thinking) | 60 | 1554 | 90.2% |  |
-| Claude Opus 4.8 Fast (Max Thinking) | 60 | — | — | Promo pricing |
-| Claude Opus 4.7 (XHigh Thinking) | 65 | 1554 | 90.2% |  |
-| Claude Opus 4.7 (Max Thinking) | 75 | 1554 | 90.2% |  |
+| Claude Opus 4.8 (High Thinking) | 35 | — | — |  |
+| Claude Opus 4.7 (Medium Thinking) | 40 | 1554 | 80.2% |  |
+| Claude Opus 4.8 (XHigh Thinking) | 40 | — | — |  |
+| Claude Opus 4.8 Fast (Low Thinking) | 40 | — | — |  |
+| Claude Fable 5 (Low Thinking) | 40 | 1566 | — | Promo pricing |
+| Claude Opus 4.8 (Max Thinking) | 50 | — | — |  |
+| Claude Opus 4.8 Fast (Medium Thinking) | 50 | — | — |  |
+| Claude Fable 5 (Medium Thinking) | 50 | 1566 | — | Promo pricing |
+| Claude Opus 4.7 (High Thinking) | 60 | 1554 | 80.2% |  |
+| Claude Opus 4.7 (XHigh Thinking) | 65 | 1554 | 80.2% |  |
+| Claude Opus 4.8 Fast (High Thinking) | 70 | — | — |  |
+| Claude Fable 5 (High Thinking) | 70 | 1566 | — | Promo pricing |
+| Claude Opus 4.7 (Max Thinking) | 75 | 1554 | 80.2% |  |
+| Claude Opus 4.8 Fast (XHigh Thinking) | 80 | — | — |  |
+| Claude Fable 5 (XHigh Thinking) | 80 | 1566 | — | Promo pricing |
+| Claude Opus 4.8 Fast (Max Thinking) | 100 | — | — |  |
+| Claude Fable 5 (Max Thinking) | 100 | 1566 | — | Promo pricing |
 
 ---
 
