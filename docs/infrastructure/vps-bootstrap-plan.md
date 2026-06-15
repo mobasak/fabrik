@@ -1,6 +1,6 @@
 # VPS Bootstrap Automation
 
-**Last Updated:** 2026-06-07 (Trio Phase 2+3 LIVE on full fleet since 2026-06-06; **4 spoke deps now BAKED INTO `bootstrap-vps.sh` 2026-06-07** — step_02 apt installs `python3-venv` + `python3-pip`, step_14a installs Node.js 22 + `@anthropic-ai/claude-code` via npm, step_14b installs `python-telegram-bot==22.7` via pip, step_14 mkdir block adds `chown ozgur:ozgur /opt/fabrik /opt/fabrik/scripts /opt/fabrik/logs`. All 4 deps validated end-to-end via DR drill #2 on Vultr 2026-06-07: 3m 13s wall-clock, 9.3× under the ≤30 min target, 15/15 substantive end-state checks. Both `bootstrap-vps.sh` + `bootstrap-hub.sh` preflights gained a **safe-rerun trap** that detects `root@<ip>` failing while `ozgur@<ip>` succeeds and emits an actionable "re-run as ozgur@" error BEFORE the 3rd-retry would trigger fail2ban — encoded in rule pack `.windsurf/rules/core/90-bootstrap-scripts.md` Rule 1.)
+**Last Updated:** 2026-06-15 (step-list re-aligned to the script's `step_00`..`step_15` labels — monitoring=`step_11`, traefik=`step_12`, dns=`step_13`, sysadmin=`step_14`, aro-wake=`step_15`, DOCKER-USER persistence=`step_10`; `step 14a`/`14b` clarified as sub-stages logged inside `step_14_install_sysadmin_pack`, not top-level steps. Trio Phase 2+3 LIVE on full fleet since 2026-06-06; **4 spoke deps now BAKED INTO `bootstrap-vps.sh` 2026-06-07** — step_02 apt installs `python3-venv` + `python3-pip`, step_14a installs Node.js 22 + `@anthropic-ai/claude-code` via npm, step_14b installs `python-telegram-bot==22.7` via pip, step_14 mkdir block adds `chown ozgur:ozgur /opt/fabrik /opt/fabrik/scripts /opt/fabrik/logs`. All 4 deps validated end-to-end via DR drill #2 on Vultr 2026-06-07: 3m 13s wall-clock, 9.3× under the ≤30 min target, 15/15 substantive end-state checks. Both `bootstrap-vps.sh` + `bootstrap-hub.sh` preflights gained a **safe-rerun trap** that detects `root@<ip>` failing while `ozgur@<ip>` succeeds and emits an actionable "re-run as ozgur@" error BEFORE the 3rd-retry would trigger fail2ban — encoded in rule pack `.windsurf/rules/core/90-bootstrap-scripts.md` Rule 1.)
 **Last probe report:** [`probe-reports/infra-probe-2026-06-07T20-20Z.yaml`](probe-reports/infra-probe-2026-06-07T20-20Z.yaml)
 **Status:** Spoke bootstrap **shipped + verified on vps2 + vps3**; hub bootstrap remains manual (documented below)
 
@@ -16,24 +16,26 @@ takes a fresh GreenCloudVPS Ubuntu 24.04 instance to a state where it's a fully-
 
 Full reference: [`scripts/bootstrap/README.md`](../../scripts/bootstrap/README.md).
 
-### What `bootstrap-vps.sh` does (13 steps, post-W16)
+### What `bootstrap-vps.sh` does (16 step functions, `step_00`..`step_15`, post-W16)
+
+> Prose item N below maps to the script's `step_(N-1)`: item 1 = `step_00`, … item 16 = `step_15`. Verify the live count with `grep -cE '^step_[0-9]+_' scripts/bootstrap/bootstrap-vps.sh`.
 
 1. Create `ozgur` user, install SSH key, grant NOPASSWD sudo — verified working before disabling root SSH
 2. Harden SSH (PermitRootLogin no, PasswordAuthentication no) — drop-in must be `00-fabrik-hardening.conf` (NOT `99-`), since Ubuntu cloud-init's `50-cloud-init.conf` wins in first-match-wins order. The script verifies effectiveness via `sshd -T` post-edit to catch the override silently. (Trap surfaced live on the hub 2026-06-02 — fleet drift fixed in the same session.)
 3. Install UFW + fail2ban; open 22/80/443/51820 (hardened 2026-05-31 for Lesson 68 — explicitly handles the `rc`-state edge case where a prior `apt remove ufw` leaves config files but no binary; self-verifies `command -v ufw` + `dpkg ii` + `ufw status: active` before returning)
 4. Install Docker + log rotation; create `fabrik` external network
-5. Install Wireguard (**G5 2026-06-13: no `iptables-persistent` — it `Conflicts: ufw` on Ubuntu 24.04 and would silently remove ufw; DOCKER-USER persistence is the systemd unit in step 11**)
+5. Install Wireguard (**G5 2026-06-13: no `iptables-persistent` — it `Conflicts: ufw` on Ubuntu 24.04 and would silently remove ufw; DOCKER-USER persistence is the systemd unit installed in `step_10`**)
 6. Generate Wireguard keypair on the spoke (private key never leaves)
 7. Register the spoke as a peer on vps1's `wg0.conf` (over the dev machine's `ssh vps` alias to the hub)
 8. Render the spoke's `wg0.conf` with the hub's endpoint
 9. Bring up `wg-quick@wg0`
-10. PMTU probe (fallback MTU=1380 then 1300 if 1420 fails)
-11. Apply DOCKER-USER iptables chain rules — persisted via **`iptables-docker-user.service`** (G5: oneshot unit running an idempotent add-script after `docker.service`, identical shape to the vps1 hub; replaces `iptables-save`/`netfilter-persistent`)
-12. Deploy monitoring agents — `node-exporter` + `cadvisor` + `promtail` configured to ship to vps1's Prometheus + Loki over mesh
-13. **(NEW, W16 2026-06-02)** Deploy spoke Traefik — renders 3 templates into `/opt/traefik/{compose.yaml,traefik.yml,dynamic/authelia.yml}` and brings up the stack. The compose template carries the **W15 `labels:` block** (`traefik.enable=true` + `traefik.http.middlewares.gzip.compress=true`) so the `gzip@docker` middleware that the Fabrik orchestrator emits on every router is defined on the spoke from minute one. Templates diffed byte-perfect against the live state on vps2 + vps3.
-14. **(NEW, W16-DNS 2026-06-02)** Create DNS records via site-provisioner — probes the spoke's public IPv4 (`curl -4 ifconfig.me`, `ipv4.icanhazip.com` fallback), then SSHes to vps1 and `curl POST`s `https://provision.vps1.ocoron.com/api/cloudflare/dns/ocoron.com/subdomain` twice (apex + wildcard). Calls go through `ensure_record()` so re-runs return `action: unchanged` instead of touching Cloudflare. The call goes via vps1 because (a) site-provisioner's IP allowlist includes vps1's public IP but not dev-WSL's, and (b) the production `API_KEY` lives in `/opt/site-provisioner/.env` on vps1 and never travels.
-15. **(Trio Phase 2 — code in `step_14_install_sysadmin_pack`, LIVE on vps2 + vps3 since 2026-06-06 + BAKED INTO SCRIPT 2026-06-07)** Install the per-host AI sysadmin pack: `vps-sysadmin-bot.service` + `/etc/cron.d/vps-sysadmin` (hash-staggered minutes per host via sha1sum-of-HOST_NAME modulo). Operator-gated on `claude auth login` + @BotFather token in `/opt/fabrik/.env.sysadmin`. Now also installs Node.js 22 + Claude Code CLI (step_14a) and `python-telegram-bot==22.7` (step_14b) — see "Spoke deps baked into bootstrap" block below.
-16. **(Trio Phase 3 — code in `step_15_install_aro_wake`, LIVE on vps2 + vps3 since 2026-06-06)** Install `aro-wake.service` (FastAPI on `0.0.0.0:8201`) with `_dedup`/`_HOP_LIMIT`/`_FWD_SUPPR`/`_STORM_BREAKER` loop guards + Prometheus `/metrics` exposition. `ARO_WAKE_PEER_HOSTS` rendered as CSV (NOT JSON — systemd strips embedded quotes).
+10. PMTU probe (fallback MTU=1380 then 1300 if 1420 fails) (`step_09`)
+11. Apply DOCKER-USER iptables chain rules (`step_10`) — persisted via **`iptables-docker-user.service`** (G5: oneshot unit running an idempotent add-script after `docker.service`, identical shape to the vps1 hub; replaces `iptables-save`/`netfilter-persistent`)
+12. Deploy monitoring agents (`step_11`) — `node-exporter` + `cadvisor` + `promtail` configured to ship to vps1's Prometheus + Loki over mesh
+13. **(W16 2026-06-02, `step_12`)** Deploy spoke Traefik — renders 3 templates into `/opt/traefik/{compose.yaml,traefik.yml,dynamic/authelia.yml}` and brings up the stack. The compose template carries the **W15 `labels:` block** (`traefik.enable=true` + `traefik.http.middlewares.gzip.compress=true`) so the `gzip@docker` middleware that the Fabrik orchestrator emits on every router is defined on the spoke from minute one. Templates diffed byte-perfect against the live state on vps2 + vps3.
+14. **(W16-DNS 2026-06-02, `step_13`)** Create DNS records via site-provisioner — probes the spoke's public IPv4 (`curl -4 ifconfig.me`, `ipv4.icanhazip.com` fallback), then SSHes to vps1 and `curl POST`s `https://provision.vps1.ocoron.com/api/cloudflare/dns/ocoron.com/subdomain` twice (apex + wildcard). Calls go through `ensure_record()` so re-runs return `action: unchanged` instead of touching Cloudflare. The call goes via vps1 because (a) site-provisioner's IP allowlist includes vps1's public IP but not dev-WSL's, and (b) the production `API_KEY` lives in `/opt/site-provisioner/.env` on vps1 and never travels.
+15. **(Trio Phase 2 — `step_14_install_sysadmin_pack`, LIVE on vps2 + vps3 since 2026-06-06 + BAKED INTO SCRIPT 2026-06-07)** Install the per-host AI sysadmin pack: `vps-sysadmin-bot.service` + `/etc/cron.d/vps-sysadmin` (hash-staggered minutes per host via sha1sum-of-HOST_NAME modulo). Operator-gated on `claude auth login` + @BotFather token in `/opt/fabrik/.env.sysadmin`. This step is logged as **step 14** and internally runs two sub-stages (logged `step 14a` / `step 14b` inside the same `step_14_install_sysadmin_pack` function, NOT separate top-level steps): **14a** installs Node.js 22 + `@anthropic-ai/claude-code`, **14b** installs `python-telegram-bot==22.7` — see "Spoke deps baked into bootstrap" block below.
+16. **(Trio Phase 3 — `step_15_install_aro_wake`, LIVE on vps2 + vps3 since 2026-06-06)** Install `aro-wake.service` (FastAPI on `0.0.0.0:8201`) with `_dedup`/`_HOP_LIMIT`/`_FWD_SUPPR`/`_STORM_BREAKER` loop guards + Prometheus `/metrics` exposition. `ARO_WAKE_PEER_HOSTS` rendered as CSV (NOT JSON — systemd strips embedded quotes).
 
 **Spoke deps BAKED INTO `bootstrap-vps.sh` 2026-06-07 (all validated live via DR drill #2 in 3m 13s):**
 
@@ -56,7 +58,7 @@ Full reference: [`scripts/bootstrap/README.md`](../../scripts/bootstrap/README.m
 
 **Single-source operator doc:** [`vps-hub-rebuild.md`](vps-hub-rebuild.md). That doc holds the 5-command operator runbook, the per-step walkthrough, the 7-check end-state contract, and the same-IP vs new-IP decision.
 
-The hub script and the spoke script share `bootstrap-config.sh` (locked WG/firewall constants) but have different step counts (12 for spoke, 18 for hub) because the hub also restores from Backrest + W9 and handles the Cloudflare DNS rewrite. The script does what the manual paragraph used to describe — install Docker, create `fabrik` network, bring up `/opt/<svc>/compose.yaml` stacks in dependency order, restore from B2, install Wireguard hub + open UDP 51820 — but verifies each step instead of trusting the operator to remember.
+The hub script and the spoke script share `bootstrap-config.sh` (locked WG/firewall constants) but have different step counts (the hub has more steps because it also restores from Backrest + W9 and handles the Cloudflare DNS rewrite; confirm current counts with `grep -cE '^step_' scripts/bootstrap/bootstrap-{vps,hub}.sh`). The script does what the manual paragraph used to describe — install Docker, create `fabrik` network, bring up `/opt/<svc>/compose.yaml` stacks in dependency order, restore from B2, install Wireguard hub + open UDP 51820 — but verifies each step instead of trusting the operator to remember.
 
 ## Operating notes (for now)
 
@@ -84,7 +86,7 @@ If a step fails partway, fix it, then re-run the script with the same arguments.
 
 | Path | Purpose |
 | :--- | :--- |
-| [`scripts/bootstrap/bootstrap-vps.sh`](../../scripts/bootstrap/bootstrap-vps.sh) | The actual script (522 lines) |
+| [`scripts/bootstrap/bootstrap-vps.sh`](../../scripts/bootstrap/bootstrap-vps.sh) | The actual script (run `wc -l` for current size) |
 | [`scripts/bootstrap/bootstrap-config.sh`](../../scripts/bootstrap/bootstrap-config.sh) | Locked params (subnet, port, MTU, mesh-only port list, sudoer username) |
 | [`scripts/bootstrap/templates/wg0.spoke.conf.template`](../../scripts/bootstrap/templates/wg0.spoke.conf.template) | Spoke Wireguard config |
 | [`scripts/bootstrap/templates/wg-peer.append.template`](../../scripts/bootstrap/templates/wg-peer.append.template) | `[Peer]` block appended to hub on peer-add |

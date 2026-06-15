@@ -1,12 +1,12 @@
 # VPS1 Hub — How to Bring It Back
 
-**Last Updated:** 2026-06-07 (DR-in-hours track shipped 2026-06-01; aro-wake + Phase 4 wire LIVE on vps1 since 2026-06-05 + Prometheus SLI metrics + 2 alert rules LIVE 2026-06-06; `bootstrap-hub.sh` step_07 gained spoke↔spoke wg0 routing backstop 2026-06-07 + safe-rerun preflight trap detecting `root@<ip>` after step_01 disabled root login — see [`90-bootstrap-scripts.md`](../../.windsurf/rules/core/90-bootstrap-scripts.md) Rule 1. Hub-rebuild drill (Step 8 of DR-in-hours track) still pending, but the parallel `bootstrap-vps.sh` drilled clean 2026-06-07 (3m 13s, 9.3× under target) — validates the shared step_00/01/02/14 code paths.)
+**Last Updated:** 2026-06-15 (**Hub DR now GREEN live** — drill #6 sweep on 2026-06-15 produced the first green hub drill `dr-drill-hub-20260615-111639` (9 drills, 6 bugs fixed) via `fabrik vultr drill hub`; DR-in-hours track shipped 2026-06-01; aro-wake + Phase 4 wire LIVE on vps1 since 2026-06-05 + Prometheus SLI metrics + 2 alert rules LIVE 2026-06-06; `bootstrap-hub.sh` step_07 gained spoke↔spoke wg0 routing backstop 2026-06-07 + safe-rerun preflight trap detecting `root@<ip>` after step_01 disabled root login — see [`90-bootstrap-scripts.md`](../../.windsurf/rules/core/90-bootstrap-scripts.md) Rule 1. G5: step_02 no longer installs `iptables-persistent`; step_09 enables `netfilter-persistent` only on legacy pre-G5 hubs.)
 **Last probe report:** [`probe-reports/infra-probe-2026-06-07T20-20Z.yaml`](probe-reports/infra-probe-2026-06-07T20-20Z.yaml)
-**Status:** Scripted end-to-end. DR drill on a throwaway VPS pending (Step 8 of the DR-in-hours track) — until that drill closes, the wall-clock figure below is the **target**, not measured.
+**Status:** Scripted end-to-end **and live-proven** — Hub DR went GREEN 2026-06-15 via the disposable `fabrik vultr drill hub` (first green `dr-drill-hub-20260615-111639`). The drill runs under `--skip-services --skip-mesh` for isolation (so it never handshakes with the live spokes or starts services bound to live infra); under those flags the 7-check end-state contract (step_18) is **deliberately SKIPPED** — see note in the contract section below.
 
 This document is the definitive answer to "vps1 is gone — how do I get it back?" It supersedes the prior advice in `vps-bootstrap-plan.md` § "What's still manual: the hub" (which said copy-and-customize the disaster-recovery runbook by hand).
 
-> **Throwaway-VPS hub drill (Step 8 of the DR-in-hours track) is now `fabrik vultr drill hub`** (shipped 2026-06-08). It provisions an 8GB Vultr droplet, runs `bootstrap-hub.sh` against the latest DR snapshot, then auto-destroys — one command, cost-capped, drill report to `logs/dr-drill-history.jsonl`. ~90 min; operator-run (quarterly). The shared `step_00/01/02/14` paths are already drill-proven via `fabrik vultr drill spoke` (live 2026-06-08, bootstrap+verify rc=0). See the plan [`docs/archive/2026-06-07-fabrik-vultr-provisioning.md`](../archive/2026-06-07-fabrik-vultr-provisioning.md).
+> **Throwaway-VPS hub drill is `fabrik vultr drill hub`** (shipped 2026-06-08, **first GREEN 2026-06-15**). It provisions a Vultr droplet, runs `bootstrap-hub.sh --skip-services --skip-mesh` against the latest DR snapshot, then **always auto-destroys** (even on failure) — one command, cost-capped, drill report to `logs/dr-drill-history.jsonl`. The 2026-06-15 sweep (drill #6) ran 9 drills, fixed 6 bugs, and landed the first green run `dr-drill-hub-20260615-111639`. Operator-run (quarterly). The shared `step_00/01/02/14` paths are also drill-proven via `fabrik vultr drill spoke`. See the plan [`docs/archive/2026-06-07-fabrik-vultr-provisioning.md`](../archive/2026-06-07-fabrik-vultr-provisioning.md).
 
 ## Scope
 
@@ -32,7 +32,7 @@ This document is the definitive answer to "vps1 is gone — how do I get it back
 - First Let's Encrypt cert issuance (Traefik): ~5 min
 - Verify end-state contract: ~5 min
 
-Drill target — measure actuals in Step 8.
+These are the **real-rebuild** budget. Note the disposable `fabrik vultr drill hub` runs under `--skip-services --skip-mesh`, so its measured wall-clock does NOT include the compose-up / cert-issuance phases above (those steps are skipped in drill mode).
 
 ## Prerequisites — once, before disaster
 
@@ -86,20 +86,20 @@ If the bootstrap fails partway and you need to re-run, the SSH login user change
 
 ## What `bootstrap-hub.sh` does, step by step
 
-18 idempotent steps. Each prints `[ ok ]` on success, `[WARN]` on soft failure, `[FAIL]` + exit on hard failure.
+The step functions run `step_00`..`step_18` plus two drill-oriented sub-steps `step_12b` (dry-validate restored configs) and `step_12c` (start core services in drill mode). Each prints `[ ok ]` on success, `[WARN]` on soft failure, `[FAIL]` + exit on hard failure. Confirm the current set with `grep -nE '^step_' scripts/bootstrap/bootstrap-hub.sh`.
 
 | # | Step | What | Notes |
 |---|---|---|---|
 | 00 | create sudoer | `useradd ozgur` + install pubkey + NOPASSWD sudo | Matches vps1 posture from spoke bootstrap |
 | 01 | harden SSH | `PermitRootLogin no` + `PasswordAuthentication no` via drop-in **`00-fabrik-hardening.conf`** (NOT `99-`) | After 00 so we don't lock ourselves out. **First-match-wins trap (verified live 2026-06-02 on the existing hub):** Ubuntu cloud-init drops `50-cloud-init.conf` with `PasswordAuthentication yes`. sshd processes drop-ins in alphabetical-glob order and the **first** matching directive wins, so anything `99-*` loses to cloud-init's `50-*`. The Fabrik drop-in MUST sort BEFORE cloud-init's — use `00-fabrik-hardening.conf`, or edit `50-cloud-init.conf` in place. Always cross-check with `sshd -T` afterwards. |
-| 02 | install OS packages | Docker via `get.docker.com`, wireguard, iptables-persistent, ufw, fail2ban, python3, inotify-tools, gh, jq | NoninteractiVE apt; gh repo set up if missing |
-| 03 | install Claude Code | `curl -fsSL https://claude.ai/install.sh \| sh` + symlink to `/usr/local/bin/claude` | Needed by `vps-sysadmin-bot` |
+| 02 | install OS packages | Docker via `get.docker.com`, wireguard, ufw, fail2ban, python3, inotify-tools, gh, jq | Noninteractive apt; gh repo set up if missing. **G5: NO `iptables-persistent` — on Ubuntu 24.04 it `Conflicts: ufw` and would silently remove ufw; DOCKER-USER + OpenVPN persistence is the systemd units in step 09.** |
+| 03 | install Claude Code | `curl -fsSL https://claude.ai/install.sh \| bash` + symlink to `/usr/local/bin/claude` | Needed by `vps-sysadmin-bot` |
 | 04 | scp W9 env | dev WSL `/opt/fabrik-dr-store/env/latest` → `/opt/fabrik/.env` (mode 600) + sysadmin equivalent | Source for steps 06+ B2 creds |
 | 05 | write Docker `daemon.json` | Log rotation 10m × 3, promtail tag, address pool, DNS | Before any container start so first runs use it |
 | 06 | restic restore host-state | `/etc/wireguard`, `/etc/iptables`, `/etc/ufw/user*.rules`, `/etc/sudoers.d/ozgur`, `/etc/sysctl.d/99-*`, `/etc/cron.d/vps-sysadmin`, custom systemd units, `/root/.ssh/*`, `/home/ozgur/.ssh/*`, `/usr/local/bin/zellij` | 24 explicit paths; `--target /host` so writes hit the host filesystem |
-| 07 | enable UFW | `ufw --force enable` + `ufw reload` (rules already on disk from step 06) | Sanity-checks ≥ 16 rules present (was 12 pre-2026-06-06; +2 aro-wake allows + 1 `ufw route allow in on wg0 out on wg0` + ipv6 mirrors) |
+| 07 | enable UFW | `ufw --force enable` + `ufw reload` (rules already on disk from step 06) | Sanity-check **warns if fewer than 12 rules** present (expected range ~12–15: 6 IPv4 + 6 IPv6 mirrors per W5 audit, then 2026-06-06 added 2 aro-wake allows + 1 `ufw route allow in on wg0 out on wg0`) |
 | 08 | bring up mesh | `systemctl enable --now wg-quick@wg0` | Spokes reconverge within ~3 min |
-| 09 | apply iptables boot state | `netfilter-persistent` + `iptables-docker-user.service` + `iptables-openvpn.service` | Order matters: netfilter first, then chain rules |
+| 09 | apply iptables boot state | `iptables-docker-user.service` + `iptables-openvpn.service` (custom oneshot units); **`netfilter-persistent` only if its unit exists** (legacy pre-G5 hubs that still had `iptables-persistent`) | Post-G5 the host has no `iptables-persistent`, so the script probes for `netfilter-persistent.service` and enables it only when present; otherwise the DOCKER-USER + OpenVPN chains are reapplied at boot purely by the two custom units. Order: netfilter (if present) first, then chain rules |
 | 10 | `fabrik` Docker network | `docker network create fabrik` (idempotent) | External network referenced by every stack |
 | 11 | restic restore `/opt/` | All 19 service dirs minus `containerd`, `fabrik/.git`, `backups/coolify_env_*`, `*restic-cache*`, `manually_installed.txt` | The big-ish restore — ~16 MiB compressed |
 | 12 | restic restore Docker volumes | 10 named volumes (postgres-data, redis_redis-data, monitoring_grafana-data, apprise-config, meilisearch-data, n8n-data, ocoron-com 4 tenant volumes, monitoring_alertmanager-data) | Excludes the regeneratable ones (prometheus-data, loki-data, promtail-positions, ocoron-com_redis_data) |
@@ -112,7 +112,9 @@ If the bootstrap fails partway and you need to re-run, the SSH login user change
 
 ## End-state contract — must pass all 7
 
-Step 18 verifies these automatically. The script exits non-zero on any failure.
+Step 18 verifies these automatically on a **real rebuild**. The script exits non-zero on any failure.
+
+> **Drill mode skips this contract.** When `--skip-services` OR `--skip-mesh` is set (both are mandatory for the disposable `fabrik vultr drill hub`, since the drill must NOT bring up the mesh with the restored vps1 key or start live-bound services), `step_18` short-circuits with an informative skip instead of emitting a fake "N of 7 FAILED". The drill instead relies on the dry-validation in `step_12b` (configs) and `step_12c` (optional core-services-only start). The 7 checks below apply to a genuine same-/new-IP rebuild without those flags.
 
 1. `wg show wg0 latest-handshakes` → ≥ 2 peers handshaking within last 3 min (vps2 + vps3)
 2. `docker ps | wc -l` ≥ 29 (matches vps1 inventory)
@@ -171,11 +173,16 @@ If unsure, just pass `--cf-rewrite-dns <new-ip>` always — the script is idempo
 - [`vps-bootstrap-plan.md`](vps-bootstrap-plan.md) — spoke (vps2 / vps3) bootstrap. Different path; do not use that script for the hub.
 - [`vps-complete-inventory.md`](vps-complete-inventory.md) — the source-of-truth for what's on vps1. The end-state contract's "≥ 31 containers" is anchored against this.
 - [`vps-ai-sysadmin.md`](vps-ai-sysadmin.md) — the bot the script restarts in step 15.
-- `scripts/bootstrap/bootstrap-hub.sh` — the script itself, 996 lines, run `--help` for the full flag list.
+- `scripts/bootstrap/bootstrap-hub.sh` — the script itself (run `wc -l` for current size); run `--help` for the full flag list.
 - `scripts/bootstrap/bootstrap-config.sh` — locked constants (restic repo URI, CF zone ID, service start order, volume restore list).
 
-## DR drill — pending
+## DR drill log
 
-Step 8 of the DR-in-hours track: provision a throwaway VPS, run `bootstrap-hub.sh` against it, measure actual wall-clock against the ≤ 90 min target, fix any gap that surfaces. Until that drill runs, every wall-clock figure here is a TARGET — drilled-clean means measured-clean.
+### 2026-06-15 — Drill #6 sweep — FIRST GREEN
 
-When the drill happens, append the measurements + any fixes to this doc's "Drill log" section (which doesn't exist yet because there are no drills yet).
+Hub DR went green live via the disposable `fabrik vultr drill hub`. The sweep ran 9 drills and fixed 6 bugs before landing the first clean run: `dr-drill-hub-20260615-111639`. The drill provisions a Vultr droplet, runs `bootstrap-hub.sh --skip-services --skip-mesh` against the latest DR snapshot, then always auto-destroys.
+
+- **Isolation flags:** `--skip-services --skip-mesh` are mandatory in drill mode so the throwaway never handshakes with vps2/vps3 using the restored vps1 WG key (which would overwrite the live spokes' peer endpoint) and never starts services bound to live infra. Under these flags the 7-check end-state contract (`step_18`) is SKIPPED by design; the drill relies on `step_12b` (config dry-validation) + `step_12c` (optional core-services-only start) instead.
+- **Real-rebuild wall-clock** (compose-up + cert issuance phases) is still only measured during a genuine non-drill rebuild — the disposable drill skips those phases, so the ≤ 90 min figure above remains the target for an actual same-/new-IP rebuild.
+
+Drill reports append to `logs/dr-drill-history.jsonl` (gitignored, local-only). See also [`vps-spoke-rebuild.md`](vps-spoke-rebuild.md) § "DR / provisioning validation status" for the fleet-wide green status.

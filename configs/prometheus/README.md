@@ -11,8 +11,8 @@ the same Gatus asymmetry closed earlier the same day.
 | Path | Purpose |
 | :--- | :--- |
 | [`prometheus.yml`](prometheus.yml) | Main config — scrape jobs, rule file refs, global settings |
-| [`rules/alerts.yml`](rules/alerts.yml) | Active alert rules (5 groups: `aro_wake`, `container_health`, `host_health`, `service_health` — plus historical groups documented elsewhere) |
-| [`rules/fabrik-drift.yml`](rules/fabrik-drift.yml) | The `fabrik-registrar-drift` rule group (separate file because the registrar audit cron writes it) |
+| [`rules/alerts.yml`](rules/alerts.yml) | Active alert rules — 4 groups: `container_health`, `host_health`, `service_health`, `aro_wake` (verified 2026-06-15) |
+| [`rules/fabrik-drift.yml`](rules/fabrik-drift.yml) | The `fabrik-registrar-drift` rule group (separate file because the registrar audit cron writes it) — the 5th rule group overall |
 
 ## Secrets
 

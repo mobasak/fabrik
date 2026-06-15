@@ -1,6 +1,6 @@
 # Grafana Provisioning & Dashboards
 
-**Last Updated:** 2026-06-07 (post-multi-host setup unchanged; aro-wake SLI metrics LIVE on full fleet since 2026-06-06 — `aro_wake_requests_total` gained `status="rate_limited"` value 2026-06-07. Dashboard for `aro_wake_*` series is deliberately deferred per `docs/STRATEGIC_BACKLOG.md` Later tier. PromQL + the 2 alert rules `AroWakeLowSuccessRate` + `AroWakeCostBurnHigh` cover operator needs today; a Grafana panel can be added when ad-hoc PromQL gets tedious. See [`prometheus-app-metrics-setup.md`](prometheus-app-metrics-setup.md#aro-wake-sli-metrics-added-2026-06-06--full-fleet) for the SLI series + scrape pattern.)
+**Last Updated:** 2026-06-15 (corrected Data Freshness: Prometheus global scrape interval is 15 s, not 30 s — `fabrik-services` is the per-job 30 s override. **Prior 2026-06-07:** post-multi-host setup unchanged; aro-wake SLI metrics LIVE on full fleet since 2026-06-06 — `aro_wake_requests_total` gained `status="rate_limited"` value 2026-06-07. Dashboard for `aro_wake_*` series is deliberately deferred per `docs/STRATEGIC_BACKLOG.md` Later tier. PromQL + the 2 alert rules `AroWakeLowSuccessRate` + `AroWakeCostBurnHigh` cover operator needs today; a Grafana panel can be added when ad-hoc PromQL gets tedious. See [`prometheus-app-metrics-setup.md`](prometheus-app-metrics-setup.md#aro-wake-sli-metrics-added-2026-06-06--full-fleet) for the SLI series + scrape pattern.)
 **Status:** ✅ Live
 **Grafana URL:** <https://monitor.vps1.ocoron.com> (Authelia 2FA required for UI)
 **Automation:** `scripts/provision_grafana.sh` — idempotent, re-runnable
@@ -178,7 +178,7 @@ Or open <https://monitor.vps1.ocoron.com> in a browser, complete Authelia 2FA, a
 
 ## Data Freshness
 
-- **Prometheus scrape interval:** 30 s globally; can be overridden per-job
+- **Prometheus scrape interval:** 15 s globally (`global.scrape_interval` in `prometheus.yml`); overridden per-job where needed — the `fabrik-services` job uses 30 s
 - **Node Exporter Full:** data appears within ~30 s of dashboard open
 - **Docker monitoring (cAdvisor):** data appears within ~30 s
 - **Prometheus Stats:** data appears immediately

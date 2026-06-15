@@ -1,12 +1,12 @@
 # VPS Fleet — Complete Service Inventory
 
-**Last Updated:** 2026-06-07 (Trio Phase 1+2+3+4 LIVE across the FULL FLEET since 2026-06-06; **Phase 5.1.a operator-reversal cron LIVE on full fleet 2026-06-07** via `detect_reversals.py` + `*/5 min` cron; **rate-limited 429 wakes now tracked** via `aro_wake_requests_total{status="rate_limited"}` + `AroWakeLowSuccessRate` denominator excludes them; **stale netdata scrape job removed** (caused 24× Telegram flood overnight); **6 bootstrap defenses shipped** including preflight SSH-user-transition trap detection; **DR drill MEASURED end-to-end 2026-06-07**: bootstrap-vps.sh on Vultr → 3m 13s wall-clock, 9.3× under the ≤30 min target, 15/15 substantive end-state checks.)
+**Last Updated:** 2026-06-15 (Trio Phase 1+2+3+4 LIVE across the FULL FLEET since 2026-06-06; **Phase 5.1.a operator-reversal cron LIVE on full fleet 2026-06-07** via `detect_reversals.py` + `*/5 min` cron; **rate-limited 429 wakes now tracked** via `aro_wake_requests_total{status="rate_limited"}` + `AroWakeLowSuccessRate` denominator excludes them; **stale netdata scrape job removed** (caused 24× Telegram flood overnight); **6 bootstrap defenses shipped** including preflight SSH-user-transition trap detection; **fresh-spoke install MEASURED 2026-06-07**: `bootstrap-vps.sh --skip-mesh --skip-dns` on Vultr → 3m 13s wall-clock, 15/15 substantive end-state checks — this measures the FRESH-INSTALL path, NOT DR restore; **fresh-spoke drill proven live 2026-06-13/14**; **the actual DR-restore paths — `bootstrap-spoke-restore.sh` (spoke) + `bootstrap-hub.sh` (hub) — were first validated live 2026-06-15** (spoke-restore + hub drills first green). See the `fabrik vultr drill` subsystem below.)
 **Last probe report:** [`probe-reports/infra-probe-2026-06-07T20-20Z.yaml`](probe-reports/infra-probe-2026-06-07T20-20Z.yaml)
-**Hosts:** **vps1** (LA, hub) · **vps2** (Coventry UK, spoke) · **vps3** (Coventry UK, spoke)
+**Hosts:** **vps1** (LA, hub) · **vps2** (Coventry UK, spoke) · **vps3** (Coventry UK, spoke). **The fleet is settled at 3 permanent hosts.** Any `vps4` you see in drill logs/reports is the **disposable drill identity** — a throwaway Vultr instance the `fabrik vultr drill` subsystem spins up and auto-destroys; it is NOT a permanent fleet member. (`fabrik vultr provision` can add a real 4th spoke, but none is currently provisioned.)
 **Network:** Wireguard mesh `10.99.0.0/24` over UDP `51820`, MTU `1420`, hub-and-spoke topology
 **Deploy model:** SSH + Docker Compose (no Coolify; removed 2026-05-30 — see `docs/development/plans/archived/2026-05-30-coolify-residue-cleanup.md`)
 
-## Quick state (current)
+## Quick state (current — container counts verified live 2026-06-15: vps1=31, vps2=5, vps3=5)
 
 - **vps1:** 31 containers — the 29 documented below plus `watchdog-test` + `watchdog-test-watchdog` (T-P5 dogfood test running since 2026-06-03; sidecar self-heals nginx via Claude Code Opus diagnose + `restart_container` Tier A action; verified end-to-end 2026-06-04 with 34s incident→action close time). 4 shared infra services (postgres-main, redis-main, glitchtip-web, authelia) + loki are bound to `10.99.0.1:<port>` mesh IPs so spokes can reach them.
 - **vps2:** 5 containers — monitoring agents (node-exporter / cadvisor / promtail) + Traefik (public TLS for `*.vps2.ocoron.com`). DNS is **live** as of 2026-05-31 afternoon.
@@ -16,7 +16,7 @@
 - **Spoke DNS (NEW today):** `vps2.ocoron.com` + `*.vps2.ocoron.com` → `96.9.214.128`; `vps3.ocoron.com` + `*.vps3.ocoron.com` → `104.128.190.151`. Wildcards cover `auth.vpsN`, `<tenant>.vpsN`, etc. Apex + wildcard each, no per-service A records needed.
 - **Spoke Traefik:** listening on 80 + 443 on each spoke's public IP; `authelia-vps1@file` middleware ready (forward-auth → `http://10.99.0.1:9091/api/verify`). Public TLS via Let's Encrypt will issue on first tenant deploy.
 - **Loki ingest:** spokes pushing logs successfully (`host` label values: `["vps1","vps2","vps3"]`)
-- **Prometheus:** scraping **14 active targets across 12 jobs (verified 2026-06-07T20:20Z via /api/v1/targets)** (12 vps1 + 6 spoke), all up; every series carries `host` label
+- **Prometheus:** **13 jobs configured in `configs/prometheus/prometheus.yml` but 12 ACTIVE** (`fabrik-services` has null targets) — **14 targets, 14 up (verified 2026-06-15 via /api/v1/targets)**; every series carries `host` label
 - **Grafana:** all 5 dashboards have `host` template variable (regex `/^vps/`)
 - **Alert rules:** ~~`spoke_health` group~~ — **NOT in alerts.yml as of 2026-06-07T20:20Z**. The 5 live groups: aro_wake (2 rules), container_health (6), host_health (3), service_health (1), fabrik-registrar-drift (1).
 - **AI sysadmin:** `proactive-check.sh` tags every anomaly with originating host (`cpu_high[vps2]`)
@@ -52,15 +52,15 @@ These prevent today's failure modes from recurring:
 ## Re-verify / Update This Document
 
 ```bash
-# Container counts per host
-ssh vps  'sudo docker ps --format "{{.Names}}" | wc -l'   # expect 29 (28 shared + site-provisioner interim)
+# Container counts per host (verified live 2026-06-15: 31 / 5 / 5)
+ssh vps  'sudo docker ps --format "{{.Names}}" | wc -l'   # expect 31 (29 platform + 2 watchdog dogfood)
 ssh vps2 'sudo docker ps --format "{{.Names}}" | wc -l'   # expect 5
 ssh vps3 'sudo docker ps --format "{{.Names}}" | wc -l'   # expect 5
 
 # Mesh handshake state
 ssh vps 'sudo wg show'
 
-# Prometheus targets across hosts (expect 14/14 up across 12 jobs as of 2026-06-07T20:20Z; was 18/15 briefly on 2026-05-31 when spoke scrape jobs were added, dropped at some point)
+# Prometheus targets across hosts (expect 14/14 up; 13 jobs configured in prometheus.yml but 12 ACTIVE — fabrik-services has null targets. Verified 2026-06-15.)
 ssh vps 'sudo docker exec prometheus wget -qO- http://localhost:9090/api/v1/targets' \
   | python3 -c 'import json,sys; d=json.load(sys.stdin)["data"]["activeTargets"]; up=sum(1 for t in d if t["health"]=="up"); print(f"{up}/{len(d)} up")'
 
@@ -297,7 +297,7 @@ UFW was installed + enabled by W1 of the fleet-hardening plan on 2026-05-31 even
 
 **Pre-W1 footnote (Lesson 68):** before W1, UFW was in package status `rc` ("removed but config files remain") on both spokes — `systemctl is-active ufw` reported "active" because the init script remained, but the `ufw` binary was missing so rules were never applied. Front-line firewall was DOCKER-USER chain only. W1 reinstalled the package (`rc → ii`) and ran `ufw --force enable`, which applied the pre-existing `/etc/ufw/user.rules` content.
 
-Plus on every host: `DOCKER-USER` iptables chain. **Persistence differs by role/vintage:** the hub (vps1) and the current pre-G5 live spokes load it via `netfilter-persistent.service` (`/etc/iptables/rules.v4`). **Spokes (re)bootstrapped after G5/G5b (2026-06-13) use `iptables-docker-user.service` instead** — a oneshot unit running an idempotent add-script after `docker.service` — because `iptables-persistent` `Conflicts: ufw` on Ubuntu 24.04. Same chain rules either way:
+Plus on every host: `DOCKER-USER` iptables chain. **Persistence is now `iptables-docker-user.service` — the shipped, drill-proven default — across the whole bootstrap suite.** A oneshot systemd unit runs an idempotent add-script after `docker.service`; it replaced `iptables-persistent` because the latter declares `Conflicts: ufw` on Ubuntu 24.04 (installing it silently removes ufw). Both spoke bootstrap paths carry it: `bootstrap-vps.sh` (fresh spoke, step 10) AND `bootstrap-spoke-restore.sh` (spoke DR restore, step 07). The hub follows the same model: `bootstrap-hub.sh` (G5-for-hub) also dropped `iptables-persistent` and ships `iptables-docker-user.service` (step 09) — `netfilter-persistent` is now only conditional/legacy (step 09 enables it *only if* the unit already exists on a pre-G5 hub). Same chain rules everywhere:
 
 - `ACCEPT -i wg0` (trust everything from the mesh — handshake established trust)
 - `DROP -i <public-iface> -p tcp -m multiport --dports 5432,6379,9090,9091,9100,8080,3100,7700,8000` (block mesh-only ports from public)
@@ -698,7 +698,7 @@ This table answers "when X breaks, what wakes up an AI to look at it?" — and l
 | `prometheus` (vps1) | 14 active targets across 12 jobs (verified 2026-06-07T20:20Z): node-exporter, cAdvisor, postgres-exporter, redis-exporter, pushgateway, gatus, blackbox, fabrik-registrar, glitchtip-web, plus `aro-wake` job with 3 targets (vps1+vps2+vps3 over mesh). Spoke metrics: covered via the `aro-wake` job only — dedicated `node-spokes`/`cadvisor-spokes`/`promtail-spokes` jobs were referenced in older docs but are NOT present in live `prometheus.yml`. | `alertmanager` → Telegram **AND** queried by `proactive-check.sh` cron | ✅ via `proactive-check.sh` (every 15 min, rate-limited 5 Claude wakes/h) |
 | `alertmanager` (vps1) | Prometheus rule alerts from 5 live groups: `aro_wake` (2), `container_health` (6), `host_health` (3 — fires on host=vps1\|vps2\|vps3 labels), `service_health` (1), `fabrik-registrar-drift` (1, separate `rules/fabrik-drift.yml`). No `spoke_health` group exists (was planned, never landed). | Native `telegram_configs` → Telegram | ❌ (operator-in-loop by design; ARO-Brain receiver stub in config but not built) |
 | `loki` (vps1) | logs from promtail on all 3 hosts (`host` label vps1/vps2/vps3) | Grafana dashboards; **no ruler / log-alert wiring** | ❌ |
-| `gatus` (vps1) | 21 synthetic endpoints across 16 config files (apps/core/data/observability/external) | Custom alerter → Apprise → Telegram | ❌ |
+| `gatus` (vps1) | 33 synthetic endpoints across 18 config files (apps/core/data/observability/external) | Custom alerter → Apprise → Telegram | ❌ |
 | `glitchtip-web` + `glitchtip-worker` (vps1) | Sentry-compat exception ingest from instrumented apps; 7 retained projects | DSN → web UI; per-project alerts → Apprise → Telegram | ❌ |
 | `backrest` (each host) | backup plan run results | container logs only; failure hook in `config.json` is **currently broken** — points at stale Coolify-UUID Apprise hostname (Known Issue 1) | ❌ |
 | `traefik` (each host) | HTTP traffic, 5xx ratios | scraped by Prometheus (when enabled) → Alertmanager → Telegram | indirectly via Prometheus path |
@@ -775,7 +775,7 @@ Default applicability: `WatchdogConfig.enabled` defaults to True, so every spec 
 
 **Phases shipped 2026-06-03:** T-P3 (`core/self-healing.md` rule pack — 8-row escalation ladder + 5 anti-patterns + signup-flood worked example) and T-P4 (universal-coverage overlay into `docs/traycer/mega-epic-breakdown/02-epic-decomposition-command.md` via 12 surgical edits totaling ~84 lines, plus 1-line sync to `03-expand-epic-files-command.md`'s Metadata block). Both subplans archived.
 
-**T-P5 progress (2026-06-03 → 2026-06-04) — dogfood E2E live:** `specs/services/watchdog-test.yaml` (docker-source `nginx:alpine` + watchdog enabled) deployed on vps1. Steps 5–6 surfaced **five** silent-failure modes in the sidecar's docker-probe + Claude subprocess paths — all root-caused, fixed, and committed to `mobasak/fabrik-lib` + the watchdog driver. End-to-end self-heal verified live 2026-06-04: `docker kill watchdog-test` → 60s tick → rule fires `container_not_running` urgent → Claude Opus returns Tier A `restart_container` → `_restart_main` → `state.resolve_incident("auto")`. **Detection to resolution: 3 s** (with one 60 s tick wait). T-P5 subplan: [`2026-06-03-watchdog-P5-subplan.md`](../development/plans/2026-06-03-watchdog-P5-subplan.md). Parent plan: [`2026-05-30-ai-watchdog-platform.md`](../development/plans/2026-05-30-ai-watchdog-platform.md).
+**T-P5 progress (2026-06-03 → 2026-06-04) — dogfood E2E live:** `specs/services/watchdog-test.yaml` (docker-source `nginx:alpine` + watchdog enabled) deployed on vps1. Steps 5–6 surfaced **five** silent-failure modes in the sidecar's docker-probe + Claude subprocess paths — all root-caused, fixed, and committed to `mobasak/fabrik-lib` + the watchdog driver. End-to-end self-heal verified live 2026-06-04: `docker kill watchdog-test` → 60s tick → rule fires `container_not_running` urgent → Claude Opus returns Tier A `restart_container` → `_restart_main` → `state.resolve_incident("auto")`. **Detection to resolution: 3 s** (with one 60 s tick wait). T-P5 subplan: [`2026-06-03-watchdog-P5-subplan.md`](../development/plans/archived/2026-06-03-watchdog-P5-subplan.md). Parent plan: [`2026-05-30-ai-watchdog-platform.md`](../development/plans/archived/2026-05-30-ai-watchdog-platform.md).
 
 The five failure modes (all visible only with the sidecar dogfooded against a real Docker daemon — none surfaced in unit tests):
 
@@ -828,7 +828,7 @@ DB users (`pg_user`, verified live post-cleanup): `postgres` (super), `ozgur` (s
 
 - Postgres: **2 app DBs** (glitchtip, site_provisioner) on `postgres-main`. Reduced from the Coolify-era 4 (`translator` + `proxy_management` removed with those services).
 - Redis: 2 logical DBs in use (`db3` = authelia, 26 keys with TTL; `db4` = glitchtip, 8 keys); 14 indexes free.
-- Gatus: **21 endpoints across 16 config files** (re-verified 2026-06-02 live; `apps/` gained 1 file since the prior count). Top-level breakdown: `apps/` 11 files / 8 endpoints; `core/` 1 file / 5 endpoints; `data/` 1 file / 3 endpoints; `external/` 1 file / 5 endpoints; `observability/` 1 file / 0 endpoints. Some `apps/` files probe services no longer deployed — see "Stale/residue" section below. Endpoint count is the stable signal; file count drifts as endpoints are split into per-service files.
+- Gatus: **33 endpoints across 18 config files** (counted from source-controlled `configs/gatus/` 2026-06-15 — Gatus configs are now in git, so this is repo-verifiable, not a live-only probe). Top-level breakdown: `apps/` 14 files / 16 endpoints; `core/` 1 file / 5 endpoints; `external/` 1 file / 5 endpoints; `observability/` 1 file / 4 endpoints; `data/` 1 file / 3 endpoints; `_base.yaml` + `apps/services.yaml` carry 0 endpoints. Count it any time with `grep -rcE '^\s*- name:' configs/gatus/`. Some `apps/` files probe services no longer deployed — see "Stale/residue" section below.
 - Backrest (hub): **1 repo** (`b2-vps1`) + **4 plans live** (postgres-dumps, docker-volumes, opt-configs, host-state) — first ship 2026-06-01 (W2). Each spoke runs its own Backrest container with own repo + 2 plans (W11).
 - GlitchTip: 7 project IDs retained from Coolify-era audit (captcha=65, image-broker=66, translator=67, emailgateway=68, file-api=69, file-worker=70, site-provisioner=24). Six of those projects no longer have a corresponding live service emitting events; project id=66 in particular is orphaned after the 2026-06-02 image-broker removal and can be deleted in the GlitchTip UI when convenient.
 - Grafana: 5 Fabrik-folder dashboards (overview, databases, containers, authelia, meilisearch) + community dashboards. Every dashboard now has `$host` template variable.
@@ -877,6 +877,70 @@ The full residue sweep happened in the evening. All items below were resolved in
 - **Cloudflare API token** in `/opt/fabrik/.env` verified active
 - **site-provisioner container** healthy on vps1 (alembic migrations applied, `/health` 200, CF + Postgres connectivity ok) — **but as an interim manual stand-up; not yet redeployable via `fabrik apply`** (see "site-provisioner status" earlier)
 - **vps1 root `/root/.ssh/known_hosts`** now trusts `github.com`; deployer + bootstrap will keep it that way for any future host (Fix shipped today in `deployer_ssh.py` and `bootstrap-vps.sh` step 03)
+
+---
+
+## DR-drill subsystem — `fabrik vultr` (disposable drills + permanent provisioning)
+
+The `fabrik vultr` CLI group spins up real Vultr instances either as **disposable DR drills** (auto-destroyed) or as **permanent new spokes**. It is the live-fire test harness for the disaster-recovery and bootstrap paths, and the one-command path to grow the fleet.
+
+**Backing code:**
+
+- [`src/fabrik/orchestrator/vultr_drill.py`](../../src/fabrik/orchestrator/vultr_drill.py) — drill orchestration (create → bootstrap → verify → destroy)
+- [`src/fabrik/orchestrator/vultr_provision.py`](../../src/fabrik/orchestrator/vultr_provision.py) — permanent spoke provisioning + reverse-fleet teardown
+- [`src/fabrik/orchestrator/vultr_state.py`](../../src/fabrik/orchestrator/vultr_state.py) — instance tracking, reconcile against the Vultr API, GC of stale disposables
+- [`src/fabrik/drivers/vultr.py`](../../src/fabrik/drivers/vultr.py) — thin Vultr API client (instances + bare-metal)
+
+**The bootstrap-script split:** there is no single bootstrap script anymore. Three live alongside each other in `scripts/bootstrap/`:
+
+- `bootstrap-vps.sh` — **fresh-spoke install** (the path measured at 3m 13s on 2026-06-07 with `--skip-mesh --skip-dns`)
+- `bootstrap-spoke-restore.sh` — **spoke DR restore** (restic restore of a live spoke's snapshot)
+- `bootstrap-hub.sh` — **hub DR restore/rebuild**
+
+**Commands** (`fabrik vultr <cmd>`):
+
+| Command | What it does |
+| :--- | :--- |
+| `drill bare` | Smallest/cheapest IPv4 instance; validates the Vultr create→active→destroy lifecycle only. |
+| `drill spoke` | Runs `bootstrap-vps.sh --skip-mesh --skip-dns root@<ip> vps4` then verifies — **fresh-install** path (proven live 2026-06-13/14). |
+| `drill hub` | Runs `bootstrap-hub.sh` against the latest DR snapshot, then `--verify` — **hub DR restore** (first green 2026-06-15). |
+| `drill spoke-restore` | Runs `bootstrap-spoke-restore.sh` against a live spoke's latest restic snapshot — **the real spoke DR-restore path** (first green 2026-06-15). |
+| `drill-history` | Tail the drill report log. |
+| `provision` | Create a **permanent, billed** spoke: instance → mesh → DNS → bootstrap → monitoring wire-in → AI sysadmin (see PR3 below). Requires explicit confirm. |
+| `destroy <name> [--reverse-fleet-add]` | Destroy a tracked instance. Permanent spokes refuse to destroy without `--reverse-fleet-add`, which unwinds provision in reverse: Gatus → Prometheus → Backrest → DNS → wg0 peer. |
+| `list` / `status` / `reconcile` / `cleanup` / `cost` | Inventory + reconcile against the Vultr API; `cleanup` GC's expired disposable drills. |
+
+**Drill safety:** the `hub` and `spoke-restore` drills do NOT touch live mesh/peer state — they restore into an isolated throwaway box and measure that `bootstrap-hub.sh` / `bootstrap-spoke-restore.sh` complete + verify, without repointing the real vps1↔spoke peers. The drill instance auto-destroys on a TTL (bare ~TTL, spoke ~1h, hub ~2h horizon). See the "settled at 3 + disposable vps4" note at the top of this doc: the `vps4` drill identity is throwaway, not a permanent host.
+
+### PR3 — `fabrik vultr provision` auto-installs the new spoke's AI sysadmin
+
+`provision()` ends with `_provision_sysadmin()` (PR3, in `vultr_provision.py`), collapsing the old 5 manual post-provision steps into 1:
+
+- **Token pool:** claims a Telegram bot token from `$FABRIK_DR_STORE/env/sysadmin-bot-tokens.json` (default `/opt/fabrik-dr-store/env/sysadmin-bot-tokens.json`) via `sysadmin_tokens.claim_bot_token(name)` (lock-guarded, idempotent per spoke name).
+- **Env render:** edits the spoke's already-bootstrapped `/opt/fabrik/.env.sysadmin` in place with the claimed token + fleet-uniform values from vps1's local `.env.sysadmin`.
+- **Enable:** brings up `aro-wake.service` always (no Claude dep) and `vps-sysadmin-bot.service` only when a real token was claimed (a placeholder token would crash-loop `bot.py`).
+- **Verify gate:** validates the token via Telegram `getMe` (no message sent); bounded, never hangs, never hard-fails the provision (the box is already up — failures land in `report['sysadmin']` with a `bot_skip_reason`).
+
+Verified live 2026-06-08 against `vps4` provisioning.
+
+---
+
+## Spec `shape:` → registrar auto-wiring contract
+
+Every `specs/services/<id>.yaml` carries a `shape:` block. On `fabrik apply`, [`src/fabrik/orchestrator/infrastructure.py`](../../src/fabrik/orchestrator/infrastructure.py) reads those flags and auto-creates the matching shared-infra resource — **the spec is canonical; code must match it** (a code/shape mismatch makes `fabrik apply` silently skip the registrar). Preview with `fabrik plan specs/services/<id>.yaml`.
+
+| Registrar | Auto-runs when |
+| :--- | :--- |
+| postgres | `shape.needs_database` |
+| redis | `shape.needs_cache` |
+| gatus | `shape.is_public` AND `spec.domain` set |
+| backrest | `shape.has_persistent_data` |
+| glitchtip | `shape.kind` in {service, worker, wordpress} |
+| authelia | `shape.is_admin_dashboard` AND `spec.domain` set (+ `^/api/` bypass first if `shape.has_bearer_api`) |
+| meilisearch | `shape.has_search_feature` |
+| prometheus | `shape.exposes_metrics` AND `spec.domain` set |
+
+Practical rule: if you add a DB call, a Redis cache, a `/metrics` endpoint, Meilisearch indexes, or an admin UI behind auth, flip the corresponding `shape.*` flag in the spec in the same change — otherwise the registrar won't fire and the deploy silently lacks that resource.
 
 ---
 

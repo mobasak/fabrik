@@ -1,6 +1,6 @@
 # VPS2 / VPS3 Spoke — How to Bring It Back
 
-**Last Updated:** 2026-06-07 (W11 spoke DR shipped 2026-06-01; aro-wake + sysadmin pack LIVE on spokes 2026-06-06; **4 spoke-bootstrap deps now baked into `bootstrap-vps.sh` step_02 + step_14a/b + step_14 mkdir block** — Node.js 22 + `@anthropic-ai/claude-code`, `python3-venv` + `python3-pip` apt packages, `python-telegram-bot==22.7` via pip, `/opt/fabrik/` ownership reset to `ozgur:ozgur` — validated live on a Vultr throwaway droplet 2026-06-07 evening. **DR drill PASSED end-to-end**: wall-clock 3m 13s (9.3× under the ≤30 min target), 15/15 substantive end-state checks, total drill cost $0.04. One open finding: `sshd PasswordAuthentication=yes` despite step_01 (investigate next drill).)
+**Last Updated:** 2026-06-15 (step table now lists `step_09b_verify_restored_configs` + `step_09c_start_core_services_drill`; drill safety flags `--skip-mesh` / `--skip-services` / `--skip-local-b2-check` / `--drill-start-core-only` enumerated; noted the 7-check `step_12` contract is SKIPPED in drill mode; `bootstrap-spoke-restore.sh` restore path went GREEN live 2026-06-15 — see validation-status section. W11 spoke DR shipped 2026-06-01; aro-wake + sysadmin pack LIVE on spokes 2026-06-06; **4 spoke-bootstrap deps now baked into `bootstrap-vps.sh` step_02 + step_14a/b + step_14 mkdir block** — Node.js 22 + `@anthropic-ai/claude-code`, `python3-venv` + `python3-pip` apt packages, `python-telegram-bot==22.7` via pip, `/opt/fabrik/` ownership reset to `ozgur:ozgur` — validated live on a Vultr throwaway droplet 2026-06-07 evening. **DR drill PASSED end-to-end**: wall-clock 3m 13s (9.3× under the ≤30 min target), 15/15 substantive end-state checks, total drill cost $0.04. One open finding: `sshd PasswordAuthentication=yes` despite step_01 (investigate next drill).)
 **Last probe report:** [`probe-reports/infra-probe-2026-06-07T20-20Z.yaml`](probe-reports/infra-probe-2026-06-07T20-20Z.yaml)
 **Status:** Scripted end-to-end + **DR drill MEASURED 2026-06-07**: `bootstrap-vps.sh --skip-mesh --skip-dns root@<vultr-ip> vps4` → 3m 13s wall-clock, all 4 today's spoke-bootstrap edits validated end-to-end. The ≤30 min target is no longer aspirational. Drill report at `/opt/fabrik/logs/dr-drill-history.jsonl` (gitignored, local-only).
 
@@ -101,7 +101,7 @@ That's it. No Step 6.
 
 ## What `bootstrap-spoke-restore.sh` does, step by step
 
-13 idempotent steps. Each prints `[ ok ]` on success, `[WARN]` on soft failure, `[FAIL]` + exit on hard failure.
+Step functions run `step_00`..`step_12` plus two drill-oriented sub-steps `step_09b` (verify restored configs) and `step_09c` (start core services in drill mode). Each prints `[ ok ]` on success, `[WARN]` on soft failure, `[FAIL]` + exit on hard failure. Confirm the current set with `grep -nE '^step_' scripts/bootstrap/bootstrap-spoke-restore.sh`.
 
 | # | Step | What |
 |---|---|---|
@@ -115,13 +115,17 @@ That's it. No Step 6.
 | 07 | DOCKER-USER chain via `iptables-docker-user.service` | **(G5b 2026-06-13)** regenerates the `add`/`rm` DOCKER-USER scripts + the oneshot systemd unit from config (identical to `bootstrap-vps.sh` step_10 / the vps1 hub), then `systemctl enable --now`. Replaces `netfilter-persistent`+`rules.v4` — backup-shape-agnostic (pre-G5 backups carry `rules.v4`, post-G5 carry the add-script; the chain is regenerated either way, avoiding a Docker live-chain clobber). |
 | 08 | docker network create fabrik | idempotent |
 | 09 | restic restore `/opt/` | monitoring-agent + traefik + backrest scaffolding (compose.yaml + .env per service) |
-| 10 | compose up: monitoring-agent + traefik | `docker compose up -d` in each `/opt/<svc>/` |
-| 11 | compose up: backrest | restore the spoke's own backup chain — next scheduled backup fires normally |
-| 12 | verify end-state | 7-check contract |
+| 09b | verify restored configs (drill) | `step_09b_verify_restored_configs` — runs ONLY in drill mode (when `--skip-services` OR `--skip-mesh` is set); dry-validates the configs the drill skipped (mesh + services) so the drill still exercises the restored state without touching live infra |
+| 09c | start core services (drill) | `step_09c_start_core_services_drill` — under `--skip-services` with `--drill-start-core-only`, optionally starts the most valuable core services for a runtime check while staying isolated from the live mesh |
+| 10 | compose up: monitoring-agent + traefik | `docker compose up -d` in each `/opt/<svc>/` (skipped under `--skip-services`) |
+| 11 | compose up: backrest | restore the spoke's own backup chain — next scheduled backup fires normally (skipped under `--skip-services`) |
+| 12 | verify end-state | 7-check contract (SKIPPED in drill mode — see contract section) |
 
 ## End-state contract — must pass all 7
 
-Step 12 verifies these automatically. Script exits non-zero on any failure.
+Step 12 verifies these automatically on a **real restore**. Script exits non-zero on any failure.
+
+> **Drill mode skips this contract.** When `--skip-services` OR `--skip-mesh` is set (both are used by the disposable `fabrik vultr drill spoke-restore` so the throwaway never handshakes with vps1 using vps2's restored key or writes to `spokes/vps2` on B2), `step_12` short-circuits with an informative skip instead of emitting fake failures — the mesh + services it would check are intentionally never brought up. The drill relies on `step_09b` (config dry-validation) + `step_09c` (optional core-services start) instead. The 7 checks below apply to a genuine restore run without those flags.
 
 1. `wg show wg0 latest-handshakes` → hub handshake within last 3 min (spoke identity preserved)
 2. From hub: `ssh vps 'sudo wg show wg0 latest-handshakes'` → spoke listed in peer table with recent handshake (PROOF of identity preservation)
@@ -175,7 +179,13 @@ Anything short of all 7 = drill failed = `bootstrap-spoke-restore.sh` has a gap.
 - [`../operations/spoke-restore-inventory.md`](../operations/spoke-restore-inventory.md) — evidence-based path list this script restores.
 - [`../operations/credential-recovery.md`](../operations/credential-recovery.md) — W9 mirror (extended for spoke restic passwords in W11.6).
 - [`../operations/disaster-recovery.md`](../operations/disaster-recovery.md) — DR scenario overview.
-- `scripts/bootstrap/bootstrap-spoke-restore.sh` — the script itself, 548 lines, run `--help` for full flag list.
+- `scripts/bootstrap/bootstrap-spoke-restore.sh` — the script itself (run `wc -l` for current size). Flags (also via `--help`):
+  - `--verify` — dry-run preflight only; no changes.
+  - `--skip-mesh` — skip `step_06` `wg-quick@wg0` bring-up. **Drill-only:** without it the throwaway would handshake with the hub using the restored spoke key and break the live spoke's mesh endpoint.
+  - `--skip-services` — skip `step_10` (monitoring + traefik) and `step_11` (backrest). **Drill-only:** without it the throwaway starts services bound to live infra + a backrest writing to B2 under the spoke's identity.
+  - `--skip-local-b2-check` — skip preflight check #5 (the operator-side restic query). **Drill-only:** the caller asserts the target can reach B2.
+  - `--drill-start-core-only` — under `--skip-services`, opt into `step_09c` starting core services for an isolated runtime check.
+  - Setting `--skip-services` OR `--skip-mesh` also SKIPS the `step_12` 7-check end-state contract (drill mode).
 - `scripts/bootstrap/bootstrap-config.sh` — shared constants (subnet, ports, sudoer user, hub alias).
 
 ## DR drill log

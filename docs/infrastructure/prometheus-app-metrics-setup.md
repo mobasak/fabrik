@@ -1,6 +1,6 @@
 # Prometheus app-level metrics — runbook
 
-**Last Updated:** 2026-06-07 (aro-wake SLI scrape job covers full fleet of vps1+vps2+vps3 via the same `aro-wake` job; cross-mesh container→host NAT path documented below as a worked example. **Two updates 2026-06-07**: `aro_wake_requests_total` counter now has `status="rate_limited"` value alongside `success` + `failure`; `AroWakeLowSuccessRate` alert rule denominator updated from `aro_wake_requests_total` to `aro_wake_requests_total{status!="rate_limited"}` so refused-at-the-gate drops don't unfairly lower the LLM success-rate SLI. The stale `netdata` scrape job is REMOVED from `prometheus.yml` — caused a 24× Telegram flood overnight before removal via the Phase 4 wire's `repeat_interval: 30m`.)
+**Last Updated:** 2026-06-15 (network rename `coolify`→`fabrik` corrected in cross-mesh scrape path; `pushgateway` scrape job marked NOT-present after verifying live `prometheus.yml` has no such job — see "What's scraped" table. **Prior 2026-06-07:** aro-wake SLI scrape job covers full fleet of vps1+vps2+vps3 via the same `aro-wake` job; cross-mesh container→host NAT path documented below as a worked example. **Two updates 2026-06-07**: `aro_wake_requests_total` counter now has `status="rate_limited"` value alongside `success` + `failure`; `AroWakeLowSuccessRate` alert rule denominator updated from `aro_wake_requests_total` to `aro_wake_requests_total{status!="rate_limited"}` so refused-at-the-gate drops don't unfairly lower the LLM success-rate SLI. The stale `netdata` scrape job is REMOVED from `prometheus.yml` — caused a 24× Telegram flood overnight before removal via the Phase 4 wire's `repeat_interval: 30m`.)
 **Status:** ✅ Live (originally 2026-05-08)
 **Prometheus container:** `prometheus` (stable name)
 **Scrape config:** `/opt/monitoring/configs/prometheus/prometheus.yml`
@@ -16,7 +16,7 @@ This runbook covers Prometheus scrape configuration for application-level metric
 | `grafana` | `http://grafana:3000/metrics` | none (anonymous) | dashboard query rates, datasource health |
 | `authelia` | `http://authelia:9959/metrics` | none (telemetry port) | auth success/fail rates, session counts, request latency |
 | `meilisearch` | `http://meilisearch:7700/metrics` | Bearer token (master key) | search latency, index size, HTTP request counters |
-| `pushgateway` | `http://pushgateway:9091/metrics` | none | short-lived metric pushes (used by `audit_all_registrars.py` cron) |
+| ~~pushgateway~~ | `http://pushgateway:9091/metrics` | none | **NOT in `prometheus.yml` as of 2026-06-15** (verified: 13 jobs configured, no `pushgateway` job). The `rules/fabrik-drift.yml` header comment still references "prometheus's `pushgateway` job" as the source of `fabrik_audit_drift_total` (pushed by `audit_all_registrars.py` cron) — that scrape job is not currently present in the live config, so reconcile the two before relying on the drift alert. |
 | ~~glitchtip~~ | — | — | **NOT SCRAPED.** GlitchTip ships without `django-prometheus`. cAdvisor + Gatus cover it. |
 
 ### vps1-local platform metrics (already present pre-2026-05-08)
@@ -56,7 +56,7 @@ Eight metric families exposed by the FastAPI app (`scripts/aro-wake/main.py`) vi
 
 **Cross-mesh scrape path** for vps2 + vps3 (FIRST host-service scraped via wg0 — worth documenting):
 
-- Prometheus container is on the `coolify` Docker network.
+- Prometheus container is on the `fabrik` Docker network (renamed from `coolify` 2026-05-31).
 - Outbound traffic from the container to a wg0 IP (e.g. `10.99.0.2`) leaves the host through `eth0` → kernel routing decides this is a wg0 destination → encapsulates via `wg0` interface → emerges on the spoke.
 - Docker MASQUERADE on vps1 rewrites the container's source IP from its docker-bridge IP (e.g. `10.0.1.x`) to vps1's wg0 IP `10.99.0.1` when the packet leaves the host.
 - The spoke's UFW rule `from 10.99.0.0/24 to any port 8201 proto tcp` accepts the rewritten source. No spoke-side firewall change needed.

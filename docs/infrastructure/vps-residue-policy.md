@@ -1,6 +1,6 @@
 # VPS Residue Policy — Lean Hygiene
 
-**Last Updated:** 2026-06-07 (post-aro-wake fleet rollout — policy unchanged; today's new residue surfaces to watch: `/etc/systemd/system/aro-wake.service.d/*.conf` drop-in units created for `ARO_WAKE_STORM_THRESHOLD=0` test runs must be removed after the test (see `vps-status.md` 2026-06-06 entry for the cleanup pattern); `/var/lib/aro-wake/pending.jsonl` may accumulate suppressed-but-not-dropped entries if a real loop is suppressed for >24h — TTL handles the bulk but `sudo truncate -s 0 /var/lib/aro-wake/pending.jsonl` is the manual clean if needed. **New residue surface to watch 2026-06-07**: stale Prometheus scrape jobs in `prometheus.yml` for retired containers will trigger the Phase 4 Alertmanager→aro-wake wire's `repeat_interval: 30m` and flood Telegram. Caught live this round — the `netdata` job had been orphaned since 2026-05-30 retirement and ran the 24× flood overnight. Whenever a container is retired, the corresponding scrape job MUST be removed from `prometheus.yml` AND `alerts.yml` in the same edit.)
+**Last Updated:** 2026-06-15 (added Vultr disposable-drill residue + `fabrik vultr reconcile`/`cleanup` auto-destroy hygiene; corrected the destroy chain to 8 teardown steps + state archive per `destroyer.py`; `fabrik destroy --target-vps` is now shipped, not pending. Prior 2026-06-07 post-aro-wake fleet rollout context follows — policy unchanged; today's new residue surfaces to watch: `/etc/systemd/system/aro-wake.service.d/*.conf` drop-in units created for `ARO_WAKE_STORM_THRESHOLD=0` test runs must be removed after the test (see `vps-status.md` 2026-06-06 entry for the cleanup pattern); `/var/lib/aro-wake/pending.jsonl` may accumulate suppressed-but-not-dropped entries if a real loop is suppressed for >24h — TTL handles the bulk but `sudo truncate -s 0 /var/lib/aro-wake/pending.jsonl` is the manual clean if needed. **New residue surface to watch 2026-06-07**: stale Prometheus scrape jobs in `prometheus.yml` for retired containers will trigger the Phase 4 Alertmanager→aro-wake wire's `repeat_interval: 30m` and flood Telegram. Caught live this round — the `netdata` job had been orphaned since 2026-05-30 retirement and ran the 24× flood overnight. Whenever a container is retired, the corresponding scrape job MUST be removed from `prometheus.yml` AND `alerts.yml` in the same edit.)
 **Last probe report:** [`probe-reports/infra-probe-2026-06-07T20-20Z.yaml`](probe-reports/infra-probe-2026-06-07T20-20Z.yaml)
 **Mandate (2026-05-06):** never leave residue on the VPS from Fabrik test, throwaway, or deprecated work. Keep it lean.
 
@@ -16,7 +16,7 @@ Implementation: `scripts/vps_sync.py::verify_residue()` (multi-point audit) + `v
 
 ## Pre-action discipline
 
-1. **Always use `fabrik destroy --drop-data -y`** for throwaway test specs. Reverses the 9-registrar provision chain in inverse order (`docs/operations/deployment.md` § destroy: meilisearch → authelia → glitchtip → backrest → gatus → postgres → compose stack → DNS → state file).
+1. **Always use `fabrik destroy --drop-data -y`** for throwaway test specs. Reverses the provision chain in strict inverse order — 8 teardown steps then state archive (per `src/fabrik/orchestrator/destroyer.py`: meilisearch → authelia → glitchtip → backrest → gatus → postgres → app/compose stack → DNS record → local project files, then state-file archive). Shape-gated steps (prometheus, redis) and informational ones (grafana) run only when applicable.
 2. **Never use long-lived test names** like `fabrik-test`, `proxy-test`. Use timestamped throwaways (e.g. `fabrik-e2e-2026-05-17`).
 3. **After ANY `fabrik destroy`, run `fabrik vps-sync --verify`** to confirm orphans are zero across all registrars.
 
@@ -55,11 +55,22 @@ done
 
 Spokes currently host only `/opt/monitoring-agent/` + `/opt/traefik/` (no tenants yet). Any other `/opt/*` directory on a spoke is by definition residue from a test or partial deploy.
 
-When `fabrik destroy --target-vps <spokeN>` is implemented (W-Multi M4/M5), it will run the SSH deployer's `delete()` against the spoke and leave no compose dir behind. Until then, manual destroy on a spoke:
+`fabrik destroy --target-vps <spokeN> specs/services/<id>.yaml` is implemented (`src/fabrik/cli.py` resolves the target host: CLI flag > state-file `target_vps` > spec `target_vps` > vps1, then env-swaps `FABRIK_VPS_SSH_HOST`). Use it to tear a spec down on a spoke and leave no compose dir behind. Manual fallback only when no spec exists:
 
 ```bash
 ssh vpsN 'cd /opt/<svc> && sudo docker compose down -v && sudo rm -rf /opt/<svc>'
 ```
+
+## Vultr disposable-drill residue (added 2026-06-15)
+
+DR drills and ad-hoc capacity tests provision real Vultr droplets. Residue here is a **billed instance left running**, not just disk clutter — the hygiene is in `src/fabrik/orchestrator/vultr_state.py` + `vultr_drill.py` + the `fabrik vultr` CLI:
+
+- **Auto-destroy is the default.** `fabrik vultr drill <bare|spoke|hub|spoke-restore>` always destroys the droplet on exit, even on failure (`--keep-on-failure` opts out for debugging). On destroy it calls `vultr_state.mark_destroyed(name)` so local state matches the live account.
+- **`fabrik vultr reconcile`** — compares local state to the live Vultr account and prints the drift report (`matched` / `in_state_not_live` / `in_live_not_state` / live vs tracked-active counts). Run this if a drill was killed mid-run or you suspect an orphaned droplet.
+- **`fabrik vultr cleanup [--yes]`** — destroys any **disposable** instance past its `destroy_after` deadline (orphan recovery; dry-run by default). After destroying overdue instances it runs `vultr_state.gc_old_disposables()` to drop disposable records destroyed longer than the retention window ago, keeping `vultr_state` lean.
+- Drill reports append to `logs/dr-drill-history.jsonl` (gitignored, local-only).
+
+Permanent spokes (`fabrik vultr provision`) are `mode=permanent` and are NOT touched by `cleanup` — only `mode=disposable` records are eligible for auto-GC.
 
 ## Manual recovery if `--verify` exits 1
 
@@ -101,7 +112,7 @@ Net: post-sweep, the only "residue still on disk" entries are `/opt/.archive/` a
 
 - Deploy + destroy mechanics: `docs/operations/deployment.md`
 - DR (full restore from B2): `docs/operations/disaster-recovery.md`
-- 9-registrar provisioner: `src/fabrik/orchestrator/infrastructure.py` (provision side) + `src/fabrik/orchestrator/destroyer.py::destroy_deployment()` (inverse)
+- Provisioner / destroyer: `src/fabrik/orchestrator/infrastructure.py` (provision side) + `src/fabrik/orchestrator/destroyer.py::destroy_deployment()` (inverse — 8 teardown steps + state archive, see destroyer module docstring for canonical order)
 - Backups status: [`vps-complete-inventory.md § Backups`](vps-complete-inventory.md) — 4 hub plans + 2 plans per spoke shipped 2026-06-01 (W2 + W11)
 
 ## Why this matters

@@ -1,6 +1,6 @@
 # VPS Fleet — Architecture & Single-System Wiring
 
-**Last Updated:** 2026-06-07 (Trio Phase 1+2+3+4 LIVE across the FULL FLEET since 2026-06-06; **Phase 5.1.a operator-reversal cron LIVE on full fleet 2026-06-07** via `detect_reversals.py` + `*/5 min` cron; **rate-limited 429 wakes now tracked**; **stale netdata scrape job removed**; **6 bootstrap defenses shipped** including preflight SSH-user-transition trap; **DR drill MEASURED end-to-end** 2026-06-07 — `bootstrap-vps.sh --skip-mesh --skip-dns` → 3m 13s wall-clock, 9.3× under target, 15/15 substantive checks.)
+**Last Updated:** 2026-06-15 — live values re-verified (mesh RTT, Prometheus jobs/targets, Gatus endpoints, container counts, drill kinds). Prior baseline 2026-06-07 (Trio Phase 1+2+3+4 LIVE across the FULL FLEET since 2026-06-06; **Phase 5.1.a operator-reversal cron LIVE on full fleet 2026-06-07** via `detect_reversals.py` + `*/5 min` cron; **rate-limited 429 wakes now tracked**; **stale netdata scrape job removed**; **6 bootstrap defenses shipped** including preflight SSH-user-transition trap; **DR drill MEASURED end-to-end** 2026-06-07 — `bootstrap-vps.sh --skip-mesh --skip-dns` → 3m 13s wall-clock, 9.3× under target, 15/15 substantive checks.)
 **Last probe report:** [`probe-reports/infra-probe-2026-06-07T20-20Z.yaml`](probe-reports/infra-probe-2026-06-07T20-20Z.yaml)
 **Purpose:** Single architectural picture of the 3-host fleet — what runs where, how they're wired together, what role each plays. Read this when onboarding new infra work, before designing anything that touches multiple hosts.
 
@@ -18,9 +18,9 @@ This doc answers: "we own 3 VPSes — what do we have, what's planned, and how i
 
 **Fleet size is settled at 3 (vps1+vps2+vps3).** No 4th permanent spoke is planned; the provisioning capability below is kept ready, not actively growing the fleet.
 
-**On-demand fleet growth + DR drilling via `fabrik vultr`** (shipped + live-validated 2026-06-08): a 4th+ spoke is `fabrik vultr provision vps4 --region <r>` (deterministic mesh IP `10.99.0.N`, full `bootstrap-vps.sh`, `mode=permanent`; interactive confirm). Throwaway DR drills are `fabrik vultr drill {bare|spoke|hub}` (auto-destroy, cost-capped; `drill spoke --g0-smoke` opt-in copies hub Claude creds to the throwaway to check immediate copied-creds auth). Covers every Vultr product line (Cloud Compute / High-Frequency / GPU / Bare Metal). Driver `src/fabrik/drivers/vultr.py`; state `data/vultr-instances.json` (gitignored); auth in `/opt/fabrik/.env.sysadmin`.
+**On-demand fleet growth + DR drilling via `fabrik vultr`** (shipped + live-validated 2026-06-08): a 4th+ spoke is `fabrik vultr provision vps4 --region <r>` (deterministic mesh IP `10.99.0.N`, full `bootstrap-vps.sh`, `mode=permanent`; interactive confirm). Throwaway DR drills are `fabrik vultr drill {bare|spoke|hub|spoke-restore}` (auto-destroy, cost-capped; `drill spoke --g0-smoke` opt-in copies hub Claude creds to the throwaway to check immediate copied-creds auth; `drill spoke-restore` exercises the restic-restore-with-identity-preservation path via `bootstrap-spoke-restore.sh`). Covers every Vultr product line (Cloud Compute / High-Frequency / GPU / Bare Metal). Driver `src/fabrik/drivers/vultr.py`; state `data/vultr-instances.json` (gitignored); auth in `/opt/fabrik/.env.sysadmin`.
 
-**PR3 (2026-06-13) — `provision` auto-installs the spoke's AI sysadmin**, collapsing the post-bootstrap manual finish from 5 steps to 1: it claims a per-host Telegram bot token from the DR-store pool (`/opt/fabrik-dr-store/env/sysadmin-bot-tokens.json`), writes `.env.sysadmin` (token + fleet-uniform owner/OpenRouter), enables `aro-wake.service` + `vps-sysadmin-bot.service`, and verifies aro-wake health + token validity. The peer map is fleet-derived so the new host renders real peers (not `unknown`). The **one** remaining manual step is the proven-safe `ssh <spoke> 'claude'` device-flow (copied-creds zero-touch is deferred on the OAuth refresh-token race). Empty token pool ⇒ bot cleanly skipped (never crash-loops). **Reviewed GREEN (5-axis) + merged `0dc92e3`; live-validated by `drill spoke` 2026-06-13/14** (bootstrap_rc=0, verify_rc=0, 0 orphans). The `--g0-smoke` run confirmed copying the hub's Claude creds to a fresh host authenticates *immediately* (no single-session rejection) — so the deferred zero-touch enhancement is viable, gated only on the ~4-day refresh race. Full reference: the plan [`docs/archive/2026-06-07-fabrik-vultr-provisioning.md`](../archive/2026-06-07-fabrik-vultr-provisioning.md) + PR3 plan [`docs/development/plans/2026-06-13-pr3-spoke-sysadmin-autoprovision.md`](../development/plans/2026-06-13-pr3-spoke-sysadmin-autoprovision.md).
+**PR3 (2026-06-13) — `provision` auto-installs the spoke's AI sysadmin**, collapsing the post-bootstrap manual finish from 5 steps to 1: it claims a per-host Telegram bot token from the DR-store pool (`/opt/fabrik-dr-store/env/sysadmin-bot-tokens.json`), writes `.env.sysadmin` (token + fleet-uniform owner/OpenRouter), enables `aro-wake.service` + `vps-sysadmin-bot.service`, and verifies aro-wake health + token validity. The peer map is fleet-derived so the new host renders real peers (not `unknown`). The **one** remaining manual step is the proven-safe `ssh <spoke> 'claude'` device-flow (copied-creds zero-touch is deferred on the OAuth refresh-token race). Empty token pool ⇒ bot cleanly skipped (never crash-loops). **Reviewed GREEN (5-axis) + merged `0dc92e3`; live-validated by `drill spoke` 2026-06-13/14** (bootstrap_rc=0, verify_rc=0, 0 orphans). The `--g0-smoke` run confirmed copying the hub's Claude creds to a fresh host authenticates *immediately* (no single-session rejection) — so the deferred zero-touch enhancement is viable, gated only on the ~4-day refresh race. Full reference: the plan [`docs/archive/2026-06-07-fabrik-vultr-provisioning.md`](../archive/2026-06-07-fabrik-vultr-provisioning.md) + PR3 plan [`docs/development/plans/archived/2026-06-13-pr3-spoke-sysadmin-autoprovision.md`](../development/plans/archived/2026-06-13-pr3-spoke-sysadmin-autoprovision.md).
 
 ---
 
@@ -54,7 +54,7 @@ This doc answers: "we own 3 VPSes — what do we have, what's planned, and how i
 
 ### DR
 
-- **Script:** `scripts/bootstrap/bootstrap-hub.sh` (18 idempotent steps). ✅ Shipped 2026-06-01.
+- **Script:** `scripts/bootstrap/bootstrap-hub.sh` (idempotent steps `step_00`–`step_18` plus `step_12b`/`12c` sub-steps; run `grep -oE 'step_[0-9]+[a-z]?' scripts/bootstrap/bootstrap-hub.sh | sort -uV` for the current list, `wc -l` for length). ✅ Shipped 2026-06-01.
 - **Target wall-clock:** ≤ 90 min, undrilled at the hub level. The parallel `bootstrap-vps.sh` was drilled clean 2026-06-07 (3m 13s, 9.3× under its ≤30 min spoke target) — validates the shared step_00/01/02/14 code paths that hub also uses.
 - **Operator doc:** [`vps-hub-rebuild.md`](vps-hub-rebuild.md).
 - **Inventory:** [`../operations/hub-restore-inventory.md`](../operations/hub-restore-inventory.md).
@@ -76,7 +76,7 @@ This doc answers: "we own 3 VPSes — what do we have, what's planned, and how i
 | Mechanism | Where |
 |---|---|
 | Wireguard spoke | `wg-quick@wg0` (10.99.0.{2,3}, peer of vps1 hub) — own spoke privkey from `bootstrap-vps.sh` step_05 |
-| iptables | `rules.v4` + `rules.v6` (DOCKER-USER chain from bootstrap-vps.sh step_10); no OpenVPN |
+| iptables | DOCKER-USER chain persisted via `iptables-docker-user.service` — installed by `bootstrap-vps.sh` step_10 (G5; dropped `iptables-persistent` which `Conflicts: ufw` on Ubuntu 24.04) and regenerated by `bootstrap-spoke-restore.sh` step_07 (G5b); no OpenVPN. UFW remains the canonical spoke firewall. |
 | Firewall | UFW 5 v4 + 4 v6 rules: public-port allows (22, 80, 443, 51820) + **mesh-allow `from 10.99.0.0/24`** (added by W8 2026-06-01, also pushed into `bootstrap-vps.sh` step_02 so future spokes get it on first bootstrap). Single-operator threat model: mesh is fully trusted. fail2ban active per host. |
 | sysctl tuning | `99-cloudimg-ipv6.conf` (cloud-init) + `99-sysctl.conf` (OS default) |
 | Sudoers | `/etc/sudoers.d/90-ozgur` (NOPASSWD line — `90-` prefix from `bootstrap-vps.sh` step_00; differs from hub's `/etc/sudoers.d/ozgur`) |
@@ -89,7 +89,7 @@ This doc answers: "we own 3 VPSes — what do we have, what's planned, and how i
 | Per-spoke Backrest stack (own restic repo at `vps1-ocoron-backups/spokes/vpsN/`) | W11.3+W11.4 | ✅ **SHIPPED 2026-06-01** |
 | `restic init` for each spoke + first backups (2 plans each: host-state + opt-configs) | W11.5 | ✅ **SHIPPED** — 6 successful snapshots per spoke as of 2026-06-02 probe (host-state ×4, opt-configs ×2), via Backrest cron + manual re-triggers from W4-pre/W8 |
 | W9 mirror extension for spoke `.env.backrest` + restic password | W11.6 | ✅ **SHIPPED** — 4 new files in DR-store |
-| `scripts/bootstrap/bootstrap-spoke-restore.sh` — full spoke DR rebuild | W11.7 | ✅ **SHIPPED** — 548 lines, 13 steps |
+| `scripts/bootstrap/bootstrap-spoke-restore.sh` — full spoke DR rebuild | W11.7 | ✅ **SHIPPED** — steps `step_00`–`step_12` (+ `09b`/`09c`/`12b` sub-steps); run `wc -l` / `grep -oE 'step_[0-9]+[a-z]?'` for current counts |
 | `docs/infrastructure/vps-spoke-rebuild.md` — spoke DR operator runbook | W11.8 | ✅ **SHIPPED** |
 | First real tenant on a spoke | W4 | pending (operator-gated; no tenant to deploy yet) |
 | Add `docker-volumes` + `postgres-dumps` plans once tenants land with state | future | gated on W4 |
@@ -105,7 +105,7 @@ This doc answers: "we own 3 VPSes — what do we have, what's planned, and how i
 
 ### DR (shipped)
 
-- **Script:** [`scripts/bootstrap/bootstrap-spoke-restore.sh`](../../scripts/bootstrap/bootstrap-spoke-restore.sh) — 548 lines, 13 steps, target wall-clock ≤ 30 min. Forward-install path (`bootstrap-vps.sh`) drilled clean 2026-06-07 (3m 13s); restic-restore-with-identity-preservation path still undrilled (separate ticket in `docs/STRATEGIC_BACKLOG.md`).
+- **Script:** [`scripts/bootstrap/bootstrap-spoke-restore.sh`](../../scripts/bootstrap/bootstrap-spoke-restore.sh) — steps `step_00`–`step_12` (+ `09b`/`09c`/`12b`; run `wc -l` / `grep -oE 'step_[0-9]+[a-z]?'` for current counts), target wall-clock ≤ 30 min. Forward-install path (`bootstrap-vps.sh`) drilled clean 2026-06-07 (3m 13s); restic-restore-with-identity-preservation path validated 2026-06-15 via `fabrik vultr drill spoke-restore`.
 - **Operator doc:** [`vps-spoke-rebuild.md`](vps-spoke-rebuild.md).
 - **Inventory:** [`../operations/spoke-restore-inventory.md`](../operations/spoke-restore-inventory.md).
 
@@ -120,17 +120,17 @@ This doc answers: "we own 3 VPSes — what do we have, what's planned, and how i
 - MTU 1420 with fallbacks to 1380 / 1300 (PMTU probed by `bootstrap-vps.sh` step_09).
 - 25 s keepalive on spoke side.
 - All cross-host services use mesh IPs. Nothing internal binds to public.
-- Cross-Atlantic mesh RTT: ~133 ms with 0% loss.
+- Cross-Atlantic mesh RTT: ~135–136 ms with 0% loss (vps2 ~135.6 ms, vps3 ~136.6 ms; re-verified live 2026-06-15).
 
 ### 2. Observability — single pane on vps1
 
-- `prometheus` on vps1 has 12 active scrape jobs / 14 targets (verified 2026-06-07T20:20Z). Spoke node/container metrics: ~~`node-spokes` / `cadvisor-spokes` / `promtail-spokes` jobs~~ — **NOT in `prometheus.yml` today** (spoke-side `node-exporter`/`cadvisor`/`promtail` agents ARE running at `/opt/monitoring-agent/` and the mesh is permissive; the scrape jobs were briefly live on 2026-05-31 but were dropped at some point). Spoke coverage currently flows via the `aro-wake` job (3 mesh targets: vps1:10.0.1.1:8201, vps2:10.99.0.2:8201, vps3:10.99.0.3:8201) exposing SLI counters; full node/container metrics from spokes are NOT in vps1 Prometheus today.
+- `prometheus` on vps1 has 12 active jobs / 14 targets / 14 up (13 jobs configured in `prometheus.yml` — `fabrik-services` has no targets yet; re-verified live 2026-06-15). Spoke node/container metrics: ~~`node-spokes` / `cadvisor-spokes` / `promtail-spokes` jobs~~ — **NOT in `prometheus.yml` today** (spoke-side `node-exporter`/`cadvisor`/`promtail` agents ARE running at `/opt/monitoring-agent/` and the mesh is permissive; the scrape jobs were briefly live on 2026-05-31 but were dropped at some point). Spoke coverage currently flows via the `aro-wake` job (3 mesh targets: vps1:10.0.1.1:8201, vps2:10.99.0.2:8201, vps3:10.99.0.3:8201) exposing SLI counters; full node/container metrics from spokes are NOT in vps1 Prometheus today.
 - vps1-local series carry `host=vps1` label. ~~Spoke alert rules `spoke_health` group~~ — **NOT in alerts.yml**. The 5 live rule groups: `aro_wake` (2), `container_health` (6), `host_health` (3), `service_health` (1), `fabrik-registrar-drift` (1, separate file). `host_health` matches on `host` label — for spokes the only series with that label are the `aro-wake` job's, so spoke-side host-level alerting is currently aro-wake-flavored only.
 - `loki` receives logs from promtail on every host (promtail pushes to `10.99.0.1:3100` from spokes).
 - `grafana` (vps1) shows fleet-wide dashboards. Both Prometheus + Loki as datasources.
 - `alertmanager` routes via `apprise` → Telegram.
-- `gatus` probes 36 endpoints across all 3 hosts via mesh (verified 2026-06-07T20:20Z).
-- Total: **14/14 scrape targets up across 12 jobs** (verified 2026-06-07T20:20Z via `/api/v1/targets`). 12 vps1-local + `aro-wake` job (3 targets: vps1, vps2, vps3 over mesh). Was 18/15 briefly on 2026-05-31 when 3 spoke-side jobs were added; those jobs are no longer in `prometheus.yml`.
+- `gatus` probes 33 endpoints (across 18 config files) via mesh (re-verified live 2026-06-15).
+- Total: **14/14 scrape targets up across 12 active jobs** (re-verified live 2026-06-15 via `/api/v1/targets`); 13 jobs are configured in `prometheus.yml` (the `fabrik-services` job has null targets so it isn't counted active). 12 active jobs = 11 vps1-local + `aro-wake` job (3 targets: vps1, vps2, vps3 over mesh). Was 18/15 briefly on 2026-05-31 when 3 spoke-side jobs were added; those jobs are no longer in `prometheus.yml`.
 
 ### 3. Backups (as of 2026-06-01, W11 shipped)
 

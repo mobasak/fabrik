@@ -32,7 +32,7 @@ Concretely:
 - They share **Apprise → Telegram** as the escalation channel by default (`watchdog.escalation_channel: "apprise"`). They share Claude Code as the LLM (the watchdog sidecar inherits the host's OAuth via a read-only mount).
 - They do NOT share state. Watchdog cost ledgers live in `fabrik_analytics.cost_ledger` (a shared Postgres table created by the T-P1 ship). Host-sysadmin proactive logs live in `/var/log/sysadmin-proactive.log`.
 
-Per-project enablement is controlled by the `watchdog:` block in each spec (`src/fabrik/spec_loader.py::WatchdogConfig`). Defaults are computed by the dispatcher from `shape.kind`: service/worker/wordpress get `enabled=True`; static sites get `enabled=False`. The operator can override per-spec. See [`docs/development/plans/2026-05-30-ai-watchdog-platform-P2-subplan.md`](../development/plans/2026-05-30-ai-watchdog-platform-P2-subplan.md) for the full architecture.
+Per-project enablement is controlled by the `watchdog:` block in each spec (`src/fabrik/spec_loader.py::WatchdogConfig`). Defaults are computed by the dispatcher from `shape.kind`: service/worker/wordpress get `enabled=True`; static sites get `enabled=False`. The operator can override per-spec. See [`docs/development/plans/archived/2026-05-30-ai-watchdog-platform-P2-subplan.md`](../development/plans/archived/2026-05-30-ai-watchdog-platform-P2-subplan.md) for the full architecture.
 
 **Per-project watchdog capability scope (v1, locked 2026-06-02 during artifact 2 review):**
 
@@ -99,7 +99,7 @@ Claude Code reaches these from inside the Docker `fabrik` network via `sudo dock
 | Loki | `loki:3100` | All container logs — errors, stack traces, crash messages |
 | Grafana | `grafana:3000` | Dashboard + datasource health (8 dashboards, 2 datasources) |
 | Alertmanager | `alertmanager:9093` | Active firing alerts, silences |
-| Gatus | `gatus:8080` | Uptime status for 36 endpoints across 7 groups (verified 2026-06-07) |
+| Gatus | `gatus:8080` | Uptime status for 33 endpoints across 18 config files (verified 2026-06-15) |
 | GlitchTip | `glitchtip-web:8000` | Application errors, unhandled exceptions |
 | Apprise | `apprise:8000` | Send notifications to Telegram |
 | ~~Netdata~~ | ~~`netdata:19999`~~ | **REMOVED 2026-05-30** (container retired); scrape job removed 2026-06-07 after a stale entry caused a 24× Telegram flood overnight via the Phase 4 wire's `repeat_interval: 30m` |
@@ -250,32 +250,32 @@ Default: **autonomous**. Acts first, reports after.
 
 | File | Location (VPS) | Purpose |
 |---|---|---|
-| `bot.py` | `/opt/fabrik/scripts/sysadmin/bot.py` | Telegram bot (332 lines) — spawns Claude Opus per message, JSON output parsing, session management, action logging, health endpoint `:8017` |
-| `system-prompt.txt` | `/opt/fabrik/scripts/sysadmin/system-prompt.txt` | Sysadmin brain (232 lines) — role, APIs, classification, playbooks, shift notes, criticality tiers, communication protocol, safety rules |
-| `.env.sysadmin` | `/opt/fabrik/.env.sysadmin` | Required: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_OWNER_ID`. Optional (with defaults): `SYSADMIN_PROJECT_DIR=/opt/fabrik`, `SYSADMIN_HEALTH_PORT=8017`, **`SYSADMIN_HEALTH_HOST=127.0.0.1`** (added W5 2026-06-01 — set to `10.99.0.1` to expose `:8017` on the WG mesh interface for future Gatus/Prometheus), `SYSADMIN_MODEL=opus`. |
+| `bot.py` | `/opt/fabrik/scripts/sysadmin/bot.py` | Telegram bot — spawns Claude Opus per message, JSON output parsing, session management, action logging, health endpoint `:8017` |
+| `system-prompt.txt` | `/opt/fabrik/scripts/sysadmin/system-prompt.txt` | Sysadmin brain — role, APIs, classification, playbooks, shift notes, criticality tiers, communication protocol, safety rules |
+| `.env.sysadmin` | `/opt/fabrik/.env.sysadmin` | Required: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_OWNER_ID`. Secret fallback: `WATCHDOG_OPENROUTER_KEY` (used only when the Claude Code primary path is unreachable). Host identity (set by the unit + duplicated here for cron-fired scripts): `SYSADMIN_HOST_NAME`, `SYSADMIN_HOST_ROLE`, `SYSADMIN_HOST_IP`, `SYSADMIN_PEER_HOSTS`. Optional (with defaults): `SYSADMIN_PROJECT_DIR=/opt/fabrik`, `SYSADMIN_HEALTH_PORT=8017`, **`SYSADMIN_HEALTH_HOST=127.0.0.1`** (added W5 2026-06-01 — set to `10.99.0.1` to expose `:8017` on the WG mesh interface for future Gatus/Prometheus), `SYSADMIN_MODEL=opus`. Canonical template: `scripts/bootstrap/templates/env.sysadmin.template`. |
 | Service unit | `/etc/systemd/system/vps-sysadmin-bot.service` | systemd service (`Restart=always`, `After=network.target docker.service`) |
 
 ### Scheduled Routines (cron — `/etc/cron.d/vps-sysadmin`)
 
-> **⚠ Live state truth check 2026-06-07T20:20Z:** the cron table is **asymmetric between hub and spokes**. vps1 has **6 cron entries** (no `claude-keepalive`, no `daily-digest`); vps2 and vps3 each have **8 entries** (the 6 below + `claude-keepalive` at a hash-staggered minute + `daily-digest.sh` at 09:09 / 09:24). The hub-spoke asymmetry exists because the AI-sysadmin trio was rolled out to vps1 first and 2 newer cron entries (keepalive + digest) landed only on the spokes; backporting to vps1 is on the deferred list.
+> **⚠ Canonical vs live state:** the canonical cron template (`scripts/bootstrap/templates/sysadmin-cron.template`) emits **all 8 routines on every host** — any host bootstrapped via `bootstrap-vps.sh` step_14 gets the full set. The hub-spoke asymmetry seen on the live fleet is a **pre-template artifact**: vps1 was set up by hand before the template existed and still carries only **6 entries** (no `claude-keepalive`, no `daily-digest`); vps2 and vps3 were bootstrapped from the template and carry all **8** (the 6 below + `claude-keepalive` at a hash-staggered minute + `daily-digest.sh` with a hash-staggered minute at 09:00 UTC). Backporting the 2 missing entries to vps1 is on the deferred list. The keepalive/digest cron *minutes* are derived from a SHA1 hash of the hostname (mod 60 / mod 30), so adding a 4th/5th host needs no edit.
 
-**vps1 (6 entries):**
+**Core routines (all hosts):**
 
 | Script | Schedule | Uses Claude? | Purpose |
 |---|---|---|---|
 | `proactive-check.sh` | Every 15 min | Only on anomaly | 11 checks (10 PromQL + Prometheus connectivity) + cert expiry. Bash prefilter (zero tokens when healthy). Claude wakes, diagnoses, acts, reports only when something is wrong. |
-| `detect_reversals.py` | Every 5 min | Never (data-only) | Phase 5.1.a operator-reversal correlator — joins watchdog `state.db` actions against `journalctl _COMM=sudo` operator docker commands within a 5-min window; writes matches to `/opt/fabrik/logs/lessons-pending.jsonl`. |
 | `morning-report.sh` | Daily 08:00 | Always | Collects system state + trends + shift notes + yesterday's actions. Claude formats a concise morning briefing for Telegram. |
 | `weekly-security.sh` | Monday 08:30 | Always | Runs `scripts/audit/03-security.sh`, Claude analyzes against `audit-prompts/03-security-hardening.md` checklist. Reports GREEN/YELLOW/RED. |
 | `weekly-maintenance.sh` | Sunday 03:00 | Never | Pure bash — checks dangling images/volumes, journal size, backup freshness, restart counts, stale containers, cert expiry. Reports what it found. |
 | `monthly-backup-verify.sh` | 1st of month 04:00 | Always | Runs `scripts/audit/06-backup.sh`, Claude analyzes against `audit-prompts/06-backup-disaster-recovery.md` checklist. Reports coverage gaps + recovery confidence. |
+| `detect_reversals.py` | Every 5 min | Never (data-only) | Phase 5.1.a operator-reversal correlator — joins watchdog `state.db` actions against `journalctl _COMM=sudo` operator docker commands within a 5-min window; writes matches to `/opt/fabrik/logs/lessons-pending.jsonl`. |
 
-**vps2 + vps3 (8 entries each — the 6 above plus):**
+**Template-added routines (every templated host; live on vps2 + vps3, deferred backport on vps1):**
 
 | Script | Schedule | Uses Claude? | Purpose |
 |---|---|---|---|
-| `/usr/bin/claude -p "ping"` | Hourly at minute 11 (vps2) / 44 (vps3) — runs as `ozgur`, not root | Always | Keepalive ping to keep Claude CLI's session warm; output to `/var/log/claude-keepalive.log`. Hash-staggered minute so vps2 and vps3 don't slam the API at the same moment. |
-| `daily-digest.sh` | Daily 09:09 (vps2) / 09:24 (vps3) | Always | Per-spoke daily summary — Telegrammed via the spoke's own `@SysAdminVPSn` bot. Staggered so vps2/vps3 digests don't collide. |
+| `/usr/bin/claude -p "ping"` | Hourly at a hash-staggered minute — runs as `ozgur`, not root | Always | OAuth keepalive ping — Claude Code OAuth goes stale every ~4 days when idle; one cheap ping/hour keeps the credentials file fresh. Output to `/var/log/claude-keepalive.log`. Hash-staggered minute so hosts don't slam the API at the same moment. |
+| `daily-digest.sh` | Daily 09:00 UTC at a hash-staggered minute | Always | Per-host daily roll-up (Tier A actions / escalations / reverts / consults / health heartbeats) — Telegrammed via the host's own `@SysAdminVPSn` bot. Staggered so per-host digests don't collide. |
 
 ### Operational Records (persistent across sessions)
 
@@ -521,7 +521,7 @@ They don't conflict. Alertmanager sends via HTTP POST to `api.telegram.org` (nat
 - **No secrets in chat:** Claude never sends API keys, passwords, or env values over Telegram (enforced in system prompt)
 - **Docker socket:** Not mounted. Claude uses `sudo docker` CLI commands, not the socket
 - **Claude Code auth:** Max subscription via `claude auth login` — no API key stored on VPS
-- **Env file:** `/opt/fabrik/.env.sysadmin` contains only Telegram token + owner ID (not app secrets)
+- **Env file:** `/opt/fabrik/.env.sysadmin` carries the Telegram token + owner ID, the `WATCHDOG_OPENROUTER_KEY` fallback secret, and host-identity routing keys (`SYSADMIN_HOST_NAME/ROLE/IP`, `SYSADMIN_PEER_HOSTS`) — but no per-app/tenant secrets. Mode 600, owner `ozgur:ozgur`, gitignored, mirrored to `mobasak/fabrik-dr-store` by the W9 watcher. Treat as a secret: never log, never commit.
 
 ## Log Rotation
 
@@ -688,6 +688,10 @@ The system prompt defines:
 ## Replication — Set Up on a New VPS from Scratch
 
 > **Automated since PR3 (2026-06-13) for `fabrik vultr provision`-created spokes.** A spoke provisioned via `fabrik vultr provision vpsN` no longer needs this manual recipe: `bootstrap-vps.sh` step_14 installs the pack, and PR3's post-bootstrap stage claims a per-host bot token from the DR-store pool (`/opt/fabrik-dr-store/env/sysadmin-bot-tokens.json`), writes `.env.sysadmin` (token + fleet-uniform `TELEGRAM_OWNER_ID`/`WATCHDOG_OPENROUTER_KEY`), enables `aro-wake.service` + `vps-sysadmin-bot.service`, and verifies health + token validity. The peer map is fleet-derived (`drivers/watchdog.py::host_prompt_substitutions`) so the new host renders real peers, not `unknown`. **The only remaining manual step is `claude auth login` (Step 2 below — the proven-safe device-flow).** Operator prerequisite: pre-stage per-host bot tokens in the pool once (the `@BotFather` batch); an empty pool ⇒ the bot is cleanly skipped (no crash-loop) and you finish it manually. The recipe below remains the canonical reference for a from-scratch / non-Vultr host.
+>
+> **What the post-bootstrap stage enables, and when it skips the bot.** `aro-wake.service` is **ALWAYS** enabled (it has no Claude/token dependency). `vps-sysadmin-bot.service` is enabled **only when a valid bot token resolves** — PR3 records exactly one of three skip reasons in its state otherwise: (1) **token pool empty/exhausted**, (2) **fleet `TELEGRAM_OWNER_ID` unresolved** (not present in this host's local `.env.sysadmin`), or (3) **`.env.sysadmin` write failed** (the in-place `sed` returned non-zero). On any skip the bot is left disabled (no crash-loop) and the post-bootstrap message tells the operator to resolve it then run `sudo systemctl enable --now vps-sysadmin-bot.service` by hand.
+>
+> **Peer-map caveat (deterministic, fresh-provision only).** `drivers/watchdog.py::host_prompt_substitutions` derives the peer list from a static host map, so a freshly provisioned host renders **real** peers (falling back to `unknown` only for an unrecognized name). It does NOT re-render the **live trio's** prompts — those were baked at their own bootstrap time. Adding a new host to the *existing* hosts' peer awareness still requires re-rendering their prompts; PR3 only fixes what a fresh provision renders for the new host.
 
 Complete recipe. Assumes fresh Ubuntu 24.04 with Docker, the `fabrik` Docker network, and the monitoring stack (`/opt/monitoring/compose.yaml`) already deployed via `scripts/bootstrap/bootstrap-vps.sh` + manual hub setup.
 
@@ -711,28 +715,51 @@ claude auth login
 ### Step 2: Install Python dependency
 
 ```bash
-sudo pip3 install --break-system-packages python-telegram-bot
+# Pin to 22.7 — this is what runs LIVE on every fleet host (bootstrap-vps.sh
+# step_14b pins the same version). An unpinned install can pull an API-breaking
+# major and crash-loop the bot.
+sudo pip install --break-system-packages python-telegram-bot==22.7
 ```
 
 ### Step 3: Deploy bot files
 
-From WSL (where fabrik repo lives):
+From WSL (where fabrik repo lives). Ship the **whole trio-era `scripts/sysadmin/` tree** (bot + all 5 cron scripts + reversal correlator + system prompt + peer protocol) plus the **aro-wake** push-trigger service — not just the legacy three files:
 
 ```bash
 # Create directory on VPS
 ssh vps 'mkdir -p /opt/fabrik/scripts/sysadmin'
 
-# Copy files
-scp scripts/sysadmin/bot.py vps:/opt/fabrik/scripts/sysadmin/
-scp scripts/sysadmin/proactive-check.sh vps:/opt/fabrik/scripts/sysadmin/
-scp scripts/sysadmin/system-prompt.txt vps:/opt/fabrik/scripts/sysadmin/
-scp ops/vps-sysadmin-bot.service vps:/tmp/
+# Copy the full sysadmin pack (matches what bootstrap-vps.sh rsyncs)
+scp scripts/sysadmin/bot.py \
+    scripts/sysadmin/proactive-check.sh \
+    scripts/sysadmin/morning-report.sh \
+    scripts/sysadmin/weekly-security.sh \
+    scripts/sysadmin/weekly-maintenance.sh \
+    scripts/sysadmin/monthly-backup-verify.sh \
+    scripts/sysadmin/daily-digest.sh \
+    scripts/sysadmin/detect_reversals.py \
+    scripts/sysadmin/system-prompt.txt \
+    scripts/sysadmin/peer-protocol.md \
+    vps:/opt/fabrik/scripts/sysadmin/
 
 # Make executable
-ssh vps 'chmod +x /opt/fabrik/scripts/sysadmin/bot.py /opt/fabrik/scripts/sysadmin/proactive-check.sh'
+ssh vps 'chmod +x /opt/fabrik/scripts/sysadmin/*.sh /opt/fabrik/scripts/sysadmin/bot.py /opt/fabrik/scripts/sysadmin/detect_reversals.py'
 ```
 
+The systemd unit is rendered from the canonical template (it injects `{{HOST_NAME}}` + sets `SYSADMIN_HOST_*` via `Environment=`), so render the placeholders before copying it — do NOT scp the stale `ops/vps-sysadmin-bot.service`:
+
+```bash
+# Render {{HOST_NAME}}/{{HOST_ROLE}}/{{HOST_IP}} into the unit, then ship it
+sed -e 's|{{HOST_NAME}}|vps1|g' -e 's|{{HOST_ROLE}}|hub|g' -e 's|{{HOST_IP}}|<host-ip>|g' \
+    scripts/bootstrap/templates/vps-sysadmin-bot.service.template > /tmp/vps-sysadmin-bot.service
+scp /tmp/vps-sysadmin-bot.service vps:/tmp/
+```
+
+The aro-wake push-trigger endpoint (peer `consult` + Alertmanager webhook, binds `:8201`) is its own service installed by `bootstrap-vps.sh` step_15 — see that step for the venv + UFW + rendered-unit recipe. After install it is **always enabled** (`sudo systemctl enable --now aro-wake.service`), independent of whether the Telegram bot has a token. Smoke: `curl http://<mesh-ip>:8201/health`.
+
 ### Step 4: Configure Telegram credentials
+
+Model the file on `scripts/bootstrap/templates/env.sysadmin.template`:
 
 ```bash
 ssh vps 'cat > /opt/fabrik/.env.sysadmin << EOF
@@ -740,12 +767,25 @@ ssh vps 'cat > /opt/fabrik/.env.sysadmin << EOF
 TELEGRAM_BOT_TOKEN=<your-bot-token-from-botfather>
 TELEGRAM_OWNER_ID=<your-numeric-telegram-user-id>
 
+# OpenRouter fallback — used only when the Claude Code primary path is
+# unreachable (OAuth stale, rate limit, sandbox failure). Leave empty for
+# no fallback. Same key across all hosts (one operator account).
+WATCHDOG_OPENROUTER_KEY=<openrouter-key-or-empty>
+
+# Host identity — also set as Environment= by the unit; duplicated here so
+# cron-fired scripts (which do not inherit the unit env) can source them.
+SYSADMIN_HOST_NAME=vps1
+SYSADMIN_HOST_ROLE=hub
+SYSADMIN_HOST_IP=<host-ip>
+SYSADMIN_PEER_HOSTS=<csv-of-peer-hostnames>
+
 # Optional — uncomment to override defaults
 # SYSADMIN_HEALTH_HOST=127.0.0.1   # set to 10.99.0.1 to expose health on WG mesh (W5, 2026-06-01)
 # SYSADMIN_HEALTH_PORT=8017
 # SYSADMIN_MODEL=opus
 # SYSADMIN_PROJECT_DIR=/opt/fabrik
-EOF'
+EOF
+chmod 600 /opt/fabrik/.env.sysadmin'
 ```
 
 To get your Telegram user ID: message `@userinfobot` on Telegram.
@@ -768,6 +808,8 @@ ssh vps 'sudo cp /tmp/vps-sysadmin-bot.service /etc/systemd/system/ && \
 
 ### Step 6: Install all scheduled routines (single cron file)
 
+The canonical source is `scripts/bootstrap/templates/sysadmin-cron.template` (8 routines). Pick a keepalive minute (SHA1(hostname) mod 60) and a digest minute (mod 30) to stagger against other hosts, then install:
+
 ```bash
 ssh vps 'sudo tee /etc/cron.d/vps-sysadmin > /dev/null << "EOF"
 # VPS AI Sysadmin — scheduled routines
@@ -786,6 +828,15 @@ ssh vps 'sudo tee /etc/cron.d/vps-sysadmin > /dev/null << "EOF"
 
 # Monthly backup verification — 1st of month 04:00
 0 4 1 * * root /opt/fabrik/scripts/sysadmin/monthly-backup-verify.sh >> /var/log/sysadmin-proactive.log 2>&1
+
+# OAuth keepalive — hourly at a hash-staggered minute; runs as ozgur, not root
+<KEEPALIVE_MINUTE> * * * * ozgur /usr/bin/claude -p "ping" > /var/log/claude-keepalive.log 2>&1
+
+# Daily digest — 09:00 UTC at a hash-staggered minute
+<DIGEST_MINUTE> 9 * * * root /opt/fabrik/scripts/sysadmin/daily-digest.sh >> /var/log/sysadmin-proactive.log 2>&1
+
+# Operator-reversal detection — every 5 min
+*/5 * * * * root /opt/fabrik/scripts/sysadmin/detect_reversals.py >> /var/log/sysadmin-proactive.log 2>&1
 EOF'
 ```
 
@@ -841,9 +892,9 @@ Everything needed to rebuild the sysadmin bot from scratch:
 | `scripts/sysadmin/bot.py` | `/opt/fabrik/scripts/sysadmin/bot.py` | same | Telegram bot + session management |
 | `scripts/sysadmin/proactive-check.sh` | `/opt/fabrik/scripts/sysadmin/proactive-check.sh` | same | Two-stage cron script |
 | `scripts/sysadmin/system-prompt.txt` | `/opt/fabrik/scripts/sysadmin/system-prompt.txt` | same | Claude Code role + rules |
-| `ops/vps-sysadmin-bot.service` | `/opt/fabrik/ops/vps-sysadmin-bot.service` | `/etc/systemd/system/` | Systemd service unit |
-| `.env.sysadmin` | — (VPS only, not in git) | `/opt/fabrik/.env.sysadmin` | Telegram token + owner ID |
-| Cron | — (VPS only) | `/etc/cron.d/vps-sysadmin` | All 5 scheduled routines (proactive, morning, security, maintenance, backup) |
+| `scripts/bootstrap/templates/vps-sysadmin-bot.service.template` | `/opt/fabrik/scripts/bootstrap/templates/vps-sysadmin-bot.service.template` | `/etc/systemd/system/vps-sysadmin-bot.service` (rendered) | Systemd service unit — renders `{{HOST_NAME}}` + `SYSADMIN_HOST_*`. (Legacy `ops/vps-sysadmin-bot.service` is superseded.) |
+| `.env.sysadmin` | — (VPS only, not in git) | `/opt/fabrik/.env.sysadmin` | Telegram token + owner ID + `WATCHDOG_OPENROUTER_KEY` + host-identity keys (template: `scripts/bootstrap/templates/env.sysadmin.template`) |
+| Cron | `scripts/bootstrap/templates/sysadmin-cron.template` | `/etc/cron.d/vps-sysadmin` | All 8 scheduled routines (proactive, morning, security, maintenance, backup, keepalive, daily-digest, detect_reversals) |
 | Logrotate | — (VPS only) | `/etc/logrotate.d/vps-sysadmin-*` | Log rotation |
 
 ## Capabilities & Limitations

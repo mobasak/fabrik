@@ -1,6 +1,6 @@
 # VPS Fleet — Service URLs and Endpoints
 
-**Last Updated:** 2026-06-07 (aro-wake LIVE on full fleet — `/wake`+`/health`+`/metrics` on every host at `:8201`; spoke↔spoke wg0 routing LIVE via vps1 hub-hop; Prometheus SLI scrape job `aro-wake` covers all 3 targets; `aro_wake_requests_total` gained `status="rate_limited"` value 2026-06-07; **stale `netdata:19959` scrape job removed 2026-06-07** after a left-over orphan triggered a 24× Telegram flood overnight)
+**Last Updated:** 2026-06-15 (corrected Prometheus scrape-targets table to match live `prometheus.yml`: 12 active jobs / 14 targets all up, including the real `aro-wake` (3 targets) + `fabrik-services` jobs; removed the never-present `traefik`/`pushgateway`/`glitchtip`/`*-spokes` targets. **Prior 2026-06-07:** aro-wake LIVE on full fleet — `/wake`+`/health`+`/metrics` on every host at `:8201`; spoke↔spoke wg0 routing LIVE via vps1 hub-hop; Prometheus SLI scrape job `aro-wake` covers all 3 targets; `aro_wake_requests_total` gained `status="rate_limited"` value 2026-06-07; **stale `netdata:19959` scrape job removed 2026-06-07** after a left-over orphan triggered a 24× Telegram flood overnight)
 **Last probe report:** [`probe-reports/infra-probe-2026-06-07T20-20Z.yaml`](probe-reports/infra-probe-2026-06-07T20-20Z.yaml)
 **Hosts:** vps1 (hub, LA, `172.93.160.197`) · vps2 (Coventry UK, `96.9.214.128`) · vps3 (Coventry UK, `104.128.190.151`)
 **Mesh:** Wireguard `10.99.0.0/24` over UDP 51820 (vps1 = `.1`, vps2 = `.2`, vps3 = `.3`)
@@ -185,15 +185,27 @@ aro-wake binds the host's `0.0.0.0:8201`, but containers on the `fabrik` network
 
 ---
 
-## Prometheus scrape targets (20, all up)
+## Prometheus scrape targets (12 active jobs / 14 targets, all 14 up — verified 2026-06-15)
 
-vps1's Prometheus scrapes:
+vps1's Prometheus runs 13 configured jobs; `fabrik-services` currently has null targets (spec-driven, populated by the prometheus registrar), leaving 12 active jobs and 14 active targets, all up. The live `prometheus.yml` job set:
 
-| Host | Targets |
-| :--- | :--- |
-| **vps1** (14) | `prometheus` self, `node-exporter:9100`, `cadvisor:8080`, `loki:3100`, `alertmanager:9093`, `gatus:8080`, `traefik:8080`, `grafana:3000`, `authelia:9959`, `postgres-exporter:9187`, `redis-exporter:9121`, `pushgateway:9091`, `fabrik-drift`, `glitchtip-web:8000` |
-| **vps2** (3) | `10.99.0.2:9100` (node), `10.99.0.2:8080` (cadvisor), `10.99.0.2:9080` (promtail) |
-| **vps3** (3) | `10.99.0.3:9100`, `10.99.0.3:8080`, `10.99.0.3:9080` |
+| Job | Target(s) | Notes |
+| :--- | :--- | :--- |
+| `prometheus` | `localhost:9090` | self-monitoring |
+| `node` | `node-exporter:9100` | vps1 host metrics |
+| `cadvisor` | `cadvisor:8080` | vps1 container metrics |
+| `loki` | `loki:3100` | ingest stats |
+| `alertmanager` | `alertmanager:9093` | dispatch counters |
+| `gatus` | `gatus:8080` | synthetic check results |
+| `grafana` | `grafana:3000` | dashboard/datasource health |
+| `authelia` | `authelia:9959` | auth success/fail rates |
+| `meilisearch` | `meilisearch:7700` | Bearer-token; search latency/index size |
+| `postgres` | `postgres-exporter:9187` | connections, slow queries |
+| `redis` | `redis-exporter:9121` | hit ratio, memory, ops/sec |
+| `aro-wake` | `10.0.1.1:8201` (vps1, hub), `10.99.0.2:8201` (vps2, spoke), `10.99.0.3:8201` (vps3, spoke) | 3 targets; SLI metrics over docker-bridge (vps1) + wg0 (spokes) |
+| `fabrik-services` | (null today) | spec-driven, `shape.exposes_metrics: true`; 30 s scrape; HTTPS |
+
+There is **no** `traefik`, `pushgateway`, `glitchtip`, `node-spokes`, `cadvisor-spokes`, or `promtail-spokes` scrape job in the live config (those appeared in earlier drafts of this doc). Spoke node/container/promtail metrics are not currently scraped; spoke observability is the `aro-wake` job's 3 targets plus push-based Loki log shipping.
 
 Every series carries a `host` label (`vps1`, `vps2`, or `vps3`). Grafana dashboards all have a `$host` template variable (regex `/^vps/`).
 

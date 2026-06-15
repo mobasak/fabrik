@@ -195,7 +195,7 @@ EOF
 
 ### Uptime monitoring (Gatus → Apprise → Telegram)
 
-- 18 Gatus config files, 36 endpoint definitions across 7 groups (verified live 2026-06-07T20:20Z: `apps:8`, `core:5`, `data:3`, `external:5`, `observability:7`, `services:5`, `trio-aro-wake:3`). Endpoint count is the stable signal; file count drifts as endpoints are split.
+- 18 Gatus config files, 33 endpoint definitions across 7 groups (verified live 2026-06-07T20:20Z: `apps:8`, `core:5`, `data:3`, `external:5`, `observability:7`, `services:5`, `trio-aro-wake:3`). Endpoint count is the stable signal; file count drifts as endpoints are split.
 - No persistently-failing endpoints (would indicate a real outage OR a stale endpoint).
 - Authelia bypass on `*.vps1.ocoron.com → /health` working.
 

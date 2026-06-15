@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — docs/infrastructure accuracy sweep: all 15 docs verified against repo + live fleet (2026-06-15)
+
+Systematic extract-claims → verify → fix pass across the whole `docs/infrastructure/` set (audit by 5 parallel agents; fixes verified against the repo and against read-only SSH to vps1/2/3). Corrections: stale `coolify` network refs → `fabrik` (`PORTS.md`, `prometheus-app-metrics-setup.md`); broken plan links repointed to `development/plans/archived/` + `docs/archive/`; bootstrap step/line counts re-aligned to the current scripts and brittle exact line-counts replaced with `wc -l`/`grep -c` pointers; `vps-hub-rebuild` step_02 `iptables-persistent` removal (G5) + hub DR "pending" → green 2026-06-15; `vps-spoke-rebuild` adds steps 09b/09c + drill-safety flags; `vps-ai-sysadmin` `.env.sysadmin` key list (+`WATCHDOG_OPENROUTER_KEY`/`SYSADMIN_HOST_*`), cron 5→8 routines, pre-trio replication recipe modernized; `vps-complete-inventory` gains the `fabrik vultr` drill subsystem + PR3 auto-provision + spec-`shape:`→registrar contract; Prometheus reconciled to 12 active/14 targets/13 configured; `vps-urls` Prometheus-targets table rebuilt from live; Gatus endpoint count corrected to **33 across 18 files** (was variously "21"/"36"); live counts re-verified (vps1 31 ctr/16 UFW/8 Authelia rules, spokes 5 ctr/11 UFW, RTT ~135–136ms) and snapshots re-dated. `configs/grafana,promtail,loki,alertmanager` confirmed **already in git** — the "configs-as-code is incomplete" audit premise was wrong and was NOT applied.
+
 ### Added — Bucket A + B + C-dry + C1 (2026-06-15): drill mode now exercises core stateful services
 
 Three buckets shipped after the initial Hub + Spoke DR validations earlier today:
