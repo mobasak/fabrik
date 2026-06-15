@@ -667,36 +667,48 @@ step_06_restic_pull_host_state() {
         includes+=" --include ${p}"
     done
 
-    # Bug #9 (Hub DR Drill #6c, 2026-06-15): the host-state plan includes
+    # Bug #9 (Hub DR Drill #6c+#6d, 2026-06-15): the host-state plan includes
     # /home/ozgur/.ssh/authorized_keys and /root/.ssh/authorized_keys. restic
-    # restore overwrites these wholesale with the snapshot's contents. The
-    # snapshot may NOT contain the access key that's currently in use on
-    # this target (operator's key rotated since the snapshot was taken; or
-    # — for drills — the Vultr-injected cloud-init key isn't in vps1's
-    # historical authorized_keys). Either way, the very next ssh-as-ozgur
-    # call after restore fails with "Permission denied (publickey,password)"
-    # and the rest of the bootstrap can't run. Capture the pre-restore keys
-    # so we can merge them back after the restore.
-    remote 'sudo bash -c "
+    # restore overwrites them wholesale with the snapshot's contents — losing
+    # the operator's currently-active key unless the snapshot happens to
+    # contain it. The very next ssh-as-ozgur call fails with "Permission
+    # denied (publickey,password)" and bootstrap can't continue.
+    #
+    # The fix must run backup + restore + merge in ONE ssh session, because
+    # a second SSH call AFTER the restore can't authenticate yet (drill #6d
+    # confirmed this). Bundle everything into one `sudo bash -c` block:
+    #   1. capture pre-restore authorized_keys for ozgur + root
+    #   2. invoke restic restore directly (replicating restic_remote's body
+    #      so it runs in the SAME shell — not a separate ssh call)
+    #   3. merge pre-restore keys back, dedupe, fix ownership + perms
+    # The connection was authenticated by step (1)'s ssh; restic's overwrite
+    # in step (2) doesn't kill that already-open session, so step (3) runs.
+    remote "sudo bash -c '
+        set -e
         mkdir -p /tmp/preboot-keys
         cp /home/ozgur/.ssh/authorized_keys /tmp/preboot-keys/ozgur.authkeys 2>/dev/null || true
         cp /root/.ssh/authorized_keys      /tmp/preboot-keys/root.authkeys  2>/dev/null || true
-    "'
 
-    # `--target /host` so restored files land on the host filesystem (mount at /).
-    # `--path /` from the latest snapshot's host-state tree.
-    # Tag is `plan:host-state` because Backrest writes snapshots with the
-    # `plan:<id>` namespace, not the bare id. Drill #5 (2026-06-14) hit
-    # "no snapshot found" with `--tag host-state` even though 14 snapshots
-    # existed in B2 — actual tag confirmed via `restic snapshots --json`.
-    restic_remote "restore ${SNAPSHOT_ID} --target /host${includes} --tag plan:host-state"
+        # restic restore (inlined restic_remote logic — must run in this
+        # shell, NOT a separate remote() call).
+        # Tag is `plan:host-state` (Backrest namespacing — drill #5 finding).
+        B2_KEY=\$(grep \"^B2_KEY_ID=\" /opt/fabrik/.env | cut -d= -f2-)
+        B2_SECRET=\$(grep \"^B2_APPLICATION_KEY=\" /opt/fabrik/.env | cut -d= -f2-)
+        B2_PW=\$(grep \"^BACKREST_RESTIC_PASSWORD=\" /opt/fabrik/.env | cut -d= -f2-)
+        if [[ -z \"\$B2_KEY\" || -z \"\$B2_SECRET\" || -z \"\$B2_PW\" ]]; then
+            echo \"step_06: one of B2_KEY_ID / B2_APPLICATION_KEY / BACKREST_RESTIC_PASSWORD missing from /opt/fabrik/.env\" >&2
+            exit 1
+        fi
+        docker run --rm \
+            -e AWS_ACCESS_KEY_ID=\"\$B2_KEY\" \
+            -e AWS_SECRET_ACCESS_KEY=\"\$B2_SECRET\" \
+            -e RESTIC_PASSWORD=\"\$B2_PW\" \
+            -e RESTIC_REPOSITORY=\"${FABRIK_RESTIC_REPO_URI}\" \
+            -v /:/host \
+            restic/restic:0.18.1 restore ${SNAPSHOT_ID} --target /host${includes} --tag plan:host-state
 
-    # Merge the pre-restore authorized_keys back in. dedupe so we don't end
-    # up with duplicates if the snapshot already had the key. fix ownership
-    # + perms in case restic restored with the snapshot's UID/GID (vps1's
-    # ozgur uid may not match the just-created ozgur uid on a fresh droplet)
-    # or the perms were anything other than 0600 / 0700.
-    remote 'sudo bash -c "
+        # Merge pre-restore authorized_keys back in. dedupe non-empty lines
+        # with awk so we do not duplicate keys the snapshot already had.
         if [ -s /tmp/preboot-keys/ozgur.authkeys ]; then
             cat /home/ozgur/.ssh/authorized_keys /tmp/preboot-keys/ozgur.authkeys 2>/dev/null \
                 | awk \"NF && !seen[\\\$0]++\" \
@@ -709,15 +721,20 @@ step_06_restic_pull_host_state() {
                 > /root/.ssh/authorized_keys.merged
             mv /root/.ssh/authorized_keys.merged /root/.ssh/authorized_keys
         fi
+
+        # Fix ownership + perms — restic may have restored with the
+        # snapshot UID/GID (vps1 ozgur uid may not match drill-droplet
+        # ozgur uid) or with perms != 0600/0700, both of which make sshd
+        # refuse the key.
         chown -R ozgur:ozgur /home/ozgur/.ssh
         chown -R root:root   /root/.ssh
         chmod 700 /home/ozgur/.ssh /root/.ssh
         chmod 600 /home/ozgur/.ssh/authorized_keys /root/.ssh/authorized_keys
         rm -rf /tmp/preboot-keys
-    "'
+    '"
 
     # Reload systemd so newly-restored unit files are picked up before later
-    # steps try to enable them.
+    # steps try to enable them. (Separate ssh call — fine now, authkeys merged.)
     remote 'sudo systemctl daemon-reload'
 
     # Root crontab is NOT in the host-state plan (Backrest image symlink
