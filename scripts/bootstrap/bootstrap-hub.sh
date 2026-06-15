@@ -743,10 +743,14 @@ step_06_restic_pull_host_state() {
     # replayed in step_16 once /opt/ is restored.
 
     # Sanity: critical files are now present.
-    remote 'test -f /etc/wireguard/wg0.conf && \
-            test -f /etc/iptables/add-docker-user-rules.sh && \
-            test -f /etc/systemd/system/vps-sysadmin-bot.service && \
-            test -f /etc/sudoers.d/ozgur' \
+    # Bug #11 (Hub DR Drill #6f, 2026-06-15): /etc/wireguard is mode 0700
+    # root:root on vps1 (and on the restored droplet). ozgur can't traverse
+    # the dir → `test -f /etc/wireguard/wg0.conf` returns false even when
+    # the file exists. Must run the check via sudo so the test runs as root.
+    remote 'sudo test -f /etc/wireguard/wg0.conf && \
+            sudo test -f /etc/iptables/add-docker-user-rules.sh && \
+            sudo test -f /etc/systemd/system/vps-sysadmin-bot.service && \
+            sudo test -f /etc/sudoers.d/ozgur' \
         || { err "step_06: one of wg0.conf / DOCKER-USER script / bot unit / sudoers.d missing post-restore"; return 1; }
     ok "step_06 done"
 }
