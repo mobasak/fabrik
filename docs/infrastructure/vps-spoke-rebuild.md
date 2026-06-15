@@ -208,11 +208,12 @@ Anything short of all 7 = drill failed = `bootstrap-spoke-restore.sh` has a gap.
 
 The forward-install drill above does NOT exercise restic-restore-with-identity-preservation. When that drill runs (provision Vultr droplet → `bootstrap-spoke-restore.sh root@<ip> vps2` → verify the rebuilt spoke handshakes with vps1 using the preserved pubkey), append the result above.
 
-### DR / provisioning validation status (2026-06-14)
+### DR / provisioning validation status (updated 2026-06-15)
 
-What's been exercised on real infra vs. what's deferred-by-design:
+What's been exercised on real infra vs. what's deferred-by-design. **All three DR paths are now live-proven.**
 
 - **G5 (fresh-spoke `iptables-docker-user.service`)** — ✅ **live-proven** (drill spoke 2026-06-13/14: bootstrap_rc=0, verify_rc=0, 0 orphans).
+- **G5b (`bootstrap-spoke-restore.sh` restore path)** — ✅ **live-proven 2026-06-15** via the new `fabrik vultr drill spoke-restore` (4 drills, 3 bugs, first green: `dr-drill-spoke-restore-20260615-125146`). The drill restores under **vps2's** identity but runs `bootstrap-spoke-restore.sh --skip-mesh --skip-services --skip-local-b2-check`, so the throwaway never handshakes with vps1 (would steal vps2's peer endpoint) and never writes to `spokes/vps2` on B2 — the live spoke is untouched. (Was previously deferred as operator-initiated; the peer AI built the isolated drill.)
+- **Hub DR (G9, `bootstrap-hub.sh`)** — ✅ **live-proven 2026-06-15** (drill #6 sweep, 9 drills, 6 bugs, first green: `dr-drill-hub-20260615-111639`). Same isolation flags. Details in [`vps-hub-rebuild.md`](vps-hub-rebuild.md).
 - **G6 (provision SAFE-RERUN-TRAP auto-retry)** — unit-tested (3 tests). Fires only on the **permanent** `provision` path after a mid-bootstrap failure, so a live exercise means creating a real billed spoke + forcing a failure. Deferred-by-design: the fleet is settled at 3, so it will be exercised on the next genuine `provision`, not artificially triggered.
-- **G5b (`bootstrap-spoke-restore.sh` restore path)** — unit-tested + `bash -n` clean. A live drill needs a real B2 restore with **identity preservation**, which risks a wg-pubkey collision with the live spoke unless isolated (restore under a throwaway identity, or verify-only). Operator-initiated (B2 access + hours); see the pending-drill note above.
 - **Copied-creds zero-touch** (eliminating the one `ssh <spoke> 'claude'` device-flow step) — **NOT pursued.** The drill confirmed *immediate* copied-creds auth works, but the remaining ~4-day OAuth refresh-token race can only be tested by a multi-day observation that itself risks rotating the **live hub's** shared refresh token (breaking the production sysadmin). With the fleet settled at 3, the payoff (skipping a one-time 30s step for spokes we aren't adding) doesn't justify that risk. The proven per-spoke device-flow stays the path.
