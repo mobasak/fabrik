@@ -24,12 +24,24 @@
 #   ./bootstrap-spoke-restore.sh --snapshot 1a2b root@<new-ip> vps2
 #
 # Options:
-#   --dry-run        Print every command, change nothing.
-#   --verify         Read-only preflight: confirm env source, B2 reachability,
-#                    spoke creds present, target SSH works.
-#   --snapshot ID    Use a specific restic snapshot (default: latest).
-#   --env-from PATH  Override /opt/fabrik-dr-store/env/ source dir.
-#   --help           Show this message.
+#   --dry-run                Print every command, change nothing.
+#   --verify                 Read-only preflight: confirm env source, B2 reachability,
+#                            spoke creds present, target SSH works.
+#   --snapshot ID            Use a specific restic snapshot (default: latest).
+#   --env-from PATH          Override /opt/fabrik-dr-store/env/ source dir.
+#   --skip-mesh              Skip step_06 wg-quick@wg0 bring-up (drill-only — without
+#                            this the restored spoke identity would handshake with vps1
+#                            and steal the live spoke's peer-table entry).
+#   --skip-services          Skip step_10 (monitoring+traefik) and step_11 (backrest)
+#                            (drill-only — without this the drill backrest would write
+#                            to spokes/<name> on B2 with the spoke's restic identity).
+#   --skip-local-b2-check    Skip preflight #5 operator-side restic query (drill-only —
+#                            for runs from networks where B2's S3 endpoint is blocked).
+#   --help                   Show this message.
+#
+# Drill-safety flags are MANDATORY when invoked by `fabrik vultr drill spoke-restore`
+# (locked by tests/orchestrator/test_vultr_drill.py). See § I of
+# docs/operations/spoke-restore-inventory.md for the contract.
 #
 # Idempotency: every step checks current state before mutating. Safe to
 # re-run after a partial failure.
@@ -217,10 +229,32 @@ preflight() {
     fi
     ok "local docker available"
 
-    # 4. Target SSH
+    # 4. Target SSH.
+    # Hub DR Drill #6 sweep (2026-06-15): 3 of 14 drills died at the single-shot
+    # preflight SSH check to transient operator-network blips (TCP timeout or
+    # RST on connect). Retry the TCP-layer reachability of port 22 BEFORE doing
+    # the ssh auth attempt — TCP probes never reach sshd, so they can't trip
+    # fail2ban no matter how many attempts. Only do the ssh auth check ONCE
+    # after TCP confirms reachability, so a wrong-key scenario still surfaces
+    # immediately (not retried 6x → fail2ban → operator locked out).
+    local ssh_host="${REMOTE#*@}"
+    local tcp_ok=false
+    for attempt in 1 2 3 4 5 6; do
+        # nc -z = zero-I/O scan (just connect + close, no banner read so sshd
+        # never sees us — can't trip fail2ban). -w 5 = 5-second connect timeout.
+        if nc -z -w 5 "${ssh_host}" 22 &>/dev/null; then
+            tcp_ok=true; break
+        fi
+        log "  preflight #4: ${ssh_host}:22 not reachable yet (attempt ${attempt}/6), retrying in 10s ..."
+        sleep 10
+    done
+    if ! $tcp_ok; then
+        err "cannot reach ${ssh_host}:22 over TCP after 60s — network down or sshd not running"
+        return 1
+    fi
     if ! ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new \
             -o BatchMode=yes "${REMOTE}" 'echo ok' &>/dev/null; then
-        err "cannot SSH to ${REMOTE}"
+        err "cannot SSH to ${REMOTE} (TCP reachable, but auth failed — check pubkey in target's authorized_keys)"
         return 1
     fi
     ok "SSH to ${REMOTE} works"

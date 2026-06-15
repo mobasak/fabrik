@@ -137,6 +137,35 @@ def test_validate_hub_passes_safety_flags(monkeypatch):
     assert argv[-1] == "root@9.9.9.9"
 
 
+def test_validate_spoke_restore_passes_safety_flags(monkeypatch):
+    """``_validate_spoke_restore`` MUST invoke ``bootstrap-spoke-restore.sh``
+    with all three drill-safety flags. Without ``--skip-mesh`` the drill
+    droplet (which restored vps2's real wg keypair) would handshake with
+    vps1 as vps2 and steal vps2's peer endpoint, locking out the live spoke.
+    Without ``--skip-services`` step_11 starts the backrest container which
+    writes to ``spokes/vps2`` on B2 under vps2's restic identity.
+    ``--skip-local-b2-check`` skips an operator-side restic query that's
+    flaky on poor networks even when the target Vultr DC is fine.
+    Locks the contract here so a future refactor can't silently drop a flag.
+    """
+    captured: dict[str, list[str]] = {}
+    monkeypatch.setattr(vultr_drill, "_wait_ssh", lambda *_a, **_k: True)
+    monkeypatch.setattr(
+        vultr_drill,
+        "_run_script",
+        lambda argv, *a, **k: captured.setdefault("argv", argv) and 0 or 0,
+    )
+    vultr_drill._validate_spoke_restore("9.9.9.9", "dr-drill-spoke-restore-fake")
+    argv = captured["argv"]
+    assert "--skip-mesh" in argv, "MUST pass --skip-mesh"
+    assert "--skip-services" in argv, "MUST pass --skip-services"
+    assert "--skip-local-b2-check" in argv, "MUST pass --skip-local-b2-check"
+    # The last two positionals are root@<ip> and the spoke name (vps2 default).
+    assert argv[-2] == "root@9.9.9.9"
+    assert argv[-1] == vultr_drill.SPOKE_RESTORE_DRILL_SPOKE
+    assert argv[-1] in ("vps2", "vps3"), "spoke target must be a real spoke"
+
+
 def test_spoke_failed_verify_still_destroys(monkeypatch):
     c = _mock_client()
     monkeypatch.setattr(

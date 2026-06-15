@@ -117,3 +117,32 @@ Schedule offset 1 h from vps1 (which runs 02:00 / 03:00) so B2 bandwidth doesn't
 - [`../infrastructure/vps-spoke-rebuild.md`](../infrastructure/vps-spoke-rebuild.md) — operator runbook for "vpsN is gone — how to bring it back" (the spoke equivalent of `vps-hub-rebuild.md`).
 - [`scripts/bootstrap/bootstrap-vps.sh`](../../scripts/bootstrap/bootstrap-vps.sh) — fresh-spoke bootstrap (W-Multi M1).
 - `scripts/bootstrap/bootstrap-spoke-restore.sh` — DR equivalent, restores from spoke's own B2 chain (W11).
+
+---
+
+## I. Drill safety contract (`fabrik vultr drill spoke-restore`)
+
+The drill orchestrator (`src/fabrik/orchestrator/vultr_drill._validate_spoke_restore`) MUST invoke `bootstrap-spoke-restore.sh` with all three of these flags. Locked by `tests/orchestrator/test_vultr_drill.py::test_validate_spoke_restore_passes_safety_flags`.
+
+| Flag | Without it the drill would… |
+|---|---|
+| `--skip-mesh` | Bring up `wg-quick@wg0` on the drill droplet using vps2's restored private key. vps1 (the live hub) would handshake with the drill droplet as vps2, update its peer-table entry for vps2 to the drill's IP, and lock out the real vps2 from the mesh until the drill is destroyed. |
+| `--skip-services` | Run step_10 (`monitoring-agent` + `traefik` compose-up) and step_11 (`backrest` compose-up). The drill's backrest container would start writing snapshots under the `spokes/vps2` prefix on B2 with vps2's restic identity, corrupting the canonical backup chain. |
+| `--skip-local-b2-check` | Run preflight #5 (operator-side `restic snapshots` query) over the operator's network. From a connection where B2's us-west-004 endpoint TLS-handshakes are blocked (Turkish ISP SSL_ERROR_SYSCALL, Hub DR Drill #1 finding 2026-06-14), this burns ~10 min of retries even though the target droplet's Vultr DC reaches B2 fine. |
+
+step_12's contract check (§ G above) cannot run meaningfully under these flags (mesh down, services down). `bootstrap-spoke-restore.sh::step_12_verify_end_state` short-circuits to `ok "step_12 SKIPPED"` when `$SKIP_SERVICES || $SKIP_MESH`.
+
+### What the drill DOES validate
+
+- step_00–05: sudoer + ssh hardening + apt install (with dpkg-lock wait) + scp creds + restic restore of host-state + authkeys merge
+- step_07–09: DOCKER-USER chain via systemd unit + docker network create + restic restore of /opt
+
+First validated 2026-06-15 (`dr-drill-spoke-restore-20260615-125146`, `success=True wall=246.8s`).
+
+### What the drill does NOT validate
+
+- step_06 — wg-quick@wg0 bring-up + hub handshake of restored spoke identity
+- step_10 — monitoring-agent + traefik compose-up
+- step_11 — backrest compose-up + spoke's own backup chain restoration
+
+Real DR confidence on these needs a non-drill exercise on isolated hardware (probably an isolated WireGuard mesh with throwaway peer pubkeys + sandbox B2 prefix). Not done yet (2026-06-15).

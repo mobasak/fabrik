@@ -322,9 +322,30 @@ preflight() {
     #   c) if ozgur@ works, emit an actionable error telling the operator
     #      EXACTLY how to re-invoke, then exit cleanly before more failed
     #      auth attempts hit fail2ban.
+    # Hub DR Drill #6 sweep (2026-06-15): 3 of 14 drills died at this preflight
+    # check on transient operator-network blips. Retry TCP-level reachability
+    # of port 22 (never reaches sshd → can't trip fail2ban) BEFORE the auth
+    # check. The auth check stays single-shot so a wrong-key scenario still
+    # surfaces immediately and doesn't compound the fail2ban risk that motivated
+    # the ozgur@ fallback below.
+    local host_part="${REMOTE#*@}"
+    local tcp_ok=false
+    for attempt in 1 2 3 4 5 6; do
+        # nc -z = zero-I/O scan (just connect + close, no banner read so sshd
+        # never sees us — can't trip fail2ban). -w 5 = 5-second connect timeout.
+        if nc -z -w 5 "${host_part}" 22 &>/dev/null; then
+            tcp_ok=true; break
+        fi
+        log "  preflight #4: ${host_part}:22 not reachable yet (attempt ${attempt}/6), retrying in 10s ..."
+        sleep 10
+    done
+    if ! $tcp_ok; then
+        err "cannot reach ${host_part}:22 over TCP after 60s — network down or sshd not running"
+        return 1
+    fi
+
     if ! ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new \
             -o BatchMode=yes "${REMOTE}" 'echo ok' &>/dev/null; then
-        local host_part="${REMOTE#*@}"
         if [[ "${REMOTE%%@*}" == "root" ]] \
            && ssh -o ConnectTimeout=10 -o BatchMode=yes \
                   -o StrictHostKeyChecking=accept-new \
