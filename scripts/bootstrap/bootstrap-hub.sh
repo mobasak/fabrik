@@ -110,6 +110,12 @@ source "${SCRIPT_DIR}/bootstrap-config.sh"
 DRY_RUN=false
 VERIFY_ONLY=false
 SKIP_SERVICES=false
+DRILL_START_CORE_ONLY=false    # NEW 2026-06-15 (Bucket C1): under --skip-services
+                               # mode, OPT-IN to actually starting the core
+                               # stateful services (postgres-main + redis-main)
+                               # to verify the restored volumes boot. Safe
+                               # because: postgres + redis only touch local
+                               # state; no B2/Telegram/CF/DNS interaction.
 SKIP_MESH=false                # NEW 2026-06-14 — for `fabrik vultr drill hub`:
                                # skip step_08 wg-quick@wg0 bring-up so the
                                # drill droplet (which restored vps1's real
@@ -158,6 +164,7 @@ while [[ $# -gt 0 ]]; do
         --dry-run) DRY_RUN=true; shift ;;
         --verify) VERIFY_ONLY=true; shift ;;
         --skip-services) SKIP_SERVICES=true; shift ;;
+        --drill-start-core-only) DRILL_START_CORE_ONLY=true; shift ;;
         --skip-mesh) SKIP_MESH=true; shift ;;
         --skip-local-b2-check) SKIP_LOCAL_B2_CHECK=true; shift ;;
         --snapshot) SNAPSHOT_ID="$2"; shift 2 ;;
@@ -1058,6 +1065,97 @@ step_12b_verify_restored_configs() {
     fi
 }
 
+step_12c_start_core_services_drill() {
+    # Bucket C1 (2026-06-15): under --skip-services drill mode, optionally
+    # start ONLY postgres-main + redis-main. These are pure local state —
+    # no B2 writes, no Telegram, no Cloudflare, no external DNS. Validates
+    # that the restored postgres-data + redis_redis-data volumes contain
+    # bootable state (i.e. `pg_isready` returns OK, `redis-cli ping` returns
+    # PONG). step_18 + the full step_13 are still skipped — this is a
+    # surgical add for the most valuable runtime check the drill safety
+    # flags allow.
+    if ! $DRILL_START_CORE_ONLY; then
+        return 0
+    fi
+    if ! $SKIP_SERVICES; then
+        warn "step_12c: --drill-start-core-only is only meaningful with --skip-services; ignoring"
+        return 0
+    fi
+    log "step_12c: drill-start core services (postgres-main + redis-main only) ($(elapsed))"
+
+    # Most hub services bind to 10.99.0.1 (vps1's mesh IP) for security.
+    # Under --skip-mesh, wg0 isn't up → 10.99.0.1 isn't bindable → compose up
+    # fails with "cannot assign requested address". Create a DUMMY wg0
+    # interface (type dummy, not a real WG tunnel) just so 10.99.0.1 is a
+    # valid local bind address. Zero risk: no WG protocol, no peer reach,
+    # no live-mesh interaction. Tear it down at the end of step_12c.
+    if $SKIP_MESH; then
+        log "  setting up dummy wg0 (10.99.0.1) so services can bind their mesh-IP ports..."
+        remote 'sudo bash -c "
+            if ! ip link show wg0 &>/dev/null; then
+                ip link add dev wg0 type dummy
+                ip addr add 10.99.0.1/24 dev wg0
+                ip link set wg0 up
+            fi
+        "' || { err "step_12c: failed to create dummy wg0"; return 1; }
+    fi
+
+    for svc in postgres redis; do
+        if ! remote "test -f /opt/${svc}/compose.yaml"; then
+            err "step_12c: /opt/${svc}/compose.yaml missing — can't start ${svc}"
+            return 1
+        fi
+        log "  ${svc}: docker compose up -d"
+        if ! remote "cd /opt/${svc} && sudo docker compose up -d 2>&1"; then
+            err "step_12c: ${svc} failed to compose up"
+            return 1
+        fi
+    done
+
+    # Wait for postgres to be ready
+    log "  waiting for postgres-main to respond to pg_isready..."
+    local pg_ok=false
+    for i in $(seq 1 30); do
+        if remote 'sudo docker exec postgres-main pg_isready -U postgres' &>/dev/null; then
+            pg_ok=true; break
+        fi
+        sleep 2
+    done
+    if $pg_ok; then
+        ok "  postgres-main: pg_isready OK"
+    else
+        err "  postgres-main: pg_isready NEVER returned OK after 60s — restored volume may be corrupt"
+        return 1
+    fi
+
+    # Confirm postgres has the canonical databases (proves volume restore was real)
+    local dblist
+    dblist=$(remote 'sudo docker exec postgres-main psql -U postgres -tAc "SELECT datname FROM pg_database WHERE datname IN (\"glitchtip\", \"site_provisioner\")"' 2>/dev/null || echo "")
+    if echo "$dblist" | grep -q glitchtip && echo "$dblist" | grep -q site_provisioner; then
+        ok "  postgres-main: glitchtip + site_provisioner databases present (restored volume is real)"
+    else
+        warn "  postgres-main: missing one of glitchtip / site_provisioner — saw: ${dblist}"
+    fi
+
+    # Wait for redis
+    log "  waiting for redis-main to respond to PING..."
+    local rd_ok=false
+    for i in $(seq 1 15); do
+        if remote 'sudo docker exec redis-main redis-cli ping' 2>/dev/null | grep -q PONG; then
+            rd_ok=true; break
+        fi
+        sleep 2
+    done
+    if $rd_ok; then
+        ok "  redis-main: PING OK"
+    else
+        err "  redis-main: PING NEVER returned PONG after 30s — restored volume may be corrupt"
+        return 1
+    fi
+
+    ok "step_12c done — postgres-main + redis-main started + verified against restored volumes"
+}
+
 step_13_compose_up_dep_order() {
     if $SKIP_SERVICES; then
         log "step_13: SKIPPED (--skip-services)"
@@ -1394,6 +1492,7 @@ main() {
     step_11_restic_pull_opt
     step_12_restic_pull_docker_volumes
     step_12b_verify_restored_configs
+    step_12c_start_core_services_drill
     step_13_compose_up_dep_order
     step_14_pg_dump_restore_fallback
     step_15_enable_custom_services

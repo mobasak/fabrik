@@ -107,6 +107,12 @@ BOOT_LOG_FILE=""
 SKIP_MESH=false                # skip step_06 wg-quick@wg0 bring-up
 SKIP_SERVICES=false            # skip step_10 (monitoring+traefik) + step_11 (backrest)
 SKIP_LOCAL_B2_CHECK=false      # skip preflight #5 (B2 query from operator)
+DRILL_START_CORE_ONLY=false    # Bucket C1 (2026-06-15): under --skip-services
+                               # mode, opt-in to actually starting
+                               # monitoring-agent to verify it boots from
+                               # restored config. Skips traefik (LE production
+                               # cert hammering risk) + backrest (B2 write
+                               # risk under spoke identity).
 
 usage() {
     awk 'NR>1 { if (/^[^#]/) exit; sub(/^# ?/,""); print }' "$0"
@@ -122,6 +128,7 @@ while [[ $# -gt 0 ]]; do
         --skip-mesh) SKIP_MESH=true; shift ;;
         --skip-services) SKIP_SERVICES=true; shift ;;
         --skip-local-b2-check) SKIP_LOCAL_B2_CHECK=true; shift ;;
+        --drill-start-core-only) DRILL_START_CORE_ONLY=true; shift ;;
         --help|-h) usage 0 ;;
         --*) echo "unknown flag: $1" >&2; usage 2 ;;
         *)
@@ -723,6 +730,49 @@ step_09b_verify_restored_configs() {
     fi
 }
 
+step_09c_start_core_services_drill() {
+    # Bucket C1 (2026-06-15): under --skip-services drill mode, optionally
+    # start the monitoring-agent stack to verify it boots from restored
+    # config. Skips traefik (Let's Encrypt cert hammering risk against
+    # production zone) + backrest (B2 write risk under spoke identity).
+    if ! $DRILL_START_CORE_ONLY; then
+        return 0
+    fi
+    if ! $SKIP_SERVICES; then
+        warn "step_09c: --drill-start-core-only is only meaningful with --skip-services; ignoring"
+        return 0
+    fi
+    log "step_09c: drill-start core services (monitoring-agent only) ($(elapsed))"
+
+    if ! remote 'test -f /opt/monitoring-agent/compose.yaml'; then
+        err "step_09c: /opt/monitoring-agent/compose.yaml missing — restore may have been incomplete"
+        return 1
+    fi
+    log "  monitoring-agent: docker compose up -d"
+    if ! remote 'cd /opt/monitoring-agent && sudo docker compose up -d 2>&1'; then
+        err "step_09c: monitoring-agent failed to compose up"
+        return 1
+    fi
+
+    # Verify monitoring-agent CONTAINERS exist (compose up created them).
+    # Don't require "running" state — promtail depends on vps1's Loki over
+    # the WG mesh, and --skip-mesh means it can't reach it → restart loop.
+    # That's a mesh dependency, not a DR bug. What we ARE checking: the
+    # restored compose.yaml is valid enough to create containers from
+    # (catches port conflicts, missing images, bad volume mounts).
+    sleep 5
+    local svc_created
+    svc_created=$(remote 'sudo docker ps -a --filter "label=com.docker.compose.project=monitoring-agent" --format "{{.Names}}" | wc -l') || svc_created=0
+    if (( svc_created >= 1 )); then
+        ok "step_09c done — monitoring-agent: ${svc_created} container(s) created (runtime may need mesh)"
+        # Log status for visibility — restarting is OK in drill mode.
+        remote 'sudo docker ps -a --filter "label=com.docker.compose.project=monitoring-agent" --format "  {{.Names}}: {{.Status}}"' || true
+    else
+        err "step_09c: monitoring-agent compose up did not create any containers"
+        return 1
+    fi
+}
+
 step_12_verify_end_state() {
     log "step_12: verify end-state contract (spoke-restore-inventory.md § G) ($(elapsed))"
     if $DRY_RUN; then ok "step_12 done (dry-run)"; return 0; fi
@@ -820,6 +870,7 @@ main() {
     step_08_create_fabrik_network
     step_09_restic_pull_opt
     step_09b_verify_restored_configs
+    step_09c_start_core_services_drill
     step_10_compose_up_services
     step_11_compose_up_backrest
     step_12_verify_end_state

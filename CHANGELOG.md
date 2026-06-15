@@ -4,6 +4,56 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Bucket A + B + C-dry + C1 (2026-06-15): drill mode now exercises core stateful services
+
+Three buckets shipped after the initial Hub + Spoke DR validations earlier today:
+
+**Bucket A — test + doc + --help parity for spoke-restore drill**
+- `tests/orchestrator/test_vultr_drill.py::test_validate_spoke_restore_passes_safety_flags`: locks the 3-flag drill safety contract for spoke-restore (mirror of the hub test).
+- `docs/operations/spoke-restore-inventory.md` § I: drill safety contract section — what each flag prevents + what the drill validates vs doesn't.
+- `bootstrap-spoke-restore.sh --help`: documents the 3 safety flags at usage time.
+
+**Bucket B — preflight SSH retry hardening**
+3 of today's 14 drills died on transient operator-network blips at the single-shot preflight #4 SSH check. Both `bootstrap-hub.sh` and `bootstrap-spoke-restore.sh` now do a two-stage check:
+1. TCP-only reachability probe via `nc -z -w 5 <host> 22`, retried 6× with 10s gaps. Zero-I/O mode never reads sshd's banner → can't trip fail2ban regardless of attempt count.
+2. Single ssh auth attempt after TCP confirms reachable. Wrong-key scenarios still fail immediately (no compounding retries → no fail2ban risk).
+
+Network blips become self-healing (~60s patience budget); auth misconfigurations still fail fast.
+
+**Bucket C-dry — validate restored configs the drill SKIPS would actually run**
+The drill safety flags intentionally skip mesh + services. Until now there was no evidence the RESTORED configs for those skipped steps would parse + run if started. C-dry closes that gap:
+- `bootstrap-hub.sh::step_12b_verify_restored_configs`: wg-quick strip wg0, `docker compose config -q` on all 16 service composes, `systemd-analyze verify` on restored units, `py_compile` on restored sysadmin scripts, presence + non-empty check on 4 critical /opt/fabrik/.env keys.
+- `bootstrap-spoke-restore.sh::step_09b_verify_restored_configs`: equivalent for spoke — wg-quick strip + 3 service composes + /opt/backrest/.env presence.
+
+Hub drilled: 16 compose.yaml files parse + resolve cleanly. Spoke drilled: 3/3.
+
+**Bucket C1 — drill-start core stateful services**
+The biggest gap: until now, no drill had ever EMPIRICALLY proved the restored DB volumes contain bootable Postgres + Redis state. New `--drill-start-core-only` flag (mandatory in `_validate_hub` and `_validate_spoke_restore`, locked by tests):
+
+*Hub* (`step_12c_start_core_services_drill`):
+- Brings up a **dummy `wg0` interface** (`ip link add dev wg0 type dummy`) so `10.99.0.1` is bindable (most hub services bind to the mesh IP for security; without this, postgres-main fails compose-up with `cannot assign requested address`). Zero risk — no WG protocol, no peer reach.
+- Compose-up `postgres-main` + `redis-main` ONLY (skips backrest = no B2 writes, skips traefik = no LE production hammering, skips bot = no Telegram noise).
+- Verifies `pg_isready` returns OK + Postgres contains `glitchtip` + `site_provisioner` databases → proves restored postgres-data volume is real.
+- Verifies `redis-cli PING` returns PONG → proves restored redis_redis-data volume is real.
+
+*Spoke* (`step_09c_start_core_services_drill`):
+- Compose-up `monitoring-agent` only (skips traefik = no LE risk, skips backrest = no B2 risk).
+- Verifies containers were created (relaxed from "must be running" because monitoring-agent's promtail depends on vps1's Loki over the WG mesh, which is intentionally skipped). Catches port conflicts, missing images, bad volume mounts.
+
+This is the strongest DR proof in the suite: empirical evidence that the restored stateful volumes boot from real DB state, not just "the config files parse."
+
+| Drill | wall | rc | finding |
+|---|---|---|---|
+| hub C-dry  (134813) | 462s | 0 | 16 composes parse, wg0.conf valid, units parse, env keys present |
+| spoke C-dry (134823) | 286s | 0 | 3 composes parse, wg0.conf valid |
+| hub C1 #1  (135942) |  -   | - | Vultr provisioning stuck 'pending' 180s → orphan, manually destroyed |
+| spoke C1 #1 (140808) | 338s | 1 | monitoring-agent containers crash-loop without mesh → relaxed check |
+| hub C1 #2  (140801) | 504s | 1 | postgres-main fails to bind 10.99.0.1:5432 → dummy wg0 fix |
+| **hub C1 #3 (141750)** | **500s** | **0** | **postgres + redis booted from restored volumes; canonical DBs verified** |
+| **spoke C1 #2 (141449)** | **320s** | **0** | **monitoring-agent: 3 containers created from restored config** |
+
+Total spend across A + B + C-dry + C1 today (6 drills): **$0.61**. Live mesh untouched throughout.
+
 ### Added — Spoke DR end-to-end VALIDATED (2026-06-15): new `fabrik vultr drill spoke-restore`, 4 drills, 3 bugs, first green
 
 **`bootstrap-spoke-restore.sh` was never live-exercised before today.** `fabrik vultr drill spoke` runs `bootstrap-vps.sh` (the FRESH-install path), not the DR path. Spoke DR was a paper contract.

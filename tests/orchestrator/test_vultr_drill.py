@@ -133,6 +133,9 @@ def test_validate_hub_passes_safety_flags(monkeypatch):
     # (tests B2 from operator, not target). Drill MUST skip it so a drill from a
     # B2-unreachable network doesn't burn ~10 min on retries.
     assert "--skip-local-b2-check" in argv, "MUST pass --skip-local-b2-check"
+    # Bucket C1 (2026-06-15): start core services (postgres + redis only) so
+    # the drill verifies restored volumes actually boot.
+    assert "--drill-start-core-only" in argv, "MUST pass --drill-start-core-only (C1)"
     # And the target must be root@<ip> as the last positional.
     assert argv[-1] == "root@9.9.9.9"
 
@@ -160,6 +163,9 @@ def test_validate_spoke_restore_passes_safety_flags(monkeypatch):
     assert "--skip-mesh" in argv, "MUST pass --skip-mesh"
     assert "--skip-services" in argv, "MUST pass --skip-services"
     assert "--skip-local-b2-check" in argv, "MUST pass --skip-local-b2-check"
+    # Bucket C1 (2026-06-15): start monitoring-agent to verify it boots
+    # from restored config.
+    assert "--drill-start-core-only" in argv, "MUST pass --drill-start-core-only (C1)"
     # The last two positionals are root@<ip> and the spoke name (vps2 default).
     assert argv[-2] == "root@9.9.9.9"
     assert argv[-1] == vultr_drill.SPOKE_RESTORE_DRILL_SPOKE

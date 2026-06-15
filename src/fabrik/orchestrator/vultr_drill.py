@@ -295,12 +295,20 @@ def _validate_hub(ip: str, name: str) -> dict[str, Any]:
     #     exponential-backoff retries (~10 min) before the script gives
     #     up — even though the target droplet's Vultr datacenter IP has
     #     no such block. Hub DR Drill #1 surfaced this 2026-06-14.
+    #
+    # --drill-start-core-only: Bucket C1 (2026-06-15). Surgical add ON TOP
+    #     of --skip-services. Starts postgres-main + redis-main only —
+    #     verifies the restored postgres-data + redis_redis-data volumes
+    #     actually boot bootable DB state (pg_isready + redis PING). These
+    #     2 services don't write to B2/Telegram/CF — safe under all 3
+    #     other safety flags.
     boot_rc = _run_script(
         [
             script,
             "--skip-mesh",
             "--skip-services",
             "--skip-local-b2-check",
+            "--drill-start-core-only",
             f"root@{ip}",
         ],
         _HUB_BOOTSTRAP_TIMEOUT,
@@ -350,6 +358,7 @@ def _validate_spoke_restore(ip: str, name: str) -> dict[str, Any]:
             "--skip-mesh",
             "--skip-services",
             "--skip-local-b2-check",
+            "--drill-start-core-only",  # Bucket C1: start monitoring-agent only
             f"root@{ip}",
             SPOKE_RESTORE_DRILL_SPOKE,
         ],
