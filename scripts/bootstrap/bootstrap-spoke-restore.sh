@@ -299,22 +299,32 @@ EOF
 
 step_02_install_packages() {
     log "step_02: install OS packages ($(elapsed))"
-    remote 'command -v docker >/dev/null || (curl -fsSL https://get.docker.com | sudo sh)'
+    # Bug #8 (Hub DR Drill #6, 2026-06-15): same dpkg lock race as the hub —
+    # Vultr stock Ubuntu 24.04 runs unattended-upgrades at boot. Wait for the
+    # lock instead of failing at 0s. Identical fix to bootstrap-hub.sh step_02.
+    local apt_lock_wait='-o DPkg::Lock::Timeout=300'
+    remote 'command -v docker >/dev/null || (
+        while sudo fuser /var/lib/dpkg/lock-frontend &>/dev/null; do
+            echo "waiting for dpkg lock (unattended-upgrades?)..." >&2
+            sleep 5
+        done
+        curl -fsSL https://get.docker.com | sudo sh
+    )'
     # NOTE: do NOT install iptables-persistent here. On Ubuntu 24.04 it declares
-    # Conflicts: ufw, so `apt-get install iptables-persistent` silently REMOVES ufw
-    # and step_05's `ufw --force enable` then fails. DOCKER-USER persistence is
+    # Conflicts: ufw, so apt-get install iptables-persistent silently REMOVES ufw
+    # and step_05 ufw --force enable then fails. DOCKER-USER persistence is
     # instead provided by iptables-docker-user.service (regenerated in step_07),
     # matching the vps1 hub and the fresh-spoke bootstrap (bootstrap-vps.sh
     # step_10, G5). (G5b)
-    remote 'sudo bash -c "
-        DEBIAN_FRONTEND=noninteractive apt-get update -qq
-        DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
+    remote "sudo bash -c '
+        DEBIAN_FRONTEND=noninteractive apt-get ${apt_lock_wait} update -qq
+        DEBIAN_FRONTEND=noninteractive apt-get ${apt_lock_wait} install -y -qq \
             wireguard wireguard-tools \
             ufw fail2ban \
             python3 python3-pip \
             inotify-tools \
             jq curl ca-certificates
-    "'
+    '"
     remote "sudo usermod -aG docker ${FABRIK_SUDOER_USER}"
     ok "step_02 done"
 }
@@ -356,12 +366,59 @@ step_04_restic_pull_host_state() {
         /home/ozgur/.ssh/authorized_keys ; do
         includes+=" --include ${p}"
     done
-    restic_remote "restore ${SNAPSHOT_ID} --target /host${includes} --tag host-state"
+
+    # Bug #9 (Hub DR Drill #6, 2026-06-15) — see bootstrap-hub.sh step_06 for
+    # the full writeup. Same shape here: restic overwrites /root/.ssh/authorized_keys
+    # and /home/ozgur/.ssh/authorized_keys, losing the access key currently in use.
+    # Fix: backup pre-restore + inline restic + merge in ONE ssh session.
+    # Bug #7: Backrest writes snapshots tagged plan:<id>, not the bare id.
+    remote "sudo bash -c '
+        set -e
+        mkdir -p /tmp/preboot-keys
+        cp /home/ozgur/.ssh/authorized_keys /tmp/preboot-keys/ozgur.authkeys 2>/dev/null || true
+        cp /root/.ssh/authorized_keys      /tmp/preboot-keys/root.authkeys  2>/dev/null || true
+
+        B2_KEY=\$(grep \"^B2_KEY_ID=\" /opt/fabrik/.env | cut -d= -f2-)
+        B2_SECRET=\$(grep \"^B2_APPLICATION_KEY=\" /opt/fabrik/.env | cut -d= -f2-)
+        B2_PW=\$(grep \"^BACKREST_RESTIC_PASSWORD=\" /opt/fabrik/.env | cut -d= -f2-)
+        if [[ -z \"\$B2_KEY\" || -z \"\$B2_SECRET\" || -z \"\$B2_PW\" ]]; then
+            echo \"step_04: B2_KEY_ID / B2_APPLICATION_KEY / BACKREST_RESTIC_PASSWORD missing from /opt/fabrik/.env\" >&2
+            exit 1
+        fi
+        docker run --rm \
+            -e AWS_ACCESS_KEY_ID=\"\$B2_KEY\" \
+            -e AWS_SECRET_ACCESS_KEY=\"\$B2_SECRET\" \
+            -e RESTIC_PASSWORD=\"\$B2_PW\" \
+            -e RESTIC_REPOSITORY=\"${FABRIK_RESTIC_REPO_URI}\" \
+            -v /:/host \
+            restic/restic:0.18.1 restore ${SNAPSHOT_ID} --target /host${includes} --tag plan:host-state
+
+        if [ -s /tmp/preboot-keys/ozgur.authkeys ]; then
+            cat /home/ozgur/.ssh/authorized_keys /tmp/preboot-keys/ozgur.authkeys 2>/dev/null \
+                | awk \"NF && !seen[\\\$0]++\" \
+                > /home/ozgur/.ssh/authorized_keys.merged
+            mv /home/ozgur/.ssh/authorized_keys.merged /home/ozgur/.ssh/authorized_keys
+        fi
+        if [ -s /tmp/preboot-keys/root.authkeys ]; then
+            cat /root/.ssh/authorized_keys /tmp/preboot-keys/root.authkeys 2>/dev/null \
+                | awk \"NF && !seen[\\\$0]++\" \
+                > /root/.ssh/authorized_keys.merged
+            mv /root/.ssh/authorized_keys.merged /root/.ssh/authorized_keys
+        fi
+        chown -R ozgur:ozgur /home/ozgur/.ssh
+        chown -R root:root   /root/.ssh
+        chmod 700 /home/ozgur/.ssh /root/.ssh
+        chmod 600 /home/ozgur/.ssh/authorized_keys /root/.ssh/authorized_keys
+        rm -rf /tmp/preboot-keys
+    '"
+
     remote 'sudo systemctl daemon-reload'
-    # NOTE: do NOT assert /etc/iptables/rules.v4 — post-G5 backups don't carry it
+    # NOTE: do NOT assert /etc/iptables/rules.v4 — post-G5 backups do not carry it
     # (DOCKER-USER persistence moved to iptables-docker-user.service). The chain is
     # regenerated from config in step_07, not restored from the saved table. (G5b)
-    remote 'test -f /etc/wireguard/wg0.conf && test -f /etc/sudoers.d/90-ozgur' \
+    # Bug #11 (Hub DR Drill #6f, 2026-06-15): /etc/wireguard is 0700 root:root.
+    # ozgur cannot traverse the dir → test -f fails. Use sudo test -f.
+    remote 'sudo test -f /etc/wireguard/wg0.conf && sudo test -f /etc/sudoers.d/90-ozgur' \
         || { err "step_04: critical host-state file missing post-restore"; return 1; }
     ok "step_04 done"
 }
@@ -480,7 +537,8 @@ step_08_create_fabrik_network() {
 
 step_09_restic_pull_opt() {
     log "step_09: restic restore /opt/ from B2 ($(elapsed))"
-    restic_remote "restore ${SNAPSHOT_ID} --target /host --include /opt --tag opt-configs"
+    # Bug #7 (Hub DR Drill #5, 2026-06-14): Backrest tags snapshots plan:<id>.
+    restic_remote "restore ${SNAPSHOT_ID} --target /host --include /opt --tag plan:opt-configs"
     if ! $DRY_RUN; then
         for d in monitoring-agent traefik backrest; do
             remote "test -d /opt/${d}" \
