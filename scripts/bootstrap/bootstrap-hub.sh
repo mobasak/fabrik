@@ -498,8 +498,26 @@ EOF
 
 step_02_install_packages() {
     log "step_02: install OS packages ($(elapsed))"
+    # Bug #8 (Hub DR Drill #6, 2026-06-15): Vultr's stock Ubuntu 24.04 image
+    # runs `unattended-upgrades` at boot. If our step_02 apt calls arrive
+    # while that's still holding /var/lib/dpkg/lock-frontend, apt exits
+    # 100 with "Could not get lock". Drills #2-#5 won the race by luck
+    # (~60-90s into boot); drill #6 lost it. Tell apt to wait up to 5 min
+    # for the lock before failing — surgical fix that doesn't disable
+    # unattended-upgrades (which is a genuinely useful default on a
+    # production-restore target).
+    local apt_lock_wait='-o DPkg::Lock::Timeout=300'
+
     # Docker via official one-liner (matches bootstrap-vps.sh step_03 + vps1's history).
-    remote 'command -v docker >/dev/null || (curl -fsSL https://get.docker.com | sudo sh)'
+    # get.docker.com's installer runs apt internally; it doesn't honor our
+    # DPkg::Lock::Timeout flag. Wait for the lock to be free before invoking it.
+    remote 'command -v docker >/dev/null || (
+        while sudo fuser /var/lib/dpkg/lock-frontend &>/dev/null; do
+            echo "waiting for dpkg lock (unattended-upgrades?)..." >&2
+            sleep 5
+        done
+        curl -fsSL https://get.docker.com | sudo sh
+    )'
 
     # System packages. NOTE (G5-for-hub, 2026-06-14): do NOT install
     # `iptables-persistent` here. On Ubuntu 24.04 noble it declares
@@ -518,24 +536,24 @@ step_02_install_packages() {
     # (from this dropped package) as optional — present on pre-G5 hubs,
     # absent on post-G5 fresh installs, either way the custom units do
     # the work.
-    remote 'sudo bash -c "
-        DEBIAN_FRONTEND=noninteractive apt-get update -qq
-        DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
+    remote "sudo bash -c '
+        DEBIAN_FRONTEND=noninteractive apt-get ${apt_lock_wait} update -qq
+        DEBIAN_FRONTEND=noninteractive apt-get ${apt_lock_wait} install -y -qq \
             wireguard wireguard-tools \
             ufw fail2ban \
             python3 python3-pip \
             inotify-tools \
             jq curl ca-certificates gnupg
-    "'
+    '"
 
     # gh CLI from its official apt repo (idempotent registration).
-    remote 'command -v gh >/dev/null || sudo bash -c "
+    remote "command -v gh >/dev/null || sudo bash -c '
         curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
         chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
         echo \"deb [arch=\$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main\" > /etc/apt/sources.list.d/github-cli.list
-        apt-get update -qq
-        DEBIAN_FRONTEND=noninteractive apt-get install -y -qq gh
-    "'
+        apt-get ${apt_lock_wait} update -qq
+        DEBIAN_FRONTEND=noninteractive apt-get ${apt_lock_wait} install -y -qq gh
+    '"
 
     # Member of docker group so the new sudoer can run docker without sudo.
     remote "sudo usermod -aG docker ${FABRIK_SUDOER_USER}"
