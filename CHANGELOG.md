@@ -4,6 +4,47 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Hub DR end-to-end VALIDATED (2026-06-15): drill #6 sweep, 9 drills, 6 bugs, first green
+
+**Hub DR is now end-to-end validated via live drill.** Drill #6i (`dr-drill-hub-20260615-111639`) finished `success=True bootstrap_rc=0 wall=453.8s` after 8 prior fail-then-fix iterations the same morning. Mesh untouched throughout (vps2 + vps3 handshakes <2 min), zero orphan droplets, total spend **$1.071** for 9 drills.
+
+**6 net new bugs + 8 commits** vs the post-drill-#5 baseline:
+
+| # | bug | commit | fix |
+|---|---|---|---|
+| 7 | restic `--tag host-state` filter never matched | `af08c2a` | tag prefix is `plan:<id>` (Backrest namespacing), not bare id; 3 sites (step_06/11/12) |
+| 8 | apt dpkg lock race vs unattended-upgrades | `e7b7e4d` | `-o DPkg::Lock::Timeout=300` on apt calls; `fuser` wait before docker installer |
+| 9 (r1) | restic restore overwrites authorized_keys → next ssh-as-ozgur "permission denied" | `d3af87a` | backup pre-restore + post-restore merge — separate `remote()` calls — DIDN'T WORK |
+| 9 (r2) | round-1 merge call needed to ssh in AFTER restore (when its own ssh auth was already broken) | `d350389` | fold backup + inline-restic + merge into ONE `remote "sudo bash -c '...'"` shell session |
+| 10 | backtick in comment inside double-quoted heredoc → `plan:host-state: command not found` (cmd substitution) | `105d17c` | drop the one backtick in step_06's comment; step_11/12 comments are outside the heredoc, fine |
+| 11 | post-restore sanity `test -f /etc/wireguard/wg0.conf` as ozgur fails (parent dir is 0700 root:root, true on vps1 too) | `729d495` | prefix sanity tests with `sudo test -f` |
+| 12 | step_18 end-state contract checks services + mesh, both intentionally skipped in drill mode | `128ca38` | early `ok "step_18 SKIPPED"` when `$SKIP_SERVICES \|\| $SKIP_MESH` |
+
+**Today's drill ladder** (`logs/dr-drill-history.jsonl` 9 entries; pre-7am-UTC entry #15 was the misdiagnosed drill #5 follow-up):
+
+| drill | wall | rc | finding |
+|---|---|---|---|
+| #6 (10:00) | 1070s | 1 | transient SSH timeout — operator network blip; preflight #5 failed |
+| #6b (10:25) | 139s | 100 | bug #8 surfaced: apt dpkg lock conflict in step_02 |
+| #6c (10:29) | 226s | 255 | bugs #5+#6+#7+#8 fixed; bug #9 surfaced (authkeys overwrite → ssh denied) |
+| #6d (10:39) | 249s | 255 | bug #9 round-1 fix didn't work (merge call's own ssh failed) |
+| #6e (10:46) | 225s | 1 | bugs #9-r2 + #10 surfaced together: backtick cmd-subst gave empty --tag |
+| #6f (10:54) | 226s | 1 | bug #10 fixed; bug #11 surfaced (sanity check needs sudo for /etc/wireguard) |
+| #6g (11:01) | 421s | 1 | reached step_18 — bug #12 surfaced (contract checks need services + mesh, both skipped) |
+| #6h (11:10) | 341s | 255 | bug #12 fixed; transient SSH refused mid-step_12 (volume #6 of 10) |
+| **#6i (11:16)** | **454s** | **0** | **GREEN — 10/10 volumes restored, step_18 cleanly skipped, "✓ HUB READY"** |
+
+**Restored on drill #6i** (proof of restic coverage): host-state 48.7 MiB (50 files), `/opt` 65.4 MiB (3086 files / 19 service dirs), 10/10 docker volumes (`postgres-data` 150 MiB, `redis_redis-data` 48 MiB, `ocoron-com_db_data` 234 MiB, `ocoron-com_wp_html` 149 MiB, `monitoring_grafana-data` 30 MiB, + 5 smaller). Total restore wall ~3 min, total bootstrap wall 5m46s — well under the 90-min DR-in-hours target.
+
+**Not validated by drill** (intentional — drill safety flags suppress them; need a future *non-drill* exercise on disposable hardware):
+- step_08 wg-quick@wg0 bring-up + spoke peer handshakes
+- step_13 docker-compose-up-d (containers actually start)
+- step_14 pg_dump fallback restore
+- step_15 vps-sysadmin-bot service start + /health
+- step_17 Cloudflare DNS A-record rewrite
+
+These are unmodified by this sweep — they were never in drill scope.
+
 ### Fixed — Hub DR Drill #5 root cause re-identified: tag-prefix mismatch in bootstrap-hub.sh (2026-06-14)
 
 **Bug #7 was misdiagnosed.** The original drill #5 writeup called it a "configuration gap (no host-state Backrest plan on vps1)" — that's wrong. Live diagnosis on vps1 (oplog.sqlite + WAL via `sudo docker exec backrest restic snapshots --json`) confirmed:
