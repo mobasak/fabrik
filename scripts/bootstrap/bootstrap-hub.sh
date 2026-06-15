@@ -949,6 +949,115 @@ step_12_restic_pull_docker_volumes() {
     ok "step_12 done — restored ${restored}/${#FABRIK_HUB_VOLUMES_TO_RESTORE[@]} (skipped ${skipped})"
 }
 
+step_12b_verify_restored_configs() {
+    # Bucket C-dry (2026-06-15): dry-validate the configs the drill would
+    # otherwise SKIP (steps 13/15 services + step_08 mesh). Doesn't execute
+    # — just confirms the restored files would parse + run if started.
+    # Runs ONLY in drill mode (when SKIP_SERVICES or SKIP_MESH is set);
+    # production restore proves the same things by actually running steps
+    # 13/15/08 immediately after.
+    if ! $SKIP_SERVICES && ! $SKIP_MESH; then
+        return 0
+    fi
+    log "step_12b: dry-validate configs the drill skipped (mesh + services) ($(elapsed))"
+    local issues=0
+
+    # wg-quick strip parses the WG conf without bringing the interface up.
+    # If wg0.conf is malformed (missing privkey, bad peer entry), this fails.
+    if $SKIP_MESH; then
+        if remote 'sudo wg-quick strip wg0 >/dev/null 2>&1'; then
+            ok "  [c-dry/1] /etc/wireguard/wg0.conf parses (wg-quick strip)"
+        else
+            err "  [c-dry/1] /etc/wireguard/wg0.conf failed to parse — wg-quick strip rejected it"
+            issues=$((issues + 1))
+        fi
+    fi
+
+    if $SKIP_SERVICES; then
+        # `docker compose config -q` resolves the compose file + .env, fails
+        # loudly on bad YAML, undefined env vars, malformed network refs.
+        local compose_fail=0 compose_ok=0
+        local compose_paths
+        compose_paths=$(remote 'sudo find /opt -maxdepth 2 -name compose.yaml 2>/dev/null') || compose_paths=""
+        local p
+        for p in $compose_paths; do
+            local dir; dir=$(dirname "$p")
+            if remote "cd ${dir} && sudo docker compose config -q 2>/dev/null"; then
+                compose_ok=$((compose_ok + 1))
+            else
+                # Read the actual error for diagnosis
+                local why; why=$(remote "cd ${dir} && sudo docker compose config 2>&1 | tail -3" || echo "(no detail)")
+                warn "  [c-dry/2] ${p} FAILED compose config: ${why}"
+                compose_fail=$((compose_fail + 1))
+            fi
+        done
+        if (( compose_fail == 0 )); then
+            ok "  [c-dry/2] ${compose_ok} compose.yaml files parse + resolve cleanly"
+        else
+            err "  [c-dry/2] ${compose_fail} of $((compose_ok + compose_fail)) compose.yaml files failed validation"
+            issues=$((issues + compose_fail))
+        fi
+
+        # Verify the restored systemd unit files (vps-sysadmin-bot + authelia
+        # sync) are syntactically valid via systemd-analyze. Won't start them.
+        local unit_fail=0
+        for unit in vps-sysadmin-bot.service authelia-config-sync.service; do
+            if remote "test -f /etc/systemd/system/${unit} && sudo systemd-analyze verify /etc/systemd/system/${unit} 2>&1 | grep -qE '^/etc.*: '"; then
+                warn "  [c-dry/3] ${unit}: systemd-analyze reported issues"
+                unit_fail=$((unit_fail + 1))
+            elif remote "test -f /etc/systemd/system/${unit}"; then
+                ok "  [c-dry/3] ${unit}: parses cleanly"
+            fi
+        done
+        (( unit_fail > 0 )) && issues=$((issues + unit_fail))
+
+        # Verify the restored sysadmin python scripts compile (catches syntax
+        # errors from corrupted backup or version skew). Doesn't run them.
+        local py_fail=0 py_ok=0
+        if remote 'test -d /opt/fabrik/scripts/sysadmin'; then
+            local py_files
+            py_files=$(remote 'find /opt/fabrik/scripts/sysadmin -name "*.py" 2>/dev/null') || py_files=""
+            local pyf
+            for pyf in $py_files; do
+                if remote "sudo python3 -m py_compile ${pyf} 2>/dev/null"; then
+                    py_ok=$((py_ok + 1))
+                else
+                    warn "  [c-dry/4] ${pyf}: failed py_compile"
+                    py_fail=$((py_fail + 1))
+                fi
+            done
+            if (( py_fail == 0 )); then
+                ok "  [c-dry/4] ${py_ok} sysadmin python scripts compile cleanly"
+            else
+                err "  [c-dry/4] ${py_fail} of $((py_ok + py_fail)) sysadmin scripts failed py_compile"
+                issues=$((issues + py_fail))
+            fi
+        fi
+
+        # Verify the env files required by services exist + have the
+        # critical keys non-empty. Catches partial-restore / wrong-snapshot.
+        local env_missing=0
+        for key in B2_KEY_ID B2_APPLICATION_KEY BACKREST_RESTIC_PASSWORD CLOUDFLARE_API_TOKEN; do
+            if ! remote "sudo grep -qE \"^${key}=.\" /opt/fabrik/.env 2>/dev/null"; then
+                warn "  [c-dry/5] /opt/fabrik/.env missing ${key}"
+                env_missing=$((env_missing + 1))
+            fi
+        done
+        if (( env_missing == 0 )); then
+            ok "  [c-dry/5] /opt/fabrik/.env has all 4 critical keys present + non-empty"
+        else
+            issues=$((issues + env_missing))
+        fi
+    fi
+
+    if (( issues == 0 )); then
+        ok "step_12b done — all dry-validations PASS (would-run config is good)"
+    else
+        err "step_12b: ${issues} dry-validation issues — restored configs would fail at runtime"
+        return 1
+    fi
+}
+
 step_13_compose_up_dep_order() {
     if $SKIP_SERVICES; then
         log "step_13: SKIPPED (--skip-services)"
@@ -1284,6 +1393,7 @@ main() {
     step_10_create_fabrik_network
     step_11_restic_pull_opt
     step_12_restic_pull_docker_volumes
+    step_12b_verify_restored_configs
     step_13_compose_up_dep_order
     step_14_pg_dump_restore_fallback
     step_15_enable_custom_services

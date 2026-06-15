@@ -655,6 +655,74 @@ step_11_compose_up_backrest() {
     fi
 }
 
+step_09b_verify_restored_configs() {
+    # Bucket C-dry (2026-06-15) — mirror of bootstrap-hub.sh step_12b. Runs
+    # ONLY in drill mode (when SKIP_SERVICES or SKIP_MESH is set). Dry-validates
+    # the configs the drill skipped (step_06 mesh + step_10/11 services) so
+    # we know they WOULD parse + run if started.
+    if ! $SKIP_SERVICES && ! $SKIP_MESH; then
+        return 0
+    fi
+    log "step_09b: dry-validate configs the drill skipped (mesh + services) ($(elapsed))"
+    local issues=0
+
+    if $SKIP_MESH; then
+        if remote 'sudo wg-quick strip wg0 >/dev/null 2>&1'; then
+            ok "  [c-dry/1] /etc/wireguard/wg0.conf parses (wg-quick strip)"
+        else
+            err "  [c-dry/1] /etc/wireguard/wg0.conf failed to parse"
+            issues=$((issues + 1))
+        fi
+    fi
+
+    if $SKIP_SERVICES; then
+        local compose_fail=0 compose_ok=0
+        for d in monitoring-agent traefik backrest; do
+            if remote "test -f /opt/${d}/compose.yaml"; then
+                if remote "cd /opt/${d} && sudo docker compose config -q 2>/dev/null"; then
+                    compose_ok=$((compose_ok + 1))
+                else
+                    local why; why=$(remote "cd /opt/${d} && sudo docker compose config 2>&1 | tail -3" || echo "(no detail)")
+                    warn "  [c-dry/2] /opt/${d}/compose.yaml FAILED: ${why}"
+                    compose_fail=$((compose_fail + 1))
+                fi
+            fi
+        done
+        if (( compose_fail == 0 )); then
+            ok "  [c-dry/2] ${compose_ok}/3 service compose.yaml files parse + resolve"
+        else
+            err "  [c-dry/2] ${compose_fail} compose.yaml files failed validation"
+            issues=$((issues + compose_fail))
+        fi
+
+        # /opt/backrest/.env must have the spoke's B2 creds for the spoke's
+        # own Backrest to fire on first scheduled backup (closes the W2 loop).
+        local env_missing=0
+        for key in AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY; do
+            if ! remote "sudo grep -qE \"^${key}=.\" /opt/backrest/.env 2>/dev/null"; then
+                warn "  [c-dry/3] /opt/backrest/.env missing ${key}"
+                env_missing=$((env_missing + 1))
+            fi
+        done
+        if ! remote "sudo test -s /opt/backrest/.restic-password"; then
+            warn "  [c-dry/3] /opt/backrest/.restic-password missing or empty"
+            env_missing=$((env_missing + 1))
+        fi
+        if (( env_missing == 0 )); then
+            ok "  [c-dry/3] /opt/backrest/.env + .restic-password present + non-empty"
+        else
+            issues=$((issues + env_missing))
+        fi
+    fi
+
+    if (( issues == 0 )); then
+        ok "step_09b done — all dry-validations PASS (would-run config is good)"
+    else
+        err "step_09b: ${issues} dry-validation issues — restored configs would fail at runtime"
+        return 1
+    fi
+}
+
 step_12_verify_end_state() {
     log "step_12: verify end-state contract (spoke-restore-inventory.md § G) ($(elapsed))"
     if $DRY_RUN; then ok "step_12 done (dry-run)"; return 0; fi
@@ -751,6 +819,7 @@ main() {
     step_07_apply_iptables
     step_08_create_fabrik_network
     step_09_restic_pull_opt
+    step_09b_verify_restored_configs
     step_10_compose_up_services
     step_11_compose_up_backrest
     step_12_verify_end_state
