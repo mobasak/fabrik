@@ -162,3 +162,31 @@ These two files are mirrored continuously to `mobasak/fabrik-dr-store` and recov
 7. Wall-clock from "fresh VPS" to here: target ≤ 90 min on a 100 Mbit link.
 
 Anything short of all 7 = drill failed = bootstrap-hub.sh has a gap.
+
+---
+
+## Drill safety contract (`fabrik vultr drill hub`)
+
+The drill orchestrator (`src/fabrik/orchestrator/vultr_drill._validate_hub`) MUST invoke `bootstrap-hub.sh` with all three of these flags. They are NOT optional polish — without them, the drill destroys live production state.
+
+| Flag | Without it the drill would… |
+|---|---|
+| `--skip-mesh` | Bring up `wg-quick@wg0` on the drill droplet using vps1's restored private key. vps2 + vps3 would handshake against the drill IP, update their peer endpoint, and the live vps1↔spoke mesh would break the moment the drill is destroyed. |
+| `--skip-services` | Run `docker compose up -d` (step_13) — the Backrest container would start writing snapshots to B2 under vps1's restic identity, corrupting the canonical backup chain. step_15 would also start `vps-sysadmin-bot` which would send Telegram messages from the drill. step_17 (gated off by default, but still) would rewrite Cloudflare DNS to point at the drill IP. |
+| `--skip-local-b2-check` | Run preflight #6 (operator-side `restic snapshots` query) over the operator's network. From a connection where B2's us-west-004 endpoint TLS-handshakes are blocked (e.g. Turkish ISPs, drill #1 finding 2026-06-14), this costs ~10 min of retries even though the actual restore runs on the *target* droplet, which has unblocked Vultr-LAX → B2 routing. |
+
+step_18's contract check (`docs/operations/hub-restore-inventory.md` § End-state contract above) cannot run meaningfully under these flags (mesh down, services down). `bootstrap-hub.sh::step_18_verify_end_state` short-circuits to `ok "step_18 SKIPPED"` when `$SKIP_SERVICES || $SKIP_MESH` (bug #12, drill #6g 2026-06-15).
+
+### What the drill DOES validate (steps 00 → 12 + 14–17 unchanged)
+
+The slow part — provision → SSH → harden → docker → fetch env → restic restore of host-state + /opt + every Docker volume. That's where unknown-unknown bugs surface, and that's the part Hub DR Drill #6 sweep validated end-to-end on 2026-06-15 in 5m46s wall on a `vc2-4c-8gb`.
+
+### What the drill does NOT validate (gap)
+
+- step_08 — wg-quick@wg0 bring-up, peer handshakes with vps2/vps3
+- step_13 — `docker compose up -d` per `_REGISTRAR_ORDER`, container start
+- step_14 — pg_dump fallback (only fires if postgres-data volume was empty)
+- step_15 — `vps-sysadmin-bot` start + /health probe
+- step_17 — Cloudflare DNS A-record rewrite
+
+Real DR confidence requires a non-drill exercise of these on disposable hardware (probably an isolated WireGuard config + throwaway Cloudflare DNS subdomain). Not done yet (2026-06-15).
