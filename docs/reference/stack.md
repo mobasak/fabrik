@@ -376,7 +376,7 @@ That's how you scale to 3 businesses without new architecture each time.
 
 ### 11.1 Active Projects in /opt
 
-> **Full project registry with statuses:** See [project-registry.md](project-registry.md)
+> **Full project registry with statuses:** See the auto-generated inventory in [`docs/BUSINESS_MODEL.md`](../BUSINESS_MODEL.md) (synced by `fabrik projects` / `sync_projects.py`). The old hand-maintained `project-registry.md` is archived.
 
 #### Tier 1: Infrastructure Services (Deploy First)
 

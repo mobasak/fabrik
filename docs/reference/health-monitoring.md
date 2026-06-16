@@ -1,7 +1,7 @@
 # Health Monitoring
 
-**Version:** 1.3.0
-**Last Updated:** 2026-04-28 (monitoring stack stood up under Coolify 2026-04-17; the observability containers themselves still run but are no longer Coolify-managed post-2026-05 SSH+Compose migration. Verifier-key alignment fix [B23, Lesson 32] noted in `docs/reference/orchestrator.md:47` — this doc covers Fabrik's own `/health` endpoint and the observability stack, NOT the deploy verifier.)
+**Version:** 1.4.0
+**Last Updated:** 2026-06-16 (monitoring stack stood up under Coolify 2026-04-17; the observability containers themselves still run but are no longer Coolify-managed post-2026-05 SSH+Compose migration — Coolify is now only a legacy Docker-network name. Verifier-key alignment fix [B23, Lesson 32] noted in `docs/reference/orchestrator.md:54` — this doc covers Fabrik's own `/health` endpoint and the observability stack, NOT the deploy verifier.)
 
 ---
 
@@ -22,7 +22,11 @@
 
 The full observability stack is deployed and operational. Netdata provides real-time metrics; Prometheus + Grafana handle alerting, dashboards, and long-term trend analysis; Loki + Promtail aggregate container logs.
 
-### Deployed Services (Verified 2026-04-14)
+**Live coverage (verified 2026-06-16, 3-host fleet):** Gatus = 33 endpoints across 18 config files · Prometheus = 13 `job_name`s configured / 12 active / 14 targets up (`fabrik-services` is a null placeholder; `pushgateway` is a container, not a scrape job; the single `aro-wake` job covers all 3 hosts) · 13 alert rules in 5 groups · Grafana 5 custom dashboards · Authelia 8 access-control rules.
+
+> **Spoke coverage:** the two spoke hosts run `node-exporter` / `cadvisor` / `promtail` from `/opt/monitoring-agent/`, but there are NO `*-spokes` scrape jobs in `prometheus.yml`. Spoke visibility comes via the `aro-wake` job (covers all 3 hosts) plus push-based Loki log shipping.
+
+### Deployed Services (Verified 2026-06-16)
 
 | Service | URL | Status |
 |---------|-----|--------|
@@ -53,21 +57,25 @@ Prometheus (rules) → Alertmanager → Telegram (native telegram_configs)
 > **ARO Brain (planned):** LLM-based alert triage. When deployed, add as a primary
 > receiver routed before `telegram`, with `telegram` as the fallback.
 
-### Prometheus Alert Rules (9 total)
+### Prometheus Alert Rules (13 total, 5 groups)
 
-Source of truth: `configs/prometheus/rules/alerts.yml`
+Source of truth: `configs/prometheus/rules/alerts.yml` (12 rules, 4 groups) + `configs/prometheus/rules/fabrik-drift.yml` (1 rule, group `fabrik-registrar-drift`). There are no Promtail/log-based alert rules.
 
-| # | Alert | Severity | Threshold | For |
-|---|-------|----------|-----------|-----|
-| 1 | ContainerDown | critical | not seen >2min | 2m |
-| 2 | ContainerHighCPU | warning | >80% | 5m |
-| 3 | ContainerHighMemory | warning | >85% limit | 5m |
-| 4 | ContainerOOMKilled | critical | any OOM in 5m | 0m |
-| 5 | ContainerRestarting | critical | >3 in 15m | 0m |
-| 6 | HostHighCPU | warning | >85% | 10m |
-| 7 | HostHighMemory | critical | >90% | 5m |
-| 8 | HostDiskFull | critical | >85% | 5m |
-| 9 | ServiceUnhealthy | critical | target down | 2m |
+| # | Alert | Group | Severity | Threshold | For |
+| --- | --- | --- | --- | --- | --- |
+| 1 | ContainerDown | container_health | critical | not seen >2min | 2m |
+| 2 | ContainerHighCPU | container_health | warning | >80% | 5m |
+| 3 | ContainerHighMemory | container_health | warning | >85% limit | 5m |
+| 4 | ContainerMemoryHighOfHost | container_health | warning | high % of host RAM | 10m |
+| 5 | ContainerOOMKilled | container_health | critical | any OOM in 5m | 0m |
+| 6 | ContainerRestarting | container_health | critical | >3 in 15m | 0m |
+| 7 | HostHighCPU | host_health | warning | >85% | 10m |
+| 8 | HostHighMemory | host_health | critical | >90% | 5m |
+| 9 | HostDiskFull | host_health | critical | >85% | 5m |
+| 10 | ServiceUnhealthy | service_health | critical | `up == 0` | 2m |
+| 11 | AroWakeLowSuccessRate | aro_wake | warning | low success rate | 15m |
+| 12 | AroWakeCostBurnHigh | aro_wake | warning | cost burn >$5/h per host | 10m |
+| 13 | FabrikRegistrarDrift | fabrik-registrar-drift | warning | `fabrik_audit_drift_total > 0` | 10m |
 
 All applicable rules include `value` annotations for ARO Brain quantitative reasoning.
 
@@ -254,7 +262,9 @@ Generalises the Authelia weekly cron to all 9 registrars at hourly cadence. `scr
 - `fabrik audit-registrars` (T2-02 G-G2) — operator-invoked on-demand version of the same audit.
 - `audit_authelia_gates.py` (T2-03 G-G4) — registrar-specific deeper check (Authelia policy ↔ Traefik middleware) that fires from the same alert chain via the same `telegram` receiver.
 
-## Stable Docker DNS Aliases (T2-04 G-J3, 2026-05-15)
+## Stable Docker DNS Aliases (T2-04 G-J3, 2026-05-15) — LEGACY / not deployed
+
+> **Decommissioned (2026-06):** This mechanism existed to work around Coolify renaming Application containers on every redeploy. Coolify has since been decommissioned (`coolify` is now only a legacy Docker-network name), so the per-redeploy rename problem no longer exists and the alias-watcher is **not running** — `/opt/coolify-alias-watcher/` is absent on the VPS. The repo files (`src/fabrik/orchestrator/coolify_alias.py`, `ops/coolify-alias-watcher/`) remain as a historical mirror. The description below documents the original design.
 
 Adjacent to the audit/verify primitives above — the alias-watcher keeps friendly Docker DNS names alive for Gatus monitors and inter-service URLs that target Coolify Application containers. Coolify renames Application containers on every redeploy (`<24-char-uuid>-<10-digit-timestamp>`); without the watcher, `gatus:8080 → meilisearch:7700` resolution would break after each redeploy of the meilisearch container.
 

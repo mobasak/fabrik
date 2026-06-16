@@ -1,9 +1,17 @@
-> ⚠️ **DEPRECATED (2026-03-20):** This file is no longer maintained. The authoritative project list is auto-generated in [`docs/BUSINESS_MODEL.md`](../BUSINESS_MODEL.md) under `<!-- AUTO-GENERATED:PROJECTS -->`. Run `python /opt/fabrik/scripts/sync_projects.py` to refresh.
+> ⚠️ **DEPRECATED — DO NOT TRUST THE BODY (last verified 2026-06-16).** This file is a frozen 2025-12 planning snapshot and is no longer maintained. **Every status, tier, dependency graph, deadline, and roadmap below is stale and almost certainly wrong** — it predates the Coolify decommission (2026-05-30) and the current spec-driven registry. It is retained only for historical reference and is a candidate for archiving to `docs/archive/`.
+>
+> **For the live, authoritative project inventory, use one of:**
+> - `fabrik projects` / `fabrik scan` — scans `/opt`, refreshes `data/projects.yaml`, and regenerates the table below.
+> - [`docs/BUSINESS_MODEL.md`](../BUSINESS_MODEL.md), `## Project Portfolio` → `<!-- AUTO-GENERATED:PROJECTS -->` block (auto-generated; ~36 projects as of 2026-06-16).
+> - `specs/services/<id>.yaml` — the canonical per-service spec contract (`type:` is one of `git` / `local` / `docker` / `template`).
+> - Refresh manually with `python /opt/fabrik/scripts/sync_projects.py`.
+>
+> **Deployment is no longer Coolify.** Coolify was decommissioned 2026-05-30. Deploys now run over SSH + Docker Compose via the `fabrik` CLI (`fabrik apply`, `--target-vps` for the 3-host fleet: vps1 hub + vps2/vps3 spokes). `coolify` survives only as the legacy Docker-network name. See [`docs/DEPLOYMENT_ARCHITECTURE.md`](../DEPLOYMENT_ARCHITECTURE.md).
 
 # Project Registry
 
 > **Master inventory of all projects under /opt with status, dependencies, and deployment roadmap.**
-> **Last updated:** 2025-12-27
+> **Last updated:** 2025-12-27 — _frozen; see deprecation banner above for the live source._
 
 ---
 
@@ -11,9 +19,9 @@
 
 ### Tier 0: Platform Infrastructure (Fabrik)
 
-| Project | Status | Purpose |
-|---------|--------|---------|
-| `/opt/fabrik` | 🟡 In Development | Deployment automation CLI for Coolify |
+| Project       | Status     | Purpose                                                                                       |
+|---------------|------------|-----------------------------------------------------------------------------------------------|
+| `/opt/fabrik` | ✅ Working | Deployment automation CLI — SSH + Docker Compose; fleet control plane (Coolify decommissioned) |
 
 ---
 
@@ -177,7 +185,7 @@ These are **internal services** that other projects depend on. Must be deployed 
 
 ### Phase 1: Infrastructure Services (Week 1-2)
 
-**Goal:** Deploy all Tier 1 services to VPS via Coolify
+**Goal:** Deploy all Tier 1 services to VPS via `fabrik apply` (SSH + Docker Compose) <!-- was "via Coolify"; Coolify decommissioned 2026-05-30 -->
 
 ```text
 Day 1-2: Create Dockerfile + compose.yaml templates
@@ -194,7 +202,7 @@ Day 10:  Documentation
 **Deliverables per service:**
 
 - [ ] Dockerfile (multi-stage build)
-- [ ] compose.yaml (Coolify-compatible)
+- [ ] compose.yaml (with per-service `deploy.resources.limits.memory`)
 - [ ] .env.example (all required vars)
 - [ ] Health check endpoint
 - [ ] README with deployment instructions
@@ -248,9 +256,9 @@ All services should use these standardized env var patterns:
 ### Database
 
 ```bash
-DATABASE_URL=postgresql://user:pass@host:5432/dbname
+DATABASE_URL=postgresql://user:pass@postgres-main:5432/dbname
 # OR individual vars:
-DB_HOST=localhost
+DB_HOST=postgres-main   # shared Postgres on the coolify net; NEVER localhost in a container
 DB_PORT=5432
 DB_NAME=mydb
 DB_USER=myuser
@@ -298,7 +306,7 @@ NAMECHEAP_SERVICE_URL=http://namecheap:8001
 
 1. **Create Dockerfile template** for Python FastAPI services
 2. **Create Dockerfile template** for Node.js services
-3. **Create compose.yaml template** with Coolify conventions
+3. **Create compose.yaml template** with Fabrik conventions (`coolify` network, Traefik routing, memory limits)
 4. **Deploy captcha** as first test service
 5. **Deploy emailgateway** (needed by many services)
 

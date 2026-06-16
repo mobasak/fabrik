@@ -1,12 +1,13 @@
 # SaaS Alternative GUI Stack (OpenRouter-inspired)
 
-**Reference:** OpenRouter's production frontend (May 2026). Adapted to Fabrik stack.
+**Reference:** OpenRouter's production frontend (May 2026). Adapted to Fabrik stack. (Deploy references updated 2026-06-16.)
 
-> **Note:** Stack-mapping rows and the Dockerfile section below say
-> "on Coolify" / "Coolify Docker builds" — these were written when Coolify
-> was the deploy control plane. Substitute "on Fabrik VPS (SSH + Docker
-> Compose)" — the Docker images, runtime, and Traefik routing are identical;
-> only the orchestrator changed.
+> **Note:** This stack deploys via `fabrik apply` (SSH + Docker Compose to the
+> VPS; see `orchestrator/deployer_ssh.py`), not Coolify. Coolify was
+> decommissioned 2026-05-30; the only surviving `coolify` reference is the
+> legacy Docker-network name. The Docker images, runtime, and Traefik routing
+> are identical to the Coolify era — only the orchestrator changed. The Fabrik
+> fleet is 3 hosts; target a specific one with `fabrik apply --target-vps`.
 
 ---
 
@@ -14,16 +15,16 @@
 
 | OpenRouter uses | Fabrik equivalent | Notes |
 |---|---|---|
-| Next.js (App Router) on Vercel | **Next.js (App Router) on Coolify** | Same framework, self-hosted via Docker. No Vercel dependency. |
+| Next.js (App Router) on Vercel | **Next.js (App Router) on Fabrik VPS** | Same framework, self-hosted via Docker (deployed with `fabrik apply` — SSH + Docker Compose). No Vercel dependency. |
 | Inter + Geist Mono via `next/font` | **Space Grotesk (headings) + Inter (body) + JetBrains Mono (code/data)** via `next/font` | Per Ocoron Design System. Geist Mono replaced by JetBrains Mono (our standard). |
 | Tailwind CSS + HSL custom properties | **Tailwind CSS + Ocoron design tokens** (CSS custom properties) | Same approach. Our tokens: `--color-accent`, `--surface-0..3`, `--text-primary/body/muted`. |
 | Radix UI + custom components (shadcn/ui-like) | **shadcn/ui** (built on Radix UI primitives) | Same thing — shadcn/ui IS Radix primitives + Tailwind styling. Already in our saas-skeleton scaffold. |
 | Clerk (auth) | **Supabase Auth** (Pattern B) | Managed auth, same DX. Supabase is free-tier-friendly, Clerk is not. |
-| Google Analytics + Datadog RUM + Vercel Speed Insights | **Umami** (self-hosted analytics) + **Sentry** (error tracking + performance) | No vendor analytics. Umami for traffic, Sentry for errors + Web Vitals. Both on Coolify. |
+| Google Analytics + Datadog RUM + Vercel Speed Insights | **Umami** (self-hosted analytics) + **Sentry** (error tracking + performance) | No vendor analytics. Umami for traffic, Sentry for errors + Web Vitals. Both self-hosted on the Fabrik VPS. |
 | next-themes (ThemeProvider) | **next-themes** (same) | Identical. Dark default, light toggle, OS preference, localStorage persistence. |
 | Lucide icons | **Lucide** (same) | Already our standard per Ocoron Design System. |
 | cmdk (command palette) | **cmdk** (same) | Already specified in Ocoron Design System § Search and Command Palette. |
-| Turbopack | **Turbopack** (same) | Enabled in `next.config.ts` — `experimental: { turbo: {} }`. Works with Coolify Docker builds. |
+| Turbopack | **Turbopack** (same) | Enabled in `next.config.ts` — `experimental: { turbo: {} }`. Works with Fabrik VPS Docker builds. |
 
 ---
 
@@ -42,7 +43,7 @@
 
 | They use | We use | Why |
 |---|---|---|
-| Vercel hosting | **Coolify on VPS** | $3/mo vs $20+/mo. Same Docker builds. No vendor lock-in. |
+| Vercel hosting | **Fabrik VPS** (`fabrik apply`) | $3/mo vs $20+/mo. Same Docker builds. No vendor lock-in. |
 | Clerk auth | **Supabase Auth** | Free tier, managed, RLS integration, mobile SDK. |
 | Google Analytics | **Umami** (self-hosted) | Privacy-first, no cookie consent needed, GDPR-compliant by default. |
 | Datadog RUM | **Sentry** (browser SDK) | Error tracking + performance monitoring. Already deployed as GlitchTip on VPS. |
@@ -53,7 +54,7 @@
 
 ## Implementation Notes
 
-### Dockerfile (Next.js on Coolify)
+### Dockerfile (Next.js on Fabrik VPS)
 
 ```dockerfile
 FROM node:22-bookworm-slim AS builder
@@ -134,7 +135,7 @@ This is the **default SaaS frontend** for all `saas-skeleton` projects. The Open
 
 ## Cost Comparison
 
-| | OpenRouter (Vercel + Clerk + Datadog) | Fabrik (Coolify + Supabase + Sentry) |
+| | OpenRouter (Vercel + Clerk + Datadog) | Fabrik (VPS + Supabase + Sentry) |
 |---|---|---|
 | Hosting | $20+/mo (Vercel Pro) | $3/mo (VPS share) |
 | Auth | $25+/mo (Clerk Pro) | $0 (Supabase free tier) |

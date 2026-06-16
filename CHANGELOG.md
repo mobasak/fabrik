@@ -4,7 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Changed — docs/reference accuracy sweep, batch 1 (2026-06-16): DEPLOYMENT.md rename + Coolify-decommission caveats + broken links
+### Changed — docs/reference accuracy sweep, batches 1–2 (2026-06-16): DEPLOYMENT.md rename + Coolify-decommission caveats + broken links + archive a superseded doc
+
+File-by-file accuracy pass over `docs/reference/` (67 docs). Verified each claim against the repo + live fleet.
+
+**Batch 2 (4 docs + 1 archived):**
+
+- **`saas-alternative-gui.md`** — 4 "Coolify-as-active" deploy claims + the cost-table header → `fabrik apply` (SSH + Docker Compose); added migration note.
+- **`file-api-deployment.md`** — rewrote the spec example to the current schema (`shape:`, `source.type: git`, `from_env` secrets, `health.path: /api/health`); fixed Coolify-as-active deploy steps, the dead `coolify.vps1.ocoron.com` status URL, `fabrik app-logs <spec>` usage, and the `/api/health` route.
+- **`health-monitoring.md`** — refreshed counts to live (Gatus 33/18; Prometheus 13 jobs/12 active/14 targets; **13** alert rules in 5 groups, no Promtail rules); marked the Coolify-era stable-alias-watcher section LEGACY/not-deployed; fixed a stale `orchestrator.md` line anchor.
+- **`project-registry.md` archived** (`reference/` → `archive/`) per "don't maintain unnecessary docs" — it's a frozen 2025-12 snapshot superseded by `fabrik projects` / `fabrik scan` + the auto-generated inventory in `docs/BUSINESS_MODEL.md`; it also carried an actively-misleading `DB_HOST=localhost` example. Repointed its 3 inbound refs (`INDEX.md` ×2, `stack.md`) to `BUSINESS_MODEL.md`.
+
+**Batch 1 (9 docs):**
 
 Started a file-by-file accuracy pass over `docs/reference/` (67 docs). Batch 1 (9 docs) — verified each claim against the repo + live fleet:
 

@@ -1,12 +1,17 @@
 # File API Deployment Guide
 
-**Last Updated:** 2026-04-16
+**Last Updated:** 2026-06-16
 
-> **⚠️ Pre-migration vintage.** Deployment sections below reference Coolify
-> (the active deploy path before the 2026-05 SSH+Compose migration). For
-> File API today, `fabrik apply specs/services/file-api.yaml` runs
-> `orchestrator/deployer_ssh.py` (writes `compose.yaml` + `.env` to
-> `/opt/file-api/` via SSH, runs `docker compose up -d --wait`). See
+> **⚠️ Pre-migration vintage.** Coolify was **decommissioned (2026-05-30)**.
+> The deployment sections below were written for the Coolify-era flow; the
+> current deploy path is SSH + Docker Compose via `fabrik apply`. Where this
+> doc still says "Coolify", read it as the legacy path — the only live use of
+> the word `coolify` is the Docker network name that Traefik still routes on.
+> For File API today, `fabrik apply specs/services/file-api.yaml` runs
+> `src/fabrik/orchestrator/deployer_ssh.py` (writes `compose.yaml` + `.env`
+> to `/opt/file-api/` via SSH, runs `docker compose up -d --wait`). Add
+> `--target-vps <host>` to deploy to a non-default host on the 3-host fleet
+> (default: `vps1`). See
 > [docs/operations/deployment.md](../operations/deployment.md) for the
 > current procedure. The architecture / config / env-var sections in this
 > file are still accurate.
@@ -95,7 +100,7 @@ Fabrik's orchestrator automates the entire deployment pipeline:
 - Validates spec YAML
 - Loads secrets from project .env files
 - Provisions DNS records (via site-provisioner or Cloudflare)
-- Deploys to Coolify with compose.yaml
+- Writes `compose.yaml` + `.env` to `/opt/<id>/` via SSH and runs `docker compose up -d --wait` (legacy path: deployed to Coolify)
 - Verifies health endpoint with retries
 - Automatic rollback on failure
 
@@ -108,38 +113,47 @@ cd /opt/fabrik/specs/services
 vim file-api.yaml
 ```
 
-**Spec content:**
+**Spec content** (current schema — `kind`, `shape`, `source`, `secrets.from_env`; see `specs/services/fabrik-test-file-api.yaml` for a live example):
 ```yaml
 id: file-api
 kind: service
-template: file-api
+template: file-api          # `file-api` is a real fabrik scaffold type
 domain: files-api.vps1.ocoron.com
+shape:
+  kind: service
+  is_public: true
+  is_admin_dashboard: false
+  has_bearer_api: false
+  has_persistent_data: true
+  needs_database: false     # File API uses Supabase, not the shared postgres-main
+  has_search_feature: false
+source:
+  type: git                 # VPS runs `git pull` from GitHub — push before redeploy
+  repository: https://github.com/<owner>/file-api.git
+  branch: main
+infrastructure:
+  database: local
+  storage: local
+  auth: none
 env:
-  # Supabase
-  SUPABASE_URL: https://xjmsceegyztgtcpywhry.supabase.co
-  SUPABASE_ANON_KEY: from_env
-  SUPABASE_SERVICE_ROLE_KEY: from_env
-
-  # R2 Storage
-  R2_ACCOUNT_ID: from_env
-  R2_ACCESS_KEY_ID: from_env
-  R2_SECRET_ACCESS_KEY: from_env
-  R2_BUCKET: from_env
-  R2_ENDPOINT: from_env
-
-  # App Config
-  PORT: 3000
+  # App Config (non-secret)
+  PORT: '3000'
   NODE_ENV: production
-
 secrets:
-  required:
-    - SUPABASE_ANON_KEY
+  required: []
+  generate: []
+  # Loaded from the project .env at apply time (never committed):
+  from_env:
     - SUPABASE_SERVICE_ROLE_KEY
-    - R2_ACCOUNT_ID
-    - R2_ACCESS_KEY_ID
     - R2_SECRET_ACCESS_KEY
-    - R2_BUCKET
-    - R2_ENDPOINT
+resources:
+  memory: 256M              # required: every service must declare a memory limit
+  cpu: '0.5'
+health:
+  path: /api/health         # File API exposes /api/health
+  interval: 30s
+  timeout: 10s
+  retries: 3
 ```
 
 ### Step 2: Set Secrets in Project .env
@@ -167,26 +181,28 @@ fabrik apply specs/services/file-api.yaml
 **What happens automatically:**
 1. **Validation** - Spec YAML is validated
 2. **Secrets Loading** - Secrets loaded from `/opt/file-api/.env`
-3. **DNS Provisioning** - A record created: `files-api.vps1.ocoron.com → 172.93.160.197`
-4. **Coolify Deployment** - App deployed with compose.yaml + env vars
-5. **Health Verification** - Checks `/health` endpoint (6 retries, 5s interval)
+3. **DNS Provisioning** - A record created: `files-api.vps1.ocoron.com → 172.93.160.197` (vps1)
+4. **SSH + Compose Deployment** - `compose.yaml` + `.env` written to `/opt/file-api/` over SSH, then `docker compose up -d --wait` (legacy path: deployed to Coolify)
+5. **Health Verification** - Checks the spec's `health.path` (`/api/health`) with retries
 6. **Rollback** - Automatic if any step fails
 
 ### Step 4: Verify Deployment
 
 ```bash
-curl https://files-api.vps1.ocoron.com/health
+curl https://files-api.vps1.ocoron.com/api/health
 # Expected: {"status":"healthy","timestamp":"..."}
 ```
 
 ### Step 5: Check Deployment Status
 
 ```bash
-# View Coolify app status
-fabrik app-logs file-api
+# Tail the deployed container logs (takes a spec path, not a bare name)
+fabrik app-logs specs/services/file-api.yaml
+fabrik app-logs specs/services/file-api.yaml -n 50   # last 50 lines
+fabrik app-logs specs/services/file-api.yaml -f      # follow
 
-# Or check in Coolify UI
-# https://coolify.vps1.ocoron.com
+# Or check on the VPS directly:
+# ssh vps1 'cd /opt/file-api && sudo docker compose ps'
 ```
 
 ---
@@ -263,7 +279,7 @@ curl -X POST http://localhost:3000/api/files/upload-url \
 ├── .env                 # Environment variables (gitignored)
 ├── package.json         # Node.js dependencies
 ├── Dockerfile           # Container build instructions
-├── compose.yaml         # Docker Compose (for local/Coolify)
+├── compose.yaml         # Docker Compose (local + VPS deploy)
 └── src/
     └── index.js         # Main application code
 ```
