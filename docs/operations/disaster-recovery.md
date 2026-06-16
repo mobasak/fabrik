@@ -407,6 +407,7 @@ These are real gaps in DR posture — not theater.
 - **LOW: No second-region B2 bucket.** Single-region means a B2 us-west outage during a vps1 disaster = no restore. B2 multi-region failures are rare. **Fix:** W-DR D4 adds `rclone sync` to an eu-central B2 bucket weekly.
 - **LOW: DNS still on Cloudflare only.** If Cloudflare goes down, traffic can't move. Out of scope for this doc; covered in network-redundancy plans.
 - **NOT A REAL RISK: 3 world-readable `.env` files** on the host (browserless, gotenberg, meilisearch). Single-operator VPS, no other users. Cosmetic only. See W-Sec in the Platform-to-A+ plan; deprioritized after threat-model review.
+- **LOW: root crontab is not in the host-state snapshot.** `bootstrap-hub.sh::step_16` replays root's crontab from `/opt/backups/root-crontab.txt`, but that file isn't currently produced — vps1's `pre-backup.sh` doesn't dump `/var/spool/cron/crontabs/root` before each Backrest run. step_16 silently emits `[WARN] /opt/backups/root-crontab.txt not found — no crontab to replay (was the backup taken before this file was added?)` and continues. **Impact:** any cron jobs scheduled directly via `crontab -e` (not `/etc/cron.d/`) would be missing post-DR. Currently the only cronjob is `pre-backup.sh` itself (in `/etc/cron.d/vps-sysadmin`, restored by the host-state snapshot), so the practical loss is zero today. **Fix:** add one line to vps1's `/opt/backups/pre-backup.sh` (`crontab -l > /opt/backups/root-crontab.txt 2>/dev/null || :`) so the next snapshot carries it.
 
 ---
 
