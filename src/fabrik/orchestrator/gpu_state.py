@@ -228,18 +228,27 @@ def gc_old(retention_days: int = RETENTION_DAYS) -> list[str]:
     return removed
 
 
-def reconcile(client: Any) -> dict[str, Any]:
-    """Compare local state to the live RunPod account. Returns a drift report.
+def reconcile(client: Any, *, provider: str | None = None) -> dict[str, Any]:
+    """Compare local state to a live provider account. Returns a drift report.
 
     Drift categories:
 
-    - ``in_state_not_live``: tracked + not-destroyed locally, but absent on RunPod
-      (provider destroyed it without our knowledge — e.g. via dashboard)
+    - ``in_state_not_live``: tracked + not-destroyed locally, but absent on
+      the provider (it was destroyed without our knowledge — e.g. via dashboard).
     - ``lifetime_exceeded``: tracked + not-destroyed, age > ``max_lifetime_hours``
     - ``destroy_pending``: previous destroy attempt failed — needs retry
-    - ``orphan_pods`` / ``orphan_endpoints``: alive on RunPod with our
+    - ``orphan_pods`` / ``orphan_endpoints``: alive on the provider with our
       ``FABRIK_SESSION_ID`` env tag but no matching active session here
-    - ``foreign``: alive on RunPod, NO ``FABRIK_SESSION_ID`` tag — left strictly alone
+    - ``foreign``: alive on the provider, NO ``FABRIK_SESSION_ID`` tag —
+      left strictly alone.
+
+    **Provider scoping (multi-provider safety, 2026-06-16):** when ``provider``
+    is set, ``in_state_not_live`` only considers sessions whose recorded
+    ``provider`` matches — so Modal sessions don't get flagged as missing
+    when the reconcile client is RunPod. ``lifetime_exceeded`` and
+    ``destroy_pending`` remain provider-agnostic (those checks read state
+    only and don't need a live API). When ``provider`` is None (legacy
+    single-provider call), all sessions are checked against the one client.
 
     This function does NOT destroy anything. ``gpu_reaper.reap()`` consumes
     this report when ``--auto-destroy`` is set.
@@ -251,15 +260,26 @@ def reconcile(client: Any) -> dict[str, Any]:
     live_pods = {p["id"]: p for p in client.list_pods()}
     live_endpoints = {e["id"]: e for e in client.list_endpoints()}
 
+    def _matches_provider(rec: dict[str, Any]) -> bool:
+        if provider is None:
+            return True
+        # Default to 'runpod' for legacy state entries that pre-date the
+        # provider column.
+        return rec.get("provider", "runpod") == provider
+
     tracked_active_pod_ids = {
         rec["resource_id"]
         for rec in sessions.values()
-        if rec.get("destroyed_at") is None and rec.get("resource_type") == "pod"
+        if rec.get("destroyed_at") is None
+        and rec.get("resource_type") == "pod"
+        and _matches_provider(rec)
     }
     tracked_active_endpoint_ids = {
         rec["resource_id"]
         for rec in sessions.values()
-        if rec.get("destroyed_at") is None and rec.get("resource_type") == "endpoint"
+        if rec.get("destroyed_at") is None
+        and rec.get("resource_type") == "endpoint"
+        and _matches_provider(rec)
     }
 
     report = {
@@ -278,14 +298,18 @@ def reconcile(client: Any) -> dict[str, Any]:
             continue
         rid = rec.get("resource_id")
         rtype = rec.get("resource_type")
-        if rtype == "pod" and rid not in live_pods:
-            report["in_state_not_live"].append(
-                {"session_id": sid, "resource_id": rid, "type": "pod"}
-            )
-        elif rtype == "endpoint" and rid not in live_endpoints:
-            report["in_state_not_live"].append(
-                {"session_id": sid, "resource_id": rid, "type": "endpoint"}
-            )
+        # in_state_not_live: only when this session belongs to the provider
+        # we're reconciling against. Mixing providers would falsely flag
+        # Modal pods as missing on a RunPod scan and vice versa.
+        if _matches_provider(rec):
+            if rtype == "pod" and rid not in live_pods:
+                report["in_state_not_live"].append(
+                    {"session_id": sid, "resource_id": rid, "type": "pod"}
+                )
+            elif rtype == "endpoint" and rid not in live_endpoints:
+                report["in_state_not_live"].append(
+                    {"session_id": sid, "resource_id": rid, "type": "endpoint"}
+                )
         if rec.get("destroy_pending"):
             report["destroy_pending"].append({"session_id": sid, "resource_id": rid, "type": rtype})
         try:

@@ -456,6 +456,98 @@ def test_selection_advice_serverless_excludes_vast():
 
 
 # ============================================================================
+# client_for_provider factory — used by cross-provider CLI commands
+# ============================================================================
+def test_client_for_provider_runpod_returns_runpod_client(monkeypatch):
+    """Factory returns a RunPodClient for 'runpod'."""
+    monkeypatch.setenv("RUNPOD_API_KEY", "rpa_test")
+    c = gpu_rent.client_for_provider("runpod")
+    from fabrik.drivers.runpod import RunPodClient
+    assert isinstance(c, RunPodClient)
+
+
+def test_client_for_provider_unknown_raises():
+    """Factory raises NotImplementedError for unknown providers."""
+    with pytest.raises(NotImplementedError, match="unknown gpu provider"):
+        gpu_rent.client_for_provider("azure")
+
+
+# ============================================================================
+# Multi-provider reaper — reap_all_providers iterates RunPod + Modal + Vast
+# ============================================================================
+def test_reap_all_providers_skips_unconfigured_gracefully(monkeypatch):
+    """When a provider client can't be constructed (no token), the reaper
+    records it as skipped without aborting the other providers' reconcile."""
+    from fabrik.orchestrator import gpu_reaper
+
+    # Force every provider's client_for_provider() to raise
+    def _bad_factory(name):
+        raise RuntimeError(f"no token for {name}")
+
+    monkeypatch.setattr(gpu_rent, "client_for_provider", _bad_factory)
+    report = gpu_reaper.reap_all_providers(auto_destroy=False)
+    assert "providers" in report
+    for name in ("runpod", "modal", "vast"):
+        assert report["providers"][name]["skipped"] is True
+        assert "no token" in report["providers"][name]["reason"]
+    # Top-level merge is still valid (no destroys, no errors)
+    assert report["destroyed"] == []
+    assert report["foreign_count"] == 0
+
+
+def test_reap_all_providers_tags_entries_with_provider(monkeypatch):
+    """Drift entries from each provider's reconcile should be tagged with
+    the provider so the operator can see WHO owns each orphan."""
+    from fabrik.orchestrator import gpu_reaper
+
+    def _factory(name):
+        c = MagicMock()
+        c.list_pods.return_value = [
+            {"id": f"pod-{name}-orphan", "env": {"FABRIK_SESSION_ID": f"sess-{name}"}}
+        ]
+        c.list_endpoints.return_value = []
+        return c
+
+    monkeypatch.setattr(gpu_rent, "client_for_provider", _factory)
+    report = gpu_reaper.reap_all_providers(auto_destroy=False)
+    # Each provider contributed one orphan_pod tagged with its name
+    by_provider = {e["provider"] for e in report["orphan_pods"]}
+    assert by_provider == {"runpod", "modal", "vast"}
+
+
+# ============================================================================
+# Provider-scoped reconcile — Modal session NOT flagged when scanning RunPod
+# ============================================================================
+def test_reconcile_provider_scope_doesnt_falsely_flag_other_providers_sessions():
+    """Bug fix 2026-06-16: gpu_state.reconcile() iterates ALL sessions but
+    checks them against ONE provider's live_pods. Without provider scoping,
+    a Modal-recorded session shows up as 'in_state_not_live' when reconcile
+    runs against RunPod.
+    """
+    # Create a Modal-provider session in state
+    gpu_state.upsert(
+        session_id="modal-sess-1",
+        provider="modal",
+        kind="pod-rtx-4090",
+        workload="multi-test",
+        resource_type="pod",
+        resource_id="fc-modal-1",
+        gpu_type_id="L4",
+        max_lifetime_hours=1,
+        cost_estimate_usd=0.8,
+    )
+    # Reconcile against a RunPod-shaped client (no Modal IDs in live_pods)
+    runpod_client = MagicMock()
+    runpod_client.list_pods.return_value = []
+    runpod_client.list_endpoints.return_value = []
+
+    report = gpu_state.reconcile(runpod_client, provider="runpod")
+    # Modal session must NOT appear in RunPod's in_state_not_live report
+    flagged_ids = {e["resource_id"] for e in report["in_state_not_live"]}
+    assert "fc-modal-1" not in flagged_ids
+
+
+# ============================================================================
 # Orphan-cleanup invariant — pod_id recorded BEFORE wait_for_running
 # ============================================================================
 def test_create_pod_records_resource_id_before_wait(monkeypatch):

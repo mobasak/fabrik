@@ -162,17 +162,35 @@ Output includes recommended provider + rationale.
 
 ### `fabrik gpu list` / `status` / `destroy` / `reconcile` / `history`
 
+All five commands are **provider-aware** (live-validated 2026-06-16, G-LIVE-10/11). They read the session's recorded `provider` from `data/gpu-rent-state.json` and dispatch to the matching API — so a Modal-rented pod is destroyed via Modal SDK, a Vast-rented one via Vast REST, etc.
+
 | Command | Purpose |
-|---|---|
-| `list` | Currently-active sessions in local state |
-| `status <id>` | Detailed state for a session/resource, with a live RunPod probe |
-| `destroy <id>` | Manual cleanup (orphan removal) |
-| `reconcile [--auto-destroy]` | Compare state vs RunPod; report drift; optionally destroy lifetime-exceeded + orphan-tagged pods |
+| --- | --- |
+| `list` | All active sessions in local state (provider-agnostic) |
+| `status <id>` | Detailed state for a session/resource + live provider probe (dispatches by session's recorded provider) |
+| `destroy <id>` | Manual cleanup (orphan removal) — dispatches to the right provider |
+| `reconcile [--auto-destroy] [--provider all\|runpod\|modal\|vast]` | Walks every configured provider, reports drift, optionally auto-destroys lifetime-exceeded + tagged orphans. `--provider all` (default) iterates all three. |
 | `history [--lines N]` | Tail `logs/gpu-rent-history.jsonl` (audit log) |
 
-**Critical safety**: `reconcile --auto-destroy` only touches pods carrying
-`FABRIK_SESSION_ID` env tag. **Foreign pods (not created by Fabrik) are
-NEVER destroyed.** Constraint C4.
+```bash
+# See what's alive across all 3 providers + foreign-pod count
+fabrik gpu reconcile --provider all
+
+# Reconcile against just Modal (skips RunPod + Vast even if tokens are set)
+fabrik gpu reconcile --provider modal
+
+# Status of a session (auto-detects provider from state)
+fabrik gpu status gpu-pod-rtx-4090-20260616-204119-302ea1
+# → reads provider=modal from state, queries modal.FunctionCall.from_id(...)
+
+# Destroy a session (auto-detects provider from state)
+fabrik gpu destroy gpu-pod-rtx-4090-20260616-204119-302ea1 -y
+# → reads provider=modal, calls ModalClient.destroy_pod(fc-id)
+```
+
+**Critical safety (C4)**: `reconcile --auto-destroy` only touches pods carrying `FABRIK_SESSION_ID` env tag. **Foreign pods (not created by Fabrik) are NEVER destroyed — on ANY of the three accounts.** A foreign-count of `1` on RunPod (your manually-created SmolLM2 serverless endpoint) is expected and intentional.
+
+**Modal `--keep-warm-after-use` limitation**: Modal "pods" are really FunctionCalls inside an `app.run()` context. The context is process-scoped — when the CLI exits, the context closes regardless. So `--keep-warm-after-use` does NOT work for `--provider modal --kind pod-*` (the context dies anyway). Use Modal serverless (Phase 3) for persistent endpoints. RunPod + Vast pods CAN survive the CLI exit and honor `--keep-warm-after-use`.
 
 ---
 

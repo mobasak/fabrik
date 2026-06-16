@@ -4,9 +4,15 @@ Library function consumed by ``fabrik gpu reconcile``. Phase 1 ships this as
 operator-invoked (no daemon); Phase 4 wraps it in a systemd user timer.
 
 The reaper is tag-scoped: it ONLY destroys resources carrying the
-``FABRIK_SESSION_ID`` env tag. Foreign pods on the operator's RunPod account
+``FABRIK_SESSION_ID`` env tag. Foreign pods on the operator's accounts
 (manually created, other projects) are NEVER touched. Constraint C4 of the
 plan.
+
+**Multi-provider** (verified 2026-06-16 across RunPod / Modal / Vast.ai):
+``reap_all_providers()`` iterates each configured provider, runs the
+tag-scoped reconcile, merges results. Per-provider failures (e.g. Modal
+token missing) downgrade to a per-provider error entry rather than
+aborting the whole reconcile.
 
 Returns a single dict so the CLI can present it neatly + the JSONL audit
 log gets one row per reaper invocation.
@@ -23,11 +29,81 @@ from fabrik.orchestrator import gpu_rent, gpu_state
 
 logger = logging.getLogger(__name__)
 
+# Providers the reaper walks in ``reap_all_providers()``. Order matters
+# only for the log readability — destroy decisions are per-provider.
+REAPER_PROVIDERS = ("runpod", "modal", "vast")
+
+
+def reap_all_providers(*, auto_destroy: bool = False) -> dict[str, Any]:
+    """Walk state + every configured provider; merge into a single report.
+
+    Skips a provider gracefully if its client can't be constructed (e.g.
+    Modal token not set). Each provider gets a per-provider sub-report under
+    ``report["providers"][<name>]`` plus the categories are merged top-level
+    for back-compat with the single-provider call shape.
+    """
+    now = datetime.now(UTC)
+    merged: dict[str, Any] = {
+        "scanned_at": now.isoformat(),
+        "in_state_not_live": [],
+        "lifetime_exceeded": [],
+        "destroy_pending": [],
+        "orphan_pods": [],
+        "orphan_endpoints": [],
+        "foreign_count": 0,
+        "auto_destroy": auto_destroy,
+        "destroyed": [],
+        "errors": [],
+        "providers": {},
+    }
+    for provider in REAPER_PROVIDERS:
+        try:
+            client = gpu_rent.client_for_provider(provider)
+        except Exception as e:  # noqa: BLE001
+            # Most common: missing token in .env.sysadmin. Don't abort —
+            # report and continue. The operator may not have all 3 wired.
+            logger.info("reaper skipping provider %s: %s", provider, e)
+            merged["providers"][provider] = {
+                "skipped": True,
+                "reason": f"client init failed: {e}",
+            }
+            continue
+        try:
+            sub = reap(client, auto_destroy=auto_destroy, provider_label=provider)
+        except Exception as e:  # noqa: BLE001
+            logger.exception("reaper failed for provider %s", provider)
+            merged["providers"][provider] = {
+                "skipped": False,
+                "error": repr(e),
+            }
+            merged["errors"].append({"provider": provider, "error": repr(e)})
+            continue
+        merged["providers"][provider] = sub
+        # Merge category counts into the top-level for back-compat
+        for key in (
+            "in_state_not_live",
+            "lifetime_exceeded",
+            "destroy_pending",
+            "orphan_pods",
+            "orphan_endpoints",
+            "destroyed",
+            "errors",
+        ):
+            for entry in sub.get(key, []):
+                # Tag with provider so the operator can see WHICH provider
+                # owns each drift entry.
+                if isinstance(entry, dict) and "provider" not in entry:
+                    entry["provider"] = provider
+                merged[key].append(entry)
+        merged["foreign_count"] += sub.get("foreign_count", 0)
+    return merged
+
 
 def reap(
     client: Any = None,
     *,
     auto_destroy: bool = False,
+    provider_label: str = "runpod",
 ) -> dict[str, Any]:
     """Walk state + provider. Report drift. Optionally destroy.
 
@@ -47,8 +123,11 @@ def reap(
     ``destroyed`` + ``errors`` populated when auto_destroy was set.
     """
     client = client or RunPodClient()
-    report = gpu_state.reconcile(client)
+    # Pass provider_label so reconcile only flags sessions belonging to
+    # this provider as in_state_not_live (multi-provider safety).
+    report = gpu_state.reconcile(client, provider=provider_label)
     report["auto_destroy"] = auto_destroy
+    report["provider"] = provider_label
     report["destroyed"] = []
     report["errors"] = []
 

@@ -3426,13 +3426,16 @@ def gpu_list():
 @gpu.command("status")
 @click.argument("session_or_resource_id")
 def gpu_status(session_or_resource_id):
-    """Show detailed status for a session ID or a RunPod pod/endpoint ID."""
-    from fabrik.drivers.runpod import RunPodClient, RunPodError
+    """Show detailed status for a session ID or a provider pod/endpoint ID.
+
+    Provider-aware: reads the session's recorded provider (runpod/modal/vast)
+    and queries the matching API. Works across all three providers.
+    """
+    from fabrik.orchestrator import gpu_rent as gpu_rent_mod
     from fabrik.orchestrator import gpu_state
 
     sess = gpu_state.get_session(session_or_resource_id)
     if sess is None:
-        # Maybe it's a resource_id
         for sid, rec in gpu_state.load_state()["sessions"].items():
             if rec["resource_id"] == session_or_resource_id:
                 sess = rec
@@ -3450,29 +3453,36 @@ def gpu_status(session_or_resource_id):
     if sess.get("destroyed_at"):
         return
 
-    # Probe live status from RunPod
+    # Provider-aware live probe.
+    provider = sess.get("provider", "runpod")
     try:
-        client = RunPodClient()
+        client = gpu_rent_mod.client_for_provider(provider)
         if sess["resource_type"] == "pod":
             live = client.get_pod(sess["resource_id"])
-            click.echo("\nlive (RunPod /pods):")
+            click.echo(f"\nlive ({provider} pod):")
             for k in ("desiredStatus", "costPerHr", "adjustedCostPerHr", "publicIp"):
-                click.echo(f"  {k}: {live.get(k)}")
+                if k in live:
+                    click.echo(f"  {k}: {live.get(k)}")
         else:
             live = client.get_endpoint(sess["resource_id"])
-            click.echo("\nlive (RunPod /endpoints):")
+            click.echo(f"\nlive ({provider} endpoint):")
             for k in ("workersMin", "workersMax", "idleTimeout", "flashboot"):
-                click.echo(f"  {k}: {live.get(k)}")
-    except RunPodError as e:
-        click.echo(f"\n✗ live probe failed: {e}", err=True)
+                if k in live:
+                    click.echo(f"  {k}: {live.get(k)}")
+    except Exception as e:  # noqa: BLE001
+        click.echo(f"\n✗ live probe failed ({provider}): {e}", err=True)
 
 
 @gpu.command("destroy")
 @click.argument("session_or_resource_id")
 @click.option("-y", "--yes", is_flag=True, help="Skip confirmation")
 def gpu_destroy(session_or_resource_id, yes):
-    """Destroy a session's pod/endpoint manually (orphan cleanup)."""
-    from fabrik.drivers.runpod import RunPodClient, RunPodError
+    """Destroy a session's pod/endpoint manually (orphan cleanup).
+
+    Provider-aware: dispatches to RunPod / Modal / Vast based on the
+    session's recorded provider.
+    """
+    from fabrik.orchestrator import gpu_rent as gpu_rent_mod
     from fabrik.orchestrator import gpu_state
 
     sess = gpu_state.get_session(session_or_resource_id)
@@ -3489,21 +3499,23 @@ def gpu_destroy(session_or_resource_id, yes):
         click.echo(f"✓ already destroyed at {sess['destroyed_at']}")
         return
 
-    target = f"{sess['resource_type']}:{sess['resource_id']}"
+    provider = sess.get("provider", "runpod")
+    target = f"{provider}:{sess['resource_type']}:{sess['resource_id']}"
     if not yes:
         click.confirm(f"Destroy {target} (session {session_or_resource_id})?", abort=True)
 
-    client = RunPodClient()
     try:
+        client = gpu_rent_mod.client_for_provider(provider)
         if sess["resource_type"] == "pod":
             client.destroy_pod(sess["resource_id"])
         else:
             client.destroy_endpoint(sess["resource_id"])
         gpu_state.mark_destroyed(session_or_resource_id)
         click.echo(f"✅ destroyed {target}")
-    except RunPodError as e:
+    except Exception as e:  # noqa: BLE001
+        # Catch ALL provider errors (RunPodError, ModalError, VastError)
         gpu_state.mark_destroy_pending(session_or_resource_id)
-        click.echo(f"❌ destroy failed (marked destroy_pending): {e}", err=True)
+        click.echo(f"❌ destroy failed ({provider}, marked destroy_pending): {e}", err=True)
         raise SystemExit(1)
 
 
@@ -3514,14 +3526,30 @@ def gpu_destroy(session_or_resource_id, yes):
     help="Destroy lifetime-exceeded + orphan-tagged pods automatically. "
     "NEVER touches pods without FABRIK_SESSION_ID env tag (foreign safety).",
 )
-def gpu_reconcile(auto_destroy):
-    """Compare local state to RunPod; report drift; optionally auto-destroy."""
-    from fabrik.drivers.runpod import RunPodClient
-    from fabrik.orchestrator.gpu_reaper import reap
+@click.option(
+    "--provider",
+    type=click.Choice(["all", "runpod", "modal", "vast"]),
+    default="all",
+    help="Which provider(s) to reconcile. `all` walks RunPod + Modal + Vast.",
+)
+def gpu_reconcile(auto_destroy, provider):
+    """Compare local state to live provider accounts; optionally auto-destroy.
 
-    client = RunPodClient()
-    report = reap(client, auto_destroy=auto_destroy)
-    click.echo(f"📊 reconcile at {report['scanned_at']}:")
+    Multi-provider by default — walks RunPod, Modal, and Vast.ai, marking
+    each per-provider sub-report under ``providers.<name>``. Skips providers
+    whose client can't be constructed (e.g. token not wired). C4 tag-safety
+    invariant applies per-provider: foreign pods on ANY account are NEVER
+    destroyed.
+    """
+    from fabrik.orchestrator import gpu_rent as gpu_rent_mod
+    from fabrik.orchestrator.gpu_reaper import reap, reap_all_providers
+
+    if provider == "all":
+        report = reap_all_providers(auto_destroy=auto_destroy)
+    else:
+        client = gpu_rent_mod.client_for_provider(provider)
+        report = reap(client, auto_destroy=auto_destroy, provider_label=provider)
+    click.echo(f"📊 reconcile at {report['scanned_at']} (provider={provider}):")
     click.echo(f"  lifetime_exceeded: {len(report['lifetime_exceeded'])}")
     click.echo(f"  orphan_pods:       {len(report['orphan_pods'])}")
     click.echo(f"  orphan_endpoints:  {len(report['orphan_endpoints'])}")
@@ -3530,6 +3558,18 @@ def gpu_reconcile(auto_destroy):
     click.echo(
         f"  foreign_count:     {report['foreign_count']} (not touched — no FABRIK_SESSION_ID tag)"
     )
+    if provider == "all":
+        for name, sub in report.get("providers", {}).items():
+            if sub.get("skipped"):
+                click.echo(f"  · {name}: skipped — {sub.get('reason')}")
+            elif sub.get("error"):
+                click.echo(f"  · {name}: ERROR — {sub.get('error')}", err=True)
+            else:
+                click.echo(
+                    f"  · {name}: orphans_pods={len(sub.get('orphan_pods', []))} "
+                    f"orphans_endpoints={len(sub.get('orphan_endpoints', []))} "
+                    f"foreign={sub.get('foreign_count', 0)}"
+                )
     if auto_destroy:
         click.echo(f"  destroyed:         {len(report['destroyed'])}")
         click.echo(f"  errors:            {len(report['errors'])}")

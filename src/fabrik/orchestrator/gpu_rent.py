@@ -100,6 +100,16 @@ def _get_provider_class(name: str) -> type:
     return p() if callable(p) and not isinstance(p, type) else p
 
 
+def client_for_provider(name: str) -> Any:
+    """Instantiate the right client class for a provider name.
+
+    Used by the CLI (``fabrik gpu status / destroy / reconcile``) to dispatch
+    against the session's recorded provider without hardcoding RunPod.
+    """
+    cls = _get_provider_class(name)
+    return cls()
+
+
 # Cost lookup per (provider, kind). Verified 2026-06-16 from each provider's
 # pricing page. Re-verify quarterly. Each cell is hourly USD.
 # - RunPod = Secure Cloud (more stable; we default cloud_type=SECURE in driver)

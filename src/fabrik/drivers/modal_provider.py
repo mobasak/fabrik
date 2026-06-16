@@ -151,12 +151,29 @@ class ModalClient:
         We translate Modal's FunctionCall state into the RunPod-style fields
         the orchestrator expects (``desiredStatus``, ``costPerHr``).
         """
+        # Modal SDK 1.x: no `finalized()` method. `get(timeout=0)` raises
+        # if the call is still pending, returns the result if complete, or
+        # raises FunctionCallCancelled if cancelled. We swallow the
+        # "still pending" exception as the RUNNING signal.
         try:
             fc = self._modal.FunctionCall.from_id(pod_id)
-            # Modal exposes finalized() and stats(); we map to status string.
-            status = "RUNNING" if not fc.finalized() else "EXITED"
         except Exception as e:
             raise ModalError(f"could not resolve Modal call {pod_id}: {e}", cause=e)
+        try:
+            # timeout=0 → poll without blocking. Raises if pending or done.
+            fc.get(timeout=0)
+            status = "EXITED"  # returned normally → call completed
+        except Exception as e:
+            name = type(e).__name__
+            if "FunctionCallCancelled" in name or "Cancelled" in name:
+                status = "EXITED"
+            elif "Timeout" in name or "Pending" in name or "still pending" in str(e).lower():
+                status = "RUNNING"
+            else:
+                # Unknown exception — treat as RUNNING (conservative; the
+                # reaper's destroy_pending machinery will retry).
+                logger.debug("modal fc.get() returned %s: %s", name, e)
+                status = "RUNNING"
         return {
             "id": pod_id,
             "desiredStatus": status,

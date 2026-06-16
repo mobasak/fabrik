@@ -4,6 +4,38 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — `fabrik gpu` provider-aware status/destroy/reconcile across all 3 providers (2026-06-16)
+
+Finishes the plan's reaper + management surface. Before this commit, `fabrik gpu status / destroy / reconcile` were hard-coded to query RunPod — they ignored the session's recorded `provider` field. After this, all three commands dispatch to the right driver based on what the session was rented from.
+
+**New surface:**
+
+- [`fabrik.orchestrator.gpu_rent.client_for_provider(name)`](src/fabrik/orchestrator/gpu_rent.py) — factory that returns the correct client instance for `"runpod"`, `"modal"`, or `"vast"`. Used by every CLI command that operates on a session.
+- [`fabrik.orchestrator.gpu_reaper.reap_all_providers()`](src/fabrik/orchestrator/gpu_reaper.py) — walks every provider in `REAPER_PROVIDERS`, runs the tag-scoped reconcile per-provider, merges results. Each drift entry is tagged with its provider so the operator can see ownership. Per-provider failures (e.g. Modal token not wired) downgrade to a `{"skipped": True, "reason": "..."}` sub-report instead of aborting the whole reconcile.
+
+**Provider-scope fix in `gpu_state.reconcile()`** — without this, a Modal-rented session in state would show up as `in_state_not_live` when the reconcile ran against RunPod (RunPod's `list_pods` doesn't include Modal FCs). Now accepts an optional `provider=` kwarg and filters `in_state_not_live` to sessions belonging to that provider.
+
+**CLI** ([`src/fabrik/cli.py`](src/fabrik/cli.py)):
+
+- `fabrik gpu status <session_id>` → reads `provider` from state, dispatches via `client_for_provider`. Works for Modal FC IDs, Vast instance IDs, RunPod pod IDs uniformly.
+- `fabrik gpu destroy <session_id>` → same dispatch path. Catches `Exception` (not just `RunPodError`) so Modal/Vast errors don't escape and the session correctly gets marked `destroy_pending` on failure.
+- `fabrik gpu reconcile [--provider all|runpod|modal|vast]` → `all` is the new default; iterates everything. Per-provider sub-reports rendered as `· runpod: orphans_pods=N foreign=N` lines.
+
+**Modal `FunctionCall.get()` fix**: the SDK 1.5.0 doesn't have `fc.finalized()` (driver was calling a method that doesn't exist). Switched to `fc.get(timeout=0)` which raises `FunctionCallCancelled` (→ EXITED), `TimeoutError`/`PendingError` (→ RUNNING), or returns the result (→ EXITED). Caught by `fabrik gpu status` against a real Modal FC.
+
+**Live validation (no spend — read-only reconcile path):**
+
+- **G-LIVE-10**: `fabrik gpu reconcile --provider all` walks all three accounts. Output: `· runpod: orphans_pods=0 orphans_endpoints=0 foreign=1` / `· modal: orphans_pods=0 orphans_endpoints=0 foreign=0` / `· vast: orphans_pods=0 orphans_endpoints=0 foreign=0`. `foreign_count: 1` on RunPod is the operator's pre-seeded SmolLM2 serverless endpoint — correctly recognized and NOT touched (C4 verified across all three providers).
+- **G-LIVE-11**: `fabrik gpu destroy <modal-session>` against a real Modal FC. Output: `✅ destroyed modal:pod:fc-01KV92V7KEYP9SVKH2DGNP3DND`. Dispatch path live-validated end-to-end.
+
+**+5 unit tests** ([`tests/orchestrator/test_gpu_rent.py`](tests/orchestrator/test_gpu_rent.py)): `client_for_provider` factory (RunPod + unknown-raises), multi-provider reaper skips-unconfigured, drift-entries tagged with provider, reconcile provider-scope safety (Modal session not flagged when scanning RunPod).
+
+Total: **39/39 tests pass**, `--lean` gate GREEN.
+
+**Modal `--keep-warm-after-use` known limitation documented**: Modal "pods" are FunctionCalls inside an `app.run()` context that's process-scoped. When the CLI exits, the context closes regardless of the flag. `--keep-warm-after-use` works for RunPod and Vast pods; Modal users should reach for Modal serverless (Phase 3) for persistent endpoints.
+
+**Net for any AI/operator:** the GPU rent surface now works coherently across all three providers. Any session in `data/gpu-rent-state.json` can be inspected, manually destroyed, or auto-reaped without thinking about which provider it came from.
+
 ### Changed — root agent-rule + registry docs: Netdata/Coolify/dead-microservices reflected (2026-06-16)
 
 is-it-used walk of the root agent-rule files + `.windsurf/rules/` packs + root registry docs:
