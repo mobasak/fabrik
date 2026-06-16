@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Removed — dead direct-API `LLMClient` from the AI module (2026-06-17)
+
+`src/fabrik/ai/` previously shipped an `LLMClient` that called the Anthropic and OpenAI HTTP APIs directly via `x-api-key`/`Authorization`, exposed as `fabrik ai generate` / `fabrik ai revise`, requiring `ANTHROPIC_API_KEY` / `OPENAI_API_KEY`. That path was unused and contradicted how Fabrik actually does AI — the canonical contract in `spec_loader` is `llm_provider: claude-code | openrouter` (Claude Code subscription OAuth for the operational stack; OpenRouter for content/LLM fallback). Removed to make the code reflect reality.
+
+- Deleted `src/fabrik/ai/client.py` (`LLMClient`, `LLMProvider`, `LLMResponse`, `PRICING`, `DEFAULT_MODELS`).
+- `src/fabrik/ai/__init__.py` now exports only `UsageTracker`; removed `UsageTracker.record()` (LLM-only; its sole caller was `LLMClient`). `record_gpu()` / `today_total()` / `get_usage()` — the live methods `fabrik gpu` uses — are untouched.
+- `fabrik ai generate` / `fabrik ai revise` removed from the CLI; `fabrik ai usage` kept (reports LLM + GPU rows from the shared SQLite DB).
+- Dropped `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` from `.env.example`; updated `docs/reference/ai.md`, `docs/EXTERNAL_SYSTEMS.md` (now documents OpenRouter), `docs/CONFIGURATION.md`, `INDEX.md`.
+- Also fixed the `fabrik scaffold --type wordpress` success message, which still printed the removed `fabrik wp plan/apply/verify` — now points at the `wpf` CLI in `/opt/wpf`.
+
 ### Added — `fabrik gpu` provider-aware status/destroy/reconcile across all 3 providers (2026-06-16)
 
 Finishes the plan's reaper + management surface. Before this commit, `fabrik gpu status / destroy / reconcile` were hard-coded to query RunPod — they ignored the session's recorded `provider` field. After this, all three commands dispatch to the right driver based on what the session was rented from.

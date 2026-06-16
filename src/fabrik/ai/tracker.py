@@ -1,10 +1,6 @@
 import sqlite3
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from .client import LLMResponse
 
 
 class UsageTracker:
@@ -46,27 +42,6 @@ class UsageTracker:
             if "session_id" not in existing_cols:
                 # Links a row to a gpu_state session
                 conn.execute("ALTER TABLE ai_usage ADD COLUMN session_id TEXT")
-            conn.commit()
-
-    def record(self, response: "LLMResponse", project: str | None = None):
-        with sqlite3.connect(self.database_path) as conn:
-            conn.execute(
-                """
-                INSERT INTO ai_usage (
-                    timestamp, provider, model, tokens_in, tokens_out, cost_usd, duration_ms, project
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-                (
-                    datetime.utcnow().isoformat(),
-                    response.provider.value,
-                    response.model,
-                    response.tokens_in,
-                    response.tokens_out,
-                    response.cost,
-                    response.duration_ms,
-                    project,
-                ),
-            )
             conn.commit()
 
     def get_usage(self, month: str | None = None, project: str | None = None) -> dict:

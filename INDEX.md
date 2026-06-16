@@ -168,7 +168,7 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 │   ├── notifications.py             # [reusable] Fire-and-forget webhook helpers — notify_deploy(), notify_content() → N8N_WEBHOOK_DEPLOY / N8N_WEBHOOK_CONTENT
 │   ├── deploy_validator.py          # [reusable] Deployment readiness validator — 5 checks, validate(), format_warnings()
 │   ├── scaffold.py                  # Project scaffolding
-│   ├── ai/                          # AI module: LLMClient, UsageTracker
+│   ├── ai/                          # AI usage/cost tracking: UsageTracker (LLM + GPU rows)
 │   ├── api/                         # API layer
 │   ├── drivers/                     # External service drivers
 │   │   ├── dns.py                   # DNS Manager service client

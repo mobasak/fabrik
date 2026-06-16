@@ -501,8 +501,8 @@ DB_NAME=myapp_dev                    # Database name
 DB_USER=postgres                     # Database username
 DB_PASSWORD=                         # SET IN .env - never commit actual password
 
-# API Keys (GET FROM: https://platform.openai.com/api-keys)
-OPENAI_API_KEY=                      # Required for AI features
+# AI/LLM: no direct API key. Operational AI uses Claude Code OAuth; content/LLM
+# calls use OpenRouter (watchdog reads WATCHDOG_OPENROUTER_KEY in its own env).
 ```
 
 ### 5. Environment-Specific Defaults

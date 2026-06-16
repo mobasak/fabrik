@@ -1,79 +1,46 @@
 # AI Module (`src/fabrik/ai/`)
 
-**Last Updated:** 2026-06-16
+**Last Updated:** 2026-06-17
 
-> **⚠️ Status — mostly dormant; slated for removal.** The `LLMClient` and the
-> `fabrik ai generate/revise/usage` commands documented below are an **unused
-> content utility**. They require `ANTHROPIC_API_KEY`, which is **not set** in this
-> deployment and is never used. The operational AI stack (sysadmin bot, watchdog,
-> aro-wake, bootstrap) runs entirely on **Claude Code subscription OAuth — never an
-> API key**. The only *live* part of this module is **`UsageTracker`** (the SQLite
-> cost DB at `~/.fabrik/ai_usage.db`), which `fabrik gpu rent` now uses for cost
-> tracking. The LLM client is kept documented here only until it is removed.
-
-**Purpose:** SQLite usage/cost tracking (`UsageTracker` — live) plus a dormant,
-provider-agnostic LLM client (`fabrik ai` commands — unused; see status note above).
+The module is now **just usage/cost tracking**. The former direct-API `LLMClient`
+(Anthropic/OpenAI `x-api-key` HTTP calls) and the `fabrik ai generate`/`revise`
+commands were **removed 2026-06-16** — they contradicted how Fabrik actually does
+AI: operational AI (sysadmin bot, watchdog, aro-wake, bootstrap) runs on **Claude
+Code subscription OAuth**, and content/LLM calls go through **OpenRouter**, never a
+direct Anthropic API key. The canonical provider contract lives in
+[`spec_loader`](../../src/fabrik/spec_loader.py) — `llm_provider: claude-code | openrouter`.
 
 ## Public API
 
-| Class | Module | Description |
-|-------|--------|-------------|
-| `LLMClient` | `client.py` | Main client — wraps Claude and OpenAI APIs with retry logic |
-| `LLMProvider` | `client.py` | Enum: `CLAUDE`, `OPENAI` |
-| `LLMResponse` | `client.py` | Dataclass: `content`, `tokens_in`, `tokens_out`, `cost`, `model`, `provider`, `duration_ms` |
-| `UsageTracker` | `tracker.py` | SQLite-backed usage recorder (`~/.fabrik/ai_usage.db`) |
-
-## LLMClient
-
-```python
-from fabrik.ai import LLMClient, LLMProvider
-
-client = LLMClient(provider=LLMProvider.CLAUDE)
-response = client.generate("Summarize this text", system="You are a technical writer")
-print(response.content, response.cost)
-```
-
-**Methods:**
-
-| Method | Description |
-|--------|-------------|
-| `generate(prompt, system?, project?)` | Send prompt, return `LLMResponse` |
-| `generate_structured(prompt, schema, system?, project?)` | JSON-schema-constrained output |
-| `revise(original, feedback, system?, project?)` | Revision workflow, returns revised text |
-
-**Default models:** Claude → `claude-sonnet-4-6` (Sonnet 4.6), OpenAI → `gpt-4o-mini`
+Single class: **`UsageTracker`** (`tracker.py`) — SQLite-backed usage/cost recorder
+at `~/.fabrik/ai_usage.db`.
 
 ## UsageTracker
 
-Records every LLM call to SQLite with timestamp, provider, model, tokens, cost, and optional project tag.
+The single live class. The same SQLite table records both LLM rows and GPU-rental
+rows (`fabrik gpu rent` writes via `record_gpu()`), discriminated by a `kind` column.
+`today_total()` backs `MAX_DAILY_GPU_COST` enforcement in `gpu_rent.rent()`.
 
 ```python
 from fabrik.ai import UsageTracker
 
 tracker = UsageTracker()
-usage = tracker.get_usage(month="2026-03")
+usage = tracker.get_usage(month="2026-06")
 print(f"Total cost: ${usage['total_cost']:.4f}")
+print(f"Today (GPU only): ${tracker.today_total(kind='gpu'):.4f}")
 ```
+
+**Methods:** `get_usage(month?, project?)`, `today_total(kind?)`, `record_gpu(...)`.
 
 ## CLI Commands
 
 ```bash
-fabrik ai generate --provider claude "Draft a release note for Phase 6"
-fabrik ai revise "Original text" "Make it shorter"
-fabrik ai usage                  # Show usage stats
-fabrik ai usage --month 2026-03  # Filter by month
+fabrik ai usage                  # Show usage/cost summary (LLM + GPU)
+fabrik ai usage --month 2026-06  # Filter by month
 ```
-
-## Configuration
-
-| Env Var | Required | Description |
-|---------|----------|-------------|
-| `ANTHROPIC_API_KEY` | For Claude | Anthropic API key |
-| `OPENAI_API_KEY` | For OpenAI | OpenAI API key |
-
-Keys are loaded at runtime (not import time) inside `LLMClient.__init__()`.
 
 ## See also
 
 - [CONFIGURATION.md](../CONFIGURATION.md)
 - [SERVICES.md](../SERVICES.md)
+- [gpu-rent.md](../operations/gpu-rent.md) — the live writer of GPU usage rows

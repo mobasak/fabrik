@@ -566,68 +566,36 @@ This document catalogs all external systems, APIs, and services that Fabrik inte
 
 ## AI/LLM Services
 
-### Anthropic (Claude)
+> **No direct Anthropic/OpenAI API keys are used.** Fabrik does AI two ways only
+> (see `spec_loader` `llm_provider: claude-code | openrouter`):
+>
+> - **Claude Code subscription OAuth** — the operational stack (sysadmin bot,
+>   watchdog, aro-wake, bootstrap). No API key.
+> - **OpenRouter** (OpenAI-compatible HTTP API) — content/LLM fallback; the
+>   watchdog reads `WATCHDOG_OPENROUTER_KEY` from its own deploy env.
+>
+> The former direct-API `LLMClient` (`ANTHROPIC_API_KEY`/`OPENAI_API_KEY`) and the
+> `fabrik ai generate/revise` commands were removed 2026-06-16.
 
-**Purpose:** AI/LLM service — **only for the dormant/unused `fabrik ai generate` content utility.** The operational AI stack (sysadmin bot, watchdog, aro-wake, bootstrap) runs on **Claude Code subscription OAuth**, not the Anthropic API; `ANTHROPIC_API_KEY` is not set in this deployment.
+### OpenRouter
 
-**Documentation:**
-- API Docs: https://docs.anthropic.com/
-- Python SDK: https://github.com/anthropics/anthropic-sdk-python
-- Models: https://docs.anthropic.com/claude/docs/models-overview
-
-**Authentication:**
-- Type: API Key
-- Env Vars: `ANTHROPIC_API_KEY`
-- Generate at: Anthropic Console → API Keys
-
-**Key Endpoints:**
-- Base URL: `https://api.anthropic.com/v1`
-- Messages: `POST /messages`
-- Streaming: `POST /messages` (stream: true)
-
-**Usage in Fabrik:**
-- Functions: AI content generation, code review
-- Models: Claude 3.5 Sonnet, Claude 3 Opus
-
-**Rate Limits:**
-- Free: 5,000 tokens/day
-- Pro: 200,000 tokens/day
-- Enterprise: Custom
-
-**Notes:**
-- Placeholder (not configured yet)
-
----
-
-### OpenAI
-
-**Purpose:** AI/LLM service
+**Purpose:** OpenAI-compatible LLM gateway — content/LLM fallback path.
 
 **Documentation:**
-- API Docs: https://platform.openai.com/docs/
-- Python SDK: https://github.com/openai/openai-python
-- Models: https://platform.openai.com/docs/models
+- API Docs: https://openrouter.ai/docs
+- Models: https://openrouter.ai/models
 
 **Authentication:**
-- Type: API Key
-- Env Vars: `OPENAI_API_KEY`
-- Generate at: OpenAI Platform → API Keys
+- Type: API Key (Bearer)
+- Env Var: `WATCHDOG_OPENROUTER_KEY` (set in the watchdog's deploy env, not the app `.env`)
 
 **Key Endpoints:**
-- Base URL: `https://api.openai.com/v1`
+- Base URL: `https://openrouter.ai/api/v1`
 - Chat Completions: `POST /chat/completions`
-- Embeddings: `POST /embeddings`
 
 **Usage in Fabrik:**
-- Functions: AI content generation, embeddings
-- Models: GPT-4, GPT-3.5 Turbo
-
-**Rate Limits:**
-- Free: 3 requests/minute
-- Paid: 3,000 requests/minute
-
-**Notes:**
-- Placeholder (not configured yet)
+- Functions: watchdog/fleet-healer LLM calls when not using Claude Code OAuth
+- Models: full ids, e.g. `anthropic/claude-sonnet-4.6`, `google/gemini-2.5-flash`
 
 ---
 

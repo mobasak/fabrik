@@ -1731,9 +1731,10 @@ def scaffold(
         if project_type == "wordpress":
             click.echo("\n📋 WordPress next steps:")
             click.echo(f"  1. Edit your site spec: {project_dir}/site.yaml")
-            click.echo(f"  2. fabrik wp plan {name}")
-            click.echo(f"  3. fabrik wp apply {name}")
-            click.echo(f"  4. fabrik wp verify {name}.vps1.ocoron.com")
+            click.echo("  2. WordPress deploy/lifecycle moved to the separate /opt/wpf project.")
+            click.echo(
+                f"     Use the `wpf` CLI: wpf plan {name}, wpf apply {name}, wpf verify {name}"
+            )
 
         # Update registry
         registry = ProjectRegistry()
@@ -2104,65 +2105,13 @@ def preplan_new(slug: str, date: str | None):
 
 @cli.group()
 def ai():
-    """AI content generation commands."""
+    """AI usage/cost tracking (LLM + GPU).
+
+    Generation commands were removed 2026-06-16: operational AI runs on Claude
+    Code subscription OAuth and content/LLM calls go through OpenRouter, not a
+    direct Anthropic/OpenAI API key. This group now only reports recorded usage.
+    """
     pass
-
-
-@ai.command("generate")
-@click.argument("prompt")
-@click.option("--provider", type=click.Choice(["claude", "openai"]), default="claude")
-@click.option("--model", default=None)
-@click.option("--system", "-s", default=None)
-def ai_generate(prompt: str, provider: str, model: str | None, system: str | None):
-    """Generate content from a prompt."""
-    from fabrik.ai import LLMClient, LLMProvider
-
-    try:
-        provider_enum = LLMProvider(provider)
-        client = LLMClient(provider=provider_enum, model=model)
-        response = client.generate(prompt, system=system)
-    except ValueError as e:
-        click.echo(f"Configuration error: {e}", err=True)
-        raise SystemExit(1)
-    except Exception as e:
-        click.echo(f"Provider runtime error: {str(e)}", err=True)
-        raise SystemExit(1)
-
-    click.echo(response.content)
-    click.echo()
-    click.echo("Usage summary:")
-    click.echo(f"  Provider: {response.provider.value}")
-    click.echo(f"  Model: {response.model}")
-    click.echo(f"  Tokens: {response.tokens_in} in / {response.tokens_out} out")
-    click.echo(f"  Cost: ${response.cost:.4f}")
-    click.echo(f"  Duration: {response.duration_ms}ms")
-
-
-@ai.command("revise")
-@click.argument("file", type=click.Path(exists=True))
-@click.argument("instructions")
-@click.option("--provider", type=click.Choice(["claude", "openai"]), default="claude")
-@click.option("--output", "-o", default=None)
-def ai_revise(file: str, instructions: str, provider: str, output: str | None):
-    """Revise a file using AI instructions."""
-    from fabrik.ai import LLMClient, LLMProvider
-
-    try:
-        provider_enum = LLMProvider(provider)
-        client = LLMClient(provider=provider_enum)
-        source_path = Path(file)
-        original = source_path.read_text()
-        revised = client.revise(original, instructions)
-    except ValueError as e:
-        click.echo(f"Configuration error: {e}", err=True)
-        raise SystemExit(1)
-    except Exception as e:
-        click.echo(f"Provider runtime error: {str(e)}", err=True)
-        raise SystemExit(1)
-
-    output_path = Path(output) if output else source_path
-    output_path.write_text(revised)
-    click.echo(f"Revised content written to: {output_path}")
 
 
 @ai.command("usage")
