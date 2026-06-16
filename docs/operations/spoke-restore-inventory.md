@@ -26,7 +26,7 @@ Same list as the hub minus the hub-only bits (no `claude-code`, no `gh` if the s
 | Ubuntu 24.04.4 LTS | base OS |
 | Docker 29.5.2 | `get.docker.com` |
 | wireguard-tools 1.0.20210914 | apt |
-| iptables-persistent | apt (provides `netfilter-persistent` service) |
+| *(no `iptables-persistent`)* | G5b 2026-06-13: NOT installed — on Ubuntu 24.04 it `Conflicts: ufw` and silently removes it. DOCKER-USER persistence is the custom `iptables-docker-user.service` unit (step_07), not `netfilter-persistent`/`rules.v4`. |
 | UFW 0.36.2 | apt |
 | fail2ban 1.0.2 | apt |
 | Python 3.12 + jq + curl | apt |
@@ -49,7 +49,7 @@ Same list as the hub minus the hub-only bits (no `claude-code`, no `gh` if the s
 | `/root/.ssh/authorized_keys` | inbound root access (currently disabled but key preserved) |
 | `/home/ozgur/.ssh/authorized_keys` | inbound ozgur access |
 
-**Not included:** `/etc/systemd/system/*.service` (only OS-default `iptables.service` + `ip6tables.service` shims, come back with `apt install iptables-persistent`), `/etc/cron.d/` (only OS defaults), `/usr/local/bin/` (empty), `/etc/sysctl.d/10-*` (Ubuntu defaults).
+**Not included:** `/etc/systemd/system/*.service` — except the spoke now gets the custom `iptables-docker-user.service` unit, which is **regenerated from config by `bootstrap-spoke-restore.sh` step_07** (not restored from backup, not from `apt install iptables-persistent`; G5b dropped `iptables-persistent` because it `Conflicts: ufw` on Ubuntu 24.04). `/etc/cron.d/` (only OS defaults), `/usr/local/bin/` (empty), `/etc/sysctl.d/10-*` (Ubuntu defaults).
 
 ## C. Restored from restic — `/opt/<svc>/` directories
 
@@ -141,8 +141,8 @@ First validated 2026-06-15 (`dr-drill-spoke-restore-20260615-125146`, `success=T
 
 ### What the drill does NOT validate
 
-- step_06 — wg-quick@wg0 bring-up + hub handshake of restored spoke identity
-- step_10 — monitoring-agent + traefik compose-up
-- step_11 — backrest compose-up + spoke's own backup chain restoration
+- step_06 — wg-quick@wg0 bring-up + hub handshake of restored spoke identity. (But step_09b **does** dry-validate the restored WG config: wg0.conf parses, privkey derives a pubkey matching the stored `spoke.publickey`, hub-peer entry carries PublicKey + Endpoint + AllowedIPs — see § I check table / `step_09b` c-dry/1 + c-dry/4.)
+- step_10 — traefik compose-up. (monitoring-agent compose-up **is** exercised in drill mode: with `--drill-start-core-only`, `step_09c` boots monitoring-agent for a runtime start check. step_09b also dry-validates all 3 service `compose.yaml` files + `/opt/backrest/.env`/`.restic-password`.)
+- step_11 — backrest compose-up + spoke's own backup chain restoration (config dry-validated by step_09b c-dry/2 + c-dry/3, but not started).
 
-Real DR confidence on these needs a non-drill exercise on isolated hardware (probably an isolated WireGuard mesh with throwaway peer pubkeys + sandbox B2 prefix). Not done yet (2026-06-15).
+Real DR confidence on the still-unstarted paths (mesh handshake, traefik, backrest runtime) needs a non-drill exercise on isolated hardware (probably an isolated WireGuard mesh with throwaway peer pubkeys + sandbox B2 prefix). Not done yet (2026-06-15).

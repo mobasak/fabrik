@@ -346,7 +346,7 @@ These augment (not replace) the scaffolded `ACTIVE_JOBS` and `PROCESSING_COUNT` 
 
 ## Docker & Compose
 
-Workers deploy via Coolify like any other Fabrik service. Apply all `30-ops.md` rules:
+Workers deploy via `fabrik apply` (SSH + Docker Compose) like any other Fabrik service. Apply all `30-ops.md` rules:
 
 ```dockerfile
 FROM python:3.12-slim-bookworm

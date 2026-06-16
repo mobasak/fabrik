@@ -266,7 +266,7 @@ if __name__ == "__main__":
 ## Related Rule Packs
 
 - `25-data-postgres.md` — PostgreSQL patterns, migrations, async sessions
-- `30-ops.md` — Dockerfile, compose, Traefik, resource limits, Coolify deploy
+- `30-ops.md` — Dockerfile, compose, Traefik, resource limits, deployment
 - `55-observability.md` — structlog setup, `/health` + `/metrics`, GlitchTip
 - `58-resilience.md` — timeout/retry/circuit-breaker for async external calls
 

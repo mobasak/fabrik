@@ -15,7 +15,7 @@ Apply when working on React Native / TypeScript mobile projects. Skip for web fr
 
 Worldwide-shipping baseline. Compliance floor is GDPR + EU AI Act; other markets are regional addenda. i18n is built in from day 1, not retrofitted.
 
-**Two-faced scaffold:** the client (React Native app) builds via EAS and ships to stores. The backend (python-api + Supabase) deploys to VPS via Coolify with full registrar set. This file covers the **client lane**. Backend rules: `10-python.md`, `30-ops.md`, `55-observability.md`. For planning-level decisions (architecture, monetization, distribution, attribution), see `00-domain-mobile-app.md`.
+**Two-faced scaffold:** the client (React Native app) builds via EAS and ships to stores. The backend (python-api + Supabase) deploys to VPS via `fabrik apply` with full registrar set. This file covers the **client lane**. Backend rules: `10-python.md`, `30-ops.md`, `55-observability.md`. For planning-level decisions (architecture, monetization, distribution, attribution), see `00-domain-mobile-app.md`.
 
 ---
 
@@ -111,7 +111,7 @@ Every mobile app project must ship these screens. Traycer derives additional pro
 ## Backend Integration
 
 - **Supabase is the primary data layer**: auth, app data, RLS, realtime, storage, edge functions.
-- **Self-hosted Supabase on Coolify/Fabrik VPS for production**. Supabase Cloud is acceptable only for the first 2 weeks of prototyping while schema is unstable.
+- **Self-hosted Supabase on the Fabrik VPS for production**. Supabase Cloud is acceptable only for the first 2 weeks of prototyping while schema is unstable.
 - All tables must have RLS enabled before any client query. No exceptions. Tables without RLS are blocked at code review.
 - Auth: Supabase Auth with `expo-auth-session` for OAuth flows and `expo-secure-store` for token storage. Never store JWTs in AsyncStorage or MMKV.
 - **FastAPI on VPS** is reserved for: AI workflows, scraping, third-party integrations requiring secrets, scheduled jobs, anything that should not run client-side.

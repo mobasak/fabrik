@@ -1,6 +1,6 @@
 # Deployment Procedures
 
-**Last reviewed:** 2026-05-29
+**Last reviewed:** 2026-06-15
 **VPS:** vps1.ocoron.com (172.93.160.197)
 **Deploy method:** SSH + Docker Compose (direct to VPS — no intermediary platform)
 **Deploy mechanism:** `fabrik apply` runs from WSL, connects to VPS via SSH, writes compose files, runs `docker compose up -d --wait`
@@ -132,12 +132,32 @@ fabrik apply specs/services/<name>.yaml
 # --dry-run to simulate first
 # --skip-health-check for initial deploys where /health may not be ready yet
 # -s KEY=VALUE to pass secrets
+# --target-vps vps2 to land the container on a spoke instead of the hub
 
 # 7. Verify
 curl -sS https://<name>.vps1.ocoron.com/health
 ```
 
 `fabrik apply` is idempotent — re-running on an existing service updates compose.yaml, merges .env, and restarts only if config changed.
+
+#### Multi-host targeting (`--target-vps`)
+
+The fleet is a hub (`vps1`) plus optional spokes (`vps2`, `vps3`). By default everything lands on `vps1`. To place an app **container** on a spoke, set `--target-vps`. Only the container moves — shared infrastructure (Postgres, Redis, monitoring, Authelia, DNS) stays on vps1.
+
+```bash
+fabrik apply specs/services/<name>.yaml --target-vps vps2
+```
+
+The same flag is available on `fabrik redeploy <app>` and `fabrik destroy <spec>`, so an app stays pinned to its host across its lifecycle.
+
+**Resolution order** (highest to lowest) on `apply` / `redeploy` / `destroy`:
+
+1. `--target-vps` CLI flag
+2. State file `.fabrik/state/<id>.json::target_vps` (recorded from the last apply)
+3. Spec `target_vps:` field
+4. `vps1` (default)
+
+(`fabrik plan` has no `--target-vps` flag — it reads the spec's `target_vps:` directly.) Internally a non-`vps1` target sets `FABRIK_VPS_SSH_HOST` so the SSH deployer connects to the spoke.
 
 ### Destroy a Service
 
@@ -493,7 +513,7 @@ ssh vps "bash /opt/fabrik/scripts/vps_apply_limits.sh"
 
 | File | Purpose |
 |---|---|
-| `docs/DEPLOYMENT_ARCHITECTURE.md` | Code-level architecture reference — every source file on the deploy path |
+| `../DEPLOYMENT_ARCHITECTURE.md` | Code-level architecture reference — every source file on the deploy path |
 | `docs/operations/fabrik-lifecycle.md` | Runtime behavior during deploy/redeploy — data safety, downtime, .env merge |
 | `docs/operations/disaster-recovery.md` | Backup restore procedures |
 | `docs/operations/backup-strategy.md` | Backrest/Restic strategy |
@@ -509,6 +529,7 @@ ssh vps "bash /opt/fabrik/scripts/vps_apply_limits.sh"
 
 | Date | Change |
 |---|---|
+| 2026-06-15 | Documented `--target-vps` multi-host targeting + resolution order on apply/redeploy/destroy; fixed broken `DEPLOYMENT_ARCHITECTURE.md` relative link. |
 | 2026-05-28 | Full rewrite: Coolify API → SSH + Docker Compose deployer. All procedures updated. |
 | 2026-05-08 | GlitchTip SDK integration; leaked secrets redacted; Grafana file-provisioning |
 | 2026-05-07 | Promtail noise filter; Gatus stable DNS alias architecture |

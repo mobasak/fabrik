@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Docs/rules accuracy sweep: finish Coolify decommission + add `--target-vps` multi-host + spoke-restore/LE-DNS reference sync (2026-06-15)
+
+Studied all agent-rule files, rule packs, reference docs, and operations runbooks against the current repo and corrected the stale deploy/lifecycle picture that the prior Coolify→SSH migration left behind:
+
+- **Coolify decommission finished across the coding-agent contract surface.** `AGENTS-compact.md` (Kilo) and `.windsurfrules` (Cascade) still described "deploy via Coolify API" + Coolify-v4 `limits_memory` PATCH/UUID-alias workarounds; rewrote to the SSH + Docker Compose reality (`fabrik apply`; memory limit enforced fatally by `deployer_ssh._validate_compose()`). Same scrub across 10 `.windsurf/rules/` packs — `30-ops.md` (added a decommission caveat banner; removed the dead Coolify-API label-PATCH workflow, the `coolify` admin-dashboard row, and the 6001/6002 Realtime firewall ALLOWs), `55-observability.md` (DSN now injected via `infrastructure.py`→`deployer_ssh.inject_env`, not Coolify env; `/data/coolify/...` paths → `/opt/<name>/compose.yaml`), plus `42-docusaurus`, `76-gpu-workers`, `86-email-templates`, `75-workers-jobs`, `70-chrome-ext`, `80-mobile`, `10-python`, `40-documentation`. `coolify` Docker-network-name refs preserved (legacy name, renamed 2026-05-31).
+- **`scripts/scaffold.py` ghost-file reference fixed** in `CLAUDE.md` + `AGENTS-compact.md` → `fabrik scaffold` (scaffolding is the CLI command; the path never existed). "11 scaffold types" count is correct and unchanged.
+- **`--target-vps` multi-host documented** where it was missing — `docs/operations/deployment.md`, `docs/reference/fabrik-cli-reference.md` (apply/redeploy/destroy; noted `plan` has no flag), `docs/reference/architecture.md` (spec example + control-plane table), `30-ops.md` (new subsection). Resolution order: CLI flag > state `.fabrik/state/<id>.json::target_vps` > spec `target_vps:` > vps1.
+- **`docs/reference/fabrik-vultr.md` re-synced to 2026-06-15** — added the `spoke-restore` drill kind + `bootstrap-spoke-restore.sh`; marked B2-restore drilled (green) and LE/DNS cutover validated (`52988ac`); corrected the stale "provision doesn't register Prometheus/Gatus" claim (`_register_observability` does, + PR3 spoke sysadmin).
+- **Spoke DR docs** — `vps-spoke-rebuild.md` + `spoke-restore-inventory.md` now reflect G5b (`iptables-docker-user.service`, no `iptables-persistent`) and enumerate the `step_09b` c-dry checks + `step_09c --drill-start-core-only`; `credential-recovery.md` notes spokes get a per-host token from the DR-store pool, not `env/sysadmin-latest`.
+- **Broken-link fixes** — `coolify-stable-aliases.md` refs repointed to `docs/infrastructure/archive/` (the file moved there); `deployment.md` → `../DEPLOYMENT_ARCHITECTURE.md`.
+
+Held for a later pass (peer AI still iterating on `bootstrap-hub.sh`): the hub-bootstrap docs (`vps-hub-rebuild.md`, `hub-restore-inventory.md`, `disaster-recovery.md` LE/DNS narrative + DR matrices).
+
 ### Added — Items 1/2/3 fully closed END-TO-END (2026-06-15): CF DNS rewrite + LE-staging cert acquisition validated
 
 Earlier today these items were "partly closed" — WG verified, CF token smoke checked, LE skipped because the site-provisioner CLI proxy was broken. The user pushed back: "the blocker IS the work." Backed up, fixed the blocker, then drove items 2 + 3 to actual end-to-end empirical proof in a real drill.

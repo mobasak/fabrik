@@ -167,22 +167,24 @@ bash /opt/fabrik/scripts/provision_glitchtip_project.sh <service-name>
 
 # For Node services use the matching platform tag:
 bash /opt/fabrik/scripts/provision_glitchtip_project.sh <service-name> --platform javascript-node
-
-# Optionally push the DSN straight into a Coolify service env:
-bash /opt/fabrik/scripts/provision_glitchtip_project.sh <service-name> --coolify-uuid <uuid>
 ```
+
+Under `fabrik apply`, the GlitchTip registrar provisions the project and injects
+the DSN automatically — `infrastructure.py` calls `deployer.inject_env(ctx, {"SENTRY_DSN": dsn, "GLITCHTIP_DSN": dsn})`, which writes the var into the service
+`.env` over SSH and restarts the container (`deployer_ssh.inject_env`). The
+standalone script above is for manual/out-of-band provisioning only.
 
 The script is idempotent (re-runs return the same DSN). The DSN host is rewritten
 to `glitchtip-web:8000` (stable Docker DNS alias on the coolify network) so events
 flow through the internal network without Authelia or TLS overhead.
 
-Environment variables consumed by the init modules (set via Coolify env, not in `.env.example`):
+Environment variables consumed by the init modules (injected into the service `.env` by `fabrik apply`, not in `.env.example`):
 
 | Variable | Default | Notes |
 |---|---|---|
-| `GLITCHTIP_DSN` | (unset → no-op) | The DSN returned by the provisioner |
+| `SENTRY_DSN` / `GLITCHTIP_DSN` | (unset → no-op) | The DSN returned by the provisioner (Fabrik injects `SENTRY_DSN`; `GLITCHTIP_DSN` kept as fallback alias) |
 | `ENVIRONMENT` | `production` | Tags events; useful for prod vs staging filtering |
-| `GIT_SHA` | (unset) | Release tag — falls back to `COOLIFY_DEPLOYMENT_UUID` |
+| `GIT_SHA` | (unset) | Release tag — falls back to legacy `COOLIFY_DEPLOYMENT_UUID` if present |
 | `GLITCHTIP_TRACES_SAMPLE_RATE` | `0.05` | Keep low; perf events flood the shared GlitchTip |
 | `GLITCHTIP_PROFILES_SAMPLE_RATE` | `0` | Profiling off by default — adds native deps |
 
@@ -270,7 +272,7 @@ Every JSON log entry must include these core fields:
 
 - Every service exposes `/health` that actively verifies critical dependencies (e.g. `SELECT 1` against PostgreSQL, Redis `PING`) before returning 200.
 - A `/health` that returns 200 without checking dependencies creates "zombie" containers — Traefik routes traffic to broken services.
-- Docker Compose `HEALTHCHECK` must include `start_period` (15-20s) to allow framework boot and DB migrations before Coolify kills the container.
+- Docker Compose `HEALTHCHECK` must include `start_period` (15-20s) to allow framework boot and DB migrations before the container is marked unhealthy.
 - `/health` is Authelia-bypassed on all services (global rule: `*.vps1.ocoron.com → /health`). Never protect `/health`.
 - Enforcement: `scripts/enforcement/check_health.py` verifies that health endpoints contain real dependency checks (regex for `SELECT 1`, `.ping()`, etc.). Superficial health endpoints fail the gate.
 
@@ -302,16 +304,16 @@ Alert only on **user-facing symptoms** using the RED method (Rate, Errors, Durat
 ## Synthetic Monitoring
 
 - Gatus provides black-box availability checks completely decoupled from the internal logging pipeline. If Loki is down, Gatus still detects application failure.
-- Container restart is handled by Coolify (`restart: unless-stopped`). Per-service watchdog scripts are **not required** — Gatus + Coolify restart + Prometheus alerting provides three independent layers.
+- Container restart is handled by the Docker daemon (`restart: unless-stopped`). Per-service watchdog scripts are **not required** — Gatus + Docker restart policy + Prometheus alerting provides three independent layers.
 
 ## Gatus — Stable DNS Names (CRITICAL)
 
-Never use UUID container names in Gatus configs or inter-service URLs.
+Never use UUID or timestamp-suffixed container names in Gatus configs or inter-service URLs — they drift per redeploy.
 
-- **Service stacks** (`/data/coolify/services/<uuid>/`): `container_name` is stable across redeploys — use it directly.
-- **Single-image Applications** (`/data/coolify/applications/<uuid>/`): the container name has a timestamp suffix that changes on every redeploy. DNS breaks silently. You MUST install a stable alias on the `coolify` network.
+- **`fabrik apply` services** (`/opt/<name>/compose.yaml`): set an explicit, stable `container_name:` in compose and reference it directly. Docker DNS resolves it on the `coolify` network.
+- **Legacy single-image containers** without a fixed name: install a stable network alias on the `coolify` network so DNS doesn't break silently.
 
-Install procedure (one-time per single-image App) + currently-registered alias pairs (`browserless`, `gotenberg`, `meilisearch`, `glitchtip-web`) live in `docs/reference/coolify-stable-aliases.md`. Boot-time reapply: `scripts/vps_apply_limits.sh`.
+Install procedure + currently-registered alias pairs (`browserless`, `gotenberg`, `meilisearch`, `glitchtip-web`) live in `docs/infrastructure/archive/coolify-stable-aliases.md` (historical) and the live `apply_alias` section of `scripts/vps_apply_limits.sh`. Boot-time reapply: `scripts/vps_apply_limits.sh`.
 
 ---
 
@@ -338,7 +340,7 @@ Install procedure (one-time per single-image App) + currently-registered alias p
 | Synchronous `console.log` for heavy objects in Node.js | `pino` with worker thread transport |
 | Custom metrics module from scratch | Extend scaffolded `metrics.py` / `metrics.js` |
 | Hardcoded GlitchTip DSN in repo | `GLITCHTIP_DSN` env var, injected by registrar |
-| Per-service watchdog bash scripts | Gatus + Coolify `restart: unless-stopped` |
+| Per-service watchdog bash scripts | Gatus + Docker `restart: unless-stopped` |
 | `sentry-expo` for source maps | `@sentry/react-native/expo` plugin (sentry-expo deprecated since SDK 50) |
 | `logger.exception()` for unhandled errors | Short event + correlation_id — GlitchTip auto-captures the traceback |
 
@@ -383,4 +385,4 @@ Install procedure (one-time per single-image App) + currently-registered alias p
 
 ## Legacy Note: Watchdog Scripts
 
-`scripts/enforcement/check_watchdog.py` exists in the systemic gate (Tier 3) and checks for `scripts/watchdog*.sh` in service projects. This check is **legacy** — Gatus + Coolify `restart: unless-stopped` + Prometheus alerting provide three independent monitoring/restart layers, making per-service watchdog scripts redundant. New projects should NOT create watchdog scripts. Existing projects that have them can keep them but they are not required for new services.
+`scripts/enforcement/check_watchdog.py` exists in the systemic gate (Tier 3) and checks for `scripts/watchdog*.sh` in service projects. This check is **legacy** — Gatus + Docker `restart: unless-stopped` + Prometheus alerting provide three independent monitoring/restart layers, making per-service watchdog scripts redundant. New projects should NOT create watchdog scripts. Existing projects that have them can keep them but they are not required for new services.

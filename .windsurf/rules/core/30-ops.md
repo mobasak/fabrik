@@ -5,7 +5,7 @@ description: Docker standards, deployment, infrastructure
 trigger: glob
 ---
 <!-- CONSUMER: Coding agents (all) + Traycer (deploy-plan step)
-     GOAL: Docker, compose.yaml, Coolify deployment — base images, DNS, Traefik, resource limits, security
+     GOAL: Docker, compose.yaml, Docker Compose via `fabrik apply` — base images, DNS, Traefik, resource limits, security
      TRAYCER USAGE: Referenced during deploy-plan and ticket-breakdown for infrastructure tickets. Injects as Context File.
      AGENT USAGE: Follow verbatim when writing Dockerfiles, compose files, or deployment config. -->
 
@@ -13,6 +13,8 @@ trigger: glob
 
 **Activation:** Glob `**/Dockerfile`, `**/compose.yaml`, `**/compose.yml`
 **Purpose:** Docker standards, deployment, infrastructure
+
+> **Deploy = SSH + Docker Compose via `fabrik apply`; `coolify` is a legacy Docker-network name only (renamed 2026-05-31).** No Coolify UI/API is in the loop — `fabrik` SSHes to the VPS and runs `docker compose`.
 
 ---
 
@@ -90,7 +92,7 @@ CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
 
 ## compose.yaml Template
 
-All services deploy via Coolify on the `coolify` network. Traefik routes external traffic — services do NOT bind host ports.
+All services deploy via `fabrik apply` (SSH + Docker Compose) on the `coolify` network. Traefik routes external traffic — services do NOT bind host ports.
 
 ```yaml
 services:
@@ -129,17 +131,17 @@ networks:
 
 **CRITICAL rules:**
 - **No `ports:` section.** All external traffic routes through Traefik. Never bind host ports. See Docker Port Security below.
-- **`deploy.resources.limits.memory` is mandatory.** Coolify v4 ignores its `limits_memory` UI field for `build_pack=dockercompose`. The compose must carry the declaration explicitly.
+- **`deploy.resources.limits.memory` is mandatory.** A Fabrik invariant enforced by `deployer_ssh._validate_compose()` — `fabrik apply` refuses any compose service without a memory limit (prevents OOM on the shared VPS). The compose must carry the declaration explicitly.
 - **`platform: linux/amd64` is mandatory.** VPS is x86_64.
-- **No `depends_on: postgres-main`.** The database is a separate Coolify-managed container on the `coolify` network, not a service in your compose file. Docker DNS resolves `postgres-main` at runtime.
-- **Traefik labels** set routing, TLS, and middleware. Middleware per service category: admin UI = `authelia-forward@docker,gzip@docker`; API = `gzip@docker`; public = none.
-- **Traefik entrypoints** are `web` (80) and `websecure` (443). Coolify's auto-generated labels incorrectly use `http`/`https` — always patch to `web`/`websecure`.
+- **No `depends_on: postgres-main`.** The shared database is a separate long-lived container on the `coolify` network, not a service in your compose file. Docker DNS resolves `postgres-main` at runtime.
+- **Traefik labels** set routing, TLS, and middleware. The scaffolder emits the correct labels; middleware per service category: admin UI = `authelia-forward@docker,gzip@docker`; API = `gzip@docker`; public = none.
+- **Traefik entrypoints** are `web` (80) and `websecure` (443). The scaffold-emitted labels already use `web`/`websecure` — keep them; never use `http`/`https` (those entrypoints do not exist).
 
 ---
 
 ## Deployment Checklist
 
-Before deploying to Coolify:
+Before running `fabrik apply`:
 
 - [ ] Dockerfile uses `slim-bookworm` (not Alpine)
 - [ ] HEALTHCHECK instruction present
@@ -155,14 +157,14 @@ Before deploying to Coolify:
 - [ ] Service added to `docs/SERVICES.md`
 - [ ] `.dockerignore` present (excludes `.env`, `.git`, `.venv`, `node_modules`)
 - [ ] Traefik middleware set per service category — admin UI: `authelia-forward@docker,gzip@docker`; API: `gzip@docker`; public: none
-- [ ] Coolify env vars set: `SERVICE_INTERNAL_SECRET_KEY`, `DATABASE_URL` (using `postgres-main`), `REDIS_URL` (using `redis-main`)
-- [ ] `/health` returns 200 against real deps; Coolify health interval 60s for stable services
+- [ ] Compose env vars set: `SERVICE_INTERNAL_SECRET_KEY`, `DATABASE_URL` (using `postgres-main`), `REDIS_URL` (using `redis-main`)
+- [ ] `/health` returns 200 against real deps; Gatus polls it for external availability
 
 ---
 
 ## Redeploying Git-Sourced Apps
 
-`fabrik redeploy <app>` triggers Coolify to pull from the **GitHub remote**, NOT from the local `/opt/<app>` clone. Skipping `git push` redeploys the previous remote commit — Coolify never sees local changes.
+`fabrik redeploy <app>` SSHes to the VPS and runs `git pull` + `docker compose up -d --wait` against the **GitHub remote**, NOT the local `/opt/<app>` clone. Skipping `git push` redeploys the previous remote commit — the VPS never sees local changes.
 
 **Correct sequence:**
 
@@ -171,6 +173,16 @@ git commit -m "..."
 git push
 fabrik redeploy <app>
 ```
+
+---
+
+## Multi-host targeting (`--target-vps`)
+
+The fleet is a **vps1 hub + vps2/vps3 spokes**. `fabrik apply` / `plan` / `redeploy` / `destroy` all take `--target-vps <vpsN>` to choose where a service deploys.
+
+**Resolution order** (highest wins): `--target-vps` CLI flag > state file `.fabrik/state/<id>.json::target_vps` > spec `target_vps:` field > **vps1** default.
+
+Spokes are full deploy targets, not standby boxes — a spoke-targeted service runs its container on the spoke but **wires back to the shared vps1 data plane** (`postgres-main:5432`, `redis-main:6379`) over the WireGuard mesh. Those shared backing services always live on vps1 regardless of `target_vps`; only the app container moves. Compose connection strings stay identical (`postgres-main` / `redis-main` Docker DNS) — the mesh resolves them.
 
 ---
 
@@ -213,12 +225,13 @@ Docker bypasses UFW by inserting NAT rules in `PREROUTING`/`FORWARD` chains. The
 | Allow established/related | Don't break existing sessions |
 | Allow Docker internal nets (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`) | Container-to-container OK |
 | Allow ports 80, 443 | Traefik front door |
-| Allow ports 6001, 6002 | Coolify realtime WebSocket |
 | DROP all other external traffic | Blocks raw port access to containers |
 
-**Invariant:** Never use `ports_mappings` in Coolify or `ports:` in compose.yaml to expose internal services to the host. All external traffic must go through Traefik.
+(The legacy Coolify Realtime ALLOW rules for 6001/6002 were removed in the 2026-05-31 cleanup sweep — Coolify is decommissioned.)
 
-**Exception:** Only Traefik (80/443) and Coolify WebSocket (6001/6002) may bind to host ports.
+**Invariant:** Never use `ports:` in compose.yaml to expose internal services to the host. All external traffic must go through Traefik.
+
+**Exception:** Only Traefik (80/443) may bind to host ports.
 
 ---
 
@@ -231,7 +244,7 @@ All admin dashboards are protected by Authelia (`auth.vps1.ocoron.com`) via Trae
 | Category | Auth Mechanism | Examples |
 |----------|---------------|----------|
 | Public | None (bypass) | `ocoron.com`, `status.vps1.ocoron.com` |
-| Admin dashboards | Authelia (2FA) | `coolify`, `auto` (n8n), `monitor` (Grafana), `netdata`, `backup`, `notify` |
+| Admin dashboards | Authelia (2FA) | `auto` (n8n), `monitor` (Grafana), `netdata`, `backup`, `notify` |
 | API services | `X-Internal-Token` header | `pdf`, `browser`, `search`, `images`, `captcha`, `proxy`, `translator`, `files-api`, `emailgateway`, `dns` |
 
 **Adding Authelia to a new admin service:**
@@ -255,14 +268,14 @@ labels:
 
 ## Traefik Entrypoint Names
 
-Coolify's Traefik uses these entrypoint names:
+The VPS Traefik uses these entrypoint names:
 
 | Entrypoint | Port | Usage |
 |------------|------|-------|
 | `web` | 80 | HTTP, redirect to HTTPS |
 | `websecure` | 443 | HTTPS with Let's Encrypt |
 
-**CRITICAL:** When deploying Docker Image apps via Coolify API, the auto-generated labels use `http`/`https` entrypoints which **do not exist**. You MUST patch `custom_labels` to use `web`/`websecure` after creating the app. See Coolify API reference for the PATCH workflow.
+**CRITICAL:** Use `web`/`websecure` in Traefik labels — never `http`/`https` (those entrypoints do not exist). The scaffolder emits the correct entrypoint names; if you hand-write labels, match these exactly.
 
 ---
 
@@ -272,17 +285,17 @@ Coolify's Traefik uses these entrypoint names:
 |---------|-------------|
 | Alpine base image | `slim-bookworm` / `bookworm-slim` (glibc, prebuilt wheels) |
 | `libpq-dev` / `libpq5` in Dockerfile | Omit — asyncpg needs no libpq (psycopg2-only; banned per `25-data-postgres.md`) |
-| `ports:` in compose / host-port binding | Traefik routing — only 80/443/6001/6002 bind host |
+| `ports:` in compose / host-port binding | Traefik routing — only 80/443 bind host |
 | `localhost` in container connection strings | Docker DNS: `postgres-main`, `redis-main` |
 | Discrete `DB_HOST`/`DB_PORT`/`DB_NAME`/`DB_USER`/`DB_PASSWORD` for the app | Single `DATABASE_URL` (see `10-python.md` § Config) |
-| `depends_on: postgres-main` | None — DB is an external Coolify-managed container |
-| `http` / `https` Traefik entrypoints | `web` / `websecure` (Coolify auto-labels are wrong) |
+| `depends_on: postgres-main` | None — DB is a separate shared container on the `coolify` network |
+| `http` / `https` Traefik entrypoints | `web` / `websecure` (those entrypoints do not exist) |
 | Protecting `/health` with Authelia | `/health` always bypasses auth (Gatus/Prometheus need it) |
-| Missing `deploy.resources.limits.memory` | Mandatory — Coolify v4 ignores the UI field for compose |
+| Missing `deploy.resources.limits.memory` | Mandatory — `fabrik apply` rejects it (`deployer_ssh._validate_compose()`) |
 | Missing `platform: linux/amd64` | Mandatory — VPS is x86_64 |
 | `sh -c` CMD without `exec` (breaks SIGTERM) | Exec-form CMD, or `sh -c "exec ..."` |
 | Manual VPS edits / registrar fix-ups | `fabrik apply` / `reconcile-all` (spec-driven) |
-| `fabrik redeploy` without `git push` | `commit → push → redeploy` (Coolify pulls the remote) |
+| `fabrik redeploy` without `git push` | `commit → push → redeploy` (the VPS runs `git pull` from the remote) |
 | PORT mismatch between CMD and HEALTHCHECK | Both must use the same literal port value |
 
 ---

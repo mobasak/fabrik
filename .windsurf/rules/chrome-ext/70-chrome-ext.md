@@ -20,10 +20,10 @@ Apply when working on Chrome extension code (MV3). This is a **two-faced scaffol
 | Lane | Code | Deploy | Rules |
 |---|---|---|---|
 | **Extension (client)** | TypeScript + framework (Preact/Svelte/React) | Chrome Web Store or direct install | This file |
-| **Backend (server)** | Python (FastAPI) | VPS via Coolify (full registrar set) | `10-python.md`, `30-ops.md`, `55-observability.md` |
+| **Backend (server)** | Python (FastAPI) | VPS via `fabrik apply` (full registrar set) | `10-python.md`, `30-ops.md`, `55-observability.md` |
 
 - The extension calls the backend via HTTPS. The backend is a standard `python-api` scaffold — same Dockerfile, compose.yaml, Traefik labels, `/health`, `/metrics` as any other Fabrik service.
-- The extension binary is NOT deployed via Coolify — it goes through Chrome Web Store or direct CRX/ZIP distribution.
+- The extension binary is NOT deployed via `fabrik apply` — it goes through Chrome Web Store or direct CRX/ZIP distribution.
 - The API contract between extension and backend is the bridge. Define versioned endpoints in the backend; the extension consumes them.
 
 ---
@@ -52,7 +52,7 @@ The user enables Developer mode at `chrome://extensions` and clicks **Load unpac
 - **No auto-update** — dev-mode extensions don't update themselves. Ship new versions as a downloadable `.zip` the user re-loads, or build an in-extension "update available" check that pings your backend and links to the new download.
 - **Startup nag** — Chrome shows a "Disable developer-mode extensions" balloon on launch. Dismissible; suppressed entirely under enterprise policy.
 
-**Distribution:** host the unpacked folder as a `.zip` on your VPS (Coolify static / B2) with install instructions.
+**Distribution:** host the unpacked folder as a `.zip` on your VPS (static site / B2) with install instructions.
 
 ### Enterprise force-install — managed fleets
 
@@ -263,7 +263,7 @@ Chrome extension UI follows `ocoron-design-system.md` with compact adaptations:
 
 - `10-python.md` — backend FastAPI patterns
 - `20-typescript.md` — extension TypeScript discipline
-- `30-ops.md` — backend Dockerfile, compose, Coolify deploy
+- `30-ops.md` — backend Dockerfile, compose, `fabrik apply` deploy
 - `35-security-auth.md` — auth patterns (Pattern A/B), CORS for `chrome-extension://` origins
 - `55-observability.md` — backend logging + extension telemetry (Sentry, buffer-flush)
 - `58-resilience.md` — backend external call resilience
@@ -284,6 +284,6 @@ Chrome extension UI follows `ocoron-design-system.md` with compact adaptations:
 - [ ] Bundle sizes checked against popup and side-panel budgets.
 - [ ] `_locales/en/messages.json` exists and synced with `static/i18n/en.json`.
 - [ ] Permissions are minimal; each justified in manifest comments.
-- [ ] Backend deploys via Coolify with full registrar set (`/health`, `/metrics`, GlitchTip).
+- [ ] Backend deploys via `fabrik apply` with full registrar set (`/health`, `/metrics`, GlitchTip).
 - [ ] Distribution path decided: **CWS** (listing assets ready), **developer-mode unpacked** (`.zip` + install instructions hosted), or **enterprise force-install** (`ExtensionInstallForcelist` + `updates.xml`).
 - [ ] Backend supports current and previous extension version simultaneously.

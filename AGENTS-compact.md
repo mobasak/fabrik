@@ -15,7 +15,7 @@ If the directory `expertise-pack/` is present, this is a WordPress site-factory 
 Hard rules: no raw SQL, no hand-edited serialized PHP, no invented `wp_options` keys. Free plugins: `https://downloads.wordpress.org/plugin/{slug}.latest-stable.zip`.
 
 ## ORIENT (every task)
-1. `project.yaml::type` — one of 11 `scripts/scaffold.py` scaffolds. All projects use `.venv` and deploy via Coolify API.
+1. `project.yaml::type` — one of 11 `fabrik scaffold` scaffolds. All projects use `.venv` and deploy via `fabrik apply` (SSH + Docker Compose to the VPS).
 2. `AFCL.md`: read if exists; append friction findings as you hit them.
 
 ## BEHAVIOR
@@ -95,14 +95,14 @@ Update matched docs in the SAME staged change. Skipping = task failure (gate-enf
    Verify before deploy: `grep -E '^(DB_HOST|DATABASE_URL|REDIS_URL)=' .env | grep localhost` must return nothing.
 
 2. **Post-deploy checklist (every new service):**
-   - **Network:** containers on `coolify`; never bind ports to host; Traefik routes via labels.
+   - **Network:** containers on the `coolify` Docker network (legacy name); never bind ports to host; Traefik routes via labels.
    - **Traefik middleware** (scaffold-emitted): admin UI → `authelia-forward@docker,gzip@docker`; API → `gzip@docker`; public → none.
-   - **Coolify env:** `SERVICE_INTERNAL_SECRET_KEY`, `DATABASE_URL` (`postgres-main`), `REDIS_URL` (`redis-main`).
-   - **Health:** `/health` → 200; Coolify interval 60s for stable services.
+   - **.env / service env:** `SERVICE_INTERNAL_SECRET_KEY`, `DATABASE_URL` (`postgres-main`), `REDIS_URL` (`redis-main`) — written to `/opt/<name>/.env` by `deployer_ssh`.
+   - **Health:** `/health` → 200; brought up via `docker compose up -d --wait` + monitored by Gatus.
 
-3. **`fabrik redeploy` on git-sourced app** — sequence: `git commit` → `git push` → `fabrik redeploy`. Coolify pulls from GitHub remote, not local `/opt/` clone.
+3. **`fabrik redeploy` on git-sourced app** — sequence: `git commit` → `git push` → `fabrik redeploy`. The VPS runs `git pull` from the GitHub remote (not your local `/opt/` clone).
 
-4. **Gatus stable DNS** — Never use UUID container names in Gatus or inter-service URLs (they drift per redeploy). Use compose service names or registered stable aliases. Procedure: `docs/reference/coolify-stable-aliases.md`.
+4. **Gatus stable DNS** — Never use UUID container names in Gatus or inter-service URLs (they drift per redeploy). Use a stable `container_name` / compose service name.
 
 ## HARD STOPS — NEVER
 | Rule | Instead |
@@ -114,7 +114,7 @@ Update matched docs in the SAME staged change. Skipping = task failure (gate-enf
 | bare `pip install` | `/opt/<project>/.venv/bin/pip install` (PEP 668) |
 | Alpine base image | `python:<stable>-slim-bookworm` / `node:<LTS>-bookworm-slim` |
 | Docker `ports:` exposure to host | route through Traefik (DOCKER-USER blocks raw ports) |
-| compose without `deploy.resources.limits.memory` on Coolify-deployed service | Coolify v4 ignores `limits_memory` UI for `build_pack=dockercompose` + Services. Scaffolder auto-emits via `_write_canonical_compose`. For Services, mutate `docker_compose_raw` via `PATCH /api/v1/services/<uuid>` base64-encoded — never edit on-disk. F5 / Lesson 62 |
+| compose without `deploy.resources.limits.memory` | memory limit is REQUIRED per service — enforced fatally by `deployer_ssh._validate_compose()`. Scaffolder auto-emits via `_write_canonical_compose` |
 | admin dashboard w/o auth | Authelia forward-auth OR app-layer TOTP |
 | FastAPI `except Exception` swallowing `HTTPException` | always `except HTTPException: raise` before generic catch |
 | foreground command likely >30s (build/deploy/test/sync/`fabrik`/`docker`/`pytest`/`npm i`) | `scripts/rund -- <cmd>`; `runwait $(runlast) <s>`; `runc $(runlast)`. Doc: `docs/reference/long-command-monitoring.md` |

@@ -26,7 +26,7 @@ Do not use Docusaurus when:
 
 ## Docker Deployment
 
-Deploy via Coolify using a **two-stage Dockerfile**:
+Deploy via `fabrik apply` using a **two-stage Dockerfile**:
 
 1. **Build stage**: `node:24-bookworm-slim` — `npm ci` then `npm run build`, then `npx -y pagefind --site build` for search indexing.
 2. **Serve stage**: `nginx:mainline-bookworm` — copy `build/` to `/usr/share/nginx/html`.
@@ -102,7 +102,7 @@ networks:
 ## Versioning
 
 - Docusaurus native versioning (`versioned_docs/`, `npm run docusaurus docs:version`) is **banned**. It duplicates all content, creates exponential build times, and bloats Git history.
-- Archive legacy versions by cutting a Git branch (`release/v1.x`) and deploying it via Coolify as an immutable static snapshot to a subpath (e.g., `/v1/`). Link from the main site's version dropdown via absolute URLs.
+- Archive legacy versions by cutting a Git branch (`release/v1.x`) and deploying it via `fabrik apply` as an immutable static snapshot to a subpath (e.g., `/v1/`). Link from the main site's version dropdown via absolute URLs.
 
 ## Internationalization
 
@@ -160,14 +160,14 @@ networks:
 | Relative JSX imports in `.mdx` files | Global registration in `src/theme/MDXComponents.js` |
 | Heavy component swizzling | Infima CSS variable overrides in `custom.css` |
 | Google Fonts CDN | Self-hosted fonts in `static/fonts/` |
-| Missing `deploy.resources.limits.memory` in compose | Always declare — Coolify v4 ignores its UI field |
+| Missing `deploy.resources.limits.memory` in compose | Always declare — `fabrik apply` rejects services without it |
 | `ports:` in compose.yaml | Traefik routes all traffic — no host port bindings |
 
 ---
 
 ## Related Rule Packs
 
-- `30-ops.md` — compose.yaml, Traefik labels, resource limits, Coolify deploy
+- `30-ops.md` — compose.yaml, Traefik labels, resource limits, `fabrik apply` deploy
 - `40-documentation.md` — AI-friendly markdown, writing style
 - `ocoron-design-system.md` — Infima token overrides, fonts, dark mode default
 

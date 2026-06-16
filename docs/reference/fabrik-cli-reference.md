@@ -1,6 +1,6 @@
 # Fabrik CLI Reference
 
-**Last Updated:** 2026-05-30
+**Last Updated:** 2026-06-15
 **Source:** `src/fabrik/cli.py`
 **Live help:** `fabrik --help` (run from any directory)
 
@@ -121,7 +121,8 @@ fabrik plan specs/services/my-api.yaml -s API_KEY=preview
 
 ```bash
 fabrik apply [<spec_path>] [--dry-run] [--skip-dns] [--skip-deploy] \
-             [-s KEY=VALUE] [--legacy] [--yes] [--keep-on-failure]
+             [-s KEY=VALUE] [--legacy] [--yes] [--keep-on-failure] \
+             [--target-vps vps1|vps2|vps3]
 ```
 
 | Flag | Purpose |
@@ -134,6 +135,9 @@ fabrik apply [<spec_path>] [--dry-run] [--skip-dns] [--skip-deploy] \
 | `--legacy` | Force the deprecated Coolify-API path (render-only; not for new deploys). |
 | `--yes` / `-y` | Skip confirmation prompts. |
 | `--keep-on-failure` | Skip auto-rollback so the failed container + .env stay on the VPS for inspection. Use when iterating on a broken deploy. |
+| `--target-vps` | Which fleet host to deploy the container to: `vps1` (hub, default), `vps2`, `vps3`. Only the app container moves; shared infra (Postgres, monitoring, Authelia) stays on vps1. |
+
+**Multi-host target resolution** (`--target-vps`, highest to lowest): CLI `--target-vps` flag > state file `.fabrik/state/<id>.json::target_vps` > spec's `target_vps:` field > `vps1`. Same flag + order on `redeploy` and `destroy`. `plan` has no flag — it reads the spec's `target_vps:` directly.
 
 **Secret loading precedence** (highest to lowest):
 1. `-s KEY=VALUE` command-line flag (injected into `os.environ` before SecretsManager loads)
@@ -165,7 +169,8 @@ fabrik deploy --project /opt/my-api --dry-run
 **Purpose:** Rebuild and restart a service without re-running registrars. The deployer SSHes in, runs `git pull` (git-sourced apps), `docker compose build`, `docker compose up -d --wait`. **Health-check rollback** is built in for git-sourced apps: if the new container fails to come up healthy, the deployer auto-reverts to the last-known-good commit and rebuilds.
 
 ```bash
-fabrik redeploy <app> [--force] [--refresh-infra --spec <path>] [--dry-run]
+fabrik redeploy <app> [--force] [--refresh-infra --spec <path>] [--dry-run] \
+                [--target-vps vps1|vps2|vps3]
 ```
 
 | Flag | Purpose |
@@ -173,6 +178,7 @@ fabrik redeploy <app> [--force] [--refresh-infra --spec <path>] [--dry-run]
 | `--force` / `-f` | Add `--no-cache` to build (git) or `--force-recreate` to `up` (non-git). |
 | `--refresh-infra --spec <path>` | Re-run all 9 registrars against the existing container without rebuilding. Use when `shape:` flags change but code hasn't. |
 | `--dry-run` | Simulate (`--refresh-infra` path only — standard redeploy ignores this flag). |
+| `--target-vps` | Which fleet host the app lives on: `vps1` (default), `vps2`, `vps3`. Resolution: CLI flag > state file `.fabrik/state/<app>.json::target_vps` > `vps1`. |
 
 ```bash
 fabrik redeploy my-api
@@ -189,7 +195,8 @@ fabrik redeploy --refresh-infra --spec specs/services/my-api.yaml
 
 ```bash
 fabrik destroy <spec_path> [--yes] [--keep-dns] [--drop-data] \
-               [--partial <registrar>] [--use-state] [--dry-run]
+               [--partial <registrar>] [--use-state] [--dry-run] \
+               [--target-vps vps1|vps2|vps3]
 ```
 
 | Flag | Purpose |
@@ -200,6 +207,7 @@ fabrik destroy <spec_path> [--yes] [--keep-dns] [--drop-data] \
 | `--partial <reg>` | Surgical un-registration. Repeatable: `--partial gatus --partial backrest`. |
 | `--use-state` | Tear down using the recorded `.fabrik/state/<id>.json` rather than re-deriving from the current spec. Use when the spec has drifted between apply and destroy. State is archived after a successful run. |
 | `--dry-run` | Print what would happen. |
+| `--target-vps` | Which fleet host to tear the app down from: `vps1` (default), `vps2`, `vps3`. Resolution: CLI flag > state file `.fabrik/state/<id>.json::target_vps` > spec's `target_vps:` > `vps1`. |
 
 ```bash
 fabrik destroy specs/services/my-api.yaml --dry-run

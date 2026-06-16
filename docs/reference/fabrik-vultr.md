@@ -1,7 +1,7 @@
 # `fabrik vultr` — quick reference
 
-**Last Updated:** 2026-06-08
-**Status:** ✅ Live on master (commits `93de0fc` → `963beb7`, 2026-06-08).
+**Last Updated:** 2026-06-15
+**Status:** ✅ Live on master. Spoke-restore B2 drill green + LE/DNS cutover validated end-to-end (commit `52988ac`, 2026-06-15); provision now auto-registers Prometheus + Gatus + spoke sysadmin.
 **Plan / ground truth:** [`docs/archive/2026-06-07-fabrik-vultr-provisioning.md`](../archive/2026-06-07-fabrik-vultr-provisioning.md) — §J verified API facts, §L per-phase validation gates.
 
 On-demand Vultr VPS — any product line, permanent spokes + disposable drills. Single CLI entrypoint, single state file, always-destroy semantics on drill paths, full unwind on permanent destroy.
@@ -18,7 +18,7 @@ On-demand Vultr VPS — any product line, permanent spokes + disposable drills. 
 | `status <name>` | One tracked instance: local state + live Vultr state |
 | `reconcile` | Compare local state to live account, print drift both directions |
 | `cleanup` | Destroy disposables past `destroy_after` (dry-run default) |
-| `drill bare \| spoke \| hub` `[--dry-run --region --max-cost --keep-on-failure]` | Disposable; always self-destroys (try/finally). `bare` = API+SSH smoke (~2m). `spoke` = `bootstrap-vps.sh --skip-mesh --skip-dns + --verify` (~8m, hermetic). `hub` = `bootstrap-hub.sh` (~90m, operator-run) |
+| `drill bare \| spoke \| hub \| spoke-restore` `[--dry-run --region --max-cost --keep-on-failure --g0-smoke]` | Disposable; always self-destroys (try/finally). `bare` = API+SSH smoke (~2m). `spoke` = `bootstrap-vps.sh --skip-mesh --skip-dns + --verify` (~8m, hermetic). `hub` = `bootstrap-hub.sh` (~90m, operator-run). `spoke-restore` = `scripts/bootstrap/bootstrap-spoke-restore.sh` against the latest spoke B2 snapshot (~1h) — the real B2-restore DR path |
 | `drill-history` | Tail `logs/dr-drill-history.jsonl` |
 | `provision <name>` `[--region --plan --dry-run]` | Permanent fleet member; ⚠️ real billing + mutates vps1 wg0 / DNS / monitoring; interactive confirm required, no `-y`; on bootstrap-fail it **leaves the box** for forensic inspection |
 | `destroy <name>` `[--reverse-fleet-add --keep-dns --dry-run -y]` | Permanent needs `--reverse-fleet-add` — unwinds Gatus → Prometheus → Backrest → DNS → wg0 → instance |
@@ -56,10 +56,10 @@ client.wait_for_active(kind, obj["id"])   # 4-condition; don't poll status=="act
 ## What this **does not** close on its own
 
 - **`drill spoke`** uses `--skip-mesh --skip-dns` (hermetic by design). The mesh + DNS + monitoring fleet-add path that the real disaster would hit lives in `provision`, which mutates vps1 and can't be drilled hermetically.
-- **Hub DR end-to-end with B2 restore** — `drill hub` ships but the full "vps1 dies → fresh droplet → bootstrap-hub.sh → restore from B2 → 31 containers green → DNS cut over → Gatus green" wall-clock has never been measured. Tracked as a "Now" tier item in [`STRATEGIC_BACKLOG.md`](../STRATEGIC_BACKLOG.md).
-- **B2 restore in any drill** — drills don't pull from B2. Bootstrap path only.
-- **Prometheus aro-wake target registration** — `provision` brings the spoke up but does NOT add it to vps1's `prometheus.yml` `aro-wake` job. Live verification of vps4 (2026-06-08): 14 active targets before + after provision. Add the spoke's `10.99.0.N:8201` target manually + SIGHUP, or extend `provision` to do it.
-- **Gatus endpoint** — same as above. Bootstrap doesn't write `/opt/monitoring/configs/gatus/apps/aro-wake-vpsN.yaml` on vps1. Add manually or extend `provision`.
+- **B2 restore is now drilled** — `drill spoke-restore` runs `scripts/bootstrap/bootstrap-spoke-restore.sh` against the latest live spoke B2 snapshot. Green end-to-end 2026-06-15. (Closes the old "drills don't pull from B2" gap.)
+- **LE / DNS cutover is now VALIDATED** — `bootstrap-hub.sh --drill-test-le-staging` + `step_17b` acquired a real Let's Encrypt **staging** cert end-to-end via the `tojlo.com` sandbox zone (commit `52988ac`, 2026-06-15): DNS rewrite green (`dr-drill-hub-20260615-154530`), ACME-staging cert green (`dr-drill-hub-20260615-160819`). The HTTP-01 challenge against rewritten DNS works; the prod-cert cutover differs only in the ACME endpoint flag.
+- **Hub DR full wall-clock** — the individual legs (bootstrap-hub, B2 restore, LE/DNS cutover) are each now proven, but the single uninterrupted "vps1 dies → fresh droplet → all containers green → DNS cut over → Gatus green" wall-clock has not been measured as one continuous run. Tracked in [`STRATEGIC_BACKLOG.md`](../STRATEGIC_BACKLOG.md).
+- **Observability fleet-add is now automatic** — `provision` calls `vultr_provision.py::_register_observability` (line 337/350) which registers the spoke's `aro-wake` Prometheus target + Gatus endpoint on vps1 (best-effort; failures land under `report['observability']`, don't fail the provision). PR3 also auto-installs the spoke's AI sysadmin via `_provision_sysadmin`. (Closes the old vps4-drill 14→14-targets gap.)
 
 ## Live-run measurements (vps4 drill, 2026-06-08)
 
@@ -80,7 +80,7 @@ Fleet-add **verified live** after provision:
 - ✅ Loki: host label `vps4` present, promtail shipping logs from vps4
 - ✅ Traefik: container up, gzip middleware published
 - ✅ aro-wake systemd unit installed
-- ❌ Prometheus aro-wake job: vps4 NOT added (14 → 14 targets) — gap noted above
+- ⚠️ Prometheus aro-wake job: vps4 NOT added at the time of this drill (14 → 14 targets) — **this gap is now CLOSED**: `provision` auto-registers the target + Gatus endpoint via `_register_observability` (see "What this does not close").
 
 ## What broke + what we fixed (drill #2 — 2026-06-08)
 

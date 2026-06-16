@@ -23,8 +23,8 @@ GPU services are **two-faced** like mobile-app and chrome-extension:
 
 | Lane | Runs on | Deploy | Rules |
 |---|---|---|---|
-| **Orchestrator** (API gateway + job dispatch) | VPS via Coolify | Standard Fabrik `python-api` scaffold — Dockerfile, compose, Traefik, registrars | `10-python.md`, `30-ops.md`, `55-observability.md`, `58-resilience.md`, `75-workers-jobs.md` |
-| **GPU Worker** (inference / training / fine-tuning) | External GPU cloud (RunPod, Modal, Vast.ai) or managed API (Together, Groq) | Provider API — NOT Coolify (VPS has no GPU) | This file |
+| **Orchestrator** (API gateway + job dispatch) | VPS via `fabrik apply` | Standard Fabrik `python-api` scaffold — Dockerfile, compose, Traefik, registrars | `10-python.md`, `30-ops.md`, `55-observability.md`, `58-resilience.md`, `75-workers-jobs.md` |
+| **GPU Worker** (inference / training / fine-tuning) | External GPU cloud (RunPod, Modal, Vast.ai) or managed API (Together, Groq) | Provider API — NOT the Fabrik VPS (it has no GPU) | This file |
 
 - The **orchestrator** is a standard Fabrik service: `postgres-main:5432`, `redis-main:6379`, structlog, `/health`, `/metrics`, GlitchTip, Traefik labels, `deploy.resources.limits.memory`, `slim-bookworm`, `coolify` network. All `30-ops.md` rules apply.
 - The **GPU worker** is external. The orchestrator calls it via provider API (RunPod endpoint, Modal function, Together/Groq `/v1/chat/completions`).
@@ -86,7 +86,7 @@ class InferenceSettings(BaseSettings):
 # All providers expose OpenAI-compatible /v1/chat/completions — use openai SDK with base_url swap
 ```
 
-API keys live in env vars (Coolify env or `.env`). Never hardcoded. See `10-python.md` § Config Loading.
+API keys live in env vars (compose env or `.env`). Never hardcoded. See `10-python.md` § Config Loading.
 
 ---
 
@@ -298,7 +298,7 @@ Note: use `AsyncOpenAI` (not sync `OpenAI`) to avoid blocking the event loop per
 
 ### Execute
 
-- **Separate GPU compute from request routing.** The orchestrator (CPU, Coolify) routes requests. The GPU worker (external cloud) runs inference. Never mix them — mixing causes cascading OOM under burst.
+- **Separate GPU compute from request routing.** The orchestrator (CPU, on the Fabrik VPS) routes requests. The GPU worker (external cloud) runs inference. Never mix them — mixing causes cascading OOM under burst.
 - **Set `max_lifetime_hours`.** A zombie H100 at $3/hr = $72/day. The orchestrator auto-terminates via provider API.
 - **Streaming for interactive, batching for background.** Real-time: SSE/WebSocket token streaming via the orchestrator. Batch: accumulate in PG queue, process in one GPU session, amortize cold start.
 
@@ -465,7 +465,7 @@ Until then, GPU lifecycle is managed by the orchestrator service's own code — 
 
 | Pattern | Use Instead |
 |---------|-------------|
-| GPU inference on VPS / Coolify | External GPU cloud (RunPod, Modal) or managed API (Together, Groq) |
+| GPU inference on the Fabrik VPS | External GPU cloud (RunPod, Modal) or managed API (Together, Groq) |
 | Self-hosting when < 1B tokens/month | Managed API — zero idle cost |
 | Self-hosting frontier MoE models (400B+ parameter) | Managed API — VRAM cost is prohibitive |
 | TGI for new deployments | vLLM (TGI is maintenance-mode since Dec 2025) |
@@ -488,7 +488,7 @@ Until then, GPU lifecycle is managed by the orchestrator service's own code — 
 ## Related Rule Packs
 
 - `10-python.md` — orchestrator FastAPI patterns, Pydantic Settings, `uv`, structlog, async
-- `30-ops.md` — orchestrator Dockerfile, compose, Traefik, resource limits, Coolify deploy
+- `30-ops.md` — orchestrator Dockerfile, compose, Traefik, resource limits, `fabrik apply` deploy
 - `55-observability.md` — orchestrator structured logging, `/health`, `/metrics`, GlitchTip
 - `58-resilience.md` — timeout/retry/circuit-breaker for provider API calls, `docs/RESILIENCE.md` contract
 - `75-workers-jobs.md` — PG job queue for async/batch GPU requests, adaptive worker pool for orchestrator workers

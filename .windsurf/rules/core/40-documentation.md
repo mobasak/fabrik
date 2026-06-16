@@ -25,7 +25,7 @@ Every `fabrik scaffold` project emits these doc templates. They are **empty stub
 | `docs/FEATURES.md` | Feature documentation with status | Feature implementation tickets |
 | `docs/QUICKSTART.md` | Integration contract — endpoints, SDKs, Docker wiring | API / integration ticket |
 | `docs/API_REFERENCE.md` | Detailed API documentation | API endpoint tickets |
-| `docs/DEPLOYMENT.md` | Deploy instructions, Coolify config, compose | Deploy / ops ticket |
+| `docs/DEPLOYMENT.md` | Deploy instructions, `fabrik apply` config, compose | Deploy / ops ticket |
 | `docs/RESILIENCE.md` | Resilience contract — deps, failure modes, recovery | Resilience ticket |
 | `docs/DATABASE_SCHEMA.md` | Schema docs — tables, columns, relationships, indexes | Schema / migration ticket |
 | `docs/TROUBLESHOOTING.md` | Common issues and fixes | Integration / closure ticket |
@@ -83,7 +83,7 @@ This matrix is the canonical source. `my-workflow/06-ticket-breakdown-command` i
 
 ## LESSONS_LEARNT.md
 
-**Update when:** Ticket's Lessons Learnt field has a trigger condition and it fires. Common triggers: auth changes, password/secret rotation, Coolify workaround, new registrar interaction, external service integration, high-risk area.
+**Update when:** Ticket's Lessons Learnt field has a trigger condition and it fires. Common triggers: auth changes, password/secret rotation, deploy/infra workaround, new registrar interaction, external service integration, high-risk area.
 
 **Format:** See `my-workflow/06-ticket-breakdown-command` § Step 8 for the canonical entry structure (Lesson N, Context, Problem, Root Cause, Solution, Integration, Triggered By).
 

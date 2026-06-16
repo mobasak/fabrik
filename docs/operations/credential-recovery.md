@@ -89,7 +89,9 @@ That's the full recovery for the main `.env`. The watcher + cron will resume fro
 
 ## Recovery — sysadmin bot creds (vps1 wipe or fresh rebuild)
 
-`env/sysadmin-latest` holds the Telegram bot token + owner ID. When standing up a fresh vps1 (after disk loss, full rebuild, or DR drill):
+`env/sysadmin-latest` holds the Telegram bot token + owner ID **for vps1 only**. When standing up a fresh vps1 (after disk loss, full rebuild, or DR drill):
+
+> **Spokes do NOT use `env/sysadmin-latest`.** PR3 (2026-06-13) auto-provisions each spoke's AI sysadmin during `fabrik vultr provision` by claiming a *per-host* token from the DR-store pool `env/sysadmin-bot-tokens.json` — a recovery operator must not assume the single `env/sysadmin-latest` covers vps2/vps3.
 
 ```bash
 # Pull the sysadmin creds from the DR store (assumes you've already cloned it per above)

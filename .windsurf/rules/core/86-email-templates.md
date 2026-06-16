@@ -29,7 +29,7 @@ Apply to every ticket that creates or edits an **email, push notification, or in
 
 1. **Author** `<name>.mjml` with Jinja2 placeholders; pull header/footer/brand from shared partials via `<mj-include>`.
 2. **Compile** with local MJML CLI watcher to `emails/dist/<name>.html`. Build-time only.
-3. **Commit the compiled `dist/` HTML** to the repo (deterministic, keeps runtime Python-only — no build-stage Node required on Coolify).
+3. **Commit the compiled `dist/` HTML** to the repo (deterministic, keeps runtime Python-only — no build-stage Node required on the VPS).
 4. **Render at runtime**: Python loads the compiled HTML, Jinja2 fills variables, attaches the plain-text alternative (`multipart/alternative`), hands to ESP.
 5. **Test before ship**: render to test inboxes (Apple Mail / Gmail / Outlook-Windows / dark mode) — Litmus/Email-on-Acid if available, manual test inboxes otherwise.
 
@@ -274,7 +274,7 @@ The sender is a commodity. Your edge is the content AI, not the sending tool. Do
 | Phase | Tool | When | Cost model |
 |---|---|---|---|
 | **Now** | **Resend Broadcasts** | Start here — you already run Resend for transactional | Per-contact / volume pricing |
-| **At scale** | **Self-hosted Listmonk + Amazon SES** | When Resend per-contact fee exceeds ~$5-10/mo container + SES per-email rate | Listmonk: flat (Go + Postgres, deploys on Coolify, zero per-contact fee). SES: ~$0.10 per 1,000 emails |
+| **At scale** | **Self-hosted Listmonk + Amazon SES** | When Resend per-contact fee exceeds ~$5-10/mo container + SES per-email rate | Listmonk: flat (Go + Postgres, deploys via `fabrik apply`, zero per-contact fee). SES: ~$0.10 per 1,000 emails |
 | **WordPress** | **FluentCRM** | WordPress/Woo projects only | Self-hosted, no per-contact fee |
 
 **Migration triggers** (Resend → Listmonk):
@@ -293,7 +293,7 @@ The sender is a commodity. Your edge is the content AI, not the sending tool. Do
 When you hit a migration trigger, this is the target architecture:
 
 ```
-Your VPS (Coolify)                        AWS
+Your VPS (fabrik apply)                   AWS
 ┌─────────────────────┐                  ┌──────────────┐
 │ Listmonk container  │── SMTP relay ──→ │ Amazon SES   │──→ Recipient inbox
 │ (Go + Postgres)     │                  │ (shared IPs) │
@@ -313,7 +313,7 @@ Your VPS (Coolify)                        AWS
 
 **Key architectural points:**
 
-- **Listmonk** is the campaign orchestrator — list management, segments, templates, scheduling, analytics. Deploys on Coolify like any other Fabrik service (Go binary + Postgres, `compose.yaml`, `coolify` network).
+- **Listmonk** is the campaign orchestrator — list management, segments, templates, scheduling, analytics. Deploys via `fabrik apply` like any other Fabrik service (Go binary + Postgres, `compose.yaml`, `coolify` network).
 - **SES** is the delivery layer only — your VPS IP never touches the recipient's mail server. SES sends from **Amazon's shared IP pool** (pre-warmed, high reputation, free). Dedicated IPs ($24.95/mo per IP) only when sending consistently above **1,000 emails/day per major ISP** (Gmail, Yahoo, Outlook) — below that, shared IPs outperform because dedicated IPs lack volume to build reputation.
 - **Listmonk connects to SES via SMTP relay** (`email-smtp.<region>.amazonaws.com:587`, TLS). At higher scale, consider **SES API v2** via the [listmonk-messenger](https://github.com/knadh/listmonk/wiki/Messengers) plugin — higher throughput (SES API supports 50/sec vs SMTP 14/sec default) and avoids SMTP connection overhead.
 - **Bounce/complaint handling:** SES bounce and complaint notifications flow via **SNS → Listmonk webhook**. This is a 4-step setup — without it, you re-send to bounced addresses and SES suspends your account:
@@ -562,7 +562,7 @@ Ships 6 generic transactional templates (verification, password reset, welcome, 
 | Marketing email without `List-Unsubscribe` header | RFC 8058 one-click unsubscribe on every marketing email |
 | Lifecycle sequences defined in application code | Define in marketing ESP (Resend Broadcasts or Listmonk) |
 | "AI email marketing" SaaS (Mailchimp AI, etc.) | Your own content AI + commodity ESP — you own the engine |
-| Mautic for campaign management | Listmonk (Go + Postgres, deploys on Coolify) |
+| Mautic for campaign management | Listmonk (Go + Postgres, deploys via `fabrik apply`) |
 | Sending marketing from VPS IP directly | Always via SES or Resend — protect domain reputation |
 | Auto-sending marketing without human approval | One-click approve gate before every blast |
 | Sending marketing email without opt-in | Universal opt-in default; double opt-in for EU |

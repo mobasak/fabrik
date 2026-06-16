@@ -1,6 +1,6 @@
 # Fabrik Architecture
 
-**Last Updated:** 2026-04-22
+**Last Updated:** 2026-06-15
 
 > **⚠️ Pre-migration context (2026-04 vintage).** Deploy-mechanism sections
 > below describe the Coolify-API era. Fabrik migrated to SSH + Docker
@@ -146,6 +146,9 @@ id: my-api
 kind: service
 template: python-api
 domain: my-api.vps1.ocoron.com
+target_vps: vps1            # multi-host target: vps1 (hub) | vps2 | vps3. Omit = vps1.
+                           # Resolution on apply/redeploy/destroy:
+                           # CLI --target-vps > state file > this field > vps1.
 
 shape:
   kind: service
@@ -298,8 +301,8 @@ The WordPress automation engine (~9,700 LoC: 13-stage deployer, planner, preset 
 
 | Layer | Service |
 |---|---|
-| **Control plane** | Coolify (`coolify.vps1.ocoron.com`) |
-| **Reverse proxy** | Traefik (managed by Coolify) — 80/443 only |
+| **Control plane** | `fabrik` CLI (SSH + Docker Compose, run from WSL) — Coolify decommissioned; `coolify` survives only as the legacy Docker network name (renamed to `fabrik` on 2026-05-31) |
+| **Reverse proxy** | Traefik (managed by the shared monitoring/proxy stack) — 80/443 only |
 | **Auth** | Authelia forward-auth (`auth.vps1.ocoron.com`) for admin dashboards without native TOTP |
 | **Data** | `postgres-main` (shared), `redis-main` (shared), Backblaze B2 (via Backrest) |
 | **Observability** | Prometheus + Grafana + Alertmanager + Loki + Promtail; GlitchTip (errors); Gatus (uptime); Apprise (notifications) |
