@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — root agent-rule + registry docs: Netdata/Coolify/dead-microservices reflected (2026-06-16)
+
+is-it-used walk of the root agent-rule files + `.windsurf/rules/` packs + root registry docs:
+
+- **`AGENTS.md`** (the Traycer planner's main file) — removed **Netdata** as a live service (monitoring line, URL table, Authelia admin-dashboard list); the **Fabrik Microservices table** now marks the retired services (`captcha`/`translator`/`proxy`/`emailgateway`/`image-broker`/`dns-manager`) as not-deployed (only `site-provisioner` live) so the pre-flight check reads reality; `/opt/prometheus/` → `/opt/monitoring/` (deleted); date bumped.
+- **`PORTS.md`** — `Coolify` (8000), `Netdata` (19999), `fabrik-control-plane` (3004, "Coolify-managed"), and the retired microservices (`captcha`/`translator`/`proxy`/`emailgateway` 18011-18017) marked **retired — not deployed**, ports freed; 18014 noted reallocated to `site-provisioner`.
+- **`tasks.md`** — added a **SUPERSEDED** banner (frozen 2026-03 dev dashboard tracking the original 8-phase plan; live state now lives in `PORTS.md`/`AGENTS.md`/`vps-status.md`/`CHANGELOG.md`).
+- Verified clean (no edit): `CLAUDE.md`, `.windsurfrules`, `AGENTS-compact.md` (done in the earlier Coolify-scrub), `README.md`/`INDEX.md` (only legit "replaced Duplicati" history), `.windsurf/rules/core/58-resilience.md` (`coolify` = network name) + `40-documentation.md` (`DEPLOYMENT.md` = per-project scaffold-doc convention).
+
+Code flag (for the code-cleanup pass): `src/fabrik/cli.py:1734-1736` scaffold success message still prints `fabrik wp plan/apply/verify` instructions (removed command).
+
 ### Changed — docs/traycer planner command files brought to current deploy reality (2026-06-16)
 
 Evidence-based walk of `docs/traycer/` (59 files) — the Traycer planner / Kilo command files agents actually run. They reflected the Coolify era; reframed to "our way of working":

@@ -1,6 +1,6 @@
 # Fabrik Port Allocations
 
-**Last Updated:** 2026-02-28
+**Last Updated:** 2026-06-16
 
 This document tracks port allocations for all Fabrik services to prevent conflicts.
 
@@ -15,7 +15,6 @@ This document tracks port allocations for all Fabrik services to prevent conflic
 | 8000-8099 | Python APIs (FastAPI) | WSL & VPS |
 | 8100-8199 | Workers & background services | WSL & VPS |
 | 8200-8299 | Management tools | VPS only |
-| 19999 | Netdata monitoring | VPS only |
 
 ---
 
@@ -25,10 +24,10 @@ This document tracks port allocations for all Fabrik services to prevent conflic
 
 | Port | Service | Project | URL |
 |------|---------|---------|-----|
-| 8000 | Coolify | coolify | https://coolify.vps1.ocoron.com |
+| ~~8000~~ | ~~Coolify~~ | — | **retired 2026-05-30 — not deployed** (decommissioned; port 8000 now free. `coolify` survives only as a Docker-network name — see Notes) |
 | 3001 | Gatus | gatus | https://status.vps1.ocoron.com |
 | 9898 | Backrest | backrest | https://backup.vps1.ocoron.com (Duplicati on 8200 retired 2026-04-17) |
-| 19999 | Netdata | netdata | https://netdata.vps1.ocoron.com |
+| ~~19999~~ | ~~Netdata~~ | — | **retired 2026-05-30 — not deployed** (removed; port 19999 now free) |
 | 3000 | browserless | specs/infrastructure/browserless.yaml | https://browser.vps1.ocoron.com |
 | 3003 | gotenberg | specs/infrastructure/gotenberg.yaml | https://pdf.vps1.ocoron.com |
 | 9000/9001 | minio | specs/infrastructure/minio.yaml | [reserved — not yet deployed] |
@@ -47,19 +46,19 @@ This document tracks port allocations for all Fabrik services to prevent conflic
 |------|---------|---------|-------|
 | 8017 | **vps-sysadmin-bot health** | `/opt/fabrik/scripts/sysadmin/bot.py` | systemd service on vps1 host; **binds `127.0.0.1:8017` only** since W5 of fleet-hardening plan (2026-06-01). Distinct socket from the `:8017` container-internal allocation under "Python APIs" below — host-loopback and container-internal do not collide at the OS level. Override via `SYSADMIN_HEALTH_HOST=<ip>` in `/opt/fabrik/.env.sysadmin`. |
 | 8050 | fabrik-api | /opt/fabrik-api | FastAPI bridge — native VPS host process, binds `127.0.0.1` only |
-| 3004 | fabrik-control-plane | /opt/fabrik-control-plane | Next.js 14 chat UI — Coolify-managed container |
+| ~~3004~~ | ~~fabrik-control-plane~~ | /opt/fabrik-control-plane | **retired 2026-05-30 — not deployed** (Next.js 14 chat UI; no live container in the fleet. Port 3004 now free) |
 | 8201 | **aro-wake** (per-host push-trigger AI endpoint) | `/opt/fabrik/scripts/aro-wake/` | Trio plan Phase 3 (2026-06-04). systemd service on every fleet host; **binds `0.0.0.0:8201`** (changed 2026-06-05 batch-6 from mesh-only because Alertmanager's docker container can't reach the host's wg0 IP from its network namespace; verified via `docker exec alertmanager wget http://10.99.0.1:8201` → timeout). Endpoint: `POST /wake` for peer consult (LIVE) / Alertmanager webhook (Phase 4, LIVE on vps1) / manual ops curl. Reaches Claude via the same calling convention as `bot.py::_run_claude`. Allocated from the 8200-8299 "Management tools" range (Duplicati 8200 retired 2026-04-17). **Access control via UFW + iptables**: default-deny incoming on UFW (allow-list is 22/80/443/1194/51820 — 8201 not listed) blocks public ingress; explicit allow rules `from 10.0.0.0/8 to any port 8201 proto tcp` (docker bridge for Alertmanager + other containers) and `from 10.99.0.0/24 to any port 8201 proto tcp` (wg0 peer consults) permit the legitimate callers without exposing publicly. Reachability matrix verified live on vps1 2026-06-05: container on `fabrik` net via `10.0.1.1:8201` ✓; host loopback / wg0 IP ✓; peer over wg0 ✓; **public internet timeout (UFW deny) ✓**. Operator probe from host: `curl http://10.99.0.<N>:8201/health`. Alertmanager probe: `docker exec alertmanager wget -qO- http://10.0.1.1:8201/health`. **Prometheus exposition sub-allocation on same port** (added 2026-06-06): `GET /metrics` returns 8 `aro_wake_*` SLI families (counters: requests_total{source,status}, cost_usd_total{source}, dedup_drops_total, hop_limit_exceeded_total, forward_suppressed_total{target_host,reason}, storm_breaker_trips_total{target_host}; gauges: pending_queue_size, active_sessions). Scraped by Prometheus on `fabrik` net (renamed from `coolify` 2026-05-31) across the full trio fleet: `http://10.0.1.1:8201/metrics` (vps1, docker-bridge gateway), `http://10.99.0.2:8201/metrics` (vps2, wg0), `http://10.99.0.3:8201/metrics` (vps3, wg0). Cross-mesh container→host NAT verified live 2026-06-06 — Prometheus container's outbound to spoke wg0 IPs is SNAT'd to 10.99.0.1 by docker MASQUERADE, which the spokes' `from 10.99.0.0/24 to any port 8201 proto tcp` UFW rule already permits. |
 
 ### Fabrik Microservices (VPS Host Ports)
 
 | Host Port | Service | Project | URL |
 |-----------|---------|---------|-----|
-| 18011 | Captcha Solver | /opt/captcha | https://captcha.vps1.ocoron.com |
-| 18012 | Translator API | /opt/translator | https://translator.vps1.ocoron.com |
-| 18013 | Proxy Manager | /opt/proxy | https://proxy.vps1.ocoron.com |
-| 18014 | DNS Manager | /opt/dns-manager | https://dns.vps1.ocoron.com |
+| ~~18011~~ | ~~Captcha Solver~~ | /opt/captcha | **retired — not currently deployed** (no live container/router; spec may persist in `specs/services/`. Port 18011 free) |
+| ~~18012~~ | ~~Translator API~~ | /opt/translator | **retired — not currently deployed** (no live container/router; `specs/services/translator.yaml` persists but nothing deployed. Port 18012 free) |
+| ~~18013~~ | ~~Proxy Manager~~ | /opt/proxy | **retired — not currently deployed** (no live container/router. Port 18013 free) |
+| ~~18014~~ | ~~DNS Manager~~ | /opt/dns-manager | **retired — not currently deployed** (no live container/router). **Port 18014 reallocated to site-provisioner** — see auto-generated table below |
 | 18015 | File API | /opt/file-api | https://files-api.vps1.ocoron.com |
-| 18017 | Email Gateway | /opt/emailgateway | https://email.vps1.ocoron.com |
+| ~~18017~~ | ~~Email Gateway~~ | /opt/emailgateway | **retired — not currently deployed** (no live container/router. Port 18017 free) |
 | 18018 | Email Reader | /opt/email-reader | — |
 
 ### Development Services (WSL Only)
@@ -132,6 +131,8 @@ If you encounter a port conflict:
 - **Internal container ports** — May differ from external ports (Traefik handles routing)
 - **WSL ports** — Accessible directly via `localhost:<port>`
 - **Docker networks** — Services communicate via container names, not ports
+- **Legacy `coolify` network name** — Coolify (the platform) was decommissioned 2026-05-30, but its Docker network name `coolify` survives as the shared bridge (renamed to `fabrik` 2026-05-31 in some contexts; references to the `coolify` *network* are not the dead service)
+- **Auto-generated block** — The `AUTO-GENERATED:PORTS` table is synced from on-disk `project.yaml` scaffolds (dev intent), not live deployment state. Entries there (e.g. `captcha`/`proxy`/`image-broker`) reflect scaffolded projects and may not be deployed; the curated tables above are the authoritative deployment registry
 
 ---
 

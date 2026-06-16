@@ -1,6 +1,6 @@
 # AGENTS.md — Fabrik Identity & Knowledge (Traycer)
 
-**Last Updated:** 2026-05-29
+**Last Updated:** 2026-06-16
 **Read by:** Traycer only — for ticket planning. Traycer must know the entire Fabrik infrastructure to plan correctly.
 **Coding agents:** Claude Code reads `CLAUDE.md`; Windsurf Cascade reads `.windsurfrules`; Kilo CLI reads `AGENTS-compact.md` (via `opencode.json` `instructions:` array).
 **Deployment references (canonical):** [`docs/DEPLOYMENT_ARCHITECTURE.md`](docs/DEPLOYMENT_ARCHITECTURE.md) — code-level map of every file on the deploy path · [`docs/operations/deployment.md`](docs/operations/deployment.md) — procedures (apply/redeploy/destroy) · [`docs/operations/fabrik-lifecycle.md`](docs/operations/fabrik-lifecycle.md) — runtime behavior & data safety. Supersede any narrative pasted into individual tickets.
@@ -26,8 +26,8 @@
 | 10  | **Specs**             | `specs/services/<id>.yaml`                                                                   | Shape contract → registrars                                                                                                                                                                                            |
 | 11  | **Orchestrator**      | `src/fabrik/orchestrator/` (9 registrars + 22 drivers)                                      | postgres/redis/gatus/backrest/glitchtip/grafana/authelia/meilisearch/prometheus                                                                                                                                        |
 | 12  | **AI Sysadmin**       | `scripts/sysadmin/bot.py`                                                                    | Telegram ↔ Claude Code on VPS. Proactive checks, morning reports, security audits                                                                                                                                      |
-| 13  | **VPS Infra**         | ~22 services                                                                                 | Traefik (standalone proxy on 80/443), PG (postgres-main), Redis (redis-main), Gatus, GlitchTip, Grafana, Prometheus, Loki, Alertmanager, n8n, Apprise, Authelia, MeiliSearch, Backrest, Gotenberg, Browserless, Netdata, cAdvisor, node-exporter, Pushgateway, Promtail. (Coolify decommissioned — `coolify-proxy` container remains stopped/leftover) |
-| 14  | **Microservices**     | 8 custom services (ports 18011–18017 + 8007)                                                 | Captcha, Translator, Proxy, DNS/Site-Provisioner, File API, Image Broker, Email Gateway, File Worker                                                                                                                   |
+| 13  | **VPS Infra**         | ~25 services (vps1)                                                                          | Traefik (standalone proxy on 80/443), PG (postgres-main), Redis (redis-main), Gatus, GlitchTip (web + worker), Grafana, Prometheus, Loki, Alertmanager, n8n, Apprise, Authelia, MeiliSearch, Backrest, Gotenberg, Browserless, cAdvisor, node-exporter, postgres-exporter, redis-exporter, Pushgateway, Promtail, watchdog. (Coolify fully decommissioned — only the legacy `coolify` Docker-network name remains; no container.) |
+| 14  | **Microservices**     | site-provisioner (live); others retired/not-deployed                                         | **Live:** site-provisioner (`dns.vps1.ocoron.com`). **Retired / not deployed (no container, no router):** Captcha, Translator, Proxy, File API, Image Broker, Email Gateway, File Worker — code may exist but none are running on the fleet                                                                                            |
 | 15  | **Alerting**          | Prometheus → Alertmanager → Telegram + Gatus → Apprise → Telegram                           | Multi-path alerting chain                                                                                                                                                                                              |
 | 16  | **VPS Daemons**       | sysadmin bot, iptables persistence (coolify-alias-watcher still active but inert/obsolete)   | Systemd services                                                                                                                                                                                                       |
 | 17  | **Cron/Scheduled**    | Hourly drift audit, daily morning report, weekly security/maintenance, monthly backup verify | Automated ops                                                                                                                                                                                                          |
@@ -110,7 +110,7 @@ Traycer plans against `AGENTS.md`. Agent-execution contracts, rule packs, and wo
 - **DB:** PostgreSQL on VPS (`postgres-main` container, default) · Supabase (managed auth / realtime / pgvector when needed). Connection strings use Docker DNS (`postgres-main:5432`, `redis-main:6379`), never `localhost`.
 - **Proxy:** Traefik (standalone compose stack at `/opt/traefik/`) + Let's Encrypt.
 - **Domains:** `*.vps1.ocoron.com` via site-provisioner (Namecheap + Cloudflare + auto-purchase). Implementation: `docs/reference/service-contracts/site-provisioner.md`.
-- **Monitoring:** Gatus · Netdata · Grafana · Prometheus · Alertmanager · Loki (standalone compose stacks under `/opt/monitoring/` + `/opt/prometheus/`).
+- **Monitoring:** Gatus · Grafana · Prometheus · Alertmanager · Loki (+ node-exporter / cAdvisor) — standalone compose stacks under `/opt/monitoring/`. (Netdata removed 2026-05-30.)
 
 ### Local LLM Agents
 
@@ -152,7 +152,6 @@ kebab-case. Exceptions: `README.md`, `CHANGELOG.md`, `INDEX.md`, `PORTS.md`, `AG
 | Traefik | (internal — 80/443) | Reverse proxy (standalone, `/opt/traefik/`) + Let's Encrypt |
 | Gatus | status.vps1.ocoron.com | Uptime monitoring (memory storage — see status.vps1.ocoron.com for live count) |
 | GlitchTip | errors.vps1.ocoron.com | Error tracking (web + worker, Celery concurrency=2) |
-| Netdata | netdata.vps1.ocoron.com | Real-time server metrics |
 | Backrest | backup.vps1.ocoron.com | Restic-based backup UI → Backblaze B2 |
 | n8n | auto.vps1.ocoron.com | Workflow automation |
 | Apprise | notify.vps1.ocoron.com | Multi-channel notifications (used by n8n) |
@@ -174,7 +173,7 @@ Every compose service MUST declare `deploy.resources.limits.memory` to prevent O
 
 ## Observability & Alerting
 
-All monitoring services run as standalone Docker Compose stacks under `/opt/monitoring/` (Grafana, Alertmanager, Loki, Promtail, node-exporter, cAdvisor) and `/opt/prometheus/` (Prometheus). Local source: `specs/infrastructure/monitoring-stack.yaml` + `configs/` in Fabrik repo.
+All monitoring services run as standalone Docker Compose stacks under `/opt/monitoring/` (Prometheus, Grafana, Alertmanager, Loki, Promtail, node-exporter, cAdvisor, Pushgateway). `/opt/prometheus/` was removed — the whole stack now lives under `/opt/monitoring/`. Local source: `specs/infrastructure/monitoring-stack.yaml` + `configs/` in Fabrik repo.
 
 ### Notification chains
 
@@ -230,7 +229,7 @@ Source: `configs/prometheus/rules/alerts.yml`.
 | Layer | Target | Mechanism |
 |---|---|---|
 | **iptables DOCKER-USER** | All Docker ports | Blocks external access to raw container ports. Only **80/443** serve traffic. (6001/6002 remain open at DOCKER-USER + UFW as stale Coolify Realtime/Soketi leftovers — nothing listens; pending cleanup.) |
-| **Authelia** | Admin dashboards w/o native TOTP | Forward-auth 2FA for n8n, Netdata, Backrest, Apprise; + forward-auth with `^/api/` bypass for Grafana. **Note:** GlitchTip is on full-bypass — uses django-allauth app-layer TOTP (canonical Sentry pattern). Decision matrix: `docs/LESSONS_LEARNT.md §8.13`. |
+| **Authelia** | Admin dashboards w/o native TOTP | Forward-auth 2FA for n8n, Backrest, Apprise; + forward-auth with `^/api/` bypass for Grafana. **Note:** GlitchTip is on full-bypass — uses django-allauth app-layer TOTP (canonical Sentry pattern). Decision matrix: `docs/LESSONS_LEARNT.md §8.13`. |
 | **X-Internal-Token** | API services | M2M auth via `internal_auth.py` + shared `SERVICE_INTERNAL_SECRET_KEY` in `/opt/fabrik/.env`. Same key written into every deployed service's `/opt/<name>/.env`. Validation is constant-time (`hmac.compare_digest`). Implementation pack: `.windsurf/rules/core/35-security-auth.md`. |
 | **Traefik** | Public sites | Routes traffic without auth for `ocoron.com`, `status.vps1.ocoron.com`. |
 
@@ -249,18 +248,20 @@ Source: `configs/prometheus/rules/alerts.yml`.
 - `file-api` uses Supabase Bearer JWT (user auth, different pattern).
 - `site-provisioner` uses Traefik IP allowlist (no app-level auth).
 
-## Fabrik Microservices (Custom-Built, on VPS)
+## Fabrik Microservices (Custom-Built)
 
-| Service | Port (VPS Host) | Purpose |
-|---|---|---|
-| Captcha | 18011 | Anti-Captcha solving |
-| Translator | 18012 | DeepL + Azure translation |
-| Proxy | 18013 | Webshare.io proxy management |
-| DNS Manager (site-provisioner) | 18014 | Domain registration, DNS (Namecheap / Cloudflare), SSL, CDN, analytics (GA4 / GSC), webmaster tools |
-| File API | 18015 | File operations |
-| Image Broker | 18016 | Stock image API (Pexels / Pixabay) with smart routing, scoring, caching |
-| Email Gateway | 18017 | Resend + SES email sending |
-| File Worker | 8007 | Background file processing worker |
+**Live on VPS today:** only **site-provisioner**. The rest below are **retired / not deployed** (no container, no Traefik router on the fleet as of 2026-06-16) — port numbers are historical reservations, not running services. Do NOT plan against them as available internal APIs; if a project genuinely needs one, plan to (re)build + deploy it.
+
+| Service | Port (reserved) | Status | Purpose |
+|---|---|---|---|
+| DNS Manager (site-provisioner) | 18014 | **LIVE** (`dns.vps1.ocoron.com`) | Domain registration, DNS (Namecheap / Cloudflare), SSL, CDN, analytics (GA4 / GSC), webmaster tools |
+| Captcha | 18011 | retired / not deployed | Anti-Captcha solving |
+| Translator | 18012 | retired / not deployed | DeepL + Azure translation |
+| Proxy | 18013 | retired / not deployed | Webshare.io proxy management |
+| File API | 18015 | retired / not deployed | File operations |
+| Image Broker | 18016 | retired / not deployed | Stock image API (Pexels / Pixabay) with smart routing, scoring, caching |
+| Email Gateway | 18017 | retired / not deployed | Resend + SES email sending |
+| File Worker | 8007 | retired / not deployed | Background file processing worker |
 
 ### DNS Manager — Key Capabilities
 

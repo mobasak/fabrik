@@ -2,8 +2,15 @@
 
 **Last Updated:** 2026-03-24
 
-> **This file is a dashboard.** Detailed progress and checkboxes live in phase docs.
-> After any implementation, update both this dashboard AND the relevant phase doc.
+> **⚠️ SUPERSEDED (flagged 2026-06-16).** This is a frozen 2026-03 snapshot tracking
+> the original 8-phase build plan (now essentially complete; the phase docs it links
+> live under `docs/development/plans/previously-planned-fabrik-phases/`, kept as
+> history). The **Phase Status** and **VPS Services** tables below are NOT current —
+> several listed services (Coolify, Netdata, Image Broker, DNS Manager, Translator,
+> Captcha, Email Gateway, Proxy, MinIO, File API, WordPress Test) are retired/not
+> deployed. For live state use the canonical sources: **`PORTS.md`** (ports),
+> **`AGENTS.md` § VPS Infra / Microservices** (services), **`docs/infrastructure/vps-status.md`**
+> (fleet), and **`CHANGELOG.md`** (what shipped). Don't drive new work from this file.
 
 ---
 
