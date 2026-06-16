@@ -131,6 +131,21 @@ class VastClient:
                     body = resp.json()
                 except Exception:
                     body = resp.text
+                # Honor 429 Retry-After (live-caught 2026-06-17 during LIVE-17:
+                # /template/ throttle is 5 req/s). Sleep + retry rather than
+                # surfacing to caller for a transient rate-limit.
+                if (
+                    resp.status_code == 429
+                    and attempt < self.max_retries
+                    and isinstance(body, dict)
+                    and body.get("retry_after")
+                ):
+                    sleep_s = min(float(body["retry_after"]) + 1, 30)
+                    logger.info(
+                        "Vast 429 on %s %s — sleeping %.1fs then retrying", method, path, sleep_s
+                    )
+                    time.sleep(sleep_s)
+                    continue
                 raise VastError(
                     f"Vast.ai {resp.status_code} on {method} {path}: {body}",
                     status=resp.status_code,
@@ -399,10 +414,15 @@ class VastClient:
             if getattr(e, "status", None) == 404:
                 raise VastError(f"endpoint {endpoint_id} not found") from e
             raise
-        # API returns either {"results": {<endpoint>}} or {<endpoint>} directly
+        # Live-verified 2026-06-17 (LIVE-15):
+        #   single GET → {"success": true, "result": {<endpoint dict>}}
+        #   list GET   → {"success": true, "results": [{...}, ...]}
+        # Singular vs plural. Handle both (+ legacy raw shapes).
         ep = data
         if isinstance(data, dict):
-            if "results" in data:
+            if "result" in data and isinstance(data["result"], dict):
+                ep = data["result"]
+            elif "results" in data:
                 ep = data["results"]
                 if isinstance(ep, list):
                     ep = ep[0] if ep else {}
@@ -418,13 +438,19 @@ class VastClient:
             "idleTimeout": ep.get("inactivity_timeout", cached.get("idleTimeout", 300)),
         }
 
-    def _resolve_template_hash(self, name_or_hash: str) -> str:
+    def _resolve_template_hash(self, name_or_hash: str, *, skip_liveness_check: bool = True) -> str:
         """Resolve friendly template name → live hash_id.
 
         Pinned hashes verified live 2026-06-17 by iteration 4. Falls through
         to live search on miss. Field is `hash_id` (R7 from plan §0).
         """
         if name_or_hash in self.PINNED_TEMPLATE_HASHES:
+            # Pinned hashes were verified live during plan iteration 4.
+            # Skip liveness check by default to avoid rate-limit storms
+            # (LIVE-17 2026-06-17: Vast 429 throttled at 5 req/s on
+            # /template/ which is the same throttle bucket).
+            if skip_liveness_check:
+                return self.PINNED_TEMPLATE_HASHES[name_or_hash][0]
             for h in self.PINNED_TEMPLATE_HASHES[name_or_hash]:
                 if self._template_exists(h):
                     return h
@@ -435,31 +461,52 @@ class VastClient:
         return self._live_search_template_hash(name_or_hash)
 
     def _template_exists(self, hash_id: str) -> bool:
-        """Best-effort liveness check on a template hash."""
+        """Best-effort liveness check on a template hash.
+
+        Live-verified shape (LIVE-14, 2026-06-17): GET /template/ returns
+        ``{"success": true, "templates_found": N, "templates": [...]}``.
+        Key is ``templates``, NOT ``results``.
+        """
         try:
-            # Use search rather than GET — there's no direct /templates/<hash>
-            results = self._request("GET", "/template/", params={"q": f"hash_id={hash_id}"})
-            if isinstance(results, list):
-                return len(results) > 0
-            if isinstance(results, dict):
-                return bool(results.get("results")) or bool(results.get("template"))
-            return False
+            resp = self._request("GET", "/template/", params={"q": f"hash_id={hash_id}"})
+            items = self._extract_templates(resp)
+            return any(t.get("hash_id") == hash_id for t in items)
         except VastError:
             return False
 
     def _live_search_template_hash(self, name: str) -> str:
-        """Query /template/ live; return most-used hash_id matching name."""
-        results = self._request("GET", "/template/", params={"q": f"name={name}"})
-        if isinstance(results, dict):
-            results = results.get("results", []) or []
-        if not results:
+        """Query /template/ live; return most-used hash_id matching name.
+
+        Vast's ?q= URL parameter does NOT reliably filter server-side — we
+        always do a client-side name + image_uuid match on the response,
+        sorted by ``count_created`` desc (most-stable first).
+        """
+        resp = self._request("GET", "/template/", params={"q": f"name={name}"})
+        items = self._extract_templates(resp)
+        needle = name.lower()
+        matched = [t for t in items if needle in (t.get("name") or "").lower()]
+        if not matched:
+            matched = [t for t in items if needle in (t.get("image_uuid") or "").lower()]
+        if not matched:
             raise VastError(f"no Vast template found for name={name!r}; cannot create endpoint")
-        # Sort by count_created desc (most-stable)
-        results.sort(key=lambda t: t.get("count_created") or 0, reverse=True)
-        hash_id = results[0].get("hash_id")
+        matched.sort(key=lambda t: t.get("count_created") or 0, reverse=True)
+        hash_id = matched[0].get("hash_id")
         if not hash_id:
             raise VastError(f"Vast template name={name!r} has no hash_id in response")
         return hash_id
+
+    @staticmethod
+    def _extract_templates(resp: Any) -> list[dict]:
+        """Normalize Vast's template response into a plain list of dicts.
+
+        Live: returns ``{"templates": [...]}``. Defensively also accept
+        ``{"results": [...]}`` or a plain list.
+        """
+        if isinstance(resp, list):
+            return resp
+        if isinstance(resp, dict):
+            return resp.get("templates") or resp.get("results") or []
+        return []
 
     def _default_search_params(self, gpu_name: str) -> str:
         """Default worker hardware filter for a given GPU."""
@@ -495,10 +542,15 @@ class VastClient:
         in via args_str; passing here helps the operator track which model
         a session was for).
         """
-        # 1. POST /endptjobs/ → endpoint_id
+        # 1. Resolve template_id → hash_id FIRST (no orphan risk).
+        # If this fails, we haven't created any cloud resource yet.
+        # Discovered live (LIVE-14 retry 2): if template resolution fails
+        # AFTER the endpoint POST succeeds, the endpoint leaks. Reorder.
+        template_hash = self._resolve_template_hash(template_id)
+
+        # 2. POST /endptjobs/ → endpoint_id
         # min_load/cold_mult/cold_workers are autoscaler tuning; inactivity_timeout
-        # tells Vast when to scale workers down to 0 (we use --keep-warm-after-use
-        # semantics: 0 cold_workers = scale fully to zero on idle).
+        # tells Vast when to scale workers down to 0.
         ep_body = {
             "endpoint_name": name,
             "min_load": 0.0,
@@ -511,27 +563,51 @@ class VastClient:
             "inactivity_timeout": idle_timeout,
         }
         ep_resp = self._request("POST", "/endptjobs/", json=ep_body)
-        # Response shape: {"id": <int>, "endpoint_id": <int>, ...} — accept either
-        endpoint_id = ep_resp.get("endpoint_id") or ep_resp.get("id")
+        # Live-verified 2026-06-17 (LIVE-14): Vast returns
+        #   {"success": true, "result": <endpoint_id>}
+        # NOT {"endpoint_id": ...} as the OpenAPI spec suggested.
+        endpoint_id = ep_resp.get("result") or ep_resp.get("endpoint_id") or ep_resp.get("id")
         if endpoint_id is None:
             raise VastError(f"Vast endpoint create returned no id: {ep_resp}", body=ep_resp)
 
-        # 2. Resolve template_id → hash_id
-        template_hash = self._resolve_template_hash(template_id)
-
-        # 3. POST /workergroups/ (NOT /autogroups/ — B4 from plan §0)
+        # 3. POST /workergroups/ (NOT /autogroups/ — B4 from plan §0).
+        # If THIS fails, we own an orphaned endpoint — best-effort destroy.
         wg_body = {
             "endpoint_id": int(endpoint_id),
             "template_hash": template_hash,
             "test_workers": 1,  # cheap smoke; production usually 3
         }
+        # `search_params` is REQUIRED by Vast (live-verified: 400 if null).
+        # Always supply something — fall back to a cheap default if no
+        # GPU type was specified.
         if search_params:
             wg_body["search_params"] = search_params
         elif gpu_type_ids:
             wg_body["search_params"] = self._default_search_params(gpu_type_ids[0])
+        else:
+            # Cheapest default: RTX 4090, single GPU, reliable host.
+            wg_body["search_params"] = self._default_search_params("RTX 4090")
 
-        wg_resp = self._request("POST", "/workergroups/", json=wg_body)
-        wg_id = wg_resp.get("workergroup_id") or wg_resp.get("id")
+        try:
+            wg_resp = self._request("POST", "/workergroups/", json=wg_body)
+        except VastError as e:
+            # Endpoint was created above; clean up before re-raising
+            logger.warning(
+                "vast workergroup create failed for endpoint %s — destroying endpoint to avoid orphan: %s",
+                endpoint_id,
+                e,
+            )
+            try:
+                self._request("DELETE", f"/endptjobs/{endpoint_id}/")
+            except Exception as cleanup_e:
+                logger.error(
+                    "vast endpoint %s could NOT be cleaned up after wg failure: %s",
+                    endpoint_id,
+                    cleanup_e,
+                )
+            raise
+        # Same Vast envelope as endpoint create: {"success": true, "result": N}
+        wg_id = wg_resp.get("result") or wg_resp.get("workergroup_id") or wg_resp.get("id")
 
         ep_info: dict[str, Any] = {
             "id": str(endpoint_id),
@@ -622,11 +698,28 @@ class VastClient:
         )
 
     def list_endpoints(self) -> list[dict[str, Any]]:
-        """List all serverless endpoints. Used by reaper + `fabrik gpu list`."""
+        """List all serverless endpoints. Used by reaper + `fabrik gpu list`.
+
+        Live-verified 2026-06-17:
+          list GET → ``{"success": true, "results": [...]}`` (plural)
+          single GET → ``{"success": true, "result": {...}}`` (singular)
+        Defensive: handle both even though list is documented plural.
+        """
         data = self._request("GET", "/endptjobs/")
-        results = data
+        results: list[dict[str, Any]] = []
         if isinstance(data, dict):
-            results = data.get("results", []) or []
+            if "results" in data and isinstance(data["results"], list):
+                results = data["results"]
+            elif "result" in data:
+                # Singular wrapper — coerce to list. Either a single endpoint
+                # dict, or a list of them.
+                r = data["result"]
+                if isinstance(r, list):
+                    results = r
+                elif isinstance(r, dict):
+                    results = [r]
+        elif isinstance(data, list):
+            results = data
         out: list[dict[str, Any]] = []
         for ep in results:
             name = ep.get("endpoint_name") or ""

@@ -781,9 +781,9 @@ def test_vast_create_endpoint_uses_workergroups_not_autogroups(monkeypatch):
     def fake_request(self, method, path, *, json=None, params=None):
         requests_made.append({"method": method, "path": path, "json": json})
         if path == "/endptjobs/" and method == "POST":
-            return {"endpoint_id": 12345}
+            return {"success": True, "result": 12345}
         if path == "/workergroups/" and method == "POST":
-            return {"workergroup_id": 67890}
+            return {"success": True, "result": 67890}
         if path.startswith("/template/"):
             return []
         return {}
@@ -865,3 +865,179 @@ def test_vast_list_endpoints_tags_fabrik_prefixed(monkeypatch):
     assert "FABRIK_SESSION_ID" in fabrik_ep["env"]
     foreign_ep = next(e for e in eps if e["id"] == "101")
     assert foreign_ep["env"] == {}
+
+
+# ============================================================================
+# Code review iteration 1 fixes — regression guards
+# ============================================================================
+def test_modal_destroy_endpoint_idempotent_on_already_stopped(monkeypatch):
+    """Code review iter-1: Modal destroy must treat 'already stopped' /
+    'not found' as success (mirrors Vast's 404 handling)."""
+    from fabrik.drivers.modal_provider import ModalClient
+
+    monkeypatch.setenv("MODAL_TOKEN_ID", "ak-test")
+    monkeypatch.setenv("MODAL_TOKEN_SECRET", "as-test")
+    fake_modal = MagicMock()
+    monkeypatch.setattr(
+        "fabrik.drivers.modal_provider.ModalClient.__init__",
+        lambda self, *a, **kw: setattr(self, "_modal", fake_modal)
+        or setattr(self, "token_id", "ak-test")
+        or setattr(self, "token_secret", "as-test"),
+    )
+
+    c = ModalClient()
+
+    # Simulate "already stopped" non-zero exit (live error message from
+    # 2026-06-17 reconcile during LIVE-17)
+    def fake_run_already_stopped(*args, **kwargs):
+        r = MagicMock()
+        r.returncode = 1
+        r.stdout = ""
+        r.stderr = "App is already stopped. (Stopped at 2026-06-17 by 'mobasak')."
+        return r
+
+    monkeypatch.setattr(
+        "fabrik.drivers.modal_provider.subprocess.run", fake_run_already_stopped
+    )
+    # Must NOT raise
+    c.destroy_endpoint("ap-already-stopped")
+
+    # Simulate "not found"
+    def fake_run_not_found(*args, **kwargs):
+        r = MagicMock()
+        r.returncode = 1
+        r.stdout = ""
+        r.stderr = "Error: App not found"
+        return r
+
+    monkeypatch.setattr(
+        "fabrik.drivers.modal_provider.subprocess.run", fake_run_not_found
+    )
+    c.destroy_endpoint("ap-missing")  # Must NOT raise
+
+
+def test_modal_destroy_endpoint_raises_on_real_error(monkeypatch):
+    """Code review iter-1: non-idempotent errors should still surface."""
+    from fabrik.drivers.modal_provider import ModalClient, ModalError
+
+    monkeypatch.setenv("MODAL_TOKEN_ID", "ak-test")
+    monkeypatch.setenv("MODAL_TOKEN_SECRET", "as-test")
+    fake_modal = MagicMock()
+    monkeypatch.setattr(
+        "fabrik.drivers.modal_provider.ModalClient.__init__",
+        lambda self, *a, **kw: setattr(self, "_modal", fake_modal)
+        or setattr(self, "token_id", "ak-test")
+        or setattr(self, "token_secret", "as-test"),
+    )
+
+    c = ModalClient()
+
+    def fake_run_auth_fail(*args, **kwargs):
+        r = MagicMock()
+        r.returncode = 1
+        r.stdout = ""
+        r.stderr = "Authentication failed: invalid token"
+        return r
+
+    monkeypatch.setattr(
+        "fabrik.drivers.modal_provider.subprocess.run", fake_run_auth_fail
+    )
+    import pytest as _pytest
+    with _pytest.raises(ModalError, match="Authentication failed"):
+        c.destroy_endpoint("ap-x")
+
+
+def test_vast_list_endpoints_handles_singular_result_shape(monkeypatch):
+    """Code review iter-1: Vast list_endpoints must handle singular `result`
+    dict as well as plural `results` list (defensive against API drift)."""
+    from fabrik.drivers.vast_provider import VastClient
+
+    monkeypatch.setenv("VAST_API_KEY", "test-key-vast")
+
+    def fake_request_singular(self, method, path, *, json=None, params=None):
+        # Singular shape with a single endpoint inside `result`
+        return {
+            "success": True,
+            "result": {"id": 555, "endpoint_name": "fabrik-gpu-singular-aaa"},
+        }
+
+    monkeypatch.setattr(VastClient, "_request", fake_request_singular)
+    c = VastClient()
+    eps = c.list_endpoints()
+    assert len(eps) == 1
+    assert eps[0]["id"] == "555"
+    assert "FABRIK_SESSION_ID" in eps[0]["env"]
+
+
+def test_history_report_includes_model_and_template_id():
+    """Code review iter-1: report must carry model + template_id (per
+    55-observability.md per-call structured fields requirement)."""
+    c = _mock_client()
+    r = gpu_rent.rent(
+        "pod-rtx-4090",
+        workload="smoke",
+        provider="runpod",
+        dry_run=True,
+        client=c,
+        template_id="my-template",
+        model="Qwen/Qwen3-1.7B",
+    )
+    assert r["template_id"] == "my-template"
+    assert r["model"] == "Qwen/Qwen3-1.7B"
+
+
+# ============================================================================
+# Code review iteration 2 fixes — regression guards
+# ============================================================================
+def test_modal_create_endpoint_cleans_rendered_template_on_failure(monkeypatch, tmp_path):
+    """Iter-2 fix: if app.deploy fails after rendering, the rendered
+    template file MUST be unlinked (else /tmp/ leaks per-call)."""
+    from fabrik.drivers.modal_provider import ModalClient, ModalError
+
+    monkeypatch.setenv("MODAL_TOKEN_ID", "ak-test")
+    monkeypatch.setenv("MODAL_TOKEN_SECRET", "as-test")
+    fake_modal = MagicMock()
+    monkeypatch.setattr(
+        "fabrik.drivers.modal_provider.ModalClient.__init__",
+        lambda self, *a, **kw: setattr(self, "_modal", fake_modal)
+        or setattr(self, "token_id", "ak-test")
+        or setattr(self, "token_secret", "as-test"),
+    )
+
+    c = ModalClient()
+    # Stub the renderer to write a known temp path
+    leaked_path = tmp_path / "fabrik-modal-test-leak.py"
+    leaked_path.write_text(
+        "import modal\napp = modal.App(name='test')\n"
+        "def _explode(): raise RuntimeError('forced')\n"
+        "app.deploy = lambda *a, **kw: _explode()\n"
+    )
+    monkeypatch.setattr(
+        ModalClient,
+        "_render_modal_template",
+        lambda self, *a, **kw: str(leaked_path),
+    )
+
+    # Make Modal SDK module loadable but cause app.deploy to fail
+    import pytest as _pytest
+    with _pytest.raises(ModalError):
+        c.create_endpoint(template_id="echo-handler", name="test-fail")
+    # CRITICAL: tempfile must be cleaned up after the failure
+    assert not leaked_path.exists(), \
+        f"rendered template leaked at {leaked_path} after create_endpoint failure"
+
+
+def test_rented_context_manager_report_includes_model_and_template():
+    """Iter-2 regression: rented() context manager's report dict must
+    include template_id + model (was missing — iter-1 only patched rent())."""
+    c = _mock_client()
+    # rented() is a context manager — we just need to peek into the report
+    # state once it builds. Using dry-run isn't supported for rented(),
+    # so we mock the work + verify by source inspection instead.
+    import inspect
+    src = inspect.getsource(gpu_rent.rented)
+    # Both fields must be present in the report dict construction
+    assert '"template_id": template_id' in src, \
+        "rented() report dict missing template_id (iter-2 regression)"
+    assert '"model": model' in src, \
+        "rented() report dict missing model (iter-2 regression)"

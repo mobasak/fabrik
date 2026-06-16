@@ -423,22 +423,34 @@ class ModalClient:
             workers_max=workers_max,
             idle_timeout=idle_timeout,
         )
-        # Programmatic deploy. app.deploy() returns immediately
-        # (non-blocking — verified in plan §1.1 probe 7).
-        spec = importlib.util.spec_from_file_location("_fabrik_modal_app", rendered_path)
-        if spec is None or spec.loader is None:
-            raise ModalError(f"could not load rendered template {rendered_path}")
-        mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(mod)
-        if not hasattr(mod, "app"):
-            raise ModalError(
-                f"rendered template {rendered_path} has no `app` module-level variable"
-            )
-        app = mod.app
+        # Phase 3.5 iter-2 fix: if anything fails between render and the
+        # successful cache-of-rendered-path below, the template tmpfile
+        # leaks. Track it and clean up on any error path.
+        deploy_succeeded = False
         try:
-            app.deploy(name=name)
-        except Exception as e:
-            raise ModalError(f"app.deploy({name}) failed: {e}", cause=e) from e
+            # Programmatic deploy. app.deploy() returns immediately
+            # (non-blocking — verified in plan §1.1 probe 7).
+            spec = importlib.util.spec_from_file_location("_fabrik_modal_app", rendered_path)
+            if spec is None or spec.loader is None:
+                raise ModalError(f"could not load rendered template {rendered_path}")
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            if not hasattr(mod, "app"):
+                raise ModalError(
+                    f"rendered template {rendered_path} has no `app` module-level variable"
+                )
+            app = mod.app
+            try:
+                app.deploy(name=name)
+            except Exception as e:
+                raise ModalError(f"app.deploy({name}) failed: {e}", cause=e) from e
+            deploy_succeeded = True
+        finally:
+            if not deploy_succeeded:
+                try:
+                    Path(rendered_path).unlink(missing_ok=True)
+                except OSError:
+                    pass
 
         # Discover the web endpoint URL via the App's registry. Modal 1.5.0
         # exposes ``app.registered_web_endpoints`` listing all web-exposed
@@ -566,10 +578,22 @@ class ModalClient:
             },
         )
         if result.returncode != 0:
-            raise ModalError(
-                f"modal app stop {endpoint_id} failed: "
-                f"{result.stderr.strip() or result.stdout.strip()}"
-            )
+            # Idempotent semantics: if the app is already stopped or gone,
+            # treat as success (mirrors Vast's 404-on-DELETE handling).
+            # Modal CLI messages we've seen in the wild:
+            #   "App is already stopped. (Stopped at ... by 'mobasak')."
+            #   "App not found"
+            msg = (result.stderr.strip() or result.stdout.strip()).lower()
+            if "already stopped" in msg or "not found" in msg or "no such app" in msg:
+                logger.info(
+                    "modal app %s already stopped/missing — treating as success",
+                    endpoint_id,
+                )
+            else:
+                raise ModalError(
+                    f"modal app stop {endpoint_id} failed: "
+                    f"{result.stderr.strip() or result.stdout.strip()}"
+                )
         # Clean up the cached entry + rendered tempfile
         cache = getattr(self, "_endpoint_cache", {})
         ep = cache.pop(endpoint_id, None)

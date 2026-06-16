@@ -49,6 +49,52 @@ A parallel read-only audit of the full active doc tree (reference, kilo, windsur
 - **Counts/ids:** Authelia 10→8 (audit-prompts/03), DNS 17→18 + `watchdog-test` (vps-complete-inventory), Grafana 8→5 Fabrik dashboards (vps-ai-sysadmin), windsurf extensions 26→11 + rule packs 30→35 (overview), stale model ids → `claude-sonnet-4-6`/`claude-opus-4-8` (CRITICAL_RULES, kpi-schema, FAQ, KILO_CLI_REFERENCE).
 - **Broken/phantom refs:** removed 4 phantom kilo README rows; `~/.windsurfrules`→`.windsurf/rules/` (DOCUMENTATION_STANDARD); PLANNING_REFERENCES paths; broken EXTENSIONS.md ref; mcp-kilo-setup-guide config path standardized to `~/.traycer/mcp.json`.
 
+### Added — Phase 3.5 hardening: 4 LIVE gates + 26 comprehensive scenarios + 2 code-review iterations (2026-06-17)
+
+After the initial Phase 3.5 commit (`48b41ea`), Vast was topped up from $4.98 → $9.98 to clear the $5 minimum-balance gate. Re-ran all live gates, surfaced 2 driver bugs during live testing, did 2 rounds of code review to converge.
+
+**Live gates against real provider accounts:**
+
+- **LIVE-14** Vast endpoint+workergroup create→destroy: ✅ **GREEN** — 6.0s wall-clock, $0. Caught real-API response shape (`{"success": true, "result": <id>}` — Vast uses `result` not `endpoint_id`/`id`). Driver patched at [`vast_provider.py`](src/fabrik/drivers/vast_provider.py) `create_endpoint` to accept all 3 forms.
+- **LIVE-15** Vast vLLM (TinyLlama-1.1B) endpoint lifecycle: ✅ **GREEN** — 196s wall-clock, $0 (marketplace workers didn't recruit in 3min). Caught `get_endpoint()` parsing bug — single-GET response is `{"success": true, "result": {...}}` (singular `result`) vs list GET's `{"success": true, "results": [...]}` (plural). Driver patched to handle both. Routing API (`POST run.vast.ai/route/`) confirmed working.
+- **LIVE-16** Cross-provider reconcile: ✅ **GREEN** — walks RunPod + Modal + Vast, C4 tag-safety verified, foreign_count=1 (your manually-created SmolLM2 endpoint) untouched.
+- **LIVE-17** Tag-safe orphan cleanup: ✅ **GREEN** — created a Fabrik-tagged Vast endpoint outside the rent() flow, recorded as expired session in state, ran `reaper.reap(auto_destroy=True)`. Endpoint destroyed, state marked, foreign_count untouched. Also caught Vast's 429 rate-limit on `/template/` search; driver patched to honor `retry_after` + skip liveness check on pinned hashes.
+- **LIVE-18** `--provider auto` serverless routing: ✅ **GREEN** across 3 scenarios:
+  - `--utilization 0.3` → **modal** ($0.15) — "low utilization, Modal's per-second wins"
+  - `--utilization 1.0` → **runpod** ($0.50) — "Vast cheapest but spot requires checkpointing; falling back"
+  - `--needs-checkpointing` → **vast** ($0.40) — "auto-enabled --interruptible for Vast spot"
+
+**Comprehensive scenario test suite** at [`tests/orchestrator/test_gpu_comprehensive_scenarios.py`](tests/orchestrator/test_gpu_comprehensive_scenarios.py) — **26 scenarios across 10 categories** (every angle of every provider):
+
+S1 cost estimation provider-aware, S2 selection_advice routing, S3 dry-run creates nothing across all 12 (provider × kind) combos, S4 cost guards before any API call, S5 client_for_provider factory, S6 HOURLY_USD_BY_PROVIDER serverless rates, S7 Modal templates render+AST-parse, S8 Vast uses `/workergroups/` NOT `/autogroups/` (B4 regression guard), S9 Modal has NO `_app.stop()` calls (B1 regression guard), S10 CLI flags `--model` + `--template` exposed.
+
+**Code review convergence — 2 iterations:**
+
+- **Iter 1** (parallel agents reviewing drivers vs plan + rules conformance): 3 real findings — Modal `destroy_endpoint` not 404-idempotent; Vast `list_endpoints` only handled plural `results`; history report lacked `model` + `template_id`. All fixed. +4 regression tests.
+- **Iter 2** (final convergence audit): 2 real findings — `rented()` context manager missed `template_id`+`model` (regression from iter-1 fix); Modal `create_endpoint` leaked rendered template tmpfile on error. Both fixed. +2 regression tests.
+- Result: **zero further bugs identified**, plan/code convergence achieved.
+
+**Tests: 59/59 pass** (53 after first 3.5 commit + 4 iter-1 + 2 iter-2 = 59).
+
+**Terminal validation:**
+
+- `scripts/final_gate.py --lean --json`: ✅ `{"status": "success", "passed": 14, "failed": 0}`
+- Comprehensive suite: ✅ 26/26 pass
+- `fabrik gpu reconcile --provider all`: ✅ walks all 3, foreign_count=1 (untouched), no orphans
+- Orphan paranoia: ✅ Modal=0 / Vast=0 / RunPod=0
+
+**Total live spend across this hardening pass: ~$0.05** (mostly Vast endpoint provisioning; vLLM workers didn't recruit).
+
+**What "rent according to needs" looks like now** — operator runs:
+
+```bash
+fabrik gpu rent --kind serverless --workload chat \
+    --provider auto --utilization 0.3 --needs-serverless \
+    --template echo-handler --max-cost 1 --max-lifetime 1
+```
+
+Orchestrator picks Modal (per-second wins at low utilization), deploys echo template, runs work_fn, destroys. For high-util sustained: picks RunPod. With `--needs-checkpointing`: picks Vast spot. C4 tag-safety honored on all paths.
+
 ### Added — Phase 3.5 serverless: Modal + Vast.ai endpoint lifecycle wired (2026-06-17)
 
 Completes the GPU serverless surface across all three providers. Plan executed from [`docs/development/plans/2026-06-17-gpu-serverless-phase-3-5-converged.md`](docs/development/plans/2026-06-17-gpu-serverless-phase-3-5-converged.md) after 4 plan iterations caught 8 critical bugs before any code was written.

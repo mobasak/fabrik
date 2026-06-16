@@ -704,6 +704,8 @@ def rent(
             "kind": kind,
             "workload": workload,
             "provider": provider,
+            "template_id": template_id,
+            "model": model,
             "max_lifetime_hours": max_lifetime_hours,
             "cost_estimate_usd": est,
             "today_gpu_spend": today_gpu_spend,
@@ -718,6 +720,11 @@ def rent(
         "kind": kind,
         "workload": workload,
         "provider": provider,
+        # Phase 3.5: per-call structured fields for cost-budget rollups +
+        # 55-observability.md rule that every inference call carries the
+        # model identifier (so cost-per-model is computable from history).
+        "template_id": template_id,
+        "model": model,
         "max_lifetime_hours": max_lifetime_hours,
         "resource_type": "endpoint" if kind == "serverless" else "pod",
         "resource_id": None,
@@ -939,6 +946,11 @@ def rented(
         "kind": kind,
         "workload": workload,
         "provider": provider,
+        # Phase 3.5 iter-2 fix: rented() report mirrors rent()'s
+        # template_id/model fields so structured log + cost-per-model
+        # rollups work uniformly across both entry points.
+        "template_id": template_id,
+        "model": model,
         "resource_type": resource_type,
         "resource_id": None,
         "gpu_type_id": GPU_TYPE_IDS.get(kind),
