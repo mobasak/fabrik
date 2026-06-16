@@ -1,6 +1,6 @@
 # Fabrik Scaffold Structure
 
-**Last Updated:** 2026-04-29 (code-truth pass: enforcement script count corrected to 35, `SPEC_ENABLED_TYPES` list corrected against `src/fabrik/spec_generator.py:58`, post-scaffold initialization section trimmed to only describe steps the user must do manually — `git init` / `.venv` / `pre-commit install` are now performed by `create_project()` itself; `fabrik new` deprecation banner from Phase 4k 2026-04-22 retained.)
+**Last Updated:** 2026-06-16 (WordPress correction: deployment moved out of Fabrik to `/opt/wpf/`; `wordpress` is now a scaffold-skeleton-only type and `fabrik apply` on it errors/redirects to `wpf`; flagged missing `templates/wordpress/` on disk.) · 2026-04-29 (code-truth pass: enforcement script count corrected to 35, `SPEC_ENABLED_TYPES` list corrected against `src/fabrik/spec_generator.py:58`, post-scaffold initialization section trimmed to only describe steps the user must do manually — `git init` / `.venv` / `pre-commit install` are now performed by `create_project()` itself; `fabrik new` deprecation banner from Phase 4k 2026-04-22 retained.)
 **Script:** `@/opt/fabrik/src/fabrik/scaffold.py` (scaffold command)
 
 > Complete reference for the folder and file structure created by `fabrik scaffold`. Sister doc to the broader `FABRIK_SCAFFOLD_WORKFLOW.md` (this file is narrowly scoped to the file tree).
@@ -230,7 +230,7 @@ After scaffold completes, `fabrik scaffold` automatically generates a deployment
 - `static-site`
 - `docusaurus`
 
-> **Excluded by design:** `chrome-extension`, `mobile-app`, `desktop-app` are packaged artifacts (Chrome Web Store / app stores / direct dist) — no VPS deploy, so no spec. `wordpress` uses the `fabrik wp` pipeline with its own `site.yaml` schema.
+> **Excluded by design:** `chrome-extension`, `mobile-app`, `desktop-app` are packaged artifacts (Chrome Web Store / app stores / direct dist) — no VPS deploy, so no spec. `wordpress` only produces a scaffold skeleton in Fabrik; its **deployment + lifecycle moved out of Fabrik** to the standalone `/opt/wpf/` project (`wpf` CLI, per-site `specs/sites/<domain>.yaml`). `fabrik apply` on a `wordpress`-type project now errors and redirects to `wpf`.
 
 **Spec file location:** `/opt/fabrik/specs/services/{project-name}.yaml`
 
@@ -270,11 +270,13 @@ Different scaffold types create variations:
 | `node-api` | `templates/node-api/` | Express + JavaScript |
 | `file-api` | `templates/file-api/` | File operations API (Node.js) |
 | `file-worker` | `templates/file-worker/` | Python background worker |
-| `wordpress` | `templates/wordpress/` | WordPress + WP-CLI |
+| `wordpress` | `templates/wordpress/` ⚠️ | WordPress + WP-CLI (scaffold skeleton only; deploy via `/opt/wpf/`) |
 | `docusaurus` | `templates/docusaurus/` | Docusaurus docs site |
 | `chrome-extension` | `templates/chrome-extension/` | Chrome extension (Vite + CRXJS) + Python backend |
 | `mobile-app` | `templates/mobile-app/` | React Native + TypeScript |
 | `desktop-app` | `templates/desktop-app/` | Electron + TypeScript |
+
+> ⚠️ **`templates/wordpress/` is referenced by `scaffold.py:165` (`WORDPRESS_TEMPLATE_DIR`) but is NOT present on disk** (the directory was removed alongside the WordPress-deployment migration to `/opt/wpf/`). `fabrik scaffold --type wordpress` will therefore fail until the template is restored or the scaffold type is retired. Flagged 2026-06-16 — needs a code-side decision (out of scope for this doc edit).
 
 ---
 

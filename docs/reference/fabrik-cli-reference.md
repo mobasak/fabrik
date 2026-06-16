@@ -1,6 +1,6 @@
 # Fabrik CLI Reference
 
-**Last Updated:** 2026-06-15
+**Last Updated:** 2026-06-16
 **Source:** `src/fabrik/cli.py`
 **Live help:** `fabrik --help` (run from any directory)
 
@@ -462,11 +462,12 @@ fabrik import <bundle.tar.gz> [--real-run]
 `fabrik wp ...` no longer exists in the Fabrik CLI. WordPress operations live in the standalone `/opt/wpf/` factory and use its own CLI:
 
 ```bash
-wpf wp apply <site-id>
 wpf wp plan <site-id>
+wpf wp apply <site-id>
 wpf wp verify <site-id>
-wpf wp flush <site-id>
 ```
+
+(Cache flushing is internal to `wpf wp apply`/`verify`, not a standalone `wpf wp flush` subcommand. The full `wp` group is `plan | apply | verify | create | preview | promote`.)
 
 See `/opt/wpf/AGENTS.md` and `/opt/wpf/docs/DEPLOYMENT.md` for the WP-specific architecture (golden Docker image + Coolify-pull today; SSH + Docker Compose with a 4-container per-site stack as the target — `docs/traycer/mega-epic-breakdown/domain-modules/wordpress.md`).
 

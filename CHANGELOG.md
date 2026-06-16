@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — docs/workflows + reference: WordPress fully out of Fabrik + Coolify/Netdata/consolidate_envs staleness (2026-06-16)
+
+Evidence-based walk of `docs/workflows/` (18 files) with the "is it actually used?" lens — surfaced real drift the earlier passes missed:
+
+- **WordPress is fully out of Fabrik.** `fabrik apply` on a `wordpress` project now errors → "moved to `/opt/wpf/`, use the `wpf` CLI" (`cli.py:445`); the `fabrik wp` command group was removed (`cli.py:2100`); `src/fabrik/wordpress/` no longer exists. Only `fabrik scaffold --type wordpress` (skeleton) remains. Corrected the dead `fabrik wp …` / `src/fabrik/wordpress` references in `reference/fabrik-cli-reference.md`, `reference/fabrik.md`, `workflows/SCAFFOLD_STRUCTURE.md`, `workflows/FABRIK_SCAFFOLD_WORKFLOW.md` → point WP deploy/lifecycle at the separate `/opt/wpf` (`wpf` CLI) project. **(Flag: `templates/wordpress/` is missing on disk but `scaffold.py` still references it — `fabrik scaffold --type wordpress` would fail; a code decision, not a doc fix.)**
+- **`FABRIK_SCAFFOLD_WORKFLOW.md`** — 6 dead `docs/DEPLOYMENT.md` → `DEPLOYMENT_ARCHITECTURE.md`; 3 dead `wordpress-site-workflow.md` refs → `/opt/wpf`.
+- **`development-and-deployment-workflow.md`** — multiple stale "**Coolify pulls from GitHub**" redeploy claims → the VPS runs `git pull` + `docker compose up -d --wait` over SSH (`deployer_ssh.py`); removed **Netdata** as a live observer/dashboard (removed 2026-05-30); `DEPLOYMENT.md` → `DEPLOYMENT_ARCHITECTURE.md`; fixed the traycer link (`…-workflow` → `…-workflow-epic`); dropped Coolify from the external-knowledge vendor list, the planning-constraint list, and the secret-injection note.
+- **`DATA_SYNC_WORKFLOW.md` + `KILO_AGENT_MANAGEMENT.md`** — `consolidate_envs.py` is **deprecated** (`.deprecated` on disk); `watch_env_changes.sh` is still wired (env-watcher.service + WSL startup) but was **rewired to the read-only `audit_envs.py`** — corrected the docs (env-consolidation deprecated; `/opt/fabrik/.env` canonical + W9 DR-mirrored).
+
 ### Fixed — docs/ root canonical docs: dead `DEPLOYMENT.md` refs + broken relative links (2026-06-16)
 
 Evidence-based walk of the `docs/` root-level files (the canonical references everything points at). Fixed:

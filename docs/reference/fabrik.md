@@ -599,106 +599,26 @@ fabrik verify api.example.com
 
 ---
 
-## wp_plan
+## wp_plan / wp_apply / wp_verify — REMOVED from Fabrik (2026-06-16)
 
-**Signature:**
-
-```python
-@wp.command("plan")
-@click.argument("site_id")
-def wp_plan(site_id: str) -> None:
-```
-
-**Description:**
-Generates a WordPress site deployment plan for the requested site ID.
-
-**Parameters:**
-
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `site_id` | `str` | Yes | — | Identifier of the WordPress site |
-
-**Returns:**
-`None`
-
-**Raises:**
-`SystemExit` – if plan generation fails.
-
-**Example:**
-
-```bash
-fabrik wp plan ocoron.com
-```
-
----
-
-## wp_apply
-
-**Signature:**
-
-```python
-@wp.command("apply")
-@click.argument("site_id")
-@click.option("--dry-run", is_flag=True, help="Simulate deployment without making changes")
-@click.option("--force-stage", default=None, help="Force re-run a specific stage (bypasses skip)")
-def wp_apply(site_id: str, dry_run: bool, force_stage: str | None) -> None:
-```
-
-**Description:**
-Deploys a WordPress site from the previously generated plan, with support for dry‑run and forced stage execution.
-
-**Parameters:**
-
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `site_id` | `str` | Yes | — | Identifier of the WordPress site |
-| `dry_run` | `bool` | No | `False` | Simulate deployment |
-| `force_stage` | `str | None` | No | `None` | Stage to force re‑run |
-
-**Returns:**
-`None`
-
-**Raises:**
-`SystemExit` – if deployment fails.
-
-**Example:**
-
-```bash
-fabrik wp apply ocoron.com --dry-run
-```
-
----
-
-## wp_verify
-
-**Signature:**
-
-```python
-@wp.command("verify")
-@click.argument("domain")
-def wp_verify(domain: str) -> None:
-```
-
-**Description:**
-Runs health checks against a deployed WordPress site and produces a verification report.
-
-**Parameters:**
-
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `domain` | `str` | Yes | — | Domain to verify |
-
-**Returns:**
-`None`
-
-**Raises:**
-`SystemExit` – if verification cannot be performed.
-
-**Example:**
-
-```bash
-fabrik wp verify ocoron.com
-```
+> **The `fabrik wp ...` command group no longer exists in the Fabrik CLI.**
+> WordPress deployment + lifecycle moved to the standalone `/opt/wpf/`
+> project and its own `wpf` CLI. The docstrings previously rendered here
+> (`wp_plan`, `wp_apply`, `wp_verify`) referred to commands that have been
+> deleted from `src/fabrik/cli.py`.
+>
+> Use instead, from `/opt/wpf/`:
+>
+> ```bash
+> wpf wp plan <site-id>
+> wpf wp apply <site-id> [--dry-run]
+> wpf wp verify <site-id>
+> ```
+>
+> Per-site specs live at `/opt/wpf/specs/sites/<domain>.yaml`. See
+> `/opt/wpf/AGENTS.md` and `/opt/wpf/docs/DEPLOYMENT.md`. Fabrik still
+> provides the `wordpress` **scaffold type** (`fabrik scaffold --type
+> wordpress --preset <preset>`) — it just no longer deploys WordPress.
 
 ---
 

@@ -1,7 +1,7 @@
 # Data Sync Workflow
 
-**Last Updated:** 2026-05-13
-**Status:** PRODUCTION
+**Last Updated:** 2026-06-16
+**Status:** PRODUCTION (env-consolidation in Section 1.2 is DEPRECATED — see banner there)
 **Scripts:** Multiple (see sections below)
 
 > Complete reference for all data synchronization between `/opt/*` project folders and `/opt/fabrik`.
@@ -39,23 +39,24 @@ What it aggregates:
 - Stack detection (from files or `project.yaml` type fallback)
 - Auto-categorization (Production / Active Development / Planning / Test)
 
-### 1.2 Environment Variable Consolidation
+### 1.2 Environment Variable Consolidation — DEPRECATED
 
-| Field | Value |
-|-------|-------|
-| **Script** | `scripts/consolidate_envs.py` |
-| **Watcher** | `scripts/watch_env_changes.sh` (inotifywait) |
-| **Reads** | `.env` from all `/opt/*/` projects |
-| **Writes** | `/opt/fabrik/.env` (master credentials file) |
-| **Trigger** | Continuous (via inotifywait watcher on WSL boot) |
-| **Automation** | ✅ WSL startup hook (persistent background process) |
-| **Log** | `.tmp/env_watcher.log` |
-
-What it aggregates:
-- All env vars from project `.env` files, merged into project-scoped sections
-- Preserves existing Fabrik core vars
-- Masks sensitive values in dry-run output
-- Backup before overwrite
+> **⚠️ DEPRECATED (2026-06-16).** The consolidation model below is gone.
+> `scripts/consolidate_envs.py` no longer exists as a live tool — it is retired
+> to `scripts/consolidate_envs.py.deprecated` (and its test to
+> `scripts/test_env_consolidation.py.deprecated`). Fabrik **no longer consolidates
+> `/opt/fabrik/.env` FROM project `/opt/*/.env` files.**
+>
+> **Current env model:**
+>
+> - `/opt/fabrik/.env` is the **canonical source**, maintained directly (not generated).
+> - It is mirrored off-site by the **W9 DR pipeline** — `scripts/dr_env_backup.sh`
+>   driven by `fabrik-dr-watcher.service` (systemd inotify watcher), with a weekly
+>   self-test via `scripts/dr_env_recovery_test.sh`. See
+>   [`docs/operations/credential-recovery.md`](../operations/credential-recovery.md).
+> - The still-running `scripts/watch_env_changes.sh` watcher (Section 4) was rewired
+>   to invoke the **read-only** `scripts/audit_envs.py` — it audits project `.env`
+>   files for violations and **never writes** `/opt/fabrik/.env`.
 
 ### 1.3 Scaffold Compliance Audit
 
@@ -204,7 +205,7 @@ Scripts that run within Fabrik only, referenced by the WSL startup hook.
 
 | Process | Script | Purpose |
 |---------|--------|---------|
-| Env watcher | `watch_env_changes.sh` | inotifywait on `/opt/*/.env` → `consolidate_envs.py --apply` |
+| Env watcher | `watch_env_changes.sh` | inotifywait on `/opt/*/.env` → `audit_envs.py` (read-only violation audit; does NOT write `/opt/fabrik/.env`). The old `consolidate_envs.py --apply` consolidation is deprecated — see Section 1.2. |
 
 ### Daily Pipeline (once per boot day, non-blocking)
 

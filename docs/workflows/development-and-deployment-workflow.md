@@ -2,7 +2,7 @@
 
 **Audience:** Owner reference + onboarding agents (Traycer / Claude Code / Cascade / Kilo CLI).
 **Authority:** This document narrates the workflow. Authoritative rule sources stay in [AGENTS.md](../../AGENTS.md), [CLAUDE.md](../../CLAUDE.md), [.windsurfrules](../../.windsurfrules), [AGENTS-compact.md](../../AGENTS-compact.md), and the topic packs under [.windsurf/rules/](../../.windsurf/rules/). When this document and a rule file disagree, the rule file wins — update this document.
-**Updated:** 2026-05-14
+**Updated:** 2026-06-16
 
 > **⚠️ Partially pre-migration vintage.** Sections that mention Coolify
 > (Coolify dashboard, `coolify.vps1.ocoron.com`, Coolify deploy step) are
@@ -17,7 +17,7 @@
 
 ## 0. Mental model
 
-You are a solo developer in WSL Ubuntu on Windows. Every project deploys to one x86_64 VPS at `172.93.160.197`, orchestrated by SSH + Docker Compose, routed by Traefik with Let's Encrypt, fronted by Authelia for admin UIs, protected by `X-Internal-Token` for API-to-API calls, and observed by Gatus + Prometheus + Grafana + Loki + GlitchTip + Netdata. The same code must run in three environments without modification: WSL dev (Postgres on localhost via `.env`), VPS Docker (`postgres-main` on the `coolify` network), and Supabase (env vars). Philosophy: **fast but pro** — ship, iterate, automate; no over-engineering.
+You are a solo developer in WSL Ubuntu on Windows. Every project deploys to one x86_64 VPS at `172.93.160.197`, orchestrated by SSH + Docker Compose, routed by Traefik with Let's Encrypt, fronted by Authelia for admin UIs, protected by `X-Internal-Token` for API-to-API calls, and observed by Gatus + Prometheus + Grafana + Loki + Alertmanager + GlitchTip. The same code must run in three environments without modification: WSL dev (Postgres on localhost via `.env`), VPS Docker (`postgres-main` on the `coolify` network), and Supabase (env vars). Philosophy: **fast but pro** — ship, iterate, automate; no over-engineering.
 
 Four families of files orchestrate the agents:
 
@@ -54,7 +54,7 @@ The scaffold also propagates `.windsurfrules`, `.windsurf/rules/`, and `.windsur
 
 ## 3. Plan with Traycer
 
-Traycer reads `AGENTS.md` every interaction. The ticket workflow is `trigger` → `brief` → `plan` → `breakdown` → `execute`, defined in [docs/traycer/traycer-managed-development-workflow/](../traycer/traycer-managed-development-workflow/) (with a human-readable reference copy at [docs/traycer/fabrik-workflow.md](../traycer/fabrik-workflow.md)).
+Traycer reads `AGENTS.md` every interaction. The ticket workflow is `trigger` → `brief` → `plan` → `breakdown` → `execute`, defined in [docs/traycer/traycer-managed-development-workflow-epic/](../traycer/traycer-managed-development-workflow-epic/) (with a human-readable reference copy at [docs/traycer/fabrik-workflow.md](../traycer/fabrik-workflow.md)).
 
 Before generating any plan, Traycer runs **6 mandatory pre-flight checks** ([AGENTS.md § MANDATORY ORCHESTRATOR PRE-FLIGHT](../../AGENTS.md)):
 
@@ -63,9 +63,9 @@ Before generating any plan, Traycer runs **6 mandatory pre-flight checks** ([AGE
 3. **Fabrik Microservices table** — use existing internal APIs before planning new logic.
 4. **Hardware audit** — confirm all Docker images support `linux/amd64`.
 5. **Design System** — for any UI surface, read `.windsurf/rules/core/ocoron-design-system.md` before generating any spec or copy.
-6. **External Knowledge Verification** — for 3rd-party APIs (Coolify, Paddle, Traefik, Authelia, Supabase, Cloudflare, n8n — Stripe NOT available to TR entities), verify the current contract against live docs before writing the ticket; cite the URL in the ticket's `References:` field. After 3 search misses → mark ticket `BLOCKED: external-research-needed`.
+6. **External Knowledge Verification** — for 3rd-party APIs (Paddle, Traefik, Authelia, Supabase, Cloudflare, n8n — Stripe NOT available to TR entities), verify the current contract against live docs before writing the ticket; cite the URL in the ticket's `References:` field. After 3 search misses → mark ticket `BLOCKED: external-research-needed`.
 
-Then Traycer applies the **12 planning constraints**: solo dev, x86_64 only, budget-conscious, reuse existing microservices, prebuilt containers, port conflicts, Coolify deployment, no Alpine, complete dependent modules first, DNS via site-provisioner, scaffold immutability (no reorganization), surface state conflicts explicitly.
+Then Traycer applies the **12 planning constraints**: solo dev, x86_64 only, budget-conscious, reuse existing microservices, prebuilt containers, port conflicts, `fabrik apply` deploy model (SSH + Docker Compose), no Alpine, complete dependent modules first, DNS via site-provisioner, scaffold immutability (no reorganization), surface state conflicts explicitly.
 
 Traycer's deliverable is one or more tickets. Each carries: **Scope** (which files), **Acceptance Criteria** (testable), **Final Gate Instruction** (literal command + flags), **Lessons Learnt** field (`none` or required), and **Implementation Notes**.
 
@@ -156,9 +156,9 @@ Two CLI entry points, both routing through the same orchestrator pipeline:
 
 - **`fabrik apply`** — the single deploy command; `project.yaml`-driven when run with no spec_path.
 - **`fabrik apply`** — legacy, spec-driven. Reads `specs/services/<name>.yaml`; runs the registrars whose flags match the `shape:` block.
-- **`fabrik redeploy <app>`** — re-pulls a git-sourced app. **CRITICAL:** Coolify pulls from the GitHub remote, NOT from your local `/opt/<name>/` clone. Mandatory sequence: `git commit` → `git push` → `fabrik redeploy`. Skipping `git push` silently redeploys the previous remote commit. Full reference: [docs/DEPLOYMENT.md](../DEPLOYMENT.md).
+- **`fabrik redeploy <app>`** — re-pulls a git-sourced app. **CRITICAL:** the VPS (not Coolify) runs `git pull` from the GitHub remote, NOT from your local `/opt/<name>/` clone. Mandatory sequence: `git commit` → `git push` → `fabrik redeploy`. Skipping `git push` silently redeploys the previous remote commit. Full reference: [docs/DEPLOYMENT_ARCHITECTURE.md](../DEPLOYMENT_ARCHITECTURE.md).
 
-Coolify pulls the image, runs `docker compose up`, attaches the container to the `coolify` Docker network. Traefik labels (scaffold-emitted) handle routing:
+The VPS (not Coolify) runs `git pull` + `docker compose up -d --wait` over SSH (`orchestrator/deployer_ssh.py`), attaching the container to the `coolify` Docker network (named `coolify` for compat). Traefik labels (scaffold-emitted) handle routing:
 
 - Admin UI → `authelia-forward@docker,gzip@docker`
 - API service → `gzip@docker`
@@ -169,8 +169,8 @@ DNS for `*.vps1.ocoron.com` is managed by **site-provisioner** (`dns.vps1.ocoron
 The 4-layer security model wraps every deployed service:
 
 1. **iptables DOCKER-USER** drops all external Docker traffic except ports 80 / 443 / 6001 / 6002. Enforced via `/etc/systemd/system/iptables-docker-user.service` on the VPS.
-2. **Authelia** forward-auth (2FA) protects admin dashboards (`n8n`, `Netdata`, `Backrest`, `Apprise`); `^/api/` bypass for Coolify and Grafana; GlitchTip is on full-bypass (uses django-allauth app-layer TOTP). **Authelia exits on SIGHUP** — config changes require `docker restart <authelia-container>`. Procedure: [30-ops.md § Authelia SSO](../../.windsurf/rules/core/30-ops.md).
-3. **`X-Internal-Token`** (via `internal_auth.py` + shared `SERVICE_INTERNAL_SECRET_KEY` in `/opt/fabrik/.env`, same value pushed to Coolify env for every deployed service) for all API-to-API calls. Validation is constant-time (`hmac.compare_digest`). Exceptions: `file-api` uses Supabase Bearer JWT (user auth, different pattern); `site-provisioner` uses Traefik IP allowlist.
+2. **Authelia** forward-auth (2FA) protects admin dashboards (`n8n`, `Backrest`, `Apprise`, Grafana); GlitchTip is on full-bypass (uses django-allauth app-layer TOTP). **Authelia exits on SIGHUP** — config changes require `docker restart <authelia-container>`. Procedure: [30-ops.md § Authelia SSO](../../.windsurf/rules/core/30-ops.md).
+3. **`X-Internal-Token`** (via `internal_auth.py` + shared `SERVICE_INTERNAL_SECRET_KEY` in `/opt/fabrik/.env`, same value written to each service's `/opt/<svc>/.env` by `deployer_ssh`) for all API-to-API calls. Validation is constant-time (`hmac.compare_digest`). Exceptions: `file-api` uses Supabase Bearer JWT (user auth, different pattern); `site-provisioner` uses Traefik IP allowlist.
 4. **Traefik** routes public sites (`ocoron.com`, `status.vps1.ocoron.com`) without auth.
 
 Single-image Coolify Applications get a container name with a timestamp suffix that changes per redeploy. To keep Gatus and inter-service URLs stable, install a stable alias on the `coolify` network: (a) add to compose `networks.coolify.aliases`, (b) live-apply with `docker network disconnect coolify <uuid-name>` then `docker network connect --alias <stable> --alias <uuid-name> coolify <uuid-name>`, (c) register in `scripts/vps_apply_limits.sh` `apply_alias` section (reboot persistence). Currently registered: `browserless`, `gotenberg`, `meilisearch`, `glitchtip-web`. Procedure + canonical pair list: [docs/infrastructure/archive/coolify-stable-aliases.md](../infrastructure/archive/coolify-stable-aliases.md).
@@ -200,7 +200,7 @@ The moment the container is up:
 - **Loki** (internal `:3100`) ingests logs via **Promtail**. High-cardinality fields (`request_id`, `user_id`, `client_ip`) must be embedded in the JSON payload, not used as stream labels.
 - **Grafana** (`monitor.vps1.ocoron.com`) renders Prometheus + Loki dashboards. Provisioning bind-mounted from `configs/grafana/provisioning/`.
 - **GlitchTip** (`errors.vps1.ocoron.com`) auto-captures unhandled exceptions; the scaffolded `glitchtip_init.py` is no-op until `GLITCHTIP_DSN` is set per service via [scripts/provision_glitchtip_project.sh](../../scripts/provision_glitchtip_project.sh). Discipline: do NOT also `logger.exception()` for unhandled errors — that duplicates the traceback into Loki.
-- **Netdata** (`netdata.vps1.ocoron.com`) shows real-time host metrics (CPU / RAM / disk / network) — dashboard only, no paging.
+- **Host metrics** (CPU / RAM / disk / network) flow through Prometheus + Grafana via `node-exporter` and `cadvisor` (Netdata was removed 2026-05-30).
 - **Authelia 2FA codes** go to `/config/notification.txt` on the Authelia container (SMTP via SES port 465 was disabled after it failed).
 
 ## 12. Operate, iterate, learn
@@ -248,9 +248,9 @@ LESSONS LEARNT (`none` | docs/LESSONS_LEARNT.md entry)
        ↓
 Gate auto-stages (git add only). Coder STOPS.
        ↓
-YOU:  git commit  →  git push  →  fabrik redeploy   (Coolify pulls from GitHub remote, not local /opt/)
+YOU:  git commit  →  git push  →  fabrik redeploy   (VPS runs git pull from GitHub remote, not local /opt/)
        ↓
-Coolify deploys via Docker Compose on the `coolify` network
+VPS runs git pull + docker compose up -d --wait over SSH on the `coolify` network
        ↓
 Traefik routes → Authelia (admin) / X-Internal-Token (API) / open (public)
        ↓
@@ -281,7 +281,7 @@ Every claim in this document is checkable. The grep / file commands below valida
 | 12 planning constraints in AGENTS.md | `awk '/^## Planning Constraints/,/^---$/' /opt/fabrik/AGENTS.md \| grep -cE '^[0-9]+\. \*\*'` |
 | 0 packs left with `activation: always_on` | `grep -rl 'activation: always_on' /opt/fabrik/.windsurf/rules/**/*.md \| wc -l` |
 | `CROSS_CUTTING_REQUIREMENTS.md` is gone | `test -e /opt/fabrik/.windsurf/rules/CROSS_CUTTING_REQUIREMENTS.md && echo PRESENT \|\| echo absent` |
-| Coolify pulls from GitHub, not `/opt/` | Read [.windsurf/rules/core/30-ops.md § Redeploying Git-Sourced Apps](../../.windsurf/rules/core/30-ops.md) |
+| VPS (not Coolify) runs `git pull` from GitHub, not `/opt/` | Read [.windsurf/rules/core/30-ops.md § Redeploying Git-Sourced Apps](../../.windsurf/rules/core/30-ops.md) |
 | Authelia exits on SIGHUP | Read [.windsurf/rules/core/30-ops.md § Authelia SSO](../../.windsurf/rules/core/30-ops.md) |
 | Scaffold-emitted modules per API scaffold | Read [AGENTS.md § What every API scaffold emits automatically](../../AGENTS.md) |
 

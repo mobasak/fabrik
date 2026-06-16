@@ -760,7 +760,8 @@ source /opt/fabrik/scripts/wsl_startup_hook.sh
 > **Full startup pipeline reference:** `docs/workflows/DATA_SYNC_WORKFLOW.md`
 
 **Persistent processes (started on every WSL boot, run continuously):**
-- `watch_env_changes.sh` — Monitors `/opt/*/.env` file changes via `inotifywait`, auto-runs `consolidate_envs.py --apply` to keep `/opt/fabrik/.env` in sync. Log: `.tmp/env_watcher.log`
+- `watch_env_changes.sh` — Monitors `/opt/*/.env` file changes via `inotifywait` and runs the **read-only** `audit_envs.py` violation audit. Log: `.tmp/env_watcher.log`
+  - **Note:** the old `consolidate_envs.py --apply` auto-sync is **deprecated** (script retired to `scripts/consolidate_envs.py.deprecated`), so that consolidation is dormant. `/opt/fabrik/.env` is now the **canonical** source, maintained directly and mirrored off-site by the W9 DR watcher (`fabrik-dr-watcher.service` + `scripts/dr_env_backup.sh`). See `docs/operations/credential-recovery.md`.
 
 **Daily pipeline (runs once per WSL boot day, non-blocking, chained):**
 
