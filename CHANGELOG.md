@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — .env.example retired-service residue (2026-06-17)
+
+`.env.example` still presented removed services as configurable. None of these vars are `required=True` (verified), so marked (not deleted — kept for any loose legacy ref):
+
+- **`SITE_PROVISIONER_URL`** pointed at the dead `dns.vps1.ocoron.com` and was mislabeled "DNS Manager Service" → fixed to `https://provision.vps1.ocoron.com` (matches `config.py`'s default; site-provisioner is the one live microservice), section retitled.
+- Marked RETIRED with replacement notes: **Netdata** (→ node-exporter + cAdvisor), **Image Broker** (2026-06-02 → Unsplash/Pexels/Pixabay), **MinIO** (→ B2/R2), **Uptime Kuma** (→ Gatus), and the internal `TRANSLATOR_URL`/`EMAIL_GATEWAY_URL`/`CAPTCHA_URL`/`PROXY_URL` microservices (NXDOMAIN → use the external DeepL/Resend/Anti-Captcha/Webshare APIs directly). External API keys left as current.
+
 ### Fixed — apps/ + root compose + deploy workflow + config Coolify residue (2026-06-17)
 
 Final sweep across non-`docs/` config/deploy files:
