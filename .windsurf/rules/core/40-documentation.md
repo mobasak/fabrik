@@ -49,7 +49,7 @@ When a ticket changes code, check which triggers fire and inject the correspondi
 | User-facing feature added | `docs/FEATURES.md` updated |
 | API endpoint added or changed | `docs/QUICKSTART.md` updated; OpenAPI synced; `docs/API_REFERENCE.md` if detailed |
 | User-facing copy added | Verbal Identity applied (see `ocoron-design-system.md`) |
-| `compose.yaml` modified | Docker: amd64, no Alpine, HEALTHCHECK, resource limits, coolify network |
+| `compose.yaml` modified | Docker: amd64, no Alpine, HEALTHCHECK, resource limits, `fabrik` network |
 | Database schema changed | Alembic migration (no raw DDL); `db/schema.sql` reference; `docs/DATABASE_SCHEMA.md` |
 | Sensitive file edited | Backup at `<file>.backup.<timestamp>` exists |
 | Logging code added | Pre-scaffolded structured logger; no `print()` / `console.log()`; correlation IDs |

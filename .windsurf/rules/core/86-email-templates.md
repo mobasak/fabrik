@@ -313,7 +313,7 @@ Your VPS (fabrik apply)                   AWS
 
 **Key architectural points:**
 
-- **Listmonk** is the campaign orchestrator — list management, segments, templates, scheduling, analytics. Deploys via `fabrik apply` like any other Fabrik service (Go binary + Postgres, `compose.yaml`, `coolify` network).
+- **Listmonk** is the campaign orchestrator — list management, segments, templates, scheduling, analytics. Deploys via `fabrik apply` like any other Fabrik service (Go binary + Postgres, `compose.yaml`, `fabrik` network).
 - **SES** is the delivery layer only — your VPS IP never touches the recipient's mail server. SES sends from **Amazon's shared IP pool** (pre-warmed, high reputation, free). Dedicated IPs ($24.95/mo per IP) only when sending consistently above **1,000 emails/day per major ISP** (Gmail, Yahoo, Outlook) — below that, shared IPs outperform because dedicated IPs lack volume to build reputation.
 - **Listmonk connects to SES via SMTP relay** (`email-smtp.<region>.amazonaws.com:587`, TLS). At higher scale, consider **SES API v2** via the [listmonk-messenger](https://github.com/knadh/listmonk/wiki/Messengers) plugin — higher throughput (SES API supports 50/sec vs SMTP 14/sec default) and avoids SMTP connection overhead.
 - **Bounce/complaint handling:** SES bounce and complaint notifications flow via **SNS → Listmonk webhook**. This is a 4-step setup — without it, you re-send to bounced addresses and SES suspends your account:
@@ -374,7 +374,7 @@ Execute in this order:
    - [ ] Set up SNS topic for bounce/complaint notifications (see 4-step SNS wiring above)
 
 2. **Deploy Listmonk:**
-   - [ ] Add Listmonk to `compose.yaml` (Go binary, Postgres DB on `postgres-main`, `coolify` network)
+   - [ ] Add Listmonk to `compose.yaml` (Go binary, Postgres DB on `postgres-main`, `fabrik` network)
    - [ ] Configure SMTP relay pointing to SES (`email-smtp.<region>.amazonaws.com:587`)
    - [ ] Configure bounce webhook endpoint to receive SNS notifications
    - [ ] Set up double opt-in for all lists

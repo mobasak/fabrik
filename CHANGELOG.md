@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — governance/rule-pack audit: coolify→fabrik + retired services across 15 files (2026-06-17)
+
+Audited the agent-governance layer — the `.windsurf/rules/` packs (loaded by coding agents on matching globs) + the root bootstrap files — which agents follow literally, so a stale rule misguides all future work. `.windsurf/rules/saas/**` and `.windsurf/rules/mobile-app/**` audited clean. Fixes (15 files):
+
+- **`coolify` network → `fabrik`** (renamed 2026-05-31; `fabrik apply` rejects `coolify`) in the rule packs' compose templates, Docker-DNS notes, M2M/Traefik guidance, and deployment checklists: `core/20-typescript.md`, `25-data-postgres.md`, `30-ops.md` (multiple), `35-security-auth.md`, `40-documentation.md`, `42-docusaurus.md`, `50-code-review.md`, `55-observability.md`, `58-resilience.md`, `65-rag-search.md`, `75-workers-jobs.md`, `86-email-templates.md`; plus `.windsurfrules` and `AGENTS-compact.md` hard-stop/post-deploy network rules.
+- **Netdata → node-exporter + cAdvisor** (Netdata removed 2026-05-30) in `30-ops.md` and `55-observability.md` alert-source tables.
+- **Retired microservices → site-provisioner only** in `30-ops.md`'s Authelia example list (captcha/proxy/translator/files-api/emailgateway/dns/images marked retired).
+- **`README.md`** (8): WordPress→/opt/wpf notes (×3), File API marked retired, model ids → Sonnet 4.6 / Opus 4.8, "6 rule files" → 35 rule packs, Last-Updated 2026-06-17.
+- **Coolify-deploy → SSH+Compose** in rule-pack cross-references; legacy `deployer_coolify.py`/`coolify.py` module names left as-is (files still exist).
+
 ### Fixed — deep audit pass: stale service/deploy/model refs across 28 docs (2026-06-17)
 
 A parallel read-only audit of the full active doc tree (reference, kilo, windsurf, operations, infrastructure, workflows, traycer, root) against verified ground truth, then a fix pass. `docs/operations/**` and all of `docs/traycer/**` audited clean. Corrections (28 files):

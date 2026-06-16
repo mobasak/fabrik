@@ -14,7 +14,7 @@ trigger: glob
 **Activation:** Glob `**/Dockerfile`, `**/compose.yaml`, `**/compose.yml`
 **Purpose:** Docker standards, deployment, infrastructure
 
-> **Deploy = SSH + Docker Compose via `fabrik apply`; `coolify` is a legacy Docker-network name only (renamed 2026-05-31).** No Coolify UI/API is in the loop — `fabrik` SSHes to the VPS and runs `docker compose`.
+> **Deploy = SSH + Docker Compose via `fabrik apply`. The Docker network is `fabrik`** (renamed from `coolify` 2026-05-31; `fabrik apply` REJECTS a compose that declares the old `coolify` network). No Coolify UI/API is in the loop — `fabrik` SSHes to the VPS and runs `docker compose`.
 
 ---
 
@@ -34,7 +34,7 @@ trigger: glob
 
 ## Docker DNS — No `localhost` in Connection Strings (CRITICAL)
 
-Inside a container, `localhost` resolves to the container itself, NOT the host or the shared DB. Use Docker network DNS names on the `coolify` network:
+Inside a container, `localhost` resolves to the container itself, NOT the host or the shared DB. Use Docker network DNS names on the `fabrik` network:
 
 | Variable | Wrong | Correct |
 |---|---|---|
@@ -92,7 +92,7 @@ CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
 
 ## compose.yaml Template
 
-All services deploy via `fabrik apply` (SSH + Docker Compose) on the `coolify` network. Traefik routes external traffic — services do NOT bind host ports.
+All services deploy via `fabrik apply` (SSH + Docker Compose) on the `fabrik` network. Traefik routes external traffic — services do NOT bind host ports.
 
 ```yaml
 services:
@@ -122,10 +122,10 @@ services:
       - traefik.http.services.api.loadbalancer.server.port=${PORT:-8000}
       - traefik.http.routers.api.middlewares=gzip@docker
     networks:
-      - coolify
+      - fabrik
 
 networks:
-  coolify:
+  fabrik:
     external: true
 ```
 
@@ -133,7 +133,7 @@ networks:
 - **No `ports:` section.** All external traffic routes through Traefik. Never bind host ports. See Docker Port Security below.
 - **`deploy.resources.limits.memory` is mandatory.** A Fabrik invariant enforced by `deployer_ssh._validate_compose()` — `fabrik apply` refuses any compose service without a memory limit (prevents OOM on the shared VPS). The compose must carry the declaration explicitly.
 - **`platform: linux/amd64` is mandatory.** VPS is x86_64.
-- **No `depends_on: postgres-main`.** The shared database is a separate long-lived container on the `coolify` network, not a service in your compose file. Docker DNS resolves `postgres-main` at runtime.
+- **No `depends_on: postgres-main`.** The shared database is a separate long-lived container on the `fabrik` network, not a service in your compose file. Docker DNS resolves `postgres-main` at runtime.
 - **Traefik labels** set routing, TLS, and middleware. The scaffolder emits the correct labels; middleware per service category: admin UI = `authelia-forward@docker,gzip@docker`; API = `gzip@docker`; public = none.
 - **Traefik entrypoints** are `web` (80) and `websecure` (443). The scaffold-emitted labels already use `web`/`websecure` — keep them; never use `http`/`https` (those entrypoints do not exist).
 
@@ -149,7 +149,7 @@ Before running `fabrik apply`:
 - [ ] All env vars documented in `.env.example`
 - [ ] Credentials in project `.env`
 - [ ] Port registered in `PORTS.md`
-- [ ] compose.yaml uses `coolify` network (external)
+- [ ] compose.yaml uses `fabrik` network (external)
 - [ ] compose.yaml has `deploy.resources.limits.memory` + `cpus`
 - [ ] compose.yaml has `platform: linux/amd64`
 - [ ] compose.yaml has Traefik labels with `websecure` entrypoint
@@ -244,8 +244,8 @@ All admin dashboards are protected by Authelia (`auth.vps1.ocoron.com`) via Trae
 | Category | Auth Mechanism | Examples |
 |----------|---------------|----------|
 | Public | None (bypass) | `ocoron.com`, `status.vps1.ocoron.com` |
-| Admin dashboards | Authelia (2FA) | `auto` (n8n), `monitor` (Grafana), `netdata`, `backup`, `notify` |
-| API services | `X-Internal-Token` header | `pdf`, `browser`, `search`, `images`, `captcha`, `proxy`, `translator`, `files-api`, `emailgateway`, `dns` |
+| Admin dashboards | Authelia (2FA) | `auto` (n8n), `monitor` (Grafana), `backup` (Backrest), `notify` (Netdata removed 2026-05-30 → Grafana/cAdvisor) |
+| API services | `X-Internal-Token` header | `site-provisioner` (the only live Fabrik microservice; `pdf`/`captcha`/`proxy`/`translator`/`files-api`/`emailgateway`/`dns`/`images` all retired) |
 
 **Adding Authelia to a new admin service:**
 
@@ -288,7 +288,7 @@ The VPS Traefik uses these entrypoint names:
 | `ports:` in compose / host-port binding | Traefik routing — only 80/443 bind host |
 | `localhost` in container connection strings | Docker DNS: `postgres-main`, `redis-main` |
 | Discrete `DB_HOST`/`DB_PORT`/`DB_NAME`/`DB_USER`/`DB_PASSWORD` for the app | Single `DATABASE_URL` (see `10-python.md` § Config) |
-| `depends_on: postgres-main` | None — DB is a separate shared container on the `coolify` network |
+| `depends_on: postgres-main` | None — DB is a separate shared container on the `fabrik` network |
 | `http` / `https` Traefik entrypoints | `web` / `websecure` (those entrypoints do not exist) |
 | Protecting `/health` with Authelia | `/health` always bypasses auth (Gatus/Prometheus need it) |
 | Missing `deploy.resources.limits.memory` | Mandatory — `fabrik apply` rejects it (`deployer_ssh._validate_compose()`) |

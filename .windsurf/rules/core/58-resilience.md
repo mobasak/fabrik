@@ -200,10 +200,10 @@ The VPS runs several services your code may call. Each is an external dependency
 | Service | Address | Client | Timeout | Fallback |
 |---|---|---|---|---|
 | **Backblaze B2** | S3-compatible API | `boto3` with `endpoint_url` from env | 30s connect, 120s read (large files) | Return error; never block request on upload failure |
-| **Gotenberg** (PDF) | `http://gotenberg:3000` on coolify network | `httpx.AsyncClient` POST multipart | 60s (PDF generation is slow) | Return "PDF unavailable, retry later" |
-| **Browserless** | `http://browserless:3000` on coolify network | `httpx.AsyncClient` or Playwright connect | 30s | Return cached/fallback content |
-| **Apprise** (notifications) | `http://apprise:8000` on coolify network | `httpx.AsyncClient` POST | 10s | Log warning, don't block — notifications are fire-and-forget |
-| **MeiliSearch** | `http://meilisearch:7700` on coolify network | `meilisearch` Python SDK or `httpx` | 5s search, 30s indexing | Search: return empty results. Indexing: retry via job queue |
+| **Gotenberg** (PDF) | `http://gotenberg:3000` on `fabrik` network | `httpx.AsyncClient` POST multipart | 60s (PDF generation is slow) | Return "PDF unavailable, retry later" |
+| **Browserless** | `http://browserless:3000` on `fabrik` network | `httpx.AsyncClient` or Playwright connect | 30s | Return cached/fallback content |
+| **Apprise** (notifications) | `http://apprise:8000` on `fabrik` network | `httpx.AsyncClient` POST | 10s | Log warning, don't block — notifications are fire-and-forget |
+| **MeiliSearch** | `http://meilisearch:7700` on `fabrik` network | `meilisearch` Python SDK or `httpx` | 5s search, 30s indexing | Search: return empty results. Indexing: retry via job queue |
 
 **Rules:**
 - All credentials via env vars (`B2_KEY_ID`, `B2_APPLICATION_KEY`, `B2_BUCKET_NAME`, etc.).
@@ -234,7 +234,7 @@ Reference: `templates/scaffold/docs/RESILIENCE_TEMPLATE.md` (the source of truth
 
 ## Health Endpoint Contract
 
-Every service exposes `/health` that actively verifies critical dependencies before returning 200. This is the single health endpoint — consistent across all rule packs, Gatus, Coolify, and the scaffold.
+Every service exposes `/health` that actively verifies critical dependencies before returning 200. This is the single health endpoint — consistent across all rule packs, Gatus, the compose `HEALTHCHECK`, and the scaffold.
 
 | Check | What to verify |
 |---|---|
@@ -247,7 +247,7 @@ Every service exposes `/health` that actively verifies critical dependencies bef
 - `HEALTHCHECK` in compose.yaml points to `/health`. See `30-ops.md` for the template.
 - Enforcement: `scripts/enforcement/check_health.py` verifies real dependency checks exist (not static 200).
 - Gatus probes `/health` externally for uptime SLO.
-- Coolify uses the compose HEALTHCHECK for container restart decisions.
+- The Docker daemon uses the compose HEALTHCHECK for container restart decisions (`restart: unless-stopped`).
 
 **Advanced (workers only):** If the project uses the pause-state pipeline, add a readiness dimension — `/health` returns 200 but includes a `paused` field in the JSON body listing any active pause keys. This lets operators see pause state without it triggering Gatus alerts.
 

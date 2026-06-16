@@ -175,7 +175,7 @@ the DSN automatically — `infrastructure.py` calls `deployer.inject_env(ctx, {"
 standalone script above is for manual/out-of-band provisioning only.
 
 The script is idempotent (re-runs return the same DSN). The DSN host is rewritten
-to `glitchtip-web:8000` (stable Docker DNS alias on the coolify network) so events
+to `glitchtip-web:8000` (stable Docker DNS alias on the `fabrik` network) so events
 flow through the internal network without Authelia or TLS overhead.
 
 Environment variables consumed by the init modules (injected into the service `.env` by `fabrik apply`, not in `.env.example`):
@@ -297,7 +297,7 @@ Alert only on **user-facing symptoms** using the RED method (Rate, Errors, Durat
 | HTTP 5xx error rate | Grafana Loki (LogQL) | > 5% of requests over 5 min | Push notification |
 | P95 latency | Grafana Loki (LogQL) | > 2.0s sustained over 5 min | Push notification |
 | Registrar drift | Prometheus (`fabrik_audit_drift_total`) | Any drift for > 10 min | Alertmanager → Telegram |
-| CPU / RAM spikes | Netdata / cAdvisor | N/A — do not page | Dashboard only |
+| CPU / RAM spikes | cAdvisor / node-exporter → Prometheus (Netdata removed 2026-05-30) | N/A — do not page | Dashboard only |
 
 ---
 
@@ -310,8 +310,8 @@ Alert only on **user-facing symptoms** using the RED method (Rate, Errors, Durat
 
 Never use UUID or timestamp-suffixed container names in Gatus configs or inter-service URLs — they drift per redeploy.
 
-- **`fabrik apply` services** (`/opt/<name>/compose.yaml`): set an explicit, stable `container_name:` in compose and reference it directly. Docker DNS resolves it on the `coolify` network.
-- **Legacy single-image containers** without a fixed name: install a stable network alias on the `coolify` network so DNS doesn't break silently.
+- **`fabrik apply` services** (`/opt/<name>/compose.yaml`): set an explicit, stable `container_name:` in compose and reference it directly. Docker DNS resolves it on the `fabrik` network.
+- **Legacy single-image containers** without a fixed name: install a stable network alias on the `fabrik` network so DNS doesn't break silently.
 
 Install procedure + currently-registered alias pairs (`browserless`, `gotenberg`, `meilisearch`, `glitchtip-web`) live in `docs/infrastructure/archive/coolify-stable-aliases.md` (historical) and the live `apply_alias` section of `scripts/vps_apply_limits.sh`. Boot-time reapply: `scripts/vps_apply_limits.sh`.
 

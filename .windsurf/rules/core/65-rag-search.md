@@ -57,7 +57,7 @@ Apply for instant keyword search: product catalogs, documentation, autocomplete,
 ## Vector Storage
 
 - **pgvector** on PostgreSQL is the sole vector store. Two valid hosts:
-  - **`postgres-main` on VPS** (Coolify-managed) — default for backend services. pgvector + pg_trgm extensions enabled.
+  - **`postgres-main` on VPS** (shared Fabrik Postgres, on the `fabrik` Docker network) — default for backend services. pgvector + pg_trgm extensions enabled.
   - **Supabase** — valid when the project already uses Supabase for auth/realtime. Supabase includes pgvector out of the box. Same HNSW indexes, same hybrid search patterns apply.
 - Dedicated vector databases (Pinecone, Qdrant, Weaviate, Milvus) are **banned** — they add network latency, duplicate data synchronization, and complicate backups. pgvector on either host eliminates these problems.
 - pgvector with HNSW indexes comfortably handles hundreds of thousands to low single-digit millions of vectors in-RAM. This exceeds Fabrik's projected capacity needs.

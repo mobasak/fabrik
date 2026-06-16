@@ -360,7 +360,7 @@ CMD ["python", "-m", "src.worker"]
 - **JSON exec form** for CMD — shell form swallows SIGTERM.
 - **`slim-bookworm`** base image, `platform: linux/amd64`.
 - **`deploy.resources.limits.memory`** mandatory in compose.yaml. Workers processing large files may need higher limits than API services.
-- **`coolify` network** — worker connects to `postgres-main:5432` and `redis-main:6379` via Docker DNS.
+- **`fabrik` network** — worker connects to `postgres-main:5432` and `redis-main:6379` via Docker DNS.
 - **No `ports:` section** in compose.yaml — Traefik routes all traffic. See `30-ops.md`.
 - **Traefik labels required** — workers expose `/health` (Gatus) and `/metrics` (Prometheus) via HTTP. These endpoints need Traefik labels even though the worker's primary job is background processing, not serving API requests.
 
@@ -410,7 +410,7 @@ CMD ["python", "-m", "src.worker"]
 ## Related Rule Packs
 
 - `10-python.md` — Python/FastAPI patterns, `uv`, structlog, async
-- `30-ops.md` — Dockerfile, compose.yaml, Traefik, resource limits, Coolify deploy
+- `30-ops.md` — Dockerfile, compose.yaml, Traefik, resource limits, `fabrik apply` deploy (SSH + Docker Compose)
 - `55-observability.md` — structured logging, `/health`, `/metrics`, GlitchTip
 - `58-resilience.md` — pause-state pipeline, queue-bloat prevention, error classifier, vendor balance checks, `docs/RESILIENCE.md` contract
 - `45-testing-strategy.md` — test workers with real PostgreSQL, no DB mocks

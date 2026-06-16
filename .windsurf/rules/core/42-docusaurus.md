@@ -77,10 +77,10 @@ services:
       - traefik.http.services.docs.loadbalancer.server.port=80
       - traefik.http.routers.docs.middlewares=gzip@docker
     networks:
-      - coolify
+      - fabrik
 
 networks:
-  coolify:
+  fabrik:
     external: true
 ```
 
@@ -180,7 +180,7 @@ networks:
 - [ ] Dockerfile has HEALTHCHECK instruction.
 - [ ] Pagefind runs post-build (`npx -y pagefind --site build`) — no Algolia or JS-bundled search.
 - [ ] Nginx config includes `try_files $uri $uri/ /index.html;` for SPA routing.
-- [ ] compose.yaml has `platform: linux/amd64`, `deploy.resources.limits.memory`, Traefik labels, `coolify` network, no `ports:`.
+- [ ] compose.yaml has `platform: linux/amd64`, `deploy.resources.limits.memory`, Traefik labels, `fabrik` network, no `ports:`.
 - [ ] `docusaurus.config.js` sets `onBrokenLinks: 'throw'` and `onBrokenAnchors: 'throw'`.
 - [ ] All `.md`/`.mdx` files have `title` and `description` frontmatter.
 - [ ] No `versioned_docs/` or `versioned_sidebars/` directories exist.

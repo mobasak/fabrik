@@ -17,7 +17,7 @@ Apply when working on database models, migrations, schema changes, or query logi
 
 | Need | Use | Connection |
 |---|---|---|
-| Default backend (CRUD, jobs, queues) | **`postgres-main` on VPS** (Coolify-managed) | `postgresql+asyncpg://...@postgres-main:5432/` |
+| Default backend (CRUD, jobs, queues) | **`postgres-main` on VPS** (shared container, SSH+Compose) | `postgresql+asyncpg://...@postgres-main:5432/` |
 | Managed auth + realtime + pgvector + RLS | **Supabase** | Supabase connection string from dashboard |
 | Both (mobile-app pattern: Supabase Auth + VPS FastAPI) | **Supabase for auth/client, postgres-main for backend data** | Two DATABASE_URLs |
 

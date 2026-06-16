@@ -210,7 +210,7 @@ npm run build         # Production build
 
 - `10-python.md` — Python sibling (same env/Docker/port philosophy)
 - `15-api-contracts.md` — API contract discipline, RFC 9457 error schema, idempotency
-- `30-ops.md` — Dockerfile, compose, Traefik, resource limits, Coolify deploy
+- `30-ops.md` — Dockerfile, compose, Traefik, resource limits, SSH+Compose deploy (`fabrik apply`)
 - `55-observability.md` — pino setup, `/health` + `/metrics`, GlitchTip
 - `60-saas-ui.md` — SaaS frontend patterns (Next.js/React)
 

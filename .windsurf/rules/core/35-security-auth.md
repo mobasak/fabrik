@@ -122,7 +122,7 @@ Apply via ASGI middleware with **precomputed constants** (no per-request string 
 
 ## Internal Service Auth (M2M)
 
-Every Fabrik HTTP service uses the canonical internal-auth pattern. Docker-to-Docker communication within the Coolify network must NOT rely on network isolation alone.
+Every Fabrik HTTP service uses the canonical internal-auth pattern. Docker-to-Docker communication within the `fabrik` network must NOT rely on network isolation alone.
 
 | Aspect | Value |
 |---|---|
@@ -148,7 +148,7 @@ async def call_internal_service():
     return resp.json()
 ```
 
-Note: use internal Docker DNS (`http://<service>:<port>/api/endpoint`) for coolify-network calls, NOT the public Traefik edge URL. Use `https://<service>.vps1.ocoron.com` only for genuinely cross-network calls. Always async, always with timeout, config via Pydantic Settings. See `58-resilience.md` for full timeout/retry/CB patterns.
+Note: use internal Docker DNS (`http://<service>:<port>/api/endpoint`) for `fabrik`-network calls, NOT the public Traefik edge URL. Use `https://<service>.vps1.ocoron.com` only for genuinely cross-network calls. Always async, always with timeout, config via Pydantic Settings. See `58-resilience.md` for full timeout/retry/CB patterns.
 
 **Blast radius warning:** the shared `SERVICE_INTERNAL_SECRET_KEY` is identical across all services — compromise of any one service exposes the M2M credential for all. Document a rotation procedure, and issue a **per-service token** (not the shared key) for any internet-exposed service or one ingesting untrusted input.
 

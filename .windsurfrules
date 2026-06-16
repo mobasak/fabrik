@@ -41,14 +41,14 @@ If this directory is present, read `expertise-pack/wpf-expertise-pack-spec-v3.md
 | Rule | Instead |
 |:--|:--|
 | `git commit` / `git push` (unless user said so this turn) | gate auto-stages — task ends there |
-| `fabrik redeploy` without `git push` first (git-sourced apps) | always: `git commit` → `git push` → `fabrik redeploy`; the VPS runs `git pull` (not Coolify), not local `/opt/` — skipping push redeploys stale code |
+| `fabrik redeploy` without `git push` first (git-sourced apps) | always: `git commit` → `git push` → `fabrik redeploy`; the VPS runs `git pull` from the GitHub remote, not your local `/opt/` clone — skipping push redeploys stale code |
 | compose without `deploy.resources.limits.memory` | memory limit is REQUIRED per service — enforced fatally by `deployer_ssh._validate_compose()`; scaffolder auto-emits via `_write_canonical_compose` |
 | `DB_HOST=localhost` / `DATABASE_URL=...@localhost:` in `.env` or service env vars | always use Docker service names: `postgres-main:5432`, `redis-main:6379` — `localhost` inside a container is the container itself, not the host |
 | Authelia config reload via SIGHUP | Authelia exits on SIGHUP, does NOT hot-reload — always `docker restart <authelia-container>` after config edits |
 | Adding a new Gatus endpoint using hardcoded container name | always use stable Docker DNS name: compose service name for Service stacks, or registered stable alias for single-image Applications. Never use UUID container name — it changes on every redeploy. See `scripts/vps_apply_limits.sh` alias section for registered pairs. |
 | Gatus/internal URL using UUID container name | use a stable `container_name` / compose service name (no UUID drift) |
 | Health check `/health` behind auth | Authelia bypass rule covers `*.vps1.ocoron.com → /health` automatically — never protect `/health` |
-| Binding container ports to host directly | all services route through Traefik on the `coolify` Docker network (legacy name) — never expose raw container ports |
+| Binding container ports to host directly | all services route through Traefik on the `fabrik` Docker network (renamed from `coolify` 2026-05-31; `fabrik apply` rejects a compose declaring `coolify`) — never expose raw container ports |
 | Not wiring `gzip@docker` middleware on router | scaffold emits it automatically; admin UIs: `authelia-forward@docker,gzip@docker`; API services: `gzip@docker`; public: none |
 | Running a foreground command that may take >30s (build, install, deploy, test, sync, `fabrik *`, `docker *`, `pytest`, `npm i`) | use `scripts/rund [--timeout S] -- <cmd>` (argv) or `scripts/rundsh '<pipe>'` (shell), then `scripts/runwait $(scripts/runlast) <secs>` to bound wait, then `scripts/runc $(scripts/runlast)` to read result. Never block on foreground long commands — Cascade has no timeout. Full doc: `docs/reference/long-command-monitoring.md`. |
 | edit files outside ticket Scope | strict Scope only |

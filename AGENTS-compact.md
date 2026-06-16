@@ -95,7 +95,7 @@ Update matched docs in the SAME staged change. Skipping = task failure (gate-enf
    Verify before deploy: `grep -E '^(DB_HOST|DATABASE_URL|REDIS_URL)=' .env | grep localhost` must return nothing.
 
 2. **Post-deploy checklist (every new service):**
-   - **Network:** containers on the `coolify` Docker network (legacy name); never bind ports to host; Traefik routes via labels.
+   - **Network:** containers on the `fabrik` Docker network (renamed from `coolify` 2026-05-31; `fabrik apply` rejects a compose declaring `coolify`); never bind ports to host; Traefik routes via labels.
    - **Traefik middleware** (scaffold-emitted): admin UI → `authelia-forward@docker,gzip@docker`; API → `gzip@docker`; public → none.
    - **.env / service env:** `SERVICE_INTERNAL_SECRET_KEY`, `DATABASE_URL` (`postgres-main`), `REDIS_URL` (`redis-main`) — written to `/opt/<name>/.env` by `deployer_ssh`.
    - **Health:** `/health` → 200; brought up via `docker compose up -d --wait` + monitored by Gatus.

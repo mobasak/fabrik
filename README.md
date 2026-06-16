@@ -1,6 +1,6 @@
 # Fabrik
 
-**Last Updated:** 2026-05-20
+**Last Updated:** 2026-06-17
 
 **Spec-Driven Deployment Platform + AI Development Workflow**
 
@@ -36,7 +36,7 @@ Fabrik is a **development methodology as code**—not just infrastructure automa
          │
          ▼
 ┌──────────────────┐
-│  Windsurf/Cascade│  4. Code implementation (Gemini 3.1 Pro, escalate to Sonnet 4.5)
+│  Windsurf/Cascade│  4. Code implementation (Gemini 3.1 Pro, escalate to Sonnet 4.6)
 │  or Kilo CLI     │  5. Auto-invoked skills (10+ Fabrik conventions)
 └────────┬─────────┘
          │
@@ -116,7 +116,7 @@ Fabrik is a **development methodology as code**—not just infrastructure automa
            ▼
 ┌─────────────────────┐
 │  Coding Agents      │  • Windsurf Cascade (Gemini 3.1 Pro High Thinking)
-│  (Gemini/Sonnet)    │  • Kilo CLI (Claude Opus 4.6, GPT-5.1 Codex, Gemini 3.1 Pro)
+│  (Gemini/Sonnet)    │  • Kilo CLI (Claude Opus 4.8, GPT-5.1 Codex, Gemini 3.1 Pro)
 └──────────┬──────────┘  • Auto-invoked Fabrik skills (10+ conventions)
            │
            ▼
@@ -273,6 +273,8 @@ python scripts/kilo_code_review.py review src/api.py \
 
 ### 4. WordPress Full-Stack Automation (2,500+ lines)
 
+> **Moved out of Fabrik (2026).** WordPress site creation + content automation now lives in a separate project, `/opt/wpf` (the `wpf` CLI). `src/fabrik/wordpress/` and `fabrik wp …` were removed; Fabrik retains only `fabrik scaffold --type wordpress` (deploy-only). The modules below are historical (described the former in-Fabrik implementation).
+
 **Complete WordPress site from YAML spec** - not just deployment, but content generation.
 
 **Spec Example:**
@@ -399,7 +401,7 @@ class ProvisionState(str, Enum):
 | **Prometheus + Alertmanager** | (internal :9090 / :9093) | Metrics, 9 alert rules → ARO Brain / Apprise |
 | **Loki + Promtail** | (internal :3100) | Log aggregation from all containers |
 | **Backrest** | https://backup.vps1.ocoron.com | Restic-based backups to Backblaze B2 (replaced Duplicati 2026-04-17) |
-| **File API** | https://files-api.vps1.ocoron.com | File uploads (R2 storage) |
+| **File API** | (retired) | File uploads (R2 storage) — retired; only live Fabrik microservice is Site Provisioner |
 
 ---
 
@@ -662,6 +664,8 @@ fabrik review --since HEAD~3            # last 3 commits
 
 ### 7. WordPress Automation
 
+> **Moved to `/opt/wpf` (2026)** — see note under Feature #4. Fabrik now provides only deploy-only `scaffold --type wordpress`; the spec-driven site build below is historical.
+
 Full WordPress site deployment from spec:
 
 ```yaml
@@ -916,7 +920,7 @@ GUI scaffold types (saas-skeleton, static-site, desktop-app, chrome-extension, m
 |-------|------------|----------|
 | **Planning** | Traycer (Windsurf Extension) | Spec-driven Epic workflows, YOLO automation |
 | **Coding** | Cascade (Gemini 3.1 Pro High Thinking) | Primary implementation agent |
-| **Coding** | Kilo CLI (Claude Opus 4.6, GPT-5.1 Codex, Gemini 3.1 Pro) | Terminal-based coding agent, code review |
+| **Coding** | Kilo CLI (Claude Opus 4.8, GPT-5.1 Codex, Gemini 3.1 Pro) | Terminal-based coding agent, code review |
 | **Review** | Kilo CLI | Diff-scoped AI review with iterative loops |
 | **Enforcement** | Final Gate + 19 scripts | 25 checks (format, lint, security, conventions) |
 | **Python Tooling** | uv, ruff, mypy, bandit | Fast package manager, linter, types, security |
@@ -957,7 +961,7 @@ GUI scaffold types (saas-skeleton, static-site, desktop-app, chrome-extension, m
 
 ### Reference
 
-- **[Windsurf Rules](.windsurf/rules/)** - 6 rule files (critical, Python, TypeScript, ops, docs, review)
+- **[Windsurf Rules](.windsurf/rules/)** - 35 rule packs (glob/model_decision activated; critical, Python, TypeScript, ops, docs, review, security, etc.)
 - **[Enforcement Scripts](scripts/enforcement/)** - 19 scripts, 2,230 lines
 - **[Traycer Integration](docs/traycer/README.md)** - Complete workflow details
 
@@ -972,14 +976,14 @@ GUI scaffold types (saas-skeleton, static-site, desktop-app, chrome-extension, m
 | **Kilo Integration** | ✅ Production | 2,996 |
 | **Deployment Orchestrator** | ✅ Production | 147 |
 | **Site Provisioner** | ✅ Production | 782 (15 states) |
-| **WordPress Automation** | 🚧 90% Complete | 2,500+ |
+| **WordPress Automation** | ↗ Moved to `/opt/wpf` (`wpf` CLI) — Fabrik keeps deploy-only `scaffold --type wordpress` | — |
 | **Fabrik CLI** | ✅ Production | 828 |
 | **Drivers** | ✅ Production | 3,000+ |
 | **Templates** | ✅ Production | 18 templates |
 
 **Total:** 13,565+ lines of production code
 
-**Current Focus:** WordPress v2 spec implementation (multi-site, advanced SEO)
+**Current Focus:** multi-host fleet (vps2/vps3 spokes) + cross-VPS portability / DR. (WordPress automation moved out of Fabrik to `/opt/wpf`.)
 
 See [tasks.md](tasks.md) for detailed roadmap.
 
