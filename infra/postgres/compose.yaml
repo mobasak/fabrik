@@ -7,7 +7,7 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
     networks:
-      - coolify
+      - fabrik
     deploy:
       resources:
         limits:
@@ -23,5 +23,5 @@ volumes:
     external: true              # Pre-created from UUID volume copy
 
 networks:
-  coolify:
+  fabrik:
     external: true

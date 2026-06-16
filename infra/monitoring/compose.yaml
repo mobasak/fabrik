@@ -13,7 +13,7 @@ services:
       - loki-data:/loki
     command: -config.file=/etc/loki/loki-config.yaml
     networks:
-      - coolify
+      - fabrik
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:3100/ready || exit 1"]
       interval: 30s
@@ -32,7 +32,7 @@ services:
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
     command: -config.file=/etc/promtail/promtail-config.yaml
     networks:
-      - coolify
+      - fabrik
     depends_on:
       loki:
         condition: service_healthy
@@ -51,7 +51,7 @@ services:
       - '--storage.tsdb.retention.time=30d'
       - '--web.enable-lifecycle'
     networks:
-      - coolify
+      - fabrik
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:9090/-/healthy || exit 1"]
       interval: 30s
@@ -71,7 +71,7 @@ services:
       - '--storage.path=/alertmanager'
       - '--web.external-url=http://alertmanager:9093'
     networks:
-      - coolify
+      - fabrik
     depends_on:
       prometheus:
         condition: service_healthy
@@ -97,7 +97,7 @@ services:
       - '--path.rootfs=/rootfs'
       - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)(320479|/)'
     networks:
-      - coolify
+      - fabrik
 
   cadvisor:
     image: gcr.io/cadvisor/cadvisor:v0.52.1
@@ -112,7 +112,7 @@ services:
       - /var/lib/docker:/var/lib/docker:ro
       - /dev/disk:/dev/disk:ro
     networks:
-      - coolify
+      - fabrik
 
   grafana:
     image: grafana/grafana:11.6.1
@@ -127,7 +127,7 @@ services:
     volumes:
       - grafana-data:/var/lib/grafana
     networks:
-      - coolify
+      - fabrik
     depends_on:
       loki:
         condition: service_healthy
@@ -157,7 +157,7 @@ services:
       PG_EXPORTER_AUTO_DISCOVER_DATABASES: "true"
       PG_EXPORTER_EXCLUDE_DATABASES: "template0,template1"
     networks:
-      - coolify
+      - fabrik
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:9187/metrics"]
       interval: 30s
@@ -172,7 +172,7 @@ services:
     environment:
       REDIS_ADDR: "redis://redis-main:6379"
     networks:
-      - coolify
+      - fabrik
     healthcheck:
       # The oliver006/redis_exporter image is distroless — no wget, no shell.
       # The image-baked healthcheck (CMD wget ...) cannot run; disable it.
@@ -183,7 +183,7 @@ services:
   # T4-04 G-G5 (2026-05-16): Push-mode metrics target for WSL-side
   # `audit_all_registrars.py`. Loopback-only bind so port 9091 is reachable
   # via `ssh vps "curl localhost:9091/..."` but NOT publicly exposed.
-  # Joins `coolify` so prometheus (also on coolify) can scrape it by name.
+  # Joins `fabrik` so prometheus (also on fabrik) can scrape it by name.
   pushgateway:
     image: prom/pushgateway:v1.9.0
     platform: linux/amd64
@@ -192,7 +192,7 @@ services:
     ports:
       - "127.0.0.1:9091:9091"
     networks:
-      - coolify
+      - fabrik
     deploy:
       resources:
         limits:
@@ -224,7 +224,7 @@ services:
       - /etc/os-release:/host/etc/os-release:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
     networks:
-      - coolify
+      - fabrik
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.netdata.rule=Host(`netdata.vps1.ocoron.com`)"
@@ -248,5 +248,5 @@ volumes:
   netdata-cache:
 
 networks:
-  coolify:
+  fabrik:
     external: true

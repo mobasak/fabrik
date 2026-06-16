@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — infra/ deployment composes: coolify network → fabrik (2026-06-17)
+
+All 14 `infra/*/compose.yaml` (the live-service deployment composes — traefik, postgres, redis-adjacent, authelia, gatus, monitoring, backrest, apprise, browserless, gotenberg, meilisearch, n8n, glitchtip, site-provisioner, ocoron-com) still declared the **`coolify` external network** + `traefik.docker.network=coolify` labels. That network no longer exists — the live fleet uses **`fabrik`** (renamed 2026-05-31; verified `docker network ls` shows only `fabrik`), and `fabrik apply`'s `_validate_compose()` rejects `coolify`. The live `/opt/<svc>/` composes already use `fabrik`; these repo copies had drifted and would fail to deploy as-is. Mechanical `coolify`→`fabrik` rename across all 14 (network name only — `coolify` had no other meaning in these files): service attachments, the `networks: { coolify: external: true }` block, the `traefik.docker.network` labels, and the monitoring scrape comment.
+
 ### Fixed — specs + scaffold templates: coolify→fabrik, Coolify-deploy→SSH+Compose (2026-06-17)
 
 Audited `specs/` and `templates/` — config + scaffold files agents consume. The `templates/scaffold/docs/*` set is **emitted into every new project**, so stale Coolify deploy instructions were propagating forward. Fixed 34 files:

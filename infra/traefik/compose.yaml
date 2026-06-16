@@ -18,8 +18,8 @@ services:
     command:
       - "--configFile=/traefik.yml"
     networks:
-      - coolify
+      - fabrik
 
 networks:
-  coolify:
+  fabrik:
     external: true

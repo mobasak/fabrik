@@ -22,7 +22,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - /opt/backrest/.restic-password:/restic-password:ro
     networks:
-      - coolify
+      - fabrik
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.backrest.rule=Host(`backup.vps1.ocoron.com`)"
@@ -37,5 +37,5 @@ services:
           memory: 512M
 
 networks:
-  coolify:
+  fabrik:
     external: true

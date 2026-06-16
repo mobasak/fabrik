@@ -11,7 +11,7 @@ services:
     volumes:
       - meilisearch-data:/meili_data
     networks:
-      - coolify
+      - fabrik
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.meilisearch.rule=Host(`search.vps1.ocoron.com`)"
@@ -31,5 +31,5 @@ volumes:
     external: true              # Pre-created from bs0wo48k4gwo440gcowscoc8-211159651770:/meili_data
 
 networks:
-  coolify:
+  fabrik:
     external: true

@@ -39,7 +39,7 @@ services:
       - /opt/ocoron-com/php-fpm/zz-fabrik-listen.conf:/usr/local/etc/php-fpm.d/zz-fabrik-listen.conf:ro
       - /opt/ocoron-com/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
     networks:
-      - coolify
+      - fabrik
       - ocoron-com-internal
     labels:
       - traefik.enable=true
@@ -142,6 +142,6 @@ volumes:
   backup_data:
 
 networks:
-  coolify:
+  fabrik:
     external: true
   ocoron-com-internal:

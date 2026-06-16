@@ -8,7 +8,7 @@ services:
     volumes:
       - apprise-config:/config
     networks:
-      - coolify
+      - fabrik
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.apprise.rule=Host(`notify.vps1.ocoron.com`)"
@@ -32,5 +32,5 @@ volumes:
     external: true              # Pre-created from lcocgs4gs8ksg4g08w40ows8_apprise_config copy
 
 networks:
-  coolify:
+  fabrik:
     external: true

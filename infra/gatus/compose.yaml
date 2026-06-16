@@ -11,7 +11,7 @@ services:
       GATUS_LOG_LEVEL: INFO
       PORT: "8080"
     networks:
-      - coolify
+      - fabrik
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.gatus.rule=Host(`status.vps1.ocoron.com`)"
@@ -27,5 +27,5 @@ services:
       disable: true   # distroless image — no shell/wget available
 
 networks:
-  coolify:
+  fabrik:
     external: true
