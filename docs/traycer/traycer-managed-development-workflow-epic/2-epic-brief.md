@@ -18,7 +18,7 @@ The goal is alignment, not artifacts. Specs are records of decisions made togeth
 The brief assumes `trigger_workflow` ran first and produced an INFRA-CHECK header. Read it from the conversation and capture:
 
 - **Required fields (will become Metadata):** `Port`, `Scaffold`, and `User Guide` (renamed `HAS_USER_GUIDE` in Metadata, per `trigger_workflow`'s propagation contract).
-- **Informational fields (PM judgment whether to surface):** `Duplicate`, `Internal APIs`, `Coolify`, `Design System`, `Platform Debt`. None are mandatory in the brief.
+- **Informational fields (PM judgment whether to surface):** `Duplicate`, `Internal APIs`, `Deploy`, `Design System`, `Platform Debt`. None are mandatory in the brief.
 
 If any required field is missing (e.g. `epic-brief` was invoked without `trigger_workflow`), pause and ask the user to confirm them, OR suggest re-running `trigger_workflow`. **Do not guess.**
 
@@ -54,7 +54,7 @@ Consume what `trigger_workflow` already produced; do not repeat its checks. PM j
 
 - `Duplicate:` **field** — High-stakes signal. If non-`none`, the brief should typically address whether the epic **extends**, **wraps**, **replaces**, or **complements** the named project — or justify proceeding despite the overlap (e.g. in Out of Scope: "this is NOT a replacement for X").
 - `Internal APIs:` **field** — Lists existing Fabrik microservices the new project plans to consume. The brief may name them in Infrastructure Notes as `consumes` dependencies; Tech Plan will do the heavy lifting.
-- `Coolify:` **field** — Mention only if material (e.g. the epic depends on a service the status doc flags as degraded).
+- `Deploy:` **field** (deploy host + fleet/service status, from `docs/infrastructure/vps-status.md`) — Mention only if material (e.g. the epic depends on a service the status doc flags as degraded).
 - `Platform Debt:` **field** — Mention only if a debt item directly affects this epic.
 - **Other infrastructure** (Gotenberg, MeiliSearch, Browserless, Apprise, n8n, Backrest, etc.): Reference the live tables in `AGENTS.md` (`## Infrastructure Services — Running on VPS` and `## Fabrik Microservices (Custom-Built, on VPS)`). Never maintain a duplicate list inside this command. If the epic consumes any infrastructure service not already listed in `Internal APIs:`, name it.
 - **Stack defaults:** Reference `AGENTS.md` § Tech Stack Defaults — don't restate them, just note deviations.
@@ -114,7 +114,7 @@ If during iteration the user introduces a requirement change that invalidates ea
 - INFRA-CHECK consumed from `trigger_workflow`; missing required fields surfaced for user confirmation, never silently guessed.
 - Pre-research re-read using `trigger_workflow` Step 3 discovery order, against the same file `trigger_workflow` selected (or `none — interview-only`).
 - Assumptions surfaced with confidence ratings when input is thin; clarifying questions asked until genuinely confident.
-- Existing infrastructure grounded by **consuming** `trigger_workflow`'s `Duplicate`, `Internal APIs`, and (when material) `Coolify` / `Platform Debt` findings — not by re-running those checks.
+- Existing infrastructure grounded by **consuming** `trigger_workflow`'s `Duplicate`, `Internal APIs`, and (when material) `Deploy` / `Platform Debt` findings — not by re-running those checks.
 - For platform-monorepo workspaces: brief operates on the sub-target captured by `trigger_workflow` Step 1; if no sub-target was captured, brief asks before drafting.
 - For "Feature for existing project" routes: Metadata inherits from parent project's prior Epic Brief if one exists, with inheritance source stated; otherwise set fresh and stated as such.
 - Brief sections complete and in order: Summary → Context &amp; Problem → Success Criteria → Infrastructure Notes (omittable) → Out of Scope → Metadata.

@@ -46,7 +46,7 @@ Read these in order; everything else builds on them:
    - `Email` — if `two-stream`, vendor `fabrik-lib/email-templates/` and confirm transactional/marketing separation.
    - `Vector DB` — if `pgvector`, confirm pgvector on postgres-main or Supabase (no external vector DBs).
    - `FINANCIALS` — if `required`, note that `docs/FINANCIALS.md` must be populated before launch.
-   - `x86_64`, `Coolify`, `Design System`, `Duplicate`, `Platform Debt` — consult; surface only if they materially shape the design.
+   - `x86_64`, `Deploy`, `Design System`, `Duplicate`, `Platform Debt` — consult; surface only if they materially shape the design.
 3. **Core Flows** (only if scaffold's route included it) — Personas, Flow Index, `[PRIMARY PATH]` markers per flow. The `[PRIMARY PATH]` markers feed the Testability Gate (Step 7).
 4. **Pre-research file** if one was identified by `trigger_workflow` Step 3 — re-read for grounding.
 
@@ -193,7 +193,7 @@ Work each section: think → clarify → document. Trace requests end-to-end. In
 - **fabrik-lib modules:** Before designing a component from scratch, check `fabrik-lib/README.md` for vendorable modules (abuse prevention, email templates, storage, credits, webhooks, etc.). Reference the module by name if applicable.
 - No code snippets except schemas and interfaces. No business logic.
 
-**Downstream doc feeds:** Tech Plan output informs `docs/CONFIGURATION.md` (env vars from Component Architecture), `docs/RESILIENCE.md` (timeout/retry/fallback per dep from resilience table), `docs/DATABASE_SCHEMA.md` (Data Model). Deploy Plan (04) informs `docs/DEPLOYMENT.md` (compose/Docker layout). The Documentation Assignment Matrix in `ticket-outline` assigns which ticket fills these.
+**Downstream doc feeds:** Tech Plan output informs `docs/CONFIGURATION.md` (env vars from Component Architecture), `docs/RESILIENCE.md` (timeout/retry/fallback per dep from resilience table), `docs/DATABASE_SCHEMA.md` (Data Model). Deploy Plan (04) informs `docs/DEPLOYMENT_ARCHITECTURE.md` (compose/Docker layout). The Documentation Assignment Matrix in `ticket-outline` assigns which ticket fills these.
 
 > **Drafting rules:**
 > - Cover A and C (mandatory) + B (mandatory or N/A with reason).

@@ -18,7 +18,7 @@ Scaffold — drives Stack injection (Step 4) and Commercial Mindset default (Ste
 Port — already resolved; copy into the Architectural Approach section verbatim, including any parenthetical annotation.
 Internal APIs — the consumed dependency list. These are inputs to Component Architecture (Step 6.C), not new design work.
 User Guide (= HAS_USER_GUIDE) — toggles whether Component Architecture must include docs/user-guide/ deployment surface.
-x86_64, Coolify, Design System, Duplicate, Platform Debt — consult; surface in the spec only if they materially shape the design.
+x86_64, Deploy, Design System, Duplicate, Platform Debt — consult; surface in the spec only if they materially shape the design.
 Core Flows (only if scaffold's route included it — see v6 trigger_workflow Step 6 routing table) — Personas, Flow Index, [PRIMARY PATH] markers per flow. The [PRIMARY PATH] markers feed the Testability Gate (Step 7) and are passed downstream to ticket-breakdown for One-Test target nomination.
 Pre-research file if one was identified by trigger_workflow Step 3 — re-read for grounding, especially architectural-level details. Use the same discovery order: override → docs/development/plans/00-research.md → most recently modified docs/development/plans/YYYY-MM-DD-*.md (ignoring archived/, issues/, previously-planned-fabrik-phases/).
 If a required upstream artifact is missing (e.g. tech-plan invoked without epic-brief), pause and ask the user. Do not guess.
@@ -134,7 +134,7 @@ Stress-test the design against these 6 dimensions plus the Testability Gate. Res
 6	Requirement coverage	Are all Success Criteria from the Epic Brief and [PRIMARY PATH] markers from Core Flows addressed?
 Testability Gate (single check):
 
-"Does the architecture expose clear boundaries and mockable seams along the [PRIMARY PATH](s)?" Answer Yes / No + one-line note if No.
+"Does the architecture expose clear boundaries and mockable seams along the [PRIMARY PATH] markers?" Answer Yes / No + one-line note if No.
 
 That is the full extent of tech-plan's testing surface. Tech-plan does not name a specific test, write Given/When/Then, or define test type (unit/integration/E2E). Test target nomination belongs to ticket-breakdown, which consumes the [PRIMARY PATH] markers from Core Flows.
 
@@ -154,7 +154,7 @@ Present the Tech Plan. Iterate until the user explicitly confirms alignment. Sil
 If during iteration the user introduces a requirement change that invalidates earlier alignment (new Success Criterion, removed scope, scaffold reroute), suggest the revise-requirements cross-cutting command rather than silently absorbing the change. If after iteration the spec set feels inconsistent across artifacts (Epic Brief ↔ Core Flows ↔ Tech Plan), suggest cross-artifact-validation before handoff to ticket-breakdown. If overall requirements quality is in doubt before tech-plan even ran, suggest prd-validation first.
 
 Acceptance Criteria
-Upstream context consumed: Epic Brief sections (Summary, Context & Problem, Success Criteria, Out of Scope, Metadata), v6 INFRA-CHECK fields (Scaffold, Port, Internal APIs, User Guide, x86_64, Coolify, Design System, Duplicate, Platform Debt), Core Flows (when present per v6 routing) including [PRIMARY PATH] markers, and pre-research file (when one was identified by trigger_workflow).
+Upstream context consumed: Epic Brief sections (Summary, Context & Problem, Success Criteria, Out of Scope, Metadata), v6 INFRA-CHECK fields (Scaffold, Port, Internal APIs, User Guide, x86_64, Deploy, Design System, Duplicate, Platform Debt), Core Flows (when present per v6 routing) including [PRIMARY PATH] markers, and pre-research file (when one was identified by trigger_workflow).
 Defensive case for skipped Core Flows handled: tech-plan does not request Core Flows retroactively for scaffolds where v6 routing skipped it; personas and primary interaction paths derived from Epic Brief Success Criteria instead.
 Pre-design reference reads completed scaffold-aware: ocoron-design-system.md re-confirmed for UI scaffolds, 25-data-postgres.md read for database-backed scaffolds.
 Scaffold-specific rule packs from AGENTS.md § Project Type → Default Packs read; overlay packs read only when epic touches that domain. Read packs stated.

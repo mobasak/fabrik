@@ -26,7 +26,7 @@ For inputs available per the Input Contract, read in this order:
 Epic Brief — Summary, Context & Problem, Success Criteria, Out of Scope, Metadata (HAS_USER_GUIDE, Scaffold, Port). Every Success Criterion must map to at least one ticket's Acceptance Criteria.
 Core Flows (when present) — Personas, Flow Index, [PRIMARY PATH] markers, Microcopy Hot-Spots. The [PRIMARY PATH] markers drive One-Test integration test placement (Step 5). Microcopy Hot-Spots are referenced by tickets touching user-facing copy.
 Tech Plan (when present) — Architectural Approach, Data Model, Component Architecture, Stack block, Issue classification (Most Important / Significant / Moderate / Minor), Testability Gate (Yes/No + note). Drives Plan Required auto-derivation (Step 7).
-v6 INFRA-CHECK — Scaffold, Port, Internal APIs, User Guide (= HAS_USER_GUIDE), Coolify, Platform Debt. Internal APIs are consumed dependencies — do not generate tickets to build them.
+v6 INFRA-CHECK — Scaffold, Port, Internal APIs, User Guide (= HAS_USER_GUIDE), Deploy host (fabrik apply --target-vps), Platform Debt. Internal APIs are consumed dependencies — do not generate tickets to build them.
 Pre-research file if one was identified by trigger_workflow Step 3.
 Step 3: Identify Natural Work Units
 Group by component, layer, or flow — not by function or step.
@@ -50,8 +50,8 @@ New rule pack added at .windsurf/rules/NN-name.md	AGENTS.md § Rule-Pack Enforce
 New enforcement script added at scripts/enforcement/check_X.py	scripts/final_gate.py run_consistency_checks() registers the new check at the correct tier (1, 2, or 3 — state which); script supports --help describing its scope.
 New scaffold template file added under templates/scaffold/	src/fabrik/scaffold.py SHARED_TEMPLATE_MAP entry added; _SHARED_REQUIRED_FILES updated if file is required.
 New type-specific scaffold template added	src/fabrik/scaffold.py _<TYPE>_TEMPLATE_MAP + TYPE_REQUIRED_FILES updated; if a new scaffold type is introduced, also update SCAFFOLD_TYPES, AGENTS.md § Scaffold Types, AGENTS.md § Project Type → Default Packs, docs/reference/scaffold-type-decision-guide.md, the v6 trigger_workflow Step 2 detection table, and the v6 trigger_workflow Step 6 routing table; AGENTS.md **Last Updated:** line bumped.
-New Fabrik microservice added	AGENTS.md § Fabrik Microservices (Custom-Built, on VPS) row added; PORTS.md entry; data/projects.yaml entry; docs/BUSINESS_MODEL.md Active Projects entry; docs/infrastructure/COOLIFY_STATUS.md row added once deployed; Microservice URL Patterns from AGENTS.md honored (http://service-name:PORT for VPS internal, https://service.vps1.ocoron.com for external); AGENTS.md **Last Updated:** line bumped.
-compose.yaml modified (services, env vars, networks, ports)	Docker compose validity checked (enforced by scripts/enforcement/check_compose_services.py); Docker conventions validated (enforced by scripts/enforcement/check_docker.py — amd64, no-Alpine, HEALTHCHECK present); if env vars added, set them in Coolify dashboard before deploy.
+New Fabrik microservice added	AGENTS.md § Fabrik Microservices (Custom-Built, on VPS) row added; PORTS.md entry; data/projects.yaml entry; docs/BUSINESS_MODEL.md Active Projects entry; docs/infrastructure/vps-status.md (and vps-complete-inventory.md) updated once deployed; Microservice URL Patterns from AGENTS.md honored (http://service-name:PORT for VPS internal, https://service.vps1.ocoron.com for external); AGENTS.md **Last Updated:** line bumped.
+compose.yaml modified (services, env vars, networks, ports)	Docker compose validity checked (enforced by scripts/enforcement/check_compose_services.py); Docker conventions validated (enforced by scripts/enforcement/check_docker.py — amd64, no-Alpine, HEALTHCHECK present); if env vars added, set them in the service .env (deployed via fabrik apply / deployer_ssh — there is no Coolify dashboard) before deploy.
 opencode.json modified	Kilo-safe instruction list validated (enforced by scripts/enforcement/check_opencode_json.py).
 .windsurf/workflows/<name>.md (Cascade slash-commands) added/modified	INDEX.md reflects the workflow file; if it propagates to projects, mention in the ticket; governance isolation enforced by check_symlinks in scripts/final_gate.py.
 AGENTS.md modified	**Last Updated:** line at the top bumped to today's date.
@@ -124,7 +124,7 @@ The agent MUST append a structured entry to docs/LESSONS_LEARNT.md if any of the
 
 Trigger conditions:
 
-External API/tool quirk discovered — undocumented behavior of an external service (Coolify, Cloudflare, Docker, Traefik, etc.) that cost time or required investigation.
+External API/tool quirk discovered — undocumented behavior of an external service (Cloudflare, Docker, Traefik, Authelia, etc.) that cost time or required investigation.
 Stale doc bypassed — official documentation was wrong or incomplete; agent had to discover the actual behavior empirically.
 Tool incompatibility — version conflict, hidden dependency, or platform constraint (WSL, amd64, PEP 668, etc.) that blocked the obvious approach.
 Fabrik-specific workaround — solution that depends on Fabrik conventions (port allocation, scaffold structure, governance file isolation, etc.) that a fresh agent would not know.

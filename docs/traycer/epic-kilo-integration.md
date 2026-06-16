@@ -1,6 +1,6 @@
 # Traycer Epic + Kilo CLI Integration Guide
 
-**Last Updated:** 2026-03-07
+**Last Updated:** 2026-06-16
 **Purpose:** Enable Traycer Epic to consult Kilo CLI agents (premium tiers) during planning to create flawless WordPress deployment specs and tickets.
 
 ---
@@ -85,6 +85,12 @@ python /opt/fabrik/scripts/kilo_code_review.py review \
 
 ## Workflow: Epic Consulting Kilo for Planning
 
+> **Note (2026-06-16):** The WordPress deployment example below is illustrative.
+> WordPress site creation + deployment is a **separate project** at `/opt/wpf`
+> (the `wpf` CLI) — it is no longer part of Fabrik (`fabrik wp` and
+> `src/fabrik/wordpress/` were removed). The Epic↔Kilo consultation pattern shown
+> here applies identically to any project.
+
 ### Step 1: Epic Generates Initial Spec Draft
 
 Epic creates Epic Brief + Specs based on user requirements:
@@ -101,8 +107,8 @@ python /opt/fabrik/scripts/kilo_code_review.py review \
   --plan "Review WordPress deployment architecture for ocoron.com. Check: 1) Security hardening, 2) Container isolation, 3) Backup strategy, 4) Scalability for multiple sites" \
   --review-agent orchestrator \
   --strategy premium \
-  --file /opt/fabrik/specs/sites/ocoron.com.yaml \
-  --file /opt/fabrik/templates/wordpress/base/compose-coolify.yaml.j2 \
+  --file /opt/wpf/specs/sites/ocoron.com.yaml \
+  --file /opt/wpf/templates/base/compose.yaml.j2 \
   --output json
 ```
 
@@ -229,7 +235,7 @@ Step 1: Requirements Analysis
 
 Step 2: Consulting Kilo (Architecture Review)
 🤖 Running: kilo orchestrator @ premium tier
-📄 Context: ocoron.com.yaml, compose-coolify.yaml.j2
+📄 Context: ocoron.com.yaml, compose.yaml.j2
 ⏳ Estimated: ~$3.00
 
 [45 seconds later...]
@@ -269,17 +275,17 @@ Would you like to proceed with this plan?
 # Kilo CLI wrapper
 /opt/fabrik/scripts/kilo_code_review.py
 
-# WordPress specs
-/opt/fabrik/specs/sites/*.yaml
+# WordPress specs (separate wpf project)
+/opt/wpf/specs/sites/*.yaml
 
-# WordPress templates
-/opt/fabrik/templates/wordpress/
+# WordPress templates (separate wpf project)
+/opt/wpf/templates/base/
 
-# Fabrik source (for context)
-/opt/fabrik/src/fabrik/wordpress/
+# WordPress source for context (separate wpf project)
+/opt/wpf/src/wpf/
 
-# Documentation (for reference)
-/opt/fabrik/docs/reference/wordpress/
+# Documentation (for reference, separate wpf project)
+/opt/wpf/docs/
 ```
 
 ### Environment Variables (Epic Should Check)

@@ -31,7 +31,7 @@ Read and internalize the full artifact set in this order:
 2. **Core Flows** (when present per v6 routing) — Personas, Flow Index, `[PRIMARY PATH]` markers, Microcopy Hot-Spots.
 3. **Tech Plan** (when present per v6 routing) — Architectural Approach, Data Model, Component Architecture, **Stack block**, **Issue classification** (Most Important / Significant / Moderate / Minor), **Testability Gate** (Yes/No + note), Commercial Mindset section (when ON per scaffold-driven default).
 4. **Ticket set +** `[PRIMARY PATH]` **Index** — every ticket's Scope, DO NOT, Steps, Acceptance Criteria (including Documentation Sync Matrix injections), `Final Gate Instruction`, Completion Self-Check (with mandatory `Lessons Learnt:` line), Governance Checklist (with agent-aware first-output line + no-`git`-commands line + sensitive-file backup line), Gate Tier, `Plan Required` flag.
-5. **v6 INFRA-CHECK** — `Scaffold`, `Port`, `Internal APIs`, `User Guide` (= `HAS_USER_GUIDE`), `x86_64`, `Coolify`, `Design System`, `Duplicate`, `Platform Debt`.
+5. **v6 INFRA-CHECK** — `Scaffold`, `Port`, `Internal APIs`, `User Guide` (= `HAS_USER_GUIDE`), `x86_64`, `Deploy`, `Design System`, `Duplicate`, `Platform Debt`.
 6. `docs/LESSONS_LEARNT.md` — every `# Lesson <N>:` heading with its 7-section structure (TL;DR + Context + Problem + Root Cause + Solution &amp; Aha + Integration + Triggered By).
 
 For scaffolds where Core Flows or Tech Plan was intentionally skipped per v6 routing (`python-api`, `node-api`, `file-api`, `file-worker`, `wordpress`, `docusaurus`), do not flag their absence — derive personas + primary paths from Epic Brief Success Criteria and skip Core Flows / Tech Plan dimensions when they're intentionally absent. State explicitly.

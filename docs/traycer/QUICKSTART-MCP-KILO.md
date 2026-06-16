@@ -1,6 +1,6 @@
 # Traycer Epic + Kilo MCP Integration - Quick Start
 
-**Last Updated:** 2026-03-07
+**Last Updated:** 2026-06-16
 **Status:** ✅ Configured and Ready for Testing
 
 ---
@@ -221,8 +221,8 @@ If missing, manually add those fields or re-run setup.
 kilo_review(
     prompt="Review WordPress deployment architecture. Check: 1) Security hardening, 2) Container isolation, 3) Backup strategy, 4) Scalability",
     files=[
-        "/opt/fabrik/specs/sites/ocoron.com.yaml",
-        "/opt/fabrik/templates/wordpress/base/compose-coolify.yaml.j2"
+        "/opt/wpf/specs/sites/ocoron.com.yaml",
+        "/opt/wpf/templates/base/compose.yaml.j2"
     ],
     strategy="premium"
 )
@@ -254,7 +254,7 @@ kilo_review(
 ```python
 kilo_ask(
     prompt="Verify fixes applied: WP_ENVIRONMENT_TYPE added, restart policy set",
-    files=["/opt/fabrik/specs/sites/ocoron.com.yaml"],
+    files=["/opt/wpf/specs/sites/ocoron.com.yaml"],
     strategy="standard"
 )
 ```

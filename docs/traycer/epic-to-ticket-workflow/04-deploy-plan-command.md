@@ -10,18 +10,13 @@
 
 # Deploy Plan
 
-> **⚠️ Pre-migration vintage.** This workflow prompt was authored when
-> Coolify was the deploy control plane. Anywhere it says "Coolify
-> compatibility", "Coolify env", or "Coolify workaround", substitute
-> "SSH+Compose deploy via `fabrik apply` → `orchestrator/deployer_ssh.py`".
-> The shape-block + compose-contract + registrar-surface checks are
-> identical and still required. `networks: coolify: external: true` is
-> kept (network name only); container port limits, healthcheck timing,
-> and env-var contracts are unchanged.
+> **Note:** Coolify decommissioned (2026-05-30); deploy is SSH + Docker Compose
+> via `fabrik apply` → `src/fabrik/orchestrator/deployer_ssh.py`. `networks:
+> coolify: external: true` is kept (Docker network name only).
 
 ## Role
 
-You are a deployment engineer who confirms the service is ready for `fabrik apply` — verifying the spec shape block, compose contract, registrar surface, and Coolify compatibility BEFORE any code is written. You bridge Stage 2 (planning) and Stage 3 (registration) of the Fabrik lifecycle.
+You are a deployment engineer who confirms the service is ready for `fabrik apply` — verifying the spec shape block, compose contract, registrar surface, and compose/deploy readiness (the `fabrik apply` SSH+Compose invariants) before any code is written. You bridge Stage 2 (planning) and Stage 3 (registration) of the Fabrik lifecycle.
 
 ## Core Philosophy
 
@@ -65,10 +60,10 @@ For each `true` field, confirm the code WILL satisfy the registrar's expectation
 
 Verify the planned `compose.yaml` will have:
 
-- [ ] `deploy.resources.limits.memory` + `cpus` (F5 mandate — Coolify ignores UI limits)
+- [ ] `deploy.resources.limits.memory` + `cpus` (required per service — enforced fatally by `deployer_ssh._validate_compose()`)
 - [ ] `platform: linux/amd64`
 - [ ] `container_name: <id>`
-- [ ] `healthcheck` with `start_period: 60s` (Coolify build time grace)
+- [ ] `healthcheck` with `start_period: 60s` (grace for container boot + migrations before the healthcheck marks it unhealthy)
 - [ ] `networks: coolify: external: true`
 - [ ] Traefik labels (if `is_public`): `Host`, `websecure`, `letsencrypt`, hardcoded port
 - [ ] `restart: unless-stopped`
@@ -97,23 +92,23 @@ List ALL env vars the service needs at deploy time:
 | Var | Source | Required? |
 |---|---|---|
 | `PORT` | compose.yaml | Yes (default in compose) |
-| `LOG_LEVEL` | Coolify env | Yes (default: INFO) |
-| `DATABASE_URL` | Coolify env (if needs_database) | Conditional |
-| `REDIS_URL` | Coolify env (if needs_cache) | Conditional |
+| `LOG_LEVEL` | service `.env` (deployer-written) | Yes (default: INFO) |
+| `DATABASE_URL` | service `.env` (if needs_database) | Conditional |
+| `REDIS_URL` | service `.env` (if needs_cache) | Conditional |
 | `SENTRY_DSN` | Injected by glitchtip registrar | Auto |
-| `SERVICE_INTERNAL_SECRET_KEY` | Coolify env (M2M auth) | Yes for API services |
+| `SERVICE_INTERNAL_SECRET_KEY` | service `.env` (M2M auth) | Yes for API services |
 | (project-specific vars) | ... | ... |
 
 Cross-check: every external dependency in Tech Plan's resilience table must have a corresponding env var for its connection string/key.
 
-### Step 6: Coolify Workaround Awareness
+### Step 6: Deploy invariants (SSH + Docker Compose)
 
-Confirm the deployment accounts for known Coolify v4 bugs:
+Confirm the deployment satisfies the `fabrik apply` SSH+Compose invariants:
 
-- [ ] SSH fallback: if build doesn't start within 300s, deployer clones + builds via SSH
-- [ ] `.env` pre-seed: deployer touches `.env` before first deploy (Coolify doesn't create it)
-- [ ] `deploy.resources.limits`: MUST be in compose (Coolify UI field is ignored)
-- [ ] Container naming: Coolify appends UUID+timestamp; use `traefik.docker.network=coolify` label
+- [ ] Memory limit required: every compose service declares `deploy.resources.limits.memory` — validated fatally by `deployer_ssh._validate_compose()` (refuses any service without it, prevents OOM on the shared VPS)
+- [ ] `.env`: the SSH deployer writes `/opt/<svc>/.env` to the VPS as part of `fabrik apply`
+- [ ] No host-port binding: Traefik routes via labels (`web`/`websecure` entrypoints) — no `ports:` mapping to the host
+- [ ] Stable `container_name: <id>` (no UUID/timestamp drift)
 
 ### Step 7: Destroy Path Verification
 
@@ -135,7 +130,7 @@ Present the deploy plan. User confirms shape + compose + registrars + env vars +
 
 If any mismatch found (e.g. code needs Redis but `shape.needs_cache: false`) → flag as a correction that must be resolved before `ticket-outline` begins.
 
-**Downstream doc feeds:** Deploy Plan output directly informs `docs/DEPLOYMENT.md` (compose contract, env vars, registrar surface). The Documentation Sync Matrix in `ticket-breakdown` assigns which ticket fills this.
+**Downstream doc feeds:** Deploy Plan output directly informs `docs/DEPLOYMENT_ARCHITECTURE.md` (compose contract, env vars, registrar surface). The Documentation Sync Matrix in `ticket-breakdown` assigns which ticket fills this.
 
 ## Acceptance Criteria
 
@@ -144,9 +139,9 @@ If any mismatch found (e.g. code needs Redis but `shape.needs_cache: false`) →
 - Compose contract verified (all 8 mandatory elements).
 - Registrar surface map complete (9 registrars, each yes/no with "Creates" column).
 - Env vars checklist complete. Cross-checked against resilience table.
-- Coolify workaround awareness confirmed (SSH fallback, .env pre-seed, resource limits, naming).
+- Deploy invariants confirmed (memory limits in compose, `.env` deployer-written, no host ports, stable `container_name`).
 - Destroy path verified: `fabrik destroy --use-state` reverses all registrations cleanly.
 - Authelia / security confirmation complete. `/health` not behind auth.
 - No shape ↔ architecture mismatches at handoff.
-- Downstream doc feed identified (DEPLOYMENT.md).
+- Downstream doc feed identified (DEPLOYMENT_ARCHITECTURE.md).
 - User explicitly confirms. Silence ≠ confirmation.

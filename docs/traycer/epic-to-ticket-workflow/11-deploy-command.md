@@ -86,7 +86,7 @@ Build a complete ticket the agent can execute without questions:
 - [ ] Local dev works: `fabrik dev -d && curl localhost:<PORT>/health` → 200
 - [ ] Code pushed: `git log origin/<branch> --oneline -1` matches local HEAD
 - [ ] If not pushed: `git push origin <branch>`
-- [ ] Env vars in Coolify: <list each required var from .env.example + SERVICE_INTERNAL_SECRET_KEY>
+- [ ] Env vars set in the service `.env` (deployed by `fabrik apply` over SSH): <list each required var from .env.example + SERVICE_INTERNAL_SECRET_KEY>
 - [ ] compose.yaml valid: resource limits, platform: linux/amd64, healthcheck, coolify network, no host port bindings
 - [ ] Port <PORT> not conflicting: `grep <PORT> PORTS.md`
 - [ ] DNS ready (if new domain): `fabrik domain ready <domain>`
@@ -96,8 +96,8 @@ Build a complete ticket the agent can execute without questions:
 ```bash
 fabrik apply specs/services/<id>.yaml
 ```
-Expected: Coolify creates/updates app → container starts → registrars fire.
-Time: 5-7 min first deploy (SSH fallback at 300s is NORMAL per AGENTS.md).
+Expected: `fabrik apply` SSHes into the target host, writes `compose.yaml` + `.env` to `/opt/<svc>/`, runs `docker compose up -d --wait` → container starts → registrars fire.
+Time: 5-7 min first deploy (the `--wait` health poll can run up to 300s — NORMAL per AGENTS.md).
 Redeploy: 1-2 min (image cached).
 
 ### Registrars that will fire (from shape)
@@ -146,7 +146,7 @@ When agent returns results:
 | Registrar missing | Dispatch fixup: `fabrik reconcile-all --filter <id>` |
 | Health fails (container crashes) | Read logs. If obvious fix → fixup ticket. If not → escalate. |
 | Container won't start after 10 min | Rollback (from ticket). Escalate to user. |
-| Coolify SSH fallback fired | Normal. Note in report (not a failure). |
+| `docker compose up -d --wait` health poll ran long (up to 300s) | Normal for a first deploy. Note in report (not a failure). |
 
 ### Step 6: Report
 

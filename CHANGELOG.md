@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — docs/traycer planner command files brought to current deploy reality (2026-06-16)
+
+Evidence-based walk of `docs/traycer/` (59 files) — the Traycer planner / Kilo command files agents actually run. They reflected the Coolify era; reframed to "our way of working":
+
+- **`DEPLOYMENT.md` → `DEPLOYMENT_ARCHITECTURE.md`** across the epic-to-ticket commands (03/04/05/08).
+- **The v6 INFRA-CHECK `Coolify` field → `Deploy`** (deploy host + fleet/service status via `docs/infrastructure/vps-status.md`) — renamed *consistently* across `2-epic-brief`, `3/4-tech-plan`, `5-ticket-breakdown`, `7-implementation-validation`, `8-revise-requirements`, `9-cross-artifact-validation`. `docs/infrastructure/COOLIFY_STATUS.md` (archived) refs → `vps-status.md`.
+- **`04-deploy-plan-command.md` "Coolify Workaround Awareness" + `11-deploy-command.md`** → current SSH + Docker Compose invariants: memory limit enforced fatally by `deployer_ssh._validate_compose()` (not "Coolify ignores its UI field"), `.env` written to `/opt/<svc>/.env` by the SSH deployer, no host-port binding (Traefik `web`/`websecure`), stable `container_name`; dropped the "Coolify v4 bugs"/"SSH fallback" framing.
+- **WordPress fully out of Fabrik** — dead `templates/wordpress/base/compose-coolify.yaml.j2` / `src/fabrik/wordpress/` example paths in `epic-kilo-integration.md`, `TRAYCER-KILO-DIRECT-CLI.md`, `mcp-kilo-setup-guide.md`, `QUICKSTART-MCP-KILO.md` → `/opt/wpf/` (`wpf` CLI); `fabrik wp` removal noted.
+- Fixed a broken `(s)` link in `4-tech-plan.md`.
+
+This was the last docs folder. (Untouched: `archive/` historical, and dated logs like `2026-03-15-deployment-log.md` which are correct-as-history.)
+
 ### Fixed — Modal driver: rewrite to use `app.run()` context; G-LIVE-7/8/9 GREEN against $30 credit (2026-06-16)
 
 Closes the Modal half of the three-provider parity goal. The Modal driver shipped earlier today (commit `391c749`) was broken — `create_pod()` had two SDK-violations that both fired on the first live call:

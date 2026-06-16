@@ -1,7 +1,14 @@
 # Traycer Epic + Kilo Direct CLI Integration
 
-**Last Updated:** 2026-03-07
+**Last Updated:** 2026-06-16
 **Status:** ✅ Working Method (MCP Not Supported)
+
+> **Note (2026-06-16):** The WordPress Site Factory example used throughout is
+> illustrative. That work now lives in the **separate `/opt/wpf` project** (the
+> `wpf` CLI), not in Fabrik — `fabrik wp` and `src/fabrik/wordpress/` were
+> removed, and Coolify was decommissioned (2026-05-30; deploy is now SSH+Compose
+> via `fabrik apply`). The Epic↔Kilo direct-CLI pattern shown here applies to any
+> project unchanged.
 
 ---
 
@@ -97,7 +104,7 @@ python /opt/fabrik/scripts/kilo_code_review.py review \
 Phase 0 (baseline):
 - Regression tests cover existing deploy-wordpress flows? ✓
 - ContainerResolver fix addresses name drift? ✓
-- Test suite runs against real Coolify instance? ✓
+- Test suite runs against a real Docker Compose deploy? ✓
 
 Phase 1 (spec wrapper):
 - ResolvedSpec captures all config variations? ✓
@@ -290,8 +297,8 @@ Review Requirements:
 5. Phase 4 (capability system) - integration points clear?
 
 Identify BLOCKER issues only - this is critical production infrastructure." \
-  --file /opt/fabrik/docs/development/plans/wordpress-site-factory-epic.md \
-  --file /opt/fabrik/src/fabrik/wordpress/site_deployer.py
+  --file /opt/wpf/docs/development/plans/wordpress-site-factory-epic.md \
+  --file /opt/wpf/src/wpf/engine/deployer.py
 ```
 
 ### Expected Kilo Response
@@ -310,7 +317,7 @@ Identify BLOCKER issues only - this is critical production infrastructure." \
     {
       "severity": "MAJOR",
       "category": "TESTING",
-      "why": "Phase 0 regression tests don't cover Coolify API edge cases",
+      "why": "Phase 0 regression tests don't cover Docker/Compose deploy edge cases",
       "fix_hint": "Add test for: container name conflicts, network isolation, volume mounts"
     }
   ],

@@ -157,7 +157,7 @@ Read the scaffold docs and check they're FILLED (not empty templates):
 - `docs/FEATURES.md` — user-facing features described
 - `docs/RESILIENCE.md` — dependency inventory filled
 - `docs/DATABASE_SCHEMA.md` — tables/columns documented (if DB project)
-- `docs/DEPLOYMENT.md` — Docker/compose setup documented
+- `docs/DEPLOYMENT_ARCHITECTURE.md` — Docker/compose setup documented
 - `docs/LESSONS_LEARNT.md` — entries present where triggers fired, numbering sequential
 - **Per-ticket Lessons Learnt field** — every ticket's Completion Self-Check has `Lessons Learnt:` stated (entry or `none`). Silence = **Blocker**.
 

@@ -147,7 +147,7 @@ T<N> — <Title (action-oriented imperative)>
 
 **CHANGELOG rule:** Every ticket that ships code MUST add one entry to `CHANGELOG.md` under `## [Unreleased]`. The outline does NOT specify this per-ticket (it's universal) — `ticket-breakdown` enforces it.
 
-**Lessons Learnt field:** Mark `trigger condition` when the ticket involves: auth changes, password/secret rotation, Coolify workaround, new registrar interaction, external service integration, or any high-risk area. `ticket-breakdown` enforces the actual entry in `docs/LESSONS_LEARNT.md` — outline just flags which tickets are likely to produce lessons.
+**Lessons Learnt field:** Mark `trigger condition` when the ticket involves: auth changes, password/secret rotation, deploy/compose workaround, new registrar interaction, external service integration, or any high-risk area. `ticket-breakdown` enforces the actual entry in `docs/LESSONS_LEARNT.md` — outline just flags which tickets are likely to produce lessons.
 
 Rules:
 - Titles are action-oriented imperatives.
@@ -250,7 +250,7 @@ Every scaffolded doc template MUST be assigned to exactly one ticket. Build the 
 | `docs/FEATURES.md` | T? | Core Flows |
 | `docs/QUICKSTART.md` | T? | Core Flows first-use journey |
 | `docs/API_REFERENCE.md` | T? | Tech Plan Component Architecture |
-| `docs/DEPLOYMENT.md` | T? | Deploy Plan |
+| `docs/DEPLOYMENT_ARCHITECTURE.md` | T? | Deploy Plan |
 | `docs/RESILIENCE.md` | T? | Tech Plan resilience table |
 | `docs/DATABASE_SCHEMA.md` | T? | Tech Plan Data Model |
 | `docs/TROUBLESHOOTING.md` | T? | Integration/closure ticket |

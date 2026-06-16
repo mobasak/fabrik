@@ -31,7 +31,7 @@ Read and internalize the full artifact set in this order:
 2. **Core Flows** (when present per v6 routing) — Personas, Flow Index, `[PRIMARY PATH]` markers, Microcopy Hot-Spots.
 3. **Tech Plan** (when present per v6 routing) — Architectural Approach, Data Model, Component Architecture, **Stack block**, **Issue classification** (Most Important / Significant / Moderate / Minor), **Testability Gate** (Yes/No + note).
 4. **Ticket set +** `[PRIMARY PATH]` **Index** — every ticket's Scope, DO NOT, Steps, Acceptance Criteria (including Documentation Sync Matrix injections from ticket-breakdown), `Final Gate Instruction`, Completion Self-Check (with mandatory `Lessons Learnt:` line), Governance Checklist, Gate Tier, Plan Required flag.
-5. **v6 INFRA-CHECK** — `Scaffold`, `Port`, `Internal APIs`, `User Guide` (= `HAS_USER_GUIDE`), `x86_64`, `Coolify`, `Design System`, `Duplicate`, `Platform Debt`.
+5. **v6 INFRA-CHECK** — `Scaffold`, `Port`, `Internal APIs`, `User Guide` (= `HAS_USER_GUIDE`), `x86_64`, `Deploy`, `Design System`, `Duplicate`, `Platform Debt`.
 6. **Implementation state per ticket** — for each ticket, classify as one of:
   - **Not-Started** — no execution yet.
   - **In-Progress** — execution running or partial implementation present.
@@ -128,7 +128,7 @@ If any INFRA-CHECK field needs to change as a consequence of the requirement shi
 - `Port` **change** (architectural shift requires a different port): re-allocate per `PORTS.md` rules. Update `project.yaml`, `data/projects.yaml`, `PORTS.md`, `compose.yaml`. Cascade to all tickets that reference the port.
 - `Internal APIs` **change** (new microservice consumed, or one removed): update Tech Plan Component Architecture; cascade to ticket Steps that integrate the changed dependency.
 - `Scaffold` **change** is a major event — usually means the project type itself is wrong, which is closer to scope-creep escape hatch territory than revision. If genuine, re-route via `trigger_workflow` Step 6.
-- `Coolify`**,** `Platform Debt`**,** `Duplicate` — these are informational; surface in the analysis but they don't propagate as artifact updates.
+- `Deploy`**,** `Platform Debt`**,** `Duplicate` — these are informational; surface in the analysis but they don't propagate as artifact updates.
 
 #### Core Flows lens (PM thinking about user experience)
 
@@ -189,7 +189,7 @@ For every ticket whose Scope changed, re-run ticket-breakdown's Documentation Sy
 - Component added → add `docs/user-guide/<feature>.md` AC line (if `HAS_USER_GUIDE: true`).
 - Env var added/removed → update `.env.example` + `docs/CONFIGURATION.md` AC lines.
 - New rule pack required → add `AGENTS.md` § Pack Registry update line.
-- Microservice added → cascade to `AGENTS.md` § Fabrik Microservices, `PORTS.md`, `data/projects.yaml`, `docs/BUSINESS_MODEL.md`, `docs/infrastructure/COOLIFY_STATUS.md`.
+- Microservice added → cascade to `AGENTS.md` § Fabrik Microservices, `PORTS.md`, `data/projects.yaml`, `docs/BUSINESS_MODEL.md`, `docs/infrastructure/vps-status.md`.
 
 #### `[PRIMARY PATH]` Index regeneration
 

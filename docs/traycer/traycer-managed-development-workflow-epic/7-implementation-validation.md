@@ -40,7 +40,7 @@ Read the spec set in this order:
 2. **Core Flows** (when present per v6 routing) — Personas, `[PRIMARY PATH]` markers, Microcopy Hot-Spots.
 3. **Tech Plan** (when present per v6 routing) — Architectural Approach, Data Model, Component Architecture, Stack block, Issue classification, Testability Gate.
 4. **Ticket set +** `[PRIMARY PATH]` **Index** — every ticket's Scope, DO NOT, Steps, Acceptance Criteria (including Documentation Sync Matrix injections), Final Gate Instruction, Completion Self-Check (with mandatory `Lessons Learnt:` line), Governance Checklist, Gate Tier.
-5. **v6 INFRA-CHECK** — `Scaffold`, `Port`, `Internal APIs`, `User Guide`, `Coolify`, `Platform Debt`.
+5. **v6 INFRA-CHECK** — `Scaffold`, `Port`, `Internal APIs`, `User Guide`, `Deploy`, `Platform Debt`.
 
 If a required spec is missing for a scaffold whose route includes it (per v6 routing table), surface that as a **Blocker** — implementation cannot be validated against absent specs.
 
@@ -206,7 +206,7 @@ If the auto-generated Epic Closure ticket is in scope:
 
 Present in a single response, organized by severity:
 
-1. **INFRA-CHECK summary** (one line, same format as v6 trigger_workflow): re-derive `Coolify`, `Platform Debt`, etc. for current state.
+1. **INFRA-CHECK summary** (one line, same format as v6 trigger_workflow): re-derive `Deploy`, `Platform Debt`, etc. for current state.
 2. **Validation summary** (1–3 sentences): N tickets in scope, M validated, K with findings.
 3. **Findings table** ordered by severity: Blockers → Final Gate Failure → Lessons Learnt Missing → Bugs → Edge Cases → Cross-Cutting Violations → Technical Drift → Product Misalignment → Observations. Each finding has: ticket id, severity, one-line description, code/spec reference, verification command + output snippet.
 4. **What's working** (concise): tickets and Success Criteria that validated cleanly.

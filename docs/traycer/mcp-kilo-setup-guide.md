@@ -1,6 +1,6 @@
 # MCP Kilo Server Setup Guide
 
-**Last Updated:** 2026-03-07
+**Last Updated:** 2026-06-16
 **Status:** ✅ Ready for Testing
 
 This guide explains how to enable Traycer Epic to consult Kilo CLI agents for planning via MCP (Model Context Protocol).
@@ -104,8 +104,8 @@ During Epic planning, Traycer calls:
 kilo_review(
     prompt="Review WordPress deployment architecture for ocoron.com. Check: 1) Security hardening, 2) Container isolation, 3) Backup strategy, 4) Scalability",
     files=[
-        "/opt/fabrik/specs/sites/ocoron.com.yaml",
-        "/opt/fabrik/templates/wordpress/base/compose-coolify.yaml.j2"
+        "/opt/wpf/specs/sites/ocoron.com.yaml",
+        "/opt/wpf/templates/base/compose.yaml.j2"
     ],
     strategy="premium"
 )
@@ -118,8 +118,8 @@ python /opt/fabrik/scripts/kilo_code_review.py review \
   --strategy premium \
   --output json \
   --plan "[prompt]" \
-  --file /opt/fabrik/specs/sites/ocoron.com.yaml \
-  --file /opt/fabrik/templates/wordpress/base/compose-coolify.yaml.j2
+  --file /opt/wpf/specs/sites/ocoron.com.yaml \
+  --file /opt/wpf/templates/base/compose.yaml.j2
 ```
 
 ### Step 3: Kilo Returns JSON Response
@@ -290,9 +290,9 @@ Review this WordPress deployment plan for:
 Flag any BLOCKER or MAJOR issues.
 """,
     files=[
-        "/opt/fabrik/specs/sites/ocoron.com.yaml",
-        "/opt/fabrik/templates/wordpress/base/compose-coolify.yaml.j2",
-        "/opt/fabrik/templates/wordpress/defaults.yaml"
+        "/opt/wpf/specs/sites/ocoron.com.yaml",
+        "/opt/wpf/templates/base/compose.yaml.j2",
+        "/opt/wpf/templates/defaults.yaml"
     ],
     strategy="premium"
 )
@@ -312,7 +312,7 @@ Verify previous issues fixed:
 
 Confirm no new issues introduced.
 """,
-    files=["/opt/fabrik/specs/sites/ocoron.com.yaml"],
+    files=["/opt/wpf/specs/sites/ocoron.com.yaml"],
     strategy="standard"
 )
 ```
