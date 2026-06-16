@@ -358,7 +358,6 @@ docs/
 │   ├── template_renderer.md
 │   ├── templates.md                # Available deployment templates
 │   ├── trueforge-images.md         # Trueforge image catalog
-│   ├── uptime-kuma.md
 │   ├── windsurf                    # Windsurf IDE optimization
 │   │   ├── actively-used-windsurf-extensions.md
 │   │   ├── cascade-guide.md

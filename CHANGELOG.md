@@ -15,6 +15,8 @@ File-by-file accuracy pass over `docs/reference/` (67 docs). Verified each claim
 - **`health-monitoring.md`** — refreshed counts to live (Gatus 33/18; Prometheus 13 jobs/12 active/14 targets; **13** alert rules in 5 groups, no Promtail rules); marked the Coolify-era stable-alias-watcher section LEGACY/not-deployed; fixed a stale `orchestrator.md` line anchor.
 - **`project-registry.md` archived** (`reference/` → `archive/`) per "don't maintain unnecessary docs" — it's a frozen 2025-12 snapshot superseded by `fabrik projects` / `fabrik scan` + the auto-generated inventory in `docs/BUSINESS_MODEL.md`; it also carried an actively-misleading `DB_HOST=localhost` example. Repointed its 3 inbound refs (`INDEX.md` ×2, `stack.md`) to `BUSINESS_MODEL.md`.
 - **`DOC_REVIEW_2026-04-28.md` archived** (`reference/` → `archive/`) — a one-time dated documentation-currency review report ("post-mission audit after B23–B46"), fully superseded by the subsequent doc sweeps; removed its `INDEX.md` tree entry.
+- **`uptime-kuma.md` archived** (`reference/` → `archive/`) — documents Uptime Kuma as the fleet's live monitor at `status.vps1.ocoron.com` with Coolify-configured auth, but that URL is **Gatus** now, there's **no uptime-kuma container** in the live fleet, and the `uptime_kuma.py` driver is already marked legacy/old-projects-only. Removed its `INDEX.md` entry.
+- Verified clean (no edit needed): `ai_agent_prompt_directives.md` (static prompt library), `AI for Autonomous System Administration.md` (static research report), `ai.md` (matches `src/fabrik/ai/client.py` — its `claude-3-5-sonnet-20241022` default is accurate to the code), `AI_TAXONOMY.md` (last-verified 2026-06-13, current Claude lineup confirmed).
 
 **Batch 1 (9 docs):**
 
