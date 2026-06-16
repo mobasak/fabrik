@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — docs/operations accuracy sweep + prune unnecessary/misplaced docs (2026-06-16)
+
+Same audit→fix→re-audit loop applied to `docs/operations/`, plus two structural cleanups the operator asked for (move a misplaced doc, stop maintaining a superseded one). All claims verified against repo + live fleet (sudo SSH).
+
+- **`credential-recovery.md`** — the `AWAITING-W2` prose was stale: the B2 restic repo is initialized and the weekly self-test (`dr_env_recovery_test.sh`) now logs `OK: N snapshots readable` (live log: `2026-06-07 OK: 25`, `2026-06-14 OK: 41`). Reframed the `AWAITING-W2` branch as the obsolete pre-init guard; date bumped.
+- **`disaster-recovery.md`** — fixed the same false "Backups: 0 plans / bucket EMPTY / all 8 deleted" block that vps-status had (→ 4 live hub plans + 2 per spoke, `host-state` added); the **root-crontab "gap" was already resolved on the host** (`pre-backup.sh` dumps `/opt/backups/root-crontab.txt`, `step_16` replays via `crontab -u root`) — marked RESOLVED; container counts 28→31.
+- **`hub-restore-inventory.md`** — §B root-crontab mechanism corrected (dumped to `/opt/backups/root-crontab.txt` + replayed by `step_16`, NOT restored verbatim from `/var/spool`).
+- **`n8n-webhooks.md`** — auth corrected (n8n v1.0+ removed basic auth → Authelia SSO + owner account); flagged that `/webhook/*` paths are currently behind Authelia (302/303 — external delivery needs a bypass rule); Duplicati→backrest; healthcheck `curl`→`wget` (n8n image has no curl); date.
+- **`fabrik-lifecycle.md`** — noted `redeploy <app>` has no spec tier (`CLI > state > vps1`); **`MCP_HTTP_TRANSPORT.md`** — verified-accurate, added a Last-Updated stamp.
+- **`KILO_BENCHMARK_WORKFLOW.md` moved `operations/` → `workflows/`** (per operator request — it belongs with the `KILO_*_WORKFLOW` docs) and **rewritten to current reality**: the workflow is enabled-by-default (not disabled/opt-in), the flag is `FABRIK_DISABLE_KILO_WORKFLOW=1` (opt-out, not `FABRIK_ENABLE_…`), and `role_mapper.py` is now a deterministic Pareto optimizer (no LLM / ~50ms / $0); the old LLM-hang narrative moved to a History note.
+- **`backup-strategy.md` archived** (`operations/` → `archive/`) per "don't maintain unnecessary docs" — it was self-deprecated, its body is historical Duplicati/Coolify content, and live backup facts now live in `disaster-recovery.md` + the inventories. Repointed its 4 live inbound links (`INDEX.md`, `DEPLOYMENT_ARCHITECTURE.md`, `TROUBLESHOOTING.md`, `deployment.md`) to `disaster-recovery.md`.
+
 ### Changed — docs/infrastructure exhaustive accuracy sweep: all 15 live docs + audit-prompts verified against repo + live fleet (2026-06-16)
 
 Audit→fix→re-audit loop over every live doc under `docs/infrastructure/` until a consistency pass found nothing left. All contested numbers re-derived authoritatively (live SSH + repo) before editing — notably the Gatus count (**33 endpoints / 18 files**, confirmed live AND repo; the "21"/"36" claims were both wrong) so no false "corrections" were written. Historical artifacts (`archive/`, `probe-reports/`, `vps-captured-state-*.txt`) intentionally left frozen.
