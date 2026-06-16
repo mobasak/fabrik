@@ -1,13 +1,13 @@
 ---
 auto_execution_mode: 0
-description: Deploy application to VPS via Coolify (fabrik CLI, shape-driven)
+description: Deploy application to VPS via SSH + Docker Compose (fabrik CLI, shape-driven)
 ---
 
 # Deploy Workflow
 
-Deploy a Fabrik service to production VPS via the `fabrik` CLI. Coolify + Traefik + all shape-gated registrars (Authelia, Gatus, Backrest, GlitchTip, Grafana, MeiliSearch, Postgres) are provisioned automatically per `shape.*` flags in the spec.
+Deploy a Fabrik service to production VPS via the `fabrik` CLI (SSH + Docker Compose; Coolify was decommissioned 2026-05-30). Traefik + all shape-gated registrars (Authelia, Gatus, Backrest, GlitchTip, Grafana, MeiliSearch, Postgres) are provisioned automatically per `shape.*` flags in the spec.
 
-**Canonical reference:** `docs/DEPLOYMENT.md` — read first if anything in this file is unclear.
+**Canonical reference:** `docs/DEPLOYMENT_ARCHITECTURE.md` — read first if anything in this file is unclear.
 
 ## Prerequisites
 
@@ -15,7 +15,7 @@ Deploy a Fabrik service to production VPS via the `fabrik` CLI. Coolify + Traefi
 - [ ] Spec file `specs/services/<name>.yaml` exists (check via `ls /opt/fabrik/specs/services/`)
 - [ ] `shape.*` flags in spec match what the service actually needs (admin dashboard? DB? search? persistent data?)
 - [ ] Domain in spec resolves under `*.vps1.ocoron.com` OR pre-provisioned with `fabrik domain provision`
-- [ ] All secrets present in `/opt/fabrik/.env` (Coolify token, Cloudflare, Grafana SA, GlitchTip, Backrest, etc.)
+- [ ] All secrets present in `/opt/fabrik/.env` (Cloudflare, Grafana SA, GlitchTip, Backrest, etc.)
 - [ ] Lean gate passes: `python scripts/final_gate.py --lean`
 
 ## Steps
@@ -32,15 +32,15 @@ fabrik apply /opt/fabrik/specs/services/<name>.yaml --dry-run
 ```
 
 // turbo
-3. **Deploy** — Full pipeline: validator → secrets → DNS → template → Coolify → provisioners → verifier:
+3. **Deploy** — Full pipeline: validator → secrets → DNS → template → SSH deploy → provisioners → verifier:
 ```bash
 fabrik deploy --project /opt/<name>
 # Or equivalently: fabrik apply /opt/fabrik/specs/services/<name>.yaml
 ```
 
-Runs internally (see `docs/DEPLOYMENT.md` §9.2):
+Runs internally (see `docs/DEPLOYMENT_ARCHITECTURE.md` §9.2):
 - `SpecValidator` → `deploy_validator` → `SecretsManager` → `DNSClient`
-- `TemplateRenderer` → `ComposeLinter` → `CoolifyClient.{create,update}_application + deploy(force=true)`
+- `TemplateRenderer` → `ComposeLinter` → `SSHDeployer` (`deployer_ssh.py`: render compose → scp → `docker compose up -d` over SSH on the `fabrik` network)
 - `InfrastructureProvisioner.provision(ctx)` — shape-gated: postgres · gatus · backrest · glitchtip+DSN · grafana · authelia+bypass · meilisearch
 - `DeploymentVerifier.verify()` — HTTP 200, DNS, SSL, SENTRY_DSN via `docker inspect`
 
@@ -60,7 +60,7 @@ fabrik deploy --project /opt/<name>
 
 ## Rollback
 
-Any failed step triggers automatic reverse-order cleanup via `RollbackManager` (see `docs/DEPLOYMENT.md` §9.8). DB drops are logged for operator action, never auto-executed.
+Any failed step triggers automatic reverse-order cleanup via `RollbackManager` (see `docs/DEPLOYMENT_ARCHITECTURE.md` §9.8). DB drops are logged for operator action, never auto-executed.
 
 ## Verification
 
@@ -68,11 +68,11 @@ Any failed step triggers automatic reverse-order cleanup via `RollbackManager` (
 - [ ] Container shows `Up` in `docker ps`
 - [ ] Traefik router for the domain is `enabled`
 - [ ] HTTPS endpoint reachable (302 to Authelia OR 200 from app)
-- [ ] All shape-gated registrars green (see `docs/DEPLOYMENT.md` §9.6 for per-registrar verification commands)
+- [ ] All shape-gated registrars green (see `docs/DEPLOYMENT_ARCHITECTURE.md` §9.6 for per-registrar verification commands)
 - [ ] Idempotent re-deploy succeeds
 
 ## Related workflows
 
 - `/bug-fix` — regression fix loop
 - `/review` — code review before deploy
-- `docs/DEPLOYMENT.md` §9.6 — **maximal-shape E2E validation** (run after any change to registrar driver, orchestrator, or compose template)
+- `docs/DEPLOYMENT_ARCHITECTURE.md` §9.6 — **maximal-shape E2E validation** (run after any change to registrar driver, orchestrator, or compose template)

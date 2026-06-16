@@ -6,9 +6,9 @@ vps:
   user: ${VPS_USER}
   ssh_key: ${VPS_SSH_KEY:-~/.ssh/id_rsa}
 
-coolify:
-  url: ${COOLIFY_API_URL}
-  # token loaded from COOLIFY_API_TOKEN env var
+# Deploy is SSH + Docker Compose via `fabrik apply` (the `vps:` block above).
+# The old `coolify:` API config (COOLIFY_API_URL/TOKEN) was removed — Coolify was
+# decommissioned 2026-05-30.
 
 dns:
   provider: namecheap  # namecheap or cloudflare

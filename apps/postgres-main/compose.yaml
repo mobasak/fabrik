@@ -11,7 +11,7 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
     networks:
-      coolify:
+      fabrik:
         aliases:
           - postgres-main
     healthcheck:
@@ -21,7 +21,7 @@ services:
       retries: 5
 
 networks:
-  coolify:
+  fabrik:
     external: true
 
 volumes:

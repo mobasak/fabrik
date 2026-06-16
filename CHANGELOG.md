@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — apps/ + root compose + deploy workflow + config Coolify residue (2026-06-17)
+
+Final sweep across non-`docs/` config/deploy files:
+
+- **`apps/{postgres-main,example-api,fabrik-proxy}/compose.yaml`** + **root `compose.yaml`**: `coolify` network → `fabrik` (same drift as `infra/`; `fabrik apply` rejects `coolify`); "for Coolify orchestration" healthcheck comments → "for the compose deploy + Traefik".
+- **`.windsurf/workflows/deploy.md`** (a Windsurf deploy workflow — `.windsurf/workflows/` wasn't covered in the rules pass): description "via Coolify" → "via SSH + Docker Compose"; `CoolifyClient.{create,update}_application` → `SSHDeployer` (`deployer_ssh.py`, `docker compose up -d` on the `fabrik` network); dropped "Coolify token"; `docs/DEPLOYMENT.md` → `docs/DEPLOYMENT_ARCHITECTURE.md` (×4).
+- **`config/platform.yaml.example`**: removed the dead `coolify:` API config section (verified not code-consumed — config reads `COOLIFY_*` from env; deploy is the `vps:` SSH block).
+- **`.env.example`**: browserless "inject via Coolify API" → service `.env`; the `# Coolify API` env section marked **LEGACY** (kept the vars — `src/fabrik/config.py` still declares `COOLIFY_API_URL/TOKEN` as required; noted Coolify is decommissioned and they're not used operationally, pending legacy-code removal).
+
+Left as history (banner-covered or correct): the 2026-03-15 deployment-log + youtube vision (already banner'd), `docs/CONFIGURATION.md` "used to call the Coolify API" negatives, `DEPLOYMENT_ARCHITECTURE.md` migration note, `.kilo/plans/**` planning docs, `*.bak`.
+
 ### Fixed — infra/ deployment composes: coolify network → fabrik (2026-06-17)
 
 All 14 `infra/*/compose.yaml` (the live-service deployment composes — traefik, postgres, redis-adjacent, authelia, gatus, monitoring, backrest, apprise, browserless, gotenberg, meilisearch, n8n, glitchtip, site-provisioner, ocoron-com) still declared the **`coolify` external network** + `traefik.docker.network=coolify` labels. That network no longer exists — the live fleet uses **`fabrik`** (renamed 2026-05-31; verified `docker network ls` shows only `fabrik`), and `fabrik apply`'s `_validate_compose()` rejects `coolify`. The live `/opt/<svc>/` composes already use `fabrik`; these repo copies had drifted and would fail to deploy as-is. Mechanical `coolify`→`fabrik` rename across all 14 (network name only — `coolify` had no other meaning in these files): service attachments, the `networks: { coolify: external: true }` block, the `traefik.docker.network` labels, and the monitoring scrape comment.

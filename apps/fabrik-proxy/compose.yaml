@@ -29,17 +29,17 @@ services:
         limits:
           memory: 512M
           cpus: '0.5'
-    healthcheck:  # Mandatory for Coolify orchestration - Traefik v3 filters unhealthy containers
+    healthcheck:  # Mandatory for the compose deploy — Traefik v3 filters unhealthy containers
       test: ["CMD-SHELL", "wget -q --spider http://localhost:8000/health || curl -fsS http://localhost:8000/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
     networks:
-      - coolify
+      - fabrik
     env_file:
       - .env
 
 
 networks:
-  coolify:
+  fabrik:
     external: true
