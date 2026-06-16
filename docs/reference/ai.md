@@ -1,8 +1,18 @@
 # AI Module (`src/fabrik/ai/`)
 
-**Last Updated:** 2026-03-01
+**Last Updated:** 2026-06-16
 
-**Purpose:** Provider-agnostic LLM client used by `fabrik ai` CLI commands with built-in cost tracking.
+> **⚠️ Status — mostly dormant; slated for removal.** The `LLMClient` and the
+> `fabrik ai generate/revise/usage` commands documented below are an **unused
+> content utility**. They require `ANTHROPIC_API_KEY`, which is **not set** in this
+> deployment and is never used. The operational AI stack (sysadmin bot, watchdog,
+> aro-wake, bootstrap) runs entirely on **Claude Code subscription OAuth — never an
+> API key**. The only *live* part of this module is **`UsageTracker`** (the SQLite
+> cost DB at `~/.fabrik/ai_usage.db`), which `fabrik gpu rent` now uses for cost
+> tracking. The LLM client is kept documented here only until it is removed.
+
+**Purpose:** SQLite usage/cost tracking (`UsageTracker` — live) plus a dormant,
+provider-agnostic LLM client (`fabrik ai` commands — unused; see status note above).
 
 ## Public API
 

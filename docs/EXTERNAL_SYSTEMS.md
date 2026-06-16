@@ -568,7 +568,7 @@ This document catalogs all external systems, APIs, and services that Fabrik inte
 
 ### Anthropic (Claude)
 
-**Purpose:** AI/LLM service
+**Purpose:** AI/LLM service — **only for the dormant/unused `fabrik ai generate` content utility.** The operational AI stack (sysadmin bot, watchdog, aro-wake, bootstrap) runs on **Claude Code subscription OAuth**, not the Anthropic API; `ANTHROPIC_API_KEY` is not set in this deployment.
 
 **Documentation:**
 - API Docs: https://docs.anthropic.com/

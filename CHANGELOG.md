@@ -58,12 +58,10 @@ Mirrors `fabrik vultr drill`'s try/finally cost-capped pattern for GPU rentals. 
 
 **Net**: 9 new source files (~3,200 LoC code + tests). 24/24 unit tests pass. 4 live RunPod gates pass with $0.054 spend. The previous "every GPU-touching service re-implements provider API + cost cap + reaper" gap is closed; new services declare `fabrik gpu rent` via the CLI or `python-api-gpu` scaffold.
 
-### Fixed — AI client default model + container-image recommendations refreshed to current (2026-06-16)
+### Changed — `container_images.py` recommendations refreshed; `fabrik ai` client marked dormant/unused (2026-06-16)
 
-Two code-level stalenesses surfaced during the docs sweep (the docs matched the code; the code was behind):
-
-- **`src/fabrik/ai/client.py`** — `DEFAULT_MODELS[CLAUDE]` was `claude-3-5-sonnet-20241022` (a 2024 model) → **`claude-sonnet-4-6`** (Sonnet 4.6). Added current Claude 4.x pricing (`claude-opus-4-8`, `claude-sonnet-4-6`, `claude-haiku-4-5-20251001`); kept the legacy entries so historical `ai_usage` rows still cost correctly. New test `test_default_models_have_pricing` guards the highest-risk path — a default model missing from `PRICING` makes `_calculate_cost` silently return $0. (`docs/reference/ai.md` default-model line synced.)
-- **`scripts/container_images.py`** — `recommend monitoring` dropped the dead **Netdata** + **Uptime Kuma** entries → the live stack (**Prometheus / Grafana / Loki / Gatus**); `recommend backup` swapped **Duplicati** → **Backrest** (`ghcr.io/garethgeorge/backrest`), the fleet's actual backup tool.
+- **`scripts/container_images.py`** (real, used tooling) — `recommend monitoring` dropped the dead **Netdata** + **Uptime Kuma** entries → the live stack (**Prometheus / Grafana / Loki / Gatus**); `recommend backup` swapped **Duplicati** → **Backrest** (`ghcr.io/garethgeorge/backrest`), the fleet's actual backup tool.
+- **`src/fabrik/ai/` LLM client documented as DORMANT/UNUSED.** Correcting an earlier over-reach: I had refreshed `client.py`'s default model (`claude-3-5-sonnet-20241022` → `claude-sonnet-4-6`) + pricing as if it were a live fix — but the `LLMClient` + `fabrik ai generate/revise/usage` commands are **not used** (they need `ANTHROPIC_API_KEY`, which is unset; the operational AI runs entirely on Claude Code subscription OAuth, never an API key). Only `UsageTracker` (the SQLite cost DB) is live — `fabrik gpu rent` uses it. Marked the reality in `docs/reference/ai.md` (status banner), `.env.example`, and `docs/EXTERNAL_SYSTEMS.md`. The dormant `LLMClient` + `fabrik ai` commands + `ANTHROPIC_API_KEY` are **slated for removal** (deferred only because `cli.py` is mid-edit by the concurrent GPU work; removing it requires touching that file). The model/pricing values are harmless until then.
 
 ### Changed — docs/reference accuracy sweep, batches 1–2 (2026-06-16): DEPLOYMENT.md rename + Coolify-decommission caveats + broken links + archive a superseded doc
 
