@@ -55,7 +55,7 @@ This doc answers: "we own 3 VPSes — what do we have, what's planned, and how i
 ### DR
 
 - **Script:** `scripts/bootstrap/bootstrap-hub.sh` (idempotent steps `step_00`–`step_18` plus `step_12b`/`12c` sub-steps; run `grep -oE 'step_[0-9]+[a-z]?' scripts/bootstrap/bootstrap-hub.sh | sort -uV` for the current list, `wc -l` for length). ✅ Shipped 2026-06-01.
-- **Target wall-clock:** ≤ 90 min, undrilled at the hub level. The parallel `bootstrap-vps.sh` was drilled clean 2026-06-07 (3m 13s, 9.3× under its ≤30 min spoke target) — validates the shared step_00/01/02/14 code paths that hub also uses.
+- **Target wall-clock:** ≤ 90 min. **Hub DR validated GREEN 2026-06-15/16** via `fabrik vultr drill hub` (first green `dr-drill-hub-20260615-111639`; LE/DNS cutover proven against the `tojlo.com` sandbox zone — `step_17`/`17b`/`17c`). The restore-heavy path measured 5m46s on a `vc2-4c-8gb`; the ≤ 90 min budget covers the compose-up + cert-issuance phases.
 - **Operator doc:** [`vps-hub-rebuild.md`](vps-hub-rebuild.md).
 - **Inventory:** [`../operations/hub-restore-inventory.md`](../operations/hub-restore-inventory.md).
 

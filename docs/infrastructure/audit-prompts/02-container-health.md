@@ -36,7 +36,7 @@
 
 ```bash
 ssh vps bash <<'EOF'
-echo "=== INVENTORY (expect 29) ==="
+echo "=== INVENTORY (expect 31) ==="
 sudo docker ps -a --format "table {{.Names}}\t{{.Status}}\t{{.RunningFor}}"
 echo "container count: $(sudo docker ps -q | wc -l)"
 echo
@@ -102,7 +102,7 @@ EOF
 
 ### 1. Fleet stability
 
-- Expected count matches actual (hub 29; spoke 5).
+- Expected count matches actual (hub 31; spoke 5).
 - Every container `Up` (none `Exited`, `Restarting`, `Dead`).
 - RestartCount low (< 5 over container lifetime); a high RestartCount = restart loop.
 - Container uptime aligns with last apply / planned downtime.

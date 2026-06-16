@@ -23,6 +23,8 @@ WSL2's auto-generated `/etc/resolv.conf` has a known bug (Microsoft WSL GitHub i
 4. Tools that bypass `getaddrinfo()` (curl, nslookup) continue working
 5. Node.js relies on `getaddrinfo()`, so Kilo CLI fails
 
+> **Note (2026-06-16):** the live `/etc/resolv.conf` header now records a newer, more specific diagnosis — the WSL forwarder at `10.255.255.254` hangs on A-record lookups (observed 2026-05-31). Same symptom, same fix (static `1.1.1.1`/`8.8.8.8` + `generateResolvConf=false`); only the root-cause narrative has been refined since the original WSL issue #4277 framing above.
+
 ---
 
 ## Solution Applied

@@ -52,11 +52,13 @@ Structured prompts for comprehensive infrastructure auditing of the 3-VPS Fabrik
 ## Container counts (current)
 
 ```text
-vps1: 29 containers — site-provisioner + authelia + glitchtip-web/worker +
+vps1: 31 containers (29 platform + 2 T-P5 watchdog-dogfood) — site-provisioner +
+      authelia + glitchtip-web/worker +
       redis-main + postgres-main + postgres-exporter + redis-exporter +
       loki + promtail + prometheus + alertmanager + grafana + gatus +
       cadvisor + node-exporter + pushgateway + apprise + backrest + n8n +
       gotenberg + browserless + meilisearch + traefik + 5 ocoron-com tenant
+      + 2 T-P5 watchdog-dogfood
 vps2 + vps3: 5 containers each — traefik + node-exporter + cadvisor +
       promtail + backrest (per W11 ship 2026-06-01)
 ```
@@ -81,8 +83,10 @@ vps2 + vps3 spokes: 2 plans each (host-state, opt-configs)
           repos at b2:vps1-ocoron-backups/spokes/vps{2,3}/
           first ship 2026-06-01 (W11)
 DR scripts:
-  scripts/bootstrap/bootstrap-hub.sh (18 steps, ≤90 min target, UNDRILLED)
-  scripts/bootstrap/bootstrap-spoke-restore.sh (13 steps, ≤30 min, UNDRILLED)
+  scripts/bootstrap/bootstrap-hub.sh (18 steps, ≤90 min target, DRILLED 2026-06-15)
+  scripts/bootstrap/bootstrap-spoke-restore.sh (13 steps, ≤30 min, DRILLED 2026-06-15)
+DR VALIDATED: Vultr spoke drill 2026-06-13/14, spoke-restore + hub 2026-06-15,
+  LE/DNS cutover 2026-06-15/16 (tojlo.com sandbox).
 DR-store mirror (W9, extended for W11): private GitHub mobasak/fabrik-dr-store
   carries /opt/fabrik/.env + .env.sysadmin + per-spoke restic passwords +
   per-spoke .env.backrest. Inotify watcher pushes within seconds.
@@ -92,7 +96,7 @@ DR-store mirror (W9, extended for W11): private GitHub mobasak/fabrik-dr-store
 
 Run `python3 scripts/audit_infra_vs_docs.py` to refresh. The script writes timestamped YAML to `docs/infrastructure/probe-reports/`.
 
-**Most recent (cite this as ground truth in audit prompts):** [`../probe-reports/infra-probe-2026-06-07T20-20Z.yaml`](../probe-reports/infra-probe-2026-06-07T20-20Z.yaml) (post-W14 sweep). Counts: 29/5/5. UFW active on all 3. Mesh peers alive: vps1=2, vps2=1, vps3=1. fail2ban totals: 891/73/72.
+**Most recent (cite this as ground truth in audit prompts):** [`../probe-reports/infra-probe-2026-06-07T20-20Z.yaml`](../probe-reports/infra-probe-2026-06-07T20-20Z.yaml) (post-W14 sweep). Counts: 31/5/5. UFW active on all 3. Mesh peers alive: vps1=2, vps2=1, vps3=1. fail2ban totals: 150/158/99.
 
 ## Lessons captured (relevant to auditing)
 

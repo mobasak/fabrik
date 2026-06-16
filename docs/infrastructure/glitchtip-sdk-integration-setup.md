@@ -282,7 +282,7 @@ grep -c "glitchtip_init" /opt/fabrik/src/fabrik/scaffold.py
 
 ## Validation Pending (Post-Multi-Host)
 
-- Spoke (vps2/vps3) → vps1 ingestion via `10.99.0.1:8000`. Requires the mesh-IP port binding documented in § Multi-host Path B. Will be added when the first SaaS lands on vps2/vps3.
+- Spoke (vps2/vps3) → vps1 ingestion via `10.99.0.1:8000`. The mesh-IP port binding (§ Multi-host Path B) is **already in place** (done 2026-05-31, verified live `ss -tlnp` shows `LISTEN 10.99.0.1:8000`); spoke SaaS will use it as soon as the first one lands on vps2/vps3 — no further infra change needed.
 
 ## References
 

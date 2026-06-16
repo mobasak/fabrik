@@ -1,11 +1,11 @@
 # VPS AI System Administrator — Reference
 
-**Last Updated:** 2026-06-07 (Trio Phase 1+2+3+4 LIVE across the FULL FLEET since 2026-06-06; **Phase 5.1.a operator-reversal cron LIVE on full fleet 2026-06-07** via `detect_reversals.py` + `*/5 min` cron entry; **rate-limited 429 wakes now tracked** via `aro_wake_requests_total{status="rate_limited"}` + `AroWakeLowSuccessRate` denominator updated; **stale netdata scrape job removed** 2026-06-07 (caused overnight 24× Telegram flood); **6 bootstrap defenses shipped** including preflight SSH-user-transition trap detection in `bootstrap-vps.sh` + `bootstrap-hub.sh` + new rule pack `.windsurf/rules/core/90-bootstrap-scripts.md`; **DR drill MEASURED end-to-end 2026-06-07**: bootstrap-vps.sh → 3m 13s wall-clock, 9.3× under the ≤30 min target, 15/15 substantive end-state checks.)
+**Last Updated:** 2026-06-16 (Trio Phase 1+2+3+4 LIVE across the FULL FLEET since 2026-06-06; **Phase 5.1.a operator-reversal cron LIVE on full fleet 2026-06-07** via `detect_reversals.py` + `*/5 min` cron entry; **rate-limited 429 wakes now tracked** via `aro_wake_requests_total{status="rate_limited"}` + `AroWakeLowSuccessRate` denominator updated; **stale netdata scrape job removed** 2026-06-07 (caused overnight 24× Telegram flood); **6 bootstrap defenses shipped** including preflight SSH-user-transition trap detection in `bootstrap-vps.sh` + `bootstrap-hub.sh` + new rule pack `.windsurf/rules/core/90-bootstrap-scripts.md`; **DR drill MEASURED end-to-end 2026-06-07**: bootstrap-vps.sh → 3m 13s wall-clock, 9.3× under the ≤30 min target, 15/15 substantive end-state checks.)
 **Last probe report:** [`probe-reports/infra-probe-2026-06-07T20-20Z.yaml`](probe-reports/infra-probe-2026-06-07T20-20Z.yaml)
 **Status:** Live since 2026-05-20
 **Service:** `vps-sysadmin-bot.service` (systemd, `Restart=always`)
 **Bot:** Telegram (`@ocoron_bot`), same bot as Alertmanager notifications
-**Brain:** Claude Code v2.1.144 at `/usr/local/bin/claude` (Max subscription, authenticated via `claude auth login`)
+**Brain:** Claude Code at `/usr/local/bin/claude` (Max subscription, authenticated via `claude auth login`). Version drifts per host as Claude Code auto-updates — vps1 was last observed on v2.1.144; the dev box is on v2.1.153. Check the live value with `claude --version`.
 
 ---
 
@@ -127,9 +127,9 @@ Claude Code reaches these from inside the Docker `fabrik` network via `sudo dock
 | HostHighMemory | Host RAM >90% | node-exporter |
 | HostDiskFull | Disk >85% | node-exporter |
 | ServiceUnhealthy | Prometheus target down | Prometheus |
-| PromtailNotShipping | Log pipeline broken | Promtail |
-| PromtailDroppingEntries | Loki rejecting logs | Promtail |
 | FabrikRegistrarDrift | Infrastructure drift | Pushgateway |
+| AroWakeLowSuccessRate | aro-wake task success rate <90% (per host) | aro-wake |
+| AroWakeCostBurnHigh | aro-wake Claude cost burn >$5/h (per host) | aro-wake |
 
 **Layer 2: Proactive cron (11 checks, every 15 min) → Claude acts if anomaly**
 
@@ -145,7 +145,7 @@ Claude Code reaches these from inside the Docker `fabrik` network via `sudo dock
 | Disk prediction | Full within 7 days | Trend-based, not threshold |
 | Prometheus target down | Any target `up == 0` | Matches alert, backup detection |
 | Log pipeline dead | Loki ingestion rate = 0 | Matches alert, backup detection |
-| TLS cert expiry | <14 days on 5 domains | Auto-renewal may have failed |
+| TLS cert expiry | <14 days on 4 domains | Auto-renewal may have failed |
 
 ### Layer 3 — Spoke-aware checks (added 2026-05-31)
 
@@ -175,6 +175,8 @@ When deployed (along with the spoke scrape jobs above), they route via Alertmana
 | `mesh_health` | Hub-side `wg show wg0 latest-handshakes` per peer | `mesh_degraded[<pk>:<m>m]` at 5–15 m, `mesh_broken[<pk>:<m>m]` > 15 m, `mesh_no_handshake[<pk>]` if peer never handshook | 5 m / 15 m |
 | `dr_store` | GitHub API `commits?per_page=1` on `mobasak/fabrik-dr-store` (W9 mirror) | `dr_store_stale[<d>d]` if last commit > 30 d ago | 30 d |
 | `cert_expiry` (existing, scrubbed in W10) | `openssl s_client` against domain list (now: `ocoron.com`, `status/monitor/errors.vps1.ocoron.com`; dropped stale `coolify.vps1.ocoron.com`) | `cert_expiring:<domain>:<d>d` | < 14 d to expiry |
+| `aro_wake` health | `GET http://<host-ip>:8201/health` on this host's aro-wake endpoint, only when `aro-wake.service` is `is-enabled` | `aro_wake_unhealthy[<host-ip>]` | health endpoint not 2xx within 5 s |
+| `oauth_keepalive` | mtime of `/var/log/claude-keepalive.log` — the hourly `claude -p "ping"` keepalive cron that keeps this host's Claude Code OAuth token fresh (tokens go stale ~every 4 days when idle) | `oauth_keepalive_stale[<age>s]` (file present) or `oauth_keepalive_never_ran` (file absent + cron >2 h old) | mtime > 90 min |
 
 **`dr_store` token requirement:** the watcher reads `GITHUB_TOKEN` (or `GH_TOKEN`) from `/opt/fabrik/.env.sysadmin` (preferred — it's root-readable and already in scope) or `/opt/fabrik/.env`. Token scope: fine-grained PAT with `Contents: Read` on `mobasak/fabrik-dr-store` only. **Until a token is added, the watcher logs a one-per-hour `WARN: dr_store watcher dormant` line to `/var/log/sysadmin-proactive.log` so the operator knows it's not running.** Adding it:
 
@@ -401,7 +403,7 @@ The VPS has a two-layer firewall. The sysadmin must understand both but **NEVER 
 443/tcp    ALLOW (HTTPS)
 1194/tcp   ALLOW (OpenVPN — user's personal VPN)
 51820/udp  ALLOW (Wireguard mesh)
-6001-6002  ALLOW (stale Coolify Realtime — pending cleanup, harmless)
+8201/tcp   ALLOW from 10.0.0.0/8 + 10.99.0.0/24 (aro-wake, mesh-only)
 8000/tcp   DENY (stale comment, rule itself is fine)
 ```
 

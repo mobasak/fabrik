@@ -1,6 +1,6 @@
 # VPS Fleet — Service URLs and Endpoints
 
-**Last Updated:** 2026-06-15 (corrected Prometheus scrape-targets table to match live `prometheus.yml`: 12 active jobs / 14 targets all up, including the real `aro-wake` (3 targets) + `fabrik-services` jobs; removed the never-present `traefik`/`pushgateway`/`glitchtip`/`*-spokes` targets. **Prior 2026-06-07:** aro-wake LIVE on full fleet — `/wake`+`/health`+`/metrics` on every host at `:8201`; spoke↔spoke wg0 routing LIVE via vps1 hub-hop; Prometheus SLI scrape job `aro-wake` covers all 3 targets; `aro_wake_requests_total` gained `status="rate_limited"` value 2026-06-07; **stale `netdata:19959` scrape job removed 2026-06-07** after a left-over orphan triggered a 24× Telegram flood overnight)
+**Last Updated:** 2026-06-16 (live CF API + ufw re-verify: CF zone `ocoron.com` now has **20 A records** (was 17) — delta = `watchdog-test.vps1` live router + 2 `vps4` DNS orphans; vps1 UFW has NO 6001/6002 rules (Coolify Realtime ports deleted 2026-05-31), and the aro-wake `8201/tcp` allows are present. **Prior 2026-06-15:** corrected Prometheus scrape-targets table to match live `prometheus.yml`: 12 active jobs / 14 targets all up, including the real `aro-wake` (3 targets) + `fabrik-services` jobs; removed the never-present `traefik`/`pushgateway`/`glitchtip`/`*-spokes` targets. **Prior 2026-06-07:** aro-wake LIVE on full fleet — `/wake`+`/health`+`/metrics` on every host at `:8201`; spoke↔spoke wg0 routing LIVE via vps1 hub-hop; Prometheus SLI scrape job `aro-wake` covers all 3 targets; `aro_wake_requests_total` gained `status="rate_limited"` value 2026-06-07; **stale `netdata:19959` scrape job removed 2026-06-07** after a left-over orphan triggered a 24× Telegram flood overnight)
 **Last probe report:** [`probe-reports/infra-probe-2026-06-07T20-20Z.yaml`](probe-reports/infra-probe-2026-06-07T20-20Z.yaml)
 **Hosts:** vps1 (hub, LA, `172.93.160.197`) · vps2 (Coventry UK, `96.9.214.128`) · vps3 (Coventry UK, `104.128.190.151`)
 **Mesh:** Wireguard `10.99.0.0/24` over UDP 51820 (vps1 = `.1`, vps2 = `.2`, vps3 = `.3`)
@@ -16,13 +16,15 @@ All `A` records via Cloudflare (zone `ocoron.com`, unproxied — orange-cloud OF
 
 ### vps1 — `*.vps1.ocoron.com` → `172.93.160.197`
 
-CF zone `ocoron.com` has 17 A records total (post-cleanup). For vps1 (alphabetical), all → `172.93.160.197`:
+CF zone `ocoron.com` has **20 A records** total (live, verified 2026-06-16). For vps1 (alphabetical), all → `172.93.160.197`:
 
-`auth`, `auto`, `backup`, `browser`, `errors`, `monitor`, `notify`, `pdf`, **`provision`** (created 2026-05-31 evening — was missing despite the Traefik router existing), `search`, `status`, `vps1` (apex)
+`auth`, `auto`, `backup`, `browser`, `errors`, `monitor`, `notify`, `pdf`, **`provision`** (created 2026-05-31 evening — was missing despite the Traefik router existing), `search`, `status`, `vps1` (apex), **`watchdog-test`** (live Traefik router — the T-P5 watchdog dogfood)
 
 Plus zone apex: `ocoron.com`, `www.ocoron.com` (WordPress tenant; `www` is a CNAME → apex).
 
-**All 12 records route to a live Traefik router.** The 6 stale records (`coolify`, `control`, `dns`, `fabrik-e2e-timing`, `images`, `netdata`) were deleted on 2026-05-31 evening — no more "is this stale?" ambiguity.
+**13 vps1 records route to a live Traefik router** (the 12 below + `watchdog-test.vps1`).
+
+**ORPHAN residue (flagged, pending cleanup):** `*.vps4.ocoron.com` and `vps4.ocoron.com` both → `45.77.68.63` — leftover DR-drill residue. **There is NO live vps4 droplet** (all Vultr instances destroyed); these two A records are orphans to delete.
 
 ### vps2 — `*.vps2.ocoron.com` → `96.9.214.128` (NEW today)
 
@@ -65,6 +67,7 @@ Snapshot taken from `docker exec traefik wget -qO- http://localhost:8080/api/htt
 | Browserless (headless Chrome) | `https://browser.vps1.ocoron.com` | bypass | `browserless` |
 | Meilisearch | `https://search.vps1.ocoron.com` | bypass (master key validation at app layer) | `meilisearch` |
 | **site-provisioner** (DNS / domain registrar API) | `https://provision.vps1.ocoron.com` | Bearer `API_KEY` + Traefik IP allowlist | `site-provisioner` |
+| **watchdog-test** (T-P5 watchdog dogfood) | `https://watchdog-test.vps1.ocoron.com` | (per router) | live Traefik router |
 
 > **Reality vs. older docs:** Earlier versions of this file listed `https://captcha.vps1...`, `https://images.vps1...`, `https://translator.vps1...`, `https://proxy.vps1...`, `https://emailgateway.vps1...`, `https://files-api.vps1...`, `https://netdata.vps1...` as live URLs. **None of those have a live Traefik router or a backing container today** — see [`vps-complete-inventory.md` § Microservices status](vps-complete-inventory.md).
 
@@ -281,8 +284,8 @@ const resp = await fetch('https://translator.vps1.ocoron.com/api/translate', { h
 | 80/tcp | `0.0.0.0:80` | ALLOW | HTTP → Traefik (auto-redirect to HTTPS) |
 | 443/tcp | `0.0.0.0:443` | ALLOW | HTTPS via Traefik |
 | 1194/tcp | `0.0.0.0:1194` | ALLOW | OpenVPN — **out-of-platform-scope (operator's personal VPN)**. Documented per W5 of fleet-hardening plan; not platform infra, no probe required. |
-| 6001-6002/tcp | `0.0.0.0:6001-6002` | ALLOW | ⚠ stale Coolify Realtime ports — safe to drop |
 | 8000/tcp | n/a | DENY | ⚠ stale Coolify comment — rule still useful as belt-and-suspenders |
+| 8201/tcp | (mesh / bridge) | ALLOW `from 10.0.0.0/8`, ALLOW `from 10.99.0.0/24` | aro-wake — bridge gateway (Alertmanager) + wg0 peer access; public ingress denied |
 | 51820/udp | `0.0.0.0:51820` | ALLOW | Wireguard mesh (hub listener) |
 | 5432/tcp | `10.99.0.1:5432` | (mesh-only) | postgres-main — DOCKER-USER chain blocks on public iface |
 | 6379/tcp | `10.99.0.1:6379` | (mesh-only) | redis-main |

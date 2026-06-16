@@ -1,6 +1,6 @@
 # VPS Fleet — Status Snapshot
 
-**Last Updated:** 2026-06-07 — iteration day after 2026-06-06 fleet rollout (Trio Phase 1+2+3+4 LIVE across ALL 3 HOSTS since 2026-06-06; today added: **Phase 5.1.a operator-reversal detection cron LIVE on all 3 hosts** via new `detect_reversals.py` + `*/5 min` cron entry, writes to `/opt/fabrik/logs/lessons-pending.jsonl`; **rate-limited 429 wakes now tracked** via `aro_wake_requests_total{status="rate_limited"}` + `AroWakeLowSuccessRate` denominator updated to `status!="rate_limited"`; **stale netdata scrape job removed** (caused 24× Telegram flood overnight); **6 bootstrap defenses** added (preflight SSH-user-transition trap in both bootstrap scripts + remote-bash quote-escape fix + new rule pack `.windsurf/rules/core/90-bootstrap-scripts.md` + AFCL entries + 2 rebuild-doc updates); **DR drill MEASURED** end-to-end: `bootstrap-vps.sh --skip-mesh --skip-dns root@<vultr-ip> vps4` → 3m 13s wall-clock, 9.3× under the ≤30 min target, 15/15 substantive end-state checks, $0.04 total cost.)
+**Last Updated:** 2026-06-16 — content re-verified live 2026-06-15/16 (Backrest plan state, DR drill validation across hub/spoke/spoke-restore). Detail below from the iteration day after 2026-06-06 fleet rollout (Trio Phase 1+2+3+4 LIVE across ALL 3 HOSTS since 2026-06-06; today added: **Phase 5.1.a operator-reversal detection cron LIVE on all 3 hosts** via new `detect_reversals.py` + `*/5 min` cron entry, writes to `/opt/fabrik/logs/lessons-pending.jsonl`; **rate-limited 429 wakes now tracked** via `aro_wake_requests_total{status="rate_limited"}` + `AroWakeLowSuccessRate` denominator updated to `status!="rate_limited"`; **stale netdata scrape job removed** (caused 24× Telegram flood overnight); **6 bootstrap defenses** added (preflight SSH-user-transition trap in both bootstrap scripts + remote-bash quote-escape fix + new rule pack `.windsurf/rules/core/90-bootstrap-scripts.md` + AFCL entries + 2 rebuild-doc updates); **DR drill MEASURED** end-to-end: `bootstrap-vps.sh --skip-mesh --skip-dns root@<vultr-ip> vps4` → 3m 13s wall-clock, 9.3× under the ≤30 min target, 15/15 substantive end-state checks, $0.04 total cost.)
 **Snapshot taken:** 2026-06-07 20:20 UTC (live probe via `scripts/audit_infra_vs_docs.py --hosts vps,vps2,vps3` + `ssh` + `docker ps` + Prometheus `/api/v1/targets` + per-spoke `curl :8201/metrics` + Vultr API `/v2/instances` for drill-instance cleanup). **Current-state sections (Fleet at a glance + health table) re-verified live 2026-06-15** (vps1 31 ctr, RAM 4.1/11 Gi, disk 32/108 GB 30 %, uptime ~2 w 1 d, UFW 16, Authelia 8; vps2/vps3 5 ctr each, UFW 11; mesh RTT ~135–136 ms; Prometheus 12 active/14 targets/14 up; Gatus 33 endpoints; DR drills green).
 **Hosts:** vps1 (LA, hub) · vps2 (Coventry UK, spoke) · vps3 (Coventry UK, spoke)
 **Deploy model:** SSH + Docker Compose (no Coolify — removed 2026-05-30)
@@ -41,8 +41,8 @@
 | Backrest — vps1 hub | ✅ **4 active plans** (`postgres-dumps` 02:00, `docker-volumes` 03:00, `opt-configs` 03:00, `host-state` 03:30). Restic repo `a256277c45`. First snapshots: 117 MiB on B2 (612 MiB raw, 5.23×). |
 | Backrest — vps2 spoke (W11) | ✅ **2 active plans** (`host-state` 02:00, `opt-configs` 02:30). Restic repo `56b40b8c84` at `vps1-ocoron-backups/spokes/vps2/`. First snapshots: 16.9 KiB on B2 (2.31×). Independent restic password mirrored via W9. |
 | Backrest — vps3 spoke (W11) | ✅ **2 active plans** (same schedule as vps2). Restic repo `350e752618` at `vps1-ocoron-backups/spokes/vps3/`. First snapshots: 16.5 KiB on B2 (2.33×). |
-| Hub disaster-recovery | ✅ **Scripted** via [`bootstrap-hub.sh`](../../scripts/bootstrap/bootstrap-hub.sh) — idempotent steps `step_00`–`step_18` (+ `12b`/`12c`; run `wc -l`/`grep -oE 'step_[0-9]+[a-z]?'` for current counts), target wall-clock ≤ 90 min. **Validated 2026-06-15.** Operator doc: [`vps-hub-rebuild.md`](vps-hub-rebuild.md). |
-| Spoke disaster-recovery | ✅ **Scripted** via [`bootstrap-spoke-restore.sh`](../../scripts/bootstrap/bootstrap-spoke-restore.sh) — steps `step_00`–`step_12` (+ `09b`/`09c`/`12b`; run `wc -l`/`grep -oE 'step_[0-9]+[a-z]?'` for current counts), ≤ 30 min target, **preserves Wireguard identity** (hub peer-table unchanged through outage). **Validated:** spoke fresh-install proven 2026-06-13/14; restic-restore path validated 2026-06-15 (`fabrik vultr drill spoke-restore`). Operator doc: [`vps-spoke-rebuild.md`](vps-spoke-rebuild.md). |
+| Hub disaster-recovery | ✅ **Scripted** via [`bootstrap-hub.sh`](../../scripts/bootstrap/bootstrap-hub.sh) — idempotent steps `step_00`–`step_18` (+ `12b`/`12c`; run `wc -l`/`grep -oE 'step_[0-9]+[a-z]?'` for current counts), target wall-clock ≤ 90 min. **Validated 2026-06-15/16** via `fabrik vultr drill hub`. **LE/DNS cutover validated end-to-end** against the `tojlo.com` sandbox zone: `step_17` DNS rewrite (`dr-drill-hub-20260615-154530`), `step_17b` certbot (`-160819`), `step_17c` traefik-lego (`dr-drill-hub-20260616-113524`, issuer `(STAGING) Ersatz Emmer YR2`). Operator doc: [`vps-hub-rebuild.md`](vps-hub-rebuild.md). |
+| Spoke disaster-recovery | ✅ **Scripted** via [`bootstrap-spoke-restore.sh`](../../scripts/bootstrap/bootstrap-spoke-restore.sh) — steps `step_00`–`step_12` (+ `09b`/`09c`/`11b`/`12b`; run `wc -l`/`grep -oE 'step_[0-9]+[a-z]?'` for current counts), ≤ 30 min target, **preserves Wireguard identity** (hub peer-table unchanged through outage). **Validated 2026-06-15/16:** spoke fresh-install (`fabrik vultr drill spoke`) and restic-restore path (`fabrik vultr drill spoke-restore`) both green. Operator doc: [`vps-spoke-rebuild.md`](vps-spoke-rebuild.md). |
 | Credential recovery (`/opt/fabrik/.env`) | ✅ **W9 shipped 2026-06-01.** Inotify + systemd watcher (`fabrik-dr-watcher.service`) pushes every change to private `mobasak/fabrik-dr-store` within seconds; daily safety-net cron + reboot catch-up + weekly self-test. **Sysadmin token added to scope** via SSH-pull (W9 extension, same day). See [`docs/operations/credential-recovery.md`](../operations/credential-recovery.md). |
 | Backups | ✅ same as Backrest plans row — first real backup chain since the 2026-05-31 wipe. |
 
@@ -612,7 +612,7 @@ backrest               running  (W11 — own restic repo at b2:vps1-ocoron-backu
 
 ### Prometheus — 14 / 14 targets up across 12 jobs (re-verified 2026-06-07T20:20Z; netdata job removed today + spoke-side scrape jobs no longer configured)
 
-vps1-local (12 jobs / 12 targets — verified against `/api/v1/targets`): `alertmanager`, `authelia`, `cadvisor`, `gatus`, `grafana`, `loki`, `meilisearch`, `node`, `postgres`, `prometheus`, `pushgateway`, `redis`.
+vps1-local (11 jobs / 11 targets — verified against `/api/v1/targets`): `alertmanager`, `authelia`, `cadvisor`, `gatus`, `grafana`, `loki`, `meilisearch`, `node`, `postgres`, `prometheus`, `redis`. (`pushgateway` runs as a container but is NOT a scrape job; `fabrik-services` is configured with null targets — a placeholder. So 13 job_names configured → **12 active jobs** [11 local + `aro-wake` below] / **14 targets up** [11 local + `aro-wake`'s 3].)
 
 Spoke scrape jobs (`node-spokes`, `cadvisor-spokes`, `promtail-spokes`) — **NOT in current `prometheus.yml`** (verified 2026-06-07T20:20Z via `/api/v1/jobs`). Live spoke coverage comes from the `aro-wake` job (3 targets: vps1:10.0.1.1:8201, vps2:10.99.0.2:8201, vps3:10.99.0.3:8201) which exposes SLI/health/metrics. Spoke `node-exporter`/`cadvisor`/`promtail` agents ARE running at `/opt/monitoring-agent/` on each spoke, and the mesh + UFW permit scrapes (the `ufw allow from 10.99.0.0/24` rule from W8 2026-06-01 is still in place via `bootstrap-vps.sh` step_02), but the scrape blocks themselves aren't currently configured in vps1's `prometheus.yml`. Loki side: promtail push-based ingest works — Loki has `host=vps1|vps2|vps3` log streams (verified 2026-06-07T20:20Z).
 
@@ -690,14 +690,17 @@ Not scraped: `traefik` (no metrics scrape job — health observed via Gatus + Lo
 
 ## Backups
 
-**Live state:** Backrest config has **1 repo retained + 0 plans**. B2 bucket `vps1-ocoron-backups` is empty (preserved for reuse). Intentional, post-2026-05-31 cleanup.
+**Live state (re-verified 2026-06-15/16):** the fleet runs an active backup chain — **vps1 hub has 4 plans, vps2 + vps3 spokes have 2 plans each** (matches the "Fleet at a glance" Backrest rows above). B2 bucket `vps1-ocoron-backups` is **NOT empty** — first snapshots total ~117 MiB compressed. First real backup chain since the 2026-05-31 wipe.
+
+| Host | Repo ID | Repo URI / path | Plans |
+| :--- | :--- | :--- | :--- |
+| vps1 (hub) | `b2-vps1` | `s3:https://s3.us-west-004.backblazeb2.com/vps1-ocoron-backups` | **4** — `postgres-dumps` (02:00), `docker-volumes` (03:00), `opt-configs` (03:00), `host-state` (03:30) |
+| vps2 (spoke) | `b2-vps2` | `vps1-ocoron-backups/spokes/vps2/` | **2** — `host-state` (02:00), `opt-configs` (02:30) |
+| vps3 (spoke) | `b2-vps3` | `vps1-ocoron-backups/spokes/vps3/` | **2** — `host-state`, `opt-configs` (same schedule as vps2) |
 
 | Item | Detail |
 | :--- | :--- |
-| Repo ID | `b2-vps1` |
-| Repo URI | `s3:https://s3.us-west-004.backblazeb2.com/vps1-ocoron-backups` |
 | Repo flags | `--compression=auto` |
-| Plans | 0 |
 | Container | `backrest` (running, 512 MB limit) |
 | Off-VPS creds in `/opt/fabrik/.env` | `BACKREST_RESTIC_PASSWORD` ✓, `B2_KEY_ID` ✓, `B2_APPLICATION_KEY` ✓ |
 
@@ -705,12 +708,12 @@ Closing the "credentials only on vps1" DR weakness means the dev WSL can stand b
 
 **Credential off-site mirror (W9 shipped 2026-06-01).** The dev WSL was itself a single point of failure until W9: `/opt/fabrik/.env` (including the irrecoverable `BACKREST_RESTIC_PASSWORD`) existed only on disk there. Now mirrored to **`mobasak/fabrik-dr-store`** (private GitHub repo) within seconds of every change via `fabrik-dr-watcher.service` (inotify) + daily safety-net cron + `@reboot` catch-up + weekly recovery self-test. One-command recovery on a fresh WSL: `gh repo clone mobasak/fabrik-dr-store && sudo cp fabrik-dr-store/env/latest /opt/fabrik/.env`. Full runbook: [`docs/operations/credential-recovery.md`](../operations/credential-recovery.md).
 
-When backups are reconfigured:
+Operating notes (recorded when the chain was stood up):
 
-- Plans to recreate: `postgres-dumps` (`/opt/backups/pg_dump_*.sql`), `docker-volumes` (`/var/lib/docker/volumes/`), `opt-configs` (`/opt/<svc>/{compose.yaml,.env}`).
+- vps1 plans in place: `postgres-dumps` (`/opt/backups/pg_dump_*.sql`), `docker-volumes` (`/var/lib/docker/volumes/`), `opt-configs` (`/opt/<svc>/{compose.yaml,.env}`), `host-state`. Spoke plans: `host-state` + `opt-configs`.
 - Failure-hook URL: `http://apprise:8000/notify/<tag>` (the old `apprise-<uuid>:8000` hostname is broken; Issue 1 in inventory).
-- Schedule postgres-dumps AFTER the host pg_dump cron, not concurrent (44 % race-condition failures previously).
-- Spoke backups: defer until vps2/vps3 actually hold non-replicated data.
+- `postgres-dumps` runs AFTER the host pg_dump cron, not concurrent (44 % race-condition failures previously).
+- Spoke backups now cover `host-state` + `opt-configs`; broaden only if vps2/vps3 start holding non-replicated data.
 
 ---
 

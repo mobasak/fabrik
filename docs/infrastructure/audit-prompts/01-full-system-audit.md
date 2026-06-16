@@ -13,7 +13,7 @@
 - Fleet: 3-VPS Wireguard mesh (10.99.0.0/24). Hub vps1 = 10.99.0.1 (LA, 11.6 GiB / 6 cores).
   Spokes vps2 = 10.99.0.2 and vps3 = 10.99.0.3 (Coventry UK, 7.7 GiB / 4 cores each).
 - Deploy mechanism: SSH + Docker Compose via `fabrik apply` (no Coolify — removed 2026-05-30).
-- vps1 hosts 29 containers (shared infra + monitoring + WordPress tenant).
+- vps1 hosts 31 containers (29 platform + 2 T-P5 watchdog-dogfood; shared infra + monitoring + WordPress tenant).
 - vps2/vps3 host 5 containers each: traefik + monitoring agents (node-exporter, cadvisor,
   promtail) + backrest.
 - All containers stable-named (no UUID suffix). All on the `fabrik` Docker network
@@ -155,7 +155,7 @@ EOF
 
 ### 6. Docker
 
-- Container count matches expectation (**hub: 29, spoke: 5**). Deviation = investigate.
+- Container count matches expectation (**hub: 31, spoke: 5**). Deviation = investigate.
 - All containers `Up` (none `Restarting` or `Exited`).
 - `fabrik` network exists; container count matches `docker ps`.
 - **W15 check (spokes only):** `traefik` container has label `traefik.http.middlewares.gzip.compress=true`.
@@ -163,7 +163,7 @@ EOF
 ### 7. Firewall
 
 - UFW `active`, default `deny (incoming)`.
-- Hub: 6 v4 rules — 5 ALLOW (22/80/443/1194/51820) + 1 DENY on 8000 (carries a stale "Coolify raw port" comment; defense-in-depth, keep). Spokes: 5 v4 rules — 4 ALLOW (22/80/443/51820) + 1 ALLOW from `10.99.0.0/24` for mesh observability (W8 fix).
+- Hub: 9 v4 rules (~9 — verify live; grew with the 8201 aro-wake allow rules) — ALLOW (22/80/443/1194/51820 + 8201 aro-wake) + 1 DENY on 8000 (carries a stale "Coolify raw port" comment; defense-in-depth, keep). Spokes: 5 v4 rules — 4 ALLOW (22/80/443/51820) + 1 ALLOW from `10.99.0.0/24` for mesh observability (W8 fix).
 - DOCKER-USER: hub has 1 ACCEPT rule + ACCEPT-from-wg0 + DROP-mesh-only-ports from public; spokes have 2 rules.
 - `fail2ban` active; ban counts non-zero on hub (internet-facing target).
 

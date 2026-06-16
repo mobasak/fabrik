@@ -1,6 +1,6 @@
 # VPS Fleet — Complete Service Inventory
 
-**Last Updated:** 2026-06-15 (Trio Phase 1+2+3+4 LIVE across the FULL FLEET since 2026-06-06; **Phase 5.1.a operator-reversal cron LIVE on full fleet 2026-06-07** via `detect_reversals.py` + `*/5 min` cron; **rate-limited 429 wakes now tracked** via `aro_wake_requests_total{status="rate_limited"}` + `AroWakeLowSuccessRate` denominator excludes them; **stale netdata scrape job removed** (caused 24× Telegram flood overnight); **6 bootstrap defenses shipped** including preflight SSH-user-transition trap detection; **fresh-spoke install MEASURED 2026-06-07**: `bootstrap-vps.sh --skip-mesh --skip-dns` on Vultr → 3m 13s wall-clock, 15/15 substantive end-state checks — this measures the FRESH-INSTALL path, NOT DR restore; **fresh-spoke drill proven live 2026-06-13/14**; **the actual DR-restore paths — `bootstrap-spoke-restore.sh` (spoke) + `bootstrap-hub.sh` (hub) — were first validated live 2026-06-15** (spoke-restore + hub drills first green). See the `fabrik vultr drill` subsystem below.)
+**Last Updated:** 2026-06-16 (Trio Phase 1+2+3+4 LIVE across the FULL FLEET since 2026-06-06; **Phase 5.1.a operator-reversal cron LIVE on full fleet 2026-06-07** via `detect_reversals.py` + `*/5 min` cron; **rate-limited 429 wakes now tracked** via `aro_wake_requests_total{status="rate_limited"}` + `AroWakeLowSuccessRate` denominator excludes them; **stale netdata scrape job removed** (caused 24× Telegram flood overnight); **6 bootstrap defenses shipped** including preflight SSH-user-transition trap detection; **fresh-spoke install MEASURED 2026-06-07**: `bootstrap-vps.sh --skip-mesh --skip-dns` on Vultr → 3m 13s wall-clock, 15/15 substantive end-state checks — this measures the FRESH-INSTALL path, NOT DR restore; **fresh-spoke drill proven live 2026-06-13/14**; **the actual DR-restore paths — `bootstrap-spoke-restore.sh` (spoke) + `bootstrap-hub.sh` (hub) — were validated live across hub + spoke + spoke-restore drills 2026-06-15/16** (all green; LE/DNS cutover exercised via the `tojlo.com` sandbox domain). See the `fabrik vultr drill` subsystem below.)
 **Last probe report:** [`probe-reports/infra-probe-2026-06-07T20-20Z.yaml`](probe-reports/infra-probe-2026-06-07T20-20Z.yaml)
 **Hosts:** **vps1** (LA, hub) · **vps2** (Coventry UK, spoke) · **vps3** (Coventry UK, spoke). **The fleet is settled at 3 permanent hosts.** Any `vps4` you see in drill logs/reports is the **disposable drill identity** — a throwaway Vultr instance the `fabrik vultr drill` subsystem spins up and auto-destroys; it is NOT a permanent fleet member. (`fabrik vultr provision` can add a real 4th spoke, but none is currently provisioned.)
 **Network:** Wireguard mesh `10.99.0.0/24` over UDP `51820`, MTU `1420`, hub-and-spoke topology
@@ -345,7 +345,7 @@ ACME (Let's Encrypt) state per host:
   The Traefik container does NOT get any router labels of its own, so `traefik.enable=true` has no public-routing side effects — it only unlocks label discovery. Both spokes were live-verified by re-deploying spoke-canary, which then returned HTTP 200 with a Let's Encrypt cert (first LE issuance on a spoke ever).
 - **W16 shipped 2026-06-02:** spoke Traefik is now templated in `scripts/bootstrap/templates/{traefik.compose.yaml,traefik.yml,traefik-dynamic-authelia.yml}.template` and brought up by `step_12_install_spoke_traefik()` in `bootstrap-vps.sh`. The compose template carries the W15 `labels:` block (verified byte-perfect against live vps2 modulo an explainer comment). A fresh spoke gets the gzip-middleware definition on first bootstrap with no manual edit.
 
-For services on vps2/vps3 that need Authelia, the forward-auth middleware will point at `http://10.99.0.1:9091/api/verify` (over mesh) — but this requires binding Authelia to the mesh IP first (see TODO list above). The Authelia rule registrar itself is FQDN-pattern-agnostic and handles `*.vps2 / *.vps3` patterns without code change (W13 verified 2026-06-02).
+For services on vps2/vps3 that need Authelia, the forward-auth middleware points at `http://10.99.0.1:9091/api/verify` (over mesh — Authelia is already bound to the mesh IP since 2026-05-31, pending-action #6). The remaining gap is the per-spoke access-control rules for `*.vps2`/`*.vps3` admin dashboards (still OPEN — pending-action #13, awaiting the first such dashboard). The Authelia rule registrar itself is FQDN-pattern-agnostic and handles `*.vps2 / *.vps3` patterns without code change (W13 verified 2026-06-02).
 
 ---
 
@@ -429,24 +429,27 @@ Rule precedence: Authelia is first-match-wins. Specific `^/api/` bypasses for ad
        └────────────────────────┘                  └───────────────────────┘
 ```
 
-### Prometheus scrape targets (**14 live across 12 jobs** — verified `/api/v1/targets` 2026-06-07T20:20Z; was 18/15 briefly on 2026-05-31 when the 3 spoke jobs were added — those spoke jobs were dropped at some point and are not in live config today)
+### Prometheus scrape targets (**14 live across 12 active jobs** — verified `/api/v1/targets` 2026-06-16; 13 `job_name`s configured in `configs/prometheus/prometheus.yml`, but `fabrik-services` is a placeholder with null targets → 12 active jobs / 14 targets / 14 up. Was 18/15 briefly on 2026-05-31 when the 3 spoke jobs were added — those spoke jobs were dropped at some point and are not in live config today)
 
-vps1-local (12 jobs / 12 targets):
+vps1-local + mesh (12 active jobs / 14 targets):
 
 | Job | Target |
 | :--- | :--- |
 | `prometheus` | self |
 | `node` | `node-exporter:9100` |
+| `aro-wake` | `10.0.1.1:8201`, `10.99.0.2:8201`, `10.99.0.3:8201` |
 | `cadvisor` | `cadvisor:8080` |
 | `loki` | `loki:3100` |
 | `alertmanager` | `alertmanager:9093` |
 | `gatus` | `gatus:8080` |
+| `fabrik-services` | *(null targets — placeholder `job_name`, no active target)* |
 | `grafana` | `grafana:3000` |
 | `authelia` | `authelia:9959` (telemetry) |
 | `meilisearch` | `meilisearch:7700` (Bearer auth) |
 | `postgres` | `postgres-exporter:9187` |
 | `redis` | `redis-exporter:9121` |
-| `pushgateway` | `pushgateway:9091` |
+
+The `pushgateway` **container** still runs on vps1 (64m memory limit) but is **NOT a Prometheus scrape job** — there is no `pushgateway` `job_name` in `prometheus.yml`. (There are also no `blackbox`, `fabrik-registrar`, or `glitchtip-web` scrape jobs.)
 
 Spokes — **`node-spokes`/`cadvisor-spokes`/`promtail-spokes` jobs NOT in `prometheus.yml`** (verified 2026-06-07T20:20Z). Live spoke coverage is via the `aro-wake` job (3 targets — vps1, vps2, vps3) only. The spoke-side agents (`node-exporter`, `cadvisor`, `promtail`) are running at `/opt/monitoring-agent/` on each spoke with mesh + UFW permissive, but the corresponding scrape blocks aren't currently configured. Promtail log shipping (push-based) works — Loki has `host=vps1|vps2|vps3` streams.
 
@@ -483,7 +486,7 @@ Reload: `ssh vps "sudo docker kill -s HUP prometheus"`.
 ### Grafana
 
 - **Datasources:** Prometheus (`http://prometheus:9090`), Loki (`http://loki:3100`) — bind-mounted from `/opt/monitoring/configs/grafana/provisioning/datasources/fabrik.yaml`
-- **TODO:** dashboards don't yet have a `host` template variable for filtering spoke vs hub metrics. Cosmetic but useful.
+- All 5 dashboards have a `host` template variable (regex `/^vps/`) for filtering spoke vs hub metrics (done 2026-05-31 — pending-action #8).
 
 ### Alertmanager → Telegram
 
@@ -498,7 +501,7 @@ Reload: `ssh vps "sudo docker kill -s HUP prometheus"`.
 - **Storage:** `glitchtip` database on shared `postgres-main`
 - **Public URL:** `https://errors.vps1.ocoron.com` (Authelia-protected)
 - **Internal DSN host:** `glitchtip-web:8000` (Docker DNS on `fabrik` network) — used by services on vps1
-- **TODO** cross-host: bind `glitchtip-web` to `10.99.0.1:8000` so spoke tenants can ingest over mesh
+- **Cross-host mesh ingest:** `glitchtip-web` is bound to `10.99.0.1:8000` (done 2026-05-31 — pending-action #5; verified live `ss -tlnp`) so spoke tenants can ingest over the mesh
 - Full runbook: `docs/infrastructure/glitchtip-sdk-integration-setup.md`
 
 ---
@@ -548,7 +551,7 @@ Each repo has its own restic password — **immutable post-init** (Lesson 67), s
 
 Spoke tenant backups (`docker-volumes-vpsN`, `postgres-dumps-vpsN`) defer to W4 — zero tenants on spokes yet.
 
-DR runbooks: [`vps-hub-rebuild.md`](vps-hub-rebuild.md) (hub, ≤ 90 min undrilled) · [`vps-spoke-rebuild.md`](vps-spoke-rebuild.md) (spoke, ≤ 30 min undrilled) · [`docs/operations/disaster-recovery.md`](../operations/disaster-recovery.md) (cross-cutting).
+DR runbooks: [`vps-hub-rebuild.md`](vps-hub-rebuild.md) (hub, ≤ 90 min — **drilled GREEN 2026-06-15/16**) · [`vps-spoke-rebuild.md`](vps-spoke-rebuild.md) (spoke, ≤ 30 min — **fresh-install + restic-restore both drilled GREEN 2026-06-15/16**) · [`docs/operations/disaster-recovery.md`](../operations/disaster-recovery.md) (cross-cutting).
 
 ---
 
@@ -695,7 +698,7 @@ This table answers "when X breaks, what wakes up an AI to look at it?" — and l
 
 | Source | What it observes | Where the signal lands | Wakes an AI? |
 | :--- | :--- | :--- | :--- |
-| `prometheus` (vps1) | 14 active targets across 12 jobs (verified 2026-06-07T20:20Z): node-exporter, cAdvisor, postgres-exporter, redis-exporter, pushgateway, gatus, blackbox, fabrik-registrar, glitchtip-web, plus `aro-wake` job with 3 targets (vps1+vps2+vps3 over mesh). Spoke metrics: covered via the `aro-wake` job only — dedicated `node-spokes`/`cadvisor-spokes`/`promtail-spokes` jobs were referenced in older docs but are NOT present in live `prometheus.yml`. | `alertmanager` → Telegram **AND** queried by `proactive-check.sh` cron | ✅ via `proactive-check.sh` (every 15 min, rate-limited 5 Claude wakes/h) |
+| `prometheus` (vps1) | 14 active targets across 12 active jobs (verified 2026-06-16): node, cadvisor, postgres, redis, gatus, grafana, authelia, meilisearch, loki, alertmanager, prometheus, plus `aro-wake` (3 targets — vps1+vps2+vps3 over mesh). (No `blackbox`, `fabrik-registrar`, `pushgateway`, or `glitchtip-web` scrape jobs; the `pushgateway` container runs but isn't scraped.) Spoke metrics: covered via the `aro-wake` job only — dedicated `node-spokes`/`cadvisor-spokes`/`promtail-spokes` jobs were referenced in older docs but are NOT present in live `prometheus.yml`. | `alertmanager` → Telegram **AND** queried by `proactive-check.sh` cron | ✅ via `proactive-check.sh` (every 15 min, rate-limited 5 Claude wakes/h) |
 | `alertmanager` (vps1) | Prometheus rule alerts from 5 live groups: `aro_wake` (2), `container_health` (6), `host_health` (3 — fires on host=vps1\|vps2\|vps3 labels), `service_health` (1), `fabrik-registrar-drift` (1, separate `rules/fabrik-drift.yml`). No `spoke_health` group exists (was planned, never landed). | Native `telegram_configs` → Telegram | ❌ (operator-in-loop by design; ARO-Brain receiver stub in config but not built) |
 | `loki` (vps1) | logs from promtail on all 3 hosts (`host` label vps1/vps2/vps3) | Grafana dashboards; **no ruler / log-alert wiring** | ❌ |
 | `gatus` (vps1) | 33 synthetic endpoints across 18 config files (apps/core/data/observability/external) | Custom alerter → Apprise → Telegram | ❌ |
@@ -950,7 +953,7 @@ Practical rule: if you add a DB call, a Redis cache, a `/metrics` endpoint, Meil
 - Bootstrap script: `scripts/bootstrap/bootstrap-vps.sh` + templates in `scripts/bootstrap/templates/`
 - Platform-to-A+ plan: `docs/development/plans/archived/2026-05-30-platform-to-a-plus.md`
 - W1 Coolify residue cleanup: `docs/development/plans/archived/2026-05-30-coolify-residue-cleanup.md`
-- Lessons learnt (latest = 65): `docs/LESSONS_LEARNT.md`
+- Lessons learnt (latest = 77): `docs/LESSONS_LEARNT.md`
 - GlitchTip integration: `docs/infrastructure/glitchtip-sdk-integration-setup.md`
 - AI sysadmin reference: `docs/infrastructure/vps-ai-sysadmin.md`
 - VPS residue policy: `docs/infrastructure/vps-residue-policy.md`

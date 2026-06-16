@@ -22,9 +22,9 @@
 - W9 DR mirror: /opt/fabrik/.env + .env.sysadmin + 4 spoke files
   (.env.backrest + .restic-password per spoke) mirrored to private GitHub
   mobasak/fabrik-dr-store via inotify watcher.
-- DR scripts:
-  - bootstrap-hub.sh — 18 steps, target ≤ 90 min, undrilled.
-  - bootstrap-spoke-restore.sh — 13 steps, ≤ 30 min, undrilled.
+- DR scripts (VALIDATED/DRILLED — Vultr spoke drill 2026-06-13/14, spoke-restore + hub 2026-06-15, LE/DNS cutover 2026-06-15/16 on tojlo.com sandbox):
+  - bootstrap-hub.sh — 18 steps, target ≤ 90 min, hub DR drilled 2026-06-15.
+  - bootstrap-spoke-restore.sh — 13 steps, ≤ 30 min, spoke-restore drilled 2026-06-15.
 - Path-preserving bind mounts: /opt, /etc, /usr/local/bin, /root/.ssh,
   /home/ozgur/.ssh, /opt/backrest/.restic-password.
 - No failure-notification hook configured in Backrest config.json on any
@@ -145,15 +145,15 @@ git -C ~/.fabrik/dr-store log --oneline -5 2>&1 || gh repo view mobasak/fabrik-d
 ### 4. Recovery readiness
 
 - DR scripts exist + executable:
-  - `scripts/bootstrap/bootstrap-hub.sh` (18 steps, ≤ 90 min target — undrilled)
-  - `scripts/bootstrap/bootstrap-spoke-restore.sh` (13 steps, ≤ 30 min target — undrilled)
+  - `scripts/bootstrap/bootstrap-hub.sh` (18 steps, ≤ 90 min target — drilled 2026-06-15)
+  - `scripts/bootstrap/bootstrap-spoke-restore.sh` (13 steps, ≤ 30 min target — drilled 2026-06-15)
 - Operator runbooks exist:
   - `docs/infrastructure/vps-hub-rebuild.md`
   - `docs/infrastructure/vps-spoke-rebuild.md`
 - Inventory docs exist:
   - `docs/operations/hub-restore-inventory.md`
   - `docs/operations/spoke-restore-inventory.md`
-- **DR drill NOT yet performed against a fresh VPS** — flag as gap (operator-gated).
+- **DR drilled GREEN** — Vultr spoke drill 2026-06-13/14, spoke-restore + hub DR 2026-06-15, LE/DNS cutover 2026-06-15/16 (tojlo.com sandbox). Both bootstrap paths validated against fresh VPSes; do NOT re-flag as a gap.
 
 ### 5. Secrets management
 
@@ -183,7 +183,7 @@ git -C ~/.fabrik/dr-store log --oneline -5 2>&1 || gh repo view mobasak/fabrik-d
 ## Backup + DR Audit — Fleet — <UTC date>
 
 **Verdict:** GREEN / YELLOW / RED
-**DR readiness:** drilled? | undrilled
+**DR readiness:** DRILLED (Vultr spoke 2026-06-13/14, spoke-restore + hub 2026-06-15, LE/DNS cutover 2026-06-15/16)
 **Summary:** one-paragraph
 
 ### Per-host backup state
@@ -198,6 +198,6 @@ git -C ~/.fabrik/dr-store log --oneline -5 2>&1 || gh repo view mobasak/fabrik-d
    - Evidence
    - Fix
 
-### DR drill action item
+### DR drill status (drilled — confirm no regression)
 - ...
 ```

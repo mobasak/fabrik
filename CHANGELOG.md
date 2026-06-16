@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — docs/infrastructure exhaustive accuracy sweep: all 15 live docs + audit-prompts verified against repo + live fleet (2026-06-16)
+
+Audit→fix→re-audit loop over every live doc under `docs/infrastructure/` until a consistency pass found nothing left. All contested numbers re-derived authoritatively (live SSH + repo) before editing — notably the Gatus count (**33 endpoints / 18 files**, confirmed live AND repo; the "21"/"36" claims were both wrong) so no false "corrections" were written. Historical artifacts (`archive/`, `probe-reports/`, `vps-captured-state-*.txt`) intentionally left frozen.
+
+- **`vps-status.md`** — fixed an outright-false "Backups: 0 plans, B2 bucket empty" section → the real live chain (vps1 4 plans, vps2/vps3 2 each; bucket ~117 MiB); DR rows now cite hub+spoke+spoke-restore drills validated 2026-06-15/16 + the LE/DNS cutover run IDs; Prometheus job list corrected (`pushgateway` is a container, not a scrape job; `aro-wake` + `fabrik-services` placeholder accounted; 13 configured → 12 active / 14 targets); spoke-restore step list +`11b`; date → 2026-06-16.
+- **`vps-complete-inventory.md`** — Prometheus job table/list de-listed the phantom `pushgateway`/`blackbox`/`fabrik-registrar`/`glitchtip-web` jobs, added real `aro-wake`; Lessons "latest = 65" → **77**; date + DR note.
+- **`vps-ai-sysadmin.md`** — alert-rule table replaced 2 fictional Promtail rules with the real 13; TLS cert-expiry "5 domains" → **4**; added the OAuth-keepalive + `aro_wake_unhealthy` self-watchers; vps1 UFW row dropped the deleted `6001-6002` + added the live `8201` aro-wake allow; Claude Code version softened (drifts per host).
+- **`vps-urls.md`** — CF A-record count 17 → **20** (added live `watchdog-test.vps1` router; flagged `*.vps4`/`vps4` orphan DNS residue); deleted stale `6001-6002` UFW row; added `8201`.
+- **`vps-fleet-architecture.md` + `vps-complete-inventory.md`** — removed stale "undrilled" hub/spoke DR framing → drilled GREEN 2026-06-15/16.
+- **`vps-residue-policy.md`** — added a "Known outstanding residue (2026-06-16)" note (stale `coolify`/`coolify-public` Gatus endpoints; orphan `vps4` DNS) — flagged pending cleanup, not claimed fixed.
+- **`prometheus-app-metrics-setup.md`** — job count → 13 configured/12 active; noted `pushgateway` container runs but isn't scraped.
+- **`promtail-noise-filter-setup.md`** — corrected the central false claim: the drop filter is the real 5-entry `^(coolify-db|coolify-redis|coolify-realtime|coolify-sentinel|ocoron-com-backup-1)$` (4 dead `coolify-*` residue), not one entry; container count 28 → 31.
+- **`vps-hub-rebuild.md`** — header → 2026-06-16 (step_17c traefik-lego closure); **`WSL2-DNS-FIX.md`** — root-cause reconciled with the live resolv.conf note.
+- **`audit-prompts/`** (01, 02, 06, README) — hub container count 29 → **31**; hub UFW 6 → 9 v4 rules; DR status "undrilled" → drilled/validated; README probe-summary aligned to its own linked probe file. (03/04/05/07/08 verified clean.)
+- **Stale inline TODOs reconciled against the doc's own ✓-done tables + live state** — `vps-complete-inventory.md` (Grafana `host` template var, `glitchtip-web` mesh binding, Authelia mesh binding all marked done in the pending-actions table + verified live, but inline prose still said "TODO"/"requires X first") and `glitchtip-sdk-integration-setup.md` (mesh-IP binding "will be added" → already in place, `ss -tlnp` confirmed).
+
+Live residue surfaced (not doc bugs, flagged for cleanup): stale `coolify`/`coolify-public` Gatus endpoints; orphan `*.vps4`/`vps4` DNS A records (no live droplet); `PORTS.md` (repo root, out of this folder's scope) still lists Coolify/Netdata/dead microservices.
+
 ### Fixed — Hub DR docs: attribute step_17c (traefik lego) to its real drill (2026-06-16)
 
 `e89d14d` credited both `step_17b` (certbot) and `step_17c` (traefik's own Go/lego ACME) to `dr-drill-hub-20260615-160819`, but `step_17c` was still failing on 2026-06-15 (heredoc-escaping bugs) — it first went green a day later in `dr-drill-hub-20260616-113524` (issuer `(STAGING) Ersatz Emmer YR2`, peer commit `320adf4`). Split the attribution in `vps-hub-rebuild.md` (DR-validation matrix + narrative) and `hub-restore-inventory.md` so each cert path cites its actual run ID.
