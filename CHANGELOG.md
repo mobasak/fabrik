@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — AI client default model + container-image recommendations refreshed to current (2026-06-16)
+
+Two code-level stalenesses surfaced during the docs sweep (the docs matched the code; the code was behind):
+
+- **`src/fabrik/ai/client.py`** — `DEFAULT_MODELS[CLAUDE]` was `claude-3-5-sonnet-20241022` (a 2024 model) → **`claude-sonnet-4-6`** (Sonnet 4.6). Added current Claude 4.x pricing (`claude-opus-4-8`, `claude-sonnet-4-6`, `claude-haiku-4-5-20251001`); kept the legacy entries so historical `ai_usage` rows still cost correctly. New test `test_default_models_have_pricing` guards the highest-risk path — a default model missing from `PRICING` makes `_calculate_cost` silently return $0. (`docs/reference/ai.md` default-model line synced.)
+- **`scripts/container_images.py`** — `recommend monitoring` dropped the dead **Netdata** + **Uptime Kuma** entries → the live stack (**Prometheus / Grafana / Loki / Gatus**); `recommend backup` swapped **Duplicati** → **Backrest** (`ghcr.io/garethgeorge/backrest`), the fleet's actual backup tool.
+
 ### Changed — docs/reference accuracy sweep, batches 1–2 (2026-06-16): DEPLOYMENT.md rename + Coolify-decommission caveats + broken links + archive a superseded doc
 
 File-by-file accuracy pass over `docs/reference/` (67 docs). Verified each claim against the repo + live fleet.

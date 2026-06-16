@@ -19,6 +19,17 @@ class TestLLMClient:
             cost = client._calculate_cost(1000, 500)
             assert cost == pytest.approx(0.0105, rel=1e-6)
 
+    def test_default_models_have_pricing(self) -> None:
+        # Highest-risk path: _calculate_cost silently returns $0 for any model
+        # not in PRICING, so every default MUST have a pricing entry. Also pin
+        # the Claude default to the current 4.x family (regression guard against
+        # the stale claude-3-5-sonnet-20241022 default fixed 2026-06-16).
+        from fabrik.ai.client import DEFAULT_MODELS, PRICING
+
+        for provider, model in DEFAULT_MODELS.items():
+            assert model in PRICING, f"default model {model} for {provider} missing from PRICING"
+        assert DEFAULT_MODELS[LLMProvider.CLAUDE] == "claude-sonnet-4-6"
+
 
 class TestUsageTracker:
     def test_init_creates_db(self, tmp_path: Path) -> None:

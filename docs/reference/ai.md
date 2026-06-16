@@ -31,7 +31,7 @@ print(response.content, response.cost)
 | `generate_structured(prompt, schema, system?, project?)` | JSON-schema-constrained output |
 | `revise(original, feedback, system?, project?)` | Revision workflow, returns revised text |
 
-**Default models:** Claude → `claude-3-5-sonnet-20241022`, OpenAI → `gpt-4o-mini`
+**Default models:** Claude → `claude-sonnet-4-6` (Sonnet 4.6), OpenAI → `gpt-4o-mini`
 
 ## UsageTracker
 

@@ -571,14 +571,17 @@ def cmd_recommend(args):
             ("caddy:2-alpine", "Caddy - automatic HTTPS"),
         ],
         "monitoring": [
-            ("netdata/netdata", "Netdata - real-time monitoring"),
-            ("louislam/uptime-kuma", "Uptime Kuma - status monitoring"),
             ("prom/prometheus", "Prometheus - metrics collection"),
             ("grafana/grafana", "Grafana - dashboards"),
+            ("grafana/loki", "Loki - log aggregation"),
+            ("twinproduction/gatus", "Gatus - uptime/status monitoring (Fabrik's choice)"),
         ],
         "backup": [
-            ("lscr.io/linuxserver/duplicati", "Duplicati - cloud backup"),
-            ("restic/restic", "Restic - fast backup"),
+            (
+                "ghcr.io/garethgeorge/backrest",
+                "Backrest - restic-based backup orchestration (Fabrik's tool)",
+            ),
+            ("restic/restic", "Restic - fast backup engine"),
         ],
         "development": [
             ("lscr.io/linuxserver/code-server", "VS Code in browser"),
