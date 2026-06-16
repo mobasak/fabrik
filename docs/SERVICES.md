@@ -39,17 +39,17 @@ fabrik plan my-api      # Execute and exit
 |---------|-----------|------|-----|------------|---------|
 | PostgreSQL | postgres-main | 5432 | - (mesh-only via 10.99.0.1) | 🔐 Password | Shared database |
 | Redis | redis-main | 6379 | - (internal) | 🔒 Internal | Caching (optional) |
-| Netdata | netdata | 19999 | `https://netdata.vps1.ocoron.com` | 🔐 Password | System monitoring |
+| ~~Netdata~~ | ~~netdata~~ | ~~19999~~ | ~~`netdata.vps1.ocoron.com`~~ | — | **REMOVED 2026-05-30** — metrics now via node-exporter + cAdvisor → Prometheus → Grafana |
 | Gatus | gatus | 3001 | `https://status.vps1.ocoron.com` | 🔐 Password | Service monitoring |
 | Backrest | backrest | 9898 | `https://backup.vps1.ocoron.com` | 🔐 Authelia 2FA | Backup management (restic + Backblaze B2; replaced Duplicati 2026-04-17) |
 | ~~Image Broker~~ | ~~image-broker~~ | ~~8010~~ | ~~`https://images.vps1.ocoron.com`~~ | — | **REMOVED 2026-06-02** — spec retired; row kept for history |
-| DNS Manager | dns-manager | 8001 | `https://dns.vps1.ocoron.com` | ⚠️ Open | DNS record management |
-| Translator | translator | 8000 | `https://translator.vps1.ocoron.com` | 🔑 API Key | Translation API |
-| Captcha | captcha | 8000 | `https://captcha.vps1.ocoron.com` | ⚠️ Open | Captcha solver (Anti-Captcha) |
-| File API | file-api | 8004 | `https://files-api.vps1.ocoron.com` | ⚠️ Open | File storage API |
+| ~~DNS Manager~~ | ~~dns-manager~~ | ~~8001~~ | ~~`dns.vps1.ocoron.com`~~ | — | **RETIRED** — not deployed (DNS handled directly via Cloudflare driver) |
+| ~~Translator~~ | ~~translator~~ | ~~8000~~ | ~~`translator.vps1.ocoron.com`~~ | — | **RETIRED** — not deployed |
+| ~~Captcha~~ | ~~captcha~~ | ~~8000~~ | ~~`captcha.vps1.ocoron.com`~~ | — | **RETIRED** — not deployed |
+| ~~File API~~ | ~~file-api~~ | ~~8004~~ | ~~`files-api.vps1.ocoron.com`~~ | — | **RETIRED** — not deployed |
 | Browserless | browserless | 3000 | `https://browser.vps1.ocoron.com` | 🔑 API Key | Headless Chrome for scraping/extensions |
 | Gotenberg | gotenberg | 3003 | `https://pdf.vps1.ocoron.com` | ⚠️ Open | PDF generation |
-| MinIO | minio | 9000/9001 | `https://s3.vps1.ocoron.com` | 🔐 Password | S3-compatible object storage |
+| ~~MinIO~~ | ~~minio~~ | ~~9000/9001~~ | ~~`s3.vps1.ocoron.com`~~ | — | **RETIRED** — not deployed (object storage via Backblaze B2 / Cloudflare R2 directly) |
 | Apprise | apprise | 8005 | `https://notify.vps1.ocoron.com` | ⚠️ Open | Unified notifications |
 | Meilisearch | meilisearch | 7700 | `https://search.vps1.ocoron.com` | 🔑 API Key | Fast full-text search |
 | Loki | loki | 3100 | internal only | 🔒 Internal | Log aggregation |
@@ -101,23 +101,11 @@ Historical — the spec was retired. The example below will fail (NXDOMAIN); kep
 curl -s https://images.vps1.ocoron.com/api/v1/health
 ```
 
-### Netdata
+### Retired services (no health endpoint)
 
-```bash
-curl -s https://netdata.vps1.ocoron.com
-```
-
-### DNS Manager
-
-```bash
-curl -s https://dns.vps1.ocoron.com/health
-```
-
-### Captcha
-
-```bash
-curl -s https://captcha.vps1.ocoron.com/healthz
-```
+`netdata`, `dns-manager`, `captcha`, `translator`, `file-api`, `minio` are no
+longer deployed — their `*.vps1.ocoron.com` subdomains return NXDOMAIN. See the
+service table above for retirement notes.
 
 ## Service Integration
 
@@ -128,8 +116,8 @@ All services follow this pattern:
 | Environment | URL Format | Example |
 |-------------|------------|---------|
 | **WSL (local)** | `http://localhost:<port>` | `http://localhost:8001` |
-| **VPS (Docker)** | `http://<container>:<port>` | `http://dns-manager:8001` |
-| **External** | `https://<subdomain>.vps1.ocoron.com` | `https://dns.vps1.ocoron.com` |
+| **VPS (Docker)** | `http://<container>:<port>` | `http://site-provisioner:8001` |
+| **External** | `https://<subdomain>.vps1.ocoron.com` | `https://provision.vps1.ocoron.com` |
 
 ### Code Pattern
 
@@ -490,21 +478,26 @@ See `/opt/file-api/README.md` for full API documentation.
 
 ```bash
 # From WSL
-ssh deploy@vps "docker ps --format 'table {{.Names}}\t{{.Status}}'"
+ssh vps "sudo docker ps --format 'table {{.Names}}\t{{.Status}}'"
 ```
 
-Expected output:
+Expected output (representative — vps1 runs ~31 containers):
 
 ```text
-NAMES           STATUS
-postgres-main   Up 2 days
-redis-main      Up 2 days
-netdata         Up 2 days
-gatus          Up 2 days
-backrest        Up 2 days
-image-broker    Up 1 hour (healthy)
-dns-manager     Up 2 days
-translator      Up 2 days
-captcha         Up 2 days
-file-api        Up 2 days
+NAMES               STATUS
+postgres-main       Up 2 days (healthy)
+redis-main          Up 2 days
+traefik             Up 2 days
+authelia            Up 2 days
+gatus               Up 2 days
+backrest            Up 2 days
+prometheus          Up 2 days
+grafana             Up 2 days
+loki                Up 2 days
+meilisearch         Up 2 days
+apprise             Up 2 days
+n8n                 Up 2 days
+browserless         Up 2 days
+gotenberg           Up 2 days
+site-provisioner    Up 2 days (healthy)
 ```

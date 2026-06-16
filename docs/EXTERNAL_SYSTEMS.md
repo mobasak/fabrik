@@ -1086,6 +1086,11 @@ The shared infra services (also internal) are catalogued in their own sections a
 
 ## WordPress Plugins
 
+> **WordPress moved out of Fabrik to the standalone `/opt/wpf` project (2026).** The
+> `src/fabrik/wordpress/*.py` paths cited below no longer exist in this repo — the
+> plugin detection/forms/analytics logic now lives in `/opt/wpf`. Entries kept as a
+> catalog of the plugins the WP pipeline handles.
+
 ### Yoast SEO
 
 **Purpose:** WordPress SEO plugin

@@ -635,6 +635,12 @@ Project-level configuration takes precedence over global settings.
 }
 ```
 
+> **Fabrik policy:** the example above is the generic kilo/opencode Anthropic-direct
+> config. Fabrik does **not** use a direct `ANTHROPIC_API_KEY` — kilo here is pointed
+> at **OpenRouter** (and Claude Code for operational agents). Configure the
+> `openrouter` provider with `OPENROUTER_API_KEY` and an OpenRouter model id (e.g.
+> `anthropic/claude-sonnet-4.6`) instead of the `anthropic` block shown.
+
 ### Common Options
 
 - `model` - Default model to use

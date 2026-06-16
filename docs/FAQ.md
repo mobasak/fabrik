@@ -56,7 +56,7 @@ Fabrik is an **enterprise-grade deployment orchestration platform** that automat
 **Why both?**
 - Each project can override shared credentials
 - Master file survives project deletion
-- Consolidation via `python scripts/consolidate_envs.py` merges them
+- Env files are read-only audited via `python scripts/audit_envs.py` (the old `consolidate_envs.py` merge tool was retired — it no longer writes/merges)
 
 **Security:**
 - Both files are git-ignored
@@ -408,11 +408,17 @@ services:
 
 ## WordPress
 
+> **WordPress moved out of Fabrik.** Site creation, deployment, and lifecycle all
+> live in the standalone **`/opt/wpf`** project (the `wpf` CLI). The `fabrik wp …`
+> command group was removed; `fabrik apply` on a `wordpress`-type project now errors
+> and redirects to `wpf`. Fabrik retains only the `wordpress` **scaffold type**
+> (`fabrik scaffold --type wordpress`). See `/opt/wpf/AGENTS.md`.
+
 ### How do I deploy a WordPress site?
 
 ```bash
-# 1. Create site spec
-nano specs/sites/my-site.yaml
+# 1. Create site spec (in the wpf project)
+nano /opt/wpf/specs/sites/my-site.yaml
 
 # 2. Add spec content
 schema_version: 1
@@ -425,8 +431,8 @@ brand:
   colors:
     primary: "#1e3a5f"
 
-# 3. Deploy
-fabrik wp deploy specs/sites/my-site.yaml
+# 3. Deploy with the wpf CLI
+wpf apply my-site
 ```
 
 **What gets automated:**

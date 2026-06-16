@@ -751,7 +751,7 @@ These rules ensure coding agents use the scaffolded i18n system rather than inst
 | Alertmanager (`:9093`) | Active firing alerts, silences |
 | Gatus (`:8080`) | Uptime status for 30+ endpoints |
 | GlitchTip (`:8000`) | Application errors, unhandled exceptions |
-| Netdata (`:19999`) | Real-time per-second system metrics |
+| cAdvisor (`:8080`) | Real-time per-container metrics (replaced Netdata, removed 2026-05-30) |
 | Apprise (`:8000`) | Send notifications to Telegram |
 | Pushgateway (`:9091`) | Drift audit metrics |
 | Meilisearch (`:7700`) | Search index health |

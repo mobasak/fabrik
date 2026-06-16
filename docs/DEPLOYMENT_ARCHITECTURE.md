@@ -854,7 +854,6 @@ Every invariant below has been validated against live VPS behavior. Cross-refere
 |---|---|---|
 | cAdvisor | 512M | OOM at 256m with 40 containers. Add `--docker_only=true --disable_metrics=sched,tcp,udp,percpu,advtcp,hugetlb,...` |
 | Prometheus | 1G | OOM at 512m scraping 40 containers. `--storage.tsdb.retention.size=5GB` |
-| Netdata | 512M cache | Set `NETDATA_DBENGINE_DISK_SPACE_MB=512` + `NETDATA_DBENGINE_RETENTION_DAYS=7` |
 
 ---
 

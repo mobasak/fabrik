@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — verification pass: residual stale-service/command references (2026-06-17)
+
+A cross-repo evidence sweep (verified against live vps1 — 31 containers) caught references earlier passes missed:
+
+- **`SERVICES.md`**: struck through the retired rows (`netdata`, `dns-manager`, `translator`, `captcha`, `file-api`, `minio` — none are running) to match the existing drift banner + the Image-Broker precedent; replaced the dead per-service health-check curls with one retired-services note; refreshed the `docker ps` example and URL-pattern example to live containers (`ssh vps`, `site-provisioner`).
+- **`FEATURES.md`**: Netdata feature → cAdvisor (Netdata removed 2026-05-30).
+- **`DEPLOYMENT_ARCHITECTURE.md`**: removed the Netdata resource-limit tuning row.
+- **`FAQ.md`**: WordPress deploy answer used `fabrik wp deploy` + `specs/sites/` — now `wpf apply` + `/opt/wpf/specs/sites/` with a "WP moved to /opt/wpf" note; `consolidate_envs.py` (retired) → `audit_envs.py`.
+- **`EXTERNAL_SYSTEMS.md`**: WordPress-Plugins section banner — the cited `src/fabrik/wordpress/*.py` paths no longer exist (logic moved to `/opt/wpf`).
+- **`fabrik-cli-reference.md`**: WP architecture said "Coolify-pull today" — corrected to SSH + Docker Compose (the live `ocoron-com-*` 4-container stack; Coolify decommissioned 2026-05-30).
+- **`infrastructure/vps-urls.md`**: updated the DNS header — the 2 `vps4` orphans it listed were deleted this session (CF zone now 18 A records).
+- **`reference/kilo/KILO_CLI_REFERENCE.md`**: added a Fabrik-policy note — kilo uses OpenRouter, not a direct `ANTHROPIC_API_KEY` (the generic example shows the Anthropic-direct path).
+
 ### Fixed — remaining doc walk: retired-service & superseded-plan accuracy (2026-06-17)
 
 Walked the last un-reviewed active doc files one by one:
