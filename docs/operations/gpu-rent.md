@@ -87,7 +87,10 @@ Provision a GPU, optionally use it, **always destroy at exit**.
 |---|---|---|
 | `kind` (positional) | — | One of `serverless`, `pod-h100`, `pod-h100-pcie`, `pod-h100-nvl`, `pod-a100`, `pod-a100-sxm`, `pod-h200`, `pod-l40s`, `pod-rtx-4090` |
 | `--workload` | (required) | Free-text tag (e.g. `train-tinyllama`, `seo-embed`) |
-| `--provider` | `runpod` | `runpod`, `modal`, or `vast` |
+| `--provider` | `auto` | `auto` (recommended), `runpod`, `modal`, or `vast`. **`auto` runs `selection_advice()` and picks per workload shape.** |
+| `--utilization` | `1.0` | (auto only) Fraction of `--max-lifetime` the GPU will be actively computing. 1.0 = training, 0.2 = bursty. |
+| `--needs-checkpointing` | off | (auto only) Workload writes checkpoints to B2/R2 — opts into Vast.ai spot (~50% cheaper). |
+| `--needs-serverless` | off | (auto only) Restrict to providers offering true serverless (RunPod, Modal). |
 | `--max-lifetime` | `1` (hours) | Reaper destroys past this |
 | `--max-cost` | `5.0` (USD) | Refused BEFORE provider create if estimate exceeds |
 | `--keep-warm-after-use` | off | Don't destroy after successful work_fn |
@@ -95,7 +98,7 @@ Provision a GPU, optionally use it, **always destroy at exit**.
 | `--dry-run` | off | Print the plan + cost guard result, no API call |
 | `--image` | NVIDIA CUDA runtime | (pod-* only) Override container image |
 | `--cloud` | `SECURE` | `SECURE` (datacenter) or `COMMUNITY` (~50% cheaper, shared kernel) |
-| `--interruptible` | off | (pod-* only) Spot/preemptible — needs checkpointing |
+| `--interruptible` | off | (pod-* only) Spot/preemptible — auto-enabled when `auto` picks Vast |
 
 **Examples:**
 
@@ -103,11 +106,34 @@ Provision a GPU, optionally use it, **always destroy at exit**.
 # Plan-only dry run (no API call, no cost)
 fabrik gpu rent pod-rtx-4090 --workload smoke --dry-run
 
-# Serverless inference smoke test
-fabrik gpu rent serverless --workload smoke --max-cost 1
+# Auto-pick provider for continuous training (high util → RunPod)
+fabrik gpu rent pod-h100 --workload train-7b --max-lifetime 8 --max-cost 30
 
-# Training: cheap pod, 4-hour budget
-fabrik gpu rent pod-rtx-4090 --workload train-toy --max-lifetime 4 --max-cost 3
+# Auto-pick provider for bursty inference (low util → Modal per-second)
+fabrik gpu rent pod-h100 --workload chat-server --utilization 0.2 \
+                          --max-lifetime 24 --max-cost 50
+
+# Auto-pick provider for checkpoint-resumable training (cheapest → Vast spot)
+fabrik gpu rent pod-h100 --workload distill --needs-checkpointing \
+                          --max-lifetime 12 --max-cost 25
+
+# Force a specific provider (override auto)
+fabrik gpu rent pod-rtx-4090 --workload smoke --provider runpod --max-cost 3
+fabrik gpu rent pod-rtx-4090 --workload smoke --provider vast --max-cost 1
+```
+
+**How `auto` decides** (verified by `fabrik gpu compare` + unit tests):
+
+- **utilization ≥ 0.5 + no checkpointing** → **RunPod**. Sustained workloads win on RunPod's hourly Secure pricing (e.g. H100 at $2.89/hr).
+- **utilization < 0.5** → **Modal**. Per-second billing dominates for bursty work — a 20%-util 4hr workload pays only the active 48 minutes (effective $3.16 for an H100 vs RunPod's $11.56 for the full 4 hours).
+- **--needs-checkpointing** + GPU available on Vast → **Vast.ai spot/interruptible**. ~50% cheaper, but preemptible — only safe if your workload writes checkpoints.
+- **--needs-serverless** → drops Vast from consideration (Phase 3).
+
+The CLI prints the chosen provider + rationale on every invocation:
+
+```text
+🤖 provider=auto → modal ($3.16)
+   low utilization (20%) — Modal's per-second billing wins. Cost $3.16.
 ```
 
 ### `fabrik gpu compare <kind>` — decision support

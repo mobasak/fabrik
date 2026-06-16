@@ -164,8 +164,29 @@ class VastClient:
         return [self._normalize_instance(inst) for inst in instances]
 
     def get_pod(self, pod_id: str) -> dict[str, Any]:
+        """Vast.ai's ``GET /instances/<id>/`` response shape varies:
+
+        - For a valid existing instance: ``{"instances": {<inst dict>}}``
+          — singular dict UNDER the plural key (a quirk)
+        - For ``GET /instances/`` (list all): ``{"instances": [<inst>, ...]}``
+          — actual list
+        - For an unknown ID: ``{"instances": null}``
+
+        Handle all three. Earlier versions of this method assumed wrong
+        shapes and raised ``KeyError(0)`` (G-LIVE-5 2026-06-16 run #7).
+        """
         data = self._request("GET", f"/instances/{pod_id}/")
-        inst = data.get("instance") if isinstance(data, dict) and "instance" in data else data
+        inst: Any = {}
+        if isinstance(data, dict):
+            payload = data.get("instances", data.get("instance"))
+            if isinstance(payload, dict):
+                inst = payload
+            elif isinstance(payload, list):
+                inst = payload[0] if payload else {}
+            elif payload is None and "instances" in data and data["instances"] is None:
+                raise VastError(f"Vast.ai instance {pod_id} not found (instances=null)")
+            else:
+                inst = data
         return self._normalize_instance(inst)
 
     def create_pod(
@@ -187,72 +208,165 @@ class VastClient:
         ``gpu_type_id`` should match Vast.ai's GPU name (``H100 SXM``, ``RTX 4090``).
         Use :data:`VAST_GPU_NAMES` to translate from friendly aliases.
         """
-        # 1) Search marketplace for cheapest matching offer
-        search_query = {
+        # 1) Search marketplace for cheapest matching offer.
+        # CRITICAL: verified --explain on the vastai CLI shows the real API
+        # contract is POST /bundles/ with the FULL query AS JSON BODY (not
+        # url-encoded params, not GET). See docs/reference/vast-api.md §11.4
+        # quirks. Defaults `external=false rentable=true type=on-demand` match
+        # the CLI's default query.
+        # `reliability2 >= 0.98` filters out flaky hosts (those whose containers
+        # get stuck in 'unknown' state on Vast). Verified empirically against
+        # the live RTX 4090 pool 2026-06-16 — the cheapest sub-0.95 hosts
+        # routinely fail to pull NVIDIA's public CUDA image. The floor only
+        # raises cost by ~10% but eliminates ~all stuck-loading failures.
+        search_query: dict[str, Any] = {
             "verified": {"eq": True} if cloud_type == "SECURE" else {"eq": False},
+            "external": {"eq": False},
+            "rentable": {"eq": True},
             "gpu_name": {"eq": gpu_type_id},
             "num_gpus": {"eq": gpu_count},
             "disk_space": {"gte": container_disk_gb},
-            "rentable": {"eq": True},
+            "rented": {"eq": False},
+            "reliability2": {"gte": 0.98},
+            "type": "bid" if interruptible else "on-demand",
+            "order": [["dph_total", "asc"]],
+            "allocated_storage": float(container_disk_gb),
+            "limit": 10,
         }
-        if interruptible:
-            search_query["rented"] = {"eq": False}  # spot bid
-        # Vast.ai's search API expects q as a JSON string in `q` param
-        import json as _json
-
-        offers = self._request(
-            "GET",
-            "/bundles/",
-            params={"q": _json.dumps(search_query), "order": "dph_total"},
-        )
+        offers = self._request("POST", "/bundles/", json=search_query)
         offer_list = offers.get("offers", []) if isinstance(offers, dict) else offers
         if not offer_list:
             raise VastError(
                 f"no Vast.ai offers found matching gpu_type={gpu_type_id} "
                 f"verified={cloud_type == 'SECURE'} interruptible={interruptible}"
             )
-        cheapest = offer_list[0]
-        offer_id = cheapest["id"]
 
-        # 2) Create instance from the chosen offer
-        body = {
-            "client_id": "me",
-            "image": image_name,
-            "disk": container_disk_gb,
-            "label": name or "fabrik-gpu-rent",
-            "env": env or {},
-            "runtype": "ssh" if (ports and any("22" in p for p in ports)) else "args",
-        }
-        if interruptible:
-            body["price"] = cheapest.get("min_bid", cheapest["dph_total"] * 0.5)
-
-        result = self._request("PUT", f"/asks/{offer_id}/", json=body)
-        # Vast.ai returns {success: true, new_contract: <instance_id>}
-        if not result.get("success"):
-            raise VastError(f"Vast.ai instance creation failed: {result}")
-        instance_id = result["new_contract"]
-        return self._normalize_instance(
-            {
-                "id": instance_id,
-                "actual_status": "loading",
-                "dph_total": cheapest["dph_total"],
-                "gpu_name": gpu_type_id,
+        # 2) Try offers in cheapest-first order. Marketplace race: another
+        # renter may claim our top pick between search and PUT /asks/, so
+        # iterate down the list on 404/3603 `no_such_ask` errors instead of
+        # giving up. Try up to max_offer_attempts to bound API spend.
+        max_offer_attempts = 5
+        last_err: VastError | None = None
+        for attempt, offer in enumerate(offer_list[:max_offer_attempts], 1):
+            offer_id = offer["id"]
+            body = {
+                "client_id": "me",
+                "image": image_name,
+                "disk": container_disk_gb,
+                "label": name or "fabrik-gpu-rent",
+                "env": env or {},
+                "runtype": "ssh" if (ports and any("22" in p for p in ports)) else "args",
             }
+            if interruptible:
+                body["price"] = offer.get("min_bid", offer["dph_total"] * 0.5)
+            try:
+                result = self._request("PUT", f"/asks/{offer_id}/", json=body)
+            except VastError as e:
+                # 404/3603 `no_such_ask` = offer claimed by someone else.
+                # Any 4xx on the claim is fatal for that specific offer;
+                # try the next-cheapest.
+                body_msg = ""
+                if isinstance(e.body, dict):
+                    body_msg = e.body.get("msg", "") or e.body.get("error", "")
+                logger.info(
+                    "vast offer %s unavailable (attempt %d/%d): %s",
+                    offer_id,
+                    attempt,
+                    max_offer_attempts,
+                    body_msg or e,
+                )
+                last_err = e
+                continue
+
+            if not result.get("success"):
+                last_err = VastError(f"Vast.ai instance creation failed: {result}")
+                logger.info("vast offer %s create returned non-success: %s", offer_id, result)
+                continue
+
+            instance_id = result["new_contract"]
+            return self._normalize_instance(
+                {
+                    "id": instance_id,
+                    "actual_status": "loading",
+                    "dph_total": offer["dph_total"],
+                    "gpu_name": gpu_type_id,
+                }
+            )
+
+        raise VastError(
+            f"all {min(len(offer_list), max_offer_attempts)} cheapest Vast offers "
+            f"for {gpu_type_id} were unavailable at claim time — try again with "
+            f"different filters or a less popular GPU. Last error: {last_err}"
         )
+
+    # Poll-trap states per Vast's own llms.txt — once an instance hits one
+    # of these, it will NEVER reach `running`. Destroy + retry.
+    # NOTE: `unknown` is in the docs' terminal list BUT empirically it's
+    # also the initial state after `PUT /asks/<offer>/` returns — Vast
+    # hasn't yet propagated the actual host status. Trip only after the
+    # instance has been alive for ``_UNKNOWN_GRACE_SECONDS`` to avoid
+    # destroying healthy-but-still-loading pods. (G-LIVE-5 2026-06-16.)
+    _TERMINAL_BAD_STATES = frozenset({"exited", "offline"})
+    _UNKNOWN_GRACE_SECONDS = 90
 
     def wait_for_running(
         self, pod_id: str, *, timeout: int = 600, interval: int = 10
     ) -> dict[str, Any]:
-        """Vast.ai instances take longer than RunPod to load (image pull, etc.). Default timeout 600s."""
-        deadline = time.monotonic() + timeout
+        """Poll until the instance is running. Honors Vast's poll-trap quirk.
+
+        Vast.ai instances take longer than RunPod to load (image pull, etc.).
+        Default timeout 600s. Raises VastError immediately if the status drops
+        to any of ``_TERMINAL_BAD_STATES`` — those never recover.
+        """
+        started = time.monotonic()
+        deadline = started + timeout
         while time.monotonic() < deadline:
             pod = self.get_pod(pod_id)
-            status = pod.get("desiredStatus")
-            if status == "RUNNING":
+            cur_state = (pod.get("_cur_state") or "").lower()
+            actual = (pod.get("_actual_status") or "").lower()
+            status_msg = pod.get("_status_msg") or ""
+
+            # Success signal: container's `cur_state` is running.
+            # `actual_status` is allowed to be 'exited' as long as `status_msg`
+            # explicitly says "success" (e.g. when image's PID 1 has exited
+            # but the container is otherwise healthy).
+            if cur_state == "running" and (
+                actual == "running"
+                or actual == "loading"
+                or (actual == "exited" and "success" in status_msg.lower())
+            ):
                 return pod
-            if status == "TERMINATED":
+
+            # Hard terminal: container itself is in a bad state.
+            if cur_state in self._TERMINAL_BAD_STATES:
                 raise VastError(
-                    f"Vast.ai instance {pod_id} reached TERMINATED during provisioning",
+                    f"Vast.ai instance {pod_id} container state "
+                    f"{cur_state!r} — destroy + retry on a different offer. "
+                    f"status_msg={status_msg!r}",
+                    body=pod,
+                )
+
+            # actual_status='exited' WITHOUT a success status_msg = real failure
+            if (
+                actual == "exited"
+                and "success" not in status_msg.lower()
+                and (time.monotonic() - started) > self._UNKNOWN_GRACE_SECONDS
+            ):
+                raise VastError(
+                    f"Vast.ai instance {pod_id} actual_status=exited and "
+                    f"status_msg={status_msg!r} — entrypoint failed",
+                    body=pod,
+                )
+
+            # Initial 'unknown' is OK, but only for the grace window
+            if (
+                cur_state == "unknown"
+                and (time.monotonic() - started) > self._UNKNOWN_GRACE_SECONDS
+            ):
+                raise VastError(
+                    f"Vast.ai instance {pod_id} still in cur_state='unknown' "
+                    f"after {self._UNKNOWN_GRACE_SECONDS}s grace — host likely "
+                    f"failed to pull image. Destroy + retry.",
                     body=pod,
                 )
             time.sleep(interval)
@@ -303,20 +417,45 @@ class VastClient:
     # --- helpers ------------------------------------------------------------
     @staticmethod
     def _normalize_instance(inst: dict[str, Any]) -> dict[str, Any]:
-        """Map Vast.ai's instance fields to the RunPod-style dict the orchestrator expects."""
+        """Map Vast.ai's instance fields to the RunPod-style dict the orchestrator expects.
+
+        Vast.ai has *multiple* status fields and they're NOT consistent:
+        - ``actual_status`` — the entrypoint process state (often 'exited'
+          immediately after image start even when the container is healthy,
+          because the default `python` entrypoint runs + exits)
+        - ``cur_state`` — the **container** lifecycle state. THIS is the
+          authoritative "is it usable?" field.
+        - ``intended_status`` / ``next_state`` — desired state.
+        - ``status_msg`` — human-readable; "success, running <image>" is
+          the success signal even when actual_status='exited'.
+
+        Verified via live probe 2026-06-16: a fresh on-demand RTX 4090 went
+        ``actual_status: loading → exited`` while ``cur_state: running``
+        throughout. The container WAS healthy; ``actual_status`` reflected
+        the image's PID-1 exit, not container death.
+
+        We prefer ``cur_state`` and fall back to ``actual_status``.
+        """
         status_map = {
             "running": "RUNNING",
-            "loading": "RUNNING",  # treat loading as RUNNING for orchestrator purposes
+            "loading": "RUNNING",  # transient pull state, will resolve
             "created": "RUNNING",
             "starting": "RUNNING",
             "stopped": "EXITED",
             "exited": "EXITED",
             "offline": "TERMINATED",
         }
-        actual = inst.get("actual_status") or inst.get("status") or "unknown"
+        cur_state = (inst.get("cur_state") or "").lower()
+        actual = (inst.get("actual_status") or inst.get("status") or "unknown").lower()
+        # Authoritative: cur_state (container lifecycle). Fallback: actual_status.
+        primary = cur_state if cur_state else actual
         return {
             "id": str(inst.get("id")),
-            "desiredStatus": status_map.get(actual, "RUNNING"),
+            "desiredStatus": status_map.get(primary, "RUNNING"),
+            "_raw_status": primary,
+            "_actual_status": actual,
+            "_cur_state": cur_state,
+            "_status_msg": inst.get("status_msg") or "",
             "publicIp": inst.get("public_ipaddr"),
             "costPerHr": inst.get("dph_total"),
             "adjustedCostPerHr": inst.get("dph_total"),

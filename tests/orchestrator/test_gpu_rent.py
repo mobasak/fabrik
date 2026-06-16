@@ -390,3 +390,97 @@ def test_reaper_never_destroys_foreign_pods():
     assert report["foreign_count"] == 1
     c.destroy_pod.assert_not_called()
     assert len(report["destroyed"]) == 0
+
+
+# ============================================================================
+# Provider-aware GPU type resolution (G-LIVE-5 caught this 2026-06-16)
+# ============================================================================
+def test_resolve_gpu_type_id_runpod():
+    """RunPod uses full marketing name."""
+    assert gpu_rent._resolve_gpu_type_id("pod-rtx-4090", "runpod") == "NVIDIA GeForce RTX 4090"
+
+
+def test_resolve_gpu_type_id_vast():
+    """Vast uses short marketplace name ('RTX 4090')."""
+    assert gpu_rent._resolve_gpu_type_id("pod-rtx-4090", "vast") == "RTX 4090"
+
+
+def test_resolve_gpu_type_id_modal():
+    """Modal maps RTX 4090 to its closest analog 'L4'."""
+    assert gpu_rent._resolve_gpu_type_id("pod-rtx-4090", "modal") == "L4"
+
+
+def test_resolve_gpu_type_id_unknown_provider_raises():
+    with pytest.raises(NotImplementedError, match="unknown provider"):
+        gpu_rent._resolve_gpu_type_id("pod-rtx-4090", "azure")
+
+
+def test_resolve_gpu_type_id_vast_unsupported_kind_raises():
+    """Vast doesn't carry every kind (e.g. ``serverless`` is N/A)."""
+    with pytest.raises(NotImplementedError, match="Vast.ai does not have a mapping"):
+        gpu_rent._resolve_gpu_type_id("serverless", "vast")
+
+
+# ============================================================================
+# selection_advice auto-routing — the heart of --provider auto
+# ============================================================================
+def test_selection_advice_high_util_favors_runpod():
+    """Continuous training → RunPod (cheapest at 100% utilization)."""
+    advice = gpu_rent.selection_advice("pod-h100", hours=4, utilization_rate=1.0)
+    assert advice["recommendation"]["provider"] == "runpod"
+
+
+def test_selection_advice_low_util_favors_modal():
+    """Bursty inference (20% util) → Modal per-second wins."""
+    advice = gpu_rent.selection_advice("pod-h100", hours=4, utilization_rate=0.2)
+    assert advice["recommendation"]["provider"] == "modal"
+    assert "low utilization" in advice["recommendation"]["rationale"].lower()
+
+
+def test_selection_advice_checkpointing_unlocks_vast():
+    """needs_checkpointing=True opens Vast.ai spot to recommendation."""
+    advice = gpu_rent.selection_advice(
+        "pod-h100", hours=4, utilization_rate=1.0, needs_checkpointing=True
+    )
+    assert advice["recommendation"]["provider"] == "vast"
+
+
+def test_selection_advice_serverless_excludes_vast():
+    """Vast has no serverless surface yet (Phase 3)."""
+    advice = gpu_rent.selection_advice(
+        "serverless", hours=4, utilization_rate=0.5, needs_serverless=True
+    )
+    # Vast has serverless: None in pricing → not supported
+    assert advice["providers"]["vast"].get("supported") is False
+    assert advice["recommendation"]["provider"] in ("runpod", "modal")
+
+
+# ============================================================================
+# Orphan-cleanup invariant — pod_id recorded BEFORE wait_for_running
+# ============================================================================
+def test_create_pod_records_resource_id_before_wait(monkeypatch):
+    """G-LIVE-5 bug: if wait_for_running raises, the pod is orphaned + bills
+    until manually destroyed. Fix: report['resource_id'] is set the moment
+    create_pod returns, so the finally block can destroy it.
+    """
+    c = MagicMock()
+    c.create_pod.return_value = {"id": "pod-orphan-test", "actual_status": "loading"}
+    c.wait_for_running.side_effect = RuntimeError("simulated stuck-in-loading")
+
+    report = {}
+    with pytest.raises(RuntimeError, match="simulated stuck"):
+        gpu_rent._create_pod(
+            c,
+            session_id="test-session",
+            kind="pod-rtx-4090",
+            workload="orphan-test",
+            max_lifetime_hours=1,
+            image_name="test-image",
+            cloud_type="SECURE",
+            interruptible=False,
+            provider="runpod",
+            report=report,
+        )
+
+    # Critical: resource_id was recorded BEFORE wait_for_running raised
+    assert report.get("resource_id") == "pod-orphan-test"

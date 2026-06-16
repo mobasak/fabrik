@@ -4,6 +4,47 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — `fabrik gpu rent --provider auto` + Vast.ai live-validated (2026-06-16)
+
+Closes the "any AI can easily deploy a GPU, use it, kill it according to needs" gap. After this, the operator (or any agent) names a workload shape and the orchestrator picks the right provider; the provider can be RunPod, Modal, or Vast.ai. RunPod is the right default for ≥73% utilization on big GPUs but **not always** — see selection_advice.
+
+**`--provider auto`** ([`src/fabrik/cli.py`](src/fabrik/cli.py)):
+
+- New default for `fabrik gpu rent`. Runs `selection_advice()` first, echoes the choice + rationale, then proceeds with the recommended provider.
+- New flags `--utilization`, `--needs-checkpointing`, `--needs-serverless` drive the routing. Verified dry-run behavior:
+  - `--utilization 1.0` → RunPod (continuous training)
+  - `--utilization 0.2` → Modal (bursty per-second wins)
+  - `--needs-checkpointing` → Vast.ai spot (and auto-enables `--interruptible`)
+  - `--needs-serverless` → excludes Vast (Phase 3 work)
+
+**Vast.ai driver fixes — 5 bugs caught by G-LIVE-5 against live $5 account** ([`src/fabrik/drivers/vast_provider.py`](src/fabrik/drivers/vast_provider.py)):
+
+1. **Search transport wrong** — driver used `GET /bundles/?q=...` (url-encoded); real API is `POST /bundles/` with JSON body. Discovered via `vastai search offers --explain`. Driver now sends the proper body shape with `external/rentable/type/order/allocated_storage` defaults matching the CLI.
+2. **GPU name not provider-aware** — orchestrator passed RunPod's full marketing name (`"NVIDIA GeForce RTX 4090"`) to Vast which expects `"RTX 4090"`. New `_resolve_gpu_type_id(kind, provider)` translates per-provider via `GPU_TYPE_IDS` / `VAST_GPU_NAMES` / `MODAL_GPU_TYPES`.
+3. **`get_pod()` returned wrong dict shape** — Vast's `GET /instances/<id>/` returns `{"instances": {<dict>}}` (singular dict under PLURAL key — quirk). Driver assumed list, raised `KeyError(0)`. Now handles dict / list / null cases explicitly.
+4. **Wrong status field** — `actual_status` is the entrypoint-PID-state ('exited' immediately after container start when `python` runs+exits). `cur_state` is the authoritative container lifecycle field. Verified via live status probe; driver now prefers `cur_state == 'running'` and accepts `actual_status == 'exited'` if `status_msg` contains "success".
+5. **Marketplace race on claim** — top-of-search offer can be claimed by another renter between search and PUT, returning `404/3603 no_such_ask`. Driver now iterates through the cheapest 5 offers on this specific 4xx, only raising if all 5 are gone.
+
+**Architectural fix — orphan-pod cleanup** ([`src/fabrik/orchestrator/gpu_rent.py`](src/fabrik/orchestrator/gpu_rent.py)):
+
+- `_create_pod` now records `report["resource_id"]` immediately after `client.create_pod()` returns, BEFORE `wait_for_running()` runs. Previously, if wait raised (poll-trap, timeout, host flake), the pod was created on the provider and billing but `resource = None` in the finally block → cleanup skipped → orphan. The G-LIVE-5 sequence found this: an `unknown`-stuck Vast instance billed $0.018 before being manually destroyed.
+- `finally` block now uses `(resource or {}).get("id") or report.get("resource_id")` and catches `Exception` not just `RunPodError` (so VastError/ModalError destroy failures don't escape).
+
+**Live validation against $5 Vast account ($0.18 total spend):**
+
+- **G-LIVE-5** (pod-rtx-4090 try/finally on Vast): GREEN. Instance `41233638` provisioned at $0.33/hr, work_fn ran, destroyed in 15.9s. Cost: $0.003.
+- **G-LIVE-6** (Vast reaper tag-safety): GREEN. Reaper sees `foreign_count: 0` and `destroyed: []`. C4 invariant verified across all 3 providers now.
+
+**+10 new unit tests** ([`tests/orchestrator/test_gpu_rent.py`](tests/orchestrator/test_gpu_rent.py)):
+
+- 5 for `_resolve_gpu_type_id` (per-provider translation + error cases)
+- 4 for `selection_advice` auto-routing (high-util/low-util/checkpointing/serverless)
+- 1 for the orphan-cleanup invariant (resource_id recorded before wait)
+
+Total: 34/34 tests pass. `--lean` gate GREEN.
+
+**Net for the operator:** `fabrik gpu rent <kind> --workload <name> --max-cost <usd>` is now sufficient — provider selection is implicit. The CLI prints which provider it chose and why. Use `fabrik gpu compare <kind> --hours <h> --utilization <r>` to see the routing decision without renting anything.
+
 ### Changed — docs/workflows + reference: WordPress fully out of Fabrik + Coolify/Netdata/consolidate_envs staleness (2026-06-16)
 
 Evidence-based walk of `docs/workflows/` (18 files) with the "is it actually used?" lens — surfaced real drift the earlier passes missed:

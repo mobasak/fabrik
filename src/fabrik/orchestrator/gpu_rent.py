@@ -357,6 +357,39 @@ def _fabrik_env_tags(session_id: str, workload: str, max_lifetime_hours: int) ->
     }
 
 
+def _resolve_gpu_type_id(kind: str, provider: str) -> str:
+    """Translate the friendly ``--kind`` alias to the provider-specific GPU string.
+
+    Each provider names hardware differently:
+    - RunPod: ``"NVIDIA GeForce RTX 4090"`` (full marketing name)
+    - Vast.ai: ``"RTX 4090"`` (matches their marketplace ``gpu_name`` field)
+    - Modal: ``"L4"`` (Modal doesn't sell consumer cards; closest analog)
+
+    Without this translation, passing RunPod's GPU string to Vast.ai's search
+    returns zero offers (G-LIVE-5 caught this 2026-06-16).
+    """
+    if provider == "runpod":
+        return GPU_TYPE_IDS[kind]
+    if provider == "vast":
+        from fabrik.drivers.vast_provider import VAST_GPU_NAMES
+
+        if kind not in VAST_GPU_NAMES:
+            raise NotImplementedError(
+                f"Vast.ai does not have a mapping for kind {kind!r}; "
+                f"valid: {sorted(VAST_GPU_NAMES)}"
+            )
+        return VAST_GPU_NAMES[kind]
+    if provider == "modal":
+        from fabrik.drivers.modal_provider import MODAL_GPU_TYPES
+
+        if kind not in MODAL_GPU_TYPES:
+            raise NotImplementedError(
+                f"Modal does not have a mapping for kind {kind!r}; valid: {sorted(MODAL_GPU_TYPES)}"
+            )
+        return MODAL_GPU_TYPES[kind]
+    raise NotImplementedError(f"unknown provider {provider!r} for kind resolution")
+
+
 def _create_pod(
     client: Any,
     *,
@@ -367,9 +400,18 @@ def _create_pod(
     image_name: str | None,
     cloud_type: str,
     interruptible: bool,
+    provider: str = "runpod",
+    report: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Create a pod and wait for it to reach RUNNING."""
-    gpu_type_id = GPU_TYPE_IDS[kind]
+    """Create a pod and wait for it to reach RUNNING.
+
+    Records ``report["resource_id"]`` AS SOON AS the pod ID is known so the
+    outer ``rent()`` try/finally can clean up even if ``wait_for_running``
+    raises (poll-trap, timeout, etc). Without this, a failed-during-wait
+    instance is orphaned and bills until manually destroyed — G-LIVE-5
+    caught this on Vast on 2026-06-16 (instance 41228973).
+    """
+    gpu_type_id = _resolve_gpu_type_id(kind, provider)
     image = image_name or DEFAULT_POD_IMAGE
     pod = client.create_pod(
         gpu_type_id=gpu_type_id,
@@ -379,9 +421,16 @@ def _create_pod(
         interruptible=interruptible,
         name=f"fabrik-{session_id}",
     )
-    # Wait for running (mirror of vultr's wait_for_active)
     pod_id = pod["id"]
-    ready = client.wait_for_running(pod_id, timeout=300, interval=5)
+    # Record pod_id NOW (before wait_for_running) so the finally block in
+    # rent() can destroy on wait failure — this closes the orphan-pod gap.
+    if report is not None:
+        report["resource_id"] = pod_id
+    # Vast.ai needs longer than RunPod (marketplace hosts have slower image
+    # pulls than RunPod's pre-cached registry). 180s is generous for cached
+    # images, tight enough that a stuck host doesn't burn $0.10+ before bail.
+    wait_timeout = 180 if provider == "vast" else 300
+    ready = client.wait_for_running(pod_id, timeout=wait_timeout, interval=5)
     return ready
 
 
@@ -651,6 +700,8 @@ def rent(
                 image_name=image_name,
                 cloud_type=cloud_type,
                 interruptible=interruptible,
+                provider=provider,
+                report=report,
             )
         report["resource_id"] = resource["id"]
         report["checks"]["created"] = True
@@ -695,30 +746,35 @@ def rent(
         report["cost_actual_usd"] = cost_actual
         report["reused_endpoint"] = reuse_flag
 
-        # Decide whether to keep the resource alive
+        # Decide whether to keep the resource alive.
+        # CRITICAL: if create_pod succeeded but wait_for_running raised
+        # (poll-trap, timeout), resource is None BUT report["resource_id"]
+        # is recorded. Use the recorded ID to destroy — otherwise the pod
+        # is orphaned and bills until manually destroyed (G-LIVE-5 bug).
         keep = (failed and keep_on_failure) or (report["success"] and keep_warm_after_use)
-        if resource is not None and not keep:
+        destroy_id = (resource or {}).get("id") or report.get("resource_id")
+        if destroy_id and not keep:
             try:
                 _destroy(
                     client,
                     resource_type=report["resource_type"],
-                    resource_id=resource["id"],
+                    resource_id=destroy_id,
                     reuse=reuse_flag,
                 )
                 if reuse_flag:
-                    # Endpoint kept alive intentionally — not actually
-                    # destroyed, just session ended.
                     report["checks"]["destroyed"] = "skipped_reused"
                     gpu_state.mark_destroyed(session_id, cost_actual_usd=cost_actual)
                 else:
                     gpu_state.mark_destroyed(session_id, cost_actual_usd=cost_actual)
                     report["checks"]["destroyed"] = True
-            except RunPodError as e:
+            except Exception as e:  # noqa: BLE001
+                # Catch ALL provider errors (RunPodError, VastError, ModalError)
+                # — never let destroy failures escape the finally block.
                 logger.exception("gpu_rent destroy failed for %s", session_id)
                 report["checks"]["destroyed"] = False
-                report["checks"]["destroy_error"] = str(e)
+                report["checks"]["destroy_error"] = repr(e)
                 gpu_state.mark_destroy_pending(session_id)
-        elif keep and resource is not None:
+        elif keep and destroy_id:
             report["checks"]["kept_for_inspection"] = True
 
         report["ended_at"] = datetime.now(UTC).isoformat()
@@ -854,6 +910,8 @@ def rented(
                 image_name=image_name,
                 cloud_type=cloud_type,
                 interruptible=interruptible,
+                provider=provider,
+                report=report,
             )
         report["resource_id"] = resource["id"]
         report["checks"]["created"] = True

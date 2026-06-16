@@ -3236,9 +3236,39 @@ def gpu():
 @click.option("--workload", required=True, help="Free-text tag for the workload (required)")
 @click.option(
     "--provider",
-    default="runpod",
-    type=click.Choice(["runpod", "modal", "vast"]),
-    help="GPU provider. Default: runpod. See `fabrik gpu compare`.",
+    default="auto",
+    type=click.Choice(["auto", "runpod", "modal", "vast"]),
+    help=(
+        "GPU provider. `auto` runs selection_advice() and picks the best fit "
+        "for --utilization / --needs-checkpointing / --needs-serverless. "
+        "Default: auto. See `fabrik gpu compare`."
+    ),
+)
+@click.option(
+    "--utilization",
+    type=float,
+    default=1.0,
+    help=(
+        "(provider=auto only) Fraction of --max-lifetime the GPU will be ACTIVELY "
+        "computing (0–1). 1.0 = continuous training (favors RunPod). 0.2 = bursty "
+        "(favors Modal per-second). Default: 1.0."
+    ),
+)
+@click.option(
+    "--needs-checkpointing",
+    is_flag=True,
+    help=(
+        "(provider=auto only) Workload checkpoints state to B2/R2 — opts into "
+        "Vast.ai spot/interruptible (~50%% cheaper but preemptible)."
+    ),
+)
+@click.option(
+    "--needs-serverless",
+    is_flag=True,
+    help=(
+        "(provider=auto only) Only providers offering true serverless are "
+        "considered (RunPod, Modal — not Vast yet)."
+    ),
 )
 @click.option(
     "--max-lifetime", type=int, default=1, help="Max wall hours before reaper destroys (default 1)"
@@ -3277,6 +3307,9 @@ def gpu_rent(
     kind,
     workload,
     provider,
+    utilization,
+    needs_checkpointing,
+    needs_serverless,
     max_lifetime,
     max_cost,
     keep_warm_after_use,
@@ -3294,8 +3327,32 @@ def gpu_rent(
 
       fabrik gpu rent pod-rtx-4090 --workload smoke --max-lifetime 1 \\
                                     --max-cost 1 --cloud COMMUNITY
+
+      # Auto-select provider for a bursty 4-hour inference job:
+      fabrik gpu rent pod-h100 --workload chat-burst --provider auto \\
+                               --utilization 0.2 --max-lifetime 4 --max-cost 20
     """
     from fabrik.orchestrator import gpu_rent as gpu_rent_mod
+
+    if provider == "auto":
+        advice = gpu_rent_mod.selection_advice(
+            kind,
+            hours=float(max_lifetime),
+            utilization_rate=utilization,
+            needs_checkpointing=needs_checkpointing,
+            needs_serverless=needs_serverless,
+        )
+        rec = advice["recommendation"]
+        if rec["provider"] is None:
+            click.echo(f"✗ provider=auto: no provider matches: {rec.get('reason')}", err=True)
+            raise SystemExit(2)
+        provider = rec["provider"]
+        click.echo(f"🤖 provider=auto → {provider} (${rec['estimated_cost_usd']:.2f})")
+        click.echo(f"   {rec['rationale']}")
+        # If auto picked Vast, force interruptible to match the checkpointing assumption
+        if provider == "vast" and needs_checkpointing and not interruptible:
+            interruptible = True
+            click.echo("   ↳ auto-enabled --interruptible for Vast spot pricing")
 
     try:
         report = gpu_rent_mod.rent(
