@@ -32,6 +32,20 @@ class UsageTracker:
                 )
             """)
             conn.execute("CREATE INDEX IF NOT EXISTS idx_timestamp ON ai_usage(timestamp)")
+            # Phase 1 GPU rental: add a `kind` column to discriminate LLM vs GPU
+            # rentals (both flow through this tracker). Older rows default to
+            # 'llm'. Idempotent: ALTER TABLE on every init is harmless once added.
+            existing_cols = {
+                row[1] for row in conn.execute("PRAGMA table_info(ai_usage)").fetchall()
+            }
+            if "kind" not in existing_cols:
+                conn.execute("ALTER TABLE ai_usage ADD COLUMN kind TEXT DEFAULT 'llm'")
+            if "workload" not in existing_cols:
+                # Free-text tag (e.g. "fine-tune-tinyllama", "smoke-test")
+                conn.execute("ALTER TABLE ai_usage ADD COLUMN workload TEXT")
+            if "session_id" not in existing_cols:
+                # Links a row to a gpu_state session
+                conn.execute("ALTER TABLE ai_usage ADD COLUMN session_id TEXT")
             conn.commit()
 
     def record(self, response: "LLMResponse", project: str | None = None):
@@ -100,3 +114,62 @@ class UsageTracker:
             "total_tokens_out": total_tokens_out,
             "by_model": by_model,
         }
+
+    def today_total(self, kind: str | None = None) -> float:
+        """Return today's total cost_usd, optionally filtered by ``kind``.
+
+        Added 2026-06-16 for Phase 1 ``MAX_DAILY_GPU_COST`` enforcement in
+        ``gpu_rent.rent()``. Uses ``date(timestamp) = date('now')`` against the
+        UTC-stored ISO timestamps (matches the ``datetime.utcnow().isoformat()``
+        format that ``record()`` writes).
+        """
+        query = (
+            "SELECT COALESCE(SUM(cost_usd), 0) FROM ai_usage WHERE date(timestamp) = date('now')"
+        )
+        params: list[str] = []
+        if kind:
+            query += " AND kind = ?"
+            params.append(kind)
+        with sqlite3.connect(self.database_path) as conn:
+            row = conn.execute(query, params).fetchone()
+        return float(row[0]) if row else 0.0
+
+    def record_gpu(
+        self,
+        *,
+        session_id: str,
+        kind: str,
+        workload: str,
+        cost_usd: float,
+        duration_seconds: float | None = None,
+        provider: str = "runpod",
+    ) -> None:
+        """Record a GPU rental session's cost.
+
+        Mirrors ``record()`` for non-LLM (GPU) rentals. Reuses the same
+        SQLite table with the ``kind`` column discriminating LLM from GPU.
+        """
+        duration_ms = int(duration_seconds * 1000) if duration_seconds else None
+        with sqlite3.connect(self.database_path) as conn:
+            conn.execute(
+                """
+                INSERT INTO ai_usage (
+                    timestamp, provider, model, tokens_in, tokens_out,
+                    cost_usd, duration_ms, project, kind, workload, session_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    datetime.utcnow().isoformat(),
+                    provider,
+                    kind,  # model column reused for kind label
+                    0,  # tokens_in (N/A for GPU rentals)
+                    0,  # tokens_out
+                    cost_usd,
+                    duration_ms,
+                    None,  # project
+                    "gpu",  # discriminator
+                    workload,
+                    session_id,
+                ),
+            )
+            conn.commit()

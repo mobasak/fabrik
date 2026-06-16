@@ -1,0 +1,22 @@
+[Unit]
+Description=Fabrik GPU rental reaper (auto-destroy lifetime-exceeded + orphan pods)
+Documentation=docs/development/plans/2026-06-16-fabrik-gpu-rent.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/fabrik/.venv/bin/fabrik gpu reconcile --auto-destroy
+WorkingDirectory=/opt/fabrik
+Environment=FABRIK_ROOT=/opt/fabrik
+# Also refresh the Prometheus textfile so node-exporter can scrape it
+ExecStartPost=/opt/fabrik/.venv/bin/python3 -c "from fabrik.orchestrator.gpu_metrics import write_textfile; write_textfile()"
+
+# Resource caps — this is a quick reconcile, not a heavy workload
+MemoryMax=256M
+CPUQuota=50%
+TimeoutStartSec=300
+
+# Logging
+StandardOutput=journal
+StandardError=journal

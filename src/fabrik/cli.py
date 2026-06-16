@@ -6,6 +6,7 @@ Commands:
 """
 
 import datetime
+import json
 import os
 from pathlib import Path
 from typing import Any
@@ -3202,6 +3203,390 @@ def vultr_cost():
         total += mc
         click.echo(f"  {name}  [{rec.get('mode')}]  {rec.get('plan')}  ~${mc}/mo")
     click.echo(f"📊 tracked monthly run-rate: ~${round(total, 2)}/mo")
+
+
+@cli.group()
+def gpu():
+    """GPU compute provisioning — on-demand RunPod pods + serverless endpoints.
+
+    Mirrors `fabrik vultr` for GPU rentals. See:
+      docs/development/plans/2026-06-16-fabrik-gpu-rent.md
+      docs/reference/runpod-api.md
+    """
+    pass
+
+
+@gpu.command("rent")
+@click.argument(
+    "kind",
+    type=click.Choice(
+        [
+            "serverless",
+            "pod-h100",
+            "pod-h100-pcie",
+            "pod-h100-nvl",
+            "pod-a100",
+            "pod-a100-sxm",
+            "pod-h200",
+            "pod-l40s",
+            "pod-rtx-4090",
+        ]
+    ),
+)
+@click.option("--workload", required=True, help="Free-text tag for the workload (required)")
+@click.option(
+    "--provider",
+    default="runpod",
+    type=click.Choice(["runpod", "modal", "vast"]),
+    help="GPU provider. Default: runpod. See `fabrik gpu compare`.",
+)
+@click.option(
+    "--max-lifetime", type=int, default=1, help="Max wall hours before reaper destroys (default 1)"
+)
+@click.option(
+    "--max-cost", type=float, default=5.0, help="Refuse if estimate exceeds this USD (default 5.0)"
+)
+@click.option(
+    "--keep-warm-after-use",
+    is_flag=True,
+    help="Don't destroy after successful work (operator owns cleanup)",
+)
+@click.option(
+    "--keep-on-failure",
+    is_flag=True,
+    help="Leave the pod if the rent fails — mirrors `fabrik vultr drill --keep-on-failure`",
+)
+@click.option("--dry-run", is_flag=True, help="Print the plan; create nothing")
+@click.option(
+    "--image",
+    default=None,
+    help="(pod-* only) Override container image. Defaults to RunPod PyTorch.",
+)
+@click.option(
+    "--cloud",
+    type=click.Choice(["SECURE", "COMMUNITY"]),
+    default="SECURE",
+    help="(pod-* only) RunPod cloud tier. COMMUNITY is ~50% cheaper, shared kernel.",
+)
+@click.option(
+    "--interruptible",
+    is_flag=True,
+    help="(pod-* only) Spot/preemptible. Cheaper but can be reclaimed mid-job.",
+)
+def gpu_rent(
+    kind,
+    workload,
+    provider,
+    max_lifetime,
+    max_cost,
+    keep_warm_after_use,
+    keep_on_failure,
+    dry_run,
+    image,
+    cloud,
+    interruptible,
+):
+    """Provision a GPU, optionally use it, always destroy (try/finally).
+
+    Examples:
+
+      fabrik gpu rent serverless --workload smoke --max-cost 1
+
+      fabrik gpu rent pod-rtx-4090 --workload smoke --max-lifetime 1 \\
+                                    --max-cost 1 --cloud COMMUNITY
+    """
+    from fabrik.orchestrator import gpu_rent as gpu_rent_mod
+
+    try:
+        report = gpu_rent_mod.rent(
+            kind,
+            workload=workload,
+            provider=provider,
+            max_lifetime_hours=max_lifetime,
+            max_cost_usd=max_cost,
+            keep_warm_after_use=keep_warm_after_use,
+            keep_on_failure=keep_on_failure,
+            dry_run=dry_run,
+            image_name=image,
+            cloud_type=cloud,
+            interruptible=interruptible,
+        )
+    except gpu_rent_mod.GPUBudgetExceededError as e:
+        click.echo(f"✗ budget exceeded: {e}", err=True)
+        raise SystemExit(2)
+    except NotImplementedError as e:
+        click.echo(f"✗ {e}", err=True)
+        raise SystemExit(2)
+    except Exception as e:  # noqa: BLE001
+        click.echo(f"❌ gpu rent error: {e}", err=True)
+        raise SystemExit(1)
+
+    if report.get("dry_run"):
+        click.echo(
+            f"🧪 dry-run {kind} workload={workload} "
+            f"est=${report['cost_estimate_usd']} (cap ${max_cost})"
+        )
+        click.echo(f"   session_id={report['session_id']}")
+        click.echo(
+            f"   today gpu spend ${report['today_gpu_spend']:.2f} of ${report['daily_cap']:.2f} cap"
+        )
+        return
+
+    success_icon = "✅" if report["success"] else "❌"
+    click.echo(
+        f"{success_icon} gpu rent {kind} {report['session_id']}: "
+        f"success={report['success']} wall={report['wall_clock_seconds']}s "
+        f"est=${report['cost_estimate_usd']} actual=${report['cost_actual_usd']}"
+    )
+    click.echo(
+        f"   resource={report['resource_type']}:{report['resource_id']}  checks={report['checks']}"
+    )
+    if report.get("error"):
+        click.echo(f"   error: {report['error']}", err=True)
+    if not report["success"]:
+        raise SystemExit(1)
+
+
+@gpu.command("list")
+def gpu_list():
+    """List active GPU sessions in local state + reconcile against RunPod."""
+    from fabrik.orchestrator import gpu_state
+
+    active = gpu_state.active_sessions()
+    state = gpu_state.load_state()
+    last_recon = state.get("last_reconciled") or "(never)"
+    click.echo(f"📦 active GPU sessions: {len(active)}")
+    click.echo(f"   last reconciled: {last_recon}")
+    if not active:
+        return
+    for sid, rec in sorted(active.items()):
+        click.echo(
+            f"  {sid}  [{rec['kind']}]  {rec['resource_type']}:{rec['resource_id']}  "
+            f"workload={rec['workload']}  expires={rec['expires_at']}"
+        )
+
+
+@gpu.command("status")
+@click.argument("session_or_resource_id")
+def gpu_status(session_or_resource_id):
+    """Show detailed status for a session ID or a RunPod pod/endpoint ID."""
+    from fabrik.drivers.runpod import RunPodClient, RunPodError
+    from fabrik.orchestrator import gpu_state
+
+    sess = gpu_state.get_session(session_or_resource_id)
+    if sess is None:
+        # Maybe it's a resource_id
+        for sid, rec in gpu_state.load_state()["sessions"].items():
+            if rec["resource_id"] == session_or_resource_id:
+                sess = rec
+                session_or_resource_id = sid
+                break
+
+    if sess is None:
+        click.echo(f"✗ no session or resource matches {session_or_resource_id!r}", err=True)
+        raise SystemExit(2)
+
+    click.echo(f"session: {session_or_resource_id}")
+    for k, v in sess.items():
+        click.echo(f"  {k}: {v}")
+
+    if sess.get("destroyed_at"):
+        return
+
+    # Probe live status from RunPod
+    try:
+        client = RunPodClient()
+        if sess["resource_type"] == "pod":
+            live = client.get_pod(sess["resource_id"])
+            click.echo("\nlive (RunPod /pods):")
+            for k in ("desiredStatus", "costPerHr", "adjustedCostPerHr", "publicIp"):
+                click.echo(f"  {k}: {live.get(k)}")
+        else:
+            live = client.get_endpoint(sess["resource_id"])
+            click.echo("\nlive (RunPod /endpoints):")
+            for k in ("workersMin", "workersMax", "idleTimeout", "flashboot"):
+                click.echo(f"  {k}: {live.get(k)}")
+    except RunPodError as e:
+        click.echo(f"\n✗ live probe failed: {e}", err=True)
+
+
+@gpu.command("destroy")
+@click.argument("session_or_resource_id")
+@click.option("-y", "--yes", is_flag=True, help="Skip confirmation")
+def gpu_destroy(session_or_resource_id, yes):
+    """Destroy a session's pod/endpoint manually (orphan cleanup)."""
+    from fabrik.drivers.runpod import RunPodClient, RunPodError
+    from fabrik.orchestrator import gpu_state
+
+    sess = gpu_state.get_session(session_or_resource_id)
+    if sess is None:
+        for sid, rec in gpu_state.load_state()["sessions"].items():
+            if rec["resource_id"] == session_or_resource_id:
+                sess = rec
+                session_or_resource_id = sid
+                break
+    if sess is None:
+        click.echo(f"✗ no session matches {session_or_resource_id!r}", err=True)
+        raise SystemExit(2)
+    if sess.get("destroyed_at"):
+        click.echo(f"✓ already destroyed at {sess['destroyed_at']}")
+        return
+
+    target = f"{sess['resource_type']}:{sess['resource_id']}"
+    if not yes:
+        click.confirm(f"Destroy {target} (session {session_or_resource_id})?", abort=True)
+
+    client = RunPodClient()
+    try:
+        if sess["resource_type"] == "pod":
+            client.destroy_pod(sess["resource_id"])
+        else:
+            client.destroy_endpoint(sess["resource_id"])
+        gpu_state.mark_destroyed(session_or_resource_id)
+        click.echo(f"✅ destroyed {target}")
+    except RunPodError as e:
+        gpu_state.mark_destroy_pending(session_or_resource_id)
+        click.echo(f"❌ destroy failed (marked destroy_pending): {e}", err=True)
+        raise SystemExit(1)
+
+
+@gpu.command("reconcile")
+@click.option(
+    "--auto-destroy",
+    is_flag=True,
+    help="Destroy lifetime-exceeded + orphan-tagged pods automatically. "
+    "NEVER touches pods without FABRIK_SESSION_ID env tag (foreign safety).",
+)
+def gpu_reconcile(auto_destroy):
+    """Compare local state to RunPod; report drift; optionally auto-destroy."""
+    from fabrik.drivers.runpod import RunPodClient
+    from fabrik.orchestrator.gpu_reaper import reap
+
+    client = RunPodClient()
+    report = reap(client, auto_destroy=auto_destroy)
+    click.echo(f"📊 reconcile at {report['scanned_at']}:")
+    click.echo(f"  lifetime_exceeded: {len(report['lifetime_exceeded'])}")
+    click.echo(f"  orphan_pods:       {len(report['orphan_pods'])}")
+    click.echo(f"  orphan_endpoints:  {len(report['orphan_endpoints'])}")
+    click.echo(f"  destroy_pending:   {len(report['destroy_pending'])}")
+    click.echo(f"  in_state_not_live: {len(report['in_state_not_live'])}")
+    click.echo(
+        f"  foreign_count:     {report['foreign_count']} (not touched — no FABRIK_SESSION_ID tag)"
+    )
+    if auto_destroy:
+        click.echo(f"  destroyed:         {len(report['destroyed'])}")
+        click.echo(f"  errors:            {len(report['errors'])}")
+        for e in report["errors"]:
+            click.echo(f"    ✗ {e}", err=True)
+    elif (
+        report["lifetime_exceeded"]
+        or report["orphan_pods"]
+        or report["orphan_endpoints"]
+        or report["destroy_pending"]
+    ):
+        click.echo("  → re-run with --auto-destroy to clean up")
+
+
+@gpu.command("compare")
+@click.argument(
+    "kind",
+    type=click.Choice(
+        [
+            "serverless",
+            "pod-h100",
+            "pod-h100-pcie",
+            "pod-h100-nvl",
+            "pod-a100",
+            "pod-a100-sxm",
+            "pod-h200",
+            "pod-l40s",
+            "pod-rtx-4090",
+        ]
+    ),
+)
+@click.option(
+    "--hours", type=float, default=1.0, help="Wall-clock hours the rental lasts (default 1.0)"
+)
+@click.option(
+    "--utilization",
+    type=float,
+    default=1.0,
+    help="Fraction of time GPU is ACTIVELY computing (0–1). "
+    "1.0 = continuous training. 0.2 = bursty inference.",
+)
+@click.option(
+    "--needs-checkpointing",
+    is_flag=True,
+    help="Workload checkpoints to B2/R2 — enables Vast.ai spot consideration.",
+)
+@click.option(
+    "--needs-serverless", is_flag=True, help="Workload needs scale-to-zero serverless endpoints."
+)
+def gpu_compare(kind, hours, utilization, needs_checkpointing, needs_serverless):
+    """Compare RunPod / Modal / Vast.ai cost for a workload + recommend.
+
+    Encodes the rule (.windsurf/rules/core/76-gpu-workers.md) + the
+    utilization-rate decision framework as code.
+
+    Examples:
+
+      fabrik gpu compare pod-h100 --hours 4 --utilization 1.0      # continuous training
+      fabrik gpu compare pod-h100 --hours 4 --utilization 0.2      # bursty pipeline
+      fabrik gpu compare pod-h100 --hours 4 --needs-checkpointing  # enables Vast spot
+    """
+    from fabrik.orchestrator import gpu_rent as gpu_rent_mod
+
+    advice = gpu_rent_mod.selection_advice(
+        kind,
+        hours=hours,
+        utilization_rate=utilization,
+        needs_checkpointing=needs_checkpointing,
+        needs_serverless=needs_serverless,
+    )
+    click.echo(f"📊 {kind} for {hours}h at {utilization:.0%} utilization:")
+    click.echo()
+    for name in ("runpod", "modal", "vast"):
+        data = advice["providers"].get(name, {})
+        if not data.get("supported"):
+            click.echo(f"  ✗ {name:10s}  not supported ({data.get('reason', 'n/a')})")
+            continue
+        click.echo(
+            f"  • {name:10s}  ${data['estimated_cost_usd']:>7.2f}  "
+            f"@ ${data['hourly_rate_usd']:>5.2f}/hr  {data['billing']}"
+        )
+    click.echo()
+    rec = advice["recommendation"]
+    if rec["provider"]:
+        click.echo(f"💡 recommended: {rec['provider']} — ${rec['estimated_cost_usd']:.2f}")
+        click.echo(f"   {rec['rationale']}")
+    else:
+        click.echo(f"✗ no provider matches: {rec['reason']}")
+
+
+@gpu.command("history")
+@click.option("--lines", type=int, default=20, help="Last N session lines (default 20)")
+def gpu_history(lines):
+    """Tail the gpu-rent history log."""
+    from fabrik.orchestrator.gpu_rent import GPU_RENT_LOG
+
+    if not GPU_RENT_LOG.exists():
+        click.echo(f"(no history yet at {GPU_RENT_LOG})")
+        return
+    with GPU_RENT_LOG.open() as f:
+        all_lines = f.readlines()
+    tail = all_lines[-lines:]
+    for raw in tail:
+        try:
+            rec = json.loads(raw)
+        except Exception:
+            click.echo(raw.rstrip())
+            continue
+        success = "✓" if rec.get("success") else "✗"
+        click.echo(
+            f"  {success} {rec.get('ts_iso')}  {rec.get('kind')}  "
+            f"{rec.get('session_id')}  wall={rec.get('wall_clock_seconds')}s  "
+            f"est=${rec.get('cost_estimate_usd')}  actual=${rec.get('cost_actual_usd')}"
+        )
 
 
 def main():

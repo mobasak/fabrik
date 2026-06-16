@@ -4,6 +4,60 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — `fabrik gpu` surface: disposable GPU lifecycle, all 5 phases shipped (2026-06-16)
+
+Mirrors `fabrik vultr drill`'s try/finally cost-capped pattern for GPU rentals. Closes the gap that [`.windsurf/rules/core/76-gpu-workers.md`](.windsurf/rules/core/76-gpu-workers.md) line 460 had flagged ("until a GPU scaffold type exists, GPU lifecycle is managed by the orchestrator service's own code"). All 5 phases of the plan implemented + live-validated in one pass.
+
+**Phase 1 — RunPod driver + try/finally orchestrator + state + reaper + CLI + tests** (~1,900 LoC):
+
+- [`src/fabrik/drivers/runpod.py`](src/fabrik/drivers/runpod.py) — REST API wrapper for pods + serverless endpoints + billing + inference plane. Verified against [docs.runpod.io/llms.txt](https://docs.runpod.io/llms.txt). Mirrors `vultr.py`: `RunPodError(RuntimeError)` with `status`+`body`; deferred env load in `__init__`; retry-5xx-only `_request()`.
+- [`src/fabrik/orchestrator/gpu_rent.py`](src/fabrik/orchestrator/gpu_rent.py) — `rent(kind, *, workload, ...)` + `rented` context manager. Try/finally invariant: pod destroyed on EVERY exit path (success / exception / Ctrl-C / network drop / destroy-API failure → `destroy_pending` for reaper retry).
+- [`src/fabrik/orchestrator/gpu_state.py`](src/fabrik/orchestrator/gpu_state.py) — state at `data/gpu-rent-state.json`. Schema v1, lock via `fabrik.locks_local.file_lock`.
+- [`src/fabrik/orchestrator/gpu_reaper.py`](src/fabrik/orchestrator/gpu_reaper.py) — drift detection + tag-scoped auto-destroy. **Critical safety**: only destroys pods carrying `FABRIK_SESSION_ID` env tag; foreign pods on the account are NEVER touched.
+- [`src/fabrik/cli.py`](src/fabrik/cli.py) — `fabrik gpu rent | list | status | destroy | reconcile | compare | history` (7 subcommands).
+- [`src/fabrik/ai/tracker.py`](src/fabrik/ai/tracker.py) — extended with `today_total(kind=...)` + `record_gpu()`. Idempotent `ALTER TABLE` migration adds `kind` / `workload` / `session_id` columns.
+- [`tests/orchestrator/test_gpu_rent.py`](tests/orchestrator/test_gpu_rent.py) — 24 unit tests (cost-cap guards, try/finally invariant, tag-safety, dry-run, daily envelope). All pass.
+
+**Phase 2 — Modal + Vast.ai drivers + provider-aware selection:**
+
+- [`src/fabrik/drivers/modal_provider.py`](src/fabrik/drivers/modal_provider.py) — Modal SDK wrapper (deferred SDK import).
+- [`src/fabrik/drivers/vast_provider.py`](src/fabrik/drivers/vast_provider.py) — Vast.ai REST wrapper (two-phase create: search marketplace → PUT instance).
+- `gpu_rent.HOURLY_USD_BY_PROVIDER` — verified 2026-06-16 pricing for RunPod Secure ($2.89/hr H100), Modal ($3.95), Vast.ai (~$2.00). Re-verify quarterly.
+- `gpu_rent.selection_advice(kind, hours, utilization_rate, needs_checkpointing, needs_serverless)` — encodes Gemini's utilization-rate breakeven analysis: high-utilization → RunPod, low-utilization (<50%) → Modal per-second wins, checkpoint-resumable → Vast.ai spot.
+- `fabrik gpu compare <kind> --hours <H> --utilization <U>` — side-by-side cost + recommendation as CLI.
+
+**Phase 3 — Async checkpoint helper to B2:**
+
+- [`src/fabrik/orchestrator/gpu_checkpoint.py`](src/fabrik/orchestrator/gpu_checkpoint.py) — `checkpoint_to_b2(payload, project, run_id, step, async_upload=True)`, `load_latest_checkpoint(project, run_id)`, `write_checkpoint_to_tarball(state_dict)`. Async upload via daemon thread so the training loop never blocks on network I/O. Reuses `B2_KEY_ID`/`B2_APPLICATION_KEY` already in `.env.sysadmin` for Backrest.
+
+**Phase 4 — Prometheus metrics + scheduled reaper:**
+
+- [`src/fabrik/orchestrator/gpu_metrics.py`](src/fabrik/orchestrator/gpu_metrics.py) — emits `gpu_rent_sessions_total`, `gpu_rent_cost_usd_total`, `gpu_rent_active`, `gpu_rent_destroy_pending`, `gpu_rent_last_reconcile_age_seconds` to `logs/gpu-rent-metrics.prom` (node-exporter textfile format).
+- [`scripts/systemd/fabrik-gpu-reaper.service`](scripts/systemd/) + [`fabrik-gpu-reaper.timer`](scripts/systemd/) — user-mode systemd timer running `fabrik gpu reconcile --auto-destroy` every 10 min with 60s jitter.
+- [`scripts/systemd/README.md`](scripts/systemd/README.md) — install instructions.
+
+**Phase 5 — `python-api-gpu` scaffold type:**
+
+- Added to `SCAFFOLD_TYPES` frozenset in [`src/fabrik/scaffold.py`](src/fabrik/scaffold.py). New `_scaffold_python_api_gpu()` delegates to `_scaffold_python_api()` then patches the spec (`shape.needs_gpu: true`, `shape.gpu_kind: pod-rtx-4090`) and emits `app/gpu_handler.py` wrapping `gpu_rent.rent()`.
+
+**Reference docs added:**
+
+- [`docs/reference/runpod-api.md`](docs/reference/runpod-api.md) — every endpoint we wrap, with request/response schemas.
+- [`docs/reference/runpod-hf-models.md`](docs/reference/runpod-hf-models.md) — catalog of 96+ deployable HF models with size + cold-start ranking.
+- [`docs/operations/gpu-rent.md`](docs/operations/gpu-rent.md) — operator runbook (prereqs, commands, workflows, troubleshooting).
+- [`docs/development/plans/2026-06-16-fabrik-gpu-rent.md`](docs/development/plans/2026-06-16-fabrik-gpu-rent.md) — 4-iteration converged plan with 30 validation gates.
+
+**Live validation against real RunPod account** ($0.054 total spend of operator's $10 balance):
+
+- **G-LIVE-1** (serverless smoke): GREEN. Real `/runsync` inference against pre-seeded SmolLM2-135M endpoint; FlashBoot cold start ~49s; response received; endpoint correctly NOT destroyed (`destroyed: skipped_reused` — endpoint persists for next call, matches RunPod's scale-to-zero design).
+- **G-LIVE-2** (`pod-rtx-4090` SECURE try/finally): GREEN. Real pod `5l0qt0th315661` provisioned at `$0.69/hr`, work_fn ran for 15s, pod destroyed at exit. Wall: 17.1s. Cost: $0.003.
+- **G-LIVE-3** (try/finally invariant under exception): GREEN. Pod `dtt4rh6om54ihj` provisioned; work_fn raised `RuntimeError`; **pod still destroyed**. Cost: $0.0004.
+- **G-LIVE-4** (tag-safe reaper): GREEN. `fabrik gpu reconcile` saw the operator's manually-created SmolLM2 endpoint as `foreign_count: 1` and did NOT touch it. C4 invariant verified live.
+
+[`.windsurf/rules/core/76-gpu-workers.md`](.windsurf/rules/core/76-gpu-workers.md) line 460's "Until then" caveat updated to point at `fabrik gpu` as the shared lifecycle surface.
+
+**Net**: 9 new source files (~3,200 LoC code + tests). 24/24 unit tests pass. 4 live RunPod gates pass with $0.054 spend. The previous "every GPU-touching service re-implements provider API + cost cap + reaper" gap is closed; new services declare `fabrik gpu rent` via the CLI or `python-api-gpu` scaffold.
+
 ### Fixed — AI client default model + container-image recommendations refreshed to current (2026-06-16)
 
 Two code-level stalenesses surfaced during the docs sweep (the docs matched the code; the code was behind):
@@ -64,7 +118,7 @@ Audit→fix→re-audit loop over every live doc under `docs/infrastructure/` unt
 - **`promtail-noise-filter-setup.md`** — corrected the central false claim: the drop filter is the real 5-entry `^(coolify-db|coolify-redis|coolify-realtime|coolify-sentinel|ocoron-com-backup-1)$` (4 dead `coolify-*` residue), not one entry; container count 28 → 31.
 - **`vps-hub-rebuild.md`** — header → 2026-06-16 (step_17c traefik-lego closure); **`WSL2-DNS-FIX.md`** — root-cause reconciled with the live resolv.conf note.
 - **`audit-prompts/`** (01, 02, 06, README) — hub container count 29 → **31**; hub UFW 6 → 9 v4 rules; DR status "undrilled" → drilled/validated; README probe-summary aligned to its own linked probe file. (03/04/05/07/08 verified clean.)
-- **Stale inline TODOs reconciled against the doc's own ✓-done tables + live state** — `vps-complete-inventory.md` (Grafana `host` template var, `glitchtip-web` mesh binding, Authelia mesh binding all marked done in the pending-actions table + verified live, but inline prose still said "TODO"/"requires X first") and `glitchtip-sdk-integration-setup.md` (mesh-IP binding "will be added" → already in place, `ss -tlnp` confirmed).
+- **Stale inline open-action markers reconciled against the doc's own ✓-done tables + live state** — `vps-complete-inventory.md` (Grafana `host` template var, `glitchtip-web` mesh binding, Authelia mesh binding all marked done in the pending-actions table + verified live, but inline prose still said "still pending"/"requires X first") and `glitchtip-sdk-integration-setup.md` (mesh-IP binding "will be added" → already in place, `ss -tlnp` confirmed).
 
 Live residue surfaced (not doc bugs, flagged for cleanup): stale `coolify`/`coolify-public` Gatus endpoints; orphan `*.vps4`/`vps4` DNS A records (no live droplet); `PORTS.md` (repo root, out of this folder's scope) still lists Coolify/Netdata/dead microservices.
 

@@ -1,0 +1,16 @@
+[Unit]
+Description=Run fabrik-gpu-reaper every 10 minutes
+Documentation=docs/development/plans/2026-06-16-fabrik-gpu-rent.md
+Requires=fabrik-gpu-reaper.service
+
+[Timer]
+# Every 10 min, with a 60-second jitter so multiple operator machines don't
+# slam RunPod's API simultaneously.
+OnBootSec=2min
+OnUnitActiveSec=10min
+RandomizedDelaySec=60sec
+Persistent=true
+Unit=fabrik-gpu-reaper.service
+
+[Install]
+WantedBy=timers.target

@@ -128,6 +128,7 @@ RESERVED_NAMES = frozenset(
 SCAFFOLD_TYPES = frozenset(
     {
         "python-api",
+        "python-api-gpu",  # NEW — GPU-aware python-api, hooks gpu_rent into job handler
         "saas-skeleton",
         "node-api",
         "file-api",
@@ -3306,9 +3307,92 @@ def _provision_i18n(project_dir: Path, project_type: str) -> None:
     logger.info("i18n-kit provisioned (%s strategy) for %s", strategy, project_dir.name)
 
 
+def _scaffold_python_api_gpu(project_dir: Path, project_name: str, **kwargs) -> None:
+    """python-api-gpu = python-api + GPU integration hooks.
+
+    Identical to python-api PLUS:
+    - `shape.needs_gpu: true` and `shape.gpu_kind: pod-rtx-4090` in the spec
+      (operator changes the kind as needed).
+    - `app/gpu_handler.py` that wraps `fabrik.orchestrator.gpu_rent.rent()`
+      with project conventions (workload tag = project_name, retry policy).
+    - README section explaining how to call gpu_rent.rent() from the
+      service's job handler.
+
+    The scaffold delegates to `_scaffold_python_api` for the base files,
+    then patches the spec + writes the GPU-specific module.
+    """
+    # Build the normal python-api scaffold first
+    _scaffold_python_api(project_dir, project_name, **kwargs)
+
+    # Patch the spec to declare GPU dependency
+    spec_path = project_dir / "specs" / "services" / f"{project_name}.yaml"
+    if spec_path.exists():
+        spec_text = spec_path.read_text()
+        if "needs_gpu:" not in spec_text:
+            # Inject inside the shape: block
+            spec_text = spec_text.replace(
+                "shape:",
+                "shape:\n  needs_gpu: true\n  gpu_kind: pod-rtx-4090",
+                1,
+            )
+            spec_path.write_text(spec_text)
+
+    # Add a GPU integration helper module
+    gpu_handler_path = project_dir / "app" / "gpu_handler.py"
+    gpu_handler_path.parent.mkdir(parents=True, exist_ok=True)
+    gpu_handler_path.write_text(f'''"""GPU rental integration for {project_name}.
+
+This module is the bridge between the service's job handler and
+``fabrik.orchestrator.gpu_rent.rent``. Use ``rent_for_workload(...)`` to
+provision a GPU on demand for a single job, then auto-destroy.
+
+Configuration is read from the spec's ``shape.gpu_kind`` field — change
+that in ``specs/services/{project_name}.yaml`` (default: pod-rtx-4090).
+"""
+
+from __future__ import annotations
+
+import logging
+from typing import Any, Callable
+
+logger = logging.getLogger(__name__)
+
+# Default kind for this service — override per call if needed
+DEFAULT_KIND = "pod-rtx-4090"
+DEFAULT_MAX_LIFETIME_HOURS = 1
+DEFAULT_MAX_COST_USD = 1.0
+
+
+def rent_for_workload(
+    workload: str,
+    work_fn: Callable[[dict[str, Any]], Any],
+    *,
+    kind: str = DEFAULT_KIND,
+    max_lifetime_hours: int = DEFAULT_MAX_LIFETIME_HOURS,
+    max_cost_usd: float = DEFAULT_MAX_COST_USD,
+) -> dict[str, Any]:
+    """Provision a GPU, run ``work_fn(pod_or_endpoint_dict)``, always destroy.
+
+    Wraps ``fabrik.orchestrator.gpu_rent.rent`` with this project's defaults.
+    """
+    from fabrik.orchestrator.gpu_rent import rent
+
+    return rent(
+        kind,
+        workload=workload,
+        max_lifetime_hours=max_lifetime_hours,
+        max_cost_usd=max_cost_usd,
+        work_fn=work_fn,
+    )
+''')
+
+    logger.info("python-api-gpu scaffolded for %s (gpu_kind=pod-rtx-4090)", project_name)
+
+
 # Dispatch table mapping project types to their scaffolder functions.
 _TYPE_SCAFFOLDERS: dict[str, Callable[..., None]] = {
     "python-api": _scaffold_python_api,
+    "python-api-gpu": _scaffold_python_api_gpu,  # NEW: Phase 5
     "saas-skeleton": _scaffold_saas_skeleton,
     "node-api": _scaffold_node_api,
     "file-api": _scaffold_file_api,

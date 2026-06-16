@@ -4182,6 +4182,27 @@ After all three fixes, the script completed cleanly on both vps2 and vps3 (fresh
 
 ---
 
+## Lesson 69 — Provider default-image tags rot; don't pin in shared driver code without a freshness signal
+
+**Date:** 2026-06-16
+**Context:** `fabrik gpu rent` Phase 1 live gate G-LIVE-2. First real pod-create against RunPod returned HTTP 500 with body `failed to find an available pod...image=runpod/pytorch:2.1.0-py3.10-cuda12.1.1-devel-ubuntu22.04`. That tag had been the working default in the driver's `DEFAULT_POD_IMAGE`, sourced from RunPod's quickstart docs ~9 months earlier. RunPod removed it from their internal registry between when the docs were last refreshed and when we made the call. The orchestrator surfaced the 500 cleanly (no pod created, no spend), but the symptom looked like an account/quota error until the body was read closely.
+
+**Rule:** A default container image hard-coded in a driver is a **dated artifact**, not a stable constant. It needs one of:
+1. A registry-presence smoke check on driver init (1 extra HTTP HEAD per session — cheap), OR
+2. A pin to a vendor-neutral base (`nvidia/cuda:<MAJOR>.<MINOR>-runtime-ubuntu22.04`) where the vendor's tag retention policy is published and stable, OR
+3. A comment naming the verify date + an explicit fallback chain.
+
+**Why this matters beyond GPU:** the same trap exists everywhere we hardcode an `image:` in shared infrastructure code (Coolify templates, registrar drivers, scaffold defaults). When the vendor garbage-collects the tag, the *first* deploy in a fresh environment fails with a confusing 500 — but the second deploy in an environment that already pulled the image succeeds. So the error is invisible to anyone with a warm cache, including the author.
+
+**How to apply:**
+- Drivers default to `nvidia/cuda:<X>-runtime-ubuntu22.04` (or equivalent vendor-neutral base) over provider-published `<provider>/pytorch:<full-tag>` images. The latter are convenient demos, not contracts.
+- When a `<provider>/<image>:<exact-tag>` IS the right default (because the provider's stack assumes it), add a 1-line comment naming the source URL + verify date, AND emit a startup warning on 404/500 from the create call that says "image tag may have been removed by provider — try `<safe-fallback>`."
+- The 500 body from RunPod was descriptive. We almost lost that signal in error-formatting. Tests that mock the API must include 500-with-body-pointing-at-image-tag as a fixture so the driver's error path is exercised.
+
+**Fix in this surface:** `src/fabrik/orchestrator/gpu_rent.py` `DEFAULT_POD_IMAGE` switched from `runpod/pytorch:2.1.0-py3.10-cuda12.1.1-devel-ubuntu22.04` to `nvidia/cuda:12.4.1-runtime-ubuntu22.04`. The RunPod-published torch image remains a documented option in the operator runbook for users who want pre-installed PyTorch, but it's no longer the default that fresh installs hit.
+
+---
+
 ## Lesson 66 — Validators must reference, not silently duplicate, canonical enums
 
 **Context (2026-05-31):** Crowdlex's `tools/validate.py` (the `Validate Project State` CI gate) carried a **hand-maintained enum** of allowed `project.yaml` types. It drifted from Fabrik's canonical template set in `src/fabrik/spec_loader.py` (template table ~L232) — it listed `python-worker`/`python-cli`/`next-app` but was **missing `file-worker` and `file-api`**, both real scaffold templates (`templates/file-worker/`, `templates/file-api/` exist). A legitimate `type: file-worker` project failed CI as an "invalid type" — and had been **failing on every push for days** before the failure email was traced. This drift class recurs whenever Fabrik adds a scaffold type and a downstream mirror isn't updated.

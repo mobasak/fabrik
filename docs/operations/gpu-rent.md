@@ -1,0 +1,325 @@
+# GPU rentals — operator runbook
+
+**Last updated:** 2026-06-16 (Phase 1+2+3+4+5 shipped; live-validated against RunPod)
+**Companion docs:**
+
+- [Plan](../development/plans/2026-06-16-fabrik-gpu-rent.md) — implementation plan + validation gates
+- [RunPod API reference](../reference/runpod-api.md) — what the driver wraps
+- [RunPod HF models](../reference/runpod-hf-models.md) — deployable model catalog
+- [`.windsurf/rules/core/76-gpu-workers.md`](../../.windsurf/rules/core/76-gpu-workers.md) — decision framework
+
+## TL;DR
+
+```bash
+# Compare providers for a workload
+fabrik gpu compare pod-h100 --hours 4 --utilization 1.0
+
+# Rent on demand, run work, auto-destroy
+fabrik gpu rent serverless --workload smoke --max-cost 1
+fabrik gpu rent pod-rtx-4090 --workload train --max-lifetime 4 --max-cost 3
+
+# Audit + cleanup
+fabrik gpu list
+fabrik gpu history --lines 20
+fabrik gpu reconcile [--auto-destroy]
+fabrik gpu destroy <session-id-or-pod-id> -y
+```
+
+---
+
+## What this surface does
+
+`fabrik gpu` rents GPU compute on demand, runs your work, and **always
+destroys the resource at exit** — success, failure, exception, even
+network drop. Mirrors `fabrik vultr drill`'s try/finally lifecycle for
+GPUs. State + cost tracked in `data/gpu-rent-state.json` and
+`logs/gpu-rent-history.jsonl`. Daily budget cap enforced before any
+provider call.
+
+**Providers:** RunPod (default), Modal, Vast.ai. `fabrik gpu compare`
+shows side-by-side pricing + recommends one based on utilization rate +
+checkpointing requirement.
+
+**Cold vs hot:**
+
+- `--kind serverless` → RunPod scale-to-zero endpoint (cold-by-default,
+  ~500ms FlashBoot warm dispatch, $0 idle)
+- `--kind pod-*` → dedicated pod (hot until destroyed). Auto-reaped past
+  `--max-lifetime` hours.
+
+---
+
+## Prerequisites
+
+1. **RunPod account + API key.** Generate at
+   <https://www.console.runpod.io/user/settings> → "API Keys".
+2. **(serverless)** A deployed endpoint. Easiest: <https://console.runpod.io/serverless/new> → "Deploy LLM from Hugging Face" → pick a model (see [reference catalog](../reference/runpod-hf-models.md)).
+   Capture the **endpoint ID** from the URL (e.g. `5fm6047mmhueoe`).
+3. **Drop credentials into `/opt/fabrik/.env.sysadmin`:**
+
+   ```bash
+   RUNPOD_API_KEY=rpa_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+   MAX_DAILY_GPU_COST=5
+   RUNPOD_SERVERLESS_ENDPOINT_ID=5fm6047mmhueoe
+   ```
+
+4. **(optional Phase 2 providers)**:
+
+   ```bash
+   MODAL_TOKEN_ID=<from `modal token new`>
+   MODAL_TOKEN_SECRET=<paired secret>
+   VAST_API_KEY=<from https://console.vast.ai/account>
+   ```
+
+5. **(optional Phase 3 checkpoints)** B2 creds already present in
+   `.env.sysadmin` for Backrest (`B2_KEY_ID`, `B2_APPLICATION_KEY`).
+   No new keys needed.
+
+---
+
+## Commands
+
+### `fabrik gpu rent <kind>`
+
+Provision a GPU, optionally use it, **always destroy at exit**.
+
+| Flag | Default | Purpose |
+|---|---|---|
+| `kind` (positional) | — | One of `serverless`, `pod-h100`, `pod-h100-pcie`, `pod-h100-nvl`, `pod-a100`, `pod-a100-sxm`, `pod-h200`, `pod-l40s`, `pod-rtx-4090` |
+| `--workload` | (required) | Free-text tag (e.g. `train-tinyllama`, `seo-embed`) |
+| `--provider` | `runpod` | `runpod`, `modal`, or `vast` |
+| `--max-lifetime` | `1` (hours) | Reaper destroys past this |
+| `--max-cost` | `5.0` (USD) | Refused BEFORE provider create if estimate exceeds |
+| `--keep-warm-after-use` | off | Don't destroy after successful work_fn |
+| `--keep-on-failure` | off | Leave pod alive if work_fn raised, for inspection |
+| `--dry-run` | off | Print the plan + cost guard result, no API call |
+| `--image` | NVIDIA CUDA runtime | (pod-* only) Override container image |
+| `--cloud` | `SECURE` | `SECURE` (datacenter) or `COMMUNITY` (~50% cheaper, shared kernel) |
+| `--interruptible` | off | (pod-* only) Spot/preemptible — needs checkpointing |
+
+**Examples:**
+
+```bash
+# Plan-only dry run (no API call, no cost)
+fabrik gpu rent pod-rtx-4090 --workload smoke --dry-run
+
+# Serverless inference smoke test
+fabrik gpu rent serverless --workload smoke --max-cost 1
+
+# Training: cheap pod, 4-hour budget
+fabrik gpu rent pod-rtx-4090 --workload train-toy --max-lifetime 4 --max-cost 3
+```
+
+### `fabrik gpu compare <kind>` — decision support
+
+Side-by-side cost across RunPod, Modal, Vast.ai for a workload. Encodes
+the rule's selection logic + Gemini's utilization-rate framework.
+
+```bash
+# Continuous training (high utilization → RunPod usually wins)
+fabrik gpu compare pod-h100 --hours 4 --utilization 1.0
+
+# Bursty event-driven (low utilization → Modal's per-second billing wins)
+fabrik gpu compare pod-h100 --hours 4 --utilization 0.2
+
+# Cheap training with checkpointing (Vast.ai spot becomes viable)
+fabrik gpu compare pod-h100 --hours 4 --needs-checkpointing
+```
+
+Output includes recommended provider + rationale.
+
+### `fabrik gpu list` / `status` / `destroy` / `reconcile` / `history`
+
+| Command | Purpose |
+|---|---|
+| `list` | Currently-active sessions in local state |
+| `status <id>` | Detailed state for a session/resource, with a live RunPod probe |
+| `destroy <id>` | Manual cleanup (orphan removal) |
+| `reconcile [--auto-destroy]` | Compare state vs RunPod; report drift; optionally destroy lifetime-exceeded + orphan-tagged pods |
+| `history [--lines N]` | Tail `logs/gpu-rent-history.jsonl` (audit log) |
+
+**Critical safety**: `reconcile --auto-destroy` only touches pods carrying
+`FABRIK_SESSION_ID` env tag. **Foreign pods (not created by Fabrik) are
+NEVER destroyed.** Constraint C4.
+
+---
+
+## Cost cap layers (Constraint C2)
+
+Two guards fire BEFORE any provider call:
+
+1. **Per-call** (`--max-cost`): refuses if `estimate_cost(kind, max_lifetime) > max-cost`.
+2. **Daily envelope** (`MAX_DAILY_GPU_COST` env): refuses if
+   `today's GPU spend + estimate > MAX_DAILY_GPU_COST`.
+
+When tripped, `GPUBudgetExceeded` is raised; no provider API call has
+been made.
+
+---
+
+## Common workflows
+
+### Smoke test (G-LIVE-1 pattern)
+
+```python
+from fabrik.orchestrator.gpu_rent import rent
+from fabrik.drivers.runpod import RunPodClient
+
+def workflow(endpoint):
+    c = RunPodClient()
+    try:
+        result = c.run_endpoint_sync(
+            endpoint["id"],
+            {"input": {"prompt": "Hello world"}},
+            timeout=120,
+        )
+        print(result["output"])
+    finally:
+        c.close()
+
+rent("serverless", workload="smoke", work_fn=workflow, max_cost_usd=1.0)
+```
+
+### Training with checkpointing (Phase 3)
+
+```python
+from fabrik.orchestrator.gpu_rent import rent
+from fabrik.orchestrator.gpu_checkpoint import (
+    checkpoint_to_b2, load_latest_checkpoint, write_checkpoint_to_tarball,
+)
+
+def training_loop(pod):
+    # Resume from last checkpoint if any
+    prev = load_latest_checkpoint("my-project", "run-001")
+    start_step = prev[1]["latest_step"] + 1 if prev else 0
+    for step in range(start_step, 1000):
+        # ... training ...
+        if step % 50 == 0:
+            payload = write_checkpoint_to_tarball({"model": ..., "step": step})
+            checkpoint_to_b2(
+                payload, project="my-project", run_id="run-001",
+                step=step, async_upload=True,  # doesn't block training
+            )
+
+rent("pod-rtx-4090", workload="train", work_fn=training_loop,
+     max_lifetime_hours=4, max_cost_usd=3.0, interruptible=True)
+```
+
+### Scheduled reaper (Phase 4)
+
+Install the user-mode systemd timer (every 10 min):
+
+```bash
+mkdir -p ~/.config/systemd/user
+cp /opt/fabrik/scripts/systemd/fabrik-gpu-reaper.{service,timer} \
+   ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now fabrik-gpu-reaper.timer
+systemctl --user list-timers fabrik-gpu-reaper.timer
+```
+
+The reaper writes Prometheus metrics to `logs/gpu-rent-metrics.prom` for
+the node-exporter textfile collector. Add panels in Grafana for:
+
+- `gpu_rent_active{provider="runpod"}` — live count
+- `rate(gpu_rent_cost_usd_total[1d])` — daily spend
+- `gpu_rent_destroy_pending` — orphan risk (alert if > 0)
+- `gpu_rent_last_reconcile_age_seconds` — alert if > 3600 (reaper not running)
+
+### Scaffolding a new GPU service (Phase 5)
+
+```bash
+fabrik scaffold my-gpu-service --type python-api-gpu
+```
+
+This creates a standard `python-api` project + adds:
+
+- `shape.needs_gpu: true`, `shape.gpu_kind: pod-rtx-4090` in the spec
+- `app/gpu_handler.py` with `rent_for_workload(workload, work_fn)` helper
+
+Edit `app/gpu_handler.py` to call your workload from a job handler.
+
+---
+
+## Troubleshooting
+
+### `GPUBudgetExceeded: estimated cost $X exceeds --max-cost $Y`
+
+The per-call cap caught you. Either:
+
+- Lower `--max-lifetime` so the estimate fits
+- Raise `--max-cost` to match the workload
+- Use a cheaper `--kind` (e.g. `pod-rtx-4090` vs `pod-h100`)
+- Use `--cloud COMMUNITY` for ~50% cheaper pods (shared kernel — see
+  rule line 342)
+
+### `GPUBudgetExceeded: daily GPU spend $X + estimate $Y would exceed MAX_DAILY_GPU_COST=$Z`
+
+Today's cumulative spend would breach the daily cap. Either:
+
+- Wait until UTC midnight (cap resets)
+- Set `MAX_DAILY_GPU_COST=<higher>` in `.env.sysadmin` if intentional
+- Reduce the per-call cost (see above)
+
+### `RUNPOD_API_KEY is required`
+
+Set it in `/opt/fabrik/.env.sysadmin` (per the Prerequisites section).
+Generate at <https://www.console.runpod.io/user/settings>.
+
+### `RunPod 500: Container image "<image>" was not found on the registry`
+
+The default `DEFAULT_POD_IMAGE` in `gpu_rent.py` may have been removed
+by RunPod. Override with `--image nvidia/cuda:12.4.1-runtime-ubuntu22.04`
+(or any current public image) until the default is updated.
+
+### Pod stuck in `EXITED` or never reaches `RUNNING`
+
+The container image likely crashed on boot. `fabrik gpu status <id>`
+shows the RunPod state. Common causes:
+
+- Wrong CUDA version for the GPU type
+- Image missing required CMD/ENTRYPOINT
+- Out-of-memory at startup (raise `containerDiskInGb`)
+
+### Orphan (pod alive on RunPod, no local state)
+
+`fabrik gpu reconcile` detects this. If it carries
+`FABRIK_SESSION_ID` (Fabrik created it, state file got lost), it shows
+under `orphan_pods`. `--auto-destroy` will clean it up.
+
+Foreign pods (no `FABRIK_SESSION_ID` — operator created via dashboard
+or other tooling) show under `foreign_count` and are **never** touched.
+
+### `destroy_pending` count > 0
+
+A previous destroy attempt errored. The reaper retries automatically on
+its next run. Or run `fabrik gpu reconcile --auto-destroy` manually.
+
+---
+
+## What's NOT supported (yet)
+
+- **Multi-GPU pods**: driver accepts `gpu_count` but orchestrator hardcodes
+  to 1. Add `--gpu-count` flag if needed (small change).
+- **Network volumes**: pods get an ephemeral 20GB volume by default. For
+  persistent data across rentals, use B2 (`checkpoint_to_b2`).
+- **Modal serverless deployment**: shape is in the driver but actual
+  `App.deploy()` requires an operator-supplied Modal App definition file
+  — Phase 6 work.
+- **Vast.ai serverless**: Vast.ai has no first-class serverless concept.
+  Use `--provider runpod` or `--provider modal` for serverless.
+- **HF inference endpoints / OpenAI-compatible /v1 routes**: RunPod's
+  vLLM template exposes both `/run` (Fabrik's path) and `/v1/chat/completions`
+  (OpenAI-compat). Phase 1 wires `/run`. For OpenAI-compat, use the
+  `openai` Python SDK directly with `base_url=https://api.runpod.ai/v2/<id>/openai/v1`
+  and `api_key=$RUNPOD_API_KEY`.
+
+---
+
+## See also
+
+- [Plan](../development/plans/2026-06-16-fabrik-gpu-rent.md)
+- [RunPod API reference](../reference/runpod-api.md)
+- [RunPod HF models catalog](../reference/runpod-hf-models.md)
+- [`.windsurf/rules/core/76-gpu-workers.md`](../../.windsurf/rules/core/76-gpu-workers.md) — the decision framework
+- [`.../scripts/systemd/README.md`](../../scripts/systemd/README.md) — systemd timer install

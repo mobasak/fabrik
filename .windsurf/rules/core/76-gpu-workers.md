@@ -457,7 +457,9 @@ Do you need AI inference in your service?
 - `fabrik destroy` terminates GPU instance + cleans volumes
 - VPS sysadmin monitors GPU spend via provider API
 
-Until then, GPU lifecycle is managed by the orchestrator service's own code — the provider API calls, cost tracking, and auto-termination logic live in the orchestrator project.
+**As of 2026-06-16** the shared lifecycle surface is **`fabrik gpu`** (RunPod + Modal + Vast.ai; try/finally cost-capped; state at `data/gpu-rent-state.json`; audit log at `logs/gpu-rent-history.jsonl`; reaper at `fabrik gpu reconcile --auto-destroy`). See [`docs/operations/gpu-rent.md`](../../../docs/operations/gpu-rent.md) and [`docs/development/plans/2026-06-16-fabrik-gpu-rent.md`](../../../docs/development/plans/2026-06-16-fabrik-gpu-rent.md). Services should call `fabrik.orchestrator.gpu_rent.rent(...)` instead of re-implementing provider-API + cost-cap + auto-terminate inline. The `fabrik scaffold ... --type python-api-gpu` shorthand wires the integration automatically.
+
+Until the spec block above is implemented (Phase 6 work), services declare GPU usage via the `gpu_rent.rent()` call directly + a `shape.needs_gpu: true` annotation in their spec (no `gpu:` config block yet).
 
 ---
 
