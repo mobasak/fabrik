@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — INDEX.md kilo tooling snapshot stale (2026-06-17)
+
+An inline-code-path sweep (175 distinct `` `path/file.ext` `` refs across active docs) found INDEX.md's Kilo section still listed an old design — removed scripts (`kilo_agent_updater.py`, `extract_pricing.py`) and data files (`kilo_18_agents_complete.json`, `manual_pricing_data.json`, `kilo_comprehensive_db.json`) that no longer exist. Updated to the files that do: `kilo_model_sync.py`, the `scripts/kilo-benchmarks/` selection subsystem, `kilo_47_agents_final.json`, `kilo_embeddings_final.json`, `kilo_agents.db` (and "18 agents" → "47 agents").
+
+Sweep otherwise clean — the remaining flags were all correct: retired-notes (`consolidate_envs.py`, `image-broker.yaml`), template-emitted paths that live in a scaffolded project not this repo (`scripts/validate_i18n.py` and the i18n-kit adapters, `tests/test_health.py`), example placeholders (`my-api.yaml`, `src/myservice/*`), `/opt/youtube` project paths in the youtube vision doc, and the already-superseded 2026-03-15 deployment log.
+
 ### Fixed — INDEX.md broken links (WordPress/guides removal) (2026-06-17)
 
 A repo-wide broken-link sweep (792 relative file links across 220 active docs) found INDEX.md still indexed ~18 files that no longer exist — all removed when WordPress moved to `/opt/wpf` (2026-05-30):

@@ -642,18 +642,18 @@ the `wordpress` **scaffold type** (`fabrik scaffold --type wordpress`).
 - **`docs/reference/kilo/`** - Complete Kilo documentation (README, INDEX, guides)
 
 ### Core Scripts
-- `scripts/generate_kilo_agents.py` - Generates tier-based agent scripts from pricing manifest
-- `scripts/kilo_agent_updater.py` - Updates catalog and pricing (57 providers)
-- `scripts/kilo_code_review.py` - Code review (Step 4 in 9-step workflow)
-- `scripts/extract_pricing.py` - 2-call algebraic pricing extraction
+- `scripts/generate_kilo_agents.py` - Generates tier-based agent scripts from the agent manifest
+- `scripts/kilo_code_review.py` - Code review (Step 4 in the workflow)
+- `scripts/kilo_model_sync.py` - Syncs the model catalog + pricing
+- `scripts/kilo-benchmarks/` - Benchmark-driven agent-selection subsystem (`agent_selector.py`, `compute_assignments.py`, `db_models.py`, embedding assignment)
 
 ### Data Files (AUTHORITATIVE)
-- `scripts/kilo_18_agents_complete.json` - Primary pricing manifest (18 agents)
-- `scripts/kilo_all_models.json` - Complete catalog (319 models)
-- `scripts/manual_pricing_data.json` - Manual pricing (12 models)
-- `scripts/kilo_comprehensive_db.json` - Model database with capabilities
+- `scripts/kilo_47_agents_final.json` - Primary agent manifest (47 agents)
+- `scripts/kilo_all_models.json` - Complete model catalog
+- `scripts/kilo_embeddings_final.json` - Embedding-based model/role assignment data
+- `scripts/kilo_agents.db` - SQLite agent/model database
 
-### Active Agents (18 + 1 utility)
+### Active Agents
 - `~/.traycer/cli-agents/<TIER><NN>-<model>-<role>-<effort>-i<IN>-o<OUT>.sh`
 - Tiers: P=Prime, S=Strong, B=Balanced, E=Economy
 - See `docs/reference/kilo/` for complete documentation
