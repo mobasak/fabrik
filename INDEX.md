@@ -182,7 +182,6 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 │   ├── models/                      # Data models
 │   ├── orchestrator/                # Deployment orchestrator
 │   │   ├── __init__.py              # DeploymentOrchestrator
-│   │   ├── content_publisher.py     # ContentPublisher implementation — publish() batch brief-drain, publish_page() legacy; import via fabrik.content.orchestrator
 │   │   ├── context.py               # DeploymentContext
 │   │   ├── deployer.py              # ServiceDeployer
 │   │   ├── exceptions.py            # Custom exceptions
@@ -423,8 +422,7 @@ docs/
     ├── SCAFFOLD_STRUCTURE.md
     ├── SYNC_ENFORCEMENT_WORKFLOW.md # Sync enforcement workflow
     ├── SYNC_PROJECTS_WORKFLOW.md   # Sync projects workflow
-    ├── windsurf-triggered-workflows.md
-    └── wordpress-site-workflow.md
+    └── windsurf-triggered-workflows.md
 ```
 <!-- AUTO-GENERATED:STRUCTURE:END -->
 
@@ -467,7 +465,7 @@ docs/
 | **Phase 1: Foundation** | Complete | [architecture.md](docs/reference/architecture.md) |
 | **Phase 1b: Cloud Infrastructure** | Complete | [DEPLOYMENT_ARCHITECTURE.md](docs/DEPLOYMENT_ARCHITECTURE.md) |
 | **Phase 1c: Cloudflare DNS** | Complete | [SERVICES.md](docs/SERVICES.md) |
-| **Phase 1d: WordPress Automation** | In Progress | [wordpress.md](docs/reference/wordpress.md) |
+| **Phase 1d: WordPress Automation** | Moved out 2026-05-30 | WordPress deployment + lifecycle moved to the standalone `/opt/wpf` project (`wpf` CLI) |
 
 ### Operations
 
@@ -479,31 +477,18 @@ docs/
 <!-- duplicati-setup.md archived 2026-04-28; Backrest is the live backup tool — see backup.vps1.ocoron.com and AGENTS.md -->
 | [coolify-migration.md](docs/infrastructure/archive/coolify-migration.md) | Coolify migration procedures |
 
-### Guides
-
-| Document | Purpose |
-|----------|--------|
-| [FABRIK_INTEGRATION.md](docs/guides/FABRIK_INTEGRATION.md) | Build Fabrik-compatible microservices |
-| [domain-hosting-automation.md](docs/guides/domain-hosting-automation.md) | Full domain + hosting automation |
-| [DEPLOYMENT_READY_CHECKLIST.md](docs/guides/DEPLOYMENT_READY_CHECKLIST.md) | Make any project deployment-ready |
-| [EXCEL_FILE_GENERATION.md](docs/guides/EXCEL_FILE_GENERATION.md) | Excel file generation guide |
-
 ### Workflows
 
 | Document | Purpose |
 |----------|--------|
-| [wordpress-site-workflow.md](docs/workflows/wordpress-site-workflow.md) | End-to-end WordPress site lifecycle: domain → plan → SSH+Compose deploy → WP config → verify → content publish (pre-2026-05-30 was Coolify deploy) |
+| [docs/workflows/](docs/workflows/) | Full workflow set — scaffold, deploy, data-sync, Traycer/Kilo, etc. |
 
-### WordPress
+### WordPress & Guides (moved out)
 
-| Document | Purpose |
-|----------|--------|
-| [plugin-stack.md](docs/reference/wordpress/plugin-stack.md) | Curated WordPress plugin stack |
-| [architecture.md](docs/reference/wordpress/architecture.md) | WordPress v2 spec system |
-| [fixes.md](docs/reference/wordpress/fixes.md) | Critical fixes for v2 |
-| [pages-idempotency.md](docs/reference/wordpress/pages-idempotency.md) | Page creation idempotency |
-| [site-specification.md](docs/reference/wordpress/site-specification.md) | Site spec YAML format |
-| [plugin-evaluation.md](docs/reference/wordpress/plugin-evaluation.md) | WordPress plugin evaluation criteria |
+WordPress deployment + lifecycle, the WordPress reference docs (`docs/reference/wordpress/`),
+and the old `docs/guides/` set were **removed from this repo when WordPress moved to the
+standalone `/opt/wpf` project (2026-05-30)**. See `/opt/wpf/AGENTS.md`. Fabrik retains only
+the `wordpress` **scaffold type** (`fabrik scaffold --type wordpress`).
 
 ### Quality Gates & Code Review
 
@@ -531,9 +516,7 @@ docs/
 | [test_seo_client.py](tests/content/test_seo_client.py) | 7 tests for SEOClient driver (domain lookup, briefs lifecycle) |
 | [test_tco_client.py](tests/content/test_tco_client.py) | 2 tests for TCOClient driver (generate_from_brief, error propagation) |
 | [test_image_broker_client.py](tests/content/test_image_broker_client.py) | 3 tests for ImageBrokerClient driver (auto_download success/failure) |
-| [content_publisher.py](src/fabrik/orchestrator/content_publisher.py) | ContentPublisher implementation module — publish() batch brief-drain (domain → list briefs → claim → TCO → image → WP → submit), publish_page() legacy, PublishResult/PublishSummary/PublishContext dataclasses. **Import via fabrik.content.orchestrator** |
-| [orchestrator.py](src/fabrik/content/orchestrator.py) | Canonical content pipeline module — re-exports ContentPublisher, PublishResult, PublishSummary, PublishContext from fabrik.orchestrator.content_publisher; all new code imports from this path |
-| [test_orchestrator.py](tests/content/test_orchestrator.py) | 35 tests for ContentPublisher orchestrator — publish_page() legacy + publish() T2 batch brief-drain (lock release, image fallback, routing, upload_media path, UUID coercion, HTML rendering, limit) |
+| [test_orchestrator.py](tests/content/test_orchestrator.py) | Tests for the content-publisher orchestrator (publish_page legacy + batch brief-drain). NOTE: the `content_publisher.py` / `content/orchestrator.py` modules were removed with the WordPress→/opt/wpf move 2026-05-30. |
 | [test_cli_content.py](tests/content/test_cli_content.py) | 4 tests for `fabrik content publish` CLI command (help, unknown domain ValueError, dry-run, connection error) |
 | [test_saas_logger.py](tests/test_saas_logger.py) | 5 tests for saas-skeleton pino logger scaffold generation |
 | [test_scaffold_logging.py](tests/test_scaffold_logging.py) | Tests for python-api + chrome-extension scaffold logging (logger.py, middleware.py, correlation ID) |
@@ -559,7 +542,6 @@ docs/
 | **templates/preplan/preplan.md.j2** | T3-01 G-A1 — Jinja2 preplan template with 9 sections, embeds VPS1-inventory cheat-sheet (postgres-main, redis-main, X-Internal-Token, /health bypass, /metrics, GlitchTip DSN) in the Notes section so the preplan stays grounded. |
 | **docs/preplans/** | T3-01 G-A2 — directory for captured project intent. `README.md` documents filename convention (`<YYYY-MM-DD>-<slug>.md`), 4-stage lifecycle (author/refine/hand-off/archive), and the full Fabrik pipeline overview. |
 | [test_preplan.py](tests/test_preplan.py) | 16 tests for T3-01 — `create_preplan` (creates dated file / template substitution / refuses overwrite / slug-validation / date-validation), `parse_preplan` (fresh template / missing file / invalid type / deps table / bullet list filtering), `_layer_preplan_into_project` (copy / 4-guardrail injection / partial guardrails / idempotency / none-no-op), CLI surface check (`fabrik preplan new` works, `fabrik preplan-new` does NOT — catches @cli.command vs @cli.group BLOCKER FIX). |
-| [tests/drivers/test_wordpress_exec_mode.py](tests/drivers/test_wordpress_exec_mode.py) | 10 tests for T1.1 `FABRIK_EXEC_MODE` env-gate in `drivers/wordpress.py` — `TestGetExecMode` (4: default ssh / explicit local / unknown raises ValueError / case-insensitive `LOCAL`), `TestContainerResolverExecMode` (2: SSH path argv starts `["ssh","vps",…]`; local path argv starts `["sudo","docker","ps",…]` with no `"ssh"`), `TestWordPressClientExecMode` (2: SSH path wraps `sudo docker exec` in shell string; local path emits argv list `["sudo","docker","exec","c","wp","core","version","--allow-root"]`), `TestConstructorOverridesEnv` (1: kwarg beats env), `TestWpContainerNameShortCircuit` (1: `WP_CONTAINER_NAME_OCORON_COM` returns env value without calling `subprocess.run`). All `subprocess.run` patched; no live SSH/Docker. |
 
 ### Scaffold-Generated Files (Python API + Chrome Extension Backend)
 

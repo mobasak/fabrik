@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — INDEX.md broken links (WordPress/guides removal) (2026-06-17)
+
+A repo-wide broken-link sweep (792 relative file links across 220 active docs) found INDEX.md still indexed ~18 files that no longer exist — all removed when WordPress moved to `/opt/wpf` (2026-05-30):
+
+- Removed the dead **Guides** section (the whole `docs/guides/` dir is gone: `FABRIK_INTEGRATION.md`, `domain-hosting-automation.md`, `DEPLOYMENT_READY_CHECKLIST.md`, `EXCEL_FILE_GENERATION.md`).
+- Removed the dead **WordPress** section (`docs/reference/wordpress/*` — 6 docs — dir gone) + the `docs/reference/wordpress.md` Phase-1d link; replaced with a "moved to /opt/wpf" note.
+- Fixed the **Workflows** entry (`wordpress-site-workflow.md` gone → point at `docs/workflows/`).
+- Removed dead code rows + tree entries: `src/fabrik/orchestrator/content_publisher.py`, `src/fabrik/content/orchestrator.py` (dir gone), `tests/drivers/test_wordpress_exec_mode.py`.
+
+The sweep otherwise came back clean: the only other flags were CHANGELOG history (append-only), the peer's in-flight GPU plan docs, `tasks.md` (already superseded-banner'd), and two illustrative example links (a template placeholder + a markdown-syntax demo) — all correctly left.
+
 ### Fixed — verification pass: residual stale-service/command references (2026-06-17)
 
 A cross-repo evidence sweep (verified against live vps1 — 31 containers) caught references earlier passes missed:
