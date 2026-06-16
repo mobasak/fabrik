@@ -304,7 +304,6 @@ docs/
 │   ├── CRITICAL_RULES.md           # Non-negotiable execution rules
 │   ├── # (Deleted — see .windsurf/rules/core/25-data-postgres.md)
 │   ├── DOCUMENTATION_STANDARD.md   # Documentation standards and conventions
-│   ├── DOC_REVIEW_2026-04-28.md
 │   ├── LOCAL_LLM_INFRASTRUCTURE.md
 │   ├── Modern GUI Approaches for Chrome Extensions.md
 │   ├── Modern GUI Approaches for a Lean, Fast, Effective, Low-Confusion SaaS Web App.md

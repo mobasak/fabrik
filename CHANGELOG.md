@@ -14,6 +14,7 @@ File-by-file accuracy pass over `docs/reference/` (67 docs). Verified each claim
 - **`file-api-deployment.md`** — rewrote the spec example to the current schema (`shape:`, `source.type: git`, `from_env` secrets, `health.path: /api/health`); fixed Coolify-as-active deploy steps, the dead `coolify.vps1.ocoron.com` status URL, `fabrik app-logs <spec>` usage, and the `/api/health` route.
 - **`health-monitoring.md`** — refreshed counts to live (Gatus 33/18; Prometheus 13 jobs/12 active/14 targets; **13** alert rules in 5 groups, no Promtail rules); marked the Coolify-era stable-alias-watcher section LEGACY/not-deployed; fixed a stale `orchestrator.md` line anchor.
 - **`project-registry.md` archived** (`reference/` → `archive/`) per "don't maintain unnecessary docs" — it's a frozen 2025-12 snapshot superseded by `fabrik projects` / `fabrik scan` + the auto-generated inventory in `docs/BUSINESS_MODEL.md`; it also carried an actively-misleading `DB_HOST=localhost` example. Repointed its 3 inbound refs (`INDEX.md` ×2, `stack.md`) to `BUSINESS_MODEL.md`.
+- **`DOC_REVIEW_2026-04-28.md` archived** (`reference/` → `archive/`) — a one-time dated documentation-currency review report ("post-mission audit after B23–B46"), fully superseded by the subsequent doc sweeps; removed its `INDEX.md` tree entry.
 
 **Batch 1 (9 docs):**
 
