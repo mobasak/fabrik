@@ -886,5 +886,5 @@ In May 2026, the engine was extracted to `/opt/wpf/` as a standalone project bec
 - [README.md](../README.md) — Project overview
 - [CHANGELOG.md](../CHANGELOG.md) — Version history
 - [AGENTS.md](../AGENTS.md) — AI agent briefing
-- [DEPLOYMENT.md](DEPLOYMENT.md) — Deploy flows, state machine, secrets
+- [DEPLOYMENT_ARCHITECTURE.md](DEPLOYMENT_ARCHITECTURE.md) — Deploy flows, state machine, secrets
 - [docs/operations/fabrik-lifecycle.md](operations/fabrik-lifecycle.md) — 4-stage lifecycle (Intent → Implementation → Registration → Verification)

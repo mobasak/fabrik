@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — docs/ root canonical docs: dead `DEPLOYMENT.md` refs + broken relative links (2026-06-16)
+
+Evidence-based walk of the `docs/` root-level files (the canonical references everything points at). Fixed:
+
+- **`QUICKSTART.md`** — 3× `[DEPLOYMENT.md]` → `DEPLOYMENT_ARCHITECTURE.md` (renamed canonical) + `operations/vps-status.md` → `infrastructure/vps-status.md`.
+- **`FEATURES.md`**, **`.doc-policy.md`** (×2) — `DEPLOYMENT.md` → `DEPLOYMENT_ARCHITECTURE.md`.
+- **`SERVICES.md`** — `operations/vps-urls.md` → `infrastructure/vps-urls.md` (the file lives in `infrastructure/`).
+- **`STRATEGIC_BACKLOG.md`** — `configs/gatus/` + `configs/prometheus/` → `../configs/...` (wrong depth from `docs/`).
+- **`LESSONS_LEARNT.md`** — `../../src/.../watchdog.py` → `../src/...` (wrong depth).
+
+Verified clean (no edit): `BUSINESS_MODEL`, `CONFIGURATION` (Coolify/Duplicati mentions are all correct decommission framing), `DEPLOYMENT_ARCHITECTURE` (the `--legacy`/`coolify_uuid`-field-name notes are accurate), `EXTERNAL_SYSTEMS`, `FAQ`, `owner_ozgur_basak`, `TROUBLESHOOTING`. (`LESSONS_LEARNT`'s many Coolify/netdata mentions are correct-as-history in a chronological lessons log.)
+
 ### Added — `fabrik gpu` surface: disposable GPU lifecycle, all 5 phases shipped (2026-06-16)
 
 Mirrors `fabrik vultr drill`'s try/finally cost-capped pattern for GPU rentals. Closes the gap that [`.windsurf/rules/core/76-gpu-workers.md`](.windsurf/rules/core/76-gpu-workers.md) line 460 had flagged ("until a GPU scaffold type exists, GPU lifecycle is managed by the orchestrator service's own code"). All 5 phases of the plan implemented + live-validated in one pass.

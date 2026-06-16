@@ -68,7 +68,7 @@ All services use Traefik reverse proxy on ports 80/443. Mesh-only services (post
 - 🔒 **Internal** — No external access, Docker network only
 - ⚠️ **Open** — Publicly accessible (needs auth added)
 
-See [vps-urls.md](operations/vps-urls.md) for complete URL reference.
+See [vps-urls.md](infrastructure/vps-urls.md) for complete URL reference.
 
 ## Startup Order
 

@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-04-22
 
-Get Fabrik running in 5 minutes. Full reference: [DEPLOYMENT.md](DEPLOYMENT.md).
+Get Fabrik running in 5 minutes. Full reference: [DEPLOYMENT_ARCHITECTURE.md](DEPLOYMENT_ARCHITECTURE.md).
 
 ## Prerequisites
 
@@ -159,7 +159,7 @@ fabrik import /tmp/vps1-base.tar.gz --apply                        # stubbed rea
 curl https://hello-api.vps1.ocoron.com/health
 ```
 
-Expected wall time for a first deploy: **~60–90s** (published-image templates) or **2–5 min** (build-from-source). See [DEPLOYMENT.md](DEPLOYMENT.md) §9.6 for the validated maximal-shape E2E test.
+Expected wall time for a first deploy: **~60–90s** (published-image templates) or **2–5 min** (build-from-source). See [DEPLOYMENT_ARCHITECTURE.md](DEPLOYMENT_ARCHITECTURE.md) §9.6 for the validated maximal-shape E2E test.
 
 ## Scan Project Health
 
@@ -175,11 +175,11 @@ See `docs/workflows/HEALTH_SUMMARY_WORKFLOW.md` for details.
 
 ## Next Steps
 
-- [DEPLOYMENT.md](DEPLOYMENT.md) — **canonical deploy reference**, read this next
+- [DEPLOYMENT_ARCHITECTURE.md](DEPLOYMENT_ARCHITECTURE.md) — **canonical deploy reference**, read this next
 - [CONFIGURATION.md](CONFIGURATION.md) — every env var explained
 - [reference/architecture.md](reference/architecture.md) — how the pieces fit together
 - [reference/fabrik-cli-reference.md](reference/fabrik-cli-reference.md) — all 22 CLI commands
 - [reference/templates.md](reference/templates.md) — 12 deploy templates (11 scaffold types + `next-tailwind` deploy-only)
 - [reference/orchestrator.md](reference/orchestrator.md) + [reference/drivers.md](reference/drivers.md)
 - [LESSONS_LEARNT.md](LESSONS_LEARNT.md) — every live-incident invariant (read before deep changes)
-- [operations/vps-status.md](operations/vps-status.md) — VPS inventory
+- [infrastructure/vps-status.md](infrastructure/vps-status.md) — VPS inventory
