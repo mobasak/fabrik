@@ -128,7 +128,7 @@ These exist so the disposable `fabrik vultr drill hub` (which runs `--skip-servi
 
 **`step_12c` — drill-start core services** (`--drill-start-core-only`, only meaningful with `--skip-services`). Starts ONLY `postgres-main` + `redis-main` — pure local state, no B2/Telegram/Cloudflare writes. Under `--skip-mesh` it first creates a **dummy `wg0`** (`ip link add wg0 type dummy`, address `10.99.0.1/24`) so services that bind the mesh IP can come up (no WG protocol, no peer reach), torn down at the end. Then `pg_isready` + `redis-cli ping` prove the restored `postgres-data` + `redis_redis-data` volumes are bootable (and checks `glitchtip` + `site_provisioner` databases are present). The full `step_13` (all containers) and `step_18` (end-state contract) remain SKIPPED in drill mode.
 
-**`step_17b` / `step_17c` — LE/DNS-cutover validation** (gated on `--drill-test-le-staging <hostname>`, runs after step_17's DNS rewrite). `step_17b` waits 30s for DNS propagation, verifies the hostname resolves to the droplet, installs `certbot`, runs `certbot certonly --standalone --staging --preferred-challenges http-01`, then verifies the issuer is the LE **staging** CA (`(STAGING) Pretend Pear`/`Artificial Amaranth` family) — proving the ACME HTTP-01 cutover chain works end-to-end (a production issuer would flag a credentials misconfig). `step_17c` then proves traefik's OWN ACME (Go/lego — a different code path than bare certbot) acquires a staging cert too.
+**`step_17b` / `step_17c` — LE/DNS-cutover validation** (gated on `--drill-test-le-staging <hostname>`, runs after step_17's DNS rewrite). `step_17b` waits 30s for DNS propagation, verifies the hostname resolves to the droplet, installs `certbot`, runs `certbot certonly --standalone --staging --preferred-challenges http-01`, then verifies the issuer is the LE **staging** CA (`(STAGING) Pretend Pear`/`Artificial Amaranth` family) — proving the ACME HTTP-01 cutover chain works end-to-end (a production issuer would flag a credentials misconfig). `step_17c` then proves traefik's OWN ACME (Go/lego — a different code path than bare certbot) acquires a staging cert too; this went green a day later in `dr-drill-hub-20260616-113524` (issuer `(STAGING) Ersatz Emmer YR2`), once step_17c's heredoc-escaping bugs were fixed.
 
 ## End-state contract — must pass all 7
 
@@ -212,7 +212,8 @@ The CF DNS rewrite (`step_17`) and Let's Encrypt cert acquisition path that real
 | DR-validation row | Status | Run ID |
 |---|---|---|
 | CF DNS rewrite (`step_17`, `--cf-rewrite-dns`) | **VALIDATED 2026-06-15** — 3 records rewritten on the sandbox zone, reset on drill destroy | `dr-drill-hub-20260615-154530` |
-| LE cert acquisition (`step_17b`/`step_17c`, `--drill-test-le-staging`) | **VALIDATED 2026-06-15** — ACME HTTP-01 staging cert acquired (bare certbot + traefik's own lego), issuer verified `(STAGING)` | `dr-drill-hub-20260615-160819` |
+| LE cert via bare certbot (`step_17b`, `--drill-test-le-staging`) | **VALIDATED 2026-06-15** — ACME HTTP-01 staging cert, issuer verified `(STAGING)` | `dr-drill-hub-20260615-160819` |
+| LE cert via traefik's own Go/lego (`step_17c`) | **VALIDATED 2026-06-16** — traefik served a `(STAGING) Ersatz Emmer YR2` cert on :443 (separate later drill, after step_17c's heredoc-escaping bugs were fixed) | `dr-drill-hub-20260616-113524` |
 
 The LE/DNS cutover is no longer "deferred"/"not validated" — the full ACME HTTP-01 chain (rewrite DNS → resolve to droplet → :80 challenge → staging cert) ran green from a fresh droplet. Staging (not production) was used to avoid LE rate limits + account-DB pollution; the protocol path is identical, so a green staging acquisition proves the production path works.
 

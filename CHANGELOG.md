@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Hub DR docs: attribute step_17c (traefik lego) to its real drill (2026-06-16)
+
+`e89d14d` credited both `step_17b` (certbot) and `step_17c` (traefik's own Go/lego ACME) to `dr-drill-hub-20260615-160819`, but `step_17c` was still failing on 2026-06-15 (heredoc-escaping bugs) — it first went green a day later in `dr-drill-hub-20260616-113524` (issuer `(STAGING) Ersatz Emmer YR2`, peer commit `320adf4`). Split the attribution in `vps-hub-rebuild.md` (DR-validation matrix + narrative) and `hub-restore-inventory.md` so each cert path cites its actual run ID.
+
 ### Fixed — A re-drill: backtick escape needed double-backslash for heredoc survival (2026-06-16)
 
 Round 2 of step_17c's traefik own-ACME-staging test STILL failed with `bash: line 28: __HOST__: command not found`. Same class of bug as bug #10 backticks-in-double-quoted-heredoc, just two layers deep:
