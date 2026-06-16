@@ -312,13 +312,13 @@ All surfaces (Desktop, Web, CLI on VPS, CLI on WSL, Mobile) share ONE pool.
 
 ## 15. MODEL SELECTION POLICY
 
-Default model: Sonnet 4.5 for coding and refactors.
+Default model: Sonnet 4.6 (`claude-sonnet-4-6`) for coding and refactors.
 
-Switch to Opus only when BOTH are true:
+Switch to Opus 4.8 (`claude-opus-4-8`) only when BOTH are true:
 - Architectural reasoning across many modules/files
 - You explicitly approve the switch in the thread
 
-If auto-switch occurs, revert to Sonnet after the decision.
+If auto-switch occurs, revert to Sonnet 4.6 after the decision.
 
 ---
 

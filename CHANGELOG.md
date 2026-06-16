@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — deep audit pass: stale service/deploy/model refs across 28 docs (2026-06-17)
+
+A parallel read-only audit of the full active doc tree (reference, kilo, windsurf, operations, infrastructure, workflows, traycer, root) against verified ground truth, then a fix pass. `docs/operations/**` and all of `docs/traycer/**` audited clean. Corrections (28 files):
+
+- **Removed `fabrik ai` commands documented as live:** `architecture.md` (ai/client.py→tracker.py; `deployer.py`→`deployer_ssh.py` current + `deployer_coolify.py` legacy; orchestrator 11→22 modules), `orchestrator.md`, `drivers.md` (wordpress drivers removed; CoolifyClient relabelled legacy), `fabrik-cli-reference.md` (`ai generate`/`revise` removed → `ai usage`; `ai_router.py`→`ai/tracker.py`; `content publish` dropped; `seo job-run`/`briefs-list` hyphenation), `fabrik.md` (ai_generate/ai_revise reference sections marked REMOVED).
+- **Netdata-as-live → removed** (Netdata gone 2026-05-30): `health-monitoring.md` (stack table → node-exporter + cAdvisor; dropped the live Netdata service row + the dead-`coolify` `/health` branch noted legacy), `technology-stack-decision-guide.md`, `vps-ai-sysadmin.md` (query list, disk-consumer example, cron example).
+- **Retired microservices shown as live → retirement banners** (only site-provisioner is live): `SERVICES.md` (translator/captcha/dns-manager/file-api integration sections), `CONFIGURATION.md`, `FAQ.md`, `QUICKSTART.md`, `BUSINESS_MODEL.md`, `prebuilt-app-containers.md`. DNS repointed to the Cloudflare driver.
+- **`coolify` network as current → `fabrik`:** `development-and-deployment-workflow.md` (4 spots), `prebuilt-app-containers.md`, `technology-stack-decision-guide.md`. `windsurf_features.md` "use Coolify on VPS" → `fabrik apply`. `windsurf-triggered-workflows.md` dropped a false "zero-downtime" claim.
+- **Counts/ids:** Authelia 10→8 (audit-prompts/03), DNS 17→18 + `watchdog-test` (vps-complete-inventory), Grafana 8→5 Fabrik dashboards (vps-ai-sysadmin), windsurf extensions 26→11 + rule packs 30→35 (overview), stale model ids → `claude-sonnet-4-6`/`claude-opus-4-8` (CRITICAL_RULES, kpi-schema, FAQ, KILO_CLI_REFERENCE).
+- **Broken/phantom refs:** removed 4 phantom kilo README rows; `~/.windsurfrules`→`.windsurf/rules/` (DOCUMENTATION_STANDARD); PLANNING_REFERENCES paths; broken EXTENSIONS.md ref; mcp-kilo-setup-guide config path standardized to `~/.traycer/mcp.json`.
+
 ### Added — Phase 3.5 serverless: Modal + Vast.ai endpoint lifecycle wired (2026-06-17)
 
 Completes the GPU serverless surface across all three providers. Plan executed from [`docs/development/plans/2026-06-17-gpu-serverless-phase-3-5-converged.md`](docs/development/plans/2026-06-17-gpu-serverless-phase-3-5-converged.md) after 4 plan iterations caught 8 critical bugs before any code was written.

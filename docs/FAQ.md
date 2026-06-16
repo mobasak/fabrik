@@ -109,11 +109,10 @@ VPS_HOST=172.93.160.197
 VPS_USER=ozgur
 # Configure `vps` alias in ~/.ssh/config pointing at this host
 
-# DNS Provider (choose one)
-DNS_MANAGER_URL=https://dns.vps1.ocoron.com  # Service-based
-# OR
+# DNS Provider — Cloudflare driver (current)
 CLOUDFLARE_API_TOKEN=your-token
 CLOUDFLARE_ZONE_ID=your-zone-id
+# DNS_MANAGER_URL=https://dns.vps1.ocoron.com  # RETIRED — dns-manager not deployed (NXDOMAIN)
 
 # Backups
 B2_KEY_ID=your-key-id
@@ -144,19 +143,21 @@ B2_BUCKET_NAME=fabrik-backups
 
 ### How do I set up DNS automation?
 
-**Option 1: dns-manager service (recommended)**
+**Option 1: Cloudflare driver (recommended)**
 
-Fabrik includes a dns-manager microservice that handles both Namecheap and Cloudflare:
-
-```bash
-DNS_MANAGER_URL=https://dns.vps1.ocoron.com
-```
-
-**Option 2: Direct Cloudflare API**
+Fabrik talks to the Cloudflare API directly via the driver (`src/fabrik/drivers/cloudflare.py`) — no separate DNS service to deploy:
 
 ```bash
 CLOUDFLARE_API_TOKEN=your-api-token
 CLOUDFLARE_ZONE_ID=your-zone-id
+```
+
+**Option 2: ~~dns-manager service~~ (RETIRED — not deployed)**
+
+> **⚠️ RETIRED — not deployed.** The dns-manager microservice was retired; `dns.vps1.ocoron.com` returns NXDOMAIN. Use the Cloudflare driver above.
+
+```bash
+# DNS_MANAGER_URL=https://dns.vps1.ocoron.com  # historical — no longer live
 ```
 
 **Getting Cloudflare token:**
@@ -602,10 +603,10 @@ Kilo CLI uses automatic model routing based on task type. To override:
 
 ```bash
 # Set preferred model in environment
-export KILO_MODEL="claude-sonnet-4-5-20250929"
+export KILO_MODEL="claude-sonnet-4-6"
 
 # Or use --model flag
-kilo run --model claude-sonnet-4-5-20250929 "your task"
+kilo run --model claude-sonnet-4-6 "your task"
 ```
 
 **Available models:** Run `kilo models` to see current list
@@ -618,8 +619,8 @@ See `docs/SERVICES.md` for complete catalog, or check running services:
 # All services
 curl https://status.vps1.ocoron.com/api/status
 
-# Specific service health
-curl https://translator.vps1.ocoron.com/health
+# Specific service health (translator retired — NXDOMAIN; use a live service)
+curl https://status.vps1.ocoron.com
 ```
 
 ---

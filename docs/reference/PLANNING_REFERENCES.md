@@ -67,12 +67,7 @@ Path: docs/reference/trueforge-images.md
 Path: docs/reference/25-data-postgres rule pack (.windsurf/rules/core/25-data-postgres.md)
 ```
 
-### `plugin-stack.md`
-**Purpose:** Curated WordPress plugin stack for Docker multi-site.
-**Consult when:** WordPress projects.
-```
-Path: docs/reference/wordpress/plugin-stack.md
-```
+> **Note:** WordPress docs moved out of this repo to `/opt/wpf` (WP is now a separate project). The former `docs/reference/wordpress/plugin-stack.md` no longer exists here.
 
 ---
 
@@ -100,7 +95,7 @@ Path: docs/reference/AI_TAXONOMY.md
 **Purpose:** Python coding best practices for production code.
 **Consult when:** Writing or reviewing Python code.
 ```
-Path: templates/scaffold/PYTHON_PRODUCTION_STANDARDS.md
+Path: templates/.archive/PYTHON_PRODUCTION_STANDARDS.md
 ```
 
 ### `.windsurf/rules/core/10-python.md`

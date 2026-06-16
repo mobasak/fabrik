@@ -624,7 +624,7 @@ Project-level configuration takes precedence over global settings.
 ```json
 {
   "$schema": "https://app.kilo.ai/config.json",
-  "model": "anthropic/claude-sonnet-4-20250514",
+  "model": "anthropic/claude-sonnet-4.6",
   "provider": {
     "anthropic": {
       "options": {
@@ -1185,7 +1185,7 @@ Variants control how much "thinking" the model does before responding.
 
 ```bash
 kilo run --variant high "Complex analysis task"
-kilo run -m kilo/anthropic/claude-sonnet-4-5 --variant max "Refactor this module"
+kilo run -m kilo/anthropic/claude-sonnet-4.6 --variant max "Refactor this module"
 ```
 
 ---

@@ -46,12 +46,12 @@ VPS_HOST=your-vps-ip
 VPS_USER=deploy
 # Configure a `vps` alias in ~/.ssh/config (or set FABRIK_VPS_SSH_HOST)
 
-# DNS Manager
-DNS_MANAGER_URL=https://dns.vps1.ocoron.com
+# DNS — Cloudflare driver (current/primary)
+CLOUDFLARE_API_TOKEN=your-token
+CLOUDFLARE_ZONE_ID=your-zone-id
 
-# Or use Cloudflare (optional)
-# CLOUDFLARE_API_TOKEN=your-token
-# CLOUDFLARE_ZONE_ID=your-zone-id
+# DNS Manager service — RETIRED (not deployed; dns.vps1.ocoron.com returns NXDOMAIN)
+# DNS_MANAGER_URL=https://dns.vps1.ocoron.com
 
 # Backblaze B2 (backups)
 B2_KEY_ID=your-key-id

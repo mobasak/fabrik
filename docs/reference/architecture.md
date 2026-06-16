@@ -57,7 +57,7 @@ Each template has `defaults.yaml` declaring its default shape flags.
 
 ### 3. Orchestrator — `src/fabrik/orchestrator/`
 
-11 modules, 3102 lines total (2026-04-22, includes 613-line `content_publisher.py` which is not on the deploy path). Stage-by-stage pipeline with a state machine:
+22 modules (was 11 / 3102 lines as of 2026-04-22). Stage-by-stage pipeline with a state machine:
 
 | Module | Role |
 |---|---|
@@ -66,12 +66,14 @@ Each template has `defaults.yaml` declaring its default shape flags.
 | `context.py` | `DeploymentContext` — shared state, resource log for rollback |
 | `validator.py` | Pydantic validation + SSRF check + idempotency hash |
 | `secrets.py` | `SecretsManager` — CSPRNG generate, `-s` > project `.env` > fabrik `.env` > env |
-| `deployer.py` | `ServiceDeployer` — idempotent Coolify create/update + deploy(force=True) |
+| `deployer_ssh.py` | **`ServiceDeployer` (current)** — idempotent `docker compose up -d` over SSH |
+| `deployer_coolify.py` | Legacy Coolify-API deployer — retained on disk, non-functional (Coolify decommissioned 2026-05-30) |
 | `infrastructure.py` | **`InfrastructureProvisioner`** — shape-driven registrar dispatch |
 | `verifier.py` | HTTP 200, DNS, SSL, SENTRY_DSN injection (via `docker inspect`) |
 | `rollback.py` | `RollbackManager` — LIFO cleanup; DB drops logged, not auto-executed |
 | `exceptions.py` | Typed exceptions |
-| `content_publisher.py` | **Not deploy** — SEO→TCO→Image→WordPress pipeline |
+| `coolify_alias.py` | Legacy — stable Docker network alias management |
+| `gpu_*.py`, `vultr_*.py`, `sysadmin_tokens.py`, `destroyer.py` | GPU rental, Vultr provisioning/drill, sysadmin token mgmt, registrar teardown |
 
 ### 4. Drivers — `src/fabrik/drivers/` (22 modules)
 
@@ -118,7 +120,7 @@ User: cd /opt/my-api && fabrik apply
      c. SecretsManager.load() — project .env merged with fabrik .env
      d. DNSClient.add_record(domain, VPS_IP)              [if --skip-dns not set]
      e. TemplateRenderer.render() + ComposeLinter.lint()
-     f. ServiceDeployer — Coolify PATCH+deploy or POST+deploy
+     f. ServiceDeployer (`deployer_ssh.py`) — `docker compose up -d` over SSH
      g. InfrastructureProvisioner.provision(ctx)          [SHAPE-GATED]:
           postgres.create_database()      if needs_database
           gatus.add_endpoint()            if is_public + domain
@@ -200,9 +202,10 @@ src/fabrik/
 ├── notifications.py           # Deploy success/failure notifications
 ├── preplan.py                 # fabrik preplan new — 9-section intent capture
 ├── dev_tools.py               # fabrik dev / fabrik review / fabrik logs --local
-├── orchestrator/              # 11 modules — deployment state machine
+├── orchestrator/              # 22 modules — deployment state machine
 │   ├── __init__.py            #   DeploymentOrchestrator — top-level runner
-│   ├── deployer.py            #   ServiceDeployer — Coolify create/update/deploy
+│   ├── deployer_ssh.py        #   ServiceDeployer (current) — docker compose up -d over SSH
+│   ├── deployer_coolify.py    #   Legacy Coolify-API deployer — retained, non-functional
 │   ├── infrastructure.py      #   InfrastructureProvisioner — 9 shape-gated registrars
 │   ├── rollback.py            #   RollbackManager — LIFO cleanup
 │   ├── secrets.py             #   SecretsManager — CSPRNG + env precedence
@@ -236,9 +239,8 @@ src/fabrik/
 │   ├── seo.py                 #   SEO service client
 │   ├── tco.py                 #   Content orchestration client
 │   └── uptime_kuma.py         #   Legacy (superseded by Gatus)
-├── ai/                        # LLM client + cost tracking
-│   ├── client.py              #   LLMClient (Claude/OpenAI) with pricing
-│   └── tracker.py             #   UsageTracker — SQLite ai_usage.db
+├── ai/                        # AI usage cost tracking
+│   └── tracker.py             #   UsageTracker — SQLite ai_usage.db (LLMClient removed 2026-06-16)
 ├── api/                       # Empty — reserved for future fabrik HTTP API
 ├── models/                    # Empty — reserved
 ├── services/                  # Empty — reserved
@@ -293,7 +295,7 @@ src/fabrik/
 
 ### WordPress — extracted to /opt/wpf/
 
-The WordPress automation engine (~9,700 LoC: 13-stage deployer, planner, preset loader, WP-CLI driver, REST API client, theme/page/SEO/analytics/forms modules) was built as fabrik Phase 2 and extracted to `/opt/wpf/` in May 2026. `deploy_router.py` raises `NotImplementedError` for WordPress deploys. WordPress scaffold type still exists for project structure generation. Site specs at `specs/sites/` have `kind: wordpress` and are consumed by `wpf wp apply`, not `fabrik apply`. wpf calls the same VPS drivers (Coolify, Backrest, Gatus, site-provisioner) but manages WordPress site lifecycle independently.
+The WordPress automation engine (~9,700 LoC: 13-stage deployer, planner, preset loader, WP-CLI driver, REST API client, theme/page/SEO/analytics/forms modules) was built as fabrik Phase 2 and extracted to `/opt/wpf/` in May 2026. `deploy_router.py` raises `NotImplementedError` for WordPress deploys. WordPress scaffold type still exists for project structure generation. Site specs at `specs/sites/` have `kind: wordpress` and are consumed by `wpf wp apply`, not `fabrik apply`. wpf deploys via SSH + Docker Compose (from `/opt/wpf/`) and calls the same VPS registrar drivers (Backrest, Gatus, site-provisioner) but manages WordPress site lifecycle independently.
 
 ---
 
@@ -320,7 +322,7 @@ Full inventory in `docs/infrastructure/vps-complete-inventory.md` and `AGENTS.md
 | **iptables DOCKER-USER** | Only 80/443/6001/6002 public; Docker bypasses UFW |
 | **Authelia** | 2FA forward-auth for admin dashboards w/o native TOTP |
 | **X-Internal-Token** | Machine-to-machine auth for internal microservices |
-| **Bearer tokens** | API endpoints on admin dashboards (Coolify, Grafana, GlitchTip) |
+| **Bearer tokens** | API endpoints on admin dashboards (Grafana, GlitchTip) |
 
 Details: `docs/DEPLOYMENT_ARCHITECTURE.md` §8.4.
 

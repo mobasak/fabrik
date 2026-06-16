@@ -89,7 +89,7 @@ echo "=== AUTHELIA (vps1 ONLY) — number of access-control rules ==="
 import yaml, sys
 cfg = yaml.safe_load(sys.stdin)
 rules = cfg.get('access_control', {}).get('rules', [])
-print(f'  {len(rules)} rules (expected: 10 — verify against vps-complete-inventory.md)')
+print(f'  {len(rules)} rules (expected: 8 — verify against vps-complete-inventory.md)')
 for i, r in enumerate(rules, 1):
     doms = r.get('domain', [])
     if isinstance(doms, str): doms = [doms]
@@ -144,7 +144,7 @@ EOF
 
 ### 5. Authelia (vps1 only)
 
-- 10 access-control rules (verify against `vps-complete-inventory.md`).
+- 8 access-control rules (verify against `vps-complete-inventory.md`).
 - `auth.vps1.ocoron.com` reachable; portal returns login form.
 - Forward-auth middleware in Traefik dynamic config.
 - 2FA enrolled for the operator account.

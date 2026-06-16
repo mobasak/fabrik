@@ -15,15 +15,15 @@ Fabrik is an **internal platform** enabling rapid deployment of revenue-generati
 **See Project Portfolio below for complete catalog of revenue-generating projects.**
 
 ### Active Production Services
-- **11 deployed services** in production (captcha, youtube, translator, etc.)
-- **6 projects in active development**
+- **site-provisioner** is currently the only live Fabrik microservice (`provision.vps1.ocoron.com`); earlier API services (captcha, translator, file-api, etc.) were retired
+- **Projects in active development** across the portfolio (see catalog below)
 - Multi-tenant SaaS, API services, B2B tools
 
 ### Revenue Models
 - **SaaS subscriptions** (YouTube pipeline)
-- **API usage fees** (Captcha, translation, file storage)
-- **B2B services** (Proposal generation, proxy management)
-- **Internal tools** (Email gateway, Site provisioner)
+- **API usage fees** (illustrative — earlier captcha/translation/file-storage APIs are retired)
+- **B2B services** (Proposal generation)
+- **Internal tools** (Site provisioner)
 
 ## Cost Structure
 

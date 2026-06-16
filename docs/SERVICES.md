@@ -132,6 +132,8 @@ response = httpx.get(f"{SERVICE_URL}/endpoint")
 
 ### Environment Setup
 
+> **⚠️ RETIRED — not deployed.** `captcha`, `dns-manager`, and `translator` were all retired; their `*.vps1.ocoron.com` subdomains return NXDOMAIN. DNS is now handled directly via the Cloudflare driver (`src/fabrik/drivers/cloudflare.py`). The env blocks below are kept for historical reference only.
+
 ```yaml
 # compose.yaml (VPS deployment)
 environment:
@@ -159,7 +161,9 @@ DNS_MANAGER_URL=http://localhost:8001
 
 ---
 
-## Translator Service Integration
+## ~~Translator Service Integration~~ (RETIRED — not deployed)
+
+> **⚠️ RETIRED — not deployed.** The translator microservice was retired; `translator.vps1.ocoron.com` returns NXDOMAIN. Section kept for historical reference.
 
 **Purpose:** Multi-provider translation (DeepL primary, Azure fallback)
 
@@ -216,7 +220,9 @@ See `/opt/translator/README.md` for full API documentation.
 
 ---
 
-## Captcha Service Integration
+## ~~Captcha Service Integration~~ (RETIRED — not deployed)
+
+> **⚠️ RETIRED — not deployed.** The captcha microservice was retired; `captcha.vps1.ocoron.com` returns NXDOMAIN. Section kept for historical reference.
 
 **Purpose:** Solve reCAPTCHA, hCaptcha, Turnstile via Anti-Captcha API
 
@@ -281,7 +287,9 @@ See `/opt/captcha/README.md` for full API documentation.
 
 ---
 
-## DNS Manager Service Integration
+## ~~DNS Manager Service Integration~~ (RETIRED — not deployed)
+
+> **⚠️ RETIRED — not deployed.** The dns-manager microservice was retired; `dns.vps1.ocoron.com` returns NXDOMAIN. DNS is now handled directly via the Cloudflare driver (`src/fabrik/drivers/cloudflare.py`). Section kept for historical reference.
 
 **Purpose:** Manage Namecheap/Cloudflare DNS records programmatically
 
@@ -415,7 +423,9 @@ See `/opt/image-broker/README.md` for full API documentation.
 
 ---
 
-## File API Service Integration
+## ~~File API Service Integration~~ (RETIRED — not deployed)
+
+> **⚠️ RETIRED — not deployed.** The file-api microservice was retired; `files-api.vps1.ocoron.com` returns NXDOMAIN. Section kept for historical reference.
 
 **Purpose:** Presigned URL service for Cloudflare R2 file uploads/downloads
 

@@ -11,16 +11,17 @@
 
 | Tool | Role | What it does |
 |------|------|-------------|
-| **Netdata** | Real-time metrics dashboard | Built-in, zero config. Shows CPU/RAM/disk/network/Docker stats instantly. Best for "what's happening right now on my server." |
-| **Prometheus** | Metrics collector & storage | Scrapes metrics from apps/services and stores them as time-series data. Doesn't visualize — just collects and stores. |
-| **Grafana** | Visualization layer | Connects to Prometheus (and other sources including Netdata) and builds custom dashboards, alerts, and graphs. Best for "show me trends over the last 30 days." |
+| **node-exporter** | Host metrics exporter | Exposes CPU/RAM/disk/network host metrics for Prometheus to scrape (replaced Netdata, removed 2026-05-30). |
+| **cAdvisor** | Container metrics exporter | Exposes per-container CPU/RAM/IO stats for Prometheus to scrape. |
+| **Prometheus** | Metrics collector & storage | Scrapes metrics from node-exporter, cAdvisor, and apps/services and stores them as time-series data. Doesn't visualize — just collects and stores. |
+| **Grafana** | Visualization layer | Connects to Prometheus and builds custom dashboards, alerts, and graphs. Best for "show me trends over the last 30 days." |
 | **Loki** | Log aggregator | Collects logs from all containers/services into one searchable place. Prometheus but for logs instead of metrics. |
 | **Promtail** | Log shipper | Reads Docker container logs and sends them to Loki. |
 | **Gatus** | Uptime monitoring | External availability checks, status page, alerting. |
 
 ### Current Stack (Single VPS)
 
-The full observability stack is deployed and operational. Netdata provides real-time metrics; Prometheus + Grafana handle alerting, dashboards, and long-term trend analysis; Loki + Promtail aggregate container logs.
+The full observability stack is deployed and operational. node-exporter + cAdvisor export host/container metrics to Prometheus (these replaced Netdata, removed 2026-05-30); Prometheus + Grafana handle alerting, dashboards, and long-term trend analysis; Loki + Promtail aggregate container logs.
 
 **Live coverage (verified 2026-06-17, 3-host fleet):** Gatus = 31 endpoints across 18 config files (was 33 — the `coolify` + `coolify-public` endpoints were removed 2026-06-17) · Prometheus = 13 `job_name`s configured / 12 active / 14 targets up (`fabrik-services` is a null placeholder; `pushgateway` is a container, not a scrape job; the single `aro-wake` job covers all 3 hosts) · 13 alert rules in 5 groups · Grafana 5 custom dashboards · Authelia 8 access-control rules.
 
@@ -31,7 +32,6 @@ The full observability stack is deployed and operational. Netdata provides real-
 | Service | URL | Status |
 |---------|-----|--------|
 | Gatus | status.vps1.ocoron.com | ✅ Running |
-| Netdata | netdata.vps1.ocoron.com | ✅ Running |
 | Grafana | monitor.vps1.ocoron.com | ✅ Running |
 | Prometheus | (internal :9090) | ✅ Running |
 | Alertmanager | (internal :9093) | ✅ Running |
@@ -90,9 +90,11 @@ All applicable rules include `value` annotations for ARO Brain quantitative reas
 
 Provide a dependency-aware health check surface that:
 
-- returns non-200 when upstream dependencies are degraded (for Coolify healthchecks and external uptime monitors)
-- exposes which dependency failed (Coolify vs DNS manager) in a stable JSON shape
+- returns non-200 when upstream dependencies are degraded (for external uptime monitors)
+- exposes which dependency failed in a stable JSON shape
 - supports command-line probing for automation (CI, cron, or ad-hoc debugging)
+
+> **Legacy `coolify` check (decommissioned 2026-05-30).** `health_app.py` still has a `_check_coolify_sync()` branch and emits a `checks.coolify` key, but Coolify is decommissioned — this is a dead dependency that always reports unhealthy/unreachable and should be removed. The descriptions below document the code as it currently stands.
 
 ---
 
@@ -148,8 +150,8 @@ Notes:
 
 **Dependency checks**:
 
-- Coolify: `CoolifyClient.health()` via `check_coolify()`
-- DNS manager: `DNSClient.health()` via `check_dns()`
+- Coolify (legacy/dead — decommissioned 2026-05-30): `CoolifyClient.health()` via `_check_coolify_sync()`
+- DNS manager: `DNSClient.health()`
 
 Each dependency payload is normalized by `_normalize_status()` to map common upstream statuses
 (`ok`, `healthy`, `pass`, `success`) into `healthy`.
@@ -217,7 +219,7 @@ fabrik audit-registrars --spec <path> --json  # machine-readable
 Plus a postcondition gate that pairs cleanly with the HTTP `/health` check:
 
 ```bash
-fabrik verify <domain> --spec deploy          # HTTP /health + SSL + Coolify status
+fabrik verify <domain> --spec deploy          # HTTP /health + SSL + container status (via SSH)
 fabrik verify <domain> --spec registrars      # registrar coverage
 ```
 

@@ -65,7 +65,7 @@ This document defines the schema for KPI events stored in `.droid/kpis.jsonl`.
 
 ```jsonl
 {"event_id": "550e8400-e29b-41d4-a716-446655440000", "event_type": "task_start", "timestamp": "2026-02-19T10:30:00Z", "task_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"}
-{"event_id": "550e8400-e29b-41d4-a716-446655440001", "event_type": "task_end", "timestamp": "2026-02-19T10:35:00Z", "task_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890", "model": "claude-sonnet-4-5-20250929", "tokens_input": 1500, "tokens_output": 800, "duration_seconds": 300.5, "status": "success"}
+{"event_id": "550e8400-e29b-41d4-a716-446655440001", "event_type": "task_end", "timestamp": "2026-02-19T10:35:00Z", "task_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890", "model": "claude-sonnet-4-6", "tokens_input": 1500, "tokens_output": 800, "duration_seconds": 300.5, "status": "success"}
 {"event_id": "550e8400-e29b-41d4-a716-446655440002", "event_type": "error", "timestamp": "2026-02-19T11:00:00Z", "task_id": "b2c3d4e5-f6a7-8901-bcde-f23456789012", "error_message": "API rate limit exceeded"}
 ```
 

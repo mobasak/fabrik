@@ -24,11 +24,7 @@ This directory contains documentation for the Kilo AI agent system used in Fabri
 | **KILO_UPDATE_SCHEDULE.md** | Update automation schedule | Active |
 | **KILO_USAGE_GUIDE.md** | Usage patterns and workflows | Active |
 | **KILO_PERFORMANCE_TUNING.md** | Token optimization, context management | Active |
-| **KILO-TOKEN-LEAN-WORKFLOW.md** | Token-efficient review workflow | Active |
 | **KILO_TROUBLESHOOTING.md** | Common issues and fixes | Active |
-| **kilo-complete-reference.md** | Full reference (older, may overlap with CLI_REFERENCE) | Review for merge |
-| **kilo-benchmarks-testing.md** | Benchmark testing methodology | Active |
-| **REVIEWER_BENCHMARK_RESULTS.md** | Reviewer model benchmark results | Active |
 
 ---
 
@@ -62,18 +58,7 @@ This directory contains documentation for the Kilo AI agent system used in Fabri
 
 ## Active Agents (`~/.traycer/cli-agents/`)
 
-15 role-based agents + `coding-auto.sh` (auto-routing):
-
-| Role | Count | Models | Description |
-|------|-------|--------|-------------|
-| `coding_simple` | 3 | Qwen 3.6+, Kimi K2.5, GLM-5 | Fast, cheap, simple tasks |
-| `coding_complex` | 2 | GPT-5.3 Codex, Opus 4.6 | Complex multi-file coding |
-| `coding_complex&fixing` | 2 | Gemini 3.1 Pro, GPT-5.4 | Coding + bug fixing combined |
-| `fixing` | 3 | Gemini 3 Flash, Gemini 3 Pro, GPT-5.2 | Bug fixes, error resolution |
-| `reviewing` | 1 | Llama 70B (local) | Code review via Ollama |
-| `documentation` | 1 | Llama 8B (local) | Doc generation via Ollama |
-| `coding` (local) | 1 | Qwen 32B (local) | Local coding via Ollama |
-| `fixing` (local) | 1 | DeepSeek 16B (local) | Local fixing via Ollama |
+Role-based agents + `coding-auto.sh` (auto-routing). The live roster (roles, counts, and per-role models) is **auto-generated daily** and changes as the model leaderboard updates — see **[KILO_AGENT_SELECTION_GUIDE.md](KILO_AGENT_SELECTION_GUIDE.md)** for the current assignments rather than relying on a static table here.
 
 **Naming convention:** `{role}-{priority}-{model}-{tier}-o{output_cost}-ppd{price_per_day}.sh`
 

@@ -99,14 +99,16 @@ python scripts/container_images.py pull nginx:alpine
 
 | Service | Path | Stack | Port | Purpose |
 |---------|------|-------|------|---------|
-| fabrik-proxy | `/opt/proxy` | Python/FastAPI | 8000 | Proxy management (Webshare.io) |
-| fabrik-captcha | `/opt/captcha` | Python/FastAPI | 8000 | Captcha solving (Anti-Captcha) |
-| fabrik-translator | `/opt/translator` | Python/FastAPI | 8000 | Translation (DeepL, Azure) |
-| fabrik-dns-manager | `/opt/dns-manager` | Python/FastAPI | 8001 | DNS management (Namecheap, Cloudflare) |
-| fabrik-emailgateway | `/opt/emailgateway` | Node.js/Fastify | 3000 | Email sending (Resend, SES) |
-| fabrik-file-api | `/opt/file-api` | Node.js/Express | 3000 | File operations API |
+| ~~fabrik-proxy~~ | `/opt/proxy` | Python/FastAPI | 8000 | Proxy management (Webshare.io) — **RETIRED** (not deployed) |
+| ~~fabrik-captcha~~ | `/opt/captcha` | Python/FastAPI | 8000 | Captcha solving (Anti-Captcha) — **RETIRED** (not deployed) |
+| ~~fabrik-translator~~ | `/opt/translator` | Python/FastAPI | 8000 | Translation (DeepL, Azure) — **RETIRED** (not deployed) |
+| ~~fabrik-dns-manager~~ | `/opt/dns-manager` | Python/FastAPI | 8001 | DNS management (Namecheap, Cloudflare) — **RETIRED** (not deployed) |
+| ~~fabrik-emailgateway~~ | `/opt/emailgateway` | Node.js/Fastify | 3000 | Email sending (Resend, SES) — **RETIRED** (not deployed) |
+| ~~fabrik-file-api~~ | `/opt/file-api` | Node.js/Express | 3000 | File operations API — **RETIRED** (not deployed) |
 | fabrik-file-worker | `/opt/file-worker` | Python | - | Background file processing |
 | ~~fabrik-image-broker~~ | `/opt/image-generation` | Python/FastAPI | 8000 | AI image generation (FLUX) — **retired 2026-06-02** |
+
+> **Note (2026-06):** The only live Fabrik microservice is **site-provisioner**. The struck-through rows above are retired/not-deployed.
 
 ## Image Source Hierarchy
 
@@ -405,10 +407,10 @@ services:
       - "traefik.http.routers.service-name.rule=Host(`service.vps1.ocoron.com`)"
       - "traefik.http.routers.service-name.tls.certresolver=letsencrypt"
     networks:
-      - coolify  # legacy network NAME (kept post-Coolify); Traefik routes off it
+      - fabrik  # shared network (renamed from coolify 2026-05-31); Traefik routes off it
 
 networks:
-  coolify:
+  fabrik:
     external: true
 ```
 

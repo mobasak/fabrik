@@ -13,7 +13,7 @@ Documentation for Windsurf IDE + Cascade AI as used in the Fabrik workflow.
 | [cascade-guide.md](cascade-guide.md) | Cascade features — modes, memories, rules, MCP, workflows, tools, flows | Manual |
 | [cascade-models.md](cascade-models.md) | Model tiers, credit multipliers, benchmarks | Yes (scraper) |
 | [windsurf_features.md](windsurf_features.md) | All Windsurf IDE features — Tab, Command, Devin, Previews, deploys, etc. | Manual |
-| [actively-used-windsurf-extensions.md](actively-used-windsurf-extensions.md) | Currently installed extensions (26) | Yes (daily WSL hook) |
+| [actively-used-windsurf-extensions.md](actively-used-windsurf-extensions.md) | Currently installed extensions (11) | Yes (daily WSL hook) |
 
 ---
 
@@ -35,7 +35,7 @@ All three get the same spec contract awareness rules (inline in their respective
 
 | What | Where |
 |---|---|
-| Rule packs | `.windsurf/rules/` (30 rule packs across 4 subdirectories (core/, saas/, mobile-app/, chrome-ext/)) |
+| Rule packs | `.windsurf/rules/` (35 rule packs across 4 subdirectories (core/, saas/, mobile-app/, chrome-ext/)) |
 | Workflows | `.windsurf/workflows/` (11 workflows) |
 | MCP servers | `~/.codeium/windsurf/mcp_config.json` |
 | Memories | `~/.codeium/windsurf/memories/` (auto-generated, local) |

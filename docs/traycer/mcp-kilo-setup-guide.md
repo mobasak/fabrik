@@ -160,7 +160,7 @@ Traycer:
 
 **Check config exists at correct location:**
 ```bash
-cat ~/.factory/mcp.json
+cat ~/.traycer/mcp.json
 ```
 
 **Expected output should include:**
@@ -180,7 +180,7 @@ cat ~/.factory/mcp.json
 
 **Common mistakes:**
 - ❌ Config at `/opt/fabrik/.factory/mcp.json` (WRONG - project dir)
-- ✅ Config at `~/.factory/mcp.json` (CORRECT - user home dir)
+- ✅ Config at `~/.traycer/mcp.json` (CORRECT - Traycer user config)
 - ❌ Missing `"type": "stdio"` field
 - ❌ Missing `"disabled": false` field
 
@@ -209,12 +209,12 @@ ls -la /opt/fabrik/scripts/kilo_code_review.py
 
 **Validate JSON syntax:**
 ```bash
-cat ~/.factory/mcp.json | python3 -m json.tool > /dev/null && echo "✅ Valid JSON" || echo "❌ Invalid JSON"
+cat ~/.traycer/mcp.json | python3 -m json.tool > /dev/null && echo "✅ Valid JSON" || echo "❌ Invalid JSON"
 ```
 
 **Check kilo-code entry:**
 ```bash
-cat ~/.factory/mcp.json | python3 -m json.tool | grep -A 8 '"kilo-code"'
+cat ~/.traycer/mcp.json | python3 -m json.tool | grep -A 8 '"kilo-code"'
 ```
 
 **Expected:**
@@ -255,7 +255,7 @@ list_mcp_server_tools(server="kilo-code")
 **Expected:** 4 tools listed (kilo_review, kilo_ask, kilo_plan, kilo_general)
 
 **If tools not found:**
-- Check `~/.factory/mcp.json` has `kilo-code` entry
+- Check `~/.traycer/mcp.json` has `kilo-code` entry
 - Verify Traycer restarted after config change
 - Check Traycer logs for MCP server connection errors
 
@@ -429,7 +429,7 @@ pip install mcp
 **Cause:** Traycer didn't reload MCP config
 
 **Fix:**
-1. Verify `~/.factory/mcp.json` has `kilo-code` entry
+1. Verify `~/.traycer/mcp.json` has `kilo-code` entry
 2. Fully close and restart Windsurf IDE
 3. Check Traycer logs for MCP connection errors
 
@@ -477,7 +477,7 @@ Paste the original epic finalization prompt to Traycer. It should now:
 | File | Change | Purpose |
 |------|--------|---------|
 | `/opt/fabrik/scripts/mcp_kilo_server.py` | **Created** | MCP server wrapper for Kilo CLI |
-| `~/.factory/mcp.json` | **Updated** | Registered `kilo-code` server |
+| `~/.traycer/mcp.json` | **Updated** | Registered `kilo-code` server |
 | `/opt/fabrik/.venv/` | **Updated** | Installed `mcp` package |
 
 ---
@@ -485,7 +485,7 @@ Paste the original epic finalization prompt to Traycer. It should now:
 ## References
 
 - **Kilo CLI:** `/opt/fabrik/scripts/kilo_code_review.py`
-- **MCP Config:** `~/.factory/mcp.json`
+- **MCP Config:** `~/.traycer/mcp.json`
 - **Traycer Integration Guide:** `/opt/fabrik/docs/traycer/epic-kilo-integration.md`
 - **MCP SDK Docs:** https://github.com/anthropics/anthropic-mcp
 

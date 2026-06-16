@@ -233,8 +233,10 @@ Use templates when creating new documentation.
 
 This standard is enforced by Windsurf Cascade via:
 
-1. **Global Rules** - `~/.windsurfrules`
-2. **Project Rules** - `/opt/<project>/.windsurfrules`
+1. **Rule packs** - `.windsurf/rules/` (35 packs across `core/`, `saas/`, `mobile-app/`, `chrome-ext/`), glob-triggered per frontmatter
+2. **Project contract** - `/opt/<project>/AGENTS.md` + `CLAUDE.md`
+
+(Supersedes the legacy single-file `~/.windsurfrules` / `.windsurfrules` setup.)
 
 Cascade will:
 - Remind you of the standard when creating docs

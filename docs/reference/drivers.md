@@ -39,8 +39,8 @@ Fabrik drivers (`src/fabrik/drivers/`) are the **only place that talks to extern
 | `preflight.py` | 312 | Readiness probes invoked before deploy (DNS resolves, Coolify reachable, required secrets present) | always |
 | `supabase.py` | 437 | `SupabaseClient` — Auth + DB when `spec.infrastructure.database == supabase` | on demand |
 | `r2.py` | 408 | `R2Client` — Cloudflare R2 (S3-compatible) when `spec.storage.type == r2` | on demand |
-| `wordpress.py` | 346 | `WordPressClient`, `WPSite`, `ContainerResolver` — WP-CLI via `docker exec` | WordPress sites |
-| `wordpress_api.py` | 371 | `WordPressAPIClient`, `WPCredentials`, `WPPost` — WordPress REST API for content CRUD | WordPress content |
+| ~~`wordpress.py`~~ | — | **Removed** — WP-CLI client extracted to `/opt/wpf/` (May 2026) | WordPress sites (legacy) |
+| ~~`wordpress_api.py`~~ | — | **Removed** — WordPress REST client extracted to `/opt/wpf/` (May 2026) | WordPress content (legacy) |
 | `image_broker.py` | 176 | `ImageBrokerClient` — stock image fetching (**not deploy** — content pipeline) | content |
 | `seo.py` | 384 | `SEOClient` — keyword research (**not deploy** — content pipeline) | content |
 | `tco.py` | 114 | `TCOClient` — content generation (**not deploy** — content pipeline) | content |
@@ -52,7 +52,9 @@ Total: 22 driver modules + `__init__.py`.
 
 ## Usage examples (most common)
 
-### CoolifyClient — primary deploy driver
+### CoolifyClient — legacy deploy driver (decommissioned)
+
+> **Legacy (Coolify decommissioned 2026-05-30).** `drivers/coolify.py` is retained on disk but non-functional. The primary deploy path is now `orchestrator/deployer_ssh.py` (`docker compose up -d` over SSH). The example below is historical.
 
 ```python
 from fabrik.drivers.coolify import CoolifyClient

@@ -17,7 +17,7 @@
 
 ## 0. Mental model
 
-You are a solo developer in WSL Ubuntu on Windows. Every project deploys to one x86_64 VPS at `172.93.160.197`, orchestrated by SSH + Docker Compose, routed by Traefik with Let's Encrypt, fronted by Authelia for admin UIs, protected by `X-Internal-Token` for API-to-API calls, and observed by Gatus + Prometheus + Grafana + Loki + Alertmanager + GlitchTip. The same code must run in three environments without modification: WSL dev (Postgres on localhost via `.env`), VPS Docker (`postgres-main` on the `coolify` network), and Supabase (env vars). Philosophy: **fast but pro** — ship, iterate, automate; no over-engineering.
+You are a solo developer in WSL Ubuntu on Windows. Every project deploys to one x86_64 VPS at `172.93.160.197`, orchestrated by SSH + Docker Compose, routed by Traefik with Let's Encrypt, fronted by Authelia for admin UIs, protected by `X-Internal-Token` for API-to-API calls, and observed by Gatus + Prometheus + Grafana + Loki + Alertmanager + GlitchTip. The same code must run in three environments without modification: WSL dev (Postgres on localhost via `.env`), VPS Docker (`postgres-main` on the `fabrik` network), and Supabase (env vars). Philosophy: **fast but pro** — ship, iterate, automate; no over-engineering.
 
 Four families of files orchestrate the agents:
 
@@ -158,7 +158,7 @@ Two CLI entry points, both routing through the same orchestrator pipeline:
 - **`fabrik apply`** — legacy, spec-driven. Reads `specs/services/<name>.yaml`; runs the registrars whose flags match the `shape:` block.
 - **`fabrik redeploy <app>`** — re-pulls a git-sourced app. **CRITICAL:** the VPS (not Coolify) runs `git pull` from the GitHub remote, NOT from your local `/opt/<name>/` clone. Mandatory sequence: `git commit` → `git push` → `fabrik redeploy`. Skipping `git push` silently redeploys the previous remote commit. Full reference: [docs/DEPLOYMENT_ARCHITECTURE.md](../DEPLOYMENT_ARCHITECTURE.md).
 
-The VPS (not Coolify) runs `git pull` + `docker compose up -d --wait` over SSH (`orchestrator/deployer_ssh.py`), attaching the container to the `coolify` Docker network (named `coolify` for compat). Traefik labels (scaffold-emitted) handle routing:
+The VPS (not Coolify) runs `git pull` + `docker compose up -d --wait` over SSH (`orchestrator/deployer_ssh.py`), attaching the container to the `fabrik` Docker network. Traefik labels (scaffold-emitted) handle routing:
 
 - Admin UI → `authelia-forward@docker,gzip@docker`
 - API service → `gzip@docker`
@@ -173,7 +173,7 @@ The 4-layer security model wraps every deployed service:
 3. **`X-Internal-Token`** (via `internal_auth.py` + shared `SERVICE_INTERNAL_SECRET_KEY` in `/opt/fabrik/.env`, same value written to each service's `/opt/<svc>/.env` by `deployer_ssh`) for all API-to-API calls. Validation is constant-time (`hmac.compare_digest`). Exceptions: `file-api` uses Supabase Bearer JWT (user auth, different pattern); `site-provisioner` uses Traefik IP allowlist.
 4. **Traefik** routes public sites (`ocoron.com`, `status.vps1.ocoron.com`) without auth.
 
-Single-image Coolify Applications get a container name with a timestamp suffix that changes per redeploy. To keep Gatus and inter-service URLs stable, install a stable alias on the `coolify` network: (a) add to compose `networks.coolify.aliases`, (b) live-apply with `docker network disconnect coolify <uuid-name>` then `docker network connect --alias <stable> --alias <uuid-name> coolify <uuid-name>`, (c) register in `scripts/vps_apply_limits.sh` `apply_alias` section (reboot persistence). Currently registered: `browserless`, `gotenberg`, `meilisearch`, `glitchtip-web`. Procedure + canonical pair list: [docs/infrastructure/archive/coolify-stable-aliases.md](../infrastructure/archive/coolify-stable-aliases.md).
+Single-image Coolify Applications get a container name with a timestamp suffix that changes per redeploy. To keep Gatus and inter-service URLs stable, install a stable alias on the `fabrik` network: (a) add to compose `networks.fabrik.aliases`, (b) live-apply with `docker network disconnect fabrik <uuid-name>` then `docker network connect --alias <stable> --alias <uuid-name> fabrik <uuid-name>`, (c) register in `scripts/vps_apply_limits.sh` `apply_alias` section (reboot persistence). Currently registered: `browserless`, `gotenberg`, `meilisearch`, `glitchtip-web`. Procedure + canonical pair list: [docs/infrastructure/archive/coolify-stable-aliases.md](../infrastructure/archive/coolify-stable-aliases.md).
 
 ## 11. Observability fires
 
@@ -250,7 +250,7 @@ Gate auto-stages (git add only). Coder STOPS.
        ↓
 YOU:  git commit  →  git push  →  fabrik redeploy   (VPS runs git pull from GitHub remote, not local /opt/)
        ↓
-VPS runs git pull + docker compose up -d --wait over SSH on the `coolify` network
+VPS runs git pull + docker compose up -d --wait over SSH on the `fabrik` network
        ↓
 Traefik routes → Authelia (admin) / X-Internal-Token (API) / open (public)
        ↓

@@ -622,7 +622,9 @@ fabrik verify api.example.com
 
 ---
 
-## ai_generate
+## ai_generate — REMOVED 2026-06-16
+
+> This command was removed with the `fabrik ai` `LLMClient` (direct Anthropic/OpenAI API path). Operational AI uses Claude Code OAuth; content/LLM uses OpenRouter. Only `fabrik ai usage` remains. The signature below is kept for history.
 
 **Signature:**
 
@@ -655,13 +657,15 @@ Uses the selected LLM provider to generate content for the provided prompt.
 
 **Example:**
 
-```bash
-fabrik ai generate "Write a README for a new Python library" --provider openai --model gpt-4
+```text
+(removed — `fabrik ai generate` no longer exists)
 ```
 
 ---
 
-## ai_revise
+## ai_revise — REMOVED 2026-06-16
+
+> Removed with the `fabrik ai` `LLMClient` (see ai_generate above). Only `fabrik ai usage` remains.
 
 **Signature:**
 
@@ -694,8 +698,8 @@ Revises the content of a file using an LLM, guided by custom instructions, optio
 
 **Example:**
 
-```bash
-fabrik ai revise README.md "Add a usage section" --output README.md
+```text
+(removed — `fabrik ai revise` no longer exists)
 ```
 
 ---

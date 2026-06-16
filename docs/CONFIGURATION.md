@@ -73,17 +73,16 @@ New projects never needed a Coolify API token.
 
 **Override precedence:** constructor `exec_mode=` kwarg > `FABRIK_EXEC_MODE` env var > `ssh` default. The constructor seam exists so unit tests and future orchestrators can pin the mode without mutating process env.
 
-### DNS Manager Service
+### DNS (Cloudflare driver)
 
-**Why this approach:** Fabrik uses a deployed microservice instead of direct API calls.
+> **⚠️ RETIRED — not deployed.** The dns-manager microservice was retired; `dns.vps1.ocoron.com` returns NXDOMAIN. DNS is now handled directly via the Cloudflare driver (`src/fabrik/drivers/cloudflare.py`). The historical service architecture below is kept for reference.
+
+**Why this approach:** Fabrik talks to the Cloudflare API directly via the driver — no separate DNS microservice to deploy or keep healthy.
 
 **Architecture:**
-- DNS Manager service runs at `https://dns.vps1.ocoron.com`
-- Handles DNS record creation/updates
-- No need for individual API keys per project
-
-**Local development only:**
-If running DNS Manager locally, you need direct provider API credentials (see `.env.example`).
+- ~~DNS Manager service runs at `https://dns.vps1.ocoron.com`~~ (retired)
+- Cloudflare driver handles DNS record creation/updates
+- Requires `CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ZONE_ID` (see `.env.example`)
 
 ### Backblaze B2
 
@@ -113,14 +112,14 @@ If running DNS Manager locally, you need direct provider API credentials (see `.
 **Architecture:** Three microservices orchestrate SEO-driven content generation:
 1. **SEO Service** (port 8016) — Keyword research, clustering, content briefs
 2. **TCO** (port 8025) — AI content generation from briefs
-3. **Image Broker** (port 18016) — Stock image selection (Pexels/Pixabay)
+3. ~~**Image Broker** (port 18016) — Stock image selection (Pexels/Pixabay)~~ — **RETIRED 2026-06-02** (not deployed; `images.vps1.ocoron.com` returns NXDOMAIN)
 
 **Environment variables:**
 - `SEO_API_URL` — SEO service endpoint (http://localhost:8016 or https://seo.vps1.ocoron.com)
 - `SEO_API_KEY` — Bearer token for SEO service authentication
 - `TCO_API_URL` — TCO service endpoint (http://localhost:8025)
 - `TCO_API_KEY` — Bearer token for TCO authentication
-- `IMAGE_BROKER_URL` — Image Broker endpoint (http://localhost:18016)
+- ~~`IMAGE_BROKER_URL` — Image Broker endpoint (http://localhost:18016)~~ — **RETIRED 2026-06-02** (image-broker no longer deployed)
 - `CONTENT_WORKER_ID` — Worker identifier for brief lifecycle tracking (default: fabrik-content-publisher)
 
 **WordPress credentials:** `WP_ADMIN_USER` and `WP_ADMIN_PASSWORD` are read by `deployer.py` for the REST API client (`WordPressAPIClient`). The domain is derived from the site spec — no `WP_SITE_URL` env var is needed. To target a different site, run with a different spec/site_id.
@@ -146,8 +145,8 @@ If running DNS Manager locally, you need direct provider API credentials (see `.
 **Development:** Use DNS Manager service (no local credentials needed)
 
 **Production options:**
-1. **DNS Manager service** (current) - Centralized, multi-provider
-2. **Cloudflare** (Phase 4+) - Better API, faster propagation, free tier
+1. **Cloudflare driver** (current) - Direct Cloudflare API via `src/fabrik/drivers/cloudflare.py`; fast propagation, free tier
+2. ~~**DNS Manager service**~~ — **RETIRED** (not deployed; `dns.vps1.ocoron.com` returns NXDOMAIN)
 
 **Migration path:** Set `CLOUDFLARE_*` vars, Fabrik auto-switches.
 
@@ -350,7 +349,9 @@ psql $DATABASE_URL
 docker exec -it myapp psql $DATABASE_URL
 ```
 
-### DNS Manager service 404
+### ~~DNS Manager service 404~~ (RETIRED — historical)
+
+> **⚠️ RETIRED — not deployed.** The dns-manager service was retired; `dns.vps1.ocoron.com` now returns NXDOMAIN (not a 404). DNS is handled directly via the Cloudflare driver (`src/fabrik/drivers/cloudflare.py`) — set `CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ZONE_ID`. The troubleshooting below is kept for historical reference only.
 
 **Cause:** Service not deployed or wrong URL.
 

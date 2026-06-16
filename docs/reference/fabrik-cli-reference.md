@@ -414,22 +414,18 @@ fabrik vps-sync [--dry-run]
 ## AI & content
 
 ```bash
-fabrik ai generate "<prompt>" [--provider claude|openai] [--model <name>] [--system "<sys>"]
-fabrik ai revise <file> "<instructions>" [--provider claude|openai] [--output <file>]
 fabrik ai usage [--month YYYY-MM] [--project <name>]
-fabrik content publish        # SEO → TCO → Image → WordPress pipeline
-fabrik seo job run <job-id> [--wait]
-fabrik seo briefs list <site-id> [--status <status>]
+fabrik seo job-run <job-id> [--wait]
+fabrik seo briefs-list <site-id> [--status <status>]
 ```
+
+> `fabrik ai generate` / `fabrik ai revise` were removed (2026-06-16); `usage` is the only `ai` subcommand. The `content` group remains registered but has no subcommands (`content publish` removed with `content_publisher.py`).
 
 | Command | Defined |
 |---|---|
-| `fabrik ai generate` | `cli.py:2010` |
-| `fabrik ai revise` | `cli.py:2040` |
-| `fabrik ai usage` | `cli.py:2065` |
-| `fabrik content publish` | `cli.py:2404` (group) |
-| `fabrik seo job run` | `cli.py:2491` |
-| `fabrik seo briefs list` | `cli.py:2516` |
+| `fabrik ai usage` | `cli.py:2117` |
+| `fabrik seo job-run` | `cli.py:2543` |
+| `fabrik seo briefs-list` | `cli.py:2568` |
 
 ---
 
@@ -491,8 +487,7 @@ See `/opt/wpf/AGENTS.md` and `/opt/wpf/docs/DEPLOYMENT.md` for the WP-specific a
 | `status`, `logs`, `app-logs` | `cli.py` directly + `drivers/ssh.py` |
 | `domain *` | `drivers/dns.py::DNSClient` |
 | `dev`, `review`, `import`, `export` | `dev_tools.py` + `portability.py` |
-| `ai *` | `ai_router.py` |
-| `content publish` | `orchestrator/content_publisher.py` |
+| `ai usage` | `ai/tracker.py::UsageTracker` |
 | `seo *` | `seo/` package |
 
 ---

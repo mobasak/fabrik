@@ -63,5 +63,5 @@ To manually update:
 To install all extensions on a new machine:
 ```bash
 # Copy the install commands above, or run:
-cat docs/reference/EXTENSIONS.md | grep "windsurf --install-extension" | bash
+cat docs/reference/windsurf/actively-used-windsurf-extensions.md | grep "windsurf --install-extension" | bash
 ```

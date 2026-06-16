@@ -81,7 +81,7 @@ The rest of this document covers the **host-level layer only**.
 │  └───────────────────────────────────────────┘              │
 │                                                             │
 │  Claude Code runs LOCALLY when triggered:                   │
-│  - queries Prometheus, Loki, Gatus, GlitchTip, Netdata    │
+│  - queries Prometheus, Loki, Gatus, GlitchTip             │
 │  - runs sudo docker stats/logs/restart/inspect              │
 │  - runs sudo bash scripts/audit/*.sh                        │
 │  - reads docs/infrastructure/*.md, specs/services/*.yaml   │
@@ -97,7 +97,7 @@ Claude Code reaches these from inside the Docker `fabrik` network via `sudo dock
 |---|---|---|
 | Prometheus | `prometheus:9090` | Container + host metrics, 13 alert rules, scrape target health |
 | Loki | `loki:3100` | All container logs — errors, stack traces, crash messages |
-| Grafana | `grafana:3000` | Dashboard + datasource health (8 dashboards, 2 datasources) |
+| Grafana | `grafana:3000` | Dashboard + datasource health (5 Fabrik dashboards (+3 community gcom imports), 2 datasources) |
 | Alertmanager | `alertmanager:9093` | Active firing alerts, silences |
 | Gatus | `gatus:8080` | Uptime status for 31 endpoints across 18 config files (verified 2026-06-17; was 33 before the `coolify`/`coolify-public` endpoints were removed) |
 | GlitchTip | `glitchtip-web:8000` | Application errors, unhandled exceptions |
@@ -646,8 +646,8 @@ Claude formats Telegram messages using these templates (enforced in system-promp
 🔍 Proactive Check
 
 📈 Disk trending: 29% → predicted 45% in 7 days
-📦 Top consumers: overlay2 28GB, Netdata cache 2.3GB
-💡 Netdata cache exceeds DBENGINE_DISK_SPACE_MB=512 setting
+📦 Top consumers: overlay2 28GB, Loki chunk cache 2.3GB
+💡 Loki cache exceeds the configured retention/storage budget
 🔕 No action taken — informational only.
 ```
 
@@ -925,7 +925,7 @@ Everything needed to rebuild the sysadmin bot from scratch:
 | Capacity planning | "At this growth rate, upgrade VPS in 3 months" | Only `predict_linear` for disk | Medium |
 | Post-incident review | Structured RCA, tracks recurrence, verifies fix stuck | Shift notes — no structured follow-up | Low |
 | Runbook evolution | "Last time X happened, Y didn't work, so now we do Z" | Playbooks are static in system prompt | Low |
-| Proactive maintenance | "Schedule Netdata cache cleanup for Sunday 3am" | Only reacts, doesn't propose scheduled work | Low |
+| Proactive maintenance | "Schedule Loki compaction for Sunday 3am" | Only reacts, doesn't propose scheduled work | Low |
 | Multi-VPS awareness | "This pattern happened on VPS2 last month" | Single VPS only | Future (when VPS2 exists) |
 
 ### Honest rating

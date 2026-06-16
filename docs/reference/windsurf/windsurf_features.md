@@ -183,7 +183,7 @@ Deploy web apps directly from Cascade to public URLs.
 | Free | 1 | 1 |
 | Pro | 10 | 5 |
 
-**Fabrik note:** For production, use Coolify on VPS. App Deploys for quick previews/demos only.
+**Fabrik note:** For production, use `fabrik apply` (SSH + Docker Compose) on the VPS — Coolify was decommissioned 2026-05-30. App Deploys for quick previews/demos only.
 
 ---
 

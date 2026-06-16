@@ -142,7 +142,7 @@ These workflows provide structured processes for common development tasks.
 - [ ] Health endpoint responds 200 on VPS
 - [ ] No error logs in Coolify dashboard
 
-**Key Feature:** Zero-downtime deployment via `fabrik apply` (SSH + Docker Compose) auto-deploy on `main` push.
+**Key Feature:** Deployment via `fabrik apply` / `fabrik redeploy` (SSH + Docker Compose). Note: `docker compose up -d` restarts containers, so this is **not** zero-downtime; the old Coolify "push to `main` auto-deploys" model no longer applies.
 
 ---
 

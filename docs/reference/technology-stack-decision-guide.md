@@ -33,7 +33,7 @@ These constraints are **mandatory** for all Fabrik projects. The generic flowcha
 | **Port ranges** | Python services: **8000–8099**. Frontend/Node.js: **3000–3099**. Register in `PORTS.md`. | `.windsurfrules`, `core/10-python.md`, `core/20-typescript.md` |
 | **No hardcoded config** | Never hardcode `localhost`, DB strings, API keys. Use `os.getenv()` / `process.env`. | `.windsurfrules`, `core/10-python.md`, `core/20-typescript.md` |
 | **Health endpoints** | Must test real dependencies (`SELECT 1`), not just return 200. | `.windsurfrules`, `core/10-python.md` |
-| **Networking** | Shared Docker network named `coolify` (`external: true`, kept post-migration for compatibility). VPS internal: `http://service-name:PORT`. | `core/30-ops.md` |
+| **Networking** | Shared Docker network named `fabrik` (`external: true`; renamed from `coolify` 2026-05-31 — `fabrik apply` rejects a compose declaring `coolify`). VPS internal: `http://service-name:PORT`. | `core/30-ops.md` |
 | **Existing services first** | Before building, check if a Fabrik microservice or prebuilt container already solves the need. | `AGENTS.md` § Mandatory Pre-Flight |
 | **Solo developer scope** | All architecture must be operable by one person (~50 hrs/week). No K8s, no polyglot backends. | `AGENTS.md` § Planning Constraints |
 
@@ -510,7 +510,7 @@ Fabrik is a **deployment orchestration platform** with AI-powered agent manageme
 | Infrastructure | **Docker Compose via `fabrik apply` (SSH + Docker Compose)** on x86_64 VPS | `compose.yaml` per project |
 | Database | **PostgreSQL 16** (shared) | VPS-managed `postgres-main` |
 | AI agent selection | **Kilo CLI** (model roster auto-updated daily) | `scripts/kilo-benchmarks/role_mapper.py` |
-| Monitoring | **Grafana + Prometheus + Loki + Alertmanager + Netdata + Gatus** (all active) | VPS services |
+| Monitoring | **Grafana + Prometheus + Loki + Alertmanager + Gatus** (all active) | VPS services |
 
 This differs from the generic guide's recommendation of "TypeScript monorepo + Go CLI" because Fabrik's backend logic (scaffold, sync, audit, orchestration) is Python-native and shares modules with the CLI.
 
