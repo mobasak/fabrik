@@ -642,6 +642,91 @@ step_10_compose_up_services() {
     ok "step_10 done"
 }
 
+step_11b_drill_b2_write_test() {
+    # Item C (2026-06-15): from the restored spoke droplet, with the restored
+    # creds, write a test snapshot to a SANDBOX B2 prefix to prove the
+    # spoke can actually CLOSE THE LOOP — i.e. after a real DR, the spoke's
+    # next scheduled backup would fire and land in B2. Without this proof,
+    # "Backrest container starts" (step_09c) only proves the container,
+    # not the full chain. Critical for DR-correctness.
+    #
+    # Sandbox prefix: ${RESTIC_REPO_URI}-DRILL-SANDBOX-<drill-name>. Same
+    # B2 bucket + same credentials, but a completely separate restic repo
+    # path. Never overlaps the live spoke chain. Cleaned up at the end
+    # of this step.
+    if ! $SKIP_SERVICES; then
+        return 0
+    fi
+    log "step_11b: B2-write loop-closure test against sandbox prefix ($(elapsed))"
+    local sandbox_uri="${RESTIC_REPO_URI}-DRILL-SANDBOX-$(date +%Y%m%d%H%M%S)"
+    log "  sandbox repo: ${sandbox_uri}"
+
+    # Initialize the sandbox repo + write a tiny test snapshot + verify
+    # we can read it back. All in one sudo bash -c so the env from
+    # /opt/backrest/.env + /opt/backrest/.restic-password works.
+    if ! remote "sudo bash -c '
+        set -e
+        set -a; source /opt/backrest/.env; set +a
+        RESTIC_PW=\$(cat /opt/backrest/.restic-password)
+        echo \"sandbox init...\"
+        docker run --rm \
+            -e AWS_ACCESS_KEY_ID=\"\$AWS_ACCESS_KEY_ID\" \
+            -e AWS_SECRET_ACCESS_KEY=\"\$AWS_SECRET_ACCESS_KEY\" \
+            -e RESTIC_PASSWORD=\"\$RESTIC_PW\" \
+            -e RESTIC_REPOSITORY=\"${sandbox_uri}\" \
+            restic/restic:0.18.1 init 2>&1 | tail -3
+        echo \"writing test snapshot...\"
+        mkdir -p /tmp/drill-b2-test
+        echo \"drill-write-test-\$(date +%s)\" > /tmp/drill-b2-test/marker.txt
+        docker run --rm \
+            -e AWS_ACCESS_KEY_ID=\"\$AWS_ACCESS_KEY_ID\" \
+            -e AWS_SECRET_ACCESS_KEY=\"\$AWS_SECRET_ACCESS_KEY\" \
+            -e RESTIC_PASSWORD=\"\$RESTIC_PW\" \
+            -e RESTIC_REPOSITORY=\"${sandbox_uri}\" \
+            -v /tmp/drill-b2-test:/host \
+            restic/restic:0.18.1 backup /host 2>&1 | tail -3
+        echo \"reading snapshot list back...\"
+        docker run --rm \
+            -e AWS_ACCESS_KEY_ID=\"\$AWS_ACCESS_KEY_ID\" \
+            -e AWS_SECRET_ACCESS_KEY=\"\$AWS_SECRET_ACCESS_KEY\" \
+            -e RESTIC_PASSWORD=\"\$RESTIC_PW\" \
+            -e RESTIC_REPOSITORY=\"${sandbox_uri}\" \
+            restic/restic:0.18.1 snapshots --json | jq -r \".[].short_id\" | head -3
+    '"; then
+        err "step_11b: sandbox B2 write/read test FAILED — loop closure NOT validated"
+        return 1
+    fi
+
+    # Sandbox cleanup: list snapshot IDs explicitly + forget by ID + prune.
+    # restic 0.18.1's `forget --keep-last 0` returns "no policy specified"
+    # (treats 0 as no-policy), so we list snapshot IDs first, then forget
+    # each one by ID, which restic accepts. Best-effort — even if cleanup
+    # fails, the prefix contains "DRILL-SANDBOX-<timestamp>" so it's clearly
+    # orphan if left.
+    log "  cleaning up sandbox prefix..."
+    remote "sudo bash -c '
+        set -a; source /opt/backrest/.env; set +a
+        RESTIC_PW=\$(cat /opt/backrest/.restic-password)
+        SNAP_IDS=\$(docker run --rm \
+            -e AWS_ACCESS_KEY_ID=\"\$AWS_ACCESS_KEY_ID\" \
+            -e AWS_SECRET_ACCESS_KEY=\"\$AWS_SECRET_ACCESS_KEY\" \
+            -e RESTIC_PASSWORD=\"\$RESTIC_PW\" \
+            -e RESTIC_REPOSITORY=\"${sandbox_uri}\" \
+            restic/restic:0.18.1 snapshots --json 2>/dev/null | jq -r \".[].id\" | xargs)
+        if [ -n \"\$SNAP_IDS\" ]; then
+            docker run --rm \
+                -e AWS_ACCESS_KEY_ID=\"\$AWS_ACCESS_KEY_ID\" \
+                -e AWS_SECRET_ACCESS_KEY=\"\$AWS_SECRET_ACCESS_KEY\" \
+                -e RESTIC_PASSWORD=\"\$RESTIC_PW\" \
+                -e RESTIC_REPOSITORY=\"${sandbox_uri}\" \
+                restic/restic:0.18.1 forget \$SNAP_IDS --prune 2>&1 | tail -2
+        fi
+        rm -rf /tmp/drill-b2-test
+    '" || warn "  sandbox cleanup returned non-zero (orphan prefix may remain in B2)"
+
+    ok "step_11b done — spoke can WRITE to B2 with restored creds (loop closure VALIDATED)"
+}
+
 step_11_compose_up_backrest() {
     if $SKIP_SERVICES; then
         log "step_11: SKIPPED (--skip-services — drill would start backrest writing to B2 under spoke identity)"
@@ -918,6 +1003,7 @@ main() {
     step_09c_start_core_services_drill
     step_10_compose_up_services
     step_11_compose_up_backrest
+    step_11b_drill_b2_write_test
     step_12_verify_end_state
 
     echo

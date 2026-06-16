@@ -4,6 +4,31 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — A/B/C tightening (2026-06-16): traefik own ACME, sysadmin-bot enable verify, B2 loop-closure
+
+After items 1/2/3 closed yesterday, three incremental gaps named: (A) traefik's own ACME flow is different code from bare certbot, (B) step_15 vps-sysadmin-bot was never empirically verified to enable from restored state, (C) Backrest container starting doesn't prove the spoke can WRITE to B2. Closing each:
+
+**B — vps-sysadmin-bot drill-mode enable + verify** (`bootstrap-hub.sh::step_15`):
+
+- Before enable: in drill mode (SKIP_MESH || SKIP_SERVICES), masks `TELEGRAM_BOT_TOKEN` + `TELEGRAM_OWNER_ID` in `/opt/fabrik/.env.sysadmin` with fake values (backup file `.before-drill` preserved). Bot will crash on first send attempt with the fake token — that's fine, we're validating "unit file from snapshot is structurally correct", not "bot stays running".
+- After enable: verifies `systemctl is-enabled vps-sysadmin-bot.service == enabled`.
+- Drill `dr-drill-hub-20260616-110303`: `is-enabled=enabled` ✓.
+
+**C — Backrest B2 write loop-closure** (`bootstrap-spoke-restore.sh::step_11b`):
+
+- The big missing claim: after spoke DR, the spoke's NEXT scheduled backup must actually fire → snapshot lands in B2 → next DR remains possible. step_09c only proved containers start.
+- New step_11b in drill mode (SKIP_SERVICES): inits a SANDBOX restic repo at `${RESTIC_REPO_URI}-DRILL-SANDBOX-${ts}`, writes a tiny test snapshot, reads it back via `restic snapshots`. Same B2 bucket + same restored credentials, separate prefix that never overlaps the live spoke chain.
+- Cleanup: lists snapshot IDs + `restic forget <id> --prune` (initial `--keep-last 0` rejected as "no policy"; fixed to forget-by-ID).
+- Drill `dr-drill-spoke-restore-20260616-110314`: sandbox init + test snapshot `0320c23c` written + read back. **Loop closure VALIDATED** — restored spoke creds CAN write to B2.
+
+**A — Traefik's own ACME-staging flow** (`bootstrap-hub.sh::step_17c`):
+
+- Bare certbot (step_17b) proves the ACME path works on this droplet+network. Step_17c proves traefik's own ACME implementation (Go-based lego) works against staging given a routable hostname — catches traefik-specific bugs that bare certbot would miss.
+- Generates a minimal traefik+whoami stack at `/tmp/drill-traefik/` using `caServer=https://acme-staging-v02.api.letsencrypt.org/directory`. HTTPS probe to the rewritten hostname triggers traefik's on-demand cert acquisition; verifies served chain has `(STAGING)` marker.
+- First attempt **failed** at quoting: outer `remote 'sudo bash -c "..."'` single-quotes meant `${DRILL_TEST_LE_STAGING}` never expanded on operator side, traefik saw `Host()` with empty args. Fix: placeholder `__HOST__` in the heredoc + `sed -i "s|__HOST__|...|g"` after writing — avoids the quote-layer cascade. Drill validation in flight at commit time.
+
+D (pg_dump fallback) skipped with rationale: C1 already empirically proves the postgres-data volume contains `glitchtip` + `site_provisioner`. step_14's fallback only fires if the volume comes up empty, which the current snapshot lineage has DEMONSTRATED won't happen.
+
 ### Changed — Docs/rules accuracy sweep: finish Coolify decommission + add `--target-vps` multi-host + spoke-restore/LE-DNS reference sync (2026-06-15)
 
 Studied all agent-rule files, rule packs, reference docs, and operations runbooks against the current repo and corrected the stale deploy/lifecycle picture that the prior Coolify→SSH migration left behind:

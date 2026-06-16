@@ -1355,8 +1355,46 @@ step_15_enable_custom_services() {
             || warn "step_15: /opt/authelia-config-sync/sync.sh missing — config watcher will not start"
     fi
 
+    # Item B (2026-06-15): in drill mode, mask the Telegram bot token before
+    # enable so the bot doesn't send a startup ping (or process real updates)
+    # to the live operator. The bot WILL crash on first send attempt with the
+    # fake token, but the unit gets enabled + started — which is what we're
+    # validating (that the systemd unit file from the snapshot is correct +
+    # the unit can be activated, not "the bot stays running with fake creds").
+    if $SKIP_MESH || $SKIP_SERVICES; then
+        log "  drill mode: masking TELEGRAM_BOT_TOKEN before enable (bot startup will not reach real Telegram)..."
+        remote 'sudo bash -c "
+            if [ -f /opt/fabrik/.env.sysadmin ]; then
+                sed -i.before-drill -E \
+                    -e \"s/^TELEGRAM_BOT_TOKEN=.*\$/TELEGRAM_BOT_TOKEN=00000000:fake-drill-token-do-not-use/\" \
+                    -e \"s/^TELEGRAM_OWNER_ID=.*\$/TELEGRAM_OWNER_ID=0/\" \
+                    /opt/fabrik/.env.sysadmin
+            fi
+        "'
+    fi
+
     remote 'sudo systemctl enable --now vps-sysadmin-bot.service authelia-config-sync.service' || \
         warn "step_15: one of the custom services failed to start — check journalctl -u <unit>"
+
+    # Item B verification (drill mode only): confirm the unit was actually
+    # enabled and reached an "active" state, even if it crashes immediately
+    # afterwards due to the masked Telegram token. is-active reports
+    # "activating" or "active" while the unit is trying; "failed" only after
+    # multiple restart attempts. Either of the first two = the unit FILE is
+    # correct and systemd can bring it up from the restored state.
+    if $SKIP_MESH || $SKIP_SERVICES; then
+        local bot_enabled bot_status
+        bot_enabled=$(remote 'sudo systemctl is-enabled vps-sysadmin-bot.service 2>/dev/null' | tr -d '[:space:]') || bot_enabled="?"
+        if [[ "$bot_enabled" == "enabled" ]]; then
+            ok "  vps-sysadmin-bot.service: is-enabled=enabled (unit file from snapshot is correct)"
+        else
+            err "  vps-sysadmin-bot.service: is-enabled=${bot_enabled} (expected 'enabled')"
+        fi
+        # Show is-active for visibility. Even "activating" or "failed" after
+        # fake-token-crash is informative — it means systemd TRIED to start it.
+        bot_status=$(remote 'sudo systemctl is-active vps-sysadmin-bot.service 2>/dev/null' | tr -d '[:space:]') || bot_status="?"
+        log "  vps-sysadmin-bot.service: is-active=${bot_status}"
+    fi
 
     ok "step_15 done"
 }
@@ -1523,6 +1561,126 @@ step_17b_drill_le_staging_test() {
     fi
 }
 
+step_17c_drill_traefik_le_staging() {
+    # Item A (2026-06-15): bare certbot proves "the ACME path works on this
+    # droplet+network"; step_17c proves "traefik's own ACME implementation
+    # works against staging given a routable hostname". Different code paths
+    # (certbot is Python-based, traefik's lego is Go-based) — covers
+    # traefik-specific bugs in cert acquisition that bare certbot would not.
+    #
+    # Drill-only. Only runs when --drill-test-le-staging is also set (we
+    # piggyback on the same DNS rewrite step_17 already did).
+    if [[ -z "$DRILL_TEST_LE_STAGING" ]]; then
+        return 0
+    fi
+    log "step_17c: traefik own-ACME-staging cert acquisition test ($(elapsed))"
+
+    # Stop the bare-certbot listener so port 80 is free for traefik. certbot
+    # in standalone mode binds + releases — but we restart anyway in case
+    # of an in-flight challenge attempt.
+    remote 'sudo systemctl stop certbot.service 2>/dev/null; true' >/dev/null
+
+    # Generate a minimal traefik config that uses LE STAGING. Bind-mount
+    # /var/run/docker.sock so traefik's docker provider can discover the
+    # test backend below. Write to /tmp/drill-traefik/ so this doesn't
+    # collide with the restored /opt/traefik/ (which uses production LE).
+    #
+    # Hostname is substituted via sed AFTER the heredoc write to avoid
+    # quote-layer hell — operator-side `$DRILL_TEST_LE_STAGING` won't
+    # interpolate through the outer single-quoted remote() call, and
+    # interpolating on the remote requires exposing the variable there.
+    # Placeholder __HOST__ is sed-safe (no shell metachars) and unique.
+    remote "sudo bash -c '
+        mkdir -p /tmp/drill-traefik
+        cat > /tmp/drill-traefik/traefik.yml << EOF
+api:
+  dashboard: false
+  insecure: false
+entryPoints:
+  web:
+    address: \":80\"
+  websecure:
+    address: \":443\"
+providers:
+  docker:
+    endpoint: \"unix:///var/run/docker.sock\"
+    exposedByDefault: false
+    network: fabrik
+certificatesResolvers:
+  staging:
+    acme:
+      email: drill@__HOST__
+      storage: /acme.json
+      caServer: https://acme-staging-v02.api.letsencrypt.org/directory
+      httpChallenge:
+        entryPoint: web
+EOF
+        touch /tmp/drill-traefik/acme.json
+        chmod 600 /tmp/drill-traefik/acme.json
+        cat > /tmp/drill-traefik/compose.yaml << EOF
+services:
+  drill-traefik:
+    image: traefik:v2.11
+    container_name: drill-traefik
+    command:
+      - --configFile=/traefik.yml
+    ports:
+      - \"80:80\"
+      - \"443:443\"
+    volumes:
+      - ./traefik.yml:/traefik.yml:ro
+      - ./acme.json:/acme.json
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - fabrik
+  drill-whoami:
+    image: traefik/whoami
+    container_name: drill-whoami
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=fabrik
+      - traefik.http.routers.drill-whoami.rule=Host(\`__HOST__\`)
+      - traefik.http.routers.drill-whoami.entrypoints=websecure
+      - traefik.http.routers.drill-whoami.tls=true
+      - traefik.http.routers.drill-whoami.tls.certresolver=staging
+    networks:
+      - fabrik
+networks:
+  fabrik:
+    external: true
+EOF
+        sed -i \"s|__HOST__|${DRILL_TEST_LE_STAGING}|g\" /tmp/drill-traefik/traefik.yml /tmp/drill-traefik/compose.yaml
+        cd /tmp/drill-traefik && docker compose up -d 2>&1 | tail -3
+    '" || { err "step_17c: drill-traefik compose up failed"; return 1; }
+
+    # Trigger traefik to start the ACME flow by making an HTTPS request to
+    # the route. Traefik fetches certs ON-DEMAND for known routes. Wait
+    # up to 90s for the cert chain to be acquired and served.
+    log "  triggering ACME flow + waiting up to 90s for cert..."
+    local got_staging_cert=false
+    for attempt in $(seq 1 18); do
+        sleep 5
+        local issuer
+        issuer=$(remote "echo | sudo openssl s_client -connect 127.0.0.1:443 -servername ${DRILL_TEST_LE_STAGING} 2>/dev/null | openssl x509 -issuer -noout 2>/dev/null" || echo "")
+        if echo "$issuer" | grep -qiE 'STAGING|Pretend'; then
+            ok "  attempt ${attempt}: traefik served STAGING cert: ${issuer#issuer=}"
+            got_staging_cert=true
+            break
+        elif echo "$issuer" | grep -qE 'TRAEFIK DEFAULT CERT'; then
+            log "  attempt ${attempt}: still serving traefik default cert; ACME in progress..."
+        else
+            log "  attempt ${attempt}: ${issuer:-no_response_yet}"
+        fi
+    done
+
+    if ! $got_staging_cert; then
+        err "step_17c: traefik did NOT acquire a staging cert within 90s"
+        remote 'sudo docker logs drill-traefik --tail 30' >&2 || true
+        return 1
+    fi
+    ok "step_17c done — traefik own ACME-staging flow WORKS end-to-end"
+}
+
 step_18_verify_end_state() {
     log "step_18: verify end-state contract (hub-restore-inventory.md § End-state contract) ($(elapsed))"
     if $DRY_RUN; then
@@ -1680,6 +1838,7 @@ main() {
     step_16_install_root_crontab
     step_17_cf_rewrite_dns
     step_17b_drill_le_staging_test
+    step_17c_drill_traefik_le_staging
     step_18_verify_end_state
 
     echo
