@@ -86,7 +86,7 @@ If the bootstrap fails partway and you need to re-run, the SSH login user change
 
 ## What `bootstrap-hub.sh` does, step by step
 
-The step functions run `step_00`..`step_18` plus two drill-oriented sub-steps `step_12b` (dry-validate restored configs) and `step_12c` (start core services in drill mode). Each prints `[ ok ]` on success, `[WARN]` on soft failure, `[FAIL]` + exit on hard failure. Confirm the current set with `grep -nE '^step_' scripts/bootstrap/bootstrap-hub.sh`.
+The step functions run `step_00`..`step_18` plus drill-oriented sub-steps: `step_12b` (dry-validate the configs the drill skips), `step_12c` (start core services in drill mode), and `step_17b`/`step_17c` (LE/DNS-cutover validation, gated on `--drill-test-le-staging`). Each prints `[ ok ]` on success, `[WARN]` on soft failure, `[FAIL]` + exit on hard failure. Confirm the current set with `grep -nE '^step_' scripts/bootstrap/bootstrap-hub.sh`.
 
 | # | Step | What | Notes |
 |---|---|---|---|
@@ -109,6 +109,26 @@ The step functions run `step_00`..`step_18` plus two drill-oriented sub-steps `s
 | 16 | replay root crontab | `crontab -u root /opt/backups/root-crontab.txt` (dumped nightly by pre-backup.sh) | `/var/spool/cron/crontabs` cannot be bind-mounted into Backrest's image, so the crontab is dumped to a file instead |
 | 17 | Cloudflare DNS rewrite (optional) | Only if `--cf-rewrite-dns <ip>` passed: PATCH every `vps1.ocoron.com`, `*.vps1.ocoron.com`, apex, and `www` A record to the new IP via CF API | Token from restored `.env`; safe to re-run (skips records already correct) |
 | 18 | verify end-state | The 7-check contract below | Hard-fails if any check fails so the operator notices |
+
+### Drill sub-steps (only run under the drill safety flags)
+
+These exist so the disposable `fabrik vultr drill hub` (which runs `--skip-services --skip-mesh`) still proves the RESTORED configs for the skipped steps would parse + run. A genuine non-drill rebuild proves the same things by actually running steps 08/13/15/17 immediately after.
+
+**`step_12b` — dry-validate the configs the drill skipped** (runs when `--skip-services` OR `--skip-mesh` is set). 7 c-dry checks:
+
+| Check | What | Catches |
+|---|---|---|
+| `[c-dry/1]` | `wg-quick strip wg0` parses `/etc/wireguard/wg0.conf` without bringing the interface up (only under `--skip-mesh`) | malformed WG conf — missing privkey, bad peer entry |
+| `[c-dry/2]` | `docker compose config -q` resolves every restored `/opt/*/compose.yaml` against its `.env` (only under `--skip-services`) | bad YAML, undefined env vars, malformed network refs |
+| `[c-dry/3]` | `systemd-analyze verify` on the restored units `vps-sysadmin-bot.service` + `authelia-config-sync.service` | syntactically invalid restored unit files |
+| `[c-dry/4]` | `python3 -m py_compile` on every `/opt/fabrik/scripts/sysadmin/*.py` | syntax errors from corrupted backup / version skew |
+| `[c-dry/5]` | `/opt/fabrik/.env` has all 4 critical keys present + non-empty: `B2_KEY_ID`, `B2_APPLICATION_KEY`, `BACKREST_RESTIC_PASSWORD`, `CLOUDFLARE_API_TOKEN` | partial-restore / wrong-snapshot |
+| `[c-dry/6]` | CF API smoke: `CLOUDFLARE_API_TOKEN` hits `GET /client/v4/zones` from the droplet (read-only, no mutations) | expired/revoked token, or no network egress to `api.cloudflare.com` — both required by step_17's DNS cutover |
+| `[c-dry/7]` | WG identity self-consistency: the `[Interface]PrivateKey` derives a valid pubkey via `wg pubkey`, and every `[Peer]` entry carries `PublicKey` + `AllowedIPs` (hub is server-side, so `Endpoint` is not required) | cryptographic/structural corruption that `wg-quick strip` alone would miss |
+
+**`step_12c` — drill-start core services** (`--drill-start-core-only`, only meaningful with `--skip-services`). Starts ONLY `postgres-main` + `redis-main` — pure local state, no B2/Telegram/Cloudflare writes. Under `--skip-mesh` it first creates a **dummy `wg0`** (`ip link add wg0 type dummy`, address `10.99.0.1/24`) so services that bind the mesh IP can come up (no WG protocol, no peer reach), torn down at the end. Then `pg_isready` + `redis-cli ping` prove the restored `postgres-data` + `redis_redis-data` volumes are bootable (and checks `glitchtip` + `site_provisioner` databases are present). The full `step_13` (all containers) and `step_18` (end-state contract) remain SKIPPED in drill mode.
+
+**`step_17b` / `step_17c` — LE/DNS-cutover validation** (gated on `--drill-test-le-staging <hostname>`, runs after step_17's DNS rewrite). `step_17b` waits 30s for DNS propagation, verifies the hostname resolves to the droplet, installs `certbot`, runs `certbot certonly --standalone --staging --preferred-challenges http-01`, then verifies the issuer is the LE **staging** CA (`(STAGING) Pretend Pear`/`Artificial Amaranth` family) — proving the ACME HTTP-01 cutover chain works end-to-end (a production issuer would flag a credentials misconfig). `step_17c` then proves traefik's OWN ACME (Go/lego — a different code path than bare certbot) acquires a staging cert too.
 
 ## End-state contract — must pass all 7
 
@@ -184,5 +204,16 @@ Hub DR went green live via the disposable `fabrik vultr drill hub`. The sweep ra
 
 - **Isolation flags:** `--skip-services --skip-mesh` are mandatory in drill mode so the throwaway never handshakes with vps2/vps3 using the restored vps1 WG key (which would overwrite the live spokes' peer endpoint) and never starts services bound to live infra. Under these flags the 7-check end-state contract (`step_18`) is SKIPPED by design; the drill relies on `step_12b` (config dry-validation) + `step_12c` (optional core-services-only start) instead.
 - **Real-rebuild wall-clock** (compose-up + cert issuance phases) is still only measured during a genuine non-drill rebuild — the disposable drill skips those phases, so the ≤ 90 min figure above remains the target for an actual same-/new-IP rebuild.
+
+### 2026-06-15 — LE/DNS cutover VALIDATED end-to-end
+
+The CF DNS rewrite (`step_17`) and Let's Encrypt cert acquisition path that real same-/new-IP rebuilds depend on were previously the unmeasured part of the DR story. Both are now validated against a throwaway Cloudflare sandbox zone (`tojlo.com`) + a fresh Vultr droplet, with `--cf-zone-id`/`--cf-zone-name` overriding production `ocoron.com` so zero production records are touched:
+
+| DR-validation row | Status | Run ID |
+|---|---|---|
+| CF DNS rewrite (`step_17`, `--cf-rewrite-dns`) | **VALIDATED 2026-06-15** — 3 records rewritten on the sandbox zone, reset on drill destroy | `dr-drill-hub-20260615-154530` |
+| LE cert acquisition (`step_17b`/`step_17c`, `--drill-test-le-staging`) | **VALIDATED 2026-06-15** — ACME HTTP-01 staging cert acquired (bare certbot + traefik's own lego), issuer verified `(STAGING)` | `dr-drill-hub-20260615-160819` |
+
+The LE/DNS cutover is no longer "deferred"/"not validated" — the full ACME HTTP-01 chain (rewrite DNS → resolve to droplet → :80 challenge → staging cert) ran green from a fresh droplet. Staging (not production) was used to avoid LE rate limits + account-DB pollution; the protocol path is identical, so a green staging acquisition proves the production path works.
 
 Drill reports append to `logs/dr-drill-history.jsonl` (gitignored, local-only). See also [`vps-spoke-rebuild.md`](vps-spoke-rebuild.md) § "DR / provisioning validation status" for the fleet-wide green status.

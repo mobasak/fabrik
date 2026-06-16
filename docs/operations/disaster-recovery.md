@@ -1,12 +1,12 @@
 # VPS Disaster Recovery Guide
 
-**Last Updated:** 2026-06-01 (DR-in-hours track shipped — `bootstrap-hub.sh` Path D is now the primary DR path; 4 Backrest plans live on B2)
+**Last Updated:** 2026-06-15 (Hub DR drill GREEN — RTO now MEASURED, not just targeted; LE/DNS cutover validated end-to-end via `fabrik vultr drill hub`)
 **Previous version:** 2025-12-22 (Duplicati/Coolify era — archived in git history)
-**Recovery Time Objective (RTO):** ≤90 min via Path D (`bootstrap-hub.sh`). Path A (VirtFusion image) ~60 min IF a recent snapshot exists.
+**Recovery Time Objective (RTO):** ≤90 min via Path D (`bootstrap-hub.sh`) — **now MEASURED, not just targeted:** Hub DR went GREEN on 2026-06-15 via the disposable `fabrik vultr drill hub` (first green `dr-drill-hub-20260615-111639`; drill #6 sweep ran 9 drills, fixed 6 bugs). The drill's restore-heavy path (provision → restic restore of host-state + /opt + all volumes) ran in 5m46s on a `vc2-4c-8gb`; the full ≤90 min budget still covers the compose-up + cert-issuance phases the drill skips. Path A (VirtFusion image) ~60 min IF a recent manual snapshot exists.
 **Recovery Point Objective (RPO):** up to 24 h on Path D (Backrest plans run nightly 02:00–03:30). Path A RPO = time since last manual snapshot.
 **Credential prerequisite for every path:** `BACKREST_RESTIC_PASSWORD` (and the rest of `/opt/fabrik/.env`) recoverable from the GitHub DR mirror — see [`credential-recovery.md`](credential-recovery.md). One-command recovery if dev WSL is gone: `gh repo clone mobasak/fabrik-dr-store /opt/fabrik-dr-store && sudo cp /opt/fabrik-dr-store/env/latest /opt/fabrik/.env`. Mirror is continuous via inotify + systemd (`fabrik-dr-watcher.service`).
 
-> **CURRENT STATE (2026-06-01):** 4 Backrest plans live on B2 (`postgres-dumps`, `docker-volumes`, `opt-configs`, `host-state`) since the DR-in-hours track shipped. First snapshots: 117 MiB compressed on B2 (612 MiB raw). Path D is the primary DR path. `bootstrap-hub.sh` exists end-to-end; drill on a throwaway VPS still pending — until drilled, RTO ≤90 min is a target, not measured.
+> **CURRENT STATE (2026-06-15):** 4 Backrest plans live on B2 (`postgres-dumps`, `docker-volumes`, `opt-configs`, `host-state`) since the DR-in-hours track shipped. First snapshots: 117 MiB compressed on B2 (612 MiB raw). Path D is the primary DR path. `bootstrap-hub.sh` is **drilled GREEN** on a throwaway Vultr droplet via `fabrik vultr drill hub` (first green `dr-drill-hub-20260615-111639`) — RTO is now MEASURED, no longer just a target. The drill runs `--skip-services --skip-mesh` for isolation; it additionally validates the restored configs the drill skips (`step_12b`), boots `postgres-main`+`redis-main` from the restored volumes (`step_12c`), and validates the CF-DNS-rewrite + LE-staging cert cutover against a sandbox zone (`step_17`/`17b`/`17c`).
 >
 > **Path A (VirtFusion) caveat — vendor confirmed 2026-06-01:** GreenCloud Senior Technician Tu Do Anh confirmed that VirtFusion **has no API for automated or scheduled snapshots** ("Your VPS currently only includes manual backup, which needs to be triggered through the control panel"). The paid backup add-on still goes through their panel for setup. **Path A is only available if the operator has manually clicked "snapshot" in the panel recently** — it's not a drilled or automated DR path. Treat Path A as a bonus shortcut for incidents that happen to fall after a manual snapshot, not as a reliable RPO/RTO commitment. **Path D is the only DR path that works without operator-recent-action.**
 
@@ -403,7 +403,7 @@ These are real gaps in DR posture — not theater.
 
 - **RESOLVED: Restic password + B2 keys are now stored off-VPS** in `/opt/fabrik/.env` on the dev machine (`BACKREST_RESTIC_PASSWORD`, `B2_KEY_ID`, `B2_APPLICATION_KEY` — saved 2026-05-31). The original single-point-of-failure ("only on vps1") is closed. **No rotation planned:** this is a single-operator dev environment; the credentials being copy-pasted into a private Claude Code session is not a realistic attack vector given the threat model (no third-party adversary, no shared account, agent acting on owner's behalf).
 - **HIGH: Cloudflare API token lives only on your dev machine** in `/opt/fabrik/.env`. Without it, can't update DNS during cutover. **Fix:** already off-vps (good); ensure your dev machine itself is backed up.
-- **MEDIUM: No quarterly drill.** v1 of this doc claimed "Testing Recovery: recommended quarterly" but no drill has ever been run. Untested DR is theoretical DR. **Fix:** W-DR D3 in the Platform-to-A+ plan books a real drill on a throwaway VPS.
+- **RESOLVED: DR is now drilled.** v1 of this doc claimed "Testing Recovery: recommended quarterly" but no drill had ever been run. As of 2026-06-15 Hub DR is GREEN via the disposable `fabrik vultr drill hub` — provisions a throwaway Vultr droplet, runs `bootstrap-hub.sh --skip-services --skip-mesh` against the latest DR snapshot, then always auto-destroys (one command, cost-capped, report to `logs/dr-drill-history.jsonl`). Operator-run quarterly. The CF-DNS + LE-staging cutover is drilled against a `tojlo.com` sandbox zone so no production records are touched. See [`../infrastructure/vps-hub-rebuild.md` § DR drill log](../infrastructure/vps-hub-rebuild.md).
 - **LOW: No second-region B2 bucket.** Single-region means a B2 us-west outage during a vps1 disaster = no restore. B2 multi-region failures are rare. **Fix:** W-DR D4 adds `rclone sync` to an eu-central B2 bucket weekly.
 - **LOW: DNS still on Cloudflare only.** If Cloudflare goes down, traffic can't move. Out of scope for this doc; covered in network-redundancy plans.
 - **NOT A REAL RISK: 3 world-readable `.env` files** on the host (browserless, gotenberg, meilisearch). Single-operator VPS, no other users. Cosmetic only. See W-Sec in the Platform-to-A+ plan; deprioritized after threat-model review.
@@ -412,7 +412,7 @@ These are real gaps in DR posture — not theater.
 
 ## Full hub restore — Path D (bootstrap-hub.sh)
 
-**Status:** Primary DR path. Replaces Path B's manual sequence. Drilled separately — see [`hub-restore-inventory.md` § End-state contract](hub-restore-inventory.md).
+**Status:** Primary DR path. Replaces Path B's manual sequence. **Drilled GREEN 2026-06-15** via the disposable `fabrik vultr drill hub` — see [`hub-restore-inventory.md` § Drill safety contract](hub-restore-inventory.md) and [`../infrastructure/vps-hub-rebuild.md` § DR drill log](../infrastructure/vps-hub-rebuild.md). The CF-DNS-rewrite + Let's Encrypt cert cutover (`step_17`/`17b`/`17c`) is validated against a sandbox zone, so the new-IP DR path is no longer the unmeasured part of the story.
 
 **Target wall-clock:** ≤ 90 min on a 100 Mbit pipe between dev WSL and the new VPS. Most of the time is image pulls (step 13) + B2 bandwidth for the docker-volumes snapshot (~599 MiB) + initial Let's Encrypt cert issuance.
 
@@ -472,15 +472,21 @@ Failure of any item = drill failed = bootstrap-hub.sh has a gap. Re-open against
 | `--verify` | Read-only preflight only. Confirms env source, B2 reachability, target SSH. |
 | `--snapshot <ID>` | Use a specific restic snapshot (default `latest`). For point-in-time restores. |
 | `--env-from <path>` | Override `/opt/fabrik-dr-store/env/latest`. For test runs with a synthetic env. |
-| `--cf-rewrite-dns <new-ip>` | Update every `*.vps1.ocoron.com` A record. Skip if same IP. |
-| `--skip-services` | Stop after step 12 (host restored, no containers started). For debugging restore steps. |
+| `--cf-rewrite-dns <new-ip>` | Update every `*.vps1.ocoron.com` A record (+ apex + `www`). Skip if same IP. Also the DR DNS cutover that `step_17b`/`17c` validate. |
+| `--skip-services` | Stop before `docker compose up -d` (step_13) — host + configs restored, no app containers started. Drill-isolation (Backrest must not write to the live B2 chain) + debugging restore steps. |
+| `--skip-mesh` | Skip `wg-quick@wg0` bring-up (step_08). Drill-isolation: bringing the mesh up with the restored vps1 key would make vps2/vps3 re-point their peer endpoint at the drill IP and break the live mesh on destroy. |
+| `--skip-local-b2-check` | Skip preflight #6's operator-side `restic snapshots` query. From a network where B2's us-west-004 endpoint is blocked (e.g. Turkish ISPs), this saves ~10 min of retries — the actual restore runs on the target droplet, which has unblocked routing. |
+| `--drill-start-core-only` | (Drill, with `--skip-services`) start ONLY `postgres-main` + `redis-main` to prove the restored volumes are bootable (`step_12c`). Under `--skip-mesh` it creates a dummy `wg0` so mesh-IP binds succeed. |
+| `--drill-test-le-staging <hostname>` | (Drill, after `--cf-rewrite-dns`) run `step_17b`/`17c`: acquire an ACME HTTP-01 **staging** cert (bare certbot + traefik's own lego) for the rewritten hostname and verify the `(STAGING)` issuer — validates the LE/DNS cutover chain end-to-end. |
+
+> The five drill flags above are how the disposable `fabrik vultr drill hub` invokes `bootstrap-hub.sh` safely; a real same-/new-IP rebuild uses none of them (it runs every step for real). Confirm the full set with `bootstrap-hub.sh --help`.
 
 **Logging:** script tees the full run to `/tmp/bootstrap-hub-<TS>.log` on the dev machine. Keep this file from each drill — it's the only way to find which step took longest.
 
 **What the script does NOT do:**
 
 - Provision the VPS (still manual via GreenCloudVPS panel — ~5 min).
-- Re-issue Let's Encrypt certs (handled automatically by Traefik on first request to `https://*.vps1.ocoron.com` after start; ~5 min for first cert, rate-limit safe because `acme.json` IS in the `opt-configs` snapshot so re-issuance is usually skipped).
+- Re-issue Let's Encrypt certs (handled automatically by Traefik on first request to `https://*.vps1.ocoron.com` after start; ~5 min for first cert, rate-limit safe because `acme.json` IS in the `opt-configs` snapshot so re-issuance is usually skipped). The ACME HTTP-01 cutover chain itself (after a `--cf-rewrite-dns` to a new IP) is validated in drill mode by `step_17b`/`17c` against LE **staging**.
 - Bring back spokes (vps2 + vps3 keep running through the hub outage; mesh reconverges automatically once `wg-quick@wg0` comes up on the rebuilt hub).
 - Authenticate Claude Code (manual: `claude auth login` once, post-bootstrap, before the sysadmin bot can make real LLM calls).
 

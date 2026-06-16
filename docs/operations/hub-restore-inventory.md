@@ -1,6 +1,7 @@
 # Hub Restore Inventory — what `bootstrap-hub.sh` must put back
 
 **Created:** 2026-06-01 (Step 1 of Option B — DR-in-hours track)
+**Last Updated:** 2026-06-15 (G5: `iptables-persistent` dropped; drill now exercises `step_12b` config dry-validate + `step_12c` postgres/redis boot + `step_17b`/`17c` LE-staging cutover — LE/DNS cutover VALIDATED end-to-end)
 **Purpose:** Evidence-based path list of everything on vps1 that must be restored from backup before services can come up. Built from live probes of running vps1, not from memory or assumption. Drives both:
 
 - Backrest plan scope (which paths the `host-state` + `opt-configs` plans must cover)
@@ -22,7 +23,7 @@ Verified live on vps1 (2026-06-01):
 | Docker Compose | v2.40.3 | apt `docker-compose-plugin` |
 | wireguard-tools | 1.0.20210914 | apt `wireguard` |
 | iptables | 1.8.10 (nft backend) | apt (default on 24.04) |
-| iptables-persistent | — | apt (provides `netfilter-persistent`) |
+| ~~iptables-persistent~~ | — | **G5: NO LONGER INSTALLED.** On Ubuntu 24.04 it declares `Conflicts: ufw` and apt refuses both in one command. DOCKER-USER + OpenVPN persistence is now provided by the custom `iptables-docker-user.service` + `iptables-openvpn.service` units (restored from snapshot, enabled in step 09). `netfilter-persistent` is only present/enabled on legacy pre-G5 hubs. |
 | UFW | 0.36.2 | apt |
 | fail2ban | 1.0.2 | apt |
 | Python | 3.12.3 | apt (default on 24.04) |
@@ -177,16 +178,17 @@ The drill orchestrator (`src/fabrik/orchestrator/vultr_drill._validate_hub`) MUS
 
 step_18's contract check (`docs/operations/hub-restore-inventory.md` § End-state contract above) cannot run meaningfully under these flags (mesh down, services down). `bootstrap-hub.sh::step_18_verify_end_state` short-circuits to `ok "step_18 SKIPPED"` when `$SKIP_SERVICES || $SKIP_MESH` (bug #12, drill #6g 2026-06-15).
 
-### What the drill DOES validate (steps 00 → 12 + 14–17 unchanged)
+### What the drill DOES validate
 
-The slow part — provision → SSH → harden → docker → fetch env → restic restore of host-state + /opt + every Docker volume. That's where unknown-unknown bugs surface, and that's the part Hub DR Drill #6 sweep validated end-to-end on 2026-06-15 in 5m46s wall on a `vc2-4c-8gb`.
+- **The slow part** — provision → SSH → harden → docker → fetch env → restic restore of host-state + /opt + every Docker volume. That's where unknown-unknown bugs surface, and that's the part Hub DR Drill #6 sweep validated end-to-end on 2026-06-15 in 5m46s wall on a `vc2-4c-8gb`.
+- **`step_12b` — config dry-validation** (7 c-dry checks): `wg0.conf` parses (`wg-quick strip`); every restored `compose.yaml` resolves (`docker compose config`); restored systemd units parse (`systemd-analyze`); sysadmin python scripts `py_compile`; `/opt/fabrik/.env` has the 4 critical keys (`B2_KEY_ID`, `B2_APPLICATION_KEY`, `BACKREST_RESTIC_PASSWORD`, `CLOUDFLARE_API_TOKEN`); CF token smoke (`GET /client/v4/zones` from the droplet); WG identity self-consistency (privkey→pubkey + every peer has `PublicKey`+`AllowedIPs`).
+- **`step_12c` — core-service boot** (`--drill-start-core-only`): starts ONLY `postgres-main` + `redis-main` (pure local state), creating a dummy `wg0` (10.99.0.1) under `--skip-mesh` so mesh-IP binds work; `pg_isready` + `redis-cli ping` prove the restored `postgres-data` + `redis_redis-data` volumes are bootable, and `glitchtip`+`site_provisioner` databases are present.
+- **`step_17`/`step_17b`/`step_17c` — LE/DNS cutover** (`--cf-rewrite-dns` + `--drill-test-le-staging`, drilled against the `tojlo.com` sandbox zone, never `ocoron.com`): CF DNS rewrite green (`dr-drill-hub-20260615-154530`); ACME HTTP-01 staging cert acquired via bare certbot AND traefik's own lego, issuer verified `(STAGING)` (`dr-drill-hub-20260615-160819`). **LE/DNS cutover VALIDATED end-to-end.**
 
 ### What the drill does NOT validate (gap)
 
-- step_08 — wg-quick@wg0 bring-up, peer handshakes with vps2/vps3
-- step_13 — `docker compose up -d` per `_REGISTRAR_ORDER`, container start
-- step_14 — pg_dump fallback (only fires if postgres-data volume was empty)
-- step_15 — `vps-sysadmin-bot` start + /health probe
-- step_17 — Cloudflare DNS A-record rewrite
-
-Real DR confidence requires a non-drill exercise of these on disposable hardware (probably an isolated WireGuard config + throwaway Cloudflare DNS subdomain). Not done yet (2026-06-15).
+- step_08 — `wg-quick@wg0` bring-up + live peer handshakes with vps2/vps3 (skipped by design under `--skip-mesh`; `step_12b [c-dry/1]`+`[c-dry/7]` validate the restored config + key identity instead)
+- step_13 — full `docker compose up -d` of ALL stacks in dep order (only `postgres-main` + `redis-main` are started, by `step_12c`; the rest are skipped under `--skip-services`)
+- step_14 — pg_dump fallback (only fires if the `postgres-data` volume came up empty, which `step_12c` has demonstrated it does not)
+- step_15 — `vps-sysadmin-bot` start + `/health` probe (drill-mode `step_15` masks the Telegram creds and verifies `systemctl is-enabled`, but does not prove the bot answers live)
+- step_18 — the 7-check end-state contract (short-circuits to a skip under `--skip-services || --skip-mesh`)

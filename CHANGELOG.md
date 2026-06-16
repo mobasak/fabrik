@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Hub DR docs synced to the now-green drill (2026-06-16): step_12b/12c/17b/17c + LE/DNS cutover VALIDATED
+
+Completed the hub half of the docs-accuracy sweep that `984bd02` held pending the peer AI's `bootstrap-hub.sh` work (now landed in `52988ac`/`cc4b51f`). Verified every claim against the current script + CHANGELOG:
+
+- **`docs/infrastructure/vps-hub-rebuild.md`** — added a "Drill sub-steps" section: the `step_12b` c-dry/1–7 table (wg0 parse, compose resolve, systemd-analyze, py_compile, 4 critical `.env` keys, CF `/zones` API smoke, WG identity self-consistency), `step_12c` core-service boot (`--drill-start-core-only`, dummy-`wg0`, `pg_isready`/`redis-cli ping`), and the `step_17b`/`17c` LE-staging narrative. Added a DR-validation matrix flipping CF-DNS-rewrite + LE-cert rows to **VALIDATED 2026-06-15** with run IDs.
+- **`docs/operations/hub-restore-inventory.md`** — §A `iptables-persistent` row corrected (G5: no longer installed; `Conflicts: ufw`; persistence via `iptables-docker-user.service`); refreshed the drill DOES/does-NOT-validate lists to credit `step_12b`/`12c`/`17b`/`17c`.
+- **`docs/operations/disaster-recovery.md`** — RTO flipped from "target" to **MEASURED** (Hub DR green 2026-06-15, 5m46s restore path); "no drill ever run" → drilled GREEN via `fabrik vultr drill hub`; Path D flags table completed with all 5 drill flags (`--skip-mesh`, `--skip-local-b2-check`, `--drill-start-core-only`, `--cf-rewrite-dns`, `--drill-test-le-staging`); LE/DNS cutover narrative validated against the `tojlo.com` sandbox zone.
+
+This closes the docs-accuracy sweep across the whole agent-rule + reference + operations + infrastructure surface.
+
 ### Added — A/B/C tightening (2026-06-16): traefik own ACME, sysadmin-bot enable verify, B2 loop-closure
 
 After items 1/2/3 closed yesterday, three incremental gaps named: (A) traefik's own ACME flow is different code from bare certbot, (B) step_15 vps-sysadmin-bot was never empirically verified to enable from restored state, (C) Backrest container starting doesn't prove the spoke can WRITE to B2. Closing each:
