@@ -21,17 +21,6 @@ endpoints:
         failure-threshold: 1
         send-on-resolved: true
 
-  - name: coolify
-    group: core
-    url: "http://coolify:8000/api/health"
-    interval: 60s
-    conditions:
-      - "[STATUS] < 500"
-    alerts:
-      - type: custom
-        failure-threshold: 2
-        send-on-resolved: true
-
   - name: n8n
     group: core
     url: "http://n8n:5678/healthz"

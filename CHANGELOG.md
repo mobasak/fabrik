@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Removed — Coolify/vps4 live-infra residue (2026-06-17)
+
+Decommissioned-Coolify and dead-test-machine leftovers were still live in monitoring and DNS. Cleaned end-to-end:
+
+- **Gatus:** dropped the `coolify` (`core/infra.yaml` → `http://coolify:8000/api/health`) and `coolify-public` (`external/public.yaml` → `https://coolify.vps1.ocoron.com`) endpoints — Coolify was decommissioned 2026-05-30, so these were perpetually-failing false-alert sources. Synced to vps1 via `scripts/sync_gatus_to_vps.sh --push` (gatus restarted; `--diff` now reports in sync, 18 files). The `coolify` Docker *network* name is unaffected (legacy, still in use).
+- **DNS:** deleted the two orphan Cloudflare A-records `vps4.ocoron.com` and `*.vps4.ocoron.com` (→ `45.77.68.63`, a destroyed test box not in the 3-VPS fleet). Zone went 35 → 33 records.
+- **vps1 disk:** removed 8 stale `prometheus.yml.bak-*` backups under `/opt/monitoring/configs/prometheus/` (2026-05-30 … 2026-06-13); the active `prometheus.yml` is untouched.
+
 ### Removed — dead direct-API `LLMClient` from the AI module (2026-06-17)
 
 `src/fabrik/ai/` previously shipped an `LLMClient` that called the Anthropic and OpenAI HTTP APIs directly via `x-api-key`/`Authorization`, exposed as `fabrik ai generate` / `fabrik ai revise`, requiring `ANTHROPIC_API_KEY` / `OPENAI_API_KEY`. That path was unused and contradicted how Fabrik actually does AI — the canonical contract in `spec_loader` is `llm_provider: claude-code | openrouter` (Claude Code subscription OAuth for the operational stack; OpenRouter for content/LLM fallback). Removed to make the code reflect reality.

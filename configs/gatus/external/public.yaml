@@ -1,16 +1,4 @@
 endpoints:
-  - name: coolify-public
-    group: external
-    url: "https://coolify.vps1.ocoron.com"
-    interval: 5m
-    conditions:
-      - "[STATUS] < 500"
-      - "[CERTIFICATE_EXPIRATION] > 168h"
-    alerts:
-      - type: custom
-        failure-threshold: 2
-        send-on-resolved: true
-
   - name: status-page
     group: external
     url: "https://status.vps1.ocoron.com"
