@@ -169,7 +169,7 @@ Reference path used by automation: `scripts/proof_run.py` lines 410–423 demons
 
 ## Backup Issues (Backrest)
 
-> **2026-04-17 migration:** Duplicati was replaced by Backrest at `backup.vps1.ocoron.com`. Backrest is restic-based with Backblaze B2 as the remote. Old Duplicati troubleshooting was archived to `docs/archive/2026-04-28-duplicati-setup.md`. For Backrest operations, see Backrest's web UI and `docs/operations/backup-strategy.md`.
+> **2026-04-17 migration:** Duplicati was replaced by Backrest at `backup.vps1.ocoron.com`. Backrest is restic-based with Backblaze B2 as the remote. Old Duplicati troubleshooting was archived to `docs/archive/2026-04-28-duplicati-setup.md`. For Backrest operations, see Backrest's web UI and `docs/operations/disaster-recovery.md`.
 
 ## Getting Help
 

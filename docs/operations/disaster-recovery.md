@@ -1,6 +1,6 @@
 # VPS Disaster Recovery Guide
 
-**Last Updated:** 2026-06-15 (Hub DR drill GREEN — RTO now MEASURED, not just targeted; LE/DNS cutover validated end-to-end via `fabrik vultr drill hub`)
+**Last Updated:** 2026-06-16 (backup-state section corrected to 4 live plans + root-crontab gap resolved; Hub DR drill GREEN — RTO now MEASURED, not just targeted; LE/DNS cutover validated end-to-end via `fabrik vultr drill hub`)
 **Previous version:** 2025-12-22 (Duplicati/Coolify era — archived in git history)
 **Recovery Time Objective (RTO):** ≤90 min via Path D (`bootstrap-hub.sh`) — **now MEASURED, not just targeted:** Hub DR went GREEN on 2026-06-15 via the disposable `fabrik vultr drill hub` (first green `dr-drill-hub-20260615-111639`; drill #6 sweep ran 9 drills, fixed 6 bugs). The drill's restore-heavy path (provision → restic restore of host-state + /opt + all volumes) ran in 5m46s on a `vc2-4c-8gb`; the full ≤90 min budget still covers the compose-up + cert-issuance phases the drill skips. Path A (VirtFusion image) ~60 min IF a recent manual snapshot exists.
 **Recovery Point Objective (RPO):** up to 24 h on Path D (Backrest plans run nightly 02:00–03:30). Path A RPO = time since last manual snapshot.
@@ -25,7 +25,7 @@
 
 ## What's currently being backed up
 
-Verified against current Backrest state (28 containers, 3 active plans).
+Verified against current Backrest state (31 containers; 4 active plans on the hub repo `b2-vps1`, 2 per spoke).
 
 ### Backup System (current state)
 
@@ -34,24 +34,20 @@ Verified against current Backrest state (28 containers, 3 active plans).
 - **Repository password:** stored in `/opt/backrest/config/config.json` AND in `/opt/fabrik/.env` on the dev machine as `BACKREST_RESTIC_PASSWORD` (saved 2026-05-31 — closes the "only-on-vps1" DR weakness).
 - **B2 credentials:** `AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY` in `/opt/backrest/.env` on the VPS AND in `/opt/fabrik/.env` on the dev machine as `B2_KEY_ID` / `B2_APPLICATION_KEY` (already there before today).
 - **Storage backend:** Backblaze B2 (S3-compatible endpoint `s3.us-west-004.backblazeb2.com`).
-- **Bucket:** `vps1-ocoron-backups` — **EMPTY as of 2026-05-31 01:15 UTC** (intentional wipe; bucket itself preserved for reuse).
-- **Repository layout:** single restic repo `b2-vps1` defined in Backrest config; bucket contents wiped, so the repo is structurally absent on B2 and would need a `restic init` before next use.
-- **Active plans:** **0** (all 8 prior plans deleted — 3 active + 5 stale test plans).
+- **Bucket:** `vps1-ocoron-backups` — **holds snapshots** (~117 MiB compressed; 612 MiB raw on first run). Not empty.
+- **Repository layout:** single restic repo `b2-vps1` defined in Backrest config, initialised and live on B2.
+- **Active plans:** **4** on the hub repo `b2-vps1` (see below); each spoke (vps2/vps3) runs **2** plans (`host-state`, `opt-configs`).
 
 ### Active backup plans
 
-**None.** All plans were deleted on 2026-05-31. When backups are reconfigured, the previous design (kept here for reference) was:
+Four plans live on the hub repo `b2-vps1`, run nightly 02:00–03:30:
 
-- **`postgres-dumps`** — source: `/opt/backups/pg_dump_*.sql` (nightly pg_dump on the host) — daily 02:00.
-- **`docker-volumes`** — source: all named Docker volumes in `/var/lib/docker/volumes/` — daily 03:30.
-- **`opt-configs`** — source: `/opt/<svc>/compose.yaml` + `/opt/<svc>/.env` for every service — daily 03:00.
-- **`_system_`** — Backrest housekeeping (prune/check) — daily 04:00.
+- **`postgres-dumps`** — source: `/opt/backups/pg_dump_*.sql` (nightly pg_dump on the host).
+- **`docker-volumes`** — source: the restore-critical named Docker volumes in `/var/lib/docker/volumes/`.
+- **`opt-configs`** — source: `/opt/<svc>/` directories (compose + env + bind-mount configs), `fabrik/.git` excluded. Also carries `/opt/backups/root-crontab.txt` (the dumped root crontab — see Path D replay).
+- **`host-state`** — source: host-level state (`/etc/wireguard`, `/etc/iptables`, `/etc/ufw`, systemd units, sudoers, sysctl, cron, SSH keys, `zellij`). ~25 KB.
 
-Known issues with that design (to fix when reconfiguring):
-
-- Apprise failure-notification webhook used the old Coolify-era UUID-suffix hostname `apprise-lcocgs4gs8ksg4g08w40ows8:8000` — broken after the W1 container-rename. Failure alerts never reached Telegram. **Fix:** use `apprise:8000` in the new hooks.
-- `postgres-dumps` had a 44 % failure rate over 30 d (32 fail / 40 ok). Likely race with the host's nightly `pg_dump` cron. **Fix:** ensure pg_dump cron completes before 02:00, or trigger the Backrest snapshot from a post-dump hook instead of a separate cron.
-- 5 stale test plans (`fabrik-e2e-test-data`, `fabrik-smoke-test-data`, etc.) ran on schedule against deleted data and dragged the success rate down. They were deleted in the 2026-05-31 wipe.
+Each spoke (vps2/vps3) runs the **`host-state`** + **`opt-configs`** plans only (no Postgres/Docker-volume payload of their own to protect at hub scale).
 
 ### What is NOT backed up (deliberately)
 
@@ -66,7 +62,7 @@ Known issues with that design (to fix when reconfiguring):
 
 ## Current service inventory (what you must restore)
 
-28 containers across 9 logical groups. Order matters during restore (dependencies first).
+31 containers across 9 logical groups. Order matters during restore (dependencies first).
 
 ### Layer 1 — Front door + auth (start FIRST)
 
@@ -125,7 +121,7 @@ Known issues with that design (to fix when reconfiguring):
 4. **Verify on the host** (from your dev machine):
 
    ```bash
-   ssh vps "sudo docker ps --format '{{.Names}}\t{{.Status}}' | wc -l"   # expect 29 (header + 28)
+   ssh vps "sudo docker ps --format '{{.Names}}\t{{.Status}}' | wc -l"   # expect 32 (header + 31)
    ssh vps "sudo docker ps --filter status=exited --format '{{.Names}}'"  # expect empty
    ssh vps "sudo systemctl is-active fail2ban docker sshd"                # expect: active active active
    ssh vps "sudo docker exec prometheus wget -qO- http://localhost:9090/-/healthy"
@@ -225,7 +221,7 @@ export RESTIC_REPOSITORY='s3:s3.us-west-004.backblazeb2.com/vps1-ocoron-backups'
 export RESTIC_PASSWORD='<from password manager>'
 
 # Verify
-restic snapshots | head -20   # expect ~27 snapshots
+restic snapshots | head -20   # (count grows daily; not a fixed number)
 ```
 
 ### Step 6 — Restore `/opt/*` configs (~15 min)
@@ -357,7 +353,7 @@ cf.ensure_record(domain='vps1.ocoron.com', record_type='A', content=os.environ['
 ### Step 11 — Verify (~10 min)
 
 ```bash
-ssh vps "sudo docker ps --format '{{.Names}}\t{{.Status}}' | wc -l"  # expect ~29
+ssh vps "sudo docker ps --format '{{.Names}}\t{{.Status}}' | wc -l"  # expect ~32 (header + 31)
 ssh vps "sudo docker exec prometheus wget -qO- http://localhost:9090/-/healthy"
 ssh vps "sudo docker exec postgres-main pg_isready -U postgres"
 ssh vps "sudo docker exec redis-main redis-cli ping"
@@ -376,7 +372,7 @@ PATH A (VirtFusion image):
 [ ] Shutdown via UI
 [ ] Restore image
 [ ] Power On
-[ ] ssh vps && verify 28 containers
+[ ] ssh vps && verify 31 containers
 [ ] Confirm Backrest schedule
 
 PATH B (B2 cold restore):
@@ -407,7 +403,7 @@ These are real gaps in DR posture — not theater.
 - **LOW: No second-region B2 bucket.** Single-region means a B2 us-west outage during a vps1 disaster = no restore. B2 multi-region failures are rare. **Fix:** W-DR D4 adds `rclone sync` to an eu-central B2 bucket weekly.
 - **LOW: DNS still on Cloudflare only.** If Cloudflare goes down, traffic can't move. Out of scope for this doc; covered in network-redundancy plans.
 - **NOT A REAL RISK: 3 world-readable `.env` files** on the host (browserless, gotenberg, meilisearch). Single-operator VPS, no other users. Cosmetic only. See W-Sec in the Platform-to-A+ plan; deprioritized after threat-model review.
-- **LOW: root crontab is not in the host-state snapshot.** `bootstrap-hub.sh::step_16` replays root's crontab from `/opt/backups/root-crontab.txt`, but that file isn't currently produced — vps1's `pre-backup.sh` doesn't dump `/var/spool/cron/crontabs/root` before each Backrest run. step_16 silently emits `[WARN] /opt/backups/root-crontab.txt not found — no crontab to replay (was the backup taken before this file was added?)` and continues. **Impact:** any cron jobs scheduled directly via `crontab -e` (not `/etc/cron.d/`) would be missing post-DR. Currently the only cronjob is `pre-backup.sh` itself (in `/etc/cron.d/vps-sysadmin`, restored by the host-state snapshot), so the practical loss is zero today. **Fix:** add one line to vps1's `/opt/backups/pre-backup.sh` (`crontab -l > /opt/backups/root-crontab.txt 2>/dev/null || :`) so the next snapshot carries it.
+- **RESOLVED: root crontab is replayed post-DR.** The chain is live on the host: `/opt/backups/pre-backup.sh` (lines 34-35) runs `crontab -u root -l > /opt/backups/root-crontab.txt` every night before the Backrest run; that file rides in the `opt-configs` plan; and `bootstrap-hub.sh::step_16_install_root_crontab` (line 1402) replays it via `sudo crontab -u root /opt/backups/root-crontab.txt`. The live file exists (74 B: `30 1 * * * /opt/backups/pre-backup.sh`). Any cron job scheduled directly via `crontab -e` is now captured and restored. (A known-gaps entry was added in commit edf4b35 describing this as an open gap, but the dump line was already live on the host — the gap was never real.)
 
 ---
 

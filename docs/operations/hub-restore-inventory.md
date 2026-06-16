@@ -1,7 +1,7 @@
 # Hub Restore Inventory — what `bootstrap-hub.sh` must put back
 
 **Created:** 2026-06-01 (Step 1 of Option B — DR-in-hours track)
-**Last Updated:** 2026-06-15 (G5: `iptables-persistent` dropped; drill now exercises `step_12b` config dry-validate + `step_12c` postgres/redis boot + `step_17b`/`17c` LE-staging cutover — LE/DNS cutover VALIDATED end-to-end)
+**Last Updated:** 2026-06-16 (§B root-crontab row corrected: dumped to `/opt/backups/root-crontab.txt` + replayed by step_16, not restored verbatim from `/var/spool`; G5: `iptables-persistent` dropped; drill now exercises `step_12b` config dry-validate + `step_12c` postgres/redis boot + `step_17b`/`17c` LE-staging cutover — LE/DNS cutover VALIDATED end-to-end)
 **Purpose:** Evidence-based path list of everything on vps1 that must be restored from backup before services can come up. Built from live probes of running vps1, not from memory or assumption. Drives both:
 
 - Backrest plan scope (which paths the `host-state` + `opt-configs` plans must cover)
@@ -58,7 +58,7 @@ Verified live on vps1 (2026-06-01):
 | | `/etc/sysctl.d/99-openvpn.conf` | small | operator's personal VPN forwarding rules |
 | | `/etc/sysctl.conf` | small | base file (operator may have appended) |
 | **Cron** | `/etc/cron.d/vps-sysadmin` | 1008 B | sysadmin proactive checks |
-| | `/var/spool/cron/crontabs/root` | 249 B | root crontab containing `30 1 * * * /opt/backups/pre-backup.sh ...` — the actual file, restored verbatim (no `crontab -u root` re-install needed) |
+| | `/opt/backups/root-crontab.txt` | 74 B | dump of root's crontab (`30 1 * * * /opt/backups/pre-backup.sh`), written nightly by `pre-backup.sh` (lines 34-35) via `crontab -u root -l > …`. Rides in the `opt-configs` plan (NOT `/var/spool/...`); `bootstrap-hub.sh::step_16` re-installs it via `sudo crontab -u root /opt/backups/root-crontab.txt`. |
 | **Custom binaries** | `/usr/local/bin/zellij` | 51 MB | operator's preferred terminal multiplexer; restoring avoids a separate install step |
 | **Logrotate** | `/etc/logrotate.d/vps-sysadmin-bot` | small | bot log rotation |
 | | `/etc/logrotate.d/vps-sysadmin-proactive` | small | proactive log rotation |

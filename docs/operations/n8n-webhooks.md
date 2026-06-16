@@ -1,6 +1,6 @@
 # n8n Webhook Operations
 
-**Last Updated:** 2026-02-28
+**Last Updated:** 2026-06-16 (re-verified vs live n8n + Authelia + specs)
 
 ---
 
@@ -8,10 +8,12 @@
 
 n8n is deployed as a business automation platform at `https://auto.vps1.ocoron.com`.
 
+> **Authentication:** n8n v1.0+ removed basic auth (there are no `N8N_USER` / `N8N_PASSWORD` env vars in `specs/infrastructure/n8n.yaml`). The instance is fronted by **Authelia SSO** — unauthenticated requests to `https://auto.vps1.ocoron.com/` return `302 → auth.vps1.ocoron.com` (verified live). After Authelia, you log in to n8n with the **owner account** created via the first-run setup wizard.
+
 | Setting | Value |
 |---------|-------|
 | **Base URL** | `https://auto.vps1.ocoron.com` |
-| **Auth** | Basic auth (`N8N_USER` / `N8N_PASSWORD`) |
+| **Auth** | Authelia SSO (302 → `auth.vps1.ocoron.com`) fronting the n8n owner-account login |
 | **Internal port** | 5678 |
 | **Apprise internal** | `http://apprise:8000/notify` (Docker network) |
 | **Apprise external** | `https://notify.vps1.ocoron.com` (port 8005→8000) |
@@ -65,6 +67,8 @@ Accepts any JSON body. Returns the received payload in the response.
 ---
 
 ## curl Test Commands
+
+> **⚠️ Current behavior (verified live 2026-06-16):** The `/webhook/*` paths are **behind Authelia** — no bypass rule exists for them. The commands below currently return **`303 → auth.vps1.ocoron.com`** (an HTML auth redirect), *not* the documented JSON. For true external webhook delivery (e.g. from Gatus or third parties), a **Traefik/Authelia bypass rule for `auto.vps1.ocoron.com/webhook/*`** must be added — **this is a current gap.** The "Expected Responses" below assume that bypass is in place (or that the request carries a valid `authelia_session` cookie).
 
 ### Test Endpoint
 
@@ -235,14 +239,16 @@ Workflow JSON files are stored in `configs/n8n/workflows/`:
 
 | File | Purpose |
 |------|---------|
-| `backup-notification.json` | Daily cron -> Duplicati status -> Apprise notification |
+| `backup-notification.json` | Daily cron -> backrest status -> Apprise notification |
 | `uptime-alert.json` | Webhook -> switch (down/up) -> Apprise alert |
 | `webhook-test.json` | Webhook -> echo response (for testing) |
+
+> **Note:** The live backup tool on vps1 is **backrest** (container `backrest`), not Duplicati. The `configs/n8n/workflows/backup-notification.json` workflow JSON itself still contains stale `duplicati` node references and needs updating before import.
 
 ### Import Steps
 
 1. Open n8n: `https://auto.vps1.ocoron.com`
-2. Log in with basic auth credentials
+2. Authenticate via Authelia (302 → `auth.vps1.ocoron.com`), then log in to n8n with the owner account
 3. Go to **Settings** > **Import from file**
 4. Select the JSON file from `configs/n8n/workflows/`
 5. **Replace placeholder notification URLs** (`slack://tokenA/tokenB/tokenC`) in each HTTP Request node with your actual Apprise URLs — see [Apprise Notification Configuration](#apprise-notification-configuration)
@@ -267,11 +273,11 @@ Workflow JSON files are stored in `configs/n8n/workflows/`:
 ### n8n health check failing
 
 ```bash
-# Check health endpoint (curl is used by the container healthcheck)
-curl -f http://localhost:5678/healthz
+# Check health endpoint (wget is used by the container healthcheck — the n8n image has no curl)
+wget -qO- http://localhost:5678/healthz
 
 # Check container logs
 docker logs n8n --tail 50
 ```
 
-The n8n container uses `curl -f http://localhost:5678/healthz` for its healthcheck (defined in `specs/infrastructure/n8n.yaml`). The `/healthz` endpoint is available by default in n8n without additional configuration.
+The n8n container uses `wget -qO- http://localhost:5678/healthz` for its healthcheck (defined in `specs/infrastructure/n8n.yaml`) — the n8n image ships without `curl`. The `/healthz` endpoint is available by default in n8n without additional configuration and returns `{"status":"ok"}`.

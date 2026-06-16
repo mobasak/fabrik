@@ -1,7 +1,7 @@
 # Credential Recovery
 
 **Created:** 2026-06-01 (W9 of fleet-hardening plan)
-**Last Updated:** 2026-06-01 (post-deep-review extension — `.env.sysadmin` added to mirror scope)
+**Last Updated:** 2026-06-16 (W2 confirmed done — B2 restic repo initialized; weekly self-test now logs `OK: N snapshots readable`)
 **Purpose:** Recover credentials after dev WSL loss, file corruption, or any other event that wipes the working copy. Two credential files are mirrored:
 
 - `/opt/fabrik/.env` (~15 KB, dev-WSL canonical) — fleet credentials, encrypted-only-once master.
@@ -54,7 +54,7 @@ Three trigger paths for the **main `.env`**:
 
 Plus a weekly recovery self-test:
 
-- **`0 4 * * 0`** — `scripts/dr_env_recovery_test.sh` reads `/opt/fabrik-dr-store/env/latest`, extracts credentials, and confirms they can read the B2 restic repo via Backrest's in-container restic. Logs to `/var/log/dr-env-recovery-test.log`. Until W2 of the fleet-hardening plan inits the B2 repo, this script logs `AWAITING-W2: DR pipeline configured + creds valid; restic repo not yet init'd on B2` and exits 0 — it does NOT fake a DR failure during the pre-W2 window.
+- **`0 4 * * 0`** — `scripts/dr_env_recovery_test.sh` reads `/opt/fabrik-dr-store/env/latest`, extracts credentials, and confirms they can read the B2 restic repo by routing restic through `sudo docker exec backrest /bin/restic`. Logs to `/var/log/dr-env-recovery-test.log`. The B2 repo is now initialized (restic 0.18.1, snapshots present), so the script takes its healthy branch and logs `OK: N snapshots readable with recovered creds` (e.g. `2026-06-07 OK: 25 snapshots`, `2026-06-14 OK: 41 snapshots`). The `AWAITING-W2: …` branch remains in the script as an obsolete pre-init guard; it last fired on 2026-05-31 and no longer triggers.
 
 ## Security model
 
@@ -175,7 +175,7 @@ The weekly cron at `0 4 * * 0` runs a more limited variant — it doesn't touch 
 None expected. The system is push-driven and self-validating. The weekly cron's log will show one of three states forever:
 
 - `OK: N snapshots readable with recovered creds` — full chain healthy (post-W2)
-- `AWAITING-W2: DR pipeline configured + creds valid` — pre-W2 state (currently)
+- `AWAITING-W2: DR pipeline configured + creds valid` — pre-W2 state
 - `FAIL: <reason>` — real DR-chain failure, investigate
 
 If you ever see the `FAIL` state, that's a real DR incident. Check:

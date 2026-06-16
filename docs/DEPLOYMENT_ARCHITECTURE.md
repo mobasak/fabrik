@@ -889,7 +889,7 @@ Every invariant below has been validated against live VPS behavior. Cross-refere
 - `docs/operations/deployment.md` — operational procedures for deploy/redeploy/destroy
 - `docs/operations/fabrik-lifecycle.md` — runtime behavior during each operation — data safety, downtime, .env merge
 - `docs/operations/disaster-recovery.md` — backup restore procedures
-- `docs/operations/backup-strategy.md` — Backrest/Restic strategy
+- `docs/operations/disaster-recovery.md` — Backup restore procedures + Backrest/Restic strategy
 - `docs/LESSONS_LEARNT.md` — every live-incident invariant
 - `docs/infrastructure/vps-complete-inventory.md` — what runs on the VPS right now
 - `AGENTS.md` — Fabrik identity + tech-stack defaults

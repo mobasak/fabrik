@@ -2,6 +2,8 @@
 
 Status: **PRIMARY** (2026-05-09 onward). The stdio entrypoint remains in the codebase as fallback but is no longer used.
 
+**Last Updated:** 2026-06-16 (verified accurate — fabrik-mcp-http + citation-verifier services active locally; 5 MCP tools; streamable-http transport)
+
 ## Why HTTP, not stdio
 
 The original architecture was Claude Code (Windows) → stdio → `wsl.exe` → Python MCP server. Verified working via direct probes (`claude mcp list` showed `✓ Connected`, externally-driven `initialize` + `tools/list` handshake completed in <500ms with 5 tools).

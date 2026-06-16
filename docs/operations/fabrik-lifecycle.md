@@ -258,6 +258,8 @@ Fabrik is a 3-host fleet (vps1 hub + vps2/vps3 spokes), so every lifecycle comma
   > vps1         (default if nothing else set)
 ```
 
+> **`redeploy <app>` has no spec argument**, so it skips the spec-field tier — its order is `CLI > state file > vps1`. The spec-field tier applies only to `apply` and `destroy`, which take a spec path.
+
 - **Get it right on multi-host.** If a service lives on vps2 and a `redeploy` resolves to vps1, you act on the wrong box. The state file records where each service was last deployed, so re-runs target the same host without re-passing the flag.
 - **Spokes are full deploy targets.** `fabrik apply <spec> --target-vps vps2` deploys on vps2 (its own Traefik); the spec's `shape:` registrars still wire to the **shared vps1 data plane** — `postgres-main:5432` / `redis-main:6379` over the mesh, Gatus/Prometheus on vps1. `destroy --target-vps vps2` tears down on vps2.
 - **Not the same as Vultr drills.** Throwaway drill droplets are created/destroyed by `fabrik vultr drill`, never by `apply` / `destroy --target-vps`.

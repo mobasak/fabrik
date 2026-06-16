@@ -296,7 +296,6 @@ docs/
 │   ├── audit-prompts/               # 8 self-contained AI audit prompts
 │   └── vps-complete-inventory.md
 ├── operations                      # Operational runbooks and VPS state
-│   ├── backup-strategy.md          # VPS backup strategy
 │   ├── disaster-recovery.md        # Backup and recovery procedures
 │   ├── n8n-webhooks.md             # n8n webhook configuration
 ├── owner_ozgur_basak.md            # Owner profile & AI instructions

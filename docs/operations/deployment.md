@@ -515,8 +515,7 @@ ssh vps "bash /opt/fabrik/scripts/vps_apply_limits.sh"
 |---|---|
 | `../DEPLOYMENT_ARCHITECTURE.md` | Code-level architecture reference — every source file on the deploy path |
 | `docs/operations/fabrik-lifecycle.md` | Runtime behavior during deploy/redeploy — data safety, downtime, .env merge |
-| `docs/operations/disaster-recovery.md` | Backup restore procedures |
-| `docs/operations/backup-strategy.md` | Backrest/Restic strategy |
+| `docs/operations/disaster-recovery.md` | Backup restore procedures + Backrest/Restic strategy |
 | `src/fabrik/orchestrator/__init__.py` | Orchestrator main — `deploy()` method |
 | `src/fabrik/orchestrator/deployer_ssh.py` | SSH deployer — file transfer + docker compose |
 | `src/fabrik/orchestrator/infrastructure.py` | Registrar dispatch |
