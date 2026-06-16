@@ -87,7 +87,7 @@ Build a complete ticket the agent can execute without questions:
 - [ ] Code pushed: `git log origin/<branch> --oneline -1` matches local HEAD
 - [ ] If not pushed: `git push origin <branch>`
 - [ ] Env vars set in the service `.env` (deployed by `fabrik apply` over SSH): <list each required var from .env.example + SERVICE_INTERNAL_SECRET_KEY>
-- [ ] compose.yaml valid: resource limits, platform: linux/amd64, healthcheck, coolify network, no host port bindings
+- [ ] compose.yaml valid: resource limits, platform: linux/amd64, healthcheck, fabrik network, no host port bindings
 - [ ] Port <PORT> not conflicting: `grep <PORT> PORTS.md`
 - [ ] DNS ready (if new domain): `fabrik domain ready <domain>`
 - [ ] Optional: `fabrik review` run to bundle diff + spec for final human review

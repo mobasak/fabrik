@@ -181,7 +181,7 @@ templates/my-template/
 
 ### Canonical compose snippet
 
-See `docs/DEPLOYMENT_ARCHITECTURE.md` §8.3 for the mandatory Traefik labels, `platform: linux/amd64`, `networks: coolify` (legacy network name), and healthcheck patterns.
+See `docs/DEPLOYMENT_ARCHITECTURE.md` §8.3 for the mandatory Traefik labels, `platform: linux/amd64`, `networks: fabrik` (renamed from `coolify` 2026-05-31), and healthcheck patterns.
 
 ### Security
 

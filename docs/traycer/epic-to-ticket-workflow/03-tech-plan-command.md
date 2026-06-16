@@ -182,7 +182,7 @@ Work each section: think → clarify → document. Trace requests end-to-end. In
   - `platform: linux/amd64` in compose.
   - Traefik labels: `Host(...)` rule, `websecure` entrypoint, LetsEncrypt cert resolver.
   - `healthcheck` with `start_period: 60s`. `/health` tests real deps: `SELECT 1`, Redis `PING`, consumed API connectivity.
-  - `networks: coolify: external: true`. No host port bindings — all via Traefik.
+  - `networks: fabrik: external: true`. No host port bindings — all via Traefik.
   - Admin dashboards: add `authelia-forward@docker` middleware in Traefik labels.
   - `Dockerfile` multi-stage (builder → production). `slim-bookworm` base only.
   - Environment variables (list all; reference `.env.example`).
@@ -257,7 +257,7 @@ If during iteration the user introduces a requirement change, suggest `revise-re
 - Commercial Mindset ON/OFF decided; section present or omitted.
 - Architecture designed across A + C (mandatory) + B (mandatory or N/A).
 - Architectural Approach references Stack, Port, confirms amd64 (no Alpine), integrates concurrency model, 12-Factor, and structured logging.
-- Component Architecture reflects Internal APIs (with M2M auth pattern), resilience per external dep (timeout/retry/circuit-breaker/fallback), deployment contract (Traefik labels, healthcheck start_period 60s, coolify network, no host ports, resource limits), i18n component, observability, fabrik-lib modules referenced where applicable.
+- Component Architecture reflects Internal APIs (with M2M auth pattern), resilience per external dep (timeout/retry/circuit-breaker/fallback), deployment contract (Traefik labels, healthcheck start_period 60s, fabrik network, no host ports, resource limits), i18n component, observability, fabrik-lib modules referenced where applicable.
 - Responsive (375px) + Dark+Light (mandatory) addressed in UI architecture for GUI scaffolds.
 - Abuse Detection vendored from fabrik-lib when required. Email two-stream confirmed when applicable.
 - `fabrik apply` confirmed deployable end-to-end. Gaps stated if any.

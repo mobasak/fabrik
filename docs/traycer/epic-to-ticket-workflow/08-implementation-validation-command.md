@@ -144,7 +144,7 @@ Read the code checking for these conventions:
 - Mismatch = bug
 
 **Deployment:**
-- Read `compose.yaml` — has resource limits? platform amd64? healthcheck with start_period? coolify network? Traefik labels?
+- Read `compose.yaml` — has resource limits? platform amd64? healthcheck with start_period? fabrik network? Traefik labels?
 - Read `Dockerfile` — slim-bookworm base? Multi-stage?
 - Read `.env.example` — lists ALL env vars code references?
 

@@ -43,7 +43,7 @@ Docker Compose compares the running container's config against the compose.yaml:
 - **Config changed** (new image, env change, label change) → stops old container, removes it, creates new one, starts it. This is a **stop-then-start** sequence, not rolling. There are a few seconds where the container is down.
 - **Config unchanged** → does nothing. Container keeps running.
 - **Volumes are NEVER touched** by `up -d --wait`. Named volumes persist across container recreates.
-- **Network stays** — the container rejoins the `coolify` network automatically.
+- **Network stays** — the container rejoins the `fabrik` network automatically.
 
 ### Downtime window
 
@@ -280,9 +280,9 @@ Similar to Authelia — each `add_endpoint` / `remove_endpoint` restarts gatus. 
 
 All compose files must declare `container_name: <name>`. Without it, Docker generates names like `<project>-<service>-1` which change unpredictably. The `ComposeLinter` warns if `container_name` is missing; the deployer's `_validate_compose()` treats it as an error (blocks deployment) — but only for **template** and **docker** source types. Git and local sources manage their own compose files and skip `_validate_compose()`, so a missing `container_name` there is caught only by `ComposeLinter` (a warning), not blocked at deploy.
 
-### The `coolify` network name
+### The `fabrik` network name
 
-The Docker network is still named `coolify` (historical artifact from the Coolify era). All services join this external network for inter-container communication and Traefik routing. The name is cosmetic — it's just a standard Docker bridge network.
+The Docker network is named `fabrik` (renamed from `coolify` 2026-05-31). All services join this external network for inter-container communication and Traefik routing — it's a standard Docker bridge network. `fabrik apply` rejects a compose still declaring the old `coolify` network.
 
 ---
 

@@ -86,7 +86,7 @@ python scripts/container_images.py pull nginx:alpine
 | Alertmanager | Official | `prom/alertmanager:v0.28.1` | Alert routing |
 | PostgreSQL | Official | `postgres:16-alpine` | Shared database |
 | Redis | Official | `redis:7-alpine` | Caching |
-| Traefik | Official | `traefik:v2.11` | Reverse proxy (routes containers on `coolify` net) |
+| Traefik | Official | `traefik:v2.11` | Reverse proxy (routes containers on `fabrik` net) |
 
 ### External Services
 

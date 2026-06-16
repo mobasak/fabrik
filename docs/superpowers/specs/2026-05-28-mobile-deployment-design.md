@@ -72,7 +72,7 @@ Changes from current: `is_public` flipped to `true` (mobile APIs are public), ad
 Following the `python-api` template conventions:
 
 - **`Dockerfile.j2`**: Python 3.12 bookworm-slim, multi-stage build, uvicorn, dynamic port via `svc_port` (default 8081)
-- **`compose.yaml.j2`**: FastAPI service, healthcheck at `/health` (not `/status`), `start_period: 40s`, Traefik middleware routing, `platform: linux/amd64`, `deploy.resources.limits.memory`, `container_name: {{ spec.id }}`, `restart: unless-stopped`, `networks: [coolify]` external
+- **`compose.yaml.j2`**: FastAPI service, healthcheck at `/health` (not `/status`), `start_period: 40s`, Traefik middleware routing, `platform: linux/amd64`, `deploy.resources.limits.memory`, `container_name: {{ spec.id }}`, `restart: unless-stopped`, `networks: [fabrik]` external
 - **Port 8081** registered in `PORTS.md`
 
 ### New scaffold outputs

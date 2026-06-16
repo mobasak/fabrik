@@ -156,7 +156,7 @@ Used to discover `TEAM_SLUG=vps1` for the Fabrik VPS.
 **Updated 2026-05-15 (T2-08 Part A):** `errors.vps1.ocoron.com` was removed from Authelia's bulk-bypass block. It now falls through to the `*.vps1.ocoron.com → two_factor` catchall — the same defense-in-depth pattern as `monitor.vps1.ocoron.com` (Grafana). The full chain is now:
 
 1. **Iptables DOCKER-USER chain** — only 80/443/6001/6002 allowed publicly
-2. **Traefik HTTPS termination** — routes `errors.vps1.ocoron.com` → `glitchtip-web:8000` on the `coolify` Docker network
+2. **Traefik HTTPS termination** — routes `errors.vps1.ocoron.com` → `glitchtip-web:8000` on the `fabrik` Docker network
 3. **Authelia forward-auth (TOTP)** — gates `/` and any non-`/api/health` path on `errors.vps1.ocoron.com` per the `*.vps1.ocoron.com two_factor` catchall (post-2026-05-15)
 4. **GlitchTip's own django-allauth auth** — second factor for admin login behind Authelia (defense in depth)
 5. **Bearer-token auth** on all `/api/0/*` paths for machine-to-machine calls

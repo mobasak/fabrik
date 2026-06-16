@@ -113,7 +113,7 @@ Every workflow command (00-11) must be evaluated against this list before it's c
 50. Does it enforce `platform: linux/amd64`?
 51. Does it enforce Traefik labels (Host, websecure, letsencrypt, hardcoded port)?
 52. Does it enforce `healthcheck` with `start_period: 60s`?
-53. Does it enforce `networks: coolify: external: true`?
+53. Does it enforce `networks: fabrik: external: true`?
 54. Does it enforce NO host port bindings (all via Traefik)?
 
 ## Security

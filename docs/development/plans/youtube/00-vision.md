@@ -38,7 +38,7 @@ Whatever serves `youtube.vps1.ocoron.com → :5000` (Flask) today does so via VP
 
 | Process | How it starts | Where it lives | Reachable as | Verified |
 |:--|:--|:--|:--|:--|
-| FastAPI (`src/youtube/main.py`) | `compose.yaml` → Coolify → `uvicorn youtube.main:app` | Container on `coolify` network | `youtube.vps1.ocoron.com` via Traefik label — but only `/health` + `/` | ✅ |
+| FastAPI (`src/youtube/main.py`) | `compose.yaml` → SSH+Compose → `uvicorn youtube.main:app` | Container on `fabrik` network | `youtube.vps1.ocoron.com` via Traefik label — but only `/health` + `/` | ✅ |
 | Flask dashboard (`dashboard/app.py`) | `nohup python3 app.py` via `dashboard/run.sh` or `scripts/dashboard.sh` | Bare-metal VPS, port 5000 | `localhost:5000` only; not Traefik-labelled | ✅ |
 | Celery worker (`worker/celery_app.py`) | `youtube-worker.service` systemd unit → `scripts/start_worker.sh` | Bare-metal systemd. **User=`ozgur`** (per user; not `www-data` as the repo's unit file shows — VPS reality differs from repo). | N/A | ⚠️ Repo says `www-data`, user says `ozgur` runs in production. Repo file likely stale. |
 | Celery Beat | `scripts/start_beat.sh --detach` | Bare-metal background process. No systemd unit in repo. | N/A | ✅ |

@@ -99,7 +99,7 @@ Click-based. 22 top-level commands. See `docs/reference/fabrik-cli-reference.md`
 |---|---|
 | `deploy_router.py` | `route_deploy(project_path)` — WordPress vs. service pipeline dispatch |
 | `deploy_validator.py` | Scaffold-level readiness (Dockerfile, `.env`, healthcheck, platform) |
-| `compose_linter.py` | Coolify compatibility: no public ports, amd64 platform, coolify network |
+| `compose_linter.py` | Coolify compatibility: no public ports, amd64 platform, fabrik network |
 | `registry.py` | `ProjectRegistry` → `/opt/fabrik/data/projects.yaml` |
 | `provisioner.py` | Saga for brand-new-site setup (domain → DNS → Coolify bootstrap) |
 | `verify.py` | `PostconditionChecker` framework for declarative post-deploy checks |
@@ -187,7 +187,7 @@ src/fabrik/
 ├── deploy.py                  # deploy_to_coolify() core function
 ├── deploy_router.py           # project-type dispatch (WordPress raises NotImplementedError — moved to /opt/wpf/)
 ├── deploy_validator.py        # scaffold-level readiness checks
-├── compose_linter.py          # Coolify-compat: no public ports, amd64, coolify network
+├── compose_linter.py          # Coolify-compat: no public ports, amd64, fabrik network
 ├── config.py                  # FABRIK_ROOT, ensure_directories
 ├── registry.py                # ProjectRegistry → data/projects.yaml
 ├── provisioner.py             # SiteProvisioner — 15-state saga for new site bootstrap

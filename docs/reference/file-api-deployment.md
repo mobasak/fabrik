@@ -5,8 +5,8 @@
 > **⚠️ Pre-migration vintage.** Coolify was **decommissioned (2026-05-30)**.
 > The deployment sections below were written for the Coolify-era flow; the
 > current deploy path is SSH + Docker Compose via `fabrik apply`. Where this
-> doc still says "Coolify", read it as the legacy path — the only live use of
-> the word `coolify` is the Docker network name that Traefik still routes on.
+> doc still says "Coolify", read it as the legacy path — the Docker network that
+> Traefik routes on is named `fabrik` (renamed from `coolify` 2026-05-31).
 > For File API today, `fabrik apply specs/services/file-api.yaml` runs
 > `src/fabrik/orchestrator/deployer_ssh.py` (writes `compose.yaml` + `.env`
 > to `/opt/file-api/` via SSH, runs `docker compose up -d --wait`). Add

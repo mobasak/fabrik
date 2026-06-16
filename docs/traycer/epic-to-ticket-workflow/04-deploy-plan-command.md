@@ -12,7 +12,7 @@
 
 > **Note:** Coolify decommissioned (2026-05-30); deploy is SSH + Docker Compose
 > via `fabrik apply` → `src/fabrik/orchestrator/deployer_ssh.py`. `networks:
-> coolify: external: true` is kept (Docker network name only).
+> fabrik: external: true` is kept (Docker network name only).
 
 ## Role
 
@@ -64,7 +64,7 @@ Verify the planned `compose.yaml` will have:
 - [ ] `platform: linux/amd64`
 - [ ] `container_name: <id>`
 - [ ] `healthcheck` with `start_period: 60s` (grace for container boot + migrations before the healthcheck marks it unhealthy)
-- [ ] `networks: coolify: external: true`
+- [ ] `networks: fabrik: external: true`
 - [ ] Traefik labels (if `is_public`): `Host`, `websecure`, `letsencrypt`, hardcoded port
 - [ ] `restart: unless-stopped`
 - [ ] No `ports:` binding to host (all routing via Traefik)

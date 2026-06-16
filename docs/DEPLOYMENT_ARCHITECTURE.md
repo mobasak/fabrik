@@ -316,7 +316,7 @@ Pre-deploy invariant checks. Called by `scripts/final_gate.py` as part of the qu
 | `check_env_updates.py` | When `.env.example` changes, `CHANGELOG.md` is updated. |
 | `check_env_vars.py` | Env vars follow `UPPER_SNAKE_CASE`. |
 | `check_docker.py` | `compose.yaml` uses `platform: linux/amd64`; base images are `-slim-bookworm`; `HEALTHCHECK` present; no public `ports:` mappings. |
-| `check_compose_services.py` | Compose services declare `networks: [coolify]` when behind Traefik. |
+| `check_compose_services.py` | Compose services declare `networks: [fabrik]` when behind Traefik. |
 | `check_ports.py` | Ports used fall in allocated ranges (8000–8099 Python, 3000–3099 frontend); no duplicates. |
 | `check_health.py` | Every service has a `/health` endpoint that tests real dependencies. |
 | `check_watchdog.py` | Long-running services have `scripts/watchdog*.sh`. |
@@ -405,7 +405,7 @@ Files that live **on the VPS only**, outside the Fabrik repo. Grouped by service
 |---|---|---|
 | `/etc/iptables/add-docker-user-rules.sh` | DOCKER-USER chain rules. Only 80/443 serve traffic; the script also RETURNs (allows) 6001/6002 as stale Coolify Realtime/Soketi leftovers — nothing listens, pending cleanup. Docker bypasses UFW; this chain is the real public-port boundary. | Edit + `sudo /etc/iptables/add-docker-user-rules.sh` + `sudo systemctl restart iptables-docker-user.service`. |
 | `/etc/systemd/system/iptables-docker-user.service` | Persistence for the chain across reboots. | `sudo systemctl {daemon-reload,enable,restart}` after edit. |
-| Docker networks | `coolify` (10.0.1.0/24) is the shared network Traefik lives on. Named `coolify` for historical reasons — it's a standard Docker bridge network. | Inspect: `docker network inspect coolify`. |
+| Docker networks | `fabrik` (10.0.1.0/24) is the shared network Traefik lives on. Renamed from `coolify` 2026-05-31 — a standard external Docker bridge network; `fabrik apply` rejects a compose still on `coolify`. | Inspect: `docker network inspect fabrik`. |
 
 ### 7.5 Fabrik on VPS
 
@@ -432,8 +432,8 @@ These are **hard rules** for every deploy. Violating any of them puts the VPS or
 
 ### 8.2 Networking
 
-- **`coolify` Docker network is the shared backbone.** Traefik lives here. Every service that must be reachable by Traefik MUST attach to this network. (The name is a historical artifact — it's a standard Docker bridge network.)
-- **`traefik.docker.network=coolify` label is mandatory** for any service on more than one Docker network — without it Traefik non-deterministically picks a network IP.
+- **`fabrik` Docker network is the shared backbone.** Traefik lives here. Every service that must be reachable by Traefik MUST attach to this network. (Renamed from `coolify` 2026-05-31 — a standard external Docker bridge network; `fabrik apply` rejects a compose still declaring `coolify`.)
+- **`traefik.docker.network=fabrik` label is mandatory** for any service on more than one Docker network — without it Traefik non-deterministically picks a network IP.
 - **No public `ports:` mapping** in compose. Everything goes through Traefik on 80/443. Docker bypasses UFW; iptables DOCKER-USER is the real boundary.
 - **Allowed public TCP ports:** 80, 443 (the only ports serving traffic). The iptables script also still allows 6001/6002 (stale Coolify Realtime/Soketi — nothing listens; pending cleanup). Everything else is blocked at iptables.
 - **DB connection strings use Docker DNS names**, never `localhost`: `postgres-main:5432`, `redis-main:6379`. Inside a container, `localhost` is the container itself, not the shared database.
@@ -447,14 +447,14 @@ services:
     platform: linux/amd64
     restart: unless-stopped
     networks:
-      coolify: null
+      fabrik: null
     deploy:
       resources:
         limits:
           memory: 512M
     labels:
       - "traefik.enable=true"
-      - "traefik.docker.network=coolify"
+      - "traefik.docker.network=fabrik"
       - "traefik.http.routers.my-service.rule=Host(`my-service.vps1.ocoron.com`)"
       - "traefik.http.routers.my-service.entrypoints=websecure"
       - "traefik.http.routers.my-service.tls=true"
@@ -472,7 +472,7 @@ services:
       start_period: 30s
 
 networks:
-  coolify:
+  fabrik:
     external: true
 ```
 
@@ -814,7 +814,7 @@ Every invariant below has been validated against live VPS behavior. Cross-refere
 | 3 | `container_name: <name>` required in every compose service for stable naming |
 | 4 | `platform: linux/amd64` required in every compose service |
 | 5 | `deploy.resources.limits.memory` required in every compose service |
-| 6 | No `ports:` section — all traffic through Traefik on `coolify` network |
+| 6 | No `ports:` section — all traffic through Traefik on `fabrik` network |
 | 7 | `restart: unless-stopped` on every service |
 | 8 | Traefik entrypoint must be `websecure` (not `http`/`https`) |
 | 9 | `loadbalancer.server.port` required when `traefik.enable=true` |
@@ -840,7 +840,7 @@ Every invariant below has been validated against live VPS behavior. Cross-refere
 
 | # | Invariant |
 |---|---|
-| 22 | Docker network `coolify` is the shared backbone — all Traefik-routed services must attach |
+| 22 | Docker network `fabrik` is the shared backbone — all Traefik-routed services must attach |
 | 23 | `.env` files root-owned at `/opt/<name>/.env` — written via scp-to-tmp-then-sudo-mv pattern |
 | 24 | `docker compose up -d` only recreates containers with changed config — volumes NEVER touched |
 | 25 | `docker compose down -v` removes named volumes — used by rollback's `delete()` (unconditional) and by destroy (gated behind `--drop-data`); never during redeploy |

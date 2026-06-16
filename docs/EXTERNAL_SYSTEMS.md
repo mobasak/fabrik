@@ -1818,7 +1818,7 @@ Fabrik also deploys and manages several internal services on the VPS:
 - Functions: Reverse proxy, SSL termination, load balancing
 - Provider: Docker (labels on containers)
 - EntryPoints: web (80), websecure (443)
-- Network: coolify
+- Network: fabrik
 
 **Configuration:**
 - certResolver: letsencrypt

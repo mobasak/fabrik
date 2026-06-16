@@ -70,7 +70,7 @@ What it aggregates:
 
 What it checks:
 - Dockerfile base image compliance, HEALTHCHECK, multi-stage parsing
-- compose.yaml: amd64, coolify network, localhost refs
+- compose.yaml: amd64, fabrik network, localhost refs
 - Health endpoints (with dependency testing detection)
 - print() usage, logging imports, hardcoded localhost
 - Scaffold file presence (Makefile, pyproject.toml, .env.example, db/schema.sql, watchdog, tests)

@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — docs said `coolify` network; code uses `fabrik` (2026-06-17)
+
+The 2026-05-31 `coolify`→`fabrik` Docker-network rename was never propagated to the docs. Verified ground truth in code: `deployer_ssh.py._validate_compose()` REQUIRES `networks: fabrik` and actively REJECTS `coolify`; all scaffold compose templates emit `networks: [fabrik]` / `traefik.docker.network=fabrik`; the live network on all 3 VPS is `fabrik` (no `coolify` network exists). So every doc telling a reader to use `networks: [coolify]` / `traefik.docker.network=coolify` was not just stale but would make `fabrik apply` fail. Corrected ~20 active docs + 2 configs + the CLAUDE.md HARD-STOP rule:
+
+- **Canonical:** `CLAUDE.md` (HARD STOP rule), `docs/DEPLOYMENT_ARCHITECTURE.md` (§8.2 backbone, §7.5 compose example — was internally inconsistent: service on `coolify` but Traefik label on `fabrik`, §8.3 invariant table, networks row), `docs/operations/fabrik-lifecycle.md`.
+- **Configs:** `configs/monitoring-compose.yaml` (network def + 9 service attachments + header), `configs/promtail/promtail-config.yaml` (dead `coolify-*` container log filter trimmed; behaviour unchanged).
+- **Reference/workflow/traycer:** architecture, templates, file-api-deployment, glitchtip-api, prebuilt-app-containers, FABRIK_SCAFFOLD_WORKFLOW, DATA_SYNC_WORKFLOW, EXTERNAL_SYSTEMS, mobile-deployment-design, youtube vision, and 7 traycer epic-command files.
+- **Also:** `docs/reference/service-contracts/site-provisioner.md` status was "Removed from VPS 2026-05-30" but the container is live (healthy, on `fabrik`) — corrected; it is the one Fabrik microservice still deployed.
+
+Kept as-is: dated Coolify-era incidents in `LESSONS_LEARNT.md`, `docs/archive/**`, `coolify.io` external links, and the legacy `coolify.py`/`coolify_alias.py` driver modules (still present).
+
 ### Removed — Coolify/vps4 live-infra residue (2026-06-17)
 
 Decommissioned-Coolify and dead-test-machine leftovers were still live in monitoring and DNS. Cleaned end-to-end:

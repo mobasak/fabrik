@@ -6,9 +6,9 @@
 > `fabrik scaffold`, `SCAFFOLD_TYPES`, template inventory, generated file
 > tree, and `spec_generator.py` behavior all still apply. For the current
 > deploy path see [docs/operations/deployment.md](../operations/deployment.md)
-> (SSH + Docker Compose). Templates still emit `networks: [coolify]` —
-> the Docker network is named `coolify` for compatibility, but no Coolify
-> control plane runs.
+> (SSH + Docker Compose). Templates emit `networks: [fabrik]` —
+> the Docker network is named `fabrik` (renamed from `coolify` 2026-05-31),
+> but no Coolify control plane runs.
 
 **Last Updated:** 2026-04-29 (full code-truth rewrite: every CLI command/flag, `SCAFFOLD_TYPES`, `SPEC_ENABLED_TYPES`, template inventory, and file reference links re-verified against `src/fabrik/cli.py`, `src/fabrik/scaffold.py`, `src/fabrik/spec_generator.py`, and `templates/`. Aspirational sections that referenced files that never shipped — "Template Complexity Tiers", "Factory Configuration" — have been removed. `fabrik new` deprecation banner from Phase 4k 2026-04-22 retained.) · 2026-06-16: fixed dead links — `docs/DEPLOYMENT.md` → `docs/DEPLOYMENT_ARCHITECTURE.md` (renamed canonical deploy doc) and repointed the removed `wordpress-site-workflow.md` references to the separate WordPress Factory project at `/opt/wpf/`. · 2026-06-16: WordPress correction — `fabrik wp` group removed; WordPress deployment moved fully out of Fabrik to `/opt/wpf/` (`wpf` CLI), `fabrik apply` on a `wordpress`-type project errors/redirects, and `wordpress` is now a scaffold-skeleton-only type. Flagged `templates/wordpress/` missing on disk despite `scaffold.py` referencing it.
 **Scope:** This doc is **canonical for the project-creation half** (`fabrik scaffold` and the file tree it produces). For the **deployment half** (`fabrik apply` — the single deploy command — orchestrator state machine, registrars, verifier, rollback), see `@/opt/fabrik/docs/DEPLOYMENT_ARCHITECTURE.md`.

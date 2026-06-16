@@ -200,7 +200,7 @@ Scan each ticket's Steps. For each trigger that fires, inject the corresponding 
 | User-facing feature | "`docs/FEATURES.md` updated" |
 | API endpoint added/changed | "`docs/QUICKSTART.md` updated; OpenAPI synced" |
 | User-facing copy | "Verbal Identity applied (ocoron-design-system.md)" |
-| compose.yaml modified | "Docker: amd64, no-Alpine, HEALTHCHECK, limits, coolify network" |
+| compose.yaml modified | "Docker: amd64, no-Alpine, HEALTHCHECK, limits, fabrik network" |
 | Database schema | "Alembic migration (no raw DDL); `db/schema.sql` reference" |
 | Sensitive file | "Backup at `<file>.backup.<timestamp>` exists" |
 | Logging code | "Pre-scaffolded structured logger; no print(); correlation IDs" |
