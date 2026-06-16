@@ -1,12 +1,17 @@
 # Fabrik CLI Reference (historical — pre-migration command-level docstrings)
 
-> **⚠️ Pre-migration vintage.** This auto-generated CLI reference reflects
-> docstrings from the Coolify-API deploy era. The active deploy path is
-> SSH + Docker Compose (`orchestrator/deployer_ssh.py`) — commands like
-> `apply` / `destroy` / `redeploy` no longer talk to the Coolify API.
-> `status` / `logs` / `reconcile-all` are the legacy commands that DO
-> still call the Coolify API for pre-migration services. For the current
-> CLI overview see
+> **⚠️ Pre-migration vintage (Coolify DECOMMISSIONED 2026-05-30).** This
+> auto-generated CLI reference reflects docstrings from the Coolify-API
+> deploy era. The active deploy path is SSH + Docker Compose
+> (`orchestrator/deployer_ssh.py`, driven by `fabrik apply`) — commands
+> like `apply` / `destroy` / `redeploy` no longer talk to the Coolify API.
+> `coolify` now survives only as the legacy Docker-network name; the
+> legacy `drivers/coolify.py` is retained solely because `status` /
+> `reconcile-all` still import `CoolifyClient` to report on pre-migration
+> services. (`logs` is unrelated to Coolify — it queries Loki.)
+> `apply`/`redeploy`/`destroy` also accept `--target-vps` for the 3-host
+> fleet (resolution order: CLI flag > `.fabrik/state/<id>.json::target_vps`
+> > spec `target_vps` field > `vps1`). For the current CLI overview see
 > [docs/reference/fabrik-cli-reference.md](fabrik-cli-reference.md).
 
 ## cli
@@ -145,7 +150,7 @@ def apply(
 ```
 
 **Description:**
-Deploys the application defined by the spec file. Generates deployment artifacts, optionally creates a DNS record, and pushes the compose configuration to Coolify. Handles rollback when failures occur and supports a full orchestrator pipeline.
+Deploys the application defined by the spec file. Generates deployment artifacts, optionally creates a DNS record, and ships the compose configuration to the target VPS. (This docstring predates the migration: as of 2026-05-30 deployment runs via SSH + Docker Compose through the orchestrator pipeline / `orchestrator/deployer_ssh.py`, not the Coolify API — the legacy "push to Coolify" Step 3 is dead code.) Handles rollback when failures occur and supports a full orchestrator pipeline.
 
 **Parameters:**
 
@@ -248,7 +253,7 @@ def app_logs(spec_path: str, lines: int, follow: bool) -> None:
 ```
 
 **Description:**
-Shows recent application logs from Coolify, optionally following the stream.
+(Legacy) Shows recent application logs via the Coolify API, optionally following the stream. Only works for services that remain Coolify-managed; for SSH+Compose deploys use `fabrik logs` (Loki-backed) or `ssh vps "sudo docker logs <app>"`.
 
 **Parameters:**
 
@@ -323,7 +328,7 @@ def destroy(spec_path: str, yes: bool, keep_dns: bool, keep_files: bool) -> None
 ```
 
 **Description:**
-Removes a deployed application from Coolify, optionally cleans up DNS records and generated files.
+Removes a deployed application, optionally cleaning up DNS records and generated files. (This docstring predates the migration: as of 2026-05-30 teardown runs over SSH against the target VPS — env-swapping `FABRIK_VPS_SSH_HOST` per `--target-vps` — not the Coolify API.)
 
 **Parameters:**
 

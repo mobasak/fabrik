@@ -210,4 +210,4 @@
 ## See Also
 
 - [Cascade Guide](cascade-guide.md)
-- [Features](features.md)
+- [Features](windsurf_features.md)

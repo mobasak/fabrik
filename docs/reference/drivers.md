@@ -15,7 +15,7 @@
 
 Fabrik drivers (`src/fabrik/drivers/`) are the **only place that talks to external APIs or the VPS**. Every deploy mutation goes through exactly one driver — no ad-hoc HTTP/SSH calls allowed in the orchestrator or CLI.
 
-**Canonical catalog** (with shape gates and contract details) lives in `docs/DEPLOYMENT.md` §2.4. This file is the module reference with usage examples.
+**Canonical catalog** (with shape gates and contract details) lives in `docs/DEPLOYMENT_ARCHITECTURE.md` §2.4. This file is the module reference with usage examples.
 
 ---
 
@@ -218,7 +218,7 @@ git_commit_config("/opt/monitoring/configs/gatus")
 
 ### Supabase & R2 — optional infra
 
-Used only when `spec.infrastructure.database == supabase` or `spec.storage.type == r2`. See DEPLOYMENT.md §2.4 for shape-gate details.
+Used only when `spec.infrastructure.database == supabase` or `spec.storage.type == r2`. See DEPLOYMENT_ARCHITECTURE.md §2.4 for shape-gate details.
 
 ---
 
@@ -270,7 +270,7 @@ Contract tests against live services — run before shipping driver changes. Als
 
 ## Related
 
-- [DEPLOYMENT.md](../DEPLOYMENT.md) — canonical deploy reference with full driver catalog (§2.4) and shape gates
+- [DEPLOYMENT_ARCHITECTURE.md](../DEPLOYMENT_ARCHITECTURE.md) — canonical deploy reference with full driver catalog (§2.4) and shape gates
 - [Orchestrator](orchestrator.md) — how drivers are invoked during a deploy
 - [CLI Reference](fabrik-cli-reference.md)
 - [Templates](templates.md)

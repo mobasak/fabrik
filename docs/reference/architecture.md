@@ -1,6 +1,6 @@
 # Fabrik Architecture
 
-**Last Updated:** 2026-06-15
+**Last Updated:** 2026-06-16
 
 > **⚠️ Pre-migration context (2026-04 vintage).** Deploy-mechanism sections
 > below describe the Coolify-API era. Fabrik migrated to SSH + Docker
@@ -17,7 +17,7 @@
 
 Fabrik is a **spec-driven, shape-gated deployment automation CLI**. You write a YAML spec describing what you want deployed; the orchestrator runs a state machine that provisions the compose stack via SSH + Docker Compose + Traefik + every relevant registrar (Postgres, Gatus, Backrest, GlitchTip, Grafana, Authelia, MeiliSearch) and verifies the result — all atomic, with automatic rollback on failure. (Pre-2026-05-30 the deploy mechanism was the Coolify API; legacy code modules remain for `fabrik status`/`logs` against unmigrated services.)
 
-**Entry point of truth:** `docs/DEPLOYMENT.md` — single canonical reference. This file is the quick architectural map.
+**Entry point of truth:** `docs/DEPLOYMENT_ARCHITECTURE.md` — single canonical reference. This file is the quick architectural map.
 
 ---
 
@@ -135,7 +135,7 @@ User: cd /opt/my-api && fabrik apply
   4. Success → print deployed URL, exit 0
 ```
 
-Expected wall time for maximal shape (all flags true, scratch image): **~63s** (measured 2026-04-22, see `docs/DEPLOYMENT.md` §9.6).
+Expected wall time for maximal shape (all flags true, scratch image): **~63s** (measured 2026-04-22, see `docs/DEPLOYMENT_ARCHITECTURE.md` §9.6).
 
 ---
 
@@ -279,7 +279,7 @@ src/fabrik/
 | `config/` | `platform.yaml.example` — config schema reference for VPS/Coolify/DNS/backup settings. Referenced by `src/fabrik/config.py` as `CONFIG_DIR` | Active (example only) |
 | `configs/` | **Repo-local source of VPS monitoring configs.** Prometheus scrape config + 9 alert rules, Alertmanager routing, 5 Grafana dashboards + provisioning, Loki + Promtail configs, monitoring-compose.yaml, n8n workflows (backup notification, uptime alert). Bundled by `portability.py` in `fabrik export`. Deployed to `/opt/monitoring/configs/` on VPS | Active |
 | `data/` | `projects.yaml` (project registry) + `provision-jobs/` (SiteProvisioner saga state) | Active |
-| `docs/` | `DEPLOYMENT.md` (canonical deploy reference), `FEATURES.md`, `LESSONS_LEARNT.md`, `reference/` (this file + excel-file-generation.md, multilingual-plan.md), `traycer/` (workflow docs + agent test reports), `development/plans/` (archived + active plans), `guides/` (empty — scaffold creates for projects) | Active |
+| `docs/` | `DEPLOYMENT_ARCHITECTURE.md` (canonical deploy reference), `FEATURES.md`, `LESSONS_LEARNT.md`, `reference/` (this file + excel-file-generation.md, multilingual-plan.md), `traycer/` (workflow docs + agent test reports), `development/plans/` (archived + active plans), `guides/` (empty — scaffold creates for projects) | Active |
 | `scripts/` | `final_gate.py`, `enforcement/` (19 checks), `kilo_code_review.py`, `kilo_consult.py`, `kilo_model_sync.py`, `dev_tracker.py`, `docs_updater.py`, Traycer agent scripts, `kilo-benchmarks/` (model evaluation) | Active |
 | `specs/services/` | Per-app deployment specs (~52 YAML files, mix of real services + scaffold test specs) | Active |
 | `specs/sites/` | WordPress site specs (ocoron.com) — consumed by wpf, not fabrik | Active (wpf) |
@@ -322,13 +322,13 @@ Full inventory in `docs/infrastructure/vps-complete-inventory.md` and `AGENTS.md
 | **X-Internal-Token** | Machine-to-machine auth for internal microservices |
 | **Bearer tokens** | API endpoints on admin dashboards (Coolify, Grafana, GlitchTip) |
 
-Details: `docs/DEPLOYMENT.md` §8.4.
+Details: `docs/DEPLOYMENT_ARCHITECTURE.md` §8.4.
 
 ---
 
 ## Related
 
-- [DEPLOYMENT.md](../DEPLOYMENT.md) — the canonical deploy reference (§1–11)
+- [DEPLOYMENT_ARCHITECTURE.md](../DEPLOYMENT_ARCHITECTURE.md) — the canonical deploy reference (§1–11)
 - [Orchestrator](orchestrator.md)
 - [Drivers](drivers.md)
 - [CLI Reference](fabrik-cli-reference.md)

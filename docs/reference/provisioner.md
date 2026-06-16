@@ -1,17 +1,24 @@
 # Site Provisioner Reference (legacy)
 
-**Last Updated:** 2026-04-22 (verified against `src/fabrik/provisioner.py`)
+**Last Updated:** 2026-06-16 (verified against `src/fabrik/provisioner.py`)
 
-> **⚠️ Legacy module — Coolify era.** `src/fabrik/provisioner.py` is the
-> pre-migration provisioner that called the Coolify API to create
-> Application and Service entries. Post-migration (2026-05) the active
-> deploy path is `orchestrator/deployer_ssh.py` (SSH + Docker Compose).
-> The module is retained for legacy CLI commands (`fabrik status`,
-> `fabrik logs`, `fabrik reconcile-all`) that still talk to the Coolify
-> API for services that were never migrated; do not plan new work
-> against this module.
+> **⚠️ Legacy module — Coolify era (DEPRECATED 2026-05-30).**
+> `src/fabrik/provisioner.py` is the pre-migration provisioner whose
+> saga called the Coolify API to create Application and Service entries.
+> Coolify has since been **decommissioned**: the active deploy path is
+> SSH + Docker Compose via `fabrik apply` (`orchestrator/deployer_ssh.py`),
+> and new provisioning goes through `DeploymentOrchestrator`
+> (`src/fabrik/orchestrator/__init__.py`). This module still
+> `import`s `CoolifyClient` and the saga's Step 2 cannot complete
+> because the Coolify API is no longer reachable. It is retained only
+> for the un-ported legacy CLI commands (`fabrik status`, `fabrik logs`,
+> `fabrik reconcile-all`) that still construct a `CoolifyClient`.
+> **`fabrik reconcile-all` is currently broken** — it calls
+> `CoolifyClient().list_applications()` at startup (`cli.py:1475`), which
+> now fails against the decommissioned API. Do not plan new work against
+> this module.
 
-The Site Provisioner orchestrates Steps 0-1-2 for **brand-new WordPress site bootstrap** (domain registration → DNS + CF zone → Coolify app + WP install) using a saga pattern with granular states for safe retries and partial failure recovery.
+The Site Provisioner orchestrates Steps 0-1-2 for **brand-new WordPress site bootstrap** (domain registration → DNS + CF zone → legacy Coolify app + WP install) using a saga pattern with granular states for safe retries and partial failure recovery. The Step 2 Coolify deploy path is dead; only Steps 0-1 (CF zone + DNS) still function against live infrastructure.
 
 **Scope:** this module handles **new-site setup only**. Routine WordPress deploys now go through the standalone `wpf` CLI (moved to /opt/wpf/). For generic service deploys, see `src/fabrik/orchestrator/` (`DeploymentOrchestrator`).
 
@@ -33,9 +40,10 @@ STEP2_ENV_SET → STEP2_DEPLOY_TRIGGERED → STEP2_WP_INSTALLED → COMPLETE
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `DNS_MANAGER_URL` | `https://dns.vps1.ocoron.com` | DNS Manager API endpoint |
-| `VPS_IP` | `172.93.160.197` | Target VPS IP for DNS records |
-| `COOLIFY_SERVER_UUID` | `jk4wskkcks8csg4gcokwgw8s` | Coolify server UUID |
+| `SITE_PROVISIONER_URL` | falls back to `DNS_MANAGER_URL`, then `https://provision.vps1.ocoron.com` | DNS Manager / provisioner API endpoint (checked first) |
+| `DNS_MANAGER_URL` | `https://provision.vps1.ocoron.com` | Legacy alias for the API endpoint (used only if `SITE_PROVISIONER_URL` unset) |
+| `VPS_IP` | _(none — required; `__init__` raises `ValueError` if unset)_ | Target VPS IP for DNS records |
+| `COOLIFY_SERVER_UUID` | _(none — required; `__init__` raises `ValueError` if unset)_ | Coolify server UUID (legacy; Coolify decommissioned) |
 | `COOLIFY_HEALTH_TIMEOUT` | `600` | Seconds to wait for deployment health |
 
 ## Usage
@@ -176,6 +184,7 @@ sequenceDiagram
 
 ## Related
 
-- `@/opt/fabrik/docs/reference/drivers.md` - CoolifyClient API reference
-- `@/opt/fabrik/docs/reference/orchestrator.md` - Higher-level orchestration
-- `@/opt/fabrik/templates/wordpress/base/` - WordPress compose templates
+- `@/opt/fabrik/docs/reference/drivers.md` - CoolifyClient API reference (legacy driver)
+- `@/opt/fabrik/docs/reference/orchestrator.md` - Higher-level orchestration (`DeploymentOrchestrator`, the active path)
+- `@/opt/fabrik/docs/DEPLOYMENT_ARCHITECTURE.md` - Active SSH + Docker Compose deploy architecture
+- WordPress compose templates moved out of the Fabrik tree with the `wpf` CLI (now at `/opt/wpf/`); the `compose-coolify.yaml.j2` template the saga renders (`_render_compose`) is no longer present under `templates/wordpress/base/`.

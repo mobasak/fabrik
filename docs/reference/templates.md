@@ -181,7 +181,7 @@ templates/my-template/
 
 ### Canonical compose snippet
 
-See `docs/DEPLOYMENT.md` §8.3 for the mandatory Traefik labels, `platform: linux/amd64`, `networks: coolify`, and healthcheck patterns.
+See `docs/DEPLOYMENT_ARCHITECTURE.md` §8.3 for the mandatory Traefik labels, `platform: linux/amd64`, `networks: coolify` (legacy network name), and healthcheck patterns.
 
 ### Security
 
@@ -201,7 +201,7 @@ fabrik apply /opt/fabrik/specs/services/my-api.yaml [--dry-run]
 
 ## Related
 
-- [DEPLOYMENT.md](../DEPLOYMENT.md) §4 — template catalog in the deploy reference
+- [DEPLOYMENT_ARCHITECTURE.md](../DEPLOYMENT_ARCHITECTURE.md) §4 — template catalog in the deploy reference
 - [Orchestrator](orchestrator.md) — how shape flags drive the provisioner
 - [Drivers](drivers.md) — shape-gated registrars
 - [CLI Reference](fabrik-cli-reference.md)

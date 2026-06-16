@@ -227,13 +227,13 @@ pytest tests/orchestrator/test_validator.py -q
 
 ## End-to-End Validation
 
-See `docs/DEPLOYMENT.md` §9.6 for the canonical **maximal-shape E2E test** procedure — scaffold → deploy → verify 9 registrars → idempotency → teardown. Expected wall time ~63s (measured 2026-04-22).
+See `docs/DEPLOYMENT_ARCHITECTURE.md` §9.6 for the canonical **maximal-shape E2E test** procedure — scaffold → deploy → verify 9 registrars → idempotency → teardown. Expected wall time ~63s (measured 2026-04-22).
 
 ---
 
 ## Related
 
-- [DEPLOYMENT.md](../DEPLOYMENT.md) — canonical deploy reference (read this first)
+- [DEPLOYMENT_ARCHITECTURE.md](../DEPLOYMENT_ARCHITECTURE.md) — canonical deploy reference (read this first)
 - [Drivers Reference](drivers.md)
 - [CLI Reference](fabrik-cli-reference.md)
 - [Templates](templates.md)

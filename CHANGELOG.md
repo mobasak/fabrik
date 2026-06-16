@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — docs/reference accuracy sweep, batch 1 (2026-06-16): DEPLOYMENT.md rename + Coolify-decommission caveats + broken links
+
+Started a file-by-file accuracy pass over `docs/reference/` (67 docs). Batch 1 (9 docs) — verified each claim against the repo + live fleet:
+
+- **Dead `docs/DEPLOYMENT.md` references → `docs/DEPLOYMENT_ARCHITECTURE.md`** (the file was renamed during the SSH+Compose migration; old one archived). Fixed in `drivers.md` (×3), `architecture.md` (×5 + date), `templates.md` (×2), `orchestrator.md` (×2). Kept the `§X.Y` section numbers (same doc lineage).
+- **`fabrik.md`** — hardened the migration caveat (Coolify decommissioned 2026-05-30; `coolify` = legacy network name); corrected the `apply`/`destroy` descriptions that still said "to Coolify" → SSH+Compose via `deployer_ssh.py`; fixed the mis-claim that `logs` uses the Coolify API (it queries Loki); flagged `app-logs`/`status` as the genuinely-still-legacy Coolify-API commands; added the `--target-vps` resolution order.
+- **`stack.md`** — infrastructure-inventory control plane `Coolify` → `fabrik` CLI (+ Traefik row); container counts/stack verified live (31/5/5, restic 0.18.1).
+- **`provisioner.md`** — precise legacy framing (the module + `reconcile-all` still import `CoolifyClient`, so Coolify coupling is NOT fully gone — `reconcile-all` is currently broken); corrected env-var defaults (`VPS_IP`/`COOLIFY_SERVER_UUID` raise if unset, `DNS_MANAGER_URL` default `provision.vps1.ocoron.com`); fixed a dead `templates/wordpress/` link.
+- **Broken links** — `windsurf/cascade-models.md` (`features.md` → `windsurf_features.md`); `kilo/KILO_PERFORMANCE_TUNING.md` (wrong-depth `.windsurf` rule-pack path → `../../../`).
+
 ### Changed — docs/operations accuracy sweep + prune unnecessary/misplaced docs (2026-06-16)
 
 Same audit→fix→re-audit loop applied to `docs/operations/`, plus two structural cleanups the operator asked for (move a misplaced doc, stop maintaining a superseded one). All claims verified against repo + live fleet (sudo SSH).

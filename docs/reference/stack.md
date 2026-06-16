@@ -209,7 +209,7 @@ In Coolify you attach a domain to `web` and it handles routing/HTTPS via its pro
 
 ### 5.1 Best practice for you: “one Postgres for all products” (initially)
 
-* Create Postgres **via `fabrik apply` (SSH + Docker Compose)’s database feature** (recommended), because Coolify can then manage backups more cleanly. (This assumption is aligned with how many users set backups; Coolify’s docs focus on its database backup capability.) ([Coolify][4])
+* Create the shared Postgres as a managed service in the platform stack (`postgres-main`), provisioned declaratively via `fabrik apply` (SSH + Docker Compose). Backups are handled by Backrest/restic, not by the deploy tool. (Historical note: in the Coolify era this was Coolify's managed-database + scheduled-backup feature; that path is retired.)
 
 ### 5.2 Backups (non-negotiable)
 
@@ -372,7 +372,7 @@ That's how you scale to 3 businesses without new architecture each time.
 
 ## 11) Current Tools & Services Inventory
 
-> **Source:** Extracted from all `/opt/*/.env` files and dependency manifests. Updated 2025-12-22.
+> **Source:** Extracted from all `/opt/*/.env` files and dependency manifests. Updated 2025-12-22; Infrastructure row corrected 2026-06-16 (Coolify decommissioned).
 
 ### 11.1 Active Projects in /opt
 
@@ -489,8 +489,11 @@ That's how you scale to 3 businesses without new architecture each time.
 
 | Service | Provider | Usage | Project |
 |---------|----------|-------|---------|
-| **Coolify** | coolify.io | Deployment control plane | fabrik (planned) |
-| **Backblaze B2** | Backblaze | Backup storage | fabrik (planned) |
+| **fabrik CLI** | (in-house) | Deployment control plane — SSH + Docker Compose via `fabrik apply` | fabrik |
+| **Traefik** | traefik.io | Reverse proxy / routing / TLS on the shared platform stack | fabrik |
+| **Backblaze B2** | Backblaze | Backup storage (via Backrest/restic) | fabrik |
+
+> **Coolify decommissioned 2026-05-30.** It was never the production control plane for this fleet; deployment is SSH + Docker Compose driven by `fabrik apply`. `coolify` survives only as the legacy Docker-network name on the shared stack. See [docs/DEPLOYMENT_ARCHITECTURE.md](../DEPLOYMENT_ARCHITECTURE.md).
 
 ---
 
