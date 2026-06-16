@@ -62,7 +62,7 @@ Each spoke (vps2/vps3) runs the **`host-state`** + **`opt-configs`** plans only 
 
 ## Current service inventory (what you must restore)
 
-31 containers across 9 logical groups. Order matters during restore (dependencies first).
+31 live containers — **29 platform services** across Layers 1–8 below, plus **2 `watchdog-test` dogfood containers** (Layer 9 — T-P5 test harness, NOT restore-critical). Order matters during restore (dependencies first).
 
 ### Layer 1 — Front door + auth (start FIRST)
 
@@ -98,10 +98,15 @@ Each spoke (vps2/vps3) runs the **`host-state`** + **`opt-configs`** plans only 
 - `n8n` (`/opt/n8n`) — automation. Volume: `n8n-data`
 - `browserless` (`/opt/browserless`) — headless Chrome
 - `gotenberg` (`/opt/gotenberg`) — PDF/Office converter
+- `site-provisioner` (`/opt/site-provisioner`) — spoke DNS / site-provisioning helper. **Interim manual stand-up** (the `fabrik apply` pipeline for it isn't ready yet — see `vps-complete-inventory.md` pending-action #2).
 
 ### Layer 8 — Tenants
 
 - `ocoron-com` (`/opt/ocoron-com`) — WordPress site. 5 containers: wordpress, nginx, mariadb, redis, backup-sidecar. Volumes: `ocoron-com_wp_html`, `ocoron-com_db_data`, `ocoron-com_redis_data`, `ocoron-com_backup_data`
+
+### Layer 9 — Dogfood / test (NOT restore-critical)
+
+- `watchdog-test`, `watchdog-test-watchdog` — the T-P5 watchdog-sidecar dogfood pair on vps1. Recreated by the watchdog test harness; **skip during a DR rebuild** (not part of the restore — they exist only to exercise the autonomous-restart path).
 
 ### Volumes that are NOT to be restored (legacy / orphan)
 
