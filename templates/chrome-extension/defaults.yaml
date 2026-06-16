@@ -5,7 +5,8 @@
 # project scaffolded from this template. Keep in sync with the pydantic Shape model.
 # NOTE: the CRX itself ships through the Chrome Web Store, but this
 # template ALSO scaffolds a companion backend service (see compose.yaml.j2)
-# that IS deployed to the VPS via Coolify. kind=service so GlitchTip error
+# that IS deployed to the VPS via `fabrik apply` (SSH + Docker Compose).
+# kind=service so GlitchTip error
 # tracking fires for the backend; is_public stays false so Gatus is opt-in
 # (flip to true in the spec when the backend has a stable public domain).
 shape:

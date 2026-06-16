@@ -60,7 +60,7 @@ services:
           memory: {{ resources.memory }}
           cpus: '{{ resources.cpu }}'
     {% if health and not health.disabled %}
-    healthcheck:  # Mandatory for Coolify orchestration - Traefik v3 filters unhealthy containers
+    healthcheck:  # Mandatory for the compose deploy — Traefik v3 filters unhealthy containers
       {% if health.test %}
       test: {{ health.test }}
       {% else %}

@@ -93,7 +93,7 @@ Fill this from production data. Until you have production data, estimate from AP
 
 | Item | Cost/mo | Notes |
 |---|---|---|
-| **VPS (Coolify)** | $X | Shared across projects (allocate proportionally) |
+| **VPS (fabrik apply)** | $X | Shared across projects (allocate proportionally) |
 | **Domain** | $X | Annual ÷ 12 |
 | **Third-party subscriptions** | $X | Any monthly API plans, proxy subscriptions |
 | **Prepaid pools** | $X | Amortized (total prepaid ÷ expected months of usage) |

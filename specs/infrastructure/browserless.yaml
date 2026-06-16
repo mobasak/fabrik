@@ -8,7 +8,7 @@ domain: browser.vps1.ocoron.com
 image: ghcr.io/browserless/chromium:latest
 environment:
   # v2 mandatory-ish: TOKEN gates all WebSocket/REST clients (consumers must pass ?token=...)
-  # Real value lives in /opt/fabrik/.env as BROWSERLESS_TOKEN; injected via Coolify env API.
+  # Real value lives in /opt/fabrik/.env as BROWSERLESS_TOKEN; written to the service `.env` on the VPS by the SSH deployer (`fabrik apply`).
   TOKEN: "${BROWSERLESS_TOKEN}"
   # v2 names (replace v1 MAX_CONCURRENT_SESSIONS / CONNECTION_TIMEOUT)
   CONCURRENT: "10"

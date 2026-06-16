@@ -9,7 +9,7 @@
 
 ## HARD RULES
 
-1. **NEVER change ports, environment variable names, or service names** — existing Coolify deployments depend on them
+1. **NEVER change ports, environment variable names, or service names** — existing deployments (SSH + Docker Compose via `fabrik apply`) depend on them
 2. **NEVER modify application logic** — only touch Dockerfiles, compose.yaml, and minimal health endpoints
 3. **Run `docker compose config` after every compose.yaml change** to validate YAML syntax
 4. **Create backups** before modifying Dockerfiles: `cp Dockerfile Dockerfile.backup.$(date +%Y%m%d)`

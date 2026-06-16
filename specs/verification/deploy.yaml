@@ -2,7 +2,7 @@
 # Used by fabrik verify to validate deployments
 
 operation: deploy
-description: Deploy a service to Coolify
+description: Deploy a service via SSH + Docker Compose (`fabrik apply`)
 
 preconditions:
   - compose.yaml exists
@@ -28,8 +28,8 @@ postconditions:
     min_days_remaining: 7
 
   container_running:
-    description: Container is running in Coolify
-    check: coolify_status
+    description: Container is running on the VPS (docker compose ps via SSH)
+    check: container_status
     app_name: "${APP_NAME}"
     expect: running
 
@@ -51,7 +51,7 @@ rollback:
   default: auto
   on_failure:
     - Log failure details
-    - Trigger Coolify rollback
+    - Trigger rollback (redeploy previous image / `docker compose up -d` prior state via SSH)
     - Notify via webhook (if configured)
 
   # Override for specific cases

@@ -1,11 +1,11 @@
-# Observability Stack — Deploy via Coolify as Docker Compose app
-# Config files are embedded inline via environment or copied to VPS at deploy time.
+# Observability Stack — deployed via SSH + Docker Compose (`fabrik apply`)
+# Config files are copied to the VPS at deploy time by the SSH deployer.
 # All services on shared 'fabrik' Docker network for inter-service communication.
 # Grafana exposed externally via Traefik at monitor.vps1.ocoron.com
 # All other services internal-only.
 #
-# Deploy: Coolify → New Resource → Docker Compose → paste this file
-# Required env vars in Coolify: GRAFANA_ADMIN_PASSWORD
+# Deploy: `fabrik apply` SSHes to the VPS and runs `docker compose up -d` for this stack.
+# Required env vars (written to the service `.env` on the VPS): GRAFANA_ADMIN_PASSWORD
 
 services:
   loki:

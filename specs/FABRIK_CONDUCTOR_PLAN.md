@@ -2,6 +2,11 @@
 
 **Version:** Draft 1.0 | **Date:** 2026-01-07 | **Status:** Awaiting consensus
 
+> **Superseded (historical):** Coolify was decommissioned 2026-05-30. Deploy is now
+> SSH + Docker Compose via `fabrik apply` (`deployer_ssh.py`), on the `fabrik` Docker
+> network. Coolify references below (ServiceDeployer, Coolify deploy/rollback) reflect
+> the original 2026-01 design and are kept for historical record.
+
 ---
 
 ## Goal

@@ -42,7 +42,7 @@ services:
         limits:
           memory: {{ resources.memory }}
           cpus: '{{ resources.cpu }}'
-    healthcheck:  # Mandatory for Coolify orchestration
+    healthcheck:  # Mandatory for the compose deploy + Traefik
       test: ["CMD", "curl", "-f", "http://localhost:3000{{ health.path if health else '/api/health' }}"]
       interval: {{ health.interval if health else '10s' }}
       timeout: {{ health.timeout if health else '5s' }}

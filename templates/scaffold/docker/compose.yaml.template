@@ -4,16 +4,16 @@
 #   2. Environment variables (use ${VAR:?} for required vars)
 #   3. Traefik labels (host rule auto-set to <domain>; edit for custom routing)
 #
-# Used by: Coolify deployment (git source), docker-smoke test
+# Used by: VPS deployment via `fabrik apply` (SSH + docker compose up -d), docker-smoke test
 # No bind mounts, no dev tools - production parity
 #
-# Notes on Coolify v4 routing:
-#   - The traefik.* labels below tell Traefik (managed by Coolify) how to
-#     route HTTPS requests for <domain> to this service. Without them, the
-#     deployed app is unreachable at its spec domain even when the
-#     container is healthy. (See B16 in CHANGELOG, 2026-04-27.)
-#   - The "fabrik" external network is provided by Coolify and is how
-#     Traefik discovers containers.
+# Notes on Traefik routing:
+#   - The traefik.* labels below tell Traefik how to route HTTPS requests
+#     for <domain> to this service. Without them, the deployed app is
+#     unreachable at its spec domain even when the container is healthy.
+#     (See B16 in CHANGELOG, 2026-04-27.)
+#   - The "fabrik" external network is a plain Docker bridge created on the
+#     VPS; Traefik (on the same network) uses it to discover containers.
 
 services:
   <project>:
@@ -35,9 +35,11 @@ services:
       retries: 3
       start_period: 10s
     restart: unless-stopped
-    # F5: Coolify v4 build_pack=dockercompose does not honour the limits_memory
-    # UI field. Declaring the limit here makes Docker enforce it on every
-    # redeploy. Tune per-project as needed.
+    # F5: Declaring the memory limit here (not just CPU) makes Docker enforce
+    # it on every redeploy — required so a single service can't OOM the shared
+    # VPS (Fabrik invariant; `fabrik apply` rejects composes without it).
+    # (Legacy Coolify-era rationale; still applies to the compose deploy.)
+    # Tune per-project as needed.
     deploy:
       resources:
         limits:
@@ -52,11 +54,10 @@ services:
       - "traefik.http.routers.<project>.entrypoints=websecure"
       - "traefik.http.routers.<project>.tls=true"
       - "traefik.http.routers.<project>.tls.certresolver=letsencrypt"
-      # B18: Hardcoded port — Coolify's compose parser does not always
-      # interpolate ${PORT:-8000} inside Traefik label strings, leaving
-      # the literal text as the port and producing 404 from Traefik.
-      # If the app listens on a different port, edit both the healthcheck
-      # above and this label.
+      # B18: Hardcoded port — compose parsers do not always interpolate
+      # ${PORT:-8000} inside Traefik label strings, leaving the literal text
+      # as the port and producing 404 from Traefik. If the app listens on a
+      # different port, edit both the healthcheck above and this label.
       - "traefik.http.services.<project>.loadbalancer.server.port=8000"
 
 networks:

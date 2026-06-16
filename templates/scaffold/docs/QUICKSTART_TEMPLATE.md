@@ -289,7 +289,7 @@ curl -X POST http://{project-name}:[PORT]/api/v1/{resource} \
 
 ### Docker Compose — Caller Wiring
 
-**Same Coolify stack:**
+**Same compose stack:**
 
 ```yaml
 services:
@@ -300,7 +300,7 @@ services:
       {project-name}:
         condition: service_healthy
     networks:
-      - coolify
+      - fabrik
 ```
 
 **Cross-stack (external network):**
@@ -311,10 +311,10 @@ services:
     environment:
       - {PROJECT_NAME}_URL=http://{project-name}:[PORT]
     networks:
-      - coolify
+      - fabrik
 
 networks:
-  coolify:
+  fabrik:
     external: true
 ```
 

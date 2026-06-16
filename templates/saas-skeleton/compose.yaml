@@ -1,4 +1,4 @@
-# Docker Compose for Coolify deployment
+# Docker Compose for `fabrik apply` deployment (SSH + Docker Compose)
 # Update service name and domain before deploying
 
 services:
@@ -17,8 +17,8 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
-    # F5: Coolify v4 build_pack=dockercompose does not honour the limits_memory
-    # UI field. Declaring the limit here makes Docker enforce it.
+    # F5: declaring the memory limit here makes Docker enforce it (Fabrik
+    # invariant — `deployer_ssh._validate_compose()` requires it per service).
     deploy:
       resources:
         limits:

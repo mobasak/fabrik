@@ -51,11 +51,11 @@ Generate a complete specification with these sections:
 |-----------|---------|--------|-----------|
 | Frontend | Next.js 14 + TypeScript + Tailwind | [Confirm or override] | [Why] |
 | Backend | Python + FastAPI + Uvicorn | [Confirm or override] | [Why] |
-| Database | PostgreSQL 16 (Coolify-managed) | [Confirm or override] | [Why] |
+| Database | shared `postgres-main` (SSH+Compose) | [Confirm or override] | [Why] |
 | Auth | [Supabase Auth / Custom JWT] | [Choose] | [Why] |
 | Base images | `python:3.12-slim-bookworm` / `node:22-bookworm-slim` | **No Alpine** | amd64 stability |
 | Platform | `linux/amd64` | **Mandatory** | Ubuntu x86_64 VPS |
-| Hosting | Coolify on x86_64 VPS | [Confirm] | [Why] |
+| Hosting | `fabrik apply` (SSH + Docker Compose) on x86_64 VPS | [Confirm] | [Why] |
 | Domains | `*.vps1.ocoron.com` | [Subdomain choice] | [Why] |
 
 **Time Horizon:** [X days to MVP]
@@ -164,7 +164,7 @@ Generate a complete specification with these sections:
 - [ ] No TypeScript errors
 - [ ] Health endpoint returns 200
 - [ ] `python scripts/final_gate.py` passes
-- [ ] Can deploy to VPS via Coolify
+- [ ] Can deploy to VPS via `fabrik apply` (SSH + Docker Compose)
 
 ---
 

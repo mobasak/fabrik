@@ -23,7 +23,7 @@
 - **Framework:** FastAPI / Next.js / Hono
 - **Database:** PostgreSQL (shared `postgres-main:5432`)
 - **Cache:** Redis (`redis:6379`)
-- **Deployment:** Docker → Coolify → VPS
+- **Deployment:** Docker Compose → VPS (`fabrik apply`)
 
 ## Requirements
 

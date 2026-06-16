@@ -200,7 +200,7 @@ When pause + dispatch interact badly, queues balloon. These five mechanisms keep
 
 | Concern        | Pattern                                                                 |
 | -------------- | ----------------------------------------------------------------------- |
-| Build failures | CI fails the deploy; Coolify keeps last-good. No autonomous pause needed. |
+| Build failures | CI fails the deploy; `fabrik redeploy` auto-reverts to last-good.       |
 | CDN miss storm | Cloudflare cache rules; long max-age on hashed assets                   |
 | Broken link    | `lychee` link-checker in CI (weekly cron job)                           |
 | Search index   | If Algolia/Meilisearch: rebuild as post-build step, fail-open on error  |
@@ -212,7 +212,7 @@ When pause + dispatch interact badly, queues balloon. These five mechanisms keep
 | --------------------- | ---------------------------------------------------------------------- |
 | MariaDB pool          | Per-site container, `max_connections=50`, `wait_timeout=120s`          |
 | Redis object cache    | Plugin: `redis-cache`, fail-open if Redis down (WP falls back to DB)   |
-| wp-cron               | Disable WP-Cron, run via host cron every 5min (Coolify-scheduled)      |
+| wp-cron               | Disable WP-Cron, run via host cron every 5min (VPS host-scheduled)     |
 | PHP-FPM saturation    | `pm=ondemand`, max_children=10/site; Gatus alerts on 502 spike         |
 | Plugin auto-update    | DISABLED; managed via `wp-cli` from Fabrik deploy job                  |
 | File uploads          | Off-load to R2 via plugin; local `wp-content/uploads` is ephemeral     |

@@ -10,11 +10,11 @@
 
 | Component | Target | URL |
 |-----------|--------|-----|
-| **Application** | {VPS (Coolify) / Vercel / Static host} | `https://{project}.vps1.ocoron.com` |
+| **Application** | {VPS (Docker Compose via `fabrik apply`) / Vercel / Static host} | `https://{project}.vps1.ocoron.com` |
 | **Database** | {VPS postgres-main / Supabase / SQLite} | {connection info in .env} |
 | **Cache** | {VPS redis / none} | {connection info in .env} |
 | **DNS** | Cloudflare (via site-provisioner) | Automatic |
-| **SSL** | {Let's Encrypt (Coolify) / Vercel / Cloudflare} | Automatic |
+| **SSL** | {Let's Encrypt (Traefik) / Vercel / Cloudflare} | Automatic |
 | **Monitoring** | Uptime Kuma | `https://status.vps1.ocoron.com` |
 
 ---
@@ -25,16 +25,16 @@
 
 ```bash
 fabrik apply [project-name]
-# DNS → Coolify app → env vars → domain + SSL → health check → deploy
+# DNS → env vars → SSH to VPS → docker compose up -d → domain + SSL (Traefik) → health check
 ```
 
-### Manual (Coolify UI)
+### Manual (SSH + Docker Compose)
 
-1. Create app in Coolify (`coolify.vps1.ocoron.com`) → Docker Compose build
-2. Connect GitHub repo
-3. Set env vars from `.env.example`
-4. Add domain → SSL auto-configures
-5. Deploy
+1. SSH to the VPS, `cd` into the project's deploy dir
+2. Pull the GitHub repo (`git pull`)
+3. Set env vars from `.env.example` in `.env`
+4. `docker compose up -d` — Traefik picks up the labels and provisions the domain + SSL
+5. Verify `GET /health`
 
 ### Vercel (if applicable)
 
@@ -47,7 +47,9 @@ vercel --prod
 
 ```bash
 git push origin main
-# Auto-deploys if webhook configured, otherwise manual deploy via Coolify/Vercel UI
+fabrik redeploy [project-name]
+# The VPS runs `git pull` from the GitHub remote, then `docker compose up -d`.
+# (Vercel projects auto-deploy on push.)
 ```
 
 ---
@@ -68,7 +70,7 @@ git push origin main
 | Environment | Connection | Notes |
 |-------------|------------|-------|
 | Dev (WSL) | `postgresql://localhost:5432/[project]_dev` | Local PostgreSQL |
-| Prod (VPS) | `postgresql://[project]:$DB_PASSWORD@postgres-main:5432/[project]` | Coolify-managed |
+| Prod (VPS) | `postgresql://[project]:$DB_PASSWORD@postgres-main:5432/[project]` | Shared `postgres-main` container |
 | Supabase | `postgresql://postgres.$REF:$PASSWORD@pooler.supabase.com:6543/postgres` | Connection pooler |
 | SQLite | `sqlite:///data/[project].db` | File-based, no server |
 
@@ -82,14 +84,16 @@ git push origin main
 - **Architecture:** `linux/amd64` required — VPS is x86_64
 - **Networking:** Docker service names (`postgres-main`, `redis`), never `localhost` in production
 - **Health checks:** Every service must have `/health` that tests actual dependencies
-- **Ports:** Registered in `PORTS.md` — Coolify/Traefik handles external 80/443 routing
+- **Ports:** Registered in `PORTS.md` — Traefik handles external 80/443 routing
 
 ---
 
 ## Rollback
 
 ```bash
-# Coolify: select previous deployment → redeploy
+# VPS: a failed `fabrik redeploy` auto-reverts to the last-known-good commit
+#      (SSH deployer captures a rollback point before mutating). To roll back a
+#      healthy deploy manually: git checkout <previous-sha> on the VPS → fabrik redeploy
 # Vercel: vercel rollback
 # Database: apply rollback migration from db/schema.sql
 ```

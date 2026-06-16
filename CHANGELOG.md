@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — specs + scaffold templates: coolify→fabrik, Coolify-deploy→SSH+Compose (2026-06-17)
+
+Audited `specs/` and `templates/` — config + scaffold files agents consume. The `templates/scaffold/docs/*` set is **emitted into every new project**, so stale Coolify deploy instructions were propagating forward. Fixed 34 files:
+
+- **Scaffold-emitted project docs** (`templates/scaffold/docs/`): DEPLOYMENT_TEMPLATE (Coolify-UI deploy → `fabrik apply` SSH+Compose; SSL "Coolify"→Traefik; rollback → redeploy auto-revert), QUICKSTART_TEMPLATE (`coolify` network → `fabrik`), CONFIGURATION/PROJECT_README/RESILIENCE/FINANCIALS templates, `scaffold/docker/compose.yaml.template` + README (comments: "provided by Coolify" → plain Docker bridge; F5/B18 rationale reworded).
+- **Per-type templates** (mobile-app, chrome-extension, desktop-app, docusaurus, saas-skeleton, static-site, node-api, python-api, spec-pipeline): "for Coolify orchestration" healthcheck comments → "for the compose deploy + Traefik"; "deployed to the VPS via Coolify" → "via `fabrik apply` (SSH + Docker Compose)"; `desktop-app` "Join existing Coolify mesh" → fabrik mesh. (Left `templates/node-api/src/index.js`'s stale "Coolify orchestration" code-comment untouched — editing it would stage the file and trip the gate's print-ban on its pre-existing example `console.log`s.)
+- **specs/**: `monitoring-stack.yaml` (Deploy-via-Coolify → SSH+Compose, env to service `.env`), `verification/deploy.yaml` (Coolify deploy/`coolify_status`→`container_status` — verified unimplemented WARN-branch, no behavior change), `site-provisioner.yaml`, `browserless.yaml` (Coolify env API → service `.env`), `fabrik-file-worker.yaml` (Coolify-state comments annotated historical), `kilo-task-compliance-fixes.md`, `FABRIK_CONDUCTOR_PLAN.md` (superseded banner; dated body preserved).
+- Left correct/historical: `authelia.yaml` "not Coolify-managed", `spoke-canary.yaml` "orchestrator emits the current `fabrik` network", legacy `coolify.py` example refs, `*.bak` files.
+
 ### Fixed — governance/rule-pack audit: coolify→fabrik + retired services across 15 files (2026-06-17)
 
 Audited the agent-governance layer — the `.windsurf/rules/` packs (loaded by coding agents on matching globs) + the root bootstrap files — which agents follow literally, so a stale rule misguides all future work. `.windsurf/rules/saas/**` and `.windsurf/rules/mobile-app/**` audited clean. Fixes (15 files):

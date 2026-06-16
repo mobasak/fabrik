@@ -62,7 +62,7 @@ theme:
 ## Deployment
 
 Deployed as static site via:
-- Coolify (Docker nginx)
+- `fabrik apply` (SSH + Docker Compose, served by Traefik)
 - Or Cloudflare Pages (faster, recommended)
 
 ## Related

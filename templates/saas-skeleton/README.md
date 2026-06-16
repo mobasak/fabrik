@@ -37,7 +37,7 @@ See `AGENTS.md` for build instructions, local development, and coding convention
 
 ```
 ├── Dockerfile            # Production Docker build
-├── compose.yaml          # Coolify deployment config
+├── compose.yaml          # SSH + Docker Compose deployment config (`fabrik apply`)
 ├── app/
 │   ├── (marketing)/      # Public pages
 │   │   ├── page.tsx      # Landing
@@ -129,15 +129,15 @@ docker build -t my-saas .
 docker run -p 3000:3000 my-saas
 ```
 
-### Coolify Deployment
+### VPS Deployment (`fabrik apply`)
 
-The template includes `Dockerfile` and `compose.yaml` ready for Coolify:
+The template includes `Dockerfile` and `compose.yaml` ready for SSH + Docker Compose deployment:
 
 1. Push to Git repository
-2. Create new service in Coolify
-3. Select Docker Compose deployment
-4. Set environment variables in Coolify dashboard
-5. Deploy
+2. Register the service spec under `specs/services/`
+3. Run `fabrik apply` — it SSHes to the VPS and runs Docker Compose
+4. Set environment variables in the service `.env` (merged on deploy)
+5. Traefik routes the container once the healthcheck passes
 
 ### Health Check
 

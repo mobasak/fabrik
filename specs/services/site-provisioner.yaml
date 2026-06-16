@@ -16,10 +16,10 @@ shape:
   needs_database: true           # uses postgres-main::site_provisioner (already created)
   has_search_feature: false
 
-# Git-sourced dockercompose app. Coolify ignores our rendered compose for this
-# build_pack and always uses the repo's /compose.yaml — which contains the
-# custom IP allowlist middleware + alembic migration runner + service-account
-# file mount. fabrik apply here is effectively: env-var sync + shape-gated
+# Git-sourced dockercompose app. The SSH deployer uses the repo's /compose.yaml
+# for this build_pack — which contains the custom IP allowlist middleware +
+# alembic migration runner + service-account file mount. fabrik apply here is
+# effectively: env-var sync (to the service `.env` on the VPS) + shape-gated
 # registrars + git pull + rebuild (via deploy(force=True) from glitchtip step).
 source:
   type: git

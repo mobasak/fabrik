@@ -21,7 +21,8 @@ WORKDIR /app
 # compose `healthcheck:` block that uses `curl -f`, which OVERRIDES this
 # Dockerfile's HEALTHCHECK at runtime. node:22-bookworm-slim has no curl by
 # default, so without this apt-get the container is `exited:unhealthy` within
-# 30s of startup and Coolify rolls the deploy back. Other scaffold templates
+# 30s of startup and the compose deploy keeps the last-good container
+# (HEALTHCHECK gates the swap). Other scaffold templates
 # (node-api, file-api, file-worker, docusaurus) already do this; saas-skeleton
 # was the lone gap, surfaced by the proof-run harness on 2026-04-28.
 RUN apt-get update && apt-get install -y --no-install-recommends curl && \

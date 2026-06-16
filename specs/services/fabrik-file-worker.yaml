@@ -3,10 +3,10 @@
 # production spec in this directory (proxy.yaml → id: fabrik-proxy;
 # fabrik-citation-verifier.yaml → id: fabrik-citation-verifier).
 #
-# Coolify state (verified 2026-05-14): application id 8, name
-# "fabrik-file-worker", currently no running container (stub) and no
-# environment_variables rows — secrets.required is therefore [] until a
-# live env audit shows otherwise.
+# Coolify-era audit (2026-05-14; deploy is now SSH+Compose via `fabrik apply`):
+# application id 8, name "fabrik-file-worker", currently no running container
+# (stub) and no environment_variables rows — secrets.required is therefore []
+# until a live env audit shows otherwise.
 #
 # No `shape:` block: G-B1a (load_spec template-defaults deep-merge) inherits
 # the shape from templates/file-worker/defaults.yaml at load time.
@@ -49,9 +49,10 @@ infrastructure:
 env:
   LOG_LEVEL: INFO
 
-# Secrets: live Coolify env audit (2026-05-14) returned zero environment_variables
-# rows for app fabrik-file-worker, so `required: []` is the truth at audit time.
-# If future deployment introduces secrets, re-audit before adding here.
+# Secrets: Coolify-era env audit (2026-05-14; now SSH+Compose) returned zero
+# environment_variables rows for app fabrik-file-worker, so `required: []` is the
+# truth at audit time. If future deployment introduces secrets, re-audit before
+# adding here (secrets are now written to the service `.env` on the VPS).
 secrets:
   required: []
   generate: []

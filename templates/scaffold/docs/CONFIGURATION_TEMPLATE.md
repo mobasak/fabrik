@@ -88,7 +88,7 @@ LOG_LEVEL=DEBUG
 DATABASE_URL=postgresql://localhost:5432/[project]_dev
 ```
 
-### Production (VPS / Coolify)
+### Production (VPS / Docker Compose)
 
 ```bash
 PORT=${PORT}

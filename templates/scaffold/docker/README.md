@@ -8,7 +8,7 @@ Templates for container-first development.
 |----------|---------|---------|
 | `Dockerfile.python` | `Dockerfile` | Multi-stage Python FastAPI build |
 | `Dockerfile.node` | `Dockerfile` | Multi-stage Node.js build |
-| `compose.yaml.template` | `compose.yaml` | Production-like compose (Coolify) |
+| `compose.yaml.template` | `compose.yaml` | Production-like compose (VPS deploy via `fabrik apply`) |
 | `compose.dev.yaml.template` | `compose.dev.yaml` | Dev overrides (hot reload) |
 | `dockerignore.template` | `.dockerignore` | Exclude files from build |
 | `Makefile.python` | `Makefile` | Python project commands |

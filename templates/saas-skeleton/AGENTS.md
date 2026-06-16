@@ -55,7 +55,7 @@ kilo run "Add new API endpoint for user profile"
 │   └── chat/            # ChatUI
 ├── lib/                 # Utilities and config
 ├── Dockerfile           # Production build
-└── compose.yaml         # Coolify deployment
+└── compose.yaml         # SSH + Docker Compose deployment (`fabrik apply`)
 ```
 
 ## Conventions
