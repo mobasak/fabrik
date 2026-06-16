@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — live numeric counts: Gatus 33→31, DNS 20→18 (2026-06-17)
+
+A numeric-consistency pass (counts verified against live vps1 + CF API) caught drift — including drift I introduced earlier this session by removing the 2 `coolify` Gatus endpoints without updating the counts that cite them:
+
+- **Gatus endpoint count 33 → 31** (live `grep -rcE '^\s*- name:' configs/gatus/` = 31; `core` and `external` groups each dropped 1 with the `coolify`/`coolify-public` removal). Fixed in: `health-monitoring.md`, `vps-fleet-architecture.md`, `vps-complete-inventory.md` (×2, incl. the per-group breakdown), `vps-ai-sysadmin.md`, `vps-status.md`, `EXTERNAL_SYSTEMS.md`.
+- **DNS A-records 20 → 18** in `vps-urls.md` (the 2 `vps4` orphans were deleted this session; CF API confirms 18 A / 33 total records).
+- **Verified and left as-is:** Authelia **8** access-control rules (a raw `domain:` grep returns 9, but the authoritative `yaml.safe_load` count is 8 — rule 8 lists two domains; docs were right), Prometheus 13 `job_name`s / 12 active / 14 targets, vps1 = 31 containers. Dated-event snapshots (e.g. the "17 A records post-cleanup 2026-06-16" entries) left as history.
+
 ### Fixed — INDEX.md kilo tooling snapshot stale (2026-06-17)
 
 An inline-code-path sweep (175 distinct `` `path/file.ext` `` refs across active docs) found INDEX.md's Kilo section still listed an old design — removed scripts (`kilo_agent_updater.py`, `extract_pricing.py`) and data files (`kilo_18_agents_complete.json`, `manual_pricing_data.json`, `kilo_comprehensive_db.json`) that no longer exist. Updated to the files that do: `kilo_model_sync.py`, the `scripts/kilo-benchmarks/` selection subsystem, `kilo_47_agents_final.json`, `kilo_embeddings_final.json`, `kilo_agents.db` (and "18 agents" → "47 agents").

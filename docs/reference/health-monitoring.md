@@ -22,7 +22,7 @@
 
 The full observability stack is deployed and operational. Netdata provides real-time metrics; Prometheus + Grafana handle alerting, dashboards, and long-term trend analysis; Loki + Promtail aggregate container logs.
 
-**Live coverage (verified 2026-06-16, 3-host fleet):** Gatus = 33 endpoints across 18 config files · Prometheus = 13 `job_name`s configured / 12 active / 14 targets up (`fabrik-services` is a null placeholder; `pushgateway` is a container, not a scrape job; the single `aro-wake` job covers all 3 hosts) · 13 alert rules in 5 groups · Grafana 5 custom dashboards · Authelia 8 access-control rules.
+**Live coverage (verified 2026-06-17, 3-host fleet):** Gatus = 31 endpoints across 18 config files (was 33 — the `coolify` + `coolify-public` endpoints were removed 2026-06-17) · Prometheus = 13 `job_name`s configured / 12 active / 14 targets up (`fabrik-services` is a null placeholder; `pushgateway` is a container, not a scrape job; the single `aro-wake` job covers all 3 hosts) · 13 alert rules in 5 groups · Grafana 5 custom dashboards · Authelia 8 access-control rules.
 
 > **Spoke coverage:** the two spoke hosts run `node-exporter` / `cadvisor` / `promtail` from `/opt/monitoring-agent/`, but there are NO `*-spokes` scrape jobs in `prometheus.yml`. Spoke visibility comes via the `aro-wake` job (covers all 3 hosts) plus push-based Loki log shipping.
 

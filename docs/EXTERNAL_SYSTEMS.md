@@ -941,7 +941,7 @@ This document catalogs all external systems, APIs, and services that Fabrik inte
 
 **Notes:**
 - Self-hosted on vps1, on the `fabrik` Docker network
-- ~33 endpoints across ~18 YAML files (see `sync_gatus_to_vps.sh --diff` for live count)
+- 31 endpoints across 18 YAML files (see `sync_gatus_to_vps.sh --diff` for live count)
 
 ---
 

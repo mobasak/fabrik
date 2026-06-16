@@ -16,7 +16,7 @@ All `A` records via Cloudflare (zone `ocoron.com`, unproxied — orange-cloud OF
 
 ### vps1 — `*.vps1.ocoron.com` → `172.93.160.197`
 
-CF zone `ocoron.com` has **20 A records** total (live, verified 2026-06-16). For vps1 (alphabetical), all → `172.93.160.197`:
+CF zone `ocoron.com` has **18 A records** total (live, verified 2026-06-17 — the 2 `vps4` orphans were deleted). For vps1 (alphabetical), all → `172.93.160.197`:
 
 `auth`, `auto`, `backup`, `browser`, `errors`, `monitor`, `notify`, `pdf`, **`provision`** (created 2026-05-31 evening — was missing despite the Traefik router existing), `search`, `status`, `vps1` (apex), **`watchdog-test`** (live Traefik router — the T-P5 watchdog dogfood)
 

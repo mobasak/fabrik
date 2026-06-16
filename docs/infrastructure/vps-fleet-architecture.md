@@ -129,7 +129,7 @@ This doc answers: "we own 3 VPSes — what do we have, what's planned, and how i
 - `loki` receives logs from promtail on every host (promtail pushes to `10.99.0.1:3100` from spokes).
 - `grafana` (vps1) shows fleet-wide dashboards. Both Prometheus + Loki as datasources.
 - `alertmanager` routes via `apprise` → Telegram.
-- `gatus` probes 33 endpoints (across 18 config files) via mesh (re-verified live 2026-06-15).
+- `gatus` probes 31 endpoints (across 18 config files) via mesh (re-verified live 2026-06-17; was 33 before the `coolify`/`coolify-public` endpoints were removed).
 - Total: **14/14 scrape targets up across 12 active jobs** (re-verified live 2026-06-15 via `/api/v1/targets`); 13 jobs are configured in `prometheus.yml` (the `fabrik-services` job has null targets so it isn't counted active). 12 active jobs = 11 vps1-local + `aro-wake` job (3 targets: vps1, vps2, vps3 over mesh). Was 18/15 briefly on 2026-05-31 when 3 spoke-side jobs were added; those jobs are no longer in `prometheus.yml`.
 
 ### 3. Backups (as of 2026-06-01, W11 shipped)
