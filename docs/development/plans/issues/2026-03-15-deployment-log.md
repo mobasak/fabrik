@@ -3,6 +3,15 @@
 **Date:** 2026-03-15
 **Deployment Type:** WordPress site (structure only, no content)
 
+> **⚠️ Historical log — superseded (flagged 2026-06-17).** This is a frozen
+> 2026-03-15 record of one deployment session. Everything it describes is now
+> obsolete: **Coolify was decommissioned 2026-05-30** (deploys are SSH + Docker
+> Compose via `fabrik apply`); the **`fabrik wp` command group was removed** and
+> **WordPress moved entirely to the separate `/opt/wpf` project** (`wpf` CLI);
+> the Docker network was renamed `coolify`→`fabrik` 2026-05-31; `src/fabrik/wordpress/`
+> and `compose-coolify.yaml.j2` no longer exist. Kept for history — do not use as
+> current guidance.
+
 ---
 
 ## Pre-Deployment Environment Check

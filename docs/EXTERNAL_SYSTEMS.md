@@ -188,28 +188,27 @@ This document catalogs all external systems, APIs, and services that Fabrik inte
 
 ---
 
-### Duplicati
+### Backrest (restic) — active backup tool since 2026-04-17
 
-**Purpose:** Backup software with web UI
+**Purpose:** Backup orchestration UI over `restic`. Replaced Duplicati 2026-04-17.
 
 **Documentation:**
-- Website: https://www.duplicati.com/
-- GitHub: https://github.com/duplicati/duplicati
-- Docs: https://duplicati.readthedocs.io/
+- GitHub: https://github.com/garethgeorge/backrest
+- restic: https://restic.net/
 
 **Authentication:**
-- Type: Password
-- Env Vars: `DUPLICATI_URL`, `DUPLICATI_PASSWORD`
+- Type: Password (web UI)
 - Web UI: `https://backup.vps1.ocoron.com`
+- Config: `/opt/backrest/config/config.json` on vps1
 
 **Usage in Fabrik:**
-- Functions: Automated backup management
-- Settings Encryption Key: `DUPLICATI_SETTINGS_ENCRYPTION_KEY`
+- Functions: scheduled restic snapshots to Backblaze B2 (encrypted, deduplicated)
+- Plans (vps1): `b2-vps1` covers `postgres-dumps`, `docker-volumes`, `opt-configs`, `host-state`; each spoke (vps2/vps3) runs its own 2 plans
+- restic 0.18.1 runs inside the backrest container
 
 **Notes:**
-- Self-hosted on VPS
-- Supports multiple backends (B2, S3, local)
-- Web-based configuration
+- The `backrest` Gatus endpoint monitors its health
+- Spec-driven: a service's `shape.has_persistent_data: true` triggers a Backrest plan registrar on `fabrik apply`
 
 ---
 
@@ -926,51 +925,30 @@ This document catalogs all external systems, APIs, and services that Fabrik inte
 
 ### Gatus
 
-**Purpose:** Status monitoring
+**Purpose:** Status/health-endpoint monitoring (the fleet status page).
 
 **Documentation:**
-- GitHub: https://github.com/TwinProduction/gatus
-- API Docs: https://github.com/TwinProduction/gatus
+- GitHub: https://github.com/TwiN/gatus
 
-**Authentication:**
-- Type: Username + Password
-- Env Vars: `UPTIME_KUMA_URL`, `UPTIME_KUMA_USERNAME`, `UPTIME_KUMA_PASSWORD`
-- Web UI: `https://status.vps1.ocoron.com`
-
-**Key Endpoints:**
-- Base URL: `https://status.vps1.ocoron.com/api`
-- Get Monitors: `GET /monitors`
-- Get Status: `GET /status`
+**Configuration:**
+- **No API token / no auth env vars** — Gatus is config-file driven, not API-driven.
+- Config: `configs/gatus/**/*.yaml` in this repo, synced to vps1 `/opt/monitoring/configs/gatus/` via `scripts/sync_gatus_to_vps.sh`.
+- Web UI: `https://status.vps1.ocoron.com` (public).
 
 **Usage in Fabrik:**
-- Functions: Service uptime monitoring
+- Functions: per-endpoint health checks (HTTP/TCP/cert) with Telegram alerts via the `custom` alert type
+- Spec-driven: a service spec auto-registers a Gatus endpoint on `fabrik apply` (gatus registrar)
 
 **Notes:**
-- Self-hosted on VPS
-- Web-based configuration
+- Self-hosted on vps1, on the `fabrik` Docker network
+- ~33 endpoints across ~18 YAML files (see `sync_gatus_to_vps.sh --diff` for live count)
 
 ---
 
-### Netdata
-
-**Purpose:** System monitoring
-
-**Documentation:**
-- Website: https://www.netdata.cloud/
-- GitHub: https://github.com/netdata/netdata
-- API Docs: https://learn.netdata.cloud/docs/api/
-
-**Authentication:**
-- Type: Username + Password
-- Env Vars: `NETDATA_URL`, `NETDATA_USER`, `NETDATA_PASSWORD`
-- Web UI: `https://netdata.vps1.ocoron.com`
-
-**Usage in Fabrik:**
-- Functions: System metrics monitoring
-
-**Notes:**
-- Self-hosted on VPS
-- Real-time metrics
+<!-- Netdata "external system" entry removed 2026-06-17. Netdata was removed from
+     the fleet 2026-05-30 (its Prometheus scrape job was deleted 2026-06-07 after a
+     Telegram flood). System metrics now come from node-exporter + cAdvisor scraped
+     by Prometheus and visualised in Grafana. No `netdata.vps1.ocoron.com` exists. -->
 
 ---
 
@@ -1096,17 +1074,13 @@ This document catalogs all external systems, APIs, and services that Fabrik inte
 
 ## Internal Services
 
-Fabrik also deploys and manages several internal services on the VPS:
+The only Fabrik-authored microservice still deployed is:
 
-- **Proxy API** (`https://proxy.vps1.ocoron.com`) - Proxy service management
-- **Captcha API** (`https://captcha.vps1.ocoron.com`) - CAPTCHA solving
-- **Translator API** (`https://translator.vps1.ocoron.com`) - Translation services
-- **Email Gateway** (`https://emailgateway.vps1.ocoron.com`) - Email routing
-- **DNS Manager** (`https://dns.vps1.ocoron.com`) - DNS management
-- **Image Broker** (`https://images.vps1.ocoron.com`) - Stock photo search
-- **Gatus** (`https://status.vps1.ocoron.com`) - Status monitoring
-- **Netdata** (`https://netdata.vps1.ocoron.com`) - System monitoring
-- **Backup** (`https://backup.vps1.ocoron.com`) - Duplicati web UI
+- **site-provisioner** (`https://provision.vps1.ocoron.com`) — domain/DNS/container provisioning; container live and healthy on the `fabrik` network. See [`docs/reference/service-contracts/site-provisioner.md`](reference/service-contracts/site-provisioner.md).
+
+The shared infra services (also internal) are catalogued in their own sections above: **Gatus** (status), **Backrest** (backup), **Grafana/Prometheus/Loki/Promtail** (monitoring stack), **Apprise** (notifications), **n8n** (automation), **Browserless**, **Gotenberg**, **Meilisearch**.
+
+**Retired** (kept here only to explain stale subdomains/specs): `proxy`, `captcha`, `translator`, `emailgateway`, `dns-manager` (all retired pre-2026-06), `image-broker` (retired 2026-06-02), `netdata` (removed 2026-05-30). Their `*.vps1.ocoron.com` subdomains were deleted from Cloudflare during residue cleanup.
 
 ---
 

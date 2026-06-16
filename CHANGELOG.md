@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — remaining doc walk: retired-service & superseded-plan accuracy (2026-06-17)
+
+Walked the last un-reviewed active doc files one by one:
+
+- **`docs/EXTERNAL_SYSTEMS.md`** (live-claims sections): replaced the **Duplicati** entry with **Backrest** (the active backup tool since 2026-04-17; Backrest was missing from the catalog); fixed the **Gatus** entry (it carried copy-pasted Uptime-Kuma env vars + a non-existent REST API — Gatus is config-file driven); removed the live **Netdata** entry (removed from fleet 2026-05-30); rewrote **Internal Services** (was listing 6 retired microservices + Netdata + "Duplicati" as live — now correctly: only `site-provisioner` is live). The "(Referenced)" catalog sections are an intentional deployable-images menu and were left as-is.
+- **`docs/development/plans/issues/2026-03-15-deployment-log.md`**: added a superseded banner (frozen Coolify-era / `fabrik wp` log; body kept as history).
+- **`docs/development/plans/youtube/00-vision.md`**: added a "predates Coolify removal" infra banner (read "Coolify-managed" as SSH+Compose; network is `fabrik`).
+- **`docs/preplans/README.md`**: lifecycle diagram said "fabrik apply → 9 registrars + Coolify" — dropped Coolify, now SSH + Docker Compose.
+
+Confirmed clean (no edits): `PLANS.md` (auto-gen index), `probe-reports/README.md`, `workstation/wsl-shell-mcp-setup.md`, `mobile-deployment-design.md`, `docs/reference/MD/**`, and `docs/infrastructure/audit-prompts/**` (rewritten 2026-06-02; already accurate).
+
 ### Fixed — docs said `coolify` network; code uses `fabrik` (2026-06-17)
 
 The 2026-05-31 `coolify`→`fabrik` Docker-network rename was never propagated to the docs. Verified ground truth in code: `deployer_ssh.py._validate_compose()` REQUIRES `networks: fabrik` and actively REJECTS `coolify`; all scaffold compose templates emit `networks: [fabrik]` / `traefik.docker.network=fabrik`; the live network on all 3 VPS is `fabrik` (no `coolify` network exists). So every doc telling a reader to use `networks: [coolify]` / `traefik.docker.network=coolify` was not just stale but would make `fabrik apply` fail. Corrected ~20 active docs + 2 configs + the CLAUDE.md HARD-STOP rule:

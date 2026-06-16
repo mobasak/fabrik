@@ -36,7 +36,7 @@ Scaffolding (fabrik scaffold — context injection)
     ↓
 Agentic Implementation (Traycer plan → Claude Code / Kilo / Windsurf code)
     ↓
-Proper Registration (fabrik apply → 9 registrars + Coolify)
+Proper Registration (fabrik apply → SSH + Docker Compose + 9 registrars)
     ↓
 Verification (fabrik verify + audit-registrars)
 ```

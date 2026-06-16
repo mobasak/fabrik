@@ -3,6 +3,8 @@
 > **Status:** Pre-planning. Captures verified current state + the architectural fork that must be resolved before any modernization ticket is opened.
 > **Last verified:** 2026-05-17 by direct file reads in `/opt/youtube/` from `/opt/fabrik/` (no review-summary trust).
 > **Authoritative for:** `00-vision.md` only. Tickets, breakdowns, and execute steps live in sibling files once the fork is resolved.
+>
+> **⚠️ Infra note (2026-06-17):** this doc predates the **2026-05-30 Coolify removal**. Everywhere it says "Coolify-managed" / "Traefik in Coolify" / "Coolify env", read **"SSH + Docker Compose via `fabrik apply`"** and **"the service `.env`"**; the Docker network is now **`fabrik`** (renamed from `coolify` 2026-05-31). The fork decision and all phases below are still valid — only the deploy mechanism name changed. When this becomes a real spec, use a `fabrik`-network compose (`fabrik apply` rejects `coolify`).
 
 ---
 
