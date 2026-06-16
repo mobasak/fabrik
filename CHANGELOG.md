@@ -4,6 +4,37 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Modal driver: rewrite to use `app.run()` context; G-LIVE-7/8/9 GREEN against $30 credit (2026-06-16)
+
+Closes the Modal half of the three-provider parity goal. The Modal driver shipped earlier today (commit `391c749`) was broken — `create_pod()` had two SDK-violations that both fired on the first live call:
+
+1. **Inner-scope `@app.function`** raised `InvalidError: must apply to functions in global scope, unless serialized=True`. Fix: module-level `_modal_gpu_session_holder` + dynamic decoration via `app.function(...)(_modal_gpu_session_holder)`.
+2. **`.spawn()` outside an `app.run()` context** raised `ExecutionError: Function has not been hydrated...`. Fix: manually enter the App context (`app_ctx = app.run(); app_ctx.__enter__()`), store the handle on `self._active_app_ctx`, exit it from `destroy_pod()` via `__exit__(None, None, None)`. **This is what actually releases the GPU on Modal.**
+
+Driver now stores four live handles per session: `_active_app_ctx` / `_active_app` / `_active_fc` / `_active_fc_id`. `create_pod()` rejects re-entry if a context is already open; cleanup clears all four regardless of cancel outcome.
+
+**Live validation against $30 Modal credit** (~$0.001 total spend):
+
+- **G-LIVE-7** (success path): `pod-rtx-4090` (→ Modal L4), `fc-01KV91DJZ81722DVECNMGB7RCZ` spawned, work_fn ran, FC cancelled, app context exited. Wall 2.9s.
+- **G-LIVE-8** (exception path): `fc-01KV91EF1VZBYHJRB5DQZM894S` spawned, work_fn raised `RuntimeError`, **FC still cancelled + context still exited**. try/finally invariant verified under failure.
+- **G-LIVE-9** (auto-routing path): `fabrik gpu rent pod-rtx-4090 --provider auto --utilization 0.2` correctly routes to Modal (low-util → per-second wins), spawns `fc-01KV91F9DTEARTG0PQZW7EB36B`, destroys at exit. End-to-end CLI path validated.
+
+[`docs/reference/modal-api.md`](docs/reference/modal-api.md) §21.1 + §21.1.1 rewritten to describe the actual driver pattern (with code snippets) instead of the pre-live "Phase 2 punts" note that was the source of the original bug.
+
+[`docs/operations/gpu-rent.md`](docs/operations/gpu-rent.md) "Providers" section now carries a live-validation matrix:
+
+| Provider | Pod mode | Serverless mode |
+| --- | --- | --- |
+| RunPod | ✅ G-LIVE-2/3 | ✅ G-LIVE-1 |
+| Modal | ✅ G-LIVE-7/8/9 | ⏸️ Phase 3 |
+| Vast.ai | ✅ G-LIVE-5 | ⏸️ Phase 3 |
+
+**Lesson 70 added** to [`docs/LESSONS_LEARNT.md`](docs/LESSONS_LEARNT.md): "Phase complete" is a lie unless every code path has a live gate; warning notes in docs are not implementation. Rule: a provider driver is not Phase-complete until live create→work→destroy passes against a real account, with the CHANGELOG naming the instance/call ID + cost. Mocked-SDK unit tests are a complement, not a substitute.
+
+**Operator credentials wired**: `MODAL_TOKEN_ID` + `MODAL_TOKEN_SECRET` appended to [`/opt/fabrik/.env.sysadmin`](.env.sysadmin) (backup at `backups/.env.sysadmin.before-modal.20260616-200232`). Project-local copy of `~/.modal.toml` at `/opt/fabrik/.modal.toml` (gitignored, 600 perms) for portability.
+
+**Net for the operator**: `fabrik gpu rent <kind> --workload <name>` works against all three providers now. Auto-routing has live-validated coverage end-to-end for the bursty-inference (Modal), sustained-training (RunPod), and checkpoint-resumable (Vast.ai) paths.
+
 ### Added — `fabrik gpu rent --provider auto` + Vast.ai live-validated (2026-06-16)
 
 Closes the "any AI can easily deploy a GPU, use it, kill it according to needs" gap. After this, the operator (or any agent) names a workload shape and the orchestrator picks the right provider; the provider can be RunPod, Modal, or Vast.ai. RunPod is the right default for ≥73% utilization on big GPUs but **not always** — see selection_advice.

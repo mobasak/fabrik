@@ -4182,6 +4182,33 @@ After all three fixes, the script completed cleanly on both vps2 and vps3 (fresh
 
 ---
 
+## Lesson 70 — "Phase complete" is a lie unless every code path has a live gate; warning notes in docs are not implementation
+
+**Date:** 2026-06-16
+**Context:** `fabrik gpu rent --provider modal` shipped (commit `391c749`) with `modal_provider.py::create_pod()` marked "Phase 2 complete." It wasn't. The driver decorated `@app.function` inside an inner scope (Modal forbids; raised `InvalidError: must apply to functions in global scope, unless serialized=True`) AND called `.spawn()` outside an `app.run()` context (raised `ExecutionError: Function has not been hydrated...`). Both errors fired on the very first live call. The reference doc I'd authored at `docs/reference/modal-api.md §3.5` had explicitly warned `with app.run():` was required and `§21.1` carried a "Phase 2 punts on that integration" note. **The warning notes were not implementation.** They were a TODO that got buried under "Phase complete" headers.
+
+Two distinct failures, one root cause:
+
+1. **Inner-scope decoration:** `@app.function` was inside `create_pod()`. Modal's hydration model assumes decorators run at import time on module-scope functions. Adding `serialized=True` partially silenced the error but didn't fix the second issue.
+2. **Spawn outside app context:** `holder.spawn()` was called WITHOUT entering `app.run()`. Functions are hydrated only inside that context — outside, the SDK raises ExecutionError immediately. The reference doc said this. The driver ignored it.
+
+**Why I didn't catch it earlier:** the Modal driver had no live gate before being shipped — only unit tests with mocked `modal` SDK (the mocks didn't enforce hydration semantics). Vast had the same problem and got caught by G-LIVE-5 against a $5 account. Modal stayed "untested" because `~/.modal.toml` didn't exist at ship time, and I treated that as "blocked, mark Phase complete and move on" instead of "blocked, do NOT mark Phase complete."
+
+**Rule:** A provider driver is NOT "Phase complete" until a live gate runs the full create → work → destroy lifecycle against a real account and the gate passes. Compliance check before shipping any new provider/integration:
+
+1. The credential is wired (token / API key / OAuth — in `.env.sysadmin`).
+2. A `G-LIVE-N` script exists at `/tmp/<provider>_live_smoke.py` (or similar) and the operator can re-run it.
+3. The CHANGELOG entry names the exact instance/call ID + wall-clock + actual cost, OR explicitly says "NOT live-validated, blocked on: `<blocker>`".
+4. Phase status is `live-validated` (concrete) or `awaiting-credentials` (blocked) — NEVER `complete` for an unrun integration.
+
+**Don't over-correct:** unit tests with mocked SDKs are still useful — they catch refactoring breaks, type errors, and call-shape regressions. They're NOT a substitute for live validation, but they cover a real class of bugs. Keep both layers.
+
+**Why warning notes failed me:** the `§21.1 Phase 2 punts on that integration` text was right. I wrote it. But by the time the commit shipped, the warning was buried 700 lines into a 950-line doc, and the CHANGELOG headline ("all 5 phases shipped") drowned it. **Critical implementation notes belong in the code path that violates them, not 700 lines into the reference doc.** Lesson 69 (image-tag staleness) had the same pattern — a comment near the failure site, not buried in a reference. Repeat the pattern.
+
+**Fix in this surface:** `modal_provider.py::create_pod()` rewritten to (a) reference a module-level `_modal_gpu_session_holder` function, (b) dynamically apply the decorator: `app.function(...)(_modal_gpu_session_holder)`, (c) manually enter `app.run()` context via `app_ctx.__enter__()`, store on `self._active_app_ctx`, (d) `destroy_pod()` cancels the FC then exits the context via `__exit__(None, None, None)`. G-LIVE-7 (success), G-LIVE-8 (exception during work_fn), and G-LIVE-9 (auto-routing CLI path) all GREEN against the operator's $30 Modal credit. Combined live spend: ~$0.001.
+
+---
+
 ## Lesson 69 — Provider default-image tags rot; don't pin in shared driver code without a freshness signal
 
 **Date:** 2026-06-16

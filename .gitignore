@@ -130,6 +130,7 @@ scripts/kilo-benchmarks/cache/update.log*
 .droid/traycer-reports/*.md
 .env.backup
 .env.sysadmin
+.modal.toml
 .factory/consultations/
 .windsurf/
 .windsurfrules

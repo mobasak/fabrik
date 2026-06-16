@@ -871,12 +871,42 @@ Below the break-even utilization rate, Modal wins on net cost because of per-sec
 ## 21. How Fabrik uses Modal
 
 ### 21.1 Driver: `src/fabrik/drivers/modal_provider.py`
-- `ModalClient.__init__`: deferred SDK import; reads `MODAL_TOKEN_ID` + `MODAL_TOKEN_SECRET` from env / `.env.sysadmin`.
-- `create_pod()`: builds inline `modal.App`, decorates a no-op `_gpu_session_holder` with the requested GPU, calls `.spawn()`. Returns the `FunctionCall.object_id` as `pod_id`.
-- `destroy_pod(pod_id)`: `FunctionCall.from_id(pod_id).cancel()`.
-- `get_pod(pod_id)`: returns synthetic `desiredStatus: RUNNING` / `EXITED` based on `fc.finalized()`.
-- `list_pods()`: returns `[]` — Modal has no global "list my containers" API; the driver relies on `data/gpu-rent-state.json` for inventory.
-- `create_endpoint()` / `run_endpoint_sync()` / `billing_*`: stubs that raise `NotImplementedError` — these are Phase 3 work because Modal serverless needs a deployable App definition (not an inline one) and billing isn't SDK-accessible yet.
+
+**Live-validated** 2026-06-16 (G-LIVE-7 success path, G-LIVE-8 exception path, G-LIVE-9 auto-routing). Total live spend: ~$0.001.
+
+- `ModalClient.__init__`: deferred SDK import; reads `MODAL_TOKEN_ID` + `MODAL_TOKEN_SECRET` from env / `.env.sysadmin`. Initializes `self._active_app_ctx / _active_app / _active_fc / _active_fc_id` to `None` — these hold the live `app.run()` context.
+- `create_pod()` — **THIS IS THE NON-OBVIOUS BIT**: Modal requires functions to be hydrated inside an `app.run()` context. The driver:
+  1. Builds a fresh `modal.App(name=fabrik-gpu-rent-<uuid>)` per rental (unique name avoids concurrent-session collision).
+  2. Decorates the **module-level** `_modal_gpu_session_holder` function via `app.function(image=..., gpu=..., timeout=86400, serialized=True)(_modal_gpu_session_holder)`. The `serialized=True` is mandatory for any non-global-scope binding pattern.
+  3. **Manually enters** the `app.run()` context: `app_ctx = app.run(); running_app = app_ctx.__enter__()`. The handle is stored on `self._active_app_ctx`.
+  4. Spawns the holder: `fc = holder.spawn()`. Returns the FC's `object_id` as the pod ID.
+  5. On any spawn failure, the context is exited to avoid leaking a running App.
+- `destroy_pod(pod_id)`: cancels the FunctionCall (best-effort, ignores already-done), then exits the `app.run()` context via `self._active_app_ctx.__exit__(None, None, None)`. **The context-exit is what actually releases the GPU.** Clears the four `_active_*` handles regardless of cancel outcome.
+- `wait_for_running()`: no-op (returns `{"id": pod_id, "desiredStatus": "RUNNING"}` synchronously). Modal hydrates functions on entering `app.run()` so spawn returns when ready; the container may still be cold-starting but Modal's per-second billing only charges active time.
+- `get_pod(pod_id)`: tries `FunctionCall.from_id(pod_id)` and maps `fc.finalized()` to `EXITED` vs `RUNNING`. Best-effort — Modal doesn't expose a stable per-FC poll API.
+- `list_pods()`: returns `[]` — Modal has no global "list my containers" API. Inventory lives in `data/gpu-rent-state.json` + tag-scoped reaper (see §21.5).
+- `create_endpoint()` / `run_endpoint_sync()` / `billing_*`: stubs that raise `NotImplementedError`. Phase 3 work.
+
+**Module-level holder** (the key piece):
+
+```python
+def _modal_gpu_session_holder() -> dict:
+    """Keep a Modal GPU container alive until the FunctionCall is cancelled."""
+    import time as _time
+    _time.sleep(86400)
+    return {"status": "sleep_timeout"}
+```
+
+Defined at module level (not inline in `create_pod`) because Modal's SDK rejects inner-scope decorations even with `serialized=True` once you also need `.spawn()` against it. The decorator is applied **dynamically** by `create_pod()`, not as a normal `@app.function` line.
+
+### 21.1.1 What G-LIVE-7 caught (2026-06-16)
+
+Two bugs from the pre-live driver:
+
+1. **Inner-scope `@app.function`** raised `InvalidError: The @app.function decorator must apply to functions in global scope, unless serialized=True is set.` Fix: module-level function + dynamic decoration + `serialized=True`.
+2. **`.spawn()` outside `app.run()` context** raised `ExecutionError: Function has not been hydrated with the metadata it needs to run on Modal, because the App it is defined on is not running.` Fix: enter `app.run()` context manually, store handle, exit on destroy.
+
+The reference doc §3.5 had warned `with app.run():` was required; the pre-live driver ignored it. Lesson 70 added.
 
 ### 21.2 Orchestrator routing
 `selection_advice(kind, hours, utilization_rate, needs_checkpointing, needs_serverless)` in [`src/fabrik/orchestrator/gpu_rent.py`](../../src/fabrik/orchestrator/gpu_rent.py):

@@ -36,9 +36,15 @@ GPUs. State + cost tracked in `data/gpu-rent-state.json` and
 `logs/gpu-rent-history.jsonl`. Daily budget cap enforced before any
 provider call.
 
-**Providers:** RunPod (default), Modal, Vast.ai. `fabrik gpu compare`
-shows side-by-side pricing + recommends one based on utilization rate +
-checkpointing requirement.
+**Providers (all three live-validated 2026-06-16):**
+
+| Provider | Pod mode | Serverless mode | When auto picks it |
+| --- | --- | --- | --- |
+| **RunPod** | ✅ live (G-LIVE-2/3) | ✅ live (G-LIVE-1, pinned endpoint reuse) | utilization ≥ 0.5, no checkpointing |
+| **Modal** | ✅ live (G-LIVE-7/8/9) | ⏸️ Phase 3 | utilization < 0.5 (per-second billing wins) |
+| **Vast.ai** | ✅ live (G-LIVE-5) | ⏸️ Phase 3 | `--needs-checkpointing` (spot ~50% cheaper) |
+
+`fabrik gpu compare` shows side-by-side pricing + recommends one based on utilization rate + checkpointing requirement. `--provider auto` (the default) runs that recommendation and proceeds directly.
 
 **Cold vs hot:**
 

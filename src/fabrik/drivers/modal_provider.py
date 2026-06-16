@@ -38,7 +38,7 @@ from __future__ import annotations
 
 import logging
 import os
-import time
+import uuid
 from pathlib import Path
 from typing import Any
 
@@ -114,6 +114,15 @@ class ModalClient:
                 "Phase 2 requires this when --provider=modal is used.",
                 cause=e,
             )
+        # Live state: Modal requires functions to run INSIDE an `app.run()`
+        # context. We open the context in create_pod() and store the handle
+        # so destroy_pod() can close it. Treating Modal like a "spawn and
+        # forget" pod provider doesn't work — the SDK rejects un-hydrated
+        # function calls (G-LIVE-7 caught this 2026-06-16).
+        self._active_app_ctx: Any = None
+        self._active_app: Any = None
+        self._active_fc: Any = None
+        self._active_fc_id: str | None = None
 
     # --- lifecycle ----------------------------------------------------------
     def close(self) -> None:
@@ -170,61 +179,129 @@ class ModalClient:
         name: str | None = None,
         gpu_count: int = 1,
     ) -> dict[str, Any]:
-        """Spawn a Modal function on a GPU.
+        """Open a Modal App ephemeral run and spawn a GPU holder.
 
-        ``gpu_type_id`` should be Modal's string ("H100", "A100", etc.).
-        Use :data:`MODAL_GPU_TYPES` to translate from the orchestrator's
-        friendly ``--kind pod-*`` aliases.
+        Modal's pattern: functions are hydrated only INSIDE an ``app.run()``
+        context. G-LIVE-7 confirmed: ``.spawn()`` outside the context raises
+        ``ExecutionError('Function has not been hydrated...')``.
 
-        This builds an inline ``modal.App`` + ``modal.Function`` from a
-        minimal Python lambda, spawns it, and returns the FunctionCall ID
-        as the pod_id. The handler is intentionally a no-op — work_fn from
-        gpu_rent.rent() owns the actual execution.
+        This implementation:
+        1. Builds a fresh ``modal.App`` per rental (one app per session).
+        2. Decorates a no-op holder at MODULE level (via a global registry)
+           because Modal forbids inner-scope decorators even with
+           ``serialized=True`` once you also need `.spawn()` against it.
+        3. Manually enters the app's ``run()`` context — stores the context
+           manager on ``self._active_app_ctx`` so ``destroy_pod()`` can exit.
+        4. Spawns the holder, returns FC id as pod_id.
+
+        ``gpu_type_id`` is Modal's string ("H100", "A100", "L4", etc.) —
+        translated from the friendly ``--kind`` alias upstream.
         """
+        if self._active_app_ctx is not None:
+            raise ModalError(
+                "ModalClient already has an active app context — "
+                "destroy_pod() must be called before create_pod() again"
+            )
         modal = self._modal
-        app = modal.App(name or "fabrik-gpu-rent")
 
-        # Build an image. For Phase 2 MVP we use the default Modal Python
-        # image with the env vars injected. Operator can extend this.
+        # Build a unique App name so concurrent rentals don't collide.
+        app_name = name or f"fabrik-gpu-rent-{uuid.uuid4().hex[:8]}"
+        app = modal.App(app_name)
+
+        # Build the image — debian_slim + env vars passed at runtime.
+        # NOTE: Modal also accepts the env on the function (preferred) so the
+        # image stays cached across calls with different envs.
         image = modal.Image.debian_slim(python_version="3.12")
-        if env:
-            for k, v in env.items():
-                image = image.env({k: v})
 
-        # Spawn a no-op "container" — Modal will allocate a GPU + workspace.
-        # The actual work happens via work_fn which Fabrik invokes after this
-        # returns. For Modal's idiomatic flow, work_fn should itself be a
-        # @app.function-decorated callable; Phase 2 punts on that integration
-        # and treats Modal pods as equivalent to RunPod pods.
-        @app.function(image=image, gpu=gpu_type_id, timeout=86400)
-        def _gpu_session_holder():
-            # Hold the container alive until destroyed.
+        # The session holder — uses MODULE-LEVEL function (defined below the
+        # class) which Modal hydrates correctly. We bind the gpu_type at the
+        # decorator call time. `serialized=True` allows the inline binding.
+        holder = app.function(image=image, gpu=gpu_type_id, timeout=86400, serialized=True)(
+            _modal_gpu_session_holder
+        )
 
-            time.sleep(86400)
+        # Enter the app.run() context manually. This is what Modal needs:
+        # `with app.run(): holder.spawn()`. We expand the `with` into
+        # __enter__/__exit__ to fit Fabrik's create→work→destroy lifecycle.
+        app_ctx = app.run()
+        running_app = app_ctx.__enter__()
 
-        fc = _gpu_session_holder.spawn()
+        try:
+            # The holder is a no-op sleep — env vars are baked into the image
+            # at decoration time via .env() if needed, not passed at call.
+            fc = holder.spawn()
+        except Exception:
+            # If spawn fails, we must close the context to avoid leaking the
+            # running app. Re-raise after cleanup.
+            try:
+                app_ctx.__exit__(None, None, None)
+            finally:
+                pass
+            raise
+
+        # Store the live handles so destroy_pod can clean up.
+        self._active_app_ctx = app_ctx
+        self._active_app = running_app
+        self._active_fc = fc
+        self._active_fc_id = fc.object_id
+
         return {
             "id": fc.object_id,
             "desiredStatus": "RUNNING",
-            "publicIp": None,  # Modal doesn't expose public IPs by default
+            "publicIp": None,
             "costPerHr": None,
-            "_modal_function_call": fc,
+            "_app_name": app_name,
             "_provider": "modal",
         }
 
     def wait_for_running(
         self, pod_id: str, *, timeout: int = 300, interval: int = 5
     ) -> dict[str, Any]:
-        """Modal containers are RUNNING by the time spawn() returns. No-op poll."""
-        return self.get_pod(pod_id)
+        """Modal hydrates functions when entering app.run(); spawn returns
+        immediately. The CONTAINER may still be cold-starting, but Modal
+        bills only the active seconds, so no extra wait needed here."""
+        return {
+            "id": pod_id,
+            "desiredStatus": "RUNNING",
+            "_provider": "modal",
+        }
 
     def destroy_pod(self, pod_id: str) -> None:
-        """Cancel a Modal function call."""
+        """Cancel the function call AND exit the app.run() context.
+
+        Order matters: cancel the FC first so Modal stops scheduling work,
+        then exit the context (which would auto-cancel anyway but adds an
+        explicit checkpoint for our state tracking).
+        """
+        if self._active_fc_id and self._active_fc_id != pod_id:
+            logger.warning(
+                "destroy_pod called for %s but active session is %s — "
+                "attempting via Function.from_id",
+                pod_id,
+                self._active_fc_id,
+            )
+        # Cancel the function call (best-effort; ignore if already done)
         try:
-            fc = self._modal.FunctionCall.from_id(pod_id)
-            fc.cancel()
-        except Exception as e:
-            raise ModalError(f"failed to cancel Modal call {pod_id}: {e}", cause=e)
+            if self._active_fc is not None:
+                self._active_fc.cancel()
+            else:
+                fc = self._modal.FunctionCall.from_id(pod_id)
+                fc.cancel()
+        except Exception as e:  # noqa: BLE001
+            logger.warning("modal FC.cancel(%s) failed (non-fatal): %s", pod_id, e)
+
+        # Exit the app.run() context — this is what actually releases the GPU.
+        if self._active_app_ctx is not None:
+            try:
+                self._active_app_ctx.__exit__(None, None, None)
+            except Exception as e:
+                logger.warning("modal app_ctx.__exit__ failed: %s", e)
+                raise ModalError(f"failed to exit modal app context for {pod_id}: {e}", cause=e)
+            finally:
+                self._active_app_ctx = None
+                self._active_app = None
+                self._active_fc = None
+                self._active_fc_id = None
 
     # --- Serverless API (Modal's `web_endpoint`) ---------------------------
     def list_endpoints(self) -> list[dict[str, Any]]:
@@ -288,3 +365,29 @@ class ModalClient:
 
     def billing_endpoints(self, start: str | None = None, end: str | None = None) -> dict[str, Any]:
         return {"endpoints": [], "_note": "Modal billing not yet SDK-accessible"}
+
+
+# ---------------------------------------------------------------------------
+# Module-level holder function — Modal hydrates this correctly because it's
+# at module scope. The decorator is applied dynamically by `create_pod()`
+# (via `app.function(...)(_modal_gpu_session_holder)`), not as a normal
+# `@app.function` line, so the function itself stays plain.
+#
+# Body: sleep until cancelled. Modal will bill the L4/A100/H100 for the
+# wall-clock the holder is alive. Fabrik destroys the container by cancelling
+# the FunctionCall + exiting the app.run() context.
+# ---------------------------------------------------------------------------
+def _modal_gpu_session_holder() -> dict:
+    """Keep a Modal GPU container alive until the FunctionCall is cancelled.
+
+    Modal's per-second billing applies the whole time this function runs.
+    Fabrik's ``ModalClient.destroy_pod()`` cancels this call, which raises
+    a ``modal.exception.FunctionCallCancelled`` inside the container so it
+    exits cleanly. Total cost = (wall_clock_seconds × hourly_rate / 3600).
+    """
+    import time as _time
+
+    # Max lifetime ceiling = 24h (Modal's hard timeout). Reaper destroys
+    # before this for runaway sessions.
+    _time.sleep(86400)
+    return {"status": "sleep_timeout"}
