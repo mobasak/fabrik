@@ -510,7 +510,7 @@ Fabrik is a **deployment orchestration platform** with AI-powered agent manageme
 | Infrastructure | **Docker Compose via `fabrik apply` (SSH + Docker Compose)** on x86_64 VPS | `compose.yaml` per project |
 | Database | **PostgreSQL 16** (shared) | VPS-managed `postgres-main` |
 | AI agent selection | **Kilo CLI** (model roster auto-updated daily) | `scripts/kilo-benchmarks/role_mapper.py` |
-| Monitoring | **Netdata** (active) + Grafana/Prometheus/Loki (config ready) | VPS services |
+| Monitoring | **Grafana + Prometheus + Loki + Alertmanager + Netdata + Gatus** (all active) | VPS services |
 
 This differs from the generic guide's recommendation of "TypeScript monorepo + Go CLI" because Fabrik's backend logic (scaffold, sync, audit, orchestration) is Python-native and shares modules with the CLI.
 
@@ -519,6 +519,7 @@ This differs from the generic guide's recommendation of "TypeScript monorepo + G
 ## Document Information
 
 - **Created**: January 2026
+- **Last updated**: 2026-06-16 (monitoring stack status corrected — Grafana/Prometheus/Loki are live, not "config ready")
 - **Purpose**: Technology stack decision reference for product development
 - **Format**: Decision flowchart + complete reference table
 - **Usage**: Navigate via flowchart for quick decisions, reference table for detailed analysis

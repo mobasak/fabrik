@@ -348,7 +348,6 @@ docs/
 │   ├── prebuilt-app-containers.md  # Prebuilt container catalog
 │   ├── provisioner.md
 │   ├── research-prompt-preamble-for-agent-rules.md
-│   ├── roadmap.md                  # Complete 8-phase roadmap summary
 │   ├── scaffold-type-decision-guide.md
 │   ├── scripts.md
 │   ├── service-contracts
@@ -450,7 +449,7 @@ docs/
 |----------|--------|
 | [architecture.md](docs/reference/architecture.md) | System architecture, components, data flow |
 | [stack.md](docs/reference/stack.md) | Technology stack, APIs, libraries |
-| [roadmap.md](docs/reference/roadmap.md) | Complete 8-phase development roadmap |
+| [roadmap.md](docs/archive/roadmap.md) | Original 8-phase build plan (archived — 7/8 phases shipped; superseded by `CHANGELOG.md` + the live docs) |
 | [drivers.md](docs/reference/drivers.md) | Fabrik driver API (Coolify, DNS, etc.) |
 | [templates.md](docs/reference/templates.md) | Available deployment templates |
 | [SaaS-GUI.md](docs/reference/SaaS-GUI.md) | SaaS skeleton template guide |

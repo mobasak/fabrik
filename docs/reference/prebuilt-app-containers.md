@@ -59,8 +59,8 @@ python scripts/container_images.py pull nginx:alpine
 
 - `database` — PostgreSQL, MariaDB, Redis
 - `webserver` — Nginx, Traefik, Caddy
-- `monitoring` — Netdata, Gatus, Prometheus, Grafana
-- `backup` — Duplicati, Restic
+- `monitoring` — Gatus, Prometheus, Grafana, Loki (Netdata removed 2026-05-30)
+- `backup` — Backrest, Restic (Duplicati replaced by Backrest 2026-04-17)
 - `development` — Code Server, Gitea
 - `media` — Jellyfin, Plex
 
@@ -70,15 +70,23 @@ python scripts/container_images.py pull nginx:alpine
 
 ### Infrastructure Services (Prebuilt)
 
-| Service | Source | Image | Purpose |
+> **Verified against live vps1 (2026-06-16).** Coolify was decommissioned
+> 2026-05-30 (deploy is now SSH + Docker Compose via `fabrik apply` →
+> `orchestrator/deployer_ssh.py`; `coolify` survives only as the legacy
+> Docker-network name). Netdata was removed 2026-05-30. Duplicati was
+> replaced by Backrest 2026-04-17.
+
+| Service | Source | Image (live tag) | Purpose |
 |---------|--------|-------|---------|
-| Duplicati | LinuxServer | `lscr.io/linuxserver/duplicati` | Backup to B2 |
-| Netdata | Official | `netdata/netdata` | System monitoring |
-| Gatus | Official | `TwinProduction/gatus` | Uptime monitoring |
-| Coolify | Official | Self-managed | Deployment control plane |
-| PostgreSQL | Official | `postgres:16` | Shared database |
-| Redis | Official | `redis:7-bookworm` | Caching |
-| Traefik | Official | `traefik:v3` | Reverse proxy (via `fabrik apply` (SSH + Docker Compose)) |
+| Backrest | Official | `ghcr.io/garethgeorge/backrest:latest` | Backup to B2 (replaced Duplicati 2026-04-17) |
+| Gatus | Official | `twinproduction/gatus:latest` | Uptime monitoring |
+| Prometheus | Official | `prom/prometheus:v3.2.1` | Metrics |
+| Grafana | Official | `grafana/grafana:11.6.1` | Dashboards |
+| Loki / Promtail | Official | `grafana/loki:3.4.2`, `grafana/promtail:3.4.2` | Log aggregation |
+| Alertmanager | Official | `prom/alertmanager:v0.28.1` | Alert routing |
+| PostgreSQL | Official | `postgres:16-alpine` | Shared database |
+| Redis | Official | `redis:7-alpine` | Caching |
+| Traefik | Official | `traefik:v2.11` | Reverse proxy (routes containers on `coolify` net) |
 
 ### External Services
 
@@ -98,7 +106,7 @@ python scripts/container_images.py pull nginx:alpine
 | fabrik-emailgateway | `/opt/emailgateway` | Node.js/Fastify | 3000 | Email sending (Resend, SES) |
 | fabrik-file-api | `/opt/file-api` | Node.js/Express | 3000 | File operations API |
 | fabrik-file-worker | `/opt/file-worker` | Python | - | Background file processing |
-| fabrik-image-broker | `/opt/image-generation` | Python/FastAPI | 8000 | AI image generation (FLUX) |
+| ~~fabrik-image-broker~~ | `/opt/image-generation` | Python/FastAPI | 8000 | AI image generation (FLUX) — **retired 2026-06-02** |
 
 ## Image Source Hierarchy
 
@@ -111,7 +119,7 @@ When deploying a new service, follow this priority:
 **Why:** Consistent PUID/PGID mapping, s6-overlay supervisor, regular security updates, excellent docs.
 
 **Use for:**
-- Backup tools (Duplicati, Restic, Borg)
+- Backup tools (Restic, Borg) — note Fabrik's live backup is Backrest, not an LSIO image
 - Media servers (Plex, Jellyfin, Emby)
 - Download managers (qBittorrent, SABnzbd, NZBGet)
 - Network tools (WireGuard, OpenVPN, Nginx)
@@ -120,8 +128,8 @@ When deploying a new service, follow this priority:
 **Fabrik example:**
 ```yaml
 services:
-  duplicati:
-    image: lscr.io/linuxserver/duplicati:latest
+  syncthing:
+    image: lscr.io/linuxserver/syncthing:latest
     environment:
       - PUID=1000
       - PGID=1000
@@ -211,24 +219,34 @@ docker pull oci.trueforge.org/tccr/home-assistant:latest
 
 ## Container Registry Platform Comparison
 
-| Platform | How to use with Coolify | Why (in Coolify terms) | Choose it when | Default policy |
+> Deploy is SSH + Docker Compose via `fabrik apply` (Coolify was decommissioned
+> 2026-05-30). "How to use" below means the `image:` line in the compose
+> template the scaffolder/registrar emits; private-registry creds live in the
+> VPS Docker config / `.env`, not a Coolify UI.
+
+| Platform | How to use (compose) | Why | Choose it when | Default policy |
 |----------|------------------------|------------------------|----------------|----------------|
-| **Docker Hub** | Set `image: repo:tag` (or digest). If private, add registry credentials in Coolify. | Fastest path for common building blocks; widest availability. | You need standard infrastructure images (nginx, redis, postgres) or an app image primarily distributed on Docker Hub. | Use, but **pin versions** (`:1.2.3`) or **digest** for production; avoid floating `latest`. |
-| **GHCR** | Use `image: ghcr.io/org/image:tag`. For private images, add GitHub token (PAT) in Coolify registry credentials. | Best when your code and CI are on GitHub; easiest "build in GitHub Actions → deploy from GHCR". | You build/own services or rely on OSS projects publishing releases to GHCR. | Preferred for **your own images** if repo is on GitHub; tag releases (`vX.Y.Z`) and optionally pin digests. |
+| **Docker Hub** | Set `image: repo:tag` (or digest). For private images, `docker login` on the VPS host. | Fastest path for common building blocks; widest availability. | You need standard infrastructure images (nginx, redis, postgres) or an app image primarily distributed on Docker Hub. | Use, but **pin versions** (`:1.2.3`) or **digest** for production; avoid floating `latest`. |
+| **GHCR** | Use `image: ghcr.io/org/image:tag`. For private images, `docker login ghcr.io` with a GitHub PAT on the VPS. | Best when your code and CI are on GitHub; easiest "build in GitHub Actions → deploy from GHCR". | You build/own services or rely on OSS projects publishing releases to GHCR. | Preferred for **your own images** if repo is on GitHub; tag releases (`vX.Y.Z`) and optionally pin digests. |
 | **LinuxServer.io** | Use `image: lscr.io/linuxserver/<app>:tag`; set required env/volumes (PUID/PGID/TZ etc.), map persistent volumes. | Quick deploy of off-the-shelf apps with consistent configuration patterns and good docs. | You want to add a utility/service quickly without maintaining Dockerfiles. | Use only images that match VPS architecture (**amd64**). Prefer explicit tags over `latest`. |
 | **TrueForge** | Use `image: oci.trueforge.org/tccr/<app>:tag`. List images via `container_images.py trueforge list`. | Supply-chain security with attestations, SBOM, verifiable provenance. | Client requires compliance, enterprise audits, or regulated industry deployment. | Use for security-critical deployments. Verify amd64 support per image. |
 | **hotio.dev** | Use `image: hotio/<app>:tag` per hotio docs; configure env/volumes. | Alternative curated publisher; sometimes better-maintained for specific apps. | The specific app works better / is maintained better in hotio than elsewhere. | Don't mix LinuxServer and hotio arbitrarily—pick per app based on maintenance + arch support. |
-| **JFrog** | Add JFrog registry to Coolify (URL + credentials). Deploy using `image: <registry>/<repo>/<image>:tag`. Optionally mirror upstream images. | Governance: one controlled source, access control, promotion (dev→staging→prod), less dependency on public pulls. | You have multiple environments, multiple servers, need controlled rollout, or want to mirror upstream images. | Not needed for single VPS. Consider when introducing staging/multi-server. |
+| **JFrog** | Add the JFrog registry via `docker login`; deploy using `image: <registry>/<repo>/<image>:tag`. Optionally mirror upstream images. | Governance: one controlled source, access control, promotion (dev→staging→prod), less dependency on public pulls. | You have multiple environments, multiple servers, need controlled rollout, or want to mirror upstream images. | Not needed for single VPS. Consider when introducing staging/multi-server. |
 
 ---
 
-## Coolify Deployment Policy
+## Deployment Policy
 
-> **DONE =** Every Coolify app deploys from pinned, architecture-compatible images, and you can roll back reliably.
+> **Note:** This section was the "Coolify Deployment Policy" before the
+> 2026-05-30 migration. The pinning/architecture rules are unchanged; the
+> deploy mechanism is now SSH + Docker Compose via `fabrik apply`
+> (`orchestrator/deployer_ssh.py`), not Coolify.
+>
+> **DONE =** Every app deploys from pinned, architecture-compatible images, and you can roll back reliably (`fabrik redeploy` reverts via `git reset --hard` on health-check failure for git-sourced apps, or stays at the last good image for template-sourced).
 
 ### Policy Rules
 
-1. **Fabrik custom services**: Build in CI → push to **GHCR** → Coolify pulls `ghcr.io/...:vX.Y.Z`
+1. **Fabrik custom services**: Build in CI → push to **GHCR** → compose pulls `ghcr.io/...:vX.Y.Z`
 2. **3rd-party services**: Pull from Docker Hub / LinuxServer / hotio, but **pin versions** (or digest) and ensure **amd64 compatibility**
 3. **When adding staging or multi-server**: Introduce a registry layer (JFrog) and optionally mirror upstream images
 
@@ -236,13 +254,13 @@ docker pull oci.trueforge.org/tccr/home-assistant:latest
 
 ```yaml
 # ❌ BAD - floating tag
-image: lscr.io/linuxserver/duplicati:latest
+image: ghcr.io/garethgeorge/backrest:latest
 
 # ✅ GOOD - pinned version
-image: lscr.io/linuxserver/duplicati:2.0.8
+image: getmeili/meilisearch:v1.13
 
 # ✅ BEST - pinned digest (immutable)
-image: lscr.io/linuxserver/duplicati@sha256:abc123...
+image: getmeili/meilisearch@sha256:abc123...
 ```
 
 ### Architecture Verification
@@ -278,7 +296,7 @@ services:
     image: lscr.io/linuxserver/qbittorrent:latest
 ```
 
-**Fabrik integration:** Deploy via `fabrik apply` (SSH + Docker Compose), monitor via Netdata, backup configs via Duplicati.
+**Fabrik integration:** Deploy via `fabrik apply` (SSH + Docker Compose), monitor via Prometheus/Grafana, backup configs via Backrest.
 
 ### Code/Git Server (for client projects)
 
@@ -309,7 +327,7 @@ services:
     image: TwinProduction/gatus:latest
 ```
 
-**Fabrik integration:** Replace/complement Netdata for multi-service dashboards.
+**Fabrik integration:** This Prometheus/Grafana/Loki/Gatus stack is now the live monitoring layer (Netdata was removed 2026-05-30).
 
 ### Document/Wiki System (for project documentation)
 
@@ -361,8 +379,8 @@ Before deploying any prebuilt container:
 - [ ] **Architecture:** Supports `linux/amd64` (VPS is x86_64-based)
 - [ ] **Maintenance:** Updated within last 3 months
 - [ ] **Docs:** Clear volume/env configuration documented
-- [ ] **Coolify:** Can deploy via Docker Compose
-- [ ] **Backup:** Data volumes identified for Duplicati
+- [ ] **Deploy:** Expressible as a Docker Compose service (deployed via `fabrik apply`)
+- [ ] **Backup:** Data volumes identified for Backrest
 - [ ] **Health:** Has health check endpoint or can add one
 
 ## Deployment Pattern
@@ -387,12 +405,17 @@ services:
       - "traefik.http.routers.service-name.rule=Host(`service.vps1.ocoron.com`)"
       - "traefik.http.routers.service-name.tls.certresolver=letsencrypt"
     networks:
-      - coolify
+      - coolify  # legacy network NAME (kept post-Coolify); Traefik routes off it
 
 networks:
   coolify:
     external: true
 ```
+
+> The `coolify` network name is a legacy artifact — it persists as the shared
+> external Docker network all containers attach to so Traefik can route them.
+> Coolify itself was decommissioned 2026-05-30; do not bind container ports to
+> the host.
 
 ## References
 
@@ -522,7 +545,7 @@ All images use format: `lscr.io/linuxserver/<name>:latest`
 
 | Image | Use Case for Fabrik |
 |-------|---------------------|
-| `duplicati` | Backup to cloud (B2, S3, etc.) |
+| `duplicati` | Backup to cloud (B2, S3, etc.) — note: Fabrik retired Duplicati for **Backrest** (`ghcr.io/garethgeorge/backrest`) on 2026-04-17 |
 | `rsnapshot` | Filesystem snapshots |
 
 ### Monitoring & Analytics
@@ -643,6 +666,12 @@ All images use format: `lscr.io/linuxserver/<name>:latest`
 ## Fabrik Acceleration Map
 
 Comprehensive analysis of Docker images that accelerate Fabrik development by replacing custom code with battle-tested solutions.
+
+> **Status (2026-06-16):** Several of these are no longer aspirational — `caronc/apprise`,
+> `getmeili/meilisearch:v1.13`, `gotenberg/gotenberg:8.32.0`, `n8nio/n8n`, and a
+> browserless image (live as `ghcr.io/browserless/chromium`, not `browserless/chrome`)
+> are deployed on vps1. The "This Week / This Month" headings below are the original
+> planning cadence, not current to-do items.
 
 ### Legend
 

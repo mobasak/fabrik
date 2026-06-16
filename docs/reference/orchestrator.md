@@ -237,4 +237,3 @@ See `docs/DEPLOYMENT_ARCHITECTURE.md` §9.6 for the canonical **maximal-shape E2
 - [Drivers Reference](drivers.md)
 - [CLI Reference](fabrik-cli-reference.md)
 - [Templates](templates.md)
-- [Roadmap](roadmap.md)

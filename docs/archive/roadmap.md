@@ -1,14 +1,37 @@
-# Complete Fabrik Roadmap (historical — pre-migration)
+# Complete Fabrik Roadmap (historical — superseded planning artifact)
 
-> **⚠️ Historical.** This roadmap covers Phases 1–3 from the pre-2026-05
-> era when Coolify was the deploy control plane. Phase 1 (Coolify Setup,
-> Coolify driver) was completed and then SUPERSEDED by the SSH+Compose
-> migration (2026-05) — the Coolify-install + Coolify-driver line items
-> remain accurate as a historical record but are not the current path.
-> See [docs/operations/fabrik-lifecycle.md](../operations/fabrik-lifecycle.md)
-> for the current 4-stage lifecycle.
+> **⚠️ Historical / superseded — archive candidate (re-verified 2026-06-16).**
+> This is the **original 8-phase build plan** from the pre-2026-05 era when
+> Coolify was the deploy control plane. It is kept as a historical record of
+> the planned sequence; it is **not** a live roadmap and should not be used
+> to gauge current status.
+>
+> **What actually happened since this was written:** 7 of the 8 phases below
+> are substantially **shipped**, and the foundation premise (Coolify as the
+> deploy engine, "start at Phase 1 Step 1") was **superseded** by the
+> SSH + Docker Compose migration. Coolify was **decommissioned 2026-05-30**;
+> deploys now run via `fabrik apply` (SSH + Docker Compose to the VPS fleet),
+> and `coolify` survives only as a legacy Docker **network name**. The
+> Coolify-install + Coolify-driver line items remain accurate *as history*
+> but are not the current path. The current system also extends well beyond
+> this plan — a 3-VPS fleet + on-demand Vultr, `--target-vps` multi-host
+> deploys, `fabrik vultr` provisioning + DR drills (hub / spoke /
+> spoke-restore, validated end-to-end 2026-06-15/16), and an AI sysadmin
+> trio live on the whole fleet — none of which this 2025-era plan anticipated.
+>
+> **Per-phase status is annotated inline below.** For the current picture see
+> [docs/operations/fabrik-lifecycle.md](../operations/fabrik-lifecycle.md)
+> (4-stage lifecycle), [docs/DEPLOYMENT_ARCHITECTURE.md](../DEPLOYMENT_ARCHITECTURE.md),
+> and [docs/reference/fabrik-vultr.md](../reference/fabrik-vultr.md) (provisioning + DR drills).
 
-## Phase 1: Foundation (historical — completed, then migrated)
+## Phase 1: Foundation — ✅ SHIPPED (then migrated off Coolify)
+
+> **Status:** Done. The full chain (`fabrik plan`/`apply`, spec loader, DNS,
+> template renderer, first Python + WordPress deploys, Gatus, backup/restore)
+> shipped. The Coolify-specific steps (6–9, 15) were completed and then
+> **superseded** — the control plane is now SSH + Docker Compose
+> (`src/fabrik/orchestrator/deployer_ssh.py`), not the Coolify driver/UI.
+> DNS is multi-provider (`drivers/dns.py`, `drivers/cloudflare.py`).
 
 **Goal:** One working deployment engine that proves the full chain.
 
@@ -55,7 +78,14 @@
 
 ---
 
-### Phase 2: WordPress Automation
+### Phase 2: WordPress Automation — ✅ SHIPPED
+
+> **Status:** Done, then split out. WordPress scaffolding/presets still ship
+> in Fabrik (`fabrik scaffold --type wordpress`), but WP *deployment* +
+> WP-CLI/REST lifecycle automation have **moved to a separate `wpf` CLI**
+> (`/opt/wpf/`); `fabrik` now points WordPress users there. WP site creation
+> is out of Fabrik scope.
+
 **Goal:** Full WordPress lifecycle management via CLI/API.
 
 | Step | Task | Time |
@@ -90,7 +120,14 @@
 
 ---
 
-### Phase 3: AI Content Integration
+### Phase 3: AI Content Integration — ✅ SHIPPED
+
+> **Status:** Done. `fabrik ai generate` ships (`src/fabrik/ai/client.py`),
+> and agent-driven workflows are live (Windsurf/Kilo/Traycer rule packs +
+> AGENTS.md). Note the operational AI stack (sysadmin/watchdog) standardized
+> on **Claude Code CLI** (subscription OAuth); the `ANTHROPIC_API_KEY` path is
+> only for `fabrik ai generate` content utilities.
+
 **Goal:** AI agents can generate and publish content.
 
 | Step | Task | Time |
@@ -121,7 +158,14 @@
 
 ---
 
-### Phase 4: DNS Migration + Advanced Networking
+### Phase 4: DNS Migration + Advanced Networking — ✅ SHIPPED (Cloudflare driver)
+
+> **Status:** Done. The Cloudflare driver ships (`src/fabrik/drivers/cloudflare.py`)
+> with per-record CRUD (no destructive replace-all) alongside Namecheap via
+> the unified `drivers/dns.py` client; the live fleet runs on Cloudflare
+> (proxy/A-record management is in use). Optional WAF/page-rules (steps 8–9)
+> were not pursued as separate line items.
+
 **Goal:** Cleaner DNS automation, optional Cloudflare benefits.
 
 | Step | Task | Time |
@@ -145,7 +189,14 @@
 
 ---
 
-### Phase 5: Staging + Multi-Environment
+### Phase 5: Staging + Multi-Environment — ⬜ NOT SHIPPED (only phase still open)
+
+> **Status:** Not built. No `fabrik staging:*` commands exist. The "same code
+> in 3 envs" portability invariant (WSL dev / VPS Docker / Supabase) covers
+> the multi-environment need in practice, so dedicated staging tooling was
+> never prioritized. This is the one phase from the original plan that
+> remains genuinely unbuilt.
+
 **Goal:** Test changes before production.
 
 | Step | Task | Time |
@@ -169,7 +220,14 @@
 
 ---
 
-### Phase 6: Advanced Monitoring
+### Phase 6: Advanced Monitoring — ✅ SHIPPED
+
+> **Status:** Done. The observability stack is live on the fleet — Prometheus
+> (`drivers/prometheus.py`, ~13 jobs), Grafana (`drivers/grafana.py`),
+> Loki, and Gatus (`drivers/gatus.py`, ~33 endpoints). Alerting runs through
+> 13 alert rules + Telegram. Auto-registered per service via the spec `shape:`
+> contract on `fabrik apply`.
+
 **Goal:** Visibility into performance and issues.
 
 | Step | Task | Time |
@@ -196,7 +254,16 @@
 
 ---
 
-### Phase 7: Multi-Server Scaling
+### Phase 7: Multi-Server Scaling — ✅ SHIPPED (via `--target-vps`, not Coolify)
+
+> **Status:** Done, by a different mechanism than planned. Multi-host is live
+> via the `--target-vps` flag on `apply`/`redeploy`/`destroy`
+> (resolution: CLI flag > state `target_vps` > spec `target_vps:` > vps1),
+> not by "adding a server to Coolify" (step 3 below is obsolete — Coolify is
+> decommissioned). The fleet is **3 VPS + on-demand Vultr** spokes provisioned
+> by `fabrik vultr` (`src/fabrik/orchestrator/vultr_provision.py`). Servers are
+> targeted per-spec; the shared DB layer (`postgres-main`/`redis-main`) is in place.
+
 **Goal:** Add capacity without architectural changes.
 
 | Step | Task | Time |
@@ -204,7 +271,7 @@
 | **Second VPS** |
 | 1 | Provision second VPS | 30 min |
 | 2 | Harden (same as first) | 45 min |
-| 3 | Add to Coolify as server | 30 min |
+| 3 | ~~Add to Coolify as server~~ → register host + deploy with `--target-vps` (Coolify decommissioned) | 30 min |
 | **Load Distribution** |
 | 4 | Add `server` field to spec | 1 hr |
 | 5 | Update Fabrik to target specific servers | 2 hrs |
@@ -220,7 +287,13 @@
 
 ---
 
-### Phase 8: Business Automation (n8n)
+### Phase 8: Business Automation (n8n) — ✅ SHIPPED
+
+> **Status:** Done. n8n is deployed (`specs/infrastructure/n8n.yaml`) with
+> persistence, and workflows ship in `specs/n8n-workflows/` (deploy-notify,
+> content-notify, health-alert, content-trigger). Auth is via Authelia SSO
+> (n8n v1.0+ removed basic auth). See `docs/operations/n8n-webhooks.md`.
+
 **Goal:** Visual workflow automation when complexity justifies it.
 
 | Step | Task | Time |
@@ -245,16 +318,16 @@
 
 ## Summary: All Phases
 
-| Phase | Focus | Time | Cumulative |
-|-------|-------|------|------------|
-| 1 | Foundation (Coolify + Fabrik core + first deploys) | 20 hrs | 20 hrs |
-| 2 | WordPress automation (themes, plugins, content) | 20 hrs | 40 hrs |
-| 3 | AI content integration | 24 hrs | 64 hrs |
-| 4 | DNS migration + Cloudflare | 10 hrs | 74 hrs |
-| 5 | Staging + multi-environment | 13 hrs | 87 hrs |
-| 6 | Advanced monitoring | 14 hrs | 101 hrs |
-| 7 | Multi-server scaling | 11 hrs | 112 hrs |
-| 8 | Business automation (n8n) | 10 hrs | 122 hrs |
+| Phase | Focus | Time | Cumulative | Status (2026-06-16) |
+| ----- | ----- | ---- | ---------- | ------------------- |
+| 1 | Foundation (Fabrik core + first deploys; **migrated off Coolify** → SSH+Compose) | 20 hrs | 20 hrs | ✅ shipped |
+| 2 | WordPress automation (now in separate `wpf` CLI) | 20 hrs | 40 hrs | ✅ shipped (split out) |
+| 3 | AI content integration | 24 hrs | 64 hrs | ✅ shipped |
+| 4 | DNS migration + Cloudflare | 10 hrs | 74 hrs | ✅ shipped |
+| 5 | Staging + multi-environment | 13 hrs | 87 hrs | ⬜ not shipped |
+| 6 | Advanced monitoring | 14 hrs | 101 hrs | ✅ shipped |
+| 7 | Multi-server scaling (via `--target-vps` + Vultr) | 11 hrs | 112 hrs | ✅ shipped |
+| 8 | Business automation (n8n) | 10 hrs | 122 hrs | ✅ shipped |
 
 ---
 
@@ -290,24 +363,26 @@
 
 ---
 
-## Recommended Path for Your Situation
+## Recommended Path (as originally planned — now historical)
 
-Given your goals (revenue-generating systems, AI agents driving infrastructure):
+The original build order, given the 2025-era goals (revenue-generating
+systems, AI agents driving infrastructure):
 
 ```
-Phase 1 (Foundation)          ← START HERE
+Phase 1 (Foundation)          ← original START
     ↓
 Phase 2 (WordPress)           ← Client revenue potential
     ↓
-Phase 3 (AI Content)          ← Windsurf agent capability
+Phase 3 (AI Content)          ← agent capability
     ↓
 [Evaluate: Do you need more?]
     ↓
 Phase 4-8 as needed
 ```
 
-Phases 4-8 are **on-demand**. Build them when the pain justifies the effort, not before.
-
----
-
-Ready to start Phase 1, Step 1?
+This sequence was followed and largely completed. **Phases 1–4, 6, 7, 8 are
+shipped; only Phase 5 (dedicated staging tooling) remains unbuilt**, and the
+foundation was re-platformed from Coolify onto SSH + Docker Compose. The
+"on-demand build later" framing for Phases 4–8 is therefore historical — they
+were built. For what to work on next, this document is not the source of
+truth; see the live operations/reference docs linked at the top.
