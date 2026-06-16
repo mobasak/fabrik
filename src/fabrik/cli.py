@@ -3252,6 +3252,25 @@ def gpu():
     is_flag=True,
     help="(pod-* only) Spot/preemptible. Cheaper but can be reclaimed mid-job.",
 )
+@click.option(
+    "--template",
+    "template_id",
+    default=None,
+    help=(
+        "(--kind serverless only) Template name or hash. RunPod: template_id "
+        "string. Modal: fabrik template name (echo-handler, vllm-openai). "
+        "Vast: friendly name (vllm-openai, pytorch) or 32-char hash_id."
+    ),
+)
+@click.option(
+    "--model",
+    default=None,
+    help=(
+        "(--kind serverless on modal/vast) HuggingFace model ID baked into "
+        "the rendered template (e.g. 'Qwen/Qwen3-1.7B'). RunPod uses the "
+        "template's pre-built model — pass via --template instead."
+    ),
+)
 def gpu_rent(
     kind,
     workload,
@@ -3267,6 +3286,8 @@ def gpu_rent(
     image,
     cloud,
     interruptible,
+    template_id,
+    model,
 ):
     """Provision a GPU, optionally use it, always destroy (try/finally).
 
@@ -3316,6 +3337,8 @@ def gpu_rent(
             image_name=image,
             cloud_type=cloud,
             interruptible=interruptible,
+            template_id=template_id,
+            model=model,
         )
     except gpu_rent_mod.GPUBudgetExceededError as e:
         click.echo(f"✗ budget exceeded: {e}", err=True)

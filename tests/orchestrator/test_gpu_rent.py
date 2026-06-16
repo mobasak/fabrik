@@ -445,14 +445,20 @@ def test_selection_advice_checkpointing_unlocks_vast():
     assert advice["recommendation"]["provider"] == "vast"
 
 
-def test_selection_advice_serverless_excludes_vast():
-    """Vast has no serverless surface yet (Phase 3)."""
+def test_selection_advice_serverless_includes_vast_phase_35():
+    """Phase 3.5 (2026-06-17): Vast serverless is wired (POST /endptjobs/ +
+    /workergroups/). The historical needs_serverless Vast exclusion is dropped.
+    All three providers must be eligible for serverless workloads.
+    """
     advice = gpu_rent.selection_advice(
         "serverless", hours=4, utilization_rate=0.5, needs_serverless=True
     )
-    # Vast has serverless: None in pricing → not supported
-    assert advice["providers"]["vast"].get("supported") is False
-    assert advice["recommendation"]["provider"] in ("runpod", "modal")
+    # All three providers must support serverless after Phase 3.5
+    assert advice["providers"]["runpod"].get("supported") is True
+    assert advice["providers"]["modal"].get("supported") is True
+    assert advice["providers"]["vast"].get("supported") is True
+    # Recommendation may be any of the three (route depends on cost calc)
+    assert advice["recommendation"]["provider"] in ("runpod", "modal", "vast")
 
 
 # ============================================================================
@@ -576,3 +582,286 @@ def test_create_pod_records_resource_id_before_wait(monkeypatch):
 
     # Critical: resource_id was recorded BEFORE wait_for_running raised
     assert report.get("resource_id") == "pod-orphan-test"
+
+
+# ============================================================================
+# Phase 3.5 — Serverless dispatch across all 3 providers
+# ============================================================================
+def test_create_serverless_endpoint_dispatches_runpod(monkeypatch):
+    """RunPod serverless: uses RUNPOD_SERVERLESS_TEMPLATE_ID path when no
+    pinned endpoint env var is set."""
+    # Clear pinned endpoint so we exercise the create path, not reuse
+    monkeypatch.delenv("RUNPOD_SERVERLESS_ENDPOINT_ID", raising=False)
+    c = MagicMock()
+    c.create_endpoint.return_value = {"id": "ep-rp-1", "_provider": "runpod"}
+    ep = gpu_rent._create_serverless_endpoint(
+        c, session_id="sess-001", workload="t1", max_lifetime_hours=1,
+        template_id="rp-template", workers_min=0, workers_max=1,
+        idle_timeout=60, flashboot=True, provider="runpod",
+    )
+    assert ep["id"] == "ep-rp-1"
+    assert c.create_endpoint.called
+    # Verify the endpoint name carries Fabrik tag prefix (C4 invariant)
+    call_kwargs = c.create_endpoint.call_args.kwargs
+    assert call_kwargs["name"].startswith("fabrik-gpu-t1-")
+
+
+def test_create_serverless_endpoint_runpod_reuses_pinned(monkeypatch):
+    """When RUNPOD_SERVERLESS_ENDPOINT_ID is set, reuse path returns
+    get_endpoint result — does NOT call create_endpoint."""
+    monkeypatch.setenv("RUNPOD_SERVERLESS_ENDPOINT_ID", "ep-pinned-xyz")
+    c = MagicMock()
+    c.get_endpoint.return_value = {"id": "ep-pinned-xyz", "workersMin": 0}
+    ep = gpu_rent._create_serverless_endpoint(
+        c, session_id="sess-r1", workload="reuse", max_lifetime_hours=1,
+        template_id=None, workers_min=0, workers_max=1,
+        idle_timeout=60, flashboot=True, provider="runpod",
+    )
+    assert ep["_fabrik_reuse"] is True
+    assert ep["id"] == "ep-pinned-xyz"
+    assert not c.create_endpoint.called
+
+
+def test_create_serverless_endpoint_dispatches_modal():
+    """Modal serverless: passes template_id + model to client."""
+    c = MagicMock()
+    c.create_endpoint.return_value = {"id": "fabrik-gpu-t2-abc", "_provider": "modal"}
+    ep = gpu_rent._create_serverless_endpoint(
+        c, session_id="sess-002", workload="t2", max_lifetime_hours=1,
+        template_id="echo-handler", workers_min=0, workers_max=1,
+        idle_timeout=60, flashboot=True, provider="modal", model=None,
+    )
+    assert ep["_fabrik_session_id"] == "sess-002"
+    call_kwargs = c.create_endpoint.call_args.kwargs
+    assert call_kwargs["template_id"] == "echo-handler"
+    assert call_kwargs["name"].startswith("fabrik-gpu-t2-")
+
+
+def test_create_serverless_endpoint_dispatches_vast():
+    """Vast serverless: passes template_id to client (resolves to hash later)."""
+    c = MagicMock()
+    c.create_endpoint.return_value = {"id": "12345", "_provider": "vast"}
+    ep = gpu_rent._create_serverless_endpoint(
+        c, session_id="sess-003", workload="t3", max_lifetime_hours=1,
+        template_id="vllm-openai", workers_min=0, workers_max=1,
+        idle_timeout=60, flashboot=True, provider="vast",
+        model="TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    )
+    assert ep["id"] == "12345"
+    call_kwargs = c.create_endpoint.call_args.kwargs
+    assert call_kwargs["template_id"] == "vllm-openai"
+    assert call_kwargs["model"] == "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+
+
+def test_create_serverless_endpoint_modal_requires_template():
+    """Modal must reject calls without a template — there's no default app."""
+    c = MagicMock()
+    with pytest.raises(NotImplementedError, match="--template"):
+        gpu_rent._create_serverless_endpoint(
+            c, session_id="sess-004", workload="t4", max_lifetime_hours=1,
+            template_id=None, workers_min=0, workers_max=1,
+            idle_timeout=60, flashboot=True, provider="modal",
+        )
+
+
+def test_create_serverless_endpoint_vast_requires_template():
+    """Vast must reject calls without a template — workergroup needs one."""
+    c = MagicMock()
+    with pytest.raises(NotImplementedError, match="--template"):
+        gpu_rent._create_serverless_endpoint(
+            c, session_id="sess-005", workload="t5", max_lifetime_hours=1,
+            template_id=None, workers_min=0, workers_max=1,
+            idle_timeout=60, flashboot=True, provider="vast",
+        )
+
+
+def test_create_serverless_endpoint_unknown_provider_raises():
+    c = MagicMock()
+    with pytest.raises(NotImplementedError, match="not implemented for provider"):
+        gpu_rent._create_serverless_endpoint(
+            c, session_id="sess-006", workload="t6", max_lifetime_hours=1,
+            template_id="x", workers_min=0, workers_max=1,
+            idle_timeout=60, flashboot=True, provider="azure",
+        )
+
+
+# ============================================================================
+# Phase 3.5 — Modal driver subprocess pattern (B1/B2 workarounds)
+# ============================================================================
+def test_modal_destroy_endpoint_uses_subprocess(monkeypatch):
+    """Modal driver MUST use `modal app stop` subprocess (no SDK .stop() in 1.5.0)."""
+    from fabrik.drivers.modal_provider import ModalClient
+
+    monkeypatch.setenv("MODAL_TOKEN_ID", "ak-test")
+    monkeypatch.setenv("MODAL_TOKEN_SECRET", "as-test")
+    # Mock the deferred SDK import to bypass real Modal connection
+    fake_modal = MagicMock()
+    monkeypatch.setattr(
+        "fabrik.drivers.modal_provider.ModalClient.__init__",
+        lambda self, *a, **kw: setattr(self, "_modal", fake_modal)
+        or setattr(self, "token_id", "ak-test")
+        or setattr(self, "token_secret", "as-test"),
+    )
+
+    c = ModalClient()
+    calls = []
+
+    def fake_run(*args, **kwargs):
+        calls.append({"args": args, "kwargs": kwargs})
+        result = MagicMock()
+        result.returncode = 0
+        result.stdout = ""
+        result.stderr = ""
+        return result
+
+    monkeypatch.setattr("fabrik.drivers.modal_provider.subprocess.run", fake_run)
+    c.destroy_endpoint("ap-test-123")
+    # Verify the subprocess invocation includes --yes for non-interactive mode
+    # (Modal CLI prompts otherwise; LIVE-12 caught this).
+    assert len(calls) == 1
+    cmd = calls[0]["args"][0]
+    assert cmd == ["modal", "app", "stop", "--yes", "ap-test-123"]
+
+
+def test_modal_list_endpoints_uses_subprocess_filters_stopped(monkeypatch):
+    """list_endpoints calls `modal app list --json` AND filters out stopped apps."""
+    from fabrik.drivers.modal_provider import ModalClient
+
+    monkeypatch.setenv("MODAL_TOKEN_ID", "ak-test")
+    monkeypatch.setenv("MODAL_TOKEN_SECRET", "as-test")
+    fake_modal = MagicMock()
+    monkeypatch.setattr(
+        "fabrik.drivers.modal_provider.ModalClient.__init__",
+        lambda self, *a, **kw: setattr(self, "_modal", fake_modal)
+        or setattr(self, "token_id", "ak-test")
+        or setattr(self, "token_secret", "as-test"),
+    )
+
+    c = ModalClient()
+    fake_apps = [
+        {"app_id": "ap-1", "description": "fabrik-gpu-test-aaa111", "state": "deployed"},
+        {"app_id": "ap-2", "description": "fabrik-gpu-test-bbb222", "state": "stopped"},
+        {"app_id": "ap-3", "description": "user-app", "state": "deployed"},
+    ]
+
+    def fake_run(*args, **kwargs):
+        result = MagicMock()
+        result.returncode = 0
+        result.stdout = json.dumps(fake_apps)
+        result.stderr = ""
+        return result
+
+    import json as _stdjson  # local alias so test reads cleanly
+
+    json = _stdjson  # noqa: A001 — only used inside the patched fake_run scope
+    monkeypatch.setattr("fabrik.drivers.modal_provider.subprocess.run", fake_run)
+    eps = c.list_endpoints()
+    # Stopped app filtered out → 2 results
+    assert len(eps) == 2
+    ids = {e["id"] for e in eps}
+    assert ids == {"ap-1", "ap-3"}
+    # C4 tag-safety: fabrik-tagged app gets env.FABRIK_SESSION_ID synthesized
+    fabrik_ep = next(e for e in eps if e["id"] == "ap-1")
+    assert "FABRIK_SESSION_ID" in fabrik_ep["env"]
+    # User app gets empty env (foreign — reaper must skip)
+    user_ep = next(e for e in eps if e["id"] == "ap-3")
+    assert user_ep["env"] == {}
+
+
+# ============================================================================
+# Phase 3.5 — Vast.ai serverless driver
+# ============================================================================
+def test_vast_create_endpoint_uses_workergroups_not_autogroups(monkeypatch):
+    """B4 (plan §0): Vast driver MUST POST to /workergroups/, NEVER /autogroups/."""
+    from fabrik.drivers.vast_provider import VastClient
+
+    monkeypatch.setenv("VAST_API_KEY", "test-key-vast")
+    requests_made: list[dict] = []
+
+    def fake_request(self, method, path, *, json=None, params=None):
+        requests_made.append({"method": method, "path": path, "json": json})
+        if path == "/endptjobs/" and method == "POST":
+            return {"endpoint_id": 12345}
+        if path == "/workergroups/" and method == "POST":
+            return {"workergroup_id": 67890}
+        if path.startswith("/template/"):
+            return []
+        return {}
+
+    monkeypatch.setattr(VastClient, "_request", fake_request)
+    monkeypatch.setattr(VastClient, "_template_exists", lambda self, h: True)
+
+    c = VastClient()
+    ep = c.create_endpoint(
+        template_id="vllm-openai",
+        name="fabrik-gpu-test-vast-001",
+        gpu_type_ids=["RTX 4090"],
+        workers_min=0, workers_max=1, idle_timeout=300, flashboot=True,
+    )
+
+    paths = [r["path"] for r in requests_made]
+    assert "/endptjobs/" in paths
+    assert "/workergroups/" in paths
+    assert "/autogroups/" not in paths, f"hit dead /autogroups/ path: {paths}"
+    assert ep["id"] == "12345"
+    assert ep["_workergroup_id"] == 67890
+
+
+def test_vast_destroy_endpoint_idempotent_on_404(monkeypatch):
+    """destroy_endpoint MUST treat 404 as success (idempotent)."""
+    from fabrik.drivers.vast_provider import VastClient, VastError
+
+    monkeypatch.setenv("VAST_API_KEY", "test-key-vast")
+
+    def fake_request(self, method, path, *, json=None, params=None):
+        err = VastError("Not Found")
+        err.status = 404
+        raise err
+
+    monkeypatch.setattr(VastClient, "_request", fake_request)
+    c = VastClient()
+    c.destroy_endpoint("12345")  # MUST NOT raise
+
+
+def test_vast_resolve_template_hash_pinned():
+    """Pinned vllm-openai → top hash f815ac7... (verified live 2026-06-17)."""
+    from fabrik.drivers.vast_provider import VastClient
+    import unittest.mock
+    with unittest.mock.patch.object(VastClient, "__init__", lambda self, *a, **kw: None):
+        c = VastClient()
+        c.api_key = "test"
+        c._template_exists = lambda h: True
+        assert c._resolve_template_hash("vllm-openai") == "f815ac7f2bf76828b3c9ec4b71f0af3c"
+
+
+def test_vast_resolve_template_hash_accepts_raw_hash():
+    """A 32-char hex string is returned as-is (no lookup)."""
+    from fabrik.drivers.vast_provider import VastClient
+    import unittest.mock
+    with unittest.mock.patch.object(VastClient, "__init__", lambda self, *a, **kw: None):
+        c = VastClient()
+        c.api_key = "test"
+        raw = "abcdef0123456789abcdef0123456789"
+        assert c._resolve_template_hash(raw) == raw
+
+
+def test_vast_list_endpoints_tags_fabrik_prefixed(monkeypatch):
+    """list_endpoints synthesizes FABRIK_SESSION_ID for C4 tag-safety."""
+    from fabrik.drivers.vast_provider import VastClient
+
+    monkeypatch.setenv("VAST_API_KEY", "test-key-vast")
+
+    def fake_request(self, method, path, *, json=None, params=None):
+        return {"results": [
+            {"endpoint_id": 100, "endpoint_name": "fabrik-gpu-test-aaa111"},
+            {"endpoint_id": 101, "endpoint_name": "user-endpoint"},
+        ]}
+
+    monkeypatch.setattr(VastClient, "_request", fake_request)
+    c = VastClient()
+    eps = c.list_endpoints()
+    assert len(eps) == 2
+    fabrik_ep = next(e for e in eps if e["id"] == "100")
+    assert "FABRIK_SESSION_ID" in fabrik_ep["env"]
+    foreign_ep = next(e for e in eps if e["id"] == "101")
+    assert foreign_ep["env"] == {}

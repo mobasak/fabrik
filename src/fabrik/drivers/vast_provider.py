@@ -375,31 +375,273 @@ class VastClient:
     def destroy_pod(self, pod_id: str) -> None:
         self._request("DELETE", f"/instances/{pod_id}/")
 
-    # --- Serverless API (Vast.ai has no first-class serverless) ------------
-    def list_endpoints(self) -> list[dict[str, Any]]:
-        return []
+    # --- Serverless API (Phase 3.5 plan §2 — POST /endptjobs/ + /workergroups/)
+    # B4 caught by iteration 2: real path is /workergroups/, NOT /autogroups/.
+    # See docs/development/plans/2026-06-17-gpu-serverless-phase-3-5-converged.md
+    # §2.4 for the full implementation pattern.
+
+    # Pinned hashes verified live 2026-06-17 by iteration 4 (field is `hash_id`).
+    # Ordered by count_created desc — most-stable first.
+    PINNED_TEMPLATE_HASHES: dict[str, list[str]] = {
+        "vllm-openai": [
+            "f815ac7f2bf76828b3c9ec4b71f0af3c",  # 59 uses
+            "8b5c560fe3387eb04178d27035e5764d",  # 16 uses
+            "eda741debd1090e83d10762c9ba43e29",  # 11 uses
+        ],
+        "pytorch": ["bd58805a634d6b17a2f28387afd0f05f"],
+    }
 
     def get_endpoint(self, endpoint_id: str) -> dict[str, Any]:
-        raise NotImplementedError("Vast.ai has no serverless endpoint API — use pods.")
+        """Look up a Vast.ai endpoint by ID."""
+        try:
+            data = self._request("GET", f"/endptjobs/{endpoint_id}/")
+        except VastError as e:
+            if getattr(e, "status", None) == 404:
+                raise VastError(f"endpoint {endpoint_id} not found") from e
+            raise
+        # API returns either {"results": {<endpoint>}} or {<endpoint>} directly
+        ep = data
+        if isinstance(data, dict):
+            if "results" in data:
+                ep = data["results"]
+                if isinstance(ep, list):
+                    ep = ep[0] if ep else {}
+        cached = getattr(self, "_endpoint_cache", {}).get(endpoint_id, {})
+        return {
+            "id": str(endpoint_id),
+            "_provider": "vast",
+            "_endpoint_name": ep.get("endpoint_name") or cached.get("_endpoint_name"),
+            "_workergroup_id": cached.get("_workergroup_id"),
+            "_route_endpoint_name": ep.get("endpoint_name") or cached.get("_endpoint_name"),
+            "workersMin": ep.get("min_workers", 0),
+            "workersMax": ep.get("max_workers", cached.get("workersMax", 1)),
+            "idleTimeout": ep.get("inactivity_timeout", cached.get("idleTimeout", 300)),
+        }
 
-    def create_endpoint(self, **kwargs: Any) -> dict[str, Any]:
-        raise NotImplementedError(
-            "Vast.ai has no serverless API. Use --provider runpod for serverless "
-            "or --provider modal for function-as-a-service."
+    def _resolve_template_hash(self, name_or_hash: str) -> str:
+        """Resolve friendly template name → live hash_id.
+
+        Pinned hashes verified live 2026-06-17 by iteration 4. Falls through
+        to live search on miss. Field is `hash_id` (R7 from plan §0).
+        """
+        if name_or_hash in self.PINNED_TEMPLATE_HASHES:
+            for h in self.PINNED_TEMPLATE_HASHES[name_or_hash]:
+                if self._template_exists(h):
+                    return h
+            return self._live_search_template_hash(name_or_hash)
+        # Already a hash (32 hex chars)?
+        if len(name_or_hash) == 32 and all(c in "0123456789abcdef" for c in name_or_hash.lower()):
+            return name_or_hash
+        return self._live_search_template_hash(name_or_hash)
+
+    def _template_exists(self, hash_id: str) -> bool:
+        """Best-effort liveness check on a template hash."""
+        try:
+            # Use search rather than GET — there's no direct /templates/<hash>
+            results = self._request("GET", "/template/", params={"q": f"hash_id={hash_id}"})
+            if isinstance(results, list):
+                return len(results) > 0
+            if isinstance(results, dict):
+                return bool(results.get("results")) or bool(results.get("template"))
+            return False
+        except VastError:
+            return False
+
+    def _live_search_template_hash(self, name: str) -> str:
+        """Query /template/ live; return most-used hash_id matching name."""
+        results = self._request("GET", "/template/", params={"q": f"name={name}"})
+        if isinstance(results, dict):
+            results = results.get("results", []) or []
+        if not results:
+            raise VastError(f"no Vast template found for name={name!r}; cannot create endpoint")
+        # Sort by count_created desc (most-stable)
+        results.sort(key=lambda t: t.get("count_created") or 0, reverse=True)
+        hash_id = results[0].get("hash_id")
+        if not hash_id:
+            raise VastError(f"Vast template name={name!r} has no hash_id in response")
+        return hash_id
+
+    def _default_search_params(self, gpu_name: str) -> str:
+        """Default worker hardware filter for a given GPU."""
+        # Format matches `vastai search offers` query syntax
+        # (string, not JSON — used by the autoscaler's search call)
+        return (
+            f"gpu_name={gpu_name.replace(' ', '_')} num_gpus=1 "
+            f"disk_space>=50 reliability2>=0.98 direct_port_count>=2"
         )
+
+    def create_endpoint(
+        self,
+        *,
+        template_id: str,
+        name: str,
+        gpu_type_ids: list[str] | None = None,
+        workers_min: int = 0,
+        workers_max: int = 3,
+        idle_timeout: int = 300,
+        flashboot: bool = True,
+        execution_timeout_ms: int = 600_000,
+        model: str | None = None,
+        target_util: float = 0.9,
+        cold_mult: float = 2.5,
+        cold_workers: int = 0,
+        search_params: str | None = None,
+    ) -> dict[str, Any]:
+        """Two-step: POST /endptjobs/ → POST /workergroups/. Returns endpoint dict.
+
+        ``template_id`` is either a pinned name ("vllm-openai", "pytorch") or
+        a 32-char hash_id. Resolved live via _resolve_template_hash.
+        ``model`` is informational only (Vast templates may have model baked
+        in via args_str; passing here helps the operator track which model
+        a session was for).
+        """
+        # 1. POST /endptjobs/ → endpoint_id
+        # min_load/cold_mult/cold_workers are autoscaler tuning; inactivity_timeout
+        # tells Vast when to scale workers down to 0 (we use --keep-warm-after-use
+        # semantics: 0 cold_workers = scale fully to zero on idle).
+        ep_body = {
+            "endpoint_name": name,
+            "min_load": 0.0,
+            "target_util": target_util,
+            "cold_mult": cold_mult,
+            "cold_workers": cold_workers,
+            "max_workers": workers_max,
+            "max_queue_time": 30.0,
+            "target_queue_time": 10.0,
+            "inactivity_timeout": idle_timeout,
+        }
+        ep_resp = self._request("POST", "/endptjobs/", json=ep_body)
+        # Response shape: {"id": <int>, "endpoint_id": <int>, ...} — accept either
+        endpoint_id = ep_resp.get("endpoint_id") or ep_resp.get("id")
+        if endpoint_id is None:
+            raise VastError(f"Vast endpoint create returned no id: {ep_resp}", body=ep_resp)
+
+        # 2. Resolve template_id → hash_id
+        template_hash = self._resolve_template_hash(template_id)
+
+        # 3. POST /workergroups/ (NOT /autogroups/ — B4 from plan §0)
+        wg_body = {
+            "endpoint_id": int(endpoint_id),
+            "template_hash": template_hash,
+            "test_workers": 1,  # cheap smoke; production usually 3
+        }
+        if search_params:
+            wg_body["search_params"] = search_params
+        elif gpu_type_ids:
+            wg_body["search_params"] = self._default_search_params(gpu_type_ids[0])
+
+        wg_resp = self._request("POST", "/workergroups/", json=wg_body)
+        wg_id = wg_resp.get("workergroup_id") or wg_resp.get("id")
+
+        ep_info: dict[str, Any] = {
+            "id": str(endpoint_id),
+            "_provider": "vast",
+            "_endpoint_name": name,
+            "_route_endpoint_name": name,
+            "_workergroup_id": wg_id,
+            "_template_hash": template_hash,
+            "_model": model,
+            "workersMin": workers_min,
+            "workersMax": workers_max,
+            "idleTimeout": idle_timeout,
+            "flashboot": flashboot,
+        }
+        if not hasattr(self, "_endpoint_cache"):
+            self._endpoint_cache = {}
+        self._endpoint_cache[str(endpoint_id)] = ep_info
+        return ep_info
 
     def destroy_endpoint(self, endpoint_id: str) -> None:
-        raise NotImplementedError("Vast.ai has no serverless endpoint API.")
+        """Delete the endpoint; cascades to its workergroups + active workers."""
+        try:
+            self._request("DELETE", f"/endptjobs/{endpoint_id}/")
+        except VastError as e:
+            # 404 = already gone (idempotent destroy)
+            if getattr(e, "status", None) == 404:
+                logger.info("vast endpoint %s already gone (404)", endpoint_id)
+                return
+            raise
+        # Clean cached entry
+        cache = getattr(self, "_endpoint_cache", {})
+        cache.pop(str(endpoint_id), None)
 
-    # --- Inference plane (also pod-only on Vast.ai) ------------------------
-    def run_endpoint_sync(self, *_args: Any, **_kwargs: Any) -> dict[str, Any]:
+    # --- Inference plane — POST run.vast.ai/route/ then POST worker URL ----
+    def run_endpoint_sync(
+        self, endpoint_id: str, payload: dict[str, Any], *, timeout: float = 600.0
+    ) -> dict[str, Any]:
+        """Two-phase: POST /route/ → POST worker URL with auth_data wrap.
+
+        Vast's serverless engine ALWAYS routes through its router service. The
+        client first asks for a worker (POST /route/ on run.vast.ai), gets
+        back a worker URL + signature, then POSTs the payload to the worker
+        wrapped in {"auth_data": {...}, "payload": ...}.
+        """
+        info = self.get_endpoint(endpoint_id)
+        ep_name = info.get("_route_endpoint_name") or info.get("_endpoint_name")
+        if not ep_name:
+            raise VastError(f"endpoint {endpoint_id} has no name — cannot route")
+
+        # Phase 1: ask the engine for a worker
+        route_resp = httpx.post(
+            "https://run.vast.ai/route/",
+            headers={"Authorization": f"Bearer {self.api_key}"},
+            json={"endpoint": ep_name, "cost": payload.get("_cost", 100)},
+            timeout=30.0,
+        )
+        route_resp.raise_for_status()
+        route = route_resp.json()
+        if "url" not in route:
+            raise VastError(
+                f"Vast route returned no worker URL (status={route.get('status')!r}): {route}",
+                body=route,
+            )
+
+        worker_url = route["url"]
+        auth_data = {
+            "signature": route.get("signature"),
+            "cost": route.get("cost"),
+            "endpoint": route.get("endpoint"),
+            "reqnum": route.get("reqnum"),
+            "url": worker_url,
+        }
+        handler_path = payload.pop("_handler", "/generate")
+        # Phase 2: call the worker
+        body = {"auth_data": auth_data, "payload": payload}
+        worker_resp = httpx.post(
+            f"{worker_url.rstrip('/')}{handler_path}",
+            json=body,
+            timeout=timeout,
+        )
+        worker_resp.raise_for_status()
+        return worker_resp.json()
+
+    def run_endpoint_async(self, endpoint_id: str, payload: dict[str, Any]) -> dict[str, Any]:
         raise NotImplementedError(
-            "Vast.ai pods expose SSH/HTTP from the container — "
-            "call directly via the pod's IP, not via this driver."
+            "Async Vast invocation not yet wired — use run_endpoint_sync. "
+            "POST run.vast.ai/route/ is already a same-call routing primitive."
         )
 
-    def run_endpoint_async(self, *_args: Any, **_kwargs: Any) -> dict[str, Any]:
-        raise NotImplementedError("see run_endpoint_sync")
+    def list_endpoints(self) -> list[dict[str, Any]]:
+        """List all serverless endpoints. Used by reaper + `fabrik gpu list`."""
+        data = self._request("GET", "/endptjobs/")
+        results = data
+        if isinstance(data, dict):
+            results = data.get("results", []) or []
+        out: list[dict[str, Any]] = []
+        for ep in results:
+            name = ep.get("endpoint_name") or ""
+            env_tag = {}
+            if name.startswith("fabrik-gpu-"):
+                env_tag = {"FABRIK_SESSION_ID": name.rsplit("-", 1)[-1]}
+            out.append(
+                {
+                    "id": str(ep.get("endpoint_id") or ep.get("id")),
+                    "_provider": "vast",
+                    "_endpoint_name": name,
+                    "env": env_tag,
+                }
+            )
+        return out
 
     # --- Billing ------------------------------------------------------------
     def billing_pods(self, start: str | None = None, end: str | None = None) -> dict[str, Any]:

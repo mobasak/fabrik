@@ -141,7 +141,10 @@ HOURLY_USD_BY_PROVIDER: dict[str, dict[str, float]] = {
     "vast": {
         # Vast.ai prices fluctuate; these are typical floor prices
         # (verified-cloud, non-spot). Spot is ~50% lower.
-        "serverless": None,  # NOT supported (Vast.ai has no serverless)
+        # Vast serverless rate flipped 2026-06-17 (Phase 3.5): endpoint
+        # creation is free; only worker instances bill. ~$0.40/hr is a
+        # conservative budget for an RTX 4090 worker on standby.
+        "serverless": 0.40,
         "pod-h100": 2.00,
         "pod-h100-pcie": 1.80,
         "pod-h100-nvl": 2.00,
@@ -272,8 +275,9 @@ def selection_advice(
 
     # Eligibility filter
     eligible = {name: data for name, data in results["providers"].items() if data.get("supported")}
-    if needs_serverless:
-        eligible = {name: data for name, data in eligible.items() if name != "vast"}
+    # Phase 3.5: Vast serverless is wired (POST /endptjobs/ + /workergroups/)
+    # so the historical needs_serverless Vast exclusion is dropped.
+    # All three providers are eligible for serverless workloads.
     if not needs_checkpointing and "vast" in eligible:
         # Without checkpointing, Vast's spot instability outweighs cost savings.
         # Still listed in eligible — operator can override — but recommendation
@@ -455,42 +459,89 @@ def _create_serverless_endpoint(
     workers_max: int,
     idle_timeout: int,
     flashboot: bool,
+    provider: str = "runpod",
+    model: str | None = None,
 ) -> dict[str, Any]:
     """Create a serverless endpoint, OR reuse an existing endpoint pinned by
     ``RUNPOD_SERVERLESS_ENDPOINT_ID``.
 
-    Reuse path (Phase 1 default): if ``RUNPOD_SERVERLESS_ENDPOINT_ID`` is set
-    in the operator's env, we DO NOT create a new endpoint. We return the
-    existing endpoint's metadata. The session is still tracked but the
-    "destroy" step is a no-op (endpoint persists for the next session, which
-    matches RunPod's scale-to-zero design — endpoints cost $0 when idle).
+    Provider-aware (Phase 3.5):
+    - **RunPod**: reuse path via ``RUNPOD_SERVERLESS_ENDPOINT_ID`` env, OR
+      create path via ``RUNPOD_SERVERLESS_TEMPLATE_ID``.
+    - **Modal**: render template at ``templates/modal/<template_id>.py.j2``,
+      programmatic ``app.deploy()``, return endpoint URL.
+    - **Vast.ai**: POST ``/endptjobs/`` then POST ``/workergroups/``.
 
-    Create path: if no env pin and ``template_id`` is provided, create a new
-    endpoint via ``POST /v1/endpoints``.
+    The endpoint name is the same shape across providers:
+    ``fabrik-gpu-<workload>-<sid_short>`` so the reaper's C4 tag-safety
+    invariant catches them all.
     """
-    pinned_id = os.environ.get("RUNPOD_SERVERLESS_ENDPOINT_ID")
-    if pinned_id:
-        ep = client.get_endpoint(pinned_id)
-        # Annotate the returned object with a marker so the destroy path knows
-        # to skip the API call for this rental.
-        ep["_fabrik_reuse"] = True
+    name = f"fabrik-gpu-{workload}-{session_id[-6:]}"
+
+    if provider == "runpod":
+        pinned_id = os.environ.get("RUNPOD_SERVERLESS_ENDPOINT_ID")
+        if pinned_id:
+            ep = client.get_endpoint(pinned_id)
+            ep["_fabrik_reuse"] = True
+            ep["_fabrik_session_id"] = session_id
+            return ep
+        if not template_id:
+            raise GPUBudgetExceededError(
+                "serverless requires either RUNPOD_SERVERLESS_ENDPOINT_ID (reuse "
+                "pinned endpoint) or template_id (create a new endpoint). Neither set."
+            )
+        ep = client.create_endpoint(
+            template_id=template_id,
+            name=name,
+            workers_min=workers_min,
+            workers_max=workers_max,
+            idle_timeout=idle_timeout,
+            flashboot=flashboot,
+        )
+        ep["_fabrik_reuse"] = False
+        return ep
+
+    if provider == "modal":
+        # Modal serverless: render template + deploy. template_id is a
+        # Fabrik template name (e.g. "echo-handler", "vllm-openai").
+        if not template_id:
+            raise NotImplementedError(
+                "Modal serverless requires --template (e.g. echo-handler, vllm-openai)"
+            )
+        ep = client.create_endpoint(
+            template_id=template_id,
+            name=name,
+            workers_min=workers_min,
+            workers_max=workers_max,
+            idle_timeout=idle_timeout,
+            flashboot=flashboot,
+            model=model,
+        )
+        ep["_fabrik_reuse"] = False
         ep["_fabrik_session_id"] = session_id
         return ep
-    if not template_id:
-        raise GPUBudgetExceededError(
-            "serverless requires either RUNPOD_SERVERLESS_ENDPOINT_ID (reuse "
-            "pinned endpoint) or template_id (create a new endpoint). Neither set."
+
+    if provider == "vast":
+        # Vast.ai serverless: endpoint + workergroup. template_id is either
+        # a hash_id or a friendly name resolved via _resolve_template_hash.
+        if not template_id:
+            raise NotImplementedError(
+                "Vast serverless requires --template (e.g. vllm-openai, pytorch)"
+            )
+        ep = client.create_endpoint(
+            template_id=template_id,
+            name=name,
+            workers_min=workers_min,
+            workers_max=workers_max,
+            idle_timeout=idle_timeout,
+            flashboot=flashboot,
+            model=model,
         )
-    ep = client.create_endpoint(
-        template_id=template_id,
-        name=f"fabrik-{session_id}",
-        workers_min=workers_min,
-        workers_max=workers_max,
-        idle_timeout=idle_timeout,
-        flashboot=flashboot,
-    )
-    ep["_fabrik_reuse"] = False
-    return ep
+        ep["_fabrik_reuse"] = False
+        ep["_fabrik_session_id"] = session_id
+        return ep
+
+    raise NotImplementedError(f"serverless not implemented for provider {provider!r}")
 
 
 def _destroy(
@@ -580,6 +631,7 @@ def rent(
     interruptible: bool = False,
     # Serverless overrides:
     template_id: str | None = None,
+    model: str | None = None,
     workers_min: int = 0,
     workers_max: int = 3,
     idle_timeout: int = 5,
@@ -699,6 +751,8 @@ def rent(
                 workers_max=workers_max,
                 idle_timeout=idle_timeout,
                 flashboot=flashboot,
+                provider=provider,
+                model=model,
             )
         else:
             resource = _create_pod(
@@ -824,6 +878,7 @@ def rented(
     cloud_type: str = "SECURE",
     interruptible: bool = False,
     template_id: str | None = None,
+    model: str | None = None,
     workers_min: int = 0,
     workers_max: int = 3,
     idle_timeout: int = 5,
@@ -909,6 +964,8 @@ def rented(
                 workers_max=workers_max,
                 idle_timeout=idle_timeout,
                 flashboot=flashboot,
+                provider=provider,
+                model=model,
             )
         else:
             resource = _create_pod(

@@ -36,8 +36,11 @@ Then re-run tests with @pytest.mark.requires_fabrik_env marked tests.
 
 from __future__ import annotations
 
+import importlib.util
+import json
 import logging
 import os
+import subprocess
 import uuid
 from pathlib import Path
 from typing import Any
@@ -320,15 +323,72 @@ class ModalClient:
                 self._active_fc = None
                 self._active_fc_id = None
 
-    # --- Serverless API (Modal's `web_endpoint`) ---------------------------
+    # --- Serverless API (Modal's `app.deploy` + `@modal.fastapi_endpoint`) -
+    #
+    # Phase 3.5 (2026-06-17 plan §3.5): real implementation. Closes B1/B2/B3
+    # caught by iteration 2 — Modal 1.5.0 has NO `App.stop()` method and NO
+    # `list_apps()` import; we shell out to `modal app stop` / `modal app
+    # list --json` instead. See docs/development/plans/2026-06-17-gpu-
+    # serverless-phase-3-5-converged.md §1.4.
     def list_endpoints(self) -> list[dict[str, Any]]:
-        # Modal exposes endpoints via App.deploy() + @web_endpoint — no
-        # global API to list. For Phase 2 we track endpoint IDs in state.
-        return []
+        """List Modal apps via `modal app list --json` (B2 workaround).
+
+        Returns only ACTIVE (non-stopped) apps so the reaper doesn't try
+        to destroy already-stopped ones. Synthesizes a FABRIK_SESSION_ID
+        env tag from the app description so C4 tag-safety works.
+        """
+        result = subprocess.run(
+            ["modal", "app", "list", "--json"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            env={
+                **os.environ,
+                "MODAL_TOKEN_ID": self.token_id or "",
+                "MODAL_TOKEN_SECRET": self.token_secret or "",
+            },
+        )
+        if result.returncode != 0:
+            raise ModalError(
+                f"modal app list failed: {result.stderr.strip() or result.stdout.strip()}"
+            )
+        try:
+            apps = json.loads(result.stdout)
+        except json.JSONDecodeError as e:
+            raise ModalError(f"modal app list returned non-JSON: {e}") from e
+        out: list[dict[str, Any]] = []
+        for a in apps:
+            if a.get("state") == "stopped":
+                continue
+            desc = a.get("description") or ""
+            env_tag = {}
+            if desc.startswith("fabrik-gpu-"):
+                # C4 tag-safety: synthesize env so reaper sees Fabrik apps
+                env_tag = {"FABRIK_SESSION_ID": desc.rsplit("-", 1)[-1]}
+            out.append(
+                {
+                    "id": a["app_id"],
+                    "_provider": "modal",
+                    "_app_name": desc,
+                    "_state": a.get("state"),
+                    "env": env_tag,
+                }
+            )
+        return out
 
     def get_endpoint(self, endpoint_id: str) -> dict[str, Any]:
-        # Endpoint URLs are deterministic from app+function name; we just
-        # return the URL we stored when create_endpoint was called.
+        """Look up a Modal endpoint by App name or app_id.
+
+        Modal addresses Apps by name; we accept either form. Uses cached
+        info from create_endpoint when available.
+        """
+        cached = getattr(self, "_endpoint_cache", {}).get(endpoint_id)
+        if cached:
+            return cached
+        # Fallback: list and filter
+        for ep in self.list_endpoints():
+            if ep["id"] == endpoint_id or ep.get("_app_name") == endpoint_id:
+                return ep
         return {"id": endpoint_id, "_provider": "modal"}
 
     def create_endpoint(
@@ -339,39 +399,255 @@ class ModalClient:
         gpu_type_ids: list[str] | None = None,
         workers_min: int = 0,
         workers_max: int = 3,
-        idle_timeout: int = 5,
+        idle_timeout: int = 60,
         flashboot: bool = True,
         execution_timeout_ms: int = 600_000,
+        model: str | None = None,
     ) -> dict[str, Any]:
-        """Modal serverless: declares a web_endpoint and deploys.
+        """Render Fabrik Modal template → app.deploy() → return endpoint dict.
 
-        ``template_id`` is interpreted as a Modal App name (we don't have
-        RunPod-style template IDs in Modal). ``flashboot`` and ``workers_min``
-        are ignored — Modal handles cold-start mitigation transparently.
+        Plan §3.5 implementation. ``template_id`` is a Fabrik template name
+        (e.g. ``"echo-handler"``, ``"vllm-openai"``) under
+        ``/opt/fabrik/templates/modal/<template_id>.py.j2``.
+
+        Returns the endpoint dict with ``_endpoint_url`` populated via
+        ``Function.get_web_url()`` (verified live in Modal 1.5.0).
         """
-        raise NotImplementedError(
-            "Modal serverless endpoint creation requires a deployable App. "
-            "Phase 2 ships the SHAPE; actual deployment is Phase 3 work because "
-            "it needs the operator to provide a Modal App definition file."
+        gpu = (gpu_type_ids or ["L4"])[0]
+        rendered_path = self._render_modal_template(
+            template_id,
+            name=name,
+            gpu=gpu,
+            model=model or "",
+            workers_min=workers_min,
+            workers_max=workers_max,
+            idle_timeout=idle_timeout,
         )
+        # Programmatic deploy. app.deploy() returns immediately
+        # (non-blocking — verified in plan §1.1 probe 7).
+        spec = importlib.util.spec_from_file_location("_fabrik_modal_app", rendered_path)
+        if spec is None or spec.loader is None:
+            raise ModalError(f"could not load rendered template {rendered_path}")
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        if not hasattr(mod, "app"):
+            raise ModalError(
+                f"rendered template {rendered_path} has no `app` module-level variable"
+            )
+        app = mod.app
+        try:
+            app.deploy(name=name)
+        except Exception as e:
+            raise ModalError(f"app.deploy({name}) failed: {e}", cause=e) from e
+
+        # Discover the web endpoint URL via the App's registry. Modal 1.5.0
+        # exposes ``app.registered_web_endpoints`` listing all web-exposed
+        # function names. Templates may expose either:
+        # - a plain @app.function decorated function (e.g. _fabrik_handler)
+        # - a class method decorated with @modal.fastapi_endpoint (e.g.
+        #   FabrikVLLM.generate)
+        # Either way, registered_web_endpoints names the function (key into
+        # registered_functions). We grab the URL from get_web_url().
+        endpoint_url = None
+        try:
+            web_eps = (
+                list(app.registered_web_endpoints)
+                if hasattr(app, "registered_web_endpoints")
+                else []
+            )
+            registered = (
+                dict(app.registered_functions) if hasattr(app, "registered_functions") else {}
+            )
+            logger.info(
+                "post-deploy app=%s registered_functions=%s registered_web_endpoints=%s",
+                name,
+                list(registered.keys()),
+                web_eps,
+            )
+            # After app.deploy(), Functions in registered_functions are
+            # hydrated and expose .get_web_url(). For class-based endpoints
+            # the key is `ClassName.*` (consolidated Function for the class).
+            for fn_key, fn in registered.items():
+                try:
+                    url = fn.get_web_url()
+                    if url:
+                        endpoint_url = url
+                        logger.info(
+                            "resolved endpoint via registered_functions[%s] → %s", fn_key, url
+                        )
+                        break
+                except Exception as e:
+                    logger.debug("registered_functions[%s].get_web_url() failed: %s", fn_key, e)
+            # For class-based endpoints (web endpoint name like 'ClassName.method'),
+            # Modal requires Cls.from_name + instantiation. Function.from_name
+            # raises InvalidError on 'ClassName.method' — caught by probe above.
+            if not endpoint_url and hasattr(app, "registered_classes"):
+                for cls_name in app.registered_classes:
+                    try:
+                        cls = self._modal.Cls.from_name(name, cls_name)
+                        inst = cls()  # required — Modal's enforced pattern
+                        # Iterate the class's methods to find one with a URL
+                        for ep_name in web_eps:
+                            # ep_name format is "ClassName.method_name"
+                            if not ep_name.startswith(f"{cls_name}."):
+                                continue
+                            method_name = ep_name.split(".", 1)[1]
+                            method = getattr(inst, method_name, None)
+                            if method is None:
+                                continue
+                            try:
+                                url = method.get_web_url()
+                                if url:
+                                    endpoint_url = url
+                                    logger.info("resolved Cls method %s → %s", ep_name, url)
+                                    break
+                            except Exception as e:
+                                logger.debug(
+                                    "Cls.from_name(%s).%s.get_web_url() failed: %s",
+                                    cls_name,
+                                    method_name,
+                                    e,
+                                )
+                        if endpoint_url:
+                            break
+                    except Exception as e:
+                        logger.debug("Cls.from_name(%s, %s) failed: %s", name, cls_name, e)
+        except Exception as e:
+            logger.warning("registered_functions lookup failed for %s: %s", name, e)
+        # Fallback: known function names from Fabrik's two templates
+        if not endpoint_url:
+            for fn_name in ("_fabrik_handler", "FabrikVLLM.generate", "generate"):
+                try:
+                    fn = self._modal.Function.from_name(name, fn_name)
+                    url = fn.get_web_url()
+                    if url:
+                        endpoint_url = url
+                        logger.info("resolved via fallback (%s) → %s", fn_name, url)
+                        break
+                except Exception:
+                    continue
+        if not endpoint_url:
+            logger.warning("could not resolve web URL for %s", name)
+
+        ep_info: dict[str, Any] = {
+            "id": name,  # Modal Apps are addressed by name
+            "_provider": "modal",
+            "_app_name": name,
+            "_endpoint_url": endpoint_url,
+            "_rendered_path": rendered_path,
+            "workersMin": workers_min,
+            "workersMax": workers_max,
+            "idleTimeout": idle_timeout,
+            "flashboot": flashboot,
+        }
+        # Cache for subsequent get_endpoint / run_endpoint_sync calls
+        if not hasattr(self, "_endpoint_cache"):
+            self._endpoint_cache = {}
+        self._endpoint_cache[name] = ep_info
+        return ep_info
 
     def destroy_endpoint(self, endpoint_id: str) -> None:
-        raise NotImplementedError(
-            "Modal endpoint destroy: requires `modal app delete <name>` via SDK. "
-            "Phase 2 stub — wire up in Phase 3."
+        """Stop a Modal App via `modal app stop` (B1 workaround — no SDK method).
+
+        Accepts either an app_id (e.g. `ap-...`) or an app name (e.g.
+        `fabrik-gpu-...`). The CLI accepts both.
+        """
+        # --yes required for non-interactive (no TTY in subprocess); without
+        # it the CLI prompts "Are you sure?" and aborts on no-input.
+        result = subprocess.run(
+            ["modal", "app", "stop", "--yes", endpoint_id],
+            capture_output=True,
+            text=True,
+            timeout=60,
+            env={
+                **os.environ,
+                "MODAL_TOKEN_ID": self.token_id or "",
+                "MODAL_TOKEN_SECRET": self.token_secret or "",
+            },
         )
+        if result.returncode != 0:
+            raise ModalError(
+                f"modal app stop {endpoint_id} failed: "
+                f"{result.stderr.strip() or result.stdout.strip()}"
+            )
+        # Clean up the cached entry + rendered tempfile
+        cache = getattr(self, "_endpoint_cache", {})
+        ep = cache.pop(endpoint_id, None)
+        if ep and ep.get("_rendered_path"):
+            try:
+                Path(ep["_rendered_path"]).unlink(missing_ok=True)
+            except OSError:
+                pass
 
     # --- Inference plane ---------------------------------------------------
     def run_endpoint_sync(
         self, endpoint_id: str, payload: dict[str, Any], *, timeout: float = 600.0
     ) -> dict[str, Any]:
-        raise NotImplementedError(
-            "Modal inference: call the function directly via fc.get(). "
-            "Phase 2 shape; wire in Phase 3."
-        )
+        """POST to the deployed endpoint URL.
+
+        Modal's @modal.fastapi_endpoint exposes a standard HTTPS surface.
+        We do not wrap auth_data — Modal's URL is the auth boundary.
+        """
+        info = self.get_endpoint(endpoint_id)
+        url = info.get("_endpoint_url")
+        if not url:
+            raise ModalError(
+                f"endpoint {endpoint_id!r} has no _endpoint_url; create_endpoint must run first"
+            )
+        import httpx as _httpx
+
+        resp = _httpx.post(url, json=payload, timeout=timeout)
+        resp.raise_for_status()
+        return resp.json()
 
     def run_endpoint_async(self, endpoint_id: str, payload: dict[str, Any]) -> dict[str, Any]:
-        raise NotImplementedError("see run_endpoint_sync")
+        raise NotImplementedError(
+            "Modal async invocation not yet wired — use run_endpoint_sync. "
+            "(Modal's Function.spawn() requires app.run() context which the "
+            "deployed endpoint pattern bypasses.)"
+        )
+
+    # --- Template rendering helper (private) -------------------------------
+    def _render_modal_template(
+        self,
+        template_id: str,
+        *,
+        name: str,
+        gpu: str,
+        model: str,
+        workers_min: int,
+        workers_max: int,
+        idle_timeout: int,
+    ) -> str:
+        """Render templates/modal/<template_id>.py.j2 → /tmp/fabrik-modal-<name>.py.
+
+        Returns the rendered file path. Caller is responsible for cleanup
+        (done in destroy_endpoint via cached _rendered_path).
+        """
+        try:
+            from jinja2 import Template
+        except ImportError as e:
+            raise ModalError(
+                "jinja2 is required for Modal serverless templating; "
+                "install via `pip install jinja2`"
+            ) from e
+        tpl_path = Path("/opt/fabrik/templates/modal") / f"{template_id}.py.j2"
+        if not tpl_path.exists():
+            raise ModalError(
+                f"Modal template {template_id!r} not found at {tpl_path}. "
+                f"Available: {sorted(p.stem.removesuffix('.py') for p in tpl_path.parent.glob('*.py.j2'))}"
+            )
+        rendered = Template(tpl_path.read_text()).render(
+            name=name,
+            gpu=gpu,
+            model=model,
+            workers_min=workers_min,
+            workers_max=workers_max,
+            idle_timeout=idle_timeout,
+        )
+        out_path = Path(f"/tmp/fabrik-modal-{name}.py")
+        out_path.write_text(rendered)
+        return str(out_path)
 
     # --- Billing ------------------------------------------------------------
     def billing_pods(self, start: str | None = None, end: str | None = None) -> dict[str, Any]:

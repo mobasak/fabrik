@@ -1,0 +1,39 @@
+"""Fabrik echo-handler — minimum-cost Modal serverless smoke template.
+
+Rendered by ``modal_provider.py::_render_modal_template()`` with:
+- {{ name }}: stable App name (e.g. fabrik-gpu-modal-G-LIVE-12)
+- {{ gpu }}: Modal GPU string (default 'L4' for cheapest CPU+GPU bundle)
+- {{ workers_min }} / {{ workers_max }} / {{ idle_timeout }}: autoscaler config
+
+Purpose: validate the lifecycle (deploy → call → stop) at <$0.05 spend.
+The handler echoes the JSON body, no model loaded, no GPU compute.
+"""
+
+import modal
+
+# Modal 1.5.0 requires fastapi[standard] explicitly installed in the image
+# for @modal.fastapi_endpoint to work. debian_slim is the cheapest base.
+image = (
+    modal.Image.debian_slim(python_version="3.12")
+    .pip_install("fastapi[standard]==0.115.4")
+)
+
+app = modal.App(name="{{ name }}", image=image)
+
+
+@app.function(
+    gpu="{{ gpu }}",
+    min_containers={{ workers_min }},
+    max_containers={{ workers_max }},
+    scaledown_window={{ idle_timeout }},
+    timeout=60,
+)
+@modal.fastapi_endpoint(method="POST", docs=False)
+def _fabrik_handler(payload: dict) -> dict:
+    """Echo handler — returns the payload + a marker so the caller can verify."""
+    return {
+        "echo": payload,
+        "fabrik": True,
+        "app": "{{ name }}",
+        "gpu": "{{ gpu }}",
+    }

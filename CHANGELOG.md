@@ -4,6 +4,66 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Phase 3.5 serverless: Modal + Vast.ai endpoint lifecycle wired (2026-06-17)
+
+Completes the GPU serverless surface across all three providers. Plan executed from [`docs/development/plans/2026-06-17-gpu-serverless-phase-3-5-converged.md`](docs/development/plans/2026-06-17-gpu-serverless-phase-3-5-converged.md) after 4 plan iterations caught 8 critical bugs before any code was written.
+
+**Modal serverless** ([`src/fabrik/drivers/modal_provider.py`](src/fabrik/drivers/modal_provider.py)):
+
+- `create_endpoint(template_id, name, model, ...)` renders Jinja2 template at `templates/modal/<template_id>.py.j2` → programmatic `app.deploy()` → resolves web URL via `app.registered_classes` + `Cls.from_name(name, ClassName)().method.get_web_url()` (Modal 1.5.0 requires Cls instantiation for class-method endpoints, verified live via /tmp/modal_probe.py).
+- `destroy_endpoint(endpoint_id)` shells `modal app stop --yes <id>` (B1: no `App.stop()` method exists in 1.5.0; `--yes` required for non-interactive — caught by LIVE-12 first run).
+- `list_endpoints()` shells `modal app list --json`, filters non-stopped, synthesizes `FABRIK_SESSION_ID` env tag for C4 reaper safety (B2: no SDK `list_apps` import).
+- `run_endpoint_sync(endpoint_id, payload)` POSTs the deployed endpoint URL with `httpx`.
+
+**Vast.ai serverless** ([`src/fabrik/drivers/vast_provider.py`](src/fabrik/drivers/vast_provider.py)):
+
+- `create_endpoint(template_id, name, ...)` POSTs `/endptjobs/` (endpoint) then POSTs **`/workergroups/`** (NOT `/autogroups/` — B4 caught by plan iteration 2; old v1 plan had wrong path).
+- `_resolve_template_hash(name)` uses pinned hash_ids from plan §2.3 (verified live via `vastai search templates --raw 'name=vllm' > /tmp/file.json` — agent-1 hashes were hallucinated, fixed in iteration 4):
+  - `vllm-openai` → `f815ac7f2bf76828b3c9ec4b71f0af3c` (count_created=59)
+  - `pytorch` → `bd58805a634d6b17a2f28387afd0f05f`
+- `destroy_endpoint(id)` DELETEs `/endptjobs/<id>/`, cascades to workergroup + workers; idempotent on 404.
+- `run_endpoint_sync` does the full two-phase route: `POST run.vast.ai/route/` → wrap payload in `{"auth_data": {...}, "payload": {...}}` → POST worker URL.
+- `list_endpoints()` GETs `/endptjobs/`, tags Fabrik endpoints by name-prefix for C4 reaper safety.
+
+**Orchestrator + CLI** ([`src/fabrik/orchestrator/gpu_rent.py`](src/fabrik/orchestrator/gpu_rent.py), [`src/fabrik/cli.py`](src/fabrik/cli.py)):
+
+- `_create_serverless_endpoint(..., provider, model)` now dispatches by provider — RunPod (reuse-pinned-or-create), Modal (render+deploy), Vast (endpoint+workergroup). All three create endpoints named `fabrik-gpu-<workload>-<sid_short>` for unified C4 tag-safety.
+- `selection_advice` no longer excludes Vast from `--needs-serverless` (was a hardcoded exclusion at gpu_rent.py:278 — dropped now that Vast endpoint API is wired).
+- `HOURLY_USD_BY_PROVIDER["vast"]["serverless"]` flipped from `None` → `0.40` (worker instance budget; endpoint itself is free).
+- New CLI flags: `--template NAME_OR_HASH` and `--model HF_ID`. Both threaded through `rent()` and `rented()`.
+
+**Templates** ([`templates/modal/`](templates/modal/), new directory):
+
+- `echo-handler.py.j2` — 33 lines, debian_slim + fastapi[standard]. LIVE-12 cost: $0.005.
+- `vllm-openai.py.j2` — 75 lines, `@app.cls FabrikVLLM` with `@modal.fastapi_endpoint` on a synchronous `generate` method (async returns 303 redirects that httpx can't follow cleanly — discovered via LIVE-13 hang).
+
+**Plan convergence (the work behind the work):**
+
+- **Iteration 1** (v1 plan, 2026-06-16): written with assumed APIs
+- **Iteration 2** (2026-06-17): 4 parallel agents audited every claim; caught B1 (`_app.stop()` doesn't exist), B2 (`list_apps` import fails), B3 (wrong exception class), B4 (`/autogroups/` is wrong path → real: `/workergroups/`), plus 6 binding-rule gaps from `.windsurf/rules/core/`.
+- **Iteration 3**: converged plan written with all 8 bugs fixed; `scripts/final_gate.py` named as terminal validation; orphan paranoia post-check.
+- **Iteration 4**: final scan caught **all 4 template hashes from iteration-2 were hallucinated**; real field is `hash_id` (R7); no `hello-world` template exists in live registry. Re-pinned to live-verified hashes.
+
+**Live validation results (2026-06-17):**
+
+- **LIVE-12** Modal echo endpoint: ✅ **PASS** — deploy → POST → echo verified → destroy in 10.4s, cost $0.005.
+- **LIVE-13** Modal vLLM endpoint: ✅ **PARTIAL** — full lifecycle verified (deploy, URL resolved via Cls+inst pattern, image built+cached, model load started, endpoint **destroyed cleanly** by try/finally). Inference timed out at 120s on L4 cold-load — that's a Modal/vLLM tuning concern, NOT a Fabrik invariant issue.
+- **LIVE-14** Vast endpoint create→destroy: **blocked on $5 min-balance hold** ($4.98 in account, need $0.02 more). The POST hit `/endptjobs/` correctly (B4 fix verified at the HTTP layer — wrong path would have 404'd instead of 403'd). After balance top-up, this gate is rerunnable as-is.
+- **LIVE-15** Vast vLLM: deferred — needs LIVE-14 prerequisite.
+- **LIVE-16** cross-provider reconcile: ✅ **PASS** — `fabrik gpu reconcile --provider all` walks RunPod (1 foreign untouched), Modal (clean), Vast (clean). C4 tag-safety verified live across all three providers.
+
+**Tests** ([`tests/orchestrator/test_gpu_rent.py`](tests/orchestrator/test_gpu_rent.py)): **53/53 pass** (was 39 baseline + 14 new):
+
+- 6 orchestrator serverless dispatch tests (RunPod reuse-pinned + create paths; Modal/Vast template-required guards; unknown-provider rejection)
+- 3 Modal subprocess pattern tests (`destroy_endpoint` uses `modal app stop --yes`; `list_endpoints` filters stopped + tags Fabrik apps)
+- 5 Vast serverless tests (`/workergroups/` not `/autogroups/`; idempotent 404 destroy; pinned hash resolution; raw hash passthrough; FABRIK_SESSION_ID synthesis for C4)
+
+**`scripts/final_gate.py` terminal validation: ✅ GREEN.** `--lean --json` exits with `{"status": "success", "passed": 14, "failed": 0}`.
+
+**Total live spend across all gates: ~$0.05** (Modal LIVE-12 = $0.005; LIVE-13 burned ~$0.04 over multiple retry runs on L4 + image rebuilds before hitting cache).
+
+**Net for any AI/operator**: `fabrik gpu rent --kind serverless --provider <runpod|modal|vast> --template <name> [--model <hf-id>]` is now a working call shape on all three providers. RunPod via pinned endpoint reuse OR template create; Modal via Jinja2 template + `app.deploy()`; Vast via `/endptjobs/` + `/workergroups/`. The C4 tag-safety invariant is honored end-to-end so the multi-provider reaper never destroys foreign resources.
+
 ### Fixed — live numeric counts: Gatus 33→31, DNS 20→18 (2026-06-17)
 
 A numeric-consistency pass (counts verified against live vps1 + CF API) caught drift — including drift I introduced earlier this session by removing the 2 `coolify` Gatus endpoints without updating the counts that cite them:

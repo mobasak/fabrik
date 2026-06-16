@@ -1,0 +1,75 @@
+"""Fabrik vLLM-OpenAI serverless template for Modal (synchronous variant).
+
+Rendered with:
+- {{ name }}: stable App name
+- {{ gpu }}: Modal GPU string (default 'L4')
+- {{ model }}: HuggingFace model ID
+- {{ workers_min }} / {{ workers_max }} / {{ idle_timeout }}
+
+Synchronous handler — Modal returns the result inline (HTTP 200) instead of
+the 303 redirect pattern for async handlers. Verified live 2026-06-17:
+async @modal.fastapi_endpoint hits a polling URL that httpx hangs on.
+Sync handler with vLLM's LLM (offline) class works cleanly.
+
+Cost target for LIVE-13 (Qwen3-1.7B on L4): <$2.00 per cycle. Image build
+~2-3min (cached after first deploy); model load ~30-60s; inference ~1-2s.
+"""
+
+import modal
+
+MODEL = "{{ model }}"
+
+# CUDA dev image required for vLLM build (compiles CUDA kernels).
+image = (
+    modal.Image.from_registry("nvidia/cuda:12.4.1-devel-ubuntu22.04", add_python="3.12")
+    .pip_install(
+        "vllm==0.6.3.post1",
+        "fastapi[standard]==0.115.4",
+        "huggingface-hub==0.26.0",
+        "hf-transfer==0.1.8",
+    )
+    .env({"HF_HUB_ENABLE_HF_TRANSFER": "1"})
+)
+
+app = modal.App(name="{{ name }}", image=image)
+
+
+@app.cls(
+    gpu="{{ gpu }}",
+    min_containers={{ workers_min }},
+    max_containers={{ workers_max }},
+    scaledown_window={{ idle_timeout }},
+    timeout=900,
+)
+class FabrikVLLM:
+    @modal.enter()
+    def load(self):
+        """Load vLLM LLM class (sync, offline) once per container."""
+        from vllm import LLM
+
+        self.llm = LLM(
+            model=MODEL,
+            dtype="bfloat16",
+            gpu_memory_utilization=0.85,
+            max_model_len=2048,
+            enforce_eager=True,
+            disable_log_stats=True,
+        )
+
+    @modal.fastapi_endpoint(method="POST", docs=False)
+    def generate(self, payload: dict) -> dict:
+        """Synchronous endpoint: POST {prompt, max_tokens} → {model, prompt, text}."""
+        from vllm import SamplingParams
+
+        prompt = payload.get("prompt", "Hello")
+        max_tokens = int(payload.get("max_tokens", 32))
+        params = SamplingParams(max_tokens=max_tokens, temperature=0.7, top_p=0.95)
+        outputs = self.llm.generate([prompt], params)
+        text = outputs[0].outputs[0].text if outputs else ""
+        return {
+            "model": MODEL,
+            "prompt": prompt,
+            "text": text,
+            "fabrik": True,
+            "app": "{{ name }}",
+        }
