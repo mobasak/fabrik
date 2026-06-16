@@ -1,12 +1,7 @@
 {
-  "timestamp": "2026-06-15T12:54:26.009403",
-  "total_models": 327,
+  "timestamp": "2026-06-16T13:52:49.621734",
+  "total_models": 324,
   "models": {
-    "~anthropic/claude-fable-latest": {
-      "id": "~anthropic/claude-fable-latest",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
     "~anthropic/claude-haiku-latest": {
       "id": "~anthropic/claude-haiku-latest",
       "url": "https://api.kilo.ai/api/openrouter/",
@@ -114,11 +109,6 @@
     },
     "anthropic/claude-3.5-haiku": {
       "id": "anthropic/claude-3.5-haiku",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
-    "anthropic/claude-fable-5": {
-      "id": "anthropic/claude-fable-5",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
@@ -289,11 +279,6 @@
     },
     "deepseek/deepseek-r1-distill-llama-70b": {
       "id": "deepseek/deepseek-r1-distill-llama-70b",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
-    "deepseek/deepseek-r1-distill-qwen-32b": {
-      "id": "deepseek/deepseek-r1-distill-qwen-32b",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },

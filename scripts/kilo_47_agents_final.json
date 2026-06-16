@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-15T09:55:11Z",
+  "generated_at": "2026-06-16T10:53:27Z",
   "source": "kilo_agents.db.agent_roles",
   "assignment_method": "cheapest-above-floors deterministic selector",
   "classifier": "scripts/kilo-benchmarks/classify_ticket.py",
@@ -25,7 +25,7 @@
         "input_per_1m": 2.0,
         "output_per_1m": 12.0,
         "total_per_1m": 14.0,
-        "output_tokens_per_sec": 130.0,
+        "output_tokens_per_sec": 117.0,
         "arena_elo": 1531,
         "tbench_accuracy": 80.2,
         "weighted_coding": 93.0,
@@ -42,7 +42,7 @@
         "input_per_1m": 1.75,
         "output_per_1m": 14.0,
         "total_per_1m": 15.75,
-        "output_tokens_per_sec": 102.0,
+        "output_tokens_per_sec": 85.0,
         "arena_elo": null,
         "tbench_accuracy": 78.4,
         "weighted_coding": 87.1,
@@ -95,7 +95,7 @@
         "input_per_1m": 0.5,
         "output_per_1m": 2.5,
         "total_per_1m": 3.0,
-        "output_tokens_per_sec": 178.0,
+        "output_tokens_per_sec": 168.0,
         "arena_elo": 1452,
         "tbench_accuracy": null,
         "weighted_coding": 80.4,
@@ -163,7 +163,7 @@
         "input_per_1m": 1.25,
         "output_per_1m": 3.75,
         "total_per_1m": 5.0,
-        "output_tokens_per_sec": 196.0,
+        "output_tokens_per_sec": 179.0,
         "arena_elo": 1505,
         "tbench_accuracy": null,
         "weighted_coding": 91.6,
@@ -175,6 +175,23 @@
     "documentation": [
       {
         "priority": 1,
+        "api_id": "minimax/minimax-m3",
+        "kilo_id": "kilo/minimax/minimax-m3",
+        "name": "MiniMax: MiniMax M3",
+        "provider": "minimax",
+        "input_per_1m": 0.3,
+        "output_per_1m": 1.2,
+        "total_per_1m": 1.5,
+        "output_tokens_per_sec": 60.0,
+        "arena_elo": 1485,
+        "tbench_accuracy": null,
+        "weighted_coding": null,
+        "has_vision": true,
+        "has_reasoning": false,
+        "context_window_k": 1048
+      },
+      {
+        "priority": 2,
         "api_id": "z-ai/glm-4.7",
         "kilo_id": "kilo/z-ai/glm-4.7",
         "name": "Z.ai: GLM 4.7",
@@ -191,7 +208,7 @@
         "context_window_k": 202
       },
       {
-        "priority": 2,
+        "priority": 3,
         "api_id": "qwen/qwen3.6-plus",
         "kilo_id": "kilo/qwen/qwen3.6-plus",
         "name": "Qwen: Qwen3.6 Plus",
@@ -208,7 +225,7 @@
         "context_window_k": 1000
       },
       {
-        "priority": 3,
+        "priority": 4,
         "api_id": "google/gemini-3-flash-preview",
         "kilo_id": "kilo/google/gemini-3-flash-preview",
         "name": "Google: Gemini 3 Flash Preview",
@@ -225,7 +242,7 @@
         "context_window_k": 1048
       },
       {
-        "priority": 4,
+        "priority": 5,
         "api_id": "qwen/qwen3.5-397b-a17b",
         "kilo_id": "kilo/qwen/qwen3.5-397b-a17b",
         "name": "Qwen: Qwen3.5 397B A17B",
@@ -239,24 +256,7 @@
         "weighted_coding": null,
         "has_vision": true,
         "has_reasoning": true,
-        "context_window_k": 262
-      },
-      {
-        "priority": 5,
-        "api_id": "z-ai/glm-5",
-        "kilo_id": "kilo/z-ai/glm-5",
-        "name": "Z.ai: GLM 5",
-        "provider": "z-ai",
-        "input_per_1m": 1.0,
-        "output_per_1m": 3.2,
-        "total_per_1m": 4.2,
-        "output_tokens_per_sec": 68.5,
-        "arena_elo": 1461,
-        "tbench_accuracy": 52.4,
-        "weighted_coding": 76.2,
-        "has_vision": false,
-        "has_reasoning": true,
-        "context_window_k": 202
+        "context_window_k": 256
       }
     ],
     "fixing": [
@@ -286,7 +286,7 @@
         "input_per_1m": 2.0,
         "output_per_1m": 12.0,
         "total_per_1m": 14.0,
-        "output_tokens_per_sec": 130.0,
+        "output_tokens_per_sec": 117.0,
         "arena_elo": 1531,
         "tbench_accuracy": 80.2,
         "weighted_coding": 93.0,
@@ -356,7 +356,7 @@
         "input_per_1m": 2.0,
         "output_per_1m": 12.0,
         "total_per_1m": 14.0,
-        "output_tokens_per_sec": 130.0,
+        "output_tokens_per_sec": 117.0,
         "arena_elo": 1531,
         "tbench_accuracy": 80.2,
         "weighted_coding": 93.0,
@@ -443,7 +443,7 @@
         "input_per_1m": 2.0,
         "output_per_1m": 12.0,
         "total_per_1m": 14.0,
-        "output_tokens_per_sec": 130.0,
+        "output_tokens_per_sec": 117.0,
         "arena_elo": 1531,
         "tbench_accuracy": 80.2,
         "weighted_coding": 93.0,
@@ -460,7 +460,7 @@
         "input_per_1m": 1.75,
         "output_per_1m": 14.0,
         "total_per_1m": 15.75,
-        "output_tokens_per_sec": 102.0,
+        "output_tokens_per_sec": 85.0,
         "arena_elo": null,
         "tbench_accuracy": 78.4,
         "weighted_coding": 87.1,

@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — A re-drill: backtick escape needed double-backslash for heredoc survival (2026-06-16)
+
+Round 2 of step_17c's traefik own-ACME-staging test STILL failed with `bash: line 28: __HOST__: command not found`. Same class of bug as bug #10 backticks-in-double-quoted-heredoc, just two layers deep:
+
+- Operator's outer `"..."` processes `\\\`` → literal backtick. Single-backslash `\`` arrives at remote as literal backtick.
+- Remote bash sends that into the heredoc. Heredoc backticks → command substitution. `__HOST__` ran as command, not found, replaced with empty. compose.yaml ended up with `Host()` empty args.
+
+Fix: source needs `\\\`__HOST__\\\``. Operator processing turns it into `\`__HOST__\``. That arrives at the heredoc with escaped backticks, which heredoc reads as literal backticks. Validated locally before re-drilling.
+
+Drill `dr-drill-hub-20260616-113524`: traefik served `(STAGING) Ersatz Emmer YR2` cert on attempt 2 (~10s). **A: GREEN.** Traefik's own Go-based lego ACME implementation works end-to-end against staging from a fresh Vultr droplet in LAX.
+
 ### Changed — Hub DR docs synced to the now-green drill (2026-06-16): step_12b/12c/17b/17c + LE/DNS cutover VALIDATED
 
 Completed the hub half of the docs-accuracy sweep that `984bd02` held pending the peer AI's `bootstrap-hub.sh` work (now landed in `52988ac`/`cc4b51f`). Verified every claim against the current script + CHANGELOG:

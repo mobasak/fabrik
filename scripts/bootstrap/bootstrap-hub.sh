@@ -1639,7 +1639,7 @@ services:
     labels:
       - traefik.enable=true
       - traefik.docker.network=fabrik
-      - traefik.http.routers.drill-whoami.rule=Host(\`__HOST__\`)
+      - traefik.http.routers.drill-whoami.rule=Host(\\\`__HOST__\\\`)
       - traefik.http.routers.drill-whoami.entrypoints=websecure
       - traefik.http.routers.drill-whoami.tls=true
       - traefik.http.routers.drill-whoami.tls.certresolver=staging
