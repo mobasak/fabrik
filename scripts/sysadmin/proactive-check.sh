@@ -300,6 +300,48 @@ print(d[0]['commit']['committer']['date'] if isinstance(d, list) and d else '')"
     fi
 fi
 
+# ── Authelia + GlitchTip health (auth-free) ──────────────────────────────
+#
+# Both run on the fabrik Docker network on every host that has them. Hub has
+# both; spokes may have only Authelia. We probe via an existing fabrik-network
+# container (apprise — already present on hub; spokes use sysadmin-bot's
+# network access). Auth-free endpoints:
+#   - Authelia: GET http://authelia:9091/api/health → {"status":"OK"}
+#   - GlitchTip: GET http://glitchtip-web:8000/_health/ → "ok"
+# A 5xx / connection refusal = service down; that's Tier B (auth/error
+# pipeline degraded) — wake Claude to investigate.
+
+if command -v docker >/dev/null 2>&1; then
+    NET_PROBE_CONTAINER=""
+    for cand in apprise sysadmin-bot promtail; do
+        if sudo docker inspect "$cand" --format '{{.State.Status}}' 2>/dev/null | grep -q running; then
+            NET_PROBE_CONTAINER="$cand"; break
+        fi
+    done
+    if [ -n "$NET_PROBE_CONTAINER" ]; then
+        # Authelia: present on hub + spokes (any host with admin services)
+        if sudo docker ps --format '{{.Names}}' | grep -q '^authelia$'; then
+            if ! sudo docker exec "$NET_PROBE_CONTAINER" curl -sf --max-time 5 \
+                 http://authelia:9091/api/health 2>/dev/null | grep -q '"status":"OK"'; then
+                ANOMALIES+="authelia_health_failed "
+            fi
+        fi
+        # GlitchTip: hub only
+        if sudo docker ps --format '{{.Names}}' | grep -q '^glitchtip-web$'; then
+            if ! sudo docker exec "$NET_PROBE_CONTAINER" curl -sf --max-time 5 \
+                 http://glitchtip-web:8000/_health/ 2>/dev/null | grep -q '^ok'; then
+                ANOMALIES+="glitchtip_health_failed "
+            fi
+            # Bonus check: glitchtip-worker should be running too (error queue
+            # processor). A stopped worker means errors accumulate but no
+            # delivery to Telegram.
+            if ! sudo docker inspect glitchtip-worker --format '{{.State.Status}}' 2>/dev/null | grep -q running; then
+                ANOMALIES+="glitchtip_worker_not_running "
+            fi
+        fi
+    fi
+fi
+
 # ── All clear? Exit silently. ─────────────────────────────────────────────
 
 if [ -z "$ANOMALIES" ]; then

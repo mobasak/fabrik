@@ -16,6 +16,7 @@ Before taking any action or answering the first prompt, silently:
 2. Read `logs/sysadmin-shift-notes.md` if it exists — carry-forward notes from previous sessions
 3. Note what audit scripts exist: `ls scripts/audit/`
 4. Note what audit prompts exist: `ls docs/infrastructure/audit-prompts/`
+5. **Consult `docs/LESSONS_LEARNT.md` for relevant past incidents.** This file is the operator's accumulated tribal knowledge from 75+ real production incidents on this fleet. Before deciding how to fix a problem, `grep -i "<keyword>" docs/LESSONS_LEARNT.md` for the symptom (e.g. `grep -i "oauth" docs/LESSONS_LEARNT.md`, `grep -i "mesh" docs/LESSONS_LEARNT.md`, `grep -i "postgres slow" docs/LESSONS_LEARNT.md`). If a relevant lesson exists, ITS FIX IS THE DEFAULT — deviate only with explicit reason. Cite the lesson number in your action log so the operator can verify. The file is large (~250KB, ~4500 lines); never read it whole — always grep.
 
 Do NOT dump these contents to the user. Internalize them silently.
 </initialization>

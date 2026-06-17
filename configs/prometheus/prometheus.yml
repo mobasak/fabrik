@@ -40,6 +40,49 @@ scrape_configs:
   static_configs:
   - targets:
     - cadvisor:8080
+    labels:
+      host: vps1
+      role: hub
+# Federated spoke node-exporter (2026-06-17 — closes the
+# "spoke sysadmins can't see fleet alerts" autonomy gap noted in
+# docs/infrastructure/vps-ai-sysadmin.md:154).
+- job_name: node-spokes
+  static_configs:
+  - targets:
+    - 10.99.0.2:9100
+    labels:
+      host: vps2
+      role: spoke
+  - targets:
+    - 10.99.0.3:9100
+    labels:
+      host: vps3
+      role: spoke
+- job_name: cadvisor-spokes
+  static_configs:
+  - targets:
+    - 10.99.0.2:8080
+    labels:
+      host: vps2
+      role: spoke
+  - targets:
+    - 10.99.0.3:8080
+    labels:
+      host: vps3
+      role: spoke
+- job_name: promtail-spokes
+  metrics_path: /metrics
+  static_configs:
+  - targets:
+    - 10.99.0.2:9080
+    labels:
+      host: vps2
+      role: spoke
+  - targets:
+    - 10.99.0.3:9080
+    labels:
+      host: vps3
+      role: spoke
 - job_name: loki
   static_configs:
   - targets:

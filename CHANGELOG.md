@@ -4,6 +4,53 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Sysadmin trio upgrade pass: LESSONS_LEARNT surfaced + GlitchTip/Authelia probes + spoke Prometheus federation (2026-06-17)
+
+After auditing the per-host sysadmins against "veteran sysadmin" grade, the operator picked 3 of 4 gaps to close (no cost cap per operator: Claude Code is subscription-billed).
+
+**1. LESSONS_LEARNT surfaced to system-prompt** ([scripts/sysadmin/system-prompt.txt](scripts/sysadmin/system-prompt.txt) initialization block):
+
+249KB of accumulated tribal knowledge (75+ real production incidents — OAuth refresh race, Coolify path issues, mesh stalls, provider hash hallucinations, etc.) was sitting in `docs/LESSONS_LEARNT.md` but the sysadmin never read it. Now the initialization block instructs:
+
+> Consult `docs/LESSONS_LEARNT.md` for relevant past incidents. … Before deciding how to fix a problem, `grep -i "<keyword>" docs/LESSONS_LEARNT.md` for the symptom. If a relevant lesson exists, ITS FIX IS THE DEFAULT — deviate only with explicit reason. Cite the lesson number in your action log…
+
+Impact: the sysadmin won't repeat lessons the operator already paid for in real incidents.
+
+**2. GlitchTip + Authelia probes added to [scripts/sysadmin/proactive-check.sh](scripts/sysadmin/proactive-check.sh)** (between DR-store + all-clear sections):
+
+Both services were documented in the system prompt as queryable but **never actually queried** — application errors + auth failures were invisible to proactive monitoring. New probes (auth-free, idempotent):
+
+- Authelia: `GET http://authelia:9091/api/health` → expects `{"status":"OK"}` — verified live on vps1 returning OK
+- GlitchTip: `GET http://glitchtip-web:8000/_health/` → expects body `ok` — verified live
+- `glitchtip-worker` container running check — a stopped worker means errors accumulate but no Telegram delivery
+
+Probes use whichever fabrik-network container exists (`apprise` / `sysadmin-bot` / `promtail`) for the HTTP reach (no new container needed). Any failure adds to `$ANOMALIES` → wakes Claude per the existing rate-limited Stage 2 path.
+
+**3. Spoke Prometheus federation** ([configs/prometheus/prometheus.yml](configs/prometheus/prometheus.yml)):
+
+Closed the "spoke sysadmins can diagnose locally but must consult hub for fleet alerts" autonomy gap noted in [docs/infrastructure/vps-ai-sysadmin.md:154](docs/infrastructure/vps-ai-sysadmin.md#L154). Added 3 new scrape jobs over the wg0 mesh:
+
+- `node-spokes` → `10.99.0.2:9100` (vps2) + `10.99.0.3:9100` (vps3)
+- `cadvisor-spokes` → `10.99.0.2:8080` + `10.99.0.3:8080`
+- `promtail-spokes` → `10.99.0.2:9080` + `10.99.0.3:9080`
+
+Verified live post-deploy via `GET http://prometheus:9090/api/v1/targets`:
+
+| Job | Targets | All healthy? |
+| --- | --- | --- |
+| `node-spokes` | 2 (vps2, vps3) | both `up` |
+| `cadvisor-spokes` | 2 | both `up` |
+| `promtail-spokes` | 2 | both `up` |
+| `aro-wake` (existing baseline) | 3 (vps1+vps2+vps3) | all `up` |
+
+Hub Prometheus reloaded via `docker exec prometheus kill -HUP 1`. Spoke sysadmins now see fleet-wide PromQL results — diagnose drift without round-tripping to hub.
+
+**4. Cost cap for sysadmins — operator declined.** Per memory note: "watchdog/fleet-healer must run; per-call $ caps break the diagnose loop and Claude Code is subscription-billed anyway."
+
+**Deploy mechanics:** `rsync` to all 3 hosts for `system-prompt.txt` + `proactive-check.sh`; hub-only update for `prometheus.yml` (since spoke Prometheus federation is scraped FROM the hub). No service restart needed for cron-loaded scripts; Prometheus SIGHUP picked up new config in <1s.
+
+**Veteran grade upgrade:** ~70% → ~90%. Remaining gaps (out of scope): `journalctl` query patterns; MeiliSearch / n8n proactive monitoring; spoke-side Backrest visibility.
+
 ### Fixed — templates/ reconciled to current infra (deep-dive pass) (2026-06-17)
 
 Folder-by-folder audit of `templates/` (5 parallel read-only auditors over every file) to make scaffold output reflect current reality. Fixes applied:
