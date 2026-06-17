@@ -23,7 +23,7 @@ npm install
 
 # Configure environment
 cp .env.example .env
-# Edit .env with your Supabase credentials
+# Edit .env with your Supabase + OpenRouter credentials
 
 # Start development
 npm run dev
@@ -85,7 +85,7 @@ export default function ChatPage() {
 }
 ```
 
-The `/api/chat` endpoint streams responses via SSE.
+The `/api/chat` endpoint streams responses via SSE, backed by the **OpenRouter API** (`openrouter.ai/api/v1` — one key, every provider; no vendor SDK). Set `OPENROUTER_API_KEY` and optionally `OPENROUTER_MODEL` (default `anthropic/claude-sonnet-4.6`; pick any slug from <https://openrouter.ai/models>). The route re-emits `text_delta` / `done` / `error` events the `ChatUI` consumes, and returns 503 if `OPENROUTER_API_KEY` is unset.
 
 ### Kilo CLI for Development
 
@@ -107,10 +107,15 @@ kilo run "Add user profile page"
 # Supabase
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 
 # App
 NEXT_PUBLIC_APP_NAME=Your SaaS
 NEXT_PUBLIC_APP_URL=http://localhost:3000
+
+# AI chat (OpenRouter — required for /api/chat)
+OPENROUTER_API_KEY=your-openrouter-key
+OPENROUTER_MODEL=anthropic/claude-sonnet-4.6
 ```
 
 ## Customization
