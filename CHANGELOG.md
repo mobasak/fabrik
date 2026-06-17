@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — archived 2 orphan/retired infra specs (2026-06-17)
+
+`specs/infrastructure/` carried two unused specs (verified: zero code/test/doc refs, not auto-discovered — infra specs are applied by explicit path). Archived (not deleted) to `specs/.archive/2026-06-17-retired/` with a README:
+
+- **`authelia-coolify.yaml`** — old Coolify-era compose-format file (`services:` …), superseded by the current fabrik-spec `authelia.yaml` (`name:`/`type:`/`shape:`).
+- **`minio.yaml`** — MinIO retired / not deployed (object storage via B2 + R2 directly; no `minio` container on any VPS).
+
+`specs/infrastructure/` now holds only the 7 live spec-managed infra services (apprise, authelia, browserless, gotenberg, meilisearch, monitoring-stack, n8n). `specs/services/translator.yaml` was **kept** — the service is retired but the spec is a live test fixture (`cli.py` + tests). (Note: `specs/` is the deploy-contract + scaffold/registrar **test-fixture** layer — most `specs/services/*.yaml` are `test-`/`gate-`/`fabrik-test-` fixtures — NOT a live-infra inventory; the canonical "what runs where" is `docs/infrastructure/vps-complete-inventory.md`.)
+
 ### Added — GPU pause/resume + RunPod COMMUNITY fallback + 3 real-life live scenarios (2026-06-17)
 
 User feedback: "tests not enough — rent actual GPUs, use them, pause, destroy as real-life scenarios". Shipped 3 things this pass; **total live spend ~$0.02 / total credits remaining ~$49.85**.
