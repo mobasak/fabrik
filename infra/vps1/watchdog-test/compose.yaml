@@ -1,0 +1,31 @@
+services:
+  watchdog-test:
+    image: nginx:alpine
+    container_name: watchdog-test
+    platform: linux/amd64
+    restart: unless-stopped
+    env_file: .env
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:80/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    networks:
+      - fabrik
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.watchdog-test.rule=Host(`watchdog-test.vps1.ocoron.com`)
+      - traefik.http.routers.watchdog-test.entrypoints=websecure
+      - traefik.http.routers.watchdog-test.tls=true
+      - traefik.http.routers.watchdog-test.tls.certresolver=letsencrypt
+      - traefik.http.services.watchdog-test.loadbalancer.server.port=80
+      - traefik.http.routers.watchdog-test.middlewares=gzip@docker
+
+networks:
+  fabrik:
+    external: true

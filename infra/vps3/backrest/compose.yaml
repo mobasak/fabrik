@@ -1,0 +1,33 @@
+services:
+  backrest:
+    image: ghcr.io/garethgeorge/backrest:latest
+    container_name: backrest
+    hostname: vps3
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      BACKREST_DATA: /data
+      BACKREST_CONFIG: /config/config.json
+      XDG_CACHE_HOME: /cache
+      TMPDIR: /tmp
+      TZ: Europe/Istanbul
+    volumes:
+      - /opt/backrest/data:/data
+      - /opt/backrest/config:/config
+      - /opt/backrest/cache:/cache
+      - /opt/backrest/tmp:/tmp
+      - /opt:/opt:ro
+      - /etc:/etc:ro
+      - /root/.ssh:/root/.ssh:ro
+      - /home/ozgur/.ssh:/home/ozgur/.ssh:ro
+      - /opt/backrest/.restic-password:/restic-password:ro
+    networks:
+      - fabrik
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+networks:
+  fabrik:
+    external: true

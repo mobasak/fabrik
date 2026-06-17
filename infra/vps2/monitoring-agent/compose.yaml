@@ -1,0 +1,88 @@
+# Lightweight monitoring agents on each Fabrik spoke (vps2, vps3, ...).
+# Ship metrics + logs to vps1's central observability stack over the
+# Wireguard mesh. NOT a tenant of fabrik apply — owned by bootstrap-vps.sh.
+#
+# Variables (envsubst):
+#   vps2      e.g. vps2 (used as a label in promtail)
+#   10.99.0.2   e.g. 10.99.0.2 (where exporters bind their listeners)
+#   10.99.0.1     10.99.0.1 (where promtail pushes logs to loki)
+#
+# Image versions match vps1's /opt/monitoring/compose.yaml so spoke metrics
+# share format/version assumptions with the central stack.
+
+services:
+  node-exporter:
+    image: prom/node-exporter:v1.9.1
+    container_name: node-exporter
+    restart: unless-stopped
+    platform: linux/amd64
+    network_mode: host
+    pid: host
+    volumes:
+      - /:/host:ro,rslave
+    command:
+      - --path.procfs=/host/proc
+      - --path.sysfs=/host/sys
+      - --path.rootfs=/host
+      - --collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)
+      # Bind to the mesh IP only — vps1's Prometheus scrapes via wg0.
+      # Public IP cannot reach this port (also blocked by DOCKER-USER chain).
+      - --web.listen-address=10.99.0.2:9100
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+          cpus: '0.25'
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.52.1
+    container_name: cadvisor
+    restart: unless-stopped
+    platform: linux/amd64
+    network_mode: host
+    privileged: true
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    command:
+      - --port=8080
+      # Bind cadvisor only to the mesh IP.
+      - --listen_ip=10.99.0.2
+    # Override the image's default healthcheck (probes localhost:8080 which
+    # fails because we bind only to the mesh IP). Probe the actual bind addr.
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://10.99.0.2:8080/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.5'
+
+  promtail:
+    image: grafana/promtail:3.4.2
+    container_name: promtail
+    restart: unless-stopped
+    platform: linux/amd64
+    network_mode: host
+    volumes:
+      - /var/log:/var/log:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /opt/monitoring-agent/promtail.yaml:/etc/promtail/config.yaml:ro
+      - promtail-positions:/run/promtail
+    command:
+      - -config.file=/etc/promtail/config.yaml
+    deploy:
+      resources:
+        limits:
+          memory: 96M
+          cpus: '0.25'
+
+volumes:
+  promtail-positions:

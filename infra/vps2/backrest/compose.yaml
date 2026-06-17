@@ -1,0 +1,41 @@
+services:
+  backrest:
+    image: ghcr.io/garethgeorge/backrest:latest
+    container_name: backrest
+    hostname: vps2
+    restart: unless-stopped
+    env_file: .env              # AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
+    environment:
+      BACKREST_DATA: /data
+      BACKREST_CONFIG: /config/config.json
+      XDG_CACHE_HOME: /cache
+      TMPDIR: /tmp
+      TZ: Europe/Istanbul
+    volumes:
+      # Backrest's own state
+      - /opt/backrest/data:/data
+      - /opt/backrest/config:/config
+      - /opt/backrest/cache:/cache
+      - /opt/backrest/tmp:/tmp
+      # Backup source mounts (path-preserving — see vps1's pattern + Lesson learned 2026-06-01:
+      # do NOT mount /var/spool/cron/crontabs due to image-internal symlink to /etc/crontabs).
+      - /opt:/opt:ro
+      - /etc:/etc:ro
+      - /root/.ssh:/root/.ssh:ro
+      - /home/ozgur/.ssh:/home/ozgur/.ssh:ro
+      # Restic password (legacy compat — referenced by config.json env block)
+      - /opt/backrest/.restic-password:/restic-password:ro
+    networks:
+      - fabrik
+    # No Traefik labels for spoke Backrest — no public UI exposure today. Manage via API
+    # from vps1 over mesh when needed; cron does the actual backup work autonomously.
+    # (Hub's backup.vps1.ocoron.com pattern is hub-only because the operator interacts
+    # with it; spoke Backrest is a daemon, doesn't need browsable.)
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+networks:
+  fabrik:
+    external: true

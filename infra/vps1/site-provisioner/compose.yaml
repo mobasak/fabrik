@@ -1,0 +1,61 @@
+services:
+  site-provisioner:
+    platform: linux/amd64
+    build:
+      context: .
+      args:
+        - GIT_SHA=${GIT_SHA:-unknown}
+    container_name: site-provisioner
+    restart: unless-stopped
+    environment:
+      - API_HOST=${API_HOST:-0.0.0.0}
+      - API_PORT=${API_PORT:-8001}
+      - NAMECHEAP_API_KEY=${NAMECHEAP_API_KEY:?}
+      - NAMECHEAP_API_USER=${NAMECHEAP_API_USER:?}
+      - NAMECHEAP_CLIENT_IP=${NAMECHEAP_CLIENT_IP:?}
+      - NAMECHEAP_USE_PROXY=${NAMECHEAP_USE_PROXY:-true}
+      - NAMECHEAP_PROXY_URL=${NAMECHEAP_PROXY_URL:-}
+      - NAMECHEAP_SANDBOX=${NAMECHEAP_SANDBOX:-false}
+      - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN:-}
+      - CLOUDFLARE_ACCOUNT_ID=${CLOUDFLARE_ACCOUNT_ID:-}
+      - CLOUDFLARE_GLOBAL_API_KEY=${CLOUDFLARE_GLOBAL_API_KEY:-}
+      - CLOUDFLARE_EMAIL=${CLOUDFLARE_EMAIL:-}
+      - DOMAINNAMEAPI_USERNAME=${DOMAINNAMEAPI_USERNAME:-}
+      - DOMAINNAMEAPI_PASSWORD=${DOMAINNAMEAPI_PASSWORD:-}
+      - BING_WEBMASTER_API_KEY=${BING_WEBMASTER_API_KEY:-}
+      - API_KEY=${API_KEY:?}
+      - DATABASE_URL=${DATABASE_URL:?}
+      - GOOGLE_APPLICATION_CREDENTIALS=${GOOGLE_APPLICATION_CREDENTIALS:-/app/service-account.json}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - APP_ENV=${APP_ENV:-production}
+      - APP_GIT_SHA=${GIT_SHA:-unknown}
+    networks:
+      - fabrik
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=fabrik"
+      - "traefik.http.routers.site-provisioner.rule=Host(`provision.vps1.ocoron.com`)"
+      - "traefik.http.routers.site-provisioner.entrypoints=websecure"
+      - "traefik.http.routers.site-provisioner.tls=true"
+      - "traefik.http.routers.site-provisioner.tls.certresolver=letsencrypt"
+      - "traefik.http.services.site-provisioner.loadbalancer.server.port=8001"
+      # IP allowlist: VPS Docker internals + VPS public + WSL public (35-security-auth.md)
+      - "traefik.http.routers.site-provisioner.middlewares=site-provisioner-ipallowlist"
+      - "traefik.http.middlewares.site-provisioner-ipallowlist.ipallowlist.sourcerange=172.16.0.0/12,10.0.0.0/8,192.168.0.0/16,172.93.160.197/32,31.206.44.18/32"
+    command: sh -c "if [ -f alembic.ini ]; then alembic upgrade head || exit 1; fi && uvicorn api.main:app --host 0.0.0.0 --port 8001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+
+
+networks:
+  fabrik:
+    external: true

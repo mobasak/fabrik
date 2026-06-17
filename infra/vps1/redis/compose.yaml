@@ -1,0 +1,25 @@
+services:
+  redis-main:
+    image: redis:7-alpine
+    container_name: redis-main
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+    - redis-data:/data
+    networks:
+    - fabrik
+    healthcheck:
+      test:
+      - CMD
+      - redis-cli
+      - ping
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    ports:
+    - 10.99.0.1:6379:6379
+volumes:
+  redis-data: null
+networks:
+  fabrik:
+    external: true

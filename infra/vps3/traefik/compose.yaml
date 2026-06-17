@@ -1,0 +1,26 @@
+services:
+  traefik:
+    image: traefik:v2.11
+    container_name: traefik
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.middlewares.gzip.compress=true"
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - DOCKER_API_VERSION=1.44
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik.yml:/traefik.yml:ro
+      - ./dynamic:/dynamic:ro
+      - ./acme.json:/acme.json
+    command:
+      - "--configFile=/traefik.yml"
+    networks:
+      - fabrik
+
+networks:
+  fabrik:
+    external: true

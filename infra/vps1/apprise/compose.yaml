@@ -5,6 +5,7 @@ services:
     restart: unless-stopped
     environment:
       APPRISE_STATELESS_URLS: "${APPRISE_STATELESS_URLS}"
+      APPRISE_WORKER_COUNT: "${APPRISE_WORKER_COUNT}"
     volumes:
       - apprise-config:/config
     networks:

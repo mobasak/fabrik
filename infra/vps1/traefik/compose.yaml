@@ -14,7 +14,6 @@ services:
       - ./traefik.yml:/traefik.yml:ro
       - ./acme.json:/acme.json
       - ./htpasswd:/htpasswd:ro
-      - ./htpasswd-netdata:/htpasswd-netdata:ro
     command:
       - "--configFile=/traefik.yml"
     networks:
