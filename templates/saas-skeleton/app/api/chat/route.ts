@@ -1,5 +1,13 @@
 import { NextRequest } from "next/server";
-import { spawn } from "child_process";
+
+// AI chat backed by OpenRouter (https://openrouter.ai/api/v1) — one API key,
+// every provider. Per `.windsurf/rules/core/65-rag-search.md` + `cost-budget.md`,
+// application LLM calls go through the OpenRouter HTTP API (no vendor SDKs, no
+// shelling out to a CLI). Responses are streamed to the client as Server-Sent
+// Events; `useSSEStream` consumes `{ type: "text_delta" | "done" | "error" }`.
+const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
+// Override per project via OPENROUTER_MODEL — see https://openrouter.ai/models.
+const DEFAULT_MODEL = process.env.OPENROUTER_MODEL || "anthropic/claude-sonnet-4.6";
 
 export async function POST(request: NextRequest) {
   const { message, systemPrompt } = await request.json();
@@ -11,44 +19,82 @@ export async function POST(request: NextRequest) {
     });
   }
 
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (!apiKey) {
+    // Fail clearly instead of streaming a broken response when AI isn't configured.
+    return new Response(
+      JSON.stringify({ error: "OPENROUTER_API_KEY is not configured" }),
+      { status: 503, headers: { "Content-Type": "application/json" } }
+    );
+  }
+
+  const messages: Array<{ role: string; content: string }> = [];
+  if (systemPrompt) messages.push({ role: "system", content: systemPrompt });
+  messages.push({ role: "user", content: message });
+
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     async start(controller) {
-      const fullPrompt = systemPrompt
-        ? `${systemPrompt}\n\nUser: ${message}`
-        : message;
+      const send = (obj: Record<string, unknown>) =>
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify(obj)}\n\n`));
 
-      const proc = spawn("kilo", ["run", fullPrompt], {
-        stdio: ["ignore", "pipe", "pipe"],
-      });
+      try {
+        const upstream = await fetch(OPENROUTER_URL, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ model: DEFAULT_MODEL, messages, stream: true }),
+        });
 
-      proc.stdout.on("data", (chunk: Buffer) => {
-        const text = chunk.toString();
-        const lines = text.split("\n");
+        if (!upstream.ok || !upstream.body) {
+          const detail = await upstream.text().catch(() => "");
+          send({
+            type: "error",
+            error: `OpenRouter HTTP ${upstream.status}${detail ? `: ${detail.slice(0, 200)}` : ""}`,
+          });
+          controller.close();
+          return;
+        }
 
-        for (const line of lines) {
-          if (line.trim()) {
-            const event = `data: ${JSON.stringify({ type: "text_delta", text: line + "\n" })}\n\n`;
-            controller.enqueue(encoder.encode(event));
+        const reader = upstream.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          // Keep the last (possibly incomplete) line for the next chunk.
+          buffer = lines.pop() ?? "";
+
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed.startsWith("data:")) continue;
+            const data = trimmed.slice(5).trim();
+            if (data === "" || data === "[DONE]") continue;
+            try {
+              const json = JSON.parse(data);
+              const delta: string | undefined = json?.choices?.[0]?.delta?.content;
+              if (delta) send({ type: "text_delta", text: delta });
+            } catch {
+              // Skip keep-alive comments / partial frames.
+            }
           }
         }
-      });
 
-      proc.stderr.on("data", (chunk: Buffer) => {
-        console.error("kilo stderr:", chunk.toString());
-      });
-
-      proc.on("close", (code) => {
-        const event = `data: ${JSON.stringify({ type: "done", code })}\n\n`;
-        controller.enqueue(encoder.encode(event));
+        send({ type: "done" });
         controller.close();
-      });
-
-      proc.on("error", (error) => {
-        const event = `data: ${JSON.stringify({ type: "error", error: error.message })}\n\n`;
-        controller.enqueue(encoder.encode(event));
+      } catch (error) {
+        send({
+          type: "error",
+          error: error instanceof Error ? error.message : "Stream failed",
+        });
         controller.close();
-      });
+      }
     },
   });
 
