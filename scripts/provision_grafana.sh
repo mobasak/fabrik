@@ -18,16 +18,16 @@ if [ -z "$TOKEN" ]; then
   exit 1
 fi
 
-# Resolve grafana container IP on coolify network (survives Coolify redeploys)
+# Resolve grafana container IP on the fabrik network (survives redeploys)
 GRAFANA_IP=$(sudo docker inspect \
   "$(sudo docker ps --format '{{.Names}}' | grep '^grafana-')" \
-  --format '{{(index .NetworkSettings.Networks "coolify").IPAddress}}')
+  --format '{{(index .NetworkSettings.Networks "fabrik").IPAddress}}')
 BASE="http://${GRAFANA_IP}:3000/api"
 AUTH="Authorization: Bearer ${TOKEN}"
 
-# curl runner — use a throwaway curl container on coolify network
+# curl runner — use a throwaway curl container on the fabrik network
 CURL() {
-  sudo docker run --rm --network coolify curlimages/curl:latest "$@"
+  sudo docker run --rm --network fabrik curlimages/curl:latest "$@"
 }
 
 echo "=== Grafana base: $BASE ==="
@@ -96,7 +96,7 @@ with open(dst, 'w') as f:
     json.dump(body, f)
 PY
   # Stream body via stdin (curl container doesn't share host /tmp)
-  sudo cat "$body_file" | sudo docker run --rm -i --network coolify curlimages/curl:latest \
+  sudo cat "$body_file" | sudo docker run --rm -i --network fabrik curlimages/curl:latest \
     -sf -X POST -H "$AUTH" -H "Content-Type: application/json" \
     "${BASE}/dashboards/import" --data-binary @- \
     | python3 -c "import json,sys; d=json.load(sys.stdin); print('  ->', d.get('slug','?'), d.get('status','?'))" \

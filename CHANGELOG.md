@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — scripts/provision_grafana.sh used the dead `coolify` network (2026-06-17)
+
+`scripts/provision_grafana.sh` resolved the Grafana IP and ran its curl helper on `--network coolify` (4 spots) — that network no longer exists (live is `fabrik`), so the script would fail. Renamed to `fabrik`. (Found while sweeping the executable surface — `scripts/`, `.kilo/`, `.github/`, `enforcement/`. Several dead one-time/migration scripts for retired tools remain — `setup_duplicati_backup.py`, `setup_uptime_kuma.py`, `delete_uptime_kuma.py`, `coolify_services_f5.py`, `migrate-authelia-to-coolify.sh`, `duplicati-vps-backup.json`, and the Coolify-querying parts of `update_vps_docs.py` — left in place: they're not imported by live code, can't be cleanly edited (the `.py` ones trip the gate's print-ban on existing `print()`s), and weren't created here, so they're surfaced for an explicit delete/keep decision rather than silently removed.)
+
 ### Fixed — .env.example retired-service residue (2026-06-17)
 
 `.env.example` still presented removed services as configurable. None of these vars are `required=True` (verified), so marked (not deleted — kept for any loose legacy ref):
