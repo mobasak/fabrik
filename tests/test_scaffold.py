@@ -1059,3 +1059,50 @@ class TestWorkflowsPropagation:
 
         workflow_files = list(workflows_dir.glob("*.md"))
         assert len(workflow_files) > 0, "No workflow files after fix_project()"
+
+
+class TestDocsSiteVendoring:
+    """saas-skeleton auto-vendors fabrik-lib/docs-site; static-site does not."""
+
+    def test_dispatch_scopes_docs_to_saas_only(self):
+        from fabrik.scaffold import (
+            _TYPE_SCAFFOLDERS,
+            _scaffold_saas_skeleton,
+            _scaffold_saas_skeleton_with_docs,
+        )
+
+        assert _TYPE_SCAFFOLDERS["saas-skeleton"] is _scaffold_saas_skeleton_with_docs
+        # static-site reuses the bare saas scaffolder — it is not a SaaS, no docs site.
+        assert _TYPE_SCAFFOLDERS["static-site"] is _scaffold_saas_skeleton
+
+    def test_vendor_docs_site_noop_when_source_missing(self, tmp_path, monkeypatch):
+        """A missing fabrik-lib must not hard-fail the scaffold."""
+        import fabrik.scaffold as scaffold_mod
+
+        monkeypatch.setattr(scaffold_mod, "FABRIK_LIB_DIR", tmp_path / "nonexistent")
+        proj = tmp_path / "acme"
+        proj.mkdir()
+        scaffold_mod._vendor_docs_site(proj, "acme")  # must not raise
+        assert not (proj / "docs-site").exists()
+
+    @requires_fabrik_env
+    def test_vendor_docs_site_copies_template(self, tmp_path):
+        import json
+
+        from fabrik.scaffold import FABRIK_LIB_DIR, _vendor_docs_site
+
+        if not (FABRIK_LIB_DIR / "docs-site").is_dir():
+            pytest.skip("fabrik-lib/docs-site not present")
+
+        proj = tmp_path / "acme"
+        proj.mkdir()
+        _vendor_docs_site(proj, "acme")
+
+        ds = proj / "docs-site"
+        assert (ds / "docusaurus.config.js").exists()
+        assert (ds / "docs").is_dir()
+        # Build artefacts excluded; local .gitignore written.
+        assert not (ds / "node_modules").exists()
+        assert (ds / ".gitignore").exists()
+        # Package name pointed at the project.
+        assert json.loads((ds / "package.json").read_text())["name"] == "acme-docs"

@@ -101,6 +101,28 @@ kilo run "Add user profile page"
 # /yolo phased "Add Paddle subscription integration"
 ```
 
+## Documentation Site
+
+`fabrik scaffold --type saas-skeleton` auto-vendors the canonical docs template
+from `fabrik-lib/docs-site` into **`docs-site/`** — a self-contained Docusaurus
+site with Ocoron design tokens, Scalar API reference, Pagefind search, and
+legal page templates (terms / privacy / cookies, GDPR/KVKK-compliant). Per
+`.windsurf/rules/saas/88-saas-launch-checklist.md`, every SaaS must ship a docs
+site — this is it; **don't build one from scratch**.
+
+Before its first build (it's a separate npm project):
+
+```bash
+cd docs-site
+# Download Space Grotesk, Inter, JetBrains Mono .woff2 into static/fonts/
+# (the template doesn't ship 3rd-party font binaries — see docs-site/README.md)
+npm install && npm run build      # or `npm start` for dev
+```
+
+Customize `docs-site/docusaurus.config.js` (title, url, Scalar spec URL) and
+deploy it as its own service (its `nginx.conf` serves the static build). See
+`docs-site/README.md` and `.windsurf/rules/core/42-docusaurus.md`.
+
 ## Environment Variables
 
 ```bash

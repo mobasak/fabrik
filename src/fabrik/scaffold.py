@@ -167,6 +167,9 @@ MOBILE_APP_TEMPLATE_DIR = FABRIK_ROOT / "templates" / "mobile-app"
 DESKTOP_APP_TEMPLATE_DIR = FABRIK_ROOT / "templates" / "desktop-app"
 DOCUSAURUS_TEMPLATE_DIR = FABRIK_ROOT / "templates" / "docusaurus"
 I18N_KIT_DIR = FABRIK_ROOT / "templates" / "i18n-kit"
+# fabrik-lib is the sibling repo (/opt/fabrik-lib) of FABRIK_ROOT (/opt/fabrik);
+# it holds the vendorable lib modules (docs-site, etc.).
+FABRIK_LIB_DIR = FABRIK_ROOT.parent / "fabrik-lib"
 
 # Scaffold types that get i18n-kit provisioned automatically.
 # Maps project_type → i18n strategy so the copy helper knows which files to place.
@@ -1751,6 +1754,66 @@ def _scaffold_saas_skeleton(
     )
 
 
+def _vendor_docs_site(project_dir: Path, name: str) -> None:
+    """Vendor fabrik-lib/docs-site into ``<project>/docs-site/``.
+
+    Copies the canonical Docusaurus docs template (Ocoron tokens, Scalar API
+    reference, Pagefind search, legal pages) following the fabrik-lib "vendor,
+    don't depend" pattern — a self-contained copy with no runtime ``/opt``
+    dependency. Build artefacts and the upstream ``.git`` are excluded, the
+    package name is pointed at the project, and a local ``.gitignore`` keeps
+    the vendored ``node_modules``/``build`` out of the repo.
+
+    No-op (with a warning) when fabrik-lib is absent — e.g. CI checkouts
+    without the sibling repo. A scaffold must not hard-fail on a missing
+    optional source. Per ``.windsurf/rules/saas/88-saas-launch-checklist.md``.
+    """
+    docs_src = FABRIK_LIB_DIR / "docs-site"
+    if not docs_src.is_dir():
+        logger.warning(
+            "fabrik-lib/docs-site not found at %s — skipping docs-site vendoring "
+            "(add it later: cp -r /opt/fabrik-lib/docs-site docs-site)",
+            docs_src,
+        )
+        return
+
+    dest = project_dir / "docs-site"
+    shutil.copytree(
+        docs_src,
+        dest,
+        ignore=shutil.ignore_patterns(
+            "node_modules", "build", ".docusaurus", "package-lock.json", ".git"
+        ),
+    )
+
+    # Point the vendored docs site at this project (post-vendor checklist step).
+    pkg = dest / "package.json"
+    if pkg.exists():
+        try:
+            data = json.loads(pkg.read_text(encoding="utf-8"))
+            data["name"] = f"{name}-docs"
+            pkg.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+        except (json.JSONDecodeError, OSError):
+            logger.debug("could not patch docs-site/package.json name", exc_info=True)
+
+    (dest / ".gitignore").write_text("node_modules/\nbuild/\n.docusaurus/\n", encoding="utf-8")
+    logger.info("Vendored fabrik-lib/docs-site -> %s/docs-site", project_dir.name)
+
+
+def _scaffold_saas_skeleton_with_docs(
+    project_dir: Path, name: str, description: str, **kwargs: object
+) -> None:
+    """saas-skeleton scaffold + an auto-vendored docs site.
+
+    Identical to ``_scaffold_saas_skeleton`` plus a vendored copy of
+    fabrik-lib/docs-site under ``docs-site/`` (per the SaaS launch checklist).
+    ``static-site`` keeps using the bare ``_scaffold_saas_skeleton`` — it is
+    not a SaaS and does not get a docs site.
+    """
+    _scaffold_saas_skeleton(project_dir, name, description, **kwargs)
+    _vendor_docs_site(project_dir, name)
+
+
 def _scaffold_node_api(project_dir: Path, name: str, description: str, **kwargs: object) -> None:
     """Create Node API-specific project structure."""
     import json
@@ -3279,7 +3342,7 @@ _TYPE_SCAFFOLDERS: dict[str, Callable[..., None]] = {
     "python-api-gpu": _scaffold_python_api_gpu,  # NEW: Phase 5
     # NB: "wordpress" is intentionally NOT here — scaffolding moved to /opt/wpf
     # (see create_project's redirect). It stays in SCAFFOLD_TYPES for deploy/shape.
-    "saas-skeleton": _scaffold_saas_skeleton,
+    "saas-skeleton": _scaffold_saas_skeleton_with_docs,
     "node-api": _scaffold_node_api,
     "file-api": _scaffold_file_api,
     "file-worker": _scaffold_file_worker,

@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — saas-skeleton auto-vendors fabrik-lib/docs-site (2026-06-18)
+
+`fabrik scaffold --type saas-skeleton` now vendors the canonical docs template (`fabrik-lib/docs-site` — Docusaurus + Scalar API reference + Pagefind search + Ocoron design tokens + GDPR/KVKK legal pages) into the new project's `docs-site/`, satisfying `.windsurf/rules/saas/88-saas-launch-checklist.md` ("every SaaS ships a docs site — vendor it, don't build from scratch"). New `_scaffold_saas_skeleton_with_docs` wrapper + `_vendor_docs_site()`: copies the template (excluding `node_modules`/`build`/`.docusaurus`/`.git`/lockfile), points its `package.json` name at the project, writes a local `docs-site/.gitignore`, and no-ops with a warning if `fabrik-lib` is absent (e.g. CI checkouts) so scaffolds never hard-fail. Scoped to `saas-skeleton` only — `static-site` (which shares the saas scaffolder) deliberately does **not** get a docs site. Documented in the saas README; covered by `tests/test_scaffold.py::TestDocsSiteVendoring`.
+
 ### Changed — saas-skeleton modernized to Next 15 / React 19 (2026-06-18)
 
 Bumped `templates/saas-skeleton/package.json` from Next 14.2 / React 18 → Next 15 / React 19 (and `@types/react`/`@types/react-dom` → 19, `eslint-config-next` → 15). **Verified with a full `npm install && next build`** — all 14 routes compile clean (the template uses no React-19/Next-15 breaking APIs: no `cookies()`/`headers()`/async-`params`/legacy-React surface). `tsconfig.json` left as-is (Next auto-adds `target` on first build, same as create-next-app); the template ships caret ranges with no lockfile so scaffolds resolve the latest compatible versions at creation time.
