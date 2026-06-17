@@ -22,7 +22,7 @@
 - **Runtime:** Python 3.12 / Node 22
 - **Framework:** FastAPI / Next.js / Hono
 - **Database:** PostgreSQL (shared `postgres-main:5432`)
-- **Cache:** Redis (`redis:6379`)
+- **Cache:** Redis (`redis-main:6379`)
 - **Deployment:** Docker Compose → VPS (`fabrik apply`)
 
 ## Requirements

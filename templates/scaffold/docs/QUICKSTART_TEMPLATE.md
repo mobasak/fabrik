@@ -19,7 +19,7 @@
 | **Production URL** | `https://{project}.vps1.ocoron.com` |
 | **Local dev URL** | `http://localhost:[PORT]` |
 | **Health endpoint** | `GET /health` |
-| **Depends on** | `{postgres, redis, minio, external-api-name, none}` |
+| **Depends on** | `{postgres, redis, external-api-name, none}` |
 
 <!-- For services called by other services, add these rows: -->
 <!-- | **Docker-internal URL** | `http://{project-name}:[PORT]` | -->

@@ -57,5 +57,3 @@ docker compose -f compose.yaml -f compose.dev.yaml up --build
 
 - `docs/DEPLOYMENT_TEMPLATE.md` → Deployment documentation
 - `python/pyproject.toml.template` → Python project config
-- `scripts/watchdog_template.sh` → Service watchdog
-- `pre-commit-config.yaml` → Pre-commit hooks

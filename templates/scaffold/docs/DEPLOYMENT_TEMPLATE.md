@@ -12,10 +12,10 @@
 |-----------|--------|-----|
 | **Application** | {VPS (Docker Compose via `fabrik apply`) / Vercel / Static host} | `https://{project}.vps1.ocoron.com` |
 | **Database** | {VPS postgres-main / Supabase / SQLite} | {connection info in .env} |
-| **Cache** | {VPS redis / none} | {connection info in .env} |
+| **Cache** | {VPS redis-main / none} | {connection info in .env} |
 | **DNS** | Cloudflare (via site-provisioner) | Automatic |
 | **SSL** | {Let's Encrypt (Traefik) / Vercel / Cloudflare} | Automatic |
-| **Monitoring** | Uptime Kuma | `https://status.vps1.ocoron.com` |
+| **Monitoring** | Gatus | `https://status.vps1.ocoron.com` |
 
 ---
 
@@ -82,7 +82,7 @@ fabrik redeploy [project-name]
 
 - **Base images:** `python:3.12-slim-bookworm` or `node:22-bookworm-slim` — never Alpine
 - **Architecture:** `linux/amd64` required — VPS is x86_64
-- **Networking:** Docker service names (`postgres-main`, `redis`), never `localhost` in production
+- **Networking:** Docker service names (`postgres-main`, `redis-main`), never `localhost` in production
 - **Health checks:** Every service must have `/health` that tests actual dependencies
 - **Ports:** Registered in `PORTS.md` — Traefik handles external 80/443 routing
 
@@ -106,4 +106,4 @@ fabrik redeploy [project-name]
 |-------|----------|----------|
 | Health | `/health` | `{"status": "ok", "dependencies": {...}}` |
 
-Uptime Kuma auto-configured by `fabrik apply`. Manual setup: add HTTP check at `https://{project}.vps1.ocoron.com/health`.
+Gatus endpoint auto-configured by `fabrik apply` (from the spec's `health` block). Manual setup: add an HTTP check at `https://{project}.vps1.ocoron.com/health`.

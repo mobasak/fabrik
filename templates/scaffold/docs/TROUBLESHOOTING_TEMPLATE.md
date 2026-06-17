@@ -65,7 +65,7 @@ from src.main import app
 
 | Symptom | Cause | Fix |
 |---------|-------|-----|
-| `localhost` connection refused inside container | Using `localhost` instead of service name | Replace `localhost` with `postgres-main`, `redis`, etc. in `.env` |
+| `localhost` connection refused inside container | Using `localhost` instead of service name | Replace `localhost` with `postgres-main`, `redis-main`, etc. in `.env` |
 | Image architecture mismatch | Missing platform spec | Add `platform: linux/amd64` in `compose.yaml` |
 | Stale container | Old image cached | `docker compose down && docker compose up -d --build` |
 | Volume permission errors | UID mismatch | Check Dockerfile `USER` directive matches volume owner |

@@ -650,7 +650,7 @@ Return valid JSON only.
 ### Step 3: Generate review sheet
 
 ```bash
-python3 scripts/generate_i18n_review.py tr
+python scripts/validate_i18n.py --review-csv tr
 # → dashboard/static/i18n/review_tr.csv
 ```
 

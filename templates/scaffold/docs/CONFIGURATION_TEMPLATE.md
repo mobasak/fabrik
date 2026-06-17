@@ -94,11 +94,11 @@ DATABASE_URL=postgresql://localhost:5432/[project]_dev
 PORT=${PORT}
 LOG_LEVEL=INFO
 DATABASE_URL=postgresql://[project]:${DB_PASSWORD}@postgres-main:5432/[project]
-REDIS_URL=redis://redis:6379/0
+REDIS_URL=redis://redis-main:6379/0
 ```
 
 **Production rules:**
-- No `localhost` or `127.0.0.1` — use Docker service names (`postgres-main`, `redis`)
+- No `localhost` or `127.0.0.1` — use Docker service names (`postgres-main`, `redis-main`)
 - No hardcoded credentials — use `${VARIABLE}` references
 - Use `${VAR:?required}` in compose.yaml for critical vars to fail fast
 

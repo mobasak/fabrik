@@ -2,7 +2,7 @@
 
 > **Purpose**: This file is the **operational contract** for [Project Name]. It declares every external dependency, the failure modes that can break the service, and the autonomous detection + recovery posture that makes human intervention optional, not required.
 >
-> **Inherited from**: `fabrik/templates/scaffold/docs/RESILIENCE_TEMPLATE.md`. The canonical reference implementation is `transcriber/docs/reference/pipeline-resilience.md` (the YouTube pipeline) — read it before rolling your own primitives.
+> **Inherited from**: `fabrik/templates/scaffold/docs/RESILIENCE_TEMPLATE.md`. The canonical standard is the `fabrik/.windsurf/rules/core/58-resilience.md` rule pack — read it before rolling your own primitives.
 >
 > **Standard**: A change to any dependency, quota, credit account, or failure mode MUST update this file in the same PR. CI fails if a new external call site is added without a matching row here (`tests/test_resilience_inventory.py`).
 
@@ -522,4 +522,4 @@ Where each resilience primitive lives in this project. Fill in on first refactor
 
 ---
 
-_Standard reference: `fabrik/.windsurf/rules/core/58-resilience.md`. Canonical implementation: `transcriber/docs/reference/pipeline-resilience.md` (YouTube pipeline)._
+_Standard reference: `fabrik/.windsurf/rules/core/58-resilience.md`._

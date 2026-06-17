@@ -9,6 +9,11 @@ services:
       - PORT=${PORT:-3000}
     networks:
       - fabrik
+    deploy:
+      resources:
+        limits:
+          memory: {{ resources.memory }}
+          cpus: '{{ resources.cpu }}'
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.{{ spec.id }}.rule=Host(`{{ domain }}`)"

@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — templates/ reconciled to current infra (deep-dive pass) (2026-06-17)
+
+Folder-by-folder audit of `templates/` (5 parallel read-only auditors over every file) to make scaffold output reflect current reality. Fixes applied:
+
+- **`docusaurus/compose.yaml.j2`** — added the mandatory `deploy.resources.limits.memory`/`cpus` block. It was the only per-type compose missing it, so `fabrik scaffold --type docusaurus` produced a compose that `deployer_ssh._validate_compose()` rejects.
+- **Stale shared-service host names** — `redis` → `redis-main` across `scaffold/docs/{DEPLOYMENT,CONFIGURATION,PROJECT_README,TROUBLESHOOTING}_TEMPLATE.md` (the shared cache container is `redis-main:6379`).
+- **Stale monitoring tool** — `Uptime Kuma` → `Gatus` in `scaffold/docs/DEPLOYMENT_TEMPLATE.md` (status prober is Gatus; Uptime Kuma retired).
+- **Retired service** — dropped `minio` from the `QUICKSTART_TEMPLATE.md` dependency example (MinIO retired; object storage is B2 + R2).
+- **Broken file refs** — `scaffold/docker/README.md` (removed dead `watchdog_template.sh` + `pre-commit-config.yaml` rows), `scaffold/gitignore-synced-block.txt` (`docs/reference/fabrik-lifecycle.md` → `docs/operations/fabrik-lifecycle.md`; dropped consolidated `fabrik-project-catalog.md`), `scaffold/docs/RESILIENCE_TEMPLATE.md` (repointed the missing `transcriber/.../pipeline-resilience.md` to the live `58-resilience.md` rule pack), `i18n-kit/docs/multilingual-plan.md` (`generate_i18n_review.py` → real `validate_i18n.py --review-csv`).
+- **`node-api/AGENTS.md.j2`** — rewrote the "Clean Architecture" tree (it listed `routes/`/`middleware/`/`services/`/`utils/` files the scaffold never emits) as a "grow into this" suggested layout over the single shipped `src/index.js`.
+- Removed a stray untracked `python-api/compose.yaml.j2.bak.*` (the only remaining `coolify`-network reference in `templates/`).
+
 ### Changed — archived sql/phase1b_ddl.sql (unused Supabase file schema) (2026-06-17)
 
 `sql/` held one file — `phase1b_ddl.sql` (2025-12-23 Supabase DDL: `tenants`/`tenant_members`/`files`/`file_derivatives`/`processing_jobs` + RLS + `claim_next_job()`). Verified not needed by any live service: the `file-api` that deployed it is retired, `drivers/supabase.py` (`SupabaseClient`, which uses these tables) is only re-exported and not consumed by any live path, and the doc citing it is "pre-migration vintage." Archived (not deleted) to `sql/.archive/2026-06-17-supabase-file-schema/` with a README — kept as the schema-of-record if a Supabase-backed SaaS is revived (saas/mobile rule packs still describe Supabase as a supported backend). Updated the dangling path ref in `file-api-deployment.md`.

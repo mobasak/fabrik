@@ -23,8 +23,7 @@ docs/reference/long-command-monitoring.md
 docs/reference/technology-stack-decision-guide.md
 docs/reference/AI_TAXONOMY.md
 docs/reference/ai_agent_prompt_directives.md
-docs/reference/fabrik-lifecycle.md
-docs/reference/fabrik-project-catalog.md
+docs/operations/fabrik-lifecycle.md
 docs/reference/mobile-responsive-testing-guide.md
 PORTS.md
 

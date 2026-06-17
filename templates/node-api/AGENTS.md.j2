@@ -54,21 +54,19 @@ docker compose up -d
 docker compose logs -f
 ```
 
-## Project Structure (Clean Architecture)
+## Project Structure
+
+The scaffold ships a single-file entry point. Grow into the layered structure
+below as the service expands (create dirs as you need them — none are required).
 
 ```
 ├── src/
-│   ├── index.js       # Entry point with health endpoint
-│   ├── routes/        # API route definitions
-│   │   └── api.js     # Example API routes
-│   ├── middleware/    # Express middleware
-│   │   ├── auth.js    # Authentication
-│   │   ├── validate.js # Input validation
-│   │   └── errors.js  # Error handling
-│   ├── services/      # Business logic layer
-│   │   └── user.js    # Example service
-│   └── utils/         # Helper functions
-│       └── logger.js  # Logging utility
+│   └── index.js       # Entry point + health endpoint (shipped)
+│   # Suggested layout to grow into:
+│   #   routes/        # API route definitions
+│   #   middleware/    # auth, validation, error handling
+│   #   services/      # business logic
+│   #   utils/         # helpers (e.g. logger)
 ├── package.json       # Dependencies + gate script
 ├── Dockerfile         # Production build
 └── compose.yaml       # Deployment config
