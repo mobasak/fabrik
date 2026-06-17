@@ -670,4 +670,4 @@ Wait for explicit confirmation. **STOP GENERATION HERE.** Silence ≠ confirmati
 
 ## Examples
 
-Filled-in Vision Summaries for both modes live in `00-examples.md` (sibling file). Owner reads them once to learn the output shape; they are NOT pasted into Traycer at runtime. The skeletons in Step N4 (NEW) and Step E5 (EXISTING) above are authoritative.
+The skeletons in Step N4 (NEW) and Step E5 (EXISTING) above are the authoritative output shape — Traycer follows them at runtime. Historical filled-in examples (read-once illustrative anchors, never pasted into Traycer) are archived at `docs/archive/2026-06-18-traycer-mega-epic-vision-summary-examples.md`.

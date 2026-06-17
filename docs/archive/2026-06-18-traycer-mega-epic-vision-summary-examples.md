@@ -1,6 +1,9 @@
-<!-- Companion to 00-trigger-workflow-command.md. NOT pasted into Traycer at runtime.
-     Read once to learn the expected Vision Summary shape, or paste alongside 00 when
-     you want a demonstrative anchor during a session. -->
+<!-- ARCHIVED 2026-06-18 — was docs/traycer/mega-epic-breakdown/00-examples.md.
+     Moved out of the live mega-epic-breakdown folder: the trigger command's
+     Step N4 (NEW) / Step E5 (EXISTING) skeletons are the authoritative output
+     shape, and these filled-in examples are read-once illustrative anchors that
+     were never pasted into Traycer at runtime. Kept here for historical
+     reference and as a few-shot pattern for new operators learning the shape. -->
 
 # 00 — Worked Examples
 
