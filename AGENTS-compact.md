@@ -81,7 +81,7 @@ Update matched docs in the SAME staged change. Skipping = task failure (gate-enf
 
 3. **M2M service-to-service auth** — Use scaffolded `internal_auth.py` + header `X-Internal-Token` + env `SERVICE_INTERNAL_SECRET_KEY`. Never inline `APIKeyHeader` or per-service key names. Detail: `core/35-security-auth.md`.
 
-4. **Authelia** — No SIGHUP support (exits). After `configuration.yml` edit: `docker restart <authelia-container>`. Authelia bypass `*.vps1.ocoron.com → /health` is automatic — never protect `/health`.
+4. **Authelia** — No SIGHUP support (exits). After `configuration.yml` edit: `docker restart <authelia-container>`. Bypass is **resource-based, not domain-bound** — `/health`, `/healthz`, `/metrics`, `/api/health` are bypassed on every domain routed through Authelia (hub services direct + spoke services via `authelia-vps1@file` middleware). Never protect these paths.
 
 ## DOCKER & DEPLOY
 1. **No `localhost` in connection strings** — Inside containers, `localhost` = the container itself, not the host. Use Docker network DNS:
