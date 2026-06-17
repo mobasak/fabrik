@@ -295,7 +295,7 @@ src/fabrik/
 
 ### WordPress — extracted to /opt/wpf/
 
-The WordPress automation engine (~9,700 LoC: 13-stage deployer, planner, preset loader, WP-CLI driver, REST API client, theme/page/SEO/analytics/forms modules) was built as fabrik Phase 2 and extracted to `/opt/wpf/` in May 2026. `deploy_router.py` raises `NotImplementedError` for WordPress deploys. WordPress scaffold type still exists for project structure generation. Site specs at `specs/sites/` have `kind: wordpress` and are consumed by `wpf wp apply`, not `fabrik apply`. wpf deploys via SSH + Docker Compose (from `/opt/wpf/`) and calls the same VPS registrar drivers (Backrest, Gatus, site-provisioner) but manages WordPress site lifecycle independently.
+The WordPress automation engine (~9,700 LoC: 13-stage deployer, planner, preset loader, WP-CLI driver, REST API client, theme/page/SEO/analytics/forms modules) was built as fabrik Phase 2 and extracted to `/opt/wpf/` in May 2026. `deploy_router.py` raises `NotImplementedError` for WordPress deploys. The `wordpress` scaffold type now redirects to the `/opt/wpf` `wpf` CLI (no project structure generated in Fabrik — `templates/wordpress/` + `_scaffold_wordpress` were retired 2026-06-17); `wordpress` remains a recognised deploy/shape type. Site specs at `specs/sites/` have `kind: wordpress` and are consumed by `wpf wp apply`, not `fabrik apply`. wpf deploys via SSH + Docker Compose (from `/opt/wpf/`) and calls the same VPS registrar drivers (Backrest, Gatus, site-provisioner) but manages WordPress site lifecycle independently.
 
 ---
 

@@ -1624,19 +1624,7 @@ def scan(health: bool, base: str):
     show_default=True,
     help="Project type to scaffold",
 )
-@click.option(
-    "--preset",
-    type=click.Choice(["saas", "company", "content", "landing", "ecommerce"]),
-    default=None,
-    help="Preset variant (only used for --type wordpress)",
-)
 @click.option("--no-spec", is_flag=True, default=False, help="Skip automatic spec file generation")
-@click.option(
-    "--dev-port",
-    default="8080",
-    show_default=True,
-    help="Local dev port for WordPress (WSL only)",
-)
 @click.option(
     "--db",
     is_flag=True,
@@ -1666,9 +1654,7 @@ def scaffold(
     name: str,
     description: str,
     project_type: str,
-    preset: str | None,
     no_spec: bool,
-    dev_port: str,
     db: bool,
     github_create: bool,
     preplan_path: str | None,
@@ -1680,11 +1666,6 @@ def scaffold(
     """
     from fabrik.registry import ProjectRegistry
     from fabrik.scaffold import create_project
-
-    if preset is not None and project_type != "wordpress":
-        click.echo(
-            f"⚠️  --preset is ignored for --type {project_type} (only used with --type wordpress)"
-        )
 
     # T3-01 G-A4: ingest preplan if --from-preplan was passed. Preplan
     # values override defaults but NOT explicit CLI flags. Description
@@ -1714,27 +1695,26 @@ def scaffold(
                 project_type = preplan_obj.project_type
         click.echo(f"📝 Ingesting preplan: {preplan_path}")
 
+    if project_type == "wordpress":
+        click.echo(
+            "WordPress scaffolding has moved to the standalone /opt/wpf project. "
+            f"Use the `wpf` CLI instead — e.g. `wpf new {name}` — not "
+            "`fabrik scaffold --type wordpress`.",
+            err=True,
+        )
+        raise SystemExit(1)
+
     click.echo(f"📁 Creating project: {name}")
     try:
         project_dir = create_project(
             name,
             description,
             project_type=project_type,
-            preset=preset,
             generate_spec=not no_spec,
-            dev_port=dev_port,
             use_database=db,
             preplan=preplan_obj,
         )
         click.echo(f"✅ Created: {project_dir}")
-
-        if project_type == "wordpress":
-            click.echo("\n📋 WordPress next steps:")
-            click.echo(f"  1. Edit your site spec: {project_dir}/site.yaml")
-            click.echo("  2. WordPress deploy/lifecycle moved to the separate /opt/wpf project.")
-            click.echo(
-                f"     Use the `wpf` CLI: wpf plan {name}, wpf apply {name}, wpf verify {name}"
-            )
 
         # Update registry
         registry = ProjectRegistry()

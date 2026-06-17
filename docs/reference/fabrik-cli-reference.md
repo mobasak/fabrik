@@ -40,22 +40,21 @@ Produce a working project directory with template-driven structure, governance f
 **Purpose:** Materialize `/opt/<name>/` with everything needed to start coding. Reads `templates/<type>/defaults.yaml` for shape flags; emits `project.yaml`, `specs/services/<name>.yaml`, `.env.example`, README, tests, CI workflow.
 
 ```bash
-fabrik scaffold <name> [--type <type>] [-d <description>] [--preset <preset>] \
+fabrik scaffold <name> [--type <type>] [-d <description>] \
                        [--db] [--no-spec] [--from-preplan <preplan.md>]
 ```
 
 | Flag | Purpose |
 |---|---|
-| `--type` / `-t` | One of **11 types**: `python-api` (default), `node-api`, `saas-skeleton`, `static-site`, `wordpress`, `docusaurus`, `file-api`, `file-worker`, `chrome-extension`, `desktop-app`, `mobile-app`. |
-| `--preset` | WordPress-only (e.g. `landing`, `saas`, `content`, `ecommerce`, `company`). |
+| `--type` / `-t` | One of `python-api` (default), `node-api`, `saas-skeleton`, `static-site`, `docusaurus`, `file-api`, `file-worker`, `chrome-extension`, `desktop-app`, `mobile-app`. (`wordpress` is still accepted as a type but scaffolding redirects to the standalone `/opt/wpf` `wpf` CLI.) |
 | `--db` | Provision a local Postgres DB for WSL dev + add `DATABASE_URL` to `.env.local`. |
 | `--no-spec` | Skip emitting `/opt/fabrik/specs/services/<name>.yaml` (rare). |
 | `--from-preplan` | Ingest a preplan (see `fabrik preplan new`); pre-fills type/shape/domain/secrets. |
 
 ```bash
 fabrik scaffold my-api --type python-api -d "Customer API" --db
-fabrik scaffold blog --type wordpress --preset content
 fabrik scaffold notes --from-preplan docs/preplans/2026-05-30-notes.md
+# WordPress: scaffolding moved to /opt/wpf — use the `wpf` CLI (e.g. `wpf new blog`)
 ```
 
 ### `fabrik new` — alias **(hidden)**

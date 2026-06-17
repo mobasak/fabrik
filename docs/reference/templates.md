@@ -193,7 +193,7 @@ See `docs/DEPLOYMENT_ARCHITECTURE.md` §8.3 for the mandatory Traefik labels, `p
 
 ```bash
 fabrik templates                 # list all available templates
-fabrik scaffold my-api --type python-api [--db] [--preset <name>]
+fabrik scaffold my-api --type python-api [--db] [--from-preplan <preplan.md>]
 fabrik apply /opt/fabrik/specs/services/my-api.yaml [--dry-run]
 ```
 

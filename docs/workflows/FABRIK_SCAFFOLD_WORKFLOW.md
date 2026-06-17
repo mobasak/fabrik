@@ -10,7 +10,7 @@
 > the Docker network is named `fabrik` (renamed from `coolify` 2026-05-31),
 > but no Coolify control plane runs.
 
-**Last Updated:** 2026-04-29 (full code-truth rewrite: every CLI command/flag, `SCAFFOLD_TYPES`, `SPEC_ENABLED_TYPES`, template inventory, and file reference links re-verified against `src/fabrik/cli.py`, `src/fabrik/scaffold.py`, `src/fabrik/spec_generator.py`, and `templates/`. Aspirational sections that referenced files that never shipped — "Template Complexity Tiers", "Factory Configuration" — have been removed. `fabrik new` deprecation banner from Phase 4k 2026-04-22 retained.) · 2026-06-16: fixed dead links — `docs/DEPLOYMENT.md` → `docs/DEPLOYMENT_ARCHITECTURE.md` (renamed canonical deploy doc) and repointed the removed `wordpress-site-workflow.md` references to the separate WordPress Factory project at `/opt/wpf/`. · 2026-06-16: WordPress correction — `fabrik wp` group removed; WordPress deployment moved fully out of Fabrik to `/opt/wpf/` (`wpf` CLI), `fabrik apply` on a `wordpress`-type project errors/redirects, and `wordpress` is now a scaffold-skeleton-only type. Flagged `templates/wordpress/` missing on disk despite `scaffold.py` referencing it.
+**Last Updated:** 2026-04-29 (full code-truth rewrite: every CLI command/flag, `SCAFFOLD_TYPES`, `SPEC_ENABLED_TYPES`, template inventory, and file reference links re-verified against `src/fabrik/cli.py`, `src/fabrik/scaffold.py`, `src/fabrik/spec_generator.py`, and `templates/`. Aspirational sections that referenced files that never shipped — "Template Complexity Tiers", "Factory Configuration" — have been removed. `fabrik new` deprecation banner from Phase 4k 2026-04-22 retained.) · 2026-06-16: fixed dead links — `docs/DEPLOYMENT.md` → `docs/DEPLOYMENT_ARCHITECTURE.md` (renamed canonical deploy doc) and repointed the removed `wordpress-site-workflow.md` references to the separate WordPress Factory project at `/opt/wpf/`. · 2026-06-16: WordPress correction — `fabrik wp` group removed; WordPress deployment moved fully out of Fabrik to `/opt/wpf/` (`wpf` CLI), `fabrik apply` on a `wordpress`-type project errors/redirects, and `wordpress` is now a scaffold-skeleton-only type. Flagged `templates/wordpress/` missing on disk despite `scaffold.py` referencing it. · 2026-06-17: WordPress scaffolding retired — `_scaffold_wordpress` + `WORDPRESS_TEMPLATE_DIR` removed; `fabrik scaffold --type wordpress` redirects to `/opt/wpf` before writing (no skeleton, no partial dir); wordpress-only `--preset`/`--dev-port` flags removed.
 **Scope:** This doc is **canonical for the project-creation half** (`fabrik scaffold` and the file tree it produces). For the **deployment half** (`fabrik apply` — the single deploy command — orchestrator state machine, registrars, verifier, rollback), see `@/opt/fabrik/docs/DEPLOYMENT_ARCHITECTURE.md`.
 **Source code:** `src/fabrik/scaffold.py` (scaffolders) + `src/fabrik/cli.py` (CLI) + `src/fabrik/spec_generator.py` (auto-spec)
 
@@ -223,7 +223,7 @@ index.html                # Renderer entry (referenced by electron/main.js)
 
 ```bash
 # Canonical: scaffold project tree + auto-emit specs/services/<name>.yaml in one step
-fabrik scaffold <name> [--type <type>] [--preset <preset>] [--description <text>] [--no-spec] [--dev-port <port>] [--db]
+fabrik scaffold <name> [--type <type>] [--description <text>] [--no-spec] [--db] [--from-preplan <preplan.md>]
 
 # DEPRECATED (hidden, removed-after-next-release): create spec from template only
 # fabrik new <name> --template <template> [--domain <domain>] [--output <dir>] [--from-project <path>]
@@ -237,11 +237,12 @@ fabrik templates
 | Option | Default | Description |
 |--------|---------|-------------|
 | `--type` | `python-api` | Project type (see Per-Type Scaffold Details table) |
-| `--preset` | _(none)_ | Preset variant — only used with `--type wordpress` (`saas`, `company`, `content`, `landing`, `ecommerce`) |
 | `--description` / `-d` | `"A new project"` | Short project description |
 | `--no-spec` | `false` | Skip automatic spec file generation |
 | `--db` | `false` | Enable PostgreSQL database (creates DB, adds DATABASE_URL to .env.local) |
-| `--dev-port` | `8080` | Local dev port (only meaningful for `--type wordpress` on WSL) |
+| `--from-preplan` | _(none)_ | Ingest a preplan; pre-fills type/shape/domain/secrets |
+
+> The `--preset` and `--dev-port` options were removed 2026-06-17 — both were WordPress-only and WordPress scaffolding has moved to `/opt/wpf` (see below).
 
 ### `fabrik scaffold` Output (Complete File List)
 
@@ -701,7 +702,7 @@ fabrik content publish ...                           # Drain SEO briefs → publ
 fabrik seo    site-register | ...                    # SEO service (keyword research, brief mgmt)
 ```
 
-> **`fabrik wp ...` no longer exists.** WordPress deployment + lifecycle moved out of Fabrik to the standalone `/opt/wpf/` project (the `wpf` CLI: `wpf wp plan | apply | verify`, per-site specs at `/opt/wpf/specs/sites/<domain>.yaml`). Fabrik retains only the `wordpress` **scaffold type** (`fabrik scaffold --type wordpress --preset <preset>`); running `fabrik apply` on a `wordpress`-type project now errors and redirects to `wpf`. See `/opt/wpf/AGENTS.md` and `/opt/wpf/docs/DEPLOYMENT.md`.
+> **`fabrik wp ...` no longer exists, and WordPress scaffolding moved out too (2026-06-17).** WordPress creation, deployment + lifecycle all live in the standalone `/opt/wpf/` project (the `wpf` CLI: `wpf new`, `wpf wp plan | apply | verify`, per-site specs at `/opt/wpf/specs/sites/<domain>.yaml`). `wordpress` remains a recognised Fabrik project **type** (deploy routing / `Kind.WORDPRESS` / rule-pack mapping), but `fabrik scaffold --type wordpress` now redirects to the `wpf` CLI (no skeleton is built here — `templates/wordpress/` was retired), and `fabrik apply` on a `wordpress`-type project errors and redirects to `wpf`. See `/opt/wpf/AGENTS.md` and `/opt/wpf/docs/DEPLOYMENT.md`.
 
 ---
 
@@ -721,7 +722,7 @@ fabrik seo    site-register | ...                    # SEO service (keyword rese
 - `static-site`
 - `docusaurus`
 
-> **Excluded by design:** `chrome-extension`, `mobile-app`, `desktop-app` are **packaged artifacts** (Chrome Web Store / app stores / direct dist) — they don't deploy to a VPS, so emitting a `specs/services/<name>.yaml` would just create a phantom DNS record + Coolify app on every `fabrik apply`. `wordpress` produces only a scaffold skeleton in Fabrik; its deployment moved to the standalone `/opt/wpf/` project (`wpf` CLI, per-site `specs/sites/<domain>.yaml`), and `fabrik apply` on a `wordpress`-type project errors/redirects to `wpf`.
+> **Excluded by design:** `chrome-extension`, `mobile-app`, `desktop-app` are **packaged artifacts** (Chrome Web Store / app stores / direct dist) — they don't deploy to a VPS, so emitting a `specs/services/<name>.yaml` would just create a phantom DNS record + Coolify app on every `fabrik apply`. `wordpress` no longer scaffolds in Fabrik — `fabrik scaffold --type wordpress` redirects to the standalone `/opt/wpf/` project (`wpf` CLI, per-site `specs/sites/<domain>.yaml`), and `fabrik apply` on a `wordpress`-type project errors/redirects to `wpf`.
 
 **How it works:**
 1. After `fabrik scaffold` completes, `create_project()` calls `generate_and_save_spec()`

@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — wordpress scaffolding redirects to /opt/wpf; file-api upload bug fixed (2026-06-17)
+
+- **`fabrik scaffold --type wordpress` no longer crashes** — `templates/wordpress/` was retired when WordPress moved to the standalone `/opt/wpf` project, but `_scaffold_wordpress` still read the missing dir (FileNotFoundError). Removed the scaffolder entirely (and its `_TYPE_SCAFFOLDERS` entry); `create_project` now rejects `wordpress` with a clear `/opt/wpf` redirect **before writing anything** (no partial project dir left on disk), and `cli.py scaffold` intercepts `--type wordpress` early with the same message. `wordpress` stays a recognised **deploy/shape** type (`deploy_router._deploy_wordpress` → /opt/wpf, `Kind.WORDPRESS`, rule-pack mapping all unchanged) — only the dead scaffold path is gone. Removed the now-unused `WORDPRESS_PRESETS`/`WORDPRESS_TEMPLATE_DIR` constants, the `TYPE_REQUIRED_FILES["wordpress"]` entry (referenced a dead `compose-coolify.yaml.j2`), and the wordpress-only `--preset` + `--dev-port` CLI options (both had no consumer left after the scaffolder removal). Updated `test_scaffold.py` (dropped wordpress from the gitignore parametrize) and the `spec_generator` exclusion comment.
+- **`templates/file-api/src/index.js`** — added `const path = require('path')`. `path.extname()` (line 134) was called without importing `path`, so the first `POST /api/files/upload-url` threw `ReferenceError` → 500 in every scaffolded file-api project.
+
 ### Fixed — proactive-check.sh health-probe block: correct comments + remove silent-skip blind spot (2026-06-17)
 
 Code-review iteration on the GlitchTip/Authelia probe block landed earlier today in `8342ef1`. Live-fleet verification surfaced two issues:

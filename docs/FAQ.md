@@ -412,8 +412,9 @@ services:
 > **WordPress moved out of Fabrik.** Site creation, deployment, and lifecycle all
 > live in the standalone **`/opt/wpf`** project (the `wpf` CLI). The `fabrik wp …`
 > command group was removed; `fabrik apply` on a `wordpress`-type project now errors
-> and redirects to `wpf`. Fabrik retains only the `wordpress` **scaffold type**
-> (`fabrik scaffold --type wordpress`). See `/opt/wpf/AGENTS.md`.
+> and redirects to `wpf`. `wordpress` is still a recognised project **type**, but
+> `fabrik scaffold --type wordpress` redirects to the `wpf` CLI too (no skeleton is
+> built in Fabrik). See `/opt/wpf/AGENTS.md`.
 
 ### How do I deploy a WordPress site?
 

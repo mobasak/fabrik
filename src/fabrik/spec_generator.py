@@ -53,8 +53,10 @@ logger = logging.getLogger(__name__)
 #   - ``next-tailwind``: template files exist but no ``_scaffold_next_tailwind``
 #     wired up yet; tracked as G10. Add to this set in the same change
 #     that lands the scaffolder.
-#   - ``wordpress``: uses the dedicated ``fabrik wp`` pipeline with a
-#     separate ``site.yaml`` schema, not ``specs/services/*``.
+#   - ``wordpress``: scaffolding + deploy moved to the standalone /opt/wpf
+#     project (its own ``wpf`` CLI + ``site.yaml`` schema), not
+#     ``specs/services/*``. ``fabrik scaffold --type wordpress`` redirects
+#     to ``wpf``; ``wordpress`` stays a recognised deploy/shape type here.
 SPEC_ENABLED_TYPES: frozenset[str] = frozenset(
     {
         "python-api",

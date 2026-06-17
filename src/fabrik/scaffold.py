@@ -142,8 +142,6 @@ SCAFFOLD_TYPES = frozenset(
     }
 )
 
-WORDPRESS_PRESETS = frozenset({"saas", "company", "content", "landing", "ecommerce"})
-
 # Scaffold types that produce user-facing documentation (activates user-guide gate)
 GUIDE_ENABLED_TYPES = frozenset({"chrome-extension", "static-site"})
 
@@ -162,7 +160,6 @@ UNSUPPORTED_FIX_TYPES = frozenset(
 )
 
 TEMPLATE_DIR = FABRIK_ROOT / "templates" / "scaffold"
-WORDPRESS_TEMPLATE_DIR = FABRIK_ROOT / "templates" / "wordpress"
 FILE_API_TEMPLATE_DIR = FABRIK_ROOT / "templates" / "file-api"
 FILE_WORKER_TEMPLATE_DIR = FABRIK_ROOT / "templates" / "file-worker"
 SAAS_SKELETON_DIR = FABRIK_ROOT / "templates" / "saas-skeleton"
@@ -232,8 +229,6 @@ TYPE_REQUIRED_FILES: dict[str, list[str]] = {
     + ["Dockerfile", "package.json", "src/index.js", "compose.yaml"],
     "file-worker": _SHARED_REQUIRED_FILES
     + ["Dockerfile", "requirements.txt", "worker/main.py", "compose.yaml"],
-    "wordpress": _SHARED_REQUIRED_FILES
-    + ["compose.yaml.j2", "compose-coolify.yaml.j2", ".env.example"],
     "docusaurus": _SHARED_REQUIRED_FILES
     + [
         "package.json",
@@ -2227,117 +2222,6 @@ SERVICE_NAME={name}
     )
 
 
-def _scaffold_wordpress(project_dir: Path, name: str, description: str, **kwargs: object) -> None:
-    """Create WordPress-specific project structure."""
-    # a) Extract and validate preset
-    preset = kwargs.get("preset") or "saas"
-    if preset not in WORDPRESS_PRESETS:
-        raise ValueError(
-            f"Invalid WordPress preset: {preset}. "
-            f"Valid options: {', '.join(sorted(WORDPRESS_PRESETS))}"
-        )
-
-    # b) Create WordPress-specific directories
-    (project_dir / "plugins").mkdir(parents=True, exist_ok=True)
-    (project_dir / "themes").mkdir(parents=True, exist_ok=True)
-    (project_dir / "backup").mkdir(parents=True, exist_ok=True)
-
-    # c) Recursively copy all files from base template, preserving relative paths
-    base_dir = WORDPRESS_TEMPLATE_DIR / "base"
-    if base_dir.exists():
-        for src_file in base_dir.rglob("*"):
-            if not src_file.is_file():
-                continue
-            rel = src_file.relative_to(base_dir)
-            dest_file = project_dir / rel
-            dest_file.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(src_file, dest_file)
-        # Re-apply executable permission to backup script after copy
-        backup_sh = project_dir / "backup" / "backup.sh"
-        if backup_sh.exists():
-            os.chmod(backup_sh, 0o755)  # noqa: S103  # nosec B103
-
-    # d) Copy the chosen preset YAML
-    preset_src = WORDPRESS_TEMPLATE_DIR / "presets" / f"{preset}.yaml"
-    if preset_src.exists():
-        shutil.copy2(preset_src, project_dir / "config" / "preset.yaml")
-
-    # e) Overwrite .env.example with WordPress/MariaDB/B2 placeholder vars
-    name_underscored = name.replace("-", "_")
-    (project_dir / ".env.example").write_text(
-        f"""# WordPress: {name}
-DB_NAME={name_underscored}_wp
-DB_USER={name_underscored}_user
-DB_PASSWORD=CHANGE_ME
-DB_ROOT_PASSWORD=CHANGE_ME
-WORDPRESS_DEBUG=false
-SITE_URL=https://example.com
-SITE_NAME={name}
-# WordPress REST API credentials (used by fabrik wp apply)
-WP_ADMIN_USER=CHANGE_ME
-WP_ADMIN_PASSWORD=CHANGE_ME
-# Backblaze B2 backup storage (preferred — free egress via Bandwidth Alliance)
-B2_KEY_ID=your-b2-key-id
-B2_APPLICATION_KEY=your-b2-application-key
-B2_BUCKET={name_underscored}-wp-backup
-"""
-    )
-
-    # f) Overwrite .gitignore with WordPress-appropriate content
-    (project_dir / ".gitignore").write_text(
-        _COMMON_GITIGNORE_PATTERNS + "\n" + _DROID_GITIGNORE_BLOCK + "\n" + "# WordPress-specific\n"
-        "wp-content/uploads/\n"
-        "wp-content/upgrade/\n"
-        "wp-content/cache/\n"
-        "wp-content/backup-db/\n"
-        "sitemap.xml\n"
-        "sitemap.xml.gz\n"
-        "site.yaml\n"
-        "\n"
-        "# Node.js (for theme/plugin development)\n"
-        "node_modules/\n"
-        "npm-debug.log*\n"
-        "yarn-debug.log*\n"
-        "yarn-error.log*\n"
-        ".pnpm-debug.log*\n"
-        "\n"
-        "# Build & Test (theme/plugin development)\n"
-        "dist/\n"
-        "build/\n"
-        "coverage/\n"
-    )
-
-    # g) Copy Makefile.wordpress as Makefile
-    makefile_src = TEMPLATE_DIR / "docker" / "Makefile.wordpress"
-    if makefile_src.exists():
-        shutil.copy2(makefile_src, project_dir / "Makefile")
-
-    # h) Render site.yaml from Jinja2 template (T1)
-    import jinja2
-
-    jinja_env = jinja2.Environment(
-        loader=jinja2.FileSystemLoader(str(WORDPRESS_TEMPLATE_DIR / "base")),
-        autoescape=jinja2.select_autoescape(),
-    )
-    site_yaml_dest = project_dir / "site.yaml"
-    if site_yaml_dest.exists():
-        logger.warning("site.yaml already exists in %s — skipping to avoid overwrite", project_dir)
-    else:
-        rendered_site = jinja_env.get_template("site.yaml.j2").render(name=name, preset=preset)
-        site_yaml_dest.write_text(rendered_site)
-
-    # h) Render compose.dev.yaml and nginx-dev.conf from Jinja2 templates (T2)
-    dev_port: str = str(kwargs.get("dev_port", "8080"))
-    (project_dir / "config").mkdir(parents=True, exist_ok=True)
-    rendered_compose_dev = jinja_env.get_template("compose.dev.yaml.j2").render(
-        name=name, dev_port=dev_port
-    )
-    (project_dir / "compose.dev.yaml").write_text(rendered_compose_dev)
-
-    rendered_nginx_dev = jinja_env.get_template("nginx-dev.conf.j2").render()
-    (project_dir / "config" / "nginx-dev.conf").write_text(rendered_nginx_dev)
-
-
 def _scaffold_chrome_extension(
     project_dir: Path, name: str, description: str, **kwargs: object
 ) -> None:
@@ -3393,11 +3277,12 @@ def rent_for_workload(
 _TYPE_SCAFFOLDERS: dict[str, Callable[..., None]] = {
     "python-api": _scaffold_python_api,
     "python-api-gpu": _scaffold_python_api_gpu,  # NEW: Phase 5
+    # NB: "wordpress" is intentionally NOT here — scaffolding moved to /opt/wpf
+    # (see create_project's redirect). It stays in SCAFFOLD_TYPES for deploy/shape.
     "saas-skeleton": _scaffold_saas_skeleton,
     "node-api": _scaffold_node_api,
     "file-api": _scaffold_file_api,
     "file-worker": _scaffold_file_worker,
-    "wordpress": _scaffold_wordpress,
     "docusaurus": _scaffold_docusaurus,
     "chrome-extension": _scaffold_chrome_extension,
     "mobile-app": _scaffold_mobile_app,
@@ -3531,9 +3416,19 @@ def create_project(
         raise ValueError(f"Project already exists: {project_dir}")
 
     # Resolve the type-specific scaffolder BEFORE writing anything so that an
-    # unimplemented type raises NotImplementedError immediately, leaving no
+    # unimplemented (or redirected) type raises immediately, leaving no
     # partial project directory on disk.
     if project_type not in _TYPE_SCAFFOLDERS:
+        if project_type == "wordpress":
+            # Scaffolding moved to the standalone /opt/wpf project (2026-06-17).
+            # `wordpress` stays in SCAFFOLD_TYPES for deploy/shape routing, but
+            # there is no scaffolder here. cli.py intercepts this earlier with a
+            # clean message; this guard covers direct create_project() callers.
+            raise NotImplementedError(
+                "WordPress scaffolding has moved to the standalone /opt/wpf "
+                f"project — use the `wpf` CLI (e.g. `wpf new {name}`) instead of "
+                "`fabrik scaffold --type wordpress`."
+            )
         raise NotImplementedError(f"Scaffolder for '{project_type}' not yet implemented")
     scaffolder = _TYPE_SCAFFOLDERS[project_type]
 

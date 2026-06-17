@@ -439,13 +439,7 @@ fabrik scan --health
     show_default=True,
     help="Project type to scaffold",
 )
-@click.option(
-    "--preset",
-    type=click.Choice(["saas", "company", "content", "landing", "ecommerce"]),
-    default=None,
-    help="Preset variant (only used for --type wordpress)",
-)
-def scaffold(name: str, description: str, project_type: str, preset: str | None) -> None:
+def scaffold(name: str, description: str, project_type: str) -> None:
 ```
 
 **Description:**
@@ -616,9 +610,10 @@ fabrik verify api.example.com
 > ```
 >
 > Per-site specs live at `/opt/wpf/specs/sites/<domain>.yaml`. See
-> `/opt/wpf/AGENTS.md` and `/opt/wpf/docs/DEPLOYMENT.md`. Fabrik still
-> provides the `wordpress` **scaffold type** (`fabrik scaffold --type
-> wordpress --preset <preset>`) — it just no longer deploys WordPress.
+> `/opt/wpf/AGENTS.md` and `/opt/wpf/docs/DEPLOYMENT.md`. `wordpress` is still
+> a recognised Fabrik project **type** (deploy routing / `Kind.WORDPRESS`),
+> but `fabrik scaffold --type wordpress` now redirects to the `wpf` CLI —
+> Fabrik neither scaffolds nor deploys WordPress.
 
 ---
 

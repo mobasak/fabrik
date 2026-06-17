@@ -96,10 +96,14 @@ class TestScaffoldGitignoreCoverage:
 
     @pytest.mark.parametrize(
         "project_type",
-        ["python-api", "node-api", "file-api", "file-worker", "wordpress", "docusaurus"],
+        ["python-api", "node-api", "file-api", "file-worker", "docusaurus"],
     )
     def test_scaffold_uses_droid_gitignore_block(self, project_type, tmp_path):
-        """Verify all 6 scaffold types use _DROID_GITIGNORE_BLOCK constant."""
+        """Verify these scaffold types use _DROID_GITIGNORE_BLOCK constant.
+
+        (``wordpress`` dropped 2026-06-17 — scaffolding moved to /opt/wpf;
+        ``fabrik scaffold --type wordpress`` now redirects instead of building.)
+        """
         # Scaffold the project with explicit base to avoid writing to /opt/
         create_project(
             name="test-project",
