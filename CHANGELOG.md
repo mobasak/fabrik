@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — saas-skeleton modernized to Next 15 / React 19 (2026-06-18)
+
+Bumped `templates/saas-skeleton/package.json` from Next 14.2 / React 18 → Next 15 / React 19 (and `@types/react`/`@types/react-dom` → 19, `eslint-config-next` → 15). **Verified with a full `npm install && next build`** — all 14 routes compile clean (the template uses no React-19/Next-15 breaking APIs: no `cookies()`/`headers()`/async-`params`/legacy-React surface). `tsconfig.json` left as-is (Next auto-adds `target` on first build, same as create-next-app); the template ships caret ranges with no lockfile so scaffolds resolve the latest compatible versions at creation time.
+
 ### Fixed — saas-skeleton /api/chat uses OpenRouter instead of shelling out to `kilo` (2026-06-18)
 
 The saas-skeleton chat endpoint spawned `kilo run` as its **runtime** LLM. `kilo` is a dev-time coding-agent CLI — absent in the deployed container — so every chat request failed (and per-request subprocess spawning is unsafe in a web handler). Rewrote `templates/saas-skeleton/app/api/chat/route.ts` to stream from the OpenRouter HTTP API (`openrouter.ai/api/v1/chat/completions`, `stream: true`), per `.windsurf/rules/core/65-rag-search.md` + `cost-budget.md` (application LLM calls go through OpenRouter — one key, every provider, no vendor SDKs). Preserves the client SSE contract (`useSSEStream` → `text_delta`/`done`/`error`); returns 503 when `OPENROUTER_API_KEY` is unset (fail-clear, not a broken stream). Model is env-driven (`OPENROUTER_MODEL`, default `anthropic/claude-sonnet-4.6`). Added `OPENROUTER_API_KEY` + `OPENROUTER_MODEL` to the template `.env.example`.

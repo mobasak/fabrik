@@ -16,7 +16,7 @@
 - **Spoke DNS (NEW today):** `vps2.ocoron.com` + `*.vps2.ocoron.com` → `96.9.214.128`; `vps3.ocoron.com` + `*.vps3.ocoron.com` → `104.128.190.151`. Wildcards cover `auth.vpsN`, `<tenant>.vpsN`, etc. Apex + wildcard each, no per-service A records needed.
 - **Spoke Traefik:** listening on 80 + 443 on each spoke's public IP; `authelia-vps1@file` middleware ready (forward-auth → `http://10.99.0.1:9091/api/verify`). Public TLS via Let's Encrypt will issue on first tenant deploy.
 - **Loki ingest:** spokes pushing logs successfully (`host` label values: `["vps1","vps2","vps3"]`)
-- **Prometheus:** **13 jobs configured in `configs/prometheus/prometheus.yml` but 12 ACTIVE** (`fabrik-services` has null targets) — **14 targets, 14 up (verified 2026-06-15 via /api/v1/targets)**; every series carries `host` label
+- **Prometheus:** **16 jobs configured in `configs/prometheus/prometheus.yml` but 15 ACTIVE** (`fabrik-services` has null targets) — **20 targets, 20 up (verified 2026-06-18 via /api/v1/targets)**; every series carries `host` + `role` labels. Spoke federation jobs (`node-spokes`, `cadvisor-spokes`, `promtail-spokes`) added 2026-06-17 in commit `8342ef1`, scraping spoke exporters over the wg0 mesh.
 - **Grafana:** all 5 dashboards have `host` template variable (regex `/^vps/`)
 - **Alert rules:** ~~`spoke_health` group~~ — **NOT in alerts.yml as of 2026-06-07T20:20Z**. The 5 live groups: aro_wake (2 rules), container_health (6), host_health (3), service_health (1), fabrik-registrar-drift (1).
 - **AI sysadmin:** `proactive-check.sh` tags every anomaly with originating host (`cpu_high[vps2]`)
@@ -60,8 +60,9 @@ ssh vps3 'sudo docker ps --format "{{.Names}}" | wc -l'   # expect 5
 # Mesh handshake state
 ssh vps 'sudo wg show'
 
-# Prometheus targets across hosts (expect 14/14 up; 13 jobs configured in prometheus.yml but 12 ACTIVE — fabrik-services has null targets. Verified 2026-06-15.)
-ssh vps 'sudo docker exec prometheus wget -qO- http://localhost:9090/api/v1/targets' \
+# Prometheus targets across hosts (expect 20/20 up; 16 jobs configured in prometheus.yml but 15 ACTIVE — fabrik-services has null targets. Verified 2026-06-18 post spoke federation.)
+# Note: prometheus image has no curl/wget. Probe via a fabrik-net container that does (e.g. apprise):
+ssh vps 'sudo docker exec apprise curl -sf http://prometheus:9090/api/v1/targets' \
   | python3 -c 'import json,sys; d=json.load(sys.stdin)["data"]["activeTargets"]; up=sum(1 for t in d if t["health"]=="up"); print(f"{up}/{len(d)} up")'
 
 # UFW per host

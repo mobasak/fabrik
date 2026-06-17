@@ -20,6 +20,18 @@ Retrieval-Augmented Generation. Your product has a corpus of text (comments, doc
 Without RAG: users stare at a list or use ctrl+F.
 With RAG: users ask questions in natural language, filter by structured attributes, and get AI-generated answers grounded in their actual data.
 
+## Is RAG Even the Right Tool? (decide before Phase 1)
+
+Not every "search over text" use case is RAG. Per `core/65-rag-search.md` § Choosing:
+
+| User need | Route | Why |
+| --- | --- | --- |
+| Instant keyword search, typo tolerance, autocomplete, faceted filtering (product catalog, doc site, support tickets) | **MeiliSearch** (registrar via `shape.has_search_feature: true`) | Ships in days. No embedding pipeline, no LLM costs. Typo-tolerance is the deciding factor. |
+| Semantic similarity, "find similar", recommendations | **pgvector** | Dense vectors. No keyword side. |
+| Knowledge-base / Q&A retrieval needing **keyword + meaning fused** | **pgvector hybrid** (this module) | What this domain module decomposes. |
+
+**Planning consequence:** if the Vision Summary's search use case is pure catalog / doc-site / faceted filtering, do NOT decompose into RAG epics — emit a single MeiliSearch-integration epic instead and `shape.has_search_feature: true` in the spec. Only continue into Phase 1 below when the keyword match feeds an LLM or semantic pipeline.
+
 ## The 6 Components (library analogy)
 
 Think of building a library:
@@ -71,7 +83,7 @@ After retrieval, a cross-encoder re-reads each result and re-orders by actual re
 ## Decision Matrix — Which Components Does Your Product Need?
 
 | Your product does... | You need... | Phase |
-|---|---|---|
+| --- | --- | --- |
 | Full-text search over a corpus (docs, comments, articles) | Embeddings + Retriever | 1 |
 | Structured filtering (by intent, sentiment, entity, category) | + Classifier | 2 |
 | Natural-language Q&A ("what do people say about X?") | + Answer Generator | 3 |
@@ -83,7 +95,7 @@ After retrieval, a cross-encoder re-reads each result and re-orders by actual re
 ## Phase Progression
 
 | Phase | What ships | User sees | AI cost |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | **Phase 1: Search** | Embeddings + Retriever + Chunking | Semantic search bar. "Find comments about X." | One-time: ~$0.01/M tokens for embedding |
 | **Phase 2: Intelligence** | + Classifier | Structured filters. "Show buying intent for retinol, negative sentiment." | One-time: ~$0.02-0.15/M tokens for classification |
 | **Phase 3: Generation** | + Answer Generator + Summarizer | AI-written answers, dashboard insights, reports | Per-query: ~$0.02-0.15 per answer |
@@ -94,16 +106,19 @@ After retrieval, a cross-encoder re-reads each result and re-orders by actual re
 When `02-epic-decomposition-command` encounters a RAG pipeline in the Vision Summary:
 
 ### Phase 1 Epic: "Search Pipeline"
-- Chunking pipeline (per `core/66-rag-chunking.md`)
-- Embedding pipeline (per `core/65-rag-search.md` § Embedding Models)
-- Hybrid retriever (pgvector + tsvector + RRF)
+
+- Chunking pipeline (per `core/66-rag-chunking.md` — 300-800 token target, 10-20% overlap, heading-aware)
+- Embedding pipeline (per `core/65-rag-search.md` § Embedding Models) — default `qwen/qwen3-embedding-8b`, 1024 dimensions, ONE model used for both ingest and query
+- **Hybrid retriever** (pgvector + tsvector + RRF). Pure vector search is **banned for user-facing queries** — dense alone fails on error codes, UUIDs, SKUs, acronyms.
 - Search API endpoint
 - Search UI (if applicable)
+- **Spec contract:** `shape.has_search_feature: true` in `specs/services/<id>.yaml` so the registrar provisions HNSW + extensions on `fabrik apply`
 - **Depends on:** backend/database epic (needs tables, schema)
 - **Delivers:** working semantic search
 
 ### Phase 2 Epic: "Classification Pipeline" (if needed)
-- Classifier model selection (benchmark per `core/65-rag-search.md` § Model Selection Rules)
+
+- Classifier model selection (benchmark 2-3 candidates against a 50-100 sample golden set per `core/65-rag-search.md` § Model Selection Rules — multilingual TR+EN samples mandatory)
 - Classification pipeline (batch processor via `core/75-workers-jobs.md`)
 - Structured filter API endpoints
 - Filter UI (if applicable)
@@ -111,19 +126,22 @@ When `02-epic-decomposition-command` encounters a RAG pipeline in the Vision Sum
 - **Delivers:** structured filtering on top of search
 
 ### Phase 3 Epic: "RAG Intelligence" (if needed)
-- Answer generator (prompt + retrieval integration)
+
+- Answer generator (prompt + retrieval integration). Token budget capped at **85% of the per-model context window** (`core/65-rag-search.md` § Token Budgeting) — never hardcode `128_000`; look up per-model.
+- **Citations are mandatory.** Every chunk's `chunk_id` + heading breadcrumb is in its metadata at chunking time; the generator's system prompt MUST instruct: *"Cite the `chunk_id` for every claim you make from the provided context."* Presentation layer maps `chunk_id` → human-readable source URL.
+- **Retrieval eval is a launch gate.** Ragas or DeepEval against a static golden dataset of 50-100 queries, measuring **Faithfulness** (answer matches retrieved chunks) + **Context Precision** (relevant chunk in top-K). No prompt change ships if Faithfulness drops below baseline.
 - Summarizer (batch or on-demand)
 - Q&A UI or report generation
 - **Depends on:** Phase 1 (needs retriever). Phase 2 optional (classification enriches answers)
-- **Delivers:** AI-generated answers and insights
+- **Delivers:** AI-generated answers and insights with grounded citations
 
 ## Infrastructure Requirements
 
-- **PostgreSQL** with `pgvector` + `pg_trgm` extensions (postgres-main or Supabase)
-- **HNSW index** on embedding columns (`m=16, ef_construction=64`)
-- **Background worker** for chunking, embedding, classification (never inline in API handlers)
-- **OpenRouter API key** (`OPENROUTER_API_KEY`) for embeddings + any LLM components
-- **No dedicated vector databases** (Pinecone, Qdrant, Weaviate banned — pgvector only)
+- **PostgreSQL** with `pgvector` + `pg_trgm` extensions (postgres-main or Supabase). HNSW index, `m=16, ef_construction=64`.
+- **Spec flag:** `shape.has_search_feature: true` — registrar owns index/extension lifecycle. Never create indexes manually.
+- **Background worker** for chunking, embedding, classification (never inline in API handlers).
+- **OpenRouter** (`OPENROUTER_API_KEY`) — **the only gateway for embeddings** (Kilo CLI has no embedding endpoint). LLM components (classifier / generator / summarizer / re-ranker) may use OpenRouter API (high-volume, app code) OR Kilo CLI (low-volume scripts/tooling). Vendor SDKs (`dashscope`, `google-cloud-aiplatform`, OpenAI direct) are **banned**.
+- **No dedicated vector databases** (Pinecone, Qdrant, Weaviate banned — pgvector only).
 
 ## Rule Packs (for coding agents, not Traycer)
 
