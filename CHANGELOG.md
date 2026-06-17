@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — vps-ai-sysadmin.md said "one VPS ~36 containers" (2026-06-17)
+
+`docs/infrastructure/vps-ai-sysadmin.md` honest-rating line described the deployment as "a solo dev running **one VPS** with **~36 containers**" — stale on both counts. Corrected to the live **3-VPS fleet** (vps1 hub ~31 containers + vps2/vps3 spokes ~5 each), verified live. The rest of `docs/infrastructure/` was re-verified against live (vps1=31, vps2/vps3=5, CF=18 A-records, Gatus=31, Prometheus=13 jobs, Authelia=8) and is current — the only other Coolify/Netdata/retired-service mentions there are correct "removed/renamed/reality-vs-older-docs" notes.
+
 ### Added — infra/README.md documenting the 3-VPS layout (2026-06-17)
 
 `infra/` is now organised per host — `vps1/` (hub, 16 compose stacks), `vps2/` + `vps3/` (spokes, 3 each: `monitoring-agent`, `backrest`, `traefik`). Added a README documenting the topology, that these are source-controlled mirrors of the live `/opt/<svc>/compose.yaml` on each host (live is authoritative; nothing deploys *from* `infra/`), that secrets are externalised (`env_file`/`${VAR}`/volume mounts — none inline), and that canonical live state lives in `docs/infrastructure/vps-complete-inventory.md`. Verified 2026-06-17: the committed `infra/vps*/` composes match the live hosts (fresh `sudo cat` pull = clean diff); all on the `fabrik` network.

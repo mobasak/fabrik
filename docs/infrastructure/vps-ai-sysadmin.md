@@ -930,7 +930,7 @@ Everything needed to rebuild the sysadmin bot from scratch:
 
 ### Honest rating
 
-**15-year solo sysadmin, not a fleet of 20-year veterans.** For a solo dev running one VPS with ~36 containers, this covers 90%+ of what's actually needed. The gaps above matter at scale (50+ servers). The sysadmin catches issues before alerts fire, acts autonomously when safe, reports concisely for phone reading, and costs $0 on quiet days.
+**15-year solo sysadmin, not a fleet of 20-year veterans.** For a solo dev running a 3-VPS fleet (vps1 hub ~31 containers + vps2/vps3 spokes ~5 each), this covers 90%+ of what's actually needed. The gaps above matter at scale (50+ servers). The sysadmin catches issues before alerts fire, acts autonomously when safe, reports concisely for phone reading, and costs $0 on quiet days.
 
 ## Architecture Reference
 
