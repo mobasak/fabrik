@@ -208,7 +208,7 @@ echo "$DIGEST_JSON" >> "$ACTIONS_LOG"
 
 # ============================================================================
 # Phase: fleet-hardening 2026-06-17 — hub vs spoke routing (G1 fix)
-# Spokes (vps2, vps3): POST digest to hub aro-wake at http://10.0.0.1:8201
+# Spokes (vps2, vps3): POST digest to hub aro-wake at http://10.99.0.1:8201
 # with 5s timeout + 2 retries + 1s/2s backoff. On hub-unreachable: fall
 # back to direct Telegram via per-host bot token. Plan §2.1.
 # Hub (vps1): drain /digest-inbox from local aro-wake, combine with own
@@ -224,7 +224,7 @@ if [ "$HOST_NAME" != "vps1" ]; then
                   '{text: $t, metrics: $m}')
     for attempt in 1 2 3; do
         if curl -sf --max-time 5 -X POST \
-             "http://10.0.0.1:8201/digest-input" \
+             "http://10.99.0.1:8201/digest-input" \
              -H "Content-Type: application/json" \
              -d "$forward_body" >/dev/null 2>&1; then
             echo "$(date -Is) spoke digest forwarded to hub (attempt $attempt)"

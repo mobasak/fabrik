@@ -17,6 +17,21 @@ All notable changes to this project will be documented in this file.
 
 `specs/infrastructure/` now holds only the 7 live spec-managed infra services (apprise, authelia, browserless, gotenberg, meilisearch, monitoring-stack, n8n). `specs/services/translator.yaml` was **kept** — the service is retired but the spec is a live test fixture (`cli.py` + tests). (Note: `specs/` is the deploy-contract + scaffold/registrar **test-fixture** layer — most `specs/services/*.yaml` are `test-`/`gate-`/`fabrik-test-` fixtures — NOT a live-infra inventory; the canonical "what runs where" is `docs/infrastructure/vps-complete-inventory.md`.)
 
+### Added — Daily-digest fleet LIVE on vps1/vps2/vps3 + mesh IP fix (2026-06-17 evening)
+
+Deployed today's CONVERGED plan to the real fleet. Rsync'd `scripts/sysadmin/` + `scripts/aro-wake/` to all 3 hosts; restarted `aro-wake.service`. **Real Telegram delivery verified via Apprise on vps1** with combined message containing all 3 hosts' sections + bullet list of last 24h actions + missed-digest warnings.
+
+**Bug caught during live deploy: mesh IP wrong in plan.** Plan said `http://10.0.0.1:8201/digest-input`. Real wg0 mesh is `10.99.0.0/24` — hub is at **`10.99.0.1`**, vps2 at `10.99.0.2`, vps3 at `10.99.0.3` (confirmed via `wg show wg0`). Old IP caused `http_status=000` connect failure. Fixed `daily-digest.sh:227`. After fix:
+
+- ✅ LIVE-D1: vps2 + vps3 POST to `http://10.99.0.1:8201/digest-input` over wg0 → `HTTP 200, {accepted: true, queue_depth: N}`
+- ✅ LIVE-D2: hub `daily-digest.sh` drained inbox, combined all 3 sections (vps1 + `---` + vps2 + `---` + vps3 with missed-digest warnings + bullet lists), POSTed to Apprise → real Telegram delivery confirmed by `bash -x` trace showing `apprise:8000/notify/alerts` was called with the combined body
+- ✅ LIVE-D4: missed-digest warning `⚠️ MISSED DIGESTS — 1 day(s) generated but no Telegram delivery: ['2026-06-16']` appears in body (fired because all 3 hosts had `daily_digest` rows but no `_sent` rows for yesterday)
+- ✅ LIVE-D7: `aro_wake_digest_input_total{from_host="vps2"} 2.0` and `{from_host="vps3"} 1.0` Prometheus counters incrementing
+- ✅ G2 marker: `{"source": "daily_digest_sent", "ts": ..., "host": "vps1", "date": "2026-06-17"}` written to JSONL after successful Apprise POST
+- ✅ wg0 peer→host map worked: aro-wake correctly identified `10.99.0.2 → vps2` and `10.99.0.3 → vps3` in inbox entries
+
+**Tomorrow 09:XX UTC (LIVE-D6)** is the cron-fired real run. Hash-slotted minutes: vps2 = 09:09 UTC, vps3 = 09:24 UTC. The hub's combined message arrives at vps1's slot containing all 3 hosts' bodies.
+
 ### Added — Daily-digest fleet hardening: G1/G2/G3 + send-telegram.sh + aro-wake routes (2026-06-17)
 
 Executes the converged plan at [`docs/development/plans/2026-06-17-daily-digest-fleet-hardening-converged.md`](docs/development/plans/2026-06-17-daily-digest-fleet-hardening-converged.md). All §6 steps 1–9 shipped; §6 steps 11–14 (live deploy via `fabrik redeploy aro-wake` + observe morning message) are operator follow-up.
