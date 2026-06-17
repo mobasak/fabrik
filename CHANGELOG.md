@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — commented out the dead Coolify code paths (config + deploy) (2026-06-17)
+
+Per decision to comment out (not remove) the legacy Coolify code, disabled the two safe, contained, non-test-breaking pieces:
+
+- **`src/fabrik/config.py`** — commented out the 4 `self.coolify_*` fields (`COOLIFY_API_URL`/`TOKEN` were `required=True`, forcing dead creds on every `Config()` init) + the `to_dict()` `coolify_url` reference. Verified: `Config()` + `to_dict()` work, ruff clean, no test asserts these.
+- **`src/fabrik/deploy.py`** — the legacy `deploy_to_coolify()` (already labeled "broken post-migration" at its sole caller `cli.py:614`) now raises `NotImplementedError` pointing at the SSH deployer; the original Coolify implementation + imports are preserved as comments. The function name is kept so cli.py's lazy import still resolves.
+
+NOT touched (would break the import/test web or the peer's active `src/cli.py`): `drivers/coolify.py`'s `CoolifyClient` class is still lazy-imported by `rollback.py`/`portability.py`/`deployer_coolify.py`/`update_vps_docs.py` and instantiated by `tests/orchestrator/test_deployer.py` — commenting its body would break those tests. The `cli.py:602-625` legacy Coolify deploy branch is in the peer-active file. Those remain as dormant legacy (not executed in the SSH deploy path).
+
 ### Changed — archived 6 dead Coolify-era / retired-tool scripts (2026-06-17)
 
 Verified 100% dead (no live imports, not invoked by CI/Makefile/cron/startup hooks, only referenced from `docs/archive/**` + CHANGELOG history), then archived (not deleted) to `scripts/.archive/2026-06-17-coolify-era-cleanup/` with a README: `setup_duplicati_backup.py` + `duplicati-vps-backup.json` (Duplicati → Backrest 2026-04-17), `setup_uptime_kuma.py` + `delete_uptime_kuma.py` (Uptime Kuma → Gatus), `coolify_services_f5.py` (Coolify decommissioned 2026-05-30), `migrate-authelia-to-coolify.sh` (one-time migration into the now-removed Coolify). `scripts/` top level no longer carries removed-tool scripts.

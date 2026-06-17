@@ -51,11 +51,14 @@ class Config:
         self.vps_user = get_env("VPS_USER", "deploy")
         self.vps_ssh_key = get_env("VPS_SSH_KEY", "~/.ssh/id_rsa")
 
-        # Coolify
-        self.coolify_url = get_env("COOLIFY_API_URL", required=True)
-        self.coolify_token = get_env("COOLIFY_API_TOKEN", required=True)
-        self.coolify_server_uuid = get_env("COOLIFY_SERVER_UUID")  # VPS to deploy to
-        self.coolify_project_uuid = get_env("COOLIFY_PROJECT_UUID")  # Default project
+        # Coolify — DISABLED 2026-06-17 (Coolify decommissioned 2026-05-30; deploy is
+        # SSH + Docker Compose via deployer_ssh.py). Commented out, not removed, to
+        # preserve history. These `required=True` fields used to force dead COOLIFY_API_*
+        # creds on every Config() init; nothing in the live path reads them.
+        # self.coolify_url = get_env("COOLIFY_API_URL", required=True)
+        # self.coolify_token = get_env("COOLIFY_API_TOKEN", required=True)
+        # self.coolify_server_uuid = get_env("COOLIFY_SERVER_UUID")  # VPS to deploy to
+        # self.coolify_project_uuid = get_env("COOLIFY_PROJECT_UUID")  # Default project
 
         # DNS (Site Provisioner service API)
         self.dns_provider = get_env("DNS_PROVIDER", "site-provisioner")
@@ -72,7 +75,7 @@ class Config:
         return {
             "vps_host": self.vps_host,
             "vps_user": self.vps_user,
-            "coolify_url": self.coolify_url,
+            # "coolify_url": self.coolify_url,  # DISABLED 2026-06-17 (Coolify decommissioned)
             "dns_provider": self.dns_provider,
             "log_level": self.log_level,
         }
