@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — ops/ reconciled to live (authelia-config-sync re-synced, coolify-alias-watcher archived) (2026-06-17)
+
+The top-level `ops/` folder (systemd units + watcher scripts) had drifted from the live hosts:
+
+- **`ops/authelia-config-sync/`** — the repo `sync.sh` was the old Coolify-era version (`CONTAINER_NAME="authelia-hks48k8sg8o4co4co08co00o"` UUID + `docker inspect` volume-copy). Live was rewritten to the **bind-mount** approach (`CONTAINER_NAME="authelia"`, stable name, just `docker restart`). Re-synced `sync.sh` + `.service` from live (secret-free) and rewrote the README to match (bind-mount, stable name, no UUID/volume-copy/Coolify). The service is **active** on vps1.
+- **`ops/coolify-alias-watcher/`** — archived to `ops/.archive/2026-06-17-coolify-decommission/` (with README). It re-applied aliases Coolify dropped on redeploy; Coolify was decommissioned 2026-05-30, SSH+Compose declares stable aliases that survive redeploys, and it's **inactive / not present** on the live fleet (no `/opt/` dir, no systemd unit) and watched the removed `coolify` network.
+- **`ops/vps-sysadmin-bot.service`** — verified **identical to live** (`scripts/sysadmin/bot.py` + `.env.sysadmin` present); no change.
+
 ### Fixed — vps-ai-sysadmin.md said "one VPS ~36 containers" (2026-06-17)
 
 `docs/infrastructure/vps-ai-sysadmin.md` honest-rating line described the deployment as "a solo dev running **one VPS** with **~36 containers**" — stale on both counts. Corrected to the live **3-VPS fleet** (vps1 hub ~31 containers + vps2/vps3 spokes ~5 each), verified live. The rest of `docs/infrastructure/` was re-verified against live (vps1=31, vps2/vps3=5, CF=18 A-records, Gatus=31, Prometheus=13 jobs, Authelia=8) and is current — the only other Coolify/Netdata/retired-service mentions there are correct "removed/renamed/reality-vs-older-docs" notes.
