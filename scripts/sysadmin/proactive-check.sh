@@ -300,43 +300,58 @@ print(d[0]['commit']['committer']['date'] if isinstance(d, list) and d else '')"
     fi
 fi
 
-# ── Authelia + GlitchTip health (auth-free) ──────────────────────────────
+# ── Authelia + GlitchTip health (auth-free, hub-only) ────────────────────
 #
-# Both run on the fabrik Docker network on every host that has them. Hub has
-# both; spokes may have only Authelia. We probe via an existing fabrik-network
-# container (apprise — already present on hub; spokes use sysadmin-bot's
-# network access). Auth-free endpoints:
+# Both services are deployed only on the hub (vps1) — spokes have neither
+# Authelia nor GlitchTip in the current fleet shape. We probe via apprise,
+# the only container on the fabrik docker network that ships curl.
+# (sysadmin-bot is a systemd unit, not a container; promtail uses
+# network_mode: host and has no curl — both are unsuitable as probes.)
+# Auth-free endpoints:
 #   - Authelia: GET http://authelia:9091/api/health → {"status":"OK"}
 #   - GlitchTip: GET http://glitchtip-web:8000/_health/ → "ok"
 # A 5xx / connection refusal = service down; that's Tier B (auth/error
-# pipeline degraded) — wake Claude to investigate.
+# pipeline degraded) — wake Claude to investigate. On spokes the whole
+# block is a no-op (neither `authelia` nor `glitchtip-web` container exists,
+# so the inner blocks short-circuit and no probe container is needed).
 
 if command -v docker >/dev/null 2>&1; then
-    NET_PROBE_CONTAINER=""
-    for cand in apprise sysadmin-bot promtail; do
-        if sudo docker inspect "$cand" --format '{{.State.Status}}' 2>/dev/null | grep -q running; then
-            NET_PROBE_CONTAINER="$cand"; break
-        fi
-    done
-    if [ -n "$NET_PROBE_CONTAINER" ]; then
-        # Authelia: present on hub + spokes (any host with admin services)
-        if sudo docker ps --format '{{.Names}}' | grep -q '^authelia$'; then
-            if ! sudo docker exec "$NET_PROBE_CONTAINER" curl -sf --max-time 5 \
-                 http://authelia:9091/api/health 2>/dev/null | grep -q '"status":"OK"'; then
-                ANOMALIES+="authelia_health_failed "
+    HAS_AUTHELIA=0
+    HAS_GLITCHTIP=0
+    sudo docker ps --format '{{.Names}}' | grep -q '^authelia$' && HAS_AUTHELIA=1
+    sudo docker ps --format '{{.Names}}' | grep -q '^glitchtip-web$' && HAS_GLITCHTIP=1
+
+    if [ "$HAS_AUTHELIA" = "1" ] || [ "$HAS_GLITCHTIP" = "1" ]; then
+        # Pick a probe container with curl on the fabrik network. Today that's
+        # apprise; the loop leaves room for future additions without code change.
+        NET_PROBE_CONTAINER=""
+        for cand in apprise; do
+            if sudo docker inspect "$cand" --format '{{.State.Status}}' 2>/dev/null | grep -q running; then
+                NET_PROBE_CONTAINER="$cand"; break
             fi
-        fi
-        # GlitchTip: hub only
-        if sudo docker ps --format '{{.Names}}' | grep -q '^glitchtip-web$'; then
-            if ! sudo docker exec "$NET_PROBE_CONTAINER" curl -sf --max-time 5 \
-                 http://glitchtip-web:8000/_health/ 2>/dev/null | grep -q '^ok'; then
-                ANOMALIES+="glitchtip_health_failed "
+        done
+
+        if [ -z "$NET_PROBE_CONTAINER" ]; then
+            # We have services that need probing but no working probe container.
+            # That's itself an anomaly — don't silently skip monitoring.
+            ANOMALIES+="health_probe_container_missing "
+        else
+            if [ "$HAS_AUTHELIA" = "1" ]; then
+                if ! sudo docker exec "$NET_PROBE_CONTAINER" curl -sf --max-time 5 \
+                     http://authelia:9091/api/health 2>/dev/null | grep -q '"status":"OK"'; then
+                    ANOMALIES+="authelia_health_failed "
+                fi
             fi
-            # Bonus check: glitchtip-worker should be running too (error queue
-            # processor). A stopped worker means errors accumulate but no
-            # delivery to Telegram.
-            if ! sudo docker inspect glitchtip-worker --format '{{.State.Status}}' 2>/dev/null | grep -q running; then
-                ANOMALIES+="glitchtip_worker_not_running "
+            if [ "$HAS_GLITCHTIP" = "1" ]; then
+                if ! sudo docker exec "$NET_PROBE_CONTAINER" curl -sf --max-time 5 \
+                     http://glitchtip-web:8000/_health/ 2>/dev/null | grep -q '^ok'; then
+                    ANOMALIES+="glitchtip_health_failed "
+                fi
+                # glitchtip-worker is the error-queue processor; if it's stopped,
+                # errors pile up but never reach Telegram.
+                if ! sudo docker inspect glitchtip-worker --format '{{.State.Status}}' 2>/dev/null | grep -q running; then
+                    ANOMALIES+="glitchtip_worker_not_running "
+                fi
             fi
         fi
     fi

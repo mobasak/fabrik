@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — proactive-check.sh health-probe block: correct comments + remove silent-skip blind spot (2026-06-17)
+
+Code-review iteration on the GlitchTip/Authelia probe block landed earlier today in `8342ef1`. Live-fleet verification surfaced two issues:
+
+1. **Misleading comments + dead fallbacks.** Original fallback chain was `apprise → sysadmin-bot → promtail`. Live state: `sysadmin-bot` is a systemd unit (not a container); `promtail` uses `network_mode: host` and ships no `curl` — both are unusable as docker-network probes. Only `apprise` actually works. Comments also claimed "Authelia present on hub + spokes" — Authelia is hub-only in current fleet shape.
+2. **Silent monitoring blind spot.** If `apprise` ever stopped, the block silently skipped the Authelia + GlitchTip probes without raising any anomaly. Operator would never know.
+
+**Fix:**
+
+- Comments now state the reality: hub-only, single working probe container (`apprise`), with a note explaining why the obvious alternates don't qualify.
+- Reordered logic: detect Authelia/GlitchTip presence **first**, then look for a probe container. If services are present but no probe container is running, raise `health_probe_container_missing` instead of silently skipping. On spokes (no services deployed) the whole block short-circuits — no probe container needed and no false anomaly.
+
+Live-verified post-deploy:
+
+- vps (hub): silent ✓ (both services healthy, apprise running)
+- vps2/vps3 (spokes): silent ✓ (no services → short-circuits before probe lookup)
+
 ### Added — Sysadmin trio upgrade pass: LESSONS_LEARNT surfaced + GlitchTip/Authelia probes + spoke Prometheus federation (2026-06-17)
 
 After auditing the per-host sysadmins against "veteran sysadmin" grade, the operator picked 3 of 4 gaps to close (no cost cap per operator: Claude Code is subscription-billed).
