@@ -323,6 +323,26 @@ class ModalClient:
                 self._active_fc = None
                 self._active_fc_id = None
 
+    def pause_pod(self, pod_id: str) -> dict[str, Any]:
+        """Modal does NOT support pause semantics for FunctionCalls.
+
+        FunctionCalls are stateless — either running or cancelled. The Modal
+        SDK has no concept of "pause this call but keep its container alive
+        for later resume". If you need pause/resume semantics on Modal,
+        switch to ``--provider runpod`` or ``--provider vast`` (both expose
+        real pause/start primitives).
+
+        Raises NotImplementedError so the caller falls back gracefully.
+        """
+        raise NotImplementedError(
+            "Modal does not support pause/resume — FunctionCalls are "
+            "stateless. Use --provider runpod or --provider vast for "
+            "pause semantics, or call destroy_pod + create_pod instead."
+        )
+
+    def resume_pod(self, pod_id: str) -> dict[str, Any]:
+        raise NotImplementedError("Modal does not support pause/resume — see pause_pod docstring.")
+
     # --- Serverless API (Modal's `app.deploy` + `@modal.fastapi_endpoint`) -
     #
     # Phase 3.5 (2026-06-17 plan §3.5): real implementation. Closes B1/B2/B3

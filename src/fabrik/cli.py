@@ -3491,6 +3491,96 @@ def gpu_destroy(session_or_resource_id, yes):
         raise SystemExit(1)
 
 
+def _resolve_session(session_or_resource_id: str):
+    """Shared helper: look up a session by ID or by resource_id."""
+    from fabrik.orchestrator import gpu_state
+
+    sess = gpu_state.get_session(session_or_resource_id)
+    if sess is None:
+        for sid, rec in gpu_state.load_state()["sessions"].items():
+            if rec["resource_id"] == session_or_resource_id:
+                return rec, sid
+        return None, session_or_resource_id
+    return sess, session_or_resource_id
+
+
+@gpu.command("pause")
+@click.argument("session_or_resource_id")
+def gpu_pause(session_or_resource_id):
+    """Pause (stop without destroy) a session's pod. Storage persists; GPU
+    billing stops.
+
+    Provider support:
+    - RunPod: ✅ POST /pods/{id}/stop
+    - Vast.ai: ✅ PUT /instances/{id}/ state=stopped
+    - Modal: ❌ not supported (FunctionCalls are stateless)
+    """
+    from fabrik.orchestrator import gpu_rent as gpu_rent_mod
+    from fabrik.orchestrator import gpu_state
+
+    sess, sid = _resolve_session(session_or_resource_id)
+    if sess is None:
+        click.echo(f"✗ no session matches {session_or_resource_id!r}", err=True)
+        raise SystemExit(2)
+    if sess.get("destroyed_at"):
+        click.echo(f"✗ session destroyed at {sess['destroyed_at']} — cannot pause", err=True)
+        raise SystemExit(2)
+    if sess.get("resource_type") != "pod":
+        click.echo(
+            f"✗ pause only supported on pods (this is {sess.get('resource_type')})", err=True
+        )
+        raise SystemExit(2)
+
+    provider = sess.get("provider", "runpod")
+    try:
+        client = gpu_rent_mod.client_for_provider(provider)
+        client.pause_pod(sess["resource_id"])
+        gpu_state.mark_paused(sid)
+        click.echo(
+            f"⏸  paused {provider}:pod:{sess['resource_id']} "
+            f"(session {sid}). Resume via `fabrik gpu resume {sid}`."
+        )
+    except NotImplementedError as e:
+        click.echo(f"✗ {provider} does not support pause: {e}", err=True)
+        raise SystemExit(2)
+    except Exception as e:  # noqa: BLE001
+        click.echo(f"❌ pause failed ({provider}): {e}", err=True)
+        raise SystemExit(1)
+
+
+@gpu.command("resume")
+@click.argument("session_or_resource_id")
+def gpu_resume(session_or_resource_id):
+    """Resume a previously paused pod. Storage + container disk are preserved;
+    GPU re-acquires from the same machine (best-effort)."""
+    from fabrik.orchestrator import gpu_rent as gpu_rent_mod
+    from fabrik.orchestrator import gpu_state
+
+    sess, sid = _resolve_session(session_or_resource_id)
+    if sess is None:
+        click.echo(f"✗ no session matches {session_or_resource_id!r}", err=True)
+        raise SystemExit(2)
+    if sess.get("destroyed_at"):
+        click.echo(f"✗ session destroyed at {sess['destroyed_at']} — cannot resume", err=True)
+        raise SystemExit(2)
+
+    provider = sess.get("provider", "runpod")
+    try:
+        client = gpu_rent_mod.client_for_provider(provider)
+        client.resume_pod(sess["resource_id"])
+        gpu_state.mark_resumed(sid)
+        click.echo(
+            f"▶  resumed {provider}:pod:{sess['resource_id']} "
+            f"(session {sid}). Use `fabrik gpu status {sid}` to verify RUNNING."
+        )
+    except NotImplementedError as e:
+        click.echo(f"✗ {provider} does not support resume: {e}", err=True)
+        raise SystemExit(2)
+    except Exception as e:  # noqa: BLE001
+        click.echo(f"❌ resume failed ({provider}): {e}", err=True)
+        raise SystemExit(1)
+
+
 @gpu.command("reconcile")
 @click.option(
     "--auto-destroy",

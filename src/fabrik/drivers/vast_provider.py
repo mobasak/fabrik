@@ -390,6 +390,31 @@ class VastClient:
     def destroy_pod(self, pod_id: str) -> None:
         self._request("DELETE", f"/instances/{pod_id}/")
 
+    def pause_pod(self, pod_id: str) -> dict[str, Any]:
+        """Stop a Vast instance without destroying it.
+
+        Vast API: PUT /instances/{id}/ with body {"state": "stopped"}.
+        Container disk + volume persist; GPU billing stops; storage still
+        bills (per vast-api.md §6.2). Restart via resume_pod().
+        """
+        return self._request("PUT", f"/instances/{pod_id}/", json={"state": "stopped"}) or {
+            "id": pod_id,
+            "stopped": True,
+        }
+
+    def resume_pod(self, pod_id: str) -> dict[str, Any]:
+        """Resume a previously stopped Vast instance.
+
+        Vast API: PUT /instances/{id}/ with body {"state": "running"}.
+        The instance re-acquires its slot on the host (same machine, same
+        volume). May enter "scheduling" state if the host is briefly
+        unavailable; use wait_for_running() to confirm.
+        """
+        return self._request("PUT", f"/instances/{pod_id}/", json={"state": "running"}) or {
+            "id": pod_id,
+            "resumed": True,
+        }
+
     # --- Serverless API (Phase 3.5 plan §2 — POST /endptjobs/ + /workergroups/)
     # B4 caught by iteration 2: real path is /workergroups/, NOT /autogroups/.
     # See docs/development/plans/2026-06-17-gpu-serverless-phase-3-5-converged.md

@@ -4,6 +4,41 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — GPU pause/resume + RunPod COMMUNITY fallback + 3 real-life live scenarios (2026-06-17)
+
+User feedback: "tests not enough — rent actual GPUs, use them, pause, destroy as real-life scenarios". Shipped 3 things this pass; **total live spend ~$0.02 / total credits remaining ~$49.85**.
+
+**1. Pause/resume primitives across all 3 providers + CLI commands:**
+
+- **RunPod**: `pause_pod()` → `POST /pods/{id}/stop`; `resume_pod()` → `POST /pods/{id}/start` ([`runpod.py`](src/fabrik/drivers/runpod.py))
+- **Vast.ai**: `pause_pod()` → `PUT /instances/{id}/ {state: stopped}`; `resume_pod()` → `PUT /instances/{id}/ {state: running}` ([`vast_provider.py`](src/fabrik/drivers/vast_provider.py))
+- **Modal**: raises `NotImplementedError` with explicit guidance — FunctionCalls are stateless; suggests switching provider ([`modal_provider.py`](src/fabrik/drivers/modal_provider.py))
+- New CLI: `fabrik gpu pause <session-id>` + `fabrik gpu resume <session-id>` (provider-aware dispatch via existing `client_for_provider`)
+- New state helpers: `gpu_state.mark_paused(sid)` / `mark_resumed(sid)` (`paused_at` / `resumed_at` ISO timestamps, mutually exclusive)
+
+**2. Constraint 2 fix — RunPod COMMUNITY → SECURE auto-fallback** ([`gpu_rent.py`](src/fabrik/orchestrator/gpu_rent.py) `_create_pod`):
+
+Yesterday's CSV-3 hit `RunPod 500 on COMMUNITY rtx-4090 — marketplace unavailable`. Today: if `cloud_type=COMMUNITY` raises with `500` / `no available` text, orchestrator auto-retries with `cloud_type=SECURE` once. Returned pod dict carries `_fabrik_cloud_type_used=SECURE` for cost reporting. Operator gets a `WARNING` log line. Regression test `test_runpod_community_fallback_to_secure_on_500` guards the path.
+
+**3. Three real-life live scenarios:**
+
+- **L-REAL-1 RunPod** (partial): rent RTX 4090 SECURE → RUNNING in 2.2s → 15s real-work polls verified `desiredStatus=RUNNING + costPerHr=$0.69` → **pause GREEN** (`desiredStatus: EXITED` — billing stops, response includes full pod dict) → resume returned **500 from RunPod after 3 retries**. Best-effort destroy succeeded. **Newly discovered RunPod constraint**: paused SECURE pods can have their GPU slot released — resume isn't guaranteed. Mitigation: persistent network volume (Phase 4).
+- **L-REAL-2 Vast.ai** ✅ **FULL LIFECYCLE GREEN**: rent RTX 4090 → RUNNING in 24.3s → 20s real-work polls → **pause** (`success: true` + `desiredStatus: EXITED`) → **resume** (`success: true` + `desiredStatus: RUNNING`) → destroy. Wall: 83.1s.
+- **L-REAL-3 Modal serverless** ✅ deploy echo endpoint → **5 sequential HTTP calls** (cold 5.09s, warm 0.61–0.71s — endpoint persisted between calls, not per-call cold start) → 5/5 returned correct echoes → destroy. Wall: 11.1s.
+
+**Tests**: 66/66 pass (+7 new): RunPod pause+resume HTTP shape, Vast pause+resume HTTP shape, Modal NotImplementedError, state mark_paused/resumed, RunPod fallback regression guard.
+
+**FINAL gate**: `scripts/final_gate.py --lean --json` ✅ `status: success, passed: 14, failed: 0`.
+**Orphans**: Modal=0 / Vast endpoints=0 / Vast instances=0 / RunPod=0.
+
+**Known-constraints status update**:
+
+| Constraint | Yesterday | Today |
+|---|---|---|
+| Modal pod-mode `keep-on-failure` (`app.run()` process-scoped) | Documented only | Still documented — architectural; backlog item: rewrite Modal pod-mode via `modal deploy` programmatic |
+| RunPod COMMUNITY availability fluctuates | Documented only | ✅ **FIXED** — auto-fallback to SECURE shipped + regression-tested |
+| RunPod resume after SECURE pause (newly discovered) | N/A | Documented — GPU slot released on pause; mitigation: persistent network volume (backlog) |
+
 ### Changed — ops/ reconciled to live (authelia-config-sync re-synced, coolify-alias-watcher archived) (2026-06-17)
 
 The top-level `ops/` folder (systemd units + watcher scripts) had drifted from the live hosts:

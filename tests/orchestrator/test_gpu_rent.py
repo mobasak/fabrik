@@ -1041,3 +1041,123 @@ def test_rented_context_manager_report_includes_model_and_template():
         "rented() report dict missing template_id (iter-2 regression)"
     assert '"model": model' in src, \
         "rented() report dict missing model (iter-2 regression)"
+
+
+# ============================================================================
+# Pause/resume primitives (2026-06-17: L-REAL-1/2 live-verified)
+# ============================================================================
+def test_runpod_pause_pod_posts_stop(monkeypatch):
+    """RunPod pause MUST POST to /pods/{id}/stop (no body)."""
+    from fabrik.drivers.runpod import RunPodClient
+    monkeypatch.setenv("RUNPOD_API_KEY", "rpa_test")
+    calls = []
+    def fake_request(self, method, path, *args, **kwargs):
+        calls.append({"method": method, "path": path})
+        return {"id": "pod-x", "desiredStatus": "EXITED"}
+    monkeypatch.setattr(RunPodClient, "_request", fake_request)
+    c = RunPodClient()
+    c.pause_pod("pod-x")
+    assert {"method": "POST", "path": "/pods/pod-x/stop"} in calls
+
+
+def test_runpod_resume_pod_posts_start(monkeypatch):
+    """RunPod resume MUST POST to /pods/{id}/start (no body)."""
+    from fabrik.drivers.runpod import RunPodClient
+    monkeypatch.setenv("RUNPOD_API_KEY", "rpa_test")
+    calls = []
+    def fake_request(self, method, path, *args, **kwargs):
+        calls.append({"method": method, "path": path})
+        return {"id": "pod-x", "desiredStatus": "RUNNING"}
+    monkeypatch.setattr(RunPodClient, "_request", fake_request)
+    c = RunPodClient()
+    c.resume_pod("pod-x")
+    assert {"method": "POST", "path": "/pods/pod-x/start"} in calls
+
+
+def test_vast_pause_pod_puts_stopped_state(monkeypatch):
+    """Vast pause MUST PUT to /instances/{id}/ with {state: stopped}."""
+    from fabrik.drivers.vast_provider import VastClient
+    monkeypatch.setenv("VAST_API_KEY", "test")
+    calls = []
+    def fake_request(self, method, path, *args, **kwargs):
+        calls.append({"method": method, "path": path, "json": kwargs.get("json")})
+        return {"success": True}
+    monkeypatch.setattr(VastClient, "_request", fake_request)
+    c = VastClient()
+    c.pause_pod("12345")
+    assert calls == [{"method": "PUT", "path": "/instances/12345/",
+                      "json": {"state": "stopped"}}]
+
+
+def test_vast_resume_pod_puts_running_state(monkeypatch):
+    """Vast resume MUST PUT to /instances/{id}/ with {state: running}."""
+    from fabrik.drivers.vast_provider import VastClient
+    monkeypatch.setenv("VAST_API_KEY", "test")
+    calls = []
+    def fake_request(self, method, path, *args, **kwargs):
+        calls.append({"method": method, "path": path, "json": kwargs.get("json")})
+        return {"success": True}
+    monkeypatch.setattr(VastClient, "_request", fake_request)
+    c = VastClient()
+    c.resume_pod("12345")
+    assert calls == [{"method": "PUT", "path": "/instances/12345/",
+                      "json": {"state": "running"}}]
+
+
+def test_modal_pause_pod_raises_not_implemented(monkeypatch):
+    """Modal pause MUST raise NotImplementedError (FunctionCalls are stateless)."""
+    from fabrik.drivers.modal_provider import ModalClient
+    monkeypatch.setenv("MODAL_TOKEN_ID", "ak-test")
+    monkeypatch.setenv("MODAL_TOKEN_SECRET", "as-test")
+    fake_modal = MagicMock()
+    monkeypatch.setattr(
+        "fabrik.drivers.modal_provider.ModalClient.__init__",
+        lambda self, *a, **kw: setattr(self, "_modal", fake_modal)
+        or setattr(self, "token_id", "ak-test")
+        or setattr(self, "token_secret", "as-test"),
+    )
+    c = ModalClient()
+    import pytest as _pytest
+    with _pytest.raises(NotImplementedError, match="Modal does not support pause"):
+        c.pause_pod("fc-test")
+    with _pytest.raises(NotImplementedError, match="Modal does not support pause"):
+        c.resume_pod("fc-test")
+
+
+def test_gpu_state_mark_paused_and_resumed():
+    """mark_paused adds paused_at; mark_resumed clears paused_at + adds resumed_at."""
+    gpu_state.upsert(
+        session_id="paused-test", provider="runpod", kind="pod-rtx-4090",
+        workload="t", resource_type="pod", resource_id="pod-x",
+        gpu_type_id="rtx", max_lifetime_hours=1, cost_estimate_usd=0.69,
+    )
+    gpu_state.mark_paused("paused-test")
+    sess = gpu_state.get_session("paused-test")
+    assert sess["paused_at"]
+    assert "resumed_at" not in sess
+    gpu_state.mark_resumed("paused-test")
+    sess = gpu_state.get_session("paused-test")
+    assert sess["resumed_at"]
+    assert "paused_at" not in sess
+
+
+def test_runpod_community_fallback_to_secure_on_500(monkeypatch):
+    """CONSTRAINT 2 FIX: If COMMUNITY returns 500, auto-retry on SECURE."""
+    from fabrik.orchestrator.gpu_rent import _create_pod
+    c = MagicMock()
+    # First call (COMMUNITY) raises; second (SECURE) succeeds
+    c.create_pod.side_effect = [
+        Exception("RunPod 500 on POST /pods (will retry); no available instance"),
+        {"id": "pod-secure-1", "actual_status": "loading"},
+    ]
+    c.wait_for_running.return_value = {"id": "pod-secure-1", "desiredStatus": "RUNNING"}
+    report = {}
+    result = _create_pod(
+        c, session_id="test", kind="pod-rtx-4090", workload="cf",
+        max_lifetime_hours=1, image_name="x", cloud_type="COMMUNITY",
+        interruptible=False, provider="runpod", report=report,
+    )
+    # Second call's kwargs should have SECURE
+    second_call_kwargs = c.create_pod.call_args_list[1].kwargs
+    assert second_call_kwargs["cloud_type"] == "SECURE"
+    assert result.get("_fabrik_cloud_type_used") == "SECURE"

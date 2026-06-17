@@ -269,6 +269,25 @@ class RunPodClient:
         """Destroy a pod. Returns None on success."""
         self._request("DELETE", f"/pods/{pod_id}")
 
+    def pause_pod(self, pod_id: str) -> dict[str, Any]:
+        """Stop a pod without destroying it.
+
+        RunPod API: POST /pods/{pod_id}/stop (verified at docs/reference/
+        runpod-api.md). Stopped pods keep their volume + container disk
+        but stop billing GPU/CPU time. Restart with resume_pod().
+        """
+        # POST with empty body; RunPod returns updated pod dict
+        return self._request("POST", f"/pods/{pod_id}/stop") or {"id": pod_id, "stopped": True}
+
+    def resume_pod(self, pod_id: str) -> dict[str, Any]:
+        """Resume a previously paused pod.
+
+        RunPod API: POST /pods/{pod_id}/start. The pod re-acquires GPU
+        from the same machine (best-effort — may be relocated). Use
+        wait_for_running() after resume to confirm container is live.
+        """
+        return self._request("POST", f"/pods/{pod_id}/start") or {"id": pod_id, "resumed": True}
+
     # --- Serverless endpoint API -------------------------------------------
     def list_endpoints(self) -> list[dict[str, Any]]:
         result = self._request("GET", "/endpoints")

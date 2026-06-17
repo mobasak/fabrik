@@ -427,14 +427,47 @@ def _create_pod(
     """
     gpu_type_id = _resolve_gpu_type_id(kind, provider)
     image = image_name or DEFAULT_POD_IMAGE
-    pod = client.create_pod(
-        gpu_type_id=gpu_type_id,
-        image_name=image,
-        env=_fabrik_env_tags(session_id, workload, max_lifetime_hours),
-        cloud_type=cloud_type,
-        interruptible=interruptible,
-        name=f"fabrik-{session_id}",
-    )
+    try:
+        pod = client.create_pod(
+            gpu_type_id=gpu_type_id,
+            image_name=image,
+            env=_fabrik_env_tags(session_id, workload, max_lifetime_hours),
+            cloud_type=cloud_type,
+            interruptible=interruptible,
+            name=f"fabrik-{session_id}",
+        )
+    except Exception as e:
+        # CONSTRAINT 2 FIX (2026-06-17): RunPod COMMUNITY marketplace
+        # availability fluctuates — if create returns 500/4xx on COMMUNITY
+        # for an RTX-class GPU, auto-fallback to SECURE and retry once.
+        # See CSV-3 in docs/development/plans/2026-06-17-comprehensive-
+        # scenario-validation.md for the live observation that triggered
+        # this fix.
+        err_str = str(e).lower()
+        is_runpod_unavailable = (
+            provider == "runpod"
+            and cloud_type == "COMMUNITY"
+            and ("500" in err_str or "no available" in err_str or "no instance" in err_str)
+        )
+        if is_runpod_unavailable:
+            logger.warning(
+                "RunPod COMMUNITY unavailable for %s — auto-falling back to "
+                "SECURE (CONSTRAINT 2 fix). Original error: %s",
+                kind,
+                e,
+            )
+            pod = client.create_pod(
+                gpu_type_id=gpu_type_id,
+                image_name=image,
+                env=_fabrik_env_tags(session_id, workload, max_lifetime_hours),
+                cloud_type="SECURE",  # fallback
+                interruptible=interruptible,
+                name=f"fabrik-{session_id}",
+            )
+            # Stamp the cloud_type that ACTUALLY landed (for billing accuracy)
+            pod["_fabrik_cloud_type_used"] = "SECURE"
+        else:
+            raise
     pod_id = pod["id"]
     # Record pod_id NOW (before wait_for_running) so the finally block in
     # rent() can destroy on wait failure — this closes the orphan-pod gap.
@@ -445,6 +478,10 @@ def _create_pod(
     # images, tight enough that a stuck host doesn't burn $0.10+ before bail.
     wait_timeout = 180 if provider == "vast" else 300
     ready = client.wait_for_running(pod_id, timeout=wait_timeout, interval=5)
+    # Carry fallback marker through (Constraint 2 fix): caller can observe
+    # which cloud_type actually landed.
+    if isinstance(ready, dict) and pod.get("_fabrik_cloud_type_used"):
+        ready["_fabrik_cloud_type_used"] = pod["_fabrik_cloud_type_used"]
     return ready
 
 

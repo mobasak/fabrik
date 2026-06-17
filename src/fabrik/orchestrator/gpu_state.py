@@ -180,6 +180,40 @@ def mark_destroy_pending(session_id: str) -> None:
         _write_unlocked(state)
 
 
+def mark_paused(session_id: str) -> None:
+    """Mark session as paused. Adds `paused_at` timestamp; clears any
+    previous resumed_at. Idempotent — pausing an already-paused session
+    overwrites the timestamp (latest-pause-wins semantics)."""
+    now = datetime.now(UTC).isoformat()
+    with file_lock(_LOCK, timeout_seconds=15.0):
+        state = load_state()
+        rec = state["sessions"].get(session_id)
+        if rec is None:
+            logger.warning("gpu_state.mark_paused: unknown session %s", session_id)
+            return
+        rec["paused_at"] = now
+        rec.pop("resumed_at", None)
+        _write_unlocked(state)
+
+
+def mark_resumed(session_id: str) -> None:
+    """Mark session as resumed. Sets `resumed_at` + clears `paused_at`.
+
+    Note: this is a state hint, not a guarantee — wait_for_running()
+    must confirm the pod is actually back to RUNNING on the provider side.
+    """
+    now = datetime.now(UTC).isoformat()
+    with file_lock(_LOCK, timeout_seconds=15.0):
+        state = load_state()
+        rec = state["sessions"].get(session_id)
+        if rec is None:
+            logger.warning("gpu_state.mark_resumed: unknown session %s", session_id)
+            return
+        rec["resumed_at"] = now
+        rec.pop("paused_at", None)
+        _write_unlocked(state)
+
+
 def record_actual_cost(session_id: str, cost_actual_usd: float) -> None:
     """Fill in the actual cost after billing reconciliation."""
     with file_lock(_LOCK, timeout_seconds=15.0):
