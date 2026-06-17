@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — infra/README.md documenting the 3-VPS layout (2026-06-17)
+
+`infra/` is now organised per host — `vps1/` (hub, 16 compose stacks), `vps2/` + `vps3/` (spokes, 3 each: `monitoring-agent`, `backrest`, `traefik`). Added a README documenting the topology, that these are source-controlled mirrors of the live `/opt/<svc>/compose.yaml` on each host (live is authoritative; nothing deploys *from* `infra/`), that secrets are externalised (`env_file`/`${VAR}`/volume mounts — none inline), and that canonical live state lives in `docs/infrastructure/vps-complete-inventory.md`. Verified 2026-06-17: the committed `infra/vps*/` composes match the live hosts (fresh `sudo cat` pull = clean diff); all on the `fabrik` network.
+
 ### Changed — commented out the dead Coolify code paths (config + deploy) (2026-06-17)
 
 Per decision to comment out (not remove) the legacy Coolify code, disabled the two safe, contained, non-test-breaking pieces:
