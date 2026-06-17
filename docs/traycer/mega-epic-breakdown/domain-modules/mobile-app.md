@@ -109,6 +109,8 @@ Reference `.windsurf/rules/mobile-app/80-mobile.md` § Build & Dev Workflow. At 
 
 **Default:** store release + **OTA (EAS Update / Shorebird) for JS/Dart-only fixes**; versioned API; backend supports old clients; forced upgrade only for breaking changes.
 
+**Staged rollout (mandatory, per `mobile-app/89-mobile-launch-checklist.md:160-161`):** Android **10% → 50% → 100%** with 24h crash/ANR observation between stages; iOS **Phased Release** (Apple's built-in 7-day curve: 1% → 2% → 5% → 10% → 20% → 50% → 100%). Brief consequence for Epic decomposition: a kill-switch / feature-flag path and crash/ANR dashboards must exist *before* stage 1, not after — bake this into the Epic that ships the first release build.
+
 **Why now:** old app versions live on phones forever — you can't deprecate an endpoint v1.0 still calls; review delays block hotfixes unless OTA exists.
 
 #### 9. ASO & Acquisition
