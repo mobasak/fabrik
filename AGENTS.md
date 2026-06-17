@@ -234,7 +234,7 @@ Source: `configs/prometheus/rules/alerts.yml`.
 
 | Layer | Target | Mechanism |
 |---|---|---|
-| **iptables DOCKER-USER** | All Docker ports | Blocks external access to raw container ports. Only **80/443** serve traffic. (6001/6002 remain open at DOCKER-USER + UFW as stale Coolify Realtime/Soketi leftovers — nothing listens; pending cleanup.) |
+| **iptables DOCKER-USER** | All Docker ports | Blocks external access to raw container ports. Only **80/443** serve traffic. (6001/6002 still have `RETURN` rules in the DOCKER-USER chain as stale Coolify Realtime/Soketi leftovers — UFW already clean, nothing listens on the host; iptables-side cleanup pending.) |
 | **Authelia** | Admin dashboards w/o native TOTP | Forward-auth 2FA for n8n, Backrest, Apprise; + forward-auth with `^/api/` bypass for Grafana. **Note:** GlitchTip is on full-bypass — uses django-allauth app-layer TOTP (canonical Sentry pattern). Decision matrix: `docs/LESSONS_LEARNT.md §8.13`. |
 | **X-Internal-Token** | API services | M2M auth via `internal_auth.py` + shared `SERVICE_INTERNAL_SECRET_KEY` in `/opt/fabrik/.env`. Same key written into every deployed service's `/opt/<name>/.env`. Validation is constant-time (`hmac.compare_digest`). Implementation pack: `.windsurf/rules/core/35-security-auth.md`. |
 | **Traefik** | Public sites | Routes traffic without auth for `ocoron.com`, `status.vps1.ocoron.com`. |
@@ -411,7 +411,7 @@ Organized by folder:
 | `desktop-app` | `TS_CORE`, `DESIGN_SYSTEM` |
 | `file-api` | — |
 | `file-worker` | `PY_CORE`, `WORKERS` |
-| `wordpress` | `TS_CORE`, `DESIGN_SYSTEM`, `WORDPRESS` (planned — pack not yet created) |
+| `wordpress` | `TS_CORE`, `DESIGN_SYSTEM` (Fabrik-side scaffolding retired 2026-06-17 → `/opt/wpf`; no dedicated WordPress pack — `30-ops.md` + scaffold defaults cover the deploy/shape side) |
 | `docusaurus` | `DOCUSAURUS`, `DESIGN_SYSTEM` |
 | `static-site` | `TS_CORE`, `SAAS_UI`, `DESIGN_SYSTEM` |
 
