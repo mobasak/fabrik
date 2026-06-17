@@ -225,3 +225,51 @@ def test_send_telegram_sh_dry_run():
     finally:
         os.unlink(env_path)
         os.unlink(test_script)
+
+
+def test_combiner_handles_json_with_nested_double_quotes(tmp_path):
+    """Regression for the simulation-caught bug: the hub-path COMBINED
+    block passed INBOX_JSON via triple-quoted heredoc, which fails when
+    the JSON contains nested double-quotes. Fix: pass via env vars."""
+    # Real-shaped inbox: text contains both " and \n + nested JSON
+    inbox_json = json.dumps([
+        {
+            "ts": 1234567890.5,
+            "source_host": "vps2",
+            "text": "[vps2] digest with \"quotes\" and metrics={'a': 1}",
+            "metrics": {"tier_a_count": 3},
+        },
+        {
+            "ts": 1234567891.5,
+            "source_host": "vps3",
+            "text": "[vps3] another digest",
+            "metrics": {},
+        },
+    ])
+    own = "[vps1] Daily digest 2026-06-17 09:00 UTC\n  Actions: 0 Tier A"
+    # Run the exact embedded Python from daily-digest.sh's hub branch
+    script = """
+import json, os
+own = os.environ.get("DIGEST_OWN", "")
+raw = os.environ.get("INBOX_RAW", "").strip() or "[]"
+try:
+    inbox = json.loads(raw)
+except Exception:
+    inbox = []
+sections = [own]
+for spoke in sorted(inbox, key=lambda x: x.get("source_host", "")):
+    sections.append("\\n---\\n" + (spoke.get("text") or ""))
+combined = "\\n".join(sections)
+if len(combined) > 3500:
+    combined = combined[:3500] + "\\n…(truncated)"
+print(combined)
+"""
+    result = subprocess.run(
+        ["python3", "-c", script],
+        capture_output=True, text=True, check=True,
+        env={**os.environ, "DIGEST_OWN": own, "INBOX_RAW": inbox_json},
+    )
+    assert "[vps1]" in result.stdout
+    assert "[vps2]" in result.stdout
+    assert "[vps3]" in result.stdout
+    assert "with \"quotes\"" in result.stdout  # nested quotes preserved

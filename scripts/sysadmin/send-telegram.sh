@@ -39,7 +39,10 @@ if [ -z "$BOT_TOKEN" ] || [ -z "$OWNER_ID" ]; then
     exit 1
 fi
 
-URL="https://api.telegram.org/bot${BOT_TOKEN}/sendMessage"
+# TELEGRAM_API_BASE override is for local simulation only (mock HTTP server).
+# Production leaves it unset → defaults to real Telegram API.
+API_BASE="${TELEGRAM_API_BASE:-https://api.telegram.org}"
+URL="${API_BASE}/bot${BOT_TOKEN}/sendMessage"
 
 if [ "${DRY_RUN:-0}" = "1" ]; then
     echo "[dry-run] would POST $URL"

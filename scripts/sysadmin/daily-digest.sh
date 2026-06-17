@@ -247,11 +247,15 @@ else
     # ---------- HUB PATH (vps1) ----------
     # Drain spoke inbox; combine with own digest; send ONE combined message.
     INBOX_JSON=$(curl -sf --max-time 5 "http://localhost:8201/digest-inbox?since=$(date -d '6 hours ago' +%s 2>/dev/null || echo 0)" 2>/dev/null || echo '[]')
-    COMBINED=$(python3 <<PYEOF
-import json
-own = """${DIGEST}"""
+    # Pass inbox JSON + own digest via env vars — triple-quoting fails when
+    # the JSON contains nested double-quotes (caught by local fleet-digest
+    # simulation 2026-06-17).
+    COMBINED=$(DIGEST_OWN="$DIGEST" INBOX_RAW="$INBOX_JSON" python3 <<'PYEOF'
+import json, os
+own = os.environ.get("DIGEST_OWN", "")
+raw = os.environ.get("INBOX_RAW", "").strip() or "[]"
 try:
-    inbox = json.loads("""${INBOX_JSON}""") if """${INBOX_JSON}""".strip() else []
+    inbox = json.loads(raw)
 except Exception:
     inbox = []
 sections = [own]
