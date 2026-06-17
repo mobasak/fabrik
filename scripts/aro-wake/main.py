@@ -274,6 +274,39 @@ M_SESSIONS = Gauge(
     "Active (source, topic) Claude session-id entries",
     registry=_REGISTRY,
 )
+# Phase: fleet-hardening 2026-06-17 — daily digest forwards from spokes.
+# Plan §2.1: spokes POST their digest to hub /digest-input; hub combines
+# all and sends ONE Telegram message.
+M_DIGEST_INPUT = Counter(
+    "aro_wake_digest_input_total",
+    "Spoke digests received at /digest-input",
+    ["from_host"],
+    registry=_REGISTRY,
+)
+
+
+# ── Fleet-digest in-memory inbox ─────────────────────────────────────────
+# 24h TTL is enforced lazily on /digest-inbox drains (we don't need a
+# background prune — operator wakes once/day and drains).
+from collections import defaultdict as _defaultdict  # noqa: E402
+
+DIGEST_INBOX: dict[str, deque] = _defaultdict(lambda: deque(maxlen=30))
+
+
+def _wg0_peer_to_host_local(client_ip: str) -> str:
+    """Map a wg0 mesh IP (10.99.0.N) to a fleet hostname.
+
+    Hub is 10.99.0.1 → vps1; spokes increment from .2. For Phase 4 this
+    can be made configurable (read from /etc/wireguard/wg0.conf), but
+    for the 3-host fleet today a static map suffices.
+    """
+    # Static map matches docs/infrastructure/vps-ai-sysadmin.md
+    static = {
+        "10.99.0.1": "vps1",
+        "10.99.0.2": "vps2",
+        "10.99.0.3": "vps3",
+    }
+    return static.get(client_ip, f"unknown-{client_ip}")
 
 
 # ── Per-(source, topic) session memory (warm prompt cache) ────────────────
@@ -709,6 +742,64 @@ def _extract_alertmanager_host(body: dict[str, Any]) -> tuple[str | None, str]:
         summary = ann.get("summary") or ann.get("description") or ""
         parts.append(f"  [{sev}] {nm} on {ctr}: {summary}"[:200])
     return host, "\n".join(parts)
+
+
+@app.post("/digest-input")
+async def digest_input(request: Request) -> JSONResponse:
+    """Accept a spoke's daily digest forward.
+
+    Phase: fleet-hardening 2026-06-17 (plan §2.1). Mesh-only trust
+    boundary — UFW restricts to 10.99.0.0/24 (bootstrap-vps.sh:1137),
+    same boundary as `/wake`'s peer-consult path.
+
+    Body: ``{"text": "<digest text>", "metrics": {...JSONL row...}}``
+    Response: ``{"accepted": true, "queue_depth": N}``
+    """
+    try:
+        body = await request.json()
+    except json.JSONDecodeError:
+        return JSONResponse({"error": "invalid_json"}, status_code=400)
+    client_ip = request.client.host if request.client else "unknown"
+    from_host = _wg0_peer_to_host_local(client_ip)
+    DIGEST_INBOX[from_host].append(
+        {
+            "ts": time.time(),
+            "source_host": from_host,
+            "text": body.get("text", ""),
+            "metrics": body.get("metrics", {}),
+        }
+    )
+    M_DIGEST_INPUT.labels(from_host=from_host).inc()
+    log.info(
+        "digest_input received from %s (metrics_keys=%s, queue_depth=%d)",
+        from_host,
+        list((body.get("metrics") or {}).keys()),
+        len(DIGEST_INBOX[from_host]),
+    )
+    return JSONResponse({"accepted": True, "queue_depth": len(DIGEST_INBOX[from_host])})
+
+
+@app.get("/digest-inbox")
+async def digest_inbox(since: float = 0) -> JSONResponse:
+    """Hub-only drain endpoint. Returns entries newer than `since`
+    (unix epoch) AND removes them from the deque. Plan §2.1.
+
+    Called by the hub's daily-digest.sh once per day at the cron-fired
+    minute. Entries older than 24h are GC'd here too.
+    """
+    drained: list[dict] = []
+    cutoff_24h = time.time() - 86400
+    for host, items in list(DIGEST_INBOX.items()):
+        kept: deque = deque(maxlen=30)
+        for it in items:
+            if it["ts"] < cutoff_24h:
+                continue  # stale → drop
+            if it["ts"] >= since:
+                drained.append(it)
+            else:
+                kept.append(it)
+        DIGEST_INBOX[host] = kept
+    return JSONResponse(drained)
 
 
 @app.post("/wake")

@@ -13,6 +13,41 @@ All notable changes to this project will be documented in this file.
 
 `specs/infrastructure/` now holds only the 7 live spec-managed infra services (apprise, authelia, browserless, gotenberg, meilisearch, monitoring-stack, n8n). `specs/services/translator.yaml` was **kept** — the service is retired but the spec is a live test fixture (`cli.py` + tests). (Note: `specs/` is the deploy-contract + scaffold/registrar **test-fixture** layer — most `specs/services/*.yaml` are `test-`/`gate-`/`fabrik-test-` fixtures — NOT a live-infra inventory; the canonical "what runs where" is `docs/infrastructure/vps-complete-inventory.md`.)
 
+### Added — Daily-digest fleet hardening: G1/G2/G3 + send-telegram.sh + aro-wake routes (2026-06-17)
+
+Executes the converged plan at [`docs/development/plans/2026-06-17-daily-digest-fleet-hardening-converged.md`](docs/development/plans/2026-06-17-daily-digest-fleet-hardening-converged.md). All §6 steps 1–9 shipped; §6 steps 11–14 (live deploy via `fabrik redeploy aro-wake` + observe morning message) are operator follow-up.
+
+**3 gaps closed:**
+
+- **G1** — vps2/vps3 silent (Apprise container only on vps1): spokes now POST their digest to hub aro-wake at `http://10.0.0.1:8201/digest-input` over wg0 mesh (5s timeout, 2 retries with 1s+2s backoff). Hub-unreachable → spokes fall back to direct Telegram via per-host bot token. Hub drains `/digest-inbox`, combines all 3 hosts' bodies, sends **ONE combined message** via Apprise (preferred) or send-telegram.sh (fallback).
+- **G2** — silent failure: every successful Telegram delivery writes a `daily_digest_sent` JSONL row. Tomorrow's digest scans prior 48h for `daily_digest` rows without matching `_sent` rows and prepends `⚠️ MISSED DIGESTS — N day(s) generated but no Telegram delivery` to the body.
+- **G3** — counts only: digest body now includes a bullet list of last 24h's actual actions, pulled from JSONL rows where `source ∈ {alertmanager, consult, manual}`. Each bullet `• [HH:MM:SSZ] <result_excerpt>`, truncated to 180 chars, capped at 5 rows.
+
+**Files:**
+
+- **NEW** [`scripts/sysadmin/send-telegram.sh`](scripts/sysadmin/send-telegram.sh) (~75 lines): reusable Telegram POST helper. Reads `TELEGRAM_BOT_TOKEN` + `TELEGRAM_OWNER_ID` from `/opt/fabrik/.env.sysadmin`. 5s timeout, 2 retries (1s+2s backoff), retries only on 5xx/429/network. `DRY_RUN=1` prints intended URL + body.
+- **MODIFIED** [`scripts/sysadmin/daily-digest.sh`](scripts/sysadmin/daily-digest.sh) (163 → 306 lines): missed-digest detector + bullet extractor + hub-vs-spoke routing branch + `_sent` JSONL marker write.
+- **MODIFIED** [`scripts/aro-wake/main.py`](scripts/aro-wake/main.py) (+~75 lines): `POST /digest-input` (spoke forwards), `GET /digest-inbox?since=N` (hub drains, 24h TTL GC on drain), `DIGEST_INBOX` deque per host (maxlen=30), `aro_wake_digest_input_total{from_host}` Prometheus counter, static wg0 peer→host map.
+- **NEW** [`tests/sysadmin/test_digest_fleet.py`](tests/sysadmin/test_digest_fleet.py) (8 tests).
+- **NEW** [`tests/aro-wake/test_digest_endpoints.py`](tests/aro-wake/test_digest_endpoints.py) (4 tests).
+
+**Gates passed:**
+
+- **PRE-D1..D7** (7 pre-implementation): all PASS
+- **DELIV** (9 per-deliverable): all PASS (8 + 4 unit tests, `bash -n` clean, `ruff` clean, `send-telegram.sh` dry-run works)
+- **78/78 unit tests pass** (66 prior + 12 new: 8 digest + 4 aro-wake)
+- **`scripts/final_gate.py --lean --json`**: ✅ `status: success, passed: 14, failed: 0`
+
+**Deferred (operator-side):** LIVE-D1..D7 + FINAL-D1..D5 require live deploy. Per plan §6 step 13, **tomorrow morning's actual message arrival is the user-observable acceptance gate**.
+
+**Binding-rule conformance:**
+
+- `45-testing-strategy.md` one-test rule → 12 new tests
+- `55-observability.md` structured logging + `/metrics` counter → `log.info(...)` + `aro_wake_digest_input_total{from_host}`
+- `58-resilience.md` timeout + retry + fallback → 5s timeout, 2 retries, 1s+2s backoff, spoke fallback to direct Telegram
+- `40-documentation.md` CHANGELOG entry (this section), plan referenced in commit
+- `35-security-auth.md` secrets only via env; mesh-only `/digest-input` trust boundary (same as existing `/wake`)
+
 ### Added — GPU pause/resume + RunPod COMMUNITY fallback + 3 real-life live scenarios (2026-06-17)
 
 User feedback: "tests not enough — rent actual GPUs, use them, pause, destroy as real-life scenarios". Shipped 3 things this pass; **total live spend ~$0.02 / total credits remaining ~$49.85**.
