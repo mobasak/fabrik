@@ -314,4 +314,4 @@ curl -X POST http://localhost:3000/api/files/upload-url \
 | `/opt/fabrik/.env` | Master credentials |
 | `/opt/apps/file-api/.env` | Service-specific config |
 | `/opt/fabrik/templates/file-api/` | Template source |
-| `/opt/fabrik/sql/phase1b_ddl.sql` | Database schema |
+| `/opt/fabrik/sql/.archive/2026-06-17-supabase-file-schema/phase1b_ddl.sql` | Database schema (archived 2026-06-17 — file-api retired; Supabase driver unused; kept for reference) |

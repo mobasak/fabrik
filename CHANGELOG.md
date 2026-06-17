@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — archived sql/phase1b_ddl.sql (unused Supabase file schema) (2026-06-17)
+
+`sql/` held one file — `phase1b_ddl.sql` (2025-12-23 Supabase DDL: `tenants`/`tenant_members`/`files`/`file_derivatives`/`processing_jobs` + RLS + `claim_next_job()`). Verified not needed by any live service: the `file-api` that deployed it is retired, `drivers/supabase.py` (`SupabaseClient`, which uses these tables) is only re-exported and not consumed by any live path, and the doc citing it is "pre-migration vintage." Archived (not deleted) to `sql/.archive/2026-06-17-supabase-file-schema/` with a README — kept as the schema-of-record if a Supabase-backed SaaS is revived (saas/mobile rule packs still describe Supabase as a supported backend). Updated the dangling path ref in `file-api-deployment.md`.
+
 ### Changed — archived 2 orphan/retired infra specs (2026-06-17)
 
 `specs/infrastructure/` carried two unused specs (verified: zero code/test/doc refs, not auto-discovered — infra specs are applied by explicit path). Archived (not deleted) to `specs/.archive/2026-06-17-retired/` with a README:
