@@ -204,6 +204,9 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 │       ├── stages/
 │       │   └── verify.py            # Verification stage (post-deploy)
 ├── templates/                       # Project and document templates
+│   ├── modal/                       # Modal serverless Jinja2 App templates (Phase 3.5)
+│   │   ├── echo-handler.py.j2       # Minimum-cost smoke template — debian_slim + fastapi[standard]; rendered by ModalClient.create_endpoint()
+│   │   └── vllm-openai.py.j2        # vLLM-OpenAI serving template (@app.cls + @modal.fastapi_endpoint, sync mode); takes {model} HF id
 │   ├── file-worker/                 # File worker scaffold template
 │   │   └── worker/
 │   │       └── main.py              # Job processor (uses worker.logger)

@@ -30,7 +30,7 @@ Vast.ai is a **GPU marketplace**, not a managed cloud. Hosts (datacenters, gamin
 | Pricing | Fixed hourly (Secure) | Per-second flat rate | **Per-second**, host-set, market-driven | `estimate_cost()` uses approx floor prices (`HOURLY_USD_BY_PROVIDER["vast"]`); actual cost retrieved from instance metadata at destroy time |
 | Reliability tiers | Secure / Community | Single tier | **Verified / Unverified / Datacenter**, plus a per-machine **reliability score** (0.0–1.0) | Driver defaults search to `verified=true reliability>0.95` for safety |
 | Spot/preempt | N/A on Secure | Default for all functions (`nonpreemptible=True` to opt out, 3×, CPU-only) | **Interruptible** mode = bid against on-demand; gets paused when outbid | Driver uses on-demand by default; `--interruptible` flag opts in |
-| Serverless | Endpoints (pinned via env) | App + `@modal.asgi_app` + `modal deploy` | **Endpoints + WorkerGroups + PyWorker** (closest analog to RunPod) | Phase 2 stubs only — Phase 3 will wire `create_endpoint()` against `POST /api/v0/endptjobs/` |
+| Serverless | Endpoints (pinned via env) | App + `@modal.asgi_app` + `modal deploy` | **Endpoints + WorkerGroups + PyWorker** (closest analog to RunPod) | **Phase 3.5 shipped 2026-06-17.** `create_endpoint()` does the 2-step `POST /endptjobs/` + `POST /workergroups/`; `destroy_endpoint()` is idempotent on 404; `run_endpoint_sync()` does the two-phase route (`POST run.vast.ai/route/` → POST worker URL with auth_data); `list_endpoints()` tags fabrik-prefixed names with `FABRIK_SESSION_ID` for C4 reaper safety. Live-verified by LIVE-14 (endpoint+WG create→destroy) and LIVE-15 (vLLM workergroup recruiting + routing). |
 | SSH access | Built-in | Via Sandbox.exec() | **First-class** — direct (faster, requires open ports) or proxied | Driver creates pods with `--ssh --direct`, returns `ssh-url <instance_id>` for connect |
 | Persistence | Network volumes | Volumes (v2) | **Container disk** (lost on destroy) OR **Volume** (host-bound, survives destroy but not machine migration) | Driver tracks both via `container_disk_gb` + `volume_gb` kwargs |
 | Identity tag for reaper safety | `env`-injected `FABRIK_SESSION_ID` | `secrets=` + image env | `--env` flag at create | Driver injects `FABRIK_SESSION_ID` via `--env '-e FABRIK_SESSION_ID=<id>'` — same C4 tag-safety invariant |
@@ -787,15 +787,15 @@ Get keys at [cloud.vast.ai/manage-keys/](https://cloud.vast.ai/manage-keys/).
 - `GET /api/v0/endptjobs/` — list endpoints
 - `PUT /api/v0/endptjobs/<id>/` — update endpoint
 - `DELETE /api/v0/endptjobs/<id>/` — delete endpoint (cascades to WGs)
-- `POST /api/v0/autogroups/` — create workergroup
-- `GET /api/v0/autogroups/` — list WGs
-- `PUT /api/v0/autogroups/<id>/` — update WG
-- `DELETE /api/v0/autogroups/<id>/` — delete WG
+- `POST /api/v0/workergroups/` — create workergroup (**B4 fix 2026-06-17: v1 plan said `autogroups/`, real path is `workergroups/`** — verified live by LIVE-14)
+- `GET /api/v0/workergroups/` — list WGs
+- `PUT /api/v0/workergroups/<id>/` — update WG
+- `DELETE /api/v0/workergroups/<id>/` — delete WG
 - `GET /api/v0/deployments/` — list deployments
 - `POST /api/v0/deployments/<id>/start/` — start
 - `POST /api/v0/deployments/<id>/stop/` — stop
 - `GET /api/v0/endptjobs/<id>/logs/` — logs
-- `GET /api/v0/autogroups/<id>/logs/` — WG logs
+- `GET /api/v0/workergroups/<id>/logs/` — WG logs
 - `POST https://run.vast.ai/route/` — request worker assignment (note: different host)
 
 #### Billing
@@ -885,11 +885,30 @@ VAST_GPU_NAMES = {
 - Vast is also the fallback when RunPod doesn't carry the GPU (e.g. RTX 3090, A6000)
 - `needs_serverless=True` → **does NOT route to Vast yet** (Phase 3) — currently → RunPod
 
-### 13.4 Phase 3 expansion (not yet implemented)
-- `create_endpoint()` against `POST /api/v0/endptjobs/` with auto-managed WorkerGroup
-- Custom Fabrik PyWorker fork in `fabrik-lib/vast-pyworker/` reusable module
-- `fabrik gpu rent --provider vast --kind serverless --workergroup-template <hash>` end-to-end
+### 13.4 Phase 3.5 — shipped 2026-06-17 (commit `48b41ea` + `5a72cb4`)
+
+**Driver methods now wired** (`src/fabrik/drivers/vast_provider.py`):
+
+- `create_endpoint(template_id, name, gpu_type_ids, workers_min, workers_max, idle_timeout, model)` — `POST /endptjobs/` to create the autoscaling group, then `POST /workergroups/` to attach a workergroup. Resolves `template_id` (friendly name like `"vllm-openai"` or `"pytorch"`) to a `hash_id` via `_resolve_template_hash()`. Pinned hashes (verified live 2026-06-17, by `count_created` desc): `vllm-openai → f815ac7f2bf76828b3c9ec4b71f0af3c`; `pytorch → bd58805a634d6b17a2f28387afd0f05f`. Falls through to live `/template/` search on miss.
+- `destroy_endpoint(endpoint_id)` — `DELETE /endptjobs/<id>/`. Idempotent on 404 (returns cleanly without raising — verified by `test_vast_destroy_endpoint_idempotent_on_404`).
+- `run_endpoint_sync(endpoint_id, payload)` — two-phase: `POST run.vast.ai/route/` → returns `{url, signature, reqnum, cost}` → POST `<worker_url>/<handler>` with body `{"auth_data": {...}, "payload": payload}`.
+- `list_endpoints()` — `GET /endptjobs/`. Handles both response shapes verified live 2026-06-17: single GET returns `{"success": true, "result": {...}}` (singular `result`); list GET returns `{"success": true, "results": [...]}` (plural `results`). Synthesizes `FABRIK_SESSION_ID` env tag for endpoint names starting with `fabrik-gpu-` so the reaper's C4 tag-safety check identifies Fabrik-owned endpoints.
+- `_request()` honors 429 `retry_after` per Vast's rate-limit response (5 req/s on `/template/`).
+
+**Live-verified API quirks** (recorded so future maintainers don't re-discover):
+- Endpoint create response: `{"success": true, "result": <id>}` (NOT `endpoint_id` or `id` as the OpenAPI spec suggested)
+- Workergroup create response: same `{"success": true, "result": <id>}` envelope
+- Workergroup endpoint path is `/workergroups/` (NOT `/autogroups/` — B4 from plan iteration 2)
+- Template hash field is `hash_id`, not `hash` (R7 from plan iteration 4)
+- Single GET singular `result`, list GET plural `results`
+
+**Live gates passed:** LIVE-14 endpoint+WG create→destroy ($0); LIVE-15 vLLM workergroup recruiting + routing API confirmed ($0); LIVE-16 cross-provider reconcile (foreign_count untouched); LIVE-17 tag-safe orphan cleanup; LIVE-18 `--provider auto` routes correctly.
+
+### 13.5 Phase 4 expansion (still not implemented — backlog)
+
+- Custom Fabrik PyWorker fork in `fabrik-lib/vast-pyworker/` reusable module (for non-vLLM payload shapes)
 - Cost telemetry: hook into endpoint logs API to track per-request cost vs RunPod / Modal serverless
+- Worker recruitment polling/timeout configurability via CLI (LIVE-15 showed marketplace workers can take >3min to recruit)
 
 ---
 

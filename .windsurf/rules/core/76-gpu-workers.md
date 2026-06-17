@@ -26,7 +26,7 @@ GPU services are **two-faced** like mobile-app and chrome-extension:
 | **Orchestrator** (API gateway + job dispatch) | VPS via `fabrik apply` | Standard Fabrik `python-api` scaffold — Dockerfile, compose, Traefik, registrars | `10-python.md`, `30-ops.md`, `55-observability.md`, `58-resilience.md`, `75-workers-jobs.md` |
 | **GPU Worker** (inference / training / fine-tuning) | External GPU cloud (RunPod, Modal, Vast.ai) or managed API (Together, Groq) | Provider API — NOT the Fabrik VPS (it has no GPU) | This file |
 
-- The **orchestrator** is a standard Fabrik service: `postgres-main:5432`, `redis-main:6379`, structlog, `/health`, `/metrics`, GlitchTip, Traefik labels, `deploy.resources.limits.memory`, `slim-bookworm`, `coolify` network. All `30-ops.md` rules apply.
+- The **orchestrator** is a standard Fabrik service: `postgres-main:5432`, `redis-main:6379`, structlog, `/health`, `/metrics`, GlitchTip, Traefik labels, `deploy.resources.limits.memory`, `slim-bookworm`, `fabrik` network. All `30-ops.md` rules apply.
 - The **GPU worker** is external. The orchestrator calls it via provider API (RunPod endpoint, Modal function, Together/Groq `/v1/chat/completions`).
 - The orchestrator owns the job queue (PG `SKIP LOCKED` per `75-workers-jobs.md`). Async/batch GPU requests are jobs. Real-time streaming requests bypass the queue and call the provider directly with timeout + fallback.
 
@@ -501,7 +501,7 @@ Until the spec block above is implemented (Phase 6 work), services declare GPU u
 
 ### Orchestrator (Fabrik service on VPS)
 
-- [ ] Standard `python-api` scaffold: Dockerfile (`slim-bookworm`), compose (Traefik, resource limits, `coolify` network).
+- [ ] Standard `python-api` scaffold: Dockerfile (`slim-bookworm`), compose (Traefik, resource limits, `fabrik` network).
 - [ ] `/health` verifies DB + Redis + at least one inference provider reachable.
 - [ ] `/metrics` exposes `inference_requests_total`, `inference_latency_seconds`, `inference_tokens_total`, `inference_cost_usd_total`.
 - [ ] Structured logging via `structlog` — no `print()`. Every inference call logged with provider, model, tokens, cost.

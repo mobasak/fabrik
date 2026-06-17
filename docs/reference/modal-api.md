@@ -28,7 +28,7 @@
 | Container image | Docker registry image | `modal.Image` builder chain (`debian_slim().pip_install(...).run_commands(...)`) | Driver uses `modal.Image.debian_slim(python_version="3.12").env(env)` as a minimal MVP. Workload-specific images are a Phase 3 task. |
 | Cold start | 10s–90s, FlashBoot reduces re-warm | Sub-4s typical with memory snapshots; 30–60s without | `selection_advice()` rewards Modal more heavily as `hours` shrinks. |
 | Billing | Hourly (rounded up) on Secure pods | Per-second, no rounding | `estimate_cost()` rounds UP to whole hours for parity — over-estimates on Modal but never under. |
-| Serverless | Endpoints (we pin one via `RUNPOD_SERVERLESS_ENDPOINT_ID`) | `@modal.fastapi_endpoint()` / `@modal.asgi_app()` deployed via `modal deploy` | Driver's `create_endpoint()`/`destroy_endpoint()`/`run_endpoint_sync()` are stubs that raise `NotImplementedError` — Phase 3 work because Modal serverless requires an operator-provided App definition file. |
+| Serverless | Endpoints (we pin one via `RUNPOD_SERVERLESS_ENDPOINT_ID`) | `@modal.fastapi_endpoint()` / `@modal.asgi_app()` deployed via `modal deploy` | **Phase 3.5 (2026-06-17): fully wired.** `create_endpoint()` renders `templates/modal/<template_id>.py.j2` and calls `app.deploy()` programmatically; `destroy_endpoint()` shells `modal app stop --yes <id>` (no SDK method in 1.5.0); `list_endpoints()` shells `modal app list --json` + filters by `fabrik-gpu-` prefix tag. LIVE-12 PASS, LIVE-13 lifecycle PASS (vLLM inference timed out on cold load — not a lifecycle bug). |
 | GPU API | REST `POST /pods` | SDK `app.function(gpu="H100").spawn()` | The "control plane" is the SDK itself; no HTTP layer to retry on 5xx (vs runpod.py's `_request()` retry loop). SDK exceptions wrap into `ModalError(cause=...)`. |
 
 **Implication:** for the operator running `fabrik gpu rent --provider modal --kind pod-h100 -- work_fn`, the driver does the right thing for one-shot rentals. But if you want **persistent Modal infrastructure** (deployed FastAPI app, scheduled cron, daemon-style worker), you operate Modal **directly** (Python file + `modal deploy`) rather than through `fabrik gpu`. Treat `fabrik gpu rent --provider modal` as "burst compute" and `modal deploy` as "Modal as a deploy target."
@@ -831,7 +831,7 @@ except modal.exception.FunctionTimeoutError:
     fc2.cancel()
 ```
 
-This is the integration shape if Fabrik wants Modal-deployed inference behind `fabrik gpu rent --provider modal --kind serverless` — Phase 3 work.
+This is the integration shape used by Phase 3.5 (`fabrik gpu rent --kind serverless --provider modal --template <name>` shipped 2026-06-17).
 
 ---
 
@@ -885,7 +885,11 @@ Below the break-even utilization rate, Modal wins on net cost because of per-sec
 - `wait_for_running()`: no-op (returns `{"id": pod_id, "desiredStatus": "RUNNING"}` synchronously). Modal hydrates functions on entering `app.run()` so spawn returns when ready; the container may still be cold-starting but Modal's per-second billing only charges active time.
 - `get_pod(pod_id)`: tries `FunctionCall.from_id(pod_id)` and maps `fc.finalized()` to `EXITED` vs `RUNNING`. Best-effort — Modal doesn't expose a stable per-FC poll API.
 - `list_pods()`: returns `[]` — Modal has no global "list my containers" API. Inventory lives in `data/gpu-rent-state.json` + tag-scoped reaper (see §21.5).
-- `create_endpoint()` / `run_endpoint_sync()` / `billing_*`: stubs that raise `NotImplementedError`. Phase 3 work.
+- `create_endpoint()`: **Phase 3.5 shipped 2026-06-17.** Renders `templates/modal/<template_id>.py.j2` via Jinja2 → loads as Python module via `importlib.util` → calls `app.deploy(name=name)` → discovers web URL via `app.registered_classes` + `modal.Cls.from_name(app, cls).<method>.get_web_url()` (class-method endpoints require Cls instantiation in 1.5.0).
+- `destroy_endpoint()`: shells `subprocess.run(["modal", "app", "stop", "--yes", endpoint_id], env={...token...})`. The `--yes` flag is mandatory for non-interactive (no TTY). Idempotent on "already stopped" / "not found" / "no such app" stderr messages.
+- `list_endpoints()`: shells `modal app list --json` (no SDK `list_apps` import in 1.5.0). Filters out `state=stopped`. Synthesizes `FABRIK_SESSION_ID` env tag for `fabrik-gpu-*` named apps so the reaper's C4 tag-safety check identifies Fabrik-owned apps.
+- `run_endpoint_sync()`: POSTs to the deployed `_endpoint_url` via `httpx`. Use `follow_redirects=True` for class-method endpoints (Modal's async pattern issues 303 → polling URL).
+- `billing_*`: still stubs — Modal billing isn't SDK-exposed in 1.5.0; cost is computed by the orchestrator from wall-clock × hourly rate.
 
 **Module-level holder** (the key piece):
 
