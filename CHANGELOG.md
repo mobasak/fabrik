@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — archived 6 dead Coolify-era / retired-tool scripts (2026-06-17)
+
+Verified 100% dead (no live imports, not invoked by CI/Makefile/cron/startup hooks, only referenced from `docs/archive/**` + CHANGELOG history), then archived (not deleted) to `scripts/.archive/2026-06-17-coolify-era-cleanup/` with a README: `setup_duplicati_backup.py` + `duplicati-vps-backup.json` (Duplicati → Backrest 2026-04-17), `setup_uptime_kuma.py` + `delete_uptime_kuma.py` (Uptime Kuma → Gatus), `coolify_services_f5.py` (Coolify decommissioned 2026-05-30), `migrate-authelia-to-coolify.sh` (one-time migration into the now-removed Coolify). `scripts/` top level no longer carries removed-tool scripts.
+
 ### Fixed — scripts/provision_grafana.sh used the dead `coolify` network (2026-06-17)
 
 `scripts/provision_grafana.sh` resolved the Grafana IP and ran its curl helper on `--network coolify` (4 spots) — that network no longer exists (live is `fabrik`), so the script would fail. Renamed to `fabrik`. (Found while sweeping the executable surface — `scripts/`, `.kilo/`, `.github/`, `enforcement/`. Several dead one-time/migration scripts for retired tools remain — `setup_duplicati_backup.py`, `setup_uptime_kuma.py`, `delete_uptime_kuma.py`, `coolify_services_f5.py`, `migrate-authelia-to-coolify.sh`, `duplicati-vps-backup.json`, and the Coolify-querying parts of `update_vps_docs.py` — left in place: they're not imported by live code, can't be cleanly edited (the `.py` ones trip the gate's print-ban on existing `print()`s), and weren't created here, so they're surfaced for an explicit delete/keep decision rather than silently removed.)
