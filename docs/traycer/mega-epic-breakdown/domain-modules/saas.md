@@ -61,12 +61,13 @@ Reference `.windsurf/rules/saas/95-multi-tenant-saas.md` for implementation deta
 
 - **Tenancy:** shared postgres-main + `tenant_id` + Supabase RLS. DB-per-tenant only if contractually required.
 - **Identity/org:** Supabase Auth (users) + org/role/invite model; Authelia for back-office only.
-- **Billing+gating:** plan-to-feature gating matrix exists *before* features. Paddle (MoR, only path).
+- **Billing+gating:** plan-to-feature gating matrix exists *before* features. **Provider picked by target market** per `.windsurf/rules/core/85-payments-billing.md` § Payment Providers: **Paddle Billing v2 (MoR)** for international, **iyzico** for Turkish domestic, **both** when serving both markets (BIN-based card routing). Stripe is unavailable to a Turkey-resident entity — do NOT plan around it.
 - **Metering:** redis-main counters reconciled to postgres-main for billing-grade truth. Never bill off Redis alone.
 - **Isolation+audit:** RLS/tenant-scope enforced in one place; audit log + soft-delete + per-tenant export.
 - **Activation event:** the one action = "got value," instrumented from commit #1.
+- **Abuse prevention (LAUNCH-BLOCKING per `.windsurf/rules/saas/88-saas-launch-checklist.md` § Abuse Prevention + the full spec in `saas/87-abuse-detection.md`).** Free tiers attract abuse — without these, the free tier bleeds revenue. Phase 1 items are non-negotiable at launch: (1) store `registration_ip` (INET) + `registration_fingerprint` (VARCHAR 64) on the users table; (2) IP rate limit — max **2 registrations per IP / 24h**; (3) disposable-email blocklist (~5,000 domains, `data/disposable-email-domains.txt`) rejected on registration; (4) email verification required **before quota/credits activate** — never grant on signup alone; (5) progressive quota unlock (**30% immediate, 70% after 24h delay**) — defeats bot-farm automation; (6) client-side FingerprintJS open-source on registration, hash stored server-side. PLUS **per-tenant API rate limiting** (key by `tenant_id`, NOT user/IP; default limits in `plan_features` table; applied at middleware before business logic) — required to prevent noisy-neighbor.
 
-**Why now:** each is irreversible at the schema/auth level — retrofit = rewrite.
+**Why now:** each is irreversible at the schema/auth level — retrofit = rewrite. Abuse columns + rate-limit middleware in particular are launch-blocking; bolting them on after launch means rewriting registration and a quota-audit migration.
 
 #### 5. Integrations / Ecosystem
 
@@ -197,7 +198,7 @@ When decomposing a SaaS vision into epics, these dimensions shape boundaries:
 Every SaaS mega-epic MUST have dedicated coverage for:
 
 | Dimension | Epic boundary rule |
-|---|---|
+| --- | --- |
 | §4 Tenancy + Auth + Org model | Foundation epic (Epic 1) — schema, RLS, auth, org/invite. Everything else depends on this. |
 | §4 Billing + Gating | Own epic or explicitly assigned. Plan-to-feature matrix must exist before feature epics start. |
 | §5 Wedge integration | Own epic if complex; otherwise bundled with the core workflow epic. |
@@ -296,10 +297,10 @@ When Traycer creates full ticket specs and agent execution plans for a SaaS epic
 For every ticket, check which dimensions apply and inject into Acceptance Criteria and Context Files:
 
 | If ticket touches... | Inject |
-|---|---|
+| --- | --- |
 | Database schema | `tenant_id` on every tenant-scoped table; RLS policy; reference `95-multi-tenant-saas.md` |
-| Auth / signup | Supabase Auth config; org/role/invite model; activation event instrumentation |
-| Any API endpoint | Tenant-scoped queries only (never cross-tenant); correlation IDs; rate limiting per tenant |
+| Auth / signup / registration | Supabase Auth config; org/role/invite model; activation event instrumentation; **abuse-prevention Phase 1 (LAUNCH-BLOCKING)** — `registration_ip` + `registration_fingerprint` columns, IP rate limit (2/IP/24h), disposable-email blocklist, email verification before quota grant, progressive unlock (30% / 70% @ 24h), FingerprintJS open-source. Reference `87-abuse-detection.md` |
+| Any API endpoint | Tenant-scoped queries only (never cross-tenant); correlation IDs; **per-tenant** rate limiting (key by `tenant_id`, NOT user/IP; default limits in `plan_features`) |
 | Billing / subscription | Plan-to-feature gating check; Paddle webhook handler; BIN-based card routing (reference `88-saas-launch-checklist.md`) |
 | Usage metering | Redis counter + postgres-main reconciliation; never bill off Redis alone |
 | User-facing UI | 5 UI states; i18n (en + tr); Ocoron Design System; reference `60-saas-ui.md` |
@@ -319,6 +320,8 @@ Every SaaS ticket's Context Files section must include (in addition to category-
 .windsurf/rules/saas/95-multi-tenant-saas.md    — tenant isolation patterns
 .windsurf/rules/saas/88-saas-launch-checklist.md — launch-blocking checks
 .windsurf/rules/saas/60-saas-ui.md              — UI patterns (if frontend ticket)
+.windsurf/rules/saas/87-abuse-detection.md      — 4-layer anti-abuse playbook (if ticket touches registration, auth, signup, or quota)
+.windsurf/rules/core/85-payments-billing.md     — Paddle/iyzico provider rules (if billing ticket)
 .windsurf/rules/core/86-email-templates.md      — email/push/notification templates (if ticket creates or edits templates)
 ```
 
