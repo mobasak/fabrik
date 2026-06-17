@@ -1,0 +1,34 @@
+{
+  "expo": {
+    "name": "mobile-app",
+    "slug": "mobile-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "mobileapp",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.ocoron.mobileapp"
+    },
+    "android": {
+      "package": "com.ocoron.mobileapp"
+    },
+    "plugins": [
+      "expo-secure-store",
+      "expo-localization",
+      [
+        "@sentry/react-native/expo",
+        {
+          "organization": "ocoron",
+          "project": "mobile-app"
+        }
+      ],
+      "@sentry/react-native"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": ""
+      }
+    }
+  }
+}

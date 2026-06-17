@@ -29,7 +29,9 @@ export const useFiles = (authToken: string, status?: string): UseFilesResult => 
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to fetch files';
       setError(errorMessage);
-      console.error('Fetch files error:', err);
+      if (__DEV__) {
+        console.error('Fetch files error:', err);
+      }
     } finally {
       setLoading(false);
     }

@@ -43,7 +43,9 @@ export const useFileUpload = (authToken: string): UseFileUploadResult => {
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Upload failed';
       setError(errorMessage);
-      console.error('Mobile upload error:', err);
+      if (__DEV__) {
+        console.error('Mobile upload error:', err);
+      }
       throw err;
     } finally {
       setIsUploading(false);

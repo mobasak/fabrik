@@ -4,8 +4,8 @@
  */
 import { FileMetadata, UploadResponse, DownloadResponse, ListFilesResponse } from '../types';
 
-// TODO: Replace with actual VPS domain from env
-const API_BASE = process.env.API_BASE_URL || 'https://api.your-vps.com/api/files';
+// Expo inlines EXPO_PUBLIC_* into the bundle at build time.
+const API_BASE = process.env.EXPO_PUBLIC_API_BASE_URL || 'https://api.your-vps.com/api/files';
 
 export const fileService = {
   /**

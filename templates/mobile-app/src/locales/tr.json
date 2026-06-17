@@ -1,0 +1,14 @@
+{
+  "appName": "Mobil Uygulama",
+  "files": {
+    "title": "Dosyalarım",
+    "uploadTitle": "Yeni Dosya Yükle",
+    "details": "Dosya Ayrıntıları",
+    "selectFile": "Belge veya Görsel Seç",
+    "startUpload": "Yüklemeyi Başlat",
+    "uploading": "Yükleniyor...",
+    "cancel": "İptal",
+    "uploadSuccess": "Dosya başarıyla yüklendi",
+    "uploadFailed": "Yükleme başarısız — lütfen tekrar deneyin"
+  }
+}

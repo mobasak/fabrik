@@ -1,113 +1,93 @@
 # {{ spec.name }} Mobile App - Agent Briefing
 
 > Instructions for AI coding agents (Windsurf Cascade, Kilo CLI, etc.)
+> Client lane rules: `.windsurf/rules/mobile-app/80-mobile.md`. Backend (python-api +
+> Supabase) rules: `10-python.md`, `30-ops.md`, `55-observability.md`.
+
+## Stack (Expo SDK 55, New Architecture)
+
+- **Expo SDK 55** managed workflow, React 19, React Native 0.81 — New Architecture
+  (Fabric/JSI) is mandatory; never write legacy-bridge-dependent code.
+- **Navigation:** React Navigation v7 (`@react-navigation/native` + native-stack;
+  add bottom-tabs for top-level destinations).
+- **Server state:** TanStack React Query (`src/lib/queryClient.ts`) — never call the
+  API from a screen; wrap it in a typed hook.
+- **Storage:** `react-native-mmkv` for fast non-sensitive KV; `expo-secure-store` for
+  JWTs/tokens (never MMKV/AsyncStorage). See `src/lib/storage.ts`.
+- **i18n:** `i18next` + `expo-localization` (en, tr from day 1) — `src/lib/i18n.ts`.
+  No hardcoded user-facing strings.
+- **Crash reporting:** `@sentry/react-native` — `src/lib/sentry.ts` (DSN via
+  `EXPO_PUBLIC_SENTRY_DSN`).
+- **Styling:** `StyleSheet.create` + Ocoron tokens (`src/theme/tokens.ts`) — no raw
+  hex in components. Upgrade to `react-native-unistyles` for dynamic theming.
+- **Billing:** RevenueCat (see `81-mobile-billing.md`).
 
 ## Mandatory Workflow
 
-**Before any commit, you MUST pass the Final Gate:**
 ```bash
-python scripts/final_gate.py
-```
-
-## Planning Rules
-
-All plans in `docs/development/plans/` MUST include the **One-Test Rule**:
-- **Why:** High-leverage risk coverage (e.g., Metro Bundler Configuration, R2 Upload Orchestration)
-- **Contract:** Given/When/Then with explicit mocked vs. real components
-- **Example:** "Given a fresh clone, the Metro Bundler must successfully build the JS bundle for Android without dependency errors"
-
-## Development Environment
-
-**Integrated Android Studio + WSL Setup:**
-- Engine (Windows Host): Android Studio Panda2 for SDK Manager and AVD emulators
-- Workspace (WSL/Windsurf): Code and AI agents live here
-- VPS (Ubuntu x86_64): Distribution & CI server for automated testing and APK versioning
-
-**Verify Android SDK bridge:**
-```bash
-python scripts/enforcement/check_android_env.py
+python scripts/final_gate.py    # before any commit
 ```
 
 ## Build & Test
 
 ```bash
-# Install dependencies
 npm install
-
-# Run Metro bundler
-npm start
-
-# Android (requires Android SDK in Windows)
-npm run android
-
-# iOS (requires macOS)
-npm run ios
-
-# Tests
-npm test
-
-# Lint
+npm start                       # expo start (Metro)
+npm run ios                     # expo run:ios   (dev build; macOS)
+npm run android                 # expo run:android (dev build)
+npm run typecheck               # tsc --noEmit
+npm test                        # jest-expo
 npm run lint
-
-# Final gate check
-npm run gate
+npx expo export --platform ios  # verify the JS bundle builds (CI-friendly)
 ```
 
-## Clean Architecture Structure
+**Production binaries: EAS only** — `eas build --profile production` (iOS + Android).
+Profiles live in `eas.json` (development / preview / production). No local
+Xcode/Android-Studio release builds. Submit via `eas submit`.
+
+> First EAS build needs `assets/icon.png` + a splash (template ships no binaries),
+> and an EAS `projectId` in `app.json` (`eas init`).
+
+## Project Structure
 
 ```
 src/
-├── api/              # Data Layer: API clients (Supabase, S3)
-├── assets/           # Static files: Images, fonts, icons
-├── components/       # Presentation Layer: Global UI primitives
-├── core/             # Shared Layer: Constants, themes, configuration
-├── features/         # Domain Layer: Feature-based modules
-│   └── files/        # Example feature directory
-│       ├── components/  # Feature-specific UI
-│       ├── hooks/       # Feature-specific logic (Data fetching, State)
-│       ├── screens/     # High-level screen components
-│       ├── services/    # Business logic / Use cases
-│       └── types.ts     # Feature-specific TypeScript interfaces
-├── navigation/       # Routing: Stack and Tab navigators
-├── store/            # Global State: Context providers or Zustand/Redux
-└── utils/            # Helper functions: Formatters, validators
+├── App.tsx           # Providers: Sentry → SafeArea → React Query → Navigation
+├── lib/              # i18n, queryClient, sentry, storage (MMKV + secure-store)
+├── theme/            # Ocoron design tokens
+├── locales/          # en.json, tr.json (source-of-truth strings)
+├── navigation/       # React Navigation stacks/tabs + type-safe param lists
+└── features/         # Feature-based modules (e.g. files/: screens, hooks, services)
 ```
 
-## Step 2.5 Internal Audit (Mobile-Specific)
+## Internal Audit (Mobile-Specific)
 
-Before Kilo Review, verify:
-- [ ] **Strict Typing:** All navigation parameters and API responses explicitly typed
-- [ ] **Hook Isolation:** Complex screen logic moved into custom hooks (e.g., `useFileUpload`)
-- [ ] **Native Module Bloat:** No unnecessary native dependencies
-- [ ] **Permission Over-privilege:** Request only necessary Android/iOS permissions
-- [ ] **Metro Bundler:** Test bundle generation with `npx react-native bundle`
+- [ ] **Strict typing:** navigation params + API responses explicitly typed.
+- [ ] **Hook isolation:** screen logic in custom hooks (e.g. `useFileUpload`).
+- [ ] **No web DOM** (`<div>`/`<span>`): React Native primitives only.
+- [ ] **`FlatList`/`FlashList`** for dynamic lists — never `<ScrollView>` + `.map()`.
+- [ ] **JWTs in `expo-secure-store`**, never MMKV/AsyncStorage.
+- [ ] **No hardcoded strings** — run `python scripts/validate_i18n.py`.
+- [ ] **No raw hex** — use `src/theme/tokens.ts`.
 
-## Security
-
-- No hardcoded API keys or tokens
-- Use environment variables for all config
-- Validate all user inputs before API calls
-- Run as non-root user in production containers
-
-## Mobile One-Test Rule Example
+## One-Test Rule Example
 
 ```markdown
 ## One-Test Rule
 
-**Why:** The biggest risk in automated mobile deployment is a broken Metro Bundler 
-configuration or native module mismatch.
+**Why:** The biggest risk is a broken bundle / native module mismatch.
 
 **Contract:**
-- **Given:** A fresh environment with the current package.json
-- **When:** The agent executes `npx react-native bundle --platform android --dev false`
-- **Then:** It must produce a valid index.bundle without syntax or dependency errors
-- **Mocked:** Native hardware APIs (Camera, GPS, etc.)
-- **Real:** Metro bundler, TypeScript compiler, React Native packager
+- **Given:** a fresh clone with the current package.json
+- **When:** the agent runs `npx expo export --platform ios`
+- **Then:** it must produce a valid JS bundle with no resolution/type errors
+- **Mocked:** native hardware APIs (camera, GPS)
+- **Real:** Metro bundler, TypeScript compiler, Expo CLI
 ```
 
 ## Conventions
 
-- **Feature-based modules:** Keep related code together in `src/features/*`
-- **Type-safe navigation:** All routes defined in `src/navigation/types.ts`
-- **Custom hooks:** Extract complex logic from screens
-- **No "Massive Component" syndrome:** Max 200 lines per screen component
+- **Feature-based modules:** related code together in `src/features/*`.
+- **Type-safe navigation:** routes in `src/navigation/types.ts`.
+- **Custom hooks:** extract complex logic from screens (max ~200 lines/screen).
+- **No hardcoded secrets:** `EXPO_PUBLIC_*` for client-safe config only.
