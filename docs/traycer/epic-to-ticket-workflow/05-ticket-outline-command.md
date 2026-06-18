@@ -42,6 +42,15 @@ Read (in order):
 
 **Two-faced types** (`chrome-extension`, `mobile-app`, `desktop-app`): tickets split into backend lane (deploys to VPS) and client lane (builds locally / ships to store). These lanes are naturally parallel.
 
+**Multi-epic dispatch mode (from `mega-epic-breakdown`):** If this command was invoked downstream of `mega-epic-breakdown/05-dispatch-epic-tickets-command` (i.e., `epic-to-ticket-workflow/00-trigger-workflow-command` ran in **consume mode** per its L77), additional rules apply:
+
+- **14-field Metadata** is inherited verbatim from the dispatched epic ticket: Scaffold, Port, Shape, Concurrency, i18n, Responsive, Dark+Light, Rule Packs, HAS_USER_GUIDE, Registrars, Universal categories, Abuse Detection, Email, FINANCIALS. Carry forward to every ticket Metadata field; do NOT re-derive.
+- **Universal categories** (1–14, comma-separated, inherited from the ticket's Metadata field per `mega-epic-breakdown/02-epic-decomposition-command` sub-step 2h) constrain the scope of THIS outline: only the categories this epic owns may yield tickets; categories owned by sibling epics are out-of-scope and become `Out of Scope` lines on every ticket that might touch them.
+- **Epic flavour** is determined by the ticket Title prefix from `mega-epic-breakdown/03-expand-epic-files-command`:
+  - **Delta-feature epic** (Title `Epic N — <feature area>`) → default behaviour, target 8–12 tickets for a 5-8 Success Criteria epic.
+  - **Retrofit epic** (Title `Epic N — Retrofit: <area>`, e.g. `Retrofit: i18n`, `Retrofit: Resilience on YouTube Data API`) → smaller outline, target **3–5 tickets** for a 3–5 Success Criteria retrofit; DO NOT pad to delta-feature size. Epic Closure ticket is **OPTIONAL** for Retrofit epics — only include if the retrofit genuinely needs a project-wide systemic gate (most retrofits are scoped to one rule-pack area and the gate is inherited from the parent project's last delta-feature epic closure).
+- **Out of Scope (vision level)** — every ticket inherits `mega-epic-breakdown/00-trigger-workflow-command` Vision Summary § Out of Scope. Tickets that would touch a vision-level exclusion are NOT allowed; raise this back to mega-epic-breakdown via `revise-requirements`.
+
 ### Step 2: Identify Work Units + Parallel Lanes
 
 Group by component, layer, or flow — then **optimize for parallelism:**
@@ -91,7 +100,7 @@ Before drafting, check which categories apply to this project. Every applicable 
 | **Internal API Consumption** | INFRA-CHECK `Internal APIs ≠ none` | M2M auth (`X-Internal-Token`), client wrappers with timeout/retry/circuit-breaker | `35-security-auth` + `core/58-resilience` |
 | **External Service Integration** | Any external dep (Supabase, Backblaze, Paddle, Cloudflare, Gotenberg, Browserless, SMTP) | Client setup, credential config, resilience per dep, fallback, vendor balance checks | `core/58-resilience` |
 | **Background Workers** | file-worker, file-api, any async processing | Queue consumer (PG `SKIP LOCKED` or Redis), idempotency keys, retry/backoff, dead-letter, orphan sweep | `75-workers-jobs` |
-| **GUI / Frontend** | saas-skeleton, static-site, chrome-extension, mobile-app, desktop-app | Components, pages, state management, routing, 5 UI states, Ocoron design system | `saas/60-saas-ui` / `70-chrome-ext` / `80-mobile` |
+| **GUI / Frontend** | Any scaffold exposing a user/admin GUI surface — saas-skeleton, static-site, docusaurus front, chrome-extension popup, mobile-app, desktop-app, AND python-api/node-api/file-api when `shape.is_admin_dashboard: true` OR `shape.is_public: true` with HTML output (feature-trigger per `mega-epic-breakdown/00-trigger-workflow-command` § Rule-area applicability matrix — NOT scaffold-type-gated). Brings i18n + Responsive (375px floor) + Dark+Light mandates with it. | Components, pages, state management, routing, 5 UI states, Ocoron design system | `saas/60-saas-ui` / `70-chrome-ext` / `80-mobile` |
 | **i18n Setup** | INFRA-CHECK `i18n ≠ N/A` | Locale files (en + tr), language switcher, locale-aware formatting (dates/numbers/plurals), fallback chain | (from tech-plan Step 4d) |
 | **Auth & Security** | Any user-facing or admin-dashboard service | Login/signup, session management (Redis), Authelia forward-auth, M2M tokens, CORS, CSP | `35-security-auth` |
 | **Observability Configuration** | ALL scaffolds (non-negotiable) | Configure pre-scaffolded logging (structlog/pino already emitted by scaffold), add correlation IDs to new endpoints, configure GlitchTip DSN, add custom business metrics beyond scaffold defaults. **Do NOT create logger/metrics modules from scratch — scaffold already emits them.** | `55-observability` |
@@ -110,7 +119,12 @@ Before drafting, check which categories apply to this project. Every applicable 
 | **Kilo Integration** | Ticket involves calling Kilo CLI programmatically or adding new Kilo use cases | Liveness monitoring, JSONL parsing, retry patterns, model routing, cost tracking | `docs/reference/kilo/KILO_CLI_REFERENCE.md` + `docs/reference/kilo/KILO_USE_CASES.md` |
 | **Testing** | ALL (one integration test per PRIMARY PATH) | Test setup (fixtures, factories), integration test per primary path, regression tests for bugfixes | `45-testing-strategy` |
 | **Documentation** | ALL (per Documentation Sync Matrix) | Fill scaffolded doc templates assigned in Step 6b | `40-documentation` + `docs/reference/MD/markdown-cheatsheet.md` |
-| **Epic Closure** | ALL (always last ticket) | Tier 3 systemic gate, `fabrik verify`, `fabrik audit-registrars`, full validation | (cross-cutting) |
+| **Audit log (tenant-scoped, immutable)** | Any service writing sensitive ops (auth events, billing mutations, admin actions, GDPR data-rights flows, KVKK destruction trail) — applies regardless of scaffold type | Hash-chained audit table per `core/app-audit-log.md` (vendored `/opt/fabrik-lib/app-audit-log/`), `prev_hash` + `current_hash` columns via BEFORE INSERT trigger, quarterly `verify_chain()` schedule | `core/app-audit-log.md` |
+| **Watchdog sidecar + cost-budget** | Any service calling paid LLM APIs in an unattended loop / scheduled job / re-fire-without-approval flow (per `mega-epic-breakdown/00-trigger-workflow-command` N3i #19) | Watchdog sidecar opt-in (per-spec `watchdog: { enabled: true }`), `daily_budget_usd` + `daily_invocations_cap` caps, vendored `/opt/fabrik-lib/cost-budget/` with `record_cost()` writes to `fabrik_analytics.cost_ledger` | `core/60-watchdog.md` + `core/cost-budget.md` |
+| **KVKK / GDPR data residency** | Any service storing user PII or file blobs (TR-resident operator default; international cross-border opt-out) | Supabase region `eu-central-1` (Frankfurt) default, `file_erasure_audit` hash-chained table with 3-year retention (file-api), Article 11 hard-delete sweeper ≤6-month interval, telemetry opt-in only | `core/67-file-api.md` + `mobile-app/80-mobile.md` + `desktop-app/72-desktop.md` |
+| **Email two-stream (transactional ↔ marketing)** | Any service that sends both transactional AND marketing email | Separate streams on separate subdomains (mail.<domain> vs news.<domain>), Resend transactional + Listmonk/SES marketing at scale, MJML+Jinja2 templates | `core/86-email-templates.md` |
+| **Abuse detection (SaaS free-tier signup gating)** | saas-skeleton OR any scaffold with a free-tier signup surface (independent of "Auth & Security" category which covers session management only) | IP rate limit, disposable email block (kickbox API), progressive unlock, captcha escalation for repeat offenders | `saas/87-abuse-detection.md` |
+| **Epic Closure** | Delta-feature epics: ALL (always last ticket). Retrofit epics: OPTIONAL — only include if the retrofit genuinely needs a project-wide systemic gate; most retrofits inherit closure from the parent project's prior delta-feature closure. | Tier 3 systemic gate, `fabrik verify`, `fabrik audit-registrars`, full validation | (cross-cutting) |
 
 **What the scaffold already provides (do NOT ticket these from scratch):**
 
@@ -253,8 +267,9 @@ Every scaffolded doc template MUST be assigned to exactly one ticket. Build the 
 | `docs/DEPLOYMENT_ARCHITECTURE.md` | T? | Deploy Plan |
 | `docs/RESILIENCE.md` | T? | Tech Plan resilience table |
 | `docs/DATABASE_SCHEMA.md` | T? | Tech Plan Data Model |
-| `docs/TROUBLESHOOTING.md` | T? | Integration/closure ticket |
-| `docs/BUSINESS_MODEL.md` | T? | Epic Brief (if commercial) |
+| `docs/TROUBLESHOOTING.md` | T? | Closure ticket (Epic Closure for delta-feature epics; OR the specific deploy-integration ticket for Retrofit epics that skip Epic Closure) |
+| `docs/BUSINESS_MODEL.md` | T? | Epic Brief (only for commercial projects with per-project business model — distinct from FINANCIALS.md below) |
+| `docs/FINANCIALS.md` | T? | SaaS launch-gate doc per `saas/88-saas-launch-checklist.md` — required when `Metadata.FINANCIALS: required` (SaaS scaffold pre-launch); N/A otherwise. Filled by the ticket that wires the billing integration (Paddle / iyzico / RevenueCat). |
 
 Rules:
 - Docs are filled BY the ticket that implements the related functionality (not a separate "docs ticket").
