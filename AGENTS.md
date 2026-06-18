@@ -18,7 +18,7 @@
 | 3   | **Planning**          | mega-epic-breakdown (5 commands: 00-trigger, 02-05)                                          | Large vision → epics → tickets → dispatch. `00-trigger` is a single entry point serving both new and existing projects via owner-declared mode (Step 0).                                                                |
 | 4   | **Planning**          | epic-to-ticket-workflow (00-11)                                                                          | Single-epic planning + execution. Also the execution engine per epic after mega-epic dispatch.                                                                                                                          |
 | 5   | **Governance**        | `AGENTS.md` / `CLAUDE.md` / `.windsurfrules` / `AGENTS-compact.md` / `opencode.json`        | Agent bootstraps (5 files)                                                                                                                                                                                             |
-| 6   | **Rules**             | `.windsurf/rules/**/*.md`                                                                    | 35 domain discipline packs (25 `core/` · 4 `saas/` · 5 `mobile-app/` · 1 `chrome-ext/`)                                                                                                                                |
+| 6   | **Rules**             | `.windsurf/rules/**/*.md`                                                                    | 38 domain discipline packs (27 `core/` · 4 `saas/` · 5 `mobile-app/` · 1 `chrome-ext/` · 1 `desktop-app/`)                                                                                                              |
 | 7   | **Enforcement**       | `final_gate.py` + 34 checks in `enforcement/`                                               | Task completion + structural validation                                                                                                                                                                                |
 | 8   | **Dispatch**          | `kilo_dispatch.py` + kilo pipeline (15 scripts)                                              | Agent routing, model selection, benchmarks                                                                                                                                                                             |
 | 9   | **Sync**              | `sync_enforcement_to_projects.py`                                                            | Pushes governance to all projects                                                                                                                                                                                      |
@@ -337,15 +337,16 @@ Before creating any plan, verify:
 
 Traycer injects rule-pack guidance into coding-agent execution prompts based on `project.yaml::type` + ticket scope. Coding agents do NOT self-select packs.
 
-### Pack Registry (35 packs in `.windsurf/rules/**/*.md`)
+### Pack Registry (38 packs in `.windsurf/rules/**/*.md`)
 
 Organized by folder:
 
-**`core/` — shared across all scaffolds (25 packs)**
+**`core/` — shared across all scaffolds (27 packs)**
 
 | Pack ID | File | Category |
 |---|---|---|
 | `PY_CORE` | `core/10-python.md` | Backend |
+| `NODE_CORE` | `core/12-node.md` | Backend |
 | `API_CONTRACTS` | `core/15-api-contracts.md` | Backend |
 | `TS_CORE` | `core/20-typescript.md` | Frontend |
 | `DATA_PG` | `core/25-data-postgres.md` | Backend |
@@ -360,6 +361,7 @@ Organized by folder:
 | `WATCHDOG` | `core/60-watchdog.md` | Infrastructure |
 | `RAG_SEARCH` | `core/65-rag-search.md` | Domain |
 | `RAG_CHUNKING` | `core/66-rag-chunking.md` | Domain |
+| `FILE_API` | `core/67-file-api.md` | Domain |
 | `WORKERS` | `core/75-workers-jobs.md` | Backend |
 | `GPU_WORKERS` | `core/76-gpu-workers.md` | Domain |
 | `PAYMENTS` | `core/85-payments-billing.md` | Domain |
@@ -396,6 +398,12 @@ Organized by folder:
 |---|---|---|
 | `CHROME_MV3` | `chrome-ext/70-chrome-ext.md` | Frontend |
 
+**`desktop-app/` — Electron desktop apps (1 pack)**
+
+| Pack ID | File | Category |
+|---|---|---|
+| `DESKTOP_APP` | `desktop-app/72-desktop.md` | Frontend |
+
 > `90-automation.md` removed (2026-05-18) — redundant Cascade routing table.
 > `62-wordpress.md` removed — WordPress projects use scaffold defaults + `30-ops`.
 
@@ -404,18 +412,18 @@ Organized by folder:
 | Project Type | Default Packs |
 |---|---|
 | `python-api` | `PY_CORE` |
-| `node-api` | — |
+| `node-api` | `NODE_CORE` |
 | `saas-skeleton` | `TS_CORE`, `SAAS_UI`, `DESIGN_SYSTEM` |
 | `chrome-extension` | `PY_CORE`, `TS_CORE`, `CHROME_MV3`, `DESIGN_SYSTEM` |
 | `mobile-app` | `TS_CORE`, `MOBILE_UI`, `MOBILE_BILLING`, `MOBILE_DESIGN` |
-| `desktop-app` | `TS_CORE`, `DESIGN_SYSTEM` |
-| `file-api` | — |
+| `desktop-app` | `NODE_CORE`, `TS_CORE`, `DESKTOP_APP`, `DESIGN_SYSTEM` |
+| `file-api` | `NODE_CORE`, `FILE_API` |
 | `file-worker` | `PY_CORE`, `WORKERS` |
 | `wordpress` | `TS_CORE`, `DESIGN_SYSTEM` (Fabrik-side scaffolding retired 2026-06-17 → `/opt/wpf`; no dedicated WordPress pack — `30-ops.md` + scaffold defaults cover the deploy/shape side) |
 | `docusaurus` | `DOCUSAURUS`, `DESIGN_SYSTEM` |
 | `static-site` | `TS_CORE`, `SAAS_UI`, `DESIGN_SYSTEM` |
 
-> `node-api` and `file-api` scaffolds are currently JavaScript-based — don't inject `TS_CORE` or `PY_CORE` unless a specific project has actually adopted them. `chrome-extension` includes `PY_CORE` because the backend companion service is Python. `docusaurus` is for dev/team-authored content; `wordpress` for client-authored marketing/e-commerce; `static-site` for owner-controlled landing pages. Decision guide: `docs/reference/scaffold-type-decision-guide.md`. All UI scaffolds get `DESIGN_SYSTEM` for visual/verbal identity.
+> `node-api` and `file-api` scaffolds are JavaScript-based (Node 22+ / Express); they get `NODE_CORE` (covering runtime, framework, error handling, structured logging, graceful shutdown, npm hygiene). `file-api` additionally gets `FILE_API` for storage routing (B2 / R2 / Supabase), presigned URLs, multipart streaming, MIME validation, dedup, AV scan, image-broker delegation. If a JS project adopts TypeScript, `TS_CORE` auto-loads via its `.ts` glob; don't manually inject. `chrome-extension` includes `PY_CORE` because the backend companion service is Python. `docusaurus` is for dev/team-authored content; `static-site` for owner-controlled landing pages. Decision guide: `docs/reference/scaffold-type-decision-guide.md`. All UI scaffolds get `DESIGN_SYSTEM` for visual/verbal identity.
 
 ### Feature-Based Overlay Packs
 

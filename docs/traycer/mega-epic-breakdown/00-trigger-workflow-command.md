@@ -143,7 +143,7 @@ Plus `kind:` (one of: `service`, `worker`, `static` — per `src/fabrik/spec_loa
 
 | Pack | Covers |
 | --- | --- |
-| `core/10-python.md`, `core/20-typescript.md` | Language-level conventions, project layout |
+| `core/10-python.md`, `core/12-node.md`, `core/20-typescript.md` | Language-level conventions, project layout (Python / Node.js / TypeScript) |
 | `core/15-api-contracts.md` | API request/response contracts, error shapes |
 | `core/25-data-postgres.md` | Schema, migrations, connection patterns |
 | `core/30-ops.md` | Compose structure, Traefik labels, base images, networking |
@@ -156,6 +156,7 @@ Plus `kind:` (one of: `service`, `worker`, `static` — per `src/fabrik/spec_loa
 | `core/58-resilience.md` | Timeout/retry/circuit-breaker/fallback for external calls |
 | `core/60-watchdog.md` | Sidecar/auto-recovery patterns (e.g. watchdog-test → Claude-Code-driven container self-heal) |
 | `core/65-rag-search.md`, `core/66-rag-chunking.md` | RAG ingestion, embedding, chunking; MeiliSearch vs pgvector decision |
+| `core/67-file-api.md` | File-handling discipline — storage backend (B2/R2/Supabase), presigned URLs, multipart streaming, MIME validation, content-hash dedup, AV scan, image-broker delegation |
 | `core/75-workers-jobs.md`, `core/76-gpu-workers.md` | Background jobs, GPU workers |
 | `core/85-payments-billing.md` | Paddle / iyzico billing flows (Stripe NOT available to TR entity) |
 | `core/86-email-templates.md` | Email two-stream (transactional vs marketing) |
@@ -167,6 +168,7 @@ Plus `kind:` (one of: `service`, `worker`, `static` — per `src/fabrik/spec_loa
 | `saas/87-abuse-detection.md` | Free-tier abuse gating |
 | `saas/88-saas-launch-checklist.md` | Launch gates |
 | `chrome-ext/70-chrome-ext.md` | Manifest V3, popup/sidepanel patterns |
+| `desktop-app/72-desktop.md` | Electron 30+, process isolation + IPC zero-trust, Azure Trusted Signing / Apple notarization, R2 auto-update, SQLCipher local storage, KVKK opt-in telemetry |
 | `mobile-app/80-mobile.md`, `81-mobile-billing.md`, `89-mobile-launch-checklist.md` | RN/Expo, IAP, store launch |
 | `core/*-design-system.md`, `mobile-app/*-design-system.md` | Brand design systems (Ocoron, Tojlo) |
 
@@ -519,7 +521,7 @@ Wait for owner decisions. **STOP GENERATION HERE.** These decisions shape which 
 
 **Idea path:** interview the owner — What capability are you adding? Who uses it (existing/new persona)? How does it integrate with what's built? New tables/endpoints/workers needed? New scaffold type (e.g., adding mobile-app to existing SaaS)?
 
-**Load domain modules** — for each NEW capability, read the matching `domain-modules/` file: search/RAG → `rag.md`; mobile app → `mobile-app.md`; billing → `saas.md` (billing section); chrome extension → `chrome-ext.md`. (WordPress site/theme work is delegated to `/opt/wpf` — do NOT load `domain-modules/wordpress.md` for new visions in this workflow.)
+**Load domain modules** — for each NEW capability, read the matching `domain-modules/` file: search/RAG → `rag.md`; mobile app → `mobile-app.md`; billing → `saas.md` (billing section); chrome extension → `chrome-ext.md`; desktop app → `desktop-app.md`. (WordPress site/theme work is delegated to `/opt/wpf` — do NOT load `domain-modules/wordpress.md` for new visions in this workflow.)
 
 **fabrik-lib check** — before designing any new component, check `fabrik-lib/README.md` for a vendorable module (copy, don't import). State: "fabrik-lib checked — [module used / no match]."
 
