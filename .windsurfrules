@@ -1,80 +1,69 @@
-<!-- Read by Windsurf Cascade. Cascade silent-truncates at 6,000 chars per file. This file is currently OVER budget (Phase 2 reshape pending) — do not add to it without compressing first. -->
+<!-- Read by Windsurf Cascade. Silent-truncates at 6,000 chars. Keep lean. -->
 # Cascade Agent Contract
 
-**Read by:** Windsurf Cascade only. Kilo CLI reads `AGENTS-compact.md` (via `opencode.json`); Traycer reads `AGENTS.md`.
-**Auto-loaded with this:** glob-matched and `model_decision` packs in `.windsurf/rules/**/*.md` (recursive — includes subdirectories). Don't duplicate their content here.
+**Read by:** Cascade only. Kilo → `AGENTS-compact.md`; Traycer → `AGENTS.md`.
+**Auto-loaded:** `.windsurf/rules/**/*.md` packs via frontmatter globs (recursive). Don't duplicate.
 
 ## ⚠️ FIRST OUTPUT (every response)
 ```
 RULES ACTIVE: CASCADE | <3 rules from this file you applied>
-PACKS: <pack codes whose globs match this turn's scope, or "none">
+PACKS: <pack codes whose globs match this turn's file scope, or "none">
 ```
-`PACKS` line: declare which `.windsurf/rules/**/*.md` packs are scope-relevant by matching their frontmatter `globs:` against files you will touch this turn. Listing a pack implies you read it. Pure conversation/planning turns with no file scope = `PACKS: none`.
+Listing a pack implies you read it. Pure planning turn = `PACKS: none`.
 
-## If `expertise-pack/` exists — WordPress factory rules
-If this directory is present, read `expertise-pack/wpf-expertise-pack-spec-v3.md` (architecture + 13-stage pipeline) and `.claude/skills/wpf-wordpress/references/wp-cli-recipes.md` (verified commands) before any WP work. Never guess WP-CLI commands, option keys, or plugin slugs. No raw SQL, no hand-edited serialized PHP. Free plugins: `https://downloads.wordpress.org/plugin/{slug}.latest-stable.zip`.
+## If `expertise-pack/` exists — WordPress factory
+Read `expertise-pack/wpf-expertise-pack-spec-v3.md` + `.claude/skills/wpf-wordpress/references/wp-cli-recipes.md` first. Never guess WP-CLI, option keys, or plugin slugs. No raw SQL or hand-edited serialized PHP. Free plugins: `https://downloads.wordpress.org/plugin/{slug}.latest-stable.zip`.
 
 ## Orient (every task)
 1. Read `project.yaml` (`type`, `ports`, `has_user_guide`), `README.md`, `INDEX.md`, `compose.yaml`, `Dockerfile`, `.env.example`, `pyproject.toml`/`package.json`.
-2. If `AFCL.md` exists, append friction findings as encountered.
-3. Rule packs in `.windsurf/rules/` self-activate via frontmatter globs when you touch matching files. If a ticket lists specific packs in Context Files, read those too.
+2. `AFCL.md`: read if exists; append friction findings as encountered.
+3. Glob-matched packs in `.windsurf/rules/` auto-activate. Honour packs listed in the ticket's Context Files.
 
 ## Behavior
-- **Check before create:** verify file does not exist before write. Exists = STOP.
+- **Check before create:** file exists = STOP, ask.
 - **Present before execute:** plan → approval → execute. Read-only IDE calls (`read_file`, `grep_search`, `list_dir`, `find_references`) are exempt.
-- **NEVER use `run_terminal_cmd` for `npm i`, `pytest`, `docker *`, `fabrik *`, builds, deploys, or any command >10s.** Terminal commands hang indefinitely — you lose output and block forever. Instead: `run_command('scripts/rund -- <cmd>')` then `run_command('scripts/runwait $(scripts/runlast) 60')` then `run_command('scripts/runc $(scripts/runlast)')`. Three calls, never one terminal.
+- **NEVER `run_terminal_cmd` for `npm i`/`pytest`/`docker *`/`fabrik *`/builds/deploys/any cmd >10s** — Cascade hangs indefinitely. Use `run_command('scripts/rund -- <cmd>')` → `run_command('scripts/runwait $(scripts/runlast) 60')` → `run_command('scripts/runc $(scripts/runlast)')`. Three calls, never one terminal. Doc: `docs/reference/long-command-monitoring.md`.
 - **Stay on task:** no unsolicited advice or process commentary.
 - **Conflict resolution:** rule pack > ticket. Surface conflict before proceeding.
 - **State conflict:** task contradicts existing state → stop, report. Never silently overwrite.
 
 ## Completion Contract
-1. **IMPLEMENT** — Strict ticket Scope. Adjacent fixes only inside files already in Scope. 1 test for core path (skip docs-only).
-2. **GATE** — Run literal command from ticket's `Final Gate Instruction`; fix until `status: "success"`. Defaults:
-   - Standard: `python scripts/final_gate.py --lean --json`
-   - Milestone / multi-component / schema / auth: `python scripts/final_gate.py --json`
-   - Epic closure: `python scripts/final_gate.py --systemic --json`
+1. **IMPLEMENT** — Strict Scope. Adjacent fixes only in in-Scope files. 1 test for core path (skip docs-only).
+2. **GATE** — Run ticket's `Final Gate Instruction`; fix to `status:"success"`. Flags: `--lean --json` (std) · `--json` (milestone/schema/auth) · `--systemic --json` (epic).
 3. **CHANGELOG** — One entry under `## [Unreleased]` (gate-enforced).
-4. **LESSONS LEARNT** — Fill ticket `Lessons Learnt:` line with `none` OR structured entry in `docs/LESSONS_LEARNT.md`. Silence = failure.
-5. **EXIT** — Gate auto-stages on success. STOP. Do NOT run `git commit` / `git push` unless user said "commit" or "push" this turn. Manual `git add` is allowed.
+4. **LESSONS LEARNT** — Ticket field = `none` OR entry in `docs/LESSONS_LEARNT.md`. Silence = failure.
+5. **EXIT** — Gate auto-stages. STOP. No `commit`/`push` unless user said so this turn; `git add` OK.
 
 ## HARD STOPS — Cascade mechanics
 | Rule | Instead |
 |:--|:--|
 | `git commit` / `git push` (unless user said so this turn) | gate auto-stages — task ends there |
-| `fabrik redeploy` without `git push` first (git-sourced apps) | always: `git commit` → `git push` → `fabrik redeploy`; the VPS runs `git pull` from the GitHub remote, not your local `/opt/` clone — skipping push redeploys stale code |
-| compose without `deploy.resources.limits.memory` | memory limit is REQUIRED per service — enforced fatally by `deployer_ssh._validate_compose()`; scaffolder auto-emits via `_write_canonical_compose` |
-| `DB_HOST=localhost` / `DATABASE_URL=...@localhost:` in `.env` or service env vars | always use Docker service names: `postgres-main:5432`, `redis-main:6379` — `localhost` inside a container is the container itself, not the host |
-| Authelia config reload via SIGHUP | Authelia exits on SIGHUP, does NOT hot-reload — always `docker restart <authelia-container>` after config edits |
-| Adding a new Gatus endpoint using hardcoded container name | always use stable Docker DNS name: compose service name for Service stacks, or registered stable alias for single-image Applications. Never use UUID container name — it changes on every redeploy. See `scripts/vps_apply_limits.sh` alias section for registered pairs. |
-| Gatus/internal URL using UUID container name | use a stable `container_name` / compose service name (no UUID drift) |
-| Health check `/health` behind auth | Authelia bypass is **resource-based, not domain-bound** — `/health`, `/healthz`, `/metrics`, `/api/health` are bypassed on every domain routed through Authelia (hub direct + spokes via `authelia-vps1@file`). Never protect these paths. |
-| Binding container ports to host directly | all services route through Traefik on the `fabrik` Docker network (renamed from `coolify` 2026-05-31; `fabrik apply` rejects a compose declaring `coolify`) — never expose raw container ports |
-| Not wiring `gzip@docker` middleware on router | scaffold emits it automatically; admin UIs: `authelia-forward@docker,gzip@docker`; API services: `gzip@docker`; public: none |
-| Running a foreground command that may take >30s (build, install, deploy, test, sync, `fabrik *`, `docker *`, `pytest`, `npm i`) | use `scripts/rund [--timeout S] -- <cmd>` (argv) or `scripts/rundsh '<pipe>'` (shell), then `scripts/runwait $(scripts/runlast) <secs>` to bound wait, then `scripts/runc $(scripts/runlast)` to read result. Never block on foreground long commands — Cascade has no timeout. Full doc: `docs/reference/long-command-monitoring.md`. |
-| edit files outside ticket Scope | strict Scope only |
-| modify `pyproject.toml` / `requirements.txt` / `package.json` / `uv.lock` / `package-lock.json` | only if ticket explicitly authorises deps change |
-| create files outside project tree | local project paths only |
-| recreate `.venv` or replace existing Docker config | extend, don't replace |
+| `fabrik redeploy` git-sourced without `git push` first | `git commit` → `git push` → `fabrik redeploy`; the VPS runs `git pull` from the GitHub remote, not your local `/opt/` clone |
+| compose without `deploy.resources.limits.memory` | required; `deployer_ssh._validate_compose()` enforces fatally; scaffolder auto-emits |
+| `DB_HOST=localhost` / `@localhost:` in env | `postgres-main:5432`, `redis-main:6379` — `localhost` = the container, not the host |
+| Authelia config reload via SIGHUP | exits; `docker restart <authelia-container>` after edits |
+| Gatus / internal URL via UUID container name | stable `container_name` / compose service name |
+| Health check `/health` behind auth | Authelia bypass is **resource-based, not domain-bound** — `/health`, `/healthz`, `/metrics`, `/api/health` bypassed on every routed domain (hub direct + spokes via `authelia-vps1@file`). Never protect. |
+| Container ports bound to host | route via Traefik on `fabrik` net (renamed from `coolify` 2026-05-31; `fabrik apply` rejects `coolify`) |
+| Missing `gzip@docker` middleware | scaffold emits auto; admin: `authelia-forward@docker,gzip@docker`; API: `gzip@docker`; public: none |
+| Edit outside ticket Scope | strict Scope only |
+| Modify `pyproject.toml`/`requirements.txt`/`package.json`/lockfiles | only if ticket authorises |
+| Files outside project tree | local project paths only |
+| Recreate `.venv` / replace existing Docker config | extend, don't replace |
+| `/tmp/` | project `.tmp/` |
 
-Technical hard stops (Alpine ban, raw `pip install`, Docker port exposure, Authelia, M2M `X-Internal-Token` / `internal_auth.py` canonical pattern, kebab-case, `/tmp/` ban, port ranges, etc.) → auto-loaded packs are authoritative.
+Technical hard stops (Alpine ban, raw `pip install`, Docker port exposure, M2M `X-Internal-Token`/`internal_auth.py`, kebab-case, port ranges) → packs.
 
 ## External Knowledge — Search, Don't Guess
-Training data is stale. When the ticket references any 3rd-party API or SDK:
-1. Search repo first: `grep_search` `docs/`, `docs/reference/`, `AFCL.md`, `docs/LESSONS_LEARNT.md`.
-2. If absent: try in order — `search_web` → `*web_search_exa` → `*firecrawl_search`. Cite source URL in code comment.
-3. If 3 calls don't resolve it, output `BLOCKED: <vendor> — <searched> — <missing>` and stop.
+Training is stale. 3rd-party API/SDK:
+1. Repo first: `grep_search` `docs/`, `docs/reference/`, `AFCL.md`, `docs/LESSONS_LEARNT.md`.
+2. Else: `search_web` → `*web_search_exa` → `*firecrawl_search`. Cite URL in code.
+3. After 3 misses: `BLOCKED: <vendor> — <searched> — <missing>`; stop.
 
-Skip for: stdlib, language syntax, internal Fabrik conventions.
-
-## Pointers (content lives in linked packs)
-- **Backup secrets before edit** (`.env`, `*.key`, `*.pem`, `secrets/`, `.ssh/`) → `35-security-auth.md` § Sensitive Data Protection.
-- **Password policy** (32 chars, `[a-zA-Z0-9]`, `secrets.choice()`, banned: `postgres`/`admin`/`password123`) → `35-security-auth.md` § Password Policy.
-- **Before new scripts:** `grep_search` `scripts/` and `scripts/enforcement/`. Extend, don't duplicate.
-- **fabrik-lib** (`/opt/fabrik-lib/`) — reusable modules, vendor (copy) don't import. Check `fabrik-lib/README.md` for the module table before building from scratch. New module = must have `README.md` + `requirements.txt` + row in `fabrik-lib/README.md` table.
+Skip: stdlib, syntax, Fabrik conventions.
 
 ## Environment
-WSL Ubuntu only. Linux paths, never Windows tooling. Code must work in WSL dev (PG localhost, `.env`), VPS Docker (`postgres-main`, `compose.yaml`), Supabase (env vars) without modification.
-
+WSL Ubuntu only. Linux paths. Same code runs in 3 envs unmodified: WSL dev (PG localhost, `.env`) · VPS Docker (`postgres-main`, `compose.yaml`) · Supabase (env vars).
 
 ## ⚠️ FINAL OUTPUT (last 4 lines, every response)
 ```
@@ -86,21 +75,4 @@ LESSONS LEARNT: <none | docs/LESSONS_LEARNT.md entry title>
 Missing any line = task failure. Run gate; if `failure`, fix and re-run until `success`, then output the 4 lines.
 
 ## Spec contract awareness
-
-Every Fabrik project has `specs/services/<id>.yaml` with a `shape:` block that drives:
-
-- Which Postgres DB / Redis index / Backrest plan / Gatus endpoint / Prometheus job / GlitchTip project / Authelia rule / Meilisearch index get auto-created on `fabrik apply`
-- The shape contract is canonical: code MUST match it, not the other way around
-
-If your code:
-
-- Adds a database call → `shape.needs_database` MUST be `true` in the spec
-- Adds a Redis cache → `shape.needs_cache` MUST be `true`
-- Exposes `/metrics` → `shape.exposes_metrics` MUST be `true`
-- Adds Meilisearch indexes → `shape.has_search_feature` MUST be `true`
-- Adds an admin UI behind auth → `shape.is_admin_dashboard` MUST be `true`
-
-If you change code in a way that affects any of the above, ALSO update `specs/services/<id>.yaml`.
-Don't ship code that contradicts the spec — `fabrik apply` will skip the registrar and you'll have a silently broken deploy.
-
-To preview what the spec will trigger: `fabrik plan specs/services/<id>.yaml`
+`specs/services/<id>.yaml::shape` drives registrar firing on `fabrik apply` (postgres/redis/gatus/backrest/glitchtip/authelia/meilisearch/prometheus). Code MUST match shape — update both. DB call → `needs_database`; cache → `needs_cache`; `/metrics` → `exposes_metrics`; search → `has_search_feature`; admin UI behind auth → `is_admin_dashboard`. Contradiction = registrar skipped = silently broken deploy. Preview: `fabrik plan specs/services/<id>.yaml`.
