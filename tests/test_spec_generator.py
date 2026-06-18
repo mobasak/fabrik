@@ -509,18 +509,10 @@ class TestGenerateSpec:
         # compose / orchestrator dependency graph reflects the DB.
         assert spec_on.depends.postgres == "main"
 
-    def test_emits_canonical_coolify_project(self):
-        """B2 regression: emitted specs MUST declare the canonical
-        ``coolify.project`` (``fabrik-services``), not the pydantic
-        default ``"default"``.
-
-        Why: post the deployer fix from the same session, an unset
-        ``COOLIFY_PROJECT_UUID`` env var falls back to
-        ``spec.coolify.project`` and would auto-create a useless
-        ``default`` project on every fresh-environment deploy.
-        """
-        spec = generate_spec("my-api", "python-api", "my-api.vps1.ocoron.com")
-        assert spec.coolify.project == "fabrik-services"
+    # Removed test_emits_canonical_coolify_project (2026-06-18): Coolify was
+    # decommissioned (2026-05-30) and the `Spec.coolify` block no longer exists
+    # — deploy is SSH + Docker Compose via deployer_ssh. The test asserted a
+    # removed attribute (`spec.coolify.project`).
 
 
 # ---------------------------------------------------------------------------
