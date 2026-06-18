@@ -1,10 +1,20 @@
 #!/usr/bin/env python3
-"""Check that .windsurf/rules/**/*.md files stay under 32KB limit."""
+"""Check that .windsurf/rules/**/*.md files stay under the auto-load size limit.
+
+The cap guards against an auto-loaded (glob-activated) pack injecting too much into
+agent context on every match. It is a self-imposed context-budget guard, NOT a
+vendor hard limit — the only real Cascade limit is on `.windsurfrules` (silent
+truncation at 6,000 chars), which does not apply to these packs (95KB+ reference
+catalogs ship fine via SIZE_EXEMPT). The value previously drifted (12KB → 32KB)
+out of step with the documented 50KB in docs/workflows/FINAL_GATE_WORKFLOW.md;
+aligned to 50KB so legitimately-comprehensive packs (e.g. core/67-file-api.md)
+aren't forced to shed real rule content. Genuinely runaway packs still trip it.
+"""
 
 import sys
 from pathlib import Path
 
-MAX_SIZE_BYTES = 32768  # 32KB
+MAX_SIZE_BYTES = 51200  # 50KB — auto-load context-budget guard (see module docstring)
 
 # Exempt reference catalogs from the size cap (2026-06-13). The cap exists to
 # stop AUTO-LOADED rule packs from bloating agent context. These three are not

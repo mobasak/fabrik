@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — align rule-size cap to documented 50KB (was a drifted, arbitrary 32KB) (2026-06-18)
+
+`check_rule_size.py` capped `.windsurf/rules/**` at 32768 B, which forced `core/67-file-api.md` (34 KB of dense KVKK/security rules) to either shed real guidance or split. Investigation: the cap is a **self-imposed context-budget guard, not a vendor limit** — exempt packs already ship at 95 KB / 135 KB and work; the only real Cascade limit is `.windsurfrules`' 6,000-char truncation, which doesn't apply to glob packs. The value had **drifted out of sync with its own docs** (12 KB → 32 KB in code vs **50 KB** in `docs/workflows/FINAL_GATE_WORKFLOW.md`). Aligned `MAX_SIZE_BYTES` to **51200 (50 KB)** so comprehensive packs keep their full content; the guard still trips genuinely runaway packs. No rule content was trimmed from `67` — only 2 pure-duplicate header lines removed (`Activation:` re-stated the frontmatter `globs`; `Research basis:` re-stated the file's HTML comment); all 32 sections intact.
+
 ### Fixed — family rule-packs false-activating fleet-wide on generic dir names (2026-06-18)
 
 A fleet scan found **29 type-mismatched pack activations**: family packs (`saas/`, `desktop-app/`) firing in `python-api` projects on generic directory globs. Root cause was over-broad globs, not project type — and the fix had to be type-INDEPENDENT, because Fabrik projects are commonly *hybrid* (e.g. `trade-intelligence` is `python-api` but ships 72 real `.tsx` files under `web/`). Gating pack distribution on the single `project.yaml::type` would have stripped frontend packs from projects that genuinely need them. So instead the offending globs were tightened to **family-specific file signals**:

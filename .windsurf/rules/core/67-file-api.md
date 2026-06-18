@@ -11,10 +11,8 @@ trigger: glob
 
 # File API Rules (2026)
 
-**Activation:** Glob `**/file-api/**`, `**/uploads/**`, `**/storage/**`, `**/presigned/**`, `**/multipart/**`, `**/clamav/**`
 **Purpose:** Production patterns for services that upload, store, validate, dedupe, scan, or destroy user files on Fabrik's VPS fleet.
 **Scope:** `file-api` scaffold + any service handling binary uploads. Composes with `12-node.md` (Node runtime), `25-data-postgres.md` (metadata schema), `95-multi-tenant-saas.md` (tenant isolation), `app-audit-log.md` (KVKK audit).
-**Research basis:** [`docs/reference/research-files/Node API File Storage Rules.md`](../../../docs/reference/research-files/Node%20API%20File%20Storage%20Rules.md)
 
 ---
 
