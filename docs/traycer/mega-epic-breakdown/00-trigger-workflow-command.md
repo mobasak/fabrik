@@ -53,7 +53,7 @@ If a NEW vision cannot pass all 4 stages, state this explicitly and justify. If 
 
 These are **vision-level architectural commitments**. Every epic dispatched from this vision inherits them. **Violations block vision confirmation.** Per-epic verification happens later in `epic-to-ticket-workflow/00` Step 5 (overlay constraints #17–#24) — but the commitment is made here.
 
-- **12-Factor App** — every backend service satisfies [The Twelve-Factor App](https://12factor.net/). Key factors: III (config via env only), VI (stateless processes), IX (fast startup + SIGTERM), XI (structured stdout logs). A "file-based sessions" choice violates Factor VI — use Redis. WordPress is the documented exception (stateful by design — local media uploads + plugin state; see `domain-modules/wordpress.md`).
+- **12-Factor App** — every backend service satisfies [The Twelve-Factor App](https://12factor.net/). Key factors: III (config via env only), VI (stateless processes), IX (fast startup + SIGTERM), XI (structured stdout logs). A "file-based sessions" choice violates Factor VI — use Redis.
 - **Concurrency** — every service handles multiple simultaneous requests. Never single-threaded blocking.
 - **i18n** — every GUI/user-facing service supports multi-language from day one (en + tr minimum). Translation validated via `scripts/validate_i18n.py` (3-level: structural, back-translation, native-speaker critique). Adding a language = adding a locale file, zero code changes.
 - **Responsive** — every **web** GUI responsive from 375px to 2560px (RWD1–RWD10). No desktop-only layouts. See `docs/reference/mobile-responsive-testing-guide.md`. Excludes: chrome-extension (400px fixed popup/sidepanel), mobile-app (native UI, not web breakpoints), desktop-app (electron window sizing).
@@ -62,7 +62,8 @@ These are **vision-level architectural commitments**. Every epic dispatched from
 - **Abuse detection** — every SaaS with a free tier must implement registration gating (IP rate limit, disposable email block, progressive unlock). Rule pack: `.windsurf/rules/saas/87-abuse-detection.md`.
 - **Email two-stream** — transactional and marketing email MUST be on separate streams/subdomains. Rule pack: `.windsurf/rules/core/86-email-templates.md`.
 - **Shape contract** — every Fabrik-deployed service has a `specs/services/<id>.yaml` whose `shape:` block declares which registrars fire; code MUST match shape. Client-only artifacts (chrome-extension CRX, mobile-app binary, desktop-app binary) ship through their own distribution channels (Chrome Web Store, EAS/App Stores, signed installers) and have no Fabrik spec — only their backends do.
-- **Observability** — every backend service exposes `/health` for Gatus and `/metrics` for Prometheus. Static artifacts (static-site, docusaurus) and WordPress have no app process exposing these endpoints — Gatus probes them externally for liveness instead.
+- **Observability** — every backend service exposes `/health` for Gatus and `/metrics` for Prometheus. Static artifacts (static-site, docusaurus) have no app process exposing these endpoints — Gatus probes them externally for liveness instead.
+- **Fleet topology (multi-host)** — the fleet is **3 permanent hosts**: vps1 (LA, hub) + vps2 (Coventry UK, spoke) + vps3 (Coventry UK, spoke), connected by a WireGuard mesh (`10.99.0.0/24`). Shared infra (postgres-main, redis-main, glitchtip-web, authelia, loki, meilisearch) is **hub-only**; spoke services reach them via the mesh IP `10.99.0.1:<port>`. Every spec declares `target_host:` (`vps1` | `vps2` | `vps3`; default = `vps1`) per `src/fabrik/spec_loader.py:599`. Hub vs spoke decision is a Vision-level choice: hub for shared-infra-coupled services; spokes for tenant-isolated, lower-latency-to-EU, or capacity-spillover workloads. See [`docs/infrastructure/vps-complete-inventory.md`](../../infrastructure/vps-complete-inventory.md) for live state. Live example: `specs/services/spoke-canary.yaml`.
 
 ### Shape model (8 canonical flags)
 
@@ -79,7 +80,7 @@ Every `specs/services/<id>.yaml` declares `shape:` with these booleans. Each fla
 | `needs_cache` | Redis for sessions, queues, rate-limit, cache | Redis registrar allocates index, injects `REDIS_URL` |
 | `exposes_metrics` | App serves `/metrics` (Prometheus format) | Prometheus scrape target added |
 
-Plus `kind:` (one of: `service`, `worker`, `static`, `wordpress` — per `src/fabrik/spec_loader.py:Kind`) — drives template selection and applicability gates (e.g., `kind: service|worker|wordpress` gates GlitchTip; `static` skips it). Scaffold-to-kind mapping: python-api/node-api/saas-skeleton/file-api → `service`; file-worker → `worker`; static-site/docusaurus/chrome-extension/mobile-app/desktop-app → `static`; wordpress → `wordpress`.
+Plus `kind:` (one of: `service`, `worker`, `static` — per `src/fabrik/spec_loader.py:Kind`) — drives template selection and applicability gates (e.g., `kind: service|worker` gates GlitchTip; `static` skips it). Scaffold-to-kind mapping: python-api/node-api/saas-skeleton/file-api → `service`; file-worker → `worker`; static-site/docusaurus/chrome-extension/mobile-app/desktop-app → `static`. **WordPress is out of scope for this workflow** — `Kind.WORDPRESS` is recognised by the codebase for legacy reasons but Fabrik scaffolding does NOT produce WordPress projects; WordPress site creation + deployment lives in the standalone `/opt/wpf` project (use `wpf new <name>` + `wpf wp apply` there). If a Vision Summary names "wordpress site" as a feature, route the owner to `/opt/wpf` and treat the WordPress side as out-of-scope for the current mega-epic-breakdown run.
 
 ## Input Contract
 
@@ -153,10 +154,15 @@ Plus `kind:` (one of: `service`, `worker`, `static`, `wordpress` — per `src/fa
 | `core/50-code-review.md` | Review gates, pre-merge checks |
 | `core/55-observability.md` | `/health` + `/metrics`, Gatus, Prometheus, Promtail |
 | `core/58-resilience.md` | Timeout/retry/circuit-breaker/fallback for external calls |
-| `core/65-rag-search.md`, `core/66-rag-chunking.md` | RAG ingestion, embedding, chunking |
+| `core/60-watchdog.md` | Sidecar/auto-recovery patterns (e.g. watchdog-test → Claude-Code-driven container self-heal) |
+| `core/65-rag-search.md`, `core/66-rag-chunking.md` | RAG ingestion, embedding, chunking; MeiliSearch vs pgvector decision |
 | `core/75-workers-jobs.md`, `core/76-gpu-workers.md` | Background jobs, GPU workers |
-| `core/85-payments-billing.md` | Stripe/billing flows |
+| `core/85-payments-billing.md` | Paddle / iyzico billing flows (Stripe NOT available to TR entity) |
 | `core/86-email-templates.md` | Email two-stream (transactional vs marketing) |
+| `core/90-bootstrap-scripts.md` | `bootstrap-vps.sh` / `bootstrap-spoke-restore.sh` / `bootstrap-hub.sh` — fresh-install + DR-restore paths |
+| `core/app-audit-log.md` | In-app audit trail (tenant-scoped, immutable rows) |
+| `core/cost-budget.md` | Per-ticket / per-feature LLM + infra cost budgeting; OpenRouter gateway constraint |
+| `core/self-healing.md` | Higher-level self-healing strategy: drift → diagnose → action loops; Tier A/B/C decision matrix |
 | `saas/60-saas-ui.md`, `saas/95-multi-tenant-saas.md` | SaaS UI patterns, tenancy |
 | `saas/87-abuse-detection.md` | Free-tier abuse gating |
 | `saas/88-saas-launch-checklist.md` | Launch gates |
@@ -187,10 +193,13 @@ Do NOT auto-detect from filesystem. Do NOT skip this question. The owner declare
 
 The Input Contract files are already auto-loaded. Now focus on these specific sections within them (and one new file):
 
-- `AGENTS.md` § `Infrastructure Services — Running on VPS` — what's already deployed.
-- `AGENTS.md` § `Fabrik Microservices` — existing custom services.
+- `AGENTS.md` § `Infrastructure Services — Running on VPS` — what's already deployed (hub vs spoke per service).
+- `AGENTS.md` § `Development Environment` — **3-host fleet topology** (vps1 hub + vps2/vps3 spokes, wg0 mesh, per-host DNS).
+- `AGENTS.md` § `Fabrik Microservices` — existing custom services (live vs retired/not-deployed).
+- `AGENTS.md` § `Scaffold Types` — the 10 valid scaffold types + shape flags emitted by each (`templates/<type>/defaults.yaml` is the contract). WordPress is NOT in this list (deferred to `/opt/wpf`).
 - `AGENTS.md` § `MANDATORY ORCHESTRATOR PRE-FLIGHT` — run all 7 checks listed there (Ports, Business Model, Microservices, Hardware Audit, Design System, External Knowledge, fabrik-lib).
-- `AGENTS.md` § `Planning Constraints` — all constraints.
+- `AGENTS.md` § `Planning Constraints` — all 12 constraints.
+- `docs/infrastructure/vps-complete-inventory.md` — canonical fleet inventory if the AGENTS.md summary is ambiguous on host placement.
 - `docs/operations/fabrik-lifecycle.md` — runtime behavior, data safety, deploy/redeploy/destroy.
 - `docs/reference/technology-stack-decision-guide.md` — stack defaults.
 - `docs/reference/prebuilt-app-containers.md` — off-the-shelf solutions.
@@ -262,7 +271,7 @@ If research direction is fundamentally wrong for Fabrik (e.g., AWS serverless wh
 11. **Vector DB ban** — Pinecone/Qdrant/Weaviate/Milvus = reject. pgvector or Supabase only.
 12. **Email streams** — if product sends email, transactional + marketing on separate streams/subdomains (`core/86-email-templates.md`).
 
-**N3j. Multi-scaffold check.** Single vision spanning multiple scaffold types (e.g., python-api + saas-skeleton + wordpress) → list which features map to which scaffold. Strong multi-epic signal. **If scaffolds share no data, no auth, no deploy coupling** → candidate for **separate `fabrik scaffold` projects with own lifecycles**, not epics. Ask: "These components seem independent. Separate projects or epics within one project?"
+**N3j. Multi-scaffold check.** Single vision spanning multiple scaffold types (e.g., python-api + saas-skeleton + mobile-app, or chrome-extension + python-api backend) → list which features map to which scaffold. Strong multi-epic signal. **If scaffolds share no data, no auth, no deploy coupling** → candidate for **separate `fabrik scaffold` projects with own lifecycles**, not epics. Ask: "These components seem independent. Separate projects or epics within one project?" Note: if the vision includes a WordPress site, route the WordPress side to the standalone `/opt/wpf` project (out of scope here) and only retain the non-WordPress scaffolds for this run.
 
 #### ── CHECKPOINT N-1: Present Analysis ──
 
@@ -329,7 +338,8 @@ across multiple lines.]
 - **Background processing:** [file-worker needed? State what runs async: transcription, PDF gen, AI inference, batch imports, scheduled jobs / none]
 - **Consumed microservices:** [site-provisioner for DNS / image-broker for images / none]
 - **Domain structure:** [subdomains needed, e.g., api.X, app.X, admin.X]
-- **Scaffold types:** [list all scaffold types this vision needs — each may become an epic. Valid: python-api, node-api, saas-skeleton, file-api, file-worker, wordpress, docusaurus, chrome-extension, mobile-app, desktop-app, static-site]
+- **Scaffold types:** [list all scaffold types this vision needs — each may become an epic. Valid: python-api, node-api, saas-skeleton, file-api, file-worker, docusaurus, chrome-extension, mobile-app, desktop-app, static-site. **wordpress is NOT valid here** — route any WordPress site requirement to the standalone `/opt/wpf` project.]
+- **Target host (per service):** [`vps1` (hub, default — shared infra here) / `vps2` or `vps3` (spoke — public Traefik only, reaches hub infra via `10.99.0.1:<port>`) — state per service. Hub = anything needing low-latency to postgres/redis/glitchtip/authelia; spoke = tenant-isolated, EU-proximate, or capacity-spillover.]
 - **Documentation site:** [SaaS scaffolds: vendor `/opt/fabrik-lib/docs-site/` (Docusaurus + Scalar + legal pages). Non-SaaS: N/A]
 
 ## Constraints
@@ -383,7 +393,8 @@ Present the COMPLETE Vision Summary — the only user-facing output of NEW mode.
 Read the project's actual state — not from memory, from files. Owner must have provided the project folder path.
 
 - `project.yaml` → scaffold type, ports, shape flags. **If missing:** project predates the scaffold system — flag as "pre-scaffold project" in the snapshot. New features MUST go through `fabrik scaffold` patterns even if the original project didn't.
-- `specs/services/*.yaml` → deployed services, shape blocks, registrars. **If missing:** project was not deployed via `fabrik apply` — flag as "manually deployed". New services MUST use `fabrik apply`.
+- `specs/services/*.yaml` → deployed services, shape blocks, registrars, **`target_host`** (defaults to `vps1` if absent). **If missing:** project was not deployed via `fabrik apply` — flag as "manually deployed". New services MUST use `fabrik apply`.
+- `templates/<scaffold-type>/` (in Fabrik repo) → the canonical scaffold tree this project was generated from. Compare against actual layout to detect drift from scaffold defaults.
 - `compose.yaml` / `Dockerfile` → infrastructure, base images, services.
 - `.env.example` → environment variables, external service dependencies.
 - `src/` or `app/` → codebase structure, existing modules, API routes.
@@ -418,7 +429,8 @@ Present the snapshot — what EXISTS right now:
 ### Locked Technology Decisions (cannot change)
 - **Auth:** [what's implemented — Pattern A / Pattern B / custom]
 - **Database:** [postgres-main / Supabase / both — what tables exist]
-- **Frontend:** [Next.js + Tailwind / Jinja + Bootstrap / etc.]
+- **Frontend:** [Next.js 15 + React 19 + Tailwind (current saas-skeleton default — bumped 2026-06-18) / Jinja + Bootstrap / etc.]
+- **Target host:** [`vps1` (hub) / `vps2` / `vps3` — read from `specs/services/<id>.yaml::target_host`; missing = `vps1`]
 - **Billing:** [Paddle / iyzico / RevenueCat / none — if wired, it's locked]
 - **Background processing:** [Celery / PG job queue / none]
 - **Search:** [MeiliSearch / pgvector / none]
@@ -461,7 +473,7 @@ Report findings as a list of mechanical gaps with concrete locations.
 
 **Step E3.B — Rule-pack judgment (Traycer evaluates code/structure):**
 
-For each rule pack applicable to this scaffold type (per `AGENTS.md` § Project Type → Default Packs table; full pack list in the Rule Pack Index above in the Input Contract section), evaluate the project against the pack's mandates. Example table below is for `saas-skeleton`; for other scaffold types (chrome-extension, mobile-app, wordpress, file-worker, etc.) build the equivalent table from the Rule Pack Index plus the scaffold's `domain-modules/<type>.md` file:
+For each rule pack applicable to this scaffold type (per `AGENTS.md` § Project Type → Default Packs table; full pack list in the Rule Pack Index above in the Input Contract section), evaluate the project against the pack's mandates. Example table below is for `saas-skeleton`; for other scaffold types (chrome-extension, mobile-app, file-worker, etc.) build the equivalent table from the Rule Pack Index plus the scaffold's `domain-modules/<type>.md` file. (WordPress projects are out of scope here — delegate to `/opt/wpf`.)
 
 | Rule area | Current rule | How to evaluate the project | Status |
 |---|---|---|---|
@@ -480,6 +492,12 @@ For each rule pack applicable to this scaffold type (per `AGENTS.md` § Project 
 | Vector DB | pgvector / Supabase only — no Pinecone/Qdrant/Weaviate/Milvus | Inspect deps | Compliant / Deviates / N/A |
 | Shape contract | Code matches `spec.shape` | Cross-check audit-registrars output | Compliant / Drift |
 | Observability | `/health` for Gatus + `/metrics` for Prometheus | Inspect endpoints | Compliant / Partial |
+| Target host (multi-host) | `spec.target_host` declared (or absent → `vps1` by default); spoke services use mesh IPs for hub infra | Read spec; grep for hardcoded `vps1.ocoron.com` URLs in spoke services | Compliant / Drift / N/A |
+| Watchdog / sidecar self-heal | Critical services have a watchdog sidecar (per `core/60-watchdog.md`) | Inspect compose for watchdog sidecar pattern | Compliant / Missing / N/A |
+| Self-healing strategy | Drift → diagnose → action loops; Tier A/B/C decision matrix (per `core/self-healing.md`) | Inspect: does the project surface Tier A actions to AI Sysadmin? | Compliant / Missing / N/A |
+| Audit log | Tenant-scoped, immutable rows for sensitive ops (per `core/app-audit-log.md`) | Inspect schema for audit table; grep for audit writes on mutations | Compliant / Missing / N/A |
+| Cost budget | Per-feature LLM + infra cost capped; OpenRouter gateway only (per `core/cost-budget.md`) | Inspect for direct vendor SDKs, uncapped loops | Compliant / Deviates / N/A |
+| Bootstrap scripts | Project deploy path covered by `bootstrap-vps.sh` / restore scripts (per `core/90-bootstrap-scripts.md`) | Inspect `scripts/` + DR docs | Compliant / Missing / N/A |
 
 Adapt the table to the scaffold type — pull the relevant packs from `AGENTS.md` § Project Type → Default Packs. For non-applicable rule areas, mark `N/A` (e.g., abuse detection for an internal API).
 
@@ -501,7 +519,7 @@ Wait for owner decisions. **STOP GENERATION HERE.** These decisions shape which 
 
 **Idea path:** interview the owner — What capability are you adding? Who uses it (existing/new persona)? How does it integrate with what's built? New tables/endpoints/workers needed? New scaffold type (e.g., adding mobile-app to existing SaaS)?
 
-**Load domain modules** — for each NEW capability, read the matching `domain-modules/` file: search/RAG → `rag.md`; mobile app → `mobile-app.md`; billing → `saas.md` (billing section); chrome extension → `chrome-ext.md`; WordPress site/theme → `wordpress.md`.
+**Load domain modules** — for each NEW capability, read the matching `domain-modules/` file: search/RAG → `rag.md`; mobile app → `mobile-app.md`; billing → `saas.md` (billing section); chrome extension → `chrome-ext.md`. (WordPress site/theme work is delegated to `/opt/wpf` — do NOT load `domain-modules/wordpress.md` for new visions in this workflow.)
 
 **fabrik-lib check** — before designing any new component, check `fabrik-lib/README.md` for a vendorable module (copy, don't import). State: "fabrik-lib checked — [module used / no match]."
 
@@ -650,7 +668,7 @@ Wait for explicit confirmation. **STOP GENERATION HERE.** Silence ≠ confirmati
 **Acceptance — NEW adds:**
 
 - Research (if present) improved: gaps, conflicts, opportunities surfaced. Multiple research files: conflicts flagged in Open Questions, not silently resolved.
-- Multi-scaffold visions identified (e.g., python-api + saas-skeleton + wordpress).
+- Multi-scaffold visions identified (e.g., python-api + saas-skeleton + mobile-app; or chrome-extension + python-api backend). WordPress components routed to `/opt/wpf` and excluded from epic decomposition.
 - Single-epic visions routed to `epic-to-ticket-workflow`, not forced through mega-epic-breakdown.
 - One analysis checkpoint (N-1) before draft, one confirmation after.
 
