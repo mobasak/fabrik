@@ -5,7 +5,7 @@
      -->
 
 <!-- ⚠️ QUALITY GATE: Any modification to this command file MUST be evaluated
-     against EVALUATION_CHECKLIST_FOR_MEGA_EPIC_COMMANDS.md (95 items).
+     against EVALUATION_CHECKLIST_FOR_MEGA_EPIC_COMMANDS.md (96 items).
      Every applicable item must pass. "N/A" is valid; forgetting to check is not. -->
 
 # Cross-Epic Validation
@@ -70,7 +70,7 @@ For each epic ticket, verify:
 | Has resilience criterion | What happens when a dependency is down | No resilience criterion |
 | Has `### Out of Scope` | Present, names other epics | Missing or vague |
 | Has `### Dependencies` | Consumes + Produces + Depends on stated | Missing section |
-| Has `### Metadata` with all fields | Scaffold, Port, Shape, Concurrency, i18n, Rule Packs, HAS_USER_GUIDE, Registrars | Missing field: [name] |
+| Has `### Metadata` with all 14 fields | Scaffold, Port, Shape, Concurrency, i18n, Responsive, Dark+Light, Rule Packs, HAS_USER_GUIDE, Registrars, Universal categories, Abuse Detection, Email, FINANCIALS (last 3 conditional — N/A allowed) | Missing field: [name] |
 | Dependencies name specific artifacts | Tables, functions, endpoints, env vars named | Vague references only |
 
 ### Step 4: Dependency Graph Check
@@ -111,6 +111,10 @@ For each epic ticket, verify it can feed into `epic-to-ticket-workflow/01-epic-b
 | Metadata has `Rule Packs` | Present | Missing |
 | Metadata has `HAS_USER_GUIDE` | true or false | Missing |
 | Metadata has `Registrars` | Listed | Missing |
+| Metadata has `Universal categories` | Comma-separated 1–14 list (verbatim from 02 sub-step 2h) | Missing |
+| Metadata has `Abuse Detection` | `required` (SaaS w/ free tier) or `N/A` with reason | Missing |
+| Metadata has `Email` | `transactional` / `marketing` / `two-stream` / `none` / `N/A` | Missing |
+| Metadata has `FINANCIALS` | `required` (SaaS launch gate) or `N/A` with reason | Missing |
 | Epic ticket is self-sufficient | Can run `epic-to-ticket-workflow/01-epic-brief-command` with ONLY this ticket + Infrastructure Decisions spec | Requires additional context not in the ticket |
 
 ### Step 7: Present Validation Report

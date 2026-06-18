@@ -296,6 +296,9 @@ Epic [N]: [Name]
   Dark+Light: [mandatory | N/A — non-GUI scaffold]
   Registrars: [which of the 9 fire for this epic's deploy unit(s) — derived from shape block + watchdog.enabled]
   Universal categories: [comma-separated numbers from 1–14 this epic owns, per 2h verdict block]
+  Abuse Detection: [required (SaaS w/ free-tier signup) / N/A — not a free-tier signup surface]
+  Email: [transactional / marketing / two-stream / none / N/A]
+  FINANCIALS: [required (SaaS pre-launch) / N/A — non-SaaS or epic doesn't affect launch gate]
 ```
 
 **2. Infrastructure Decisions** — the full document from Step 3.
@@ -403,7 +406,7 @@ Iterate until the owner explicitly confirms:
 - Every "ABSORBED in Step 3 § X" verdict in 2h matches a sub-section actually drafted in Step 3.
 - Every "N/A" verdict in 2h carries an explicit trigger-not-met reason cited from the spec shape block or Vision Summary.
 - Overlay-merge rule applied: no overlay-mandated epic is duplicated by a universal-category epic, and no overlay-mandated coverage is dropped.
-- Each per-epic compact entry carries **16 indented fields** under the `Epic [N]: [Name]` heading, in three groups: (1) **9 epic-shape fields** — Scope, Features, Scaffold, Depends on, Parallel with, Port, Delivers, Rule Packs, HAS_USER_GUIDE; (2) **6 inheritance-metadata fields** — Shape, Concurrency, i18n, Responsive, Dark+Light, Registrars; (3) **Universal categories** (1 field). 03's Metadata block consumes 11 of these (the 6 metadata + Scaffold + Port + Rule Packs + HAS_USER_GUIDE + Universal categories); the remaining 5 (Scope, Features, Depends on, Parallel with, Delivers) become other sections in 03's ticket (Summary, Scope > In, Dependencies, Dependencies, Success Criteria respectively). See `03-expand-epic-files-command` Metadata block.
+- Each per-epic compact entry carries **19 indented fields** under the `Epic [N]: [Name]` heading, in four groups: (1) **9 epic-shape fields** — Scope, Features, Scaffold, Depends on, Parallel with, Port, Delivers, Rule Packs, HAS_USER_GUIDE; (2) **6 inheritance-metadata fields** — Shape, Concurrency, i18n, Responsive, Dark+Light, Registrars; (3) **Universal categories** (1 field); (4) **3 conditional fields** — Abuse Detection, Email, FINANCIALS (each carries the project-wide Infrastructure Decisions value or `N/A` per the trigger). 03's Metadata block consumes 14 of these (the 6 metadata + Scaffold + Port + Rule Packs + HAS_USER_GUIDE + Universal categories + the 3 conditionals); the remaining 5 (Scope, Features, Depends on, Parallel with, Delivers) become other sections in 03's ticket (Summary, Scope > In, Dependencies, Dependencies, Success Criteria respectively). See `03-expand-epic-files-command` Metadata block and `epic-to-ticket-workflow/01-epic-brief-command` § Metadata expectation.
 - Owner explicitly confirms. Silence ≠ confirmation.
 
 **Existing mode adds:**

@@ -116,6 +116,9 @@ Epic N — [Name]
 - HAS_USER_GUIDE: [true/false]
 - Registrars: [which of the 9 fire for this epic's deploy unit(s)]
 - Universal categories: [comma-separated numbers from 1–14 this epic owns; copied verbatim from the per-epic compact entry produced by `02-epic-decomposition-command` sub-step 2h]
+- Abuse Detection: [required — SaaS scaffold with a free-tier signup surface (per `saas/87-abuse-detection.md`) / N/A — not a free-tier signup surface]
+- Email: [transactional / marketing / two-stream (both, separate subdomains per `core/86-email-templates.md`) / none — epic does not send email / N/A]
+- FINANCIALS: [required — SaaS scaffold pre-launch (per `saas/88-saas-launch-checklist.md` + `core/40-documentation.md`) / N/A — non-SaaS or this epic does not affect launch gate]
 
 ### Infrastructure
 Inherited from Infrastructure Decisions spec (do not duplicate here).
