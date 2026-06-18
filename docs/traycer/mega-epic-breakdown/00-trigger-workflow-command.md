@@ -63,7 +63,7 @@ These are **vision-level architectural commitments**. Every epic dispatched from
 - **Email two-stream** — transactional and marketing email MUST be on separate streams/subdomains. Rule pack: `.windsurf/rules/core/86-email-templates.md`.
 - **Shape contract** — every Fabrik-deployed service has a `specs/services/<id>.yaml` whose `shape:` block declares which registrars fire; code MUST match shape. Client-only artifacts (chrome-extension CRX, mobile-app binary, desktop-app binary) ship through their own distribution channels (Chrome Web Store, EAS/App Stores, signed installers) and have no Fabrik spec — only their backends do.
 - **Observability** — every backend service exposes `/health` for Gatus and `/metrics` for Prometheus. Static artifacts (static-site, docusaurus) have no app process exposing these endpoints — Gatus probes them externally for liveness instead.
-- **Fleet topology (multi-host)** — the fleet is **3 permanent hosts**: vps1 (LA, hub) + vps2 (Coventry UK, spoke) + vps3 (Coventry UK, spoke), connected by a WireGuard mesh (`10.99.0.0/24`). Shared infra (postgres-main, redis-main, glitchtip-web, authelia, loki, meilisearch) is **hub-only**; spoke services reach them via the mesh IP `10.99.0.1:<port>`. Every spec declares `target_host:` (`vps1` | `vps2` | `vps3`; default = `vps1`) per `src/fabrik/spec_loader.py:599`. Hub vs spoke decision is a Vision-level choice: hub for shared-infra-coupled services; spokes for tenant-isolated, lower-latency-to-EU, or capacity-spillover workloads. See [`docs/infrastructure/vps-complete-inventory.md`](../../infrastructure/vps-complete-inventory.md) for live state. Live example: `specs/services/spoke-canary.yaml`.
+- **Fleet topology (multi-host)** — the fleet is **3 permanent hosts**: vps1 (LA, hub) + vps2 (Coventry UK, spoke) + vps3 (Coventry UK, spoke), connected by a WireGuard mesh (`10.99.0.0/24`). Shared infra (postgres-main, redis-main, glitchtip-web, authelia, loki, meilisearch) is **hub-only**; spoke services reach them via the mesh IP `10.99.0.1:<port>`. Every spec declares **`target_vps:`** (`vps1` | `vps2` | `vps3`; default = `vps1`) per the `Spec.target_vps` field in `src/fabrik/spec_loader.py` (regex `^vps[1-9][0-9]?$`). Resolution order: `--target-vps` CLI flag > `.fabrik/state/<id>.json::target_vps` > spec `target_vps:` field > `vps1` default (see `30-ops.md:185`). Hub vs spoke decision is a Vision-level choice: hub for shared-infra-coupled services; spokes for tenant-isolated, lower-latency-to-EU, or capacity-spillover workloads. See [`docs/infrastructure/vps-complete-inventory.md`](../../infrastructure/vps-complete-inventory.md) for live state. Live example: `specs/services/spoke-canary.yaml`.
 
 ### Shape model (8 canonical flags)
 
@@ -132,7 +132,7 @@ Plus `kind:` (one of: `service`, `worker`, `static` — per `src/fabrik/spec_loa
 - `project.yaml` may be absent entirely (project predates the scaffolder) → infer scaffold type from `compose.yaml` + `src/` structure; flag as gap.
 - `specs/services/*.yaml` may have no `shape:` block, partial flags, or flags that contradict the code → cross-check by reading the code, not by trusting the spec. Missing/wrong shape = compliance gap → Retrofit epic.
 - `compose.yaml` may violate current rule pack `core/30-ops.md` (Alpine images, `ports:` exposed, no `container_name`, no `deploy.resources.limits.memory`, `localhost` in env, wrong Traefik entrypoint) → each violation is a compliance gap.
-- `.env.example` may be missing, out of sync with `.env` on VPS, or expose secrets → flag and treat the live VPS state (via `ssh root@vps "cat /opt/<name>/.env"`) as authoritative for current behavior.
+- `.env.example` may be missing, out of sync with `.env` on VPS, or expose secrets → flag and treat the live VPS state as authoritative for current behavior. The SSH command must target the host the service actually runs on — derive from `specs/services/<id>.yaml::target_vps` (default `vps1`): `ssh root@<target_vps> "cat /opt/<name>/.env"`. Hub services → `ssh root@vps1`; spoke services → `ssh root@vps2` or `ssh root@vps3`.
 - `docs/` may contain pre-rules conventions, dead links, or files outside the current allowlist (root files · scaffold docs · `docs/development/plans/YYYY-MM-DD-*.md` · `docs/reference/**` · `docs/archive/**`) → flag as doc-hygiene gap.
 - Database schema may have drifted from migrations → treat the live DB (`docker exec postgres-main psql -d <db> -c '\d'`) as authoritative.
 - `.windsurf/rules/` directory may be absent (older scaffolds didn't sync rules) → flag and propose syncing via `fabrik fix /opt/<project> --type <scaffold-type>` (per `fabrik fix --help`, adds missing required files including `.windsurfrules` and `.windsurf/rules/`) as part of the Retrofit set.
@@ -175,6 +175,8 @@ Plus `kind:` (one of: `service`, `worker`, `static` — per `src/fabrik/spec_loa
 ## Processing User Request
 
 This command has a mode declaration at the start, then a series of checkpoints depending on the mode. Do NOT silently proceed past a checkpoint.
+
+**Owner non-responsive at a checkpoint** — if the owner stops replying mid-run, the partial Vision Summary persists in Traycer's conversation context (no files written by this command). To resume: the owner re-enters the conversation and Traycer picks up at the last unresolved checkpoint. **Do NOT** time out and self-confirm; **do NOT** start over from Step 0 unless the owner explicitly says "restart". Silence ≠ confirmation; silence = "session paused, waiting for owner".
 
 ### Step 0: Mode Declaration
 
@@ -258,7 +260,7 @@ If research direction is fundamentally wrong for Fabrik (e.g., AWS serverless wh
 
 **N3h. Research sufficiency.** Any critical area THIN (auth not addressed, data model vague, pricing unclear)? → Recommend pause-and-research with concrete questions, drop results into `docs/development/plans/`, re-run. Do NOT proceed on a thin foundation.
 
-**N3i. Constraint verification** (12 checks — state each as `all clear` / `conflict (<details>)` / `unknown (<question>)`):
+**N3i. Constraint verification** (20 checks — state each as `all clear` / `conflict (<details>)` / `unknown (<question>)`):
 
 1. **x86_64 VPS** — all containers amd64.
 2. **Budget** — state any paid service dependencies with estimated monthly cost.
@@ -266,12 +268,20 @@ If research direction is fundamentally wrong for Fabrik (e.g., AWS serverless wh
 4. **Duplicate check** — no overlap with existing projects.
 5. **Port conflicts** — check `PORTS.md` per service.
 6. **SSH+Docker Compose deployment** — every component deployable via `fabrik apply`?
-7. **No Alpine** — bookworm-slim only.
+7. **No Alpine** — bookworm-slim only (`30-ops.md`).
 8. **12-Factor compliance** — any architectural violations?
 9. **Solo dev capacity** — achievable by one person + AI agents?
 10. **Observability** — every service exposes `/metrics` (Prometheus) and `/health` (Gatus)?
-11. **Vector DB ban** — Pinecone/Qdrant/Weaviate/Milvus = reject. pgvector or Supabase only.
-12. **Email streams** — if product sends email, transactional + marketing on separate streams/subdomains (`core/86-email-templates.md`).
+11. **Vector DB ban** — Pinecone/Qdrant/Weaviate/Milvus = reject. pgvector or Supabase only (`65-rag-search.md`).
+12. **Email streams** — if product sends email, transactional + marketing on separate streams/subdomains (`86-email-templates.md`).
+13. **Compose invariants** — every Fabrik-deployed service declares `container_name: <name>`, `deploy.resources.limits.memory`, `platform: linux/amd64`, no `ports:`, and joins the **`fabrik`** Docker network (NOT `coolify` — renamed 2026-05-31; `fabrik apply` REJECTS the old name). Enforced fatally by `deployer_ssh._validate_compose()`. See `30-ops.md`.
+14. **Billing routing** — if product takes payment: TR domestic SaaS → **iyzico**; international cross-border → **Paddle Billing v2** (MoR); mobile digital goods → **RevenueCat + IAP**. **Stripe is NOT available to the TR-resident LLC** — never plan around it (`85-payments-billing.md`). PayTR is WooCommerce-only, not SaaS.
+15. **LLM gateway** — if product calls any LLM: **OpenRouter is the only gateway**. Never plan direct vendor SDK usage (`openai`, `@anthropic-ai/sdk`, `dashscope`, `google-cloud-aiplatform`) (`65-rag-search.md` + `12-node.md`). Kilo CLI permitted for low-volume non-embedding tasks.
+16. **i18n en+tr from day 1** — every GUI / user-facing surface ships with `en` + `tr` locale files. Translation validated via `scripts/validate_i18n.py`. Adding a language = locale file only, zero code changes (Architectural Mandate § i18n).
+17. **Target host (per service)** — every Fabrik-deployed service declares `target_vps:` (`vps1` / `vps2` / `vps3`; absent → `vps1`). Hub for shared-infra-coupled; spoke for tenant-isolated / EU-proximate / capacity-spillover (Fleet topology mandate above).
+18. **KVKK / GDPR data residency** — if product stores user PII or file blobs: Supabase region defaults to `eu-central-1` (Frankfurt) for KVKK alignment (`mobile-app/80-mobile.md`); file erasure events use `file_erasure_audit` hash-chained table with 3-year retention (`67-file-api.md`, Article 7(3)); telemetry opt-in only — no foreign-cloud egress without consent (`72-desktop.md`).
+19. **Watchdog sidecar (when needed)** — if any service calls paid LLM APIs at non-trivial volume: declare watchdog sidecar opt-in (`60-watchdog.md`) AND a `cost-budget` cap (`cost-budget.md`). Without a cap, a runaway-reasoning loop can empty the budget overnight.
+20. **Node ESM / Python version floors** — Node greenfield: `"type": "module"` + `engines.node ">=22.0.0"` (24 LTS preferred). Python: `python:<current-stable>-slim-bookworm` (3.13 today). `12-node.md` + `10-python.md`.
 
 **N3j. Multi-scaffold check.** Single vision spanning multiple scaffold types (e.g., python-api + saas-skeleton + mobile-app, or chrome-extension + python-api backend) → list which features map to which scaffold. Strong multi-epic signal. **If scaffolds share no data, no auth, no deploy coupling** → candidate for **separate `fabrik scaffold` projects with own lifecycles**, not epics. Ask: "These components seem independent. Separate projects or epics within one project?" Note: if the vision includes a WordPress site, route the WordPress side to the standalone `/opt/wpf` project (out of scope here) and only retain the non-WordPress scaffolds for this run.
 
@@ -339,9 +349,10 @@ across multiple lines.]
 - **RAG pipeline:** [none / search-only (embeddings + retriever) / search + classification / full intelligence (+ generator + summarizer) — state what corpus is being searched and what users need from it. See `domain-modules/rag.md` for component guide.]
 - **Background processing:** [file-worker needed? State what runs async: transcription, PDF gen, AI inference, batch imports, scheduled jobs / none]
 - **Consumed microservices:** [site-provisioner for DNS / image-broker for images / none]
+- **Watchdog sidecar + cost-budget:** [enabled (state per-project `daily_budget_usd` + `daily_invocations_cap` per `cost-budget.md`) / not needed (no paid AI APIs / no cost-sensitive ops) — `cost-budget.md` says watchdog is **mandatory for any project that calls paid AI APIs** because a feedback loop could empty the budget overnight]
 - **Domain structure:** [subdomains needed, e.g., api.X, app.X, admin.X]
 - **Scaffold types:** [list all scaffold types this vision needs — each may become an epic. Valid: python-api, node-api, saas-skeleton, file-api, file-worker, docusaurus, chrome-extension, mobile-app, desktop-app, static-site. **wordpress is NOT valid here** — route any WordPress site requirement to the standalone `/opt/wpf` project.]
-- **Target host (per service):** [`vps1` (hub, default — shared infra here) / `vps2` or `vps3` (spoke — public Traefik only, reaches hub infra via `10.99.0.1:<port>`) — state per service. Hub = anything needing low-latency to postgres/redis/glitchtip/authelia; spoke = tenant-isolated, EU-proximate, or capacity-spillover.]
+- **Target host (per service, YAML field `target_vps:`):** [`vps1` (hub, default — shared infra here) / `vps2` or `vps3` (spoke — public Traefik only, reaches hub infra via `10.99.0.1:<port>`) — state per service. Hub = anything needing low-latency to postgres/redis/glitchtip/authelia; spoke = tenant-isolated, EU-proximate, or capacity-spillover.]
 - **Documentation site:** [SaaS scaffolds: vendor `/opt/fabrik-lib/docs-site/` (Docusaurus + Scalar + legal pages). Non-SaaS: N/A]
 
 ## Constraints
@@ -395,14 +406,14 @@ Present the COMPLETE Vision Summary — the only user-facing output of NEW mode.
 Read the project's actual state — not from memory, from files. Owner must have provided the project folder path.
 
 - `project.yaml` → scaffold type, ports, shape flags. **If missing:** project predates the scaffold system — flag as "pre-scaffold project" in the snapshot. New features MUST go through `fabrik scaffold` patterns even if the original project didn't.
-- `specs/services/*.yaml` → deployed services, shape blocks, registrars, **`target_host`** (defaults to `vps1` if absent). **If missing:** project was not deployed via `fabrik apply` — flag as "manually deployed". New services MUST use `fabrik apply`.
+- `specs/services/*.yaml` → deployed services, shape blocks, registrars, **`target_vps`** (defaults to `vps1` if absent). **If missing:** project was not deployed via `fabrik apply` — flag as "manually deployed". New services MUST use `fabrik apply`.
 - `templates/<scaffold-type>/` (in Fabrik repo) → the canonical scaffold tree this project was generated from. Compare against actual layout to detect drift from scaffold defaults.
 - `compose.yaml` / `Dockerfile` → infrastructure, base images, services.
 - `.env.example` → environment variables, external service dependencies.
 - `src/` or `app/` → codebase structure, existing modules, API routes.
 - Database schema → existing tables (from migrations or models).
 - `docs/` → existing architecture docs, preplans, FINANCIALS.md.
-- `.windsurf/rules/` → rule packs synced; check if project follows them.
+- `.windsurf/rules/` → rule packs synced from `/opt/fabrik/.windsurf/rules/`. **Local edits to any Fabrik-synced file are a Tier-1 violation** — gate-enforced by `scripts/enforcement/check_synced_unmodified.py` (since commit `4ab2eb3`). The full synced set (AGENTS.md, CLAUDE.md, AGENTS-compact.md, .windsurfrules, `.windsurf/rules/`, scripts/enforcement/, etc.) is defined by `scripts/fabrik_synced_manifest.py`. Run the gate check from project root; any drift is a Compliance gap that must be fixed by reverting the local edit + proposing the change upstream in `/opt/fabrik` (only if the change applies to ALL projects).
 
 **Lifecycle check (4 stages — completeness audit; gaps feed Step E3):**
 
@@ -432,7 +443,7 @@ Present the snapshot — what EXISTS right now:
 - **Auth:** [what's implemented — Pattern A / Pattern B / custom]
 - **Database:** [postgres-main / Supabase / both — what tables exist]
 - **Frontend:** [Next.js 15 + React 19 + Tailwind (current saas-skeleton default — bumped 2026-06-18) / Jinja + Bootstrap / etc.]
-- **Target host:** [`vps1` (hub) / `vps2` / `vps3` — read from `specs/services/<id>.yaml::target_host`; missing = `vps1`]
+- **Target host:** [`vps1` (hub) / `vps2` / `vps3` — read from `specs/services/<id>.yaml::target_vps`; missing = `vps1`]
 - **Billing:** [Paddle / iyzico / RevenueCat / none — if wired, it's locked]
 - **Background processing:** [Celery / PG job queue / none]
 - **Search:** [MeiliSearch / pgvector / none]
@@ -469,6 +480,7 @@ Run these in the project's directory:
 2. `fabrik audit-registrars --spec specs/services/<id>.yaml` — shape/registrar drift:
    - For each declared registrar: `present` / `missing` / `drift` / `n/a` / `override` / `unknown`.
    - Drift cases: orphan resources (created outside fabrik), ghost entries (spec says yes, live says no, vice versa).
+   - **Use `audit-registrars`, NOT `reconcile-all`.** Per AGENTS.md, `fabrik reconcile-all` is **currently broken** (still imports `CoolifyClient`, fails at startup pending Phase 11-2 migration). `audit-registrars` is the read-only audit path and works; `reconcile-all` is the auto-fix path and is unavailable today. Do not plan tickets that invoke reconcile-all.
 3. Inspect: does `.fabrik/state/<id>.json` exist? Does `docs/RESILIENCE.md` exist for projects with external deps?
 
 Report findings as a list of mechanical gaps with concrete locations.
@@ -494,12 +506,20 @@ For each rule pack applicable to this scaffold type (per `AGENTS.md` § Project 
 | Vector DB | pgvector / Supabase only — no Pinecone/Qdrant/Weaviate/Milvus | Inspect deps | Compliant / Deviates / N/A |
 | Shape contract | Code matches `spec.shape` | Cross-check audit-registrars output | Compliant / Drift |
 | Observability | `/health` for Gatus + `/metrics` for Prometheus | Inspect endpoints | Compliant / Partial |
-| Target host (multi-host) | `spec.target_host` declared (or absent → `vps1` by default); spoke services use mesh IPs for hub infra | Read spec; grep for hardcoded `vps1.ocoron.com` URLs in spoke services | Compliant / Drift / N/A |
+| Target host (multi-host) | `spec.target_vps` declared (or absent → `vps1` by default); spoke services use mesh IPs for hub infra | Read spec; grep for hardcoded `vps1.ocoron.com` URLs in spoke services | Compliant / Drift / N/A |
 | Watchdog / sidecar self-heal | Critical services have a watchdog sidecar (per `core/60-watchdog.md`) | Inspect compose for watchdog sidecar pattern | Compliant / Missing / N/A |
 | Self-healing strategy | Drift → diagnose → action loops; Tier A/B/C decision matrix (per `core/self-healing.md`) | Inspect: does the project surface Tier A actions to AI Sysadmin? | Compliant / Missing / N/A |
 | Audit log | Tenant-scoped, immutable rows for sensitive ops (per `core/app-audit-log.md`) | Inspect schema for audit table; grep for audit writes on mutations | Compliant / Missing / N/A |
 | Cost budget | Per-feature LLM + infra cost capped; OpenRouter gateway only (per `core/cost-budget.md`) | Inspect for direct vendor SDKs, uncapped loops | Compliant / Deviates / N/A |
 | Bootstrap scripts | Project deploy path covered by `bootstrap-vps.sh` / restore scripts (per `core/90-bootstrap-scripts.md`) | Inspect `scripts/` + DR docs | Compliant / Missing / N/A |
+| Compose invariants | Every service has `container_name:`, `deploy.resources.limits.memory`, `platform: linux/amd64`, no `ports:`, joins `fabrik` network (NOT `coolify`) — enforced fatally by `deployer_ssh._validate_compose()` per `30-ops.md` | Read `compose.yaml`; grep each invariant | Compliant / Violates |
+| Authelia bypass scope | `/health`, `/healthz`, `/metrics`, `/api/health` bypassed **resource-based, not domain-bound** (hub + spokes via `authelia-vps1@file`); never protected | grep code for `/health` auth middleware; check Traefik labels for protections | Compliant / Drift |
+| Billing routing | iyzico for TR SaaS / Paddle for international / RevenueCat for mobile IAP; Stripe NOT wired; PayTR only if WooCommerce (per `85-payments-billing.md`) | grep imports for `@stripe/stripe-node`, `stripe`, `iyzipay`, `@paddle/paddle-node`, `@paddle/paddle-js` | Compliant / Deviates / N/A |
+| LLM gateway | OpenRouter only; no vendor SDKs (`openai`, `@anthropic-ai/sdk`, `dashscope`, `google-cloud-aiplatform`) (per `65-rag-search.md` + `12-node.md`) | grep deps + imports | Compliant / Deviates / N/A |
+| Node ESM mandate | Greenfield Node: `"type": "module"` in `package.json`; `engines.node: ">=22.0.0"` (24 LTS preferred); `npm ci --ignore-scripts` in Dockerfile (per `12-node.md`) | Inspect `package.json` + `Dockerfile` | Compliant / Deviates / N/A |
+| Python version floor | `python:<current-stable>-slim-bookworm` (3.13 at time of writing); `uv` package manager — no raw `pip` (per `10-python.md` + `30-ops.md`) | Inspect `Dockerfile` + `pyproject.toml` | Compliant / Deviates / N/A |
+| file_erasure_audit hash-chain (file-api scaffold) | Tamper-evident sibling audit table with `prev_hash` + `current_hash` columns via `BEFORE INSERT` trigger; `verify_chain()` adapted from `/opt/fabrik-lib/app-audit-log/`; quarterly verification scheduled (per `67-file-api.md` § KVKK + Article 7(3)) | Inspect schema for `file_erasure_audit` + trigger + verify scheduler | Compliant / Missing / N/A |
+| Fabrik-synced files unmodified | The set in `scripts/fabrik_synced_manifest.py` (AGENTS.md, CLAUDE.md, AGENTS-compact.md, .windsurfrules, `.windsurf/rules/`, etc.) must be byte-identical to `/opt/fabrik` source — never edited locally; gate-enforced by `scripts/enforcement/check_synced_unmodified.py` | Run `python scripts/enforcement/check_synced_unmodified.py` from project root | Compliant / Drift |
 
 Adapt the table to the scaffold type — pull the relevant packs from `AGENTS.md` § Project Type → Default Packs. For non-applicable rule areas, mark `N/A` (e.g., abuse detection for an internal API).
 
@@ -529,7 +549,7 @@ Wait for owner decisions. **STOP GENERATION HERE.** These decisions shape which 
 
 **Identify integration points:** existing tables read/written, existing API endpoints extended/depended on, shared auth, existing vs new background workers.
 
-**Constraint verification for the delta** (same 12 checks as N3i, scoped to what the delta adds; inherited services not re-checked).
+**Constraint verification for the delta** (same 20 checks as N3i, scoped to what the delta adds; inherited services not re-checked).
 
 ### Step E5: Produce Vision Summary (EXISTING mode — with extra sections)
 
@@ -584,6 +604,8 @@ R2. [Retrofit: add responsive design] — [description] (medium)
 - Email (marketing): [Resend Broadcasts → Listmonk+SES / none]
 - Background processing: [file-worker needed? what runs async]
 - Scaffold types: [any NEW scaffold types — e.g., adding mobile-app alongside existing saas-skeleton]
+- Watchdog sidecar + cost-budget: [enable for new paid-AI-API callers? Per-project `daily_budget_usd` + `daily_invocations_cap` per `cost-budget.md`]
+- Target host (per new service, YAML `target_vps:`): [`vps1` (hub, default) / `vps2` / `vps3` (spoke)]
 - Deploy target: VPS via fabrik apply / SSH + Docker Compose (confirmed — same as existing services)
 - Domain structure: [any NEW subdomains needed for the new capability]
 
@@ -610,7 +632,7 @@ one Retrofit epic per Fix-now item, alongside the delta-feature epics.]
 | Shape drift: prometheus | `fabrik audit-registrars` | Fix-now | Retrofit epic |
 
 ## Constraints
-[Same format as NEW-mode Vision Summary — 12 constraint checks, scoped to the delta]
+[Same format as NEW-mode Vision Summary — 20 constraint checks, scoped to the delta]
 - x86_64: all clear
 - Budget: [status]
 - [etc.]
@@ -661,7 +683,7 @@ Wait for explicit confirmation. **STOP GENERATION HERE.** Silence ≠ confirmati
 - Personas named explicitly — not just "users." Value streams stated — not just "it's useful."
 - Backing services grounded in actual VPS inventory (`AGENTS.md` § Infrastructure Services). External services identified with cost tier (free/paid).
 - Technology Decisions complete — every major NEW choice resolved. No "TBD" allowed.
-- All 12 constraints verified: `all clear` / `conflict` / `unknown`. No silent unknowns.
+- All 20 constraints verified: `all clear` / `conflict` / `unknown`. No silent unknowns.
 - Scale Assessment present with classification and clear next-step routing.
 - Vision Summary within token budget for the declared mode.
 - Open Questions captures ALL unresolved items; zero remain at confirmation (all answered or explicitly deferred).
