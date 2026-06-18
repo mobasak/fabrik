@@ -38,12 +38,15 @@ This command produces the compact epic proposal + Infrastructure Decisions in co
 
 **Required — from `00-trigger-workflow-command` (in conversation context):**
 - Confirmed Vision Summary with ALL sections:
+  - Product Vision (the 3–5 sentence framing — quoted verbatim into Epic 1's Summary if it's a delivery epic)
+  - Personas, Value Streams
   - Full Feature Inventory (numbered, with complexity classification)
-  - Technology Decisions (resolved — not re-decided here)
   - Backing Services + External Services
+  - Technology Decisions (resolved — not re-decided here)
   - Constraints (all `all clear` or resolved)
+  - Out of Scope (vision-level — any feature here MUST NOT appear in any epic)
+  - Open Questions (MUST be empty / all marked resolved or explicitly deferred — see Hard stop below)
   - Scale Assessment (multi-epic confirmed)
-  - Personas, Value Streams, Out of Scope
 
 **Additional required input when 00 was in EXISTING mode (Vision Summary has these extra sections):**
 - **Locked Decisions** — technology choices that cannot change (auth, database, frontend, billing, current shape block). These are inherited into Infrastructure Decisions § Auth Strategy / § Database Strategy / etc. **verbatim** — they are not re-decided here.
@@ -62,8 +65,9 @@ This command produces the compact epic proposal + Infrastructure Decisions in co
 - **Domain modules** — for EACH scaffold type identified in the Vision Summary's Technology Decisions, read the matching file from `domain-modules/`:
   - `saas-skeleton` → read `domain-modules/saas.md`
   - `mobile-app` → read `domain-modules/mobile-app.md`
-  - `wordpress` → read `domain-modules/wordpress.md`
+  - `desktop-app` → read `domain-modules/desktop-app.md`
   - `chrome-extension` → read `domain-modules/chrome-ext.md`
+  - `wordpress` → read `domain-modules/wordpress.md` ONLY for projects under `/opt/wpf` — per `00-trigger-workflow-command` L83, WordPress is out-of-scope for the mega-epic-breakdown workflow; if a WordPress component reached 02, route it back to 00 for proper handling
   - If Vision Summary Technology Decisions includes **RAG pipeline** (any level) → read `domain-modules/rag.md`
   - Multi-scaffold vision (e.g., saas + mobile-app + chrome-extension) → read ALL matching modules. They inform epic patterns (mobile always has a "store submission" epic, SaaS always has "billing + tenant" epic, chrome-ext always has "backend API first, extension second" pattern, etc.). RAG module is additive — read it alongside scaffold modules when RAG is in scope.
 
@@ -97,7 +101,7 @@ State: "Vision Summary consumed. [N] features, [M] scaffold types, scale assessm
 
 **2b. Apply boundary rules:**
 - Every feature from the inventory maps to EXACTLY one epic. No feature in two epics. No feature orphaned.
-- Each epic has 5-15 features. Fewer than 5 = merge with adjacent epic. More than 15 = split.
+- Each epic targets 5–15 features. Fewer than 5 = merge with adjacent epic UNLESS one of these exceptions holds, document the justification inline: (a) the epic is a Retrofit epic (small retrofits permitted per 2b); (b) the Vision Summary's Scale Assessment routed to multi-epic with <8 total features (per `00-trigger-workflow-command` Step N3e, an 8-feature vision splits into 2–3 epics → 3–4 features each is permitted; forcing into single-epic would have been wrong for the complexity profile); (c) a scaffold-specific overlay mandates a small dedicated epic (e.g., mobile-app "store submission" epic). More than 15 = split.
 - Each epic has a clear scaffold type (from the Vision Summary's Technology Decisions § Scaffold types).
 - Each epic has its own `fabrik apply` with its own shape block and registrars.
 
@@ -157,7 +161,7 @@ Do NOT present the proposal until every parallel-labeled epic has a PASS verdict
 
 **2h. Universal Coverage Check:**
 
-Before drafting Infrastructure Decisions, audit the candidate epic set against the 14 universal categories defined in `docs/development/plans/2026-05-30-ai-watchdog-platform.md § What 02 will enforce after P4`. Each category is either (a) covered by an existing candidate epic, (b) covered by a Step 3 Infrastructure Decisions sub-section drafted in the next step, or (c) explicitly N/A because its trigger condition is false for this vision. Produce one verdict line per category. If any category is unassigned, return to 2a and revise the epic grouping before continuing — Step 3 must NOT proceed against an incomplete epic set.
+Before drafting Infrastructure Decisions, audit the candidate epic set against the 14 universal categories — **this command is the authoritative source** for the category list (table immediately after this paragraph). The original platform plan that introduced these categories now lives at `docs/development/plans/archived/2026-05-30-ai-watchdog-platform.md` (archived; historical context only — do NOT cite it as authority). Each category is either (a) covered by an existing candidate epic, (b) covered by a Step 3 Infrastructure Decisions sub-section drafted in the next step, or (c) explicitly N/A because its trigger condition is false for this vision. Produce one verdict line per category. If any category is unassigned, return to 2a and revise the epic grouping before continuing — Step 3 must NOT proceed against an incomplete epic set.
 
 **Emit 14 verdict lines in this shape:**
 
@@ -195,7 +199,7 @@ Before drafting Infrastructure Decisions, audit the candidate epic set against t
 
 **Overlay-merge rule — apply AFTER the 14 verdicts (handles scaffold-type overlays loaded per Input Contract lines 62–68):**
 
-For each loaded scaffold overlay, walk its Mandatory Epic Coverage rows (e.g., `domain-modules/saas.md § 1B Mandatory Epic Coverage`). For each overlay row:
+For each loaded scaffold overlay, walk its Mandatory Epic Coverage rows (e.g., `domain-modules/saas.md § Mandatory Epic Coverage`). For each overlay row:
 
 - Identify which universal category(ies) the overlay row satisfies (e.g., "Billing + Gating" satisfies #4 Features AND #9 Cost Guardrails).
 - If the universal category was COVERED by a candidate epic in 2a–2g AND the overlay row matches the same epic → **merge**: cite both in that epic's compact entry. No new epic created.
@@ -399,7 +403,7 @@ Iterate until the owner explicitly confirms:
 - Every "ABSORBED in Step 3 § X" verdict in 2h matches a sub-section actually drafted in Step 3.
 - Every "N/A" verdict in 2h carries an explicit trigger-not-met reason cited from the spec shape block or Vision Summary.
 - Overlay-merge rule applied: no overlay-mandated epic is duplicated by a universal-category epic, and no overlay-mandated coverage is dropped.
-- Each per-epic compact entry carries the 6 metadata fields (Shape, Concurrency, i18n, Responsive, Dark+Light, Registrars) plus `Universal categories` — total 16 fields, matching `03-expand-epic-files-command`'s Metadata block expectation (per sub-plan § 7.3).
+- Each per-epic compact entry carries **16 indented fields** under the `Epic [N]: [Name]` heading, in three groups: (1) **9 epic-shape fields** — Scope, Features, Scaffold, Depends on, Parallel with, Port, Delivers, Rule Packs, HAS_USER_GUIDE; (2) **6 inheritance-metadata fields** — Shape, Concurrency, i18n, Responsive, Dark+Light, Registrars; (3) **Universal categories** (1 field). 03's Metadata block consumes 11 of these (the 6 metadata + Scaffold + Port + Rule Packs + HAS_USER_GUIDE + Universal categories); the remaining 5 (Scope, Features, Depends on, Parallel with, Delivers) become other sections in 03's ticket (Summary, Scope > In, Dependencies, Dependencies, Success Criteria respectively). See `03-expand-epic-files-command` Metadata block.
 - Owner explicitly confirms. Silence ≠ confirmation.
 
 **Existing mode adds:**
