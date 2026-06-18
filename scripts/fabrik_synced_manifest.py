@@ -76,8 +76,9 @@ ENFORCEMENT_DIR = "scripts/enforcement"
 # cwd/path-agnostic: the Claude Code hook resolves its project via ${CLAUDE_PROJECT_DIR}
 # + stdin cwd; the Cascade hook commands self-locate via `git rev-parse`). This is
 # what makes every project — existing and future — enforce `final_gate` green as the
-# definition of done. ``opencode.json`` (Kilo's session_completed hook) rides
-# GOVERNANCE_FILES above.
+# definition of done. (Kilo/opencode has no config-level hook surface — its schema
+# is strict — so Kilo stays instruction-only via AGENTS-compact.md, which rides
+# GOVERNANCE_FILES above.)
 AGENT_HOOK_FILES = [
     ".claude/settings.json",
     ".claude/hooks/final_gate_stop.py",
