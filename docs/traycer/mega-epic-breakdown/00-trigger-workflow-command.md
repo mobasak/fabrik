@@ -507,7 +507,7 @@ For each rule pack applicable to this scaffold type (per `AGENTS.md` § Project 
 | Vector DB ban | any scaffold doing vector search — N/A otherwise |
 | Cost budget, Watchdog sidecar | any scaffold calling paid AI APIs — N/A otherwise |
 | Target host (multi-host) | every Fabrik-deployed scaffold (`service`/`worker`); `static` N/A unless deployed via spec |
-| i18n, Responsive design, Dark+light mode | GUI scaffolds only (saas-skeleton, docusaurus front, chrome-extension popup, mobile-app, desktop-app); pure backend python-api/node-api/file-api/file-worker → N/A |
+| i18n, Responsive design, Dark+light mode | **Any scaffold exposing a user/admin GUI surface** — saas-skeleton, docusaurus front, chrome-extension popup, mobile-app, desktop-app, AND python-api/node-api/file-api when `shape.is_admin_dashboard: true` OR `shape.is_public: true` with HTML output. Trigger on the *GUI surface*, not the scaffold type — a python-api admin dashboard needs dark+light + responsive + i18n exactly like a saas-skeleton does. N/A only when the scaffold has no HTML/native UI at all (pure JSON API, file-worker queue consumer, static-site with no localization needs). |
 | Audit log | scaffolds storing tenant-scoped sensitive data (saas-skeleton, file-api when KVKK-bound) — N/A otherwise |
 | Self-healing strategy | services critical to fleet uptime (per `core/self-healing.md`) — N/A for one-off internal tools |
 | Abuse detection, Email two-stream, FINANCIALS.md | SaaS-only (saas-skeleton) — N/A everywhere else |
