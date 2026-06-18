@@ -305,34 +305,18 @@ FABRIK_WINDSURF_HOOKS = FABRIK_ROOT / ".windsurf" / "hooks.json"
 
 
 def _copy_windsurf_hooks(project_dir: Path) -> bool:
-    """Copy .windsurf/hooks.json from fabrik root into project_dir, rewriting the
-    hardcoded ``cwd: /opt/fabrik`` to point at the new project's root so the
-    Cascade hooks invoke the project's own copy of ``scripts/enforcement/``.
+    """Copy .windsurf/hooks.json from fabrik root into project_dir verbatim.
 
-    Returns True if the file was copied, False if the source is missing.
+    The Cascade hook commands self-locate the repo root via ``git rev-parse`` (no
+    hardcoded ``cwd``), so the file is correct in any project without rewriting —
+    matching what sync_enforcement_to_projects.py distributes. Returns True if
+    copied, False if the source is missing.
     """
     if not FABRIK_WINDSURF_HOOKS.exists():
         return False
-
-    raw = FABRIK_WINDSURF_HOOKS.read_text(encoding="utf-8")
-    try:
-        config = json.loads(raw)
-    except json.JSONDecodeError:
-        # Source is malformed — copy verbatim and let the user notice
-        target = project_dir / ".windsurf" / "hooks.json"
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(raw, encoding="utf-8")
-        return True
-
-    project_root_str = str(project_dir.resolve())
-    fabrik_root_str = str(FABRIK_ROOT.resolve())
-    for hook in config.get("hooks", []):
-        if hook.get("cwd") == fabrik_root_str:
-            hook["cwd"] = project_root_str
-
     target = project_dir / ".windsurf" / "hooks.json"
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
+    shutil.copy(FABRIK_WINDSURF_HOOKS, target)
     return True
 
 
@@ -877,10 +861,8 @@ def _scaffold_shared(
         shutil.rmtree(workflows_target)
     shutil.copytree(fabrik_windsurf_workflows, workflows_target)
 
-    # Copy .windsurf/hooks.json (Cascade definition-of-done hook — surfaces final_gate)
-    fabrik_windsurf_hooks = FABRIK_ROOT / ".windsurf" / "hooks.json"
-    if fabrik_windsurf_hooks.exists():
-        shutil.copy(fabrik_windsurf_hooks, project_dir / ".windsurf" / "hooks.json")
+    # (.windsurf/hooks.json is copied by _copy_windsurf_hooks() below — Cascade
+    # definition-of-done hook that surfaces final_gate.)
 
     # Copy .claude/ (Claude Code Stop hook — blocks "done" until final_gate is green).
     # Path/cwd-agnostic (resolves project via ${CLAUDE_PROJECT_DIR} + stdin cwd), so the
