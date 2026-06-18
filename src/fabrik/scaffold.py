@@ -2783,50 +2783,64 @@ SERVICE_NAME={name}
 
 
 def _scaffold_mobile_app(project_dir: Path, name: str, description: str, **kwargs: object) -> None:
-    """Create React Native mobile app from templates/mobile-app/.
+    """Create the Expo (React Native) mobile app from templates/mobile-app/.
 
-    Copies the real template package.json (with full React Native deps) and the
-    entire src/ tree (navigation, features, screens) so the scaffold output
-    matches the declared template contract.
+    Copies the Expo SDK 55 foundation — package.json, app.json, eas.json,
+    babel/metro/tsconfig, the ``index.ts`` entry, and the full ``src/`` tree —
+    so the scaffold output is a buildable Expo project. The template's
+    ``compose.yaml.j2``/``Dockerfile.j2`` are NOT copied: mobile-app is a
+    packaged client artifact with no VPS container (see ``test_no_dockerfile``).
     """
     import json
 
-    # Copy package.json from template with name/description substitution
+    # package.json — name + description substitution.
     pkg = json.loads((MOBILE_APP_TEMPLATE_DIR / "package.json").read_text())
     pkg["name"] = name
     pkg["description"] = description
     (project_dir / "package.json").write_text(json.dumps(pkg, indent=2) + "\n")
 
-    # Copy src/ tree from template (React Native app structure)
+    # app.json — point the Expo app name/slug at the project.
+    app_src = MOBILE_APP_TEMPLATE_DIR / "app.json"
+    if app_src.exists():
+        app = json.loads(app_src.read_text())
+        if isinstance(app.get("expo"), dict):
+            app["expo"]["name"] = name
+            app["expo"]["slug"] = name
+        (project_dir / "app.json").write_text(json.dumps(app, indent=2) + "\n")
+
+    # Remaining Expo config + entry — copy verbatim (no substitution needed).
+    for fname in ("eas.json", "babel.config.js", "metro.config.js", "tsconfig.json", "index.ts"):
+        src = MOBILE_APP_TEMPLATE_DIR / fname
+        if src.exists():
+            shutil.copy2(src, project_dir / fname)
+
+    # src/ tree (App.tsx, lib, theme, locales, navigation, features).
     template_src = MOBILE_APP_TEMPLATE_DIR / "src"
     if template_src.exists():
         shutil.copytree(template_src, project_dir / "src", dirs_exist_ok=True)
 
-    # .env.example
-    (project_dir / ".env.example").write_text(
-        f"# {name} Configuration\nNODE_ENV=development\nAPI_BASE_URL=https://api.your-vps.com/api\n"
-    )
+    # .env.example — Expo public env vars (EXPO_PUBLIC_*) from the template.
+    env_src = MOBILE_APP_TEMPLATE_DIR / ".env.example"
+    if env_src.exists():
+        shutil.copy2(env_src, project_dir / ".env.example")
 
-    # .gitignore (React Native-appropriate)
+    # .gitignore — fabrik blocks + Expo patterns.
     (project_dir / ".gitignore").write_text(
         _COMMON_GITIGNORE_PATTERNS
         + "\n"
         + _DROID_GITIGNORE_BLOCK
         + "\n"
-        + "# React Native-specific\n"
-        "android/app/build/\n"
-        "android/.gradle/\n"
-        "ios/build/\n"
-        "ios/Pods/\n"
-        "\n"
-        "# Build & Test\n"
+        + "# Expo / React Native\n"
+        ".expo/\n"
         "dist/\n"
-        "build/\n"
-        "coverage/\n"
+        "web-build/\n"
+        "expo-env.d.ts\n"
+        "/ios/\n"
+        "/android/\n"
         "\n"
-        "# Node.js-specific\n"
-        "npm-debug.log*\n"
-        "yarn-debug.log*\n"
+        "# Metro / logs\n"
+        "*.log\n"
+        ".metro-health-check*\n"
     )
 
 

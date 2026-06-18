@@ -646,8 +646,8 @@ class TestStaticSiteScaffold:
 class TestMobileAppScaffold:
     """Test mobile-app scaffold generates template-backed React Native structure."""
 
-    def test_uses_react_native_scripts(self, tmp_path):
-        """Verify package.json has React Native scripts, not Expo."""
+    def test_uses_expo_scripts(self, tmp_path):
+        """Verify package.json has Expo scripts (SDK 55 rebase, 2026-06-18)."""
         import json
 
         create_project(
@@ -661,14 +661,40 @@ class TestMobileAppScaffold:
         pkg = json.loads((project_dir / "package.json").read_text())
         scripts = pkg["scripts"]
 
-        # React Native scripts must be present
-        assert scripts["start"] == "react-native start"
-        assert scripts["android"] == "react-native run-android"
-        assert scripts["ios"] == "react-native run-ios"
+        assert scripts["start"] == "expo start"
+        assert scripts["android"] == "expo run:android"
+        assert scripts["ios"] == "expo run:ios"
+        assert pkg["dependencies"].get("expo", "").startswith("~55"), "expected Expo SDK 55"
 
-        # No Expo references
-        for key, val in scripts.items():
-            assert "expo" not in val.lower(), f"Expo reference found in scripts.{key}: {val}"
+    def test_scaffolds_expo_config_files(self, tmp_path):
+        """The Expo foundation must be scaffolded — without app.json / babel /
+        the entry, the project does not build. Regression for the rebase bug
+        where _scaffold_mobile_app only copied package.json + src/."""
+        import json
+
+        create_project(
+            name="test-mobile",
+            project_type="mobile-app",
+            description="Test Mobile App",
+            base=tmp_path,
+        )
+
+        project_dir = tmp_path / "test-mobile"
+        for f in (
+            "app.json",
+            "eas.json",
+            "babel.config.js",
+            "metro.config.js",
+            "tsconfig.json",
+            "index.ts",
+        ):
+            assert (project_dir / f).exists(), f"missing Expo config file: {f}"
+
+        app = json.loads((project_dir / "app.json").read_text())
+        assert app["expo"]["slug"] == "test-mobile", "app.json slug not set to project name"
+
+        env = (project_dir / ".env.example").read_text()
+        assert "EXPO_PUBLIC_" in env, ".env.example missing EXPO_PUBLIC_* vars"
 
     def test_has_full_react_native_deps(self, tmp_path):
         """Verify package.json has real React Native deps from template."""
