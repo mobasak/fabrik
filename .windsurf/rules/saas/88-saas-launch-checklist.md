@@ -1,6 +1,6 @@
 ---
 activation: glob
-globs: ["**/billing/**", "**/payments/**", "**/subscriptions/**", "**/terms/**", "**/privacy/**", "**/legal/**", "**/onboarding/**", "**/settings/**", "**/admin/**", "specs/services/*.yaml"]
+globs: ["**/billing/**", "**/payments/**", "**/subscriptions/**", "**/terms/**", "**/privacy/**", "**/legal/**", "**/onboarding/**"]
 description: SaaS product completeness — launch-blocking checklist, legal compliance, payment routing, KVKK/GDPR, abuse prevention, onboarding, tenant settings
 trigger: glob
 ---

@@ -1,6 +1,6 @@
 ---
 activation: glob
-globs: ["**/*.tsx", "**/*.jsx", "**/components/**", "**/app/**", "**/pages/**", "**/tailwind.config.*"]
+globs: ["**/*.tsx", "**/*.jsx", "**/tailwind.config.*"]
 description: SaaS UI patterns — navigation, components, dashboards, performance, billing UI, tenant UI, i18n
 trigger: glob
 ---

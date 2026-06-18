@@ -88,6 +88,30 @@ def test_chrome_not_active_on_obsidian_plugin_manifest(tmp_path: Path) -> None:
     assert "chrome-ext/70.md" in {e["pack"] for e in sr.collect(tmp_path)["available"]}
 
 
+def test_venv_bundled_deps_do_not_false_activate(tmp_path: Path) -> None:
+    # Playwright bundles an electron/ dir inside a non-dotted `venv/`. The desktop
+    # pack's `**/electron/**` must NOT activate on it — `venv` is dep noise, not source.
+    _pack(tmp_path, "desktop-app/72.md", '"**/electron/**"', "Electron")
+    bundled = tmp_path / "venv" / "lib" / "site-packages" / "playwright" / "electron"
+    bundled.mkdir(parents=True)
+    (bundled / "main.js").write_text("//\n")
+    (tmp_path / "main.py").write_text("x=1\n")
+    assert "desktop-app/72.md" in {e["pack"] for e in sr.collect(tmp_path)["available"]}
+
+
+def test_desktop_active_on_electron_dir_not_generic_main(tmp_path: Path) -> None:
+    # Desktop pack keys on the electron/ dir (what the scaffold emits via copytree),
+    # NOT a generic `main.ts` (which a Vite frontend in a python-api also has). The
+    # globs carry no `main.*` entry, so a lone src/main.ts leaves the pack AVAILABLE.
+    _pack(tmp_path, "desktop-app/72.md", '"**/electron/**", "**/preload.{js,ts}"', "Electron")
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "main.ts").write_text("//\n")  # generic entry alone → not desktop
+    assert "desktop-app/72.md" in {e["pack"] for e in sr.collect(tmp_path)["available"]}
+    (tmp_path / "electron").mkdir()
+    (tmp_path / "electron" / "main.js").write_text("//\n")  # now an electron app
+    assert "desktop-app/72.md" in {e["pack"] for e in sr.collect(tmp_path)["active"]}
+
+
 def test_chrome_active_on_scaffolded_extension_layout(tmp_path: Path) -> None:
     # A scaffolded extension lives under extension/ (manifest + src/background.ts etc.) —
     # `**/extension/**` must keep it ACTIVE even with `**/manifest.json` gone.

@@ -1,6 +1,6 @@
 ---
 activation: glob
-globs: ["**/electron/**", "**/renderer/**", "**/electron-builder*", "**/forge.config*", "**/main.{js,ts,mjs,cjs}", "**/preload.{js,ts}"]
+globs: ["**/electron/**", "**/renderer/**", "**/electron-builder*", "**/forge.config*", "**/preload.{js,ts}"]
 description: Electron 30+ desktop app — process model, IPC zero-trust, code signing (Azure Trusted Signing / Apple notarization), R2 auto-update, native integrations, KVKK
 trigger: glob
 ---

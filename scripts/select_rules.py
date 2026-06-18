@@ -44,6 +44,7 @@ def _parse_frontmatter(text: str) -> tuple[list[str], str]:
 _EXCLUDE = {
     "node_modules",
     ".venv",
+    "venv",  # non-dotted virtualenv (bundles deps like playwright's electron/ — false-flags packs)
     ".git",
     "templates",
     "dist",

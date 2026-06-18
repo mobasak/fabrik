@@ -1,6 +1,6 @@
 ---
 activation: glob
-globs: ["**/tenants/**", "**/middleware/**", "**/rls/**", "**/organizations/**"]
+globs: ["**/tenants/**", "**/rls/**", "**/organizations/**"]
 description: Multi-tenant SaaS discipline — tenant isolation, PostgreSQL RLS, context propagation, cross-tenant prevention
 trigger: glob
 ---

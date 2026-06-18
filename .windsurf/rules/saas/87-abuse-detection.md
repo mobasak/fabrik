@@ -1,6 +1,6 @@
 ---
 activation: glob
-globs: ["**/auth/**", "**/register/**", "**/signup/**", "**/users/**"]
+globs: ["**/register/**", "**/signup/**"]
 description: Abuse detection discipline — registration gating, progressive unlock, fingerprinting, disposable email blocking for SaaS free tiers
 trigger: glob
 ---

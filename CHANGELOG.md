@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — family rule-packs false-activating fleet-wide on generic dir names (2026-06-18)
+
+A fleet scan found **29 type-mismatched pack activations**: family packs (`saas/`, `desktop-app/`) firing in `python-api` projects on generic directory globs. Root cause was over-broad globs, not project type — and the fix had to be type-INDEPENDENT, because Fabrik projects are commonly *hybrid* (e.g. `trade-intelligence` is `python-api` but ships 72 real `.tsx` files under `web/`). Gating pack distribution on the single `project.yaml::type` would have stripped frontend packs from projects that genuinely need them. So instead the offending globs were tightened to **family-specific file signals**:
+
+- `saas/60-saas-ui`: dropped `**/app/**`, `**/pages/**`, `**/components/**` (a FastAPI `app/` matched) → keeps `**/*.tsx`, `**/*.jsx`, `**/tailwind.config.*`. Now activates on a real frontend (incl. a hybrid python-api's), not a backend `app/` package.
+- `saas/88-saas-launch-checklist`: dropped `specs/services/*.yaml` (**matched every Fabrik project**) + generic `**/settings/**`, `**/admin/**`.
+- `saas/95-multi-tenant-saas`: dropped `**/middleware/**` (any backend has one).
+- `saas/87-abuse-detection`: dropped generic `**/auth/**`, `**/users/**` → keeps `**/register/**`, `**/signup/**` (real abuse surfaces).
+- `desktop-app/72`: dropped `**/main.{js,ts,mjs,cjs}` (a Vite entry matched) → keys on the `electron/` dir the scaffold emits.
+- `select_rules.py`: added non-dotted `venv` to `_EXCLUDE` — Playwright bundles an `electron/` dir inside `venv/`, which false-flagged the desktop pack.
+
+After: every remaining family activation corresponds to real matching code (verified fleet-wide); 0 false positives. Tests cover the venv exclusion and the electron/-vs-generic-main distinction.
+
 ### Changed — planning prep scoped to planning only; tightened rule-pack globs (2026-06-18)
 
 - **Scoped the planning prep to PLANNING.** ORIENT in `CLAUDE.md` / `.windsurfrules` / `AGENTS-compact.md` now says *"only when PLANNING"* read `AGENTS.md` + run `select_rules.py`; **routine implementation skips it** (the applicable `.windsurf/rules` auto-activate by glob when you edit matching files). Self-review wording loosened from "ACTIVE packs" to "applicable `.windsurf/rules`" since a non-planning task never ran the selector.
