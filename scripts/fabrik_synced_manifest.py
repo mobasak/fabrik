@@ -154,6 +154,36 @@ def gitignore_dest_paths() -> dict[str, list[str]]:
     }
 
 
+_GI_BAR = "# " + "=" * 60
+GITIGNORE_BLOCK_END = "# End Fabrik-synced block"
+
+
+def gitignore_block_text() -> str:
+    """The full ``.gitignore`` "Fabrik-synced" block (with markers), from the manifest.
+
+    Single source for both scaffold.py (new projects) and
+    sync_enforcement_to_projects.py (patches existing projects' .gitignore so every
+    governance/synced file is ignored fleet-wide). The header doubles as the
+    "do not edit" warning. The ``GITIGNORE_BLOCK_END`` marker lets the sync find +
+    replace an existing block without touching the project's own .gitignore entries.
+    """
+    lines = [
+        _GI_BAR,
+        "# Fabrik-synced files — DO NOT EDIT (centrally managed)",
+        "# Pushed from /opt/fabrik by sync_enforcement_to_projects.py; local edits",
+        "# are overwritten on the next sync. To change one: edit the canonical copy",
+        "# in /opt/fabrik and re-sync — only if the change applies to ALL projects.",
+        _GI_BAR,
+        "",
+    ]
+    for group, paths in gitignore_dest_paths().items():
+        lines.append(f"# {group}")
+        lines.extend(paths)
+        lines.append("")
+    lines += [_GI_BAR, GITIGNORE_BLOCK_END, _GI_BAR]
+    return "\n".join(lines) + "\n"
+
+
 def iter_synced_pairs(
     project_root: Path, fabrik_root: Path = FABRIK_ROOT
 ) -> Iterator[tuple[Path, Path]]:

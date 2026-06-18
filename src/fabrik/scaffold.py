@@ -350,28 +350,9 @@ def _fabrik_synced_gitignore_block() -> str:
     scripts_dir = str(FABRIK_ROOT / "scripts")
     if scripts_dir not in _sys.path:
         _sys.path.insert(0, scripts_dir)
-    from fabrik_synced_manifest import gitignore_dest_paths
+    from fabrik_synced_manifest import gitignore_block_text
 
-    lines = [
-        "# ============================================================",
-        "# Fabrik-synced files — DO NOT EDIT (centrally managed)",
-        "# Pushed from /opt/fabrik by sync_enforcement_to_projects.py; local edits",
-        "# are overwritten on the next sync. To change one: edit the canonical copy",
-        "# in /opt/fabrik and re-sync — only if the change applies to ALL projects.",
-        "# ============================================================",
-        "",
-    ]
-    for group, paths in gitignore_dest_paths().items():
-        lines.append(f"# {group}")
-        lines.extend(paths)
-        lines.append("")
-    lines += [
-        "# ============================================================",
-        "# End Fabrik-synced block",
-        "# ============================================================",
-        "",
-    ]
-    return "\n".join(lines) + "\n"
+    return gitignore_block_text()
 
 
 _COMMON_GITIGNORE_PATTERNS = (

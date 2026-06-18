@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — synced governance files now gitignored in every project (existing + future) (2026-06-18)
+
+Governance/synced files must be gitignored in all projects except fabrik, so they don't show as untracked noise or get accidentally committed. The `.gitignore` "Fabrik-synced" block was only written at scaffold time, so existing projects never picked up files added to the synced set later (`.claude/`, `convergence-prompts.md`, `kilo-consult-workflow.md`).
+
+- **`gitignore_block_text()`** centralised in `fabrik_synced_manifest.py` (single source); `scaffold.py` now calls it instead of duplicating the block.
+- **`sync_enforcement_to_projects.py`** now patches each project's `.gitignore` — it replaces just the marked "Fabrik-synced" block (anchored on the stable `# End Fabrik-synced block` marker, matching old or new header) and leaves the project's own entries untouched; appends the block if absent. Idempotent. Ran it: **43 projects patched** — verified `kilo-consult-workflow.md`, `.claude/settings.json`, `convergence-prompts.md` now ignored in seo/trading-core/captcha.
+- **Force-aligned `kilo-consult-workflow.md`** to fabrik canonical in the 6 projects that had edited it (governance: canonical wins) — done surgically (not a blanket `--force`, which would have clobbered project-specific `PORTS.md`).
+
 ### Changed — lean unified Doc Sync Matrix gate for all three coders (2026-06-18)
 
 Replaced the scattered, partly-dead doc checks with **one data-driven `check_doc_sync.py`** that mirrors the CLAUDE.md Doc Sync Matrix — "if a trigger file changed but its doc wasn't touched, fail." It reaches Claude Code / Cascade / Kilo unchanged (it's a `final_gate` check, carried by each agent's done-hook). Touch-on-change only — it forces the update, never claims to verify prose correctness.

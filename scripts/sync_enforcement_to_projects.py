@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import re
 import shutil
 import sys
 from dataclasses import dataclass, field
@@ -41,6 +42,15 @@ from fabrik_synced_manifest import (  # noqa: E402
     REFERENCE_DOCS,
     RUN_SCRIPTS,
     RUN_SCRIPTS_SRC_DIR,
+    gitignore_block_text,
+)
+
+# Matches the existing "Fabrik-synced" block in a project's .gitignore (either the
+# old "managed by" header or the new "DO NOT EDIT" one — anchored on the stable end
+# marker) so we can replace just that block without touching project-own entries.
+_GITIGNORE_BLOCK_RE = re.compile(
+    r"# =+\n# Fabrik-synced files.*?# End Fabrik-synced block\n# =+\n",
+    re.DOTALL,
 )
 
 FABRIK_ROOT = Path("/opt/fabrik")
@@ -323,6 +333,34 @@ def sync_scripts_to_project(
                 # Preserve the hook script's executable bit.
                 if not dry_run and destination.exists() and destination.suffix == ".py":
                     destination.chmod(0o755)
+
+        # Patch the .gitignore "Fabrik-synced" block so every governance/synced file
+        # is ignored in this project — existing projects too, not just fresh scaffolds.
+        # Only the marked block is replaced; the project's own .gitignore entries are
+        # left untouched. (.gitignore itself is never overwritten wholesale.)
+        gitignore = project_dir / ".gitignore"
+        if gitignore.exists():
+            try:
+                content = gitignore.read_text()
+                block = gitignore_block_text()
+                if _GITIGNORE_BLOCK_RE.search(content):
+                    new = _GITIGNORE_BLOCK_RE.sub(lambda _m: block, content)
+                else:
+                    new = content.rstrip("\n") + "\n\n" + block
+                if new != content:
+                    if not dry_run:
+                        if backup:
+                            create_backup(gitignore)
+                        gitignore.write_text(new)
+                    file_results.append(
+                        SyncResult("COPY", gitignore, gitignore, ".gitignore Fabrik-synced block")
+                    )
+                else:
+                    file_results.append(
+                        SyncResult("SKIP", gitignore, gitignore, "gitignore block current")
+                    )
+            except PermissionError:
+                pass
 
         # Remove orphans from prior renames (docs that moved/consolidated).
         # Safe to delete: these were synced artifacts, never authored in projects.
