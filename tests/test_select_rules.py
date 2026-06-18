@@ -54,3 +54,19 @@ def test_bundled_templates_do_not_false_activate(tmp_path: Path) -> None:
 def test_reads_project_type(tmp_path: Path) -> None:
     (tmp_path / "project.yaml").write_text("name: x\ntype: python-api\n")
     assert sr._project_type(tmp_path) == "python-api"
+
+
+def test_brace_glob_expansion(tmp_path: Path) -> None:
+    # `**/main.{js,ts,mjs,cjs}` must match a real main.ts (pathlib has no brace expansion).
+    _pack(tmp_path, "desktop-app/72-desktop.md", '"**/main.{js,ts,mjs,cjs}"', "Electron")
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "main.ts").write_text("app\n")
+    assert "desktop-app/72-desktop.md" in {e["pack"] for e in sr.collect(tmp_path)["active"]}
+
+
+def test_tightened_chrome_glob_ignores_python_background(tmp_path: Path) -> None:
+    # `**/background.{js,ts}` must NOT match a python `background_worker.py`.
+    _pack(tmp_path, "chrome-ext/70.md", '"**/background.{js,ts}"', "Chrome")
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "background_worker.py").write_text("x=1\n")
+    assert "chrome-ext/70.md" in {e["pack"] for e in sr.collect(tmp_path)["available"]}

@@ -10,7 +10,7 @@ Solo dev WSL Ubuntu. **Fast but pro. Ship, iterate, no over-engineering.** Read 
 1. `project.yaml::type` tells you which of 11 `fabrik scaffold` scaffolds this is. All projects use `.venv` for local WSL development and deploy as Docker containers via `fabrik apply` (SSH + Docker Compose to VPS).
 2. `AFCL.md`: read if exists; append friction findings as you hit them.
 3. Packs in `.windsurf/rules/` activate via frontmatter globs when you touch matching files. If a ticket lists specific packs in Context Files, read those too.
-4. **Before planning or any non-trivial change:** (a) read `AGENTS.md` (the canonical infra + codebase map); (b) run `python scripts/select_rules.py` and **read every ACTIVE pack + any AVAILABLE pack whose description matches the work** — those `.windsurf/rules` packs are binding; (c) ground every step in real `path:line`, not guesses. Same awareness Traycer plans with.
+4. **Only when PLANNING** (producing/revising a plan): (a) read `AGENTS.md` (the canonical infra + codebase map); (b) run `python scripts/select_rules.py` and **read every ACTIVE pack + any AVAILABLE pack whose description matches the work** — binding; (c) ground every step in real `path:line`. Same awareness Traycer plans with. **Not planning** (routine implementation)? Skip this — the applicable `.windsurf/rules` auto-activate by glob when you edit matching files.
 
 ## Behavior
 - **Check before create:** verify file does not exist before write. Exists = STOP, ask.
@@ -21,7 +21,7 @@ Solo dev WSL Ubuntu. **Fast but pro. Ship, iterate, no over-engineering.** Read 
 
 ## Completion Contract
 1. **IMPLEMENT** — Stay within ticket Scope; adjacent fixes in same files OK. No hardcoded secrets/localhost (`os.getenv("KEY","default")`), no silent failures. 1 test for highest-risk path (skip docs-only).
-1a. **SELF-REVIEW (iterate to a fixed point)** — Don't ship first-draft code. Re-read your own diff for bugs, unhandled edge cases, and deviations from the plan + the ACTIVE `.windsurf/rules` packs; fix; re-run the gate. Repeat until the gate is green AND a fresh review surfaces nothing new.
+1a. **SELF-REVIEW (iterate to a fixed point)** — Don't ship first-draft code. Re-read your own diff for bugs, unhandled edge cases, and deviations from the plan (if any) and the applicable `.windsurf/rules`; fix; re-run the gate. Repeat until the gate is green AND a fresh review surfaces nothing new.
 2. **GATE** — Run ticket's `Final Gate Instruction` (`scripts/final_gate.py`); fix to `status:"success"`. Flags: `--lean --json` (std) · `--json` (milestone/schema/auth) · `--systemic --json` (epic).
 3. **CHANGELOG** — One entry under `## [Unreleased]`: `### Added|Changed|Fixed — Title (YYYY-MM-DD)`. Gate-enforced.
 4. **LESSONS LEARNT** — Ticket field = `none` OR entry in `docs/LESSONS_LEARNT.md`. Silence = failure.

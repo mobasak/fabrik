@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — planning prep scoped to planning only; tightened rule-pack globs (2026-06-18)
+
+- **Scoped the planning prep to PLANNING.** ORIENT in `CLAUDE.md` / `.windsurfrules` / `AGENTS-compact.md` now says *"only when PLANNING"* read `AGENTS.md` + run `select_rules.py`; **routine implementation skips it** (the applicable `.windsurf/rules` auto-activate by glob when you edit matching files). Self-review wording loosened from "ACTIVE packs" to "applicable `.windsurf/rules`" since a non-planning task never ran the selector.
+- **Tightened two over-broad pack globs** (they false-activated in unrelated projects, for both `select_rules` and Cascade glob-activation): `chrome-ext/70` `**/background*`/`**/popup*`/`**/content-script*`/`**/sidepanel*` → scoped to `.{js,ts,html}`; `desktop-app/72` dropped `**/main/**` (matched any `main/` dir; redundant with `**/main.{js,ts,mjs,cjs}`) and the bare `**/preload*`.
+- **Fixed `select_rules.py` glob handling:** brace globs (`**/main.{js,ts,mjs,cjs}`) were (a) shredded by the frontmatter parser splitting on `,` inside `{}` and (b) unmatchable by `rglob` (no brace expansion) — now parsed by extracting quoted globs + expanded before matching. Verified on real `/opt/seo` (python-api): chrome/desktop now AVAILABLE, python ACTIVE. Tests: 6/6.
+
 ### Added — plan-time rule-pack selection + iterative self-review, baked into all three agent contracts (2026-06-18)
 
 Direct-agent planning was only told "read AGENTS.md" — it never *selected the applicable `.windsurf/rules`*, and coding had no always-on iterate-and-self-review mandate. Both are now first-class in the synced bootstraps (so they apply without pasting a prompt), for Claude Code / Cascade / Kilo:

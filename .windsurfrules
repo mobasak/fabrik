@@ -18,7 +18,7 @@ Read `expertise-pack/wpf-expertise-pack-spec-v3.md` + `.claude/skills/wpf-wordpr
 1. Read `project.yaml` (`type`, `ports`, `has_user_guide`), `README.md`, `INDEX.md`, `compose.yaml`, `Dockerfile`, `.env.example`, `pyproject.toml`/`package.json`.
 2. `AFCL.md`: read if exists; append friction findings as encountered.
 3. Glob-matched packs in `.windsurf/rules/` auto-activate. Honour packs listed in the ticket's Context Files.
-4. **Before planning or any non-trivial change:** read `AGENTS.md` (canonical infra + codebase map); run `python scripts/select_rules.py` and read every ACTIVE pack + any AVAILABLE pack whose description matches the work (those `.windsurf/rules` packs are binding); ground every step in real `path:line` — don't guess. Same awareness Traycer plans with.
+4. **Only when PLANNING** (producing/revising a plan): read `AGENTS.md` (canonical infra + codebase map); run `python scripts/select_rules.py` and read every ACTIVE pack + any AVAILABLE pack whose description matches the work (binding); ground every step in real `path:line`. Same awareness Traycer plans with. **Not planning** (routine implementation)? Skip this — the applicable `.windsurf/rules` auto-activate by glob when you edit matching files.
 
 ## Behavior
 - **Check before create:** file exists = STOP, ask.
@@ -30,7 +30,7 @@ Read `expertise-pack/wpf-expertise-pack-spec-v3.md` + `.claude/skills/wpf-wordpr
 
 ## Completion Contract
 1. **IMPLEMENT** — Strict Scope. Adjacent fixes only in in-Scope files. 1 test for core path (skip docs-only).
-1a. **SELF-REVIEW (iterate to a fixed point)** — Don't ship first-draft code. Re-read your diff for bugs, edge cases, and deviations from the plan + ACTIVE `.windsurf/rules` packs; fix; re-run the gate. Repeat until green AND a fresh review finds nothing new.
+1a. **SELF-REVIEW (iterate to a fixed point)** — Don't ship first-draft code. Re-read your diff for bugs, edge cases, and deviations from the plan (if any) and the applicable `.windsurf/rules`; fix; re-run the gate. Repeat until green AND a fresh review finds nothing new.
 2. **GATE** — Run ticket's `Final Gate Instruction`; fix to `status:"success"`. Flags: `--lean --json` (std) · `--json` (milestone/schema/auth) · `--systemic --json` (epic).
 3. **CHANGELOG** — One entry under `## [Unreleased]` (gate-enforced).
 4. **LESSONS LEARNT** — Ticket field = `none` OR entry in `docs/LESSONS_LEARNT.md`. Silence = failure.

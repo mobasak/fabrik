@@ -31,7 +31,9 @@ def _parse_frontmatter(text: str) -> tuple[list[str], str]:
     globs: list[str] = []
     gm = _GLOBS.search(fm)
     if gm:
-        globs = [g.strip().strip("\"'") for g in gm.group(1).split(",") if g.strip()]
+        # Extract each QUOTED glob — don't split on ",", since brace globs like
+        # "**/main.{js,ts,mjs,cjs}" contain commas inside the braces.
+        globs = re.findall(r"[\"']([^\"']+)[\"']", gm.group(1))
     dm = _DESC.search(fm)
     return globs, (dm.group(1).strip() if dm else "")
 
@@ -56,6 +58,15 @@ _EXCLUDE = {
 }
 
 
+def _expand_braces(pat: str) -> list[str]:
+    """Expand a single `{a,b,c}` group (pathlib globs don't support brace expansion)."""
+    m = re.search(r"\{([^}]*)\}", pat)
+    if not m:
+        return [pat]
+    pre, post = pat[: m.start()], pat[m.end() :]
+    return [pre + opt.strip() + post for opt in m.group(1).split(",") if opt.strip()]
+
+
 def _glob_has_match(root: Path, glob: str) -> bool:
     """Best-effort: does an existing file in the project's OWN source match this glob?"""
     pat = glob.strip().lstrip("/")
@@ -65,12 +76,13 @@ def _glob_has_match(root: Path, glob: str) -> bool:
         pat = pat[:-3]
     if not pat:
         return False
-    try:
-        for hit in root.rglob(pat):
-            if not (set(hit.relative_to(root).parts) & _EXCLUDE):
-                return True
-    except (ValueError, OSError):
-        pass
+    for expanded in _expand_braces(pat):
+        try:
+            for hit in root.rglob(expanded):
+                if not (set(hit.relative_to(root).parts) & _EXCLUDE):
+                    return True
+        except (ValueError, OSError):
+            continue
     return False
 
 
