@@ -34,6 +34,7 @@ from pathlib import Path
 # these lists. (`scripts/` is the script's own dir, so a plain import works.)
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from fabrik_synced_manifest import (  # noqa: E402
+    AGENT_HOOK_FILES,
     CORE_SCRIPTS,
     GOVERNANCE_DIRS,
     GOVERNANCE_FILES,
@@ -305,6 +306,23 @@ def sync_scripts_to_project(
                     source, destination, dry_run=dry_run, backup=backup, force=force
                 )
                 file_results.append(result)
+
+        # Sync agent "definition of done" hooks (.claude/ Stop hook, Cascade
+        # .windsurf/hooks.json). Nested paths → mkdir parents like reference docs.
+        # opencode.json (Kilo) rides GOVERNANCE_FILES above.
+        for rel in AGENT_HOOK_FILES:
+            source = FABRIK_ROOT / rel
+            if source.exists():
+                destination = project_dir / rel
+                if not dry_run:
+                    destination.parent.mkdir(parents=True, exist_ok=True)
+                result = sync_single_file(
+                    source, destination, dry_run=dry_run, backup=backup, force=force
+                )
+                file_results.append(result)
+                # Preserve the hook script's executable bit.
+                if not dry_run and destination.exists() and destination.suffix == ".py":
+                    destination.chmod(0o755)
 
         # Remove orphans from prior renames (docs that moved/consolidated).
         # Safe to delete: these were synced artifacts, never authored in projects.
