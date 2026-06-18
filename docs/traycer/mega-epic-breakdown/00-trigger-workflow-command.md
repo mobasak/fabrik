@@ -202,7 +202,7 @@ The Input Contract files are already auto-loaded. Now focus on these specific se
 - `AGENTS.md` § `Fabrik Microservices` — existing custom services (live vs retired/not-deployed).
 - `AGENTS.md` § `Scaffold Types` — the 10 valid scaffold types + shape flags emitted by each (`templates/<type>/defaults.yaml` is the contract). WordPress is NOT in this list (deferred to `/opt/wpf`).
 - `AGENTS.md` § `MANDATORY ORCHESTRATOR PRE-FLIGHT` — run all 7 checks listed there (Ports, Business Model, Microservices, Hardware Audit, Design System, External Knowledge, fabrik-lib).
-- `AGENTS.md` § `Planning Constraints` — all 12 constraints.
+- `AGENTS.md` § `Planning Constraints` — all 12 constraints. **These are a separate list from Step N3i's 20 checks** and cover orthogonal angles (Solo dev capacity, Module dependencies, DNS via site-provisioner, Scaffold immutability, State conflicts) that are NOT in N3i. Apply both: AGENTS.md's 12 at orientation time, N3i's 20 at vision-verification time.
 - `docs/infrastructure/vps-complete-inventory.md` — canonical fleet inventory if the AGENTS.md summary is ambiguous on host placement.
 - `docs/operations/fabrik-lifecycle.md` — runtime behavior, data safety, deploy/redeploy/destroy.
 - `docs/reference/technology-stack-decision-guide.md` — stack defaults.
@@ -280,7 +280,7 @@ If research direction is fundamentally wrong for Fabrik (e.g., AWS serverless wh
 16. **i18n en+tr from day 1** — every GUI / user-facing surface ships with `en` + `tr` locale files. Translation validated via `scripts/validate_i18n.py`. Adding a language = locale file only, zero code changes (Architectural Mandate § i18n).
 17. **Target host (per service)** — every Fabrik-deployed service declares `target_vps:` (`vps1` / `vps2` / `vps3`; absent → `vps1`). Hub for shared-infra-coupled; spoke for tenant-isolated / EU-proximate / capacity-spillover (Fleet topology mandate above).
 18. **KVKK / GDPR data residency** — if product stores user PII or file blobs: Supabase region defaults to `eu-central-1` (Frankfurt) for KVKK alignment (`mobile-app/80-mobile.md`); file erasure events use `file_erasure_audit` hash-chained table with 3-year retention (`67-file-api.md`, Article 7(3)); telemetry opt-in only — no foreign-cloud egress without consent (`72-desktop.md`).
-19. **Watchdog sidecar (when needed)** — if any service calls paid LLM APIs at non-trivial volume: declare watchdog sidecar opt-in (`60-watchdog.md`) AND a `cost-budget` cap (`cost-budget.md`). Without a cap, a runaway-reasoning loop can empty the budget overnight.
+19. **Watchdog sidecar (when needed)** — if any service calls paid LLM APIs in **any unattended loop, scheduled job, or user-triggered flow that can re-fire without human approval** (i.e., not strictly one call per explicit human click): declare watchdog sidecar opt-in (`60-watchdog.md`) AND a `cost-budget` cap (`cost-budget.md`). Concrete trigger examples: agentic loop with self-retry, cron job that calls an LLM, webhook that re-invokes on retry, user chat with reasoning steps. Concrete non-triggers: one LLM call per human button-press with no auto-retry and no agentic recursion. Without a cap, a runaway-reasoning loop can empty the budget overnight.
 20. **Node ESM / Python version floors** — Node greenfield: `"type": "module"` + `engines.node ">=22.0.0"` (24 LTS preferred). Python: `python:<current-stable>-slim-bookworm` (3.13 today). `12-node.md` + `10-python.md`.
 
 **N3j. Multi-scaffold check.** Single vision spanning multiple scaffold types (e.g., python-api + saas-skeleton + mobile-app, or chrome-extension + python-api backend) → list which features map to which scaffold. Strong multi-epic signal. **If scaffolds share no data, no auth, no deploy coupling** → candidate for **separate `fabrik scaffold` projects with own lifecycles**, not epics. Ask: "These components seem independent. Separate projects or epics within one project?" Note: if the vision includes a WordPress site, route the WordPress side to the standalone `/opt/wpf` project (out of scope here) and only retain the non-WordPress scaffolds for this run.
@@ -417,12 +417,14 @@ Read the project's actual state — not from memory, from files. Owner must have
 
 **Lifecycle check (4 stages — completeness audit; gaps feed Step E3):**
 
-- **Stage 1 (Scaffolding):** `project.yaml` exists? AI guardrails synced (AGENTS.md, CLAUDE.md, AGENTS-compact.md, .windsurfrules, .windsurf/rules/)?
+- **Stage 1 (Scaffolding):** `project.yaml` exists? **Full Fabrik-synced set** (canonical list in `scripts/fabrik_synced_manifest.py`; covers AGENTS.md, CLAUDE.md, AGENTS-compact.md, .windsurfrules, `.windsurf/rules/`, `scripts/enforcement/`, `KILO_CLI_RULES.md`, `opencode.json`, etc.) present AND byte-identical to `/opt/fabrik` source? Run `python scripts/enforcement/check_synced_unmodified.py` to verify both presence and unmodified state in one shot — same gate referenced at L416. A missing file and a locally-edited file are different gaps: missing → propose `fabrik fix /opt/<project> --type <scaffold-type>`; modified → revert + propose upstream change in `/opt/fabrik`.
 - **Stage 2 (Implementation):** structured code (src/, tests/, docs/)?
 - **Stage 3 (Registration):** `fabrik apply` run? `.fabrik/state/*.json` exists? Registrars active (Gatus, GlitchTip, Prometheus)?
 - **Stage 4 (Verification):** `fabrik verify` passes? `fabrik audit-registrars` clean?
 
 **Pre-flight checks** — run all 7 checks per `AGENTS.md` § MANDATORY ORCHESTRATOR PRE-FLIGHT (same as Step N1): Ports, Business Model, Microservices, Hardware Audit, Design System, External Knowledge, fabrik-lib.
+
+**Scope note for pre-scaffold projects:** if the project predates `fabrik scaffold` (no `project.yaml`), several pre-flight checks are *retrospective only* — they document the current state rather than gate a new decision. Specifically: Hardware Audit and Design System checks describe what the project already runs/looks like (no "decide" step); Ports, Business Model, Microservices, External Knowledge, and fabrik-lib still apply forward (the delta being scoped in E4 must satisfy them). State pre-flight findings in the format "Retrospective: \[X\]" vs "Forward: \[Y\]" so E3 gaps are unambiguous.
 
 State: "Project read. Scaffold: [X / pre-scaffold]. Port: [Y]. [N] API routes, [M] DB tables, [K] workers. Lifecycle: [all 4 / gaps at Stage N]. Pre-flight: [findings]."
 
@@ -487,7 +489,11 @@ Report findings as a list of mechanical gaps with concrete locations.
 
 **Step E3.B — Rule-pack judgment (Traycer evaluates code/structure):**
 
-For each rule pack applicable to this scaffold type (per `AGENTS.md` § Project Type → Default Packs table; full pack list in the Rule Pack Index above in the Input Contract section), evaluate the project against the pack's mandates. Example table below is for `saas-skeleton`; for other scaffold types (chrome-extension, mobile-app, file-worker, etc.) build the equivalent table from the Rule Pack Index plus the scaffold's `domain-modules/<type>.md` file. (WordPress projects are out of scope here — delegate to `/opt/wpf`.)
+For each rule pack applicable to this scaffold type (per `AGENTS.md` § Project Type → Default Packs table; full pack list in the Rule Pack Index above in the Input Contract section), evaluate the project against the pack's mandates. Example table below is for `saas-skeleton`; for other scaffold types build the equivalent table:
+
+- **Scaffold has a `domain-modules/<type>.md`** (chrome-ext, desktop-app, mobile-app, rag, saas) → use that as the structural starting point + add applicable rows from the Rule Pack Index.
+- **Scaffold has NO `domain-modules/<type>.md`** (python-api, node-api, file-api, file-worker, static-site, docusaurus) → build the table directly from the Rule Pack Index, scoped to the scaffold's Default Packs in `AGENTS.md` § Project Type → Default Packs. The 11 always-applicable core rule areas (rows 1–11 of the saas-skeleton example below: 12-Factor, i18n, Responsive, Dark+light, Resilience, Health endpoint, Structured logging, asyncpg/UUIDv7/vector-DB stack, Shape contract, Observability, Compose invariants, Authelia bypass scope, LLM gateway, Node ESM, Python floor, Fabrik-synced files) apply to every backend scaffold and stay in the table; SaaS-only rows (Abuse detection, Email two-stream, FINANCIALS.md) drop out as N/A.
+- **WordPress projects are out of scope here** — delegate to `/opt/wpf`; do NOT build a Compliance table for WordPress sites under this workflow.
 
 | Rule area | Current rule | How to evaluate the project | Status |
 |---|---|---|---|
@@ -549,7 +555,13 @@ Wait for owner decisions. **STOP GENERATION HERE.** These decisions shape which 
 
 **Identify integration points:** existing tables read/written, existing API endpoints extended/depended on, shared auth, existing vs new background workers.
 
-**Constraint verification for the delta** (same 20 checks as N3i, scoped to what the delta adds; inherited services not re-checked).
+**Constraint verification for the delta** (same 20 checks as N3i, scoped to what the delta adds; inherited services not re-checked). Scoping rules — re-run a constraint only when the delta touches its trigger:
+
+- **Always re-check** (these surface in every delta): #1 x86_64, #5 port conflicts (any new service), #6 deployable via `fabrik apply`, #9 solo-dev capacity, #17 target_vps (every new service declares one).
+- **Re-check when delta adds a NEW Fabrik-deployed service**: #7 no Alpine, #10 observability, #13 compose invariants. (If the delta only modifies existing service code without adding a new container, skip these.)
+- **Re-check when delta adds a paid external dependency**: #2 budget.
+- **Re-check when the trigger applies to the delta**: #11 vector DB (delta adds vector search), #12 email streams (delta sends email), #14 billing (delta wires payment), #15 LLM gateway (delta calls an LLM), #16 i18n (delta adds user-facing surface), #18 KVKK (delta stores PII or file blobs), #19 watchdog (delta calls paid LLM at non-trivial volume), #20 Node/Python floors (delta touches dependency files).
+- **Skip when inherited** (locked decisions): #3 existing services, #4 duplicate check, #8 12-Factor (inherited from project's existing stack — only re-check if the delta introduces a new process model).
 
 ### Step E5: Produce Vision Summary (EXISTING mode — with extra sections)
 
