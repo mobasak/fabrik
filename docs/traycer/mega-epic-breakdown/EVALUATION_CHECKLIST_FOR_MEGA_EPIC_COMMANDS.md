@@ -152,7 +152,7 @@ Every command in mega-epic-breakdown (00, 02-05) must be evaluated against this 
 90. Command produces output that requires the NEXT command to ask the user what's missing. → ADD to this command.
 91. Command restates what a prior command already produced. → DELETE and reference.
 92. Two commands produce overlapping output. → MERGE or split boundary clearly.
-93. Command's output doesn't have a clear token budget. → ADD budget.
+93. Command's **document-style output** (free-form prose where the agent decides length, e.g., Vision Summary / Infrastructure Decisions / Compact Epic Proposal) doesn't have a clear token budget. → ADD budget. **Structure-bounded outputs** (Traycer tickets with a fixed section template, Validation Reports with PASS/FAIL row-per-check, dispatch instructions with fixed steps) do NOT need a numeric cap — the template structure bounds them and a numeric cap would force harmful truncation. The test: if length is bounded by "how thorough should I be?", needs a budget; if length is bounded by "fill this template once", doesn't.
 94. Command doesn't have Acceptance Criteria. → ADD.
 95. Epic output file requires loading the full vision research alongside it. → CONDENSE epic file to be self-sufficient.
 96. Command uses vague scope ("relevant files", "update as needed", "consider implications"). → REWRITE with concrete paths and actions.
