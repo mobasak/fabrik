@@ -43,6 +43,7 @@ TEMPLATE_PATH = FABRIK_ROOT / "templates" / "preplan" / "preplan.md.j2"
 
 _VALID_SCAFFOLD_TYPES = {
     "python-api",
+    "python-api-gpu",
     "node-api",
     "file-api",
     "file-worker",
