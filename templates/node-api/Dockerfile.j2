@@ -11,9 +11,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 ENV NODE_ENV=production
 ENV PORT=3000
 
-# Install dependencies
+# Install dependencies. --ignore-scripts blocks install-time supply-chain
+# execution (12-node.md); `npm install` (not `npm ci`) because the scaffold
+# ships no lockfile — commit one and switch to `npm ci` for reproducible builds.
 COPY package*.json ./
-RUN npm ci --only=production
+RUN npm install --omit=dev --ignore-scripts
 
 # Copy application code
 COPY . .

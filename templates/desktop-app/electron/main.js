@@ -6,8 +6,12 @@ function createWindow() {
     width: 1280,
     height: 800,
     webPreferences: {
-      nodeIntegration: false,  // Security: Mandatory
-      contextIsolation: true
+      // Security trio — all three mandatory per .windsurf/rules/desktop-app/72-desktop.md
+      // (missing any one is a CVE). Renderer runs sandboxed; main↔renderer only
+      // via a preload + contextBridge.exposeInMainWorld bridge.
+      nodeIntegration: false,
+      contextIsolation: true,
+      sandbox: true,
     }
   });
 

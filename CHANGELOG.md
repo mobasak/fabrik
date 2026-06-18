@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — wire the 3 new rule packs into the dispatch code + template security/supply-chain (2026-06-18)
+
+The research-backed `NODE_CORE` / `FILE_API` / `DESKTOP_APP` packs (commit `4b0e0d7`) were registered in `AGENTS.md` but not in the dispatch **code**, so scaffolded projects didn't actually receive them. Synced `scripts/kilo_dispatch.py` to `AGENTS.md` and fixed the template gaps the packs mandate:
+
+- **`kilo_dispatch.py`** — `PACK_REGISTRY` += `NODE_CORE` (`core/12-node.md`), `FILE_API` (`core/67-file-api.md`), `DESKTOP_APP` (`desktop-app/72-desktop.md`) → 33 packs; `PACK_MAPPING` `node-api → [NODE_CORE]`, `file-api → [NODE_CORE, FILE_API]`, `desktop-app → [NODE_CORE, TS_CORE, DESKTOP_APP, DESIGN_SYSTEM]` (mirrors `AGENTS.md`).
+- **desktop-app `electron/main.js`** — added `sandbox: true`; `72-desktop.md` mandates the `contextIsolation` + `nodeIntegration:false` + `sandbox:true` trio (missing one is a CVE) and the template had only the first two.
+- **node-api `Dockerfile.j2`** — `npm ci --only=production` → `npm install --omit=dev --ignore-scripts` (`12-node.md` supply-chain: `--ignore-scripts` blocks install-time execution; `install` because the scaffold ships no lockfile).
+- **`test_kilo_dispatch` reconciled to green (43/43)** — registry count 16→33; node-api/file-api resolve tests (empty → new packs); saas/chrome resolve tests (`DESIGN_SYSTEM` had been added earlier); and the root cause of the long-standing `load_project_context` failures: the fixtures wrote rule files at *flat* paths (`rules/10-python.md`) while `PACK_REGISTRY` uses *subdir* paths (`core/10-python.md`) — moved fixtures under `core/`/`saas/`/`chrome-ext/`.
+
+No new scaffold types (the packs serve existing node-api/file-api/desktop-app). Deferred (flagged): node-api's full ESM + pino modernization (needs an `index.js` rewrite) and file-api's heavier dep set (per-feature, not baseline) — guided by the packs at build time, not required in the minimal template.
+
 ### Fixed — all scaffold templates verified green; python-api-gpu scaffold crash fixed (2026-06-18)
 
 Ran the full scaffold/template test suite against every type (**179 pass / 4 skip, 0 fail**) to empirically confirm all templates scaffold + validate. Found + fixed one real bug and reconciled stale tests that lagged behind infra changes:

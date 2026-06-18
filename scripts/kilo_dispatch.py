@@ -72,6 +72,7 @@ TEMPLATES_DIR = Path.home() / ".traycer" / "prompt-templates"
 # Pack ID → rule file path (relative to project .windsurf/rules/)
 PACK_REGISTRY: dict[str, str] = {
     "PY_CORE": "core/10-python.md",
+    "NODE_CORE": "core/12-node.md",
     "API_CONTRACTS": "core/15-api-contracts.md",
     "TS_CORE": "core/20-typescript.md",
     "DATA_PG": "core/25-data-postgres.md",
@@ -85,6 +86,7 @@ PACK_REGISTRY: dict[str, str] = {
     "RESILIENCE": "core/58-resilience.md",
     "RAG_SEARCH": "core/65-rag-search.md",
     "RAG_CHUNKING": "core/66-rag-chunking.md",
+    "FILE_API": "core/67-file-api.md",
     "WORKERS": "core/75-workers-jobs.md",
     "GPU_WORKERS": "core/76-gpu-workers.md",
     "PAYMENTS": "core/85-payments-billing.md",
@@ -101,17 +103,18 @@ PACK_REGISTRY: dict[str, str] = {
     "MOBILE_DESIGN": "mobile-app/ocoron-mobile-design-system.md",
     "TOJLO_MOBILE_DESIGN": "mobile-app/tojlo-mobile-design-system.md",
     "CHROME_MV3": "chrome-ext/70-chrome-ext.md",
+    "DESKTOP_APP": "desktop-app/72-desktop.md",
 }
 
 # Project type → default pack IDs (11 entries, mirrors AGENTS.md)
 PACK_MAPPING: dict[str, list[str]] = {
     "python-api": ["PY_CORE"],
-    "node-api": [],
+    "node-api": ["NODE_CORE"],
     "saas-skeleton": ["TS_CORE", "SAAS_UI", "DESIGN_SYSTEM"],
     "chrome-extension": ["PY_CORE", "TS_CORE", "CHROME_MV3", "DESIGN_SYSTEM"],
     "mobile-app": ["TS_CORE", "MOBILE_UI", "MOBILE_BILLING", "MOBILE_DESIGN"],
-    "desktop-app": ["TS_CORE", "DESIGN_SYSTEM"],
-    "file-api": [],
+    "desktop-app": ["NODE_CORE", "TS_CORE", "DESKTOP_APP", "DESIGN_SYSTEM"],
+    "file-api": ["NODE_CORE", "FILE_API"],
     "file-worker": ["PY_CORE", "WORKERS"],
     "wordpress": ["TS_CORE", "DESIGN_SYSTEM"],
     "docusaurus": ["DOCUSAURUS", "DESIGN_SYSTEM"],

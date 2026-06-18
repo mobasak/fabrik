@@ -25,7 +25,6 @@ from kilo_dispatch import (  # noqa: E402, I001
     load_project_context,
 )
 
-
 # ─── Fixtures ────────────────────────────────────────────────────────────────
 
 
@@ -38,12 +37,15 @@ def project_dir(tmp_path: Path) -> Path:
     # AGENTS-compact.md
     (proj / "AGENTS-compact.md").write_text("# Compact agent rules\nDo stuff.\n")
 
-    # .windsurf/rules/ with a few pack files
+    # .windsurf/rules/ with a few pack files. Files live under their pack
+    # subdir (core/, saas/, …) to match PACK_REGISTRY paths, which
+    # load_project_context resolves as `rules_dir / <registry path>`.
     rules_dir = proj / ".windsurf" / "rules"
-    rules_dir.mkdir(parents=True)
+    (rules_dir / "core").mkdir(parents=True)
+    (rules_dir / "saas").mkdir(parents=True)
 
-    # PY_CORE rule file (simulating 10-python.md structure)
-    (rules_dir / "10-python.md").write_text(
+    # PY_CORE rule file (simulating core/10-python.md structure)
+    (rules_dir / "core" / "10-python.md").write_text(
         textwrap.dedent("""\
         ---
         activation: glob
@@ -72,7 +74,7 @@ def project_dir(tmp_path: Path) -> Path:
     )
 
     # TS_CORE rule file
-    (rules_dir / "20-typescript.md").write_text(
+    (rules_dir / "core" / "20-typescript.md").write_text(
         textwrap.dedent("""\
         ---
         activation: glob
@@ -93,7 +95,7 @@ def project_dir(tmp_path: Path) -> Path:
     )
 
     # TESTING overlay
-    (rules_dir / "45-testing-strategy.md").write_text(
+    (rules_dir / "core" / "45-testing-strategy.md").write_text(
         textwrap.dedent("""\
         ---
         activation: glob
@@ -114,7 +116,7 @@ def project_dir(tmp_path: Path) -> Path:
     )
 
     # SAAS_UI rule file
-    (rules_dir / "60-saas-ui.md").write_text(
+    (rules_dir / "saas" / "60-saas-ui.md").write_text(
         textwrap.dedent("""\
         ---
         activation: glob
@@ -170,8 +172,10 @@ class TestPackMappingSync:
     def test_pack_mapping_keys_match_expected_types(self):
         assert set(PACK_MAPPING.keys()) == self.EXPECTED_TYPES
 
-    def test_pack_registry_has_16_entries(self):
-        assert len(PACK_REGISTRY) == 16
+    def test_pack_registry_has_33_entries(self):
+        # 30 prior + NODE_CORE (12-node) + FILE_API (67-file-api) +
+        # DESKTOP_APP (72-desktop), added 2026-06-18.
+        assert len(PACK_REGISTRY) == 33
 
     def test_all_mapped_packs_exist_in_registry(self):
         """Every pack ID referenced in PACK_MAPPING must exist in PACK_REGISTRY."""
@@ -190,38 +194,38 @@ class TestPackMappingSync:
 
 class TestExtractRuleLines:
     def test_skips_frontmatter(self, project_dir: Path):
-        lines = _extract_rule_lines(project_dir / ".windsurf" / "rules" / "10-python.md")
+        lines = _extract_rule_lines(project_dir / ".windsurf" / "rules" / "core" / "10-python.md")
         for line in lines:
             assert "activation:" not in line
             assert "globs:" not in line
             assert "trigger:" not in line
 
     def test_skips_headings(self, project_dir: Path):
-        lines = _extract_rule_lines(project_dir / ".windsurf" / "rules" / "10-python.md")
+        lines = _extract_rule_lines(project_dir / ".windsurf" / "rules" / "core" / "10-python.md")
         for line in lines:
             assert not line.startswith("#")
 
     def test_skips_meta_lines(self, project_dir: Path):
-        lines = _extract_rule_lines(project_dir / ".windsurf" / "rules" / "10-python.md")
+        lines = _extract_rule_lines(project_dir / ".windsurf" / "rules" / "core" / "10-python.md")
         for line in lines:
             assert not line.startswith("**Activation:")
             assert not line.startswith("**Purpose:")
 
     def test_respects_max_lines(self, project_dir: Path):
         lines = _extract_rule_lines(
-            project_dir / ".windsurf" / "rules" / "10-python.md", max_lines=3
+            project_dir / ".windsurf" / "rules" / "core" / "10-python.md", max_lines=3
         )
         assert len(lines) == 3
 
     def test_default_max_is_6(self, project_dir: Path):
-        lines = _extract_rule_lines(project_dir / ".windsurf" / "rules" / "10-python.md")
+        lines = _extract_rule_lines(project_dir / ".windsurf" / "rules" / "core" / "10-python.md")
         assert len(lines) <= MAX_LINES_PER_PACK
 
     def test_returns_empty_for_missing_file(self, tmp_path: Path):
         assert _extract_rule_lines(tmp_path / "nonexistent.md") == []
 
     def test_extracts_content_lines(self, project_dir: Path):
-        lines = _extract_rule_lines(project_dir / ".windsurf" / "rules" / "10-python.md")
+        lines = _extract_rule_lines(project_dir / ".windsurf" / "rules" / "core" / "10-python.md")
         assert len(lines) > 0
         assert "Use lifespan context manager for startup/shutdown." in lines
 
@@ -239,25 +243,26 @@ class TestResolvePacks:
     def test_saas_skeleton_gets_ts_core_and_saas_ui(self, project_dir: Path):
         _write_project_yaml(project_dir, "saas-skeleton")
         defaults, overlays = _resolve_packs(project_dir)
-        assert defaults == ["TS_CORE", "SAAS_UI"]
+        assert defaults == ["TS_CORE", "SAAS_UI", "DESIGN_SYSTEM"]
         assert "TESTING" in overlays
 
-    def test_chrome_extension_gets_three_defaults(self, project_dir: Path):
+    def test_chrome_extension_gets_four_defaults(self, project_dir: Path):
         _write_project_yaml(project_dir, "chrome-extension")
         defaults, overlays = _resolve_packs(project_dir)
-        assert defaults == ["PY_CORE", "TS_CORE", "CHROME_MV3"]
+        assert defaults == ["PY_CORE", "TS_CORE", "CHROME_MV3", "DESIGN_SYSTEM"]
 
-    def test_node_api_gets_empty_defaults(self, project_dir: Path):
+    def test_node_api_gets_node_core(self, project_dir: Path):
+        """node-api defaults to NODE_CORE (12-node.md) since 2026-06-18."""
         _write_project_yaml(project_dir, "node-api")
         defaults, overlays = _resolve_packs(project_dir)
-        assert defaults == []
+        assert defaults == ["NODE_CORE"]
         assert "TESTING" in overlays
 
-    def test_file_api_gets_empty_defaults(self, project_dir: Path):
-        """file-api scaffold is JavaScript-based — must not inject PY_CORE."""
+    def test_file_api_gets_node_core_and_file_api(self, project_dir: Path):
+        """file-api is JavaScript-based — NODE_CORE + FILE_API, never PY_CORE."""
         _write_project_yaml(project_dir, "file-api")
         defaults, overlays = _resolve_packs(project_dir)
-        assert defaults == []
+        assert defaults == ["NODE_CORE", "FILE_API"]
         assert "PY_CORE" not in defaults
         assert "TESTING" in overlays
 
@@ -362,20 +367,21 @@ class TestLoadProjectContext:
         (proj / "AGENTS-compact.md").write_text("# Compact\n")
 
         rules_dir = proj / ".windsurf" / "rules"
-        rules_dir.mkdir(parents=True)
+        (rules_dir / "core").mkdir(parents=True)
+        (rules_dir / "chrome-ext").mkdir(parents=True)
 
         # Create a type with many default packs that produce ~36 lines total
         # (6 packs × 6 lines = 36), then add overlays that push over 40
         big_rule = "\n".join([f"Rule line {i} for this pack." for i in range(1, 8)])
 
         # Write rule files for chrome-extension defaults (PY_CORE, TS_CORE, CHROME_MV3)
-        for filename in ["10-python.md", "20-typescript.md", "70-chrome-ext.md"]:
-            (rules_dir / filename).write_text(f"# Rules\n\n{big_rule}\n")
+        for relpath in ["core/10-python.md", "core/20-typescript.md", "chrome-ext/70-chrome-ext.md"]:
+            (rules_dir / relpath).write_text(f"# Rules\n\n{big_rule}\n")
 
         # Write TESTING overlay + extra overlay
-        (rules_dir / "45-testing-strategy.md").write_text(f"# Testing\n\n{big_rule}\n")
-        (rules_dir / "25-data-postgres.md").write_text(f"# Data\n\n{big_rule}\n")
-        (rules_dir / "35-security-auth.md").write_text(f"# Security\n\n{big_rule}\n")
+        (rules_dir / "core" / "45-testing-strategy.md").write_text(f"# Testing\n\n{big_rule}\n")
+        (rules_dir / "core" / "25-data-postgres.md").write_text(f"# Data\n\n{big_rule}\n")
+        (rules_dir / "core" / "35-security-auth.md").write_text(f"# Security\n\n{big_rule}\n")
 
         _write_project_yaml(proj, "chrome-extension")
 
@@ -416,8 +422,8 @@ class TestFabrikRootBehavior:
         (child / "AGENTS-compact.md").write_text("# Compact agent rules\nDo stuff.\n")
         (child / "AGENTS.md").write_text("# Traycer orchestrator contract\n")
         rules_dir = child / ".windsurf" / "rules"
-        rules_dir.mkdir(parents=True)
-        (rules_dir / "45-testing-strategy.md").write_text(
+        (rules_dir / "core").mkdir(parents=True)
+        (rules_dir / "core" / "45-testing-strategy.md").write_text(
             "---\ndescription: Testing\n---\n# Testing\nWrite tests.\n"
         )
         return child
@@ -485,8 +491,8 @@ class TestPackRegistryConstants:
     """Verify the pack registry hasn't drifted."""
 
     def test_pack_registry_count_unchanged(self):
-        """PACK_REGISTRY remains 16."""
-        assert len(PACK_REGISTRY) == 16
+        """PACK_REGISTRY is 33 (30 + NODE_CORE/FILE_API/DESKTOP_APP, 2026-06-18)."""
+        assert len(PACK_REGISTRY) == 33
 
 
 class TestPackMappingConstants:
