@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — lean unified Doc Sync Matrix gate for all three coders (2026-06-18)
+
+Replaced the scattered, partly-dead doc checks with **one data-driven `check_doc_sync.py`** that mirrors the CLAUDE.md Doc Sync Matrix — "if a trigger file changed but its doc wasn't touched, fail." It reaches Claude Code / Cascade / Kilo unchanged (it's a `final_gate` check, carried by each agent's done-hook). Touch-on-change only — it forces the update, never claims to verify prose correctness.
+
+- **New `scripts/enforcement/check_doc_sync.py`** (tier 1+2, blocks in `--lean`). **ERROR (blocks):** CHANGELOG ← any significant code/infra change (faithfully replicates `check_changelog`'s significant-file detection + [Unreleased] quality check), `docs/CONFIGURATION.md` ← `.env.example`, `db/schema.sql` ← models/migrations. **WARN (advisory):** INDEX ← file add/remove/rename, `docs/QUICKSTART.md` ← API-route change, `docs/FEATURES.md` ← `specs/services/*.yaml`, `PORTS.md` ← compose change. Covered by `tests/test_check_doc_sync.py` (7 tests).
+- **De-registered from `final_gate`** (folded into the above): `check_changelog`, `check_index_md` (touch part; auto-gen tree-map stays in `docs_updater --check`), `check_configuration_md`, `check_openapi_sync`, and **`check_docs.py`** — which was hardcoded to `src/fabrik/` and therefore **dead in every scaffolded project**. (`check_docs.py` the file is retained: `validate_conventions` imports its `check_file`.)
+- **Severity rebalanced:** INDEX-on-file-add moved from a would-be hard block to WARN (blocking every new file is too aggressive; matches the old `check_index_md` warning behaviour).
+- **Deferred (flagged):** `kilo-consult-workflow.md` is governance-flavoured but scaffolded as an editable per-project doc with no canonical synced source — reclassifying needs an owner decision (keep as per-project template vs make synced governance vs drop), not done here.
+
 ### Added — "definition of done" enforced in-session: Claude Code Stop hook + planner-awareness for direct agents (2026-06-18)
 
 When agents are driven directly (not via Traycer) they plan without reading the codebase, ship un-reviewed mistakes, and skip docs — and prompts don't reliably stop it. This makes `final_gate` green the **unfakeable, in-session definition of done**, without relying on git commits (agents don't commit) or `~/.claude` (machine-global, Claude-only):

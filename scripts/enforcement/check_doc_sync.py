@@ -1,0 +1,181 @@
+#!/usr/bin/env python3
+"""Doc Sync Matrix enforcement — the single "did you update docs when code changed" gate.
+
+One data-driven check, mirroring the CLAUDE.md Doc Sync Matrix. For each rule: if a
+*trigger* file is in the staged change but the *target* doc is NOT staged → violation.
+This is "touch-on-change" (the proven check_changelog model) — it forces the update,
+it cannot verify the prose is correct (truth isn't mechanizable).
+
+Reaches all three coders through final_gate: Claude Code Stop hook BLOCKS on it,
+Cascade post_cascade_response surfaces it, Kilo runs it as its mandated final step.
+
+Severity:
+- ERROR (blocks): tight code↔doc links — CHANGELOG, CONFIGURATION, db/schema.sql.
+- WARN (advisory): fuzzy links — INDEX (file add/remove), QUICKSTART (API routes),
+  FEATURES (shape), PORTS (compose).
+
+Consolidates: check_changelog, check_configuration_md, check_index_md (touch), and
+check_openapi_sync. Exit codes: 0 = pass (incl. warnings only); 1 = an ERROR violation.
+"""
+
+from __future__ import annotations
+
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+# ── significant-code definition (faithful to check_changelog.py) ──────────────
+SIGNIFICANT_DIRS = ("src/", "scripts/", "templates/", ".factory/", ".github/")
+SKIP_PATTERNS = (
+    "tests/",
+    "test_",
+    "_test.py",
+    ".test.ts",
+    ".spec.ts",
+    "__pycache__/",
+    ".pytest_cache/",
+    "node_modules/",
+    ".venv/",
+)
+CODE_EXTENSIONS = {".py", ".ts", ".tsx", ".js", ".jsx", ".sh"}
+SIGNIFICANT_FILES = {"Dockerfile", "compose.yaml", "compose.yml"}
+ROUTE_PATTERNS = (
+    r"@app\.(get|post|put|patch|delete|options|head)\s*\(",
+    r"@router\.(get|post|put|patch|delete|options|head)\s*\(",
+    r"@api_router\.(get|post|put|patch|delete|options|head)\s*\(",
+)
+CHANGELOG_ENTRY_RE = re.compile(r"###\s+(Added|Changed|Fixed|Removed|Security|Deprecated)")
+
+
+def _git(args: list[str]) -> list[str]:
+    out = subprocess.run(["git", *args], capture_output=True, text=True, timeout=20).stdout.strip()
+    return out.split("\n") if out else []
+
+
+def _staged() -> list[str]:
+    return _git(["diff", "--cached", "--name-only"])
+
+
+def _added_removed_renamed() -> list[str]:
+    return _git(["diff", "--cached", "--diff-filter=ADR", "--name-only"])
+
+
+def _skip(f: str) -> bool:
+    return any(p in f for p in SKIP_PATTERNS)
+
+
+def _is_significant_code(f: str) -> bool:
+    if _skip(f):
+        return False
+    in_dir = any(f.startswith(d) for d in SIGNIFICANT_DIRS)
+    is_code = Path(f).suffix in CODE_EXTENSIONS
+    return (in_dir and is_code) or Path(f).name in SIGNIFICANT_FILES
+
+
+def _has_route_change(staged: list[str]) -> bool:
+    for f in staged:
+        if Path(f).suffix not in {".py", ".ts", ".tsx", ".js"} or _skip(f):
+            continue
+        try:
+            text = Path(f).read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        if any(re.search(p, text) for p in ROUTE_PATTERNS):
+            return True
+    return False
+
+
+def _changelog_quality_ok() -> bool:
+    """CHANGELOG [Unreleased] has a real ### entry, no placeholders (from check_changelog)."""
+    p = Path("CHANGELOG.md")
+    if not p.exists():
+        return False
+    content = p.read_text(encoding="utf-8", errors="replace")
+    start = content.find("## [Unreleased]")
+    if start == -1:
+        return False
+    nxt = content.find("\n## [", start + 1)
+    section = content[start : (nxt if nxt != -1 else len(content))].strip()
+    if not CHANGELOG_ENTRY_RE.search(section):
+        return False
+    body = re.sub(r"```.+?```", "", section, flags=re.DOTALL).lower()
+    return not any(ph in body for ph in ("<brief title>", "<description>", "todo", "fixme"))
+
+
+def main() -> int:
+    staged = _staged()
+    if not staged:
+        return 0
+    staged_set = set(staged)
+    adr = set(_added_removed_renamed())
+
+    errors: list[str] = []
+    warnings: list[str] = []
+
+    # ── ERROR rows (tight code↔doc links) ─────────────────────────────────────
+    # CHANGELOG ← any significant code/infra change.
+    sig = [f for f in staged if _is_significant_code(f)]
+    if sig and "CHANGELOG.md" not in staged_set:
+        errors.append(
+            f"CHANGELOG.md not updated for {len(sig)} significant code/infra change(s) "
+            f"(e.g. {sig[0]}). Add an entry under ## [Unreleased]."
+        )
+    elif sig and "CHANGELOG.md" in staged_set and not _changelog_quality_ok():
+        errors.append(
+            "CHANGELOG.md [Unreleased] is empty or has a placeholder — add a real "
+            "### Added/Changed/Fixed entry."
+        )
+
+    # CONFIGURATION ← .env.example changed.
+    if ".env.example" in staged_set and "docs/CONFIGURATION.md" not in staged_set:
+        errors.append("docs/CONFIGURATION.md not updated after .env.example changed.")
+
+    # db/schema.sql ← DB models / migrations changed.
+    schema_triggers = [
+        f
+        for f in staged
+        if not _skip(f)
+        and (re.search(r"(^|/)models?(\.py|/)", f) or "/migrations/" in f or "/alembic/" in f)
+    ]
+    if schema_triggers and "db/schema.sql" not in staged_set:
+        errors.append(
+            f"db/schema.sql not updated after a DB model/migration change "
+            f"(e.g. {schema_triggers[0]})."
+        )
+
+    # ── WARN rows (fuzzy links — never block) ─────────────────────────────────
+    # INDEX ← file added/removed/renamed. WARN (not ERROR): blocking every new file
+    # is too aggressive; the auto-generated INDEX tree-map (docs_updater --check)
+    # remains the structural enforcement.
+    structural = [f for f in adr if not _skip(f)]
+    if structural and "INDEX.md" not in staged_set:
+        warnings.append(
+            f"{len(structural)} file(s) added/removed/renamed (e.g. {structural[0]}) "
+            "but INDEX.md not updated."
+        )
+
+    if _has_route_change(staged) and "docs/QUICKSTART.md" not in staged_set:
+        warnings.append("API route changed but docs/QUICKSTART.md not updated (check it).")
+    shape = [f for f in staged if f.startswith("specs/services/") and f.endswith(".yaml")]
+    if shape and "docs/FEATURES.md" not in staged_set:
+        warnings.append("Service shape/spec changed but docs/FEATURES.md not updated (check it).")
+    if (
+        any(Path(f).name in {"compose.yaml", "compose.yml"} for f in staged)
+        and "PORTS.md" not in staged_set
+    ):
+        warnings.append("compose changed but PORTS.md not updated (update if a port changed).")
+
+    for w in warnings:
+        print(f"WARNING: {w}")
+    if errors:
+        print("ERROR: Doc Sync Matrix — docs not updated alongside their code change:")
+        for e in errors:
+            print(f"  - {e}")
+        print("\nUpdate the listed doc(s) in this change, or `git commit --no-verify` to bypass.")
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

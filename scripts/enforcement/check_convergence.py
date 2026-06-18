@@ -19,8 +19,8 @@ audit trail; whether the cited evidence is *correct* still rests with the
 reviewer. Direct edits that ship no plan/review artifact are not covered here —
 they rely on the rest of final_gate.
 
-Docs convergence is enforced separately by docs_updater.py --check
-("Documentation Drift") + check_docs.py ("Documentation Completeness").
+Docs convergence is enforced separately by check_doc_sync.py ("Doc Sync Matrix")
++ docs_updater.py --check ("Documentation Drift").
 """
 
 from __future__ import annotations

@@ -638,9 +638,11 @@ def run_consistency_checks(
                     "scripts/enforcement/check_schema_sync.py", "Schema Sync (DB Models)"
                 )
             )
-        # Changelog enforcement - prevents agents from forgetting across tasks 1-9
+        # Doc Sync Matrix — the single "update docs when code changes" gate
+        # (consolidates CHANGELOG / INDEX / CONFIGURATION / schema / QUICKSTART /
+        # FEATURES / PORTS touch-on-change). Tier 1+2 so it blocks in --lean.
         results.append(
-            run_optional_check("scripts/enforcement/check_changelog.py", "CHANGELOG.md Updated")
+            run_optional_check("scripts/enforcement/check_doc_sync.py", "Doc Sync Matrix")
         )
         # Print/console.log ban in production code
         results.append(
@@ -699,11 +701,8 @@ def run_consistency_checks(
                 "scripts/enforcement/check_opencode_json.py", "opencode.json (Kilo-Safe Rules)"
             )
         )
-        results.append(
-            run_optional_check(
-                "scripts/enforcement/check_index_md.py", "INDEX.md (Master File Index)"
-            )
-        )
+        # (INDEX.md touch-on-change is now folded into "Doc Sync Matrix"; the
+        # auto-generated INDEX tree-map stays in docs_updater --check, tier 3.)
         results.append(
             run_optional_check(
                 "scripts/enforcement/check_test_proposal.py", "One-Test Rule Proposal"
@@ -714,18 +713,10 @@ def run_consistency_checks(
                 "scripts/enforcement/check_readme_md.py", "README.md (Primary Entry Point)"
             )
         )
-        results.append(
-            run_optional_check(
-                "scripts/enforcement/check_configuration_md.py", "CONFIGURATION.md (Env Vars)"
-            )
-        )
+        # (CONFIGURATION.md ← .env.example and QUICKSTART ← API routes are now
+        # folded into "Doc Sync Matrix".)
         results.append(
             run_optional_check("scripts/enforcement/check_env_updates.py", ".env Updates (Secrets)")
-        )
-        results.append(
-            run_optional_check(
-                "scripts/enforcement/check_openapi_sync.py", "OpenAPI Sync (API Docs)"
-            )
         )
         results.append(
             run_optional_check(
@@ -783,13 +774,9 @@ def run_consistency_checks(
                 module="scripts.enforcement.check_deps_sync",
             )
         )
-        results.append(
-            run_optional_check(
-                "scripts/enforcement/check_docs.py",
-                "Documentation Completeness",
-                module="scripts.enforcement.check_docs",
-            )
-        )
+        # (check_docs.py removed — it was hardcoded to src/fabrik/ and dead in every
+        # scaffolded project; "new module → doc" intent is covered by the Doc Sync
+        # Matrix + INDEX.)
         results.append(
             run_optional_check(
                 "scripts/enforcement/check_doc_sprawl.py",
