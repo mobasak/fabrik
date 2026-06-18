@@ -1,7 +1,7 @@
 # AGENTS.md — Fabrik Identity & Knowledge (Traycer)
 
 **Last Updated:** 2026-06-18
-**Read by:** Traycer only — for ticket planning. Traycer must know the entire Fabrik infrastructure to plan correctly.
+**Read by:** Traycer (ticket planning) **and any agent planning or making non-trivial changes directly** (Claude Code / Cascade / Kilo). This is the canonical infra + codebase map — a direct agent must ground its plan in it the same way Traycer does, not guess. Coding agents still bootstrap from their compact contract (below) but consult this file before planning.
 **Coding agents:** Claude Code reads `CLAUDE.md`; Windsurf Cascade reads `.windsurfrules` (the file at repo root, NOT the `.windsurf/` directory); Kilo CLI reads `AGENTS-compact.md` (via `opencode.json` `instructions:` array). These four files are siblings — Traycer's planner brief, plus one bootstrap per coding agent.
 **Deployment references (canonical):** [`docs/DEPLOYMENT_ARCHITECTURE.md`](docs/DEPLOYMENT_ARCHITECTURE.md) — code-level map of every file on the deploy path · [`docs/operations/deployment.md`](docs/operations/deployment.md) — procedures (apply/redeploy/destroy) · [`docs/operations/fabrik-lifecycle.md`](docs/operations/fabrik-lifecycle.md) — runtime behavior & data safety · [`docs/infrastructure/vps-complete-inventory.md`](docs/infrastructure/vps-complete-inventory.md) — canonical live-state inventory of every container, port, and mesh IP across the 3-host fleet. Supersede any narrative pasted into individual tickets.
 **Deploy method:** SSH + Docker Compose, direct to VPS — **no intermediary platform** (Coolify decommissioned 2026-05-30; `fabrik` Docker network — renamed from `coolify` 2026-05-31; `fabrik apply` rejects composes still declaring the `coolify` network).

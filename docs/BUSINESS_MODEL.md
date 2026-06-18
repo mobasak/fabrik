@@ -91,8 +91,8 @@ With ~$50/month infrastructure cost:
 ## Project Portfolio
 
 <!-- AUTO-GENERATED:PROJECTS:START -->
-<!-- Last synced: 2026-06-18 14:25:37 -->
-<!-- Total projects: 54 -->
+<!-- Last synced: 2026-06-18 15:37:26 -->
+<!-- Total projects: 43 -->
 
 ### Production Services (5 projects)
 
@@ -104,7 +104,7 @@ With ~$50/month infrastructure cost:
 | **site-provisioner** | Unified site provisioning API - domain registration, DNS, SSL, CDN, analytics, and webmaster to... | Python | ✅ Production | https://provision.vps1.ocoron.com | ✅ Current |
 | **youtube** | **Status:** Production Ready - Multi-Tenant SaaS ✅ | Python | ✅ Production | Multi-tenant SaaS | ✅ Current |
 
-### Active Development (24 projects)
+### Active Development (13 projects)
 
 | Project | Purpose | Stack | Status | URL | Scaffold |
 |---------|---------|-------|--------|-----|----------|
@@ -115,17 +115,6 @@ With ~$50/month infrastructure cost:
 | **longephedia-vault** | Structured ontology + RAG over Longephedia constitution (12 themes, discipline rules, protocols... | FastAPI | 🔨 Development | - | ✅ Current |
 | **obsidian-agents** | Obsidian plugin: right-pane chat view that drives Claude Code and Kilo CLI agents via headless ... | Node.js | 🔨 Development | - | ✅ Current |
 | **proposal-creator** | A professional B2B proposal generation system based on best practices from McKinsey, Shipley, a... | FastAPI | 🔨 Development | https://proposal-creator.vps1.ocoron.com | ✅ Current |
-| **scaffold-test-chrome-extension** | Scaffold compliance test for chrome-extension | Python | 🔨 Development | - | ✅ Current |
-| **scaffold-test-desktop-app** | Scaffold compliance test for desktop-app | Node.js | 🔨 Development | - | ✅ Current |
-| **scaffold-test-docusaurus** | Scaffold compliance test for docusaurus | Node.js | 🔨 Development | - | ✅ Current |
-| **scaffold-test-file-api** | Scaffold compliance test for file-api | Express | 🔨 Development | - | ✅ Current |
-| **scaffold-test-file-worker** | Scaffold compliance test for file-worker | Python | 🔨 Development | - | ✅ Current |
-| **scaffold-test-mobile-app** | Scaffold compliance test for mobile-app | Node.js | 🔨 Development | - | ✅ Current |
-| **scaffold-test-node-api** | Scaffold compliance test for node-api | Node.js | 🔨 Development | - | ✅ Current |
-| **scaffold-test-python-api** | Scaffold compliance test for python-api | FastAPI | 🔨 Development | - | ✅ Current |
-| **scaffold-test-python-api-gpu** | Scaffold compliance test for python-api-gpu | FastAPI | 🔨 Development | - | ✅ Current |
-| **scaffold-test-saas-skeleton** | Scaffold compliance test for saas-skeleton | Node.js | 🔨 Development | - | ✅ Current |
-| **scaffold-test-static-site** | Scaffold compliance test for static-site | Node.js | 🔨 Development | - | ✅ Current |
 | **seo** | SEO keyword research and long-tail keyword generation for AI content creation | FastAPI | 🔨 Development | https://seo.vps1.ocoron.com | ✅ Current |
 | **test-saas-platform** | Full-blown SaaS platform for testing mega-epic workflow | Node.js | 🔨 Development | - | ✅ Current |
 | **trade-intelligence** | **Last Updated:** 2026-03-10 | FastAPI | 🔨 Development | https://trade-intelligence.vps1.ocoron.com | ✅ Current |

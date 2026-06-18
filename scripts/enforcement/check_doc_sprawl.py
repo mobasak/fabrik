@@ -56,6 +56,10 @@ ALLOWED_PATTERNS = [
     # Dated plan documents: docs/development/plans/YYYY-MM-DD-plan-<name>.md
     # New dated plan files are allowed as part of the planning workflow
     re.compile(r"^docs/development/plans/\d{4}-\d{2}-\d{2}-plan-.+\.md$"),
+    # Review artifacts: docs/development/reviews/<name>-review.md
+    # Paired with the convergence-evidence gate (check_convergence.py) — a code
+    # review embeds its final_gate proof here as part of the review workflow.
+    re.compile(r"^docs/development/reviews/.+-review\.md$"),
     # Archive at ANY depth: docs/archive/**/*.md (but not docs/archive.md itself)
     # Allows: docs/archive/foo.md, docs/archive/2026/03/foo.md
     # Blocks: docs/archive.md

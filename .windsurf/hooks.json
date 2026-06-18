@@ -1,19 +1,21 @@
 {
-  "description": "Windsurf Cascade hooks for Fabrik enforcement",
-  "hooks": [
-    {
-      "event": "post_write_code",
-      "command": "python3 -m scripts.enforcement.validate_conventions --strict --git-diff",
-      "description": "Enforce Fabrik coding standards after writing (validates changed + untracked files)",
-      "timeout": 15,
-      "cwd": "/opt/fabrik"
-    },
-    {
-      "event": "post_write_code",
-      "command": "python3 -m scripts.enforcement.check_secrets",
-      "description": "Scan for hardcoded secrets after writing",
-      "timeout": 10,
-      "cwd": "/opt/fabrik"
-    }
-  ]
+  "description": "Windsurf Cascade hooks for Fabrik enforcement. Schema follows current Cascade docs (object keyed by event; post_* hooks SURFACE output via show_output but cannot block — only pre_* hooks block via exit 2). Commands self-locate the repo root via `git rev-parse` so this file is correct verbatim in any project (synced fleet-wide).",
+  "hooks": {
+    "post_write_code": [
+      {
+        "command": "bash -c 'cd \"$(git rev-parse --show-toplevel 2>/dev/null || pwd)\" && python3 -m scripts.enforcement.validate_conventions --strict --git-diff'",
+        "show_output": true
+      },
+      {
+        "command": "bash -c 'cd \"$(git rev-parse --show-toplevel 2>/dev/null || pwd)\" && python3 -m scripts.enforcement.check_secrets'",
+        "show_output": true
+      }
+    ],
+    "post_cascade_response": [
+      {
+        "command": "bash -c 'cd \"$(git rev-parse --show-toplevel 2>/dev/null || pwd)\" && PY=python3; [ -x .venv/bin/python ] && PY=.venv/bin/python; \"$PY\" scripts/final_gate.py --lean --check'",
+        "show_output": true
+      }
+    ]
+  }
 }

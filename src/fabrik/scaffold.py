@@ -877,6 +877,22 @@ def _scaffold_shared(
         shutil.rmtree(workflows_target)
     shutil.copytree(fabrik_windsurf_workflows, workflows_target)
 
+    # Copy .windsurf/hooks.json (Cascade definition-of-done hook — surfaces final_gate)
+    fabrik_windsurf_hooks = FABRIK_ROOT / ".windsurf" / "hooks.json"
+    if fabrik_windsurf_hooks.exists():
+        shutil.copy(fabrik_windsurf_hooks, project_dir / ".windsurf" / "hooks.json")
+
+    # Copy .claude/ (Claude Code Stop hook — blocks "done" until final_gate is green).
+    # Path/cwd-agnostic (resolves project via ${CLAUDE_PROJECT_DIR} + stdin cwd), so the
+    # copy is correct verbatim. Mirrors what sync_enforcement_to_projects.py distributes
+    # to existing projects (AGENT_HOOK_FILES in fabrik_synced_manifest.py).
+    fabrik_claude = FABRIK_ROOT / ".claude"
+    if fabrik_claude.exists():
+        claude_target = project_dir / ".claude"
+        if claude_target.exists():
+            shutil.rmtree(claude_target)
+        shutil.copytree(fabrik_claude, claude_target)
+
     # Copy docs/reference/kilo/ directory (Kilo AI agent system docs)
     fabrik_kilo_docs = FABRIK_ROOT / "docs" / "reference" / "kilo"
     if fabrik_kilo_docs.exists():

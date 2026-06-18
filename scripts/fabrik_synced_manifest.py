@@ -72,6 +72,18 @@ GOVERNANCE_DIRS = [
 # Enforcement directory → synced recursively into project ``scripts/enforcement/``.
 ENFORCEMENT_DIR = "scripts/enforcement"
 
+# Agent "definition of done" hooks → synced to project root verbatim (they are
+# cwd/path-agnostic: the Claude Code hook resolves its project via ${CLAUDE_PROJECT_DIR}
+# + stdin cwd; the Cascade hook commands self-locate via `git rev-parse`). This is
+# what makes every project — existing and future — enforce `final_gate` green as the
+# definition of done. ``opencode.json`` (Kilo's session_completed hook) rides
+# GOVERNANCE_FILES above.
+AGENT_HOOK_FILES = [
+    ".claude/settings.json",
+    ".claude/hooks/final_gate_stop.py",
+    ".windsurf/hooks.json",
+]
+
 # Synced as an initial SEED but thereafter legitimately edited per-project
 # (e.g. every project tracks its OWN ports in PORTS.md). Excluded from the
 # "unmodified" gate check — the sync still WARN-skips these when the local copy
@@ -119,6 +131,7 @@ def gitignore_dest_paths() -> dict[str, list[str]]:
             synced_dirs.append(f"{d}/")
     return {
         "Governance files": list(GOVERNANCE_FILES),
+        "Agent definition-of-done hooks": list(AGENT_HOOK_FILES),
         "Rule packs, workflows and synced reference dirs": synced_dirs,
         "Reference docs (synced from fabrik)": [dest for _src, dest in REFERENCE_DOCS],
         "Synced scripts": (
@@ -143,8 +156,8 @@ def iter_synced_pairs(
     for name in RUN_SCRIPTS:
         yield fabrik_root / RUN_SCRIPTS_SRC_DIR / name, project_root / "scripts" / name
 
-    # Governance files
-    for rel in GOVERNANCE_FILES:
+    # Governance files + agent hooks (verbatim, root-relative paths)
+    for rel in [*GOVERNANCE_FILES, *AGENT_HOOK_FILES]:
         yield fabrik_root / rel, project_root / rel
 
     # Reference docs

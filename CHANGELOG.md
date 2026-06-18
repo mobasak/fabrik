@@ -4,6 +4,30 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — "definition of done" enforced in-session: Claude Code Stop hook + planner-awareness for direct agents (2026-06-18)
+
+When agents are driven directly (not via Traycer) they plan without reading the codebase, ship un-reviewed mistakes, and skip docs — and prompts don't reliably stop it. This makes `final_gate` green the **unfakeable, in-session definition of done**, without relying on git commits (agents don't commit) or `~/.claude` (machine-global, Claude-only):
+
+- **`.claude/hooks/final_gate_stop.py` + `.claude/settings.json`** (new, in-repo) — a Claude Code **`Stop` hook** that fires when the agent finishes a turn: if the worktree has uncommitted changes and `final_gate.py --lean` is not green, it **blocks the stop** and feeds the failing checks back, so the agent cannot claim "done" until the gate passes. **Fail-open** (any hook error → allow stop; never traps the session), **loop-capped** (allows the stop after 3 consecutive red attempts with a loud warning — Claude Code exposes no `stop_hook_active` flag, verified against the live docs), and **scoped** (clean worktree / non-fabrik project → instant pass, so conversational turns aren't gated). The gate is the mechanical self-review (catches code mistakes) and already fails on stale docs — so one hook covers all three failures. Covered by `tests/test_final_gate_stop_hook.py` (5 tests on the `decide()` loop-guard).
+- **Cascade + Kilo wired to the same gate at their done-moment** (verified against current docs):
+  - **Cascade** — `.windsurf/hooks.json` gains a `post_cascade_response` hook running `final_gate --lean --check` with `show_output: true`. Cascade POST hooks **cannot block** (only PRE hooks can, per docs), so this **surfaces** a red gate after every response rather than letting Cascade silently claim done. Also rewrote the file to the current object-keyed schema and made all commands self-locate the repo root (`git rev-parse --show-toplevel`), fixing the hardcoded `cwd:/opt/fabrik` that made the existing hooks run against fabrik from any other project.
+  - **Kilo** — `opencode.json` gains `experimental.hook.session_completed` running the same gate. opencode's config hook is fire-and-forget (no block) and **experimental**, so this also **surfaces** red at session end.
+- **Propagated to every project, existing and future** — `.claude/settings.json`, `.claude/hooks/final_gate_stop.py`, and `.windsurf/hooks.json` added to `fabrik_synced_manifest.py` (so `sync_enforcement_to_projects.py` distributes + keeps them current, and `check_synced_unmodified` protects them); `opencode.json` already synced; `scaffold.py` copies `.claude/` + `.windsurf/hooks.json` at scaffold time. All hook files are path-agnostic (CC: `${CLAUDE_PROJECT_DIR}` + stdin cwd; Cascade/Kilo: `git rev-parse`), so they're correct verbatim in any project.
+- **Planner awareness for all three** — `AGENTS.md` (the infra/codebase map) flipped from "Read by: Traycer only" to required reading for any agent planning directly; added an Orient line to `CLAUDE.md`, `.windsurfrules`, `AGENTS-compact.md`: *"before planning or non-trivial change, read `AGENTS.md` and ground every step in real `path:line`."*
+- **Honest ceiling:** only **Claude Code** can *hard-block* "done" (Stop hook). **Cascade** and **Kilo** can only *surface* a red gate at done (their post/session hooks can't block) — meaningfully better than silent-done, but not a hard stop. Cascade/Kilo hook wiring follows current docs but can't be runtime-verified from here (no Windsurf/Kilo runtime); the Claude Code path is fully tested.
+
+### Added — convergence-evidence gate for direct-agent plan/review workflow (2026-06-18)
+
+When agents are driven directly (Claude Code / Cascade / Kilo) instead of through Traycer, they tend to claim "converged / reviewed / in-sync" without grounding it. A claim must now carry its proof or the gate fails:
+
+- **`scripts/enforcement/check_convergence.py`** (new, registered in `final_gate.run_consistency_checks` before the tier branches → runs every tier incl. `--lean`). Inspects only changed/untracked markdown under `docs/development/plans/` + `docs/development/reviews/`: a plan with `**Status:** CONVERGED` must have a `## Evidence` section, a self-audit block, ≥1 `path:line` citation per Phase, and ≥1 **non-trivial** fenced command-output block; a review claiming `reviewed`/`sign-off` must embed a `final_gate --json` run showing `"status": "success"` + a per-Phase verdict. Inert when no such artifact changed.
+- **`check_doc_sprawl.py`** — added `docs/development/reviews/<name>-review.md` to the allowlist (the review artifact would otherwise be blocked by default-deny).
+- **`CLAUDE.md`** — one generalized HARD-STOP row covering PLAN / CODE-REVIEW / DOCS convergence claims, pointing at the prompt templates.
+- **`docs/reference/convergence-prompts.md`** (new) — the three canonical prompts (PLAN / CODE REVIEW / DOCS), each written to emit the artifact its gate inspects, with the honest ceiling stated.
+- **Corrections vs the original proposal:** uses `--project-root` (not a non-existent `PROJECT_ROOT` env), requires fenced blocks to be non-trivial (≥20 chars, so an empty pair doesn't satisfy "show the output"), and `git status --untracked-files=all` so a fresh/sparse repo doesn't collapse `docs/` and hide the artifact (this bug was caught by the test). DOCS needs no new gate — `docs_updater.py --check` + `check_docs.py` already cover it in tier 3.
+- **Honest ceiling (documented):** enforces evidence *presence* + mechanical green, never truth; direct edits shipping no plan/review artifact are not covered by this check (they rely on the rest of `final_gate`).
+- Covered by `tests/test_check_convergence.py` (6 tests: compliant plan/review pass, claim-without-evidence fails, non-claim ignored, no-artifact passes).
+
 ### Added — central-sync manifest + "do not edit synced files" guardrail (2026-06-18)
 
 Made the Fabrik→projects doc-sync set a single source of truth and gave the "these files are centrally managed, don't edit them locally" rule real teeth:

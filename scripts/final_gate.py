@@ -611,6 +611,17 @@ def run_consistency_checks(
     results = []
     changed = changed_files or set()
 
+    # Convergence-evidence gate (every tier): a changed plans/ or reviews/ markdown
+    # that CLAIMS convergence must embed its proof (Evidence section + file:line
+    # citations + fenced command output; reviews embed a final_gate success). Inert
+    # when no such artifact changed. See scripts/enforcement/check_convergence.py.
+    results.append(
+        run_optional_check(
+            "scripts/enforcement/check_convergence.py",
+            "Convergence Evidence (plans + reviews)",
+        )
+    )
+
     # ── Tier 1: Showstoppers only ──
     # Applied for Tier 1 and Tier 2. Tier 3 is systemic-only and skips these.
     if tier in (1, 2):

@@ -10,6 +10,7 @@ Solo dev WSL Ubuntu. **Fast but pro. Ship, iterate, no over-engineering.** Read 
 1. `project.yaml::type` tells you which of 11 `fabrik scaffold` scaffolds this is. All projects use `.venv` for local WSL development and deploy as Docker containers via `fabrik apply` (SSH + Docker Compose to VPS).
 2. `AFCL.md`: read if exists; append friction findings as you hit them.
 3. Packs in `.windsurf/rules/` activate via frontmatter globs when you touch matching files. If a ticket lists specific packs in Context Files, read those too.
+4. **Before planning or any non-trivial change, read `AGENTS.md`** (the canonical infra + codebase map) and ground every step in real `path:line` — don't guess. Same awareness Traycer plans with.
 
 ## Behavior
 - **Check before create:** verify file does not exist before write. Exists = STOP, ask.
@@ -52,6 +53,7 @@ Skip: stdlib, syntax, Fabrik conventions.
 | destructive script on prod data w/o dry-run | dry-run first, show diff |
 | credentials change w/o backup + diff approval | `cp <f> backups/<f>.backup.$(date +%Y%m%d-%H%M%S)` first |
 | edit a **Fabrik-synced** file (the `.gitignore` "Fabrik-synced" block lists them; canonical list `scripts/fabrik_synced_manifest.py`) | these are centrally distributed from `/opt/fabrik` and **overwritten on every sync** (gate-enforced by `check_synced_unmodified.py`). Never edit locally. If the change is correct for **ALL** projects, make it in `/opt/fabrik/<path>` + re-sync; otherwise propose it upstream — don't fork it here |
+| claim "converged"/"reviewed"/"in-sync"/"100%"/"zero unknowns" without embedded proof + the matching gate green | **PLAN** → `## Evidence` per Phase (≥1 `path:line` AND ≥1 fenced command-output block) + a `## Self-audit`; set `Status: CONVERGED` only after `final_gate.py --check`. **CODE REVIEW** → `docs/development/reviews/<plan>-review.md` embedding the verbatim `final_gate.py --json` `"status":"success"` + a per-Phase verdict. **DOCS** → `docs_updater.py --check` + `check_docs.py` green + a per-file claim→proof line. A column *name* ≠ its values (read them); subagent summaries ≠ proof. `check_convergence.py` fails the gate otherwise. Prompt templates: `docs/reference/convergence-prompts.md` |
 
 ## Doc Sync Matrix (update matched docs in same change — gate-enforced)
 | Change | Update |

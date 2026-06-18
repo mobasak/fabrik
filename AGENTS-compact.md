@@ -17,6 +17,7 @@ Hard rules: no raw SQL, no hand-edited serialized PHP, no invented `wp_options` 
 ## ORIENT (every task)
 1. `project.yaml::type` — one of 11 `fabrik scaffold` scaffolds. All projects use `.venv` and deploy via `fabrik apply` (SSH + Docker Compose to the VPS).
 2. `AFCL.md`: read if exists; append friction findings as you hit them.
+3. **Before planning or any non-trivial change, read `AGENTS.md`** (canonical infra + codebase map) and ground every step in real `path:line` — don't guess. Same awareness Traycer plans with.
 
 ## BEHAVIOR
 - **Check before create:** file exists = STOP, ask.

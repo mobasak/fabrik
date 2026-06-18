@@ -18,6 +18,7 @@ Read `expertise-pack/wpf-expertise-pack-spec-v3.md` + `.claude/skills/wpf-wordpr
 1. Read `project.yaml` (`type`, `ports`, `has_user_guide`), `README.md`, `INDEX.md`, `compose.yaml`, `Dockerfile`, `.env.example`, `pyproject.toml`/`package.json`.
 2. `AFCL.md`: read if exists; append friction findings as encountered.
 3. Glob-matched packs in `.windsurf/rules/` auto-activate. Honour packs listed in the ticket's Context Files.
+4. **Before planning or any non-trivial change, read `AGENTS.md`** (canonical infra + codebase map) and ground every step in real `path:line` — don't guess. Same awareness Traycer plans with.
 
 ## Behavior
 - **Check before create:** file exists = STOP, ask.
