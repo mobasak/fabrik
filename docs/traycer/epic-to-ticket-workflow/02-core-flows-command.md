@@ -30,7 +30,9 @@ The goal is alignment, not artifacts. Flows must be discussed and agreed upon in
 `trigger_workflow` Step 6 already decided whether `core-flows` runs for this scaffold. Do not re-ask the user.
 
 - If routing skipped `core-flows` for this scaffold (`python-api`, `node-api`, `file-api`, `file-worker`, `wordpress`, `docusaurus`), this command should not have been triggered. Inform the user the route skipped this command, then stop.
-- For multi-epic dispatches: if the epic ticket's scaffold type is in the skip list above, this command should not run. If the epic touches UI (has user-facing flows), it runs regardless of backend scaffold.
+- For multi-epic dispatches (Path B from `mega-epic-breakdown`): if the epic ticket's scaffold type is in the skip list above, this command should not run. If the epic touches UI (has user-facing flows), it runs regardless of backend scaffold. Additional Path B consumption:
+  - Read `Universal categories` from Epic Brief Metadata (Path B only, per `01-epic-brief-command` Step 1 Path B field list). Core Flows scope is constrained to journeys serving the categories this epic owns. Categories owned by sibling epics → do NOT map flows for them; they appear as `Out of Scope` in this epic.
+  - Read `Epic Flavor` from Epic Brief Metadata. If `Delta-feature`: default behavior (full Step 4 + Step 4b + Step 5). If `Retrofit`: scope-narrow Core Flows to ONLY the surface the retrofit touches — `Retrofit: i18n` → only locale-loading flows; `Retrofit: Resilience` → no new flows, only state-flag updates to existing flows; `Retrofit: <UI area>` → only that UI's flows. Skip Step 5 UX Alignment Dimensions for code-only retrofits where no new UI surface exists. Retrofit Core Flows target ≤100 lines total spec (vs Delta-feature's 200-line target at L151).
 - **Two-faced types** (`chrome-extension`, `mobile-app`, `desktop-app`): map flows for BOTH client-side UX AND backend-served UX (e.g. extension popup + FastAPI dashboard; mobile screens + API-driven notifications).
 
 ### **Step 2: Consume Upstream Context**
@@ -38,7 +40,7 @@ The goal is alignment, not artifacts. Flows must be discussed and agreed upon in
 Read these in order; everything else builds on them:
 
 1. **Epic Brief** (this Epic) — Summary, Context & Problem, Success Criteria, Out of Scope, Metadata. Every flow you map must trace back to at least one Success Criterion in the brief.
-2. `trigger_workflow` **INFRA-CHECK** — capture `Scaffold`, `Rule Packs`, `Shape`, `User Guide`, `i18n`, `Responsive`, `Dark+Light`, `Design System`. The `Scaffold` value tells you which UI rule pack applies (see Step 3). `Rule Packs` lists the IDs to read. `Shape` flags backing services (needed for shape implication tracking in Step 4). `Responsive: 375px` means flows must work on mobile. `Dark+Light: mandatory` means flows must account for both themes.
+2. `trigger_workflow` **INFRA-CHECK** — Path A: capture `Scaffold`, `Rule Packs`, `Shape`, `User Guide`, `i18n`, `Responsive`, `Dark+Light`, `Design System`. Path B (multi-epic, 14-field block per `ettw/00-trigger-workflow-command` L77 + `Epic Flavor` per `1eaf22a`): ALSO capture `Registrars`, `Universal categories`, `Epic Flavor`, `Abuse Detection`, `Email`, `FINANCIALS`. Core Flows uses `Universal categories` + `Epic Flavor` for scope constraint per Step 1 above; `Abuse Detection` + `Email` surface only in signup/transactional flows; `FINANCIALS` does not directly affect Core Flows (it's a doc deliverable for `ticket-outline` Step 6b). The `Scaffold` value tells you which UI rule pack applies (see Step 3). `Rule Packs` lists the IDs to read. `Shape` flags backing services (needed for shape implication tracking in Step 4). `Responsive: 375px–2560px mandatory` means flows must work across the full breakpoint range — **feature-trigger per `mega-epic-breakdown/00-trigger-workflow-command` § Rule-area applicability matrix**: applies to any scaffold with a web GUI surface incl. python-api/node-api/file-api with `shape.is_admin_dashboard: true` OR `shape.is_public: true` + HTML output. `Dark+Light: mandatory` means flows must account for both themes (same feature-trigger as Responsive).
 3. **Pre-research file** if one was identified by `trigger_workflow` Step 3 — re-read for grounding, especially flow-level details.
 4. `.windsurf/rules/core/ocoron-design-system.md` — must already have been read by `trigger_workflow` for UI scaffolds (`Design System: read`). If `INFRA-CHECK` shows it was not read, stop and ask the user to re-run `trigger_workflow`.
 5. `docs/operations/fabrik-lifecycle.md` — confirm flows fit the deploy/runtime contract (flows that touch admin dashboards trigger authelia registrar; flows with search trigger meilisearch registrar).
@@ -215,6 +217,19 @@ Before handoff, walk this checklist. Resolve gaps in this conversation; do not h
 Present the spec. Iterate until **the user explicitly confirms** flows are complete and validated. Silence is not confirmation; ambiguous responses are not confirmation.
 
 If during iteration the user introduces a requirement change that invalidates earlier alignment (new persona, new Success Criterion, removed scope), suggest the `revise-requirements` cross-cutting command rather than silently absorbing the change into a new draft.
+
+## **Does NOT**
+
+- Does NOT design data models / API endpoints / request shapes / response schemas — that is `tech-plan` (`03-tech-plan-command`) Step 6.C Component Architecture.
+- Does NOT enumerate database tables / column types — that is `tech-plan` Data Model.
+- Does NOT decompose flows into tickets — that is `ticket-outline` (`05-ticket-outline-command`).
+- Does NOT design state-machine implementations (Redux/Zustand/etc.) — flows describe USER-VISIBLE state names only; the implementation pattern is `tech-plan`'s concern.
+- Does NOT specify literal microcopy — flow documents name the **outcome** the copy must communicate per `ocoron-design-system.md` § Verbal Identity; the implementer writes the literal copy at code time. Forbidden Language list at L186 is the rejection filter, not a copy template.
+- Does NOT re-derive INFRA-CHECK fields — consume from Epic Brief Metadata verbatim per Step 2 above. If a Path B field is missing (e.g., `Universal categories` absent from a multi-epic dispatch), stop and route back to `00-trigger-workflow-command`.
+- Does NOT re-read research files — `trigger_workflow` already did that. Read flow context from the Epic Brief's Context & Problem section instead.
+- Does NOT design observability events / log schemas — that is `tech-plan` + `06-ticket-breakdown` per `core/55-observability.md § Per-Scaffold Observability Matrix`.
+- Does NOT design deploy configuration (compose.yaml, Traefik labels, healthcheck) — that is `04-deploy-plan`.
+- Does NOT write i18n implementation code (`next-intl` function calls, locale file paths) — only UX behavior at the flow level; implementation is `tech-plan` + `06-ticket-breakdown`.
 
 ## **Acceptance Criteria**
 

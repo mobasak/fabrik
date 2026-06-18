@@ -132,6 +132,18 @@ Present. Iterate until user explicitly confirms. Silence ≠ confirmation.
 
 If scope changes during iteration → suggest `revise-requirements` rather than silently absorbing.
 
+## Does NOT
+
+- Does NOT design data models / API endpoints / state-machine implementations — that is `tech-plan` (`03-tech-plan-command`).
+- Does NOT enumerate user journeys / flow steps / UX states — that is `core-flows` (`02-core-flows-command`).
+- Does NOT decompose into tickets — that is `ticket-outline` (`05-ticket-outline-command`).
+- Does NOT re-derive INFRA-CHECK fields — consume from `00-trigger-workflow-command` verbatim per the Path A / Path B field lists at Step 1.
+- Does NOT silently drop Path B fields — `Registrars`, `Universal categories`, and `Epic Flavor` MUST appear in the Epic Brief Metadata block when Path B is active; missing fields route back to `00-trigger-workflow-command`.
+- Does NOT re-research the project — the research file was already consumed by `trigger_workflow`. Re-read for grounding, do not re-discover.
+- Does NOT validate the Epic Brief against downstream commands — that is `04-deploy-plan` Step 7 + `08-implementation-validation` + `10-cross-artifact-validation`.
+- Does NOT write Success Criteria as aspirations (`improve`, `delight`, `enable`) — every criterion is a concrete number or binary state per Step 5.3.
+- Does NOT propose `revise-requirements` mid-draft — that is the Step 7 iteration cycle's responsibility; the draft itself stays scoped to the confirmed input.
+
 ## Acceptance Criteria
 
 - INFRA-CHECK consumed; all propagated fields in Metadata. Path A: 9 required + 3 SaaS-conditional. Path B: 12 required + 3 SaaS-conditional (the full 14-field block per `ettw/00-trigger-workflow-command` L77 + `Epic Flavor` = 15 propagated fields; none silently dropped at the boundary).
