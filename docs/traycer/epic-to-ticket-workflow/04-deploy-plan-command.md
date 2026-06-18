@@ -5,7 +5,7 @@
      -->
 
 <!-- ⚠️ QUALITY GATE: Any modification to this command file MUST be evaluated
-     against EVALUATION_CHECKLIST_FOR_EPIC_COMMANDS.md (123 items).
+     against EVALUATION_CHECKLIST_FOR_EPIC_COMMANDS.md (131 items).
      Every applicable item must pass. "N/A" is valid; forgetting to check is not. -->
 
 # Deploy Plan

@@ -26,8 +26,8 @@ Every workflow command (00-11) must be evaluated against this list before it's c
 9. **Resilience** — does it require timeout + retry + circuit-breaker + graceful fallback for external calls?
 10. **Self-healing** — does it ensure the service recovers without human intervention?
 11. **Shape contract** — does it confirm shape ↔ code alignment?
-11b. **Responsive design** — does it enforce 375px floor (RWD1-RWD10) for web GUI scaffolds? Does it reference `docs/reference/mobile-responsive-testing-guide.md`?
-11c. **Dark + light mode** — does it enforce both mandatory for all GUI scaffolds (OS detection + manual toggle + persistence)?
+11b. **Responsive design** — does it enforce 375px floor (RWD1-RWD10) for **any scaffold with a web GUI surface** (saas-skeleton / docusaurus front / python-api / node-api / file-api when `shape.is_admin_dashboard: true` OR `shape.is_public: true` + HTML output — **feature-trigger, NOT scaffold-type-gated** per `mega-epic-breakdown/00-trigger-workflow-command` § Rule-area applicability matrix)? Carve-outs: chrome-extension popup (400px fixed), mobile-app (native UI), desktop-app (electron window sizing). Does it reference `docs/reference/mobile-responsive-testing-guide.md`?
+11c. **Dark + light mode** — does it enforce both mandatory for **any scaffold with a GUI surface** (same feature-trigger as 11b above; OS detection + manual toggle + persistence)?
 11d. **Abuse detection** — does it enforce registration gating for SaaS with free tiers per `saas/87-abuse-detection.md`?
 11e. **Email two-stream** — does it enforce separate transactional/marketing streams on separate subdomains per `core/86-email-templates.md`?
 11f. **Observability** — does it enforce `/health` for Gatus and `/metrics` for Prometheus on every service?
@@ -97,7 +97,7 @@ Every workflow command (00-11) must be evaluated against this list before it's c
 
 ## Versatility
 
-44. Does it work for ALL 11 scaffold types (or correctly skip via routing table)?
+44. Does it work for ALL 10 fabrik-scaffolded types (`python-api`, `node-api`, `saas-skeleton`, `file-api`, `file-worker`, `static-site`, `docusaurus`, `chrome-extension`, `mobile-app`, `desktop-app` per `mega-epic-breakdown/00-trigger-workflow-command` L83 — WordPress is out-of-scope here, routed to standalone `/opt/wpf` via `wpf new <name>` + `wpf wp apply`), or correctly skip via routing table?
 45. Does it handle multi-epic entry correctly? (`00-trigger` is mandatory for ALL runs — single-epic and multi-epic. Multi-epic runs `00-trigger` in consume mode using the epic ticket metadata from `mega-epic-breakdown/03-expand-epic-files-command`. `01-epic-brief` always receives INFRA-CHECK from `00-trigger` regardless of path.)
 45b. Does it handle existing projects via `mega-epic-breakdown/00-trigger-workflow-command` in EXISTING mode (owner declares mode at Step 0; produces Vision Summary + Locked Decisions + Compliance Report; Compliance Report `fix-now` rows drive Retrofit epics in `02-epic-decomposition-command`)?
 46. Does it handle two-faced types (mobile/desktop/chrome-extension: backend deploys, client doesn't)?
@@ -158,12 +158,12 @@ Every workflow command (00-11) must be evaluated against this list before it's c
 
 ## Agent Workforce Reality
 
-77. Solo HUMAN operator — but multiple AI agents working in PARALLEL.
-78. Design tickets for agent independence (each agent works without blocking on another agent's output).
-79. Maximize throughput by dispatching to Claude Code + Windsurf Cascade + Kilo CLI simultaneously.
-80. Agents don't communicate with each other — only through the codebase (git). Integration happens at batch boundaries, not mid-ticket.
-81. The human reviews at batch completion checkpoints, not per-ticket.
-82. Agent selection per ticket based on complexity + cost (free locals for simple, premium cloud for critical).
+77. Does it acknowledge the execution model of solo-human operator + multiple AI agents working in parallel (not assume a team handoff or multi-human coordination)?
+78. Does it design tickets for agent independence — each agent works without blocking on another agent's mid-ticket output?
+79. Does it allow throughput maximization by supporting dispatch to multiple agent suppliers (Claude Code + Windsurf Cascade + Kilo CLI) simultaneously?
+80. Does it ensure agents communicate only through the codebase (git) — integration at batch boundaries, never mid-ticket coordination?
+81. Does it batch human review at batch completion checkpoints, not per-ticket (3-5 tickets per review batch per `ettw/06-ticket-breakdown-command`)?
+82. Does it support agent selection per ticket based on complexity + cost (free locals for simple, premium cloud for critical)?
 
 ## Deploy Lifecycle (Zero Residue)
 
@@ -232,3 +232,14 @@ Every workflow command (00-11) must be evaluated against this list before it's c
 121. **No duplication between commands.** Each command consumes upstream output. Never restate what a prior command already produced — reference it.
 122. **Every instruction must be actionable.** "Consider X" is banned. "Check X and state finding" is correct.
 123. **No misleading claims.** If content X lives in file Y, verify it actually does before writing "read Y for X." Wrong references waste agent time and erode trust.
+
+## Regression-Coverage Anti-Patterns (added 2026-06-18 from cross-chain defect-class audit)
+
+124. **Feature-vs-scaffold drift in GUI mandates** — command applies i18n / Responsive / Dark+Light requirements based on scaffold TYPE (e.g. `saas-skeleton ⇒ mandatory`, `python-api ⇒ N/A`) instead of the GUI surface itself. Includes python-api / node-api / file-api with `shape.is_admin_dashboard: true` OR `shape.is_public: true` + HTML output. → REWRITE the trigger to be feature-based per `mega-epic-breakdown/00-trigger-workflow-command` § Rule-area applicability matrix. Hit in ettw/05 pre-`ff2c427`; same class fixed in mega chain at 00 (c2ef2ee + 87b1de8), 02 (d63c5ea), 03 (71dad46), 04 (5485644), ettw/05 (ff2c427).
+125. **Dangling citation to archived/missing file** — command cites a path under `docs/development/plans/` or `docs/reference/` that has been archived to `archived/` OR no longer exists. → VERIFY every cited path with `ls`/`Read` before merge; if archived, either inline the relevant content or cite the archived path explicitly with `(archived; historical context only)`.
+126. **Retrofit-epic special-case missing** — command (downstream of `mega-epic-breakdown/00-trigger-workflow-command` EXISTING mode) treats Retrofit epics like delta-feature epics. Retrofit handling: Title prefix `Retrofit:`, 3–5 Success Criteria (not 5–8), `scripts/final_gate.py` as deploy-level criterion (not `fabrik apply`), optional Epic Closure. → ADD explicit Retrofit branch per `mega-epic-breakdown/03-expand-epic-files-command` L82–86 + `ettw/05-ticket-outline-command` Step 1 Multi-epic dispatch mode section.
+127. **Presence-only validation when contract is semantic** — validator command checks "Field X | Present or N/A stated | Missing" without validating that the N/A reason matches the underlying trigger condition. A `Responsive: N/A — non-GUI scaffold` declared on an epic with `shape.is_admin_dashboard: true` would PASS a presence-only check despite being a rule-pack violation. → REWRITE PASS column to require value-matches-trigger; REWRITE FAIL column to name the rule-pack-violation case explicitly. Applies primarily to ettw/08-implementation-validation + ettw/10-cross-artifact-validation.
+128. **Terminology drift across chain** — command uses a vocabulary that conflicts with sibling commands (e.g. `batch` for execution grouping when 02 + 04 + 05 use `Phase`; `ticket-breakdown` vs `Ticket Breakdown` for command names). → AUDIT shared vocabulary across all 12 ettw command files AND the 5 mega-epic-breakdown command files; pick one term per concept; rename outliers.
+129. **Path A vs Path B drift** — command handles single-epic (Path A — `ettw/00-trigger` ran first producing INFRA-CHECK) but not multi-epic dispatched (Path B — `mega-epic-breakdown/03-expand-epic-files-command` ticket consumed as INFRA-CHECK), or vice versa. Path B 14-field Metadata block per `ettw/00-trigger-workflow-command` L77 (post-`5a48017`) must be honored: Scaffold, Port, Shape, Concurrency, i18n, Responsive, Dark+Light, Rule Packs, HAS_USER_GUIDE, Registrars, Universal categories, Abuse Detection, Email, FINANCIALS. → ADD explicit "Path A: ... / Path B: ..." branches; verify all 14 Metadata fields propagate without silent dropping.
+130. **Shared-state between parallel tickets** — command marks tickets as `⚡ parallel` without verifying they don't write/read the same file, table, or config. Two parallel tickets touching the same migration file = broken build. → ADD shared-state check per `ettw/05-ticket-outline-command` L79 anti-pattern (`do NOT mark tickets as parallel when one WRITES to a file/table/config that the other READS`); enforce in `ettw/06-ticket-breakdown` per-ticket Files Touched section.
+131. **Per-Scaffold Observability Matrix row mismatch** — command applies the wrong row from `core/55-observability.md § Per-Scaffold Observability Matrix` (e.g., file-worker observability requirements applied to a saas-skeleton, or static-site `/health` mandate applied where the scaffold has no app process). → CITE the scaffold-specific matrix row explicitly; reference the matrix BY SCAFFOLD TYPE, not by generic "every service has /health".
