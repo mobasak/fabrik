@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — convergence-prompts.md: wrong gate, wrong tier, and not actually iterative (2026-06-18)
+
+Three real defects in the prompts (synced fleet-wide, so the fix propagates):
+
+1. **Not iterative.** They said "in ONE pass" — the opposite of *converge*. Rewritten as explicit loops (build → self-review → re-gate → fix) that only stop at a **fixed point**: another full pass changes nothing and the gate is green.
+2. **PLAN gated the wrong thing.** It told the agent to run `final_gate.py` to "converge" a plan — but a plan has no code to lint/test; `final_gate` would pass trivially or check unrelated state. A plan's gate is its *evidence*: `check_convergence.py` (with the plan staged). `final_gate` is for CODE REVIEW / DOCS only.
+3. **Wrong tier.** `--lean` is **tier 1, showstoppers only** — too weak for convergence. Corrected to the real semantics (verified in `final_gate.py`, which do **not** nest): `--lean`=t1, *no-flag/`--check`*=t2 comprehensive, `--systemic`=t3 repo+docs. Implementation convergence bar = **tier 2 AND tier 3 green**; DOCS uses `--systemic` (where Documentation Drift/Completeness live). Added a tiers + per-phase-gate explainer.
+
 ### Changed — synced governance files now gitignored in every project (existing + future) (2026-06-18)
 
 Governance/synced files must be gitignored in all projects except fabrik, so they don't show as untracked noise or get accidentally committed. The `.gitignore` "Fabrik-synced" block was only written at scaffold time, so existing projects never picked up files added to the synced set later (`.claude/`, `convergence-prompts.md`, `kilo-consult-workflow.md`).
