@@ -30,7 +30,16 @@ The goal is alignment, not artifacts. Work through each section via clarificatio
 Read these in order; everything else builds on them:
 
 1. **Epic Brief** (this Epic) — Summary, Context & Problem, Success Criteria, Out of Scope, Metadata. Every architectural decision must trace back to either a Success Criterion or a Constraint surfaced by `trigger_workflow`.
-2. **`trigger_workflow` INFRA-CHECK** — capture every field. Most heavily consumed by tech-plan:
+2. **`trigger_workflow` INFRA-CHECK** — capture every field. Path A: 9 required + 3 SaaS-conditional. Path B (multi-epic 14-field block per `ettw/00-trigger-workflow-command` L77 post-`5a48017` + `Epic Flavor` per `1eaf22a`): adds `Registrars`, `Universal categories`, `Epic Flavor` (Delta-feature | Retrofit). Path B-specific tech-plan rules:
+   - **`Universal categories`** (Path B only) constrains the architecture surface: if the epic owns category #3 (Persistence) but NOT #4 (Workers), do NOT design worker subsystems. Categories owned by sibling epics → `Out of Scope` in Component Architecture (Step 6.C).
+   - **`Epic Flavor: Retrofit`** (Path B only) changes section targeting throughout this command:
+     - **Step 4b 12-Factor** — re-verify ONLY the factor the retrofit touches (e.g., `Retrofit: i18n` → Factor III config + Factor V build only). Skip the full 12-factor sweep; state inherited compliance for untouched factors.
+     - **Step 4c Concurrency** — Retrofit on non-concurrency areas → state "concurrency inherited from existing project" + skip new design.
+     - **Step 6 Architecture Design** — Retrofit target ≤100 lines total (vs Delta-feature ≤300 at L149). Single-subsystem focus.
+     - **Step 7 Shape Block Declaration** — Retrofit INHERITS the existing project's shape; do NOT declare new shape. State "inherited; no new shape flags required" unless the retrofit explicitly adds a registrar (e.g., `Retrofit: search` adds `has_search_feature: true`).
+   - **`Registrars`** (Path B only) lists which of the 9 fire per `mega-epic-breakdown/00-trigger-workflow-command` L47: postgres, redis, gatus, backrest, glitchtip, authelia, meilisearch, prometheus, grafana — Component Architecture (Step 6.C) MUST NOT contradict this list. If architecture needs a registrar not in the list, route back to `mega-epic-breakdown/02-epic-decomposition-command` to update the spec.
+
+   **Most heavily consumed fields (both paths):**
    - `Scaffold` — drives Stack injection (Step 4) and Commercial Mindset default (Step 5).
    - `Port` — already resolved; copy verbatim including any parenthetical annotation.
    - `Internal APIs` — consumed dependency list. Inputs to Component Architecture (Step 6.C), not new design work.
@@ -40,12 +49,12 @@ Read these in order; everything else builds on them:
    - `Shape` — the INITIAL expectation from trigger_workflow. Tech-plan Step 7 DECLARES the final shape (may add/change fields based on architecture decisions). Deploy-plan then VERIFIES it.
    - `12-Factor` — must be `compliant`. If `violations` listed, resolve them in this command.
    - `Rule Packs` — the packs to read in Step 3.
-   - `Responsive` — if `375px`, confirm UI architecture handles RWD1-RWD10.
-   - `Dark+Light` — if `mandatory`, confirm theme architecture (OS detection + toggle + persistence).
-   - `Abuse Detection` — if `required`, vendor `fabrik-lib/abuse-prevention/` into the project.
-   - `Email` — if `two-stream`, vendor `fabrik-lib/email-templates/` and confirm transactional/marketing separation.
+   - `Responsive` — if `375px–2560px mandatory`, confirm UI architecture handles RWD1-RWD10. **Feature-trigger** per `mega-epic-breakdown/00-trigger-workflow-command` § Rule-area applicability matrix: applies to any scaffold with a web GUI surface incl. python-api/node-api/file-api with `shape.is_admin_dashboard: true` OR `shape.is_public: true` + HTML output. N/A only when no HTML/native UI surface exists.
+   - `Dark+Light` — if `mandatory`, confirm theme architecture (OS detection + toggle + persistence). Same feature-trigger as Responsive above.
+   - `Abuse Detection` — if `required`, vendor `fabrik-lib/abuse-prevention/` into the project (authority: `saas/87-abuse-detection.md`).
+   - `Email` — if `two-stream`, vendor `fabrik-lib/email-templates/` and confirm transactional/marketing separation on separate subdomains (authority: `core/86-email-templates.md`).
    - `Vector DB` — if `pgvector`, confirm pgvector on postgres-main or Supabase (no external vector DBs).
-   - `FINANCIALS` — if `required`, note that `docs/FINANCIALS.md` must be populated before launch.
+   - `FINANCIALS` — if `required`, note that `docs/FINANCIALS.md` must be populated before launch (authority: `saas/88-saas-launch-checklist.md`).
    - `x86_64`, `Deploy`, `Design System`, `Duplicate`, `Platform Debt` — consult; surface only if they materially shape the design.
 3. **Core Flows** (only if scaffold's route included it) — Personas, Flow Index, `[PRIMARY PATH]` markers per flow. The `[PRIMARY PATH]` markers feed the Testability Gate (Step 7).
 4. **Pre-research file** if one was identified by `trigger_workflow` Step 3 — re-read for grounding.
@@ -121,7 +130,7 @@ Based on INFRA-CHECK `Concurrency` field, design the request-handling path:
 - If the service uses background jobs: state the queue mechanism (Redis queue, PostgreSQL jobs table).
 - If the service handles file uploads: confirm streaming (not buffering entire file in memory).
 
-### Step 4d: i18n Architecture (GUI scaffolds only)
+### Step 4d: i18n Architecture (any scaffold with a GUI surface — feature-trigger, NOT scaffold-type-gated)
 
 If INFRA-CHECK `i18n` ≠ `N/A`:
 
@@ -244,21 +253,36 @@ Present the Tech Plan. Iterate until the user explicitly confirms. Silence is no
 
 If during iteration the user introduces a requirement change, suggest `revise-requirements`. If artifacts feel inconsistent, suggest `cross-artifact-validation`. If requirements quality is weak, suggest `prd-validation`.
 
+## Does NOT
+
+- Does NOT enumerate user journeys / UX flow steps / UI states — that is `02-core-flows-command`.
+- Does NOT decompose into tickets — that is `05-ticket-outline-command`.
+- Does NOT write implementation code / pseudo-code / function bodies — Component Architecture (Step 6.C) names modules + responsibilities + public interfaces; literal implementation is `06-ticket-breakdown` + `07-execute`.
+- Does NOT design `compose.yaml` / Traefik labels / healthcheck / resource limits — that is `04-deploy-plan-command` Step 6 Deploy Contract.
+- Does NOT write literal migration scripts — Data Model (Step 6.B) names tables + columns + constraints + indexes; migration file contents are `06-ticket-breakdown` per-ticket per `core/25-data-postgres.md`.
+- Does NOT re-derive INFRA-CHECK fields — consume from Epic Brief Metadata verbatim per Step 1. Path B fields (`Registrars`, `Universal categories`, `Epic Flavor`) MUST flow through; missing routes back to `00-trigger-workflow-command`.
+- Does NOT redeclare the Shape Block for Retrofit epics — Retrofit inherits the existing project's shape; only declare new shape flags when the retrofit explicitly adds a registrar (per Step 1 Path B Epic Flavor rules).
+- Does NOT re-read research files — `trigger_workflow` already did; rely on Epic Brief's Context & Problem section.
+- Does NOT design new microcopy — that is the implementer at code time per `ocoron-design-system.md` § Verbal Identity.
+- Does NOT design observability event schemas / log line formats — that is `06-ticket-breakdown` per-ticket per `core/55-observability.md § Per-Scaffold Observability Matrix`.
+- Does NOT propose `revise-requirements` mid-draft — the Step 8 iteration cycle handles scope changes.
+- Does NOT validate the Tech Plan against downstream commands — that is `08-implementation-validation` + `10-cross-artifact-validation`.
+
 ## Acceptance Criteria
 
-- Upstream context consumed: Epic Brief, INFRA-CHECK (all fields including Concurrency, i18n, Shape, 12-Factor, Rule Packs, Responsive, Dark+Light, Abuse Detection, Email, Vector DB, FINANCIALS), Core Flows (when present), pre-research.
+- Upstream context consumed: Epic Brief, INFRA-CHECK. Path A: Concurrency, i18n, Shape, 12-Factor, Rule Packs, Responsive, Dark+Light, HAS_USER_GUIDE, Abuse Detection, Email, FINANCIALS, Vector DB. Path B adds: `Registrars`, `Universal categories`, `Epic Flavor` (Delta-feature | Retrofit) — none silently dropped at the boundary. Core Flows (when present), pre-research.
 - Defensive case handled: no retroactive core-flows request for skipped scaffolds.
 - Pre-design reference reads completed scaffold-aware (design system, 25-data-postgres, AI_TAXONOMY, lifecycle).
 - Rule packs read per INFRA-CHECK `Rule Packs` + domain overlays. Stated.
 - Stack block built per Step 4 with drift-guard footer.
 - **12-Factor compliance verified** (Step 4b): all 12 factors pass. Violations resolved as Most Important.
 - **Concurrency designed** (Step 4c): non-blocking path, worker count rationale.
-- **i18n architecture designed** (Step 4d, GUI scaffolds): locale files, loading, fallback, zero-code-change language addition.
+- **i18n architecture designed** (Step 4d, any scaffold with a GUI surface — feature-trigger per `mega-epic-breakdown/00-trigger-workflow-command` § Rule-area applicability matrix; includes python-api/node-api/file-api admin dashboards): locale files, loading, fallback, zero-code-change language addition.
 - Commercial Mindset ON/OFF decided; section present or omitted.
 - Architecture designed across A + C (mandatory) + B (mandatory or N/A).
 - Architectural Approach references Stack, Port, confirms amd64 (no Alpine), integrates concurrency model, 12-Factor, and structured logging.
 - Component Architecture reflects Internal APIs (with M2M auth pattern), resilience per external dep (timeout/retry/circuit-breaker/fallback), deployment contract (Traefik labels, healthcheck start_period 60s, fabrik network, no host ports, resource limits), i18n component, observability, fabrik-lib modules referenced where applicable.
-- Responsive (375px) + Dark+Light (mandatory) addressed in UI architecture for GUI scaffolds.
+- Responsive (375px–2560px) + Dark+Light (mandatory) addressed in UI architecture for any scaffold with a GUI surface (feature-trigger per `mega-epic-breakdown/00-trigger-workflow-command` § Rule-area applicability matrix — NOT scaffold-type-gated; applies to python-api/node-api/file-api admin dashboards too).
 - Abuse Detection vendored from fabrik-lib when required. Email two-stream confirmed when applicable.
 - `fabrik apply` confirmed deployable end-to-end. Gaps stated if any.
 - Downstream doc feeds identified (CONFIGURATION, DEPLOYMENT, RESILIENCE, DATABASE_SCHEMA).
