@@ -60,6 +60,7 @@ logger = logging.getLogger(__name__)
 SPEC_ENABLED_TYPES: frozenset[str] = frozenset(
     {
         "python-api",
+        "python-api-gpu",  # python-api + GPU rental helper; same deploy shape
         "saas-skeleton",
         "node-api",
         "file-api",
@@ -85,6 +86,7 @@ SECRET_PATTERNS: tuple[str, ...] = (
 # because its FastAPI backend (port 8000, ``/health``) is deployable.
 _TYPE_DEFAULTS: dict[str, dict] = {
     "python-api": {"memory": "512M", "cpu": "0.5", "health_path": "/health"},
+    "python-api-gpu": {"memory": "512M", "cpu": "0.5", "health_path": "/health"},
     "node-api": {"memory": "256M", "cpu": "0.5", "health_path": "/api/health"},
     "saas-skeleton": {"memory": "256M", "cpu": "0.5", "health_path": "/api/health"},
     "static-site": {"memory": "256M", "cpu": "0.5", "health_path": "/api/health"},

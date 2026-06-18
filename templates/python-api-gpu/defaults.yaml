@@ -1,0 +1,20 @@
+# ─── shape: project-shape descriptor ───
+# python-api-gpu = python-api + an on-demand GPU rental helper
+# (app/gpu_handler.py wraps fabrik.orchestrator.gpu_rent). The shape mirrors
+# python-api exactly — GPU *auto-provisioning* (a shape.needs_gpu flag + a GPU
+# registrar) is a separate vertical slice tracked in the GPU subsystem; until
+# the Shape model gains that field, the spec carries the standard python-api
+# shape and the service rents GPUs imperatively from its job handler.
+shape:
+  kind: service
+  is_public: true
+  is_admin_dashboard: false
+  has_bearer_api: false
+  has_persistent_data: false
+  needs_database: false
+  has_search_feature: false
+  exposes_metrics: true
+
+env:
+  LOG_LEVEL: INFO
+  PYTHONUNBUFFERED: "1"

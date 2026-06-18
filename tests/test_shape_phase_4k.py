@@ -81,6 +81,8 @@ class TestShapeModel:
             "has_persistent_data": True,
             "needs_database": True,
             "has_search_feature": False,
+            "exposes_metrics": False,
+            "needs_cache": False,
         }
 
 
@@ -90,6 +92,7 @@ class TestShapeModel:
 # (kind, is_public, is_admin, has_bearer, has_persistent, needs_db, has_search)
 SHAPE_MATRIX: dict[str, tuple[str, bool, bool, bool, bool, bool, bool]] = {
     "python-api":       ("service",   True,  False, False, False, False, False),
+    "python-api-gpu":   ("service",   True,  False, False, False, False, False),
     "node-api":         ("service",   True,  False, False, False, False, False),
     "saas-skeleton":    ("service",   True,  False, False, True,  True,  False),
     "file-api":         ("service",   True,  False, False, True,  False, False),
@@ -97,10 +100,18 @@ SHAPE_MATRIX: dict[str, tuple[str, bool, bool, bool, bool, bool, bool]] = {
     "docusaurus":       ("static",    True,  False, False, False, False, False),
     "wordpress":        ("wordpress", True,  False, False, True,  True,  False),
     "file-worker":      ("worker",    False, False, False, True,  False, False),
-    "chrome-extension": ("static",    False, False, False, False, False, False),
-    "mobile-app":       ("static",    False, False, False, False, False, False),
-    "desktop-app":      ("static",    False, False, False, False, False, False),
+    # chrome/desktop/mobile companion backends are kind=service (T1 fix 2026-05-06)
+    # so GlitchTip fires for the scaffolded backend (was wrongly kind=static).
+    "chrome-extension": ("service",   False, False, False, False, False, False),
+    "mobile-app":       ("service",   False, False, False, False, False, False),
+    "desktop-app":      ("service",   False, False, False, False, False, False),
 }
+
+# Recognised types with NO scaffold template of their own (creation lives
+# elsewhere) → no defaults.yaml to assert. Still required in SHAPE_MATRIX so
+# ``test_matrix_covers_every_scaffold_type`` stays in lockstep with
+# SCAFFOLD_TYPES. ``wordpress`` scaffolding moved to /opt/wpf.
+_NO_TEMPLATE_TYPES = {"wordpress"}
 
 
 class TestDefaultsYamlShape:
@@ -117,12 +128,16 @@ class TestDefaultsYamlShape:
     @pytest.mark.parametrize("project_type", sorted(SHAPE_MATRIX))
     def test_defaults_yaml_has_shape_block(self, project_type: str) -> None:
         """Every type emits a shape: block via _build_shape_for_type."""
+        if project_type in _NO_TEMPLATE_TYPES:
+            pytest.skip(f"{project_type}: no scaffold template (deploy-only type)")
         shape = _build_shape_for_type(project_type)
         assert shape is not None, f"{project_type}: defaults.yaml missing shape: block"
 
     @pytest.mark.parametrize("project_type", sorted(SHAPE_MATRIX))
     def test_defaults_yaml_matches_matrix(self, project_type: str) -> None:
         """Every type's shape values match the plan's CLI Entry Points matrix exactly."""
+        if project_type in _NO_TEMPLATE_TYPES:
+            pytest.skip(f"{project_type}: no scaffold template (deploy-only type)")
         kind, is_pub, is_admin, has_bearer, has_pers, needs_db, has_search = SHAPE_MATRIX[project_type]
         shape = _build_shape_for_type(project_type)
         assert shape is not None  # already asserted above, guard for type-checker
@@ -138,6 +153,8 @@ class TestDefaultsYamlShape:
     def test_defaults_yaml_parses_back_through_pydantic(self, project_type: str) -> None:
         """Idempotency: raw YAML dict parses cleanly into Shape — no lingering
         unknown keys that ``extra="forbid"`` would reject."""
+        if project_type in _NO_TEMPLATE_TYPES:
+            pytest.skip(f"{project_type}: no scaffold template (deploy-only type)")
         raw = _load_template_defaults(project_type).get("shape")
         assert raw is not None
         Shape(**raw)  # will raise if any key is invalid

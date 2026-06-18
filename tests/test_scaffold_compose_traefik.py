@@ -45,6 +45,7 @@ requires_fabrik_env = pytest.mark.skipif(
 # loudly if a new type is added there but not registered in this list.
 DEPLOYABLE_TYPES_HTTP = [
     "python-api",
+    "python-api-gpu",
     "saas-skeleton",
     "node-api",
     "file-api",
@@ -125,17 +126,21 @@ def test_compose_service_name_matches_project(tmp_path, project_type):
 
 @requires_fabrik_env
 @pytest.mark.parametrize("project_type", DEPLOYABLE_TYPES_HTTP + DEPLOYABLE_TYPES_WORKER)
-def test_compose_joins_coolify_network(tmp_path, project_type):
-    """Container must join the external ``coolify`` network for Traefik mesh."""
+def test_compose_joins_fabrik_network(tmp_path, project_type):
+    """Container must join the external ``fabrik`` network for the Traefik mesh.
+
+    (Renamed from ``coolify`` 2026-05-31; ``fabrik apply`` rejects a compose
+    declaring ``coolify``.)
+    """
     project_dir = _scaffold(tmp_path, project_type)
     content = _read_compose(project_dir)
-    assert "coolify" in content, (
-        f"compose.yaml for {project_type} must reference the ``coolify`` "
+    assert "fabrik" in content, (
+        f"compose.yaml for {project_type} must reference the ``fabrik`` "
         f"network so Traefik can route to the container"
     )
     assert re.search(r"external:\s*true", content), (
-        f"compose.yaml for {project_type} must declare ``coolify`` as "
-        f"``external: true`` (the network is owned by Coolify, not us)"
+        f"compose.yaml for {project_type} must declare ``fabrik`` as "
+        f"``external: true`` (the shared network is created out-of-band)"
     )
 
 

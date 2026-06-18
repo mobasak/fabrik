@@ -475,7 +475,7 @@ class TestChromeExtensionScaffold:
         # Verify compose.yaml content
         compose = (project_dir / "compose.yaml").read_text()
         assert "platform: linux/amd64" in compose
-        assert "coolify" in compose
+        assert "fabrik" in compose  # network renamed from coolify 2026-05-31
         assert "/health" in compose
 
     def test_makefile_has_parallel_dev_target(self, tmp_path):
@@ -935,11 +935,18 @@ class TestDocusaurusScaffold:
         assert "test-docs" in content, "Config missing project name"
         assert "prismThemes" in content, "Config missing prism themes"
 
-        # OpenAPI template contract
-        assert '@theme/ApiItem' in content, "Config missing docItemComponent"
-        assert "docusaurus-plugin-openapi-docs" in content, "Config missing OpenAPI plugin"
-        assert "docusaurus-theme-openapi-docs" in content, "Config missing OpenAPI theme"
-        assert "apiSidebar" in content, "Config missing apiSidebar navbar item"
+        # B38: the OpenAPI plugin/theme are intentionally NOT wired into the
+        # default config (docusaurus-plugin-openapi-docs 4.3.x fails the build
+        # under @docusaurus/core 3.10.x). A bare site builds out-of-the-box;
+        # users opt back in. A placeholder openapi.yaml is still emitted
+        # (see test_creates_openapi_yaml).
+        # The docItemComponent (@theme/ApiItem) is the active OpenAPI wiring —
+        # only present when the plugin is enabled. (The plugin *name* still
+        # appears in the B38 explanatory comment, so assert on this instead.)
+        assert "@theme/ApiItem" not in content, (
+            "B38: the OpenAPI docItemComponent must stay out of the default config"
+        )
+        assert "guideSidebar" in content, "Config missing guideSidebar navbar item"
 
     def test_creates_sidebars(self, tmp_path):
         """Verify sidebars.js is generated with apiSidebar."""
@@ -955,8 +962,10 @@ class TestDocusaurusScaffold:
         assert sidebars.exists(), "sidebars.js not created"
         content = sidebars.read_text()
         assert "guideSidebar" in content
-        assert "apiSidebar" in content, "sidebars.js missing apiSidebar"
-        assert "docs/api/sidebar.js" in content, "sidebars.js missing api sidebar require"
+        # B38: apiSidebar (and its docs/api/sidebar.js require) are dropped from
+        # the default sidebars — they crash `npm run build` until OpenAPI docs
+        # are generated. Re-added when a project opts into the OpenAPI plugin.
+        assert "apiSidebar" not in content, "B38: apiSidebar must stay out of default sidebars"
 
     def test_creates_openapi_yaml(self, tmp_path):
         """Verify openapi.yaml placeholder is created."""
