@@ -32,9 +32,13 @@ Product manager who digs into the "why" behind a project. You produce a deploy-r
 
 **Path B (multi-epic):** `00-trigger` ran in consume mode using an epic ticket from `mega-epic-breakdown/03-expand-epic-files-command`. INFRA-CHECK was emitted from that ticket's metadata. Also read the Infrastructure Decisions from the Vision Summary.
 
-**Required fields (from either path):** `Port`, `Scaffold`, `User Guide`, `Shape`, `Concurrency`, `i18n`, `Responsive`, `Dark+Light`, `Rule Packs`.
-**Informational (surface if material):** `Duplicate`, `Internal APIs`, `Design System`, `Platform Debt`, `12-Factor`, `Abuse Detection`, `Email`, `Vector DB`, `FINANCIALS`.
-**Multi-epic only:** `Dependencies` (what prior epics produced that this epic consumes), `Infrastructure Decisions` (shared technology decisions from Vision Summary).
+**Required fields from Path A (single-epic INFRA-CHECK from `00-trigger-workflow-command`):** `Port`, `Scaffold`, `User Guide`, `Shape`, `Concurrency`, `i18n`, `Responsive`, `Dark+Light`, `Rule Packs` (9 required); `Abuse Detection`, `Email`, `FINANCIALS` (3 SaaS-conditional, `N/A` allowed).
+
+**Required fields from Path B (multi-epic 14-field block per `00-trigger-workflow-command` L77 post-`5a48017` + `1eaf22a`):** the 12 Path A fields PLUS `Registrars`, `Universal categories`, `Epic Flavor` (`Delta-feature` | `Retrofit`) — total 15. Path B does NOT silently drop `Registrars` or `Universal categories`; both propagate into the Epic Brief Metadata block.
+
+**Informational (surface if material — both paths):** `Duplicate`, `Internal APIs`, `Design System`, `Platform Debt`, `12-Factor`, `Vector DB`.
+
+**Multi-epic only:** `Dependencies` (what prior epics produced that this epic consumes), `Infrastructure Decisions` (shared technology decisions from Vision Summary), `Universal categories` (constrains epic scope per `mega-epic-breakdown/02-epic-decomposition-command` sub-step 2h — epic owns ONLY the categories listed; others are out-of-scope).
 
 If required fields are missing → ask the user or suggest re-running `00-trigger` (single-epic) or check the epic ticket (multi-epic). Do not guess.
 
@@ -64,14 +68,22 @@ Consume `trigger_workflow` findings — do not repeat its checks:
 
 ### Step 5: Draft the Epic Brief
 
-Sections in order (target 50 lines total, soft cap 100):
+Sections in order — line budget varies by epic flavour:
+
+- **Delta-feature epic** (default for Path A; Path B `Epic Flavor: Delta-feature`): target 50 lines total, soft cap 100.
+- **Retrofit epic** (Path B `Epic Flavor: Retrofit` only — Title prefix `Retrofit:` per `mega-epic-breakdown/03-expand-epic-files-command` L82-86): target **30 lines** total, soft cap 60. Retrofit briefs are naturally shorter — fewer features, focused scope, narrower Success Criteria.
 
 1. **Summary** (3–8 sentences) — What, for whom, why. NOT how. NOT success criteria.
 
 2. **Context & Problem** — Real users/personas, current pain, where in the product.
 
-3. **Success Criteria** (3–5 measurable outcomes) — Each either a concrete number or binary state.
-   - MUST include at least one deploy-level criterion: "`fabrik apply` succeeds, `/health` returns 200, `audit-registrars` reports present."
+3. **Success Criteria** — count varies by epic flavour:
+   - **Delta-feature epic: 5–8 measurable outcomes** (Path B per `mega-epic-breakdown/03-expand-epic-files-command` L82; Path A defaults to this range).
+   - **Retrofit epic: 3–5 measurable outcomes** (Path B `Epic Flavor: Retrofit` per `mega-epic-breakdown/03-expand-epic-files-command` L86) — a code-change retrofit may have fewer naturally testable criteria; document the justification inline.
+   - Each either a concrete number or binary state.
+   - MUST include at least one deploy/gate-level criterion:
+     - **Delta-feature:** "`fabrik apply` succeeds, `/health` returns 200, `audit-registrars` reports present."
+     - **Retrofit** (no new deploy unit): `scripts/final_gate.py --lean --json` returns `"status":"success"` for the modified scope AND the rule pack's compliance check moves from Partial/Violates → Compliant (per the gap row in the Vision Summary's Compliance Report).
    - Design criteria to be decomposable into independent parallel work streams.
    - Anti-patterns: vague verbs (`improve`), implementation details (`uses Redis`), aspirations (`delight users`).
 
@@ -86,19 +98,22 @@ Sections in order (target 50 lines total, soft cap 100):
    - `Shape: <flags>` — list every applicable true flag from the 8-flag canonical set: `is_public` (→ gatus), `is_admin_dashboard` (→ authelia), `has_bearer_api` (→ authelia `^/api/` bypass), `has_persistent_data` (→ backrest), `needs_database` (→ postgres), `needs_cache` (→ redis), `has_search_feature` (→ meilisearch), `exposes_metrics` (→ prometheus). Omitting a flag = the gated registrar will NOT fire.
    - `Concurrency: <mechanism>`
    - `i18n: <mechanism or N/A>`
-   - `Responsive: 375px / N-A`
-   - `Dark+Light: mandatory / N-A`
+   - `Responsive: 375px–2560px mandatory / N-A` — **feature-trigger per `mega-epic-breakdown/00-trigger-workflow-command` § Rule-area applicability matrix**: mandatory for any scaffold with a web GUI surface incl. python-api/node-api/file-api when `shape.is_admin_dashboard: true` OR `shape.is_public: true` + HTML output. N-A only when no HTML/native UI surface exists. Carve-outs: chrome-extension popup (400px fixed), mobile-app (native UI), desktop-app (electron window sizing).
+   - `Dark+Light: mandatory / N-A` — same feature-trigger as Responsive above.
    - `Rule Packs: <IDs>`
-   - `Abuse Detection: required / N-A` (SaaS with free tier)
-   - `Email: two-stream / none / N-A`
-   - `FINANCIALS: required / N-A` (SaaS scaffolds)
+   - `Abuse Detection: required / N-A` (SaaS with free-tier signup surface — authority: `saas/87-abuse-detection.md`)
+   - `Email: transactional / marketing / two-stream / none / N-A` (authority: `core/86-email-templates.md` — two-stream MUST be separate streams on separate subdomains)
+   - `FINANCIALS: required / N-A` (SaaS scaffolds pre-launch — authority: `saas/88-saas-launch-checklist.md`)
+   - `Registrars: <list>` (which of the 9 fire per `mega-epic-breakdown/00-trigger-workflow-command` L47: postgres, redis, gatus, backrest, glitchtip, authelia, meilisearch, prometheus, grafana — glitchtip + grafana fire unconditionally; the other 7 are shape-gated per the 8 flags above)
+   - `Universal categories: <comma-separated 1-14>` (Path B only — verbatim from `mega-epic-breakdown/02-epic-decomposition-command` sub-step 2h; constrains epic scope to ONLY the categories this epic owns)
+   - `Epic Flavor: Delta-feature | Retrofit` (Path B only — propagated from `00-trigger-workflow-command` Path B Epic-flavor detection per `mega-epic-breakdown/03-expand-epic-files-command` L82-86)
 
 > **Drafting rules:**
 > - Complete every section — no stubs. Infrastructure Notes is the only omittable section.
 > - Derive from research + INFRA-CHECK + codebase. Never assume.
 > - If a preplan exists, Summary MUST align with it.
 > - Name backing services explicitly (e.g. "Uses postgres-main via shape.needs_database").
-> - If >50 lines, justify. If approaching 100, propose splitting the epic.
+> - Delta-feature epic: if >50 lines, justify; if approaching 100, propose splitting the epic. Retrofit epic: if >30 lines, justify; if approaching 60, the retrofit is over-scoped — narrow it.
 
 ### Step 6: Self-Validate
 
@@ -106,10 +121,10 @@ Sections in order (target 50 lines total, soft cap 100):
 - Success Criteria: measurable, includes deploy-level, parallel-decomposable.
 - Infrastructure Notes: explicit designations or omitted entirely.
 - Out of Scope: 2–5 named exclusions.
-- Metadata: all fields match INFRA-CHECK (9 required + conditionals).
-- Automation confirmed: `fabrik apply` can handle this.
+- Metadata: all fields match INFRA-CHECK. Path A: 9 required + 3 SaaS-conditional. Path B: 12 required + 3 SaaS-conditional (adds Registrars, Universal categories, Epic Flavor) — Path B does NOT silently drop Registrars or Universal categories.
+- Automation confirmed: `fabrik apply` can handle this (Delta-feature) OR `scripts/final_gate.py` succeeds + Compliance Report gap closes (Retrofit).
 - External deps have resilience expectation stated.
-- Length ≤50 (or justified).
+- Length: Delta-feature ≤50 lines (or justified); Retrofit ≤30 lines.
 
 ### Step 7: Present and Iterate
 
@@ -119,7 +134,7 @@ If scope changes during iteration → suggest `revise-requirements` rather than 
 
 ## Acceptance Criteria
 
-- INFRA-CHECK consumed; all propagated fields in Metadata (9 required + conditional fields).
+- INFRA-CHECK consumed; all propagated fields in Metadata. Path A: 9 required + 3 SaaS-conditional. Path B: 12 required + 3 SaaS-conditional (the full 14-field block per `ettw/00-trigger-workflow-command` L77 + `Epic Flavor` = 15 propagated fields; none silently dropped at the boundary).
 - Research re-read (same file as trigger_workflow); gaps/opportunities surfaced.
 - Assumptions surfaced with confidence ratings when input is thin.
 - Infrastructure grounded by consuming trigger findings, not re-running checks.
