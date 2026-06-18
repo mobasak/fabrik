@@ -520,6 +520,7 @@ the `wordpress` **scaffold type** (`fabrik scaffold --type wordpress`).
 | [check_print_ban.py](scripts/enforcement/check_print_ban.py) | Tier 1: Ban print()/console.log() in production code [reusable] |
 | [check_synced_unmodified.py](scripts/enforcement/check_synced_unmodified.py) | Tier 1: Fail the gate when a Fabrik-synced file drifts from the `/opt/fabrik` source (centrally-managed files must not be edited locally). Self-exempts in fabrik; skips when fabrik absent. |
 | [fabrik_synced_manifest.py](scripts/fabrik_synced_manifest.py) | Single source of truth for the centrally-distributed file set — consumed by `sync_enforcement_to_projects.py`, the `scaffold.py` `.gitignore` block, and `check_synced_unmodified.py`. |
+| [test_synced_manifest.py](tests/test_synced_manifest.py) | 5 tests for `fabrik_synced_manifest` — category coverage, compiled-bytecode exclusion, source mapping, PORTS.md seed-exemption, gitignore grouping. |
 | [check_user_guide.py](scripts/enforcement/check_user_guide.py) | Tier 2: Verify docs/user-guide/ when has_user_guide: true [reusable] |
 | [check_reusable_modules.py](scripts/enforcement/check_reusable_modules.py) | Tier 2 advisory: Check [reusable] tags in INDEX.md [reusable] |
 | [test_cross_cutting_enforcement.py](tests/test_cross_cutting_enforcement.py) | 31 tests for cross-cutting enforcement scripts |

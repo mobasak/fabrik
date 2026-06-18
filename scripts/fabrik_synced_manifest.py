@@ -157,6 +157,11 @@ def iter_synced_pairs(
         if not src_dir.exists():
             continue
         for src_file in src_dir.rglob("*"):
-            if src_file.is_file():
-                rel = src_file.relative_to(fabrik_root)
-                yield src_file, project_root / rel
+            if not src_file.is_file():
+                continue
+            # Never track compiled bytecode — it's non-deterministic across
+            # hosts/Python versions and would cause spurious drift in the check.
+            if "__pycache__" in src_file.parts or src_file.suffix == ".pyc":
+                continue
+            rel = src_file.relative_to(fabrik_root)
+            yield src_file, project_root / rel
