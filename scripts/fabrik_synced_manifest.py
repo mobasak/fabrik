@@ -111,6 +111,9 @@ REFERENCE_DOCS = [
         "docs/reference/mobile-responsive-testing-guide.md",
         "docs/reference/mobile-responsive-testing-guide.md",
     ),
+    # The 3 direct-agent convergence prompts (PLAN/CODE REVIEW/DOCS) — referenced by
+    # the synced CLAUDE.md HARD-STOP row, so it must exist in every project too.
+    ("docs/reference/convergence-prompts.md", "docs/reference/convergence-prompts.md"),
 ]
 
 
