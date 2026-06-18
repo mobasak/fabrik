@@ -492,8 +492,27 @@ Report findings as a list of mechanical gaps with concrete locations.
 For each rule pack applicable to this scaffold type (per `AGENTS.md` § Project Type → Default Packs table; full pack list in the Rule Pack Index above in the Input Contract section), evaluate the project against the pack's mandates. Example table below is for `saas-skeleton`; for other scaffold types build the equivalent table:
 
 - **Scaffold has a `domain-modules/<type>.md`** (chrome-ext, desktop-app, mobile-app, rag, saas) → use that as the structural starting point + add applicable rows from the Rule Pack Index.
-- **Scaffold has NO `domain-modules/<type>.md`** (python-api, node-api, file-api, file-worker, static-site, docusaurus) → build the table directly from the Rule Pack Index, scoped to the scaffold's Default Packs in `AGENTS.md` § Project Type → Default Packs. The 11 always-applicable core rule areas (rows 1–11 of the saas-skeleton example below: 12-Factor, i18n, Responsive, Dark+light, Resilience, Health endpoint, Structured logging, asyncpg/UUIDv7/vector-DB stack, Shape contract, Observability, Compose invariants, Authelia bypass scope, LLM gateway, Node ESM, Python floor, Fabrik-synced files) apply to every backend scaffold and stay in the table; SaaS-only rows (Abuse detection, Email two-stream, FINANCIALS.md) drop out as N/A.
+- **Scaffold has NO `domain-modules/<type>.md`** (python-api, node-api, file-api, file-worker, static-site, docusaurus) → build the table directly from the Rule Pack Index, scoped to the scaffold's Default Packs in `AGENTS.md` § Project Type → Default Packs. Use the applicability matrix below to decide which rows survive.
 - **WordPress projects are out of scope here** — delegate to `/opt/wpf`; do NOT build a Compliance table for WordPress sites under this workflow.
+
+**Rule-area applicability matrix** (use to scope rows in/out of the Compliance table for a given scaffold):
+
+| Rule area | Applies to (kind) |
+| --- | --- |
+| 12-Factor App, Resilience, Health endpoint, Structured logging, Shape contract, Observability, Compose invariants, Authelia bypass scope, Fabrik-synced files unmodified, Bootstrap scripts | every `service` + `worker` scaffold; `static` skips Health/Observability/Resilience (no app process) |
+| asyncpg, UUIDv7 | every Python `service` + `worker` that touches Postgres |
+| Python version floor | every Python scaffold |
+| Node ESM mandate | every Node scaffold |
+| LLM gateway (OpenRouter only) | any scaffold that calls an LLM — N/A otherwise |
+| Vector DB ban | any scaffold doing vector search — N/A otherwise |
+| Cost budget, Watchdog sidecar | any scaffold calling paid AI APIs — N/A otherwise |
+| Target host (multi-host) | every Fabrik-deployed scaffold (`service`/`worker`); `static` N/A unless deployed via spec |
+| i18n, Responsive design, Dark+light mode | GUI scaffolds only (saas-skeleton, docusaurus front, chrome-extension popup, mobile-app, desktop-app); pure backend python-api/node-api/file-api/file-worker → N/A |
+| Audit log | scaffolds storing tenant-scoped sensitive data (saas-skeleton, file-api when KVKK-bound) — N/A otherwise |
+| Self-healing strategy | services critical to fleet uptime (per `core/self-healing.md`) — N/A for one-off internal tools |
+| Abuse detection, Email two-stream, FINANCIALS.md | SaaS-only (saas-skeleton) — N/A everywhere else |
+| Billing routing | scaffolds taking payment — N/A otherwise |
+| file_erasure_audit hash-chain | file-api scaffold only — N/A everywhere else |
 
 | Rule area | Current rule | How to evaluate the project | Status |
 |---|---|---|---|
@@ -557,8 +576,8 @@ Wait for owner decisions. **STOP GENERATION HERE.** These decisions shape which 
 
 **Constraint verification for the delta** (same 20 checks as N3i, scoped to what the delta adds; inherited services not re-checked). Scoping rules — re-run a constraint only when the delta touches its trigger:
 
-- **Always re-check** (these surface in every delta): #1 x86_64, #5 port conflicts (any new service), #6 deployable via `fabrik apply`, #9 solo-dev capacity, #17 target_vps (every new service declares one).
-- **Re-check when delta adds a NEW Fabrik-deployed service**: #7 no Alpine, #10 observability, #13 compose invariants. (If the delta only modifies existing service code without adding a new container, skip these.)
+- **Always re-check** (these surface in every delta): #1 x86_64, #6 deployable via `fabrik apply`, #9 solo-dev capacity.
+- **Re-check when delta adds a NEW Fabrik-deployed service** (new container/spec): #5 port conflicts, #7 no Alpine, #10 observability, #13 compose invariants, #17 target_vps. (If the delta only modifies existing service code without adding a new container, skip these — the existing spec's `target_vps` is inherited; no new port allocation needed.)
 - **Re-check when delta adds a paid external dependency**: #2 budget.
 - **Re-check when the trigger applies to the delta**: #11 vector DB (delta adds vector search), #12 email streams (delta sends email), #14 billing (delta wires payment), #15 LLM gateway (delta calls an LLM), #16 i18n (delta adds user-facing surface), #18 KVKK (delta stores PII or file blobs), #19 watchdog (delta calls paid LLM at non-trivial volume), #20 Node/Python floors (delta touches dependency files).
 - **Skip when inherited** (locked decisions): #3 existing services, #4 duplicate check, #8 12-Factor (inherited from project's existing stack — only re-check if the delta introduces a new process model).
