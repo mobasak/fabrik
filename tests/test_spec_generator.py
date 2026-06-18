@@ -6,9 +6,9 @@ import pytest
 import yaml
 
 from fabrik.spec_generator import (
-    SPEC_ENABLED_TYPES,
-    SECRET_PATTERNS,
     _TYPE_DEFAULTS,
+    SECRET_PATTERNS,
+    SPEC_ENABLED_TYPES,
     _is_secret,
     _parse_compose_env,
     _parse_env_example,
@@ -18,7 +18,6 @@ from fabrik.spec_generator import (
 )
 from fabrik.spec_loader import Kind, load_spec
 
-
 # ---------------------------------------------------------------------------
 # TestConstants
 # ---------------------------------------------------------------------------
@@ -27,14 +26,16 @@ from fabrik.spec_loader import Kind, load_spec
 class TestConstants:
     """Verify module-level constants are correctly defined."""
 
-    def test_spec_enabled_types_has_eight_entries(self):
-        # 8 deployable types: python-api, node-api, saas-skeleton, file-api,
-        # file-worker, static-site, docusaurus, chrome-extension. The CRX is
-        # client-side but its companion FastAPI backend (``server/``) IS a
-        # real VPS service — see ``SPEC_ENABLED_TYPES`` docstring.
+    def test_spec_enabled_types_has_nine_entries(self):
+        # 9 deployable types: python-api, python-api-gpu, node-api,
+        # saas-skeleton, file-api, file-worker, static-site, docusaurus,
+        # chrome-extension. The CRX is client-side but its companion FastAPI
+        # backend (``server/``) IS a real VPS service; python-api-gpu is
+        # python-api + a GPU rental helper (same deploy shape) — see the
+        # ``SPEC_ENABLED_TYPES`` docstring.
         # Still excluded: desktop-app, mobile-app (no companion backend),
-        # next-tailwind (scaffolder not wired yet), wordpress (separate pipeline).
-        assert len(SPEC_ENABLED_TYPES) == 8
+        # wordpress (scaffolding moved to /opt/wpf).
+        assert len(SPEC_ENABLED_TYPES) == 9
 
     def test_file_worker_in_enabled_types(self):
         assert "file-worker" in SPEC_ENABLED_TYPES
@@ -88,7 +89,9 @@ class TestNewTypeDefaults:
     """Verify _TYPE_DEFAULTS entries for new scaffold types."""
 
     def test_docusaurus_health_path(self):
-        assert _TYPE_DEFAULTS["docusaurus"]["health_path"] == "/"
+        # B45: Docusaurus preset-classic has no auto-generated `/` route, so the
+        # health check targets the intro doc instead.
+        assert _TYPE_DEFAULTS["docusaurus"]["health_path"] == "/docs/intro"
 
     def test_chrome_extension_health_path(self):
         """G9: chrome-extension defaults to /health (FastAPI backend convention)."""
@@ -431,9 +434,10 @@ class TestGenerateSpec:
         assert spec.kind == Kind.STATIC
         assert spec.shape is not None and spec.shape.kind == "static"
 
-    def test_docusaurus_health_path_is_root(self):
+    def test_docusaurus_health_path_is_docs_intro(self):
+        # B45: `/` 404s on a default Docusaurus build — health targets /docs/intro.
         spec = generate_spec("my-docs", "docusaurus", "my-docs.vps1.ocoron.com")
-        assert spec.health.path == "/"
+        assert spec.health.path == "/docs/intro"
 
     def test_artifact_types_raise_value_error(self):
         """B3 regression (narrowed): passing desktop-app or mobile-app
