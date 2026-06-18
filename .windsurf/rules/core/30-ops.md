@@ -132,6 +132,7 @@ networks:
 **CRITICAL rules:**
 - **No `ports:` section.** All external traffic routes through Traefik. Never bind host ports. See Docker Port Security below.
 - **`deploy.resources.limits.memory` is mandatory.** A Fabrik invariant enforced by `deployer_ssh._validate_compose()` — `fabrik apply` refuses any compose service without a memory limit (prevents OOM on the shared VPS). The compose must carry the declaration explicitly.
+- **`container_name: <name>` is mandatory.** Same `_validate_compose()` gate refuses any service without it. Stable names are required so Gatus endpoints, inter-service URLs, and `docker exec`/`docker inspect` keys don't drift per redeploy. Use the bare service name (`browserless`, `gotenberg`, `meilisearch`, `glitchtip-web`, `site-provisioner`, etc.) — never UUID-suffixed names.
 - **`platform: linux/amd64` is mandatory.** VPS is x86_64.
 - **No `depends_on: postgres-main`.** The shared database is a separate long-lived container on the `fabrik` network, not a service in your compose file. Docker DNS resolves `postgres-main` at runtime.
 - **Traefik labels** set routing, TLS, and middleware. The scaffolder emits the correct labels; middleware per service category: admin UI = `authelia-forward@docker,gzip@docker`; API = `gzip@docker`; public = none.
@@ -151,6 +152,7 @@ Before running `fabrik apply`:
 - [ ] Port registered in `PORTS.md`
 - [ ] compose.yaml uses `fabrik` network (external)
 - [ ] compose.yaml has `deploy.resources.limits.memory` + `cpus`
+- [ ] compose.yaml has `container_name: <name>` per service (mandatory; `_validate_compose()` refuses missing)
 - [ ] compose.yaml has `platform: linux/amd64`
 - [ ] compose.yaml has Traefik labels with `websecure` entrypoint
 - [ ] No `ports:` section in compose.yaml (Traefik routes all traffic)

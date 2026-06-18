@@ -349,7 +349,7 @@ These augment (not replace) the scaffolded `ACTIVE_JOBS` and `PROCESSING_COUNT` 
 Workers deploy via `fabrik apply` (SSH + Docker Compose) like any other Fabrik service. Apply all `30-ops.md` rules:
 
 ```dockerfile
-FROM python:3.12-slim-bookworm
+FROM python:3.13-slim-bookworm        # track <current-stable> per 10-python.md / 30-ops.md
 WORKDIR /app
 # ... (uv sync, copy, etc. — see 30-ops.md Dockerfile template)
 ENTRYPOINT ["/usr/bin/tini", "--"]
