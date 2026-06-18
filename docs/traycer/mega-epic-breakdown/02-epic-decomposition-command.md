@@ -180,7 +180,7 @@ Before drafting Infrastructure Decisions, audit the candidate epic set against t
 | 3 | Persistence | `shape.needs_database` | `core/25-data-postgres.md` |
 | 4 | Workers | If pipeline/async work | `core/75-workers-jobs.md` + `pause-state/` |
 | 5 | External integrations | Any upstream API use | `core/58-resilience.md` + `async-http-client/circuit_breaker.py` + `upstream-quota/` |
-| 6 | Self-healing | `shape.kind ∈ {service, worker, wordpress}` | `core/self-healing.md` |
+| 6 | Self-healing | `shape.kind ∈ {service, worker}` (wordpress is out-of-scope for this workflow per `00-trigger-workflow-command` Step N3j — `Kind.WORDPRESS` exists in `spec_loader.py` for the standalone `/opt/wpf` project, never reaches 02 here) | `core/self-healing.md` |
 | 7 | Watchdog wiring | `watchdog.enabled` (default per `kind`) | `core/60-watchdog.md` |
 | 8 | Observability | Always | `core/55-observability.md` |
 | 9 | Cost guardrails | Any LLM/paid-API use | `core/cost-budget.md` + `cost-budget/` |
@@ -239,12 +239,12 @@ Do NOT re-decide in epic-to-ticket-workflow. Do NOT copy into epic files.]
 ## Embedding Model (if RAG/search features exist)
 - [ONE model for the entire pipeline — both ingest and query. See `core/65-rag-search.md` § Embedding Models for current roster.]
 
-## Self-Healing Ladder (if `shape.kind` ∈ `{service, worker, wordpress}`)
+## Self-Healing Ladder (if `shape.kind` ∈ `{service, worker}`)
 - [Universal category #6 — Self-healing. Each epic's `docs/RESILIENCE.md` carries one row per failure class drawn from `core/self-healing.md § The escalation ladder` (OOM, queue backlog, upstream rate-limit, upstream timeout, signup flood, DB connection-pool exhaustion, sustained 5xx burst, stuck row locks). Operators implement the ladder via the primitives already shipped in fabrik-lib (`pause-state/`, `async-http-client/circuit_breaker.py`, `abuse-prevention/`) plus Watchdog Tier A/B actions — this command does NOT design new primitives, only asserts coverage in 2h.]
 - [N/A for `static-site` / `docusaurus` / `chrome-extension` / `mobile-app` (packaged artefacts; no in-cluster failure classes to recover from).]
 
 ## Watchdog Wiring (default-on per `WatchdogConfig.enabled`; opt-out per spec)
-- [Universal category #7 — Watchdog wiring. The `watchdog` registrar (resolved via `resolve_applicability()` and dispatched via `_provision_watchdog()` in `src/fabrik/orchestrator/infrastructure.py`) fires at `fabrik apply` time when `spec.watchdog.enabled` is `True` (default per `core/60-watchdog.md` when-to-enable matrix: on for `kind ∈ {service, worker, wordpress}`; off for `static-site` / `docusaurus`). The driver at `src/fabrik/drivers/watchdog.py` builds `fabrik/watchdog:<project_id>` from `/opt/fabrik-lib/watchdog/sidecar/`, writes `compose.watchdog.yaml` overlay alongside the spec's compose, and brings the sidecar up. Operators emit incidents from the host app via the vendored `watchdog/emitter/` module — never call the sidecar directly. Per-spec caps (`daily_budget_usd`, `per_incident_budget_usd`, `daily_invocations_cap`, `deadman_timeout_seconds`, `auto_tier_b`, `propose_fix_prs`) belong in the spec's `watchdog:` block, not in epic tickets.]
+- [Universal category #7 — Watchdog wiring. The `watchdog` registrar (resolved via `resolve_applicability()` and dispatched via `_provision_watchdog()` in `src/fabrik/orchestrator/infrastructure.py`) fires at `fabrik apply` time when `spec.watchdog.enabled` is `True` (default per `core/60-watchdog.md` when-to-enable matrix: on for `kind ∈ {service, worker}` in this workflow's scope (the upstream matrix also lists `wordpress`, but wordpress is out-of-scope here per `00-trigger-workflow-command` Step N3j); off for `kind: static` (covers static-site, docusaurus, chrome-extension, mobile-app, desktop-app)). The driver at `src/fabrik/drivers/watchdog.py` builds `fabrik/watchdog:<project_id>` from `/opt/fabrik-lib/watchdog/sidecar/`, writes `compose.watchdog.yaml` overlay alongside the spec's compose, and brings the sidecar up. Operators emit incidents from the host app via the vendored `watchdog/emitter/` module — never call the sidecar directly. Per-spec caps (`daily_budget_usd`, `per_incident_budget_usd`, `daily_invocations_cap`, `deadman_timeout_seconds`, `auto_tier_b`, `propose_fix_prs`) belong in the spec's `watchdog:` block, not in epic tickets.]
 - [Opt-out: `watchdog: { enabled: false }` in the spec. Honored by both resolver and dispatch.]
 
 ## Observability Defaults (always — per-scaffold matrix in `core/55-observability.md`)
