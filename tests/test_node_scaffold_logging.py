@@ -27,13 +27,16 @@ class TestNodeApiLogging:
         assert (tmp_path / "test-node-log" / "src" / "logger.js").exists()
 
     def test_logger_js_uses_pino(self, tmp_path):
-        """Verify logger.js requires pino and exports logger."""
+        """Verify logger.js imports pino and exports logger (ESM per 12-node.md)."""
         create_project(
             name="test-node-log", project_type="node-api", description="Test", base=tmp_path
         )
         content = (tmp_path / "test-node-log" / "src" / "logger.js").read_text()
-        assert "require('pino')" in content, "logger.js must require pino"
-        assert "module.exports = logger" in content, "logger.js must export logger"
+        assert "import pino from 'pino'" in content, "logger.js must import pino (ESM)"
+        assert "export const logger" in content, "logger.js must export named logger"
+        assert "export default logger" in content, "logger.js must default-export logger"
+        # Mandatory redact paths keep tokens out of Loki (12-node.md).
+        assert "redact:" in content, "logger.js must declare pino redact paths"
 
     def test_logger_js_uses_service_name(self, tmp_path):
         """Verify logger.js references SERVICE_NAME env var with project name fallback."""
@@ -58,11 +61,15 @@ class TestNodeApiLogging:
             name="test-node-log", project_type="node-api", description="Test", base=tmp_path
         )
         content = (tmp_path / "test-node-log" / "src" / "index.js").read_text()
-        assert "require('./logger')" in content, "Must import logger"
+        assert "from './logger.js'" in content, "Must import logger (ESM)"
         assert "logger.info(" in content, "Must use logger.info()"
 
     def test_index_js_has_request_id_correlation(self, tmp_path):
-        """Verify index.js generates X-Request-ID and creates child logger."""
+        """Verify index.js generates X-Request-ID and carries it via AsyncLocalStorage.
+
+        12-node.md mandates ambient correlation context (AsyncLocalStorage)
+        over prop-drilling child loggers through business code.
+        """
         create_project(
             name="test-node-log", project_type="node-api", description="Test", base=tmp_path
         )
@@ -70,8 +77,8 @@ class TestNodeApiLogging:
         assert "randomUUID" in content, "Must import randomUUID from crypto"
         assert "x-request-id" in content, "Must read x-request-id header"
         assert "X-Request-ID" in content, "Must set X-Request-ID response header"
-        assert "logger.child(" in content, "Must create child logger with correlation_id"
-        assert "correlation_id" in content, "Child logger must include correlation_id"
+        assert "AsyncLocalStorage" in content, "Must use AsyncLocalStorage for ambient context"
+        assert "traceId" in content, "Ambient context must carry traceId"
 
     def test_index_js_service_starting_event(self, tmp_path):
         """Verify index.js logs service_starting event on listen."""

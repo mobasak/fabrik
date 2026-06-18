@@ -51,6 +51,7 @@ Skip: stdlib, syntax, Fabrik conventions.
 | new `.md` outside allowlist | root files · scaffold docs · `docs/development/plans/YYYY-MM-DD-plan-<n>.md` · `docs/reference/**/*.md` · `docs/archive/**` |
 | destructive script on prod data w/o dry-run | dry-run first, show diff |
 | credentials change w/o backup + diff approval | `cp <f> backups/<f>.backup.$(date +%Y%m%d-%H%M%S)` first |
+| edit a **Fabrik-synced** file (the `.gitignore` "Fabrik-synced" block lists them; canonical list `scripts/fabrik_synced_manifest.py`) | these are centrally distributed from `/opt/fabrik` and **overwritten on every sync** (gate-enforced by `check_synced_unmodified.py`). Never edit locally. If the change is correct for **ALL** projects, make it in `/opt/fabrik/<path>` + re-sync; otherwise propose it upstream — don't fork it here |
 
 ## Doc Sync Matrix (update matched docs in same change — gate-enforced)
 | Change | Update |

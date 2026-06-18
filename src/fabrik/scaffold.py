@@ -353,120 +353,110 @@ _DROID_GITIGNORE_BLOCK = (
     ".droid/traycer-reports/*.md\n"
 )
 
+
 # Common gitignore patterns for all project types
+def _fabrik_synced_gitignore_block() -> str:
+    """Generate the ``.gitignore`` Fabrik-synced block from the shared manifest.
+
+    Single source of truth: ``scripts/fabrik_synced_manifest.py``. The header
+    doubles as the "do not edit" warning agents see in the project's .gitignore.
+    """
+    import sys as _sys
+
+    scripts_dir = str(FABRIK_ROOT / "scripts")
+    if scripts_dir not in _sys.path:
+        _sys.path.insert(0, scripts_dir)
+    from fabrik_synced_manifest import gitignore_dest_paths
+
+    lines = [
+        "# ============================================================",
+        "# Fabrik-synced files — DO NOT EDIT (centrally managed)",
+        "# Pushed from /opt/fabrik by sync_enforcement_to_projects.py; local edits",
+        "# are overwritten on the next sync. To change one: edit the canonical copy",
+        "# in /opt/fabrik and re-sync — only if the change applies to ALL projects.",
+        "# ============================================================",
+        "",
+    ]
+    for group, paths in gitignore_dest_paths().items():
+        lines.append(f"# {group}")
+        lines.extend(paths)
+        lines.append("")
+    lines += [
+        "# ============================================================",
+        "# End Fabrik-synced block",
+        "# ============================================================",
+        "",
+    ]
+    return "\n".join(lines) + "\n"
+
+
 _COMMON_GITIGNORE_PATTERNS = (
-    "# Secrets (never commit)\n"
-    ".env\n"
-    ".env.backup\n"
-    "*.key\n"
-    "*.pem\n"
-    "*.token\n"
-    "\n"
-    "# Logs\n"
-    "*.log\n"
-    "logs/\n"
-    "Logs/\n"
-    "\n"
-    "# Python\n"
-    "__pycache__/\n"
-    "*.pyc\n"
-    "*.pyo\n"
-    ".pytest_cache/\n"
-    "*.egg-info/\n"
-    "\n"
-    "# IDE\n"
-    ".vscode/\n"
-    ".idea/\n"
-    "*.swp\n"
-    "*.swo\n"
-    "*.code-workspace\n"
-    "\n"
-    "# OS\n"
-    ".DS_Store\n"
-    "Thumbs.db\n"
-    "\n"
-    "# Data directories (large files)\n"
-    "Audio_downloads/\n"
-    "YT_audio_text/\n"
-    "exports/\n"
-    "\n"
-    "# SQLite databases\n"
-    "*.db\n"
-    "\n"
-    "# Database backups\n"
-    "backups/\n"
-    "\n"
-    "# Legacy migration files (not Alembic)\n"
-    "db/migrations/*.sql\n"
-    "\n"
-    "# Temp files\n"
-    "*.tmp\n"
-    "/tmp/\n"
-    "\n"
-    "# ============================================================\n"
-    "# Fabrik-synced files — managed by sync_enforcement_to_projects.py\n"
-    "# DO NOT EDIT this block — it is overwritten on every sync run.\n"
-    "# ============================================================\n"
-    "\n"
-    "# Governance files\n"
-    "AGENTS.md\n"
-    "AGENTS-compact.md\n"
-    "CLAUDE.md\n"
-    ".windsurfrules\n"
-    "opencode.json\n"
-    "\n"
-    "# Rule packs and workflows (entire directory)\n"
-    ".windsurf/\n"
-    "\n"
-    "# Reference docs (synced from fabrik)\n"
-    "docs/reference/kilo/\n"
-    "docs/reference/MD/\n"
-    "docs/reference/windsurf/cascade-models.md\n"
-    "docs/reference/long-command-monitoring.md\n"
-    "docs/reference/technology-stack-decision-guide.md\n"
-    "docs/reference/AI_TAXONOMY.md\n"
-    "docs/reference/ai_agent_prompt_directives.md\n"
-    "docs/operations/fabrik-lifecycle.md\n"
-    "docs/BUSINESS_MODEL.md\n"
-    "docs/reference/mobile-responsive-testing-guide.md\n"
-    "PORTS.md\n"
-    "\n"
-    "# Synced scripts\n"
-    "scripts/final_gate.py\n"
-    "scripts/kilo_code_review.py\n"
-    "scripts/kilo_docs_enforcer.py\n"
-    "scripts/docs_updater.py\n"
-    "scripts/update_agents_toc.py\n"
-    "scripts/health_checker.py\n"
-    "scripts/enforcement/\n"
-    "scripts/rund\n"
-    "scripts/rundsh\n"
-    "scripts/runc\n"
-    "scripts/runk\n"
-    "scripts/runls\n"
-    "scripts/runlast\n"
-    "scripts/runwait\n"
-    "scripts/runtail\n"
-    "scripts/runclean\n"
-    "scripts/sync_cascade_backup.sh\n"
-    "scripts/sync_extensions.sh\n"
-    "\n"
-    "# ============================================================\n"
-    "# End Fabrik-synced block\n"
-    "# ============================================================\n"
-    "\n"
-    "# Ad-hoc research dumps\n"
-    "docs/reference/*Search*.md\n"
-    "\n"
-    "# State files\n"
-    "state.json\n"
-    "retry_queue.json\n"
-    "\n"
-    "# Cookie files\n"
-    "cookies*.txt\n"
-    "\n"
-    "# Pipeline test outputs\n"
-    "pipeline_output/\n"
+    (
+        "# Secrets (never commit)\n"
+        ".env\n"
+        ".env.backup\n"
+        "*.key\n"
+        "*.pem\n"
+        "*.token\n"
+        "\n"
+        "# Logs\n"
+        "*.log\n"
+        "logs/\n"
+        "Logs/\n"
+        "\n"
+        "# Python\n"
+        "__pycache__/\n"
+        "*.pyc\n"
+        "*.pyo\n"
+        ".pytest_cache/\n"
+        "*.egg-info/\n"
+        "\n"
+        "# IDE\n"
+        ".vscode/\n"
+        ".idea/\n"
+        "*.swp\n"
+        "*.swo\n"
+        "*.code-workspace\n"
+        "\n"
+        "# OS\n"
+        ".DS_Store\n"
+        "Thumbs.db\n"
+        "\n"
+        "# Data directories (large files)\n"
+        "Audio_downloads/\n"
+        "YT_audio_text/\n"
+        "exports/\n"
+        "\n"
+        "# SQLite databases\n"
+        "*.db\n"
+        "\n"
+        "# Database backups\n"
+        "backups/\n"
+        "\n"
+        "# Legacy migration files (not Alembic)\n"
+        "db/migrations/*.sql\n"
+        "\n"
+        "# Temp files\n"
+        "*.tmp\n"
+        "/tmp/\n"
+        "\n"
+    )
+    + _fabrik_synced_gitignore_block()
+    + (
+        "\n"
+        "# Ad-hoc research dumps\n"
+        "docs/reference/*Search*.md\n"
+        "\n"
+        "# State files\n"
+        "state.json\n"
+        "retry_queue.json\n"
+        "\n"
+        "# Cookie files\n"
+        "cookies*.txt\n"
+        "\n"
+        "# Pipeline test outputs\n"
+        "pipeline_output/\n"
+    )
 )
 
 # Canonical .droid/.gitignore content — used by scaffold and fix_project()
@@ -577,10 +567,10 @@ def _logger_py_content(name: str, package_name: str) -> str:
         f'"""\n'
         f"\n"
         f"import os\n"
-        f"from typing import Any, MutableMapping\n"
+        f"from collections.abc import MutableMapping\n"
+        f"from typing import Any\n"
         f"\n"
         f"import structlog\n"
-        f"\n"
         f"\n"
         f"_SENSITIVE_KEYS = frozenset({{\n"
         f'    "api_key", "password", "token", "authorization", "secret",\n'
@@ -589,7 +579,7 @@ def _logger_py_content(name: str, package_name: str) -> str:
         f"\n"
         f"\n"
         f"def _redact_sensitive(\n"
-        f"    logger: Any, method_name: str, event_dict: MutableMapping[str, Any],\n"
+        f"    _logger: Any, _method_name: str, event_dict: MutableMapping[str, Any],\n"
         f") -> MutableMapping[str, Any]:\n"
         f'    """Redact PII/secrets from log entries (GDPR/KVKK safe)."""\n'
         f"    for k in list(event_dict.keys()):\n"
@@ -1311,7 +1301,6 @@ Usage example:
     from {package_name}.metrics import REQUEST_COUNT, PROCESSING_SECONDS
     REQUEST_COUNT.labels(endpoint="/api/translate", status="success").inc()
 """
-import os
 
 from prometheus_client import CollectorRegistry, Counter, Histogram, make_asgi_app
 
@@ -1471,6 +1460,7 @@ def init_glitchtip() -> bool:
         f"\n"
         f"from {package_name}.glitchtip_init import init_glitchtip\n"
         f"from {package_name}.logger import get_logger\n"
+        f"from {package_name}.metrics import metrics_app\n"
         f"from {package_name}.middleware import CorrelationMiddleware\n"
         f"\n"
         f"# Initialize error reporting BEFORE app construction so SDK\n"
@@ -1493,7 +1483,6 @@ def init_glitchtip() -> bool:
         f"\n"
         f"# Prometheus metrics endpoint — scraped by Prometheus at /metrics\n"
         f"# Add prometheus_scrape=true label in Coolify if using docker_sd_config\n"
-        f"from {package_name}.metrics import metrics_app\n"
         f'app.mount("/metrics", metrics_app())\n'
         f"\n"
         f"\n"
@@ -1867,9 +1856,11 @@ def _scaffold_node_api(project_dir: Path, name: str, description: str, **kwargs:
         # — they don't match the absolute path. Surfaced by proof-run on
         # 2026-04-28.
         content = content.replace("/app/dist", "/app/src")
-        # Replace `npm ci` with `npm install` — no lockfile is generated during
-        # scaffold, so `npm ci` would fail on a fresh docker build.
-        content = content.replace("RUN npm ci", "RUN npm install")
+        # Replace `npm ci` with `npm install --ignore-scripts` — no lockfile is
+        # generated during scaffold, so `npm ci` would fail on a fresh docker
+        # build. `--ignore-scripts` is non-negotiable (core/12-node.md): blocks
+        # malicious postinstall payloads (Mastra `easy-day-js` 2026 typosquat).
+        content = content.replace("RUN npm ci", "RUN npm install --ignore-scripts")
         (project_dir / "Dockerfile").write_text(content)
 
     # c) Copy and patch Makefile.node -> Makefile
@@ -1884,7 +1875,11 @@ def _scaffold_node_api(project_dir: Path, name: str, description: str, **kwargs:
         "name": name,
         "version": "0.1.0",
         "description": description,
+        # ESM is the fabrik default (core/12-node.md): all src/*.js use import/export.
+        "type": "module",
+        "private": True,
         "main": "src/index.js",
+        "engines": {"node": ">=22.0.0"},
         "scripts": {
             "start": "node src/index.js",
             "dev": "node --watch src/index.js",
@@ -1898,20 +1893,27 @@ def _scaffold_node_api(project_dir: Path, name: str, description: str, **kwargs:
     }
     (project_dir / "package.json").write_text(json.dumps(package_json, indent=2) + "\n")
 
-    # e) Generate src/logger.js inline (pino structured logging)
+    # e) Generate src/logger.js inline (pino structured logging, ESM)
+    # Mandatory redact paths (core/12-node.md) keep tokens/passwords out of Loki.
     (project_dir / "src" / "logger.js").write_text(
-        f"""'use strict';
+        """import pino from 'pino';
 
-const pino = require('pino');
-
-const logger = pino({{
+export const logger = pino({
   level: process.env.LOG_LEVEL || 'info',
   name: process.env.SERVICE_NAME || '{name}',
   timestamp: pino.stdTimeFunctions.isoTime,
-}});
+  redact: [
+    'req.headers.authorization',
+    'req.headers["x-internal-token"]',
+    'req.body.password',
+    'req.body.token',
+    '*.access_token',
+    '*.refresh_token',
+  ],
+});
 
-module.exports = logger;
-"""
+export default logger;
+""".replace("{name}", name)
     )
 
     # e2) Generate src/glitchtip_init.js — GlitchTip / Sentry SDK init (no-op if DSN unset)
@@ -1919,24 +1921,25 @@ module.exports = logger;
     # instruments outgoing handlers from the very first request. Errors auto-report
     # to GlitchTip when GLITCHTIP_DSN is set in environment.
     (project_dir / "src" / "glitchtip_init.js").write_text(
-        """'use strict';
-/**
- * GlitchTip / Sentry SDK initialization.
+        """/**
+ * GlitchTip / Sentry SDK initialization (ESM).
  *
  * If SENTRY_DSN (preferred, fabrik standard) or GLITCHTIP_DSN is set, errors and unhandled rejections auto-report to GlitchTip.
  * If unset, init is a no-op (zero overhead).
  *
- * Require this module BEFORE any other imports that may throw or create handlers:
- *   require('./glitchtip_init');
+ * Import this module FIRST in index.js, before any handler creation:
+ *   import './glitchtip_init.js';
  *
  * Provision a project + DSN: scripts/provision_glitchtip_project.sh <service-name> --platform javascript-node
  * Push DSN to Coolify env on deploy.
  */
 const dsn = (process.env.SENTRY_DSN || process.env.GLITCHTIP_DSN || '').trim();
 
+let Sentry = null;
 if (dsn) {
   try {
-    const Sentry = require('@sentry/node');
+    // Dynamic import keeps @sentry/node optional — no DSN means it's never loaded.
+    Sentry = await import('@sentry/node');
     Sentry.init({
       dsn,
       environment: process.env.ENVIRONMENT || 'production',
@@ -1945,53 +1948,67 @@ if (dsn) {
       profilesSampleRate: parseFloat(process.env.GLITCHTIP_PROFILES_SAMPLE_RATE || '0'),
       sendDefaultPii: false,
     });
-    module.exports = Sentry;
-  } catch (err) {
+  } catch {
     // @sentry/node not installed; emit a one-time warning rather than crash.
     process.stderr.write('[glitchtip_init] @sentry/node not installed; error reporting disabled\\n');
-    module.exports = null;
+    Sentry = null;
   }
-} else {
-  module.exports = null;
 }
+
+export default Sentry;
 """
     )
 
-    # f) Generate src/index.js inline (with pino logging and X-Request-ID correlation)
+    # f) Generate src/index.js inline (ESM, pino + AsyncLocalStorage correlation,
+    #    graceful SIGTERM drain per core/12-node.md).
     (project_dir / "src" / "index.js").write_text(
-        f"""'use strict';
+        """// Initialize error reporting BEFORE any handler creation so the SDK
+// instruments the runtime from the very first request. No-op if DSN unset.
+import './glitchtip_init.js';
 
-// Initialize error reporting BEFORE any other imports / handler creation
-// so the SDK instruments the runtime from the very first request.
-// No-op if GLITCHTIP_DSN env var is unset.
-require('./glitchtip_init');
+import http from 'node:http';
+import { randomUUID } from 'node:crypto';
+import { AsyncLocalStorage } from 'node:async_hooks';
+import { logger } from './logger.js';
 
-const http = require('http');
-const {{ randomUUID }} = require('crypto');
-const logger = require('./logger');
-
+const asyncCtx = new AsyncLocalStorage();
 const PORT = process.env.PORT || 3000;
 
-const server = http.createServer((req, res) => {{
+// Flipped true on SIGTERM so /health returns 503 and Traefik drains us.
+let isShuttingDown = false;
+
+const server = http.createServer((req, res) => {
   const requestId = req.headers['x-request-id'] || randomUUID();
   res.setHeader('X-Request-ID', requestId);
-  const child = logger.child({{ correlation_id: requestId }});
 
-  if (req.method === 'GET' && req.url === '/health') {{
-    res.writeHead(200, {{ 'Content-Type': 'application/json' }});
-    res.end(JSON.stringify({{ service: '{name}', status: 'ok' }}));
-    return;
-  }}
+  asyncCtx.run({ traceId: requestId }, () => {
+    if (req.method === 'GET' && req.url === '/health') {
+      const code = isShuttingDown ? 503 : 200;
+      res.writeHead(code, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ service: '{name}', status: isShuttingDown ? 'draining' : 'ok' }));
+      return;
+    }
 
-  child.info({{ event: 'request_received', method: req.method, url: req.url }});
-  res.writeHead(200, {{ 'Content-Type': 'application/json' }});
-  res.end(JSON.stringify({{ message: 'Welcome to {name}' }}));
-}});
+    logger.info({ ...asyncCtx.getStore(), event: 'request_received', method: req.method, url: req.url });
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ message: 'Welcome to {name}' }));
+  });
+});
 
-server.listen(PORT, () => {{
-  logger.info({{ event: 'service_starting', port: PORT }});
-}});
-"""
+server.listen(PORT, () => {
+  logger.info({ event: 'service_starting', port: PORT });
+});
+
+// Graceful drain on SIGTERM (Docker stop): 503 health flip -> stop idle conns ->
+// close once in-flight finishes -> 20s hard backstop. See core/12-node.md.
+process.on('SIGTERM', () => {
+  isShuttingDown = true;
+  setTimeout(() => process.exit(1), 20_000).unref();
+  server.closeIdleConnections?.();
+  server.close(() => process.exit(0));
+  setTimeout(() => server.closeAllConnections?.(), 5_000).unref();
+});
+""".replace("{name}", name)
     )
 
     # g) Overwrite .env.example with Node-appropriate content
@@ -2046,20 +2063,30 @@ def _scaffold_file_api(project_dir: Path, name: str, description: str, **kwargs:
     if src_index.exists():
         shutil.copy2(src_index, project_dir / "src" / "index.js")
 
-    # b2) Generate src/logger.js inline (pino structured logging)
+    # b2) Generate src/logger.js inline (pino structured logging, CJS — file-api
+    # stays CommonJS + Express per core/12-node.md "existing CJS stays CJS").
+    # Mandatory redact paths keep tokens/passwords out of Loki.
     (project_dir / "src" / "logger.js").write_text(
-        f"""'use strict';
+        """'use strict';
 
 const pino = require('pino');
 
-const logger = pino({{
+const logger = pino({
   level: process.env.LOG_LEVEL || 'info',
   name: process.env.SERVICE_NAME || '{name}',
   timestamp: pino.stdTimeFunctions.isoTime,
-}});
+  redact: [
+    'req.headers.authorization',
+    'req.headers["x-internal-token"]',
+    'req.body.password',
+    'req.body.token',
+    '*.access_token',
+    '*.refresh_token',
+  ],
+});
 
 module.exports = logger;
-"""
+""".replace("{name}", name)
     )
 
     # c) Copy and patch Dockerfile.node -> Dockerfile
@@ -2081,12 +2108,17 @@ module.exports = logger;
         content = content.replace("myproject", name)
         (project_dir / "Makefile").write_text(content)
 
-    # e) Generate package.json inline with R2/Supabase dependencies
+    # e) Generate package.json inline with R2/Supabase dependencies.
+    # CJS + Express (stays CommonJS per core/12-node.md). The undici handler +
+    # adaptive retry strategy are mandatory for S3-compatible clients (67-file-api
+    # "Done When" #1); lib-storage powers backpressure-safe multipart streaming.
     package_json = {
         "name": name,
         "version": "0.1.0",
         "description": description,
+        "private": True,
         "main": "src/index.js",
+        "engines": {"node": ">=22.0.0"},
         "scripts": {
             "start": "node src/index.js",
             "dev": "node --watch src/index.js",
@@ -2100,6 +2132,9 @@ module.exports = logger;
             "@supabase/supabase-js": "^2.38.0",
             "@aws-sdk/client-s3": "^3.450.0",
             "@aws-sdk/s3-request-presigner": "^3.450.0",
+            "@aws-sdk/lib-storage": "^3.450.0",
+            "@aws-sdk/util-retry": "^3.374.0",
+            "@smithy/undici-http-handler": "^2.2.0",
             "uuid": "^9.0.1",
         },
     }
@@ -2116,9 +2151,14 @@ R2_ENDPOINT=https://your-account.r2.cloudflarestorage.com
 R2_ACCESS_KEY_ID=your-access-key-id
 R2_SECRET_ACCESS_KEY=your-secret-access-key
 R2_BUCKET=your-bucket-name
+# region: 'auto' for Cloudflare R2; set the real region for Backblaze B2
+R2_REGION=auto
+# forcePathStyle: leave false for R2; set true for Backblaze B2 (path-style required)
+R2_FORCE_PATH_STYLE=false
 MAX_FILE_SIZE_MB=100
 ALLOWED_CONTENT_TYPES=application/pdf,audio/mpeg
-UPLOAD_URL_EXPIRY_SECONDS=3600
+# Presigned PUT URLs are capped at 900s (15 min) in code per 67-file-api (NIST observation contracts)
+UPLOAD_URL_EXPIRY_SECONDS=900
 DOWNLOAD_URL_EXPIRY_SECONDS=3600
 
 # Service identity for structured logging
@@ -2285,6 +2325,41 @@ SERVICE_NAME={name}
     )
 
 
+def _write_placeholder_png(path: Path, size: int, rgba: tuple = (66, 133, 244, 255)) -> None:
+    """Write a solid-color square PNG (pure stdlib — no Pillow dependency).
+
+    The chrome-extension manifest references icon16/48/128.png; without real
+    files the `@crxjs/vite-plugin` build ENOENTs (``Could not load manifest
+    asset``). These placeholders (Google-blue #4285f4) make ``vite build``
+    pass out of the box; the developer replaces them with real branding.
+    """
+    import struct
+    import zlib
+
+    r, g, b, a = rgba
+    row = bytes((r, g, b, a)) * size
+    raw = bytearray()
+    for _ in range(size):
+        raw.append(0)  # PNG filter type 0 (None) per scanline
+        raw.extend(row)
+
+    def _chunk(ctype: bytes, data: bytes) -> bytes:
+        return (
+            struct.pack(">I", len(data))
+            + ctype
+            + data
+            + struct.pack(">I", zlib.crc32(ctype + data) & 0xFFFFFFFF)
+        )
+
+    png = (
+        b"\x89PNG\r\n\x1a\n"
+        + _chunk(b"IHDR", struct.pack(">IIBBBBB", size, size, 8, 6, 0, 0, 0))
+        + _chunk(b"IDAT", zlib.compress(bytes(raw), 9))
+        + _chunk(b"IEND", b"")
+    )
+    path.write_bytes(png)
+
+
 def _scaffold_chrome_extension(
     project_dir: Path, name: str, description: str, **kwargs: object
 ) -> None:
@@ -2355,9 +2430,12 @@ def _scaffold_chrome_extension(
 """
     )
 
-    # icons/.gitkeep and README
+    # icons/ — ship real placeholder PNGs so `vite build` passes immediately
+    # (the @crxjs plugin loads manifest icon assets at build time and ENOENTs
+    # if they're missing). Developer replaces them with real branding.
     icons_dir = project_dir / "extension" / "icons"
-    (icons_dir / ".gitkeep").write_text("")
+    for icon_size in (16, 48, 128):
+        _write_placeholder_png(icons_dir / f"icon{icon_size}.png", icon_size)
     (icons_dir / "README.md").write_text(
         """# Extension Icons
 
@@ -2387,7 +2465,8 @@ convert -size 128x128 xc:#4285f4 icon128.png
 - Use Figma/Canva/Photoshop to create custom icons
 - Export as PNG at each required size
 
-Extension will fail to load without these files.
+Placeholder icons (solid Google-blue squares) are pre-generated so the
+build works immediately — replace them with real branding before publishing.
 """
     )
 
@@ -3273,7 +3352,7 @@ def _scaffold_python_api_gpu(
 ) -> None:
     """python-api-gpu = python-api + an on-demand GPU rental helper.
 
-    Identical to python-api PLUS ``app/gpu_handler.py``, which wraps
+    Identical to python-api PLUS ``src/<package>/gpu_handler.py``, which wraps
     ``fabrik.orchestrator.gpu_rent.rent()`` so the service can rent a GPU
     imperatively from its job handler (workload tag = project_name).
 
@@ -3289,8 +3368,10 @@ def _scaffold_python_api_gpu(
     # templates/python-api-gpu/defaults.yaml through the normal spec path.
     _scaffold_python_api(project_dir, name, description, **kwargs)
 
-    # Add a GPU integration helper module
-    gpu_handler_path = project_dir / "app" / "gpu_handler.py"
+    # Add a GPU integration helper module INSIDE the package (python-api uses a
+    # src/<package>/ layout — app/ would be orphaned, outside the importable pkg).
+    package_name = _get_package_name(name)
+    gpu_handler_path = project_dir / "src" / package_name / "gpu_handler.py"
     gpu_handler_path.parent.mkdir(parents=True, exist_ok=True)
     gpu_handler_path.write_text(f'''"""GPU rental integration for {name}.
 
@@ -3305,7 +3386,8 @@ that in ``specs/services/{name}.yaml`` (default: pod-rtx-4090).
 from __future__ import annotations
 
 import logging
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 logger = logging.getLogger(__name__)
 

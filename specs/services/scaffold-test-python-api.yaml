@@ -1,7 +1,7 @@
-id: test-workflows
+id: scaffold-test-python-api
 kind: service
 template: python-api
-domain: test-workflows.vps1.ocoron.com
+domain: scaffold-test-python-api.vps1.ocoron.com
 shape:
   kind: service
   is_public: true

@@ -1,7 +1,7 @@
-id: test-workflows
+id: scaffold-test-node-api
 kind: service
-template: python-api
-domain: test-workflows.vps1.ocoron.com
+template: node-api
+domain: scaffold-test-node-api.vps1.ocoron.com
 shape:
   kind: service
   is_public: true
@@ -24,19 +24,18 @@ infrastructure:
   storage: local
   auth: none
 env:
-  PORT: ${PORT:-8000}
-  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  PORT: '3000'
+  LOG_LEVEL: INFO
 secrets:
   required: []
   generate: []
-  from_env:
-  - SERVICE_INTERNAL_SECRET_KEY
+  from_env: []
   from_file: {}
 resources:
-  memory: 512M
+  memory: 256M
   cpu: '0.5'
 health:
-  path: /health
+  path: /api/health
   interval: 30s
   timeout: 10s
   retries: 3

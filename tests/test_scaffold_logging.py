@@ -345,18 +345,19 @@ class TestFileWorkerLogging:
         """worker/logger.py has all required processors."""
         project = _scaffold_file_worker(mock_fabrik_root, temp_dir)
         content = (project / "worker" / "logger.py").read_text()
+        # Matches the unified _logger_py_content contract (shared with python-api):
+        # merge_contextvars, add_log_level, TimeStamper, _redact_sensitive, JSONRenderer.
         assert "merge_contextvars" in content
         assert "add_log_level" in content
         assert "TimeStamper" in content
-        assert "StackInfoRenderer" in content
-        assert "format_exc_info" in content
+        assert "_redact_sensitive" in content
         assert "JSONRenderer" in content
 
     def test_logger_py_has_bound_logger(self, mock_fabrik_root: Path, temp_dir: Path) -> None:
-        """worker/logger.py uses BoundLogger wrapper class."""
+        """worker/logger.py uses a filtering bound-logger wrapper class."""
         project = _scaffold_file_worker(mock_fabrik_root, temp_dir)
         content = (project / "worker" / "logger.py").read_text()
-        assert "wrapper_class=structlog.stdlib.BoundLogger" in content
+        assert "wrapper_class=structlog.make_filtering_bound_logger" in content
 
     def test_logger_py_caches_on_first_use(self, mock_fabrik_root: Path, temp_dir: Path) -> None:
         """worker/logger.py sets cache_logger_on_first_use=True."""
@@ -370,7 +371,8 @@ class TestFileWorkerLogging:
         content = (project / "worker" / "logger.py").read_text()
         assert "def get_logger(name: str = __name__)" in content
         assert "SERVICE_NAME" in content
-        assert '"test-worker"' in content
+        # Fallback is the package name (snake_case), per the shared _logger_py_content.
+        assert '"test_worker"' in content
 
     def test_env_example_has_service_name(self, mock_fabrik_root: Path, temp_dir: Path) -> None:
         """.env.example contains SERVICE_NAME with comment."""

@@ -29,73 +29,21 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
+# Single source of truth for the synced set — shared with scaffold.py's .gitignore
+# block and check_synced_unmodified.py (the gate teeth). Edit the manifest, not
+# these lists. (`scripts/` is the script's own dir, so a plain import works.)
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from fabrik_synced_manifest import (  # noqa: E402
+    CORE_SCRIPTS,
+    GOVERNANCE_DIRS,
+    GOVERNANCE_FILES,
+    REFERENCE_DOCS,
+    RUN_SCRIPTS,
+    RUN_SCRIPTS_SRC_DIR,
+)
+
 FABRIK_ROOT = Path("/opt/fabrik")
 OPT_ROOT = Path("/opt")
-
-# Scripts to copy
-CORE_SCRIPTS = [
-    "final_gate.py",
-    "kilo_code_review.py",
-    "kilo_docs_enforcer.py",
-    "docs_updater.py",
-    "update_agents_toc.py",
-    "health_checker.py",
-]
-
-# Long Command Monitoring System v1.1.0 — see docs/reference/long-command-monitoring.md
-# Sourced from templates/scaffold/scripts/ to keep templates and live projects in lockstep.
-RUN_SCRIPTS = [
-    "rund",
-    "rundsh",
-    "runc",
-    "runk",
-    "runls",
-    "runlast",
-    "runwait",
-    "runtail",
-    "runclean",
-    "sync_cascade_backup.sh",
-    "sync_extensions.sh",
-]
-
-# Governance files to sync (validated by final_gate.py check_symlinks())
-# Note: AFCL.md is scaffolded as AFCL_TEMPLATE.md and customized per project, not synced
-# Note: .pre-commit-config.yaml is project-specific based on tech stack, not synced
-GOVERNANCE_FILES = [
-    "AGENTS.md",
-    "AGENTS-compact.md",
-    "CLAUDE.md",
-    "opencode.json",
-    ".windsurfrules",
-]
-GOVERNANCE_DIRS = [
-    ".windsurf/rules",
-    ".windsurf/workflows",
-    "docs/reference/kilo",
-    "docs/reference/MD",
-]
-
-# Reference docs to sync to all projects
-REFERENCE_DOCS = [
-    ("docs/reference/windsurf/cascade-models.md", "docs/reference/windsurf/cascade-models.md"),
-    ("docs/reference/long-command-monitoring.md", "docs/reference/long-command-monitoring.md"),
-    (
-        "docs/reference/technology-stack-decision-guide.md",
-        "docs/reference/technology-stack-decision-guide.md",
-    ),
-    ("docs/reference/AI_TAXONOMY.md", "docs/reference/AI_TAXONOMY.md"),
-    ("PORTS.md", "PORTS.md"),
-    (
-        "docs/reference/ai_agent_prompt_directives.md",
-        "docs/reference/ai_agent_prompt_directives.md",
-    ),
-    ("docs/operations/fabrik-lifecycle.md", "docs/operations/fabrik-lifecycle.md"),
-    ("docs/BUSINESS_MODEL.md", "docs/BUSINESS_MODEL.md"),
-    (
-        "docs/reference/mobile-responsive-testing-guide.md",
-        "docs/reference/mobile-responsive-testing-guide.md",
-    ),
-]
 
 
 @dataclass
@@ -253,7 +201,7 @@ def sync_scripts_to_project(
         # Sync run-system scripts (Long Command Monitoring System)
         # Source from templates/scaffold/scripts/ so the canonical path matches what
         # `fabrik scaffold` emits — keeps templates and live projects in lockstep.
-        run_src_dir = FABRIK_ROOT / "templates" / "scaffold" / "scripts"
+        run_src_dir = FABRIK_ROOT / RUN_SCRIPTS_SRC_DIR
         for script_name in RUN_SCRIPTS:
             source = run_src_dir / script_name
             if source.exists():

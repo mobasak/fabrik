@@ -40,8 +40,8 @@ Production example: /opt/youtube/pause_state.py (YouTube pipeline)
 from __future__ import annotations
 
 import os
+
 import structlog
-from typing import Optional, Tuple
 
 logger = structlog.get_logger(__name__)
 
@@ -62,7 +62,7 @@ def _redis():
         return None
 
 
-def is_globally_paused() -> Optional[str]:
+def is_globally_paused() -> str | None:
     """Return `<resource>:<reason>` if ANY pause flag is set, else None.
 
     Callers use the result as a truthy/falsy gate; the string is for logs.
@@ -154,7 +154,7 @@ TRANSIENT_PATTERNS: list[tuple[str, str, int]] = [
 ]
 
 
-def classify_transient_error(error_msg: str) -> Optional[Tuple[str, int]]:
+def classify_transient_error(error_msg: str) -> tuple[str, int] | None:
     """Return `(resource, ttl_sec)` if `error_msg` matches a known
     transient failure mode, else `None`.
 
@@ -173,7 +173,7 @@ def classify_transient_error(error_msg: str) -> Optional[Tuple[str, int]]:
     return None
 
 
-def maybe_pause_from_error(error_msg: str) -> Optional[str]:
+def maybe_pause_from_error(error_msg: str) -> str | None:
     """Convenience wrapper — classify + pause in one call. Returns the
     paused resource name if pause was raised, else None."""
     cls = classify_transient_error(error_msg)

@@ -4377,3 +4377,16 @@ OpenRouter as fallback (configured via `WATCHDOG_OPENROUTER_KEY` in `/opt/<proje
 
 ---
 
+## Lesson 78 — A scaffolder must produce code that builds/boots out of the box; verify by *running* each type, not by reading the generator
+
+**Context (2026-06-18):** A per-type audit (scaffold every type into `/opt/scaffold-test-*`, then run its real `npm install`/`build`/`ruff`/boot) surfaced defects that a code read of `scaffold.py` would not:
+1. **node-api had a latent ESM/CJS dual-package hazard** — `internal_auth.js` was authored ESM (`import`/`export`) while `logger.js`/`index.js`/`glitchtip_init.js` were CJS (`require`/`module.exports`) and `package.json` declared no `"type"`. Nothing imported `internal_auth.js` in the happy path, so it never crashed in a smoke test — but any developer following its usage comment hits "cannot use import outside a module". A generator emitting *both* module systems is always a bug even when the entrypoint happens to run.
+2. **chrome-extension didn't build at all** — `manifest.json` referenced `icons/icon{16,48,128}.png` but the scaffold shipped only `.gitkeep`, so `@crxjs` `vite build` ENOENTed. The manifest and the shipped assets were authored by different hands and never cross-checked. Fix: a pure-stdlib PNG encoder (zlib+struct, no Pillow) emits real placeholder icons at the declared sizes.
+3. **mobile-app `tsc --noEmit` failed on stray files** — every scaffolded project bundles `templates/saas-skeleton/**` "for reference", and the mobile tsconfig had no `exclude`, so tsc compiled a foreign Next.js app whose deps aren't installed. Any TS project that bundles reference material MUST `exclude` it.
+
+**Rule:** "The generator's Python is correct" ≠ "the generated project works." Validate scaffolds by executing each type's own toolchain (build, lint, typecheck, boot + hit `/health`), and treat *mixed module systems*, *manifest-referenced-but-unshipped assets*, and *bundled reference dirs not excluded from the compiler* as defects even when a naive smoke test passes.
+
+**How to apply:** When changing `scaffold.py`/templates, scaffold a throwaway of the affected type and run its real gate (`npm run build`/`tsc --noEmit`/`ruff check`/boot-and-curl) before claiming done — and update the content-asserting tests (`test_node_scaffold_logging.py`, `test_scaffold_logging.py`) in lockstep, since they encode the generator contract and drift when the generator is modernized (e.g. CJS→ESM, or a logger unified into the shared `_logger_py_content`). Node services are ESM-only per `12-node.md` unless an existing scaffold is deliberately staying CJS (file-api stays CJS+Express); never half-switch.
+
+---
+

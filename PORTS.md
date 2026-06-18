@@ -83,7 +83,7 @@ If you encounter a port conflict:
 
 
 <!-- AUTO-GENERATED:PORTS:START -->
-<!-- Last synced: 2026-06-18 12:34:11 -->
+<!-- Last synced: 2026-06-18 14:25:37 -->
 
 ### Project Port Allocations (from project.yaml)
 
@@ -91,24 +91,35 @@ If you encounter a port conflict:
 |------|---------|------|------|
 | 3000 | **test-saas-platform** | saas-skeleton | /opt/test-saas-platform |
 | 3001 | **calendar-orchestration-engine** | python-api | /opt/calendar-orchestration-engine |
+| 3002 | **scaffold-test-node-api** | node-api | /opt/scaffold-test-node-api |
+| 3003 | **scaffold-test-saas-skeleton** | saas-skeleton | /opt/scaffold-test-saas-skeleton |
+| 3004 | **scaffold-test-file-api** | file-api | /opt/scaffold-test-file-api |
+| 3005 | **scaffold-test-static-site** | static-site | /opt/scaffold-test-static-site |
+| 8000 | **scaffold-test-python-api** | python-api | /opt/scaffold-test-python-api |
 | 8001 | **longephedia-vault** | python-api | /opt/longephedia-vault |
 | 8002 | **fabrik-claim-validator** | python-api | /opt/fabrik-claim-validator |
 | 8003 | **obsidian-agents** | desktop-app | /opt/obsidian-agents |
 | 8004 | **brand-identiy-creator** | python-api | /opt/brand-identiy-creator |
 | 8005 | **candle** | python-api | /opt/candle |
 | 8006 | **exam-coach** | python-api | /opt/exam-coach |
+| 8007 | **scaffold-test-python-api-gpu** | python-api-gpu | /opt/scaffold-test-python-api-gpu |
 | 8008 | **gmailaccountcreator** | python-api | /opt/gmailaccountcreator |
 | 8009 | **image-generation** | python-api | /opt/image-generation |
 | 8010 | **iterative_image_editor** | python-api | /opt/iterative_image_editor |
 | 8011 | **job-agent** | python-api | /opt/job-agent |
 | 8012 | **llm_batch_processor** | python-api | /opt/llm_batch_processor |
 | 8013 | **marketing-argumant-generator** | python-api | /opt/marketing-argumant-generator |
+| 8014 | **scaffold-test-file-worker** | file-worker | /opt/scaffold-test-file-worker |
 | 8015 | **proposal-creator** | python-api | /opt/proposal-creator |
 | 8016 | **seo** | python-api | /opt/seo |
 | 8017 | **supplement-tracker-advisor** | python-api | /opt/supplement-tracker-advisor |
 | 8018 | **Reference_Creator** | python-api | /opt/Reference_Creator |
+| 8019 | **scaffold-test-docusaurus** | docusaurus | /opt/scaffold-test-docusaurus |
+| 8020 | **scaffold-test-chrome-extension** | chrome-extension | /opt/scaffold-test-chrome-extension |
+| 8021 | **scaffold-test-mobile-app** | mobile-app | /opt/scaffold-test-mobile-app |
 | 8022 | **trade-intelligence** | python-api | /opt/trade-intelligence |
 | 8023 | **trading-core** | python-api | /opt/trading-core |
+| 8024 | **scaffold-test-desktop-app** | desktop-app | /opt/scaffold-test-desktop-app |
 | 8025 | **triggered-content-orchestration** | python-api | /opt/triggered-content-orchestration |
 | 8026 | **ugc** | python-api | /opt/ugc |
 | 8027 | **web-scraper** | python-api | /opt/web-scraper |

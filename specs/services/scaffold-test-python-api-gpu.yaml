@@ -1,7 +1,7 @@
-id: test-workflows
+id: scaffold-test-python-api-gpu
 kind: service
-template: python-api
-domain: test-workflows.vps1.ocoron.com
+template: python-api-gpu
+domain: scaffold-test-python-api-gpu.vps1.ocoron.com
 shape:
   kind: service
   is_public: true

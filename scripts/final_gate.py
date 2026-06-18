@@ -660,6 +660,16 @@ def run_consistency_checks(
                 "Full Traefik Label Set (§7)",
             )
         )
+        # Fabrik-synced files must match the /opt/fabrik canonical source — they
+        # are centrally distributed and overwritten on sync, so a local edit is a
+        # mistake (revert + change upstream). Self-exempts inside /opt/fabrik;
+        # skips when /opt/fabrik isn't present (e.g. on a VPS).
+        results.append(
+            run_optional_check(
+                "scripts/enforcement/check_synced_unmodified.py",
+                "Fabrik-Synced Files Unmodified",
+            )
+        )
 
     # Tier 1 stops here
     if tier == 1:

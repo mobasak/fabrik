@@ -1,19 +1,18 @@
-id: test-workflows
-kind: service
-template: python-api
-domain: test-workflows.vps1.ocoron.com
+id: scaffold-test-file-worker
+kind: worker
+template: file-worker
 shape:
-  kind: service
-  is_public: true
+  kind: worker
+  is_public: false
   is_admin_dashboard: false
   has_bearer_api: false
-  has_persistent_data: false
+  has_persistent_data: true
   needs_database: false
   has_search_feature: false
   needs_cache: false
-  exposes_metrics: true
+  exposes_metrics: false
 expose:
-  http: true
+  http: false
   internal_only: false
 source:
   type: template
@@ -24,23 +23,18 @@ infrastructure:
   storage: local
   auth: none
 env:
-  PORT: ${PORT:-8000}
-  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  PORT: '8000'
+  LOG_LEVEL: INFO
 secrets:
   required: []
   generate: []
   from_env:
-  - SERVICE_INTERNAL_SECRET_KEY
+  - SUPABASE_SERVICE_ROLE_KEY
+  - R2_SECRET_ACCESS_KEY
   from_file: {}
 resources:
-  memory: 512M
+  memory: 256M
   cpu: '0.5'
-health:
-  path: /health
-  interval: 30s
-  timeout: 10s
-  retries: 3
-  disabled: false
 volumes: []
 backup:
   enabled: true

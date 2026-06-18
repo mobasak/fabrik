@@ -26,7 +26,6 @@ from fabrik.orchestrator.destroyer import (
     destroy_deployment,
 )
 from fabrik.spec_loader import (
-    CoolifyConfig,
     Expose,
     Health,
     Kind,
@@ -52,7 +51,6 @@ def _maximal_service_spec(name: str = "svc-test") -> object:
         domain=f"{name}.vps1.ocoron.com",
         kind=Kind.SERVICE,
         expose=Expose(),
-        coolify=CoolifyConfig(project="fabrik-services"),
         health=Health(path="/health"),
         shape=Shape(
             kind="service",
@@ -74,7 +72,6 @@ def _minimal_static_spec(name: str = "site-test") -> object:
         domain=f"{name}.vps1.ocoron.com",
         kind=Kind.STATIC,
         expose=Expose(),
-        coolify=CoolifyConfig(project="fabrik-services"),
         shape=Shape(
             kind="static",
             is_public=True,
@@ -132,17 +129,15 @@ def _install_stub_drivers(monkeypatch: pytest.MonkeyPatch) -> dict[str, MagicMoc
     pg_mod.drop_database = mocks["postgres.drop_database"]
     monkeypatch.setitem(sys.modules, "fabrik.drivers.postgres", pg_mod)
 
-    # Coolify
-    coolify_mod = types.ModuleType("fabrik.drivers.coolify")
-    coolify_client = MagicMock()
-    coolify_client.list_applications.return_value = [
-        {"name": "svc-test", "uuid": "test-uuid-1234"},
-        {"name": "site-test", "uuid": "site-uuid-5678"},
-    ]
-    coolify_client.delete_application = MagicMock()
-    coolify_mod.CoolifyClient = MagicMock(return_value=coolify_client)
-    mocks["coolify.client"] = coolify_client
-    monkeypatch.setitem(sys.modules, "fabrik.drivers.coolify", coolify_mod)
+    # SSH — app teardown. Post-Coolify-migration apps all live at /opt/<name>
+    # and are destroyed via `docker compose down` over SSH (step "compose"),
+    # not a Coolify API call. Default: every SSH command succeeds (empty
+    # stdout); individual tests override .side_effect to simulate a missing
+    # app directory.
+    ssh_mod = types.ModuleType("fabrik.drivers.ssh")
+    mocks["ssh"] = MagicMock(return_value="")
+    ssh_mod.ssh = mocks["ssh"]
+    monkeypatch.setitem(sys.modules, "fabrik.drivers.ssh", ssh_mod)
 
     # DNS
     dns_mod = types.ModuleType("fabrik.drivers.dns")
@@ -209,10 +204,13 @@ class TestDestroyMaximalShape:
             "svc-test", dry_run=False
         )
         mocks["postgres.drop_database"].assert_called_once()
-        # Coolify + DNS got their hits.
-        mocks["coolify.client"].delete_application.assert_called_once_with(
-            "test-uuid-1234"
-        )
+        # App teardown ran `docker compose down` over SSH for /opt/svc-test.
+        compose_cmds = [c.args[0] for c in mocks["ssh"].call_args_list if c.args]
+        assert any(
+            "docker compose down" in cmd and "/opt/svc-test" in cmd
+            for cmd in compose_cmds
+        ), compose_cmds
+        # DNS got its hit.
         mocks["dns.client"].delete_record.assert_called_once_with(
             "ocoron.com", "A", "svc-test.vps1"
         )
@@ -241,7 +239,7 @@ class TestDestroyMaximalShape:
 
 class TestDestroyMinimalShape:
     """Static-site spec: Authelia/GlitchTip/Backrest/Postgres/MeiliSearch
-    not applicable. Only Gatus + Coolify + DNS + files run."""
+    not applicable. Only Gatus + compose app + DNS + files run."""
 
     def test_only_applicable_registrars_run(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
@@ -254,9 +252,11 @@ class TestDestroyMinimalShape:
         assert not report.had_errors
         # Applicable for static + public + domain:
         mocks["gatus.remove_endpoint"].assert_called_once()
-        mocks["coolify.client"].delete_application.assert_called_once_with(
-            "site-uuid-5678"
-        )
+        compose_cmds = [c.args[0] for c in mocks["ssh"].call_args_list if c.args]
+        assert any(
+            "docker compose down" in cmd and "/opt/site-test" in cmd
+            for cmd in compose_cmds
+        ), compose_cmds
         mocks["dns.client"].delete_record.assert_called_once()
         # Not applicable per shape:
         mocks["authelia.remove_access_rule"].assert_not_called()
@@ -287,8 +287,8 @@ class TestDestroyFlags:
         # Every action is dry_run or skipped.
         bad = [a for a in report.actions if a.status not in {"dry_run", "skipped"}]
         assert not bad, f"non-dry-run actions in dry-run mode: {bad}"
-        # Coolify list/delete must not have happened.
-        mocks["coolify.client"].delete_application.assert_not_called()
+        # Compose teardown over SSH must not have happened.
+        mocks["ssh"].assert_not_called()
 
     def test_keep_dns_skips_dns_step(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
@@ -325,7 +325,7 @@ class TestDestroyErrorHandling:
     def test_driver_exception_does_not_abort_remaining_steps(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ):
-        """A Gatus failure must not prevent Coolify/DNS cleanup."""
+        """A Gatus failure must not prevent compose-app/DNS cleanup."""
         mocks = _install_stub_drivers(monkeypatch)
         mocks["gatus.remove_endpoint"].side_effect = RuntimeError("gatus VPS down")
         spec = _maximal_service_spec()
@@ -336,21 +336,29 @@ class TestDestroyErrorHandling:
         gatus = [a for a in report.actions if a.step == "gatus"][0]
         assert gatus.status == "error"
         assert "gatus VPS down" in (gatus.error or "")
-        # But Coolify + DNS still ran.
-        mocks["coolify.client"].delete_application.assert_called_once()
+        # But compose app teardown + DNS still ran.
+        compose_cmds = [c.args[0] for c in mocks["ssh"].call_args_list if c.args]
+        assert any("docker compose down" in cmd for cmd in compose_cmds), compose_cmds
         mocks["dns.client"].delete_record.assert_called_once()
         assert report.had_errors
 
-    def test_coolify_app_not_found_is_not_error(
+    def test_app_not_found_is_not_error(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ):
         """Re-running destroy on an already-destroyed app must succeed."""
         mocks = _install_stub_drivers(monkeypatch)
-        mocks["coolify.client"].list_applications.return_value = []  # nothing
+
+        # `test -d /opt/<name>` fails → app directory already gone.
+        def _ssh_missing(cmd, *a, **kw):
+            if "test -d" in cmd:
+                raise RuntimeError("directory not found")
+            return ""
+
+        mocks["ssh"].side_effect = _ssh_missing
         spec = _maximal_service_spec()
 
         report = destroy_deployment(spec, project_base=tmp_path)
 
-        coolify_action = [a for a in report.actions if a.step == "coolify"][0]
-        assert coolify_action.status == "not_found"
+        compose_action = [a for a in report.actions if a.step == "compose"][0]
+        assert compose_action.status == "not_found"
         assert not report.had_errors

@@ -1,13 +1,28 @@
 # Sync Enforcement Workflow (Fabrik → Projects)
 
-**Last Updated:** 2026-05-13
+**Last Updated:** 2026-06-18
 **Status:** PRODUCTION
 **Script:** `scripts/sync_enforcement_to_projects.py`
+**Source of truth (the synced list):** `scripts/fabrik_synced_manifest.py`
 **Direction:** Fabrik → Projects
 
 ## Overview
 
-Synchronizes Fabrik enforcement scripts to all `/opt/*` projects, ensuring consistent code quality tooling across the ecosystem. Uses hash comparison and timestamp checks to avoid unnecessary overwrites.
+Synchronizes Fabrik governance + enforcement files to all `/opt/*` projects, ensuring consistent tooling and agent contracts across the ecosystem. Uses hash comparison and timestamp checks to avoid unnecessary overwrites.
+
+> **⚠️ These files are centrally managed — do not edit them inside a project.**
+> A local edit is overwritten on the next sync. The list lives once in
+> [`scripts/fabrik_synced_manifest.py`](../../scripts/fabrik_synced_manifest.py) and is consumed by this sync
+> script, the `.gitignore` "Fabrik-synced" block emitted by `scaffold.py`, and the
+> gate check `scripts/enforcement/check_synced_unmodified.py` (which **fails the
+> gate** when a project's copy drifts from the `/opt/fabrik` source). To change a
+> synced file: edit the canonical copy in `/opt/fabrik`, re-sync, and **only** if
+> the change is correct for ALL projects. Otherwise propose it upstream — never
+> fork it locally. (`PORTS.md` is seeded then project-owned, so it is exempt from
+> the drift check.)
+>
+> **When you modify the synced set, edit `fabrik_synced_manifest.py` only** — the
+> three consumers derive from it. The tables below mirror those lists.
 
 | **Trigger** | Manual (`fabrik enforce` or direct), or automatic via `watch_enforcement_changes.sh` |
 | **Automation** | ✅ Optional: WSL startup hook via `watch_enforcement_changes.sh` (monitors Fabrik governance files) |
@@ -25,9 +40,12 @@ Synchronizes Fabrik enforcement scripts to all `/opt/*` projects, ensuring consi
 | `CLAUDE.md` | Per-project Claude agent configuration |
 | `opencode.json` | Kilo CLI configuration |
 | `.windsurfrules` | Cascade compact agent contract |
-| `.windsurf/rules/` | Cascade rule files (recursive) |
+| `.windsurf/rules/` | Cascade rule files (recursive, orphan-pruned) |
+| `.windsurf/workflows/` | Cascade workflow files (recursive, orphan-pruned) |
+| `docs/reference/kilo/` | Kilo agent-selection + model docs (recursive, orphan-pruned) |
+| `docs/reference/MD/` | Shared markdown reference set (recursive, orphan-pruned) |
 
-**Note:** `AFCL.md` is scaffolded as `AFCL_TEMPLATE.md` and customized per project, not synced.
+**Note:** `AFCL.md` is scaffolded as `AFCL_TEMPLATE.md` and customized per project, not synced. `.pre-commit-config.yaml` is tech-stack specific and not synced.
 
 ### Reference Documentation
 
@@ -35,6 +53,13 @@ Synchronizes Fabrik enforcement scripts to all `/opt/*` projects, ensuring consi
 |------|----------|
 | `docs/reference/windsurf/cascade-models.md` | Windsurf AI model reference |
 | `docs/reference/long-command-monitoring.md` | Long command monitoring system documentation |
+| `docs/reference/technology-stack-decision-guide.md` | Stack selection guide |
+| `docs/reference/AI_TAXONOMY.md` | AI agent/model taxonomy |
+| `docs/reference/ai_agent_prompt_directives.md` | Prompt directives for agents |
+| `docs/operations/fabrik-lifecycle.md` | Runtime behavior & data safety |
+| `docs/BUSINESS_MODEL.md` | Project catalog (single source) |
+| `docs/reference/mobile-responsive-testing-guide.md` | Mobile/responsive testing guide |
+| `PORTS.md` | Port allocations (seed; project-owned thereafter — exempt from drift check) |
 
 ### Core Scripts
 
