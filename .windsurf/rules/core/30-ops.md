@@ -262,7 +262,7 @@ labels:
 
 **Authelia does NOT hot-reload on SIGHUP** — the process exits on signal. Always restart the container after any `configuration.yml` edit. `docker compose ... restart` works too; SIGHUP-only approaches do not.
 
-**Health endpoints (`/health`, `/healthz`, `/metrics`) bypass Authelia on all services** — required for Gatus and Prometheus monitoring. The bypass rule `*.vps1.ocoron.com → /health` is global. Never protect `/health`.
+**Health endpoints (`/health`, `/healthz`, `/metrics`, `/api/health`) bypass Authelia on all services** — required for Gatus and Prometheus monitoring. The bypass is **resource-based, not domain-bound** — applies on every domain routed through Authelia (hub direct + spokes via `authelia-vps1@file` middleware). Never protect these paths.
 
 ---
 

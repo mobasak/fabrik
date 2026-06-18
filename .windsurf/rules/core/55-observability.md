@@ -108,7 +108,7 @@ ACTIVE_JOBS = Gauge("active_jobs", "Currently running jobs")
 PROCESSING_COUNT = Gauge("processing_count", "Items being processed")
 ```
 
-- The `/metrics` endpoint is Authelia-bypassed (global bypass rule: `*.vps1.ocoron.com → /metrics`).
+- The `/metrics` endpoint is Authelia-bypassed. The bypass is **resource-based, not domain-bound** — `/health`, `/healthz`, `/metrics`, `/api/health` are bypassed on every domain routed through Authelia (hub direct + spokes via `authelia-vps1@file`).
 - Prometheus scrapes it when the spec has `shape.exposes_metrics: true` — the Prometheus registrar adds the scrape target on `fabrik apply`.
 
 **Adding custom business metrics:**
@@ -273,7 +273,7 @@ Every JSON log entry must include these core fields:
 - Every service exposes `/health` that actively verifies critical dependencies (e.g. `SELECT 1` against PostgreSQL, Redis `PING`) before returning 200.
 - A `/health` that returns 200 without checking dependencies creates "zombie" containers — Traefik routes traffic to broken services.
 - Docker Compose `HEALTHCHECK` must include `start_period` (15-20s) to allow framework boot and DB migrations before the container is marked unhealthy.
-- `/health` is Authelia-bypassed on all services (global rule: `*.vps1.ocoron.com → /health`). Never protect `/health`.
+- `/health` is Authelia-bypassed on all services. The bypass is **resource-based, not domain-bound** — `/health`, `/healthz`, `/metrics`, `/api/health` are bypassed on every domain routed through Authelia (hub direct + spokes via `authelia-vps1@file`). Never protect these paths.
 - Enforcement: `scripts/enforcement/check_health.py` verifies that health endpoints contain real dependency checks (regex for `SELECT 1`, `.ping()`, etc.). Superficial health endpoints fail the gate.
 
 ```yaml

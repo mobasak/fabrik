@@ -247,7 +247,7 @@ Source: `configs/prometheus/rules/alerts.yml`.
 - `/opt/authelia/compose.yaml` — Authelia Docker Compose
 - `/opt/fabrik/.env` — `SERVICE_INTERNAL_SECRET_KEY`, `GRAFANA_ADMIN_PASSWORD`, etc.
 
-**Authelia config changes:** Authelia exits on SIGHUP (no hot-reload). Restart procedure (discover container name, then restart): `.windsurf/rules/core/30-ops.md` § Authelia SSO. **Never** protect `/health` — Authelia bypass `*.vps1.ocoron.com → /health` is global.
+**Authelia config changes:** Authelia exits on SIGHUP (no hot-reload). Restart procedure (discover container name, then restart): `.windsurf/rules/core/30-ops.md` § Authelia SSO. **Never** protect `/health` — the Authelia bypass is **resource-based, not domain-bound**: `/health`, `/healthz`, `/metrics`, `/api/health` are bypassed on every domain routed through Authelia (hub direct + spokes via `authelia-vps1@file`).
 
 ### Exceptions to the canonical M2M pattern
 
