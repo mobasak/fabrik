@@ -336,7 +336,7 @@ sudo tail -20 /var/log/sysadmin-proactive.log
 
 ### SLI metrics (Prometheus, since 2026-06-06)
 
-aro-wake on every fleet host exposes 8 Prometheus metrics at `:8201/metrics` mapping to the `agent-sre` SLI framing from [`docs/reference/AI for Autonomous System Administration.md`](../reference/AI%20for%20Autonomous%20System%20Administration.md). Hub-side Prometheus scrapes all 3 hosts via job `aro-wake` in `configs/prometheus/prometheus.yml` — vps1 via docker-bridge gateway `10.0.1.1:8201`, spokes via wg0 mesh `10.99.0.{2,3}:8201`. The cross-mesh container→host path works because docker MASQUERADE on vps1 rewrites Prometheus container's outbound source IP to `10.99.0.1`, which the spokes' existing `from 10.99.0.0/24 to any port 8201 proto tcp` UFW rule already permits.
+aro-wake on every fleet host exposes 8 Prometheus metrics at `:8201/metrics` mapping to the `agent-sre` SLI framing from [`docs/reference/research-files/AI for Autonomous System Administration.md`](../reference/research-files/AI%20for%20Autonomous%20System%20Administration.md). Hub-side Prometheus scrapes all 3 hosts via job `aro-wake` in `configs/prometheus/prometheus.yml` — vps1 via docker-bridge gateway `10.0.1.1:8201`, spokes via wg0 mesh `10.99.0.{2,3}:8201`. The cross-mesh container→host path works because docker MASQUERADE on vps1 rewrites Prometheus container's outbound source IP to `10.99.0.1`, which the spokes' existing `from 10.99.0.0/24 to any port 8201 proto tcp` UFW rule already permits.
 
 | Metric | Type | Labels | Maps to doc SLI |
 |---|---|---|---|

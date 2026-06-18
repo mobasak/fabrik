@@ -802,7 +802,7 @@ These rules ensure coding agents use the scaffolded i18n system rather than inst
 
 ### Self-Observability — SLI metrics (since 2026-06-06)
 
-`aro-wake` (the push-trigger entry point introduced in trio plan Phase 3) exposes 8 Prometheus metrics at `:8201/metrics` on every fleet host (vps1 hub + vps2/vps3 spokes), mapping to the `agent-sre` SLI framing from `docs/reference/AI for Autonomous System Administration.md`. Two alert rules ship pre-configured, evaluated per-host: `AroWakeLowSuccessRate` (warning at <90% success over 10m) and `AroWakeCostBurnHigh` (warning at >$5/h sustained — catches runaway-reasoning loops early). Prometheus scrapes the hub via docker bridge and the spokes via the wg0 mesh (cross-mesh container→host NAT verified live). See `CHANGELOG.md` 2026-06-06 entry for full metric list.
+`aro-wake` (the push-trigger entry point introduced in trio plan Phase 3) exposes 8 Prometheus metrics at `:8201/metrics` on every fleet host (vps1 hub + vps2/vps3 spokes), mapping to the `agent-sre` SLI framing from `docs/reference/research-files/AI for Autonomous System Administration.md`. Two alert rules ship pre-configured, evaluated per-host: `AroWakeLowSuccessRate` (warning at <90% success over 10m) and `AroWakeCostBurnHigh` (warning at >$5/h sustained — catches runaway-reasoning loops early). Prometheus scrapes the hub via docker bridge and the spokes via the wg0 mesh (cross-mesh container→host NAT verified live). See `CHANGELOG.md` 2026-06-06 entry for full metric list.
 
 ### Full Reference
 

@@ -578,9 +578,9 @@ Traycer plans against these rules but does NOT inline them into tickets — the 
 | Owner Profile | `docs/owner_ozgur_basak.md` | Calibrating tone / framing for planning output |
 | Port Allocations | `PORTS.md` | Assigning ports to new services |
 | Scaffold Decision Guide | `docs/reference/scaffold-type-decision-guide.md` | Choosing WordPress vs Docusaurus vs static-site |
-| SaaS UI Patterns | `docs/reference/Modern GUI Approaches for a Lean, Fast, Effective, Low-Confusion SaaS Web App.md` | Planning SaaS frontend |
-| Chrome Extension UI | `docs/reference/Modern GUI Approaches for Chrome Extensions.md` | Planning Chrome extensions |
-| Mobile UI | `docs/reference/Modern Mobile GUI Approaches for Android and iOS.md` | Planning mobile apps |
+| SaaS UI Patterns | `docs/reference/research-files/Modern GUI Approaches for a Lean, Fast, Effective, Low-Confusion SaaS Web App.md` | Planning SaaS frontend |
+| Chrome Extension UI | `docs/reference/research-files/Modern GUI Approaches for Chrome Extensions.md` | Planning Chrome extensions |
+| Mobile UI | `docs/reference/research-files/Modern Mobile GUI Approaches for Android and iOS.md` | Planning mobile apps |
 | Ocoron Design System | `.windsurf/rules/core/ocoron-design-system.md` | Visual + verbal identity for UI projects |
 | Ocoron Mobile Design | `.windsurf/rules/mobile-app/ocoron-mobile-design-system.md` | Mobile component patterns (list items, sheets, navigation, forms) |
 | Mobile Responsive Testing | `docs/reference/mobile-responsive-testing-guide.md` | Single source of truth for RWD testing (Playwright, screenshots, fix patterns) |

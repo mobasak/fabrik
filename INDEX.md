@@ -307,9 +307,6 @@ docs/
 │   ├── # (Deleted — see .windsurf/rules/core/25-data-postgres.md)
 │   ├── DOCUMENTATION_STANDARD.md   # Documentation standards and conventions
 │   ├── LOCAL_LLM_INFRASTRUCTURE.md
-│   ├── Modern GUI Approaches for Chrome Extensions.md
-│   ├── Modern GUI Approaches for a Lean, Fast, Effective, Low-Confusion SaaS Web App.md
-│   ├── Modern Mobile GUI Approaches for Android and iOS.md
 │   ├── PLANNING_REFERENCES.md      # INDEX for AI planning phases
 │   ├── SaaS-GUI.md                 # SaaS skeleton GUI guide
 │   ├── ai.md
@@ -349,6 +346,15 @@ docs/
 │   ├── orchestrator.md             # Deployment orchestrator module
 │   ├── prebuilt-app-containers.md  # Prebuilt container catalog
 │   ├── provisioner.md
+│   ├── research-files                # Gemini deep-research outputs (sources for rule packs)
+│   │   ├── AI for Autonomous System Administration.md
+│   │   ├── Electron Desktop App Best Practices.md
+│   │   ├── Modern GUI Approaches for Chrome Extensions.md
+│   │   ├── Modern GUI Approaches for a Lean, Fast, Effective, Low-Confusion SaaS Web App.md
+│   │   ├── Modern Mobile GUI Approaches for Android and iOS.md
+│   │   ├── Node API File Storage Rules.md
+│   │   ├── Node Backend Practices Research 2026.md
+│   │   └── cookie-consent-gdpr-2026-research.md
 │   ├── research-prompt-preamble-for-agent-rules.md
 │   ├── scaffold-type-decision-guide.md
 │   ├── scripts.md
