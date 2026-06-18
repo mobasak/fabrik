@@ -114,6 +114,14 @@ REFERENCE_DOCS = [
     # The 3 direct-agent convergence prompts (PLAN/CODE REVIEW/DOCS) — referenced by
     # the synced CLAUDE.md HARD-STOP row, so it must exist in every project too.
     ("docs/reference/convergence-prompts.md", "docs/reference/convergence-prompts.md"),
+    # Kilo consult workflow — governance, not an editable per-project doc. Synced from
+    # the canonical template + protected by check_synced_unmodified so it can't drift.
+    # (Still scaffolded via SHARED_TEMPLATE_MAP for first-create placement; identical
+    # content, so no drift between the two paths.)
+    (
+        "templates/scaffold/docs/workflows/KILO_CONSULT_WORKFLOW.md",
+        "docs/workflows/kilo-consult-workflow.md",
+    ),
 ]
 
 
