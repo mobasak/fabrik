@@ -41,9 +41,13 @@ artifact its gate inspects, so the claim cannot outrun the proof.
 ## PLAN CONVERGENCE
 
 ```text
-ITERATE a plan for <TASK> until it CONVERGES — do NOT stop after one pass. Loop:
-  1. Gather evidence FIRST: for every file/column/value a step touches, READ THE
-     ACTUAL VALUES (path:line + the command and its real output) — never assume.
+ITERATE a plan for <TASK> until it CONVERGES — do NOT stop after one pass.
+FIRST, get context: read AGENTS.md (infra + codebase map), run
+`python scripts/select_rules.py`, and read every ACTIVE pack + any AVAILABLE pack
+whose description matches <TASK> — those .windsurf/rules packs are binding constraints.
+Then loop:
+  1. Gather evidence: for every file/column/value a step touches, READ THE ACTUAL
+     VALUES (path:line + the command and its real output) — never assume.
   2. Write/REVISE docs/development/plans/YYYY-MM-DD-plan-<name>.md with: a "## Evidence"
      section (per Phase: >=1 path:line AND >=1 fenced command-output block); every step
      grounded to that evidence and naming the gate the IMPLEMENTER will run for it

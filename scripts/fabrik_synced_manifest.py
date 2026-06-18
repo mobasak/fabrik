@@ -31,6 +31,7 @@ CORE_SCRIPTS = [
     "docs_updater.py",
     "update_agents_toc.py",
     "health_checker.py",
+    "select_rules.py",  # plan-time: lists applicable .windsurf/rules packs
 ]
 
 # Long Command Monitoring System → project ``scripts/`` (sourced from

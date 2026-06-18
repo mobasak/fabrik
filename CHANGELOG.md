@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — plan-time rule-pack selection + iterative self-review, baked into all three agent contracts (2026-06-18)
+
+Direct-agent planning was only told "read AGENTS.md" — it never *selected the applicable `.windsurf/rules`*, and coding had no always-on iterate-and-self-review mandate. Both are now first-class in the synced bootstraps (so they apply without pasting a prompt), for Claude Code / Cascade / Kilo:
+
+- **`scripts/select_rules.py`** (new, synced) — at plan time, reads each `.windsurf/rules/**` pack's frontmatter and prints **ACTIVE** (a glob matches the project's own source — read now) vs **AVAILABLE** (read if your work touches that domain), plus `project.yaml::type`. Excludes noise dirs (`templates/`, `node_modules`, `.venv`, …) so bundled reference code doesn't false-flag packs (e.g. the TS packs in a pure-Python project). Covered by `tests/test_select_rules.py` (4 tests).
+- **ORIENT** (CLAUDE.md / `.windsurfrules` / AGENTS-compact.md): before planning or any non-trivial change, the agent must read `AGENTS.md`, run `select_rules.py`, and **read the ACTIVE + relevant packs as binding constraints** — same infra+rules awareness Traycer plans with.
+- **Completion Contract step 1a — SELF-REVIEW (iterate to a fixed point)**: don't ship first-draft code; re-read the diff for bugs/edge-cases/deviations from the plan + ACTIVE packs, fix, re-run the gate — repeat until green and a fresh review finds nothing new.
+- **PLAN convergence prompt** now starts with the AGENTS.md + `select_rules.py` step.
+
 ### Fixed — convergence-prompts.md: wrong gate, wrong tier, and not actually iterative (2026-06-18)
 
 Three real defects in the prompts (synced fleet-wide, so the fix propagates):
