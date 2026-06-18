@@ -70,3 +70,30 @@ def test_tightened_chrome_glob_ignores_python_background(tmp_path: Path) -> None
     (tmp_path / "src").mkdir()
     (tmp_path / "src" / "background_worker.py").write_text("x=1\n")
     assert "chrome-ext/70.md" in {e["pack"] for e in sr.collect(tmp_path)["available"]}
+
+
+# Real chrome-ext globs (no `**/manifest.json` — it false-matched Obsidian/PWA manifests).
+_CHROME = (
+    '"**/extension/**", "**/content-script*.{js,ts}", "**/background.{js,ts}", '
+    '"**/popup.{js,ts,html}", "**/sidepanel.{js,ts,html}"'
+)
+
+
+def test_chrome_not_active_on_obsidian_plugin_manifest(tmp_path: Path) -> None:
+    # An Obsidian plugin (root manifest.json, no extension/ dir, no MV3 scripts) must NOT
+    # activate chrome-ext — `manifest.json` is shared with Obsidian/PWA and was the false driver.
+    _pack(tmp_path, "chrome-ext/70.md", _CHROME, "Chrome MV3")
+    (tmp_path / "manifest.json").write_text('{"id":"x","minAppVersion":"1.5.0"}\n')
+    (tmp_path / "main.ts").write_text("export default 1\n")
+    assert "chrome-ext/70.md" in {e["pack"] for e in sr.collect(tmp_path)["available"]}
+
+
+def test_chrome_active_on_scaffolded_extension_layout(tmp_path: Path) -> None:
+    # A scaffolded extension lives under extension/ (manifest + src/background.ts etc.) —
+    # `**/extension/**` must keep it ACTIVE even with `**/manifest.json` gone.
+    _pack(tmp_path, "chrome-ext/70.md", _CHROME, "Chrome MV3")
+    ext = tmp_path / "extension" / "src"
+    ext.mkdir(parents=True)
+    (tmp_path / "extension" / "manifest.json").write_text('{"manifest_version":3}\n')
+    (ext / "background.ts").write_text("self\n")
+    assert "chrome-ext/70.md" in {e["pack"] for e in sr.collect(tmp_path)["active"]}

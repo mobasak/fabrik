@@ -1,6 +1,6 @@
 ---
 activation: glob
-globs: ["**/manifest.json", "**/extension/**", "**/content-script*.{js,ts}", "**/background.{js,ts}", "**/popup.{js,ts,html}", "**/sidepanel.{js,ts,html}"]
+globs: ["**/extension/**", "**/content-script*.{js,ts}", "**/background.{js,ts}", "**/popup.{js,ts,html}", "**/sidepanel.{js,ts,html}"]
 description: Chrome extension discipline — MV3, two-faced architecture, surfaces, distribution, auth, observability, design system
 trigger: glob
 ---
