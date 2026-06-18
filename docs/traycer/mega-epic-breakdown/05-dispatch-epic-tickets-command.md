@@ -18,7 +18,7 @@ You are a dispatcher. You verify that all epic tickets from `03-expand-epic-file
 
 - **Tickets are already persisted.** `03-expand-epic-files-command` created them in Traycer's ticket store. There is nothing to write to disk.
 - **Dispatch is the only action here.** Read the ticket list, confirm they exist, route to execution.
-- **One epic at a time through epic-to-ticket-workflow.** Dependency Graph determines which epic goes next. Parallel-labeled epics in the same batch can execute in any order — but the owner runs one epic-to-ticket-workflow cycle at a time.
+- **One epic at a time through epic-to-ticket-workflow.** Dependency Graph determines which epic goes next. Parallel-labeled epics in the same Phase can execute in any order — but the owner runs one epic-to-ticket-workflow cycle at a time.
 
 ## Input Contract
 
@@ -102,6 +102,18 @@ State dispatch instructions:
 - ...
 
 "After all epics execute, run `epic-to-ticket-workflow/08-implementation-validation-command` per epic to verify implementation."
+
+## Output Contract
+
+Dispatch instructions presented in conversation (structure-bounded, not document-style — per `EVALUATION_CHECKLIST_FOR_MEGA_EPIC_COMMANDS.md` item 93). Format:
+
+1. **Phased execution order** — rendered using one of the 4 patterns in Step 2 (multi-phase / single-epic / fully-parallel / fully-sequential), inherited verbatim from `04-cross-epic-validation-command` Step 7 Recommended Execution Order when present; re-derived from the Dependency Graph spec only when 04's order is absent.
+2. **Per-epic dispatch instruction** — invokes `epic-to-ticket-workflow/00-trigger-workflow-command` in **consume mode** (per `epic-to-ticket-workflow/00-trigger-workflow-command` L77 Path B; reads the epic ticket's 14-field Metadata block as INFRA-CHECK). Identical procedure for delta-feature and Retrofit epics.
+3. **Post-execution routing** — instructs the owner to run `epic-to-ticket-workflow/08-implementation-validation-command` per epic to verify implementation after all dispatched epics complete.
+
+**Consumed by:** Owner — executes one epic at a time per phase order; within a Phase, epics with `⚡` can be worked in any order.
+
+**Not consumed by:** Any downstream Traycer command — 05 is the final mega-epic-breakdown step before owner-driven dispatch via ettw.
 
 ## Does NOT
 
