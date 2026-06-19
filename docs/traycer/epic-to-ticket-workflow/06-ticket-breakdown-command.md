@@ -94,6 +94,13 @@ These provide the CONTENT for writing Steps (function names, file paths, schemas
 
 ### Step 4: Produce Each Ticket
 
+**Retrofit-epic ticket adjustments (when outline's `Epic Flavor: Retrofit` is propagated from `05-ticket-outline-command` Multi-epic dispatch mode L49-51 per `ff2c427`):**
+
+- **Mandate enforcement (Step 6 table):** apply ONLY the rows touching the retrofit's target area. Examples: `Retrofit: i18n` → enforce only the i18n row; `Retrofit: Resilience` → enforce only Resilience row; `Retrofit: Auth hardening` → enforce only M2M auth + Security rows. Other mandate rows: inherited from existing project; do NOT re-enforce per-ticket.
+- **Lessons Learnt trigger (Step 8):** Retrofit:Resilience and similar retrofits that RESOLVE a prior Lesson are themselves the closure of that Lesson; do NOT trigger a new entry. Retrofit tickets that introduce a NEW compliance pattern DO trigger an entry per the standard format.
+- **Agent Selection (Step 9) default:** Retrofit tickets default to `simple` complexity (free local agent — Kilo CLI / Windsurf local) unless the outline marks them otherwise. Single rule-pack scope makes them lower-risk than Delta-feature tickets.
+- **Step 10 Epic Closure:** OPTIONAL for Retrofit epics — see Step 10 Retrofit branch below.
+
 **CONCRETE EXAMPLE** — a real T1 for a python-api project:
 
 ---
@@ -220,7 +227,7 @@ For EACH ticket, check what the Steps introduce and inject into Acceptance Crite
 | Factor IX (Disposability) | Startup/shutdown | "Startup <5s; SIGTERM finishes in-flight, closes connections" |
 | Factor XI (Logs) | Logging added | "Structured logger → stdout; no print()/console.log()" |
 | Concurrency | Request handlers/jobs | "Handlers async/non-blocking; jobs support concurrent execution" |
-| i18n (GUI scaffolds) | UI text strings | "All strings in locale files (en.json + tr.json); no hardcoded text" |
+| i18n (any ticket touching UI text strings — **feature-trigger** per `mega-epic-breakdown/00-trigger-workflow-command` § Rule-area applicability matrix; includes python-api/node-api/file-api with `shape.is_admin_dashboard: true` OR `shape.is_public: true` + HTML output — NOT scaffold-type-gated) | UI text strings | "All strings in locale files (en.json + tr.json); no hardcoded text; `scripts/validate_i18n.py` passes" |
 | Resilience | External service call | "Timeout (Xms) + retry with backoff + circuit-breaker + graceful fallback" |
 | Shape contract | Infra needs change | "`specs/services/<id>.yaml` shape block matches code" |
 | Health | New dependency | "`/health` endpoint tests new dependency" |
@@ -294,7 +301,23 @@ From outline's `Complexity` + current agent roster:
 
 User picks final dispatch. One local Ollama at a time.
 
-### Step 10: Epic Closure (final batch only)
+### Step 10: Epic Closure (final batch only — Delta-feature mandatory; Retrofit optional)
+
+**Delta-feature epics (default):** Epic Closure ticket is MANDATORY as the last ticket in the final batch. Runs `final_gate.py --systemic --json` (Tier 3). Template below.
+
+**Retrofit epics (`Epic Flavor: Retrofit` propagated from outline):** Epic Closure ticket is OPTIONAL per `mega-epic-breakdown/03-expand-epic-files-command` L86. SKIP when:
+
+- The retrofit is scoped to one rule-pack area (e.g., `Retrofit: i18n`, `Retrofit: Resilience on one external API`, `Retrofit: Auth hardening`)
+- The parent project's last Delta-feature Epic Closure already covered the systemic gate (typically within the last 1-2 epics)
+- The retrofit doesn't change shape/compose/registrars (matches `ettw/04-deploy-plan-command` Skip rule at L33 post-`3060147`)
+
+INCLUDE Epic Closure for Retrofit when:
+
+- The retrofit spans multiple rule-pack areas (e.g., `Retrofit: Resilience + Audit-log`)
+- The retrofit changes a shape flag (e.g., `Retrofit: search` adds `has_search_feature` — full systemic re-verification needed)
+- No prior Delta-feature Epic Closure exists in the project history
+
+State explicitly in the Step 12 batch presentation: `Epic Closure: included | skipped (Retrofit — [reason])`.
 
 ```markdown
 ## T<last> — Epic Closure — Tier 3 systemic gate
@@ -368,6 +391,20 @@ If specs inconsistent → suggest `cross-artifact-validation`.
 - [ ] **No mid-execution planning.** If agent would need to plan → ticket was auto-split into T?a/T?b.
 - [ ] Scaffold code not recreated (auth/metrics/logging already emitted).
 - [ ] Last ticket same depth as first.
+
+## Does NOT
+
+- Does NOT change the outline's ticket boundaries or move features between tickets — that is `05-ticket-outline-command`. If a boundary feels wrong, route back to 05 (outline iteration), do NOT rewrite scope in 06.
+- Does NOT execute the tickets — that is `07-execute-command` (the coding agent dispatch). ettw/06 writes the spec; agents implement against it.
+- Does NOT validate implementation correctness — that is `08-implementation-validation-command` after agents complete.
+- Does NOT validate cross-artifact consistency — that is `10-cross-artifact-validation-command` (across Epic Brief, Core Flows, Tech Plan, Deploy Plan, ticket specs).
+- Does NOT rename or restructure ticket Titles — ticket-outline emits `Tn — <action verb>` (or `Tn — Retrofit: <area>` for Retrofit epics per `mega-epic-breakdown/03-expand-epic-files-command` L82); ettw/06 expands the spec under the existing Title.
+- Does NOT inject rule packs not in the outline's category table — Step 5 rule pack injection follows the table verbatim. New rule pack needs route back to 05.
+- Does NOT write commit messages or PR descriptions — those are agent-time concerns post-`final_gate.py` success per CLAUDE.md HARD STOPS.
+- Does NOT run `git commit` / `git push` — auto-staged by `scripts/final_gate.py` on `status: "success"`; the spec only ENFORCES the gate, doesn't execute git.
+- Does NOT force Epic Closure for Retrofit epics — per Step 10 Retrofit branch, Epic Closure is OPTIONAL for retrofits scoped to one rule-pack area; state "skipped (Retrofit — [reason])" in batch presentation.
+- Does NOT propose `revise-requirements` mid-batch — Step 12 batch presentation is the iteration cycle; mid-batch proposals confuse the owner.
+- Does NOT re-enforce all Architectural Mandate rows for Retrofit epics — per Step 4 Retrofit branch, apply only the mandate rows touching the retrofit's target area; other rows inherited from existing project.
 
 ## Acceptance Criteria
 
