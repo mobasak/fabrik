@@ -138,13 +138,23 @@ After all tickets in batch validated (including fixups):
 
 ### Step 6: Epic Closure
 
-Last batch. Dispatch Epic Closure ticket:
+Last batch. Dispatch behavior depends on whether `06-ticket-breakdown-command` emitted an Epic Closure ticket (post-`8dcdd2b` Retrofit branch):
+
+**Delta-feature epic (default — Epic Closure ticket present):** Dispatch Epic Closure ticket:
+
 - Tier 3 systemic gate
 - `fabrik verify <domain> --spec registrars`
 - `fabrik audit-registrars`
 - Doc completeness (all scaffold templates filled)
 
 When passes → epic execution done.
+
+**Retrofit epic where `06-ticket-breakdown` skipped Epic Closure** (per its Step 10 Retrofit branch — single rule-pack area + prior Delta-feature closure exists + no shape/compose/registrar change): No Epic Closure ticket to dispatch. State explicitly in conversation: `Epic Closure: skipped per ticket-breakdown Step 10 Retrofit branch — [reason from ticket-breakdown batch presentation].` Then proceed to Step 7 Completion. The parent project's prior Delta-feature Epic Closure already covered the systemic gate.
+
+**Detect mismatch (escalate before completing):**
+
+- Outline says `Epic Flavor: Delta-feature` but no Epic Closure ticket in batch → ticket-breakdown bug; route back to `06-ticket-breakdown-command`.
+- Outline says `Epic Flavor: Retrofit` but ticket-breakdown emitted Epic Closure without justification → over-scoped Retrofit closure; route back to `06-ticket-breakdown-command` to re-evaluate Step 10 SKIP/INCLUDE criteria.
 
 ### Step 7: Completion
 
@@ -163,12 +173,27 @@ When passes → epic execution done.
 - Prevents git index corruption from parallel `git add -A`.
 - Merge sequential after batch. Conflicts = outline error → report to user.
 
+## Does NOT
+
+- Does NOT write or modify ticket content — that is `06-ticket-breakdown-command`. Tickets dispatched verbatim per L73 "Full ticket from ticket-breakdown. Verbatim. Nothing added."
+- Does NOT validate implementation correctness — that is `08-implementation-validation-command` after epic execution completes.
+- Does NOT validate cross-artifact consistency — that is `10-cross-artifact-validation-command`.
+- Does NOT execute `fabrik apply` / deploy the service — that is `11-deploy-command`. ettw/07 stops at "epic execution done"; deploy is a separate run.
+- Does NOT fix code itself — agents fix code in response to fixup tickets. Step 4 creates fixup tickets; agents implement.
+- Does NOT loop fixup attempts indefinitely — one fixup per failure, then escalate to user.
+- Does NOT bypass `scripts/final_gate.py` — Step 3 validation requires `status: "success"`; agent self-reports without gate output are rejected.
+- Does NOT unilaterally skip Epic Closure — `06-ticket-breakdown` decides skip eligibility per its Step 10 Retrofit branch (post-`8dcdd2b`). ettw/07 dispatches what was emitted; mismatches escalate per Step 6 detect-mismatch rules.
+- Does NOT change agent-supplier assignment from the outline's `Complexity` field — outline decided which tier (free local / mid / premium cloud per `05-ticket-outline-command` Step 9 + `06-ticket-breakdown-command` Step 9); ettw/07 dispatches accordingly per L69-71.
+- Does NOT run `git commit` / `git push` — auto-staged by `scripts/final_gate.py` on success per CLAUDE.md HARD STOPS.
+- Does NOT propose `revise-requirements` mid-execution — execution is for confirmed tickets; scope changes route back to `09-revise-requirements-command` and re-enter the chain.
+- Does NOT merge tickets across batch boundaries — Step 5 Merge happens AFTER batch completion per L164 "Merge sequential after batch."
+
 ## What to Avoid
 
 - Marking tickets Done without verifying gate returned `status: "success"`.
 - Trusting agent self-reported compliance without verifying output.
 - Looping fix attempts on same ticket (one fixup, then escalate).
-- Skipping Epic Closure because "feature work is done."
+- Skipping Epic Closure when `06-ticket-breakdown` emitted one — Delta-feature default. (Valid Retrofit Skips are handled in Step 6 above; `ticket-breakdown` decides skip eligibility, not `execute`.)
 - Letting specs diverge from implementation (update specs OR escalate).
 - Proceeding to dependent tickets when dependencies have unresolved issues.
 - Running gates in parallel (git add race condition).
