@@ -38,14 +38,14 @@ Requirements change. The goal is not to resist change but to propagate it **deli
 Read the full artifact set:
 
 1. `docs/operations/fabrik-lifecycle.md` — confirm which lifecycle stage the epic is at (affects friction of changes)
-2. **Epic Brief** — Success Criteria, Out of Scope, Metadata (Scaffold, Shape, Port, i18n, Concurrency)
-2. **Core Flows** (when present) — [PRIMARY PATH] markers, Flow Index, i18n Decisions
-3. **Tech Plan** (when present) — Architecture, Data Model, Shape Block, resilience table
-4. **Deploy Plan** — registrar surface, compose contract, env vars
-5. **Ticket Outline** — batches, parallel groupings, category assignments
-6. **Ticket Breakdown** — detailed tickets, Doc Sync Matrix assignments, [PRIMARY PATH] Index
-7. **INFRA-CHECK** — Scaffold, Port, Internal APIs, User Guide, Shape
-8. **Implementation state per ticket:**
+2. **Epic Brief** — Success Criteria, Out of Scope, Metadata (Scaffold, Shape, Port, i18n, Concurrency, **Epic Flavor** for Path B per `01-epic-brief-command` post-`6f3e1b2`)
+3. **Core Flows** (when present) — [PRIMARY PATH] markers, Flow Index, i18n Decisions
+4. **Tech Plan** (when present) — Architecture, Data Model, Shape Block, resilience table
+5. **Deploy Plan** (when present — may be SKIPPED entirely for code-only Retrofit epics per `04-deploy-plan-command` post-`3060147`) — registrar surface, compose contract, env vars
+6. **Ticket Outline** — batches, parallel groupings, category assignments
+7. **Ticket Breakdown** — detailed tickets, Doc Sync Matrix assignments, [PRIMARY PATH] Index
+8. **INFRA-CHECK** — Path A: Scaffold, Port, Internal APIs, User Guide, Shape. Path B: ALSO Registrars, Universal categories, Epic Flavor per `00-trigger-workflow-command` post-`1eaf22a`.
+9. **Implementation state per ticket:**
    - **Not-Started** — no execution yet
    - **In-Progress** — partial implementation
    - **Done-still-valid** — completed; change doesn't affect it
@@ -63,6 +63,15 @@ Interview to crystallize:
 **Scope-creep escape hatch:** If the change invalidates >50% of Success Criteria OR introduces a new domain not in the current plan → STOP. Recommend closing this epic and starting fresh (`trigger_workflow → epic-brief`). Revise-requirements steers a plan, it doesn't pivot it.
 
 **Additive fast-path:** If the change is purely additive (new feature that doesn't touch existing tickets), skip Steps 6-7 for existing tickets. Just: add new Success Criteria to Brief → add new flows/components → add new tickets to outline → detail via ticket-breakdown → execute. Existing work untouched.
+
+**Retrofit-epic adjustments (when `Epic Flavor: Retrofit` propagated from `01-epic-brief-command` Metadata post-`6f3e1b2`):**
+
+- **Tighter scope-creep escape hatch:** Retrofit Briefs are 3-5 SC (per `mega-epic-breakdown/03-expand-epic-files-command` L86). Losing even 2 SC = 40-67% invalidation. Use a **30% absolute SC-loss threshold for Retrofits** (instead of 50%) — beyond that, the retrofit is the wrong scope; close it and re-decompose via `mega-epic-breakdown/02-epic-decomposition-command`.
+- **Retrofit boundary check:** if the change ADDS scope that wouldn't fit a single rule-pack area (per `mega-epic-breakdown/03-expand-epic-files-command` L82 Retrofit naming convention `Retrofit: <area>`), the epic has stopped being a Retrofit. Recommend closing this epic, re-running `mega-epic-breakdown/02-epic-decomposition-command` to re-decompose as a Delta-feature epic, then `mega-epic-breakdown/03-expand-epic-files-command` to retitle (drop the `Retrofit:` Title prefix).
+- **Top-down cascade skips (Step 5):** for Retrofit epics where `04-deploy-plan-command` was SKIPPED entirely per its Retrofit Skip rule (post-`3060147`), Step 5 cascade skips the Deploy Plan layer. State explicitly: "Deploy Plan: skipped per Retrofit branch; no cascade needed at this layer." Same applies to Core Flows (post-`ee8792c` scope-narrow branch may produce no flows for code-only retrofits).
+- **Done-but-affected rollback warning (Step 6 option 2):** "Roll back + re-do" for Retrofit tickets carries extra risk — the prior Delta-feature Epic Closure may have validated against the OLD retrofit state. State explicitly in option 2: "WARNING: prior Delta-feature closure validated against old retrofit state; rollback requires re-running `08-implementation-validation` on the Delta-feature scope too."
+- **User Guide flip immunity (L78):** Retrofit epics typically don't flip User Guide — the parent project's User Guide stays. Flag any `User Guide` change in a Retrofit epic as a scope-leak signal; route to the Retrofit boundary check above.
+- **New ticket Title convention (Step 6):** new tickets emitted from a Retrofit epic keep the parent epic's Title prefix — Retrofit epics emit `T<n> — Retrofit: <area>`; Delta-feature epics emit `T<n> — <action verb>` per `mega-epic-breakdown/03-expand-epic-files-command` L82.
 
 ### Step 3: Impact Analysis
 
@@ -165,6 +174,20 @@ If contradictions → return to the layer where they originate. Don't hand off w
   - `cross-artifact-validation` — recommended after any revise-requirements
   - `execute` — for new/amended tickets
   - `implementation-validation` — for Done-but-affected tickets that were amended
+
+## Does NOT
+
+- Does NOT execute tickets — that is `07-execute-command`. ettw/09 pauses execution (per L126), updates specs, then suggests `execute` for new/amended tickets per Step 9.
+- Does NOT run the standalone cross-artifact audit — Step 8 Cross-Artifact Consistency Pass is a HANDOFF GATE during revision; the separate post-fact audit is `10-cross-artifact-validation-command`, suggested as follow-up per L165.
+- Does NOT validate implementation correctness — that is `08-implementation-validation-command`, suggested for Done-but-affected tickets per L167.
+- Does NOT deploy — that is `11-deploy-command`. ettw/09 stops before deploy when scope changes; deploy resumes after the updated chain completes.
+- Does NOT restart the epic from scratch — when >50% Success Criteria are invalidated (per L63 Delta-feature, or >30% per the Retrofit branch above), recommend closing the epic and starting fresh via `trigger_workflow → epic-brief`. revise-requirements steers a plan, it doesn't pivot it.
+- Does NOT silently absorb mid-flight scope changes — every change goes through Step 4 Checkpoint with explicit user agreement per L90; never proceed to Step 5 cascade without confirmation.
+- Does NOT change ticket Title prefixes — Delta-feature stays `T<n> — <action verb>`; Retrofit stays `T<n> — Retrofit: <area>` per `mega-epic-breakdown/03-expand-epic-files-command` L82. New tickets follow the same convention as the epic's Epic Flavor.
+- Does NOT propagate changes to the upstream Compliance Report — Compliance Report lives at `mega-epic-breakdown/00-trigger-workflow-command` EXISTING mode Step E3.C; mid-epic changes route there only when the gap row itself changed (rare). Otherwise, the Retrofit epic adjusts within its scope without touching upstream.
+- Does NOT skip the top-down cascade order — Step 5 strict order prevents contradictions. Lower-layer updates without upper-layer confirmation introduce drift; this is the single biggest source of half-updated specs (Core Philosophy L29).
+- Does NOT change the Epic Flavor (Delta-feature ↔ Retrofit) — Flavor flips require re-decomposition at `mega-epic-breakdown/02-epic-decomposition-command`. Within revise-requirements, Flavor is immutable.
+- Does NOT propose `revise-requirements` recursively — Step 8 contradictions return to the originating layer; never spawn a nested revise-requirements call.
 
 ## Acceptance Criteria
 
