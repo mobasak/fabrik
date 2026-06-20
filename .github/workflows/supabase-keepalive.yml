@@ -1,17 +1,32 @@
 name: Supabase keep-alive
 
-# Supabase free-tier projects auto-pause after ~7 days with no API activity.
-# This pings the project's auth health endpoint twice a week (Mon + Thu) — comfortably
-# under the pause window — so the `fabrik` project stays warm without manual
-# un-pausing. A real authenticated request resets the inactivity timer.
+# Supabase free-tier projects auto-pause after ~7 days with no DATABASE activity.
+# This pings the `fabrik` project twice a week (Mon + Thu) — comfortably
+# under the pause window — so the project stays warm without manual un-pausing.
+#
+# IMPORTANT (lesson from 2026-06-20 pause-warning email): `/auth/v1/health`
+# alone does NOT reset Supabase's inactivity timer — the GoTrue health endpoint
+# never touches Postgres. The inactivity detector requires a real PostgREST or
+# Postgres query. This workflow now does BOTH:
+#   1. Auth-health ping (proves project is reachable; no DB hit)
+#   2. PostgREST query (forces PostgREST → Postgres → activity recorded)
+#
+# The PostgREST step queries a deliberately-nonexistent table; the resulting
+# HTTP 404 with body code "42P01" means PostgREST consulted Postgres' catalog
+# to determine "table does not exist" — that IS a real Postgres query and
+# counts as activity. Pattern matches
+# /opt/trade-intelligence/scripts/supabase_keepalive.py which never gets paused
+# (it queries real business tables; for fabrik we have none, so we use a
+# guaranteed-404 to force the catalog lookup).
 #
 # Operator setup (one-time): add a repo secret SUPABASE_FABRIK_ANON_KEY with the
 # project's anon (public) key — Supabase dashboard → Project Settings → API.
 # The project ref is not secret. To keep additional projects alive, add another
-# step with its ref + a matching secret.
+# job with its ref + a matching secret.
 #
 # Scope note: this intentionally keeps ONLY `fabrik` warm. `trade-intelligence`
-# is managed separately by the operator; `ComplianceDesk` is left paused.
+# is managed separately by the operator (systemd timer running its own keepalive
+# script with `qualified_companies` table read); `ComplianceDesk` is left paused.
 
 on:
   schedule:
@@ -22,7 +37,7 @@ jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
-      - name: Ping fabrik REST endpoint
+      - name: Ping fabrik (auth health + DB activity)
         env:
           REF: xjmsceegyztgtcpywhry
           KEY: ${{ secrets.SUPABASE_FABRIK_ANON_KEY }}
@@ -31,16 +46,45 @@ jobs:
             echo "::error::SUPABASE_FABRIK_ANON_KEY secret not set — add it in repo settings (see workflow header)."
             exit 1
           fi
-          # Ping GoTrue's health endpoint WITH the anon apikey. This is
-          # anon-accessible and returns a clean 200 (proven 2026-06-14), so it's
-          # an honest activity signal. NOTE: do NOT ping `/rest/v1/` — its root
-          # (OpenAPI spec) is service_role-only and 401s for anon keys on EVERY
-          # Supabase project, which would mask real failures behind a fake 4xx-OK.
-          code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 \
+
+          # ── Step 1: Auth health (reachability check, no DB hit) ──
+          auth_code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 \
             -H "apikey: $KEY" "https://${REF}.supabase.co/auth/v1/health")
-          echo "fabrik /auth/v1/health returned HTTP $code"
-          case "$code" in
-            200) echo "keep-alive ping OK"; exit 0 ;;
-            401|403) echo "::error::auth failed (HTTP $code) — anon key wrong/disabled"; exit 1 ;;
-            *) echo "::error::fabrik unreachable (HTTP $code) — project may be paused or down"; exit 1 ;;
+          echo "fabrik /auth/v1/health returned HTTP $auth_code"
+          case "$auth_code" in
+            200) echo "auth-health OK (project reachable)" ;;
+            401|403) echo "::error::auth failed (HTTP $auth_code) — anon key wrong/disabled"; exit 1 ;;
+            *) echo "::error::fabrik unreachable (HTTP $auth_code) — project may be paused or down"; exit 1 ;;
           esac
+
+          # ── Step 2: PostgREST query (forces real DB activity) ──
+          # Query a deliberately-nonexistent table. PostgREST consults Postgres'
+          # catalog to resolve the name → that IS a Postgres query → activity
+          # is recorded. We expect HTTP 404 with body code "42P01" (undefined_table).
+          # If the project has a `keepalive_ping` table (future operator's choice),
+          # the response will be 200 with [] — also valid.
+          db_resp=$(curl -s --max-time 30 \
+            -H "apikey: $KEY" -H "Authorization: Bearer $KEY" \
+            -w "\nHTTP_CODE:%{http_code}" \
+            "https://${REF}.supabase.co/rest/v1/keepalive_ping?select=*&limit=1")
+          db_code=$(echo "$db_resp" | grep -oP 'HTTP_CODE:\K[0-9]+')
+          db_body=$(echo "$db_resp" | sed 's/HTTP_CODE:[0-9]*$//' | head -c 500)
+          echo "fabrik /rest/v1/keepalive_ping returned HTTP $db_code"
+          echo "body: $db_body"
+          case "$db_code" in
+            200) echo "DB activity OK (table exists, returned data — Postgres queried)" ;;
+            # 404 with body like {"code":"42P01","message":"relation ... does not exist"}
+            # means PostgREST queried Postgres' catalog — that IS DB activity.
+            404)
+              if echo "$db_body" | grep -q '"code":"42P01"'; then
+                echo "DB activity OK (table not found — PostgREST queried catalog, Postgres registered activity)"
+              else
+                echo "::error::unexpected 404 from PostgREST: $db_body"
+                exit 1
+              fi
+              ;;
+            401|403) echo "::error::PostgREST auth failed (HTTP $db_code) — anon key wrong"; exit 1 ;;
+            *) echo "::error::PostgREST request failed (HTTP $db_code): $db_body"; exit 1 ;;
+          esac
+
+          echo "✅ Both pings succeeded — fabrik keep-alive complete (auth reachable + DB activity registered)"
