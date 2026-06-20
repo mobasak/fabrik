@@ -65,6 +65,41 @@ def _skip(f: str) -> bool:
     return any(p in f for p in SKIP_PATTERNS)
 
 
+def _is_tracked(path: str) -> bool:
+    """True iff *path* is a git-tracked file — a committed doc that can drift.
+
+    A doc-sync check should only fire when there is an actual tracked artifact to
+    keep in sync. Projects that generate or gitignore their schema mirror
+    (migrations are canonical; e.g. a web-nested `web/db/schema.sql`) have no
+    committed root `db/schema.sql` to drift, so they are exempt.
+    """
+    try:
+        return (
+            subprocess.run(
+                ["git", "ls-files", "--error-unmatch", path],
+                capture_output=True,
+                timeout=10,
+            ).returncode
+            == 0
+        )
+    except Exception:
+        return False
+
+
+def _schema_doc_for(path: str) -> str:
+    """The schema dump that should mirror a migration/model change.
+
+    Anchored on the migration's own ``db/`` tree, so a web-nested
+    ``web/db/migrations/*.sql`` maps to ``web/db/schema.sql`` (not the repo-root
+    one); falls back to the conventional repo-root ``db/schema.sql`` when the
+    change isn't under a ``db/`` directory.
+    """
+    parts = path.split("/")
+    if "db" in parts:
+        return "/".join(parts[: parts.index("db") + 1]) + "/schema.sql"
+    return "db/schema.sql"
+
+
 def _is_significant_code(f: str) -> bool:
     if _skip(f):
         return False
@@ -138,11 +173,17 @@ def main() -> int:
         if not _skip(f)
         and (re.search(r"(^|/)models?(\.py|/)", f) or "/migrations/" in f or "/alembic/" in f)
     ]
-    if schema_triggers and "db/schema.sql" not in staged_set:
-        errors.append(
-            f"db/schema.sql not updated after a DB model/migration change "
-            f"(e.g. {schema_triggers[0]})."
-        )
+    # Each migration/model change must update ITS schema dump (the sibling in the
+    # migration's own db/ tree, or root db/schema.sql by convention). A dump that
+    # isn't git-tracked (a generated/gitignored mirror) has nothing to drift, so
+    # it's exempt — migrations are then the canonical source.
+    for _trig in schema_triggers:
+        _doc = _schema_doc_for(_trig)
+        if _doc not in staged_set and _is_tracked(_doc):
+            errors.append(
+                f"{_doc} not updated after a DB model/migration change (e.g. {_trig})."
+            )
+            break
 
     # ── WARN rows (fuzzy links — never block) ─────────────────────────────────
     # INDEX ← file added/removed/renamed. WARN (not ERROR): blocking every new file

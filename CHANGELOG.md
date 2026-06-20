@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — synced enforcement: doc-sync false-positive on web-nested schemas + ruff ARG001 (2026-06-20)
+
+Two defects in centrally-synced enforcement scripts, reported by a coder agent in `/opt/trade-intelligence`, fixed canonically in `/opt/fabrik` and re-synced fleet-wide:
+
+- **`check_doc_sync.py` — schema-sync rule pointed at the wrong file.** It demanded the repo-root `db/schema.sql` be staged for *any* migration, false-erroring on web-nested layouts (trade-intelligence's migrations live in `web/db/migrations/`, dumping to a gitignored `web/db/schema.sql`). Now `_schema_doc_for()` maps each migration to the `schema.sql` in *its own* `db/` tree, and `_is_tracked()` exempts dumps that aren't git-tracked (generated/gitignored mirrors — migrations are then canonical). Root-`db/`-tracking projects stay enforced (no regression). NB: the reporter's minimal `_is_tracked("db/schema.sql")` fix alone would **not** have resolved their case — their root `db/schema.sql` *is* tracked — so the path-aware mapping was required.
+- **`check_vps_docs.py` — ruff ARG001.** `# noqa: ARG001` on two intentional unused interface params (`check_vps_doc_freshness`'s `changed_files`, the no-op `check_file`'s `file_path`). Fabrik's ruff doesn't select `ARG` (so it passed here, and selects no `RUF` so no unused-noqa backfire); projects that select `ARG` (e.g. trade-intelligence) were failing.
+
 ### Fixed — align rule-size cap to documented 50KB (was a drifted, arbitrary 32KB) (2026-06-18)
 
 `check_rule_size.py` capped `.windsurf/rules/**` at 32768 B, which forced `core/67-file-api.md` (34 KB of dense KVKK/security rules) to either shed real guidance or split. Investigation: the cap is a **self-imposed context-budget guard, not a vendor limit** — exempt packs already ship at 95 KB / 135 KB and work; the only real Cascade limit is `.windsurfrules`' 6,000-char truncation, which doesn't apply to glob packs. The value had **drifted out of sync with its own docs** (12 KB → 32 KB in code vs **50 KB** in `docs/workflows/FINAL_GATE_WORKFLOW.md`). Aligned `MAX_SIZE_BYTES` to **51200 (50 KB)** so comprehensive packs keep their full content; the guard still trips genuinely runaway packs. `core/67-file-api.md` is left **fully intact** — the cap alignment alone clears it (no trimming, no dedup, no glob touched). _(An interim commit had removed two duplicate header lines; this restores them, preferring complete content over byte-shaving.)_
