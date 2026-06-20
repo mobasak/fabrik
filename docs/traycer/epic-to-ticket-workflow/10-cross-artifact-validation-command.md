@@ -46,10 +46,10 @@ Read in order:
 1. **Epic Brief** — Success Criteria, Out of Scope, Metadata (Scaffold, Shape, Port, i18n, Concurrency)
 2. **Core Flows** (when present) — [PRIMARY PATH] markers, Flow Index, i18n Decisions, Microcopy Hot-Spots
 3. **Tech Plan** (when present) — Architecture, Data Model, Component Architecture, Shape Block, resilience table, Stack block
-4. **Deploy Plan** — registrar surface, compose contract, env vars
+4. **Deploy Plan** (when present — may be SKIPPED entirely for code-only Retrofit epics per `04-deploy-plan-command` post-`3060147`) — registrar surface, compose contract, env vars
 5. **Ticket Outline** (when present) — batches, parallel groupings, categories, Doc Sync Matrix
 6. **Ticket Breakdown** (when present) — full tickets, [PRIMARY PATH] Index, Acceptance Criteria
-7. **INFRA-CHECK** — Scaffold, Port, Internal APIs, User Guide, Shape, Concurrency, i18n, Rule Packs
+7. **INFRA-CHECK** — Path A: Scaffold, Port, Internal APIs, User Guide, Shape, Concurrency, i18n, Rule Packs (8 fields). Path B (multi-epic 14-field block per `ettw/00-trigger-workflow-command` L77 post-`5a48017` + `1eaf22a`): ALSO Responsive, Dark+Light, Registrars, Universal categories, Epic Flavor, Abuse Detection, Email, FINANCIALS.
 8. `docs/operations/fabrik-lifecycle.md` — which stage the epic is at
 9. `docs/LESSONS_LEARNT.md` — accumulated entries from prior execution
 
@@ -123,13 +123,21 @@ Verify the contract flows correctly through the chain:
 
 | Field | Must appear consistently in |
 |---|---|
-| `HAS_USER_GUIDE` | Epic Brief Metadata → ticket ACs (`docs/user-guide/`) |
+| `HAS_USER_GUIDE` | Epic Brief Metadata → Tech Plan Component Architecture (`docs/user-guide/` surface) → ticket ACs |
 | `Scaffold` | Epic Brief → Tech Plan Stack → ticket category |
 | `Port` | Epic Brief → Tech Plan → compose.yaml → PORTS.md → data/projects.yaml |
 | `Internal APIs` | INFRA-CHECK → Tech Plan Component Architecture → ticket Steps |
 | `Shape` | Tech Plan Shape Block → Deploy Plan registrar surface → compose contract |
 | `Concurrency` | INFRA-CHECK → Tech Plan § Concurrency → ticket ACs (async/non-blocking) |
-| `i18n` | INFRA-CHECK → Tech Plan § i18n Architecture → ticket ACs (locale keys) |
+| `i18n` | INFRA-CHECK → Tech Plan § i18n Architecture (Step 4d) → ticket ACs (locale keys) |
+| `Responsive` (Path B) | Brief Metadata → Tech Plan § UI architecture (Step 4d) → ticket ACs (375px–2560px) |
+| `Dark+Light` (Path B) | Brief Metadata → Tech Plan § UI architecture (OS detection + toggle + persistence) → ticket ACs |
+| `Registrars` (Path B) | Brief Metadata → Deploy Plan Step 4 Registrar Surface Map → compose.yaml — verify cross-check rule from `04-deploy-plan-command` post-`3060147` |
+| `Universal categories` (Path B) | Brief Metadata → Tech Plan Architecture scope (per `03-tech-plan-command` Step 1 Path B branch post-`c41bb0b`) + Ticket Outline scope constraint (per `05-ticket-outline-command` Multi-epic dispatch mode post-`ff2c427`) |
+| `Epic Flavor` (Path B) | Brief Metadata → ettw/02 Core Flows scope-narrow + ettw/03 Tech Plan per-step targeting + ettw/04 Skip rule + ettw/05 Multi-epic dispatch + ettw/06 Mandate scoping + ettw/07 Epic Closure dispatch + ettw/08 validation thresholds + ettw/09 30% threshold + this Dimension 7 |
+| `Abuse Detection` (Path B SaaS-conditional) | Brief Metadata → Tech Plan vendor selection (`fabrik-lib/abuse-prevention/`) → ticket ACs per `saas/87-abuse-detection.md` |
+| `Email` (Path B SaaS-conditional) | Brief Metadata → Tech Plan vendor selection (`fabrik-lib/email-templates/`) → ticket ACs (two-stream separation per `core/86-email-templates.md`) |
+| `FINANCIALS` (Path B SaaS-conditional) | Brief Metadata → `05-ticket-outline-command` Step 6b doc matrix → ticket assignment for `docs/FINANCIALS.md` per `saas/88-saas-launch-checklist.md` |
 
 #### Dimension 7 — Ticket Structure (per ticket-breakdown contract)
 
@@ -140,8 +148,16 @@ For every ticket, verify present:
 - [ ] Agent-aware first-output line in Governance Checklist
 - [ ] No-git-commands in DO NOT
 - [ ] [PRIMARY PATH] test AC (if ticket touches a [PRIMARY PATH] flow)
-- [ ] Epic Closure ticket (Tier 3, depends on all, full field set)
-- [ ] Parallelism budget ≥3:1 (outline's total tickets ÷ longest chain)
+- [ ] Epic Closure ticket (Tier 3, depends on all, full field set) — **Delta-feature default; OPTIONAL for Retrofit epics** where `06-ticket-breakdown` correctly skipped per its Step 10 Retrofit branch (post-`8dcdd2b`). When absent, verify ticket-breakdown's batch presentation explicitly stated `Epic Closure: skipped (Retrofit — [reason])`. Missing closure WITHOUT a skip statement = finding.
+- [ ] Parallelism budget — **Delta-feature: ≥3:1** (outline's total tickets ÷ longest chain). **Retrofit (3-5 tickets total): ≥1:1** — a linear 3-ticket chain like `Retrofit: i18n` (locale-loader → validator → tr.json) is a legitimate 1:1 ratio and should NOT fail.
+
+**Retrofit-epic adjustments to Dimensions 1-7 (when `Epic Flavor: Retrofit` propagated from `01-epic-brief-command` Metadata post-`6f3e1b2`):**
+
+- **Deploy Plan absence (Dimensions 5 + 6 Shape/Registrars rows):** if `04-deploy-plan-command` SKIPPED entirely per its Retrofit Skip rule (post-`3060147`), propagation chain for Registrars/Shape ends at Tech Plan. State `Deploy Plan: skipped per Retrofit branch` and skip the Deploy Plan → compose.yaml leg of those rows; do not flag as broken propagation.
+- **Core Flows absence (Dimensions 1 + 2):** if `02-core-flows-command` produced no flows for a code-only retrofit (post-`ee8792c` scope-narrow branch), Dimension 1 (Brief ↔ Flow traceability) and Dimension 2 (Flow ↔ Tech Plan) become N/A; do not flag missing flows as a finding.
+- **Mandate-scope expectation (Dimension 6 i18n/Responsive/Dark+Light rows):** for Retrofit tickets, mandate propagation chain applies ONLY to the target area per `06-ticket-breakdown` Step 4 Retrofit branch (`8dcdd2b`). E.g., `Retrofit: i18n` → verify i18n propagation; do NOT flag missing Responsive/Dark+Light propagation in non-i18n tickets.
+- **Success Criteria count expectation (Dimension 1):** Retrofit Brief is 3-5 SC per `mega-epic-breakdown/03-expand-epic-files-command` L86; verify all 3-5 trace to tickets but do not flag SC count <5 as Significant.
+- **Compliance Report propagation (multi-epic existing mode):** for Retrofit epics emitted from `mega-epic-breakdown/02-epic-decomposition-command` Compliance Report fix-now rows, verify the gap row's authority pack appears in the Tech Plan + ticket `Rule Packs` lists. Cite the specific row (e.g., "Retrofit:i18n closes Compliance Report row for `core/86-i18n-validation`").
 
 #### Dimension 8 — LESSONS_LEARNT.md Coherence
 
@@ -209,11 +225,26 @@ Compare tickets against updated specs:
 - Recommended re-run → `ticket-breakdown`
 - Done-but-affected amended → `execute` new tickets → `implementation-validation`
 
+## Does NOT
+
+- Does NOT execute tickets — that is `07-execute-command`. ettw/10 reports findings; user decides actions per Step 3 advisory pattern (matches ettw/08 L17 "advisory, not authoritative").
+- Does NOT validate implementation correctness (impl-vs-spec) — that is `08-implementation-validation-command`. ettw/10 is spec-vs-spec; ettw/08 reads code. Both run; they validate different surfaces.
+- Does NOT propagate changes through the artifact set — that is `09-revise-requirements-command`. ettw/10 FINDS contradictions; user runs revise-requirements to RESOLVE them per Step 6 follow-up.
+- Does NOT deploy — that is `11-deploy-command`. ettw/10 is a pre-deploy consistency gate.
+- Does NOT change ticket Title prefixes — Delta-feature stays `T<n> — <action verb>`; Retrofit stays `T<n> — Retrofit: <area>` per `mega-epic-breakdown/03-expand-epic-files-command` L82.
+- Does NOT flag missing Epic Closure ticket for Retrofit epics where `06-ticket-breakdown` correctly skipped it (post-`8dcdd2b` Step 10 Retrofit branch) — per Step 2 Dimension 7 Retrofit branch, Epic Closure presence is conditional on Epic Flavor + ticket-breakdown's explicit skip statement.
+- Does NOT flag missing Deploy Plan when `04-deploy-plan-command` was SKIPPED entirely per its Retrofit Skip rule (post-`3060147`) — per Step 1 Retrofit branch and Step 2 Retrofit-epic adjustments, missing Deploy Plan is valid for code-only retrofits.
+- Does NOT enforce parallelism budget ≥3:1 for Retrofit epics — Retrofit epics have 3-5 tickets total; a 3-ticket linear chain is a legitimate 1:1 ratio that should NOT fail.
+- Does NOT trust auto-detection of "Accepted deviation" markers — when unsure whether a difference is intentional, present as finding and ask user per L83. The marker requirement is one-way: marker present → intentional; marker absent → finding.
+- Does NOT propose `revise-requirements` from within findings — Step 6 suggests follow-up commands; never run `09-revise-requirements-command` recursively from inside ettw/10 itself.
+- Does NOT validate rule pack content — rule pack enforcement is the producer commands' job (ettw/01-06). ettw/10 verifies the propagation chain (does the Rule Packs field propagate Brief → Tech Plan → ticket?), not the rule pack semantics themselves.
+- Does NOT re-derive INFRA-CHECK fields — consume from Epic Brief Metadata verbatim per Step 1. Path B fields (Registrars, Universal categories, Epic Flavor, etc.) MUST flow through Dimension 6; missing routes back to `00-trigger-workflow-command`.
+
 ## Acceptance Criteria
 
 - All artifact surfaces internalized (Brief, Flows, Tech Plan, Deploy Plan, Outline, Tickets, INFRA-CHECK, lifecycle, LESSONS_LEARNT).
 - All 8 dimensions analyzed. Findings classified by significance.
-- INFRA-CHECK propagation verified for all 7 fields.
+- INFRA-CHECK propagation verified for all 7 Path A fields (Path A epic) OR all 14 Path B fields + Epic Flavor (Path B multi-epic dispatch per `ettw/00-trigger-workflow-command` L77 post-`5a48017`+`1eaf22a`).
 - Ticket structure verified (Doc Sync Matrix, Final Gate, Lessons Learnt, first-output, no-git, [PRIMARY PATH], Epic Closure, parallelism budget).
 - LESSONS_LEARNT coherence verified (entries match, numbering sequential, no spec contradictions).
 - Findings presented: overall assessment → significant → minor (batched).
