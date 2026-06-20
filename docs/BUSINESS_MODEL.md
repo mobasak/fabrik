@@ -91,8 +91,8 @@ With ~$50/month infrastructure cost:
 ## Project Portfolio
 
 <!-- AUTO-GENERATED:PROJECTS:START -->
-<!-- Last synced: 2026-06-18 19:30:50 -->
-<!-- Total projects: 43 -->
+<!-- Last synced: 2026-06-20 14:14:11 -->
+<!-- Total projects: 36 -->
 
 ### Production Services (5 projects)
 
@@ -122,7 +122,7 @@ With ~$50/month infrastructure cost:
 | **triggered-content-orchestration** | Multi-platform content orchestration pipeline for automated content creation and distribution. | FastAPI | 🔨 Development | https://triggered-content-orchestration.vps1.ocoron.com | ✅ Current |
 | **wpf** | WordPress Factory — Python orchestrator (CLI now, FastAPI in Phase 3, Next.js wizard in Phase 4... | Python | 🔨 Development | - | ✅ Current |
 
-### Planning/Research (24 projects)
+### Planning/Research (17 projects)
 
 | Project | Purpose | Stack | Status | URL | Scaffold |
 |---------|---------|-------|--------|-----|----------|
@@ -142,13 +142,6 @@ With ~$50/month infrastructure cost:
 | **supplement-tracker-advisor** | Health supplement tracking and personalized advisory system. | Python | 🔨 Development | - | ✅ Current |
 | **test-saas-for-epic-wf** | No description available | Unknown | 🔨 Development | - | ⚠️ No project.yaml |
 | **ugc** | User-generated content data scraping system for social media platforms. | Python | 🔨 Development | - | ✅ Current |
-| **verify-chrome** | No description available | Unknown | 🔨 Development | - | ⚠️ No project.yaml |
-| **verify-fileapi** | No description available | Unknown | 🔨 Development | - | ⚠️ No project.yaml |
-| **verify-gpu2** | No description available | Unknown | 🔨 Development | - | ⚠️ No project.yaml |
-| **verify-node** | No description available | Unknown | 🔨 Development | - | ⚠️ No project.yaml |
-| **verify-pyapi** | No description available | Unknown | 🔨 Development | - | ⚠️ No project.yaml |
-| **verify-pyapi2** | No description available | Unknown | 🔨 Development | - | ⚠️ No project.yaml |
-| **verify-pyapi3** | No description available | Unknown | 🔨 Development | - | ⚠️ No project.yaml |
 | **web-scraper** | Scrapy + Playwright web scraper extracting content for AI training pipelines. | Flask | 🔨 Development | - | ✅ Current |
 
 <!-- AUTO-GENERATED:PROJECTS:END -->

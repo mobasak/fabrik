@@ -1,6 +1,6 @@
 {
-  "timestamp": "2026-06-18T11:59:05.440106",
-  "total_models": 326,
+  "timestamp": "2026-06-20T14:14:14.845491",
+  "total_models": 327,
   "models": {
     "~anthropic/claude-haiku-latest": {
       "id": "~anthropic/claude-haiku-latest",
@@ -514,11 +514,6 @@
     },
     "mancer/weaver": {
       "id": "mancer/weaver",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
-    "meta-llama/llama-3-70b-instruct": {
-      "id": "meta-llama/llama-3-70b-instruct",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
@@ -1167,8 +1162,18 @@
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
+    "poolside/laguna-m.1": {
+      "id": "poolside/laguna-m.1",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
     "poolside/laguna-m.1:free": {
       "id": "poolside/laguna-m.1:free",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "poolside/laguna-xs.2": {
+      "id": "poolside/laguna-xs.2",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },

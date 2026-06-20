@@ -1,6 +1,6 @@
 # Cascade Models and Credits
 
-**Last Updated:** 2026-06-17
+**Last Updated:** 2026-06-20
 
 > 📋 **Source:** Automatically extracted from https://docs.windsurf.com/plugins/cascade/models
 >
@@ -27,7 +27,7 @@
 | Claude Sonnet 4.5 | 3 | 1464 | 46.5% |  |
 | Claude Sonnet 4.6 | 4 | 1500 | 53.4% |  |
 | Claude Opus 4.5 | 6 | 1496 | 63.1% |  |
-| Claude Opus 4.8 (Medium Thinking) | 25 | — | — |  |
+| Claude Opus 4.8 (Medium Thinking) | 25 | 1558 | — |  |
 | Claude Fable 5 (Low Thinking) | 40 | 1566 | — | Promo pricing |
 | Claude Fable 5 (Medium Thinking) | 50 | 1566 | — | Promo pricing |
 | Claude Fable 5 (High Thinking) | 70 | 1566 | — | Promo pricing |
@@ -68,26 +68,26 @@
 | Claude Sonnet 4.6 1M | 12 | 1500 | 53.4% |  |
 | Claude Sonnet 4.6 Thinking 1M | 16 | 1500 | 53.4% |  |
 | Claude Opus 4.7 (Low Thinking) | 20 | 1554 | 80.2% |  |
-| Claude Opus 4.8 (Low Thinking) | 20 | — | — |  |
+| Claude Opus 4.8 (Low Thinking) | 20 | 1558 | — |  |
 | Claude Opus 4.6 Fast | 24 | 1535 | 76.4% |  |
-| Claude Opus 4.8 (Medium Thinking) | 25 | — | — |  |
+| Claude Opus 4.8 (Medium Thinking) | 25 | 1558 | — |  |
 | Claude Opus 4.6 Fast Thinking | 30 | 1535 | 76.4% |  |
-| Claude Opus 4.8 (High Thinking) | 35 | — | — |  |
+| Claude Opus 4.8 (High Thinking) | 35 | 1558 | — |  |
 | Claude Opus 4.7 (Medium Thinking) | 40 | 1554 | 80.2% |  |
-| Claude Opus 4.8 (XHigh Thinking) | 40 | — | — |  |
-| Claude Opus 4.8 Fast (Low Thinking) | 40 | — | — |  |
+| Claude Opus 4.8 (XHigh Thinking) | 40 | 1558 | — |  |
+| Claude Opus 4.8 Fast (Low Thinking) | 40 | 1558 | — |  |
 | Claude Fable 5 (Low Thinking) | 40 | 1566 | — | Promo pricing |
-| Claude Opus 4.8 (Max Thinking) | 50 | — | — |  |
-| Claude Opus 4.8 Fast (Medium Thinking) | 50 | — | — |  |
+| Claude Opus 4.8 (Max Thinking) | 50 | 1558 | — |  |
+| Claude Opus 4.8 Fast (Medium Thinking) | 50 | 1558 | — |  |
 | Claude Fable 5 (Medium Thinking) | 50 | 1566 | — | Promo pricing |
 | Claude Opus 4.7 (High Thinking) | 60 | 1554 | 80.2% |  |
 | Claude Opus 4.7 (XHigh Thinking) | 65 | 1554 | 80.2% |  |
-| Claude Opus 4.8 Fast (High Thinking) | 70 | — | — |  |
+| Claude Opus 4.8 Fast (High Thinking) | 70 | 1558 | — |  |
 | Claude Fable 5 (High Thinking) | 70 | 1566 | — | Promo pricing |
 | Claude Opus 4.7 (Max Thinking) | 75 | 1554 | 80.2% |  |
-| Claude Opus 4.8 Fast (XHigh Thinking) | 80 | — | — |  |
+| Claude Opus 4.8 Fast (XHigh Thinking) | 80 | 1558 | — |  |
 | Claude Fable 5 (XHigh Thinking) | 80 | 1566 | — | Promo pricing |
-| Claude Opus 4.8 Fast (Max Thinking) | 100 | — | — |  |
+| Claude Opus 4.8 Fast (Max Thinking) | 100 | 1558 | — |  |
 | Claude Fable 5 (Max Thinking) | 100 | 1566 | — | Promo pricing |
 
 ---
@@ -177,12 +177,12 @@
 
 | Model | Credits | Arena ELO | TBench | Notes |
 |-------|---------|-----------|--------|-------|
-| Gemini 3 Flash Minimal | 0.8 | 1470 | 64.3% |  |
+| Gemini 3 Flash Minimal | 0.8 | 1469 | 64.3% |  |
 | Gemini 3.1 Pro Low | 1 | 1531 | 80.2% |  |
-| Gemini 3 Flash Low | 1 | 1470 | 64.3% |  |
-| Gemini 3 Flash Medium | 1 | 1470 | 64.3% |  |
+| Gemini 3 Flash Low | 1 | 1469 | 64.3% |  |
+| Gemini 3 Flash Medium | 1 | 1469 | 64.3% |  |
 | Gemini 2.5 Pro | 1 | 1465 | 32.6% |  |
-| Gemini 3 Flash High | 1.8 | 1470 | 64.3% |  |
+| Gemini 3 Flash High | 1.8 | 1469 | 64.3% |  |
 | Gemini 3.1 Pro High | 2 | 1531 | 80.2% |  |
 
 ---
