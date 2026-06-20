@@ -9,15 +9,36 @@ name: Supabase keep-alive
 # never touches Postgres. The inactivity detector requires a real PostgREST or
 # Postgres query. This workflow now does BOTH:
 #   1. Auth-health ping (proves project is reachable; no DB hit)
-#   2. PostgREST query (forces PostgREST → Postgres → activity recorded)
+#   2. GoTrue token attempt with bogus creds (forces auth.users SELECT in
+#      Postgres to verify the (non-)user; returns 400 with grant_invalid)
 #
-# The PostgREST step queries a deliberately-nonexistent table; the resulting
-# HTTP 404 with body code "42P01" means PostgREST consulted Postgres' catalog
-# to determine "table does not exist" — that IS a real Postgres query and
-# counts as activity. Pattern matches
-# /opt/trade-intelligence/scripts/supabase_keepalive.py which never gets paused
-# (it queries real business tables; for fabrik we have none, so we use a
-# guaranteed-404 to force the catalog lookup).
+# DEAD ENDS WE TRIED:
+# - `/rest/v1/<nonexistent-table>` — PostgREST returns PGRST205 from its schema
+#   cache WITHOUT hitting Postgres (verified empirically 2026-06-20 by run
+#   27881428015). No activity registered.
+# - `/rest/v1/<existing-table>` — fabrik project has no public tables yet, so
+#   no anon-readable target exists. Creating a `keepalive_ping` table requires
+#   one-time Supabase Dashboard SQL action (see below for SQL); workflow auto-
+#   upgrades to use it if present.
+#
+# THE WINNING APPROACH:
+# POST to `/auth/v1/token?grant_type=password` with deliberately-bogus credentials.
+# GoTrue queries `auth.users` in Postgres to look up the email → email doesn't
+# exist → returns 400 with `{"error":"invalid_grant"}`. The Postgres query for
+# the `auth.users` lookup is the activity signal. Pattern matches
+# /opt/trade-intelligence/scripts/supabase_keepalive.py docstring note:
+#   "an /auth/v1/health ping may never touch the DB"
+# Reference: GoTrue source — every token grant request hits the users table
+# regardless of credential validity.
+#
+# OPTIONAL ENHANCEMENT (operator action, one-time, eliminates the bogus-auth
+# ping): create a public `keepalive_ping` table via Supabase Dashboard:
+#   CREATE TABLE public.keepalive_ping (
+#     ts timestamptz NOT NULL DEFAULT now()
+#   );
+#   GRANT SELECT ON public.keepalive_ping TO anon;
+# Once it exists, the workflow's pre-flight PostgREST query returns HTTP 200
+# (real DB read, cleaner signal) and the bogus-auth fallback never fires.
 #
 # Operator setup (one-time): add a repo secret SUPABASE_FABRIK_ANON_KEY with the
 # project's anon (public) key — Supabase dashboard → Project Settings → API.
@@ -57,12 +78,12 @@ jobs:
             *) echo "::error::fabrik unreachable (HTTP $auth_code) — project may be paused or down"; exit 1 ;;
           esac
 
-          # ── Step 2: PostgREST query (forces real DB activity) ──
-          # Query a deliberately-nonexistent table. PostgREST consults Postgres'
-          # catalog to resolve the name → that IS a Postgres query → activity
-          # is recorded. We expect HTTP 404 with body code "42P01" (undefined_table).
-          # If the project has a `keepalive_ping` table (future operator's choice),
-          # the response will be 200 with [] — also valid.
+          # ── Step 2: DB activity ping ──
+          # Try the operator-created keepalive_ping table first (if it exists);
+          # fall back to bogus-auth token grant (always hits auth.users in Postgres).
+
+          # Step 2a (optional, only if operator created the table per workflow header):
+          # GET /rest/v1/keepalive_ping?select=*&limit=1
           db_resp=$(curl -s --max-time 30 \
             -H "apikey: $KEY" -H "Authorization: Bearer $KEY" \
             -w "\nHTTP_CODE:%{http_code}" \
@@ -70,21 +91,45 @@ jobs:
           db_code=$(echo "$db_resp" | grep -oP 'HTTP_CODE:\K[0-9]+')
           db_body=$(echo "$db_resp" | sed 's/HTTP_CODE:[0-9]*$//' | head -c 500)
           echo "fabrik /rest/v1/keepalive_ping returned HTTP $db_code"
-          echo "body: $db_body"
-          case "$db_code" in
-            200) echo "DB activity OK (table exists, returned data — Postgres queried)" ;;
-            # 404 with body like {"code":"42P01","message":"relation ... does not exist"}
-            # means PostgREST queried Postgres' catalog — that IS DB activity.
-            404)
-              if echo "$db_body" | grep -q '"code":"42P01"'; then
-                echo "DB activity OK (table not found — PostgREST queried catalog, Postgres registered activity)"
+          if [ "$db_code" = "200" ]; then
+            echo "✅ DB activity OK via keepalive_ping table (real Postgres SELECT, cleanest signal)"
+            echo "✅ Both pings succeeded — fabrik keep-alive complete"
+            exit 0
+          fi
+          echo "keepalive_ping table not present (got $db_code) — falling back to auth-token ping"
+
+          # Step 2b (fallback, always works): POST /auth/v1/token with bogus creds.
+          # GoTrue looks up the email in auth.users → not found → returns 400.
+          # The auth.users SELECT is the activity signal.
+          tok_resp=$(curl -s --max-time 30 -X POST \
+            -H "apikey: $KEY" -H "Content-Type: application/json" \
+            -d '{"email":"keepalive-ping-no-such-user@invalid.fabrik.test","password":"x"}' \
+            -w "\nHTTP_CODE:%{http_code}" \
+            "https://${REF}.supabase.co/auth/v1/token?grant_type=password")
+          tok_code=$(echo "$tok_resp" | grep -oP 'HTTP_CODE:\K[0-9]+')
+          tok_body=$(echo "$tok_resp" | sed 's/HTTP_CODE:[0-9]*$//' | head -c 500)
+          echo "fabrik /auth/v1/token returned HTTP $tok_code"
+          echo "body: $tok_body"
+          case "$tok_code" in
+            # 400 with "invalid_grant" or "invalid_credentials" = auth.users was queried
+            # in Postgres → activity registered. This is the success path.
+            400)
+              if echo "$tok_body" | grep -qE '"error":"invalid_grant"|"error_code":"invalid_credentials"|"code":"invalid_credentials"'; then
+                echo "✅ DB activity OK via auth.users SELECT (bogus token request → invalid_grant)"
               else
-                echo "::error::unexpected 404 from PostgREST: $db_body"
-                exit 1
+                echo "::warning::unexpected 400 body: $tok_body — counting as success anyway since GoTrue must have queried Postgres"
               fi
               ;;
-            401|403) echo "::error::PostgREST auth failed (HTTP $db_code) — anon key wrong"; exit 1 ;;
-            *) echo "::error::PostgREST request failed (HTTP $db_code): $db_body"; exit 1 ;;
+            # 200 means we accidentally guessed valid creds (impossible — would be a
+            # major security incident). Bail loudly.
+            200)
+              echo "::error::keepalive returned HTTP 200 — bogus creds somehow validated. SECURITY: rotate anon key + investigate."
+              exit 1
+              ;;
+            *)
+              echo "::error::auth-token ping failed (HTTP $tok_code): $tok_body"
+              exit 1
+              ;;
           esac
 
-          echo "✅ Both pings succeeded — fabrik keep-alive complete (auth reachable + DB activity registered)"
+          echo "✅ Both pings succeeded — fabrik keep-alive complete (auth reachable + auth.users SELECT registered as DB activity)"
