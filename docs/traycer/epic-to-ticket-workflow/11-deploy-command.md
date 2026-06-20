@@ -55,6 +55,17 @@ Determine the spec from user input (try in order):
 
 Read the spec file. Extract: `id`, `domain`, `shape`, `port`, `kind`.
 
+**Retrofit-epic adjustments (when current epic Title prefix is `Retrofit:` per `mega-epic-breakdown/03-expand-epic-files-command` L82 or outline's `Epic Flavor: Retrofit` propagated from `05-ticket-outline-command` post-`ff2c427`):**
+
+- **First-ever-deploy vs redeploy distinction:** Retrofit deploys are ALWAYS redeploys (the existing project's compose unchanged for code-only retrofits per `04-deploy-plan-command` post-`3060147` Skip rule). Default dispatch target is **Kilo CLI** (redeploy path per L23).
+- **Deploy Plan absence:** if `04-deploy-plan-command` was SKIPPED entirely per its Retrofit Skip rule, derive from tech-plan + existing project spec. State explicitly in the deploy ticket: `Deploy Plan: skipped per Retrofit branch; derived from existing project spec`.
+- **Shape Block (pre-flight):** Retrofit epics INHERIT the existing project's shape; do NOT verify new shape flags unless the retrofit explicitly adds a registrar (e.g., `Retrofit: search` adds `has_search_feature` + meilisearch; `Retrofit: backup` adds `has_persistent_data` + backrest).
+- **Compose verification:** for code-only retrofits (e.g., `Retrofit: i18n`, `Retrofit: Resilience` on existing external calls, `Retrofit: Auth hardening`), `compose.yaml` is UNCHANGED — pre-flight verifies invariants still hold but does NOT expect new content.
+- **Env vars:** for code-only retrofits, no NEW env vars expected. Verify existing env vars still set; do not require new entries unless the retrofit explicitly adds an external dep.
+- **Registrars (deploy ticket § "Registrars that will fire"):** for code-only retrofits, NO NEW registrars fire — shape is inherited. State `Registrars: inherited from existing project; no new firings expected`.
+- **Success criteria (deploy ticket § "Success criteria"):** Retrofit epic success is the rule pack's compliance check moving Partial/Violates → Compliant (per the Compliance Report gap row that emitted the Retrofit epic via `mega-epic-breakdown/02-epic-decomposition-command` Step 2b). Cite the specific rule pack + gap closure — e.g., `Retrofit: i18n` → `core/i18n: validate_i18n.py passes; en + tr locale coverage 100%`.
+- **Rollback target (deploy ticket § "Rollback"):** for Retrofit epics where Epic Closure was SKIPPED at `06-ticket-breakdown` Step 10 (post-`8dcdd2b`), rollback reverts to the PRIOR Delta-feature deploy state, not "new feature off" — `fabrik destroy --use-state --drop-data` reverts to the prior closure's recorded state.
+
 ### Step 2: Gather Deploy Context
 
 Read these (stop at first available per item):
@@ -166,6 +177,22 @@ On failure:
    Action: <rolled back / fixup dispatched / escalated to user>
    Next: <what needs to happen>
 ```
+
+## Does NOT
+
+- Does NOT execute tickets in the epic — that is `07-execute-command` (the coding agent dispatch). ettw/11 is post-execute deploy; the epic's code is already merged.
+- Does NOT validate implementation correctness — that is `08-implementation-validation-command`. ettw/11 trusts the prior validation gates passed.
+- Does NOT validate cross-artifact consistency — that is `10-cross-artifact-validation-command`. ettw/11 trusts the prior validation gates passed.
+- Does NOT propagate scope changes — that is `09-revise-requirements-command`. If deploy reveals a scope issue, route back to ettw/09; do NOT modify specs from inside ettw/11.
+- Does NOT design Component Architecture / Deploy Plan — those are `03-tech-plan-command` + `04-deploy-plan-command`. ettw/11 reads them as inputs; mismatch with deployed spec routes back to ettw/04.
+- Does NOT bypass the lifecycle contract — every deploy follows `docs/operations/fabrik-lifecycle.md` (register via `fabrik apply` + verify via `fabrik verify`). Manual `docker compose up` on the VPS = the deploy is invalid and the state file becomes stale.
+- Does NOT use `FABRIK_EXEC_MODE=local` — that mode is for crons/watchdog running ON the VPS already; ettw/11 dispatches an agent that SSHes FROM WSL TO the VPS. The two modes are not interchangeable (per L41).
+- Does NOT skip pre-flight verification — every deploy ticket includes the full pre-flight checklist (L84-93). Skipping pre-flight = deploy may fail mid-flight with no rollback path.
+- Does NOT enforce first-ever-deploy ticket template on Retrofit epics — per Step 1 Retrofit branch, Retrofit deploys are ALWAYS redeploys (dispatch to Kilo CLI by default; verify-only pre-flight for code-only retrofits).
+- Does NOT verify Shape Block new flags for Retrofit epics — per Step 1 Retrofit branch, shape is INHERITED from existing project unless the retrofit explicitly adds a registrar.
+- Does NOT block `fabrik apply` on a Retrofit epic's absent Deploy Plan — per Step 1 Retrofit branch, derive from tech-plan + spec when `04-deploy-plan-command` SKIPPED entirely (post-`3060147`).
+- Does NOT run `git commit` or modify code in the deploy ticket — code is already merged pre-deploy per `07-execute-command` Step 5 Merge. Deploy ticket commands are infrastructure-only (`git push`, `fabrik apply`, `fabrik verify`, `fabrik audit-registrars`).
+- Does NOT skip the lifecycle Stage 4 verification — `fabrik verify` + `fabrik audit-registrars` MUST run before marking deploy successful (per L108-109 + L188 acceptance).
 
 ## Applicability by Scaffold Type
 
