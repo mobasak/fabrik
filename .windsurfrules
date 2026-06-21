@@ -1,36 +1,36 @@
 <!-- Read by Windsurf Cascade. Silent-truncates at 6,000 chars. Keep lean. -->
 # Cascade Agent Contract
 
-**Read by:** Cascade only. Kilo → `AGENTS-compact.md`; Traycer → `AGENTS.md`.
-**Auto-loaded:** `.windsurf/rules/**/*.md` packs via frontmatter globs (recursive). Don't duplicate.
+**Routing:** Kilo → `AGENTS-compact.md`; Traycer → `AGENTS.md`.
+**Auto-loaded:** `.windsurf/rules/**/*.md` via frontmatter globs (recursive). Don't duplicate.
 
 ## ⚠️ FIRST OUTPUT (every response)
 ```
 RULES ACTIVE: CASCADE | <3 rules from this file you applied>
 PACKS: <pack codes whose globs match this turn's file scope, or "none">
 ```
-Listing a pack implies you read it. Pure planning turn = `PACKS: none`.
+Listing a pack = you read it. Pure-planning = `PACKS: none`.
 
 ## If `expertise-pack/` exists — WordPress factory
-Read `expertise-pack/wpf-expertise-pack-spec-v3.md` + `.claude/skills/wpf-wordpress/references/wp-cli-recipes.md` first. Never guess WP-CLI, option keys, or plugin slugs. No raw SQL or hand-edited serialized PHP. Free plugins: `https://downloads.wordpress.org/plugin/{slug}.latest-stable.zip`.
+Read `expertise-pack/wpf-expertise-pack-spec-v3.md` + `.claude/skills/wpf-wordpress/references/wp-cli-recipes.md` first. Never guess WP-CLI/option keys/plugin slugs. No raw SQL / serialized-PHP edits. Free plugins: `downloads.wordpress.org/plugin/{slug}.latest-stable.zip`.
 
 ## Orient (every task)
-1. Read `project.yaml` (`type`, `ports`, `has_user_guide`), `README.md`, `INDEX.md`, `compose.yaml`, `Dockerfile`, `.env.example`, `pyproject.toml`/`package.json`.
-2. `AFCL.md`: read if exists; append friction findings as encountered.
-3. Glob-matched packs in `.windsurf/rules/` auto-activate. Honour packs listed in the ticket's Context Files.
-4. **Only when PLANNING** (producing/revising a plan): read `AGENTS.md` (canonical infra + codebase map); run `python scripts/select_rules.py` and read every ACTIVE pack + any AVAILABLE pack whose description matches the work (binding); ground every step in real `path:line`. Same awareness Traycer plans with. **Not planning** (routine implementation)? Skip this — the applicable `.windsurf/rules` auto-activate by glob when you edit matching files.
+1. Read `project.yaml` (`type`), `README.md`, `INDEX.md`, `compose.yaml`, `Dockerfile`, `.env.example`, `pyproject.toml`/`package.json`.
+2. `AFCL.md`: read if exists; append friction as hit.
+3. Glob-matched packs in `.windsurf/rules/` auto-activate. Honour packs in the ticket's Context Files.
+4. **Only when PLANNING** (producing/revising a plan): read `AGENTS.md` (infra + codebase map); run `scripts/select_rules.py`; read every ACTIVE pack + any AVAILABLE pack matching the work (binding); ground every step in `path:line`. **Not planning?** Skip — applicable `.windsurf/rules` auto-activate by glob on edit.
 
 ## Behavior
 - **Check before create:** file exists = STOP, ask.
-- **Present before execute:** plan → approval → execute. Read-only IDE calls (`read_file`, `grep_search`, `list_dir`, `find_references`) are exempt.
-- **NEVER `run_terminal_cmd` for `npm i`/`pytest`/`docker *`/`fabrik *`/builds/deploys/any cmd >10s** — Cascade hangs indefinitely. Use `run_command('scripts/rund -- <cmd>')` → `run_command('scripts/runwait $(scripts/runlast) 60')` → `run_command('scripts/runc $(scripts/runlast)')`. Three calls, never one terminal. Doc: `docs/reference/long-command-monitoring.md`.
-- **Stay on task:** no unsolicited advice or process commentary.
-- **Conflict resolution:** rule pack > ticket. Surface conflict before proceeding.
+- **Present before execute:** plan → approval → execute. Read-only IDE calls (`read_file`, `grep_search`, `list_dir`, `find_references`) exempt.
+- **NEVER `run_terminal_cmd` for `npm i`/`pytest`/`docker *`/`fabrik *`/builds/deploys/any cmd >10s** — Cascade hangs. Use `run_command` (all in `scripts/`): `rund -- <cmd>` → `runwait $(runlast) 60` → `runc $(runlast)`. Never one terminal. Doc: `docs/reference/long-command-monitoring.md`.
+- **Stay on task:** no unsolicited advice/commentary.
+- **Conflict:** rule pack > ticket. Surface conflict first.
 - **State conflict:** task contradicts existing state → stop, report. Never silently overwrite.
 
 ## Completion Contract
-1. **IMPLEMENT** — Strict Scope. Adjacent fixes only in in-Scope files. 1 test for core path (skip docs-only).
-1a. **SELF-REVIEW (iterate to a fixed point)** — Don't ship first-draft code. Re-read your diff for bugs, edge cases, and deviations from the plan (if any) and the applicable `.windsurf/rules`; fix; re-run the gate. Repeat until green AND a fresh review finds nothing new.
+1. **IMPLEMENT** — Strict Scope. Adjacent fixes only in-Scope. 1 test for core path (skip docs-only).
+1a. **SELF-REVIEW (to a fixed point)** — Don't ship first-draft code. Re-read your diff for bugs, edge cases, plan/pack deviations; fix; re-run gate. Repeat until green AND a fresh review finds nothing new.
 2. **GATE** — Run ticket's `Final Gate Instruction`; fix to `status:"success"`. Flags: `--lean --json` (std) · `--json` (milestone/schema/auth) · `--systemic --json` (epic). Full ref: `docs/workflows/FINAL_GATE_WORKFLOW.md`.
 3. **CHANGELOG** — One entry under `## [Unreleased]` (gate-enforced).
 4. **LESSONS LEARNT** — Ticket field = `none` OR entry in `docs/LESSONS_LEARNT.md`. Silence = failure.
@@ -40,13 +40,13 @@ Read `expertise-pack/wpf-expertise-pack-spec-v3.md` + `.claude/skills/wpf-wordpr
 | Rule | Instead |
 |:--|:--|
 | `git commit` / `git push` (unless user said so this turn) | gate auto-stages — task ends there |
-| `fabrik redeploy` git-sourced without `git push` first | `git commit` → `git push` → `fabrik redeploy`; the VPS runs `git pull` from the GitHub remote, not your local `/opt/` clone |
-| compose without `deploy.resources.limits.memory` | required; `deployer_ssh._validate_compose()` enforces fatally; scaffolder auto-emits |
-| `DB_HOST=localhost` / `@localhost:` in env | `postgres-main:5432`, `redis-main:6379` — `localhost` = the container, not the host |
-| Authelia config reload via SIGHUP | exits; `docker restart <authelia-container>` after edits |
+| `fabrik redeploy` git-sourced without `git push` first | `commit` → `push` → `fabrik redeploy`; VPS `git pull`s from GitHub, not local `/opt/` |
+| compose without `deploy.resources.limits.memory` | required; `_validate_compose()` enforces fatally; scaffolder auto-emits |
+| `DB_HOST=localhost` / `@localhost:` in env | `postgres-main:5432`/`redis-main:6379`; `localhost` = the container, not host |
+| Authelia config reload via SIGHUP | exits; `docker restart <authelia-container>` |
 | Gatus / internal URL via UUID container name | stable `container_name` / compose service name |
-| Health check `/health` behind auth | Authelia bypass is **resource-based, not domain-bound** — `/health`, `/healthz`, `/metrics`, `/api/health` bypassed on every routed domain (hub direct + spokes via `authelia-vps1@file`). Never protect. |
-| Container ports bound to host | route via Traefik on `fabrik` net (renamed from `coolify` 2026-05-31; `fabrik apply` rejects `coolify`) |
+| Health check `/health` behind auth | Authelia bypass is **resource-based, not domain-bound** — `/health`,`/healthz`,`/metrics`,`/api/health` bypassed on every routed domain. Never protect. |
+| Container ports bound to host | route via Traefik on `fabrik` net (was `coolify`; `fabrik apply` rejects it) |
 | Missing `gzip@docker` middleware | scaffold emits auto; admin: `authelia-forward@docker,gzip@docker`; API: `gzip@docker`; public: none |
 | Edit outside ticket Scope | strict Scope only |
 | Modify `pyproject.toml`/`requirements.txt`/`package.json`/lockfiles | only if ticket authorises |
@@ -54,7 +54,7 @@ Read `expertise-pack/wpf-expertise-pack-spec-v3.md` + `.claude/skills/wpf-wordpr
 | Recreate `.venv` / replace existing Docker config | extend, don't replace |
 | `/tmp/` | project `.tmp/` |
 
-Technical hard stops (Alpine ban, raw `pip install`, Docker port exposure, M2M `X-Internal-Token`/`internal_auth.py`, kebab-case, port ranges) → packs.
+Other technical hard stops (Alpine, raw `pip install`, port exposure, M2M `internal_auth.py`, kebab-case, port ranges) → packs.
 
 ## External Knowledge — Search, Don't Guess
 Training is stale. 3rd-party API/SDK:
@@ -74,7 +74,7 @@ DOCS UPDATED: <files | none>
 CHANGELOG: <entry title | n/a>
 LESSONS LEARNT: <none | docs/LESSONS_LEARNT.md entry title>
 ```
-Missing any line = task failure. Run gate; if `failure`, fix and re-run until `success`, then output the 4 lines.
+Missing any line = task failure. Run gate; fix to `success`; then output the 4 lines.
 
 ## Spec contract awareness
-`specs/services/<id>.yaml::shape` drives registrar firing on `fabrik apply` (postgres/redis/gatus/backrest/glitchtip/authelia/meilisearch/prometheus). Code MUST match shape — update both. DB call → `needs_database`; cache → `needs_cache`; `/metrics` → `exposes_metrics`; search → `has_search_feature`; admin UI behind auth → `is_admin_dashboard`. Contradiction = registrar skipped = silently broken deploy. Preview: `fabrik plan specs/services/<id>.yaml`.
+`specs/services/<id>.yaml::shape` drives registrars on `fabrik apply`. Code MUST match shape — update both: DB call → `needs_database`; cache → `needs_cache`; `/metrics` → `exposes_metrics`; search → `has_search_feature`; admin UI behind auth → `is_admin_dashboard`. Contradiction = registrar skipped = broken deploy. Preview: `fabrik plan <spec>`.
