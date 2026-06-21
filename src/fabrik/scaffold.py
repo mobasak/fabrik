@@ -2190,24 +2190,28 @@ async def _beat_loop(pool: asyncpg.Pool) -> None:
     connections and leak the lock forever. Hence the dedicated ``acquire()``.
     """
     while not _shutdown.is_set():
-        async with pool.acquire() as conn:
-            got = await conn.fetchval("SELECT pg_try_advisory_lock($1)", BEAT_LOCK_KEY)
-            if got:
-                try:
-                    # Orphan sweep — reclaim jobs stuck in 'processing' past the timeout.
-                    await conn.execute(
-                        """
-                        UPDATE jobs SET status = 'pending', updated_at = NOW()
-                        WHERE status = 'processing'
-                          AND updated_at < NOW() - $1::interval
-                        """,
-                        ORPHAN_TIMEOUT,
-                    )
-                    # Add cron/periodic tasks here by INSERTing into ``jobs`` — they are
-                    # dispatched onto the queue, not run inline by the scheduler (75 §Beat).
-                    log.info("beat_tick")
-                finally:
-                    await conn.fetchval("SELECT pg_advisory_unlock($1)", BEAT_LOCK_KEY)
+        try:
+            async with pool.acquire() as conn:
+                got = await conn.fetchval("SELECT pg_try_advisory_lock($1)", BEAT_LOCK_KEY)
+                if got:
+                    try:
+                        # Orphan sweep — reclaim jobs stuck in 'processing' past the timeout.
+                        await conn.execute(
+                            """
+                            UPDATE jobs SET status = 'pending', updated_at = NOW()
+                            WHERE status = 'processing'
+                              AND updated_at < NOW() - $1::interval
+                            """,
+                            ORPHAN_TIMEOUT,
+                        )
+                        # Add cron/periodic tasks here by INSERTing into ``jobs`` — they are
+                        # dispatched onto the queue, not run inline by the scheduler (75 §Beat).
+                        log.info("beat_tick")
+                    finally:
+                        await conn.fetchval("SELECT pg_advisory_unlock($1)", BEAT_LOCK_KEY)
+        except Exception as exc:  # noqa: BLE001 — e.g. the schema/jobs table isn't applied
+            # yet (Fabrik runs no migrations); log and retry — never crash the worker.
+            log.warning("beat_loop_error", error=str(exc))
         await asyncio.sleep(BEAT_TICK_SEC)
 
 
