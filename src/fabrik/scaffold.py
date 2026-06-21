@@ -225,7 +225,8 @@ _SHARED_REQUIRED_FILES = [
 
 TYPE_REQUIRED_FILES: dict[str, list[str]] = {
     "python-api": _SHARED_REQUIRED_FILES + ["Dockerfile", "compose.yaml"],
-    "saas-skeleton": _SHARED_REQUIRED_FILES + ["compose.yaml"],
+    "saas-skeleton": _SHARED_REQUIRED_FILES
+    + ["compose.yaml", "server/requirements.txt", "server/Dockerfile", "server/db/schema.sql"],
     "static-site": _SHARED_REQUIRED_FILES + ["compose.yaml"],
     "node-api": _SHARED_REQUIRED_FILES + ["Dockerfile", "package.json", "compose.yaml"],
     "file-api": _SHARED_REQUIRED_FILES
@@ -1175,64 +1176,17 @@ Obsolete or completed docs for {name}.
     _install_pre_commit(project_dir)
 
 
-def _scaffold_python_api(project_dir: Path, name: str, description: str, **kwargs: object) -> None:
-    """Create Python API-specific project structure."""
-    package_name = _get_package_name(name)
-    today = date.today().isoformat()
+def _scaffold_fastapi_backend(dest_dir: Path, name: str, package_name: str) -> None:
+    """Emit the canonical Fabrik FastAPI backend package into ``dest_dir``.
 
-    # Create Python API-specific directories
-    for d in _PYTHON_API_DIRS:
-        (project_dir / d).mkdir(parents=True, exist_ok=True)
-
-    # Copy Python API templates
-    # B16: ``<domain>`` is substituted into compose.yaml.template's Traefik
-    # labels so the scaffolded compose carries the correct Host(...) rule.
-    # Default Fabrik convention is ``<name>.vps1.ocoron.com``; users can
-    # edit the file post-scaffold for staging/custom domains.
-    domain = f"{name}.vps1.ocoron.com"
-    for src, dest in _PYTHON_API_TEMPLATE_MAP.items():
-        src_path = TEMPLATE_DIR / src
-        if src_path.exists():
-            content = src_path.read_text()
-            for old, new in [
-                ("[Project Name]", name),
-                ("<project>", name),  # QUICKSTART paths + compose service name
-                ("project-name", name),  # pyproject.toml
-                ("myproject", name),  # Makefile
-                ("[package_name]", package_name),  # README imports
-                ("<package_name>", package_name),  # QUICKSTART imports
-                ("<domain>", domain),  # compose Traefik labels (B16)
-                ("YYYY-MM-DD", today),
-                ("[Brief description]", description),
-                ("[One-line description]", description),
-                ("Brief project description", description),  # pyproject.toml
-            ]:
-                content = content.replace(old, new)
-            (project_dir / dest).write_text(content)
-
-    # Create requirements.txt (production dependencies only)
-    (project_dir / "requirements.txt").write_text(
-        "fastapi>=0.115.0\nuvicorn[standard]>=0.32.0\npydantic>=2.9.0\npython-dotenv>=1.0.0\nhttpx>=0.28.0\nstructlog>=24.0.0\nprometheus-client>=0.21.0\nsentry-sdk[fastapi]>=2.18.0\n"
-    )
-
-    # Create requirements-dev.txt (includes dev dependencies)
-    # pytest + pytest-asyncio are explicit because tests/test_health.py is
-    # scaffolded alongside this file; relying on transitive resolution via
-    # semgrep etc. is brittle across environments.
-    (project_dir / "requirements-dev.txt").write_text(
-        "-r requirements.txt\n"
-        "pytest>=8.3.0\n"
-        "pytest-asyncio>=0.24.0\n"
-        "ruff\n"
-        "mypy\n"
-        "bandit\n"
-        "semgrep\n"
-        "sqlfluff\n"
-        "vulture\n"
-    )
-
+    Single source of truth for the backend that both ``python-api`` (dest_dir ==
+    project root) and ``saas-skeleton`` (dest_dir == ``project/server``) emit:
+    ``src/<package_name>/{__init__,internal_auth,metrics,glitchtip_init,logger,
+    pause_state,middleware,main}.py``. Pure file emission — no venv/tests/
+    template side effects; callers add those and their own requirements.txt.
+    """
     # Create starter src/<package_name>/ package with logger, middleware, and main
-    package_dir = project_dir / "src" / package_name
+    package_dir = dest_dir / "src" / package_name
     package_dir.mkdir(parents=True, exist_ok=True)
     (package_dir / "__init__.py").write_text("")
 
@@ -1501,6 +1455,67 @@ def init_glitchtip() -> bool:
         f'    return {{"message": "Welcome to {name}"}}\n'
     )
 
+
+def _scaffold_python_api(project_dir: Path, name: str, description: str, **kwargs: object) -> None:
+    """Create Python API-specific project structure."""
+    package_name = _get_package_name(name)
+    today = date.today().isoformat()
+
+    # Create Python API-specific directories
+    for d in _PYTHON_API_DIRS:
+        (project_dir / d).mkdir(parents=True, exist_ok=True)
+
+    # Copy Python API templates
+    # B16: ``<domain>`` is substituted into compose.yaml.template's Traefik
+    # labels so the scaffolded compose carries the correct Host(...) rule.
+    # Default Fabrik convention is ``<name>.vps1.ocoron.com``; users can
+    # edit the file post-scaffold for staging/custom domains.
+    domain = f"{name}.vps1.ocoron.com"
+    for src, dest in _PYTHON_API_TEMPLATE_MAP.items():
+        src_path = TEMPLATE_DIR / src
+        if src_path.exists():
+            content = src_path.read_text()
+            for old, new in [
+                ("[Project Name]", name),
+                ("<project>", name),  # QUICKSTART paths + compose service name
+                ("project-name", name),  # pyproject.toml
+                ("myproject", name),  # Makefile
+                ("[package_name]", package_name),  # README imports
+                ("<package_name>", package_name),  # QUICKSTART imports
+                ("<domain>", domain),  # compose Traefik labels (B16)
+                ("YYYY-MM-DD", today),
+                ("[Brief description]", description),
+                ("[One-line description]", description),
+                ("Brief project description", description),  # pyproject.toml
+            ]:
+                content = content.replace(old, new)
+            (project_dir / dest).write_text(content)
+
+    # Create requirements.txt (production dependencies only)
+    (project_dir / "requirements.txt").write_text(
+        "fastapi>=0.115.0\nuvicorn[standard]>=0.32.0\npydantic>=2.9.0\npython-dotenv>=1.0.0\nhttpx>=0.28.0\nstructlog>=24.0.0\nprometheus-client>=0.21.0\nsentry-sdk[fastapi]>=2.18.0\n"
+    )
+
+    # Create requirements-dev.txt (includes dev dependencies)
+    # pytest + pytest-asyncio are explicit because tests/test_health.py is
+    # scaffolded alongside this file; relying on transitive resolution via
+    # semgrep etc. is brittle across environments.
+    (project_dir / "requirements-dev.txt").write_text(
+        "-r requirements.txt\n"
+        "pytest>=8.3.0\n"
+        "pytest-asyncio>=0.24.0\n"
+        "ruff\n"
+        "mypy\n"
+        "bandit\n"
+        "semgrep\n"
+        "sqlfluff\n"
+        "vulture\n"
+    )
+
+    # Emit the canonical FastAPI backend package (shared with saas-skeleton,
+    # via _scaffold_fastapi_backend). Keeps one backend generator.
+    _scaffold_fastapi_backend(project_dir, name, package_name)
+
     # Append SERVICE_NAME to .env.example (written by _scaffold_shared)
     with open(project_dir / ".env.example", "a") as f:
         f.write(f"\n# Service identity for structured logging\nSERVICE_NAME={name}\n")
@@ -1647,6 +1662,940 @@ _SAAS_SKIP_FILES = {"AGENTS.md", "pyproject.toml", "requirements.txt"}
 _SAAS_SKIP_DIRS = {"node_modules", ".next", ".turbo", "dist", "build", "__pycache__"}
 
 
+# ───────────────────────────────────────────────────────────────────────────
+# saas-skeleton backend (FastAPI) — multi-tenant + auth + jobs tier
+#
+# Emitted under ``<project>/server`` by ``_scaffold_saas_backend``. The base
+# package comes from ``_scaffold_fastapi_backend`` (shared with python-api);
+# the saas layer adds db/schema.sql (RLS + jobs queue), tenant.py, auth.py,
+# worker.py, and a saas-flavoured main.py. Grounded in .windsurf/rules:
+# 95-multi-tenant-saas, 35-security-auth, 15-api-contracts, 75-workers-jobs.
+# Bodies use __PKG__/__NAME__ tokens (not f-strings) to avoid brace escaping.
+# ───────────────────────────────────────────────────────────────────────────
+
+_SAAS_SERVER_REQUIREMENTS = (
+    "fastapi>=0.115.0\n"
+    "uvicorn[standard]>=0.32.0\n"
+    "pydantic>=2.9.0\n"
+    "python-dotenv>=1.0.0\n"
+    "httpx>=0.28.0\n"
+    "structlog>=24.0.0\n"
+    "prometheus-client>=0.21.0\n"
+    "sentry-sdk[fastapi]>=2.18.0\n"
+    "asyncpg>=0.30.0\n"
+    "pyjwt[crypto]>=2.9.0\n"
+)
+
+_SAAS_SCHEMA_SQL = """-- schema.sql — multi-tenant schema for __NAME__ (PostgreSQL, RLS fail-closed).
+-- Per .windsurf/rules/saas/95-multi-tenant-saas.md (RLS) + core/75-workers-jobs.md (queue).
+-- Apply once after the DB is provisioned:  psql "$DATABASE_URL" -f db/schema.sql
+-- (Fabrik runs NO automatic migrations — you apply this yourself.)
+
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+-- RLS only bites for NON-superusers. Fabrik's DATABASE_URL connects as the
+-- ``postgres`` superuser, which BYPASSES row-level security even with FORCE.
+-- So tenant-scoped requests must ``SET LOCAL ROLE app_rls`` (a plain,
+-- non-superuser role) per transaction — see server/src/__PKG__/tenant.py.
+-- The worker keeps the superuser connection so it can drain every tenant.
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_rls') THEN
+        CREATE ROLE app_rls NOLOGIN;
+    END IF;
+END
+$$;
+
+-- Tenants — the isolation boundary -------------------------------------------
+CREATE TABLE IF NOT EXISTS tenants (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    slug        TEXT UNIQUE NOT NULL,
+    name        TEXT NOT NULL,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Membership — which Supabase user belongs to which tenant -------------------
+CREATE TABLE IF NOT EXISTS memberships (
+    tenant_id   UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    user_id     UUID NOT NULL,              -- Supabase auth.users.id (JWT ``sub``)
+    role        TEXT NOT NULL DEFAULT 'member',
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (tenant_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_memberships_user ON memberships(user_id);
+
+-- Fail-closed tenant resolver: NULL when app.tenant_id is unset/blank --------
+-- NULLIF(...,'')::UUID => NULL => every tenant_isolation policy DENIES.
+CREATE OR REPLACE FUNCTION current_tenant_id() RETURNS UUID AS $$
+    SELECT NULLIF(current_setting('app.tenant_id', TRUE), '')::UUID;
+$$ LANGUAGE sql STABLE;
+
+-- Example tenant-scoped resource (the wired CRUD pattern) -------------------
+CREATE TABLE IF NOT EXISTS widgets (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id   UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    name        TEXT NOT NULL,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_widgets_tenant ON widgets(tenant_id);
+
+ALTER TABLE widgets ENABLE ROW LEVEL SECURITY;
+ALTER TABLE widgets FORCE  ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON widgets;
+CREATE POLICY tenant_isolation ON widgets
+    USING (tenant_id = current_tenant_id())
+    WITH CHECK (tenant_id = current_tenant_id());
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON tenants, memberships, widgets TO app_rls;
+
+-- Background-jobs queue: PostgreSQL IS the broker (no Celery/Rabbit/Redis) ---
+-- Claimed with FOR UPDATE SKIP LOCKED; NOTIFY wakes idle workers instantly.
+-- NOT RLS-forced: the worker (superuser) drains across tenants; the API
+-- filters by tenant_id explicitly when it enqueues/reads its own jobs.
+CREATE TABLE IF NOT EXISTS jobs (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id   UUID REFERENCES tenants(id) ON DELETE CASCADE,
+    task_name   TEXT NOT NULL,
+    payload     JSONB NOT NULL DEFAULT '{}'::jsonb,
+    status      TEXT NOT NULL DEFAULT 'pending'
+                CHECK (status IN ('pending', 'processing', 'completed', 'failed')),
+    attempts    INT NOT NULL DEFAULT 0,
+    max_retries INT NOT NULL DEFAULT 5,
+    run_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+-- Mandatory partial index — without it, claim queries full-scan (75 §Schema).
+CREATE INDEX IF NOT EXISTS idx_jobs_pending ON jobs (run_at) WHERE status = 'pending';
+
+-- The API enqueues/reads its own tenant's jobs as app_rls (inside a tenant txn);
+-- the worker UPDATEs status as the superuser. Grant the API role accordingly.
+GRANT SELECT, INSERT, UPDATE ON jobs TO app_rls;
+
+-- Instant wake-up: NOTIFY on insert; the worker LISTENs (75 §Worker Wake-Up).
+CREATE OR REPLACE FUNCTION notify_job_inserted() RETURNS TRIGGER AS $$
+BEGIN
+    PERFORM pg_notify('job_inserted', NEW.id::text);
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+DROP TRIGGER IF EXISTS trg_job_inserted ON jobs;
+CREATE TRIGGER trg_job_inserted AFTER INSERT ON jobs
+    FOR EACH ROW EXECUTE FUNCTION notify_job_inserted();
+"""
+
+_SAAS_TENANT_PY = '''"""Tenant context propagation for __NAME__ (multi-tenant RLS).
+
+Per .windsurf/rules/saas/95-multi-tenant-saas.md: resolve the tenant per
+request, validate membership (403 if the user is not a member), expose it via
+a ContextVar, and ``SET LOCAL app.tenant_id`` at the start of every DB
+transaction so PostgreSQL RLS appends the tenant filter automatically.
+Developers then write plain queries — the ``tenant_isolation`` policy scopes
+them transparently.
+"""
+from __future__ import annotations
+
+from contextvars import ContextVar
+from typing import Any
+
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.responses import JSONResponse, Response
+
+from __PKG__.auth import decode_supabase_jwt
+
+# Empty default => current_setting('app.tenant_id') is '' => current_tenant_id()
+# returns NULL => RLS denies. The context is fail-closed by construction.
+tenant_context: ContextVar[str] = ContextVar("tenant_id", default="")
+
+# Paths that never carry a tenant (health/metrics/landing) — pass straight through.
+_PUBLIC_PREFIXES = ("/api/health", "/health", "/metrics", "/")
+
+
+def get_tenant_id() -> str:
+    """Return the current request's tenant id, or '' when unset (RLS denies)."""
+    return tenant_context.get()
+
+
+def _problem(status: int, title: str, detail: str, request: Request) -> JSONResponse:
+    return JSONResponse(
+        status_code=status,
+        media_type="application/problem+json",
+        content={
+            "type": "about:blank",
+            "title": title,
+            "status": status,
+            "detail": detail,
+            "instance": request.url.path,
+        },
+    )
+
+
+async def _is_member(tenant_id: str, user_id: str) -> bool:
+    """Validate that ``user_id`` belongs to ``tenant_id`` — FAIL-CLOSED by default.
+
+    Returns ``False`` until you wire a real lookup against the ``memberships``
+    table (``SELECT 1 FROM memberships WHERE tenant_id=$1 AND user_id=$2``). This
+    gates ONLY the untrusted ``X-Tenant-ID`` header path; a tenant carried on the
+    cryptographically-validated JWT is trusted without this check. Defaulting to
+    ``False`` means the header path is DENIED until you implement it, rather than
+    letting any authenticated user cross into any tenant by setting a header.
+    """
+    return False
+
+
+class TenantMiddleware(BaseHTTPMiddleware):
+    """Decode the Supabase JWT, resolve + validate the tenant, bind the ContextVar.
+
+    Tenant resolution is fail-closed and trust-aware:
+      * ``tenant_id`` on the **validated JWT** is trusted (Supabase signed it) —
+        bound directly.
+      * ``X-Tenant-ID`` **header** is user-controlled and untrusted — bound only
+        if ``_is_member`` confirms membership (403 otherwise; denied by default).
+      * neither present → empty tenant → RLS denies every row (fail-closed).
+    A present-but-invalid bearer token is rejected with 401; public paths skip auth.
+    """
+
+    async def dispatch(self, request: Request, call_next: Any) -> Response:
+        if request.url.path in _PUBLIC_PREFIXES or request.url.path.startswith("/metrics"):
+            return await call_next(request)
+
+        claims: dict[str, Any] = {}
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.lower().startswith("bearer "):
+            try:
+                claims = decode_supabase_jwt(auth_header[7:].strip())
+            except Exception:  # noqa: BLE001 — any decode failure is a 401
+                return _problem(401, "Unauthorized", "Invalid or expired token", request)
+        request.state.jwt_claims = claims
+
+        user_id = claims.get("sub", "") if claims else ""
+        claim_tenant = (claims.get("tenant_id") or "") if claims else ""
+        if claim_tenant:
+            tenant_id = claim_tenant  # trusted: signed into the JWT
+        elif claims:
+            # Authenticated but no tenant claim — the untrusted X-Tenant-ID header
+            # is honoured only after an explicit membership check (denied by default).
+            header_tenant = request.headers.get("X-Tenant-ID", "")
+            if header_tenant and not await _is_member(header_tenant, user_id):
+                return _problem(403, "Forbidden", "Not a member of this tenant", request)
+            tenant_id = header_tenant
+        else:
+            # Unauthenticated — no tenant; require_user issues a clean 401 on
+            # protected routes, and RLS denies everything in the meantime.
+            tenant_id = ""
+
+        ctx_token = tenant_context.set(tenant_id)
+        try:
+            return await call_next(request)
+        finally:
+            tenant_context.reset(ctx_token)
+
+
+async def apply_tenant(conn: Any) -> None:
+    """Scope a transaction to the current tenant — call FIRST in every txn::
+
+        async with pool.acquire() as conn:
+            async with conn.transaction():
+                await apply_tenant(conn)
+                rows = await conn.fetch("SELECT * FROM widgets")  # RLS-filtered
+
+    ``SET LOCAL ROLE app_rls`` drops superuser so RLS actually applies (Fabrik's
+    DATABASE_URL is the postgres superuser, which would otherwise bypass it),
+    then ``SET LOCAL app.tenant_id`` feeds ``current_tenant_id()``.
+    """
+    await conn.execute("SET LOCAL ROLE app_rls")
+    await conn.execute("SELECT set_config('app.tenant_id', $1, true)", get_tenant_id())
+'''
+
+_SAAS_AUTH_PY = '''"""Auth Pattern B for __NAME__ — validate Supabase-issued JWTs via JWKS.
+
+Per .windsurf/rules/core/35-security-auth.md: a saas-skeleton backend does NOT
+issue its own user tokens. Supabase Auth is the IdP; this service only
+*validates* the Supabase JWT (asymmetric RS256/ES256 via the project JWKS) and
+trusts its claims. Also ships the standard security-headers middleware and a
+CORS allow-list sourced from the environment (never ``*`` with credentials).
+
+NOTE — signing algorithm (35 §Supabase JWT Validation): this validates the
+ASYMMETRIC (RS256/ES256) tokens issued by Supabase's modern JWT signing keys.
+LEGACY Supabase projects still on the symmetric HS256 secret have an EMPTY JWKS
+endpoint, so this path silently fails for them — verify those with the legacy
+JWT secret (HMAC) instead, or migrate the project to asymmetric keys.
+Login / signup / password-reset (and their rate limiting, 35 §Rate Limiting)
+live in Supabase Auth, NOT in this backend — there is nothing here to rate-limit.
+"""
+from __future__ import annotations
+
+import os
+from typing import Any
+
+import jwt
+from fastapi import HTTPException, Request
+from jwt import PyJWKClient
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response
+
+# Supabase JWKS: https://<project>.supabase.co/auth/v1/.well-known/jwks.json
+SUPABASE_JWKS_URL = os.getenv("SUPABASE_JWKS_URL", "")
+SUPABASE_JWT_AUD = os.getenv("SUPABASE_JWT_AUD", "authenticated")
+
+_jwks_client: PyJWKClient | None = None
+
+
+def _client() -> PyJWKClient:
+    global _jwks_client
+    if not SUPABASE_JWKS_URL:
+        raise RuntimeError("SUPABASE_JWKS_URL is not configured")
+    if _jwks_client is None:
+        _jwks_client = PyJWKClient(SUPABASE_JWKS_URL)
+    return _jwks_client
+
+
+def decode_supabase_jwt(token: str) -> dict[str, Any]:
+    """Validate a Supabase JWT and return its claims. Raises on any failure."""
+    signing_key = _client().get_signing_key_from_jwt(token)
+    return jwt.decode(
+        token,
+        signing_key.key,
+        algorithms=["RS256", "ES256"],
+        audience=SUPABASE_JWT_AUD,
+        options={"require": ["exp", "sub"]},
+    )
+
+
+async def require_user(request: Request) -> dict[str, Any]:
+    """FastAPI dependency — gate a route on a validated user.
+
+    ``TenantMiddleware`` has already decoded the bearer token and stashed the
+    claims on ``request.state``; this just enforces their presence (401 if not)
+    and surfaces the auth requirement in the OpenAPI schema.
+    """
+    claims = getattr(request.state, "jwt_claims", None)
+    if not claims:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    return claims  # type: ignore[no-any-return]
+
+
+# Precomputed once — attached to every response (35 §Security Headers).
+_SECURITY_HEADERS = {
+    "Strict-Transport-Security": "max-age=63072000; includeSubDomains; preload",
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "X-XSS-Protection": "0",
+}
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Attach the standard security headers to every response (35:112)."""
+
+    async def dispatch(self, request: Request, call_next: Any) -> Response:
+        response: Response = await call_next(request)
+        for key, value in _SECURITY_HEADERS.items():
+            response.headers.setdefault(key, value)
+        return response
+
+
+def cors_origins() -> list[str]:
+    """Allow-list from ``CORS_ORIGINS`` (comma-separated). Empty => no CORS.
+
+    Never returns ``["*"]`` — credentialed wildcard CORS is banned (35:91).
+    """
+    raw = os.getenv("CORS_ORIGINS", "").strip()
+    return [o.strip() for o in raw.split(",") if o.strip() and o.strip() != "*"]
+'''
+
+_SAAS_WORKER_PY = '''"""Background worker for __NAME__ — PostgreSQL queue + adaptive pool + beat.
+
+The canonical Fabrik job model (.windsurf/rules/core/75-workers-jobs.md):
+  * PostgreSQL is the queue — no external broker. Jobs are claimed with
+    ``SELECT ... FOR UPDATE SKIP LOCKED`` so N concurrent loops never block.
+  * Instant wake-up — idle loops block on LISTEN/NOTIFY (``job_inserted``) with a
+    safety-net fallback poll; no banned ``sleep(1)`` busy-poll (75 §Worker Wake-Up).
+  * Adaptive pool — the number of concurrent claim-loops scales between
+    ``WORKER_MIN`` and ``WORKER_MAX`` on queue depth (``scale_loop``, 30s tick).
+  * Beat scheduler — a single leader (``pg_advisory_lock``) runs periodic/cron
+    tasks (orphan sweep, etc.) exactly once, even across N replicas.
+
+Run (the compose ``worker`` service command):  python -m __PKG__.worker
+
+This is an asyncio implementation tuned for I/O-bound jobs. For CPU-bound work,
+swap in the fork-based adaptive pool from the file-worker scaffold.
+"""
+from __future__ import annotations
+
+import asyncio
+import os
+import signal
+from typing import Any
+
+import asyncpg
+
+from __PKG__.glitchtip_init import init_glitchtip
+from __PKG__.logger import get_logger
+
+log = get_logger(__name__)
+
+DATABASE_URL = os.getenv("DATABASE_URL", "")
+WORKER_MIN = int(os.getenv("WORKER_MIN", "1"))
+WORKER_MAX = int(os.getenv("WORKER_MAX", "8"))
+SCALE_TICK_SEC = int(os.getenv("WORKER_SCALE_TICK_SEC", "30"))
+BEAT_TICK_SEC = int(os.getenv("WORKER_BEAT_TICK_SEC", "300"))
+# Safety-net poll: workers wake instantly on NOTIFY; this bounds a missed one.
+POLL_FALLBACK_SEC = int(os.getenv("WORKER_POLL_FALLBACK_SEC", "60"))
+ORPHAN_TIMEOUT = os.getenv("WORKER_ORPHAN_TIMEOUT", "10 minutes")
+# Stable advisory-lock key so only ONE replica runs the beat scheduler.
+BEAT_LOCK_KEY = int(os.getenv("WORKER_BEAT_LOCK_KEY", "910771"))
+
+_shutdown = asyncio.Event()
+# Set by the LISTEN/NOTIFY listener to instantly wake idle claim-loops.
+_wake = asyncio.Event()
+
+
+async def _handle(row: asyncpg.Record) -> None:
+    """Example job handler. Replace with a ``task_name`` dispatch table.
+
+    Handlers MUST be idempotent — delivery is at-least-once (75 §Idempotency).
+    """
+    log.info("job_processed", job_id=str(row["id"]), task=row["task_name"])
+
+
+async def _claim_one(pool: asyncpg.Pool) -> bool:
+    """Claim and run a single job. Returns True if a job was processed."""
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            row = await conn.fetchrow(
+                """
+                SELECT id, task_name, payload, attempts, max_retries
+                FROM jobs
+                WHERE status = 'pending' AND run_at <= NOW()
+                ORDER BY run_at
+                FOR UPDATE SKIP LOCKED
+                LIMIT 1
+                """
+            )
+            if row is None:
+                return False
+            await conn.execute(
+                "UPDATE jobs SET status = 'processing', updated_at = NOW() WHERE id = $1",
+                row["id"],
+            )
+    # Process OUTSIDE the claim txn so a slow handler never holds the row lock.
+    try:
+        await _handle(row)
+        await pool.execute(
+            "UPDATE jobs SET status = 'completed', updated_at = NOW() WHERE id = $1",
+            row["id"],
+        )
+    except Exception as exc:  # noqa: BLE001 — retry with backoff, else dead-letter
+        attempts = row["attempts"] + 1
+        terminal = attempts >= row["max_retries"]
+        await pool.execute(
+            """
+            UPDATE jobs
+            SET status = $2,
+                attempts = $3,
+                run_at = NOW() + (INTERVAL '5 seconds' * POWER(2, $3)),
+                updated_at = NOW()
+            WHERE id = $1
+            """,
+            row["id"],
+            "failed" if terminal else "pending",
+            attempts,
+        )
+        log.error("job_failed", job_id=str(row["id"]), error=str(exc), terminal=terminal)
+    return True
+
+
+async def _claim_loop(pool: asyncpg.Pool, worker_id: int) -> None:
+    """One worker: claim → process → repeat.
+
+    When the queue is empty the loop BLOCKS on the LISTEN/NOTIFY wake event
+    (set by ``_listen_loop`` on job insertion) with a ``POLL_FALLBACK_SEC``
+    safety-net timeout — never a naive ``sleep(1)`` busy-poll (75 §Worker
+    Wake-Up). A missed NOTIFY costs at most one fallback interval of latency,
+    not a lost job.
+    """
+    while not _shutdown.is_set():
+        try:
+            did = await _claim_one(pool)
+        except Exception as exc:  # noqa: BLE001 — never let a loop die silently
+            log.error("claim_loop_error", worker=worker_id, error=str(exc))
+            did = False
+        if did:
+            continue  # keep draining while work remains
+        _wake.clear()
+        try:
+            await asyncio.wait_for(_wake.wait(), timeout=POLL_FALLBACK_SEC)
+        except asyncio.TimeoutError:
+            pass  # safety-net poll — re-check the queue
+
+
+async def _listen_loop() -> None:
+    """Hold a dedicated LISTEN connection and wake claim-loops on NOTIFY.
+
+    The schema's ``trg_job_inserted`` trigger fires ``pg_notify('job_inserted')``
+    on every insert (75 §Worker Wake-Up). Reconnects on drop — the claim-loop
+    fallback poll covers any gap. If the DB is reached through a transaction-mode
+    pooler (PgBouncer), point this at a DIRECT connection (``DATABASE_URL_DIRECT``):
+    LISTEN/NOTIFY does not survive transaction pooling.
+    """
+    dsn = os.getenv("DATABASE_URL_DIRECT", DATABASE_URL)
+    while not _shutdown.is_set():
+        conn = None
+        try:
+            conn = await asyncpg.connect(dsn)
+            await conn.add_listener("job_inserted", lambda *_a: _wake.set())
+            while not _shutdown.is_set():
+                await asyncio.sleep(5)
+                await conn.execute("SELECT 1")  # liveness — raises if the conn died
+        except Exception as exc:  # noqa: BLE001 — reconnect on any listener failure
+            log.warning("listen_reconnect", error=str(exc))
+            await asyncio.sleep(2)
+        finally:
+            if conn is not None:
+                await conn.close()
+
+
+async def _queue_depth(pool: asyncpg.Pool) -> int:
+    val = await pool.fetchval(
+        "SELECT COUNT(*) FROM jobs WHERE status = 'pending' AND run_at <= NOW()"
+    )
+    return int(val or 0)
+
+
+async def _scale_loop(pool: asyncpg.Pool, workers: list[asyncio.Task[Any]]) -> None:
+    """Grow/shrink the claim-loop pool between WORKER_MIN..WORKER_MAX on depth."""
+    while not _shutdown.is_set():
+        try:
+            depth = await _queue_depth(pool)
+        except Exception as exc:  # noqa: BLE001 — DB blip; keep current size
+            log.error("scale_loop_error", error=str(exc))
+            await asyncio.sleep(SCALE_TICK_SEC)
+            continue
+        target = max(WORKER_MIN, min(WORKER_MAX, depth or WORKER_MIN))
+        while len(workers) < target:
+            workers.append(asyncio.create_task(_claim_loop(pool, len(workers))))
+        while len(workers) > target:
+            workers.pop().cancel()
+        log.info("pool_scaled", depth=depth, workers=len(workers))
+        await asyncio.sleep(SCALE_TICK_SEC)
+
+
+async def _beat_loop(pool: asyncpg.Pool) -> None:
+    """Single-leader beat: only the advisory-lock holder enqueues periodic work.
+
+    A session-level advisory lock is bound to the CONNECTION that took it, so
+    the lock, the work, and the unlock must all run on the SAME connection —
+    using the pool's ``fetchval`` for each would check out different
+    connections and leak the lock forever. Hence the dedicated ``acquire()``.
+    """
+    while not _shutdown.is_set():
+        async with pool.acquire() as conn:
+            got = await conn.fetchval("SELECT pg_try_advisory_lock($1)", BEAT_LOCK_KEY)
+            if got:
+                try:
+                    # Orphan sweep — reclaim jobs stuck in 'processing' past the timeout.
+                    await conn.execute(
+                        """
+                        UPDATE jobs SET status = 'pending', updated_at = NOW()
+                        WHERE status = 'processing'
+                          AND updated_at < NOW() - $1::interval
+                        """,
+                        ORPHAN_TIMEOUT,
+                    )
+                    # Add cron/periodic tasks here by INSERTing into ``jobs`` — they are
+                    # dispatched onto the queue, not run inline by the scheduler (75 §Beat).
+                    log.info("beat_tick")
+                finally:
+                    await conn.fetchval("SELECT pg_advisory_unlock($1)", BEAT_LOCK_KEY)
+        await asyncio.sleep(BEAT_TICK_SEC)
+
+
+def _install_signals() -> None:
+    loop = asyncio.get_running_loop()
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        loop.add_signal_handler(sig, _shutdown.set)
+
+
+async def main() -> None:
+    if not DATABASE_URL:
+        raise SystemExit("DATABASE_URL is required for the worker")
+    init_glitchtip()  # unhandled job exceptions auto-report (75 §Observability)
+    _install_signals()
+    pool = await asyncpg.create_pool(DATABASE_URL, min_size=2, max_size=WORKER_MAX + 2)
+    assert pool is not None
+    workers: list[asyncio.Task[Any]] = [
+        asyncio.create_task(_claim_loop(pool, i)) for i in range(WORKER_MIN)
+    ]
+    log.info("worker_starting", min=WORKER_MIN, max=WORKER_MAX)
+    try:
+        await asyncio.gather(_scale_loop(pool, workers), _beat_loop(pool), _listen_loop())
+    finally:
+        for task in workers:
+            task.cancel()
+        await pool.close()
+        log.info("worker_stopped")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+'''
+
+_SAAS_MAIN_PY = '''"""Main entry point for __NAME__ — multi-tenant FastAPI backend.
+
+Wires the layers the saas-skeleton mandates:
+  * RFC 9457 ``application/problem+json`` errors (15 §Error Schema)
+  * ``/api/v1`` versioned business routes; unversioned ``/api/health`` + ``/metrics``
+  * camelCase JSON via a ``to_camel`` base model (15 §Casing)
+  * Supabase JWT auth (Pattern B) + security headers + CORS allow-list (35)
+  * Tenant context middleware feeding PostgreSQL RLS (95)
+"""
+from __future__ import annotations
+
+import os
+from contextlib import asynccontextmanager
+from typing import Any
+
+from fastapi import APIRouter, Depends, FastAPI, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, ConfigDict
+from pydantic.alias_generators import to_camel
+from starlette.exceptions import HTTPException as StarletteHTTPException
+
+from __PKG__.auth import SecurityHeadersMiddleware, cors_origins, require_user
+from __PKG__.glitchtip_init import init_glitchtip
+from __PKG__.logger import get_logger
+from __PKG__.metrics import metrics_app
+from __PKG__.middleware import CorrelationMiddleware
+from __PKG__.tenant import TenantMiddleware, get_tenant_id
+
+# Initialise error reporting BEFORE app construction.
+init_glitchtip()
+logger = get_logger(__name__)
+
+PROBLEM_JSON = "application/problem+json"
+
+
+class CamelModel(BaseModel):
+    """Base model — serialises camelCase, accepts camelCase or snake_case (15:22)."""
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+
+def _problem(status: int, title: str, detail: str, request: Request) -> JSONResponse:
+    """RFC 9457 problem+json response."""
+    return JSONResponse(
+        status_code=status,
+        media_type=PROBLEM_JSON,
+        content={
+            "type": "about:blank",
+            "title": title,
+            "status": status,
+            "detail": detail,
+            "instance": request.url.path,
+        },
+    )
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> Any:  # noqa: ARG001
+    logger.info("service_starting", port=os.getenv("PORT", "8000"))
+    yield
+    logger.info("service_stopping")
+
+
+app = FastAPI(title="__NAME__", lifespan=lifespan)
+
+# add_middleware stacks outermost-last: Correlation (outer) -> Security -> Tenant
+# (inner, runs right before the route so the ContextVar is set for handlers).
+app.add_middleware(TenantMiddleware)
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(CorrelationMiddleware)
+_origins = cors_origins()
+if _origins:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+# Prometheus metrics — scraped internally at /metrics (shape.exposes_metrics).
+app.mount("/metrics", metrics_app())
+
+
+@app.exception_handler(StarletteHTTPException)
+async def _http_exc(request: Request, exc: StarletteHTTPException) -> JSONResponse:
+    detail = exc.detail if isinstance(exc.detail, str) else "Error"
+    return _problem(exc.status_code, detail, detail, request)
+
+
+@app.exception_handler(RequestValidationError)
+async def _validation_exc(request: Request, exc: RequestValidationError) -> JSONResponse:
+    return _problem(422, "Unprocessable Entity", "Request validation failed", request)
+
+
+@app.get("/api/health")
+async def health() -> JSONResponse:
+    """Health check — verifies the real DB dependency (55 §Health, SELECT 1)."""
+    db_url = os.getenv("DATABASE_URL")
+    deps: dict[str, str] = {}
+    ok = True
+    if db_url:
+        try:
+            import asyncpg
+
+            conn = await asyncpg.connect(db_url, timeout=3)
+            try:
+                await conn.execute("SELECT 1")
+            finally:
+                await conn.close()
+            deps["database"] = "ok"
+        except Exception as exc:  # noqa: BLE001 — degrade, don't crash
+            deps["database"] = f"error: {exc}"
+            ok = False
+    else:
+        deps["database"] = "not_configured"
+    return JSONResponse(
+        status_code=200 if ok else 503,
+        content={
+            "service": "__NAME__",
+            "status": "ok" if ok else "degraded",
+            "dependencies": deps,
+        },
+    )
+
+
+# ── Example tenant-scoped resource (the wired CRUD pattern) ──────────────────
+v1 = APIRouter(prefix="/api/v1")
+
+
+class WidgetIn(CamelModel):
+    name: str
+
+
+class WidgetOut(CamelModel):
+    id: str
+    name: str
+
+
+@v1.get("/widgets", response_model=list[WidgetOut])
+async def list_widgets(claims: dict[str, Any] = Depends(require_user)) -> list[WidgetOut]:
+    """List the caller's widgets. RLS scopes the query to their tenant (95).
+
+    Wire a real asyncpg pool + ``tenant.apply_tenant(conn)`` here; returns [] until
+    then so the scaffold runs end-to-end without a populated database.
+    """
+    logger.info("list_widgets", tenant=get_tenant_id())
+    return []
+
+
+@v1.post("/widgets", response_model=WidgetOut, status_code=201)
+async def create_widget(
+    body: WidgetIn,
+    request: Request,
+    claims: dict[str, Any] = Depends(require_user),
+) -> WidgetOut:
+    """Create a widget. Honour ``X-Idempotency-Key`` for safe retries (15:57)."""
+    idempotency_key = request.headers.get("X-Idempotency-Key", "")
+    logger.info("create_widget", tenant=get_tenant_id(), idempotency_key=idempotency_key)
+    return WidgetOut(id="00000000-0000-0000-0000-000000000000", name=body.name)
+
+
+app.include_router(v1)
+
+
+@app.get("/")
+async def root() -> dict[str, str]:
+    return {"message": "Welcome to __NAME__"}
+'''
+
+
+def _write_saas_compose(project_dir: Path, name: str) -> None:
+    """Write the three-service saas ``compose.yaml`` (web + api + worker).
+
+    The Next.js ``web`` service keeps the project name (Coolify routing + the
+    ``test_scaffold_compose_traefik`` contract). ``api`` takes ``PathPrefix(/api)``
+    at higher priority (FastAPI backend, :8000); ``worker`` is internal —
+    queue-driven, no Traefik/ports. All three carry a memory limit
+    (``deployer_ssh._validate_compose`` enforces it per service).
+    """
+    fqdn = f"{name}.vps1.ocoron.com"
+    db_name = name.replace("-", "_")
+    # The postgres registrar only CREATES the DB — it does not inject DATABASE_URL.
+    # The container's DATABASE_URL is assembled here from POSTGRES_PASSWORD (in the
+    # VPS .env), interpolated by ``docker compose`` at up-time; off-VPS it falls back
+    # to the same default (matches templates/*/compose.yaml.j2). REDIS_URL *is*
+    # injected by the redis registrar, so the ${REDIS_URL:-...} default is overridden.
+    # ``env_file: .env`` then delivers the rest (GLITCHTIP_DSN, SUPABASE_*) — .env is
+    # always written by deployer_ssh before ``docker compose up``. Built as a plain
+    # string so the literal ${...} braces don't collide with f-string fields.
+    backend_env = (
+        "      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:"
+        "${POSTGRES_PASSWORD}@postgres-main:5432/" + db_name + "}\n"
+        "      - REDIS_URL=${REDIS_URL:-redis://redis-main:6379/0}"
+    )
+    content = f"""# compose.yaml - Production-like Docker Compose (saas-skeleton: 3 services)
+# Auto-generated by fabrik scaffold (_write_saas_compose).
+# Used by Coolify (git source) for first-deploy. Invariants (do not regress):
+#   - ``{name}`` (web) service name == project name (Coolify routing + docker ps)
+#   - ``api`` takes Host(...) && PathPrefix(`/api`) at higher priority
+#   - ``worker`` is internal: no Traefik labels, no published ports
+#   - every service declares deploy.resources.limits.memory (OOM invariant)
+#   - all join the external ``fabrik`` network for the Traefik mesh
+# See tests/test_scaffold_compose_traefik.py + test_scaffold_saas_backend.py.
+
+services:
+  {name}:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    platform: linux/amd64
+    container_name: {name}
+    environment:
+      - PORT=3000
+      - LOG_LEVEL=INFO
+    env_file:
+      - .env
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+    networks:
+      - fabrik
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=fabrik"
+      - "traefik.http.routers.{name}.rule=Host(`{fqdn}`)"
+      - "traefik.http.routers.{name}.entrypoints=websecure"
+      - "traefik.http.routers.{name}.tls=true"
+      - "traefik.http.routers.{name}.tls.certresolver=letsencrypt"
+      - "traefik.http.services.{name}.loadbalancer.server.port=3000"
+
+  api:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    platform: linux/amd64
+    container_name: {name}-api
+    environment:
+      - PORT=8000
+      - LOG_LEVEL=INFO
+{backend_env}
+    env_file:
+      - .env
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.5'
+    networks:
+      - fabrik
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=fabrik"
+      # Higher priority than the web router so /api/* reaches the backend, not Next.js.
+      - "traefik.http.routers.{name}-api.rule=Host(`{fqdn}`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.{name}-api.priority=100"
+      - "traefik.http.routers.{name}-api.entrypoints=websecure"
+      - "traefik.http.routers.{name}-api.tls=true"
+      - "traefik.http.routers.{name}-api.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.{name}-api.middlewares=gzip@docker"
+      - "traefik.http.services.{name}-api.loadbalancer.server.port=8000"
+
+  worker:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    platform: linux/amd64
+    container_name: {name}-worker
+    command: ["python", "-m", "{db_name}.worker"]
+    environment:
+      - LOG_LEVEL=INFO
+{backend_env}
+    env_file:
+      - .env
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f '{db_name}.worker' || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    restart: unless-stopped
+    stop_grace_period: 45s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+    networks:
+      - fabrik
+
+networks:
+  fabrik:
+    external: true
+"""
+    (project_dir / "compose.yaml").write_text(content, encoding="utf-8")
+
+
+def _scaffold_saas_backend(project_dir: Path, name: str, package_name: str) -> None:
+    """Emit the multi-tenant FastAPI backend under ``<project>/server``.
+
+    Reuses ``_scaffold_fastapi_backend`` for the base package (logger,
+    middleware, metrics, internal_auth, glitchtip_init) then layers on the
+    saas spine: db/schema.sql (RLS + jobs queue), tenant.py, auth.py, worker.py
+    and a saas-flavoured main.py. Bodies carry ``__PKG__``/``__NAME__`` tokens.
+    """
+    server_dir = project_dir / "server"
+    _scaffold_fastapi_backend(server_dir, name, package_name)
+
+    def _sub(text: str) -> str:
+        return text.replace("__PKG__", package_name).replace("__NAME__", name)
+
+    (server_dir / "requirements.txt").write_text(_SAAS_SERVER_REQUIREMENTS)
+
+    # server/Dockerfile — mirror the python Dockerfile, entrypoint at <pkg>.main:app.
+    # The saas backend serves /api/health (not /health), so retarget the image
+    # HEALTHCHECK to match — otherwise a plain ``docker run`` of the image (no
+    # compose override) would report unhealthy. The compose api healthcheck also
+    # uses /api/health.
+    dockerfile_src = TEMPLATE_DIR / "docker" / "Dockerfile.python"
+    if dockerfile_src.exists():
+        df = dockerfile_src.read_text()
+        df = df.replace("PROJECT_NAME", name).replace("<package_name>", package_name)
+        df = df.replace("${PORT:-8000}/health", "${PORT:-8000}/api/health")
+        (server_dir / "Dockerfile").write_text(df)
+
+    (server_dir / "db").mkdir(parents=True, exist_ok=True)
+    (server_dir / "db" / "schema.sql").write_text(_sub(_SAAS_SCHEMA_SQL))
+
+    pkg_dir = server_dir / "src" / package_name
+    (pkg_dir / "tenant.py").write_text(_sub(_SAAS_TENANT_PY))
+    (pkg_dir / "auth.py").write_text(_sub(_SAAS_AUTH_PY))
+    (pkg_dir / "worker.py").write_text(_sub(_SAAS_WORKER_PY))
+    # Overwrite the base main.py with the saas (multi-tenant) variant.
+    (pkg_dir / "main.py").write_text(_sub(_SAAS_MAIN_PY))
+
+
 def _scaffold_saas_skeleton(
     project_dir: Path, name: str, description: str, **kwargs: object
 ) -> None:
@@ -1707,19 +2656,14 @@ def _scaffold_saas_skeleton(
         f"export default logger;\n"
     )
 
-    # B21: Overwrite the template's compose.yaml with a Coolify-correct
-    # version. The shipped ``templates/saas-skeleton/compose.yaml`` uses
-    # ``${COMPOSE_PROJECT_NAME:-saas}`` and ``${DOMAIN:-localhost}`` as
-    # literals inside Traefik labels — Coolify's compose parser does not
-    # expand those, so the deployed app 404s at Traefik even when
-    # healthy. Next.js listens on 3000 by default with
-    # ``/api/health`` as the default healthcheck.
-    _write_canonical_compose(
-        project_dir,
-        name,
-        port=3000,
-        healthcheck_path="/api/health",
-    )
+    # Emit the multi-tenant FastAPI backend under server/ (Phase 1) and the
+    # three-service compose (web + api + worker) that fronts it (Phase 6).
+    # _write_saas_compose replaces the old single-service B21 canonical compose:
+    # it overwrites the template's compose.yaml with the Coolify-correct
+    # 3-service version (literal FQDN + ports in Traefik labels — Coolify does
+    # not expand ${VAR}; web on 3000, api on 8000 behind PathPrefix(/api)).
+    _scaffold_saas_backend(project_dir, name, _get_package_name(name))
+    _write_saas_compose(project_dir, name)
 
 
 def _vendor_docs_site(project_dir: Path, name: str) -> None:

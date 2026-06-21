@@ -663,9 +663,22 @@ class InfrastructureProvisioner:
             )
             metrics_path = monitoring.get("metrics_path", "/metrics")
             bearer_token = monitoring.get("bearer_token")
+            # Multi-service composes (saas-skeleton) serve /metrics on an
+            # INTERNAL container, not the public Traefik edge — the default
+            # ``<domain>:443`` target would scrape the Next.js frontend, which
+            # has no /metrics. Scrape the ``<name>-api`` container directly over
+            # the fabrik network instead. An explicit ``monitoring.target`` in
+            # the spec always wins.
+            target = monitoring.get("target")
+            scheme = monitoring.get("scheme", "https")
+            if target is None and spec.get("template") == "saas-skeleton":
+                target = f"{name}-api:8000"
+                scheme = "http"
             result = add_scrape_target(
                 name,
                 domain=domain,
+                target=target,
+                scheme=scheme,
                 metrics_path=metrics_path,
                 bearer_token=bearer_token,
                 dry_run=dry_run,

@@ -4390,3 +4390,20 @@ OpenRouter as fallback (configured via `WATCHDOG_OPENROUTER_KEY` in `/opt/<proje
 
 ---
 
+
+# Lesson 65: Postgres RLS is silently bypassed by the superuser DATABASE_URL — FORCE alone is not enough
+
+**Date:** 2026-06-21
+**Status:** Permanent Rule
+**Context:** Building the multi-tenant backend for the `saas-skeleton` scaffold. The `95-multi-tenant-saas` pack mandates `ENABLE` + `FORCE ROW LEVEL SECURITY` + a `tenant_isolation` policy keyed on `current_tenant_id()`. Implemented verbatim, the isolation would still have been **silently open**: Fabrik's postgres registrar hands every app a `DATABASE_URL` that connects as the **`postgres` superuser**, and a superuser **bypasses RLS entirely — even `FORCE`** (FORCE only closes the *table-owner* bypass, not the superuser bypass). So `SELECT * FROM widgets` would return every tenant's rows despite a correct policy.
+
+**Rule:** RLS only bites for a **non-superuser, non-owner** role. A scaffold/app that relies on RLS for tenant isolation must, per transaction:
+
+1. `SET LOCAL ROLE app_rls` (a `NOLOGIN`, non-superuser role created in `schema.sql` and `GRANT`ed CRUD on the tenant tables), then
+2. `SET LOCAL app.tenant_id = '<uuid>'` (feeds the fail-closed `current_tenant_id()`).
+
+Both are `LOCAL` so they reset at transaction end (safe with pooled superuser connections). The background **worker** deliberately does NOT `SET ROLE` — it keeps the superuser connection so it can drain the `jobs` queue across all tenants.
+
+**How to apply:** Any time RLS is the isolation mechanism on Fabrik (where `DATABASE_URL` is the postgres superuser), pair every `FORCE ROW LEVEL` table with (a) an `app_rls` role in `schema.sql` and (b) a `SET LOCAL ROLE app_rls` in the per-transaction tenant-scoping helper (`tenant.py::apply_tenant`). Verifying "the policy exists" is not verifying "isolation holds" — prove it by querying as the app role with a tenant set, not as `postgres`.
+
+---

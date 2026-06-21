@@ -6,10 +6,12 @@
 shape:
   kind: service
   is_public: true
-  is_admin_dashboard: false
-  has_bearer_api: false
+  is_admin_dashboard: false        # end-user auth is Supabase (Pattern B), not Authelia
+  has_bearer_api: true             # the FastAPI backend exposes a bearer-auth API
   has_persistent_data: true
   needs_database: true
+  needs_cache: true                # Redis: token denylist / API rate-limit / tenant cache (REDIS_URL delivered; wire as needed)
+  exposes_metrics: true            # backend serves /metrics (Prometheus scrapes the api service)
   has_search_feature: false
 
 env:

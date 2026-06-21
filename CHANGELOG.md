@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — saas-skeleton scaffolds a multi-tenant FastAPI backend + jobs tier (2026-06-21)
+
+`fabrik scaffold --type saas-skeleton` previously emitted a Next.js frontend with **no backend**. It now emits a pro-grade, multi-user backend under `server/` so every saas is backend-supported by default:
+
+- **Shared backend generator.** Extracted `_scaffold_fastapi_backend()` from `_scaffold_python_api` (no behaviour change — python-api tests stay green) so both types emit the one canonical FastAPI package (logger, middleware, metrics, internal_auth, glitchtip).
+- **Multi-tenant RLS** (`server/db/schema.sql`, `95-multi-tenant-saas`): `tenants`/`memberships`, fail-closed `current_tenant_id()` (NULLIF→deny), `tenant_isolation` policy with `ENABLE`+`FORCE`. Because Fabrik's `DATABASE_URL` is the **postgres superuser** (which bypasses RLS even under FORCE), the schema creates a non-superuser `app_rls` role and `tenant.py::apply_tenant()` does `SET LOCAL ROLE app_rls` + `SET LOCAL app.tenant_id` per transaction — so isolation actually bites. The worker keeps the superuser connection to drain across tenants. Tenant resolution is **trust-aware + fail-closed**: a `tenant_id` on the validated JWT is trusted; the user-controlled `X-Tenant-ID` header is honoured only after a membership check (`_is_member` defaults to deny); neither present → empty tenant → RLS returns nothing.
+- **Auth Pattern B** (`auth.py`, `35-security-auth`): validates Supabase JWTs via JWKS (no self-issued tokens), security-headers middleware (HSTS/`X-Frame-Options: DENY`/nosniff), env-driven CORS allow-list.
+- **API contracts** (`main.py`, `15-api-contracts`): RFC 9457 `application/problem+json`, `/api/v1` versioning, `to_camel` base model, `X-Idempotency-Key`, one wired tenant-scoped CRUD example; DB-checking `/api/health`.
+- **Background-jobs tier** (`worker.py` + `jobs` queue, `75-workers-jobs`): PostgreSQL-as-broker (`FOR UPDATE SKIP LOCKED`), idle loops wake instantly on `LISTEN/NOTIFY` (`job_inserted`) with a safety-net fallback poll (no banned `sleep(1)` busy-poll), an adaptive worker pool that auto-scales on queue depth (`WORKER_MIN`/`WORKER_MAX`), and a single-leader beat scheduler (`pg_try_advisory_lock`, dedicated connection) for cron/periodic tasks + orphan sweep. GlitchTip init + structured JSON logging at startup.
+- **Three-service compose** (`_write_saas_compose`): `web` (Next.js, == project name) + `api` (FastAPI behind `PathPrefix(/api)` at priority 100) + internal `worker` (no Traefik/ports); all memory-limited. `api` + `worker` receive `DATABASE_URL` (assembled from `POSTGRES_PASSWORD` — the postgres registrar creates the DB but does not inject the URL) + `REDIS_URL` via compose interpolation, plus `env_file: .env` for the registrar-injected DSNs — matching the proven `compose.yaml.j2` pattern (a git-source deploy runs the repo's compose, so these must be present or the worker crash-loops).
+- **Deploy services:** shape now sets `has_bearer_api`/`needs_cache`/`exposes_metrics` true and `is_admin_dashboard` false → `fabrik apply` provisions postgres + redis + prometheus + gatus + glitchtip + backrest (no Authelia). Prometheus scrapes the internal `<name>-api:8000/metrics` instead of the public edge.
+- New `tests/test_scaffold_saas_backend.py` (10 phase-mapped structural tests). Plan: `docs/development/plans/2026-06-21-saas-skeleton-backend.md`.
+
 ### Fixed — synced enforcement: doc-sync false-positive on web-nested schemas + ruff ARG001 (2026-06-20)
 
 Two defects in centrally-synced enforcement scripts, reported by a coder agent in `/opt/trade-intelligence`, fixed canonically in `/opt/fabrik` and re-synced fleet-wide:
