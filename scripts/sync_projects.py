@@ -449,18 +449,29 @@ def _display_status(status: str) -> str:
     }.get(status, status)
 
 
-def generate_catalog_markdown(projects: list[Project], deleted: list[str]) -> str:
-    """Generate markdown for project catalog."""
+def generate_catalog_markdown(projects: list[Project]) -> str:
+    """Generate markdown for project catalog.
+
+    Deterministic by design: BUSINESS_MODEL.md is a Fabrik-synced (byte-identical
+    across projects) file, so the rendered block contains only the current /opt
+    scan — no volatile timestamp and no transient "Recently Removed" section
+    (that varies by each copy's scan history and would red the synced gate).
+    Deletions are still reported on the console by the caller.
+    """
     production = [p for p in projects if p.category == "production"]
     active = [p for p in projects if p.category == "active"]
     planning = [p for p in projects if p.category == "planning"]
     shell = [p for p in projects if p.category == "shell"]
 
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     total = len(projects)
 
-    md = f"<!-- Last synced: {timestamp} -->\n"
-    md += f"<!-- Total projects: {total} -->\n\n"
+    # NOTE: no volatile "Last synced" timestamp here. BUSINESS_MODEL.md is a
+    # Fabrik-synced file (``fabrik_synced_manifest.py``) enforced byte-identical
+    # across every /opt project. A per-run timestamp would drift on every
+    # regeneration (each ``fabrik apply`` refreshes this block) and red the
+    # synced-files gate fleet-wide between a regen and the next sync. The
+    # generated block is kept deterministic from the /opt scan instead.
+    md = f"<!-- Total projects: {total} -->\n\n"
 
     for label, group in [
         ("Production Services", production),
@@ -477,13 +488,6 @@ def generate_catalog_markdown(projects: list[Project], deleted: list[str]) -> st
             url_display = p.url if p.url else "-"
             desc = p.description[:95] + "..." if len(p.description) > 98 else p.description
             md += f"| **{p.name}** | {desc} | {p.stack} | {_display_status(p.status)} | {url_display} | {_display_scaffold(p.scaffold_status)} |\n"
-        md += "\n"
-
-    if deleted:
-        md += f"### Recently Removed ({len(deleted)} projects)\n\n"
-        md += "| Project | Note |\n|---------|------|\n"
-        for name in deleted:
-            md += f"| ~~{name}~~ | Folder deleted since last scan |\n"
         md += "\n"
 
     return md
@@ -617,7 +621,7 @@ def main() -> int:
     print(f"   📁 Registry: {registry_path}")
 
     # Update human-readable catalog
-    catalog_md = generate_catalog_markdown(projects, deleted)
+    catalog_md = generate_catalog_markdown(projects)
     if update_business_model(catalog_md):
         print("   📄 Updated docs/BUSINESS_MODEL.md")
     else:
