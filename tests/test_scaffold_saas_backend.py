@@ -95,9 +95,9 @@ def test_tenant_middleware(project: Path) -> None:
     tenant = (_pkg(project) / "tenant.py").read_text()
     assert "ContextVar" in tenant
     assert "TenantMiddleware" in tenant
-    assert "app.tenant_id" in tenant
-    assert "app_rls" in tenant  # SET LOCAL ROLE so RLS bites despite superuser URL
-    assert "403" in tenant  # membership validation
+    assert "set_config('app.tenant_id'" in tenant  # per-txn tenant binding for RLS
+    assert "SET LOCAL ROLE" not in tenant  # app connects as the non-superuser owner role
+    assert "403" in tenant  # membership validation (fail-closed header path)
 
 
 # Phase 4 — auth Pattern B + security headers + CORS ------------------------

@@ -145,6 +145,7 @@ class TestCreateDatabase:
         assert "DO $$" in calls[2]
         assert "CREATE ROLE" in calls[2]
         assert "GRANT ALL PRIVILEGES" in calls[2]
+        assert 'ALTER DATABASE "my_proj" OWNER TO "my_user"' in calls[2]  # role owns DB → RLS
         assert result["password"] in calls[2]
 
     def test_db_user_equal_to_postgres_skips_role_creation(self):

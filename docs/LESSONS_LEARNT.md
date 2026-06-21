@@ -4391,19 +4391,22 @@ OpenRouter as fallback (configured via `WATCHDOG_OPENROUTER_KEY` in `/opt/<proje
 ---
 
 
-# Lesson 65: Postgres RLS is silently bypassed by the superuser DATABASE_URL — FORCE alone is not enough
+# Lesson 79: Postgres RLS needs a non-superuser DB role — and Fabrik's postgres registrar must MINT and INJECT one
 
 **Date:** 2026-06-21
 **Status:** Permanent Rule
-**Context:** Building the multi-tenant backend for the `saas-skeleton` scaffold. The `95-multi-tenant-saas` pack mandates `ENABLE` + `FORCE ROW LEVEL SECURITY` + a `tenant_isolation` policy keyed on `current_tenant_id()`. Implemented verbatim, the isolation would still have been **silently open**: Fabrik's postgres registrar hands every app a `DATABASE_URL` that connects as the **`postgres` superuser**, and a superuser **bypasses RLS entirely — even `FORCE`** (FORCE only closes the *table-owner* bypass, not the superuser bypass). So `SELECT * FROM widgets` would return every tenant's rows despite a correct policy.
+**Context:** Building the multi-tenant backend for the `saas-skeleton` scaffold (the first scaffold type with `shape.needs_database: true`). Two compounding gaps surfaced only at deploy-design time:
 
-**Rule:** RLS only bites for a **non-superuser, non-owner** role. A scaffold/app that relies on RLS for tenant isolation must, per transaction:
+1. **RLS is silently bypassed by a superuser.** The `95-multi-tenant-saas` pack mandates `ENABLE` + `FORCE ROW LEVEL SECURITY` + a `tenant_isolation` policy. But RLS — even `FORCE` — does **not** apply to a Postgres **superuser**. `FORCE` only closes the *table-owner* bypass, not the superuser bypass. So if the app connects as `postgres`, `SELECT * FROM widgets` returns every tenant's rows despite a correct policy.
+2. **The registrar provisioned no usable credential.** `_provision_postgres` created the database but passed no `db_user`, so it minted **no role** and injected **no `DATABASE_URL`** (unlike the redis/glitchtip registrars, which inject their URLs). The compose templates assembled `DATABASE_URL` from `${POSTGRES_PASSWORD}` — a var Fabrik provisions nowhere. A DB-backed app's health (`SELECT 1`) would 503. Undetected because no prior scaffold type set `needs_database: true`.
 
-1. `SET LOCAL ROLE app_rls` (a `NOLOGIN`, non-superuser role created in `schema.sql` and `GRANT`ed CRUD on the tenant tables), then
-2. `SET LOCAL app.tenant_id = '<uuid>'` (feeds the fail-closed `current_tenant_id()`).
+**Rule:** For RLS-based multi-tenancy on Fabrik, the postgres registrar **mints a dedicated, non-superuser role that OWNS the database** (`CREATE ROLE … LOGIN`, `ALTER DATABASE … OWNER TO`) and **injects its `DATABASE_URL`** into the project `.env`. The app (api + worker) connects as that role:
 
-Both are `LOCAL` so they reset at transaction end (safe with pooled superuser connections). The background **worker** deliberately does NOT `SET ROLE` — it keeps the superuser connection so it can drain the `jobs` queue across all tenants.
+- It is non-superuser → RLS applies. It owns the tables (it applies `schema.sql`) → `FORCE` makes RLS bite the owner too.
+- `apply_tenant()` is just `SELECT set_config('app.tenant_id', $1, true)` per transaction — **no `SET ROLE`**, no separate `app_rls` role. Empty tenant → `current_tenant_id()` NULL → policy denies (fail-closed).
+- The worker uses the same role to drain `jobs` across tenants (`jobs` is deliberately not RLS-protected).
+- `gen_random_uuid()` is native in PG13+ — never `CREATE EXTENSION pgcrypto` (a non-superuser owner can't create extensions, and doesn't need to).
 
-**How to apply:** Any time RLS is the isolation mechanism on Fabrik (where `DATABASE_URL` is the postgres superuser), pair every `FORCE ROW LEVEL` table with (a) an `app_rls` role in `schema.sql` and (b) a `SET LOCAL ROLE app_rls` in the per-transaction tenant-scoping helper (`tenant.py::apply_tenant`). Verifying "the policy exists" is not verifying "isolation holds" — prove it by querying as the app role with a tenant set, not as `postgres`.
+**How to apply:** Any RLS feature on Fabrik must verify the *connection identity*, not just the policy text. Prove isolation by querying **as the injected role** with a tenant set (and confirm a cross-tenant `INSERT` is blocked by `WITH CHECK`) — `rolsuper=f`. "The policy exists" ≠ "isolation holds." If a new scaffold type sets `needs_database: true`, confirm the registrar injects a working `DATABASE_URL` for a non-superuser role — don't assume `POSTGRES_PASSWORD` exists.
 
 ---

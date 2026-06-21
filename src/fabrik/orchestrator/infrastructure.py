@@ -430,12 +430,26 @@ class InfrastructureProvisioner:
             # PostgreSQL identifiers don't allow hyphens without quoting.
             # Normalize to snake_case — same pattern used throughout Fabrik.
             db_name = name.replace("-", "_")
-            # T4-01 G-J4: pass spec_id so the allocation registry records
-            # which spec owns this DB. ``owner='fabrik'`` because the
-            # orchestrator is the creator. The driver writes
-            # /opt/monitoring/configs/postgres/allocations.json atomically.
-            result = create_database(db_name, dry_run=dry_run, spec_id=name, owner="fabrik")
+            # Mint a DEDICATED non-superuser role that OWNS the DB (db_user==db_name)
+            # so the app can connect as a non-superuser — the only way Postgres RLS
+            # (multi-tenant isolation) actually applies; the postgres superuser would
+            # bypass it. T4-01 G-J4: spec_id records which spec owns this DB.
+            db_user = db_name
+            result = create_database(
+                db_name, db_user=db_user, dry_run=dry_run, spec_id=name, owner="fabrik"
+            )
             ctx.add_resource("postgres", db_name, status=result.get("status"))
+            # Inject DATABASE_URL for the dedicated role so the container connects
+            # with a working credential (the registrar is the ONLY place that knows
+            # the generated password). On a re-deploy the DB already 'exists' and no
+            # password is returned — the prior .env value is preserved by the merge.
+            password = result.get("password")
+            if password and not dry_run:
+                database_url = (
+                    f"postgresql://{db_user}:{password}@postgres-main:5432/{db_name}"
+                )
+                self.deployer.inject_env(ctx, {"DATABASE_URL": database_url})
+                logger.info("postgres: DATABASE_URL injected for role %s", db_user)
             logger.info("postgres: %s → %s", db_name, result.get("status"))
         except Exception as e:  # noqa: BLE001 — bounded non-fatal
             logger.warning("postgres provisioning failed (non-fatal): %s", e)

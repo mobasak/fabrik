@@ -224,6 +224,12 @@ def create_database(
         f"  END IF;\n"
         f"END $$;\n"
         f'GRANT ALL PRIVILEGES ON DATABASE "{db_name}" TO "{db_user}";\n'
+        # Make the dedicated role OWN the database so it can apply its own schema
+        # (create tables/types, ALTER ... FORCE ROW LEVEL SECURITY) and own those
+        # tables — required for multi-tenant RLS, which only applies to a
+        # NON-superuser role. The app connects as this role (see the registrar's
+        # injected DATABASE_URL), never as the postgres superuser (which bypasses RLS).
+        f'ALTER DATABASE "{db_name}" OWNER TO "{db_user}";\n'
     )
     _run_sql(role_and_grant, container=container)
     logger.info("Created PostgreSQL role and granted privileges: %s -> %s", db_user, db_name)

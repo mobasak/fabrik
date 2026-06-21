@@ -1690,21 +1690,14 @@ _SAAS_SCHEMA_SQL = """-- schema.sql — multi-tenant schema for __NAME__ (Postgr
 -- Per .windsurf/rules/saas/95-multi-tenant-saas.md (RLS) + core/75-workers-jobs.md (queue).
 -- Apply once after the DB is provisioned:  psql "$DATABASE_URL" -f db/schema.sql
 -- (Fabrik runs NO automatic migrations — you apply this yourself.)
-
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
-
--- RLS only bites for NON-superusers. Fabrik's DATABASE_URL connects as the
--- ``postgres`` superuser, which BYPASSES row-level security even with FORCE.
--- So tenant-scoped requests must ``SET LOCAL ROLE app_rls`` (a plain,
--- non-superuser role) per transaction — see server/src/__PKG__/tenant.py.
--- The worker keeps the superuser connection so it can drain every tenant.
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_rls') THEN
-        CREATE ROLE app_rls NOLOGIN;
-    END IF;
-END
-$$;
+--
+-- IMPORTANT — Row-Level Security only applies to a NON-superuser role. Fabrik's
+-- postgres registrar provisions a dedicated, non-superuser role that OWNS this
+-- database and injects its DATABASE_URL, so the app (api + worker) connects as
+-- that role and apply this schema as that role (it owns the tables → FORCE RLS
+-- bites). Do NOT connect as the postgres superuser — it bypasses RLS entirely.
+-- ``gen_random_uuid()`` is built into PostgreSQL 13+ (no pgcrypto extension,
+-- which a non-superuser could not create anyway).
 
 -- Tenants — the isolation boundary -------------------------------------------
 CREATE TABLE IF NOT EXISTS tenants (
@@ -1746,12 +1739,10 @@ CREATE POLICY tenant_isolation ON widgets
     USING (tenant_id = current_tenant_id())
     WITH CHECK (tenant_id = current_tenant_id());
 
-GRANT SELECT, INSERT, UPDATE, DELETE ON tenants, memberships, widgets TO app_rls;
-
 -- Background-jobs queue: PostgreSQL IS the broker (no Celery/Rabbit/Redis) ---
 -- Claimed with FOR UPDATE SKIP LOCKED; NOTIFY wakes idle workers instantly.
--- NOT RLS-forced: the worker (superuser) drains across tenants; the API
--- filters by tenant_id explicitly when it enqueues/reads its own jobs.
+-- NOT RLS-protected: the worker (the DB-owning role) drains across tenants; the
+-- API filters by tenant_id explicitly when it enqueues/reads its own jobs.
 CREATE TABLE IF NOT EXISTS jobs (
     id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id   UUID REFERENCES tenants(id) ON DELETE CASCADE,
@@ -1768,9 +1759,9 @@ CREATE TABLE IF NOT EXISTS jobs (
 -- Mandatory partial index — without it, claim queries full-scan (75 §Schema).
 CREATE INDEX IF NOT EXISTS idx_jobs_pending ON jobs (run_at) WHERE status = 'pending';
 
--- The API enqueues/reads its own tenant's jobs as app_rls (inside a tenant txn);
--- the worker UPDATEs status as the superuser. Grant the API role accordingly.
-GRANT SELECT, INSERT, UPDATE ON jobs TO app_rls;
+-- No GRANTs needed: the API and worker both connect as the DB-owning role, which
+-- already owns ``jobs``. The API filters by tenant_id explicitly when it
+-- enqueues/reads; the worker drains across tenants (jobs is not RLS-protected).
 
 -- Instant wake-up: NOTIFY on insert; the worker LISTENs (75 §Worker Wake-Up).
 CREATE OR REPLACE FUNCTION notify_job_inserted() RETURNS TRIGGER AS $$
@@ -1900,11 +1891,12 @@ async def apply_tenant(conn: Any) -> None:
                 await apply_tenant(conn)
                 rows = await conn.fetch("SELECT * FROM widgets")  # RLS-filtered
 
-    ``SET LOCAL ROLE app_rls`` drops superuser so RLS actually applies (Fabrik's
-    DATABASE_URL is the postgres superuser, which would otherwise bypass it),
-    then ``SET LOCAL app.tenant_id`` feeds ``current_tenant_id()``.
+    Sets ``app.tenant_id`` (``LOCAL`` → reset at COMMIT) so ``current_tenant_id()``
+    resolves it and the ``tenant_isolation`` RLS policy filters the query. No role
+    switch is needed: the app already connects as Fabrik's dedicated, NON-superuser
+    DB-owning role, so RLS (``FORCE``) applies directly. An empty tenant context →
+    ``current_tenant_id()`` is NULL → the policy denies every row (fail-closed).
     """
-    await conn.execute("SET LOCAL ROLE app_rls")
     await conn.execute("SELECT set_config('app.tenant_id', $1, true)", get_tenant_id())
 '''
 
