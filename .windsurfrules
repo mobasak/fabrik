@@ -31,7 +31,7 @@ Read `expertise-pack/wpf-expertise-pack-spec-v3.md` + `.claude/skills/wpf-wordpr
 ## Completion Contract
 1. **IMPLEMENT** — Strict Scope. Adjacent fixes only in in-Scope files. 1 test for core path (skip docs-only).
 1a. **SELF-REVIEW (iterate to a fixed point)** — Don't ship first-draft code. Re-read your diff for bugs, edge cases, and deviations from the plan (if any) and the applicable `.windsurf/rules`; fix; re-run the gate. Repeat until green AND a fresh review finds nothing new.
-2. **GATE** — Run ticket's `Final Gate Instruction`; fix to `status:"success"`. Flags: `--lean --json` (std) · `--json` (milestone/schema/auth) · `--systemic --json` (epic).
+2. **GATE** — Run ticket's `Final Gate Instruction`; fix to `status:"success"`. Flags: `--lean --json` (std) · `--json` (milestone/schema/auth) · `--systemic --json` (epic). Full ref: `docs/workflows/FINAL_GATE_WORKFLOW.md`.
 3. **CHANGELOG** — One entry under `## [Unreleased]` (gate-enforced).
 4. **LESSONS LEARNT** — Ticket field = `none` OR entry in `docs/LESSONS_LEARNT.md`. Silence = failure.
 5. **EXIT** — Gate auto-stages. STOP. No `commit`/`push` unless user said so this turn; `git add` OK.
