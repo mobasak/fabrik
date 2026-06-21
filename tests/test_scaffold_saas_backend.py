@@ -141,6 +141,13 @@ def test_compose_services(project: Path) -> None:
     worker = services["worker"]
     assert "ports" not in worker
     assert "traefik" not in " ".join(worker.get("labels", []))
+    # DATABASE_URL is delivered only via env_file (registrar-injected), never baked
+    # as a ${...} default — a fabricated blank-password URL would fail first boot.
+    raw = (project / "compose.yaml").read_text()
+    assert "POSTGRES_PASSWORD" not in raw
+    for svc in ("api", "worker"):
+        assert services[svc].get("env_file") == [".env"]
+        assert not any("DATABASE_URL" in e for e in services[svc].get("environment", []))
 
 
 # Phase 8 — shape flags drive the registrars + worker module ----------------
@@ -165,6 +172,8 @@ def test_worker_module_present(project: Path) -> None:
     assert "WORKER_MIN" in worker and "WORKER_MAX" in worker  # env-tunable bounds
     assert "add_listener" in worker  # LISTEN/NOTIFY wake-up, not a sleep(1) poll
     assert "init_glitchtip" in worker  # GlitchTip init (75 §Observability)
+    assert "raise SystemExit" not in worker  # resilient boot — never crash on a missing DB
+    assert "_await_pool" in worker  # waits/retries for the registrar-injected DB
 
 
 # Required-files contract ---------------------------------------------------
