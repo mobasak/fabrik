@@ -1,53 +1,90 @@
 name: Supabase keep-alive
 
 # Supabase free-tier projects auto-pause after ~7 days with no DATABASE activity.
-# This pings the `fabrik` project twice a week (Mon + Thu) — comfortably
-# under the pause window — so the project stays warm without manual un-pausing.
+# This workflow runs DAILY and registers real Postgres activity so the `fabrik`
+# project stays warm without manual un-pausing.
 #
-# IMPORTANT (lesson from 2026-06-20 pause-warning email): `/auth/v1/health`
-# alone does NOT reset Supabase's inactivity timer — the GoTrue health endpoint
-# never touches Postgres. The inactivity detector requires a real PostgREST or
-# Postgres query. This workflow now does BOTH:
-#   1. Auth-health ping (proves project is reachable; no DB hit)
-#   2. GoTrue token attempt with bogus creds (forces auth.users SELECT in
-#      Postgres to verify the (non-)user; returns 400 with grant_invalid)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# LESSONS LEARNED (2026-06-20 warning → 2026-06-21 actual pause)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# The original workflow pinged ONLY `/auth/v1/health` twice weekly. It passed
+# successfully every Mon + Thu since setup BUT the project still got paused
+# because:
+#   • `/auth/v1/health` is GoTrue's own health endpoint — it NEVER touches
+#     Postgres. Supabase's inactivity detector counts DB queries only.
+#   • Twice-weekly cadence left 3.5-day gaps. Combined with the auth-only
+#     ping (which Supabase ignored), the project saw 12+ days of "no activity"
+#     before pause.
 #
-# DEAD ENDS WE TRIED:
-# - `/rest/v1/<nonexistent-table>` — PostgREST returns PGRST205 from its schema
-#   cache WITHOUT hitting Postgres (verified empirically 2026-06-20 by run
-#   27881428015). No activity registered.
-# - `/rest/v1/<existing-table>` — fabrik project has no public tables yet, so
-#   no anon-readable target exists. Creating a `keepalive_ping` table requires
-#   one-time Supabase Dashboard SQL action (see below for SQL); workflow auto-
-#   upgrades to use it if present.
+# CONFIRMED DEAD ENDS:
+#   • `/rest/v1/<nonexistent-table>` returns HTTP 404 with PGRST205 from
+#     PostgREST's own schema cache WITHOUT hitting Postgres. No activity.
+#     Verified empirically by run 27881428015 on 2026-06-20.
+#   • `/rest/v1/` root returns 401 for anon keys (OpenAPI spec is service_role
+#     only) — masks real failures behind a false 4xx-OK.
 #
-# THE WINNING APPROACH:
-# POST to `/auth/v1/token?grant_type=password` with deliberately-bogus credentials.
-# GoTrue queries `auth.users` in Postgres to look up the email → email doesn't
-# exist → returns 400 with `{"error":"invalid_grant"}`. The Postgres query for
-# the `auth.users` lookup is the activity signal. Pattern matches
-# /opt/trade-intelligence/scripts/supabase_keepalive.py docstring note:
-#   "an /auth/v1/health ping may never touch the DB"
-# Reference: GoTrue source — every token grant request hits the users table
-# regardless of credential validity.
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# WHAT THIS WORKFLOW NOW DOES (post-2026-06-21 hardening)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Step 1: GET /auth/v1/health
+#         Proves project is reachable + not paused/down. Does NOT count as
+#         activity by itself.
 #
-# OPTIONAL ENHANCEMENT (operator action, one-time, eliminates the bogus-auth
-# ping): create a public `keepalive_ping` table via Supabase Dashboard:
+# Step 2a: GET /rest/v1/keepalive_ping?select=*&limit=1  (PRIMARY PATH)
+#          Reads the dedicated single-row table. PostgREST resolves the table
+#          via its schema cache, then executes a SELECT against Postgres. HTTP
+#          200 with the row = clean real DB activity. Same pattern as
+#          /opt/trade-intelligence/scripts/supabase_keepalive.py (uses
+#          `qualified_companies`) which has never been paused.
+#
+# Step 2b: POST /auth/v1/token?grant_type=password with bogus credentials
+#          (FALLBACK — only runs if Step 2a returns non-200; that means the
+#          keepalive_ping table was dropped, schema cache hasn't reloaded,
+#          or anon GRANT was revoked).
+#          GoTrue always SELECTs auth.users to verify credentials — even bogus
+#          ones — before returning 400 invalid_credentials. The SELECT IS the
+#          activity signal.
+#
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# THE keepalive_ping TABLE (created 2026-06-21 via psql + pooler)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Schema as actually deployed (NOT the simpler version originally documented):
 #   CREATE TABLE public.keepalive_ping (
-#     ts timestamptz NOT NULL DEFAULT now()
+#     id smallint PRIMARY KEY DEFAULT 1,
+#     last_ping timestamptz NOT NULL DEFAULT now(),
+#     CONSTRAINT keepalive_ping_singleton CHECK (id = 1)
 #   );
-#   GRANT SELECT ON public.keepalive_ping TO anon;
-# Once it exists, the workflow's pre-flight PostgREST query returns HTTP 200
-# (real DB read, cleaner signal) and the bogus-auth fallback never fires.
+#   GRANT SELECT ON public.keepalive_ping TO anon, authenticated;
+#   ALTER TABLE public.keepalive_ping ENABLE ROW LEVEL SECURITY;
+#   CREATE POLICY keepalive_ping_anon_select ON public.keepalive_ping
+#     FOR SELECT TO anon, authenticated USING (true);
 #
-# Operator setup (one-time): add a repo secret SUPABASE_FABRIK_ANON_KEY with the
-# project's anon (public) key — Supabase dashboard → Project Settings → API.
-# The project ref is not secret. To keep additional projects alive, add another
-# job with its ref + a matching secret.
+# Rationale:
+#   • Singleton (id = 1) prevents row growth — table stays 24 kB forever.
+#   • RLS + explicit anon policy = defense in depth (anon SELECT works,
+#     INSERT/UPDATE/DELETE blocked at GRANT + RLS layers).
+#   • Single column `last_ping` allows future enhancement (UPSERT to record
+#     the workflow's own activity timestamp — currently SELECT-only).
 #
-# Scope note: this intentionally keeps ONLY `fabrik` warm. `trade-intelligence`
-# is managed separately by the operator (systemd timer running its own keepalive
-# script with `qualified_companies` table read); `ComplianceDesk` is left paused.
+# To recreate the table from scratch (e.g., new project), connect via:
+#   psql "postgresql://postgres.${REF}:${SUPABASE_DB_PASSWORD}@aws-0-${REGION}.pooler.supabase.com:6543/postgres"
+# Then run the schema above + `NOTIFY pgrst, 'reload schema';` to refresh
+# PostgREST's cache so HTTP 200 is immediate (otherwise ~10 minutes).
+#
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# OPERATOR SETUP (one-time, already done)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Repo secret: SUPABASE_FABRIK_ANON_KEY (Supabase dashboard → Project Settings
+# → API → anon public key). The project ref is not secret.
+#
+# Optional future-proofing (not yet done): add SUPABASE_ACCESS_TOKEN repo
+# secret with a `sbp_*` PAT from https://supabase.com/dashboard/account/tokens
+# — this would let a future workflow auto-restore if a pause ever does happen
+# via POST https://api.supabase.com/v1/projects/{ref}/restore.
+#
+# Scope: keeps ONLY `fabrik` warm. `trade-intelligence` runs its own keepalive
+# via WSL systemd timer (queries `qualified_companies`). `ComplianceDesk` is
+# left paused intentionally.
 
 on:
   schedule:
@@ -60,9 +97,19 @@ on:
     - cron: "0 6 * * *"
   workflow_dispatch: {}
 
+concurrency:
+  # Serialize runs but NEVER cancel in-flight. The whole point of this workflow
+  # is to register DB activity — cancelling a running ping (e.g., manual test
+  # racing the scheduled run) would defeat the purpose. Queue instead.
+  group: supabase-keepalive
+  cancel-in-progress: false
+
 jobs:
   ping:
     runs-on: ubuntu-latest
+    # Cap the job — curl --max-time 30 means each ping is bounded; the whole
+    # job should finish in under 60s. 5 minutes is a generous ceiling.
+    timeout-minutes: 5
     steps:
       - name: Ping fabrik (auth health + DB activity)
         env:
