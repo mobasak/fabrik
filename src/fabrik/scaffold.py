@@ -2018,6 +2018,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import pathlib
 import signal
 from typing import Any
 
@@ -2027,6 +2028,12 @@ from __PKG__.glitchtip_init import init_glitchtip
 from __PKG__.logger import get_logger
 
 log = get_logger(__name__)
+
+# Liveness heartbeat: the worker touches this file each tick; the container
+# healthcheck (python, not pgrep — the slim image has no procps) checks it is
+# fresh. Proves the worker is alive AND looping, and works during the DB-wait.
+HEARTBEAT_PATH = os.getenv("WORKER_HEARTBEAT", "/app/.worker-heartbeat")
+HEARTBEAT_TICK_SEC = int(os.getenv("WORKER_HEARTBEAT_TICK_SEC", "15"))
 
 DATABASE_URL = os.getenv("DATABASE_URL", "")
 WORKER_MIN = int(os.getenv("WORKER_MIN", "1"))
@@ -2204,6 +2211,20 @@ async def _beat_loop(pool: asyncpg.Pool) -> None:
         await asyncio.sleep(BEAT_TICK_SEC)
 
 
+async def _heartbeat_loop() -> None:
+    """Touch the heartbeat file each tick so the healthcheck sees liveness."""
+    hb = pathlib.Path(HEARTBEAT_PATH)
+    while not _shutdown.is_set():
+        try:
+            hb.touch()
+        except OSError as exc:  # noqa: PERF203 — log + keep beating
+            log.warning("heartbeat_write_failed", path=str(hb), error=str(exc))
+        try:
+            await asyncio.wait_for(_shutdown.wait(), timeout=HEARTBEAT_TICK_SEC)
+        except asyncio.TimeoutError:
+            pass
+
+
 def _install_signals() -> None:
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGTERM, signal.SIGINT):
@@ -2216,7 +2237,7 @@ async def _await_pool() -> asyncpg.Pool | None:
     On Fabrik the postgres registrar provisions the DB + injects DATABASE_URL
     shortly AFTER the first deploy (recreating this container with the URL), so
     the very first boot legitimately has no/unreachable DB. Staying alive while
-    retrying keeps the ``pgrep`` healthcheck green so the deploy's health-wait
+    retrying keeps the heartbeat healthcheck green so the deploy's health-wait
     passes; the container is then recreated with a working DATABASE_URL.
     """
     while not _shutdown.is_set():
@@ -2238,8 +2259,12 @@ async def _await_pool() -> asyncpg.Pool | None:
 async def main() -> None:
     init_glitchtip()  # unhandled job exceptions auto-report (75 §Observability)
     _install_signals()
+    # Start the heartbeat FIRST so the container is healthy even while _await_pool
+    # is still waiting for the registrar-injected DB on first boot.
+    heartbeat = asyncio.create_task(_heartbeat_loop())
     pool = await _await_pool()
     if pool is None:
+        heartbeat.cancel()
         log.info("worker_stopped_before_db_ready")
         return
     workers: list[asyncio.Task[Any]] = [
@@ -2247,8 +2272,11 @@ async def main() -> None:
     ]
     log.info("worker_starting", min=WORKER_MIN, max=WORKER_MAX)
     try:
-        await asyncio.gather(_scale_loop(pool, workers), _beat_loop(pool), _listen_loop())
+        await asyncio.gather(
+            _scale_loop(pool, workers), _beat_loop(pool), _listen_loop(), heartbeat
+        )
     finally:
+        heartbeat.cancel()
         for task in workers:
             task.cancel()
         await pool.close()
@@ -2545,11 +2573,13 @@ services:
     env_file:
       - .env
     healthcheck:
-      test: ["CMD-SHELL", "pgrep -f '{db_name}.worker' || exit 1"]
+      # python liveness (the slim image has no pgrep/procps): the worker touches
+      # WORKER_HEARTBEAT each tick; fail if it is missing or older than 60s.
+      test: ["CMD", "python", "-c", "import os,time,sys; p=os.getenv('WORKER_HEARTBEAT','/app/.worker-heartbeat'); sys.exit(0 if os.path.exists(p) and time.time()-os.path.getmtime(p) < 60 else 1)"]
       interval: 30s
       timeout: 5s
       retries: 3
-      start_period: 15s
+      start_period: 30s
     restart: unless-stopped
     stop_grace_period: 45s
     deploy:

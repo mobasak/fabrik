@@ -141,6 +141,9 @@ def test_compose_services(project: Path) -> None:
     worker = services["worker"]
     assert "ports" not in worker
     assert "traefik" not in " ".join(worker.get("labels", []))
+    # worker healthcheck is a python heartbeat probe — NOT pgrep (no procps in slim).
+    hc = " ".join(worker["healthcheck"]["test"])
+    assert "pgrep" not in hc and "WORKER_HEARTBEAT" in hc
     # DATABASE_URL is delivered only via env_file (registrar-injected), never baked
     # as a ${...} default — a fabricated blank-password URL would fail first boot.
     raw = (project / "compose.yaml").read_text()
@@ -174,6 +177,7 @@ def test_worker_module_present(project: Path) -> None:
     assert "init_glitchtip" in worker  # GlitchTip init (75 §Observability)
     assert "raise SystemExit" not in worker  # resilient boot — never crash on a missing DB
     assert "_await_pool" in worker  # waits/retries for the registrar-injected DB
+    assert "_heartbeat_loop" in worker  # liveness heartbeat (procps-free healthcheck)
 
 
 # Required-files contract ---------------------------------------------------
