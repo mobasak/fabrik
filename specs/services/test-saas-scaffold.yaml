@@ -1,24 +1,23 @@
-id: fabrik-test-saas-skeleton
+id: test-saas-scaffold
 kind: service
 template: saas-skeleton
-domain: fabrik-test-saas-skeleton.vps1.ocoron.com
+domain: test-saas-scaffold.vps1.ocoron.com
 shape:
   kind: service
   is_public: true
   is_admin_dashboard: false
-  has_bearer_api: true
+  has_bearer_api: false
   has_persistent_data: true
   needs_database: true
   has_search_feature: false
-  needs_cache: true
-  exposes_metrics: true
+  needs_cache: false
+  exposes_metrics: false
 expose:
   http: true
   internal_only: false
 source:
-  type: git
-  repository: https://github.com/mobasak/fabrik-test-saas-skeleton.git
-  branch: mobasak/fabrik-test-saas-skeleton
+  type: template
+  branch: main
 depends: {}
 infrastructure:
   database: local

@@ -445,9 +445,7 @@ class InfrastructureProvisioner:
             # password is returned — the prior .env value is preserved by the merge.
             password = result.get("password")
             if password and not dry_run:
-                database_url = (
-                    f"postgresql://{db_user}:{password}@postgres-main:5432/{db_name}"
-                )
+                database_url = f"postgresql://{db_user}:{password}@postgres-main:5432/{db_name}"
                 self.deployer.inject_env(ctx, {"DATABASE_URL": database_url})
                 logger.info("postgres: DATABASE_URL injected for role %s", db_user)
             logger.info("postgres: %s → %s", db_name, result.get("status"))

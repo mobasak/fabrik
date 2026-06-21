@@ -221,6 +221,12 @@ def create_database(
         f"DO $$ BEGIN\n"  # nosec B608 — db_user validated upstream by _validate_identifier; password is bcrypt-style generated
         f"  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname='{db_user}') THEN\n"
         f"    CREATE ROLE \"{db_user}\" LOGIN PASSWORD '{password}';\n"
+        # Role already exists (e.g. the DB was dropped+recreated but the role was
+        # left behind): reset its password to the freshly-generated one we return
+        # and inject, otherwise the caller's DATABASE_URL would carry a password
+        # that no longer matches the role -> "password authentication failed".
+        f"  ELSE\n"
+        f"    ALTER ROLE \"{db_user}\" WITH LOGIN PASSWORD '{password}';\n"
         f"  END IF;\n"
         f"END $$;\n"
         f'GRANT ALL PRIVILEGES ON DATABASE "{db_name}" TO "{db_user}";\n'

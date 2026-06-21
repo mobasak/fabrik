@@ -144,6 +144,7 @@ class TestCreateDatabase:
         assert "CREATE DATABASE" in calls[1]
         assert "DO $$" in calls[2]
         assert "CREATE ROLE" in calls[2]
+        assert "ALTER ROLE" in calls[2]  # reset password when the role already exists
         assert "GRANT ALL PRIVILEGES" in calls[2]
         assert 'ALTER DATABASE "my_proj" OWNER TO "my_user"' in calls[2]  # role owns DB → RLS
         assert result["password"] in calls[2]

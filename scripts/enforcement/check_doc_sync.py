@@ -180,9 +180,7 @@ def main() -> int:
     for _trig in schema_triggers:
         _doc = _schema_doc_for(_trig)
         if _doc not in staged_set and _is_tracked(_doc):
-            errors.append(
-                f"{_doc} not updated after a DB model/migration change (e.g. {_trig})."
-            )
+            errors.append(f"{_doc} not updated after a DB model/migration change (e.g. {_trig}).")
             break
 
     # ── WARN rows (fuzzy links — never block) ─────────────────────────────────
