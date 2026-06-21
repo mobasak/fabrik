@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Supabase keep-alive: daily DB-activity ping after 2026-06-21 free-tier pause (2026-06-21)
+
+`/auth/v1/health` doesn't touch Postgres and twice-weekly cadence had no margin — fabrik project got paused. Hardened: created `public.keepalive_ping` singleton table with RLS + anon SELECT policy as the workflow's primary DB-activity target (bogus-auth-token kept as fallback), switched schedule to daily, added concurrency group with `cancel-in-progress: false` (cancelling a running ping would defeat the purpose) and `timeout-minutes: 5`. Verified end-to-end by run `27903391791` taking the clean Step 2a path. Memory in `~/.claude/.../project_supabase_keepalive.md` updated to record incident facts.
+
 ### Added — saas-skeleton scaffolds a multi-tenant FastAPI backend + jobs tier (2026-06-21)
 
 `fabrik scaffold --type saas-skeleton` previously emitted a Next.js frontend with **no backend**. It now emits a pro-grade, multi-user backend under `server/` so every saas is backend-supported by default:

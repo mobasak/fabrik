@@ -734,17 +734,25 @@ def process_type(
             if proc.returncode != 0:
                 raise RuntimeError(f"fabrik apply exited rc={proc.returncode}")
 
-            # Pull Coolify UUID from the just-applied app
+            # Pull Coolify UUID from the just-applied app — BEST-EFFORT only.
+            # The orchestrator deploys via SSH + Docker Compose (not Coolify), so the
+            # Coolify API is often unreachable here; a failure must NOT abort the real
+            # proof (the healthcheck curl below). It is used for a cosmetic UUID and
+            # the NO_HTTP worker-status check.
             sys.path.insert(0, str(FABRIK_ROOT / "src"))
-            from fabrik.drivers.coolify import CoolifyClient
+            app = None
+            try:
+                from fabrik.drivers.coolify import CoolifyClient
 
-            c = CoolifyClient()
-            app = next(
-                (a for a in c.list_applications() if a.get("name") == name),
-                None,
-            )
-            if app:
-                result["coolify_uuid"] = app.get("uuid")
+                c = CoolifyClient()
+                app = next(
+                    (a for a in c.list_applications() if a.get("name") == name),
+                    None,
+                )
+                if app:
+                    result["coolify_uuid"] = app.get("uuid")
+            except Exception as cx:  # noqa: BLE001 — diagnostic-only lookup
+                log.write(f"coolify uuid lookup skipped (non-fatal): {cx!r}\n")
 
             if project_type in NO_HTTP_TYPES:
                 # Worker: no HTTP surface. Proof = Coolify reports running:healthy.
