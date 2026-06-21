@@ -51,7 +51,13 @@ name: Supabase keep-alive
 
 on:
   schedule:
-    - cron: "0 6 * * 1,4" # Mon + Thu 06:00 UTC
+    # DAILY at 06:00 UTC. Was Mon+Thu, but 2026-06-21 pause incident
+    # demonstrated the twice-weekly cadence + auth-only ping combo left no margin:
+    # last successful Thu run was 2026-06-18; pause email arrived 2026-06-21 before
+    # the next Mon run. Daily cadence + real DB activity (auth.users SELECT via bogus
+    # token or keepalive_ping table SELECT) gives 7x more chances to register activity
+    # within Supabase's 7-day inactivity window.
+    - cron: "0 6 * * *"
   workflow_dispatch: {}
 
 jobs:
