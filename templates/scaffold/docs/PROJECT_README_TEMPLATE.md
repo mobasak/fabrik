@@ -4,6 +4,15 @@
 
 > **Purpose:** PRIMARY ENTRY POINT — OVERVIEW, TECH STACK, REQUIREMENTS.
 
+<!--
+  README vs QUICKSTART — keep the boundary:
+    README:     "What is this project? Why does it exist? What can it do?"
+                Keep to 150–300 words. Link to QUICKSTART for setup.
+    QUICKSTART: "How do I get it running in 5 minutes?" → commands + checks.
+  If you find yourself pasting `cd / npm i / docker compose up` here,
+  move it to docs/QUICKSTART.md.
+-->
+
 [One-line description]
 
 **Type:** {python-api | node-api | saas-skeleton | chrome-extension | mobile-app | desktop-app | static-site}

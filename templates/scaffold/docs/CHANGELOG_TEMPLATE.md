@@ -52,20 +52,10 @@ This project uses [Semantic Versioning](https://semver.org/):
 
 ## Version History
 
-| Version | Date | Highlights |
-|---------|------|------------|
-| X.Y.Z | YYYY-MM-DD | Brief summary |
-| X.Y.Y | YYYY-MM-DD | Brief summary |
-
----
-
-## Versioning
-
-This project uses [Semantic Versioning](https://semver.org/):
-
-- **MAJOR** (X.0.0): Incompatible API changes
-- **MINOR** (0.X.0): New functionality, backwards compatible
-- **PATCH** (0.0.X): Bug fixes, backwards compatible
+| Version | Date       | Highlights    |
+|---------|------------|---------------|
+| X.Y.Z   | YYYY-MM-DD | Brief summary |
+| X.Y.Y   | YYYY-MM-DD | Brief summary |
 
 ---
 
@@ -76,7 +66,8 @@ This project uses [Semantic Versioning](https://semver.org/):
 **Enforcement:** `python scripts/final_gate.py --lean --json` checks for changelog presence (Tier 1).
 
 **Format required:**
-```
+
+```markdown
 ### Category — Title (YYYY-MM-DD)
 - Action verb + function/file + description
 ```

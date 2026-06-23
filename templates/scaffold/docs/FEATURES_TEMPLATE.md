@@ -17,13 +17,16 @@
 
 <!-- One paragraph: what this capability is and why it matters. -->
 
-| Feature | Description |
-|---------|-------------|
-| {Feature name} | {What it does — one sentence, benefit-oriented} |
-| {Feature name} | {What it does} |
+| Feature        | Description                                     | Endpoint / Module                              |
+|----------------|-------------------------------------------------|------------------------------------------------|
+| {Feature name} | {What it does — one sentence, benefit-oriented} | `POST /api/v1/{resource}` · `src/feature_x.py` |
+| {Feature name} | {What it does}                                  | `src/feature_y.py`                             |
 
-<!-- For API projects, include endpoint reference per feature: -->
-<!-- | Endpoint | `POST /api/v1/{resource}` | -->
+<!-- The "Endpoint / Module" column is optional but recommended — it ties the
+     user-visible feature to where it lives in code, so a new contributor or
+     AI agent can jump from "what does this do?" to the source without
+     spelunking. Delete the column for pure-marketing features that don't
+     map to a single endpoint/module. -->
 
 ### {Feature Category 2 — e.g., "DNS Management"}
 

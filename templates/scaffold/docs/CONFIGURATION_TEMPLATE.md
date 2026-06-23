@@ -47,7 +47,16 @@ curl http://localhost:$PORT/health
 ## Getting Credentials
 
 <!-- One subsection per external service that requires API keys or credentials.
-     Delete this entire section if the project has no external dependencies. -->
+     Delete this entire section if the project has no external dependencies.
+
+     For every service: name the *exact* permission scope and a one-shot
+     verification command. "Create API key" is not a runbook — "create a token
+     with `Zone.DNS:Edit` scoped to ocoron.com" is. The verify step is what
+     stops "I copy-pasted the wrong token" from costing 30 minutes later.
+
+     Cross-link the per-vendor rate-limit / fallback / failure-signature
+     details to `docs/SERVICES.md` rather than duplicating them here.
+-->
 
 ### {External Service Name}
 
@@ -55,10 +64,50 @@ curl http://localhost:$PORT/health
 
 **How to get:**
 1. Go to {provider URL}
-2. Create API key with {required permissions}
-3. Add to `.env`: `{VAR_NAME}=your_key_here`
+2. Sign in / sign up · then [provider-specific path to API tokens]
+3. Create {credential type — e.g. "API token"} with **exact scope**: `{provider permission name}` (not broader; least privilege)
+4. Restrict to `{IP allowlist / domain}` if the provider supports it
+5. Add to `.env`: `{VAR_NAME}={value}`
 
-**Limits:** {Free tier limits / pricing if relevant}
+**Verify it works:**
+
+```bash
+# One-shot check — should return 200 + a non-empty body
+curl -sS -o /dev/null -w "HTTP %{http_code}\n" \
+  -H "Authorization: Bearer ${VAR_NAME}" \
+  {provider verify endpoint}
+```
+
+**Limits / cost:** {free tier / pricing / monthly cap — keep concise; SERVICES.md owns the rate-limit detail}
+
+**Rotation cadence:** {every N days / on suspicion / never — and where the rotation runbook lives, usually `docs/OPERATIONS.md` §3}
+
+<!-- Worked example — keep one in for new contributors as a model.
+     Delete or replace once project-specific entries exist.
+
+### Cloudflare (example)
+
+**Why needed:** DNS record management for `*.vps1.ocoron.com` (Traefik certs).
+
+**How to get:**
+1. Go to https://dash.cloudflare.com/profile/api-tokens
+2. Create Token → "Edit zone DNS" template
+3. Permissions: `Zone.DNS:Edit`, `Zone.Zone:Read` (no account-level scopes)
+4. Zone Resources: `Include` → `Specific zone` → `ocoron.com`
+5. Add to `.env`: `CLOUDFLARE_API_TOKEN=...`
+
+**Verify it works:**
+```bash
+curl -sS -o /dev/null -w "HTTP %{http_code}\n" \
+  -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+  "https://api.cloudflare.com/client/v4/user/tokens/verify"
+# → HTTP 200
+```
+
+**Limits / cost:** free for DNS; 1,200 req / 5 min per token (see SERVICES.md).
+
+**Rotation cadence:** every 12 months OR on suspicion. See `docs/OPERATIONS.md` §3 "Recurring tasks".
+-->
 
 <!-- Repeat for each external service. -->
 

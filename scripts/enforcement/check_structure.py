@@ -167,6 +167,7 @@ def check_structure(project_root: Path, files: list[str] | None = None) -> list[
                     "TROUBLESHOOTING.md",
                     "BUSINESS_MODEL.md",
                     "SERVICES.md",
+                    "OPERATIONS.md",
                     "DEPLOYMENT.md",
                     "EXTERNAL_SYSTEMS.md",
                     "FAQ.md",

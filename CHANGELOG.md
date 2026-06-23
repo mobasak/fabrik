@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — OPERATIONS scaffold template + scope-completing edits to 7 existing templates (2026-06-22)
+
+New `templates/scaffold/docs/OPERATIONS_TEMPLATE.md` fills the gap between RESILIENCE (pause-state machinery) and TROUBLESHOOTING (symptom debug): living data feeds with auto-refresh + liveness + diagnosis tables, vendor knowledge log, recurring operator tasks, manual recovery / bypass, account rotation pools. Modeled on `tax-currency-runbook.md` (TI), `ZARI_SUPPLIER_QA.md` (TI), and `expireddomains-saved-searches.md` (site-provisioner). Registered in `SHARED_TEMPLATE_MAP` and both enforcement allowlists (`check_doc_sprawl.py`, `check_structure.py`). Companion enhancements: SERVICES (explicit rate-limit/fallback/failure-signature per dependency), CONFIGURATION (worked credential example with verify command + rotation cadence), FINANCIALS (internal-tool mode header), BUSINESS_MODEL (internal-tool block), RESILIENCE (architecture reconciliation pattern §11b), CHANGELOG (removed duplicate Versioning section), README (README-vs-QUICKSTART boundary note), FEATURES (optional endpoint/module column). One new template + 8 surgical edits — closes the operational-knowledge gap surfaced by auditing YouTube, trade-intelligence, and site-provisioner.
+
 ### Fixed — Supabase keep-alive: daily DB-activity ping after 2026-06-21 free-tier pause (2026-06-21)
 
 `/auth/v1/health` doesn't touch Postgres and twice-weekly cadence had no margin — fabrik project got paused. Hardened: created `public.keepalive_ping` singleton table with RLS + anon SELECT policy as the workflow's primary DB-activity target (bogus-auth-token kept as fallback), switched schedule to daily, added concurrency group with `cancel-in-progress: false` (cancelling a running ping would defeat the purpose) and `timeout-minutes: 5`. Verified end-to-end by run `27903391791` taking the clean Step 2a path. Memory in `~/.claude/.../project_supabase_keepalive.md` updated to record incident facts.

@@ -4,7 +4,27 @@
 **Status:** Draft
 
 > **Purpose:** MONETIZATION AND POSITIONING.
-> Fill this in when exploring monetization. Not required for internal tools or infrastructure services.
+> Fill this in when exploring monetization. Internal tools / infrastructure services use the alternative block below.
+
+---
+
+## For Internal Tools / Infrastructure Services
+
+<!--
+  If this project is NOT monetized externally (e.g. a sysadmin tool, an
+  internal data pipeline, a shared infra service), delete the rest of this
+  file and fill ONLY this block. The other sections (Value Proposition,
+  Target Customer, Pricing, GTM, etc.) don't apply.
+
+  Delete THIS block if the project IS a billed product — then fill the
+  monetization sections below.
+-->
+
+- **What problem does it solve for the team / org?** [one sentence]
+- **Manual cost if unavailable?** [e.g. "without this, domain provisioning takes 2h/domain at $X/h, ~$Y/month at current volume"]
+- **Operational cost (running it monthly)?** [link to `docs/FINANCIALS.md` §4 if filled, else short estimate]
+- **Risk if it goes down?** [user-facing impact + how long the team can absorb manually]
+- **Owner / on-call:** [name / rotation / Slack channel]
 
 ---
 

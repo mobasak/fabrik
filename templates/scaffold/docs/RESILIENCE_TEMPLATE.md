@@ -514,6 +514,33 @@ Where each resilience primitive lives in this project. Fill in on first refactor
 
 ---
 
+## 11b. Reconciliation Pattern (When Code Diverges From This Doc)
+
+The fastest way for this doc to become **worse than no doc** is to leave a stale architectural assumption at the top while the code moves on. When the runtime shape changes (queue library swap, pause-key rename, new bypass added), add a §0-style reconciliation block at the very top BEFORE editing downstream sections. The block costs 60 seconds, prevents a contributor from acting on a description that no longer matches `main`.
+
+**Template:**
+
+```markdown
+## §0. Architecture Reconciliation — [YYYY-MM-DD]
+
+**Old assumption (this doc, until [date]):** [one sentence — what the doc claimed]
+**New reality (code, since [commit/date]):** [one sentence — what's actually running]
+**Re-read these sections with the new lens:** §[N], §[N], §[N].
+**Sections deleted / superseded:** §[N] (replaced by §[N]).
+**Migration commit:** `[short SHA]` — [one-line message]
+```
+
+When to add one:
+
+- A foundational dependency was swapped (Celery → poll-worker, Redis → Postgres LISTEN, etc.)
+- A pause key naming convention changed (every existing example becomes wrong)
+- A whole pause scope was retired (e.g. removed per-job in favor of per-vendor)
+- A new bypass path is now load-bearing and the rest of the doc doesn't mention it
+
+Don't add one for: filling in a placeholder, adding a row to a table, fixing a typo. The reconciliation block is for **shape changes**, not edits.
+
+---
+
 ## 12. Change Log for This File
 
 | Date       | Change                                                     | By     |

@@ -5,6 +5,27 @@
 
 ---
 
+## 0. Mode — Billed SaaS vs Internal Tool
+
+<!--
+  Pick one. Most of this doc is written for billed-SaaS projects. Internal
+  tools / infrastructure services don't have subscription tiers, credit packs,
+  or margin math — but they DO have costs that matter for budgeting and
+  capacity planning. If you're an internal tool, skip §§1–3, §§5–8, §10 and
+  fill only §§4 (Infrastructure Costs) and §9 (Live Metrics) — that's the
+  "what does it cost us to run this?" view.
+-->
+
+This project is: **[ ] Billed SaaS** · **[ ] Internal tool / infrastructure service**
+
+**If Internal tool:** §§1, 2, 3, 5, 6, 7, 8, 10 do not apply — delete them. Keep:
+
+- §4 (Infrastructure Costs) — what we pay to run it
+- §9 (Live Metrics) — actuals vs budget
+- Add a one-line "What manual cost does this save?" sentence here (e.g. "without this, manual domain provisioning takes 2h/domain at $X/h").
+
+---
+
 ## 1. Subscription Tiers
 
 5-tier structure. Free is a loss leader. Each tier must be strictly better value per-unit than the one below it.

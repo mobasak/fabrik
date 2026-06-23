@@ -51,8 +51,11 @@ cache use Docker DNS — `postgres-main:5432`, `redis-main:6379` — never `loca
 **[Service Name]** — [one-line role]
 - Env: `ENV_VAR_1`, `ENV_VAR_2`  (or "None needed")
 - Cost: [free · $X/mo (quota) · PAYG $Y per call]
+- Rate limit / quota: [X req/min, Y/month, Z concurrent — be explicit; "see docs" is a smell]
 - Capabilities: [what it can do — include the numbers that matter]
-- Limitations: [rate limits, coverage gaps, gotchas]
+- Limitations: [coverage gaps, gotchas, undocumented quirks discovered in production]
+- Failure signature: [HTTP code / exception class / error message text that distinguishes "ban", "throttle", "quota exhausted", "transient" — these map to pause keys in RESILIENCE.md §2]
+- Fallback: [retry + backoff · degrade to cached/last-good · switch to vendor B · error to caller · pause-state TTL N]
 - Used in: [where in the pipeline / which feature]
 - Why it exists: [why this vendor over the alternatives]
 - Status: ✅ Working | ⚠️ Partial | ⏳ Pending | ❌ Blocked
