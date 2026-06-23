@@ -316,7 +316,7 @@ def reconcile(client: Any, *, provider: str | None = None) -> dict[str, Any]:
         and _matches_provider(rec)
     }
 
-    report = {
+    report: dict[str, Any] = {
         "scanned_at": now.isoformat(),
         "in_state_not_live": [],
         "lifetime_exceeded": [],
