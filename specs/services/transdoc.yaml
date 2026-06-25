@@ -16,7 +16,8 @@ expose:
   http: true
   internal_only: false
 source:
-  type: template
+  type: git
+  repository: git@github.com:mobasak/transdoc.git
   branch: main
 depends: {}
 infrastructure:

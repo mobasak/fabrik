@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — scaffold makes build-context projects deploy-ready (create + wire + push + spec→git) (2026-06-23)
+
+`fabrik scaffold` left build-context types (saas-skeleton/node-api/…) at `source.type=template` when no git remote existed, so `fabrik apply` couldn't ship the build context — the project wasn't deployable. Worse, the old `--github-create` only ran `gh repo create` (an orphan repo) and never linked the remote, pushed, or regenerated the spec. Now the wire step does all four (create → `remote add origin` → push → spec regen → `source.type=git`), and it **auto-runs for SPEC_ENABLED types when `gh` is authenticated** so a freshly scaffolded project is born deploy-ready. New `--no-github` opts out (with a clear not-deployable warning). Test: `tests/test_scaffold_github_wire.py`.
+
+### Fixed — wire `needs_serverless` filter in gpu_rent.selection_advice (vulture) (2026-06-23)
+
+The `needs_serverless` flag (CLI-exposed via `gpu_compare`) was received but never used in the body since Phase 3.5 dropped the Vast exclusion, so vulture flagged it. Wired it to filter `eligible` to providers that publish a serverless tier — keeps the flag honest + future-proof (no behavior change today; all three publish serverless).
+
 ### Fixed — drop unused `reused` param from gpu_rent._compute_actual_cost (vulture) (2026-06-23)
 
 The `reused` keyword-only param was never read in the body (serverless cost is `$0` regardless of reuse), so vulture flagged it. Removed the param and the two `reused=reuse_flag` pass-throughs; `reuse_flag` itself stays (used for reporting/teardown). No behavior change.

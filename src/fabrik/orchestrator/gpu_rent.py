@@ -233,8 +233,8 @@ def selection_advice(
         If True, Vast.ai spot is on the table (cheaper but preemptible —
         needs checkpoint-resume logic in the workload).
     needs_serverless
-        If True, only providers offering serverless (RunPod, Modal) are
-        considered.
+        If True, only providers that publish a serverless tier are considered
+        (RunPod/Modal/Vast — all wired as of Phase 3.5).
 
     Returns
     -------
@@ -275,6 +275,15 @@ def selection_advice(
 
     # Eligibility filter
     eligible = {name: data for name, data in results["providers"].items() if data.get("supported")}
+    # needs_serverless: keep only providers that publish a serverless tier. All
+    # three do as of Phase 3.5 (see below), so this is currently a no-op — but it
+    # keeps the flag honest and future-proof if a provider ever drops serverless.
+    if needs_serverless:
+        eligible = {
+            name: data
+            for name, data in eligible.items()
+            if "serverless" in HOURLY_USD_BY_PROVIDER[name]
+        }
     # Phase 3.5: Vast serverless is wired (POST /endptjobs/ + /workergroups/)
     # so the historical needs_serverless Vast exclusion is dropped.
     # All three providers are eligible for serverless workloads.

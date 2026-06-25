@@ -22,8 +22,12 @@ from fabrik.orchestrator.infrastructure import (
     format_resolved_summary,
     resolve_applicability,
 )
-from fabrik.scaffold import SCAFFOLD_TYPES
-from fabrik.spec_generator import extract_project_context
+from fabrik.scaffold import SCAFFOLD_TYPES, _detect_secrets
+from fabrik.spec_generator import (
+    SPEC_ENABLED_TYPES,
+    extract_project_context,
+    generate_and_save_spec,
+)
 from fabrik.spec_loader import Depends, Kind, SecretsPolicy, create_spec, load_spec, save_spec
 from fabrik.template_renderer import list_templates, render_template
 
@@ -1613,6 +1617,93 @@ def scan(health: bool, base: str):
     raise SystemExit(result.returncode)
 
 
+def _gh_authenticated() -> bool:
+    """True when the `gh` CLI is installed AND authenticated (so repo creation
+    can succeed). Used to auto-create repos for build-context scaffolds."""
+    import shutil
+    import subprocess
+
+    if not shutil.which("gh"):
+        return False
+    try:
+        return (
+            subprocess.run(["gh", "auth", "status"], capture_output=True, text=True).returncode
+            == 0
+        )
+    except Exception:  # noqa: BLE001 — treat any failure as "not authenticated"
+        return False
+
+
+def _create_and_wire_github_repo(name: str, project_dir: Path, project_type: str, db: bool) -> None:
+    """Make a scaffolded project deploy-ready: create the private GitHub repo,
+    link it as ``origin``, push, and re-resolve the spec to ``source.type=git``.
+
+    Without this, a build-context project (compose ``build:``) deploys as
+    ``source.type=template`` — ``fabrik apply`` ships only compose+env, not the
+    build context, so the VPS build fails. Best-effort + idempotent: each step
+    logs and continues; an existing repo / remote is not an error.
+    """
+    import subprocess
+
+    ssh_url = f"git@github.com:mobasak/{name}.git"
+    created = subprocess.run(
+        ["gh", "repo", "create", f"mobasak/{name}", "--private"],
+        capture_output=True,
+        text=True,
+    )
+    blob = f"{created.stderr}{created.stdout}".lower()
+    if created.returncode != 0 and "already exists" not in blob and "name already" not in blob:
+        click.echo(
+            f"⚠️  GitHub repo create exited {created.returncode}: "
+            f"{(created.stderr or created.stdout).strip()[:200]} — project stays "
+            "source.type=template (add a remote to deploy).",
+            err=True,
+        )
+        return
+    # Link remote (idempotent) + push the scaffold's initial commit.
+    subprocess.run(
+        ["git", "-C", str(project_dir), "remote", "add", "origin", ssh_url],
+        capture_output=True,
+        text=True,
+    )
+    branch = (
+        subprocess.run(
+            ["git", "-C", str(project_dir), "symbolic-ref", "--short", "HEAD"],
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        or "main"
+    )
+    pushed = subprocess.run(
+        ["git", "-C", str(project_dir), "push", "-u", "origin", branch],
+        capture_output=True,
+        text=True,
+    )
+    if pushed.returncode != 0:
+        click.echo(
+            f"⚠️  git push failed: {(pushed.stderr or pushed.stdout).strip()[:200]}",
+            err=True,
+        )
+        return
+    click.echo(f"✅ GitHub: mobasak/{name} created + pushed ({branch})")
+    # Re-resolve the spec now that a remote exists → detect_git_source emits git.
+    if project_type in SPEC_ENABLED_TYPES:
+        try:
+            secrets_from_env, secrets_from_file = _detect_secrets(project_dir)
+            generate_and_save_spec(
+                name,
+                project_type,
+                project_dir,
+                FABRIK_ROOT / "specs" / "services",
+                secrets_from_env=secrets_from_env,
+                secrets_from_file=secrets_from_file,
+                use_database=db,
+            )
+            click.echo("✅ Spec re-resolved to source.type=git (deploy-ready)")
+        except Exception as exc:  # noqa: BLE001 — non-fatal; repo is already wired
+            click.echo(f"⚠️  spec regen failed (source stays template): {exc}", err=True)
+
+
 @cli.command()
 @click.argument("name")
 @click.option("--description", "-d", default="A new project", help="Project description")
@@ -1635,7 +1726,13 @@ def scan(health: bool, base: str):
     "--github-create",
     is_flag=True,
     default=False,
-    help="Also create a private GitHub repo at mobasak/<name> via `gh repo create` (non-fatal if gh is missing or unauthenticated)",
+    help="Force-create + wire a private GitHub repo at mobasak/<name> (remote + push + spec→source.type=git). Auto-enabled for build-context types when `gh` is authenticated; non-fatal if `gh` is missing/unauthenticated.",
+)
+@click.option(
+    "--no-github",
+    is_flag=True,
+    default=False,
+    help="Skip GitHub repo creation even for build-context types (project stays source.type=template — not deployable until you add a remote).",
 )
 @click.option(
     "--from-preplan",
@@ -1657,6 +1754,7 @@ def scaffold(
     no_spec: bool,
     db: bool,
     github_create: bool,
+    no_github: bool,
     preplan_path: str | None,
 ):
     """Create a new project with full structure.
@@ -1745,33 +1843,24 @@ def scaffold(
         except Exception as exc:
             click.echo(f"⚠️  Deployment validator error: {exc}", err=True)
 
-        # G-B2 (T1-02): optionally create a private GitHub repo via the `gh`
-        # CLI. Best-effort, non-fatal: if `gh` is missing, unauthenticated,
-        # or the repo already exists, we log a warning and continue —
-        # scaffold success doesn't depend on remote creation.
-        # `--yes` is the modern flag (verified on gh v2.45.0+); the older
-        # `--confirm` was deprecated.
-        if github_create:
-            import subprocess
-
-            gh_cmd = ["gh", "repo", "create", f"mobasak/{name}", "--private", "--yes"]
-            try:
-                gh_result = subprocess.run(gh_cmd, capture_output=True, text=True, check=False)
-                if gh_result.returncode == 0:
-                    click.echo(f"✅ GitHub: created private repo mobasak/{name}")
-                else:
-                    click.echo(
-                        f"⚠️  GitHub repo create exited {gh_result.returncode}: "
-                        f"{(gh_result.stderr or gh_result.stdout).strip()[:200]}",
-                        err=True,
-                    )
-            except FileNotFoundError:
-                click.echo(
-                    "⚠️  `gh` CLI not found on PATH — install GitHub CLI or omit --github-create",
-                    err=True,
-                )
-            except Exception as exc:  # noqa: BLE001 — non-fatal, log + continue
-                click.echo(f"⚠️  GitHub repo create failed: {exc}", err=True)
+        # G-B2: make the project deploy-ready. A build-context type (SPEC_ENABLED,
+        # compose `build:`) is undeployable as source.type=template, so unless the
+        # operator opted out with --no-github we AUTO-create + wire its GitHub repo
+        # when `gh` is authenticated. --github-create forces it for any type. The
+        # wire step (create → remote → push → spec regen) is what flips the spec to
+        # source.type=git; the old flow only created an orphan repo and left the
+        # spec as template (the "not fully ready" bug).
+        want_github = github_create or (
+            not no_github and project_type in SPEC_ENABLED_TYPES and _gh_authenticated()
+        )
+        if no_github and project_type in SPEC_ENABLED_TYPES:
+            click.echo(
+                "⚠️  --no-github: project stays source.type=template — not deployable "
+                "until you add a git remote (`fabrik apply` ships only compose+env).",
+                err=True,
+            )
+        if want_github:
+            _create_and_wire_github_repo(name, project_dir, project_type, db)
 
         # G-B4 (T1-02): point the operator at the current Traycer planning flow.
         # Multi-epic projects start at mega-epic-breakdown/00-trigger;
