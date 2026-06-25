@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — drop unused `reused` param from gpu_rent._compute_actual_cost (vulture) (2026-06-23)
+
+The `reused` keyword-only param was never read in the body (serverless cost is `$0` regardless of reuse), so vulture flagged it. Removed the param and the two `reused=reuse_flag` pass-throughs; `reuse_flag` itself stays (used for reporting/teardown). No behavior change.
+
 ### Fixed — gpu_state.reconcile report dict type annotation (mypy clean) (2026-06-23)
 
 `reconcile()` built its `report` dict without a type annotation, so mypy inferred the values as `object` and flagged 8 `attr-defined`/`operator` errors on the `.append()` / `+= 1` sites. Annotated `report: dict[str, Any]` (the same fix already carried in the extracted `fabrik-lib/gpu-rent` copy). No behavior change.

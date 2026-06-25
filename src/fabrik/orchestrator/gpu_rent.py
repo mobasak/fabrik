@@ -628,7 +628,7 @@ def _record_actual_cost(
         logger.exception("gpu_rent: failed to record actual cost in state")
 
 
-def _compute_actual_cost(kind: str, wall_clock_seconds: float, *, reused: bool) -> float:
+def _compute_actual_cost(kind: str, wall_clock_seconds: float) -> float:
     """Cost actually consumed by the session.
 
     For pods: hourly rate * (wall_clock / 3600), no rounding.
@@ -850,7 +850,7 @@ def rent(
 
         # Cost actually consumed
         reuse_flag = bool(resource and resource.get("_fabrik_reuse"))
-        cost_actual = _compute_actual_cost(kind, wall, reused=reuse_flag)
+        cost_actual = _compute_actual_cost(kind, wall)
         report["cost_actual_usd"] = cost_actual
         report["reused_endpoint"] = reuse_flag
 
@@ -1052,7 +1052,7 @@ def rented(
         wall = round(time.monotonic() - start, 1)
         report["wall_clock_seconds"] = wall
         reuse_flag = bool(resource and resource.get("_fabrik_reuse"))
-        cost_actual = _compute_actual_cost(kind, wall, reused=reuse_flag)
+        cost_actual = _compute_actual_cost(kind, wall)
         report["cost_actual_usd"] = cost_actual
         report["reused_endpoint"] = reuse_flag
 
