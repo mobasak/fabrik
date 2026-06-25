@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — CLAUDE.md / AGENTS.md / .windsurfrules: resolve sync-path leakage + tighten ambiguous wording (2026-06-25)
+
+Synced contract files referenced fabrik-upstream-only paths (`docs/workflows/FINAL_GATE_WORKFLOW.md`, `scripts/fabrik_synced_manifest.py`) without flagging them — the references resolved from `/opt/fabrik` but were dead from any project's view (a Claude session reading `/opt/trade-intelligence/CLAUDE.md` correctly flagged them as missing). Fixes: use absolute `/opt/fabrik/...` paths for upstream-only files; use full `scripts/enforcement/check_*.py` paths for synced enforcers (they live there, not `scripts/`); clarify the synced-files manifest is canonical and the `.gitignore` block is generated from it; scope FIRST/FINAL OUTPUT to task-completing responses (exempt read-only / clarifying turns); fix "applied" tense in FIRST OUTPUT to "applied or will apply"; clarify rule-pack-vs-ticket precedence is orthogonal to the spec.shape canonicity axis (how-to-write vs what-the-code-must-match).
+
+### Added — `.windsurf/rules/ai/` rule folder + AI model-selection index pack (2026-06-25)
+
+New `ai/` domain bucket under `.windsurf/rules/` for AI-specific rule subfiles, seeded with `00-ai-model-selection.md` — a glob-activated index that encodes the selection workflow + Fabrik AI defaults (pgvector-only, Recraft images, Soniox TTS, Kilo-before-external) and points to `docs/reference/AI_TAXONOMY.md` as canonical. Auto-discovered by `select_rules.py` (recursive `rglob`). Also fixed 3 internal discrepancies in `AI_TAXONOMY.md`: Agentic example `OpenAI o1`→`o3/o4-mini` (matched the detail section), Long-Context Quick Reference now includes `Claude Fable 5 (1M)`, and Fable 5 mislabel `(Mythos-class)`→`(1M)`.
+
 ### Fixed — scaffold makes build-context projects deploy-ready (create + wire + push + spec→git) (2026-06-23)
 
 `fabrik scaffold` left build-context types (saas-skeleton/node-api/…) at `source.type=template` when no git remote existed, so `fabrik apply` couldn't ship the build context — the project wasn't deployable. Worse, the old `--github-create` only ran `gh repo create` (an orphan repo) and never linked the remote, pushed, or regenerated the spec. Now the wire step does all four (create → `remote add origin` → push → spec regen → `source.type=git`), and it **auto-runs for SPEC_ENABLED types when `gh` is authenticated** so a freshly scaffolded project is born deploy-ready. New `--no-github` opts out (with a clear not-deployable warning). Test: `tests/test_scaffold_github_wire.py`.
