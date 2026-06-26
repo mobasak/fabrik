@@ -220,7 +220,8 @@ Scripts that run within Fabrik only, referenced by the WSL startup hook.
 | 7 | `role_mapper.py` | Deterministic role assignment (pre_filter → selector → post_filter → DB, ~50ms, $0 cost) |
 | 8 | `export_traycer_registry.py` | Refresh `scripts/kilo_47_agents_final.json` from DB |
 | 9 | `generate_kilo_agents.py` | Generate Traycer CLI agent scripts |
-| 10 | `sync_extensions.sh` | Windsurf extensions docs (retries 3x if IDE not ready) |
+| 10 | `check_ai_pack_freshness.py` | Warn-only: flag `.windsurf/rules/ai/*.md` packs >90d unverified (`AI_PACK_STALE_DAYS` override) |
+| 11 | `sync_extensions.sh` | Windsurf extensions docs (retries 3x if IDE not ready) |
 
 **Note:** Steps 4-9 are the Kilo agent workflow. Deterministic algorithm (no LLM) re-enabled 2026-05-13. Opt-out via `FABRIK_DISABLE_KILO_WORKFLOW=1`.
 

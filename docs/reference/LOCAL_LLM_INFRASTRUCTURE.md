@@ -758,13 +758,13 @@ All Kilo CLI agents (both cloud and local) are controlled by the global configur
 ## See Also
 
 - **[KILO_MODEL_SELECTION.md](kilo/KILO_MODEL_SELECTION.md)** — Cloud model selection
-- **[AI_TAXONOMY.md](AI_TAXONOMY.md)** — AI tool categories
+- **[AI ruleset](../../.windsurf/rules/ai/00-ai-model-selection.md)** — AI tool categories
 - **[stack.md](stack.md)** — Full infrastructure stack
 
 <!-- AUTO-GENERATED:LOCAL_MODELS_START -->
 ## Installed Models (Auto-Generated)
 
-**Last Synced:** 2026-06-20 14:14
+**Last Synced:** 2026-06-27 00:08
 
 | Model | Role | Hardware | Size | Context | Vision | Tools | Agentic | ELO | Code |
 |-------|------|----------|------|---------|--------|-------|---------|-----|------|

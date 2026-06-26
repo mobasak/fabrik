@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — scaffold/fix refuse to target the Fabrik hub (/opt/fabrik) (2026-06-27)
+
+`create_project()` and `fix_project()` now raise via a new `_assert_not_hub()` guard when the target resolves to `/opt/fabrik`. This stops the project synced-gitignore block — which ignores governance sources (`.windsurf/`, `CLAUDE.md`, `AGENTS.md`, `scripts/run*`) — from being written to the hub's own `.gitignore` (the root cause of the hub previously ignoring its own canonical sources). `sync_enforcement_to_projects.py` already excluded the hub from its project list; this closes the manual `fabrik scaffold`/`fix`-on-hub path. Test: `tests/test_scaffold_fix.py::TestScaffoldHubGuard`.
+
+### Added — AI rule pack freshness check in daily WSL pipeline (warn-only) (2026-06-27)
+
+New `scripts/check_ai_pack_freshness.py` scans `.windsurf/rules/ai/*.md` after the embedding pipeline in `wsl_startup_hook.sh` and warns in `cache/update.log` when any pack's `Last content verification: YYYY-MM-DD` line is older than 90 days (override via `AI_PACK_STALE_DAYS`). Unstamped packs are also flagged (today only `00-ai-model-selection.md` is stamped; `25-3d-generation.md` uses `Last reviewed:` and reads as unstamped until restamped with the canonical phrase). The script never modifies pack content — the daily pipeline owns *data* (model scores, embedding catalogs); AI rule packs encode *policy* (vendor routing, model lineup) and refresh on model-launch events under human review. Updates `docs/workflows/KILO_BENCHMARK_WORKFLOW.md` with the new pipeline step.
+
+### Fixed — hub `.gitignore` no longer ignores Fabrik-synced SOURCE files (2026-06-27)
+
+`/opt/fabrik/.gitignore` carried a `fabrik scaffold update` block that ignored the hub's own canonical synced sources — `.windsurf/`, `.windsurfrules`, `CLAUDE.md`, `AGENTS.md`, `AGENTS-compact.md`, `opencode.json`, `scripts/run*`, `docs/reference/long-command-monitoring.md`. That is the *project*-side ignore set (synced files must not be committed in downstream projects), wrongly applied to the hub where those files are canonical — they were only in git via `git add -f`, so every new rule pack needed force-adding. Removed the synced-source entries (kept genuine local artifacts: `*.log`, `*.db`, `.droid/`, caches, `backups/`, etc.) and added a warning comment so they aren't re-added. `.windsurf/` is now tracked normally in the hub and still ignored in projects via the synced block (`fabrik_synced_manifest.py`). Also corrected `.windsurf/rules/ai/25-3d-generation.md` §7 to reference the real master registry `data/projects.yaml` (not the per-project `project.yaml`).
+
 ### Fixed — kilo-benchmarks: embedding_export_markdown self-heals when chat-pipeline strips its markers (2026-06-25)
 
 The daily WSL pipeline regenerates `docs/reference/kilo/KILO_MODEL_CAPABILITIES.md` and `KILO_AGENT_SELECTION_GUIDE.md` wholesale via `generate_model_capabilities.py` + `generate_selection_guide_roster.py`, which don't preserve the `<!-- EMBEDDING_CATALOG:START/END -->` and `<!-- EMBEDDING_ROSTER:START/END -->` markers that `embedding_export_markdown.py` writes between. Result: the embedding step crashed every daily run with `RuntimeError: markers not found`, silently leaving the embedding catalog stale (last seen 2026-06-25T11:32 in `scripts/kilo-benchmarks/cache/update.log`). Fix: `_replace_between_markers` now APPENDS a fresh `<marker> + body + <marker>` block to the end of the file when the markers are absent, instead of raising. Idempotent on rerun (when markers are present, original replace-between path runs). Verified end-to-end: first run printed `[embedding_export_markdown] re-seeded` and re-created the CATALOG block; second run silently updated with no spurious re-seed.
@@ -19,6 +31,10 @@ Migrated `docs/reference/AI_TAXONOMY.md` (a 249-line monolithic catalogue) into 
 ### Removed — archived legacy `CRITICAL_RULES.md` (obsolete `wsl-commander` execution model) (2026-06-25)
 
 `docs/reference/CRITICAL_RULES.md` was functionally orphaned: its core content described the obsolete `wsl-commander` heredoc / rollback-prevention execution model, no agent entry-point (CLAUDE.md, AGENTS.md, AGENTS-compact.md, .windsurfrules, AFCL.md, opencode.json, PLANNING_REFERENCES.md) loaded it, and it was not in the synced manifest. Moved to `docs/archive/2026-06-25-critical-rules-legacy.md` with an archived banner; removed from the `INDEX.md` tree + reference table and the `docs_updater.py` doc registry.
+
+### Added — `25-3d-generation.md` AI rule pack (zero-edit 3D-asset pipeline) (2026-06-25)
+
+Formalized the 3D-generation ruleset into a glob-activated `ai/` pack: renamed `3d-gen-pipeline-rules.md` → `25-3d-generation.md` (convention — `NN-topic`, dropped redundant `-rules`), added frontmatter (globs `**/3d/**`, `**/mesh-gen/**`, `**/text-to-3d/**`, `**/glb/**`, …) + CONSUMER block so `select_rules.py` activates it, fixed `projects.yaml`→`project.yaml`, and aligned §7 (it's now a glob-activated pack, not a loose reference doc). Cross-linked from the `ai/` index (`00`) + `20-vision.md`, and to `core/76-gpu-workers.md` for the self-host decision. Content (provider routing Meshy/Tripo/Rodin/TRELLIS 2, mandatory headless validation gate, 3-re-roll cap, API-before-self-host) is backed by `docs/reference/research-files/Zero-Edit 3D API Evaluation.md`.
 
 ### Fixed — scaffold makes build-context projects deploy-ready (create + wire + push + spec→git) (2026-06-23)
 

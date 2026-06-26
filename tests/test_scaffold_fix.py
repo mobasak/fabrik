@@ -14,6 +14,33 @@ requires_fabrik_env = pytest.mark.skipif(
 )
 
 
+class TestScaffoldHubGuard:
+    """scaffold/fix must refuse to target the Fabrik hub (/opt/fabrik) itself.
+
+    Regression guard: writing the project synced-gitignore block to the hub
+    would ignore the hub's own canonical sources (.windsurf/, CLAUDE.md, …).
+    """
+
+    def test_fix_project_refuses_hub(self):
+        with pytest.raises(ValueError, match="hub"):
+            fix_project(FABRIK_ROOT)
+
+    def test_assert_not_hub_refuses_hub_and_dotpath(self):
+        from fabrik.scaffold import _assert_not_hub
+
+        with pytest.raises(ValueError, match="hub"):
+            _assert_not_hub(FABRIK_ROOT)
+        # Path normalization: /opt/fabrik/. resolves to the hub.
+        with pytest.raises(ValueError, match="hub"):
+            _assert_not_hub(FABRIK_ROOT / ".")
+
+    def test_assert_not_hub_allows_non_hub(self):
+        from fabrik.scaffold import _assert_not_hub
+
+        # A normal project path must not trip the guard.
+        _assert_not_hub(Path("/opt/some-other-project"))
+
+
 @requires_fabrik_env
 class TestFixProjectAFCLPreservation:
     """fix_project() must NOT overwrite project-local AFCL.md content."""

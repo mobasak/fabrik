@@ -1,5 +1,7 @@
 # CRITICAL OPERATIONAL RULES
 
+> **ARCHIVED 2026-06-25 — legacy, kept for history only.** The `wsl-commander` heredoc / rollback-prevention execution model below is obsolete: current agents (Claude Code / Kilo / Cascade) use `Bash` with `run_in_background` + the long-command monitoring in `docs/reference/long-command-monitoring.md`, governed by the CLAUDE.md HARD STOPS table. This file was not loaded by any agent entry-point and was not synced to projects.
+
 **READ THIS FILE FIRST before any file operations or project work.**
 
 ## 1. FILE OPERATIONS (ROLLBACK PREVENTION)
@@ -205,7 +207,7 @@ No code until this 4-item checklist is answered in one short block:
 GOAL: [one sentence outcome]
 
 PLAN: [tools/libs/APIs; why chosen; key risks/trade-offs]
-**AI projects only** → Read /opt/context-management/AI_TAXONOMY.md first:
+**AI projects only** → Read `.windsurf/rules/ai/00-ai-model-selection.md` (+ matching category pack) first:
 - Identify: ai_category + ai_subcategory
 - Shortlist tools from taxonomy
 - Justify chosen tool vs. top alternative

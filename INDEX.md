@@ -302,8 +302,8 @@ docs/
 │   ├── n8n-webhooks.md             # n8n webhook configuration
 ├── owner_ozgur_basak.md            # Owner profile & AI instructions
 ├── reference                       # Technical reference and module documentation
-│   ├── AI_TAXONOMY.md              # AI categories & tool selection
-│   ├── CRITICAL_RULES.md           # Non-negotiable execution rules
+│   ├── # (Moved — AI taxonomy is now .windsurf/rules/ai/)
+│   ├── # (Archived — CRITICAL_RULES.md → docs/archive/2026-06-25-critical-rules-legacy.md)
 │   ├── # (Deleted — see .windsurf/rules/core/25-data-postgres.md)
 │   ├── DOCUMENTATION_STANDARD.md   # Documentation standards and conventions
 │   ├── LOCAL_LLM_INFRASTRUCTURE.md
@@ -461,7 +461,6 @@ docs/
 | [templates.md](docs/reference/templates.md) | Available deployment templates |
 | [SaaS-GUI.md](docs/reference/SaaS-GUI.md) | SaaS skeleton template guide |
 <!-- archived 2026-04-28: SCAFFOLD_TO_DEPLOY_INTEGRATION.md (HISTORICAL gap analysis), DEPLOY_TEMPLATE_AUDIT_2026-04-10.md (HISTORICAL audit), POSTGRESQL_LOCAL_DEV_*.md ×4 (impl shipped, see CHANGELOG line 4041); see docs/archive/2026-04-28-* and docs/DEPLOYMENT_ARCHITECTURE.md for current canonical reference -->
-| [CRITICAL_RULES.md](docs/reference/CRITICAL_RULES.md) | Non-negotiable execution rules |
 | [DOCUMENTATION_STANDARD.md](docs/reference/DOCUMENTATION_STANDARD.md) | Documentation standards and conventions |
 | [global-gates.md](docs/reference/global-gates.md) | Global gate definitions |
 

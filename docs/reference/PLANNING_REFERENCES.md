@@ -73,11 +73,11 @@ Path: docs/reference/25-data-postgres rule pack (.windsurf/rules/core/25-data-po
 
 ## 3. AI/ML Decisions
 
-### `AI_TAXONOMY.md`
-**Purpose:** 15-category AI taxonomy with tool recommendations.
+### `.windsurf/rules/ai/` (AI ruleset)
+**Purpose:** 16-category AI taxonomy + tool recommendations, as glob-activated rule packs.
 **Consult when:** Selecting AI tools, APIs, or models for any feature.
 ```
-Path: docs/reference/AI_TAXONOMY.md
+Path: .windsurf/rules/ai/00-ai-model-selection.md (index → per-category packs 10–90)
 ```
 
 **Key Categories:**
@@ -118,7 +118,7 @@ Path: .windsurf/rules/core/20-typescript.md
 
 ### During `idea` Phase
 1. Read `technology-stack-decision-guide.md` to understand product type options
-2. Read `AI_TAXONOMY.md` if AI features are mentioned
+2. Read `.windsurf/rules/ai/00-ai-model-selection.md` (+ the matching category pack) if AI features are mentioned
 
 ### During `scope` Phase
 1. Read `stack.md` to understand deployment constraints

@@ -49,6 +49,32 @@ chain so a broken embeddings catalog cannot kill the chat workflow above.
 The output is a working Traycer CLI agent fleet — each generated wrapper invokes
 the right model with the right role-specific prompt.
 
+### AI rule pack freshness check (sibling, warn-only)
+
+After both chat and embedding pipelines complete, `check_ai_pack_freshness.py`
+scans `.windsurf/rules/ai/*.md` and prints warnings to `update.log` for any
+pack whose `Last content verification: YYYY-MM-DD` line is older than
+**90 days** (override via `AI_PACK_STALE_DAYS=NN`). Unstamped packs are also
+reported. The script never modifies pack content — the daily pipeline generates
+*data* (model scores, embedding catalogs); AI rule packs encode *policy* (vendor
+routing, model lineup) and refresh on model-launch events under human review.
+
+Output shape in `cache/update.log`:
+
+```text
+[ai-pack-freshness] 11 packs scanned (threshold: 90d) on 2026-06-27
+[ai-pack-freshness] ⚠️  1 STALE pack(s):
+  - 00-ai-model-selection.md: verified 95 days ago (>90d threshold) — re-verify model lineup / vendor picks
+[ai-pack-freshness] ℹ️  10 unstamped pack(s):
+  - 10-speech-audio.md: no `Last content verification:` line — consider stamping to track refresh cadence
+  ...
+```
+
+> Note: only `00-ai-model-selection.md` carries the canonical `Last content
+> verification:` stamp today; the other packs (incl. `25-3d-generation.md`,
+> which uses `Last reviewed:`) read as *unstamped* until stamped with the exact
+> phrase. The check is warn-only and never gates a commit.
+
 ## How role assignment works (deterministic, no LLM)
 
 `role_mapper.py` assigns models to roles
@@ -140,6 +166,7 @@ Non-kilo steps in `wsl_startup_hook.sh`:
 | `/opt/fabrik/scripts/kilo-benchmarks/embedding_role_mapper.py` | Embedding role winners. |
 | `/opt/fabrik/scripts/kilo-benchmarks/embedding_export_markdown.py` | Updates embedding doc sections. |
 | `/opt/fabrik/scripts/generate_kilo_agents.py` | Generates Traycer CLI wrappers into `~/.traycer/cli-agents/`. |
+| `/opt/fabrik/scripts/check_ai_pack_freshness.py` | Warn-only: flags `.windsurf/rules/ai/*.md` packs whose `Last content verification:` line is >90d old (`AI_PACK_STALE_DAYS` override). Never modifies packs. |
 | `/opt/fabrik/scripts/kilo-benchmarks/cache/update.log` | Daily pipeline log. |
 | `/opt/fabrik/scripts/kilo-benchmarks/cache/manual_workflow.log` | Manual trigger log (created on first manual run). |
 

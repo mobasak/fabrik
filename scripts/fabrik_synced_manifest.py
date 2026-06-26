@@ -100,7 +100,6 @@ REFERENCE_DOCS = [
         "docs/reference/technology-stack-decision-guide.md",
         "docs/reference/technology-stack-decision-guide.md",
     ),
-    ("docs/reference/AI_TAXONOMY.md", "docs/reference/AI_TAXONOMY.md"),
     ("PORTS.md", "PORTS.md"),
     (
         "docs/reference/ai_agent_prompt_directives.md",

@@ -144,7 +144,7 @@ State which source(s) read (or `none — interview-only`).
 
 - `docs/reference/technology-stack-decision-guide.md` — Fabrik stack overrides + existing services + decision flowchart.
 - `docs/reference/prebuilt-app-containers.md` — off-the-shelf solutions.
-- `docs/reference/AI_TAXONOMY.md` — if AI/ML project, identify correct category + tool.
+- `.windsurf/rules/ai/00-ai-model-selection.md` (+ matching category pack) — if AI/ML project, identify correct category + tool.
 - `docs/operations/fabrik-lifecycle.md` — confirm project fits the deploy/runtime stages; identify registrars.
 - `.windsurf/rules/` (subdirectories: `core/`, `saas/`, `mobile-app/`, `chrome-ext/`) — identify applicable packs using `AGENTS.md` § Project Type → Default Packs table. The table maps scaffold type → pack IDs. These pack IDs are injected into each ticket's Context Files during `ticket-breakdown`.
 - `docs/traycer/kilo_selected_agents.md` — Kilo CLI agent rankings (Elo + pricing + capabilities).

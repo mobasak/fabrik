@@ -71,7 +71,7 @@ Tech-plan adds scaffold-aware reads:
 
 - **UI scaffolds** (`saas-skeleton`, `static-site`, `chrome-extension`, `mobile-app`, `desktop-app`): `.windsurf/rules/core/ocoron-design-system.md` (confirm `Design System: read` in INFRA-CHECK). For `mobile-app`, also read `.windsurf/rules/mobile-app/ocoron-mobile-design-system.md`.
 - **Database-backed scaffolds**: `.windsurf/rules/core/25-data-postgres.md` — PostgreSQL conventions, migration policy, host selection (postgres-main vs Supabase).
-- **AI/ML projects**: `docs/reference/AI_TAXONOMY.md` — confirm correct category + tool selection.
+- **AI/ML projects**: `.windsurf/rules/ai/00-ai-model-selection.md` (+ matching category pack `10`–`90`) — confirm correct category + tool selection.
 - **All scaffolds**: `docs/operations/fabrik-lifecycle.md` — confirm architecture fits all 4 stages.
 
 ### Step 3: Read Scaffold-Specific Rule Packs
@@ -272,7 +272,7 @@ If during iteration the user introduces a requirement change, suggest `revise-re
 
 - Upstream context consumed: Epic Brief, INFRA-CHECK. Path A: Concurrency, i18n, Shape, 12-Factor, Rule Packs, Responsive, Dark+Light, HAS_USER_GUIDE, Abuse Detection, Email, FINANCIALS, Vector DB. Path B adds: `Registrars`, `Universal categories`, `Epic Flavor` (Delta-feature | Retrofit) — none silently dropped at the boundary. Core Flows (when present), pre-research.
 - Defensive case handled: no retroactive core-flows request for skipped scaffolds.
-- Pre-design reference reads completed scaffold-aware (design system, 25-data-postgres, AI_TAXONOMY, lifecycle).
+- Pre-design reference reads completed scaffold-aware (design system, 25-data-postgres, ai/ ruleset, lifecycle).
 - Rule packs read per INFRA-CHECK `Rule Packs` + domain overlays. Stated.
 - Stack block built per Step 4 with drift-guard footer.
 - **12-Factor compliance verified** (Step 4b): all 12 factors pass. Violations resolved as Most Important.

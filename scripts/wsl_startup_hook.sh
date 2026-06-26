@@ -17,7 +17,9 @@
 #      d. role_mapper.py                     — pre_filter → selector → post_filter → DB
 #      e. export_traycer_registry.py         — refresh scripts/kilo_47_agents_final.json from DB
 #      f. generate_kilo_agents.py            — emit Traycer CLI agent scripts
-# 6. Extensions sync: auto-update Windsurf extensions documentation (daily)
+# 6. AI rule pack freshness check (warn-only): warns in update.log when any
+#      .windsurf/rules/ai/*.md 'Last content verification:' line is >90 days old
+# 7. Extensions sync: auto-update Windsurf extensions documentation (daily)
 #
 # Full reference: docs/workflows/DATA_SYNC_WORKFLOW.md
 
@@ -39,6 +41,7 @@ ENV_WATCHER_LOG="$FABRIK_ROOT/.tmp/env_watcher.log"
 SYNC_PROJECTS_SCRIPT="$FABRIK_ROOT/scripts/sync_projects.py"
 CASCADE_BACKUP_SCRIPT="$FABRIK_ROOT/scripts/sync_cascade_backup.sh"
 HEALTH_SUMMARY_SCRIPT="$FABRIK_ROOT/scripts/health_summary.py"
+AI_PACK_FRESHNESS_SCRIPT="$FABRIK_ROOT/scripts/check_ai_pack_freshness.py"
 LOG_FILE="$FABRIK_ROOT/scripts/kilo-benchmarks/cache/update.log"
 LOCK_FILE="/tmp/.fabrik_daily_$(date +%Y%m%d)"
 
@@ -94,6 +97,11 @@ if [ ! -f "$LOCK_FILE" ]; then
             cd $FABRIK_ROOT/scripts/kilo-benchmarks && $VENV_PYTHON $EMBEDDING_MAPPER_SCRIPT >> $LOG_FILE 2>&1 && \
             cd $FABRIK_ROOT/scripts/kilo-benchmarks && $VENV_PYTHON $EMBEDDING_MARKDOWN_SCRIPT >> $LOG_FILE 2>&1
         fi
+        # === AI RULE PACK FRESHNESS CHECK (warn-only) ===
+        # Reports any .windsurf/rules/ai/*.md pack whose
+        # 'Last content verification: YYYY-MM-DD' line is >90 days old.
+        # Override threshold: AI_PACK_STALE_DAYS=NN
+        $VENV_PYTHON $AI_PACK_FRESHNESS_SCRIPT >> $LOG_FILE 2>&1
         cd $FABRIK_ROOT && bash $EXTENSIONS_SCRIPT >> $LOG_FILE 2>&1
         echo '=== Pipeline complete — '$(date '+%Y-%m-%d %H:%M:%S')' ===' >> $LOG_FILE
     " &
