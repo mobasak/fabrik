@@ -211,14 +211,29 @@ def _replace_between_markers(
 ) -> bool:
     """Replace the content between (but not including) the marker lines.
 
-    Returns True if the file was modified, False if markers were missing or
-    the body was already up to date.
+    Self-healing: if the markers are absent, append a fresh section with
+    markers + body at the end of the file rather than crashing. The
+    chat-pipeline regenerates `KILO_MODEL_CAPABILITIES.md` and
+    `KILO_AGENT_SELECTION_GUIDE.md` wholesale, which drops these embedding
+    markers; without self-heal, this script would fail every daily run
+    after a chat-pipeline refresh.
+
+    Returns True if the file was modified, False if it was already up to date.
     """
     text = file_path.read_text()
     start_idx = text.find(start_marker)
     end_idx = text.find(end_marker)
+
     if start_idx == -1 or end_idx == -1 or end_idx <= start_idx:
-        raise RuntimeError(f"markers not found in {file_path}: {start_marker!r} / {end_marker!r}")
+        # Markers absent (or out of order) — append a fresh section. The chat
+        # generators don't know about embedding markers, so we re-seed them here.
+        prefix = "" if text.endswith("\n") else "\n"
+        full_start = f"{start_marker} (auto-managed by embedding_export_markdown.py) -->"
+        section = f"{prefix}\n{full_start}\n{new_body.rstrip(chr(10))}\n{end_marker}\n"
+        file_path.write_text(text + section)
+        print(f"[embedding_export_markdown] re-seeded {start_marker} block in {file_path}")
+        return True
+
     line_end = text.find("\n", start_idx)
     if line_end == -1:
         raise RuntimeError(f"malformed start marker line in {file_path}")
