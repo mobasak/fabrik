@@ -369,10 +369,50 @@ def test_suffix_only_at_end():
 | G0.3b operator falsifier | Run G0.3a; if `0`, run `.venv/bin/python -c "import json,pathlib,sys; p=pathlib.Path('/opt/fabrik/scripts/kilo-benchmarks/cache/arena_parsed.json'); print('NO_CACHE: run update_kilo_benchmarks.py --force first') if not p.exists() else print(len([e for e in json.loads(p.read_text()) if any(s in e['model'].lower() for s in ['deepseek', 'qwen', 'kimi'])]))"` — sanity-check the leaderboard cache contains at least one model whose base form has a `:free` variant in our DB. Pass 2B Finding 5: cache absence on fresh checkout is **explicit** in the output (`NO_CACHE:`) instead of `FileNotFoundError`. | (a) `NO_CACHE:` → operator runs the pipeline first; gate INCOMPLETE, not failed. (b) integer `> 0` → join SHOULD have fired; G0.3a returning `0` then means Phase 0 regressed (real failure). (c) integer `0` → leaderboard genuinely has no models with our `:free` variants today; G0.3a `0` is acceptable (vacuous-case caveat per §1a). |
 | G0.4 final_gate | `.venv/bin/python scripts/final_gate.py --check --lean --json` | `"status":"success"` |
 
-### 6.5 Evidence (to be filled when phase implemented)
+### 6.5 Evidence (filled 2026-06-27, this Phase 0 commit)
 
-- `path:line`: `scripts/kilo-benchmarks/update_kilo_benchmarks.py:59-61` (rewritten `normalize_model_name`) + `scripts/kilo-benchmarks/update_kilo_benchmarks.py:89-120` (lookup-key expansion inside `update_agents_json`)
-- Command output: `pytest tests/kilo_benchmarks/test_normalize_model_name.py -q` summary + DB-count-delta SQL + `final_gate.py --check --lean --json` JSON
+**Pass 4 finding (during implementation):** the plan's `path:line` cite for the join was incomplete. `update_kilo_benchmarks.py:89-120` (`update_agents_json`) only writes the JSON shadow file (`kilo_selected_agents.json`); the actual `agents` SQLite table that G0.3a queries is written by `kilo_agents_db.py:327` (`update_benchmarks()`) which has its **own** `normalize()` at line 343. Patching only the plan-cited file would have left G0.3a stuck at 0 forever. Phase 0 therefore patched BOTH paths — the plan's cited path AND the previously-unstated DB path. Logged as Pass 4 finding in §17a U6 update (separate edit).
+
+- `path:line`:
+  - `scripts/kilo-benchmarks/update_kilo_benchmarks.py:59-87` (rewritten `normalize_model_name` + module constant `_OPENROUTER_ROUTING_SUFFIXES`)
+  - `scripts/kilo-benchmarks/update_kilo_benchmarks.py:106-126` (lookup-key expansion inside `update_agents_json`)
+  - `scripts/kilo-benchmarks/kilo_agents_db.py:343-374` (extended `normalize()` with the same suffix-stripping loop)
+  - `tests/kilo_benchmarks/test_normalize_model_name.py:1-103` (7 unit tests, all pass)
+
+**Command output (verbatim 2026-06-27):**
+
+```text
+G0.1 unit test:
+$ .venv/bin/python -m pytest tests/kilo_benchmarks/test_normalize_model_name.py -q
+.......                                                                  [100%]
+7 passed in 0.11s
+
+G0.2 DB-side pipeline (after Pass 4 extension to kilo_agents_db.py):
+$ cd scripts/kilo-benchmarks && .venv/bin/python kilo_agents_db.py update | tail -1
+[kilo-db]   Updated 131 Elo, 46 TBench, 33 BenchLM scores
+# Baseline 2026-06-25 was 114 Elo / 45 TBench / 28 BenchLM
+# Delta: +17 Elo, +1 TBench, +5 BenchLM models gained scores via :free→base join
+
+G0.3a invariant:
+$ # BEFORE Phase 0:
+$ # SELECT count(*) FROM agents WHERE id LIKE '%:free' AND status='active'
+$ #   AND (tbench_accuracy IS NOT NULL OR arena_elo IS NOT NULL OR ...) → 0
+$ # AFTER Phase 0:
+G0.3a POST-PIPELINE: scored :free models = 10 / 32
+
+Examples:
+  minimax/minimax-m2.5:free                  elo=1436 tbench=42.7
+  qwen/qwen3.6-plus:free                     elo=1482 wc=77.7
+  google/gemma-4-31b-it:free                 elo=1462
+  nvidia/nemotron-3-super-120b-a12b:free     elo=1401
+  ... (10 total flipped)
+
+G0.4 final_gate (after fixing a transient ruff N806 on a constant name):
+$ .venv/bin/python scripts/final_gate.py --check --lean --json | tail -8
+{"status": "success", "tier": 1, "passed": 12, "failed": 0, "failures": []}
+```
+
+**Verdict: G0.3a flipped from 0 to 10. BENCHMARK_SOURCES.md §4.5 gap closed.**
 
 ---
 
@@ -992,7 +1032,7 @@ SELECT count(*) FROM agents
 
 | Item | Status |
 |---|---|
-| Phase 0 (`:free` normalization) Evidence filled + G0.1-G0.4 green | ⏳ |
+| Phase 0 (`:free` normalization) Evidence filled + G0.1-G0.4 green | ✅ shipped 2026-06-27 (this commit). G0.3a flipped 0 → 10 scored `:free` models. Evidence in §6.5 includes the verbatim G0.1/G0.2/G0.3a/G0.4 outputs. |
 | Phase 1 (`agent_categories` join table) Evidence filled + G1.1-G1.5 green | ⏳ |
 | Phase 2 (YAML config) Evidence filled + G2.1-G2.3 green | ⏳ |
 | Phase 3 (selector + mapper) Evidence filled + G3.1-G3.5 green | ⏳ |
@@ -1102,6 +1142,16 @@ No phase mutates external systems — every change is local to `/opt/fabrik/`. N
 ## §17a. Residual unknowns, assumptions, and out-of-scope risks
 
 This plan iterated to a fixed point across **2 grounding passes** (Pass 1: 4 parallel grounders → 14 findings; Pass 2: 2 grounders → 19 findings; Pass 3 solo → 0 new findings). The fixed point is **structural soundness** (every claim verified against live code, schema, or scrape extraction). It is **not** "100% accuracy" — the items below remain explicitly unverified or out-of-scope. Anyone implementing this plan should hit them before declaring done.
+
+### 17a.0 Pass 4 finding (caught during Phase 0 implementation 2026-06-27)
+
+The plan reached fixed-point structural convergence across 3 passes BEFORE implementation began. Implementing Phase 0 immediately uncovered a finding NONE of the four Pass 1 grounders + two Pass 2 grounders + Pass 3 solo caught:
+
+**Finding P4-1 (would have been blocking):** Plan §6.1 named exactly one file (`update_kilo_benchmarks.py:59-61`) as the location of `normalize_model_name`. That citation was correct, but **incomplete**. The actual SQLite `agents` table that G0.3a queries is populated by `kilo_agents_db.py::update_benchmarks()` at line 327, which has its **own** nested `normalize()` function at line 343 — independent of `update_kilo_benchmarks.py`'s normalizer. Patching only the plan-cited path would have shipped a fix that left G0.3a stuck at 0 forever (because the JSON shadow file isn't what the invariant checks). Phase 0 ended up patching BOTH normalizers to flip the invariant.
+
+**Why the 6 grounders missed it:** every grounder followed citation chains FROM the plan (which only named one file). None did the reverse search: "what other code paths join scraped scores to the `agents` table?" A grep for `arena_elo` columns being written would have surfaced `kilo_agents_db.py:438` and the surrounding `update_benchmarks()` function in 30 seconds. Citation-chain grounding has this blind spot by design.
+
+**Lesson encoded:** for any future phase that targets a "the join from X to Y" claim, run a **reverse audit** — `grep -l "<target column or behavior>"` across the script directory — to find all writers, not just the one the plan names. Pass 1B (schema grounder) had this opportunity and missed it because it focused on table shape, not on which scripts mutate the table.
 
 ### 17a.1 Residual unknowns (acknowledged, unresolved)
 

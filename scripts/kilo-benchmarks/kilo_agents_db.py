@@ -339,11 +339,30 @@ def update_benchmarks() -> None:
     conn = get_connection()
     cursor = conn.cursor()
 
+    # OpenRouter routing suffixes — see plan
+    # docs/development/plans/2026-06-27-plan-openrouter-routing.md §6.1.
+    # Stripping these is what closes the BENCHMARK_SOURCES.md §4.5 gap
+    # (38 `:free` models had zero benchmark scores because their base-id
+    # leaderboard row never joined).
+    openrouter_routing_suffixes = (
+        ":free", ":nitro", ":floor", ":beta", ":online", ":thinking",
+    )
+
     # Build lookup maps (normalize names for matching)
     def normalize(name: str) -> str:
-        """Normalize model name for matching."""
+        """Normalize model name for matching against leaderboard entries."""
         n = name.lower().replace(" ", "-").replace("_", "-")
-        # Remove common suffixes that vary between sources
+        # Strip OpenRouter routing suffixes repeatedly — `x/y:free:online`
+        # collapses fully to `x/y` so the base model's leaderboard row joins
+        # to the routed variant (Phase 0 of the OpenRouter routing plan).
+        changed = True
+        while changed:
+            changed = False
+            for suffix in openrouter_routing_suffixes:
+                if n.endswith(suffix):
+                    n = n[: -len(suffix)]
+                    changed = True
+        # Remove common version/preview suffixes that vary between sources
         for suffix in ["-preview", "-exp", "-001", "-002", "-003", "-customtools"]:
             if n.endswith(suffix):
                 n = n[: -len(suffix)]

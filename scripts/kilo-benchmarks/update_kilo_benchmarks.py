@@ -56,9 +56,31 @@ def should_update(force: bool = False) -> bool:
         return True
 
 
+_OPENROUTER_ROUTING_SUFFIXES = (":free", ":nitro", ":floor", ":beta", ":online", ":thinking")
+
+
 def normalize_model_name(name: str) -> str:
-    """Normalize model name for matching."""
-    return name.lower().replace(" ", "-").replace("_", "-")
+    """Normalize model name for matching against scraped leaderboard entries.
+
+    Strips OpenRouter routing suffixes (``:free``, ``:nitro``, ``:floor``,
+    ``:beta``, ``:online``, ``:thinking``) repeatedly — so a double-suffix
+    like ``x/y:free:online`` collapses fully to ``x/y``. This makes the
+    ``:free`` variant in ``agents.id`` join to the base model's row on the
+    Arena / Terminal Bench / BenchLM leaderboards.
+
+    The suffix strip is end-only (verified against the OpenRouter
+    ``/api/v1/models`` snapshot 2026-06-27): routing suffixes never appear
+    in the middle of a model id, so ``"x/:free/y"`` is left as-is.
+    """
+    base = name.lower().replace(" ", "-").replace("_", "-")
+    changed = True
+    while changed:
+        changed = False
+        for suffix in _OPENROUTER_ROUTING_SUFFIXES:
+            if base.endswith(suffix):
+                base = base[: -len(suffix)]
+                changed = True
+    return base
 
 
 def build_elo_map(arena_entries: list) -> dict[str, int]:
@@ -99,8 +121,26 @@ def update_agents_json(elo_map: dict[str, int], tbench_map: dict[str, float]) ->
         model_lower = model.lower()
         model_normalized = normalize_model_name(model)
 
+        # Build the candidate-key set ONCE per agent. We try the raw lowercased
+        # name, the normalized variant (legacy behaviour), AND every
+        # progressively suffix-stripped version so models registered as
+        # `<base>:free`/`:nitro` join to their BASE-model leaderboard rows
+        # (closes the gap documented in BENCHMARK_SOURCES.md §4.5).
+        keys_to_try = [model_lower, model_normalized]
+        stripped = model_lower
+        while True:
+            next_stripped = stripped
+            for suffix in _OPENROUTER_ROUTING_SUFFIXES:
+                if next_stripped.endswith(suffix):
+                    next_stripped = next_stripped[: -len(suffix)]
+            if next_stripped == stripped:
+                break
+            stripped = next_stripped
+            keys_to_try.append(stripped)
+            keys_to_try.append(normalize_model_name(stripped))
+
         # Update Elo
-        for key in [model_lower, model_normalized]:
+        for key in keys_to_try:
             if key in elo_map:
                 old_elo = agent.get("arena_elo")
                 new_elo = elo_map[key]
@@ -110,7 +150,7 @@ def update_agents_json(elo_map: dict[str, int], tbench_map: dict[str, float]) ->
                 break
 
         # Update TBench
-        for key in [model_lower, model_normalized]:
+        for key in keys_to_try:
             if key in tbench_map:
                 old_tbench = agent.get("tbench_accuracy")
                 new_tbench = tbench_map[key]
