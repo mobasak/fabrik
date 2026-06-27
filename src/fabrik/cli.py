@@ -1627,8 +1627,7 @@ def _gh_authenticated() -> bool:
         return False
     try:
         return (
-            subprocess.run(["gh", "auth", "status"], capture_output=True, text=True).returncode
-            == 0
+            subprocess.run(["gh", "auth", "status"], capture_output=True, text=True).returncode == 0
         )
     except Exception:  # noqa: BLE001 — treat any failure as "not authenticated"
         return False

@@ -1,6 +1,6 @@
 # Cascade Models and Credits
 
-**Last Updated:** 2026-06-20
+**Last Updated:** 2026-06-27
 
 > 📋 **Source:** Automatically extracted from https://docs.windsurf.com/plugins/cascade/models
 >
@@ -12,7 +12,7 @@
 
 ## Overview
 
-**Total Models:** 141 across 7 provider categories
+**Total Models:** 152 across 7 provider categories
 
 ---
 
@@ -22,11 +22,14 @@
 |-------|---------|-----------|--------|-------|
 | Adaptive | — | — | — |  |
 | SWE-1.6 | 0 | — | — | Promo pricing |
+| Kimi K2.7 | 1 | — | — |  |
 | GPT-5.4 Mini (Low Reasoning) | 1.5 | — | — |  |
+| GLM-5.2 | 1.5 | — | — |  |
 | GPT-5.2-Codex (Low Reasoning Fast) | 2 | — | 66.5% |  |
 | Claude Sonnet 4.5 | 3 | 1464 | 46.5% |  |
 | Claude Sonnet 4.6 | 4 | 1500 | 53.4% |  |
 | Claude Opus 4.5 | 6 | 1496 | 63.1% |  |
+| Gemini 3.5 Flash Medium | 8 | 1535 | — |  |
 | Claude Opus 4.8 (Medium Thinking) | 25 | 1558 | — |  |
 | Claude Fable 5 (Low Thinking) | 40 | 1566 | — | Promo pricing |
 | Claude Fable 5 (Medium Thinking) | 50 | 1566 | — | Promo pricing |
@@ -184,6 +187,10 @@
 | Gemini 2.5 Pro | 1 | 1465 | 32.6% |  |
 | Gemini 3 Flash High | 1.8 | 1469 | 64.3% |  |
 | Gemini 3.1 Pro High | 2 | 1531 | 80.2% |  |
+| Gemini 3.5 Flash Minimal | 2 | 1535 | — |  |
+| Gemini 3.5 Flash Low | 4 | 1535 | — |  |
+| Gemini 3.5 Flash Medium | 8 | 1535 | — |  |
+| Gemini 3.5 Flash High | 9 | 1535 | — |  |
 
 ---
 
@@ -200,8 +207,12 @@
 | Model | Credits | Arena ELO | TBench | Notes |
 |-------|---------|-----------|--------|-------|
 | GLM 4.7 | 0.2 | 1460 | 33.4% |  |
+| Kimi K2.7 | 1 | — | — |  |
+| Kimi K2.6 | 1 | — | — |  |
 | Kimi K2.5 | 1 | — | 43.2% |  |
 | Minimax M2.5 | 1 | 1436 | 42.7% |  |
+| GLM-5.2 | 1.5 | — | — |  |
+| GLM-5.1 | 1.5 | 1506 | — |  |
 | GLM-5 | 1.5 | 1461 | 52.4% |  |
 
 ---

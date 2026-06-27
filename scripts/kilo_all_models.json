@@ -1,6 +1,6 @@
 {
-  "timestamp": "2026-06-21T11:59:04.687225",
-  "total_models": 327,
+  "timestamp": "2026-06-27T00:07:59.796960",
+  "total_models": 325,
   "models": {
     "~anthropic/claude-haiku-latest": {
       "id": "~anthropic/claude-haiku-latest",
@@ -104,11 +104,6 @@
     },
     "anthropic/claude-3-haiku": {
       "id": "anthropic/claude-3-haiku",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
-    "anthropic/claude-3.5-haiku": {
-      "id": "anthropic/claude-3.5-haiku",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
@@ -319,11 +314,6 @@
     },
     "deepseek/deepseek-v4-pro:discounted": {
       "id": "deepseek/deepseek-v4-pro:discounted",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
-    "essentialai/rnj-1-instruct": {
-      "id": "essentialai/rnj-1-instruct",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
@@ -757,8 +747,8 @@
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
-    "nex-agi/nex-n2-pro:free": {
-      "id": "nex-agi/nex-n2-pro:free",
+    "nex-agi/nex-n2-pro": {
+      "id": "nex-agi/nex-n2-pro",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
@@ -1179,11 +1169,6 @@
     },
     "poolside/laguna-xs.2:free": {
       "id": "poolside/laguna-xs.2:free",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
-    "prime-intellect/intellect-3": {
-      "id": "prime-intellect/intellect-3",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
@@ -1634,6 +1619,11 @@
     },
     "z-ai/glm-5.2": {
       "id": "z-ai/glm-5.2",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "z-ai/glm-5v-turbo": {
+      "id": "z-ai/glm-5v-turbo",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     }

@@ -43,9 +43,6 @@ scrape_configs:
     labels:
       host: vps1
       role: hub
-# Federated spoke node-exporter (2026-06-17 — closes the
-# "spoke sysadmins can't see fleet alerts" autonomy gap noted in
-# docs/infrastructure/vps-ai-sysadmin.md:154).
 - job_name: node-spokes
   static_configs:
   - targets:

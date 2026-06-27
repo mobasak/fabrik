@@ -136,11 +136,11 @@ async def embed(texts: list[str], model: str = "qwen/qwen3-embedding-8b") -> lis
 <!-- EMBEDDING_WINNERS:START (auto-generated — do not edit between markers) -->
 | Role | Use when | Model | Cost | Context |
 |---|---|---|---|---|
-| **Default (TR+EN)** | Most projects — use ONE model for BOTH ingest and query | `qwen/qwen3-embedding-8b` | $0.01/M | 32k |
-| **Default (TR+EN) fallback** | Fallback if P1 unavailable | `qwen/qwen3-embedding-4b` | $0.02/M | 32k |
+| **Code-specific** | Separate pipeline — IDE semantic search, codebase retrieval | `mistralai/codestral-embed-2505` | $0.15/M | 8k |
 | **Premium quality** | Separate pipeline — only when max recall needed AND budget allows full re-embed | `openai/text-embedding-3-large` | $0.13/M | 8k |
 | **Premium quality fallback** | Fallback if P1 unavailable | `google/gemini-embedding-001` | $0.15/M | 20k |
-| **Code-specific** | Separate pipeline — IDE semantic search, codebase retrieval | `mistralai/codestral-embed-2505` | $0.15/M | 8k |
+| **Default (TR+EN)** | Most projects — use ONE model for BOTH ingest and query | `qwen/qwen3-embedding-8b` | $0.01/M | 32k |
+| **Default (TR+EN) fallback** | Fallback if P1 unavailable | `qwen/qwen3-embedding-4b` | $0.02/M | 32k |
 <!-- EMBEDDING_WINNERS:END -->
 
 Full roster: `docs/reference/kilo/KILO_AGENT_SELECTION_GUIDE.md` § Embedding Roster.
