@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-26",
+  "generated_at": "2026-06-27",
   "roles": {
     "multilingual_primary": {
       "1": "qwen/qwen3-embedding-8b",

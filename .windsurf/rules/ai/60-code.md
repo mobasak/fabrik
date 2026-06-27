@@ -11,6 +11,8 @@ trigger: glob
 
 # 6. Code & Developer AI
 
+Last content verification: 2026-06-27
+
 **Purpose:** Generate or explain code.
 
 ## Fabrik default
@@ -23,3 +25,15 @@ Claude Code, GitHub Copilot, Amazon Q Developer, Cursor IDE, Windsurf Cascade.
 ✅ 148 code models. Free: `minimax/minimax-m2.5:free`. Full paid range. Check Kilo before a paid external code API.
 
 **Use cases:** code completion, refactoring, debugging assistance.
+
+<!-- OPENROUTER_ROUTES:START — last-refreshed: 2026-06-27 (auto-managed by category_export_markdown.py) -->
+*Auto-generated 2026-06-27 (UTC) by `category_route_mapper.py` → injected here by `category_export_markdown.py`. Edits between the markers will be overwritten on the next daily run.*
+
+| Priority | OpenRouter ID | Cost ($/M in) | Context | Status |
+|---|---|---|---|---|
+| P1 | `openai/gpt-5.4` | $2.50 | 1050k | GA |
+| P2 | `google/gemini-3.1-pro-preview` | $2.00 | 1048k | preview |
+| P3 | `openai/gpt-5.3-codex` | $1.75 | 400k | GA |
+
+To consume via a Fabrik spec: `llm_provider: openrouter` + `llm_model: <P1 id>`. Fallback chain via the OpenRouter `models: [P1, P2, P3]` request parameter.
+<!-- OPENROUTER_ROUTES:END -->

@@ -152,9 +152,7 @@ def select_for_category(
         sql_parts.append(f"AND ({clauses})")
         params.extend(f"%{m}%" for m in FREE_MARKERS)
 
-    sql_parts.append(
-        f"ORDER BY {primary_sort}, COALESCE(a.arena_elo, 0) DESC, a.id ASC"
-    )
+    sql_parts.append(f"ORDER BY {primary_sort}, COALESCE(a.arena_elo, 0) DESC, a.id ASC")
     sql_parts.append("LIMIT ?")
     params.append(limit)
 

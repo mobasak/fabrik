@@ -11,6 +11,8 @@ trigger: glob
 
 # 5. Agentic / Reasoning AI
 
+Last content verification: 2026-06-27
+
 **Purpose:** Multi-step reasoning or tool use.
 
 ## Fabrik default
@@ -25,3 +27,15 @@ OpenAI o3/o4-mini, Claude (Projects / agent loops), LangChain Agents, AutoGPT.
 **Use cases:** automation, code execution, planning, research.
 
 **Anti-pattern:** putting per-call $ caps on the operational diagnose loop — it must run (Claude Code is subscription-billed). See `core/cost-budget.md`.
+
+<!-- OPENROUTER_ROUTES:START — last-refreshed: 2026-06-27 (auto-managed by category_export_markdown.py) -->
+*Auto-generated 2026-06-27 (UTC) by `category_route_mapper.py` → injected here by `category_export_markdown.py`. Edits between the markers will be overwritten on the next daily run.*
+
+| Priority | OpenRouter ID | Cost ($/M in) | Context | Status |
+|---|---|---|---|---|
+| P1 | `openai/gpt-5.4` | $2.50 | 1050k | GA |
+| P2 | `openai/gpt-5.3-codex` | $1.75 | 400k | GA |
+| P3 | `anthropic/claude-opus-4.6` | $5.00 | 1000k | GA |
+
+To consume via a Fabrik spec: `llm_provider: openrouter` + `llm_model: <P1 id>`. Fallback chain via the OpenRouter `models: [P1, P2, P3]` request parameter.
+<!-- OPENROUTER_ROUTES:END -->

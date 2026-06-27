@@ -11,6 +11,8 @@ trigger: glob
 
 # 1. Speech & Audio AI
 
+Last content verification: 2026-06-27
+
 **Purpose:** Convert or interpret sound.
 
 ## Fabrik defaults
@@ -30,3 +32,13 @@ trigger: glob
 **Use cases:** transcription services, voice assistants, audio processing.
 
 **Anti-pattern:** using a general LLM for transcription instead of Soniox/Whisper.
+
+<!-- OPENROUTER_ROUTES:START — last-refreshed: 2026-06-27 (auto-managed by category_export_markdown.py) -->
+*Auto-generated 2026-06-27 (UTC) by `category_route_mapper.py` → injected here by `category_export_markdown.py`. Edits between the markers will be overwritten on the next daily run.*
+
+| Priority | OpenRouter ID | Cost ($/M in) | Context | Status |
+|---|---|---|---|---|
+| P1 | `openai/gpt-audio-mini` | $0.60 | 128k | GA |
+
+To consume via a Fabrik spec: `llm_provider: openrouter` + `llm_model: <P1 id>`. Fallback chain via the OpenRouter `models: [P1, P2, P3]` request parameter.
+<!-- OPENROUTER_ROUTES:END -->

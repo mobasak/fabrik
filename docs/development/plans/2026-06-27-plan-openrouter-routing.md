@@ -887,10 +887,15 @@ This design (single-write atomicity) ensures `check_ai_pack_freshness.py` never 
 | G4.4 markers actually present (Pass 1D nit, replaces markdownlint) | `for f in .windsurf/rules/ai/{10,20,30,40,50,60,90}-*.md; do test "$(grep -c "OPENROUTER_ROUTES" "$f")" -eq 2 \|\| echo "MISSING in $f"; done` | empty output (every targeted pack has both START + END markers) |
 | G4.5 final_gate | `.venv/bin/python scripts/final_gate.py --check --lean --json` | `"status":"success"` |
 
-### 10.5 Evidence (to be filled when phase implemented)
+### 10.5 Evidence (filled 2026-06-27)
 
-- `path:line`: `scripts/kilo-benchmarks/category_export_markdown.py:<self-heal>:<line>` (mirror of `embedding_export_markdown.py:209-247`)
-- Command output: G4.2 git-diff empty + G4.3 freshness output + G4.5 JSON
+- `path:line`: [`scripts/kilo-benchmarks/category_export_markdown.py:132-174`](../../../scripts/kilo-benchmarks/category_export_markdown.py#L132-L174) (`_replace_or_append_markers` — self-heal mirror of `embedding_export_markdown.py:209-247` + Pass A F3 orphan-strip hardening), [`scripts/kilo-benchmarks/category_export_markdown.py:186-258`](../../../scripts/kilo-benchmarks/category_export_markdown.py#L186-L258) (`_refresh_stamp` + atomic single-write contract), [`tests/kilo_benchmarks/test_category_export_markdown.py`](../../../tests/kilo_benchmarks/test_category_export_markdown.py) (20 cases).
+- G4.1 unit tests: `pytest tests/kilo_benchmarks/test_category_export_markdown.py -q` → `20 passed in 0.07s`.
+- G4.2 idempotent: second run output `[category_export_markdown] <cat>: {'status': 'noop', 'marker': 'noop', 'stamp': 'noop'}` for all 7 categories; pack mtimes stable on 3rd run.
+- G4.3 freshness: `python scripts/check_ai_pack_freshness.py` → `[ai-pack-freshness] 11 packs scanned (threshold: 90d) on 2026-06-27`, no STALE/ERROR rows.
+- G4.4 markers: `for f in ai/{10,20,30,40,50,60,90}-*.md; grep -c OPENROUTER_ROUTES $f` → `2` for all 7.
+- G4.5 final_gate: `python scripts/final_gate.py --lean --json` → `"failed": 0`.
+- **Adversarial review log (Pass A → B → C → D, all defects fixed, fixed point at D):** Pass A surfaced F1-F6 (frontmatter, case, orphans, duplication, missing WARN); Pass B surfaced multi-stamp collapse; Pass C surfaced reason-field stamp leak into marker block; Pass D returned `[]`. 9 regression tests added (`test_pass_a_f1_*`, `test_pass_a_f2_*` ×2, `test_pass_a_f3_*` ×3, `test_pass_a_f6_*`, `test_pass_b_f1_*`, `test_pass_c_*`).
 
 ---
 
@@ -1132,7 +1137,7 @@ SELECT count(*) FROM agents
 | Phase 1 (`agent_categories` join table) Evidence filled + G1.1-G1.7 green | ✅ shipped 2026-06-27. 889 rows across 7 categories; 425 distinct models classified; 0 orphans; 0 LIKE-rule overlap; PRAGMA fk asserted on every script connect. Evidence in §7.5. |
 | Phase 2 (YAML config) Evidence filled + G2.1-G2.3 green | ✅ shipped 2026-06-27. 7 categories declared mapping to the 7 LLM-bearing ai/NN-*.md packs; field-for-field mirror of embedding_role_configs.yaml. Three packs intentionally omitted (3d-gen, data-predictive, specialized-domains — non-LLM vendors). Evidence in §8.2. |
 | Phase 3 (selector + mapper) Evidence filled + G3.1-G3.6 green | ✅ shipped 2026-06-27. 16 routes / 7 categories / 0 skipped / 26 chat-side rows preserved (rollback isolation invariant proven). 12/12 unit + integration tests pass. Evidence in §9.5. |
-| Phase 4 (markdown export) Evidence filled + G4.1-G4.5 green | ⏳ |
+| Phase 4 (markdown export) Evidence filled + G4.1-G4.5 green | ✅ |
 | Phase 5 (pipeline wiring) Evidence filled + G5.1-G5.5 green | ⏳ |
 | Phase 6 (cross-link + INDEX + CHANGELOG) Evidence filled + G6.1-G6.3 green | ⏳ |
 | `core/40-documentation.md` doc-sync matrix satisfied across all phases | ⏳ |

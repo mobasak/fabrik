@@ -665,7 +665,7 @@ the `wordpress` **scaffold type** (`fabrik scaffold --type wordpress`).
 - `scripts/generate_kilo_agents.py` - Generates tier-based agent scripts from the agent manifest
 - `scripts/kilo_code_review.py` - Code review (Step 4 in the workflow)
 - `scripts/kilo_model_sync.py` - Syncs the model catalog + pricing
-- `scripts/kilo-benchmarks/` - Benchmark-driven agent-selection subsystem (`agent_selector.py`, `compute_assignments.py`, `db_models.py`, embedding assignment)
+- `scripts/kilo-benchmarks/` - Benchmark-driven agent-selection subsystem (`agent_selector.py`, `compute_assignments.py`, `db_models.py`, embedding assignment, OpenRouter category routing: `classify_ai_category.py`, `category_selector.py`, `category_route_mapper.py`, `category_export_markdown.py` + `ai_category_configs.yaml`)
 
 ### Data Files (AUTHORITATIVE)
 - `scripts/kilo_47_agents_final.json` - Primary agent manifest (47 agents)

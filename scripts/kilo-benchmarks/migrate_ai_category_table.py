@@ -78,8 +78,7 @@ def migrate(db_path: Path | str = DB_PATH) -> dict[str, int]:
             """
         )
         conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_agent_categories_category "
-            "ON agent_categories(category)"
+            "CREATE INDEX IF NOT EXISTS idx_agent_categories_category ON agent_categories(category)"
         )
         conn.commit()
 

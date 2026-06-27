@@ -11,6 +11,8 @@ trigger: glob
 
 # 4. Vision-Language & Multimodal AI
 
+Last content verification: 2026-06-27
+
 **Purpose:** Combine text, image, audio, and video understanding.
 
 ## Fabrik default
@@ -23,3 +25,14 @@ Claude Opus 4.8, GPT-4o, Gemini 2.5 Pro, LLaVA, Kosmos-2.
 ✅ 70 models with image input. Free: `qwen/qwen3-vl-235b-thinking`. Paid: `bytedance-seed/seed-1.6-flash` ($0.07/1M). For `input.video`, only 19 models qualify — check the `input.video` flag.
 
 **Use cases:** image captioning, visual QA, document understanding, video analysis.
+
+<!-- OPENROUTER_ROUTES:START — last-refreshed: 2026-06-27 (auto-managed by category_export_markdown.py) -->
+*Auto-generated 2026-06-27 (UTC) by `category_route_mapper.py` → injected here by `category_export_markdown.py`. Edits between the markers will be overwritten on the next daily run.*
+
+| Priority | OpenRouter ID | Cost ($/M in) | Context | Status |
+|---|---|---|---|---|
+| P1 | `openai/gpt-5-nano` | $0.05 | 400k | GA |
+| P2 | `kilo-auto/small` | $0.05 | 262k | GA |
+
+To consume via a Fabrik spec: `llm_provider: openrouter` + `llm_model: <P1 id>`. Fallback chain via the OpenRouter `models: [P1, P2, P3]` request parameter.
+<!-- OPENROUTER_ROUTES:END -->

@@ -44,8 +44,7 @@ DB_PATH = SCRIPT_DIR / "kilo_agents.db"
 RULES: list[tuple[str, str]] = [
     (
         "speech-audio",
-        "id LIKE '%whisper%' OR id LIKE '%audio%' "
-        "OR id LIKE '%voice%' OR id LIKE '%tts%'",
+        "id LIKE '%whisper%' OR id LIKE '%audio%' OR id LIKE '%voice%' OR id LIKE '%tts%'",
     ),
     (
         "vision",
@@ -119,8 +118,7 @@ def classify(db_path: Path | str = DB_PATH) -> dict[str, int]:
         # script may have left if it deleted from `agents` without first
         # setting PRAGMA foreign_keys = ON on its own connection.
         orphan_n = conn.execute(
-            "DELETE FROM agent_categories WHERE agent_id NOT IN "
-            "(SELECT id FROM agents)"
+            "DELETE FROM agent_categories WHERE agent_id NOT IN (SELECT id FROM agents)"
         ).rowcount
         if orphan_n > 0:
             _log(

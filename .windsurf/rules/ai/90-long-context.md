@@ -11,6 +11,8 @@ trigger: glob
 
 # 16. Long-Context AI
 
+Last content verification: 2026-06-27
+
 **Purpose:** Process extremely long documents, codebases, or conversations.
 
 ## Fabrik default
@@ -20,3 +22,14 @@ trigger: glob
 Claude Opus 4.8 (1M), Claude Fable 5 (1M), Gemini 2.5 Pro (1M), GPT-4o (128K).
 
 **Use cases:** codebase analysis, book summarization, long-document QA, multi-file reasoning.
+
+<!-- OPENROUTER_ROUTES:START — last-refreshed: 2026-06-27 (auto-managed by category_export_markdown.py) -->
+*Auto-generated 2026-06-27 (UTC) by `category_route_mapper.py` → injected here by `category_export_markdown.py`. Edits between the markers will be overwritten on the next daily run.*
+
+| Priority | OpenRouter ID | Cost ($/M in) | Context | Status |
+|---|---|---|---|---|
+| P1 | `meta-llama/llama-4-scout` | $0.10 | 10000k | GA |
+| P2 | `x-ai/grok-4.20` | $1.25 | 2000k | GA |
+
+To consume via a Fabrik spec: `llm_provider: openrouter` + `llm_model: <P1 id>`. Fallback chain via the OpenRouter `models: [P1, P2, P3]` request parameter.
+<!-- OPENROUTER_ROUTES:END -->

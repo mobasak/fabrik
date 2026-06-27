@@ -11,6 +11,8 @@ trigger: glob
 
 # 3. Language AI
 
+Last content verification: 2026-06-27
+
 **Purpose:** Process and generate text.
 
 ## Fabrik defaults
@@ -30,3 +32,15 @@ trigger: glob
 **Use cases:** chatbots, content generation, search, translation.
 
 **Anti-pattern:** standing up a dedicated vector DB when pgvector is already on the project's Postgres.
+
+<!-- OPENROUTER_ROUTES:START — last-refreshed: 2026-06-27 (auto-managed by category_export_markdown.py) -->
+*Auto-generated 2026-06-27 (UTC) by `category_route_mapper.py` → injected here by `category_export_markdown.py`. Edits between the markers will be overwritten on the next daily run.*
+
+| Priority | OpenRouter ID | Cost ($/M in) | Context | Status |
+|---|---|---|---|---|
+| P1 | `stepfun/step-3.5-flash` | $0.09 | 262k | GA |
+| P2 | `qwen/qwen3-next-80b-a3b-instruct` | $0.15 | 262k | GA |
+| P3 | `meituan/longcat-flash-chat` | $0.20 | 131k | GA |
+
+To consume via a Fabrik spec: `llm_provider: openrouter` + `llm_model: <P1 id>`. Fallback chain via the OpenRouter `models: [P1, P2, P3]` request parameter.
+<!-- OPENROUTER_ROUTES:END -->

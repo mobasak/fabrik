@@ -345,7 +345,12 @@ def update_benchmarks() -> None:
     # (38 `:free` models had zero benchmark scores because their base-id
     # leaderboard row never joined).
     openrouter_routing_suffixes = (
-        ":free", ":nitro", ":floor", ":beta", ":online", ":thinking",
+        ":free",
+        ":nitro",
+        ":floor",
+        ":beta",
+        ":online",
+        ":thinking",
     )
 
     # Build lookup maps (normalize names for matching)

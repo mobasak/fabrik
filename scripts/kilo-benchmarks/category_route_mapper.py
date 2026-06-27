@@ -107,8 +107,7 @@ def _persist_to_agent_roles(
         # Scoped narrowly by both role prefix AND date — yesterday's
         # history rows for the same role are preserved.
         conn.execute(
-            "DELETE FROM agent_roles_history "
-            "WHERE role LIKE ? AND DATE(assigned_at) = DATE('now')",
+            "DELETE FROM agent_roles_history WHERE role LIKE ? AND DATE(assigned_at) = DATE('now')",
             (f"{ROLE_PREFIX}%",),
         )
         _do_inserts(conn, routes)
@@ -267,10 +266,7 @@ def run(
     _emit_traycer_export(routes, skipped)
 
     total_routes = sum(len(v) for v in routes.values())
-    _log(
-        f"wrote {total_routes} pins across {len(routes)} categories "
-        f"({len(skipped)} skipped)"
-    )
+    _log(f"wrote {total_routes} pins across {len(routes)} categories ({len(skipped)} skipped)")
     return routes, skipped
 
 
