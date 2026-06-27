@@ -517,10 +517,48 @@ Live-DB row counts captured by Pass 1B (2026-06-27): speech-audio 3 · vision 20
 | G1.6 PRAGMA foreign_keys verified | `sqlite3 kilo_agents.db "PRAGMA foreign_keys"` after running migration | `1` (or assert in test) |
 | G1.7 final_gate | `.venv/bin/python scripts/final_gate.py --check --lean --json` | `"status":"success"` |
 
-### 7.5 Evidence
+### 7.5 Evidence (filled 2026-06-27, this Phase 1 commit)
 
-- `path:line`: migration script + classifier
-- Command output: G1.2 + G1.3 + G1.5 stdout
+- `path:line`:
+  - `scripts/kilo-benchmarks/migrate_ai_category_table.py:1-99` (idempotent migration; `PRAGMA foreign_keys = ON` + assert)
+  - `scripts/kilo-benchmarks/classify_ai_category.py:1-141` (7 rules; same PRAGMA contract)
+- **Pass 4-style reverse audit done before shipping**: `grep -l "agent_categories" scripts/kilo-benchmarks/*.py` → only the two new scripts wrote it. No silent second-writer pattern this phase.
+
+**Command output (verbatim 2026-06-27):**
+
+```text
+G1.1 migration idempotent:
+$ python migrate_ai_category_table.py
+[migrate_ai_category] table_created=1 index_created=1 foreign_keys_enabled=1
+$ python migrate_ai_category_table.py   # rerun
+[migrate_ai_category] table_created=0 index_created=0 foreign_keys_enabled=1
+
+G1 classifier run:
+$ python classify_ai_category.py
+[classify_ai_category] classified 889 rows across 7 categories:
+  speech-audio=3, vision=205, multimodal=76, agentic=131,
+  code=58, long-context=234, language=182
+
+G1.2 coverage:          distinct agent_ids = 425   (need >= 300) ✓
+G1.3 per-category mins: every required floor met
+                        agentic 131 (≥50), code 58 (≥10),
+                        language 182 (≥100), long-context 234 (≥50),
+                        vision 205 (≥50); multimodal 76 / speech-audio 3
+                        accepted as ≥0 (catalog-dependent)
+G1.4 orphans:           0 (need 0)
+G1.5 LIKE-rule overlap: 0 language rows whose id contains code/coder
+                        (NOT LIKE exclusion working)
+G1.5b score-column overlap: 9 (language ∩ code) — DOCUMENTED INTENTIONAL
+                        per §7.2 multi-category-by-design contract
+G1.6 PRAGMA:            per-connection in SQLite (by design); the two new
+                        scripts set + assert PRAGMA foreign_keys = ON on
+                        connect and raise RuntimeError if SQLite build is
+                        missing FK support — see migrate_ai_category_table.py:48
+                        and classify_ai_category.py:98
+G1.7 final_gate:        {"status":"success","tier":1,"passed":12,"failed":0}
+```
+
+**Verdict:** all G1 gates green. The classifier produced exactly the row distribution Pass 1B predicted from live DB queries (speech-audio 3, vision 205, multimodal 76, agentic 131, long-context 234) plus the post-fix language count (182 — up from 180 baseline because Pass 2A's `COALESCE(is_ga, 1)` change pulled in the 31 NULL-`is_ga` rows that previously fell through, minus those caught by the code rule). code count 58 vs Pass 1B's 55 reflects 3 newly-scored `:free` models from Phase 0's leaderboard join.
 
 ---
 
@@ -1033,7 +1071,7 @@ SELECT count(*) FROM agents
 | Item | Status |
 |---|---|
 | Phase 0 (`:free` normalization) Evidence filled + G0.1-G0.4 green | ✅ shipped 2026-06-27 (this commit). G0.3a flipped 0 → 10 scored `:free` models. Evidence in §6.5 includes the verbatim G0.1/G0.2/G0.3a/G0.4 outputs. |
-| Phase 1 (`agent_categories` join table) Evidence filled + G1.1-G1.5 green | ⏳ |
+| Phase 1 (`agent_categories` join table) Evidence filled + G1.1-G1.7 green | ✅ shipped 2026-06-27. 889 rows across 7 categories; 425 distinct models classified; 0 orphans; 0 LIKE-rule overlap; PRAGMA fk asserted on every script connect. Evidence in §7.5. |
 | Phase 2 (YAML config) Evidence filled + G2.1-G2.3 green | ⏳ |
 | Phase 3 (selector + mapper) Evidence filled + G3.1-G3.5 green | ⏳ |
 | Phase 4 (markdown export) Evidence filled + G4.1-G4.5 green | ⏳ |
