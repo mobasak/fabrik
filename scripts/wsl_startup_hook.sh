@@ -17,9 +17,15 @@
 #      d. role_mapper.py                     — pre_filter → selector → post_filter → DB
 #      e. export_traycer_registry.py         — refresh scripts/kilo_47_agents_final.json from DB
 #      f. generate_kilo_agents.py            — emit Traycer CLI agent scripts
-# 6. AI rule pack freshness check (warn-only): warns in update.log when any
+# 6. OpenRouter category routing (daily, deterministic): classifies models
+#      into the 7 ai/NN-*.md packs, ranks per-category, injects OPENROUTER_ROUTES
+#      markers + refreshes 'Last content verification:' stamps. Pure SQL, no
+#      LLM, no extra network calls beyond what step 5 already made. Per-script
+#      `|| echo "..."` failure isolation: a crash here MUST NOT short-circuit
+#      steps 7 or 8. Operator kill-switch: `touch /tmp/.openrouter_routing_disabled`.
+# 7. AI rule pack freshness check (warn-only): warns in update.log when any
 #      .windsurf/rules/ai/*.md 'Last content verification:' line is >90 days old
-# 7. Extensions sync: auto-update Windsurf extensions documentation (daily)
+# 8. Extensions sync: auto-update Windsurf extensions documentation (daily)
 #
 # Full reference: docs/workflows/DATA_SYNC_WORKFLOW.md
 
@@ -42,6 +48,9 @@ SYNC_PROJECTS_SCRIPT="$FABRIK_ROOT/scripts/sync_projects.py"
 CASCADE_BACKUP_SCRIPT="$FABRIK_ROOT/scripts/sync_cascade_backup.sh"
 HEALTH_SUMMARY_SCRIPT="$FABRIK_ROOT/scripts/health_summary.py"
 AI_PACK_FRESHNESS_SCRIPT="$FABRIK_ROOT/scripts/check_ai_pack_freshness.py"
+CATEGORY_CLASSIFIER_SCRIPT="$FABRIK_ROOT/scripts/kilo-benchmarks/classify_ai_category.py"
+CATEGORY_MAPPER_SCRIPT="$FABRIK_ROOT/scripts/kilo-benchmarks/category_route_mapper.py"
+CATEGORY_MARKDOWN_SCRIPT="$FABRIK_ROOT/scripts/kilo-benchmarks/category_export_markdown.py"
 LOG_FILE="$FABRIK_ROOT/scripts/kilo-benchmarks/cache/update.log"
 LOCK_FILE="/tmp/.fabrik_daily_$(date +%Y%m%d)"
 
@@ -96,6 +105,31 @@ if [ ! -f "$LOCK_FILE" ]; then
             cd $FABRIK_ROOT/scripts/kilo-benchmarks && $VENV_PYTHON $EMBEDDING_PREFILTER_SCRIPT >> $LOG_FILE 2>&1 && \
             cd $FABRIK_ROOT/scripts/kilo-benchmarks && $VENV_PYTHON $EMBEDDING_MAPPER_SCRIPT >> $LOG_FILE 2>&1 && \
             cd $FABRIK_ROOT/scripts/kilo-benchmarks && $VENV_PYTHON $EMBEDDING_MARKDOWN_SCRIPT >> $LOG_FILE 2>&1
+        fi
+        # === OPENROUTER CATEGORY ROUTING ===
+        # Reads agents + agent_categories, writes openrouter:{category} pins
+        # to agent_roles, then injects OPENROUTER_ROUTES markers into the 7
+        # ai/NN-*.md packs. Wrapped in a subshell so a crash here cannot
+        # short-circuit the freshness check or extensions sync below.
+        # Each step's failure is logged loud + non-fatal — partial run is
+        # acceptable per plan §11.1 (1-day staleness OK, watchdog at 2-day).
+        # Lockfile semantics (Pass A Finding 3 fix): /tmp/.openrouter_routing_disabled
+        # is a kill-switch for the NEXT scheduled run, not the in-flight run.
+        # Once the subshell has entered, the three scripts run to completion;
+        # killing mid-flight would leave the DB updated but packs stale.
+        if [ ! -f /tmp/.openrouter_routing_disabled ]; then
+            (
+                # Pass A Finding 4 fix: defend against FABRIK_ROOT ever
+                # being derived/unset; without this, cd silently no-ops and
+                # subsequent scripts run from $HOME with mysterious errors.
+                cd $FABRIK_ROOT/scripts/kilo-benchmarks || { echo \"[openrouter-routing] cd failed — skipping\" >> $LOG_FILE; exit 0; }
+                $VENV_PYTHON $CATEGORY_CLASSIFIER_SCRIPT >> $LOG_FILE 2>&1 \
+                    || echo \"[openrouter-routing] classifier failed (non-fatal)\" >> $LOG_FILE
+                $VENV_PYTHON $CATEGORY_MAPPER_SCRIPT >> $LOG_FILE 2>&1 \
+                    || echo \"[openrouter-routing] mapper failed (non-fatal)\" >> $LOG_FILE
+                $VENV_PYTHON $CATEGORY_MARKDOWN_SCRIPT >> $LOG_FILE 2>&1 \
+                    || echo \"[openrouter-routing] markdown export failed (non-fatal)\" >> $LOG_FILE
+            )
         fi
         # === AI RULE PACK FRESHNESS CHECK (warn-only) ===
         # Reports any .windsurf/rules/ai/*.md pack whose
