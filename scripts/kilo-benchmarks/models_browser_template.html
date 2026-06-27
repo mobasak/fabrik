@@ -433,17 +433,13 @@ for (const m of ALL) {
   const s = staleBucket(m.last_verified);
   m._staleBucket = s.bucket;
   m._staleDays = s.days;
-  // "Discounted" detection — Kilo Gateway's special discount routes:
-  //   :discounted suffix on the id, stealth/* alpha-discount provider,
-  //   or a name containing "% off)" / "(>NN% off)"
-  const id = m.id || "";
-  const provider = m.provider || "";
-  const name = m.name || "";
-  m._isDiscounted = (
-    id.endsWith(":discounted") ||
-    provider === "stealth" ||
-    /\d+% off\)/i.test(name)
-  );
+  // "Discounted" = ONLY explicit temporary promotional routes identified
+  // by the `:discounted` ID suffix (e.g. deepseek-v4-pro:discounted,
+  // minimax-m3:discounted). These are time-limited campaigns. Earlier
+  // versions also hid stealth/* by provider, but stealth/* is a permanent
+  // Kilo Gateway route family — the "(N% off)" in their names is
+  // incidental and the routes themselves are legitimate alternates.
+  m._isDiscounted = (m.id || "").endsWith(":discounted");
 }
 
 // ----- Header stats -----
