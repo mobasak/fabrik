@@ -52,6 +52,7 @@ CATEGORY_CLASSIFIER_SCRIPT="$FABRIK_ROOT/scripts/kilo-benchmarks/classify_ai_cat
 CATEGORY_MAPPER_SCRIPT="$FABRIK_ROOT/scripts/kilo-benchmarks/category_route_mapper.py"
 CATEGORY_MARKDOWN_SCRIPT="$FABRIK_ROOT/scripts/kilo-benchmarks/category_export_markdown.py"
 MODELS_BROWSER_SCRIPT="$FABRIK_ROOT/scripts/kilo-benchmarks/export_models_browser.py"
+OR_VERIFIER_SCRIPT="$FABRIK_ROOT/scripts/kilo-benchmarks/verify_openrouter_catalog.py"
 LOG_FILE="$FABRIK_ROOT/scripts/kilo-benchmarks/cache/update.log"
 LOCK_FILE="/tmp/.fabrik_daily_$(date -u +%Y%m%d)"
 
@@ -124,6 +125,12 @@ if [ ! -f "$LOCK_FILE" ]; then
                 # being derived/unset; without this, cd silently no-ops and
                 # subsequent scripts run from $HOME with mysterious errors.
                 cd $FABRIK_ROOT/scripts/kilo-benchmarks || { echo \"[openrouter-routing] cd failed — skipping\" >> $LOG_FILE; exit 0; }
+                # Verify pricing + capabilities against live OpenRouter API,
+                # auto-fix discrepancies, mark delisted rows deprecated,
+                # ingest new ones. Runs BEFORE the classifier so the
+                # downstream selector sees the corrected catalog.
+                $VENV_PYTHON $OR_VERIFIER_SCRIPT --apply --ingest-new >> $LOG_FILE 2>&1 \
+                    || echo \"[openrouter-routing] OpenRouter verifier failed (non-fatal)\" >> $LOG_FILE
                 $VENV_PYTHON $CATEGORY_CLASSIFIER_SCRIPT >> $LOG_FILE 2>&1 \
                     || echo \"[openrouter-routing] classifier failed (non-fatal)\" >> $LOG_FILE
                 $VENV_PYTHON $CATEGORY_MAPPER_SCRIPT >> $LOG_FILE 2>&1 \

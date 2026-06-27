@@ -32,7 +32,7 @@ Claude Opus 4.8, GPT-4o, Gemini 2.5 Pro, LLaVA, Kosmos-2.
 | Priority | OpenRouter ID | Cost ($/M in) | Context | Status |
 |---|---|---|---|---|
 | P1 | `openai/gpt-5-nano` | $0.05 | 400k | GA |
-| P2 | `kilo-auto/small` | $0.05 | 262k | GA |
+| P2 | `qwen/qwen3.5-flash-02-23` | $0.07 | 1000k | GA |
 
 To consume via a Fabrik spec: `llm_provider: openrouter` + `llm_model: <P1 id>`. Fallback chain via the OpenRouter `models: [P1, P2, P3]` request parameter.
 <!-- OPENROUTER_ROUTES:END -->
