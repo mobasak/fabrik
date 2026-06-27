@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — tier-3 convention validator was a no-op + exited 0 on violations; sync no longer ships .pyc (2026-06-28)
+
+Follow-ups to the enforcement-gate work. (1) `validate_conventions` ran at tier 3 with no `--git-diff`/files, so it checked nothing — added `--git-diff` (final_gate.py). (2) Activating it exposed a deeper bug: `scripts/enforcement/__init__.py` imports the module, so `python -m` double-imports it and `CheckResult`s carried a different `Severity` enum instance than `main()` compared against (identity check) — the validator exited 0 despite real violations. Fixed by comparing `Severity` by `.value` (instance-agnostic). Verified: planted violation now exits 2. (3) `sync_enforcement_to_projects.py` was copying `__pycache__/*.pyc` to every project — excluded them and cleaned the existing bytecode from all 39 enforcement dirs. Regression test: `tests/test_enforcement_gate_fixes.py::test_validate_conventions_m_fails_on_violation`.
+
 ### Fixed — 7 enforcement-gate findings; secrets/.env gates were inert no-ops (security-of-process) (2026-06-28)
 
 Centrally-synced enforcement checks. Highest-stakes: `check_secrets.py` + `check_env_vars.py` had **no `main()`/`__main__`** — final_gate ran them as `python <script>`, they exited 0, so the "Secrets (Zero Hardcoding)" + ".env (Secrets)" gates were **permanent no-ops on every project** (hardcoded secrets + `localhost` passed). Added `main()` scanning **changed files** (diff-bounded so existing violations don't retroactively red projects), fixed the relative import so they run standalone, exit 1 on ERROR. Also: `check_synced_unmodified.py` now flags a synced file **deleted** locally (was silently passed); `kilo_docs_enforcer.py` retry re-applies the requirement (identifier check no longer skipped) + robust diff-prefix parsing (`+++ b/`, bare, `/dev/null`); `check_doc_sync.py` strips ``` fences before the changelog-entry check (a fenced-only `###` example no longer counts); `docs_updater.py` STRUCTURE-marker label corrected (`INDEX.md`, not `docs/INDEX.md`). Tests: `tests/test_enforcement_gate_fixes.py`.

@@ -70,3 +70,33 @@ def test_changelog_quality_accepts_real_entry(tmp_path, monkeypatch):
         "## [Unreleased]\n\n### Fixed — real thing (2026-06-28)\n\n## [1.0]\n"
     )
     assert _changelog_quality_ok() is True
+
+
+# --- #8 + enum-identity: validate_conventions must FAIL on a violation -------
+def test_validate_conventions_m_fails_on_violation():
+    """Run via `python -m` (how final_gate invokes it, with --git-diff). The
+    package __init__ double-imports the module, so a Severity-identity comparison
+    silently exited 0 on real violations. This plants a hardcoded localhost and
+    asserts the validator actually fails (non-zero). Regression guard for the
+    tier-3 no-op (#8, missing --git-diff) AND the enum-identity exit-code bug.
+    """
+    import subprocess
+
+    repo = Path(__file__).resolve().parent.parent
+    leak = repo / "scripts" / "_localhost_leak.py"
+    leak.write_text('X = "localhost:5432"\n')
+    try:
+        subprocess.run(["git", "add", "-N", str(leak)], cwd=repo, check=True)
+        r = subprocess.run(
+            ["python3", "-m", "scripts.enforcement.validate_conventions", "--strict", "--git-diff"],
+            cwd=repo,
+            capture_output=True,
+            text=True,
+        )
+        assert r.returncode != 0, (
+            "validate_conventions must FAIL on a hardcoded localhost; got exit 0 "
+            f"(enum-identity / missing --git-diff regression). stdout:\n{r.stdout[-500:]}"
+        )
+    finally:
+        subprocess.run(["git", "rm", "--cached", "-q", str(leak)], cwd=repo, check=False)
+        leak.unlink(missing_ok=True)
