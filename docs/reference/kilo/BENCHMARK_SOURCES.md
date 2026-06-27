@@ -87,7 +87,37 @@ These four sources are consumed daily by `wsl_startup_hook.sh` step 5. Each fill
 - **Verdict:** **WIRED (passive)** — no separate scraper; consumed from the API response we're already fetching. Modest signal lift (5-8 rows reclassified per run) but free maintenance.
 - **Last verified:** 2026-06-28
 
-### 2.6 Multi-signal quality scorer (derive_quality_v2.py)
+### 2.6 SWE-bench Verified (swebench.com)
+
+- **URL:** `https://www.swebench.com/index.html` — embedded as `<script id="leaderboard-data">…</script>` JSON
+- **Scraper:** [scripts/kilo-benchmarks/scrape_coding_benchmarks.py](../../../scripts/kilo-benchmarks/scrape_coding_benchmarks.py)
+- **What it measures:** % of 500 hand-verified real GitHub issues solved per model on `mini-SWE-agent v2` (the default agent). Computed locally from `per_instance_details.resolved` count / total. Strongest real-world coding signal we have.
+- **Blind spot:** Only ~40 frontier models on the leaderboard; mid-tier and older models absent. Result depends on the chosen agent — we use mini-SWE-agent v2 which is the most-populated.
+- **Refresh cadence:** Updated as model providers / community submit results, daily-ish.
+- **Lands in:** `kilo_agents.db.agents.swe_bench_verified_pct`.
+- **Verdict:** **WIRED** (browser-tier use case) — moved from §3.2 CONDITIONAL on 2026-06-28 because the browser tier needs a frontier-coding signal that BenchLM and Terminal Bench (used by the role-mapper only) don't reach. Trigger from old §3.2 ("Terminal Bench fails 3+ days OR rank-inversion observed") is for the role-mapper; the browser-tier use case is a separate consumer.
+- **Last verified:** 2026-06-28
+
+### 2.7 Aider Polyglot leaderboard (aider.chat)
+
+- **URL:** `https://raw.githubusercontent.com/Aider-AI/aider/main/aider/website/_data/polyglot_leaderboard.yml` (direct YAML, no scrape needed)
+- **Scraper:** [scripts/kilo-benchmarks/scrape_coding_benchmarks.py](../../../scripts/kilo-benchmarks/scrape_coding_benchmarks.py)
+- **What it measures:** `pass_rate_2` = % of 225 hard exercism problems solved across 6 languages (C++, Go, Java, JavaScript, Python, Rust). Tests *multi-language* code-editing capability.
+- **Blind spot:** Aider's harness has its own quirks (edit format preferences favor certain models). Some models tested with multiple reasoning levels; we match the first valid entry per name.
+- **Refresh cadence:** YAML file updated whenever new models submit results.
+- **Lands in:** `kilo_agents.db.agents.aider_polyglot_pct`.
+- **Verdict:** **WIRED** (browser-tier use case) — moved from §3.4 CONDITIONAL on 2026-06-28. Original trigger ("non-Python project share >30%") is for the role-mapper deciding role weights, not for the browser tier asking "is this model good at code?" which is a separate consumer.
+- **Last verified:** 2026-06-28
+
+### 2.8 OpenRouter design_arena coding categories (passive)
+
+- **What it is:** Per-model mean ELO across coding-only design_arena categories from the OpenRouter API benchmarks block: `codecategories`, `fullstack`, `webapps`, `mobileapps`, `androidnative`, `godotgamedev`, `agenticgamedev`, `agentichtmlslides`, `htmlslides`, `svg`, `uicomponent`, `website`, `dataviz`, `gamedev`, `3d`.
+- **Scraper:** No new fetch — extracted from the `openrouter_live_catalog.json` cache that `verify_openrouter_catalog.py` already writes.
+- **Lands in:** `kilo_agents.db.agents.design_arena_coding_elo`.
+- **Verdict:** **WIRED (passive)** — broadest single coding-specific signal (103/339 rows = 30% coverage), free maintenance.
+- **Last verified:** 2026-06-28
+
+### 2.9 Multi-signal quality scorer (derive_quality_v2.py)
 
 - **What it is:** Not a benchmark source itself but the **consumer** of all the above for the browser-tier use case. Weight-of-evidence: ANY signal that hits a threshold promotes the row to that tier.
 - **Inputs combined:** §2.1 arena_elo · §2.2 tbench_accuracy · §2.3 weighted_coding · §2.4 aa_intelligence_index + throughput · §2.5 design_arena_avg + artificial_analysis_index · model-family regex (claude-opus = T3, etc.) · cost-as-proxy ($10+/M = T3 floor) · reasoning capability · context window.

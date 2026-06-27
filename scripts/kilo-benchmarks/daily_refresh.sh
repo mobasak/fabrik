@@ -54,6 +54,13 @@ mkdir -p "$(dirname "$LOG_FILE")"
   # default to T1 and the category selector's `quality_tier>=2` floors
   # silently drop frontier models like claude-opus-4.8 that lack
   # Chatbot Arena ELOs.
+  # Mine three public coding leaderboards into the DB (SWE-bench Verified,
+  # Aider Polyglot, OpenRouter design_arena coding categories). Free —
+  # no inference cost. Must run BEFORE derive_quality_v2 so its new
+  # benchmark axes have data.
+  "$VENV_PY" "$KB/scrape_coding_benchmarks.py" \
+    || echo "[daily_refresh] coding-benchmarks scrape failed (non-fatal)"
+
   "$VENV_PY" "$KB/derive_quality_v2.py" \
     || echo "[daily_refresh] quality v2 deriver failed (non-fatal)"
 

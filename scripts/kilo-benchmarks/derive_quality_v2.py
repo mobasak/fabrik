@@ -87,7 +87,11 @@ BENCH_TIER3 = {
     "weighted_coding": 88.0,
     "design_arena_avg_elo": 1450,
     "aa_index": 75.0,  # from OpenRouter's `benchmarks.artificial_analysis` block (sparser)
-    "aa_scraped": 50.0,  # NEW — from AA's own leaderboard scrape (~14% coverage)
+    "aa_scraped": 50.0,  # from AA's own leaderboard scrape
+    # Coding-specific (scrape_coding_benchmarks.py)
+    "swe_bench": 60.0,  # % resolved on SWE-bench Verified (mini-SWE-agent v2)
+    "aider_polyglot": 65.0,  # % pass_rate_2 on Aider Polyglot (225 problems × 6 langs)
+    "design_arena_coding": 1280,  # mean ELO across coding-only design_arena categories
 }
 BENCH_TIER2 = {
     "arena_elo": 1400,
@@ -95,7 +99,10 @@ BENCH_TIER2 = {
     "weighted_coding": 70.0,
     "design_arena_avg_elo": 1300,
     "aa_index": 55.0,
-    "aa_scraped": 30.0,  # NEW
+    "aa_scraped": 30.0,
+    "swe_bench": 35.0,
+    "aider_polyglot": 40.0,
+    "design_arena_coding": 1220,
 }
 
 
@@ -148,7 +155,10 @@ def derive_v2(row: dict, or_record: dict | None = None) -> tuple[int, list[str]]
     arena = row.get("arena_elo") or 0
     tbench = row.get("tbench_accuracy") or 0
     wcode = row.get("weighted_coding") or 0
-    aa_scraped = row.get("aa_intelligence_index") or 0  # NEW
+    aa_scraped = row.get("aa_intelligence_index") or 0
+    swe = row.get("swe_bench_verified_pct") or 0
+    aider = row.get("aider_polyglot_pct") or 0
+    da_code = row.get("design_arena_coding_elo") or 0
     da_avg = _design_arena_avg(or_record.get("benchmarks") if or_record else None) or 0
     aa = _aa_index(or_record.get("benchmarks") if or_record else None) or 0
 
@@ -159,6 +169,9 @@ def derive_v2(row: dict, or_record: dict | None = None) -> tuple[int, list[str]]
         ("design_arena_avg", da_avg, BENCH_TIER3["design_arena_avg_elo"]),
         ("aa_index", aa, BENCH_TIER3["aa_index"]),
         ("aa_scraped", aa_scraped, BENCH_TIER3["aa_scraped"]),
+        ("swe_bench", swe, BENCH_TIER3["swe_bench"]),
+        ("aider_polyglot", aider, BENCH_TIER3["aider_polyglot"]),
+        ("design_arena_coding", da_code, BENCH_TIER3["design_arena_coding"]),
     ]:
         if val >= thr:
             bump(3, f"{label}≥{thr}({val:.1f})")
@@ -171,6 +184,9 @@ def derive_v2(row: dict, or_record: dict | None = None) -> tuple[int, list[str]]
             ("design_arena_avg", da_avg, BENCH_TIER2["design_arena_avg_elo"]),
             ("aa_index", aa, BENCH_TIER2["aa_index"]),
             ("aa_scraped", aa_scraped, BENCH_TIER2["aa_scraped"]),
+            ("swe_bench", swe, BENCH_TIER2["swe_bench"]),
+            ("aider_polyglot", aider, BENCH_TIER2["aider_polyglot"]),
+            ("design_arena_coding", da_code, BENCH_TIER2["design_arena_coding"]),
         ]:
             if val >= thr:
                 bump(2, f"{label}≥{thr}({val:.1f})")
