@@ -787,10 +787,48 @@ instead of an empty table (which would be a confusing artifact for human readers
 | G3.5 rollback isolation | `sqlite3 kilo_agents.db "SELECT count(*) FROM agent_roles WHERE assigned_by IN ('cheapest-above-floors', 'role_mapper')"` | unchanged before/after running `category_route_mapper.py` — proves the mapper only writes its own `assigned_by` and a hypothetical rollback `DELETE WHERE assigned_by='category_route_mapper'` cannot touch chat-side rows (Pass 1D D6 rollback safety) |
 | G3.6 final_gate | `.venv/bin/python scripts/final_gate.py --check --lean --json` | `"status":"success"` |
 
-### 9.5 Evidence (to be filled when phase implemented)
+### 9.5 Evidence (filled 2026-06-27, this Phase 3 commit)
 
-- `path:line`: `scripts/kilo-benchmarks/category_selector.py:<class>:<line>` + `scripts/kilo-benchmarks/category_route_mapper.py:<orchestrator>:<line>`
-- Command output: G3.1 pytest summary + G3.3 SQL output + G3.5 JSON
+- `path:line`:
+  - `scripts/kilo-benchmarks/category_selector.py:1-165` (mirror of `embedding_selector.py:38-125` with chat-side floors + sort-key allowlist + PRAGMA fk)
+  - `scripts/kilo-benchmarks/category_route_mapper.py:1-216` (mirror of `embedding_role_mapper.py:60-198`, plus zero-eligible graceful handling per plan §9.2)
+  - `tests/kilo_benchmarks/test_category_selector.py:1-167` (8 unit tests)
+  - `tests/kilo_benchmarks/test_category_route_mapper.py:1-208` (4 integration tests including the §16 rollback-isolation invariant)
+
+**Command output (verbatim 2026-06-27):**
+
+```text
+G3.1 pytest tests/kilo_benchmarks/test_category_{selector,route_mapper}.py -q
+............                                                             [100%]
+12 passed in 0.55s
+
+G3.2 smoke run:
+$ cd scripts/kilo-benchmarks && python category_route_mapper.py
+[category_route_mapper] language: 3 routes → [stepfun/step-3.5-flash, qwen/qwen3-next-80b, meituan/longcat-flash-chat]
+[category_route_mapper] code: 3 routes → [openai/gpt-5.4, google/gemini-3.1-pro-preview, openai/gpt-5.3-codex]
+[category_route_mapper] vision: 2 routes → [openai/gpt-5-nano, google/gemma-3-12b-it]
+[category_route_mapper] multimodal: 2 routes → [openai/gpt-5-nano, kilo-auto/small]
+[category_route_mapper] agentic: 3 routes → [openai/gpt-5.4, openai/gpt-5.3-codex, anthropic/claude-opus-4.6]
+[category_route_mapper] long-context: 2 routes → [meta-llama/llama-4-scout, x-ai/grok-4.20]
+[category_route_mapper] speech-audio: 1 routes → [openai/gpt-audio-mini]
+[category_route_mapper] wrote /opt/fabrik/scripts/kilo-benchmarks/openrouter_routes.json
+[category_route_mapper] wrote /opt/fabrik/scripts/kilo_openrouter_routes_final.json
+[category_route_mapper] wrote 16 pins across 7 categories (0 skipped)
+
+G3.3 per-category pin count vs YAML slots:
+  agentic=3 code=3 language=3 long-context=2 multimodal=2 speech-audio=1 vision=2
+  (matches slots:[3,3,3,2,2,1,2] in YAML)
+
+G3.4 JSON entries: exactly 7 categories with non-empty routes (0 skipped today)
+
+G3.5 chat-side rollback isolation:
+  26 rows with assigned_by != 'category_route_mapper' still in agent_roles
+  (proves the LIKE 'openrouter:%' DELETE didn't touch them)
+
+G3.6 final_gate.py --check --lean --json: success
+```
+
+**Verdict:** all G3 gates green. 12/12 unit + integration tests pass. The zero-eligible path is exercised in tests but didn't fire on the live DB (every category had ≥1 eligible model). Rollback isolation invariant proven on live data.
 
 ---
 
@@ -1093,7 +1131,7 @@ SELECT count(*) FROM agents
 | Phase 0 (`:free` normalization) Evidence filled + G0.1-G0.4 green | ✅ shipped 2026-06-27 (this commit). G0.3a flipped 0 → 10 scored `:free` models. Evidence in §6.5 includes the verbatim G0.1/G0.2/G0.3a/G0.4 outputs. |
 | Phase 1 (`agent_categories` join table) Evidence filled + G1.1-G1.7 green | ✅ shipped 2026-06-27. 889 rows across 7 categories; 425 distinct models classified; 0 orphans; 0 LIKE-rule overlap; PRAGMA fk asserted on every script connect. Evidence in §7.5. |
 | Phase 2 (YAML config) Evidence filled + G2.1-G2.3 green | ✅ shipped 2026-06-27. 7 categories declared mapping to the 7 LLM-bearing ai/NN-*.md packs; field-for-field mirror of embedding_role_configs.yaml. Three packs intentionally omitted (3d-gen, data-predictive, specialized-domains — non-LLM vendors). Evidence in §8.2. |
-| Phase 3 (selector + mapper) Evidence filled + G3.1-G3.5 green | ⏳ |
+| Phase 3 (selector + mapper) Evidence filled + G3.1-G3.6 green | ✅ shipped 2026-06-27. 16 routes / 7 categories / 0 skipped / 26 chat-side rows preserved (rollback isolation invariant proven). 12/12 unit + integration tests pass. Evidence in §9.5. |
 | Phase 4 (markdown export) Evidence filled + G4.1-G4.5 green | ⏳ |
 | Phase 5 (pipeline wiring) Evidence filled + G5.1-G5.5 green | ⏳ |
 | Phase 6 (cross-link + INDEX + CHANGELOG) Evidence filled + G6.1-G6.3 green | ⏳ |
