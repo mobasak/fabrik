@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — 7 enforcement-gate findings; secrets/.env gates were inert no-ops (security-of-process) (2026-06-28)
+
+Centrally-synced enforcement checks. Highest-stakes: `check_secrets.py` + `check_env_vars.py` had **no `main()`/`__main__`** — final_gate ran them as `python <script>`, they exited 0, so the "Secrets (Zero Hardcoding)" + ".env (Secrets)" gates were **permanent no-ops on every project** (hardcoded secrets + `localhost` passed). Added `main()` scanning **changed files** (diff-bounded so existing violations don't retroactively red projects), fixed the relative import so they run standalone, exit 1 on ERROR. Also: `check_synced_unmodified.py` now flags a synced file **deleted** locally (was silently passed); `kilo_docs_enforcer.py` retry re-applies the requirement (identifier check no longer skipped) + robust diff-prefix parsing (`+++ b/`, bare, `/dev/null`); `check_doc_sync.py` strips ``` fences before the changelog-entry check (a fenced-only `###` example no longer counts); `docs_updater.py` STRUCTURE-marker label corrected (`INDEX.md`, not `docs/INDEX.md`). Tests: `tests/test_enforcement_gate_fixes.py`.
+
 ### Added — supplier descriptions for every model + guaranteed daily refresh via cron (2026-06-28)
 
 User asked for two things: (1) explanatory text for special models like `openrouter/pareto-code`, `openrouter/bodybuilder`, `kilo-auto/*`, `~anthropic/claude-haiku-latest`, and (2) "be 100% sure" the browser refreshes every day. Both real concerns.

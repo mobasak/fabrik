@@ -37,7 +37,10 @@ def check_file(file_path: Path) -> list:
     Returns list of CheckResult objects.
     """
     # Import here to avoid circular imports
-    from .validate_conventions import CheckResult, Severity
+    try:
+        from .validate_conventions import CheckResult, Severity
+    except ImportError:  # standalone run (final_gate executes `python <path>`)
+        from validate_conventions import CheckResult, Severity
 
     results: list[CheckResult] = []
 
@@ -77,3 +80,61 @@ def check_file(file_path: Path) -> list:
                 break  # One violation per line is enough
 
     return results
+
+
+def _changed_files() -> list[str]:
+    """Files changed in git (unstaged + staged + untracked) — bound the scan to
+    the diff, NOT the whole repo, so only new changes are gated."""
+    import subprocess
+
+    files: set[str] = set()
+    for cmd in (
+        ["git", "diff", "--name-only"],
+        ["git", "diff", "--staged", "--name-only"],
+        ["git", "ls-files", "--others", "--exclude-standard"],
+    ):
+        try:
+            out = subprocess.run(cmd, capture_output=True, text=True, check=True).stdout
+            files.update(out.splitlines())
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            pass
+    return [f for f in files if f]
+
+
+def main() -> int:
+    """Scan CHANGED files for hardcoded localhost/127.0.0.1; exit 1 on any
+    ERROR so final_gate's ".env Updates (Secrets)" gate actually bites.
+
+    This file previously had no entry point — the gate was a permanent no-op.
+    Runs standalone (how final_gate invokes it); the Severity import falls back
+    to absolute when there is no package context.
+    """
+    import sys
+
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    try:
+        from .validate_conventions import Severity
+    except ImportError:
+        from validate_conventions import Severity
+
+    errors = [
+        r
+        for rel in _changed_files()
+        if (p := Path(rel)).is_file()
+        for r in check_file(p)
+        if r.severity == Severity.ERROR
+    ]
+    for r in errors:
+        print(f"❌ {r.file_path}:{r.line_number} — {r.message}")
+    if errors:
+        print(
+            f"\n{len(errors)} hardcoded localhost/host violation(s) in changed files. "
+            "Use os.getenv() — postgres-main:5432 / redis-main:6379 on the VPS, not localhost. "
+            "(False positive? add `# noqa`.)"
+        )
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
