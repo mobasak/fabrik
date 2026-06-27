@@ -134,6 +134,15 @@
   tbody tr.selected { background: #1a2030; }
   td.id { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size: 11px; }
   td.id .provider { color: var(--muted); }
+  td.model-cell { min-width: 220px; line-height: 1.3; }
+  td.model-cell .model-name { font-weight: 500; }
+  td.model-cell .id-sub {
+    font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+    font-size: 10px;
+    color: var(--muted);
+    margin-top: 1px;
+  }
+  td.model-cell .id-sub .provider { color: #6b6f7a; }
   td.cost { text-align: right; font-variant-numeric: tabular-nums; }
   td.cost .free { color: var(--free); font-weight: 600; }
   td.num { text-align: right; font-variant-numeric: tabular-nums; }
@@ -367,16 +376,19 @@
     <table>
       <thead>
         <tr id="thead-row">
-          <th data-sort="id">ID</th>
-          <th data-sort="name">Name</th>
+          <th data-sort="name">Model</th>
           <th data-sort="provider">Provider</th>
           <th data-sort="input_cost_per_m" title="USD per million input tokens. Source: OpenRouter for dual-routed + OR-only rows; Kilo Gateway for Kilo-only rows. Hover any cell for per-row source.">$/M in</th>
           <th data-sort="output_cost_per_m" title="USD per million output tokens. Source: OpenRouter for dual-routed + OR-only rows; Kilo Gateway for Kilo-only rows. Hover any cell for per-row source.">$/M out</th>
           <th data-sort="context_window_k">Ctx (k)</th>
           <th data-sort="quality_tier">Tier</th>
           <th>Caps</th>
-          <th data-sort="arena_elo">Arena ELO</th>
-          <th data-sort="tbench_accuracy">TBench</th>
+          <th data-sort="arena_elo" title="Chatbot Arena ELO (LMSys / openlm.ai)">Arena</th>
+          <th data-sort="tbench_accuracy" title="Terminal Bench 2.0 % (tbench.ai)">TBench</th>
+          <th data-sort="aa_intelligence_index" title="Artificial Analysis Intelligence Index (artificialanalysis.ai)">AA</th>
+          <th data-sort="swe_bench_verified_pct" title="SWE-bench Verified % resolved (swebench.com, mini-SWE-agent v2)">SWE</th>
+          <th data-sort="aider_polyglot_pct" title="Aider Polyglot pass_rate_2 % across 225 multi-language problems (aider.chat)">Aider</th>
+          <th data-sort="design_arena_coding_elo" title="Mean ELO across coding-only design_arena categories (OpenRouter API benchmarks block)">DA-code</th>
           <th>Categories</th>
           <th data-sort="status">Status</th>
           <th data-sort="last_verified">Verified</th>
@@ -709,9 +721,14 @@ function refresh() {
       .replace(/\*\*([^*]+)\*\*/g, "$1")
       .substring(0, 250);
     const nameCellTitle = hint ? hint + (m.description.length > 250 ? "…" : "") : "";
+    // Merged Model cell: human name on top, raw id (provider/model)
+    // in dim mono below — searchable, copy-pasteable, but no extra column.
+    const idLine = `<div class="id-sub">${idCol}${isPinned ? ' 📌' : ''}</div>`;
     tr.innerHTML = `
-      <td class="id">${idCol}${isPinned ? ' 📌' : ''}</td>
-      <td title="${escapeHtml(nameCellTitle)}">${m.name || ""}</td>
+      <td class="model-cell" title="${escapeHtml(nameCellTitle)}">
+        <div class="model-name">${m.name || ""}</div>
+        ${idLine}
+      </td>
       <td>${m.provider || ""}</td>
       <td class="cost" title="${priceSourceLabel(m)} — input cost">${fmtCost(m.input_cost_per_m, m)}</td>
       <td class="cost" title="${priceSourceLabel(m)} — output cost">${fmtCost(m.output_cost_per_m, m)}</td>
@@ -719,7 +736,11 @@ function refresh() {
       <td class="tier t-${m.quality_tier || 0}" title="${m.quality_tier ? '' : 'Not yet rated by the local ranking pipeline'}">${m.quality_tier ? "T" + m.quality_tier : "—"}</td>
       <td class="cap">${m.kind === "chat" ? fmtCaps(m) : "<span style='color:var(--muted)'>embed</span>"}</td>
       <td class="num">${m.arena_elo || ""}</td>
-      <td class="num">${m.tbench_accuracy ? m.tbench_accuracy.toFixed(1) : ""}</td>
+      <td class="num">${m.tbench_accuracy != null ? m.tbench_accuracy.toFixed(1) : ""}</td>
+      <td class="num">${m.aa_intelligence_index != null ? m.aa_intelligence_index.toFixed(0) : ""}</td>
+      <td class="num">${m.swe_bench_verified_pct != null ? m.swe_bench_verified_pct.toFixed(1) : ""}</td>
+      <td class="num">${m.aider_polyglot_pct != null ? m.aider_polyglot_pct.toFixed(1) : ""}</td>
+      <td class="num">${m.design_arena_coding_elo != null ? m.design_arena_coding_elo.toFixed(0) : ""}</td>
       <td class="cats">${fmtCats(m)}</td>
       <td class="status ${statusClass}">${statusLabel}</td>
       <td class="verified ${m._staleBucket}">${verifiedLabel}</td>
@@ -751,11 +772,18 @@ function openDetail(m, tr) {
     : "";
   // Source attribution: based on what columns are populated
   const sourceRows = [];
+  // General quality
   if (m.arena_elo) sourceRows.push(["Arena ELO", m.arena_elo + " (chatbot-arena.com)"]);
   if (m.tbench_accuracy) sourceRows.push(["Terminal Bench", m.tbench_accuracy.toFixed(1) + "% (tbench.ai)"]);
-  if (m.weighted_coding) sourceRows.push(["Weighted coding", m.weighted_coding.toFixed(1) + " (BenchLM composite)"]);
+  if (m.aa_intelligence_index != null) sourceRows.push(["AA Intelligence Index", m.aa_intelligence_index.toFixed(0) + " (artificialanalysis.ai)"]);
+  // Coding-specific
+  if (m.swe_bench_verified_pct != null) sourceRows.push(["SWE-bench Verified", m.swe_bench_verified_pct.toFixed(1) + "% resolved (swebench.com)"]);
+  if (m.aider_polyglot_pct != null) sourceRows.push(["Aider Polyglot", m.aider_polyglot_pct.toFixed(1) + "% pass_rate_2 (aider.chat)"]);
+  if (m.design_arena_coding_elo != null) sourceRows.push(["design_arena coding", m.design_arena_coding_elo.toFixed(0) + " ELO mean (OpenRouter API)"]);
+  if (m.weighted_coding) sourceRows.push(["Weighted coding (BenchLM)", m.weighted_coding.toFixed(1)]);
   if (m.swe_bench_pro) sourceRows.push(["SWE-bench Pro", m.swe_bench_pro.toFixed(1) + "%"]);
   if (m.livecodebench) sourceRows.push(["LiveCodeBench", m.livecodebench.toFixed(1) + "%"]);
+  // Operational
   if (m.output_tokens_per_sec) sourceRows.push(["Throughput", m.output_tokens_per_sec.toFixed(0) + " tok/s (" + (m.speed_source || "?") + ")"]);
   if (m.ttft_ms) sourceRows.push(["TTFT", m.ttft_ms.toFixed(0) + " ms"]);
   const sourceHtml = sourceRows.length
