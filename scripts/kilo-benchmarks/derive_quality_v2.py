@@ -156,7 +156,10 @@ def derive_v2(row: dict, or_record: dict | None = None) -> tuple[int, list[str]]
     tbench = row.get("tbench_accuracy") or 0
     wcode = row.get("weighted_coding") or 0
     aa_scraped = row.get("aa_intelligence_index") or 0
-    swe = row.get("swe_bench_verified_pct") or 0
+    swe = max(
+        row.get("swe_bench_verified_pct") or 0,
+        row.get("swe_bench_multilingual_pct") or 0,
+    )
     aider = row.get("aider_polyglot_pct") or 0
     da_code = row.get("design_arena_coding_elo") or 0
     da_avg = _design_arena_avg(or_record.get("benchmarks") if or_record else None) or 0

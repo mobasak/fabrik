@@ -47,7 +47,14 @@ OR_CACHE = CACHE_DIR / "openrouter_live_catalog.json"
 
 SWE_URL = "https://www.swebench.com/index.html"
 AIDER_YAML = "https://raw.githubusercontent.com/Aider-AI/aider/main/aider/website/_data/polyglot_leaderboard.yml"
-DEFAULT_SWE_AGENT = "Verified"  # the most-populated leaderboard
+
+# SWE-bench leaderboard groups we mine. Each group runs the same 500-issue
+# benchmark with different agent harnesses, so the same model appears
+# across groups with slightly different scores — we take the max per
+# model. Multilingual is a separate 300-issue board with newer-model
+# coverage; tracked in its own column.
+SWE_PRIMARY_GROUPS = ("Verified", "bash-only")  # combined for swe_bench_verified_pct
+SWE_MULTILINGUAL_GROUP = "Multilingual"  # separate column
 
 CODING_DESIGN_ARENA_CATS = {
     "codecategories",
@@ -76,13 +83,31 @@ def _log(msg: str) -> None:
 
 # ---------------- canonical name helpers ----------------
 
-# Strip leaderboard prefixes/suffixes that aren't in OpenRouter IDs.
+# Strip leaderboard agent-harness prefixes that aren't in OpenRouter IDs.
+# SWE-bench Verified entries are named like "mini-SWE-agent + Claude 4.5 Opus"
+# or "Sonar Foundation Agent + Claude 4.5 Opus" etc. Need to strip the
+# harness so we can canon the model name.
 PREFIX_RE = re.compile(
-    r"^(?:mini-swe-agent\s*\+\s*|"
-    r"|agentless\s*\+\s*|"
-    r"|moatless\s*\+\s*|"
-    r"|swe-rex\s*\+\s*|"
-    r"|swe-agent\s*\+\s*)",
+    r"^(?:"
+    r"mini-swe-agent\s*\+\s*|"
+    r"live-swe-agent\s*\+\s*|"
+    r"live-mini-swe-agent\s*\+\s*|"
+    r"swe-agent\s*\+\s*|"
+    r"swe-rex\s*\+\s*|"
+    r"agentless\s*\+\s*|"
+    r"moatless\s*\+\s*|"
+    r"sonar\s+foundation\s+agent\s*\+\s*|"
+    r"trae\s*\+\s*|"
+    r"atlassian\s+rovo\s+dev[\s\(\d-]*\)?\s*\+?\s*|"
+    r"epam\s+ai/run\s+developer\s+agent[\s\w\d-]*\+\s*|"
+    r"joycode\s*\+\s*|"
+    r"refact\.ai\s+agent\s*\+\s*|"
+    r"prometheus-v[\d\.]+\s*\+\s*|"
+    r"lingxi-v[\d\.]+_+|"
+    r"harness\s+ai|"
+    r"acoder|"
+    r"warp"
+    r")",
     re.IGNORECASE,
 )
 NOISE_SUFFIX_RE = re.compile(
@@ -170,9 +195,35 @@ def _match_id(canon_idx: dict[str, str], name: str) -> str | None:
 # ---------------- 1. SWE-bench Verified ----------------
 
 
-def _fetch_swe() -> list[dict]:
-    """Return list of {name, resolved_pct, instance_cost, date} for the
-    most-populated SWE-bench Verified agent."""
+def _resolve_pct(r: dict) -> float | None:
+    """Extract a resolved % from a SWE-bench result row, preferring
+    per_instance_details when available (more authoritative — same
+    issue set across rows) and falling back to the top-level `resolved`
+    field used by the 140 Verified rows without per-instance data."""
+    details = r.get("per_instance_details") or {}
+    if details:
+        n_total = len(details)
+        if not n_total:
+            return None
+        n_solved = sum(1 for d in details.values() if d.get("resolved"))
+        return n_solved / n_total * 100
+    # Aggregate field — already a percent in the API.
+    agg = r.get("resolved")
+    if isinstance(agg, (int, float)):
+        return float(agg)
+    return None
+
+
+def _fetch_swe() -> tuple[list[dict], list[dict]]:
+    """Return (primary_results, multilingual_results) tuple.
+
+    primary = union of Verified + bash-only — both run the same 500-issue
+              SWE-bench Verified problem set with different agent
+              harnesses. Same model often appears in multiple rows;
+              we keep them all and de-dupe per canonical name later.
+    multilingual = the 300-issue SWE-bench Multilingual board, tracked
+                   in its own column. Newer-model coverage is best here.
+    """
     req = urllib.request.Request(SWE_URL, headers={"User-Agent": UA})
     with urllib.request.urlopen(req, timeout=30) as resp:
         html = resp.read().decode("utf-8", errors="replace")
@@ -185,27 +236,40 @@ def _fetch_swe() -> list[dict]:
     if not m:
         raise RuntimeError("SWE-bench leaderboard-data <script> not found — page layout changed?")
     data = json.loads(m.group(1))
-    # data is a list of leaderboard groups
-    target = next((g for g in data if g.get("name") == DEFAULT_SWE_AGENT), None)
-    if not target:
-        raise RuntimeError(f"SWE-bench group {DEFAULT_SWE_AGENT!r} not found")
-    out = []
-    for r in target.get("results", []):
-        details = r.get("per_instance_details") or {}
-        if not details:
+
+    by_name = {g.get("name"): g for g in data}
+    primary: list[dict] = []
+    for group_name in SWE_PRIMARY_GROUPS:
+        g = by_name.get(group_name)
+        if not g:
             continue
-        n_total = len(details)
-        n_solved = sum(1 for d in details.values() if d.get("resolved"))
-        out.append(
-            {
-                "name": r.get("name") or "",
-                "resolved_pct": n_solved / n_total * 100,
-                "n_total": n_total,
-                "instance_cost": r.get("instance_cost"),
-                "date": r.get("date"),
-            }
-        )
-    return out
+        for r in g.get("results", []):
+            pct = _resolve_pct(r)
+            if pct is None:
+                continue
+            primary.append(
+                {
+                    "name": r.get("name") or "",
+                    "resolved_pct": pct,
+                    "group": group_name,
+                    "date": r.get("date"),
+                }
+            )
+    multilingual: list[dict] = []
+    g = by_name.get(SWE_MULTILINGUAL_GROUP)
+    if g:
+        for r in g.get("results", []):
+            pct = _resolve_pct(r)
+            if pct is None:
+                continue
+            multilingual.append(
+                {
+                    "name": r.get("name") or "",
+                    "resolved_pct": pct,
+                    "date": r.get("date"),
+                }
+            )
+    return primary, multilingual
 
 
 # ---------------- 2. Aider Polyglot ----------------
@@ -263,7 +327,8 @@ def _extract_design_arena_coding() -> dict[str, float]:
 
 def _match_and_update(
     db_path: Path,
-    swe: list[dict],
+    swe_primary: list[dict],
+    swe_multi: list[dict],
     aider: list[dict],
     da_coding: dict[str, float],
     dry_run: bool = False,
@@ -283,17 +348,34 @@ def _match_and_update(
     swe_unmatched: list[str] = []
     aider_unmatched: list[str] = []
 
-    # SWE-bench rows
-    swe_updates: list[tuple[float, str]] = []
-    for r in swe:
+    # SWE-bench rows — primary groups, take MAX per matched id (same
+    # model often appears in multiple agent harnesses).
+    swe_by_id: dict[str, float] = {}
+    for r in swe_primary:
         aid = _match_id(canon_idx, r["name"])
         if aid:
-            swe_updates.append((r["resolved_pct"], aid))
+            cur = swe_by_id.get(aid, -1)
+            if r["resolved_pct"] > cur:
+                swe_by_id[aid] = r["resolved_pct"]
             counts["swe_matched"] += 1
         else:
             counts["swe_unmatched"] += 1
             if len(swe_unmatched) < 20:
                 swe_unmatched.append(f"{r['name']:<55} ({r['resolved_pct']:.1f}%)")
+    swe_updates: list[tuple[float, str]] = [(pct, aid) for aid, pct in swe_by_id.items()]
+
+    # SWE-bench Multilingual — separate column
+    swe_ml_by_id: dict[str, float] = {}
+    for r in swe_multi:
+        aid = _match_id(canon_idx, r["name"])
+        if aid:
+            cur = swe_ml_by_id.get(aid, -1)
+            if r["resolved_pct"] > cur:
+                swe_ml_by_id[aid] = r["resolved_pct"]
+            counts["swe_multilingual_matched"] = counts.get("swe_multilingual_matched", 0) + 1
+        else:
+            counts["swe_multilingual_unmatched"] = counts.get("swe_multilingual_unmatched", 0) + 1
+    swe_ml_updates: list[tuple[float, str]] = [(pct, aid) for aid, pct in swe_ml_by_id.items()]
 
     # Aider rows
     aider_updates: list[tuple[float, str]] = []
@@ -310,10 +392,15 @@ def _match_and_update(
     # design_arena coding scores (already keyed by id)
     da_updates = list(da_coding.items())
     counts["design_arena_coding_matched"] = len(da_updates)
+    counts["swe_unique_models"] = len(swe_by_id)
+    counts["swe_multilingual_unique"] = len(swe_ml_by_id)
 
-    _log(f"SWE-bench:        matched={counts['swe_matched']} unmatched={counts['swe_unmatched']}")
     _log(
-        f"Aider Polyglot:   matched={counts['aider_matched']} unmatched={counts['aider_unmatched']}"
+        f"SWE-bench primary: rows={counts['swe_matched']} unique={counts['swe_unique_models']} unmatched={counts['swe_unmatched']}"
+    )
+    _log(f"SWE-bench multilingual: unique={counts['swe_multilingual_unique']}")
+    _log(
+        f"Aider Polyglot:    matched={counts['aider_matched']} unmatched={counts['aider_unmatched']}"
     )
     _log(f"design_arena coding: matched={counts['design_arena_coding_matched']}")
     if swe_unmatched and dry_run:
@@ -334,6 +421,11 @@ def _match_and_update(
         for pct, aid in swe_updates:
             conn.execute(
                 "UPDATE agents SET swe_bench_verified_pct = ? WHERE id = ?",
+                (pct, aid),
+            )
+        for pct, aid in swe_ml_updates:
+            conn.execute(
+                "UPDATE agents SET swe_bench_multilingual_pct = ? WHERE id = ?",
                 (pct, aid),
             )
         for pct, aid in aider_updates:
@@ -364,11 +456,12 @@ def main() -> int:
 
     _log(f"=== Coding benchmarks scrape @ {datetime.now(UTC).isoformat()} ===")
     try:
-        swe = _fetch_swe()
-        _log(f"  SWE-bench Verified: {len(swe)} model entries")
+        swe_primary, swe_multi = _fetch_swe()
+        _log(f"  SWE-bench primary: {len(swe_primary)} rows (Verified + bash-only)")
+        _log(f"  SWE-bench Multilingual: {len(swe_multi)} rows")
     except Exception as e:
         _log(f"  SWE-bench fetch failed (non-fatal): {e}")
-        swe = []
+        swe_primary, swe_multi = [], []
     try:
         aider = _fetch_aider()
         _log(f"  Aider Polyglot:     {len(aider)} model entries")
@@ -378,7 +471,9 @@ def main() -> int:
     da_coding = _extract_design_arena_coding()
     _log(f"  design_arena coding: {len(da_coding)} model entries (from OR cache)")
 
-    counts = _match_and_update(args.db, swe, aider, da_coding, dry_run=args.dry_run)
+    counts = _match_and_update(
+        args.db, swe_primary, swe_multi, aider, da_coding, dry_run=args.dry_run
+    )
     print()
     _log(
         f"Done. matched: SWE={counts['swe_matched']} · "

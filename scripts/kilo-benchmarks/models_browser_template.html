@@ -383,11 +383,13 @@
           <th data-sort="context_window_k">Ctx (k)</th>
           <th data-sort="quality_tier">Tier</th>
           <th>Caps</th>
+          <th data-sort="_best_code_score" title="Best-available coding signal per row. Priority: SWE-bench Verified > Aider Polyglot > weighted_coding (BenchLM) > design_arena_coding (normalized). Hover the cell to see which signal drove the number.">Best Code</th>
           <th data-sort="arena_elo" title="Chatbot Arena ELO (LMSys / openlm.ai)">Arena</th>
           <th data-sort="tbench_accuracy" title="Terminal Bench 2.0 % (tbench.ai)">TBench</th>
           <th data-sort="aa_intelligence_index" title="Artificial Analysis Intelligence Index (artificialanalysis.ai)">AA</th>
-          <th data-sort="swe_bench_verified_pct" title="SWE-bench Verified % resolved (swebench.com, mini-SWE-agent v2)">SWE</th>
-          <th data-sort="aider_polyglot_pct" title="Aider Polyglot pass_rate_2 % across 225 multi-language problems (aider.chat)">Aider</th>
+          <th data-sort="swe_bench_verified_pct" title="SWE-bench Verified+bash-only — max % resolved on the 500-issue Python set, across agent harnesses (swebench.com)">SWE</th>
+          <th data-sort="swe_bench_multilingual_pct" title="SWE-bench Multilingual — % resolved on the 300-issue multi-language set. Newer-model coverage is best here (swebench.com)">SWE-ML</th>
+          <th data-sort="aider_polyglot_pct" title="Aider Polyglot pass_rate_2 % across 225 multi-language problems (aider.chat). Note: leaderboard is sparse for newest models — use SWE / DA-code / weighted_coding for newer frontier.">Aider</th>
           <th data-sort="design_arena_coding_elo" title="Mean ELO across coding-only design_arena categories (OpenRouter API benchmarks block)">DA-code</th>
           <th>Categories</th>
           <th data-sort="status">Status</th>
@@ -446,10 +448,47 @@ function staleBucket(lastVerified) {
   if (days <= 90) return { bucket: "stale", days };
   return { bucket: "very-stale", days };
 }
+// Compute a single "Best Code" composite per row. Priority order:
+//   1. SWE-bench Verified % (most current frontier coverage, real GitHub patches)
+//   2. Aider Polyglot %     (high quality but Aider's leaderboard lags)
+//   3. weighted_coding      (BenchLM composite, mid-tier coverage)
+//   4. design_arena_coding normalized to 0-100   (broadest, but UI-design-leaning)
+// Stores both the numeric (`_best_code_score`) for sorting and a
+// label (`_best_code_label`) for display so the cell tooltip can
+// show which signal won.
+function _bestCode(m) {
+  // Take max of the two SWE-bench variants (primary = Verified+bash-only
+  // covering English-only Python 500-issue set; multilingual = 300-issue
+  // multi-language set, separate leaderboard with newer-model coverage).
+  const sweMax = Math.max(
+    m.swe_bench_verified_pct ?? -1,
+    m.swe_bench_multilingual_pct ?? -1
+  );
+  if (sweMax >= 0) {
+    const src = (m.swe_bench_verified_pct ?? -1) >= (m.swe_bench_multilingual_pct ?? -1)
+      ? "SWE" : "SWE-ML";
+    return { v: sweMax, src };
+  }
+  if (m.aider_polyglot_pct != null) return { v: m.aider_polyglot_pct, src: "Aider" };
+  if (m.weighted_coding != null) return { v: m.weighted_coding, src: "wcode" };
+  if (m.design_arena_coding_elo != null) {
+    // Normalize ELO range observed in our data: ~1100-1380 → 0-100
+    const norm = Math.max(0, Math.min(100, (m.design_arena_coding_elo - 1100) / 2.8));
+    return { v: norm, src: "DA", raw: m.design_arena_coding_elo };
+  }
+  return null;
+}
 for (const m of ALL) {
   const s = staleBucket(m.last_verified);
   m._staleBucket = s.bucket;
   m._staleDays = s.days;
+  const bc = _bestCode(m);
+  m._best_code_score = bc ? bc.v : null;
+  m._best_code_label = bc
+    ? (bc.src === "DA"
+        ? `${bc.raw.toFixed(0)} DA`
+        : `${bc.v.toFixed(1)} ${bc.src}`)
+    : "";
   // "Discounted" = ONLY explicit temporary promotional routes identified
   // by the `:discounted` ID suffix (e.g. deepseek-v4-pro:discounted,
   // minimax-m3:discounted). These are time-limited campaigns. Earlier
@@ -735,10 +774,12 @@ function refresh() {
       <td class="num">${m.context_window_k || ""}</td>
       <td class="tier t-${m.quality_tier || 0}" title="${m.quality_tier ? '' : 'Not yet rated by the local ranking pipeline'}">${m.quality_tier ? "T" + m.quality_tier : "—"}</td>
       <td class="cap">${m.kind === "chat" ? fmtCaps(m) : "<span style='color:var(--muted)'>embed</span>"}</td>
+      <td class="num" title="${m._best_code_label ? 'Strongest available coding signal: ' + m._best_code_label : 'No coding signal — likely tier'd by family/cost'}" style="${m._best_code_label ? 'font-weight:600;color:var(--accent)' : 'color:var(--muted)'}">${m._best_code_label || "—"}</td>
       <td class="num">${m.arena_elo || ""}</td>
       <td class="num">${m.tbench_accuracy != null ? m.tbench_accuracy.toFixed(1) : ""}</td>
       <td class="num">${m.aa_intelligence_index != null ? m.aa_intelligence_index.toFixed(0) : ""}</td>
       <td class="num">${m.swe_bench_verified_pct != null ? m.swe_bench_verified_pct.toFixed(1) : ""}</td>
+      <td class="num">${m.swe_bench_multilingual_pct != null ? m.swe_bench_multilingual_pct.toFixed(1) : ""}</td>
       <td class="num">${m.aider_polyglot_pct != null ? m.aider_polyglot_pct.toFixed(1) : ""}</td>
       <td class="num">${m.design_arena_coding_elo != null ? m.design_arena_coding_elo.toFixed(0) : ""}</td>
       <td class="cats">${fmtCats(m)}</td>
@@ -777,7 +818,8 @@ function openDetail(m, tr) {
   if (m.tbench_accuracy) sourceRows.push(["Terminal Bench", m.tbench_accuracy.toFixed(1) + "% (tbench.ai)"]);
   if (m.aa_intelligence_index != null) sourceRows.push(["AA Intelligence Index", m.aa_intelligence_index.toFixed(0) + " (artificialanalysis.ai)"]);
   // Coding-specific
-  if (m.swe_bench_verified_pct != null) sourceRows.push(["SWE-bench Verified", m.swe_bench_verified_pct.toFixed(1) + "% resolved (swebench.com)"]);
+  if (m.swe_bench_verified_pct != null) sourceRows.push(["SWE-bench Verified", m.swe_bench_verified_pct.toFixed(1) + "% resolved (swebench.com, max across Verified + bash-only harnesses)"]);
+  if (m.swe_bench_multilingual_pct != null) sourceRows.push(["SWE-bench Multilingual", m.swe_bench_multilingual_pct.toFixed(1) + "% resolved (swebench.com, 300-issue multi-language set)"]);
   if (m.aider_polyglot_pct != null) sourceRows.push(["Aider Polyglot", m.aider_polyglot_pct.toFixed(1) + "% pass_rate_2 (aider.chat)"]);
   if (m.design_arena_coding_elo != null) sourceRows.push(["design_arena coding", m.design_arena_coding_elo.toFixed(0) + " ELO mean (OpenRouter API)"]);
   if (m.weighted_coding) sourceRows.push(["Weighted coding (BenchLM)", m.weighted_coding.toFixed(1)]);
