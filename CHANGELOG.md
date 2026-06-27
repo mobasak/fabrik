@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — BENCHMARK_SOURCES.md decision record + sufficiency rationale (2026-06-27)
+
+New `docs/reference/kilo/BENCHMARK_SOURCES.md` documents the 4 WIRED benchmark sources (Chatbot Arena, Terminal Bench 2.0, BenchLM, Artificial Analysis) with per-source rationale + blind spots + DB column landings, plus a 6-axis decision rubric (§1) any future candidate must pass before being wired. Marks 4 evaluated candidates (mls-bench, SWE-bench Verified, LiveCodeBench, Aider Polyglot) as CONDITIONAL with explicit, measurable trigger conditions — prevents re-evaluation cycles every time a new benchmark drops. New §4 "Sufficiency rationale" answers the recurring question "isn't 4 sources enough? isn't there a single aggregator?" — they each anchor one role-mapper decision axis; aggregators (Open LLM Leaderboard, Vellum, etc.) measure wrong skill class or lag. §4.5 documents one observed gap: 38 free-tier models in `kilo_agents.db` have zero quality scores because the scrapers don't normalize the OpenRouter `:free` suffix when joining — small, justified fix tracked as open follow-up.
+
 ### Added — scaffold/fix refuse to target the Fabrik hub (/opt/fabrik) (2026-06-27)
 
 `create_project()` and `fix_project()` now raise via a new `_assert_not_hub()` guard when the target resolves to `/opt/fabrik`. This stops the project synced-gitignore block — which ignores governance sources (`.windsurf/`, `CLAUDE.md`, `AGENTS.md`, `scripts/run*`) — from being written to the hub's own `.gitignore` (the root cause of the hub previously ignoring its own canonical sources). `sync_enforcement_to_projects.py` already excluded the hub from its project list; this closes the manual `fabrik scaffold`/`fix`-on-hub path. Test: `tests/test_scaffold_fix.py::TestScaffoldHubGuard`.
