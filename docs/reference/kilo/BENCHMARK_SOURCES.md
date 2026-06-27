@@ -1,6 +1,6 @@
 # Benchmark Sources — Catalogue + Decision Record
 
-**Last Updated:** 2026-06-27
+**Last Updated:** 2026-06-28
 **Owner contract:** edits to this file are made by AI agents (Claude, other Code agents) as decisions evolve. The operator decides WITH the agent in chat; the agent persists the verdict here.
 **Consumed by:** any agent extending or pruning the daily benchmark pipeline ([wsl_startup_hook.sh](../../../scripts/wsl_startup_hook.sh) → [KILO_BENCHMARK_WORKFLOW.md](../../workflows/KILO_BENCHMARK_WORKFLOW.md)).
 
@@ -67,12 +67,34 @@ These four sources are consumed daily by `wsl_startup_hook.sh` step 5. Each fill
 
 - **URL:** `https://artificialanalysis.ai/leaderboards/models`
 - **Scraper:** [scripts/kilo-benchmarks/scrape_artificial_analysis.py](../../../scripts/kilo-benchmarks/scrape_artificial_analysis.py)
-- **What it measures:** Throughput (tokens/sec) + TTFT (time-to-first-token) + cost per million tokens. Operational signals — not quality.
-- **Blind spot:** A fast cheap model can be worse at the actual task; throughput says nothing about correctness.
+- **What it measures:** **Three signals**:
+  1. **Throughput** (tokens/sec) — operational signal
+  2. **TTFT** (time-to-first-token) — operational signal
+  3. **Intelligence Index** (composite quality 0-100) — **NEW 2026-06-28** quality signal, scraped from the same leaderboard table column 3 ("Artificial Analysis Intelligence Index"). AA's own aggregate across HellaSwag/MMLU/GPQA/Math/HumanEval-style benchmarks plus their internal evals.
+- **Blind spot:** Throughput says nothing about correctness; intelligence_index column is sparse on AA's own leaderboard (158 total rows, 63 with intelligence populated → 14% of our DB after canonical join). Newer model launches sometimes land on AA before getting scored.
 - **Refresh cadence:** Daily (their own continuous-measurement infrastructure).
-- **Lands in:** `kilo_agents.db.agents.output_tokens_per_sec`, `ttft_ms`.
-- **Verdict:** **WIRED** — load-bearing for the role-mapper's cost/latency floor decisions.
-- **Last verified:** 2026-06-25
+- **Lands in:** `kilo_agents.db.agents.output_tokens_per_sec`, `ttft_ms`, `aa_intelligence_index`.
+- **Verdict:** **WIRED** — load-bearing for both (a) the role-mapper's cost/latency floor decisions AND (b) the browser-tier quality scorer (via `derive_quality_v2.py` — see §2.6).
+- **Last verified:** 2026-06-28
+
+### 2.5 OpenRouter API benchmarks block (passive)
+
+- **URL:** `https://openrouter.ai/api/v1/models` — already fetched by `verify_openrouter_catalog.py`
+- **What it measures:** OpenRouter exposes per-model `benchmarks` blocks in the API response containing `design_arena[]` (UI/code/design ELOs across ~25 categories) and `artificial_analysis` (their copy of AA's intelligence_index). Coverage: design_arena 32% of catalog, artificial_analysis 19%.
+- **Blind spot:** design_arena is heavily UI/web/code-design focused (categories: website, dataviz, gamedev, uicomponent, 3d, svg, fullstack, etc.) — NOT a general intelligence signal. Top providers (OpenAI Pro tier, Claude `*-fast` variants) often missing.
+- **Refresh cadence:** Whenever the OpenRouter catalog is refetched (daily via the verifier).
+- **Lands in:** Read directly from the live catalog by `derive_quality_v2.py`; no separate DB column. Computed as `design_arena_avg_elo = mean(elo across categories)`.
+- **Verdict:** **WIRED (passive)** — no separate scraper; consumed from the API response we're already fetching. Modest signal lift (5-8 rows reclassified per run) but free maintenance.
+- **Last verified:** 2026-06-28
+
+### 2.6 Multi-signal quality scorer (derive_quality_v2.py)
+
+- **What it is:** Not a benchmark source itself but the **consumer** of all the above for the browser-tier use case. Weight-of-evidence: ANY signal that hits a threshold promotes the row to that tier.
+- **Inputs combined:** §2.1 arena_elo · §2.2 tbench_accuracy · §2.3 weighted_coding · §2.4 aa_intelligence_index + throughput · §2.5 design_arena_avg + artificial_analysis_index · model-family regex (claude-opus = T3, etc.) · cost-as-proxy ($10+/M = T3 floor) · reasoning capability · context window.
+- **Why:** The role-mapper only cares about ~30 top models, so the 4 WIRED sources' combined ~50% coverage is fine. The browser tier (`models_browser.html`) needs to rate all 458 rows including newly-ingested frontier models without public benchmarks (claude-opus-4.8-fast, gpt-5.5-pro, o1-pro, qwen3.6-max-preview, etc.). Without `derive_quality_v2.py`, 85% of rows default to T1 and the browser's tier filter silently hides them.
+- **Lands in:** `kilo_agents.db.agents.quality_tier` (overwritten daily by `daily_refresh.sh`).
+- **Verdict:** **WIRED** (browser-tier use case only).
+- **Last verified:** 2026-06-28
 
 ### 2.5 Supporting (not benchmarks, but feeds the pipeline)
 

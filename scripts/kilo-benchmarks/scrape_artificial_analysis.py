@@ -129,7 +129,25 @@ def fetch_html() -> str:
 
 
 def parse_table(html: str) -> list[dict]:
-    """Extract (name, creator, tps, ttft_ms) per model from AA leaderboard table."""
+    """Extract (name, creator, intelligence_index, tps, ttft_ms) per model
+    from the AA leaderboard table.
+
+    Column layout (verified 2026-06-28, 9 data cells per row):
+      [0] Model name
+      [1] Context Window
+      [2] Creator
+      [3] Artificial Analysis Intelligence Index   ← quality signal (NEW)
+      [4] Blended USD/1M Tokens
+      [5] Median Tokens/s                          ← throughput
+      [6] Latency First Chunk (s)                  ← TTFT
+      [7] Total Response (s)
+      [8] Further Analysis
+
+    A row may be missing ANY of intelligence_index, tps, or ttft_ms —
+    don't drop the whole row if just one is missing. Intelligence
+    coverage is roughly 80%+ of API-accessible models, much wider than
+    the BENCHMARK_SOURCES.md WIRED set (Arena ~30%, TBench ~12%).
+    """
     soup = BeautifulSoup(html, "html.parser")
     tables = soup.find_all("table")
     if not tables:
@@ -144,21 +162,41 @@ def parse_table(html: str) -> list[dict]:
             continue
         name = cells[0].get_text(strip=True)
         creator = cells[2].get_text(strip=True)
+        intel_raw = cells[3].get_text(strip=True) if len(cells) > 3 else ""
         tps_raw = cells[5].get_text(strip=True)
         ttft_raw = cells[6].get_text(strip=True)
 
         try:
+            intel = float(intel_raw)
+        except ValueError:
+            intel = None
+
+        try:
             tps = float(tps_raw)
         except ValueError:
-            continue  # model has no speed data — skip
+            tps = None
 
         try:
             ttft_ms = float(ttft_raw) * 1000.0
         except ValueError:
             ttft_ms = None
 
-        out.append({"name": name, "creator": creator, "tps": tps, "ttft_ms": ttft_ms})
-    log(f"  parsed {len(out)} model rows with throughput data")
+        # Keep the row if ANY signal is present.
+        if tps is None and intel is None and ttft_ms is None:
+            continue
+
+        out.append(
+            {
+                "name": name,
+                "creator": creator,
+                "intelligence_index": intel,
+                "tps": tps,
+                "ttft_ms": ttft_ms,
+            }
+        )
+    n_intel = sum(1 for r in out if r.get("intelligence_index") is not None)
+    n_tps = sum(1 for r in out if r.get("tps") is not None)
+    log(f"  parsed {len(out)} rows · intelligence={n_intel} · throughput={n_tps}")
     return out
 
 
@@ -240,18 +278,25 @@ def match_db_agents(aa_index: dict, db_agents: list[sqlite3.Row], overrides: dic
             out[agent_id] = {
                 "tps": ov.get("tps"),
                 "ttft_ms": ov.get("ttft_ms"),
+                "intelligence_index": ov.get("intelligence_index"),
                 "source": "manual_override",
             }
             continue
 
         for key in db_candidate_keys(agent_id, a["name"], a["provider"]):
             if key in aa_index:
-                speeds = [d["tps"] for d in aa_index[key]]
-                ttfts = [d["ttft_ms"] for d in aa_index[key] if d["ttft_ms"] is not None]
+                speeds = [d["tps"] for d in aa_index[key] if d.get("tps") is not None]
+                ttfts = [d["ttft_ms"] for d in aa_index[key] if d.get("ttft_ms") is not None]
+                intels = [
+                    d["intelligence_index"]
+                    for d in aa_index[key]
+                    if d.get("intelligence_index") is not None
+                ]
                 out[agent_id] = {
-                    "tps": median(speeds),
+                    "tps": median(speeds) if speeds else None,
                     "ttft_ms": median(ttfts) if ttfts else None,
-                    "source": f"artificialanalysis.ai (n={len(speeds)})",
+                    "intelligence_index": median(intels) if intels else None,
+                    "source": f"artificialanalysis.ai (n={len(aa_index[key])})",
                 }
                 break
     return out
@@ -270,34 +315,48 @@ def write_parsed_cache(aa_rows: list[dict], matches: dict) -> None:
     log(f"  cached → {PARSED_JSON_PATH.name} ({len(matches)} matches)")
 
 
-def update_database(matches: dict) -> tuple[int, int]:
+def update_database(matches: dict) -> tuple[int, int, int]:
+    """Returns (rows_updated_throughput, rows_updated_intelligence, skipped).
+
+    A row with intelligence but no throughput still gets written (the
+    `aa_intelligence_index` column populates even if speed columns
+    stay NULL). Lets the quality scorer use AA's intelligence index
+    independently of throughput coverage.
+    """
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     now = datetime.now().isoformat()
-    updated = 0
+    updated_tput = 0
+    updated_intel = 0
     skipped = 0
     for agent_id, m in matches.items():
-        if m.get("tps") is None:
+        if m.get("tps") is None and m.get("intelligence_index") is None:
             skipped += 1
             continue
-        cursor.execute(
-            """
-            UPDATE agents
-               SET output_tokens_per_sec = ?,
-                   ttft_ms = ?,
-                   speed_source = ?,
-                   speed_updated_at = ?
-             WHERE id = ?
-            """,
-            (m["tps"], m.get("ttft_ms"), m.get("source"), now, agent_id),
-        )
-        if cursor.rowcount > 0:
-            updated += 1
-        else:
-            skipped += 1
+        if m.get("tps") is not None:
+            cursor.execute(
+                """
+                UPDATE agents
+                   SET output_tokens_per_sec = ?,
+                       ttft_ms = ?,
+                       speed_source = ?,
+                       speed_updated_at = ?
+                 WHERE id = ?
+                """,
+                (m["tps"], m.get("ttft_ms"), m.get("source"), now, agent_id),
+            )
+            if cursor.rowcount > 0:
+                updated_tput += 1
+        if m.get("intelligence_index") is not None:
+            cursor.execute(
+                "UPDATE agents SET aa_intelligence_index = ? WHERE id = ?",
+                (m["intelligence_index"], agent_id),
+            )
+            if cursor.rowcount > 0:
+                updated_intel += 1
     conn.commit()
     conn.close()
-    return updated, skipped
+    return updated_tput, updated_intel, skipped
 
 
 def main() -> int:
@@ -347,8 +406,11 @@ def main() -> int:
             )
         return 0
 
-    updated, skipped = update_database(matches)
-    log(f"DB updated: {updated} rows, {skipped} skipped")
+    updated_tput, updated_intel, skipped = update_database(matches)
+    log(
+        f"DB updated: throughput={updated_tput} · intelligence_index={updated_intel} · "
+        f"skipped={skipped}"
+    )
     return 0
 
 
