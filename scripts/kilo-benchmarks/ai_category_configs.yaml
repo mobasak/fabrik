@@ -1,0 +1,130 @@
+# Category configurations for the OpenRouter route selection pipeline.
+#
+# Phase 2 of the OpenRouter routing plan
+# (docs/development/plans/2026-06-27-plan-openrouter-routing.md §8).
+#
+# Mirrors embedding_role_configs.yaml field-for-field. Consumed by
+# scripts/kilo-benchmarks/category_selector.py (Phase 3) and
+# category_route_mapper.py (Phase 3). Pure data; no LLM, no network.
+#
+# Field semantics
+# ---------------
+# pack_file              Destination .windsurf/rules/ai/NN-*.md for the
+#                        OPENROUTER_ROUTES marker block (Phase 4 writes here).
+# slots                  Number of priority slots per category (P1..Pn).
+# min_quality_tier       1=bulk, 2=mid, 3=frontier (cost-proxy until a
+#                        quality-benchmark scraper ships).
+# min_context_window_k   Hard floor for context length (in thousands of tokens).
+# require_vision         True -> only has_vision=1 rows survive.
+# require_tools          True -> only has_tools=1 rows survive.
+# require_reasoning      True -> only has_reasoning=1 rows survive.
+# allow_free             False -> exclude :free / /free model IDs (rate-limited).
+#                        True  -> include free as Tier-3 fallback.
+# stability_required     True -> exclude preview/alpha/beta (is_ga=1 only).
+# sort_key               Primary sort: 'input_cost_per_m ASC' (cheapest first) OR
+#                        'tbench_accuracy DESC' (best-at-tasks first) OR
+#                        'context_window_k DESC' (longest-context first).
+# notes                  Free-form rationale stored alongside the assignment.
+
+categories:
+
+  language:
+    pack_file: .windsurf/rules/ai/30-language.md
+    slots: 3
+    min_quality_tier: 2
+    min_context_window_k: 32
+    allow_free: true            # rank free as Tier-3 fallback
+    stability_required: false   # include free even though not GA
+    sort_key: input_cost_per_m ASC
+    notes: |
+      Default LLM category. Free tier is included so the route ladder is
+      P1=paid-mid, P2=paid-mid-cheaper, P3=free-fallback. Consumers decide
+      to consume P3 or not via cost-budget.md per-project caps.
+
+  code:
+    pack_file: .windsurf/rules/ai/60-code.md
+    slots: 3
+    min_quality_tier: 2
+    min_context_window_k: 64
+    require_tools: true
+    allow_free: true
+    stability_required: false
+    sort_key: tbench_accuracy DESC
+    notes: |
+      Coding agents need long context (file imports, error context) plus
+      tools (edit/run). Sort by tbench_accuracy because we have observed
+      scores after Phase 0's :free fix and they map to real edit-test
+      success.
+
+  vision:
+    pack_file: .windsurf/rules/ai/20-vision.md
+    slots: 2
+    require_vision: true
+    allow_free: false           # vision-free models are rare/unstable
+    stability_required: true
+    sort_key: input_cost_per_m ASC
+    notes: |
+      Specialized vendors (Recraft/FLUX) own image generation; this pack
+      covers VLM (vision-language) — only general-purpose LLMs with image
+      input.
+
+  multimodal:
+    pack_file: .windsurf/rules/ai/40-multimodal.md
+    slots: 2
+    require_vision: true
+    require_tools: true
+    require_reasoning: true
+    allow_free: false
+    stability_required: true
+    sort_key: input_cost_per_m ASC
+    notes: |
+      Vision + tool-calling + reasoning together. Live 2026-06-27: 76
+      candidates match all three flags. Stability + non-free required for
+      the operational SLA reasoning workflows expect.
+
+  agentic:
+    pack_file: .windsurf/rules/ai/50-agentic.md
+    slots: 3
+    require_tools: true
+    require_reasoning: true
+    allow_free: false           # agentic needs SLA, not free-quota
+    stability_required: true
+    sort_key: tbench_accuracy DESC
+    notes: |
+      Multi-step agent workflows. tbench_accuracy is the closest signal
+      we have to actual agent capability — sort primary on it. No free
+      tier because rate limits break agent loops.
+
+  long-context:
+    pack_file: .windsurf/rules/ai/90-long-context.md
+    slots: 2
+    min_context_window_k: 200
+    allow_free: true
+    stability_required: false
+    sort_key: context_window_k DESC
+    notes: |
+      Picks the longest-context viable model — sort primary on
+      context_window_k DESC so the 1M-token models always lead. Free
+      tier OK because long-context tasks are usually batch / async.
+
+  speech-audio:
+    pack_file: .windsurf/rules/ai/10-speech-audio.md
+    slots: 1
+    allow_free: false
+    stability_required: true
+    sort_key: input_cost_per_m ASC
+    notes: |
+      Most speech-audio capacity is via specialized vendors (Soniox per
+      ai/00-ai-model-selection.md). Only ONE OpenRouter route emitted for
+      models matching the speech-audio classifier rule — fallback only.
+      Live 2026-06-27: 3 candidates.
+
+# Packs intentionally NOT covered here (no OpenRouter routes emitted):
+#
+#   ai/25-3d-generation.md         — Meshy/Tripo/Rodin/TRELLIS, no LLM routing.
+#   ai/70-data-predictive.md       — DataRobot/H2O/Vertex, not Kilo-covered.
+#   ai/80-specialized-domains.md   — Bio/Robotics/etc. specialized tools.
+#
+# The classifier (classify_ai_category.py) emits zero rows for these
+# categories; category_route_mapper.py + category_export_markdown.py will
+# skip them in Phase 3+4.

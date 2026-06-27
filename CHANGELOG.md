@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — `ai_category_configs.yaml` (Phase 2 of OpenRouter routing plan) (2026-06-27)
+
+Declarative-only commit: new `scripts/kilo-benchmarks/ai_category_configs.yaml` declares the 7 LLM-bearing category configs (`language`, `code`, `vision`, `multimodal`, `agentic`, `long-context`, `speech-audio`) mapping each to its `.windsurf/rules/ai/NN-*.md` pack with per-category floors (`min_quality_tier`, `min_context_window_k`, `require_vision`/`tools`/`reasoning`), `allow_free`, `stability_required`, and `sort_key`. Field-for-field mirror of `embedding_role_configs.yaml`. Consumed by Phase 3's selector + route-mapper (not yet shipped). Three packs intentionally absent (3d-gen, data-predictive, specialized-domains cover non-LLM vendors and receive zero rows from the Phase 1 classifier). G2.1 YAML parse green, G2.2 every pack_file exists ✓, G2.3 final_gate.py --check --lean → success. Plan §13.2 Phase 2 row flipped ⏳ → ✅; evidence in plan §8.2.
+
 ### Added — `agent_categories` join table + classifier (Phase 1 of OpenRouter routing plan) (2026-06-27)
 
 New table `agent_categories` (PRIMARY KEY `(agent_id, category)`, FK `agents(id) ON DELETE CASCADE`, index `idx_agent_categories_category`) plus a pure-SQL deterministic classifier (`scripts/kilo-benchmarks/classify_ai_category.py`) that tags every active+unblocked row in `agents` against the 7 LLM-bearing rule packs in `.windsurf/rules/ai/`. Multi-category is by design: a model that's both a great general LLM and a great coding model gets two rows. Run output 2026-06-27: 889 rows / 425 distinct models / speech-audio=3 / vision=205 / multimodal=76 / agentic=131 / code=58 / long-context=234 / language=182. Migration is idempotent (`CREATE TABLE IF NOT EXISTS`); both scripts set `PRAGMA foreign_keys = ON` on connect and raise if SQLite lacks FK support. Plan §13.2 Phase 1 row flipped ⏳ → ✅ (G1.1–G1.7 all green); evidence in plan §7.5.

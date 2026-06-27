@@ -672,10 +672,30 @@ categories:
 | G2.2 all categories cover a pack file | shell glob check | every `pack_file` exists |
 | G2.3 gate | `.venv/bin/python scripts/final_gate.py --lean --json` | `"status":"success"` |
 
-### 8.2 Evidence (to be filled when phase implemented)
+### 8.2 Evidence (filled 2026-06-27, this Phase 2 commit)
 
-- `path:line`: `scripts/kilo-benchmarks/ai_category_configs.yaml:1-<EOF>`
-- Command output: G2.1 stdout + G2.3 JSON
+- `path:line`: `scripts/kilo-benchmarks/ai_category_configs.yaml:1-126` (7 categories declared; field-for-field mirror of `embedding_role_configs.yaml`)
+- **Command output (verbatim 2026-06-27):**
+
+```text
+G2.1 YAML parse:
+$ python -c "import yaml; yaml.safe_load(open('ai_category_configs.yaml'))"
+ok — 7 categories: language, code, vision, multimodal, agentic, long-context, speech-audio
+
+G2.2 every pack_file exists:
+  language        ✓ .windsurf/rules/ai/30-language.md
+  code            ✓ .windsurf/rules/ai/60-code.md
+  vision          ✓ .windsurf/rules/ai/20-vision.md
+  multimodal      ✓ .windsurf/rules/ai/40-multimodal.md
+  agentic         ✓ .windsurf/rules/ai/50-agentic.md
+  long-context    ✓ .windsurf/rules/ai/90-long-context.md
+  speech-audio    ✓ .windsurf/rules/ai/10-speech-audio.md
+
+G2.3 final_gate:
+{"status": "success", "tier": 1, "passed": 11, "failed": 0, "failures": []}
+```
+
+**Verdict:** declarative-only commit. Three categories intentionally absent from the YAML (3d-generation, data-predictive, specialized-domains) — those packs cover non-LLM vendors and receive zero rows from the Phase 1 classifier, so Phase 3+ skip them by construction.
 
 ---
 
@@ -1072,7 +1092,7 @@ SELECT count(*) FROM agents
 |---|---|
 | Phase 0 (`:free` normalization) Evidence filled + G0.1-G0.4 green | ✅ shipped 2026-06-27 (this commit). G0.3a flipped 0 → 10 scored `:free` models. Evidence in §6.5 includes the verbatim G0.1/G0.2/G0.3a/G0.4 outputs. |
 | Phase 1 (`agent_categories` join table) Evidence filled + G1.1-G1.7 green | ✅ shipped 2026-06-27. 889 rows across 7 categories; 425 distinct models classified; 0 orphans; 0 LIKE-rule overlap; PRAGMA fk asserted on every script connect. Evidence in §7.5. |
-| Phase 2 (YAML config) Evidence filled + G2.1-G2.3 green | ⏳ |
+| Phase 2 (YAML config) Evidence filled + G2.1-G2.3 green | ✅ shipped 2026-06-27. 7 categories declared mapping to the 7 LLM-bearing ai/NN-*.md packs; field-for-field mirror of embedding_role_configs.yaml. Three packs intentionally omitted (3d-gen, data-predictive, specialized-domains — non-LLM vendors). Evidence in §8.2. |
 | Phase 3 (selector + mapper) Evidence filled + G3.1-G3.5 green | ⏳ |
 | Phase 4 (markdown export) Evidence filled + G4.1-G4.5 green | ⏳ |
 | Phase 5 (pipeline wiring) Evidence filled + G5.1-G5.5 green | ⏳ |
