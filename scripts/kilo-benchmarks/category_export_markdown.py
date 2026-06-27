@@ -64,11 +64,61 @@ MARKER_START_TEMPLATE = (
 MARKER_START_PREFIX = "<!-- OPENROUTER_ROUTES:START"
 MARKER_END = "<!-- OPENROUTER_ROUTES:END -->"
 
-# Pass A F3 fix: orphan-marker line stripper. Matches any LINE containing
-# the START prefix or the END string, end-anchored to catch the full HTML
-# comment so partial strings inside markdown body aren't touched.
-ORPHAN_START_LINE_RE = re.compile(rf"^.*{re.escape(MARKER_START_PREFIX)}.*$\n?", re.MULTILINE)
-ORPHAN_END_LINE_RE = re.compile(rf"^.*{re.escape(MARKER_END)}.*$\n?", re.MULTILINE)
+# Pass A F3 fix: orphan-marker line stripper. Originally matched any
+# LINE containing the prefix or end string — but Pass 12 found this also
+# eats legitimate prose mentions of marker text (e.g. doc notes
+# describing the pack's auto-management). Now requires the same line
+# anchor as REAL_*_RE: leading horizontal whitespace + prefix + closes
+# HTML comment on same line. A prose mention with inline-code backticks
+# or other non-whitespace prefix isn't stripped.
+ORPHAN_START_LINE_RE = re.compile(
+    rf"^[^\S\n]*{re.escape(MARKER_START_PREFIX)}[^\n]*?-->\n?",
+    re.MULTILINE,
+)
+ORPHAN_END_LINE_RE = re.compile(
+    rf"^[^\S\n]*{re.escape(MARKER_END)}[^\n]*?$\n?",
+    re.MULTILINE,
+)
+
+# Pass 12 fix: distinguish a REAL marker line from a prose mention of
+# the marker text (e.g. "Doc note: pack manages a
+# `<!-- OPENROUTER_ROUTES:START` block"). A real marker line:
+#   - Starts at line beginning with at most horizontal whitespace
+#   - Contains the marker prefix
+#   - Closes the HTML comment with `-->` on the SAME line
+# Prose mentions either embed the prefix mid-line (non-whitespace prefix
+# violates `[^\S\n]*`) or use inline-code backticks (also non-whitespace).
+# Both `_replace_or_append_markers` and `_marker_block_range` previously
+# used bare `text.find(prefix)` which matched prose, causing content loss
+# in the head-slice or disabling the in-block stamp protection. Same bug
+# class as Pass 3 F6 / Pass 11; this is the comprehensive line-anchored
+# fix that closes both START-prose-above and END-prose-mid cases.
+REAL_START_RE = re.compile(
+    rf"^[^\S\n]*{re.escape(MARKER_START_PREFIX)}[^\n]*?-->",
+    re.MULTILINE,
+)
+REAL_END_RE = re.compile(
+    rf"^[^\S\n]*{re.escape(MARKER_END)}[^\n]*?$",
+    re.MULTILINE,
+)
+
+
+def _find_real_start(text: str, from_pos: int = 0) -> int:
+    """Position of `<` of the next REAL START marker line, or -1."""
+    m = REAL_START_RE.search(text, from_pos)
+    if not m:
+        return -1
+    # Skip the leading horizontal whitespace so the index points at `<`.
+    return m.start() + (m.group(0).find(MARKER_START_PREFIX))
+
+
+def _find_real_end(text: str, from_pos: int = 0) -> int:
+    """Position of `<` of the next REAL END marker line, or -1."""
+    m = REAL_END_RE.search(text, from_pos)
+    if not m:
+        return -1
+    return m.start() + (m.group(0).find(MARKER_END))
+
 
 # Pass A F2 fix: match the consumer's regex (`check_ai_pack_freshness.py:
 # 25-28`) exactly — case-insensitive, unanchored, captures the date.
@@ -168,9 +218,11 @@ def _replace_or_append_markers(
     new_start_line = MARKER_START_TEMPLATE.format(date=today)
     full_block = f"{new_start_line}\n{body.rstrip(chr(10))}\n{MARKER_END}"
 
-    start_idx = text.find(MARKER_START_PREFIX)
-    # Pass 3 F6: search for END only after START to skip prose mentions.
-    end_idx = text.find(MARKER_END, start_idx + len(MARKER_START_PREFIX)) if start_idx != -1 else -1
+    # Pass 12 fix: line-anchored marker recognition so prose mentions
+    # (inline-code, doc notes) don't get treated as real markers and
+    # cause head-slice content loss.
+    start_idx = _find_real_start(text)
+    end_idx = _find_real_end(text, start_idx + len(MARKER_START_PREFIX)) if start_idx != -1 else -1
     has_valid_pair = start_idx != -1 and end_idx != -1 and end_idx > start_idx
 
     if has_valid_pair:
@@ -208,9 +260,19 @@ def _marker_block_range(text: str) -> tuple[int, int] | None:
     None if no valid pair exists. Pass C fix: stamp scanning must skip
     this range — body content may legitimately contain text matching
     the stamp regex (e.g. operator-authored `notes:` that happens to
-    include 'Last content verification:')."""
-    start = text.find(MARKER_START_PREFIX)
-    end = text.find(MARKER_END)
+    include 'Last content verification:').
+
+    Full-surface Pass 11 fix: `text.find(MARKER_END)` without an offset
+    returns the FIRST occurrence — which can be a prose mention of
+    `<!-- OPENROUTER_ROUTES:END -->` ABOVE the real block.
+
+    Pass 12 strengthening: bare `text.find(MARKER_START_PREFIX)` has
+    the SAME failure mode for START — a prose mention of START above
+    the real block returns the prose position. Now uses line-anchored
+    `_find_real_start` / `_find_real_end` helpers so the prose case is
+    rejected at the matching layer."""
+    start = _find_real_start(text)
+    end = _find_real_end(text, start + len(MARKER_START_PREFIX)) if start != -1 else -1
     if start == -1 or end == -1 or end <= start:
         return None
     end_line_end = text.find("\n", end)

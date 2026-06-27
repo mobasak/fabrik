@@ -486,12 +486,19 @@ def test_full_surface_pass3_f6_end_marker_in_prose_above_block():
     text = p.read_text()
     # The marker action must be 'replaced' (the valid pair was recognized).
     assert res["marker"] == "replaced", f"got {res}"
-    assert text.count("OPENROUTER_ROUTES:START") == 1
-    assert text.count("OPENROUTER_ROUTES:END") == 1
-    # The original block's "OLD CONTENT" must be replaced (not preserved as orphan).
+    # Pass 12: count REAL markers via line-anchored regex (line begins
+    # with horizontal whitespace + marker + closes HTML comment on
+    # same line). The prose mention is preserved as documentation and
+    # contains the substring but is NOT a real marker line.
+    assert len(export.REAL_START_RE.findall(text)) == 1
+    assert len(export.REAL_END_RE.findall(text)) == 1
+    # The original block's "OLD CONTENT" must be replaced.
     assert "OLD CONTENT" not in text
     # The tail content must survive.
     assert "Tail" in text
+    # The prose mention should ALSO survive (Pass 12: orphan strip
+    # only matches real marker lines, not inline-code mentions).
+    assert "See the" in text
 
 
 def test_full_surface_pass5_f2_per_pack_exception_does_not_halt_loop(tmp_path, capsys):
@@ -528,3 +535,93 @@ def test_full_surface_pass5_f2_per_pack_exception_does_not_halt_loop(tmp_path, c
     assert results["code"]["status"] == "wrote"
     out = capsys.readouterr().out
     assert "vision: FAILED" in out
+
+
+def test_full_surface_pass11_marker_block_range_skips_prose_end():
+    """Pass 11: `_marker_block_range` used `text.find(MARKER_END)` with
+    no offset → first occurrence (e.g. a prose mention "see the
+    `<!-- OPENROUTER_ROUTES:END -->` line below") tripped the
+    `end <= start` guard, function returned None, and `_refresh_stamp`
+    fell through to the unprotected path — mutating an in-block stamp
+    line. Pass C's protection was silently disabled.
+
+    This regresses the SAME bug class as Pass 3 F6 in
+    `_replace_or_append_markers`, but in a different function with
+    its own copy of the find-without-offset anti-pattern."""
+    p = Path(tempfile.mkdtemp()) / "p.md"
+    p.write_text(
+        "# Pack\n\n"
+        "Doc note: this pack auto-manages an "
+        "`<!-- OPENROUTER_ROUTES:END -->` block at the bottom.\n\n"
+        "<!-- OPENROUTER_ROUTES:START — last-refreshed: 2026-06-27 "
+        "(auto-managed by category_export_markdown.py) -->\n"
+        "*Auto-generated content*\n"
+        "Last content verification: 2020-01-01\n"
+        "Tail body\n"
+        "<!-- OPENROUTER_ROUTES:END -->\n"
+    )
+    res = export.inject_pack(p, "language", _entry([_route("x/y")]))
+    text = p.read_text()
+    # The block_range must be detected (Pass 11 + Pass 12 fix) so the
+    # stamp regex skips the in-block "Last content verification:" line
+    # and instead writes a NEW canonical stamp under the H1.
+    real_start_m = export.REAL_START_RE.search(text)
+    real_end_m = export.REAL_END_RE.search(text)
+    assert real_start_m is not None and real_end_m is not None
+    canonical = text.find(f"Last content verification: {TODAY}")
+    assert canonical != -1
+    assert canonical < real_start_m.start(), (
+        f"in-block stamp protection silently disabled: canonical "
+        f"stamp at {canonical} but real marker block starts at "
+        f"{real_start_m.start()}"
+    )
+    block = text[real_start_m.start():real_end_m.end()]
+    import re
+    in_block_stamps = re.findall(r"(?i)last content verification:[^\n]*", block)
+    assert in_block_stamps == [], (
+        f"in-block stamps not cleared: {in_block_stamps}"
+    )
+    # Pass 12: prose mention preserved as documentation; only ONE REAL
+    # marker pair (line-anchored).
+    assert len(export.REAL_START_RE.findall(text)) == 1
+    assert len(export.REAL_END_RE.findall(text)) == 1
+    assert "Doc note" in text  # prose preserved
+
+
+def test_full_surface_pass12_start_marker_in_prose_above_block():
+    """Pass 12: the symmetric counterpart to Pass 3 F6 / Pass 11.
+    `text.find(MARKER_START_PREFIX)` returned the FIRST occurrence; if a
+    pack contained prose mentioning the START marker (e.g. inline code
+    `\\`<!-- OPENROUTER_ROUTES:START\\`` in doc text), the find call
+    landed on the prose, NOT the real block. `_replace_or_append_markers`
+    then sliced head at the prose position, fusing the prose prefix with
+    the rebuilt START line and silently destroying any content between
+    the prose mention and the real block (including legitimate stamps).
+
+    Pass 12 fixes both `_replace_or_append_markers` and
+    `_marker_block_range` via line-anchored `REAL_START_RE` / `REAL_END_RE`
+    which require the marker to be at line beginning with at most
+    horizontal whitespace, closing the HTML comment on the same line —
+    so inline-code/quoted mentions are rejected at the matching layer.
+    The orphan-strip regexes were ALSO tightened to the same shape so
+    they no longer eat prose lines that contain marker substrings."""
+    p = Path(tempfile.mkdtemp()) / "p.md"
+    p.write_text(
+        "# Pack\n\n"
+        "Doc note: pack manages `<!-- OPENROUTER_ROUTES:START` block.\n\n"
+        "Last content verification: 2020-01-01\n\n"
+        "<!-- OPENROUTER_ROUTES:START — last-refreshed: 2026-06-27 "
+        "(auto-managed by category_export_markdown.py) -->\n"
+        "Body\n"
+        "<!-- OPENROUTER_ROUTES:END -->\n"
+    )
+    res = export.inject_pack(p, "language", _entry([_route("x/y")]))
+    text = p.read_text()
+    # Doc note preserved (not fused into the rebuilt marker).
+    assert "Doc note: pack manages" in text
+    # Real marker count == 1+1 (the prose substring doesn't count).
+    assert len(export.REAL_START_RE.findall(text)) == 1
+    assert len(export.REAL_END_RE.findall(text)) == 1
+    # The stale 2020-01-01 stamp must be canonicalized to today.
+    assert "2020-01-01" not in text
+    assert f"Last content verification: {TODAY}" in text
