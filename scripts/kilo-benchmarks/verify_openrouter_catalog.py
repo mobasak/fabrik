@@ -22,8 +22,17 @@ import sqlite3
 import subprocess
 import sys
 import urllib.request
-from datetime import date
+from datetime import UTC, datetime
 from pathlib import Path
+
+
+def _today_utc_iso() -> str:
+    """UTC date so the verifier never drifts vs export_models_browser
+    (which uses datetime.now(UTC) for generated_at). Mixing local-tz
+    `date.today()` here with UTC there produced negative day counts
+    around midnight UTC, displayed as "-1d" in the browser."""
+    return datetime.now(UTC).date().isoformat()
+
 
 SCRIPT_DIR = Path(__file__).parent
 DB_PATH = SCRIPT_DIR / "kilo_agents.db"
@@ -42,19 +51,34 @@ def _fetch_live() -> dict[str, dict]:
     return {m["id"]: m for m in payload.get("data", [])}
 
 
-def _live_pricing(record: dict) -> tuple[float, float]:
+def _live_pricing(record: dict) -> tuple[float, float, bool]:
     """OpenRouter encodes pricing as dollars-per-token strings (e.g.
-    '0.000003' = $3 per million). Returns (input_per_m, output_per_m)."""
+    '0.000003' = $3 per million). Returns (input_per_m, output_per_m,
+    is_variable).
+
+    Sentinel handling: OpenRouter uses `"-1"` (or any negative string)
+    to mean "variable / dynamic — depends on which underlying model
+    this meta-router selects per request." Applies to openrouter/auto,
+    openrouter/fusion, openrouter/pareto-code, openrouter/bodybuilder.
+    For these we return (0.0, 0.0, True) — keep the cost columns at 0
+    (the `agents.input_cost_per_m` column is NOT NULL) and set the
+    is_variable flag so the browser renders "variable" rather than $0
+    or a nonsense -$1,000,000."""
     p = record.get("pricing", {}) or {}
-    try:
-        inp = float(p.get("prompt", 0) or 0) * 1_000_000
-    except (TypeError, ValueError):
-        inp = 0.0
-    try:
-        outp = float(p.get("completion", 0) or 0) * 1_000_000
-    except (TypeError, ValueError):
-        outp = 0.0
-    return inp, outp
+
+    def _parse(field: str) -> tuple[float, bool]:
+        raw = p.get(field, 0) or 0
+        try:
+            val = float(raw)
+        except (TypeError, ValueError):
+            return 0.0, False
+        if val < 0:
+            return 0.0, True
+        return val * 1_000_000, False
+
+    inp, var_inp = _parse("prompt")
+    outp, var_outp = _parse("completion")
+    return inp, outp, var_inp or var_outp
 
 
 def _live_caps(record: dict) -> dict[str, int]:
@@ -165,28 +189,61 @@ def verify(db_path: Path = DB_PATH) -> dict:
             delisted.append(mid)
             continue
 
-        live_inp, live_out = _live_pricing(live_rec)
+        live_inp, live_out, live_var = _live_pricing(live_rec)
         live_ctx = (live_rec.get("context_length") or 0) // 1000
         live_caps = _live_caps(live_rec)
         live_name = live_rec.get("name") or ""
 
         row_disc: list[dict] = []
-        if not _approx_eq(row.get("input_cost_per_m"), live_inp, tol=0.01):
+        # Skip price discrepancy detection when OpenRouter says the
+        # pricing is variable — the DB stores 0 + is_variable_pricing=1,
+        # which "differs" from the live 0 but doesn't need a fix.
+        if not live_var:
+            if not _approx_eq(row.get("input_cost_per_m"), live_inp, tol=0.01):
+                row_disc.append(
+                    {
+                        "field": "input_cost_per_m",
+                        "db": row.get("input_cost_per_m"),
+                        "live": live_inp,
+                    }
+                )
+            if not _approx_eq(row.get("output_cost_per_m"), live_out, tol=0.01):
+                row_disc.append(
+                    {
+                        "field": "output_cost_per_m",
+                        "db": row.get("output_cost_per_m"),
+                        "live": live_out,
+                    }
+                )
+        # Detect is_variable_pricing flag drift.
+        db_var = bool(row.get("is_variable_pricing") or 0)
+        if db_var != live_var:
             row_disc.append(
                 {
-                    "field": "input_cost_per_m",
-                    "db": row.get("input_cost_per_m"),
-                    "live": live_inp,
+                    "field": "is_variable_pricing",
+                    "db": int(db_var),
+                    "live": int(live_var),
                 }
             )
-        if not _approx_eq(row.get("output_cost_per_m"), live_out, tol=0.01):
-            row_disc.append(
-                {
-                    "field": "output_cost_per_m",
-                    "db": row.get("output_cost_per_m"),
-                    "live": live_out,
-                }
-            )
+        # If pricing IS variable, reset the cost columns to 0 (clear
+        # any prior -1,000,000 garbage we wrote).
+        if live_var:
+            if (row.get("input_cost_per_m") or 0) != 0:
+                row_disc.append(
+                    {
+                        "field": "input_cost_per_m",
+                        "db": row.get("input_cost_per_m"),
+                        "live": 0.0,
+                    }
+                )
+            if (row.get("output_cost_per_m") or 0) != 0:
+                row_disc.append(
+                    {
+                        "field": "output_cost_per_m",
+                        "db": row.get("output_cost_per_m"),
+                        "live": 0.0,
+                    }
+                )
         if row.get("context_window_k") != live_ctx and live_ctx > 0:
             row_disc.append(
                 {
@@ -275,7 +332,7 @@ def ingest_new(report: dict, db_path: Path = DB_PATH) -> dict:
     live = json.loads(CACHE_PATH.read_text())
     live_by_id = {m["id"]: m for m in live.get("data", [])}
     kilo_by_id = _fetch_kilo()
-    today_iso = date.today().isoformat()
+    today_iso = _today_utc_iso()
     inserted_or = 0
     inserted_kilo = 0
 
@@ -287,7 +344,7 @@ def ingest_new(report: dict, db_path: Path = DB_PATH) -> dict:
             if not rec:
                 continue
             provider = mid.split("/")[0] if "/" in mid else mid
-            inp, outp = _live_pricing(rec)
+            inp, outp, is_var = _live_pricing(rec)
             ctx = (rec.get("context_length") or 0) // 1000
             caps = _live_caps(rec)
             also_kilo = 1 if mid in kilo_by_id else 0
@@ -298,8 +355,9 @@ def ingest_new(report: dict, db_path: Path = DB_PATH) -> dict:
                 "INSERT INTO agents (id, api_id, name, provider, "
                 "input_cost_per_m, output_cost_per_m, context_window_k, "
                 "has_vision, has_tools, status, last_verified, "
-                "via_openrouter, via_kilo, kilo_input_cost_per_m, kilo_output_cost_per_m) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, 1, ?, ?, ?)",
+                "via_openrouter, via_kilo, kilo_input_cost_per_m, kilo_output_cost_per_m, "
+                "is_variable_pricing) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, 1, ?, ?, ?, ?)",
                 (
                     mid,
                     mid,
@@ -314,6 +372,7 @@ def ingest_new(report: dict, db_path: Path = DB_PATH) -> dict:
                     also_kilo,
                     k_in,
                     k_out,
+                    1 if is_var else 0,
                 ),
             )
             inserted_or += 1
@@ -369,7 +428,7 @@ def apply_fixes(report: dict, db_path: Path = DB_PATH) -> dict:
     """For each discrepancy, UPDATE the DB column to live value.
     Delisted rows get status='deprecated'. Returns counts."""
     conn = sqlite3.connect(db_path)
-    today_iso = date.today().isoformat()
+    today_iso = _today_utc_iso()
     counts = {"rows_updated": 0, "rows_deprecated": 0, "fields_updated": 0}
 
     try:
@@ -452,7 +511,7 @@ def apply_fixes(report: dict, db_path: Path = DB_PATH) -> dict:
 def _print_report(report: dict, verbose: bool = False) -> None:
     s = report["summary"]
     print("=" * 70)
-    print(f"  Source coverage @ {date.today().isoformat()}")
+    print(f"  Source coverage @ {_today_utc_iso()}")
     print("=" * 70)
     print(f"  OpenRouter total:              {s['live_total']:>4}")
     print(f"  Kilo CLI total:                {s['kilo_total']:>4}")
@@ -461,7 +520,7 @@ def _print_report(report: dict, verbose: bool = False) -> None:
     print(f"  OpenRouter-only:               {s['missing_from_db_or']:>4}")
     print()
     print("=" * 70)
-    print(f"  OpenRouter catalog verification @ {date.today().isoformat()}")
+    print(f"  OpenRouter catalog verification @ {_today_utc_iso()}")
     print("=" * 70)
     print(f"  DB active rows:                {s['db_active']:>4}")
     print(f"  Live OpenRouter rows:          {s['live_total']:>4}")

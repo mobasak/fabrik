@@ -423,7 +423,11 @@ function staleBucket(lastVerified) {
   if (!lastVerified) return { bucket: "very-stale", days: null };
   const d = new Date(lastVerified);
   if (isNaN(d)) return { bucket: "very-stale", days: null };
-  const days = Math.floor((TODAY - d) / 86400000);
+  // Clamp negative days to 0 — happens when the embedded page was
+  // generated at e.g. 21:30 UTC and the DB's last_verified got bumped
+  // to next day's date before the operator reloaded. Treat as "today"
+  // rather than confusing "-1d".
+  const days = Math.max(0, Math.floor((TODAY - d) / 86400000));
   if (days <= 7) return { bucket: "fresh", days };
   if (days <= 30) return { bucket: "warn", days };
   if (days <= 90) return { bucket: "stale", days };
@@ -554,8 +558,11 @@ function filterRow(m) {
     if (!any) return false;
   }
   if (state.providers.size > 0 && !state.providers.has(m.provider)) return false;
-  if (state.costMin !== null && (m.input_cost_per_m || 0) < state.costMin) return false;
-  if (state.costMax !== null && (m.input_cost_per_m || 0) > state.costMax) return false;
+  // Rows with NULL price (meta-routers) are out of the cost-range
+  // filter — they have no single price to compare against.
+  if (state.costMin !== null && m.input_cost_per_m !== null && m.input_cost_per_m !== undefined && m.input_cost_per_m < state.costMin) return false;
+  if (state.costMax !== null && m.input_cost_per_m !== null && m.input_cost_per_m !== undefined && m.input_cost_per_m > state.costMax) return false;
+  if ((state.costMin !== null || state.costMax !== null) && (m.input_cost_per_m === null || m.input_cost_per_m === undefined)) return false;
   if (state.ctxMin !== null && (m.context_window_k || 0) < state.ctxMin) return false;
   if (state.ctxMax !== null && (m.context_window_k || 0) > state.ctxMax) return false;
   if (state.fresh.size > 0 && !state.fresh.has(m._staleBucket)) return false;
@@ -608,7 +615,15 @@ function sortRows(rows) {
 }
 
 // ----- Render -----
-function fmtCost(v) {
+function fmtCost(v, m) {
+  // Meta-routers (openrouter/auto, openrouter/fusion, openrouter/
+  // pareto-code, openrouter/bodybuilder) delegate each call to a chosen
+  // underlying model, so per-token price depends on the pick.
+  // OpenRouter signals this with pricing="-1"; we store is_variable_pricing=1
+  // and reset cost columns to 0.
+  if (m && m.is_variable_pricing) {
+    return "<span style='color:var(--muted)' title='Variable — meta-router, price depends on which underlying model is selected per request'>variable</span>";
+  }
   if (v === null || v === undefined) return "<span style='color:var(--muted)'>?</span>";
   if (v === 0) return "<span class='free'>free</span>";
   return "$" + v.toFixed(v < 1 ? 2 : 2);
@@ -678,8 +693,8 @@ function refresh() {
       <td class="id">${idCol}${isPinned ? ' 📌' : ''}</td>
       <td>${m.name || ""}</td>
       <td>${m.provider || ""}</td>
-      <td class="cost" title="${priceSourceLabel(m)} — input cost">${fmtCost(m.input_cost_per_m)}</td>
-      <td class="cost" title="${priceSourceLabel(m)} — output cost">${fmtCost(m.output_cost_per_m)}</td>
+      <td class="cost" title="${priceSourceLabel(m)} — input cost">${fmtCost(m.input_cost_per_m, m)}</td>
+      <td class="cost" title="${priceSourceLabel(m)} — output cost">${fmtCost(m.output_cost_per_m, m)}</td>
       <td class="num">${m.context_window_k || ""}</td>
       <td class="tier t-${m.quality_tier || 0}">${m.quality_tier ? "T" + m.quality_tier : ""}</td>
       <td class="cap">${m.kind === "chat" ? fmtCaps(m) : "<span style='color:var(--muted)'>embed</span>"}</td>
@@ -754,7 +769,13 @@ function openDetail(m, tr) {
   // For dual-routed models with differing prices, show BOTH gateways
   // side-by-side so the operator can pick the cheaper route.
   let costSummary = "";
-  if (m.input_cost_per_m !== null && m.input_cost_per_m !== undefined) {
+  if (m.is_variable_pricing) {
+    costSummary = `<div style="font-size:12px;margin-bottom:10px;color:var(--muted);background:var(--panel2);padding:8px 10px;border-radius:4px;border-left:3px solid var(--accent)">
+      <strong style="color:var(--text)">Variable pricing — meta-router.</strong>
+      Each request is delegated to a chosen underlying model and you pay
+      that model's per-token rate. See <a href="https://openrouter.ai/${m.id}" target="_blank">openrouter.ai/${m.id}</a> for the live shortlist and selection logic.
+    </div>`;
+  } else if (m.input_cost_per_m !== null && m.input_cost_per_m !== undefined) {
     const ci = m.input_cost_per_m, co = m.output_cost_per_m || 0;
     const primaryLabel = m.via_openrouter
       ? "OpenRouter"

@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — meta-router negative pricing + UTC-local date drift in verifier (2026-06-28)
+
+User spotted `openrouter/bodybuilder` and `openrouter/pareto-code` showing `$-1,000,000.00` per M tokens with `-1d` in the Verified column. Two bugs: (1) OpenRouter encodes meta-routers (`openrouter/auto`, `openrouter/fusion`, `openrouter/pareto-code`, `openrouter/bodybuilder`) with `pricing.prompt = "-1"` as a sentinel for "variable — depends on which underlying model is selected per request." The verifier was blindly doing `float("-1") * 1_000_000`. Added a new `is_variable_pricing INTEGER` column on `agents`, taught `_live_pricing` to detect the negative sentinel and return `(0.0, 0.0, True)`, and updated the browser's `fmtCost` to render "variable" with a hover tooltip explaining the meta-router semantics. The detail panel now shows a dedicated info banner for variable-pricing rows instead of `$0 / $0`. (2) `verify_openrouter_catalog.py` used `date.today()` (LOCAL timezone) for `last_verified` while `export_models_browser.py` used `datetime.now(UTC)` for `generated_at`. After local-midnight but before UTC-midnight (3-hour drift for the operator's Turkey timezone), the DB had `last_verified=tomorrow` and the page had `generated_at=today`, so the JS computed `TODAY - last_verified < 0` and labeled the row `-1d`. Fixed: verifier now uses `_today_utc_iso()` for all stamping; browser additionally clamps negative day counts to 0 as a defense-in-depth.
+
 ### Changed — models_browser: hide discounted variants by default (2026-06-28)
 
 User: "by default models_browser.html should not show any discounted models." Added `_isDiscounted` predicate matching three signals: id ending in `:discounted`, provider `stealth`, or name matching `\d+% off\)`. Detected 8 rows: stealth/claude-opus-4.6/4.7/4.8, stealth/claude-sonnet-4.6, stealth/qwen3.6-plus, deepseek-v4-flash/v4-pro:discounted, minimax-m3:discounted. These are filtered out of the table by default. New "show discounted" chip in the Source/gateway sidebar lets the operator opt in.
