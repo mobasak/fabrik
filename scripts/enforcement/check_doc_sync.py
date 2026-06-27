@@ -132,9 +132,12 @@ def _changelog_quality_ok() -> bool:
         return False
     nxt = content.find("\n## [", start + 1)
     section = content[start : (nxt if nxt != -1 else len(content))].strip()
-    if not CHANGELOG_ENTRY_RE.search(section):
+    # Strip fenced code blocks FIRST — a `### …` line that only appears inside a
+    # ``` fence ``` (a template/example) is NOT a real changelog entry.
+    defenced = re.sub(r"```.+?```", "", section, flags=re.DOTALL)
+    if not CHANGELOG_ENTRY_RE.search(defenced):
         return False
-    body = re.sub(r"```.+?```", "", section, flags=re.DOTALL).lower()
+    body = defenced.lower()
     return not any(ph in body for ph in ("<brief title>", "<description>", "todo", "fixme"))
 
 

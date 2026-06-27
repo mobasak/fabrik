@@ -689,9 +689,16 @@ function refresh() {
     const verifiedLabel = m._staleDays === null
       ? "?"
       : (m._staleDays === 0 ? "today" : m._staleDays + "d");
+    // Hover hint: first ~250 chars of description so the user doesn't
+    // always need to click. Strips markdown link syntax for clarity.
+    const hint = (m.description || "")
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+      .replace(/\*\*([^*]+)\*\*/g, "$1")
+      .substring(0, 250);
+    const nameCellTitle = hint ? hint + (m.description.length > 250 ? "…" : "") : "";
     tr.innerHTML = `
       <td class="id">${idCol}${isPinned ? ' 📌' : ''}</td>
-      <td>${m.name || ""}</td>
+      <td title="${escapeHtml(nameCellTitle)}">${m.name || ""}</td>
       <td>${m.provider || ""}</td>
       <td class="cost" title="${priceSourceLabel(m)} — input cost">${fmtCost(m.input_cost_per_m, m)}</td>
       <td class="cost" title="${priceSourceLabel(m)} — output cost">${fmtCost(m.output_cost_per_m, m)}</td>
@@ -768,6 +775,26 @@ function openDetail(m, tr) {
   // Cost unit clarification at the top of the detail panel.
   // For dual-routed models with differing prices, show BOTH gateways
   // side-by-side so the operator can pick the cheaper route.
+  // Description block — supplier-authored text from OpenRouter
+  // (`description` field) or Kilo CLI (`options.description`). Already
+  // markdown-ish; we render with minimal `[text](url)` → <a> rewriting
+  // so links work without dragging in a markdown parser.
+  let descBlock = "";
+  if (m.description) {
+    const linked = m.description.replace(
+      /\[([^\]]+)\]\(([^)]+)\)/g,
+      (_, t, u) => {
+        // Resolve OpenRouter relative URLs like /provider/model
+        const url = u.startsWith("/") ? "https://openrouter.ai" + u : u;
+        return `<a href="${url}" target="_blank">${escapeHtml(t)}</a>`;
+      }
+    );
+    descBlock = `<h4>Description (from supplier)</h4>
+      <div style="font-size:12px;line-height:1.5;color:#cdd1da;background:var(--panel2);padding:10px 12px;border-radius:4px;border-left:3px solid var(--accent-dim);margin-bottom:14px">
+        ${linked}
+        ${m.description.endsWith("...") ? '<div style="margin-top:6px;font-size:10px;color:var(--muted)">Truncated by source; see <a href="https://openrouter.ai/' + m.id + '" target="_blank">openrouter.ai/' + m.id + '</a> for the full text.</div>' : ''}
+      </div>`;
+  }
   let costSummary = "";
   if (m.is_variable_pricing) {
     costSummary = `<div style="font-size:12px;margin-bottom:10px;color:var(--muted);background:var(--panel2);padding:8px 10px;border-radius:4px;border-left:3px solid var(--accent)">
@@ -811,6 +838,7 @@ function openDetail(m, tr) {
   body.innerHTML = `
     <h2>${m.id}</h2>
     ${costSummary}
+    ${descBlock}
     ${staleBanner}
     <dl>${fields.join("")}</dl>
     ${catHtml}

@@ -57,8 +57,14 @@ def main() -> int:
         rel = dest.relative_to(project_root).as_posix()
         if rel in SEEDED_NOT_ENFORCED:
             continue
-        if not src.exists() or not dest.exists():
-            continue  # not synced into this project (or removed upstream)
+        if not src.exists():
+            continue  # removed upstream — no longer synced into projects, OK
+        if not dest.exists():
+            # A synced file DELETED locally must be flagged. The old combined
+            # guard silently passed deletions — a deleted enforcement script
+            # leaves the gate blind until the next sync restores it.
+            drifted.append(f"{rel} — DELETED locally (a Fabrik-synced file must exist)")
+            continue
         if _md5(src) != _md5(dest):
             drifted.append(rel)
 

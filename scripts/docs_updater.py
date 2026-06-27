@@ -1137,7 +1137,7 @@ def validate_docs() -> tuple[bool, list[str]]:
     if README_PATH.exists():
         readme = README_PATH.read_text()
         if "<!-- AUTO-GENERATED:STRUCTURE:START -->" not in readme:
-            issues.append("docs/INDEX.md missing STRUCTURE auto-block markers")
+            issues.append("INDEX.md missing STRUCTURE auto-block markers")
 
     # PLANS.md auto-block check removed (Traycer-managed)
 

@@ -1,1 +1,61 @@
 [2026-06-27 00:21:32] Log rotated
+
+=== Fabrik AI catalog refresh — 2026-06-27 22:11:38 UTC ===
+======================================================================
+  Source coverage @ 2026-06-27
+======================================================================
+  OpenRouter total:               339
+  Kilo CLI total:                 252
+  In BOTH sources (same id):      239
+  Kilo-only (Gateway aliases):     13
+  OpenRouter-only:                  0
+
+======================================================================
+  OpenRouter catalog verification @ 2026-06-27
+======================================================================
+  DB active rows:                 339
+  Live OpenRouter rows:           339
+  ✓  matched cleanly:             339
+  ~  matched w/ discrepancy:        0
+  ⚠  delisted in DB only:           0
+  +  in OpenRouter, not in DB:      0
+  +  in Kilo only, not in DB:      13
+
+
+Applying fixes...
+  fields updated:  0
+  rows updated:    0
+  rows deprecated: 0
+
+Ingesting new rows from OpenRouter...
+Traceback (most recent call last):
+  File "/opt/fabrik/scripts/kilo-benchmarks/verify_openrouter_catalog.py", line 650, in <module>
+    main()
+  File "/opt/fabrik/scripts/kilo-benchmarks/verify_openrouter_catalog.py", line 645, in main
+    c = ingest_new(report, args.db)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/fabrik/scripts/kilo-benchmarks/verify_openrouter_catalog.py", line 428, in ingest_new
+    conn.execute(
+sqlite3.IntegrityError: UNIQUE constraint failed: agents.id
+[daily_refresh] verifier failed (non-fatal)
+[classify_ai_category] classified 715 rows across 7 categories: speech-audio=2, vision=167, multimodal=62, agentic=103, code=43, long-context=192, language=146
+[category_route_mapper] language: 3 routes → ['deepseek/deepseek-v4-flash', 'qwen/qwen3-next-80b-a3b-instruct', 'stepfun/step-3.5-flash']
+[category_route_mapper] code: 3 routes → ['openai/gpt-5.4', 'google/gemini-3.1-pro-preview', 'openai/gpt-5.3-codex']
+[category_route_mapper] vision: 2 routes → ['openai/gpt-5-nano', 'google/gemma-3-12b-it']
+[category_route_mapper] multimodal: 2 routes → ['openai/gpt-5-nano', 'qwen/qwen3.5-flash-02-23']
+[category_route_mapper] agentic: 3 routes → ['openai/gpt-5.4', 'openai/gpt-5.3-codex', 'anthropic/claude-opus-4.6']
+[category_route_mapper] long-context: 2 routes → ['meta-llama/llama-4-scout', 'x-ai/grok-4.20']
+[category_route_mapper] speech-audio: 1 routes → ['openai/gpt-audio-mini']
+[category_route_mapper] wrote /opt/fabrik/scripts/kilo-benchmarks/openrouter_routes.json
+[category_route_mapper] wrote /opt/fabrik/scripts/kilo_openrouter_routes_final.json
+[category_route_mapper] wrote 16 pins across 7 categories (0 skipped)
+[category_export_markdown] language: {'status': 'noop', 'marker': 'noop', 'stamp': 'noop'}
+[category_export_markdown] code: {'status': 'noop', 'marker': 'noop', 'stamp': 'noop'}
+[category_export_markdown] vision: {'status': 'noop', 'marker': 'noop', 'stamp': 'noop'}
+[category_export_markdown] multimodal: {'status': 'noop', 'marker': 'noop', 'stamp': 'noop'}
+[category_export_markdown] agentic: {'status': 'noop', 'marker': 'noop', 'stamp': 'noop'}
+[category_export_markdown] long-context: {'status': 'noop', 'marker': 'noop', 'stamp': 'noop'}
+[category_export_markdown] speech-audio: {'status': 'noop', 'marker': 'noop', 'stamp': 'noop'}
+[export_models_browser] wrote /opt/fabrik/scripts/kilo-benchmarks/models_browser.html
+[export_models_browser] 458 chat models · 26 embedding models · 72 providers
+=== Refresh complete — 2026-06-27 22:11:48 UTC ===

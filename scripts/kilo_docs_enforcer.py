@@ -508,7 +508,13 @@ def analyze_diff_for_triggers(diff: str, staged_files: list[str]) -> list[DocVio
     for line in diff.split("\n"):
         # Track current file from diff headers
         if line.startswith("+++"):
-            current_file = line[6:]  # Remove "+++ b/"
+            # Robustly strip the diff prefix: "+++ b/path", "+++ path", or
+            # "+++ /dev/null" (a deletion — no current file). Hardcoding line[6:]
+            # mangled paths when the prefix wasn't exactly "+++ b/".
+            path = line[3:].strip()
+            if path.startswith("b/"):
+                path = path[2:]
+            current_file = "" if path == "/dev/null" else path
             line_number = 0
             continue
 
@@ -1966,7 +1972,9 @@ Write clear, concise documentation suitable for developers.
                     verbose=verbose,
                 )
                 content = _strip_markdown_fences(retry_result["result"])
-                retry_valid, retry_reason = validate_generated_content(content, doc_path)
+                retry_valid, retry_reason = validate_generated_content(
+                    content, doc_path, requirement
+                )
                 if not retry_valid:
                     raise RuntimeError(
                         f"Documentation generation failed for {doc_path} after retry "

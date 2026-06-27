@@ -81,6 +81,20 @@ def _live_pricing(record: dict) -> tuple[float, float, bool]:
     return inp, outp, var_inp or var_outp
 
 
+def _live_description(record: dict) -> str:
+    """OpenRouter's `description` field — full explainer text for the
+    model. Already markdown-flavored. Trimmed/cleaned but otherwise
+    passed through verbatim."""
+    d = record.get("description") or ""
+    return d.strip()
+
+
+def _kilo_description(record: dict) -> str:
+    """Kilo CLI nests its description under `options.description`."""
+    opts = record.get("options", {}) or {}
+    return (opts.get("description") or "").strip()
+
+
 def _live_caps(record: dict) -> dict[str, int]:
     """Vision flag from architecture.input_modalities; tools from
     supported_parameters."""
@@ -193,6 +207,11 @@ def verify(db_path: Path = DB_PATH) -> dict:
         live_ctx = (live_rec.get("context_length") or 0) // 1000
         live_caps = _live_caps(live_rec)
         live_name = live_rec.get("name") or ""
+        live_desc = _live_description(live_rec)
+        # Fall back to Kilo's description when OpenRouter's is empty —
+        # some rows have only the Kilo-side text.
+        if not live_desc and mid in kilo:
+            live_desc = _kilo_description(kilo[mid])
 
         row_disc: list[dict] = []
         # Skip price discrepancy detection when OpenRouter says the
@@ -276,6 +295,16 @@ def verify(db_path: Path = DB_PATH) -> dict:
                     "live": live_name,
                 }
             )
+        # Description is a free-text field — push the live value down
+        # whenever it changes (operator never edits these locally).
+        if live_desc and (row.get("description") or "") != live_desc:
+            row_disc.append(
+                {
+                    "field": "description",
+                    "db": row.get("description"),
+                    "live": live_desc,
+                }
+            )
 
         if row_disc:
             discrepancies.append({"id": mid, "diffs": row_disc})
@@ -351,13 +380,16 @@ def ingest_new(report: dict, db_path: Path = DB_PATH) -> dict:
             k_in, k_out = (None, None)
             if also_kilo:
                 k_in, k_out = _kilo_pricing(kilo_by_id[mid])
+            desc = _live_description(rec)
+            if not desc and also_kilo:
+                desc = _kilo_description(kilo_by_id[mid])
             conn.execute(
                 "INSERT INTO agents (id, api_id, name, provider, "
                 "input_cost_per_m, output_cost_per_m, context_window_k, "
                 "has_vision, has_tools, status, last_verified, "
                 "via_openrouter, via_kilo, kilo_input_cost_per_m, kilo_output_cost_per_m, "
-                "is_variable_pricing) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, 1, ?, ?, ?, ?)",
+                "is_variable_pricing, description) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, 1, ?, ?, ?, ?, ?)",
                 (
                     mid,
                     mid,
@@ -373,6 +405,7 @@ def ingest_new(report: dict, db_path: Path = DB_PATH) -> dict:
                     k_in,
                     k_out,
                     1 if is_var else 0,
+                    desc,
                 ),
             )
             inserted_or += 1
@@ -391,12 +424,14 @@ def ingest_new(report: dict, db_path: Path = DB_PATH) -> dict:
             has_vision = 1 if (caps.get("input", {}) or {}).get("image") else 0
             has_tools = 1 if caps.get("toolcall") else 0
             has_reasoning = 1 if caps.get("reasoning") else 0
+            desc = _kilo_description(rec)
             conn.execute(
                 "INSERT INTO agents (id, api_id, name, provider, "
                 "input_cost_per_m, output_cost_per_m, context_window_k, "
                 "has_vision, has_tools, has_reasoning, status, last_verified, "
-                "via_openrouter, via_kilo, kilo_input_cost_per_m, kilo_output_cost_per_m) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, 0, 1, ?, ?)",
+                "via_openrouter, via_kilo, kilo_input_cost_per_m, kilo_output_cost_per_m, "
+                "description) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, 0, 1, ?, ?, ?)",
                 (
                     mid,
                     mid,
@@ -411,6 +446,7 @@ def ingest_new(report: dict, db_path: Path = DB_PATH) -> dict:
                     today_iso,
                     k_in,
                     k_out,
+                    desc,
                 ),
             )
             inserted_kilo += 1
@@ -499,6 +535,24 @@ def apply_fixes(report: dict, db_path: Path = DB_PATH) -> dict:
                 list(kilo_sourced.keys()),
             )
             counts["kilo_sourced_tagged"] = len(kilo_sourced)
+
+        # Push Kilo CLI descriptions onto Kilo-only rows whose
+        # description column is empty (OpenRouter never describes
+        # them so they'd otherwise stay NULL forever).
+        kilo_descs_written = 0
+        kilo_raw = _fetch_kilo()
+        for mid, rec in kilo_raw.items():
+            desc = _kilo_description(rec)
+            if not desc:
+                continue
+            cur = conn.execute(
+                "UPDATE agents SET description = ? "
+                "WHERE id = ? AND (description IS NULL OR description = '')",
+                (desc, mid),
+            )
+            if cur.rowcount:
+                kilo_descs_written += cur.rowcount
+        counts["kilo_descriptions_written"] = kilo_descs_written
         conn.commit()
     except Exception:
         conn.rollback()
