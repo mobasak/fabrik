@@ -187,3 +187,29 @@ def test_status_filter():
         "language", {"slots": 5}, db_path=db,
     )
     assert [r["id"] for r in rows] == ["a/active"]
+
+
+def test_slots_must_be_positive():
+    """Pass A Finding 1: slots <= 0 must raise — SQLite's `LIMIT -1`
+    means 'no limit' (returns all rows) and `LIMIT 0` returns zero;
+    a YAML typo like `slots: -1` would otherwise silently emit every
+    candidate, completely defeating per-category slot semantics."""
+    db = _make_db([{"id": "x/1", "provider": "x", "_category": "language"}])
+    for bad in (0, -1, -100):
+        with pytest.raises(ValueError, match="slots must be >= 1"):
+            sel.select_for_category(
+                "language", {"slots": bad}, db_path=db,
+            )
+
+
+def test_slots_must_be_int_not_float_or_bool():
+    """Pass B Finding 2: floats silently truncate via `int(...)`. Bools
+    are a subclass of int in Python — `slots: yes` in YAML parses as
+    True which would otherwise quietly become `slots: 1`. Strict type
+    check rejects both."""
+    db = _make_db([{"id": "x/1", "provider": "x", "_category": "language"}])
+    for bad in (3.5, 0.0, -1.5, True, False, "1", None):
+        with pytest.raises(ValueError, match="slots must be an integer"):
+            sel.select_for_category(
+                "language", {"slots": bad}, db_path=db,
+            )

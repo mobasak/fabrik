@@ -72,7 +72,28 @@ def select_for_category(
     The orchestrator catches this and emits a graceful empty-routes
     entry per plan §9.2.
     """
-    slots = int(cfg.get("slots", 1))
+    # Pass A Finding 1: SQLite interprets `LIMIT -1` as "no limit" and
+    # `LIMIT 0` as zero rows — both subtly wrong for a typo in the YAML.
+    # Fail loud at config-load time instead of producing a surprising
+    # full-table-scan or a silent empty result.
+    #
+    # Pass B Finding 2: `int(3.5) → 3` silently truncates float configs.
+    # `bool` is a subclass of `int` in Python (`isinstance(True, int) → True`)
+    # so we also exclude bools — `slots: yes` in YAML parses as True which
+    # would otherwise quietly become `slots: 1`. Strict typing here.
+    slots_raw = cfg.get("slots", 1)
+    if isinstance(slots_raw, bool) or not isinstance(slots_raw, int):
+        raise ValueError(
+            f"category {category!r}: slots must be an integer, got "
+            f"{type(slots_raw).__name__}={slots_raw!r}"
+        )
+    slots = slots_raw
+    if slots <= 0:
+        raise ValueError(
+            f"category {category!r}: slots must be >= 1, got {slots} "
+            "(SQLite's `LIMIT -1` means 'no limit' — a typo here would "
+            "silently emit every eligible candidate)"
+        )
     if limit is None:
         limit = slots
 
@@ -83,6 +104,10 @@ def select_for_category(
     require_reasoning = bool(cfg.get("require_reasoning", False))
     allow_free = bool(cfg.get("allow_free", False))
     stability_required = bool(cfg.get("stability_required", False))
+    # `.strip()` + allowlist is the injection defense — never remove
+    # either without re-reading Pass A Finding 4. A whitespace-padded
+    # YAML value like `sort_key: "  input_cost_per_m ASC; DROP TABLE..."`
+    # would otherwise slip past a naive equality check.
     sort_key = str(cfg.get("sort_key", "input_cost_per_m ASC")).strip()
 
     # Sort-key allowlist — never inline operator input into SQL. The

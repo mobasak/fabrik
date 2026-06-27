@@ -76,16 +76,55 @@ def _persist_to_agent_roles(
 
     Only touches roles that start with ROLE_PREFIX — chat-side rows
     (`assigned_by='cheapest-above-floors'`) are untouched (Pass 1D D5
-    rollback safety). Verified by §16's pre-check that the DELETE
-    cannot widen its scope.
-    """
-    # Wipe previous openrouter:* pins. Bare LIKE is safe because
-    # ROLE_PREFIX is a hardcoded literal, not user input.
-    conn.execute(
-        "DELETE FROM agent_roles WHERE role LIKE ?",
-        (f"{ROLE_PREFIX}%",),
-    )
+    rollback safety + Pass A Finding 6 verified). The pre-check `DELETE
+    WHERE role LIKE 'openrouter:%'` can never widen its scope because
+    ROLE_PREFIX is a hardcoded literal — no user input.
 
+    Idempotency contract — Pass A Finding 2 fix: the live
+    `agent_roles_history` table does NOT carry a UNIQUE constraint
+    (verified live 2026-06-27), so `INSERT OR REPLACE` would behave as
+    plain INSERT and double the history rows on every re-run within a
+    day. Restored idempotency with explicit DELETE-by-day-then-INSERT:
+    we delete today's openrouter:* history rows before inserting, so
+    running the mapper twice on the same UTC day produces one set of
+    rows, not two.
+
+    Atomicity contract — Pass B Finding 1 fix: Python sqlite3's default
+    isolation_level='' (deferred) does NOT auto-rollback on a failed
+    statement — `conn.commit()` after a mid-loop IntegrityError would
+    commit the prior DELETEs anyway, dropping today's history without
+    re-populating it. Wrapped in explicit `BEGIN ... COMMIT / ROLLBACK`
+    so the DELETE + INSERT loop is all-or-nothing.
+    """
+    try:
+        conn.execute("BEGIN")
+        # Wipe previous openrouter:* pins.
+        conn.execute(
+            "DELETE FROM agent_roles WHERE role LIKE ?",
+            (f"{ROLE_PREFIX}%",),
+        )
+        # Wipe today's openrouter:* history rows (idempotency fix).
+        # Scoped narrowly by both role prefix AND date — yesterday's
+        # history rows for the same role are preserved.
+        conn.execute(
+            "DELETE FROM agent_roles_history "
+            "WHERE role LIKE ? AND DATE(assigned_at) = DATE('now')",
+            (f"{ROLE_PREFIX}%",),
+        )
+        _do_inserts(conn, routes)
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+
+
+def _do_inserts(
+    conn: sqlite3.Connection,
+    routes: dict[str, list[dict[str, Any]]],
+) -> None:
+    """Pure INSERTs — the BEGIN/COMMIT wrapper lives in
+    `_persist_to_agent_roles` (Pass B Finding 1 atomicity contract).
+    """
     for category, winners in routes.items():
         role = f"{ROLE_PREFIX}{category}"
         for priority, row in enumerate(winners, start=1):
@@ -103,10 +142,10 @@ def _persist_to_agent_roles(
                     ASSIGNED_BY,
                 ),
             )
-            # Today's history snapshot. snapshot_date set by SQLite (UTC)
+            # Today's history snapshot. assigned_at set by SQLite (UTC)
             # so writer + reader agree across timezones.
             conn.execute(
-                "INSERT OR REPLACE INTO agent_roles_history "
+                "INSERT INTO agent_roles_history "
                 "(role, agent_id, priority, reason, min_elo, "
                 " score_used, score_type, assigned_by, assigned_at) "
                 "VALUES (?, ?, ?, ?, NULL, ?, ?, ?, DATE('now'))",
@@ -120,7 +159,8 @@ def _persist_to_agent_roles(
                     ASSIGNED_BY,
                 ),
             )
-    conn.commit()
+    # NB: no commit here — `_persist_to_agent_roles` owns the
+    # BEGIN/COMMIT/ROLLBACK envelope.
 
 
 def _emit_routes_json(

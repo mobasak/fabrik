@@ -13,6 +13,7 @@ import sys
 import tempfile
 from pathlib import Path
 
+import pytest
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -86,19 +87,25 @@ def _build_db(rows: list[tuple[str, str]]) -> Path:
         )
         """
     )
+    # Matches the LIVE production schema (verified 2026-06-27 PRAGMA):
+    # NO UNIQUE constraint — Pass A Finding 2 / 3. Idempotency comes from
+    # the route mapper's explicit DELETE-by-day-then-INSERT, not from
+    # `INSERT OR REPLACE` (which would silently degrade to plain INSERT
+    # on this schema).
     conn.execute(
         """
         CREATE TABLE agent_roles_history (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            role TEXT,
-            agent_id TEXT,
-            priority INTEGER,
+            role TEXT NOT NULL,
+            agent_id TEXT NOT NULL,
+            priority INTEGER NOT NULL,
             reason TEXT,
             min_elo INTEGER,
-            score_used REAL,
-            score_type TEXT,
             assigned_by TEXT,
-            assigned_at TIMESTAMP
+            assigned_at TIMESTAMP NOT NULL,
+            archived_at TIMESTAMP,
+            score_used REAL,
+            score_type TEXT
         )
         """
     )
@@ -234,8 +241,90 @@ def test_zero_eligible_does_not_crash(tmp_path, monkeypatch):
         assert cat_data["reason"]
 
 
+def test_transaction_rollback_on_persist_failure(tmp_path, monkeypatch):
+    """Pass B Finding 1: if any INSERT inside the persist loop fails,
+    the DELETE-by-day step must roll back so today's history isn't
+    silently dropped. Python sqlite3's default isolation_level='' is
+    deferred — `conn.commit()` after a failed statement would otherwise
+    commit the DELETE alone.
+
+    Reproduce by monkey-patching the INSERT helper to raise mid-loop;
+    after the exception, neither agent_roles nor agent_roles_history
+    should have lost prior content."""
+    db = _build_db([("p/x", "language"), ("p/y", "language")])
+    cfg = _make_yaml(tmp_path)
+    monkeypatch.setattr(mapper, "ROUTES_JSON_PATH", tmp_path / "routes.json")
+    monkeypatch.setattr(mapper, "TRAYCER_EXPORT_PATH", tmp_path / "compact.json")
+
+    # First, populate today's history via a successful run.
+    mapper.run(db_path=db, config_path=cfg)
+    conn = sqlite3.connect(db)
+    pre_pins = conn.execute(
+        "SELECT count(*) FROM agent_roles WHERE assigned_by='category_route_mapper'"
+    ).fetchone()[0]
+    pre_hist = conn.execute(
+        "SELECT count(*) FROM agent_roles_history WHERE assigned_by='category_route_mapper'"
+    ).fetchone()[0]
+    conn.close()
+    assert pre_pins > 0
+    assert pre_hist > 0
+
+    # Now inject a failure mid-persist: monkeypatch _do_inserts to raise
+    # after the first INSERT. The DELETE steps already ran; the
+    # try/except wrapper must roll them back so prior content is intact.
+    import sqlite3 as _sqlite3
+    real_do_inserts = mapper._do_inserts
+
+    def fail_after_first_insert(conn, routes):
+        # Run one insert then blow up.
+        cur = conn.cursor()
+        for category, winners in routes.items():
+            if winners:
+                w = winners[0]
+                cur.execute(
+                    "INSERT INTO agent_roles "
+                    "(role, agent_id, priority, reason, score_used, score_type, assigned_by) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    (f"openrouter:{category}", w["id"], 1, "", w["score_used"],
+                     w["score_type"], "category_route_mapper"),
+                )
+                break
+        raise RuntimeError("simulated mid-loop failure")
+
+    monkeypatch.setattr(mapper, "_do_inserts", fail_after_first_insert)
+
+    with pytest.raises(RuntimeError, match="simulated mid-loop failure"):
+        mapper.run(db_path=db, config_path=cfg)
+
+    # The rollback should have restored prior counts — failure must
+    # not have dropped today's history.
+    conn = sqlite3.connect(db)
+    post_pins = conn.execute(
+        "SELECT count(*) FROM agent_roles WHERE assigned_by='category_route_mapper'"
+    ).fetchone()[0]
+    post_hist = conn.execute(
+        "SELECT count(*) FROM agent_roles_history WHERE assigned_by='category_route_mapper'"
+    ).fetchone()[0]
+    conn.close()
+
+    assert post_pins == pre_pins, (
+        f"Rollback failed — agent_roles dropped from {pre_pins} to {post_pins}"
+    )
+    assert post_hist == pre_hist, (
+        f"Rollback failed — agent_roles_history dropped from {pre_hist} to "
+        f"{post_hist} (Pass B Finding 1 regression — DELETE-by-day committed "
+        "without matching INSERTs)"
+    )
+
+    # Restore for any later test
+    monkeypatch.setattr(mapper, "_do_inserts", real_do_inserts)
+
+
 def test_idempotent(tmp_path, monkeypatch):
-    """G3.3: re-running the same day produces the same pin set."""
+    """G3.3: re-running the same day produces the same pin set AND the
+    same history-row count (Pass A Finding 2 regression: live schema
+    lacks a UNIQUE constraint, so `INSERT OR REPLACE` would silently
+    degrade to plain INSERT and double history rows daily)."""
     db = _build_db([("p/x", "language"), ("p/y", "language")])
     cfg = _make_yaml(tmp_path)
     monkeypatch.setattr(mapper, "ROUTES_JSON_PATH", tmp_path / "routes.json")
@@ -243,9 +332,37 @@ def test_idempotent(tmp_path, monkeypatch):
 
     mapper.run(db_path=db, config_path=cfg)
     payload1 = json.loads((tmp_path / "routes.json").read_text())
+    conn = sqlite3.connect(db)
+    hist1 = conn.execute(
+        "SELECT count(*) FROM agent_roles_history "
+        "WHERE assigned_by='category_route_mapper'"
+    ).fetchone()[0]
+    pins1 = conn.execute(
+        "SELECT count(*) FROM agent_roles "
+        "WHERE assigned_by='category_route_mapper'"
+    ).fetchone()[0]
+    conn.close()
+
     mapper.run(db_path=db, config_path=cfg)
     payload2 = json.loads((tmp_path / "routes.json").read_text())
+    conn = sqlite3.connect(db)
+    hist2 = conn.execute(
+        "SELECT count(*) FROM agent_roles_history "
+        "WHERE assigned_by='category_route_mapper'"
+    ).fetchone()[0]
+    pins2 = conn.execute(
+        "SELECT count(*) FROM agent_roles "
+        "WHERE assigned_by='category_route_mapper'"
+    ).fetchone()[0]
+    conn.close()
 
-    # generated_at is the only field that could legitimately differ within
-    # the same UTC day — but we just stamped both with today's date.
+    # JSON byte-identical (modulo generated_at, which we don't compare).
     assert payload1["categories"] == payload2["categories"]
+    # agent_roles: idempotent (DELETE + INSERT every run).
+    assert pins2 == pins1, f"agent_roles not idempotent: {pins1} → {pins2}"
+    # agent_roles_history: idempotent today (DELETE-by-day + INSERT).
+    assert hist2 == hist1, (
+        f"agent_roles_history not idempotent: {hist1} → {hist2}. "
+        "Pass A Finding 2 regression — the DELETE-by-day step in "
+        "_persist_to_agent_roles is broken."
+    )
