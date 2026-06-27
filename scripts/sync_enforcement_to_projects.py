@@ -234,6 +234,10 @@ def sync_scripts_to_project(
                 project_enforcement.mkdir(parents=True, exist_ok=True)
 
             for source in fabrik_enforcement.rglob("*"):
+                # Never sync compiled bytecode — __pycache__/*.pyc is build noise,
+                # not enforcement logic, and was bloating every project.
+                if "__pycache__" in source.parts or source.suffix == ".pyc":
+                    continue
                 if source.is_file():
                     relative = source.relative_to(fabrik_enforcement)
                     destination = project_enforcement / relative

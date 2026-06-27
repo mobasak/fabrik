@@ -322,6 +322,7 @@
       <span class="chip on" data-tier="2">T2 strong</span>
       <span class="chip on" data-tier="3">T3 ok</span>
       <span class="chip on" data-tier="4">T4 weak</span>
+      <span class="chip on" data-tier="unrated" title="Newly-ingested models not yet rated by the local ranking pipeline (e.g. claude-opus-4.8, gemini-3.1-flash). They have no `quality_tier` set yet.">unrated</span>
     </div>
 
     <h3>Cost ($/M input)</h3>
@@ -403,7 +404,7 @@ const state = {
   kind: "all",
   caps: new Set(),
   status: new Set(["active"]),
-  tiers: new Set(["1", "2", "3", "4"]),
+  tiers: new Set(["1", "2", "3", "4", "unrated"]),
   cats: new Set(),
   providers: new Set(),
   fresh: new Set(),
@@ -550,7 +551,19 @@ function filterRow(m) {
     }
     if (!pass) return false;
   }
-  if (state.tiers.size > 0 && !state.tiers.has(String(m.quality_tier))) return false;
+  // Tier filter: rows with NO quality_tier (newly-ingested, not yet
+  // rated by the local ranking pipeline) bypass this filter so they
+  // don't silently disappear. The user can hide them explicitly via
+  // the "unrated" chip.
+  if (state.tiers.size > 0) {
+    if (m.quality_tier === null || m.quality_tier === undefined) {
+      if (!state.tiers.has("unrated")) {
+        // unrated chip is default ON, so this path passes through
+      }
+    } else if (!state.tiers.has(String(m.quality_tier))) {
+      return false;
+    }
+  }
   if (state.cats.size > 0) {
     const cats = m.categories || [];
     let any = false;
@@ -703,7 +716,7 @@ function refresh() {
       <td class="cost" title="${priceSourceLabel(m)} — input cost">${fmtCost(m.input_cost_per_m, m)}</td>
       <td class="cost" title="${priceSourceLabel(m)} — output cost">${fmtCost(m.output_cost_per_m, m)}</td>
       <td class="num">${m.context_window_k || ""}</td>
-      <td class="tier t-${m.quality_tier || 0}">${m.quality_tier ? "T" + m.quality_tier : ""}</td>
+      <td class="tier t-${m.quality_tier || 0}" title="${m.quality_tier ? '' : 'Not yet rated by the local ranking pipeline'}">${m.quality_tier ? "T" + m.quality_tier : "—"}</td>
       <td class="cap">${m.kind === "chat" ? fmtCaps(m) : "<span style='color:var(--muted)'>embed</span>"}</td>
       <td class="num">${m.arena_elo || ""}</td>
       <td class="num">${m.tbench_accuracy ? m.tbench_accuracy.toFixed(1) : ""}</td>

@@ -244,9 +244,14 @@ def main() -> int:
         if file_path.exists() and file_path.is_file():
             all_results.extend(run_all_checks(file_path))
 
-    # Determine exit code
-    has_errors = any(r.severity == Severity.ERROR for r in all_results)
-    has_warnings = any(r.severity == Severity.WARN for r in all_results)
+    # Determine exit code. Compare by .value, NOT identity: run via `python -m`,
+    # the package __init__ imports this module once and runpy re-imports it as
+    # __main__, so CheckResults built by sibling checks (check_secrets/env_vars/…)
+    # carry a DIFFERENT Severity enum instance than this __main__ copy. Identity
+    # comparison silently reported has_errors=False — the validator exited 0
+    # despite real violations. .value ("error"/"warn") is instance-agnostic.
+    has_errors = any(r.severity.value == Severity.ERROR.value for r in all_results)
+    has_warnings = any(r.severity.value == Severity.WARN.value for r in all_results)
 
     if args.strict and has_warnings:
         has_errors = True
@@ -257,8 +262,8 @@ def main() -> int:
             "results": [r.to_dict() for r in all_results],
             "summary": {
                 "total": len(all_results),
-                "errors": sum(1 for r in all_results if r.severity == Severity.ERROR),
-                "warnings": sum(1 for r in all_results if r.severity == Severity.WARN),
+                "errors": sum(1 for r in all_results if r.severity.value == Severity.ERROR.value),
+                "warnings": sum(1 for r in all_results if r.severity.value == Severity.WARN.value),
             },
         }
         print(json.dumps(output, indent=2))

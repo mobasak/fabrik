@@ -42,6 +42,13 @@ mkdir -p "$(dirname "$LOG_FILE")"
   "$VENV_PY" "$KB/verify_openrouter_catalog.py" --apply --ingest-new \
     || echo "[daily_refresh] verifier failed (non-fatal)"
 
+  # Re-derive quality_tier + is_ga for every row (including the newly-
+  # ingested ones with NULL benchmarks) — otherwise the category
+  # selector's `quality_tier >= ?` floor silently drops them AND the
+  # browser's default tier filter hides them.
+  "$VENV_PY" "$KB/migrate_selector_columns.py" \
+    || echo "[daily_refresh] selector columns migration failed (non-fatal)"
+
   "$VENV_PY" "$KB/classify_ai_category.py" \
     || echo "[daily_refresh] classifier failed (non-fatal)"
 

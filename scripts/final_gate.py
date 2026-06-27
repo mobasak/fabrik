@@ -814,7 +814,11 @@ def run_consistency_checks(
         validate_conv = PROJECT_ROOT / "scripts/enforcement/validate_conventions.py"
         if validate_conv.exists():
             code, out = run_cmd(
-                [PYTHON, "-m", "scripts.enforcement.validate_conventions", "--strict"]
+                # --git-diff is REQUIRED: without it (and no file args) the
+                # validator has nothing to check and silently passes — the whole
+                # tier-3 "Fabrik Convention Validator" was a no-op. Bound to the
+                # changed-file set so it only gates new changes.
+                [PYTHON, "-m", "scripts.enforcement.validate_conventions", "--strict", "--git-diff"]
             )
             results.append(("Fabrik Convention Validator", code == 0, out if code != 0 else ""))
         else:
