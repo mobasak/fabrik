@@ -91,7 +91,21 @@ def _log(msg: str) -> None:
 
 def classify(db_path: Path | str = DB_PATH) -> dict[str, int]:
     """Re-populate `agent_categories` from `agents`. Returns row counts
-    per category (after the run). Idempotent: same input → same output."""
+    per category (after the run). Idempotent: same input → same output.
+
+    Rule order does NOT affect category membership — every rule re-queries
+    `agents` directly (not "agents minus previously-classified rows"), so a
+    model that matches both `code` and `language` gets two rows regardless
+    of which rule runs first. Order only affects which `INSERT OR REPLACE`
+    "wins" if a (agent_id, category) pair appeared twice, which is
+    impossible by construction (each category writes its own bucket).
+
+    Pass B Finding 3 defense-in-depth: a sweep deletes orphan rows
+    (agent_categories rows whose agent_id is no longer in `agents`). This
+    SHOULD be handled by the FK CASCADE on the schema, but only fires
+    when the DELETE-from-agents connection had `PRAGMA foreign_keys = ON`
+    — a connection that didn't set the PRAGMA leaves orphans. Belt-and-
+    braces, runs before the re-classify so the run is self-healing."""
     conn = sqlite3.connect(db_path)
     try:
         # FK CASCADE only fires when this PRAGMA is ON. Required even though
@@ -100,6 +114,20 @@ def classify(db_path: Path | str = DB_PATH) -> dict[str, int]:
         conn.execute("PRAGMA foreign_keys = ON")
         if conn.execute("PRAGMA foreign_keys").fetchone()[0] != 1:
             raise RuntimeError("PRAGMA foreign_keys could not be enabled.")
+
+        # Pass B Finding 3 defense: clean up orphan rows that an external
+        # script may have left if it deleted from `agents` without first
+        # setting PRAGMA foreign_keys = ON on its own connection.
+        orphan_n = conn.execute(
+            "DELETE FROM agent_categories WHERE agent_id NOT IN "
+            "(SELECT id FROM agents)"
+        ).rowcount
+        if orphan_n > 0:
+            _log(
+                f"WARN: deleted {orphan_n} orphan agent_categories rows "
+                "(an external script likely deleted from agents without "
+                "PRAGMA foreign_keys=ON — CASCADE silently no-opped)"
+            )
 
         # Wipe categories we're about to re-classify (forward-compatible with
         # adding new categories: untouched categories remain).

@@ -99,3 +99,29 @@ def test_empty_and_no_op():
     assert M.normalize_model_name("a") == "a"
     # No suffix to strip → just the lowercase+dash normalization
     assert M.normalize_model_name("Plain/Model") == "plain/model"
+
+
+def test_none_guard():
+    """Pass A Finding 1: normalize_model_name(None) used to raise
+    AttributeError. After the fix, None is treated like empty string.
+
+    The actual call site `update_agents_json()` reads `model_name` from
+    `kilo_selected_agents.json` via `.get("model_name", "")` so today's
+    catalog never passes None. But the JSON shadow file is
+    operator-editable; a future `"model_name": null` would otherwise
+    crash the whole pipeline."""
+    assert M.normalize_model_name(None) == ""
+
+
+def test_non_string_guard():
+    """Pass B Finding 1: bare truthiness guard would silently accept
+    falsy non-strings (0, False, [], {}) — `not 0 is True` so the bare
+    `if not name` would return "" with no signal that the caller passed
+    something wrong. After the tightened isinstance check, the same input
+    still returns "" (no exception), but the intent is explicit: only
+    string inputs proceed past the guard."""
+    for non_string in (0, False, [], {}, (), 42, 3.14):
+        assert M.normalize_model_name(non_string) == "", (
+            f"Non-string {non_string!r} should normalize to '' (got "
+            f"{M.normalize_model_name(non_string)!r})"
+        )

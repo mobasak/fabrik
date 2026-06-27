@@ -82,6 +82,25 @@ def migrate(db_path: Path | str = DB_PATH) -> dict[str, int]:
             "ON agent_categories(category)"
         )
         conn.commit()
+
+        # Pass B Finding 5 defense: detect partial-create where CREATE TABLE
+        # succeeded but CREATE INDEX silently failed (disk pressure, weird
+        # SQLite build). Both `CREATE ... IF NOT EXISTS` are autocommit so
+        # an error would raise above — but verifying post-commit state is
+        # cheap insurance against a future refactor that bundles them in
+        # an explicit transaction.
+        table_after = conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='agent_categories'"
+        ).fetchone()
+        index_after = conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='index' "
+            "AND name='idx_agent_categories_category'"
+        ).fetchone()
+        if not table_after or not index_after:
+            raise RuntimeError(
+                "Migration partial-success — "
+                f"table_present={bool(table_after)} index_present={bool(index_after)}"
+            )
     finally:
         conn.close()
 

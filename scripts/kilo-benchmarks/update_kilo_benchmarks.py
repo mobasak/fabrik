@@ -59,7 +59,7 @@ def should_update(force: bool = False) -> bool:
 _OPENROUTER_ROUTING_SUFFIXES = (":free", ":nitro", ":floor", ":beta", ":online", ":thinking")
 
 
-def normalize_model_name(name: str) -> str:
+def normalize_model_name(name: str | None) -> str:
     """Normalize model name for matching against scraped leaderboard entries.
 
     Strips OpenRouter routing suffixes (``:free``, ``:nitro``, ``:floor``,
@@ -71,7 +71,16 @@ def normalize_model_name(name: str) -> str:
     The suffix strip is end-only (verified against the OpenRouter
     ``/api/v1/models`` snapshot 2026-06-27): routing suffixes never appear
     in the middle of a model id, so ``"x/:free/y"`` is left as-is.
+
+    Defensive: returns ``""`` for non-string or empty input (Phase 0 review
+    Pass A Finding 1, tightened in Pass B Finding 1 to isinstance check
+    instead of bare truthiness so e.g. ``normalize_model_name(0)`` doesn't
+    silently degrade to ``""``). Current callers always pass a string, but
+    the JSON shadow file is operator-editable so a future
+    ``"model_name": null`` would otherwise crash ``update_agents_json``.
     """
+    if not isinstance(name, str) or not name:
+        return ""
     base = name.lower().replace(" ", "-").replace("_", "-")
     changed = True
     while changed:
@@ -126,7 +135,15 @@ def update_agents_json(elo_map: dict[str, int], tbench_map: dict[str, float]) ->
         # progressively suffix-stripped version so models registered as
         # `<base>:free`/`:nitro` join to their BASE-model leaderboard rows
         # (closes the gap documented in BENCHMARK_SOURCES.md §4.5).
-        keys_to_try = [model_lower, model_normalized]
+        # Pass B Finding 2: dedupe so we don't burn cycles on identical
+        # lookups (a `:free`-only id collapses raw/normalized/stripped/stripped-
+        # normalized into one key).
+        seen: set[str] = set()
+        keys_to_try: list[str] = []
+        for k in (model_lower, model_normalized):
+            if k not in seen:
+                seen.add(k)
+                keys_to_try.append(k)
         stripped = model_lower
         while True:
             next_stripped = stripped
@@ -136,8 +153,10 @@ def update_agents_json(elo_map: dict[str, int], tbench_map: dict[str, float]) ->
             if next_stripped == stripped:
                 break
             stripped = next_stripped
-            keys_to_try.append(stripped)
-            keys_to_try.append(normalize_model_name(stripped))
+            for k in (stripped, normalize_model_name(stripped)):
+                if k not in seen:
+                    seen.add(k)
+                    keys_to_try.append(k)
 
         # Update Elo
         for key in keys_to_try:

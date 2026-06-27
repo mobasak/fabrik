@@ -349,8 +349,17 @@ def update_benchmarks() -> None:
     )
 
     # Build lookup maps (normalize names for matching)
-    def normalize(name: str) -> str:
-        """Normalize model name for matching against leaderboard entries."""
+    def normalize(name: str | None) -> str:
+        """Normalize model name for matching against leaderboard entries.
+
+        Defensive: returns "" for non-string or empty (Phase 0 review Pass A
+        Finding 1; tightened in Pass B Finding 1 to isinstance so falsy
+        non-strings don't silently degrade). Propagated to this sibling
+        normalizer per the Pass 4 reverse-audit lesson — both writers must
+        guard nulls the same way.
+        """
+        if not isinstance(name, str) or not name:
+            return ""
         n = name.lower().replace(" ", "-").replace("_", "-")
         # Strip OpenRouter routing suffixes repeatedly — `x/y:free:online`
         # collapses fully to `x/y` so the base model's leaderboard row joins
