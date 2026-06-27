@@ -74,13 +74,22 @@ ORPHAN_END_LINE_RE = re.compile(rf"^.*{re.escape(MARKER_END)}.*$\n?", re.MULTILI
 # 25-28`) exactly — case-insensitive, unanchored, captures the date.
 # Optional trailing text is allowed but rewritten away on replace so the
 # canonical line stays canonical.
+#
+# Full-surface Pass 3 F5 widening: the year digits are still strict (4)
+# but month + day allow 1-2 digits so a human typo like `2026-6-27` is
+# caught and canonicalized to `2026-06-27` instead of being left as an
+# orphan line. `date.fromisoformat()` downstream still rejects truly bad
+# values and the WARN log surfaces them.
 VERIFICATION_RE = re.compile(
-    r"^[^\S\n]*Last content verification:\s*(\d{4}-\d{2}-\d{2})[^\n]*$",
+    r"^[^\S\n]*Last content verification:\s*(\d{4}-\d{1,2}-\d{1,2})[^\n]*$",
     re.MULTILINE | re.IGNORECASE,
 )
 VERIFICATION_FORMAT = "Last content verification: {date}"
 
-YAML_FRONTMATTER_RE = re.compile(r"\A---\n.*?\n---\n", re.DOTALL)
+# Pass 3 F2 fix: allow optional UTF-8 BOM at file start so the
+# frontmatter detection doesn't silently slide past the YAML block on
+# BOM-prefixed packs (some editors prepend it on save, reviving Pass A F1).
+YAML_FRONTMATTER_RE = re.compile(r"\A﻿?---\n.*?\n---\n", re.DOTALL)
 
 
 def _log(msg: str) -> None:
@@ -146,12 +155,22 @@ def _replace_or_append_markers(
     markers in the text. We now use line-level regex stripping so a
     half-marker (or a swapped pair) is normalized first — no
     accumulation across runs.
+
+    Full-surface Pass 3 F6 fix: searching for END with `text.find()`
+    (no offset) returns the FIRST occurrence — which can be a prose
+    mention ABOVE a legitimate marker block (e.g. "see the
+    `<!-- OPENROUTER_ROUTES:END -->` line below"). That tripped the
+    `end_idx <= start_idx` guard and routed valid blocks through the
+    self-heal path, dropping the prior block's content. Now we search
+    for END starting AFTER the START so the pair is always coherent;
+    the prose mention gets cleaned by the orphan-strip pass in head.
     """
     new_start_line = MARKER_START_TEMPLATE.format(date=today)
     full_block = f"{new_start_line}\n{body.rstrip(chr(10))}\n{MARKER_END}"
 
     start_idx = text.find(MARKER_START_PREFIX)
-    end_idx = text.find(MARKER_END)
+    # Pass 3 F6: search for END only after START to skip prose mentions.
+    end_idx = text.find(MARKER_END, start_idx + len(MARKER_START_PREFIX)) if start_idx != -1 else -1
     has_valid_pair = start_idx != -1 and end_idx != -1 and end_idx > start_idx
 
     if has_valid_pair:
@@ -312,11 +331,19 @@ def run(
     routes_json_path: Path | str = ROUTES_JSON_PATH,
     fabrik_root: Path | str = FABRIK_ROOT,
 ) -> dict[str, dict[str, str]]:
-    cfg = yaml.safe_load(Path(config_path).read_text())
+    cfg = yaml.safe_load(Path(config_path).read_text(encoding="utf-8"))
     categories = cfg.get("categories", {})
 
-    routes_payload = json.loads(Path(routes_json_path).read_text())
+    routes_payload = json.loads(Path(routes_json_path).read_text(encoding="utf-8"))
     payload_cats = routes_payload.get("categories", {})
+
+    # Full-surface Pass 2 F-F fix: enforce that resolved pack_file paths
+    # stay under `<fabrik_root>/.windsurf/rules/ai/`. Without this, a
+    # YAML edit like `pack_file: ../../../etc/passwd` would overwrite
+    # arbitrary files (operator-editable input → defense-in-depth, same
+    # threat model as `category_selector.py:116`'s sort_key allowlist).
+    fabrik_root_resolved = Path(fabrik_root).resolve()
+    allowed_dir = (fabrik_root_resolved / ".windsurf" / "rules" / "ai").resolve()
 
     results: dict[str, dict[str, str]] = {}
     for category, cat_cfg in categories.items():
@@ -325,14 +352,36 @@ def run(
             _log(f"WARN: category {category!r} has no pack_file — skipping")
             results[category] = {"status": "skipped_no_pack"}
             continue
-        pack_path = Path(fabrik_root) / pack_rel
+        pack_path = (Path(fabrik_root) / pack_rel).resolve()
+        if not pack_path.is_relative_to(allowed_dir):
+            _log(
+                f"WARN: category {category!r} pack_file {pack_rel!r} resolves "
+                f"to {pack_path} — escapes .windsurf/rules/ai; refusing"
+            )
+            results[category] = {"status": "rejected_path_escape"}
+            continue
 
         entry = payload_cats.get(
             category,
             {"routes": [], "reason": "category absent from routes JSON"},
         )
 
-        results[category] = inject_pack(pack_path, category, entry)
+        # Pass 5 F2 fix: a per-pack exception (e.g. UnicodeDecodeError on
+        # a corrupted-encoding pack, PermissionError on read, OSError on
+        # write) used to propagate out of the loop, leaving the remaining
+        # categories silently unprocessed. The hook's `|| echo … failed
+        # (non-fatal)` masked this as "markdown export failed" — pack 1
+        # got today's stamp while packs 3-7 stayed stale. Now we log +
+        # continue per category, matching the same "log and skip" pattern
+        # already used for `pack_file`-missing and path-escape.
+        try:
+            results[category] = inject_pack(pack_path, category, entry)
+        except Exception as e:
+            _log(f"{category}: FAILED — {type(e).__name__}: {e}")
+            results[category] = {
+                "status": "failed",
+                "error": f"{type(e).__name__}: {e}",
+            }
         _log(f"{category}: {results[category]}")
 
     return results

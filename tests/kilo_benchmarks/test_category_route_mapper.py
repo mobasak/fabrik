@@ -275,7 +275,7 @@ def test_transaction_rollback_on_persist_failure(tmp_path, monkeypatch):
     import sqlite3 as _sqlite3
     real_do_inserts = mapper._do_inserts
 
-    def fail_after_first_insert(conn, routes):
+    def fail_after_first_insert(conn, routes, today_iso):
         # Run one insert then blow up.
         cur = conn.cursor()
         for category, winners in routes.items():
@@ -366,3 +366,398 @@ def test_idempotent(tmp_path, monkeypatch):
         "Pass A Finding 2 regression — the DELETE-by-day step in "
         "_persist_to_agent_roles is broken."
     )
+
+
+def test_full_surface_pass1_f1_does_not_clobber_production_paths(tmp_path, monkeypatch):
+    """Full-surface Pass 1 F1: ad-hoc caller passing only db_path=X used
+    to silently overwrite the module-level production JSON paths.
+    `run()` now accepts `routes_json_path` + `traycer_export_path`
+    keyword args; an explicit pass routes the writes to those paths
+    instead of the production defaults."""
+    db = _build_db([("p/x", "language")])
+    cfg = _make_yaml(tmp_path)
+
+    # Pin sentinel paths the test owns.
+    routes_dst = tmp_path / "my_routes.json"
+    traycer_dst = tmp_path / "my_traycer.json"
+
+    # Track writes to the module-level defaults — they MUST NOT be
+    # touched when the caller passes explicit paths.
+    prod_writes: list[str] = []
+    real_write = type(routes_dst).write_text
+
+    def tracking_write(self, *a, **kw):
+        if self == mapper.ROUTES_JSON_PATH or self == mapper.TRAYCER_EXPORT_PATH:
+            prod_writes.append(str(self))
+        return real_write(self, *a, **kw)
+
+    monkeypatch.setattr(type(routes_dst), "write_text", tracking_write)
+
+    mapper.run(
+        db_path=db, config_path=cfg,
+        routes_json_path=routes_dst, traycer_export_path=traycer_dst,
+    )
+
+    assert routes_dst.exists(), "explicit routes_json_path was not written"
+    assert traycer_dst.exists(), "explicit traycer_export_path was not written"
+    assert prod_writes == [], (
+        f"production paths clobbered despite explicit override: {prod_writes}"
+    )
+
+
+def test_full_surface_pass1_f3_today_bound_once(tmp_path, monkeypatch):
+    """Full-surface Pass 1 F3: SQLite's DATE('now') was evaluated
+    per-statement, so a cross-midnight UTC transaction could DELETE
+    day N rows and INSERT day N+1 rows in the same BEGIN…COMMIT block.
+    The fix passes a Python-computed today_iso to BOTH the DELETE and
+    the INSERTs as a bound parameter — a snapshot, not a live clock."""
+    db = _build_db([("p/x", "language")])
+    cfg = _make_yaml(tmp_path)
+    routes_dst = tmp_path / "routes.json"
+    traycer_dst = tmp_path / "compact.json"
+
+    # Simulate the writer's pre-midnight slice by replacing _utc_today_iso
+    # to return a frozen date; verify both the DELETE and the INSERTs
+    # use THAT exact date, not whatever SQLite's wall clock thinks.
+    FROZEN = "2099-12-31"
+    monkeypatch.setattr(mapper, "_utc_today_iso", lambda: FROZEN)
+
+    mapper.run(
+        db_path=db, config_path=cfg,
+        routes_json_path=routes_dst, traycer_export_path=traycer_dst,
+    )
+
+    conn = sqlite3.connect(db)
+    rows = conn.execute(
+        "SELECT DISTINCT DATE(assigned_at) FROM agent_roles_history "
+        "WHERE assigned_by='category_route_mapper'"
+    ).fetchall()
+    conn.close()
+    assert rows == [(FROZEN,)], (
+        f"agent_roles_history assigned_at must be the frozen today "
+        f"({FROZEN!r}), not SQLite's DATE('now'). Got: {rows}"
+    )
+
+
+def test_full_surface_pass5_f1_pragma_failure_closes_connection(tmp_path, monkeypatch):
+    """Pass 5 F1: `conn.execute('PRAGMA foreign_keys = ON')` used to run
+    BEFORE the try/finally that closes the connection. If PRAGMA raised
+    (corrupt DB, locked file), the connection leaked until Python GC
+    reclaimed it. The PRAGMA call is now inside the try block."""
+    db = _build_db([("p/x", "language")])
+    cfg = _make_yaml(tmp_path)
+
+    # Track connections opened by the mapper.
+    real_connect = sqlite3.connect
+    closed_calls: list[bool] = []
+
+    class TrackedConn:
+        def __init__(self, real):
+            self.real = real
+            self.fail_pragma = True
+        def execute(self, *a, **k):
+            if self.fail_pragma and isinstance(a[0], str) and "PRAGMA" in a[0]:
+                self.fail_pragma = False
+                raise sqlite3.OperationalError("simulated PRAGMA failure")
+            return self.real.execute(*a, **k)
+        def close(self):
+            closed_calls.append(True)
+            return self.real.close()
+        def __getattr__(self, n):
+            return getattr(self.real, n)
+
+    target_db = str(db)
+    def tracing_connect(path, *a, **k):
+        real = real_connect(path, *a, **k)
+        if str(path) == target_db:
+            return TrackedConn(real)
+        return real
+
+    monkeypatch.setattr(mapper.sqlite3, "connect", tracing_connect)
+
+    with pytest.raises(sqlite3.OperationalError, match="simulated"):
+        mapper.run(
+            db_path=db, config_path=cfg,
+            routes_json_path=tmp_path / "r.json",
+            traycer_export_path=tmp_path / "t.json",
+        )
+    assert closed_calls == [True], (
+        "PRAGMA failure leaked the connection — close() was not called"
+    )
+
+
+def test_full_surface_pass5_f3_atomic_json_write(tmp_path):
+    """Pass 5 F3: previously the DB committed BEFORE the JSON files
+    were written, so a PermissionError on the traycer write left the DB
+    with today's openrouter:* pins while the JSON files disagreed
+    (split-brain). Now both JSON files are rendered to *.tmp first, the
+    DB transaction commits, and only then os.replace() promotes them —
+    OR the whole thing rolls back atomically."""
+    import os as _os
+    db = _build_db([("p/x", "language")])
+    cfg = _make_yaml(tmp_path)
+    routes_json = tmp_path / "routes.json"
+
+    # Read-only directory for the traycer export → write must fail.
+    ro_dir = tmp_path / "readonly"
+    ro_dir.mkdir()
+    _os.chmod(ro_dir, 0o555)
+    traycer = ro_dir / "compact.json"
+
+    try:
+        with pytest.raises(PermissionError):
+            mapper.run(
+                db_path=db, config_path=cfg,
+                routes_json_path=routes_json,
+                traycer_export_path=traycer,
+            )
+        conn = sqlite3.connect(db)
+        pin_count = conn.execute(
+            "SELECT count(*) FROM agent_roles WHERE assigned_by='category_route_mapper'"
+        ).fetchone()[0]
+        hist_count = conn.execute(
+            "SELECT count(*) FROM agent_roles_history WHERE assigned_by='category_route_mapper'"
+        ).fetchone()[0]
+        conn.close()
+        # DB must NOT have today's pins (transaction rolled back on JSON failure).
+        assert pin_count == 0, f"split-brain: DB has {pin_count} pins but traycer JSON write failed"
+        assert hist_count == 0, f"split-brain: DB has {hist_count} history rows but traycer JSON write failed"
+        # routes.json must NOT have been promoted to its final position.
+        assert not routes_json.exists(), (
+            "split-brain: routes.json landed at final path despite traycer-write failure"
+        )
+        # No *.tmp files left lying around.
+        leftovers = list(tmp_path.glob("*.tmp"))
+        assert leftovers == [], f"orphan tmp files left behind: {leftovers}"
+    finally:
+        _os.chmod(ro_dir, 0o755)
+
+
+def test_full_surface_pass6_fb_atomic_promote_or_restore(tmp_path, monkeypatch):
+    """Pass 6 F-B: the Pass 5 F3 fix kept the two-promote sequence as
+    two consecutive `os.replace` calls — if the SECOND failed (cross-
+    device, EACCES, ENOSPC), routes.json showed today while traycer.json
+    still showed yesterday — the precise split-brain F3 was meant to
+    eliminate. Now we snapshot both final paths to .bak before replacing,
+    and restore on any replace failure so the end-state is always
+    coherent (either both today or both yesterday)."""
+    import os as _os
+    db = _build_db([("p/x", "language")])
+    cfg = _make_yaml(tmp_path)
+    routes_final = tmp_path / "routes.json"
+    traycer_final = tmp_path / "compact.json"
+
+    # Plant yesterday's content in both consumer-facing paths.
+    routes_final.write_text('{"DAY": "yesterday"}')
+    traycer_final.write_text('{"DAY": "yesterday"}')
+
+    # Make os.replace fail on the SECOND call (the one that promotes
+    # traycer.json). It must be the same module that the mapper imports.
+    real_replace = mapper.os.replace
+    seen = {"n": 0}
+    def failing_replace(src, dst):
+        seen["n"] += 1
+        if seen["n"] == 3:  # the 2 snapshot replaces succeed; the FIRST promote ok, SECOND fails
+            raise OSError("simulated promote failure")
+        return real_replace(src, dst)
+    # snapshot #1: routes_final → routes_final.bak  (seen=1)
+    # snapshot #2: traycer_final → traycer_final.bak (seen=2)
+    # promote  #1: routes_tmp → routes_final         (seen=3) ← FAILS
+    monkeypatch.setattr(mapper.os, "replace", failing_replace)
+
+    with pytest.raises(OSError, match="simulated promote failure"):
+        mapper.run(
+            db_path=db, config_path=cfg,
+            routes_json_path=routes_final,
+            traycer_export_path=traycer_final,
+        )
+
+    # End-state must be coherent: BOTH yesterday (snapshots restored)
+    # OR both today (impossible here since we forced failure). NOT split.
+    routes_day = json.loads(routes_final.read_text()).get("DAY")
+    traycer_day = json.loads(traycer_final.read_text()).get("DAY")
+    assert routes_day == traycer_day, (
+        f"split-brain: routes={routes_day!r} traycer={traycer_day!r} — Pass 6 F-B regression"
+    )
+    assert routes_day == "yesterday", (
+        f"snapshots did not restore — routes shows {routes_day!r}"
+    )
+    # No tmp / bak files left lying around.
+    leftovers = [p.name for p in tmp_path.iterdir() if p.suffix in (".tmp", ".bak")]
+    assert leftovers == [], f"orphan tmp/bak files: {leftovers}"
+
+
+def test_full_surface_pass7_f1_promote_failure_rolls_back_db(tmp_path, monkeypatch):
+    """Pass 7 F1: even after Pass 5 F3 + Pass 6 F-B, the DB committed
+    BEFORE the promote ran. A promote failure left the JSON snapshots
+    restored to yesterday while the DB held today's openrouter:* pins —
+    consumers reading the DB saw today, consumers reading the JSON saw
+    yesterday. Now the commit happens AFTER promote succeeds; a promote
+    failure rolls back the DB so both stores end on yesterday."""
+    import os as _os
+    db = _build_db([("p/x", "language")])
+    cfg = _make_yaml(tmp_path)
+    routes_final = tmp_path / "routes.json"
+    traycer_final = tmp_path / "compact.json"
+
+    # Plant yesterday's state in BOTH the DB and the JSON files so the
+    # restored state is identifiable.
+    routes_final.write_text('{"DAY": "yesterday"}')
+    traycer_final.write_text('{"DAY": "yesterday"}')
+    conn = sqlite3.connect(db)
+    conn.execute(
+        "INSERT INTO agent_roles (role, agent_id, priority, score_used, score_type, assigned_by) "
+        "VALUES ('openrouter:language', 'YESTERDAY/M', 1, 0.0, 'input_cost_per_m', 'category_route_mapper')"
+    )
+    conn.commit()
+    conn.close()
+
+    real_replace = mapper.os.replace
+    seen = {"n": 0}
+    def failing_replace(src, dst):
+        seen["n"] += 1
+        if seen["n"] == 3:  # snapshot1 ok, snapshot2 ok, promote#1 FAILS
+            raise OSError("simulated promote failure")
+        return real_replace(src, dst)
+    monkeypatch.setattr(mapper.os, "replace", failing_replace)
+
+    with pytest.raises(OSError, match="simulated promote failure"):
+        mapper.run(
+            db_path=db, config_path=cfg,
+            routes_json_path=routes_final,
+            traycer_export_path=traycer_final,
+        )
+
+    # JSON snapshots should be back at yesterday.
+    assert json.loads(routes_final.read_text())["DAY"] == "yesterday"
+    assert json.loads(traycer_final.read_text())["DAY"] == "yesterday"
+
+    # DB must be back at yesterday too — the YESTERDAY/M pin must still
+    # be present (transaction rolled back rather than committed).
+    conn = sqlite3.connect(db)
+    rows = conn.execute(
+        "SELECT agent_id FROM agent_roles "
+        "WHERE assigned_by='category_route_mapper' AND role='openrouter:language'"
+    ).fetchall()
+    conn.close()
+    assert rows == [("YESTERDAY/M",)], (
+        f"DB↔JSON split-brain: JSON shows yesterday but DB shows {rows} "
+        f"— Pass 7 F1 regression"
+    )
+
+
+def test_full_surface_pass8_f1_commit_failure_restores_json(tmp_path, monkeypatch):
+    """Pass 8 F1: Pass 7 swapped the split-brain direction — when
+    conn.commit() failed AFTER a successful promote, JSON sat on today
+    while DB rolled back to yesterday. Now .bak snapshots are kept
+    alive across the commit; a commit failure restores the JSON to
+    yesterday so both stores end coherent."""
+    db = _build_db([("p/x", "language")])
+    cfg = _make_yaml(tmp_path)
+    routes_final = tmp_path / "routes.json"
+    traycer_final = tmp_path / "compact.json"
+
+    # Plant yesterday's state in JSON files AND the DB.
+    routes_final.write_text('{"DAY": "yesterday"}')
+    traycer_final.write_text('{"DAY": "yesterday"}')
+    conn = sqlite3.connect(db)
+    conn.execute(
+        "INSERT INTO agent_roles (role, agent_id, priority, score_used, score_type, assigned_by) "
+        "VALUES ('openrouter:language', 'YESTERDAY/M', 1, 0.0, 'input_cost_per_m', 'category_route_mapper')"
+    )
+    conn.commit()
+    conn.close()
+
+    # Wrap the mapper's connect so the FIRST connection (selector's read)
+    # works fine, but the SECOND connection (mapper's write) has its
+    # commit() raise.
+    real_connect = mapper.sqlite3.connect
+    write_conn_box: dict[str, object] = {}
+
+    class FailingCommitConn:
+        def __init__(self, r): self.r = r
+        def commit(self):
+            raise sqlite3.OperationalError("simulated commit failure")
+        def __getattr__(self, n): return getattr(self.r, n)
+
+    target = str(db)
+    seen_writes = {"n": 0}
+
+    def trace(p, *a, **k):
+        c = real_connect(p, *a, **k)
+        if str(p) == target:
+            seen_writes["n"] += 1
+            if seen_writes["n"] >= 2:  # selector reads first; mapper writes second
+                wrap = FailingCommitConn(c)
+                write_conn_box["c"] = wrap
+                return wrap
+        return c
+    monkeypatch.setattr(mapper.sqlite3, "connect", trace)
+
+    with pytest.raises(sqlite3.OperationalError, match="simulated commit failure"):
+        mapper.run(
+            db_path=db, config_path=cfg,
+            routes_json_path=routes_final,
+            traycer_export_path=traycer_final,
+        )
+
+    # JSON snapshots restored to yesterday.
+    assert json.loads(routes_final.read_text())["DAY"] == "yesterday", (
+        f"split-brain: routes JSON not restored after commit failure"
+    )
+    assert json.loads(traycer_final.read_text())["DAY"] == "yesterday", (
+        f"split-brain: traycer JSON not restored after commit failure"
+    )
+
+    # DB rollback effectively occurred (selector check via fresh connection).
+    conn = sqlite3.connect(db)
+    rows = conn.execute(
+        "SELECT agent_id FROM agent_roles WHERE role='openrouter:language'"
+    ).fetchall()
+    conn.close()
+    assert rows == [("YESTERDAY/M",)], (
+        f"DB↔JSON split-brain: expected yesterday in DB, got {rows}"
+    )
+    # No orphan .tmp or .bak files.
+    leftovers = sorted(p.name for p in tmp_path.iterdir() if p.suffix in (".tmp", ".bak"))
+    assert leftovers == [], f"orphans: {leftovers}"
+
+
+def test_full_surface_pass9_snapshot_failure_restores_first(tmp_path, monkeypatch):
+    """Pass 9: the snapshot pair used to live OUTSIDE the try/restore
+    block — failure of the SECOND snapshot left routes_final missing
+    (moved to routes_bak by the first) while traycer_final still showed
+    yesterday → split-brain regression of Pass 6 F-B. Both snapshot
+    AND promote now share the same try/restore."""
+    db = _build_db([("p/x", "language")])
+    cfg = _make_yaml(tmp_path)
+    routes_final = tmp_path / "routes.json"
+    traycer_final = tmp_path / "compact.json"
+    routes_final.write_text('{"DAY": "yesterday"}')
+    traycer_final.write_text('{"DAY": "yesterday"}')
+
+    real_replace = mapper.os.replace
+    seen = {"n": 0}
+    def failing_replace(src, dst):
+        seen["n"] += 1
+        # n=1 routes_final → routes_bak (OK)
+        # n=2 traycer_final → traycer_bak (FAIL)
+        if seen["n"] == 2:
+            raise OSError("simulated snapshot #2 failure")
+        return real_replace(src, dst)
+    monkeypatch.setattr(mapper.os, "replace", failing_replace)
+
+    with pytest.raises(OSError, match="simulated snapshot #2"):
+        mapper.run(
+            db_path=db, config_path=cfg,
+            routes_json_path=routes_final,
+            traycer_export_path=traycer_final,
+        )
+
+    # routes_final must be restored (not missing because snapshot #1
+    # already moved it to .bak before snapshot #2 failed).
+    assert routes_final.exists(), "split-brain: routes.json missing after snapshot failure"
+    assert json.loads(routes_final.read_text())["DAY"] == "yesterday"
+    assert json.loads(traycer_final.read_text())["DAY"] == "yesterday"
+    leftovers = sorted(p.name for p in tmp_path.iterdir() if p.suffix in (".tmp", ".bak"))
+    assert leftovers == [], f"orphans: {leftovers}"

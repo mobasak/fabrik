@@ -162,9 +162,11 @@ def select_for_category(
     # PRAGMA fk is per-connection per Pass B Finding 3 + Phase 1 plan
     # contract. Read-only here, but consistency matters if the selector
     # is ever wrapped in a transaction that also mutates agent_categories.
-    conn.execute("PRAGMA foreign_keys = ON")
-    conn.row_factory = sqlite3.Row
+    # Pass 5 F1 fix: PRAGMA inside try/finally so an OperationalError on
+    # PRAGMA (corrupt DB, locked file) doesn't leak the connection.
     try:
+        conn.execute("PRAGMA foreign_keys = ON")
+        conn.row_factory = sqlite3.Row
         rows = conn.execute(sql, params).fetchall()
     finally:
         conn.close()

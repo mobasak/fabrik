@@ -52,7 +52,7 @@ CATEGORY_CLASSIFIER_SCRIPT="$FABRIK_ROOT/scripts/kilo-benchmarks/classify_ai_cat
 CATEGORY_MAPPER_SCRIPT="$FABRIK_ROOT/scripts/kilo-benchmarks/category_route_mapper.py"
 CATEGORY_MARKDOWN_SCRIPT="$FABRIK_ROOT/scripts/kilo-benchmarks/category_export_markdown.py"
 LOG_FILE="$FABRIK_ROOT/scripts/kilo-benchmarks/cache/update.log"
-LOCK_FILE="/tmp/.fabrik_daily_$(date +%Y%m%d)"
+LOCK_FILE="/tmp/.fabrik_daily_$(date -u +%Y%m%d)"
 
 # --- Log rotation (keep logs under 500KB, 1 backup) ---
 MAX_LOG_SIZE=512000  # 500KB

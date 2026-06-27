@@ -380,3 +380,151 @@ def test_run_warns_on_missing_pack(tmp_path, capsys):
     assert results["language"]["status"] == "missing"
     captured = capsys.readouterr()
     assert "does not exist" in captured.out
+
+
+def test_full_surface_pass2_ff_rejects_path_traversal(tmp_path, capsys):
+    """Full-surface Pass 2 F-F: `pack_file: ../precious.md` used to
+    overwrite the victim file because the only existence check happened
+    inside inject_pack — escapes were resolved before the allowlist.
+    Now every resolved pack_path is required to live under
+    `<fabrik_root>/.windsurf/rules/ai/`."""
+    fake_root = tmp_path / "sub"
+    fake_root.mkdir()
+    victim = tmp_path / "precious.md"
+    victim.write_text("# precious\nDO NOT TOUCH\n")
+    victim_mtime = victim.stat().st_mtime
+
+    cfg = tmp_path / "cfg.yaml"
+    cfg.write_text(yaml.safe_dump({
+        "categories": {
+            "evil": {"pack_file": "../precious.md"},
+        }
+    }))
+    routes = tmp_path / "routes.json"
+    routes.write_text(json.dumps({"categories": {"evil": {"routes": [], "reason": ""}}}))
+
+    results = export.run(config_path=cfg, routes_json_path=routes, fabrik_root=fake_root)
+    assert results["evil"]["status"] == "rejected_path_escape", results
+    assert victim.read_text() == "# precious\nDO NOT TOUCH\n", "victim was modified!"
+    assert victim.stat().st_mtime == victim_mtime
+    out = capsys.readouterr().out
+    assert "escapes" in out
+
+
+def test_full_surface_pass2_ff_allows_canonical_pack_path(tmp_path):
+    """Pass 2 F-F: the guard must not reject legitimate paths under
+    `<fabrik_root>/.windsurf/rules/ai/`."""
+    fake_root = tmp_path
+    rules_dir = fake_root / ".windsurf" / "rules" / "ai"
+    rules_dir.mkdir(parents=True)
+    pack = rules_dir / "30-language.md"
+    pack.write_text("# Language\n\nbody\n")
+
+    cfg = tmp_path / "cfg.yaml"
+    cfg.write_text(yaml.safe_dump({
+        "categories": {
+            "language": {"pack_file": ".windsurf/rules/ai/30-language.md"},
+        }
+    }))
+    routes = tmp_path / "routes.json"
+    routes.write_text(json.dumps({"categories": {"language": _entry([_route("x/y")])}}))
+
+    results = export.run(config_path=cfg, routes_json_path=routes, fabrik_root=fake_root)
+    assert results["language"]["status"] == "wrote", results
+
+
+def test_full_surface_pass3_f2_bom_does_not_bypass_frontmatter():
+    """Pass 3 F2: UTF-8 BOM at file start used to bypass YAML frontmatter
+    detection (Pass A F1 regression) — `\\A---` doesn't match BOM-prefixed
+    text, so `_frontmatter_end_index` returned 0 and the stamp landed
+    inside the description. YAML_FRONTMATTER_RE now accepts optional BOM."""
+    p = Path(tempfile.mkdtemp()) / "p.md"
+    p.write_bytes("﻿---\ntitle: A\ndescription: 'Foo # Bar'\n---\n# Real H1\n\nbody\n".encode("utf-8"))
+    export.inject_pack(p, "language", _entry([_route("x/y")]))
+    text = p.read_text(encoding="utf-8")
+    fm_close = text.find("\n---\n", 5) + 5
+    stamp_pos = text.find("Last content verification:")
+    assert stamp_pos > fm_close, (
+        f"BOM bypass: stamp at {stamp_pos} landed inside BOM-prefixed "
+        f"frontmatter ending at {fm_close}"
+    )
+
+
+def test_full_surface_pass3_f5_single_digit_date_canonicalized(capsys):
+    """Pass 3 F5: hand-edited single-digit dates like `2026-6-27` used to
+    bypass the writer's `\\d{2}-\\d{2}` requirement → fresh stamp got
+    APPENDED while the bad line stayed in body as a permanent orphan.
+    Writer regex now allows `\\d{1,2}`; `date.fromisoformat()` rejects
+    the value, the WARN line fires, and the malformed stamp is
+    rewritten in place."""
+    p = Path(tempfile.mkdtemp()) / "p.md"
+    p.write_text("# X\nLast content verification: 2026-6-27\n\nbody\n")
+    export.inject_pack(p, "language", _entry([_route("x/y")]))
+    import re
+    stamps = re.findall(r"(?i)last content verification:[^\n]*", p.read_text())
+    assert len(stamps) == 1
+    assert stamps[0] == f"Last content verification: {TODAY}"
+    out = capsys.readouterr().out
+    assert "WARN" in out and "2026-6-27" in out
+
+
+def test_full_surface_pass3_f6_end_marker_in_prose_above_block():
+    """Pass 3 F6: a prose mention of `<!-- OPENROUTER_ROUTES:END -->`
+    above the legitimate marker block used to make `find()` return the
+    prose END position. `end_idx <= start_idx` then tripped, routing the
+    valid block through self-heal — discarding the prior block's body
+    and leaving fragments. Now we search for END only AFTER the START,
+    so the pair is coherent and the prose mention gets stripped by the
+    orphan-line pass."""
+    p = Path(tempfile.mkdtemp()) / "p.md"
+    p.write_text(
+        "# X\nSee the <!-- OPENROUTER_ROUTES:END --> marker below.\n\n"
+        "<!-- OPENROUTER_ROUTES:START — last-refreshed: 2026-01-01 -->\n"
+        "OLD CONTENT\n<!-- OPENROUTER_ROUTES:END -->\nTail\n"
+    )
+    res = export.inject_pack(p, "language", _entry([_route("x/y")]))
+    text = p.read_text()
+    # The marker action must be 'replaced' (the valid pair was recognized).
+    assert res["marker"] == "replaced", f"got {res}"
+    assert text.count("OPENROUTER_ROUTES:START") == 1
+    assert text.count("OPENROUTER_ROUTES:END") == 1
+    # The original block's "OLD CONTENT" must be replaced (not preserved as orphan).
+    assert "OLD CONTENT" not in text
+    # The tail content must survive.
+    assert "Tail" in text
+
+
+def test_full_surface_pass5_f2_per_pack_exception_does_not_halt_loop(tmp_path, capsys):
+    """Pass 5 F2: a per-pack UnicodeDecodeError used to abort the
+    orchestrator loop, leaving downstream packs silently unprocessed
+    while the hook's `|| echo failed (non-fatal)` masked the abort.
+    Now each per-pack exception is caught, logged, recorded as
+    `status: failed`, and the loop continues."""
+    fake_root = tmp_path
+    rules = fake_root / ".windsurf" / "rules" / "ai"
+    rules.mkdir(parents=True)
+    (rules / "30-language.md").write_text("# A\n\nbody\n")
+    (rules / "60-code.md").write_text("# B\n\nbody\n")
+    bad = rules / "20-vision.md"
+    bad.write_bytes(b"# C\n\nbody\n\x80\x80\xfe\n")  # invalid utf-8
+
+    cfg = tmp_path / "cfg.yaml"
+    cfg.write_text(yaml.safe_dump({"categories": {
+        "vision":   {"pack_file": ".windsurf/rules/ai/20-vision.md"},
+        "language": {"pack_file": ".windsurf/rules/ai/30-language.md"},
+        "code":     {"pack_file": ".windsurf/rules/ai/60-code.md"},
+    }}, sort_keys=False))
+    routes = tmp_path / "routes.json"
+    routes.write_text(json.dumps({"categories": {
+        "vision":   _entry([_route("x/y")]),
+        "language": _entry([_route("x/y")]),
+        "code":     _entry([_route("x/y")]),
+    }}))
+
+    results = export.run(config_path=cfg, routes_json_path=routes, fabrik_root=fake_root)
+    assert results["vision"]["status"] == "failed"
+    assert "UnicodeDecodeError" in results["vision"]["error"]
+    assert results["language"]["status"] == "wrote"
+    assert results["code"]["status"] == "wrote"
+    out = capsys.readouterr().out
+    assert "vision: FAILED" in out
