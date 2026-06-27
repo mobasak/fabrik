@@ -51,6 +51,7 @@ AI_PACK_FRESHNESS_SCRIPT="$FABRIK_ROOT/scripts/check_ai_pack_freshness.py"
 CATEGORY_CLASSIFIER_SCRIPT="$FABRIK_ROOT/scripts/kilo-benchmarks/classify_ai_category.py"
 CATEGORY_MAPPER_SCRIPT="$FABRIK_ROOT/scripts/kilo-benchmarks/category_route_mapper.py"
 CATEGORY_MARKDOWN_SCRIPT="$FABRIK_ROOT/scripts/kilo-benchmarks/category_export_markdown.py"
+MODELS_BROWSER_SCRIPT="$FABRIK_ROOT/scripts/kilo-benchmarks/export_models_browser.py"
 LOG_FILE="$FABRIK_ROOT/scripts/kilo-benchmarks/cache/update.log"
 LOCK_FILE="/tmp/.fabrik_daily_$(date -u +%Y%m%d)"
 
@@ -129,6 +130,8 @@ if [ ! -f "$LOCK_FILE" ]; then
                     || echo \"[openrouter-routing] mapper failed (non-fatal)\" >> $LOG_FILE
                 $VENV_PYTHON $CATEGORY_MARKDOWN_SCRIPT >> $LOG_FILE 2>&1 \
                     || echo \"[openrouter-routing] markdown export failed (non-fatal)\" >> $LOG_FILE
+                $VENV_PYTHON $MODELS_BROWSER_SCRIPT >> $LOG_FILE 2>&1 \
+                    || echo \"[openrouter-routing] models_browser export failed (non-fatal)\" >> $LOG_FILE
             )
         fi
         # === AI RULE PACK FRESHNESS CHECK (warn-only) ===
