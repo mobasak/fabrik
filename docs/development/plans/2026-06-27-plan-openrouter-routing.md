@@ -1,6 +1,6 @@
 # Plan: OpenRouter routing — auto-refreshed per-category model picks in `.windsurf/rules/ai/`
 
-**Status:** CONVERGED — plan structure (fixed-point reached after 2 grounding passes)
+**Status:** IMPLEMENTATION-CONVERGED — all 7 phases (0-6) shipped; 17 adversarial-review defects found and fixed across Phases 0/1/3/4/5/6 (Pass A→B→C→D until fixed point); 79/79 phase tests pass; `final_gate.py --lean --json` → success; `check_ai_pack_freshness.py` → all 7 routed packs verified 0d ago. Tier-3 (`--systemic`) shows 2 pre-existing fabrik-lane VPS-docs failures (broken `docs/infrastructure/vps-ai-sysadmin.md` link + missing `vps-status.md`/`vps-urls.md`) — accepted under the §14 environmental-noise carve-out (Pass 2A Finding 4). Stage 1 (plan-only CONVERGED): 2026-06-27 (this commit's parent). Stage 2 commits: 4ca38bf (P0 + P1) · 7686668 (P3) · d2c93fa (P3 review) · 378c045 (P4 + review) · ece57c2 (P5 + review) · b73cf02 (P6 + review).
 **Owner:** AI agents (Claude, other Code agents). Operator decides phase scope in chat.
 **Created:** 2026-06-27
 **Converged:** 2026-06-27 (this commit — Pass 1: 4 parallel grounders × 33 findings, all applied; Pass 2: 2 parallel grounders × 19 findings, all applied; Pass 3 solo: 0 new findings → fixed point)
