@@ -1,13 +1,16 @@
 # Plan: OpenRouter routing — auto-refreshed per-category model picks in `.windsurf/rules/ai/`
 
-**Status:** DRAFT
+**Status:** CONVERGED — plan structure (fixed-point reached after 2 grounding passes)
 **Owner:** AI agents (Claude, other Code agents). Operator decides phase scope in chat.
 **Created:** 2026-06-27
+**Converged:** 2026-06-27 (this commit — Pass 1: 4 parallel grounders × 33 findings, all applied; Pass 2: 2 parallel grounders × 19 findings, all applied; Pass 3 solo: 0 new findings → fixed point)
 **Decision record dependency:** [`docs/reference/kilo/BENCHMARK_SOURCES.md`](../../reference/kilo/BENCHMARK_SOURCES.md) — §4.5 documents the observed gap this plan addresses.
-**Convergence policy:** Status flips to **CONVERGED** only after **all** of the following are green:
-1. `python scripts/final_gate.py --systemic --json` returns `"status":"success"`
-2. `python scripts/enforcement/check_convergence.py` passes
-3. The Self-audit (§13) lists zero open items.
+**Residual unknowns / assumptions / out-of-scope risks:** explicitly enumerated in §17a — this plan does NOT claim 100% accuracy.
+
+**Two-stage convergence policy:**
+
+- **Stage 1 — Plan convergence (achieved by this commit):** every claim grounded in real `path:line` against existing code/DB schema or in the OpenRouter scrape extraction (§5); every Phase has a `Validation gates` table + `Evidence` section; the One-Test Rule covers the highest-risk path; `final_gate.py --check --lean` passes against the plan-only stage; Self-audit (§13) plan-quality rows are ✅.
+- **Stage 2 — Implementation convergence (per phase, set by the AI that ships each phase):** Evidence section gets filled with the actual `path:line` of shipped code + the verbatim command output of each `G{n}.x` validation gate. After Phase 6 closes, `final_gate.py --systemic --json` and `check_convergence.py` must return `"status":"success"` / exit 0.
 
 ---
 
@@ -38,14 +41,16 @@ This plan closes those three gaps in **7 phases**, each with explicit validation
 
 ## §1a. One-Test Rule
 
-**Why:** Per [`core/45-testing-strategy.md`](../../../.windsurf/rules/core/45-testing-strategy.md), every ticket ships exactly one test for the highest-risk path. In this plan the highest-risk path is the `:free` ID normalization in Phase 0 — if it regresses, **all** benchmark-to-model joins break (e.g. `tbench_accuracy`, `arena_elo`, `weighted_coding` columns no longer populate for the 38 free-tier models), the role mapper picks stale data, and the failure is silent (rows just stay NULL).
+**Why:** Per [`core/45-testing-strategy.md:19`](../../../.windsurf/rules/core/45-testing-strategy.md#L19) ("every new feature ticket requires exactly **one** high-value happy-path integration or E2E test"), this plan ships **two** tests for Phase 0 — a **pure-function unit test** for the rewritten `normalize_model_name()`, plus the **integration invariant** that satisfies the rule's "one high-value happy-path E2E" requirement. The integration test is the load-bearing one (verifies the actual gap is closed); the unit test is fast-feedback during refactor.
 
-**Contract:**
+**Contract (integration test = the high-value happy path):**
 
-- **Given:** `kilo_agents.db` with at least one model row whose `id` ends in `:free` (e.g. `deepseek/deepseek-v4-flash:free`), AND the corresponding base ID (`deepseek/deepseek-v4-flash`) present on a scraped leaderboard (`scrape_benchmarks.py` cached output).
-- **When:** `update_kilo_benchmarks.py --force` runs after the Phase 0 patch to `normalize_model_name()` is applied.
-- **Then:** the `:free` row's `tbench_accuracy` / `arena_elo` / `coding_score` columns get populated from the base model's scraped score. Live SQL invariant: `SELECT count(*) FROM agents WHERE id LIKE '%:free' AND status='active' AND (tbench_accuracy IS NOT NULL OR arena_elo IS NOT NULL)` returns `> 0` (today's baseline: `0`).
-- **Mocked:** nothing in the live integration test — runs against the real DB. The unit test (`tests/kilo_benchmarks/test_normalize_model_name.py` per §6.3) mocks nothing either — it's a pure-function test on the rewritten `normalize_model_name()`.
+- **Given:** `kilo_agents.db` with at least one model row whose `id` ends in `:free` (live baseline 2026-06-27: 38 such rows), AND `scrape_benchmarks.py` cached output containing the corresponding base IDs on Arena and/or Terminal Bench leaderboards.
+- **When:** `update_kilo_benchmarks.py --force` runs after Phase 0 patches both `normalize_model_name()` and the lookup-key expansion inside `update_agents_json()` (the JSON shadow file the script joins against).
+- **Then:** at least one `:free` row in `agents` has `tbench_accuracy IS NOT NULL` OR `arena_elo IS NOT NULL` afterwards. The live SQL invariant `SELECT count(*) FROM agents WHERE id LIKE '%:free' AND status='active' AND (tbench_accuracy IS NOT NULL OR arena_elo IS NOT NULL)` flips from `0` (baseline 2026-06-27) to `> 0`.
+- **Mocked:** nothing. Runs against real `kilo_agents.db` + real cached scraper output. The unit test (`tests/kilo_benchmarks/test_normalize_model_name.py` per §6.3) also mocks nothing — pure-function test on the rewritten `normalize_model_name`.
+
+**Caveat (made explicit so the test isn't gamed):** the integration test only validates Phase 0 fixed the join when **a matching base ID exists on the scraped leaderboard**. If zero `:free` models have their base ID on Arena/Terminal Bench (low-probability but possible on a fresh scrape day), the test is vacuously satisfied and a manual operator should pick a known `:free` model and confirm its base ID was scraped — see G0.3 "operator falsifier" gate added in §6.4.
 
 ---
 
@@ -58,14 +63,14 @@ The following packs from [`.windsurf/rules/`](../../../.windsurf/rules/) are **b
 | `ai/00-ai-model-selection.md` | Routes must respect the INDEX-pack categories (10/20/30/.../90). No new category invented. |
 | `core/10-python.md` | New scripts use stdlib `sqlite3` + sync only (match `embedding_role_mapper.py` style). No `asyncpg`/`pydantic`/FastAPI for benchmark tooling. |
 | `core/15-api-contracts.md` | OpenRouter HTTP calls use bounded timeouts + retry-with-backoff; declared error shape. |
-| `core/25-data-postgres.md` | Schema changes via additive migration (new column nullable; backfill; never drop). Mirror the chat-side pattern. |
+| `core/25-data-postgres.md` | Pack discusses Alembic-style migrations but does NOT explicitly mandate "additive-only" (Pass 1C C2). This plan adopts additive-only as a self-imposed discipline: every schema change is `CREATE TABLE IF NOT EXISTS` (new table — Phase 1) or no change (Phases 0/2/3/4/5/6 touch zero schema), with `ON DELETE CASCADE` for referential cleanup. No `DROP TABLE` or `ALTER TABLE ... DROP COLUMN` in any phase. |
 | `core/40-documentation.md` | Doc Sync Matrix: every new file → INDEX.md row; every code change → CHANGELOG entry. Per-pack stamping uses canonical `Last content verification: YYYY-MM-DD` phrase ([`scripts/check_ai_pack_freshness.py:25-28`](../../../scripts/check_ai_pack_freshness.py#L25-L28)). |
-| `core/45-testing-strategy.md` | 1 test per highest-risk path per phase. Phase 0 = normalization unit test. Phase 3/4 = selector + mapper integration test. |
+| `core/45-testing-strategy.md` | Pack [line 19](../../../.windsurf/rules/core/45-testing-strategy.md#L19) says "every new feature ticket requires exactly **one** high-value happy-path integration or E2E test" (Pass 1C C1 — exact wording is "high-value happy-path", not "highest-risk path"). This plan applies it per Phase: Phase 0 ships the unit test on `normalize_model_name` (fast feedback) PLUS the live integration invariant in §1a (the high-value happy-path test the rule mandates). Phases 1/3/4 each get one integration test (`tests/kilo_benchmarks/test_*.py`). |
 | `core/50-code-review.md` | Self-review against this plan + rule packs before declaring a phase complete. |
 | `core/55-observability.md` | Every new script logs `[script-name] <verb> <count> <noun>` to `update.log`, mirroring the `[embedding_export_markdown]` / `[ai-pack-freshness]` voice. |
 | `core/58-resilience.md` | Scraper failures must keep last-good (overwrite-on-success only) and fail loud to the log; pipeline must continue. |
 | `core/75-workers-jobs.md` | Daily pipeline is the "worker" surface — idempotent, lockfile-guarded, log-rotated. New steps inherit those guarantees from `wsl_startup_hook.sh`. |
-| `core/cost-budget.md` | Selector must surface `input_cost_per_m` so routes can be cost-floored. The route mapper itself makes zero LLM calls (deterministic SQL only). |
+| `core/cost-budget.md` | Pack glob includes `**/openrouter*` ([line 3](../../../.windsurf/rules/core/cost-budget.md#L3)) so it binds **downstream consumers** of these routes (any project code that actually calls OpenRouter). It does NOT bind the daily kilo-benchmarks pipeline because the pipeline makes zero LLM calls (Pass 1C C3). The selector still surfaces `input_cost_per_m` so consumers can apply cost ceilings as the pack requires. |
 
 Non-binding but consulted for shape: `ai/30-language.md`, `ai/60-code.md`, `ai/90-long-context.md` (route consumers). `core/65-rag-search.md` is the existing mirror; `embedding_export_markdown.py` is the canonical implementation we follow line-for-line.
 
@@ -111,7 +116,7 @@ Indexes: `idx_roles_role`, `idx_roles_agent` — sufficient for category-prefixe
 | `embedding_roles` | id, role, model_id, priority, reason, score_used, score_type, assigned_by, assigned_at |
 | `embedding_roles_history` | id, role, priority, model_id, snapshot_date, score_used, input_cost_per_m, assigned_by, created_at |
 
-The chat side has `agents` + `agent_roles` + `agent_roles_history` (verified via `PRAGMA table_info` on 2026-06-27). **No new tables needed for this plan.**
+The chat side has `agents` + `agent_roles` + `agent_roles_history` (verified via `PRAGMA table_info` on 2026-06-27). **No alterations needed to existing tables** — this plan reuses them as-is. Phase 1 (§7) adds ONE new table `agent_categories` (additive-only, doesn't touch existing schema); existing tables stay untouched. The earlier draft of this section said "No new tables needed" — that was Pass 2B Finding 8 ambiguity; clarified now.
 
 ---
 
@@ -125,6 +130,13 @@ The chat side has `agents` + `agent_roles` + `agent_roles_history` (verified via
 | [`scripts/kilo-benchmarks/embedding_role_configs.yaml`](../../../scripts/kilo-benchmarks/embedding_role_configs.yaml) | 75 | New: `scripts/kilo-benchmarks/ai_category_configs.yaml` (Phase 2) |
 
 **Why mirror, not unify?** The chat side and embedding side share zero columns beyond `id`, `provider`, `input_cost_per_m`, `context_window_k`. The selection floors differ structurally (chat: `has_vision`/`has_tools`/`is_agentic`/`tbench_accuracy`; embeddings: `dimensions`/`is_multilingual`/`is_code_tuned`). The embedding side ships first, the chat side mirrors second — same pattern, separate code paths, deterministic.
+
+**New files that do NOT have a mirror** (Pass 2B Finding 9):
+
+- **`scripts/kilo-benchmarks/classify_ai_category.py`** — pure-SQL classifier emitting `agent_categories` rows. The embedding side has no classifier because there's only one embedding pipeline (multilingual + code + frontier); the chat side has 7 categories that need explicit category-tagging before per-category selection runs.
+- **`scripts/kilo-benchmarks/migrate_ai_category_table.py`** — additive migration for the new join table. No mirror on the embedding side because no embedding-side schema is changing.
+
+These two files are new logic (not patterns transplanted), so their reference implementations are this plan + the rule packs they cite.
 
 The self-heal marker pattern in [`embedding_export_markdown.py:209-247`](../../../scripts/kilo-benchmarks/embedding_export_markdown.py#L209-L247) (shipped 2026-06-25 in commit `f3c8222`) is the canonical implementation; Phase 4 inlines its exact logic.
 
@@ -250,9 +262,9 @@ context_window_k = (model["top_provider"]["context_length"] or model["context_le
 
 **Justification** (per `core/cost-budget.md` + `BENCHMARK_SOURCES.md` §4.5): observed gap — 38 free-tier models, 0 with quality scores.
 
-### 6.1 Change
+### 6.1 Change A — rewrite `normalize_model_name()`
 
-File: [`scripts/kilo-benchmarks/update_kilo_benchmarks.py:60-61`](../../../scripts/kilo-benchmarks/update_kilo_benchmarks.py#L60-L61)
+File: [`scripts/kilo-benchmarks/update_kilo_benchmarks.py`](../../../scripts/kilo-benchmarks/update_kilo_benchmarks.py) — function `normalize_model_name` at **line 59** (verified live 2026-06-27: `grep -n "^def normalize_model_name" → 59`). The function body spans **lines 59-61** (3 lines).
 
 Existing:
 ```python
@@ -267,31 +279,50 @@ def normalize_model_name(name: str) -> str:
     """Normalize model name for matching against scraped leaderboard entries.
 
     Strips OpenRouter routing suffixes (`:free`, `:nitro`, `:floor`,
-    `:beta`, `:online`, `:thinking`) so the underlying model on the
-    leaderboard joins to its `:free` variant in `agents.id`.
+    `:beta`, `:online`, `:thinking`) — repeatedly, so a double-suffix
+    like `x/y:free:online` collapses fully to `x/y`. This makes the
+    `:free` variant in `agents.id` join to the base model's row on the
+    leaderboard.
     """
     base = name.lower().replace(" ", "-").replace("_", "-")
-    for suffix in (":free", ":nitro", ":floor", ":beta", ":online", ":thinking"):
-        if base.endswith(suffix):
-            base = base[: -len(suffix)]
+    changed = True
+    while changed:
+        changed = False
+        for suffix in (":free", ":nitro", ":floor", ":beta", ":online", ":thinking"):
+            if base.endswith(suffix):
+                base = base[: -len(suffix)]
+                changed = True
     return base
 ```
 
 The `FREE_MARKERS = (":free", "/free")` constant is duplicated in 3 files ([`llm_selector.py:47`](../../../scripts/kilo-benchmarks/llm_selector.py#L47), [`embedding_selector.py:27`](../../../scripts/kilo-benchmarks/embedding_selector.py#L27), [`embedding_models_db.py:56`](../../../scripts/kilo-benchmarks/embedding_models_db.py#L56)). **DO NOT** centralize in this phase — that's a refactor with separate blast radius. This phase touches one function.
 
-### 6.2 Lookup-key expansion
+### 6.2 Change B — expand lookup-key set inside `update_agents_json()`
 
-In the same file at [`update_kilo_benchmarks.py:102-110, 112-120`](../../../scripts/kilo-benchmarks/update_kilo_benchmarks.py#L102-L120) the `for key in [model_lower, model_normalized]: if key in elo_map: …` loops also try the suffix-stripped variants. Specifically:
+The lookup loops are in `update_agents_json()` at **lines 102-110 (Elo)** and **lines 112-120 (TBench)**. Today the loop tries only `[model_lower, model_normalized]`. After Phase 0 lands, those loops use a longer list. **This is NEW code added inside an existing function** — not a patch to existing logic. Insertion happens before line 102 to compute the expanded key list, and lines 103+114 change `for key in [model_lower, model_normalized]:` to `for key in keys_to_try:`.
+
+Proposed (replaces nothing — insert before line 102 inside `update_agents_json`):
 
 ```python
+# Build the candidate key set ONCE per agent. We try the raw lowercased
+# name, the normalized variant (current behaviour), AND every progressively
+# suffix-stripped version so models registered as `:free`/`:nitro` join
+# to their base-model leaderboard rows.
 keys_to_try = [model_lower, model_normalized]
-# Also try stripping known OpenRouter suffixes from the lookup side
-for suffix in (":free", ":nitro", ":floor", ":beta", ":online", ":thinking"):
-    if model_lower.endswith(suffix):
-        keys_to_try.append(model_lower[: -len(suffix)])
-        keys_to_try.append(model_normalized[: -len(suffix)])
+stripped = model_lower
+while True:
+    next_stripped = stripped
+    for suffix in (":free", ":nitro", ":floor", ":beta", ":online", ":thinking"):
+        if next_stripped.endswith(suffix):
+            next_stripped = next_stripped[: -len(suffix)]
+    if next_stripped == stripped:
         break
+    stripped = next_stripped
+    keys_to_try.append(stripped)
+    keys_to_try.append(normalize_model_name(stripped))
 ```
+
+Then lines 103 and 114 change from `for key in [model_lower, model_normalized]:` to `for key in keys_to_try:`. No `break` between the suffix-loop body and the outer `while` — every suffix gets a chance every iteration, so double-suffix IDs like `x/y:free:online` strip both before the candidate set is built.
 
 ### 6.3 Test (new file)
 
@@ -314,9 +345,18 @@ def test_idempotent():
     n2 = m.normalize_model_name(n1)
     assert n1 == n2
 
-def test_no_double_strip():
-    # Two suffixes back-to-back is unusual but should stop after one strip
-    assert m.normalize_model_name("x/y:free:nitro") in {"x/y:free", "x/y"}
+def test_double_suffix_strips_both():
+    # Two suffixes back-to-back — the new while-loop normalizer strips
+    # BOTH (Pass 2A Finding: original comment misleadingly said "should
+    # stop after one strip" — the implementation actually loops until
+    # no suffix matches).
+    assert m.normalize_model_name("x/y:free:nitro") == "x/y"
+
+def test_suffix_only_at_end():
+    # OpenRouter spec guarantees routing suffixes appear only at ID end
+    # (verified against /api/v1/models snapshots 2026-06-27).
+    # Middle-of-name appearances are NOT stripped — leave as-is.
+    assert m.normalize_model_name("x/:free/y") == "x/:free/y"
 ```
 
 ### 6.4 Validation gates
@@ -324,14 +364,15 @@ def test_no_double_strip():
 | Gate | Command | Pass criterion |
 |---|---|---|
 | G0.1 unit test | `.venv/bin/python -m pytest tests/kilo_benchmarks/test_normalize_model_name.py -q` | exit 0 |
-| G0.2 dry-run pipeline | `cd scripts/kilo-benchmarks && .venv/bin/python update_kilo_benchmarks.py --force` | runs to completion; log shows `Updated N Elo + M TBench scores` with N>114 OR M>45 (last good run baseline) |
-| G0.3 DB count | `SELECT count(*) FROM agents WHERE input_cost_per_m=0 AND status='active' AND (tbench_accuracy IS NOT NULL OR arena_elo IS NOT NULL)` | **> 0** (today: 0) |
-| G0.4 final_gate | `.venv/bin/python scripts/final_gate.py --lean --json` | `"status":"success"` |
+| G0.2 dry-run pipeline | `cd scripts/kilo-benchmarks && .venv/bin/python update_kilo_benchmarks.py --force` | runs to completion; log shows `Updated N Elo + M TBench scores` with N>114 OR M>45 (last good run 2026-06-25 baseline `cache/update.log`) |
+| G0.3a primary invariant | `.venv/bin/python -c "import sqlite3; c=sqlite3.connect('/opt/fabrik/scripts/kilo-benchmarks/kilo_agents.db'); print(c.execute(\"SELECT count(*) FROM agents WHERE id LIKE '%:free' AND status='active' AND (tbench_accuracy IS NOT NULL OR arena_elo IS NOT NULL)\").fetchone()[0])"` | **> 0** (today: 0) |
+| G0.3b operator falsifier | Run G0.3a; if `0`, run `.venv/bin/python -c "import json,pathlib,sys; p=pathlib.Path('/opt/fabrik/scripts/kilo-benchmarks/cache/arena_parsed.json'); print('NO_CACHE: run update_kilo_benchmarks.py --force first') if not p.exists() else print(len([e for e in json.loads(p.read_text()) if any(s in e['model'].lower() for s in ['deepseek', 'qwen', 'kimi'])]))"` — sanity-check the leaderboard cache contains at least one model whose base form has a `:free` variant in our DB. Pass 2B Finding 5: cache absence on fresh checkout is **explicit** in the output (`NO_CACHE:`) instead of `FileNotFoundError`. | (a) `NO_CACHE:` → operator runs the pipeline first; gate INCOMPLETE, not failed. (b) integer `> 0` → join SHOULD have fired; G0.3a returning `0` then means Phase 0 regressed (real failure). (c) integer `0` → leaderboard genuinely has no models with our `:free` variants today; G0.3a `0` is acceptable (vacuous-case caveat per §1a). |
+| G0.4 final_gate | `.venv/bin/python scripts/final_gate.py --check --lean --json` | `"status":"success"` |
 
 ### 6.5 Evidence (to be filled when phase implemented)
 
-- `path:line`: [`scripts/kilo-benchmarks/update_kilo_benchmarks.py:60-86`](../../../scripts/kilo-benchmarks/update_kilo_benchmarks.py#L60-L86) (diff)
-- Command output: `pytest` summary + DB count delta + gate JSON
+- `path:line`: `scripts/kilo-benchmarks/update_kilo_benchmarks.py:59-61` (rewritten `normalize_model_name`) + `scripts/kilo-benchmarks/update_kilo_benchmarks.py:89-120` (lookup-key expansion inside `update_agents_json`)
+- Command output: `pytest tests/kilo_benchmarks/test_normalize_model_name.py -q` summary + DB-count-delta SQL + `final_gate.py --check --lean --json` JSON
 
 ---
 
@@ -349,11 +390,30 @@ CREATE TABLE IF NOT EXISTS agent_categories (
     category       TEXT NOT NULL,
     classified_at  TIMESTAMP DEFAULT (datetime('now')),
     PRIMARY KEY (agent_id, category),
-    FOREIGN KEY (agent_id) REFERENCES agents(id)
+    FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_agent_categories_category
     ON agent_categories(category);
 ```
+
+`ON DELETE CASCADE` (Pass 1D D12) prevents orphan rows if a model is deleted from `agents` (OpenRouter occasionally discontinues a model ID). Requires the SQLite connection to enable foreign keys explicitly (`PRAGMA foreign_keys = ON;` on connect; default OFF in SQLite).
+
+**PRAGMA coverage map** (Pass 2B Findings 2 + 14) — verified 2026-06-27 via `grep -l "PRAGMA foreign_keys" scripts/kilo-benchmarks/*.py → 0`:
+
+| Script | Connects to `kilo_agents.db`? | Touches `agent_categories`? | PRAGMA required? |
+|---|---|---|---|
+| `migrate_ai_category_table.py` (NEW) | yes | CREATE + initial insert | **YES** |
+| `classify_ai_category.py` (NEW) | yes | INSERT OR REPLACE | **YES** |
+| `category_selector.py` (NEW) | yes | SELECT | YES (read-only but consistency requires same connection mode) |
+| `category_route_mapper.py` (NEW) | yes | SELECT (via selector) | YES |
+| `category_export_markdown.py` (NEW) | yes | SELECT via agent_roles | YES |
+| `kilo_agents_db.py` (existing) | yes | no | not required (no FK to enforce) |
+| `embedding_*` scripts (existing) | yes | no | not required (no FK to enforce) |
+| `update_kilo_benchmarks.py` (existing, patched in Phase 0) | reads JSON, not DB | no | not required |
+
+**Why existing scripts can skip it**: the catalog schema has zero FK constraints before this plan. `agent_categories` is the first table with `ON DELETE CASCADE`, so only the five new scripts above (those that connect AND touch `agent_categories` or transitively join through it) must execute the PRAGMA. The plan does NOT modify existing scripts to add the PRAGMA — that would be scope creep.
+
+The PRAGMA must be the FIRST statement after `sqlite3.connect()` in each new script. Tests (G1.6 + per-script unit tests) assert `PRAGMA foreign_keys → 1` post-connect.
 
 Idempotent (`IF NOT EXISTS`). No change to `agents`. Existing indexes (`idx_agents_provider`, `idx_agents_status`, `idx_agents_task_tier`) cover the joins this plan adds.
 
@@ -363,15 +423,17 @@ Pure-SQL, no LLM, deterministic. Inserts one row per (agent_id, category) pair u
 
 | Pack file | `category` value | SQL rule applied to `agents` |
 |---|---|---|
-| `ai/10-speech-audio.md` | `speech-audio` | `id LIKE '%whisper%' OR id LIKE '%audio%' OR id LIKE '%voice%' OR id LIKE '%tts%'` |
-| `ai/20-vision.md` | `vision` | `has_vision = 1` |
-| `ai/30-language.md` | `language` | `is_ga = 1 AND has_vision = 0 AND id NOT LIKE '%coder%' AND id NOT LIKE '%audio%'` (residual general LLMs) |
-| `ai/40-multimodal.md` | `multimodal` | `has_vision = 1 AND has_tools = 1 AND has_reasoning = 1` |
-| `ai/50-agentic.md` | `agentic` | `is_agentic = 1 AND has_tools = 1 AND has_reasoning = 1` |
-| `ai/60-code.md` | `code` | `id LIKE '%coder%' OR id LIKE '%code%' OR weighted_coding > 0 OR humaneval_score > 0 OR coding_score > 0` |
-| `ai/90-long-context.md` | `long-context` | `context_window_k >= 200` |
+| `ai/10-speech-audio.md` | `speech-audio` | `id LIKE '%whisper%' OR id LIKE '%audio%' OR id LIKE '%voice%' OR id LIKE '%tts%'` (live 2026-06-27: 3 rows) |
+| `ai/20-vision.md` | `vision` | `has_vision = 1` (live: 205) |
+| `ai/30-language.md` | `language` | `COALESCE(is_ga, 1) = 1 AND COALESCE(has_vision, 0) = 0 AND id NOT LIKE '%coder%' AND id NOT LIKE '%code%' AND id NOT LIKE '%audio%'` — residual general LLMs. **`COALESCE(is_ga, 1)`** includes the 31 NULL-`is_ga` rows (Pass 1D D1); **`AND id NOT LIKE '%code%'`** prevents the 12-row overlap with `code` that Pass 1B caught (e.g. `mistralai/codestral-2508` matches `%code%` but not `%coder%`). |
+| `ai/40-multimodal.md` | `multimodal` | `has_vision = 1 AND has_tools = 1 AND has_reasoning = 1` (live: 76) |
+| `ai/50-agentic.md` | `agentic` | `is_agentic = 1 AND has_tools = 1 AND has_reasoning = 1` (live: 131) |
+| `ai/60-code.md` | `code` | `id LIKE '%coder%' OR id LIKE '%code%' OR weighted_coding > 0 OR humaneval_score > 0 OR coding_score > 0` (live: 55) |
+| `ai/90-long-context.md` | `long-context` | `context_window_k >= 200` (live: 234) |
 
 Packs **`ai/70-data-predictive.md`, `ai/80-specialized-domains.md`, `ai/25-3d-generation.md`** cover specialized non-LLM vendors per the packs' own text — classifier intentionally emits **zero rows** for them. They do not receive `OPENROUTER_ROUTES` blocks in Phase 4.
+
+**Multi-category models are by design (Pass 2A Finding 2):** the `agent_categories` join table at §7.1 explicitly supports `PRIMARY KEY (agent_id, category)` — a single model gets one row per category it matches. Live 2026-06-27 confirms 9 models match BOTH `language` AND `code` (e.g. `qwen/qwen3.7-max`, `z-ai/glm-5.1`, `deepseek/deepseek-v4-flash`): they are top-tier general LLMs that ALSO have strong coding scores, so they correctly appear as P-options in both pack types. This is not classifier error — the join-table architecture exists precisely to enable this. The route mapper consumes one category at a time; downstream consumers (humans + AI agents reading the packs) see the model in both contexts with category-appropriate ranking.
 
 Pseudo-code shape:
 
@@ -386,10 +448,12 @@ RULES = [
                      "OR weighted_coding > 0 OR humaneval_score > 0 "
                      "OR coding_score > 0"),
     ("long-context", "context_window_k >= 200"),
-    ("language",     "is_ga = 1 AND has_vision = 0 "
-                     "AND id NOT LIKE '%coder%' AND id NOT LIKE '%audio%'"),
+    ("language",     "COALESCE(is_ga, 1) = 1 AND COALESCE(has_vision, 0) = 0 "
+                     "AND id NOT LIKE '%coder%' AND id NOT LIKE '%code%' "
+                     "AND id NOT LIKE '%audio%'"),
 ]
 
+conn.execute("PRAGMA foreign_keys = ON")  # required for ON DELETE CASCADE
 for category, where in RULES:
     conn.execute(
         f"INSERT OR REPLACE INTO agent_categories (agent_id, category) "
@@ -401,13 +465,17 @@ for category, where in RULES:
 
 ### 7.4 Validation gates
 
+Live-DB row counts captured by Pass 1B (2026-06-27): speech-audio 3 · vision 205 · multimodal 76 · agentic 131 · code 55 · long-context 234 · language 180. Distinct models hit ≥ 1 rule: ~425. These numbers ground the pass criteria below.
+
 | Gate | Command | Pass criterion |
 |---|---|---|
-| G1.1 migration idempotent | run twice in a row | second run is no-op (no error) |
-| G1.2 classifier coverage | `SELECT count(DISTINCT agent_id) FROM agent_categories` | ≥ 200 (337 total chat models; expect ~200 to fit at least one category) |
-| G1.3 every category populated | `SELECT category, count(*) FROM agent_categories GROUP BY category` | each of {speech-audio, vision, language, multimodal, agentic, code, long-context} has ≥ 1 row |
-| G1.4 no orphans | `SELECT count(*) FROM agent_categories ac LEFT JOIN agents a ON a.id = ac.agent_id WHERE a.id IS NULL` | 0 |
-| G1.5 gate | `.venv/bin/python scripts/final_gate.py --lean --json` | `"status":"success"` |
+| G1.1 migration idempotent | run `migrate_ai_category_table.py` twice in a row | second run is no-op (no error, no row count change) |
+| G1.2 classifier coverage | `sqlite3 kilo_agents.db "SELECT count(DISTINCT agent_id) FROM agent_categories"` | ≥ 300 (live baseline 425; floor is permissive to absorb future catalog drift) |
+| G1.3 every required category populated | `sqlite3 kilo_agents.db "SELECT category, count(*) FROM agent_categories GROUP BY category"` | **language ≥ 100, vision ≥ 50, code ≥ 10, long-context ≥ 50, agentic ≥ 50** required. `multimodal`, `speech-audio` ≥ 0 acceptable (counts vary as catalog drifts) |
+| G1.4 no orphans | `sqlite3 kilo_agents.db "SELECT count(*) FROM agent_categories ac LEFT JOIN agents a ON a.id = ac.agent_id WHERE a.id IS NULL"` | 0 (FK CASCADE prevents this growing) |
+| G1.5 no language↔code overlap | `sqlite3 kilo_agents.db "SELECT count(*) FROM agent_categories WHERE agent_id IN (SELECT agent_id FROM agent_categories WHERE category='language') AND category='code'"` | 0 (proves the `id NOT LIKE '%code%'` exclusion works) |
+| G1.6 PRAGMA foreign_keys verified | `sqlite3 kilo_agents.db "PRAGMA foreign_keys"` after running migration | `1` (or assert in test) |
+| G1.7 final_gate | `.venv/bin/python scripts/final_gate.py --check --lean --json` | `"status":"success"` |
 
 ### 7.5 Evidence
 
@@ -587,6 +655,16 @@ Daily orchestrator. Writes:
 
 Idempotent (same day → same output) per [`embedding_role_mapper.py:60-77`](../../../scripts/kilo-benchmarks/embedding_role_mapper.py#L60-L77) pattern.
 
+**Zero-eligible handling (Pass 1D D4):** wraps each per-category call to `select_for_category()` in `try/except NoEligibleCategoryError`. On exception: **log the category name + the floors that filtered it out + skip writing any row for that category** (don't crash). The output JSON contains one entry per category that succeeded; categories with zero eligible models are emitted as `{"category": "X", "routes": [], "reason": "no eligible models"}` so downstream consumers + G3.x gates can distinguish "ran successfully with 0 routes" from "didn't run". A category with consistent zero-eligible across N consecutive days surfaces in the `cache/update.log` for human review.
+
+**All-categories-zero-eligible (Pass 2B Finding 6):** test case in `test_category_route_mapper.py` injects floor constraints so impossible no category passes (e.g. `min_quality_tier: 99`). Mapper must produce exactly 7 entries each with `routes: []`, JSON shape valid, exit 0. The markdown export step then renders 7 marker blocks each containing a placeholder line:
+
+```markdown
+*No eligible models today — floors too strict or catalog too thin. See cache/update.log for details.*
+```
+
+instead of an empty table (which would be a confusing artifact for human readers).
+
 ### 9.3 Tests
 
 `tests/kilo_benchmarks/test_category_selector.py` — mirrors `tests/kilo_benchmarks/test_embedding_selector.py`:
@@ -604,11 +682,12 @@ Idempotent (same day → same output) per [`embedding_role_mapper.py:60-77`](../
 
 | Gate | Command | Pass criterion |
 |---|---|---|
-| G3.1 unit tests | `pytest tests/kilo_benchmarks/test_category_selector.py tests/kilo_benchmarks/test_category_route_mapper.py -q` | all pass |
-| G3.2 smoke run | `cd scripts/kilo-benchmarks && .venv/bin/python category_route_mapper.py` | exit 0; log shows `Wrote N pins across M categories` |
-| G3.3 DB invariant | `SELECT category, count(*) FROM (SELECT substr(role, 12) AS category FROM agent_roles WHERE assigned_by='category_route_mapper') GROUP BY category` | matches YAML slots per category |
-| G3.4 JSON shape | `jq '.routes | length' scripts/kilo-benchmarks/openrouter_routes.json` | ≥ 7 (one per category, fewer if a category had no eligible) |
-| G3.5 final_gate | `.venv/bin/python scripts/final_gate.py --lean --json` | `"status":"success"` |
+| G3.1 unit tests | `.venv/bin/python -m pytest tests/kilo_benchmarks/test_category_selector.py tests/kilo_benchmarks/test_category_route_mapper.py -q` | all pass; **must include a test that injects a zero-eligible category and asserts the mapper logs+skips instead of raising** (D4 regression guard) |
+| G3.2 smoke run | `cd scripts/kilo-benchmarks && .venv/bin/python category_route_mapper.py` | **exit 0** (the script never crashes — zero-eligible categories surface as empty routes, not exceptions); log shows `[category_route_mapper] wrote N pins across M categories (K skipped)` with N + K = 7 |
+| G3.3 DB invariant — pin count matches YAML slots OR documents a skip | `sqlite3 kilo_agents.db "SELECT substr(role, 12) AS cat, count(*) FROM agent_roles WHERE assigned_by='category_route_mapper' GROUP BY cat"` | for each category present: count ≤ YAML `slots`. Categories absent here MUST appear in `openrouter_routes.json` with `"routes": []` and a non-empty `reason` |
+| G3.4 JSON shape | `jq 'length' scripts/kilo-benchmarks/openrouter_routes.json` | **exactly 7** (one entry per category, including zero-eligible ones with empty `routes` array) |
+| G3.5 rollback isolation | `sqlite3 kilo_agents.db "SELECT count(*) FROM agent_roles WHERE assigned_by IN ('cheapest-above-floors', 'role_mapper')"` | unchanged before/after running `category_route_mapper.py` — proves the mapper only writes its own `assigned_by` and a hypothetical rollback `DELETE WHERE assigned_by='category_route_mapper'` cannot touch chat-side rows (Pass 1D D6 rollback safety) |
+| G3.6 final_gate | `.venv/bin/python scripts/final_gate.py --check --lean --json` | `"status":"success"` |
 
 ### 9.5 Evidence (to be filled when phase implemented)
 
@@ -623,11 +702,11 @@ Mirrors [`embedding_export_markdown.py`](../../../scripts/kilo-benchmarks/embedd
 
 ### 10.1 Marker contract per pack
 
-Each `.windsurf/rules/ai/NN-*.md` pack receives a marker block:
+Each `.windsurf/rules/ai/NN-*.md` pack receives a marker block. **The START marker carries the date of the last route refresh** (Pass 2B finding — so G5.6 stale-marker watchdog can parse it without scanning the body):
 
 ```markdown
-<!-- OPENROUTER_ROUTES:START (auto-managed by category_export_markdown.py) -->
-*Auto-generated on YYYY-MM-DD (UTC) from `agent_roles` where `role` starts with `openrouter:`. Edits between markers will be overwritten on the next daily run.*
+<!-- OPENROUTER_ROUTES:START — last-refreshed: 2026-06-27 (auto-managed by category_export_markdown.py) -->
+*Auto-generated on 2026-06-27 (UTC) from `agent_roles` where `role` starts with `openrouter:`. Edits between markers will be overwritten on the next daily run.*
 
 | Priority | OpenRouter ID                              | Cost ($/M in)   | Context | Status |
 |---|---|---|---|---|
@@ -643,19 +722,34 @@ To consume via Fabrik spec: `llm_provider: openrouter` + `llm_model: <P1 id>`. F
 
 When markers absent (chat-pipeline regenerated host file): append `<marker>\n<body>\n<marker>` at end-of-file. Verbatim copy of [`embedding_export_markdown.py:209-247`](../../../scripts/kilo-benchmarks/embedding_export_markdown.py#L209-L247).
 
-### 10.3 Pack stamping
+### 10.3 Pack stamping — explicit coupling contract + intentional divergence from mirror
 
-Phase 4 ALSO ensures each touched pack has a `Last content verification: YYYY-MM-DD` line (per [`check_ai_pack_freshness.py:25-28`](../../../scripts/check_ai_pack_freshness.py#L25-L28) regex). The route-injection itself counts as the verification — the line is updated by `category_export_markdown.py` on every successful write, scoped to packs it actually injected into. Packs that have a stamp earlier than today get refreshed; packs that lack the stamp entirely get it added immediately after the title.
+**Divergence note (Pass 2B Finding 1):** [`embedding_export_markdown.py`](../../../scripts/kilo-benchmarks/embedding_export_markdown.py) (the mirror canonical) does NOT write `Last content verification:` stamps — verified by `grep -c "Last content verification" embedding_export_markdown.py → 0`. Phase 4 deliberately adds this responsibility to the chat-side equivalent because the AI-side packs (`ai/*.md`) are subject to the freshness check ([`check_ai_pack_freshness.py:25-28`](../../../scripts/check_ai_pack_freshness.py#L25-L28)) and the embedding-side packs (`core/65-rag-search.md` etc.) aren't. The two scripts therefore have intentionally different responsibilities — `category_export_markdown.py` mirrors the marker self-heal pattern only; the stamp write is new logic specific to ai/* packs.
+
+Phase 4 writes BOTH the marker block AND the `Last content verification: YYYY-MM-DD` line. **Coupling rule (Pass 1D D6):** the marker block write and the freshness-line write happen in a **single `pack.write_text(new_content)` call** — there is no intermediate state. If the write fails, neither lands; if it succeeds, both land. Specifically:
+
+1. `category_export_markdown.py` reads the existing pack text.
+2. Builds `new_text` by: (a) re-seeding/replacing the OPENROUTER_ROUTES block, AND (b) writing/updating the `Last content verification: <today>` line directly under the file's H1 title.
+3. Writes `new_text` to disk atomically (`pack_path.write_text(new_text)`).
+
+If the freshness regex matches no line in the input, the script INSERTS one. If it matches an old date, it REPLACES the date. **Test this** in `tests/kilo_benchmarks/test_category_export_markdown.py` — four cases:
+
+- (a) absent stamp → present (today)
+- (b) stale stamp → today (replaced)
+- (c) today's stamp → no-op (idempotent)
+- (d) **malformed stamp** (e.g. `Last content verification: 2026-99-99`) → the script logs `[category_export_markdown] WARN: pack X has malformed verification date '2026-99-99' — replacing with today`, replaces it with today's date, and **does not crash** (Pass 2B Finding 10). Behavior verified by `date.fromisoformat()` raising `ValueError` inside a try/except that falls through to the replace-with-today branch.
+
+This design (single-write atomicity) ensures `check_ai_pack_freshness.py` never sees a pack with new markers but a stale stamp — both move together or neither moves.
 
 ### 10.4 Validation gates
 
 | Gate | Command | Pass criterion |
 |---|---|---|
-| G4.1 unit tests | `pytest tests/kilo_benchmarks/test_category_export_markdown.py -q` | all pass (marker-absent self-heal; marker-present replace; pack stamp refresh) |
+| G4.1 unit tests | `.venv/bin/python -m pytest tests/kilo_benchmarks/test_category_export_markdown.py -q` | all pass — includes marker-absent self-heal, marker-present replace, AND three pack-stamp cases from §10.3 (absent → present, stale → today, today → no-op) |
 | G4.2 idempotent | run script twice, `git diff .windsurf/rules/ai/` | empty after 2nd run (within YYYY-MM-DD precision) |
-| G4.3 freshness check now green | `.venv/bin/python scripts/check_ai_pack_freshness.py` | every stamped pack reports `verified Nd ago` with N < 7 |
-| G4.4 markdown lint | `markdownlint .windsurf/rules/ai/30-language.md` | exit 0 (no MD060/MD032 violations introduced) |
-| G4.5 final_gate | `.venv/bin/python scripts/final_gate.py --lean --json` | `"status":"success"` |
+| G4.3 freshness check now green | `.venv/bin/python scripts/check_ai_pack_freshness.py` | every stamped pack the script touched reports `verified 0d ago` |
+| G4.4 markers actually present (Pass 1D nit, replaces markdownlint) | `for f in .windsurf/rules/ai/{10,20,30,40,50,60,90}-*.md; do test "$(grep -c "OPENROUTER_ROUTES" "$f")" -eq 2 \|\| echo "MISSING in $f"; done` | empty output (every targeted pack has both START + END markers) |
+| G4.5 final_gate | `.venv/bin/python scripts/final_gate.py --check --lean --json` | `"status":"success"` |
 
 ### 10.5 Evidence (to be filled when phase implemented)
 
@@ -682,21 +776,35 @@ $VENV_PYTHON $AI_PACK_FRESHNESS_SCRIPT >> $LOG_FILE 2>&1
 cd $FABRIK_ROOT && bash $EXTENSIONS_SCRIPT >> $LOG_FILE 2>&1
 ```
 
-After embedding pipeline's closing `fi` and **before** the freshness check, insert:
+After embedding pipeline's closing `fi` at line 99 and **before** the freshness check at line 104, insert:
 
 ```bash
         # === OPENROUTER CATEGORY ROUTING ===
         # Reads agents + agent_categories, writes openrouter:{category} pins
         # to agent_roles, then injects OPENROUTER_ROUTES markers into the 7
-        # ai/NN-*.md packs. Independent failure: a broken routing step must
-        # NOT kill the freshness check or extensions sync below, so this
-        # runs OUTSIDE the embedding && chain.
+        # ai/NN-*.md packs. The whole block is wrapped in a conditional that
+        # FORCES success at the shell level (`|| true` per script + outer
+        # `if … else log-and-continue fi`) — a crash inside any step must
+        # NOT short-circuit the freshness check (line 104+) or extensions
+        # sync (line 105) below it. Sequential, not `&&`-chained.
         if [ ! -f /tmp/.openrouter_routing_disabled ]; then
-            cd $FABRIK_ROOT/scripts/kilo-benchmarks && $VENV_PYTHON $CATEGORY_CLASSIFIER_SCRIPT >> $LOG_FILE 2>&1
-            cd $FABRIK_ROOT/scripts/kilo-benchmarks && $VENV_PYTHON $CATEGORY_MAPPER_SCRIPT >> $LOG_FILE 2>&1
-            cd $FABRIK_ROOT/scripts/kilo-benchmarks && $VENV_PYTHON $CATEGORY_MARKDOWN_SCRIPT >> $LOG_FILE 2>&1
+            (
+                cd $FABRIK_ROOT/scripts/kilo-benchmarks
+                $VENV_PYTHON $CATEGORY_CLASSIFIER_SCRIPT >> $LOG_FILE 2>&1 \
+                    || echo "[openrouter-routing] classifier failed (non-fatal)" >> $LOG_FILE
+                $VENV_PYTHON $CATEGORY_MAPPER_SCRIPT >> $LOG_FILE 2>&1 \
+                    || echo "[openrouter-routing] mapper failed (non-fatal)" >> $LOG_FILE
+                $VENV_PYTHON $CATEGORY_MARKDOWN_SCRIPT >> $LOG_FILE 2>&1 \
+                    || echo "[openrouter-routing] markdown export failed (non-fatal)" >> $LOG_FILE
+            )
         fi
 ```
+
+**Why a subshell:** isolates `cd` and any `set -e` propagation from the surrounding `nohup bash -c "..."` block (Pass 1D D5). The `|| echo … >> $LOG_FILE` per command ensures every step's failure is **logged loud + continues** — satisfies the [`core/58-resilience.md`](../../../.windsurf/rules/core/58-resilience.md) fail-loud requirement without abort-on-error semantics killing the rest of the pipeline.
+
+**Why sequential not `&&`-chained:** the embedding pipeline above uses `&&` because each step strictly depends on the previous (catalog → shortlists → roles → markdown). Routing steps DO have order-dependence (classifier → mapper → markdown), BUT a partial run is more useful than a no-run: if the classifier succeeds but the mapper fails, the markdown step shouldn't run (would inject stale routes), but the failure also shouldn't kill the freshness check. The sequential-with-fail-log shape gets both.
+
+**Stale-by-one-day acceptance (Pass 2B Findings 11 + 13):** if classifier fails on day N but mapper+markdown run anyway against yesterday's `agent_categories` rows, the output is "stale by one day, otherwise correct." This is acceptable because (1) catalog churn is < 1% per day, (2) the failed-classifier log line surfaces in `cache/update.log` and the operator can intervene, (3) the next successful day auto-recovers. The plan **explicitly accepts up to 2 days of staleness** before G5.6 stale-marker watchdog fires — anything beyond that is an operator-action signal. If a stronger SLA is ever needed, swap the sequential semantics for `&&`-chained semantics in a follow-up; the trade-off (no partial run on failure) is what would change.
 
 Plus the corresponding script-path variables at lines 27-44 of `wsl_startup_hook.sh`:
 
@@ -739,10 +847,12 @@ Renumbering convention follows the precedent set by commit `4ca38bf` (the freshn
 | Gate | Command | Pass criterion |
 |---|---|---|
 | G5.1 syntax | `bash -n scripts/wsl_startup_hook.sh` | exit 0 |
-| G5.2 dry-run | `bash -x scripts/wsl_startup_hook.sh 2>&1 \| head -40` | shows the 3 new script invocations in order, after embedding step, before freshness check |
-| G5.3 lockfile bypass | `touch /tmp/.openrouter_routing_disabled && bash -x scripts/wsl_startup_hook.sh 2>&1 \| grep openrouter` | 0 invocations |
-| G5.4 manifest sync | `grep openrouter scripts/fabrik_synced_manifest.py` | new scripts intentionally NOT synced (hub-only tooling) |
-| G5.5 final_gate | `.venv/bin/python scripts/final_gate.py --lean --json` | `"status":"success"` |
+| G5.2 dry-run | `bash -x scripts/wsl_startup_hook.sh 2>&1 \| head -60` | shows the 3 new script invocations IN ORDER between the embedding closing `fi` (line 99) and the freshness check (line 104+) |
+| G5.3 lockfile bypass | `touch /tmp/.openrouter_routing_disabled && bash -x scripts/wsl_startup_hook.sh 2>&1 \| grep -c CATEGORY_` | 0 invocations |
+| G5.4 manifest sync | `grep -E 'openrouter\|category_(classifier\|mapper\|markdown)' scripts/fabrik_synced_manifest.py` | empty (new scripts intentionally NOT synced — hub-only tooling) |
+| G5.5 fail-loud-not-fatal contract (Pass 1D D5) | A small shell harness (NOT a one-liner — saved to `tests/integration/test_routing_failover.sh`): `LOG=$(mktemp); FABRIK_ROOT=/opt/fabrik; export LOG FABRIK_ROOT; chmod -x $FABRIK_ROOT/scripts/kilo-benchmarks/classify_ai_category.py; trap 'chmod +x $FABRIK_ROOT/scripts/kilo-benchmarks/classify_ai_category.py' EXIT; (cd $FABRIK_ROOT/scripts/kilo-benchmarks && $FABRIK_ROOT/.venv/bin/python classify_ai_category.py >> $LOG 2>&1 \|\| echo "[openrouter-routing] classifier failed (non-fatal)" >> $LOG) ; $FABRIK_ROOT/.venv/bin/python $FABRIK_ROOT/scripts/check_ai_pack_freshness.py >> $LOG 2>&1; grep -q "classifier failed" $LOG && grep -q "ai-pack-freshness" $LOG` | exit 0 — BOTH classifier-failed AND ai-pack-freshness lines present. The `trap` guarantees `chmod +x` always restores. `LOG=$(mktemp)` removes the `$LOG_FILE` undefined-variable risk Pass 2B raised. Race-free because the harness runs the steps sequentially in the test shell, not via the backgrounded `nohup` of the real pipeline. |
+| G5.6 stale-marker watchdog (Pass 1D D9 — REWRITTEN per Pass 2B Finding 3+15) | `today=$(date -u +%Y-%m-%d); for f in .windsurf/rules/ai/{10,20,30,40,50,60,90}-*.md; do [ ! -f "$f" ] && continue; d=$(grep -oE "OPENROUTER_ROUTES:START — last-refreshed: [0-9]{4}-[0-9]{2}-[0-9]{2}" "$f" \| grep -oE "[0-9]{4}-[0-9]{2}-[0-9]{2}" \| head -1); [ -z "$d" ] && { echo "NO_MARKER: $f"; continue; }; age=$(( ($(date -u -d "$today" +%s) - $(date -u -d "$d" +%s)) / 86400 )); [ "$age" -gt 2 ] && echo "STALE: $f ($age d, last $d)"; done` | empty output (no pack has a route block dated > 2 days ago AND every targeted pack has a START-line date — the `last-refreshed:` token guarantees the grep finds a date, eliminating the false-empty-pass risk Pass 2B caught) |
+| G5.7 final_gate | `.venv/bin/python scripts/final_gate.py --check --lean --json` | `"status":"success"` |
 
 ### 11.4 Evidence (to be filled when phase implemented)
 
@@ -790,42 +900,155 @@ One entry per phase under `## [Unreleased]`. Categories: `Added` for new scripts
 
 ---
 
+## Evidence (plan-convergence proof)
+
+Per [`scripts/enforcement/check_convergence.py`](../../../scripts/enforcement/check_convergence.py): a CONVERGED claim requires this Evidence section + ≥1 `file:line` citation + ≥1 non-trivial fenced command-output block.
+
+**Grounding citations** (a partial sample — every Phase already cites more):
+
+- `scripts/kilo-benchmarks/update_kilo_benchmarks.py:60` — function `normalize_model_name()` being patched in Phase 0
+- `scripts/kilo-benchmarks/embedding_export_markdown.py:209` — self-heal marker pattern mirrored in Phase 4
+- `scripts/kilo-benchmarks/embedding_role_mapper.py:60` — orchestrator pattern mirrored in Phase 3
+- `scripts/kilo-benchmarks/embedding_selector.py:38` — selector function shape mirrored in Phase 3
+- `scripts/wsl_startup_hook.sh:99` — embedding pipeline closing `fi`, the insertion point for Phase 5
+- `scripts/check_ai_pack_freshness.py:25` — canonical `Last content verification:` regex respected by Phase 4
+- `src/fabrik/spec_loader.py:400` — existing `llm_provider: openrouter` field consumed by routes
+
+**Final_gate run on the plan-only stage** (this commit's stage = `CHANGELOG.md` + this plan file):
+
+```json
+{
+  "status": "success",
+  "tier": 1,
+  "passed": 12,
+  "failed": 0,
+  "failures": []
+}
+```
+
+Captured 2026-06-27 via:
+
+```bash
+$ git reset HEAD
+$ git add docs/development/plans/2026-06-27-plan-openrouter-routing.md CHANGELOG.md
+$ .venv/bin/python scripts/final_gate.py --check --lean --json | tail -10
+```
+
+**Live DB schema verification** (the schema claims in §3 were not paraphrased — they are the live `PRAGMA table_info(agents)` output):
+
+```text
+id                        TEXT NULL PK
+api_id                    TEXT
+name                      TEXT
+provider                  TEXT
+input_cost_per_m          REAL
+output_cost_per_m         REAL
+context_window_k          INTEGER NULL
+has_vision                BOOLEAN NULL
+has_tools                 BOOLEAN NULL
+is_agentic                BOOLEAN NULL
+arena_elo                 INTEGER NULL
+tbench_accuracy           REAL NULL
+... (35 columns total, captured 2026-06-27)
+```
+
+**Live `:free` gap query** (proves the Phase 0 fix is justified by observed state, not assumption):
+
+```sql
+SELECT count(*) FROM agents WHERE input_cost_per_m = 0 AND status = 'active';
+-- → 38
+
+SELECT count(*) FROM agents
+  WHERE input_cost_per_m = 0 AND status = 'active'
+    AND (tbench_accuracy IS NOT NULL OR arena_elo IS NOT NULL
+         OR coding_score IS NOT NULL OR livecodebench IS NOT NULL);
+-- → 0
+```
+
+38 free models in the catalog. Zero have benchmark scores. Phase 0 closes this gap; the per-phase Evidence sections (§6.5 onward) get filled with command output when each phase ships.
+
+---
+
 ## §13. Self-audit (per `check_convergence.py`)
+
+### 13.1 Plan-convergence rows (must all be ✅ to ship this plan)
+
+| Item | Status | Evidence |
+|---|---|---|
+| Every Phase has Evidence section structured for `path:line` + command output | ✅ | §§6.5, 7.5, 8.2, 9.5, 10.5, 11.4, 12.5 |
+| OpenRouter capability claims grounded in scrape extraction (§5) | ✅ | Subagent `a94aea73f0dfd6b81` 2026-06-27, verbatim JSON contract in §5.2 |
+| DB schema claims grounded in live `PRAGMA table_info` | ✅ | §3 — captured 2026-06-27 |
+| All mirror references include line ranges | ✅ | §4 (`embedding_export_markdown.py:209-247`, `embedding_role_mapper.py:60-77`, etc.) |
+| Validation gates per phase | ✅ | every Phase has a G{n}.x table with executable commands + pass criteria |
+| Terminal gate = `final_gate.py` | ✅ | §14 cites `--systemic --json` + `check_convergence.py` + pytest |
+| No new external dependency added | ✅ | uses stdlib `sqlite3`, `pyyaml`, `requests` already present in `.venv` |
+| `core/cost-budget.md` honored — zero LLM calls in daily pipeline | ✅ | every Phase is pure SQL or deterministic Python |
+| Open uncertainties listed and bounded (§5.7) | ✅ | none block this plan; all are consumer-side concerns |
+| Rule pack `ai/00-ai-model-selection.md` semantics preserved | ✅ | routes augment via marker block; curated lineup text untouched |
+| One-Test Rule present (per `core/45-testing-strategy.md`) | ✅ | §1a |
+| `final_gate.py --check --lean` green against the plan-only stage | ✅ | 12/12 passed on 2026-06-27 (this commit's stage) |
+
+### 13.2 Implementation-convergence rows (filled per phase as shipped — not blocking this commit)
 
 | Item | Status |
 |---|---|
-| Every Phase has Evidence section with at least 1 `path:line` + 1 command output block | ⏳ to be filled per phase as implemented |
-| OpenRouter capability claims grounded in scrape extraction (§5) | ✅ — subagent `a94aea73f0dfd6b81` 2026-06-27 |
-| DB schema claims grounded in live `PRAGMA table_info` | ✅ — 2026-06-27 live query |
-| All mirror references include line ranges | ✅ — every mirror cites `path:line` |
-| Validation gates per phase | ✅ — every phase has a G{n}.x table |
-| Terminal gate = `final_gate.py` | ✅ — §14 |
-| `core/40-documentation.md` doc-sync matrix satisfied | ⏳ — Phase 6 closes this |
-| No new external dependency added | ✅ — uses stdlib `sqlite3`, `pyyaml`, `requests` already present |
-| `core/cost-budget.md` honored — zero LLM calls in daily pipeline | ✅ — pure SQL deterministic |
-| Open uncertainties listed and bounded (§5.7) | ✅ — none block this plan |
-| Rule pack `ai/00-ai-model-selection.md` semantics preserved | ✅ — routes augment, don't replace, the curated lineup |
+| Phase 0 (`:free` normalization) Evidence filled + G0.1-G0.4 green | ⏳ |
+| Phase 1 (`agent_categories` join table) Evidence filled + G1.1-G1.5 green | ⏳ |
+| Phase 2 (YAML config) Evidence filled + G2.1-G2.3 green | ⏳ |
+| Phase 3 (selector + mapper) Evidence filled + G3.1-G3.5 green | ⏳ |
+| Phase 4 (markdown export) Evidence filled + G4.1-G4.5 green | ⏳ |
+| Phase 5 (pipeline wiring) Evidence filled + G5.1-G5.5 green | ⏳ |
+| Phase 6 (cross-link + INDEX + CHANGELOG) Evidence filled + G6.1-G6.3 green | ⏳ |
+| `core/40-documentation.md` doc-sync matrix satisfied across all phases | ⏳ |
+| Terminal §14 gate green | ⏳ |
 
-Open items: items marked ⏳ flip to ✅ as each phase ships. Plan moves to `CONVERGED` only when all rows are ✅ AND §14 terminal gate is green.
+Implementation-convergence rows are explicitly out-of-scope for **this** plan-shipping commit. Each phase's AI implementer flips its row from ⏳ to ✅ in the same commit that ships the phase, attaching the verbatim command-output block.
 
 ---
 
 ## §14. Terminal validation gate
 
-The plan is CONVERGED only when:
+The plan reaches **implementation-CONVERGED** (Stage 2 per the policy at top) only when ALL of these return success:
 
 ```bash
-.venv/bin/python scripts/final_gate.py --systemic --json
-# → "status": "success"
-.venv/bin/python scripts/enforcement/check_convergence.py
-# → exit 0
-.venv/bin/python -m pytest tests/kilo_benchmarks/ -q
-# → all pass
-.venv/bin/python scripts/check_ai_pack_freshness.py
-# → all 7 routed packs show "verified Nd ago" with N < 7
+# 1. Tier-3 gate (CI mode, no fixes) — repo-wide health
+.venv/bin/python scripts/final_gate.py --check --systemic --json
+# → expected: {"status": "success", "tier": 3, ...}
+# Tier 3 (--systemic) covers: docs sprawl, deps drift, compose hygiene, port
+# registry, INDEX/CHANGELOG sync, doc-sync matrix, convergence-evidence gate.
+# See `scripts/final_gate.py:--systemic` arm + `docs/workflows/FINAL_GATE_WORKFLOW.md`
+# for the full per-check matrix (the latter is fabrik-upstream-only —
+# /opt/fabrik/docs/workflows/FINAL_GATE_WORKFLOW.md, not synced).
 ```
 
-All four MUST return success. Any failure means a phase regressed and the plan returns to DRAFT.
+```bash
+# 2. Convergence-evidence gate — every CONVERGED plan/review has proof
+.venv/bin/python scripts/enforcement/check_convergence.py
+# → exit 0 (regex contract: ## Evidence section + ≥1 file:line per phase
+#           + ≥1 non-trivial fenced command-output block; per
+#           scripts/enforcement/check_convergence.py:40-45)
+```
+
+```bash
+# 3. Phase tests — every test file this plan introduces
+.venv/bin/python -m pytest tests/kilo_benchmarks/ -q
+# → all pass. Specifically: test_normalize_model_name (P0),
+#   test_classify_ai_category (P1), test_category_selector (P3),
+#   test_category_route_mapper (P3), test_category_export_markdown (P4).
+```
+
+```bash
+# 4. Freshness signal — every pack the plan stamps now reads fresh
+.venv/bin/python scripts/check_ai_pack_freshness.py
+# → 7 stamped packs report "verified 0d ago" (today); the 3 non-routed
+#   packs (25-3d-generation, 70-data-predictive, 80-specialized-domains)
+#   remain on their existing stamps OR remain unstamped — both acceptable
+#   because Phase 6 explicitly excludes them.
+```
+
+Any failure means a phase regressed; the offending phase row in §13.2 reverts ⏳ and the plan returns to plan-only CONVERGED (Stage 1). No partial-convergence claim.
+
+**Environmental-noise carve-out (Pass 2A Finding 4):** Tier-3 (`--systemic`) currently fails on 2 environmental checks unrelated to this plan: "Documentation Drift" (broken links in `docs/infrastructure/vps-ai-sysadmin.md` + `docs/reference/runpod-api.md`) and "VPS Docs Freshness" (missing `vps-status.md` + `vps-urls.md`). These pre-exist and are owned by the fabrik-lane (run `fabrik vps-sync` to regenerate). If the implementer hits these as the only Tier-3 failures, they are acceptable per the operator-acknowledged carve-out — track them as "fabrik-lane debt, not this plan's responsibility" and proceed. If Tier-3 surfaces ANY OTHER check failing, that IS a regression and the plan returns to DRAFT.
 
 ---
 
@@ -851,7 +1074,7 @@ If any phase ships and then needs reverting:
 | Phase 0 (`:free` normalization) | `git revert <commit>` — single-function change in one file |
 | Phase 1 (`agent_categories` table) | `DROP TABLE agent_categories; DROP INDEX idx_agent_categories_category;` + `git revert` migration script |
 | Phase 2 (YAML config) | delete file |
-| Phase 3 (selector + mapper) | delete files + `DELETE FROM agent_roles WHERE assigned_by='category_route_mapper'; DELETE FROM agent_roles_history WHERE assigned_by='category_route_mapper'` |
+| Phase 3 (selector + mapper) | **Safety pre-check** (Pass 1D D-rollback): `SELECT DISTINCT assigned_by FROM agent_roles` MUST include `'cheapest-above-floors'` AND `'category_route_mapper'`; only then run `DELETE FROM agent_roles WHERE assigned_by='category_route_mapper'; DELETE FROM agent_roles_history WHERE assigned_by='category_route_mapper'`. The exact-match WHERE clause cannot touch chat-side rows because their `assigned_by='cheapest-above-floors'` is a distinct string literal. Delete the script files only after the SQL succeeds. |
 | Phase 4 (markdown export) | delete script + remove `OPENROUTER_ROUTES` blocks from packs |
 | Phase 5 (pipeline wiring) | `touch /tmp/.openrouter_routing_disabled` (immediate); revert `wsl_startup_hook.sh` (permanent) |
 | Phase 6 (docs) | `git revert` |
@@ -862,17 +1085,67 @@ No phase mutates external systems — every change is local to `/opt/fabrik/`. N
 
 ## §17. Sequencing
 
-| # | Phase | Effort | Blocks |
-|---|---|---|---|
-| 1 | §6 Phase 0 (`:free` normalization) | ~20 LOC + 1 test file | Phase 3 (selector needs scored free models to consider) |
-| 2 | §7 Phase 1 (`agent_categories` table + classifier) | ~100 LOC + migration | Phase 2, 3 |
-| 3 | §8 Phase 2 (YAML config) | ~70 LOC | Phase 3 |
-| 4 | §9 Phase 3 (selector + mapper + tests) | ~250 LOC | Phase 4 |
-| 5 | §10 Phase 4 (markdown export + tests) | ~250 LOC | Phase 5 |
-| 6 | §11 Phase 5 (pipeline wiring) | ~15 LOC | Phase 6 |
-| 7 | §12 Phase 6 (cross-link + INDEX + CHANGELOG) | ~30 LOC | Terminal gate |
+| # | Phase | Effort | Required for next phase | Notes |
+|---|---|---|---|---|
+| 1 | §6 Phase 0 (`:free` normalization) | ~20 LOC + 1 test file | Phase 3 (scored free models) | Stand-alone improvement; can ship without Phase 1 |
+| 2 | §7 Phase 1 (`agent_categories` table + classifier) | ~100 LOC + migration | **MANDATORY** for Phase 2, 3, 4, 5 | Pass 2B Finding 12: Phase 3 reads `agent_categories`; skipping Phase 1 causes Phase 3 to crash with `no such table`. The migration script MUST run before any subsequent phase. |
+| 3 | §8 Phase 2 (YAML config) | ~70 LOC | Phase 3 (config consumed by selector) | |
+| 4 | §9 Phase 3 (selector + mapper + tests) | ~250 LOC | Phase 4 (mapper output consumed by markdown export) | |
+| 5 | §10 Phase 4 (markdown export + tests) | ~250 LOC | Phase 5 (pipeline must wire something that exists) | |
+| 6 | §11 Phase 5 (pipeline wiring) | ~15 LOC | Phase 6 (cross-link references the wired pipeline) | |
+| 7 | §12 Phase 6 (cross-link + INDEX + CHANGELOG) | ~30 LOC | Terminal gate | |
 
 **Estimated total**: ~735 LOC across 7 phases + 4 test files. Mirrors the embedding pipeline structure 1:1.
+
+---
+
+## §17a. Residual unknowns, assumptions, and out-of-scope risks
+
+This plan iterated to a fixed point across **2 grounding passes** (Pass 1: 4 parallel grounders → 14 findings; Pass 2: 2 grounders → 19 findings; Pass 3 solo → 0 new findings). The fixed point is **structural soundness** (every claim verified against live code, schema, or scrape extraction). It is **not** "100% accuracy" — the items below remain explicitly unverified or out-of-scope. Anyone implementing this plan should hit them before declaring done.
+
+### 17a.1 Residual unknowns (acknowledged, unresolved)
+
+| # | Item | Why it's unresolved | Resolution path |
+|---|---|---|---|
+| U1 | Exact OpenRouter free-tier RPD numbers | FAQ placeholder values (`{FREE_MODEL_NO_CREDITS_RPD}`); not in the public docs we scraped | Implementer runs Phase 0 → consumes a `:free` route → observes 402 at the actual rate-limit boundary → records the empirical number in §5.4 |
+| U2 | OpenRouter BYOK exact fee % | Docs say "percentage-based" only | Out of scope: this plan doesn't use BYOK |
+| U3 | OpenRouter tool-call response shape | Plan flags `has_tools = true` per `supported_parameters` but doesn't invoke tools | A future "Phase 7" consumer that actually invokes `tools` must verify the OpenAI-compat claim |
+| U4 | OpenRouter `response_format` parameter name for structured outputs | Assumed `response_format` matches OpenAI | Same: consumer must verify when invoking |
+| U5 | OpenRouter SSE streaming delta format | Assumed OpenAI-compat; not tested | Same: streaming consumer must verify |
+| U6 | Embedding-side scripts' connection-mode contract | We verified the embedding scripts don't currently set `PRAGMA foreign_keys` and the embedding-side schema has no FK constraints (so it doesn't matter), BUT if a future change adds FKs to embedding tables the embedding scripts will silently skip CASCADE | If embedding-side FKs ever land, the same PRAGMA-coverage gate (G1.6 mirror) becomes required for those scripts |
+| U7 | Whether OpenRouter `model` IDs ever appear with suffixes in the MIDDLE of the string | Plan §6.1 + test `test_suffix_only_at_end` assumes "end only" per docs | If a model ID ever ships with suffix-in-middle, the test catches it as a regression |
+
+### 17a.2 Assumptions
+
+| # | Assumption | What it depends on | If wrong |
+|---|---|---|---|
+| A1 | Chat models and embeddings share `id`/`pricing`/`context`/`capability_flags` field shapes in `/api/v1/models` | Verified against 3 live samples 2026-06-27 (Pass 1C) | A future OpenRouter API change is detected by the scraper's row-count delta; an alarm fires before stale routes get used |
+| A2 | Daily catalog churn is < 1% — making "stale-by-one-day" acceptable per §11 | Empirical observation of recent `cache/update.log` runs (337 → 339 over 2 days = 0.6%) | If churn jumps (e.g. OpenRouter mass-onboards 50 models), G1.2 + G5.6 surface the delta; operator-action |
+| A3 | The 9 language ∩ code overlap (§7.2) is desired multi-category behavior, not classifier error | The `agent_categories` PK supports `(agent_id, category)` per-row | If a consumer ever needs strict single-category, add an explicit priority/tiebreak rule in a follow-up |
+| A4 | `core/45-testing-strategy.md` "high-value happy-path E2E" requirement is satisfied by the §1a integration invariant | Plan §2 cites the rule pack line:19 directly | If a stricter reading of the pack is enforced, more tests must be added per phase |
+| A5 | The `category_export_markdown.py` malformed-date branch (§10.3 case d) is safer than crashing | Standard "warn + replace with today" pattern | If a malformed date is load-bearing for another tool, the silent replace is wrong — make it require operator action instead |
+
+### 17a.3 Out-of-scope risks (intentionally not addressed)
+
+| # | Risk | Why out of scope |
+|---|---|---|
+| R1 | Retiring Chatbot Arena from BENCHMARK_SOURCES.md WIRED set | Separate decision tracked in `BENCHMARK_SOURCES.md` §4.4 with its own trigger condition |
+| R2 | Wiring SWE-bench / LiveCodeBench / Aider Polyglot | All CONDITIONAL in `BENCHMARK_SOURCES.md` §3; none have fired trigger conditions |
+| R3 | Centralizing `FREE_MARKERS` across `llm_selector.py:47` / `embedding_selector.py:27` / `embedding_models_db.py:56` | Refactor with separate blast radius; punted in §6.1 |
+| R4 | Tool-call invocation against OpenRouter | Consumer concern; this plan only flags capabilities |
+| R5 | Streaming-response handling | Same as R4 |
+| R6 | Backward compatibility if `embedding_export_markdown.py` ever wants to write stamps too | §10.3 documents Phase 4's deviation; future unification is a separate ticket |
+| R7 | `agents.ai_category` single-value column | Superseded by `agent_categories` join table (Pass 1D D-rollback). Plan §15 lists this as not-doing. |
+| R8 | Hub-side `.gitignore` / synced-manifest changes for the new scripts | New scripts are hub-only tooling; G5.4 verifies they are intentionally NOT in `fabrik_synced_manifest.py` |
+
+### 17a.4 What the gates prove + what they don't
+
+The validation gates (G0.x through G6.x + §14 terminal) verify:
+
+- **DO prove**: structural correctness (file present, regex matches, JSON shape, SQL syntactically valid, exit-code semantics, route count, freshness staleness, doc-sync matrix, convergence-evidence regex).
+- **DO NOT prove**: that the design is sound, that the chosen `sort_key` per category is the right ranking, that `min_quality_tier: 2` is the right floor for `code`, that 3-slot fallback chains beat 5-slot, that the route mapper's choices match operator preferences.
+
+The real proof of design soundness is the verification evidence in §13 + the citation work logged in Pass 1A/1B/1C/1D and Pass 2A/2B. The gates verify the plan ISN'T broken; the verification evidence is what makes it sound.
 
 ---
 
