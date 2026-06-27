@@ -19,6 +19,7 @@ from __future__ import annotations
 import argparse
 import json
 import sqlite3
+import subprocess
 import sys
 import urllib.request
 from datetime import date
@@ -67,6 +68,58 @@ def _live_caps(record: dict) -> dict[str, int]:
     return {"has_vision": has_vision, "has_tools": has_tools}
 
 
+def _fetch_kilo() -> dict[str, dict]:
+    """Run `kilo models --verbose` and parse the JSON-per-model output
+    that the CLI emits. Returns id → full record map (same shape that
+    `kilo_agents_db.py:fetch_kilo_models` extracts)."""
+    try:
+        result = subprocess.run(
+            ["kilo", "models", "--verbose"],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+    except (subprocess.TimeoutExpired, FileNotFoundError) as e:
+        print(f"[verifier] kilo CLI unavailable ({e}); skipping Kilo cross-check", file=sys.stderr)
+        return {}
+    lines = result.stdout.split("\n")
+    models: dict[str, dict] = {}
+    i = 0
+    while i < len(lines):
+        if lines[i].strip() == "{":
+            buf = ["{"]
+            depth = 1
+            i += 1
+            while i < len(lines) and depth > 0:
+                buf.append(lines[i])
+                depth += lines[i].count("{") - lines[i].count("}")
+                i += 1
+            try:
+                m = json.loads("\n".join(buf))
+                if "id" in m:
+                    models[m["id"]] = m
+            except json.JSONDecodeError:
+                pass
+        else:
+            i += 1
+    return models
+
+
+def _kilo_pricing(record: dict) -> tuple[float, float]:
+    """Kilo CLI's `cost` block stores `input`/`output` directly as USD
+    per million tokens (already scaled)."""
+    cost = record.get("cost", {}) or {}
+    try:
+        inp = float(cost.get("input", 0) or 0)
+    except (TypeError, ValueError):
+        inp = 0.0
+    try:
+        outp = float(cost.get("output", 0) or 0)
+    except (TypeError, ValueError):
+        outp = 0.0
+    return inp, outp
+
+
 def _approx_eq(a, b, tol=0.005) -> bool:
     """Compare floats with small tolerance — OpenRouter occasionally
     returns prices like '5.999999...e-06' so exact equality is fragile."""
@@ -78,16 +131,22 @@ def _approx_eq(a, b, tol=0.005) -> bool:
 
 
 def verify(db_path: Path = DB_PATH) -> dict:
-    """Cross-check every active row. Returns:
+    """Cross-check every active row against BOTH the live OpenRouter
+    catalog and the Kilo CLI's `kilo models --verbose` output.
+    Returns:
     {
       "summary": {...counts...},
-      "discrepancies": [{"id":..., "field": price_in, "db": X, "live": Y}, ...],
-      "delisted": ["id1", "id2", ...],
-      "live_only": ["id1", ...],   # in OpenRouter but not our DB
-      "matched_clean": ["id", ...],
+      "discrepancies": [...],
+      "delisted": [...],             # in DB but absent from BOTH sources
+      "live_only": [...],            # missing-from-DB OpenRouter rows
+      "kilo_only": [...],            # missing-from-DB Kilo Gateway rows
+      "matched_clean": [...],
+      "kilo_sourced": {id: {"input": X, "output": Y}},  # via_kilo + prices
+      "openrouter_sourced": [id, ...],  # via_openrouter flag set
     }
     """
     live = _fetch_live()
+    kilo = _fetch_kilo()
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     db_rows = {
@@ -167,29 +226,58 @@ def verify(db_path: Path = DB_PATH) -> dict:
             matched_clean.append(mid)
 
     live_only = [mid for mid in live if mid not in db_rows]
+    kilo_only = [mid for mid in kilo if mid not in db_rows and mid not in live]
+
+    # Build per-id Kilo Gateway pricing so apply_fixes can populate
+    # `kilo_input_cost_per_m` / `kilo_output_cost_per_m` / `via_kilo`.
+    kilo_sourced: dict[str, dict] = {}
+    for mid, rec in kilo.items():
+        k_in, k_out = _kilo_pricing(rec)
+        kilo_sourced[mid] = {"input": k_in, "output": k_out}
+
+    # Recompute delisted: a row is truly delisted only if neither
+    # source returns it.
+    truly_delisted = [
+        mid
+        for mid in delisted
+        if mid not in kilo  # was: only OpenRouter checked
+    ]
+    delisted_or_only = [mid for mid in delisted if mid in kilo]
 
     return {
         "summary": {
             "db_active": len(db_rows),
             "live_total": len(live),
+            "kilo_total": len(kilo),
+            "in_both_sources": len(set(live) & set(kilo)),
             "matched_clean": len(matched_clean),
             "matched_with_discrepancy": len(discrepancies),
-            "delisted_in_db_only": len(delisted),
-            "missing_from_db": len(live_only),
+            "delisted_in_db_only": len(truly_delisted),
+            "or_delisted_but_kilo_has": len(delisted_or_only),
+            "missing_from_db_or": len(live_only),
+            "missing_from_db_kilo_only": len(kilo_only),
         },
         "discrepancies": discrepancies,
-        "delisted": delisted,
+        "delisted": truly_delisted,
+        "or_delisted_kilo_only": delisted_or_only,
         "live_only": live_only,
+        "kilo_only": kilo_only,
         "matched_clean": matched_clean,
+        "kilo_sourced": kilo_sourced,
+        "openrouter_sourced": list(live.keys()),
     }
 
 
 def ingest_new(report: dict, db_path: Path = DB_PATH) -> dict:
-    """Pull rows that are in OpenRouter but missing from our DB."""
+    """Pull rows that are in OpenRouter or Kilo CLI but missing from
+    our DB. Tags each new row with via_openrouter / via_kilo + the
+    Kilo Gateway price if it differs from OpenRouter."""
     live = json.loads(CACHE_PATH.read_text())
     live_by_id = {m["id"]: m for m in live.get("data", [])}
+    kilo_by_id = _fetch_kilo()
     today_iso = date.today().isoformat()
-    inserted = 0
+    inserted_or = 0
+    inserted_kilo = 0
 
     conn = sqlite3.connect(db_path)
     try:
@@ -202,11 +290,16 @@ def ingest_new(report: dict, db_path: Path = DB_PATH) -> dict:
             inp, outp = _live_pricing(rec)
             ctx = (rec.get("context_length") or 0) // 1000
             caps = _live_caps(rec)
+            also_kilo = 1 if mid in kilo_by_id else 0
+            k_in, k_out = (None, None)
+            if also_kilo:
+                k_in, k_out = _kilo_pricing(kilo_by_id[mid])
             conn.execute(
                 "INSERT INTO agents (id, api_id, name, provider, "
                 "input_cost_per_m, output_cost_per_m, context_window_k, "
-                "has_vision, has_tools, status, last_verified) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?)",
+                "has_vision, has_tools, status, last_verified, "
+                "via_openrouter, via_kilo, kilo_input_cost_per_m, kilo_output_cost_per_m) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, 1, ?, ?, ?)",
                 (
                     mid,
                     mid,
@@ -218,16 +311,58 @@ def ingest_new(report: dict, db_path: Path = DB_PATH) -> dict:
                     caps["has_vision"],
                     caps["has_tools"],
                     today_iso,
+                    also_kilo,
+                    k_in,
+                    k_out,
                 ),
             )
-            inserted += 1
+            inserted_or += 1
+
+        # Kilo-only rows: ID exists in Kilo CLI but NOT in OpenRouter.
+        # Kilo Gateway aliases like kilo-auto/*, stealth/*, :discounted.
+        for mid in report.get("kilo_only", []):
+            rec = kilo_by_id.get(mid)
+            if not rec:
+                continue
+            provider = mid.split("/")[0] if "/" in mid else mid
+            k_in, k_out = _kilo_pricing(rec)
+            ctx_raw = (rec.get("limit", {}) or {}).get("context") or 0
+            ctx = int(ctx_raw) // 1000 if isinstance(ctx_raw, (int, float)) else 0
+            caps = rec.get("capabilities", {}) or {}
+            has_vision = 1 if (caps.get("input", {}) or {}).get("image") else 0
+            has_tools = 1 if caps.get("toolcall") else 0
+            has_reasoning = 1 if caps.get("reasoning") else 0
+            conn.execute(
+                "INSERT INTO agents (id, api_id, name, provider, "
+                "input_cost_per_m, output_cost_per_m, context_window_k, "
+                "has_vision, has_tools, has_reasoning, status, last_verified, "
+                "via_openrouter, via_kilo, kilo_input_cost_per_m, kilo_output_cost_per_m) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, 0, 1, ?, ?)",
+                (
+                    mid,
+                    mid,
+                    rec.get("name") or mid,
+                    provider,
+                    k_in,
+                    k_out,
+                    ctx,
+                    has_vision,
+                    has_tools,
+                    has_reasoning,
+                    today_iso,
+                    k_in,
+                    k_out,
+                ),
+            )
+            inserted_kilo += 1
+
         conn.commit()
     except Exception:
         conn.rollback()
         raise
     finally:
         conn.close()
-    return {"inserted": inserted}
+    return {"inserted_openrouter": inserted_or, "inserted_kilo_only": inserted_kilo}
 
 
 def apply_fixes(report: dict, db_path: Path = DB_PATH) -> dict:
@@ -268,6 +403,43 @@ def apply_fixes(report: dict, db_path: Path = DB_PATH) -> dict:
                 (today_iso, *report["matched_clean"]),
             )
             counts["rows_clean_touched"] = len(report["matched_clean"])
+
+        # Source attribution: stamp via_openrouter on every DB row that
+        # OpenRouter currently returns, via_kilo on every row Kilo CLI
+        # returns. Both can be true for dual-routed models. Also store
+        # the Kilo Gateway price so the browser can show both rates
+        # side-by-side when they differ.
+        or_ids = report.get("openrouter_sourced", [])
+        if or_ids:
+            placeholders = ",".join("?" * len(or_ids))
+            conn.execute(
+                f"UPDATE agents SET via_openrouter = 1 WHERE id IN ({placeholders})",
+                or_ids,
+            )
+            # And reset any rows OpenRouter no longer returns
+            conn.execute(
+                f"UPDATE agents SET via_openrouter = 0 WHERE id NOT IN ({placeholders})",
+                or_ids,
+            )
+
+        kilo_sourced = report.get("kilo_sourced", {}) or {}
+        if kilo_sourced:
+            for mid, prices in kilo_sourced.items():
+                conn.execute(
+                    "UPDATE agents SET via_kilo = 1, "
+                    "kilo_input_cost_per_m = ?, "
+                    "kilo_output_cost_per_m = ? "
+                    "WHERE id = ?",
+                    (prices["input"], prices["output"], mid),
+                )
+            # Rows Kilo CLI no longer returns: clear via_kilo
+            placeholders = ",".join("?" * len(kilo_sourced))
+            conn.execute(
+                f"UPDATE agents SET via_kilo = 0, kilo_input_cost_per_m = NULL, "
+                f"kilo_output_cost_per_m = NULL WHERE id NOT IN ({placeholders})",
+                list(kilo_sourced.keys()),
+            )
+            counts["kilo_sourced_tagged"] = len(kilo_sourced)
         conn.commit()
     except Exception:
         conn.rollback()
@@ -280,6 +452,15 @@ def apply_fixes(report: dict, db_path: Path = DB_PATH) -> dict:
 def _print_report(report: dict, verbose: bool = False) -> None:
     s = report["summary"]
     print("=" * 70)
+    print(f"  Source coverage @ {date.today().isoformat()}")
+    print("=" * 70)
+    print(f"  OpenRouter total:              {s['live_total']:>4}")
+    print(f"  Kilo CLI total:                {s['kilo_total']:>4}")
+    print(f"  In BOTH sources (same id):     {s['in_both_sources']:>4}")
+    print(f"  Kilo-only (Gateway aliases):   {s['missing_from_db_kilo_only']:>4}")
+    print(f"  OpenRouter-only:               {s['missing_from_db_or']:>4}")
+    print()
+    print("=" * 70)
     print(f"  OpenRouter catalog verification @ {date.today().isoformat()}")
     print("=" * 70)
     print(f"  DB active rows:                {s['db_active']:>4}")
@@ -287,7 +468,8 @@ def _print_report(report: dict, verbose: bool = False) -> None:
     print(f"  ✓  matched cleanly:            {s['matched_clean']:>4}")
     print(f"  ~  matched w/ discrepancy:     {s['matched_with_discrepancy']:>4}")
     print(f"  ⚠  delisted in DB only:        {s['delisted_in_db_only']:>4}")
-    print(f"  +  in OpenRouter, not in DB:   {s['missing_from_db']:>4}")
+    print(f"  +  in OpenRouter, not in DB:   {s['missing_from_db_or']:>4}")
+    print(f"  +  in Kilo only, not in DB:    {s['missing_from_db_kilo_only']:>4}")
     print()
     if report["discrepancies"]:
         print(f"=== Discrepancies (top {min(40, len(report['discrepancies']))}) ===")

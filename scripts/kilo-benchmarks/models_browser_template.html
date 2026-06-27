@@ -165,6 +165,32 @@
   td.status.active { color: var(--good); }
   td.status.deprecated { color: var(--bad); }
   td.status.blocked { color: var(--bad); font-weight: 600; }
+  td.source {
+    font-size: 10px;
+    white-space: nowrap;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+  td.source .src-badge {
+    display: inline-block;
+    padding: 1px 5px;
+    border-radius: 3px;
+    margin-right: 2px;
+    background: var(--panel2);
+    border: 1px solid var(--border);
+  }
+  td.source .src-badge.or { background: #1a3552; border-color: #2c5a99; color: #9cc6ff; }
+  td.source .src-badge.kilo { background: #3a2552; border-color: #663399; color: #cbb0ff; }
+  td.source .markup {
+    display: inline-block;
+    margin-left: 4px;
+    padding: 0 4px;
+    border-radius: 2px;
+    background: #4a2020;
+    color: var(--warn);
+    font-size: 9px;
+    font-variant-numeric: tabular-nums;
+  }
   td.verified { text-align: right; font-variant-numeric: tabular-nums; font-size: 11px; }
   td.verified.fresh { color: var(--good); }
   td.verified.warn  { color: var(--warn); }
@@ -268,6 +294,20 @@
       <span class="chip" data-status="pinned">pinned today</span>
     </div>
 
+    <h3>Source / gateway</h3>
+    <div class="chip-grid">
+      <span class="chip" data-source="openrouter">OpenRouter</span>
+      <span class="chip" data-source="kilo">Kilo Gateway</span>
+      <span class="chip" data-source="both">Dual-routed</span>
+      <span class="chip" data-source="kilo_only">Kilo-only</span>
+      <span class="chip" data-source="or_only">OpenRouter-only</span>
+      <span class="chip" data-source="kilo_cheaper">Kilo cheaper</span>
+      <span class="chip" data-source="or_cheaper">OR cheaper</span>
+    </div>
+    <div class="chip-grid" style="margin-top:6px">
+      <span class="chip" data-source="show_discounted" title="`:discounted` IDs, stealth/* alpha routes, names containing '% off)'">show discounted</span>
+    </div>
+
     <h3>Pricing freshness</h3>
     <div class="chip-grid">
       <span class="chip" data-fresh="fresh">≤7d fresh</span>
@@ -339,6 +379,7 @@
           <th>Categories</th>
           <th data-sort="status">Status</th>
           <th data-sort="last_verified">Verified</th>
+          <th>Source</th>
         </tr>
       </thead>
       <tbody id="tbody"></tbody>
@@ -366,6 +407,7 @@ const state = {
   cats: new Set(),
   providers: new Set(),
   fresh: new Set(),
+  sources: new Set(),
   costMin: null,
   costMax: null,
   ctxMin: null,
@@ -391,6 +433,17 @@ for (const m of ALL) {
   const s = staleBucket(m.last_verified);
   m._staleBucket = s.bucket;
   m._staleDays = s.days;
+  // "Discounted" detection — Kilo Gateway's special discount routes:
+  //   :discounted suffix on the id, stealth/* alpha-discount provider,
+  //   or a name containing "% off)" / "(>NN% off)"
+  const id = m.id || "";
+  const provider = m.provider || "";
+  const name = m.name || "";
+  m._isDiscounted = (
+    id.endsWith(":discounted") ||
+    provider === "stealth" ||
+    /\d+% off\)/i.test(name)
+  );
 }
 
 // ----- Header stats -----
@@ -439,6 +492,9 @@ document.querySelectorAll('.chip[data-status]').forEach(chip => {
 document.querySelectorAll('.chip[data-fresh]').forEach(chip => {
   chip.onclick = () => { toggleChip(state.fresh, chip.dataset.fresh, chip); refresh(); };
 });
+document.querySelectorAll('.chip[data-source]').forEach(chip => {
+  chip.onclick = () => { toggleChip(state.sources, chip.dataset.source, chip); refresh(); };
+});
 
 // ----- Inputs -----
 document.getElementById("search").addEventListener("input", e => {
@@ -469,6 +525,10 @@ document.querySelectorAll('thead th[data-sort]').forEach(th => {
 
 // ----- Filtering -----
 function filterRow(m) {
+  // Default: hide discounted variants (stealth/, :discounted, "(% off)"
+  // labels). Operator opts in via the "show discounted" chip in the
+  // Source/gateway section.
+  if (m._isDiscounted && !state.sources.has("show_discounted")) return false;
   if (state.kind !== "all" && m.kind !== state.kind) return false;
   if (state.search) {
     const hay = `${m.id} ${m.name||""} ${m.provider||""}`.toLowerCase();
@@ -503,7 +563,41 @@ function filterRow(m) {
   if (state.ctxMin !== null && (m.context_window_k || 0) < state.ctxMin) return false;
   if (state.ctxMax !== null && (m.context_window_k || 0) > state.ctxMax) return false;
   if (state.fresh.size > 0 && !state.fresh.has(m._staleBucket)) return false;
+  if (state.sources.size > 0) {
+    let pass = false;
+    const viaOr = !!m.via_openrouter;
+    const viaKilo = !!m.via_kilo;
+    for (const s of state.sources) {
+      if (s === "openrouter" && viaOr) { pass = true; break; }
+      if (s === "kilo" && viaKilo) { pass = true; break; }
+      if (s === "both" && viaOr && viaKilo) { pass = true; break; }
+      if (s === "kilo_only" && viaKilo && !viaOr) { pass = true; break; }
+      if (s === "or_only" && viaOr && !viaKilo) { pass = true; break; }
+      if (s === "kilo_cheaper" && viaOr && viaKilo && m.kilo_input_cost_per_m !== null && m.kilo_input_cost_per_m < m.input_cost_per_m) { pass = true; break; }
+      if (s === "or_cheaper" && viaOr && viaKilo && m.kilo_input_cost_per_m !== null && m.kilo_input_cost_per_m > m.input_cost_per_m) { pass = true; break; }
+      // show_discounted is a meta-toggle handled above, not a per-row predicate.
+      if (s === "show_discounted") { pass = true; break; }
+    }
+    if (!pass) return false;
+  }
   return true;
+}
+
+function fmtSource(m) {
+  const parts = [];
+  if (m.via_openrouter) parts.push('<span class="src-badge or" title="Reachable via OpenRouter (api.openrouter.ai)">OR</span>');
+  if (m.via_kilo) parts.push('<span class="src-badge kilo" title="Reachable via Kilo Gateway (api.kilo.ai)">K</span>');
+  // markup indicator if dual-routed AND prices differ
+  if (m.via_openrouter && m.via_kilo && m.kilo_input_cost_per_m !== null && m.kilo_input_cost_per_m !== undefined) {
+    const orIn = m.input_cost_per_m || 0;
+    const kIn = m.kilo_input_cost_per_m || 0;
+    if (orIn > 0 && Math.abs(kIn - orIn) > 0.005) {
+      const pct = Math.round((kIn - orIn) / orIn * 100);
+      const sign = pct > 0 ? "+" : "";
+      parts.push(`<span class="markup" title="Kilo input price vs OpenRouter input price">K ${sign}${pct}%</span>`);
+    }
+  }
+  return parts.join("");
 }
 
 function sortRows(rows) {
@@ -590,6 +684,7 @@ function refresh() {
       <td class="cats">${fmtCats(m)}</td>
       <td class="status ${statusClass}">${statusLabel}</td>
       <td class="verified ${m._staleBucket}">${verifiedLabel}</td>
+      <td class="source">${fmtSource(m)}</td>
     `;
     tr.onclick = () => openDetail(m, tr);
     tbody.appendChild(tr);
@@ -652,14 +747,41 @@ function openDetail(m, tr) {
     </div>`;
   }
   // Cost unit clarification at the top of the detail panel.
+  // For dual-routed models with differing prices, show BOTH gateways
+  // side-by-side so the operator can pick the cheaper route.
   let costSummary = "";
   if (m.input_cost_per_m !== null && m.input_cost_per_m !== undefined) {
     const ci = m.input_cost_per_m, co = m.output_cost_per_m || 0;
-    costSummary = `<div style="font-size:13px;margin-bottom:10px;color:var(--muted)">
-      ${ci === 0 ? "<span style='color:var(--free);font-weight:600'>free</span>" : "$" + ci.toFixed(2)} /M input ·
-      ${co === 0 ? "<span style='color:var(--free);font-weight:600'>free</span>" : "$" + co.toFixed(2)} /M output
+    const primaryLabel = m.via_openrouter
+      ? "OpenRouter"
+      : (m.via_kilo ? "Kilo Gateway" : "Primary");
+    const fmt = v => v === 0
+      ? "<span style='color:var(--free);font-weight:600'>free</span>"
+      : "$" + v.toFixed(2);
+    costSummary = `<div style="font-size:12px;margin-bottom:10px;color:var(--muted)">
+      <strong style="color:var(--text)">${primaryLabel}:</strong>
+      ${fmt(ci)} /M in · ${fmt(co)} /M out
       <span style="font-size:10px">(USD per million tokens)</span>
     </div>`;
+    if (m.via_openrouter && m.via_kilo && m.kilo_input_cost_per_m !== null && m.kilo_input_cost_per_m !== undefined) {
+      const ki = m.kilo_input_cost_per_m;
+      const ko = m.kilo_output_cost_per_m || 0;
+      if (Math.abs(ki - ci) > 0.005 || Math.abs(ko - co) > 0.005) {
+        const pctIn = ci > 0 ? Math.round((ki - ci) / ci * 100) : 0;
+        const pctOut = co > 0 ? Math.round((ko - co) / co * 100) : 0;
+        const sign = (v) => v >= 0 ? "+" : "";
+        costSummary += `<div style="font-size:12px;margin-bottom:14px;color:var(--muted);background:var(--panel2);padding:6px 8px;border-radius:4px;border-left:3px solid #663399">
+          <strong style="color:#cbb0ff">Kilo Gateway:</strong>
+          ${fmt(ki)} /M in (<span style="color:${pctIn>0?'var(--warn)':'var(--good)'}">${sign(pctIn)}${pctIn}%</span>) ·
+          ${fmt(ko)} /M out (<span style="color:${pctOut>0?'var(--warn)':'var(--good)'}">${sign(pctOut)}${pctOut}%</span>)
+          <div style="font-size:10px;margin-top:3px">routes via <code>api.kilo.ai</code></div>
+        </div>`;
+      } else {
+        costSummary += `<div style="font-size:11px;margin-bottom:10px;color:var(--muted)">
+          ✓ Kilo Gateway charges the same — pick either route.
+        </div>`;
+      }
+    }
   }
   body.innerHTML = `
     <h2>${m.id}</h2>

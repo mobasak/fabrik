@@ -89,6 +89,33 @@ def _fetch_embedding_models(conn: sqlite3.Connection) -> list[dict]:
     return models
 
 
+def _fetch_local_models(conn: sqlite3.Connection) -> list[dict]:
+    """Load locally-installed Ollama models. These run on the dev
+    machine via the `ollama` daemon and are visible to the Kilo CLI's
+    Ollama provider. Free at the API-cost layer but consume local
+    VRAM/RAM (surfaced via the existing `vram_required_gb` column)."""
+    conn.row_factory = sqlite3.Row
+    try:
+        rows = conn.execute("SELECT * FROM local_models").fetchall()
+    except sqlite3.OperationalError:
+        return []
+    out = []
+    for r in rows:
+        d = dict(r)
+        d["kind"] = "local"
+        d["provider"] = "ollama"
+        d.setdefault("name", d.get("id"))
+        d["input_cost_per_m"] = 0
+        d["output_cost_per_m"] = 0
+        # Surface the role pin if assigned
+        if d.get("assigned_role"):
+            d["embedding_pins"] = [
+                {"role": d["assigned_role"], "priority": d.get("role_priority", 1)}
+            ]
+        out.append(d)
+    return out
+
+
 def _build_payload(db_path: Path) -> dict:
     conn = sqlite3.connect(db_path)
     try:
