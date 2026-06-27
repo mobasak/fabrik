@@ -42,12 +42,20 @@ mkdir -p "$(dirname "$LOG_FILE")"
   "$VENV_PY" "$KB/verify_openrouter_catalog.py" --apply --ingest-new \
     || echo "[daily_refresh] verifier failed (non-fatal)"
 
-  # Re-derive quality_tier + is_ga for every row (including the newly-
-  # ingested ones with NULL benchmarks) — otherwise the category
-  # selector's `quality_tier >= ?` floor silently drops them AND the
-  # browser's default tier filter hides them.
+  # Ensure quality_tier/is_ga columns exist (idempotent, schema-only;
+  # the actual values are recomputed below via derive_quality_v2).
   "$VENV_PY" "$KB/migrate_selector_columns.py" \
     || echo "[daily_refresh] selector columns migration failed (non-fatal)"
+
+  # Multi-signal quality scorer: combines existing arena/tbench/coding
+  # benchmarks, OpenRouter's `benchmarks.design_arena` + Artificial
+  # Analysis, model-family pattern matching, cost-as-proxy, reasoning
+  # capability, and context length. Without this, ~85% of models
+  # default to T1 and the category selector's `quality_tier>=2` floors
+  # silently drop frontier models like claude-opus-4.8 that lack
+  # Chatbot Arena ELOs.
+  "$VENV_PY" "$KB/derive_quality_v2.py" \
+    || echo "[daily_refresh] quality v2 deriver failed (non-fatal)"
 
   "$VENV_PY" "$KB/classify_ai_category.py" \
     || echo "[daily_refresh] classifier failed (non-fatal)"
