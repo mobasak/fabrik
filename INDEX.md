@@ -671,6 +671,7 @@ the `wordpress` **scaffold type** (`fabrik scaffold --type wordpress`).
 - `scripts/kilo_47_agents_final.json` - Primary agent manifest (47 agents)
 - `scripts/kilo_all_models.json` - Complete model catalog
 - `scripts/kilo_embeddings_final.json` - Embedding-based model/role assignment data
+- `scripts/kilo_openrouter_routes_final.json` - OpenRouter category route assignments per `.windsurf/rules/ai/NN-*.md` pack (mirror of embeddings_final, daily refresh)
 - `scripts/kilo_agents.db` - SQLite agent/model database
 
 ### Active Agents

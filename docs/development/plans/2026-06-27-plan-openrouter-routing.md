@@ -1040,10 +1040,13 @@ One entry per phase under `## [Unreleased]`. Categories: `Added` for new scripts
 | G6.2 doc sprawl | `.venv/bin/python scripts/enforcement/check_doc_sprawl.py` | exit 0 |
 | G6.3 final_gate | `.venv/bin/python scripts/final_gate.py --lean --json` | `"status":"success"` |
 
-### 12.5 Evidence (to be filled when phase implemented)
+### 12.5 Evidence (filled 2026-06-27)
 
-- `path:line`: `docs/workflows/KILO_BENCHMARK_WORKFLOW.md:<new-section>:<line>` + `INDEX.md:<consumer-row>:<line>` + `CHANGELOG.md:<Unreleased>:<line>`
-- Command output: G6.1 + G6.2 + G6.3 stdout
+- `path:line`: [`docs/workflows/KILO_BENCHMARK_WORKFLOW.md:52-95`](../../workflows/KILO_BENCHMARK_WORKFLOW.md#L52-L95) (new "OpenRouter category routing (sibling, daily)" section, sibling to the existing "AI rule pack freshness check" section per plan §12.1), [`INDEX.md:674`](../../../INDEX.md#L674) (new row for `scripts/kilo_openrouter_routes_final.json`, mirror placement of `kilo_embeddings_final.json` row at L673), [`CHANGELOG.md`](../../../CHANGELOG.md) `[Unreleased]` entry "Added — workflow doc + INDEX cross-link (Phase 6 of OpenRouter routing plan)".
+- G6.1 (`check_doc_sync.py`): exit 0, no output.
+- G6.2 (`check_doc_sprawl.py`): exit 0, no output.
+- G6.3 (`final_gate.py --lean --json`): `"failed": 0`.
+- **Adversarial review log (Pass A → B → C → D, all defects fixed, fixed point at D):** Pass A surfaced 1 off-by-one citation (line 25 vs 25-26); Pass B surfaced example output counts not matching live state (vision/multimodal/long-context were shown as 3 but are 2); Pass C surfaced hardcoded language model IDs that drift daily — replaced with `[...]` for durability; Pass D returned `[]`. Also refreshed the `**Last Updated:**` stamp from 2026-06-16 to 2026-06-27.
 
 ---
 
@@ -1145,7 +1148,7 @@ SELECT count(*) FROM agents
 | Phase 3 (selector + mapper) Evidence filled + G3.1-G3.6 green | ✅ shipped 2026-06-27. 16 routes / 7 categories / 0 skipped / 26 chat-side rows preserved (rollback isolation invariant proven). 12/12 unit + integration tests pass. Evidence in §9.5. |
 | Phase 4 (markdown export) Evidence filled + G4.1-G4.5 green | ✅ |
 | Phase 5 (pipeline wiring) Evidence filled + G5.1-G5.7 green | ✅ |
-| Phase 6 (cross-link + INDEX + CHANGELOG) Evidence filled + G6.1-G6.3 green | ⏳ |
+| Phase 6 (cross-link + workflow doc + INDEX + CHANGELOG) Evidence filled + G6.1-G6.3 green | ✅ |
 | `core/40-documentation.md` doc-sync matrix satisfied across all phases | ⏳ |
 | Terminal §14 gate green | ⏳ |
 

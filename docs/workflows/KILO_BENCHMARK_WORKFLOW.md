@@ -1,7 +1,7 @@
 # Kilo Agent Benchmark Workflow
 
 **Status:** ENABLED — runs by default in the WSL daily startup pipeline.
-**Last Updated:** 2026-06-16 (rewritten to current deterministic-pipeline reality; moved from docs/operations/ to docs/workflows/ to match the KILO_*_WORKFLOW convention)
+**Last Updated:** 2026-06-27 (Phase 6 of OpenRouter routing plan added the "OpenRouter category routing (sibling, daily)" section)
 
 This workflow keeps the Traycer CLI agent fleet in sync with current model
 benchmark data and assigns each model to a role using a **deterministic Pareto
@@ -48,6 +48,47 @@ chain so a broken embeddings catalog cannot kill the chat workflow above.
 
 The output is a working Traycer CLI agent fleet — each generated wrapper invokes
 the right model with the right role-specific prompt.
+
+### OpenRouter category routing (sibling, daily)
+
+After the chat + embedding pipelines complete (and before the freshness check),
+three scripts inject per-category model picks into the 7 LLM-bearing
+`.windsurf/rules/ai/NN-*.md` packs:
+
+| Script | What it does |
+|---|---|
+| `classify_ai_category.py` | Pure-SQL classifier tags every active model in `agents` against the 7 LLM-bearing packs and writes rows to `agent_categories` (PK `(agent_id, category)`). Multi-category by design — a model that's strong for code AND long-context gets two rows. |
+| `category_route_mapper.py` | For each category in `ai_category_configs.yaml`, calls `category_selector.py` to pick the top-N by configured `sort_key` + floors. Writes pins to `agent_roles` with `role='openrouter:{category}'` + today's snapshot to `agent_roles_history`. Emits `openrouter_routes.json` (full detail) + `kilo_openrouter_routes_final.json` (Traycer-shaped compact form). |
+| `category_export_markdown.py` | Self-heal injection of `<!-- OPENROUTER_ROUTES:START/END -->` marker blocks into each pack + atomic refresh of the `Last content verification: YYYY-MM-DD` stamp. Mirror of `embedding_export_markdown.py:209-247`. |
+
+The 7 categories (per `ai_category_configs.yaml`):
+`language`, `code`, `vision`, `multimodal`, `agentic`, `long-context`, `speech-audio`.
+
+Failure semantics: per-script `|| echo "[openrouter-routing] X failed (non-fatal)" >> $LOG_FILE`
+so a crash here does NOT short-circuit the AI pack freshness check or extensions
+sync that run after. Operator kill-switch: `touch /tmp/.openrouter_routing_disabled`
+(silences the NEXT scheduled run; in-flight runs complete normally).
+
+Output shape in `cache/update.log` on success (per-category counts shown are live 2026-06-27 — actual counts vary with each category's `slots` / `min_quality_tier` / `allow_free` floors in `ai_category_configs.yaml`):
+
+```text
+[category_route_mapper] language: 3 routes → [...]
+[category_route_mapper] code: 3 routes → [...]
+[category_route_mapper] vision: 2 routes → [...]
+[category_route_mapper] multimodal: 2 routes → [...]
+[category_route_mapper] agentic: 3 routes → [...]
+[category_route_mapper] long-context: 2 routes → [...]
+[category_route_mapper] speech-audio: 1 routes → [...]
+[category_route_mapper] wrote 16 pins across 7 categories (0 skipped)
+[category_export_markdown] language: {'status': 'wrote', 'marker': 'replaced', 'stamp': 'replaced'}
+...
+```
+
+Cross-links:
+
+- Plan: [`docs/development/plans/2026-06-27-plan-openrouter-routing.md`](../development/plans/2026-06-27-plan-openrouter-routing.md)
+- Benchmark-source rationale (esp. the `:free` model coverage gap): [`docs/reference/kilo/BENCHMARK_SOURCES.md`](../reference/kilo/BENCHMARK_SOURCES.md) §4.5
+- Pack freshness consumer: [`scripts/check_ai_pack_freshness.py`](../../scripts/check_ai_pack_freshness.py) (regex contract at lines 25-26)
 
 ### AI rule pack freshness check (sibling, warn-only)
 
