@@ -165,6 +165,18 @@
   td.status.active { color: var(--good); }
   td.status.deprecated { color: var(--bad); }
   td.status.blocked { color: var(--bad); font-weight: 600; }
+  td.verified { text-align: right; font-variant-numeric: tabular-nums; font-size: 11px; }
+  td.verified.fresh { color: var(--good); }
+  td.verified.warn  { color: var(--warn); }
+  td.verified.stale { color: var(--bad); font-weight: 600; }
+  tr.stale td.cost::after { content: " ⚠"; color: var(--warn); font-size: 9px; }
+  tr.very-stale td.cost::after { content: " ⚠"; color: var(--bad); font-size: 9px; }
+  .stale-banner {
+    background: #422; color: var(--bad);
+    padding: 8px 10px; border-left: 3px solid var(--bad);
+    font-size: 12px; border-radius: 3px; margin-top: 12px;
+  }
+  .stale-banner.warn { background: #422a0a; color: var(--warn); border-color: var(--warn); }
   .detail {
     position: fixed; top: 0; right: -460px; bottom: 0;
     width: 460px; background: var(--panel); border-left: 1px solid var(--border);
@@ -256,6 +268,14 @@
       <span class="chip" data-status="pinned">pinned today</span>
     </div>
 
+    <h3>Pricing freshness</h3>
+    <div class="chip-grid">
+      <span class="chip" data-fresh="fresh">≤7d fresh</span>
+      <span class="chip" data-fresh="warn">8–30d</span>
+      <span class="chip" data-fresh="stale">&gt;30d stale</span>
+      <span class="chip" data-fresh="very-stale">&gt;90d</span>
+    </div>
+
     <h3>Quality Tier</h3>
     <div class="chip-grid" id="tiers">
       <span class="chip on" data-tier="1">T1 frontier</span>
@@ -309,8 +329,8 @@
           <th data-sort="id">ID</th>
           <th data-sort="name">Name</th>
           <th data-sort="provider">Provider</th>
-          <th data-sort="input_cost_per_m">$ in/M</th>
-          <th data-sort="output_cost_per_m">$ out/M</th>
+          <th data-sort="input_cost_per_m" title="USD per million input tokens">$/M in</th>
+          <th data-sort="output_cost_per_m" title="USD per million output tokens">$/M out</th>
           <th data-sort="context_window_k">Ctx (k)</th>
           <th data-sort="quality_tier">Tier</th>
           <th>Caps</th>
@@ -318,6 +338,7 @@
           <th data-sort="tbench_accuracy">TBench</th>
           <th>Categories</th>
           <th data-sort="status">Status</th>
+          <th data-sort="last_verified">Verified</th>
         </tr>
       </thead>
       <tbody id="tbody"></tbody>
@@ -344,6 +365,7 @@ const state = {
   tiers: new Set(["1", "2", "3", "4"]),
   cats: new Set(),
   providers: new Set(),
+  fresh: new Set(),
   costMin: null,
   costMax: null,
   ctxMin: null,
@@ -352,14 +374,38 @@ const state = {
   sortAsc: true,
 };
 
+// Pre-compute price-staleness age in days for every row so filtering and
+// row classNames are O(1).
+const TODAY = new Date(DATA.generated_at);
+function staleBucket(lastVerified) {
+  if (!lastVerified) return { bucket: "very-stale", days: null };
+  const d = new Date(lastVerified);
+  if (isNaN(d)) return { bucket: "very-stale", days: null };
+  const days = Math.floor((TODAY - d) / 86400000);
+  if (days <= 7) return { bucket: "fresh", days };
+  if (days <= 30) return { bucket: "warn", days };
+  if (days <= 90) return { bucket: "stale", days };
+  return { bucket: "very-stale", days };
+}
+for (const m of ALL) {
+  const s = staleBucket(m.last_verified);
+  m._staleBucket = s.bucket;
+  m._staleDays = s.days;
+}
+
 // ----- Header stats -----
 const s = DATA.stats;
+const staleCounts = { fresh: 0, warn: 0, stale: 0, "very-stale": 0 };
+for (const m of ALL) staleCounts[m._staleBucket]++;
 document.getElementById("stats").innerHTML =
-  `<strong>${s.chat_total}</strong> chat models · ` +
-  `<strong>${s.embedding_total}</strong> embedding models · ` +
+  `<strong>${s.chat_total}</strong> chat · ` +
+  `<strong>${s.embedding_total}</strong> embedding · ` +
   `<strong>${s.chat_active}</strong> active · ` +
   `<strong>${s.chat_free}</strong> free · ` +
   `<strong>${s.providers_total}</strong> providers · ` +
+  `prices <span style="color:var(--good)">${staleCounts.fresh}✓</span> ` +
+  `<span style="color:var(--warn)">${staleCounts.warn}~</span> ` +
+  `<span style="color:var(--bad)">${staleCounts.stale + staleCounts["very-stale"]}⚠</span> · ` +
   `refreshed ${new Date(DATA.generated_at).toLocaleString()}`;
 
 // ----- Build provider chips -----
@@ -389,6 +435,9 @@ initChips("cats", state.cats);
 initChips("tiers", state.tiers);
 document.querySelectorAll('.chip[data-status]').forEach(chip => {
   chip.onclick = () => { toggleChip(state.status, chip.dataset.status, chip); refresh(); };
+});
+document.querySelectorAll('.chip[data-fresh]').forEach(chip => {
+  chip.onclick = () => { toggleChip(state.fresh, chip.dataset.fresh, chip); refresh(); };
 });
 
 // ----- Inputs -----
@@ -453,6 +502,7 @@ function filterRow(m) {
   if (state.costMax !== null && (m.input_cost_per_m || 0) > state.costMax) return false;
   if (state.ctxMin !== null && (m.context_window_k || 0) < state.ctxMin) return false;
   if (state.ctxMax !== null && (m.context_window_k || 0) > state.ctxMax) return false;
+  if (state.fresh.size > 0 && !state.fresh.has(m._staleBucket)) return false;
   return true;
 }
 
@@ -520,6 +570,12 @@ function refresh() {
     if (m.blocked) { statusClass = "blocked"; statusLabel = "blocked"; }
     else if (m.status === "deprecated") { statusClass = "deprecated"; statusLabel = "deprecated"; }
     else if (m.status !== "active") { statusClass = "deprecated"; statusLabel = m.status || "?"; }
+    // Pricing staleness signals.
+    if (m._staleBucket === "stale") tr.classList.add("stale");
+    if (m._staleBucket === "very-stale") tr.classList.add("very-stale");
+    const verifiedLabel = m._staleDays === null
+      ? "?"
+      : (m._staleDays === 0 ? "today" : m._staleDays + "d");
     tr.innerHTML = `
       <td class="id">${idCol}${isPinned ? ' 📌' : ''}</td>
       <td>${m.name || ""}</td>
@@ -533,6 +589,7 @@ function refresh() {
       <td class="num">${m.tbench_accuracy ? m.tbench_accuracy.toFixed(1) : ""}</td>
       <td class="cats">${fmtCats(m)}</td>
       <td class="status ${statusClass}">${statusLabel}</td>
+      <td class="verified ${m._staleBucket}">${verifiedLabel}</td>
     `;
     tr.onclick = () => openDetail(m, tr);
     tbody.appendChild(tr);
@@ -573,8 +630,41 @@ function openDetail(m, tr) {
   const linkHtml = m.id && m.id.includes("/")
     ? `<h4>External</h4><a href="https://openrouter.ai/${m.id}" target="_blank">openrouter.ai/${m.id}</a>`
     : "";
+  // Pricing-staleness warning banner — surface clearly when the row's
+  // price columns haven't been refreshed by the daily OpenRouter
+  // scraper in a while (likely deprecated/delisted upstream).
+  let staleBanner = "";
+  if (m._staleBucket === "very-stale") {
+    staleBanner = `<div class="stale-banner">
+      ⚠ <strong>Prices may be wrong.</strong> OpenRouter has not returned this
+      model in the daily catalog scrape for <strong>${m._staleDays} days</strong>
+      (last_verified ${m.last_verified}). The price columns are frozen at their
+      last-fetched value — the model is likely deprecated or delisted upstream.
+      <br>Verify on
+      <a href="https://openrouter.ai/${m.id}" target="_blank">openrouter.ai/${m.id}</a>
+      before relying on these numbers.
+    </div>`;
+  } else if (m._staleBucket === "stale") {
+    staleBanner = `<div class="stale-banner warn">
+      Price last verified ${m._staleDays} days ago (${m.last_verified}). Cross-check
+      <a href="https://openrouter.ai/${m.id}" target="_blank">openrouter.ai/${m.id}</a>
+      if accuracy matters.
+    </div>`;
+  }
+  // Cost unit clarification at the top of the detail panel.
+  let costSummary = "";
+  if (m.input_cost_per_m !== null && m.input_cost_per_m !== undefined) {
+    const ci = m.input_cost_per_m, co = m.output_cost_per_m || 0;
+    costSummary = `<div style="font-size:13px;margin-bottom:10px;color:var(--muted)">
+      ${ci === 0 ? "<span style='color:var(--free);font-weight:600'>free</span>" : "$" + ci.toFixed(2)} /M input ·
+      ${co === 0 ? "<span style='color:var(--free);font-weight:600'>free</span>" : "$" + co.toFixed(2)} /M output
+      <span style="font-size:10px">(USD per million tokens)</span>
+    </div>`;
+  }
   body.innerHTML = `
     <h2>${m.id}</h2>
+    ${costSummary}
+    ${staleBanner}
     <dl>${fields.join("")}</dl>
     ${catHtml}
     ${pinHtml}
