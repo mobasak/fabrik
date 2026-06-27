@@ -369,8 +369,8 @@
           <th data-sort="id">ID</th>
           <th data-sort="name">Name</th>
           <th data-sort="provider">Provider</th>
-          <th data-sort="input_cost_per_m" title="USD per million input tokens">$/M in</th>
-          <th data-sort="output_cost_per_m" title="USD per million output tokens">$/M out</th>
+          <th data-sort="input_cost_per_m" title="USD per million input tokens. Source: OpenRouter for dual-routed + OR-only rows; Kilo Gateway for Kilo-only rows. Hover any cell for per-row source.">$/M in</th>
+          <th data-sort="output_cost_per_m" title="USD per million output tokens. Source: OpenRouter for dual-routed + OR-only rows; Kilo Gateway for Kilo-only rows. Hover any cell for per-row source.">$/M out</th>
           <th data-sort="context_window_k">Ctx (k)</th>
           <th data-sort="quality_tier">Tier</th>
           <th>Caps</th>
@@ -613,6 +613,14 @@ function fmtCost(v) {
   if (v === 0) return "<span class='free'>free</span>";
   return "$" + v.toFixed(v < 1 ? 2 : 2);
 }
+function priceSourceLabel(m) {
+  // Which gateway's price is in input_cost_per_m / output_cost_per_m?
+  // We always write OpenRouter's price when via_openrouter=1; Kilo's
+  // when only via_kilo=1.
+  if (m.via_openrouter) return "OpenRouter (api.openrouter.ai)";
+  if (m.via_kilo) return "Kilo Gateway (api.kilo.ai)";
+  return "unknown / deprecated";
+}
 function fmtCaps(m) {
   const flags = [
     ["V", m.has_vision], ["T", m.has_tools],
@@ -670,8 +678,8 @@ function refresh() {
       <td class="id">${idCol}${isPinned ? ' 📌' : ''}</td>
       <td>${m.name || ""}</td>
       <td>${m.provider || ""}</td>
-      <td class="cost">${fmtCost(m.input_cost_per_m)}</td>
-      <td class="cost">${fmtCost(m.output_cost_per_m)}</td>
+      <td class="cost" title="${priceSourceLabel(m)} — input cost">${fmtCost(m.input_cost_per_m)}</td>
+      <td class="cost" title="${priceSourceLabel(m)} — output cost">${fmtCost(m.output_cost_per_m)}</td>
       <td class="num">${m.context_window_k || ""}</td>
       <td class="tier t-${m.quality_tier || 0}">${m.quality_tier ? "T" + m.quality_tier : ""}</td>
       <td class="cap">${m.kind === "chat" ? fmtCaps(m) : "<span style='color:var(--muted)'>embed</span>"}</td>
