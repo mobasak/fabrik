@@ -122,9 +122,19 @@
     white-space: nowrap;
   }
   thead th:hover { color: var(--text); }
-  thead th.sorted { color: var(--accent); }
-  thead th.sorted::after { content: " ▾"; font-size: 9px; }
-  thead th.sorted.asc::after { content: " ▴"; }
+  thead th.sorted { color: var(--accent); background: #11141a; }
+  thead th.sorted::after {
+    content: " ▼ best→worst";
+    font-size: 9px;
+    color: var(--accent);
+    font-weight: 600;
+    letter-spacing: 0;
+    text-transform: none;
+    margin-left: 3px;
+  }
+  thead th.sorted.asc::after {
+    content: " ▲ worst→best";
+  }
   tbody td {
     padding: 8px 10px;
     border-bottom: 1px solid #1c1f27;
@@ -376,7 +386,7 @@
     <div class="toolbar">
       <span class="count" id="count"></span>
       <span style="flex: 1"></span>
-      <span class="count">Click row → details · Click column → sort</span>
+      <span class="count">Click row → details · Click column header → sort best→worst (click again to flip)</span>
     </div>
     <table>
       <thead>
@@ -433,8 +443,11 @@ const state = {
   costMax: null,
   ctxMin: null,
   ctxMax: null,
+  // Default: tier descending (T3 frontier first), so the page loads
+  // "best at the top" — same direction the user expects from clicking
+  // any column header for the first time.
   sortKey: "quality_tier",
-  sortAsc: true,
+  sortAsc: false,
 };
 
 // Pre-compute price-staleness age in days for every row so filtering and
