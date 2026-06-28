@@ -9,7 +9,7 @@ using **chrF++** (sacrebleu, WMT-standard since 2020), feeding the
 | Axis | v1 (2026-05-26) | v2 (this) |
 |---|---|---|
 | Metric | word-overlap (EU) / char-overlap (CJK) | **chrF++** (single metric across all scripts) |
-| Languages | 5 (TR/ES/PT/JA/ID) | **12** (+ AR/DE/FR/HI/KO/ZH/IT) |
+| Languages | 5 (TR/ES/PT/JA/ID) | **23** (v2 +AR/DE/FR/HI/KO/ZH/IT; v2.2 +BN/RU/UR top-10 + PL/NL/RO/EL/UK/SV/CS/HU common European) |
 | Models | 7 (mt-router TIER3 + DeepL + Azure) | **9** (adds operator's Kilo stack: GLM-5.2, Qwen3.7-Max, Gemini-3.1-Pro, gpt-oss-120b, deepseek-v4-flash) |
 | Corpus | 10 strings, GUI-only | **11+** strings, mixed (FLORES-200 prose + GUI + errors + placeholders) |
 | Resumable | no | **yes** (per-call cache; restart from any failure point) |
@@ -89,6 +89,25 @@ To expand: edit `corpus.json` directly. Reference quality matters more than
 sentence count — never add a sentence without a vetted reference for every
 target language, because chrF++ scores against the reference; a poor reference
 penalizes every model uniformly.
+
+## Sweet-spot models the operator tracks
+
+`models.yaml::sweet_spots` lists the routes the operator considers
+production-grade for i18n translation routing. Currently:
+
+- **`x-ai/grok-4.3`** — confirmed v2 leader (chrF++ avg 86.6 on 5 langs).
+  Reachable via OpenRouter, in the bake-off matrix.
+- **`qwen-mt-pro`** — Alibaba DashScope dedicated MT model, higher tier than
+  `qwen-mt-turbo`. **NOT yet testable via this harness** — DashScope's API
+  surface differs from OpenRouter's chat-completions shape, and the
+  harness currently only supports OpenRouter. To enable: extend `bake.py`
+  with a DashScope provider router that calls the
+  `https://dashscope-intl.aliyuncs.com/api/v1/services/aigc/text-generation/generation`
+  endpoint with a DashScope API key from `DASHSCOPE_API_KEY` env. The
+  request/response shape is documented at
+  `https://help.aliyun.com/zh/dashscope/developer-reference/api-details`.
+  Plumbing this in is ~50 LOC; the metric and corpus already work with
+  any provider that returns a translation string.
 
 ## Re-bake cadence
 

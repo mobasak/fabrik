@@ -108,6 +108,17 @@ LANG_NAMES = {
     "ko": "Korean",
     "zh": "Simplified Chinese",
     "it": "Italian",
+    "bn": "Bengali",
+    "ru": "Russian",
+    "ur": "Urdu",
+    "pl": "Polish",
+    "nl": "Dutch",
+    "ro": "Romanian",
+    "el": "Greek",
+    "uk": "Ukrainian",
+    "sv": "Swedish",
+    "cs": "Czech",
+    "hu": "Hungarian",
 }
 
 

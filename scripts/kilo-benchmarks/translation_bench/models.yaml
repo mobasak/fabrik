@@ -67,7 +67,10 @@ models:
 # Languages tested in v2 (12 vs v1's 5).
 # v1 covered: tr es pt ja id
 # v2 adds:    ar de fr hi ko zh it
+# v2.1 adds:  bn ru ur — completes "top 10 most spoken" coverage:
+#             EN (source) · ZH · HI · ES · FR · AR · BN · RU · PT · ID · UR
 languages:
+  # Top-10 most-spoken (after EN source): ZH HI ES FR AR BN RU PT ID UR
   - tr
   - es
   - pt
@@ -80,8 +83,28 @@ languages:
   - ko
   - zh
   - it
+  - bn
+  - ru
+  - ur
+  # Common European (added v2.2)
+  - pl
+  - nl
+  - ro
+  - el
+  - uk
+  - sv
+  - cs
+  - hu
+
+# Operator's sweet-spot models for translation routing — track these
+# separately for documentation purposes; the bake-off itself treats all
+# models equally.
+sweet_spots:
+  - x-ai/grok-4.3              # confirmed v2 leader (chrF++ avg 86.6)
+  - qwen/qwen-mt-pro           # DashScope-only; NOT yet testable via OpenRouter.
+                               # Needs DashScope provider routing extension.
 
 # Hard cost ceiling for one bake. Operator must approve before this is exceeded.
-# Realistic estimate: 11 sentences × 12 langs × 9 models × ~150 tokens in + 150 tokens out
-# = ~1.8M total tokens. At mixed prices, 2-5 USD.
+# v2.1 realistic estimate: 11 sentences × 15 langs × 9 models × ~150 tokens
+# in + 150 tokens out = ~4.5M total tokens. At mixed prices, $3-7.
 budget_usd: 10.00

@@ -1,0 +1,6 @@
+{
+  "translation": "Rebonjour, {name} ! Vous avez {count} nouvelles notifications.",
+  "input_tokens": 90,
+  "output_tokens": 16,
+  "timestamp": "2026-06-28T20:08:12.194884+00:00"
+}

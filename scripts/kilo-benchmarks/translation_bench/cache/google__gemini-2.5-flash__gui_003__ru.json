@@ -1,0 +1,6 @@
+{
+  "translation": "С возвращением, {name}! У вас {count} новых уведомлений.",
+  "input_tokens": 90,
+  "output_tokens": 16,
+  "timestamp": "2026-06-28T20:08:42.352679+00:00"
+}

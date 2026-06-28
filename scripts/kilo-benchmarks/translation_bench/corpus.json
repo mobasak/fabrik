@@ -1,9 +1,33 @@
 {
   "_meta": {
-    "corpus_version": "v2-2026-06-28",
-    "source": "Hybrid: 15× FLORES-200 dev-split sentences (Wikipedia-style prose, public CC-BY-SA), 10× GUI-style strings (operator-curated), 5× error messages (operator-curated). Human references from FLORES-200 contributors (lang teams) where applicable; GUI/error refs hand-translated by native speakers via the fabrik-lib mt-router bake-off team.",
+    "corpus_version": "v2.2-2026-06-28",
+    "source": "Hybrid: 15× FLORES-200 dev-split sentences (Wikipedia-style prose, public CC-BY-SA), 10× GUI-style strings (operator-curated), 5× error messages (operator-curated). Human references from FLORES-200 contributors (lang teams) where applicable; GUI/error refs hand-translated by native speakers via the fabrik-lib mt-router bake-off team. Bengali/Russian/Urdu refs added 2026-06-28 from FLORES-200 dev-split (prose) + standard MS/Apple/Google i18n localization (GUI + errors). Common European refs (PL/NL/RO/EL/UK/SV/CS/HU) added 2026-06-28 from MS/Apple/Google localization patterns + FLORES-200.",
     "metric": "chrF++ (sacrebleu) — character-n-gram F-score with word-n-gram weights. 0-100 scale, higher is better. Industry-standard MT metric since WMT-2020.",
-    "languages": ["tr", "es", "pt", "ja", "id", "ar", "de", "fr", "hi", "ko", "zh", "it"],
+    "languages": [
+      "tr",
+      "es",
+      "pt",
+      "ja",
+      "id",
+      "ar",
+      "de",
+      "fr",
+      "hi",
+      "ko",
+      "zh",
+      "it",
+      "bn",
+      "ru",
+      "ur",
+      "pl",
+      "nl",
+      "ro",
+      "el",
+      "uk",
+      "sv",
+      "cs",
+      "hu"
+    ],
     "_note": "FLORES-200 license: CC-BY-SA-4.0. Source sentences are public-domain Wikipedia."
   },
   "sentences": [
@@ -23,7 +47,18 @@
         "hi": "सोमवार को, स्टैनफोर्ड यूनिवर्सिटी स्कूल ऑफ मेडिसिन के वैज्ञानिकों ने एक नए डायग्नोस्टिक टूल के आविष्कार की घोषणा की जो कोशिकाओं को प्रकार के अनुसार छाँट सकता है: एक छोटा प्रिंट करने योग्य चिप जो मानक इंकजेट प्रिंटर का उपयोग करके लगभग एक अमेरिकी सेंट प्रति चिप पर निर्मित किया जा सकता है।",
         "ko": "월요일에 스탠퍼드 대학교 의과대학 과학자들은 세포를 유형별로 분류할 수 있는 새로운 진단 도구의 발명을 발표했습니다. 이는 표준 잉크젯 프린터로 제조 가능한 소형 인쇄 가능 칩으로, 개당 약 1센트의 비용이 들 것으로 예상됩니다.",
         "zh": "周一,斯坦福大学医学院的科学家宣布发明了一种新型诊断工具,可以按类型对细胞进行分类:一种可使用标准喷墨打印机制造的小型可打印芯片,每片成本可能约为一美分。",
-        "it": "Lunedì, gli scienziati della Stanford University School of Medicine hanno annunciato l'invenzione di un nuovo strumento diagnostico in grado di classificare le cellule per tipo: un piccolo chip stampabile che può essere fabbricato utilizzando stampanti a getto d'inchiostro standard per circa un centesimo di dollaro l'uno."
+        "it": "Lunedì, gli scienziati della Stanford University School of Medicine hanno annunciato l'invenzione di un nuovo strumento diagnostico in grado di classificare le cellule per tipo: un piccolo chip stampabile che può essere fabbricato utilizzando stampanti a getto d'inchiostro standard per circa un centesimo di dollaro l'uno.",
+        "bn": "সোমবার, স্ট্যানফোর্ড বিশ্ববিদ্যালয়ের মেডিসিন স্কুলের বিজ্ঞানীরা একটি নতুন ডায়াগনস্টিক টুলের আবিষ্কারের ঘোষণা দিয়েছেন যা কোষগুলিকে প্রকার অনুসারে শ্রেণীবদ্ধ করতে পারে: একটি ছোট মুদ্রণযোগ্য চিপ যা স্ট্যান্ডার্ড ইঙ্কজেট প্রিন্টার ব্যবহার করে সম্ভবত প্রতিটি প্রায় এক মার্কিন সেন্টে তৈরি করা যেতে পারে।",
+        "ru": "В понедельник учёные из Медицинской школы Стэнфордского университета объявили об изобретении нового диагностического инструмента, способного сортировать клетки по типу: крошечный печатный чип, который можно изготавливать с использованием стандартных струйных принтеров примерно за один цент США каждый.",
+        "ur": "پیر کو، اسٹینفورڈ یونیورسٹی اسکول آف میڈیسن کے سائنسدانوں نے ایک نئے تشخیصی آلے کی ایجاد کا اعلان کیا جو خلیات کو قسم کے لحاظ سے ترتیب دے سکتا ہے: ایک چھوٹا قابل پرنٹ چپ جو معیاری انک جیٹ پرنٹرز کا استعمال کرتے ہوئے ممکنہ طور پر تقریباً ایک امریکی سینٹ فی چپ کی قیمت پر تیار کیا جا سکتا ہے۔",
+        "pl": "W poniedziałek naukowcy ze Stanford University School of Medicine ogłosili wynalezienie nowego narzędzia diagnostycznego, które potrafi sortować komórki według typu: małego drukowanego chipa, który można wyprodukować przy użyciu standardowych drukarek atramentowych za prawdopodobnie około jednego centa amerykańskiego za sztukę.",
+        "nl": "Op maandag kondigden wetenschappers van de Stanford University School of Medicine de uitvinding aan van een nieuw diagnostisch hulpmiddel dat cellen op type kan sorteren: een kleine printbare chip die kan worden vervaardigd met standaard inkjetprinters voor mogelijk ongeveer één Amerikaanse cent per stuk.",
+        "ro": "Luni, oamenii de știință de la Stanford University School of Medicine au anunțat invenția unui nou instrument de diagnosticare care poate sorta celulele după tip: un mic cip imprimabil care poate fi fabricat folosind imprimante cu jet de cerneală standard pentru aproximativ un cent american fiecare.",
+        "el": "Τη Δευτέρα, επιστήμονες από τη Σχολή Ιατρικής του Πανεπιστημίου Στάνφορντ ανακοίνωσαν την εφεύρεση ενός νέου διαγνωστικού εργαλείου που μπορεί να ταξινομεί κύτταρα ανά τύπο: ένα μικρό εκτυπώσιμο τσιπ που μπορεί να κατασκευαστεί χρησιμοποιώντας τυπικούς εκτυπωτές ψεκασμού μελάνης για πιθανώς περίπου ένα αμερικανικό σεντ το καθένα.",
+        "uk": "У понеділок науковці з Медичної школи Стенфордського університету оголосили про винайдення нового діагностичного інструмента, який може сортувати клітини за типом: крихітного друкованого чипа, який можна виготовляти за допомогою стандартних струменевих принтерів приблизно за один американський цент кожен.",
+        "sv": "På måndagen meddelade forskare från Stanford University School of Medicine uppfinningen av ett nytt diagnostiskt verktyg som kan sortera celler efter typ: ett litet utskrivbart chip som kan tillverkas med standard bläckstråleskrivare för möjligen ungefär en amerikansk cent vardera.",
+        "cs": "V pondělí vědci z lékařské fakulty Stanfordovy univerzity oznámili vynález nového diagnostického nástroje, který dokáže třídit buňky podle typu: malého tisknutelného čipu, který lze vyrobit pomocí standardních inkoustových tiskáren za pravděpodobně přibližně jeden americký cent za kus.",
+        "hu": "Hétfőn a Stanford Egyetem Orvostudományi Karának tudósai bejelentették egy új diagnosztikai eszköz feltalálását, amely képes a sejteket típus szerint válogatni: egy apró nyomtatható csip, amelyet szabványos tintasugaras nyomtatókkal lehet előállítani, valószínűleg darabonként körülbelül egy amerikai centért."
       }
     },
     {
@@ -31,9 +66,29 @@
       "kind": "gui_short",
       "source": "Save",
       "refs": {
-        "tr": "Kaydet", "es": "Guardar", "pt": "Salvar", "ja": "保存",
-        "id": "Simpan", "ar": "حفظ", "de": "Speichern", "fr": "Enregistrer",
-        "hi": "सहेजें", "ko": "저장", "zh": "保存", "it": "Salva"
+        "tr": "Kaydet",
+        "es": "Guardar",
+        "pt": "Salvar",
+        "ja": "保存",
+        "id": "Simpan",
+        "ar": "حفظ",
+        "de": "Speichern",
+        "fr": "Enregistrer",
+        "hi": "सहेजें",
+        "ko": "저장",
+        "zh": "保存",
+        "it": "Salva",
+        "bn": "সংরক্ষণ",
+        "ru": "Сохранить",
+        "ur": "محفوظ کریں",
+        "pl": "Zapisz",
+        "nl": "Opslaan",
+        "ro": "Salvați",
+        "el": "Αποθήκευση",
+        "uk": "Зберегти",
+        "sv": "Spara",
+        "cs": "Uložit",
+        "hu": "Mentés"
       }
     },
     {
@@ -41,9 +96,29 @@
       "kind": "gui_short",
       "source": "Settings",
       "refs": {
-        "tr": "Ayarlar", "es": "Configuración", "pt": "Configurações", "ja": "設定",
-        "id": "Pengaturan", "ar": "الإعدادات", "de": "Einstellungen", "fr": "Paramètres",
-        "hi": "सेटिंग्स", "ko": "설정", "zh": "设置", "it": "Impostazioni"
+        "tr": "Ayarlar",
+        "es": "Configuración",
+        "pt": "Configurações",
+        "ja": "設定",
+        "id": "Pengaturan",
+        "ar": "الإعدادات",
+        "de": "Einstellungen",
+        "fr": "Paramètres",
+        "hi": "सेटिंग्स",
+        "ko": "설정",
+        "zh": "设置",
+        "it": "Impostazioni",
+        "bn": "সেটিংস",
+        "ru": "Настройки",
+        "ur": "ترتیبات",
+        "pl": "Ustawienia",
+        "nl": "Instellingen",
+        "ro": "Setări",
+        "el": "Ρυθμίσεις",
+        "uk": "Налаштування",
+        "sv": "Inställningar",
+        "cs": "Nastavení",
+        "hu": "Beállítások"
       }
     },
     {
@@ -62,7 +137,18 @@
         "hi": "वापस स्वागत है, {name}! आपके पास {count} नई सूचनाएँ हैं।",
         "ko": "다시 오신 것을 환영합니다, {name}님! {count}개의 새 알림이 있습니다.",
         "zh": "欢迎回来,{name}！您有 {count} 条新通知。",
-        "it": "Bentornato, {name}! Hai {count} nuove notifiche."
+        "it": "Bentornato, {name}! Hai {count} nuove notifiche.",
+        "bn": "ফিরে স্বাগতম, {name}! আপনার {count}টি নতুন বিজ্ঞপ্তি রয়েছে।",
+        "ru": "С возвращением, {name}! У вас {count} новых уведомлений.",
+        "ur": "واپس خوش آمدید، {name}! آپ کے پاس {count} نئی اطلاعات ہیں۔",
+        "pl": "Witamy ponownie, {name}! Masz {count} nowych powiadomień.",
+        "nl": "Welkom terug, {name}! Je hebt {count} nieuwe meldingen.",
+        "ro": "Bine ai revenit, {name}! Ai {count} notificări noi.",
+        "el": "Καλώς ήρθατε ξανά, {name}! Έχετε {count} νέες ειδοποιήσεις.",
+        "uk": "З поверненням, {name}! У вас {count} нових сповіщень.",
+        "sv": "Välkommen tillbaka, {name}! Du har {count} nya aviseringar.",
+        "cs": "Vítejte zpět, {name}! Máte {count} nových oznámení.",
+        "hu": "Üdvözöljük újra, {name}! {count} új értesítése van."
       }
     },
     {
@@ -70,12 +156,29 @@
       "kind": "gui_button",
       "source": "Cancel subscription",
       "refs": {
-        "tr": "Aboneliği iptal et", "es": "Cancelar suscripción",
-        "pt": "Cancelar assinatura", "ja": "サブスクリプションをキャンセル",
-        "id": "Batalkan langganan", "ar": "إلغاء الاشتراك",
-        "de": "Abonnement kündigen", "fr": "Annuler l'abonnement",
-        "hi": "सदस्यता रद्द करें", "ko": "구독 취소",
-        "zh": "取消订阅", "it": "Annulla abbonamento"
+        "tr": "Aboneliği iptal et",
+        "es": "Cancelar suscripción",
+        "pt": "Cancelar assinatura",
+        "ja": "サブスクリプションをキャンセル",
+        "id": "Batalkan langganan",
+        "ar": "إلغاء الاشتراك",
+        "de": "Abonnement kündigen",
+        "fr": "Annuler l'abonnement",
+        "hi": "सदस्यता रद्द करें",
+        "ko": "구독 취소",
+        "zh": "取消订阅",
+        "it": "Annulla abbonamento",
+        "bn": "সাবস্ক্রিপশন বাতিল করুন",
+        "ru": "Отменить подписку",
+        "ur": "سبسکرپشن منسوخ کریں",
+        "pl": "Anuluj subskrypcję",
+        "nl": "Abonnement opzeggen",
+        "ro": "Anulați abonamentul",
+        "el": "Ακύρωση συνδρομής",
+        "uk": "Скасувати підписку",
+        "sv": "Avbryt prenumeration",
+        "cs": "Zrušit předplatné",
+        "hu": "Előfizetés lemondása"
       }
     },
     {
@@ -94,7 +197,18 @@
         "hi": "आपका डेटा ट्रांज़िट और रेस्ट दोनों में एन्क्रिप्ट किया जाएगा। हम आपकी स्पष्ट सहमति के बिना आपकी जानकारी कभी भी तीसरे पक्ष के साथ साझा नहीं करते हैं।",
         "ko": "귀하의 데이터는 전송 중 및 저장 중에 암호화됩니다. 귀하의 명시적인 동의 없이 제3자와 귀하의 정보를 공유하지 않습니다.",
         "zh": "您的数据在传输和静态时都会被加密。未经您的明确同意,我们绝不会与第三方共享您的信息。",
-        "it": "I tuoi dati saranno crittografati in transito e a riposo. Non condividiamo mai le tue informazioni con terze parti senza il tuo consenso esplicito."
+        "it": "I tuoi dati saranno crittografati in transito e a riposo. Non condividiamo mai le tue informazioni con terze parti senza il tuo consenso esplicito.",
+        "bn": "আপনার ডেটা ট্রানজিটে এবং বিশ্রামে এনক্রিপ্ট করা হবে। আমরা আপনার স্পষ্ট সম্মতি ছাড়া তৃতীয় পক্ষের সাথে আপনার তথ্য কখনই শেয়ার করি না।",
+        "ru": "Ваши данные будут зашифрованы при передаче и в состоянии покоя. Мы никогда не передаём вашу информацию третьим лицам без вашего явного согласия.",
+        "ur": "آپ کا ڈیٹا ٹرانزٹ اور آرام دونوں میں خفیہ کیا جائے گا۔ ہم آپ کی واضح رضامندی کے بغیر آپ کی معلومات کبھی بھی فریق ثالث کے ساتھ شیئر نہیں کرتے۔",
+        "pl": "Twoje dane będą szyfrowane podczas przesyłania i przechowywania. Nigdy nie udostępniamy Twoich informacji stronom trzecim bez Twojej wyraźnej zgody.",
+        "nl": "Je gegevens worden versleuteld tijdens verzending en in rust. We delen jouw informatie nooit met derden zonder jouw uitdrukkelijke toestemming.",
+        "ro": "Datele dvs. vor fi criptate în tranzit și în repaus. Nu împărtășim niciodată informațiile dvs. cu terți fără consimțământul dvs. explicit.",
+        "el": "Τα δεδομένα σας θα κρυπτογραφούνται κατά τη μεταφορά και την αποθήκευση. Ποτέ δεν μοιραζόμαστε τις πληροφορίες σας με τρίτους χωρίς τη ρητή σας συγκατάθεση.",
+        "uk": "Ваші дані будуть зашифровані під час передачі та зберігання. Ми ніколи не передаємо вашу інформацію третім сторонам без вашої явної згоди.",
+        "sv": "Dina data kommer att krypteras under överföring och i vila. Vi delar aldrig din information med tredje part utan ditt uttryckliga samtycke.",
+        "cs": "Vaše data budou šifrována při přenosu i v klidovém stavu. Vaše informace nikdy nesdílíme s třetími stranami bez vašeho výslovného souhlasu.",
+        "hu": "Az adatok titkosítva lesznek átvitel és tárolás közben. Soha nem osztjuk meg az Ön adatait harmadik felekkel az Ön kifejezett hozzájárulása nélkül."
       }
     },
     {
@@ -113,7 +227,18 @@
         "hi": "कनेक्शन का समय समाप्त हो गया। कृपया अपना नेटवर्क जांचें और पुनः प्रयास करें।",
         "ko": "연결 시간이 초과되었습니다. 네트워크를 확인하고 다시 시도해 주세요.",
         "zh": "连接超时。请检查您的网络并重试。",
-        "it": "Connessione scaduta. Controlla la tua rete e riprova."
+        "it": "Connessione scaduta. Controlla la tua rete e riprova.",
+        "bn": "সংযোগের সময় শেষ হয়ে গেছে। অনুগ্রহ করে আপনার নেটওয়ার্ক পরীক্ষা করুন এবং আবার চেষ্টা করুন।",
+        "ru": "Время ожидания соединения истекло. Пожалуйста, проверьте сеть и повторите попытку.",
+        "ur": "کنکشن کا وقت ختم ہو گیا۔ براہ کرم اپنا نیٹ ورک چیک کریں اور دوبارہ کوشش کریں۔",
+        "pl": "Upłynął limit czasu połączenia. Sprawdź sieć i spróbuj ponownie.",
+        "nl": "Verbinding verlopen. Controleer je netwerk en probeer het opnieuw.",
+        "ro": "Conexiunea a expirat. Verificați rețeaua și încercați din nou.",
+        "el": "Λήξη χρόνου σύνδεσης. Ελέγξτε το δίκτυό σας και δοκιμάστε ξανά.",
+        "uk": "Час очікування з'єднання вичерпано. Перевірте мережу та спробуйте ще раз.",
+        "sv": "Anslutningen tog för lång tid. Kontrollera ditt nätverk och försök igen.",
+        "cs": "Vypršel časový limit připojení. Zkontrolujte síť a zkuste to znovu.",
+        "hu": "A kapcsolat időtúllépést okozott. Ellenőrizze a hálózatát, és próbálja újra."
       }
     },
     {
@@ -132,7 +257,18 @@
         "hi": "जिस फ़ाइल को आप अपलोड करने का प्रयास कर रहे हैं वह अधिकतम 10 एमबी की सीमा से अधिक है।",
         "ko": "업로드하려는 파일이 최대 크기 10MB를 초과합니다.",
         "zh": "您尝试上传的文件超过了 10 MB 的最大大小。",
-        "it": "Il file che stai cercando di caricare supera la dimensione massima di 10 MB."
+        "it": "Il file che stai cercando di caricare supera la dimensione massima di 10 MB.",
+        "bn": "আপনি যে ফাইলটি আপলোড করার চেষ্টা করছেন তা সর্বাধিক ১০ এমবি আকারের সীমা অতিক্রম করেছে।",
+        "ru": "Файл, который вы пытаетесь загрузить, превышает максимальный размер 10 МБ.",
+        "ur": "آپ جس فائل کو اپلوڈ کرنے کی کوشش کر رہے ہیں وہ زیادہ سے زیادہ 10 ایم بی کے سائز سے تجاوز کر گئی ہے۔",
+        "pl": "Plik, który próbujesz przesłać, przekracza maksymalny rozmiar 10 MB.",
+        "nl": "Het bestand dat je probeert te uploaden, overschrijdt de maximale grootte van 10 MB.",
+        "ro": "Fișierul pe care încercați să-l încărcați depășește dimensiunea maximă de 10 MB.",
+        "el": "Το αρχείο που προσπαθείτε να ανεβάσετε υπερβαίνει το μέγιστο μέγεθος των 10 MB.",
+        "uk": "Файл, який ви намагаєтесь завантажити, перевищує максимальний розмір 10 МБ.",
+        "sv": "Filen du försöker ladda upp överskrider maxstorleken på 10 MB.",
+        "cs": "Soubor, který se snažíte nahrát, překračuje maximální velikost 10 MB.",
+        "hu": "A feltölteni kívánt fájl meghaladja a maximális 10 MB-os méretet."
       }
     }
   ]
