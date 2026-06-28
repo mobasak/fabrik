@@ -325,6 +325,11 @@
       <span class="chip" data-fresh="very-stale">&gt;90d</span>
     </div>
 
+    <h3>Coding score</h3>
+    <div class="chip-grid">
+      <span class="chip" data-coding="has_code" title="Hide rows without ANY explicit coding signal (SWE / Aider / weighted_coding / design_arena_coding). Useful when sorting by Best Code.">has Best Code</span>
+    </div>
+
     <h3>Quality Tier</h3>
     <div class="chip-grid" id="tiers">
       <span class="chip on" data-tier="1">T1 frontier</span>
@@ -383,7 +388,7 @@
           <th data-sort="context_window_k">Ctx (k)</th>
           <th data-sort="quality_tier">Tier</th>
           <th>Caps</th>
-          <th data-sort="_best_code_score" title="Best-available coding signal per row. Priority: SWE-bench Verified > Aider Polyglot > weighted_coding (BenchLM) > design_arena_coding (normalized). Hover the cell to see which signal drove the number.">Best Code</th>
+          <th data-sort="_best_code_score" title="Best-available coding signal per row, max'd across SWE-bench Verified + SWE-bench Multilingual, then falling back through Aider Polyglot > weighted_coding (BenchLM) > design_arena_coding ELO normalized to 0-100. CAVEAT: scores from different sources aren't strictly comparable (a SWE 75 ≠ an Aider 75 ≠ a DA 1280). Hover any cell to see which source drove the number. Click to sort descending; toggle 'has Best Code' chip in the sidebar to hide rows without any explicit coding signal.">Best Code</th>
           <th data-sort="arena_elo" title="Chatbot Arena ELO (LMSys / openlm.ai)">Arena</th>
           <th data-sort="tbench_accuracy" title="Terminal Bench 2.0 % (tbench.ai)">TBench</th>
           <th data-sort="aa_intelligence_index" title="Artificial Analysis Intelligence Index (artificialanalysis.ai)">AA</th>
@@ -423,6 +428,7 @@ const state = {
   providers: new Set(),
   fresh: new Set(),
   sources: new Set(),
+  coding: new Set(),
   costMin: null,
   costMax: null,
   ctxMin: null,
@@ -547,6 +553,9 @@ document.querySelectorAll('.chip[data-fresh]').forEach(chip => {
 document.querySelectorAll('.chip[data-source]').forEach(chip => {
   chip.onclick = () => { toggleChip(state.sources, chip.dataset.source, chip); refresh(); };
 });
+document.querySelectorAll('.chip[data-coding]').forEach(chip => {
+  chip.onclick = () => { toggleChip(state.coding, chip.dataset.coding, chip); refresh(); };
+});
 
 // ----- Inputs -----
 document.getElementById("search").addEventListener("input", e => {
@@ -630,6 +639,8 @@ function filterRow(m) {
   if (state.ctxMin !== null && (m.context_window_k || 0) < state.ctxMin) return false;
   if (state.ctxMax !== null && (m.context_window_k || 0) > state.ctxMax) return false;
   if (state.fresh.size > 0 && !state.fresh.has(m._staleBucket)) return false;
+  // "has Best Code" chip hides rows without any explicit coding signal.
+  if (state.coding.has("has_code") && m._best_code_score === null) return false;
   if (state.sources.size > 0) {
     let pass = false;
     const viaOr = !!m.via_openrouter;
