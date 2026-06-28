@@ -31,7 +31,6 @@ import argparse
 import json
 import os
 import sys
-import time
 import urllib.error
 import urllib.request
 from collections import defaultdict
@@ -63,6 +62,7 @@ def _today_utc_iso() -> str:
 
 
 # ---------- I/O ----------
+
 
 def load_corpus() -> dict:
     return json.loads(CORPUS_PATH.read_text(encoding="utf-8"))
@@ -96,9 +96,18 @@ def cache_save(model_id: str, sentence_id: str, lang: str, payload: dict) -> Non
 # ---------- prompts ----------
 
 LANG_NAMES = {
-    "tr": "Turkish", "es": "Spanish", "pt": "Portuguese", "ja": "Japanese",
-    "id": "Indonesian", "ar": "Arabic", "de": "German", "fr": "French",
-    "hi": "Hindi", "ko": "Korean", "zh": "Simplified Chinese", "it": "Italian",
+    "tr": "Turkish",
+    "es": "Spanish",
+    "pt": "Portuguese",
+    "ja": "Japanese",
+    "id": "Indonesian",
+    "ar": "Arabic",
+    "de": "German",
+    "fr": "French",
+    "hi": "Hindi",
+    "ko": "Korean",
+    "zh": "Simplified Chinese",
+    "it": "Italian",
 }
 
 
@@ -126,21 +135,29 @@ def build_prompt(source: str, target_lang: str, kind: str) -> tuple[str, str]:
 
 # ---------- OpenRouter client ----------
 
-def call_openrouter(model_id: str, system: str, user: str,
-                    max_tokens: int = 600, temperature: float = 0.0,
-                    timeout_s: int = 60) -> tuple[str, int, int]:
+
+def call_openrouter(
+    model_id: str,
+    system: str,
+    user: str,
+    max_tokens: int = 600,
+    temperature: float = 0.0,
+    timeout_s: int = 60,
+) -> tuple[str, int, int]:
     """Returns (text, input_tokens, output_tokens)."""
     if not OR_KEY:
         raise RuntimeError("OPENROUTER_API_KEY not set in env")
-    body = json.dumps({
-        "model": model_id,
-        "messages": [
-            {"role": "system", "content": system},
-            {"role": "user", "content": user},
-        ],
-        "max_tokens": max_tokens,
-        "temperature": temperature,
-    }).encode("utf-8")
+    body = json.dumps(
+        {
+            "model": model_id,
+            "messages": [
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ],
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+        }
+    ).encode("utf-8")
     req = urllib.request.Request(
         OR_URL,
         data=body,
@@ -165,32 +182,29 @@ def call_openrouter(model_id: str, system: str, user: str,
 # are read from agents.input_cost_per_m / output_cost_per_m in the DB if
 # available, but for dry-run we want a quick proxy).
 ROUGH_PRICES = {
-    "deepseek/deepseek-v3.2":                 (0.23, 0.34),
-    "google/gemini-2.5-flash":                (0.30, 2.50),
-    "x-ai/grok-4.3":                          (1.25, 2.50),
+    "deepseek/deepseek-v3.2": (0.23, 0.34),
+    "google/gemini-2.5-flash": (0.30, 2.50),
+    "x-ai/grok-4.3": (1.25, 2.50),
     "mistralai/mistral-small-3.2-24b-instruct": (0.07, 0.20),
-    "z-ai/glm-5.2":                           (0.95, 3.00),
-    "qwen/qwen3.7-max":                       (1.25, 3.75),
-    "google/gemini-3.1-pro-preview":          (2.00, 12.00),
-    "openai/gpt-oss-120b":                    (0.03, 0.15),
-    "deepseek/deepseek-v4-flash":             (0.09, 0.18),
+    "z-ai/glm-5.2": (0.95, 3.00),
+    "qwen/qwen3.7-max": (1.25, 3.75),
+    "google/gemini-3.1-pro-preview": (2.00, 12.00),
+    "openai/gpt-oss-120b": (0.03, 0.15),
+    "deepseek/deepseek-v4-flash": (0.09, 0.18),
 }
 
 
-def estimate_cost(corpus: dict, models_cfg: dict,
-                  langs: list[str] | None,
-                  models: list[str] | None) -> tuple[float, int]:
+def estimate_cost(
+    corpus: dict, models_cfg: dict, langs: list[str] | None, models: list[str] | None
+) -> tuple[float, int]:
     """Returns (estimated_usd, total_calls)."""
     if langs is None:
         langs = models_cfg["languages"]
     n_langs = len(langs)
-    chosen_models = [m for m in models_cfg["models"]
-                     if (models is None or m["id"] in models)]
+    chosen_models = [m for m in models_cfg["models"] if (models is None or m["id"] in models)]
     n_sentences = len(corpus["sentences"])
     total_calls = n_sentences * n_langs * len(chosen_models)
-    # Estimate per-call tokens: 100 in (prompt+source) + 100 out (translation avg)
-    total_input = total_calls * 100
-    total_output = total_calls * 100
+    # Per-call token estimate: 100 in (prompt+source) + 100 out (translation avg)
     est = 0.0
     for m in chosen_models:
         rin, rout = ROUGH_PRICES.get(m["id"], (1.0, 3.0))
@@ -202,21 +216,27 @@ def estimate_cost(corpus: dict, models_cfg: dict,
 
 # ---------- bake loop ----------
 
-def run_bake(corpus: dict, models_cfg: dict,
-             langs: list[str] | None, models_filter: list[str] | None,
-             resume: bool) -> dict:
+
+def run_bake(
+    corpus: dict,
+    models_cfg: dict,
+    langs: list[str] | None,
+    models_filter: list[str] | None,
+    resume: bool,
+) -> dict:
     """Execute the bake. Returns a results dict suitable for writing
     to RESULTS_PATH + downstream DB integration."""
     if langs is None:
         langs = models_cfg["languages"]
-    chosen_models = [m for m in models_cfg["models"]
-                     if (models_filter is None or m["id"] in models_filter)]
+    chosen_models = [
+        m for m in models_cfg["models"] if (models_filter is None or m["id"] in models_filter)
+    ]
     defaults = models_cfg.get("defaults") or {}
 
     # results[model_id][lang] = {scores: [...], n: int, avg: float}
-    results: dict[str, dict[str, dict]] = defaultdict(lambda: defaultdict(
-        lambda: {"per_sentence": [], "avg_chrf": None}
-    ))
+    results: dict[str, dict[str, dict]] = defaultdict(
+        lambda: defaultdict(lambda: {"per_sentence": [], "avg_chrf": None})
+    )
     cost_usd = 0.0
     calls = 0
     cache_hits = 0
@@ -243,7 +263,9 @@ def run_bake(corpus: dict, models_cfg: dict,
                     try:
                         system, user = build_prompt(s["source"], lang, s["kind"])
                         text, in_tok, out_tok = call_openrouter(
-                            mid, system, user,
+                            mid,
+                            system,
+                            user,
                             max_tokens=defaults.get("max_tokens", 600),
                             temperature=defaults.get("temperature", 0.0),
                             timeout_s=defaults.get("timeout_s", 60),
@@ -251,12 +273,17 @@ def run_bake(corpus: dict, models_cfg: dict,
                         hyp = text
                         cost_usd += rin * in_tok / 1_000_000 + rout * out_tok / 1_000_000
                         calls += 1
-                        cache_save(mid, s["id"], lang, {
-                            "translation": hyp,
-                            "input_tokens": in_tok,
-                            "output_tokens": out_tok,
-                            "timestamp": datetime.now(UTC).isoformat(),
-                        })
+                        cache_save(
+                            mid,
+                            s["id"],
+                            lang,
+                            {
+                                "translation": hyp,
+                                "input_tokens": in_tok,
+                                "output_tokens": out_tok,
+                                "timestamp": datetime.now(UTC).isoformat(),
+                            },
+                        )
                     except (urllib.error.HTTPError, urllib.error.URLError, Exception) as e:
                         _log(f"FAIL {mid:<40} {lang:<3} {s['id']:<10}: {e}")
                         failures += 1
@@ -264,8 +291,7 @@ def run_bake(corpus: dict, models_cfg: dict,
 
                 ref = s["refs"][lang]
                 score = chrf_plus_plus(hyp, [ref])
-                scores.append({"id": s["id"], "kind": s["kind"],
-                               "hyp": hyp, "score": score})
+                scores.append({"id": s["id"], "kind": s["kind"], "hyp": hyp, "score": score})
                 if done % 20 == 0:
                     _log(f"  progress: {done}/{total} (${cost_usd:.4f} so far)")
 
@@ -291,18 +317,23 @@ def run_bake(corpus: dict, models_cfg: dict,
 
 # ---------- DB integration ----------
 
+
 def write_to_db(results: dict, db_path: Path) -> dict:
     """Write each model's per-lang chrF++ scores into agents.translation_quality
     JSON + the avg into translation_avg_pct."""
     import sqlite3
+
     conn = sqlite3.connect(db_path)
     today = _today_utc_iso()
     counts = {"updated": 0, "skipped": 0}
     try:
         conn.execute("BEGIN")
         for mid, by_lang in results["results"].items():
-            scores = {lang: by["avg_chrf"] for lang, by in by_lang.items()
-                      if by.get("avg_chrf") is not None}
+            scores = {
+                lang: by["avg_chrf"]
+                for lang, by in by_lang.items()
+                if by.get("avg_chrf") is not None
+            }
             if not scores:
                 counts["skipped"] += 1
                 continue
@@ -331,17 +362,24 @@ def write_to_db(results: dict, db_path: Path) -> dict:
 
 # ---------- CLI ----------
 
+
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--dry-run", action="store_true", help="estimate cost only")
     p.add_argument("--langs", help="comma-separated subset (e.g. tr,es)")
     p.add_argument("--models", help="comma-separated subset of model id substrings")
     p.add_argument("--resume", action="store_true", help="reuse cached translations")
-    p.add_argument("--db", type=Path,
-                   default=SCRIPT_DIR.parent / "kilo_agents.db",
-                   help="agents DB to update on completion")
-    p.add_argument("--no-db", action="store_true",
-                   help="don't write results into the DB (only emit results.json)")
+    p.add_argument(
+        "--db",
+        type=Path,
+        default=SCRIPT_DIR.parent / "kilo_agents.db",
+        help="agents DB to update on completion",
+    )
+    p.add_argument(
+        "--no-db",
+        action="store_true",
+        help="don't write results into the DB (only emit results.json)",
+    )
     args = p.parse_args()
 
     corpus = load_corpus()
@@ -351,8 +389,9 @@ def main() -> int:
     models_filter = None
     if args.models:
         wanted_substrs = args.models.split(",")
-        models_filter = [m["id"] for m in models_cfg["models"]
-                         if any(w in m["id"] for w in wanted_substrs)]
+        models_filter = [
+            m["id"] for m in models_cfg["models"] if any(w in m["id"] for w in wanted_substrs)
+        ]
         _log(f"models filtered to: {models_filter}")
 
     est_usd, total_calls = estimate_cost(corpus, models_cfg, langs, models_filter)
