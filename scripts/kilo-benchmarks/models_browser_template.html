@@ -774,7 +774,7 @@ function refresh() {
       <td class="num">${m.context_window_k || ""}</td>
       <td class="tier t-${m.quality_tier || 0}" title="${m.quality_tier ? '' : 'Not yet rated by the local ranking pipeline'}">${m.quality_tier ? "T" + m.quality_tier : "—"}</td>
       <td class="cap">${m.kind === "chat" ? fmtCaps(m) : "<span style='color:var(--muted)'>embed</span>"}</td>
-      <td class="num" title="${m._best_code_label ? 'Strongest available coding signal: ' + m._best_code_label : 'No coding signal — likely tier'd by family/cost'}" style="${m._best_code_label ? 'font-weight:600;color:var(--accent)' : 'color:var(--muted)'}">${m._best_code_label || "—"}</td>
+      <td class="num" title="${m._best_code_label ? "Strongest available coding signal: " + m._best_code_label : "No coding signal — tiered by family/cost"}" style="${m._best_code_label ? "font-weight:600;color:var(--accent)" : "color:var(--muted)"}">${m._best_code_label || "—"}</td>
       <td class="num">${m.arena_elo || ""}</td>
       <td class="num">${m.tbench_accuracy != null ? m.tbench_accuracy.toFixed(1) : ""}</td>
       <td class="num">${m.aa_intelligence_index != null ? m.aa_intelligence_index.toFixed(0) : ""}</td>
