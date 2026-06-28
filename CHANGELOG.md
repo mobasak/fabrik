@@ -12,6 +12,33 @@ Follow-ups to the enforcement-gate work. (1) `validate_conventions` ran at tier 
 
 Centrally-synced enforcement checks. Highest-stakes: `check_secrets.py` + `check_env_vars.py` had **no `main()`/`__main__`** — final_gate ran them as `python <script>`, they exited 0, so the "Secrets (Zero Hardcoding)" + ".env (Secrets)" gates were **permanent no-ops on every project** (hardcoded secrets + `localhost` passed). Added `main()` scanning **changed files** (diff-bounded so existing violations don't retroactively red projects), fixed the relative import so they run standalone, exit 1 on ERROR. Also: `check_synced_unmodified.py` now flags a synced file **deleted** locally (was silently passed); `kilo_docs_enforcer.py` retry re-applies the requirement (identifier check no longer skipped) + robust diff-prefix parsing (`+++ b/`, bare, `/dev/null`); `check_doc_sync.py` strips ``` fences before the changelog-entry check (a fenced-only `###` example no longer counts); `docs_updater.py` STRUCTURE-marker label corrected (`INDEX.md`, not `docs/INDEX.md`). Tests: `tests/test_enforcement_gate_fixes.py`.
 
+### Added — Translation + STT capability as first-class signals (2026-06-28)
+
+User: "in fabrik-lib we have i18n transcription models analyze it, i know opus, grok, qwenmtturbo is in place. we have connection to alibaba claude too. so i want this models in our stack and also score transcription capability. what do you suggest" → A + C.
+
+Clarified that the i18n stack is **translation** (text→text), not transcription (audio→text). Built both tracks.
+
+**Translation (mt-router stack)**:
+- 8 new agents columns: `via_dashscope`, `via_siliconflow`, `translation_quality` (JSON), `translation_avg_pct`, `stt_quality` (JSON), `stt_wer_avg`, `is_stt_capable`, `is_translation_capable`
+- New `scripts/kilo-benchmarks/seed_translation_and_stt.py` parses the operator-curated bake-off doc at `/opt/fabrik-lib/mt-router/docs/bakeoff-2026-05-26.md` (7 models × 5 languages × 10 strings = 350 calls). 7 translation rows populated. Inserted 2 mt-router models that weren't in our OpenRouter catalog: `tencent/hunyuan-a13b-instruct` (SiliconFlow-only) and `deepl/deepl` + `azure/translator` (non-LLM MT engines). Manually inserted `qwen/qwen-mt-turbo` (Alibaba DashScope only — TIER3_MODEL_MAP JA winner but absent from the bake-off doc, so noted in its translation_quality JSON).
+- `derive_quality_v2.py` adds `translation_avg` as a 10th benchmark axis: ≥80% → T3 floor, ≥70% → T2 floor (thresholds picked from observed distribution: top 80.6% Grok, p50 76.8%). 12 tier promotions including `mistral-small-3.2-24b-instruct` T1→T2 and the newly-ingested DeepL/Azure/Hunyuan rows.
+
+**STT (Speech-to-Text)**:
+- 7 direct-API STT models seeded with public WER scores from cited sources: `openai/whisper-large-v3` (WER 6.85), `openai/gpt-4o-transcribe` (5.45), `openai/gpt-4o-mini-transcribe` (7.45), `deepgram/nova-3` (9.67), `deepgram/nova-2` (11.80), `assemblyai/universal-2` (10.70), `google/cloud-speech-v2` (10.45). All scored as `(LibriSpeech test-clean en + FLEURS multilingual)/2` so lower=better.
+- 20 OpenRouter audio-input chat models auto-flagged `is_stt_capable=1`: Gemini 2.5/3/3.1 Flash variants, gpt-audio + gpt-audio-mini, Voxtral, Nemotron Nano Omni, MiMo-V2.5. They lack WER scores (chat completions don't run on standard STT benchmarks) but are surfaced as STT-capable for the operator to choose between dedicated STT and audio-LLM routes.
+
+**Browser**:
+- New `Trans` column (sortable, hover shows per-language breakdown TR/ES/PT/JA/ID%)
+- New `STT WER` column (sortable, lower=better, green color, hover shows per-dataset WER + source)
+- New gateway badges `DS` (DashScope) and `SF` (SiliconFlow) next to `OR`/`K`
+- New filter chip group "Capability": `Translation` / `STT (Speech-to-text)`
+- Detail panel's Benchmark sources section now lists per-language translation breakdown + per-dataset STT WER with source attribution
+
+**Daily refresh**:
+- `seed_translation_and_stt.py` wired between `scrape_coding_benchmarks.py` and `derive_quality_v2.py` in `daily_refresh.sh`. Idempotent — re-running updates existing rows without duplicates.
+
+**Catalog state after seed**: 468 chat models (was 458; +6 new direct-API STT + qwen-mt-turbo + DeepL + Azure + Hunyuan + 1 already-existed deepgram-nova), 76 providers (was 72; +deepgram, +assemblyai, +deepl, +azure). All 8 mt-router TIER3 models now present.
+
 ### Changed — 5× SWE-bench coverage by mining all leaderboard groups + Best Code composite column (2026-06-28)
 
 User flagged that Aider scores don't cover the newest models then asked "check our other sources to be sure." Audit found we were using only 40 of SWE-bench's 235 usable entries — only the Verified group's rows with `per_instance_details`. Three more buckets sat ignored: (a) 140 Verified rows without per-instance data but with a top-level aggregate `resolved` field; (b) `bash-only` group (41 rows with per-instance); (c) `Multilingual` group (14 rows on a separate 300-issue multi-language set). Extending the scraper to mine all 4 groups + handling 13 new agent-harness prefixes (live-SWE-agent, Sonar Foundation Agent, TRAE, Atlassian Rovo Dev, EPAM AI/Run, JoyCode, Refact.ai Agent, Prometheus, Lingxi, Harness AI, ACoder, Warp, live-mini-SWE-agent) lifted primary SWE coverage from 23 unique models to 37. Same-issue-set max-per-model dedupe across agent harnesses (the same model often scores 70-79% under different harnesses; we keep the best as the model's capability ceiling). New `swe_bench_multilingual_pct` column tracks the Multilingual board separately (12 unique matches, newer-frontier-heavy: GPT-5.2, Gemini 3 Pro/Flash, Claude 4.5/4.6 Opus, GLM-5, Kimi K2.5, MiniMax 2.5). `derive_quality_v2.py` takes `max(verified, multilingual)` for the swe_bench signal. 3 net tier promotions: gpt-5.2-codex T2→T3 (SWE 72.8), glm-4.5 T2→T3 (SWE 64.2), glm-4.6 T2→T3 (SWE 68.2). Browser additions: (1) new SWE-ML column; (2) Best Code composite column showing whichever coding signal is strongest per row (priority: SWE max > Aider > weighted_coding > DA-coding normalized) with hover tooltip identifying the source — addresses the visual perception that newer flagships "have no coding score" when actually most have DA-coding ELO (Opus 4.7 has DA 1310, GLM-5.2 has 1308, Kimi K2.7-code has 1269, etc.). Honest residual gap: 5 truly uncovered flagships (gpt-5.5-pro, gpt-5.4-pro, gpt-5.2-pro, qwen3.6-max-preview, grok-4.20) — no public coding bench has scored them yet; tier'd by family + cost only. The 135 still-unmatched SWE rows are hybrid agents ("TRAE + Doubao + Claude...") with multiple-model entries that don't map to a single model id, or tooling products (Warp, Harness AI, ACoder) — correctly skipped.

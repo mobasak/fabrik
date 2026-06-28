@@ -11,7 +11,7 @@ trigger: glob
 
 # 3. Language AI
 
-Last content verification: 2026-06-27
+Last content verification: 2026-06-28
 
 **Purpose:** Process and generate text.
 
@@ -33,14 +33,14 @@ Last content verification: 2026-06-27
 
 **Anti-pattern:** standing up a dedicated vector DB when pgvector is already on the project's Postgres.
 
-<!-- OPENROUTER_ROUTES:START — last-refreshed: 2026-06-27 (auto-managed by category_export_markdown.py) -->
-*Auto-generated 2026-06-27 (UTC) by `category_route_mapper.py` → injected here by `category_export_markdown.py`. Edits between the markers will be overwritten on the next daily run.*
+<!-- OPENROUTER_ROUTES:START — last-refreshed: 2026-06-28 (auto-managed by category_export_markdown.py) -->
+*Auto-generated 2026-06-28 (UTC) by `category_route_mapper.py` → injected here by `category_export_markdown.py`. Edits between the markers will be overwritten on the next daily run.*
 
 | Priority | OpenRouter ID | Cost ($/M in) | Context | Status |
 |---|---|---|---|---|
-| P1 | `deepseek/deepseek-v4-flash` | $0.09 | 1048k | GA |
-| P2 | `qwen/qwen3-next-80b-a3b-instruct` | $0.09 | 262k | GA |
-| P3 | `stepfun/step-3.5-flash` | $0.09 | 262k | GA |
+| P1 | `openrouter/fusion` | free | 1000k | free |
+| P2 | `openai/gpt-oss-20b` | $0.03 | 131k | GA |
+| P3 | `openai/gpt-oss-120b` | $0.03 | 131k | GA |
 
 To consume via a Fabrik spec: `llm_provider: openrouter` + `llm_model: <P1 id>`. Fallback chain via the OpenRouter `models: [P1, P2, P3]` request parameter.
 <!-- OPENROUTER_ROUTES:END -->

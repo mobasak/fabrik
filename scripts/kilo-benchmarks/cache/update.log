@@ -59,3 +59,105 @@ sqlite3.IntegrityError: UNIQUE constraint failed: agents.id
 [export_models_browser] wrote /opt/fabrik/scripts/kilo-benchmarks/models_browser.html
 [export_models_browser] 458 chat models · 26 embedding models · 72 providers
 === Refresh complete — 2026-06-27 22:11:48 UTC ===
+
+=== Fabrik AI catalog refresh — 2026-06-28 03:00:01 UTC ===
+======================================================================
+  Source coverage @ 2026-06-28
+======================================================================
+  OpenRouter total:               339
+  Kilo CLI total:                 252
+  In BOTH sources (same id):      239
+  Kilo-only (Gateway aliases):     13
+  OpenRouter-only:                  0
+
+======================================================================
+  OpenRouter catalog verification @ 2026-06-28
+======================================================================
+  DB active rows:                 339
+  Live OpenRouter rows:           339
+  ✓  matched cleanly:             339
+  ~  matched w/ discrepancy:        0
+  ⚠  delisted in DB only:           0
+  +  in OpenRouter, not in DB:      0
+  +  in Kilo only, not in DB:      13
+
+
+Applying fixes...
+  fields updated:  0
+  rows updated:    0
+  rows deprecated: 0
+
+Ingesting new rows from OpenRouter...
+Traceback (most recent call last):
+  File "/opt/fabrik/scripts/kilo-benchmarks/verify_openrouter_catalog.py", line 650, in <module>
+    main()
+  File "/opt/fabrik/scripts/kilo-benchmarks/verify_openrouter_catalog.py", line 645, in main
+    c = ingest_new(report, args.db)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/fabrik/scripts/kilo-benchmarks/verify_openrouter_catalog.py", line 428, in ingest_new
+    conn.execute(
+sqlite3.IntegrityError: UNIQUE constraint failed: agents.id
+[daily_refresh] verifier failed (non-fatal)
+[migrate] columns added this run: 0
+[migrate] rows updated: 458
+[migrate] tier distribution: tier1=389, tier2=52, tier3=17
+[scrape_coding] === Coding benchmarks scrape @ 2026-06-28T03:00:09.814345+00:00 ===
+[scrape_coding]   SWE-bench primary: 228 rows (Verified + bash-only)
+[scrape_coding]   SWE-bench Multilingual: 14 rows
+[scrape_coding]   Aider Polyglot:     69 model entries
+[scrape_coding]   design_arena coding: 103 model entries (from OR cache)
+[scrape_coding] SWE-bench primary: rows=93 unique=37 unmatched=135
+[scrape_coding] SWE-bench multilingual: unique=12
+[scrape_coding] Aider Polyglot:    matched=43 unmatched=26
+[scrape_coding] design_arena coding: matched=103
+
+[scrape_coding] Done. matched: SWE=93 · Aider=43 · design_arena_coding=103
+[derive_quality_v2] OpenRouter cache loaded: 339 rows
+[derive_quality_v2] tier distribution: T1=212 T2=158 T3=88
+[derive_quality_v2] 198 rows changed tier
+  ↑ aion-labs/aion-1.0                            T1→T2  via ≥$3/M input
+  ↑ aion-labs/aion-2.0                            T1→T2  via reasoning mandatory
+  ↑ allenai/olmo-3-32b-think                      T1→T2  via reasoning mandatory
+  ↑ alpindale/goliath-120b                        T1→T2  via ≥$3/M input
+  ↑ amazon/nova-2-lite-v1                         T1→T2  via context≥1M
+  ↑ amazon/nova-premier-v1                        T1→T2  via swe_bench≥35.0(42.4), context≥1M
+  ↑ anthracite-org/magnum-v4-72b                  T1→T2  via ≥$3/M input
+  ↑ anthropic/claude-3.5-haiku                    T1→T2  via family:claude-3.5+
+  ↑ anthropic/claude-3.5-sonnet                   T1→T2  via aider_polyglot≥40.0(51.6), family:claude-3.5+
+  ↑ anthropic/claude-3.7-sonnet                   T1→T2  via aider_polyglot≥40.0(64.9), family:claude-3.5+
+  ↑ anthropic/claude-3.7-sonnet:thinking          T1→T2  via family:claude-3.5+, ≥$3/M input
+  ↑ anthropic/claude-haiku-4.5                    T2→T3  via swe_bench≥60.0(66.6)
+  ↑ anthropic/claude-opus-4                       T1→T3  via swe_bench≥60.0(67.6), family:claude-opus
+  ↑ anthropic/claude-opus-4.1                     T2→T3  via arena_elo≥1400(1465.0), family:claude-opus
+  ↑ anthropic/claude-opus-4.5                     T2→T3  via swe_bench≥60.0(79.2), family:claude-opus
+  ↑ anthropic/claude-sonnet-4                     T1→T3  via swe_bench≥60.0(76.8), family:claude-sonnet
+  ↑ anthropic/claude-sonnet-4.5                   T2→T3  via swe_bench≥60.0(74.8), family:claude-sonnet
+  ↑ arcee-ai/trinity-mini                         T1→T2  via reasoning mandatory
+  ↑ deepseek/deepseek-r1                          T1→T3  via aider_polyglot≥65.0(71.4), family:deepseek-r1/v4-pro
+  ↑ deepseek/deepseek-r1-0528                     T2→T3  via arena_elo≥1400(1436.0), family:deepseek-r1/v4-pro
+  ↑ deepseek/deepseek-r1-distill-llama-70b        T1→T3  via family:deepseek-r1/v4-pro
+  ↑ deepseek/deepseek-r1-distill-qwen-32b         T1→T3  via family:deepseek-r1/v4-pro
+  ↑ deepseek/deepseek-v3.2                        T2→T3  via swe_bench≥60.0(70.0), family:deepseek-r1/v4-pro
+  ↑ deepseek/deepseek-v3.2-exp                    T2→T3  via arena_elo≥1400(1431.0), family:deepseek-r1/v4-pro
+  ↑ deepseek/deepseek-v3.2-speciale               T1→T3  via family:deepseek-r1/v4-pro
+[classify_ai_category] classified 703 rows across 7 categories: speech-audio=2, vision=167, multimodal=62, agentic=103, code=43, long-context=192, language=134
+[category_route_mapper] language: 3 routes → ['openrouter/fusion', 'openai/gpt-oss-20b', 'openai/gpt-oss-120b']
+[category_route_mapper] code: 3 routes → ['openai/gpt-5.4', 'google/gemini-3.1-pro-preview', 'openai/gpt-5.3-codex']
+[category_route_mapper] vision: 2 routes → ['openrouter/auto', 'openai/gpt-5-nano']
+[category_route_mapper] multimodal: 2 routes → ['openai/gpt-5-nano', 'qwen/qwen3.5-flash-02-23']
+[category_route_mapper] agentic: 3 routes → ['openai/gpt-5.4', 'openai/gpt-5.3-codex', 'anthropic/claude-opus-4.6']
+[category_route_mapper] long-context: 2 routes → ['meta-llama/llama-4-scout', 'x-ai/grok-4.20']
+[category_route_mapper] speech-audio: 1 routes → ['openai/gpt-audio-mini']
+[category_route_mapper] wrote /opt/fabrik/scripts/kilo-benchmarks/openrouter_routes.json
+[category_route_mapper] wrote /opt/fabrik/scripts/kilo_openrouter_routes_final.json
+[category_route_mapper] wrote 16 pins across 7 categories (0 skipped)
+[category_export_markdown] language: {'status': 'wrote', 'marker': 'replaced', 'stamp': 'replaced'}
+[category_export_markdown] code: {'status': 'wrote', 'marker': 'replaced', 'stamp': 'replaced'}
+[category_export_markdown] vision: {'status': 'wrote', 'marker': 'replaced', 'stamp': 'replaced'}
+[category_export_markdown] multimodal: {'status': 'wrote', 'marker': 'replaced', 'stamp': 'replaced'}
+[category_export_markdown] agentic: {'status': 'wrote', 'marker': 'replaced', 'stamp': 'replaced'}
+[category_export_markdown] long-context: {'status': 'wrote', 'marker': 'replaced', 'stamp': 'replaced'}
+[category_export_markdown] speech-audio: {'status': 'wrote', 'marker': 'replaced', 'stamp': 'replaced'}
+[export_models_browser] wrote /opt/fabrik/scripts/kilo-benchmarks/models_browser.html
+[export_models_browser] 458 chat models · 26 embedding models · 72 providers
+=== Refresh complete — 2026-06-28 03:00:11 UTC ===

@@ -200,6 +200,8 @@
   }
   td.source .src-badge.or { background: #1a3552; border-color: #2c5a99; color: #9cc6ff; }
   td.source .src-badge.kilo { background: #3a2552; border-color: #663399; color: #cbb0ff; }
+  td.source .src-badge.ds { background: #2a3a1a; border-color: #5a8033; color: #b0e0a0; }
+  td.source .src-badge.sf { background: #3a2a1a; border-color: #80553a; color: #e0c0a0; }
   td.source .markup {
     display: inline-block;
     margin-left: 4px;
@@ -340,6 +342,12 @@
       <span class="chip" data-coding="has_code" title="Hide rows without ANY explicit coding signal (SWE / Aider / weighted_coding / design_arena_coding). Useful when sorting by Best Code.">has Best Code</span>
     </div>
 
+    <h3>Capability</h3>
+    <div class="chip-grid">
+      <span class="chip" data-capability="translation" title="Only show models scored for translation (fabrik-lib/mt-router bake-off)">Translation</span>
+      <span class="chip" data-capability="stt" title="Only show models with speech-to-text capability (direct-API STT seeds + OpenRouter audio-input models)">STT (Speech-to-text)</span>
+    </div>
+
     <h3>Quality Tier</h3>
     <div class="chip-grid" id="tiers">
       <span class="chip on" data-tier="1">T1 frontier</span>
@@ -406,6 +414,8 @@
           <th data-sort="swe_bench_multilingual_pct" title="SWE-bench Multilingual — % resolved on the 300-issue multi-language set. Newer-model coverage is best here (swebench.com)">SWE-ML</th>
           <th data-sort="aider_polyglot_pct" title="Aider Polyglot pass_rate_2 % across 225 multi-language problems (aider.chat). Note: leaderboard is sparse for newest models — use SWE / DA-code / weighted_coding for newer frontier.">Aider</th>
           <th data-sort="design_arena_coding_elo" title="Mean ELO across coding-only design_arena categories (OpenRouter API benchmarks block)">DA-code</th>
+          <th data-sort="translation_avg_pct" title="Translation avg % similarity to human translations across TR/ES/PT/JA/ID (fabrik-lib/mt-router bake-off 2026-05-26). Hover the row's cell for per-language breakdown.">Trans</th>
+          <th data-sort="stt_wer_avg" title="Speech-to-text Word Error Rate avg of (LibriSpeech test-clean en + FLEURS multilingual). LOWER is better. Direct-API STT models seeded from public benchmarks (Whisper, gpt-4o-transcribe, Deepgram Nova, AssemblyAI Universal).">STT WER</th>
           <th>Categories</th>
           <th data-sort="status">Status</th>
           <th data-sort="last_verified">Verified</th>
@@ -439,6 +449,7 @@ const state = {
   fresh: new Set(),
   sources: new Set(),
   coding: new Set(),
+  capability: new Set(),
   costMin: null,
   costMax: null,
   ctxMin: null,
@@ -569,6 +580,9 @@ document.querySelectorAll('.chip[data-source]').forEach(chip => {
 document.querySelectorAll('.chip[data-coding]').forEach(chip => {
   chip.onclick = () => { toggleChip(state.coding, chip.dataset.coding, chip); refresh(); };
 });
+document.querySelectorAll('.chip[data-capability]').forEach(chip => {
+  chip.onclick = () => { toggleChip(state.capability, chip.dataset.capability, chip); refresh(); };
+});
 
 // ----- Inputs -----
 document.getElementById("search").addEventListener("input", e => {
@@ -654,6 +668,8 @@ function filterRow(m) {
   if (state.fresh.size > 0 && !state.fresh.has(m._staleBucket)) return false;
   // "has Best Code" chip hides rows without any explicit coding signal.
   if (state.coding.has("has_code") && m._best_code_score === null) return false;
+  if (state.capability.has("translation") && !m.is_translation_capable) return false;
+  if (state.capability.has("stt") && !m.is_stt_capable) return false;
   if (state.sources.size > 0) {
     let pass = false;
     const viaOr = !!m.via_openrouter;
@@ -678,6 +694,8 @@ function fmtSource(m) {
   const parts = [];
   if (m.via_openrouter) parts.push('<span class="src-badge or" title="Reachable via OpenRouter (api.openrouter.ai)">OR</span>');
   if (m.via_kilo) parts.push('<span class="src-badge kilo" title="Reachable via Kilo Gateway (api.kilo.ai)">K</span>');
+  if (m.via_dashscope) parts.push('<span class="src-badge ds" title="Reachable via Alibaba Cloud DashScope (dashscope.aliyuncs.com) — qwen-mt-turbo etc.">DS</span>');
+  if (m.via_siliconflow) parts.push('<span class="src-badge sf" title="Reachable via SiliconFlow (siliconflow.com) — Hunyuan, etc.">SF</span>');
   // markup indicator if dual-routed AND prices differ
   if (m.via_openrouter && m.via_kilo && m.kilo_input_cost_per_m !== null && m.kilo_input_cost_per_m !== undefined) {
     const orIn = m.input_cost_per_m || 0;
@@ -806,6 +824,8 @@ function refresh() {
       <td class="num">${m.swe_bench_multilingual_pct != null ? m.swe_bench_multilingual_pct.toFixed(1) : ""}</td>
       <td class="num">${m.aider_polyglot_pct != null ? m.aider_polyglot_pct.toFixed(1) : ""}</td>
       <td class="num">${m.design_arena_coding_elo != null ? m.design_arena_coding_elo.toFixed(0) : ""}</td>
+      <td class="num" title="${m.translation_quality ? (() => { try { const q = JSON.parse(m.translation_quality); return Object.entries(q).filter(([k]) => !["avg","source","note"].includes(k)).map(([k,v]) => k+"="+v).join("  "); } catch(e) { return "" } })() : ""}">${m.translation_avg_pct != null ? m.translation_avg_pct.toFixed(1) : ""}</td>
+      <td class="num" title="${m.stt_quality ? (() => { try { const q = JSON.parse(m.stt_quality); return Object.entries(q).filter(([k]) => k !== "source").map(([k,v]) => k+"="+v).join("  ") + (q.source ? "  ("+q.source+")" : ""); } catch(e) { return "" } })() : ""}" style="${m.stt_wer_avg != null ? "color:var(--good);font-weight:600" : ""}">${m.stt_wer_avg != null ? m.stt_wer_avg.toFixed(1) : ""}</td>
       <td class="cats">${fmtCats(m)}</td>
       <td class="status ${statusClass}">${statusLabel}</td>
       <td class="verified ${m._staleBucket}">${verifiedLabel}</td>
@@ -849,6 +869,24 @@ function openDetail(m, tr) {
   if (m.weighted_coding) sourceRows.push(["Weighted coding (BenchLM)", m.weighted_coding.toFixed(1)]);
   if (m.swe_bench_pro) sourceRows.push(["SWE-bench Pro", m.swe_bench_pro.toFixed(1) + "%"]);
   if (m.livecodebench) sourceRows.push(["LiveCodeBench", m.livecodebench.toFixed(1) + "%"]);
+  // Translation breakdown
+  if (m.translation_quality) {
+    try {
+      const q = JSON.parse(m.translation_quality);
+      const per = Object.entries(q).filter(([k]) => !["avg","source","note"].includes(k)).map(([k,v]) => k.toUpperCase()+"="+v+"%").join("  ");
+      const note = q.note ? " (" + q.note + ")" : "";
+      sourceRows.push(["Translation (per-lang)", per + note + " — " + (q.source || "")]);
+    } catch(e) {}
+  }
+  // STT breakdown
+  if (m.stt_quality) {
+    try {
+      const q = JSON.parse(m.stt_quality);
+      const per = Object.entries(q).filter(([k]) => k !== "source").map(([k,v]) => k+"="+v+"% WER").join("  ");
+      sourceRows.push(["STT (lower WER better)", per + " — " + (q.source || "")]);
+    } catch(e) {}
+  }
+  if (m.is_stt_capable && !m.stt_quality) sourceRows.push(["STT capability", "audio-input supported (no WER yet — only direct-API STT models are scored)"]);
   // Operational
   if (m.output_tokens_per_sec) sourceRows.push(["Throughput", m.output_tokens_per_sec.toFixed(0) + " tok/s (" + (m.speed_source || "?") + ")"]);
   if (m.ttft_ms) sourceRows.push(["TTFT", m.ttft_ms.toFixed(0) + " ms"]);

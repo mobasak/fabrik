@@ -11,7 +11,7 @@ trigger: glob
 
 # 4. Vision-Language & Multimodal AI
 
-Last content verification: 2026-06-27
+Last content verification: 2026-06-28
 
 **Purpose:** Combine text, image, audio, and video understanding.
 
@@ -26,8 +26,8 @@ Claude Opus 4.8, GPT-4o, Gemini 2.5 Pro, LLaVA, Kosmos-2.
 
 **Use cases:** image captioning, visual QA, document understanding, video analysis.
 
-<!-- OPENROUTER_ROUTES:START — last-refreshed: 2026-06-27 (auto-managed by category_export_markdown.py) -->
-*Auto-generated 2026-06-27 (UTC) by `category_route_mapper.py` → injected here by `category_export_markdown.py`. Edits between the markers will be overwritten on the next daily run.*
+<!-- OPENROUTER_ROUTES:START — last-refreshed: 2026-06-28 (auto-managed by category_export_markdown.py) -->
+*Auto-generated 2026-06-28 (UTC) by `category_route_mapper.py` → injected here by `category_export_markdown.py`. Edits between the markers will be overwritten on the next daily run.*
 
 | Priority | OpenRouter ID | Cost ($/M in) | Context | Status |
 |---|---|---|---|---|

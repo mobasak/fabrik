@@ -11,7 +11,7 @@ trigger: glob
 
 # 5. Agentic / Reasoning AI
 
-Last content verification: 2026-06-27
+Last content verification: 2026-06-28
 
 **Purpose:** Multi-step reasoning or tool use.
 
@@ -28,8 +28,8 @@ OpenAI o3/o4-mini, Claude (Projects / agent loops), LangChain Agents, AutoGPT.
 
 **Anti-pattern:** putting per-call $ caps on the operational diagnose loop — it must run (Claude Code is subscription-billed). See `core/cost-budget.md`.
 
-<!-- OPENROUTER_ROUTES:START — last-refreshed: 2026-06-27 (auto-managed by category_export_markdown.py) -->
-*Auto-generated 2026-06-27 (UTC) by `category_route_mapper.py` → injected here by `category_export_markdown.py`. Edits between the markers will be overwritten on the next daily run.*
+<!-- OPENROUTER_ROUTES:START — last-refreshed: 2026-06-28 (auto-managed by category_export_markdown.py) -->
+*Auto-generated 2026-06-28 (UTC) by `category_route_mapper.py` → injected here by `category_export_markdown.py`. Edits between the markers will be overwritten on the next daily run.*
 
 | Priority | OpenRouter ID | Cost ($/M in) | Context | Status |
 |---|---|---|---|---|

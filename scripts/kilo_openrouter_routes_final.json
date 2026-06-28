@@ -1,10 +1,10 @@
 {
-  "generated_at": "2026-06-27",
+  "generated_at": "2026-06-28",
   "categories": {
     "language": {
-      "1": "deepseek/deepseek-v4-flash",
-      "2": "qwen/qwen3-next-80b-a3b-instruct",
-      "3": "stepfun/step-3.5-flash"
+      "1": "openrouter/fusion",
+      "2": "openai/gpt-oss-20b",
+      "3": "openai/gpt-oss-120b"
     },
     "code": {
       "1": "openai/gpt-5.4",
@@ -12,8 +12,8 @@
       "3": "openai/gpt-5.3-codex"
     },
     "vision": {
-      "1": "openai/gpt-5-nano",
-      "2": "google/gemma-3-12b-it"
+      "1": "openrouter/auto",
+      "2": "openai/gpt-5-nano"
     },
     "multimodal": {
       "1": "openai/gpt-5-nano",

@@ -61,6 +61,13 @@ mkdir -p "$(dirname "$LOG_FILE")"
   "$VENV_PY" "$KB/scrape_coding_benchmarks.py" \
     || echo "[daily_refresh] coding-benchmarks scrape failed (non-fatal)"
 
+  # Translation + STT capability seeds. Translation reads the
+  # operator-curated bake-off doc in /opt/fabrik-lib/mt-router/docs/;
+  # STT seeds direct-API models (Whisper, gpt-4o-transcribe, Deepgram,
+  # AssemblyAI) with public WER scores. Idempotent.
+  "$VENV_PY" "$KB/seed_translation_and_stt.py" \
+    || echo "[daily_refresh] translation/STT seed failed (non-fatal)"
+
   "$VENV_PY" "$KB/derive_quality_v2.py" \
     || echo "[daily_refresh] quality v2 deriver failed (non-fatal)"
 

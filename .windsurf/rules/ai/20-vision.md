@@ -11,7 +11,7 @@ trigger: glob
 
 # 2. Vision AI
 
-Last content verification: 2026-06-27
+Last content verification: 2026-06-28
 
 **Purpose:** Interpret or generate images/video.
 
@@ -33,13 +33,13 @@ Last content verification: 2026-06-27
 
 **Use cases:** content creation, surveillance, document processing.
 
-<!-- OPENROUTER_ROUTES:START — last-refreshed: 2026-06-27 (auto-managed by category_export_markdown.py) -->
-*Auto-generated 2026-06-27 (UTC) by `category_route_mapper.py` → injected here by `category_export_markdown.py`. Edits between the markers will be overwritten on the next daily run.*
+<!-- OPENROUTER_ROUTES:START — last-refreshed: 2026-06-28 (auto-managed by category_export_markdown.py) -->
+*Auto-generated 2026-06-28 (UTC) by `category_route_mapper.py` → injected here by `category_export_markdown.py`. Edits between the markers will be overwritten on the next daily run.*
 
 | Priority | OpenRouter ID | Cost ($/M in) | Context | Status |
 |---|---|---|---|---|
-| P1 | `openai/gpt-5-nano` | $0.05 | 400k | GA |
-| P2 | `google/gemma-3-12b-it` | $0.05 | 131k | GA |
+| P1 | `openrouter/auto` | free | 2000k | free |
+| P2 | `openai/gpt-5-nano` | $0.05 | 400k | GA |
 
 To consume via a Fabrik spec: `llm_provider: openrouter` + `llm_model: <P1 id>`. Fallback chain via the OpenRouter `models: [P1, P2, P3]` request parameter.
 <!-- OPENROUTER_ROUTES:END -->

@@ -11,7 +11,7 @@ trigger: glob
 
 # 1. Speech & Audio AI
 
-Last content verification: 2026-06-27
+Last content verification: 2026-06-28
 
 **Purpose:** Convert or interpret sound.
 
@@ -33,8 +33,8 @@ Last content verification: 2026-06-27
 
 **Anti-pattern:** using a general LLM for transcription instead of Soniox/Whisper.
 
-<!-- OPENROUTER_ROUTES:START — last-refreshed: 2026-06-27 (auto-managed by category_export_markdown.py) -->
-*Auto-generated 2026-06-27 (UTC) by `category_route_mapper.py` → injected here by `category_export_markdown.py`. Edits between the markers will be overwritten on the next daily run.*
+<!-- OPENROUTER_ROUTES:START — last-refreshed: 2026-06-28 (auto-managed by category_export_markdown.py) -->
+*Auto-generated 2026-06-28 (UTC) by `category_route_mapper.py` → injected here by `category_export_markdown.py`. Edits between the markers will be overwritten on the next daily run.*
 
 | Priority | OpenRouter ID | Cost ($/M in) | Context | Status |
 |---|---|---|---|---|

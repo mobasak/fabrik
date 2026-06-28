@@ -92,6 +92,8 @@ BENCH_TIER3 = {
     "swe_bench": 60.0,  # % resolved on SWE-bench Verified (mini-SWE-agent v2)
     "aider_polyglot": 65.0,  # % pass_rate_2 on Aider Polyglot (225 problems × 6 langs)
     "design_arena_coding": 1280,  # mean ELO across coding-only design_arena categories
+    # Translation-specific (fabrik-lib/mt-router bake-off 2026-05-26)
+    "translation_avg": 80.0,  # avg % similarity to human translations across TR/ES/PT/JA/ID
 }
 BENCH_TIER2 = {
     "arena_elo": 1400,
@@ -103,6 +105,7 @@ BENCH_TIER2 = {
     "swe_bench": 35.0,
     "aider_polyglot": 40.0,
     "design_arena_coding": 1220,
+    "translation_avg": 70.0,
 }
 
 
@@ -162,6 +165,7 @@ def derive_v2(row: dict, or_record: dict | None = None) -> tuple[int, list[str]]
     )
     aider = row.get("aider_polyglot_pct") or 0
     da_code = row.get("design_arena_coding_elo") or 0
+    trans = row.get("translation_avg_pct") or 0
     da_avg = _design_arena_avg(or_record.get("benchmarks") if or_record else None) or 0
     aa = _aa_index(or_record.get("benchmarks") if or_record else None) or 0
 
@@ -175,6 +179,7 @@ def derive_v2(row: dict, or_record: dict | None = None) -> tuple[int, list[str]]
         ("swe_bench", swe, BENCH_TIER3["swe_bench"]),
         ("aider_polyglot", aider, BENCH_TIER3["aider_polyglot"]),
         ("design_arena_coding", da_code, BENCH_TIER3["design_arena_coding"]),
+        ("translation_avg", trans, BENCH_TIER3["translation_avg"]),
     ]:
         if val >= thr:
             bump(3, f"{label}≥{thr}({val:.1f})")
@@ -190,6 +195,7 @@ def derive_v2(row: dict, or_record: dict | None = None) -> tuple[int, list[str]]
             ("swe_bench", swe, BENCH_TIER2["swe_bench"]),
             ("aider_polyglot", aider, BENCH_TIER2["aider_polyglot"]),
             ("design_arena_coding", da_code, BENCH_TIER2["design_arena_coding"]),
+            ("translation_avg", trans, BENCH_TIER2["translation_avg"]),
         ]:
             if val >= thr:
                 bump(2, f"{label}≥{thr}({val:.1f})")
