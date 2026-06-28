@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-28T19:33:59.015827+00:00",
+  "generated_at": "2026-06-28T19:50:58.305837+00:00",
   "corpus_version": "v2-2026-06-28",
   "metric": "chrF++",
   "results": {
@@ -56,6 +56,485 @@
           }
         ],
         "avg_chrf": 86.64
+      },
+      "de": {
+        "per_sentence": [
+          {
+            "id": "flores_001",
+            "kind": "prose",
+            "hyp": "Am Montag verkündeten Wissenschaftler der Stanford University School of Medicine die Entwicklung eines neuen Diagnosetools, das Zellen nach Typ sortieren kann: einen winzigen, druckbaren Chip, der mit Standard-Tintenstrahldruckern hergestellt werden kann, möglicherweise für etwa einen US-Cent pro Stück.",
+            "score": 80.51191657320595
+          },
+          {
+            "id": "gui_001",
+            "kind": "gui_short",
+            "hyp": "Speichern",
+            "score": 100.0
+          },
+          {
+            "id": "gui_002",
+            "kind": "gui_short",
+            "hyp": "Einstellungen",
+            "score": 100.0
+          },
+          {
+            "id": "gui_003",
+            "kind": "gui_placeholder",
+            "hyp": "Willkommen zurück, {name}! Du hast {count} neue Benachrichtigungen.",
+            "score": 82.23173969258653
+          },
+          {
+            "id": "gui_004",
+            "kind": "gui_button",
+            "hyp": "Abonnement kündigen",
+            "score": 100.0
+          },
+          {
+            "id": "gui_005",
+            "kind": "gui_long",
+            "hyp": "Ihre Daten werden sowohl während der Übertragung als auch im Ruhezustand verschlüsselt. Wir geben Ihre Informationen niemals ohne Ihre ausdrückliche Zustimmung an Dritte weiter.",
+            "score": 92.3042156122866
+          },
+          {
+            "id": "err_001",
+            "kind": "error",
+            "hyp": "Verbindung abgebrochen. Bitte überprüfen Sie Ihr Netzwerk und versuchen Sie es erneut.",
+            "score": 77.23455293137707
+          },
+          {
+            "id": "err_002",
+            "kind": "error",
+            "hyp": "Die Datei, die Sie hochladen möchten, überschreitet die maximale Größe von 10 MB.",
+            "score": 100.0
+          }
+        ],
+        "avg_chrf": 91.54
+      },
+      "ja": {
+        "per_sentence": [
+          {
+            "id": "flores_001",
+            "kind": "prose",
+            "hyp": "スタンフォード大学医学部の科学者たちは月曜日、細胞を種類別に選別できる新しい診断ツールを開発したと発表しました。それは極小の印刷可能チップで、標準的なインクジェットプリンターを使って製造でき、おそらく1個あたり約1米セントで生産可能です。",
+            "score": 52.95854907788959
+          },
+          {
+            "id": "gui_001",
+            "kind": "gui_short",
+            "hyp": "保存",
+            "score": 100.0
+          },
+          {
+            "id": "gui_002",
+            "kind": "gui_short",
+            "hyp": "設定",
+            "score": 100.0
+          },
+          {
+            "id": "gui_003",
+            "kind": "gui_placeholder",
+            "hyp": "おかえりなさい、{name}さん！{count}件の新しい通知があります。",
+            "score": 85.71428571428571
+          },
+          {
+            "id": "gui_004",
+            "kind": "gui_button",
+            "hyp": "定期購読をキャンセル",
+            "score": 24.738968218731365
+          },
+          {
+            "id": "gui_005",
+            "kind": "gui_long",
+            "hyp": "お客様のデータは送信中および保存中に暗号化されます。お客様の明示的な同意なしに、第三者と情報を共有することは一切ありません。",
+            "score": 48.49670678716872
+          },
+          {
+            "id": "err_001",
+            "kind": "error",
+            "hyp": "接続がタイムアウトしました。ネットワークを確認して、もう一度お試しください。",
+            "score": 78.82017532082081
+          },
+          {
+            "id": "err_002",
+            "kind": "error",
+            "hyp": "アップロードしようとしているファイルは、最大サイズの10 MBを超えています。",
+            "score": 68.9676534057182
+          }
+        ],
+        "avg_chrf": 69.96
+      },
+      "ar": {
+        "per_sentence": [
+          {
+            "id": "flores_001",
+            "kind": "prose",
+            "hyp": "أعلن علماء من كلية الطب بجامعة ستانفورد يوم الاثنين عن اختراع أداة تشخيصية جديدة يمكنها فرز الخلايا حسب نوعها: رقاقة صغيرة قابلة للطباعة يمكن تصنيعها باستخدام الطابعات النافثة للحبر التقليدية بتكلفة قد تصل إلى حوالي سنت أمريكي واحد لكل منها.",
+            "score": 74.8336272439781
+          },
+          {
+            "id": "gui_001",
+            "kind": "gui_short",
+            "hyp": "حفظ",
+            "score": 100.0
+          },
+          {
+            "id": "gui_002",
+            "kind": "gui_short",
+            "hyp": "الإعدادات",
+            "score": 100.0
+          },
+          {
+            "id": "gui_003",
+            "kind": "gui_placeholder",
+            "hyp": "مرحبًا بعودتك، {name}! لديك {count} إشعارات جديدة.",
+            "score": 100.0
+          },
+          {
+            "id": "gui_004",
+            "kind": "gui_button",
+            "hyp": "إلغاء الاشتراك",
+            "score": 100.0
+          },
+          {
+            "id": "gui_005",
+            "kind": "gui_long",
+            "hyp": "سيتم تشفير بياناتك أثناء النقل وعند التخزين. نحن لا نشارك معلوماتك مع أطراف ثالثة دون موافقتك الصريحة.",
+            "score": 84.70010117868735
+          },
+          {
+            "id": "err_001",
+            "kind": "error",
+            "hyp": "انتهت مهلة الاتصال. يرجى التحقق من شبكتك والمحاولة مرة أخرى.",
+            "score": 100.0
+          },
+          {
+            "id": "err_002",
+            "kind": "error",
+            "hyp": "الملف الذي تحاول رفعه يتجاوز الحد الأقصى للحجم وهو 10 ميجابايت.",
+            "score": 74.09643816257537
+          }
+        ],
+        "avg_chrf": 91.7
+      },
+      "zh": {
+        "per_sentence": [
+          {
+            "id": "flores_001",
+            "kind": "prose",
+            "hyp": "周一，斯坦福大学医学院的科学家宣布研发出一种新型诊断工具，能够按类型对细胞进行分类：这是一种微型可打印芯片，可利用标准喷墨打印机生产，每片成本可能仅约1美分。",
+            "score": 44.879694886597626
+          },
+          {
+            "id": "gui_001",
+            "kind": "gui_short",
+            "hyp": "保存",
+            "score": 100.0
+          },
+          {
+            "id": "gui_002",
+            "kind": "gui_short",
+            "hyp": "设置",
+            "score": 100.0
+          },
+          {
+            "id": "gui_003",
+            "kind": "gui_placeholder",
+            "hyp": "欢迎回来，{name}！您有{count}条新通知。",
+            "score": 73.10367789560335
+          },
+          {
+            "id": "gui_004",
+            "kind": "gui_button",
+            "hyp": "取消订阅",
+            "score": 100.0
+          },
+          {
+            "id": "gui_005",
+            "kind": "gui_long",
+            "hyp": "您的数据在传输和存储过程中均会加密处理。未经您明确同意，我们绝不会与第三方共享您的信息。",
+            "score": 48.83755635179997
+          },
+          {
+            "id": "err_001",
+            "kind": "error",
+            "hyp": "连接超时。请检查您的网络并重试。",
+            "score": 100.0
+          },
+          {
+            "id": "err_002",
+            "kind": "error",
+            "hyp": "您尝试上传的文件大小超过了10 MB的限制。",
+            "score": 46.093558037249984
+          }
+        ],
+        "avg_chrf": 76.61
+      }
+    },
+    "google/gemini-2.5-flash": {
+      "tr": {
+        "per_sentence": [
+          {
+            "id": "flores_001",
+            "kind": "prose",
+            "hyp": "Pazartesi günü, Stanford Üniversitesi Tıp Fakültesi'nden bilim insanları, hücreleri türlerine göre ayırabilen yeni bir teşhis aracının icadını duyurdu: standart mürekkep püskürtmeli yazıcılar kullanılarak her biri muhtemelen yaklaşık bir ABD sentine üretilebilecek küçük, yazdırılabilir bir çip.",
+            "score": 67.2432843761367
+          },
+          {
+            "id": "gui_001",
+            "kind": "gui_short",
+            "hyp": "Kaydet",
+            "score": 100.0
+          },
+          {
+            "id": "gui_002",
+            "kind": "gui_short",
+            "hyp": "Ayarlar",
+            "score": 100.0
+          },
+          {
+            "id": "gui_003",
+            "kind": "gui_placeholder",
+            "hyp": "Tekrar hoş geldin, {name}! {count} yeni bildirimin var.",
+            "score": 80.8285471783857
+          },
+          {
+            "id": "gui_004",
+            "kind": "gui_button",
+            "hyp": "Aboneliği iptal et",
+            "score": 100.0
+          },
+          {
+            "id": "gui_005",
+            "kind": "gui_long",
+            "hyp": "Verileriniz aktarım sırasında ve beklemede şifrelenecektir. Bilgilerinizi açık izniniz olmadan asla üçüncü taraflarla paylaşmayız.",
+            "score": 73.87903888315212
+          },
+          {
+            "id": "err_001",
+            "kind": "error",
+            "hyp": "Bağlantı zaman aşımına uğradı. Lütfen ağınızı kontrol edip tekrar deneyin.",
+            "score": 100.0
+          },
+          {
+            "id": "err_002",
+            "kind": "error",
+            "hyp": "Yüklemeye çalıştığınız dosya 10 MB'lık maksimum boyutu aşıyor.",
+            "score": 90.3861849126283
+          }
+        ],
+        "avg_chrf": 89.04
+      },
+      "de": {
+        "per_sentence": [
+          {
+            "id": "flores_001",
+            "kind": "prose",
+            "hyp": "Am Montag gaben Wissenschaftler der Stanford University School of Medicine die Erfindung eines neuen Diagnosetools bekannt, das Zellen nach Typ sortieren kann: ein winziger druckbarer Chip, der mit handelsüblichen Tintenstrahldruckern für möglicherweise etwa einen US-Cent pro Stück hergestellt werden kann.",
+            "score": 86.10578582559842
+          },
+          {
+            "id": "gui_001",
+            "kind": "gui_short",
+            "hyp": "Speichern",
+            "score": 100.0
+          },
+          {
+            "id": "gui_002",
+            "kind": "gui_short",
+            "hyp": "Einstellungen",
+            "score": 100.0
+          },
+          {
+            "id": "gui_003",
+            "kind": "gui_placeholder",
+            "hyp": "Willkommen zurück, {name}! Du hast {count} neue Benachrichtigungen.",
+            "score": 82.23173969258653
+          },
+          {
+            "id": "gui_004",
+            "kind": "gui_button",
+            "hyp": "Abonnement kündigen",
+            "score": 100.0
+          },
+          {
+            "id": "gui_005",
+            "kind": "gui_long",
+            "hyp": "Ihre Daten werden während der Übertragung und im Ruhezustand verschlüsselt. Wir geben Ihre Informationen niemals ohne Ihre ausdrückliche Zustimmung an Dritte weiter.",
+            "score": 100.0
+          },
+          {
+            "id": "err_001",
+            "kind": "error",
+            "hyp": "Verbindung fehlgeschlagen. Bitte überprüfen Sie Ihre Netzwerkverbindung und versuchen Sie es erneut.",
+            "score": 68.45066864194226
+          },
+          {
+            "id": "err_002",
+            "kind": "error",
+            "hyp": "Die Datei, die Sie hochladen möchten, überschreitet die maximale Größe von 10 MB.",
+            "score": 100.0
+          }
+        ],
+        "avg_chrf": 92.1
+      },
+      "ja": {
+        "per_sentence": [
+          {
+            "id": "flores_001",
+            "kind": "prose",
+            "hyp": "スタンフォード大学医学部の科学者らは月曜日、細胞を種類別に分類できる新しい診断ツールを発明したと発表した。それは、標準的なインクジェットプリンターで製造でき、1個あたり約1米セントで済む可能性のある、小型の印刷可能なチップである。",
+            "score": 54.94248220539476
+          },
+          {
+            "id": "gui_001",
+            "kind": "gui_short",
+            "hyp": "保存",
+            "score": 100.0
+          },
+          {
+            "id": "gui_002",
+            "kind": "gui_short",
+            "hyp": "設定",
+            "score": 100.0
+          },
+          {
+            "id": "gui_003",
+            "kind": "gui_placeholder",
+            "hyp": "おかえりなさい、{name}！ 新しい通知が{count}件あります。",
+            "score": 50.593479074484314
+          },
+          {
+            "id": "gui_004",
+            "kind": "gui_button",
+            "hyp": "サブスクリプションをキャンセル",
+            "score": 100.0
+          },
+          {
+            "id": "gui_005",
+            "kind": "gui_long",
+            "hyp": "お客様のデータは、転送中および保存時に暗号化されます。お客様の明示的な同意なしに、お客様の情報を第三者と共有することはありません。",
+            "score": 65.93270363792315
+          },
+          {
+            "id": "err_001",
+            "kind": "error",
+            "hyp": "接続がタイムアウトしました。ネットワークを確認して、もう一度お試しください。",
+            "score": 78.82017532082081
+          },
+          {
+            "id": "err_002",
+            "kind": "error",
+            "hyp": "アップロードしようとしているファイルは、最大サイズ10MBを超えています。",
+            "score": 85.71428571428571
+          }
+        ],
+        "avg_chrf": 79.5
+      },
+      "ar": {
+        "per_sentence": [
+          {
+            "id": "flores_001",
+            "kind": "prose",
+            "hyp": "أعلن علماء من كلية الطب بجامعة ستانفورد، يوم الاثنين، عن اختراع أداة تشخيصية جديدة يمكنها فرز الخلايا حسب النوع: وهي شريحة صغيرة قابلة للطباعة يمكن تصنيعها باستخدام طابعات نفث الحبر القياسية بتكلفة قد تصل إلى حوالي سنت أمريكي واحد لكل شريحة.",
+            "score": 88.26602254112656
+          },
+          {
+            "id": "gui_001",
+            "kind": "gui_short",
+            "hyp": "حفظ",
+            "score": 100.0
+          },
+          {
+            "id": "gui_002",
+            "kind": "gui_short",
+            "hyp": "الإعدادات",
+            "score": 100.0
+          },
+          {
+            "id": "gui_003",
+            "kind": "gui_placeholder",
+            "hyp": "مرحباً بعودتك يا {name}! لديك {count} إشعار جديد.",
+            "score": 63.45380145503332
+          },
+          {
+            "id": "gui_004",
+            "kind": "gui_button",
+            "hyp": "إلغاء الاشتراك",
+            "score": 100.0
+          },
+          {
+            "id": "gui_005",
+            "kind": "gui_long",
+            "hyp": "سيتم تشفير بياناتك أثناء النقل وفي وضع السكون. لا نشارك معلوماتك أبدًا مع أطراف ثالثة دون موافقتك الصريحة.",
+            "score": 82.64341355204988
+          },
+          {
+            "id": "err_001",
+            "kind": "error",
+            "hyp": "انتهت مهلة الاتصال. يرجى التحقق من شبكة الاتصال الخاصة بك والمحاولة مرة أخرى.",
+            "score": 86.54172122696801
+          },
+          {
+            "id": "err_002",
+            "kind": "error",
+            "hyp": "الملف الذي تحاول تحميله يتجاوز الحجم الأقصى المسموح به وهو 10 ميجابايت.",
+            "score": 64.67231043196198
+          }
+        ],
+        "avg_chrf": 85.7
+      },
+      "zh": {
+        "per_sentence": [
+          {
+            "id": "flores_001",
+            "kind": "prose",
+            "hyp": "周一，斯坦福大学医学院的科学家们宣布发明了一种新的诊断工具，能够根据细胞类型对其进行分类：这是一种微型可打印芯片，可以使用标准喷墨打印机制造，每个成本可能约为一美分。",
+            "score": 46.23978780603715
+          },
+          {
+            "id": "gui_001",
+            "kind": "gui_short",
+            "hyp": "保存",
+            "score": 100.0
+          },
+          {
+            "id": "gui_002",
+            "kind": "gui_short",
+            "hyp": "设置",
+            "score": 100.0
+          },
+          {
+            "id": "gui_003",
+            "kind": "gui_placeholder",
+            "hyp": "欢迎回来，{name}！您有 {count} 条新通知。",
+            "score": 81.67405149198628
+          },
+          {
+            "id": "gui_004",
+            "kind": "gui_button",
+            "hyp": "取消订阅",
+            "score": 100.0
+          },
+          {
+            "id": "gui_005",
+            "kind": "gui_long",
+            "hyp": "您的数据在传输和存储过程中都将加密。未经您的明确同意，我们绝不会与第三方共享您的信息。",
+            "score": 59.34524770028957
+          },
+          {
+            "id": "err_001",
+            "kind": "error",
+            "hyp": "连接超时。请检查您的网络并重试。",
+            "score": 100.0
+          },
+          {
+            "id": "err_002",
+            "kind": "error",
+            "hyp": "您尝试上传的文件大小超过了最大限制 10 MB。",
+            "score": 39.0036316304773
+          }
+        ],
+        "avg_chrf": 78.28
       }
     },
     "x-ai/grok-4.3": {
@@ -111,6 +590,752 @@
           }
         ],
         "avg_chrf": 85.17
+      },
+      "de": {
+        "per_sentence": [
+          {
+            "id": "flores_001",
+            "kind": "prose",
+            "hyp": "Am Montag gaben Wissenschaftler der Stanford University School of Medicine die Erfindung eines neuen Diagnosewerkzeugs bekannt, das Zellen nach Typ sortieren kann: ein winziger druckbarer Chip, der mit Standard-Tintenstrahldruckern für möglicherweise etwa einen US-Cent pro Stück hergestellt werden kann.",
+            "score": 89.92069709844844
+          },
+          {
+            "id": "gui_001",
+            "kind": "gui_short",
+            "hyp": "Speichern",
+            "score": 100.0
+          },
+          {
+            "id": "gui_002",
+            "kind": "gui_short",
+            "hyp": "Einstellungen",
+            "score": 100.0
+          },
+          {
+            "id": "gui_003",
+            "kind": "gui_placeholder",
+            "hyp": "Willkommen zurück, {name}! Du hast {count} neue Benachrichtigungen.",
+            "score": 82.23173969258653
+          },
+          {
+            "id": "gui_004",
+            "kind": "gui_button",
+            "hyp": "Abonnement kündigen",
+            "score": 100.0
+          },
+          {
+            "id": "gui_005",
+            "kind": "gui_long",
+            "hyp": "Ihre Daten werden während der Übertragung und im Ruhezustand verschlüsselt. Wir geben Ihre Informationen niemals ohne Ihre ausdrückliche Zustimmung an Dritte weiter.",
+            "score": 100.0
+          },
+          {
+            "id": "err_001",
+            "kind": "error",
+            "hyp": "Zeitüberschreitung der Verbindung. Bitte überprüfen Sie Ihr Netzwerk und versuchen Sie es erneut.",
+            "score": 100.0
+          },
+          {
+            "id": "err_002",
+            "kind": "error",
+            "hyp": "Die Datei, die Sie hochladen möchten, überschreitet die maximale Größe von 10 MB.",
+            "score": 100.0
+          }
+        ],
+        "avg_chrf": 96.52
+      },
+      "ja": {
+        "per_sentence": [
+          {
+            "id": "flores_001",
+            "kind": "prose",
+            "hyp": "月曜日、スタンフォード大学医学部の科学者らは、細胞を種類ごとに分類できる新しい診断ツールの発明を発表した。それは、標準的なインクジェットプリンターを使って製造可能な、印刷可能な極小チップで、1個あたりおそらく約1米セント程度だという。",
+            "score": 60.315834287215175
+          },
+          {
+            "id": "gui_001",
+            "kind": "gui_short",
+            "hyp": "保存",
+            "score": 100.0
+          },
+          {
+            "id": "gui_002",
+            "kind": "gui_short",
+            "hyp": "設定",
+            "score": 100.0
+          },
+          {
+            "id": "gui_003",
+            "kind": "gui_placeholder",
+            "hyp": "おかえりなさい、{name}！ 新しい通知が{count}件あります。",
+            "score": 50.593479074484314
+          },
+          {
+            "id": "gui_004",
+            "kind": "gui_button",
+            "hyp": "サブスクリプションをキャンセル",
+            "score": 100.0
+          },
+          {
+            "id": "gui_005",
+            "kind": "gui_long",
+            "hyp": "お客様のデータは、転送中および保存時に暗号化されます。当社は、お客様の明示的な同意なしに、お客様の情報を第三者と共有することはありません。",
+            "score": 65.0800222773425
+          },
+          {
+            "id": "err_001",
+            "kind": "error",
+            "hyp": "接続がタイムアウトしました。ネットワークを確認して、再度お試しください。",
+            "score": 72.22343949441263
+          },
+          {
+            "id": "err_002",
+            "kind": "error",
+            "hyp": "アップロードしようとしているファイルは、最大サイズの10 MBを超えています。",
+            "score": 68.9676534057182
+          }
+        ],
+        "avg_chrf": 77.15
+      },
+      "ar": {
+        "per_sentence": [
+          {
+            "id": "flores_001",
+            "kind": "prose",
+            "hyp": "يوم الاثنين، أعلن علماء من كلية الطب بجامعة ستانفورد عن اختراع أداة تشخيصية جديدة يمكنها فرز الخلايا حسب النوع: رقاقة صغيرة قابلة للطباعة يمكن تصنيعها باستخدام طابعات نفث الحبر القياسية بسعر يصل إلى حوالي سنت أمريكي واحد لكل منها.",
+            "score": 90.16705633343084
+          },
+          {
+            "id": "gui_001",
+            "kind": "gui_short",
+            "hyp": "حفظ",
+            "score": 100.0
+          },
+          {
+            "id": "gui_002",
+            "kind": "gui_short",
+            "hyp": "الإعدادات",
+            "score": 100.0
+          },
+          {
+            "id": "gui_003",
+            "kind": "gui_placeholder",
+            "hyp": "مرحباً بعودتك، {name}! لديك {count} إشعارات جديدة.",
+            "score": 89.97607473039974
+          },
+          {
+            "id": "gui_004",
+            "kind": "gui_button",
+            "hyp": "إلغاء الاشتراك",
+            "score": 100.0
+          },
+          {
+            "id": "gui_005",
+            "kind": "gui_long",
+            "hyp": "سيتم تشفير بياناتك أثناء النقل وعند التخزين. نحن لا نشارك معلوماتك مع أطراف ثالثة دون موافقتك الصريحة.",
+            "score": 84.70010117868735
+          },
+          {
+            "id": "err_001",
+            "kind": "error",
+            "hyp": "انتهت مهلة الاتصال. يرجى التحقق من شبكتك والمحاولة مرة أخرى.",
+            "score": 100.0
+          },
+          {
+            "id": "err_002",
+            "kind": "error",
+            "hyp": "الملف الذي تحاول رفعه يتجاوز الحد الأقصى للحجم وهو 10 ميجابايت.",
+            "score": 74.09643816257537
+          }
+        ],
+        "avg_chrf": 92.37
+      },
+      "zh": {
+        "per_sentence": [
+          {
+            "id": "flores_001",
+            "kind": "prose",
+            "hyp": "周一，斯坦福大学医学院的科学家们宣布发明了一种新型诊断工具，该工具可以按类型对细胞进行分选：一种微小的可打印芯片，可使用标准喷墨打印机制造，每片成本可能仅为一美分左右。",
+            "score": 52.94470502316252
+          },
+          {
+            "id": "gui_001",
+            "kind": "gui_short",
+            "hyp": "保存",
+            "score": 100.0
+          },
+          {
+            "id": "gui_002",
+            "kind": "gui_short",
+            "hyp": "设置",
+            "score": 100.0
+          },
+          {
+            "id": "gui_003",
+            "kind": "gui_placeholder",
+            "hyp": "欢迎回来，{name}！你有{count}条新通知。",
+            "score": 59.81279796807747
+          },
+          {
+            "id": "gui_004",
+            "kind": "gui_button",
+            "hyp": "取消订阅",
+            "score": 100.0
+          },
+          {
+            "id": "gui_005",
+            "kind": "gui_long",
+            "hyp": "您的数据在传输过程中和静态存储时均会加密。我们绝不未经您的明确同意与第三方分享您的信息。",
+            "score": 40.270089805947165
+          },
+          {
+            "id": "err_001",
+            "kind": "error",
+            "hyp": "连接超时。请检查您的网络并重试。",
+            "score": 100.0
+          },
+          {
+            "id": "err_002",
+            "kind": "error",
+            "hyp": "您尝试上传的文件超过了 10 MB 的最大大小。",
+            "score": 100.0
+          }
+        ],
+        "avg_chrf": 81.63
+      }
+    },
+    "z-ai/glm-5.2": {
+      "tr": {
+        "per_sentence": [
+          {
+            "id": "flores_001",
+            "kind": "prose",
+            "hyp": "Pazartesi günü, Stanford Üniversitesi Tıp Fakültesi'nden bilim insanları, hücreleri türlerine göre ayırabilen yeni bir tanı aracının icat edildiğini duyurdular: standart mürekkep püskürtmeli yazıcılarla üretilen ve adedi muhtemelen yaklaşık bir ABD senti olacak kadar ucuz olan küçük, basılabilir bir çip.",
+            "score": 71.47984316337356
+          },
+          {
+            "id": "gui_001",
+            "kind": "gui_short",
+            "hyp": "Kaydet",
+            "score": 100.0
+          },
+          {
+            "id": "gui_002",
+            "kind": "gui_short",
+            "hyp": "Ayarlar",
+            "score": 100.0
+          },
+          {
+            "id": "gui_003",
+            "kind": "gui_placeholder",
+            "hyp": "Tekrar hoş geldin, {name}! {count} yeni bildirimin var.",
+            "score": 80.8285471783857
+          },
+          {
+            "id": "gui_004",
+            "kind": "gui_button",
+            "hyp": "Aboneliği iptal et",
+            "score": 100.0
+          },
+          {
+            "id": "gui_005",
+            "kind": "gui_long",
+            "hyp": "Verileriniz aktarım sırasında ve depolandığında şifrelenecektir. Bilgilerinizi açık rızanız olmadan üçüncü taraflarla asla paylaşmayız.",
+            "score": 76.27310021166717
+          },
+          {
+            "id": "err_001",
+            "kind": "error",
+            "hyp": "Bağlantı zaman aşımına uğradı. Lütfen ağınızı kontrol edip tekrar deneyin.",
+            "score": 100.0
+          },
+          {
+            "id": "err_002",
+            "kind": "error",
+            "hyp": "Yüklemeye çalıştığınız dosya 10 MB maksimum boyut sınırını aşıyor.",
+            "score": 87.5563661371122
+          }
+        ],
+        "avg_chrf": 89.52
+      },
+      "de": {
+        "per_sentence": [
+          {
+            "id": "flores_001",
+            "kind": "prose",
+            "hyp": "Am Montag gaben Wissenschaftler der Stanford University School of Medicine die Erfindung eines neuen diagnostischen Werkzeugs bekannt, das Zellen nach Typ sortieren kann: einen winzigen, druckbaren Chip, der mit handelsüblichen Tintenstrahldruckern für möglicherweise etwa einen US-Cent pro Stück hergestellt werden kann.",
+            "score": 87.08971304150927
+          },
+          {
+            "id": "gui_001",
+            "kind": "gui_short",
+            "hyp": "Speichern",
+            "score": 100.0
+          },
+          {
+            "id": "gui_002",
+            "kind": "gui_short",
+            "hyp": "Einstellungen",
+            "score": 100.0
+          },
+          {
+            "id": "gui_003",
+            "kind": "gui_placeholder",
+            "hyp": "Willkommen zurück, {name}! Du hast {count} neue Benachrichtigungen.",
+            "score": 82.23173969258653
+          },
+          {
+            "id": "gui_004",
+            "kind": "gui_button",
+            "hyp": "Abonnement kündigen",
+            "score": 100.0
+          },
+          {
+            "id": "gui_005",
+            "kind": "gui_long",
+            "hyp": "Ihre Daten werden bei der Übertragung und im Ruhezustand verschlüsselt. Wir geben Ihre Informationen niemals ohne Ihre ausdrückliche Zustimmung an Dritte weiter.",
+            "score": 93.83251961185319
+          },
+          {
+            "id": "err_001",
+            "kind": "error",
+            "hyp": "Zeitüberschreitung der Verbindung. Bitte überprüfen Sie Ihr Netzwerk und versuchen Sie es erneut.",
+            "score": 100.0
+          },
+          {
+            "id": "err_002",
+            "kind": "error",
+            "hyp": "Die Datei, die Sie hochladen möchten, überschreitet die maximale Größe von 10 MB.",
+            "score": 100.0
+          }
+        ],
+        "avg_chrf": 95.39
+      },
+      "ja": {
+        "per_sentence": [
+          {
+            "id": "flores_001",
+            "kind": "prose",
+            "hyp": "月曜日、スタンフォード大学医学部の科学者たちは、細胞を種類別に分類できる新しい診断ツールの発明を発表した。それは、標準的なインクジェットプリンターを使用して1個あたり約1米国セントで製造できる可能性がある、小さなプリント可能なチップである。",
+            "score": 58.949664235778634
+          },
+          {
+            "id": "gui_001",
+            "kind": "gui_short",
+            "hyp": "保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存保存",
+            "score": 0.8282721835510323
+          },
+          {
+            "id": "gui_002",
+            "kind": "gui_short",
+            "hyp": "設定",
+            "score": 100.0
+          },
+          {
+            "id": "gui_003",
+            "kind": "gui_placeholder",
+            "hyp": "おかえりなさい、{name}さん！{count}件の新しい通知があります。",
+            "score": 85.71428571428571
+          },
+          {
+            "id": "gui_004",
+            "kind": "gui_button",
+            "hyp": "サブスクリプションを解約",
+            "score": 53.35883500109252
+          },
+          {
+            "id": "gui_005",
+            "kind": "gui_long",
+            "hyp": "お客様のデータは転送中および保管中に暗号化されます。",
+            "score": 21.83331738284359
+          },
+          {
+            "id": "err_001",
+            "kind": "error",
+            "hyp": "接続がタイムアウトしました。ネットワークを確認して、もう一度お試しください。",
+            "score": 78.82017532082081
+          },
+          {
+            "id": "err_002",
+            "kind": "error",
+            "hyp": "アップロードしようとしているファイルは、最大サイズの10MBを超えています。",
+            "score": 78.82017532082081
+          }
+        ],
+        "avg_chrf": 59.79
+      },
+      "ar": {
+        "per_sentence": [
+          {
+            "id": "flores_001",
+            "kind": "prose",
+            "hyp": "في يوم الاثنين، أعلن علماء من كلية الطب بجامعة ستانفورد عن اختراع أداة تشخيصية جديدة يمكنها فرز الخلايا حسب نوعها: شريحة صغيرة قابلة للطباعة يمكن تصنيعها باستخدام طابعات نفث الحبر القياسية بتكلفة قد تبلغ حوالي سنت أمريكي واحد لكل منها.",
+            "score": 89.81941730112608
+          },
+          {
+            "id": "gui_001",
+            "kind": "gui_short",
+            "hyp": "حفظ",
+            "score": 100.0
+          },
+          {
+            "id": "gui_002",
+            "kind": "gui_short",
+            "hyp": "الإعدادات",
+            "score": 100.0
+          },
+          {
+            "id": "gui_003",
+            "kind": "gui_placeholder",
+            "hyp": "مرحباً بعودتك، {name}! لديك {count} إشعارات جديدة.",
+            "score": 89.97607473039974
+          },
+          {
+            "id": "gui_004",
+            "kind": "gui_button",
+            "hyp": "إلغاء الاشتراك",
+            "score": 100.0
+          },
+          {
+            "id": "gui_005",
+            "kind": "gui_long",
+            "hyp": "سيتم تشفير بياناتك أثناء النقل والتخزين. لا نشارك أبداً معلوماتك مع أطراف ثالثة دون موافقتك الصريحة.",
+            "score": 76.33811228162092
+          },
+          {
+            "id": "err_001",
+            "kind": "error",
+            "hyp": "انتهت مهلة الاتصال. يرجى التحقق من شبكتك والمحاولة مرة أخرى.",
+            "score": 100.0
+          },
+          {
+            "id": "err_002",
+            "kind": "error",
+            "hyp": "الملف الذي تحاول رفعه يتجاوز الحد الأقصى للحجم وهو 10 ميجابايت.",
+            "score": 74.09643816257537
+          }
+        ],
+        "avg_chrf": 91.28
+      },
+      "zh": {
+        "per_sentence": [
+          {
+            "id": "flores_001",
+            "kind": "prose",
+            "hyp": "周一，斯坦福大学医学院的科学家宣布发明了一种新型诊断工具，能够按类型对细胞进行分选：这是一种微小的可打印芯片，可以使用标准喷墨打印机制造，每片的成本可能仅约一美分。",
+            "score": 51.72720260037953
+          },
+          {
+            "id": "gui_001",
+            "kind": "gui_short",
+            "hyp": "保存",
+            "score": 100.0
+          },
+          {
+            "id": "gui_002",
+            "kind": "gui_short",
+            "hyp": "设置",
+            "score": 100.0
+          },
+          {
+            "id": "gui_003",
+            "kind": "gui_placeholder",
+            "hyp": "欢迎回来，{name}！您有 {count} 条新通知。",
+            "score": 81.67405149198628
+          },
+          {
+            "id": "gui_004",
+            "kind": "gui_button",
+            "hyp": "取消订阅",
+            "score": 100.0
+          },
+          {
+            "id": "gui_005",
+            "kind": "gui_long",
+            "hyp": "您的数据在传输和静态存储过程中均会被加密。未经您的明确同意，我们绝不与第三方共享您的信息。",
+            "score": 59.71545652330694
+          },
+          {
+            "id": "err_001",
+            "kind": "error",
+            "hyp": "连接超时。请检查您的网络并重试。",
+            "score": 100.0
+          },
+          {
+            "id": "err_002",
+            "kind": "error",
+            "hyp": "您尝试上传的文件超过了 10 MB 的最大大小限制。",
+            "score": 87.71719071672337
+          }
+        ],
+        "avg_chrf": 85.1
+      }
+    },
+    "qwen/qwen3.7-max": {
+      "tr": {
+        "per_sentence": [
+          {
+            "id": "flores_001",
+            "kind": "prose",
+            "hyp": "Pazartesi günü, Stanford Üniversitesi Tıp Fakültesi'nden bilim insanları, hücreleri türlerine göre ayırabilen yeni bir tanı aracının icadını duyurdu: standart mürekkep püskürtmeli yazıcılar kullanılarak tanesi muhtemelen yaklaşık bir ABD sentine üretilebilen minik ve yazdırılabilir bir çip.",
+            "score": 69.32778161222447
+          },
+          {
+            "id": "gui_001",
+            "kind": "gui_short",
+            "hyp": "Kaydet",
+            "score": 100.0
+          },
+          {
+            "id": "gui_002",
+            "kind": "gui_short",
+            "hyp": "Ayarlar",
+            "score": 100.0
+          },
+          {
+            "id": "gui_003",
+            "kind": "gui_placeholder",
+            "hyp": "Tekrar hoş geldin, {name}! {count} yeni bildirimin var.",
+            "score": 80.8285471783857
+          },
+          {
+            "id": "gui_004",
+            "kind": "gui_button",
+            "hyp": "Aboneliği iptal et",
+            "score": 100.0
+          },
+          {
+            "id": "gui_005",
+            "kind": "gui_long",
+            "hyp": "Verileriniz aktarım sırasında ve depolama halindeyken şifrelenecektir. Açık rızanız olmadan bilgilerinizi üçüncü taraflarla asla paylaşmayız.",
+            "score": 85.32014846046923
+          },
+          {
+            "id": "err_001",
+            "kind": "error",
+            "hyp": "Bağlantı zaman aşımına uğradı. Lütfen ağınızı kontrol edin ve tekrar deneyin.",
+            "score": 91.61336821014444
+          },
+          {
+            "id": "err_002",
+            "kind": "error",
+            "hyp": "Yüklemeye çalıştığınız dosya 10 MB'lık maksimum boyutu aşıyor.",
+            "score": 90.3861849126283
+          }
+        ],
+        "avg_chrf": 89.68
+      },
+      "de": {
+        "per_sentence": [
+          {
+            "id": "flores_001",
+            "kind": "prose",
+            "hyp": "Am Montag gaben Wissenschaftler der medizinischen Fakultät der Stanford University die Erfindung eines neuen Diagnoseinstruments bekannt, mit dem sich Zellen nach ihrem Typ sortieren lassen: ein winziger, druckbarer Chip, der sich mit handelsüblichen Tintenstrahldruckern für möglicherweise etwa einen US-Cent pro Stück herstellen lässt.",
+            "score": 70.17801945123917
+          },
+          {
+            "id": "gui_001",
+            "kind": "gui_short",
+            "hyp": "Speichern",
+            "score": 100.0
+          },
+          {
+            "id": "gui_002",
+            "kind": "gui_short",
+            "hyp": "Einstellungen",
+            "score": 100.0
+          },
+          {
+            "id": "gui_003",
+            "kind": "gui_placeholder",
+            "hyp": "Willkommen zurück, {name}! Sie haben {count} neue Benachrichtigungen.",
+            "score": 100.0
+          },
+          {
+            "id": "gui_004",
+            "kind": "gui_button",
+            "hyp": "Abonnement kündigen",
+            "score": 100.0
+          },
+          {
+            "id": "gui_005",
+            "kind": "gui_long",
+            "hyp": "Ihre Daten werden sowohl während der Übertragung als auch im Ruhezustand verschlüsselt. Wir geben Ihre Informationen ohne Ihre ausdrückliche Einwilligung niemals an Dritte weiter.",
+            "score": 81.68164926763586
+          },
+          {
+            "id": "err_001",
+            "kind": "error",
+            "hyp": "Zeitüberschreitung bei der Verbindung. Bitte überprüfen Sie Ihr Netzwerk und versuchen Sie es erneut.",
+            "score": 95.95131264046242
+          },
+          {
+            "id": "err_002",
+            "kind": "error",
+            "hyp": "Die Datei, die Sie hochladen möchten, überschreitet die Maximalgröße von 10 MB.",
+            "score": 87.28877672229942
+          }
+        ],
+        "avg_chrf": 91.89
+      },
+      "ja": {
+        "per_sentence": [
+          {
+            "id": "flores_001",
+            "kind": "prose",
+            "hyp": "月曜日、スタンフォード大学医学部の研究者らが、細胞を種類別に選別できる新たな診断ツールの発明を発表した。これは超小型の印刷可能チップで、一般的なインクジェットプリンターを用いて1枚あたりわずか約1米セントという低コストで製造できる可能性がある。",
+            "score": 47.36892636042128
+          },
+          {
+            "id": "gui_001",
+            "kind": "gui_short",
+            "hyp": "保存",
+            "score": 100.0
+          },
+          {
+            "id": "gui_002",
+            "kind": "gui_short",
+            "hyp": "設定",
+            "score": 100.0
+          },
+          {
+            "id": "gui_003",
+            "kind": "gui_placeholder",
+            "hyp": "おかえりなさい、{name}さん！新しい通知が{count}件あります。",
+            "score": 64.28106704744006
+          },
+          {
+            "id": "gui_004",
+            "kind": "gui_button",
+            "hyp": "サブスクリプションの解約",
+            "score": 45.99986218074019
+          },
+          {
+            "id": "gui_005",
+            "kind": "gui_long",
+            "hyp": "お客様のデータは通信時および保存時に暗号化されます。お客様の明示的な同意なく、当社がお客様の情報を第三者と共有することは一切ございません。",
+            "score": 62.76329945857473
+          },
+          {
+            "id": "err_001",
+            "kind": "error",
+            "hyp": "接続がタイムアウトしました。ネットワークを確認し、再度お試しください。",
+            "score": 70.12676937909329
+          },
+          {
+            "id": "err_002",
+            "kind": "error",
+            "hyp": "アップロードしようとしているファイルは、最大サイズの10 MBを超えています。",
+            "score": 68.9676534057182
+          }
+        ],
+        "avg_chrf": 69.94
+      },
+      "ar": {
+        "per_sentence": [
+          {
+            "id": "flores_001",
+            "kind": "prose",
+            "hyp": "يوم الاثنين، أعلن علماء من كلية الطب بجامعة ستانفورد عن ابتكار أداة تشخيصية جديدة قادرة على فرز الخلايا حسب نوعها: شريحة دقيقة قابلة للطباعة يمكن تصنيعها باستخدام طابعات نفث الحبر القياسية بتكلفة قد تبلغ نحو سنت أمريكي واحد للقطعة.",
+            "score": 75.7878093719981
+          },
+          {
+            "id": "gui_001",
+            "kind": "gui_short",
+            "hyp": "حفظ",
+            "score": 100.0
+          },
+          {
+            "id": "gui_002",
+            "kind": "gui_short",
+            "hyp": "الإعدادات",
+            "score": 100.0
+          },
+          {
+            "id": "gui_003",
+            "kind": "gui_placeholder",
+            "hyp": "مرحباً بعودتك، {name}! لديك {count} إشعارات جديدة.",
+            "score": 89.97607473039974
+          },
+          {
+            "id": "gui_004",
+            "kind": "gui_button",
+            "hyp": "إلغاء الاشتراك",
+            "score": 100.0
+          },
+          {
+            "id": "gui_005",
+            "kind": "gui_long",
+            "hyp": "ستُشفَّر بياناتك أثناء النقل والتخزين. ولا نشارك معلوماتك مطلقًا مع أطراف ثالثة دون موافقتك الصريحة.",
+            "score": 67.41987537495365
+          },
+          {
+            "id": "err_001",
+            "kind": "error",
+            "hyp": "انتهت مهلة الاتصال. يُرجى التحقق من الشبكة والمحاولة مرة أخرى.",
+            "score": 78.69982962060881
+          },
+          {
+            "id": "err_002",
+            "kind": "error",
+            "hyp": "الملف الذي تحاول رفعه يتجاوز الحد الأقصى للحجم البالغ 10 ميغابايت.",
+            "score": 70.82593217183334
+          }
+        ],
+        "avg_chrf": 85.34
+      },
+      "zh": {
+        "per_sentence": [
+          {
+            "id": "flores_001",
+            "kind": "prose",
+            "hyp": "周一，斯坦福大学医学院的科学家宣布发明了一种新型诊断工具，能够按类型分选细胞：这是一种微型可打印芯片，可使用标准喷墨打印机制造，每片成本可能仅约1美分。",
+            "score": 49.13923045208301
+          },
+          {
+            "id": "gui_001",
+            "kind": "gui_short",
+            "hyp": "保存",
+            "score": 100.0
+          },
+          {
+            "id": "gui_002",
+            "kind": "gui_short",
+            "hyp": "设置",
+            "score": 100.0
+          },
+          {
+            "id": "gui_003",
+            "kind": "gui_placeholder",
+            "hyp": "欢迎回来，{name}！您有 {count} 条新通知。",
+            "score": 81.67405149198628
+          },
+          {
+            "id": "gui_004",
+            "kind": "gui_button",
+            "hyp": "取消订阅",
+            "score": 100.0
+          },
+          {
+            "id": "gui_005",
+            "kind": "gui_long",
+            "hyp": "您的数据在传输中和静态存储时均会进行加密。未经您明确同意，我们绝不会与第三方共享您的信息。",
+            "score": 51.72383414400854
+          },
+          {
+            "id": "err_001",
+            "kind": "error",
+            "hyp": "连接超时。请检查网络并重试。",
+            "score": 56.92036610138943
+          },
+          {
+            "id": "err_002",
+            "kind": "error",
+            "hyp": "您尝试上传的文件大小超过了10 MB的最大限制。",
+            "score": 53.13799522370986
+          }
+        ],
+        "avg_chrf": 74.07
       }
     },
     "openai/gpt-oss-120b": {
@@ -166,13 +1391,225 @@
           }
         ],
         "avg_chrf": 85.5
+      },
+      "de": {
+        "per_sentence": [
+          {
+            "id": "flores_001",
+            "kind": "prose",
+            "hyp": "Am Montag kündigten Wissenschaftler der Stanford University School of Medicine die Erfindung eines neuen Diagnosewerkzeugs an, das Zellen nach Typ sortieren kann: ein winziger, druckbarer Chip, der mit herkömmlichen Tintenstrahldruckern hergestellt werden kann und möglicherweise etwa einen US‑Cent pro Stück kostet.",
+            "score": 75.47800384324847
+          },
+          {
+            "id": "gui_001",
+            "kind": "gui_short",
+            "hyp": "Speichern",
+            "score": 100.0
+          },
+          {
+            "id": "gui_002",
+            "kind": "gui_short",
+            "hyp": "Einstellungen",
+            "score": 100.0
+          },
+          {
+            "id": "gui_003",
+            "kind": "gui_placeholder",
+            "hyp": "Willkommen zurück, {name}! Du hast {count} neue Benachrichtigungen.",
+            "score": 82.23173969258653
+          },
+          {
+            "id": "gui_004",
+            "kind": "gui_button",
+            "hyp": "Abonnement kündigen",
+            "score": 100.0
+          },
+          {
+            "id": "gui_005",
+            "kind": "gui_long",
+            "hyp": "Ihre Daten werden während der Übertragung und im Ruhezustand verschlüsselt. Wir geben Ihre Informationen niemals ohne Ihre ausdrückliche Zustimmung an Dritte weiter.",
+            "score": 100.0
+          },
+          {
+            "id": "err_001",
+            "kind": "error",
+            "hyp": "Verbindung hat Zeitüberschreitung. Bitte prüfen Sie Ihr Netzwerk und versuchen Sie es erneut.",
+            "score": 83.05155521159598
+          },
+          {
+            "id": "err_002",
+            "kind": "error",
+            "hyp": "Die Datei, die Sie hochladen möchten, überschreitet die maximale Größe von 10 MB.",
+            "score": 100.0
+          }
+        ],
+        "avg_chrf": 92.6
+      },
+      "ja": {
+        "per_sentence": [
+          {
+            "id": "flores_001",
+            "kind": "prose",
+            "hyp": "月曜日に、スタンフォード大学医学部の科学者たちは、細胞をタイプ別に分類できる新しい診断ツールの発明を発表しました。それは、標準的なインクジェットプリンターで製造でき、1個あたり約1米セントで作れる可能性のある小さな印刷可能チップです。",
+            "score": 61.75879420217699
+          },
+          {
+            "id": "gui_001",
+            "kind": "gui_short",
+            "hyp": "保存",
+            "score": 100.0
+          },
+          {
+            "id": "gui_002",
+            "kind": "gui_short",
+            "hyp": "設定",
+            "score": 100.0
+          },
+          {
+            "id": "gui_003",
+            "kind": "gui_placeholder",
+            "hyp": "おかえり、{name}！{count}件の新しい通知があります。",
+            "score": 62.64035757402111
+          },
+          {
+            "id": "gui_004",
+            "kind": "gui_button",
+            "hyp": "購読をキャンセル",
+            "score": 25.640225402653783
+          },
+          {
+            "id": "gui_005",
+            "kind": "gui_long",
+            "hyp": "データは転送中および保存時に暗号化されます。明示的な同意がない限り、第三者と情報を共有することは決してありません。",
+            "score": 52.71516889667709
+          },
+          {
+            "id": "err_001",
+            "kind": "error",
+            "hyp": "接続がタイムアウトしました。ネットワークを確認し、再度お試しください。",
+            "score": 70.12676937909329
+          },
+          {
+            "id": "err_002",
+            "kind": "error",
+            "hyp": "アップロードしようとしているファイルは、最大サイズの10 MBを超えています。",
+            "score": 68.9676534057182
+          }
+        ],
+        "avg_chrf": 67.73
+      },
+      "ar": {
+        "per_sentence": [
+          {
+            "id": "flores_001",
+            "kind": "prose",
+            "hyp": "في يوم الاثنين، أعلن العلماء من كلية الطب بجامعة ستانفورد عن اختراع أداة تشخيصية جديدة يمكنها فرز الخلايا حسب النوع: شريحة صغيرة قابلة للطباعة يمكن تصنيعها باستخدام طابعات الحبر التقليدية بتكلفة قد تكون حوالي سنت أمريكي واحد لكل منها.",
+            "score": 85.48675868177106
+          },
+          {
+            "id": "gui_001",
+            "kind": "gui_short",
+            "hyp": "حفظ",
+            "score": 100.0
+          },
+          {
+            "id": "gui_002",
+            "kind": "gui_short",
+            "hyp": "الإعدادات",
+            "score": 100.0
+          },
+          {
+            "id": "gui_003",
+            "kind": "gui_placeholder",
+            "hyp": "مرحبًا بعودتك، {name}! لديك {count} إشعارات جديدة.",
+            "score": 100.0
+          },
+          {
+            "id": "gui_004",
+            "kind": "gui_button",
+            "hyp": "إلغاء الاشتراك",
+            "score": 100.0
+          },
+          {
+            "id": "gui_005",
+            "kind": "gui_long",
+            "hyp": "سيتم تشفير بياناتك أثناء النقل وعند التخزين. نحن لا نشارك معلوماتك مع أطراف ثالثة دون موافقتك الصريحة.",
+            "score": 84.70010117868735
+          },
+          {
+            "id": "err_001",
+            "kind": "error",
+            "hyp": "انتهت مهلة الاتصال. يرجى التحقق من الشبكة والمحاولة مرة أخرى.",
+            "score": 86.2058337944289
+          },
+          {
+            "id": "err_002",
+            "kind": "error",
+            "hyp": "الملف الذي تحاول تحميله يتجاوز الحد الأقصى للحجم وهو 10 ميغابايت.",
+            "score": 92.5919664357511
+          }
+        ],
+        "avg_chrf": 93.62
+      },
+      "zh": {
+        "per_sentence": [
+          {
+            "id": "flores_001",
+            "kind": "prose",
+            "hyp": "周一，斯坦福大学医学院的科学家们宣布发明了一种新型诊断工具，能够按类型对细胞进行分类：一种微小的可打印芯片，可使用标准喷墨打印机制造，成本可能约为每个一美分。",
+            "score": 52.502600040895956
+          },
+          {
+            "id": "gui_001",
+            "kind": "gui_short",
+            "hyp": "保存",
+            "score": 100.0
+          },
+          {
+            "id": "gui_002",
+            "kind": "gui_short",
+            "hyp": "设置",
+            "score": 100.0
+          },
+          {
+            "id": "gui_003",
+            "kind": "gui_placeholder",
+            "hyp": "欢迎回来，{name}！你有{count}条新通知。",
+            "score": 59.81279796807747
+          },
+          {
+            "id": "gui_004",
+            "kind": "gui_button",
+            "hyp": "取消订阅",
+            "score": 100.0
+          },
+          {
+            "id": "gui_005",
+            "kind": "gui_long",
+            "hyp": "您的数据在传输和存储时都会被加密。未经您明确同意，我们绝不会将您的信息分享给第三方。",
+            "score": 42.94308567277575
+          },
+          {
+            "id": "err_001",
+            "kind": "error",
+            "hyp": "连接超时。请检查您的网络并重试。",
+            "score": 100.0
+          },
+          {
+            "id": "err_002",
+            "kind": "error",
+            "hyp": "您尝试上传的文件超过了 10 MB 的最大大小。",
+            "score": 100.0
+          }
+        ],
+        "avg_chrf": 81.91
       }
     }
   },
   "stats": {
-    "calls": 24,
-    "cache_hits": 0,
+    "calls": 34,
+    "cache_hits": 206,
     "failures": 0,
-    "approx_cost_usd": 0.0094
+    "approx_cost_usd": 0.0254
   }
 }

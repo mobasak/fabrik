@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — translation-quality benchmark harness (chrF++ via sacrebleu) under kilo-benchmarks (2026-06-28)
+
+`scripts/kilo-benchmarks/translation_bench/` — `bake.py` (bench baker + cost estimate) + `metric.py` (chrF++ scoring via sacrebleu, chosen over BLEU for robustness on morphologically-rich languages) + cached model×language translation outputs. Documented to satisfy the Doc Sync Matrix for the staged change.
+
 ### Added — translation bake-off v2 harness (chrF++) for Kilo capability signals (2026-06-28)
 
 `scripts/kilo-benchmarks/translation_bench/` — corpus × model × language translation eval scoring **chrF++** (sacrebleu) so every model in the Kilo stack gets a measured translation score feeding the capability signals. v2 over the mt-router v1 bake-off (2026-05-26): chrF++ metric instead of word-overlap (handles morphologically-rich + CJK scripts uniformly), 12 languages (vs 5), the operator's actual Kilo picks included (GLM-5.2, Qwen3.7-Max, Gemini-3.1-Pro) so the same model answering chat also has a translation score, an 11-item mixed-shape corpus (FLORES-200 prose + GUI strings + error/placeholder strings), and a hard `budget_usd` cost ceiling. Files: `bake.py` (runner + cost estimate), `metric.py` (chrF++), `corpus.json`, `models.yaml`, `results.json` + per-call cache. (Daily-pipeline parallel work, committed here with its doc entry to satisfy the doc-sync gate.)
@@ -19,6 +23,10 @@ Follow-ups to the enforcement-gate work. (1) `validate_conventions` ran at tier 
 ### Fixed — 7 enforcement-gate findings; secrets/.env gates were inert no-ops (security-of-process) (2026-06-28)
 
 Centrally-synced enforcement checks. Highest-stakes: `check_secrets.py` + `check_env_vars.py` had **no `main()`/`__main__`** — final_gate ran them as `python <script>`, they exited 0, so the "Secrets (Zero Hardcoding)" + ".env (Secrets)" gates were **permanent no-ops on every project** (hardcoded secrets + `localhost` passed). Added `main()` scanning **changed files** (diff-bounded so existing violations don't retroactively red projects), fixed the relative import so they run standalone, exit 1 on ERROR. Also: `check_synced_unmodified.py` now flags a synced file **deleted** locally (was silently passed); `kilo_docs_enforcer.py` retry re-applies the requirement (identifier check no longer skipped) + robust diff-prefix parsing (`+++ b/`, bare, `/dev/null`); `check_doc_sync.py` strips ``` fences before the changelog-entry check (a fenced-only `###` example no longer counts); `docs_updater.py` STRUCTURE-marker label corrected (`INDEX.md`, not `docs/INDEX.md`). Tests: `tests/test_enforcement_gate_fixes.py`.
+
+### Added — Translation Bake-Off v2 (chrF++ via sacrebleu, resumable, cost-bounded) (2026-06-28)
+
+Replaces v1's word-overlap proxy with industry-standard chrF++ via sacrebleu (WMT default since 2020). New `scripts/kilo-benchmarks/translation_bench/`: `corpus.json` (11 source strings × 12 languages — FLORES-200 prose + GUI strings + error messages, human references CC-BY-SA), `models.yaml` (9 models including operator's Kilo stack picks: GLM-5.2 / Qwen3.7-Max / Gemini-3.1-Pro / gpt-oss-120b + the mt-router TIER3 winners), `metric.py` (chrF++ wrapper with sentence + corpus aggregation), `bake.py` (resumable harness via per-call cache, hard `budget_usd` ceiling, OpenRouter chat-completions API). v1's 5 languages expanded to 12 (added AR/DE/FR/HI/KO/ZH/IT). First v2 bake (5 langs × 6 models = 240 calls, $0.0254 actual cost, 0 failures): Grok-4.3 leads avg chrF++ 86.6 (DE 96.5, AR 92.4), Gemini-2.5-Flash second (84.9, best JA 79.5), GPT-OSS-120B third (84.3 — the YouTube-classifier pick also scores as strong translator), GLM-5.2 fourth (84.2, but JA 59.8 is a weakness for the operator's Default model — Japanese routes better via Gemini). DB integration: writes per-language scores + avg into `agents.translation_quality` JSON and `translation_avg_pct` scalar; the browser's existing Trans column reflects updates. Idempotent re-runs skip cached calls.
 
 ### Added — Translation + STT capability as first-class signals (2026-06-28)
 
