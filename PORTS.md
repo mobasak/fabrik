@@ -83,14 +83,14 @@ If you encounter a port conflict:
 
 
 <!-- AUTO-GENERATED:PORTS:START -->
-<!-- Last synced: 2026-06-27 00:07:55 -->
+<!-- Last synced: 2026-06-28 20:27:00 -->
 
 ### Project Port Allocations (from project.yaml)
 
 | Port | Project | Type | Path |
 |------|---------|------|------|
 | 3000 | **test-saas-platform** | saas-skeleton | /opt/test-saas-platform |
-| 3001 | **calendar-orchestration-engine** | python-api | /opt/calendar-orchestration-engine |
+| 3001 | **calendar-orchestration-engine** | node-api | /opt/calendar-orchestration-engine |
 | 3002 | **test-saas-scaffold** | saas-skeleton | /opt/test-saas-scaffold |
 | 3003 | **transdoc** | saas-skeleton | /opt/transdoc |
 | 8001 | **longephedia-vault** | python-api | /opt/longephedia-vault |

@@ -1,6 +1,6 @@
 # Cascade Models and Credits
 
-**Last Updated:** 2026-06-27
+**Last Updated:** 2026-06-28
 
 > 📋 **Source:** Automatically extracted from https://docs.windsurf.com/plugins/cascade/models
 >
@@ -23,9 +23,9 @@
 | Adaptive | — | — | — |  |
 | SWE-1.6 | 0 | — | — | Promo pricing |
 | Kimi K2.7 | 1 | — | — |  |
-| GPT-5.4 Mini (Low Reasoning) | 1.5 | — | — |  |
-| GLM-5.2 | 1.5 | — | — |  |
-| GPT-5.2-Codex (Low Reasoning Fast) | 2 | — | 66.5% |  |
+| GPT-5.4 Mini (Low Reasoning) | 1.5 | — | 49.6% |  |
+| GLM-5.2 | 1.5 | 1461 | 52.4% |  |
+| GPT-5.2-Codex (Low Reasoning Fast) | 2 | — | 49.6% |  |
 | Claude Sonnet 4.5 | 3 | 1464 | 46.5% |  |
 | Claude Sonnet 4.6 | 4 | 1500 | 53.4% |  |
 | Claude Opus 4.5 | 6 | 1496 | 63.1% |  |
@@ -99,70 +99,70 @@
 
 | Model | Credits | Arena ELO | TBench | Notes |
 |-------|---------|-----------|--------|-------|
-| GPT-5.3-Codex-Spark | — | — | — |  |
-| GPT-5.1-Codex Mini Low | 0.2 | — | 61.6% |  |
+| GPT-5.3-Codex-Spark | — | — | 49.6% |  |
+| GPT-5.1-Codex Mini Low | 0.2 | — | 49.6% |  |
 | gpt-oss 120B (Medium) | 0.2 | 1398 | 18.7% |  |
 | GPT-5.1 (No Reasoning) | 0.5 | 1450 | 47.6% |  |
 | GPT-5.1 (Low Reasoning) | 0.5 | 1450 | 47.6% |  |
-| GPT-5.1-Codex Low | 0.5 | — | 57.8% |  |
-| GPT-5.1-Codex Mini | 0.5 | — | 61.6% |  |
+| GPT-5.1-Codex Low | 0.5 | — | 49.6% |  |
+| GPT-5.1-Codex Mini | 0.5 | — | 49.6% |  |
 | GPT-5 (Low Reasoning) | 0.5 | — | 49.6% |  |
 | GPT-5-Codex | 0.5 | — | 44.3% |  |
 | GPT-5.2 (No Reasoning) | 1 | 1465 | 64.9% |  |
 | GPT-5.2 (Low Reasoning) | 1 | 1465 | 64.9% |  |
-| GPT-5.2-Codex (Low Reasoning) | 1 | — | 66.5% |  |
-| GPT-5.2-Codex (Medium Reasoning) | 1 | — | 66.5% |  |
+| GPT-5.2-Codex (Low Reasoning) | 1 | — | 49.6% |  |
+| GPT-5.2-Codex (Medium Reasoning) | 1 | — | 49.6% |  |
 | GPT-5.1 (Medium Reasoning) | 1 | 1450 | 47.6% |  |
 | GPT-5.1 (No Reasoning Fast) | 1 | 1450 | 47.6% |  |
 | GPT-5.1 (Low Reasoning Fast) | 1 | 1450 | 47.6% |  |
-| GPT-5.1-Codex Max (Low Reasoning) | 1 | — | 60.4% |  |
+| GPT-5.1-Codex Max (Low Reasoning) | 1 | — | 49.6% |  |
 | GPT-5 (Medium Reasoning) | 1 | — | 49.6% |  |
 | o3 | 1 | 1327 | — |  |
 | o3 (high reasoning) | 1 | 1327 | — |  |
 | GPT-4o | 1 | 1307 | — |  |
 | GPT-4.1 | 1 | — | — |  |
-| GPT-5.1-Codex Max (Medium Reasoning) | 1.2 | — | 60.4% |  |
+| GPT-5.1-Codex Max (Medium Reasoning) | 1.2 | — | 49.6% |  |
 | GPT-5.4 (No Reasoning) | 1.5 | 1468 | 81.8% |  |
 | GPT-5.4 (Low Reasoning) | 1.5 | 1468 | 81.8% |  |
-| GPT-5.4 Mini (Low Reasoning) | 1.5 | — | — |  |
-| GPT-5.4 Mini (Medium Reasoning) | 1.5 | — | — |  |
-| GPT-5.3-Codex (Low Reasoning) | 1.5 | — | 78.4% |  |
-| GPT-5.1-Codex Max (High Reasoning) | 1.5 | — | 60.4% |  |
-| GPT-5.3-Codex (Medium Reasoning) | 2 | — | 78.4% |  |
+| GPT-5.4 Mini (Low Reasoning) | 1.5 | — | 49.6% |  |
+| GPT-5.4 Mini (Medium Reasoning) | 1.5 | — | 49.6% |  |
+| GPT-5.3-Codex (Low Reasoning) | 1.5 | — | 49.6% |  |
+| GPT-5.1-Codex Max (High Reasoning) | 1.5 | — | 49.6% |  |
+| GPT-5.3-Codex (Medium Reasoning) | 2 | — | 49.6% |  |
 | GPT-5.2 (Medium Reasoning) | 2 | 1465 | 64.9% |  |
 | GPT-5.2 (No Reasoning Fast) | 2 | 1465 | 64.9% |  |
 | GPT-5.2 (Low Reasoning Fast) | 2 | 1465 | 64.9% |  |
-| GPT-5.2-Codex (High Reasoning) | 2 | — | 66.5% |  |
-| GPT-5.2-Codex (Low Reasoning Fast) | 2 | — | 66.5% |  |
-| GPT-5.2-Codex (Medium Reasoning Fast) | 2 | — | 66.5% |  |
+| GPT-5.2-Codex (High Reasoning) | 2 | — | 49.6% |  |
+| GPT-5.2-Codex (Low Reasoning Fast) | 2 | — | 49.6% |  |
+| GPT-5.2-Codex (Medium Reasoning Fast) | 2 | — | 49.6% |  |
 | GPT-5.1 (High Reasoning) | 2 | 1450 | 47.6% |  |
 | GPT-5.1 (Medium Reasoning Fast) | 2 | 1450 | 47.6% |  |
 | GPT-5 (High Reasoning) | 2 | — | 49.6% |  |
-| GPT-5.3-Codex (High Reasoning) | 2.5 | — | 78.4% |  |
+| GPT-5.3-Codex (High Reasoning) | 2.5 | — | 49.6% |  |
 | GPT-5.4 (Medium Reasoning) | 3 | 1468 | 81.8% |  |
 | GPT-5.4 (No Reasoning) Fast | 3 | 1468 | 81.8% |  |
 | GPT-5.4 (Low Reasoning) Fast | 3 | 1468 | 81.8% |  |
-| GPT-5.3-Codex (Extra High Reasoning) | 3 | — | 78.4% |  |
-| GPT-5.3-Codex (Low Reasoning Fast) | 3 | — | 78.4% |  |
+| GPT-5.3-Codex (Extra High Reasoning) | 3 | — | 49.6% |  |
+| GPT-5.3-Codex (Low Reasoning Fast) | 3 | — | 49.6% |  |
 | GPT-5.2 (High Reasoning) | 3 | 1465 | 64.9% |  |
-| GPT-5.2-Codex (Extra High Reasoning) | 3 | — | 66.5% |  |
+| GPT-5.2-Codex (Extra High Reasoning) | 3 | — | 49.6% |  |
 | GPT-5.4 (High Reasoning) | 4 | 1468 | 81.8% |  |
-| GPT-5.3-Codex (Medium Reasoning Fast) | 4 | — | 78.4% |  |
+| GPT-5.3-Codex (Medium Reasoning Fast) | 4 | — | 49.6% |  |
 | GPT-5.2 (Medium Reasoning Fast) | 4 | 1465 | 64.9% |  |
-| GPT-5.2-Codex (High Reasoning Fast) | 4 | — | 66.5% |  |
+| GPT-5.2-Codex (High Reasoning Fast) | 4 | — | 49.6% |  |
 | GPT-5.1 (High Reasoning Fast) | 4 | 1450 | 47.6% |  |
-| GPT-5.4 Mini (High Reasoning) | 4.5 | — | — |  |
-| GPT-5.3-Codex (High Reasoning Fast) | 5 | — | 78.4% |  |
+| GPT-5.4 Mini (High Reasoning) | 4.5 | — | 49.6% |  |
+| GPT-5.3-Codex (High Reasoning Fast) | 5 | — | 49.6% |  |
 | GPT-5.4 (Medium Reasoning) Fast | 6 | 1468 | 81.8% |  |
-| GPT-5.3-Codex (Extra High Reasoning Fast) | 6 | — | 78.4% |  |
+| GPT-5.3-Codex (Extra High Reasoning Fast) | 6 | — | 49.6% |  |
 | GPT-5.2 (High Reasoning Fast) | 6 | 1465 | 64.9% |  |
-| GPT-5.2-Codex (Extra High Reasoning Fast) | 6 | — | 66.5% |  |
+| GPT-5.2-Codex (Extra High Reasoning Fast) | 6 | — | 49.6% |  |
 | GPT-5.5 (No Reasoning) | 7 | — | 84.7% |  |
 | GPT-5.4 (High Reasoning) Fast | 8 | 1468 | 81.8% |  |
 | GPT-5.5 (Low Reasoning) | 8 | — | 84.7% |  |
 | GPT-5.2 (Extra High Reasoning) | 8 | 1465 | 64.9% |  |
 | GPT-5.4 (Extra High Reasoning) | 12 | 1468 | 81.8% |  |
-| GPT-5.4 Mini (Extra High Reasoning) | 12 | — | — |  |
+| GPT-5.4 Mini (Extra High Reasoning) | 12 | — | 49.6% |  |
 | GPT-5.5 (Medium Reasoning) | 14 | — | 84.7% |  |
 | GPT-5.2 (Extra High Reasoning Fast) | 16 | 1465 | 64.9% |  |
 | GPT-5.5 (No Reasoning) Fast | 17.5 | — | 84.7% |  |
@@ -211,7 +211,7 @@
 | Kimi K2.6 | 1 | — | — |  |
 | Kimi K2.5 | 1 | — | 43.2% |  |
 | Minimax M2.5 | 1 | 1436 | 42.7% |  |
-| GLM-5.2 | 1.5 | — | — |  |
+| GLM-5.2 | 1.5 | 1461 | 52.4% |  |
 | GLM-5.1 | 1.5 | 1506 | — |  |
 | GLM-5 | 1.5 | 1461 | 52.4% |  |
 

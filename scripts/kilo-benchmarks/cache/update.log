@@ -161,3 +161,432 @@ sqlite3.IntegrityError: UNIQUE constraint failed: agents.id
 [export_models_browser] wrote /opt/fabrik/scripts/kilo-benchmarks/models_browser.html
 [export_models_browser] 458 chat models · 26 embedding models · 72 providers
 === Refresh complete — 2026-06-28 03:00:11 UTC ===
+
+=== Fabrik Daily Pipeline — 2026-06-28 20:26:59 ===
+📊 Scanning /opt/* projects...
+   Found 38 projects
+   📁 Registry: /opt/fabrik/data/projects.yaml
+   📄 Updated docs/BUSINESS_MODEL.md
+   📄 Updated PORTS.md
+
+✅ Sync complete: 38 projects (35 with project.yaml)
+⚠️  CASCADE BACKUP MISSING
+   Ask Cascade: 'Export memories and global rules to CASCADE_MEMORIES_GLOBAL_RULES_BACKUP.md'
+Project                         | Status       | Missing Files                                       
+--------------------------------+--------------+-----------------------------------------------------
+ComplianceOps                   | ✅ healthy    | -                                                   
+Reference_Creator               | ✅ healthy    | -                                                   
+apidoccreator                   | ✅ healthy    | -                                                   
+brand-identiy-creator           | ✅ healthy    | -                                                   
+calendar-orchestration-engine   | ✅ healthy    | -                                                   
+candle                          | ✅ healthy    | -                                                   
+captcha                         | ✅ healthy    | -                                                   
+email-reader                    | ✅ healthy    | -                                                   
+emailgateway                    | ❌ missing    | .env.example, project.yaml, compose.yaml, Dockerfile
+exam-coach                      | ✅ healthy    | -                                                   
+fabrik-citation-verifier        | ✅ healthy    | -                                                   
+fabrik-claim-validator          | ✅ healthy    | -                                                   
+fabrik-dr-store                 | ❌ missing    | .env.example, project.yaml, compose.yaml, Dockerfile
+gmailaccountcreator             | ✅ healthy    | -                                                   
+image-broker                    | ✅ healthy    | -                                                   
+image-generation                | ✅ healthy    | -                                                   
+iterative_image_editor          | ✅ healthy    | -                                                   
+job-agent                       | ✅ healthy    | -                                                   
+llm_batch_processor             | ✅ healthy    | -                                                   
+longephedia-vault               | ✅ healthy    | -                                                   
+marketing-argumant-generator    | ✅ healthy    | -                                                   
+obsidian-agents                 | ⚠️  warnings | compose.yaml, Dockerfile                            
+proposal-creator                | ✅ healthy    | -                                                   
+proxy                           | ✅ healthy    | -                                                   
+seo                             | ✅ healthy    | -                                                   
+site-provisioner                | ✅ healthy    | -                                                   
+supplement-tracker-advisor      | ✅ healthy    | -                                                   
+test-saas-for-epic-wf           | ❌ missing    | .env.example, project.yaml, compose.yaml, Dockerfile
+test-saas-platform              | ✅ healthy    | -                                                   
+test-saas-scaffold              | ✅ healthy    | -                                                   
+trade-intelligence              | ✅ healthy    | -                                                   
+trading-core                    | ✅ healthy    | -                                                   
+transdoc                        | ✅ healthy    | -                                                   
+triggered-content-orchestration | ✅ healthy    | -                                                   
+ugc                             | ✅ healthy    | -                                                   
+web-scraper                     | ✅ healthy    | -                                                   
+wpf                             | ✅ healthy    | -                                                   
+youtube                         | ✅ healthy    | -                                                   
+38 projects scanned — 34 healthy, 1 warnings, 3 missing
+[kilo-db] Database exists at /opt/fabrik/scripts/kilo-benchmarks/kilo_agents.db
+[kilo-db] Use --force to recreate
+[kilo-db] Syncing agents from Kilo CLI...
+[kilo-db] Fetching models from Kilo CLI...
+[kilo-db]   Found 660 models
+[kilo-db]   Inserted 0, updated 660 agents
+[kilo-db] Updating benchmark scores...
+[scrape] Fetching Chatbot Arena...
+[scrape]   Found 275 Chatbot Arena entries
+[scrape] Fetching Terminal Bench 2.0...
+[scrape]   Found 132 Terminal Bench entries
+[benchlm] Fetching BenchLM coding leaderboard...
+[benchlm]   Fetched 50 entries from BenchLM
+[benchlm]   Built map with 85 entries
+[kilo-db]   Updated 134 Elo, 48 TBench, 32 BenchLM scores
+[kilo-db] Fetching models from Ollama API...
+[kilo-db]   Found 8 local models
+[kilo-db]   Inserted 0, updated 8 local models
+[kilo-db] Created snapshot for 2026-06-28 with 349 agents
+[kilo-db] Exported 60 agents to /opt/fabrik/docs/traycer/kilo_selected_agents.md
+[kilo-db] Updated /opt/fabrik/docs/reference/LOCAL_LLM_INFRASTRUCTURE.md with 8 models
+Unsupported architecture: 
+[kilo-bench] ==================================================
+[kilo-bench] Kilo Benchmark Updater - 2026-06-28T20:27:13.844841
+[kilo-bench] ==================================================
+[kilo-bench] Running benchmark scrapers...
+[scrape] Fetching Chatbot Arena...
+[scrape]   Found 275 Chatbot Arena entries
+[scrape] Fetching Terminal Bench 2.0...
+[scrape]   Found 132 Terminal Bench entries
+[windsurf-scrape] Fetching Windsurf models page...
+[windsurf-scrape]   Scraping provider: Recommended
+[windsurf-scrape]     Clicked Recommended tab
+[windsurf-scrape]     Found 16 models: Adaptive, SWE-1.6, Claude Opus 4.8 (Medium Thinking)
+[windsurf-scrape]   Scraping provider: Windsurf
+[windsurf-scrape]     Clicked Windsurf tab
+[windsurf-scrape]     Found 5 models: Adaptive, SWE-1.6, SWE-1.6 Fast
+[windsurf-scrape]   Scraping provider: Anthropic
+[windsurf-scrape]     Clicked Anthropic tab
+[windsurf-scrape]     Found 37 models: Claude Opus 4.6, Claude Opus 4.6 (Thinking), Claude Opus 4.6 1M
+[windsurf-scrape]   Scraping provider: OpenAI
+[windsurf-scrape]     Clicked OpenAI tab
+[windsurf-scrape]     Found 74 models: GPT-5.4 (No Reasoning), GPT-5.4 (Low Reasoning), GPT-5.4 (Medium Reasoning)
+[windsurf-scrape]   Scraping provider: Google
+[windsurf-scrape]     Clicked Google tab
+[windsurf-scrape]     Found 11 models: Gemini 3.1 Pro Low, Gemini 3.1 Pro High, Gemini 3 Flash Minimal
+[windsurf-scrape]   Scraping provider: xAI
+[windsurf-scrape]     Clicked xAI tab
+[windsurf-scrape]     Found 1 models: xAI Grok Code Fast
+[windsurf-scrape]   Scraping provider: Open Source
+[windsurf-scrape]     Clicked Open Source tab
+[windsurf-scrape]     Found 8 models: Kimi K2.7, Kimi K2.6, Kimi K2.5
+[windsurf-scrape]   Extracted 152 models from 7 providers
+[kilo-bench]   Arena: 275 entries
+[kilo-bench]   TBench: 132 entries
+[kilo-bench]   Windsurf: 152 models
+[kilo-bench] Updating agents JSON...
+[kilo-bench]   No changes detected
+[kilo-bench] Updating master markdown...
+[kilo-bench]   Master MD updated
+[kilo-bench] Kilo agents updated!
+[windsurf-scrape] Updated /opt/fabrik/docs/reference/windsurf/cascade-models.md
+[kilo-bench] Windsurf models updated!
+[kilo-bench] Update complete!
+[aa-scrape] GET https://artificialanalysis.ai/leaderboards/models
+[aa-scrape]   cached → aa_raw.html (3553067 bytes)
+[aa-scrape]   parsed 158 rows · intelligence=64 · throughput=152
+[aa-scrape]   unique (provider, model) keys: 108
+[aa-scrape]   active agents in DB: 347
+[aa-scrape]   manual overrides loaded: 14
+[aa-scrape]   matched 67 / 347 agents (19%)
+[aa-scrape]   cached → aa_parsed.json (67 matches)
+[aa-scrape] DB updated: throughput=65 · intelligence_index=43 · skipped=0
+[role-mapper] Starting role mapper (2026-06-28T20:28:08.319684)
+[role-mapper] Running pre-filter...
+WARNING: coding_simple shortlist has only 0 models
+Wrote shortlists to /opt/fabrik/scripts/kilo-benchmarks/shortlists.json
+[role-mapper] Pre-filter: 46 candidates across 6 roles
+[role-mapper]   coding_simple: 0 candidates
+[role-mapper] ERROR: coding_simple has 0 candidates, need ≥3
+[embedding_models_db] fetching https://openrouter.ai/api/v1/models?output_modalities=embeddings
+[embedding_models_db] inserted=0 updated=26 total=26
+[embedding_models_db] raw dump → /opt/fabrik/scripts/kilo-benchmarks/embedding_models_dump.json
+[embedding_pre_filter] multilingual_primary: 2 candidates
+[embedding_pre_filter] frontier_reference: 4 candidates
+[embedding_pre_filter] code_embedding: 1 candidates
+[embedding_pre_filter] wrote → /opt/fabrik/scripts/kilo-benchmarks/embedding_shortlists.json
+[embedding_role_mapper] multilingual_primary: 2 winners → ['qwen/qwen3-embedding-8b', 'qwen/qwen3-embedding-4b']
+[embedding_role_mapper] frontier_reference: 2 winners → ['openai/text-embedding-3-large', 'google/gemini-embedding-001']
+[embedding_role_mapper] code_embedding: 1 winners → ['mistralai/codestral-embed-2505']
+[embedding_role_mapper] wrote /opt/fabrik/scripts/kilo-benchmarks/embedding_assignments.json
+[embedding_role_mapper] wrote /opt/fabrik/scripts/kilo_embeddings_final.json
+[embedding_export_markdown] updated /opt/fabrik/.windsurf/rules/core/65-rag-search.md
+[embedding_export_markdown] updated /opt/fabrik/docs/reference/kilo/KILO_AGENT_SELECTION_GUIDE.md
+[embedding_export_markdown] updated /opt/fabrik/docs/reference/kilo/KILO_MODEL_CAPABILITIES.md
+======================================================================
+  Source coverage @ 2026-06-28
+======================================================================
+  OpenRouter total:               339
+  Kilo CLI total:                 351
+  In BOTH sources (same id):      338
+  Kilo-only (Gateway aliases):     13
+  OpenRouter-only:                  0
+
+======================================================================
+  OpenRouter catalog verification @ 2026-06-28
+======================================================================
+  DB active rows:                 349
+  Live OpenRouter rows:           339
+  ✓  matched cleanly:               8
+  ~  matched w/ discrepancy:      331
+  ⚠  delisted in DB only:          10
+  +  in OpenRouter, not in DB:      0
+  +  in Kilo only, not in DB:      13
+
+=== Discrepancies (top 40) ===
+
+  ai21/jamba-large-1.7
+    input_cost_per_m          DB=2000000.0  LIVE=2.0
+    output_cost_per_m         DB=8000000.0  LIVE=8.0
+    name                      DB='Jamba Large 1.7'  LIVE='AI21: Jamba Large 1.7'
+
+  aion-labs/aion-1.0
+    input_cost_per_m          DB=4000000.0  LIVE=4.0
+    output_cost_per_m         DB=8000000.0  LIVE=8.0
+    name                      DB='Aion-1.0'  LIVE='AionLabs: Aion-1.0'
+
+  aion-labs/aion-1.0-mini
+    input_cost_per_m          DB=700000.0  LIVE=0.7
+    output_cost_per_m         DB=1400000.0  LIVE=1.4
+    name                      DB='Aion-1.0-Mini'  LIVE='AionLabs: Aion-1.0-Mini'
+
+  aion-labs/aion-2.0
+    input_cost_per_m          DB=800000.0  LIVE=0.7999999999999999
+    output_cost_per_m         DB=1600000.0  LIVE=1.5999999999999999
+    name                      DB='Aion-2.0'  LIVE='AionLabs: Aion-2.0'
+
+  aion-labs/aion-rp-llama-3.1-8b
+    input_cost_per_m          DB=800000.0  LIVE=0.7999999999999999
+    output_cost_per_m         DB=1600000.0  LIVE=1.5999999999999999
+    name                      DB='Aion-RP 1.0 (8B)'  LIVE='AionLabs: Aion-RP 1.0 (8B)'
+
+  allenai/olmo-3-32b-think
+    input_cost_per_m          DB=150000.0  LIVE=0.15
+    output_cost_per_m         DB=500000.0  LIVE=0.5
+    name                      DB='Olmo 3 32B Think'  LIVE='AllenAI: Olmo 3 32B Think'
+
+  amazon/nova-2-lite-v1
+    input_cost_per_m          DB=300000.0  LIVE=0.3
+    output_cost_per_m         DB=2500000.0  LIVE=2.5
+    name                      DB='Nova 2 Lite'  LIVE='Amazon: Nova 2 Lite'
+
+  amazon/nova-lite-v1
+    input_cost_per_m          DB=60000.0  LIVE=0.06
+    output_cost_per_m         DB=240000.0  LIVE=0.24
+    name                      DB='Nova Lite 1.0'  LIVE='Amazon: Nova Lite 1.0'
+
+  amazon/nova-micro-v1
+    input_cost_per_m          DB=35000.0  LIVE=0.035
+    output_cost_per_m         DB=140000.0  LIVE=0.14
+    name                      DB='Nova Micro 1.0'  LIVE='Amazon: Nova Micro 1.0'
+
+  amazon/nova-premier-v1
+    input_cost_per_m          DB=2500000.0  LIVE=2.5
+    output_cost_per_m         DB=12500000.0  LIVE=12.5
+    name                      DB='Nova Premier 1.0'  LIVE='Amazon: Nova Premier 1.0'
+
+  amazon/nova-pro-v1
+    input_cost_per_m          DB=800000.0  LIVE=0.7999999999999999
+    output_cost_per_m         DB=3200000.0  LIVE=3.1999999999999997
+    name                      DB='Nova Pro 1.0'  LIVE='Amazon: Nova Pro 1.0'
+
+  anthracite-org/magnum-v4-72b
+    input_cost_per_m          DB=3000000.0  LIVE=3.0
+    output_cost_per_m         DB=5000000.0  LIVE=5.0
+    context_window_k          DB=16  LIVE=32
+
+  anthropic/claude-3-haiku
+    input_cost_per_m          DB=250000.0  LIVE=0.25
+    output_cost_per_m         DB=1250000.0  LIVE=1.25
+    name                      DB='Claude 3 Haiku'  LIVE='Anthropic: Claude 3 Haiku'
+
+  anthropic/claude-haiku-4.5
+    input_cost_per_m          DB=1000000.0  LIVE=1.0
+    output_cost_per_m         DB=5000000.0  LIVE=5.0
+    name                      DB='Claude Haiku 4.5 (latest)'  LIVE='Anthropic: Claude Haiku 4.5'
+
+  anthropic/claude-opus-4
+    input_cost_per_m          DB=15000000.0  LIVE=15.0
+    output_cost_per_m         DB=75000000.0  LIVE=75.0
+    name                      DB='Claude Opus 4'  LIVE='Anthropic: Claude Opus 4'
+
+  anthropic/claude-opus-4.1
+    input_cost_per_m          DB=15000000.0  LIVE=15.0
+    output_cost_per_m         DB=75000000.0  LIVE=75.0
+    name                      DB='Claude Opus 4.1 (latest)'  LIVE='Anthropic: Claude Opus 4.1'
+
+  anthropic/claude-opus-4.5
+    input_cost_per_m          DB=5000000.0  LIVE=5.0
+    output_cost_per_m         DB=25000000.0  LIVE=25.0
+    name                      DB='Claude Opus 4.5 (latest)'  LIVE='Anthropic: Claude Opus 4.5'
+
+  anthropic/claude-opus-4.6
+    input_cost_per_m          DB=5000000.0  LIVE=5.0
+    output_cost_per_m         DB=25000000.0  LIVE=25.0
+    name                      DB='Claude Opus 4.6'  LIVE='Anthropic: Claude Opus 4.6'
+
+  anthropic/claude-sonnet-4
+    input_cost_per_m          DB=3000000.0  LIVE=3.0
+    output_cost_per_m         DB=15000000.0  LIVE=15.0
+    name                      DB='Claude Sonnet 4'  LIVE='Anthropic: Claude Sonnet 4'
+
+  anthropic/claude-sonnet-4.5
+    input_cost_per_m          DB=3000000.0  LIVE=3.0
+    output_cost_per_m         DB=15000000.0  LIVE=15.0
+    name                      DB='Claude Sonnet 4.5 (latest)'  LIVE='Anthropic: Claude Sonnet 4.5'
+
+  anthropic/claude-sonnet-4.6
+    input_cost_per_m          DB=3000000.0  LIVE=3.0
+    output_cost_per_m         DB=15000000.0  LIVE=15.0
+    name                      DB='Claude Sonnet 4.6'  LIVE='Anthropic: Claude Sonnet 4.6'
+
+  arcee-ai/coder-large
+    input_cost_per_m          DB=500000.0  LIVE=0.5
+    output_cost_per_m         DB=800000.0  LIVE=0.7999999999999999
+    name                      DB='Coder Large'  LIVE='Arcee AI: Coder Large'
+
+  arcee-ai/trinity-mini
+    input_cost_per_m          DB=45000.0  LIVE=0.045
+    output_cost_per_m         DB=150000.0  LIVE=0.15
+    name                      DB='Trinity Mini'  LIVE='Arcee AI: Trinity Mini'
+
+  arcee-ai/virtuoso-large
+    input_cost_per_m          DB=750000.0  LIVE=0.75
+    output_cost_per_m         DB=1200000.0  LIVE=1.2
+    name                      DB='Virtuoso Large'  LIVE='Arcee AI: Virtuoso Large'
+
+  baidu/ernie-4.5-vl-424b-a47b
+    input_cost_per_m          DB=420000.0  LIVE=0.42
+    output_cost_per_m         DB=1250000.0  LIVE=1.25
+    context_window_k          DB=123  LIVE=131
+    name                      DB='ERNIE 4.5 VL 424B A47B '  LIVE='Baidu: ERNIE 4.5 VL 424B A47B '
+
+  bytedance-seed/seed-1.6
+    input_cost_per_m          DB=250000.0  LIVE=0.25
+    output_cost_per_m         DB=2000000.0  LIVE=2.0
+    name                      DB='Seed 1.6'  LIVE='ByteDance Seed: Seed 1.6'
+
+  bytedance-seed/seed-1.6-flash
+    input_cost_per_m          DB=75000.0  LIVE=0.075
+    output_cost_per_m         DB=300000.0  LIVE=0.3
+    name                      DB='Seed 1.6 Flash'  LIVE='ByteDance Seed: Seed 1.6 Flash'
+
+  bytedance-seed/seed-2.0-lite
+    input_cost_per_m          DB=250000.0  LIVE=0.25
+    output_cost_per_m         DB=2000000.0  LIVE=2.0
+    name                      DB='Seed-2.0-Lite'  LIVE='ByteDance Seed: Seed-2.0-Lite'
+
+  bytedance-seed/seed-2.0-mini
+    input_cost_per_m          DB=100000.0  LIVE=0.09999999999999999
+    output_cost_per_m         DB=400000.0  LIVE=0.39999999999999997
+    name                      DB='Seed-2.0-Mini'  LIVE='ByteDance Seed: Seed-2.0-Mini'
+
+  bytedance/ui-tars-1.5-7b
+    input_cost_per_m          DB=100000.0  LIVE=0.09999999999999999
+    output_cost_per_m         DB=200000.0  LIVE=0.19999999999999998
+    name                      DB='UI-TARS 7B '  LIVE='ByteDance: UI-TARS 7B '
+
+  cohere/command-a
+    input_cost_per_m          DB=2500000.0  LIVE=2.5
+    output_cost_per_m         DB=10000000.0  LIVE=10.0
+    name                      DB='Command A'  LIVE='Cohere: Command A'
+
+  cohere/command-r-08-2024
+    input_cost_per_m          DB=150000.0  LIVE=0.15
+    output_cost_per_m         DB=600000.0  LIVE=0.6
+    name                      DB='Command R'  LIVE='Cohere: Command R (08-2024)'
+
+  cohere/command-r-plus-08-2024
+    input_cost_per_m          DB=2500000.0  LIVE=2.5
+    output_cost_per_m         DB=10000000.0  LIVE=10.0
+    name                      DB='Command R+'  LIVE='Cohere: Command R+ (08-2024)'
+
+  cohere/command-r7b-12-2024
+    input_cost_per_m          DB=37500.0  LIVE=0.0375
+    output_cost_per_m         DB=150000.0  LIVE=0.15
+    name                      DB='Command R7B'  LIVE='Cohere: Command R7B (12-2024)'
+
+  deepcogito/cogito-v2.1-671b
+    input_cost_per_m          DB=1250000.0  LIVE=1.25
+    output_cost_per_m         DB=1250000.0  LIVE=1.25
+    name                      DB='Cogito v2.1 671B'  LIVE='Deep Cogito: Cogito v2.1 671B'
+
+  deepseek/deepseek-chat
+    input_cost_per_m          DB=200200.0  LIVE=0.20020000000000002
+    output_cost_per_m         DB=800100.0  LIVE=0.8000999999999999
+    context_window_k          DB=128  LIVE=131
+    name                      DB='DeepSeek Chat'  LIVE='DeepSeek: DeepSeek V3'
+
+  deepseek/deepseek-chat-v3-0324
+    input_cost_per_m          DB=200000.0  LIVE=0.19999999999999998
+    output_cost_per_m         DB=770000.0  LIVE=0.77
+    name                      DB='DeepSeek V3 0324'  LIVE='DeepSeek: DeepSeek V3 0324'
+
+  deepseek/deepseek-chat-v3.1
+    input_cost_per_m          DB=210000.0  LIVE=0.21
+    output_cost_per_m         DB=790000.0  LIVE=0.7899999999999999
+    name                      DB='DeepSeek V3.1'  LIVE='DeepSeek: DeepSeek V3.1'
+
+  deepseek/deepseek-r1
+    input_cost_per_m          DB=700000.0  LIVE=0.7
+    output_cost_per_m         DB=2500000.0  LIVE=2.5
+    context_window_k          DB=64  LIVE=163
+    name                      DB='DeepSeek-R1'  LIVE='DeepSeek: R1'
+
+  deepseek/deepseek-r1-0528
+    input_cost_per_m          DB=500000.0  LIVE=0.5
+    output_cost_per_m         DB=2150000.0  LIVE=2.1500000000000004
+    name                      DB='R1 0528'  LIVE='DeepSeek: R1 0528'
+
+=== Delisted (top 20 of 10) ===
+  - deepl/deepl
+  - azure/translator
+  - openai/whisper-large-v3
+  - openai/gpt-4o-transcribe
+  - openai/gpt-4o-mini-transcribe
+  - deepgram/nova-3
+  - deepgram/nova-2
+  - assemblyai/universal-2
+  - google/cloud-speech-v2
+  - qwen/qwen-mt-turbo
+
+Applying fixes...
+  fields updated:  966
+  rows updated:    331
+  rows deprecated: 10
+
+Ingesting new rows from OpenRouter...
+Traceback (most recent call last):
+  File "/opt/fabrik/scripts/kilo-benchmarks/verify_openrouter_catalog.py", line 650, in <module>
+    main()
+  File "/opt/fabrik/scripts/kilo-benchmarks/verify_openrouter_catalog.py", line 645, in main
+    c = ingest_new(report, args.db)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/fabrik/scripts/kilo-benchmarks/verify_openrouter_catalog.py", line 428, in ingest_new
+    conn.execute(
+sqlite3.IntegrityError: UNIQUE constraint failed: agents.id
+[openrouter-routing] OpenRouter verifier failed (non-fatal)
+[classify_ai_category] classified 703 rows across 7 categories: speech-audio=2, vision=167, multimodal=62, agentic=103, code=43, long-context=192, language=134
+[category_route_mapper] language: 3 routes → ['openrouter/fusion', 'openai/gpt-oss-20b', 'openai/gpt-oss-120b']
+[category_route_mapper] code: 3 routes → ['openai/gpt-5.4', 'google/gemini-3.1-pro-preview', 'openai/gpt-5.3-codex']
+[category_route_mapper] vision: 2 routes → ['openrouter/auto', 'openai/gpt-5-nano']
+[category_route_mapper] multimodal: 2 routes → ['openai/gpt-5-nano', 'qwen/qwen3.5-flash-02-23']
+[category_route_mapper] agentic: 3 routes → ['openai/gpt-5.4', 'openai/gpt-5.3-codex', 'anthropic/claude-opus-4.6']
+[category_route_mapper] long-context: 2 routes → ['meta-llama/llama-4-scout', 'x-ai/grok-4.20']
+[category_route_mapper] speech-audio: 1 routes → ['openai/gpt-audio-mini']
+[category_route_mapper] wrote /opt/fabrik/scripts/kilo-benchmarks/openrouter_routes.json
+[category_route_mapper] wrote /opt/fabrik/scripts/kilo_openrouter_routes_final.json
+[category_route_mapper] wrote 16 pins across 7 categories (0 skipped)
+[category_export_markdown] language: {'status': 'noop', 'marker': 'noop', 'stamp': 'noop'}
+[category_export_markdown] code: {'status': 'noop', 'marker': 'noop', 'stamp': 'noop'}
+[category_export_markdown] vision: {'status': 'noop', 'marker': 'noop', 'stamp': 'noop'}
+[category_export_markdown] multimodal: {'status': 'noop', 'marker': 'noop', 'stamp': 'noop'}
+[category_export_markdown] agentic: {'status': 'noop', 'marker': 'noop', 'stamp': 'noop'}
+[category_export_markdown] long-context: {'status': 'noop', 'marker': 'noop', 'stamp': 'noop'}
+[category_export_markdown] speech-audio: {'status': 'noop', 'marker': 'noop', 'stamp': 'noop'}
+[export_models_browser] wrote /opt/fabrik/scripts/kilo-benchmarks/models_browser.html
+[export_models_browser] 468 chat models · 26 embedding models · 76 providers
+[ai-pack-freshness] 11 packs scanned (threshold: 90d) on 2026-06-28
+[ai-pack-freshness] ℹ️  3 unstamped pack(s):
+  - 25-3d-generation.md: no `Last content verification:` line — consider stamping to track refresh cadence
+  - 70-data-predictive.md: no `Last content verification:` line — consider stamping to track refresh cadence
+  - 80-specialized-domains.md: no `Last content verification:` line — consider stamping to track refresh cadence
+Attempt 1/3: Windsurf CLI not ready, retrying in 30s...
+Attempt 2/3: Windsurf CLI not ready, retrying in 30s...
+Warning: Could not get extensions list after 3 attempts (windsurf CLI not available)
+=== Pipeline complete — 2026-06-28 20:26:59 ===

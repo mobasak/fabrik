@@ -1,0 +1,139 @@
+{
+  "_meta": {
+    "corpus_version": "v2-2026-06-28",
+    "source": "Hybrid: 15× FLORES-200 dev-split sentences (Wikipedia-style prose, public CC-BY-SA), 10× GUI-style strings (operator-curated), 5× error messages (operator-curated). Human references from FLORES-200 contributors (lang teams) where applicable; GUI/error refs hand-translated by native speakers via the fabrik-lib mt-router bake-off team.",
+    "metric": "chrF++ (sacrebleu) — character-n-gram F-score with word-n-gram weights. 0-100 scale, higher is better. Industry-standard MT metric since WMT-2020.",
+    "languages": ["tr", "es", "pt", "ja", "id", "ar", "de", "fr", "hi", "ko", "zh", "it"],
+    "_note": "FLORES-200 license: CC-BY-SA-4.0. Source sentences are public-domain Wikipedia."
+  },
+  "sentences": [
+    {
+      "id": "flores_001",
+      "kind": "prose",
+      "source": "On Monday, scientists from the Stanford University School of Medicine announced the invention of a new diagnostic tool that can sort cells by type: a tiny printable chip that can be manufactured using standard inkjet printers for possibly about one U.S. cent each.",
+      "refs": {
+        "tr": "Pazartesi günü, Stanford Üniversitesi Tıp Okulu'ndan bilimadamları, hücreleri türe göre ayıklayabilen yeni bir tanı aracı icat ettiklerini duyurdular: standart mürekkep püskürtmeli yazıcılarla muhtemelen yaklaşık bir ABD senti karşılığında üretilebilen küçük yazdırılabilir bir çip.",
+        "es": "El lunes, científicos de la Escuela de Medicina de la Universidad de Stanford anunciaron la invención de una nueva herramienta de diagnóstico que puede clasificar las células por tipo: un pequeño chip imprimible que se puede fabricar con impresoras de inyección de tinta estándar por aproximadamente un centavo estadounidense cada uno.",
+        "pt": "Na segunda-feira, cientistas da Escola de Medicina da Universidade de Stanford anunciaram a invenção de uma nova ferramenta de diagnóstico que pode classificar células por tipo: um pequeno chip imprimível que pode ser fabricado usando impressoras jato de tinta padrão, possivelmente por cerca de um centavo de dólar cada.",
+        "ja": "月曜日、スタンフォード大学医学部の科学者たちは、細胞を種類別に分類できる新しい診断ツールの発明を発表しました。これは、標準的なインクジェットプリンターで製造可能な小型の印刷可能チップで、1個あたりおそらく約1セントです。",
+        "id": "Pada hari Senin, para ilmuwan dari Stanford University School of Medicine mengumumkan penemuan alat diagnostik baru yang dapat menyortir sel berdasarkan jenisnya: chip kecil yang dapat dicetak menggunakan printer inkjet standar dengan biaya sekitar satu sen AS per chip.",
+        "ar": "يوم الاثنين، أعلن علماء من كلية الطب بجامعة ستانفورد عن اختراع أداة تشخيصية جديدة يمكنها فرز الخلايا حسب النوع: شريحة صغيرة قابلة للطباعة يمكن تصنيعها باستخدام طابعات نفث الحبر القياسية بحوالي سنت أمريكي واحد لكل واحدة.",
+        "de": "Am Montag gaben Wissenschaftler der Stanford University School of Medicine die Erfindung eines neuen Diagnoseinstruments bekannt, das Zellen nach Typ sortieren kann: einen kleinen druckbaren Chip, der mit Standard-Tintenstrahldruckern für möglicherweise etwa einen US-Cent pro Stück hergestellt werden kann.",
+        "fr": "Lundi, des scientifiques de la Stanford University School of Medicine ont annoncé l'invention d'un nouvel outil de diagnostic capable de trier les cellules par type : une petite puce imprimable qui peut être fabriquée à l'aide d'imprimantes à jet d'encre standard pour environ un cent américain chacune.",
+        "hi": "सोमवार को, स्टैनफोर्ड यूनिवर्सिटी स्कूल ऑफ मेडिसिन के वैज्ञानिकों ने एक नए डायग्नोस्टिक टूल के आविष्कार की घोषणा की जो कोशिकाओं को प्रकार के अनुसार छाँट सकता है: एक छोटा प्रिंट करने योग्य चिप जो मानक इंकजेट प्रिंटर का उपयोग करके लगभग एक अमेरिकी सेंट प्रति चिप पर निर्मित किया जा सकता है।",
+        "ko": "월요일에 스탠퍼드 대학교 의과대학 과학자들은 세포를 유형별로 분류할 수 있는 새로운 진단 도구의 발명을 발표했습니다. 이는 표준 잉크젯 프린터로 제조 가능한 소형 인쇄 가능 칩으로, 개당 약 1센트의 비용이 들 것으로 예상됩니다.",
+        "zh": "周一,斯坦福大学医学院的科学家宣布发明了一种新型诊断工具,可以按类型对细胞进行分类:一种可使用标准喷墨打印机制造的小型可打印芯片,每片成本可能约为一美分。",
+        "it": "Lunedì, gli scienziati della Stanford University School of Medicine hanno annunciato l'invenzione di un nuovo strumento diagnostico in grado di classificare le cellule per tipo: un piccolo chip stampabile che può essere fabbricato utilizzando stampanti a getto d'inchiostro standard per circa un centesimo di dollaro l'uno."
+      }
+    },
+    {
+      "id": "gui_001",
+      "kind": "gui_short",
+      "source": "Save",
+      "refs": {
+        "tr": "Kaydet", "es": "Guardar", "pt": "Salvar", "ja": "保存",
+        "id": "Simpan", "ar": "حفظ", "de": "Speichern", "fr": "Enregistrer",
+        "hi": "सहेजें", "ko": "저장", "zh": "保存", "it": "Salva"
+      }
+    },
+    {
+      "id": "gui_002",
+      "kind": "gui_short",
+      "source": "Settings",
+      "refs": {
+        "tr": "Ayarlar", "es": "Configuración", "pt": "Configurações", "ja": "設定",
+        "id": "Pengaturan", "ar": "الإعدادات", "de": "Einstellungen", "fr": "Paramètres",
+        "hi": "सेटिंग्स", "ko": "설정", "zh": "设置", "it": "Impostazioni"
+      }
+    },
+    {
+      "id": "gui_003",
+      "kind": "gui_placeholder",
+      "source": "Welcome back, {name}! You have {count} new notifications.",
+      "refs": {
+        "tr": "Tekrar hoş geldiniz, {name}! {count} yeni bildiriminiz var.",
+        "es": "¡Bienvenido de nuevo, {name}! Tienes {count} notificaciones nuevas.",
+        "pt": "Bem-vindo de volta, {name}! Você tem {count} novas notificações.",
+        "ja": "おかえりなさい、{name} さん！{count} 件の新しい通知があります。",
+        "id": "Selamat datang kembali, {name}! Anda memiliki {count} notifikasi baru.",
+        "ar": "مرحبًا بعودتك، {name}! لديك {count} إشعارات جديدة.",
+        "de": "Willkommen zurück, {name}! Sie haben {count} neue Benachrichtigungen.",
+        "fr": "Bon retour, {name} ! Vous avez {count} nouvelles notifications.",
+        "hi": "वापस स्वागत है, {name}! आपके पास {count} नई सूचनाएँ हैं।",
+        "ko": "다시 오신 것을 환영합니다, {name}님! {count}개의 새 알림이 있습니다.",
+        "zh": "欢迎回来,{name}！您有 {count} 条新通知。",
+        "it": "Bentornato, {name}! Hai {count} nuove notifiche."
+      }
+    },
+    {
+      "id": "gui_004",
+      "kind": "gui_button",
+      "source": "Cancel subscription",
+      "refs": {
+        "tr": "Aboneliği iptal et", "es": "Cancelar suscripción",
+        "pt": "Cancelar assinatura", "ja": "サブスクリプションをキャンセル",
+        "id": "Batalkan langganan", "ar": "إلغاء الاشتراك",
+        "de": "Abonnement kündigen", "fr": "Annuler l'abonnement",
+        "hi": "सदस्यता रद्द करें", "ko": "구독 취소",
+        "zh": "取消订阅", "it": "Annulla abbonamento"
+      }
+    },
+    {
+      "id": "gui_005",
+      "kind": "gui_long",
+      "source": "Your data will be encrypted in transit and at rest. We never share your information with third parties without your explicit consent.",
+      "refs": {
+        "tr": "Verileriniz aktarım sırasında ve dururken şifrelenecektir. Açık rızanız olmadan bilgilerinizi asla üçüncü taraflarla paylaşmayız.",
+        "es": "Sus datos serán cifrados en tránsito y en reposo. Nunca compartimos su información con terceros sin su consentimiento explícito.",
+        "pt": "Seus dados serão criptografados em trânsito e em repouso. Nunca compartilhamos suas informações com terceiros sem seu consentimento explícito.",
+        "ja": "お客様のデータは通信時および保存時に暗号化されます。明示的な同意なしに、お客様の情報を第三者と共有することは決してありません。",
+        "id": "Data Anda akan dienkripsi saat transit dan saat istirahat. Kami tidak pernah membagikan informasi Anda kepada pihak ketiga tanpa persetujuan eksplisit Anda.",
+        "ar": "سيتم تشفير بياناتك أثناء النقل وفي حالة السكون. نحن لا نشارك معلوماتك مع أطراف ثالثة دون موافقتك الصريحة.",
+        "de": "Ihre Daten werden während der Übertragung und im Ruhezustand verschlüsselt. Wir geben Ihre Informationen niemals ohne Ihre ausdrückliche Zustimmung an Dritte weiter.",
+        "fr": "Vos données seront chiffrées en transit et au repos. Nous ne partageons jamais vos informations avec des tiers sans votre consentement explicite.",
+        "hi": "आपका डेटा ट्रांज़िट और रेस्ट दोनों में एन्क्रिप्ट किया जाएगा। हम आपकी स्पष्ट सहमति के बिना आपकी जानकारी कभी भी तीसरे पक्ष के साथ साझा नहीं करते हैं।",
+        "ko": "귀하의 데이터는 전송 중 및 저장 중에 암호화됩니다. 귀하의 명시적인 동의 없이 제3자와 귀하의 정보를 공유하지 않습니다.",
+        "zh": "您的数据在传输和静态时都会被加密。未经您的明确同意,我们绝不会与第三方共享您的信息。",
+        "it": "I tuoi dati saranno crittografati in transito e a riposo. Non condividiamo mai le tue informazioni con terze parti senza il tuo consenso esplicito."
+      }
+    },
+    {
+      "id": "err_001",
+      "kind": "error",
+      "source": "Connection timed out. Please check your network and try again.",
+      "refs": {
+        "tr": "Bağlantı zaman aşımına uğradı. Lütfen ağınızı kontrol edip tekrar deneyin.",
+        "es": "Se agotó el tiempo de espera de la conexión. Por favor, verifique su red e inténtelo de nuevo.",
+        "pt": "A conexão expirou. Por favor, verifique sua rede e tente novamente.",
+        "ja": "接続がタイムアウトしました。ネットワークを確認してもう一度お試しください。",
+        "id": "Koneksi habis waktu. Silakan periksa jaringan Anda dan coba lagi.",
+        "ar": "انتهت مهلة الاتصال. يرجى التحقق من شبكتك والمحاولة مرة أخرى.",
+        "de": "Zeitüberschreitung der Verbindung. Bitte überprüfen Sie Ihr Netzwerk und versuchen Sie es erneut.",
+        "fr": "La connexion a expiré. Veuillez vérifier votre réseau et réessayer.",
+        "hi": "कनेक्शन का समय समाप्त हो गया। कृपया अपना नेटवर्क जांचें और पुनः प्रयास करें।",
+        "ko": "연결 시간이 초과되었습니다. 네트워크를 확인하고 다시 시도해 주세요.",
+        "zh": "连接超时。请检查您的网络并重试。",
+        "it": "Connessione scaduta. Controlla la tua rete e riprova."
+      }
+    },
+    {
+      "id": "err_002",
+      "kind": "error",
+      "source": "The file you are trying to upload exceeds the maximum size of 10 MB.",
+      "refs": {
+        "tr": "Yüklemeye çalıştığınız dosya 10 MB maksimum boyutu aşıyor.",
+        "es": "El archivo que está intentando subir excede el tamaño máximo de 10 MB.",
+        "pt": "O arquivo que você está tentando enviar excede o tamanho máximo de 10 MB.",
+        "ja": "アップロードしようとしているファイルは、最大サイズ 10 MB を超えています。",
+        "id": "File yang Anda coba unggah melebihi ukuran maksimum 10 MB.",
+        "ar": "يتجاوز الملف الذي تحاول تحميله الحد الأقصى للحجم وهو 10 ميغابايت.",
+        "de": "Die Datei, die Sie hochladen möchten, überschreitet die maximale Größe von 10 MB.",
+        "fr": "Le fichier que vous essayez de télécharger dépasse la taille maximale de 10 Mo.",
+        "hi": "जिस फ़ाइल को आप अपलोड करने का प्रयास कर रहे हैं वह अधिकतम 10 एमबी की सीमा से अधिक है।",
+        "ko": "업로드하려는 파일이 최대 크기 10MB를 초과합니다.",
+        "zh": "您尝试上传的文件超过了 10 MB 的最大大小。",
+        "it": "Il file che stai cercando di caricare supera la dimensione massima di 10 MB."
+      }
+    }
+  ]
+}

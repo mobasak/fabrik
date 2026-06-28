@@ -1,0 +1,178 @@
+{
+  "generated_at": "2026-06-28T19:33:59.015827+00:00",
+  "corpus_version": "v2-2026-06-28",
+  "metric": "chrF++",
+  "results": {
+    "deepseek/deepseek-v3.2": {
+      "tr": {
+        "per_sentence": [
+          {
+            "id": "flores_001",
+            "kind": "prose",
+            "hyp": "Stanford Üniversitesi Tıp Fakültesi'nden bilim insanları Pazartesi günü, hücreleri türlerine göre ayırabilen yeni bir tanı aracı icat ettiklerini duyurdu: standart mürekkep püskürtmeli yazıcılar kullanılarak üretilebilen ve her biri yaklaşık bir ABD sentine mal olabilen küçük, basılabilir bir çip.",
+            "score": 69.14648093231683
+          },
+          {
+            "id": "gui_001",
+            "kind": "gui_short",
+            "hyp": "Kaydet",
+            "score": 100.0
+          },
+          {
+            "id": "gui_002",
+            "kind": "gui_short",
+            "hyp": "Ayarlar",
+            "score": 100.0
+          },
+          {
+            "id": "gui_003",
+            "kind": "gui_placeholder",
+            "hyp": "Tekrar hoş geldin, {name}! {count} yeni bildirimin var.",
+            "score": 80.8285471783857
+          },
+          {
+            "id": "gui_004",
+            "kind": "gui_button",
+            "hyp": "Aboneliği iptal et",
+            "score": 100.0
+          },
+          {
+            "id": "gui_005",
+            "kind": "gui_long",
+            "hyp": "Verileriniz hem aktarım sırasında hem de depolanırken şifrelenecektir. Açık onayınız olmadan bilgilerinizi üçüncü taraflarla asla paylaşmayız.",
+            "score": 73.87943226970981
+          },
+          {
+            "id": "err_001",
+            "kind": "error",
+            "hyp": "Bağlantı zaman aşımına uğradı. Lütfen ağ bağlantınızı kontrol edip tekrar deneyin.",
+            "score": 91.68233686508358
+          },
+          {
+            "id": "err_002",
+            "kind": "error",
+            "hyp": "Yüklemeye çalıştığınız dosya maksimum 10 MB boyutunu aşıyor.",
+            "score": 77.58939022523754
+          }
+        ],
+        "avg_chrf": 86.64
+      }
+    },
+    "x-ai/grok-4.3": {
+      "tr": {
+        "per_sentence": [
+          {
+            "id": "flores_001",
+            "kind": "prose",
+            "hyp": "Pazartesi günü, Stanford Üniversitesi Tıp Fakültesi'nden bilim insanları, hücreleri türe göre sıralayabilen yeni bir teşhis aracının icadını duyurdular: standart mürekkep püskürtmeli yazıcılar kullanılarak üretilebilen, her birinin muhtemelen yaklaşık bir ABD sentine mal olabileceği minik basılabilir bir çip.",
+            "score": 67.90475730873575
+          },
+          {
+            "id": "gui_001",
+            "kind": "gui_short",
+            "hyp": "Kaydet",
+            "score": 100.0
+          },
+          {
+            "id": "gui_002",
+            "kind": "gui_short",
+            "hyp": "Ayarlar",
+            "score": 100.0
+          },
+          {
+            "id": "gui_003",
+            "kind": "gui_placeholder",
+            "hyp": "Hoş geldin, {name}! {count} yeni bildirimin var.",
+            "score": 68.39965596528519
+          },
+          {
+            "id": "gui_004",
+            "kind": "gui_button",
+            "hyp": "Aboneliği iptal et",
+            "score": 100.0
+          },
+          {
+            "id": "gui_005",
+            "kind": "gui_long",
+            "hyp": "Verileriniz aktarım sırasında ve beklemede şifrelenecektir. Bilgilerinizi açık rızanız olmadan üçüncü taraflarla asla paylaşmayız.",
+            "score": 76.46105204499432
+          },
+          {
+            "id": "err_001",
+            "kind": "error",
+            "hyp": "Bağlantı zaman aşımına uğradı. Lütfen ağınızı kontrol edin ve tekrar deneyin.",
+            "score": 91.61336821014444
+          },
+          {
+            "id": "err_002",
+            "kind": "error",
+            "hyp": "Yüklemeye çalıştığınız dosya, maksimum 10 MB boyutunu aşıyor.",
+            "score": 76.95335471988864
+          }
+        ],
+        "avg_chrf": 85.17
+      }
+    },
+    "openai/gpt-oss-120b": {
+      "tr": {
+        "per_sentence": [
+          {
+            "id": "flores_001",
+            "kind": "prose",
+            "hyp": "Pazartesi, Stanford Üniversitesi Tıp Fakültesi'nden bilim insanları, hücreleri türe göre ayırabilen yeni bir tanı aracının icadını duyurdu: standart mürekkep jet yazıcılarıyla üretilebilen ve muhtemelen her biri bir ABD centi kadar maliyetle basılabilen minik bir çip.",
+            "score": 56.678689661257295
+          },
+          {
+            "id": "gui_001",
+            "kind": "gui_short",
+            "hyp": "Kaydet",
+            "score": 100.0
+          },
+          {
+            "id": "gui_002",
+            "kind": "gui_short",
+            "hyp": "Ayarlar",
+            "score": 100.0
+          },
+          {
+            "id": "gui_003",
+            "kind": "gui_placeholder",
+            "hyp": "Tekrar hoş geldin, {name}! {count} yeni bildirimin var.",
+            "score": 80.8285471783857
+          },
+          {
+            "id": "gui_004",
+            "kind": "gui_button",
+            "hyp": "Aboneliği iptal et",
+            "score": 100.0
+          },
+          {
+            "id": "gui_005",
+            "kind": "gui_long",
+            "hyp": "Verileriniz aktarım sırasında ve depolama sırasında şifrelenir. Açık rızanız olmadan bilgilerinizi üçüncü taraflarla asla paylaşmayız.",
+            "score": 77.94054621577637
+          },
+          {
+            "id": "err_001",
+            "kind": "error",
+            "hyp": "Bağlantı zaman aşımına uğradı. Lütfen ağınızı kontrol edin ve tekrar deneyin.",
+            "score": 91.61336821014444
+          },
+          {
+            "id": "err_002",
+            "kind": "error",
+            "hyp": "Yüklemeye çalıştığınız dosya, maksimum 10 MB boyutunu aşıyor.",
+            "score": 76.95335471988864
+          }
+        ],
+        "avg_chrf": 85.5
+      }
+    }
+  },
+  "stats": {
+    "calls": 24,
+    "cache_hits": 0,
+    "failures": 0,
+    "approx_cost_usd": 0.0094
+  }
+}

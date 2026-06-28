@@ -813,7 +813,7 @@
 | `kimi-latest` | $0.660 | $3.41 | 262K | 🧠 🔧 🖼️ | — | — |
 
 <!-- EMBEDDING_CATALOG:START (auto-managed by embedding_export_markdown.py) -->
-*Auto-generated on 2026-06-27 (UTC) from the `embedding_models` table. Sorted by `input_cost_per_m ASC, id ASC`. **Total: 26 models.***
+*Auto-generated on 2026-06-28 (UTC) from the `embedding_models` table. Sorted by `input_cost_per_m ASC, id ASC`. **Total: 26 models.***
 
 | Provider | Model | Cost (input/M) | Context | Dimensions | Tier | Multilingual | Code-tuned | GA | Status |
 |---|---|---|---|---|---|---|---|---|---|
