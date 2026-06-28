@@ -399,8 +399,7 @@
     <table>
       <thead>
         <tr id="thead-row">
-          <th data-sort="name">Model</th>
-          <th data-sort="provider">Provider</th>
+          <th data-sort="name" title="Human-readable model name + provider/id below in dim mono. Sortable by name; sort by id via the URL prefix in the dim line. Provider already implied by the id prefix.">Model</th>
           <th data-sort="input_cost_per_m" title="USD per million input tokens. Source: OpenRouter for dual-routed + OR-only rows; Kilo Gateway for Kilo-only rows. Hover any cell for per-row source.">$/M in</th>
           <th data-sort="output_cost_per_m" title="USD per million output tokens. Source: OpenRouter for dual-routed + OR-only rows; Kilo Gateway for Kilo-only rows. Hover any cell for per-row source.">$/M out</th>
           <th data-sort="context_window_k">Ctx (k)</th>
@@ -810,7 +809,6 @@ function refresh() {
         <div class="model-name">${m.name || ""}</div>
         ${idLine}
       </td>
-      <td>${m.provider || ""}</td>
       <td class="cost" title="${priceSourceLabel(m)} — input cost">${fmtCost(m.input_cost_per_m, m)}</td>
       <td class="cost" title="${priceSourceLabel(m)} — output cost">${fmtCost(m.output_cost_per_m, m)}</td>
       <td class="num">${m.context_window_k || ""}</td>
