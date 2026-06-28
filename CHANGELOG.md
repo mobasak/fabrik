@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — watchdog rules canonicalize Tier D (opt-in, Telegram-gated code-remediation) before the feature is built (2026-06-28)
+
+`60-watchdog.md` + `self-healing.md`: add a fourth watchdog tier — **D, code-remediation** — off-by-default and opt-in (`auto_code_fix` + injected `deploy_adapter`/`test_cmd`), tests-gated (hard), secret-scanned, Telegram **Approve/Reject/STOP**-gated (or silence-window auto-apply), audited (`deploys`/`approvals` tables) and reversible (auto-rollback + STOP kill-switch). Rewrites the "watchdog never merges" anti-pattern to "never merges *without* Tier-D opt-in, via the deploy adapter"; adds self-healing ladder **row 9** (code-level regression / new critical exception) + a clause that a gated Tier-D step counts as **operator-bound**, not a 4th autonomous layer. Also corrects stale `watchdog/sidecar/` → `watchdog/watchdog_sidecar/` paths (library restructure). Rules-first per "add the row before the code."
+
 ### Fixed — tier-3 convention validator was a no-op + exited 0 on violations; sync no longer ships .pyc (2026-06-28)
 
 Follow-ups to the enforcement-gate work. (1) `validate_conventions` ran at tier 3 with no `--git-diff`/files, so it checked nothing — added `--git-diff` (final_gate.py). (2) Activating it exposed a deeper bug: `scripts/enforcement/__init__.py` imports the module, so `python -m` double-imports it and `CheckResult`s carried a different `Severity` enum instance than `main()` compared against (identity check) — the validator exited 0 despite real violations. Fixed by comparing `Severity` by `.value` (instance-agnostic). Verified: planted violation now exits 2. (3) `sync_enforcement_to_projects.py` was copying `__pycache__/*.pyc` to every project — excluded them and cleaned the existing bytecode from all 39 enforcement dirs. Regression test: `tests/test_enforcement_gate_fixes.py::test_validate_conventions_m_fails_on_violation`.

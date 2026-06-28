@@ -17,7 +17,7 @@ trigger: glob
 **Distinction from adjacent packs:**
 
 - [`58-resilience`](58-resilience.md) — defines preventive primitives (timeout, retry, circuit-breaker, pause-state). Each primitive bounds one failure mode.
-- [`60-watchdog`](60-watchdog.md) — the escalation engine. Tier A acts; Tier B opt-in; Tier C escalates to operator.
+- [`60-watchdog`](60-watchdog.md) — the escalation engine. Tier A acts; Tier B opt-in; Tier C escalates to operator; **Tier D** (opt-in, Telegram-gated) applies a tested code fix via an injected deploy adapter with auto-rollback.
 - **This pack** — the *order* in which those layers run per failure class.
 
 ---
@@ -36,6 +36,7 @@ Each row reads left-to-right: **Symptom** (an observable signal) → **First res
 | 6 | **DB connection-pool exhaustion** | `pool.size == pool.max` for >30 s; new requests timeout in `await acquire()` | App-side: `await asyncpg.Pool.close()` then reopen via `/admin/reset-db-pool` endpoint | Watchdog **Tier B** `reset_db_pool` (opt-in via `auto_tier_b`; X-Internal-Token guarded) | Watchdog Tier C → operator; check for connection leak in code, not pool size |
 | 7 | **Sustained 5xx burst** (downstream API returning 5xx > 50 % for 5 m) | http_5xx_spike rule in `60-watchdog._LOG_TRIGGERS` (>5 matches in window) | Circuit breaker OPEN against that endpoint; serve cached fallback if present (graceful degradation per [58-resilience § Banned Patterns](58-resilience.md) "No fallback on external call failure") | Watchdog Tier A `pause_worker` for the impacted resource if it gates a worker queue | Watchdog Tier C → operator; deadman re-alert if unacked |
 | 8 | **Stuck row locks** (application-level lock held >max_age_sec) | `locked_at` column past `now() − interval` in workers' queue table | Worker's own orphan-sweep task ([75-workers-jobs § Orphan Sweep](75-workers-jobs.md)) | Watchdog Tier A `rotate_locks` (bounded by `max_age_sec` ∈ [30, 86400]) | Watchdog Tier C → operator; investigate why workers crash mid-lock |
+| 9 | **Code-level regression / new critical exception** | new unhandled-exception spike (error-tracker critical) or 5xx tied to a recent deploy | Watchdog **Tier A** stabilize (roll back last deploy / restart) | Watchdog **Tier D** tested code-fix, Telegram-gated (approve / timeout-apply), auto-rollback on regression ([60-watchdog § Tier D](60-watchdog.md)) — opt-in only | Watchdog **Tier C** → operator if the fix can't be made green |
 
 **Why a strict order matters:** skipping rightward (e.g., escalating Tier C before letting the circuit breaker try) trains the operator to ignore alerts; falling-back leftward (e.g., re-trying the upstream while the breaker is OPEN) defeats the breaker. The ladder enforces both.
 
@@ -48,6 +49,7 @@ The right column of every ladder row maps to a [`60-watchdog`](60-watchdog.md) t
 - **Tier A (autonomous, default):** rows 1, 2, 5, 7, 8 use `restart_container`, `drop_queue_items`, `pause_worker`, `rotate_locks` respectively. No operator approval, no opt-in flag.
 - **Tier B (opt-in via `spec.watchdog.auto_tier_b: true`):** row 6 uses `reset_db_pool`. Defaults to "skipped → escalate Tier C" until the spec author flips it on.
 - **Tier C (escalate-only):** any row where the fallback step fails → Apprise → Telegram. Deadman timer rearms; if operator doesn't ack within `WatchdogConfig.deadman_timeout_seconds` (default 300), the watchdog runs `docker restart <main_container>` as bleed-stop and re-alerts with `[DEADMAN-TIMEOUT]`.
+- **Tier D (opt-in via `spec.watchdog.auto_code_fix: true` + injected `deploy_adapter`/`test_cmd`):** row 9 uses `apply_code_fix` — generate+test a fix, Telegram-gate (Approve / Reject / STOP, or silence-window auto-apply), deploy via the adapter, **auto-rollback on a health regression**, STOP kill-switch. Off by default → row 9 falls back to Tier A stabilize + Tier C escalate. See [60-watchdog § Tier D](60-watchdog.md).
 
 If a failure class doesn't appear in the table above, the rule is: **add the row to this pack first, then the response logic to the code.** Never silently invent a self-healing response — it'll diverge from the operator's mental model and break the ladder's discipline.
 
@@ -59,8 +61,8 @@ These look like self-healing but aren't:
 
 1. **Retry-without-backoff loop.** A `while True: try: call(); break; except: continue` against a wedged upstream is a denial-of-service against your own downstream. Use `tenacity` with explicit `wait_exponential(min, max)` per [58-resilience § Basic Resilience](58-resilience.md), or `pause-state.set_global_pause(resource, ttl)` if the failure is class-wide.
 2. **Catch-all `except: pass` on upstream calls.** Silent swallow is data loss; you've removed the only signal a watchdog could see. Pattern from [58-resilience § Banned Patterns](58-resilience.md): classify → pause → re-raise.
-3. **Kill-and-restart-everything panic.** When something goes wrong, restarting `traefik` + `postgres-main` + `redis-main` + all tenant containers (any panicked operator script) breaks every other tenant. Watchdog's `_FORBIDDEN_TARGETS` set in [`actions.py`](../../../fabrik-lib/watchdog/sidecar/actions.py) blocks 14 shared-infra names; honor the same list in any operator script.
-4. **Self-healing without a visible signal.** A pause flag, breaker, or rate-limit reject that doesn't increment a counter and emit a structured log line is invisible — when it misfires, you can't tell. Every ladder step MUST emit a counter AND a `structlog.info()` (or `pino.info()`) row carrying the resource name + reason; without that, the next operator audit has no way to tell the difference between "step fired and recovered" and "step never ran".
+3. **Kill-and-restart-everything panic.** When something goes wrong, restarting `traefik` + `postgres-main` + `redis-main` + all tenant containers (any panicked operator script) breaks every other tenant. Watchdog's `_FORBIDDEN_TARGETS` set in [`actions.py`](../../../fabrik-lib/watchdog/watchdog_sidecar/actions.py) blocks 14 shared-infra names; honor the same list in any operator script.
+4. **Self-healing without a visible signal.** A pause flag, breaker, or rate-limit reject that doesn't increment a counter and emit a structured log line is invisible — when it misfires, you can't tell. Every ladder step MUST emit a counter AND a `structlog.info()` (or `pino.info()`) row carrying the resource name + reason; without that, the next operator audit has no way to tell the difference between "step fired and recovered" and "step never ran". **Tier-D steps (stabilize / remediate / apply / rollback) are held to the same bar:** each MUST emit a counter + structured log AND write the `incidents` / `approvals` / `deploys` tables — an unaudited or irreversible code-remediation is not self-healing, it's an unreviewed deploy.
 5. **Operational-failure-as-content-verdict.** Recording a timeout / network error as a terminal "this item is bad" decision means the next retry will re-fetch and re-fail; the pause-state pattern's whole point is that operational failures are transient ([58-resilience § Operational failures are transient](58-resilience.md)). Default transient/retryable; require positive content evidence before flipping terminal.
 
 ---
@@ -83,8 +85,9 @@ A SaaS (`shape.kind=service`) using the standard skeleton wires three primitives
 - [ ] Each ladder step in the per-project doc names a primitive that exists in `fabrik-lib/` or a numbered rule pack — no inventions.
 - [ ] Each step emits a Prometheus counter + a structlog row carrying the resource name (no silent action).
 - [ ] If a row references Watchdog Tier B (currently row 6), the spec carries `watchdog: { auto_tier_b: true }`, and the operator has been notified of the opt-in.
+- [ ] If a row references Watchdog Tier D (currently row 9), the spec carries `watchdog: { auto_code_fix: true, code_fix_window_sec: <n> }` AND an injected `deploy_adapter` + `test_cmd`; the Telegram Approve/Reject/STOP loop is wired; every apply/rollback writes the `deploys` table; auto-rollback on health regression is armed. Absent the opt-in, row 9 stays Tier A stabilize + Tier C escalate.
 - [ ] No anti-pattern from the section above is present in code — `grep -rn "while True:" src/` and `grep -rn "except: pass" src/` come back clean.
-- [ ] The worked-example pattern (3 layers, last layer is always operator-bound) is the shape of every per-project ladder. If your ladder has >3 fully-autonomous layers, you've crossed into "panic" territory — collapse the bottom two into one explicit step and document the operator-bound terminal.
+- [ ] The worked-example pattern (3 layers, last layer is always operator-bound) is the shape of every per-project ladder. If your ladder has >3 fully-autonomous layers, you've crossed into "panic" territory — collapse the bottom two into one explicit step and document the operator-bound terminal. **A Tier-D code-remediation step counts as operator-bound, NOT a fully-autonomous layer** — the Telegram approval (or the configured silence window) IS the operator-bound terminal — *provided* the gate is enabled, every apply is auditable (`deploys` table) and reversible (auto-rollback + STOP). Without that gate it reads as a 4th autonomous layer and this checklist rejects it.
 
 ---
 
