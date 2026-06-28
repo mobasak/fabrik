@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — translation bake-off v2 harness (chrF++) for Kilo capability signals (2026-06-28)
+
+`scripts/kilo-benchmarks/translation_bench/` — corpus × model × language translation eval scoring **chrF++** (sacrebleu) so every model in the Kilo stack gets a measured translation score feeding the capability signals. v2 over the mt-router v1 bake-off (2026-05-26): chrF++ metric instead of word-overlap (handles morphologically-rich + CJK scripts uniformly), 12 languages (vs 5), the operator's actual Kilo picks included (GLM-5.2, Qwen3.7-Max, Gemini-3.1-Pro) so the same model answering chat also has a translation score, an 11-item mixed-shape corpus (FLORES-200 prose + GUI strings + error/placeholder strings), and a hard `budget_usd` cost ceiling. Files: `bake.py` (runner + cost estimate), `metric.py` (chrF++), `corpus.json`, `models.yaml`, `results.json` + per-call cache. (Daily-pipeline parallel work, committed here with its doc entry to satisfy the doc-sync gate.)
+
 ### Changed — watchdog rules canonicalize Tier D (opt-in, Telegram-gated code-remediation) before the feature is built (2026-06-28)
 
 `60-watchdog.md` + `self-healing.md`: add a fourth watchdog tier — **D, code-remediation** — off-by-default and opt-in (`auto_code_fix` + injected `deploy_adapter`/`test_cmd`), tests-gated (hard), secret-scanned, Telegram **Approve/Reject/STOP**-gated (or silence-window auto-apply), audited (`deploys`/`approvals` tables) and reversible (auto-rollback + STOP kill-switch). Rewrites the "watchdog never merges" anti-pattern to "never merges *without* Tier-D opt-in, via the deploy adapter"; adds self-healing ladder **row 9** (code-level regression / new critical exception) + a clause that a gated Tier-D step counts as **operator-bound**, not a 4th autonomous layer. Also corrects stale `watchdog/sidecar/` → `watchdog/watchdog_sidecar/` paths (library restructure). Rules-first per "add the row before the code."

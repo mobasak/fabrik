@@ -1,0 +1,6 @@
+{
+  "translation": "おかえりなさい、{name}さん！{count}件の新しい通知があります。",
+  "input_tokens": 105,
+  "output_tokens": 341,
+  "timestamp": "2026-06-28T19:40:50.204575+00:00"
+}

@@ -27,7 +27,6 @@ from __future__ import annotations
 
 from sacrebleu.metrics import CHRF
 
-
 # CHRF++ = chrf with word_order=2 (mixes char n-grams with word 1-grams + 2-grams).
 # beta=2 gives recall double weight vs precision — the WMT 2020+ default.
 _chrf_metric = CHRF(char_order=6, word_order=2, beta=2)
