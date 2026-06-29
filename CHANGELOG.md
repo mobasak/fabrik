@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Gate auto-stage no longer does a shared-tree `git add -A` (2026-06-29)
+
+`final_gate.py` previously ran a blanket `git add -A` on success, so on the shared `/opt/fabrik` master (3 agents + the daily pipeline) every gate run swept whatever other actors had left dirty/untracked into whoever's gate finished last — the exact footgun the agent contracts ban. The gate now snapshots the index at start and re-stages **only** the files that were already staged (capturing its own autofixes to them, nothing else). New `--stage-all` flag restores the legacy blanket behaviour for any caller that truly wants it. When nothing was pre-staged the gate now prints a hint to stage explicit paths. Regression test: `tests/test_final_gate_stage_scope.py` (7 cases incl. concurrent-file isolation, autofix re-capture, deletion staging, legacy-blanket). `final_gate.py` is Fabrik-synced, so this propagates fleet-wide.
+
 ### Fixed — Arena pulled from Coding tab + Speed/TTFT pulled from Translation tab (2026-06-29)
 
 Same relevance lens applied across every tab. **Arena** (Chatbot Arena ELO) removed from the Coding tab — it measures human chat preference, not coding ability; SWE-bench / Aider / DA-code / W-Code / Best Code are the canonical signals. **Speed** and **TTFT** removed from the Translation tab — translation is overwhelmingly a batch task; per-row latency rarely drives the pick. Reasoning tab keeps both because reasoning agents are usually interactive. The 5 specialty tabs (Transcription / Voice / Image / Video / OCR) already carried only relevance-justified columns. Net: 3 fewer noisy cells per row on the affected tabs; signal-to-noise on each tab is now strictly defended.

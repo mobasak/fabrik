@@ -18,6 +18,7 @@ Flags:
     --check      Check only mode - no fixes, no sync (CI mode)
     --json       Output results as JSON for agent parsing
     --no-stage   Don't auto-stage modified files after fixes
+    --stage-all  Legacy blanket `git add -A` (UNSAFE on shared tree)
     --sync       Sync-only mode (manual utility - no quality checks)
     --post-kilo  Log issues to .droid/gate_issues.jsonl
 
@@ -26,7 +27,10 @@ Checks:
 2. STATIC: ruff, mypy, bandit, semgrep, yaml, json, sqlfluff, vulture
 3. CONSISTENCY: structure, conventions, rule size, models, changelog, kilo health
 
-Iterates up to 3 times until clean. Auto-stages changes only if all checks pass.
+Iterates up to 3 times until clean. On success, re-stages ONLY the files that
+were already staged when the gate started (shared-tree safety: 3 agents + the
+daily pipeline share one master). Stage your files before running the gate, or
+use --stage-all for the legacy blanket behaviour.
 
 Workflow Doc: docs/workflows/FINAL_GATE_WORKFLOW.md
   ⚠️  Update the workflow doc when modifying this script.
@@ -936,9 +940,38 @@ def run_sync_steps() -> list[tuple[str, bool, str]]:
     return []
 
 
-def stage_changes() -> tuple[bool, str]:
-    """Stage all modified files."""
-    code, out = run_cmd(["git", "add", "-A"])
+def get_staged_files() -> set[str]:
+    """Paths currently in the index (staged).
+
+    Snapshotted at gate start so auto-stage can re-stage ONLY the agent's own
+    files (picking up gate autofixes) without sweeping unrelated, concurrently
+    edited files into the commit. See stage_changes().
+    """
+    code, out = run_cmd(["git", "diff", "--name-only", "--cached"])
+    if code != 0 or not out:
+        return set()
+    return {f for f in out.strip().split("\n") if f}
+
+
+def stage_changes(paths: set[str] | None = None) -> tuple[bool, str]:
+    """Re-stage files after autofixes.
+
+    Shared-tree safety: ``/opt/fabrik`` is worked by 3 agents + the daily
+    pipeline on one ``master``. A blanket ``git add -A`` here would sweep every
+    other actor's in-progress files into whoever's gate ran last (the exact
+    footgun the agent contracts ban). So by default we re-stage ONLY ``paths``
+    — the set that was already staged when the gate started — which captures any
+    autofixes the gate applied to the agent's own files and nothing else.
+
+    ``paths=None`` restores the legacy blanket behaviour (``--stage-all``).
+    """
+    if paths is None:
+        code, out = run_cmd(["git", "add", "-A"])
+        return code == 0, out
+    if not paths:
+        return True, ""  # nothing was pre-staged → stage nothing
+    # ``-A -- <paths>`` re-stages modifications AND deletions of exactly these files.
+    code, out = run_cmd(["git", "add", "-A", "--", *sorted(paths)])
     return code == 0, out
 
 
@@ -1030,6 +1063,15 @@ def parse_args() -> argparse.Namespace:
         "--no-stage",
         action="store_true",
         help="Don't auto-stage modified files after fixes",
+    )
+    parser.add_argument(
+        "--stage-all",
+        action="store_true",
+        help=(
+            "Legacy blanket `git add -A` on success. UNSAFE on the shared "
+            "/opt/fabrik tree (sweeps concurrent actors' files). Default re-stages "
+            "only files that were already staged when the gate started."
+        ),
     )
     parser.add_argument(
         "--sync",
@@ -1141,6 +1183,11 @@ def main() -> int:
     # Get changed files for diff-sensing
     changed_files = get_changed_files()
 
+    # Snapshot the index NOW, before any fixers run, so auto-stage at the end
+    # re-stages only the agent's own (already-staged) files — never a blanket
+    # `git add -A` that would sweep a concurrent actor's work into this commit.
+    staged_at_start = get_staged_files()
+
     # JSON mode: suppress all output except final JSON
     if not args.json:
         tier_label = {1: "LEAN (Tier 1)", 2: "FULL (Tier 2)", 3: "SYSTEMIC (Tier 3)"}
@@ -1205,10 +1252,24 @@ def main() -> int:
     if not args.check and not args.no_stage and not failed:
         status = get_git_status_hash()
         if status:
+            # Default: re-stage only the files staged when the gate started
+            # (shared-tree safety). --stage-all opts back into blanket `git add -A`.
+            scope = None if args.stage_all else staged_at_start
             if not args.json:
-                print(f"\n{BLUE}Auto-staging modified files...{RESET}")
-            ok, out = stage_changes()
-            if ok and not args.json:
+                if args.stage_all:
+                    print(f"\n{BLUE}Auto-staging ALL modified files (--stage-all)...{RESET}")
+                elif staged_at_start:
+                    print(
+                        f"\n{BLUE}Re-staging {len(staged_at_start)} pre-staged "
+                        f"file(s) (shared-tree safe)...{RESET}"
+                    )
+                else:
+                    print(
+                        f"\n{YELLOW}Nothing was pre-staged — staging nothing. "
+                        f"Stage your files explicitly: git add <file>…{RESET}"
+                    )
+            ok, out = stage_changes(scope)
+            if ok and not args.json and (args.stage_all or staged_at_start):
                 print(f"  {GREEN}✓ Changes staged{RESET}")
             elif not ok and not args.json:
                 print(f"  {RED}✗ Failed to stage: {out}{RESET}")
