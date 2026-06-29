@@ -63,6 +63,21 @@ Leave the error-tracker source **out** of `WATCHDOG_TRIGGER_SOURCES` (default `e
 
 ---
 
+### 2.7 Phase A status — tooling shipped + automatable parts validated (2026-06-29)
+
+Built `scripts/probes/glitchtip_webhook_capture.py` (modes `inspect`/`lifecycle`/`send-test`/`listen`/`verify`/`cleanup`) + `tests/test_glitchtip_webhook_capture.py` (8 drift-check cases).
+
+Validated live from the hub:
+- **`inspect`** — confirmed (not assumed) the **no-alert-API** constraint: `/rules/`, `/alert-rules/`, `/alerts/` all 404 at `errors.vps1.ocoron.com` (org/team `ocoron`/`vps1`).
+- **`lifecycle`** — disposable project create → DSN fetch → delete round-trips cleanly (auto-deleted, no leftover). Caught + fixed a real call-signature bug along the way (`create_project(name, platform=…)` — the 2nd arg is `platform`, not a description).
+- **`verify`** drift-check — 8 hermetic tests green.
+
+**Correction to §2.4:** the drift-check cannot run unattended-daily — capture requires a live event reaching a **VPS-reachable listener**, and the hub sandbox is not reachable by the VPS (and there is no alert-config API). So `verify --check` is a **post-capture / CI** guard, **not** a `wsl_startup_hook.sh` step (not wired in).
+
+**Operator hand-off (the one step the missing API forces):** `listen` on a VPS-reachable host → GlitchTip UI: add a webhook recipient = that listener URL on a "new issue" rule → `send-test` (or a real error) → captured fixture lands at `docs/reference/fixtures/glitchtip-webhook.json` → hand to the fabrik-lib parser-pin → `cleanup`. Runbook is in the tool docstring.
+
+Phase A is **complete to the limit of what the hub can reach**; the live fixture capture is the operator's one manual step.
+
 ## 3. Issue 2 — extend `drivers/watchdog.py` to deploy the Tier-D planes
 
 ### 3.1 The central architectural fact

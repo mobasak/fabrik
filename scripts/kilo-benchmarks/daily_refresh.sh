@@ -53,6 +53,19 @@ mkdir -p "$(dirname "$LOG_FILE")"
   "$VENV_PY" "$KB/verify_openrouter_catalog.py" --apply --ingest-new \
     || echo "[daily_refresh] verifier failed (non-fatal)"
 
+  # Kilo CLI catalog sync — writes is_agentic (Kilo flag) + Kilo-only
+  # rows + capabilities the OpenRouter verifier doesn't carry. Previously
+  # boot-only (wsl_startup_hook.sh) which meant a laptop that doesn't
+  # reboot left these stale. Now in cron too. Aggregator-audit 2026-06-29.
+  "$VENV_PY" "$KB/kilo_agents_db.py" all \
+    || echo "[daily_refresh] kilo_agents_db sync failed (non-fatal)"
+
+  # Migrate aggregator-pricing columns (idempotent — adds gateway_prices,
+  # cheapest_gateway, cheapest_gateway_price if missing). Cheap; runs
+  # every day so a fresh checkout boots cleanly.
+  "$VENV_PY" "$KB/migrate_aggregator_columns.py" \
+    || echo "[daily_refresh] aggregator columns migration failed (non-fatal)"
+
   # Ensure quality_tier/is_ga columns exist (idempotent, schema-only;
   # the actual values are recomputed below via derive_quality_v2).
   "$VENV_PY" "$KB/migrate_selector_columns.py" \
@@ -71,6 +84,21 @@ mkdir -p "$(dirname "$LOG_FILE")"
   # benchmark axes have data.
   "$VENV_PY" "$KB/scrape_coding_benchmarks.py" \
     || echo "[daily_refresh] coding-benchmarks scrape failed (non-fatal)"
+
+  # Speed metrics + AA Intelligence Index. Without this, output_tokens_per_sec
+  # and ttft_ms drift from boot-time to weeks-old. Aggregator-audit 2026-06-29:
+  # found rows with speed_updated_at from 2026-05-19 because this script ran
+  # only in wsl_startup_hook.sh.
+  "$VENV_PY" "$KB/scrape_artificial_analysis.py" \
+    || echo "[daily_refresh] artificial-analysis scrape failed (non-fatal)"
+
+  # Terminal Bench + general benchmark scraper.
+  "$VENV_PY" "$KB/update_kilo_benchmarks.py" --force \
+    || echo "[daily_refresh] kilo benchmark scrape failed (non-fatal)"
+
+  # Embedding catalog sync (sibling to kilo_agents_db.py for embedding models).
+  "$VENV_PY" "$KB/embedding_models_db.py" all \
+    || echo "[daily_refresh] embedding catalog sync failed (non-fatal)"
 
   # Translation + STT capability seeds. Translation reads the
   # operator-curated bake-off doc in /opt/fabrik-lib/mt-router/docs/;
