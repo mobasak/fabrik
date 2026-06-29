@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Deploy control-plane boundary documented in AGENTS.md (2026-06-29)
+
+The deploy MODEL/boundary (hub owns execution + fleet creds; projects own readiness; projects can't/shouldn't self-deploy; trigger-don't-execute via GitOps or watchdog Tier-D) was agreed in conversation but documented nowhere a fresh session reads — only the mechanics/invariants were (CLAUDE.md, fabrik-lifecycle.md). Added a "Control-plane boundary" paragraph atop AGENTS.md §"Deploy Pipeline and Automation Boundaries" so a new Claude Code session in /opt/fabrik discovers it when planning, plus a persistent memory (project_deploy_control_plane) so it surfaces in MEMORY.md every session. Answers "why can't project X self-deploy / where's it documented".
+
 ### Fixed — calendar-orchestration-engine spec rewritten to match the app + enable Tier-D (2026-06-29)
 
 The spec was out of sync with the actual app and would have produced a broken deploy. Fixes: added a real `shape:` block (was missing → inherited python-api template defaults) with `needs_database: true` (the `calendar` Postgres DB + `DATABASE_URL` injection were being SKIPPED — app couldn't reach its DB) and `exposes_metrics: false` (no `/metrics` endpoint → was provisioning a dead Prometheus job); switched `source.type: local` → `git` (the project is a pushed git repo with a Fabrik-compliant compose.yaml + Dockerfile HEALTHCHECK; local required pre-staging on the VPS); corrected `secrets.required` to the app's real keys (ABSTRACT_API_KEY, FACTORY_API_KEY, API_KEYS, RAPIDAPI_PROXY_SECRET — dropped the unused GOOGLE_CALENDAR_CREDENTIALS, removed auto-injected DATABASE_URL); fixed the mis-keyed `resources.limits.memory` → `resources.memory` (was silently 256M); template python-api → node-api; domain aligned to the registry. Enabled full watchdog Tier-D (`auto_code_fix` + `propose_fix_prs` + `error_webhook` trigger + critical_paths) as the first Tier-D target. `fabrik plan` green: postgres/gatus/glitchtip/grafana/watchdog RUNS. Deploy remains operator-gated (4 app secrets + apply + deploy-key + GlitchTip alert).

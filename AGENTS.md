@@ -56,6 +56,8 @@ Two entry paths depending on scope:
 
 ## Deploy Pipeline and Automation Boundaries
 
+**Control-plane boundary (the deploy model — why projects don't self-deploy).** `/opt/fabrik` is the single deploy **control plane**: it alone holds the fleet credentials (VPS SSH, DNS, shared-DB passwords on `postgres-main`) and coordinates the shared resources (DB/Redis-index/port/Traefik/GlitchTip/Authelia/Gatus allocation, deploy state, the spec→registrar invariants). A project (and its in-repo AI) **cannot and should not** run its own deploy — it lacks those credentials by design, and decentralized deploys would race on shared infra + bypass invariant enforcement. The division of labor is fixed: **projects own deploy-READINESS** (a compliant `compose.yaml`/`Dockerfile` + a correct, self-describing `specs/services/<id>.yaml`); **the hub owns deploy EXECUTION** (`fabrik apply`). To go live a project must (a) have a hub spec and (b) be triggered through the hub — **trigger, don't execute**: GitOps (`fabrik redeploy` git-pulls on push) or the watchdog Tier-D deploy adapter (`ssh fabrik redeploy`) are the self-service paths; neither hands the project fleet credentials. fabrik-lib deliberately has **no "deploy-yourself" module** — its rule is "self-contained *builds*" (a project's Docker build needs only its own repo), not self-contained deploys. New project not deploying? First check it has a `specs/services/<id>.yaml` (e.g. `trade-intelligence` has compose+Dockerfile but no spec → can't be applied).
+
 Full lifecycle from vision to running service — what is automated vs what requires human action:
 
 **Phase 1 — Planning (Traycer, mostly automated):**
