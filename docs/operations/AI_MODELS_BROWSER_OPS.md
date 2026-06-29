@@ -29,6 +29,14 @@ The AI Models Browser at [scripts/kilo-benchmarks/models_browser.html](../../scr
 # Alert-smoke (force a vendor's fetch to fail; verify alert wiring)
 .venv/bin/python scripts/kilo-benchmarks/fetch_direct_vendor_prices.py \
     --simulate-failure soniox --max-iter 7
+
+# Quarterly audit: which direct-vendor rows have fresh scraper coverage?
+# (Helps the operator decide which rows need a manual price check against
+# the vendor's website. "seed-only" rows are operator-curated values that
+# can be months old; "stale" rows have stopped getting scraper updates.)
+.venv/bin/python scripts/kilo-benchmarks/audit_direct_vendor_freshness.py
+.venv/bin/python scripts/kilo-benchmarks/audit_direct_vendor_freshness.py --status seed-only
+.venv/bin/python scripts/kilo-benchmarks/audit_direct_vendor_freshness.py --csv audit.csv
 ```
 
 ## Adding a new vendor
