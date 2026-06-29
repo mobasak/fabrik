@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Watchdog driver renders WATCHDOG_CRITICAL_PATHS independent of Tier-D (error_webhook paging) (2026-06-29)
+
+Activation dependency from fabrik-lib (56e6205): under Option A an error_webhook signal pages only when its error_type/url-path substring-matches a critical path, sourced from `deps.critical_paths` (Tier-D bootstrap) ∪ `WATCHDOG_CRITICAL_PATHS`. The driver previously rendered `WATCHDOG_CRITICAL_PATHS` only inside the Tier-D (auto_code_fix) block, so an alerting-only target (error_webhook on, no bootstrap) would capture but never page. Now rendered whenever `critical_paths` is set, independent of Tier-D; additive with the bootstrap's `configure(critical_paths=…)` for Tier-D targets. Driver warns when error_webhook is enabled without critical_paths. `critical_paths` spec field doc updated; runbook §9a step 1 updated. Tests cover alerting-only render + the no-paths warning.
+
 ### Added — Watchdog driver: error_webhook trigger source opt-in (WATCHDOG_TRIGGER_SOURCES) (2026-06-29)
 
 fabrik-lib shipped the error-tracker trigger (685de82); this wires the deploy side. New `WatchdogConfig.trigger_sources` (validated against `emitter|health|error_webhook`) renders `WATCHDOG_TRIGGER_SOURCES` (csv) into the sidecar env — independent of Tier-D. Empty/absent (default) leaves it UNSET → library legacy poll path, no trigger bus (backward-compatible). `error_webhook` starts the sidecar's `:8889` ingest server; a GlitchTip "General Slack-compatible webhook" new-issue alert points at `http://<id>-watchdog:8889/` over the internal fabrik net (no Traefik/host port); optional `WATCHDOG_INGEST_TOKEN` shared secret via the project `.env`. Enablement runbook: plan §9a. Tests cover token validation + render-when-set / absent-when-empty / Tier-D-independence.

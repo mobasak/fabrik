@@ -537,10 +537,15 @@ class WatchdogConfig(BaseModel):
     critical_paths: list[str] = Field(
         default_factory=list,
         description=(
-            "Glob/path prefixes the remediator treats as high-blast-radius; "
-            "changes touching them always escalate rather than silence-window "
-            "auto-apply. Rendered to WATCHDOG_CRITICAL_PATHS (comma-joined). "
-            "Empty = no extra-critical paths beyond the library defaults."
+            "Substrings that drive TWO things, rendered to WATCHDOG_CRITICAL_PATHS "
+            "(comma-joined) whenever set — independent of Tier-D. (1) Tier-D "
+            "remediator: paths it treats as high-blast-radius (escalate rather "
+            "than silence-window auto-apply). (2) error_webhook paging (Option A): "
+            "an error-tracker signal pages only when its error_type (e.g. "
+            "'PaymentError') or url-path (e.g. '/checkout') substring-matches one "
+            "of these. So an alerting-only target (trigger_sources includes "
+            "error_webhook, auto_code_fix off) MUST set this or signals are "
+            "captured-but-never-paged. Empty = library defaults only."
         ),
     )
 

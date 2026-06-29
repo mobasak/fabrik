@@ -270,6 +270,30 @@ class TestTriggerSources:
         assert rctx.auto_code_fix is False
         assert d._render_env(rctx)["WATCHDOG_TRIGGER_SOURCES"] == "error_webhook"
 
+    def test_critical_paths_rendered_for_alerting_only_target(self):
+        # error_webhook on, auto_code_fix OFF → critical_paths must still render
+        # (else signals capture but never page). This is the activation dep.
+        d = WatchdogDriver()
+        spec = {
+            "id": "demo",
+            "watchdog": {
+                "enabled": True,
+                "trigger_sources": ["health", "error_webhook"],
+                "critical_paths": ["PaymentError", "/checkout"],
+            },
+        }
+        env = d._render_env(d._build_render_context(spec, _ctx(spec)))
+        assert env["WATCHDOG_CRITICAL_PATHS"] == "PaymentError,/checkout"
+        assert "WATCHDOG_AUTO_CODE_FIX" not in env  # no Tier-D
+
+    def test_warns_error_webhook_without_critical_paths(self, caplog):
+        d = WatchdogDriver()
+        spec = {"id": "demo", "watchdog": {"enabled": True, "trigger_sources": ["error_webhook"]}}
+        with caplog.at_level("WARNING"):
+            env = d._render_env(d._build_render_context(spec, _ctx(spec)))
+        assert "WATCHDOG_CRITICAL_PATHS" not in env
+        assert any("never PAGE" in r.message for r in caplog.records)
+
 
 class TestGateTierD:
     def test_missing_git_remote_hard_fails(self):

@@ -706,6 +706,24 @@ class WatchdogDriver:
         # .env (env_file), not rendered here.
         if rctx.trigger_sources:
             env["WATCHDOG_TRIGGER_SOURCES"] = ",".join(rctx.trigger_sources)
+        # Critical paths drive error_webhook paging (Option A: a signal pages
+        # only when its error_type / url-path substring-matches one of these)
+        # AND the Tier-D remediator's high-blast-radius escalation. Render it
+        # whenever set — INDEPENDENT of Tier-D — so an alerting-only target
+        # (error_webhook on, auto_code_fix off, hence no bootstrap to carry
+        # deps.critical_paths) still pages. For Tier-D the env is additive with
+        # the bootstrap's configure(critical_paths=…). The library unions both.
+        if rctx.critical_paths:
+            env["WATCHDOG_CRITICAL_PATHS"] = ",".join(rctx.critical_paths)
+        elif "error_webhook" in rctx.trigger_sources:
+            logger.warning(
+                "watchdog: %s enables error_webhook but sets no critical_paths — "
+                "under Option A, error-tracker signals are CAPTURED but never PAGE "
+                "(no error_type/url-path to match). Set watchdog.critical_paths "
+                "(substrings of error_type e.g. 'PaymentError' or url-path e.g. "
+                "'/checkout') to page.",
+                rctx.project_id,
+            )
         # Tier-D: only emit the autonomous-code-fix env when opted in. The
         # bootstrap (rendered into the image in the same opt-in path) reads
         # these; Telegram tokens + WATCHDOG_TEST_CMD are operator secrets that
@@ -715,8 +733,6 @@ class WatchdogDriver:
             env["WATCHDOG_PROPOSE_FIX_PRS"] = "true"  # workspace clone prereq
             env["WATCHDOG_APPROVAL_WINDOW_SEC"] = str(rctx.code_fix_window_sec)
             env["WATCHDOG_TARGET_VPS"] = rctx.target_vps  # default redeploy_cmd
-            if rctx.critical_paths:
-                env["WATCHDOG_CRITICAL_PATHS"] = ",".join(rctx.critical_paths)
         # OpenRouter key + Postgres password come from the project's .env via
         # docker-compose env-file inclusion; we don't ship secrets in compose.
         # Sidecar code looks them up via os.environ.
