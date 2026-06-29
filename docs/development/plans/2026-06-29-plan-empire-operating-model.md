@@ -1,6 +1,6 @@
 # Plan — Fabrik Empire Operating Model (one-operator, AI-managed) — v3 (velocity-first)
 
-**Status:** DRAFT v3.2 — three `openrouter/fusion` panels (all **unanimous**) → **velocity-first**; keystone `fabrik launch`. **Two-pillar (§0):** (A) the Factory + (B) Agent Enablement. v3.2 folds back in the full thread: the complete operating doctrine (§4, incl. self-describing/Doctrine-0, route-by-intent, spend-compute, self-correct — minus the fusion-killed EMPIRE ritual), the `ai-consult` consult capability (§3b, B5), and the live-state index subsuming the stale VPS inventory (B1). Survival kept as a cheap floor, gated behind traction.
+**Status:** v4 — **FINAL consult absorbed** (3 fusion tiers, unanimous **REVISE→GO-after-fixes**). v4 inserts the missing **brake** (§3c): the supply side (`fabrik launch`) + safety doctrine are good, but the plan created faster than it could **select / contain / maintain**. Three cheap pre-Phase-2 fixes added: **selection-validity** (`untested` state + min-exposure gate + verified-paid-conversion as the sole graduate metric), an **attention control plane** (launch backpressure), and **radical simplification** (18 scaffolds → 1 on Day 1). Effort re-baselined 2.5×. Track B right-sized to **B1-first** (index), the rest deferred. Two-pillar (§0); survival a cheap floor gated behind traction.
 **Date:** 2026-06-29
 **Owner:** Operator + Fabrik AI (hub control plane)
 **Provenance:** `openrouter/fusion` (Opus/GPT/Gemini-Pro panel + budget/fast Gemini-Flash/DeepSeek/Kimi panels, Opus-4.8 judge; ~$2.4 total; raw in scratchpad `fusion_out2/3.txt`, `out_high/budget/fast.txt`).
@@ -56,6 +56,14 @@ Two layers, both required (the operator asked to address agents AND skills/orche
 
 **Cross-agent reality:** Fabrik runs 3+ agent runtimes (Claude Code, Kilo, Cascade/Windsurf, Traycer). The KNOW source must be runtime-neutral (the index + AGENTS.md, which all read); the ACT entry points are per-runtime (`.claude/skills` for Claude Code; `.windsurf/workflows` for Cascade; `AGENTS-compact.md` for Kilo) but generated from the same index so they don't drift.
 
+## 3c. THE BRAKE — selection validity + attention budget (v4: the fatal omission all 3 final panels found)
+
+The factory creates faster than it can **select**, **contain**, or **maintain**. Three cheap primitives, all **before Phase 2 ships** — without them `fabrik launch` is a sprawl multiplier, not a factory:
+
+1. **Selection validity (~1d) — so kill/graduate data means something.** With distribution unsolved, ~100% of launches hit the kill gate for the *same* reason (no traffic), so a kill teaches nothing and the factory becomes "a random number generator that deletes its own outputs." Fix: add a 4th lifecycle state **`untested`**; **minimum-exposure gate** — no verdict until ≥N *qualified* (bot- and self-excluded) sessions, below which status = `untested` (a *distribution* failure, logged separately, NOT a product signal); **verified paid conversion (cleared Stripe webhook) is the SOLE graduate metric** — visitors/signups demoted to diagnostic (they trip on your own QA, watchdog curls, and crawlers); bot/self exclusion at the beacon (~10 lines).
+2. **Attention control plane (~1d) — the brake the accelerator lacked.** Auto-kill exists for *revenue* failure but not *attention* failure; exception load (100 projects × 5%/day × 15 min = 75 min/day; 500 = 375 min/day) silently inverts the KPI. Fix: every operator touch → `attention_events`; `fabrik launch` calls **`launch-gate check` FIRST** → BLOCK if trailing-7d operator-minutes > 5h OR unresolved P1/P2 > 0 OR kill-candidates await veto. Hard caps: ≤15 min/Tier-0/month, ≤20 active Tier-0, ≤2 launches/week until measured exception rate proves lower. Also: a Tier-0 project consuming >120 human-min/30d with <$300 MRR auto-kills.
+3. **Radical simplification (Day 1) — kill maintenance-debt at the root.** 18 scaffolds + 27 drivers + 47 modules is unmaintainable solo; by Month 3 `fabrik launch` rots into dependency errors and you become a janitor. Collapse to **ONE canonical monetizable scaffold** + one default driver/registrar/DB path; AI watchdog self-heal is **deferred** behind deterministic healthchecks (restart/rollback/mark-degraded) — AI-self-heal-in-prod invents its own incidents.
+
 ## 4. Doctrine (binding — the full operating doctrine, velocity-lensed)
 
 1. **Every line judged by the KPI** — *"does this let an agent ship/test/kill/grow a project (or orient itself) with less operator-attention?"* If it only reduces variance it's survival, and survival is **capped at what protects graduated projects**, not experiments.
@@ -84,27 +92,21 @@ Two layers, both required (the operator asked to address agents AND skills/orche
 
 One `operator_presence` state machine keyed off `last_telegram_ack`: **0–4h** nothing changes · **4–24h "degraded"** autonomous allow-list only (restart Tier A–C w/ backoff; roll back a deploy that failed its own verify if <24h + no migration; renew certs/DNS; scale within ceiling; WAF-block DoS spikes; reroute to maintenance page after 2 failed rollbacks; halt on spend breach) · **24–72h "absent"** stability-only, freeze new deploys + Improve/Prune, stop non-revenue projects · **>30d** dead-man's-switch. **Freeze-list (never, any N):** data/backup deletion · destructive migrations · secret/IAM/root · public exposure · recurring-spend increase · cross-project blast-radius · doctrine/rule-pack edits · merging generated code · any autonomy-widening. **Telegram is a vendor SPOF — add email as a second channel before it's load-bearing.**
 
-## 7. Build sequence v3 (velocity-first; effort is optimistic — treat as 2–5×)
+## 7. Build sequence v4 — the first 14 working days (effort re-baselined 2.5×; "14 days" ≈ several weeks part-time)
 
-| # | Phase | Builds on | Effort* |
-|---|---|---|---|
-| **0** | **Do-not-die floor + Auto-Kill (cap it at ~1–2 days, not a sprawl-archaeology project).** Spend-velocity kill-switch (cut agent-container network on breach) + dead-man's-switch + break-glass (Bitwarden/encrypted, **not** Shamir yet) + backup-exists + ONE restore smoke test. Plus the **auto-kill cron** scaffold (needs the beacon, §1-after). Delete only sprawl that blocks launch (cap 8 operator-hrs). | `cost-budget`, `vultr_drill` | 2d |
-| **1** | **`fabrik launch` — the velocity engine (§3). THE keystone.** Canonical monetizable scaffold + commercial-kit + auto-enroll (control-plane + watchdog) + traction beacon. | 18 scaffolds, 47 lib modules, `fabrik apply` | 5–7d |
-| **2** | **Traction beacon + `projects` table + Grim-Reaper auto-kill** (the Measure+Kill half of §5). | `data/projects.yaml`, `sync_projects.py` | 2d |
-| **3** | **Graduation gate** — thin metrics view; ≥$100 MRR / ≥5 conv → Tier-1 unlocks the heavy infra. | beacon | 1d |
-| **4** | **Golden-path acceptance tests** — `fabrik launch` 3 example specs → assert 200 + signup + payment/waitlist + analytics event + watchdog enrolled + kill/promote attached. (This is the only agent-regression that matters now.) | `scripts/enforcement/` | 1–2d |
-| **5+** | **Survival infra — GATED to Tier-1 graduates only:** full `fabrik prove` gauntlet, model-pinning + golden-incident regression, drift index, git-as-state + minimal hash-chained runtime log. Built *when the first project graduates*, not before. | `audit-registrars`, watchdog tables | deferred |
+**SINGLE DAY-1 TASK: *fire* — don't just write — the spend kill-switch + dead-man's-switch.** Trip them on purpose; confirm the hard cutoff and scale-to-zero. An uncapped agent fleet with partial authority running unattended can bankrupt you before anything else matters.
 
-\* Optimistic-with-Claude-Code; the panel flags 2–5× once integration/debug/operator-review is counted. **Phase 1 is the only no-regret big build.**
+1. **Day 1 — Do-not-die floor, tested.** Spend-velocity kill-switch (cut agent-container network on breach) + dead-man's-switch (keyed off `last_telegram_ack`), both *fired*. Confirm no agent holds master/root.
+2. **Day 2 — Break-glass + restore.** Bitwarden break-glass verified offline-from-phone; backup-exists + **one real restore** to a throwaway host. Auto-kill cron skeleton (logs, does nothing).
+3. **Day 3 — PURGE (the net-deletion gate, made real).** 18 scaffolds → **1 canonical monetizable stack**; trim drivers/registrars to one default path each; archive the rest. Deterministic healthchecks chosen over AI self-heal.
+4. **Days 4–5 — THE BRAKE (§3c), before the keystone.** `projects` + `attention_events` schema with honest metrics (`verified_paid_conversions`, `qualified_sessions`, diagnostic visitors/signups) + the **`untested`** state; bot/self-exclusion filter + minimum-exposure gate + **`launch-gate check`**. Test: a 5-bot project lands `untested`; an over-budget portfolio returns BLOCK.
+5. **Days 6–11 — `fabrik launch` v0 (keystone; your 5–7d → expect 10–14 real).** spec → repo (the ONE scaffold) → deploy → DNS → DB → commercial-kit (**Stripe webhook = the conversion metric**) → analytics *through the exclusion filter* → traction beacon → control-plane register. **Day 11: launch ONE real project, time it.** If it's 6h not 2h, re-baseline everything.
+6. **Day 12 — Auto-kill live** against the real table; confirm it *refuses* to kill an `untested` project.
+7. **Days 13–14 — B1 + golden-path.** **B1: generate the capability+live-state index** (`docs/CAPABILITIES.md` + JSON from `fabrik --help` + drivers + `docker ps`; **subsumes the stale `vps-complete-inventory.md`** — the original freshness gap) on a git hook + daily pipeline; ONE `.claude/skill` for `launch`; golden-path acceptance test; set the launch throttle.
 
-**Track B (Pillar B — Agent Enablement; runs in PARALLEL, cheap, de-risks every other phase):**
-- **B1 — Generate the capability + live-state index** (`docs/CAPABILITIES.md` + JSON; introspects CLI/drivers/scripts/specs/lib **and live `docker ps` across all 3 hosts**). **Subsumes the stale `docs/infrastructure/vps-complete-inventory.md`** — that doc is a point-in-time snapshot (the original freshness gap: "verified 2026-06-15" while reality drifts daily); the generated index is always-current and the canonical answer to "what's deployed right now." Wired into the daily pipeline + a `fabrik capabilities`/`vps-sync` on-demand refresh. ~1.5d. *Do this near-first: it's what lets the agent building `fabrik launch` reuse the 47 modules / 27 drivers instead of re-inventing — it pays for itself inside Phase 1.*
-- **B2 — Skills + slash-commands** (`.claude/skills/`) ported from `.windsurf/workflows`, incl. a `launch` skill once Phase 1 lands. ~2d, incremental.
-- **B3 — Domain subagents** (`.claude/agents/`: `fleet-auditor`, `deploy-readiness`, `launch`) — only the heavy isolated ones. ~1–2d.
-- **B4 — One-hop orientation:** CLAUDE.md/AGENTS.md point at the index as step 1 of orientation; index regenerates per project so the factory self-documents. ~0.5d.
-- **B5 — `ai-consult` fabrik-lib module** (frontier-consult client; SPEC ready in scratchpad). The self-correct/consult capability (Doctrine 9) — agents tap fusion for high-blast-radius decisions. Hand the SPEC to the fabrik-lib coder. ~2–3d (fabrik-lib side).
+**Explicitly NOT in the first 14 days (deferred until a project HONESTLY graduates):** graduation-gate heavy infra, golden-path beyond the one test, **B3 subagents, B5 `ai-consult`, the intent router** (you have OpenRouter already — fewer branches, not more opinions in the loop), all Phase-5 survival infra (full `fabrik prove`, model-pinning, drift index, hash-chain ledger).
 
-Sequencing: **B1 first (alongside Phase 0)**, then B2/B4 alongside Phase 1, B3 as heavy sweeps appear, B5 whenever the fabrik-lib coder is free. Net-deletion still applies — porting a `.windsurf/workflow` to a skill should retire the duplicate, not double it.
+**Track B right-sizing (the final panels' call on Pillar B):** Pillar B is **not cut** — it is **B1-first**. B1 (the generated index) is the highest-leverage item and the actual cure for "agents don't know what exists" → ship it Day 13–14. B2 (one `launch` skill) follows. **B3/B4/B5 defer** past the first honest graduate. Net-deletion still applies: a ported `.windsurf/workflow` retires its duplicate.
 
 ## 8. Human-gated forever (unchanged)
 
@@ -117,7 +119,8 @@ Data/backup deletion · destructive migrations · secret/IAM/root · public expo
 ## 10. Self-audit / carried-forward risks
 
 - v1 wrong on keystone (discovery→control); v2 wrong on layer (infra→business-substrate); **v3 corrects to velocity-first.** Recorded, not hidden.
-- **Premise honesty:** "$1B solo in 2–5y" is a portfolio bet whose binding constraint is **distribution + a non-zero hit-rate**, not infra. This plan builds the factory; the portfolio still needs winners, and winners need distribution (§9).
+- **Premise honesty (recalibrated by the final panels):** the **empirical solo-portfolio ceiling is ~$3–5M ARR** (Pieter Levels ~$3.1M, Marc Lou ~$1M) — "$1B solo" is, bluntly, a valuation-outlier, not a base-rate. Keep $1B as the *lottery upside* of the dream; **plan and measure against $3–10M ARR**. The binding constraint remains **distribution + a non-zero hit-rate**, not infra (§9). A factory that can't *select* winners from noise (§3c) or *contain* attention (§3c) never compounds regardless of launch volume.
+- **The three final-consult killers are now §3c**, not buried: selection blindness, attention bankruptcy, and factory maintenance-debt. They were the unanimous "REVISE" cause; the plan is a GO once §3c ships *before* Phase 2.
 - **AI-code security debt at high N:** auto-shipped monetizable apps hold payment data — the watchdog/self-heal is assumed to cover this but the stakes rise with project count; revisit when launch volume grows.
 - **Cross-project shared-infra attention** (router/fusion upkeep, 47-module dependency drift) grows non-linearly and is undercounted; the net-deletion gate + auto-kill are the only brakes.
 - **Not built yet.** The no-regret first move is **Phase 0 floor + Phase 1 `fabrik launch`**; everything else is gated on a graduate or on the distribution plan.
