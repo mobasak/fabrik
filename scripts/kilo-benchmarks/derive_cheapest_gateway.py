@@ -123,12 +123,18 @@ def run(db_path: Path = DB_PATH) -> dict[str, int]:
             "SELECT id, gateway_prices, input_cost_per_m, pricing_unit FROM agents WHERE status = 'active'"
         ).fetchall()
         for agent_id, gp_json, direct_price, direct_unit in rows:
-            if not gp_json:
-                # No gateways → cheapest = direct (if any direct price exists)
-                if direct_price and direct_price > 0 and direct_unit:
-                    counts["rows_with_direct_only"] += 1
+            # Every row with a real price + canonical unit gets `direct` as
+            # the trivial cheapest when no mirror data exists. Previously
+            # we skipped these rows entirely — the column showed "—" for
+            # ~96% of the catalog, which was confusing. Now Cheapest =
+            # min(direct, replicate, fal_ai, ...) and is always populated
+            # whenever the row has a direct price to begin with.
+            if gp_json:
+                counts["rows_with_gateways"] += 1
+            elif direct_price and direct_price > 0 and direct_unit:
+                counts["rows_with_direct_only"] += 1
+            else:
                 continue
-            counts["rows_with_gateways"] += 1
             winner_name, winner_price = derive_row(gp_json, direct_price, direct_unit)
             conn.execute(
                 "UPDATE agents SET cheapest_gateway = ?, cheapest_gateway_price = ? WHERE id = ?",
