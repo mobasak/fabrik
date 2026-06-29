@@ -1,6 +1,6 @@
 # Plan — Watchdog deploy-side: GlitchTip payload capture + Tier-D driver wiring
 
-**Status:** IN PROGRESS — Phase A tooling shipped + validated; Phase B started (SIDECAR_SOURCE bug fixed, driver now test/dry-run-able). Phases B/C continue.
+**Status:** IN PROGRESS — Phase A tooling shipped + validated; **Phase B complete** (SIDECAR_SOURCE fixed; deploy-key generate-once implemented; app-HEALTHCHECK pre-flight warn; all driver methods unit-tested, no SSH). Phase C (prod-affecting, gated) next — requires §5 unknowns pinned from fabrik-lib + a diff-review checkpoint before any `fabrik apply`.
 **Date:** 2026-06-29
 **Owner:** Fabrik AI (`/opt/fabrik`, fleet/deploy side)
 **Origin:** Two issues handed off from the fabrik-lib watchdog autonomous-remediation work (PR #1, branch `feat/watchdog-autonomous-remediation`). This plan covers only the `/opt/fabrik` half. The library half (`/opt/fabrik-lib`) is the other agent's.

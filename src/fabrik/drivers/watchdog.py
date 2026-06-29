@@ -17,11 +17,27 @@ after the spec's main compose stack is deployed. Three jobs:
    chosen over in-place YAML merge to avoid clobbering ``SSHDeployer``'s
    contract that it owns ``compose.yaml``.
 
-3. **Generate the deploy key.** The PR-proposal path needs a per-project
-   git deploy key at ``/var/lib/watchdog/keys/git-deploy.key`` (mode 600).
-   Generated locally with ``ssh-keygen -t ed25519``, pushed to the VPS as
-   a named volume entry. Operator separately registers the pubkey with the
-   project's GitHub repo (CODEOWNERS-enforced ruleset).
+3. **Generate the deploy key** (only when the project opts into git push —
+   ``propose_fix_prs`` today, ``auto_code_fix`` in Tier-D). The push path needs
+   a per-project git deploy key at ``/var/lib/watchdog/keys/git-deploy.key``
+   (mode 600, owned by the in-container ``watchdog`` user); the image bakes
+   ``GIT_SSH_COMMAND`` to use it (``Dockerfile:119-121``). Generated **once**,
+   VPS-side, *after* bring-up so it lands in the exact state volume the
+   container mounted (sidesteps compose's volume-name prefixing): ``ssh-keygen
+   -t ed25519`` on the VPS → ``docker cp`` into the running container → chmod
+   600 + chown ``watchdog``. **Idempotent — never regenerated** if already
+   present (that would orphan the pubkey already registered on GitHub). The
+   driver logs the PUBLIC key for the operator to register as a WRITE-enabled
+   deploy key on the project's GitHub repo (CODEOWNERS-enforced ruleset).
+
+4. **Pre-flight the app HEALTHCHECK.** ``verify_health`` (and thus Tier-D
+   auto-rollback) is a no-op unless the watched app container declares a real
+   ``HEALTHCHECK`` (``coordinator.py`` treats "no healthcheck" as PASS). The
+   driver does **not** own the app's ``compose.yaml`` (``SSHDeployer`` does —
+   see overlay note below), so it cannot inject one; instead it inspects the
+   main container at provision time and logs a loud warning when none is
+   present (auto-rollback-on-health will not fire → escalate-only). Tier-D
+   enablement (Phase C) refuses projects lacking one.
 
 Spec: docs/development/plans/2026-05-30-ai-watchdog-platform-P2-subplan.md
       § 4 (sidecar contents) + § 4.6 (v1 capability expansion) + § 5
@@ -182,18 +198,28 @@ class WatchdogDriver:
             return {"status": "skipped"}
 
         if dry_run:
-            logger.info(
-                "[dry-run] watchdog: would build %s + write %s/compose.watchdog.yaml "
-                "+ docker compose up -d watchdog",
-                rctx.image_tag,
-                self._compose_dir(rctx),
-            )
+            steps = [
+                f"build {rctx.image_tag}",
+                f"write {self._compose_dir(rctx)}/compose.watchdog.yaml",
+                "docker compose up -d watchdog",
+                "pre-flight app HEALTHCHECK (warn-only)",
+            ]
+            if rctx.propose_fix_prs:
+                steps.append("ensure git deploy key (generate-once if absent)")
+            logger.info("[dry-run] watchdog: would %s", " + ".join(steps))
             return {"status": "dry-run", "image_tag": rctx.image_tag}
 
         try:
             self._build_image(rctx)
             self._push_overlay(rctx)
             self._bring_up(rctx)
+            # Pre-flight: warn (don't fail) if the watched app has no HEALTHCHECK
+            # — Tier-D auto-rollback-on-health would be a no-op for it.
+            self._check_app_healthcheck(rctx)
+            # Only projects that push (PR proposals today; Tier-D later) need a
+            # git deploy key. Generated once, never rotated by the driver.
+            if rctx.propose_fix_prs:
+                self._ensure_deploy_key(rctx)
         except WatchdogProvisionError:
             raise
         except Exception as e:  # noqa: BLE001 — wrap unknown failures
@@ -515,6 +541,94 @@ class WatchdogDriver:
             timeout=10,
         )
         logger.info("watchdog: %s-watchdog health=%s", rctx.project_id, status)
+
+    # ── Prereqs: app healthcheck pre-flight + git deploy key ────────────────
+
+    def _check_app_healthcheck(self, rctx: _RenderContext) -> bool:
+        """Warn (don't fail) if the watched app container has no HEALTHCHECK.
+
+        ``verify_health`` in the sidecar treats a container with no healthcheck
+        as healthy, so Tier-D auto-rollback-on-health silently never fires for
+        such an app (it degrades to escalate-only). The driver can't add a
+        healthcheck — ``SSHDeployer`` owns ``compose.yaml`` — so it surfaces the
+        gap loudly here. Returns True iff the main container declares one.
+        """
+        # `docker inspect` prints `<no value>` (Go template) when the field is
+        # null/absent; any non-empty Test array means a real healthcheck.
+        out = ssh(
+            "sudo docker inspect --format "
+            "'{{if .Config.Healthcheck}}{{.Config.Healthcheck.Test}}{{else}}NONE{{end}}' "
+            f"{rctx.main_container} 2>/dev/null || echo MISSING",
+            timeout=15,
+        ).strip()
+        has_hc = bool(out) and out not in ("NONE", "MISSING", "[]", "<no value>")
+        if not has_hc:
+            logger.warning(
+                "watchdog: app container %r has NO HEALTHCHECK (%s) — Tier-D "
+                "auto-rollback-on-health will be a no-op for %s; it will "
+                "escalate instead. Add a HEALTHCHECK to the app's compose.yaml "
+                "to enable health-gated rollback.",
+                rctx.main_container,
+                out or "inspect failed",
+                rctx.project_id,
+            )
+        return has_hc
+
+    def _ensure_deploy_key(self, rctx: _RenderContext) -> None:
+        """Generate-once a git deploy key inside the sidecar's state volume.
+
+        Idempotent: if ``/var/lib/watchdog/keys/git-deploy.key`` already exists
+        in the running container we keep it (regenerating would orphan the
+        pubkey already registered on GitHub). Done VPS-side via the running
+        container so it targets the exact volume Compose mounted, regardless of
+        Compose's volume-name prefixing.
+        """
+        container = f"{rctx.project_id}-watchdog"
+        key_path = "/var/lib/watchdog/keys/git-deploy.key"
+        present = ssh(
+            f"sudo docker exec -u 0 {container} sh -c "
+            f"'test -f {key_path} && echo PRESENT || echo ABSENT' 2>/dev/null || echo NOCONTAINER",
+            timeout=15,
+        ).strip()
+        if present.endswith("PRESENT"):
+            logger.info("watchdog: deploy key already present for %s — keeping it", rctx.project_id)
+            return
+        if present.endswith("NOCONTAINER"):
+            raise WatchdogProvisionError(
+                f"cannot place deploy key: container {container} not running"
+            )
+        # Generate on the VPS (host has ssh-keygen; the sidecar image may not),
+        # copy into the container, lock down perms, then remove the host copy.
+        remote_priv = f"/tmp/{rctx.project_id}-git-deploy.key"  # nosec B108 — REMOTE VPS tmp, removed below
+        remote_pub = f"{remote_priv}.pub"
+        comment = f"watchdog-{rctx.project_id}@fabrik"
+        ssh(
+            f"rm -f {remote_priv} {remote_pub} && "
+            f"ssh-keygen -t ed25519 -N '' -C '{comment}' -f {remote_priv}",
+            timeout=30,
+        )
+        try:
+            ssh(
+                # keys/ is volume-initialized from the image (owned watchdog);
+                # ensure it exists, drop the key in, lock perms, restore owner.
+                f"sudo docker exec -u 0 {container} mkdir -p /var/lib/watchdog/keys && "
+                f"sudo docker cp {remote_priv} {container}:{key_path} && "
+                f"sudo docker cp {remote_pub} {container}:{key_path}.pub && "
+                f"sudo docker exec -u 0 {container} sh -c "
+                f"'chmod 700 /var/lib/watchdog/keys && chmod 600 {key_path} && "
+                f"chmod 644 {key_path}.pub && chown -R watchdog:watchdog /var/lib/watchdog/keys'",
+                timeout=60,
+            )
+            pubkey = ssh(f"cat {remote_pub}", timeout=15).strip()
+        finally:
+            ssh(f"rm -f {remote_priv} {remote_pub}", timeout=15)
+        logger.warning(
+            "watchdog: generated git deploy key for %s. Register this PUBLIC key "
+            "as a WRITE-enabled deploy key on the project's GitHub repo "
+            "(Settings → Deploy keys → Allow write access):\n%s",
+            rctx.project_id,
+            pubkey,
+        )
 
 
 __all__ = ("WatchdogDriver", "WatchdogProvisionError")

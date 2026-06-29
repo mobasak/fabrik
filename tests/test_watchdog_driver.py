@@ -9,6 +9,7 @@ fabrik-lib renamed `sidecar/` → `watchdog_sidecar/`, which silently aborted
 from __future__ import annotations
 
 import types
+from unittest import mock
 
 import pytest
 
@@ -68,3 +69,98 @@ class TestRenderContext:
             {"id": "demo", "watchdog": {"enabled": True}}, _ctx({"id": "demo"}, target_vps="vps2")
         )
         assert rctx.target_vps == "vps2"
+
+
+def _rctx(driver: WatchdogDriver, *, propose_fix_prs: bool = False):
+    spec = {"id": "demo", "watchdog": {"enabled": True, "propose_fix_prs": propose_fix_prs}}
+    return driver._build_render_context(spec, _ctx(spec))
+
+
+class TestAppHealthcheck:
+    """Pre-flight: detect a missing app HEALTHCHECK (warn-only, never fails)."""
+
+    def test_present_returns_true(self):
+        d = WatchdogDriver()
+        with mock.patch(
+            "fabrik.drivers.watchdog.ssh", return_value="[CMD curl -fsS http://x/health]"
+        ):
+            assert d._check_app_healthcheck(_rctx(d)) is True
+
+    @pytest.mark.parametrize("out", ["NONE", "MISSING", "[]", "<no value>", ""])
+    def test_absent_returns_false_and_warns(self, out, caplog):
+        d = WatchdogDriver()
+        with mock.patch("fabrik.drivers.watchdog.ssh", return_value=out):
+            with caplog.at_level("WARNING"):
+                assert d._check_app_healthcheck(_rctx(d)) is False
+        assert any("NO HEALTHCHECK" in r.message for r in caplog.records)
+
+
+class TestDeployKey:
+    """Generate-once git deploy key; idempotent; gated on propose_fix_prs."""
+
+    def test_keeps_existing_key(self):
+        d = WatchdogDriver()
+        with mock.patch("fabrik.drivers.watchdog.ssh", return_value="PRESENT") as m:
+            d._ensure_deploy_key(_rctx(d, propose_fix_prs=True))
+        # Only the existence probe runs — no keygen / cp / cat.
+        assert m.call_count == 1
+
+    def test_no_container_raises(self):
+        d = WatchdogDriver()
+        with mock.patch("fabrik.drivers.watchdog.ssh", return_value="NOCONTAINER"):
+            with pytest.raises(WatchdogProvisionError, match="not running"):
+                d._ensure_deploy_key(_rctx(d, propose_fix_prs=True))
+
+    def test_generates_when_absent_and_logs_pubkey(self, caplog):
+        d = WatchdogDriver()
+        pub = "ssh-ed25519 AAAAC3Nz...stub watchdog-demo@fabrik"
+        # probe=ABSENT, keygen='', place='', cat=pubkey, rm=''
+        side = ["ABSENT", "", "", pub, ""]
+        with mock.patch("fabrik.drivers.watchdog.ssh", side_effect=side) as m:
+            with caplog.at_level("WARNING"):
+                d._ensure_deploy_key(_rctx(d, propose_fix_prs=True))
+        joined = " ".join(c.args[0] for c in m.call_args_list)
+        assert "ssh-keygen -t ed25519" in joined
+        assert "docker cp" in joined
+        assert "chmod 600" in joined
+        assert any(pub in r.message for r in caplog.records)
+
+    def test_removes_host_key_copy_even_if_place_fails(self):
+        """The host-side tmp key must be rm'd even when docker cp/chmod errors."""
+        d = WatchdogDriver()
+
+        def boom(cmd, *a, **k):
+            if cmd.startswith("sudo docker exec -u 0") and "test -f" in cmd:
+                return "ABSENT"
+            if cmd.startswith("rm -f") and "ssh-keygen" in cmd:
+                return ""
+            if "docker cp" in cmd:
+                raise RuntimeError("cp failed")
+            return ""
+
+        with mock.patch("fabrik.drivers.watchdog.ssh", side_effect=boom) as m:
+            with pytest.raises(RuntimeError, match="cp failed"):
+                d._ensure_deploy_key(_rctx(d, propose_fix_prs=True))
+        # The cleanup rm (finally) must have run.
+        assert any(c.args[0].startswith("rm -f /tmp/") for c in m.call_args_list)
+
+
+class TestDryRunSteps:
+    def test_dry_run_lists_deploy_key_only_when_pushing(self, caplog):
+        d = WatchdogDriver()
+        with caplog.at_level("INFO"):
+            d.provision(
+                _ctx({"id": "p", "watchdog": {"enabled": True, "propose_fix_prs": True}}),
+                dry_run=True,
+            )
+        assert any("deploy key" in r.message for r in caplog.records)
+
+    def test_dry_run_omits_deploy_key_when_not_pushing(self, caplog):
+        d = WatchdogDriver()
+        with caplog.at_level("INFO"):
+            d.provision(
+                _ctx({"id": "p", "watchdog": {"enabled": True, "propose_fix_prs": False}}),
+                dry_run=True,
+            )
+        assert not any("deploy key" in r.message for r in caplog.records)
+        assert any("HEALTHCHECK" in r.message for r in caplog.records)
