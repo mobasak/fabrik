@@ -87,12 +87,12 @@ anthropic:
 
 aws:
   pricing_url: https://aws.amazon.com/transcribe/pricing/
-  fetch_method: static
+  fetch_method: rendered     # Phase 2 reality-check: raw HTML has no inline $/min anchored to a DB row
   parser_module: null
 
 azure:
   pricing_url: https://azure.microsoft.com/en-us/pricing/details/cognitive-services/speech-services/
-  fetch_method: static
+  fetch_method: rendered     # Phase 2 reality-check: SSR HTML omits the actual $/X numbers
   parser_module: null
 
 bfl:
@@ -117,7 +117,7 @@ elevenlabs:
 
 google-cloud:
   pricing_url: https://cloud.google.com/speech-to-text/pricing
-  fetch_method: static
+  fetch_method: rendered     # Phase 2 reality-check: SSR HTML omits the actual $/X numbers
   parser_module: null
 
 heygen:
@@ -132,7 +132,7 @@ ideogram:
 
 kling:
   pricing_url: https://klingai.com/pricing
-  fetch_method: static
+  fetch_method: rendered     # Phase 2 reality-check: SSR HTML omits the actual $/X numbers
   parser_module: null
 
 llamaindex:
@@ -142,7 +142,7 @@ llamaindex:
 
 luma:
   pricing_url: https://lumalabs.ai/dream-machine/pricing
-  fetch_method: static
+  fetch_method: rendered     # Phase 2 reality-check: SSR HTML omits the actual $/X numbers
   parser_module: null
 
 mistral:
@@ -157,7 +157,7 @@ openai:
 
 pika:
   pricing_url: https://pika.art/pricing
-  fetch_method: static
+  fetch_method: rendered     # Phase 2 reality-check: credit-based pricing; subscription-only verification in Phase 3
   parser_module: null
 
 # playht: REMOVED — vendor permanently shut down 2025-12-31 (Meta acquisition);
@@ -170,7 +170,7 @@ qwen:
 
 recraft:
   pricing_url: https://www.recraft.ai/pricing
-  fetch_method: static         # nextjs hydration — Phase 2 uses extract_nextjs_data
+  fetch_method: rendered     # Phase 2 reality-check: credit-based pricing; subscription-only verification in Phase 3
   parser_module: null
 
 runway:
@@ -180,7 +180,7 @@ runway:
 
 stability:
   pricing_url: https://stability.ai/pricing
-  fetch_method: static
+  fetch_method: rendered     # Phase 2 reality-check: SSR HTML omits the actual $/X numbers
   parser_module: null
 
 suno:

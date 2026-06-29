@@ -126,6 +126,12 @@ mkdir -p "$(dirname "$LOG_FILE")"
   "$VENV_PY" "$KB/fetch_direct_vendor_prices.py" --apply --quiet \
     || echo "[daily_refresh] direct-vendor pricing scraper had vendor errors (non-fatal)"
 
+  # Phase 4 of the direct-vendor pricing plan: every daily refresh re-infers
+  # provider for any rows that came back from the upstream catalogs with
+  # provider='unknown' (claude-* models, corethink:free, etc.). Idempotent.
+  "$VENV_PY" "$KB/backfill_unknown_providers.py" --apply \
+    || echo "[daily_refresh] backfill_unknown_providers failed (non-fatal)"
+
   "$VENV_PY" "$KB/derive_quality_v2.py" \
     || echo "[daily_refresh] quality v2 deriver failed (non-fatal)"
 
