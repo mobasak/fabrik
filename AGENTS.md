@@ -433,7 +433,7 @@ Organized by folder:
 | `DATA_PG` | Database queries, migrations, schema changes |
 | `SECURITY` | Auth, sessions, CORS, secrets, CSP, sensitive files |
 | `RESILIENCE` | External service calls, circuit breakers, retry/backoff, self-healing |
-| `WATCHDOG` | Sidecar/auto-recovery patterns, Claude-Code-driven container self-heal (watchdog-test pattern) |
+| `WATCHDOG` | Sidecar/auto-recovery patterns, Claude-Code-driven container self-heal (watchdog-test pattern). **Tier-D autonomous code-fix is wired deploy-side** (`drivers/watchdog.py` renders a consumer bootstrap → `configure()` 4 planes; spec opt-in `auto_code_fix`/`code_fix_window_sec`) but **off by default + enabled on no project yet** — needs a stable deployed git-sourced target w/ HEALTHCHECK; enablement runbook in `docs/development/plans/2026-06-29-plan-watchdog-deploy-side.md` §9 |
 | `SELF_HEALING` | Higher-level self-healing strategy: drift → diagnose → action loops; Tier A/B/C decision matrix |
 | `BOOTSTRAP_SCRIPTS` | `bootstrap-vps.sh` / `bootstrap-spoke-restore.sh` / `bootstrap-hub.sh` — fresh-install + DR-restore paths |
 | `APP_AUDIT_LOG` | In-app audit trail (who-did-what tables, tenant-scoped, immutable rows) |
