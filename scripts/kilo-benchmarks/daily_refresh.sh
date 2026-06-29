@@ -57,6 +57,12 @@ mkdir -p "$(dirname "$LOG_FILE")"
 
   cd "$KB" || { echo "[daily_refresh] cd failed — aborting"; exit 0; }
 
+  # Heartbeat: check that yesterday's run actually completed. Fires a
+  # critical alert if the last-success timestamp is >36h old. First-run
+  # condition is silent. Per Plan §"Phase 5 cron-skip heartbeat".
+  "$VENV_PY" "$KB/check_daily_refresh_freshness.py" \
+    || echo "[daily_refresh] freshness check errored (non-fatal)"
+
   "$VENV_PY" "$KB/verify_openrouter_catalog.py" --apply --ingest-new \
     || echo "[daily_refresh] verifier failed (non-fatal)"
 
@@ -174,6 +180,16 @@ mkdir -p "$(dirname "$LOG_FILE")"
 
   "$VENV_PY" "$KB/export_models_browser.py" \
     || echo "[daily_refresh] models_browser export failed (non-fatal)"
+
+  # Heartbeat: write last-success timestamp so tomorrow's
+  # check_daily_refresh_freshness.py knows this run completed.
+  # Only written if we reach this line (most steps are non-fatal so we'll
+  # get here even with partial failures — that's intentional; the
+  # heartbeat catches CATASTROPHIC failures where the script never gets
+  # past the early steps, not transient per-step issues which are
+  # already covered by per-step Telegram alerts).
+  mkdir -p "$KB/cache"
+  date -u +'%Y-%m-%dT%H:%M:%S+00:00' > "$KB/cache/daily_refresh_last_success.txt"
 
   echo "=== Refresh complete — $(date -u +'%Y-%m-%d %H:%M:%S UTC') ==="
 } >> "$LOG_FILE" 2>&1
