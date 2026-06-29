@@ -4,6 +4,50 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — check_ai_pack_freshness.py hardened against crash-on-bad-input (adversarial review) (2026-06-29)
+
+Adversarial review found two violations of the script's own "Exit 0 always — degrade, don't crash" contract: (1) a malformed/empty/negative `AI_PACK_STALE_DAYS` crashed at import (`int()` ValueError) → now parsed via a defensive `_stale_days()` that falls back to 90; (2) an unreadable / non-UTF-8 pack raised `UnicodeDecodeError` unguarded in the scan loop, aborting the whole daily-pipeline step → `check_pack` now degrades a bad read to an "unreadable" warning and `main()` has a per-pack catch-all. Also: future-dated stamps now read as fresh with a clear "stamped in the future" message instead of "verified -Nd ago". Regression guards: `tests/test_check_ai_pack_freshness.py` (14 cases) + symlink/subdir over/under-block cases added to `tests/test_scaffold_fix.py::TestScaffoldHubGuard`. No behavior change for the happy path.
+
+### Fixed — Second adversarial review on aggregator pricing + browser column alignment (2026-06-29)
+
+Pass 5/6 of the iterated review surfaced 2 more correctness/UX issues + a visual-alignment bug; all fixed with regression tests. **F5-1** ([fetch_fal_prices.py:269-289](scripts/kilo-benchmarks/fetch_fal_prices.py#L269-L289)) — fal.ai HTML fallback in `_fetch_model_page_pricing()` was single-attempt (no retry) while the catalog API peer had 3 retries with exponential backoff. Transient 5xx on the model page silently dropped pricing for the day. Fix: identical retry loop (2s/4s/8s backoff, 5xx retries, 4xx permanent). **F5-2** ([models_browser_template.html fmtSource](scripts/kilo-benchmarks/models_browser_template.html)) — `if (gp.replicate)` was truthy for an empty `{}` stub, emitting a misleading badge with `undefined` in the tooltip. Fix: require `gp.replicate.slug` (and `gp.fal_ai.slug`) truthy before rendering. **Browser column-alignment**: `thead th` was uniformly `text-align: left` while `td.cost`/`td.num` was `text-align: right` — numeric column headers visually offset from their data. Fix: per-`data-sort` selector pins numeric headers to right-align, matching their cells. **Pass coverage**: Pass 5 hunted retry asymmetry, empty-object truthiness, exception type catches, path traversal in cache filenames, regex false positives on prose, YAML bool coercion of slugs, escapeHtml gaps (apostrophes), HTTP redirect trust, ReDoS on RC_BLOCK_RE, SQLite WAL contention, cache directory growth, float-precision roundtrip — 2 real findings (F5-1, F5-2). Pass 6 ran a convergence sweep: re-running every prior-fix regression, end-to-end pipeline (derive + browser regen + 95/95 pytest), schema integrity check, stub-marker/bare-except/hardcoded-creds scan, shell-script `bash -n` — 0 new findings. Total since the implementation shipped: **8 correctness fixes** across 6 review passes; **0 outstanding correctness/security findings** at convergence.
+
+### Fixed — Adversarial-review fixes on the aggregator-pricing implementation (2026-06-29)
+
+4 passes of adversarial review on the just-shipped aggregator-pricing pipeline surfaced 6 real correctness findings; all fixed with embedded regression tests. **A** ([derive_cheapest_gateway.py:46-58](scripts/kilo-benchmarks/derive_cheapest_gateway.py#L46-L58)) — stale `gateway_prices` entries persisted forever when a mirror map shrank (orphan from prior fetch kept winning `derive_row` indefinitely). Fix: new `_is_recent()` check drops entries whose `last_seen` is >30 days old or missing. Regression: 5 boundary tests (today / 30d / 31d / missing / fresh-wins). **B** ([derive_cheapest_gateway.py:60-75](scripts/kilo-benchmarks/derive_cheapest_gateway.py#L60-L75)) — unit-mismatch fail-OPEN when `direct_unit` was None: the comparison guard `if direct_unit and unit != direct_unit` was falsy for None and let video-sec entries beat image rows. Fix: refuse to derive when `direct_unit` is None; gate every gateway entry on `unit == direct_unit` unconditionally. **C** ([fetch_fal_prices.py:223-256](scripts/kilo-benchmarks/fetch_fal_prices.py#L223-L256)) — per-token denominator parser missed `"per 1000 tokens"` because it only recognised `1K`/`1M` shorthand. Fix: extended regex to allow optional `tokens` word + bare-numeric denominators ≥100; computes `multiplier = 1_000_000 / denom`. **D** ([fetch_replicate_prices.py:175-183](scripts/kilo-benchmarks/fetch_replicate_prices.py#L175-L183)) — Replicate payload omitted `confidence` field (worked by accident because `derive_row` defaults to 1.0). Now explicit. **F3** ([fetch_fal_prices.py:120-130](scripts/kilo-benchmarks/fetch_fal_prices.py#L120-L130)) — fal.ai HTTP 401/403 was logged as generic "permanent failure" indistinguishable from "end of catalog"; an expired `FAL_KEY` silently produced zero coverage. Fix: separate `AUTH FAIL` log line on 401/403 explicitly naming `FAL_KEY`. **F4** (all 3 DB-writing scripts) — `conn.commit()` after the loop meant a mid-loop exception left partial state visible (proven: SQLite's implicit per-statement commits leak to disk). Fix: explicit `BEGIN` at start, `try/except ROLLBACK/raise` wrapper. Regression: 16 rows of cheapest_gateway preserved unchanged when a forced exception fires mid-loop. **All 6 fixes verified**: pytest 95/95 green, FLUX Redux still wins `replicate` (88% cheaper), `final_gate.py --lean --json → success`.
+
+### Added — Aggregator pricing comparison (Replicate + fal.ai) with cheapest-gateway badge (2026-06-29)
+
+Implements the 6 phases of [docs/development/plans/2026-06-29-plan-2-aggregator-pricing.md](docs/development/plans/2026-06-29-plan-2-aggregator-pricing.md). For every direct-vendor specialist row in `agents` that has a mirror on Replicate or fal.ai, the daily pipeline now fetches live per-model pricing, normalizes onto the same `$/M-billable-units` axis as `input_cost_per_m`, picks the cheapest gateway across direct/replicate/fal_ai, and surfaces a "−X% via Y" badge in the AI Models Browser's price cell. The OpenRouter↔Kilo cheapest-rate pattern that the LLM side already used is now mirrored for non-LLM specialists, end-to-end. **First real win surfaced**: `bfl/flux-redux` is **88% cheaper on Replicate** ($0.003/img) than direct ($0.025/img); the browser flags it automatically. **New schema columns** on `agents`: `gateway_prices TEXT` (JSON map of {gateway: {price, unit, slug, url, confidence, ...}}), `cheapest_gateway TEXT`, `cheapest_gateway_price REAL` (added by `scripts/kilo-benchmarks/migrate_aggregator_columns.py`, mirroring `migrate_selector_columns.py`'s idempotent `_column_exists()` pattern). **Pre-existing decimal-shift bug fixed** in `scripts/kilo-benchmarks/kilo_agents_db.py:240-241` — Kilo CLI's `cost.input`/`cost.output` are already per-1M-tokens; the `* 1_000_000` multiply produced 1M× inflated Kilo-only prices (latent: no active Kilo-only rows currently, but the bug would surface on next Kilo-only model add). Also healed 13 historical `kilo_input_cost_per_m` outliers (mistralai/devstral-2512, openai/gpt-5-chat, kilo-auto/*, stealth/*) by running the corrected verifier. **New scripts** wired into both `daily_refresh.sh` and `wsl_startup_hook.sh` after `update_gateway_counts.py` and before `export_models_browser.py`: `fetch_replicate_prices.py` (HTML scrape of `replicate.com/{slug}` for `billingConfig.current_tiers[].prices[]`; 12 verified mirrors via `replicate_mirrors.yaml`; handles both nested `billingConfig` shape AND flat `{hardware, price, p50price}` shape for SDXL/Whisper/Stable-Audio; per-thousand title divisor), `fetch_fal_prices.py` (paginated `https://fal.ai/api/models` API consumer with `pricingInfoOverride` Markdown parser covering per-image/per-megapixel/per-second/per-minute/per-token shapes; HTML fallback for null overrides scrapes the visible `cost $X per Y` line; 9 verified mirrors via `fal_mirrors.yaml`), `derive_cheapest_gateway.py` (pure-function `derive_row()` apples-to-apples comparison: only same-`pricing_unit` entries with confidence ≥ 0.5 are eligible; "direct" is always a candidate; tie-break stable). **Browser changes** in `scripts/kilo-benchmarks/models_browser_template.html`: new `.src-badge.replicate` (mauve) + `.src-badge.fal` (coral-orange) CSS; `fmtSource(m)` emits `R` / `F` badges when `gateway_prices` has that key (tooltips wrapped in `escapeHtml` for XSS safety); new `maybeCheaperBadge(m)` function appends `<span class="cheaper-badge">−X% Y</span>` to the price cell when `cheapest_gateway !== "direct"` AND savings ≥ 5%. **Adversarial reviews run after every Phase** per the plan's required `## Adversarial review` section — each phase's tests cover null/empty, idempotency, merge semantics, normalization correctness, confidence thresholds, unit mismatch, type coercion (string vs object JSON), XSS, sort regression. All 7 reviews returned 0 correctness/security findings. **New env vars** documented in `.env.example`: `REPLICATE_API_TOKEN` (catalog API discovery only — HTML scrape doesn't need auth) and `FAL_KEY` (catalog API + fallback HTML scrape).
+
+### Fixed — Adversarial-review fixes on the direct-vendor catalog (2026-06-29)
+
+`scripts/kilo-benchmarks/models_browser_template.html`: (F1) `fmtCost()` now dispatches on `pricing_unit` (the canonical billing axis) instead of `service_type` (a UI category) — the prior code mis-rendered ElevenLabs Sound Effects (`service_type=music_gen` but billed per character of prompt) as `$0.018/min` when the actual price is `$0.300/1K chars`. (F3) The `$/M out` column now renders `n/a` for non-LLM rows instead of `free` — image-gen / STT / TTS / translation / OCR specialists bill on a single axis, so "free output" was misleading. `scripts/kilo-benchmarks/seed_direct_vendors.py`: (F2) the UPSERT path no longer force-reactivates rows on every daily run — operator-set deprecations (anything where `discard_reason` does NOT mention "verifier") are now respected; only verifier-set deprecations are auto-reactivated. Operator can now suppress a vendor row by editing `status='deprecated' discard_reason='operator chose not to use'` and it survives nightly seeds. Also corrected the seeder docstring to honestly disclose data sourcing: the 74 vendor specs are operator-encoded from training-data knowledge (cutoff Jan 2026) + one live Recraft URL fetch — there is no automated vendor-pricing scraper; the prior "audited against vendor pages" wording was overstated.
+
+### Added — Comprehensive direct-vendor catalog (74 specs) + split media tabs + unit-aware cost display (2026-06-29)
+
+Expanded `scripts/kilo-benchmarks/seed_direct_vendors.py` from 8 to **74 vendor specs** covering: STT (11; Soniox async/realtime v4, Whisper, gpt-4o-(mini-)transcribe, Deepgram Nova-2/3, AssemblyAI, Google Chirp 2, Azure, Speechmatics), TTS (12; Soniox, ElevenLabs Multilingual v2 / Turbo v2.5 / Flash v2.5 / v3-alpha, OpenAI TTS-1 / TTS-1-HD / 4o-mini-tts, Cartesia Sonic 2, PlayHT, Google WaveNet, Azure Neural), Music gen (4; Suno v4, Udio v1, Stable Audio 2, ElevenLabs Sound Effects), Translation (6; DeepL Pro+Free, Google Cloud Translate v3, Azure Translator Text, Amazon Translate, Qwen-MT-Turbo), Image gen (25; full FLUX lineup — Pro 1.1 / Pro 1.1 Ultra / Pro / Dev / Schnell / Fill / Redux; Recraft V4.1 / V4 SVG / V4 Icon / V3 / V2 / Nano Banana; Stability SD3.5 Large / Large Turbo / Ultra / Core / SDXL; OpenAI DALL-E 3 std+HD / GPT-Image-1; Google Imagen 3+4; Ideogram v2+v3), Video gen (12; Runway Gen-3 Alpha + Turbo + Gen-4, Luma Dream Machine 1.6 + Ray 2, Kling v1.5 + v2, Pika 2, Google Veo 2+3, OpenAI Sora Turbo, HeyGen), OCR (5; Mistral OCR, AWS Textract, Google Document AI, Azure Document Intelligence, LlamaParse). Schema additions: `agents.pricing_unit TEXT DEFAULT 'M-tokens'` carries the canonical billing unit per row; `service_type` enum extended with `video_gen`, `music_gen`, `ocr`. The browser template now (a) splits the prior single "Audio / Vision" tab into **five focused tabs**: Transcription, Voice / Audio, Image gen, Video gen, OCR — each tab also row-filters to its relevant `service_type` set so it's not just column-hiding, and (b) renders the cost cell in vendor-quoted units per service_type ($0.04/img for image-gen, $0.10/min for STT, $0.30/1K ch for TTS, $0.75/s for video, $0.001/pg for OCR) while keeping `input_cost_per_m` as the sortable underlying axis. `seed_direct_vendors.py` continues to run daily via `daily_refresh.sh`; idempotent UPSERT by id keeps operator state stable.
+
+### Added — Direct-vendor specialists (Soniox / Recraft / FLUX / SDXL / ElevenLabs / DeepL Pro) in the AI Models Browser (2026-06-29)
+
+`scripts/kilo-benchmarks/seed_direct_vendors.py` (new) seeds the 8 direct-vendor specialists that aren't on OpenRouter / Kilo CLI but are actively referenced or used across `/opt/`: **Soniox STT v4** (used by `/opt/youtube`), **Soniox TTS** + **ElevenLabs Multilingual v2** (operator-tracked TTS defaults), **Recraft v4.1** (branded/SVG, used by `/opt/brand-identiy-creator`), **FLUX Pro 1.1** + **FLUX Schnell** via Black Forest Labs (photoreal, `BFL_API_KEY` configured), **Stability SDXL** (via Replicate), **DeepL Pro** (used by AutoPoly). Schema: added `service_type` column on `agents` (default `'llm'`; enum `'llm'/'stt'/'tts'/'translation'/'image_gen'`) and backfilled existing rows from capability flags. The browser gets a new "Service type" sidebar filter (LLM / STT / TTS / Translation / Image gen / Embeddings) and a small color-coded badge next to non-LLM model names. `seed_direct_vendors.py` is idempotent (UPSERT by id) and wired into `daily_refresh.sh` AFTER `seed_translation_and_stt.py`. The cost columns reuse `input_cost_per_m` as a sortable proxy across heterogeneous billing units ($/M tokens for LLMs, $/M chars for TTS, $/M audio-minutes for STT, $/M images for image-gen) — the per-row description carries the canonical unit.
+
+### Added — Auto-refresh of live gateway counts in `.windsurf/rules/ai/` packs (2026-06-29)
+
+New `scripts/kilo-benchmarks/update_gateway_counts.py` injects a `GATEWAY_COUNTS:START/END` marker block into each of the 7 LLM-bearing AI rule packs (`00-ai-model-selection.md`, `10-speech-audio.md`, `20-vision.md`, `30-language.md`, `40-multimodal.md`, `50-agentic.md`, `60-code.md`) with live per-category counts queried from `kilo_agents.db` — OR/Kilo dual-routing totals, DashScope/SiliconFlow specialists, plus category-scoped capability counts (reasoning / tools / vision-input / translation-scored / STT-capable). Wired into both `scripts/kilo-benchmarks/daily_refresh.sh` and `scripts/wsl_startup_hook.sh` AFTER the existing `category_export_markdown.py` step so both marker blocks land in the same refresh. Sibling design (not folded into `category_export_markdown.py`) to keep its Pass A–12 self-heal invariants untouched. Idempotent and self-heals around missing/orphaned markers. Without this, rules text drifted out of sync with the bake-off DB (the earlier "Kilo has 235 models / OR has 470" claims were both stale).
+
+### Fixed — Translation bake-off rollout: direct-API gateway rows mis-deprecated; tab-view missing Source/Status; null token TypeError (2026-06-29)
+
+`scripts/kilo-benchmarks/verify_openrouter_catalog.py` no longer deprecates DashScope / SiliconFlow-only rows: the verifier previously checked only OpenRouter and Kilo CLI, so operator-seeded specialist routes (like `qwen/qwen-mt-turbo`) were marked `status=deprecated` on every run. New behavior: rows flagged `via_dashscope=1` or `via_siliconflow=1` are exempt from the delisted sweep. `scripts/kilo-benchmarks/seed_translation_and_stt.py` reactivates any direct-API row whose `discard_reason` was set by a verifier (idempotent; non-verifier deprecations untouched), pushes through per-mapping defaults for cost/context/description without clobbering operator edits, and the `BAKEOFF_MODEL_MAP` row for qwen-mt-turbo carries the real DashScope prices ($0.16 in / $0.49 out) + 32k context + a vendor description. Manual one-shot patched the existing qwen/qwen-mt-turbo row (price/ctx/name/description/quality_tier/status, plus the missing `agent_categories.language` row). `scripts/kilo-benchmarks/translation_bench/bake.py`: token-usage parsing now null-coalesces (`int(usage.get("prompt_tokens") or 0)`) — DashScope and some OpenRouter routes can return explicit JSON null, which previously raised `TypeError` in the success path. `scripts/kilo-benchmarks/models_browser_template.html`: `Source` and `Status` columns are now visible on every tab (Overview / Reasoning / Coding / Translation / Audio) — previously only Overview, which defeated the gateway-comparison purpose of the Translation tab. `.windsurf/rules/ai/00-ai-model-selection.md` corrected the inflated "~470 OpenRouter language models" claim to the actual 134 active language-tagged (2026-06-29), hedged the other "broad" cells against catalog drift.
+
+### Changed — AI model-selection ruleset is now gateway-agnostic (Kilo CLI ⇋ OpenRouter peers) (2026-06-29)
+
+`.windsurf/rules/ai/00-ai-model-selection.md` + per-category packs (`10-speech-audio.md`, `20-vision.md`, `30-language.md`, `40-multimodal.md`, `50-agentic.md`, `60-code.md`) supersede the prior "check Kilo CLI before any paid external API" rule. **New policy:** Kilo CLI and OpenRouter are **peer gateways**; for any dual-routed model the agent picks the cheaper rate per model (the bake-off browser's Source column shows the Kilo-vs-OR markup % at a glance). DashScope and SiliconFlow are valid direct-API gateways for models not on either peer (e.g. `qwen-mt-turbo` on DashScope, top-3 on FR/PT/DE/ID/AR). The "specialized vendor over general LLM" rule still binds (Soniox/DeepL/Recraft/FLUX); the historical Kilo-first rule is dropped because OpenRouter often prices the same model 10–40 % cheaper and many sweet-spot models aren't on Kilo at all. Anti-patterns updated: added "picking the more expensive gateway when a model is dual-routed"; removed "reaching for a paid external API when a free Kilo alternative exists."
+
+### Added — translation bake-off: DashScope/Qwen-MT-Turbo provider + 429 backoff + tabbed AI Models Browser (2026-06-29)
+
+`scripts/kilo-benchmarks/translation_bench/bake.py` gains a DashScope provider client (Alibaba Cloud `compatible-mode/v1`) so `qwen/qwen-mt-turbo` — the operator-tracked sweet-spot dedicated MT model — is now bake-able alongside OpenRouter rows; per-call HTTP 429 backoff (3 attempts, 2/3s) so rate-limit drops no longer suppress a model's measured average (qwen3.7-max retested at 86.2 with 0 failures). Bake-off results: qwen-mt-turbo lands at 82.6 chrF++ avg across 23 langs but **specialist-wins** on French (95.55, #1 across the matrix) + Portuguese/German/Indonesian/Arabic (top-3); falls off on low-resource + morphology-heavy (HU/RO/UR/KO ≤73). `scripts/kilo-benchmarks/models_browser_template.html`: renamed the confusable sidebar headers `Capabilities` → `Model flags`, `Capability` → `Scored signal`, `Categories` → `Route categories`; clarified chip text (`vision` → `vision-in`); fixed a dead-branch bug in the `unrated` tier-filter (rows with `quality_tier=null` were always shown regardless of the chip). Added a **tabbed column view** to the browser (Overview · Reasoning · Coding · Translation · Audio/Vision) — each tab limits visible columns AND resets to a sensible best→worst default sort (Coding → Best Code desc, Reasoning → AA Intelligence desc, Translation → Trans avg desc, Audio → STT WER asc since lower is better). Active tab persists in URL hash (`#tab=coding`). Sidebar filters remain global and apply to all tabs.
+
 ### Added — translation-quality benchmark harness (chrF++ via sacrebleu) under kilo-benchmarks (2026-06-28)
 
 `scripts/kilo-benchmarks/translation_bench/` — `bake.py` (bench baker + cost estimate) + `metric.py` (chrF++ scoring via sacrebleu, chosen over BLEU for robustness on morphologically-rich languages) + cached model×language translation outputs. Documented to satisfy the Doc Sync Matrix for the staged change.
@@ -39,15 +83,18 @@ User: "in fabrik-lib we have i18n transcription models analyze it, i know opus, 
 Clarified that the i18n stack is **translation** (text→text), not transcription (audio→text). Built both tracks.
 
 **Translation (mt-router stack)**:
+
 - 8 new agents columns: `via_dashscope`, `via_siliconflow`, `translation_quality` (JSON), `translation_avg_pct`, `stt_quality` (JSON), `stt_wer_avg`, `is_stt_capable`, `is_translation_capable`
 - New `scripts/kilo-benchmarks/seed_translation_and_stt.py` parses the operator-curated bake-off doc at `/opt/fabrik-lib/mt-router/docs/bakeoff-2026-05-26.md` (7 models × 5 languages × 10 strings = 350 calls). 7 translation rows populated. Inserted 2 mt-router models that weren't in our OpenRouter catalog: `tencent/hunyuan-a13b-instruct` (SiliconFlow-only) and `deepl/deepl` + `azure/translator` (non-LLM MT engines). Manually inserted `qwen/qwen-mt-turbo` (Alibaba DashScope only — TIER3_MODEL_MAP JA winner but absent from the bake-off doc, so noted in its translation_quality JSON).
 - `derive_quality_v2.py` adds `translation_avg` as a 10th benchmark axis: ≥80% → T3 floor, ≥70% → T2 floor (thresholds picked from observed distribution: top 80.6% Grok, p50 76.8%). 12 tier promotions including `mistral-small-3.2-24b-instruct` T1→T2 and the newly-ingested DeepL/Azure/Hunyuan rows.
 
 **STT (Speech-to-Text)**:
+
 - 7 direct-API STT models seeded with public WER scores from cited sources: `openai/whisper-large-v3` (WER 6.85), `openai/gpt-4o-transcribe` (5.45), `openai/gpt-4o-mini-transcribe` (7.45), `deepgram/nova-3` (9.67), `deepgram/nova-2` (11.80), `assemblyai/universal-2` (10.70), `google/cloud-speech-v2` (10.45). All scored as `(LibriSpeech test-clean en + FLEURS multilingual)/2` so lower=better.
 - 20 OpenRouter audio-input chat models auto-flagged `is_stt_capable=1`: Gemini 2.5/3/3.1 Flash variants, gpt-audio + gpt-audio-mini, Voxtral, Nemotron Nano Omni, MiMo-V2.5. They lack WER scores (chat completions don't run on standard STT benchmarks) but are surfaced as STT-capable for the operator to choose between dedicated STT and audio-LLM routes.
 
 **Browser**:
+
 - New `Trans` column (sortable, hover shows per-language breakdown TR/ES/PT/JA/ID%)
 - New `STT WER` column (sortable, lower=better, green color, hover shows per-dataset WER + source)
 - New gateway badges `DS` (DashScope) and `SF` (SiliconFlow) next to `OR`/`K`
@@ -55,6 +102,7 @@ Clarified that the i18n stack is **translation** (text→text), not transcriptio
 - Detail panel's Benchmark sources section now lists per-language translation breakdown + per-dataset STT WER with source attribution
 
 **Daily refresh**:
+
 - `seed_translation_and_stt.py` wired between `scrape_coding_benchmarks.py` and `derive_quality_v2.py` in `daily_refresh.sh`. Idempotent — re-running updates existing rows without duplicates.
 
 **Catalog state after seed**: 468 chat models (was 458; +6 new direct-API STT + qwen-mt-turbo + DeepL + Azure + Hunyuan + 1 already-existed deepgram-nova), 76 providers (was 72; +deepgram, +assemblyai, +deepl, +azure). All 8 mt-router TIER3 models now present.
@@ -1158,16 +1206,19 @@ Held for a later pass (peer AI still iterating on `bootstrap-hub.sh`): the hub-b
 Earlier today these items were "partly closed" — WG verified, CF token smoke checked, LE skipped because the site-provisioner CLI proxy was broken. The user pushed back: "the blocker IS the work." Backed up, fixed the blocker, then drove items 2 + 3 to actual end-to-end empirical proof in a real drill.
 
 **Blocker fix: site-provisioner CLI proxy**
+
 - vps1 site-provisioner was returning 500 to all proxied calls. Root cause: operator's `.env` had `SITE_PROVISIONER_API_KEY=DKIMnKHFgWxfRnnIXG3uuu1D7JVSeQ6T` (a strong 32-char key), but vps1's `/opt/site-provisioner/.env` had `API_KEY=dev-test-key` (a placeholder). Mismatch → 401 (which the middleware then re-emitted as 500 to the proxy).
 - Fix: backed up vps1's `.env` to `.env.before-api-key-fix.20260615-184024`, updated `API_KEY` to match operator's strong key, restarted the container (`docker compose up -d --force-recreate`, ~5s downtime). Health restored, `fabrik domain zones` now returns the 4 CF zones (`ocoron.com`, `ocoron.com.tr`, `ozgurbasak.com`, `tojlo.com`).
 
 **Item 3 (CF DNS cutover) — closed via real DNS rewrite against sandbox zone**
+
 - Pre-seeded sandbox records: `tojlo.com`, `vps1.tojlo.com`, `*.vps1.tojlo.com` → `172.93.160.197` (vps1 placeholder).
 - New `bootstrap-hub.sh` flags `--cf-zone-id` + `--cf-zone-name` override the production `FABRIK_CF_ZONE_ID`/`FABRIK_CF_ZONE_NAME` (`ocoron.com`) for drill testing. Production DR path is unchanged when overrides are empty.
 - Orchestrator (`_validate_hub`) now passes `--cf-rewrite-dns <drill-ip> --cf-zone-id <tojlo-id> --cf-zone-name tojlo.com`. Test contract locked: `tests/orchestrator/test_vultr_drill.py::test_validate_hub_passes_safety_flags` asserts `--cf-zone-name tojlo.com` is in argv AND `ocoron.com` is NOT.
 - Drill `dr-drill-hub-20260615-160819`: step_17 rewrote all 3 records from `172.93.160.197` → `66.42.96.255` (drill IP). After drill destroyed, records reset to placeholder. Total: 0 production records touched.
 
 **Item 2 (LE cert provisioning) — closed via real ACME-staging cert acquisition**
+
 - New `bootstrap-hub.sh` flag `--drill-test-le-staging <hostname>` invokes a new `step_17b_drill_le_staging_test` after step_17's DNS rewrite.
 - Step_17b waits 30s for DNS propagation, verifies the hostname now resolves to the drill droplet's IP, `apt install certbot`, then runs `certbot certonly --standalone --staging -d <hostname> --register-unsafely-without-email`. ACME HTTP-01 challenge: LE staging server queries DNS → resolves to drill droplet → connects to `:80` → certbot responds with the challenge token → cert issued. Issuer verified against `(STAGING)` marker to prove it's not somehow a production cert (which would be a credentials-leak indicator).
 - Orchestrator passes `--drill-test-le-staging vps1.tojlo.com`. Test contract locked.
@@ -1220,12 +1271,14 @@ What is NOT validated: that step_17's actual record rewrite logic produces corre
 Three buckets shipped after the initial Hub + Spoke DR validations earlier today:
 
 **Bucket A — test + doc + --help parity for spoke-restore drill**
+
 - `tests/orchestrator/test_vultr_drill.py::test_validate_spoke_restore_passes_safety_flags`: locks the 3-flag drill safety contract for spoke-restore (mirror of the hub test).
 - `docs/operations/spoke-restore-inventory.md` § I: drill safety contract section — what each flag prevents + what the drill validates vs doesn't.
 - `bootstrap-spoke-restore.sh --help`: documents the 3 safety flags at usage time.
 
 **Bucket B — preflight SSH retry hardening**
 3 of today's 14 drills died on transient operator-network blips at the single-shot preflight #4 SSH check. Both `bootstrap-hub.sh` and `bootstrap-spoke-restore.sh` now do a two-stage check:
+
 1. TCP-only reachability probe via `nc -z -w 5 <host> 22`, retried 6× with 10s gaps. Zero-I/O mode never reads sshd's banner → can't trip fail2ban regardless of attempt count.
 2. Single ssh auth attempt after TCP confirms reachable. Wrong-key scenarios still fail immediately (no compounding retries → no fail2ban risk).
 
@@ -1233,6 +1286,7 @@ Network blips become self-healing (~60s patience budget); auth misconfigurations
 
 **Bucket C-dry — validate restored configs the drill SKIPS would actually run**
 The drill safety flags intentionally skip mesh + services. Until now there was no evidence the RESTORED configs for those skipped steps would parse + run if started. C-dry closes that gap:
+
 - `bootstrap-hub.sh::step_12b_verify_restored_configs`: wg-quick strip wg0, `docker compose config -q` on all 16 service composes, `systemd-analyze verify` on restored units, `py_compile` on restored sysadmin scripts, presence + non-empty check on 4 critical /opt/fabrik/.env keys.
 - `bootstrap-spoke-restore.sh::step_09b_verify_restored_configs`: equivalent for spoke — wg-quick strip + 3 service composes + /opt/backrest/.env presence.
 
@@ -1242,12 +1296,14 @@ Hub drilled: 16 compose.yaml files parse + resolve cleanly. Spoke drilled: 3/3.
 The biggest gap: until now, no drill had ever EMPIRICALLY proved the restored DB volumes contain bootable Postgres + Redis state. New `--drill-start-core-only` flag (mandatory in `_validate_hub` and `_validate_spoke_restore`, locked by tests):
 
 *Hub* (`step_12c_start_core_services_drill`):
+
 - Brings up a **dummy `wg0` interface** (`ip link add dev wg0 type dummy`) so `10.99.0.1` is bindable (most hub services bind to the mesh IP for security; without this, postgres-main fails compose-up with `cannot assign requested address`). Zero risk — no WG protocol, no peer reach.
 - Compose-up `postgres-main` + `redis-main` ONLY (skips backrest = no B2 writes, skips traefik = no LE production hammering, skips bot = no Telegram noise).
 - Verifies `pg_isready` returns OK + Postgres contains `glitchtip` + `site_provisioner` databases → proves restored postgres-data volume is real.
 - Verifies `redis-cli PING` returns PONG → proves restored redis_redis-data volume is real.
 
 *Spoke* (`step_09c_start_core_services_drill`):
+
 - Compose-up `monitoring-agent` only (skips traefik = no LE risk, skips backrest = no B2 risk).
 - Verifies containers were created (relaxed from "must be running" because monitoring-agent's promtail depends on vps1's Loki over the WG mesh, which is intentionally skipped). Catches port conflicts, missing images, bad volume mounts.
 
@@ -1280,6 +1336,7 @@ Drill spoke-restore #4 (`dr-drill-spoke-restore-20260615-125146`) finished `succ
 | 15 | `restic_remote()` ran `source /opt/backrest/.env` as user `ozgur` (after step_00), but the file is mode 600 root:root → `Permission denied` → empty creds → restic "no credentials found" — same class as Hub DR Drill #3 bug #3 | wrap the whole pipeline in `sudo bash -c '...'` so source + cat run as root |
 
 **3 new safety flags added to bootstrap-spoke-restore.sh:**
+
 - `--skip-mesh` → skip step_06 wg-quick@wg0 bring-up (would handshake with vps1 as vps2 → vps1's peer table for vps2 redirects to drill IP → locks out live vps2)
 - `--skip-services` → skip step_10 (monitoring + traefik) + step_11 (backrest — would write to `spokes/vps2` prefix on B2 with vps2's restic identity)
 - `--skip-local-b2-check` → skip preflight #5 operator-side restic query (flaky operator network blocks the drill from running even when the target Vultr DC reaches B2 fine)
@@ -1323,6 +1380,7 @@ Drill spoke-restore #4 (`dr-drill-spoke-restore-20260615-125146`) finished `succ
 **Restored on drill #6i** (proof of restic coverage): host-state 48.7 MiB (50 files), `/opt` 65.4 MiB (3086 files / 19 service dirs), 10/10 docker volumes (`postgres-data` 150 MiB, `redis_redis-data` 48 MiB, `ocoron-com_db_data` 234 MiB, `ocoron-com_wp_html` 149 MiB, `monitoring_grafana-data` 30 MiB, + 5 smaller). Total restore wall ~3 min, total bootstrap wall 5m46s — well under the 90-min DR-in-hours target.
 
 **Not validated by drill** (intentional — drill safety flags suppress them; need a future *non-drill* exercise on disposable hardware):
+
 - step_08 wg-quick@wg0 bring-up + spoke peer handshakes
 - step_13 docker-compose-up-d (containers actually start)
 - step_14 pg_dump fallback restore
@@ -1790,6 +1848,7 @@ Pass 4 findings + fixes
    (the check is now self-consistent).
 
 3. Trio plan §3.1 + §1.7.1 said aro-wake deploy is Docker Compose at
+
    `/opt/aro-wake/` bound to `127.0.0.1+10.99.0.<host>:8201`. Shipped
    code is systemd-managed at `/opt/fabrik/scripts/aro-wake/` with venv
    at `/opt/fabrik/.venv-aro-wake/` bound to `10.99.0.<host>:8201` only
@@ -1827,16 +1886,22 @@ Pass 5 findings + fixes (self-review of pass 4)
    WSL (also verified — falls through to 127.0.0.1 correctly).
 
 Pass 5 self-review found zero other new issues. Verified:
+
   - No 8002 stragglers anywhere in code (port collision class is fully
+
     resolved)
+
   - No PEER_HOSTS_JSON stragglers (CSV migration is complete)
   - FastAPI lifespan handler in place; on_event deprecation gone
   - Bash syntax clean for bootstrap + proactive-check
   - daily-digest.sh runs cleanly on dev WSL (smoke test passes;
+
     fields populate with sane "not configured" / "MISSING" status
     indicators where the dev WSL lacks the live pieces)
+
   - Trio plan §1.7.1 ASCII diagram line 115 matches shipped binding
   - Trio plan §3.1 r8 update preserves original r1 intent in the
+
     iteration ledger
 
 Trio plan iteration ledger advanced
@@ -1846,10 +1911,14 @@ Trio plan iteration ledger advanced
 
   - 3 plan/code drift items: path, deploy shape, binding
   - 4 code bugs from pass 4+5: cp -R nesting (×2), env loading, dead
+
     code (note: numbered 39-44 in r8 for clarity; #41 covered both
     step_14 + step_15 nesting)
+
   - "Convergence verdict at r8: the plan now matches the shipped code
+
     in path, deploy shape, and binding. The shipped code is idempotent
+
     + free of false-positive monitoring on aro-wake."
 
 Today: 8 plan revisions + 8 git commits + 0 production regressions.
@@ -1886,13 +1955,19 @@ Bugs found + fixed
    any spoke.
 
    FIX:
+
      - main.py: new `_parse_peer_hosts()` accepts CSV
+
        (`vps1:10.99.0.1,vps3:10.99.0.3`) as primary format; falls back
        to JSON for backward compat.
+
      - aro-wake.service.template: `Environment=ARO_WAKE_PEER_HOSTS={{PEER_HOSTS_CSV}}`
+
        with a multi-line comment explaining the systemd-quote-strip
        hazard so a future change doesn't regress.
+
      - bootstrap-vps.sh step_15: renders `peer_hosts_csv` instead of
+
        `peer_hosts_json`.
 
    VERIFIED via systemd unit round-trip:
@@ -1979,9 +2054,12 @@ Infrastructure docs synced
 --------------------------
 
 - vps-status.md: new 2026-06-04 batch-3 entry at top documents all 5
+
   bugs + verification + the OpenRouter false alarm. "Last Updated"
   header bumped.
+
 - vps-complete-inventory.md: Signal → AI matrix row #7 (aro-wake)
+
   amended to note the CSV-vs-JSON env-var format + the
   systemd-quote-strip hazard for future reference.
 
@@ -2076,6 +2154,7 @@ class of issue: the docs and code disagreed about a contract.
 ### Added — T-P3 self-healing rule pack + T-P2 subplan archived + vps-complete-inventory T-P2 row finished (2026-06-03)
 
 **T-P3 — `.windsurf/rules/core/self-healing.md`** — 100-line synthesis pack. Single artifact per the parent plan's "P3 — Self-healing synthesis (1 day, no sub-plan needed)" deliverable. Source-cited (no inventions): walked `58-resilience.md`, `75-workers-jobs.md`, `60-watchdog.md`, `30-ops.md`, `pause-state/pause_state.py` + README, `async-http-client/circuit_breaker.py`, `abuse-prevention/README.md` first; every primitive referenced corresponds to a file actually read. Acceptance met:
+
 - 9 failure-class rows in the escalation ladder (spec required ≥7): OOM, queue backlog, upstream rate-limit, upstream timeout, signup flood, DB connection-pool exhaustion, sustained 5xx burst, webhook delivery failure, stuck row locks.
 - Each row reads symptom → first response → fallback → escalate, with explicit Tier A/B/C mapping back to `60-watchdog`.
 - 5 anti-patterns named (spec required ≥3): retry-without-backoff loops, catch-all `except: pass`, kill-and-restart-everything panic, self-healing without observability, operational-failure-as-content-verdict.
@@ -2095,15 +2174,20 @@ class of issue: the docs and code disagreed about a contract.
 **End-to-end verification** via the same path `fabrik apply` follows:
 
 ```text
+
 1. spec_loader.load_spec('specs/services/watchdog-test.yaml')
+
    → Pydantic WatchdogConfig populated with all 13 fields (10 from spec
+
      + 3 defaults: escalation_channel=apprise, etc.)
 
 2. resolve_applicability(spec_dict)
+
    → watchdog: RUNS (spec.watchdog.enabled=true)
    → Proceeding with 4 registrars (gatus + glitchtip + grafana + watchdog)
 
 3. WatchdogDriver().provision(ctx, dry_run=True)
+
    → {'status': 'dry-run', 'image_tag': 'fabrik/watchdog:watchdog-test'}
 ```
 
@@ -2118,12 +2202,14 @@ All three stages clean: artifact 1 (config) parses the spec, artifact 12 (regist
 **Artifact 14** — [`/opt/fabrik-lib/README.md`](/opt/fabrik-lib/README.md) modules tables both updated. New `watchdog/` row in the descriptive modules table (between `upstream-quota/` and `webhooks/` alphabetically) names the two sub-trees (`watchdog/sidecar/` ~2,134 lines + `watchdog/emitter/`), the template substitution flow, the Fabrik driver entry point, the rule pack pointer, and the `cost-budget/` dependency. New `watchdog/` row in the "Which Modules Do I Need?" matrix (✓ for SaaS / API / Worker / RAG; — for Chrome Ext / Mobile, matching the rule pack's when-to-enable matrix). Closes the discovery gap: future Claude sessions browsing `/opt/fabrik-lib/README.md` now see watchdog as a first-class module instead of having to find it via the rule pack or subplan.
 
 **Artifact 13 review fixes** — applied after a self-review against the agent's env-var contract:
+
 - [`src/fabrik/drivers/watchdog.py`](src/fabrik/drivers/watchdog.py): hardcoded `/home/ozgur/.claude` OAuth mount path replaced with `VPS_CLAUDE_HOME` module constant, sourced from `FABRIK_VPS_CLAUDE_HOME` env override (default `/home/ozgur/.claude` for current single-operator fleet). Future operators / multi-account setups can override without code change.
 - Added the 3 missing env vars the agent reads (`WATCHDOG_CHECK_INTERVAL`, `WATCHDOG_LOG_LEVEL`, `WATCHDOG_PROMTAIL_UPDATE_URL`) to `_RenderContext` and `_render_env`. Agent had defaults so this wasn't a runtime break, but operators can now tune them per-spec via the `watchdog:` block.
 - Env-var coverage now `in agent NOT driver: []`. The remaining `WATCHDOG_PG_PASSWORD` in driver NOT agent is intentional — it's a `${VAR}` interpolation marker inside the pg_dsn string that docker-compose substitutes from the project's `.env`, not a Python env var.
 - 40/40 `tests/orchestrator/test_infrastructure.py` still green after the changes; smoke confirms `VPS_CLAUDE_HOME default: /home/ozgur/.claude` + dry-run path works.
 
 **Infrastructure docs synced** to the new state:
+
 - [`docs/infrastructure/vps-status.md`](docs/infrastructure/vps-status.md) — T-P2 status block bumped from "artifacts 1-11" to "artifacts 1-13", listed all 13 shipped (named artifacts 12-13 specifically), counted remaining 2 (14 = README, 15 = test spec opt-in). Sidecar code total now ~2,134 lines + driver 387 + orchestrator wiring 63.
 - [`docs/infrastructure/vps-ai-sysadmin.md`](docs/infrastructure/vps-ai-sysadmin.md) — watchdog-row in the AI-sysadmin table bumped to "13 / 15 artifacts shipped", noted `FABRIK_VPS_CLAUDE_HOME` env override for the OAuth mount path, named the remaining 2.
 
@@ -2411,6 +2497,7 @@ Embedding-side mirror of the existing chat agent-role pipeline. Same shape: dail
 - `tests/kilo_benchmarks/test_embedding_export_markdown.py` — 9 integration tests for the marker-based markdown updater. Asserts both host files have the embedding marker pairs, the chat ROSTER block is preserved across runs, every role from the YAML appears as a section, every winner is rendered, every catalog id appears, the `Total: N models` line matches `COUNT(*)`, two consecutive runs are byte-identical, and no standalone `KILO_EMBEDDING_*.md` files exist.
 
 **Today's winners** (live OpenRouter catalog, 25 embedding models):
+
 - `multilingual_primary` P1=`qwen/qwen3-embedding-8b` ($0.01/M, 32k ctx), P2=`qwen/qwen3-embedding-4b` ($0.02/M)
 - `frontier_reference` P1=`openai/text-embedding-3-large` ($0.13/M), P2=`google/gemini-embedding-001` ($0.15/M)
 - `code_embedding` P1=`mistralai/codestral-embed-2505` ($0.15/M)
@@ -2562,10 +2649,14 @@ Closes Epic SC-4: drift on any of the 9 registrars (postgres / redis / gatus / b
 
 ```yaml
 groups:
+
   - name: fabrik-registrar-drift
+
     interval: 1m
     rules:
+
       - alert: FabrikRegistrarDrift
+
         expr: fabrik_audit_drift_total > 0
         for: 10m
         labels:
@@ -2578,7 +2669,9 @@ groups:
 **Piece 3 — Alertmanager route.** Inserted under `route.routes:` in [`/opt/monitoring/configs/alertmanager/alertmanager.yml`](/opt/monitoring/configs/alertmanager/alertmanager.yml):
 
 ```yaml
+
     - match:
+
         alert_class: registrar_drift
       receiver: telegram          # ← existing receiver, NOT telegram-fabrik-default
       group_by: ['registrar', 'spec_id']
@@ -3071,6 +3164,7 @@ Tier-2 foundation work. Two new project-scoped modules + orchestrator wiring so 
 ```
 
 **Orchestrator integration** — `src/fabrik/orchestrator/__init__.py`:
+
 - Added `_persist_state(ctx, spec)` private helper that derives the 8-field call (`coolify_app_name` from `spec.name || spec.id`; `registrars_applied` filtered from `ctx.created_resources` against `_REGISTRAR_ORDER`; `applied_at` + `git_sha` auto-derived by `state.save()`). Wrapped in try/except — failure is logged but never aborts deploy/refresh.
 - `deploy()` calls `_persist_state` after `_transition(ctx, DeploymentState.COMPLETE)`.
 - `refresh_infrastructure()` calls `_persist_state` after successful `provision(ctx)`.
@@ -3236,6 +3330,7 @@ Tier 1 code foundation — 7 source edits + 1 new spec + 1 new test file. Everyt
 ### Changed — T1-01 Spec / template / doc edits (2026-05-14)
 
 Tier 1 foundation edits closing gaps W-2, W-4, W-5, G-D4, G-B6 (5 of 5 in-scope changes verified present; AGENTS.md header restored to `**Last Updated:** YYYY-MM-DD` form so the ticket's `head -n 4 | grep "Last Updated"` acceptance criterion passes):
+
 - **proxy spec (W-2):** `shape.is_admin_dashboard` set to `true` to match live Authelia rule for `proxy.vps1.ocoron.com`
 - **template defaults (W-4):** added `exposes_metrics: true` to `python-api` and `node-api` `defaults.yaml`
 - **.env.example (W-5):** documented `CLOUDFLARE_API_TOKEN` required scopes (Zone:Edit + DNS:Edit) so future operators don't narrow it to Zone:Read and break new-domain onboarding
@@ -3251,6 +3346,7 @@ Tier 1 foundation edits closing gaps W-2, W-4, W-5, G-D4, G-B6 (5 of 5 in-scope 
 Cascade has no built-in command timeout, so foreground long commands (`npm install`, `pytest`, `fabrik deploy`, `docker build`) routinely block the agent for minutes/hours. Solved with a project-local fire-and-poll job system propagated to all 41 projects.
 
 **New scripts** (in `scripts/` of every project, sourced from `/opt/fabrik/templates/scaffold/scripts/`):
+
 - `runls` — list all jobs with status, age, name, command (`--running` filters)
 - `runlast` — print path of newest job (pipe-friendly: `runc $(runlast)`)
 - `runwait <job> [secs]` — bounded poll (default 30s); exits 0 if done, 1 if still running
@@ -3258,11 +3354,13 @@ Cascade has no built-in command timeout, so foreground long commands (`npm insta
 - `runclean [--older-than N] [--dry-run] [--all]` — housekeeping
 
 **Improved scripts**:
+
 - `rund` / `rundsh` — added `--name LABEL` (human-readable tag) and `--timeout SECS` (auto-kill watchdog with TIMEOUT vs KILLED distinction via `.timed-out` marker)
 - `runc` — added `--full` (entire log) and `--quiet` (status word only); shows `--name` label; auto-uses `runlast` when no job arg given
 - `.tmp/jobs/.last` symlink updated on every fire so `runlast` works without state
 
 **Distribution**:
+
 - `src/fabrik/scaffold.py` `SCRIPT_FILES`: added 5 new scripts so new scaffolds receive them
 - `scripts/sync_enforcement_to_projects.py`: added `RUN_SCRIPTS` constant + sync loop sourcing from `templates/scaffold/scripts/`; reference doc added to `REFERENCE_DOCS`. Existing 41 projects now receive run-system on every sync.
 - `.windsurfrules` HARD STOPS table: new entry mandating use of run-system for any foreground command that may take >30s, with full doc pointer
@@ -3494,6 +3592,7 @@ Consumer migration note: any service reading `BROWSERLESS_URL` / `BROWSERLESS_WS
 ### Changed — Fabrik workflow commands updated (2026-05-03)
 
 Split Fabrik workflow documentation into modular files in `docs/traycer/traycer-managed-development-workflow/` for better maintainability. Created 9 dedicated workflow files:
+
 - `1-trigger-workflow.md` — Project orientation, scaffold detection, constraint verification, smart routing
 - `2-epic-brief.md` — Product manager role, problem/context statement
 - `3-core-flows.md` — User experience flow mapping for UI scaffolds
@@ -3640,35 +3739,51 @@ deploy live with HTTP 200** (or `running:healthy` for `file-worker`).
 **Orchestrator fixes:**
 
 - `@/opt/fabrik/src/fabrik/orchestrator/verifier.py` — **B23**. Verifier
+
   read `healthcheck:` key but the spec generator emits `health:`. Silent
   fallback to `/health` masked every non-`/health` deploy as a 404
   rollback. Also fixed `KeyError` on `ctx.spec["domain"]` for workers
   (B35a) — workers have no domain.
+
 - `@/opt/fabrik/src/fabrik/orchestrator/validator.py` — **B23 + B34**.
+
   Aligned with `health:` spec key. Made `domain` field conditional on
   HTTP exposure so worker types pass validation.
+
 - `@/opt/fabrik/src/fabrik/orchestrator/__init__.py` — **B27 + B35b**.
+
   Added `--keep-on-failure` plumbing so failed deploys leave the Coolify
   app + build logs intact for inspection. Fixed an illegal
   `COMPLETE → FAILED` state transition triggered by the success-log line
   raising `KeyError` for workers.
+
 - `@/opt/fabrik/src/fabrik/orchestrator/deployer.py::_wait_for_app_status`
+
   — **B46**. Bumped `terminal_grace_period` from 30s to 180s. Docusaurus
+
   + saas-skeleton multi-stage builds take 60–90s during which Coolify
+
   reports `exited:unhealthy` (old container removed, new image not yet
   running). 30s gave up before the new container even started.
+
 - `@/opt/fabrik/src/fabrik/cli.py` — **B27**. New `--keep-on-failure`
+
   flag on `fabrik apply`.
 
 **Scaffolder fixes:**
 
 - `@/opt/fabrik/src/fabrik/scaffold.py::_scaffold_saas_skeleton` —
+
   **B26**. Replace `RUN npm ci` with `RUN npm install` (no lockfile is
   generated at scaffold time).
+
 - `@/opt/fabrik/src/fabrik/scaffold.py::_scaffold_node_api`,
+
   `_scaffold_file_api` — **B31**. Patched `/app/dist` → `/app/src` in
   the runtime-stage `COPY` (node-api has no compile step).
+
 - `@/opt/fabrik/src/fabrik/scaffold.py::_scaffold_docusaurus` — **B36 +
+
   B37 + B38 + B42 + B43 + B45**. Render `Dockerfile.j2` (was missing,
   Coolify failed at "no such file"). Empty placeholder `docs/api/sidebar.js`
   (was referencing nonexistent `api/health-check` doc id). Removed
@@ -3678,31 +3793,42 @@ deploy live with HTTP 200** (or `running:healthy` for `file-worker`).
   Flipped `onBrokenLinks: 'throw'` → `'warn'`. Pointed compose
   `healthcheck_path` at `/docs/intro` (not `/`) — Docusaurus's
   preset-classic does not auto-generate a root landing page.
+
 - `@/opt/fabrik/src/fabrik/spec_generator.py` — **B45**. Updated
+
   `_TYPE_DEFAULTS["docusaurus"].health_path` to `/docs/intro`.
 
 **Template fixes:**
 
 - `@/opt/fabrik/templates/saas-skeleton/Dockerfile` — **B24**. Added
+
   `RUN apt-get install -y curl` to the runtime stage; without it the
   compose healthcheck (`curl -f localhost:3000/api/health`) silently
   failed.
+
 - `@/opt/fabrik/templates/saas-skeleton/public/.gitkeep` — **B29**.
+
   Template was missing the `public/` directory; Dockerfile's
   `COPY --from=builder /app/public ./public` failed.
+
 - `@/opt/fabrik/templates/file-api/src/index.js` — **B32 + B33**. Made
+
   `createClient(SUPABASE_URL,...)` lazy so missing env vars don't crash
   the process at module-load (was killing the listener and producing
   Traefik 404). Added `/api/health` route to match what the spec
   generator emits.
+
 - `@/opt/fabrik/templates/docusaurus/package.json.j2` — **B38 + B39 +
+
   B41**. Removed openapi plugin/theme. Pinned `@docusaurus/core` and
   `@docusaurus/preset-classic` to `3.7.0`. Added
   `"overrides": { "webpack": "5.95.0" }` — the actual root cause of the
   ProgressPlugin schema error (webpack peer-dep instance mismatch:
   `webpackbar` extended one webpack instance but `Compiler.validate()`
   ran against another).
+
 - `@/opt/fabrik/templates/docusaurus/Dockerfile.j2` — **B44**. Added
+
   `COPY --from=builder /app/docusaurus.config.js ./` and
   `COPY --from=builder /app/sidebars.js ./` to the runtime stage;
   `docusaurus serve` needs both at runtime.
@@ -3710,6 +3836,7 @@ deploy live with HTTP 200** (or `running:healthy` for `file-worker`).
 **Harness (proof-run):**
 
 - `@/opt/fabrik/scripts/proof_run.py` — **B25 + H1–H4**. Switched
+
   `gh repo create` from `--private` to `--public` (Coolify deployer
   hardcodes `/applications/public`). Replaced silent `subprocess.run`
   with line-by-line `Popen` tee. Pulls real Coolify deployment build
@@ -3949,6 +4076,7 @@ Audited 13 deploy-workflow-adjacent docs against `src/fabrik/` reality (orchestr
 **Context:** `fabrik deploy` for docker-compose applications was failing with HTTP 422 from Coolify API: `"docker_compose_raw should be base64 encoded."` Despite base64 encoding being correctly applied in `CoolifyClient.create_dockercompose_application()`, Coolify rejected the payload. Investigation revealed the issue was NOT the base64 encoding itself, but the presence of a healthcheck section in the docker-compose YAML when the application image (e.g., `traefik/whoami`) lacks the healthcheck tools (`wget`/`curl`). Coolify's validation rejects composes with healthchecks that reference unavailable commands.
 
 **Root causes diagnosed and resolved:**
+
 1. **Template healthcheck logic** — The `compose.yaml.j2` template had `{% if not (health and health.disabled) %}` which evaluated to false when `health.disabled=true`, causing the healthcheck to be generated even when explicitly disabled. Fixed to `{% if health and not health.disabled %}` so healthchecks only generate when explicitly enabled.
 2. **Spec file location bug** — The validator's `load_spec()` was loading from `/opt/fabrik/specs/services/<name>.yaml` instead of the project's own `specs/services/<name>.yaml`. This caused edits to the project's spec to be ignored during deployment. The deploy_router's `resolve_service_spec_path()` correctly resolves to the project directory, but the validator was not using it. Fixed by ensuring the correct spec path is used throughout.
 3. **Spec model name field** — The `Spec` Pydantic model lacked a `name` field, but the deployer expected it. Added `name: str | None = None` with a validator that sets `name=id` if missing, maintaining backward compatibility.
@@ -3964,6 +4092,7 @@ Audited 13 deploy-workflow-adjacent docs against `src/fabrik/` reality (orchestr
 5. **`@/opt/fabrik/templates/python-api/compose.yaml.j2:72-75`** — Made env_file conditional to only add for non-docker image sources.
 
 **Verification:**
+
 - Minimal compose (image + platform only) successfully deploys to Coolify
 - Full compose with `health.disabled: true` and proper source type now deploys without 422 error
 - Docker image sources (e.g., `traefik/whoami:latest`) correctly render with `image:` instead of `build:`
@@ -3975,6 +4104,7 @@ Audited 13 deploy-workflow-adjacent docs against `src/fabrik/` reality (orchestr
 **Context:** Live deploy of `fabrik-smoke-test` (admin dashboard + bearer API shape) failed at the last mile with HTTPS `400 Bad Request` despite Traefik router registered and Let's Encrypt cert issued. Root cause was **Authelia `session.cookies.domain` mismatch**: the test domain `fabrik-smoke-test.ozgurbasak.com` has an apex (`ozgurbasak.com`) that is NOT in Authelia's `session.cookies[]` config — Authelia rejected every forward-auth sub-request with `400` and body `"unable to retrieve session cookie domain provider: no configured session cookie domain matches the url"`. Traefik propagated the 400 to clients.
 
 **Compounding issues diagnosed and resolved in-session:**
+
 1. Two Traefik instances on VPS: legacy `/traefik` (v2.11 at `/opt/traefik`, actually serving traffic via docker-proxy DNAT to `10.0.1.8`) and `coolify-proxy` (v3.6, orphaned and detached from the `coolify` Docker network). All router/cert/ACME work happens in the v2.11 instance.
 2. `coolify-proxy` container network-namespace genuinely had no non-loopback routes — its Traefik config was never the live one, despite Coolify treating it as primary.
 3. Docker embedded DNS was temporarily forwarding to `127.0.0.53` (systemd-resolved stub), unreachable from container netns. Fixed earlier in session via `/etc/docker/daemon.json` setting explicit upstream resolvers.
@@ -3984,6 +4114,7 @@ Audited 13 deploy-workflow-adjacent docs against `src/fabrik/` reality (orchestr
 1. **`@/opt/fabrik/specs/services/fabrik-smoke-test.yaml:4`** — switched smoke test domain from `fabrik-smoke-test.ozgurbasak.com` to `fabrik-smoke-test.vps1.ocoron.com`. Rationale: `vps1.ocoron.com` is already in Authelia's `session.cookies[]` list, so admin-dashboard shapes deploy without requiring an Authelia config edit. Apex domains outside the Authelia session-cookie list cannot be used for admin dashboards until a matching session-cookie entry is added to `/opt/authelia/config/configuration.yml`.
 
 **Verified post-fix (live VPS):**
+
 - Traefik router registered: `fabrik-smoke-test@docker enabled Host('fabrik-smoke-test.vps1.ocoron.com')`
 - Let's Encrypt cert issued and valid in `/opt/traefik/acme.json`
 - HTTPS response: `HTTP/2 302 → https://auth.vps1.ocoron.com/?rd=...` (correct admin-dashboard 2FA redirect)
@@ -4401,7 +4532,9 @@ authelia (first-seen, dedups authelia_bypass)
 → backrest
 → gatus
 (postgres + meilisearch: no driver calls per policy)
+
 + coolify.delete_application + dns.delete_record (legacy hard-stops)
+
 ```
 
 This single test is the **One-Test Rule choice** for this phase — without it, a future refactor that changes the dispatch `elif` order or `ctx.created_resources` iteration direction would silently re-order rollback, risking dependency-order failures (e.g., removing a DB before the Coolify app that's actively connected to it).
@@ -4519,12 +4652,17 @@ Degraded-but-non-fatal path when `ctx.coolify_uuid` is unset (e.g. project deplo
 #### Orchestrator wiring
 
 ```python
+
 # Step 4: Deploy
+
 self.deployer.deploy(ctx)
 
 # Step 4b: Provision infrastructure registrars (post-deploy).
+
 # Must run AFTER deployer.deploy so ctx.coolify_uuid is set and
+
 # Traefik routers are up.
+
 try:
     self.infrastructure_provisioner.provision(ctx)
 except Exception as infra_err:
@@ -4534,6 +4672,7 @@ except Exception as infra_err:
     ) from infra_err
 
 # Step 5: Verify
+
 self.verifier.verify(ctx)
 ```
 
@@ -4797,6 +4936,7 @@ Compounded by `consolidate_envs.py:272-275` which rotates backups to keep only t
 **Watcher daemon restarted** — new PID 104134 confirmed monitoring 16 project `.env` files with `/opt/fabrik/.env` **absent** from the target list (inspected via cmdline).
 
 **Live verified:**
+
 - Append `CASCADE_TRAILING_TEST=...` below `AUTO_END_SENTINEL` → persisted through a project-`.env`-triggered consolidation cycle (line 482, survived).
 - `GLITCHTIP_*` keys (inside FABRIK_CORE) → persisted.
 
@@ -5331,6 +5471,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 **Fix:** For each of 9 services, fetched `docker_compose_raw` via Coolify API, injected `coolify: null` under `services.<svc>.networks` and `coolify: {external: true}` at top-level `networks`, base64-encoded, PATCHed back, then restarted. All 9 now on both `coolify` + private network. Compose change persists in Coolify DB and survives future redeploys.
 
 **Verification:**
+
 - `curl -I https://{monitor,notify,auto}.vps1.ocoron.com/` → all return 302 to Authelia
 - `curl https://monitor.vps1.ocoron.com/api/health` → 200 with Grafana JSON (proves Traefik→backend chain)
 - `curl https://auto.vps1.ocoron.com/healthz` → 200 `{"status":"ok"}`
@@ -5344,10 +5485,12 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 **Context:** Immediately followed the network-isolation fix above; two pre-existing issues were surfaced and fully resolved.
 
 **1. Gatus Prometheus target (scrape port):**
+
 - `configs/prometheus/prometheus.yml` was scraping `gatus:9000/metrics`; Gatus exposes metrics on port **8080**. Target health was 0/1.
 - Updated target → `gatus:8080`; restarted Prometheus; all 7 scrape jobs now UP (including `gatus up http://gatus:8080/metrics`).
 
 **2. Alertmanager receivers — removed ARO-Brain, replaced with native Telegram:**
+
 - ARO Brain (LLM-based alert triage) is planned but not yet developed; Alertmanager was routing to a non-existent `aro-brain:8017` receiver, generating retry storms in the logs.
 - Discovered the documented "Apprise fallback" was **also broken**: Apprise's stateless `/notify` endpoint expects `{body,title,type}` and returns HTTP 400 on Alertmanager's native webhook JSON schema. No alert had ever successfully reached Telegram via this path.
 - Replaced both receivers with Alertmanager's native `telegram_configs` using the same bot/chat as Apprise. Zero new services, natively supported since Alertmanager 0.26.
@@ -5355,6 +5498,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - When ARO Brain ships later, add it as a primary receiver with `telegram` as the fallback.
 
 **3. Secret hygiene:**
+
 - `configs/alertmanager/alertmanager.yml` is now **git-ignored**. Source of truth: `configs/alertmanager/alertmanager.yml.example` with `__TELEGRAM_BOT_TOKEN__` / `__TELEGRAM_CHAT_ID__` placeholders. Rendered on VPS from `/opt/fabrik/.env` before deploy.
 - Added `TELEGRAM_FULL_BOT_TOKEN=<BOT_ID>:<BOT_TOKEN>` to `.env` (Telegram Bot API expects the joined form).
 - Added `GRAFANA_SERVICE_ACCOUNT_TOKEN` (new service-account token, admin org) to `.env`.
@@ -5362,6 +5506,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - `.env.backup.20260418-192543` created before modification (per credentials-backup rule).
 
 **Docs updated:**
+
 - `AGENTS.md`, `docs/DEPLOYMENT.md`, `docs/reference/health-monitoring.md`, `docs/reference/SCAFFOLD_TO_DEPLOY_INTEGRATION.md` — notification chain rewritten to `Alertmanager → Telegram (native telegram_configs)`; added note explaining why Apprise cannot receive Alertmanager webhooks.
 - `docs/LESSONS_LEARNT.md` Lesson 25 §8 — marked both pre-existing issues as FIXED with verification details.
 
@@ -5425,6 +5570,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - **Phase 11:** grafana (UUID: loc484owg8gsw04owo0go8kc) - Visualization dashboard
 
 **Results:**
+
 - Migration progress: 10/12 services (83%) ✅
 - All services healthy and operational
 - Zero data loss, zero downtime
@@ -5435,6 +5581,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - Identified unknown containers (MeiliSearch, Gotenberg, Browserless)
 
 **Cleanup:**
+
 - Removed duplicati container and volume (user decision not to migrate)
 - Removed all old monitoring containers (grafana, prometheus, loki, alertmanager, promtail, cadvisor, node-exporter)
 - Removed old service volumes (netdata, n8n, apprise, duplicati)
@@ -5443,6 +5590,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - **Total space reclaimed: 2.88GB**
 
 ### Added — Infrastructure Services Coolify Migration (2026-04-17)
+
 - Migrated netdata to Coolify management (UUID: kk4kcw4csksc48848go4o0wo)
 - Migrated n8n to Coolify management (UUID: s8gwccsws0ccssw0wwgwsoks)
 - Created comprehensive lessons learnt document at `docs/LESSONS_LEARNT.md` following scaffold template
@@ -5453,6 +5601,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - Preserved all service data using external Docker volumes
 
 ### Changed — Scaffold Documentation Templates (2026-04-15)
+
 - Added **Purpose** field (capital case) to all scaffold documentation templates for clarity
 - Added **Last Updated: YYYY-MM-DD** field to all scaffold documentation templates
 - Updated PROJECT_INDEX_TEMPLATE.md to include all scaffolded docs (STRATEGIC_BACKLOG.md, lessons-learnt.md, workflows/kilo-consult-workflow.md)
@@ -5463,12 +5612,14 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - Updated DOCS_INDEX_TEMPLATE.md to include STRATEGIC_BACKLOG.md, lessons-learnt.md, and workflows/kilo-consult-workflow.md
 
 ### Fixed — WordPress Page Creation: Homepage Detection and CLI Double-Quoting (2026-04-15)
+
 - Fixed homepage detection: `find_page("")` now tries to identify the front page using the `page_on_front` option before falling back to searching for the "home" slug, preventing erroneous re-creation or reuse of incorrect pages.
 - Fixed CLI double-quoting: `create_page_cli` was applying `shlex.quote` to individual arguments that were then quoted again by the command joiner, resulting in malformed WP-CLI flags (e.g., `'--post_title=\'Home Page\''`).
 - Improved REST API robustness: Added explicit `self.api` check in `find_page` to ensure graceful fallback to WP-CLI when the API client is not configured, avoiding `AttributeError`.
 - Added `tests/test_wordpress_pages.py` to verify homepage detection logic and CLI command quoting.
 
 ### Fixed — WordPress Verify Stage Homepage 404 + 429 Rate Limiting (2026-04-15)
+
 - Fixed homepage 404: `find_page("")` was sending empty slug to REST API which returned ALL pages, causing wrong page ID to be set as homepage. Now guards empty slug by delegating to `find_page("home")`.
 - Fixed homepage key mapping: `create_all()` now stores homepage under both `""` and actual WordPress slug (e.g., `"home"`) so `stages/pages.py` homepage lookup always succeeds.
 - Added `cache_flush()` after `set_homepage` + `rewrite_flush` to ensure WordPress resolves front page correctly.
@@ -5478,6 +5629,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - Increased inter-request delay from 1s to 2s between URL checks in verify stage.
 
 ### Added — Kilo Consultation Script (2026-04-15)
+
 - Created `kilo_consult.py` for Cascade consultation when stuck
 - Risk-based routing (high-risk paths → expensive models)
 - Session management for related questions
@@ -5491,6 +5643,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - Moved model names to env vars (KILO_MODEL_CHEAP, KILO_MODEL_MID, KILO_MODEL_EXPENSIVE)
 
 ### Fixed — Opus 4.6 Code Review Round 1 (2026-04-15)
+
 - Fixed assess_risk() to return 'medium' for non-high-risk non-doc files (was never returning medium)
 - Fixed filename matching to use Path.name instead of substring (was too broad)
 - Fixed get_model_for_risk() to match documented behavior (direct risk→model mapping)
@@ -5501,6 +5654,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - Narrowed HIGH_RISK_DIR_PREFIXES (removed src/, scripts/, app/ - too broad)
 
 ### Fixed — Opus 4.6 Code Review Round 2 (2026-04-15)
+
 - Fixed O(n) set iteration to O(1) lookup in assess_risk() (performance)
 - Fixed session ID collision with path hash suffix (avoid duplicate filenames)
 - Added FileNotFoundError handling for kilo binary (better error message)
@@ -5509,6 +5663,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - Fixed --session + --file conflict (let --file override session state)
 
 ### Fixed — Opus 4.6 Code Review Round 3 (2026-04-15)
+
 - Fixed session state saved even on failure (don't save empty output on exit_code != 0)
 - Fixed unbounded history growth (cap history to last 10 entries in session file)
 - Switched MD5 to sha256 for session hashing (security best practice)
@@ -5516,9 +5671,11 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - Fixed HIGH_RISK_DIR_PREFIXES in doc to match code (removed src/, scripts/, app/)
 
 ### Fixed — Opus 4.6 Code Review Round 4 (2026-04-15)
+
 - Fixed cost warning message to remove reference to non-existent --max-cost flag
 
 ### Changed — Kilo Consultation Workflow (2026-04-15)
+
 - Added "Question Formulation Best Practices" section with guidelines for consulting agent (Cascade) and consulted agent (Kilo)
 - Consulting agent guidelines: do not trust 100%, be context-aware, definitive, result-oriented, lean, seek long-term solutions
 - Consulted agent guidelines: give crystal clear step-by-step walkthrough answers, be specific, explain why, handle edge cases, reference existing patterns
@@ -5526,6 +5683,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - Updated Best Practices section to include question formulation and verification guidelines
 
 ### Fixed — Opus 4.6 Code Review Round 5 (2026-04-15)
+
 - Removed dead user_model parameter from get_model_for_risk() (never called with it)
 - Removed dead user_variant parameter from get_variant_for_risk() (never called with it)
 - Fixed history+diff ordering (now: diff → history → question for natural reading order)
@@ -5533,11 +5691,13 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - Added workflow doc reference to script header
 
 ### Fixed — Opus 4.6 Code Review Round 6 (2026-04-15)
+
 - Increased default timeout from 120s to 300s (Opus consultations with diff context can take 2-3 minutes)
 - Capture partial output on timeout instead of discarding (extracts exc.stdout with type narrowing)
 - Timeout now returns partial output with exit code 124, prints warning to stderr
 
 ### Fixed — Opus 4.6 Code Review Round 7 (2026-04-15)
+
 - Injected consulted agent directives into every prompt sent to Kilo (~50 tokens per query)
 - Added CONSULTED_AGENT_DIRECTIVES constant with 5 response directives
 - Directives tell Kilo to give step-by-step answers, explain why, be thorough, avoid hallucinations, review before returning
@@ -5545,11 +5705,13 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - Final prompt order: directives → history → diff → question
 
 ### Fixed — Opus 4.6 Code Review Round 8 (2026-04-15)
+
 - Added stderr reminder after successful output: "[Reminder] Verify critical claims before acting."
 - Zero token cost, targets right audience (human/Cascade reading output)
 - Reinforces consulting agent "do not trust 100%" guideline
 
 ### Changed — Timeout Increase (2026-04-15)
+
 - Increased default timeout from 300 to 600 seconds in kilo_consult.py
 - Updated workflow doc timeout default to 600 seconds
 - Deployed updated script to 35 project folders with scripts/ directories
@@ -5567,6 +5729,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 3. **`@/opt/fabrik/docs/LESSONS_LEARNT.md`** — Added Lesson 29 documenting all 9 smoke test results and fixes applied.
 
 **Smoke tests performed (all passed):**
+
 - Test 1: run_locked concurrency proof (two simultaneous SSH sessions)
 - Test 2: Backrest .bak.{ts} retention (12 add/remove cycles → 10 files remain)
 - Test 3: Backrest auto-restore (code path verified)
@@ -5584,6 +5747,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 **Context:** Live deploy of `fabrik-smoke-test` (admin dashboard + bearer API shape) failed at the last mile with HTTPS `400 Bad Request` despite Traefik router registered and Let's Encrypt cert issued. Root cause was **Authelia `session.cookies.domain` mismatch**: the test domain `fabrik-smoke-test.ozgurbasak.com` has an apex (`ozgurbasak.com`) that is NOT in Authelia's `session.cookies[]` config — Authelia rejected every forward-auth sub-request with `400` and body `"unable to retrieve session cookie domain provider: no configured session cookie domain matches the url"`. Traefik propagated the 400 to clients.
 
 **Compounding issues diagnosed and resolved in-session:**
+
 1. Two Traefik instances on VPS: legacy `/traefik` (v2.11 at `/opt/traefik`, actually serving traffic via docker-proxy DNAT to `10.0.1.8`) and `coolify-proxy` (v3.6, orphaned and detached from the `coolify` Docker network). All router/cert/ACME work happens in the v2.11 instance.
 2. `coolify-proxy` container network-namespace genuinely had no non-loopback routes — its Traefik config was never the live one, despite Coolify treating it as primary.
 3. Docker embedded DNS was temporarily forwarding to `127.0.0.53` (systemd-resolved stub), unreachable from container netns. Fixed earlier in session via `/etc/docker/daemon.json` setting explicit upstream resolvers.
@@ -5593,6 +5757,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 1. **`@/opt/fabrik/specs/services/fabrik-smoke-test.yaml:4`** — switched smoke test domain from `fabrik-smoke-test.ozgurbasak.com` to `fabrik-smoke-test.vps1.ocoron.com`. Rationale: `vps1.ocoron.com` is already in Authelia's `session.cookies[]` list, so admin-dashboard shapes deploy without requiring an Authelia config edit. Apex domains outside the Authelia session-cookie list cannot be used for admin dashboards until a matching session-cookie entry is added to `/opt/authelia/config/configuration.yml`.
 
 **Verified post-fix (live VPS):**
+
 - Traefik router registered: `fabrik-smoke-test@docker enabled Host('fabrik-smoke-test.vps1.ocoron.com')`
 - Let's Encrypt cert issued and valid in `/opt/traefik/acme.json`
 - HTTPS response: `HTTP/2 302 → https://auth.vps1.ocoron.com/?rd=...` (correct admin-dashboard 2FA redirect)
@@ -6010,7 +6175,9 @@ authelia (first-seen, dedups authelia_bypass)
 → backrest
 → gatus
 (postgres + meilisearch: no driver calls per policy)
+
 + coolify.delete_application + dns.delete_record (legacy hard-stops)
+
 ```
 
 This single test is the **One-Test Rule choice** for this phase — without it, a future refactor that changes the dispatch `elif` order or `ctx.created_resources` iteration direction would silently re-order rollback, risking dependency-order failures (e.g., removing a DB before the Coolify app that's actively connected to it).
@@ -6128,12 +6295,17 @@ Degraded-but-non-fatal path when `ctx.coolify_uuid` is unset (e.g. project deplo
 #### Orchestrator wiring
 
 ```python
+
 # Step 4: Deploy
+
 self.deployer.deploy(ctx)
 
 # Step 4b: Provision infrastructure registrars (post-deploy).
+
 # Must run AFTER deployer.deploy so ctx.coolify_uuid is set and
+
 # Traefik routers are up.
+
 try:
     self.infrastructure_provisioner.provision(ctx)
 except Exception as infra_err:
@@ -6143,6 +6315,7 @@ except Exception as infra_err:
     ) from infra_err
 
 # Step 5: Verify
+
 self.verifier.verify(ctx)
 ```
 
@@ -6406,6 +6579,7 @@ Compounded by `consolidate_envs.py:272-275` which rotates backups to keep only t
 **Watcher daemon restarted** — new PID 104134 confirmed monitoring 16 project `.env` files with `/opt/fabrik/.env` **absent** from the target list (inspected via cmdline).
 
 **Live verified:**
+
 - Append `CASCADE_TRAILING_TEST=...` below `AUTO_END_SENTINEL` → persisted through a project-`.env`-triggered consolidation cycle (line 482, survived).
 - `GLITCHTIP_*` keys (inside FABRIK_CORE) → persisted.
 
@@ -6940,6 +7114,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 **Fix:** For each of 9 services, fetched `docker_compose_raw` via Coolify API, injected `coolify: null` under `services.<svc>.networks` and `coolify: {external: true}` at top-level `networks`, base64-encoded, PATCHed back, then restarted. All 9 now on both `coolify` + private network. Compose change persists in Coolify DB and survives future redeploys.
 
 **Verification:**
+
 - `curl -I https://{monitor,notify,auto}.vps1.ocoron.com/` → all return 302 to Authelia
 - `curl https://monitor.vps1.ocoron.com/api/health` → 200 with Grafana JSON (proves Traefik→backend chain)
 - `curl https://auto.vps1.ocoron.com/healthz` → 200 `{"status":"ok"}`
@@ -6953,10 +7128,12 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 **Context:** Immediately followed the network-isolation fix above; two pre-existing issues were surfaced and fully resolved.
 
 **1. Gatus Prometheus target (scrape port):**
+
 - `configs/prometheus/prometheus.yml` was scraping `gatus:9000/metrics`; Gatus exposes metrics on port **8080**. Target health was 0/1.
 - Updated target → `gatus:8080`; restarted Prometheus; all 7 scrape jobs now UP (including `gatus up http://gatus:8080/metrics`).
 
 **2. Alertmanager receivers — removed ARO-Brain, replaced with native Telegram:**
+
 - ARO Brain (LLM-based alert triage) is planned but not yet developed; Alertmanager was routing to a non-existent `aro-brain:8017` receiver, generating retry storms in the logs.
 - Discovered the documented "Apprise fallback" was **also broken**: Apprise's stateless `/notify` endpoint expects `{body,title,type}` and returns HTTP 400 on Alertmanager's native webhook JSON schema. No alert had ever successfully reached Telegram via this path.
 - Replaced both receivers with Alertmanager's native `telegram_configs` using the same bot/chat as Apprise. Zero new services, natively supported since Alertmanager 0.26.
@@ -6964,6 +7141,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - When ARO Brain ships later, add it as a primary receiver with `telegram` as the fallback.
 
 **3. Secret hygiene:**
+
 - `configs/alertmanager/alertmanager.yml` is now **git-ignored**. Source of truth: `configs/alertmanager/alertmanager.yml.example` with `__TELEGRAM_BOT_TOKEN__` / `__TELEGRAM_CHAT_ID__` placeholders. Rendered on VPS from `/opt/fabrik/.env` before deploy.
 - Added `TELEGRAM_FULL_BOT_TOKEN=<BOT_ID>:<BOT_TOKEN>` to `.env` (Telegram Bot API expects the joined form).
 - Added `GRAFANA_SERVICE_ACCOUNT_TOKEN` (new service-account token, admin org) to `.env`.
@@ -6971,6 +7149,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - `.env.backup.20260418-192543` created before modification (per credentials-backup rule).
 
 **Docs updated:**
+
 - `AGENTS.md`, `docs/DEPLOYMENT.md`, `docs/reference/health-monitoring.md`, `docs/reference/SCAFFOLD_TO_DEPLOY_INTEGRATION.md` — notification chain rewritten to `Alertmanager → Telegram (native telegram_configs)`; added note explaining why Apprise cannot receive Alertmanager webhooks.
 - `docs/LESSONS_LEARNT.md` Lesson 25 §8 — marked both pre-existing issues as FIXED with verification details.
 
@@ -7034,6 +7213,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - **Phase 11:** grafana (UUID: loc484owg8gsw04owo0go8kc) - Visualization dashboard
 
 **Results:**
+
 - Migration progress: 10/12 services (83%) ✅
 - All services healthy and operational
 - Zero data loss, zero downtime
@@ -7044,6 +7224,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - Identified unknown containers (MeiliSearch, Gotenberg, Browserless)
 
 **Cleanup:**
+
 - Removed duplicati container and volume (user decision not to migrate)
 - Removed all old monitoring containers (grafana, prometheus, loki, alertmanager, promtail, cadvisor, node-exporter)
 - Removed old service volumes (netdata, n8n, apprise, duplicati)
@@ -7052,6 +7233,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - **Total space reclaimed: 2.88GB**
 
 ### Added — Infrastructure Services Coolify Migration (2026-04-17)
+
 - Migrated netdata to Coolify management (UUID: kk4kcw4csksc48848go4o0wo)
 - Migrated n8n to Coolify management (UUID: s8gwccsws0ccssw0wwgwsoks)
 - Created comprehensive lessons learnt document at `docs/LESSONS_LEARNT.md` following scaffold template
@@ -7062,6 +7244,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - Preserved all service data using external Docker volumes
 
 ### Changed — Scaffold Documentation Templates (2026-04-15)
+
 - Added **Purpose** field (capital case) to all scaffold documentation templates for clarity
 - Added **Last Updated: YYYY-MM-DD** field to all scaffold documentation templates
 - Updated PROJECT_INDEX_TEMPLATE.md to include all scaffolded docs (STRATEGIC_BACKLOG.md, lessons-learnt.md, workflows/kilo-consult-workflow.md)
@@ -7072,12 +7255,14 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - Updated DOCS_INDEX_TEMPLATE.md to include STRATEGIC_BACKLOG.md, lessons-learnt.md, and workflows/kilo-consult-workflow.md
 
 ### Fixed — WordPress Page Creation: Homepage Detection and CLI Double-Quoting (2026-04-15)
+
 - Fixed homepage detection: `find_page("")` now tries to identify the front page using the `page_on_front` option before falling back to searching for the "home" slug, preventing erroneous re-creation or reuse of incorrect pages.
 - Fixed CLI double-quoting: `create_page_cli` was applying `shlex.quote` to individual arguments that were then quoted again by the command joiner, resulting in malformed WP-CLI flags (e.g., `'--post_title=\'Home Page\''`).
 - Improved REST API robustness: Added explicit `self.api` check in `find_page` to ensure graceful fallback to WP-CLI when the API client is not configured, avoiding `AttributeError`.
 - Added `tests/test_wordpress_pages.py` to verify homepage detection logic and CLI command quoting.
 
 ### Fixed — WordPress Verify Stage Homepage 404 + 429 Rate Limiting (2026-04-15)
+
 - Fixed homepage 404: `find_page("")` was sending empty slug to REST API which returned ALL pages, causing wrong page ID to be set as homepage. Now guards empty slug by delegating to `find_page("home")`.
 - Fixed homepage key mapping: `create_all()` now stores homepage under both `""` and actual WordPress slug (e.g., `"home"`) so `stages/pages.py` homepage lookup always succeeds.
 - Added `cache_flush()` after `set_homepage` + `rewrite_flush` to ensure WordPress resolves front page correctly.
@@ -7087,6 +7272,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - Increased inter-request delay from 1s to 2s between URL checks in verify stage.
 
 ### Added — Kilo Consultation Script (2026-04-15)
+
 - Created `kilo_consult.py` for Cascade consultation when stuck
 - Risk-based routing (high-risk paths → expensive models)
 - Session management for related questions
@@ -7100,6 +7286,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - Moved model names to env vars (KILO_MODEL_CHEAP, KILO_MODEL_MID, KILO_MODEL_EXPENSIVE)
 
 ### Fixed — Opus 4.6 Code Review Round 1 (2026-04-15)
+
 - Fixed assess_risk() to return 'medium' for non-high-risk non-doc files (was never returning medium)
 - Fixed filename matching to use Path.name instead of substring (was too broad)
 - Fixed get_model_for_risk() to match documented behavior (direct risk→model mapping)
@@ -7110,6 +7297,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - Narrowed HIGH_RISK_DIR_PREFIXES (removed src/, scripts/, app/ - too broad)
 
 ### Fixed — Opus 4.6 Code Review Round 2 (2026-04-15)
+
 - Fixed O(n) set iteration to O(1) lookup in assess_risk() (performance)
 - Fixed session ID collision with path hash suffix (avoid duplicate filenames)
 - Added FileNotFoundError handling for kilo binary (better error message)
@@ -7118,6 +7306,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - Fixed --session + --file conflict (let --file override session state)
 
 ### Fixed — Opus 4.6 Code Review Round 3 (2026-04-15)
+
 - Fixed session state saved even on failure (don't save empty output on exit_code != 0)
 - Fixed unbounded history growth (cap history to last 10 entries in session file)
 - Switched MD5 to sha256 for session hashing (security best practice)
@@ -7125,9 +7314,11 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - Fixed HIGH_RISK_DIR_PREFIXES in doc to match code (removed src/, scripts/, app/)
 
 ### Fixed — Opus 4.6 Code Review Round 4 (2026-04-15)
+
 - Fixed cost warning message to remove reference to non-existent --max-cost flag
 
 ### Changed — Kilo Consultation Workflow (2026-04-15)
+
 - Added "Question Formulation Best Practices" section with guidelines for consulting agent (Cascade) and consulted agent (Kilo)
 - Consulting agent guidelines: do not trust 100%, be context-aware, definitive, result-oriented, lean, seek long-term solutions
 - Consulted agent guidelines: give crystal clear step-by-step walkthrough answers, be specific, explain why, handle edge cases, reference existing patterns
@@ -7135,6 +7326,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - Updated Best Practices section to include question formulation and verification guidelines
 
 ### Fixed — Opus 4.6 Code Review Round 5 (2026-04-15)
+
 - Removed dead user_model parameter from get_model_for_risk() (never called with it)
 - Removed dead user_variant parameter from get_variant_for_risk() (never called with it)
 - Fixed history+diff ordering (now: diff → history → question for natural reading order)
@@ -7142,11 +7334,13 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - Added workflow doc reference to script header
 
 ### Fixed — Opus 4.6 Code Review Round 6 (2026-04-15)
+
 - Increased default timeout from 120s to 300s (Opus consultations with diff context can take 2-3 minutes)
 - Capture partial output on timeout instead of discarding (extracts exc.stdout with type narrowing)
 - Timeout now returns partial output with exit code 124, prints warning to stderr
 
 ### Fixed — Opus 4.6 Code Review Round 7 (2026-04-15)
+
 - Injected consulted agent directives into every prompt sent to Kilo (~50 tokens per query)
 - Added CONSULTED_AGENT_DIRECTIVES constant with 5 response directives
 - Directives tell Kilo to give step-by-step answers, explain why, be thorough, avoid hallucinations, review before returning
@@ -7154,11 +7348,13 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - Final prompt order: directives → history → diff → question
 
 ### Fixed — Opus 4.6 Code Review Round 8 (2026-04-15)
+
 - Added stderr reminder after successful output: "[Reminder] Verify critical claims before acting."
 - Zero token cost, targets right audience (human/Cascade reading output)
 - Reinforces consulting agent "do not trust 100%" guideline
 
 ### Changed — Timeout Increase (2026-04-15)
+
 - Increased default timeout from 300 to 600 seconds in kilo_consult.py
 - Updated workflow doc timeout default to 600 seconds
 - Deployed updated script to 35 project folders with scripts/ directories
@@ -7189,35 +7385,41 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - Applied ruff exclude to 31 existing projects via one-off patch script
 
 ### Added — Lessons-learnt template for scaffold (2026-04-15)
+
 - `templates/scaffold/docs/LESSONS_LEARNT_TEMPLATE.md`: New template for capturing technical hurdles, AI-specific quirks, and architectural decisions. Includes TL;DR (one-sentence takeaway), Context, Problem (with Impact severity field), Root Cause Analysis (with Model Behavior taxonomy: Hallucination/Context Overflow/Stale Docs/Prompt Misinterpretation/N/A), Solution, Rule Integration, and Triggered By (Trigger + Detection Method). Includes example entry for async LLM client pattern.
 - `src/fabrik/scaffold.py`: Added `docs/LESSONS_LEARNT_TEMPLATE.md` → `docs/lessons-learnt.md` to `SHARED_TEMPLATE_MAP` for distribution to all scaffolded projects.
 - `scripts/archive/distribute_lessons_learnt.py.20260415`: One-time distribution script (archived after use).
 - Distributed `docs/lessons-learnt.md` to 33 existing projects under `/opt/` (apidoccreator, youtube, site-provisioner, trade-intelligence, candle, image-broker, file-api, captcha, transcriber, proposal-creator, translator, emailgateway, job-agent, email-reader, gmailaccountcreator, seo, ugc, brand-identiy-creator, Reference_Creator, namecheap, calendar-orchestration-engine, image-generation, supplement-tracker-advisor, ComplianceOps, proxy, file-worker, marketing-argumant-generator, exam-coach, trading-core, web-scraper, llm_batch_processor, triggered-content-orchestration, iterative_image_editor).
 
 ### Added — KILO_CONSULT_WORKFLOW.md for scaffold (2026-04-15)
+
 - `templates/scaffold/docs/workflows/KILO_CONSULT_WORKFLOW.md`: Kilo consultation workflow documentation for Cascade Q&A sessions. Covers risk-based model routing, session management, question formulation best practices, and usage examples.
 - `src/fabrik/scaffold.py`: Added `docs/workflows/KILO_CONSULT_WORKFLOW.md` → `docs/workflows/kilo-consult-workflow.md` to `SHARED_TEMPLATE_MAP` for distribution to all scaffolded projects.
 - `scripts/archive/distribute_kilo_consult_workflow.py.20260415`: One-time distribution script (archived after use).
 - Distributed `docs/workflows/kilo-consult-workflow.md` to 33 existing projects under `/opt/` (apidoccreator, youtube, site-provisioner, trade-intelligence, candle, image-broker, file-api, captcha, transcriber, proposal-creator, translator, emailgateway, job-agent, email-reader, gmailaccountcreator, seo, ugc, brand-identiy-creator, Reference_Creator, namecheap, calendar-orchestration-engine, image-generation, supplement-tracker-advisor, ComplianceOps, proxy, file-worker, marketing-argumant-generator, exam-coach, trading-core, web-scraper, llm_batch_processor, triggered-content-orchestration, iterative_image_editor).
 
 ### Added — Lessons-learnt template for scaffold (2026-04-15)
+
 - `templates/scaffold/docs/LESSONS_LEARNT_TEMPLATE.md`: New template for capturing technical hurdles, AI-specific quirks, and architectural decisions. Includes TL;DR (one-sentence takeaway), Context, Problem (with Impact severity field), Root Cause Analysis (with Model Behavior taxonomy: Hallucination/Context Overflow/Stale Docs/Prompt Misinterpretation/N/A), Solution, Rule Integration, and Triggered By (Trigger + Detection Method). Includes example entry for async LLM client pattern.
 - `src/fabrik/scaffold.py`: Added `docs/LESSONS_LEARNT_TEMPLATE.md` → `docs/lessons-learnt.md` to `SHARED_TEMPLATE_MAP` for distribution to all scaffolded projects.
 - `scripts/archive/distribute_lessons_learnt.py.20260415`: One-time distribution script (archived after use).
 - Distributed `docs/lessons-learnt.md` to 33 existing projects under `/opt/` (apidoccreator, youtube, site-provisioner, trade-intelligence, candle, image-broker, file-api, captcha, transcriber, proposal-creator, translator, emailgateway, job-agent, email-reader, gmailaccountcreator, seo, ugc, brand-identiy-creator, Reference_Creator, namecheap, calendar-orchestration-engine, image-generation, supplement-tracker-advisor, ComplianceOps, proxy, file-worker, marketing-argumant-generator, exam-coach, trading-core, web-scraper, llm_batch_processor, triggered-content-orchestration, iterative_image_editor).
 
 ### Added — KILO_CONSULT_WORKFLOW.md for scaffold (2026-04-15)
+
 - `templates/scaffold/docs/workflows/KILO_CONSULT_WORKFLOW.md`: Kilo consultation workflow documentation for Cascade Q&A sessions. Covers risk-based model routing, session management, question formulation best practices, and usage examples.
 - `src/fabrik/scaffold.py`: Added `docs/workflows/KILO_CONSULT_WORKFLOW.md` → `docs/workflows/kilo-consult-workflow.md` to `SHARED_TEMPLATE_MAP` for distribution to all scaffolded projects.
 - `scripts/archive/distribute_kilo_consult_workflow.py.20260415`: One-time distribution script (archived after use).
 - Distributed `docs/workflows/kilo-consult-workflow.md` to 33 existing projects under `/opt/` (apidoccreator, youtube, site-provisioner, trade-intelligence, candle, image-broker, file-api, captcha, transcriber, proposal-creator, translator, emailgateway, job-agent, email-reader, gmailaccountcreator, seo, ugc, brand-identiy-creator, Reference_Creator, namecheap, calendar-orchestration-engine, image-generation, supplement-tracker-advisor, ComplianceOps, proxy, file-worker, marketing-argumant-generator, exam-coach, trading-core, web-scraper, llm_batch_processor, triggered-content-orchestration, iterative_image_editor).
 
 ### Changed — Kilo CLI documentation update (2026-04-14)
+
 - `docs/reference/kilo/KILO_CLI_REFERENCE.md`: Added HTTP Server API (OpenAPI 3.1 REST endpoints, SSE streaming, JSON output format, programmatic Python access), Custom Agents (config + markdown file definition), Custom Commands (reusable prompt templates), Plugins (custom tools/hooks/npm), missing CLI commands (`acp`, `config`, `remote`, `plugin`, `db`), missing `kilo run` flags (`--command`, `--prompt`), server auth env vars (`OPENCODE_SERVER_PASSWORD`). Updated version to 7.0.33+.
 - `docs/reference/kilo/KILO_PLATFORM_FEATURES.md`: Updated date, added cross-reference to HTTP Server API.
 - `docs/reference/kilo/README.md`: Added Free tier to agent tiers table, replaced stale "Recent Enhancements" with "Key Capabilities" table covering LLM Gateway, HTTP API, custom agents/commands/plugins, JSON output, SSE streaming. Added Kilo version/identity line.
 
 ### Added — Alertmanager deployment + observability docs (2026-04-14)
+
 - Deployed `prom/alertmanager:v0.28.1` into `/opt/monitoring/compose.yaml` monitoring stack (now 7 services)
 - Created `configs/alertmanager/alertmanager.yml` — routes to ARO Brain webhook (future) with Apprise fallback
 - Created `configs/prometheus/rules/alerts.yml` — 9 alert rules: ContainerDown, ContainerHighCPU, ContainerHighMemory, ContainerOOMKilled, ContainerRestarting, HostHighCPU, HostHighMemory, HostDiskFull, ServiceUnhealthy
@@ -7226,6 +7428,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - `AGENTS.md`: Added Alertmanager to infra services, new Observability & Alerting section with notification chain, alert rules table, config file references
 
 ### Added — VPS Security Hardening: 4-Layer Auth Model (2026-04-14)
+
 - **DOCKER-USER iptables rules:** Created `/etc/iptables/add-docker-user-rules.sh` + systemd service to block external access to Docker-published ports. Only 80/443/6001/6002 allowed externally.
 - **Authelia SSO:** Deployed at `auth.vps1.ocoron.com` with TOTP 2FA. Protects admin dashboards (n8n, Grafana, Netdata, Duplicati, Apprise) via Traefik `authelia-forward@docker` middleware.
 - **X-Internal-Token pattern:** Documented `SERVICE_INTERNAL_SECRET_KEY` for machine-to-machine API service auth per `35-security-auth.md`.
@@ -7240,74 +7443,90 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - `specs/infrastructure/authelia.yaml`: New spec for Authelia deployment.
 
 ### Fixed — WordPress pipeline: ocoron.com deployment audit (2026-04-14)
+
 - `src/fabrik/wordpress/stages/forms.py:29-31`: Gap 5 fix was incomplete — stage read `contact.form.fields` but `ocoron.com.v2.yaml` uses `forms.contact.fields` (rich spec) with 5 fields including phone and service; added priority lookup: `forms.contact` → `contact.form` → fallback; also handles `notification_email` alias for recipient
 - `src/fabrik/wordpress/stages/seo.py:40-51`: SEO stage passed `seo` dict directly to `apply_site_seo()` which reads flat `title_template`/`meta_description` keys; `ocoron.com.v2.yaml` uses `seo.default_meta.{locale}.{title,description}` (localized dict); added normalisation step that resolves primary locale values into flat keys before passing to applicator — meta title/description were silently skipped on every real apply
 - `docs/development/plans/2026-04-13-fabrik-control-plane.md`: Updated status to reflect Phase 0 complete; updated pipeline stage order in Option 1 description; added Phase 0 completion block to Execution Order
 
 ### Fixed — WordPress pipeline: indefinite deep review round 21 (2026-04-14)
+
 - `src/fabrik/wordpress/pages.py:331`: `get_page_by_slug()` WP-CLI fallback used bare `except Exception: return None` — same silent-swallow pattern fixed in `find_page()` during round 18; added `logger.warning` with slug and exception before returning `None`
 
 ### Fixed — WordPress pipeline: indefinite deep review round 20 (2026-04-14)
+
 - `src/fabrik/wordpress/deployer.py:396-413`: `_print_summary()` used f-strings in 8 direct `logger.info/warning/error` calls — same violation fixed in `spec_validator.py` round 19; replaced all with lazy `%s`/`%d` formatting
 
 ### Fixed — WordPress pipeline: indefinite deep review round 19 (2026-04-14)
+
 - `src/fabrik/wordpress/spec_validator.py:71`: `logger.warning(f"...")` used f-string — violates project logging rule requiring lazy `%s` formatting; changed to `logger.warning("⚠️  %s", warning)`
 - `src/fabrik/wordpress/stages/__init__.py:19`: `skipped` field had stale comment "Reserved for Phase 2b" — `skipped` has been actively used across all stages since round 13; comment removed
 
 ### Fixed — WordPress pipeline: indefinite deep review round 18 (2026-04-14)
+
 - `src/fabrik/wordpress/stages/forms.py:32,36`: empty-contact and dry-run were silent `pass`; empty-contact now sets `skipped=True` with reason; dry-run emits recipient and fields that would be configured
 - `src/fabrik/wordpress/deployer.py:20,57`: `CreatedPage` import was left dangling after round 17 converted `metadata["pages_created"]` to plain dicts; `pages_created` field type annotation updated from `dict[str, CreatedPage]` to `dict[str, dict]`; unused import removed
 
 ### Fixed — WordPress pipeline: indefinite deep review round 17 (2026-04-14)
+
 - `src/fabrik/wordpress/stages/pages.py:120`: **critical** — `metadata["pages_created"]` stored `dict[str, CreatedPage]` dataclass objects; `json.dumps()` in `_write_apply_report()` would raise `TypeError: Object of type CreatedPage is not JSON serializable` on every real deployment, silently crashing apply-report generation; fixed by converting each `CreatedPage` to a plain dict before storage
 - `src/fabrik/wordpress/stages/pages.py:36,40`: no-pages and dry-run branches were silent `pass`; no-pages now sets `skipped=True` with reason; dry-run emits page count and slug list
 - `src/fabrik/wordpress/stages/theme.py:29-31`: dry-run was silent `pass`; now emits theme name that would be installed
 
 ### Fixed — WordPress pipeline: indefinite deep review round 16 (2026-04-14)
+
 - `src/fabrik/wordpress/stages/seo.py:31,34`: empty-seo and dry-run branches were silent `pass` — apply-report showed nothing; empty-seo now sets `skipped=True` with reason; dry-run emits `seo_keys` list of what would be configured
 - `src/fabrik/wordpress/stages/post_deploy.py:88`: `read_ga4_measurement_id()` called `read_text()` without `encoding="utf-8"` — inconsistent with all other file reads in the pipeline and broken on non-UTF-8 system locales; added explicit encoding
 
 ### Fixed — WordPress pipeline: indefinite deep review round 15 (2026-04-14)
+
 - `src/fabrik/wordpress/stages/plugins.py:75-79`: individual plugin install failure jumped to the outer `except`, aborting all remaining plugins in the manifest; a single bad plugin blocked the entire pipeline; wrapped per-install in its own try/except to count failures and continue; `result.success=False` set after the loop when any failures occurred
 - `src/fabrik/wordpress/stages/plugins.py:25`: dry-run returned with zero metadata; now reads manifest and emits `dry_run.would_install` list and `total`
 - `src/fabrik/wordpress/stages/menus.py:30,33`: no-navigation and dry-run branches were silent `pass` — apply-report showed nothing; no-navigation now sets `skipped=True` with reason; dry-run emits menu names that would be created
 
 ### Fixed — WordPress pipeline: indefinite deep review round 14 (2026-04-14)
+
 - `src/fabrik/wordpress/spec_loader.py:143`: `_apply_secrets()` used `os.getenv(var, "")` — unset env vars were silently substituted with empty strings; `deployment.vps_ip` becoming `""` passed string type validation then failed at network calls with zero explanation; now logs `WARNING` for each missing var before substituting
 - `src/fabrik/wordpress/spec_loader.py:301`: corrupt `project.yaml` in CWD caused silent fall-through to legacy path lookup — user saw "spec not found in legacy path" with no hint that their local `project.yaml` was unreadable; now logs `WARNING` with the parse error before continuing
 
 ### Fixed — WordPress pipeline: indefinite deep review round 13 (2026-04-14)
+
 - `src/fabrik/wordpress/manifests/checks.py:43`: `url_checks` list comprehension always double-wrapped every URL in `{"url": url, "expected_status": 200}` — if spec supplied `{"url": "/contact", "expected_status": 404}` it became `{"url": {"url": "/contact", "expected_status": 404}, "expected_status": 200}`, silently discarding the custom status; fixed to pass-through dicts unchanged and only wrap plain strings
 - `src/fabrik/wordpress/settings.py:191`: `create_editor()` generated passwords with `secrets.token_urlsafe(16)` — 22-char URL-safe base64, violating project password policy (32 chars, `[a-zA-Z0-9]`, `secrets.choice()`); replaced with policy-compliant generator
 
 ### Fixed — WordPress pipeline: indefinite deep review round 12 (2026-04-14)
+
 - `src/fabrik/wordpress/deployer.py:264-272`: apply-report silently dropped `warnings` and `metadata` from each stage entry — operators had no visibility into what each stage did or its warnings without grepping logs; both fields now included in per-stage report dict
 - `src/fabrik/wordpress/deployer.py:368-369`: `_step_finalize()` had `except Exception: pass` on `cache_flush()` — silently swallowed failures; replaced with `logger.warning()` so cache errors surface without aborting the pipeline
 
 ### Fixed — WordPress pipeline: indefinite deep review round 11 (2026-04-14)
+
 - `src/fabrik/wordpress/seo.py:393,395`: `set_robots_txt_ai_crawlers()` passed plain string `ai_rules` through `json.dumps()` before storing — robots.txt option received a double-encoded JSON string with escaped newlines instead of a real multi-line robots block; removed `json.dumps()` wrapper
 - `src/fabrik/wordpress/seo.py:419-422`: `add_schema_markup()` called `json.dumps(schema_type)` on a plain string — RankMath `rank_math_schema_type` option received `"\"Organization\""` instead of `Organization`; removed `json.dumps()` wrapper
 - `src/fabrik/wordpress/pages.py:102`: `find_page()` bare `except Exception: return None` silently swallowed auth failures and network errors — auth errors caused `find_page` to return `None` instead of the real page, then `create_or_get_page` created a duplicate; narrowed to log the exception at WARNING level before returning `None`
 - `src/fabrik/wordpress/pages.py`: `import json` was inside `get_page_by_slug()` method body — moved to top of file; added `import logging` and module-level `logger`
 
 ### Fixed — WordPress pipeline: indefinite deep review round 10 (2026-04-14)
+
 - `src/fabrik/wordpress/stages/verify.py:293-295`: `overall` was computed from URL checks only and written to the verify-report before baseline checks ran; fatal baseline failures that flipped `result.success=False` were not reflected in `overall`; report showed `overall: "pass"` while `result.success=False` — contradictory state; fixed by computing `overall` after all checks complete
 - `src/fabrik/wordpress/stages/verify.py:241`: error message for missing `checks.json` was not actionable (`"checks.json not found"` with no path or remediation); improved to include full path and `fabrik wp plan <site_id>` instruction; also moved `domain`/`site_id` extraction before the guard so `site_id` is available in the error message
 - `src/fabrik/wordpress/stages/languages.py:56`: dry-run returned with zero metadata — apply-report showed nothing for languages stage in dry-run; now emits `dry_run` dict with `primary`, `additional`, `multilingual_plugin`
 - `src/fabrik/wordpress/stages/settings.py:54`: dry-run was `pass` — apply-report showed nothing; now emits `dry_run` dict with `site_name`, `brand_name`, `timezone`, `contact_email`
 
 ### Fixed — WordPress pipeline: indefinite deep review round 9 (2026-04-14)
+
 - `src/fabrik/wordpress/deployer.py:155`: `SiteDeployer.log()` always called `logger.info()` regardless of level — warning and error messages appeared as INFO in the log stream making monitoring alerts miss real errors; now routes to `logger.warning()` / `logger.error()` correctly
 - `src/fabrik/wordpress/deployer.py:210`: `BLOCKING_STAGES` defined inside `deploy()` method — ruff N806 violation (uppercase name in function); moved to module level as `frozenset` constant
 - `src/fabrik/wordpress/analytics.py:130`: `_inject_via_seo_plugin()` called `option_update("rank_math_google_analytics", tracking_id)` — `rank_math_google_analytics` is not a real RankMath option; GA4 injection silently wrote to a nonexistent WP option with zero effect; corrected to `rank_math_analytics_options` (real compound JSON option) with read-merge-write pattern preserving existing analytics settings
 
 ### Fixed — WordPress pipeline: indefinite deep review round 8 (2026-04-14)
+
 - `src/fabrik/wordpress/stages/pages.py:152`: when REST API client is `None`, branch silently passed with no warning — pages were never created and nothing appeared in the report; now emits warning + `skipped=True` with actionable message to set `WP_ADMIN_PASSWORD`
 - `src/fabrik/wordpress/page_generator.py:241`: `section.copy()` is a shallow copy — nested dicts/lists inside section remain shared with the original spec, so entity `entity.*` substitutions silently mutated the spec object; replaced with `copy.deepcopy(section)`
 - `src/fabrik/wordpress/seo.py:configure_sitemap,set_archives_noindex,set_breadcrumbs,set_open_graph`: four methods called `option_update()` with a partial JSON blob, performing a destructive full overwrite of compound WordPress options (`wpseo`, `rank_math_general`, `wpseo_titles`, `rank_math_titles`, `wpseo_social`) — destroys all existing plugin settings; replaced with `_merge_option()` (read-merge-write) which was already available in the class but only used for title/description updates
 - `src/fabrik/wordpress/stages/analytics.py:48`: dry-run branch was a silent `pass` — apply-report showed nothing for analytics in dry-run mode; now emits `dry_run` metadata with `ga4`/`gtm` IDs that would be injected
 
 ### Fixed — WordPress pipeline: indefinite deep review round 7 (2026-04-14)
+
 - `src/fabrik/wordpress/manifests/plugins.py:39`: `_normalize_plugin_name()` still used old aggressive regex `^[a-zA-Z0-9]+-` (no minimum length) — diverged from the round-5 fix in `spec_loader.py`; `contact-form-7` → `form-7`, `rank-math-seo` → `math-seo`; synced to `{8,}` min-length; also extended version regex from `(\.\d+)?` → `(\.\d+)*` to handle 4-part versions like `1.2.3.4`
 - `src/fabrik/wordpress/spec_loader.py:238`: same version regex inconsistency — `(\.\d+)?` did not match `1.2.3.4`; extended to `(\.\d+)*`
 - `src/fabrik/wordpress/stages/theme.py:37`: bare `except: pass` on `install_theme()` silently swallowed disk-full, permission-denied, and network errors; replaced with warning emission + logging so errors surface without aborting the stage; also capture `apply_from_spec()` return value in `result.metadata["applied"]`
@@ -7316,6 +7535,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - `src/fabrik/wordpress/stages/plugins.py`: no metadata captured — apply-report showed nothing for plugins stage; added `counts` dict (installed/activated/skipped) and `total` in `result.metadata`
 
 ### Fixed — WordPress pipeline: indefinite deep review round 6 (2026-04-14)
+
 - `src/fabrik/wordpress/stages/__init__.py`: `time_stage` decorator missing `@functools.wraps` — every stage's `__name__` was `"wrapper"`, causing `stage.__name__.split(".")[-1]` in deployer to return `"wrapper"` for all stages; plan.json, apply-report.json, and skip-if-unchanged logic all used wrong names
 - `src/fabrik/wordpress/stages/forms.py`: `detect_form_plugin()` result and created form metadata not captured in `result.metadata`; no-plugin path silently did nothing with no warning; now emits warning + `skipped=True` and captures `form_id`/`shortcode` in metadata
 - `src/fabrik/wordpress/stages/verify.py`: two `open()` calls missing `encoding="utf-8"` — silent data corruption risk on non-UTF-8 default locale systems
@@ -7324,6 +7544,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - `src/fabrik/wordpress/deployer.py`: pipeline loop never broke on stage failure — if `dns`, `settings`, or `plugins` failed, all 10+ subsequent stages still executed against a broken state producing cascading misleading errors; added `BLOCKING_STAGES` set with early `break` and halt log message
 
 ### Fixed — WordPress pipeline: 5-pass deep review round 5 (2026-04-14)
+
 - `src/fabrik/wordpress/section_renderer.py:276`: Gutenberg closing comment `<!-- /wp/columns -->` used slash instead of colon — WordPress block parser silently dropped entire testimonials section; corrected to `<!-- /wp:columns -->`
 - `src/fabrik/wordpress/section_renderer.py:153,193`: `section.get("columns", 3)` result discarded (dead code) in both `_render_features` and `_render_services_grid`; assigned to `columns` and wired into `wp:columns` block attribute as `columnCount` so spec value is actually respected by Gutenberg
 - `src/fabrik/wordpress/spec_loader.py:241`: `_normalize_plugin_name()` regex `^[a-zA-Z0-9]+-` stripped the first word of every hyphenated plugin name (`contact-form-7` → `form-7`, `rank-math-seo` → `math-seo`); minimum length raised to 8 chars to match hash prefix pattern, consistent with `manifests/plugins.py`
@@ -7333,6 +7554,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - `src/fabrik/wordpress/stages/pages.py`: entity child pages referencing a `parent_slug` with no matching top-level page spec were silently dropped into `pages_by_parent` and never created; added explicit warning listing each orphaned parent slug
 
 ### Fixed — WordPress pipeline: 5-pass deep review round 4 (2026-04-14)
+
 - `src/fabrik/wordpress/deployer.py`: `self.spec` mutated in-place by injecting `dry_run` and `site_name` — spec is shared state; replaced with `stage_spec = dict(self.spec)` shallow copy passed to all stages
 - `src/fabrik/wordpress/deployer.py`: `verify` stage imported and present in codebase but **never added to the stage registry** — fully dead; added as the final stage after `monitoring`
 - `src/fabrik/wordpress/seo.py`: `apply_site_seo()` called `option_update()` multiple times on the same Yoast/RankMath option (e.g. `wpseo_titles`) — each call replaced the entire serialized dict, destroying all previously stored keys; replaced with batched `_merge_option()` (read-merge-write pattern)
@@ -7340,6 +7562,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - `src/fabrik/wordpress/stages/seo.py`: `configure_sitemap()` and `apply_site_seo()` return values discarded — apply-report showed nothing for the SEO stage; captured into `result.metadata`; also converted silent `pass` on no-plugin to an explicit warning
 
 ### Fixed — WordPress pipeline: 5-pass deep review round 3 (2026-04-14)
+
 - `src/fabrik/wordpress/menus.py`: menu item deletion used shell pipe `| xargs` inside `wp.run()` — `wp.run()` is `docker exec`, not a bash shell; pipes are silently ignored, idempotency logic was broken; replaced with explicit json-based item list + per-item delete loop
 - `src/fabrik/wordpress/pages.py`: dead `WPPost(...)` construction in `create_page()` — object created and immediately discarded, no effect; removed object construction and unused `WPPost` import
 - `src/fabrik/wordpress/spec_validator.py`: `deployment.target` listed as required — field does not exist in schema v1; correct field is `deployment.vps_ip`; every valid spec was failing validation on this field
@@ -7347,12 +7570,14 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - `src/fabrik/wordpress/stages/post_deploy.py`: `DNSClient` not closed if `update_sitemap()` or `get_integrations()` raised — httpx client leaked; wrapped in `try/finally` to ensure `dns_client.close()` always runs
 
 ### Fixed — WordPress pipeline: 5-pass deep review round 2 (2026-04-14)
+
 - `src/fabrik/wordpress/stages/forms.py`: form fields read from `contact.form_fields` (flat, non-existent key) — corrected to `contact.form.fields` per schema v1; form recipient now prefers `contact.form.recipient` over `contact.email`
 - `src/fabrik/wordpress/stages/verify.py`: `required_plugins` check listed `akismet` and `hello-dolly` as required-active — both are explicitly deleted by `cleanup_defaults()`, causing every properly deployed site to fail this check; list cleared
 - `src/fabrik/wordpress/stages/languages.py`: replaced `print()` with `logger.info()` in dry-run path — `print()` is forbidden per observability rules
 - `src/fabrik/wordpress/stages/pages.py`: `pages_created` was only assigned in the `elif api:` branch — if `page_specs` is empty the variable was never defined and the sitemap resubmit block would raise `NameError`; initialized to `{}` before the conditional
 
 ### Fixed — WordPress pipeline: 5-pass deep review (2026-04-14)
+
 - `src/fabrik/drivers/dns.py`: `get_integrations()` docstring example used wrong `ga4` key — corrected to `google_analytics` per confirmed API schema
 - `src/fabrik/wordpress/stages/post_deploy.py`: removed false-negative skip guard (`if not post_deploy:`) — empty `{}` is falsy, causing silent skip for sites without explicit `post_deploy:` section; stage now always runs when domain is set
 - `src/fabrik/wordpress/stages/monitoring.py`: removed dead imports `WordPressClient` and `WordPressAPIClient` (never used); typed `wp`/`api` params as `object | None` to match stage contract
@@ -7360,18 +7585,21 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - `src/fabrik/wordpress/stages/analytics.py`: removed leading spaces from "No analytics IDs defined" warning
 
 ### Fixed — WordPress pipeline: site-provisioner schema corrections + sitemap-on-pages (2026-04-14)
+
 - `src/fabrik/wordpress/stages/post_deploy.py`: GA4 response key corrected — site-provisioner returns `google_analytics.measurement_id`, not `ga4.measurement_id`
 - `src/fabrik/wordpress/stages/dns.py`: readiness gate corrected — site-provisioner returns `ready_for_deployment`, not `ready`
 - `src/fabrik/drivers/dns.py`: `provision()` `enable_dnssec` default changed `True→False` to match site-provisioner default; `check_ready()` docstring updated to use `ready_for_deployment`; `provision()` return docs updated to reference `google_analytics` key
 - `src/fabrik/wordpress/stages/pages.py`: sitemap resubmitted after every page creation run (`DNSClient.update_sitemap()`) — skipped gracefully if domain or site-provisioner not configured; failure is non-fatal warning only
 
 ### Fixed — WordPress pipeline Phase 0: review pass corrections (2026-04-14)
+
 - `src/fabrik/wordpress/stages/dns.py`: Gap 7 — replaced unauthenticated `DomainSetup` (bare httpx) with `DNSClient` (X-API-Key auth, correct site-provisioner endpoints); now syncs A record + www CNAME idempotently and calls `check_ready()` to surface zone-pending warnings
 - `src/fabrik/wordpress/stages/post_deploy.py`: corrected Gap 3 — was incorrectly calling `DNSClient.provision()` (full zone creation) post-deploy; now correctly calls `update_sitemap()` + `get_integrations()` to resubmit sitemap and retrieve GA4 measurement ID from site-provisioner; removed unused imports
 - `src/fabrik/drivers/seo.py`: `register_site()` — added missing `author_profile_url` parameter confirmed by SEO service API schema
 - `src/fabrik/wordpress/stages/settings.py`: `shlex.quote()` applied to `admin_username` before passing to `wp user update` to prevent shell injection
 
 ### Added — WordPress pipeline Phase 0: code gap fixes (2026-04-14)
+
 - `src/fabrik/wordpress/seo.py`: added `set_archives_noindex()`, `set_breadcrumbs()`, `set_open_graph()`, `set_robots_txt_ai_crawlers()` methods; fixed `add_schema_markup()` stub (now sets RankMath schema type); fixed `configure_sitemap()` RankMath option key (`rank_math_general`); extended `apply_site_seo()` to call all new methods from spec flags
 - `src/fabrik/wordpress/stages/seo.py`: added `configure_sitemap(enabled=True)` call before `apply_site_seo()` — was never called (Gap 1)
 - `src/fabrik/wordpress/stages/monitoring.py`: NEW — Uptime Kuma HTTP monitor registration stage; reads `monitoring.uptime_kuma` spec section; registers site HTTP monitor + optional WP cron monitor (Gap 2)
@@ -7384,6 +7612,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - `src/fabrik/scaffold.py`: `_scaffold_wordpress()` now copies `Makefile.wordpress` as `Makefile` into new WordPress project (Gap 9)
 
 ### Changed — PostgreSQL asyncpg single-driver policy (2026-04-14)
+
 - `.windsurf/rules/25-data-postgres.md`: added Driver Consistency subsection — asyncpg only, psycopg2 banned
 - Added Alembic async `env.py` canonical pattern with `connection.run_sync()`
 - Updated DATABASE_URL examples to `postgresql+asyncpg://` scheme (WSL + VPS)
@@ -7392,6 +7621,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - Synced to 35 projects via `sync_enforcement_to_projects.py`
 
 ### Added — File & folder naming convention (2026-04-14)
+
 - `AGENTS.md`: added `## File & Folder Naming` section with kebab-case rule, exceptions, and examples
 - `AGENTS-compact.md`: added naming rule #5 to CROSS-CUTTING section
 - `.windsurfrules`: added naming invariant in Essential Invariants
@@ -7413,6 +7643,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - Updated AGENTS.md with deployment status
 
 ### Added — MeiliSearch deployed via Coolify API (2026-04-14)
+
 - Deployed MeiliSearch search service at https://search.vps1.ocoron.com
 - Configuration: getmeili/meilisearch:v1.13, 512M RAM, 1.0 CPU
 - Environment: production with master key n7mjRrSipeqy8nWzadLZYarxiUqO35tW
@@ -7421,6 +7652,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - Updated AGENTS.md with deployment status
 
 ### Fixed — WordPress schema, code defaults, and scaffold template compliance pass (2026-04-13)
+
 - `templates/wordpress/schema/v1.yaml`: `languages.plugin` default changed `wpml`→`polylang`; allowed list now `[polylang, none]` (wpml/translatepress banned per 62-wordpress.md); backup `destination` default changed `r2`→`b2`
 - `templates/wordpress/site-spec-schema.yaml`: `languages.plugin` default changed `wpml`→`polylang`; backup `destination` default changed `r2`→`b2`
 - `src/fabrik/wordpress/stages/languages.py`: `_resolve_multilingual_slug()` default changed `"wpml"`→`"polylang"`; docstring updated; WPML detection warning now actionable (says to switch to Polylang, references 62-wordpress.md)
@@ -7428,27 +7660,32 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - `docs/FEATURES.md`: corrected `--type api`→`--type python-api`; updated symlink references to file copies; updated project types list to match `SCAFFOLD_TYPES` in `scaffold.py`
 
 ### Fixed — WordPress preset compliance pass against 62-wordpress.md (2026-04-13)
+
 - `presets/company.yaml`: removed banned `sitepress-multilingual-cms` (WPML) and `wpml-string-translation` from `plugins.add`; removed banned page builders `thrive-architect`/`thrive-leads`; added `polylang` as correct multilingual plugin; added `skip:` entries to block WPML if inherited
 - `presets/saas.yaml`: same WPML + page builder removals; added note to add polylang per site if multilingual needed
 - `presets/ecommerce.yaml`: same WPML + page builder removals; added skip entries; noted polylang + woocommerce-multilingual for multilingual ecommerce
 - `templates/wordpress/README.md`: corrected CLI from `fabrik new --template=wordpress` → `fabrik scaffold --type wordpress`; corrected deploy commands to `fabrik wp plan` + `fabrik wp apply`; removed invalid spec fields (`php_version`, `features:`, `plugins.premium`); replaced R2 with B2 as backup destination; updated WP cron note to mention Uptime Kuma as preferred; fixed MD040/MD031/MD032 lint warnings
 
 ### Fixed — WordPress documentation audit pass (2026-04-13)
+
 - `docs/CONFIGURATION.md`: replaced stale `WP_SITE_URL`/`WP_USERNAME`/`WP_PASSWORD` with `WP_ADMIN_USER`/`WP_ADMIN_PASSWORD` — confirmed from `deployer.py:140-141`
 - `docs/development/plans/2026-04-13-ocoron-com-full-deployment.md`: updated pipeline architecture diagram to show full 12-stage target (`post_deploy` + `monitoring` now visible); removed banned `wp-optimize` from acceptance criteria plugins list
 - `docs/development/plans/2026-04-13-fabrik-control-plane.md`: corrected stage count 11→12 (4 locations); fixed `monitoring` JSON nesting (`wp_cron_ping_url` inside `monitoring.uptime_kuma` per `site.yaml.j2`); updated Kilo system prompt section to reflect correct nesting
 - `docs/workflows/wordpress-site-workflow.md`: stage table WPML→Polylang; Yoast/RankMath→RankMath; removed `finalize` as registered stage (reclassified as `_step_finalize()` post-stage method); `--force-stage` names updated with current (10) and target (12) stage lists; added `FABRIK_EXEC_MODE`, `UPTIME_KUMA_*` to env vars table; added `### finalize (post-stage step)` section
 
 ### Changed — AGENTS.md VPS services documentation updated (2026-04-13)
+
 - Added `fabrik-api` (localhost :8050) and `fabrik-control-plane` (control.vps1.ocoron.com) to Running services table
 - Removed MinIO from Ready-to-Deploy; added explicit Deferred section with rationale: VPS disk is not redundant storage, Cloudflare R2 free tier covers File API needs, Backblaze B2 covers backups
 
 ### Fixed — file-worker crash loop: claim_job returning null-id row (2026-04-13)
+
 - `worker/main.py` `claim_job()`: Supabase `claim_next_job` RPC returns all-null dict when queue is empty — truthy check passed, `process_job` ran with `job_id=None`, crashing with PostgreSQL UUID parse error every 5 seconds
 - Fix: added `.get('id') is not None` guard before returning claimed job
 - Deployed via Coolify redeploy (commit `e3b797e`)
 
 ### Fixed — All WordPress template files compliance pass against 62-wordpress.md (2026-04-13)
+
 - `base/nginx/default.conf.j2`: fixed WooCommerce FastCGI cache bypass regex (was broken pipe-in-string, now correct multi-entry map); added security headers (`X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`) inside static files location block — Nginx child location `add_header` replaces parent headers, so they must be re-declared
 - `base/wp-config-extra.php`: added `$table_prefix = 'CHANGE_ME_prod_'` — 62-wordpress.md requires custom prefix, never `wp_`
 - `base/compose-coolify.yaml.j2`: added `$table_prefix` Jinja injection to `WORDPRESS_CONFIG_EXTRA` — rendered from `table_prefix` site spec field with sensible default
@@ -7457,6 +7694,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - `defaults.yaml security`: added `table_prefix`, `brute_force_lockout_attempts`, `block_admin_username`, `two_factor_roles`, `cloudflare_waf`, `cron_method` fields; added `users_endpoint_blocked` and `table_prefix_set` to `checks.security`
 
 ### Fixed — ocoron.com.v2.yaml + site.yaml.j2 compliance pass against 62-wordpress.md (2026-04-13)
+
 - `ocoron.com.v2.yaml plugins`: removed `wp-optimize` (superseded by `make db-clean`); added full RankMath `modules_enable`/`modules_disable` config matching 62-wordpress.md §Plugin & Theme Discipline
 - `ocoron.com.v2.yaml security`: added `table_prefix: ocoron_prod_`, `brute_force_lockout_attempts`, `block_admin_username`, `two_factor_roles`, `rest_api_app_password_user`, `cron_method: uptime_kuma`, `child_theme`, `cloudflare_waf: true`
 - `ocoron.com.v2.yaml post_deploy`: added `gsc_verification_method: dns_txt`, `browserless_screenshot: true`
@@ -7466,6 +7704,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - `base/site.yaml.j2`: mirrored all security, post_deploy, monitoring, backup, robots_txt additions as template defaults for all future sites
 
 ### Fixed — WordPress template compliance pass against 62-wordpress.md (2026-04-13)
+
 - `base/nginx-dev.conf.j2`: added security headers (X-Frame-Options, X-Content-Type-Options, Referrer-Policy, X-XSS-Protection); PHP execution block in `/uploads/`; sensitive file type block (`.bak/.sql/.sh` etc.); `try_files $uri =404` guard in PHP location — all matching production nginx hardening
 - `base/compose.dev.yaml.j2`: replaced `WORDPRESS_DEBUG: "1"` with explicit `WORDPRESS_CONFIG_EXTRA` block containing `WP_DEBUG=true`, `WP_DEBUG_DISPLAY=false`, `WP_DEBUG_LOG=true`; added `WP_CACHE=true`, `WP_REDIS_HOST/PORT/DATABASE/PREFIX` — dev now tests Redis Object Cache path
 - `defaults.yaml`: fixed RankMath `modules_enable` to full 62-wordpress.md list (added `redirections`, `image-seo`, `acf`); added `modules_disable` list; added `sitemap_posts_per_page: 200`, `strip_category_base`, `redirect_attachments`, `remove_generator_tag`, `noindex_empty_archives`; updated backup `destination: b2`; added Email Gateway preference comment on `wp-mail-smtp`
@@ -7473,6 +7712,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - `base/backup/backup.sh`: updated upload comments from R2 to B2 (preferred per 62-wordpress.md §Backups); S3-compatible env vars unchanged
 
 ### Added — 62-wordpress.md + Makefile.j2 from Zero-Ops pipeline doc (2026-04-13)
+
 - `62-wordpress.md §Caching`: Cloudflare zone cache purge rule (purge before warm-cache, not after)
 - `62-wordpress.md §REST API Hardening`: Application Password creation via WP-CLI for automation; MU-plugin to block unauthenticated REST writes
 - `62-wordpress.md §Email Deliverability`: internal Fabrik Email Gateway (port 3000) as preferred routing for VPS deployments; `wp-mail-smtp` demoted to alternative
@@ -7486,6 +7726,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - `base/Makefile.j2 warm-cache`: added comment clarifying CF zone purge must precede origin warm
 
 ### Added — 62-wordpress.md + templates from 02-Technical-Implementation-Addendum.md (2026-04-13)
+
 - `62-wordpress.md`: fixed `WP_DEBUG=true` correctness (was false — log requires true); added `WP_HTTP_BLOCK_EXTERNAL`+`WP_ACCESSIBLE_HOSTS` rule; custom `$table_prefix` (never `wp_`) rule; Redis `WP_REDIS_PREFIX`+`WP_REDIS_DATABASE` isolation rule; WooCommerce FastCGI cache bypass rule; GDPR consent cache poisoning prevention rule; new `## Database Maintenance` section with `make db-clean` + system cron WP-CLI detail; head cleanup / CMS footprint obscurity rule; RankMath specific module enable/disable list + sitemap page size 200; media offloading credentials in `wp-config.php` rule; 8 new banned pattern rows; 3 new Done When criteria
 - `base/wp-config-extra.php`: fixed `WP_DEBUG=true`; added `WP_HTTP_BLOCK_EXTERNAL`, `WP_ACCESSIBLE_HOSTS`, `WP_CACHE=true`, `WP_REDIS_DATABASE`, `WP_REDIS_PREFIX`
 - `base/compose-coolify.yaml.j2`: synced `WORDPRESS_CONFIG_EXTRA` with all new constants
@@ -7493,6 +7734,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - `base/Makefile.j2`: added `db-clean` target (transients, spam, revisions, orphaned postmeta, db optimize)
 
 ### Added — 62-wordpress.md SOP enhancement from 01-WordPress-Production-SOP.md (2026-04-13)
+
 - `62-wordpress.md`: added `DISALLOW_FILE_MODS=true` rule; `WP_DEBUG=false`/`WP_DEBUG_LOG=true`/`WP_DEBUG_DISPLAY=false` production discipline; Cloudflare WAF 5-rule spec section; HTTP Security Headers section; REST API hardening (user enumeration block); Wordfence 2FA + brute-force lockout thresholds; Media Offloading section; Email Deliverability section with SPF/DKIM/DMARC; `make warm-cache` target; updated post-deploy checklist to 16 items; expanded Banned Patterns table with 6 new rows; updated Done When checklist with 8 new criteria
 - `base/wp-config-extra.php`: added `DISALLOW_FILE_MODS`, `WP_DEBUG=false`, `WP_DEBUG_LOG=true`, `WP_DEBUG_DISPLAY=false`, OPcache `ini_set` directives
 - `base/compose-coolify.yaml.j2`: synced `WORDPRESS_CONFIG_EXTRA` with all new wp-config constants
@@ -7500,6 +7742,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - `base/Makefile.j2`: added `warm-cache` target (sitemap parse + 8-worker curl); added comment spam WP-CLI options to `scaffold`; added 2FA/brute-force reminders to `harden` output
 
 ### Fixed — 62-wordpress.md 3-pass compliance iteration #3 (2026-04-13)
+
 - `base/Makefile.j2`: **created** — was entirely missing; 62-wordpress.md §WP-CLI & Makefile mandates this file. Implements all 6 required targets: `update`, `cache-flush`, `scaffold`, `backup`, `harden`, `security-check` plus `rename-admin`, `shell`, `logs`. Container name resolved dynamically via `docker ps --filter` for Coolify compatibility.
 - `base/compose-coolify.yaml.j2`: added `WORDPRESS_CONFIG_EXTRA` env to `wordpress` service — security hardening constants (DISALLOW_FILE_EDIT, FORCE_SSL_ADMIN, DISABLE_WP_CRON, WP_AUTO_UPDATE_CORE, etc.) were not being applied on Coolify deployments
 - `base/compose.dev.yaml.j2`: fixed wrong nginx conf volume mount path (`./config/nginx-dev.conf` → `./nginx-dev.conf`); use `{{ php_version }}` variable instead of hardcoded `php8.3`
@@ -7507,6 +7750,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - `README.md`: added Makefile Targets section documenting all available targets
 
 ### Fixed — 62-wordpress.md 3-pass compliance iteration #2 (2026-04-13)
+
 - `base/site.yaml.j2`: corrected stale plugins comment (flyingpress still listed after removal)
 - `base/nginx/default.conf.j2`: added POST request cache bypass, `$http_authorization` bypass, `fastcgi_cache_lock on` to prevent stampede; added `map` block for `$skip_cache_method`
 - `base/nginx-dev.conf.j2`: added `xmlrpc.php` block (`return 444`) to match production hardening
@@ -7515,6 +7759,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - `README.md`: expanded architecture tree to show all base/ files with purpose annotations
 
 ### Fixed — 62-wordpress.md iterative compliance pass (2026-04-13)
+
 - `templates/wordpress/base/compose.yaml.j2`: removed banned `wordpress_root` full web root volume, added `www-data:www-data` ownership via entrypoint, added `period=1m` to Traefik rate-limit middleware
 - `templates/wordpress/defaults.yaml`: `theme.child` → `true` (child theme always required), removed `flyingpress` from base/premium plugin lists (PHP caching banned), removed `translatepress` from multilingual alternatives (banned), added `security:` defaults block with `wordfence_mode`, admin policy, and CSPRNG password generation note
 - `templates/wordpress/base/wp-config-extra.php`: added `WP_AUTO_UPDATE_CORE='minor'` for minor/security auto-updates
@@ -7522,18 +7767,21 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - `templates/wordpress/README.md`: fixed WP-CLI example (no longer uses `admin` username), expanded security hardening list to match full 62-wordpress.md requirements
 
 ### Fixed — 62-wordpress.md compliance: Gap 10 + Gap 11 + security hardening (2026-04-13)
+
 - `templates/wordpress/base/compose-coolify.yaml.j2`: removed banned `wordpress_root` full web root volume (Gap 10), added `www-data:www-data` ownership via entrypoint command, added `period=1m` to Traefik rate-limit middleware
 - `templates/wordpress/base/nginx/default.conf.j2`: changed FastCGI cache path from banned `/tmp/wp_cache` to `/var/cache/nginx/wp_cache` (Gap 11)
 - `templates/wordpress/base/site.yaml.j2`: corrected security section comments to reflect actual template state, fixed `WP_ADMIN_PASSWORD` generation command to use correct 32-char CSPRNG (`secrets.choice` over `[a-zA-Z0-9]`), added `backup:` section per server-level backup requirement
 - `docs/development/plans/2026-04-13-ocoron-com-full-deployment.md`: marked Gap 10 and Gap 11 as fixed, updated acceptance criteria with ownership/backup/security checks, fixed password generation command
 
 ### Added — Fabrik Control Plane plan + port registration (2026-04-13)
+
 - Created implementation plan at `docs/development/plans/2026-04-13-fabrik-control-plane.md`
 - Registered port 8050 (`fabrik-api` — FastAPI bridge, native VPS host process) in `PORTS.md`
 - Registered port 3004 (`fabrik-control-plane` — Next.js 14 chat UI, Coolify container) in `PORTS.md`
 - Architecture: Next.js → fabrik-api (Bearer + localhost bind) → `docker exec` (no SSH hop) → WP containers
 
 ### Added — Observability stack deployed to VPS (2026-04-13)
+
 - Deployed 6-service observability stack to VPS at `/opt/monitoring/`
 - **Grafana** — healthy at `monitor.vps1.ocoron.com` (Traefik HTTPS)
 - **Prometheus** — healthy (internal :9090), 30d retention, scrapes node-exporter + cAdvisor + loki + netdata
@@ -7545,6 +7793,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - `GRAFANA_ADMIN_PASSWORD` generated (32-char CSPRNG) and saved to `.env`
 
 ### Changed — Observability stack configs updated for deployment (2026-04-13)
+
 - **`specs/infrastructure/monitoring-stack.yaml`**: Full rewrite — removed WSL bind-mount paths (were VPS-incompatible), updated all images to current stable versions (Loki 3.4.2, Promtail 3.4.2, Prometheus v3.2.1, Grafana 11.6.1, node-exporter v1.9.1, cAdvisor v0.52.1), added `platform: linux/amd64` to all services, added healthchecks, added Traefik labels for Grafana, switched to named volumes for configs, dropped obsolete `version: "3.8"` field, increased Prometheus retention to 30d.
 - **`configs/loki/loki-config.yaml`**: Migrated deprecated `boltdb-shipper` + schema `v11` → `tsdb` + schema `v13`. Fixed `instance_addr` from `127.0.0.1` → `0.0.0.0`. Added `allow_structured_metadata` and compactor retention config.
 - **`configs/promtail/promtail-config.yaml`**: Fixed positions file path from `/tmp/positions.yaml` (forbidden) → `/run/promtail/positions.yaml` (named volume mount).
@@ -7552,6 +7801,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - **`AGENTS.md`**: Added Apprise to Running services table. Moved monitoring stack from "Config-Ready" to "Ready to Deploy". Updated verification date to 2026-04-13.
 
 ### Changed — DNSClient + CLI domain commands aligned to site-provisioner (2026-04-13)
+
 - **`src/fabrik/drivers/dns.py`**: Fixed auth header `Authorization: Bearer` → `X-API-Key` (site-provisioner uses `X-API-Key`). Updated env var `SITE_PROVISIONER_TOKEN` → `SITE_PROVISIONER_API_KEY`. Updated default URL `provision.vps1.ocoron.com` → `dns.vps1.ocoron.com`.
 - **`src/fabrik/drivers/dns.py`**: Fixed `get_records()` and `add_subdomain()` from legacy Namecheap `/api/dns/` endpoints to Cloudflare `/api/cloudflare/dns/`. Added `proxied` param to `add_subdomain()`.
 - **`src/fabrik/drivers/dns.py`**: Added `add_record()` (idempotent Cloudflare DNS record CRUD) and `delete_record()` methods.
@@ -7567,12 +7817,14 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - **`.env.example`**: Replaced `DNS_MANAGER_URL` with `SITE_PROVISIONER_URL` + `SITE_PROVISIONER_API_KEY`.
 
 ### Added — Telegram notifications live end-to-end (2026-04-12)
+
 - **Apprise** configured with Telegram bot (chat_id: 6999645768). `APPRISE_STATELESS_URLS` set in `/opt/apprise/.env` and `/opt/fabrik/.env`.
 - **n8n workflows** imported + activated via API: 01-deploy-notify, 02-content-notify, 03-health-alert, 04-content-trigger. Webhook URLs wired into `N8N_WEBHOOK_DEPLOY` and `N8N_WEBHOOK_CONTENT` in `.env`.
 - **Full chain validated:** `fabrik.notifications` → n8n webhook → Apprise → Telegram. Both `deploy-notify` and `content-notify` executions: `status=success`.
 - **`N8N_API_KEY`** stored in `/opt/fabrik/.env`.
 
 ### Added — n8n webhook notification system + Apprise infra (2026-04-12)
+
 - **`src/fabrik/notifications.py`** (new): fire-and-forget webhook helpers `notify_deploy()` and `notify_content()`. Read `N8N_WEBHOOK_DEPLOY` / `N8N_WEBHOOK_CONTENT` from env; silently skip if unset; 5s timeout; failures logged as warnings only.
 - **`src/fabrik/deploy_router.py`**: wired `notify_deploy()` into both WordPress and generic deploy pipelines — fires on success and failure with project, domain, url, error, error_step.
 - **`src/fabrik/orchestrator/content_publisher.py`**: wired `notify_content()` at end of `publish()` — fires with domain, published count, failed count, dry_run flag.
@@ -7581,6 +7833,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - **`.env` / `.env.example`**: Added `N8N_WEBHOOK_DEPLOY`, `N8N_WEBHOOK_CONTENT`, `N8N_WEBHOOK_TIMEOUT`, `APPRISE_STATELESS_URLS`.
 
 ### Added — Deploy n8n workflow automation container (2026-04-12)
+
 - **`/opt/n8n/compose.yaml`** (VPS): n8n community edition deployed at `https://auto.vps1.ocoron.com` via Docker Compose on VPS. n8n v1.0+ setup: removed deprecated `N8N_BASIC_AUTH_ACTIVE` vars, first-run creates owner account via web wizard.
 - **`specs/infrastructure/n8n.yaml`**: Updated to remove basic auth env vars (removed in n8n v1.0), added `N8N_DIAGNOSTICS_ENABLED=false`, changed healthcheck to `wget`.
 - **`.env`** / **`.env.example`**: Removed `N8N_USER`/`N8N_PASSWORD` (deprecated), retained `N8N_ENCRYPTION_KEY`, added `N8N_API_KEY` placeholder.
@@ -7589,16 +7842,19 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - **Next step (manual):** Visit `https://auto.vps1.ocoron.com` to create owner account → Settings → API → generate `N8N_API_KEY`.
 
 ### Fixed — DNS provisioning: Cloudflare fallback, exception handling, rollback metadata (2026-04-12)
+
 - **`src/fabrik/orchestrator/__init__.py`**: 3 targeted fixes in `_provision_dns()`:
   1. Replaced non-existent `cf.upsert_record()` + `cf.get_zone_id()` with `cf.add_subdomain(base_domain, subdomain, vps_ip)` — resolves `AttributeError` on Cloudflare fallback path
   2. Added `ProvisioningError` to typed exception handler `except (ValidationError, ProvisioningError, DeployError, VerificationError)` — DNS failures now set `error_step` correctly
   3. Changed both `ctx.add_resource()` calls from `subdomain=..., base_domain=...` to `zone=base_domain` — rollback manager's `_rollback_dns()` reads `metadata.get("zone")`, so DNS records now clean up correctly on failure
 
 ### Fixed — WordPress FPM+Nginx template: add shared volume for core files (2026-04-12)
+
 - **`templates/wordpress/base/compose.yaml.j2`**: Added `wordpress_root` internal volume mounted as `wordpress_root:/var/www/html` on wordpress service and `wordpress_root:/var/www/html:ro` on nginx service. `wp_content` named volume overlays on top for persistence. Nginx can now serve WordPress core files (`index.php`, `wp-admin/`, `wp-includes/`) via `try_files`.
 - **`templates/wordpress/base/compose-coolify.yaml.j2`**: Same fix applied.
 
 ### Added/Changed — T5 Remediation: realign content pipeline to approved contract (2026-04-12)
+
 - **`src/fabrik/content/orchestrator.py`** (NEW): Canonical module for this epic — re-exports `ContentPublisher`, `PublishResult`, `PublishSummary`, `PublishContext` from `fabrik.orchestrator.content_publisher`
 - **`src/fabrik/cli.py`**: Updated `content publish` import to `from fabrik.content.orchestrator import ContentPublisher`
 - **`tests/content/test_orchestrator.py`**, **`tests/content/test_cli_content.py`**: Updated imports to `fabrik.content.orchestrator` canonical path
@@ -7607,11 +7863,13 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - **`docs/CONFIGURATION.md`**: Added WP v1 single-site credential switching note under Content Creation Pipeline section
 
 ### Added — Tests for content pipeline (2026-04-12)
+
 - **`tests/content/test_orchestrator.py`**: Fixed stale fixtures (`_make_page_package` content values now dicts); added 15 new T4 spec tests for `publish()` batch interface — `ValueError` on unknown domain, dry-run skips, lock release on TCO failure, image fallback non-fatal, `upload_media` receives file path not URL, blog_post/service routing, `submit_brief` payload completeness, `_assemble_brief` lock-strip + UUID coercion, `_render_html` section tags, `limit` enforcement
 - **`tests/content/test_cli_content.py`**: Fixed `test_content_publish_dry_run_flag` (removed stale `seed_topic` arg); added `test_content_publish_unknown_domain` asserting exit 1 + "not found" on `ValueError`
 - Total: **44 tests collected, 44 passed** (`python -m pytest tests/content/ -v`)
 
 ### Added — fabrik content publish CLI command (2026-04-12)
+
 - **`src/fabrik/cli.py`**: Replaced legacy `content publish` command (seed_topic job-creation flow) with T3 spec batch brief-drain command
   - Arguments: `DOMAIN`
   - Options: `--dry-run` (flag), `--limit INTEGER` (default 10)
@@ -7622,6 +7880,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
   - Connection errors caught and reported cleanly; no raw tracebacks
 
 ### Changed — ContentPublisher orchestrator rewritten to T2 spec (2026-04-12)
+
 - **`src/fabrik/orchestrator/content_publisher.py`**: Rewrote in-place to implement T2 spec while preserving backwards-compatible `publish_page()` for `cli.py`
   - Added `PublishResult` dataclass (`brief_id`, `status`, `wp_url`, `error`)
   - Added `PublishSummary` dataclass (`domain`, `total_briefs`, `published`, `failed`, `results`)
@@ -7636,6 +7895,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - **`src/fabrik/content/__init__.py`**: Created as empty package marker
 
 ### Changed — dns-manager renamed to site-provisioner (2026-04-12)
+
 - **`/opt/site-provisioner/`**: Renamed project from `dns-manager` to `site-provisioner` to better reflect expanded capabilities (domain registration, DNS, SSL, CDN, analytics, webmaster tools)
 - **`/opt/site-provisioner/project.yaml`**: Updated name, URL (`provision.vps1.ocoron.com`), and description
 - **`/opt/site-provisioner/compose.yaml`**: Updated domain in Traefik labels, added Alembic migration auto-run command
@@ -7657,6 +7917,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - **Deployment**: Service will be deployed to VPS at `provision.vps1.ocoron.com` with Alembic migrations running automatically before container start
 
 ### Added — PostgreSQL Local Dev Setup with --db Flag (2026-04-12)
+
 - **`src/fabrik/cli.py`**: Added `--db` flag to `fabrik scaffold` command for opt-in PostgreSQL database support
 - **`src/fabrik/scaffold.py`**: Added conditional database setup in `_scaffold_python_api()` and `_scaffold_chrome_extension()` - creates `.env.local` with localhost DATABASE_URL, auto-creates dev database, updates `.env.example` with VPS postgres-main URL when `--db` flag is passed; added `.env.local` to `.gitignore`
 - **`scripts/create_pg_dev_db.sh`**: New helper script for manual PostgreSQL dev database creation with robust error handling
@@ -7671,6 +7932,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - **Result**: Zero manual DB configuration for local dev - copy `.env.local` to `.env`, run `alembic upgrade head`, start uvicorn. Same code works on WSL and VPS via environment variable swap.
 
 ### Fixed — T4 bugs and cross-cutting violations (2026-04-11)
+
 - **`src/fabrik/cli.py`**: Fixed fabrik deploy error handling to catch all exceptions (not just RuntimeError) for WordPress path, ensuring clean error behavior for validation and planning failures.
 - **`src/fabrik/wordpress/spec_validator.py`**: Fixed structured logging compliance - replaced print() with logger.warning() for warnings output.
 - **`src/fabrik/wordpress/deployer.py`**: Fixed structured logging compliance - replaced print() with logger calls in log() method and _print_summary().
@@ -7679,12 +7941,14 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - **`src/fabrik/scaffold.py`**: Fixed bandit B701 (jinja2_autoescape_false) - replaced autoescape=False with select_autoescape() for Jinja2 YAML template rendering, addressing XSS security concern while maintaining YAML compatibility.
 
 ### Added — STRATEGIC_BACKLOG template (2026-04-11)
+
 - **`templates/scaffold/docs/STRATEGIC_BACKLOG_TEMPLATE.md`**: New template for strategic backlog tracking - vetted, high-impact work paused for bandwidth.
 - **`src/fabrik/scaffold.py`**: Added `STRATEGIC_BACKLOG_TEMPLATE.md` to `SHARED_TEMPLATE_MAP`, generates `docs/STRATEGIC_BACKLOG.md` in scaffolded projects.
 - **`docs/workflows/SCAFFOLD_STRUCTURE.md`**: Updated doc templates table to include new STRATEGIC_BACKLOG_TEMPLATE.md entry.
 - **Template content**: Includes sections for "Now — Ready for Focus Window", "Later", "Context", and "Activation" triggers for moving items to active development.
 
 ### Added — Automatic .env file loading for deployment secrets (2026-04-11)
+
 - **`src/fabrik/cli.py`**: Updated `fabrik apply` to automatically read secrets from project `.env` file before checking environment variables. Resolves project path from spec id (`/opt/{spec_id}`) to locate `.env` file.
 - **`src/fabrik/orchestrator/__init__.py`**: Updated orchestrator secrets loading to read from project `.env` file with same precedence logic.
 - **Secret loading precedence**: Command-line `-s` flags (highest) > Project `.env` file > Environment variables (lowest).
@@ -7699,6 +7963,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - **`docs/FAQ.md`**: Added FAQ entry about managing secrets for deployment with .env auto-loading.
 
 ### Added — Scaffold auto-detection of secrets from .env.example (2026-04-11)
+
 - **`src/fabrik/scaffold.py`**: Added `_detect_secrets()` function that reads `.env.example` and identifies secret env vars using pattern matching. Includes patterns: `_KEY`, `_SECRET`, `_PASSWORD`, `_TOKEN`, `_CREDENTIALS`, `_API_KEY`, `_API_TOKEN`, `_PRIVATE_KEY`. Excludes non-secrets: `PORT`, `HOST`, `LOG_LEVEL`, `DEBUG`, `ENV`, `NODE_ENV`, `PYTHON_ENV`, `DATABASE_URL`, `REDIS_URL`.
 - **`src/fabrik/scaffold.py`**: Updated scaffold to call `_detect_secrets()` and pass `secrets_from_env` and `secrets_from_file` context to spec generator.
 - **`src/fabrik/spec_generator.py`**: Updated `generate_and_save_spec()` to accept `secrets_from_env` and `secrets_from_file` parameters and pass them to context. Fixed to avoid duplication: if `from_env` is provided, `required` is not populated.
@@ -7706,6 +7971,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - **Result**: All new projects scaffolded with `fabrik scaffold` are now deployment-ready with `from_env` secrets auto-populated from `.env.example`.
 
 ### Added — SecretsPolicy with from_env and from_file automatic loading (2026-04-11)
+
 - **`src/fabrik/spec_loader.py`**: Added `from_env` and `from_file` fields to `SecretsPolicy`. `from_env` pulls secrets from local environment variables automatically. `from_file` reads secrets from files (e.g., JSON credentials). Command-line `-s` flags take precedence.
 - **`src/fabrik/cli.py`**: Updated `fabrik apply` to auto-pull secrets from `spec.secrets.from_env` and read from `spec.secrets.from_file`. Warnings issued if env vars missing or files not found.
 - **`src/fabrik/orchestrator/validator.py`**: Updated secrets validation to accept both old list format and new SecretsPolicy dict format with type checking for all fields.
@@ -7714,23 +7980,28 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - **`specs/services/dns-manager.yaml`**: Updated to use `from_env` for all secrets, enabling automatic deployment without passing 9 command-line secrets.
 
 ### Added — T4: `fabrik deploy` unified entry point with project-type routing (2026-04-11)
+
 - **`src/fabrik/deploy_router.py`**: New module implementing unified deployment routing. Resolves project directory and metadata from `project.yaml`, then dispatches WordPress projects to `Planner` + `SiteDeployer` and all other types to the generic `DeploymentOrchestrator` via centralised specs in `specs/services/`.
 - **`src/fabrik/cli.py`**: Added top-level `fabrik deploy [--project PATH] [--dry-run]` command. Routes to `deploy_router.route_deploy()` with clear error messages for missing `project.yaml`, unknown project types, and missing service specs.
 - **`tests/test_deploy_router.py`**: Unit tests covering project dir resolution, metadata loading, type validation, service spec path resolution, WordPress/generic routing, and CLI integration.
 
 ### Fixed — Corrected site.yaml.j2 to v2 schema and compose.dev.yaml.j2 shared volume model (2026-04-11)
+
 - **`templates/wordpress/base/site.yaml.j2`**: Rewrote from old top-level `id`/`domain` format to v2 nested schema (`schema_version`, `site.domain`, `site.name`, `brand.tagline` as localized string, `deployment.target`). Scaffolded site.yaml now passes `SpecValidator` required-field checks.
 - **`templates/wordpress/base/compose.dev.yaml.j2`**: Replaced `wp_content`-only sharing model with full `wp_html` named volume so nginx can serve WordPress core files (`/index.php`, `/wp-includes/`). Both wordpress and nginx services now bind-mount `./themes` and `./plugins` for live edit visibility.
 - **`tests/test_scaffold_wordpress_templates.py`**: Added regression tests for v2 schema fields (`schema_version`, `site.name`, `site.domain`, `deployment.target`), SpecLoader+SpecValidator integration, `wp_html` named volume, and nginx/wordpress theme+plugin bind mounts.
 
 ### Fixed — wp apply/wp plan now surface missing site.yaml in empty directories (2026-04-11)
+
 - **`src/fabrik/cli.py`**: Adjusted WordPress command site ID resolution so `wp apply --dry-run` and `wp plan` no longer exit early on missing `project.yaml` when no positional `site_id` is provided. Empty-directory failures now come from spec resolution and preserve the required `No site.yaml found...` message.
 - **`tests/test_wp_spec_resolution.py`**: Added CLI regression coverage for empty-directory `wp apply --dry-run` and `wp plan` behavior, asserting the user-visible error contains `No site.yaml found`.
 
 ### Fixed — WordPress nginx dev scaffold regression coverage for PHP passthrough (2026-04-11)
+
 - **`tests/test_scaffold_wordpress_templates.py`**: Added a focused regression test asserting generated `config/nginx-dev.conf` does not contain `try_files $uri =404`, protecting the PHP-FPM passthrough fix that previously broke the local dev stack.
 
 ### Added — T3: wp plan and wp apply resolve spec from project folder with legacy fallback (2026-04-11)
+
 - **`src/fabrik/wordpress/spec_loader.py`**: Added `resolve_spec_path(site_id, project_path)` function implementing three-priority spec resolution: (1) `--project <path>/site.yaml`, (2) CWD auto-detection via `project.yaml` type check, (3) legacy `specs/sites/<site_id>.yaml` fallback. Added `load_spec_from_path(site_id, site_path)` for explicit-path loading. Updated `SpecLoader.__init__` to accept optional `site_path: Path` override.
 - **`src/fabrik/wordpress/resolved_spec.py`**: Updated `load_spec()` and `ResolvedSpec.from_site()` to accept optional `site_path` parameter for path-based spec loading.
 - **`src/fabrik/wordpress/deployer.py`**: `SiteDeployer.__init__` now accepts `project_path` parameter, uses `resolve_spec_path` + `load_spec_from_path` with deprecation warning for legacy paths.
@@ -7738,52 +8009,63 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - **`src/fabrik/cli.py`**: `wp plan` and `wp apply` commands now accept optional `site_id` argument and `--project` option. When `site_id` is omitted, resolves from CWD's `project.yaml` `name` field.
 
 ### Fixed — nginx-dev.conf.j2: remove try_files that blocks PHP-FPM passthrough in dev stack (2026-04-11)
+
 - **`templates/wordpress/base/nginx-dev.conf.j2`**: Removed `try_files $uri =404;` from PHP location block. In the dev compose stack, nginx only mounts `wp_content` — WordPress core files don't exist in its filesystem, so `try_files` returned 404 before reaching FPM. FPM handles file existence via `SCRIPT_FILENAME`.
 
 ### Added — T2: Scaffold emits compose.dev.yaml and nginx-dev.conf into WordPress project folder (2026-04-11)
+
 - **`templates/wordpress/base/compose.dev.yaml.j2`**: Jinja2 template for local dev Docker Compose stack (MariaDB, Redis, WordPress FPM, nginx). No Traefik labels, no coolify network. Uses `{{ dev_port | default('8080') }}` for configurable local port.
 - **`templates/wordpress/base/nginx-dev.conf.j2`**: Minimal nginx config for dev PHP-FPM passthrough (static, no Jinja variables). No FastCGI cache, no gzip, no xmlrpc block.
 - **`src/fabrik/scaffold.py`**: `_scaffold_wordpress()` renders `compose.dev.yaml.j2` and `nginx-dev.conf.j2` into project folder. `create_project()` now accepts and forwards `**kwargs` to type-specific scaffolders.
 - **`src/fabrik/cli.py`**: Added `--dev-port` option to `scaffold` command (default 8080) for WordPress local dev port.
 
 ### Added — T1: Scaffold emits site.yaml into WordPress project folder (2026-04-11)
+
 - **`templates/wordpress/base/site.yaml.j2`**: Jinja2 template for WordPress site-layer spec (minimal override matching SpecLoader format). Uses `{{ name }}`, `{{ preset | default('saas') }}`.
 - **`src/fabrik/scaffold.py`**: `_scaffold_wordpress()` renders `site.yaml.j2` into project folder with existence guard. Added `site.yaml` to WordPress `.gitignore`.
 - **`src/fabrik/cli.py`**: Updated WordPress post-scaffold message to reference `{project_dir}/site.yaml` instead of `specs/sites/{name}.yaml`.
 
 ### Fixed — save_spec() health path serialization bug (2026-04-11)
+
 - **`src/fabrik/spec_loader.py`**: Removed `exclude_defaults=True` from `model_dump()` in `save_spec()` and added `mode="json"` so fields like `health.path` are written even when they equal model defaults. Previously, `health: {}` was emitted instead of `health: {path: /health}` for python-api, mobile-app, and desktop-app specs.
 - **`specs/services/test-python-api.yaml`**, **`specs/services/test-mobile-app.yaml`**, **`specs/services/test-desktop-app.yaml`**: Corrected `health: {}` → `health: {path: /health}`.
 - **`tests/test_spec_generator.py`**: Added regression test `test_saved_spec_health_path_not_stripped_for_python_api`.
 
 ### Added — Extend SPEC_ENABLED_TYPES to docusaurus, mobile-app, desktop-app (2026-04-10)
+
 - **`src/fabrik/spec_generator.py`**: Added `docusaurus`, `mobile-app`, `desktop-app` to `SPEC_ENABLED_TYPES` (now 10 entries) and `_TYPE_DEFAULTS` (docusaurus health_path=`/`, others `/health`).
 - **`src/fabrik/deploy_validator.py`**: Added `_STATIC_TYPES` and `_ELECTRON_TYPES` frozensets; `_check_health_endpoint()` now returns early pass for static sites (docusaurus) and redirects scan to `electron/` for desktop-app.
 - **`src/fabrik/cli.py`**: `fabrik scaffold` now prints WordPress next-steps guide after scaffold creation.
 
 ### Fixed — Deploy templates: wordpress root compose.yaml.j2 created, mobile-app and desktop-app render bugs fixed (2026-04-10)
+
 - **`templates/wordpress/compose.yaml.j2`**: Created root-level deploy template for `fabrik apply` with Traefik routing to WordPress nginx on port 80, expose guard, resource limits, and healthcheck.
 - **`templates/mobile-app/compose.yaml.j2`**: Fixed `spec.domain` → `domain` variable, `entrypoints=https` → `entrypoints=websecure`, added expose guard around labels, added deploy resource limits block.
 - **`templates/desktop-app/compose.yaml.j2`**: Same 4 fixes as mobile-app template.
 
 ### Fixed — fabrik new worker-domain prompt ordering (2026-04-10)
+
 - **`src/fabrik/cli.py`**: Fixed domain prompt to fire after kind determination in `fabrik new`. Workers (Kind.WORKER) are no longer prompted for domain, which is semantically correct since workers don't expose HTTP. The fix extracts project context and determines kind before prompting for domain.
 
 ### Fixed — validation findings and remove invalid source block (2026-04-10)
+
 - **`src/fabrik/deploy_validator.py`**: Reverted `_check_spec_exists` to always return `passed=True` (informational check per T-03 spec step 7).
 - **`src/fabrik/cli.py`**: Removed redundant file existence check for spec generation in scaffold CLI (scaffold.py already logs actual result).
 - **`src/fabrik/cli.py`**: Removed 'automation' from worker-kind mapping (not in SCAFFOLD_TYPES).
 - **`specs/services/dns-manager.yaml`**: Removed invalid `source: type: local` block (SourceType enum only accepts template, git, docker).
 
 ### Fixed — scaffold spec CLI visibility and depends mapping test coverage (2026-04-10)
+
 - **`src/fabrik/cli.py`**: `fabrik scaffold` now prints explicit CLI feedback for auto-spec generation outcomes (`✅ Generated spec: ...` on success, warning-only message on non-fatal failure), instead of relying on non-visible INFO logs.
 - **`tests/test_scaffold_spec_generation.py`**: Extended `TestNewCommandFromProject` to assert `create_spec()` receives `Depends(postgres='main', redis='main')` when compose context includes those dependencies, and `None` values when they are not detected.
 
 ### Fixed — validate-deploy zero-exit resilience and strict partial-failure assertion (2026-04-10)
+
 - **`src/fabrik/cli.py`**: Wrapped `validate_deploy()` call and result rendering in `validate_deploy_cmd()` with `try/except Exception`; unexpected validator runtime errors are now emitted as warnings to stderr without raising, preserving warning-only/exit-0 behavior.
 - **`tests/test_deploy_validator.py`**: Tightened `TestValidate.test_partial_failures_reported` to assert exactly one failed check and that the sole failure is `dockerfile`.
 
 ### Added — deploy_validator.py and fabrik validate-deploy command (2026-04-10)
+
 - **`src/fabrik/deploy_validator.py`**: New `[reusable]` module with 5 deployment readiness checks — deploy template exists, `.env.example` present, Dockerfile present, health endpoint detected, spec pre-existence info.
 - **`src/fabrik/deploy_validator.py`**: `validate()` runs all 5 checks and returns `list[ValidationResult]`; `format_warnings()` formats failed checks as warning strings.
 - **`src/fabrik/cli.py`**: `fabrik validate-deploy <path> --type <type>` standalone command — prints check results, always exits 0.
@@ -7791,6 +8073,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - **`tests/test_deploy_validator.py`**: 21 tests across 7 test classes covering all checks, aggregate API, and CLI behavior.
 
 ### Added — Scaffold auto-spec hook and fabrik new --from-project (2026-04-10)
+
 - **`src/fabrik/scaffold.py`**: `create_project()` gains `generate_spec: bool = True` parameter; after post-scaffold sync, calls `generate_and_save_spec()` for SPEC_ENABLED_TYPES with graceful degradation on failure.
 - **`src/fabrik/cli.py`**: `fabrik scaffold` gains `--no-spec` flag to skip automatic spec generation, passed as `generate_spec=not no_spec` to `create_project()`.
 - **`src/fabrik/cli.py`**: `fabrik new` gains `--from-project / -p` flag to extract env vars and secrets from an existing scaffolded project via `extract_project_context()`.
@@ -7798,14 +8081,17 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - **`tests/test_scaffold_spec_generation.py`**: 7 tests across 2 classes — scaffold spec hook (4 tests) and CLI `new --from-project` (3 tests).
 
 ### Fixed — Restore out-of-scope formatting changes from T-01 scope-fix commit (2026-04-10)
+
 - Restored the 7 prohibited files changed by `0cb9e15` to their exact `baaf953` baseline content (`.windsurf/rules/65-rag-search.md`, `docs/reference/SCAFFOLD_TO_DEPLOY_INTEGRATION.md`, `scripts/kilo-benchmarks/cache/*.json`, `scripts/kilo_all_models.json`, `src/fabrik/scaffold.py`).
 - Verified baseline diff hygiene: prohibited files no longer appear in `git diff --name-only baaf9539c5ea0480f4747493d7f7311f8030de79`; only allowed T-01-scope files remain eligible (`src/fabrik/spec_generator.py`, `tests/test_spec_generator.py`, `CHANGELOG.md`, `INDEX.md`).
 
 ### Fixed — Ignore malformed .env.example lines without assignments in spec parsing (2026-04-10)
+
 - **`src/fabrik/spec_generator.py`**: `_parse_env_example()` now skips non-comment, non-blank lines that do not contain `=`, so malformed lines are not treated as secret keys.
 - **`tests/test_spec_generator.py`**: Added regression test in `TestParseEnvExample` to verify malformed lines without `=` are ignored while valid secret assignments are still parsed.
 
 ### Added — spec_generator.py: core extraction and generation logic (2026-04-10)
+
 - `SPEC_ENABLED_TYPES` — frozenset of 7 scaffold types supporting auto-spec generation
 - `SECRET_PATTERNS` — tuple of 6 key-name patterns for secret classification
 - `extract_project_context()` — reads compose.yaml + .env.example, returns env/secrets/depends
@@ -7814,6 +8100,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - `tests/test_spec_generator.py` — 40 tests across 7 test classes (constants, helpers, public API)
 
 ### Added — Complete Deploy Template Coverage (2026-04-10)
+
 - **✅ 100% Template Coverage:** Created deploy templates for all 11 scaffold types
 - **`templates/python-api/`**: Added `compose.yaml.j2` + `defaults.yaml` (port 8000, FastAPI/Uvicorn, PostgreSQL/Redis support)
 - **`templates/saas-skeleton/`**: Added `compose.yaml.j2` + `defaults.yaml` (port 3000, Next.js + Supabase auth)
@@ -7823,45 +8110,54 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - **`docs/reference/SCAFFOLD_TO_DEPLOY_INTEGRATION.md`**: Phase 1 complete - documented 1:1 scaffold→deploy mapping
 
 ### Fixed — Deploy Templates (2026-04-10)
+
 - **`templates/mobile-app/compose.yaml.j2`**: Fixed port (8081→3000), added Traefik labels, added env template loop, fixed health check path
 - **`templates/desktop-app/compose.yaml.j2`**: Fixed port (variable→3000), added Traefik labels, added env template loop, removed hardcoded PORT variable
 - **`templates/desktop-app/defaults.yaml`**: Removed PORT variable (now uses fixed 3000)
 
 ### Added — [PORT] Placeholder Support (2026-04-10)
+
 - **`src/fabrik/scaffold.py`**: `_scaffold_shared()` now receives `host_port` parameter and adds `[PORT]` to template replacement map. Port determination moved to `create_project()` before `_scaffold_shared()` call.
 - **`templates/scaffold/docs/QUICKSTART_TEMPLATE.md`**: Replaced all `{PORT}` placeholders with `[PORT]` to use actual allocated port values in generated docs (15+ instances updated).
 
 ### Fixed — file-worker logger.py context_class and logger_factory alignment (2026-04-09)
+
 - **`src/fabrik/scaffold.py`**: `_scaffold_file_worker()` worker/logger.py: added missing `context_class=dict`, replaced `structlog.stdlib.LoggerFactory()` with `structlog.PrintLoggerFactory()` to align with python-api logger spec.
 - **`tests/test_scaffold_logging.py`**: Added `TestFileWorkerLogging` class (8 tests) covering PrintLoggerFactory, context_class=dict, processors, BoundLogger, cache, get_logger signature, and .env.example SERVICE_NAME.
 
 ### Fixed — Post-review alignment for scaffold logging modules (2026-04-09)
+
 - **`src/fabrik/scaffold.py`**: `_scaffold_python_api()` and `_scaffold_chrome_extension()` logger.py: removed `logging` import and `logging.basicConfig()`, removed `structlog.stdlib.add_logger_name` processor, replaced `structlog.stdlib.LoggerFactory()` with `structlog.PrintLoggerFactory()`, changed `get_logger` signature to `def get_logger(name: str = __name__)`, inlined `service=os.getenv("SERVICE_NAME", "<package>")` in return (removed `_SERVICE_NAME` intermediate).
 - **`src/fabrik/scaffold.py`**: `_scaffold_python_api()` and `_scaffold_chrome_extension()` middleware.py: changed header lookup from `"x-request-id"` to `"X-Request-ID"`, response header set from `"x-request-id"` to `"X-Request-ID"`, renamed context var from `correlation_id_ctx` to `correlation_id`.
 - **`src/fabrik/scaffold.py`**: `_scaffold_node_api()` and `_scaffold_file_api()` `.env.example`: added `# Service identity for structured logging` comment line before `SERVICE_NAME`.
 - **`INDEX.md`**: Added missing scaffold-generated file entries with [reusable] tags: `src/logger.js` (node-api + file-api), `lib/logger.ts` (saas-skeleton), `worker/logger.py` (file-worker).
 
 ### Added — Python scaffold ships logger.py + middleware.py (2026-04-09)
+
 - **`src/fabrik/scaffold.py`**: `_scaffold_python_api()` now generates `src/{package}/logger.py` (structlog with JSON output, `SERVICE_NAME` env var, `merge_contextvars` processor), `src/{package}/middleware.py` (X-Request-ID correlation via `contextvars` + `BaseHTTPMiddleware`), and an updated `main.py` importing both modules. Added `structlog>=24.0.0` to `requirements.txt`. Appends `SERVICE_NAME` to `.env.example`. Test file gains 2 correlation ID tests (total 5).
 - **`src/fabrik/scaffold.py`**: `_scaffold_chrome_extension()` server backend gets identical `logger.py` and `middleware.py` in `server/src/{package}/`. Updated `main.py` with structured logging + correlation middleware alongside existing CORS. Added `structlog>=24.0.0` to `requirements.txt`. Added `SERVICE_NAME` to `.env.example`.
 
 ### Added — Node scaffold pino structured logging for node-api + file-api (2026-04-09)
+
 - **`src/fabrik/scaffold.py`**: `_scaffold_node_api()` now generates `src/logger.js` (pino with SERVICE_NAME env var, isoTime timestamps), rewrites `src/index.js` with X-Request-ID correlation via `randomUUID()`, child logger per request, zero `console.log`. Added `pino` to `package.json` dependencies. Added `SERVICE_NAME` to `.env.example`.
 - **`src/fabrik/scaffold.py`**: `_scaffold_file_api()` now generates `src/logger.js` (same pino config). Added `pino` to `package.json` dependencies. Added `SERVICE_NAME` to `.env.example`.
 - **`templates/file-api/src/index.js`**: Replaced all `console.log()`/`console.error()` with pino structured logging (`logger.info()`/`logger.error()` with event objects). Added `require('./logger')` import. Server startup now logs `{ event: 'service_starting', port: PORT }`.
 - **`tests/test_node_scaffold_logging.py`**: 17 tests covering logger.js generation, pino dependency, SERVICE_NAME env var, console.log elimination, X-Request-ID correlation, and service_starting event for both node-api and file-api scaffolds.
 
 ### Added — saas-skeleton structured logger with pino (2026-04-09)
+
 - **`templates/saas-skeleton/package.json`**: Added `pino` ^9.0.0 to dependencies for structured JSON logging.
 - **`src/fabrik/scaffold.py`**: `_scaffold_saas_skeleton()` now generates `lib/logger.ts` with pino logger configured for `LOG_LEVEL` and `SERVICE_NAME` env vars. Project name used as fallback service name. Overwrites any template-copied `lib/logger.ts` by design.
 - **`tests/test_saas_logger.py`**: 5 tests covering logger file creation, pino import, project name substitution, package.json dependency, and static-site alias coverage.
 
 ### Added — file-worker structured logger module (2026-04-09)
+
 - **`templates/file-worker/worker/main.py`**: Replaced inline `structlog.configure()` block with `from worker.logger import get_logger` import, removing direct structlog dependency from main module.
 - **`src/fabrik/scaffold.py`** (`_scaffold_file_worker`): Generates `worker/logger.py` with `_setup_logging()` (contextvars, log level, ISO timestamps, stack info, exc info, JSON renderer) and `get_logger()` returning a bound logger with `SERVICE_NAME` identity.
 - **`src/fabrik/scaffold.py`** (`_scaffold_file_worker`): Added `SERVICE_NAME` env var to `.env.example` generation for structured logging service identity.
 
 ### Changed — Documentation template overhaul (2026-04-09)
+
 - **`templates/scaffold/docs/TROUBLESHOOTING_TEMPLATE.md`**: Complete replacement with structured troubleshooting guide including quick diagnostics, common issues table, health check failures, environment-specific fixes, and performance troubleshooting.
 - **`templates/scaffold/docs/API_REFERENCE_TEMPLATE.md`**: Replaced with comprehensive API reference template featuring REST API documentation, Python SDK section, detailed error reference, and integration with OpenAPI docs.
 - **`templates/scaffold/docs/DATABASE_SCHEMA_TEMPLATE.md`**: Updated with multi-database support (PostgreSQL/Supabase/SQLite), migration history, extensions (pgvector, pg_trgm), and connection string examples.
@@ -7869,13 +8165,16 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - **`templates/scaffold/docs/DOCS_INDEX_TEMPLATE.md`**: Simplified documentation index with clear navigation guidance and essential document listing.
 
 ### Removed — Obsolete documentation templates (2026-04-09)
+
 - **Deleted templates**: `MIGRATION_TEMPLATE.md`, `PLAN_TEMPLATE.md`, `RESEARCH_TEMPLATE.md`, `LAUNCH_CHECKLIST_TEMPLATE.md`, `SERVICES_TEMPLATE.md`, `ENV_EXAMPLE_TEMPLATE.md`.
 - **Reasoning**: Planning handled by Traycer, migrations in db/schema.sql, research uses raw MD files, launch checklists via workflows, services covered by QUICKSTART.md, and .env.example handled by scaffold inline generation.
 
 ### Fixed — Scaffold script template cleanup (2026-04-09)
+
 - **`scripts/kilo_docs_enforcer.py`**: Removed deleted template references from DOC_TEMPLATE_MAP, deleted ENV_FILE_PROMPT_TEMPLATE and its usage logic, fixed indentation issues.
 
 ### Added — Tests for content pipeline (2026-04-09)
+
 - **`tests/content/test_seo_client.py`**: 7 tests for SEOClient — domain lookup (found, not found, case-insensitive), list_ready_briefs, claim_brief, release_brief, submit_brief. All mock httpx.Client.
 - **`tests/content/test_tco_client.py`**: 2 tests for TCOClient — generate_from_brief success and HTTP error propagation.
 - **`tests/content/test_image_broker_client.py`**: 3 tests for ImageBrokerClient — auto_download success, failure (success=false), and HTTP error (graceful None return).
@@ -7884,6 +8183,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - **`tests/content/__init__.py`**: Empty init for test package.
 
 ### Added — Content Creation Pipeline drivers (2026-04-08)
+
 - **`src/fabrik/drivers/seo.py`**: SEOClient for keyword research and brief generation. Methods: `register_site()`, `ensure_site()`, `create_job()`, `run_job()`, `get_job()`, `wait_for_job()`, `list_briefs()`, `list_briefs()`, `get_brief()`, `claim_brief()`, `release_brief()`, `submit_brief()`. Follows DNSClient pattern with env-based auth (`SEO_API_URL`, `SEO_API_KEY`).
 - **`src/fabrik/drivers/tco.py`**: TCOClient for AI content generation from SEO briefs. Method: `generate_from_brief()` with 300s default timeout (full LLM pipeline). Auth via `TCO_API_URL`, `TCO_API_KEY`.
 - **`src/fabrik/drivers/image_broker.py`**: ImageBrokerClient for stock image selection. Methods: `auto_download()`, `search()`, `download_image()`. No auth required. Auth via `IMAGE_BROKER_URL`.
@@ -7892,31 +8192,39 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - **`docs/CONFIGURATION.md`**: Added Content Creation Pipeline section with architecture overview and env var documentation.
 
 ### Added — ContentPublisher orchestrator (2026-04-08)
+
 - **`src/fabrik/orchestrator/content_publisher.py`**: `ContentPublisher` class chains SEO → TCO → Image Broker → WordPress. Includes `PublishContext` dataclass for pipeline state tracking. Methods: `publish_page()` for full pipeline, helpers for site registration, image download, WP post building, brief submission.
 
 ### Added — Content publishing CLI commands (2026-04-08)
+
 - **`src/fabrik/cli.py`**: Added `content` command group with `publish` subcommand (full pipeline with dry-run support). Added `seo` command group with `site-register`, `job-create`, `job-run`, `briefs-list` subcommands.
 
 ### Fixed — consolidate_envs.py .env feedback loop (2026-04-08)
+
 - **`scripts/consolidate_envs.py`**: Fixed infinite .env backup loop by comparing parsed key-value dictionaries instead of raw text. Added backup rotation (keep last 3). Prevents inotifywait feedback loop when called by watch_env_changes.sh.
 
 ### Fixed — audit_all_projects.py lint warnings (2026-04-08)
+
 - **`scripts/audit_all_projects.py`**: Fixed ruff linting issues - removed unused `indent_level`, replaced unused loop variables (`i`, `sev`) with `_`, simplified `find_watchdog()` with `any()`, renamed ambiguous variable `l` to `loc`, renamed uppercase `L` to `lines`.
 
 ### Added — DNS Manager integration: driver, CLI, service contract (2026-04-07)
+
 - **`src/fabrik/drivers/dns.py`**: Extended DNSClient with Cloudflare provisioning (`provision()`, `check_ready()`, `list_zones()`, `get_zone_status()`, `cloudflare_health()`, `get_cloudflare_records()`), domain registration (`register_domain()`, `get_pricing()`). All methods call dns-manager service — Fabrik never calls Cloudflare/Namecheap directly.
 - **`src/fabrik/cli.py`**: Added `fabrik domain` command group with 5 subcommands: `check` (availability), `buy` (register), `provision` (Cloudflare DNS + CDN + WAF), `ready` (deployment readiness), `zones` (list Cloudflare zones).
 - **`docs/reference/service-contracts/dns-manager.md`**: Full integration contract with workflow diagrams, endpoint reference, request/response schemas, and notes on auth limitations (DNSSEC requires Global API Key, Namecheap requires whitelisted IP).
 - **`AGENTS.md`**: Updated DNS Manager entry in microservices table with full capabilities. Added DNS Manager Key Capabilities section with CLI-to-endpoint mapping.
 
 ### Changed — Remove dead api_key parameters from WordPress generators (2026-04-06)
+
 - **`src/fabrik/wordpress/content.py`**: Removed unused `api_key` param from `ContentGenerator.__init__()` and `generate_content()`. LLMClient reads keys from env vars internally.
 - **`src/fabrik/wordpress/legal.py`**: Removed unused `api_key` param from `LegalContentGenerator.__init__()` and `generate_legal_pages()`. Content creation moving to TCO project.
 
 ### Added — Fabrik phase gap analysis document (2026-04-06)
+
 - **`docs/development/plans/fabrik-phase-gap-analysis.md`**: Comprehensive gap analysis across all 10 Fabrik phases. Contains executive summary with actual vs. claimed completion percentages, 15 STILL NEEDED items as ticket-ready descriptions, 8 OBSOLETE items with reasoning, and 6 quick wins. Incorporates VPS state corrections from 2026-04-06 (Duplicati fix, ocoron.com compromise, WordPress template migration, newly confirmed services).
 
 ### Changed — Migrate WordPress templates to FPM+Nginx stack per 62-wordpress.md (2026-04-06)
+
 - **`templates/wordpress/base/compose.yaml.j2`**: Replaced `wordpress:php8.2-apache` with `wordpress:php8.3-fpm-bookworm`. Added `nginx:mainline-bookworm-slim` service with all Traefik labels (xmlrpc blocking, rate-limiting). Added `redis:7-bookworm` service with healthcheck. Changed volume from `wordpress_data:/var/www/html` to `wp_content:/var/www/html/wp-content`. Updated backup volume mount.
 - **`templates/wordpress/base/compose-coolify.yaml.j2`**: Same FPM+Nginx+Redis migration as compose.yaml.j2. Traefik labels (including www redirect) moved from wordpress to nginx service.
 - **`templates/wordpress/base/nginx/default.conf.j2`**: New file. Nginx config with FastCGI proxy to `wordpress:9000`, `fastcgi_cache` zone (`wp_cache:10m`, 60m inactive), static file caching (`expires 30d`), xmlrpc block (`return 444`), gzip compression, security deny rules.
@@ -7924,32 +8232,39 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - **`templates/wordpress/defaults.yaml`**: Replaced banned `sitepress-multilingual-cms` (WPML) with `polylang`.
 
 ### Added — DNS provisioning in deployment orchestrator (2026-04-06)
+
 - **`src/fabrik/orchestrator/__init__.py`**: Implemented `_provision_dns()` method. Parses domain into subdomain + base domain, creates DNS A record via `DNSClient` (Namecheap/dns-manager) with automatic `CloudflareClient` fallback. Records DNS resource in `ctx.created_resources` for LIFO rollback. Supports dry-run logging, no-domain skip, and raises `ProvisioningError` on failure.
 - **`tests/orchestrator/test_integration.py`**: Added 3 tests: `test_deploy_creates_dns_record`, `test_deploy_skips_dns_when_no_domain`, `test_deploy_rollback_includes_dns`.
 
 ### Changed — Migrate WordPress AI modules to unified LLMClient (2026-04-06)
+
 - **`src/fabrik/wordpress/content.py`**: Replaced direct `anthropic.Anthropic()` usage with `LLMClient(provider=LLMProvider.CLAUDE)`. Removed `import anthropic`, `HAS_ANTHROPIC` guard, and manual API key handling. Both `generate_page()` and `generate_service_page()` now use `client.generate(prompt, project="wordpress")` with automatic retry, OpenAI fallback capability, and cost tracking.
 - **`src/fabrik/wordpress/legal.py`**: Same migration for `generate_privacy_policy()`, `generate_terms_of_service()`, and `generate_cookie_policy()`. The `generate_legal_pages()` convenience function's fallback guard simplified from `HAS_ANTHROPIC` check to unconditional `use_ai` check since `LLMClient` is always available as an internal module.
 
 ### Added — Backfill has_user_guide metadata for existing projects via fabrik fix (2026-04-05)
+
 - **`src/fabrik/scaffold.py`**: Extracted `GUIDE_ENABLED_TYPES` as module-level constant (shared by `create_project()` and `fix_project()`). `fix_project()` now backfills `has_user_guide` in `project.yaml` when the key is missing, deriving the value from `type` using the same mapping as scaffold create. Existing explicit values are preserved.
 - **`tests/test_backfill_has_user_guide.py`**: 9 regression tests covering missing-key backfill (guide-enabled → true, non-guide → false, missing type defaults), explicit-key preservation, dry-run reporting, and all type mappings.
 - **`INDEX.md`**: Added test file entry.
 
 ### Changed — Workflow docs sync and exact execution metadata enforcement (2026-04-05)
+
 - **`AGENTS.md`**: Enforcement Policy item 5 now states `AGENTS-compact.md` carries the completion contract and cross-cutting rules for Kilo CLI agents.
 - **`docs/traycer/fabrik-workflow.md`**: Execution Metadata template now requires exact Kilo agent script names and exact Cascade model names; generic bands (`Local free`, `Cloud mid-tier`, `Premium`) are invalid. Agent Selection authoring rules updated with reference file pointers and local agent list.
 
 ### Fixed — Preserve has_user_guide through registry sync pipeline (2026-04-05)
+
 - **`scripts/sync_projects.py`**: Added `has_user_guide` to `Project` dataclass, `_build_project()` copy loop, and `to_registry_dict()` so the field survives into `data/projects.yaml`.
 - **`src/fabrik/registry.py`**: Added `has_user_guide` to `Project`, `to_dict()`, and `from_dict()` so downstream registry consumers retain the flag.
 - **`tests/test_sync_has_user_guide.py`**: 5 regression tests covering `_build_project()`, `to_registry_dict()`, `save_registry()` round-trip, and `registry.py` `to_dict()`/`from_dict()`.
 
 ### Changed — Complete has_user_guide scaffold metadata wiring (2026-04-04)
+
 - **`src/fabrik/scaffold.py`**: `create_project()` now sets `has_user_guide: true` for guide-enabled scaffold types (`saas-skeleton`, `chrome-extension`, `mobile-app`, `desktop-app`, `static-site`); non-guide types remain `false`.
 - **`tests/test_scaffold.py`**: Added parametrized tests for guide-enabled and non-guide types asserting correct `has_user_guide` value in `project.yaml`.
 
 ### Fixed — Epic review fixes: scaffold blocker + doc sync (2026-04-04)
+
 - **`src/fabrik/scaffold.py`**: Added `has_user_guide: false` to `project.yaml` metadata dict and header comment. Newly scaffolded projects now have the field visible for the user-guide enforcement gate.
 - **`INDEX.md`**: Added entries for `check_print_ban.py`, `check_user_guide.py`, `check_reusable_modules.py`, `test_cross_cutting_enforcement.py`. Updated enforcement script count 30→33.
 - **`docs/workflows/FINAL_GATE_WORKFLOW.md`**: Added Print/Console Ban to Tier 1 (5 checks), User Guide Presence and Reusable Module Tagging to Tier 2 (18 checks).
@@ -7958,11 +8273,13 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - **`tests/test_scaffold.py`**: Added test verifying `has_user_guide` field exists in scaffolded `project.yaml`.
 
 ### Changed — Update AGENTS-compact.md and sync workflow documentation (2026-04-04)
+
 - **`AGENTS-compact.md`**: Added `## CROSS-CUTTING (Every task)` section with 4 concise rules (doc currency, structured logging, user guide, reusable modules). Total 42 lines — stays under 60-line compact contract.
 - **`docs/workflows/FINAL_GATE_WORKFLOW.md`**: Replaced bare `pip install` with venv-scoped `/opt/<project>/.venv/bin/pip install` per PEP 668 conventions.
 - **`docs/workflows/KILO_DISPATCH_WORKFLOW.md`**: Updated overview to mention cross-cutting requirements injection alongside technology packs.
 
 ### Added — Cross-cutting enforcement checks in final_gate.py (2026-04-04)
+
 - **`scripts/enforcement/check_print_ban.py`**: Tier 1 enforcement banning `print()` in production `.py` files and `console.log()` in `.ts`/`.tsx`/`.js`/`.jsx` files. Skips test files (all extensions: `.test.tsx`, `.spec.js`, `.test.jsx`, `.spec.tsx`, etc.) and `scripts/` directory.
 - **`scripts/enforcement/check_user_guide.py`**: Tier 2 enforcement verifying `docs/user-guide/` exists with at least one `.md` file when `project.yaml` has `has_user_guide: true`. Uses stdlib-only regex parser (no PyYAML dependency) for cross-project portability.
 - **`scripts/enforcement/check_reusable_modules.py`**: Tier 2 warning-level check that `src/utils/` and `src/lib/` modules are tagged `[reusable]` in `INDEX.md`.
@@ -7970,18 +8287,21 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - **`tests/test_cross_cutting_enforcement.py`**: 31 tests covering all 3 enforcement scripts plus advisory warning integration.
 
 ### Changed — Wire local agent wrappers through kilo_dispatch.py (2026-04-04)
+
 - **`scripts/Local_Coder_qwen32b.sh`**: Replace direct `exec "$CLI_AGENT"` with `kilo_dispatch.py` dispatch; prompts now receive AGENTS-compact.md, rule packs, and cross-cutting requirements. Added `--dry-run` passthrough.
 - **`scripts/Local_Fixer_ds16b.sh`**: Same wiring with `--template fix`.
 - **`scripts/Local_Documentator_llama3.1-8b.sh`**: Same wiring with `--template code`.
 - All 3 wrappers set default `TRAYCER_*` environment variables; `kilo_dispatch.py` overrides `TRAYCER_TASK_ID` and `TRAYCER_WORKFLOW` at dispatch time.
 
 ### Added — Cross-cutting requirements injection in kilo_dispatch.py (2026-04-04)
+
 - **`scripts/kilo_dispatch.py`**: Added `CROSS_CUTTING_FILE` constant and `_load_cross_cutting()` function; `load_project_context()` now injects a `## Cross-Cutting Requirements (Always Active)` section after pack blocks, outside the 40-line pack cap. Projects without the file degrade gracefully.
 - **`.windsurf/rules/CROSS_CUTTING_REQUIREMENTS.md`**: Fixed path reference `.windsurfrules/rules/55-observability.md` → `.windsurf/rules/55-observability.md`
 - **`docs/traycer/fabrik-workflow.md`**: Fixed 3 path references `.windsurfrules/rules/` → `.windsurf/rules/` (lines 401, 433, 754)
 - **`tests/test_kilo_dispatch.py`**: Added 7 tests (TestCrossCuttingInjection: 4 tests, TestLoadCrossCutting: 3 tests) — 49 total, all passing
 
 ### Changed — Fabrik workflow commands updated (2026-04-04)
+
 - **`docs/traycer/fabrik-workflow.md`**: Updated all 8 Traycer workflow commands:
   - **trigger_workflow:** Added design system to Step 1 context orientation, added constraint #12 (Design System), expanded routing table with HAS_USER_GUIDE column, updated INFRA-CHECK format, updated acceptance criteria 11→12 constraints
   - **epic-brief:** Added Metadata section (HAS_USER_GUIDE, Scaffold, Port) carried from trigger_workflow, updated drafting rules and acceptance criteria
@@ -7993,12 +8313,14 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
   - **cross-artifact-validation:** Added Metadata Consistency analysis dimension, cross-cutting Verification completeness in ticket reconciliation, updated acceptance criteria
 
 ### Fixed — BUG-11 Make Fabrik-root Kilo context behavior explicit and fail-fast (2026-04-03)
+
 - **BUG-11**: Running `kilo_dispatch.py` against `/opt/fabrik` (monorepo root) without `project.yaml` no longer silently proceeds with reduced context:
   - `scripts/kilo_dispatch.py`: Added `FABRIK_ROOT` constant (exact path from `Path(__file__)`), `_is_fabrik_root()` compares resolved paths (not `AGENTS.md` existence); `FabrikRootNoPacksError` raised when no `--packs` or when all supplied pack IDs are invalid; caught in `main()` with actionable error listing available pack IDs
   - `docs/workflows/KILO_DISPATCH_WORKFLOW.md`: Added `--packs` example for Fabrik-root work in Commands Reference; added "Fabrik-root requires --packs" troubleshooting section with invalid-pack note
   - `tests/test_kilo_dispatch.py`: Rewrote `TestFabrikRootBehavior` — 9 tests using monkeypatched `FABRIK_ROOT`, scaffolded child project fixture (with `AGENTS.md`), invalid-pack fail-fast, graceful degradation — 42 total, all passing
 
 ### Fixed — BUG-10 Align file-api identity across AGENTS, Kilo pack mapping, and workflow docs (2026-04-03)
+
 - **BUG-10**: `file-api` scaffold is Node.js/JavaScript (Express, `package.json`, `src/index.js`) but was mapped to `PY_CORE`:
   - `AGENTS.md`: Changed `file-api` default packs from `PY_CORE` to `—` (empty); added `file-api` to JavaScript-based scaffold note
   - `scripts/kilo_dispatch.py`: Changed `PACK_MAPPING["file-api"]` from `["PY_CORE"]` to `[]`
@@ -8007,6 +8329,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
   - `tests/test_kilo_dispatch.py`: Added 2 tests (`test_file_api_gets_empty_defaults`, `test_file_api_does_not_inject_py_core`) — 33 total, all passing
 
 ### Fixed — T14 Sync workflow documentation with current agent model (2026-04-03)
+
 - **T14**: Fixed 13 stale "Kilo reads AGENTS.md" references across 7 active docs to reflect 3-layer model:
   - `docs/traycer/fabrik-workflow.md`: Added 3 verification bullets, 1 drafting rule (Tech Plan component cross-check), 1 acceptance criterion (component coverage) to ticket-breakdown section
   - `docs/workflows/KILO_DISPATCH_WORKFLOW.md`: Updated prompt composition to describe selective loading from `AGENTS-compact.md` + rule packs; updated agent inventory table to 10 agents (added 4 local LLM agents)
@@ -8018,6 +8341,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
   - `README.md`: Fixed both AGENTS.md descriptions (lines 738, 748) to "Traycer orchestrator contract"
 
 ### Changed — T13 Selective context loading and hardened agent contracts (2026-04-03)
+
 - **T13**: Replaced blanket rule loading in `kilo_dispatch.py` with project-type-aware selective loading:
   - Added `PACK_REGISTRY` (16 pack ID → rule file mappings) and `PACK_MAPPING` (11 project type → default pack lists) mirroring `AGENTS.md` enforcement policy
   - Rewrote `load_project_context()`: loads only `AGENTS-compact.md` (removed `AGENTS.md` fallback), reads `project.yaml` for type, loads only mapped rule files + `TESTING` overlay, enforces 40-line cap (drops overlays first)
@@ -8029,6 +8353,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
   - Added `tests/test_kilo_dispatch.py` (31 tests): pack selection per type, `--packs` overlay, missing `project.yaml`, unknown type, 40-line cap, AGENTS.md fallback removal, PACK_MAPPING 11-entry sync check
 
 ### Fixed — T12 Sync workflow documentation with final scaffold and gate behavior (2026-04-03)
+
 - **T12**: Synced 3 workflow docs to match T11 scaffold output and T10 gate behavior:
   - `FABRIK_SCAFFOLD_WORKFLOW.md`: Updated Per-Type Scaffold Details key dirs for `docusaurus` (`docs/`, `openapi.yaml`, `src/css/`), `mobile-app` (`src/navigation/`, `src/features/`), `desktop-app` (`electron/`)
   - `FABRIK_SCAFFOLD_WORKFLOW.md`: Replaced per-type directory structure blocks — docusaurus now shows OpenAPI files (`openapi.yaml`, `docs/api/sidebar.js`, `src/css/custom.css`, `static/img/`), mobile-app shows full React Navigation template tree, desktop-app shows `electron/main.js` + `index.html`
@@ -8038,6 +8363,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
   - Zero grep matches for `_scaffold_generic_ts`, `Generic TS scaffold` in `docs/workflows/`
 
 ### Changed — T11 Reconcile scaffold with docusaurus/mobile/desktop template authority (2026-04-03)
+
 - **T11**: Replaced `_scaffold_generic_ts()` with three dedicated template-backed scaffolders:
   - `_scaffold_mobile_app()`: Copies `templates/mobile-app/package.json` (full React Native deps) + entire `src/` tree (navigation, features, screens) from template
   - `_scaffold_desktop_app()`: Copies `templates/desktop-app/package.json` (Electron deps + build config) + `electron/` tree from template, creates `index.html`
@@ -8049,6 +8375,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
   - Added `TestMobileAppScaffold` (6 tests), `TestDesktopAppScaffold` (6 tests), `TestDocusaurusScaffold` (10 tests incl. OpenAPI contract)
 
 ### Fixed — T10 Scaffold/governance/workflow parity across code and docs (2026-04-02)
+
 - **T10**: Fixed 6 alignment gaps between scaffold code, governance validation, and documentation:
   - `scaffold.py`: Replaced Expo scripts with React Native (`react-native start/run-android/run-ios`) in mobile-app config
   - `scaffold.py`: `_scaffold_shared()` now copies `.windsurf/workflows/` with fail-fast source check (workspace isolation)
@@ -8062,6 +8389,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
   - Added `TestMobileAppScaffold` (3 tests), `TestWorkflowsPropagation` (2 tests), `TestCheckSymlinksWorkflowsIsolation` (5 tests)
 
 ### Changed — T9 Sync FABRIK_SCAFFOLD_WORKFLOW.md with current state (2026-04-02)
+
 - **T9**: Updated `docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md` across 8 stale areas:
   - Updated "Last Updated" date to 2026-04-02
   - Type Comparison table: `chrome-extension` now shows ✅ container + ✅ Docker; added `static-site` as ✅ container + Coolify (11 types total)
@@ -8078,6 +8406,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - **T8**: Replaced "Windsurf shim" terminology with "Cascade compact agent contract" in 3 files (`SYNC_ENFORCEMENT_WORKFLOW.md`, `FABRIK_SCAFFOLD_WORKFLOW.md`, `PROJECT_INDEX_TEMPLATE.md`). Updated `docs/traycer/README.md` `20-typescript` label to framework-agnostic. Updated `README.md` chrome-extension row to match shipped stack (TypeScript + Vite + CRXJS + Python backend).
 
 ### Changed — Align always-on rules + fix stale 00-critical.md refs (2026-04-02)
+
 - **T8**: Aligned `50-code-review.md` and `90-automation.md` with unified workflow model
   - `50-code-review.md` line 17: replaced stale `00-critical.md` reference with `.windsurfrules`
   - `90-automation.md` trigger table: replaced 3 `00-critical.md` references with `.windsurfrules`
@@ -8094,6 +8423,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - **Epic complete:** All 25 tickets done (T1–T8, BUG-1–9, RF-01–RF-11, T5–T7)
 
 ### Changed — Cascade Compact Agent Contract + Archive 00-critical.md (2026-04-02)
+
 - **T7**: Rewrote `.windsurfrules` from 16-line shim into ~166-line Cascade compact agent contract
   - All Cascade-unique content from `00-critical.md` preserved: RULES ACTIVE banner, orientation scan, plan requirements, behavior rules, Decision-Grade Audit + One-Test Rule, terminal selection, Fast Context, script dedup check, PEP 668, password policy, target environments table
   - Condensed essential invariants: CHANGELOG, db/schema.sql, .env.example, port registration, sensitive data backup, slim-bookworm, ARM64, no hardcoded secrets, health endpoints, no /tmp/, no class-level config
@@ -8102,10 +8432,12 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - Deleted `.windsurf/rules/00-critical.md` from active rules
 
 ### Fixed — RF-03 + RF-11 Rule File Alignment (2026-04-02)
+
 - **RF-03 `35-security-auth.md`**: Replaced `expo-secure-store` with `react-native-keychain` (aligns with bare React Native stack). Replaced `capacitor://localhost` CORS row with "N/A — native HTTP client not subject to CORS".
 - **RF-11 `95-multi-tenant-saas.md`**: Added Tenant Membership Validation section — tenant context must not be set without verifying user belongs to requested tenant. Added corresponding banned pattern and Done When entry.
 
 ### Changed — Scaffold Documentation Synced with Implementation (2026-04-01)
+
 - **T6**: Updated `docs/workflows/SCAFFOLD_STRUCTURE.md` to reflect all epic changes
   - `.windsurf/rules/` listing updated from 8 to 21 rule files (all current files)
   - Scaffold Types table updated from 6 to 11 types (matches `AGENTS.md`)
@@ -8114,6 +8446,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
   - `node-api` description corrected: Express + JavaScript (not TypeScript)
 
 ### Changed — Chrome Extension Scaffold: Webpack → Vite + CRXJS (2026-04-01)
+
 - **BUG-9**: Migrated chrome-extension scaffold from webpack to Vite + CRXJS
   - `src/fabrik/scaffold.py`: Rewrote `_scaffold_chrome_extension` — generates `extension/vite.config.ts` with `@crxjs/vite-plugin`, Vite deps/scripts in `extension/package.json`, no webpack output
   - `templates/chrome-extension/manifest.json.j2`: Updated paths for CRXJS (`.ts` source files, `src/popup.html`)
@@ -8124,6 +8457,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
   - Server-side scaffold (Dockerfile, compose.yaml, FastAPI) unchanged
 
 ### Changed — MOBILE_UI Rewritten as React Native Pack (2026-04-01)
+
 - **BUG-8**: Archived legacy Kotlin/Swift native mobile pack, replaced with React Native / TypeScript ruleset
   - Archived: `docs/archive/2026-04-01-80-mobile-legacy-native.md` (historical Jetpack Compose / SwiftUI rules)
   - New `.windsurf/rules/80-mobile.md`: React Native + TypeScript aligned with actual `mobile-app` scaffold
@@ -8133,6 +8467,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
   - No Jetpack Compose, SwiftUI, or Kotlin Multiplatform assumptions remain
 
 ### Changed — TS_CORE Rewritten as Cross-Project TypeScript Pack (2026-04-01)
+
 - **BUG-7**: Rewrote `.windsurf/rules/20-typescript.md` from Next.js-specific to framework-agnostic TypeScript discipline
   - Removed: SaaS skeleton bootstrap (MANDATORY `cp -r`), Server/Client Components, App Router API routes with `{ error: ... }`, Tailwind/shadcn/Lucide mandate, Visual Design Workflow
   - Added: Strict Mode (`tsconfig.json`), Type Safety (discriminated unions, `unknown` over `any`), Module Patterns (ESM, path aliases), Error Handling (typed errors, defers to `API_CONTRACTS` for RFC 7807), Async Patterns, Banned Patterns table (9 entries), Done When checklist (6 items)
@@ -8140,6 +8475,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
   - `AGENTS.md`: Removed `node-api` from default `TS_CORE` mapping because the scaffold is currently JavaScript-based (`src/index.js`). Remaining `TS_CORE` mappings stay compatible with the rewritten pack.
 
 ### Added — Static-Site Scaffold Type (2026-04-01)
+
 - **BUG-6**: Implemented `static-site` scaffold type in `src/fabrik/scaffold.py`
   - Thin alias for `saas-skeleton` — same template, same Next.js structure
   - Added to `SCAFFOLD_TYPES`, `TYPE_REQUIRED_FILES`, `_TYPE_SCAFFOLDERS` dispatch table
@@ -8148,6 +8484,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
   - 3 tests added in `tests/test_scaffold.py`: type in project.yaml, structure matches, port range
 
 ### Fixed — Cross-Rule Contradictions and Activation Scopes (2026-04-01)
+
 - **BUG-4**: 8 targeted fixes across `.windsurf/rules/*.md` and `AGENTS.md`
   - `25-data-postgres.md`: Added narrow `deleted_at` exception for `tenants` table in multi-tenant offboarding (resolves contradiction with `95-multi-tenant-saas.md`)
   - `35-security-auth.md`: Replaced Postmark with Fabrik Email Gateway (Resend + SES, port 3000) — aligns with existing infrastructure in AGENTS.md
@@ -8162,6 +8499,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
   - `AGENTS.md`: Added `docs/reference/**/*.md` to Documentation Rules allowlist (matches `40-documentation.md`)
 
 ### Added — Rule-Pack Enforcement Architecture (2026-04-01)
+
 - **`AGENTS.md`**: New "Rule-Pack Enforcement" section wiring all 16 rule packs into Traycer orchestration
   - Pack Registry table: 16 packs (5 Core, 5 Backend, 2 Platform, 3 Domain) with file paths
   - Project Type → Default Packs mapping for all 11 scaffold types (including new `static-site`)
@@ -8175,6 +8513,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
   - Anti-pattern table for wrong scaffold choices
 
 ### Fixed — Cascade Models Credit Display (2026-03-31)
+
 - **BUG**: `docs/reference/windsurf/cascade-models.md` showed negative credits (-1.0) for unavailable models
   - Root cause: `scrape_windsurf_models.py` output `credits_numeric` (-1.0) directly instead of em-dash
   - Affected models: Claude 4 Opus, Claude 4 Opus (Thinking), GPT-5.3-Codex-Spark
@@ -8182,6 +8521,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
   - Regenerated cascade-models.md with 117 models across 7 providers
 
 ### Added — Chrome Extension Scaffold Restructuring (2026-03-31)
+
 - **`src/fabrik/scaffold.py`**: Implemented `_scaffold_chrome_extension()` function for dual-artifact structure
   - Extension side: `extension/src/` (TypeScript stubs), `extension/public/` (popup.html, icons), `manifest.json`, `webpack.config.js`, `package.json`
   - Server side: `server/src/<package_name>/main.py` (FastAPI + CORS + /health endpoint)
@@ -8198,6 +8538,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
   - Kept: `manifest.json.j2` (correct, rendered into `extension/manifest.json`)
 
 ### Fixed — Chrome Extension Scaffold Compatibility and Runtime (2026-03-31)
+
 - **BUG-1**: Fixed `_scaffold_generic_ts()` signature to accept `**kwargs` for compatibility with dispatch table
   - Prevents runtime errors when creating docusaurus, mobile-app, desktop-app projects
   - Validated all 3 generic TS types still scaffold correctly
@@ -8225,6 +8566,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
   - Added regression guard test in `tests/test_scaffold.py::test_test_workflow_is_wired_correctly`
 
 ### Added — WordPress Rules (2026-04-01)
+
 - **`.windsurf/rules/62-wordpress.md`**: New rule file distilled from Gemini research (`docs/development/plans/62-wordpress.md`)
   - 16 enforceable rules: MariaDB exclusivity, php-fpm behind Nginx, wp-content-only volume persistence
   - Nginx FastCGI Cache + Redis Object Cache, security hardening (DISALLOW_FILE_EDIT, xmlrpc block, env secrets)
@@ -8234,6 +8576,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
   - Activation: glob on `**/wp-content/**`, `**/wp-config*`, `**/compose.yaml`
 
 ### Added — Docusaurus Rules (2026-04-01)
+
 - **`.windsurf/rules/42-docusaurus.md`**: New rule file distilled from Gemini research (`docs/development/plans/42-Docusaurus.md`)
   - 15 enforceable rules: static-only deployment, two-stage Docker (node→nginx), Pagefind WASM search
   - Scalar for API reference, Git branch versioning, Git-based i18n, CommonMark authoring
@@ -8242,6 +8585,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
   - Activation: glob on `**/docusaurus.config.*`, `**/sidebars.*`, `docs/**/*.md`, `docs/**/*.mdx`
 
 ### Added — Multi-Tenant SaaS Rules (2026-03-31)
+
 - **`.windsurf/rules/95-multi-tenant-saas.md`**: New rule file distilled from Gemini research (`docs/development/plans/95-multi-tenant-saas.md`)
   - 15 enforceable rules: shared-DB with PostgreSQL RLS, FORCE ROW LEVEL SECURITY, fail-closed default
   - Tenant context via `SET LOCAL` + `ContextVar`, tenant resolution middleware, composite indexing
@@ -8250,6 +8594,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
   - Activation: glob on `**/tenants/**`, `**/middleware/**`, `**/rls/**`, `**/organizations/**`
 
 ### Added — Payments & Billing Rules (2026-03-31)
+
 - **`.windsurf/rules/85-payments-billing.md`**: New rule file distilled from Gemini research (`docs/development/plans/85-payments-billing.md`)
   - 14 enforceable rules: Paddle Billing v2 MoR exclusivity, Overlay Checkout, Customer Portal sessions
   - Webhook security (raw bytes HMAC, `compare_digest`), idempotency via `webhook_events` table
@@ -8258,6 +8603,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
   - Activation: glob on `**/billing/**`, `**/payments/**`, `**/stripe/**`, `**/webhooks/**`, `**/subscriptions/**`
 
 ### Added — Workers & Jobs Rules (2026-03-31)
+
 - **`.windsurf/rules/75-workers-jobs.md`**: New rule file distilled from Gemini research (`docs/development/plans/75-workers-jobs.md`)
   - 16 enforceable rules: PostgreSQL-exclusive queuing (SKIP LOCKED), transactional outbox, deterministic idempotency
   - Retry/backoff defaults, dead-letter handling, visibility timeouts, LISTEN/NOTIFY wake-up
@@ -8266,6 +8612,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
   - Activation: glob on `**/workers/**`, `**/jobs/**`, `**/tasks/**`, `**/queue/**`
 
 ### Added — RAG & Search Rules (2026-03-31)
+
 - **`.windsurf/rules/65-rag-search.md`**: New rule file distilled from Gemini research (`docs/development/plans/65-rag-search.md`)
   - 14 enforceable rules: pgvector-only storage, HNSW parameters, hybrid search with RRF, chunking defaults
   - Token budgeting (85% rule + tiktoken), citation provenance, retrieval quality eval (Faithfulness + Precision)
@@ -8274,6 +8621,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
   - Activation: glob on `**/embeddings/**`, `**/retrieval/**`, `**/rag/**`, `**/vector/**`
 
 ### Added — Observability Rules (2026-03-31)
+
 - **`.windsurf/rules/55-observability.md`**: New rule file distilled from Gemini research (`docs/development/plans/55-observability.md`)
   - 16 enforceable rules: structured JSON logging, correlation IDs, PII redaction, Loki label discipline
   - Health endpoint semantics with start_period, SLO-lite alerting (RED method), synthetic monitoring
@@ -8282,6 +8630,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
   - Activation: glob on `**/health*`, `**/logging*`, `**/middleware/**`, `**/monitoring/**`
 
 ### Added — Testing Strategy Rules (2026-03-31)
+
 - **`.windsurf/rules/45-testing-strategy.md`**: New rule file distilled from Gemini research (`docs/development/plans/45-testing-strategy.md`)
   - 14 enforceable rules: Testing Trophy model, One-Test Rule, minimum test by ticket type matrix
   - Per-stack frameworks: pytest+real PG (backend), Playwright (Next.js), Maestro (mobile), Playwright persistent context (extensions)
@@ -8290,6 +8639,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
   - Activation: glob on `**/tests/**`, `**/test_*`, `**/*.test.*`, `**/*.spec.*`
 
 ### Added — Security & Auth Rules (2026-03-31)
+
 - **`.windsurf/rules/35-security-auth.md`**: New rule file distilled from Gemini research (`docs/development/plans/35-security-auth.md`)
   - 15 enforceable rules: FastAPI sole IdP, hybrid JWT lifecycle, token storage matrix, defense-in-depth
   - CORS policy per client type, CSP nonce injection, FastAPI security headers, internal service auth
@@ -8297,6 +8647,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
   - Activation: glob on `**/auth/**`, `**/security/**`, `**/middleware/**`
 
 ### Added — PostgreSQL & Data Rules (2026-03-31)
+
 - **`.windsurf/rules/25-data-postgres.md`**: New rule file distilled from Gemini research (`docs/development/plans/25-data-postgres.md`)
   - 16 enforceable rules: Alembic migrations, UUIDv7 keys, NOT NULL default, soft delete ban, JSONB boundaries
   - Transaction scoping via Depends(), expire_on_commit=False, pool_pre_ping, connection pooling strategy
@@ -8305,6 +8656,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
   - Activation: glob on `**/db/**`, `**/models/**`, `**/schema.sql`, `**/migrations/**`
 
 ### Added — API Contract Rules (2026-03-31)
+
 - **`.windsurf/rules/15-api-contracts.md`**: New rule file distilled from Gemini research (`docs/development/plans/15-api-contracts.md`)
   - 15 enforceable rules: OpenAPI-first, RFC 7807 errors, cursor pagination, idempotency, URI versioning
   - Casing boundary (Pydantic alias_generator), service layer isolation, async discipline
@@ -8312,6 +8664,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
   - Activation: glob on `**/routes/**`, `**/api/**`, `**/route.ts`, `**/router.py`
 
 ### Changed — Documentation Rules Simplified (2026-03-31)
+
 - **`.windsurf/rules/40-documentation.md`**: Simplified from 220 → 59 lines (directive-style guidance)
   - Applied ai_agent_prompt_directives.md principles: imperative language, minimal explanation
   - Each section: **Update when** / **What** / **Enforced** (no examples, no format details)
@@ -8331,6 +8684,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
   - Fixed compose filename: `compose.yaml` not `docker-compose.yml` (matches scaffold)
 
 ### Changed — Changelog Enforcement Moved to Tier 1 (2026-03-30)
+
 - **`scripts/final_gate.py`**: Moved `check_changelog.py` from Tier 2 to Tier 1 (Lean) gate
   - Prevents agents from forgetting changelog entries across tasks 1-9
   - Reduces token spike at milestone by enforcing incrementally
@@ -8345,6 +8699,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
   - Added explanation of why changelog is in Tier 1
 
 ### Changed — AGENTS-compact.md Finalized with Imperative Commands (2026-03-30)
+
 - **`AGENTS-compact.md`**: Converted to imperative command format for reduced agent drift
   - Added scannable HARD STOPS table for better visibility
   - Added critical dependency protection: `pyproject.toml`/`requirements.txt` edits only when explicitly required
@@ -8355,6 +8710,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
   - Removed narrative prose, increased instruction density
 
 ### Changed — Zero-Feedback Loop with Exit-Code-Only Workflow (2026-03-30)
+
 - **`scripts/final_gate.py`**: Fixed auto-staging to work in JSON mode
   - Previously only staged in human-readable mode
   - Now stages silently when `--json` flag is used
@@ -8366,6 +8722,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
   - Maximum token savings: no report block overhead
 
 ### Changed — Agent Workflow with JSON Gates and Ruff Auto-Clean (2026-03-30)
+
 - **`AGENTS-compact.md`**: Updated with one-pass workflow using JSON gates
   - Defined completion contract: Implement → Test → Auto-clean → Gate
   - Tasks 1-9: Lean gate (`--lean --json`)
@@ -8378,6 +8735,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
   - Saves context tokens for agents
 
 ### Changed — Consolidated Static Analysis into Ruff (2026-03-30)
+
 - **`templates/scaffold/python/pyproject.toml.template`**: Expanded Ruff lint configuration
   - Added `"S"` (flake8-bandit) for security scanning
   - Ensured `"F841"` included for unused variable detection
@@ -8386,6 +8744,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
   - Consolidated multiple slower tools into single fast Ruff pass
 
 ### Added — JSON Output Support to final_gate.py (2026-03-30)
+
 - **`scripts/final_gate.py`**: Added `--json` flag for deterministic JSON output
   - JSON schema: `{"status": "success|failure", "tier": 1|2|3, "passed": N, "failed": N, "failures": [...]}`
   - Suppresses human-readable output when `--json` is used
@@ -8394,9 +8753,11 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
   - Exit code 0 for success, 1 for failure
 
 ### Added — Assignment Computation Script (2026-03-30)
+
 - **`scripts/kilo-benchmarks/compute_assignments.py`**: Added script to compute model assignments dynamically based on benchmark scores, JSON output.
 
 ### Added - Scaffold Structure Documentation (2026-03-31)
+
 - **New Workflow Doc**: Created `docs/workflows/SCAFFOLD_STRUCTURE.md`
   - Complete reference for scaffold folder/file structure
   - Template sources and variable substitution
@@ -8405,6 +8766,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
   - Scaffold type variations (python-api, saas-skeleton, node-api, wordpress, etc.)
 
 ### Changed - Template Cleanup (2026-03-31)
+
 - **Archived Obsolete Files**: Moved to `templates/.archive/`
   - `PYTHON_PRODUCTION_STANDARDS.md` (superseded by `.windsurf/rules/10-python.md`)
   - `simple.yaml` (unused scaffold configuration)
@@ -8412,12 +8774,14 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
   - `factory-mcp.json` (unused MCP configuration)
 
 ### Changed - Workflow Documentation Update (2026-03-31)
+
 - **`docs/workflows/KILO_REVIEW_WORKFLOW.md`**: Updated to include FABRIK category
   - Added FABRIK to category enum in schema documentation
   - Added FABRIK category definition: "Project conventions: container images, health checks, config loading, temp files, secrets, bug classes"
   - Updated Last Updated date to 2026-03-31
 
 ### Added - Fabrik Conventions in Code Review (2026-03-31)
+
 - **Project-Specific Checks**: Integrated Fabrik conventions into `kilo_code_review.py`
   - Container images: `-slim-bookworm` enforcement (never Alpine)
   - Health checks: Must test dependencies (not just `{"status": "ok"}`)
@@ -8433,12 +8797,14 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - **Documentation**: Updated `windsurf-triggered-workflows.md` with Fabrik-specific checks
 
 ### Changed - Fabrik Workflow Documentation (2026-03-31)
+
 - **`docs/traycer/fabrik-workflow.md`**: Removed manual staging step from agent contract
   - Deleted step 6 "Stage changes (git add -A)" from execute command
   - Gate auto-stages on success, agents don't stage manually
   - Simplified to 5-step contract (was 6 steps)
 
 ### Changed - WSL Startup Hook Refinement (2026-03-31)
+
 - **`scripts/wsl_startup_hook.sh`**: Removed Cascade backup automation
   - Removed `sync_cascade_backup.sh` from daily pipeline (cannot be automated)
   - Cascade memories are stored in IDE internal storage, require manual export
@@ -8446,6 +8812,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
   - Pipeline: Kilo agent workflow → Extensions sync
 
 ### Changed - Windsurf Extensions Documentation (2026-03-31)
+
 - **Renamed**: `docs/reference/EXTENSIONS.md` → `docs/reference/windsurf/actively-used-windsurf-extensions.md`
   - More descriptive filename reflects active use tracking
   - Moved to windsurf subfolder for organization
@@ -8455,6 +8822,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
   - Auto-generates from `windsurf --list-extensions`
 
 ### Added - Windsurf Cascade Workflows (2026-03-31)
+
 - **Slash Command Workflows**: Created 5 workflow files in `.windsurf/workflows/`
   - `/local-coder` - Implement features (Local_Coder_qwen32b.sh)
   - `/local-review` - Interactive code review (Local_Review_llama70b.sh)
@@ -8471,6 +8839,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
   - Usage examples, hardware specs, and comparison tables
 
 ### Added - Windsurf Cascade Wrapper Scripts (2026-03-31)
+
 - **Hardware-Safe Local LLM Wrappers**: Created 5 wrapper scripts for Cascade workflows
   - `scripts/Local_Coder_qwen32b.sh` - Coding agent (qwen32b, 32B, hybrid-cpu)
   - `scripts/Local_Review_llama70b.sh` - Interactive review agent (llama70b, 70B, CPU)
@@ -8492,6 +8861,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - **Documentation**: Updated LOCAL_LLM_INFRASTRUCTURE.md with Cascade wrapper usage
 
 ### Added - Auto-Sync Governance Files (2026-03-30)
+
 - **Conditional Pre-Commit Hook**: Auto-syncs governance files to all /opt projects
   - Triggers on changes to: AGENTS.md, .windsurfrules, cascade-models.md, core scripts, enforcement scripts
   - Uses `pwd` check to only run in Fabrik repo, silently passes in projects
@@ -8501,17 +8871,20 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
   - Auto-updates when Fabrik version changes
 
 ### Enhanced - Project Scaffold (2026-03-30)
+
 - **`src/fabrik/scaffold.py`**: Now copies `cascade-models.md` to new projects
   - Location: `docs/reference/windsurf/cascade-models.md`
   - Provides Windsurf AI model reference in every project
 
 ### Enhanced - Sync Enforcement (2026-03-30)
+
 - **`scripts/sync_enforcement_to_projects.py`**: Extended to sync 5 governance files + reference docs
   - Added `.pre-commit-config.yaml` to governance files (was 4, now 5)
   - Added reference docs category for cascade-models.md
   - Updated to sync 70 files per project (was 64)
 
 ### Fixed - Windsurf Credits Scraping (2026-03-30)
+
 - **`scripts/kilo-benchmarks/scrape_windsurf_models.py`**: Fixed credits extraction from website
   - Website appends promo text like "2Promo pricing only available for a limited time"
   - Added regex to extract leading numeric value from credits field
@@ -8519,6 +8892,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
   - Claude Sonnet 4.5: was -1.0 (unavailable), now 2.0 ✓
 
 ### Added - Local Ollama Fabrik Agents (2026-03-27)
+
 - Create 4 custom Ollama models with specific roles:
   - `fabrik-coder-qwen2.5-32b`: Lead Engineer (32B, hybrid-cpu)
   - `fabrik-reviewer-llama3.1-70b`: Senior Reviewer (70B, CPU-only)
@@ -8528,6 +8902,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - Hardware-aware routing: models selected based on available VRAM/RAM
 
 ### Enhanced - Kilo CLI Agent Generation (2026-03-27)
+
 - **`scripts/generate_kilo_agents.py`**: Extended to support local Ollama models
   - Local models use `ollama run` directly instead of Kilo CLI
   - Dynamic execution path based on model type (local vs cloud)
@@ -8536,6 +8911,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - Integrated local models into automated WSL startup flow
 
 ### Documentation - Local LLM Infrastructure (2026-03-27)
+
 - **`docs/reference/LOCAL_LLM_INFRASTRUCTURE.md`**: Added comprehensive agent interaction methods
   - Direct Ollama CLI usage examples
   - API usage with curl examples
@@ -8544,6 +8920,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
   - IDE integration and performance notes
 
 ### Removed - Fabricated Benchmark Scores (2026-03-27)
+
 - Dropped `humaneval_score` and `coding_score` columns from database:
   - `agents` table (Kilo cloud models)
   - `local_models` table (Ollama models)
@@ -8553,16 +8930,19 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - Removed migration logic from `kilo_agents_db.py`
 
 ### Fixed - Local Model Configuration (2026-03-27)
+
 - **`scripts/kilo-benchmarks/kilo_agents_db.py`**: Fixed LOCAL_MODEL_CAPABILITIES
   - Updated model names to include `:latest` suffix (Ollama requirement)
   - Removed non-existent models, kept only 4 Fabrik agents
   - Corrected role assignments and hardware requirements
 
 ### Fixed - Code Quality (2026-03-27)
+
 - **`scripts/enforcement/check_opencode_json.py`**: Simplified to only require AGENTS-compact.md
 - Removed unused `provider_display` variable from `generate_kilo_agents.py`
 
 ### Added — Health Summary Script (2026-03-25)
+
 - Add `scan_health(root: Path)` function in `scripts/health_summary.py` to scan `/opt/*` projects for essential scaffold files and determine status based on missing count thresholds (healthy: 0, warnings: 1-2, missing: 3+)
 - Add `print_table(results)` function in `scripts/health_summary.py` to output aligned table of project health with status labels and missing files, plus summary counts
 - Add `main()` function in `scripts/health_summary.py` with argparse support for `--json` output, custom `--base` directory, and exit code 1 on health issues
@@ -8583,13 +8963,16 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 ### Fixed - Traycer Integration & Agent Script Reliability (2026-03-25)
 
 **Report Writer Error Visibility:**
+
 - **`scripts/generate_kilo_agents.py`:** Replaced `|| true` error swallowing with proper error capture and logging to `~/.traycer/agent-debug.log`
 - **`scripts/traycer_write_report.py`:** Simplified `_resolve_project_root()` — CWD is primary (Traycer sets it), git-root as failsafe only
 
 **Step 4 (Documentator) Enforcement:**
+
 - **`scripts/generate_kilo_agents.py`:** Added explicit Step 4 instructions and `DOCS=PASS|SKIP` tracking to agent report block
 
 **Documentation — Unique Task Files & CWD Contract:**
+
 - **`docs/traycer/traycer-yolo-workflow.md`:** Added "Traycer Integration Contract" section (5 invariants: CWD, unique files, multi-instance, completion, error visibility)
 - **`docs/traycer/README.md`:** Fixed 3 example scripts — removed `cd /opt/fabrik`, replaced shared `task.md` with unique `task-${TRAYCER_TASK_ID}.md`
 - **`docs/reference/kilo/KILO_AGENT_NAMING.md`:** Fixed task file description
@@ -8599,43 +8982,52 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 ### Fixed - Fabrik Ecosystem Integrity Audit Pass 20 (2026-03-25)
 
 **Security (Credential Exposure):**
+
 - **`docs/operations/disaster-recovery.md`:** Redacted real B2 Account ID and Application Key from 2 locations (lines 25-26, 174-175)
 
 **P0 Critical (No-Alpine Violation):**
+
 - **`docs/operations/disaster-recovery.md`:** `alpine` → `debian:bookworm-slim` in Docker volume restore commands (lines 226, 232)
 
 **Polish:**
+
 - **`docs/operations/disaster-recovery.md`:** "Namecheap (DNS)" → "Namecheap (Domain Registrar)" in Emergency Contacts
 
 ### Fixed - Fabrik Ecosystem Integrity Audit Pass 19 (2026-03-25)
 
 **P0 Critical (Recovery Scripts):**
+
 - **`docs/operations/disaster-recovery.md`:** Fixed 3 `namecheap` refs in recovery scripts (mkdir, cd, comment) → `dns-manager`
 - **`docs/SERVICES.md`:** `/api/namecheap/` → `/api/dns/` in 7 API path references
 - **`docs/CONFIGURATION.md`:** Clarified NAMECHEAP_API_USER/KEY as internal to dns-manager
 - **`docs/reference/stack.md`:** "Namecheap API" → "DNS Manager (via dns-manager)" in External APIs table
 
 **Workflow Gaps:**
+
 - **`docs/operations/coolify-migration.md`:** Updated dns-manager env vars section
 
 ### Fixed - Fabrik Ecosystem Integrity Audit Pass 18 (2026-03-25)
 
 **P0 Security (Hardcoded Credentials Removed):**
+
 - **`docs/operations/disaster-recovery.md`:** `fabrik2025` password → env var reference
 - **`docs/operations/duplicati-setup.md`:** Removed 8 hardcoded credentials (`fabrik2025`, `fabrik2025backup`, `fabrik2025duplicati`) → env var references
 
 **P0 Path Fixes:**
+
 - **`docs/operations/disaster-recovery.md`:** `/opt/namecheap/` → `/opt/dns-manager/` in service table
 - **`docs/operations/duplicati-setup.md`:** `/source/opt/namecheap/` → `/source/opt/dns-manager/` in backup paths
 - **`docs/guides/DEPLOYMENT_READY_CHECKLIST.md`:** `/opt/fabrik/windsurfrules` → `/opt/fabrik/.windsurfrules`
 
 **Partial Fixes Completed:**
+
 - **`docs/reference/prebuilt-app-containers.md`:** `redis:7-alpine` → `redis:7-bookworm` (Phase 9 table, line 709)
 - **`docs/development/plans/previously-planned-fabrik-phases/phase9.md`:** `redis:7-alpine` → `redis:7-bookworm`
 
 ### Fixed - Fabrik Ecosystem Integrity Audit Pass 17 (2026-03-25)
 
 **Documentation Cleanup (7 items):**
+
 - **`docs/reference/drivers.md`:** "namecheap service" → "DNS Manager service"
 - **`docs/reference/stack.md`:** `/opt/namecheap` → `/opt/dns-manager`
 - **`docs/reference/prebuilt-app-containers.md`:** `/opt/namecheap` → `/opt/dns-manager`, `redis:7-alpine` → `redis:7-bookworm`
@@ -8643,19 +9035,23 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - **`docs/reference/kilo/kilo-complete-reference.md`:** "droid exec" → "deprecated" in cost comparisons
 
 **Enforcement Hardening:**
+
 - **`scripts/enforcement/check_docker.py`:** Alpine pattern now catches `-alpine` tagged images (e.g., `redis:7-alpine`)
 
 ### Fixed - Fabrik Ecosystem Integrity Audit Pass 16 (2026-03-25)
 
 **P0 Contract Fix:**
+
 - **`compose.yaml`:** Removed deprecated `NAMECHEAP_API_URL` env var (backward-compat fallback now only in dns.py)
 
 **P0 Code Layer Rename (NAMECHEAP → DNS Manager):**
+
 - **`src/fabrik/drivers/dns.py`:** Updated 4 docstrings from "namecheap service" → "DNS Manager service"
 - **`src/fabrik/config.py`:** `dns_provider` default `"namecheap"` → `"dns-manager"`
 - **`scripts/docs_updater.py`:** Docstring "legacy droid exec path" → "Kilo CLI"
 
 **Enforcement Hardening:**
+
 - **`scripts/enforcement/check_docker.py`:**
   - Removed `python:3.12-slim` and `node:20-bookworm-slim` from APPROVED_BASES (must use `-bookworm` suffix)
   - Added `python:3.13-slim-bookworm` to APPROVED_BASES
@@ -8664,19 +9060,24 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 ### Fixed - Fabrik Ecosystem Integrity Audit Pass 15 (2026-03-25)
 
 **P0 Security Fix:**
+
 - **`docs/operations/vps-status.md`:** Removed hardcoded PostgreSQL password `fabrik2025secure`
 
 **P0 Contract Fix:**
+
 - **`.env.example`:** `NAMECHEAP_API_URL` → `DNS_MANAGER_URL` with correct URL `https://dns.vps1.ocoron.com`
 
 **P0 Documentation Fix:**
+
 - **`docs/reference/global-gates.md`:** Frozen section `/opt/fabrik/windsurfrules` → `/opt/fabrik/.windsurfrules`
 
 **Infrastructure Fix:**
+
 - **`templates/wordpress/base/compose.yaml.j2`:** Added `platform: linux/arm64` to all 3 services
 - **`templates/wordpress/base/compose-coolify.yaml.j2`:** Added `platform: linux/arm64` to all 2 services
 
 **Workflow Gap Fixes:**
+
 - **`docs/operations/vps-status.md`:** `namecheap` → `dns-manager` in container table, "namecheap service API" → "DNS Manager API"
 - **`INDEX.md`:** AGENTS.md "symlinked into projects" → "copied into projects"
 - **`specs/sites/ocoron.com-content-plan.md`:** "droid exec" → "Kilo CLI"
@@ -8684,15 +9085,18 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 ### Fixed - Fabrik Ecosystem Integrity Audit Pass 14 (2026-03-24)
 
 **P0 Template Fix (Last Alpine Violation):**
+
 - **`templates/wordpress/base/compose.yaml.j2`:** WordPress backup container:
   - `alpine:3.19` → `debian:bookworm-slim`
   - `apk add --no-cache` → `apt-get install -y --no-install-recommends`
 
 **P0 Documentation Fixes:**
+
 - **`docs/reference/global-gates.md`:** Symlink target `/opt/fabrik/windsurfrules` → `/opt/fabrik/.windsurfrules`
 - **`INDEX.md`:** `.windsurfrules` described as "local copy" (not symlink), correct source path
 
 **Workflow Gap Fixes:**
+
 - **`docs/SERVICES.md`:** "Namecheap API" → "DNS Manager", removed stale Phase 4 footnote
 - **`docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md`:** Fixed 2 references to `/opt/fabrik/.windsurfrules`
 - **`docs/workflows/SYNC_PROJECTS_WORKFLOW.md`:** Updated scaffold check from "symlink check" → "local copy check"
@@ -8700,27 +9104,32 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 ### Fixed - Fabrik Ecosystem Integrity Audit Pass 13 (2026-03-24)
 
 **P0 Security Fix:**
+
 - **`.gitignore`:** Added `.env.*BACKUP*` and `.env.env.backup.*` patterns
 - **Git:** Removed tracked `.env.SAFE_BACKUP`, `.env.env.backup.*` files from repository
 
 **P0 Documentation Fix:**
+
 - **`docs/guides/DEPLOYMENT_READY_CHECKLIST.md`:** Fixed Node.js section:
   - `node:20-alpine` → `node:22-bookworm-slim` (both stages)
   - `apk add` → `apt-get install`
   - Alpine `addgroup/adduser` → Debian `groupadd/useradd`
 
 **Verification (All Clean):**
+
 - `configs/prometheus/prometheus.yml` — uses service names, no hardcoded IPs
 - `examples/traycer-agent-review-example.sh` — references valid script
 - `infrastructure/coolify-ssh-permissions.sh` — uses Coolify standard paths
 
 **Cleanup:**
+
 - **`tasks.md`:** Phase 1d renamed "Droid Exec Integration" → "AI Agent Integration"
 - **`AGENTS.md`:** GitHub Actions section now explicitly references `check_duplicates.py`
 
 ### Fixed - Fabrik Ecosystem Integrity Audit Pass 12 (2026-03-24)
 
 **P0 Documentation Staleness Fixes (Final NAMECHEAP→DNS_MANAGER Propagation):**
+
 - **`README.md`:** `NAMECHEAP_API_URL` → `DNS_MANAGER_URL` in required env vars
 - **`docs/DEPLOYMENT.md`:** Updated required env vars section
 - **`docs/operations/vps-status.md`:** `namecheap.vps1.ocoron.com` → `dns.vps1.ocoron.com` in service table + DNS records
@@ -8728,35 +9137,43 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - **`docs/FAQ.md`:** Fixed 2 remaining `NAMECHEAP_API_URL` occurrences
 
 **Partial Fixes from Pass 11:**
+
 - **`docs/guides/DEPLOYMENT_READY_CHECKLIST.md`:** `python:3.12-slim` → `python:3.12-slim-bookworm`
 - **`docs/guides/FABRIK_INTEGRATION.md`:** Fixed both builder and runtime stages
 
 **Infrastructure Fix:**
+
 - **`apps/postgres-main/compose.yaml`:**
   - `postgres:16-alpine` → `postgres:16-bookworm`
   - Added `platform: linux/arm64`
   - Removed hardcoded fallback password → required env var
 
 **Cleanup:**
+
 - **`tasks.md`:** Updated Last Updated date (was 23 days stale)
 
 **Verification:**
+
 - `check_android_env.py` and `check_plans.py` confirmed as specialized checks (not main gate)
 
 ### Fixed - Fabrik Ecosystem Integrity Audit Pass 11 (2026-03-24)
 
 **P0 Documentation Staleness Fixes:**
+
 - **`docs/EXTERNAL_SYSTEMS.md`:** Fixed stale URL `namecheap.vps1.ocoron.com` → `dns.vps1.ocoron.com`
 - **`docs/QUICKSTART.md`:** Fixed stale env var `NAMECHEAP_API_URL` → `DNS_MANAGER_URL`
 - **`docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md`:** Updated example Dockerfile to use `python:3.12-slim-bookworm` and `uv pip install --system`
 
 **Template Fix:**
+
 - **`templates/file-worker/Dockerfile.j2`:** Fixed bare `pip install` → `uv pip install --system`
 
 **Cleanup:**
+
 - **`.gitignore`:** Added `scripts/.scratch/` to exclude scratch files with hardcoded test paths
 
 **Template Audit (5 previously unread):**
+
 - `chrome-extension/Dockerfile.j2` ✅ Clean
 - `desktop-app/Dockerfile.j2` ✅ Clean
 - `mobile-app/Dockerfile.j2` ✅ Clean
@@ -8766,38 +9183,47 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 ### Fixed - Fabrik Ecosystem Integrity Audit Pass 10 (2026-03-24)
 
 **P0 Critical Fix (Mismatch Correction):**
+
 - **`templates/scaffold/docker/Dockerfile.python`:** Fixed canonical scaffold template:
   - `python:3.12-slim` → `python:3.12-slim-bookworm` (both stages)
   - Bare `pip install --user` → `uv pip install --system`
   - Updated COPY paths for uv system install
 
 **Rule File Fix:**
+
 - **`.windsurf/rules/30-ops.md`:** Updated Dockerfile template to use uv instead of bare pip
 
 **Infrastructure Fix:**
+
 - **`.windsurf/hooks.json`:** Fixed broken hook pointing to non-existent `.factory/hooks/secret-scanner.py` → `scripts.enforcement.check_secrets`
 
 **Documentation:**
+
 - **`docs/reference/drivers.md`:** Fixed stale comment `NAMECHEAP_API_URL` → `DNS_MANAGER_URL`
 
 **Cleanup:**
+
 - Deleted erroneous `templates/python-api/` directory (created by mistake in Pass 9)
 
 ### Fixed - Fabrik Ecosystem Integrity Audit Pass 9 (2026-03-24)
 
 **P0 Critical Fixes:**
+
 - **`apps/example-api/compose.yaml`:** Removed hardcoded `API_KEY=test123` → `${API_KEY:-}`
 - **`scripts/archive/`:** Renamed `review_processor.py` and `acknowledge_reviews.py` with `.archived-20260324` suffix
 - **`docs-check.yml`:** Added uv bootstrap before pip install (consistency with ci.yml)
 
 **Scaffold Template Fixes (Pass 9 — wrong file, corrected in Pass 10):**
+
 - ~~`templates/python-api/Dockerfile.j2`~~ — this was created in error; deleted in Pass 10
 
 **Documentation URL Updates:**
+
 - **`docs/CONFIGURATION.md`:** `namecheap.vps1.ocoron.com` → `dns.vps1.ocoron.com` (2 occurrences)
 - **`docs/reference/drivers.md`:** `NAMECHEAP_API_URL` → `DNS_MANAGER_URL`; URL updated (2 occurrences)
 
 **Cleanup:**
+
 - Deleted `=6.100.0` pip artifact from root; added `=*` to `.gitignore`
 - Moved 4 root-level scratch files to `scripts/.scratch/`
 
@@ -8806,17 +9232,20 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 ### Fixed - Fabrik Ecosystem Integrity Audit Pass 8 (2026-03-24)
 
 **Workflow Gap Fixes:**
+
 - **`enforcement-system.md`:** Rewrote entire "Code Review Feedback Loop" section — replaced droid exec with Kilo CLI workflow (4 stale refs fixed)
 - **`templates.md`:** Node.js 20 → 22; "droid exec integration" → "AI assistant integration"
 - **`PROCESS_MONITORING_QUICKSTART.md`:** TL;DR "droid exec processes" → "AI agent processes"
 - **`docs/proposals/`:** Archived to `docs/archive/2026-03-24-proposals/` — eliminates LEGACY_DIR warning
 
 **Infrastructure Fixes:**
+
 - **`config.py`:** Renamed `namecheap_api_url` → `dns_manager_url`; fixed default to `dns.vps1.ocoron.com`
 - **`apps/example-api/Dockerfile`:** `python:3.12-slim` → `python:3.12-slim-bookworm`; bare pip → uv
 - **`apps/example-api/compose.yaml`:** Added `platform: linux/arm64`
 
 **Broken Link Fixes:**
+
 - **`enforcement-system.md`:** Fixed path `../../workflows/` → `../workflows/`
 - **`windsurf/overview.md`:** Replaced archived `auto-review.md` link → `enforcement-system.md`
 
@@ -8825,17 +9254,20 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 ### Fixed - Fabrik Ecosystem Integrity Audit Pass 7 (2026-03-24)
 
 **P0 Critical Fixes (unblocked final_gate.py 35/38 → 38/38):**
+
 - **`check_opencode_json.py`:** Updated EXPECTED_INSTRUCTIONS to include `50-code-review.md` and `90-automation.md`; removed from FORBIDDEN_PATTERNS (self-contradicting enforcement)
 - **`check_structure.py`:** Added `specs/` to allowed directories for .md files (Stage 0 pipeline output)
 - **`check_test_proposal.py`:** Fixed plan detection to use `st_mtime` instead of alphabetical sort
 
 **Workflow Gap Fixes:**
+
 - **`docs/reference/auto-review.md`:** Replaced droid exec → Kilo CLI; `droid-review.sh` → `kilo_code_review.py`
 - **`docs/reference/docs-updater.md`:** Replaced droid exec → Kilo CLI
 - **`docs/reference/enforcement-system.md`:** Replaced droid exec → Kilo CLI; fixed `windsurfrules` → `.windsurfrules`
 - **`docs/development/PLANS.md`:** Fixed broken link after archiving old plan file
 
 **Infrastructure Fixes:**
+
 - **`kilo_code_review.py`:** Added `KILO_FALLBACK_MODEL` env var for consistency with `KILO_DEFAULT_MODEL`
 - **`ci.yml`:** Added CI bootstrap comment explaining bare pip is acceptable for uv installation
 
@@ -8844,15 +9276,18 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 ### Fixed - Fabrik Ecosystem Integrity Audit Pass 6 (2026-03-24)
 
 **P0 Critical Fixes:**
+
 - **`ci.yml`:** Fixed Node.js version 20 → 22 (AGENTS.md mandates node:22-bookworm-slim)
 - **`validate_conventions.py`:** Replaced "droid exec PostToolUse hooks" → "Kilo CLI PostToolUse hooks" in header
 
 **Workflow Gap Fixes:**
+
 - **`docs/traycer/README.md`:** Fixed remaining "droid exec" reference at line 183
 - **`docs/reference/`:** Archived 3 dead droid docs (custom-droids.md, droid-exec-limits.md, droid-exec-integration.md)
 - **`pyproject.toml`:** Registered `requires_fabrik_env` pytest marker to avoid PytestUnknownMarkWarning
 
 **Infrastructure Fixes:**
+
 - **`dns.py`:** Added logger warning when DNS_MANAGER_TOKEN not set (silent auth failure prevention)
 - **`Makefile`:** Fixed `make check` target to use `final_gate.py` (was calling non-existent check.sh)
 - **`kilo_code_review.py`:** Replaced hardcoded model names with `KILO_DEFAULT_MODEL` env var
@@ -8865,17 +9300,20 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 **Problem:** Fresh scan of previously unscanned areas revealed 11 additional issues: broken CI workflow, dead droid exec references, unimplemented SSL checks, sync httpx blocking async loop, and missing DNSClient authentication.
 
 **P0 Critical Fixes:**
+
 - **`ci.yml`:** Created missing `check_duplicates.py` enforcement script (CI was failing on every PR)
 - **`ci.yml`:** Fixed bare `pip install` → `uv pip install --system` in both CI jobs
 - **`.factory/skills/fabrik-saas-scaffold.md`:** Archived (instructed dead droid exec for SaaS AI integration)
 
 **Workflow Gap Fixes:**
+
 - **`docs/traycer/README.md`:** Replaced "droid exec" reference with "Cascade/Kilo CLI"
 - **`docs/FAQ.md`:** Updated AI model configuration FAQ from droid exec to Kilo CLI
 - **`verify.py`:** Implemented SSL expiry check using `min_days_remaining` (was silent no-op)
 - **`test_scaffold.py`:** Added `@requires_fabrik_env` marker to skip tests in CI (no /opt/fabrik on GitHub runners)
 
 **Infrastructure Fixes:**
+
 - **`Dockerfile`:** Added `--system` flag to `uv pip install` for Docker build context
 - **`health_app.py`:** Wrapped sync httpx calls in `asyncio.to_thread()` to avoid blocking event loop
 - **`dns.py`:** Added optional `DNS_MANAGER_TOKEN` authentication header support
@@ -8887,6 +9325,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 **Problem:** Deep audit of Fabrik ecosystem revealed 25+ compliance issues across infrastructure, scaffolding, enforcement scripts, and configuration files. Critical issues included: deprecated FastAPI patterns, Alpine base images in templates, missing ARM64 platform declarations, and inverted scaffold compliance logic.
 
 **P0 Critical Fixes:**
+
 - **`.windsurfrules`:** Renamed from `windsurfrules` (Windsurf IDE expects dot prefix)
 - **`scaffold.py`:** Updated to read `.windsurfrules` (coordinated with rename)
 - **`compose.yaml`:** Added `platform: linux/arm64` for VPS deployment
@@ -8898,6 +9337,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - **`pyproject.toml`:** Updated ruff/mypy target from py311 → py312, enabled mypy for `fabrik.*`
 
 **Workflow Gap Fixes:**
+
 - **`final_gate.py`:** Wired 7 missing enforcement scripts (check_docker, check_secrets, check_env_contract, check_ports, check_health, check_deps_sync, check_docs)
 - **`sync_enforcement_to_projects.py`:** Added governance file syncing (AGENTS.md, opencode.json, .windsurfrules, .windsurf/rules/)
 - **`sync_projects.py`:** Inverted scaffold compliance logic (local copies = compliant, symlinks = needs update)
@@ -8908,10 +9348,12 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - **`scaffold.py`:** Removed dead `_link_agents_md()` function (governance must be copies, not symlinks)
 
 **Infrastructure Fixes:**
+
 - **`Dockerfile`:** Fixed uv double-install → single `uv pip install --prefix`
 - **`compose.yaml`:** Healthcheck uses `localhost` instead of hardcoded `127.0.0.1`
 
 **Cleanup:**
+
 - Archived outdated docs: `KILO-AGENTS-UPDATE-2026-03.md`, `traycer-agents-fixed-readme.md`
 - Moved backup files from `scripts/` to `scripts/archive/`
 
@@ -8924,6 +9366,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 **Solution:**
 
 **AGENTS.md `[TRAYCER ONLY] Infrastructure & Deployment`:**
+
 - **GitHub Actions:** Replaced 4 dead/wrong entries with 2 real ones (`ci.yml`, `docs-check.yml`)
 - **Quality Gates:** New section documenting `kilo_code_review.py` (Step 3), `kilo_docs_enforcer.py` (Step 4), `final_gate.py` (Step 5)
 - **Enforcement Scripts:** New section listing all 27 scripts by category (Docker, Secrets, Config, Health, Database, Watchdog, Docs, Structure, Code)
@@ -8933,14 +9376,17 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - **Removed:** Droid Hooks section (replaced by pre-commit + enforcement), `FACTORY_API_KEY` reference
 
 **`.windsurf/rules/90-automation.md`:**
+
 - Replaced "Fabrik Skills (Auto-Invoked)" table with "Fabrik Behavior Patterns" dispatch table matching AGENTS.md
 
 **Deleted (3 dead Factory.ai GitHub Actions):**
+
 - `.github/workflows/droid-review.yml` — replaced by `scripts/kilo_code_review.py`
 - `.github/workflows/update-docs.yml` — replaced by `scripts/kilo_docs_enforcer.py`
 - `.github/workflows/security-scanner.yml` — replaced by `scripts/enforcement/check_secrets.py` + `final_gate.py`
 
 **`docs/reference/hooks-and-skills-guide.md`:**
+
 - Added deprecation notice pointing to current toolchain
 
 ### Changed - Scaffold copies spec-pipeline + Remove droid exec (2026-03-24)
@@ -8950,14 +9396,17 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 **Solution:**
 
 **src/fabrik/scaffold.py:**
+
 - Added `templates/spec-pipeline/` copy to `_scaffold_shared()` — every new project now gets the Traycer Stage 0 discovery pipeline (4 files: 00-idea-prompt.md, 01-scope-prompt.md, 02-spec-prompt.md, README.md)
 
 **templates/spec-pipeline/ (all 4 files):**
+
 - Replaced all `droid exec` references with correct Kilo CLI syntax: `kilo run "message"`
 - Traycer commands listed first as preferred method (`/discover`, `/scope`, `/spec`)
 - Kilo CLI commands use `kilo run` non-interactive mode (e.g., `kilo run "Discover idea: ..."`)
 
 **docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md:**
+
 - Added `templates/spec-pipeline/` to project tree output, files table, and template locations
 - Updated `Last Updated` to 2026-03-24
 
@@ -8970,6 +9419,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 **Solution:** Integrated the existing Spec Pipeline (`templates/spec-pipeline/`) into Traycer's authority model as Stage 0: Discovery & Definition.
 
 **AGENTS.md:**
+
 - Added **Stage 0: Discovery & Definition** to `[TRAYCER ONLY] Authority Model & Orchestration`
 - Three pre-planning stages: `/discover` (idea) → `/scope` (boundaries) → `/spec` (SSoT)
 - **Stack Auto-Injection:** Traycer auto-populates Fabrik Stack Defaults during Stage 0.3 (Next.js 14, FastAPI, bookworm-slim, ARM64, Coolify)
@@ -8978,6 +9428,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - Updated `Last Updated` date to 2026-03-24
 
 **templates/spec-pipeline/02-spec-prompt.md:**
+
 - Injected Fabrik Stack Defaults table into Stack Profile section (auto-populated with ARM64, bookworm-slim, Coolify defaults)
 - Added **One-Test Rule** section (Section 10) to spec output format
 - Added `final_gate.py` to Quality Gates checklist
@@ -8986,19 +9437,23 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - Updated Traycer Compatibility → Traycer Integration (SSoT enforcement)
 
 **templates/spec-pipeline/00-idea-prompt.md:**
+
 - Added Traycer `/discover` command alongside `droid exec idea`
 
 **templates/spec-pipeline/01-scope-prompt.md:**
+
 - Added Traycer `/scope` command alongside `droid exec scope`
 - Added solo-dev capacity constraint to MVP boundary step
 
 **templates/spec-pipeline/README.md:**
+
 - Promoted Traycer from "Optional" integration to **Primary** orchestrator
 - Updated pipeline diagram with Stage 0.1/0.2/0.3 numbering and dual commands
 - Added Stack Auto-Injection reference table
 - Added new "Why This Works" entries: Plan Quality Gate enforcement, owner alignment
 
 **Architecture:** This formalizes the discovery process:
+
 1. `/discover <idea>` — Traycer interviews owner, extracts pain points and personas
 2. `/scope <project>` — Traycer presents IN/OUT table, respects 50h/week capacity
 3. `/spec <project>` — Traycer generates SSoT with auto-injected Stack Defaults + One-Test Rule
@@ -9009,20 +9464,24 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 ### Added - Kilo Benchmark Automation & Docs Enforcer Improvements (2026-03-24)
 
 **role_mapper.py:**
+
 - Added fallback chain for consulting agents: Gemini 3.1 Pro → GPT 5.4 → Claude Opus 4.6 (all max thinking)
 - Added auto-update of `docs/workflows/KILO_AGENT_MANAGEMENT.md` Final Assignment Table after successful assignments
 - Table now shows: Role, Pri, Agent, ELO, TBench, Vision, Thinking, **$/M In**, **$/M Out**, PPD columns
 
 **kilo_docs_enforcer.py:**
+
 - Fixed large_code_change detection (skip in main loop, handle separately with threshold)
 - Added content quality validation and retry with fallback agents
 - Improved .env.example appending with deduplication
 - Added `_strip_markdown_fences()` to handle models wrapping output in code fences
 
 **Blocked agents:**
+
 - `qwen/qwen3-235b-a22b-2507` — Ignores documentation prompts, outputs conversational text
 
 **Moved:**
+
 - `docs/reference/fabrik-scaffold-specs.md` → `docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md`
 
 ### Changed - Documentation Templates Aligned with Fabrik Workflow (2026-03-24)
@@ -9030,43 +9489,51 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 **Updated all templates in `templates/scaffold/docs/` for mandatory workflow compliance:**
 
 **CHANGELOG_TEMPLATE.md:**
+
 - Updated format to `### Category — Title (YYYY-MM-DD)` (Fabrik-specific)
 - Added Documentator automation note (auto-generated entries)
 - Added workflow integration section
 
 **DEPLOYMENT_TEMPLATE.md:**
+
 - Added ARM64 compatibility requirement and check
 - Replaced generic steps with `fabrik apply` workflow
 - Added FORBIDDEN section: Alpine base images, hardcoded localhost
 - Updated Docker Compose examples with service health dependencies
 
 **CONFIGURATION_TEMPLATE.md:**
+
 - Made PORTS.md registration MANDATORY (not optional)
 - Added FORBIDDEN section: hardcoded localhost in compose.yaml
 - Added enforcement for `${VAR:?required}` pattern
 - Added ARM64 compatibility to checklist
 
 **TROUBLESHOOTING_TEMPLATE.md:**
+
 - Added enforcement scripts section (`final_gate.py`, `check_*.py`)
 - Updated all pip commands to use `/opt/<project>/.venv/bin/pip` (PEP 668)
 - Added PEP 668 warning (WSL/Debian block system-wide pip)
 - Added common enforcement script failures
 
 **API_REFERENCE_TEMPLATE.md:**
+
 - Added Documentator automation note (Step 4 auto-generates API docs)
 
 **DATABASE_SCHEMA_TEMPLATE.md:**
+
 - Added pgvector section (vector embeddings for AI/LLM)
 - Added JSONB section (agent memory, flexible schema)
 - Added "When to use" guidance
 
 **PLAN_TEMPLATE.md (NEW):**
+
 - Created comprehensive planning template with Quality Gate checklist
 - Includes: functional spec, edge cases, env vars, DB changes, docs impact
 - Integrated 8-step mandatory workflow checkpoints
 - Success criteria tied to Final Gate and Kilo Review
 
 **LAUNCH_CHECKLIST_TEMPLATE.md:**
+
 - Replaced generic code quality checks with mandatory workflow steps
 - Added Step 3: Kilo Review (AI code review)
 - Added Step 4: Documentator (auto-generate docs)
@@ -9079,12 +9546,14 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 ### Changed - Enforcement Scripts & Agent Quickstart (2026-03-24)
 
 **check_docker.py:**
+
 - Added `check_compose_arm64()` function to enforce `platform: linux/arm64` in compose.yaml
 - ERROR severity if compose file has `build:` directive but missing ARM64 platform
 - ERROR severity if platform specified but not ARM64-compatible
 - Validates VPS ARM64 requirement at pre-commit time
 
 **QUICKSTART_TEMPLATE.md:**
+
 - Replaced generic user guide with agent-specific execution guide
 - Added "Mandatory First Output" compliance string (RULES ACTIVE: [ROLE] | ...)
 - Documents 8-step workflow with exact commands for each step
@@ -9094,6 +9563,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - Clarifies agent roles: Coders execute, never plan; Traycer commits, Coders don't
 
 **Verification:**
+
 - Confirmed `final_gate.py` calls 27 enforcement checks via `run_optional_check()`
 - `check_docker.py` and `check_secrets.py` integrated via `validate_conventions.py` framework
 - All enforcement scripts return CheckResult objects with severity, message, fix_hint
@@ -9105,20 +9575,24 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 **Updated `.windsurf/rules/` for tighter workflow enforcement:**
 
 **00-critical.md:**
+
 - Improved MANDATORY FIRST OUTPUT to require listing 3 specific rules (forces file parsing)
 - Added Step 2.5 Internal Audit checklist (5 items) - actionable pre-Kilo Review checks
 - Checklist: Zero hardcoding, Infrastructure (-slim-bookworm + HEALTHCHECK), ARM64 platform, Dependencies sync, Port registration
 
 **30-ops.md:**
+
 - Added `platform: linux/arm64` to compose.yaml template with enforcement comment
 - Comment links to check_docker.py compliance requirement
 
 **50-code-review.md:**
+
 - Added Step 2.5 Internal Audit checklist at top (before automated tools)
 - Expanded Step 5 Final Gate section showing enforcement suite execution
 - Listed 4 core checks: check_docker.py, check_secrets.py, check_env_contract.py, +24 additional
 
 **90-automation.md:**
+
 - Defined Fabrik Preflight skill logic (was listed but not implemented)
 - Trigger: "ready to deploy", "preflight", or Step 5
 - Action: Execute check_docker.py, check_secrets.py, check_env_contract.py
@@ -9129,6 +9603,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 ### Fixed - Code Review Workflow Commands (2026-03-24)
 
 **50-code-review.md:**
+
 - Restored git workflow commands in Step 3 (Kilo Review) that were incorrectly removed
 - Added back: `git diff`, `git diff --staged` for verification before review
 - Maintains full workflow: review → stage → verify → run kilo_code_review.py
@@ -9136,9 +9611,11 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 ### Changed - SaaS Skeleton 100% Aligned with Modern UI Patterns (2026-03-24)
 
 **templates/saas-skeleton/package.json:**
+
 - Added `sonner: ^1.4.0` for toast notifications
 
 **templates/saas-skeleton/app/layout.tsx:**
+
 - Added Sonner `<Toaster>` component (position: top-right, richColors, closeButton)
 - Enables mandatory UI states per Modern SaaS UI Patterns: Success, Error, Loading notifications
 - Comment documents purpose: "Enables mandatory Success, Error, Loading states per UI patterns"
@@ -9148,6 +9625,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 ### Changed - SaaS Skeleton Enhanced with Complete shadcn/ui Design System (2026-03-24)
 
 **templates/saas-skeleton/app/globals.css:**
+
 - Added complete shadcn/ui CSS variable set (card, popover, secondary, accent, input, ring)
 - Updated primary color to Fabrik Blue (221.2 83.2% 53.3%) for brand consistency
 - Added font feature settings for improved text rendering (rlig, calt)
@@ -9155,6 +9633,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - All variables use HSL format for seamless Tailwind integration
 
 **templates/saas-skeleton/tailwind.config.ts:**
+
 - Extended color mappings: card, popover, secondary, accent, input, ring
 - All color objects include DEFAULT + foreground pairs for accessibility
 - Added darkMode: ["class"] for theme switching support
@@ -9164,9 +9643,11 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - Uses `satisfies Config` for full TypeScript type safety and IntelliSense
 
 **templates/saas-skeleton/package.json:**
+
 - Added `tailwindcss-animate: ^1.0.7` for animation plugin support
 
 **Existing UI Patterns (Already Implemented):**
+
 - ✅ AppShell.tsx: Stable side nav with active state highlighting
 - ✅ Dashboard page: StatCard pattern with responsive grid (1-4 columns)
 - ✅ Empty state components with clear CTAs
@@ -9180,16 +9661,19 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 **Critical issues found during final review:**
 
 **templates/saas-skeleton/Dockerfile:**
+
 - Added `HEALTHCHECK` using Node.js built-in http module (no curl dependency)
 - Tests `/api/health` endpoint with 30s interval, 10s timeout, 40s start period
 - Compliance: check_docker.py now passes
 
 **templates/saas-skeleton/compose.yaml:**
+
 - Added `platform: linux/arm64` to web service build
 - Comment documents VPS ARM64 requirement
 - Compliance: check_docker.py now passes
 
 **templates/saas-skeleton/lib/config/site.ts:**
+
 - Removed hardcoded `http://localhost:3000` from url field
 - Changed to empty string (enables relative URLs in same-origin contexts)
 - Environment variable `NEXT_PUBLIC_APP_URL` still supported for absolute URLs
@@ -9202,6 +9686,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 **Critical issues found per Gemini 3.1 Pro audit:**
 
 **templates/chrome-extension/compose.yaml.j2:**
+
 - Added `platform: linux/arm64` for VPS compatibility
 - Added complete `healthcheck` block (curl test on /health endpoint)
 - Added `ports` mapping with PORT env var (${PORT:-8000})
@@ -9210,6 +9695,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - Compliance: check_docker.py now passes
 
 **templates/chrome-extension/Dockerfile.j2:**
+
 - Added `HEALTHCHECK` instruction with curl (apt-get install curl in production stage)
 - Added `ENV PORT=8000` for explicit port configuration
 - Added `EXPOSE ${PORT}` for port documentation
@@ -9217,11 +9703,13 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - Compliance: check_docker.py now passes
 
 **templates/chrome-extension/package.json:**
+
 - Added `engines` field requiring Node >=22.0.0, npm >=10.0.0
 - Added `gate` script: "python3 scripts/final_gate.py" for preflight checks
 - Prevents version drift between WSL dev and VPS deployment
 
 **templates/chrome-extension/defaults.yaml:**
+
 - Added `PORT: 8000` to default environment variables
 
 **Impact:** Chrome extension template now passes check_docker.py and is deployment-ready. Automated coding agents can safely use this template without manual intervention.
@@ -9231,6 +9719,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 **Critical issues found per Gemini 3.1 Pro audit:**
 
 **templates/desktop-app/compose.yaml.j2:**
+
 - Added `platform: linux/arm64` for VPS compatibility
 - Added complete `healthcheck` block (curl test on /health endpoint)
 - Added `ports` mapping with PORT env var (${PORT:-8000})
@@ -9239,6 +9728,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - Compliance: check_docker.py now passes
 
 **templates/desktop-app/Dockerfile.j2:**
+
 - Added wine + mono-devel in builder stage for Linux-to-Windows cross-compilation
 - Added `HEALTHCHECK` instruction with curl
 - Added `ENV PORT=8000` for explicit port configuration
@@ -9248,6 +9738,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - Compliance: check_docker.py now passes
 
 **templates/desktop-app/package.json:**
+
 - Added `engines` field requiring Node >=22.0.0, npm >=10.0.0
 - Added `gate` script: "python3 scripts/final_gate.py" for preflight checks
 - Changed build target to `--win` (NSIS installer)
@@ -9257,9 +9748,11 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - Prevents version drift between WSL dev and VPS deployment
 
 **templates/desktop-app/defaults.yaml:**
+
 - Added `PORT: 8000` to default environment variables
 
 **templates/desktop-app/electron/main.js:**
+
 - NEW FILE: Secure Electron main process pattern
 - `nodeIntegration: false` + `contextIsolation: true` for security
 - Integrated `electron-updater` for automatic updates from VPS distribution hub
@@ -9274,11 +9767,13 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 **Problem:** `templates/docs/` contained outdated versions of planning templates (106-line PLAN_TEMPLATE.md) that conflicted with canonical versions in `templates/scaffold/docs/` (193-line PLAN_TEMPLATE.md with Quality Gate).
 
 **Actions:**
+
 - Archived `templates/docs/` to `templates/.archive/legacy-docs-2026-03-24/` (5 files preserved)
 - Removed `templates/docs/` copy logic from `src/fabrik/scaffold.py` (lines 405-409)
 - Added comment: "templates/docs/ removed - templates/scaffold/docs/ is the canonical source"
 
 **Archived files:**
+
 - `.doc-policy.md` — Documentation policy
 - `EXECUTION_PLAN_TEMPLATE.md` — Traycer execution plan (old format)
 - `FEATURES_TEMPLATE.md` — Feature docs with marketing copy
@@ -9292,6 +9787,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 **Critical issues found per Gemini 3.1 Pro audit:**
 
 **templates/docusaurus/package.json.j2:**
+
 - Updated `engines` to require Node >=22.0.0, npm >=10.0.0
 - Added `gate` script: "python3 scripts/final_gate.py" for preflight checks
 - Added `tailwind-merge` dependency for utility class merging
@@ -9300,6 +9796,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - Prevents version drift between WSL dev and VPS deployment
 
 **templates/docusaurus/compose.yaml.j2:**
+
 - ❌ **CRITICAL FIX:** Changed from `image: node:20-alpine` to `build: .` with proper Dockerfile
 - Added `platform: linux/arm64` for VPS compatibility
 - Added `restart: unless-stopped` for production stability
@@ -9310,6 +9807,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - Compliance: check_docker.py now passes (was using forbidden Alpine)
 
 **templates/docusaurus/Dockerfile.j2:**
+
 - NEW FILE: Multi-stage build for ARM64 compliance
 - Builder stage: `node:22-bookworm-slim` (No Alpine)
 - Added `npm ci --no-audit --no-fund` for faster builds
@@ -9320,18 +9818,21 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - Compliance: check_docker.py now passes
 
 **templates/docusaurus/sidebars.js.j2:**
+
 - NEW FILE: Separates instructional guides from API reference
 - `guideSidebar` auto-generates from `/docs/` directory
 - `apiSidebar` references OpenAPI-generated sidebar
 - Follows Gemini's pattern for documentation architecture
 
 **templates/docusaurus/defaults.yaml:**
+
 - NEW FILE: Standard environment defaults
 - `PORT: 3000` (frontend range)
 - `NODE_ENV: production`
 - `TZ: UTC`
 
 **templates/docusaurus/AGENTS.md.j2:**
+
 - Added mandatory workflow section with `npm run gate` requirement
 - Added documentation patterns (guides vs API reference)
 - Added explicit warning: DO NOT edit `/docs/api/` manually
@@ -9349,6 +9850,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 **Solution:** Injected Gemini 3.1 Pro's Solo-Dev Meta Review logic into core rules and enforcement suite per user directive.
 
 **.windsurf/rules/00-critical.md:**
+
 - **Orientation section:** Added mandatory planning requirements
   - Key Invariants & Contracts (e.g., "API errors return JSON body")
   - Failure Modes (concrete "what-if" scenarios)
@@ -9359,6 +9861,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
   - Must document: Why, Given/When/Then, Mocked vs. Real
 
 **.windsurf/rules/50-code-review.md:**
+
 - Added Solo-Dev Creed (Global Constraints) section
   - No Speculation: State assumptions explicitly or stop and ask
   - One-Test Rule Enforcement: Every change needs test justification
@@ -9367,6 +9870,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
   - Minimalist Refactors: No unsolicited changes unless in approved plan
 
 **scripts/enforcement/check_test_proposal.py:**
+
 - NEW FILE: Enforces One-Test Rule compliance
 - Checks `docs/development/plans/` for required keywords
 - Validates presence of: "One-Test Rule", "Given", "When", "Then"
@@ -9374,6 +9878,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - Exit code 0 if proposal found or no plan exists, 1 if missing
 
 **scripts/final_gate.py:**
+
 - Added `check_test_proposal.py` to Phase 3 consistency checks
 - Now runs between CHANGELOG check and Fabrik validator
 - Enforces that agents document test justification before proceeding
@@ -9389,20 +9894,24 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 **Solution:** Hardened for ARM64 VPS deployment and secure file handling.
 
 **templates/file-api/Dockerfile.j2:**
+
 - **CRITICAL FIX:** Replaced forbidden `node:20-alpine` with `node:22-bookworm-slim`
 - Added mandatory `HEALTHCHECK` instruction for Final Gate compliance
 - Multi-stage build (builder + runner) for optimal image size
 - Debian apt-get for curl installation (Alpine apk removed)
 
 **templates/file-api/package.json:**
+
 - Updated `engines.node` from `>=18` to `>=22.0.0`
 - Added `gate` script for automation readiness
 
 **templates/file-api/compose.yaml.j2:**
+
 - Added mandatory `platform: linux/arm64` for Ubuntu ARM VPS
 - Added explicit `ports` mapping (was only `expose`)
 
 **templates/file-api/src/index.js:**
+
 - **SECURITY FIX:** Added filename sanitization to prevent path traversal
 - Before: `filename.split('.').pop()` (vulnerable to `../../etc/passwd`)
 - After: `path.extname(safeFilename)` with regex sanitization `[^a-z0-9.]`
@@ -9419,21 +9928,25 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 **Solution:** Hardened for ARM64 VPS deployment with active health monitoring.
 
 **templates/file-worker/Dockerfile.j2:**
+
 - Updated from `python:3.11-slim` to `python:3.12-slim-bookworm`
 - Added mandatory `HEALTHCHECK` instruction using heartbeat file verification
 - Health check verifies `/tmp/worker_heartbeat` modified within last 2 minutes
 
 **templates/file-worker/compose.yaml.j2:**
+
 - Added mandatory `platform: linux/arm64` for Ubuntu ARM VPS
 - Added `healthcheck` block matching Dockerfile health logic
 - Coolify can now detect worker polling failures vs. container crashes
 
 **templates/file-worker/worker/main.py:**
+
 - Added `HEARTBEAT_FILE` constant: `/tmp/worker_heartbeat`
 - Main loop now calls `HEARTBEAT_FILE.touch()` every poll cycle
 - Enables Docker to distinguish "worker running" from "worker polling"
 
 **templates/file-worker/AGENTS.md.j2:**
+
 - Added mandatory `python scripts/final_gate.py` workflow requirement
 - Added One-Test Rule planning requirement with example
 - Documents high-leverage test scenarios (job claiming, tenant isolation)
@@ -9449,6 +9962,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 **Solution:** Complete Mobile App Factory with integrated Android Studio + WSL workflow, Clean Architecture, and full File API integration.
 
 **Infrastructure & Enforcement:**
+
 - Created `scripts/enforcement/check_android_env.py` — Verifies WSL-to-Windows Android SDK bridge
   - Checks `ANDROID_HOME` environment variable
   - Validates SDK path accessibility across WSL mount
@@ -9456,6 +9970,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - Integrated into `final_gate.py` Phase 3 for pre-commit verification
 
 **templates/mobile-app/package.json:**
+
 - Updated `engines.node` from `>=18` to `>=22.0.0` (ARM64 VPS standard)
 - Added `gate` script for automation readiness
 - Added React Navigation dependencies (`@react-navigation/native`, `@react-navigation/native-stack`)
@@ -9463,18 +9978,21 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - Added `react-native-safe-area-context` and `react-native-screens` for navigation
 
 **templates/mobile-app/Dockerfile.j2:**
+
 - Added mandatory `HEALTHCHECK` instruction for Metro bundler status
 - Health check: `curl -f http://localhost:8081/status`
 - Installed curl in runner stage for health verification
 - Already used `node:22-bookworm-slim` (compliant)
 
 **templates/mobile-app/compose.yaml.j2:**
+
 - Added mandatory `platform: linux/arm64` for Ubuntu ARM VPS
 - Added `healthcheck` block matching Dockerfile health logic
 - Added environment variable templating for `NODE_ENV` and `TZ`
 - Added `networks` block for Coolify orchestration
 
 **templates/mobile-app/AGENTS.md.j2 (NEW):**
+
 - Mandatory workflow: `python scripts/final_gate.py` before commit
 - Mobile-specific One-Test Rule example (Metro Bundler verification)
 - Integrated Android Studio + WSL setup documentation
@@ -9484,11 +10002,13 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 **Clean Architecture Implementation:**
 
 **src/features/files/types.ts (NEW):**
+
 - TypeScript interfaces matching Node 22 File API backend
 - `FileMetadata`, `UploadResponse`, `DownloadResponse`, `ListFilesResponse`
 - Ensures type-safe communication between mobile and VPS
 
 **src/features/files/services/fileService.ts (NEW):**
+
 - Data Layer: HTTP communication with File API on VPS
 - 3-step R2 upload orchestration:
   1. `getUploadUrl()` — Request presigned URL (creates pending record)
@@ -9497,22 +10017,26 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - Additional methods: `listFiles()`, `getDownloadUrl()`, `deleteFile()`
 
 **src/features/files/hooks/useFileUpload.ts (NEW):**
+
 - Domain Layer: State machine for R2 upload with progress tracking
 - Handles upload failure gracefully (prevents orphan DB records)
 - Returns `{ uploadFile, isUploading, progress, error }`
 
 **src/features/files/hooks/useFiles.ts (NEW):**
+
 - Domain Layer: File list fetching with automatic refresh
 - Connects to `GET /api/files` on VPS
 - Returns `{ files, loading, error, refresh }`
 
 **src/features/files/screens/FileListScreen.tsx (NEW):**
+
 - Presentation Layer: High-performance FlatList rendering
 - Pull-to-refresh with `RefreshControl`
 - Empty state handling with helpful hints
 - Floating Action Button for upload navigation
 
 **src/features/files/screens/FileUploadScreen.tsx (NEW):**
+
 - Presentation Layer: Modal action workspace
 - Uses `react-native-document-picker` for file selection
 - Progress bar with percentage display
@@ -9521,18 +10045,22 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 **Navigation Structure:**
 
 **src/navigation/types.ts (NEW):**
+
 - Type-safe route parameter definitions
 - Prevents runtime routing crashes via TypeScript compiler
 
 **src/navigation/AppNavigator.tsx (NEW):**
+
 - React Navigation Native Stack setup
 - Routes: `FileList` (main), `FileUpload` (modal), `FileDetail` (placeholder)
 - Standard Fabrik UI styling (header colors, fonts)
 
 **src/App.tsx (NEW):**
+
 - Main entry point integrating `SafeAreaProvider` and `AppNavigator`
 
 **Architecture:** Mobile App Factory now provides complete React Native template with:
+
 - Integrated Android Studio (Windows SDK) + WSL (code/agents) workflow
 - Clean Architecture (features, services, hooks, screens separation)
 - Type-safe navigation preventing runtime routing errors
@@ -9543,11 +10071,13 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 ```markdown
 **Why:** Metro Bundler configuration is highest risk for mobile deployment
 **Contract:**
+
 - Given: Fresh clone with current package.json
 - When: `npx react-native bundle --platform android --dev false`
 - Then: Valid index.bundle generated without errors
 - Mocked: Native hardware APIs (Camera, GPS)
 - Real: Metro bundler, TypeScript compiler, React Native packager
+
 ```
 
 **Impact:** Mobile template now passes full `final_gate.py` enforcement (ARM64, Node 22, HEALTHCHECK, Android SDK bridge). Complete production-ready React Native app structure for solo-dev speed with enterprise-grade correctness.
@@ -9559,6 +10089,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 **Solution:** Complete SaaS-ready Next.js + Tailwind CSS template with production infrastructure and Clean Architecture.
 
 **templates/next-tailwind/package.json (NEW):**
+
 - Created with `engines.node: ">=22.0.0"` for ARM64 VPS standard
 - Added `gate` script for automation readiness
 - Dependencies: Next.js 14, React 18, Tailwind CSS 3.4
@@ -9566,18 +10097,21 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - Dev deps: TypeScript 5.3, ESLint, Node types
 
 **templates/next-tailwind/Dockerfile.j2:**
+
 - **CRITICAL FIX:** Replaced `node:20-slim` with `node:22-bookworm-slim`
 - Already had HEALTHCHECK (compliant)
 - Multi-stage build with standalone Next.js output
 - Non-root user (appuser:1000) for security
 
 **templates/next-tailwind/compose.yaml.j2:**
+
 - Added mandatory `platform: linux/arm64` for Ubuntu ARM VPS
 - Made healthcheck mandatory (was conditional): defaults to `/api/health`
 - Traefik labels for HTTPS/SSL via Let's Encrypt
 - Environment variable templating for Supabase, Postgres, Redis
 
 **templates/next-tailwind/AGENTS.md.j2:**
+
 - Replaced basic docs with comprehensive agent briefing
 - Mandatory workflow: `npm run gate` before commit
 - **Step 2.5 Tailwind-Specific Audit:** Purge check, hydration, responsive design, dark mode
@@ -9588,52 +10122,63 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 **Configuration Files (NEW):**
 
 **tailwind.config.ts:**
+
 - Scans `app/`, `components/`, `features/` for utility classes
 - Extended theme with SaaS color palette (primary, secondary, success, warning, danger)
 - Font family variable for custom fonts
 
 **app/api/health/route.ts:**
+
 - Health check endpoint for Docker HEALTHCHECK
 - Returns: status, timestamp, uptime
 - Dynamic route (no caching)
 
 **lib/utils.ts:**
+
 - `cn()` helper function for Tailwind class merging
 - Uses `clsx` + `tailwind-merge` for proper conflict resolution
 
 **next.config.js:**
+
 - `output: 'standalone'` for Docker deployment
 - `poweredByHeader: false` for security
 - SWC minification enabled
 
 **postcss.config.js:**
+
 - Tailwind + Autoprefixer integration
 
 **tsconfig.json:**
+
 - Strict mode enabled
 - Path alias `@/*` for clean imports
 - ES2020 target for modern browsers
 
 **.eslintrc.json:**
+
 - Next.js core web vitals + TypeScript rules
 
 **app/globals.css:**
+
 - Tailwind directives with CSS variables
 - Dark mode support via `.dark` class
 - Base styles for consistent design
 
 **app/layout.tsx:**
+
 - Root layout with Inter font (Google Fonts)
 - Metadata for SEO
 - Font variable for Tailwind
 
 **app/page.tsx:**
+
 - Landing page example using Tailwind utilities
 - Demonstrates `cn()` helper usage
 - Responsive grid with hover effects
 - Card component with TypeScript interface
 
 **Architecture:** Next.js Tailwind template provides complete SaaS starter with:
+
 - Server-first architecture (Server Components by default)
 - Type-safe routing with App Router
 - Tailwind JIT compiler for optimal CSS bundle size
@@ -9645,11 +10190,13 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 ```markdown
 **Why:** Prevent UI regressions in SaaS dashboard layouts
 **Contract:**
+
 - Given: Landing Page is rendered
 - When: Tailwind CSS is compiled
 - Then: globals.css bundle contains required utilities without collision
 - Mocked: External API calls
 - Real: Tailwind JIT, PostCSS, Next.js build
+
 ```
 
 **Impact:** Next.js template now passes full `final_gate.py` enforcement (ARM64, Node 22, HEALTHCHECK). Complete production-ready SaaS starter with Tailwind CSS, TypeScript strict mode, and Clean Architecture. Ready for immediate Coolify deployment on Ubuntu ARM VPS.
@@ -9661,24 +10208,28 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 **Solution:** Complete microservice-ready Node.js API template with production infrastructure and security defaults.
 
 **templates/node-api/package.json (NEW):**
+
 - Created with `engines.node: ">=22.0.0"` for ARM64 VPS standard
 - Added `gate` script for automation readiness
 - Dependencies: Express 4.18, Helmet, CORS, Morgan, Dotenv
 - Dev deps: Nodemon for development watch mode
 
 **templates/node-api/Dockerfile.j2:**
+
 - **CRITICAL FIX:** Replaced `node:20-slim` with `node:22-bookworm-slim`
 - Already had HEALTHCHECK (compliant)
 - Added `ENV NODE_ENV=production` and `ENV PORT=3000`
 - Non-root user (appuser:1000) for security
 
 **templates/node-api/compose.yaml.j2:**
+
 - Added mandatory `platform: linux/arm64` for Ubuntu ARM VPS
 - Made healthcheck mandatory (was conditional): defaults to `/health`
 - Traefik labels for HTTPS/SSL via Let's Encrypt
 - Environment variable templating for Postgres, Redis
 
 **templates/node-api/AGENTS.md.j2:**
+
 - Replaced basic docs with comprehensive agent briefing
 - Mandatory workflow: `npm run gate` before commit
 - **Step 2.5 API-Specific Audit:** Tenant isolation, silent failures, error responses, binding to 0.0.0.0
@@ -9689,6 +10240,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 **Source Code (NEW):**
 
 **src/index.js:**
+
 - Complete Express server with mandatory `/health` endpoint
 - Security middleware: Helmet (HTTP headers), CORS
 - Request logging: Morgan
@@ -9699,15 +10251,18 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - Startup logging with service info
 
 **.env.example:**
+
 - Environment variable template
 - Database URL placeholder
 - Redis URL placeholder
 - API key placeholder
 
 **.gitignore:**
+
 - Standard Node.js ignores (node_modules, .env, logs)
 
 **Architecture:** Node API template provides complete microservice starter with:
+
 - Express.js for routing and middleware
 - Security-first defaults (Helmet, CORS, non-root user)
 - Health monitoring for Coolify orchestration
@@ -9720,11 +10275,13 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 ```markdown
 **Why:** Prevent unauthorized cross-tenant data access
 **Contract:**
+
 - Given: Request from User A with valid auth token
 - When: Attempting to access resource belonging to User B
 - Then: API returns 403 Forbidden or 404 Not Found
 - Mocked: Auth middleware, Database layer
 - Real: Authorization logic, Express route handlers
+
 ```
 
 **Impact:** Node API template now passes full `final_gate.py` enforcement (ARM64, Node 22, HEALTHCHECK). Complete production-ready microservice with Express.js, security defaults, and Clean Architecture. Ready for immediate Coolify deployment on Ubuntu ARM VPS.
@@ -9736,17 +10293,20 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 **Solution:** Complete FastAPI microservice template with tenant isolation, Pydantic validation, and security defaults.
 
 **templates/python-api/Dockerfile.j2:**
+
 - Updated to explicit `python:3.12-slim-bookworm` (was `python:3.12-slim`)
 - Already had HEALTHCHECK (compliant)
 - Already had non-root user (appuser:1000) for security
 
 **templates/python-api/compose.yaml.j2:**
+
 - Added mandatory `platform: linux/arm64` for Ubuntu ARM VPS
 - Made healthcheck mandatory (was conditional): defaults to `/health`
 - Traefik labels for HTTPS/SSL via Let's Encrypt
 - Environment variable templating for Postgres, Redis
 
 **templates/python-api/AGENTS.md.j2:**
+
 - Replaced basic docs with comprehensive agent briefing
 - Mandatory workflow: `python scripts/final_gate.py` before commit
 - **Step 2.5 Python-Specific Audit:** Tenant invariant, async safety, error mapping, type hints, dependency injection
@@ -9758,6 +10318,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 **Source Code (NEW):**
 
 **main.py:**
+
 - Complete FastAPI application with mandatory `/health` endpoint
 - CORS middleware with environment-based configuration
 - Pydantic models for type-safe request/response
@@ -9767,23 +10328,27 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - Binds to `0.0.0.0:8000` for Docker compatibility
 
 **requirements.txt:**
+
 - FastAPI 0.109.0, Uvicorn with ASGI server
 - Pydantic 2.5.3 for validation, Pydantic Settings for config
 - Security: python-jose, passlib for JWT/auth
 - Optional dependencies commented (SQLAlchemy, Redis, pytest, ruff, mypy)
 
 **.env.example:**
+
 - Environment variable template (ENVIRONMENT, PORT, DATABASE_URL, REDIS_URL)
 - Security variables (SECRET_KEY, ALGORITHM, TOKEN_EXPIRE)
 - CORS origins configuration
 - API key placeholder
 
 **.gitignore:**
+
 - Standard Python ignores (__pycache__, *.pyc, venv, .env)
 - IDE files (.vscode, .idea)
 - Test artifacts (.pytest_cache, .coverage)
 
 **Architecture:** Python API template provides complete FastAPI starter with:
+
 - FastAPI for modern async Python APIs
 - Pydantic for data validation and settings
 - Dependency injection for clean architecture
@@ -9796,11 +10361,13 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 ```markdown
 **Why:** Highest leverage risk is cross-tenant data leakage
 **Contract:**
+
 - Given: Authenticated request from Tenant A
 - When: Fetching resource belonging to Tenant B
 - Then: API returns 404 Not Found or 403 Forbidden
 - Mocked: Database session/engine
 - Real: Dependency injection logic, SQLAlchemy filters, Pydantic models
+
 ```
 
 **Impact:** Python API template now passes full `final_gate.py` enforcement (ARM64, Python 3.12 bookworm, HEALTHCHECK). Complete production-ready FastAPI microservice with tenant isolation, Pydantic validation, and security defaults. Ready for immediate Coolify deployment on Ubuntu ARM VPS.
@@ -9810,6 +10377,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 **What:** Created comprehensive workflow documentation for all major automation scripts.
 
 **New files:**
+
 - `docs/workflows/KILO_REVIEW_WORKFLOW.md` (~400 lines) — Full documentation for `kilo_code_review.py`
   - Commands reference, workflow steps, model selection & escalation
   - Session management, review schema, configuration options
@@ -9821,10 +10389,12 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
   - Configuration, exit codes, troubleshooting
 
 **Moved:**
+
 - `docs/reference/kilo/kilo-benchmarks.md` → `docs/workflows/KILO_AGENT_MANAGEMENT.md`
   - Renamed for clarity: covers agent discovery, benchmarking, role assignment
 
 **Updated:**
+
 - `docs/reference/fabrik-scaffold-specs.md` — Updated to reflect current scaffold output (2026-03-23)
   - New project tree showing all 184 directories, 333 files
   - Added enforcement scripts, quality gates, templates sections
@@ -9833,6 +10403,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
   - **Fixed:** Removed incorrect symlink claims — all files are COPIED (not symlinked)
 
 **Workflow docs now cover:**
+
 - KILO_REVIEW_WORKFLOW.md — AI code review workflow
 - KILO_AGENT_MANAGEMENT.md — Agent discovery, benchmarking, role assignment
 - FINAL_GATE_WORKFLOW.md — Pre-commit quality gates
@@ -9846,10 +10417,13 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 
 **Fix:** Changed line 3401 in `kilo_code_review.py`:
 ```python
+
 # Before (broken)
+
 "failures": ["scripts/final_gate.py not found - pre-review gates are required"]
 
 # After (fixed)
+
 "failures": [{"check": "script_exists", "error": "scripts/final_gate.py not found..."}]
 ```
 
@@ -9860,6 +10434,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 **What:** Professional-grade documentation enforcement + auto-generation using Kilo CLI with dynamic agent selection.
 
 **New script:** `scripts/kilo_docs_enforcer.py` (~1,399 lines)
+
 - **Detection:** Analyzes git diff for documentation triggers
 - **Enforcement:** Blocks commits if required docs missing (CRITICAL/MAJOR/MINOR severity)
 - **Auto-generation:** Generates missing docs using Kilo agents from `kilo_agents.db`
@@ -9873,6 +10448,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - **Non-blocking monitoring:** Threaded queue-based process monitoring (prevents hangs)
 
 **Trigger coverage:**
+
 - CRITICAL: new public API, endpoints, env vars, breaking changes, CLI args (blocks merge)
 - MAJOR: large code changes, schema changes, error handling, Docker changes
 - MINOR: refactoring, test coverage, performance optimizations
@@ -9890,6 +10466,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 3. **Package name assumptions** - `docs_updater.py` module template changed from `from fabrik.{module}` to `from {PROJECT_ROOT.name}.{module}`
 
 **Files changed:**
+
 - `src/fabrik/scaffold.py` - Added `ignore_patterns()` to exclude build artifacts from template copy
 - `scripts/kilo_model_sync.py` - Generalized cron example path
 - `scripts/docs_updater.py` - Use project name instead of hardcoded "fabrik"
@@ -9901,11 +10478,13 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 **What:** Strengthened `check_symlinks()` to prevent governance file symlink regressions.
 
 **Verification comment fixes:**
+
 1. **Recursive `.windsurf/rules` inspection** - Now checks all descendants, not just top-level directory
 2. **Fail on ANY symlinks** - External symlinks no longer silently pass (strict isolation enforcement)
 3. **Path-aware containment** - Replaced string prefix matching with `Path.is_relative_to()` to prevent false positives (e.g., `/opt/fabrik-backups`)
 
 **Files changed:**
+
 - `scripts/final_gate.py` - Enhanced `check_symlinks()` with recursive checking and path-aware logic
 
 **Impact:** Symlink poisoning now impossible - all governance symlinks fail the gate with actionable messages.
@@ -9917,9 +10496,11 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 **Why:** The deprecated no-op check always returned PASS, allowing symlink regressions to go undetected. Child projects must use local copies of governance files (AGENTS.md, opencode.json, .windsurfrules, .windsurf/rules/) to enforce workspace isolation for AI agents.
 
 **Files:**
+
 - `scripts/final_gate.py` - Replaced `check_symlinks()` body with symlink detection logic
 
 **Behavior:**
+
 - ✅ PASS when all governance files are local copies
 - ✅ PASS when running inside /opt/fabrik itself (self-exemption)
 - ❌ FAIL with actionable per-file messages when symlinks resolve into /opt/fabrik
@@ -9934,6 +10515,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 **Why:** Without enforcement, future edits could accidentally reintroduce `.windsurf/rules/*.md` glob or include Cascade-only rules like `00-critical.md`, breaking Kilo/Cascade separation. This hardening ensures the approved allowlist stays intact.
 
 **Files:**
+
 - `scripts/enforcement/check_opencode_json.py` - Validates exact match with Kilo-safe allowlist and ordering
 - `scripts/final_gate.py` - Wired into consistency checks (runs on every gate)
 
@@ -9948,6 +10530,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 **All /opt/fabrik references removed from:**
 
 **Scripts (9 files):**
+
 - `scripts/enforcement/check_plans.py` - Check own plans/, not Fabrik's
 - `scripts/enforcement/check_docs.py` - Check own docs/, not Fabrik's
 - `scripts/enforcement/check_plan_quality.py` - Check own plans/, not Fabrik's
@@ -9959,19 +10542,23 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - `scripts/docs_updater.py` - All FABRIK_ROOT → PROJECT_ROOT (19 occurrences)
 
 **Rule files (4 files):**
+
 - `.windsurfrules` - Removed Fabrik path documentation
 - `.windsurf/rules/00-critical.md` - Removed master .env, master .venv, .codeiumignore references
 - `.windsurf/rules/30-ops.md` - Removed master .env and SERVICES.md references
 - `.windsurf/rules/40-documentation.md` - Removed Fabrik PLANS.md link
 
 **Documentation (2 files):**
+
 - `AGENTS.md` - Removed master .env, Droid hooks paths
 - Template files (6) - Removed all Fabrik references from PROJECT_INDEX_TEMPLATE.md, CONFIGURATION_TEMPLATE.md, DEPLOYMENT_TEMPLATE.md, etc.
 
 **Scaffold (1 file):**
+
 - `src/fabrik/scaffold.py` - PORTS.md generated without cross-project reference
 
 **Impact:**
+
 - **Before:** 103 /opt/fabrik references in child projects
 - **After:** 0 functional references (4 harmless: project description metadata + historical comment)
 - Projects are 100% standalone - no master .env, no master PORTS.md, no cross-project validation
@@ -9985,14 +10572,17 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 **Why:** Prevent Kilo CLI from loading Cascade-only behavior rules that are irrelevant and confusing for non-Cascade agents.
 
 **Files:**
+
 - `opencode.json` - Explicit list of 7 shared domain rules + AGENTS files
 
 **Excluded from Kilo CLI context:**
+
 - `.windsurf/rules/00-critical.md` - Cascade behavior rules (terminal selection, check-before-create, present-before-execute)
 - `.windsurf/rules/50-code-review.md` - Cascade-specific review commands
 - `.windsurf/rules/90-automation.md` - Fabrik skills auto-invocation, YOLO commands
 
 **Included (Kilo-safe):**
+
 - `.windsurf/rules/10-python.md` - Python/FastAPI patterns
 - `.windsurf/rules/20-typescript.md` - TypeScript/Next.js patterns
 - `.windsurf/rules/30-ops.md` - Docker/Compose patterns
@@ -10008,6 +10598,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 **What:** Created file watcher that automatically runs `consolidate_envs.py` when any `/opt/*/.env` file is modified.
 
 **Files:**
+
 - `scripts/watch_env_changes.sh` - inotify-based watcher
 - `infrastructure/env-watcher.service` - systemd service
 
@@ -10028,6 +10619,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 **Why:** Projects must be self-contained. No references to `/opt/fabrik/templates/`.
 
 **Changes:**
+
 - `src/fabrik/scaffold.py:405-415` - Copy templates to project
 - `.windsurf/rules/20-typescript.md` - Reference `templates/saas-skeleton` (project-local)
 - `.windsurf/rules/40-documentation.md` - Reference `templates/docs/PLAN_TEMPLATE.md` (project-local)
@@ -10043,6 +10635,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 **Why:** Hardcoded absolute paths defeated workspace isolation - even with copied files, agents were instructed to access `/opt/fabrik/` scripts instead of using local copies.
 
 **Changes:**
+
 - `AGENTS-compact.md` - `scripts/final_gate.py`, `scripts/kilo_code_review.py` (3 references)
 - `AGENTS.md` - workflow table, gate commands, sync_projects note (4 references)
 - `.windsurf/rules/50-code-review.md` - Final Gate and Kilo Review commands (2 references)
@@ -10051,6 +10644,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 - `.windsurf/rules/30-ops.md` - container_images.py note (1 reference)
 
 **Intentionally preserved /opt/fabrik references:**
+
 - Master .env backup (`/opt/fabrik/.env`) - security requirement
 - Master venv (`/opt/fabrik/.venv/`) - cross-project tools (kilo_terminal_runner.py)
 - Template paths (`/opt/fabrik/templates/`) - scaffold source
@@ -10060,6 +10654,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 **Impact:** Agents now use project-local scripts. No more instructions to access parent `/opt/fabrik/` directory. Complete workspace isolation achieved.
 
 **Files:**
+
 - `AGENTS-compact.md`, `AGENTS.md`, `.windsurf/rules/*.md` - path fixes
 
 ### Changed - Replaced symlinks with copies for workspace isolation (2026-03-22)
@@ -10069,6 +10664,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 **Why:** Symlinks exposed `/opt/fabrik/` directory structure to AI agents working in child projects. When Kilo CLI resolved `.windsurf/rules/*.md` glob, it discovered parent directory existence, creating risk of unintended file access across project boundaries.
 
 **Changes:**
+
 - `scaffold.py::_scaffold_shared()` - copies instead of symlinks (4 files: .windsurfrules, .windsurf/rules/, AGENTS.md, AGENTS-compact.md)
 - `scaffold.py::fix_project()` - migrates existing symlinks to copies, handles both real and dry-run paths
 - `final_gate.py::check_symlinks()` - deprecated, now always returns True (no symlinks to validate)
@@ -10077,6 +10673,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 **Impact:** Each project now has isolated copies of configuration files. Updates to `/opt/fabrik/` rules require running `fabrik fix` to propagate changes. Projects cannot accidentally access `/opt/fabrik/` internals via symlink resolution.
 
 **Files:**
+
 - `src/fabrik/scaffold.py` - symlink → copy migration logic
 - `scripts/final_gate.py` - deprecated symlink validation
 
@@ -10085,12 +10682,14 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 **What:** Added mandatory first-output confirmation to make rule-skipping visible in both Windsurf Cascade and Kilo CLI workflows.
 
 **Changes:**
+
 - `.windsurf/rules/00-critical.md` - added `MANDATORY FIRST OUTPUT` section after frontmatter (highest salience)
 - All 4 Traycer prompt templates - added `.windsurf/rules/` reference + `FIRST ACTION` confirmation demand
 
 **Impact:** Coding agents must output `RULES ACTIVE: [ROLE] | [3 rules] | final_gate.py required` before any code changes. Non-compliance becomes immediately visible.
 
 **Files:**
+
 - `.windsurf/rules/00-critical.md` - confirmation demand for Cascade agents
 - `~/.traycer/prompt-templates/Coder-for-Plan-Mode.md` - +2 lines (now 36)
 - `~/.traycer/prompt-templates/Coder-for-Phased-Epic-Modes.md` - +2 lines (now 36)
@@ -10102,6 +10701,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 **What:** Updated scaffolding and fix systems to propagate `AGENTS-compact.md` symlink and correct `opencode.json` to all child projects (new and existing).
 
 **Changes:**
+
 - `scaffold.py::_scaffold_shared()` - now creates AGENTS-compact.md symlink and copies opencode.json from master (single source of truth)
 - `scaffold.py::fix_project()` - always refreshes opencode.json from master, creates AGENTS-compact.md symlink if missing
 - `final_gate.py::check_symlinks()` - validates AGENTS-compact.md symlink in child projects
@@ -10109,6 +10709,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 **Impact:** `fabrik scaffold` and `fabrik fix` now ensure all projects have AGENTS-compact.md symlink and up-to-date opencode.json.
 
 **Files:**
+
 - `src/fabrik/scaffold.py` - propagation logic for AGENTS-compact.md + opencode.json refresh
 - `scripts/final_gate.py` - symlink validation for AGENTS-compact.md
 
@@ -10119,6 +10720,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 **Why:** Ensures mandatory confirmation output (`RULES ACTIVE: ...`) appears before any action, hard stops and mandatory steps load at highest priority, and coding pattern rules auto-include future additions.
 
 **Files:**
+
 - `AGENTS-compact.md` - new compact enforcement gate (22 lines)
 - `opencode.json` - updated instruction loading order (3 entries: compact gate → windsurf rules glob → full AGENTS.md)
 - `scripts/enforcement/check_structure.py` - added AGENTS-compact.md to allowed root markdown files
@@ -10128,6 +10730,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 **What:** Added distilled Windsurf rule files for Chrome extension and mobile UI work covering platform constraints, state management, navigation, accessibility, performance, and completion checklists.
 
 **Files:**
+
 - `.windsurf/rules/70-chrome-ext.md` - new Chrome extension UI guidance for MV3 projects
 - `.windsurf/rules/80-mobile.md` - new Android and iOS UI guidance for mobile projects
 
@@ -10136,6 +10739,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 **What:** Added a distilled Windsurf rule file for SaaS UI work covering navigation, component layering, required component states, performance budgets, accessibility, optimistic UI, and microcopy.
 
 **Files:**
+
 - `.windsurf/rules/60-saas-ui.md` - new always-on frontend UI guidance
 
 ### Changed - kilo_code_review.py default to report-only mode (2026-03-19)
@@ -10145,6 +10749,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 **Workflow:** Review AI reports issues → Calling agent fixes → Re-runs review
 
 **CLI Changes:**
+
 - `staged` command: Now report-only by default. Use `--fix` to enable auto-fix.
 - `changed` command: Same as above.
 - Removed `--no-fix` flag (no longer needed since report-only is default).
@@ -10158,11 +10763,13 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 **Fix:** Only pass `--session` when we have a real Kilo-returned session ID (length > 20 chars).
 
 **Also Added:**
+
 - Auto-variant selection based on risk level (low→low, medium→high, critical→max)
 - Updated TIER_MODELS with validated models from benchmarks
 - Archived `reviewer_selector.py` (functionality merged into kilo_code_review.py)
 
 **Files:**
+
 - `scripts/kilo_code_review.py` - Session ID fix + report-only default + auto-variant
 - `scripts/archive/reviewer_selector.py.archived-20260319` - Archived
 - `docs/reference/ai_agent_prompt_directives.md` - New prompt directives reference
@@ -10173,12 +10780,15 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 **What:** New script using Gemini 2.5 Flash for cheap MECHANICAL fixes only.
 **Scope:** Lint fixes, type hint fixes, docstring additions. NO logic changes, NO refactoring.
 **Features:**
+
 - `fix` - Fix a specific issue in a file
 - `fix-from-output` - Fix issues from mypy/ruff output
 - `batch` - Batch fix all issues in a file
 - `test` - Verify agent connectivity
+
 **Integration:** Auto-runs in `final_gate.py` Phase 2.5 when `FINAL_GATE_AI_FIX=1` is set
 **Files:**
+
 - `scripts/cheap_fix_agent.py` - New script (~380 lines)
 - `scripts/final_gate.py` - Integrated AI fix into iteration loop
 
@@ -10188,6 +10798,7 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 **Usage:** `python dev_tracker.py issue <type> "<message>"`
 **Reports:** `python dev_tracker.py report issues`
 **Files:**
+
 - `scripts/dev_tracker.py` - Added `log_agent_issue()` and `report_issues()`
 
 ### Added - TUI copy/save keybindings + auto-save for kilo_terminal_runner (2026-03-18)
@@ -10195,11 +10806,13 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 **What:** Added keyboard shortcuts and automatic transcript persistence for debugging after TUI closes.
 
 **Features:**
+
 - `Ctrl+Y` - Copy full transcript to clipboard (tries xclip, xsel, wl-copy)
 - `Ctrl+S` - Save transcript to `.droid/transcript-YYYYMMDD-HHMMSS.txt`
 - **Auto-save on exit** - Transcripts saved to `.droid/transcripts/<timestamp>-<agent>-exit<code>.txt`
 
 **Files:**
+
 - `scripts/kilo_terminal_runner.py` - Added BINDINGS, action methods, auto-save on exit
 
 ### Added - Enhanced Traycer context logging in CLI agents (2026-03-18)
@@ -10207,11 +10820,13 @@ coolify.vps1.ocoron.com/api/v1/services (Bearer) → HTTP 200 (bypass works)
 **What:** CLI agents now log all Traycer environment variables to help analyze workflow types and handoff sequences.
 
 **Logged:**
+
 - `TRAYCER_TASK_ID`, `TRAYCER_PHASE_ID`, `TRAYCER_WORKFLOW`, `TRAYCER_HANDOFF_TYPE`
 - All `TRAYCER_*` environment variables
 - Prompt length
 
 **Files:**
+
 - `scripts/generate_kilo_agents.py` - Added always-on Traycer context logging
 - `~/.traycer/cli-agents/*.sh` - All agents regenerated with enhanced logging
 
@@ -10229,6 +10844,7 @@ PROMPT="${PROMPT//\~\/.traycer\//${HOME}/.traycer/}"
 **Impact:** All 14 active CLI agents now correctly resolve `~/.traycer/` paths regardless of execution context. This fixes Smart YOLO and Phased YOLO task completion tracking.
 
 **Files:**
+
 - `scripts/generate_kilo_agents.py` - Added tilde expansion fix (lines 324-327)
 - `~/.traycer/cli-agents/*.sh` - All agents regenerated with fix
 
@@ -10237,6 +10853,7 @@ PROMPT="${PROMPT//\~\/.traycer\//${HOME}/.traycer/}"
 **What:** Added safety features to prevent silent overwrites of newer files in child projects.
 
 **Changes:**
+
 1. Added `--dry-run` flag - reports what would be copied without writing
 2. Added `--backup` flag - creates timestamped `.backup.YYYYMMDD-HHMMSS` before overwriting
 3. Added `--force` flag - skips hash comparison for explicit full-sync
@@ -10244,6 +10861,7 @@ PROMPT="${PROMPT//\~\/.traycer\//${HOME}/.traycer/}"
 5. Added `-v/--verbose` flag for per-file details
 
 **Files:**
+
 - `scripts/sync_enforcement_to_projects.py` - complete rewrite with safety features
 
 ### Fixed - High-risk path init available to programmatic callers (2026-03-18)
@@ -10251,11 +10869,13 @@ PROMPT="${PROMPT//\~\/.traycer\//${HOME}/.traycer/}"
 **What:** Made `_init_high_risk_paths()` available to both CLI and programmatic flows (like `review_loop()`) without import-time side effects.
 
 **Changes:**
+
 1. Added `verbose` parameter to `_init_high_risk_paths()` - CLI gets `verbose=True`, programmatic gets `verbose=False`
 2. Added call to `_init_high_risk_paths(verbose=False)` in `review_loop()` for programmatic callers
 3. Added 4 tests validating silent import contract and CLI-only routing logging
 
 **Files:**
+
 - `scripts/kilo_code_review.py` - verbose parameter, review_loop() init call
 - `tests/test_kilo_review_validation.py` - 4 new tests for import side-effect regression
 
@@ -10264,12 +10884,14 @@ PROMPT="${PROMPT//\~\/.traycer\//${HOME}/.traycer/}"
 **What:** Removed hardcoded `/home/ozgur` and `/tmp/` paths from model sync scripts.
 
 **Changes:**
+
 1. `kilo_model_sync.py`: Added `KILO_BIN` env var support, replaced hardcoded paths with `Path.home()`
 2. `kilo_model_sync.py`: Replaced `sys.argv` parsing with `argparse` (adds `--help`)
 3. `kilo_model_sync_startup.sh`: `FABRIK_DIR` now uses `${FABRIK_ROOT:-/opt/fabrik}`
 4. `kilo_model_sync_startup.sh`: Lock file moved from `/tmp/` to `$FABRIK_DIR/.tmp/`
 
 **Files:**
+
 - `scripts/kilo_model_sync.py` - KILO_BIN env var, Path.home(), argparse
 - `scripts/kilo_model_sync_startup.sh` - FABRIK_ROOT env var, .tmp/ lock file
 
@@ -10283,6 +10905,7 @@ PROMPT="${PROMPT//\~\/.traycer\//${HOME}/.traycer/}"
 **Root cause:** When Kilo API has connectivity issues, it returns `{"type":"error",...}` but the parser ignored these and waited for `step_finish` event that never came.
 
 **Files:**
+
 - `scripts/kilo_code_review.py` - Added error event handling in `parse_kilo_jsonl()`, moved high-risk paths init to function
 
 ### Fixed - Traycer review import and verify-command documentation (2026-03-17)
@@ -10290,6 +10913,7 @@ PROMPT="${PROMPT//\~\/.traycer\//${HOME}/.traycer/}"
 **What:** Fixed the Traycer auto-review wrapper to call the actual `review_loop()` API, and corrected stale review examples that still documented nonexistent `review --verify-mode` flags.
 
 **Files:**
+
 - `scripts/traycer_agent_review.py` - Replaced broken `run_review` import/path hack with direct `review_loop()` usage and proper `FinalReport` mapping
 - `docs/guides/DEVELOPMENT_WORKFLOW.md` - Replaced invalid `review --verify-mode --fixes-description` example with `verify --fixes`
 - `docs/reference/kilo/KILO-TOKEN-LEAN-WORKFLOW.md` - Updated verify-loop examples to use the real `verify` subcommand and `--fixes`
@@ -10299,22 +10923,26 @@ PROMPT="${PROMPT//\~\/.traycer\//${HOME}/.traycer/}"
 **What:** Complete refactoring of .droid/ gitignore coverage with DRY constants, root .gitignore patching, and propagation to all 50 projects.
 
 **Initial Phase (TICKET-1 through TICKET-4):**
+
 - **TICKET-1:** Extracted `_DROID_GITIGNORE_BLOCK` constant used by all 6 scaffold write sites
 - **TICKET-2:** Added `.droid/traycer-reports/` directory scaffolding with proper .gitignore
 - **TICKET-3:** Updated Fabrik master `.droid/.gitignore` with deny-all + explicit allowlist
 - **TICKET-4:** Added `fix_project()` repairs for .droid/ structure using DRY constants
 
 **Evidence-Based Corrections:**
+
 - **DEFECT-1:** Added missing `docs_updater.py` runtime dirs (`.droid/docs_queue/`, `.droid/docs_log/`) to gitignore block
 - **DEFECT-2:** Removed 3 phantom entries (`kilo_metrics.jsonl`, `review_sessions.jsonl`, `review_audits.jsonl`) that no script writes
 - Added `_DROID_DIR_GITIGNORE` and `_TRAYCER_REPORTS_GITIGNORE` module-level constants for DRY compliance
 
 **Root .gitignore Propagation:**
+
 - Implemented `_patch_droid_block()` helper to replace/append canonical block in project root .gitignore
 - Extended `fix_project()` to automatically patch root .gitignore when outdated (non-dry-run + dry-run paths)
 - Applied fixes to all 50 projects in /opt/ via `fabrik fix` batch command
 
 **Test Coverage:**
+
 - Created `tests/test_scaffold.py` with 13 passing unit tests covering:
   - `_DROID_GITIGNORE_BLOCK` constant correctness
   - `_patch_droid_block()` edge cases (append, replace scattered, no-op)
@@ -10322,10 +10950,12 @@ PROMPT="${PROMPT//\~\/.traycer\//${HOME}/.traycer/}"
   - `fix_project()` root .gitignore patching
 
 **Documentation:**
+
 - Added reserved comment to `scripts/kilo_cost_report.py` for metrics file (not written by any script yet)
 - Verified `docs_updater.py` FABRIK_ROOT behavior (centralized queue is intentional design)
 
 **Files:**
+
 - `src/fabrik/scaffold.py` - Added 3 constants, _patch_droid_block() helper, fix_project() root .gitignore patching
 - `tests/test_scaffold.py` - 13 unit tests for gitignore coverage and fix_project() behavior
 - `scripts/kilo_cost_report.py` - Reserved comment for metrics file
@@ -10367,6 +10997,7 @@ PROMPT="${PROMPT//\~\/.traycer\//${HOME}/.traycer/}"
    - Prevents stale line buffer state if stream ends with bare CR
 
 **Files:**
+
 - `scripts/generate_kilo_agents.py` - Shell preflight with KILO_RICH_UI + TTY check
 - `scripts/kilo_terminal_runner.py` - Background thread, Traycer content, ANSI decode, header fields
 
@@ -10381,11 +11012,13 @@ python scripts/kilo_code_review.py review <changed_files> \
 ```
 
 But the actual recommended workflow is:
+
 1. **staged** for initial pass (review commit candidate)
 2. **verify-mode** for intermediate fix loops
 3. **staged** again only for final risky-branch checks
 
 This created drift between documentation and actual implementation:
+
 - Agents would use generic `review <files>` instead of `staged`
 - No mention of `--verify-mode` for intermediate loops
 - Missing guidance on when to use each review mode
@@ -10394,6 +11027,7 @@ This created drift between documentation and actual implementation:
 **Files Updated:**
 
 **Core Docs (5 files):**
+
 1. `AGENTS.md` (lines 320-378) - Replaced with staged-first workflow, added review mode selection
 2. `.windsurf/rules/50-code-review.md` (lines 61-175) - Replaced with staged/verify pattern, updated "Then I MUST" and "Key points" sections
 3. `docs/guides/DEVELOPMENT_WORKFLOW.md` (lines 184-237) - Updated Step 4 with staged-first examples and review mode selection
@@ -10401,6 +11035,7 @@ This created drift between documentation and actual implementation:
 5. `.windsurf/rules/00-critical.md` (line 29) - Added note: "always provide a stable tracked review ID; never rely on a global latest session"
 
 **Traycer Templates (8 files):**
+
 6. `~/.traycer/prompt-templates/Direct Execute.md` (lines 43-78) - Replaced with staged/verify workflow, added session scoping note
 7. `~/.traycer/prompt-templates/Execute Epic.md` (lines 55-89) - Replaced with staged/verify per item, added Epic-specific guidance
 8. `~/.traycer/prompt-templates/Phased YOLO Execute.md` (line 64) - Added clarification that Traycer controls scoped review separately
@@ -10416,12 +11051,14 @@ export REVIEW_ID="feat-$(date +%Y%m%d)-<feature-slug>"
 git add <intended_files>
 
 # Initial: staged commit candidate
+
 python scripts/kilo_code_review.py staged \
   --session continue \
   --tracked-review-id "$REVIEW_ID" \
   --plan "..." --output json
 
 # Intermediate: verify-mode (lighter)
+
 python scripts/kilo_code_review.py review <files> \
   --session continue \
   --tracked-review-id "$REVIEW_ID" \
@@ -10430,12 +11067,14 @@ python scripts/kilo_code_review.py review <files> \
 ```
 
 **Review Mode Selection Added:**
+
 - **staged**: Initial pass, final risky-branch check
 - **verify-mode**: Intermediate fix loops (cheaper, focused)
 - **review <files>**: Manual WIP review, deliberate partial review only
 - **--review-mode full**: Narrow high-risk files only
 
 **Session Scoping Details Added:**
+
 - Sessions scoped by: `project_root + git_branch + tracked_review_id`
 - `--tracked-review-id` REQUIRED with `--session continue`
 - Issue state: `.droid/reviews/<tracked_review_id>_issues.json`
@@ -10443,6 +11082,7 @@ python scripts/kilo_code_review.py review <files> \
 - Auto-close conservative: only for staged, single-batch, non-verify, auto-fix runs
 
 **Impact:**
+
 - All agents now follow correct staged-first / verify-mode workflow
 - Templates instruct agents to stage intended files before review
 - Epic templates specify staging ONLY files for current item (prevents over-review)
@@ -10451,6 +11091,7 @@ python scripts/kilo_code_review.py review <files> \
 - Clear guidance on when to use each review mode
 
 **File Location Fix:**
+
 - Moved `KILO-TOKEN-LEAN-WORKFLOW.md` from `docs/guides/` to `docs/reference/kilo/` (proper location with other Kilo reference docs)
 
 ### Fixed - Tighten issue auto-close to prevent scope-based false positives (2026-03-17)
@@ -10458,16 +11099,19 @@ python scripts/kilo_code_review.py review <files> \
 **What:** Prevent marking issues as "fixed" when they're out of scope, not actually resolved.
 
 **Fix:**
+
 - Changed auto-close condition from `config.auto_fix and not config.verify_mode`
 - To: `config.auto_fix and not config.verify_mode and config.review_mode == "staged" and len(files) <= config.max_files_per_batch`
 - Prevents auto-close on: narrowed file subsets, subsystem slices, partial staged sets, multi-batch runs
 
 **Impact:**
+
 - Auto-close only triggers for full-scope staged reviews (commit-candidate surface)
 - Avoids false "fixed" status when issue is out of current review scope
 - Single-batch check prevents accidental closure from batched/sliced runs
 
 **Files:**
+
 - `scripts/kilo_code_review.py` - Tightened auto-close gate condition
 
 ### Fixed - Strengthen config typing and prevent aggressive issue auto-close (2026-03-17)
@@ -10475,6 +11119,7 @@ python scripts/kilo_code_review.py review <files> \
 **What:** Final fixes to remove dynamic attribute access and prevent issue state corruption on partial/batched iterations.
 
 **Fixes:**
+
 - Removed `getattr(config, "tracked_review_id", None)` in SessionState creation, use direct `config.tracked_review_id`
 - Removed `getattr(args, "tracked_review_id", None)` in config construction, use direct `args.tracked_review_id`
 - Added `allow_auto_fix_close` parameter to `update_issue_state()` (default: False)
@@ -10482,12 +11127,14 @@ python scripts/kilo_code_review.py review <files> \
 - Call site uses `allow_auto_close = config.auto_fix and not config.verify_mode` (conservative)
 
 **Impact:**
+
 - Config typing fully enforced, no dynamic attribute lookups
 - Prevents false "fixed" status on partial/batched/verify-mode iterations
 - Safe auto-close only for full-scope auto-fix reviews
 - Issue state remains accurate across different review contexts
 
 **Files:**
+
 - `scripts/kilo_code_review.py` - Removed getattr() calls, added conservative auto-close gating
 
 ### Fixed - Complete session scoping and issue persistence wiring (2026-03-17)
@@ -10495,6 +11142,7 @@ python scripts/kilo_code_review.py review <files> \
 **What:** Fixed incomplete config wiring, issue persistence field bug, and missing loop integration for scoped sessions and issue tracking.
 
 **Fixes:**
+
 - Added `tracked_review_id` field to `KiloReviewConfig` dataclass (was missing, causing hasattr() smell)
 - Wired `tracked_review_id=args.tracked_review_id` in config construction
 - Fixed issue persistence bug: `issue.get("fix")` → `issue.get("fix_hint")` (was losing fix hints)
@@ -10503,12 +11151,14 @@ python scripts/kilo_code_review.py review <files> \
 - Initialize `previous_issues` from `get_open_issues()` when tracked_review_id present (was not used)
 
 **Impact:**
+
 - Config typing enforces tracked_review_id contract (no dynamic attribute attachment)
 - Fix hints now correctly persisted in issue state files
 - Issue tracking actually integrated into review loop (not just on paper)
 - Open issues from previous iterations feed into coder context
 
 **Files:**
+
 - `scripts/kilo_code_review.py` - Config field added, issue persistence bug fixed, loop integration complete
 
 ### Added - Scoped session continuation and issue-state persistence (2026-03-17)
@@ -10516,6 +11166,7 @@ python scripts/kilo_code_review.py review <files> \
 **What:** Replaced global "latest session" continuation with scoped session resolution. Added issue tracking across iterations with automatic status management.
 
 **Changes:**
+
 - `scripts/kilo_code_review.py` - Added `project_root`, `git_branch`, `tracked_review_id` to SessionState
 - Added `get_current_git_branch()` helper to detect current branch
 - Added `get_scoped_session()` resolver: finds sessions by project_root + git_branch + tracked_review_id
@@ -10526,12 +11177,14 @@ python scripts/kilo_code_review.py review <files> \
 - Issue lifecycle tracking: open → fixed (automatic), manual: rejected, false_positive
 
 **Impact:**
+
 - Sessions no longer accidentally resume another repo/branch's session
 - Issue tracking prevents duplicate reporting across iterations
 - Coder prompts can filter for open issues only
 - Provides historical context for review cycles
 
 **Files:**
+
 - `scripts/kilo_code_review.py` - SessionState extended, scoped session resolver, issue persistence system
 - `docs/guides/KILO-TOKEN-LEAN-WORKFLOW.md` - Staged workflow, scoped sessions, issue tracking, micro-spec format, semantic batching, verify mode
 
@@ -10540,6 +11193,7 @@ python scripts/kilo_code_review.py review <files> \
 **What:** Replaced arbitrary timeout-based Kilo execution with active process monitoring. Made default workflow token-efficient by disabling expensive multi-pass reviews and verification steps.
 
 **Changes:**
+
 - `scripts/kilo_code_review.py` - Replaced `subprocess.run(timeout=...)` with `Popen + _monitor_process()` that tracks stdout/stderr growth
 - Default `review_mode` changed from `"full"` to `"diff_only"` (token-efficient)
 - Default `verify_high_risk` changed from `True` to `False` (no auto-verification)
@@ -10553,12 +11207,14 @@ python scripts/kilo_code_review.py review <files> \
 - Fixed config.model state leak: escalation now restores original model in finally block
 
 **Impact:**
+
 - Long-running reviews no longer killed prematurely (monitors progress, not wall-clock)
 - Hung/silent processes still terminated via idle timeout
 - Token savings: ~75% reduction for PASS cases (no auto-multi-pass, no auto-verification)
 - Solo developer workflow optimized for speed and cost
 
 **Files:**
+
 - `scripts/kilo_code_review.py` - 110 lines added (_monitor_process), rewritten run_kilo, config defaults, gating logic
 
 ### Changed - Scaffold copies ALL scripts for complete independence (2026-03-16)
@@ -10566,16 +11222,19 @@ python scripts/kilo_code_review.py review <files> \
 **What:** Fabrik scaffold now copies ALL quality gate and enforcement scripts to new projects. Projects are completely self-contained and function independently without requiring Fabrik to exist.
 
 **Changes:**
+
 - `src/fabrik/scaffold.py` - Copy all enforcement scripts (26 files) + core scripts (4 files) during project creation
 - `scripts/kilo_code_review.py` - Fixed SIM102 ruff violation (combined nested if statements)
 
 **Impact:** New projects have complete quality enforcement without absolute paths to `/opt/fabrik`. All 30 scripts copied automatically.
 
 **Scripts copied:**
+
 - Core: `final_gate.py`, `kilo_code_review.py`, `docs_updater.py`, `update_agents_toc.py`
 - Enforcement: All 26 scripts from `scripts/enforcement/` (changelog, health, env vars, docs, ports, structure, etc.)
 
 **Files:**
+
 - `src/fabrik/scaffold.py` - copy ALL scripts during `_scaffold_shared()`
 - `scripts/kilo_code_review.py` - ruff fix
 
@@ -10586,6 +11245,7 @@ python scripts/kilo_code_review.py review <files> \
 **Root cause:** Line 38 used `Path(__file__).parent.parent` which always resolved to `/opt/fabrik` regardless of current directory, causing timeout when run from other projects.
 
 **Fixes:**
+
 - Changed `FABRIK_ROOT = Path(__file__).parent.parent` to `Path.cwd()` - uses current working directory
 - Made all enforcement checks optional - skip gracefully if scripts not present in project
 - Made bandit/vulture optional - skip if not installed instead of failing
@@ -10593,6 +11253,7 @@ python scripts/kilo_code_review.py review <files> \
 **Impact:** final_gate.py now runs successfully in any /opt/* project with appropriate configs (ruff, mypy in pyproject.toml).
 
 **Files:**
+
 - `scripts/final_gate.py` - path resolution fix, optional checks
 
 ### Changed - Structural default-deny policy for new .md files (2026-03-16)
@@ -10600,6 +11261,7 @@ python scripts/kilo_code_review.py review <files> \
 **What:** Replaced partial blocklist with structural default-deny for ALL new markdown files. Only explicit allowlists and structural patterns permitted. No approval mechanism needed.
 
 **Policy:** Block all new .md files except:
+
 - Edits to git-tracked files (any .md in git)
 - Root allowlist (CLOSED): INDEX.md, README.md, CHANGELOG.md, AGENTS.md
 - Docs scaffold allowlist (CLOSED): docs/README.md, docs/QUICKSTART.md, docs/CONFIGURATION.md, docs/TROUBLESHOOTING.md, docs/BUSINESS_MODEL.md, docs/FEATURES.md, docs/.doc-policy.md, docs/development/PLANS.md, docs/archive/README.md
@@ -10608,16 +11270,19 @@ python scripts/kilo_code_review.py review <files> \
   * `docs/archive/**/*.md` (any depth) - Agents may automatically archive completed plans
 
 **Blocked patterns:**
+
 - `.droid/review-context/*.md` - Agent artifacts should not be auto-created
 
 **Git-based detection:** Uses `git rev-parse --show-toplevel` to find repo root, then `git ls-files --error-unmatch` to distinguish tracked (allow edits) vs untracked (check allowlists).
 
 **Optimizations:**
+
 - Cached repo root for efficiency (single call per check_file invocation)
 - Normalized suffix case for cross-platform compatibility (.md, .MD, .Md all handled)
 - Windows path normalization (backslash to forward slash)
 
 **Blocked areas:**
+
 - docs/traycer/* (force updates to existing)
 - docs/infrastructure/* (use TROUBLESHOOTING.md)
 - docs/operations/* (use DEPLOYMENT.md)
@@ -10627,6 +11292,7 @@ python scripts/kilo_code_review.py review <files> \
 **Previous approach:** Partial blocklist + fuzzy keyword matching (removed in favor of systematic default-deny)
 
 **Files:**
+
 - `scripts/enforcement/check_doc_sprawl.py` - Complete rewrite with default-deny, git repo root resolution
 - `AGENTS.md` - Systematic policy documentation
 - `.windsurf/rules/40-documentation.md` - Updated policy rules
@@ -10636,17 +11302,20 @@ python scripts/kilo_code_review.py review <files> \
 **What:** Applied permanent fix for WSL2 DNS resolution failure affecting Kilo CLI and Node.js applications. Increased default Kilo CLI agent timeout from 60 to 120 minutes to support large document reviews with multi-pass analysis.
 
 **DNS Fix:**
+
 - Created `/etc/wsl.conf` with `generateResolvConf = false`
 - Created static `/etc/resolv.conf` with Cloudflare (1.1.1.1) and Google (8.8.8.8) DNS
 - Made `/etc/resolv.conf` immutable with `chattr +i`
 - Resolves Microsoft WSL issue #4277 (getaddrinfo() failures)
 
 **Timeout Increase:**
+
 - Updated `KILO_TIMEOUT` default from 3600s (60 min) to 7200s (120 min)
 - Regenerated all 14 active + 39 disabled CLI agents
 - Supports large architectural documents (500+ lines) with multi-pass review
 
 **Files:**
+
 - `scripts/generate_kilo_agents.py` - Changed timeout from 3600 to 7200 seconds
 - `docs/infrastructure/WSL2-DNS-FIX.md` - Complete DNS fix documentation
 - `docs/traycer/AGENT-TIMEOUT-POLICY.md` - Agent timeout policy and rationale
@@ -10658,6 +11327,7 @@ python scripts/kilo_code_review.py review <files> \
 **What:** Increased default Kilo CLI agent timeout from 30 to 60 minutes. Added troubleshooting documentation for exit codes 124 (timeout) and 1 (failure).
 
 **Files:**
+
 - `scripts/generate_kilo_agents.py` - Changed `KILO_TIMEOUT:-1800` to `KILO_TIMEOUT:-3600`
 - `docs/traycer/TRAYCER-KILO-AGENTS-GUIDE.md` - Added "Troubleshooting: Exit Codes" section
 
@@ -10666,6 +11336,7 @@ python scripts/kilo_code_review.py review <files> \
 **What:** Updated `generate_kilo_agents.py` to auto-generate `~/.traycer/routing-policy.md` from `~/.traycer/routing-policy.yaml`. YAML is the single source of truth; MD is now auto-generated documentation.
 
 **Files:**
+
 - `scripts/generate_kilo_agents.py` - Added `generate_routing_policy_md()` and `update_routing_policy_md()` functions, call at end of `main()`
 
 ### Added - WordPress container creation script for Coolify (2026-03-15)
@@ -10673,6 +11344,7 @@ python scripts/kilo_code_review.py review <files> \
 **What:** Added workaround script to create WordPress containers in Coolify, pending `fabrik wp provision` command implementation. Also added SSH keys and Kilo model inventory snapshot.
 
 **Files:**
+
 - `scripts/create_wp_container.py` - Renders WordPress compose template and creates Coolify application
 - `scripts/kilo_all_models.json` - Snapshot of all available Kilo models for routing policy reference
 
@@ -10681,6 +11353,7 @@ python scripts/kilo_code_review.py review <files> \
 **What:** Restored Ticket 3 editor provisioning in the settings stage, including pre-flight user existence checks, secure `credentials.json` output, and regression tests for the required behavior branches.
 
 **Files:**
+
 - `src/fabrik/wordpress/stages/settings.py` - Added editor provisioning flow, pre-flight existence check, secure credentials artifact writing, and missing-email skip handling
 - `tests/wordpress/stages/test_settings.py` - Added Ticket 3 coverage for creation, existing-user skip, no-email skip, and credentials artifact permissions
 
@@ -10689,6 +11362,7 @@ python scripts/kilo_code_review.py review <files> \
 **What:** Added missing `languages` stage to planner STAGE_KEYS so idempotent skip logic works correctly, and replaced hardcoded WPML requirement with schema-driven multilingual plugin resolution.
 
 **Files:**
+
 - `src/fabrik/wordpress/planner.py` — Added `languages` entry to STAGE_KEYS
 - `src/fabrik/wordpress/stages/languages.py` — Derive multilingual plugin slug from spec config instead of hardcoding WPML
 - `tests/wordpress/stages/test_languages.py` — Added polylang plugin path tests
@@ -10701,12 +11375,14 @@ python scripts/kilo_code_review.py review <files> \
 **What:** Implemented cost-optimized agent routing with ticket classification and escalation paths.
 
 **Files:**
+
 - `~/.traycer/routing-policy.yaml` — NEW: Machine-readable routing configuration (source of truth)
 - `~/.traycer/routing-policy.md` — NEW: Human documentation for routing policy
 - `scripts/generate_kilo_agents.py` — Updated to read routing policy and place active/disabled agents
 - `scripts/kilo_47_agents_final.json` — 53 agents total (4 broken models removed earlier)
 
 **Agent Organization:**
+
 - **14 Active** agents in `~/.traycer/cli-agents/`
 - **39 Disabled** agents in `~/.traycer/disabled-cli-agents/`
 
@@ -10730,6 +11406,7 @@ python scripts/kilo_code_review.py review <files> \
 | Test Specialist | `T7-Specialist03-codestraltest` | Unit tests (conditional) |
 
 **Routing Policy:**
+
 - 6 ticket buckets: Patch, Structured, Debug, Ambiguous, Design, Audit
 - Default cheap model per bucket
 - Escalation paths with max attempts
@@ -10737,6 +11414,7 @@ python scripts/kilo_code_review.py review <files> \
 - Cost guardrails: never default to premium models
 
 **Debug Mode Policy:**
+
 - `KILO_DEBUG=0` by default (not global)
 - Auto-enable when: retry_count >= 2, bucket in [debug, ambiguous, design], previous attempt failed
 
@@ -10745,6 +11423,7 @@ python scripts/kilo_code_review.py review <files> \
 **What:** Unified rule loading for Windsurf Cascade and Kilo CLI agents to ensure both follow the same Fabrik rules from a single source.
 
 **Files:**
+
 - `scripts/generate_kilo_agents.py` — Changed shebang `#!/bin/sh` → `#!/bin/bash`; fixed exit code; unique task files per `TRAYCER_TASK_ID`
 - `scripts/kilo_47_agents_final.json` — Removed 4 broken models (53 agents now)
 - `src/fabrik/scaffold.py` — Added `opencode.json` creation in `_scaffold_shared()` and `fix_project()`
@@ -10772,12 +11451,14 @@ SINGLE SOURCE: .windsurf/rules/*.md + AGENTS.md
 ```
 
 **What Changed:**
+
 - **Before:** Rules duplicated in Traycer templates (R1-R11) AND .windsurf/rules/, causing conflicts
 - **After:** Rules loaded once via `opencode.json` `"instructions"` config; templates contain only workflow steps
 - **Before:** Task saved to `task.md` (concurrent agent conflicts)
 - **After:** Task saved to `task-{TRAYCER_TASK_ID}.md` (unique per agent run)
 
 **Projects Updated:**
+
 - All 36 projects under `/opt/` (excluding `_*` and `google/`) now have:
   - `AGENTS.md` symlinked to `/opt/fabrik/AGENTS.md`
   - `.windsurf/rules/` symlinked to `/opt/fabrik/.windsurf/rules/`
@@ -10788,9 +11469,11 @@ SINGLE SOURCE: .windsurf/rules/*.md + AGENTS.md
 **What:** Replaced per-file deletion with full directory recreation to guarantee clean ext4 hash table ordering, increased inter-file write delay to 1 second for reliable mtime separation, and added explicit `os.utime` normalization so Traycer sorts T1-Free first (newest) â T7-Specialist last (oldest).
 
 **Files:**
+
 - `scripts/generate_kilo_agents.py` â Use `shutil.rmtree` + `mkdir` instead of individual `unlink` calls; change delay from 20ms to 1s; set monotonic timestamps after generation
 
 **What Changed:**
+
 - **Before:** Deleted `.sh` files individually (inode reuse could break ext4 sort order); 20ms delay between writes; no post-generation timestamp normalization
 - **After:** Entire output directory recreated fresh; 1s mtime gap per file; `os.utime` assigns `ts = n - i` so Free agents get highest timestamps (Traycer newest-first = least-capable first)
 
@@ -10799,10 +11482,12 @@ SINGLE SOURCE: .windsurf/rules/*.md + AGENTS.md
 **What:** Fixed agent sorting so Traycer lists agents correctly: Free (least capable) first → Specialist last.
 
 **Files:**
+
 - `scripts/generate_kilo_agents.py` — Added T1-T7 tier prefixes for alphabetical sorting
 - `docs/reference/kilo/KILO_AGENT_NAMING.md` — Updated naming convention
 
 **What Changed:**
+
 - **Before:** `Free`, `Economy`, `Apex` etc. sorted alphabetically wrong (Apex before Economy before Free)
 - **After:** `T1-Free`, `T2-Economy`, ... `T7-Specialist` ensures correct alphabetical order
 
@@ -10811,9 +11496,11 @@ SINGLE SOURCE: .windsurf/rules/*.md + AGENTS.md
 **What:** Enhanced .gitignore templates for all Fabrik scaffold project types to exclude IDE files, build artifacts, and test coverage.
 
 **Files:**
+
 - `src/fabrik/scaffold.py` — Updated 6 scaffold types: Python, Node API, File API, File Worker, WordPress, Generic TypeScript
 
 **What Changed:**
+
 - **Before:** Minimal .gitignore (only .env, venv/, logs/)
 - **After:** Comprehensive exclusions:
   - IDE: `.vscode/`, `.idea/`, vim swap files
@@ -10824,6 +11511,7 @@ SINGLE SOURCE: .windsurf/rules/*.md + AGENTS.md
   - WordPress: `wp-content/cache/`, `sitemap.xml`
 
 **Impact:**
+
 - Reduces Kilo review cost by 5-10x (excludes 1,000-2,000 irrelevant files per project)
 - All exclusions are safe: regenerable or non-critical files only
 - Prevents `node_modules/` and IDE configs from polluting git and Kilo context
@@ -10835,10 +11523,12 @@ SINGLE SOURCE: .windsurf/rules/*.md + AGENTS.md
 **What:** Semi-automatic model discovery with daily cron + WSL startup triggers.
 
 **Files:**
+
 - `scripts/kilo_model_sync.py` — Compares local cache vs Kilo CLI
 - `scripts/kilo_model_sync_startup.sh` — NEW: WSL startup hook (runs once per day)
 
 **Automation:**
+
 - **Cron:** Daily at 11:59 AM (`59 11 * * *`)
 - **WSL Startup:** Runs on first terminal open each day (via ~/.bashrc)
 - **Logs:** `.droid/kilo_model_sync.log`
@@ -10848,6 +11538,7 @@ SINGLE SOURCE: .windsurf/rules/*.md + AGENTS.md
 **What:** Archived 9 obsolete Kilo files (409KB) to `docs/archive/2026-03-09-kilo-obsolete-json/`.
 
 **Archived JSON (scripts/):**
+
 - `kilo_18_agents_complete.json` — Old agent version
 - `kilo_selected_agents_new.json` — Intermediate version
 - `kilo_all_319_models_analyzed.json` — One-time analysis
@@ -10857,6 +11548,7 @@ SINGLE SOURCE: .windsurf/rules/*.md + AGENTS.md
 - `model_variants.json` — No longer needed
 
 **Archived Docs (docs/reference/kilo/):**
+
 - `KILO_EXTRACTION_SUMMARY.md` — One-time extraction notes
 - `KILO_IMPROVEMENTS_PROPOSAL.md` — Implemented proposal
 
@@ -10865,12 +11557,14 @@ SINGLE SOURCE: .windsurf/rules/*.md + AGENTS.md
 **What:** Comprehensive model capabilities documentation with pricing, context limits, and feature matrix.
 
 **Files:**
+
 - `docs/reference/kilo/KILO_MODEL_CAPABILITIES.md` — NEW: 328 models, 59 providers, full capability matrix
 - `scripts/kilo_47_agents_final.json` — Added 9 new agents (55 total)
 - `scripts/generate_kilo_agents.py` — Added GPT 5.x model name normalization
 - `~/.traycer/cli-agents/*.sh` — Regenerated all 55 agents
 
 **New Models Added:**
+
 - **Economy:** gpt-5-nano ($0.05/$0.40), gpt-5-mini ($0.25/$2.00), gpt-5.1-codex-mini ($0.25/$2.00)
 - **Standard:** o4-mini ($1.10/$4.40)
 - **Pro:** gpt-5.1-codex ($1.25/$10), gpt-5.1-codex-max ($1.25/$10), gpt-5.3-chat ($1.75/$14)
@@ -10878,6 +11572,7 @@ SINGLE SOURCE: .windsurf/rules/*.md + AGENTS.md
 - **Apex:** gpt-5.4-pro ($30/$180) — Mission-critical, 1M+ context
 
 **Documentation Includes:**
+
 - Per-provider model tables with pricing
 - Capability icons (🧠 reasoning, 🔧 tools, 🖼️ image, 📎 attachments)
 - GPT-5.x family detailed breakdown
@@ -10891,6 +11586,7 @@ SINGLE SOURCE: .windsurf/rules/*.md + AGENTS.md
 **What:** Documented realistic piping usage for the Traycer report writer script.
 
 **Files:**
+
 - `scripts/traycer_write_report.py` — Extended module docstring with a two-line Usage Example
 
 ### Fixed - Traycer Report Block Enforcement (2026-03-08)
@@ -10898,10 +11594,12 @@ SINGLE SOURCE: .windsurf/rules/*.md + AGENTS.md
 **What:** Made report block output mandatory - tasks now fail with clear error if agent ignores template instructions.
 
 **Files:**
+
 - `scripts/generate_kilo_agents.py` — Modified report extraction logic (lines 288-314)
 - `~/.traycer/cli-agents/*.sh` — Regenerated all 46 agents with enforcement
 
 **What Changed:**
+
 - **Before:** Missing report block logged debug message, task succeeded anyway
 - **After:** Missing report block displays error banner and exits with code 1
 - Error message explains problem and suggests solutions (try higher-tier agent, enable debug, check template)
@@ -10916,10 +11614,12 @@ SINGLE SOURCE: .windsurf/rules/*.md + AGENTS.md
 **What:** Added OpenAI GPT 5.4 variants to Kilo model catalog and tier routing.
 
 **Files:**
+
 - `scripts/kilo_all_models.json` — Added gpt-5.3-chat, gpt-5.4, gpt-5.4-pro (total: 322 models)
 - `scripts/kilo_code_review.py` — Added gpt-5.4 to Strong tier, gpt-5.4-pro to Prime tier
 
 **What Changed:**
+
 - GPT 5.4: Added to Strong tier (production-grade code review)
 - GPT 5.4-pro: Added to Prime tier (mission-critical, max reasoning)
 - GPT 5.3-chat: Added to model catalog
@@ -10929,9 +11629,11 @@ SINGLE SOURCE: .windsurf/rules/*.md + AGENTS.md
 **What:** Refined module docstring to a concise 4-line version.
 
 **Files:**
+
 - `scripts/health_checker.py` — Updated docstring (lines 3-11)
 
 **What Changed:**
+
 - Condensed docstring from verbose form to 4 concise lines
 - Covers: HTTP /health probe + DB TCP reachability check for cron/CI use
 - Includes all exit codes: 0 OK, 1 unexpected error, 2 config error, 3 HTTP unhealthy, 4 DB unreachable
@@ -10942,10 +11644,12 @@ SINGLE SOURCE: .windsurf/rules/*.md + AGENTS.md
 **What:** Complete redesign of report viewer with structured parsing, status badges, and problems-first layout
 
 **Files:**
+
 - `~/traycer-report-panel/src/extension.ts` — Added structured report parsing, status icons, metadata badges
 - `~/traycer-report-panel/package.json` — Bumped to v0.3.0
 
 **What Changed:**
+
 - **Left pane improvements:** Status icons (✓/⚠/✗), file counts, deviation counts in description
 - **Structured parsing:** Parses STATUS, FILES, FOLLOWED, DEVIATED, ENV, DB, CHECKS, COST, VERIFY fields
 - **Problems-first summary:** ⚠ strip at top showing deviations, ENV/DB changes, failed checks
@@ -10956,6 +11660,7 @@ SINGLE SOURCE: .windsurf/rules/*.md + AGENTS.md
 - **Better typography:** Labels, spacing, monospace for commands, wrapped long lines
 
 **Impact:**
+
 - Reports now scannable at a glance (problems appear first)
 - No more escaped `\n` text or raw dumps
 - Human-readable without losing machine parsability
@@ -10970,15 +11675,18 @@ SINGLE SOURCE: .windsurf/rules/*.md + AGENTS.md
 **What:** Added COST field to all 6 Kilo prompt templates for token cost visibility
 
 **Files:**
+
 - All 6 templates: User Query, Plan (9-Step), Plan (YOLO), Verification (Fix Loop), Verification (YOLO), Review (Code Review)
 
 **What Changed:**
+
 - New field: `COST: $X.XX (input: N tokens, output: M tokens)`
 - Positioned after CHECKS field, before VERIFY
 - Agents now report token costs in every task completion report
 - Extension renders cost in dedicated card
 
 **Impact:**
+
 - Cost transparency for every Traycer/Kilo task
 - Easier budget tracking and agent selection
 - Visible in both structured view and raw report
@@ -10988,6 +11696,7 @@ SINGLE SOURCE: .windsurf/rules/*.md + AGENTS.md
 **What:** Documented Fabrik's dependency-aware health endpoint and added a lightweight CLI checker.
 
 **Files:**
+
 - `docs/reference/health-monitoring.md` — NEW: `/health` endpoint + health_checker usage
 - `scripts/health_checker.py` — NEW: HTTP + DB reachability checks with exit codes
 
@@ -10996,6 +11705,7 @@ SINGLE SOURCE: .windsurf/rules/*.md + AGENTS.md
 **What:** Optimized all Traycer prompt templates with instruction IDs, compact compliance reports, and removed project-specific branding
 
 **Files:**
+
 - `~/.traycer/prompt-templates/Kilo User Query – Direct.md` — Debranded, optimized with [R1-R8], [W2-W5], compact report
 - `~/.traycer/prompt-templates/Kilo Plan – 9-Step Workflow.md` — Debranded, optimized with [R1-R11], [W2-W5], compact report
 - `~/.traycer/prompt-templates/Kilo Plan – YOLO Optimized.md` — Optimized with [R1-R11], [W2-W5], compact report
@@ -11004,6 +11714,7 @@ SINGLE SOURCE: .windsurf/rules/*.md + AGENTS.md
 - `~/.traycer/prompt-templates/Kilo Review – Code Review.md` — Debranded, optimized with [R1-R7], compact report
 
 **What Changed:**
+
 - Added instruction IDs to all rules (e.g., [R1], [R2], [W2], [F1])
 - Replaced verbose narrative reports with compact compliance blocks
 - New report format: STATUS, FILES, FOLLOWED, DEVIATED, ENV, DB, CHECKS/ISSUES_FIXED, VERIFY
@@ -11017,6 +11728,7 @@ SINGLE SOURCE: .windsurf/rules/*.md + AGENTS.md
 - Removed project-specific branding (templates work for all /opt/* projects)
 
 **Impact:**
+
 - **Token cost reduction**: 60-80% less output tokens per task (narrative → compact format)
 - **Better audit trail**: Instruction IDs show exactly what was followed/deviated
 - **Faster review**: Compact reports easier to scan for compliance issues
@@ -11024,11 +11736,15 @@ SINGLE SOURCE: .windsurf/rules/*.md + AGENTS.md
 
 **Example old format (verbose):**
 ```
+
 ## Task Completion Report
+
 **Status:** COMPLETE
 **Files Modified:**
+
 - path/to/file.py - added health check endpoint with database ping
 - path/to/test.py - added tests for health endpoint
+
 ...
 ```
 
@@ -11049,20 +11765,24 @@ VERIFY: pytest tests/test_health.py && curl -f http://localhost:8000/health
 **What:** Reports now write to correct project directory instead of always /opt/fabrik/
 
 **Files:**
+
 - `scripts/traycer_write_report.py` — Changed from `Path(__file__).parent.parent` to `Path.cwd()`
 
 **What Changed:**
+
 - Report writer now uses current working directory (CWD) instead of script location
 - Each `/opt/*` project writes reports to its own `.droid/traycer-reports/` directory
 - Windsurf Report Panel in each window sees only that project's reports
 
 **Impact:**
+
 - **All `/opt/*` projects**: Reports now work correctly when Traycer assigns tasks
 - Each Windsurf window shows only its own project's reports (no cross-contamination)
 - `/opt/fabrik/` → writes to `/opt/fabrik/.droid/traycer-reports/latest.md`
 - `/opt/trade-intelligence/` → writes to `/opt/trade-intelligence/.droid/traycer-reports/latest.md`
 
 **Testing:**
+
 - Verified report isolation across multiple projects
 - Both timestamped files and latest.md symlink work correctly
 
@@ -11071,10 +11791,12 @@ VERIFY: pytest tests/test_health.py && curl -f http://localhost:8000/health
 **What:** CLI agents now automatically capture and extract Traycer reports from Kilo output.
 
 **Files:**
+
 - `scripts/generate_kilo_agents.py` — Modified: Added output capture and report writer integration
 - `~/.traycer/cli-agents/*.sh` — Regenerated: All 46 agents now extract and write reports
 
 **What Changed:**
+
 - Kilo output is captured into `$OUTPUT` variable
 - Output is still displayed to user (maintains Traycer IDE visibility)
 - If `BEGIN_TRAYCER_REPORT_MD` delimiters found, pipes to `traycer_write_report.py`
@@ -11083,12 +11805,14 @@ VERIFY: pytest tests/test_health.py && curl -f http://localhost:8000/health
 - Debug mode shows delimiter detection and report writer execution
 
 **Impact:**
+
 - **All projects under `/opt/`**: When using Traycer to assign tasks to Kilo CLI agents, reports now appear automatically
 - No manual report extraction needed
 - Seamless integration with Windsurf Report Panel
 - Exit codes and timeout handling preserved
 
 **Testing:**
+
 - Verified report extraction with test output containing delimiters
 - Confirmed report written to `.droid/traycer-reports/latest.md`
 - All 46 CLI agents regenerated with new integration logic
@@ -11098,11 +11822,13 @@ VERIFY: pytest tests/test_health.py && curl -f http://localhost:8000/health
 **What:** New FEATURES.md template with marketing copy extraction support.
 
 **Files:**
+
 - `docs/FEATURES.md` — NEW: Fabrik's own features with marketing snippets
 - `templates/docs/FEATURES_TEMPLATE.md` — NEW: Template for scaffolded projects
 - `src/fabrik/scaffold.py` — Modified: Added FEATURES.md to scaffold output
 
 **What Changed:**
+
 - Each feature includes: Status badge, Audience tags, Headline, How-to, Marketing Copy table
 - Marketing Copy table has pre-written snippets for: Landing Page, Email, Social Media, Sales
 - Appendix sections for Headlines list, Feature Matrix, Release Timeline
@@ -11113,6 +11839,7 @@ VERIFY: pytest tests/test_health.py && curl -f http://localhost:8000/health
 **What:** Five new enforcement scripts to close documentation gaps in the 9-step workflow.
 
 **Files:**
+
 - `scripts/enforcement/check_schema_sync.py` — NEW: Enforces schema.sql/migrations when DB models change (ERROR)
 - `scripts/enforcement/check_openapi_sync.py` — NEW: Warns when API routes lack documentation (WARNING)
 - `scripts/enforcement/check_test_coverage.py` — NEW: Warns when new public code lacks tests (WARNING)
@@ -11121,6 +11848,7 @@ VERIFY: pytest tests/test_health.py && curl -f http://localhost:8000/health
 - `scripts/final_gate.py` — Modified: Integrated all five scripts into consistency checks
 
 **What Changed:**
+
 - Schema sync: Changes to `src/**/models.py`, `entities.py`, `db/*.py` require schema.sql or migration update
 - OpenAPI sync: New `@app.get/post/etc` routes should have docstrings or API docs
 - Test coverage: New public functions/classes in src/ should have corresponding tests
@@ -11129,6 +11857,7 @@ VERIFY: pytest tests/test_health.py && curl -f http://localhost:8000/health
 - All checks integrated into Final Gate (Steps 3 and 5 of 9-step workflow)
 
 **Severity:**
+
 - `check_schema_sync.py` — ERROR (blocks commit if DB model changed without schema)
 - `check_openapi_sync.py` — WARNING (advisory, doesn't block)
 - `check_test_coverage.py` — WARNING (advisory, doesn't block)
@@ -11140,18 +11869,22 @@ VERIFY: pytest tests/test_health.py && curl -f http://localhost:8000/health
 **What:** New mandatory rule requiring README.md Features section updates when adding new features.
 
 **Files:**
+
 - `.windsurf/rules/40-documentation.md` — Added `## README.md Features Section (MANDATORY)` rule block
 
 **What Changed:**
+
 - Every NEW feature MUST be added to README.md Features section (table format)
 - Status indicators: ✅ implemented, 🚧 in-progress, ❌ planned
 - Trigger examples: new API endpoint, new UI feature, new infrastructure capability
 - Clarified relationship: CHANGELOG = *when* changed, README Features = *what* exists now
 
 **Inheritance:**
+
 - All Fabrik-scaffolded projects inherit this via symlinked `.windsurf/rules/`
 
 ### Added
+
 - WordPress planning system with `ResolvedSpec` dataclass for immutable spec resolution
 - `Planner` class to orchestrate build directory creation and artifact generation
 - Manifest generators package (`manifests/`) for plugins, pages, menus, and checks
@@ -11164,12 +11897,14 @@ VERIFY: pytest tests/test_health.py && curl -f http://localhost:8000/health
 **What:** Complete overhaul of Kilo CLI agent tier system following 3-model consultation (GPT-5.3, Gemini 3.1 Pro, Claude Opus 4.6). Selected Opus 4.6 approach for intuitive cost progression.
 
 **Files:**
+
 - `scripts/kilo_47_agents_final.json` — NEW: 46 unique agents with `agent_id` canonical naming
 - `scripts/generate_kilo_agents.py` — MAJOR UPDATE: Simplified naming, tier-based sorting, agent_id system
 - `docs/traycer/KILO-AGENTS-UPDATE-2026-03.md` — NEW: Complete migration guide and tier documentation
 - `~/.traycer/cli-agents/*.sh` — REGENERATED: 46 clean agents (removed 65 duplicates)
 
 **What Changed:**
+
 - Tier names: Auto/Balanced/Prime/Reasoning/etc → Free/Economy/Standard/Pro/Expert/Apex/Specialist
 - Naming: Detailed format retained `{Tier}{NN}-{model}-{role}-{variant}-i{IN}-o{OUT}.sh`
 - Agent count: 65 duplicates → 46 unique (each model exactly once)
@@ -11177,12 +11912,14 @@ VERIFY: pytest tests/test_health.py && curl -f http://localhost:8000/health
 - Tier progression: Clear cost ladder ($0 → $0.001-0.10 → $0.10-0.50 → $0.50-3 → $3-10 → $20-40)
 
 **Design Rationale:**
+
 - Consulted GPT-5.3 Codex Thinking, Gemini 3.1 Pro, Claude Opus 4.6 for categorization approaches
 - Selected Opus 4.6 for: intuitive tier names, clear cost progression, default guidance, task-aligned use cases
 - Prevents duplicates via `agent_id` as unique key in JSON
 - Simplifies Traycer invocation: "Use free-1" vs "Use Free08-deepseekr1-review-max-i000-o000"
 
 **Migration:**
+
 - Old agents backed up to `~/.traycer/cli-agents-backup-20260307/`
 - Equivalents: Prime01-opus46 → expert-6, Reasoning01-o3pro → apex-3, Strong03-gemini25pro → pro-6
 
@@ -11191,12 +11928,14 @@ VERIFY: pytest tests/test_health.py && curl -f http://localhost:8000/health
 **What:** Report extraction and persistence system for Traycer CLI agents with Windsurf panel integration.
 
 **Files:**
+
 - `.droid/.gitignore` — NEW: Ephemeral report exclusions (track directory structure, ignore .md files)
 - `.droid/traycer-reports/.gitignore` — NEW: Directory anchor for git tracking
 - `scripts/traycer_write_report.py` — NEW: Report extraction utility with enhanced slug sanitization
 - `factory_wait.py` — Modified: Pipes agent stdout to report writer after job execution
 
 **What Changed:**
+
 - Agent stdout is now piped to `traycer_write_report.py` which extracts `BEGIN_TRAYCER_REPORT_MD` / `END_TRAYCER_REPORT_MD` delimited blocks
 - Reports written atomically to `.droid/traycer-reports/latest.md` (temp write + rename for POSIX atomicity)
 - Timestamped copies preserved as `.droid/traycer-reports/YYYY-MM-DD-HHMMSS-<slug>.md`
@@ -11206,15 +11945,18 @@ VERIFY: pytest tests/test_health.py && curl -f http://localhost:8000/health
 - Slug resolution order: `--slug` CLI arg → `TRAYCER_TASK_ID` env → `TRAYCER_PHASE_ID` env → `"traycer-task"` fallback
 
 **Integration:**
+
 - `factory_wait.py` verified safe: subprocess call at line 102 uses `text=True, capture_output=True` ensuring `proc.stdout` is always string (never None)
 - Report extraction wrapped in try/except to never fail job flow
 - 10s timeout on report writer subprocess
 
 **Verification Fixes (2026-03-06):**
+
 - `factory_wait.py` — Fixed: Uses absolute path to report writer (works from any cwd), makes failures observable via stderr warnings
 - `scripts/traycer_write_report.py` — Fixed: Added microseconds to timestamps to prevent collisions, PID-based temp files for atomic writes
 
 **External Components (outside repo):**
+
 - Windsurf extension v0.2.0: `~/traycer-report-panel/traycer-report-panel-0.2.0.vsix` — Sidebar extension with history browsing
   - **Location:** Activity bar (left sidebar) with 📄 icon
   - **Views:** Report History (tree view) + Report Content (webview)
@@ -11223,6 +11965,7 @@ VERIFY: pytest tests/test_health.py && curl -f http://localhost:8000/health
 - Prompt templates: Updated three templates in `~/.traycer/prompt-templates/` with mandatory report block delimiters
 
 **Documentation:**
+
 - `/opt/fabrik/docs/guides/traycer-report-panel.md` — Complete architecture, component details, troubleshooting
 - `/opt/fabrik/AGENTS.md` — Added "Traycer Report Panel (Windsurf Extension)" section with quick start guide
 
@@ -11231,18 +11974,21 @@ VERIFY: pytest tests/test_health.py && curl -f http://localhost:8000/health
 **What:** Completed self-review workflow implementation for all Traycer CLI agent tiers and fixed sync extension timeout issue.
 
 **Files:**
+
 - `AGENTS.md` — Updated status to reflect 23 agents (Free 9 + Economy 8 + Balanced 6)
 - `scripts/fix_balanced_tier_agents.py` — NEW: Automation script for balanced tier agents
 - `scripts/traycer_agents_fixed/Balanced*.sh` (x6) — NEW: Fixed balanced tier agents with self-review workflow
 - `scripts/sync_extensions.sh` — Fixed timeout issue (added 10s timeout to windsurf CLI call)
 
 **What Changed:**
+
 - Fixed sync extension timeout from 120s hang to 10s graceful exit
 - Applied self-review workflow to all 6 balanced tier agents
 - Updated documentation to reflect completion status
 - Premium tier: 0 agents (none exist in CLI agents directory)
 
 **Agent Status:**
+
 - Free tier: 9 agents ✅
 - Economy tier: 8 agents ✅
 - Balanced tier: 6 agents ✅
@@ -11254,6 +12000,7 @@ VERIFY: pytest tests/test_health.py && curl -f http://localhost:8000/health
 **What:** Implemented always-on hard-gated Kilo code review workflow with strict JSON schema validation, evidence requirements, comprehensive plan coverage, and risk-based multi-pass review.
 
 **Files:**
+
 - `scripts/kilo_code_review.py` — Major enhancement (~700 lines added/modified):
   - Added strict JSON schema validator (`REVIEW_RESULT_SCHEMA`, `validate_review_schema()`)
   - Added evidence quality validator (`validate_evidence()`) — enforces BLOCKER/MAJOR evidence
@@ -11271,6 +12018,7 @@ VERIFY: pytest tests/test_health.py && curl -f http://localhost:8000/health
 - `pyproject.toml` — Added `jsonschema>=4.17.0` dependency
 
 **Enforcement Flow:**
+
 1. Pre-review gates run (deterministic checks, fault-tolerant)
 2. Schema validation (strict, no auto-fill)
 3. Retry with JSON skeleton if schema fails
@@ -11289,6 +12037,7 @@ VERIFY: pytest tests/test_health.py && curl -f http://localhost:8000/health
 **Summary:** Documentation synchronization and audit for Phases 3, 6, 8, 9 implementations.
 
 **Files:**
+
 - `INDEX.md` — Added `configs/`, `specs/infrastructure/`, `src/fabrik/ai/`, `templates/prompts/`, `docs/operations/` to Repository Structure tree
 - `docs/development/PLANS.md` — Regenerated AUTO-GENERATED:PLANS block with all 4 plan files
 - `.env.example` — Added AI Services comment clarifiers separating fabrik ai keys from Factory.ai key
@@ -11304,6 +12053,7 @@ VERIFY: pytest tests/test_health.py && curl -f http://localhost:8000/health
 **What:** `fabrik scaffold` now automatically creates and switches to a `mobasak/<project-name>` branch
 
 **Files:**
+
 - `src/fabrik/scaffold.py` - Added branch creation logic with defensive check for existing commits
 - `docs/reference/fabrik-scaffold-specs.md` - Updated post-creation actions documentation
 
@@ -11314,6 +12064,7 @@ VERIFY: pytest tests/test_health.py && curl -f http://localhost:8000/health
 **New files:** `README.md`, `CHANGELOG.md`, `LICENSE`, `requirements.txt`
 
 **Features:**
+
 - Basic project structure and organization
 - Initial documentation and changelog setup
 - License and requirements file creation
@@ -11325,6 +12076,7 @@ VERIFY: pytest tests/test_health.py && curl -f http://localhost:8000/health
 **Summary:** Enhanced Kilo agent script template with debug mode (KILO_DEBUG=1), timeout protection (KILO_TIMEOUT), and cost tracking (KILO_TRACK_COST). Added kilo/auto support to kilo_code_review.py as default model. Generated AUTO tier agents for automatic mode-based routing. Added retry logic with exponential backoff for transient failures.
 
 **Files:**
+
 - `scripts/generate_kilo_agents.py` - Enhanced agent template with 3 new features, added AUTO tier support
 - `scripts/kilo_code_review.py` - Added kilo/auto as default model, retry logic with exponential backoff
 - `scripts/kilo_18_agents_complete.json` - Added kilo/auto agent definitions (Code and Review)
@@ -11333,6 +12085,7 @@ VERIFY: pytest tests/test_health.py && curl -f http://localhost:8000/health
 - `.env.example` - Added KILO_MAX_RETRIES configuration
 
 **Features:**
+
 - Debug mode: Verbose logging with set -x, agent/model/task metadata
 - Timeout protection: Configurable timeout (default 600s), exit code 124 detection
 - Cost tracking: Usage logging to .droid/kilo_usage.jsonl with timestamp, agent, model, task_id, exit_code, duration
@@ -11352,11 +12105,13 @@ VERIFY: pytest tests/test_health.py && curl -f http://localhost:8000/health
 **Summary:** Implemented intelligent tiered model selection that minimizes cost while maintaining review quality. Designed with consensus from GPT-5.2 Pro, Claude Opus, and Gemini Pro.
 
 **Files:**
+
 - `scripts/kilo_code_review.py` - Full implementation of tiered routing, escalation, false negative mitigation
 - `.env.example` - New env vars: KILO_DEFAULT_STRATEGY, KILO_MAX_COST, KILO_VERIFY_HIGH_RISK, KILO_AUDIT_SAMPLE_RATE
 - `docs/development/plans/2026-03-01-plan-cost-aware-escalation.md` - Complete spec
 
 **Features:**
+
 - **Risk assessment**: File paths + diff size (>400 lines) + content keyword scanning (password/token/secret)
 - **5 Tiers**: Free ($0) → Economy (~$0.02/M) → Balanced (~$0.50/M) → Strong (~$3/M) → Prime (~$5/M)
 - **Auto-routing**: Risk level determines starting tier (low→Free, medium→Economy, high→Balanced, critical→Strong)
@@ -11377,9 +12132,11 @@ VERIFY: pytest tests/test_health.py && curl -f http://localhost:8000/health
 ### Fixed - Mypy Type Errors in Kilo Review (2026-03-01)
 
 **Files:**
+
 - `scripts/kilo_code_review.py` - Fixed 8 mypy type errors
 
 **Fixes:**
+
 - Added null check for `config.model` before `build_kilo_command()` call
 - Fixed `last_exception` type annotation to `Exception | None` for retry logic
 - Added `or ""` fallback for `session_id` in all `FinalReport` calls (6 locations)
@@ -11389,10 +12146,12 @@ VERIFY: pytest tests/test_health.py && curl -f http://localhost:8000/health
 **Summary:** Added robust mypy execution with automatic recovery from cache corruption that caused 3+ minute hangs on large files.
 
 **Files:**
+
 - `scripts/final_gate.py` - New `run_mypy_with_recovery()` function
 - `Makefile` - New `make mypy-safe` target
 
 **Features:**
+
 - 30s timeout on first attempt (fast path with cache)
 - Auto-clear `.mypy_cache/` on timeout
 - Retry with `--no-incremental` flag (recovery path)
@@ -11419,6 +12178,7 @@ VERIFY: pytest tests/test_health.py && curl -f http://localhost:8000/health
 **Summary:** Deployed n8n automation platform with three core workflow templates and Apprise integration for notifications.
 
 **New files:**
+
 - `specs/infrastructure/n8n.yaml` — n8n service spec (port 5678, basic auth, healthz)
 - `configs/n8n/workflows/backup-notification.json` — cron -> Duplicati -> Apprise
 - `configs/n8n/workflows/uptime-alert.json` — webhook -> switch -> Apprise (down/up)
@@ -11452,6 +12212,7 @@ VERIFY: pytest tests/test_health.py && curl -f http://localhost:8000/health
 **Summary:** Provider-agnostic LLM client with CLI and cost tracking. Supports Claude (primary) and OpenAI (fallback) with SQLite usage tracking.
 
 **New files:**
+
 - `src/fabrik/ai/__init__.py`, `client.py`, `tracker.py` — LLMClient, LLMProvider, LLMResponse, UsageTracker
 - `templates/prompts/blog-post.txt` — example prompt template
 - `tests/test_ai_client.py` — unit tests (no live calls)
@@ -11467,11 +12228,13 @@ VERIFY: pytest tests/test_health.py && curl -f http://localhost:8000/health
 **What:** Fixed Kilo CLI agent scripts for Traycer integration
 
 **Fixes:**
+
 - Handle large prompts via `TRAYCER_PROMPT_TMP_FILE`
 - Explicit exit code propagation (`exit $?`)
 - Improved portability (`printf` instead of `echo`)
 
 **Files:**
+
 - `scripts/generate_kilo_agents.py` - Updated script generation logic
 - `~/.traycer/cli-agents/*.sh` - Regenerated all 18 agent scripts
 
@@ -11484,6 +12247,7 @@ VERIFY: pytest tests/test_health.py && curl -f http://localhost:8000/health
 **What:** Consolidated and organized all Kilo-related files into structured directories
 
 **Changes:**
+
 - Created `docs/reference/kilo/` as centralized documentation hub
 - Moved core docs: KILO_AGENT_NAMING.md, KILO_UPDATE_SCHEDULE.md, KILO_EXTRACTION_SUMMARY.md, KILO_AGENT_SELECTION_GUIDE.md
 - Archived 10 obsolete JSON files → `scripts/.archive/kilo-json-20260228/`:
@@ -11497,6 +12261,7 @@ VERIFY: pytest tests/test_health.py && curl -f http://localhost:8000/health
   - kilo-agents.md, kilo-ai-documentation.md, kilo-code-review.md, kilo-complete-reference.md, kilo-files.md
 
 **AUTHORITATIVE Files:**
+
 - `scripts/kilo_18_agents_complete.json` - Primary pricing manifest
 - `scripts/manual_pricing_data.json` - Manual pricing source
 - `docs/reference/kilo/` - Complete documentation
@@ -11506,6 +12271,7 @@ VERIFY: pytest tests/test_health.py && curl -f http://localhost:8000/health
 **What:** Implemented tier-based naming convention for Kilo agents with pricing visibility in filenames
 
 **Files:**
+
 - `scripts/generate_kilo_agents.py` - Auto-generates agent scripts from pricing manifest
 - `scripts/kilo_18_agents_complete.json` - Priority 18 agents with full input/output pricing
 - `scripts/manual_pricing_data.json` - Manual pricing for 12 models (Grok, Seed, Claude, Gemini, GLM, GPT)
@@ -11513,11 +12279,13 @@ VERIFY: pytest tests/test_health.py && curl -f http://localhost:8000/health
 - `~/.traycer/cli-agents/<TIER><NN>-<model>-<role>-<effort>-i<IN>-o<OUT>.sh` - 18 generated agents
 
 **Naming Format:** `<TIER><NN>-<model>-<role>-<effort>-i<IN>-o<OUT>.sh`
+
 - Tiers: P=Prime (mission-critical), S=Strong (production), B=Balanced (cost-effective), E=Economy (budget)
 - Pricing encoded: value × 100 (e.g., $0.02 → 002, $5.00 → 500)
 - Examples: `P01-opus46-code-max-i500-o2500.sh`, `E01-flash3-code-minimal-i000-o001.sh`
 
 **Benefits:**
+
 - Instant cost visibility in filename
 - Sortable by tier → rank → price
 - Machine-parseable for automation
@@ -11530,6 +12298,7 @@ VERIFY: pytest tests/test_health.py && curl -f http://localhost:8000/health
 **What:** Complete Kilo model catalog extraction and agent management system
 
 **Files:**
+
 - `scripts/kilo_agent_updater.py` - Automated agent updater with pricing resolution (4-step fallback chain)
 - `scripts/extract_pricing.py` - 2-call algebraic pricing extractor for separate input/output pricing
 - `scripts/kilo_all_models.json` - Complete catalog of 319 Kilo models from 57 providers
@@ -11543,6 +12312,7 @@ VERIFY: pytest tests/test_health.py && curl -f http://localhost:8000/health
 - `docs/reference/KILO_UPDATE_SCHEDULE.md` - Automation schedule (daily sync cron, manual leaderboard review)
 
 **Capabilities:**
+
 - Automated daily agent sync (pricing, endpoints, context limits)
 - Pricing resolution with alias mapping (catalog ID → cache key)
 - **Separate input/output pricing extraction** via 2-call algebraic solver (17 priority models)
@@ -11551,6 +12321,7 @@ VERIFY: pytest tests/test_health.py && curl -f http://localhost:8000/health
 - 16 models with verified pricing, 303 models available (pricing TBD)
 
 **Pricing Extraction:**
+
 - Uses system of equations to solve for separate input/output token pricing
 - 2 API calls per model with different input/output ratios
 - ~3-4 minutes for 17 priority models (~$0.50-1.00 cost)
@@ -11565,6 +12336,7 @@ VERIFY: pytest tests/test_health.py && curl -f http://localhost:8000/health
 **Why:** GPT-5.3-Codex and GPT-5.3-Codex-Spark are now available, offering Opus-like quality at 75% lower cost. Added diverse agent configurations across all supported models for different use cases.
 
 **Changes:**
+
 - **GPT-5.3 Support:** Verified availability, updated kilo_code_review.py model tables, added to fallback chain
 - **10 New Code Agents:**
   1. GPT-5.3-Spark High (fast iteration, $6.25/$25)
@@ -11590,11 +12362,13 @@ VERIFY: pytest tests/test_health.py && curl -f http://localhost:8000/health
   10. Multi-Model Consensus (3-model aggregate)
 
 **Files changed:**
+
 - `scripts/kilo_code_review.py` (updated model tables, fallback chain)
 - `~/.traycer/cli-agents/` (20 new agent scripts)
 - `CHANGELOG.md`
 
 **New Model Pricing:**
+
 - GPT-5.3-Codex: $12.5/$50 per 10M tokens (same as GPT-5.2)
 - GPT-5.3-Spark: $6.25/$25 per 10M tokens (50% cheaper)
 - O3-Mini: $10/$40 per 10M tokens
@@ -11610,17 +12384,26 @@ but the CLI still hard-coded `python-api`. This change exposes the full type dis
 to users.
 
 **Changes:**
+
 - **`fabrik scaffold --type <type> --preset <preset>`** — `--type` selects from all 10
+
   scaffold types (default: `python-api`); `--preset` is forwarded to `create_project()`
   and is only meaningful for `--type wordpress`.
+
 - **`fabrik validate --type <type>`** — passes the type to `validate_project()` so the
+
   correct `TYPE_REQUIRED_FILES` list is checked.
+
 - **`fabrik fix --type <type>`** — passes the type to `fix_project()` for type-aware
+
   missing-file repair.
+
 - **`docs/reference/fabrik-scaffold-specs.md`** — CLI reference updated with new options,
+
   expanded 10-type comparison table, and per-type directory structure reference.
 
 **Files changed:**
+
 - `src/fabrik/cli.py`
 - `docs/reference/fabrik-scaffold-specs.md`
 - `CHANGELOG.md`
@@ -11640,6 +12423,7 @@ to users.
 - **P5 — Utility scripts:** Defined `SCRIPT_FILES` (`runc`, `rund`, `rundsh`, `runk`, `sync_cascade_backup.sh`, `sync_extensions.sh`); copies each from `templates/scaffold/scripts/` with `chmod 0o755`.
 
 **Files changed:**
+
 - `src/fabrik/scaffold.py` — All five improvements
 - `docs/reference/fabrik-scaffold-specs.md` — Updated tree, file table, added Kilo Workflow section
 
@@ -11648,6 +12432,7 @@ to users.
 **What:** Fixed environment variable support and consistency issues in enforcement scripts.
 
 **Files:**
+
 - `scripts/enforcement/check_rule_size.py` - Added FABRIK_ROOT env var support instead of hardcoded path
 - `scripts/enforcement/check_env_vars.py` - Added 127.0.0.1 to allowed contexts (consistency with localhost)
 - `scripts/enforcement/check_health.py` - Improved type annotation for results variable
@@ -11657,10 +12442,12 @@ to users.
 **What:** Archived all droid exec related code and documentation. Fabrik now uses Traycer + Kilo + Windsurf Cascade workflow.
 
 **Files Archived:**
+
 - `scripts/droid_models.py` → `scripts/.archive/2026-02-27-droid-exec-cleanup/`
 - `docs/reference/droid-exec-usage.md` → `docs/archive/2026-02-27-droid-exec-cleanup/`
 
 **Files Updated:**
+
 - `src/fabrik/cli.py` - Removed `fabrik sync-models` command
 - `scripts/final_gate.py` - Removed "Sync Droid Model Names" check
 - `tests/test_properties.py` - Removed droid_models tests, kept scaffold tests
@@ -11675,6 +12462,7 @@ to users.
 **What:** Removed duplicate ModelInfo dataclass and fixed model name mismatch in droid_models.py.
 
 **Files:**
+
 - `scripts/droid_models.py` - Removed duplicate ModelInfo class (L258-269), fixed glm-4.6 → glm-4.7 to match config/models.yaml
 
 ### Changed - Traycer Documentation Reorganization + MCP Integration (2026-02-27)
@@ -11682,6 +12470,7 @@ to users.
 **What:** Reorganized all Traycer documentation into dedicated `docs/traycer/` folder and added comprehensive MCP (Model Context Protocol) integration documentation with concrete implementation recommendations.
 
 **Files Moved:**
+
 - `templates/traycer/README.md` → `docs/traycer/README.md`
 - `templates/traycer/*.md` → `docs/traycer/templates/*.md`
 - `docs/guides/TRAYCER_YOLO_WORKFLOW.md` → `docs/traycer/traycer-yolo-workflow.md`
@@ -11690,12 +12479,14 @@ to users.
 - `docs/reference/traycer-evaluation.md` → `docs/traycer/traycer-evaluation.md`
 
 **Updated References:**
+
 - `AGENTS.md` - Updated all Traycer documentation links
 - `INDEX.md` - New Traycer Documentation section with complete file listing
 - `docs/guides/DEVELOPMENT_WORKFLOW.md` - Updated Epic Mode workflow reference
 - All internal Traycer doc cross-references updated
 
 **MCP Integration Documentation:**
+
 - What is MCP and how it works
 - Configuration via Traycer Platform (personal vs organization accounts)
 - Adding custom MCP servers (name, endpoint, authentication)
@@ -11706,6 +12497,7 @@ to users.
 - Example use cases (Linear, Notion, Slack, Gmail integration)
 
 **MCP Implementation Recommendations Added:**
+
 - **Priority 1:** GitHub Issues integration (Epic Mode + YOLO status updates)
 - **Priority 2:** Notion architecture patterns (enforce consistency across projects)
 - **Priority 3:** Slack critical alerts (unattended YOLO monitoring)
@@ -11714,6 +12506,7 @@ to users.
 - Example end-to-end workflow demonstrating all 3 integrations
 
 **GitHub Ticket Assist Documentation Added:**
+
 - What is Ticket Assist (automatic plan generation from GitHub issues)
 - Installation steps (GitHub app, repository configuration)
 - Configuration strategies (label-based, assignment-based, full auto)
@@ -11722,6 +12515,7 @@ to users.
 - Limitations and considerations
 
 **Pricing & Usage Limits Documentation Added:**
+
 - Credit-based pricing system explanation
 - Pro+ plan details ($40/month, $50 credits included)
 - Complete rate card (plan generation $0.50, verification $0.50, chat $0.125, etc.)
@@ -11732,6 +12526,7 @@ to users.
 - Important notes (credits per seat, artifact persistence, trial details)
 
 **Planning Documentation:**
+
 - `docs/previously_planned_ideas.md` - Added "Traycer MCP Integration" section with 3-phase implementation plan
 - Includes GitHub/Notion/Slack workflows, setup steps, value proposition, cost analysis
 - Added "GitHub Ticket Assist" complementary section
@@ -11746,6 +12541,7 @@ to users.
 **What:** Added `ENV PYTHONPATH=/app/src` to Dockerfile template so uvicorn can import from src/<package_name>
 
 **Files:**
+
 - `templates/scaffold/docker/Dockerfile.python` - Added PYTHONPATH environment variable
 
 **Why:** Scaffold creates `src/<package_name>/main.py` but Dockerfile CMD uses `uvicorn <package_name>.main:app` without path prefix. PYTHONPATH makes imports work correctly.
@@ -11757,6 +12553,7 @@ to users.
 **What:** Created `docs/previously_planned_ideas.md` to consolidate future feature ideas and deferred enhancements from various planning sessions.
 
 **Content:**
+
 - Current Priority: Phase 1d (WordPress Automation) with active tasks
 - What's Next for Fabrik (completed milestones + current status)
 - Future: Web-Based Site Builder (domain registration + site wizard)
@@ -11777,6 +12574,7 @@ to users.
 **What:** Extracted comprehensive environment variable best practices from archived `ENVIRONMENT_VARIABLES.md` and added to active `docs/CONFIGURATION.md`.
 
 **Content Added:**
+
 1. Never hardcode values (with examples)
 2. Load configuration at runtime (Pydantic Settings pattern)
 3. Store credentials in two places (project + master backup)
@@ -11786,6 +12584,7 @@ to users.
 7. Type conversion (boolean, int, float, list)
 
 **Files:**
+
 - `docs/CONFIGURATION.md` - Added 120+ lines of best practices with code examples
 - `docs/reference/fabrik-scaffold-specs.md` - Updated to 2026-02-26, removed droid exec references, removed Phase1.md/tasks.md (Traycer replaced)
 
@@ -11798,12 +12597,14 @@ to users.
 **What:** Comprehensive deep review and cleanup of all `.windsurf/rules/*.md`, `AGENTS.md`, and `README.md` to reflect current Fabrik reality. Zero deprecated tool references remain.
 
 **Phase 1: Windsurf Rules Cleanup**
+
 1. **00-critical.md** - Removed stale references to archived `droid_core.py` and `droid-review.sh`
 2. **90-automation.md** - Completely rewritten for Traycer YOLO automation (Smart/Phased modes), removed 108 lines of droid exec content
 3. **20-typescript.md** - Completed truncated "Visual Design Workflow" section with full 3-step process, renamed to include "Extension/Any Other"
 4. **Batch scripts archived** - Moved `scripts/droid/` to `.archive/2026-02-26-droid-exec-batch-scripts/` (all depend on deprecated droid exec)
 
 **Phase 2: AGENTS.md Deep Cleanup (160 lines removed)**
+
 5. **AGENTS.md** - Removed ALL remaining droid exec content:
    - Removed "Batch Refactoring Scripts" section (11 lines)
    - Removed "Implementing Large Features" with droid exec (5 lines)
@@ -11818,9 +12619,11 @@ to users.
    - Added proper "Fabrik Skills (Convention Enforcement)" section
 
 **Phase 3: README.md Enhancement**
+
 6. **README.md** - Added `fabrik scaffold` reference in Quick Start with link to `docs/reference/fabrik-scaffold-specs.md`
 
 **Files Changed:**
+
 - `.windsurf/rules/00-critical.md` - 1 line (script reference)
 - `.windsurf/rules/90-automation.md` - 140 → 70 lines (-50% reduction)
 - `.windsurf/rules/20-typescript.md` - +33 lines (completed visual design section)
@@ -11829,6 +12632,7 @@ to users.
 - `scripts/droid/*` - Archived (3 batch scripts)
 
 **Result:**
+
 - Zero droid exec references in active documentation
 - All rules reflect Traycer YOLO + Kilo CLI workflow
 - AGENTS.md is 18% smaller and 100% accurate
@@ -11842,6 +12646,7 @@ to users.
 **Why:** Scaffolded projects couldn't run `final_gate.py` or `kilo_code_review.py` because rules used relative paths that broke outside `/opt/fabrik`. droid exec is no longer used - Kilo CLI handles both coding and review.
 
 **Files:**
+
 - `.windsurf/rules/00-critical.md` - Changed `scripts/final_gate.py` → `/opt/fabrik/scripts/final_gate.py` (3×)
 - `.windsurf/rules/30-ops.md` - Changed `scripts/container_images.py` → `/opt/fabrik/scripts/container_images.py`
 - `.windsurf/rules/40-documentation.md` - Changed `scripts/sync_projects.py` → `/opt/fabrik/scripts/sync_projects.py`
@@ -11858,6 +12663,7 @@ to users.
 **Why:** Original README (425 lines) completely missed Fabrik's TRUE depth: Traycer integration, 9-step agile workflow, Kilo review, 13,565 lines of code, WordPress automation, enforcement system
 
 **Changes:**
+
 - `README.md` - Expanded from 131 lines to 450+ lines with:
   - Clear value proposition (vs K8s, PaaS, Terraform)
   - Architecture diagrams and component descriptions
@@ -11879,6 +12685,7 @@ to users.
 - `INDEX.md` - Removed ROADMAP_ACTIVE.md from structure (archived)
 
 **Enforcement:**
+
 - `scripts/enforcement/check_readme_md.py` - Enforces README.md has required sections (## Overview, ## Quick Start, ## Documentation)
 - `src/fabrik/scaffold.py` - Enforces INDEX.md creation via TEMPLATE_MAP (line 37)
 - Final Gate runs check_readme_md.py in Phase 3 repo consistency checks
@@ -11892,6 +12699,7 @@ to users.
 **What:** Consolidated documentation, expanded .env.example, fixed scripts/consolidate_envs.py data loss bug, added sensitive data protection rules
 
 **Files:**
+
 - `.env.example` - Added 45+ missing variables (Supabase, R2, AI services, monitoring, external APIs, WordPress, Fabrik internal)
 - `docs/ENVIRONMENT_VARIABLES.md` - Archived (replaced by .env.example as authoritative source)
 - `docs/FABRIK_OVERVIEW.md` - Archived (key sections merged into README.md)
@@ -11917,17 +12725,20 @@ to users.
 **Why:** Eliminate duplication between CONFIGURATION.md and .env.example, reduce maintenance burden, provide single source of truth
 
 **The Problem:**
+
 - CONFIGURATION.md had duplicate variable tables matching .env.example
 - Two places to update when adding/changing variables
 - Tables in CONFIGURATION.md often empty/outdated
 - Developers copied from .env.example anyway
 
 **The Solution:**
+
 - `.env.example` = AUTHORITATIVE variable reference (self-documenting with inline comments)
 - `docs/CONFIGURATION.md` = GUIDE only (HOW to get credentials, WHY configs exist, architecture, troubleshooting)
 - NO variable tables in CONFIGURATION.md - reference .env.example instead
 
 **Changes:**
+
 1. `docs/CONFIGURATION.md` - Transformed to guide format with:
    - Quick setup instructions
    - Detailed credential acquisition steps (VPS, Coolify, B2, Docker Hub, etc.)
@@ -11944,10 +12755,12 @@ to users.
 7. `scripts/consolidate_envs.py` - NEW script to consolidate all /opt/* project .env files into Fabrik .env
 
 **Enforcement Updates:**
+
 - `check_configuration_md.py` verifies .env.example has comment blocks (NOT table duplication)
 - CONFIGURATION.md enforcement downgraded from Step 3 (ERROR) → Step 5 (WARN)
 
 **Files:**
+
 - `docs/CONFIGURATION.md` - Complete rewrite (300 lines)
 - `INDEX.md` - Updated CONFIGURATION.md and .env.example purposes
 - `AGENTS.md` - Added configuration pattern section
@@ -11956,6 +12769,7 @@ to users.
 - `scripts/consolidate_envs.py` - NEW env consolidation tool
 
 **Migration Path:**
+
 - Existing projects: Keep current CONFIGURATION.md, migrate on next major update
 - New scaffolds: Use guide-only template automatically via `fabrik scaffold` (uses CONFIGURATION_TEMPLATE.md)
 - Consolidation: Run `python scripts/consolidate_envs.py --apply` manually when needed (not automated - manual trigger only)
@@ -11971,6 +12785,7 @@ to users.
 **Why:** Remove confusion from duplicate docs, clarify auto-sync behavior, ensure env var documentation is complete
 
 **Changes:**
+
 1. `/opt/iterative_image_editor/README.md` - Merged README_POC.md content (input requirements, pipeline details)
 2. `/opt/iterative_image_editor/README_POC.md` - Deleted (consolidated into README.md)
 3. `INDEX.md` - Documented BUSINESS_MODEL.md AUTO-GENERATED block and sync triggers
@@ -11980,6 +12795,7 @@ to users.
 7. `docs/CONFIGURATION.md` - Updated Last Updated date to 2026-02-26
 
 **Files:**
+
 - `/opt/iterative_image_editor/README.md` - Merged content
 - `/opt/iterative_image_editor/README_POC.md` - Deleted
 - `INDEX.md` - Added BUSINESS_MODEL.md sync documentation
@@ -11997,6 +12813,7 @@ to users.
 **Why:** Track all 36+ /opt/* revenue-generating projects without manual updates
 
 **How it works:**
+
 1. `fabrik scaffold` creates project → auto-triggers sync
 2. `sync_projects.py` scans /opt/* (excluding _* prefixes)
 3. Extracts metadata from README.md, compose.yaml, .env.example
@@ -12004,11 +12821,13 @@ to users.
 5. Categorizes: Production (5), Active Dev (5), Planning (14), Shell (12)
 
 **Triggers:**
+
 - Post-scaffold hook: `fabrik scaffold` completion
 - Manual: `python scripts/sync_projects.py`
 - **NOT on every code change** (zero token waste)
 
 **Files:**
+
 - `scripts/sync_projects.py` - NEW (scans /opt/*, generates catalog markdown)
 - `src/fabrik/cli.py` - Added post-scaffold hook
 - `docs/BUSINESS_MODEL.md` - Added AUTO-GENERATED:PROJECTS block
@@ -12025,11 +12844,13 @@ to users.
 **Why:** Security and code quality must be enforced - no skipping allowed
 
 **Impact:**
+
 - `semgrep` missing or not authenticated → ERROR (was: PASS with skip message)
 - `vulture` missing → ERROR (was: PASS with skip message)
 - Both tools must be installed and working in all environments
 
 **Files:**
+
 - `scripts/final_gate.py` - Changed semgrep and vulture to fail if missing/not authenticated
 - `INDEX.md` - Updated enforcement gates documentation with REQUIRED markers
 
@@ -12046,6 +12867,7 @@ semgrep login  # Authenticate semgrep
 **What:** Merged `docs/INDEX.md` into root `INDEX.md` - single source of truth combining file purposes + complete docs navigation
 
 **What was merged:**
+
 - Repository Structure (complete /opt/fabrik tree)
 - Documentation Structure Map (AUTO-GENERATED docs/ tree with 200+ files)
 - All documentation navigation tables (Quick Start, Core Reference, Guides, Operations, WordPress, Droid Automation, Kilo, Traycer, Project Context)
@@ -12053,6 +12875,7 @@ semgrep login  # Authenticate semgrep
 - Phase documentation status
 
 **Files:**
+
 - `INDEX.md` (root) - now 563 lines with file purposes + repository structure + docs structure map + complete navigation
 - `docs/INDEX.md` - **ARCHIVED** to `docs/archive/2026-02-26-INDEX.md.archived` (all content merged into root)
 - `templates/scaffold/docs/PROJECT_INDEX_TEMPLATE.md` - updated with docs navigation
@@ -12066,6 +12889,7 @@ semgrep login  # Authenticate semgrep
 **What:** Created INDEX.md as master file index documenting purpose, update triggers, and enforcement level for every project file. Added 4 new enforcement checks to Step 3 gate.
 
 **Files:**
+
 - `templates/scaffold/docs/PROJECT_INDEX_TEMPLATE.md` - Template for INDEX.md in all projects
 - `src/fabrik/scaffold.py` - Added INDEX.md to TEMPLATE_MAP and REQUIRED_FILES
 - `scripts/enforcement/check_index_md.py` - Enforces INDEX.md exists with required sections (ERROR)
@@ -12075,6 +12899,7 @@ semgrep login  # Authenticate semgrep
 - `scripts/final_gate.py` - Integrated 4 new checks into Step 3 consistency checks
 
 **Why:**
+
 - **Problem:** Coder AI might misunderstand file purposes (like Cascade did) leading to incorrect updates
 - **Solution:** INDEX.md is single source of truth - AI reads this FIRST before making changes
 - **Enforcement:** Step 3 and Step 5 gates catch missing updates automatically
@@ -12099,11 +12924,13 @@ Step 3: Pre-Kilo Gate
 **What:** Removed `tasks.md` from scaffold templates and enforcement. Traycer Phases replace manual task tracking.
 
 **Files:**
+
 - `src/fabrik/scaffold.py` - Removed TASKS_TEMPLATE.md from TEMPLATE_MAP and REQUIRED_FILES
 - `scripts/enforcement/check_tasks_updated.py` - Deleted (WARN-only enforcement, no longer needed)
 - `/opt/test-kilo-analysis/tasks.md` - Deleted from test project
 
 **Why:**
+
 - Template was archived to `docs/archive/2026-02-25-pre-traycer-templates/TASKS_TEMPLATE.md`
 - Traycer UI provides superior task tracking with Phases, progress bars, and history
 - Only WARN level enforcement (not blocking), so safe to remove
@@ -12114,6 +12941,7 @@ Step 3: Pre-Kilo Gate
 **What:** Removed non-existent `.factory/reports` entry from the repository structure tree and summary table in `docs/INDEX.md`. Updated `.factory/hooks` description with missing scripts.
 
 **Files:**
+
 - `docs/INDEX.md`
 
 **Why:** Fix Traycer verification issue regarding non-existent directory documentation.
@@ -12123,6 +12951,7 @@ Step 3: Pre-Kilo Gate
 **What:** Added a "Repository Structure" section to `docs/INDEX.md` providing a comprehensive overview of the monorepo layout, including top-level directories and a quick-navigation purpose table.
 
 **Files:**
+
 - `docs/INDEX.md` - Added tree-style structure and directory purpose table.
 
 **Why:** Documentation previously only covered the `docs/` subtree. Users and AI agents need a single entry point to understand the purpose of all top-level directories (`apps/`, `src/`, `templates/`, etc.) and find relevant reference material.
@@ -12132,9 +12961,11 @@ Step 3: Pre-Kilo Gate
 **What:** Completely rewrote all 5 Kilo Code CLI agent scripts after studying Traycer's built-in templates and Kilo documentation. Fixed fundamental misunderstanding of how CLI agents work.
 
 **Files:**
+
 - All 5 scripts in `~/.traycer/cli-agents/Kilo Code*.sh`
 
 **Root Problem:**
+
 - Scripts were overcomplicated (file saving, git diff detection, wrong tools)
 - First attempt: Called `kilo_code_review.py` (wrong - that's for Step 4 review only)
 - Second attempt: Added `--file` flag (wrong - Kilo needs message argument, not file)
@@ -12143,11 +12974,14 @@ Step 3: Pre-Kilo Gate
 **Final Correct Pattern:**
 ```bash
 #!/bin/sh
+
 # Save task.md for Step 4 (kilo_code_review.py --plan flag needs it)
+
 mkdir -p .droid/review-context
 echo "$TRAYCER_PROMPT" > .droid/review-context/task.md
 
 # Pass TRAYCER_PROMPT directly to Kilo (Traycer template pattern)
+
 kilo run --format json --auto \
     --model kilo/google/gemini-3-flash-preview \
     --variant high \
@@ -12156,6 +12990,7 @@ kilo run --format json --auto \
 ```
 
 **Why both are needed:**
+
 1. **Save task.md** - Template tells Kilo to run Step 4: `python scripts/kilo_code_review.py review <files> --plan .droid/review-context/task.md`
 2. **Pass $TRAYCER_PROMPT** - Kilo CLI requires message as positional argument, not file
 3. **Template contains workflow** - Kilo executes Steps 3-7 (gates + review + sync) as instructed
@@ -12165,9 +13000,11 @@ kilo run --format json --auto \
 **What:** Comprehensive documentation of Phased YOLO workflow with Kilo agents, including configuration, execution flow, session continuity, and monitoring guidance.
 
 **Files:**
+
 - `docs/traycer/traycer-yolo-workflow.md` - Complete workflow documentation (9-step process, configuration settings, agent architecture, session continuity mechanism, template usage, monitoring checklist)
 
 **Covers:**
+
 - 9-step workflow (Plan → Implement → Gates → Review → Verification → Commit)
 - YOLO configuration settings (Plan tab, Verification tab, Commit tab)
 - Session continuity mechanism via `TRAYCER_TASK_ID`
@@ -12181,12 +13018,14 @@ kilo run --format json --auto \
 **What:** Created lighter, token-efficient versions of Kilo templates optimized for Traycer YOLO mode automation.
 
 **Files:**
+
 - `~/.traycer/prompt-templates/Kilo Plan – YOLO Optimized.md` - 100 lines (vs 180 original) - Removes code examples, keeps essential behavioral guidance and workflow steps
 - `~/.traycer/prompt-templates/Kilo Verification – YOLO Optimized.md` - 50 lines (vs 90 original) - Focuses on critical patterns, removes heavy examples and checklists
 
 **Why:** YOLO mode benefits from lighter templates that reduce token usage while preserving essential Fabrik conventions and behavioral guidance. Original templates remain available for manual workflows.
 
 **Optimization approach:**
+
 - Removed verbose code examples (referenced patterns instead)
 - Condensed checklists to critical items only
 - Kept behavioral rules (check/minimal/present)
@@ -12199,19 +13038,30 @@ kilo run --format json --auto \
 config file references, health check behavior, and template placeholders.
 
 **Files:**
+
 - `src/fabrik/scaffold.py` — Updated .env.example (DATABASE_URL optional), requirements.txt
+
   (versions match pyproject.toml: FastAPI 0.115+, uvicorn 0.32+, pydantic 2.9+), health check
   (tests deps, returns 503 on failure), test template (covers DB configured/not paths)
+
 - `templates/scaffold/docs/QUICKSTART_TEMPLATE.md` — Fixed uvicorn command (removed `src.`
+
   prefix), Python 3.12+ prerequisite, DATABASE_URL optional
+
 - `templates/scaffold/docs/PROJECT_README_TEMPLATE.md` — Fixed uvicorn command, DATABASE_URL
+
   optional in config example
+
 - `templates/scaffold/docs/CONFIGURATION_TEMPLATE.md` — Removed API_KEY/SECRET_KEY (not used),
+
   removed config/config.yaml and config/logging.yaml references, DATABASE_URL now optional
+
 - `templates/scaffold/docker/compose.yaml.template` — DATABASE_URL optional (no `:?` required)
 - `templates/scaffold/docker/Dockerfile.python` — Added health check dependency timing note
 - `templates/scaffold/python/pyproject.toml.template` — ruff target-version and mypy
+
   python_version both set to 3.12
+
 - `templates/scaffold/docs/BUSINESS_MODEL_TEMPLATE.md` — Marked as optional with revisit date
 
 ### Fixed - Kilo CLI Agent Scripts (2026-02-25)
@@ -12219,9 +13069,11 @@ config file references, health check behavior, and template placeholders.
 **What:** Fixed critical bug in all 13 Kilo CLI agent scripts - removed hardcoded `/opt/fabrik` path that broke when used on Fabrik-scaffolded projects.
 
 **Files:**
+
 - All 13 scripts in `~/.traycer/cli-agents/Kilo*.sh`
 
 **Changes:**
+
 - Removed `cd /opt/fabrik` - agents now work in current directory (Traycer sets working directory)
 - Changed `scripts/kilo_code_review.py` → `/opt/fabrik/scripts/kilo_code_review.py` (absolute path)
 - Changed fallback `${CHANGED_FILES:-src/}` → `${CHANGED_FILES:-.}` (current dir, not src/)
@@ -12233,10 +13085,12 @@ config file references, health check behavior, and template placeholders.
 **What:** Corrected workflow descriptions in Kilo templates - coder agent runs gates and fixes issues itself (like Windsurf), not Traycer orchestrating.
 
 **Files:**
+
 - `~/.traycer/prompt-templates/Execute.md` - Added correct 9-step workflow instructions
 - `~/.traycer/prompt-templates/Direct Execute.md` - Added workflow steps coder must execute
 
 **Correct workflow:**
+
 1. Implement code
 2. Run `python scripts/final_gate.py` (Pre-Kilo) - fix issues, re-run until PASS
 3. Run Kilo Review - fix issues yourself, re-review with `--session continue` until PASS
@@ -12248,6 +13102,7 @@ config file references, health check behavior, and template placeholders.
 **What:** Created 4 custom Traycer templates for Kilo agents integrating Fabrik's 9-step workflow and Cascade-like behavior patterns. Documented template directory structure (built-in vs custom).
 
 **Files:**
+
 - `~/.traycer/prompt-templates/Execute.md` - Plan handoff template with project-aware patterns
 - `~/.traycer/prompt-templates/Direct Execute.md` - User query handoff template (lightweight)
 - `~/.traycer/prompt-templates/Fix.md` - Verification handoff template (fix-only)
@@ -12255,11 +13110,13 @@ config file references, health check behavior, and template placeholders.
 - `docs/traycer/README.md` - Added "Template Directory Structure" section
 
 **Cascade Behavior Patterns:**
+
 - Check Before Create - Always verify file exists before creating
 - Minimal Changes - Focused edits, follow existing style
 - Present Approach - Outline approach before implementing
 
 **Project-Aware Patterns:**
+
 - Environment variables - Never hardcode (localhost, DB credentials, secrets)
 - Multi-environment design - Works in dev/docker/cloud without modification
 - Health check pattern - Tests actual dependencies
@@ -12272,6 +13129,7 @@ config file references, health check behavior, and template placeholders.
 **What:** Fixed Traycer template frontmatter in existing template files to use proper Handlebars format and YAML frontmatter.
 
 **Files:**
+
 - `docs/traycer/templates/task_execution_template.md` - Fixed to use `applicableFor: userQuery` (camelCase) and `{{userQuery}}` placeholder
 - `docs/traycer/templates/plan_template.md` - Added YAML frontmatter and `{{planMarkdown}}` placeholder
 - `docs/traycer/templates/verification_template.md` - Added YAML frontmatter and `{{comments}}` placeholder
@@ -12282,11 +13140,17 @@ config file references, health check behavior, and template placeholders.
 No logic changes.
 
 **Files:**
+
 - `src/fabrik/monitor.py` — Deleted bare expression `current_time - self._last_check_time`
+
   (line 72); deleted discarded `m.syscall.split()[0]` in `_is_valid_sleep()` (line 222).
+
 - `src/fabrik/verify.py` — Replaced unused `_min_days` assignment with a comment
+
   noting SSL expiry check is pending implementation in `check_ssl()`.
+
 - `src/fabrik/scaffold.py` — Deleted duplicate `package_name = _get_package_name(name)`
+
   assignment in `create_project()` (line 240; original at line 183).
 
 ### Fixed - Provisioner Hardcoded Defaults and Deprecated datetime (2026-02-24)
@@ -12296,7 +13160,9 @@ class body; values are now read in `__init__` with a `ValueError` raised when ab
 Replaced all `datetime.utcnow()` calls with timezone-aware `datetime.now(UTC)`.
 
 **Files:**
+
 - `src/fabrik/provisioner.py` - Moved `VPS_IP`/`COOLIFY_SERVER_UUID` to `__init__` (no
+
   fallback defaults, ValueError if absent); updated call sites to use instance attributes;
   replaced `datetime.utcnow()` with `datetime.now(UTC)` (3 sites); added path traversal
   containment check in `_save_job()` and `load_job()`; set restrictive permissions (0o700)
@@ -12310,6 +13176,7 @@ Replaced all `datetime.utcnow()` calls with timezone-aware `datetime.now(UTC)`.
 **What:** Fixed latent bug in orchestrator deployer that called wrong Coolify API method.
 
 **Files:**
+
 - `src/fabrik/orchestrator/deployer.py` - Rewrote `_create_deployment()` to use `create_dockercompose_application` with proper UUID resolution; added `_resolve_project_server_uuids()` helper; fixed `_update_deployment()` to use `bulk_update_env_vars`; improved error handling (raise on missing UUID vs silent 'unknown'); safe domain access with `.get()`
 
 ### Fixed - Orchestrator SpecValidator `id`-as-`name` Alias (2026-02-24)
@@ -12319,11 +13186,15 @@ alias for `name`, so specs produced by `fabrik new` (which emit `id:` not `name:
 pass orchestrator validation without any manual editing.
 
 **Files:**
+
 - `src/fabrik/orchestrator/validator.py` — Added shim before `REQUIRED_FIELDS` loop:
+
   if `"name"` is absent but `"id"` is present, set `spec["name"] = spec["id"]`
+
 - `tests/orchestrator/test_validator.py` — Added `test_validate_id_as_name_alias`
 - `tests/orchestrator/test_integration.py` — Added `test_full_pipeline_dry_run_id_based_spec`
 - `tests/orchestrator/test_deployer.py` — Updated mocks to `create_dockercompose_application`,
+
   `list_servers`, `list_projects`; patched `Spec`/`TemplateRenderer` in create/track tests
 
 ### Changed - Traycer Workflow Documentation (2026-02-24)
@@ -12331,6 +13202,7 @@ pass orchestrator validation without any manual editing.
 **What:** Updated Traycer integration docs to reflect Plan Mode context inputs, Epic Mode artifacts (mini-specs + tickets), Epic Mode workflow progression (elicitation/dialogue), Workflows (command sequences, Traycer Agile Workflow, Traycer Refactoring Workflow, custom workflows), Executions audit trail, Smart YOLO and artifact selection/handoff, YOLO Mode for Phases (comprehensive activation steps, Plan/Review workflows, four handoff types with configuration options, FAQ), Supported Coding Agents, Custom CLI Agents (comprehensive guide), Templates (Handlebars syntax, 5 template types, frontmatter, best practices), complete 10-agent Kilo suite (5 coding, 3 review, 2 fix with explicit model/variant naming, template integration, usage matrix), and expanded Traycer verification guidance.
 
 **Files:**
+
 - `docs/guides/DEVELOPMENT_WORKFLOW.md` - Document Plan Mode context inputs/symbol references; document Epic Mode selection and ticket-based progression; document Workflows driving Epic Mode; clarify how Epic Mode and Fabrik Workflow relate; clarify verification severity categories; include review comment categories and fix workflows
 - `templates/traycer/README.md` - Document official Traycer workflows, Epic Mode artifacts (specs + tickets), Workflows (command structure, slash commands, argument passing, agent modes, Traycer Agile Workflow 8-command breakdown with 3 gated phases, Traycer Refactoring Workflow 4-command breakdown, custom workflow management), Supported Coding Agents (built-in YOLO vs configurable as Custom CLI vs extension-only, based on CLI availability; export options, Fabrik CLI agent integration), Custom CLI Agents (comprehensive: environment variables, scopes, creation steps, popular agents, use cases, 13-question FAQ), AGENTS.md integration (automatic detection, monorepo support), artifact management (Documents panel), selection/handoff, Smart YOLO, Epic Mode workflow progression, Executions audit trail, Mermaid diagrams, Verification process, History tracking, and phase management/YOLO mode
 - `docs/traycer/traycer-agile-workflow.md` - NEW: Complete detailed reference for all 8 Traycer Agile Workflow commands including roles, philosophy, artifact structures, processing flows, acceptance criteria, and validation gate mechanics
@@ -12345,6 +13217,7 @@ pass orchestrator validation without any manual editing.
 **What:** Added 6 new enforcement checks to close identified gaps in the workflow.
 
 **Files:**
+
 - `scripts/enforcement/check_env_contract.py` - NEW: Cross-validate .env.example ↔ compose.yaml ↔ CONFIGURATION.md
 - `scripts/enforcement/check_health.py` - Extended: Check tests/test_health.py existence
 - `scripts/enforcement/check_docker.py` - Extended: Port consistency (Dockerfile EXPOSE vs compose.yaml)
@@ -12358,6 +13231,7 @@ pass orchestrator validation without any manual editing.
 **What:** Archived droid orchestration infrastructure (replaced by Traycer/Kilo workflow).
 
 **Files:**
+
 - `scripts/.archive/2026-02-23-cleanup/droid/droid_core.py` - Main droid orchestrator
 - `scripts/.archive/2026-02-23-cleanup/droid/droid_session.py` - Session management
 - `scripts/.archive/2026-02-23-cleanup/droid/droid_model_updater.py` - Model updates
@@ -12373,6 +13247,7 @@ pass orchestrator validation without any manual editing.
 **What:** Archived 4 redundant/obsolete scripts to streamline enforcement architecture.
 
 **Files:**
+
 - `scripts/.archive/2026-02-23-cleanup/ai_quick_review.py` - Archived (not integrated into Final Gate)
 - `scripts/.archive/2026-02-23-cleanup/check_global_gates.py` - Archived (redundant with final_gate.py)
 - `scripts/.archive/2026-02-23-cleanup/docs_sync.py` - Archived (covered by check_changelog.py + check_tasks_updated.py)
@@ -12383,6 +13258,7 @@ pass orchestrator validation without any manual editing.
 **What:** Polished `final_gate.py` with semgrep best-effort integration, CRLF preservation, correct blocker counts, and accurate log messages. Updated all workflow docs to align with 9-step process.
 
 **Files:**
+
 - `scripts/final_gate.py` - Semgrep best-effort (skip on 401), token helper without PyYAML
 - `AGENTS.md` - Full Step 3 check list, semgrep (best-effort) parenthetical
 - `.windsurf/rules/00-critical.md` - Aligned MANDATORY WORKFLOW with 9-step process
@@ -12393,6 +13269,7 @@ pass orchestrator validation without any manual editing.
 **What:** Moved quality checks from pre-commit to `scripts/final_gate.py` for coder AI to run before Traycer commit. Pre-commit now only runs 3 absolute blockers.
 
 **Files:**
+
 - `scripts/final_gate.py` - NEW: All quality, consistency, and sync checks in one script
 - `.pre-commit-config.yaml` - Reduced to 3 blockers (large files, merge conflicts, private keys)
 - `AGENTS.md` - Added Final Gate workflow documentation
@@ -12404,6 +13281,7 @@ pass orchestrator validation without any manual editing.
 **What:** Added explicit checks for empty `vps_ip` in all DNS functions to prevent creating invalid records.
 
 **Files:**
+
 - `src/fabrik/wordpress/domain_setup.py` - Added ValueError/failed result for empty vps_ip in 4 locations
 - `src/fabrik/wordpress/deployer.py` - Mark step as failed when VPS_IP missing
 
@@ -12412,6 +13290,7 @@ pass orchestrator validation without any manual editing.
 **What:** Replaced hardcoded IP addresses with `VPS_IP` environment variable across codebase.
 
 **Files:**
+
 - `src/fabrik/config.py` - Added `load_dotenv()` at module level
 - `src/fabrik/deploy.py` - Added explicit guard before `servers[0]` access
 - `src/fabrik/cli.py` - Removed hardcoded IP fallbacks
@@ -12425,6 +13304,7 @@ pass orchestrator validation without any manual editing.
 **What:** Implemented `_step2_set_env_vars` and `_step2_wait_healthy` stubs; fixed saga gap for `STEP2_COOLIFY_DEPLOY_RUNNING` state.
 
 **Files:**
+
 - `src/fabrik/provisioner.py` - Implemented env var setting via Coolify API, health wait delegation
 - `docs/reference/provisioner.md` - NEW: Reference documentation for provisioner module
 
@@ -12433,6 +13313,7 @@ pass orchestrator validation without any manual editing.
 **What:** Comprehensive specification document for project creation, templates, and management.
 
 **Files:**
+
 - `docs/reference/fabrik-scaffold-specs.md` - NEW: Full scaffold specification with all templates, CLI commands, workflows
 
 ### Added - Pre-commit Security Hooks Integration (2026-02-23)
@@ -12440,6 +13321,7 @@ pass orchestrator validation without any manual editing.
 **What:** Added security and code quality pre-commit hooks; integrated pre-commit auto-fix into Kilo workflow.
 
 **Files:**
+
 - `.pre-commit-config.yaml` - Added sqlfluff (SQL injection), semgrep (security patterns), vulture (dead code)
 - `scripts/kilo_code_review.py` - Added Phase 1 pre-commit auto-fix loop before Kilo AI review
 - `.windsurf/rules/50-code-review.md` - Updated workflow to document two-phase approach
@@ -12450,6 +13332,7 @@ pass orchestrator validation without any manual editing.
 **What:** Guarded fcntl imports for Windows compatibility; fixed /tmp/ usage violation.
 
 **Files:**
+
 - `scripts/utils/subprocess_helper.py` - Guard fcntl import, use .tmp/ instead of /tmp/
 - `scripts/docs_updater.py` - Guard fcntl import, use O_NOFOLLOW for atomic symlink rejection
 
@@ -12458,6 +13341,7 @@ pass orchestrator validation without any manual editing.
 **What:** Added Kilo CLI-based code review workflow for AI-assisted iterative code review.
 
 **Files:**
+
 - `scripts/kilo_code_review.py` - NEW: Kilo CLI wrapper with session management, model routing, and iterative review loop
 - `docs/reference/kilo-code-review.md` - NEW: Kilo code review reference documentation
 - `docs/reference/kilo-agents.md` - NEW: Kilo agents reference
@@ -12471,6 +13355,7 @@ pass orchestrator validation without any manual editing.
 **What:** Fixed credential exposure and encryption issues in Duplicati backup setup.
 
 **Files:**
+
 - `scripts/setup_duplicati_backup.py` - Stripped credentials from URL; added base64 transport for secrets; enabled AES encryption; added CLI flags for B2 credentials and passphrase; added SQL/shell escaping; fixed error message env var names
 - `.env.example` - Added `DUPLICATI_PASSPHRASE` variable
 
@@ -12479,6 +13364,7 @@ pass orchestrator validation without any manual editing.
 **What:** Added path traversal containment checks and DNS-resolving SSRF prevention to validator and template renderer.
 
 **Files:**
+
 - `src/fabrik/orchestrator/validator.py` - Added `.resolve().relative_to()` containment check in `SpecValidator.validate()`; rewrote `is_private_ip()` to resolve hostnames via `socket.getaddrinfo()` before checking private ranges (fail-safe on DNS failure)
 - `src/fabrik/template_renderer.py` - Added path containment checks in `render()` (raises `ValueError`) and `template_exists()` (returns `False`)
 - `docs/reference/orchestrator.md` - Documented DNS resolution SSRF fix and path traversal prevention
@@ -12489,6 +13375,7 @@ pass orchestrator validation without any manual editing.
 **What:** Applied `shlex.quote()` to all user-supplied arguments in WordPress WP-CLI commands to prevent shell command injection vulnerabilities.
 
 **Files:**
+
 - `src/fabrik/drivers/wordpress.py` - Quoted container name, all method parameters (url, title, admin_user, plugin, theme, user, option, file, format, locale, etc.)
 - `src/fabrik/wordpress/forms.py` - Quoted form title, content, mail settings, messages; removed fragile manual escaping
 - `src/fabrik/wordpress/menus.py` - Quoted menu name, item title, url, slug, location
@@ -12499,15 +13386,18 @@ pass orchestrator validation without any manual editing.
 - `src/fabrik/wordpress/analytics.py` - Removed manual escaping (option_update handles quoting internally)
 
 ## UNRELEASED - P0 FIX: python3 consistency (2026-02-21)
+
 - Fixed `Makefile` `global-gates` target: `python` → `python3` to match shebang in `check_global_gates.py`
 
 ## UNRELEASED - GAP-07 TRAYCER EVALUATION (2026-02-21)
+
 - Created `docs/traycer/traycer-evaluation.md` (EVALUATION ONLY)
 - Decision: DEFER — CLI unavailable, cannot run test cases
 - Baseline infrastructure validated via `.tmp/traycer-baseline.json` (pipeline routing works; stage execution pending)
 - 5 test cases documented with evidence
 
 ## UNRELEASED - GAP-04 KPI TRACKER (2026-02-20)
+
 - Added `scripts/kpi_tracker.py`: CLI with summary/export/ingest/prune/sanitize
 - KPIEvent dataclass with UUID v4 idempotency, ISO 8601 timestamps
 - Ingest from `scripts/.droid_token_usage.jsonl` (deterministic event_id via UUID5)
@@ -12518,6 +13408,7 @@ pass orchestrator validation without any manual editing.
 - `.github/workflows/ci.yml`: kpi-schema-validate job + duplicate-check job
 
 ## UNRELEASED - GAP-08 PROPERTY-BASED TESTING (2026-02-20)
+
 - Added `hypothesis>=6.100.0` to dev dependencies in `pyproject.toml`
 - Added `[tool.hypothesis]` config block (database = ".hypothesis")
 - Created `tests/conftest.py` with ci/dev/thorough Hypothesis profiles
@@ -12532,6 +13423,7 @@ pass orchestrator validation without any manual editing.
 **What:** Four new custom droid definitions (planner, security-auditor, test-generator, documentation-writer) + reference documentation for all 7 droids.
 
 **Files:**
+
 - `/home/ozgur/.factory/droids/planner.md` - Planning droid (autonomy: low)
 - `/home/ozgur/.factory/droids/security-auditor.md` - Security audit droid (autonomy: low)
 - `/home/ozgur/.factory/droids/test-generator.md` - Test generation droid (autonomy: medium)
@@ -12539,6 +13431,7 @@ pass orchestrator validation without any manual editing.
 - `docs/reference/custom-droids.md` - Reference for all 7 droids
 
 ## UNRELEASED - GAP-03 MCP SERVER CONFIG (2026-02-19)
+
 - Configured /home/ozgur/.factory/mcp.json: filesystem (readOnly, /opt/*) + postgres (env var creds)
 - Created docs/reference/mcp-config.md (security model, env vars, rollback, troubleshooting)
 - Backup at /home/ozgur/.factory/mcp.json.bak
@@ -12548,17 +13441,23 @@ pass orchestrator validation without any manual editing.
 **What:** Four standardised Windsurf workflow files for deploy, new-feature, bug-fix, and code-review.
 
 **Files:**
+
 - `.windsurf/workflows/deploy.md` — Coolify deploy workflow
 - `.windsurf/workflows/new-feature.md` — Feature development workflow
 - `.windsurf/workflows/bug-fix.md` — Test-first bug fix workflow
 - `.windsurf/workflows/code-review.md` — Dual-model review via droid-review.sh
 
 ## UNRELEASED - P0 GLOBAL GATES (2026-02-19)
+
 ### Added
+
 - `scripts/enforcement/check_global_gates.py`: deterministic global gate runner
+
   with `--path` arg, PROJECT/MONOREPO_ROOT classification, exit codes 0/1/2
+
 - `make global-gates` Makefile target
 - `docs/reference/global-gates.md`: classification rules, gate commands, exit
+
   codes, frozen architecture list
 
 ---
@@ -12568,6 +13467,7 @@ pass orchestrator validation without any manual editing.
 **What:** Complete session ID persistence and token usage tracking for droid exec.
 
 **Files:**
+
 - `scripts/droid_session.py` - NEW: Session management API with token logging
 - `scripts/droid_model_updater.py` - Added `is_model_safe_for_auto()`, `get_models_without_prices()`
 - `scripts/droid-review.sh` - Now uses JSON output for token tracking
@@ -12575,6 +13475,7 @@ pass orchestrator validation without any manual editing.
 - `~/.factory/hooks/session-end-token-log.py` - NEW: SessionEnd hook
 
 **Key Rules:**
+
 - **Same session ID = same context** (persist for related tasks)
 - **Model change = context loss** (new session auto-created)
 - **Models without prices require explicit approval** (no auto-use)
@@ -12584,22 +13485,28 @@ pass orchestrator validation without any manual editing.
 from scripts.droid_session import get_or_create_session, log_token_usage
 
 session_id = get_or_create_session("feature-auth", model="gpt-5.1-codex-max")
+
 # Use: droid exec --session-id {session_id} "Your prompt"
 
 # After JSON output, log usage
+
 log_token_usage(session_id, usage_dict, model="gpt-5.1-codex-max", context_key="feature-auth")
 ```
 
 **Token Tracking:**
 ```bash
+
 # Get usage summary (last 24h)
+
 python scripts/droid_session.py usage
 
 # Per-context tracking
+
 python scripts/droid_session.py usage --context feature-auth
 ```
 
 **Limits Documented:**
+
 - Output limit: 64KB
 - Hook timeout: 60s
 - Models without prices: `claude-opus-4-6-fast`, `glm-5`, `gpt-5.3-codex`
@@ -12611,12 +13518,14 @@ python scripts/droid_session.py usage --context feature-auth
 **What:** Automatic model list AND price multiplier refresh from droid CLI + Factory docs.
 
 **Files:**
+
 - `scripts/droid_model_updater.py` - Added `ensure_models_fresh()`, `is_model_available()`, `get_model_price()`, `check_deprecations()`, `fetch_model_prices()`
 - `scripts/droid_core.py` - Now calls `ensure_models_fresh()` before each droid exec
 - `docs/reference/droid-exec-usage.md` - Updated Model Registry documentation
 - `config/models.yaml` - Fixed with CORRECT model names from droid exec
 
 **Features:**
+
 - **TTL-based caching (24h):** First call of day fetches fresh data (~5-6s), subsequent calls use cache (~0ms)
 - **Model names:** From `droid exec -m invalid` (triggers error listing available models)
 - **Price multipliers:** From `https://docs.factory.ai/pricing.md`
@@ -12625,15 +13534,20 @@ python scripts/droid_session.py usage --context feature-auth
 
 **Usage:**
 ```bash
+
 # Check for deprecated models
+
 python scripts/droid_model_updater.py --check-deprecations
 
 # Force refresh model list + prices
+
 python scripts/droid_model_updater.py --force
 ```
 
 ```python
+
 # Get price multiplier
+
 from scripts.droid_model_updater import get_model_price
 price = get_model_price("gpt-5.1-codex-max")  # Returns 0.5
 ```
@@ -12643,9 +13557,11 @@ price = get_model_price("gpt-5.1-codex-max")  # Returns 0.5
 **What:** Major update to `droid-review.sh` adding dual-model reviews and automatic documentation updates.
 
 **Files:**
+
 - `scripts/droid-review.sh` - Implemented dual-model review, added `--update-docs` and `--model` flags.
 
 **Features:**
+
 - **Dual-Model Review:** Automatically runs reviews with both `gpt-5.1-codex-max` and `gemini-3-flash-preview` (Fabrik convention).
 - **Model Override:** Added `--model` (or `-m`) flag to use a single specific model for the review.
 - **Auto-Update Docs:** New `--update-docs` flag triggers `docs_updater.py` after the review process.
@@ -12663,14 +13579,17 @@ price = get_model_price("gpt-5.1-codex-max")  # Returns 0.5
 **What:** Fixed issues from AI code review in scaffold.py.
 
 **P0 Fixed:**
+
 - Health endpoint now includes comment for adding dependency checks (not just static "ok")
 
 **P1 Fixed:**
+
 - `.env.example` uses `DB_HOST=localhost` pattern instead of hardcoded connection string
 - Symlink creation now checks if targets exist before creating
 - PLANS.md and archive/README.md generated inline (no template files)
 
 **Files:**
+
 - `src/fabrik/scaffold.py` - Fixed all issues, consolidated templates
 - `AGENTS.md` - Added "VERIFY before creating" rule and docs structure list
 - Deleted `templates/scaffold/docs/PLANS_INDEX_TEMPLATE.md`
@@ -12681,11 +13600,13 @@ price = get_model_price("gpt-5.1-codex-max")  # Returns 0.5
 **What:** Single archive location with consistent naming and README index.
 
 **Files:**
+
 - `src/fabrik/scaffold.py` - Added archive README to template map
 - `templates/scaffold/docs/ARCHIVE_README_TEMPLATE.md` - New template
 - `docs/archive/README.md` - Index of all archived content
 
 **Reorganized:**
+
 - `docs/design/.archive/*` → `docs/archive/2026-01-05-design-docs/`
 - `docs/development/plans/fabrik-implementation-plan/` → `docs/archive/2026-01-07-fabrik-phases/`
 
@@ -12696,6 +13617,7 @@ price = get_model_price("gpt-5.1-codex-max")  # Returns 0.5
 **What:** New projects now get `docs/development/plans/` directory and `PLANS.md` index automatically.
 
 **Files:**
+
 - `src/fabrik/scaffold.py` - Added `docs/development/plans/` to DIRS, PLANS.md to TEMPLATE_MAP
 - `templates/scaffold/docs/PLANS_INDEX_TEMPLATE.md` - New template for PLANS.md
 
@@ -12704,17 +13626,20 @@ price = get_model_price("gpt-5.1-codex-max")  # Returns 0.5
 **What:** New plan naming convention `YYYY-MM-DD-plan-<name>.md` with legacy support.
 
 **Files:**
+
 - `scripts/enforcement/check_plans.py` - New naming regex, legacy format warns
 - `AGENTS.md` - Updated documentation rules with new format
 - `templates/scaffold/AGENTS.md` - Added Planning section for other /opt projects
 
 **Changes:**
+
 - New format: `YYYY-MM-DD-plan-<name>.md` (e.g., `2026-01-14-plan-feature-auth.md`)
 - Legacy format `YYYY-MM-DD-<slug>.md` still accepted with WARN severity
 - README.md and index.md files in plans/ are skipped
 - Scaffold template now includes Planning section with plan lifecycle
 
 **Archived Plans:**
+
 - `2026-01-07-docs-automation.md` → `docs/archive/2026-01-07-completed-plans/`
 - `2026-01-07-mypy-drivers-fix.md` → `docs/archive/2026-01-07-completed-plans/`
 - `2026-01-08-droid-scripts-consolidation.md` → `docs/archive/2026-01-07-completed-plans/`
@@ -12724,11 +13649,13 @@ price = get_model_price("gpt-5.1-codex-max")  # Returns 0.5
 **What:** Automated tracking of plan completion status and checkbox progress in PLANS.md table.
 
 **Files:**
+
 - `scripts/docs_updater.py` - Added `parse_plan_status()` and `validate_plan_consistency()`
 - `docs/reference/docs-updater.md` - Updated documentation
 - `docs/development/PLANS.md` - Now shows real Status and Progress columns
 
 **Features:**
+
 - Extracts `**Status:**` line from plan files (handles emojis, normalizes to COMPLETE/PARTIAL/NOT_DONE/IN_PROGRESS)
 - Counts `[x]` vs `[ ]` checkboxes for progress tracking
 - ERROR if plan marked COMPLETE but has unchecked boxes
@@ -12745,6 +13672,7 @@ AFTER:  | Plan | Date | Status | Progress |  (real status, e.g., "COMPLETE | 8/8
 **What:** Comprehensive backup system for Windsurf Cascade configuration (extensions, rules, memories).
 
 **Files:**
+
 - `scripts/sync_extensions.sh` - Auto-exports installed extensions list
 - `scripts/sync_cascade_backup.sh` - Checks backup freshness, reminds when stale
 - `docs/reference/EXTENSIONS.md` - Auto-generated extensions with install commands
@@ -12762,6 +13690,7 @@ AFTER:  | Plan | Date | Status | Progress |  (real status, e.g., "COMPLETE | 8/8
 **Why manual for memories/rules:** They're stored in Codeium's cloud, only accessible in live Cascade conversation. droid exec from shell cannot access them.
 
 **Usage:**
+
 - Extensions: Automatic on every commit
 - Workspace Rules: Automatic via git
 - Memories/Global Rules: Ask Cascade "Update the cascade backup file" when hook warns
@@ -12773,6 +13702,7 @@ AFTER:  | Plan | Date | Status | Progress |  (real status, e.g., "COMPLETE | 8/8
 **What:** Automated tracking of installed Windsurf extensions via pre-commit hook.
 
 **Files:**
+
 - `scripts/sync_extensions.sh` - Syncs extensions to documentation
 - `docs/reference/EXTENSIONS.md` - Auto-generated extensions list with install commands
 - `.pre-commit-config.yaml` - Added sync-extensions hook
@@ -12780,6 +13710,7 @@ AFTER:  | Plan | Date | Status | Progress |  (real status, e.g., "COMPLETE | 8/8
 - `templates/scaffold/pre-commit-config.yaml` - Updated with sync-extensions hook
 
 **Features:**
+
 - Runs automatically on every commit
 - Categorizes extensions (AI, Python, Docker, Git, Markdown, Web)
 - Generates one-liner install commands for new machine setup
@@ -12793,6 +13724,7 @@ AFTER:  | Plan | Date | Status | Progress |  (real status, e.g., "COMPLETE | 8/8
 **What:** AI-powered code review integrated into pre-commit workflow.
 
 **Files:**
+
 - `scripts/enforcement/ai_quick_review.py` - Reviews staged diffs for critical issues
 - `scripts/droid_core.py` - Added PRECOMMIT task type
 - `.pre-commit-config.yaml` - Added ai-quick-review hook
@@ -12800,6 +13732,7 @@ AFTER:  | Plan | Date | Status | Progress |  (real status, e.g., "COMPLETE | 8/8
 - `.windsurf/rules/00-critical.md` - Added "check existing code first" rule
 
 **Features:**
+
 - Uses `droid_core.py` with ProcessMonitor (no duplicate monitoring code)
 - Reviews ALL code files: Python, TypeScript, JavaScript, Shell, YAML
 - Includes renamed files (`--diff-filter=ACMR`)
@@ -12808,6 +13741,7 @@ AFTER:  | Plan | Date | Status | Progress |  (real status, e.g., "COMPLETE | 8/8
 - Disable with `SKIP_AI_REVIEW=1`
 
 **Visual Design Workflow (SaaS/Web/Mobile):**
+
 - Screenshot/mockup → AI generates code → preview → refine cycle
 - Added to TypeScript rules for frontend projects
 
@@ -12818,6 +13752,7 @@ AFTER:  | Plan | Date | Status | Progress |  (real status, e.g., "COMPLETE | 8/8
 **What:** Integrated spec-interviewer discovery workflow into Fabrik with Traycer-optional support.
 
 **Files:**
+
 - `scripts/droid_core.py` - Added `IDEA` and `SCOPE` task types
 - `templates/spec-pipeline/` - NEW (4 files)
 - `templates/traycer/` - NEW (4 files, copied from spec-interviewer)
@@ -12825,6 +13760,7 @@ AFTER:  | Plan | Date | Status | Progress |  (real status, e.g., "COMPLETE | 8/8
 - `docs/FABRIK_OVERVIEW.md` - Updated with spec pipeline docs
 
 **New Task Types:**
+
 - `droid exec idea "<idea>"` - Capture and explore product idea
 - `droid exec scope "<project>"` - Define IN/OUT boundaries
 
@@ -12834,6 +13770,7 @@ idea → scope → spec → plan → code → review → deploy
 ```
 
 **Traycer Integration:**
+
 - Templates in `templates/traycer/` for optional Traycer.ai use
 - Works without Traycer using pure droid exec commands
 
@@ -12844,12 +13781,14 @@ idea → scope → spec → plan → code → review → deploy
 **What:** Fixed all critical issues identified in dual-model code reviews.
 
 **Files:**
+
 - `scripts/droid_core.py` - Multiple P0/P1 fixes
 - `scripts/docs_updater.py` - ProcessMonitor threading fix
 - `scripts/review_processor.py` - Task file support
 - `tests/test_droid_core.py` - NEW (16 tests)
 
 **P0 Fixes:**
+
 - Final buffer completion events now parsed after process exit
 - Large prompts (>100KB) use `--file` flag instead of CLI args (avoids OS limit crash)
 - `run_droid_exec_monitored`: Missing completion event now marks FAILED (not stuck RUNNING)
@@ -12858,6 +13797,7 @@ idea → scope → spec → plan → code → review → deploy
 - `_run_streaming`: Final buffer events with `is_error=True` now return failure
 
 **P1 Fixes:**
+
 - stderr captured via threaded bounded buffer (50 lines max)
 - JSON parse fallback no longer marks failures as success
 - Malformed JSON logged instead of silently ignored
@@ -12866,14 +13806,17 @@ idea → scope → spec → plan → code → review → deploy
 - Session reset on provider switch (OpenAI ↔ Anthropic) with user warning
 
 **Minor Fixes:**
+
 - `_sanitize_task_id` max length guard (128 chars with hash suffix)
 - `refresh_models_from_docs()` emits warning on failure
 
 **New Features:**
+
 - Task file support (`--task-file`) in all scripts
 - ProcessMonitor active polling in docs_updater.py
 
 **Tests Added:**
+
 - Session ID propagation
 - Provider switch reset
 - JSON parse fallback behavior
@@ -12886,12 +13829,14 @@ idea → scope → spec → plan → code → review → deploy
 **What:** Consolidated `droid_tasks.py` + `droid_runner.py` into unified `droid_core.py`.
 
 **Files:**
+
 - `scripts/droid_core.py` - NEW (1316 lines, replaces 1507 combined)
 - `scripts/droid_tasks.py` - DELETED (merged)
 - `scripts/droid_runner.py` - DELETED (merged)
 - `docs/development/plans/2026-01-08-droid-scripts-consolidation.md` - Execution plan
 
 **Changes:**
+
 - Unified 11 task types (analyze, code, refactor, test, review, spec, scaffold, deploy, migrate, health, preflight)
 - Merged task persistence and monitoring from droid_runner.py
 - Added run/status/list commands for task management
@@ -12899,6 +13844,7 @@ idea → scope → spec → plan → code → review → deploy
 - Backup at `scripts/.archive/2026-01-08-pre-consolidation/`
 
 **Not Merged (by design):**
+
 - `review_processor.py` and `docs_updater.py` kept separate (CI-critical validation)
 
 ---
@@ -12908,9 +13854,11 @@ idea → scope → spec → plan → code → review → deploy
 **What:** Enhanced `docs_updater.py` with improved task management, stale task recovery, and pattern detection for more change types.
 
 **Files:**
+
 - `scripts/docs_updater.py` - Task retry logic, stuck detection, and pattern analysis expansion
 
 **Changes:**
+
 - Added `analyze_change_type` to detect `api_endpoint`, `cli_command`, `configuration`, `health_endpoint`, and `database_model` from file content.
 - Implemented stale task recovery (resets tasks stuck in "processing" for >15 mins).
 - Added automatic retry logic for failed tasks (up to 3 retries).
@@ -12926,10 +13874,12 @@ idea → scope → spec → plan → code → review → deploy
 **What:** Major expansion of the droid task runner with new lifecycle tasks, reasoning support, and session management.
 
 **Files:**
+
 - `scripts/droid_tasks.py` - Major rewrite/expansion
 - `src/fabrik/drivers/wordpress_api.py` - Typing improvements
 
 **Changes:**
+
 - Added new Fabrik lifecycle task types: `spec`, `scaffold`, `deploy`, `migrate`, `health`, `preflight`.
 - Integrated `reasoning-effort` support for Anthropic models.
 - Implemented Pattern 2 (Session ID continuation) for reliable multi-turn tasks.
@@ -12947,6 +13897,7 @@ idea → scope → spec → plan → code → review → deploy
 **What:** Fixed model name extraction from droid_models.py output.
 
 **Files:**
+
 - `scripts/droid-review.sh` - Use Python import instead of parsing CLI output
 - `docs/reference/docs-updater.md` - Document new validation checks
 
@@ -12959,11 +13910,13 @@ idea → scope → spec → plan → code → review → deploy
 **What:** Enhanced docs_updater.py with complete coverage for all doc files.
 
 **New Checks:**
+
 - **Stub completeness** - Fails on placeholder markers in docs/reference/*.md
 - **Link integrity** - Finds broken internal markdown links
 - **Staleness** - Warns when manual docs missing Last Updated date
 
 **Files Covered:**
+
 - Root: README.md, AGENTS.md, CHANGELOG.md, tasks.md
 - docs/: INDEX.md, QUICKSTART.md, CONFIGURATION.md, TROUBLESHOOTING.md, BUSINESS_MODEL.md
 - docs/reference/*.md - Stub completeness
@@ -12982,6 +13935,7 @@ python scripts/docs_updater.py --sync   # Auto-fix what's possible
 **What:** Created docs_sync.py to check/remind about doc updates after code changes.
 
 **Files:**
+
 - `scripts/docs_sync.py` - Checks CHANGELOG, tasks.md, phase docs, INDEX.md
 - `scripts/droid-review.sh` - Now calls docs_sync.py after reviews
 
@@ -12991,6 +13945,7 @@ Code change → droid-review.sh → docs_sync.py → Update flagged docs → Com
 ```
 
 **Checks:**
+
 - CHANGELOG.md entry exists for code changes
 - tasks.md updated when phase docs change
 - Phase docs updated for implementation work
@@ -13003,11 +13958,13 @@ Code change → droid-review.sh → docs_sync.py → Update flagged docs → Com
 **What:** Updated scaffold templates so new projects get the dashboard structure.
 
 **Files:**
+
 - `templates/scaffold/docs/TASKS_TEMPLATE.md` - Dashboard format (links to phase docs)
 - `templates/scaffold/docs/PHASE_TEMPLATE.md` - Phase progress tracker template
 - `src/fabrik/scaffold.py` - Now creates `docs/development/Phase1.md`
 
 **New projects get:**
+
 - `tasks.md` - Dashboard linking to phase docs
 - `docs/development/Phase1.md` - Progress tracker with checkboxes
 
@@ -13018,11 +13975,13 @@ Code change → droid-review.sh → docs_sync.py → Update flagged docs → Com
 **What:** Converted tasks.md from duplicated checklist to dashboard linking phase docs.
 
 **Files:**
+
 - `tasks.md` - Now links to phase docs, no duplicated checkboxes
 - `scripts/enforcement/check_tasks_updated.py` - Warns when phase docs change
 - `scripts/enforcement/validate_conventions.py` - Added tasks update check
 
 **Update Protocol:**
+
 1. Update phase doc (checkboxes, completion %)
 2. Update tasks.md (status table)
 3. Update CHANGELOG.md (code changes)
@@ -13034,6 +13993,7 @@ Code change → droid-review.sh → docs_sync.py → Update flagged docs → Com
 **What:** Created wrapper script that enforces adaptive meta-prompt for all code reviews.
 
 **Files:**
+
 - `scripts/droid-review.sh` - Wrapper for `droid exec` reviews
 
 **Usage:**
@@ -13053,6 +14013,7 @@ Code change → droid-review.sh → docs_sync.py → Update flagged docs → Com
 **What:** Fixed ruff, bandit, and convention violations across codebase.
 
 **Fixes:**
+
 - 12 unused variables removed (ruff F841)
 - jinja2 autoescape enabled in provisioner.py (bandit B701 high severity)
 - Hardcoded localhost removed from coolify.py (now requires COOLIFY_API_URL env var)
@@ -13068,6 +14029,7 @@ Code change → droid-review.sh → docs_sync.py → Update flagged docs → Com
 **Files:** 20+ files in `src/fabrik/drivers/` and `src/fabrik/wordpress/`
 
 **Method:**
+
 - droid exec (gpt-5.1-codex-max) fixed 54 errors automatically
 - Manual fixes for 3 edge cases (theme.py, wordpress.py, supabase.py)
 
@@ -13080,6 +14042,7 @@ Code change → droid-review.sh → docs_sync.py → Update flagged docs → Com
 **What:** Disabled strict mypy checking to allow gradual typing adoption.
 
 **Files:**
+
 - `pyproject.toml` - Set strict=false, ignore_errors for fabrik.* module
 - `.pre-commit-config.yaml` - Disabled mypy hook temporarily
 - `src/fabrik/drivers/wordpress_api.py` - Added type annotations
@@ -13094,10 +14057,12 @@ Gradual typing approach: add types to new code, fix old code incrementally.
 **What:** New projects created via `create_project()` are now fully compliant with Fabrik conventions.
 
 **Files:**
+
 - `src/fabrik/scaffold.py` - Major enhancements
 - `templates/scaffold/docker/Dockerfile.python` - Fixed CMD entry point
 
 **Changes:**
+
 - AGENTS.md now symlinked to master `/opt/fabrik/AGENTS.md` (with copy fallback)
 - .pre-commit-config.yaml copied and hooks installed automatically
 - pyproject.toml with ruff/mypy/bandit config included
@@ -13114,15 +14079,18 @@ Gradual typing approach: add types to new code, fix old code incrementally.
 **What:** Created adaptive review prompt template and enforcement memories for Cascade behavior.
 
 **Files:**
+
 - `templates/droid/review-meta-prompt.md` - Adaptive prompt for plan/code/docs reviews
 - `docs/reference/droid-exec-usage.md` - Merged architecture sections from complete-guide
 - `docs/reference/wordpress/plugin-stack.md` - Added plugin activation workarounds section
 
 **Archived:**
+
 - `docs/reference/droid-validation-report.md` → `docs/archive/2025-01-03-droid-validation/`
 - `docs/reference/droid-exec-complete-guide.md` - Merged and deleted
 
 **New Memories Created:**
+
 - Droid Review Prompt Location (pointer to meta-prompt)
 - Check templates before creating docs (enforcement)
 - Verify file existence before write (enforcement)
@@ -13136,11 +14104,13 @@ Gradual typing approach: add types to new code, fix old code incrementally.
 **What:** Enforce document placement in correct locations per Fabrik conventions.
 
 **Files:**
+
 - `scripts/enforcement/check_structure.py` - New script to validate .md file locations
 - `.pre-commit-config.yaml` - Added structure-check hook
 - `AGENTS.md` - Added Document Location Rules section
 
 **Enforces:**
+
 - Root .md files limited to: README.md, CHANGELOG.md, tasks.md, AGENTS.md, PORTS.md, LICENSE.md
 - All other docs must go in docs/ subdirectories
 - Warns on legacy directories (specs/, proposals/)
@@ -13152,6 +14122,7 @@ Gradual typing approach: add types to new code, fix old code incrementally.
 **What:** Fixed mypy import errors by setting MYPYPATH=src in pre-commit hook.
 
 **Files:**
+
 - `.pre-commit-config.yaml` - Added MYPYPATH and --explicit-package-bases
 
 ---
@@ -13161,6 +14132,7 @@ Gradual typing approach: add types to new code, fix old code incrementally.
 **What:** Standardized documentation index naming to avoid confusion with root README.md.
 
 **Files:**
+
 - `docs/README.md` → `docs/INDEX.md` - Renamed
 - Updated 17 files with 29 references to use new path
 
@@ -13171,6 +14143,7 @@ Gradual typing approach: add types to new code, fix old code incrementally.
 **What:** Automated documentation system with mandatory CHANGELOG.md updates, pre-commit enforcement, and port validation.
 
 **Files:**
+
 - `scripts/docs_updater.py` - Added --check/--sync/--dry-run modes, CHANGELOG.md as mandatory step 1
 - `scripts/enforcement/check_changelog.py` - Smart pre-commit hook (skips tests/small diffs, validates entry quality)
 - `scripts/enforcement/check_ports.py` - Port validation (checks PORTS.md registration, validates ranges)
@@ -13192,6 +14165,7 @@ Gradual typing approach: add types to new code, fix old code incrementally.
 **What:** Spec-driven deployment orchestration system.
 
 **Files:**
+
 - `src/fabrik/orchestrator/` - Complete orchestrator module
 - `docs/reference/orchestrator.md` - Orchestrator documentation
 - `docs/reference/phase10.md` - Human-readable plan
@@ -13204,6 +14178,7 @@ Gradual typing approach: add types to new code, fix old code incrementally.
 **What:** Enhanced Windsurf rules with dynamic model discovery.
 
 **Files:**
+
 - `.windsurf/rules/00-critical.md` - Security, env vars (always_on)
 - `.windsurf/rules/10-python.md` - Python patterns (glob)
 - `.windsurf/rules/20-typescript.md` - TypeScript patterns (glob)
@@ -13218,6 +14193,7 @@ Gradual typing approach: add types to new code, fix old code incrementally.
 **What:** 4-model consensus for architectural decisions.
 
 **Files:**
+
 - `specs/FABRIK_CONSOLIDATED_GAP_ANALYSIS.md` - Gap analysis
 - `specs/FABRIK_CONDUCTOR_CONSENSUS_PLAN.md` - Consensus plan
 - `docs/design/CASCADE-DROID-STRATEGY.md` - Cascade-Droid strategy
@@ -13229,6 +14205,7 @@ Gradual typing approach: add types to new code, fix old code incrementally.
 **What:** Windsurf + Fabrik enforcement integration.
 
 **Files:**
+
 - `scripts/enforcement/` - Convention validators
 - `.factory/hooks/` - Pre/post hooks
 - `docs/reference/enforcement-system.md` - Enforcement documentation
@@ -13240,6 +14217,7 @@ Gradual typing approach: add types to new code, fix old code incrementally.
 **What:** Automated code review with acknowledgment tracking.
 
 **Files:**
+
 - `scripts/acknowledge_reviews.py` - Review acknowledgment
 - `docs/reference/auto-review.md` - Auto-review documentation
 
@@ -13250,6 +14228,7 @@ Gradual typing approach: add types to new code, fix old code incrementally.
 **What:** Long-running command monitoring with stuck detection.
 
 **Files:**
+
 - `scripts/process_monitor.py` - Process monitoring
 - `docs/reference/PROCESS_MONITORING_QUICKSTART.md` - Quickstart guide
 
@@ -13260,6 +14239,7 @@ Gradual typing approach: add types to new code, fix old code incrementally.
 **Complete Next.js SaaS template with droid exec integration.**
 
 **Template (`templates/saas-skeleton/`):**
+
 - Marketing pages: landing, pricing, FAQ, terms, privacy
 - App pages: dashboard, new job, items list, item detail, settings
 - Core components: AppShell, PageHeader, SectionCard, EmptyState, StateBlocks
@@ -13268,10 +14248,12 @@ Gradual typing approach: add types to new code, fix old code incrementally.
 - Job workflow pattern: DRAFT → QUEUED → RUNNING → SUCCEEDED/FAILED
 
 **Droid Skill (`.factory/skills/fabrik-saas-scaffold.md`):**
+
 - Auto-invokes when creating SaaS apps
 - Documents customization steps and deployment
 
 **Documentation:**
+
 - Updated `docs/reference/SaaS-GUI.md` with implementation reference
 - Updated `docs/INDEX.md` with template link
 
@@ -13282,6 +14264,7 @@ Gradual typing approach: add types to new code, fix old code incrementally.
 **Comprehensive review and fixes for the Fabrik Droid automation system.**
 
 **Scripts (`scripts/`):**
+
 - `droid_tasks.py`: Fixed CLI to use task-specific `default_auto` and `model` from `TOOL_CONFIGS`
 - `droid_tasks.py`: Removed unused `threading` import
 - `droid_tasks.py`: Added missing `preflight` task type to help epilog
@@ -13290,6 +14273,7 @@ Gradual typing approach: add types to new code, fix old code incrementally.
 - `droid_models.py`: Added model sync functionality (`python3 scripts/droid_models.py sync`)
 
 **Hooks (`.factory/hooks/`):**
+
 - `fabrik-conventions.py`: Fixed `hardcoded_localhost` regex pattern (broken lookbehind)
 - `fabrik-conventions.py`: Excluded `getenv/environ` from `hardcoded_password` pattern to reduce false positives
 - `session-context.py`: Added git availability check before running git commands
@@ -13297,48 +14281,57 @@ Gradual typing approach: add types to new code, fix old code incrementally.
 - `protect-files.sh`: Changed `.env.` pattern to specific files, allowing `.env.example` edits
 
 **Documentation (`docs/reference/droid-exec-usage.md`):**
+
 - Fixed `$FACTORY_PROJECT_DIR` → `$DROID_PROJECT_DIR` environment variable name
 - Updated Mode Overview table to use full model registry names
 - Updated Model pricing table to use full model registry names
 - Fixed shortened model names (`claude-sonnet-4-5` → `claude-sonnet-4-5-20250929`, etc.)
 
 **Cross-file consistency (`AGENTS.md`, `windsurfrules`):**
+
 - Synced `fabrik-watchdog` triggers to include "monitor" keyword
 - Synced `fabrik-config` triggers to include "settings" keyword
 - Synced `fabrik-postgres` triggers to include "migration" keyword
 - Updated Execution Modes table to match canonical model names
 
 **Architecture improvements:**
+
 - Established `FABRIK_TASK_MODELS` in `droid_models.py` as single source of truth for model names
 - Created sync mechanism: `python3 scripts/droid_models.py sync` updates `droid_tasks.py`, `AGENTS.md`, and `droid-exec-usage.md`
 - Added pre-commit hook for automatic model sync on commit
 - Added `fabrik sync-models` CLI command
 
 **Documentation additions:**
+
 - Added §21 Automated Code Review (GitHub App) to `droid-exec-usage.md`
 - Added §22 GitHub Actions Workflows documentation
 - Added §23 Batch Refactoring Scripts documentation
 - Added §24 Fabrik Review Prompt Template documentation
 
 **GitHub Actions Workflows (`.github/workflows/`):**
+
 - `droid-review.yml` - Automated PR code review with Fabrik convention checks
 - `update-docs.yml` - Auto-update documentation when code merges to main
 - `security-scanner.yml` - Weekly security audit (vulnerabilities, secrets, conventions)
 - `daily-maintenance.yml` - Daily docs and test updates
 
 **Batch Refactoring Scripts (`scripts/droid/`):**
+
 - `refactor-imports.sh` - Organize Python imports across codebase
 - `improve-errors.sh` - Improve error messages for better UX
 - `fix-lint.sh` - Fix lint violations with AI understanding
 
 **Templates:**
+
 - `templates/scaffold/droid-review-prompt.md` - Fabrik-specific PR review prompt template
 
 **droid_tasks.py enhancements:**
+
 - Added `--debug` flag for verbose output showing tool calls
 - Useful for building web UIs with real-time feedback
 
 **Documentation (droid-exec-usage.md):**
+
 - Added §25 Deploy Droid Exec on VPS via Coolify
 - Added §26 Building Web Apps with Droid Exec (SSE Streaming)
 
@@ -13349,13 +14342,16 @@ Gradual typing approach: add types to new code, fix old code incrementally.
 **Fabrik now owns project management.** Merged `/opt/_project_management` into Fabrik.
 
 **New CLI commands:**
+
 - `fabrik scaffold <name>` - Create new project with full structure
 - `fabrik validate <path>` - Validate project against standards
 
 **New modules:**
+
 - `src/fabrik/scaffold.py` - Project scaffolding logic
 
 **Moved from _project_management:**
+
 - `windsurfrules` → `/opt/fabrik/windsurfrules`
 - `PORTS.md` → `/opt/fabrik/data/ports.yaml` (YAML format)
 - `templates/docs/*` → `/opt/fabrik/templates/scaffold/docs/`
@@ -13364,6 +14360,7 @@ Gradual typing approach: add types to new code, fix old code incrementally.
 - Reference docs → `/opt/fabrik/docs/reference/`
 
 **Updated:**
+
 - All project `.windsurfrules` symlinks now point to fabrik
 - `~/.local/bin/rund,rundsh,runc,runk` symlinks updated
 
@@ -13388,15 +14385,18 @@ Gradual typing approach: add types to new code, fix old code incrementally.
 ### Documentation Restructure (Option B - Full Consolidation)
 
 **New structure:**
+
 - Created `docs/operations/` folder for operational docs
 - Created `docs/reference/wordpress/` subfolder for WordPress technical docs
 - Created `docs/ROADMAP_ACTIVE.md` consolidating planning docs
 
 **Moved to `operations/`:**
+
 - `disaster-recovery.md`, `duplicati-setup.md`, `vps-status.md`, `vps-urls.md`
 - `COOLIFY_MIGRATION_RUNBOOK.md` → `coolify-migration.md`
 
 **Moved to `reference/wordpress/`:**
+
 - `wordpress-v2-architecture.md` → `architecture.md`
 - `wordpress-v2-fixes.md` → `fixes.md`
 - `wordpress-pages-idempotency.md` → `pages-idempotency.md`
@@ -13405,34 +14405,41 @@ Gradual typing approach: add types to new code, fix old code incrementally.
 - `site-specification.md`
 
 **Moved to `guides/`:**
+
 - `DEPLOYMENT_READY_CHECKLIST.md`
 
 **Consolidated and archived:**
+
 - `WHATS_NEXT.md`, `FUTURE_WORK.md`, `future-development.md` → `ROADMAP_ACTIVE.md`
 - Originals archived to `docs/archive/` with date prefix
 
 ### Automated Deployment (Phase 1 Completion)
 
 **New modules:**
+
 - `src/fabrik/deploy.py` - Coolify deployment helper
 - `src/fabrik/registry.py` - Project registry system
 
 **New CLI commands:**
+
 - `fabrik scan` - Scan /opt for projects, update registry
 - `fabrik projects` - List tracked projects with deployment status
 - `fabrik projects --sync` - Sync with Coolify before listing
 
 **Deployment automation:**
+
 - `fabrik apply` now fully deploys to Coolify (was placeholder)
 - Auto-detects server UUID and project UUID
 - Creates/redeploys docker-compose apps via Coolify API
 
 **Project registry (`data/projects.yaml`):**
+
 - Tracks all /opt projects (excludes `_*`, `.*`, `google`, `apps`)
 - Stores deployment status, Coolify UUID, domain
 - Syncs with Coolify to update deployment state
 
 **Config additions:**
+
 - `COOLIFY_SERVER_UUID` (optional, auto-detected)
 - `COOLIFY_PROJECT_UUID` (optional, auto-detected)
 

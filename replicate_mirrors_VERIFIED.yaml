@@ -1,0 +1,37 @@
+# Replicate Mirror Map - Phase 1 (VERIFIED)
+# Generated: 2026-06-29
+# Count: 12 verified entries across FLUX/SDXL/Whisper/Stable Audio
+# Source: Cross-reference kilo_agents.db against Replicate public model registry
+# Status: Ready for aggregator-pricing plan implementation
+
+# ============================================================
+# IMAGE GENERATION - TIER 1 (open-weight, high availability)
+# ============================================================
+
+bfl/flux-dev: black-forest-labs/flux-dev
+bfl/flux-schnell: black-forest-labs/flux-schnell
+stability/sdxl: stability-ai/sdxl
+
+# ============================================================
+# IMAGE GENERATION - TIER 2 (proprietary, auth required)
+# ============================================================
+
+bfl/flux-pro: black-forest-labs/flux-pro
+bfl/flux-pro-1.1: black-forest-labs/flux-pro-1.1
+bfl/flux-pro-1.1-ultra: black-forest-labs/flux-pro-1.1-ultra
+bfl/flux-fill: black-forest-labs/flux-fill
+bfl/flux-redux: black-forest-labs/flux-redux
+stability/sd3.5-large: stability-ai/stable-diffusion-3.5-large
+stability/sd3.5-large-turbo: stability-ai/stable-diffusion-3.5-large-turbo
+
+# ============================================================
+# SPEECH-TO-TEXT
+# ============================================================
+
+openai/whisper-large-v3: openai/whisper
+
+# ============================================================
+# MUSIC GENERATION
+# ============================================================
+
+stability/stable-audio-2: stability-ai/stable-audio

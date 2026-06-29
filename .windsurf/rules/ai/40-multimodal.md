@@ -11,7 +11,7 @@ trigger: glob
 
 # 4. Vision-Language & Multimodal AI
 
-Last content verification: 2026-06-28
+Last content verification: 2026-06-29
 
 **Purpose:** Combine text, image, audio, and video understanding.
 
@@ -21,13 +21,22 @@ Last content verification: 2026-06-28
 ## Examples
 Claude Opus 4.8, GPT-4o, Gemini 2.5 Pro, LLaVA, Kosmos-2.
 
-## Kilo coverage
-✅ 70 models with image input. Free: `qwen/qwen3-vl-235b-thinking`. Paid: `bytedance-seed/seed-1.6-flash` ($0.07/1M). For `input.video`, only 19 models qualify — check the `input.video` flag.
+## Gateway coverage
+
+Both gateways carry the major multimodal frontier (Claude / GPT-4o / Gemini) at comparable prices — pick the cheaper rate per model from the bake-off browser. For `input.video`, check the `input.video` flag in either browser before picking.
+
+<!-- GATEWAY_COUNTS:START — last-refreshed: 2026-06-29 (auto-managed by update_gateway_counts.py) -->
+*Live gateway counts (active models, 2026-06-29 UTC; auto-refreshed from `kilo_agents.db`):*
+
+vision-input across all gateways: **167**
+
+Multimodal overlaps with Vision (category 2) — see the Audio/Vision tab in the bake-off browser for the audio-in subset.
+<!-- GATEWAY_COUNTS:END -->
 
 **Use cases:** image captioning, visual QA, document understanding, video analysis.
 
-<!-- OPENROUTER_ROUTES:START — last-refreshed: 2026-06-28 (auto-managed by category_export_markdown.py) -->
-*Auto-generated 2026-06-28 (UTC) by `category_route_mapper.py` → injected here by `category_export_markdown.py`. Edits between the markers will be overwritten on the next daily run.*
+<!-- OPENROUTER_ROUTES:START — last-refreshed: 2026-06-29 (auto-managed by category_export_markdown.py) -->
+*Auto-generated 2026-06-29 (UTC) by `category_route_mapper.py` → injected here by `category_export_markdown.py`. Edits between the markers will be overwritten on the next daily run.*
 
 | Priority | OpenRouter ID | Cost ($/M in) | Context | Status |
 |---|---|---|---|---|

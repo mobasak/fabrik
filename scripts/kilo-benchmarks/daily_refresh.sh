@@ -9,8 +9,19 @@
 #   3. category_route_mapper.py
 #        → re-picks today's openrouter:* route winners + history
 #   4. category_export_markdown.py
-#        → injects route blocks into .windsurf/rules/ai/*.md
-#   5. export_models_browser.py
+#        → injects OPENROUTER_ROUTES blocks + freshness stamp into
+#          .windsurf/rules/ai/*.md
+#   5. update_gateway_counts.py
+#        → injects GATEWAY_COUNTS blocks (live per-category gateway
+#          counts from kilo_agents.db) into the same packs
+#   6. fetch_replicate_prices.py / fetch_fal_prices.py
+#        → scrape per-model pricing from aggregators; populate
+#          agents.gateway_prices JSON (plan-2-aggregator-pricing.md)
+#   7. derive_cheapest_gateway.py
+#        → picks the cheapest (gateway, price) per row from
+#          gateway_prices + direct price; writes cheapest_gateway +
+#          cheapest_gateway_price for the browser to badge
+#   8. export_models_browser.py
 #        → regenerates the single-file models_browser.html
 #
 # Each step is wrapped in `|| echo "[step] failed (non-fatal)"` so a
@@ -68,6 +79,13 @@ mkdir -p "$(dirname "$LOG_FILE")"
   "$VENV_PY" "$KB/seed_translation_and_stt.py" \
     || echo "[daily_refresh] translation/STT seed failed (non-fatal)"
 
+  # Direct-vendor specialists (Soniox STT/TTS, Recraft, FLUX, SDXL,
+  # ElevenLabs, DeepL Pro) — operator-encoded facts that aren't on
+  # OpenRouter / Kilo CLI and therefore aren't picked up by the
+  # verifier. Idempotent UPSERT keyed by id.
+  "$VENV_PY" "$KB/seed_direct_vendors.py" \
+    || echo "[daily_refresh] direct-vendor seed failed (non-fatal)"
+
   "$VENV_PY" "$KB/derive_quality_v2.py" \
     || echo "[daily_refresh] quality v2 deriver failed (non-fatal)"
 
@@ -79,6 +97,27 @@ mkdir -p "$(dirname "$LOG_FILE")"
 
   "$VENV_PY" "$KB/category_export_markdown.py" \
     || echo "[daily_refresh] markdown export failed (non-fatal)"
+
+  # Aggregator pricing (plan-2-aggregator-pricing.md Phase 5). Fetchers
+  # populate agents.gateway_prices JSON; derive picks cheapest gateway.
+  # All three steps non-fatal so a transient Replicate/fal outage doesn't
+  # nuke the rest of the pipeline.
+  "$VENV_PY" "$KB/fetch_replicate_prices.py" \
+    || echo "[daily_refresh] replicate price fetch failed (non-fatal)"
+  if [ -n "${FAL_KEY:-}" ]; then
+    "$VENV_PY" "$KB/fetch_fal_prices.py" \
+      || echo "[daily_refresh] fal price fetch failed (non-fatal)"
+  fi
+  "$VENV_PY" "$KB/derive_cheapest_gateway.py" \
+    || echo "[daily_refresh] cheapest gateway derive failed (non-fatal)"
+
+  # Live gateway counts in the ai/ rule packs. Runs AFTER the OR-routes
+  # injector + freshness stamp so both marker blocks land in the same
+  # daily refresh. The script is idempotent and self-heals around
+  # missing/orphaned markers (mirror of category_export_markdown's
+  # contract).
+  "$VENV_PY" "$KB/update_gateway_counts.py" \
+    || echo "[daily_refresh] gateway counts inject failed (non-fatal)"
 
   "$VENV_PY" "$KB/export_models_browser.py" \
     || echo "[daily_refresh] models_browser export failed (non-fatal)"

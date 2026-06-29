@@ -11,7 +11,7 @@ trigger: glob
 
 # 2. Vision AI
 
-Last content verification: 2026-06-28
+Last content verification: 2026-06-29
 
 **Purpose:** Interpret or generate images/video.
 
@@ -28,13 +28,22 @@ Last content verification: 2026-06-28
 - **OCR (text from images):** Tesseract, AWS Textract
 - **Face/Pose Estimation:** MediaPipe, OpenPose
 
-## Kilo coverage
-✅ 70 models with `input.image`. Free: `giga-potato`. Paid: `google/gemma-3-27b-it` ($0.03/1M). Note: Kilo models do vision *understanding* — for image *generation*, use Recraft/FLUX.
+## Gateway coverage
+
+Either gateway is fine — pick the cheaper rate per model from the bake-off browser. **Note:** these are vision *understanding* models. For image *generation*, use Recraft (branded/vector) or FLUX/BFL (photoreal) directly — not a gateway LLM.
+
+<!-- GATEWAY_COUNTS:START — last-refreshed: 2026-06-29 (auto-managed by update_gateway_counts.py) -->
+*Live gateway counts (active models, 2026-06-29 UTC; auto-refreshed from `kilo_agents.db`):*
+
+vision-input across all gateways: **167**
+
+These are vision *understanding* models. Image *generation* (Recraft / FLUX) is not gateway-routed.
+<!-- GATEWAY_COUNTS:END -->
 
 **Use cases:** content creation, surveillance, document processing.
 
-<!-- OPENROUTER_ROUTES:START — last-refreshed: 2026-06-28 (auto-managed by category_export_markdown.py) -->
-*Auto-generated 2026-06-28 (UTC) by `category_route_mapper.py` → injected here by `category_export_markdown.py`. Edits between the markers will be overwritten on the next daily run.*
+<!-- OPENROUTER_ROUTES:START — last-refreshed: 2026-06-29 (auto-managed by category_export_markdown.py) -->
+*Auto-generated 2026-06-29 (UTC) by `category_route_mapper.py` → injected here by `category_export_markdown.py`. Edits between the markers will be overwritten on the next daily run.*
 
 | Priority | OpenRouter ID | Cost ($/M in) | Context | Status |
 |---|---|---|---|---|

@@ -11,7 +11,7 @@ trigger: glob
 
 # 1. Speech & Audio AI
 
-Last content verification: 2026-06-28
+Last content verification: 2026-06-29
 
 **Purpose:** Convert or interpret sound.
 
@@ -26,15 +26,24 @@ Last content verification: 2026-06-28
 - **Audio Classification:** Google AudioSet, YAMNet
 - **Music Generation:** Suno, Udio, Mubert, Meta MusicGen
 
-## Kilo coverage
-⚠️ Thin — only 9 models carry `input.audio`. Paid fallback: `google/gemini-2.0-flash-lite` ($0.07/1M). For faithful TTS, prefer Soniox over any Kilo general model.
+## Gateway coverage
+
+For STT/TTS, **prefer the direct vendor** (Soniox, Whisper API, gpt-4o-transcribe, Deepgram) over a gateway LLM — quality and price both favor the dedicated path. If you must route via a gateway, pick the cheaper of Kilo / OpenRouter per model.
+
+<!-- GATEWAY_COUNTS:START — last-refreshed: 2026-06-29 (auto-managed by update_gateway_counts.py) -->
+*Live gateway counts (active models, 2026-06-29 UTC; auto-refreshed from `kilo_agents.db`):*
+
+STT-capable across all gateways: **31**
+
+Direct-vendor specialists (Soniox, Whisper API, gpt-4o-transcribe, Deepgram) are NOT in this DB — they live in their own `stt_quality` JSON and the bake-off browser's Audio/Vision tab. Gateway LLMs are last-resort.
+<!-- GATEWAY_COUNTS:END -->
 
 **Use cases:** transcription services, voice assistants, audio processing.
 
 **Anti-pattern:** using a general LLM for transcription instead of Soniox/Whisper.
 
-<!-- OPENROUTER_ROUTES:START — last-refreshed: 2026-06-28 (auto-managed by category_export_markdown.py) -->
-*Auto-generated 2026-06-28 (UTC) by `category_route_mapper.py` → injected here by `category_export_markdown.py`. Edits between the markers will be overwritten on the next daily run.*
+<!-- OPENROUTER_ROUTES:START — last-refreshed: 2026-06-29 (auto-managed by category_export_markdown.py) -->
+*Auto-generated 2026-06-29 (UTC) by `category_route_mapper.py` → injected here by `category_export_markdown.py`. Edits between the markers will be overwritten on the next daily run.*
 
 | Priority | OpenRouter ID | Cost ($/M in) | Context | Status |
 |---|---|---|---|---|

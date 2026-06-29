@@ -235,10 +235,16 @@ def sync_from_kilo() -> None:
         # Extract provider from model ID (e.g., "anthropic/claude-opus-4.6" -> "anthropic")
         provider = model_id.split("/")[0] if "/" in model_id else "unknown"
 
-        # Pricing (convert to per 1M tokens)
+        # Pricing — Kilo CLI's `cost.input`/`cost.output` are ALREADY
+        # USD per million tokens (matches verify_openrouter_catalog.py
+        # `_kilo_pricing` which documents this format). Multiplying by
+        # 1M here historically corrupted Kilo-only rows; the bug was
+        # latent because the OpenRouter verifier overwrote
+        # `input_cost_per_m` for every dual-routed row. Fixed
+        # 2026-06-29 as part of plan-2-aggregator-pricing Phase 0.5.
         cost = model.get("cost", {})
-        input_cost = cost.get("input", 0) * 1_000_000
-        output_cost = cost.get("output", 0) * 1_000_000
+        input_cost = cost.get("input", 0)
+        output_cost = cost.get("output", 0)
 
         # Capabilities
         caps = model.get("capabilities", {})
@@ -619,7 +625,7 @@ def export_markdown() -> None:
 # LOCAL LLM (OLLAMA) FUNCTIONS
 # =============================================================================
 
-OLLAMA_API = "http://localhost:11434"
+OLLAMA_API = "http://localhost:11434"  # noqa: Ollama runs on the dev machine only (no VPS container)
 LOCAL_LLM_DOC = FABRIK_ROOT / "docs" / "reference" / "LOCAL_LLM_INFRASTRUCTURE.md"
 
 # Known model capabilities - used to populate DB when syncing from Ollama

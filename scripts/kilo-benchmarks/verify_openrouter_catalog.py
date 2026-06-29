@@ -321,13 +321,17 @@ def verify(db_path: Path = DB_PATH) -> dict:
         k_in, k_out = _kilo_pricing(rec)
         kilo_sourced[mid] = {"input": k_in, "output": k_out}
 
-    # Recompute delisted: a row is truly delisted only if neither
-    # source returns it.
-    truly_delisted = [
+    # Recompute delisted: a row is truly delisted only if NEITHER the
+    # OpenRouter nor the Kilo CLI catalog returns it AND the DB row is
+    # not flagged as reachable via a direct-API gateway (DashScope /
+    # SiliconFlow). Without the gateway-flag carve-out we'd nuke
+    # operator-seeded specialist routes like qwen-mt-turbo on every run.
+    direct_routed = {
         mid
-        for mid in delisted
-        if mid not in kilo  # was: only OpenRouter checked
-    ]
+        for mid, row in db_rows.items()
+        if (row.get("via_dashscope") or 0) or (row.get("via_siliconflow") or 0)
+    }
+    truly_delisted = [mid for mid in delisted if mid not in kilo and mid not in direct_routed]
     delisted_or_only = [mid for mid in delisted if mid in kilo]
 
     return {

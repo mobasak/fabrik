@@ -1,0 +1,122 @@
+# Replicate Mirror Wishlist - Out of Scope for Phase 1
+# These vendors exist in our DB but have NO verified Replicate mirror
+# Total: 39 entries across video_gen, music_gen, stt
+
+# ============================================================
+# PROPRIETARY DIRECT-ONLY (Video Generation & Audio)
+# - These vendors do NOT publish to Replicate; API access is direct-only
+# ============================================================
+
+wishlist:
+  video_gen:
+    # Runway — direct API only, not mirrored to Replicate
+    - runway/gen-3-alpha
+    - runway/gen-3-alpha-turbo
+    - runway/gen-4
+
+    # Kling — proprietary, no public Replicate mirror (slug uncertain)
+    - kling/v1.5
+    - kling/v2
+
+    # Luma — dream machine not confirmed on Replicate
+    - luma/dream-machine-1.6
+    - luma/ray-2
+
+    # HeyGen — avatar/video platform, proprietary
+    - heygen/video
+
+    # Pika — video gen, proprietary
+    - pika/v2
+
+  music_gen:
+    # Suno — music gen, no Replicate mirror
+    - suno/v4
+
+    # Udio — music gen, no Replicate mirror
+    - udio/v1
+
+    # ElevenLabs — sound effects, proprietary platform
+    - elevenlabs/sound-effects
+
+  image_gen:
+    # Recraft — proprietary design/image platform, no Replicate mirror
+    - recraft/nano-banana
+    - recraft/v2
+    - recraft/v3
+    - recraft/v4-icon
+    - recraft/v4-svg
+    - recraft/v4.1
+
+    # Ideogram — proprietary image gen, no Replicate mirror
+    - ideogram/v2
+    - ideogram/v3
+
+# ============================================================
+# CLOUD PROVIDER EXCLUSIVE (Google Cloud)
+# - These are Google Cloud services with no Replicate availability
+# ============================================================
+
+  google_cloud_exclusive:
+    # Vision/Image generation
+    - google/imagen-3
+    - google/imagen-4
+
+    # Video generation
+    - google/veo-2
+    - google/veo-3
+
+    # Speech-to-text
+    - google/cloud-speech-v2
+
+# ============================================================
+# OPENAI API EXCLUSIVE
+# - These are OpenAI direct API services, not on Replicate
+# ============================================================
+
+  openai_exclusive:
+    # Image generation
+    - openai/dall-e-3
+    - openai/dall-e-3-hd
+    - openai/gpt-image-1
+
+    # Video generation
+    - openai/sora-turbo
+
+    # Speech-to-text
+    - openai/gpt-4o-mini-transcribe
+    - openai/gpt-4o-transcribe
+
+# ============================================================
+# SPECIALIZED STT VENDORS (No Replicate Mirror)
+# - Each has proprietary APIs; none maintain Replicate mirror
+# ============================================================
+
+  stt_vendors:
+    - assemblyai/universal-2
+    - azure/speech-to-text
+    - deepgram/nova-2
+    - deepgram/nova-3
+    - speechmatics/enhanced
+    - soniox/stt-async-v4
+    - soniox/stt-realtime-v4
+
+wishlist_summary:
+  total_entries: 39
+  image_gen: 7
+  video_gen: 8
+  music_gen: 3
+  stt: 7
+  google_cloud: 5
+  openai_exclusive: 5
+
+phase_1_coverage:
+  total_db_candidates: 51
+  verified_replicate_mirrors: 12
+  out_of_scope: 39
+  coverage_percentage: 24%
+
+recommendation:
+  "Phase 1 covers open-weight FLUX models and Stability products, which drive
+   volume on Replicate. Phase 2 should target direct-vendor pricing via
+   aggregators (OpenRouter) for Google, OpenAI, proprietary video, and
+   specialized STT vendors."

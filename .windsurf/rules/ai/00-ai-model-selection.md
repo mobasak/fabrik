@@ -1,19 +1,19 @@
 ---
 activation: glob
 globs: ["**/ai/**", "**/llm/**", "**/models/**", "**/inference/**", "**/agents/**", "**/prompts/**", "project.yaml"]
-description: AI model & tool selection INDEX — match the task to one of 16 categories, prefer specialized tools over general LLMs, check Kilo CLI before paid external APIs, honor Fabrik AI defaults (pgvector-only, Recraft images, Soniox TTS). Routes to per-category packs 10–90 in this folder.
+description: AI model & tool selection INDEX — match the task to one of 16 categories, prefer specialized vendors over general LLMs, pick the cheapest gateway (Kilo CLI and OpenRouter are peers), honor Fabrik AI defaults (pgvector-only, Recraft images, Soniox TTS). Routes to per-category packs 10–90 in this folder.
 trigger: glob
 ---
 <!-- CONSUMER: Coding agents choosing an AI provider/model/tool + Traycer (tech-plan step)
-     GOAL: Right tool for the task type; specialized over general; free Kilo over paid external; Fabrik defaults enforced.
+     GOAL: Right tool for the task type; specialized over general; cheapest gateway for the model; Fabrik defaults enforced.
      TRAYCER USAGE: Injects as Context File for any AI-feature ticket. The selection workflow shapes the tech-plan.
-     AGENT USAGE: Identify category → open the matching pack (10–90) → check Kilo → shortlist → document the choice + rejected alternative in project.yaml. -->
+     AGENT USAGE: Identify category → open the matching pack (10–90) → consult the bake-off browser for cost+quality + cheapest gateway → shortlist → document the choice + rejected alternative in project.yaml. -->
 
 # AI Model & Tool Selection — Index
 
 This folder is the **canonical AI ruleset** (it replaced the former `docs/reference/AI_TAXONOMY.md`, now a redirect stub). This file is the index + the global selection discipline; the per-category packs carry the catalogue and the binding default for each category.
 
-> Last content verification: 2026-06-25 (Claude lineup, Soniox TTS, Recraft/FLUX re-checked). Other vendor/version names are indicative — verify version + price before committing in a project.
+> Last content verification: 2026-06-29 (gateway-agnostic policy: Kilo CLI and OpenRouter are peer gateways; pick by cost+availability per model. Prior text mandated "Kilo CLI before paid external APIs" — superseded because OpenRouter often prices the same model cheaper and many sweet-spot models (e.g. `qwen/qwen-mt-turbo` via DashScope) aren't on Kilo at all.) Last full lineup check: 2026-06-25 (Claude lineup, Soniox TTS, Recraft/FLUX).
 >
 > Freshness is checked daily (warn-only) by `scripts/check_ai_pack_freshness.py` in the WSL pipeline — it flags this `Last content verification:` stamp when it is >90 days old (see `docs/workflows/KILO_BENCHMARK_WORKFLOW.md`). On review, **re-stamp the date above**: that is what records a human re-verified the model lineup / vendor picks. (Per-pack packs may carry their own stamp; this index's stamp is the headline one.)
 
@@ -21,14 +21,14 @@ This folder is the **canonical AI ruleset** (it replaced the former `docs/refere
 
 1. **Identify the category** from the 16 below.
 2. **Open the matching pack** (`10`–`90`) for its subcategories, tools, and the Fabrik default.
-3. **Check Kilo CLI alternatives** (`kilo run kilo/<provider>/<model>`) — categories 1–6 are well covered; don't reach for a paid external API when a free/cheap Kilo model fits.
+3. **Pick the cheapest gateway for the model.** Kilo CLI (`kilo run kilo/<provider>/<model>`) and OpenRouter (`https://openrouter.ai/api/v1`) are **peer gateways** — the same model is frequently dual-routed. Use the bake-off browser (`scripts/kilo-benchmarks/models_browser.html`, "Source" column shows OR/K/DS badges and a Kilo-vs-OR markup %) to pick the cheaper rate per model. DashScope (`DS` badge — `qwen-mt-turbo` etc.) and SiliconFlow (`SF`) are valid direct-API gateways when the model isn't on Kilo or OR.
 4. **Shortlist**, then **document the choice + the top alternative you rejected** in `project.yaml` (`ai_category`, `ai_subcategory`, `ai_tools`).
 
 ## The 4 selection rules
 
 - Match task to category first (prevents wrong tool type).
-- Prefer specialized tools in a category over general ones.
-- Check Kilo CLI alternatives before external APIs.
+- Prefer specialized vendors in a category over general LLMs (Soniox for TTS over an LLM, DeepL/Qwen-MT-Turbo for translation, Recraft/FLUX for image gen).
+- For LLM models that are dual-routed (Kilo + OpenRouter), pick the cheaper gateway — they're peers; neither is privileged.
 - Document the alternative considered + why not chosen.
 
 ## The 16 categories → packs
@@ -57,27 +57,41 @@ This folder is the **canonical AI ruleset** (it replaced the former `docs/refere
 | TTS (expressive voices) | **ElevenLabs** | When prosody matters more than faithfulness. |
 | LLM (default) | **Claude Opus 4.8** | Current lineup: Opus 4.8 / Sonnet 4.6 / Haiku 4.5 / Fable 5. Sonnet for high-volume, Haiku for speed-critical. |
 
-## Kilo CLI alternatives by category
+## Gateway coverage by category
 
-Models via `kilo run kilo/<provider>/<model>`:
+Kilo CLI (`kilo run kilo/<provider>/<model>`) and OpenRouter (`https://openrouter.ai/api/v1/chat/completions`) are **peer gateways**. Either is valid — pick by per-model price (the bake-off browser shows the cheaper rate per row). DashScope and SiliconFlow are direct-API gateways for specialist routes (e.g. `qwen-mt-turbo`).
 
-| Category | Kilo Coverage | Free Options | Paid Options |
-|----------|---------------|--------------|--------------|
-| 1. Speech/Audio | ⚠️ 9 models | — | `google/gemini-2.0-flash-lite` $0.07/1M |
-| 2. Vision | ✅ 70 models | `giga-potato` | `google/gemma-3-27b-it` $0.03/1M |
-| 3. Language | ✅ 235 models | Many | Full range |
-| 4. Multimodal | ✅ 70 models | `qwen/qwen3-vl-235b-thinking` | `bytedance-seed/seed-1.6-flash` $0.07/1M |
-| 5. Agentic | ✅ 88 models | `giga-potato-thinking` | `nvidia/nemotron-nano-9b` $0.04/1M |
-| 6. Code | ✅ 148 models | `minimax/minimax-m2.5:free` | Full range |
-| 7–15 | ❌ Specialized | Use domain tools | DataRobot, AlphaFold, etc. |
+<!-- GATEWAY_COUNTS:START — last-refreshed: 2026-06-29 (auto-managed by update_gateway_counts.py) -->
+*Live gateway counts (active models, 2026-06-29 UTC; auto-refreshed from `kilo_agents.db`):*
+
+| Gateway | Active routable models | Notes |
+|---|---|---|
+| **OpenRouter** | 339 | of which **337** dual-routed with Kilo, **2** OR-only |
+| **Kilo CLI** | 337 | of which **337** dual-routed with OR, **0** Kilo-only |
+| **DashScope** (direct) | 1 | specialist routes (e.g. `qwen-mt-turbo`) |
+| **SiliconFlow** (direct) | 1 | specialist routes (e.g. Hunyuan) |
+
+Capability counts (any-gateway): reasoning **121** · tools/function-calling **255** · vision-input **167** · translation-scored **14** · STT-capable **31**.
+<!-- GATEWAY_COUNTS:END -->
+
+For specialized categories 7–15 (Robotics / Synthetic data / Recommendation / Cybersecurity / Bio-Healthcare / Edge / Governance / Generative design) use domain tools, not gateway LLMs.
+
+**Direct-API gateways (use when the model isn't on Kilo/OR):**
+
+- **DashScope** (`dashscope-intl.aliyuncs.com`) — Qwen-MT-Turbo (dedicated MT), Qwen-VL, etc.
+- **SiliconFlow** (`api.siliconflow.com`) — Hunyuan, Qwen3-Embedding, etc.
+- **Soniox / Recraft / FLUX (BFL)** — specialized vendors, see per-category packs.
 
 **Kilo capability flags:** `reasoning` (88) · `toolcall` (148) · `input.image` (70) · `input.audio` (9) · `input.video` (19) · `attachment` (70). **Sync:** `python /opt/fabrik/scripts/kilo_model_sync.py --sync`. (Counts/prices drift between syncs — re-verify from the sync, not this table.)
 
+**Bake-off browser** (`scripts/kilo-benchmarks/models_browser.html`) is the source of truth for per-model gateway + price + quality. Tabbed by signal: Overview / Reasoning / Coding / Translation / Audio. The "Source" column badges (OR / K / DS / SF) and the Kilo-vs-OR markup % tell you the cheaper gateway at a glance.
+
 ## Anti-patterns
 
-- General LLM for a specialized task (e.g. an LLM for transcription instead of Soniox; an LLM for translation instead of DeepL/Soniox).
+- General LLM for a specialized task (e.g. an LLM for transcription instead of Soniox; an LLM for translation instead of DeepL/Qwen-MT-Turbo when the language is in scope).
 - Choosing a tool before identifying the category.
-- Reaching for a paid external API when a free Kilo alternative exists.
+- Picking the more expensive gateway when a model is dual-routed (Kilo and OpenRouter often differ 10–40 % on the same model — read the markup column).
+- Treating Kilo and OpenRouter as anything other than peer gateways. Neither is mandated by Fabrik for product code; the historical "Kilo before paid external" rule is superseded as of 2026-06-29.
 - Shipping code whose AI behavior contradicts `specs/services/<id>.yaml::shape` (embeddings without `needs_database`, search without `has_search_feature`, `/metrics` without `exposes_metrics`).
 
 ## Operational AI paths — auth boundary

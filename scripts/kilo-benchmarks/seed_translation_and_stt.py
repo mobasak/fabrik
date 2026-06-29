@@ -93,6 +93,16 @@ BAKEOFF_MODEL_MAP: dict[str, dict] = {
         "via_dashscope": 1,
         "name": "Qwen: Qwen-MT-Turbo (Alibaba DashScope)",
         "provider": "qwen",
+        "input_cost_per_m": 0.16,
+        "output_cost_per_m": 0.49,
+        "context_window_k": 32,
+        "description": (
+            "Alibaba DashScope dedicated machine-translation model. 92 "
+            "languages with native source/target via translation_options. "
+            "Specialist strengths: French / Portuguese / German / Indonesian "
+            "/ Arabic (top-3 in fabrik translation bake-off v2.2). Weaker on "
+            "low-resource + morphology-heavy targets (HU/RO/UR/KO)."
+        ),
     },
 }
 
@@ -203,21 +213,42 @@ def upsert_translation_rows(
                 conn.execute("UPDATE agents SET via_dashscope = 1 WHERE id = ?", (mid,))
             if mapping.get("via_siliconflow"):
                 conn.execute("UPDATE agents SET via_siliconflow = 1 WHERE id = ?", (mid,))
+            # Reactivate direct-API gateway rows that the OpenRouter verifier
+            # may have deprecated in the past (it can't see DashScope /
+            # SiliconFlow). Also push per-mapping defaults for cost / ctx /
+            # description so direct-routed rows aren't stuck on zero.
+            if mapping.get("via_dashscope") or mapping.get("via_siliconflow"):
+                conn.execute(
+                    "UPDATE agents SET status = 'active', discard_reason = NULL "
+                    "WHERE id = ? AND status = 'deprecated' "
+                    "AND COALESCE(discard_reason,'') LIKE '%verifier%'",
+                    (mid,),
+                )
+            for col in ("input_cost_per_m", "output_cost_per_m", "context_window_k", "description"):
+                if mapping.get(col) is not None:
+                    conn.execute(
+                        f"UPDATE agents SET {col} = COALESCE(NULLIF({col}, 0), ?) WHERE id = ?",
+                        (mapping[col], mid),
+                    )
             counts["updated"] += 1
         else:
             provider = mapping.get("provider") or (mid.split("/")[0] if "/" in mid else mid)
             conn.execute(
                 "INSERT INTO agents (id, api_id, name, provider, "
                 "input_cost_per_m, output_cost_per_m, context_window_k, "
-                "status, last_verified, "
+                "description, status, last_verified, "
                 "via_openrouter, via_kilo, via_dashscope, via_siliconflow, "
                 "translation_quality, translation_avg_pct, is_translation_capable) "
-                "VALUES (?, ?, ?, ?, 0, 0, 0, 'active', ?, ?, 0, ?, ?, ?, ?, 1)",
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, 0, ?, ?, ?, ?, 1)",
                 (
                     mid,
                     mid,
                     mapping.get("name") or mid,
                     provider,
+                    mapping.get("input_cost_per_m") or 0,
+                    mapping.get("output_cost_per_m") or 0,
+                    mapping.get("context_window_k") or 0,
+                    mapping.get("description"),
                     today,
                     mapping.get("via_openrouter", 0),
                     mapping.get("via_dashscope", 0),

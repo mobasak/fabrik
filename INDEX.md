@@ -76,12 +76,14 @@
 Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 
 **PHASE 1: AUTO-FIX FORMATTING** (Fix mode only)
+
 - trim trailing whitespace
 - fix end of files (newline)
 - ruff-format
 - ruff --fix
 
 **PHASE 2: STATIC ANALYSIS** (All ERROR - blocks commit)
+
 - ruff (Python linter)
 - mypy (type checking)
 - bandit (security scanner)
@@ -92,6 +94,7 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 - **vulture (REQUIRED - dead code detection)**
 
 **PHASE 3: REPO CONSISTENCY** (All ERROR - blocks commit)
+
 - Project Structure
 - Fabrik Convention Validator
 - Rule File Size Guard
@@ -111,6 +114,7 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 ### Step 7: Sync Only (`python scripts/final_gate.py --sync`)
 
 **No quality checks - sync side-effects only:**
+
 - Sync Windsurf Extensions → docs/reference/EXTENSIONS.md
 - Sync Cascade Backup (freshness check)
 
@@ -588,6 +592,7 @@ the `wordpress` **scaffold type** (`fabrik scaffold --type wordpress`).
 **Archived (2026-02-25):** `PHASE_TEMPLATE.md`, `TASKS_TEMPLATE.md`, `implementation-plan-template.md` moved to `docs/archive/2026-02-25-pre-traycer-templates/`. Replaced by Traycer Phases + dynamic spec generation.
 
 **Archived (2026-02-27):** `droid exec` system archived. Fabrik now uses **Traycer + Kilo + Windsurf Cascade** workflow.
+
 - `scripts/droid_models.py` → `scripts/.archive/2026-02-27-droid-exec-cleanup/`
 - `docs/reference/droid-exec-usage.md` → `docs/archive/2026-02-27-droid-exec-cleanup/`
 - `docs/reference/spec-pipeline.md` → `docs/archive/2026-02-27-droid-exec-cleanup/`
@@ -631,6 +636,7 @@ the `wordpress` **scaffold type** (`fabrik scaffold --type wordpress`).
 5. **Commit**
 
 **When user provides secrets:**
+
 - Write to `.env` file (NEVER commit)
 - Update `.env.example` with placeholder (safe to commit)
 
@@ -639,12 +645,14 @@ the `wordpress` **scaffold type** (`fabrik scaffold --type wordpress`).
 ## File Creation Rules
 
 **Before creating ANY new file:**
+
 1. Check if it already exists
 2. Verify it fits the project structure above
 3. Update this INDEX.md to document the new file
 4. Update README.md if it's a major component
 
 **Never create:**
+
 - Duplicate files
 - Files outside the documented structure
 - Temporary files in root (use `.tmp/`)
@@ -659,15 +667,18 @@ the `wordpress` **scaffold type** (`fabrik scaffold --type wordpress`).
 **Purpose:** AI code review and code generation via Kilo CLI
 
 ### Documentation Hub
+
 - **`docs/reference/kilo/`** - Complete Kilo documentation (README, INDEX, guides)
 
 ### Core Scripts
+
 - `scripts/generate_kilo_agents.py` - Generates tier-based agent scripts from the agent manifest
 - `scripts/kilo_code_review.py` - Code review (Step 4 in the workflow)
 - `scripts/kilo_model_sync.py` - Syncs the model catalog + pricing
-- `scripts/kilo-benchmarks/` - Benchmark-driven agent-selection subsystem (`agent_selector.py`, `compute_assignments.py`, `db_models.py`, embedding assignment, OpenRouter category routing: `classify_ai_category.py`, `category_selector.py`, `category_route_mapper.py`, `category_export_markdown.py` + `ai_category_configs.yaml`)
+- `scripts/kilo-benchmarks/` - Benchmark-driven agent-selection subsystem (`agent_selector.py`, `compute_assignments.py`, `db_models.py`, embedding assignment, OpenRouter category routing: `classify_ai_category.py`, `category_selector.py`, `category_route_mapper.py`, `category_export_markdown.py`, `update_gateway_counts.py`, `seed_direct_vendors.py` + `ai_category_configs.yaml`)
 
 ### Data Files (AUTHORITATIVE)
+
 - `scripts/kilo_47_agents_final.json` - Primary agent manifest (47 agents)
 - `scripts/kilo_all_models.json` - Complete model catalog
 - `scripts/kilo_embeddings_final.json` - Embedding-based model/role assignment data
@@ -680,6 +691,7 @@ the `wordpress` **scaffold type** (`fabrik scaffold --type wordpress`).
 - `scripts/kilo_agents.db` - SQLite agent/model database
 
 ### Active Agents
+
 - `~/.traycer/cli-agents/<TIER><NN>-<model>-<role>-<effort>-i<IN>-o<OUT>.sh`
 - Tiers: P=Prime, S=Strong, B=Balanced, E=Economy
 - See `docs/reference/kilo/` for complete documentation

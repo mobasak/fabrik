@@ -51,6 +51,10 @@ AI_PACK_FRESHNESS_SCRIPT="$FABRIK_ROOT/scripts/check_ai_pack_freshness.py"
 CATEGORY_CLASSIFIER_SCRIPT="$FABRIK_ROOT/scripts/kilo-benchmarks/classify_ai_category.py"
 CATEGORY_MAPPER_SCRIPT="$FABRIK_ROOT/scripts/kilo-benchmarks/category_route_mapper.py"
 CATEGORY_MARKDOWN_SCRIPT="$FABRIK_ROOT/scripts/kilo-benchmarks/category_export_markdown.py"
+GATEWAY_COUNTS_SCRIPT="$FABRIK_ROOT/scripts/kilo-benchmarks/update_gateway_counts.py"
+FETCH_REPLICATE_SCRIPT="$FABRIK_ROOT/scripts/kilo-benchmarks/fetch_replicate_prices.py"
+FETCH_FAL_SCRIPT="$FABRIK_ROOT/scripts/kilo-benchmarks/fetch_fal_prices.py"
+DERIVE_CHEAPEST_SCRIPT="$FABRIK_ROOT/scripts/kilo-benchmarks/derive_cheapest_gateway.py"
 MODELS_BROWSER_SCRIPT="$FABRIK_ROOT/scripts/kilo-benchmarks/export_models_browser.py"
 OR_VERIFIER_SCRIPT="$FABRIK_ROOT/scripts/kilo-benchmarks/verify_openrouter_catalog.py"
 LOG_FILE="$FABRIK_ROOT/scripts/kilo-benchmarks/cache/update.log"
@@ -137,6 +141,16 @@ if [ ! -f "$LOCK_FILE" ]; then
                     || echo \"[openrouter-routing] mapper failed (non-fatal)\" >> $LOG_FILE
                 $VENV_PYTHON $CATEGORY_MARKDOWN_SCRIPT >> $LOG_FILE 2>&1 \
                     || echo \"[openrouter-routing] markdown export failed (non-fatal)\" >> $LOG_FILE
+                $VENV_PYTHON $GATEWAY_COUNTS_SCRIPT >> $LOG_FILE 2>&1 \
+                    || echo \"[openrouter-routing] gateway counts inject failed (non-fatal)\" >> $LOG_FILE
+                $VENV_PYTHON $FETCH_REPLICATE_SCRIPT >> $LOG_FILE 2>&1 \
+                    || echo \"[openrouter-routing] replicate price fetch failed (non-fatal)\" >> $LOG_FILE
+                if [ -n \"\${FAL_KEY:-}\" ]; then
+                    $VENV_PYTHON $FETCH_FAL_SCRIPT >> $LOG_FILE 2>&1 \
+                        || echo \"[openrouter-routing] fal price fetch failed (non-fatal)\" >> $LOG_FILE
+                fi
+                $VENV_PYTHON $DERIVE_CHEAPEST_SCRIPT >> $LOG_FILE 2>&1 \
+                    || echo \"[openrouter-routing] cheapest gateway derive failed (non-fatal)\" >> $LOG_FILE
                 $VENV_PYTHON $MODELS_BROWSER_SCRIPT >> $LOG_FILE 2>&1 \
                     || echo \"[openrouter-routing] models_browser export failed (non-fatal)\" >> $LOG_FILE
             )

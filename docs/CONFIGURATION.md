@@ -127,6 +127,12 @@ New projects never needed a Coolify API token.
 **Development:** All services run locally via docker-compose. Use `http://localhost:PORT`.
 **Production:** Services deployed on VPS at `*.vps1.ocoron.com` with internal Docker networking.
 
+### AI Model Aggregator Keys
+
+Used by `scripts/kilo-benchmarks/fetch_*_prices.py` to populate `agents.gateway_prices` with live per-model pricing across aggregators, so the AI Models Browser surfaces the cheapest gateway per row (same OR ↔ Kilo cheapest-rate pattern, extended to non-LLM specialists). See [docs/development/plans/2026-06-29-plan-2-aggregator-pricing.md](development/plans/2026-06-29-plan-2-aggregator-pricing.md).
+
+- `FAL_KEY` — fal.ai key in `KEY_ID:SECRET` format. Get from [fal.ai/dashboard/keys](https://fal.ai/dashboard/keys). Read-only catalog access is sufficient; no balance required for price discovery.
+
 ---
 
 ## Architecture Context
@@ -136,7 +142,7 @@ New projects never needed a Coolify API token.
 **Single shared PostgreSQL instance:**
 - `postgres-main` container serves all projects
 - Each project gets its own database
-- Connection string format: `postgresql://user:pass@postgres-main:5432/dbname`
+- Connection string format: `postgresql://user:pass@postgres-main:5432/dbname` <!-- noqa: doc example, not a real cred -->
 
 **Why:** Resource efficiency, easier backups, consistent version.
 
@@ -171,7 +177,7 @@ New projects never needed a Coolify API token.
 ```bash
 # .env
 VPS_HOST=localhost
-DATABASE_URL=postgresql://fabrik:dev@localhost:5432/fabrik_dev
+DATABASE_URL=postgresql://fabrik:dev@localhost:5432/fabrik_dev  # noqa: doc example, local dev placeholder
 LOG_LEVEL=DEBUG
 LOG_FORMAT=text
 ```
@@ -184,7 +190,7 @@ LOG_FORMAT=text
 # .env
 VPS_HOST=172.93.160.197
 VPS_IP=172.93.160.197
-DATABASE_URL=postgresql://fabrik:${SECURE_PASSWORD}@postgres-main:5432/fabrik
+DATABASE_URL=postgresql://fabrik:${SECURE_PASSWORD}@postgres-main:5432/fabrik  # noqa: env-var interpolation, not a hardcoded cred
 LOG_LEVEL=INFO
 LOG_FORMAT=json
 # Backups: Backrest manages credentials internally; no env var required (replaced Duplicati 2026-04-17)
@@ -442,7 +448,7 @@ Before deploying:
 ```python
 # ❌ WRONG - breaks in Docker/VPS
 DB_HOST = "localhost"
-API_KEY = "sk-abc123"
+API_KEY = "sk-abc123"  # noqa: anti-pattern doc example
 
 # ✅ CORRECT - works everywhere
 DB_HOST = os.getenv('DB_HOST', 'localhost')
@@ -456,7 +462,7 @@ if not API_KEY:
 ```python
 # ❌ WRONG - env vars not set at import time
 class Config:
-    DB_URL = f"postgresql://{os.getenv('DB_USER')}:{os.getenv('DB_PASSWORD')}@{os.getenv('DB_HOST')}/db"
+    DB_URL = f"postgresql://{os.getenv('DB_USER')}:{os.getenv('DB_PASSWORD')}@{os.getenv('DB_HOST')}/db"  # noqa: env-var interpolation, doc example
     # This evaluates immediately when class is defined!
 
 # ✅ CORRECT - load in function/property
@@ -464,7 +470,7 @@ def get_db_url() -> str:
     user = os.getenv('DB_USER')
     password = os.getenv('DB_PASSWORD')
     host = os.getenv('DB_HOST', 'localhost')
-    return f"postgresql://{user}:{password}@{host}/db"
+    return f"postgresql://{user}:{password}@{host}/db"  # noqa: param interpolation, doc example
 
 # OR use Pydantic Settings
 from pydantic_settings import BaseSettings

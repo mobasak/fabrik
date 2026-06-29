@@ -58,7 +58,10 @@ def _make_db(rows: list[dict]) -> Path:
             blocked INTEGER DEFAULT 0,
             weighted_coding REAL, humaneval_score REAL, coding_score REAL,
             livecodebench REAL, swe_bench_pro REAL,
-            output_tokens_per_sec REAL, ttft_ms REAL
+            output_tokens_per_sec REAL, ttft_ms REAL,
+            gateway_prices TEXT,
+            cheapest_gateway TEXT,
+            cheapest_gateway_price REAL
         )
         """
     )

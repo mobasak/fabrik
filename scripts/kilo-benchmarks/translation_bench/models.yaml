@@ -64,6 +64,12 @@ models:
     role: cheap T2 flash
     bakeoff_2026_05_26_avg: null
 
+  # ------- DashScope dedicated MT model (operator sweet-spot) -------
+  - id: qwen/qwen-mt-turbo
+    route: dashscope
+    role: dedicated MT model (Alibaba); operator sweet-spot
+    bakeoff_2026_05_26_avg: null
+
 # Languages tested in v2 (12 vs v1's 5).
 # v1 covered: tr es pt ja id
 # v2 adds:    ar de fr hi ko zh it
@@ -100,9 +106,9 @@ languages:
 # separately for documentation purposes; the bake-off itself treats all
 # models equally.
 sweet_spots:
-  - x-ai/grok-4.3              # confirmed v2 leader (chrF++ avg 86.6)
-  - qwen/qwen-mt-pro           # DashScope-only; NOT yet testable via OpenRouter.
-                               # Needs DashScope provider routing extension.
+  - x-ai/grok-4.3              # v2.2 #2 (87.6); operator-tracked.
+  - qwen/qwen-mt-turbo         # DashScope dedicated MT; wired 2026-06-29
+                               # (qwen-mt-pro is a tier above turbo; same API surface).
 
 # Hard cost ceiling for one bake. Operator must approve before this is exceeded.
 # v2.1 realistic estimate: 11 sentences × 15 langs × 9 models × ~150 tokens

@@ -31,6 +31,7 @@ import argparse
 import json
 import os
 import sys
+import time
 import urllib.error
 import urllib.request
 from collections import defaultdict
@@ -51,6 +52,40 @@ RESULTS_PATH = SCRIPT_DIR / "results.json"
 
 OR_URL = "https://openrouter.ai/api/v1/chat/completions"
 OR_KEY = os.environ.get("OPENROUTER_API_KEY", "")
+
+# DashScope (Alibaba Cloud) — for Qwen-MT-Turbo (purpose-built MT model).
+# Uses OpenAI-compatible chat API surface; see
+# /opt/fabrik-lib/mt-router/mt_router/providers/dashscope.py for the
+# canonical implementation we mirror here.
+DS_URL = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions"
+DS_KEY = os.environ.get("DASHSCOPE_API_KEY", "")
+DASHSCOPE_MODELS = {"qwen/qwen-mt-turbo": "qwen-mt-turbo"}
+# Qwen-MT-Turbo expects ISO-639-1 codes → human language names.
+DS_LANG_MAP = {
+    "tr": "Turkish",
+    "es": "Spanish",
+    "pt": "Portuguese",
+    "ja": "Japanese",
+    "id": "Indonesian",
+    "zh": "Chinese",
+    "ar": "Arabic",
+    "fr": "French",
+    "ru": "Russian",
+    "de": "German",
+    "ko": "Korean",
+    "hi": "Hindi",
+    "it": "Italian",
+    "nl": "Dutch",
+    "bn": "Bengali",
+    "ur": "Urdu",
+    "pl": "Polish",
+    "ro": "Romanian",
+    "el": "Greek",
+    "uk": "Ukrainian",
+    "sv": "Swedish",
+    "cs": "Czech",
+    "hu": "Hungarian",
+}
 
 
 def _log(msg: str) -> None:
@@ -147,6 +182,49 @@ def build_prompt(source: str, target_lang: str, kind: str) -> tuple[str, str]:
 # ---------- OpenRouter client ----------
 
 
+def call_dashscope(
+    model_id: str,
+    source_text: str,
+    target_lang: str,
+    max_tokens: int = 600,
+    timeout_s: int = 60,
+) -> tuple[str, int, int]:
+    """Translate via Alibaba DashScope's Qwen-MT-Turbo. Uses
+    `translation_options` (Qwen-MT's native translation mode) instead of
+    system-prompt engineering — that's the whole point of using a
+    dedicated MT model. Returns (text, input_tokens, output_tokens)."""
+    if not DS_KEY:
+        raise RuntimeError("DASHSCOPE_API_KEY not set in env")
+    target_name = DS_LANG_MAP.get(target_lang)
+    if not target_name:
+        raise RuntimeError(f"DashScope: target_lang {target_lang!r} not in DS_LANG_MAP")
+    body = json.dumps(
+        {
+            "model": DASHSCOPE_MODELS.get(model_id, model_id.split("/")[-1]),
+            "messages": [{"role": "user", "content": source_text}],
+            "translation_options": {
+                "source_lang": "English",
+                "target_lang": target_name,
+            },
+            "max_tokens": max_tokens,
+        }
+    ).encode("utf-8")
+    req = urllib.request.Request(
+        DS_URL,
+        data=body,
+        headers={
+            "Authorization": f"Bearer {DS_KEY}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=timeout_s) as resp:
+        payload = json.loads(resp.read())
+    text = payload["choices"][0]["message"]["content"].strip()
+    usage = payload.get("usage") or {}
+    return text, int(usage.get("prompt_tokens") or 0), int(usage.get("completion_tokens") or 0)
+
+
 def call_openrouter(
     model_id: str,
     system: str,
@@ -184,7 +262,7 @@ def call_openrouter(
         payload = json.loads(resp.read())
     text = payload["choices"][0]["message"]["content"].strip()
     usage = payload.get("usage") or {}
-    return text, int(usage.get("prompt_tokens", 0)), int(usage.get("completion_tokens", 0))
+    return text, int(usage.get("prompt_tokens") or 0), int(usage.get("completion_tokens") or 0)
 
 
 # ---------- cost estimate ----------
@@ -202,6 +280,7 @@ ROUGH_PRICES = {
     "google/gemini-3.1-pro-preview": (2.00, 12.00),
     "openai/gpt-oss-120b": (0.03, 0.15),
     "deepseek/deepseek-v4-flash": (0.09, 0.18),
+    "qwen/qwen-mt-turbo": (0.16, 0.49),  # DashScope (Alibaba); dedicated MT model
 }
 
 
@@ -271,32 +350,54 @@ def run_bake(
                     hyp = cached["translation"]
                     cache_hits += 1
                 else:
-                    try:
-                        system, user = build_prompt(s["source"], lang, s["kind"])
-                        text, in_tok, out_tok = call_openrouter(
-                            mid,
-                            system,
-                            user,
-                            max_tokens=defaults.get("max_tokens", 600),
-                            temperature=defaults.get("temperature", 0.0),
-                            timeout_s=defaults.get("timeout_s", 60),
-                        )
-                        hyp = text
-                        cost_usd += rin * in_tok / 1_000_000 + rout * out_tok / 1_000_000
-                        calls += 1
-                        cache_save(
-                            mid,
-                            s["id"],
-                            lang,
-                            {
-                                "translation": hyp,
-                                "input_tokens": in_tok,
-                                "output_tokens": out_tok,
-                                "timestamp": datetime.now(UTC).isoformat(),
-                            },
-                        )
-                    except (urllib.error.HTTPError, urllib.error.URLError, Exception) as e:
-                        _log(f"FAIL {mid:<40} {lang:<3} {s['id']:<10}: {e}")
+                    last_err: Exception | None = None
+                    hyp = None
+                    for attempt in range(3):
+                        try:
+                            if mid in DASHSCOPE_MODELS:
+                                text, in_tok, out_tok = call_dashscope(
+                                    mid,
+                                    s["source"],
+                                    lang,
+                                    max_tokens=defaults.get("max_tokens", 600),
+                                    timeout_s=defaults.get("timeout_s", 60),
+                                )
+                            else:
+                                system, user = build_prompt(s["source"], lang, s["kind"])
+                                text, in_tok, out_tok = call_openrouter(
+                                    mid,
+                                    system,
+                                    user,
+                                    max_tokens=defaults.get("max_tokens", 600),
+                                    temperature=defaults.get("temperature", 0.0),
+                                    timeout_s=defaults.get("timeout_s", 60),
+                                )
+                            hyp = text
+                            cost_usd += rin * in_tok / 1_000_000 + rout * out_tok / 1_000_000
+                            calls += 1
+                            cache_save(
+                                mid,
+                                s["id"],
+                                lang,
+                                {
+                                    "translation": hyp,
+                                    "input_tokens": in_tok,
+                                    "output_tokens": out_tok,
+                                    "timestamp": datetime.now(UTC).isoformat(),
+                                },
+                            )
+                            break
+                        except urllib.error.HTTPError as e:
+                            last_err = e
+                            if e.code == 429 and attempt < 2:
+                                time.sleep(2**attempt + 1)
+                                continue
+                            break
+                        except Exception as e:
+                            last_err = e
+                            break
+                    if hyp is None:
+                        _log(f"FAIL {mid:<40} {lang:<3} {s['id']:<10}: {last_err}")
                         failures += 1
                         continue
 

@@ -20,7 +20,23 @@ from pathlib import Path
 
 FABRIK_ROOT = Path("/opt/fabrik")
 AI_PACKS_DIR = FABRIK_ROOT / ".windsurf" / "rules" / "ai"
-STALE_DAYS = int(os.environ.get("AI_PACK_STALE_DAYS", "90"))
+
+
+def _stale_days() -> int:
+    """Parse the threshold defensively — a bad env value must not crash the run."""
+    raw = os.environ.get("AI_PACK_STALE_DAYS", "90")
+    try:
+        days = int(raw)
+    except ValueError:
+        print(f"[ai-pack-freshness] invalid AI_PACK_STALE_DAYS={raw!r}; using 90", file=sys.stderr)
+        return 90
+    if days < 0:
+        print(f"[ai-pack-freshness] negative AI_PACK_STALE_DAYS={raw!r}; using 90", file=sys.stderr)
+        return 90
+    return days
+
+
+STALE_DAYS = _stale_days()
 
 VERIFICATION_RE = re.compile(
     r"Last content verification:\s*(\d{4}-\d{2}-\d{2})",
@@ -34,7 +50,10 @@ def _today() -> date:
 
 def check_pack(pack_path: Path, today: date) -> tuple[str, int | None, str]:
     """Return (status, age_days, message). Status: 'fresh' | 'stale' | 'unstamped'."""
-    text = pack_path.read_text(encoding="utf-8")
+    try:
+        text = pack_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as e:
+        return ("unstamped", None, f"{pack_path.name}: unreadable ({e.__class__.__name__}: {e})")
     match = VERIFICATION_RE.search(text)
     if not match:
         return (
@@ -48,6 +67,12 @@ def check_pack(pack_path: Path, today: date) -> tuple[str, int | None, str]:
     except ValueError as e:
         return ("unstamped", None, f"{pack_path.name}: malformed date {match.group(1)!r} ({e})")
     age = (today - verified).days
+    if age < 0:
+        return (
+            "fresh",
+            age,
+            f"{pack_path.name}: stamped in the future ({verified.isoformat()}) — clock/typo?",
+        )
     if age > STALE_DAYS:
         return (
             "stale",
@@ -71,7 +96,10 @@ def main() -> int:
 
     fresh, stale, unstamped = [], [], []
     for pack in packs:
-        status, _age, msg = check_pack(pack, today)
+        try:
+            status, _age, msg = check_pack(pack, today)
+        except Exception as e:  # noqa: BLE001 — warn-only: one bad pack must not abort the scan
+            status, msg = "unstamped", f"{pack.name}: check failed ({e.__class__.__name__}: {e})"
         {"fresh": fresh, "stale": stale, "unstamped": unstamped}[status].append(msg)
 
     print(

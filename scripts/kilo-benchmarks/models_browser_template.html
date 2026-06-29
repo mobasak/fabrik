@@ -97,6 +97,29 @@
     border-radius: 3px; color: var(--text); font: inherit;
   }
   main { overflow: auto; }
+  .tabs {
+    display: flex;
+    gap: 2px;
+    padding: 0 14px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+  }
+  .tabs .tab {
+    padding: 10px 14px;
+    cursor: pointer;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    border-bottom: 2px solid transparent;
+    user-select: none;
+  }
+  .tabs .tab:hover { color: var(--fg); }
+  .tabs .tab.on {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+  }
   .toolbar {
     padding: 8px 14px;
     border-bottom: 1px solid var(--border);
@@ -121,6 +144,29 @@
     letter-spacing: 0.03em;
     white-space: nowrap;
   }
+  /* Numeric columns: align header right to match td.cost / td.num. */
+  thead th[data-sort="input_cost_per_m"],
+  thead th[data-sort="output_cost_per_m"],
+  thead th[data-sort="context_window_k"],
+  thead th[data-sort="quality_tier"],
+  thead th[data-sort="_best_code_score"],
+  thead th[data-sort="arena_elo"],
+  thead th[data-sort="tbench_accuracy"],
+  thead th[data-sort="aa_intelligence_index"],
+  thead th[data-sort="swe_bench_verified_pct"],
+  thead th[data-sort="swe_bench_multilingual_pct"],
+  thead th[data-sort="aider_polyglot_pct"],
+  thead th[data-sort="design_arena_coding_elo"],
+  thead th[data-sort="translation_avg_pct"],
+  thead th[data-sort="stt_wer_avg"] {
+    text-align: right;
+  }
+  /* Asc-sort arrow nudges away from the right edge so it doesn't visually
+     misalign the header label vs the column data. */
+  thead th[data-sort^="input_cost"].sorted::after,
+  thead th[data-sort^="output_cost"].sorted::after,
+  thead th.sorted[data-sort="quality_tier"]::after,
+  thead th.sorted[data-sort="context_window_k"]::after { padding-left: 4px; }
   thead th:hover { color: var(--text); }
   thead th.sorted { color: var(--accent); background: #11141a; }
   thead th.sorted::after {
@@ -153,8 +199,26 @@
     margin-top: 1px;
   }
   td.model-cell .id-sub .provider { color: #6b6f7a; }
+  .svc-badge {
+    display: inline-block;
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    padding: 1px 5px;
+    border-radius: 3px;
+    margin-left: 4px;
+    vertical-align: middle;
+    background: #2a3140;
+    color: #d4d8e2;
+    text-transform: uppercase;
+  }
+  .svc-badge.svc-stt { background: #2a4a5a; color: #a8d8f0; }
+  .svc-badge.svc-tts { background: #4a2a5a; color: #d8a8f0; }
+  .svc-badge.svc-translation { background: #2a5a4a; color: #a8f0d0; }
+  .svc-badge.svc-image_gen { background: #5a3a2a; color: #f0c8a8; }
   td.cost { text-align: right; font-variant-numeric: tabular-nums; }
   td.cost .free { color: var(--free); font-weight: 600; }
+  .unit-suffix { font-size: 9px; color: var(--muted); margin-left: 2px; font-weight: 400; }
   td.num { text-align: right; font-variant-numeric: tabular-nums; }
   td.cap {
     font-size: 10px; color: var(--muted);
@@ -202,6 +266,14 @@
   td.source .src-badge.kilo { background: #3a2552; border-color: #663399; color: #cbb0ff; }
   td.source .src-badge.ds { background: #2a3a1a; border-color: #5a8033; color: #b0e0a0; }
   td.source .src-badge.sf { background: #3a2a1a; border-color: #80553a; color: #e0c0a0; }
+  td.source .src-badge.replicate { background: #2a1f3a; border-color: #7a4fa0; color: #e8c0ff; }
+  td.source .src-badge.fal { background: #3a2420; border-color: #a05030; color: #ffb080; }
+  td.cost .cheaper-badge {
+    display: inline-block; margin-left: 4px; padding: 0 4px;
+    border-radius: 2px; background: #1a3a1a; color: #80f0a0;
+    font-size: 9px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
   td.source .markup {
     display: inline-block;
     margin-left: 4px;
@@ -294,13 +366,23 @@
       <label><input type="radio" name="kind" value="embedding"><span>Embed</span></label>
     </div>
 
-    <h3>Capabilities</h3>
+    <h3>Service type <span style="font-weight: normal; text-transform: none; color: var(--muted)">(any of)</span></h3>
+    <div class="chip-grid" id="svctypes">
+      <span class="chip" data-svc="llm" title="General-purpose LLMs reachable via Kilo CLI / OpenRouter">LLM</span>
+      <span class="chip" data-svc="stt" title="Speech-to-text specialists (Soniox, Whisper, Deepgram, AssemblyAI, gpt-4o-transcribe)">STT</span>
+      <span class="chip" data-svc="tts" title="Text-to-speech specialists (Soniox TTS, ElevenLabs)">TTS</span>
+      <span class="chip" data-svc="translation" title="Dedicated machine-translation specialists (DeepL, qwen-mt-turbo)">Translation</span>
+      <span class="chip" data-svc="image_gen" title="Image-generation specialists (Recraft, FLUX/BFL, Stability SDXL)">Image gen</span>
+      <span class="chip" data-svc="embedding" title="Embedding models">Embeddings</span>
+    </div>
+
+    <h3>Model flags <span style="font-weight: normal; text-transform: none; color: var(--muted)">(all of)</span></h3>
     <div class="chip-grid" id="caps">
-      <span class="chip" data-cap="has_vision">vision</span>
-      <span class="chip" data-cap="has_tools">tools</span>
-      <span class="chip" data-cap="is_agentic">agentic</span>
-      <span class="chip" data-cap="has_reasoning">reasoning</span>
-      <span class="chip" data-cap="is_ga">GA only</span>
+      <span class="chip" data-cap="has_vision" title="Model accepts image input (multimodal)">vision-in</span>
+      <span class="chip" data-cap="has_tools" title="Native tool / function calling">tools</span>
+      <span class="chip" data-cap="is_agentic" title="Suitable for multi-step agent loops">agentic</span>
+      <span class="chip" data-cap="has_reasoning" title="Reasoning model (chain-of-thought / extended thinking)">reasoning</span>
+      <span class="chip" data-cap="is_ga" title="Generally available (excludes preview/beta routes)">GA only</span>
       <span class="chip" data-cap="is_multilingual">multilingual*</span>
       <span class="chip" data-cap="is_code_tuned">code-tuned*</span>
     </div>
@@ -342,9 +424,9 @@
       <span class="chip" data-coding="has_code" title="Hide rows without ANY explicit coding signal (SWE / Aider / weighted_coding / design_arena_coding). Useful when sorting by Best Code.">has Best Code</span>
     </div>
 
-    <h3>Capability</h3>
+    <h3>Scored signal <span style="font-weight: normal; text-transform: none; color: var(--muted)">(has data)</span></h3>
     <div class="chip-grid">
-      <span class="chip" data-capability="translation" title="Only show models scored for translation (fabrik-lib/mt-router bake-off)">Translation</span>
+      <span class="chip" data-capability="translation" title="Only show models with a measured translation chrF++ score (fabrik translation bake-off)">Translation</span>
       <span class="chip" data-capability="stt" title="Only show models with speech-to-text capability (direct-API STT seeds + OpenRouter audio-input models)">STT (Speech-to-text)</span>
     </div>
 
@@ -371,7 +453,7 @@
       <input type="number" id="ctx-max" placeholder="max" step="1">
     </div>
 
-    <h3>Categories <span style="font-weight: normal; text-transform: none; color: var(--muted)">(any of)</span></h3>
+    <h3>Route categories <span style="font-weight: normal; text-transform: none; color: var(--muted)">(any of; from OpenRouter tags)</span></h3>
     <div class="chip-grid" id="cats">
       <span class="chip" data-cat="language">language</span>
       <span class="chip" data-cat="code">code</span>
@@ -391,6 +473,17 @@
   </aside>
 
   <main>
+    <div class="tabs" id="tabs">
+      <span class="tab on" data-tab="overview" title="High-level columns: cost, context, tier, caps, status, verification">Overview</span>
+      <span class="tab" data-tab="reasoning" title="Reasoning / agentic columns: Arena, TBench, AA Intelligence, context">Reasoning</span>
+      <span class="tab" data-tab="coding" title="Coding columns: Best Code, SWE, SWE-ML, Aider, DA-code">Coding</span>
+      <span class="tab" data-tab="translation" title="Translation chrF++ averages (hover Trans cell for per-language)">Translation</span>
+      <span class="tab" data-tab="transcription" title="Speech-to-text vendors (Soniox, Whisper, Deepgram, AssemblyAI, gpt-4o-transcribe)">Transcription</span>
+      <span class="tab" data-tab="voice" title="Text-to-speech + music/audio gen (Soniox TTS, ElevenLabs, Cartesia, Suno, Udio)">Voice / Audio</span>
+      <span class="tab" data-tab="image" title="Image generation (FLUX, Recraft, Stability, DALL-E, Imagen, Ideogram)">Image gen</span>
+      <span class="tab" data-tab="video" title="Video generation (Runway, Luma, Kling, Pika, Veo, Sora)">Video gen</span>
+      <span class="tab" data-tab="ocr" title="OCR / document parsing (Mistral OCR, Textract, Document AI)">OCR</span>
+    </div>
     <div class="toolbar">
       <span class="count" id="count"></span>
       <span style="flex: 1"></span>
@@ -399,26 +492,26 @@
     <table>
       <thead>
         <tr id="thead-row">
-          <th data-sort="name" title="Human-readable model name + provider/id below in dim mono. Sortable by name; sort by id via the URL prefix in the dim line. Provider already implied by the id prefix.">Model</th>
-          <th data-sort="input_cost_per_m" title="USD per million input tokens. Source: OpenRouter for dual-routed + OR-only rows; Kilo Gateway for Kilo-only rows. Hover any cell for per-row source.">$/M in</th>
-          <th data-sort="output_cost_per_m" title="USD per million output tokens. Source: OpenRouter for dual-routed + OR-only rows; Kilo Gateway for Kilo-only rows. Hover any cell for per-row source.">$/M out</th>
-          <th data-sort="context_window_k">Ctx (k)</th>
-          <th data-sort="quality_tier">Tier</th>
-          <th>Caps</th>
-          <th data-sort="_best_code_score" title="Best-available coding signal per row, max'd across SWE-bench Verified + SWE-bench Multilingual, then falling back through Aider Polyglot > weighted_coding (BenchLM) > design_arena_coding ELO normalized to 0-100. CAVEAT: scores from different sources aren't strictly comparable (a SWE 75 ≠ an Aider 75 ≠ a DA 1280). Hover any cell to see which source drove the number. Click to sort descending; toggle 'has Best Code' chip in the sidebar to hide rows without any explicit coding signal.">Best Code</th>
-          <th data-sort="arena_elo" title="Chatbot Arena ELO (LMSys / openlm.ai)">Arena</th>
-          <th data-sort="tbench_accuracy" title="Terminal Bench 2.0 % (tbench.ai)">TBench</th>
-          <th data-sort="aa_intelligence_index" title="Artificial Analysis Intelligence Index (artificialanalysis.ai)">AA</th>
-          <th data-sort="swe_bench_verified_pct" title="SWE-bench Verified+bash-only — max % resolved on the 500-issue Python set, across agent harnesses (swebench.com)">SWE</th>
-          <th data-sort="swe_bench_multilingual_pct" title="SWE-bench Multilingual — % resolved on the 300-issue multi-language set. Newer-model coverage is best here (swebench.com)">SWE-ML</th>
-          <th data-sort="aider_polyglot_pct" title="Aider Polyglot pass_rate_2 % across 225 multi-language problems (aider.chat). Note: leaderboard is sparse for newest models — use SWE / DA-code / weighted_coding for newer frontier.">Aider</th>
-          <th data-sort="design_arena_coding_elo" title="Mean ELO across coding-only design_arena categories (OpenRouter API benchmarks block)">DA-code</th>
-          <th data-sort="translation_avg_pct" title="Translation avg % similarity to human translations across TR/ES/PT/JA/ID (fabrik-lib/mt-router bake-off 2026-05-26). Hover the row's cell for per-language breakdown.">Trans</th>
-          <th data-sort="stt_wer_avg" title="Speech-to-text Word Error Rate avg of (LibriSpeech test-clean en + FLEURS multilingual). LOWER is better. Direct-API STT models seeded from public benchmarks (Whisper, gpt-4o-transcribe, Deepgram Nova, AssemblyAI Universal).">STT WER</th>
-          <th>Categories</th>
-          <th data-sort="status">Status</th>
-          <th data-sort="last_verified">Verified</th>
-          <th>Source</th>
+          <th data-sort="name" data-tabs="overview reasoning coding translation transcription voice image video ocr" title="Human-readable model name + provider/id below in dim mono. Sortable by name; sort by id via the URL prefix in the dim line. Provider already implied by the id prefix.">Model</th>
+          <th data-sort="input_cost_per_m" data-tabs="overview reasoning coding translation transcription voice image video ocr" title="Vendor-quoted price per service-type unit (LLM: $/M tokens · STT: $/audio-minute · TTS/Translation: $/1K chars · Image: $/image · Video: $/sec · OCR: $/page). Hover any cell for source / canonical metric.">Price</th>
+          <th data-sort="output_cost_per_m" data-tabs="overview translation" title="USD per million output tokens (LLMs only). For non-LLM services see the unit hover on the Price column.">$/M out</th>
+          <th data-sort="context_window_k" data-tabs="overview reasoning">Ctx (k)</th>
+          <th data-sort="quality_tier" data-tabs="overview transcription voice image video ocr">Tier</th>
+          <th data-tabs="overview">Caps</th>
+          <th data-sort="_best_code_score" data-tabs="coding" title="Best-available coding signal per row, max'd across SWE-bench Verified + SWE-bench Multilingual, then falling back through Aider Polyglot > weighted_coding (BenchLM) > design_arena_coding ELO normalized to 0-100. CAVEAT: scores from different sources aren't strictly comparable (a SWE 75 ≠ an Aider 75 ≠ a DA 1280). Hover any cell to see which source drove the number. Click to sort descending; toggle 'has Best Code' chip in the sidebar to hide rows without any explicit coding signal.">Best Code</th>
+          <th data-sort="arena_elo" data-tabs="overview reasoning" title="Chatbot Arena ELO (LMSys / openlm.ai)">Arena</th>
+          <th data-sort="tbench_accuracy" data-tabs="reasoning" title="Terminal Bench 2.0 % (tbench.ai)">TBench</th>
+          <th data-sort="aa_intelligence_index" data-tabs="overview reasoning" title="Artificial Analysis Intelligence Index (artificialanalysis.ai)">AA</th>
+          <th data-sort="swe_bench_verified_pct" data-tabs="coding" title="SWE-bench Verified+bash-only — max % resolved on the 500-issue Python set, across agent harnesses (swebench.com)">SWE</th>
+          <th data-sort="swe_bench_multilingual_pct" data-tabs="coding" title="SWE-bench Multilingual — % resolved on the 300-issue multi-language set. Newer-model coverage is best here (swebench.com)">SWE-ML</th>
+          <th data-sort="aider_polyglot_pct" data-tabs="coding" title="Aider Polyglot pass_rate_2 % across 225 multi-language problems (aider.chat). Note: leaderboard is sparse for newest models — use SWE / DA-code / weighted_coding for newer frontier.">Aider</th>
+          <th data-sort="design_arena_coding_elo" data-tabs="coding" title="Mean ELO across coding-only design_arena categories (OpenRouter API benchmarks block)">DA-code</th>
+          <th data-sort="translation_avg_pct" data-tabs="overview translation" title="Translation chrF++ average across 23 languages (fabrik translation bake-off v2.2). Hover the row's cell for per-language breakdown.">Trans</th>
+          <th data-sort="stt_wer_avg" data-tabs="transcription" title="Speech-to-text Word Error Rate avg of (LibriSpeech test-clean en + FLEURS multilingual). LOWER is better. Direct-API STT models seeded from public benchmarks (Whisper, gpt-4o-transcribe, Deepgram Nova, AssemblyAI Universal).">STT WER</th>
+          <th data-tabs="overview">Categories</th>
+          <th data-sort="status" data-tabs="overview reasoning coding translation transcription voice image video ocr">Status</th>
+          <th data-sort="last_verified" data-tabs="overview">Verified</th>
+          <th data-tabs="overview reasoning coding translation transcription voice image video ocr">Source</th>
         </tr>
       </thead>
       <tbody id="tbody"></tbody>
@@ -449,6 +542,7 @@ const state = {
   sources: new Set(),
   coding: new Set(),
   capability: new Set(),
+  svctypes: new Set(),
   costMin: null,
   costMax: null,
   ctxMin: null,
@@ -582,6 +676,9 @@ document.querySelectorAll('.chip[data-coding]').forEach(chip => {
 document.querySelectorAll('.chip[data-capability]').forEach(chip => {
   chip.onclick = () => { toggleChip(state.capability, chip.dataset.capability, chip); refresh(); };
 });
+document.querySelectorAll('.chip[data-svc]').forEach(chip => {
+  chip.onclick = () => { toggleChip(state.svctypes, chip.dataset.svc, chip); refresh(); };
+});
 
 // ----- Inputs -----
 document.getElementById("search").addEventListener("input", e => {
@@ -610,6 +707,71 @@ document.querySelectorAll('thead th[data-sort]').forEach(th => {
   };
 });
 
+// ----- Tabs -----
+// Each tab limits which columns are visible AND limits the ROW SET to
+// the relevant service types (so e.g. the Image gen tab hides LLM rows).
+// Each tab also resets sort to its "best→worst" default. STT WER is the
+// only ascending default (lower is better).
+const TAB_DEFAULTS = {
+  overview:      { sortKey: "quality_tier",         sortAsc: false, services: null },
+  reasoning:     { sortKey: "aa_intelligence_index", sortAsc: false, services: ["llm"] },
+  coding:        { sortKey: "_best_code_score",     sortAsc: false, services: ["llm"] },
+  translation:   { sortKey: "translation_avg_pct",  sortAsc: false, services: ["llm", "translation"] },
+  transcription: { sortKey: "input_cost_per_m",     sortAsc: true,  services: ["stt"] },
+  voice:         { sortKey: "input_cost_per_m",     sortAsc: true,  services: ["tts", "music_gen"] },
+  image:         { sortKey: "input_cost_per_m",     sortAsc: true,  services: ["image_gen"] },
+  video:         { sortKey: "input_cost_per_m",     sortAsc: true,  services: ["video_gen"] },
+  ocr:           { sortKey: "input_cost_per_m",     sortAsc: true,  services: ["ocr"] },
+};
+const VALID_TABS = Object.keys(TAB_DEFAULTS);
+let activeTab = "overview";
+
+function applyTabColumns(tab) {
+  const ths = document.querySelectorAll('thead th');
+  const hideIdx = [];
+  ths.forEach((th, i) => {
+    const tabs = (th.dataset.tabs || "").split(/\s+/).filter(Boolean);
+    if (!tabs.includes(tab)) hideIdx.push(i + 1);
+  });
+  let styleEl = document.getElementById("tab-style");
+  if (!styleEl) {
+    styleEl = document.createElement("style");
+    styleEl.id = "tab-style";
+    document.head.appendChild(styleEl);
+  }
+  styleEl.textContent = hideIdx
+    .map(i => `thead th:nth-child(${i}), tbody td:nth-child(${i}) { display: none; }`)
+    .join("\n");
+}
+
+function setTab(tab, opts = {}) {
+  if (!VALID_TABS.includes(tab)) tab = "overview";
+  activeTab = tab;
+  document.querySelectorAll('.tabs .tab').forEach(el => {
+    el.classList.toggle("on", el.dataset.tab === tab);
+  });
+  applyTabColumns(tab);
+  if (opts.resetSort !== false) {
+    const def = TAB_DEFAULTS[tab];
+    state.sortKey = def.sortKey;
+    state.sortAsc = def.sortAsc;
+  }
+  if (opts.updateHash !== false) {
+    history.replaceState(null, "", `#tab=${tab}`);
+  }
+  refresh();
+}
+
+document.querySelectorAll('.tabs .tab').forEach(el => {
+  el.onclick = () => setTab(el.dataset.tab);
+});
+
+(function initTabFromHash() {
+  const m = location.hash.match(/tab=([a-z]+)/);
+  const tab = m && VALID_TABS.includes(m[1]) ? m[1] : "overview";
+  setTab(tab, { updateHash: false });
+})();
+
 // ----- Filtering -----
 function filterRow(m) {
   // Default: hide discounted variants (stealth/, :discounted, "(% off)"
@@ -637,15 +799,13 @@ function filterRow(m) {
     }
     if (!pass) return false;
   }
-  // Tier filter: rows with NO quality_tier (newly-ingested, not yet
-  // rated by the local ranking pipeline) bypass this filter so they
-  // don't silently disappear. The user can hide them explicitly via
-  // the "unrated" chip.
+  // Tier filter: each chip toggles whether rows with that tier are
+  // shown. The "unrated" chip controls rows with NO quality_tier
+  // (newly-ingested models not yet rated by the local ranking
+  // pipeline).
   if (state.tiers.size > 0) {
     if (m.quality_tier === null || m.quality_tier === undefined) {
-      if (!state.tiers.has("unrated")) {
-        // unrated chip is default ON, so this path passes through
-      }
+      if (!state.tiers.has("unrated")) return false;
     } else if (!state.tiers.has(String(m.quality_tier))) {
       return false;
     }
@@ -669,6 +829,18 @@ function filterRow(m) {
   if (state.coding.has("has_code") && m._best_code_score === null) return false;
   if (state.capability.has("translation") && !m.is_translation_capable) return false;
   if (state.capability.has("stt") && !m.is_stt_capable) return false;
+  // Sidebar Service-type chips (user-selected).
+  if (state.svctypes.size > 0) {
+    const svc = m.kind === "embedding" ? "embedding" : (m.service_type || "llm");
+    if (!state.svctypes.has(svc)) return false;
+  }
+  // Per-tab row scoping (Image tab hides LLMs, Video tab hides STT, etc.).
+  // The Overview tab passes everything through (services === null).
+  const tabServices = (TAB_DEFAULTS[activeTab] || {}).services;
+  if (tabServices) {
+    const svc = m.kind === "embedding" ? "embedding" : (m.service_type || "llm");
+    if (!tabServices.includes(svc)) return false;
+  }
   if (state.sources.size > 0) {
     let pass = false;
     const viaOr = !!m.via_openrouter;
@@ -695,6 +867,26 @@ function fmtSource(m) {
   if (m.via_kilo) parts.push('<span class="src-badge kilo" title="Reachable via Kilo Gateway (api.kilo.ai)">K</span>');
   if (m.via_dashscope) parts.push('<span class="src-badge ds" title="Reachable via Alibaba Cloud DashScope (dashscope.aliyuncs.com) — qwen-mt-turbo etc.">DS</span>');
   if (m.via_siliconflow) parts.push('<span class="src-badge sf" title="Reachable via SiliconFlow (siliconflow.com) — Hunyuan, etc.">SF</span>');
+  // Aggregator badges (populated by fetch_replicate_prices.py / fetch_fal_prices.py).
+  // gateway_prices is a JSON map { gateway: {price, unit, slug, confidence, ...} }
+  if (m.gateway_prices) {
+    try {
+      const gp = typeof m.gateway_prices === "string" ? JSON.parse(m.gateway_prices) : m.gateway_prices;
+      // Pass 5 Finding F5-2: require the entry carries a real `slug` (or
+      // any other content), otherwise an empty stub {} would emit a
+      // misleading badge with 'undefined' in the tooltip.
+      if (gp.replicate && gp.replicate.slug) {
+        const e = gp.replicate;
+        const tip = `Mirror on Replicate: ${e.slug}\n${e.raw_price_text || ""} (confidence ${e.confidence ?? 1})`;
+        parts.push(`<span class="src-badge replicate" title="${escapeHtml(tip)}">R</span>`);
+      }
+      if (gp.fal_ai && gp.fal_ai.slug) {
+        const e = gp.fal_ai;
+        const tip = `Mirror on fal.ai: ${e.slug}\n${e.raw_text || e.raw_match || ""} (confidence ${e.confidence ?? 0})`;
+        parts.push(`<span class="src-badge fal" title="${escapeHtml(tip)}">F</span>`);
+      }
+    } catch (e) {}
+  }
   // markup indicator if dual-routed AND prices differ
   if (m.via_openrouter && m.via_kilo && m.kilo_input_cost_per_m !== null && m.kilo_input_cost_per_m !== undefined) {
     const orIn = m.input_cost_per_m || 0;
@@ -720,18 +912,59 @@ function sortRows(rows) {
 }
 
 // ----- Render -----
+// Display the vendor-quoted price + unit per row. `input_cost_per_m` is
+// normalized to "$ per million billable units" so rows sort on one axis;
+// here we convert back for human reading (e.g. $0.04/image, $0.10/min,
+// $0.30/1K chars). We dispatch on `pricing_unit` (the canonical billing
+// unit) rather than `service_type` because they don't always agree —
+// e.g. ElevenLabs Sound Effects has service_type=music_gen but is billed
+// per character of prompt (pricing_unit=M-chars). Service type is a UI
+// category; pricing unit is the actual billing axis.
 function fmtCost(v, m) {
-  // Meta-routers (openrouter/auto, openrouter/fusion, openrouter/
-  // pareto-code, openrouter/bodybuilder) delegate each call to a chosen
-  // underlying model, so per-token price depends on the pick.
-  // OpenRouter signals this with pricing="-1"; we store is_variable_pricing=1
-  // and reset cost columns to 0.
   if (m && m.is_variable_pricing) {
     return "<span style='color:var(--muted)' title='Variable — meta-router, price depends on which underlying model is selected per request'>variable</span>";
   }
   if (v === null || v === undefined) return "<span style='color:var(--muted)'>?</span>";
   if (v === 0) return "<span class='free'>free</span>";
-  return "$" + v.toFixed(v < 1 ? 2 : 2);
+  const unit = (m && m.pricing_unit) || "M-tokens";
+  switch (unit) {
+    case "M-tokens":
+      return "$" + v.toFixed(2) + "<span class='unit-suffix'>/M</span>";
+    case "audio-min": {
+      const perMin = (v / 1_000_000) * 60;
+      return "$" + perMin.toFixed(3) + "<span class='unit-suffix'>/min</span>";
+    }
+    case "M-chars": {
+      const per1K = (v / 1_000_000) * 1000;
+      return "$" + per1K.toFixed(3) + "<span class='unit-suffix'>/1K ch</span>";
+    }
+    case "image": {
+      const perImg = v / 1_000_000;
+      return "$" + perImg.toFixed(3) + "<span class='unit-suffix'>/img</span>";
+    }
+    case "video-sec": {
+      const perSec = v / 1_000_000;
+      return "$" + perSec.toFixed(3) + "<span class='unit-suffix'>/s</span>";
+    }
+    case "page": {
+      const perPage = v / 1_000_000;
+      return "$" + perPage.toFixed(4) + "<span class='unit-suffix'>/pg</span>";
+    }
+    default:
+      return "$" + v.toFixed(2) + "<span class='unit-suffix'>/M</span>";
+  }
+}
+// Append a "cheaper via X" badge when an aggregator beats the row's primary price.
+// Only fires when cheapest_gateway is set AND it's not 'direct' AND the savings
+// are material (>=5% to filter noise).
+function maybeCheaperBadge(m) {
+  if (!m || !m.cheapest_gateway || m.cheapest_gateway === "direct") return "";
+  if (!m.cheapest_gateway_price || !m.input_cost_per_m) return "";
+  const savings = (m.input_cost_per_m - m.cheapest_gateway_price) / m.input_cost_per_m;
+  if (savings < 0.05) return "";  // <5% noise floor
+  const pct = Math.round(savings * 100);
+  const gw = m.cheapest_gateway;
+  return ` <span class="cheaper-badge" title="${pct}% cheaper via ${gw} ($${m.cheapest_gateway_price.toFixed(2)}/M vs $${m.input_cost_per_m.toFixed(2)}/M direct)">−${pct}% ${gw}</span>`;
 }
 function priceSourceLabel(m) {
   // Which gateway's price is in input_cost_per_m / output_cost_per_m?
@@ -804,13 +1037,17 @@ function refresh() {
     // Merged Model cell: human name on top, raw id (provider/model)
     // in dim mono below — searchable, copy-pasteable, but no extra column.
     const idLine = `<div class="id-sub">${idCol}${isPinned ? ' 📌' : ''}</div>`;
+    const svcType = m.service_type && m.service_type !== "llm" ? m.service_type : "";
+    const svcBadge = svcType
+      ? `<span class="svc-badge svc-${svcType}" title="Service type: ${svcType.replace('_', ' ')}">${svcType.replace('_', ' ').toUpperCase()}</span>`
+      : "";
     tr.innerHTML = `
       <td class="model-cell" title="${escapeHtml(nameCellTitle)}">
-        <div class="model-name">${m.name || ""}</div>
+        <div class="model-name">${m.name || ""} ${svcBadge}</div>
         ${idLine}
       </td>
-      <td class="cost" title="${priceSourceLabel(m)} — input cost">${fmtCost(m.input_cost_per_m, m)}</td>
-      <td class="cost" title="${priceSourceLabel(m)} — output cost">${fmtCost(m.output_cost_per_m, m)}</td>
+      <td class="cost" title="${priceSourceLabel(m)} — input cost">${fmtCost(m.input_cost_per_m, m)}${maybeCheaperBadge(m)}</td>
+      <td class="cost" title="${priceSourceLabel(m)} — output cost">${(m.service_type && m.service_type !== "llm" && m.service_type !== "embedding") ? "<span style='color:var(--muted)' title='Not applicable — this service bills on a single axis (see Price column)'>n/a</span>" : fmtCost(m.output_cost_per_m, m)}</td>
       <td class="num">${m.context_window_k || ""}</td>
       <td class="tier t-${m.quality_tier || 0}" title="${m.quality_tier ? '' : 'Not yet rated by the local ranking pipeline'}">${m.quality_tier ? "T" + m.quality_tier : "—"}</td>
       <td class="cap">${m.kind === "chat" ? fmtCaps(m) : "<span style='color:var(--muted)'>embed</span>"}</td>
