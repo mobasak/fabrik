@@ -334,17 +334,15 @@ _add(
     is_ga=1,
     description="Cartesia Sonic 2. ~75 ms latency, voice cloning, multilingual. Competitive with ElevenLabs Flash. $0.04/1K chars.",
 )
-_add(
-    "playht/play-3.0-mini",
-    name="PlayHT: Play 3.0 Mini",
-    provider="playht",
-    service_type="tts",
-    input_cost_per_m=per_1k_chars(0.034),
-    pricing_unit="M-chars",
-    quality_tier=2,
-    is_ga=1,
-    description="PlayHT Play 3.0 Mini. Realtime conversational TTS, voice cloning. ~$0.034/1K chars.",
-)
+# PlayHT (play.ht) was permanently shut down on 2025-12-31 after Meta's
+# July 2025 acquisition. API endpoints went dark on 2025-07-26; the service
+# was fully terminated 2025-12-31 with no data export or migration path.
+# The play.ht domain WHOIS is still active (expires 2026-11-29) but all
+# DNS A-records have been removed — the domain doesn't resolve. The Meta
+# team was absorbed into Superintelligence Labs. Sources verified via
+# firecrawl scrape of notevibes.com/alternative/play-ht (2026-06-29) and
+# WHOIS lookup. Per convergence Pass 7+ resolution of the URL-DEAD finding.
+# Row deprecated below in deprecate_dead_vendor_rows.py companion script.
 _add(
     "google/cloud-tts-wavenet",
     name="Google: Cloud TTS (WaveNet)",

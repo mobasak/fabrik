@@ -91,7 +91,7 @@ A grounder ran `curl -sIL` + body-marker detection across all 28 vendor URLs on 
 | assemblyai | `assemblyai.com/pricing` | 200 | static | clean HTML |
 | aws | `aws.amazon.com/transcribe/pricing` | 200 | static | HTML, no API |
 | azure | `azure.microsoft.com/.../speech-services` | 200 | static | HTML, no API |
-| bfl | `blackforestlabs.ai/up-pricing/` | **404** | **URL-DEAD** | resolve in Phase 0 |
+| bfl | `bfl.ai/pricing` | 200 | static | **Pass-7+ resolved**: `blackforestlabs.ai/pricing` 301-redirects to `bfl.ai/pricing` (the bare `bfl.ai` is the canonical brand) |
 | cartesia | `cartesia.ai/pricing` | 200 | static | SSR, no `__NEXT_DATA__` |
 | coqui | huggingface coqui page | 200 | **stealth/rendered** | HF behind Cloudflare |
 | deepgram | `deepgram.com/pricing` | 200 | static | clean HTML |
@@ -99,15 +99,15 @@ A grounder ran `curl -sIL` + body-marker detection across all 28 vendor URLs on 
 | elevenlabs | `elevenlabs.io/pricing` | 200 | **rendered** | client-side React (2× `<noscript>`) |
 | google-cloud | `cloud.google.com/speech-to-text/pricing` | 200 | static | HTML table |
 | heygen | `heygen.com/pricing` | 200 | **stealth/rendered** | CF bot-wall |
-| ideogram | `ideogram.ai/manage/api` | **403** | **URL-DEAD** | resolve in Phase 0 |
+| ideogram | `ideogram.ai/manage/api` | 403 | **stealth/rendered** | **Pass-7+ resolved**: browserless without stealth returns CF wall HTML; `fetch_rendered(stealth=True)` required |
 | kling | `klingai.com/pricing` | 200 | static | SSR |
 | llamaindex | `llamaindex.ai/pricing` | 200 | **stealth/rendered** | CF protection |
 | luma | `lumalabs.ai/dream-machine/pricing` | 200 | static | SSR |
 | mistral | `mistral.ai/products/la-plateforme#pricing` | 200 | static | clean HTML |
-| openai | `openai.com/api/pricing/` | **403** | **URL-DEAD** | resolve in Phase 0 — try `openai.com/pricing` |
+| openai | `openai.com/api/pricing/` | 403 | **rendered** | **Pass-7+ resolved**: keep URL; `fetch_rendered` returns full HTML via browserless (no stealth needed; just JS execution) |
 | pika | `pika.art/pricing` | 200 | static | no JS markers |
-| playht | `play.ht/pricing` | **timeout** | **URL-DEAD** | resolve in Phase 0 |
-| qwen | `alibabacloud.com/help/...billing-for-model-studio` | **301** | **URL-DEAD** | follow redirect or use DashScope console URL |
+| ~~playht~~ | ~~`play.ht/pricing`~~ | **DNS-DEAD** | **VENDOR EOL** | **Pass-7+: VENDOR PERMANENTLY SHUT DOWN**. Meta acquired team 2025-07-12; API dark 2025-07-26; service terminated 2025-12-31. Domain WHOIS active but DNS A-records removed. Verified via WHOIS + multi-resolver dig + firecrawl scrape of notevibes.com/alternative/play-ht. Row `playht/play-3.0-mini` deprecated in DB with `discard_reason='vendor shutdown 2025-12-31 (Meta acquisition); domain DNS removed'`. Removed from seed_direct_vendors.py. |
+| qwen | `alibabacloud.com/help/en/model-studio/model-pricing` | 200 | static | **Pass-7+ resolved**: 301-redirect target captured; new canonical URL (previously cited `.../billing-for-model-studio`) |
 | recraft | `recraft.ai/pricing` | 200 | nextjs hydration | has `__NEXT_DATA__` |
 | runway | `runwayml.com/pricing` | 200 | static | SSR |
 | soniox | `soniox.com/pricing` | 200 | static | clean HTML |
@@ -116,7 +116,7 @@ A grounder ran `curl -sIL` + body-marker detection across all 28 vendor URLs on 
 | suno | `suno.com/pricing` | 200 | **stealth/rendered** | CF bot-wall |
 | udio | `udio.com/pricing` | 200 | **stealth/rendered** | CF bot-wall |
 
-Distribution: **13 static** + **2 nextjs-hydration** + **8 stealth/rendered** + **5 URL-DEAD** (resolve in Phase 0). No vendor required a "JSON API" path — that tier from v3.1 was entirely speculative.
+Distribution after Pass-7+ URL resolutions: **15 static** + **2 nextjs-hydration** + **9 stealth/rendered** + **1 rendered (no stealth)** + **1 VENDOR-EOL (playht — deleted)**. No vendor required a "JSON API" path — that tier from v3.1 was entirely speculative. Net coverage target shrinks 28 → **27 vendors** (Play.ht removed; rows in DB deprecated with vendor-shutdown reason).
 
 ## Architecture
 
