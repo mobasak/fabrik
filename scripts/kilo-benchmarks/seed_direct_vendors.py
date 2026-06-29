@@ -414,6 +414,25 @@ _add(
     description="ElevenLabs Sound Effects. Text-to-SFX up to 22 sec per generation. Billed per character of prompt.",
 )
 
+# ---------- Self-hosted TTS (operator-run GPU pod, not an API vendor) ----------
+_add(
+    "coqui/xtts-v2",
+    name="Coqui: XTTS-v2 (self-hosted)",
+    provider="coqui",
+    service_type="tts",
+    input_cost_per_m=0,  # No per-char API cost — pod electricity + GPU rent only
+    pricing_unit="M-chars",
+    quality_tier=3,
+    is_ga=1,
+    description=(
+        "Coqui XTTS-v2 — open-weight multilingual TTS (16+ langs, voice cloning, "
+        "Apache 2.0). Runs on operator's own GPU pod (T4 or L40S tier; warm pod "
+        "for sub-second TTFA). $0 per-character cost but pod overhead (electricity "
+        "+ GPU rent) only pays off above ~100K chars/day. Fabrik default TTS "
+        "fallback per .windsurf/rules/ai/10-speech-audio.md."
+    ),
+)
+
 # ---------- Translation ----------
 _add(
     "deepl/deepl-pro",

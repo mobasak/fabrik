@@ -18,10 +18,11 @@ Last content verification: 2026-06-29
 ## Fabrik defaults
 - **TTS → Soniox TTS** (60+ langs, hallucination-free, native EN/TR + mid-sentence language switching, EU residency/GDPR) — preferred for faithful pronunciation & multilingual cards. Use **ElevenLabs** only when expressive prosody matters more than faithfulness.
 - **Transcription → Soniox** or Whisper.
+- **TTS fallback (self-hosted) → XTTS-v2 (Coqui)** — model weights run on operator's own GPU pod (Apache 2.0 license, voice cloning, 16+ languages). Use when (a) API costs need a $0-per-char floor at high volume, (b) data residency forbids hosted TTS, OR (c) the primary TTS vendor is rate-limited / down. Trade-off: GPU pod must be provisioned and warm; sub-second TTFA only on T4/L40S-tier. NOT a replacement for the API defaults at low volume — pod overhead defeats the cost win below ~100K chars/day.
 
 ## Subcategories
 - **Transcription (Speech-to-Text):** Soniox, Whisper, Deepgram, AssemblyAI
-- **Speech Synthesis (Text-to-Speech):** Soniox TTS, ElevenLabs (more expressive voices), Play.ht, Amazon Polly
+- **Speech Synthesis (Text-to-Speech):** Soniox TTS, ElevenLabs (more expressive voices), Play.ht, Amazon Polly, XTTS-v2 (Coqui, self-hosted fallback)
 - **Voice Cloning:** Resemble AI, ElevenLabs VoiceLab
 - **Audio Classification:** Google AudioSet, YAMNet
 - **Music Generation:** Suno, Udio, Mubert, Meta MusicGen
