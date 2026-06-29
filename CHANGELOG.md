@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — watchdog Phase A: GlitchTip webhook capture + drift-check tool (2026-06-29)
+
+`scripts/probes/glitchtip_webhook_capture.py` (modes inspect/lifecycle/send-test/listen/verify/cleanup) captures the live GlitchTip new-issue webhook envelope so the fabrik-lib watchdog error-tracker parser can be pinned to the real shape, plus a `verify` drift-check (8 hermetic tests in `tests/test_glitchtip_webhook_capture.py`). Validated live: GlitchTip exposes no alert-rule API (/rules/,/alert-rules/,/alerts/ 404) and the disposable-project create→DSN→delete lifecycle round-trips. Live fixture capture is an operator step (VPS-reachable listener + one-time manual alert→webhook UI config); drift-check is post-capture/CI, not daily-wired (plan §2.7). First step of docs/development/plans/2026-06-29-plan-watchdog-deploy-side.md.
+
 ### Fixed — Daily refresh now covers speed metrics + Kilo catalog + benchmarks + embeddings (2026-06-29)
 
 Pipeline audit of every HTML column found 4 data sources that ran ONLY in `wsl_startup_hook.sh` (per-boot, gated by daily lockfile) but NOT in `scripts/kilo-benchmarks/daily_refresh.sh` (cron). If the WSL host stays up for days without rebooting, those columns silently drift: speed metrics (`output_tokens_per_sec`, `ttft_ms`, `aa_intelligence_index`), Kilo CLI catalog flags including `is_agentic` for Kilo-only models, the embedding model catalog. Found one row with `speed_updated_at = 2026-05-19` (41 days stale). Fix: added 5 calls to `daily_refresh.sh` immediately after the OpenRouter verifier — `kilo_agents_db.py all`, `migrate_aggregator_columns.py` (so fresh checkouts boot cleanly), `scrape_artificial_analysis.py`, `update_kilo_benchmarks.py --force`, `embedding_models_db.py all`. All non-fatal and idempotent. Post-fix audit: 434/434 active rows verified today (100%), 65/76 speed metrics refreshed today, 12/12 Replicate prices + 9/9 fal.ai prices fresh, 16/16 cheapest_gateway derived, FLUX Redux still flagged as `−88% via replicate`.
