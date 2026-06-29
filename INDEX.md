@@ -323,6 +323,8 @@ docs/
 │   ├── fabrik-cli-reference.md     # Fabrik CLI command reference
 │   ├── fabrik.md
 │   ├── file-api-deployment.md      # File API deployment guide
+│   ├── fixtures
+│   │   └── glitchtip-webhook.json  # Live-captured GlitchTip new-issue webhook envelope (watchdog parser pin)
 │   ├── glitchtip-api.md
 │   ├── global-gates.md             # Global gate definitions
 │   ├── gpu

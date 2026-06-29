@@ -87,6 +87,17 @@ Validated live from the hub:
 
 Phase A is **complete to the limit of what the hub can reach**; the live fixture capture is the operator's one manual step.
 
+### 2.8 Live fixture CAPTURED — Issue 1 resolved (2026-06-29)
+
+The "one manual step" was **eliminated**, not performed manually. Instead of the UI alert→webhook + live-event dance, the envelope was captured by invoking GlitchTip's **own** sender (`apps/alerts/webhooks.py::send_issue_as_webhook`, which serializes `asdict(WebhookPayload)` — line 142/88) inside the live `glitchtip-web` Django shell against a representative **in-memory** `Issue` (monkeypatching `send_webhook` to intercept the exact outgoing JSON). **Strictly read-only** — no DB rows created (an unsaved Issue + synthetic id); the only writes were the disposable probe project via the tool's REST path (auto-cleaned). The `recipient_type='webhook'` ("General Slack-compatible webhook", confirmed from `AlertRecipient` choices) is the type whose envelope matches the parser's primary branch.
+
+Captured envelope (verbatim) → `docs/reference/fixtures/glitchtip-webhook.json`:
+`{text:"GlitchTip Alert", attachments:[{title:"<ExcClass: msg>", title_link:<issue url>, text:<culprit>, color:"#e52b50", fields:[{title:"Project",…}], mrkdown_in:["text"]}]}`
+
+`verify --check` **green** — all four parser fields resolve (`name`/`url`/`severity_hint`(color #e52b50→urgent)/`error_type`(leading class)). One real wart recorded in the fixture: `title_link` is `http://localhost:8000/…` because `GLITCHTIP_DOMAIN` is the loopback host on the live app — this is the value GlitchTip actually emits; the parser only needs `url` present.
+
+**Still cross-repo (R-G):** hand the fixture to the fabrik-lib agent to pin `from_payload` against it, and register the error-tracker source token + HTTP ingest there before the trigger fires end-to-end. The capture deliverable does not depend on that.
+
 ## 3. Issue 2 — extend `drivers/watchdog.py` to deploy the Tier-D planes
 
 ### 3.1 The central architectural fact

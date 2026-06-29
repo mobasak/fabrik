@@ -1,0 +1,35 @@
+{
+  "headers": {
+    "Content-Type": "application/json"
+  },
+  "body": {
+    "text": "GlitchTip Alert",
+    "attachments": [
+      {
+        "title": "ZeroDivisionError: division by zero",
+        "title_link": "http://localhost:8000/ocoron/issues/999999",
+        "text": "watchdog_capture.probe in handle_request",
+        "image_url": null,
+        "color": "#e52b50",
+        "fields": [
+          {
+            "title": "Project",
+            "value": "watchdog-webhook-probe",
+            "short": true
+          }
+        ],
+        "mrkdown_in": [
+          "text"
+        ]
+      }
+    ]
+  },
+  "captured_at": "2026-06-29T11:08:50.927906+00:00",
+  "_provenance": {
+    "integration": "webhook (General Slack-compatible webhook)",
+    "recipient_type": "webhook",
+    "source": "glitchtip/glitchtip:latest",
+    "method": "Captured via GlitchTip's own apps.alerts.webhooks.send_issue_as_webhook (asdict(WebhookPayload)) against a representative in-memory Issue, by monkeypatching send_webhook to intercept the exact outgoing JSON. Read-only: no DB rows created. This is byte-identical to what GlitchTip POSTs to a 'webhook' recipient on a new-issue alert.",
+    "note_title_link_loopback": "title_link uses http://localhost:8000 because GLITCHTIP_DOMAIN is set to the loopback host on the live GlitchTip app \u2014 this is the REAL value emitted today; the parser only requires url to be present."
+  }
+}
