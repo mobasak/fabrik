@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Per-tab column coverage in models_browser.html (2026-06-29)
+
+User audit found 5 columns missing from tabs where they apply: **$/M out** was on Overview + Translation only — now added to Reasoning + Coding (LLM tabs where output token cost matters). **Ctx (k)** was on Overview + Reasoning only — now added to Coding (long codebases) + Translation (whole-doc translation). **Tier** was on Overview + specialty tabs only — now visible on every tab (quality signal is universally relevant). **Arena** + **AA Intelligence Index** added to Coding tab (general-quality cross-check vs SWE-bench). **Verified** date column now visible on every tab so freshness is auditable at a glance. The specialty tabs (Transcription, Voice/Audio, Image gen, Video gen, OCR) deliberately keep $/M out / Ctx / Arena / AA hidden — those columns don't apply to per-image/per-minute/per-page billing.
+
 ### Added — watchdog Phase A: GlitchTip webhook capture + drift-check tool (2026-06-29)
 
 `scripts/probes/glitchtip_webhook_capture.py` (modes inspect/lifecycle/send-test/listen/verify/cleanup) captures the live GlitchTip new-issue webhook envelope so the fabrik-lib watchdog error-tracker parser can be pinned to the real shape, plus a `verify` drift-check (8 hermetic tests in `tests/test_glitchtip_webhook_capture.py`). Validated live: GlitchTip exposes no alert-rule API (/rules/,/alert-rules/,/alerts/ 404) and the disposable-project create→DSN→delete lifecycle round-trips. Live fixture capture is an operator step (VPS-reachable listener + one-time manual alert→webhook UI config); drift-check is post-capture/CI, not daily-wired (plan §2.7). First step of docs/development/plans/2026-06-29-plan-watchdog-deploy-side.md.
