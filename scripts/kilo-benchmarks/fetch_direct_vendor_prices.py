@@ -1,0 +1,670 @@
+#!/usr/bin/env python3
+"""Daily direct-vendor pricing scraper — Phase 1 deliverable.
+
+Reads `direct_vendor_pricing_registry.yaml`, iterates each vendor with a
+populated `parser_module`, fetches the page via the vendored `web_scrape`
+module (httpx or browserless), invokes the per-vendor parser, validates,
+and merges into `agents` via per-vendor SQLite transactions.
+
+Per docs/development/plans/2026-06-29-plan-direct-vendor-pricing.md.
+
+Usage
+-----
+  python fetch_direct_vendor_prices.py                       # dry-run, all vendors with parsers
+  python fetch_direct_vendor_prices.py --apply               # write to DB
+  python fetch_direct_vendor_prices.py --vendors a,b,c       # subset
+  python fetch_direct_vendor_prices.py --report cache/x.csv  # diff CSV
+  python fetch_direct_vendor_prices.py --simulate-failure V  # force vendor V's fetch to fail (alert-smoke)
+  python fetch_direct_vendor_prices.py --max-iter N          # loop N times for repeated-failure simulation
+
+Exit codes
+----------
+  0   success (incl. dry-run)
+  2   one or more vendors failed AND --apply was set; alerts fired
+
+Failure model (per the plan §"Failure model"):
+  - HTTP error / parser exception:
+      log + (best-effort) Telegram alert via fabrik-lib/alerting
+      bump in-memory `consecutive_fetch_failures` counter for the vendor
+      row(s) untouched
+  - Parsed pricing_unit != DB pricing_unit:
+      REFUSE to write that row (parse bug); log + alert
+  - Parsed price diff > 10% vs DB:
+      audit alert; STILL writes the new price (audit threshold)
+  - Parsed price diff > 50% vs DB:
+      REFUSE to write that row (almost certainly a parse bug); log + alert
+  - Row missing from parsed set even though vendor responded OK:
+      bump row's consecutive_pricing_misses; flip status='deprecated' at 7
+  - Vendor's consecutive_fetch_failures >= 7 (across daily runs — Phase 1
+      tracks in-memory only; persistence is a Phase 5 deliverable):
+      escalation alert
+"""
+
+from __future__ import annotations
+
+import argparse
+import csv
+import importlib
+import os
+import sqlite3
+import sys
+import traceback
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from pathlib import Path
+
+import yaml
+
+# Make the vendored web_scrape importable (we're inside scripts/kilo-benchmarks).
+SCRIPT_DIR = Path(__file__).parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+
+from direct_vendor_parsers import ParsedRow  # noqa: E402  — local package
+from web_scrape import (  # noqa: E402  — vendored from fabrik-lib
+    FetchError,
+    WebScraper,
+    is_bot_wall,
+)
+
+DB_PATH = SCRIPT_DIR / "kilo_agents.db"
+REGISTRY_PATH = SCRIPT_DIR / "direct_vendor_pricing_registry.yaml"
+CACHE_DIR = SCRIPT_DIR / "cache" / "direct-vendor-scrape"
+BROWSERLESS_URL_DEFAULT = "https://browser.vps1.ocoron.com"
+
+# Plan §"Failure model" thresholds.
+DIFF_ALERT_PCT = 0.10  # > this → alert + write
+DIFF_BLOCK_PCT = 0.50  # > this → REFUSE to write
+MISS_TO_DEPRECATE = 7  # >= this → flip row to 'deprecated'
+VENDOR_FAILURE_ESCALATE = 7  # in-memory counter; Phase 5 persists
+
+
+# ---------------------------------------------------------------------------
+# Alerting (defensive: optional dependency on fabrik-lib/alerting)
+# ---------------------------------------------------------------------------
+def _send_alert(title: str, body: str, severity: str = "warning") -> bool:
+    """Best-effort alert send. Returns True if at least one channel confirmed.
+
+    Defensive: alerting is vendored per-project; if not present in this repo
+    yet, we log + return False instead of crashing the scraper. Phase 5 wires
+    the real alerting module into kilo-benchmarks.
+    """
+    try:
+        from alerting import send_alert  # type: ignore[import-not-found]
+    except ImportError:
+        print(f"[alerter-stub] {severity.upper()} {title}: {body}", file=sys.stderr)
+        return False
+    try:
+        return bool(send_alert(title=title, body=body, severity=severity))
+    except Exception as e:
+        print(f"[alerter] send_alert raised {e!r}; falling back to stderr", file=sys.stderr)
+        print(f"[alerter-stderr-fallback] {severity.upper()} {title}: {body}", file=sys.stderr)
+        return False
+
+
+# ---------------------------------------------------------------------------
+# Models
+# ---------------------------------------------------------------------------
+@dataclass
+class WriteOutcome:
+    vendor: str
+    db_id: str
+    before_price: float | None
+    after_price: float | None
+    pct_diff: float | None  # signed; None when before==0 or None
+    pricing_unit: str
+    action: str  # "wrote" | "refused_unit" | "refused_diff" | "no_change" | "missing"
+    raw_price_text: str
+    source_url: str
+    explanation: str = ""
+
+
+@dataclass
+class VendorOutcome:
+    vendor: str
+    fetched: bool
+    parsed_count: int
+    writes: list[WriteOutcome]
+    error: str | None = None  # non-None on fetch / parser failure
+
+
+# ---------------------------------------------------------------------------
+# Registry
+# ---------------------------------------------------------------------------
+def load_registry(path: Path = REGISTRY_PATH) -> dict[str, dict]:
+    with path.open("r", encoding="utf-8") as f:
+        data = yaml.safe_load(f) or {}
+    if not isinstance(data, dict):
+        raise ValueError(f"{path}: top-level must be a mapping; got {type(data).__name__}")
+    return data
+
+
+def select_vendors(
+    registry: dict[str, dict],
+    only: list[str] | None,
+    require_parser: bool = True,
+) -> list[str]:
+    """Vendor ids in registry order, optionally filtered.
+
+    `require_parser=True` skips vendors with `parser_module: null` (Phase 1
+    only ships 5 parsers; the rest are stubs).
+    """
+    selected: list[str] = []
+    for vendor, cfg in registry.items():
+        if only and vendor not in only:
+            continue
+        if require_parser and not (cfg or {}).get("parser_module"):
+            continue
+        selected.append(vendor)
+    return selected
+
+
+# ---------------------------------------------------------------------------
+# DB helpers
+# ---------------------------------------------------------------------------
+def _today_utc_iso() -> str:
+    return datetime.now(UTC).date().isoformat()
+
+
+def fetch_db_rows_for_vendor(conn: sqlite3.Connection, db_ids: list[str]) -> dict[str, dict]:
+    if not db_ids:
+        return {}
+    placeholders = ",".join("?" * len(db_ids))
+    rows = conn.execute(
+        f"SELECT id, input_cost_per_m, pricing_unit, status, last_price_scraped, "
+        f"consecutive_pricing_misses, price_scrape_source "
+        f"FROM agents WHERE id IN ({placeholders})",
+        db_ids,
+    ).fetchall()
+    columns = [
+        "id",
+        "input_cost_per_m",
+        "pricing_unit",
+        "status",
+        "last_price_scraped",
+        "consecutive_pricing_misses",
+        "price_scrape_source",
+    ]
+    return {r[0]: dict(zip(columns, r, strict=True)) for r in rows}
+
+
+# ---------------------------------------------------------------------------
+# Per-vendor flow
+# ---------------------------------------------------------------------------
+def _signed_pct_diff(before: float | None, after: float) -> float | None:
+    """Returns (after-before)/before. None if before is None/0/<0."""
+    if before is None or before <= 0:
+        return None
+    return (after - before) / before
+
+
+def _classify_diff(pct: float | None) -> tuple[bool, bool, str]:
+    """Returns (block, alert_only, classification_text).
+
+    block:        True if diff > DIFF_BLOCK_PCT (REFUSE to write)
+    alert_only:   True if DIFF_ALERT_PCT < |pct| <= DIFF_BLOCK_PCT (write but alert)
+    """
+    if pct is None:
+        return False, False, "first-scrape (no prior price for diff)"
+    apct = abs(pct)
+    if apct > DIFF_BLOCK_PCT:
+        return True, False, f"|diff|={apct:.0%} > {DIFF_BLOCK_PCT:.0%} — REFUSED (parse bug?)"
+    if apct > DIFF_ALERT_PCT:
+        return False, True, f"|diff|={apct:.0%} > {DIFF_ALERT_PCT:.0%} — audit alert; wrote"
+    return False, False, f"|diff|={apct:.0%} — within tolerance"
+
+
+def process_vendor(
+    vendor: str,
+    cfg: dict,
+    scraper: WebScraper,
+    db_path: Path,
+    apply: bool,
+    simulate_failure: bool = False,
+) -> VendorOutcome:
+    url = cfg.get("pricing_url")
+    method = cfg.get("fetch_method", "static")
+    parser_module_name = cfg.get("parser_module")
+    models_cfg = cfg.get("models") or {}
+
+    if not parser_module_name:
+        return VendorOutcome(
+            vendor=vendor,
+            fetched=False,
+            parsed_count=0,
+            writes=[],
+            error="no parser_module in registry (stubbed)",
+        )
+
+    if simulate_failure:
+        return VendorOutcome(
+            vendor=vendor,
+            fetched=False,
+            parsed_count=0,
+            writes=[],
+            error="simulated fetch failure (--simulate-failure)",
+        )
+
+    # Fetch
+    try:
+        if method == "static":
+            html = scraper.fetch_static(url)
+        elif method == "rendered":
+            html = scraper.fetch_rendered(url)
+        elif method == "stealth":
+            html = scraper.fetch_rendered(url, stealth=True)
+        else:
+            return VendorOutcome(
+                vendor=vendor,
+                fetched=False,
+                parsed_count=0,
+                writes=[],
+                error=f"unknown fetch_method {method!r}",
+            )
+    except (FetchError, Exception) as e:
+        return VendorOutcome(
+            vendor=vendor,
+            fetched=False,
+            parsed_count=0,
+            writes=[],
+            error=f"fetch failed: {type(e).__name__}: {e}",
+        )
+
+    # Defense: if a fetch_static returned a Cloudflare wall, escalate to stealth.
+    if isinstance(html, str) and is_bot_wall(html) and method != "stealth":
+        try:
+            html = scraper.fetch_rendered(url, stealth=True)
+        except (FetchError, Exception) as e:
+            return VendorOutcome(
+                vendor=vendor,
+                fetched=False,
+                parsed_count=0,
+                writes=[],
+                error=f"bot-wall escalation also failed: {type(e).__name__}: {e}",
+            )
+
+    # Parse
+    try:
+        parser_module = importlib.import_module(parser_module_name)
+        parsed: list[ParsedRow] = parser_module.extract(html, url)
+    except Exception as e:
+        tb = traceback.format_exc(limit=3)
+        return VendorOutcome(
+            vendor=vendor,
+            fetched=True,
+            parsed_count=0,
+            writes=[],
+            error=f"parser raised: {type(e).__name__}: {e}\n{tb}",
+        )
+
+    # Map parsed slugs to DB ids via registry
+    slug_to_db_id: dict[str, str] = {}
+    db_id_to_expected_unit: dict[str, str] = {}
+    for db_id, mcfg in models_cfg.items():
+        slug = mcfg.get("slug_on_page")
+        if not slug:
+            continue
+        slug_to_db_id[slug] = db_id
+        db_id_to_expected_unit[db_id] = mcfg.get("expected_unit", "")
+
+    db_ids = list(slug_to_db_id.values())
+    conn = sqlite3.connect(db_path)
+    try:
+        db_rows = fetch_db_rows_for_vendor(conn, db_ids)
+
+        # Build write outcomes (no I/O yet)
+        writes: list[WriteOutcome] = []
+        parsed_slugs_seen: set[str] = set()
+
+        for pr in parsed:
+            parsed_slugs_seen.add(pr.model_slug)
+            db_id = slug_to_db_id.get(pr.model_slug)
+            if db_id is None:
+                # Parser returned a model not in our registry — log but don't write
+                writes.append(
+                    WriteOutcome(
+                        vendor=vendor,
+                        db_id=f"<unmapped:{pr.model_slug}>",
+                        before_price=None,
+                        after_price=pr.input_price_per_M,
+                        pct_diff=None,
+                        pricing_unit=pr.pricing_unit,
+                        action="missing",
+                        raw_price_text=pr.raw_price_text,
+                        source_url=pr.source_url,
+                        explanation=f"parser returned slug {pr.model_slug!r} not in registry",
+                    )
+                )
+                continue
+            db_row = db_rows.get(db_id)
+            if db_row is None:
+                writes.append(
+                    WriteOutcome(
+                        vendor=vendor,
+                        db_id=db_id,
+                        before_price=None,
+                        after_price=pr.input_price_per_M,
+                        pct_diff=None,
+                        pricing_unit=pr.pricing_unit,
+                        action="missing",
+                        raw_price_text=pr.raw_price_text,
+                        source_url=pr.source_url,
+                        explanation=f"registry says {db_id} exists but DB has no such row",
+                    )
+                )
+                continue
+
+            expected_unit = db_id_to_expected_unit[db_id] or db_row["pricing_unit"]
+            db_unit = db_row["pricing_unit"]
+
+            if pr.pricing_unit != expected_unit or pr.pricing_unit != db_unit:
+                writes.append(
+                    WriteOutcome(
+                        vendor=vendor,
+                        db_id=db_id,
+                        before_price=db_row["input_cost_per_m"],
+                        after_price=pr.input_price_per_M,
+                        pct_diff=None,
+                        pricing_unit=pr.pricing_unit,
+                        action="refused_unit",
+                        raw_price_text=pr.raw_price_text,
+                        source_url=pr.source_url,
+                        explanation=(
+                            f"parsed unit={pr.pricing_unit!r} != "
+                            f"expected={expected_unit!r} (DB={db_unit!r})"
+                        ),
+                    )
+                )
+                continue
+
+            pct = _signed_pct_diff(db_row["input_cost_per_m"], pr.input_price_per_M)
+            block, alert_only, classification = _classify_diff(pct)
+            action = "refused_diff" if block else "wrote"
+            writes.append(
+                WriteOutcome(
+                    vendor=vendor,
+                    db_id=db_id,
+                    before_price=db_row["input_cost_per_m"],
+                    after_price=pr.input_price_per_M,
+                    pct_diff=pct,
+                    pricing_unit=pr.pricing_unit,
+                    action=action,
+                    raw_price_text=pr.raw_price_text,
+                    source_url=pr.source_url,
+                    explanation=classification,
+                )
+            )
+
+        # Rows expected by registry but absent from parsed set → miss-counter bump
+        for db_id in db_ids:
+            if db_id in (w.db_id for w in writes):
+                continue
+            db_row = db_rows.get(db_id)
+            if db_row is None:
+                continue
+            writes.append(
+                WriteOutcome(
+                    vendor=vendor,
+                    db_id=db_id,
+                    before_price=db_row["input_cost_per_m"],
+                    after_price=None,
+                    pct_diff=None,
+                    pricing_unit=db_row["pricing_unit"],
+                    action="missing",
+                    raw_price_text="",
+                    source_url=url,
+                    explanation="vendor responded OK but parser did not return this row's slug",
+                )
+            )
+
+        # Apply writes (transaction per vendor)
+        if apply:
+            today = _today_utc_iso()
+            conn.execute("BEGIN")
+            try:
+                for w in writes:
+                    if w.action == "wrote":
+                        # On a successful write, NULL-out price_scrape_source if it
+                        # carries the URL_BROKEN_ sentinel (per Plan §"DB schema
+                        # additions" — set/clear rule). For Phase 1 vendors none
+                        # carry the sentinel, but the cleanup is generic.
+                        conn.execute(
+                            "UPDATE agents SET input_cost_per_m=?, last_price_scraped=?, "
+                            "price_scrape_source=?, consecutive_pricing_misses=0 "
+                            "WHERE id=?",
+                            (w.after_price, today, w.source_url, w.db_id),
+                        )
+                    elif w.action == "missing" and w.db_id.startswith("<unmapped"):
+                        # Don't update on unmapped — registry mistake
+                        continue
+                    elif w.action == "missing":
+                        # Row was expected but vendor didn't return it: bump miss counter
+                        new_misses = (
+                            conn.execute(
+                                "SELECT COALESCE(consecutive_pricing_misses, 0) FROM agents WHERE id=?",
+                                (w.db_id,),
+                            ).fetchone()
+                            or (0,)
+                        )[0] + 1
+                        conn.execute(
+                            "UPDATE agents SET consecutive_pricing_misses=? WHERE id=?",
+                            (new_misses, w.db_id),
+                        )
+                        if new_misses >= MISS_TO_DEPRECATE:
+                            conn.execute(
+                                "UPDATE agents SET status='deprecated', "
+                                "discard_reason=? WHERE id=? AND status='active'",
+                                (
+                                    f"missing from {vendor} catalog ≥{MISS_TO_DEPRECATE} days "
+                                    f"({today})",
+                                    w.db_id,
+                                ),
+                            )
+                    # refused_unit / refused_diff: no DB write
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
+
+        return VendorOutcome(vendor=vendor, fetched=True, parsed_count=len(parsed), writes=writes)
+    finally:
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
+# CLI / orchestration
+# ---------------------------------------------------------------------------
+def _emit_outcome(o: VendorOutcome, apply: bool) -> None:
+    if o.error:
+        print(f"[fetch] {o.vendor:14s} ERROR: {o.error.splitlines()[0]}")
+        return
+    wrote = sum(1 for w in o.writes if w.action == "wrote")
+    refused = sum(1 for w in o.writes if w.action.startswith("refused"))
+    missing = sum(1 for w in o.writes if w.action == "missing")
+    flag = "APPLY" if apply else "DRY-RUN"
+    print(
+        f"[fetch] {o.vendor:14s} {flag}  parsed={o.parsed_count}  wrote={wrote}  "
+        f"refused={refused}  missing={missing}"
+    )
+    for w in o.writes:
+        if w.action == "wrote" and w.pct_diff is not None and abs(w.pct_diff) > DIFF_ALERT_PCT:
+            print(
+                f"           AUDIT  {w.db_id}: {w.before_price:.2f} → {w.after_price:.2f}  "
+                f"({w.pct_diff:+.0%}) — {w.explanation}"
+            )
+        elif w.action == "refused_diff":
+            print(
+                f"           BLOCK  {w.db_id}: {w.before_price:.2f} → {w.after_price:.2f}  "
+                f"({w.pct_diff:+.0%}) — {w.explanation}"
+            )
+        elif w.action == "refused_unit":
+            print(f"           BLOCK  {w.db_id}: {w.explanation}")
+
+
+def _fire_per_vendor_alerts(o: VendorOutcome) -> None:
+    if o.error and "simulated" in (o.error or "").lower():
+        # Simulated failure → alert intentionally (smoke-test for Phase 1 Gate 3)
+        _send_alert(
+            title=f"{o.vendor} scraper down (simulated)",
+            body=(
+                f"Vendor: {o.vendor}\nError: {o.error}\n"
+                f"This is a Phase 1 alert-smoke test (--simulate-failure)."
+            ),
+            severity="warning",
+        )
+        return
+    if o.error:
+        _send_alert(
+            title=f"{o.vendor} scraper failed",
+            body=f"Vendor: {o.vendor}\nError: {o.error}",
+            severity="warning",
+        )
+        return
+    for w in o.writes:
+        if w.action == "refused_diff":
+            _send_alert(
+                title=f"{o.vendor}: blocked write (diff>{DIFF_BLOCK_PCT:.0%})",
+                body=(
+                    f"Row {w.db_id} parsed price {w.after_price:.2f} vs "
+                    f"DB {w.before_price:.2f} ({w.pct_diff:+.0%}). Refused to write."
+                ),
+                severity="critical",
+            )
+        elif w.action == "wrote" and w.pct_diff is not None and abs(w.pct_diff) > DIFF_ALERT_PCT:
+            _send_alert(
+                title=f"{o.vendor}: price drift audit",
+                body=(
+                    f"Row {w.db_id} updated {w.before_price:.2f} → {w.after_price:.2f} "
+                    f"({w.pct_diff:+.0%}). Raw text: {w.raw_price_text!r}. URL: {w.source_url}"
+                ),
+                severity="info",
+            )
+        elif w.action == "refused_unit":
+            _send_alert(
+                title=f"{o.vendor}: unit mismatch (likely parse bug)",
+                body=f"{w.db_id}: {w.explanation}",
+                severity="critical",
+            )
+
+
+def write_report_csv(path: Path, outcomes: list[VendorOutcome]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(
+            [
+                "vendor",
+                "db_id",
+                "before_price",
+                "after_price",
+                "pct_diff",
+                "pricing_unit",
+                "action",
+                "raw_price_text",
+                "explanation",
+                "source_url",
+            ]
+        )
+        for o in outcomes:
+            for w in o.writes:
+                writer.writerow(
+                    [
+                        w.vendor,
+                        w.db_id,
+                        "" if w.before_price is None else f"{w.before_price:.4f}",
+                        "" if w.after_price is None else f"{w.after_price:.4f}",
+                        "" if w.pct_diff is None else f"{w.pct_diff:.4f}",
+                        w.pricing_unit,
+                        w.action,
+                        w.raw_price_text,
+                        w.explanation,
+                        w.source_url,
+                    ]
+                )
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--db", type=Path, default=DB_PATH)
+    parser.add_argument("--registry", type=Path, default=REGISTRY_PATH)
+    parser.add_argument("--cache-dir", type=Path, default=CACHE_DIR)
+    parser.add_argument(
+        "--vendors",
+        type=str,
+        default="",
+        help="Comma-separated subset; default = all vendors with a parser_module.",
+    )
+    parser.add_argument("--apply", action="store_true", help="Write to DB. Default is dry-run.")
+    parser.add_argument(
+        "--simulate-failure",
+        type=str,
+        default="",
+        help="Force the named vendor's fetch to fail (alert-smoke).",
+    )
+    parser.add_argument(
+        "--max-iter",
+        type=int,
+        default=1,
+        help="Run N consecutive passes (for repeated-failure simulation).",
+    )
+    parser.add_argument(
+        "--report", type=Path, default=None, help="Write a per-row CSV diff report to this path."
+    )
+    parser.add_argument("--quiet", action="store_true")
+    args = parser.parse_args()
+
+    if not args.db.exists():
+        print(f"ERROR: DB does not exist: {args.db}", file=sys.stderr)
+        return 1
+
+    registry = load_registry(args.registry)
+    only = [v.strip() for v in args.vendors.split(",") if v.strip()] or None
+    vendors = select_vendors(registry, only)
+
+    browserless_token = os.environ.get("BROWSERLESS_TOKEN", "")
+    if not browserless_token:
+        print(
+            "[fetch] WARNING: BROWSERLESS_TOKEN not set; rendered/stealth fetches will fail",
+            file=sys.stderr,
+        )
+    scraper = WebScraper(
+        cache_dir=args.cache_dir,
+        browserless_url=os.environ.get("BROWSERLESS_URL", BROWSERLESS_URL_DEFAULT),
+        browserless_token=browserless_token or "missing-token",
+        cache_ttl_s=86_400,
+    )
+
+    all_outcomes: list[VendorOutcome] = []
+    any_error = False
+
+    for iteration in range(args.max_iter):
+        if args.max_iter > 1 and not args.quiet:
+            print(f"[fetch] iteration {iteration + 1}/{args.max_iter}")
+        for vendor in vendors:
+            simulate = vendor == args.simulate_failure
+            outcome = process_vendor(
+                vendor=vendor,
+                cfg=registry[vendor],
+                scraper=scraper,
+                db_path=args.db,
+                apply=args.apply,
+                simulate_failure=simulate,
+            )
+            all_outcomes.append(outcome)
+            if not args.quiet:
+                _emit_outcome(outcome, args.apply)
+            _fire_per_vendor_alerts(outcome)
+            if outcome.error:
+                any_error = True
+
+    if args.report:
+        write_report_csv(args.report, all_outcomes)
+        if not args.quiet:
+            print(f"[fetch] wrote diff report -> {args.report}")
+
+    # Exit 2 on hard failure under --apply (lets daily_refresh.sh detect breakage)
+    return 2 if (any_error and args.apply) else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

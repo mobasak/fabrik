@@ -245,6 +245,20 @@ ALTER TABLE agents ADD COLUMN price_scrape_source TEXT;         -- vendor_url OR
 
 ## Phases
 
+### Phase exit gate (binding for every implementation phase)
+
+Operator-specified, runs after each Phase ships its deliverables. Each phase is "done" only when the runnable gate is green AND the adversarial review surfaces zero new correctness/security findings:
+
+> Review this implementation as an adversary trying to break it. Scope: the full changed surface plus everything it calls or is called by. Run repeated review passes in this single turn.
+>
+> Each pass, hunt specific failure classes: logic errors, off-by-one, null/empty/None handling, idempotency, effective-dating/ordering, fail-open vs fail-closed, error/edge paths, concurrency & transaction atomicity, resource cleanup, auth/tenant-isolation, precision/timezone/encoding, and plan↔code deviations (verify against the spec's intent, since the written spec can itself be wrong).
+>
+> Prove before you fix: for each suspected bug, reproduce it with a runnable test or execution; then fix it and keep the test as a regression guard. Classify each finding as correctness/security vs. style.
+>
+> After each pass, show what you inspected (which files/paths, which failure classes) and what you found. A pass that finds nothing must still enumerate that coverage — an empty pass with no evidence of what was checked does not count. Do not stop or claim convergence until one demonstrably thorough pass produces zero new correctness/security findings.
+>
+> A green final_gate is necessary but not sufficient (it doesn't test logic), so never treat it as proof of correctness — and re-run it after each fix, since fixes regress. When unsure whether something is a bug, surface it rather than assume it's fine. If anything can't be made truly zero-risk, list the residual risks explicitly.
+
 ### Phase -1 — Build `fabrik-lib/web-scrape/` from its SPEC.md ✅ SATISFIED (2026-06-29)
 
 **Status**: Built and on `mobasak/fabrik-lib@main`. 24 tests vs 14 SPEC'd (over-delivery). `fetch_rendered("https://example.com")` confirmed live against vps1 browserless. README row + CHANGELOG entry present.

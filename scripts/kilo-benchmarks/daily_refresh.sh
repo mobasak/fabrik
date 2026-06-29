@@ -114,6 +114,18 @@ mkdir -p "$(dirname "$LOG_FILE")"
   "$VENV_PY" "$KB/seed_direct_vendors.py" \
     || echo "[daily_refresh] direct-vendor seed failed (non-fatal)"
 
+  # Ensure the 3 direct-vendor pricing columns exist on `agents` (idempotent;
+  # required by fetch_direct_vendor_prices.py below).
+  "$VENV_PY" "$KB/migrate_direct_vendor_pricing_columns.py" \
+    || echo "[daily_refresh] direct-vendor pricing migration failed (non-fatal)"
+
+  # Direct-vendor pricing scraper (Phase 1 ships 5 parsers: AssemblyAI,
+  # Deepgram, Soniox, Cartesia, Speechmatics). The orchestrator runs in
+  # --apply mode here; per-vendor errors don't fail the daily pipeline.
+  # Plan: docs/development/plans/2026-06-29-plan-direct-vendor-pricing.md
+  "$VENV_PY" "$KB/fetch_direct_vendor_prices.py" --apply --quiet \
+    || echo "[daily_refresh] direct-vendor pricing scraper had vendor errors (non-fatal)"
+
   "$VENV_PY" "$KB/derive_quality_v2.py" \
     || echo "[daily_refresh] quality v2 deriver failed (non-fatal)"
 
