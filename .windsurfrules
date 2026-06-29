@@ -40,6 +40,7 @@ Read `expertise-pack/wpf-expertise-pack-spec-v3.md` + `.claude/skills/wpf-wordpr
 | Rule | Instead |
 |:--|:--|
 | `git commit` / `git push` (unless user said so this turn) | gate auto-stages — task ends there |
+| `git add -A` / `git add .` / `git commit -a` · overwriting `CHANGELOG.md` `[Unreleased]` | Shared tree — multiple agents + the daily pipeline commit to one `master`. Stage explicit paths only (`git add <file>…`); `git diff --cached --name-only` before commit; never bundle files you didn't author. Append your entry atop `[Unreleased]` (don't reset the section). After the gate auto-stages, `git reset` then re-add only your files. |
 | `fabrik redeploy` git-sourced without `git push` first | `commit` → `push` → `fabrik redeploy`; VPS `git pull`s from GitHub, not local `/opt/` |
 | compose without `deploy.resources.limits.memory` | required; `_validate_compose()` enforces fatally; scaffolder auto-emits |
 | `DB_HOST=localhost` / `@localhost:` in env | `postgres-main:5432`/`redis-main:6379`; `localhost` = the container, not host |

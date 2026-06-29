@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — governance: ban `git add -A` on the shared tree across all 3 agent contracts (2026-06-29)
+
+Added a HARD STOP to `CLAUDE.md`, `AGENTS-compact.md`, and `.windsurfrules`: never `git add -A`/`git add .`/`git commit -a` on the shared `/opt/fabrik` tree (3 agents + the daily pipeline commit to one `master`). Stage explicit paths, `git diff --cached` before commit, never bundle files you didn't author; append (don't overwrite) your `[Unreleased]` CHANGELOG entry; `git reset` + re-add only your files after the gate auto-stages. Root cause: parallel `git add -A` commits were sweeping other agents' in-progress files under wrong messages (e.g. the watchdog driver fix landed in a `feat(kilo-benchmarks)` commit). Propagate with `scripts/sync_enforcement_to_projects.py`.
+
 ### Removed — Cheapest column from AI Models Browser (redundant with Price + badge) (2026-06-29)
 
 Operator feedback: the **Cheapest** column was redundant. For 401 of 402 rows it duplicated the Price column (`cheapest = direct = Price`). The one row where it differed (FLUX Redux) already surfaces the savings via the `−88% via replicate` badge inline on the Price cell. Removed the column (`<th data-sort="cheapest_gateway_price">` + matching `<td>` + right-align CSS rule). **What's preserved**: the `cheapest_gateway` / `cheapest_gateway_price` DB columns + the `derive_cheapest_gateway.py` daily script + the `maybeCheaperBadge()` Price-cell highlight — those are still doing the actual surfacing of "this row is cheaper somewhere else". Browser is back to 23 columns (23 ths = 23 tds). Net: one fewer noisy column, zero loss of information.
