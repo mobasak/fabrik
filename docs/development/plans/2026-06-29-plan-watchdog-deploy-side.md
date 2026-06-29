@@ -1,9 +1,18 @@
 # Plan — Watchdog deploy-side: GlitchTip payload capture + Tier-D driver wiring
 
-**Status:** DRAFT — awaiting approval (no code written, no live calls made)
+**Status:** IN PROGRESS — Phase A tooling shipped + validated; Phase B started (SIDECAR_SOURCE bug fixed, driver now test/dry-run-able). Phases B/C continue.
 **Date:** 2026-06-29
 **Owner:** Fabrik AI (`/opt/fabrik`, fleet/deploy side)
 **Origin:** Two issues handed off from the fabrik-lib watchdog autonomous-remediation work (PR #1, branch `feat/watchdog-autonomous-remediation`). This plan covers only the `/opt/fabrik` half. The library half (`/opt/fabrik-lib`) is the other agent's.
+
+## Operating model — pro-grade, AI-managed, (mostly) fully-automated dev → deploy → VPS
+
+This pipeline is AI-managed and automated end to end: scaffold → spec → `fabrik apply` (SSH + Docker Compose to the VPS fleet) → watchdog observe/remediate. The design bias follows:
+
+- **Manual operator steps are defects to automate, not the plan.** Wherever this plan says "operator does X in a UI", treat it as a TODO to drive X via API / container exec / declarative spec. The one residual manual step (GlitchTip's alert→webhook — no REST API) is automatable via the GlitchTip container's Django management/admin on the VPS (full fleet access available, `sudo docker` confirmed) with n8n (`auto.vps1`, on the `fabrik` net) as the listener; Phase A's tool already does capture/teardown — only the alert wiring remains to automate.
+- **Everything is testable + dry-runnable.** Each driver/tool ships test files so changes are unit-tested and `dry_run=True`/`--dry-run` exercised without touching the fleet (`tests/test_watchdog_driver.py`, `tests/test_glitchtip_webhook_capture.py`, `tests/test_check_ai_pack_freshness.py`).
+- **Autonomy with automated guardrails, not manual gates.** Tier-D auto-applies on the silence-window with tests + secret-scan + auto-rollback + STOP; the rails are automated. Human-in-the-loop is the exception (high blast radius), not the default.
+- **Specs are the source of truth.** Hand-deployed live infra gets reconciled into declarative specs so `fabrik apply` owns it (done this pass for GlitchTip → `specs/infrastructure/glitchtip.yaml`).
 
 ---
 
@@ -90,7 +99,7 @@ The library **ships ops-only**: `configure()` is **never called** — `agent.mai
 ### 3.2 Prerequisites (pre-existing gaps that block Tier-D **and** today's `propose_fix_prs`)
 1. **Deploy key is documented but unimplemented.** Docstring claims it (`watchdog.py:20-24`) but there is no `ssh-keygen`/mount; the image already expects it at `/var/lib/watchdog/keys/git-deploy.key` via `GIT_SSH_COMMAND` (`Dockerfile:118-121`). → Implement generate-once + mount RO mode 600. (Standalone value: unblocks the existing PR path too.)
 2. **App-container HEALTHCHECK.** `verify_health` defaults to PASS unless docker reports literal `"unhealthy"` (`coordinator.py:430-441`; `agent.gather_snapshot` `:198-207`); with no HEALTHCHECK, auto-rollback-on-health is a **no-op**. → Driver must ensure the watched app has a real `HEALTHCHECK` (or inject a custom `verify_health`), and consider `depends_on: condition: service_healthy` (today it's a bare list, `watchdog.py:395`).
-3. **`SIDECAR_SOURCE` path mismatch.** Constant = `…/watchdog/sidecar/` (`watchdog.py:92`) but the real tree is `…/watchdog/watchdog_sidecar/`. → Verify what `fabrik apply` actually resolves **before** extending the build flow (may already be broken or there's an undocumented copy step).
+3. **`SIDECAR_SOURCE` path mismatch — RESOLVED 2026-06-29.** Constant was `…/watchdog/sidecar/`, but fabrik-lib renamed the tree to `…/watchdog/watchdog_sidecar/` (Jun 29), so `_build_image()` would abort on **every** watchdog `fabrik apply` today (the live `watchdog-test` image was built 2026-06-04, pre-rename — that's why it exists but a fresh apply would fail). Fixed `watchdog.py:92` + docstring; regression-guarded by `tests/test_watchdog_driver.py::TestSidecarSource`. A driver test file (dry-run + render-context + path guard, no SSH) now exists so this class of break is caught.
 4. **Driver bypasses Pydantic.** It reads raw `wcfg.get()` with its own defaults (`watchdog.py:248-273`), not `WatchdogConfig`. → Any new field must be threaded through **4** sites.
 
 ### 3.3 Spec opt-in

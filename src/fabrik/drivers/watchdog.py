@@ -4,7 +4,7 @@ Called by ``InfrastructureProvisioner._provision_watchdog`` (T-P2 artifact 12)
 after the spec's main compose stack is deployed. Three jobs:
 
 1. **Render-and-build.** Vendor the sidecar source tree from
-   ``/opt/fabrik-lib/watchdog/sidecar/`` into a per-project build context,
+   ``/opt/fabrik-lib/watchdog/watchdog_sidecar/`` into a per-project build context,
    render the 3 placeholders in ``claude-settings.json.template`` (``<project_id>``,
    ``<main_container>``, ``<project_prefix>``) to ``claude-settings.json``,
    patch the Dockerfile's COPY line to pick up the rendered file, tar the
@@ -89,7 +89,7 @@ logger = logging.getLogger(__name__)
 
 # ── Constants ─────────────────────────────────────────────────────────────
 
-SIDECAR_SOURCE = Path("/opt/fabrik-lib/watchdog/sidecar")
+SIDECAR_SOURCE = Path("/opt/fabrik-lib/watchdog/watchdog_sidecar")
 IMAGE_REPO = "fabrik/watchdog"
 # Where on the VPS the build context lands while docker reads it. Always
 # under /tmp so a failed build doesn't leave a per-project residue under
@@ -240,7 +240,7 @@ class WatchdogDriver:
         # the value below is the template the driver renders.
         pg_dsn = wcfg.get(
             "pg_dsn",
-            "postgresql://watchdog:${WATCHDOG_PG_PASSWORD}@postgres-main:5432/fabrik_analytics",
+            "postgresql://watchdog:${WATCHDOG_PG_PASSWORD}@postgres-main:5432/fabrik_analytics",  # noqa: env-var interpolation
         )
 
         image_tag = f"{IMAGE_REPO}:{project_id}"
@@ -437,7 +437,7 @@ class WatchdogDriver:
                         }
                     },
                     "healthcheck": {
-                        "test": ["CMD", "curl", "-fsS", "http://localhost:8888/health"],
+                        "test": ["CMD", "curl", "-fsS", "http://localhost:8888/health"],  # noqa: container self-check; localhost is correct inside the container
                         "interval": "30s",
                         "timeout": "5s",
                         "start_period": "30s",

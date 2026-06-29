@@ -148,6 +148,9 @@
   thead th[data-sort="input_cost_per_m"],
   thead th[data-sort="output_cost_per_m"],
   thead th[data-sort="context_window_k"],
+  thead th[data-sort="output_tokens_per_sec"],
+  thead th[data-sort="ttft_ms"],
+  thead th[data-sort="cheapest_gateway_price"],
   thead th[data-sort="quality_tier"],
   thead th[data-sort="_best_code_score"],
   thead th[data-sort="arena_elo"],
@@ -496,6 +499,9 @@
           <th data-sort="input_cost_per_m" data-tabs="overview reasoning coding translation transcription voice image video ocr" title="Vendor-quoted price per service-type unit (LLM: $/M tokens · STT: $/audio-minute · TTS/Translation: $/1K chars · Image: $/image · Video: $/sec · OCR: $/page). Hover any cell for source / canonical metric.">Price</th>
           <th data-sort="output_cost_per_m" data-tabs="overview reasoning coding translation" title="USD per million output tokens (LLMs only). For non-LLM services see the unit hover on the Price column.">$/M out</th>
           <th data-sort="context_window_k" data-tabs="overview reasoning coding translation">Ctx (k)</th>
+          <th data-sort="output_tokens_per_sec" data-tabs="overview reasoning coding translation" title="Throughput in output tokens per second (Artificial Analysis benchmark). Higher is better. Empty cells = AA didn't match this model.">Speed</th>
+          <th data-sort="ttft_ms" data-tabs="overview reasoning coding translation" title="Time-to-first-token in milliseconds (Artificial Analysis). LOWER is better — interactive UX feel.">TTFT</th>
+          <th data-sort="cheapest_gateway_price" data-tabs="overview translation transcription voice image video ocr" title="Lowest known per-row price across direct vendor + Replicate + fal.ai mirrors (matches the Source 'R' / 'F' badges + the cheaper-badge on the Price cell). LOWER is better; click to sort by savings.">Cheapest</th>
           <th data-sort="quality_tier" data-tabs="overview reasoning coding translation transcription voice image video ocr">Tier</th>
           <th data-tabs="overview reasoning coding translation">Caps</th>
           <th data-sort="_best_code_score" data-tabs="coding" title="Best-available coding signal per row, max'd across SWE-bench Verified + SWE-bench Multilingual, then falling back through Aider Polyglot > weighted_coding (BenchLM) > design_arena_coding ELO normalized to 0-100. CAVEAT: scores from different sources aren't strictly comparable (a SWE 75 ≠ an Aider 75 ≠ a DA 1280). Hover any cell to see which source drove the number. Click to sort descending; toggle 'has Best Code' chip in the sidebar to hide rows without any explicit coding signal.">Best Code</th>
@@ -1049,6 +1055,9 @@ function refresh() {
       <td class="cost" title="${priceSourceLabel(m)} — input cost">${fmtCost(m.input_cost_per_m, m)}${maybeCheaperBadge(m)}</td>
       <td class="cost" title="${priceSourceLabel(m)} — output cost">${(m.service_type && m.service_type !== "llm" && m.service_type !== "embedding") ? "<span style='color:var(--muted)' title='Not applicable — this service bills on a single axis (see Price column)'>n/a</span>" : fmtCost(m.output_cost_per_m, m)}</td>
       <td class="num">${m.context_window_k || ""}</td>
+      <td class="num" title="${m.output_tokens_per_sec ? 'Throughput from Artificial Analysis (' + (m.speed_source || 'AA') + ')' : 'No throughput data'}">${m.output_tokens_per_sec != null ? m.output_tokens_per_sec.toFixed(0) : ""}</td>
+      <td class="num" title="${m.ttft_ms != null ? 'Time-to-first-token: ' + m.ttft_ms.toFixed(0) + ' ms' : 'No TTFT data'}">${m.ttft_ms != null ? m.ttft_ms.toFixed(0) : ""}</td> <!-- noqa: 'token' is the LLM-token concept, not a secret -->
+      <td class="cost" title="${m.cheapest_gateway ? 'Cheapest via ' + m.cheapest_gateway : 'No gateway price comparison available'}">${m.cheapest_gateway_price != null ? fmtCost(m.cheapest_gateway_price, m) : '<span style="color:var(--muted)">—</span>'}</td>
       <td class="tier t-${m.quality_tier || 0}" title="${m.quality_tier ? '' : 'Not yet rated by the local ranking pipeline'}">${m.quality_tier ? "T" + m.quality_tier : "—"}</td>
       <td class="cap">${m.kind === "chat" ? fmtCaps(m) : "<span style='color:var(--muted)'>embed</span>"}</td>
       <td class="num" title="${m._best_code_label ? "Strongest available coding signal: " + m._best_code_label : "No coding signal — tiered by family/cost"}" style="${m._best_code_label ? "font-weight:600;color:var(--accent)" : "color:var(--muted)"}">${m._best_code_label || "—"}</td>

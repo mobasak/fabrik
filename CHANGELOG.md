@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — watchdog driver SIDECAR_SOURCE path (broke `fabrik apply`) + driver dry-run test harness (2026-06-29)
+
+`src/fabrik/drivers/watchdog.py` `SIDECAR_SOURCE` pointed at `/opt/fabrik-lib/watchdog/sidecar`, but fabrik-lib renamed that tree to `watchdog_sidecar/` (Jun 29) — so `_build_image()` aborted with 'sidecar source not found' on **every** watchdog `fabrik apply` (the live `watchdog-test` image survived only because it was built 2026-06-04, pre-rename). Fixed the constant + docstring. Added `tests/test_watchdog_driver.py` (dry-run, render-context, and a SIDECAR_SOURCE existence regression — all no-SSH) so the driver is testable/dry-runnable and this break class is caught. Plan `docs/development/plans/2026-06-29-plan-watchdog-deploy-side.md` updated to the pro-grade AI-managed, (mostly) fully-automated dev→deploy→VPS operating model (manual UI steps reframed as automation TODOs).
+
+### Added — Speed / TTFT / Cheapest columns surfaced in the AI Models Browser (2026-06-29)
+
+Audit found 4 high-value columns that exist in `agents` but were never rendered as table columns. Now added: **Speed** (`output_tokens_per_sec`, 97/555 rows) and **TTFT** (`ttft_ms`, same) on every LLM tab — these come from `scrape_artificial_analysis.py` which we just wired into the daily refresh, so they stay fresh; **Cheapest** (`cheapest_gateway_price`, 16/555) on Overview + Translation + every specialty tab — sortable column making the −X% savings comparable across rows (previously only surfaced as an inline badge in the Price cell). The Cheapest column deliberately stays off the pure-LLM Reasoning/Coding tabs because the current mirror map only carries direct-vendor specialists; once OR/Kilo mirrors get added in plan-2-aggregator-pricing Phase 6, those tabs will also start surfacing winners. Right-align CSS extended to cover all 3 new numeric columns; row template kept in column-order sync with the new headers (23 ths = 23 tds).
+
 ### Added — declare GlitchTip in infra specs (errors.vps1, watchdog error-tracker source) (2026-06-29)
 
 GlitchTip (`glitchtip-web` + `glitchtip-worker`) runs live on vps1 from a hand-maintained `/opt/glitchtip/compose.yaml` but was **undeclared** in `specs/`. Added `specs/infrastructure/glitchtip.yaml` mirroring the live compose (Sentry-compatible error tracker, shared `postgres-main`/`redis-main`, Traefik `errors.vps1.ocoron.com`, secrets as `${VAR}`) so the watchdog's error-tracker source is under declarative management. New env vars `GLITCHTIP_SECRET_KEY`/`GLITCHTIP_REDIS_URL` documented in `.env.example` + `docs/CONFIGURATION.md`; INDEX updated. Declaration only — `fabrik apply` is targeted (won't auto-redeploy); apply requires the EXISTING live secret values or the live tracker breaks (loud header in the spec).
