@@ -366,6 +366,19 @@ class WatchdogDriver:
         main_container = wcfg.get("main_container") or project_id
         project_prefix = wcfg.get("project_prefix") or project_id
 
+        # Git remote for the PR/Tier-D workspace clone. It is NOT a watchdog-block
+        # field (WatchdogConfig has extra="forbid") — it's the project's own
+        # source repo. Derive it from spec.source.repository; fall back to a raw
+        # wcfg value only for unvalidated test dicts. Empty for docker/local
+        # sources, which Tier-D's gate then rejects.
+        source = spec.get("source") or {}
+        source_repo = (
+            source.get("repository")
+            if isinstance(source, dict)
+            else getattr(source, "repository", None)
+        )
+        project_git_remote = wcfg.get("project_git_remote") or source_repo or ""
+
         # Apprise URL — by convention the registrar bakes in /notify/alerts.
         apprise_url = wcfg.get("apprise_url", "http://apprise:8000/notify/alerts")
         # Redis URL: registrar would normally inject this via inject_env when
@@ -404,7 +417,7 @@ class WatchdogDriver:
             cheap_model=wcfg.get("cheap_model", "anthropic/claude-3.5-haiku"),
             expensive_model=wcfg.get("expensive_model", "anthropic/claude-opus-4"),
             project_system_prompt=wcfg.get("project_system_prompt", ""),
-            project_git_remote=wcfg.get("project_git_remote", ""),
+            project_git_remote=project_git_remote,
             check_interval_seconds=int(wcfg.get("check_interval_seconds", 60)),
             log_level=str(wcfg.get("log_level", "INFO")),
             promtail_update_url=str(wcfg.get("promtail_update_url", "")),

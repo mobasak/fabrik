@@ -186,18 +186,30 @@ class TestDryRunSteps:
 
 
 def _tier_d_rctx(driver, *, git_remote="git@github.com:o/p.git"):
+    # git remote comes from spec.source.repository (real flow), NOT the watchdog block.
     spec = {
         "id": "demo",
+        "source": {"type": "git", "repository": git_remote} if git_remote else {"type": "docker"},
         "watchdog": {
             "enabled": True,
             "propose_fix_prs": True,
             "auto_code_fix": True,
             "code_fix_window_sec": 600,
             "critical_paths": ["src/auth/", "compose.yaml"],
-            "project_git_remote": git_remote,
         },
     }
     return driver._build_render_context(spec, _ctx(spec))
+
+
+class TestGitRemoteDerivation:
+    def test_from_source_repository(self):
+        rctx = _tier_d_rctx(WatchdogDriver(), git_remote="git@github.com:o/p.git")
+        assert rctx.project_git_remote == "git@github.com:o/p.git"
+
+    def test_docker_source_yields_empty(self):
+        # docker-sourced project has no git repo → empty remote → Tier-D gate rejects
+        rctx = _tier_d_rctx(WatchdogDriver(), git_remote="")
+        assert rctx.project_git_remote == ""
 
 
 class TestTierDRenderContext:

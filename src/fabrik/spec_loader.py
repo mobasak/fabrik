@@ -516,9 +516,10 @@ class WatchdogConfig(BaseModel):
             "secret-scanned, Telegram Approve/Reject/STOP-gated with a silence-"
             "window auto-apply, auto-rolled-back on health regression, and audited. "
             "REQUIRES propose_fix_prs=true (shares the /var/lib/watchdog/proposed/"
-            "<id> workspace clone) and a project_git_remote; the driver also "
-            "refuses to enable it for an app with no HEALTHCHECK (blind rollback) "
-            "— degrading to escalate-only."
+            "<id> workspace clone) and a git source (the driver derives the clone "
+            "remote from spec.source.repository — NOT a watchdog field); the driver "
+            "also refuses to enable it for an app with no HEALTHCHECK (blind "
+            "rollback) — degrading to escalate-only."
         ),
     )
     code_fix_window_sec: int = Field(
