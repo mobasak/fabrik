@@ -1,15 +1,16 @@
 ---
-Status: DRAFT (v3)
+Status: DRAFT (v3.1)
 Owner: ozgur
 Created: 2026-06-29
-Last revised: 2026-06-29 (v3 — switched to existing `browserless` on vps1 for JS rendering; dropped Crawl4AI/Firecrawl; fabrik-lib module is a thin browserless client)
+Last revised: 2026-06-29 (v3.1 — fabrik-lib `web-scrape` module is BUILT and on `mobasak/fabrik-lib@main`; applied 5 corrections from the builder's handoff report; Phase -1 satisfied — moves directly to Phase 0)
 ---
 
 ## Revision history
 
 - **v1** — Per-vendor `requests` + Firecrawl free for 4 heavy-JS vendors. Rejected: Firecrawl credit cap risk + external dependency.
 - **v2** — Crawl4AI inside a `fabrik-lib/web-scrape/` Python module. Rejected: would add Chromium (~120MB) + Crawl4AI to every consumer project, and we already pay 2GB RAM for `browserless` on vps1.
-- **v3 (current)** — Use the **existing `browserless` container** on vps1 ([docs/infrastructure/vps-complete-inventory.md:124](../../infrastructure/vps-complete-inventory.md#L124) — Headless Chrome HTTP API at `browser.vps1.ocoron.com`). `fabrik-lib/web-scrape/` becomes a thin HTTP client (httpx + bs4 + a Next.js hydration parser). Zero new infra. Zero new heavyweight deps in `.venv`. Reusable across all Fabrik projects via the same mesh-or-public endpoint.
+- **v3** — Use the **existing `browserless` container** on vps1 ([docs/infrastructure/vps-complete-inventory.md:124](../../infrastructure/vps-complete-inventory.md#L124) — Headless Chrome HTTP API at `browser.vps1.ocoron.com`). `fabrik-lib/web-scrape/` becomes a thin HTTP client. Zero new infra. Zero new heavyweight deps. Reusable across all Fabrik projects.
+- **v3.1 (current)** — `fabrik-lib/web-scrape` is **built and on `mobasak/fabrik-lib@main`** (Phase -1 satisfied). Applied 5 corrections from the builder handoff: (1) `browserless_token` is REQUIRED, sent as `Authorization: Bearer` header (not query string); (2) no `userAgent` in browserless `/content` body — v2 rejects it; (3) cache is self-contained sha256-envelope JSON keyed by `cache_dir=`, not `fabrik-lib/file-cache/`; (4) runtime dep is `httpx` only (drop bs4 + pyyaml from this plan's earlier consumer-side req list); (5) Firecrawl risk row dropped (no Firecrawl path exists). Bonus: `is_bot_wall(html)` + `fetch_rendered(stealth=True)` escalation is built in — wire it into the orchestrator if any vendor returns Cloudflare/bot-wall HTML.
 
 # Direct-vendor pricing & status — complete daily refresh
 
@@ -92,17 +93,21 @@ Phase 0 grounds these tiers per vendor — assigned method may shift based on ac
 **Two layers, clean separation:**
 
 ```
-fabrik-lib/web-scrape/                           ← reusable, vendored by any project
+fabrik-lib/web-scrape/web_scrape/                ← BUILT (vendor it: cp -r .../web_scrape <project>/src/web_scrape)
   webscrape.py
-    fetch_static(url, **kw) -> str               (httpx, no JS)
-    fetch_rendered(url, **kw) -> str             (POST browserless /content)
-    extract_nextjs_data(html) -> dict            (parses __NEXT_DATA__)
-    extract_apollo_state(html) -> dict           (parses Apollo SSR cache)
-    cache_get(key) / cache_put(key, content)     (file-cache TTL)
-    + ROBOTS.txt check, retries, alerting hook
+    WebScraper                                   (class — single entrypoint)
+      .fetch_static(url, ignore_cache=False)     (httpx, no JS; returns 4xx bodies)
+      .fetch_rendered(url, wait_for_selector=, stealth=False)   (POST browserless /content; raises FetchError on non-200)
+    extract_nextjs_data(html)                    (parses <script id="__NEXT_DATA__">)
+    extract_apollo_state(html)                   (parses window.__APOLLO_STATE__ = {…})
+    extract_react_props(html)                    (Replicate's react-component-props-* pattern)
+    is_bot_wall(html)                            (Cloudflare/bot-wall detector → trigger stealth retry)
+    FetchError, ParseError, RobotsError          (3 exception types, all subclass WebScrapeError)
+    + sha256-keyed JSON envelope cache (self-contained), robots.txt respected by default, exp-backoff retries
 
 scripts/kilo-benchmarks/
-  fetch_direct_vendor_prices.py                  ← THIS PLAN'S DELIVERABLE — consumer of fabrik-lib/web-scrape
+  web_scrape/                                    ← vendored from fabrik-lib
+  fetch_direct_vendor_prices.py                  ← THIS PLAN'S DELIVERABLE — consumer of web_scrape
   direct_vendor_pricing_registry.yaml            ← per-vendor URL + parser + expected unit
   direct_vendor_parsers/
     elevenlabs.py     extract(content) -> [ParsedRow]
@@ -112,17 +117,42 @@ scripts/kilo-benchmarks/
 
 The orchestrator owns: registry parsing, fetch dispatch, validation, DB merge, alerting. The parsers own: just transforming `content` (HTML/JSON dict) into `[ParsedRow]`. The fabrik-lib module owns: HTTP, caching, JS rendering, robots.txt — completely reusable for any future project.
 
+**Vendoring** — Copy the inner `web_scrape/` snake_pkg into the kilo-benchmarks tree (vendor it, don't import — fabrik-lib contract):
+```
+cp -r /opt/fabrik-lib/web-scrape/web_scrape  /opt/fabrik/scripts/kilo-benchmarks/web_scrape
+# add `httpx>=0.27` to the project's requirements (ONLY runtime dep — no bs4, no pyyaml)
+```
+
+**Construction** (corrected per builder handoff — `browserless_token` REQUIRED + sent as `Authorization: Bearer`):
+```python
+from web_scrape import WebScraper, extract_nextjs_data, extract_apollo_state, extract_react_props, is_bot_wall, FetchError
+
+scraper = WebScraper(
+    cache_dir=Path("scripts/kilo-benchmarks/cache/direct-vendor-scrape"),
+    browserless_url="https://browser.vps1.ocoron.com",
+    browserless_token=os.environ["BROWSERLESS_TOKEN"],   # REQUIRED; from /opt/fabrik/.env
+)
+html = scraper.fetch_static(url)                          # static + SSR pages
+html = scraper.fetch_rendered(url, wait_for_selector=".price")   # JS-rendered
+
+# If a vendor returns a bot-wall, escalate to stealth mode (browserless /function with anti-bot masks):
+if is_bot_wall(html):
+    html = scraper.fetch_rendered(url, stealth=True)
+```
+
 **Orchestrator** — `scripts/kilo-benchmarks/fetch_direct_vendor_prices.py`:
 - Reads registry YAML
-- For each vendor: `fabrik_lib.webscrape.fetch_*` → invoke parser → validate → DB merge
+- For each vendor: `scraper.fetch_static(url)` or `.fetch_rendered(url)` → invoke parser → validate → DB merge
 - Atomic: SQLite transaction per vendor; rollback on parser exception
-- Cache layer lives in fabrik-lib (file-cache module already exists); orchestrator just passes a cache dir
+- Cache: self-contained in `web_scrape` (sha256-keyed JSON envelopes under `cache_dir`); pass `cache_ttl_s=86400` on construct; `scraper.fetch_static(url, ignore_cache=True)` to force-refresh
+- Retries: built into `web_scrape` (exponential backoff on 5xx / 429 / connection errors); orchestrator doesn't reimplement
+- Robots.txt: respected by default; opt out per-vendor only with `WebScraper(respect_robots_txt=False)` and a justification
 
-**Registry** — `scripts/kilo-benchmarks/direct_vendor_pricing_registry.yaml`:
+**Registry** — `scripts/kilo-benchmarks/direct_vendor_pricing_registry.yaml` (`pyyaml` is a build-time dep of the orchestrator for parsing this file — NOT of the `web_scrape` module itself):
 ```yaml
 elevenlabs:
   pricing_url: https://elevenlabs.io/pricing
-  fetch_method: nextjs_hydration   # | static_html | json_api | firecrawl
+  fetch_method: static                # | rendered | json_api  (no "firecrawl" — that path was dropped in v3)
   parser_module: direct_vendor_parsers.elevenlabs
   models:
     elevenlabs/multilingual-v2:
@@ -166,13 +196,16 @@ ALTER TABLE agents ADD COLUMN price_scrape_source TEXT;      -- vendor_url for a
 
 ## Phases
 
-### Phase -1 — Build `fabrik-lib/web-scrape/` from its SPEC.md (1 day)
+### Phase -1 — Build `fabrik-lib/web-scrape/` from its SPEC.md ✅ SATISFIED (2026-06-29)
 
-**Deliverable**: `fabrik-lib/web-scrape/` module (separate repo: `mobasak/fabrik-lib`). Contract is the canonical [fabrik-lib/web-scrape/SPEC.md](../../../../fabrik-lib/web-scrape/SPEC.md) — built by an AI agent (Claude Code / Traycer) reading that spec directly. Includes README, requirements.txt (`httpx`, `beautifulsoup4`, `pyyaml`), `webscrape.py`, `test_webscrape.py`, row added to `fabrik-lib/README.md` table.
+**Status**: Built and on `mobasak/fabrik-lib@main`. Tests green. `fetch_rendered("https://example.com")` confirmed live against vps1 browserless. README row + CHANGELOG entry present.
 
-**Why first**: every subsequent phase consumes this module. If we build it inside `scripts/kilo-benchmarks/` first and "extract later", we'll never extract (history shows this in every codebase). Build the reusable shape first, consume from it.
+**Source of truth**: `/opt/fabrik-lib/web-scrape/README.md` ("Notes / SPEC deviations" section captures anywhere the build diverged from the original SPEC). Runtime dep: `httpx>=0.27` only.
 
-**Evidence section produced**: `pytest fabrik-lib/web-scrape/test_webscrape.py` green; `fabrik_lib.webscrape.fetch_rendered("https://example.com")` returns Chrome-rendered HTML against vps1 browserless; README rendered in `/opt/fabrik-lib/README.md` table.
+**Sibling modules also available on main** (optional, not in scope for Phases 0-5 unless a vendor needs them):
+- `is_bot_wall(html)` helper + `scraper.fetch_rendered(url, stealth=True)` — anti-bot escalation built into `web-scrape` itself (routes through browserless `/function` with anti-bot masks; gets past basic Cloudflare).
+- `fabrik-lib/captcha-solve/` — `httpx`-only async solver for reCAPTCHA/hCaptcha/Turnstile via Anti-Captcha. Opt-in only where authorized.
+- `fabrik-lib/doc-crawl/` — site-scale crawl (sitemap + BFS + dedup + classify + HTML→markdown). Overkill for 28 fixed vendor URLs; not used by this plan.
 
 ### Phase 0 — Per-vendor URL + parsing-method grounding (1 day)
 
@@ -233,7 +266,7 @@ ALTER TABLE agents ADD COLUMN price_scrape_source TEXT;      -- vendor_url for a
 
 | Risk | Likelihood | Mitigation |
 |---|---|---|
-| Vendor blocks scraping (robots.txt / Cloudflare) | Medium | Per-vendor robots.txt check during Phase 0 grounding; fall back to Firecrawl which respects bot policies; for hard blockers, manual quarterly audit + Status tooltip warning |
+| Vendor blocks scraping (robots.txt / Cloudflare) | Medium | Per-vendor robots.txt check during Phase 0 grounding. Cloudflare/bot-wall responses trigger `is_bot_wall(html)` in the orchestrator → escalate via `scraper.fetch_rendered(url, stealth=True)` (browserless `/function` with anti-bot masks; not a guaranteed bypass). For hard blockers, manual quarterly audit + Status tooltip warning. `fabrik-lib/captcha-solve/` is available if a vendor surfaces a captcha — opt-in per-vendor only, where authorized. |
 | vps1 `browserless` OOM under daily load | Very Low | 28 calls/day × ~3s each = 90s of total Chromium time; browserless container has 2GB and is otherwise idle. cAdvisor verification in Phase 3 evidence. |
 | vps1 `browserless` unreachable from WSL (network blip) | Low | Orchestrator retries 3× with exponential backoff via `fabrik-lib/web-scrape`. If still fails, that vendor's `consecutive_failures` bumps; 7 consecutive days → escalation alert. No silent skip. |
 | Parser breaks silently when vendor redesigns | High | `consecutive_failures` counter + 7-day Telegram escalation; cache the last-known-good payload so we KNOW when the page shape changed |
@@ -249,7 +282,7 @@ What I do NOT yet know and must learn in Phase 0:
 - Whether AWS/Azure pricing APIs return per-model granularity (might be too coarse for AssemblyAI/Polly)
 - Whether the 20 `provider='unknown'` rows are actually parseable as `<provider>/<model>` ID strings
 
-Phase 0 is the binding planning step. If grounding reveals e.g. 6 vendors need Firecrawl instead of 4, Phase 3 expands and Phase 2 shrinks; total effort approximately constant.
+Phase 0 is the binding planning step. If grounding reveals e.g. 6 vendors need `fetch_rendered` (browserless) instead of 4, Phase 3 expands and Phase 2 shrinks; total effort approximately constant. If a vendor blocks both static + rendered, the orchestrator escalates to `fetch_rendered(stealth=True)` automatically (via `is_bot_wall`).
 
 ## Success criteria (definition of done)
 
