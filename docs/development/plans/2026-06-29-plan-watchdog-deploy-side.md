@@ -21,6 +21,16 @@ Per the single-operator threat model + §4, first Tier-D enablement must be a **
 3. `fabrik plan <spec>` → review → `fabrik apply <spec>` (background; build ~3 min). The driver renders `bootstrap.py`, switches the CMD, generates the deploy key once and **logs the public key**.
 4. Register that public key as a **write-enabled deploy key** on the project's GitHub repo (or via `gh api`), scoped to `watchdog/*` refs per the CODEOWNERS ruleset.
 5. Watch the first incident: Telegram approval → silence-window auto-apply → tests gate → push → redeploy → health-verified, auto-rollback on regression, STOP kill-switch.
+
+### 9a. error_webhook trigger enablement (independent of Tier-D)
+
+The fabrik-lib error-tracker trigger landed (`685de82` on `feat/watchdog-autonomous-remediation`). Driver-side wiring is now in place: a `watchdog.trigger_sources` spec field renders `WATCHDOG_TRIGGER_SOURCES` (validated against `emitter|health|error_webhook`). This is **independent of Tier-D** — it feeds GlitchTip new-issue events into the bus as incidents; what the watchdog DOES with them (escalate / PR / Tier-D apply) is orthogonal. To enable on any deployed watchdog target:
+
+1. In the spec `watchdog:` block set `trigger_sources: [emitter, health, error_webhook]`. Empty/absent leaves `WATCHDOG_TRIGGER_SOURCES` unset → legacy poll path (no bus), unchanged. Setting `error_webhook` starts the sidecar's `:8889` ingest server.
+2. `:8889` is internal-only — the sidecar is on the `fabrik` net; **no Traefik / host port**. Point a GlitchTip "General Slack-compatible webhook" new-issue alert at `http://<id>-watchdog:8889/` (the `webhook` recipient type — confirmed in §2.8 as the parser's primary-branch shape).
+3. Optional hardening: set `WATCHDOG_INGEST_TOKEN=<secret>` in the project `.env`; the ingest checks header `X-Watchdog-Token`. GlitchTip can't add headers easily, so the default is no-token + network isolation (the `:8889` server is unreachable off the fabrik net).
+4. Cross-repo deferred (fabrik-lib's call): the emitter sub-second wake (Redis) — only then does `emitter` become a real bus source with proper at-least-once reconciliation. Flag the fabrik-lib agent when the deploy-side wake is wired.
+
 **Date:** 2026-06-29
 **Owner:** Fabrik AI (`/opt/fabrik`, fleet/deploy side)
 **Origin:** Two issues handed off from the fabrik-lib watchdog autonomous-remediation work (PR #1, branch `feat/watchdog-autonomous-remediation`). This plan covers only the `/opt/fabrik` half. The library half (`/opt/fabrik-lib`) is the other agent's.

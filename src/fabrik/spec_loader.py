@@ -544,6 +544,22 @@ class WatchdogConfig(BaseModel):
         ),
     )
 
+    trigger_sources: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Opt-in event-driven trigger sources for the sidecar bus, rendered to "
+            "WATCHDOG_TRIGGER_SOURCES (csv). Allowed: 'emitter' (app-emitted "
+            "incidents), 'health' (container health watch), 'error_webhook' "
+            "(GlitchTip new-issue webhook → the sidecar's :8889 ingest server). "
+            "Empty (default) leaves WATCHDOG_TRIGGER_SOURCES UNSET, so the library "
+            "runs the legacy poll path with NO trigger bus (backward-compatible). "
+            "Setting 'error_webhook' starts the :8889 ingest server; point a "
+            "GlitchTip 'General Slack-compatible webhook' new-issue alert at "
+            "http://<id>-watchdog:8889/ on the internal fabrik net (no Traefik). "
+            "Optional shared-secret: set WATCHDOG_INGEST_TOKEN in the project .env."
+        ),
+    )
+
     @model_validator(mode="after")
     def _check_caps_set_when_enabled(self) -> "WatchdogConfig":
         """If enabled=true, at least one cap must be > 0.
@@ -572,6 +588,17 @@ class WatchdogConfig(BaseModel):
             raise ValueError(
                 "watchdog: auto_code_fix=true requires propose_fix_prs=true "
                 "(Tier-D reuses the proposed-fix workspace clone)"
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _check_trigger_sources(self) -> "WatchdogConfig":
+        """Only the library's known bus sources are valid (fabrik-lib bus.py)."""
+        allowed = {"emitter", "health", "error_webhook"}
+        bad = [s for s in self.trigger_sources if s not in allowed]
+        if bad:
+            raise ValueError(
+                f"watchdog: unknown trigger_sources {bad!r}; allowed: {sorted(allowed)}"
             )
         return self
 

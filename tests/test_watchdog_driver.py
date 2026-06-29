@@ -246,6 +246,31 @@ class TestTierDEnv:
         assert "WATCHDOG_APPROVAL_WINDOW_SEC" not in off
 
 
+class TestTriggerSources:
+    def test_rendered_when_set(self):
+        d = WatchdogDriver()
+        spec = {
+            "id": "demo",
+            "watchdog": {"enabled": True, "trigger_sources": ["emitter", "health", "error_webhook"]},
+        }
+        env = d._render_env(d._build_render_context(spec, _ctx(spec)))
+        assert env["WATCHDOG_TRIGGER_SOURCES"] == "emitter,health,error_webhook"
+
+    def test_absent_when_empty(self):
+        # Empty → unset → library legacy poll path (no bus). Backward-compatible.
+        d = WatchdogDriver()
+        env = d._render_env(_rctx(d))
+        assert "WATCHDOG_TRIGGER_SOURCES" not in env
+
+    def test_independent_of_tier_d(self):
+        # error_webhook trigger needs no Tier-D / git source.
+        d = WatchdogDriver()
+        spec = {"id": "demo", "watchdog": {"enabled": True, "trigger_sources": ["error_webhook"]}}
+        rctx = d._build_render_context(spec, _ctx(spec))
+        assert rctx.auto_code_fix is False
+        assert d._render_env(rctx)["WATCHDOG_TRIGGER_SOURCES"] == "error_webhook"
+
+
 class TestGateTierD:
     def test_missing_git_remote_hard_fails(self):
         d = WatchdogDriver()

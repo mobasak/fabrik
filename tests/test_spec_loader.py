@@ -396,6 +396,25 @@ class TestWatchdogConfig:
         with pytest.raises(ValidationError):
             WatchdogConfig(code_fix_window_sec=4000)
 
+    def test_trigger_sources_default_empty(self) -> None:
+        from fabrik.spec_loader import WatchdogConfig
+
+        assert WatchdogConfig().trigger_sources == []
+
+    def test_trigger_sources_accepts_known_tokens(self) -> None:
+        from fabrik.spec_loader import WatchdogConfig
+
+        w = WatchdogConfig(trigger_sources=["emitter", "health", "error_webhook"])
+        assert "error_webhook" in w.trigger_sources
+
+    def test_trigger_sources_rejects_unknown(self) -> None:
+        from pydantic import ValidationError
+
+        from fabrik.spec_loader import WatchdogConfig
+
+        with pytest.raises(ValidationError, match="unknown trigger_sources"):
+            WatchdogConfig(trigger_sources=["error_webhook", "bogus"])
+
     def test_negative_budget_rejected(self) -> None:
         """``ge=0.0`` on USD fields — negative budgets are nonsense."""
         from pydantic import ValidationError

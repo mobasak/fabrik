@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Watchdog driver: error_webhook trigger source opt-in (WATCHDOG_TRIGGER_SOURCES) (2026-06-29)
+
+fabrik-lib shipped the error-tracker trigger (685de82); this wires the deploy side. New `WatchdogConfig.trigger_sources` (validated against `emitter|health|error_webhook`) renders `WATCHDOG_TRIGGER_SOURCES` (csv) into the sidecar env — independent of Tier-D. Empty/absent (default) leaves it UNSET → library legacy poll path, no trigger bus (backward-compatible). `error_webhook` starts the sidecar's `:8889` ingest server; a GlitchTip "General Slack-compatible webhook" new-issue alert points at `http://<id>-watchdog:8889/` over the internal fabrik net (no Traefik/host port); optional `WATCHDOG_INGEST_TOKEN` shared secret via the project `.env`. Enablement runbook: plan §9a. Tests cover token validation + render-when-set / absent-when-empty / Tier-D-independence.
+
 ### Fixed — Phase B/C validated by live watchdog-test apply; surfaced + fixed a fabrik-lib Dockerfile COPY gap (2026-06-29)
 
 A real `fabrik apply` of `watchdog-test` validated the watchdog driver on the fleet: a fresh sidecar image built against the renamed `watchdog_sidecar/` path (proving the `SIDECAR_SOURCE` fix) and the HEALTHCHECK pre-flight ran. The fresh build surfaced a latent **fabrik-lib** bug — the sidecar Dockerfile's COPY list was stale after the autonomous-remediation refactor (omitted `coordinator.py` + the `control_plane/ deploy_adapter/ remediation/ trigger/` subpackages), so the first fresh image crash-looped `ModuleNotFoundError: watchdog_sidecar.coordinator` (older images masked it — they predate the refactor). Fixed in `/opt/fabrik-lib/.../watchdog_sidecar/Dockerfile` (commit `e436a2a` on `feat/watchdog-autonomous-remediation`); re-applied → sidecar healthy. No `/opt/fabrik` code change — driver behaved correctly; this records the live validation + the cross-repo fix. Tier-D enablement runbook + why no project qualifies yet: plan §9.

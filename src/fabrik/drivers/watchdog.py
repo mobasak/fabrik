@@ -253,6 +253,9 @@ class _RenderContext:
     auto_code_fix: bool
     code_fix_window_sec: int
     critical_paths: list[str]
+    # Opt-in event-driven bus sources (emitter|health|error_webhook). Empty →
+    # WATCHDOG_TRIGGER_SOURCES left unset → library legacy poll path (no bus).
+    trigger_sources: list[str]
     external_docs_enabled: bool
     llm_provider_primary: str
     llm_provider_fallback: str
@@ -411,6 +414,7 @@ class WatchdogDriver:
             auto_code_fix=bool(wcfg.get("auto_code_fix", False)),
             code_fix_window_sec=int(wcfg.get("code_fix_window_sec", 300)),
             critical_paths=list(wcfg.get("critical_paths", []) or []),
+            trigger_sources=list(wcfg.get("trigger_sources", []) or []),
             external_docs_enabled=bool(wcfg.get("external_docs_enabled", True)),
             llm_provider_primary=wcfg.get("llm_provider_primary", "claude-code"),
             llm_provider_fallback=wcfg.get("llm_provider_fallback", "openrouter"),
@@ -693,6 +697,15 @@ class WatchdogDriver:
             "WATCHDOG_LOG_LEVEL": rctx.log_level,
             "WATCHDOG_PROMTAIL_UPDATE_URL": rctx.promtail_update_url,
         }
+        # Event-driven bus sources (independent of Tier-D). Only set when the
+        # spec opts in; leaving it UNSET keeps the library on its legacy poll
+        # path (agent.py starts no TriggerBus). 'error_webhook' starts the
+        # sidecar's :8889 ingest server; GlitchTip points its new-issue webhook
+        # at http://<id>-watchdog:8889/ over the internal fabrik net.
+        # WATCHDOG_INGEST_TOKEN (optional shared secret) flows via the project
+        # .env (env_file), not rendered here.
+        if rctx.trigger_sources:
+            env["WATCHDOG_TRIGGER_SOURCES"] = ",".join(rctx.trigger_sources)
         # Tier-D: only emit the autonomous-code-fix env when opted in. The
         # bootstrap (rendered into the image in the same opt-in path) reads
         # these; Telegram tokens + WATCHDOG_TEST_CMD are operator secrets that
