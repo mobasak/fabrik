@@ -207,8 +207,18 @@ def derive_v2(row: dict, or_record: dict | None = None) -> tuple[int, list[str]]
         bump(fam[0], f"family:{fam[1]}")
 
     # ---- cost proxy ----
+    # Adversarial fix 2026-06-29: gate on pricing_unit. The $-thresholds
+    # were calibrated for LLM `M-tokens` (the canonical LLM unit) where
+    # ≥$10/M input cleanly tags frontier models. Applying the same numeric
+    # threshold across heterogeneous units (M-chars, audio-min, image,
+    # video-sec, page) was a category error — e.g. ElevenLabs at $300/M-chars
+    # got bumped to T3 alongside Claude Opus, and trivial $0 self-hosted
+    # XTTS-v2 got bumped to T3 if seed wrote that value. Now non-LLM rows
+    # fall back to family/benchmark signals only; if neither fires they
+    # default to T1 (honest "no comparable signal" floor).
     cost = row.get("input_cost_per_m") or 0
-    if cost > 0:
+    pricing_unit = row.get("pricing_unit") or "M-tokens"
+    if cost > 0 and pricing_unit == "M-tokens":
         for floor, t, why in COST_TIER_FLOORS:
             if cost >= floor:
                 bump(t, why)
