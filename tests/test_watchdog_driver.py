@@ -14,6 +14,7 @@ from unittest import mock
 import pytest
 
 from fabrik.drivers.watchdog import (
+    _BOOTSTRAP_PY,
     SIDECAR_SOURCE,
     WatchdogDriver,
     WatchdogProvisionError,
@@ -164,3 +165,114 @@ class TestDryRunSteps:
             )
         assert not any("deploy key" in r.message for r in caplog.records)
         assert any("HEALTHCHECK" in r.message for r in caplog.records)
+
+    def test_dry_run_lists_tier_d_bootstrap_when_auto_code_fix(self, caplog):
+        d = WatchdogDriver()
+        with caplog.at_level("INFO"):
+            d.provision(
+                _ctx(
+                    {
+                        "id": "p",
+                        "watchdog": {
+                            "enabled": True,
+                            "propose_fix_prs": True,
+                            "auto_code_fix": True,
+                        },
+                    }
+                ),
+                dry_run=True,
+            )
+        assert any("Tier-D bootstrap" in r.message for r in caplog.records)
+
+
+def _tier_d_rctx(driver, *, git_remote="git@github.com:o/p.git"):
+    spec = {
+        "id": "demo",
+        "watchdog": {
+            "enabled": True,
+            "propose_fix_prs": True,
+            "auto_code_fix": True,
+            "code_fix_window_sec": 600,
+            "critical_paths": ["src/auth/", "compose.yaml"],
+            "project_git_remote": git_remote,
+        },
+    }
+    return driver._build_render_context(spec, _ctx(spec))
+
+
+class TestTierDRenderContext:
+    def test_fields_threaded(self):
+        rctx = _tier_d_rctx(WatchdogDriver())
+        assert rctx.auto_code_fix is True
+        assert rctx.code_fix_window_sec == 600
+        assert rctx.critical_paths == ["src/auth/", "compose.yaml"]
+
+    def test_driver_defaults_match_pydantic(self):
+        """R-E: the raw-dict driver defaults must equal the Pydantic defaults."""
+        from fabrik.spec_loader import WatchdogConfig
+
+        rctx = WatchdogDriver()._build_render_context(
+            {"id": "demo", "watchdog": {"enabled": True}}, _ctx({"id": "demo"})
+        )
+        wc = WatchdogConfig()
+        assert rctx.auto_code_fix == wc.auto_code_fix
+        assert rctx.code_fix_window_sec == wc.code_fix_window_sec
+        assert rctx.critical_paths == wc.critical_paths
+
+
+class TestTierDEnv:
+    def test_env_emitted_only_when_auto_code_fix(self):
+        d = WatchdogDriver()
+        on = d._render_env(_tier_d_rctx(d))
+        assert on["WATCHDOG_AUTO_CODE_FIX"] == "true"
+        assert on["WATCHDOG_PROPOSE_FIX_PRS"] == "true"
+        assert on["WATCHDOG_APPROVAL_WINDOW_SEC"] == "600"
+        assert on["WATCHDOG_CRITICAL_PATHS"] == "src/auth/,compose.yaml"
+
+        off = d._render_env(_rctx(d))
+        assert "WATCHDOG_AUTO_CODE_FIX" not in off
+        assert "WATCHDOG_APPROVAL_WINDOW_SEC" not in off
+
+
+class TestGateTierD:
+    def test_missing_git_remote_hard_fails(self):
+        d = WatchdogDriver()
+        rctx = _tier_d_rctx(d, git_remote="")
+        with pytest.raises(WatchdogProvisionError, match="project_git_remote is empty"):
+            d._gate_tier_d(rctx, has_healthcheck=True)
+
+    def test_no_healthcheck_degrades_to_escalate_only(self, caplog):
+        d = WatchdogDriver()
+        rctx = _tier_d_rctx(d)
+        with caplog.at_level("ERROR"):
+            d._gate_tier_d(rctx, has_healthcheck=False)
+        assert rctx.auto_code_fix is False  # degraded
+        assert any("REFUSING Tier-D" in r.message for r in caplog.records)
+
+    def test_all_prereqs_met_keeps_tier_d(self):
+        d = WatchdogDriver()
+        rctx = _tier_d_rctx(d)
+        d._gate_tier_d(rctx, has_healthcheck=True)
+        assert rctx.auto_code_fix is True
+
+    def test_noop_when_tier_d_off(self):
+        d = WatchdogDriver()
+        rctx = _rctx(d)  # auto_code_fix False
+        d._gate_tier_d(rctx, has_healthcheck=False)  # must not raise
+        assert rctx.auto_code_fix is False
+
+
+class TestBootstrapTemplate:
+    def test_is_valid_python(self):
+        compile(_BOOTSTRAP_PY, "bootstrap.py", "exec")
+
+    def test_wires_repo_dir_to_proposed_workspace(self):
+        # repo_dir MUST be the stable per-project clone agent.propose_fix reuses.
+        assert "PROPOSED_WORKSPACE_ROOT" in _BOOTSTRAP_PY
+        assert "GitPushDeployAdapter(" in _BOOTSTRAP_PY
+        assert "configure(**build_deps())" in _BOOTSTRAP_PY
+
+    def test_refuses_without_telegram(self):
+        # The bootstrap must hard-exit (not silently degrade) if Telegram is unset.
+        assert "raise SystemExit" in _BOOTSTRAP_PY
+        assert "TelegramBot.from_env()" in _BOOTSTRAP_PY

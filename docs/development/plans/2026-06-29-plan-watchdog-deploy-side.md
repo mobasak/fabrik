@@ -1,6 +1,6 @@
 # Plan — Watchdog deploy-side: GlitchTip payload capture + Tier-D driver wiring
 
-**Status:** IN PROGRESS — Phase A tooling shipped + validated; **Phase B complete** (SIDECAR_SOURCE fixed; deploy-key generate-once implemented; app-HEALTHCHECK pre-flight warn; all driver methods unit-tested, no SSH). Phase C (prod-affecting, gated) next — requires §5 unknowns pinned from fabrik-lib + a diff-review checkpoint before any `fabrik apply`.
+**Status:** IN PROGRESS — Phase A tooling shipped + validated; **Phase B complete**; **Phase C code complete, OFF BY DEFAULT, awaiting the diff-review checkpoint before any `fabrik apply`**. §5 unknowns all resolved from fabrik-lib (see §5). Phase C: `auto_code_fix`/`code_fix_window_sec`/`critical_paths` spec fields + validator, rendered consumer `bootstrap.py`, conditional Dockerfile CMD switch, Tier-D env, deploy-time gates (git-remote hard-fail, no-HEALTHCHECK degrade). Default path byte-identical. All four bootstrap import paths + ctor args verified against the live library; unit-tested SSH-free. **Not yet enabled on any project; no fleet mutation performed.**
 **Date:** 2026-06-29
 **Owner:** Fabrik AI (`/opt/fabrik`, fleet/deploy side)
 **Origin:** Two issues handed off from the fabrik-lib watchdog autonomous-remediation work (PR #1, branch `feat/watchdog-autonomous-remediation`). This plan covers only the `/opt/fabrik` half. The library half (`/opt/fabrik-lib`) is the other agent's.
@@ -137,12 +137,12 @@ Opt-in only; tests-gated (HARD); secret-scanned diff; Telegram Approve/Reject/ST
 
 ---
 
-## 5. Open design decisions (resolve at implementation, not now)
+## 5. Open design decisions — ALL RESOLVED 2026-06-29 (pinned from fabrik-lib)
 
-1. **`repo_dir` identity** — is the deploy-adapter's `repo_dir` the same isolated clone the remediator produced, or a separate deploy checkout? Pin from `remediation/*` + `deploy-adapter.md` before writing the bootstrap.
-2. **Remediator/TelegramBot/ApprovalManager constructor args** — not yet read; pin their signatures during Phase C.
-3. **Bootstrap vs. conditional entrypoint** — render a separate `bootstrap.py` + switch CMD, or a single entrypoint that branches on `WATCHDOG_AUTO_CODE_FIX`. Prefer the conditional entrypoint to keep one CMD.
-4. **App HEALTHCHECK source** — require it in the spec `shape`, synthesize a default, or inject `verify_health`. Decide per blast-radius vs. friction.
+1. **`repo_dir` identity — RESOLVED: the stable per-project clone, not a separate checkout.** `agent.propose_fix` (`agent.py:388-422`) clones idempotently into `PROPOSED_WORKSPACE_ROOT/<project_id>` (= `/var/lib/watchdog/proposed/<id>`) once, then `fetch`+`reset --hard origin/HEAD`+`checkout -B watchdog/<incident>` each incident — the **directory is stable**, only the branch is per-incident. `remediator.remediate(ws,…)` operates in `ws.path` (= that dir); `GitPushDeployAdapter.apply(branch)` operates in its constructed `repo_dir` and merges the per-incident branch into the deploy branch. So the bootstrap constructs `GitPushDeployAdapter(repo_dir=/var/lib/watchdog/proposed/<id>)` once and passes the branch at call time. (`coordinator.py:281-300,410-417`; `git_push.py:14-27,44-57`.)
+2. **Constructor args — RESOLVED & verified live.** `configure(**kwargs)→OrchestrationDeps` (`__init__.py:42-45`; deps fields incl. `approval_window_sec`, `critical_paths` at `coordinator.py:28-50`). `GitPushDeployAdapter(repo_dir, deploy_branch="main", redeploy_cmd=None, push=True, runner=subprocess.run)`. `Remediator(test_cmd: list[str], max_attempts=2, …)` — `test_cmd` REQUIRED. `TelegramBot(token, chat_id, http=None)` + `.from_env()` (reads `WATCHDOG_TELEGRAM_BOT_TOKEN`/`_CHAT_ID`). `ApprovalManager(state_conn, window_sec=None, *, state=None)`. The bootstrap opens `state.connect(STATE_DB_PATH)` (same `STATE_DB_PATH` `agent.main()` uses, `agent.py:614`). All import paths + args statically re-verified against the live package.
+3. **Bootstrap vs. conditional entrypoint — RESOLVED: separate `bootstrap.py` + CMD switch.** The library CMD is the single `CMD ["python3","-u","-m","watchdog_sidecar.agent"]` (`Dockerfile:161`); there is no env-branch hook. The driver renders `bootstrap.py` at WORKDIR (`/home/watchdog/sidecar`, next to the package so `import watchdog_sidecar` resolves) and replaces the CMD with it **only** in the `auto_code_fix` path — default image byte-identical. A guard hard-fails the build if the upstream CMD string ever changes (so the patch can't silently no-op).
+4. **App HEALTHCHECK source — RESOLVED: detect + gate, never inject.** The driver can't own the app's `compose.yaml` (`SSHDeployer` does), so it inspects the running app container and **degrades Tier-D to escalate-only** when no HEALTHCHECK is present (R-B), rather than synthesizing one or shipping blind auto-rollback. `verify_health` left at the library default (it reads docker health, which the pre-flight now guarantees is meaningful).
 
 ---
 

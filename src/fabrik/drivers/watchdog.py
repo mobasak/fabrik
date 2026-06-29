@@ -37,7 +37,22 @@ after the spec's main compose stack is deployed. Three jobs:
    see overlay note below), so it cannot inject one; instead it inspects the
    main container at provision time and logs a loud warning when none is
    present (auto-rollback-on-health will not fire → escalate-only). Tier-D
-   enablement (Phase C) refuses projects lacking one.
+   enablement refuses projects lacking one.
+
+5. **Tier-D autonomous code-fix** (``auto_code_fix: true`` only — off by
+   default; default path renders a byte-identical image). The library ships
+   ops-only: ``configure()`` is never called and ``code_fix_enabled`` needs all
+   four planes present. So the driver renders a consumer ``bootstrap.py`` into
+   the build context that constructs the four planes (``GitPushDeployAdapter``
+   with ``repo_dir = /var/lib/watchdog/proposed/<id>`` — the same stable clone
+   ``agent.propose_fix`` reuses — ``Remediator``, ``TelegramBot.from_env``,
+   ``ApprovalManager``) and calls ``configure()`` before ``agent.main()``, and
+   switches the Dockerfile CMD to it. Refuses to enable (degrades to
+   escalate-only) when the app has no HEALTHCHECK; hard-fails when
+   ``project_git_remote`` is unset. Gates are enforced by the library
+   (tests/secret-scan/Telegram/silence-window/auto-rollback/STOP); the driver
+   only wires them. **Prod-affecting: ships off by default; first enablement on
+   one non-critical project, operator watching.**
 
 Spec: docs/development/plans/2026-05-30-ai-watchdog-platform-P2-subplan.md
       § 4 (sidecar contents) + § 4.6 (v1 capability expansion) + § 5
@@ -124,6 +139,94 @@ VPS_CLAUDE_HOME = os.environ.get("FABRIK_VPS_CLAUDE_HOME", "/home/ozgur/.claude"
 # settings template is rendered at build time.
 _PLACEHOLDERS = ("<project_id>", "<main_container>", "<project_prefix>")
 
+# Tier-D consumer bootstrap. Rendered into the build context (and the
+# Dockerfile CMD switched to it) ONLY when ``auto_code_fix`` is on; the default
+# path keeps ``python -m watchdog_sidecar.agent`` and never sees this file.
+# Static (no per-project substitution — everything is read from env at runtime),
+# so it's a constant the driver writes verbatim. The library only enters the
+# code-fix path when all four planes are non-None (coordinator.code_fix_enabled),
+# so a missing Telegram token here is a hard, loud failure, not a silent downgrade.
+_BOOTSTRAP_PY = '''\
+"""Tier-D consumer bootstrap — RENDERED by fabrik's watchdog driver.
+
+Wires the four orchestration planes and calls configure() before the agent
+loop. Only used when WATCHDOG_AUTO_CODE_FIX=true (the driver switches the
+Dockerfile CMD to this file in that path); the default sidecar entrypoint is
+`python -m watchdog_sidecar.agent` and never imports this.
+
+repo_dir == PROPOSED_WORKSPACE_ROOT/<project_id>: the SAME stable clone
+`agent.propose_fix` prepares each incident (idempotent clone-once, then
+checkout -B watchdog/<incident> per incident). The deploy adapter merges that
+per-incident branch into the deploy branch and pushes.
+"""
+from __future__ import annotations
+
+import json
+import os
+
+from watchdog_sidecar import configure, state
+from watchdog_sidecar.agent import PROPOSED_WORKSPACE_ROOT, STATE_DB_PATH, main
+from watchdog_sidecar.control_plane import ApprovalManager, TelegramBot
+from watchdog_sidecar.deploy_adapter import GitPushDeployAdapter
+from watchdog_sidecar.remediation import Remediator
+
+
+def _argv(env_key: str, default: list[str]) -> list[str]:
+    """Parse a command from env as JSON list or shell-split string."""
+    raw = os.environ.get(env_key, "").strip()
+    if not raw:
+        return default
+    try:
+        parsed = json.loads(raw)
+        if isinstance(parsed, list):
+            return [str(x) for x in parsed]
+    except (ValueError, TypeError):
+        pass
+    return raw.split()
+
+
+def _redeploy_cmd(project_id: str) -> list[str]:
+    target = os.environ.get("WATCHDOG_TARGET_VPS", "vps1")
+    return _argv("WATCHDOG_REDEPLOY_CMD", ["ssh", target, "fabrik", "redeploy", project_id])
+
+
+def build_deps() -> dict:
+    project_id = os.environ["WATCHDOG_PROJECT_ID"]
+    repo_dir = os.path.join(PROPOSED_WORKSPACE_ROOT, project_id)
+    telegram = TelegramBot.from_env()
+    if telegram is None:
+        raise SystemExit(
+            "Tier-D bootstrap: WATCHDOG_TELEGRAM_BOT_TOKEN + _CHAT_ID required "
+            "but unset — refusing to start an unapprovable autonomous-fix loop"
+        )
+    window = int(os.environ.get("WATCHDOG_APPROVAL_WINDOW_SEC", "300"))
+    critical = tuple(
+        p.strip() for p in os.environ.get("WATCHDOG_CRITICAL_PATHS", "").split(",") if p.strip()
+    )
+    return {
+        "deploy_adapter": GitPushDeployAdapter(
+            repo_dir=repo_dir,
+            deploy_branch=os.environ.get("WATCHDOG_DEPLOY_BRANCH", "main"),
+            redeploy_cmd=_redeploy_cmd(project_id),
+            push=True,
+        ),
+        "remediator": Remediator(test_cmd=_argv("WATCHDOG_TEST_CMD", ["pytest", "-q"])),
+        "telegram_bot": telegram,
+        "approval_manager": ApprovalManager(state.connect(STATE_DB_PATH), window_sec=window),
+        "approval_window_sec": window,
+        "critical_paths": critical,
+    }
+
+
+def run() -> None:
+    configure(**build_deps())
+    main()
+
+
+if __name__ == "__main__":
+    run()
+'''
+
 
 class WatchdogProvisionError(RuntimeError):
     """Driver failed in a way the orchestrator should treat as non-fatal warn."""
@@ -145,6 +248,11 @@ class _RenderContext:
     deadman_timeout_seconds: int
     auto_tier_b: bool
     propose_fix_prs: bool
+    # Tier-D autonomous code-fix (opt-in). Default-false keeps the rendered
+    # image byte-identical to the pre-Tier-D path.
+    auto_code_fix: bool
+    code_fix_window_sec: int
+    critical_paths: list[str]
     external_docs_enabled: bool
     llm_provider_primary: str
     llm_provider_fallback: str
@@ -199,26 +307,29 @@ class WatchdogDriver:
 
         if dry_run:
             steps = [
-                f"build {rctx.image_tag}",
+                "pre-flight app HEALTHCHECK (warn-only)",
+                f"build {rctx.image_tag}" + (" + Tier-D bootstrap" if rctx.auto_code_fix else ""),
                 f"write {self._compose_dir(rctx)}/compose.watchdog.yaml",
                 "docker compose up -d watchdog",
-                "pre-flight app HEALTHCHECK (warn-only)",
             ]
-            if rctx.propose_fix_prs:
+            if rctx.propose_fix_prs or rctx.auto_code_fix:
                 steps.append("ensure git deploy key (generate-once if absent)")
             logger.info("[dry-run] watchdog: would %s", " + ".join(steps))
             return {"status": "dry-run", "image_tag": rctx.image_tag}
 
         try:
+            # Pre-flight BEFORE build: this driver runs AFTER the app stack is
+            # deployed, so the app container already exists to inspect. The
+            # result decides whether Tier-D can be safely enabled — which in
+            # turn decides the image's entrypoint — so it must precede the build.
+            has_hc = self._check_app_healthcheck(rctx)
+            self._gate_tier_d(rctx, has_hc)
             self._build_image(rctx)
             self._push_overlay(rctx)
             self._bring_up(rctx)
-            # Pre-flight: warn (don't fail) if the watched app has no HEALTHCHECK
-            # — Tier-D auto-rollback-on-health would be a no-op for it.
-            self._check_app_healthcheck(rctx)
-            # Only projects that push (PR proposals today; Tier-D later) need a
-            # git deploy key. Generated once, never rotated by the driver.
-            if rctx.propose_fix_prs:
+            # Projects that push (PR proposals OR Tier-D) need a git deploy key.
+            # Generated once, never rotated by the driver.
+            if rctx.propose_fix_prs or rctx.auto_code_fix:
                 self._ensure_deploy_key(rctx)
         except WatchdogProvisionError:
             raise
@@ -284,6 +395,9 @@ class WatchdogDriver:
             deadman_timeout_seconds=int(wcfg.get("deadman_timeout_seconds", 300)),
             auto_tier_b=bool(wcfg.get("auto_tier_b", False)),
             propose_fix_prs=bool(wcfg.get("propose_fix_prs", False)),
+            auto_code_fix=bool(wcfg.get("auto_code_fix", False)),
+            code_fix_window_sec=int(wcfg.get("code_fix_window_sec", 300)),
+            critical_paths=list(wcfg.get("critical_paths", []) or []),
             external_docs_enabled=bool(wcfg.get("external_docs_enabled", True)),
             llm_provider_primary=wcfg.get("llm_provider_primary", "claude-code"),
             llm_provider_fallback=wcfg.get("llm_provider_fallback", "openrouter"),
@@ -297,6 +411,37 @@ class WatchdogDriver:
             image_tag=image_tag,
             target_vps=getattr(ctx, "target_vps", None) or spec.get("target_vps") or "vps1",
         )
+
+    def _gate_tier_d(self, rctx: _RenderContext, has_healthcheck: bool) -> None:
+        """Enforce Tier-D deploy-time prerequisites; degrade rather than ship blind.
+
+        Mutates ``rctx.auto_code_fix`` to False when a prerequisite the spec
+        validator can't see is unmet, so the build falls back to the default
+        escalate-only entrypoint instead of an autonomous loop that can't be
+        safely rolled back. Two checks:
+
+        - **git remote** (hard): autonomous push needs a clone source. Missing
+          it is an operator error → fail the apply loudly (not a silent degrade).
+        - **app HEALTHCHECK** (degrade): without one, ``verify_health`` is a
+          no-op so auto-rollback can't fire (R-B). Refuse Tier-D → escalate-only.
+        """
+        if not rctx.auto_code_fix:
+            return
+        if not rctx.project_git_remote:
+            raise WatchdogProvisionError(
+                f"watchdog: auto_code_fix=true for {rctx.project_id} but "
+                f"project_git_remote is empty — Tier-D cannot clone/push without it"
+            )
+        if not has_healthcheck:
+            logger.error(
+                "watchdog: auto_code_fix requested for %s but the app container "
+                "%r has NO HEALTHCHECK — auto-rollback-on-health would be blind. "
+                "REFUSING Tier-D; degrading to escalate-only (default entrypoint). "
+                "Add a HEALTHCHECK to the app and re-apply to enable Tier-D.",
+                rctx.project_id,
+                rctx.main_container,
+            )
+            rctx.auto_code_fix = False
 
     # ── Build flow ────────────────────────────────────────────────────────
 
@@ -361,6 +506,24 @@ class WatchdogDriver:
             "claude-settings.json.template",
             "claude-settings.json",
         )
+        # 3b. Tier-D ONLY: drop the consumer bootstrap into the build context and
+        # switch the entrypoint to it. Default path is untouched → byte-identical
+        # image. The bootstrap lands at WORKDIR (/home/watchdog/sidecar) next to
+        # the package dir, so `import watchdog_sidecar` resolves.
+        if rctx.auto_code_fix:
+            (local_ctx / "bootstrap.py").write_text(_BOOTSTRAP_PY, encoding="utf-8")
+            old_cmd = 'CMD ["python3", "-u", "-m", "watchdog_sidecar.agent"]'
+            new_cmd = (
+                "COPY --chown=watchdog:watchdog bootstrap.py ./\n"
+                'CMD ["python3", "-u", "bootstrap.py"]'
+            )
+            if old_cmd not in df_content:
+                raise WatchdogProvisionError(
+                    "watchdog: Tier-D requested but the sidecar Dockerfile CMD line "
+                    f"changed upstream (expected {old_cmd!r}); refusing to render an "
+                    "ambiguous entrypoint. Update the driver's CMD patch."
+                )
+            df_content = df_content.replace(old_cmd, new_cmd)
         dockerfile.write_text(df_content)
         # 4. Tar the context and ship it.
         tar_path = local_ctx.with_suffix(".tar.gz")
@@ -517,6 +680,17 @@ class WatchdogDriver:
             "WATCHDOG_LOG_LEVEL": rctx.log_level,
             "WATCHDOG_PROMTAIL_UPDATE_URL": rctx.promtail_update_url,
         }
+        # Tier-D: only emit the autonomous-code-fix env when opted in. The
+        # bootstrap (rendered into the image in the same opt-in path) reads
+        # these; Telegram tokens + WATCHDOG_TEST_CMD are operator secrets that
+        # arrive via the project .env (env_file), NOT rendered here.
+        if rctx.auto_code_fix:
+            env["WATCHDOG_AUTO_CODE_FIX"] = "true"
+            env["WATCHDOG_PROPOSE_FIX_PRS"] = "true"  # workspace clone prereq
+            env["WATCHDOG_APPROVAL_WINDOW_SEC"] = str(rctx.code_fix_window_sec)
+            env["WATCHDOG_TARGET_VPS"] = rctx.target_vps  # default redeploy_cmd
+            if rctx.critical_paths:
+                env["WATCHDOG_CRITICAL_PATHS"] = ",".join(rctx.critical_paths)
         # OpenRouter key + Postgres password come from the project's .env via
         # docker-compose env-file inclusion; we don't ship secrets in compose.
         # Sidecar code looks them up via os.environ.

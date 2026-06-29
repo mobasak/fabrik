@@ -354,6 +354,48 @@ class TestWatchdogConfig:
         w = WatchdogConfig(enabled=False, daily_budget_usd=0.0, daily_invocations_cap=0)
         assert w.enabled is False
 
+    # ── Tier-D (auto_code_fix) — Phase C ──────────────────────────────────
+
+    def test_tier_d_defaults_off(self) -> None:
+        """Tier-D ships off by default; window/critical_paths have safe defaults."""
+        from fabrik.spec_loader import WatchdogConfig
+
+        w = WatchdogConfig()
+        assert w.auto_code_fix is False
+        assert w.code_fix_window_sec == 300
+        assert w.critical_paths == []
+
+    def test_auto_code_fix_requires_propose_fix_prs(self) -> None:
+        """Tier-D reuses the proposed-fix workspace clone, so it can't run
+        without propose_fix_prs (agent.propose_fix returns None otherwise)."""
+        from pydantic import ValidationError
+
+        from fabrik.spec_loader import WatchdogConfig
+
+        with pytest.raises(ValidationError, match="requires propose_fix_prs=true"):
+            WatchdogConfig(
+                enabled=True, daily_invocations_cap=50, auto_code_fix=True, propose_fix_prs=False
+            )
+
+    def test_auto_code_fix_ok_with_propose_fix_prs(self) -> None:
+        from fabrik.spec_loader import WatchdogConfig
+
+        w = WatchdogConfig(
+            enabled=True, daily_invocations_cap=50, auto_code_fix=True, propose_fix_prs=True
+        )
+        assert w.auto_code_fix is True
+
+    def test_code_fix_window_bounds(self) -> None:
+        """Window is bounded 60..3600 (alert-storm floor / operator-sanity ceiling)."""
+        from pydantic import ValidationError
+
+        from fabrik.spec_loader import WatchdogConfig
+
+        with pytest.raises(ValidationError):
+            WatchdogConfig(code_fix_window_sec=30)
+        with pytest.raises(ValidationError):
+            WatchdogConfig(code_fix_window_sec=4000)
+
     def test_negative_budget_rejected(self) -> None:
         """``ge=0.0`` on USD fields — negative budgets are nonsense."""
         from pydantic import ValidationError

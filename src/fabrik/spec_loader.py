@@ -503,6 +503,46 @@ class WatchdogConfig(BaseModel):
         ),
     )
 
+    # ── Tier-D autonomous code-fix (opt-in; canonical in 60-watchdog.md) ──
+    auto_code_fix: bool = Field(
+        default=False,
+        description=(
+            "Tier-D: allow the sidecar to autonomously APPLY a fix to production "
+            "(not just propose a PR). Off by default. When true the driver renders "
+            "a consumer bootstrap that wires the four orchestration planes "
+            "(deploy_adapter + remediator + telegram_bot + approval_manager) and "
+            "calls configure() before the agent loop; the library only enters the "
+            "code-fix path when ALL four are present. Every apply is tests-gated, "
+            "secret-scanned, Telegram Approve/Reject/STOP-gated with a silence-"
+            "window auto-apply, auto-rolled-back on health regression, and audited. "
+            "REQUIRES propose_fix_prs=true (shares the /var/lib/watchdog/proposed/"
+            "<id> workspace clone) and a project_git_remote; the driver also "
+            "refuses to enable it for an app with no HEALTHCHECK (blind rollback) "
+            "— degrading to escalate-only."
+        ),
+    )
+    code_fix_window_sec: int = Field(
+        default=300,
+        ge=60,
+        le=3600,
+        description=(
+            "Tier-D approval/silence window in seconds. After a fix is proposed to "
+            "the operator via Telegram, this is how long the sidecar waits for an "
+            "explicit Approve/Reject/STOP before the silence-window auto-applies. "
+            "Passed to the bootstrap as WATCHDOG_APPROVAL_WINDOW_SEC. 60s min / "
+            "3600s max. Default 300s."
+        ),
+    )
+    critical_paths: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Glob/path prefixes the remediator treats as high-blast-radius; "
+            "changes touching them always escalate rather than silence-window "
+            "auto-apply. Rendered to WATCHDOG_CRITICAL_PATHS (comma-joined). "
+            "Empty = no extra-critical paths beyond the library defaults."
+        ),
+    )
+
     @model_validator(mode="after")
     def _check_caps_set_when_enabled(self) -> "WatchdogConfig":
         """If enabled=true, at least one cap must be > 0.
@@ -515,6 +555,22 @@ class WatchdogConfig(BaseModel):
             raise ValueError(
                 "watchdog: enabled=true requires at least one of "
                 "daily_budget_usd > 0 or daily_invocations_cap > 0"
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _check_tier_d_prereqs(self) -> "WatchdogConfig":
+        """Tier-D (auto_code_fix) shares the PR workspace clone, which only
+        exists when propose_fix_prs is on (``agent.propose_fix`` returns None
+        otherwise). Enforce the coupling at the spec layer so a misconfigured
+        project fails ``fabrik plan`` rather than silently never remediating.
+        The git-remote + app-HEALTHCHECK prerequisites are runtime/deploy
+        facts checked by the driver.
+        """
+        if self.auto_code_fix and not self.propose_fix_prs:
+            raise ValueError(
+                "watchdog: auto_code_fix=true requires propose_fix_prs=true "
+                "(Tier-D reuses the proposed-fix workspace clone)"
             )
         return self
 
