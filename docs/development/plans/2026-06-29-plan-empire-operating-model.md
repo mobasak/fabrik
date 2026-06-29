@@ -1,87 +1,99 @@
-# Plan — Fabrik Empire Operating Model (one-operator, AI-managed)
+# Plan — Fabrik Empire Operating Model (one-operator, AI-managed) — v2
 
-**Status:** DRAFT — roadmap; needs the §7 operator-absent decision before Phase 2+ executes.
+**Status:** DRAFT v2 — iterated twice against `openrouter/fusion` panels. **Survive-first, build-less.** Operator-absent policy is now resolved (§5). Phase 0 (delete sprawl) gates everything.
 **Date:** 2026-06-29
 **Owner:** Operator + Fabrik AI (hub control plane)
-**Provenance:** Corrected by a frontier panel consult (`openrouter/fusion` → Claude-Opus/GPT/Gemini panel, Opus-4.8 judge; $0.86; raw in scratchpad `fusion_out2.txt`). The consult overturned the original "capability-index-first" plan — see §1.
+**Provenance:** Two frontier panel consults (`openrouter/fusion` → Claude-Opus/GPT/Gemini panel, Opus-4.8 judge; $0.86 + $0.76; raw in scratchpad `fusion_out2.txt` / `fusion_out3.txt`). v1 led with a capability index → corrected to control-first. v2 corrects three structural gaps the panel found in v1 (§1).
 
 ---
 
 ## 0. Mission
 
-Run and grow Fabrik as a **mostly-to-fully AI-managed software company operated by ONE human**. The only scarce resource is **operator attention at the moment something is silently wrong**. Spend compute, agents (Claude Code, Kilo, OpenRouter/fusion, Traycer), and rentable servers/GPUs (Vultr/RunPod/Modal/Vast) freely to protect it. Every task either ships value or removes a human from a loop. **The system must also shrink itself** — sprawl is the enemy, not the asset.
+Run and grow Fabrik as a **mostly-to-fully AI-managed software company operated by ONE human**. The scarce resource is **operator attention at the moment something is silently wrong**. Spend compute, agents (Claude Code, Kilo, fusion, Traycer), and rentable servers/GPUs freely to protect it. **Build less; tier everything; the system shrinks its own complexity over time.** A surviving floor beats a clever ceiling.
 
-## 1. The keystone correction (what changed and why)
+## 1. What v2 fixes (the three structural gaps in v1)
 
-The original plan made a **capability index + an `EMPIRE:` per-task self-report** the keystone. The panel unanimously rejected this:
+The panel judged v1 would produce *a better-governed ops platform, not a solo-survivable lean company*. Three gaps, now addressed:
 
-- A capability index solves **discovery** ("what can I do?"), not **control** ("should this happen, did it work, what's silently rotting?"). It makes sprawl *navigable, not smaller* — it paves the cow path.
-- **Self-reported attestation ≠ enforcement.** Agents will emit `reuse=true` and write the bespoke script anyway (reward-hacking, guaranteed). **Enforce mechanically at the runtime perimeter, not in the prompt.**
-- The real keystone is **a measured Reality-vs-Intent control layer** + bounded authority. The capability index is one *output* of that, built later.
+- **Gap A — it governs the infrastructure, not the company.** A $1B solo shop dies from maintaining 38 projects with no revenue, not from registrar drift. v1 had no **portfolio governor / project tiering / attention-accounting**. → Phase 0 + §6 note. *(The full business layer — customer-acquisition / support / revenue-churn / "stop doing this product" loops — is the real $1B driver and is OUT OF SCOPE for this infra-OS plan; it gets its own plan. Naming it so we don't mistake a self-healing machine running dead products for an empire.)*
+- **Gap B — leanness was asserted, not mechanized.** v1 added 6 phases of machinery atop existing sprawl (507 docs, 79 scripts, 47 modules) with no net-deletion gate → safety becomes the new monolith, *and* a bigger surface the AI itself must navigate (context-overflow/hallucination risk). → **net-deletion doctrine (§3.5) + hard control-plane budgets (§9) + Phase 0 deletes first.**
+- **Gap C — not solo-survivable.** Everything assumed the operator answers Telegram. No dead-man's-switch, no bus-factor escape, no out-of-band recovery if the hub/ledger dies. → §5 operator-absent policy + §7 killer-risk mitigations. And "self-improving" is honestly **operator-assisted backlog** — named as such, sequenced last.
 
-## 2. Operating Doctrine (revised — binding)
+## 2. Keystone
 
-1. **Reuse before build** — enforced *mechanically*: the build/scaffold path greps the (generated) capability index and **blocks on a near-duplicate**; it does not ask an agent to attest it checked.
-2. **Unrecorded manual step = defect** (softened from "manual = defect"). Some manual gates are deliberate **risk boundaries** (see §6) and must stay. What's banned is the *undocumented, unledgered* manual step.
-3. **Self-heal is anesthetic, not cure.** Every heal is a **defect signal**. Track mean-time-between-heals per project; **alert on any decrease**; after N heals/window, freeze auto-heal and escalate.
-4. **Bounded authority.** Agents talk to the control plane; the control plane talks to production. No agent holds the master credential set or a default root shell. Autonomy is **earned per-component** by demonstrated heal/converge history, never granted globally.
-5. **Lean + self-pruning.** Single-operator threat model. The system runs a monthly "what can we delete?" loop (§3, Loop 4). Surface-area targets are real deliverables, not aspirations.
-6. **Spend compute to save attention** — under a hard **spend-velocity** ceiling (§4 Phase 1) that halts-and-pings, not logs.
-7. **Durable or it didn't happen.** Decisions/capabilities/fixes land in CLAUDE.md / AGENTS.md / rule-packs / skills / memory / this plan — never only in chat.
-8. **Self-correct to a measured fixed point.** The fixed point is literal: `drift == 0 AND heal-rate flat-or-decreasing`. Verify against **live** state, not docs. Prove, don't claim.
-9. **Improve out of production.** Self-improvement = clone→prove→PR→**human merge**. Never mutate live to "improve."
+Not discovery (capability index), not even "control" alone — **survivability + bounded authority**. The three things that protect against *unbounded loss*: spend can't run away, nothing acts unrecorded, you can come back from disaster. Everything else is optimization to earn later.
 
-> Dropped from the original plan: the `EMPIRE: reuse=.. | automate=.. | heal=..` first-line ritual. Replaced by mechanical perimeter checks (Doctrine 1/4) + the ledger (Phase 2).
+## 3. Operating Doctrine (binding)
 
-## 3. Control-loop architecture (4 nested loops, different cadences)
+1. **Reuse before build** — enforced by an **advisory** capability grep (NOT blocking; with 38 projects a blocking dup-check false-positives and *costs* attention).
+2. **Unrecorded prod-impacting step = defect.** Read-only diagnostics, tests, docs, planning are exempt. Deliberate human risk-gates (§8) are not defects.
+3. **Self-heal is anesthetic, not cure.** Every heal is a defect signal; track mean-time-between-heals per project; alert on any *decrease*; after N heals/window, freeze auto-heal + escalate.
+4. **Bounded authority.** Agents talk to the control plane; the control plane talks to prod. No agent holds the master cred set, a default root shell, or the break-glass envelope. Autonomy is **earned per-component** by demonstrated heal/converge history.
+5. **Net-deletion gate (NEW).** Every new phase/feature must delete or merge **≥1 existing module/script/doc**, or it is rejected. Complexity-shrinkage is a hard constraint, not an aspiration.
+6. **Spend compute to save attention** — under a hard **spend-velocity** ceiling (Phase 1) that halts-and-pings.
+7. **Durable or it didn't happen** — decisions land in CLAUDE.md / AGENTS.md / rule-packs / memory / this plan.
+8. **Self-correct to a measured fixed point** — `drift==0 AND heal-rate flat-or-decreasing`; verify against live state.
+9. **Improve out of production** — clone→prove→PR→**human merge**. Never mutate live to "improve." This is *operator-assisted*, not autonomous.
 
-| Loop | Cadence | Autonomy | Exists today? |
+> Killed from v1: the `EMPIRE:` self-report ritual (attestation ≠ enforcement) and the *blocking* reuse-grep.
+
+## 4. Control loops (4, by cadence) — build the floor before the upper loops
+
+| Loop | Cadence | Autonomy | Today |
 |---|---|---|---|
-| **1 — Heal** | seconds–min | autonomous, bounded (restart/rollback/failover to known-good; never changes intent) | ✅ watchdog Tier A–C |
-| **2 — Converge** | hourly–daily | auto-fix *reversible* drift to spec; *propose* spec changes | ⚠️ partial — `audit-registrars`/`reconcile-all` exist; not per-project converged/drifted/**unknown** |
-| **3 — Improve** | weekly | AI *proposes* a ranked backlog from telemetry (heal-rates, drift recurrence, cost/task, rule-firing); **operator approves the batch** | ❌ missing |
-| **4 — Prune** | monthly | AI proposes deletions/merges (unused drivers/scripts/docs/projects); operator approves | ❌ missing |
+| **1 — Heal** | sec–min | bounded autonomous (restart/rollback/failover to known-good; never changes intent) | ✅ watchdog Tier A–C |
+| **2 — Converge** | hourly–daily | auto-fix *reversible* drift; *propose* spec changes | ⚠️ partial (`audit-registrars`/`reconcile-all`) |
+| **3 — Improve** | weekly | AI proposes a backlog *ranked by operator-minutes-saved*; **operator approves the batch** | ❌ later |
+| **4 — Prune** | monthly | AI proposes deletion *candidates* (report only); **never autonomous deletion** | ❌ later |
 
-Each loop's output is the next loop's input: heals feed Converge; convergence failures feed Improve; Improve's changes get measured by Heal. *That* cycle — a system that metabolizes its own failures — is what "100-person company" means operationally (institutional memory + safety + throughput, **not** headcount).
+## 5. Operator-absent policy — RESOLVED (adopt as default)
 
-## 4. Build order (fusion-corrected; each phase EXTENDS an existing asset)
+One `operator_presence` state machine keyed off `last_telegram_ack`. Escalating, ~0.5 day.
 
-**Phase 1 — Spend-velocity kill-switch (hours; do FIRST).** A hard per-loop and per-day ceiling that **halts and Telegrams**, not logs — before any autonomy increase. *Extend* `/opt/fabrik-lib/cost-budget/cost_budget.py` (today: absolute daily/per-incident caps) with a **velocity** breaker + a global fleet ceiling. Guards the catastrophic-cheap failure (a heal→break→heal loop burning $400 overnight).
+- **0–4h:** nothing changes; queued actions wait.
+- **4–24h "degraded" — autonomous allow-list ONLY:** restart crashed services (Tier A–C, max 3×/30min then backoff); roll back a deploy that failed its own verify *iff* deploy <24h, rollback pre-tested, no DB migration; renew certs/DNS; scale within a pre-set ceiling; WAF/iptables block on DoS-signature spikes; if rollback fails 2×, reroute DNS to a static maintenance page; apply already-approved+ledgered changes; halt on spend breach.
+- **24–72h "absent":** shrink to stability-only. Freeze Improve/Prune + all new deploys except emergency rollback; only Tier-0/1 self-heal; stop non-revenue projects to save spend; daily digest to Telegram **+ email**.
+- **>30d "incapacitated":** dead-man's-switch fires (§7a).
+- **FREEZE-LIST (never, any N, even present):** data/backup deletion · destructive migrations · secret/IAM/root rotation *initiation* · public exposure · recurring-spend increase · cross-project blast-radius · doctrine/rule-pack edits · merging generated code to core · **any action that widens an agent's autonomy.**
 
-**Phase 2 — Append-only cross-agent change ledger.** One query for "what changed in the last 6h and by which agent." *Extend* the watchdog `deploys`/`approvals` tables (`60-watchdog.md:83,105`) into a unified ledger every actor (Claude Code sysadmins, sidecars, the pipeline, `fabrik apply`) writes: actor, scope, intent, commands, diffs, blast-radius, approval, result, rollback. No ledger entry → no action (Doctrine 4).
+## 6. Build sequence v2 (~16 working days nominal — see §10 effort caveat)
 
-**Phase 3 — Drift / Reality-vs-Intent index (the true keystone).** Per-project status: `converged / drifted / **unknown**` (unknown is the state that kills you), ranked by blast radius. *Extend* `fabrik audit-registrars` (`cli.py:1371`, `audit.py`, `scripts/audit_all_registrars.py`) from registrar-drift to whole-project drift (compose/DNS/Traefik/DB/Redis/secrets). Makes Doctrine 8's fixed point measurable. **This — not the capability index — is the keystone.**
+Each phase **extends a named existing asset** (reuse-first) and **net-deletes ≥1** (Doctrine 5). The 20/80: if you build only three, build **0/1/(prove)** — they're the survival floor.
 
-**Phase 4 — `fabrik prove` recovery gauntlet + restore drill.** Rent a fresh VPS → bootstrap from declared state → restore real backups → run critical-flow + DB-integrity tests → test rollback → destroy → record RTO/RPO. *Extend* `vultr_drill.py:410` (`fabrik vultr drill`) + `export`/`import` + bootstrap. Untested backups are the most likely company-ender; an index *claims* deploy works, `prove` shows it *did*.
+| # | Phase | Extends | Effort* |
+|---|---|---|---|
+| **0** | **Triage + tiering + delete sprawl.** `projects.yaml` Tier 0–4 (Tier-0 = control-plane/backups/DNS/monitoring/billing/ledger; Tier-1 = revenue/customer-facing; freeze/archive Tier-3/4). Control-plane budgets (§9). Delete: rule-packs 49→~15, ops scripts 79→~25, docs 507→index+per-project READMEs. Add `last_used`/`owner`/`delete_after` metadata. | `data/projects.yaml`, `sync_projects.py` | 2d |
+| **1** | **Spend-velocity kill-switch + presence SM + dead-man's-switch + Shamir break-glass.** ~1-min billing/velocity poll; on breach cut network to agent containers + Telegram. | fabrik-lib `cost-budget/cost_budget.py` | 2d |
+| **2** | **Ledger — git-as-state + minimal hash-chained runtime log.** Git is the universal ledger for code/config (commit=change, signed tag=approval, `git diff` vs live=drift). A *small* append-only hash-chained log ONLY for non-code runtime actions git can't express (spend, infra mutations, agent intent, blast-radius, rollback-refs). **Prod-impacting actions only.** Mirror to spoke + daily object-lock export; boot refuses authority on broken chain; emergency retroactive-entry path (≤24h, agent-inaccessible). | watchdog `deploys`/`approvals` (`60-watchdog.md:83,105`) | 2–3d |
+| **3** | **Thin `fabrik prove` recovery gauntlet — Tier-0/1 ONLY.** Rent VPS → bootstrap from declared state → restore real backups → smoke + DB-integrity tests → test rollback → destroy → record RTO/RPO. Pass/fail gates autonomy. *(Moved up: validates recovery before more machinery.)* | `vultr_drill.py:410`, `export`/`import` | 3d |
+| **4** | **Drift index — `declared / observed / unknown` daily report** (not a full ranked index yet). `unknown` is the state that kills you. | `audit-registrars` (`cli.py:1371`, `audit.py`) | 1.5d |
+| **5** | **Agent regression harness + model-pinning** (§7b). 10 golden incidents incl. *refuse-destructive* / *refuse-secret-exposure*; nightly + pre-change; <100% on safety tasks → diagnose-only + Telegram. | 39 `scripts/enforcement/` checks | 2–3d |
+| **6** | **Postmortem-draft + assisted Improve/Prune.** Incident → AI *drafts* a regression test + PR (never auto-appends an enforcement check). Improve = weekly ≤10-item backlog ranked by operator-minutes-saved; Prune = monthly deletion-*candidates* report. Human approves; no autonomous deletion. | `scripts/enforcement/` | 2d |
 
-**Phase 5 — Postmortem-to-Patch (the only compounding capability).** Every incident auto-extracts the violated invariant → generates a regression **check + reproducing test** → files it for one-click approval → it joins the 39 `scripts/enforcement/` checks forever. System competence rises monotonically with each failure = the operator's institutional memory.
+\* Effort is nominal-with-Claude-Code-doing-the-hands. **The panel flags these are likely 2–5× underestimates** once integration/debugging/operator-review is counted. Treat "16 days" as "several weeks, part-time." Everything past Phase 3 is iteration, not survival.
 
-**Phase 6 — Capability index + heal-rate-as-alarm + the Improve/Prune loops.** *Now* build the generated index (it was the original "keystone") as an output of the ledger+drift layer, with reuse enforced mechanically (Doctrine 1). Add heal-rate alerting and Loops 3–4.
+## 7. The 2 risks that actually kill a solo empire (folded into phases)
 
-## 5. Adjacent guardrails (fold into the phases above)
+**(a) Bus-factor / dead-man's-switch (highest kill probability) — Phase 1.** You're the SPOF; lose the laptop / get sick → company evaporates. Shamir 2-of-3 master-cred split (you + lawyer + cold storage); an `operator_heartbeat`; no heartbeat 30d → email a designated successor a continuity packet (where backups/bills/break-glass live) + run `fabrik prove` to confirm restorability. Agents can NEVER touch the break-glass envelope. ~1d.
 
-- **Approval firewall** (with Phase 2): rate-limited, risk-tiered Telegram; every approval carries impact / proposal / rollback / **default-if-no-response**. Ban vague "what should I do?" escalations. If you approve >~5/day, the gate is decorative.
-- **Host sysadmins read-only for diagnostics** (with Phase 3): out-of-band host fixes drift, then `fabrik apply` overwrites them and crashes the node. Fixes route through a central spec commit, never in-place.
-- **Route by blast-radius, not just cheapest-model** (with Phase 2): cheap model summarizes logs; prod-mutation *proposals* need a strong model; prod-mutation *execution* is a deterministic tool behind the policy gate. Ops is tail-risk dominated.
-- **Scoped, short-TTL creds via a broker** (with Phase 4): agents + tool access + private data + external comms = the lethal trifecta (prompt-injection exfil). Never the master set.
-- **Independent verifier** (with Phase 5): the agent that writes the fix is not the sole verifier of the fix.
+**(b) Agent behavioral drift under silent model updates — Phase 5.** OpenRouter swaps a backend or Anthropic re-aligns a model and your autonomous sidecars silently change behavior — your checks validate the *system*, not the *agents that run it*. Record per-agent `provider/model/version/prompt-hash/tool-schema-hash/autonomy-level`; nightly golden-incident regression; drift → freeze autonomy. ~2–3d.
 
-## 6. Human-gated forever (non-negotiable)
+(Ledger-SPOF → mitigated by Phase 2's mirror + hash-chain. Data-integrity-beyond-restorability and fixed-point oscillation are real but won't kill you in year one — deferred, not denied.)
 
-Data/backup deletion · destructive/irreversible DB migrations · secret/IAM/root changes · public-network exposure · large recurring spend (e.g. a week-long GPU box, not a spot hour) · cross-project / multi-tenant blast-radius actions · **changing the doctrine or rule-packs themselves** · merging generated code into the core control plane. **Meta-rule:** no agent may ever widen its own autonomy or disable a gate.
+## 8. Human-gated forever (non-negotiable)
 
-## 7. OPEN DECISION (gates Phase 2+) — operator-absent mode
+Data/backup deletion · destructive/irreversible migrations · secret/IAM/root changes · public-network exposure · large recurring spend · cross-project / multi-tenant actions · **changing the doctrine or rule-packs** · merging generated code into the core control plane. **Meta-rule:** no agent may ever widen its own autonomy or disable a gate. **Approvals are rate-limited + risk-tiered** (impact/proposal/rollback/default-if-no-response); if you approve >~5/day the gate is decorative — ban vague "what should I do?" escalations.
 
-> **When you don't answer Telegram for N hours, what is the system allowed to do?**
+## 9. Control-plane budget (hard caps — Phase 0, enforced thereafter)
 
-This single policy determines how much autonomy is safe everywhere else. Define: the N-hour threshold; the allow-list of autonomous actions while absent (heal-to-known-good? converge reversible drift?); and the freeze-list (no spec changes, no spend > $X, no destructive anything). **Resolve this before Phase 2 ships.** The operator is a SPOF; this is the degraded mode.
+≤12 top-level CLI cmds · ≤25 ops scripts · ≤50 docs counted as current · ≤15 rule-packs (each with expiry/review date + firing-frequency report) · ≤20 active service specs. **Every new control feature deletes/merges ≥2 artifacts or is rejected.** Never auto-delete without usage attribution (`last_used`).
 
-## 8. Surface-area budget (Loop 4 targets — directional, usage-gated)
+## 10. Self-audit / unsolved (carry forward; do not pretend solved)
 
-27 drivers → ~3 blessed · 18 scaffolds → ~4 · 79 ops scripts → wrapped by `fabrik` cmds or deleted · 507 docs → generated + a small human core · 49 rule-packs → consolidated, each with an expiry/review date + a firing-frequency report (a rule that never fires is perfect or dead — you can't tell without data). **Never auto-delete without usage attribution** (a low-traffic driver may serve a revenue-critical project).
-
-## 9. Self-audit / honesty
-
-- This plan was **wrong on its keystone** until the fusion consult; it now leads with control, not discovery. Recorded, not hidden.
-- Every phase **extends a named existing asset** (paths in §4) — reuse-before-build applied to the roadmap itself.
-- **Not claimed:** nothing here is built. Phases 2+ are gated on §7. The biggest unaddressed risks the panel itself flagged: the control-plane/ledger is itself a SPOF (no quorum/out-of-band recovery yet); agent behavioral drift under silent model updates (no version-pinning/regression of the agents themselves); data-integrity beyond restorability; bus-factor / dead-man's-switch for a one-person company; and the meta-risk that this safety machinery becomes the new sprawl. Carry these into the relevant phases; do not pretend they're solved.
+- v1 was wrong on its keystone (discovery→control) and v1's scope was wrong on its *layer* (infra, not business). Recorded, not hidden.
+- **Premise unexamined:** none of the panel interrogated whether "$1B run by one person" is even coherent — the binding limits on a solo founder are likely **revenue / distribution / legal / tax / compliance**, not infra. This infra-OS is necessary, not sufficient.
+- **Vendor-concentration SPOF:** the whole stack rests on Anthropic + OpenRouter + Vultr + **Telegram (sole approval channel)** — single-vendor outage/suspension is as severe as the ledger SPOF. Add a second approval channel (email/signal) before Telegram becomes load-bearing.
+- **Legal/regulatory continuity:** a one-person company holding customer data carries GDPR/SLA/entity obligations that persist when you're absent — the continuity packet must include these, not just creds.
+- **Safety-machinery operating tax:** weekly gauntlets + nightly regression + 1-min billing polls consume real spend + review time; budget it against the "lean" goal or it becomes the sprawl it was meant to prevent.
+- **Approval fatigue** is a failure mode, not a UX nit — batching/risk-tiering (§8) is load-bearing.
+- **Not claimed:** nothing here is built. Effort estimates are optimistic (2–5×). Phase 0 is the only no-regret start.
