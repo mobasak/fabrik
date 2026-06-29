@@ -1,29 +1,93 @@
+# calendar-orchestration-engine — Node/TS event-intelligence API.
+# Rewritten 2026-06-29 to match the actual app + enable watchdog Tier-D.
+# Source is the GitHub repo (compose.yaml + Dockerfile committed there); fabrik
+# clones + builds on the VPS. DATABASE_URL is auto-injected by the postgres
+# registrar (needs_database=true); GLITCHTIP_DSN by the glitchtip registrar.
 id: calendar-orchestration-engine
 kind: service
-template: python-api
-domain: calendar.vps1.ocoron.com
+template: node-api
+domain: calendar-orchestration-engine.vps1.ocoron.com
+
+shape:
+  kind: service
+  is_public: true
+  is_admin_dashboard: false
+  has_bearer_api: true        # API_KEYS + Authorization: Bearer
+  needs_database: true        # postgres `calendar` (PG_* / DATABASE_URL) — was missing → DB never created
+  needs_cache: false
+  has_persistent_data: false  # compose declares no volumes
+  has_search_feature: false
+  exposes_metrics: false      # app exposes /health + /api/health, NO /metrics
+
+expose:
+  http: true
+  internal_only: false
 
 source:
-  type: local
-  path: /opt/calendar-orchestration-engine
-
-env:
-  PORT: "3001"
-  LOG_LEVEL: INFO
-
-secrets:
-  required:
-    - DATABASE_URL
-    - GOOGLE_CALENDAR_CREDENTIALS
+  type: git
+  repository: https://github.com/mobasak/calendar-orchestration-engine.git
+  branch: master
 
 depends:
   postgres: calendar
 
+env:
+  PORT: "3001"
+  NODE_ENV: production
+  LOG_LEVEL: INFO
+  # Tier-D test gate command (read by the watchdog bootstrap). NOTE: `npm test`
+  # currently chains an e2e suite that needs a LIVE server — split out a
+  # hermetic unit command before relying on the Tier-D auto-apply gate.
+  WATCHDOG_TEST_CMD: "npm test"
+
+secrets:
+  # Operator must add these app keys to /opt/fabrik/.env before apply.
+  required:
+    - ABSTRACT_API_KEY
+    - FACTORY_API_KEY
+    - API_KEYS
+    - RAPIDAPI_PROXY_SECRET
+  # Already present in hub .env — copied into the project .env at deploy time.
+  # Needed by the watchdog sidecar (Telegram approvals + fallback LLM + cost ledger).
+  from_env:
+    - TELEGRAM_BOT_TOKEN
+    - TELEGRAM_CHAT_ID
+    - WATCHDOG_OPENROUTER_KEY
+    - WATCHDOG_PG_PASSWORD
+
 resources:
-  limits:
-    memory: 512M
-    cpus: "0.5"
+  memory: 512M
+  cpu: "0.5"
 
 health:
-  path: /health
-  port: 3001
+  path: /api/health
+  interval: 30s
+  timeout: 10s
+  retries: 3
+  disabled: false
+
+# ── AI watchdog: full Tier-D autonomous code-fix (opt-in, gated) ──
+# Off-by-default everywhere else; explicitly enabled here as the first Tier-D
+# target. error_webhook feeds GlitchTip new-issues to the :8889 ingest; pages
+# only on critical_paths matches; auto_code_fix lets it apply a tested,
+# Telegram-approved fix and auto-rollback on health regression.
+watchdog:
+  enabled: true
+  daily_budget_usd: 5.00
+  daily_invocations_cap: 100
+  per_incident_budget_usd: 1.00
+  deadman_timeout_seconds: 300
+  external_docs_enabled: true
+  llm_provider_primary: claude-code
+  llm_provider_fallback: openrouter
+  cheap_model: anthropic/claude-3.5-haiku
+  expensive_model: anthropic/claude-opus-4
+  propose_fix_prs: true       # Tier-D reuses the proposed-fix workspace clone
+  auto_code_fix: true
+  code_fix_window_sec: 300
+  critical_paths:
+    - /api/v1/events          # the agent's failing path (RangeError on bad date)
+    - RangeError
+  trigger_sources:
+    - health
+    - error_webhook
