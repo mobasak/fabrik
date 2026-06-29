@@ -499,12 +499,12 @@
           <th data-sort="input_cost_per_m" data-tabs="overview reasoning coding translation transcription voice image video ocr" title="Vendor-quoted price per service-type unit (LLM: $/M tokens · STT: $/audio-minute · TTS/Translation: $/1K chars · Image: $/image · Video: $/sec · OCR: $/page). Hover any cell for source / canonical metric.">Price</th>
           <th data-sort="output_cost_per_m" data-tabs="overview reasoning coding translation" title="USD per million output tokens (LLMs only). For non-LLM services see the unit hover on the Price column.">$/M out</th>
           <th data-sort="context_window_k" data-tabs="overview reasoning coding translation">Ctx (k)</th>
-          <th data-sort="output_tokens_per_sec" data-tabs="overview reasoning coding translation" title="Throughput in output tokens per second (Artificial Analysis benchmark). Higher is better. Empty cells = AA didn't match this model.">Speed</th>
-          <th data-sort="ttft_ms" data-tabs="overview reasoning coding translation" title="Time-to-first-token in milliseconds (Artificial Analysis). LOWER is better — interactive UX feel.">TTFT</th>
+          <th data-sort="output_tokens_per_sec" data-tabs="overview reasoning coding" title="Throughput in output tokens per second (Artificial Analysis benchmark). Higher is better. Empty cells = AA didn't match this model.">Speed</th>
+          <th data-sort="ttft_ms" data-tabs="overview reasoning coding" title="Time-to-first-token in milliseconds (Artificial Analysis). LOWER is better — interactive UX feel.">TTFT</th>
           <th data-sort="quality_tier" data-tabs="overview reasoning coding translation transcription voice image video ocr">Tier</th>
           <th data-tabs="overview reasoning coding translation">Caps</th>
           <th data-sort="_best_code_score" data-tabs="coding" title="Best-available coding signal per row, max'd across SWE-bench Verified + SWE-bench Multilingual, then falling back through Aider Polyglot > weighted_coding (BenchLM) > design_arena_coding ELO normalized to 0-100. CAVEAT: scores from different sources aren't strictly comparable (a SWE 75 ≠ an Aider 75 ≠ a DA 1280). Hover any cell to see which source drove the number. Click to sort descending; toggle 'has Best Code' chip in the sidebar to hide rows without any explicit coding signal.">Best Code</th>
-          <th data-sort="arena_elo" data-tabs="overview reasoning coding translation" title="Chatbot Arena ELO (LMSys / openlm.ai)">Arena</th>
+          <th data-sort="arena_elo" data-tabs="overview reasoning translation" title="Chatbot Arena ELO (LMSys / openlm.ai)">Arena</th>
           <th data-sort="tbench_accuracy" data-tabs="reasoning" title="Terminal Bench 2.0 % (tbench.ai)">TBench</th>
           <th data-sort="aa_intelligence_index" data-tabs="overview reasoning coding translation" title="Artificial Analysis Intelligence Index (artificialanalysis.ai)">AA</th>
           <th data-sort="swe_bench_verified_pct" data-tabs="coding" title="SWE-bench Verified+bash-only — max % resolved on the 500-issue Python set, across agent harnesses (swebench.com)">SWE</th>

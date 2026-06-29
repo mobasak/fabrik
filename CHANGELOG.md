@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Arena pulled from Coding tab + Speed/TTFT pulled from Translation tab (2026-06-29)
+
+Same relevance lens applied across every tab. **Arena** (Chatbot Arena ELO) removed from the Coding tab — it measures human chat preference, not coding ability; SWE-bench / Aider / DA-code / W-Code / Best Code are the canonical signals. **Speed** and **TTFT** removed from the Translation tab — translation is overwhelmingly a batch task; per-row latency rarely drives the pick. Reasoning tab keeps both because reasoning agents are usually interactive. The 5 specialty tabs (Transcription / Voice / Image / Video / OCR) already carried only relevance-justified columns. Net: 3 fewer noisy cells per row on the affected tabs; signal-to-noise on each tab is now strictly defended.
+
 ### Fixed — Trans + Categories pulled from tabs where they don't help model selection (2026-06-29)
 
 Operator audit: a column belongs on a tab only if it helps decide between models on THAT tab. **Trans** (translation chrF++ avg) removed from Reasoning + Coding tabs — you don't pick a reasoning or coding model by its translation score; the column is canonical only on Overview + Translation. **Categories** removed from the 5 specialty tabs (Transcription / Voice / Image gen / Video gen / OCR) because every specialty row carries just `language` as the category, which adds no info on a tab already filtered to that service type. Categories stays on the 4 LLM tabs where the tag set has real density (`language,long-context`, `language,code,vision`, etc.). **Caps** kept everywhere it already appeared — the V/T/A/R/GA flags carry signal on every LLM tab even though the S/Tr flags are slightly noisy on Reasoning/Coding (acceptable for a one-cell compact display).
