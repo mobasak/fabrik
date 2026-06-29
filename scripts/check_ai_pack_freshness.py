@@ -45,6 +45,9 @@ VERIFICATION_RE = re.compile(
 
 
 def _today() -> date:
+    # UTC date. Stamps are date-only, so one written in the operator's local
+    # evening can read ±1 day vs UTC near midnight — immaterial at a 90-day
+    # threshold, and future-dated stamps are handled as fresh in check_pack.
     return datetime.now(UTC).date()
 
 
@@ -54,18 +57,25 @@ def check_pack(pack_path: Path, today: date) -> tuple[str, int | None, str]:
         text = pack_path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError) as e:
         return ("unstamped", None, f"{pack_path.name}: unreadable ({e.__class__.__name__}: {e})")
-    match = VERIFICATION_RE.search(text)
-    if not match:
+    raw_dates = VERIFICATION_RE.findall(text)
+    if not raw_dates:
         return (
             "unstamped",
             None,
             f"{pack_path.name}: no `Last content verification:` line — "
             "consider stamping to track refresh cadence",
         )
-    try:
-        verified = date.fromisoformat(match.group(1))
-    except ValueError as e:
-        return ("unstamped", None, f"{pack_path.name}: malformed date {match.group(1)!r} ({e})")
+    parsed: list[date] = []
+    for raw in raw_dates:
+        try:
+            parsed.append(date.fromisoformat(raw))
+        except ValueError:
+            continue
+    if not parsed:
+        return ("unstamped", None, f"{pack_path.name}: malformed date(s) {raw_dates!r}")
+    # If a pack carries more than one stamp (e.g. a manual one + an
+    # auto-injected one), the NEWEST verification is the truthful one.
+    verified = max(parsed)
     age = (today - verified).days
     if age < 0:
         return (

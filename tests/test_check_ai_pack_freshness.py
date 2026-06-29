@@ -103,3 +103,15 @@ class TestCheckPack:
         status, _age, msg = mod.check_pack(p, date(2026, 6, 29))
         assert status == "unstamped"
         assert "malformed" in msg
+
+    def test_multiple_stamps_uses_newest(self, mod, tmp_path):
+        """Residual-risk R2 closed: newest of multiple stamps wins, not first-in-file."""
+        p = tmp_path / "multi.md"
+        p.write_text(
+            "Last content verification: 2020-01-01\n"
+            "Last content verification: 2026-06-20\n",
+            encoding="utf-8",
+        )
+        status, age, _msg = mod.check_pack(p, date(2026, 6, 29))
+        assert status == "fresh"
+        assert age == 9  # 2026-06-20, not the 2020 first-in-file stamp

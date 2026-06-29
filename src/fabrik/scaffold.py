@@ -358,19 +358,19 @@ def _fabrik_synced_gitignore_block() -> str:
 
 
 def _assert_not_hub(target: Path) -> None:
-    """Refuse to scaffold/fix the Fabrik hub (/opt/fabrik) itself.
+    """Refuse to scaffold/fix the Fabrik hub (/opt/fabrik) or any path inside it.
 
     The hub is the canonical source of the synced governance files
     (``.windsurf/``, ``CLAUDE.md``, ``AGENTS.md``, ``scripts/run*``, …). Writing
     the *project* synced-gitignore block here would ignore the hub's own sources
     (they would then only be tracked via ``git add -f``). Scaffold and fix
-    operate on projects, never the hub. ``sync_enforcement_to_projects.py``
+    operate on projects under /opt/<id>, never the hub or any path within it. ``sync_enforcement_to_projects.py``
     already excludes the hub from its project list; this closes the manual path.
     """
-    if target.resolve() == FABRIK_ROOT.resolve():
+    if target.resolve().is_relative_to(FABRIK_ROOT.resolve()):
         raise ValueError(
-            f"refusing to scaffold/fix the Fabrik hub itself ({FABRIK_ROOT}); "
-            "scaffold operates on projects, not the hub"
+            f"refusing to scaffold/fix the Fabrik hub or any path inside it ({FABRIK_ROOT}); "
+            "scaffold operates on projects under /opt/<id>, never the hub or its subdirs"
         )
 
 

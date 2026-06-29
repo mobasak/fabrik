@@ -129,3 +129,22 @@ Opt-in only; tests-gated (HARD); secret-scanned diff; Telegram Approve/Reject/ST
 - **Scope honesty:** the handoff under-scoped this (deploy-key + healthcheck + bus-wiring). This plan states the true scope.
 - **Not claimed:** this is DRAFT; nothing is built, no live call made, no "converged"/"done" claim. The prod-affecting phase is explicitly gated behind a review checkpoint.
 - **Reversibility:** Phases A/B are reversible; Phase C ships off-by-default and is itself reversible (auto-rollback + STOP).
+
+---
+
+## 7. Residual risks & mitigations
+
+Every residual risk this plan carries, with how it is addressed — none left merely "accepted":
+
+| # | Residual risk | Mitigation in this plan |
+|---|---|---|
+| R-A | **Phase C can auto-apply code to prod** (the core hazard). | Ships **off by default** (`auto_code_fix: false`), enabled per-project. Tier-D gates every apply: tests HARD-gate, secret-scan, Telegram Approve/Reject/STOP, silence-window, auto-rollback on VERIFY regression, STOP kill-switch, full `deploys`/`approvals` audit (`60-watchdog.md:77-105`). First enablement on one non-critical project, operator watching (§4). |
+| R-B | **`verify_health` is a no-op without an app HEALTHCHECK** → auto-rollback can't fire (`coordinator.py:430-441`). | Phase B renders/requires an app-container `HEALTHCHECK` (or injects a custom `verify_health`); Phase C refuses to enable Tier-D for a project lacking one — degrade to escalate-only rather than ship blind auto-rollback. |
+| R-C | **Deploy key documented but unimplemented** → autonomous push *and* today's `propose_fix_prs` silently fail (`watchdog.py:20-24` vs none; `Dockerfile:118-121`). | Phase B implements generate-once + RO mode-600 mount at the path the image already expects; Phase C depends on it. Standalone value (unblocks the existing PR path). |
+| R-D | **`SIDECAR_SOURCE` path mismatch** (`watchdog.py:92` `sidecar/` vs real `watchdog_sidecar/`) — build may already not resolve. | Phase B step 1 is a **blocking pre-check**: verify what `fabrik apply` actually resolves before any extension. |
+| R-E | **Driver bypasses Pydantic defaults** (raw `wcfg.get()`, `watchdog.py:248-273`) → a new field can diverge in two places. | Thread `auto_code_fix`/`code_fix_window_sec` through all 4 sites + a test asserting driver default == Pydantic default. |
+| R-F | **Four unresolved design unknowns** (`repo_dir` identity; Remediator/TelegramBot/ApprovalManager constructors; bootstrap-vs-entrypoint; healthcheck source). | §5: each pinned from the fabrik-lib design docs **before** writing Phase C code — none assumed. |
+| R-G | **Cross-repo dependency:** error-tracker trigger can't fire end-to-end until fabrik-lib registers the source token + ingest (`agent.py:623-624` `sources={}`). | Issue-1's deliverable (captured fixture) does **not** depend on it; the source stays out of `WATCHDOG_TRIGGER_SOURCES` until both halves land. Coordinate with the fabrik-lib agent. |
+| R-H | **GlitchTip capture needs a live event + listener** (no API to read webhook config/logs). | Phase A uses a **disposable** project (auto-cleaned) + a controlled listener; the one manual step (alert→webhook UI wiring) is printed and waited on; a warn-only daily drift-check keeps the fixture honest thereafter. |
+
+Each risk is eliminated within a phase (R-B/C/D/E), gated off-by-default with reversibility (R-A), pinned-before-code (R-F), or explicitly sequenced/coordinated across repos (R-G/H).

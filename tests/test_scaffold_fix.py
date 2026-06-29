@@ -40,11 +40,12 @@ class TestScaffoldHubGuard:
         # A normal project path must not trip the guard.
         _assert_not_hub(Path("/opt/some-other-project"))
 
-    def test_assert_not_hub_allows_hub_subdir(self):
-        """Under-block guard: a subdir of the hub is NOT the hub and must pass."""
+    def test_assert_not_hub_blocks_hub_subdir(self):
+        """Residual-risk R4 closed: a path INSIDE the hub is also refused."""
         from fabrik.scaffold import _assert_not_hub
 
-        _assert_not_hub(FABRIK_ROOT / "src")  # must not raise
+        with pytest.raises(ValueError, match="hub"):
+            _assert_not_hub(FABRIK_ROOT / "templates" / "x")
 
     def test_assert_not_hub_blocks_symlink_to_hub(self, tmp_path):
         """Over-block guard: resolve() must follow a symlink and still block the hub."""
