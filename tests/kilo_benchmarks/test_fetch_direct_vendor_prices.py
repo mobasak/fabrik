@@ -387,14 +387,19 @@ def test_dry_run_never_writes(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 # Alert wiring
 # ---------------------------------------------------------------------------
-def test_send_alert_uses_stderr_fallback_when_lib_absent(capsys: pytest.CaptureFixture) -> None:
-    """When fabrik-lib/alerting isn't importable, _send_alert logs to stderr
-    and returns False (never raises)."""
+def test_send_alert_returns_false_when_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
+    """As of the Phase-5 alerting wire-up, fabrik-lib/alerting IS vendored
+    into scripts/kilo-benchmarks/alerting/. The previous "stderr fallback
+    when lib absent" path is no longer reachable. Instead, _send_alert
+    delegates to the real alerting module which honors ALERT_ENABLED.
+
+    Test: with ALERT_ENABLED=0, send_alert returns False without firing
+    a Telegram message — the test never hits the network."""
+    monkeypatch.setenv("ALERT_ENABLED", "0")
+    monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
+    monkeypatch.delenv("ALERT_VPS_HOST", raising=False)
     ok = orch._send_alert("title", "body", "warning")
     assert ok is False
-    captured = capsys.readouterr()
-    assert "title" in captured.err
-    assert "body" in captured.err
 
 
 def test_alert_fires_on_refused_diff(tmp_path: Path) -> None:
