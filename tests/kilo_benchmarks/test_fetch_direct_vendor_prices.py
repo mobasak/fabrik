@@ -422,3 +422,116 @@ def test_alert_fires_on_refused_diff(tmp_path: Path) -> None:
     for title, body, severity in refused_alerts:
         assert "soniox" in title
         assert severity == "critical"
+
+
+# ============================================================
+# Adversarial Pass-1 regression tests (Phase 1 review)
+# ============================================================
+
+def test_url_broken_sentinel_clears_on_successful_write(tmp_path: Path) -> None:
+    """Adversarial Pass-1 finding #3: Plan §"DB schema additions" CLEAR rule
+    says price_scrape_source MUST be NULLed on every successful write. A
+    previous version of the orchestrator wrote w.source_url here, which meant
+    a row stamped URL_BROKEN_<date> would never auto-clear once its URL got
+    fixed."""
+    db = tmp_path / "k.db"
+    _seed_db(db)
+    # Pre-seed a URL_BROKEN sentinel for nova-3
+    conn = sqlite3.connect(db)
+    conn.execute(
+        "UPDATE agents SET price_scrape_source='URL_BROKEN_2026-01-01' WHERE id='deepgram/nova-3'"
+    )
+    conn.commit()
+    conn.close()
+
+    reg = _registry()
+    html = (Path(__file__).parent / "fixtures" / "direct_vendor_parsers" / "deepgram.html").read_text()
+    scraper = _FakeScraper({"https://deepgram.com/pricing": html})
+
+    orch.process_vendor(vendor="deepgram", cfg=reg["deepgram"], scraper=scraper,
+                        db_path=db, apply=True)
+
+    conn = sqlite3.connect(db)
+    source = conn.execute(
+        "SELECT price_scrape_source FROM agents WHERE id='deepgram/nova-3'"
+    ).fetchone()[0]
+    conn.close()
+    # nova-3 had a +12% audit-alert write; CLEAR rule must NULL the sentinel.
+    assert source is None, f"sentinel should clear but found {source!r}"
+
+
+def test_url_broken_sentinel_set_on_fetch_failure(tmp_path: Path) -> None:
+    """Adversarial Pass-1 finding #4: Plan §"DB schema additions" SET rule
+    says orchestrator MUST write URL_BROKEN_<YYYY-MM-DD> into
+    price_scrape_source when (a) URL fails AND (b) source is currently NULL.
+    Previous version had ZERO implementation; rows just kept their old
+    price + NULL source + no audit trail of the failure."""
+    db = tmp_path / "k.db"
+    _seed_db(db)
+    reg = _registry()
+    scraper = _FakeScraper({}, boom_urls={"https://deepgram.com/pricing"})
+
+    outcome = orch.process_vendor(vendor="deepgram", cfg=reg["deepgram"],
+                                  scraper=scraper, db_path=db, apply=True)
+    assert outcome.error is not None
+
+    conn = sqlite3.connect(db)
+    rows = {r[0]: r[1] for r in conn.execute(
+        "SELECT id, price_scrape_source FROM agents WHERE id LIKE 'deepgram/%'"
+    ).fetchall()}
+    conn.close()
+    today = orch._today_utc_iso()
+    for db_id in ("deepgram/nova-2", "deepgram/nova-3"):
+        assert rows[db_id] is not None, f"{db_id}: sentinel should be SET"
+        assert rows[db_id] == f"URL_BROKEN_{today}", (
+            f"{db_id}: expected URL_BROKEN_{today}, got {rows[db_id]!r}")
+
+
+def test_url_broken_set_rule_idempotent(tmp_path: Path) -> None:
+    """A row that ALREADY has a non-NULL price_scrape_source (e.g. set by a
+    previous failure run) must NOT be overwritten by a second failure."""
+    db = tmp_path / "k.db"
+    _seed_db(db)
+    # Pre-set a sentinel from yesterday
+    conn = sqlite3.connect(db)
+    conn.execute(
+        "UPDATE agents SET price_scrape_source='URL_BROKEN_2026-01-01' "
+        "WHERE id='deepgram/nova-2'"
+    )
+    conn.commit()
+    conn.close()
+
+    reg = _registry()
+    scraper = _FakeScraper({}, boom_urls={"https://deepgram.com/pricing"})
+
+    orch.process_vendor(vendor="deepgram", cfg=reg["deepgram"],
+                        scraper=scraper, db_path=db, apply=True)
+
+    conn = sqlite3.connect(db)
+    rows = {r[0]: r[1] for r in conn.execute(
+        "SELECT id, price_scrape_source FROM agents WHERE id LIKE 'deepgram/%'"
+    ).fetchall()}
+    conn.close()
+    # nova-2 keeps its pre-existing sentinel; nova-3 (was NULL) gets today's
+    assert rows["deepgram/nova-2"] == "URL_BROKEN_2026-01-01"
+    today = orch._today_utc_iso()
+    assert rows["deepgram/nova-3"] == f"URL_BROKEN_{today}"
+
+
+def test_url_broken_set_rule_skipped_under_dry_run(tmp_path: Path) -> None:
+    """SET rule must NOT touch the DB under --dry-run."""
+    db = tmp_path / "k.db"
+    _seed_db(db)
+    reg = _registry()
+    scraper = _FakeScraper({}, boom_urls={"https://deepgram.com/pricing"})
+
+    orch.process_vendor(vendor="deepgram", cfg=reg["deepgram"],
+                        scraper=scraper, db_path=db, apply=False)
+
+    conn = sqlite3.connect(db)
+    rows = dict(conn.execute(
+        "SELECT id, price_scrape_source FROM agents WHERE id LIKE 'deepgram/%'"
+    ).fetchall())
+    conn.close()
+    assert rows["deepgram/nova-2"] is None
+    assert rows["deepgram/nova-3"] is None

@@ -147,3 +147,47 @@ def test_helper_per_hour_round_trip() -> None:
     # Browser displays as $/min; 0.30/hour = 0.005/min
     per_min_back = v / 1_000_000 * 60
     assert abs(per_min_back - 0.005) < 1e-6
+
+
+# ============================================================
+# Adversarial Pass-1 regression tests (Phase 1 review)
+# ============================================================
+
+def test_cartesia_anchors_on_sonic_skips_voice_agents() -> None:
+    """Adversarial Pass-1 finding #1: a previous version of the cartesia
+    parser used a bare $-per-minute regex and would match the FIRST per-minute
+    price on the page — which is not guaranteed to be Sonic-2's. If Cartesia
+    surfaces Voice Agents pricing before Sonic-2, the parser must IGNORE the
+    Voice Agents number and find Sonic-2's price."""
+    html = (
+        "<html>"
+        "<section><h3>Voice Agents</h3><p>$0.05 per minute</p></section>"
+        "<section><h3>Sonic-2 TTS</h3><p>$0.06 per minute</p></section>"
+        "</html>"
+    )
+    rows = _load("cartesia").extract(html, "https://cartesia.ai/pricing")
+    assert len(rows) == 1
+    # 0.06/min normalized = 1000.0 (per_minute_to_M_audio_min); 0.05 = 833.33.
+    # If the regex grabbed the WRONG product, we'd see 833.33 here.
+    assert abs(rows[0].input_price_per_M - 1000.0) < 0.5
+    assert rows[0].raw_price_text.startswith("$0.06")
+
+
+def test_speechmatics_anchors_on_advanced_skips_standard() -> None:
+    """Adversarial Pass-1 finding #2: previous version matched the FIRST
+    $-per-hour price on the page. If Speechmatics lists a Standard tier
+    first ($0.10/hour) before Advanced ($0.24/hour), the parser must
+    anchor on "Advanced features for professional use" and pick the right
+    price."""
+    html = (
+        "<html>"
+        '<div>Standard tier: <span>$0.10 per hour</span></div>'
+        '<div>Advanced features for professional use ($0.24 per hour)</div>'
+        "</html>"
+    )
+    rows = _load("speechmatics").extract(html, "https://www.speechmatics.com/pricing")
+    assert len(rows) == 1
+    # 0.24/hour normalized = 66.67. 0.10/hour = 27.78. If the anchor failed,
+    # we'd see 27.78.
+    assert abs(rows[0].input_price_per_M - 66.67) < 0.1
+    assert "0.24" in rows[0].raw_price_text

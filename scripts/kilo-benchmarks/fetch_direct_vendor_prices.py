@@ -245,6 +245,37 @@ def process_vendor(
             error="simulated fetch failure (--simulate-failure)",
         )
 
+    # Pre-compute the DB ids this vendor manages so we can write the
+    # URL_BROKEN_ sentinel on fetch failure (Plan §"DB schema additions"
+    # SET rule; adversarial Pass-1 finding #4).
+    pre_db_ids = list((models_cfg or {}).keys())
+
+    def _mark_url_broken(reason: str) -> None:
+        """Adversarial Pass-1 SET rule: when a vendor fetch fails AND apply
+        is True, write URL_BROKEN_<YYYY-MM-DD> into price_scrape_source for
+        each of the vendor's rows whose source is currently NULL. Idempotent
+        because of the IS NULL guard."""
+        if not apply or not pre_db_ids:
+            return
+        sentinel = f"URL_BROKEN_{_today_utc_iso()}"
+        sconn = sqlite3.connect(db_path)
+        try:
+            placeholders = ",".join("?" * len(pre_db_ids))
+            sconn.execute("BEGIN")
+            try:
+                sconn.execute(
+                    f"UPDATE agents SET price_scrape_source=? "
+                    f"WHERE id IN ({placeholders}) AND price_scrape_source IS NULL",
+                    (sentinel, *pre_db_ids),
+                )
+                sconn.commit()
+            except Exception:
+                sconn.rollback()
+                raise
+        finally:
+            sconn.close()
+        _ = reason  # reserved for a future audit log row
+
     # Fetch
     try:
         if method == "static":
@@ -254,6 +285,7 @@ def process_vendor(
         elif method == "stealth":
             html = scraper.fetch_rendered(url, stealth=True)
         else:
+            _mark_url_broken(f"unknown fetch_method {method!r}")
             return VendorOutcome(
                 vendor=vendor,
                 fetched=False,
@@ -262,6 +294,7 @@ def process_vendor(
                 error=f"unknown fetch_method {method!r}",
             )
     except (FetchError, Exception) as e:
+        _mark_url_broken(f"fetch failed: {type(e).__name__}: {e}")
         return VendorOutcome(
             vendor=vendor,
             fetched=False,
@@ -275,6 +308,7 @@ def process_vendor(
         try:
             html = scraper.fetch_rendered(url, stealth=True)
         except (FetchError, Exception) as e:
+            _mark_url_broken(f"bot-wall escalation failed: {type(e).__name__}: {e}")
             return VendorOutcome(
                 vendor=vendor,
                 fetched=False,
@@ -424,15 +458,20 @@ def process_vendor(
             try:
                 for w in writes:
                     if w.action == "wrote":
-                        # On a successful write, NULL-out price_scrape_source if it
-                        # carries the URL_BROKEN_ sentinel (per Plan §"DB schema
-                        # additions" — set/clear rule). For Phase 1 vendors none
-                        # carry the sentinel, but the cleanup is generic.
+                        # Adversarial Pass-1 finding (CORRECTNESS #3): the Plan's
+                        # §"DB schema additions" CLEAR rule says "NULL-out
+                        # price_scrape_source whenever it writes a non-NULL
+                        # last_price_scraped for the same row." Previous version
+                        # wrote w.source_url here, which meant a URL_BROKEN_
+                        # sentinel from a prior run would never auto-clear.
+                        # Now writes NULL literally so the carve-out filter
+                        # (`price_scrape_source NOT LIKE 'URL_BROKEN_%'`) sees
+                        # the row again on next run.
                         conn.execute(
                             "UPDATE agents SET input_cost_per_m=?, last_price_scraped=?, "
-                            "price_scrape_source=?, consecutive_pricing_misses=0 "
+                            "price_scrape_source=NULL, consecutive_pricing_misses=0 "
                             "WHERE id=?",
-                            (w.after_price, today, w.source_url, w.db_id),
+                            (w.after_price, today, w.db_id),
                         )
                     elif w.action == "missing" and w.db_id.startswith("<unmapped"):
                         # Don't update on unmapped — registry mistake
