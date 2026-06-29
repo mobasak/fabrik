@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Removed — Cheapest column from AI Models Browser (redundant with Price + badge) (2026-06-29)
+
+Operator feedback: the **Cheapest** column was redundant. For 401 of 402 rows it duplicated the Price column (`cheapest = direct = Price`). The one row where it differed (FLUX Redux) already surfaces the savings via the `−88% via replicate` badge inline on the Price cell. Removed the column (`<th data-sort="cheapest_gateway_price">` + matching `<td>` + right-align CSS rule). **What's preserved**: the `cheapest_gateway` / `cheapest_gateway_price` DB columns + the `derive_cheapest_gateway.py` daily script + the `maybeCheaperBadge()` Price-cell highlight — those are still doing the actual surfacing of "this row is cheaper somewhere else". Browser is back to 23 columns (23 ths = 23 tds). Net: one fewer noisy column, zero loss of information.
+
 ### Fixed — Cheapest column now populated for every priced row (not just mirror-hit rows) (2026-06-29)
 
 `derive_cheapest_gateway.py` previously skipped rows with no aggregator mirror data, leaving the **Cheapest** column empty for ~96% of the catalog (16/555 rows). The trivial case — "direct" is the only known gateway → direct IS the cheapest — was missing. Now every row with a real `input_cost_per_m > 0` and a canonical `pricing_unit` gets `cheapest_gateway='direct'` + `cheapest_gateway_price=input_cost_per_m` when no mirror exists; rows WITH mirrors keep the min-of-all logic. Coverage jumped 16 → **402/555**. The remaining 32 empty rows are free models (`input_cost_per_m=0`) — correctly excluded because "cheapest of $0" is undefined. The `maybeCheaperBadge` Price-cell highlight is unaffected (still requires `cheapest_gateway !== 'direct'` AND ≥5% savings), so the column gains value for every paid row without adding visual noise.
