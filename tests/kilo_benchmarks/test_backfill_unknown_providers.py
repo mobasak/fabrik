@@ -112,3 +112,47 @@ def test_idempotent_second_run(tmp_path: Path) -> None:
     result = mod.run(db, apply=True)
     assert result["matched"] == 0
     assert result["updated"] == 0
+
+
+# ============================================================
+# Phases 2-5 adversarial review additions (2026-06-30)
+# ============================================================
+
+def test_infer_provider_claude_prefix_takes_precedence_over_slash() -> None:
+    """Adversarial Pass-1 finding: the claude-* startswith check runs BEFORE
+    the slash split. Pin this so a refactor can't silently change precedence.
+    `claude-opus/v1` (hypothetical mixed form) -> 'anthropic', NOT 'claude-opus'.
+
+    Rationale: the canonical Anthropic id forms are either `claude-opus-4-7`
+    (no slash) or `anthropic/claude-3.5-sonnet` (slash with anthropic prefix).
+    A hypothetical `claude-opus/v1` form has no real catalog occurrences,
+    but if it ever appears, treating the claude- prefix as authoritative is
+    semantically correct."""
+    mod = _load()
+    assert mod.infer_provider("claude-opus/v1") == "anthropic"
+
+
+def test_infer_provider_whitespace_is_unmappable() -> None:
+    """Documented behavior: whitespace-padded ids do NOT get stripped, so
+    they fall through to the unmappable bucket. This is intentional — if an
+    upstream catalog ships whitespace-padded ids, that's a data-quality
+    issue worth catching, not a parser quietly auto-correcting it."""
+    mod = _load()
+    assert mod.infer_provider("  claude-opus  ") is None
+    assert mod.infer_provider("\tclaude-opus\n") is None
+
+
+def test_dry_run_unmappable_count_is_returned() -> None:
+    """The dry-run path returns a dict with a `unmappable` count. Pin it
+    so a refactor can't drop the metric."""
+    mod = _load()
+    # Re-use the seed from above but inline-confirm the return shape
+    import sqlite3
+    import tempfile
+    from pathlib import Path as _P
+    with tempfile.TemporaryDirectory() as td:
+        db = _P(td) / "k.db"
+        _seed(db)
+        result = mod.run(db, apply=False)
+        assert set(result.keys()) >= {"matched", "updated", "unmappable"}
+        assert result["unmappable"] == 1   # `mystery-name` from _seed

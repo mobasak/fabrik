@@ -9,6 +9,10 @@ The AI Models Browser at [scripts/kilo-benchmarks/models_browser.html](../../scr
 ## Manually triggering the scraper
 
 ```bash
+# Backfill provider for rows marked 'unknown' (Phase 4 deliverable)
+.venv/bin/python scripts/kilo-benchmarks/backfill_unknown_providers.py            # dry-run
+.venv/bin/python scripts/kilo-benchmarks/backfill_unknown_providers.py --apply    # write
+
 # Dry-run (no DB writes; shows what would happen)
 .venv/bin/python scripts/kilo-benchmarks/fetch_direct_vendor_prices.py
 
