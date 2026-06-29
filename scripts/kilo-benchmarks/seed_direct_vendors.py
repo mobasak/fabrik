@@ -333,14 +333,14 @@ _add(
 )
 _add(
     "cartesia/sonic-2",
-    name="Cartesia: Sonic 2",
+    name="Cartesia: Sonic 2 (via Line Voice Agents)",
     provider="cartesia",
     service_type="tts",
-    input_cost_per_m=per_1k_chars(0.04),
-    pricing_unit="M-chars",
+    input_cost_per_m=per_min(0.06),
+    pricing_unit="audio-min",
     quality_tier=2,
     is_ga=1,
-    description="Cartesia Sonic 2. ~75 ms latency, voice cloning, multilingual. Competitive with ElevenLabs Flash. $0.04/1K chars.",
+    description="Cartesia Sonic 2 powering Line Voice Agents. Cartesia transitioned away from per-character TTS billing to a credit/subscription model in 2026; the only directly-priced Cartesia product today is Line Voice Agents at $0.06/minute (+$0.014/min telephony add-on). Per docs.cartesia.ai/pricing (verified 2026-06-30 via firecrawl). The per-character TTS API still exists but is bundled into monthly subscription tiers (~1 credit/char ≈ $272/M-chars on the $299/mo Pro plan with 1.1M credits) — not directly-scrapable.",
 )
 # PlayHT (play.ht) was permanently shut down on 2025-12-31 after Meta's
 # July 2025 acquisition. API endpoints went dark on 2025-07-26; the service
