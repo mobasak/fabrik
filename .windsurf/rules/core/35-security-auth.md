@@ -27,6 +27,24 @@ Use when the project does NOT use Supabase Auth (e.g., internal tools, file-work
 - Do not use NextAuth.js, Clerk, Auth0, or Firebase Auth.
 - All clients (Next.js, React Native, Chrome Extension) are API consumers only.
 
+### Pattern A-compat — FastAPI IdP on a Supabase-shaped schema (migration off Supabase Auth)
+
+Use when a project is **migrating off Supabase Auth** but wants to retain its existing `auth.uid()`-based RLS policies, `auth.users` FKs/triggers, and `authenticated`/`service_role` grants **unchanged** — a verified zero-rewrite, zero-loss migration. This is a third, legitimate position ("Pattern A, Supabase-schema-compatible"), **not** a fork of Pattern A's token rules: FastAPI becomes the sole IdP and the token lifecycle is **exactly Pattern A** (Argon2 / 15-min HS256 access / 7-day opaque PG refresh / Redis denylist). The database keeps Supabase's **PostgreSQL contract**, now owned natively:
+
+- **`auth` schema + `auth.users`** table — own it natively (`encrypted_password` holds the Argon2 hash). Existing FKs to `auth.users(id)` and triggers keep working with zero edits.
+- **`auth.uid()` / `auth.jwt()` / `auth.role()`** SQL helpers, reimplemented over the `request.jwt.claims` GUC with Supabase-faithful semantics (definitions in `95-multi-tenant-saas.md` § compat mode).
+- **`anon` / `authenticated` / `service_role`** roles — `NOLOGIN NOINHERIT`; `service_role` carries `BYPASSRLS`, mirroring Supabase's privileged key for M2M.
+- **The GUC contract** — the app sets, per transaction, exactly what Supabase's PostgREST set from the JWT:
+  ```sql
+  SET LOCAL role = 'authenticated';   -- or 'service_role' for M2M
+  SET LOCAL request.jwt.claims = '{"sub":"<user-uuid>","role":"authenticated"}';
+  ```
+  With these set, `auth.uid()` resolves to `<user-uuid>` and every existing policy enforces as before. Unset/invalid → `auth.uid()` returns `NULL` → deny (the invariant below).
+
+Tenant isolation, the dual-mode RLS contract, the `auth.*` helper definitions, `fabrik_admin`, and the cross-tenant probe live in `95-multi-tenant-saas.md`. The canonical reference build is trade-intelligence's `000_native_auth.sql` (auth schema + helpers) + `053_force_rls_and_admin.sql` (FORCE RLS + `fabrik_admin`).
+
+> **Fail-closed invariant (hard, every mode).** `auth.uid()` and `current_tenant_id()` MUST return `NULL` (→ the policy denies) on unset, empty, or malformed claims — wrap the body in `EXCEPTION WHEN OTHERS THEN RETURN NULL`. **Never** raise and never default to a value: an error-open helper turns one bad/empty JWT into a full cross-tenant read. This is the single most security-critical line in the build — verify it explicitly with a no-context probe (`SELECT auth.uid()` → `NULL`).
+
 ### Pattern B — Supabase Auth + FastAPI backend (SaaS / Mobile)
 
 Use when the domain module (SaaS or mobile) mandates Supabase Auth. This is the default for user-facing products.
@@ -210,6 +228,8 @@ Escalate mission-critical auth mail (reset, receipts) to **Postmark** only on me
 | Trusting Docker network isolation alone | `X-Internal-Token` + shared secret |
 | Custom refresh logic with Supabase Auth | Supabase client SDK handles refresh |
 | `service_role` key exposed to client | Server-side only, via env var |
+| `auth.uid()` / `current_tenant_id()` that raises or defaults on unset/invalid claims | `EXCEPTION WHEN OTHERS THEN RETURN NULL` (fail-closed deny) |
+| Rewriting existing `auth.uid()` RLS policies when leaving Supabase Auth | Pattern A-compat — own `auth.*` + the `request.jwt.claims` GUC; policies stay unchanged |
 
 ---
 
@@ -221,7 +241,7 @@ Escalate mission-critical auth mail (reset, receipts) to **Postmark** only on me
 - `58-resilience.md` — timeout/retry/CB for M2M inter-service calls
 - `80-mobile.md` — Pattern B token storage (`expo-secure-store`), Sign in with Apple mandate
 - `86-email-templates.md` — Resend pipeline for auth transactional email (ESP Decision Log in § ESP Decision Log)
-- `95-multi-tenant-saas.md` — Supabase RLS for tenant isolation (Pattern B)
+- `95-multi-tenant-saas.md` — dual-mode RLS (native + Pattern A-compat) for tenant isolation; canonical `auth.uid()` / `current_tenant_id()` fail-closed helpers + `fabrik_admin`
 
 ---
 
@@ -230,6 +250,8 @@ Escalate mission-critical auth mail (reset, receipts) to **Postmark** only on me
 - [ ] Auth pattern (A or B) matches the project's domain module and scaffold type.
 - [ ] Pattern A: FastAPI is the sole token issuer — no frontend auth libraries handle identity.
 - [ ] Pattern B: Supabase Auth configured; FastAPI validates Supabase JWTs via JWKS; RLS enabled on tenant-scoped tables.
+- [ ] Pattern A-compat: `auth` schema owned natively (`auth.users` + `auth.uid()/jwt()/role()` + `anon`/`authenticated`/`service_role`); app sets `role` + `request.jwt.claims` GUCs per transaction; token lifecycle stays Pattern A.
+- [ ] Fail-closed verified: `auth.uid()` / `current_tenant_id()` return `NULL` on unset/invalid context (no-context probe → helper `NULL`, scoped read denies).
 - [ ] Web login uses HttpOnly + Secure + SameSite=Lax cookie (Pattern A) or Supabase SSR cookie strategy (Pattern B).
 - [ ] Mobile tokens stored in `expo-secure-store` — never AsyncStorage or MMKV.
 - [ ] All Next.js Server Actions and data-fetching Server Components call `verifySession()`.

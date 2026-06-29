@@ -50,6 +50,48 @@ Apply when working on tenant isolation, row-level security, tenant context propa
   $$ LANGUAGE plpgsql STABLE;
   ```
 
+> **Hard invariant (every mode).** `current_tenant_id()` AND (compat mode) `auth.uid()` MUST return `NULL` (→ the policy denies) on unset, empty, or malformed context — body wrapped in `EXCEPTION WHEN OTHERS THEN RETURN NULL`. **Never** raise and never default to a value: an error-open helper turns one empty/bad claim into a full cross-tenant read. This is the single most security-critical line in a multi-tenant build — prove it with a no-context probe (helper returns `NULL`; a tenant-scoped `SELECT` returns 0 rows).
+
+## Dual-Mode RLS (canonical)
+
+Two canonical RLS context contracts. A project uses **one**; both enforce the same fail-closed guarantee and the same hardening (`FORCE ROW LEVEL SECURITY` + a `fabrik_admin BYPASSRLS` break-glass role).
+
+| | **native** (default) | **compat** (migrating off Supabase Auth) |
+|---|---|---|
+| Auth pattern | Pattern A or B (`35-security-auth.md`) | Pattern A-compat (`35` § Pattern A-compat) |
+| Context GUC | `app.tenant_id` | `request.jwt.claims` (+ `role`) |
+| Set per txn | `SET LOCAL app.tenant_id = '<uuid>'` | `SET LOCAL role = 'authenticated'; SET LOCAL request.jwt.claims = '{"sub":…,"role":…}'` |
+| Helper | `current_tenant_id()` | `auth.uid()` / `auth.jwt()` / `auth.role()` |
+| Policy predicate | `tenant_id = current_tenant_id()` | existing `… = auth.uid()` policies, **unchanged** |
+| Use when | new projects | preserve existing Supabase RLS policies with zero rewrite |
+
+**native** is documented above (`app.tenant_id` + `current_tenant_id()`). **compat** keeps Supabase's PostgreSQL contract so a project migrating off Supabase Auth keeps every `auth.uid()` policy, `auth.users` FK, and `authenticated`/`service_role` grant working unchanged — FastAPI owns the `auth` schema and sets the GUCs itself (token lifecycle stays Pattern A). Canonical reference build: trade-intelligence `000_native_auth.sql` + `053_force_rls_and_admin.sql`.
+
+### compat mode — the `auth.*` helpers (fail-closed)
+
+Own the `auth` schema natively; reimplement Supabase's helpers over the `request.jwt.claims` GUC:
+
+```sql
+-- auth.uid(): the JWT `sub`, fail-closed to NULL so `user_id = auth.uid()` denies
+-- (never leaks) when no/invalid context is set.
+CREATE OR REPLACE FUNCTION auth.uid() RETURNS uuid
+LANGUAGE plpgsql STABLE AS $$
+BEGIN
+  RETURN nullif(current_setting('request.jwt.claims', true)::jsonb ->> 'sub', '')::uuid;
+EXCEPTION WHEN OTHERS THEN          -- unset / malformed claims → fail-closed
+  RETURN NULL;
+END;
+$$;
+```
+
+Define `auth.jwt()` (the claims jsonb, `coalesce` to `'{}'`) and `auth.role()` (claims `->> 'role'`, else `current_setting('role')`) alongside it; `GRANT EXECUTE` all three to `anon, authenticated, service_role`. Create those three roles `NOLOGIN NOINHERIT` (`service_role` with `BYPASSRLS`). The app sets the GUCs per transaction exactly as Supabase's PostgREST did — `auth.uid()` then drives the existing policies with zero predicate edits.
+
+### Both modes — hardening + cross-tenant probe
+
+- `FORCE ROW LEVEL SECURITY` on **every** RLS-enabled table (so even the table owner is subject to its policies). Apply idempotently across the whole schema in one migration (loop `pg_class WHERE relrowsecurity AND NOT relforcerowsecurity`).
+- A dedicated **`fabrik_admin`** role `NOLOGIN NOINHERIT BYPASSRLS` for migrations / backups / exports only — the public app role **never** connects as it.
+- **Cross-tenant probe (required test):** set context for tenant A, write/read a row; switch context to tenant B and assert A's row is invisible (`count(*) = 0`); then set **no** context and assert the helper returns `NULL` and the read denies. See `45-testing-strategy.md`.
+
 ## Tenant Context Propagation
 
 - Set tenant context using `SET LOCAL app.tenant_id = '<uuid>'` at the start of every database **transaction**. `SET LOCAL` is automatically cleared when the transaction ends, preventing context leakage to subsequent requests sharing the same pooled connection.
@@ -130,7 +172,7 @@ When using Supabase Auth (Pattern B per `35-security-auth.md`), RLS context work
 
 ## Related Rule Packs
 
-- `35-security-auth.md` — Pattern B (Supabase Auth) references this pack for RLS
+- `35-security-auth.md` — Pattern A / A-compat / B auth; Pattern A-compat pairs with this pack's compat-mode RLS
 - `45-testing-strategy.md` — tenant isolation testing (query as A, verify B invisible)
 - `60-saas-ui.md` — tenant UI: org switcher, team management, tenant-scoped nav
 - `75-workers-jobs.md` — background jobs must carry `tenant_id` in payload
@@ -153,13 +195,19 @@ When using Supabase Auth (Pattern B per `35-security-auth.md`), RLS context work
 | Application DB user with `BYPASSRLS` | Dedicated `fabrik_admin` role for maintenance only |
 | RLS-protected table without `tenant_id` index | B-tree index on `tenant_id` (minimum) |
 | Trusting `X-Tenant-ID` without membership check | Validate user belongs to tenant before `SET LOCAL` |
+| `current_tenant_id()` / `auth.uid()` that raises or defaults on unset context | `EXCEPTION WHEN OTHERS THEN RETURN NULL` (fail-closed deny) |
+| Rewriting `auth.uid()` policies to migrate off Supabase Auth | compat mode — own `auth.*` + `request.jwt.claims` GUC; policies unchanged |
+| Mixing `app.tenant_id` (native) and `request.jwt.claims` (compat) in one project | Pick one mode; both share FORCE RLS + `fabrik_admin` |
 
 ---
 
 ## Done When
 
 - [ ] All tenant-scoped tables have `ENABLE ROW LEVEL SECURITY` and `FORCE ROW LEVEL SECURITY`.
-- [ ] RLS policies use `current_tenant_id()` function — fail-closed when tenant context is unset.
+- [ ] RLS mode chosen (native `app.tenant_id` / `current_tenant_id()` OR compat `request.jwt.claims` / `auth.uid()`) — not both in one project.
+- [ ] Helper is fail-closed: `current_tenant_id()` / `auth.uid()` return `NULL` on unset/invalid context, verified by a no-context probe (helper `NULL`, scoped read denies).
+- [ ] compat mode: `auth` schema + `auth.uid()/jwt()/role()` + `anon`/`authenticated`/`service_role` owned natively; existing `auth.uid()` policies left unchanged.
+- [ ] Cross-tenant probe passes: write as A, assert invisible to B, assert deny with no context.
 - [ ] Tenant context set via `SET LOCAL app.tenant_id` per transaction — never at connection level.
 - [ ] FastAPI middleware resolves tenant ID into a `ContextVar` — no global state.
 - [ ] Every `tenant_id` column has a B-tree index.

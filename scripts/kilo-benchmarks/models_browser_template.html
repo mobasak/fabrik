@@ -160,6 +160,7 @@
   thead th[data-sort="swe_bench_multilingual_pct"],
   thead th[data-sort="aider_polyglot_pct"],
   thead th[data-sort="design_arena_coding_elo"],
+  thead th[data-sort="weighted_coding"],
   thead th[data-sort="translation_avg_pct"],
   thead th[data-sort="stt_wer_avg"] {
     text-align: right;
@@ -512,6 +513,7 @@
           <th data-sort="swe_bench_multilingual_pct" data-tabs="coding" title="SWE-bench Multilingual — % resolved on the 300-issue multi-language set. Newer-model coverage is best here (swebench.com)">SWE-ML</th>
           <th data-sort="aider_polyglot_pct" data-tabs="coding" title="Aider Polyglot pass_rate_2 % across 225 multi-language problems (aider.chat). Note: leaderboard is sparse for newest models — use SWE / DA-code / weighted_coding for newer frontier.">Aider</th>
           <th data-sort="design_arena_coding_elo" data-tabs="coding" title="Mean ELO across coding-only design_arena categories (OpenRouter API benchmarks block)">DA-code</th>
+          <th data-sort="weighted_coding" data-tabs="coding" title="BenchLM weighted coding score (composite of HumanEval / MBPP / etc.). Higher is better. Sparser than SWE/Aider but covers some models those leaderboards miss.">W-Code</th>
           <th data-sort="translation_avg_pct" data-tabs="overview reasoning coding translation" title="Translation chrF++ average across 23 languages (fabrik translation bake-off v2.2). Hover the row's cell for per-language breakdown.">Trans</th>
           <th data-sort="stt_wer_avg" data-tabs="transcription" title="Speech-to-text Word Error Rate avg of (LibriSpeech test-clean en + FLEURS multilingual). LOWER is better. Direct-API STT models seeded from public benchmarks (Whisper, gpt-4o-transcribe, Deepgram Nova, AssemblyAI Universal).">STT WER</th>
           <th data-tabs="overview reasoning coding translation transcription voice image video ocr">Categories</th>
@@ -981,12 +983,23 @@ function priceSourceLabel(m) {
   return "unknown / deprecated";
 }
 function fmtCaps(m) {
+  // V vision-in, T tools, A agentic, R reasoning,
+  // S speech-to-text capable, Tr translation-scored,
+  // GA generally available (vs preview/free/experimental)
   const flags = [
     ["V", m.has_vision], ["T", m.has_tools],
     ["A", m.is_agentic], ["R", m.has_reasoning],
+    ["S", m.is_stt_capable], ["Tr", m.is_translation_capable],
     ["GA", m.is_ga],
   ];
-  return flags.map(([k, v]) => `<span class="flag ${v ? 'on' : ''}">${k}</span>`).join("");
+  return flags.map(([k, v]) => `<span class="flag ${v ? 'on' : ''}" title="${
+    k === 'V' ? 'Vision input' :
+    k === 'T' ? 'Tools / function calling' :
+    k === 'A' ? 'Agentic (Kilo-confirmed)' :
+    k === 'R' ? 'Reasoning model' :
+    k === 'S' ? 'Speech-to-text capable' :
+    k === 'Tr' ? 'Translation-scored (bake-off)' :
+    'Generally available'}">${k}</span>`).join("");
 }
 function fmtCats(m) {
   const cats = m.categories || [];
@@ -1068,6 +1081,7 @@ function refresh() {
       <td class="num">${m.swe_bench_multilingual_pct != null ? m.swe_bench_multilingual_pct.toFixed(1) : ""}</td>
       <td class="num">${m.aider_polyglot_pct != null ? m.aider_polyglot_pct.toFixed(1) : ""}</td>
       <td class="num">${m.design_arena_coding_elo != null ? m.design_arena_coding_elo.toFixed(0) : ""}</td>
+      <td class="num">${m.weighted_coding != null ? m.weighted_coding.toFixed(1) : ""}</td>
       <td class="num" title="${m.translation_quality ? (() => { try { const q = JSON.parse(m.translation_quality); return Object.entries(q).filter(([k]) => !["avg","source","note"].includes(k)).map(([k,v]) => k+"="+v).join("  "); } catch(e) { return "" } })() : ""}">${m.translation_avg_pct != null ? m.translation_avg_pct.toFixed(1) : ""}</td>
       <td class="num" title="${m.stt_quality ? (() => { try { const q = JSON.parse(m.stt_quality); return Object.entries(q).filter(([k]) => k !== "source").map(([k,v]) => k+"="+v).join("  ") + (q.source ? "  ("+q.source+")" : ""); } catch(e) { return "" } })() : ""}" style="${m.stt_wer_avg != null ? "color:var(--good);font-weight:600" : ""}">${m.stt_wer_avg != null ? m.stt_wer_avg.toFixed(1) : ""}</td>
       <td class="cats">${fmtCats(m)}</td>

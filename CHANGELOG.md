@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — W-Code column + STT/Translation capability flags in AI Models Browser (2026-06-29)
+
+Final pass after a systematic payload-vs-columns audit. Two remaining unshown high-value fields surfaced: **`weighted_coding`** (43/555 rows) added as a new **W-Code** column on the Coding tab — BenchLM composite score that catches models SWE-bench and Aider miss; **`is_stt_capable`** (31 rows) and **`is_translation_capable`** (14 rows) flags added to `fmtCaps()` as **S** and **Tr** chips alongside V / T / A / R / GA — capability filter chips in the sidebar now have a matching row-level visual. Each new flag has a tooltip naming the underlying signal. Post-fix audit: every payload field with ≥10-row coverage is now reachable from the browser (24 table columns + Caps flags + Source badges + Status + Verified + Categories + Cheapest badge — column-balance check passes 24 ths = 24 tds).
+
 ### Fixed — watchdog driver SIDECAR_SOURCE path (broke `fabrik apply`) + driver dry-run test harness (2026-06-29)
 
 `src/fabrik/drivers/watchdog.py` `SIDECAR_SOURCE` pointed at `/opt/fabrik-lib/watchdog/sidecar`, but fabrik-lib renamed that tree to `watchdog_sidecar/` (Jun 29) — so `_build_image()` aborted with 'sidecar source not found' on **every** watchdog `fabrik apply` (the live `watchdog-test` image survived only because it was built 2026-06-04, pre-rename). Fixed the constant + docstring. Added `tests/test_watchdog_driver.py` (dry-run, render-context, and a SIDECAR_SOURCE existence regression — all no-SSH) so the driver is testable/dry-runnable and this break class is caught. Plan `docs/development/plans/2026-06-29-plan-watchdog-deploy-side.md` updated to the pro-grade AI-managed, (mostly) fully-automated dev→deploy→VPS operating model (manual UI steps reframed as automation TODOs).
