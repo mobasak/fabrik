@@ -57,11 +57,18 @@ def extract(payload: str, source_url: str) -> list[ParsedRow]:
         pos, price, raw = matches[0]
     else:
         # Multiple distinct prices: pick the one whose start position is
-        # closest to a Sonic mention.
-        def distance_to_sonic(price_pos: int) -> int:
-            return min(abs(price_pos - sp) for sp in sonic_positions)
+        # closest to a Sonic mention. Adversarial Pass-2 finding: when two
+        # candidates are equidistant from "Sonic", Python's min() returns
+        # the FIRST in iteration order (regex match order = page order).
+        # That's undocumented behavior leakage; pin it explicitly so a
+        # refactor can't drift it. Tie-breaker: prefer the textually-earlier
+        # price (leftmost on the page).
+        def _sort_key(t: tuple[int, float, str]) -> tuple[int, int]:
+            price_pos = t[0]
+            distance = min(abs(price_pos - sp) for sp in sonic_positions)
+            return (distance, price_pos)
 
-        pos, price, raw = min(matches, key=lambda t: distance_to_sonic(t[0]))
+        pos, price, raw = min(matches, key=_sort_key)
     return [
         ParsedRow(
             model_slug="sonic-2",

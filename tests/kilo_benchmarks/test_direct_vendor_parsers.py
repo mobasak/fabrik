@@ -191,3 +191,33 @@ def test_speechmatics_anchors_on_advanced_skips_standard() -> None:
     # we'd see 27.78.
     assert abs(rows[0].input_price_per_M - 66.67) < 0.1
     assert "0.24" in rows[0].raw_price_text
+
+
+def test_cartesia_equidistant_prices_tie_breaker() -> None:
+    """Adversarial Pass-2 finding: when two prices are equidistant from a
+    Sonic mention, the parser MUST be deterministic. Documented tie-breaker:
+    prefer the textually-earlier price (leftmost on the page).
+
+    Construction (positions calculated to be EXACTLY equidistant):
+      "$0.05 per minute" (16 chars) at offset 0
+      30-char pad
+      "Sonic-2" (7 chars) at offset 46
+      39-char pad (= 30 + 9 to compensate for the asymmetry of
+                    16-char-price-text vs 7-char-anchor)
+      "$0.06 per minute" at offset 92
+    Distance($0.05 start -> Sonic start) = 46 - 0 = 46.
+    Distance($0.06 start -> Sonic start) = 92 - 46 = 46. Equal."""
+    # Surround "Sonic-2" with spaces so the anchor regex's trailing \b
+    # matches (the regex requires a word boundary after the optional "2").
+    # Compensate the padding to keep the EQUAL distance: -2 chars per side.
+    pad_before = "x" * 29
+    pad_after = "x" * 38
+    html = f"$0.05 per minute{pad_before} Sonic-2 {pad_after}$0.06 per minute"
+    rows = _load("cartesia").extract(html, "https://cartesia.ai/pricing")
+    assert len(rows) == 1
+    # 0.05/min normalized = 833.33 (per_minute_to_M_audio_min)
+    assert abs(rows[0].input_price_per_M - 833.33) < 0.5, (
+        f"tie-breaker should prefer textually-earlier price (0.05); "
+        f"got {rows[0].input_price_per_M} from {rows[0].raw_price_text!r}"
+    )
+    assert "0.05" in rows[0].raw_price_text
