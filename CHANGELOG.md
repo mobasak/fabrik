@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — declare GlitchTip in infra specs (errors.vps1, watchdog error-tracker source) (2026-06-29)
+
+GlitchTip (`glitchtip-web` + `glitchtip-worker`) runs live on vps1 from a hand-maintained `/opt/glitchtip/compose.yaml` but was **undeclared** in `specs/`. Added `specs/infrastructure/glitchtip.yaml` mirroring the live compose (Sentry-compatible error tracker, shared `postgres-main`/`redis-main`, Traefik `errors.vps1.ocoron.com`, secrets as `${VAR}`) so the watchdog's error-tracker source is under declarative management. New env vars `GLITCHTIP_SECRET_KEY`/`GLITCHTIP_REDIS_URL` documented in `.env.example` + `docs/CONFIGURATION.md`; INDEX updated. Declaration only — `fabrik apply` is targeted (won't auto-redeploy); apply requires the EXISTING live secret values or the live tracker breaks (loud header in the spec).
+
 ### Fixed — Full Overview column parity on every LLM tab (2026-06-29)
 
 Second pass at per-tab coverage. The 4 LLM tabs (Overview, Reasoning, Coding, Translation) now carry the IDENTICAL column set — Caps, Arena, AA, Trans, Categories were on Overview only; now visible on all four so they line up with the analyst's mental model ("I picked a Coding model — do I lose visibility into Arena ELO or its translation quality? No."). Categories is also extended to every specialty tab (Transcription / Voice / Image / Video / OCR) because the `speech-audio` / `language` / `multimodal` tags add disambiguation. The specialty tabs deliberately still hide $/M out, Ctx, Caps, Arena, AA, Trans — those measure LLM-specific signals that don't apply to per-image / per-minute / per-page billing.

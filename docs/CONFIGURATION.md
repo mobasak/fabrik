@@ -133,6 +133,16 @@ Used by `scripts/kilo-benchmarks/fetch_*_prices.py` to populate `agents.gateway_
 
 - `FAL_KEY` — fal.ai key in `KEY_ID:SECRET` format. Get from [fal.ai/dashboard/keys](https://fal.ai/dashboard/keys). Read-only catalog access is sufficient; no balance required for price discovery.
 
+### GlitchTip (error tracking)
+
+GlitchTip (`errors.vps1.ocoron.com`, Sentry-compatible) is declared in `specs/infrastructure/glitchtip.yaml` and is the error-tracker source for the AI watchdog (`org=ocoron`, `team=vps1`). It reuses `postgres-main` (DB `glitchtip`) + `redis-main`. Env vars:
+
+- `GLITCHTIP_SECRET_KEY` — Django secret key. **Use the existing live value** (`/opt/glitchtip/compose.yaml`); changing it invalidates all sessions.
+- `GLITCHTIP_REDIS_URL` — e.g. `redis://redis-main:6379/<db>` (existing live value).
+- `POSTGRES_PASSWORD` — shared `postgres-main` superuser password (already provisioned).
+
+⚠️ Do not `fabrik apply specs/infrastructure/glitchtip.yaml` until these match the live deployment, or the live tracker + its session keys break. The spec declares the existing hand-deployed stack; `fabrik apply` is targeted, so adding it does not auto-redeploy.
+
 ---
 
 ## Architecture Context

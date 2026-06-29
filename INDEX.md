@@ -159,6 +159,7 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 ├── specs/                           # YAML specs and planning documents
 │   ├── infrastructure/              # Infrastructure service YAML specs
 │   │   ├── apprise.yaml             # Apprise notification service — Docker Compose + Traefik config
+│   │   ├── glitchtip.yaml           # GlitchTip error tracking (errors.vps1) — declares the existing deployment
 │   │   └── n8n.yaml                 # n8n workflow automation — Docker Compose + Traefik config
 │   └── n8n-workflows/               # Importable n8n workflow JSON files
 │       ├── 01-deploy-notify.json    # Webhook → Code → Apprise on deploy.success / deploy.failure
