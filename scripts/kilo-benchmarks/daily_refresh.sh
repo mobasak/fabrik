@@ -188,8 +188,18 @@ mkdir -p "$(dirname "$LOG_FILE")"
   # heartbeat catches CATASTROPHIC failures where the script never gets
   # past the early steps, not transient per-step issues which are
   # already covered by per-step Telegram alerts).
-  mkdir -p "$KB/cache"
-  date -u +'%Y-%m-%dT%H:%M:%S+00:00' > "$KB/cache/daily_refresh_last_success.txt"
+  #
+  # Adversarial Pass-1 finding (Phase 5 heartbeat review): a silent
+  # failure here (disk full, permission denied) would leave tomorrow's
+  # check reading a stale or missing timestamp. The next day's heartbeat
+  # self-corrects by firing a stale alert (timestamp from 2+ days ago is
+  # >36h), but we ALSO log the immediate write failure so the operator
+  # sees it in the same daily_refresh log they'd grep for the staleness
+  # alert. Two-layer defense.
+  mkdir -p "$KB/cache" || echo "[daily_refresh] CRITICAL: heartbeat cache dir creation failed"
+  if ! date -u +'%Y-%m-%dT%H:%M:%S+00:00' > "$KB/cache/daily_refresh_last_success.txt" 2>/dev/null; then
+    echo "[daily_refresh] CRITICAL: heartbeat timestamp write failed (disk full? permission?)"
+  fi
 
   echo "=== Refresh complete — $(date -u +'%Y-%m-%d %H:%M:%S UTC') ==="
 } >> "$LOG_FILE" 2>&1

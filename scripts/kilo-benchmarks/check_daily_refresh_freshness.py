@@ -122,20 +122,33 @@ def maybe_alert(result: dict[str, object]) -> bool:
             file=sys.stderr,
         )
         return False
-    return bool(
-        send_alert(
-            title="kilo-benchmarks daily refresh is stale",
-            body=(
-                f"daily_refresh.sh last completed successfully at "
-                f"{result['timestamp']} UTC "
-                f"({result['age_hours']:.1f} hours ago — threshold "
-                f"{result['threshold_hours']}h). The cron may be skipped or the "
-                f"refresh pipeline is hanging. Investigate: check "
-                f"/opt/fabrik/.droid/daily_refresh.log and the crontab."
-            ),
-            severity="critical",
+    # Defensive: if send_alert raises (network blip, malformed alerting
+    # config, etc.) we still want the heartbeat script to exit cleanly so
+    # daily_refresh.sh continues with its other steps. Logging the failure
+    # to stderr means the operator still sees it in the daily refresh log.
+    try:
+        return bool(
+            send_alert(
+                title="kilo-benchmarks daily refresh is stale",
+                body=(
+                    f"daily_refresh.sh last completed successfully at "
+                    f"{result['timestamp']} UTC "
+                    f"({result['age_hours']:.1f} hours ago — threshold "
+                    f"{result['threshold_hours']}h). The cron may be skipped or the "
+                    f"refresh pipeline is hanging. Investigate: check "
+                    f"/opt/fabrik/.droid/daily_refresh.log and the crontab."
+                ),
+                severity="critical",
+            )
         )
-    )
+    except Exception as e:
+        print(
+            f"[heartbeat] send_alert raised {type(e).__name__}: {e}; "
+            f"alert NOT delivered (stale state: {result['timestamp']}, "
+            f"{result['age_hours']:.1f}h ago)",
+            file=sys.stderr,
+        )
+        return False
 
 
 def main() -> int:

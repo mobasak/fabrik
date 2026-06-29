@@ -113,3 +113,32 @@ def test_maybe_alert_no_op_when_first_run() -> None:
         "timestamp": None, "threshold_hours": 36,
     })
     assert fired is False
+
+
+def test_maybe_alert_swallows_send_alert_exception(capsys) -> None:
+    """Adversarial review of e586de77: send_alert was called without
+    try/except. If alerting raises (network blip, malformed config), the
+    heartbeat script would crash and daily_refresh.sh's wrapper `|| echo`
+    would mask that crash as a generic "non-fatal" error. Now wrapped:
+    on exception, log to stderr + return False so the heartbeat exits
+    cleanly."""
+    mod = _load()
+    # Inject a fake `alerting` module that raises on send_alert
+    import types
+    fake = types.ModuleType("alerting")
+    def _boom(**kw):
+        raise RuntimeError("simulated alerting failure")
+    fake.send_alert = _boom  # type: ignore[attr-defined]
+    sys.modules["alerting"] = fake
+    try:
+        fired = mod.maybe_alert({
+            "status": "stale", "age_hours": 48.0,
+            "timestamp": "2026-06-28T00:00:00+00:00", "threshold_hours": 36,
+        })
+        assert fired is False
+        # The error should be logged to stderr
+        captured = capsys.readouterr()
+        assert "send_alert raised" in captured.err
+        assert "simulated alerting failure" in captured.err
+    finally:
+        del sys.modules["alerting"]
