@@ -1,6 +1,6 @@
 # Plan — Fabrik Empire Operating Model (one-operator, AI-managed) — v3 (velocity-first)
 
-**Status:** DRAFT v3.1 — three `openrouter/fusion` panels (all **unanimous**) → **velocity-first**; keystone `fabrik launch`. **Now explicitly two-pillar (§0):** (A) the Factory + (B) Agent Enablement (a cold agent self-orients + self-acts with zero human onboarding — the substrate that makes A's near-zero-attention real). Survival kept as a cheap floor, gated behind traction.
+**Status:** DRAFT v3.2 — three `openrouter/fusion` panels (all **unanimous**) → **velocity-first**; keystone `fabrik launch`. **Two-pillar (§0):** (A) the Factory + (B) Agent Enablement. v3.2 folds back in the full thread: the complete operating doctrine (§4, incl. self-describing/Doctrine-0, route-by-intent, spend-compute, self-correct — minus the fusion-killed EMPIRE ritual), the `ai-consult` consult capability (§3b, B5), and the live-state index subsuming the stale VPS inventory (B1). Survival kept as a cheap floor, gated behind traction.
 **Date:** 2026-06-29
 **Owner:** Operator + Fabrik AI (hub control plane)
 **Provenance:** `openrouter/fusion` (Opus/GPT/Gemini-Pro panel + budget/fast Gemini-Flash/DeepSeek/Kimi panels, Opus-4.8 judge; ~$2.4 total; raw in scratchpad `fusion_out2/3.txt`, `out_high/budget/fast.txt`).
@@ -50,19 +50,27 @@ Two layers, both required (the operator asked to address agents AND skills/orche
 - **Skills** (`.claude/skills/`) for the repeatable workflows — port the high-value `.windsurf/workflows` (deploy, registrar-audit, scaffold, launch, enable-watchdog). Discoverable + invokable; Claude auto-suggests them by intent.
 - **A small set of domain subagents** (`.claude/agents/`) for heavy isolated sweeps — `fleet-auditor`, `deploy-readiness`, `launch` — NOT one-per-command (that just moves the recall problem).
 - **The orchestrator/router** = intent → (index lookup) → skill/command/subagent. This is the "route by intent" mechanism; built on the index, not a new framework.
+- **`ai-consult` (fabrik-lib module) — the decide-hard-things / self-correct capability.** A robust frontier-AI consult client (OpenRouter `openrouter/fusion` panel + adversarial `verify`; streamed, durable, cost-bounded — SPEC ready in scratchpad `ai-consult-SPEC.md`). Agents *and* the operator call it for high-blast-radius design/architecture decisions and self-verification (*this plan itself was built by 3 fusion consults through it; it caught two keystone errors no single pass would have*). Vendored, env-driven, no fabrik coupling. This is what makes Doctrine 9 (self-correct) and "spend-compute-to-save-attention" real for *judgment*, not just code.
 
 **Why this is co-equal, not a nice-to-have:** every project the factory ships is built/operated by agents. If onboarding an agent costs operator time, that cost rides on *every* project and the per-project-attention KPI never reaches zero. Agent-enablement is the multiplier on the whole factory. It is also self-reinforcing: `fabrik launch` becomes a skill; the watchdog/sysadmin read the same index; a new project auto-registers into the index — the factory documents itself as it grows.
 
 **Cross-agent reality:** Fabrik runs 3+ agent runtimes (Claude Code, Kilo, Cascade/Windsurf, Traycer). The KNOW source must be runtime-neutral (the index + AGENTS.md, which all read); the ACT entry points are per-runtime (`.claude/skills` for Claude Code; `.windsurf/workflows` for Cascade; `AGENTS-compact.md` for Kilo) but generated from the same index so they don't drift.
 
-## 4. Doctrine (binding — velocity lens)
+## 4. Doctrine (binding — the full operating doctrine, velocity-lensed)
 
-1. **Every line judged by the KPI:** *"Does this make launching/testing/killing/growing a project cost less operator-attention?"* If it only reduces variance, it's survival — and survival is **capped at what protects graduated projects**, not experiments.
-2. **Monetizable by default** — no project launches without auth + a payment-or-waitlist path + an analytics funnel. A project that can't be paid or measured is noise.
-3. **Cattle, not pets** — auto-kill zero-traction; auto-graduate winners. Attention routed strictly by traction.
-4. **Reuse before build** (advisory grep, not blocking) · **net-deletion gate** (every phase deletes/merges ≥1 module) · **durable or it didn't happen.**
-5. **Bounded authority** — agents talk to the control plane; the control plane talks to prod; no agent holds master creds, a default root shell, or break-glass; autonomy earned per-component.
-6. **Self-heal is a defect signal** — alert on *rising* heal frequency; improve **out of production** (clone→prove→PR→human merge).
+1. **Every line judged by the KPI** — *"does this let an agent ship/test/kill/grow a project (or orient itself) with less operator-attention?"* If it only reduces variance it's survival, and survival is **capped at what protects graduated projects**, not experiments.
+2. **Monetizable by default** — no project launches without auth + a payment-or-waitlist path + an analytics funnel. Unmeasurable/unpayable = noise.
+3. **Cattle, not pets** — auto-kill zero-traction; auto-graduate winners; attention routed strictly by traction.
+4. **Self-describing system (Doctrine 0)** — capabilities/infra/rules are GENERATED from the live system into one index, **never memorized or hand-curated** (that's exactly how items get missed); reuse + routing resolve against the index, not recall; stale → regenerate.
+5. **Reuse before build → route by intent** — first action on any task: search the index / fabrik-lib / drivers; name what you reused or prove it's absent. If the right entry point is missing, **create the entry point** (skill/command/index-row), not a one-off. Advisory grep, not blocking. **Net-deletion gate:** every phase deletes/merges ≥1 module.
+6. **Unrecorded manual step = defect** — a hand-done prod-impacting step (deploy/secret/restart/fix) is a bug: wire it so an agent does it next time, or file the gap. (Deliberate human risk-gates §8 are *not* defects.)
+7. **Self-heal is a defect signal** — failures route to watchdog/sysadmin (detect→diagnose→fix→test→verify→rollback), not the operator; alert on *rising* heal frequency; improve **out of production** (clone→prove→PR→human merge).
+8. **Spend compute to save attention** — rent servers (Vultr) + GPUs (RunPod/Modal/Vast); fan out agents (Kilo, subagents); pick the cheapest-model-that-clears-the-bar via the Models Browser / kilo-route — under the spend-velocity ceiling (Phase 0).
+9. **Self-correct, prove don't claim** — gate-green + adversarial self-review to a fixed point; **consult `ai-consult`/fusion for high-blast-radius decisions** (panel + `verify`); verify against LIVE state, not docs; report failures with evidence.
+10. **Bounded authority** — agents talk to the control plane; the control plane talks to prod; no agent holds master creds, a default root shell, or break-glass; autonomy earned per-component.
+11. **Durable or it didn't happen** — decisions/capabilities/fixes land in CLAUDE.md / AGENTS.md / rule-packs / skills / memory / this plan, never only in chat.
+
+> *Dropped after the fusion consult:* the `EMPIRE: reuse=..|automate=..` per-task self-report. Attestation ≠ enforcement (agents reward-hack a self-report); enforce mechanically — Doctrines 4/5 are satisfied by the **generated index + advisory grep**, not by an agent attesting it checked. Do not re-add the ritual.
 
 ## 5. The factory lifecycle (the real loop)
 
@@ -90,12 +98,13 @@ One `operator_presence` state machine keyed off `last_telegram_ack`: **0–4h** 
 \* Optimistic-with-Claude-Code; the panel flags 2–5× once integration/debug/operator-review is counted. **Phase 1 is the only no-regret big build.**
 
 **Track B (Pillar B — Agent Enablement; runs in PARALLEL, cheap, de-risks every other phase):**
-- **B1 — Generate the capability index** (`docs/CAPABILITIES.md` + JSON; introspects CLI/drivers/scripts/specs/lib/live-`docker ps`; wired into the daily pipeline). ~1.5d. *Do this near-first: it's what lets the agent building `fabrik launch` reuse the 47 modules / 27 drivers instead of re-inventing — it pays for itself inside Phase 1.*
+- **B1 — Generate the capability + live-state index** (`docs/CAPABILITIES.md` + JSON; introspects CLI/drivers/scripts/specs/lib **and live `docker ps` across all 3 hosts**). **Subsumes the stale `docs/infrastructure/vps-complete-inventory.md`** — that doc is a point-in-time snapshot (the original freshness gap: "verified 2026-06-15" while reality drifts daily); the generated index is always-current and the canonical answer to "what's deployed right now." Wired into the daily pipeline + a `fabrik capabilities`/`vps-sync` on-demand refresh. ~1.5d. *Do this near-first: it's what lets the agent building `fabrik launch` reuse the 47 modules / 27 drivers instead of re-inventing — it pays for itself inside Phase 1.*
 - **B2 — Skills + slash-commands** (`.claude/skills/`) ported from `.windsurf/workflows`, incl. a `launch` skill once Phase 1 lands. ~2d, incremental.
 - **B3 — Domain subagents** (`.claude/agents/`: `fleet-auditor`, `deploy-readiness`, `launch`) — only the heavy isolated ones. ~1–2d.
 - **B4 — One-hop orientation:** CLAUDE.md/AGENTS.md point at the index as step 1 of orientation; index regenerates per project so the factory self-documents. ~0.5d.
+- **B5 — `ai-consult` fabrik-lib module** (frontier-consult client; SPEC ready in scratchpad). The self-correct/consult capability (Doctrine 9) — agents tap fusion for high-blast-radius decisions. Hand the SPEC to the fabrik-lib coder. ~2–3d (fabrik-lib side).
 
-Sequencing: **B1 first (alongside Phase 0)**, then B2/B4 alongside Phase 1, B3 as heavy sweeps appear. Net-deletion still applies — porting a `.windsurf/workflow` to a skill should retire the duplicate, not double it.
+Sequencing: **B1 first (alongside Phase 0)**, then B2/B4 alongside Phase 1, B3 as heavy sweeps appear, B5 whenever the fabrik-lib coder is free. Net-deletion still applies — porting a `.windsurf/workflow` to a skill should retire the duplicate, not double it.
 
 ## 8. Human-gated forever (unchanged)
 
