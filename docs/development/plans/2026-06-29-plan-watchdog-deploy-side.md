@@ -1,6 +1,26 @@
 # Plan — Watchdog deploy-side: GlitchTip payload capture + Tier-D driver wiring
 
-**Status:** IN PROGRESS — Phase A tooling shipped + validated; **Phase B complete**; **Phase C code complete, OFF BY DEFAULT, awaiting the diff-review checkpoint before any `fabrik apply`**. §5 unknowns all resolved from fabrik-lib (see §5). Phase C: `auto_code_fix`/`code_fix_window_sec`/`critical_paths` spec fields + validator, rendered consumer `bootstrap.py`, conditional Dockerfile CMD switch, Tier-D env, deploy-time gates (git-remote hard-fail, no-HEALTHCHECK degrade). Default path byte-identical. All four bootstrap import paths + ctor args verified against the live library; unit-tested SSH-free. **Not yet enabled on any project; no fleet mutation performed.**
+**Status:** Issue 1 RESOLVED (§2.8). **Phase B complete + live-validated.** **Phase C code complete + live-validated via `fabrik plan`** (loader/validator/registrar accept Tier-D config; a real git-remote-derivation bug was caught + fixed). §5 unknowns all resolved from fabrik-lib. Default path byte-identical; unit-tested SSH-free. **Tier-D is not yet ENABLED on any project — see §9 for why and the enablement runbook.**
+
+## 9. Live status + Tier-D enablement runbook (2026-06-29)
+
+**Done, live:** Issue-1 fixture captured from the running GlitchTip; Phase B/C driver code validated against the live `fabrik` via `fabrik plan` for both `watchdog-test` (registrar RUNS) and a throwaway git-sourced Tier-D probe spec (loads + resolves). Caught + fixed: `project_git_remote` was read from the `extra=forbid` watchdog block (always empty) → now derived from `spec.source.repository`.
+
+**Phase B validated by a real `fabrik apply` of `watchdog-test`** — a fresh sidecar image built + booted **healthy** (`watchdog starting` + health server up), exercising `SIDECAR_SOURCE` (renamed path) and the HEALTHCHECK pre-flight. This **surfaced a separate fabrik-lib bug**: the sidecar `Dockerfile`'s COPY list was stale after the autonomous-remediation refactor (omitted `coordinator.py` + `control_plane/ deploy_adapter/ remediation/ trigger/`), so the first fresh build crash-looped `ModuleNotFoundError: watchdog_sidecar.coordinator` — fixed in `/opt/fabrik-lib/.../watchdog_sidecar/Dockerfile` (commit `e436a2a` on `feat/watchdog-autonomous-remediation`) and the sidecar re-applied to healthy. Old images masked the gap because they predate the refactor — exactly the latent break `SIDECAR_SOURCE` was meant to expose.
+
+**Why Tier-D isn't switched on yet — no qualifying target exists:**
+
+- The only deployed watchdog sidecar is `watchdog-test`, which is **docker-sourced** (nginx) → no git repo to fix → Tier-D's gate correctly rejects it.
+- The only git-sourced project with a watchdog block is `transdoc`, but it is **planning-stage and never deployed** (`last_apply_status: never`); enabling autonomous prod code-fix on a service's first-ever deploy is the wrong first target.
+- `site-provisioner` is deployed but has no watchdog config.
+
+Per the single-operator threat model + §4, first Tier-D enablement must be a **stable, already-deployed, non-critical, git-sourced** service with an app HEALTHCHECK — chosen by the operator. When such a target exists, enablement is:
+
+1. In its spec `watchdog:` block set `enabled: true`, `propose_fix_prs: true`, `auto_code_fix: true`, `code_fix_window_sec: <window>`, optional `critical_paths: [...]`. (Validator enforces `auto_code_fix ⇒ propose_fix_prs`.) Ensure `source.type: git` + the app image/compose has a real `HEALTHCHECK` (else the driver degrades to escalate-only).
+2. Add to `secrets.required`: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` (the bootstrap's `TelegramBot.from_env()` accepts these fallback names; both are populated in hub `.env`), plus set `WATCHDOG_TEST_CMD` (e.g. `["pytest","-q"]`) and optional `WATCHDOG_REDEPLOY_CMD` in the project `.env`.
+3. `fabrik plan <spec>` → review → `fabrik apply <spec>` (background; build ~3 min). The driver renders `bootstrap.py`, switches the CMD, generates the deploy key once and **logs the public key**.
+4. Register that public key as a **write-enabled deploy key** on the project's GitHub repo (or via `gh api`), scoped to `watchdog/*` refs per the CODEOWNERS ruleset.
+5. Watch the first incident: Telegram approval → silence-window auto-apply → tests gate → push → redeploy → health-verified, auto-rollback on regression, STOP kill-switch.
 **Date:** 2026-06-29
 **Owner:** Fabrik AI (`/opt/fabrik`, fleet/deploy side)
 **Origin:** Two issues handed off from the fabrik-lib watchdog autonomous-remediation work (PR #1, branch `feat/watchdog-autonomous-remediation`). This plan covers only the `/opt/fabrik` half. The library half (`/opt/fabrik-lib`) is the other agent's.
