@@ -1,6 +1,6 @@
 # Plan — Fabrik Empire Operating Model (one-operator, AI-managed) — v2
 
-**Status:** DRAFT v2 — iterated twice against `openrouter/fusion` panels. **Survive-first, build-less.** Operator-absent policy is now resolved (§5). Phase 0 (delete sprawl) gates everything.
+**Status:** DRAFT v2.1 — iterated against `openrouter/fusion` panels; target clarified to the **project-factory / portfolio thesis** (§0). **Survive-first, build-less, per-project-attention→0.** Operator-absent policy resolved (§5). Phase 0 (delete sprawl) gates everything.
 **Date:** 2026-06-29
 **Owner:** Operator + Fabrik AI (hub control plane)
 **Provenance:** Two frontier panel consults (`openrouter/fusion` → Claude-Opus/GPT/Gemini panel, Opus-4.8 judge; $0.86 + $0.76; raw in scratchpad `fusion_out2.txt` / `fusion_out3.txt`). v1 led with a capability index → corrected to control-first. v2 corrects three structural gaps the panel found in v1 (§1).
@@ -10,6 +10,8 @@
 ## 0. Mission
 
 Run and grow Fabrik as a **mostly-to-fully AI-managed software company operated by ONE human**. The scarce resource is **operator attention at the moment something is silently wrong**. Spend compute, agents (Claude Code, Kilo, fusion, Traycer), and rentable servers/GPUs freely to protect it. **Build less; tier everything; the system shrinks its own complexity over time.** A surviving floor beats a clever ceiling.
+
+**The "$1B solo" target is an explicit 2–5 year DREAM, not a today-state.** The thesis: the infra is a **project factory** — one operator + AI ships *many* projects at **near-zero marginal operator-cost per project**, a few hit, and the *portfolio* reaches a $1B valuation. That reframes the whole OS: the metric it must drive toward zero is **per-project marginal operator-attention** — project #50 must cost no more human time than project #5. Self-management/self-healing isn't a nicety; it's the precondition for project *velocity*. Every capability is judged by: *does this let the operator ship the next project without adding load?*
 
 ## 1. What v2 fixes (the three structural gaps in v1)
 
@@ -91,7 +93,7 @@ Data/backup deletion · destructive/irreversible migrations · secret/IAM/root c
 ## 10. Self-audit / unsolved (carry forward; do not pretend solved)
 
 - v1 was wrong on its keystone (discovery→control) and v1's scope was wrong on its *layer* (infra, not business). Recorded, not hidden.
-- **Premise unexamined:** none of the panel interrogated whether "$1B run by one person" is even coherent — the binding limits on a solo founder are likely **revenue / distribution / legal / tax / compliance**, not infra. This infra-OS is necessary, not sufficient.
+- **Premise (clarified by operator):** "$1B solo" is a **2–5 year portfolio dream** — many AI-built projects on this infra, a few hit, the portfolio reaches the valuation. So this OS's job is to drive **per-project marginal operator-attention → ~0** (project #50 costs no more human time than #5), which makes project *velocity* the real KPI. The binding constraints then shift to **revenue / distribution / legal / tax** — out of scope here but the actual gating layer. This is the factory floor: necessary, not sufficient. **Corollary:** every phase should also be judged "does it reduce per-project operator-load?", not only "does it reduce risk?"
 - **Vendor-concentration SPOF:** the whole stack rests on Anthropic + OpenRouter + Vultr + **Telegram (sole approval channel)** — single-vendor outage/suspension is as severe as the ledger SPOF. Add a second approval channel (email/signal) before Telegram becomes load-bearing.
 - **Legal/regulatory continuity:** a one-person company holding customer data carries GDPR/SLA/entity obligations that persist when you're absent — the continuity packet must include these, not just creds.
 - **Safety-machinery operating tax:** weekly gauntlets + nightly regression + 1-min billing polls consume real spend + review time; budget it against the "lean" goal or it becomes the sprawl it was meant to prevent.
