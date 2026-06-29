@@ -187,9 +187,18 @@ def verify(db_path: Path = DB_PATH) -> dict:
     kilo = _fetch_kilo()
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
+    # Filter to OpenRouter-routed rows only. Without `via_openrouter=1`, this
+    # verifier silently deprecates direct-vendor rows (Soniox, ElevenLabs,
+    # AssemblyAI, Coqui, etc.) on every run — they're not in OpenRouter's
+    # /api/v1/models response, so they get swept into `delisted[]` below and
+    # flipped to status='deprecated' by apply_fixes(). Convergence Pass 6
+    # caught this; live measurement showed 186 wrongly-deprecated direct-vendor
+    # rows at that time. See docs/development/plans/2026-06-29-plan-direct-vendor-pricing.md.
     db_rows = {
         r["id"]: dict(r)
-        for r in conn.execute("SELECT * FROM agents WHERE status='active'").fetchall()
+        for r in conn.execute(
+            "SELECT * FROM agents WHERE status='active' AND via_openrouter=1"
+        ).fetchall()
     }
     conn.close()
 
