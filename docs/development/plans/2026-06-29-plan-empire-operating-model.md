@@ -1,101 +1,85 @@
-# Plan — Fabrik Empire Operating Model (one-operator, AI-managed) — v2
+# Plan — Fabrik Empire Operating Model (one-operator, AI-managed) — v3 (velocity-first)
 
-**Status:** DRAFT v2.1 — iterated against `openrouter/fusion` panels; target clarified to the **project-factory / portfolio thesis** (§0). **Survive-first, build-less, per-project-attention→0.** Operator-absent policy resolved (§5). Phase 0 (delete sprawl) gates everything.
+**Status:** DRAFT v3 — three `openrouter/fusion` panel iterations (high+budget+fast tiers all **unanimous**). Pivoted from survive-first → **velocity-first**: the keystone is `fabrik launch` (idea→monetizable-live, zero operator-attention), not survival machinery. Survival is kept as a *cheap floor* and *gated behind traction*.
 **Date:** 2026-06-29
 **Owner:** Operator + Fabrik AI (hub control plane)
-**Provenance:** Two frontier panel consults (`openrouter/fusion` → Claude-Opus/GPT/Gemini panel, Opus-4.8 judge; $0.86 + $0.76; raw in scratchpad `fusion_out2.txt` / `fusion_out3.txt`). v1 led with a capability index → corrected to control-first. v2 corrects three structural gaps the panel found in v1 (§1).
+**Provenance:** `openrouter/fusion` (Opus/GPT/Gemini-Pro panel + budget/fast Gemini-Flash/DeepSeek/Kimi panels, Opus-4.8 judge; ~$2.4 total; raw in scratchpad `fusion_out2/3.txt`, `out_high/budget/fast.txt`).
 
 ---
 
-## 0. Mission
+## 0. What we're trying to achieve (the north star)
 
-Run and grow Fabrik as a **mostly-to-fully AI-managed software company operated by ONE human**. The scarce resource is **operator attention at the moment something is silently wrong**. Spend compute, agents (Claude Code, Kilo, fusion, Traycer), and rentable servers/GPUs freely to protect it. **Build less; tier everything; the system shrinks its own complexity over time.** A surviving floor beats a clever ceiling.
+**Build a project FACTORY: one operator + AI ships many monetizable projects at near-zero marginal operator-attention; a few hit; the *portfolio* compounds toward a $1B valuation over 2–5 years.** Fabrik (the infra) is the factory, not the product. The single KPI: **per-project marginal operator-attention → 0** — launching project #50 must cost no more human time than #5. Everything is judged by *"does this let the operator ship the next project, or test/kill/grow one, without adding human load?"*
 
-**The "$1B solo" target is an explicit 2–5 year DREAM, not a today-state.** The thesis: the infra is a **project factory** — one operator + AI ships *many* projects at **near-zero marginal operator-cost per project**, a few hit, and the *portfolio* reaches a $1B valuation. That reframes the whole OS: the metric it must drive toward zero is **per-project marginal operator-attention** — project #50 must cost no more human time than project #5. Self-management/self-healing isn't a nicety; it's the precondition for project *velocity*. Every capability is judged by: *does this let the operator ship the next project without adding load?*
+Two honest boundaries up front (§9): **velocity is necessary, not sufficient — distribution is the real unsolved bottleneck**; and **we do not monetize the factory itself** (§2).
 
-## 1. What v2 fixes (the three structural gaps in v1)
+## 1. The v2→v3 pivot (why velocity-first)
 
-The panel judged v1 would produce *a better-governed ops platform, not a solo-survivable lean company*. Three gaps, now addressed:
+Three independent fusion panels, unanimous: **v2 was "a survival plan in a velocity costume — armor-plating an empty truck."** ~85–95% of effort hardened existing zero-revenue experiments; ~0 reduced the cost of *creating/monetizing* a project — the actual KPI. The fix:
 
-- **Gap A — it governs the infrastructure, not the company.** A $1B solo shop dies from maintaining 38 projects with no revenue, not from registrar drift. v1 had no **portfolio governor / project tiering / attention-accounting**. → Phase 0 + §6 note. *(The full business layer — customer-acquisition / support / revenue-churn / "stop doing this product" loops — is the real $1B driver and is OUT OF SCOPE for this infra-OS plan; it gets its own plan. Naming it so we don't mistake a self-healing machine running dead products for an empire.)*
-- **Gap B — leanness was asserted, not mechanized.** v1 added 6 phases of machinery atop existing sprawl (507 docs, 79 scripts, 47 modules) with no net-deletion gate → safety becomes the new monolith, *and* a bigger surface the AI itself must navigate (context-overflow/hallucination risk). → **net-deletion doctrine (§3.5) + hard control-plane budgets (§9) + Phase 0 deletes first.**
-- **Gap C — not solo-survivable.** Everything assumed the operator answers Telegram. No dead-man's-switch, no bus-factor escape, no out-of-band recovery if the hub/ledger dies. → §5 operator-absent policy + §7 killer-risk mitigations. And "self-improving" is honestly **operator-assisted backlog** — named as such, sequenced last.
+- **Build the conveyor before the armor.** `fabrik launch` (the velocity engine) is Phase 1.
+- **Billing/auth/landing/analytics is NOT "the business layer" — it is the velocity substrate.** Scoping it out was the fatal error; a project that can't take a dollar or emit a metric on day one can't prove or disprove itself. Re-inserted as core factory infra.
+- **Survival is gated behind traction.** Expensive survival infra (recovery gauntlet, model-pinning, drift index, hash-chain ledger) applies ONLY to graduated/Tier-1 projects. Experiments get a cheap floor (spend kill-switch + backups + restore smoke test) and nothing more. Applying survival infra to all 38→500 projects makes marginal attention scale *up*, not toward zero.
+- **Cattle, not pets:** zero-traction projects are auto-killed; winners auto-graduate into the heavy infra.
 
-## 2. Keystone
+## 2. Is Fabrik itself monetizable? (asked 2026-06-29)
 
-Not discovery (capability index), not even "control" alone — **survivability + bounded authority**. The three things that protect against *unbounded loss*: spend can't run away, nothing acts unrecorded, you can come back from disaster. Everything else is optimization to earn later.
+**Don't sell the factory — it's a trap and anti-thesis. But its byproducts are the distribution flywheel we're missing.**
 
-## 3. Operating Doctrine (binding)
+- **Fabrik as a PaaS / AI-managed IDP:** credible ("Heroku for solo founders, with AI self-heal") but the market is crowded (Coolify/Railway/Render/Fly/Vercel/Dokku), margins thin, and a *multi-tenant* AI agent holding `docker.sock` on **customers'** infra is a support + lethal-trifecta-security + SLA burden — it consumes the exact operator-attention this whole plan protects. It competes with the portfolio for your time. **Reject as a primary play.**
+- **The aligned play — Fabrik's exhaust as a distribution engine (not a product):** the panel's sharpest point is that **distribution, not shipping, is the bottleneck.** Fabrik's byproducts are unusually good *audience* assets: the **AI Models Browser** (live cross-provider pricing/quality — useful, low-maintenance, SEO/dev-audience magnet), **fabrik-lib (47 modules) + the scaffolds** (open-source → credibility + inbound), and the **build-in-public "one-person AI-managed empire" narrative** itself. Open them → build the developer/founder audience every portfolio project then launches *into*. This monetizes Fabrik *indirectly and on-thesis*: it attacks distribution instead of competing with the portfolio.
+- **Defer-but-watch:** if any byproduct shows real pull, it *graduates into a portfolio project* under the same `fabrik launch` + graduation gate as everything else — dogfooding the factory on itself. Don't pre-build; let traction pull.
 
-1. **Reuse before build** — enforced by an **advisory** capability grep (NOT blocking; with 38 projects a blocking dup-check false-positives and *costs* attention).
-2. **Unrecorded prod-impacting step = defect.** Read-only diagnostics, tests, docs, planning are exempt. Deliberate human risk-gates (§8) are not defects.
-3. **Self-heal is anesthetic, not cure.** Every heal is a defect signal; track mean-time-between-heals per project; alert on any *decrease*; after N heals/window, freeze auto-heal + escalate.
-4. **Bounded authority.** Agents talk to the control plane; the control plane talks to prod. No agent holds the master cred set, a default root shell, or the break-glass envelope. Autonomy is **earned per-component** by demonstrated heal/converge history.
-5. **Net-deletion gate (NEW).** Every new phase/feature must delete or merge **≥1 existing module/script/doc**, or it is rejected. Complexity-shrinkage is a hard constraint, not an aspiration.
-6. **Spend compute to save attention** — under a hard **spend-velocity** ceiling (Phase 1) that halts-and-pings.
-7. **Durable or it didn't happen** — decisions land in CLAUDE.md / AGENTS.md / rule-packs / memory / this plan.
-8. **Self-correct to a measured fixed point** — `drift==0 AND heal-rate flat-or-decreasing`; verify against live state.
-9. **Improve out of production** — clone→prove→PR→**human merge**. Never mutate live to "improve." This is *operator-assisted*, not autonomous.
+## 3. Keystone — `fabrik launch <idea-spec>`
 
-> Killed from v1: the `EMPIRE:` self-report ritual (attestation ≠ enforcement) and the *blocking* reuse-grep.
+One command: **idea → repo (from the canonical monetizable scaffold) + deploy + DNS + DB/Redis + commercial-kit (auth · Stripe-or-waitlist · landing · `/pricing` · `/checkout` · legal stubs) + analytics funnel (page_view→signup→payment→retention_d7) + watchdog sidecar + control-plane registration + a traction beacon.** Target: **≤30 min operator time, ≤5 manual steps, ≤2h idea→live monetizable URL, 100% monetization+analytics coverage.** This is the only thing that literally makes #50 = #5 in operator-cost. It's *integration* of what already exists (18 scaffolds, 47 lib modules, 27 drivers, 11 registrars), not invention.
 
-## 4. Control loops (4, by cadence) — build the floor before the upper loops
+## 4. Doctrine (binding — velocity lens)
 
-| Loop | Cadence | Autonomy | Today |
+1. **Every line judged by the KPI:** *"Does this make launching/testing/killing/growing a project cost less operator-attention?"* If it only reduces variance, it's survival — and survival is **capped at what protects graduated projects**, not experiments.
+2. **Monetizable by default** — no project launches without auth + a payment-or-waitlist path + an analytics funnel. A project that can't be paid or measured is noise.
+3. **Cattle, not pets** — auto-kill zero-traction; auto-graduate winners. Attention routed strictly by traction.
+4. **Reuse before build** (advisory grep, not blocking) · **net-deletion gate** (every phase deletes/merges ≥1 module) · **durable or it didn't happen.**
+5. **Bounded authority** — agents talk to the control plane; the control plane talks to prod; no agent holds master creds, a default root shell, or break-glass; autonomy earned per-component.
+6. **Self-heal is a defect signal** — alert on *rising* heal frequency; improve **out of production** (clone→prove→PR→human merge).
+
+## 5. The factory lifecycle (the real loop)
+
+**Launch → Measure → Kill-or-Graduate → (winners only) Harden.** This replaces v2's infra-only heal/converge loops as the primary loop:
+- **Launch** (`fabrik launch`) — zero-attention idea→monetizable-prod.
+- **Measure** — every project emits {visitors, signups, MRR, errors, last-deploy} to one control-plane `projects` table (the traction beacon).
+- **Kill** — ~$0 revenue AND below signup/visitor threshold by day ~21–30 → `kill_candidate`; no veto in 72h → scale down, pause paid APIs, dump DB to object storage, detach watchdog, park DNS. *(Caveat §9: with zero distribution this kills almost everything — thresholds are provisional until there's an acquisition motion.)*
+- **Graduate** — ≥~$100 MRR or ≥5 paid conversions → Tier-1: *now* it earns recovery gauntlet, model-pinning, drift monitoring, dedicated resources, human review.
+
+## 6. Operator-absent policy (resolved — keep from v2)
+
+One `operator_presence` state machine keyed off `last_telegram_ack`: **0–4h** nothing changes · **4–24h "degraded"** autonomous allow-list only (restart Tier A–C w/ backoff; roll back a deploy that failed its own verify if <24h + no migration; renew certs/DNS; scale within ceiling; WAF-block DoS spikes; reroute to maintenance page after 2 failed rollbacks; halt on spend breach) · **24–72h "absent"** stability-only, freeze new deploys + Improve/Prune, stop non-revenue projects · **>30d** dead-man's-switch. **Freeze-list (never, any N):** data/backup deletion · destructive migrations · secret/IAM/root · public exposure · recurring-spend increase · cross-project blast-radius · doctrine/rule-pack edits · merging generated code · any autonomy-widening. **Telegram is a vendor SPOF — add email as a second channel before it's load-bearing.**
+
+## 7. Build sequence v3 (velocity-first; effort is optimistic — treat as 2–5×)
+
+| # | Phase | Builds on | Effort* |
 |---|---|---|---|
-| **1 — Heal** | sec–min | bounded autonomous (restart/rollback/failover to known-good; never changes intent) | ✅ watchdog Tier A–C |
-| **2 — Converge** | hourly–daily | auto-fix *reversible* drift; *propose* spec changes | ⚠️ partial (`audit-registrars`/`reconcile-all`) |
-| **3 — Improve** | weekly | AI proposes a backlog *ranked by operator-minutes-saved*; **operator approves the batch** | ❌ later |
-| **4 — Prune** | monthly | AI proposes deletion *candidates* (report only); **never autonomous deletion** | ❌ later |
+| **0** | **Do-not-die floor + Auto-Kill (cap it at ~1–2 days, not a sprawl-archaeology project).** Spend-velocity kill-switch (cut agent-container network on breach) + dead-man's-switch + break-glass (Bitwarden/encrypted, **not** Shamir yet) + backup-exists + ONE restore smoke test. Plus the **auto-kill cron** scaffold (needs the beacon, §1-after). Delete only sprawl that blocks launch (cap 8 operator-hrs). | `cost-budget`, `vultr_drill` | 2d |
+| **1** | **`fabrik launch` — the velocity engine (§3). THE keystone.** Canonical monetizable scaffold + commercial-kit + auto-enroll (control-plane + watchdog) + traction beacon. | 18 scaffolds, 47 lib modules, `fabrik apply` | 5–7d |
+| **2** | **Traction beacon + `projects` table + Grim-Reaper auto-kill** (the Measure+Kill half of §5). | `data/projects.yaml`, `sync_projects.py` | 2d |
+| **3** | **Graduation gate** — thin metrics view; ≥$100 MRR / ≥5 conv → Tier-1 unlocks the heavy infra. | beacon | 1d |
+| **4** | **Golden-path acceptance tests** — `fabrik launch` 3 example specs → assert 200 + signup + payment/waitlist + analytics event + watchdog enrolled + kill/promote attached. (This is the only agent-regression that matters now.) | `scripts/enforcement/` | 1–2d |
+| **5+** | **Survival infra — GATED to Tier-1 graduates only:** full `fabrik prove` gauntlet, model-pinning + golden-incident regression, drift index, git-as-state + minimal hash-chained runtime log. Built *when the first project graduates*, not before. | `audit-registrars`, watchdog tables | deferred |
 
-## 5. Operator-absent policy — RESOLVED (adopt as default)
+\* Optimistic-with-Claude-Code; the panel flags 2–5× once integration/debug/operator-review is counted. **Phase 1 is the only no-regret big build.**
 
-One `operator_presence` state machine keyed off `last_telegram_ack`. Escalating, ~0.5 day.
+## 8. Human-gated forever (unchanged)
 
-- **0–4h:** nothing changes; queued actions wait.
-- **4–24h "degraded" — autonomous allow-list ONLY:** restart crashed services (Tier A–C, max 3×/30min then backoff); roll back a deploy that failed its own verify *iff* deploy <24h, rollback pre-tested, no DB migration; renew certs/DNS; scale within a pre-set ceiling; WAF/iptables block on DoS-signature spikes; if rollback fails 2×, reroute DNS to a static maintenance page; apply already-approved+ledgered changes; halt on spend breach.
-- **24–72h "absent":** shrink to stability-only. Freeze Improve/Prune + all new deploys except emergency rollback; only Tier-0/1 self-heal; stop non-revenue projects to save spend; daily digest to Telegram **+ email**.
-- **>30d "incapacitated":** dead-man's-switch fires (§7a).
-- **FREEZE-LIST (never, any N, even present):** data/backup deletion · destructive migrations · secret/IAM/root rotation *initiation* · public exposure · recurring-spend increase · cross-project blast-radius · doctrine/rule-pack edits · merging generated code to core · **any action that widens an agent's autonomy.**
+Data/backup deletion · destructive migrations · secret/IAM/root · public exposure · large recurring spend · cross-project actions · doctrine/rule-pack edits · merging generated code to core. **Meta-rule:** no agent widens its own autonomy or disables a gate. Approvals rate-limited + risk-tiered (impact/proposal/rollback/default-if-no-response).
 
-## 6. Build sequence v2 (~16 working days nominal — see §10 effort caveat)
+## 9. The unsolved layer — DISTRIBUTION (honesty banner)
 
-Each phase **extends a named existing asset** (reuse-first) and **net-deletes ≥1** (Doctrine 5). The 20/80: if you build only three, build **0/1/(prove)** — they're the survival floor.
+**`fabrik launch` makes you *able* to test 50 ideas cheaply; it does not make anyone show up.** Shipping 500 monetizable apps with zero marketing yields ~zero traction — and auto-kill at day-30 would then scythe everything, measuring *distribution absence*, not product quality. **Velocity is necessary, not sufficient. Distribution is the genuinely unsolved layer and gets its own plan** (channels, content, the Fabrik-exhaust audience flywheel §2, SEO, build-in-public) — it is NOT another deferral; it is the next plan after `fabrik launch` exists. Two cheap guardrails before scaling launch count: **(a) platform-ban contagion** — 50 monetized apps under one Stripe/domain/cloud account = one suspension kills the whole portfolio → use Stripe Connect + isolated domains/accounts early; **(b) legal/refund liability** — you cannot ethically/legally `fabrik destroy` a project that took real money; auto-kill must handle refunds/data-deletion/notice for any project with paying users.
 
-| # | Phase | Extends | Effort* |
-|---|---|---|---|
-| **0** | **Triage + tiering + delete sprawl.** `projects.yaml` Tier 0–4 (Tier-0 = control-plane/backups/DNS/monitoring/billing/ledger; Tier-1 = revenue/customer-facing; freeze/archive Tier-3/4). Control-plane budgets (§9). Delete: rule-packs 49→~15, ops scripts 79→~25, docs 507→index+per-project READMEs. Add `last_used`/`owner`/`delete_after` metadata. | `data/projects.yaml`, `sync_projects.py` | 2d |
-| **1** | **Spend-velocity kill-switch + presence SM + dead-man's-switch + Shamir break-glass.** ~1-min billing/velocity poll; on breach cut network to agent containers + Telegram. | fabrik-lib `cost-budget/cost_budget.py` | 2d |
-| **2** | **Ledger — git-as-state + minimal hash-chained runtime log.** Git is the universal ledger for code/config (commit=change, signed tag=approval, `git diff` vs live=drift). A *small* append-only hash-chained log ONLY for non-code runtime actions git can't express (spend, infra mutations, agent intent, blast-radius, rollback-refs). **Prod-impacting actions only.** Mirror to spoke + daily object-lock export; boot refuses authority on broken chain; emergency retroactive-entry path (≤24h, agent-inaccessible). | watchdog `deploys`/`approvals` (`60-watchdog.md:83,105`) | 2–3d |
-| **3** | **Thin `fabrik prove` recovery gauntlet — Tier-0/1 ONLY.** Rent VPS → bootstrap from declared state → restore real backups → smoke + DB-integrity tests → test rollback → destroy → record RTO/RPO. Pass/fail gates autonomy. *(Moved up: validates recovery before more machinery.)* | `vultr_drill.py:410`, `export`/`import` | 3d |
-| **4** | **Drift index — `declared / observed / unknown` daily report** (not a full ranked index yet). `unknown` is the state that kills you. | `audit-registrars` (`cli.py:1371`, `audit.py`) | 1.5d |
-| **5** | **Agent regression harness + model-pinning** (§7b). 10 golden incidents incl. *refuse-destructive* / *refuse-secret-exposure*; nightly + pre-change; <100% on safety tasks → diagnose-only + Telegram. | 39 `scripts/enforcement/` checks | 2–3d |
-| **6** | **Postmortem-draft + assisted Improve/Prune.** Incident → AI *drafts* a regression test + PR (never auto-appends an enforcement check). Improve = weekly ≤10-item backlog ranked by operator-minutes-saved; Prune = monthly deletion-*candidates* report. Human approves; no autonomous deletion. | `scripts/enforcement/` | 2d |
+## 10. Self-audit / carried-forward risks
 
-\* Effort is nominal-with-Claude-Code-doing-the-hands. **The panel flags these are likely 2–5× underestimates** once integration/debugging/operator-review is counted. Treat "16 days" as "several weeks, part-time." Everything past Phase 3 is iteration, not survival.
-
-## 7. The 2 risks that actually kill a solo empire (folded into phases)
-
-**(a) Bus-factor / dead-man's-switch (highest kill probability) — Phase 1.** You're the SPOF; lose the laptop / get sick → company evaporates. Shamir 2-of-3 master-cred split (you + lawyer + cold storage); an `operator_heartbeat`; no heartbeat 30d → email a designated successor a continuity packet (where backups/bills/break-glass live) + run `fabrik prove` to confirm restorability. Agents can NEVER touch the break-glass envelope. ~1d.
-
-**(b) Agent behavioral drift under silent model updates — Phase 5.** OpenRouter swaps a backend or Anthropic re-aligns a model and your autonomous sidecars silently change behavior — your checks validate the *system*, not the *agents that run it*. Record per-agent `provider/model/version/prompt-hash/tool-schema-hash/autonomy-level`; nightly golden-incident regression; drift → freeze autonomy. ~2–3d.
-
-(Ledger-SPOF → mitigated by Phase 2's mirror + hash-chain. Data-integrity-beyond-restorability and fixed-point oscillation are real but won't kill you in year one — deferred, not denied.)
-
-## 8. Human-gated forever (non-negotiable)
-
-Data/backup deletion · destructive/irreversible migrations · secret/IAM/root changes · public-network exposure · large recurring spend · cross-project / multi-tenant actions · **changing the doctrine or rule-packs** · merging generated code into the core control plane. **Meta-rule:** no agent may ever widen its own autonomy or disable a gate. **Approvals are rate-limited + risk-tiered** (impact/proposal/rollback/default-if-no-response); if you approve >~5/day the gate is decorative — ban vague "what should I do?" escalations.
-
-## 9. Control-plane budget (hard caps — Phase 0, enforced thereafter)
-
-≤12 top-level CLI cmds · ≤25 ops scripts · ≤50 docs counted as current · ≤15 rule-packs (each with expiry/review date + firing-frequency report) · ≤20 active service specs. **Every new control feature deletes/merges ≥2 artifacts or is rejected.** Never auto-delete without usage attribution (`last_used`).
-
-## 10. Self-audit / unsolved (carry forward; do not pretend solved)
-
-- v1 was wrong on its keystone (discovery→control) and v1's scope was wrong on its *layer* (infra, not business). Recorded, not hidden.
-- **Premise (clarified by operator):** "$1B solo" is a **2–5 year portfolio dream** — many AI-built projects on this infra, a few hit, the portfolio reaches the valuation. So this OS's job is to drive **per-project marginal operator-attention → ~0** (project #50 costs no more human time than #5), which makes project *velocity* the real KPI. The binding constraints then shift to **revenue / distribution / legal / tax** — out of scope here but the actual gating layer. This is the factory floor: necessary, not sufficient. **Corollary:** every phase should also be judged "does it reduce per-project operator-load?", not only "does it reduce risk?"
-- **Vendor-concentration SPOF:** the whole stack rests on Anthropic + OpenRouter + Vultr + **Telegram (sole approval channel)** — single-vendor outage/suspension is as severe as the ledger SPOF. Add a second approval channel (email/signal) before Telegram becomes load-bearing.
-- **Legal/regulatory continuity:** a one-person company holding customer data carries GDPR/SLA/entity obligations that persist when you're absent — the continuity packet must include these, not just creds.
-- **Safety-machinery operating tax:** weekly gauntlets + nightly regression + 1-min billing polls consume real spend + review time; budget it against the "lean" goal or it becomes the sprawl it was meant to prevent.
-- **Approval fatigue** is a failure mode, not a UX nit — batching/risk-tiering (§8) is load-bearing.
-- **Not claimed:** nothing here is built. Effort estimates are optimistic (2–5×). Phase 0 is the only no-regret start.
+- v1 wrong on keystone (discovery→control); v2 wrong on layer (infra→business-substrate); **v3 corrects to velocity-first.** Recorded, not hidden.
+- **Premise honesty:** "$1B solo in 2–5y" is a portfolio bet whose binding constraint is **distribution + a non-zero hit-rate**, not infra. This plan builds the factory; the portfolio still needs winners, and winners need distribution (§9).
+- **AI-code security debt at high N:** auto-shipped monetizable apps hold payment data — the watchdog/self-heal is assumed to cover this but the stakes rise with project count; revisit when launch volume grows.
+- **Cross-project shared-infra attention** (router/fusion upkeep, 47-module dependency drift) grows non-linearly and is undercounted; the net-deletion gate + auto-kill are the only brakes.
+- **Not built yet.** The no-regret first move is **Phase 0 floor + Phase 1 `fabrik launch`**; everything else is gated on a graduate or on the distribution plan.
