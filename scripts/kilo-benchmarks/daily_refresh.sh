@@ -43,6 +43,13 @@ KB="$FABRIK_ROOT/scripts/kilo-benchmarks"
 # Make `kilo` CLI visible to cron (cron PATH is minimal).
 export PATH="/usr/local/bin:/usr/bin:/bin:$PATH"
 
+# Adversarial-review CRITICAL fix (2026-06-30): cron runs with a clean env,
+# so the orchestrator + alerting need /opt/fabrik/.env loaded explicitly.
+# Each Python script that needs env vars calls load_dotenv() at module entry
+# (Python's dotenv library handles malformed lines like the GMAIL_QUERY value
+# with parentheses that would break `source` in bash). Documented here so a
+# future change to add a new step understands the convention.
+
 mkdir -p "$(dirname "$LOG_FILE")"
 {
   echo ""

@@ -60,6 +60,14 @@ def per_min(usd_per_min: float) -> float:
     return usd_per_min * 1_000_000 / 60
 
 
+def per_hour(usd_per_hour: float) -> float:
+    """Convert $/audio-hour → $/M audio-seconds (same axis as per_min).
+    Soniox + Speechmatics quote $/hour; this matches what the live pricing
+    scraper writes after fetch_direct_vendor_prices.py's per_hour_to_M_audio_min
+    converts the rendered HTML."""
+    return usd_per_hour * 1_000_000 / 3600
+
+
 def per_1k_chars(usd_per_1k: float) -> float:
     return usd_per_1k * 1000
 
@@ -107,11 +115,11 @@ _add(
     provider="soniox",
     service_type="stt",
     is_stt_capable=1,
-    input_cost_per_m=per_min(0.10),
+    input_cost_per_m=per_hour(0.10),
     pricing_unit="audio-min",
     quality_tier=1,
     is_ga=1,
-    description="Soniox async STT. ~60+ languages, hallucination-free, speaker diarization, mid-sentence language switching. Fabrik default for multilingual transcription. Used by /opt/youtube. $0.10/audio-minute.",
+    description="Soniox async STT. ~60+ languages, hallucination-free, speaker diarization, mid-sentence language switching. Fabrik default for multilingual transcription. Used by /opt/youtube. $0.10/audio-HOUR (was mis-encoded as /min in earlier seed; fixed 2026-06-30 after live scrape revealed the 60x error).",
 )
 _add(
     "soniox/stt-realtime-v4",
@@ -119,11 +127,11 @@ _add(
     provider="soniox",
     service_type="stt",
     is_stt_capable=1,
-    input_cost_per_m=per_min(0.13),
+    input_cost_per_m=per_hour(0.12),
     pricing_unit="audio-min",
     quality_tier=1,
     is_ga=1,
-    description="Soniox realtime STT (streaming). Sub-second latency, same multilingual profile as async. $0.13/audio-minute.",
+    description="Soniox realtime STT (streaming). Sub-second latency, same multilingual profile as async. $0.12/audio-HOUR (was mis-encoded as /min in earlier seed; fixed 2026-06-30 after live scrape).",
 )
 _add(
     "openai/whisper-large-v3",
@@ -179,11 +187,11 @@ _add(
     provider="deepgram",
     service_type="stt",
     is_stt_capable=1,
-    input_cost_per_m=per_min(0.0036),
+    input_cost_per_m=per_hour(0.35),
     pricing_unit="audio-min",
     quality_tier=2,
     is_ga=1,
-    description="Deepgram Nova-2 (older). Still strong on EN, cheaper than Nova-3.",
+    description="Deepgram Nova-2 (legacy tier). Still strong on EN. Live scrape 2026-06-30 confirmed $0.35/hour for legacy tier (was seeded $0.0036/min).",
 )
 _add(
     "assemblyai/universal-2",
@@ -191,11 +199,11 @@ _add(
     provider="assemblyai",
     service_type="stt",
     is_stt_capable=1,
-    input_cost_per_m=per_min(0.0062),
+    input_cost_per_m=per_min(0.075),
     pricing_unit="audio-min",
     quality_tier=1,
     is_ga=1,
-    description="AssemblyAI Universal-2. Best speaker diarization in class, multilingual. $0.0062/minute.",
+    description="AssemblyAI Universal-2. Best speaker diarization in class, multilingual. $0.075/minute = $4.50/hr (live scrape 2026-06-30; was mis-encoded as $0.0062/min in earlier seed).",
 )
 _add(
     "google/cloud-speech-v2",
@@ -227,11 +235,11 @@ _add(
     provider="speechmatics",
     service_type="stt",
     is_stt_capable=1,
-    input_cost_per_m=per_min(0.0083),
+    input_cost_per_m=per_hour(0.24),
     pricing_unit="audio-min",
     quality_tier=2,
     is_ga=1,
-    description="Speechmatics Enhanced. Strong accent + dialect coverage. ~$0.50/audio-hour = $0.0083/min.",
+    description="Speechmatics Enhanced. Strong accent + dialect coverage. $0.24/audio-hour (live scrape 2026-06-30; vendor lowered from $0.50/hour).",
 )
 
 # ---------- TTS (voice generation) ----------

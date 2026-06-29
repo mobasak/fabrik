@@ -60,6 +60,22 @@ SCRIPT_DIR = Path(__file__).parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
+# Adversarial-review CRITICAL fix (2026-06-30): cron runs with a clean env so
+# TELEGRAM_BOT_TOKEN and BROWSERLESS_TOKEN won't be in os.environ. Without this
+# load, alerting._is_enabled() returns False and critical alerts silently
+# fail to fire at 06:00 UTC. Load /opt/fabrik/.env early — before _send_alert
+# can be called and before WebScraper construction reads BROWSERLESS_TOKEN.
+try:
+    from dotenv import load_dotenv  # type: ignore[import-not-found]
+
+    _FABRIK_ROOT = SCRIPT_DIR.parents[1]  # /opt/fabrik
+    load_dotenv(_FABRIK_ROOT / ".env", override=False)
+except ImportError:
+    # dotenv not installed — env vars must already be in os.environ. Phase-1
+    # tests + manual `.venv/bin/python` invocations from the shell have env
+    # inherited, so this fallback path is fine for those; only cron is at risk.
+    pass
+
 from direct_vendor_parsers import ParsedRow  # noqa: E402  — local package
 from web_scrape import (  # noqa: E402  — vendored from fabrik-lib
     FetchError,

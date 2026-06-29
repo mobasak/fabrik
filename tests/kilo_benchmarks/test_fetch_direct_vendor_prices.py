@@ -540,3 +540,28 @@ def test_url_broken_set_rule_skipped_under_dry_run(tmp_path: Path) -> None:
     conn.close()
     assert rows["deepgram/nova-2"] is None
     assert rows["deepgram/nova-3"] is None
+
+
+def test_load_dotenv_runs_at_module_entry(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Adversarial review of 93d24f9c (alerting wire-up) found that cron runs
+    with a clean env so TELEGRAM_BOT_TOKEN/BROWSERLESS_TOKEN wouldn't reach
+    the orchestrator. Fixed by adding load_dotenv() at module entry.
+
+    This test pins that the load_dotenv import + call happens at module-level
+    (not inside a function) so it executes ONCE when the module is first
+    imported, before any _send_alert or WebScraper construction.
+    """
+    import inspect
+    src = inspect.getsource(orch)
+    # Must import load_dotenv at module level
+    assert "from dotenv import load_dotenv" in src
+    # Must call load_dotenv at module-level (i.e., outside any def/class block)
+    # by checking the call appears BEFORE the first `def ` in the source.
+    first_def_pos = src.find("\ndef ")
+    load_call_pos = src.find("load_dotenv(")
+    assert load_call_pos > 0, "load_dotenv() must be called somewhere"
+    assert load_call_pos < first_def_pos, (
+        "load_dotenv() must be called at module-import time (before the first "
+        "`def`), otherwise cron runs miss the env load — see adversarial-review "
+        "finding documented in CHANGELOG."
+    )
