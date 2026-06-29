@@ -497,18 +497,18 @@
           <th data-sort="output_cost_per_m" data-tabs="overview reasoning coding translation" title="USD per million output tokens (LLMs only). For non-LLM services see the unit hover on the Price column.">$/M out</th>
           <th data-sort="context_window_k" data-tabs="overview reasoning coding translation">Ctx (k)</th>
           <th data-sort="quality_tier" data-tabs="overview reasoning coding translation transcription voice image video ocr">Tier</th>
-          <th data-tabs="overview">Caps</th>
+          <th data-tabs="overview reasoning coding translation">Caps</th>
           <th data-sort="_best_code_score" data-tabs="coding" title="Best-available coding signal per row, max'd across SWE-bench Verified + SWE-bench Multilingual, then falling back through Aider Polyglot > weighted_coding (BenchLM) > design_arena_coding ELO normalized to 0-100. CAVEAT: scores from different sources aren't strictly comparable (a SWE 75 ≠ an Aider 75 ≠ a DA 1280). Hover any cell to see which source drove the number. Click to sort descending; toggle 'has Best Code' chip in the sidebar to hide rows without any explicit coding signal.">Best Code</th>
-          <th data-sort="arena_elo" data-tabs="overview reasoning coding" title="Chatbot Arena ELO (LMSys / openlm.ai)">Arena</th>
+          <th data-sort="arena_elo" data-tabs="overview reasoning coding translation" title="Chatbot Arena ELO (LMSys / openlm.ai)">Arena</th>
           <th data-sort="tbench_accuracy" data-tabs="reasoning" title="Terminal Bench 2.0 % (tbench.ai)">TBench</th>
-          <th data-sort="aa_intelligence_index" data-tabs="overview reasoning coding" title="Artificial Analysis Intelligence Index (artificialanalysis.ai)">AA</th>
+          <th data-sort="aa_intelligence_index" data-tabs="overview reasoning coding translation" title="Artificial Analysis Intelligence Index (artificialanalysis.ai)">AA</th>
           <th data-sort="swe_bench_verified_pct" data-tabs="coding" title="SWE-bench Verified+bash-only — max % resolved on the 500-issue Python set, across agent harnesses (swebench.com)">SWE</th>
           <th data-sort="swe_bench_multilingual_pct" data-tabs="coding" title="SWE-bench Multilingual — % resolved on the 300-issue multi-language set. Newer-model coverage is best here (swebench.com)">SWE-ML</th>
           <th data-sort="aider_polyglot_pct" data-tabs="coding" title="Aider Polyglot pass_rate_2 % across 225 multi-language problems (aider.chat). Note: leaderboard is sparse for newest models — use SWE / DA-code / weighted_coding for newer frontier.">Aider</th>
           <th data-sort="design_arena_coding_elo" data-tabs="coding" title="Mean ELO across coding-only design_arena categories (OpenRouter API benchmarks block)">DA-code</th>
-          <th data-sort="translation_avg_pct" data-tabs="overview translation" title="Translation chrF++ average across 23 languages (fabrik translation bake-off v2.2). Hover the row's cell for per-language breakdown.">Trans</th>
+          <th data-sort="translation_avg_pct" data-tabs="overview reasoning coding translation" title="Translation chrF++ average across 23 languages (fabrik translation bake-off v2.2). Hover the row's cell for per-language breakdown.">Trans</th>
           <th data-sort="stt_wer_avg" data-tabs="transcription" title="Speech-to-text Word Error Rate avg of (LibriSpeech test-clean en + FLEURS multilingual). LOWER is better. Direct-API STT models seeded from public benchmarks (Whisper, gpt-4o-transcribe, Deepgram Nova, AssemblyAI Universal).">STT WER</th>
-          <th data-tabs="overview">Categories</th>
+          <th data-tabs="overview reasoning coding translation transcription voice image video ocr">Categories</th>
           <th data-sort="status" data-tabs="overview reasoning coding translation transcription voice image video ocr">Status</th>
           <th data-sort="last_verified" data-tabs="overview reasoning coding translation transcription voice image video ocr">Verified</th>
           <th data-tabs="overview reasoning coding translation transcription voice image video ocr">Source</th>

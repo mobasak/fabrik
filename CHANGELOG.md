@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Full Overview column parity on every LLM tab (2026-06-29)
+
+Second pass at per-tab coverage. The 4 LLM tabs (Overview, Reasoning, Coding, Translation) now carry the IDENTICAL column set — Caps, Arena, AA, Trans, Categories were on Overview only; now visible on all four so they line up with the analyst's mental model ("I picked a Coding model — do I lose visibility into Arena ELO or its translation quality? No."). Categories is also extended to every specialty tab (Transcription / Voice / Image / Video / OCR) because the `speech-audio` / `language` / `multimodal` tags add disambiguation. The specialty tabs deliberately still hide $/M out, Ctx, Caps, Arena, AA, Trans — those measure LLM-specific signals that don't apply to per-image / per-minute / per-page billing.
+
 ### Fixed — Per-tab column coverage in models_browser.html (2026-06-29)
 
 User audit found 5 columns missing from tabs where they apply: **$/M out** was on Overview + Translation only — now added to Reasoning + Coding (LLM tabs where output token cost matters). **Ctx (k)** was on Overview + Reasoning only — now added to Coding (long codebases) + Translation (whole-doc translation). **Tier** was on Overview + specialty tabs only — now visible on every tab (quality signal is universally relevant). **Arena** + **AA Intelligence Index** added to Coding tab (general-quality cross-check vs SWE-bench). **Verified** date column now visible on every tab so freshness is auditable at a glance. The specialty tabs (Transcription, Voice/Audio, Image gen, Video gen, OCR) deliberately keep $/M out / Ctx / Arena / AA hidden — those columns don't apply to per-image/per-minute/per-page billing.
