@@ -271,6 +271,7 @@
   td.source .src-badge.sf { background: #3a2a1a; border-color: #80553a; color: #e0c0a0; }
   td.source .src-badge.replicate { background: #2a1f3a; border-color: #7a4fa0; color: #e8c0ff; }
   td.source .src-badge.fal { background: #3a2420; border-color: #a05030; color: #ffb080; }
+  td.source .src-badge.direct { background: #1f2a1a; border-color: #4a6b2c; color: #b8d68a; font-style: italic; }
   td.cost .cheaper-badge {
     display: inline-block; margin-left: 4px; padding: 0 4px;
     border-radius: 2px; background: #1a3a1a; color: #80f0a0;
@@ -516,7 +517,7 @@
           <th data-sort="stt_wer_avg" data-tabs="transcription" title="Speech-to-text Word Error Rate avg of (LibriSpeech test-clean en + FLEURS multilingual). LOWER is better. Direct-API STT models seeded from public benchmarks (Whisper, gpt-4o-transcribe, Deepgram Nova, AssemblyAI Universal).">STT WER</th>
           <th data-tabs="overview reasoning coding translation">Categories</th>
           <th data-sort="status" data-tabs="overview reasoning coding translation transcription voice image video ocr">Status</th>
-          <th data-sort="last_verified" data-tabs="overview reasoning coding translation transcription voice image video ocr">Verified</th>
+          <th data-sort="last_verified" data-tabs="overview reasoning coding translation" title="Days since the pricing/benchmark scrape last refreshed this row. Useful for LLM tabs where benchmark sources have varying cadence (some weekly, some monthly). Hidden on specialty tabs (Transcription / Voice / Image / Video / OCR) because every direct-vendor row is bumped daily by seed_direct_vendors.py — the column is uniformly 'today' and carries no signal there.">Verified</th>
           <th data-tabs="overview reasoning coding translation transcription voice image video ocr">Source</th>
         </tr>
       </thead>
@@ -902,6 +903,15 @@ function fmtSource(m) {
       const sign = pct > 0 ? "+" : "";
       parts.push(`<span class="markup" title="Kilo input price vs OpenRouter input price">K ${sign}${pct}%</span>`);
     }
+  }
+  // Direct-vendor fallback: when no gateway/aggregator badge fires (the
+  // common case for direct-vendor specialists — Soniox, ElevenLabs,
+  // AssemblyAI, Deepgram, Cartesia, Play.ht, Suno, Udio, Coqui, etc. —
+  // which dominate the Transcription / Voice / Image / Video / OCR tabs)
+  // surface the actual vendor so the column is never empty.
+  if (parts.length === 0 && m.provider) {
+    const label = escapeHtml(m.provider);
+    parts.push(`<span class="src-badge direct" title="Direct vendor — not routed through OpenRouter / Kilo / Replicate / fal.ai. API hits ${label} directly.">${label}</span>`);
   }
   return parts.join("");
 }
