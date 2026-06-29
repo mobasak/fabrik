@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Trans + Categories pulled from tabs where they don't help model selection (2026-06-29)
+
+Operator audit: a column belongs on a tab only if it helps decide between models on THAT tab. **Trans** (translation chrF++ avg) removed from Reasoning + Coding tabs — you don't pick a reasoning or coding model by its translation score; the column is canonical only on Overview + Translation. **Categories** removed from the 5 specialty tabs (Transcription / Voice / Image gen / Video gen / OCR) because every specialty row carries just `language` as the category, which adds no info on a tab already filtered to that service type. Categories stays on the 4 LLM tabs where the tag set has real density (`language,long-context`, `language,code,vision`, etc.). **Caps** kept everywhere it already appeared — the V/T/A/R/GA flags carry signal on every LLM tab even though the S/Tr flags are slightly noisy on Reasoning/Coding (acceptable for a one-cell compact display).
+
 ### Changed — governance: ban `git add -A` on the shared tree across all 3 agent contracts (2026-06-29)
 
 Added a HARD STOP to `CLAUDE.md`, `AGENTS-compact.md`, and `.windsurfrules`: never `git add -A`/`git add .`/`git commit -a` on the shared `/opt/fabrik` tree (3 agents + the daily pipeline commit to one `master`). Stage explicit paths, `git diff --cached` before commit, never bundle files you didn't author; append (don't overwrite) your `[Unreleased]` CHANGELOG entry; `git reset` + re-add only your files after the gate auto-stages. Root cause: parallel `git add -A` commits were sweeping other agents' in-progress files under wrong messages (e.g. the watchdog driver fix landed in a `feat(kilo-benchmarks)` commit). Propagate with `scripts/sync_enforcement_to_projects.py`.
