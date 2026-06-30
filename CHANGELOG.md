@@ -4,6 +4,29 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — discover_hidden_openrouter_routes.py — Phase 2 of "extract all models with all columns" (2026-07-01)
+
+Operator-flagged: "are you sure we can extract all models with all their columns?" Phase 1 (commit `d1f37b02`) added richer per-row extraction. Phase 2 closes the OTHER half — discovering models that aren't in `/api/v1/models` at all.
+
+**Two discovery sources**, in order of authoritativeness:
+
+1. **Hardcoded `openrouter/*` allowlist** — 7 known meta-routes (auto, fusion, pareto-code, bodybuilder, owl-alpha, elephant-alpha, free) that OR hides from BOTH `/api/v1/models` AND `/sitemap.xml`. Pre-fix the verifier deprecated owl-alpha (caught by the operator pointing at `https://openrouter.ai/openrouter/owl-alpha`); the allowlist + ab75b575's verifier exemption together ensure these stay active.
+
+2. **Sitemap mining** — `/sitemap.xml` exposes 558 model URLs vs the API's 338. The delta (~231 after filtering out `apps/*`, `works-with-openrouter/*`, and OR's own UI paths) is mostly specialty providers' image/video/embedding/audio models that don't surface via `/api/v1/models`:
+   - alibaba/wan-2.6, alibaba/wan-2.7 (video)
+   - baai/bge-*, qwen/qwen3-embedding-* (embeddings)
+   - black-forest-labs/flux.2-* (image)
+   - x-ai/grok-imagine-*, grok-voice-tts-1.0 (multimodal/voice)
+   - zyphra/zonos-v0.1-* (TTS)
+
+**Safety-gated**: plain `--apply` ingests ONLY the 7 meta-routes (idempotent, ~zero risk). The 231 sitemap candidates require `--apply --ingest-sitemap` to actually write — operator review first. Per-run cap `--max-ingest 50` (default) avoids hammering OR with 231 model-page scrapes in a single run.
+
+**Per-route scrape** pulls `<meta property="og:title">` and `og:description` from the model page when ingesting (OR doesn't expose pricing for hidden routes; that gets enriched on the next verifier run when/if the route appears in `/api/v1/models`).
+
+**daily_refresh.sh** updated: `discover_hidden_openrouter_routes.py --apply` runs nightly after the verifier (meta-routes only — sitemap discovery gated behind manual operator invocation per the safety rationale above).
+
+The two phases together — Phase 1 (richer per-row columns) + Phase 2 (richer set of rows) — close the operator-flagged "extract all models with all columns" gap. Remaining gap: pricing for the sitemap candidates needs OR to expose them in `/api/v1/models`, which is out of our control.
+
 ### Added — verify_openrouter_catalog: richer extraction (8 new OR fields populated per row) + new migration (2026-07-01)
 
 Operator-flagged: "are you sure we can extract all models with all their columns?" — answer was no; we were pulling 6 of OR's 18 per-model fields. Phase 1 of the gap-fix: extract + populate 8 new columns.

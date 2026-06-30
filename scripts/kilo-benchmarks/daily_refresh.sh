@@ -114,6 +114,16 @@ mkdir -p "$(dirname "$LOG_FILE")"
   _step "verify_openrouter_catalog" "$VENV_PY" "$KB/verify_openrouter_catalog.py" --apply --ingest-new \
     || echo "[daily_refresh] verifier failed (non-fatal)"
 
+  # Hidden-route discovery (Phase 2 of operator's "extract all models" ask).
+  # Ensures the 7 known openrouter/* meta-routes (auto, fusion, owl-alpha,
+  # elephant-alpha, pareto-code, bodybuilder, free) stay active+via_or=1
+  # regardless of OR's /api/v1/models curation. Idempotent, no-op when
+  # nothing drifted. Does NOT pass --ingest-sitemap by default — the 231
+  # sitemap candidates need operator review before bulk-ingest (specialty
+  # image/video/audio/embedding models that don't surface via /api/v1/models).
+  _step "discover_hidden_openrouter_routes" "$VENV_PY" "$KB/discover_hidden_openrouter_routes.py" --apply \
+    || echo "[daily_refresh] hidden-route discovery failed (non-fatal)"
+
   # Kilo CLI catalog sync — writes is_agentic (Kilo flag) + Kilo-only
   # rows + capabilities the OpenRouter verifier doesn't carry. Previously
   # boot-only (wsl_startup_hook.sh) which meant a laptop that doesn't
