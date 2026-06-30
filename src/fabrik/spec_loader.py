@@ -179,6 +179,16 @@ class Depends(BaseModel):
 
     postgres: str | None = Field(default=None, description="Postgres database name")
     redis: str | None = Field(default=None, description="Redis instance name")
+    # Deploy-readiness-gaps plan Phase 5 (2026-06-30): optional project-relative
+    # path to a checked-in .sql.gz dump. When set, `create_database()` invokes
+    # `_restore_seed()` after role+grant + before allocation registration —
+    # idempotent (only restores if the DB has zero user tables). Path validated
+    # at apply time via postgres._resolve_seed_path: must be relative, no
+    # `..` segments, must end in `.sql.gz`.
+    postgres_seed: str | None = Field(
+        default=None,
+        description="Project-relative path to a .sql.gz dump used to seed the new DB",
+    )
 
 
 class Infrastructure(BaseModel):

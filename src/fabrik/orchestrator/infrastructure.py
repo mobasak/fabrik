@@ -473,8 +473,20 @@ class InfrastructureProvisioner:
             # (multi-tenant isolation) actually applies; the postgres superuser would
             # bypass it. T4-01 G-J4: spec_id records which spec owns this DB.
             db_user = db_name
+            # Phase 5 of deploy-readiness-gaps (2026-06-30): pass through the
+            # spec_dir + postgres_seed so create_database can auto-restore
+            # a checked-in dump if the new DB is empty (idempotent).
+            depends = spec.get("depends", {}) or {}
+            seed_relpath = depends.get("postgres_seed")
+            spec_dir = ctx.spec_path.parent if ctx.spec_path else None
             result = create_database(
-                db_name, db_user=db_user, dry_run=dry_run, spec_id=name, owner="fabrik"
+                db_name,
+                db_user=db_user,
+                dry_run=dry_run,
+                spec_id=name,
+                owner="fabrik",
+                spec_dir=spec_dir,
+                seed_relpath=seed_relpath,
             )
             ctx.add_resource("postgres", db_name, status=result.get("status"))
             # Inject DATABASE_URL for the dedicated role so the container connects

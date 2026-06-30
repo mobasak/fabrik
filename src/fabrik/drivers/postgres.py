@@ -39,13 +39,17 @@ import base64
 import datetime as _dt
 import json
 import logging
+import os
 import re
 import secrets
 import shlex
 import string
+import time
+import uuid
+from pathlib import Path
 from typing import Any
 
-from fabrik.drivers.ssh import ssh
+from fabrik.drivers.ssh import scp_to_vps, ssh
 from fabrik.locks_local import file_lock
 
 logger = logging.getLogger(__name__)
@@ -148,6 +152,135 @@ def database_exists(
     return check.strip() == "1"
 
 
+# ---------------------------------------------------------------------------
+# Phase 5 of deploy-readiness-gaps plan (2026-06-30): DB seed auto-restore.
+#
+# When a spec carries `depends.postgres_seed: backups/<name>.sql.gz`, after
+# create_database() finishes the role+grant, restore the dump into the new
+# DB if (and only if) it has zero user tables. Idempotent.
+# ---------------------------------------------------------------------------
+
+
+def _resolve_seed_path(spec_dir: Path, seed_relpath: str) -> Path:
+    """Resolve and validate a seed path.
+
+    Security: must be a project-relative path (no absolute, no `..` escape).
+    Must point at a file that exists and ends in `.sql.gz`.
+
+    Raises ValueError on bad path; FileNotFoundError if the file is missing.
+    """
+    if not seed_relpath:
+        raise ValueError("seed_relpath is empty")
+    # SECURITY checks FIRST (before extension check), so an adversarial
+    # path like `/etc/passwd` or `../../../etc/passwd` raises the
+    # security-shaped error rather than a misleading "wrong extension".
+    if os.path.isabs(seed_relpath):
+        raise ValueError(f"seed path must be relative (got absolute {seed_relpath!r})")
+    spec_dir = Path(spec_dir).resolve()
+    candidate = (spec_dir / seed_relpath).resolve()
+    if not candidate.is_relative_to(spec_dir):
+        raise ValueError(
+            f"seed path {seed_relpath!r} resolves outside spec_dir "
+            f"({candidate} not under {spec_dir}) — directory traversal blocked"
+        )
+    if not seed_relpath.endswith(".sql.gz"):
+        raise ValueError(
+            f"seed path must end in `.sql.gz` (got {seed_relpath!r}); "
+            "this prevents accidental restore from a raw .sql file"
+        )
+    if not candidate.is_file():
+        raise FileNotFoundError(f"seed file not found: {candidate}")
+    return candidate
+
+
+def _count_user_tables(container: str, db_user: str, db_name: str) -> int:
+    """Count BASE TABLE rows in `db_name`, excluding pg_catalog +
+    information_schema (system schemas that pg_stat_statements or other
+    extensions might populate even on a fresh DB).
+
+    Returns 0 if psql output is unparseable — treats ambiguity as "empty"
+    so the seed restore proceeds; the downstream `psql` will itself error
+    if tables already exist, so worst case is a deferred failure not a
+    silent corruption.
+    """
+    _validate_identifier(db_name, "database")
+    sql = (
+        "SELECT COUNT(*) FROM information_schema.tables "
+        "WHERE table_type='BASE TABLE' "
+        "AND table_schema NOT IN ('pg_catalog', 'information_schema');"
+    )
+    # Connect as postgres superuser to the target DB. We do NOT use db_user
+    # because the role's password isn't reused here — _run_sql is a
+    # postgres-superuser path that bypasses RLS for introspection only.
+    cmd_sql = f"\\c {db_name}\n{sql}"
+    out = _run_sql(cmd_sql, container=container)
+    try:
+        return int(out.strip())
+    except (ValueError, AttributeError):
+        return 0
+
+
+def _restore_seed(
+    spec_dir: Path,
+    seed_relpath: str,
+    container: str,
+    db_user: str,
+    db_name: str,
+) -> dict[str, Any]:
+    """Ship the local dump to VPS /tmp/, restore via `gunzip | psql`, clean up.
+
+    Idempotency: short-circuits with `status: skipped` if the DB already has
+    user tables (the seed already ran, or the operator manually loaded data).
+    Cleanup runs unconditionally (try/finally) — even on psql failure the
+    sensitive dump is removed from /tmp/.
+
+    Returns a status dict suitable for inclusion in the create_database
+    result envelope.
+    """
+    local_seed = _resolve_seed_path(spec_dir, seed_relpath)
+    user_tables = _count_user_tables(container, db_user, db_name)
+    if user_tables > 0:
+        return {
+            "status": "skipped",
+            "reason": "db_not_empty",
+            "user_tables": user_tables,
+        }
+
+    # Per-run unique remote path so concurrent applies don't collide.
+    suffix = f"{db_name}-{int(time.time())}-{uuid.uuid4().hex[:8]}"
+    remote_path = f"/tmp/fabrik-seed-{suffix}.sql.gz"
+
+    try:
+        scp_to_vps(local_path=str(local_seed), remote_path=remote_path)
+        # `gunzip | psql` runs inside the postgres container; we pipe the
+        # gz dump from VPS-side cat into docker exec -i, then through a
+        # bash -c that runs gunzip|psql with the per-DB role identity.
+        # The role uses no password because we're going through socket
+        # auth inside the container as superuser (`-U postgres`).
+        cmd = (
+            f"cat {shlex.quote(remote_path)} | "
+            f"sudo docker exec -i {container} bash -c "
+            f"{shlex.quote(f'gunzip | psql -U postgres -d {db_name}')}"
+        )
+        ssh(cmd)
+        return {
+            "status": "restored",
+            "seed": str(local_seed),
+            "user_tables_before": 0,
+        }
+    finally:
+        # Defense: the dump may contain sensitive seed data. Remove the
+        # /tmp/ file regardless of restore success — operator-friendly.
+        try:
+            ssh(f"rm -f {shlex.quote(remote_path)}")
+        except Exception as exc:  # noqa: BLE001 — cleanup must not raise
+            logger.warning(
+                "postgres seed: cleanup of %s failed (%s); operator should rm manually",
+                remote_path,
+                exc,
+            )
+
+
 def create_database(
     db_name: str,
     db_user: str | None = None,
@@ -156,6 +289,8 @@ def create_database(
     spec_id: str | None = None,
     owner: str = "fabrik",
     notes: str = "",
+    spec_dir: Path | str | None = None,
+    seed_relpath: str | None = None,
 ) -> dict:
     """Create a PostgreSQL database (and optional role) on ``postgres-main``.
 
@@ -260,6 +395,43 @@ def create_database(
     _run_sql(role_and_grant, container=container)
     logger.info("Created PostgreSQL role and granted privileges: %s -> %s", db_user, db_name)
 
+    # Phase 5 of deploy-readiness-gaps (2026-06-30): seed restore. Runs AFTER
+    # role+grant complete (so psql can connect) but BEFORE allocation
+    # registration (so a registry write isn't created for a half-restored DB).
+    # Idempotent: skipped if the DB already has user tables.
+    seed_result: dict[str, Any] | None = None
+    if seed_relpath and spec_dir and not dry_run:
+        try:
+            seed_result = _restore_seed(
+                spec_dir=Path(spec_dir),
+                seed_relpath=seed_relpath,
+                container=container,
+                db_user=db_user,
+                db_name=db_name,
+            )
+            logger.info(
+                "postgres seed: %s for %s (%s)",
+                seed_result["status"],
+                db_name,
+                seed_result.get("reason") or seed_result.get("seed", ""),
+            )
+        except (ValueError, FileNotFoundError) as exc:
+            logger.error(
+                "postgres seed: validation/missing-file error for %s (%s) — "
+                "DB+role created, no seed loaded; operator must investigate",
+                db_name,
+                exc,
+            )
+            seed_result = {"status": "failed", "reason": str(exc)}
+        except Exception as exc:  # noqa: BLE001
+            logger.error(
+                "postgres seed: restore failed for %s (%s); DB+role exist, "
+                "seed NOT loaded — operator must re-run manually",
+                db_name,
+                exc,
+            )
+            seed_result = {"status": "failed", "reason": str(exc)}
+
     # T4-01: record allocation with the dedicated role.
     try:
         register_allocation(
@@ -277,12 +449,15 @@ def create_database(
             exc,
         )
 
-    return {
+    result: dict[str, Any] = {
         "status": "created",
         "database": db_name,
         "user": db_user,
         "password": password,
     }
+    if seed_result is not None:
+        result["seed"] = seed_result
+    return result
 
 
 def drop_database(

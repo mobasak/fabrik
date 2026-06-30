@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Phase 5 deploy-readiness: DB seed auto-restore via `depends.postgres_seed` (2026-06-30)
+
+A new spec field `depends.postgres_seed: backups/<dump>.sql.gz` (project-relative `.sql.gz` path) lets `create_database()` auto-restore a checked-in dump into a freshly-created DB. Closes the deploy-readiness gap where new projects with non-empty initial state (calendar-orchestration-engine seed tables, dictionary tables, etc.) required a manual post-deploy `psql` step that often got skipped or mis-applied.
+
+**How it works (in `src/fabrik/drivers/postgres.py`):**
+1. After `create_database()` finishes role+grant SQL, `_resolve_seed_path()` validates the path (must be relative, no `..` escape via `is_relative_to`, must end in `.sql.gz`, must exist).
+2. `_count_user_tables()` queries `information_schema.tables` excluding `pg_catalog` + `information_schema` (defense against pg_stat_statements false-positive on a fresh DB).
+3. If user_tables > 0 → skip with `{"status":"skipped","reason":"db_not_empty"}` (idempotent).
+4. If empty → `scp_to_vps` to a unique `/tmp/fabrik-seed-<db>-<ts>-<uuid8>.sql.gz`, then `cat <path> | docker exec -i postgres-main bash -c 'gunzip | psql -U postgres -d <db>'`.
+5. **try/finally** ensures the temp dump is `rm -f`'d even on psql failure (no sensitive data left on VPS /tmp/).
+6. Seed runs BEFORE allocation registration — a half-restored DB won't get registered as allocated.
+
+**Security**: path is anchored to `ctx.spec_path.parent`; absolute paths, parent-escape sequences, and non-`.sql.gz` files all raise `ValueError` before any I/O.
+
+**Failure handling**: validation errors and restore failures are caught and logged but DB+role creation still succeeds. The seed result is included in the return envelope (`result["seed"] = {...}`) so the orchestrator can surface it.
+
+14 hermetic regression tests (`tests/test_postgres_seed_restore.py`): 6 path-validation (absolute, parent-escape, mixed escape, missing file, wrong extension, valid relative), 3 counter (pg_catalog exclusion verified, int parsing, unparseable→0), 3 restore-orchestration (skip-when-non-empty, restore-when-empty with full scp/exec/cleanup verification, cleanup-on-psql-failure), 2 spec-model (postgres_seed accepted + optional). 33/33 across the affected suites green.
+
+**Plan progress**: Phase 5 of [docs/development/plans/2026-06-30-plan-fabrik-deploy-readiness-gaps.md](docs/development/plans/2026-06-30-plan-fabrik-deploy-readiness-gaps.md) complete. Remaining: Phase 6 (per-DB Backrest plans — needs vps1 re-probe), Phase 8 (deploy key auto-push). Phase 7 DEFERRED (no GlitchTip programmatic webhook API).
+
 ### Added — backlog doc for kilo-scraper residuals + Lesson 79 (residuals-as-backlog discipline) (2026-06-30)
 
 The adversarial review of `scripts/kilo-benchmarks/` closed 14 confirmed correctness/security defects. The remaining **12 LOW findings + 1 fabrik-synced (M5)** are not worth a completionist sweep, but also shouldn't vanish into commit-message history.
