@@ -253,7 +253,7 @@ def _restore_seed(
 
     # Per-run unique remote path so concurrent applies don't collide.
     suffix = f"{db_name}-{int(time.time())}-{uuid.uuid4().hex[:8]}"
-    remote_path = f"/tmp/fabrik-seed-{suffix}.sql.gz"
+    remote_path = f"/tmp/fabrik-seed-{suffix}.sql.gz"  # nosec B108 — VPS-side staging path, per-run unique (ts+uuid), matches deployer_ssh/gatus convention
 
     try:
         scp_to_vps(local_path=str(local_seed), remote_path=remote_path)
@@ -475,7 +475,7 @@ def create_database(
             exc,
         )
 
-    result: dict[str, Any] = {
+    result = {
         "status": "created",
         "database": db_name,
         "user": db_user,

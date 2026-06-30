@@ -201,6 +201,16 @@ Eight phases, each addressing one named gap. Phases 1–3 are quick wins (≤ 1h
 
 ---
 
+## One-Test Rule
+
+Per CLAUDE.md ("1 test for the highest-risk path"), this plan's single highest-risk path is **Phase 1a's rename guard**: the registrar now respects `spec.depends.postgres`, and the worst failure is silently provisioning the wrong/empty DB or orphaning an existing one — which passes `/health` (`SELECT 1`) while every real endpoint 500s (exactly the calendar symptom).
+
+- **Given** a spec whose `depends.postgres` differs from the derived spec-id name AND a DB under the derived name already exists while the pinned one does not (grounded `src/fabrik/orchestrator/infrastructure.py:_provision_postgres`),
+- **When** `_provision_postgres(name, spec, ctx, dry_run=False)` runs without `FABRIK_ALLOW_DB_RENAME=1`,
+- **Then** it refuses (no `create_database` call) and records a `rename_guard_blocked` resource — proving it never silently orphans data (`tests/test_infrastructure_db_name.py::test_rename_guard_blocks_when_derived_db_exists`).
+
+---
+
 ## Phase 1 — Calendar spec corrections + fix `spec.depends.postgres` dead-code bug
 
 **SPLIT into 1a + 1b-shape + 1b-depends** (Pass-9 external-review correction round 2): the three parts have radically different risk profiles and timing dependencies. Must NOT bundle.

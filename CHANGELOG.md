@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — tier-2 gate clean: bandit/mypy/structure (2026-06-30)
+
+Cleared the tier-2 `final_gate.py --json` reds so it runs green (34/0). bandit: `gpu_checkpoint.py` SHA-1 marked `usedforsecurity=False` (it's the Backblaze-B2 integrity header, not crypto) + `pickle.loads` of fabrik-authored checkpoint state given `# nosec B301`; `modal_provider.py` writes to `tempfile.gettempdir()` instead of a hardcoded `/tmp`; the Phase-5 seed-restore VPS staging path in `postgres.py` given `# nosec B108` (per-run unique, matches the `deployer_ssh`/`gatus` convention). mypy: removed a duplicate `result` annotation in `postgres.create_database` (`[no-redef]`). structure: moved `FINAL_REPORT.md` out of the repo root to `docs/reference/`; added the missing `## One-Test Rule` section to the deploy-readiness plan (highest-risk path = Phase-1a rename guard).
+
 ### Added — Phase 6 deploy-readiness: per-DB Backrest plan registration (2026-06-30)
 
 Each fabrik-created database now gets its own Backrest plan with per-DB retention, layered on top of the existing whole-cluster `postgres-dumps` plan. Restoring a single DB no longer requires unpacking the whole-cluster `pg_dumpall` archive.

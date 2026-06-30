@@ -41,6 +41,7 @@ import json
 import logging
 import os
 import subprocess
+import tempfile
 import uuid
 from pathlib import Path
 from typing import Any
@@ -689,7 +690,7 @@ class ModalClient:
             workers_max=workers_max,
             idle_timeout=idle_timeout,
         )
-        out_path = Path(f"/tmp/fabrik-modal-{name}.py")
+        out_path = Path(tempfile.gettempdir()) / f"fabrik-modal-{name}.py"
         out_path.write_text(rendered)
         return str(out_path)
 

@@ -141,8 +141,9 @@ class B2Uploader:
     ) -> dict[str, str]:
         url = f"{self.endpoint}/{self.bucket}/{key}"
         data = body.read() if hasattr(body, "read") else body
-        # Compute SHA-1 (B2 requires this header for integrity)
-        sha1 = hashlib.sha1(data).hexdigest()
+        # Compute SHA-1 (B2 requires this header for integrity — NOT security;
+        # usedforsecurity=False marks it as a checksum so bandit/FIPS don't flag it).
+        sha1 = hashlib.sha1(data, usedforsecurity=False).hexdigest()
         resp = self._http.put(
             url,
             content=data,
@@ -362,4 +363,4 @@ def read_checkpoint_from_tarball(payload: bytes) -> dict[str, Any]:
             f = tar.extractfile(member)
             if f is None:
                 raise CheckpointError("checkpoint.pkl missing from tarball")
-            return pickle.loads(f.read())
+            return pickle.loads(f.read())  # nosec B301 — checkpoint.pkl is fabrik-authored state from a tarball we wrote, not untrusted input
