@@ -268,6 +268,8 @@ docs/
 ├── archive                         # Archived and completed documentation
 ├── development                     # Active development plans and specs
 │   ├── PLANS.md                    # Development plans index
+│   ├── backlog                     # Deferred residuals (low-severity, fix-on-prompt)
+│   │   └── 2026-06-30-kilo-scraper-residuals.md  # post-adversarial-review LOW findings + upstream-fabrik-lib PR (M5)
 │   ├── plans                       # Plan documents (YYYY-MM-DD-plan-*.md)
 │   │   ├── 2026-04-13-fabrik-control-plane.md
 │   │   ├── 2026-04-18-zero-touch-deployment.md

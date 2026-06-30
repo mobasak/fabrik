@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — backlog doc for kilo-scraper residuals + Lesson 79 (residuals-as-backlog discipline) (2026-06-30)
+
+The adversarial review of `scripts/kilo-benchmarks/` closed 14 confirmed correctness/security defects. The remaining **12 LOW findings + 1 fabrik-synced (M5)** are not worth a completionist sweep, but also shouldn't vanish into commit-message history.
+
+**New**: [docs/development/backlog/2026-06-30-kilo-scraper-residuals.md](docs/development/backlog/2026-06-30-kilo-scraper-residuals.md) — single tracked doc with per-item `Trigger to fix` (incident-prompted, batched-cleanup, after-N-occurrences) so future AI sessions don't re-discover them in isolation. Includes a Lean PR-steps block for M5 (the upstream fabrik-lib/web-scrape patch: skip cache on bot-wall HTML) so the proposal is one `git checkout -b` away when motivation arrives. INDEX.md updated to reference the new `docs/development/backlog/` directory.
+
+**New Lesson 79** in [docs/LESSONS_LEARNT.md](docs/LESSONS_LEARNT.md): "Adversarial-review residuals belong in a tracked backlog, not the commit-and-forget pile" — codifies this triage discipline (completionist sweep vs. verbal-only triage vs. issue-tracker thrash → all bad; tracked backlog with explicit triggers wins).
+
 ### Fixed — adversarial review Phase 4 convergence: NF1 widen magnitude bounds + NF2 corrupt-counter resilience (2026-06-30)
 
 Phase 4 re-review of changed surface from clusters 1-6 found 2 NEW correctness defects in the SHIPPED fixes:

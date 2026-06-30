@@ -1,7 +1,7 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
-**Last Updated:** 2026-05-27 (Lesson 33 — `--skip-deploy` is a legacy-path flag; Authelia audit checks presence not policy)
+**Last Updated:** 2026-06-30 (Lesson 79 — adversarial-review residuals belong in a tracked backlog, not the commit-and-forget pile)
 
 **Purpose:** CAPTURE TECHNICAL HURDLES, AI-SPECIFIC QUIRKS, AND ARCHITECTURAL DECISIONS TO PREVENT REGRESSION AS CODEBASES AND AI AGENTS EVOLVE.
 
@@ -4410,3 +4410,21 @@ OpenRouter as fallback (configured via `WATCHDOG_OPENROUTER_KEY` in `/opt/<proje
 **How to apply:** Any RLS feature on Fabrik must verify the *connection identity*, not just the policy text. Prove isolation by querying **as the injected role** with a tenant set (and confirm a cross-tenant `INSERT` is blocked by `WITH CHECK`) — `rolsuper=f`. "The policy exists" ≠ "isolation holds." If a new scaffold type sets `needs_database: true`, confirm the registrar injects a working `DATABASE_URL` for a non-superuser role — don't assume `POSTGRES_PASSWORD` exists.
 
 ---
+
+---
+
+## Lesson 79 — Adversarial-review residuals belong in a tracked backlog, not in the commit-and-forget pile
+
+**2026-06-30** — A 4-grounder adversarial review of `scripts/kilo-benchmarks/` (the direct-vendor pricing scraper) found 46 raw findings. After triage, 14 were correctness/security defects worth fixing (12 from the grounders + 2 from the Phase 4 re-review of the fixes themselves). All 14 were closed across 7 commits (`de7b6017` → `3503c756`) with 18 regression tests.
+
+What's the right move for the residual **12 LOW findings + 1 fabrik-synced-upstream issue + 3 pending deploy-readiness phases**? Three failure modes to avoid:
+
+1. **Completionist sweep** — fix all 12 LOW immediately. Turns a 1-day review cycle into 2-day churn against low-marginal-value items.
+2. **Verbal-only triage** — list them in the PR description; they vanish into commit-message history and the next AI session re-discovers them.
+3. **Issue tracker thrash** — open 12 GH issues, lose context, each one rediscovered in isolation later.
+
+**The lean way** (now-default): single `docs/development/backlog/YYYY-MM-DD-<topic>-residuals.md` document with per-item `Trigger to fix` so future-me knows *when* to bring an item up (incident-prompted, batched-cleanup, or after-N-occurrences). Linked from `INDEX.md` under `docs/development/backlog/`.
+
+**Why:** the residuals doc is greppable by AI sessions, gets re-read whenever I touch the same code, and converts "shoulds" into "trigger-prompted" actions. Items only get fixed when there's a real reason — not from completionist guilt. Fabrik-synced findings get a stub `Lean PR steps` block so the upstream proposal is one `git checkout -b` away when motivation arrives.
+
+**How to apply:** After any adversarial review with N>5 LOW findings, write a `docs/development/backlog/<date>-<topic>-residuals.md`. Each item gets: (1) source citation (which grounder/finding flagged it), (2) explicit trigger to fix, (3) rough effort estimate. Don't promise to fix any of them in a follow-up. The trigger does that work.
