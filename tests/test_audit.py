@@ -8,8 +8,6 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
-import pytest
-
 from fabrik import audit
 from fabrik.audit import (
     AuditResult,
@@ -25,7 +23,6 @@ from fabrik.audit import (
     audit_redis,
 )
 from fabrik.orchestrator.infrastructure import _REGISTRAR_ORDER
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Fixtures
