@@ -284,6 +284,19 @@
     background: var(--accent-dim); color: white; font-weight: 600;
   }
   td.tier { font-weight: 600; }
+  /* Empty-cell indicator — a quiet em-dash that signals "no data" without
+     screaming. Used in benchmark / numeric cells (Arena, TBench, AA, SWE,
+     SWE-ML, Aider, DA-code, W-Code, Trans, STT WER, Ctx, Speed, TTFT) for
+     visual consistency with the Tier / Best Code cells which already do
+     this. Subtle on purpose: the data IS the signal; the dash only marks
+     "we looked, there's nothing here". */
+  td.num .empty-cell,
+  td.cost .empty-cell {
+    color: var(--muted);
+    opacity: 0.4;
+    font-weight: 400;
+    user-select: none;
+  }
   /* Quality tier color semantics (CRITICAL — historically inverted!):
      Per the column-header tooltip and derive_quality_v2.py docstring,
      HIGHER tier = BETTER (T3 = frontier/best, T1 = baseline). The
@@ -365,11 +378,18 @@
      rest of the page. Click anywhere on it triggers closeDetail(). */
   .detail-backdrop {
     position: fixed; inset: 0;
-    background: transparent;
+    /* Subtle tint (not opaque) — the drawer foreground stands out without
+       hiding the underlying table data the user is comparing against.
+       0.35 alpha is the sweet spot: table rows are still readable at the
+       periphery but the drawer is unambiguously the active surface. */
+    background: rgba(8, 10, 14, 0.35);
+    backdrop-filter: blur(1px);
     z-index: 10;
     display: none;
+    opacity: 0;
+    transition: opacity 0.18s ease;
   }
-  .detail-backdrop.open { display: block; }
+  .detail-backdrop.open { display: block; opacity: 1; }
   /* "Copy ID" affordance next to the drawer's h2 — the model id is the
      thing operators most often need to grab. */
   .copy-id-btn {
@@ -488,13 +508,28 @@
       <span class="chip" data-source="kilo" title="Reachable via Kilo Gateway (including dual-routed). Use Exclusivity below to pick Kilo-only.">via Kilo</span>
     </div>
 
-    <h3>Exclusivity / price compare <span style="font-weight: normal; text-transform: none; color: var(--muted)">(any of)</span></h3>
+    <h3>Exclusivity <span style="font-weight: normal; text-transform: none; color: var(--muted)">(any of)</span></h3>
     <div class="chip-grid">
       <span class="chip" data-source="both" title="Both OpenRouter AND Kilo route the same model">Dual-routed</span>
       <span class="chip" data-source="kilo_only" title="Kilo Gateway only — not on OpenRouter">Kilo-only</span>
       <span class="chip" data-source="or_only" title="OpenRouter only — not on Kilo">OR-only</span>
-      <span class="chip" data-source="kilo_cheaper" title="Dual-routed AND Kilo input price < OpenRouter input price">Kilo cheaper</span>
-      <span class="chip" data-source="or_cheaper" title="Dual-routed AND OpenRouter input price < Kilo input price">OR cheaper</span>
+    </div>
+    <!--
+      "Kilo cheaper" / "OR cheaper" chips removed 2026-06-30: live data shows
+      ALL 336 dual-routed rows have kilo_input_cost_per_m EXACTLY equal to
+      input_cost_per_m (verified via DB query). Kilo Gateway proxies
+      OpenRouter prices for dual-routed models; there is no diff to filter on
+      and the chips were silently dead — clicking either yielded 0 rows.
+      If upstream Kilo CLI ever exposes its own markup, re-introduce these
+      chips AND the matching K +N% badge logic in fmtSource() at the same
+      time. The filterRow dispatch in JS still ignores these source values
+      (no harm) so a future regen with a custom `data-source="kilo_cheaper"`
+      chip would Just Work without further code change.
+    -->
+    <div style="font-size:10px; color:var(--muted); margin-top:6px">
+      Kilo Gateway currently mirrors OpenRouter prices for dual-routed
+      models — there's no price-diff to filter on. If that ever changes
+      upstream, "Kilo cheaper" / "OR cheaper" chips will be re-introduced.
     </div>
 
     <h3>Pricing freshness</h3>
@@ -950,8 +985,11 @@ function filterRow(m) {
       if (s === "both" && viaOr && viaKilo) { pass = true; break; }
       if (s === "kilo_only" && viaKilo && !viaOr) { pass = true; break; }
       if (s === "or_only" && viaOr && !viaKilo) { pass = true; break; }
-      if (s === "kilo_cheaper" && viaOr && viaKilo && m.kilo_input_cost_per_m !== null && m.kilo_input_cost_per_m < m.input_cost_per_m) { pass = true; break; }
-      if (s === "or_cheaper" && viaOr && viaKilo && m.kilo_input_cost_per_m !== null && m.kilo_input_cost_per_m > m.input_cost_per_m) { pass = true; break; }
+      // kilo_cheaper / or_cheaper branches removed 2026-06-30 — see the
+      // matching comment in the Exclusivity sidebar block. The chips were
+      // dead because Kilo Gateway proxies OR prices for dual-routed rows.
+      // Re-introduce both the chips AND these dispatch branches together
+      // when upstream Kilo ever differentiates pricing.
       // show_discounted is a meta-toggle handled above, not a per-row predicate.
       if (s === "show_discounted") { pass = true; break; }
     }
@@ -1178,6 +1216,11 @@ function refresh() {
   const empty = document.getElementById("empty");
   empty.style.display = filtered.length === 0 ? "block" : "none";
 
+  // Empty-cell indicator: a quiet em-dash for cells with no data. Inlined
+  // as a const so the template literal stays readable and there's a single
+  // markup source to tweak later.
+  const _D = '<span class="empty-cell">—</span>';
+
   for (const m of sorted) {
     const tr = document.createElement("tr");
     tr.dataset.id = m.id;
@@ -1218,22 +1261,22 @@ function refresh() {
       </td>
       <td class="cost" title="${priceSourceLabel(m)} — input cost">${fmtCost(m.input_cost_per_m, m)}${maybeCheaperBadge(m)}</td>
       <td class="cost" title="${priceSourceLabel(m)} — output cost">${(m.service_type && m.service_type !== "llm" && m.service_type !== "embedding") ? "<span style='color:var(--muted)' title='Not applicable — this service bills on a single axis (see Price column)'>n/a</span>" : fmtCost(m.output_cost_per_m, m)}</td>
-      <td class="num">${m.context_window_k || ""}</td>
-      <td class="num" title="${m.output_tokens_per_sec ? 'Throughput from Artificial Analysis (' + (m.speed_source || 'AA') + ')' : 'No throughput data'}">${m.output_tokens_per_sec != null ? m.output_tokens_per_sec.toFixed(0) + "<span class='unit-suffix'>tok/s</span>" : ""}</td>
-      <td class="num" title="${m.ttft_ms != null ? 'Time-to-first-token: ' + m.ttft_ms.toFixed(0) + ' ms' : 'No TTFT data'}">${m.ttft_ms != null ? m.ttft_ms.toFixed(0) + "<span class='unit-suffix'>ms</span>" : ""}</td> <!-- noqa: 'token' is the LLM-token concept, not a secret -->
+      <td class="num">${m.context_window_k || _D}</td>
+      <td class="num" title="${m.output_tokens_per_sec ? 'Throughput from Artificial Analysis (' + (m.speed_source || 'AA') + ')' : 'No throughput data'}">${m.output_tokens_per_sec != null ? m.output_tokens_per_sec.toFixed(0) + "<span class='unit-suffix'>tok/s</span>" : _D}</td>
+      <td class="num" title="${m.ttft_ms != null ? 'Time-to-first-token: ' + m.ttft_ms.toFixed(0) + ' ms' : 'No TTFT data'}">${m.ttft_ms != null ? m.ttft_ms.toFixed(0) + "<span class='unit-suffix'>ms</span>" : _D}</td> <!-- noqa: 'token' is the LLM-token concept, not a secret -->
       <td class="tier t-${m.quality_tier || 0}" title="${m.quality_tier ? '' : 'Not yet rated by the local ranking pipeline'}">${m.quality_tier ? "T" + m.quality_tier : "—"}</td>
       <td class="cap">${m.kind === "chat" ? fmtCaps(m) : "<span style='color:var(--muted)'>embed</span>"}</td>
       <td class="num" title="${m._best_code_label ? "Strongest available coding signal: " + m._best_code_label : "No coding signal — tiered by family/cost"}" style="${m._best_code_label ? "font-weight:600;color:var(--accent)" : "color:var(--muted)"}">${m._best_code_label || "—"}</td>
-      <td class="num">${m.arena_elo || ""}</td>
-      <td class="num">${m.tbench_accuracy != null ? m.tbench_accuracy.toFixed(1) : ""}</td>
-      <td class="num">${m.aa_intelligence_index != null ? m.aa_intelligence_index.toFixed(0) : ""}</td>
-      <td class="num">${m.swe_bench_verified_pct != null ? m.swe_bench_verified_pct.toFixed(1) : ""}</td>
-      <td class="num">${m.swe_bench_multilingual_pct != null ? m.swe_bench_multilingual_pct.toFixed(1) : ""}</td>
-      <td class="num">${m.aider_polyglot_pct != null ? m.aider_polyglot_pct.toFixed(1) : ""}</td>
-      <td class="num">${m.design_arena_coding_elo != null ? m.design_arena_coding_elo.toFixed(0) : ""}</td>
-      <td class="num">${m.weighted_coding != null ? m.weighted_coding.toFixed(1) : ""}</td>
-      <td class="num" title="${m.translation_quality ? (() => { try { const q = JSON.parse(m.translation_quality); return Object.entries(q).filter(([k]) => !["avg","source","note"].includes(k)).map(([k,v]) => k+"="+v).join("  "); } catch(e) { return "" } })() : ""}">${m.translation_avg_pct != null ? m.translation_avg_pct.toFixed(1) : ""}</td>
-      <td class="num" title="${m.stt_quality ? (() => { try { const q = JSON.parse(m.stt_quality); return Object.entries(q).filter(([k]) => k !== "source").map(([k,v]) => k+"="+v).join("  ") + (q.source ? "  ("+q.source+")" : ""); } catch(e) { return "" } })() : ""}" style="${m.stt_wer_avg != null ? "color:var(--good);font-weight:600" : ""}">${m.stt_wer_avg != null ? m.stt_wer_avg.toFixed(1) : ""}</td>
+      <td class="num">${m.arena_elo || _D}</td>
+      <td class="num">${m.tbench_accuracy != null ? m.tbench_accuracy.toFixed(1) : _D}</td>
+      <td class="num">${m.aa_intelligence_index != null ? m.aa_intelligence_index.toFixed(0) : _D}</td>
+      <td class="num">${m.swe_bench_verified_pct != null ? m.swe_bench_verified_pct.toFixed(1) : _D}</td>
+      <td class="num">${m.swe_bench_multilingual_pct != null ? m.swe_bench_multilingual_pct.toFixed(1) : _D}</td>
+      <td class="num">${m.aider_polyglot_pct != null ? m.aider_polyglot_pct.toFixed(1) : _D}</td>
+      <td class="num">${m.design_arena_coding_elo != null ? m.design_arena_coding_elo.toFixed(0) : _D}</td>
+      <td class="num">${m.weighted_coding != null ? m.weighted_coding.toFixed(1) : _D}</td>
+      <td class="num" title="${m.translation_quality ? (() => { try { const q = JSON.parse(m.translation_quality); return Object.entries(q).filter(([k]) => !["avg","source","note"].includes(k)).map(([k,v]) => k+"="+v).join("  "); } catch(e) { return "" } })() : ""}">${m.translation_avg_pct != null ? m.translation_avg_pct.toFixed(1) : _D}</td>
+      <td class="num" title="${m.stt_quality ? (() => { try { const q = JSON.parse(m.stt_quality); return Object.entries(q).filter(([k]) => k !== "source").map(([k,v]) => k+"="+v).join("  ") + (q.source ? "  ("+q.source+")" : ""); } catch(e) { return "" } })() : ""}" style="${m.stt_wer_avg != null ? "color:var(--good);font-weight:600" : ""}">${m.stt_wer_avg != null ? m.stt_wer_avg.toFixed(1) : _D}</td>
       <td class="cats">${fmtCats(m)}</td>
       <td class="status ${statusClass}">${statusLabel}</td>
       <td class="verified ${m._staleBucket}">${verifiedLabel}</td>
