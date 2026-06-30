@@ -305,6 +305,7 @@ docs/
 ├── operations                      # Operational runbooks and VPS state
 │   ├── disaster-recovery.md        # Backup and recovery procedures
 │   ├── n8n-webhooks.md             # n8n webhook configuration
+│   ├── wsl-environment.md          # WSL-side ops: crontab + bashrc chain + project-cron lifecycle + recovery (2026-06-30)
 ├── owner_ozgur_basak.md            # Owner profile & AI instructions
 ├── reference                       # Technical reference and module documentation
 │   ├── # (Moved — AI taxonomy is now .windsurf/rules/ai/)
