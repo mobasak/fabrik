@@ -200,6 +200,14 @@ def verify(db_path: Path = DB_PATH) -> dict:
             "SELECT * FROM agents WHERE status='active' AND via_openrouter=1"
         ).fetchall()
     }
+    # All-rows set for INSERT-exclusion at line 323-324: live_only/kilo_only
+    # must NOT include IDs that already exist in any state (active, deprecated,
+    # via_openrouter=0, etc.) or ingest_new() will hit a UNIQUE constraint
+    # failure. Pre-2026-06-30 bug: live_only was computed against db_rows
+    # (filtered to active+via_openrouter=1), so any DB row that was deprecated
+    # OR direct-vendor-flagged but still in OpenRouter's catalog got falsely
+    # flagged as "missing" → INSERT failure logged in every daily run.
+    all_db_ids = {r[0] for r in conn.execute("SELECT id FROM agents").fetchall()}
     conn.close()
 
     delisted: list[str] = []
@@ -320,8 +328,12 @@ def verify(db_path: Path = DB_PATH) -> dict:
         else:
             matched_clean.append(mid)
 
-    live_only = [mid for mid in live if mid not in db_rows]
-    kilo_only = [mid for mid in kilo if mid not in db_rows and mid not in live]
+    # Use all_db_ids (every row regardless of status/flags) — see comment at
+    # the db_rows / all_db_ids block above. Using db_rows here would re-fail
+    # with UNIQUE constraint in ingest_new() for any row that exists in DB
+    # with status='deprecated' or via_openrouter=0 but is still listed live.
+    live_only = [mid for mid in live if mid not in all_db_ids]
+    kilo_only = [mid for mid in kilo if mid not in all_db_ids and mid not in live]
 
     # Build per-id Kilo Gateway pricing so apply_fixes can populate
     # `kilo_input_cost_per_m` / `kilo_output_cost_per_m` / `via_kilo`.
@@ -656,7 +668,12 @@ def main() -> None:
         print()
         print("Ingesting new rows from OpenRouter...")
         c = ingest_new(report, args.db)
-        print(f"  rows inserted:   {c['inserted']}")
+        # ingest_new() returns {'inserted_openrouter': N, 'inserted_kilo_only': M}
+        # (see line 473). The previous code referenced c['inserted'] which never
+        # existed — was masked by the UNIQUE constraint error that fired BEFORE
+        # this print line could execute (pre-2026-06-30 fix at db_rows/all_db_ids).
+        print(f"  rows inserted (OpenRouter):  {c['inserted_openrouter']}")
+        print(f"  rows inserted (Kilo-only):   {c['inserted_kilo_only']}")
 
 
 if __name__ == "__main__":

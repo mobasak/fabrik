@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — verify_openrouter_catalog.py: 2 latent bugs (UNIQUE constraint failure + masked KeyError) (2026-06-30)
+
+The daily refresh has been hitting `sqlite3.IntegrityError: UNIQUE constraint failed: agents.id` in every run (7+ occurrences in update.log). Found two stacked bugs:
+
+**Bug 1 — wrong DB-row set used for INSERT-exclusion**: [verify_openrouter_catalog.py:197-201](scripts/kilo-benchmarks/verify_openrouter_catalog.py#L197) populates `db_rows` filtered to `status='active' AND via_openrouter=1` (correct for the UPDATE phase — that's what the verifier checks against OpenRouter). But line 323-324 then computed `live_only = [mid for mid in live if mid not in db_rows]` using the SAME filtered set, so any row that exists in DB with `status='deprecated'` or `via_openrouter=0` but is STILL listed in OpenRouter's live catalog (e.g., reactivated models, direct-vendor rows from registry sync) got falsely flagged as missing → `ingest_new()` tried to INSERT → constraint fail. Fix: added `all_db_ids` (separate query, no filter) and used it for `live_only`/`kilo_only` exclusion. The original `db_rows` keeps its active+via_openrouter=1 filter for the UPDATE phase (don't accidentally sweep direct-vendor rows into deprecation — the same trap as the 186-row regression in commit `5d61eb5e`).
+
+**Bug 2 — masked KeyError**: [verify_openrouter_catalog.py:674](scripts/kilo-benchmarks/verify_openrouter_catalog.py#L674) read `c['inserted']` from `ingest_new()`'s return dict, but `ingest_new()` actually returns `{'inserted_openrouter': N, 'inserted_kilo_only': M}` (line 473). This was hidden behind Bug 1 — the IntegrityError fired BEFORE the print line could execute. Fix: print both keys with their correct names.
+
+Verified end-to-end with `--apply --ingest-new`: clean run, no IntegrityError, no KeyError, correct summary output (`rows inserted (OpenRouter): N` + `rows inserted (Kilo-only): M`).
+
 ### Fixed — daily_refresh.sh: implemented the lockfile coordination the migration commit claimed (2026-06-30)
 
 The 2026-06-28 migration commit (`1372325e`) claimed: "Both the wsl_startup_hook and the cron share the same lockfile semantics, so they're idempotent — whichever fires first wins the day." But `daily_refresh.sh` was never given a lockfile check; today both paths fire independently and (now that cron has parity with bashrc-hook per the previous commit) run the same ~30-step pipeline twice on every shell-active day. Implemented the claimed coordination: cron now checks `/tmp/.fabrik_daily_$(date -u +%Y%m%d)` (same convention as `wsl_startup_hook.sh:61,81-82`) and skips with a logged message if it exists. UTC date in the lockfile name means it rolls over cleanly at 00:00 UTC. Manual override: `rm /tmp/.fabrik_daily_<today-UTC>`. Heartbeat timing verified safe — cron's 03:00 UTC slot fires before typical morning shell opens, so the heartbeat-write keeps running daily as expected; the freshness check correctly stays inside the gate (just a read of the timestamp, no write). Net effect: pipeline runs exactly once per UTC day across both paths, instead of up to twice.
