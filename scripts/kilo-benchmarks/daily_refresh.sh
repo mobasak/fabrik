@@ -55,7 +55,10 @@ mkdir -p "$(dirname "$LOG_FILE")"
   echo ""
   echo "=== Fabrik AI catalog refresh — $(date -u +'%Y-%m-%d %H:%M:%S UTC') ==="
 
-  cd "$KB" || { echo "[daily_refresh] cd failed — aborting"; exit 0; }
+  # cd failure exits 1 (not 0): otherwise cron + the heartbeat would
+  # mark a never-ran job as "successful" and tomorrow's freshness check
+  # would skip alerting. Better to surface the failure immediately.
+  cd "$KB" || { echo "[daily_refresh] cd failed — aborting"; exit 1; }
 
   # Lockfile coordination with wsl_startup_hook.sh (the bashrc-sourced
   # path). The 2026-06-28 migration commit (1372325e) CLAIMED both paths
@@ -232,7 +235,9 @@ mkdir -p "$(dirname "$LOG_FILE")"
   _step "backfill_unknown_providers" "$VENV_PY" "$KB/backfill_unknown_providers.py" --apply \
     || echo "[daily_refresh] backfill_unknown_providers failed (non-fatal)"
 
-  "$VENV_PY" "$KB/derive_quality_v2.py" \
+  # Wrapped in _step for per-step timing consistency with every other
+  # script above. Pre-fix the timing summary omitted this row.
+  _step "derive_quality_v2" "$VENV_PY" "$KB/derive_quality_v2.py" \
     || echo "[daily_refresh] quality v2 deriver failed (non-fatal)"
 
   _step "classify_ai_category" "$VENV_PY" "$KB/classify_ai_category.py" \
@@ -276,8 +281,21 @@ mkdir -p "$(dirname "$LOG_FILE")"
   # sync_enforcement_to_projects.py (the script has no internal lock); -w 0 means
   # "skip this run if a sync is already in progress" rather than block the cron.
   # No --quiet flag — it doesn't exist; an honest cron log is preferable.
-  flock -w 0 /tmp/fabrik-sync-enforcement.lock \
-    _step "sync_enforcement_to_projects" "$VENV_PY" "$FABRIK_ROOT/scripts/sync_enforcement_to_projects.py" \
+  #
+  # 2026-06-30 audit BUG FIX: previously this line read
+  #   `flock -w 0 LOCK _step "label" ...`
+  # which fails immediately because `_step` is a bash function (defined in
+  # this script) — `flock` invokes execvp() and a function isn't a binary.
+  # The result was "flock: failed to execute _step: No such file or
+  # directory" on every nightly run, masked by the trailing `|| echo`. The
+  # sync step has been silently failing for as long as this line existed
+  # — verified by tail -100 update.log showing ZERO sync_enforcement
+  # entries. Fixed by inverting the wrap order: `_step` now executes
+  # `flock`, which is a real binary, and flock execs $VENV_PY. The lock
+  # semantics are preserved and the per-step timing is now emitted.
+  _step "sync_enforcement_to_projects" \
+    flock -w 0 /tmp/fabrik-sync-enforcement.lock \
+      "$VENV_PY" "$FABRIK_ROOT/scripts/sync_enforcement_to_projects.py" \
     || echo "[daily_refresh] sync_enforcement skipped/failed (non-fatal — lock held or error)"
 
   # Heartbeat: write last-success timestamp so tomorrow's

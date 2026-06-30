@@ -35,6 +35,37 @@ ComplexityLevel = Literal["simple", "medium", "complex"]
 RoleType = Literal["coding", "reviewing", "fixing", "documentation", "testing"]
 
 
+# User-facing → DB role mapping. The `agent_roles` table partitions
+# `coding` into TWO separate routes (`coding_simple` with 5 priorities for
+# the cheap-cascade chain, `coding_complex` with 3 frontier picks) but
+# every other role is stored 1:1 with its user-facing name. Pre-fix the
+# selector queried `r.role = "coding"` and got 0 rows for every complexity
+# level — silently broken for any caller that wanted a coding agent.
+# Verified 2026-06-30: live DB has roles {coding_complex(3), coding_simple(5),
+# documentation(5), fixing(5), reviewing(5), testing(2)}.
+def _resolve_db_role(role: str, complexity: str) -> str:
+    """Map user-facing (role, complexity) → the actual `agent_roles.role` value.
+
+    For coding tasks the DB splits the pool by complexity:
+      - complex   → `coding_complex` (frontier-only, 3 priorities)
+      - simple    → `coding_simple`  (cheap-cascade, 5 priorities)
+      - medium    → `coding_simple`  (balanced order falls through the 5-row pool)
+    Every other user-facing role maps 1:1 to its DB row.
+    """
+    if role == "coding":
+        return "coding_complex" if complexity == "complex" else "coding_simple"
+    return role
+
+
+def _all_db_roles_for(role: str) -> list[str]:
+    """Used by list_agents_for_role to enumerate every DB row that belongs
+    to a user-facing role. Coding fans out across its two pools; everything
+    else is a single row."""
+    if role == "coding":
+        return ["coding_complex", "coding_simple"]
+    return [role]
+
+
 class NoAgentAvailableError(Exception):
     """Raised when no suitable agent is found for the given criteria."""
 
@@ -52,19 +83,26 @@ def get_agent(
     priority: int,
     require_vision: bool = False,
     min_elo: int | None = None,
+    *,
+    complexity: ComplexityLevel | None = None,
 ) -> dict | None:
     """
-    Get agent for a specific role and priority level.
+    Get agent for a specific (role, priority) — resolving the user-facing
+    role to its DB row first when there's a complexity-split (currently
+    only `coding`).
 
     Args:
-        role: The role to select for (coding, reviewing, etc.)
-        priority: Priority level (1-5)
-        require_vision: If True, only return agents with vision capability
-        min_elo: Optional minimum ELO score requirement
+        role: User-facing role (coding, reviewing, etc.)
+        priority: Priority level (1-5 — varies by role).
+        require_vision: If True, only return agents with vision capability.
+        min_elo: Optional minimum ELO score requirement.
+        complexity: Required when `role == "coding"` to pick the
+            coding_simple vs coding_complex pool. Ignored for other roles.
 
     Returns:
         Agent dict with api_id, name, provider, etc. or None if not found.
     """
+    db_role = _resolve_db_role(role, complexity or "simple")
     conn = get_connection()
 
     query = """
@@ -90,7 +128,7 @@ def get_agent(
           AND a.status = 'active'
           AND a.blocked = 0
     """
-    params: list = [role, priority]
+    params: list = [db_role, priority]
 
     if require_vision:
         query += " AND a.has_vision = 1"
@@ -141,7 +179,7 @@ def select_agent(
         raise ValueError(f"Unknown complexity level: {complexity}")
 
     for priority in priorities:
-        agent = get_agent(role, priority, require_vision, min_elo)
+        agent = get_agent(role, priority, require_vision, min_elo, complexity=complexity)
         if agent:
             return agent
 
@@ -207,14 +245,18 @@ def select_documenter(complexity: ComplexityLevel = "simple") -> dict:
 
 def list_agents_for_role(role: RoleType) -> list[dict]:
     """
-    List all assigned agents for a role, ordered by priority.
+    List all assigned agents for a user-facing role, ordered by priority.
 
-    Returns:
-        List of agent dicts with priority info.
+    For `coding` this returns the union of `coding_simple` + `coding_complex`
+    pools — each agent row carries an `_db_role` field so callers can tell
+    which pool a given agent belongs to. Other roles are 1:1 with their
+    DB row.
     """
+    db_roles = _all_db_roles_for(role)
+    placeholders = ",".join("?" * len(db_roles))
     conn = get_connection()
     cursor = conn.execute(
-        """
+        f"""
         SELECT
             a.id,
             a.api_id,
@@ -224,16 +266,17 @@ def list_agents_for_role(role: RoleType) -> list[dict]:
             a.tbench_accuracy,
             a.has_vision,
             a.perf_per_dollar,
+            r.role AS _db_role,
             r.priority,
             r.min_elo
         FROM agent_roles r
         JOIN agents a ON a.id = r.agent_id
-        WHERE r.role = ?
+        WHERE r.role IN ({placeholders})
           AND a.status = 'active'
           AND a.blocked = 0
-        ORDER BY r.priority
+        ORDER BY r.role, r.priority
         """,
-        (role,),
+        db_roles,
     )
     agents = [dict(row) for row in cursor.fetchall()]
     conn.close()

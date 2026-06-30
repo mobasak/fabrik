@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — kilo-benchmarks audit: agent_selector coding role + daily_refresh flock-vs-function bug + timing/exit consistency (2026-06-30)
+
+Two P0 bugs found while auditing the kilo-benchmarks scripts past the models_browser surface:
+
+**P0 #1 — agent_selector.py: `select_agent("coding", ...)` returned NO MATCH for every complexity level.** The DB stores coding agents under `agent_roles.role IN ("coding_simple", "coding_complex")` (split by complexity), but the selector queried plain `"coding"`. Live test against the DB confirmed all 3 complexity levels failed with `NoAgentAvailableError`. Reviewing/fixing/documentation/testing worked because those roles match 1:1 in the DB. Fixed via new `_resolve_db_role(role, complexity)` mapper:
+- `coding`/`complex` → `coding_complex` (3 priorities, frontier-only)
+- `coding`/`simple` or `medium` → `coding_simple` (5 priorities, cheap-cascade)
+- every other role maps 1:1 (unchanged)
+
+`get_agent` now takes a kw-only `complexity=` arg threaded from `select_agent`. `list_agents_for_role("coding")` now unions both pools via new `_all_db_roles_for()` and tags each agent dict with `_db_role` so callers know which pool a given pick came from. End-to-end smoke: all 15 (role × complexity) combinations now resolve to a live agent — `coding/simple → GLM 5`, `coding/medium → Qwen3.6 Plus`, `coding/complex → Gemini 3.1 Pro Preview`.
+
+**P0 #2 — daily_refresh.sh: `flock -w 0 LOCK _step "label" $cmd` silently failed every nightly run.** `_step` is a bash function defined in this same script — `flock` invokes `execvp()` which cannot resolve a function. Result: `flock: failed to execute _step: No such file or directory`, masked by the trailing `|| echo` continuation. Verified via direct flock test + `tail -100 update.log` showing ZERO `sync_enforcement_to_projects` entries since the line was added. This means the nightly `sync_enforcement_to_projects.py` step has been **silently broken**, leaving every project's `.windsurf/rules/ai/*.md` (and other synced governance files) drifting daily — which is exactly what `git status` has shown all session for the modified rule-pack files.
+
+Fix inverts the wrap order: `_step "label" flock -w 0 LOCK "$VENV_PY" "$SCRIPT"`. Now `_step` runs `flock` (a real binary), flock acquires the lock then execs `$VENV_PY`. Lock semantics preserved, per-step timing now emitted.
+
+**Bonus cleanups in daily_refresh.sh**:
+- `derive_quality_v2.py` invocation wrapped in `_step` like every other script — previously bare, so its timing row was missing from the summary.
+- `cd "$KB" || { ...; exit 0; }` changed to `exit 1` — pre-fix a cd failure would mark the cron job as "successful" while running nothing, and the heartbeat would silently NOT update; the misleading exit-0 was a real wrong signal.
+
+embedding_selector.py was also audited (pure-function selector for embedding-role floors); end-to-end smoke confirmed it works as advertised — no fix needed.
+
 ### Fixed — registrar-count tests no longer drift; saas-skeleton expected set corrected (2026-06-30)
 
 `test_returns_all_9_registrars` hard-coded `== 9` and went red when Phase 5 added the `redis` registrar (`_REGISTRAR_ORDER` → 10); now asserts `== len(_REGISTRAR_ORDER)` (renamed `test_returns_all_registrars`) so it never drifts on registrar add/remove — the keys-equality assert already proves the set. `test_template_defaults[saas-skeleton]` expected set was stale: the template's `defaults.yaml` declares `needs_cache:true` and `exposes_metrics:true`, so the resolver correctly runs `redis` + `prometheus` — added both to the expected set. Closes residual-risk #4 from the Phase 7 review.
