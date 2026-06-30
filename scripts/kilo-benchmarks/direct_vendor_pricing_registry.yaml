@@ -81,9 +81,22 @@ speechmatics:
 # ============================================================
 
 anthropic:
-  pricing_url: https://www.anthropic.com/pricing
-  fetch_method: stealth        # Pass-0 grounding: Cloudflare bot-wall
-  parser_module: null
+  pricing_url: https://docs.anthropic.com/en/docs/about-claude/pricing  # docs subdomain works rendered (no Cloudflare wall, unlike anthropic.com/pricing)
+  fetch_method: rendered
+  parser_module: direct_vendor_parsers.anthropic
+  models:
+    anthropic/claude-opus-4.8:
+      slug_on_page: "Claude Opus 4.8"
+      expected_unit: M-tokens
+    anthropic/claude-sonnet-4.6:
+      slug_on_page: "Claude Sonnet 4.6"
+      expected_unit: M-tokens
+    anthropic/claude-haiku-4.5:
+      slug_on_page: "Claude Haiku 4.5"
+      expected_unit: M-tokens
+    anthropic/claude-fable-5:
+      slug_on_page: "Claude Fable 5"
+      expected_unit: M-tokens
 
 aws:
   pricing_url: https://aws.amazon.com/transcribe/pricing/

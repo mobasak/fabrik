@@ -221,3 +221,64 @@ def test_cartesia_equidistant_prices_tie_breaker() -> None:
         f"got {rows[0].input_price_per_M} from {rows[0].raw_price_text!r}"
     )
     assert "0.05" in rows[0].raw_price_text
+
+
+# ============================================================
+# Anthropic parser (Phase-3 deliverable, added 2026-06-30)
+# ============================================================
+
+def test_anthropic_extracts_canonical_4x_models() -> None:
+    """Anthropic docs page lists 4.x family in a standard
+    [input, batch_w5, batch_w1h, cache_hit, output] table-row layout."""
+    rows = _load("anthropic").extract(
+        _html("anthropic"),
+        "https://docs.anthropic.com/en/docs/about-claude/pricing",
+    )
+    by_slug = {r.model_slug: r for r in rows}
+    # Canonical Claude 4.x family must all be present
+    for model in ("Claude Opus 4.8", "Claude Sonnet 4.6", "Claude Haiku 4.5", "Claude Fable 5"):
+        assert model in by_slug, f"missing {model}: got {sorted(by_slug)}"
+    # Pin the actual prices so a future page change breaks loudly
+    assert by_slug["Claude Opus 4.8"].input_price_per_M == 5.0
+    assert by_slug["Claude Sonnet 4.6"].input_price_per_M == 3.0
+    assert by_slug["Claude Haiku 4.5"].input_price_per_M == 1.0
+    assert by_slug["Claude Fable 5"].input_price_per_M == 10.0
+    # All rows must report M-tokens unit (sanity)
+    assert all(r.pricing_unit == "M-tokens" for r in rows)
+
+
+def test_anthropic_rejects_output_lt_input_sanity() -> None:
+    """If a hypothetical table layout puts output BEFORE input, the sanity
+    check `output > input` rejects the parse — Anthropic ALWAYS charges
+    output > input (typically 5x). Construct a synthetic HTML with the
+    "Mythos preview" non-standard layout and assert it's silently filtered."""
+    html = (
+        r'\"children\":[\"Claude Mythos 5\"] '
+        r'$$7.50 / MTok $$37.50 / MTok $$1.50 / MTok $$7.50 / MTok $$1.50 / MTok'
+    )
+    rows = _load("anthropic").extract(html, "https://example.com/")
+    # Output (1.50) < input (7.50) — sanity check rejects this row
+    assert rows == [], f"expected empty list, got {[r.model_slug for r in rows]}"
+
+
+def test_anthropic_rejects_unknown_claude_phrase() -> None:
+    """Anchor only matches Claude {Opus|Sonnet|Haiku|Fable|Mythos} <version>.
+    Phrases like 'Claude API pricing', 'Claude Console', 'Claude Platform'
+    must NOT trigger the parser (they would grab random nearby prices)."""
+    html = (
+        r'\"children\":[\"Claude API pricing\"] $$10 / MTok $$50 / MTok '
+        r'$$5 / MTok $$25 / MTok $$2.50 / MTok'
+    )
+    rows = _load("anthropic").extract(html, "https://example.com/")
+    assert rows == []
+
+
+def test_anthropic_empty_html_returns_empty() -> None:
+    rows = _load("anthropic").extract("<html></html>", "https://example.com/")
+    assert rows == []
+
+
+def test_anthropic_rejects_dict_payload() -> None:
+    import pytest
+    with pytest.raises(TypeError):
+        _load("anthropic").extract({"foo": "bar"}, "https://example.com/")

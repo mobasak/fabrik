@@ -970,6 +970,61 @@ _add(
     description="LlamaParse. PDF + table-heavy doc parsing tuned for RAG ingestion. $0.003/page (premium tier).",
 )
 
+# ---------- Anthropic Claude 4.x family (added 2026-06-30) ----------
+# Direct-vendor seed rows for the canonical Claude 4.x models. These have
+# clean stable per-MTok pricing on https://docs.anthropic.com/en/docs/about-claude/pricing
+# and are scraped daily by direct_vendor_parsers/anthropic.py via browserless.
+# Existing anthropic/* rows (3.5, 3.7) are EOL'd by Anthropic and not on
+# their current docs page; they stay frozen at their last-known seed values.
+_add(
+    "anthropic/claude-opus-4.8",
+    name="Anthropic: Claude Opus 4.8",
+    provider="anthropic",
+    service_type="llm",
+    input_cost_per_m=5.0,
+    output_cost_per_m=25.0,
+    pricing_unit="M-tokens",
+    quality_tier=3,
+    is_ga=1,
+    description="Claude Opus 4.8 — Anthropic's frontier model. $5/M input, $25/M output (per docs.anthropic.com/en/docs/about-claude/pricing, scraped daily).",
+)
+_add(
+    "anthropic/claude-sonnet-4.6",
+    name="Anthropic: Claude Sonnet 4.6",
+    provider="anthropic",
+    service_type="llm",
+    input_cost_per_m=3.0,
+    output_cost_per_m=15.0,
+    pricing_unit="M-tokens",
+    quality_tier=2,
+    is_ga=1,
+    description="Claude Sonnet 4.6 — Anthropic's strong mid-tier. $3/M input, $15/M output.",
+)
+_add(
+    "anthropic/claude-haiku-4.5",
+    name="Anthropic: Claude Haiku 4.5",
+    provider="anthropic",
+    service_type="llm",
+    input_cost_per_m=1.0,
+    output_cost_per_m=5.0,
+    pricing_unit="M-tokens",
+    quality_tier=1,
+    is_ga=1,
+    description="Claude Haiku 4.5 — Anthropic's speed tier. $1/M input, $5/M output.",
+)
+_add(
+    "anthropic/claude-fable-5",
+    name="Anthropic: Claude Fable 5",
+    provider="anthropic",
+    service_type="llm",
+    input_cost_per_m=10.0,
+    output_cost_per_m=50.0,
+    pricing_unit="M-tokens",
+    quality_tier=3,
+    is_ga=1,
+    description="Claude Fable 5 — Anthropic's creative-writing flagship. $10/M input, $50/M output.",
+)
+
 
 _UPSERT_FIELDS = (
     "name",
