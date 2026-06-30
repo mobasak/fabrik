@@ -4,6 +4,66 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Phase 4: OR /rankings scraper + browser Weekly column + service_type reclassification + 231 sitemap-ingested rows (2026-07-01)
+
+Closes 3 operator-requested tasks in one batch:
+
+**1. Sitemap ingest** — ran `discover_hidden_openrouter_routes.py --apply --ingest-sitemap --max-ingest 250` and pulled in **231 specialty models** that were on OR's sitemap.xml but not in `/api/v1/models`:
+  - `alibaba/wan-2.6`, `wan-2.7`, `happyhorse-1.1` (video)
+  - `baai/bge-*`, `qwen/qwen3-embedding-*` (embeddings)
+  - `black-forest-labs/flux.2-flex/klein-4b/max/pro` (image)
+  - `x-ai/grok-imagine-image-quality`, `grok-imagine-video`, `grok-voice-tts-1.0` (multimodal/voice)
+  - `zyphra/zonos-v0.1-transformer/hybrid` (TTS)
+  - 200+ more
+
+  Each row ingested with `name` + `description` from OR's model page meta tags. Pricing stays 0 until OR exposes via `/api/v1/models`.
+
+**2. OR `/rankings` scraper** — new `scrape_openrouter_rankings.py` populates `weekly_rank` + `weekly_category` from OR's 7 leaderboard pages. Carries an embedded snapshot (the leaderboards are React-rendered and SSR doesn't carry the row data); operator refreshes the snapshot via the puppeteer-MCP sweep when needed.
+
+Snapshot captured 2026-07-01, **102 unique model IDs ranked**:
+
+| Page | Category | Top-N captured |
+|---|---|---|
+| /rankings | text | 23 |
+| /rankings/image | image | 20 |
+| /rankings/embeddings | embedding | 20 |
+| /rankings/rerank | rerank | 4 |
+| /rankings/video | video | 16 |
+| /rankings/speech | speech | 9 |
+| /rankings/transcription | transcription | 10 |
+
+Three new DB columns (via migrate_or_richer_extraction.py):
+- `weekly_rank` (INT, 1 = most-called this week in this category)
+- `weekly_category` (text|image|embedding|rerank|video|speech|transcription)
+- `weekly_last_scraped` (ISO date)
+
+**3. service_type reclassification** — OR's `/rankings/X` page is the authority on which service tier a model belongs to. Pre-fix many image/video/TTS/STT models had `service_type='llm'` because they were ingested with no inference (231 of them from the sitemap step above, plus pre-existing rows). The rankings scraper now reclassifies based on `weekly_category`:
+
+| Category | service_type set | Rows reclassified |
+|---|---|---|
+| image | image_gen | 20 |
+| video | video_gen | 16 |
+| embedding | embedding | 20 |
+| rerank | rerank | 4 |
+| speech | tts | 9 |
+| transcription | stt | 7 |
+| **Total** | | **76** |
+
+**4. Browser template updates** (per per-tab column audit):
+- Added **`Weekly`** column to ALL tabs (overview/reasoning/coding/translation/transcription/voice/image/video/ocr). Tooltip explains the score; lower-better sort means first click puts rank 1 at top. Top 5 shows in green/bold; the value shows as `#1`, `#2`, etc.
+- Dropped **`W-Code`** column from the Coding tab. High overlap with Best Code (which already composites `weighted_coding` along with SWE/Aider/DA-code). Raw value still in detail drawer.
+
+**Live verify** (post-rebuild):
+- Overview tab now 773 active rows (was 565 pre-sitemap, pre-reclassify)
+- Reasoning tab 598 (was 442, now properly excludes the image/video/embed rows)
+- Image tab 43 (was 23 — sitemap ingest added image-gen models)
+- Video tab 26 (was 10)
+- Sort by Weekly on Reasoning tab → top 10 are the canonical LLMs in OR's order (deepseek-v4-flash, mimo-v2.5, minimax-m3, owl-alpha, hy3-preview, claude-opus-4.7, glm-5.2, deepseek-v4-pro, claude-opus-4.8, claude-sonnet-4.6).
+
+**daily_refresh.sh wiring**: rankings scraper runs nightly after the verifier + discovery loop.
+
+The operator's question "what can we derive from these pages?" is now substantively answered: real production-usage rank per model + authoritative service-type classification, both pulled from OR and surfaced in the browser as a sortable column.
+
 ### Added — Phase 3 of "extract all models with all columns": Kilo CLI extraction parity (2026-07-01)
 
 Operator follow-up: "do we extract all available Kilo models and do we extract the same columns from them too?" Audit answers:

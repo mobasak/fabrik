@@ -81,6 +81,13 @@ NEW_COLUMNS = (
     ("kilo_provider_id", "kilo_provider_id TEXT"),
     ("kilo_release_date", "kilo_release_date TEXT"),
     ("kilo_family", "kilo_family TEXT"),
+    # Phase 4 (2026-07-01): OR rankings scrape — real production usage
+    # data per model (currently called "weekly rank"). Populated by
+    # scrape_openrouter_rankings.py. NULL = model not on any /rankings/X
+    # page (typical for benchmark-only models with low real-world usage).
+    ("weekly_rank", "weekly_rank INTEGER"),
+    ("weekly_category", "weekly_category TEXT"),
+    ("weekly_last_scraped", "weekly_last_scraped TEXT"),
 )
 
 

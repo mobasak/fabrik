@@ -124,6 +124,15 @@ mkdir -p "$(dirname "$LOG_FILE")"
   _step "discover_hidden_openrouter_routes" "$VENV_PY" "$KB/discover_hidden_openrouter_routes.py" --apply \
     || echo "[daily_refresh] hidden-route discovery failed (non-fatal)"
 
+  # OR /rankings scraper (Phase 4 of "extract all models with all columns").
+  # Writes weekly_rank + weekly_category for 102 models surfaced on
+  # openrouter.ai/rankings/* — the production-usage signal that no other
+  # source carries. Carries an embedded snapshot (the rankings pages are
+  # React-rendered and SSR doesn't carry the row data); the operator
+  # refreshes the snapshot via the puppeteer-MCP sweep.
+  _step "scrape_openrouter_rankings" "$VENV_PY" "$KB/scrape_openrouter_rankings.py" --apply \
+    || echo "[daily_refresh] OR rankings scrape failed (non-fatal)"
+
   # Kilo CLI catalog sync — writes is_agentic (Kilo flag) + Kilo-only
   # rows + capabilities the OpenRouter verifier doesn't carry. Previously
   # boot-only (wsl_startup_hook.sh) which meant a laptop that doesn't
