@@ -61,6 +61,17 @@ def test_render_emits_two_services():
     assert set(doc["services"]) == {"demo-svc", "demo-svc-scheduler"}
 
 
+def test_multiple_companions_all_render():
+    # Regression: jinja strips each partial's trailing newline, so without an
+    # explicit separator consecutive companions concatenated ('- fabrik  next:').
+    doc, compose = _render([
+        {"id": "demo-svc-scheduler", "command": ["node", "sched.js"], "memory": "256M"},
+        {"id": "demo-svc-worker", "command": ["node", "worker.js"], "memory": "512M"},
+    ])
+    assert set(doc["services"]) == {"demo-svc", "demo-svc-scheduler", "demo-svc-worker"}
+    assert _validate_compose(compose) == []
+
+
 def test_companion_overrides_command_and_memory():
     doc, _ = _render([{"id": "demo-svc-scheduler", "command": ["node", "dist/scheduler.js"], "memory": "256M"}])
     sch = doc["services"]["demo-svc-scheduler"]

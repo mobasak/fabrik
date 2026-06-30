@@ -53,6 +53,9 @@ services:
 
 {% for c in companion_services %}
 {% include '_partials/_companion_service.yaml.j2' %}
+{# blank line below separates consecutive companions — jinja strips each partial's
+   trailing newline (keep_trailing_newline=False), so without it they'd concatenate #}
+
 {% endfor %}
 {% if volumes %}
 volumes:
