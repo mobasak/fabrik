@@ -120,6 +120,39 @@
     color: var(--accent);
     border-bottom-color: var(--accent);
   }
+  .tab-label {
+    display: inline-block;
+  }
+  .tab-count {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 1px 6px;
+    border-radius: 8px;
+    background: var(--panel2);
+    color: var(--muted);
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0;
+    text-transform: none;
+    min-width: 14px;
+    text-align: center;
+  }
+  .tabs .tab.on .tab-count {
+    background: var(--accent-dim);
+    color: white;
+  }
+  .tabs .tab[data-count-zero="true"] .tab-count {
+    opacity: 0.4;
+  }
+  .filter-indicator {
+    margin-left: 8px;
+    padding: 1px 8px;
+    border-radius: 8px;
+    background: var(--accent-dim);
+    color: white;
+    font-size: 10px;
+    font-weight: 500;
+  }
   .toolbar {
     padding: 8px 14px;
     border-bottom: 1px solid var(--border);
@@ -184,6 +217,16 @@
   thead th.sorted.asc::after {
     content: " ▲ worst→best";
   }
+  /* Lower-is-better columns (Price / $/M out / TTFT / STT WER): the
+     sort direction reads inverted from the indicator above, so flip
+     the labels here. These rules come AFTER the defaults so the
+     attribute-selector specificity wins. */
+  thead th.sorted[data-lower-better="true"]::after {
+    content: " ▼ worst→best";
+  }
+  thead th.sorted.asc[data-lower-better="true"]::after {
+    content: " ▲ best→worst";
+  }
   tbody td {
     padding: 8px 10px;
     border-bottom: 1px solid #1c1f27;
@@ -241,9 +284,17 @@
     background: var(--accent-dim); color: white; font-weight: 600;
   }
   td.tier { font-weight: 600; }
-  td.tier.t-1 { color: var(--good); }
-  td.tier.t-2 { color: var(--warn); }
-  td.tier.t-3, td.tier.t-4 { color: var(--bad); }
+  /* Quality tier color semantics (CRITICAL — historically inverted!):
+     Per the column-header tooltip and derive_quality_v2.py docstring,
+     HIGHER tier = BETTER (T3 = frontier/best, T1 = baseline). The
+     previous rule had T3 in --bad (red) and T1 in --good (green) which
+     visually flagged the best models as errors. Fixed 2026-06-30. */
+  td.tier.t-3 { color: var(--good); font-weight: 600; }  /* frontier / best */
+  td.tier.t-2 { color: var(--warn); }                    /* strong mid-tier */
+  td.tier.t-1 { color: var(--muted); }                   /* baseline / no signal */
+  /* T4 is reserved but unused — live distribution shows only T1/T2/T3.
+     Style it as worst-of-the-worst if it ever appears. */
+  td.tier.t-4 { color: var(--bad); }
   td.status {
     font-size: 10px; text-transform: uppercase;
     letter-spacing: 0.03em;
@@ -305,10 +356,32 @@
     width: 460px; background: var(--panel); border-left: 1px solid var(--border);
     padding: 20px; overflow-y: auto;
     transition: right 0.2s ease;
-    z-index: 10;
+    z-index: 11;
     box-shadow: -10px 0 20px rgba(0,0,0,0.3);
   }
   .detail.open { right: 0; }
+  /* Click-outside-to-close backdrop. Hidden by default; shown only when
+     the drawer is open. Sits BELOW the drawer (z:10 < 11) but ABOVE the
+     rest of the page. Click anywhere on it triggers closeDetail(). */
+  .detail-backdrop {
+    position: fixed; inset: 0;
+    background: transparent;
+    z-index: 10;
+    display: none;
+  }
+  .detail-backdrop.open { display: block; }
+  /* "Copy ID" affordance next to the drawer's h2 — the model id is the
+     thing operators most often need to grab. */
+  .copy-id-btn {
+    display: inline-block; margin-left: 8px;
+    padding: 2px 8px; border-radius: 4px;
+    background: var(--panel2); border: 1px solid var(--border);
+    color: var(--muted); font-family: inherit; font-size: 10px;
+    cursor: pointer; vertical-align: middle;
+    text-transform: uppercase; letter-spacing: 0.04em;
+  }
+  .copy-id-btn:hover { color: var(--accent); border-color: var(--accent-dim); }
+  .copy-id-btn.copied { color: var(--good); border-color: var(--good); }
   .detail h2 {
     font-size: 14px; margin: 0 0 12px;
     font-family: ui-monospace, monospace; word-break: break-all;
@@ -377,6 +450,9 @@
       <span class="chip" data-svc="tts" title="Text-to-speech specialists (Soniox TTS, ElevenLabs)">TTS</span>
       <span class="chip" data-svc="translation" title="Dedicated machine-translation specialists (DeepL, qwen-mt-turbo)">Translation</span>
       <span class="chip" data-svc="image_gen" title="Image-generation specialists (Recraft, FLUX/BFL, Stability SDXL)">Image gen</span>
+      <span class="chip" data-svc="video_gen" title="Video-generation specialists (Veo, Runway, Pika, Sora)">Video gen</span>
+      <span class="chip" data-svc="music_gen" title="Music / audio generation specialists (Suno, Udio, ElevenLabs Sound Effects)">Music gen</span>
+      <span class="chip" data-svc="ocr" title="OCR / document-text-extraction specialists (Mistral OCR, Amazon Textract)">OCR</span>
       <span class="chip" data-svc="embedding" title="Embedding models">Embeddings</span>
     </div>
 
@@ -387,32 +463,38 @@
       <span class="chip" data-cap="is_agentic" title="Suitable for multi-step agent loops">agentic</span>
       <span class="chip" data-cap="has_reasoning" title="Reasoning model (chain-of-thought / extended thinking)">reasoning</span>
       <span class="chip" data-cap="is_ga" title="Generally available (excludes preview/beta routes)">GA only</span>
-      <span class="chip" data-cap="is_multilingual">multilingual*</span>
-      <span class="chip" data-cap="is_code_tuned">code-tuned*</span>
+      <span class="chip" data-cap="is_multilingual" title="Marked multilingual by the provider OR scored on fabrik's translation bake-off. * = coverage is partial; absence does not mean monolingual.">multilingual*</span>
+      <span class="chip" data-cap="is_code_tuned" title="Provider-tagged as code-specialist (e.g. qwen-coder) OR has a coding benchmark score in the top decile. * = heuristic; well-rounded general models are not flagged.">code-tuned*</span>
     </div>
 
     <h3>Status</h3>
     <div class="chip-grid">
-      <span class="chip on" data-status="active">active</span>
-      <span class="chip" data-status="deprecated">deprecated</span>
-      <span class="chip" data-status="any">all</span>
-      <span class="chip" data-status="free">free only</span>
-      <span class="chip" data-status="paid">paid only</span>
-      <span class="chip" data-status="pinned">pinned today</span>
-    </div>
-
-    <h3>Source / gateway</h3>
-    <div class="chip-grid">
-      <span class="chip" data-source="openrouter">OpenRouter</span>
-      <span class="chip" data-source="kilo">Kilo Gateway</span>
-      <span class="chip" data-source="both">Dual-routed</span>
-      <span class="chip" data-source="kilo_only">Kilo-only</span>
-      <span class="chip" data-source="or_only">OpenRouter-only</span>
-      <span class="chip" data-source="kilo_cheaper">Kilo cheaper</span>
-      <span class="chip" data-source="or_cheaper">OR cheaper</span>
+      <span class="chip on" data-status="active" title="Currently routable (not blocked, not deprecated)">active</span>
+      <span class="chip" data-status="deprecated" title="Marked deprecated by source OR blocked at the gateway">deprecated</span>
+      <span class="chip" data-status="free" title="Active models priced at $0 (free tiers, self-hosted)">free only</span>
+      <span class="chip" data-status="paid" title="Active models with a non-zero price">paid only</span>
+      <span class="chip" data-status="pinned" title="Models pinned in today's OpenRouter / embedding shortlist">pinned today</span>
     </div>
     <div class="chip-grid" style="margin-top:6px">
-      <span class="chip" data-source="show_discounted" title="`:discounted` IDs, stealth/* alpha routes, names containing '% off)'">show discounted</span>
+      <span class="chip" data-source="show_discounted" title="Show the normally-hidden `:discounted` IDs, stealth/* alpha routes, and names containing '% off)'. Default OFF — these are noisy duplicates of the canonical rows.">show discounted variants</span>
+    </div>
+    <div style="font-size:10px; color:var(--muted); margin-top:6px">
+      Deselect every chip above to show ALL rows regardless of status.
+    </div>
+
+    <h3>Routing <span style="font-weight: normal; text-transform: none; color: var(--muted)">(any of — additive)</span></h3>
+    <div class="chip-grid">
+      <span class="chip" data-source="openrouter" title="Reachable via OpenRouter (including dual-routed). Use Exclusivity below to pick OR-only.">via OpenRouter</span>
+      <span class="chip" data-source="kilo" title="Reachable via Kilo Gateway (including dual-routed). Use Exclusivity below to pick Kilo-only.">via Kilo</span>
+    </div>
+
+    <h3>Exclusivity / price compare <span style="font-weight: normal; text-transform: none; color: var(--muted)">(any of)</span></h3>
+    <div class="chip-grid">
+      <span class="chip" data-source="both" title="Both OpenRouter AND Kilo route the same model">Dual-routed</span>
+      <span class="chip" data-source="kilo_only" title="Kilo Gateway only — not on OpenRouter">Kilo-only</span>
+      <span class="chip" data-source="or_only" title="OpenRouter only — not on Kilo">OR-only</span>
+      <span class="chip" data-source="kilo_cheaper" title="Dual-routed AND Kilo input price < OpenRouter input price">Kilo cheaper</span>
+      <span class="chip" data-source="or_cheaper" title="Dual-routed AND OpenRouter input price < Kilo input price">OR cheaper</span>
     </div>
 
     <h3>Pricing freshness</h3>
@@ -423,15 +505,11 @@
       <span class="chip" data-fresh="very-stale">&gt;90d</span>
     </div>
 
-    <h3>Coding score</h3>
+    <h3>Has measured signal <span style="font-weight: normal; text-transform: none; color: var(--muted)">(all of — show only rows with data for…)</span></h3>
     <div class="chip-grid">
-      <span class="chip" data-coding="has_code" title="Hide rows without ANY explicit coding signal (SWE / Aider / weighted_coding / design_arena_coding). Useful when sorting by Best Code.">has Best Code</span>
-    </div>
-
-    <h3>Scored signal <span style="font-weight: normal; text-transform: none; color: var(--muted)">(has data)</span></h3>
-    <div class="chip-grid">
-      <span class="chip" data-capability="translation" title="Only show models with a measured translation chrF++ score (fabrik translation bake-off)">Translation</span>
-      <span class="chip" data-capability="stt" title="Only show models with speech-to-text capability (direct-API STT seeds + OpenRouter audio-input models)">STT (Speech-to-text)</span>
+      <span class="chip" data-scored="code" title="Hide rows without ANY explicit coding signal (SWE-bench / Aider / weighted_coding / design_arena_coding). Useful when sorting by Best Code.">code</span>
+      <span class="chip" data-scored="translation" title="Only show models with a measured translation chrF++ score (fabrik translation bake-off)">translation</span>
+      <span class="chip" data-scored="stt" title="Only show models with speech-to-text capability (direct-API STT seeds + OpenRouter audio-input models)">STT</span>
     </div>
 
     <h3>Quality Tier</h3>
@@ -443,11 +521,14 @@
       <span class="chip on" data-tier="unrated" title="Newly-ingested models not yet rated by the local ranking pipeline (e.g. claude-opus-4.8, gemini-3.1-flash). They have no `quality_tier` set yet.">unrated</span>
     </div>
 
-    <h3>Cost ($/M input)</h3>
+    <h3>Cost ($/M input) <span style="font-weight: normal; text-transform: none; color: var(--muted)">(normalized — see hint)</span></h3>
     <div class="range">
       <input type="number" id="cost-min" placeholder="min" step="0.1">
       –
       <input type="number" id="cost-max" placeholder="max" step="0.1">
+    </div>
+    <div style="font-size:10px; color:var(--muted); margin-top:2px">
+      Filter axis is $/M billable units, regardless of unit shape (tokens / chars / minutes / images / sec / pages). Cross-unit comparison is misleading — set range while a service-type chip is active.
     </div>
 
     <h3>Context window (k)</h3>
@@ -478,32 +559,33 @@
 
   <main>
     <div class="tabs" id="tabs">
-      <span class="tab on" data-tab="overview" title="High-level columns: cost, context, tier, caps, status, verification">Overview</span>
-      <span class="tab" data-tab="reasoning" title="Reasoning / agentic columns: Arena, TBench, AA Intelligence, context">Reasoning</span>
-      <span class="tab" data-tab="coding" title="Coding columns: Best Code, SWE, SWE-ML, Aider, DA-code">Coding</span>
-      <span class="tab" data-tab="translation" title="Translation chrF++ averages (hover Trans cell for per-language)">Translation</span>
-      <span class="tab" data-tab="transcription" title="Speech-to-text vendors (Soniox, Whisper, Deepgram, AssemblyAI, gpt-4o-transcribe)">Transcription</span>
-      <span class="tab" data-tab="voice" title="Text-to-speech + music/audio gen (Soniox TTS, ElevenLabs, Cartesia, Suno, Udio)">Voice / Audio</span>
-      <span class="tab" data-tab="image" title="Image generation (FLUX, Recraft, Stability, DALL-E, Imagen, Ideogram)">Image gen</span>
-      <span class="tab" data-tab="video" title="Video generation (Runway, Luma, Kling, Pika, Veo, Sora)">Video gen</span>
-      <span class="tab" data-tab="ocr" title="OCR / document parsing (Mistral OCR, Textract, Document AI)">OCR</span>
+      <span class="tab on" data-tab="overview" title="High-level columns: cost, context, tier, caps, status, verification"><span class="tab-label">Overview</span><span class="tab-count" data-tab-count="overview"></span></span>
+      <span class="tab" data-tab="reasoning" title="Reasoning / agentic columns: Arena, TBench, AA Intelligence, context"><span class="tab-label">Reasoning</span><span class="tab-count" data-tab-count="reasoning"></span></span>
+      <span class="tab" data-tab="coding" title="Coding columns: Best Code, SWE, SWE-ML, Aider, DA-code"><span class="tab-label">Coding</span><span class="tab-count" data-tab-count="coding"></span></span>
+      <span class="tab" data-tab="translation" title="Translation chrF++ averages (hover Trans cell for per-language)"><span class="tab-label">Translation</span><span class="tab-count" data-tab-count="translation"></span></span>
+      <span class="tab" data-tab="transcription" title="Speech-to-text vendors (Soniox, Whisper, Deepgram, AssemblyAI, gpt-4o-transcribe)"><span class="tab-label">Transcription</span><span class="tab-count" data-tab-count="transcription"></span></span>
+      <span class="tab" data-tab="voice" title="Text-to-speech + music/audio gen (Soniox TTS, ElevenLabs, Cartesia, Suno, Udio)"><span class="tab-label">Voice / Audio</span><span class="tab-count" data-tab-count="voice"></span></span>
+      <span class="tab" data-tab="image" title="Image generation (FLUX, Recraft, Stability, DALL-E, Imagen, Ideogram)"><span class="tab-label">Image gen</span><span class="tab-count" data-tab-count="image"></span></span>
+      <span class="tab" data-tab="video" title="Video generation (Runway, Luma, Kling, Pika, Veo, Sora)"><span class="tab-label">Video gen</span><span class="tab-count" data-tab-count="video"></span></span>
+      <span class="tab" data-tab="ocr" title="OCR / document parsing (Mistral OCR, Textract, Document AI)"><span class="tab-label">OCR</span><span class="tab-count" data-tab-count="ocr"></span></span>
     </div>
     <div class="toolbar">
       <span class="count" id="count"></span>
+      <span class="filter-indicator" id="filter-indicator" title="Filters from the sidebar persist across tab switches. Click to scroll the sidebar to the top." style="display:none; cursor:pointer; color:var(--accent); font-weight:600;"></span>
       <span style="flex: 1"></span>
-      <span class="count">Click row → details · Click column header → sort best→worst (click again to flip)</span>
+      <span class="count" style="font-size:10px; opacity:0.7" title="Click any row to open the detail drawer. Click any column header to sort by that column (best→worst on first click; click again to flip).">click row → details &middot; click header → sort</span>
     </div>
     <table>
       <thead>
         <tr id="thead-row">
           <th data-sort="name" data-tabs="overview reasoning coding translation transcription voice image video ocr" title="Human-readable model name + provider/id below in dim mono. Sortable by name; sort by id via the URL prefix in the dim line. Provider already implied by the id prefix.">Model</th>
-          <th data-sort="input_cost_per_m" data-tabs="overview reasoning coding translation transcription voice image video ocr" title="Vendor-quoted price per service-type unit (LLM: $/M tokens · STT: $/audio-minute · TTS/Translation: $/1K chars · Image: $/image · Video: $/sec · OCR: $/page). Hover any cell for source / canonical metric.">Price</th>
-          <th data-sort="output_cost_per_m" data-tabs="overview reasoning coding translation" title="USD per million output tokens (LLMs only). For non-LLM services see the unit hover on the Price column.">$/M out</th>
-          <th data-sort="context_window_k" data-tabs="overview reasoning coding translation">Ctx (k)</th>
+          <th data-sort="input_cost_per_m" data-lower-better="true" data-tabs="overview reasoning coding translation transcription voice image video ocr" title="Vendor-quoted price per service-type unit (LLM: $/M tokens · STT: $/audio-minute · TTS/Translation: $/1K chars · Image: $/image · Video: $/sec · OCR: $/page). LOWER is better — first-click sorts cheapest first. Hover any cell for source / canonical metric.">Price</th>
+          <th data-sort="output_cost_per_m" data-lower-better="true" data-tabs="overview reasoning coding translation" title="USD per million output tokens (LLMs only). LOWER is better — first-click sorts cheapest first. For non-LLM services see the unit hover on the Price column.">$/M out</th>
+          <th data-sort="context_window_k" data-tabs="overview reasoning coding translation" title="Context window in thousands of tokens (the model's input length cap). Higher is better. Empty cells = unknown for direct-vendor specialty rows (STT/TTS/image/video/OCR — context isn't the right metric there).">Ctx (k)</th>
           <th data-sort="output_tokens_per_sec" data-tabs="overview reasoning coding" title="Throughput in output tokens per second (Artificial Analysis benchmark). Higher is better. Empty cells = AA didn't match this model.">Speed</th>
-          <th data-sort="ttft_ms" data-tabs="overview reasoning coding" title="Time-to-first-token in milliseconds (Artificial Analysis). LOWER is better — interactive UX feel.">TTFT</th>
+          <th data-sort="ttft_ms" data-lower-better="true" data-tabs="overview reasoning coding" title="Time-to-first-token in milliseconds (Artificial Analysis). LOWER is better — first-click sorts fastest first. Interactive UX feel.">TTFT</th>
           <th data-sort="quality_tier" data-tabs="overview reasoning coding translation transcription voice image video ocr" title="Quality tier: T3 = frontier/best, T2 = strong mid-tier, T1 = baseline / no comparable signal. Higher number = better (so sort DESC puts T3 at top — that's intentional). Derived daily by derive_quality_v2.py from up to 9 signals: family-pattern regex (claude-opus → T3, claude-sonnet → T2, gpt-4-class → T2, etc.), Chatbot Arena ELO, Terminal Bench, weighted_coding, SWE-bench, Aider Polyglot, design_arena ELO, Artificial Analysis Intelligence Index, OpenRouter mandatory-reasoning flag, and LLM input price (≥$10/M-tokens → T3 floor, ≥$3/M-tokens → T2 floor). Cost floor is gated on M-tokens unit only — direct-vendor STT/TTS/image/video rows fall back to family/benchmark signals; if neither fires they default to T1. ANY single signal hitting a floor moves the row up — no signal is required. T1 also covers unrated models (just-ingested or specialty rows with no LLM-style benchmark coverage).">Tier</th>
-          <th data-tabs="overview reasoning coding translation">Caps</th>
+          <th data-tabs="overview reasoning coding translation" title="Capability flags (badges, brightened when on). V=vision input · T=tools / function calling · A=agentic (Kilo-confirmed) · R=reasoning model · S=speech-to-text capable · Tr=translation-scored on the fabrik bake-off · GA=generally available (not preview/beta). Not sortable — use the Model flags chips in the sidebar to filter.">Caps</th>
           <th data-sort="_best_code_score" data-tabs="coding" title="Best-available coding signal per row, max'd across SWE-bench Verified + SWE-bench Multilingual, then falling back through Aider Polyglot > weighted_coding (BenchLM) > design_arena_coding ELO normalized to 0-100. CAVEAT: scores from different sources aren't strictly comparable (a SWE 75 ≠ an Aider 75 ≠ a DA 1280). Hover any cell to see which source drove the number. Click to sort descending; toggle 'has Best Code' chip in the sidebar to hide rows without any explicit coding signal.">Best Code</th>
           <th data-sort="arena_elo" data-tabs="overview reasoning translation" title="Chatbot Arena ELO (LMSys / openlm.ai)">Arena</th>
           <th data-sort="tbench_accuracy" data-tabs="reasoning" title="Terminal Bench 2.0 % (tbench.ai)">TBench</th>
@@ -514,11 +596,11 @@
           <th data-sort="design_arena_coding_elo" data-tabs="coding" title="Mean ELO across coding-only design_arena categories (OpenRouter API benchmarks block)">DA-code</th>
           <th data-sort="weighted_coding" data-tabs="coding" title="BenchLM weighted coding score (composite of HumanEval / MBPP / etc.). Higher is better. Sparser than SWE/Aider but covers some models those leaderboards miss.">W-Code</th>
           <th data-sort="translation_avg_pct" data-tabs="overview translation" title="Translation chrF++ average across 23 languages (fabrik translation bake-off v2.2). Hover the row's cell for per-language breakdown.">Trans</th>
-          <th data-sort="stt_wer_avg" data-tabs="transcription" title="Speech-to-text Word Error Rate avg of (LibriSpeech test-clean en + FLEURS multilingual). LOWER is better. Direct-API STT models seeded from public benchmarks (Whisper, gpt-4o-transcribe, Deepgram Nova, AssemblyAI Universal).">STT WER</th>
-          <th data-tabs="overview reasoning coding translation">Categories</th>
+          <th data-sort="stt_wer_avg" data-lower-better="true" data-tabs="transcription" title="Speech-to-text Word Error Rate avg of (LibriSpeech test-clean en + FLEURS multilingual). LOWER is better — first-click sorts most-accurate first. Direct-API STT models seeded from public benchmarks (Whisper, gpt-4o-transcribe, Deepgram Nova, AssemblyAI Universal).">STT WER</th>
+          <th data-tabs="overview reasoning coding translation" title="Route categories assigned by OpenRouter (language, code, vision, multimodal, agentic, long-context, speech-audio). Pinned categories — ones the model is currently routed under in today's OpenRouter shortlist — are highlighted. Not sortable; use the Route categories chips in the sidebar to filter.">Categories</th>
           <th data-sort="status" data-tabs="overview reasoning coding translation transcription voice image video ocr" title="Lifecycle state. 'active' = currently routable; 'deprecated' = no longer in upstream catalog (won't be selected by routers). Maintained two ways: (1) verify_openrouter_catalog.py --apply runs daily and flips OpenRouter-routed models to 'deprecated' when they vanish from the live OpenRouter /api/v1/models response (cause: delisting, EOL, rename); (2) direct-vendor specialty rows (Soniox, ElevenLabs, AssemblyAI, Coqui, etc.) are seeded 'active' by seed_direct_vendors.py and have NO automatic deprecation check — the OpenRouter verifier doesn't see them. If a direct vendor EOLs a model, status stays 'active' until someone updates seed_direct_vendors.py manually. So 'active' on the Voice/Audio/Image/Video/OCR tabs is a strong signal for OpenRouter-routed rows and a weak signal for direct-vendor rows.">Status</th>
           <th data-sort="last_verified" data-tabs="overview reasoning coding translation" title="Days since the pricing/benchmark scrape last refreshed this row. Useful for LLM tabs where benchmark sources have varying cadence (some weekly, some monthly). Hidden on specialty tabs (Transcription / Voice / Image / Video / OCR) because every direct-vendor row is bumped daily by seed_direct_vendors.py — the column is uniformly 'today' and carries no signal there.">Verified</th>
-          <th data-tabs="overview reasoning coding translation transcription voice image video ocr">Source</th>
+          <th data-tabs="overview reasoning coding translation transcription voice image video ocr" title="Routing source (badges). OR=OpenRouter · K=Kilo Gateway · DS=Alibaba DashScope (qwen-mt-turbo etc.) · SF=SiliconFlow (Hunyuan etc.) · R=Replicate mirror · F=fal.ai mirror · K +N% = Kilo price markup vs OpenRouter for dual-routed. Direct-vendor rows (no gateway) show the vendor name. Not sortable; use the Routing / Exclusivity chips in the sidebar to filter.">Source</th>
         </tr>
       </thead>
       <tbody id="tbody"></tbody>
@@ -527,8 +609,9 @@
   </main>
 </div>
 
+<div class="detail-backdrop" id="detail-backdrop" onclick="closeDetail()"></div>
 <div class="detail" id="detail">
-  <button class="close" onclick="closeDetail()">×</button>
+  <button class="close" onclick="closeDetail()" title="Close (or press Esc)">×</button>
   <div id="detail-body"></div>
 </div>
 
@@ -547,8 +630,9 @@ const state = {
   providers: new Set(),
   fresh: new Set(),
   sources: new Set(),
-  coding: new Set(),
-  capability: new Set(),
+  // Merged from former `coding` + `capability` sets: a single "Has measured
+  // signal" group. Values: "code" | "translation" | "stt".
+  scored: new Set(),
   svctypes: new Set(),
   costMin: null,
   costMax: null,
@@ -677,11 +761,8 @@ document.querySelectorAll('.chip[data-fresh]').forEach(chip => {
 document.querySelectorAll('.chip[data-source]').forEach(chip => {
   chip.onclick = () => { toggleChip(state.sources, chip.dataset.source, chip); refresh(); };
 });
-document.querySelectorAll('.chip[data-coding]').forEach(chip => {
-  chip.onclick = () => { toggleChip(state.coding, chip.dataset.coding, chip); refresh(); };
-});
-document.querySelectorAll('.chip[data-capability]').forEach(chip => {
-  chip.onclick = () => { toggleChip(state.capability, chip.dataset.capability, chip); refresh(); };
+document.querySelectorAll('.chip[data-scored]').forEach(chip => {
+  chip.onclick = () => { toggleChip(state.scored, chip.dataset.scored, chip); refresh(); };
 });
 document.querySelectorAll('.chip[data-svc]').forEach(chip => {
   chip.onclick = () => { toggleChip(state.svctypes, chip.dataset.svc, chip); refresh(); };
@@ -708,8 +789,17 @@ document.getElementById("reset").onclick = () => location.reload();
 document.querySelectorAll('thead th[data-sort]').forEach(th => {
   th.onclick = () => {
     const k = th.dataset.sort;
-    if (state.sortKey === k) state.sortAsc = !state.sortAsc;
-    else { state.sortKey = k; state.sortAsc = false; }
+    if (state.sortKey === k) {
+      state.sortAsc = !state.sortAsc;
+    } else {
+      state.sortKey = k;
+      // First-click default: for columns marked `data-lower-better="true"`
+      // (Price, $/M out, TTFT, STT WER) the user expectation on a fresh
+      // click is "best first", which means ASCENDING (cheapest, fastest,
+      // most-accurate). All other columns default to DESCENDING (highest
+      // tier / SWE-score / ELO / etc. first).
+      state.sortAsc = th.dataset.lowerBetter === "true";
+    }
     refresh();
   };
 });
@@ -793,11 +883,11 @@ function filterRow(m) {
   for (const cap of state.caps) {
     if (!m[cap]) return false;
   }
-  // status filters
+  // status filters — empty set = pass-through (show all). The former "any"
+  // chip was removed (redundant with deselecting everything).
   if (state.status.size > 0) {
     let pass = false;
     for (const s of state.status) {
-      if (s === "any") { pass = true; break; }
       if (s === "active" && m.status === "active" && !m.blocked) { pass = true; break; }
       if (s === "deprecated" && (m.status === "deprecated" || m.blocked)) { pass = true; break; }
       if (s === "free" && (m.input_cost_per_m || 0) === 0 && m.status === "active") { pass = true; break; }
@@ -832,10 +922,12 @@ function filterRow(m) {
   if (state.ctxMin !== null && (m.context_window_k || 0) < state.ctxMin) return false;
   if (state.ctxMax !== null && (m.context_window_k || 0) > state.ctxMax) return false;
   if (state.fresh.size > 0 && !state.fresh.has(m._staleBucket)) return false;
-  // "has Best Code" chip hides rows without any explicit coding signal.
-  if (state.coding.has("has_code") && m._best_code_score === null) return false;
-  if (state.capability.has("translation") && !m.is_translation_capable) return false;
-  if (state.capability.has("stt") && !m.is_stt_capable) return false;
+  // "Has measured signal" — chips are ALL-OF (every selected chip must
+  // have data on this row). Replaces the old separate `coding` + `capability`
+  // sets with a single `scored` set keyed by capability slug.
+  if (state.scored.has("code") && m._best_code_score === null) return false;
+  if (state.scored.has("translation") && !m.is_translation_capable) return false;
+  if (state.scored.has("stt") && !m.is_stt_capable) return false;
   // Sidebar Service-type chips (user-selected).
   if (state.svctypes.size > 0) {
     const svc = m.kind === "embedding" ? "embedding" : (m.service_type || "llm");
@@ -1030,6 +1122,57 @@ function refresh() {
 
   document.getElementById("count").innerHTML = `<strong>${filtered.length}</strong> / ${ALL.length} models`;
 
+  // --- Per-tab row counts -------------------------------------------------
+  // Each tab's count = how many rows would survive ALL active filters AND
+  // that tab's service-scoping. Recomputed on every refresh so the badges
+  // stay accurate as the user toggles chips.
+  const _prevActiveTab = activeTab;
+  for (const t of VALID_TABS) {
+    activeTab = t;
+    const n = ALL.filter(filterRow).length;
+    document.querySelectorAll(`.tab-count[data-tab-count="${t}"]`).forEach(el => {
+      el.textContent = n;
+    });
+    const tabEl = document.querySelector(`.tabs .tab[data-tab="${t}"]`);
+    if (tabEl) tabEl.dataset.countZero = n === 0 ? "true" : "false";
+  }
+  activeTab = _prevActiveTab;
+
+  // --- Active-filter indicator -------------------------------------------
+  // Surface non-default filter state so the user doesn't get blindsided by
+  // "why are there only 3 rows on the Image tab?" when they left a tier
+  // chip toggled on the Overview tab.
+  const _defaults = {
+    status: new Set(["active"]),
+    tiers: new Set(["1", "2", "3", "4", "unrated"]),
+  };
+  function _setsEqual(a, b) { if (a.size !== b.size) return false; for (const x of a) if (!b.has(x)) return false; return true; }
+  const activeFilterParts = [];
+  if (state.search) activeFilterParts.push(`search "${state.search}"`);
+  if (state.kind !== "all") activeFilterParts.push(`kind=${state.kind}`);
+  if (state.caps.size) activeFilterParts.push(`${state.caps.size} flag${state.caps.size > 1 ? "s" : ""}`);
+  if (!_setsEqual(state.status, _defaults.status)) activeFilterParts.push("status");
+  if (!_setsEqual(state.tiers, _defaults.tiers)) activeFilterParts.push("tier");
+  if (state.cats.size) activeFilterParts.push("cats");
+  if (state.providers.size) activeFilterParts.push("provider");
+  if (state.fresh.size) activeFilterParts.push("freshness");
+  if (state.sources.size) activeFilterParts.push("routing");
+  if (state.scored.size) activeFilterParts.push("scored-signal");
+  if (state.svctypes.size) activeFilterParts.push("svc-type");
+  if (state.costMin !== null || state.costMax !== null) activeFilterParts.push("cost");
+  if (state.ctxMin !== null || state.ctxMax !== null) activeFilterParts.push("ctx");
+  const fi = document.getElementById("filter-indicator");
+  if (activeFilterParts.length) {
+    fi.style.display = "";
+    fi.textContent = activeFilterParts.length === 1
+      ? `+1 filter (${activeFilterParts[0]})`
+      : `+${activeFilterParts.length} filters`;
+    fi.title = `Active sidebar filters apply on EVERY tab:\n  ${activeFilterParts.join(", ")}\n\nClick to reset all filters (reloads the page).`;
+    fi.onclick = () => { document.getElementById("reset").click(); };
+  } else {
+    fi.style.display = "none";
+  }
+
   const tbody = document.getElementById("tbody");
   tbody.innerHTML = "";
   const empty = document.getElementById("empty");
@@ -1076,8 +1219,8 @@ function refresh() {
       <td class="cost" title="${priceSourceLabel(m)} — input cost">${fmtCost(m.input_cost_per_m, m)}${maybeCheaperBadge(m)}</td>
       <td class="cost" title="${priceSourceLabel(m)} — output cost">${(m.service_type && m.service_type !== "llm" && m.service_type !== "embedding") ? "<span style='color:var(--muted)' title='Not applicable — this service bills on a single axis (see Price column)'>n/a</span>" : fmtCost(m.output_cost_per_m, m)}</td>
       <td class="num">${m.context_window_k || ""}</td>
-      <td class="num" title="${m.output_tokens_per_sec ? 'Throughput from Artificial Analysis (' + (m.speed_source || 'AA') + ')' : 'No throughput data'}">${m.output_tokens_per_sec != null ? m.output_tokens_per_sec.toFixed(0) : ""}</td>
-      <td class="num" title="${m.ttft_ms != null ? 'Time-to-first-token: ' + m.ttft_ms.toFixed(0) + ' ms' : 'No TTFT data'}">${m.ttft_ms != null ? m.ttft_ms.toFixed(0) : ""}</td> <!-- noqa: 'token' is the LLM-token concept, not a secret -->
+      <td class="num" title="${m.output_tokens_per_sec ? 'Throughput from Artificial Analysis (' + (m.speed_source || 'AA') + ')' : 'No throughput data'}">${m.output_tokens_per_sec != null ? m.output_tokens_per_sec.toFixed(0) + "<span class='unit-suffix'>tok/s</span>" : ""}</td>
+      <td class="num" title="${m.ttft_ms != null ? 'Time-to-first-token: ' + m.ttft_ms.toFixed(0) + ' ms' : 'No TTFT data'}">${m.ttft_ms != null ? m.ttft_ms.toFixed(0) + "<span class='unit-suffix'>ms</span>" : ""}</td> <!-- noqa: 'token' is the LLM-token concept, not a secret -->
       <td class="tier t-${m.quality_tier || 0}" title="${m.quality_tier ? '' : 'Not yet rated by the local ranking pipeline'}">${m.quality_tier ? "T" + m.quality_tier : "—"}</td>
       <td class="cap">${m.kind === "chat" ? fmtCaps(m) : "<span style='color:var(--muted)'>embed</span>"}</td>
       <td class="num" title="${m._best_code_label ? "Strongest available coding signal: " + m._best_code_label : "No coding signal — tiered by family/cost"}" style="${m._best_code_label ? "font-weight:600;color:var(--accent)" : "color:var(--muted)"}">${m._best_code_label || "—"}</td>
@@ -1158,9 +1301,20 @@ function openDetail(m, tr) {
   const sourceHtml = sourceRows.length
     ? `<h4>Benchmark sources</h4><div class="sources">${sourceRows.map(([k, v]) => `<div class="source-row"><span>${k}</span><span>${v}</span></div>`).join("")}</div>`
     : "";
-  const linkHtml = m.id && m.id.includes("/")
-    ? `<h4>External</h4><a href="https://openrouter.ai/${m.id}" target="_blank">openrouter.ai/${m.id}</a>`
-    : "";
+  // External link: only emit the openrouter.ai link if the model is
+  // actually routed through OpenRouter (m.via_openrouter). Direct-vendor
+  // rows like cartesia/sonic-2 are slash-prefixed in the catalog but the
+  // openrouter.ai/<id> page would 404. For direct vendors we surface the
+  // provider name + (when present) the row's source_url from the scraper.
+  let linkHtml = "";
+  if (m.via_openrouter && m.id && m.id.includes("/")) {
+    linkHtml = `<h4>External</h4><a href="https://openrouter.ai/${m.id}" target="_blank">openrouter.ai/${m.id}</a>`;
+  } else if (m.provider) {
+    const directNote = m.via_kilo
+      ? `Routed via Kilo Gateway (<code>api.kilo.ai</code>) — no OpenRouter listing.`
+      : `Direct vendor — no OpenRouter listing.`;
+    linkHtml = `<h4>External</h4><div style="font-size:11px;color:var(--muted)">${directNote}</div>`;
+  }
   // Pricing-staleness warning banner — surface clearly when the row's
   // price columns haven't been refreshed by the daily OpenRouter
   // scraper in a while (likely deprecated/delisted upstream).
@@ -1216,14 +1370,31 @@ function openDetail(m, tr) {
     const ci = m.input_cost_per_m, co = m.output_cost_per_m || 0;
     const primaryLabel = m.via_openrouter
       ? "OpenRouter"
-      : (m.via_kilo ? "Kilo Gateway" : "Primary");
+      : (m.via_kilo ? "Kilo Gateway" : (m.provider || "Direct vendor"));
     const fmt = v => v === 0
       ? "<span style='color:var(--free);font-weight:600'>free</span>"
       : "$" + v.toFixed(2);
+    // Unit-aware cost summary. The default "(USD per million tokens)"
+    // hardcoded label was wrong for STT/TTS/image/video/OCR rows whose
+    // input_cost_per_m is normalized to a different unit (M-audio-min,
+    // M-chars, M-images, etc.). Derive the human-readable label from
+    // pricing_unit and only show $/M out when it's actually meaningful
+    // (LLM rows with M-tokens).
+    const unit = m.pricing_unit || "M-tokens";
+    const unitLabel = {
+      "M-tokens":  "USD per million tokens",
+      "M-chars":   "USD per million characters",
+      "audio-min": "USD per million audio-minutes (≈ $/min × 1,000,000)",
+      "image":     "USD per million images",
+      "video-sec": "USD per million video-seconds",
+      "page":      "USD per million pages",
+    }[unit] || `USD per million billable units (${unit})`;
+    // For non-LLM rows the $/M-out column is normally 0 / null — skip it.
+    const showOut = unit === "M-tokens" && co > 0;
     costSummary = `<div style="font-size:12px;margin-bottom:10px;color:var(--muted)">
       <strong style="color:var(--text)">${primaryLabel}:</strong>
-      ${fmt(ci)} /M in · ${fmt(co)} /M out
-      <span style="font-size:10px">(USD per million tokens)</span>
+      ${fmt(ci)} /M in${showOut ? ` · ${fmt(co)} /M out` : ""}
+      <span style="font-size:10px">(${unitLabel})</span>
     </div>`;
     if (m.via_openrouter && m.via_kilo && m.kilo_input_cost_per_m !== null && m.kilo_input_cost_per_m !== undefined) {
       const ki = m.kilo_input_cost_per_m;
@@ -1246,7 +1417,7 @@ function openDetail(m, tr) {
     }
   }
   body.innerHTML = `
-    <h2>${m.id}</h2>
+    <h2>${escapeHtml(m.id)}<button class="copy-id-btn" data-copy="${escapeHtml(m.id)}" title="Copy id to clipboard">copy</button></h2>
     ${costSummary}
     ${descBlock}
     ${staleBanner}
@@ -1257,9 +1428,42 @@ function openDetail(m, tr) {
     ${linkHtml}
   `;
   panel.classList.add("open");
+  document.getElementById("detail-backdrop").classList.add("open");
+  // Wire the copy button (per-open, since innerHTML re-creates it).
+  const copyBtn = body.querySelector(".copy-id-btn");
+  if (copyBtn) {
+    copyBtn.onclick = (ev) => {
+      ev.stopPropagation();
+      const id = copyBtn.dataset.copy;
+      const onDone = () => {
+        copyBtn.textContent = "copied";
+        copyBtn.classList.add("copied");
+        setTimeout(() => {
+          copyBtn.textContent = "copy";
+          copyBtn.classList.remove("copied");
+        }, 1500);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(id).then(onDone, () => {
+          // Permission denied (rare for same-origin file://) — fall back to selection.
+          const range = document.createRange();
+          range.selectNodeContents(body.querySelector("h2"));
+          const sel = window.getSelection();
+          sel.removeAllRanges(); sel.addRange(range);
+        });
+      } else {
+        // No clipboard API (old browser / restricted env) — select instead.
+        const range = document.createRange();
+        range.selectNodeContents(body.querySelector("h2"));
+        const sel = window.getSelection();
+        sel.removeAllRanges(); sel.addRange(range);
+      }
+    };
+  }
 }
 function closeDetail() {
   document.getElementById("detail").classList.remove("open");
+  document.getElementById("detail-backdrop").classList.remove("open");
   document.querySelectorAll('tbody tr.selected').forEach(r => r.classList.remove('selected'));
 }
 function escapeHtml(s) {
