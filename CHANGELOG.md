@@ -4,7 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Fixed — verify_openrouter_catalog.py: 2 latent bugs (UNIQUE constraint failure + masked KeyError) (2026-06-30)
+### Fixed — deploy-readiness gaps: enforcement skip-when-no-templates + AI-catalog sync + calendar spec shape (2026-06-30)
+
+Option 2 of `docs/development/plans/2026-06-30-plan-fabrik-deploy-readiness-gaps.md` (the zero-risk quick-wins set). **Phase 2:** `check_no_host_ports.py` + `check_traefik_labels.py` now **skip with exit 0** (was exit 2 = "config error") when there's no `templates/` dir — they were red-gating `final_gate` on every non-fabrik project the scripts sync to; only real violations (exit 1) gate now. Added `TestSkipWhenTemplatesDirAbsent` to both test files. **Phase 3:** wired the 3 synced-doc generators (`generate_model_capabilities.py`, `generate_selection_guide_roster.py`, `scrape_windsurf_models.py`) into `daily_refresh.sh` **before** `embedding_export_markdown.py` (which writes only the EMBEDDING_* marker sections — running the full-file generators after would nuke them), plus a final `flock -w 0`-guarded `sync_enforcement_to_projects.py` push so the daily catalog regen stops drifting the synced rule packs (`check_synced_unmodified` was firing daily on every project). **1b-shape:** corrected the calendar spec's stale shape — `exposes_metrics: true` (app DOES serve `/metrics` via `src/api/index.ts:56`; mandatory per the spec contract), `is_admin_dashboard: true` (admin-ui behind Authelia), `WATCHDOG_TEST_CMD: "npm run test:api"` (hermetic, vs `npm test`'s live-server e2e). `depends.postgres` intentionally untouched — it's 1b-depends, which bundles with the Phase-1a registrar refactor.
 
 The daily refresh has been hitting `sqlite3.IntegrityError: UNIQUE constraint failed: agents.id` in every run (7+ occurrences in update.log). Found two stacked bugs:
 

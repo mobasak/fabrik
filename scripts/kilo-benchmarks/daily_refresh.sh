@@ -128,6 +128,20 @@ mkdir -p "$(dirname "$LOG_FILE")"
   "$VENV_PY" "$KB/update_kilo_benchmarks.py" --force \
     || echo "[daily_refresh] kilo benchmark scrape failed (non-fatal)"
 
+  # ── KILO_* + cascade-models catalog regen (deploy-readiness-gaps Phase 3a) ──
+  # Regenerate the three synced reference docs that were drifting daily (the
+  # check_synced_unmodified gate fired on every project). MUST run AFTER the
+  # benchmark scrape above (fresh data) and BEFORE embedding_export_markdown.py
+  # below (line ~172), which overwrites only the EMBEDDING_* marker sections of
+  # KILO_AGENT_SELECTION_GUIDE.md + KILO_MODEL_CAPABILITIES.md — these generators
+  # write the ENTIRE file, so running them after would nuke those marker sections.
+  "$VENV_PY" "$KB/generate_model_capabilities.py" \
+    || echo "[daily_refresh] generate_model_capabilities failed (non-fatal)"
+  "$VENV_PY" "$KB/generate_selection_guide_roster.py" \
+    || echo "[daily_refresh] generate_selection_guide_roster failed (non-fatal)"
+  "$VENV_PY" "$KB/scrape_windsurf_models.py" \
+    || echo "[daily_refresh] scrape_windsurf_models failed (non-fatal)"
+
   # ============================================================
   # Kilo agent + Traycer registry workflow (ported from wsl_startup_hook.sh
   # on 2026-06-30 — the 2026-06-28 cron migration left these out, so
@@ -233,6 +247,18 @@ mkdir -p "$(dirname "$LOG_FILE")"
 
   "$VENV_PY" "$KB/export_models_browser.py" \
     || echo "[daily_refresh] models_browser export failed (non-fatal)"
+
+  # ── Push regenerated synced files to all projects (deploy-readiness-gaps Phase 3b) ──
+  # The catalog regen above rewrites synced governance files (.windsurf/rules/ai/*.md
+  # + the KILO_* / cascade-models reference docs). Without this push, every project's
+  # check_synced_unmodified gate fires daily. Runs LAST so it captures every
+  # regenerated file. flock serializes against a manual operator run of
+  # sync_enforcement_to_projects.py (the script has no internal lock); -w 0 means
+  # "skip this run if a sync is already in progress" rather than block the cron.
+  # No --quiet flag — it doesn't exist; an honest cron log is preferable.
+  flock -w 0 /tmp/fabrik-sync-enforcement.lock \
+    "$VENV_PY" "$FABRIK_ROOT/scripts/sync_enforcement_to_projects.py" \
+    || echo "[daily_refresh] sync_enforcement skipped/failed (non-fatal — lock held or error)"
 
   # Heartbeat: write last-success timestamp so tomorrow's
   # check_daily_refresh_freshness.py knows this run completed.
