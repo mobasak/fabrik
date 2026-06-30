@@ -51,7 +51,9 @@ EXPECTED: dict[str, set[str]] = {
     "python-api":       {"gatus", "glitchtip", "grafana", "prometheus", "watchdog"},
     "python-api-gpu":   {"gatus", "glitchtip", "grafana", "prometheus", "watchdog"},
     "node-api":         {"gatus", "glitchtip", "grafana", "prometheus", "watchdog"},
-    "saas-skeleton":    {"postgres", "gatus", "backrest", "glitchtip", "grafana", "watchdog"},
+    # saas-skeleton's defaults.yaml shape sets needs_cache:true (→ redis) and
+    # exposes_metrics:true (→ prometheus, with the domain the synthetic spec sets).
+    "saas-skeleton":    {"postgres", "redis", "gatus", "backrest", "glitchtip", "grafana", "prometheus", "watchdog"},
     # next-tailwind template removed in T1-01 G-B6 (zero specs consumed it).
     "static-site":      {"gatus", "grafana", "watchdog"},  # kind=static → no glitchtip
     "docusaurus":       {"gatus", "grafana", "watchdog"},  # kind=static → no glitchtip

@@ -338,11 +338,14 @@ class TestAuditPrometheus:
 
 
 class TestAuditAll:
-    def test_returns_all_9_registrars(self):
+    def test_returns_all_registrars(self):
+        # Count is asserted against _REGISTRAR_ORDER (single source of truth) so
+        # this never drifts when a registrar is added/removed — the keys-equality
+        # assert already proves the set is exactly right.
         with patch.object(audit, "_ssh_check", return_value=(True, "")):
             results = audit_all(_spec_dict())
         assert set(results.keys()) == set(_REGISTRAR_ORDER)
-        assert len(results) == 9
+        assert len(results) == len(_REGISTRAR_ORDER)
 
     def test_never_raises_even_if_audit_blows_up(self):
         # Force one audit to raise; aggregator must catch it.

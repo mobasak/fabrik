@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — registrar-count tests no longer drift; saas-skeleton expected set corrected (2026-06-30)
+
+`test_returns_all_9_registrars` hard-coded `== 9` and went red when Phase 5 added the `redis` registrar (`_REGISTRAR_ORDER` → 10); now asserts `== len(_REGISTRAR_ORDER)` (renamed `test_returns_all_registrars`) so it never drifts on registrar add/remove — the keys-equality assert already proves the set. `test_template_defaults[saas-skeleton]` expected set was stale: the template's `defaults.yaml` declares `needs_cache:true` and `exposes_metrics:true`, so the resolver correctly runs `redis` + `prometheus` — added both to the expected set. Closes residual-risk #4 from the Phase 7 review.
+
 ### Fixed — Phase 7 adversarial review: reminder now fires on `fabrik apply`, helper hardened (2026-06-30)
 
 Adversarial review of the Phase 7 closing sweep found two correctness issues. **(1) Coverage gap:** the `ACTION REQUIRED` GlitchTip reminder was wired only into `reconcile-all`, but `fabrik apply` is "the single deploy entry point" (and the plan's own validation gate targets it) — so the primary deploy path silently skipped the reminder, leaving error paging un-set-up (fail-open). Added `cli._emit_glitchtip_webhook_reminder(spec_path)` to `fabrik apply`'s `DeploymentState.COMPLETE` branch (fires on real + dry-run). **(2) Non-total helper:** `glitchtip.webhook_registration_reminder` used `"error_webhook" not in (trigger_sources or [])`, which substring-matched a string `trigger_sources` (e.g. `"error_webhook_DISABLED"` fired) and raised on a non-iterable / missing `.id` — reachable only via a duck-typed caller (the Spec model rejects scalars), but it runs inside `fabrik apply` so it's now total + exact-match (`isinstance(... , list|tuple|set)` + id guard). 8 new regression tests (apply-path emit, malformed/garbage inputs, scheme-prefixed `os.getenv` localhost allowlist + literal-still-fails).
