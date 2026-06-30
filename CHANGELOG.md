@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — CRITICAL: Anthropic seed _add() was clobbering via_openrouter/via_kilo routing flags (2026-06-30)
+
+Self-found pre-review bug in `d8e84d5b`: the 4 new `_add("anthropic/claude-opus-4.8", ...)` etc. calls added in that commit did NOT pass `via_openrouter` or `via_kilo` kwargs, so the seed's per-row `setdefault(field, 0)` set them to 0,0. The seed's UPSERT loop then writes those 0s to the existing rows. Existing `anthropic/claude-opus-4.8` (and the 3 sister rows) had `via_openrouter=1, via_kilo=1` from the OR/Kilo daily sync — my seed silently overwrote them. Downstream impact: the OR verifier (post-`5d61eb5e` fix) now filters on `via_openrouter=1`, so those rows would have dropped out of OR-coverage; the Kilo CLI sync would have stopped updating their Kilo-side prices. Fix: removed the 4 seed `_add()` blocks entirely + restored the flags via direct SQL `UPDATE`. The Anthropic parser writes to whatever rows the registry's `slug_on_page` maps to — `fetch_direct_vendor_prices.py` does NOT filter on routing flags, so it updates the existing OR/Kilo-routed rows just fine. Both the OR/Kilo path AND the parser source from Anthropic's authoritative docs, so prices stay consistent. Verified: re-ran seed (no flag corruption); re-ran orchestrator (`anthropic APPLY parsed=8 wrote=4 refused=0 missing=4` — all 4 rows updated to current Anthropic-published prices); via_openrouter/via_kilo confirmed back at `1,1` for all 4 rows.
+
 ### Fixed — OpenAI parser ruff N806 (price_per_M → price_per_m_value) (2026-06-30)
 
 Post-commit ruff check on `ac5b936f` flagged `price_per_M` as N806 (variable should be lowercase). The `M` is a semantic-unit marker (per-million-billable-units), not a mixedCase style violation, so renamed to `price_per_m_value` + added `# noqa: N806` with the reason. Style-only fix; behavior identical.
