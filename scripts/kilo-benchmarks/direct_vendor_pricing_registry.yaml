@@ -164,9 +164,28 @@ mistral:
   parser_module: null
 
 openai:
-  pricing_url: https://openai.com/api/pricing/   # Pass-7+: keep URL but use rendered
+  pricing_url: https://platform.openai.com/docs/pricing  # platform subdomain (no CF wall, unlike openai.com/api/pricing)
   fetch_method: rendered
-  parser_module: null
+  parser_module: direct_vendor_parsers.openai
+  models:
+    openai/whisper-large-v3:
+      slug_on_page: "Whisper"
+      expected_unit: audio-min
+    openai/gpt-4o-transcribe:
+      slug_on_page: "gpt-4o-transcribe"
+      expected_unit: audio-min
+    openai/gpt-4o-mini-transcribe:
+      slug_on_page: "gpt-4o-mini-transcribe"
+      expected_unit: audio-min
+    openai/tts-1:
+      slug_on_page: "tts-1"
+      expected_unit: M-chars
+    openai/tts-1-hd:
+      slug_on_page: "tts-1-hd"
+      expected_unit: M-chars
+    openai/gpt-4o-mini-tts:
+      slug_on_page: "gpt-4o-mini-tts"
+      expected_unit: M-chars
 
 pika:
   pricing_url: https://pika.art/pricing

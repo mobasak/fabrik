@@ -282,3 +282,75 @@ def test_anthropic_rejects_dict_payload() -> None:
     import pytest
     with pytest.raises(TypeError):
         _load("anthropic").extract({"foo": "bar"}, "https://example.com/")
+
+
+# ============================================================
+# OpenAI parser (Phase-3 deliverable, added 2026-06-30)
+# ============================================================
+
+def test_openai_extracts_canonical_audio_models() -> None:
+    """OpenAI's platform.openai.com/docs/pricing has HTML-encoded JSON
+    chunks like {"model":[0,"<NAME>"],"rows":[...,"$X / unit"]}.
+    The 6 DB-mapped models must all parse with PERFECT seed-matching
+    prices (these prices have been stable for >12 months)."""
+    rows = _load("openai").extract(
+        _html("openai"),
+        "https://platform.openai.com/docs/pricing",
+    )
+    by_slug = {r.model_slug: r for r in rows}
+    # 6 canonical audio models that map to existing DB rows
+    expected = {
+        "Whisper": (100.0, "audio-min"),
+        "gpt-4o-transcribe": (100.0, "audio-min"),
+        "gpt-4o-mini-transcribe": (50.0, "audio-min"),
+        "tts-1": (15.0, "M-chars"),
+        "tts-1-hd": (30.0, "M-chars"),
+        "gpt-4o-mini-tts": (15.0, "M-chars"),
+    }
+    for name, (price, unit) in expected.items():
+        assert name in by_slug, f"missing {name}: got {sorted(by_slug)}"
+        assert abs(by_slug[name].input_price_per_M - price) < 0.01, (
+            f"{name}: expected ${price}/M, got {by_slug[name].input_price_per_M}"
+        )
+        assert by_slug[name].pricing_unit == unit
+
+
+def test_openai_normalize_per_minute_matches_seed() -> None:
+    """$0.006/min → 100/M-audio-min. This is the same conversion the seed uses
+    (per_min in seed_direct_vendors.py)."""
+    rows = _load("openai").extract(
+        _html("openai"), "https://platform.openai.com/docs/pricing"
+    )
+    whisper = next(r for r in rows if r.model_slug == "Whisper")
+    assert whisper.input_price_per_M == 100.0
+    assert whisper.raw_price_text == "$0.006 / minute"
+
+
+def test_openai_normalize_per_1M_chars_matches_seed() -> None:
+    """$15/1M chars → 15/M-chars. Same as seed's per_1k_chars(0.015)."""
+    rows = _load("openai").extract(
+        _html("openai"), "https://platform.openai.com/docs/pricing"
+    )
+    tts1 = next(r for r in rows if r.model_slug == "tts-1")
+    assert tts1.input_price_per_M == 15.0
+
+
+def test_openai_empty_html_returns_empty() -> None:
+    rows = _load("openai").extract("<html></html>", "https://example.com/")
+    assert rows == []
+
+
+def test_openai_rejects_dict_payload() -> None:
+    import pytest
+    with pytest.raises(TypeError):
+        _load("openai").extract({"foo": "bar"}, "https://example.com/")
+
+
+def test_openai_skips_per_second_unit() -> None:
+    """OpenAI lists some realtime models in '$X / second' — we don't have a
+    seed unit for that, so the parser SKIPS those rows rather than emitting
+    a corrupt ParsedRow. Construct a synthetic minimal fixture."""
+    # Verbatim escape-style "model" object with only a per-second price
+    html_fragment = '"model":[0,"hypothetical-per-sec-model"],"rows":[1,[[1,[[0,"x"],[0,1],[0,2],[0,"$0.00028 / second"]]]]]}'
+    rows = _load("openai").extract(html_fragment, "https://example.com/")
+    assert rows == [], "per-second prices have no seed unit; must be skipped"
