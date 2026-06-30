@@ -419,13 +419,14 @@ sqlite3 scripts/kilo-benchmarks/kilo_agents.db "SELECT COUNT(*) FROM agents WHER
 # Expected: BEFORE=20, AFTER=0 (run before + after the migration)
 ```
 
-### Phase 5 — Telegram channel + observability + ops doc (1 day, expanded from 0.5)
+### Phase 5 — Telegram channel + observability + ops doc (1 day, expanded from 0.5) ✅ COMPLETE 2026-06-30 (3/4 shipped, 1 deferred-by-decision)
 
-**Deliverable**:
-- **NEW**: Configure the Telegram channel for kilo-catalog alerts (was claimed as "existing" in v3.1; grounding proved no such channel is configured). Add chat_id/token to vps1 alertmanager.yml; smoke-test routing.
-- Daily-refresh summary in `cache/direct_vendor_audit_<date>.md`: per-vendor success/failure, per-row diff, alert log
-- Section in `docs/operations/AI_MODELS_BROWSER_OPS.md` describing how to manually trigger the scraper, add a new vendor, interpret the audit file
-- Cron heartbeat: alert if `fetch_direct_vendor_prices.py` is skipped 2 days in a row (Pushgateway entry or Gatus probe — TBD)
+**Deliverable status**:
+- ~~**NEW**: Configure the Telegram channel for kilo-catalog alerts~~ → **DEFERRED by operator decision 2026-06-30**. Rationale: solo-operator workload + existing `_send_alert()` already fires per-vendor failures to the main Telegram chat via `fabrik-lib/alerting` (HTTP error / unit mismatch / >50% diff / 7-day URL_BROKEN / heartbeat-stale). Catalog noise is low (would only fire on real issues — vendor flips pricing, URL goes 404 for 7 days). Channel-separation = nice-to-have noise reduction for fleet-volume operations, not load-bearing for solo workflow. The daily audit MD (next deliverable) provides the "what happened today" view without needing a separate Telegram channel. Revisit if operator scale changes or catalog noise crosses the "drowns out ops alerts" threshold.
+- ✅ Daily-refresh summary in `cache/direct_vendor_audit_<date>.md`: per-vendor success/failure, per-row diff, alerts section — shipped 2026-06-30 via `write_report_md()` in [fetch_direct_vendor_prices.py](../../../scripts/kilo-benchmarks/fetch_direct_vendor_prices.py) + `--report-md` flag wired into [daily_refresh.sh:221](../../../scripts/kilo-benchmarks/daily_refresh.sh#L221). 3 regression tests in [tests/kilo_benchmarks/test_fetch_direct_vendor_prices.py](../../../tests/kilo_benchmarks/test_fetch_direct_vendor_prices.py).
+- ✅ Section in [docs/operations/AI_MODELS_BROWSER_OPS.md](../../operations/AI_MODELS_BROWSER_OPS.md) describing manual scraper trigger, add-vendor steps, audit-file interpretation, quarterly-audit helper, current coverage table (17 actively-scraped + 6 subscription-monitored), stubbed-vendor rationale — shipped earlier this session.
+- ✅ Cron heartbeat: `check_daily_refresh_freshness.py` (first step inside `daily_refresh.sh`) fires Telegram alert if last-success timestamp >36h old. Covers the "skipped 2 days in a row" case directly. Shipped earlier this session (load_dotenv fix + adversarial review hardening).
+- ✅ **Bonus** (Gate 3): scripted add-vendor roundtrip test [scripts/kilo-benchmarks/test_add_vendor_roundtrip.sh](../../../scripts/kilo-benchmarks/test_add_vendor_roundtrip.sh) — validates end-to-end onboarding workflow (registry edit → orchestrator fetch → audit MD → cleanup). Final stdout: `TEST_PASS`. Live: 0.6s (Phase 5 Gate 3 budget was <15min).
 
 **Runnable gate**:
 ```
