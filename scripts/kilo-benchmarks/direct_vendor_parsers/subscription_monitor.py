@@ -38,21 +38,31 @@ from . import ParsedRow
 # per-unit qualifier (anchored to the canonical units the catalog tracks).
 # We deliberately match the strict shape `$<digits>.<digits> / <unit>` so we
 # don't false-positive on JSON framework strings or per-month tier prices.
+# Adversarial review H5+H6 (2026-06-30): tightened patterns.
+#   - Each per-unit qualifier now uses (?![-\w]) instead of \b to reject hyphenated
+#     compound words ("hour-long", "minute-by-minute") that bare \b allows.
+#   - Pattern 7 (formerly catch-all $0.NNN) split into a per-K pattern (H6) and
+#     dropped the overbroad version (H5: was false-positiving on "$0.025 / month",
+#     "$0.999 per credit", etc.).
 _PER_CALL_PATTERNS = [
     # $X / M-tokens, $X / 1M tokens, $X per million tokens
-    r"\$\d+(?:\.\d+)?\s*(?:/|per)\s*(?:1\s*)?M(?:Tok|illion)?\s*tokens?",
+    r"\$\d+(?:\.\d+)?\s*(?:/|per)\s*(?:1\s*)?M(?:Tok|illion)?\s*tokens?(?![-\w])",
     # $X / 1M characters, $X / M-chars
-    r"\$\d+(?:\.\d+)?\s*(?:/|per)\s*(?:1\s*)?M(?:illion)?\s*characters?",
-    # $X / minute, $X per min (audio)
-    r"\$\d+(?:\.\d+)?\s*(?:/|per)\s*(?:audio[\s-])?(?:minute|min)\b",
-    # $X / hour (audio)
-    r"\$\d+(?:\.\d+)?\s*(?:/|per)\s*hour\b",
+    r"\$\d+(?:\.\d+)?\s*(?:/|per)\s*(?:1\s*)?M(?:illion)?\s*characters?(?![-\w])",
+    # H6: $X / 1K tokens, $X per 1k chars, $X per thousand tokens — per-K is
+    # a real flip signal (Claude/GPT used to quote per-K). Was previously only
+    # caught accidentally by the dropped overbroad pattern.
+    r"\$\d+(?:\.\d+)?\s*(?:/|per)\s*(?:1\s*)?[Kk]\s*(?:tokens?|chars?|characters?)(?![-\w])",
+    r"\$\d+(?:\.\d+)?\s*(?:/|per)\s*thousand\s*(?:tokens?|chars?|characters?)(?![-\w])",
+    # $X / minute, $X per min (audio). (?![-\w]) blocks "minute-by-minute" etc.
+    r"\$\d+(?:\.\d+)?\s*(?:/|per)\s*(?:audio[\s-])?(?:minute|min)(?![-\w])",
+    # $X / hour. (?![-\w]) blocks "hour-long", "hourly" — those are video runtimes,
+    # not API billing units.
+    r"\$\d+(?:\.\d+)?\s*(?:/|per)\s*hour(?![-\w])",
     # $X / image, $X per image, $X / generation
-    r"\$\d+(?:\.\d+)?\s*(?:/|per)\s*(?:image|generation|gen|render)\b",
-    # $X / second (realtime audio)
-    r"\$\d+(?:\.\d+)?\s*(?:/|per)\s*second\b",
-    # cent-fraction patterns ($0.NNN per X) — very fine-grained per-call rates
-    r"\$0\.\d{3,}\s*(?:/|per)\s*\b",
+    r"\$\d+(?:\.\d+)?\s*(?:/|per)\s*(?:image|generation|gen|render)(?![-\w])",
+    # $X / second (realtime audio). (?![-\w]) blocks "seconds-old" etc.
+    r"\$\d+(?:\.\d+)?\s*(?:/|per)\s*second(?![-\w])",
 ]
 
 _COMPILED = [re.compile(p, re.IGNORECASE) for p in _PER_CALL_PATTERNS]

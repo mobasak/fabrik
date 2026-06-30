@@ -360,29 +360,35 @@ def test_openai_window_size_handles_multi_row_models() -> None:
     """Pass-8 regression: _WINDOW_BYTES must be large enough that a model
     with several rows (e.g. Image + Audio + Text + Cached + Output ~ 1500
     chars after the anchor) still finds its FIRST price before walking into
-    the next model's price. Synthetic fixture: model "test-multi-row" has
-    1700 chars of filler before its $X/minute, then "next-model" follows."""
+    the next model's price.
+
+    Adversarial-review C5 update: uses an allowlisted slug ("Whisper") so
+    the C5 allowlist filter doesn't drop the row before the window check."""
     filler = "x" * 1700
     html_fragment = (
-        f'"model":[0,"test-multi-row"]' + filler +
-        '[0,"$0.999 / minute"],"model":[0,"next-model"],"rows":[1,[[1,[[0,"x"],[0,1],[0,2],[0,"$0.001 / minute"]]]]]}'
+        '"model":[0,"Whisper"]' + filler +
+        '[0,"$0.999 / minute"],"model":[0,"tts-1"],"rows":[1,[[1,[[0,"x"],[0,1],[0,2],[0,"$0.001 / minute"]]]]]}'
     )
     rows = _load("openai").extract(html_fragment, "https://example.com/")
     by_slug = {r.model_slug: r for r in rows}
-    # test-multi-row must report ITS price ($0.999/min → 16650/M), NOT next-model's.
-    assert "test-multi-row" in by_slug, "window too small — model lost"
-    assert abs(by_slug["test-multi-row"].input_price_per_M - 16650.0) < 1.0, (
-        f"window walked into next model: got {by_slug['test-multi-row'].input_price_per_M}"
+    # Whisper must report ITS price ($0.999/min → 16650/M), NOT tts-1's.
+    assert "Whisper" in by_slug, "window too small — model lost"
+    assert abs(by_slug["Whisper"].input_price_per_M - 16650.0) < 1.0, (
+        f"window walked into next model: got {by_slug['Whisper'].input_price_per_M}"
     )
 
 
 def test_openai_per_second_skip_logs_to_stderr(capsys) -> None:
     """Pass-8 regression: per-second prices skip silently — verify they now
-    emit a stderr WARN line so operators see the filter in cron output."""
-    html_fragment = '"model":[0,"hypothetical-per-sec"],"rows":[1,[[1,[[0,"x"],[0,1],[0,2],[0,"$0.00028 / second"]]]]]}'
+    emit a stderr WARN line so operators see the filter in cron output.
+
+    Adversarial-review C5 update: uses an allowlisted slug ("Whisper") so
+    the C5 allowlist filter doesn't drop the row BEFORE the per-second
+    unit skip fires."""
+    html_fragment = '"model":[0,"Whisper"],"rows":[1,[[1,[[0,"x"],[0,1],[0,2],[0,"$0.00028 / second"]]]]]}'
     _load("openai").extract(html_fragment, "https://example.com/")
     captured = capsys.readouterr()
-    assert "hypothetical-per-sec" in captured.err
+    assert "Whisper" in captured.err
     assert "WARN" in captured.err
 
 
@@ -469,3 +475,103 @@ def test_subscription_monitor_caps_at_3_hits_for_alert() -> None:
     assert len(rows) == 1
     # Alert raw text should contain at most 3 hit samples
     assert rows[0].raw_price_text.count("$1 / 1M tokens") <= 3
+
+
+# ============================================================
+# Adversarial review Phase 3 — Fix Cluster 2
+# H5: subscription_monitor regex false-positives on "$0.999 per credit",
+#     "$0.025 / month", "$0.10 per hour-long video"
+# H6: subscription_monitor regex false-NEGATIVE on per-K tokens
+# C5: openai parser returns 20 models from fixture (14 unintended) because
+#     "first axis in window wins" picks $15/M-chars for unmapped slugs
+# ============================================================
+
+def test_H5_subscription_monitor_no_fp_on_per_credit() -> None:
+    """REGRESSION (H5): pattern 7 (cent-fraction $0.NNN per X) must NOT
+    match adversarial inputs like '$0.999 per credit balance' or '$0.025 / month'."""
+    parser = _load("subscription_monitor")
+    for noise in [
+        '$0.999 per credit balance',
+        '$0.025 / month',
+        '$0.500 / customer',
+        '$0.100 per agent',
+    ]:
+        rows = parser.extract(f"<html>{noise}</html>", "https://example.com/")
+        assert rows == [], f"H5 regression: false-positive on {noise!r}"
+
+
+def test_H5_subscription_monitor_no_fp_on_hour_long_video() -> None:
+    """REGRESSION (H5): pattern 4 ($X / hour) must NOT match
+    '$0.10 per hour-long video' or '$5 per hour-of-content'."""
+    parser = _load("subscription_monitor")
+    for noise in [
+        '$0.10 per hour-long video',
+        '$5 per hour-of-content',
+        '$0.50/hourly briefing',
+    ]:
+        rows = parser.extract(f"<html>{noise}</html>", "https://example.com/")
+        assert rows == [], f"H5 regression: false-positive on {noise!r}"
+
+
+def test_H6_subscription_monitor_DETECTS_per_K_tokens() -> None:
+    """REGRESSION (H6): pre-fix, only the over-broad pattern 7 caught
+    per-K. After H5 tightens pattern 7, per-K becomes invisible. This
+    test pins the per-K detection requirement explicitly so a future
+    regression that drops per-K coverage fails LOUDLY."""
+    parser = _load("subscription_monitor")
+    for hit in [
+        '$0.005 / 1K tokens',
+        '$0.50 per 1k tokens',
+        '$5 / 1k chars',
+        '$0.010 per thousand tokens',
+    ]:
+        rows = parser.extract(f"<html>{hit}</html>", "https://example.com/")
+        assert len(rows) == 1, f"H6 regression: per-K not detected in {hit!r}"
+        assert "ALERT" in rows[0].raw_price_text
+
+
+def test_C5_openai_parser_filters_to_registry_allowlist() -> None:
+    """REGRESSION (C5): the openai parser MUST emit at most the 6 audio
+    models the registry maps (whisper-large-v3, gpt-4o-transcribe,
+    gpt-4o-mini-transcribe, tts-1, tts-1-hd, gpt-4o-mini-tts) — plus
+    any model name verbatim-matched in the registry. Unmapped slugs
+    (gpt-realtime-2, gpt-audio-mini, gpt-4o-realtime-preview, etc.)
+    must NOT come back as ParsedRows that the orchestrator then treats
+    as 'missing' garbage.
+
+    Pre-fix: parser returned 20 rows, 14 unintended; orchestrator
+    silently treated them as 'missing' (no DB row matches) and the
+    MD audit was noisy."""
+    parser = _load("openai")
+    html = _html("openai")
+    rows = parser.extract(html, "https://platform.openai.com/docs/pricing")
+    slugs = {r.model_slug for r in rows}
+    # Must include all 6 registry-mapped models
+    expected = {
+        "Whisper",
+        "gpt-4o-transcribe",
+        "gpt-4o-mini-transcribe",
+        "tts-1",
+        "tts-1-hd",
+        "gpt-4o-mini-tts",
+    }
+    missing = expected - slugs
+    assert not missing, f"missing registry-mapped models: {missing}"
+    # Must NOT include unmapped realtime slugs (this is the C5 fix surface)
+    unmapped_should_be_excluded = {
+        "gpt-realtime-2",
+        "gpt-realtime-translate",
+        "gpt-realtime-whisper",
+        "gpt-realtime-1.5",
+        "gpt-realtime-mini",
+        "gpt-realtime",
+        "gpt-4o-realtime-preview",
+        "gpt-4o-mini-realtime-preview",
+        "gpt-audio-1.5",
+        "gpt-audio-mini",
+        "gpt-audio",
+        "gpt-4o-audio-preview",
+        "gpt-4o-mini-audio-preview",
+    }
+    spurious = slugs & unmapped_should_be_excluded
+    assert not spurious, f"C5 regression: unmapped slugs leaked through: {spurious}"

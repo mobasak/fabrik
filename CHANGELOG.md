@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — adversarial review C5+H5+H6: openai allowlist + subscription_monitor regex tightening + per-K detection (2026-06-30)
+
+Second fix cluster from the adversarial review.
+
+**H5 (HIGH — false-positive alert fatigue)**: [subscription_monitor.py](scripts/kilo-benchmarks/direct_vendor_parsers/subscription_monitor.py) regex `\b` boundaries accepted `$0.999 per credit balance`, `$0.025 / month`, `$0.10 per hour-long video`, `$5 per hour-of-content` — every vendor page that mentioned sub-cent figures triggered the per-call alert. Tightened all unit qualifiers from `\b` to `(?![-\w])` (rejects both word-chars AND hyphenated compounds). Dropped the over-broad pattern 7 (`$0.NNN per X`) entirely. 2 new regression tests (no-FP on per-credit / on hourly-long-video).
+
+**H6 (HIGH — invariant #2 false-negative)**: previous regex required `M(?:Tok|illion)?\s*tokens`. A vendor flipping to `$0.005 / 1K tokens` or `$5 per thousand tokens` only got caught accidentally by the now-dropped over-broad pattern. New explicit per-K patterns (`1K tokens`, `1k chars`, `thousand tokens/characters`) close this. 1 new regression test pinning per-K detection.
+
+**C5 (HIGH — invariant #1 wrong-slug)**: [openai parser](scripts/kilo-benchmarks/direct_vendor_parsers/openai.py) was returning 20 model rows from the fixture; 14 were unmapped (`gpt-realtime-2`, `gpt-audio-mini`, etc.) that the orchestrator silently treated as `missing` garbage in the MD audit. Added `_ALLOWED_OPENAI_SLUGS` allowlist (7 entries: the 6 registry-mapped models + `gpt-4o-transcribe-diarize` as close variant). Parser now skips unmapped slugs BEFORE any window scan. Live re-run: 20 → 7 rows; 13 unmapped successfully filtered. 1 new regression test plus 2 pre-existing Pass-8 tests updated to use allowlisted slugs (Whisper).
+
+194/194 kilo-benchmarks tests green. Subscription_monitor still returns `parsed=0 wrote=0` for deepl/suno (sub-only-confirmed path preserved).
+
 ### Fixed — adversarial review C1+C2+H4: audit MD action-string + sub-monitor Telegram path + seed via_* preservation (2026-06-30)
 
 Adversarial review Phase 1 (4 parallel grounders) → Phase 2 (merge/triage) → Phase 3 (TDD-fix). First cluster of 3 fixes shipped together:

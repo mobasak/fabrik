@@ -86,6 +86,30 @@ def _normalize(price: float, unit: str) -> tuple[float, str] | None:
     return None
 
 
+# Adversarial review C5 (2026-06-30): allowlist of OpenAI slugs whose price is
+# (a) in the registry mapping today (whisper/tts-1/etc.) OR (b) a future-safe
+# model from the same TTS/STT family the registry will likely add. Slugs OUTSIDE
+# this allowlist are skipped — the parser was previously emitting 14 unmapped
+# rows (gpt-realtime-2, gpt-audio-mini, etc.) that the orchestrator silently
+# treated as `missing`, polluting the audit MD with spurious entries.
+#
+# To onboard a new OpenAI model, add its slug here. Operator confidence test:
+# scripts/kilo-benchmarks/test_add_vendor_roundtrip.sh.
+_ALLOWED_OPENAI_SLUGS = frozenset(
+    {
+        # Registry-mapped today
+        "Whisper",
+        "gpt-4o-transcribe",
+        "gpt-4o-mini-transcribe",
+        "tts-1",
+        "tts-1-hd",
+        "gpt-4o-mini-tts",
+        # Variants that may become registry-mapped (intentionally narrow)
+        "gpt-4o-transcribe-diarize",
+    }
+)
+
+
 def extract(payload: str, source_url: str) -> list[ParsedRow]:
     if not isinstance(payload, str):
         raise TypeError(f"openai parser expects str HTML, got {type(payload).__name__}")
@@ -97,6 +121,12 @@ def extract(payload: str, source_url: str) -> list[ParsedRow]:
     for m in _MODEL_ANCHOR.finditer(decoded):
         name = m.group(1).strip()
         if name in seen:
+            continue
+        # C5: drop unmapped slugs early so the parser never emits ParsedRows
+        # the orchestrator will discard as `missing`. Whitelist is the cheap
+        # way to keep this deterministic; adding a new OpenAI model is a
+        # 2-line change (registry mapping + add to _ALLOWED_OPENAI_SLUGS).
+        if name not in _ALLOWED_OPENAI_SLUGS:
             continue
         window = decoded[m.end() : m.end() + _WINDOW_BYTES]
         price_match = _PRICE_RE.search(window)
