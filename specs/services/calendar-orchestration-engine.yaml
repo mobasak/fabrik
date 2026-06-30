@@ -11,13 +11,13 @@ domain: calendar-orchestration-engine.vps1.ocoron.com
 shape:
   kind: service
   is_public: true
-  is_admin_dashboard: false
+  is_admin_dashboard: true    # admin-ui behind Authelia (src/metrics.ts:47 notes /metrics+/health are Authelia resource-bypassed → domain is forward-auth'd)
   has_bearer_api: true        # API_KEYS + Authorization: Bearer
   needs_database: true        # postgres `calendar` (PG_* / DATABASE_URL) — was missing → DB never created
   needs_cache: false
   has_persistent_data: false  # compose declares no volumes
   has_search_feature: false
-  exposes_metrics: false      # app exposes /health + /api/health, NO /metrics
+  exposes_metrics: true       # app DOES expose /metrics (src/api/index.ts:56 app.get("/metrics") + src/metrics.ts prom-client) — Prometheus registrar scrapes it
 
 expose:
   http: true
@@ -35,10 +35,10 @@ env:
   PORT: "3001"
   NODE_ENV: production
   LOG_LEVEL: INFO
-  # Tier-D test gate command (read by the watchdog bootstrap). NOTE: `npm test`
-  # currently chains an e2e suite that needs a LIVE server — split out a
-  # hermetic unit command before relying on the Tier-D auto-apply gate.
-  WATCHDOG_TEST_CMD: "npm test"
+  # Tier-D test gate command (read by the watchdog bootstrap). Uses the HERMETIC
+  # `test:api` script (src/scripts/test_api_v1_guards.ts) — NOT `npm test`, which
+  # chains an e2e suite needing a LIVE server (unsafe for the Tier-D auto-apply gate).
+  WATCHDOG_TEST_CMD: "npm run test:api"
 
 secrets:
   # Operator must add these app keys to /opt/fabrik/.env before apply.
