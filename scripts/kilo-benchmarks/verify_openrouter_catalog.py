@@ -451,7 +451,22 @@ def verify(db_path: Path = DB_PATH) -> dict:
         for mid, row in db_rows.items()
         if (row.get("via_dashscope") or 0) or (row.get("via_siliconflow") or 0)
     }
-    truly_delisted = [mid for mid in delisted if mid not in kilo and mid not in direct_routed]
+    # `openrouter/*` rows are OR-managed meta-routers / alpha-tier routes
+    # (auto, fusion, owl-alpha, elephant-alpha, pareto-code, bodybuilder).
+    # OR hides their alpha/preview routes from /api/v1/models but the
+    # routes remain USABLE — model page openrouter.ai/openrouter/owl-alpha
+    # loads with live pricing, and the route serves requests. Pre-fix the
+    # verifier flagged any openrouter/* row not in /api/v1/models as
+    # truly_delisted → status='deprecated', breaking the OR-only chip on
+    # the browser. Exempt the prefix here: OR controls these routes'
+    # lifecycle and absence from the listings endpoint is OR's curation
+    # choice, NOT a delisting signal.
+    or_meta_prefix = "openrouter/"
+    truly_delisted = [
+        mid
+        for mid in delisted
+        if mid not in kilo and mid not in direct_routed and not mid.startswith(or_meta_prefix)
+    ]
     delisted_or_only = [mid for mid in delisted if mid in kilo]
 
     # Catalog-dedup duplicates: bucket every DB ID by its canonical key,
@@ -665,9 +680,16 @@ def apply_fixes(report: dict, db_path: Path = DB_PATH) -> dict:
                 f"UPDATE agents SET via_openrouter = 1 WHERE id IN ({placeholders})",
                 or_ids,
             )
-            # And reset any rows OpenRouter no longer returns
+            # And reset any rows OpenRouter no longer returns.
+            # EXCEPTION: `openrouter/*` meta-routes (auto, fusion, owl-alpha,
+            # elephant-alpha, pareto-code, bodybuilder) are OR-managed alpha
+            # / preview routes that OR hides from /api/v1/models but keeps
+            # routable. Don't flip via_openrouter=0 on these — same rationale
+            # as the truly_delisted exemption above.
             conn.execute(
-                f"UPDATE agents SET via_openrouter = 0 WHERE id NOT IN ({placeholders})",
+                f"UPDATE agents SET via_openrouter = 0 "
+                f"WHERE id NOT IN ({placeholders}) "
+                f"AND id NOT LIKE 'openrouter/%'",
                 or_ids,
             )
 

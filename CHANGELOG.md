@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — verify_openrouter_catalog: stop deprecating `openrouter/*` alpha routes that OR hides from `/api/v1/models` (2026-07-01)
+
+Operator-reported: "https://openrouter.ai/openrouter/owl-alpha why I don't see this when OR-only selected." Investigation:
+
+- The model page loads (title "Owl Alpha - API Pricing & Providers | OpenRouter") and the route serves requests.
+- `/api/v1/models` returns 0 owl-* matches across all 338 published rows.
+- `/api/v1/models?disabled=true` also returns 0 owl-* matches.
+- `/api/v1/models/openrouter/owl-alpha` (single-model endpoint) returns 404.
+
+So OR hides their **alpha-tier `openrouter/*` routes** from every public catalog endpoint while keeping the route routable via the API. Pre-fix the verifier's "absent from /api/v1/models → deprecate" heuristic was too aggressive — it marked `openrouter/owl-alpha` as `status='deprecated'` and cleared its `via_openrouter` flag, hiding it from the browser's OR-only chip. Same fate had already orphaned `openrouter/elephant-alpha` to `via_openrouter=0` (still "active" but no routing flag, so still invisible).
+
+**Fix** in two places:
+1. `truly_delisted` exclusion: rows starting with `openrouter/` are exempt from the auto-deprecate path. OR controls these routes' lifecycle; absence from `/api/v1/models` is OR's curation choice, not a delisting signal.
+2. `apply_fixes` UPDATE that clears `via_openrouter=0` for rows not in live now also excludes `openrouter/%` via a `AND id NOT LIKE 'openrouter/%'` clause. Without this, the row would stay `status='active'` but invisible to the OR-only chip on every nightly run.
+
+**Restored**: `openrouter/owl-alpha` and `openrouter/elephant-alpha` set back to `status='active', via_openrouter=1, via_kilo=0` + `discard_reason=NULL`.
+
+Live verify: OR-only chip now returns **4 rows** — `openai/gpt-5-chat`, `google/gemini-3.1-flash-lite-image`, `openrouter/elephant-alpha`, `openrouter/owl-alpha`.
+
+Idempotency-tested: re-ran the verifier twice; both alpha rows stayed in their restored state. The exemption holds across nightly runs.
+
 ### Fixed — verify_openrouter_catalog: full canonical-ID dedup across 6 dup patterns (same model surfaced under multiple rows) (2026-07-01)
 
 Generalization of the earlier `bare-vs-prefixed` fix. Operator-reported: "you treat same models as they are different models. fix this classification workflow properly." Live audit found the catalog had **6 distinct dup patterns** where the verifier was treating the same underlying model as separate rows:
