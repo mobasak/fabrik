@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Phase 7 review residuals #1/#2: honest-gate `error_webhook` (the `:8889` ingest is unbuilt) (2026-06-30)
+
+Grounding the Phase 7 residual risks revealed the `error_webhook` → `:8889` ingest is **entirely unbuilt** in the fabrik-lib watchdog sidecar: it binds health on 8888, never reads `WATCHDOG_TRIGGER_SOURCES`, has no `:8889` server and no GlitchTip parser — error detection is `docker logs` polling only. So registering a GlitchTip webhook to `:8889` today is a no-op. Best-practice gate-now-build-next: `glitchtip.webhook_registration_reminder` now emits an honest **`NOTE [error_webhook PENDING]`** (watchdog is live via log-polling; do NOT register the webhook yet) instead of a misleading `ACTION REQUIRED`; `docs/operations/deployment.md` carries a PENDING banner; the build is tracked in `docs/development/plans/2026-06-30-plan-watchdog-error-webhook-ingest.md` (ingest server + parser tested against the shared fixture = #1; cross-host fail-closed guard = #2). Residuals #3 (live `fabrik apply --dry-run` confirmed the note end-to-end) and #4 (registrar-count tests) already closed.
+
 ### Fixed — kilo-benchmarks audit: agent_selector coding role + daily_refresh flock-vs-function bug + timing/exit consistency (2026-06-30)
 
 Two P0 bugs found while auditing the kilo-benchmarks scripts past the models_browser surface:

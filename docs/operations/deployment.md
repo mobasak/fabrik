@@ -571,7 +571,9 @@ ssh vps "cat /opt/backrest/config/config.json | jq '.plans[] | select(.id | star
 
 ## Post-apply Manual Step — GlitchTip Webhook Registration (Phase 7 of deploy-readiness-gaps, 2026-06-30)
 
-GlitchTip exposes **no API** to create a webhook recipient — probed 2026-06-29, `/rules/`, `/alert-rules/` and `/alerts/` all return 404 (see `scripts/probes/glitchtip_webhook_capture.py`). It therefore **cannot** be automated on `fabrik apply`. Instead, for any spec whose `watchdog.trigger_sources` includes `error_webhook`, `fabrik apply` prints an `ACTION REQUIRED` line, and the operator registers the recipient **once, by hand**, in the GlitchTip UI:
+> **⚠️ STATUS: PENDING — do NOT register the webhook yet.** Verified 2026-06-30 against `/opt/fabrik-lib/watchdog`: the watchdog sidecar does **not** yet listen on `:8889` — it has no `error_webhook` / `WATCHDOG_TRIGGER_SOURCES` handling and detects errors by **polling `docker logs`** (container-state + regex). So a GlitchTip webhook → `:8889` would POST into a dead port. Error detection is already **live via log-polling**; the GlitchTip push is a precision enhancement that lands when the sidecar ingest ships. Build tracked in `docs/development/plans/2026-06-30-plan-watchdog-error-webhook-ingest.md`. The recipe below is the *target* flow for that day — keep it for reference, but skip registration until the ingest is built.
+
+GlitchTip exposes **no API** to create a webhook recipient — probed 2026-06-29, `/rules/`, `/alert-rules/` and `/alerts/` all return 404 (see `scripts/probes/glitchtip_webhook_capture.py`). It therefore **cannot** be automated on `fabrik apply`. Once the `:8889` ingest ships, for any spec whose `watchdog.trigger_sources` includes `error_webhook`, the operator registers the recipient **once, by hand**, in the GlitchTip UI:
 
 1. Open the project: `https://errors.vps1.ocoron.com/<org>/<project>/` (org = `GLITCHTIP_ORG_SLUG`, default `ocoron`; project = the spec id / GlitchTip project slug). The exact URL is in the `ACTION REQUIRED` log line.
 2. **Alerts → Create** → trigger rule: **"a new issue is created"**.

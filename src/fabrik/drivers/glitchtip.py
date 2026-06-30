@@ -118,24 +118,25 @@ def _is_loopback_dsn(dsn: str) -> bool:
 
 
 def webhook_registration_reminder(spec: Any) -> str | None:
-    """Phase 7 (deploy-readiness-gaps): GlitchTip exposes NO API to register a
-    webhook recipient — probed 2026-06-29, ``/rules/``, ``/alert-rules/`` and
-    ``/alerts/`` all 404 (see ``scripts/probes/glitchtip_webhook_capture.py``),
-    so ``fabrik apply`` CANNOT automate it. When a spec's watchdog ingests
-    ``error_webhook`` signals, return a one-line operator reminder carrying the
-    exact GlitchTip UI URL + the ``:8889`` recipient URL; return ``None``
-    otherwise. The full recipe lives in ``docs/operations/deployment.md`` →
-    'GlitchTip Webhook Registration'. No new env vars — reuses
-    ``GLITCHTIP_ORG_SLUG``/``GLITCHTIP_URL`` (same defaults the driver uses)."""
+    """Phase 7 (deploy-readiness-gaps): honest STATUS note for a watchdog
+    ``error_webhook`` spec.
+
+    Reality (verified 2026-06-30 against ``/opt/fabrik-lib/watchdog``): the
+    sidecar does NOT yet listen on ``:8889`` — it has no ``error_webhook`` /
+    ``WATCHDOG_TRIGGER_SOURCES`` handling and detects errors by polling
+    ``docker logs`` (container-state + regex). So registering a GlitchTip
+    webhook → ``:8889`` would POST into a dead port. Until the sidecar ingest
+    ships (tracked: ``docs/development/plans/2026-06-30-plan-watchdog-error-webhook-ingest.md``),
+    this returns a PENDING note that tells the operator NOT to register the
+    webhook yet — error detection is already live via log-polling. The note
+    still carries the eventual GlitchTip + ``:8889`` URLs for when it lands.
+
+    Returns ``None`` for any spec that doesn't ingest ``error_webhook``. Total +
+    exact-match: never raises, never substring-matches (runs inside ``fabrik
+    apply``). No new env vars — reuses ``GLITCHTIP_ORG_SLUG``/``GLITCHTIP_URL``."""
     wd = getattr(spec, "watchdog", None)
     sources = getattr(wd, "trigger_sources", None)
     sid = getattr(spec, "id", None)
-    # Total + exact-match by design: only a real sequence containing the exact
-    # token opts in. A None/str/garbage value (or a spec with no id) returns
-    # None — never raises, never substring-matches. This public helper runs
-    # inside `fabrik apply`'s reconcile loop and must never break a deploy or
-    # mis-fire. (The Spec model validates trigger_sources as list[str] and
-    # rejects scalars, so this only guards hand-built / duck-typed callers.)
     if not sid or not isinstance(sources, list | tuple | set) or "error_webhook" not in sources:
         return None
     org = os.getenv("GLITCHTIP_ORG_SLUG", "ocoron")
@@ -143,10 +144,12 @@ def webhook_registration_reminder(spec: Any) -> str | None:
     project_url = f"{base}/{org}/{sid}/"
     ingest_url = f"http://{sid}-watchdog:8889/"
     return (
-        f"ACTION REQUIRED: register GlitchTip webhook for {sid} — open "
-        f"{project_url} → Alerts → Create → trigger 'a new issue "
-        f"is created' → recipient type: webhook → URL: {ingest_url} "
-        f"(no API to automate; see docs/operations/deployment.md)"
+        f"NOTE [error_webhook PENDING]: {sid}'s watchdog detects errors via "
+        f"docker-log polling today — that is LIVE. The GlitchTip → {ingest_url} "
+        f"push is NOT yet wired in the sidecar, so do NOT register a GlitchTip "
+        f"webhook yet (nothing listens on :8889). When the ingest ships, register "
+        f"at {project_url} → Alerts → Create → recipient: webhook → URL: "
+        f"{ingest_url}. Tracked: docs/development/plans/2026-06-30-plan-watchdog-error-webhook-ingest.md"
     )
 
 
