@@ -569,6 +569,19 @@ ssh vps "cat /opt/backrest/config/config.json | jq '.plans[] | select(.id | star
 
 ---
 
+## Post-apply Manual Step — GlitchTip Webhook Registration (Phase 7 of deploy-readiness-gaps, 2026-06-30)
+
+GlitchTip exposes **no API** to create a webhook recipient — probed 2026-06-29, `/rules/`, `/alert-rules/` and `/alerts/` all return 404 (see `scripts/probes/glitchtip_webhook_capture.py`). It therefore **cannot** be automated on `fabrik apply`. Instead, for any spec whose `watchdog.trigger_sources` includes `error_webhook`, `fabrik apply` prints an `ACTION REQUIRED` line, and the operator registers the recipient **once, by hand**, in the GlitchTip UI:
+
+1. Open the project: `https://errors.vps1.ocoron.com/<org>/<project>/` (org = `GLITCHTIP_ORG_SLUG`, default `ocoron`; project = the spec id / GlitchTip project slug). The exact URL is in the `ACTION REQUIRED` log line.
+2. **Alerts → Create** → trigger rule: **"a new issue is created"**.
+3. Add recipient → type: **webhook**.
+4. Webhook URL: `http://<spec.id>-watchdog:8889/` — internal fabrik-net DNS, no Traefik. Add the `WATCHDOG_INGEST_TOKEN` shared secret to the project `.env` first if you want the ingest authenticated.
+
+The watchdog sidecar's `:8889` ingest receives GlitchTip's Slack-compatible envelope (captured byte-identical at `docs/reference/fixtures/glitchtip-webhook.json`: `body.attachments[0].title` = issue title, `.title_link` = issue URL, `.color` = severity; shape pinned by `tests/test_watchdog_ingest_payload.py`). This is a **per-new-project** step — existing recipients persist across redeploys. When GlitchTip ships an alert-management API, this becomes automatable (revival trigger tracked in the plan's Phase 7).
+
+---
+
 ## Related Files
 
 | File | Purpose |

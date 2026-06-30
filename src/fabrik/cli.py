@@ -1478,6 +1478,7 @@ def reconcile_all(yes: bool, filters: tuple):
         fabrik reconcile-all --yes                    # apply across fleet
     """
     from fabrik.drivers.coolify import CoolifyClient
+    from fabrik.drivers.glitchtip import webhook_registration_reminder
     from fabrik.locks_local import file_lock
     from fabrik.orchestrator import DeploymentOrchestrator
 
@@ -1496,6 +1497,7 @@ def reconcile_all(yes: bool, filters: tuple):
 
     orch = DeploymentOrchestrator()
     summary: list[tuple[str, str, str]] = []  # (spec_id, status, detail)
+    reminders: list[str] = []  # Phase 7: operator-manual GlitchTip webhook steps
 
     for sp in spec_paths:
         try:
@@ -1517,6 +1519,9 @@ def reconcile_all(yes: bool, filters: tuple):
             with file_lock(f"reconcile-{spec.id}", timeout_seconds=30):
                 orch.refresh_infrastructure(spec_path=sp, dry_run=not yes)
             summary.append((spec.id, "reconciled" if yes else "dry-run", ""))
+            rem = webhook_registration_reminder(spec)
+            if rem:
+                reminders.append(rem)
         except TimeoutError as e:
             summary.append((spec.id, "lock-timeout", str(e)))
         except Exception as e:  # noqa: BLE001
@@ -1530,6 +1535,13 @@ def reconcile_all(yes: bool, filters: tuple):
         if detail:
             line += f" — {detail}"
         click.echo(line)
+
+    # Phase 7 (deploy-readiness-gaps): GlitchTip has no webhook-registration API,
+    # so surface the one-time operator-manual step for every error_webhook spec.
+    if reminders:
+        click.echo()
+        for r in reminders:
+            click.echo(r)
 
 
 @cli.command()

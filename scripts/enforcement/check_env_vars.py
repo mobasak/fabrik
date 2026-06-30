@@ -22,8 +22,11 @@ HARDCODED_PATTERNS = [
 
 # Patterns that indicate proper usage (allowlist) - must be specific
 ALLOWED_CONTEXTS = [
-    r"os\.getenv\s*\([^)]*,\s*['\"](?:localhost|127\.0\.0\.1)",  # os.getenv default
-    r"os\.environ\.get\s*\([^)]*,\s*['\"](?:localhost|127\.0\.0\.1)",  # os.environ.get default
+    # os.getenv / os.environ.get default — allow an optional URL scheme so
+    # os.getenv("LOKI_URL", "http://localhost:3100") is recognized as the
+    # sanctioned pattern, not just the bare "localhost" form.
+    r"os\.getenv\s*\([^)]*,\s*['\"](?:https?://)?(?:localhost|127\.0\.0\.1)",  # os.getenv default
+    r"os\.environ\.get\s*\([^)]*,\s*['\"](?:https?://)?(?:localhost|127\.0\.0\.1)",  # os.environ.get default
     r"#\s*.*(?:localhost|127\.0\.0\.1)",  # Comments with localhost/127.0.0.1
     r"^\s*#",  # Line starting with comment
     r"\.env\.example",  # Example env files

@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Phase 7 closing sweep: GlitchTip webhook operator-manual flow (2026-06-30)
+
+Closes the deploy-readiness-gaps plan (now phases 1-8). GlitchTip exposes **no API** to register a webhook recipient (probed — `/rules/`, `/alert-rules/`, `/alerts/` all 404), so auto-registration stays DEFERRED (7a); the rest of Phase 7 ships: **(b)** the operator recipe is documented in `docs/operations/deployment.md` → "GlitchTip Webhook Registration" (4-step UI flow + canonical `:8889` recipient URL); **(c)** `glitchtip.webhook_registration_reminder(spec)` builds a one-line `ACTION REQUIRED` reminder (reusing `GLITCHTIP_ORG_SLUG`/`GLITCHTIP_URL`, no new env vars) and `cli.py` `reconcile-all` prints it after the summary for every spec whose `watchdog.trigger_sources` includes `error_webhook`; **(d)** `tests/test_watchdog_ingest_payload.py` pins the captured GlitchTip Slack-envelope shape the sidecar `:8889` ingest depends on. The real ingest parser lives in the fabrik-lib watchdog sidecar (the plan's original "drivers/watchdog.py" grounding was corrected). Tests: 5 green (`test_apply_emits_glitchtip_webhook_reminder.py` + `test_watchdog_ingest_payload.py`).
+
 ### Changed — vendor-sync web_scrape from fabrik-lib main (M5 fix merged upstream) (2026-06-30)
 
 The M5 finding from the adversarial review (`fabrik-lib/web-scrape` cached Cloudflare bot-wall HTML for 24h, poisoning subsequent `fetch_static()` calls) was fixed upstream in [mobasak/fabrik-lib#8](https://github.com/mobasak/fabrik-lib/pull/8) and merged. Vendored copy at `scripts/kilo-benchmarks/web_scrape/` re-synced from upstream main (commit `9168e6d`).

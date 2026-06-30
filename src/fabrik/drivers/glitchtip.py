@@ -117,6 +117,31 @@ def _is_loopback_dsn(dsn: str) -> bool:
     return bool(m and m.group("host") in _LOOPBACK_HOSTS)
 
 
+def webhook_registration_reminder(spec: Any) -> str | None:
+    """Phase 7 (deploy-readiness-gaps): GlitchTip exposes NO API to register a
+    webhook recipient — probed 2026-06-29, ``/rules/``, ``/alert-rules/`` and
+    ``/alerts/`` all 404 (see ``scripts/probes/glitchtip_webhook_capture.py``),
+    so ``fabrik apply`` CANNOT automate it. When a spec's watchdog ingests
+    ``error_webhook`` signals, return a one-line operator reminder carrying the
+    exact GlitchTip UI URL + the ``:8889`` recipient URL; return ``None``
+    otherwise. The full recipe lives in ``docs/operations/deployment.md`` →
+    'GlitchTip Webhook Registration'. No new env vars — reuses
+    ``GLITCHTIP_ORG_SLUG``/``GLITCHTIP_URL`` (same defaults the driver uses)."""
+    wd = getattr(spec, "watchdog", None)
+    if "error_webhook" not in (getattr(wd, "trigger_sources", None) or []):
+        return None
+    org = os.getenv("GLITCHTIP_ORG_SLUG", "ocoron")
+    base = os.getenv("GLITCHTIP_URL", GLITCHTIP_URL).rstrip("/")
+    project_url = f"{base}/{org}/{spec.id}/"
+    ingest_url = f"http://{spec.id}-watchdog:8889/"
+    return (
+        f"ACTION REQUIRED: register GlitchTip webhook for {spec.id} — open "
+        f"{project_url} → Alerts → Create → trigger 'a new issue "
+        f"is created' → recipient type: webhook → URL: {ingest_url} "
+        f"(no API to automate; see docs/operations/deployment.md)"
+    )
+
+
 def _canonicalize_dsn(dsn: str) -> str:
     """Rewrite a loopback DSN to the public ``GLITCHTIP_URL`` host.
 

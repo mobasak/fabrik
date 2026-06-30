@@ -1,6 +1,6 @@
 # Plan: Fabrik Deploy-Readiness Gaps (8 fixes blocking calendar-orchestration-engine + every future service)
 
-**Status**: SHIPPED (phases 1-6,8 done; 7 deferred; 2026-06-30)
+**Status**: SHIPPED (phases 1-8 done; Phase 7a — GlitchTip webhook auto-registration — DEFERRED, no upstream API; 7b/c/d closing sweep shipped 2026-06-30)
 **Owner**: ozgur · **Author**: Claude (Opus 4.7)
 **Created**: 2026-06-30 · **Converged**: 2026-06-30
 **Context-trigger**: external-AI audit of calendar-orchestration-engine deploy readiness exposed 8 fabrik-side gaps. Owner: "these are not acceptable. create a plan to address all these in fabrik."
@@ -798,9 +798,9 @@ Use Appendix A. Hunt: (a) what if `pre-backup.sh` is overwritten by an operator 
 
 ---
 
-## Phase 7 — GlitchTip webhook auto-registration 🟥 DEFERRED — upstream API does not exist
+## Phase 7 — GlitchTip webhook auto-registration 🟡 PARTIAL — (a) deferred (no upstream API); (b)(c)(d) SHIPPED 2026-06-30
 
-**Decision (Pass-2)**: This phase CANNOT ship. Marking as DEFERRED. Operator continues to register the GlitchTip webhook manually in the UI after each new watchdog-enabled deploy.
+**Decision (Pass-2)**: Auto-*registration* (a) CANNOT ship — DEFERRED. Operator registers the GlitchTip webhook manually in the UI after each new watchdog-enabled deploy. **Closing sweep SHIPPED 2026-06-30** (commit on master): (b) operator recipe documented in `docs/operations/deployment.md` → "GlitchTip Webhook Registration"; (c) apply-time `ACTION REQUIRED` reminder for every `error_webhook` spec via `glitchtip.webhook_registration_reminder` wired into `cli.py` reconcile-all (`src/fabrik/drivers/glitchtip.py` `webhook_registration_reminder`); (d) payload-shape contract test `tests/test_watchdog_ingest_payload.py` pinning the captured fixture (the real `:8889` parser lives in the fabrik-lib watchdog sidecar, not `drivers/watchdog.py` — the original item-3 grounding was slightly off). Tests: 5 green across `test_apply_emits_glitchtip_webhook_reminder.py` + `test_watchdog_ingest_payload.py`. Only **7a** remains a true DEFERRED leaf.
 
 ### Decisive Pass-2 evidence
 
