@@ -128,14 +128,22 @@ def webhook_registration_reminder(spec: Any) -> str | None:
     'GlitchTip Webhook Registration'. No new env vars — reuses
     ``GLITCHTIP_ORG_SLUG``/``GLITCHTIP_URL`` (same defaults the driver uses)."""
     wd = getattr(spec, "watchdog", None)
-    if "error_webhook" not in (getattr(wd, "trigger_sources", None) or []):
+    sources = getattr(wd, "trigger_sources", None)
+    sid = getattr(spec, "id", None)
+    # Total + exact-match by design: only a real sequence containing the exact
+    # token opts in. A None/str/garbage value (or a spec with no id) returns
+    # None — never raises, never substring-matches. This public helper runs
+    # inside `fabrik apply`'s reconcile loop and must never break a deploy or
+    # mis-fire. (The Spec model validates trigger_sources as list[str] and
+    # rejects scalars, so this only guards hand-built / duck-typed callers.)
+    if not sid or not isinstance(sources, list | tuple | set) or "error_webhook" not in sources:
         return None
     org = os.getenv("GLITCHTIP_ORG_SLUG", "ocoron")
     base = os.getenv("GLITCHTIP_URL", GLITCHTIP_URL).rstrip("/")
-    project_url = f"{base}/{org}/{spec.id}/"
-    ingest_url = f"http://{spec.id}-watchdog:8889/"
+    project_url = f"{base}/{org}/{sid}/"
+    ingest_url = f"http://{sid}-watchdog:8889/"
     return (
-        f"ACTION REQUIRED: register GlitchTip webhook for {spec.id} — open "
+        f"ACTION REQUIRED: register GlitchTip webhook for {sid} — open "
         f"{project_url} → Alerts → Create → trigger 'a new issue "
         f"is created' → recipient type: webhook → URL: {ingest_url} "
         f"(no API to automate; see docs/operations/deployment.md)"

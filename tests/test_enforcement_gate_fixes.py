@@ -54,6 +54,24 @@ def test_check_env_vars_main_allows_getenv_default(tmp_path, monkeypatch):
     assert check_env_vars.main() == 0, "os.getenv default is allowlisted — must pass"
 
 
+def test_check_env_vars_allows_getenv_scheme_prefixed_localhost_default(tmp_path, monkeypatch):
+    # Regression: os.getenv("LOKI_URL", "http://localhost:3100") is the sanctioned
+    # pattern too (a scheme-prefixed localhost DEFAULT), not just bare "localhost".
+    ok = tmp_path / "loki.py"
+    ok.write_text('LOKI = os.getenv("LOKI_URL", "http://localhost:3100")\n')
+    monkeypatch.setattr(check_env_vars, "_changed_files", lambda: [str(ok)])
+    assert check_env_vars.main() == 0, "os.getenv http://localhost default must pass"
+
+
+def test_check_env_vars_still_fails_literal_http_localhost(tmp_path, monkeypatch):
+    # The allowlist must NOT have over-broadened: a literal http://localhost URL
+    # outside os.getenv is still a hard-fail.
+    leak = tmp_path / "client.py"
+    leak.write_text('BASE = "http://localhost:3100"\n')
+    monkeypatch.setattr(check_env_vars, "_changed_files", lambda: [str(leak)])
+    assert check_env_vars.main() == 1, "literal http://localhost must still FAIL"
+
+
 # --- #5 check_doc_sync changelog quality ------------------------------------
 def test_changelog_quality_rejects_fenced_only_entry(tmp_path, monkeypatch):
     # A `### …` that exists ONLY inside a ``` fence ``` (a template) is not real.

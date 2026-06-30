@@ -349,6 +349,23 @@ def plan(spec_path: str, secrets: tuple):
     click.echo("=" * 60)
 
 
+def _emit_glitchtip_webhook_reminder(spec_path: str) -> None:
+    """Phase 7 (deploy-readiness-gaps): after a successful ``fabrik apply`` of a
+    watchdog ``error_webhook`` spec, print the one-time operator-manual GlitchTip
+    webhook step — GlitchTip exposes no API to register the recipient, so this is
+    the only signal the operator gets. Best-effort + TOTAL: any load error is
+    swallowed so a reminder can never break a deploy that already completed."""
+    from fabrik.drivers.glitchtip import webhook_registration_reminder
+
+    try:
+        rem = webhook_registration_reminder(load_spec(str(spec_path)))
+    except Exception:  # noqa: BLE001 — a reminder must not break a completed deploy
+        return
+    if rem:
+        click.echo()
+        click.echo(rem)
+
+
 @cli.command()
 @click.argument("spec_path", type=click.Path(exists=True), required=False)
 @click.option("--secrets", "-s", multiple=True, help="Secret in KEY=VALUE format")
@@ -489,6 +506,7 @@ def apply(
 
         if ctx.state == DeploymentState.COMPLETE:
             click.echo(f"✅ Deployment complete: {ctx.deployed_url or ctx.spec.get('domain')}")
+            _emit_glitchtip_webhook_reminder(spec_path)
             _post_deploy_sync()
             raise SystemExit(0)
         elif ctx.state == DeploymentState.ROLLED_BACK:
