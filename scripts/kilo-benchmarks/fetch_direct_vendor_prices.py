@@ -107,14 +107,22 @@ VENDOR_FAILURES_PATH = SCRIPT_DIR / "cache" / "vendor_failures.json"
 def _read_vendor_failures(path: Path = VENDOR_FAILURES_PATH) -> dict[str, int]:
     """Read the persisted {vendor: consecutive_failures} map.
 
-    Defensive: missing file or malformed JSON → return empty dict so the
-    counter starts fresh after a manual cache clear.
+    Defensive: missing file, malformed JSON, OR a non-dict payload (e.g.
+    `null` or `[...]` from a previous corrupted write) → return empty dict
+    so the counter starts fresh. Phase 4 convergence-pass finding NF2:
+    pre-fix returned the literal `None` / list, causing downstream code
+    that does `.get(vendor)` to crash.
     """
     try:
         import json
 
-        return json.loads(path.read_text())
-    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        result = json.loads(path.read_text())
+        if not isinstance(result, dict):
+            return {}
+        # Defense-in-depth: ensure all values are ints (a bad write could
+        # have left strings or floats; treat as start-fresh).
+        return {k: int(v) for k, v in result.items() if isinstance(v, (int, float))}
+    except (FileNotFoundError, json.JSONDecodeError, OSError, ValueError, TypeError):
         return {}
 
 
@@ -315,13 +323,18 @@ def _classify_diff(pct: float | None) -> tuple[bool, bool, str]:
 # A parsed value outside the band is almost certainly a parse bug. The bounds
 # are loose enough that legitimate vendor price changes (even a 10x repricing)
 # fit, but tight enough to catch off-by-1000/1e6 errors.
+# Phase 4 convergence-pass finding (NF1): the initial bounds were anchored to
+# 2025-era prices but the live catalog already has google/veo-3=750000,
+# google/veo-2=500000, heygen/video=300000, runway/gen-4=120000 — all
+# exceeding the original video-sec ceiling. Widened bounds 2-10x so legit
+# frontier-model prices fit. Still tight enough to catch off-by-1000/1e6.
 _MAGNITUDE_BOUNDS: dict[str, tuple[float, float]] = {
-    "M-tokens": (0.001, 2000.0),
-    "M-chars": (0.01, 1000.0),
-    "audio-min": (0.001, 10000.0),
-    "image": (0.0, 200000.0),
-    "page": (0.001, 5000.0),
-    "video-sec": (0.001, 100000.0),
+    "M-tokens": (0.001, 5000.0),  # was 2000 — opus/fable headroom
+    "M-chars": (0.01, 2000.0),  # was 1000 — TTS premium tier headroom
+    "audio-min": (0.001, 50000.0),  # was 10000 — frontier audio gen headroom
+    "image": (0.0, 500000.0),  # was 200000 — covers 80000 + headroom
+    "page": (0.001, 10000.0),  # was 5000 — OCR premium headroom
+    "video-sec": (0.001, 2000000.0),  # was 100000 — covers veo-3 @ 750000 + 2x headroom
     "alert": (0.0, 1e9),  # subscription_monitor alert row — bounds-irrelevant
 }
 

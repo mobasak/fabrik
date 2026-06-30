@@ -1088,3 +1088,60 @@ def test_M6_cartesia_sonic_regex_requires_version() -> None:
     assert _SONIC_RE.search("Sonic only") is None   # bare — rejected
     assert _SONIC_RE.search("Sonic-4") is None      # unknown version — rejected
     assert _SONIC_RE.search("supersonic") is None   # word boundary respected
+
+
+# ============================================================
+# Phase 4 convergence-pass regressions:
+# NF1: original _MAGNITUDE_BOUNDS were tighter than the live catalog
+# NF2: _read_vendor_failures returned non-dict types from corrupt files
+# ============================================================
+
+def test_NF1_magnitude_bounds_accept_live_catalog_prices() -> None:
+    """REGRESSION (NF1): every price currently in the live catalog MUST
+    pass _magnitude_check. Pre-fix bounds were too tight: google/veo-3
+    at 750000/video-sec exceeded the 100000 ceiling, magnitude_check
+    would REFUSE legit writes."""
+    import sys, sqlite3 as sq
+    sys.path.insert(0, str(REPO_ROOT / "scripts" / "kilo-benchmarks"))
+    import fetch_direct_vendor_prices as m
+
+    db_path = REPO_ROOT / "scripts" / "kilo-benchmarks" / "kilo_agents.db"
+    if not db_path.exists():
+        import pytest
+        pytest.skip("real kilo_agents.db not present")
+    conn = sq.connect(db_path)
+    rows = conn.execute(
+        "SELECT id, input_cost_per_m, pricing_unit FROM agents "
+        "WHERE pricing_unit IN ('M-tokens','M-chars','audio-min','image','page','video-sec') "
+        "AND input_cost_per_m > 0 AND status='active'"
+    ).fetchall()
+    conn.close()
+    rejected = []
+    for id_, price, unit in rows:
+        block, reason = m._magnitude_check(price, unit)
+        if block:
+            rejected.append(f"  {id_}: {price}/{unit} — {reason}")
+    assert not rejected, "NF1 regression: bounds reject live catalog prices:\n" + "\n".join(rejected[:10])
+
+
+def test_NF2_read_vendor_failures_rejects_non_dict(tmp_path):
+    """REGRESSION (NF2): if the persisted JSON contains `null`, a list,
+    or values that aren't integers, return {} rather than the literal
+    payload. Pre-fix, downstream code crashed on `.get()` over non-dict."""
+    import sys
+    sys.path.insert(0, str(REPO_ROOT / "scripts" / "kilo-benchmarks"))
+    import fetch_direct_vendor_prices as m
+
+    for bad in ["null", '["not a dict"]', '"string"', "42", "{invalid", '{"v":"str"}']:
+        p = tmp_path / "bad.json"
+        p.write_text(bad)
+        result = m._read_vendor_failures(p)
+        assert isinstance(result, dict), f"NF2 regression: {bad!r} → {result!r} (not dict)"
+        # Values must be ints when present
+        for v in result.values():
+            assert isinstance(v, int), f"NF2 regression: non-int value passed through: {v!r}"
+
+    # Sanity: valid payload survives
+    p = tmp_path / "ok.json"
+    p.write_text('{"foo": 3, "bar": 1}')
+    assert m._read_vendor_failures(p) == {"foo": 3, "bar": 1}

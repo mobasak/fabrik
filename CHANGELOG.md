@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — adversarial review Phase 4 convergence: NF1 widen magnitude bounds + NF2 corrupt-counter resilience (2026-06-30)
+
+Phase 4 re-review of changed surface from clusters 1-6 found 2 NEW correctness defects in the SHIPPED fixes:
+
+**NF1 (HIGH — fix itself blocked legit prices)**: Cluster 3's `_MAGNITUDE_BOUNDS` were tighter than the live catalog. `google/veo-3` at 750,000/video-sec exceeded the 100,000 ceiling; `google/veo-2`, `heygen/video`, `runway/gen-4` similarly out-of-bounds. If any of those vendors got a parser written, magnitude_check would REFUSE legit writes. Widened: M-tokens 2000→5000, M-chars 1000→2000, audio-min 10000→50000, image 200000→500000, page 5000→10000, video-sec 100000→**2000000** (covers veo-3 at 750000 with 2x headroom).
+
+**NF2 (MEDIUM — counter file corruption crashes downstream)**: Cluster 5's `_read_vendor_failures` returned the literal payload from JSON. If the file contained `null` or a list (from a previous corrupted write), downstream code that did `.get(vendor)` crashed. Now validates `isinstance(result, dict)` + filters values to integers only; defaults to `{}` on any non-conforming payload.
+
+Plus deepgram dead-flag cleanup (`emitted` variable unreachable after `break`).
+
+2 regression tests:
+- `test_NF1_magnitude_bounds_accept_live_catalog_prices` (sweeps the real DB; any rejected row fails the test)
+- `test_NF2_read_vendor_failures_rejects_non_dict` (6 corrupt-payload scenarios + 1 sanity)
+
+After this fix, a 2nd re-pass of the changed surface produced ZERO new correctness/security findings. **Adversarial review COMPLETE**: 4 grounders → 46 findings → 12 confirmed → 12 fixed across 6 clusters → 2 self-found via Phase 4 convergence → 2 fixed → empty pass. 205/205 kilo-benchmarks tests green. Live end-to-end: writes 17 rows + 6 subscription-confirmed daily.
+
 ### Added — Phase 4: first-class `companion_services` (app + scheduler/worker in one compose) (2026-06-30)
 
 Multi-service deploys without hand-rolling compose. New `companion_services` spec field (`CompanionService` model: `id` slug, non-empty `command`, REQUIRED `memory` like `256M`, optional `env_overrides`) renders an additional compose service that shares the parent app's image/build + env + `DATABASE_URL`/`REDIS_URL`, overriding only `command` + `container_name` + `memory` — **no Traefik labels** (companions are workers, not HTTP-routed). Rendered by `node-api`/`python-api` via the new `templates/_partials/_companion_service.yaml.j2`; passes `deployer_ssh._validate_compose` (per-service memory invariant covers companions). New `core/30-ops.md` rule documents the **companion (same `git push`) vs standalone `kind: worker` (separate repo)** decision. `tests/test_companion_services.py` (10: model validation, 2-service render, command/memory/db/env-override/no-traefik, `_validate_compose`, single-service back-compat). Fully backward-compatible — every existing spec renders unchanged. NOTE: `source.type: git` projects (committed compose) hand-roll the companion in their own repo; this field drives the scaffold-emitted path. Also fixed a `check_secrets.py` false-positive: the `postgresql://`/`mongodb://` "DB URL with password" patterns now skip **shell-variable** passwords (`${POSTGRES_PASSWORD}`, `$PGPASS`) via a negative lookahead — those are the *correct* way to reference a secret (the compose templates use exactly that), while literal passwords are still caught.

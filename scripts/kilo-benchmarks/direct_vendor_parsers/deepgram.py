@@ -85,7 +85,6 @@ def extract(payload: str, source_url: str) -> list[ParsedRow]:
         # first price tightly adjacent. Tighter than the original 4 KB.
         # Adversarial review C4: this prevents Enhanced's $0.99/hour from
         # being assigned to nova-2 when they're > 600 chars apart.
-        emitted = False
         for anchor_pos in all_positions:
             window = payload[anchor_pos : anchor_pos + _MAX_PRICE_WINDOW_BYTES]
             price_match = _PRICE_RE.search(window)
@@ -131,11 +130,9 @@ def extract(payload: str, source_url: str) -> list[ParsedRow]:
                     source_url=source_url,
                 )
             )
-            emitted = True
-            break  # one row per slug
-        if not emitted:
-            # No tightly-anchored price found for this slug. Better to be
-            # silent than wrong — operator audit will show 0 writes for this
-            # vendor, prompting investigation, vs. a wrong price written.
-            continue
+            break  # one row per slug — first tightly-scoped match wins
+        # If no tightly-anchored price found for this slug across all anchor
+        # occurrences, fall through to the next slug. Better to silently
+        # skip than write a wrong price — operator audit will show 0 writes
+        # for this vendor, prompting investigation.
     return rows
