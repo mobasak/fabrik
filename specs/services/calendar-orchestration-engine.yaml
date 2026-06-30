@@ -13,6 +13,10 @@ shape:
   is_public: true
   is_admin_dashboard: true    # admin-ui behind Authelia (src/metrics.ts:47 notes /metrics+/health are Authelia resource-bypassed → domain is forward-auth'd)
   has_bearer_api: true        # API_KEYS + Authorization: Bearer
+  # Bearer auth is mounted ONLY on /api/v1. Legacy /api/* are unauthenticated
+  # destructive admin routes that MUST stay behind Authelia 2FA — so narrow the
+  # bypass to ^/api/v1 (the default ^/api/ would expose them publicly).
+  bearer_bypass_prefix: "^/api/v1"
   needs_database: true        # postgres `calendar` (PG_* / DATABASE_URL) — was missing → DB never created
   needs_cache: false
   has_persistent_data: false  # compose declares no volumes

@@ -167,7 +167,7 @@ class DeploymentVerifier:
         will catch real success cases).
         """
         import shutil
-        import subprocess
+        import subprocess  # nosec B404 — used only for `dig` DNS probes below (fixed argv, no shell)
         import time
 
         if not shutil.which("dig"):
@@ -178,7 +178,8 @@ class DeploymentVerifier:
         parts = domain.split(".")
         zone = ".".join(parts[-2:]) if len(parts) >= 2 else domain
         try:
-            ns_result = subprocess.run(
+            # `dig` with a fixed argv — no shell, no untrusted input (B603/B607).
+            ns_result = subprocess.run(  # nosec
                 ["dig", "+short", "NS", zone, "@1.1.1.1"],
                 capture_output=True,
                 text=True,
@@ -199,7 +200,8 @@ class DeploymentVerifier:
         while time.time() - start < max_wait:
             attempt += 1
             try:
-                r = subprocess.run(
+                # `dig` with a fixed argv — no shell, no untrusted input (B603/B607).
+                r = subprocess.run(  # nosec
                     ["dig", "+short", "+time=3", "+tries=1", "A", domain, f"@{auth_ns}"],
                     capture_output=True,
                     text=True,

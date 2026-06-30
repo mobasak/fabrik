@@ -637,10 +637,16 @@ class InfrastructureProvisioner:
                 return
 
             if shape.get("has_bearer_api", False):
+                # Bypass ONLY the authenticated API prefix. Default ^/api/, but a
+                # service whose bearer auth covers a SUB-prefix (e.g. /api/v1) while
+                # OTHER /api/* routes are unauthenticated MUST narrow this via
+                # shape.bearer_bypass_prefix — otherwise the broad ^/api/ bypass
+                # exposes those routes publicly (un-2FA'd). See core/35-security-auth.
+                bypass_prefix = shape.get("bearer_bypass_prefix") or "^/api/"
                 add_access_rule(
                     domain,
                     policy="bypass",
-                    resources=["^/api/"],
+                    resources=[bypass_prefix],
                     insert_before_twofactor=True,
                     dry_run=dry_run,
                 )

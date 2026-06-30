@@ -274,6 +274,17 @@ class Shape(BaseModel):
             "authentication flows intact."
         ),
     )
+    bearer_bypass_prefix: str | None = Field(
+        default=None,
+        pattern=r"^\^/",
+        description=(
+            "Authelia bypass path-regex for has_bearer_api services. Defaults to "
+            "'^/api/' when unset. NARROW it (e.g. '^/api/v1') when bearer auth covers "
+            "only a sub-prefix and OTHER /api/* routes are unauthenticated and must "
+            "stay behind 2FA — a broad '^/api/' bypass would expose those routes "
+            "publicly. Must start with '^/'."
+        ),
+    )
     has_persistent_data: bool = Field(
         default=False,
         description=(

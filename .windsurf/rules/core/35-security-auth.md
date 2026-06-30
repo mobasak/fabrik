@@ -230,6 +230,7 @@ Escalate mission-critical auth mail (reset, receipts) to **Postmark** only on me
 | `service_role` key exposed to client | Server-side only, via env var |
 | `auth.uid()` / `current_tenant_id()` that raises or defaults on unset/invalid claims | `EXCEPTION WHEN OTHERS THEN RETURN NULL` (fail-closed deny) |
 | Rewriting existing `auth.uid()` RLS policies when leaving Supabase Auth | Pattern A-compat — own `auth.*` + the `request.jwt.claims` GUC; policies stay unchanged |
+| Broad `^/api/` Authelia bypass when only a sub-prefix is authenticated | `shape.bearer_bypass_prefix: "^/api/v1"` — bypass only the path the app authenticates |
 
 ---
 
@@ -252,6 +253,7 @@ Escalate mission-critical auth mail (reset, receipts) to **Postmark** only on me
 - [ ] Pattern B: Supabase Auth configured; FastAPI validates Supabase JWTs via JWKS; RLS enabled on tenant-scoped tables.
 - [ ] Pattern A-compat: `auth` schema owned natively (`auth.users` + `auth.uid()/jwt()/role()` + `anon`/`authenticated`/`service_role`); app sets `role` + `request.jwt.claims` GUCs per transaction; token lifecycle stays Pattern A.
 - [ ] Fail-closed verified: `auth.uid()` / `current_tenant_id()` return `NULL` on unset/invalid context (no-context probe → helper `NULL`, scoped read denies).
+- [ ] Bearer bypass scoped: `shape.bearer_bypass_prefix` narrows the Authelia bypass to the actually-authenticated API prefix — no unauthenticated `/api/*` route left public by a default `^/api/` bypass.
 - [ ] Web login uses HttpOnly + Secure + SameSite=Lax cookie (Pattern A) or Supabase SSR cookie strategy (Pattern B).
 - [ ] Mobile tokens stored in `expo-secure-store` — never AsyncStorage or MMKV.
 - [ ] All Next.js Server Actions and data-fetching Server Components call `verifySession()`.
@@ -266,4 +268,6 @@ Escalate mission-critical auth mail (reset, receipts) to **Postmark** only on me
 
 ## Spec Contract — Auth Registrars
 
-Public services with admin UI behind 2FA: set `shape.is_admin_dashboard: true` — the Authelia registrar will add a per-domain rule on `fabrik apply`. API services with bearer auth on `/api/*`: set `shape.has_bearer_api: true`. Don't add Traefik `authelia-forward` middlewares manually — the scaffolder + registrars emit them.
+Public services with admin UI behind 2FA: set `shape.is_admin_dashboard: true` — the Authelia registrar adds a per-domain `two_factor` rule on `fabrik apply`. API services with bearer auth: set `shape.has_bearer_api: true` — the registrar inserts an Authelia **bypass** rule *before* the `two_factor` catch-all so machine/bearer callers aren't hit with interactive 2FA. Don't add Traefik `authelia-forward` middlewares manually — the scaffolder + registrars emit them.
+
+> **⚠️ Bearer bypass scope — security-critical.** The bypass defaults to `^/api/`, which makes the **entire** `/api/*` surface public (un-2FA'd). If the application authenticates only a **sub-prefix** (e.g. `/api/v1` carries the bearer/internal-token check) while OTHER `/api/*` routes are unauthenticated (legacy / admin / destructive), you **MUST** narrow the bypass with `shape.bearer_bypass_prefix: "^/api/v1"` — otherwise `fabrik apply` exposes those routes to the public internet. **Bypass ONLY the path the app itself authenticates.** Value must start with `^/`; the verifier (`orchestrator/verifier.check_api_bypass`) probes the configured prefix on deploy. When unsure whether a service has un-auth'd `/api/*` routes, ask the app owner before relying on the `^/api/` default.
