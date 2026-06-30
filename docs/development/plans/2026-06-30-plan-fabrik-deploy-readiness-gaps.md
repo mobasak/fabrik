@@ -1,6 +1,6 @@
 # Plan: Fabrik Deploy-Readiness Gaps (8 fixes blocking calendar-orchestration-engine + every future service)
 
-**Status**: CONVERGED v5 (awaiting owner approval before any commits) — **8 grounding passes + 2 external-review correction rounds** (8 parallel + 3 parallel + 6 solo + 2 external-AI critiques applied); Phase 1 split into 1a + 1b-shape + 1b-depends (the depends edit is INERT without 1a, so they ship together); 1 phase DEFERRED (no upstream API), 1 phase unblocked via VPS probe, 6 phases shippable, Phase 1a re-classified as registrar refactor (not one-liner).
+**Status**: SHIPPED (phases 1-6,8 done; 7 deferred; 2026-06-30)
 **Owner**: ozgur · **Author**: Claude (Opus 4.7)
 **Created**: 2026-06-30 · **Converged**: 2026-06-30
 **Context-trigger**: external-AI audit of calendar-orchestration-engine deploy readiness exposed 8 fabrik-side gaps. Owner: "these are not acceptable. create a plan to address all these in fabrik."
