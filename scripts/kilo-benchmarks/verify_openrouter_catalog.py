@@ -304,6 +304,91 @@ def _kilo_pricing(record: dict) -> tuple[float, float]:
     return inp, outp
 
 
+def _kilo_caching(record: dict) -> tuple[float | None, float | None]:
+    """Kilo's `cost.cache` block — same scale as `cost.input` (already
+    USD per million). Returns (read, write) as floats, or (None, None)
+    if the block is absent.
+
+    Kilo-cli parity with OR's `pricing.input_cache_read`/`input_cache_write`
+    extraction added 2026-07-01.
+    """
+    cost = record.get("cost", {}) or {}
+    cache = cost.get("cache") or {}
+    if not isinstance(cache, dict):
+        return None, None
+
+    def _f(key: str) -> float | None:
+        v = cache.get(key)
+        if v is None:
+            return None
+        try:
+            return float(v)
+        except (TypeError, ValueError):
+            return None
+
+    return _f("read"), _f("write")
+
+
+def _kilo_caps(record: dict) -> dict[str, int]:
+    """Pull capability flags from Kilo CLI's `capabilities` block.
+
+    Map keys to the DB schema's column names: has_vision (image input),
+    has_tools (toolcall), has_reasoning (reasoning bool). This is the
+    Kilo-CLI parallel to _live_caps() — for Kilo-only rows it's our only
+    source for these flags.
+    """
+    caps = record.get("capabilities") or {}
+    inp = caps.get("input") or {}
+    has_vision = 1 if (inp.get("image") if isinstance(inp, dict) else False) else 0
+    has_tools = 1 if caps.get("toolcall") else 0
+    has_reasoning = 1 if caps.get("reasoning") else 0
+    return {
+        "has_vision": has_vision,
+        "has_tools": has_tools,
+        "has_reasoning": has_reasoning,
+    }
+
+
+def _kilo_limits(record: dict) -> tuple[int | None, int | None]:
+    """Pull (context_length_in_tokens, max_completion_tokens) from Kilo's
+    `limit` block. Numeric, no division — Kilo gives raw token counts."""
+    lim = record.get("limit") or {}
+    ctx = lim.get("context")
+    out = lim.get("output")
+    try:
+        ctx = int(ctx) if ctx is not None else None
+    except (TypeError, ValueError):
+        ctx = None
+    try:
+        out = int(out) if out is not None else None
+    except (TypeError, ValueError):
+        out = None
+    return ctx, out
+
+
+def _kilo_reasoning_efforts(record: dict) -> str | None:
+    """Kilo's `variants` block is a dict of effort-level keys → variant info.
+    The KEYS are the reasoning effort levels (e.g. ["none", "minimal",
+    "low", "medium", "high", "xhigh"]). Returns a JSON array string or None
+    if the block is empty / not present.
+    """
+    v = record.get("variants")
+    if not isinstance(v, dict) or not v:
+        return None
+    keys = sorted(v.keys())
+    if not keys:
+        return None
+    return json.dumps(keys)
+
+
+def _kilo_provider_id(record: dict) -> str | None:
+    """Kilo CLI's `providerID` ('kilo' for the native gateway, 'openrouter'
+    when Kilo is just proxying OR). For models that appear twice in
+    `kilo models --verbose` (one per providerID), the parser keeps one;
+    this helper lets the caller see which provider variant won."""
+    return (record.get("providerID") or "").strip() or None
+
+
 def _approx_eq(a, b, tol=0.005) -> bool:
     """Compare floats with small tolerance — OpenRouter occasionally
     returns prices like '5.999999...e-06' so exact equality is fragile."""
@@ -815,23 +900,80 @@ def apply_fixes(report: dict, db_path: Path = DB_PATH) -> dict:
             )
             counts["kilo_sourced_tagged"] = len(kilo_sourced)
 
-        # Push Kilo CLI descriptions onto Kilo-only rows whose
-        # description column is empty (OpenRouter never describes
-        # them so they'd otherwise stay NULL forever).
+        # Kilo CLI richer extraction (Phase 3, 2026-07-01): per-row pull
+        # of the same column set we extract from OR. For ROWS REACHABLE
+        # VIA OR (via_openrouter=1), the OR-side data wrote first and
+        # we DON'T overwrite it (OR is authoritative for dual-routed).
+        # For KILO-ONLY rows, this pass is the only source for these
+        # fields. Plus Kilo-specific columns (kilo_provider_id,
+        # kilo_release_date, kilo_family, kilo_cache_read/write) that
+        # OR doesn't expose.
         kilo_descs_written = 0
+        kilo_richer_rows = 0
         kilo_raw = _fetch_kilo()
         for mid, rec in kilo_raw.items():
+            # Description: only fill if OR didn't.
             desc = _kilo_description(rec)
-            if not desc:
-                continue
+            if desc:
+                cur = conn.execute(
+                    "UPDATE agents SET description = ? "
+                    "WHERE id = ? AND (description IS NULL OR description = '')",
+                    (desc, mid),
+                )
+                if cur.rowcount:
+                    kilo_descs_written += cur.rowcount
+
+            # Kilo-side richer fields
+            k_caps = _kilo_caps(rec)
+            k_ctx, k_max_out = _kilo_limits(rec)
+            k_efforts = _kilo_reasoning_efforts(rec)
+            k_cache_r, k_cache_w = _kilo_caching(rec)
+            k_provider = _kilo_provider_id(rec)
+            k_release = (rec.get("release_date") or "").strip() or None
+            k_family = (rec.get("family") or "").strip() or None
+
+            # Kilo-only columns: always write (Kilo is authoritative for them)
+            conn.execute(
+                "UPDATE agents SET "
+                "kilo_cache_read_cost_per_m = ?, "
+                "kilo_cache_write_cost_per_m = ?, "
+                "kilo_provider_id = ?, "
+                "kilo_release_date = ?, "
+                "kilo_family = ? "
+                "WHERE id = ?",
+                (k_cache_r, k_cache_w, k_provider, k_release, k_family, mid),
+            )
+
+            # Shared columns: write ONLY IF currently NULL/0 (don't clobber
+            # OR-authoritative data on dual-routed rows). Caps + limits +
+            # cache pricing fall back to Kilo for Kilo-only rows.
             cur = conn.execute(
-                "UPDATE agents SET description = ? "
-                "WHERE id = ? AND (description IS NULL OR description = '')",
-                (desc, mid),
+                "UPDATE agents SET "
+                "has_vision      = COALESCE(NULLIF(has_vision, 0),      ?), "
+                "has_tools       = COALESCE(NULLIF(has_tools, 0),       ?), "
+                "has_reasoning   = COALESCE(NULLIF(has_reasoning, 0),   ?), "
+                "context_window_k = COALESCE(NULLIF(context_window_k, 0), ?), "
+                "max_completion_tokens = COALESCE(max_completion_tokens, ?), "
+                "cache_read_cost_per_m = COALESCE(cache_read_cost_per_m, ?), "
+                "cache_write_cost_per_m = COALESCE(cache_write_cost_per_m, ?), "
+                "reasoning_supported_efforts = COALESCE(reasoning_supported_efforts, ?) "
+                "WHERE id = ?",
+                (
+                    k_caps["has_vision"],
+                    k_caps["has_tools"],
+                    k_caps["has_reasoning"],
+                    (k_ctx // 1000) if k_ctx else None,
+                    k_max_out,
+                    k_cache_r,
+                    k_cache_w,
+                    k_efforts,
+                    mid,
+                ),
             )
             if cur.rowcount:
-                kilo_descs_written += cur.rowcount
+                kilo_richer_rows += cur.rowcount
         counts["kilo_descriptions_written"] = kilo_descs_written
+        counts["kilo_richer_rows"] = kilo_richer_rows
 
         # Richer OR extraction (2026-07-01): for every live OR row, refresh
         # the 8 new columns the migration added — canonical_slug,

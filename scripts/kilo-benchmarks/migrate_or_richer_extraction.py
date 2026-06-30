@@ -72,6 +72,15 @@ NEW_COLUMNS = (
     ("reasoning_supported_efforts", "reasoning_supported_efforts TEXT"),
     ("max_completion_tokens", "max_completion_tokens INTEGER"),
     ("is_moderated", "is_moderated INTEGER DEFAULT 0"),
+    # Phase 3 (2026-07-01): Kilo-side parity. cache_read/write_cost_per_m
+    # above is shared (OR fills it when via_or=1; Kilo fills it as fallback
+    # when via_or=0 + via_kilo=1). The columns below are Kilo-specific
+    # signals not exposed by OR.
+    ("kilo_cache_read_cost_per_m", "kilo_cache_read_cost_per_m REAL"),
+    ("kilo_cache_write_cost_per_m", "kilo_cache_write_cost_per_m REAL"),
+    ("kilo_provider_id", "kilo_provider_id TEXT"),
+    ("kilo_release_date", "kilo_release_date TEXT"),
+    ("kilo_family", "kilo_family TEXT"),
 )
 
 

@@ -4,6 +4,55 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Phase 3 of "extract all models with all columns": Kilo CLI extraction parity (2026-07-01)
+
+Operator follow-up: "do we extract all available Kilo models and do we extract the same columns from them too?" Audit answers:
+
+**Models**: 608 raw JSON blocks from `kilo models --verbose` → **370 unique IDs** after dedup. The 238-row delta is exactly the same model appearing under two `providerID` values (`kilo` for the native gateway endpoint at `api.kilo.ai`, and `openrouter` for the OR proxy). The parser's `models[m["id"]] = m` dedup is correct behavior.
+
+**Columns**: pre-fix the verifier extracted only 3 Kilo fields (`cost.input`, `cost.output`, `options.description`) out of 13 available. Phase 3 closes the gap.
+
+**New extraction** (Kilo CLI parity with the Phase 1 OR work):
+
+| Kilo field | Maps to | OR equivalent |
+|---|---|---|
+| `cost.cache.read`/`write` | `cache_read_cost_per_m`/`write_cost_per_m` (fallback for Kilo-only rows) + new `kilo_cache_read_cost_per_m`/`write_cost_per_m` (Kilo-authoritative) | `pricing.input_cache_read`/`write` |
+| `capabilities.reasoning` | `has_reasoning` (fallback) | `reasoning.mandatory`+`supported_efforts` |
+| `capabilities.toolcall` | `has_tools` (fallback) | `supported_parameters.tools` |
+| `capabilities.input.image` | `has_vision` (fallback) | `architecture.input_modalities: [image]` |
+| `limit.context` | `context_window_k` (fallback) | `context_length` |
+| `limit.output` | `max_completion_tokens` (fallback) | `top_provider.max_completion_tokens` |
+| `variants` (effort levels dict keys) | `reasoning_supported_efforts` (fallback) | `reasoning.supported_efforts` |
+| `release_date` | `kilo_release_date` (Kilo-only) | (no equivalent — Kilo records when it last "saw" the model) |
+| `family` | `kilo_family` (Kilo-only) | (no equivalent) |
+| `providerID` | `kilo_provider_id` (Kilo-only) | (no equivalent — `kilo` vs `openrouter` proxy) |
+
+**5 new DB columns** (via the existing `migrate_or_richer_extraction.py`, columns added idempotently):
+
+- `kilo_cache_read_cost_per_m`, `kilo_cache_write_cost_per_m` — Kilo-side caching prices (distinct from the shared `cache_read/write_cost_per_m` which now uses OR as authority + Kilo as fallback)
+- `kilo_provider_id` — `'kilo'` (native) vs `'openrouter'` (proxy through OR)
+- `kilo_release_date` — date Kilo last refreshed its record of this model
+- `kilo_family` — Kilo's family categorization (e.g. `claude-haiku`, `gemini-flash`)
+
+**Authority resolution** in `apply_fixes()`:
+- **Kilo-only columns** are written unconditionally (Kilo is sole authority for them).
+- **Shared columns** use `COALESCE(NULLIF(existing, 0), kilo_value)` — preserves OR's value when it's set (OR is authoritative for dual-routed), falls back to Kilo for Kilo-only rows.
+- This pass runs AFTER the OR-side `richer_fields_refreshed` pass so the priority is OR > Kilo for dual-routed rows.
+
+**Live verify** (337 active via_kilo=1 rows after `--apply`):
+
+| Column | Population |
+|---|---|
+| `kilo_provider_id` | 336 / 337 (99.7%) |
+| `kilo_family` | 305 / 337 (90.5%) |
+| `kilo_cache_read_cost_per_m` | 336 / 337 (99.7%) |
+| `kilo_release_date` | 336 / 337 (99.7%) |
+| `has_reasoning` (Kilo-authoritative for via_or=0) | 198 / 337 (59%) — more than the heuristic surfaced |
+
+Sample (`anthropic/claude-haiku-4.5`): kilo_family=`claude-haiku`, kilo_release_date=`2025-10-15`, kilo_cache_read=$0.10/M, has_reasoning=1, context=200k. Same row's OR side stays authoritative for canonical_slug, knowledge_cutoff, etc.
+
+The 3-phase extraction question is now fully answered: **all models from both catalogs, with all available columns from each, with OR-side priority for shared fields and authoritative fallback to Kilo for Kilo-only rows.**
+
 ### Added — discover_hidden_openrouter_routes.py — Phase 2 of "extract all models with all columns" (2026-07-01)
 
 Operator-flagged: "are you sure we can extract all models with all their columns?" Phase 1 (commit `d1f37b02`) added richer per-row extraction. Phase 2 closes the OTHER half — discovering models that aren't in `/api/v1/models` at all.
