@@ -281,12 +281,19 @@ class WebScraper:
         # object"); it renders with its own Chrome UA. Verified live against vps1.
         payload: dict[str, object] = {"url": url}
         if wait_for_selector is not None:
-            payload["waitForSelector"] = {"selector": wait_for_selector, "timeout": 10_000}
+            payload["waitForSelector"] = {
+                "selector": wait_for_selector,
+                "timeout": 10_000,
+            }
         body = json.dumps(payload, sort_keys=True)
         # browserless contract (SPEC §browserless): only 200 is success; anything
         # else is a FetchError — an error page must never be returned as "HTML".
         return self._fetch(
-            url, method="CONTENT", body=body, ignore_cache=ignore_cache, success_only=True
+            url,
+            method="CONTENT",
+            body=body,
+            ignore_cache=ignore_cache,
+            success_only=True,
         )
 
     def _stealth_function_js(self, url: str, wait_for_selector: str | None) -> str:
@@ -354,7 +361,15 @@ class WebScraper:
         # `extract` transforms the response into the value we cache + return (e.g.
         # pulling `.data` out of a browserless /function JSON envelope).
         value = extract(resp) if extract is not None else resp.text
-        if resp.status_code < 400:  # success — cache the returned value
+        # Cache poisoning guard (2026-06-30): a Cloudflare/WAF challenge page
+        # arrives as HTTP 200 with an interstitial body. Without this guard,
+        # the bot-wall HTML gets stored in the on-disk cache and every fetch
+        # for the next ~24h returns the poisoned page — caller escalates to
+        # stealth on every call, paying the tax repeatedly. Better: don't
+        # cache the poisoned page at all, so the next fetch retries from
+        # scratch (and the caller's stealth escalation only runs when actually
+        # needed). Surfaced by the fabrik adversarial review (M5 finding).
+        if resp.status_code < 400 and not is_bot_wall(value):
             self._cache_put(
                 key,
                 url=url,

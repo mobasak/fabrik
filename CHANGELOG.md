@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — vendor-sync web_scrape from fabrik-lib main (M5 fix merged upstream) (2026-06-30)
+
+The M5 finding from the adversarial review (`fabrik-lib/web-scrape` cached Cloudflare bot-wall HTML for 24h, poisoning subsequent `fetch_static()` calls) was fixed upstream in [mobasak/fabrik-lib#8](https://github.com/mobasak/fabrik-lib/pull/8) and merged. Vendored copy at `scripts/kilo-benchmarks/web_scrape/` re-synced from upstream main (commit `9168e6d`).
+
+**What the new code does**: `_fetch()` now gates `_cache_put()` with `not is_bot_wall(value)`. The poisoned response is still returned to the caller (so they can escalate to stealth) but is NOT stored — the next fetch retries from scratch.
+
+**Net behavior change**: vendors that briefly hit a Cloudflare challenge no longer pay the stealth-escalation tax for 24h after a single transient challenge. Live smoke run today (`cartesia,deepgram,anthropic`) all wrote correctly: `parsed=11, wrote=7, refused=0`.
+
+**Incidental drift caught by sync**: the downstream copy had a Python 3.12-only `from datetime import UTC, datetime` idiom that upstream uses the 3.11-compatible `timezone` form. Sync now matches upstream byte-for-byte, restoring `check_synced_unmodified.py` gate compliance. 205/205 kilo-benchmarks tests still green.
+
+Residuals backlog [docs/development/backlog/2026-06-30-kilo-scraper-residuals.md](docs/development/backlog/2026-06-30-kilo-scraper-residuals.md) — M5 marked closed.
+
 ### Fixed — tier-2 gate clean: bandit/mypy/structure (2026-06-30)
 
 Cleared the tier-2 `final_gate.py --json` reds so it runs green (34/0). bandit: `gpu_checkpoint.py` SHA-1 marked `usedforsecurity=False` (it's the Backblaze-B2 integrity header, not crypto) + `pickle.loads` of fabrik-authored checkpoint state given `# nosec B301`; `modal_provider.py` writes to `tempfile.gettempdir()` instead of a hardcoded `/tmp`; the Phase-5 seed-restore VPS staging path in `postgres.py` given `# nosec B108` (per-run unique, matches the `deployer_ssh`/`gatus` convention). mypy: removed a duplicate `result` annotation in `postgres.create_database` (`[no-redef]`). structure: moved `FINAL_REPORT.md` out of the repo root to `docs/reference/`; added the missing `## One-Test Rule` section to the deploy-readiness plan (highest-risk path = Phase-1a rename guard).

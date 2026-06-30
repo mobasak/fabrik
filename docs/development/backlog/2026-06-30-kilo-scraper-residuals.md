@@ -47,11 +47,16 @@ The adversarial review closed 14 confirmed correctness/security defects across 7
 
 **Decision rule**: don't sweep these proactively. If 3+ of them surface in the same week as real incidents, batch them into a 1-hour cleanup commit.
 
-## Fabrik-synced finding (M5) — upstream PR open: [#8](https://github.com/mobasak/fabrik-lib/pull/8) ✅
+## Fabrik-synced finding (M5) — CLOSED ✅
 
-**Status (2026-06-30)**: branch `fix/web-scrape-skip-cache-bot-walls` pushed to `mobasak/fabrik-lib`, commit `9168e6d`, PR #8 open. 24/26 tests green (2 browserless integration smokes skipped without env vars).
+**Final status (2026-06-30)**: [PR #8](https://github.com/mobasak/fabrik-lib/pull/8) merged to `mobasak/fabrik-lib` main. Vendored copy at `scripts/kilo-benchmarks/web_scrape/` re-synced from upstream. Live end-to-end smoke (cartesia + deepgram + anthropic) parsed=11, wrote=7, refused=0 — clean.
 
-**After merge**: vendor sync into `scripts/kilo-benchmarks/web_scrape/` + any other downstream consumer of `fabrik-lib/web-scrape`.
+**Audit trail**:
+- Upstream commit: `9168e6d` (squash-merged)
+- Downstream sync commit: see fabrik master log for the "vendor-sync web_scrape" entry
+- Upstream validation: 15/15 final_gate_fabrik_lib.py checks pass, 24/26 tests (2 browserless integration smokes skipped)
+- Downstream validation: 205/205 kilo-benchmarks tests green post-sync
+- No other downstream consumers of fabrik-lib/web-scrape in the fabrik repo (verified via `find -type d -name web_scrape`)
 
 ---
 
