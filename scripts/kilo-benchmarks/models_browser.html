@@ -120,6 +120,39 @@
     color: var(--accent);
     border-bottom-color: var(--accent);
   }
+  .tab-label {
+    display: inline-block;
+  }
+  .tab-count {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 1px 6px;
+    border-radius: 8px;
+    background: var(--panel2);
+    color: var(--muted);
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0;
+    text-transform: none;
+    min-width: 14px;
+    text-align: center;
+  }
+  .tabs .tab.on .tab-count {
+    background: var(--accent-dim);
+    color: white;
+  }
+  .tabs .tab[data-count-zero="true"] .tab-count {
+    opacity: 0.4;
+  }
+  .filter-indicator {
+    margin-left: 8px;
+    padding: 1px 8px;
+    border-radius: 8px;
+    background: var(--accent-dim);
+    color: white;
+    font-size: 10px;
+    font-weight: 500;
+  }
   .toolbar {
     padding: 8px 14px;
     border-bottom: 1px solid var(--border);
@@ -486,20 +519,21 @@
 
   <main>
     <div class="tabs" id="tabs">
-      <span class="tab on" data-tab="overview" title="High-level columns: cost, context, tier, caps, status, verification">Overview</span>
-      <span class="tab" data-tab="reasoning" title="Reasoning / agentic columns: Arena, TBench, AA Intelligence, context">Reasoning</span>
-      <span class="tab" data-tab="coding" title="Coding columns: Best Code, SWE, SWE-ML, Aider, DA-code">Coding</span>
-      <span class="tab" data-tab="translation" title="Translation chrF++ averages (hover Trans cell for per-language)">Translation</span>
-      <span class="tab" data-tab="transcription" title="Speech-to-text vendors (Soniox, Whisper, Deepgram, AssemblyAI, gpt-4o-transcribe)">Transcription</span>
-      <span class="tab" data-tab="voice" title="Text-to-speech + music/audio gen (Soniox TTS, ElevenLabs, Cartesia, Suno, Udio)">Voice / Audio</span>
-      <span class="tab" data-tab="image" title="Image generation (FLUX, Recraft, Stability, DALL-E, Imagen, Ideogram)">Image gen</span>
-      <span class="tab" data-tab="video" title="Video generation (Runway, Luma, Kling, Pika, Veo, Sora)">Video gen</span>
-      <span class="tab" data-tab="ocr" title="OCR / document parsing (Mistral OCR, Textract, Document AI)">OCR</span>
+      <span class="tab on" data-tab="overview" title="High-level columns: cost, context, tier, caps, status, verification"><span class="tab-label">Overview</span><span class="tab-count" data-tab-count="overview"></span></span>
+      <span class="tab" data-tab="reasoning" title="Reasoning / agentic columns: Arena, TBench, AA Intelligence, context"><span class="tab-label">Reasoning</span><span class="tab-count" data-tab-count="reasoning"></span></span>
+      <span class="tab" data-tab="coding" title="Coding columns: Best Code, SWE, SWE-ML, Aider, DA-code"><span class="tab-label">Coding</span><span class="tab-count" data-tab-count="coding"></span></span>
+      <span class="tab" data-tab="translation" title="Translation chrF++ averages (hover Trans cell for per-language)"><span class="tab-label">Translation</span><span class="tab-count" data-tab-count="translation"></span></span>
+      <span class="tab" data-tab="transcription" title="Speech-to-text vendors (Soniox, Whisper, Deepgram, AssemblyAI, gpt-4o-transcribe)"><span class="tab-label">Transcription</span><span class="tab-count" data-tab-count="transcription"></span></span>
+      <span class="tab" data-tab="voice" title="Text-to-speech + music/audio gen (Soniox TTS, ElevenLabs, Cartesia, Suno, Udio)"><span class="tab-label">Voice / Audio</span><span class="tab-count" data-tab-count="voice"></span></span>
+      <span class="tab" data-tab="image" title="Image generation (FLUX, Recraft, Stability, DALL-E, Imagen, Ideogram)"><span class="tab-label">Image gen</span><span class="tab-count" data-tab-count="image"></span></span>
+      <span class="tab" data-tab="video" title="Video generation (Runway, Luma, Kling, Pika, Veo, Sora)"><span class="tab-label">Video gen</span><span class="tab-count" data-tab-count="video"></span></span>
+      <span class="tab" data-tab="ocr" title="OCR / document parsing (Mistral OCR, Textract, Document AI)"><span class="tab-label">OCR</span><span class="tab-count" data-tab-count="ocr"></span></span>
     </div>
     <div class="toolbar">
       <span class="count" id="count"></span>
+      <span class="filter-indicator" id="filter-indicator" title="Filters from the sidebar persist across tab switches. Click to scroll the sidebar to the top." style="display:none; cursor:pointer; color:var(--accent); font-weight:600;"></span>
       <span style="flex: 1"></span>
-      <span class="count">Click row → details · Click column header → sort best→worst (click again to flip)</span>
+      <span class="count" style="font-size:10px; opacity:0.7" title="Click any row to open the detail drawer. Click any column header to sort by that column (best→worst on first click; click again to flip).">click row → details &middot; click header → sort</span>
     </div>
     <table>
       <thead>
@@ -1037,6 +1071,57 @@ function refresh() {
   const sorted = sortRows(filtered);
 
   document.getElementById("count").innerHTML = `<strong>${filtered.length}</strong> / ${ALL.length} models`;
+
+  // --- Per-tab row counts -------------------------------------------------
+  // Each tab's count = how many rows would survive ALL active filters AND
+  // that tab's service-scoping. Recomputed on every refresh so the badges
+  // stay accurate as the user toggles chips.
+  const _prevActiveTab = activeTab;
+  for (const t of VALID_TABS) {
+    activeTab = t;
+    const n = ALL.filter(filterRow).length;
+    document.querySelectorAll(`.tab-count[data-tab-count="${t}"]`).forEach(el => {
+      el.textContent = n;
+    });
+    const tabEl = document.querySelector(`.tabs .tab[data-tab="${t}"]`);
+    if (tabEl) tabEl.dataset.countZero = n === 0 ? "true" : "false";
+  }
+  activeTab = _prevActiveTab;
+
+  // --- Active-filter indicator -------------------------------------------
+  // Surface non-default filter state so the user doesn't get blindsided by
+  // "why are there only 3 rows on the Image tab?" when they left a tier
+  // chip toggled on the Overview tab.
+  const _defaults = {
+    status: new Set(["active"]),
+    tiers: new Set(["1", "2", "3", "4", "unrated"]),
+  };
+  function _setsEqual(a, b) { if (a.size !== b.size) return false; for (const x of a) if (!b.has(x)) return false; return true; }
+  const activeFilterParts = [];
+  if (state.search) activeFilterParts.push(`search "${state.search}"`);
+  if (state.kind !== "all") activeFilterParts.push(`kind=${state.kind}`);
+  if (state.caps.size) activeFilterParts.push(`${state.caps.size} flag${state.caps.size > 1 ? "s" : ""}`);
+  if (!_setsEqual(state.status, _defaults.status)) activeFilterParts.push("status");
+  if (!_setsEqual(state.tiers, _defaults.tiers)) activeFilterParts.push("tier");
+  if (state.cats.size) activeFilterParts.push("cats");
+  if (state.providers.size) activeFilterParts.push("provider");
+  if (state.fresh.size) activeFilterParts.push("freshness");
+  if (state.sources.size) activeFilterParts.push("routing");
+  if (state.scored.size) activeFilterParts.push("scored-signal");
+  if (state.svctypes.size) activeFilterParts.push("svc-type");
+  if (state.costMin !== null || state.costMax !== null) activeFilterParts.push("cost");
+  if (state.ctxMin !== null || state.ctxMax !== null) activeFilterParts.push("ctx");
+  const fi = document.getElementById("filter-indicator");
+  if (activeFilterParts.length) {
+    fi.style.display = "";
+    fi.textContent = activeFilterParts.length === 1
+      ? `+1 filter (${activeFilterParts[0]})`
+      : `+${activeFilterParts.length} filters`;
+    fi.title = `Active sidebar filters apply on EVERY tab:\n  ${activeFilterParts.join(", ")}\n\nClick to reset all filters (reloads the page).`;
+    fi.onclick = () => { document.getElementById("reset").click(); };
+  } else {
+    fi.style.display = "none";
+  }
 
   const tbody = document.getElementById("tbody");
   tbody.innerHTML = "";
