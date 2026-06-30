@@ -68,11 +68,22 @@ For these, prefer the quarterly-audit helper below over building a parser per ve
 
 1. Add a YAML entry under [scripts/kilo-benchmarks/direct_vendor_pricing_registry.yaml](../../scripts/kilo-benchmarks/direct_vendor_pricing_registry.yaml) with `pricing_url`, `fetch_method` (`static` | `rendered` | `stealth`), and `parser_module: null` (stub).
 2. Verify the URL works by running the dry-run with `--vendors <new_vendor>`; expect "no parser_module (stubbed)" in the audit log.
-3. Write the parser at `scripts/kilo-benchmarks/direct_vendor_parsers/<new_vendor>.py` following the pattern of any existing Phase 1 parser. Export `extract(payload: str, source_url: str) -> list[ParsedRow]`.
+3. Write the parser at `scripts/kilo-benchmarks/direct_vendor_parsers/<new_vendor>.py` following the pattern of any existing Phase 1 parser. Export `extract(payload: str, source_url: str) -> list[ParsedRow]`. **For subscription-only vendors** (no per-call API pricing published — Suno, Udio, HeyGen, ElevenLabs, LlamaIndex, DeepL fall in this bucket today), reuse the shared `direct_vendor_parsers.subscription_monitor` instead of writing a new parser: it scans for per-call patterns daily and emits an ALERT row if the vendor ever flips to per-call API pricing.
 4. Add the `parser_module`, `models`, and `slug_on_page` fields to the registry entry.
 5. Save a fixture at `tests/kilo_benchmarks/fixtures/direct_vendor_parsers/<new_vendor>.html` (curl the page once, trim to relevant chunks if >500KB).
 6. Add tests at `tests/kilo_benchmarks/test_direct_vendor_parsers.py`.
 7. Run the full test suite + the dry-run and verify expected behavior, then commit.
+
+### Confidence check: scripted add-vendor roundtrip
+
+The end-to-end onboarding pipeline (registry edit → orchestrator fetch → audit MD generation → cleanup) is validated by [scripts/kilo-benchmarks/test_add_vendor_roundtrip.sh](../../scripts/kilo-benchmarks/test_add_vendor_roundtrip.sh). Run it before shipping a new-vendor PR to confirm the workflow still works:
+
+```bash
+time bash /opt/fabrik/scripts/kilo-benchmarks/test_add_vendor_roundtrip.sh
+# Expected: "TEST_PASS" in stdout, <15min real time (typically <1s)
+```
+
+The script appends a temporary `roundtrip_test` entry to the registry, dry-runs the orchestrator against Anthropic's docs page (proves the fetch + parser invocation + audit MD generation chain), then restores the registry to its committed state via `git checkout`. No DB writes (apply mode is off). Use this BEFORE committing a new-vendor PR, and as the Phase 5 Gate 3 from the direct-vendor pricing plan.
 
 ## Interpreting the audit output
 
