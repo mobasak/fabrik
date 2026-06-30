@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import json
 import logging
-import subprocess
 from unittest.mock import MagicMock, patch
 
 import pytest

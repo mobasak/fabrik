@@ -11,9 +11,8 @@ Phase 5.
 from __future__ import annotations
 
 import gzip
-import os
 from pathlib import Path
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import patch
 
 import pytest
 
