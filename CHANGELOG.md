@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — verify_openrouter_catalog: bare-vs-prefixed ID dedup (Kilo-only / OR-only chips were silently wrong) (2026-07-01)
+
+Operator-reported: the "Kilo-only" and "OR-only" sidebar chips on `models_browser.html` showed the same model under two different IDs. Specifically `claude-fable-5` (Kilo CLI's bare ID) and `anthropic/claude-fable-5` (OpenRouter's provider-prefixed ID) were two separate DB rows — one Kilo-only, one OR-only — when they're the same underlying model that's routed via BOTH gateways.
+
+Root cause in `verify_openrouter_catalog.py`: when iterating Kilo CLI's catalog to populate `kilo_sourced[mid]`, the verifier used the bare ID as the key. So when Kilo CLI returned `claude-fable-5`, the verifier wrote `via_kilo=1` to a row with `id='claude-fable-5'` — but no such row matched the OpenRouter-listed `anthropic/claude-fable-5`. The result was the bare ID got INSERTED as a new Kilo-only row, while the OR-prefixed row stayed marked OR-only forever. The dual-routed reality of the model was never reflected in either row.
+
+**Fix**:
+1. Build `or_bare_to_full = {strip("provider/"): full_mid for full_mid in live}` map from the live OpenRouter catalog.
+2. When iterating Kilo records: `canonical_id = or_bare_to_full.get(mid, mid)` — route Kilo pricing onto the canonical OR-prefixed ID when one exists.
+3. Add a `catalog_dupes` report listing bare-ID DB rows whose canonical (provider-prefixed) counterpart ALSO exists in DB. Uses `all_db_ids` not `db_rows.keys()` — the bare-ID dups have `via_openrouter=0` after the first dedup-aware run and would be filtered out of the active subset.
+4. In `apply_fixes`: mark `catalog_dupes` rows as `status='deprecated'`. Status (not DELETE) preserves the historical audit trail.
+
+Also updated the `kilo_only` report to exclude IDs that exist as `or_bare_to_full` keys — they aren't really Kilo-only.
+
+**Effect on live data** (one verifier run):
+- `claude-fable-5` (bare): `active, via_or=0, via_kilo=1` → **deprecated, via_or=0, via_kilo=0** (cleaned up)
+- `anthropic/claude-fable-5` (canonical): `active, via_or=1, via_kilo=0` → **active, via_or=1, via_kilo=1** (now correctly dual-routed)
+
+Sidebar chips now report routing exactly as catalog reality is. The "Kilo-only" remaining set (20 rows) is now genuine: date-snapshot versions like `claude-opus-4-1-20250805` that Kilo CLI exposes and OpenRouter doesn't list.
+
+CLI output adds `catalog dupes deprecated: N` after `rows deprecated:` so the operator sees the cleanup volume per run.
+
 ### Changed — Phase 7 review residuals #1/#2: honest-gate `error_webhook` (the `:8889` ingest is unbuilt) (2026-06-30)
 
 Grounding the Phase 7 residual risks revealed the `error_webhook` → `:8889` ingest is **entirely unbuilt** in the fabrik-lib watchdog sidecar: it binds health on 8888, never reads `WATCHDOG_TRIGGER_SOURCES`, has no `:8889` server and no GlitchTip parser — error detection is `docker logs` polling only. So registering a GlitchTip webhook to `:8889` today is a no-op. Best-practice gate-now-build-next: `glitchtip.webhook_registration_reminder` now emits an honest **`NOTE [error_webhook PENDING]`** (watchdog is live via log-polling; do NOT register the webhook yet) instead of a misleading `ACTION REQUIRED`; `docs/operations/deployment.md` carries a PENDING banner; the build is tracked in `docs/development/plans/2026-06-30-plan-watchdog-error-webhook-ingest.md` (ingest server + parser tested against the shared fixture = #1; cross-host fail-closed guard = #2). Residuals #3 (live `fabrik apply --dry-run` confirmed the note end-to-end) and #4 (registrar-count tests) already closed.

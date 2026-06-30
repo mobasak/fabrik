@@ -332,15 +332,37 @@ def verify(db_path: Path = DB_PATH) -> dict:
     # the db_rows / all_db_ids block above. Using db_rows here would re-fail
     # with UNIQUE constraint in ingest_new() for any row that exists in DB
     # with status='deprecated' or via_openrouter=0 but is still listed live.
+    # Bare-vs-prefixed ID normalization (catalog dedup, 2026-06-30 fix).
+    # Kilo CLI returns bare model IDs ("claude-fable-5") while OpenRouter
+    # returns provider-prefixed IDs ("anthropic/claude-fable-5"). Pre-fix,
+    # the verifier treated these as DIFFERENT models and the same underlying
+    # route ended up as TWO rows in the DB — one Kilo-only, one OR-only —
+    # which broke the "Kilo only" / "OR only" sidebar chips in
+    # models_browser.html (a model present on BOTH gateways was shown as
+    # exclusive to each). Fixed by building a bare→full map from the live
+    # OpenRouter catalog and rerouting Kilo bare hits onto the canonical
+    # prefixed ID.
+    or_bare_to_full = {mid.split("/", 1)[1]: mid for mid in live if "/" in mid}
+
     live_only = [mid for mid in live if mid not in all_db_ids]
-    kilo_only = [mid for mid in kilo if mid not in all_db_ids and mid not in live]
+    # kilo_only after dedup: Kilo CLI ID is "really" Kilo-only only if it's
+    # not present in OR as bare OR as prefixed.
+    kilo_only = [
+        mid
+        for mid in kilo
+        if mid not in all_db_ids and mid not in live and mid not in or_bare_to_full
+    ]
 
     # Build per-id Kilo Gateway pricing so apply_fixes can populate
     # `kilo_input_cost_per_m` / `kilo_output_cost_per_m` / `via_kilo`.
+    # When a Kilo bare ID has a matching OR prefixed ID, route the Kilo
+    # pricing onto the CANONICAL (prefixed) row so the UI sees one
+    # dual-routed model, not two split-only rows.
     kilo_sourced: dict[str, dict] = {}
     for mid, rec in kilo.items():
         k_in, k_out = _kilo_pricing(rec)
-        kilo_sourced[mid] = {"input": k_in, "output": k_out}
+        canonical_id = or_bare_to_full.get(mid, mid)
+        kilo_sourced[canonical_id] = {"input": k_in, "output": k_out}
 
     # Recompute delisted: a row is truly delisted only if NEITHER the
     # OpenRouter nor the Kilo CLI catalog returns it AND the DB row is
@@ -354,6 +376,23 @@ def verify(db_path: Path = DB_PATH) -> dict:
     }
     truly_delisted = [mid for mid in delisted if mid not in kilo and mid not in direct_routed]
     delisted_or_only = [mid for mid in delisted if mid in kilo]
+
+    # Catalog-dedup duplicates: bare-ID DB rows whose canonical
+    # (provider-prefixed) form ALSO exists in DB. Pre-fix every nightly
+    # run created these whenever Kilo CLI returned a bare ID for a model
+    # OpenRouter publishes under a prefix. The kilo_sourced normalization
+    # above prevents NEW dups from being created, but it doesn't remove
+    # the historical ones. apply_fixes will mark these rows as
+    # status='deprecated' so the UI's chips show one row per model
+    # rather than two split-only siblings.
+    #
+    # Use `all_db_ids` (the broader set including deprecated + via_openrouter=0
+    # rows) rather than `db_rows.keys()` — the bare-ID dup has
+    # via_openrouter=0 after the first dedup-aware verifier run cleared its
+    # via_kilo, so it's not in the active set. all_db_ids catches it.
+    catalog_dupes = [
+        mid for mid in all_db_ids if mid in or_bare_to_full and or_bare_to_full[mid] in all_db_ids
+    ]
 
     return {
         "summary": {
@@ -376,6 +415,7 @@ def verify(db_path: Path = DB_PATH) -> dict:
         "matched_clean": matched_clean,
         "kilo_sourced": kilo_sourced,
         "openrouter_sourced": list(live.keys()),
+        "catalog_dupes": catalog_dupes,
     }
 
 
@@ -578,6 +618,21 @@ def apply_fixes(report: dict, db_path: Path = DB_PATH) -> dict:
             if cur.rowcount:
                 kilo_descs_written += cur.rowcount
         counts["kilo_descriptions_written"] = kilo_descs_written
+
+        # Catalog-dedup cleanup: mark Kilo-bare duplicate rows as deprecated
+        # so the UI's Kilo-only chip stops showing them as exclusive routes.
+        # Their canonical (provider-prefixed) sibling already carries
+        # via_kilo=1 via the kilo_sourced normalization above. Status='deprecated'
+        # rather than DELETE so historical rows persist for audit.
+        catalog_dupes = report.get("catalog_dupes", []) or []
+        if catalog_dupes:
+            placeholders = ",".join("?" * len(catalog_dupes))
+            cur = conn.execute(
+                f"UPDATE agents SET status = 'deprecated' "
+                f"WHERE id IN ({placeholders}) AND status != 'deprecated'",
+                catalog_dupes,
+            )
+            counts["catalog_dupes_deprecated"] = cur.rowcount
         conn.commit()
     except Exception:
         conn.rollback()
@@ -663,6 +718,8 @@ def main() -> None:
         print(f"  fields updated:  {counts['fields_updated']}")
         print(f"  rows updated:    {counts['rows_updated']}")
         print(f"  rows deprecated: {counts['rows_deprecated']}")
+        if counts.get("catalog_dupes_deprecated"):
+            print(f"  catalog dupes deprecated: {counts['catalog_dupes_deprecated']}")
 
     if args.ingest_new:
         print()
