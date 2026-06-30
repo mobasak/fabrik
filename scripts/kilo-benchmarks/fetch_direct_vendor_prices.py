@@ -230,6 +230,69 @@ def _classify_diff(pct: float | None) -> tuple[bool, bool, str]:
     return False, False, f"|diff|={apct:.0%} — within tolerance"
 
 
+# Adversarial review C3 (2026-06-30): per-unit magnitude sanity bounds. The
+# diff-threshold check at _classify_diff cannot catch a brand-new seed row
+# (before_price=0 → _signed_pct_diff returns None → first-scrape OK) so a
+# parser drift producing $999999/M-token writes silently. These bounds are
+# anchored to real-world catalog prices observed over 2025-2026:
+#   M-tokens: $0.001 (allenai/free models) .. $2000 (claude-fable-5 hypothetical)
+#   M-chars: $0.01 (cheap TTS) .. $1000 (premium voice)
+#   audio-min: $0.001 .. $10000 (~$0.0006/min .. ~$6/min)
+#   image: $0 (legacy free) .. $200000 (top-tier image gen at $0.20/image)
+#   page: $0.001 .. $5000 (OCR, e.g. amazon/textract at $1500/page == $0.0015)
+#   M-tokens with output:M-chars ratio 5:1 implicitly handled by per-unit caps
+#
+# A parsed value outside the band is almost certainly a parse bug. The bounds
+# are loose enough that legitimate vendor price changes (even a 10x repricing)
+# fit, but tight enough to catch off-by-1000/1e6 errors.
+_MAGNITUDE_BOUNDS: dict[str, tuple[float, float]] = {
+    "M-tokens": (0.001, 2000.0),
+    "M-chars": (0.01, 1000.0),
+    "audio-min": (0.001, 10000.0),
+    "image": (0.0, 200000.0),
+    "page": (0.001, 5000.0),
+    "video-sec": (0.001, 100000.0),
+    "alert": (0.0, 1e9),  # subscription_monitor alert row — bounds-irrelevant
+}
+
+
+def _magnitude_check(price: float, pricing_unit: str) -> tuple[bool, str]:
+    """Returns (block, reason). block=True means REFUSE write.
+
+    Conservative: an unknown pricing_unit returns (False, "unknown unit; skipping
+    magnitude check") so we never block a new legitimate unit. Bounds tightening
+    can be added per-unit as the catalog evolves.
+    """
+    bounds = _MAGNITUDE_BOUNDS.get(pricing_unit)
+    if bounds is None:
+        return False, f"unknown pricing_unit {pricing_unit!r}; magnitude check skipped"
+    low, high = bounds
+    if price < low or price > high:
+        return True, (
+            f"magnitude REFUSED: {price:.4g}/{pricing_unit} outside [{low}, {high}]"
+            f" — likely off-by-1000/1e6 parser bug"
+        )
+    return False, ""
+
+
+def _classify_with_magnitude(
+    before_price: float | None,
+    after_price: float,
+    pricing_unit: str,
+) -> tuple[bool, bool, str]:
+    """Composite of _classify_diff + _magnitude_check.
+
+    Order: magnitude FIRST (catches first-scrape parser bugs that the
+    diff-threshold cannot see — invariant #1). Diff classifier second
+    (catches drift between known-sane prior and new value).
+    """
+    mag_block, mag_reason = _magnitude_check(after_price, pricing_unit)
+    if mag_block:
+        return True, False, mag_reason
+    pct = _signed_pct_diff(before_price, after_price)
+    return _classify_diff(pct)
+
+
 def process_vendor(
     vendor: str,
     cfg: dict,
@@ -427,8 +490,16 @@ def process_vendor(
                 )
                 continue
 
+            # Adversarial review C3: use composite classifier (magnitude bounds
+            # FIRST, then diff threshold). Magnitude catches the invariant #1
+            # hole where a first-scrape (before_price=0) implausible value
+            # (e.g. parser off-by-1e6) silently wrote.
+            block, alert_only, classification = _classify_with_magnitude(
+                before_price=db_row["input_cost_per_m"],
+                after_price=pr.input_price_per_M,
+                pricing_unit=pr.pricing_unit,
+            )
             pct = _signed_pct_diff(db_row["input_cost_per_m"], pr.input_price_per_M)
-            block, alert_only, classification = _classify_diff(pct)
             action = "refused_diff" if block else "wrote"
             writes.append(
                 WriteOutcome(

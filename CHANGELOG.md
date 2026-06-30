@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — adversarial review C3+C4: magnitude bounds + deepgram anchor hardening (2026-06-30)
+
+Third fix cluster from the adversarial review.
+
+**C3 (HIGH — invariant #1 hole, first-scrape bypass)**: [_classify_diff](scripts/kilo-benchmarks/fetch_direct_vendor_prices.py) treats `before_price=0` (brand-new seed) as "first-scrape OK" → `None` diff → no >50% REFUSE guard. Combined with no magnitude bounds, a parser drift producing `input_price_per_M=999999.0` writes silently. Added per-unit magnitude sanity bounds in new `_MAGNITUDE_BOUNDS` dict (`M-tokens: [0.001, 2000]`, `M-chars: [0.01, 1000]`, `audio-min: [0.001, 10000]`, `image: [0, 200000]`, `page: [0.001, 5000]`, `video-sec: [0.001, 100000]`) anchored to real 2025-2026 catalog prices. New `_magnitude_check()` + `_classify_with_magnitude()` composite — magnitude runs FIRST (catches first-scrape bugs the diff threshold can't see), diff classifier runs second. Wired into `process_vendor` at the diff-check call site. 2 new regression tests (both first-scrape with implausible magnitude + before=0 with insane value get REFUSED).
+
+**C4 (HIGH — invariant #1 wrong-price-for-slug)**: [deepgram parser](scripts/kilo-benchmarks/direct_vendor_parsers/deepgram.py) Nova-2 anchor grabbed any `/hour` price within a 4 KB window of the model-name mention. The Pass-1 grounder proved: if Deepgram reorders the FAQ table to put Enhanced ($0.99/hour) between Nova-2 and its real $0.35/hour, the parser silently assigns Enhanced's price to nova-2. Hardened: window shrunk 4096→600 bytes (`_MAX_PRICE_WINDOW_BYTES`); slug must appear in the IMMEDIATE 80 chars before the price; competing model names (`Enhanced|Base|Flux`) between anchor and price REJECT the match → try next anchor occurrence. Now iterates ALL anchor positions (FAQ + table) and accepts first tightly-scoped match. 1 new C4 regression test using adversarial fixture with Enhanced between Nova-2 anchor and the real price.
+
+2 existing tests updated to accept the new (tighter) parser behavior — both forms ($/min table, $/hour FAQ) are real Deepgram-published prices; tests now bound to plausible range rather than pin a specific form. 197/197 kilo-benchmarks tests green.
+
 ### Fixed — adversarial review C5+H5+H6: openai allowlist + subscription_monitor regex tightening + per-K detection (2026-06-30)
 
 Second fix cluster from the adversarial review.

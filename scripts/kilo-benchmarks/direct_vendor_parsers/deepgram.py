@@ -53,40 +53,89 @@ _MODEL_ANCHORS: dict[str, list[re.Pattern]] = {
 }
 
 
+# Adversarial review C4 (2026-06-30): tightened anchor scoping.
+#
+# Pre-fix: parser grabbed the FIRST `$X/(min|hour)` within 4 KB of any Nova-N
+# mention. If Deepgram reordered the FAQ table or added a new card between the
+# Nova-N anchor and its real price, the parser silently picked the wrong tier's
+# price (e.g., Enhanced's $0.99/hour for nova-2). Direct invariant #1 violation.
+#
+# Post-fix: window shrunk from 4096 → 600 chars (must be tightly adjacent).
+# AND we require the model name to appear in the same 600-char window as the
+# price — eliminates "anchor at FAQ header → price 5 KB later" failures.
+_MAX_PRICE_WINDOW_BYTES = 600
+
+
 def extract(payload: str, source_url: str) -> list[ParsedRow]:
     if not isinstance(payload, str):
         raise TypeError(f"deepgram parser expects str HTML, got {type(payload).__name__}")
     rows: list[ParsedRow] = []
     for slug, anchors in _MODEL_ANCHORS.items():
-        # Find the model-name anchor (first matching pattern wins).
-        anchor_pos: int | None = None
+        # Find ALL anchor positions in the payload (multiple Nova-N mentions on
+        # the FAQ + table; we want to try each and pick the first one whose
+        # nearby window also contains the model name + price together).
+        all_positions: list[int] = []
         for anchor_re in anchors:
-            m = anchor_re.search(payload)
-            if m is not None:
-                anchor_pos = m.end()
-                break
-        if anchor_pos is None:
+            for m in anchor_re.finditer(payload):
+                all_positions.append(m.end())
+        if not all_positions:
             continue
-        # Take the FIRST $X.XXXX/{min|hour} span after the anchor (within a
-        # 4 KB window to avoid pulling a price from an unrelated card later).
-        window = payload[anchor_pos : anchor_pos + 4096]
-        price_match = _PRICE_RE.search(window)
-        if price_match is None:
-            continue
-        raw = price_match.group(0)
-        price_value = float(price_match.group(1))
-        unit_suffix = price_match.group(2).lower()
-        if unit_suffix == "hour":
-            normalized = per_hour_to_M_audio_min(price_value)
-        else:  # 'min'
-            normalized = per_minute_to_M_audio_min(price_value)
-        rows.append(
-            ParsedRow(
-                model_slug=slug,
-                input_price_per_M=normalized,
-                pricing_unit="audio-min",
-                raw_price_text=raw,
-                source_url=source_url,
+
+        # For each anchor occurrence, scan a 600-byte window and accept the
+        # first price tightly adjacent. Tighter than the original 4 KB.
+        # Adversarial review C4: this prevents Enhanced's $0.99/hour from
+        # being assigned to nova-2 when they're > 600 chars apart.
+        emitted = False
+        for anchor_pos in all_positions:
+            window = payload[anchor_pos : anchor_pos + _MAX_PRICE_WINDOW_BYTES]
+            price_match = _PRICE_RE.search(window)
+            if price_match is None:
+                continue
+            # Defense-in-depth: the slug must appear in the IMMEDIATE 80 chars
+            # before the price — this catches "Nova-2 streaming at $0.35/hour"
+            # (nova-2 → 13 chars → $) but rejects "Nova-2 family </span><tr><td>
+            # Enhanced</td><td>$0.99/hour" (nova-2 → 50+ chars of HTML with
+            # OTHER model names between anchor and price). The anchor itself
+            # counts: the 80-char buffer includes the anchor position.
+            price_offset_in_window = price_match.start()
+            # Build a 80-char snippet that ends at the price.
+            slug_proximity_start = max(0, price_offset_in_window - 80)
+            slug_proximity = window[slug_proximity_start:price_offset_in_window]
+            slug_re = re.compile(rf"\b{re.escape(slug)}\b", re.I)
+            # The anchor itself is at window[0]; include the buffer chars
+            # BEFORE the price to check if there's a nearby reaffirmation of
+            # the slug. If the price is within 80 chars of window-start, the
+            # anchor counts as the "reaffirmation".
+            anchor_in_buffer = price_offset_in_window <= 80
+            if not (anchor_in_buffer or slug_re.search(slug_proximity)):
+                continue
+            # Additional defense: reject if a COMPETING Deepgram model name
+            # ("Enhanced", "Base", "Flux") appears between the anchor and the
+            # price — strongest signal of a mis-anchored grab.
+            other_model_re = re.compile(r"\b(Enhanced|Base|Flux)\b", re.I)
+            if other_model_re.search(window[:price_offset_in_window]):
+                continue
+            raw = price_match.group(0)
+            price_value = float(price_match.group(1))
+            unit_suffix = price_match.group(2).lower()
+            if unit_suffix == "hour":
+                normalized = per_hour_to_M_audio_min(price_value)
+            else:  # 'min'
+                normalized = per_minute_to_M_audio_min(price_value)
+            rows.append(
+                ParsedRow(
+                    model_slug=slug,
+                    input_price_per_M=normalized,
+                    pricing_unit="audio-min",
+                    raw_price_text=raw,
+                    source_url=source_url,
+                )
             )
-        )
+            emitted = True
+            break  # one row per slug
+        if not emitted:
+            # No tightly-anchored price found for this slug. Better to be
+            # silent than wrong — operator audit will show 0 writes for this
+            # vendor, prompting investigation, vs. a wrong price written.
+            continue
     return rows

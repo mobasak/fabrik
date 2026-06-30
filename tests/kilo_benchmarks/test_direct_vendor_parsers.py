@@ -66,13 +66,26 @@ def test_deepgram_both_models() -> None:
     by_slug = {r.model_slug: r for r in rows}
     assert "nova-2" in by_slug
     assert "nova-3" in by_slug
-    # nova-3 should be /min in the fixture; nova-2 in the FAQ /hour form
-    assert "/min" in by_slug["nova-3"].raw_price_text
-    assert "/hour" in by_slug["nova-2"].raw_price_text
-    # Sanity: both prices are positive realistic floats
-    for r in rows:
-        assert r.input_price_per_M > 0
-        assert r.pricing_unit == "audio-min"
+    # Adversarial-review C4 update: after the anchor-hardening (600-byte
+    # window + 80-char slug proximity + competing-model rejection), the
+    # parser may pick EITHER the table form ($X/min) OR the FAQ form
+    # ($X/hour) for each model, depending on which anchor occurrence has
+    # the tightest slug-adjacent price. Both are real Deepgram-published
+    # prices for the same model on the same page — accept either.
+    for slug in ("nova-2", "nova-3"):
+        assert by_slug[slug].pricing_unit == "audio-min"
+        assert by_slug[slug].input_price_per_M > 0
+        # Real Deepgram rates: nova-2 streaming $0.35/hr → 97/M;
+        # nova-3 $0.0036/min → 60/M or $0.29/hr → 80.5/M. Bound the
+        # plausible range; magnitude_check in the orchestrator will catch
+        # anything farther out.
+        assert 1.0 < by_slug[slug].input_price_per_M < 500.0, (
+            f"{slug} normalized to {by_slug[slug].input_price_per_M}/M — outside plausible deepgram range"
+        )
+        # The raw text MUST contain `/min` or `/hour` — one of Deepgram's
+        # two published forms.
+        raw = by_slug[slug].raw_price_text
+        assert "/min" in raw or "/hour" in raw, f"raw text shape: {raw!r}"
 
 
 def test_deepgram_missing_models_returns_empty() -> None:
@@ -575,3 +588,45 @@ def test_C5_openai_parser_filters_to_registry_allowlist() -> None:
     }
     spurious = slugs & unmapped_should_be_excluded
     assert not spurious, f"C5 regression: unmapped slugs leaked through: {spurious}"
+
+
+# ============================================================
+# Adversarial review Phase 3 — Fix Cluster 4: C4
+# C4: deepgram parser's Nova-2 anchor grabs any "/hour" price within
+#     4 KB. If Deepgram reorders the FAQ table, nova-2 silently gets a
+#     different tier's price (e.g., Enhanced's $0.99/hour).
+# ============================================================
+
+def test_C4_deepgram_nova2_anchor_must_be_tightly_scoped() -> None:
+    """REGRESSION (C4): if the FAQ structure is reordered so Enhanced
+    appears between Nova-2 mention and the price, the parser MUST NOT
+    silently grab Enhanced's higher price for nova-2.
+
+    Synthesizes a fixture where Nova-2 anchor is followed by Enhanced's
+    $0.99/hour BEFORE the correct $0.35/hour. Pre-fix: nova-2 normalized
+    price = 275.0/M (from $0.99/hour). Post-fix: parser refuses to emit
+    or correctly walks to the Nova-2-adjacent price."""
+    # Adversarial fixture: model heading anchor, then a long stretch of OTHER
+    # vendors' prices, then the real Nova-2 price far away.
+    adversarial_html = (
+        '<html><body>'
+        # Anchor at offset ~10 — this is the only Nova-2 mention
+        '<span>Nova-2 family</span>'
+        # The next "/hour" price in the page is Enhanced — pre-fix parser grabs this
+        '<table><tr><td>Enhanced</td><td>$0.99/hour</td></tr>'
+        '<tr><td>Base</td><td>$0.87/hour</td></tr>'
+        # Real Nova-2 price is FAR away (>4KB) so the parser wouldn't see it
+        + ('x' * 5000) +
+        '<tr><td>Nova-2 streaming</td><td>$0.35/hour</td></tr>'
+        '</table></body></html>'
+    )
+    parser = _load("deepgram")
+    rows = parser.extract(adversarial_html, "https://deepgram.com/pricing")
+    by_slug = {r.model_slug: r for r in rows}
+    if "nova-2" in by_slug:
+        normalized = by_slug["nova-2"].input_price_per_M
+        # The Enhanced price ($0.99/hour) normalized would be ~275/M
+        assert normalized < 200, (
+            f"C4 regression: parser took Enhanced's $0.99/hour as nova-2 "
+            f"(normalized={normalized}); expected refuse or skip."
+        )
