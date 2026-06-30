@@ -140,6 +140,25 @@ networks:
 
 ---
 
+## Multi-Service Compose — companion vs standalone worker
+
+A service often needs a background companion (scheduler, queue worker). Pick the pattern by one test: **"does it ship from the same `git push` as the app?"**
+
+- **Companion service** (same image, different command) — *yes, same codebase.* Declare it in the spec; the scaffolder emits a 2nd compose service that shares the app's build/image + env + `DATABASE_URL`/`REDIS_URL`, overriding only `command` + `container_name` + `memory`. **No Traefik labels** — companions are workers, not HTTP-routed.
+  ```yaml
+  companion_services:
+    - id: <app>-scheduler
+      command: ["node", "dist/scheduler.js"]   # same image, different entrypoint
+      memory: 256M                              # REQUIRED — no default
+      env_overrides: { ROLE: scheduler }        # optional, merged on top
+  ```
+  `memory` is mandatory (the per-service memory-limit invariant covers companions). Rendered by `node-api`/`python-api` via `templates/_partials/_companion_service.yaml.j2`.
+- **Standalone `kind: worker`** (its own image/repo) — *no, separate codebase.* Give it its own spec + the `file-worker` scaffold; it deploys independently.
+
+`source.type: git` projects (compose committed in the repo) hand-roll the companion as a 2nd service in their own `compose.yaml` — `companion_services` drives the *scaffold-emitted* path, not git-sourced composes. Either way, every service (parent + companion) carries its own memory limit and joins the `fabrik` network.
+
+---
+
 ## Deployment Checklist
 
 Before running `fabrik apply`:

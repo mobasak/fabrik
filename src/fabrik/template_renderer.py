@@ -136,6 +136,7 @@ class TemplateRenderer:
             "infrastructure": spec.infrastructure,
             "domain": spec.domain,
             "id": spec.id,
+            "companion_services": spec.companion_services,
         }
 
         # Rendered files

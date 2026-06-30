@@ -1,0 +1,33 @@
+{# Companion service (deploy-readiness-gaps Phase 4). Included per item from a
+   {% for c in companion_services %} loop in a parent compose.yaml.j2. Shares the
+   parent's build/image + env + DATABASE_URL/REDIS_URL; overrides command +
+   container_name + memory. No Traefik labels — companions are workers/schedulers,
+   not HTTP-routed. Memory limit is mandatory (fabrik per-service invariant). #}
+  {{ c.id }}:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    platform: linux/amd64  # Mandatory for x86_64 VPS
+    container_name: {{ c.id }}
+    restart: unless-stopped
+    command: {{ c.command | tojson | safe }}
+    environment:
+      {% for key, value in env.items() %}
+      - {{ key }}={{ value | env_escape }}
+      {% endfor %}
+      {% if depends.postgres %}
+      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:${POSTGRES_PASSWORD}@postgres-main:5432/{{ depends.postgres }}}
+      {% endif %}
+      {% if depends.redis %}
+      - REDIS_URL=${REDIS_URL:-redis://redis-main:6379/0}
+      {% endif %}
+      {% for key, value in (c.env_overrides or {}).items() %}
+      - {{ key }}={{ value | env_escape }}
+      {% endfor %}
+    deploy:
+      resources:
+        limits:
+          memory: {{ c.memory }}
+          cpus: '{{ resources.cpu }}'
+    networks:
+      - fabrik

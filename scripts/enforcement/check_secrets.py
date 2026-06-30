@@ -14,8 +14,11 @@ SECRET_PATTERNS = [
     (r"gho_[a-zA-Z0-9]{36}", "GitHub OAuth Token"),
     (r"sk_live_[a-zA-Z0-9]{24,}", "Stripe Live Key"),
     (r"rk_live_[a-zA-Z0-9]{24,}", "Stripe Restricted Key"),
-    (r"postgresql://[^:]+:[^@\s]+@", "DB URL with password"),
-    (r"mongodb(\+srv)?://[^:]+:[^@\s]+@", "MongoDB URL with password"),
+    # The (?!\$\{|\$[A-Z]) lookahead skips passwords that are SHELL VARIABLES
+    # (${POSTGRES_PASSWORD}, $PGPASS) — the correct way to reference a secret, not
+    # a hardcoded one. A literal password (postgresql://u:realpass@) is still caught.
+    (r"postgresql://[^:]+:(?!\$\{|\$[A-Za-z_])[^@\s]+@", "DB URL with password"),
+    (r"mongodb(\+srv)?://[^:]+:(?!\$\{|\$[A-Za-z_])[^@\s]+@", "MongoDB URL with password"),
     (r"-----BEGIN (?:RSA |DSA |EC |OPENSSH )?PRIVATE KEY-----", "Private Key"),
     (r"Bearer\s+[a-zA-Z0-9\-_\.]{20,}", "Bearer Token"),
     (r'(?:password|secret|api_key|token)\s*[:=]\s*[\'"][^\'"]{8,}[\'"]', "Hardcoded credential"),

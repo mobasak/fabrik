@@ -622,6 +622,46 @@ class WatchdogConfig(BaseModel):
 # --- Main Spec Model ---
 
 
+class CompanionService(BaseModel):
+    """A companion service that shares the parent app's image but runs a
+    different command — a scheduler / queue-worker for the SAME codebase.
+
+    Rendered as an additional compose service by the scaffold templates
+    (node-api / python-api). Inherits the parent's build context, env, and
+    DATABASE_URL/REDIS_URL; overrides command + container_name + memory.
+
+    Use this for a worker that ships from the same ``git push`` as the app.
+    A SEPARATE-repo worker gets its own spec with ``kind: worker`` instead
+    (see core/30-ops.md — companion vs standalone-worker convention).
+    """
+
+    model_config = {"extra": "forbid"}
+
+    id: str = Field(
+        ...,
+        pattern=r"^[a-z][a-z0-9-]*$",
+        description="Compose service key + container_name (slug), e.g. 'calendar-scheduler'.",
+    )
+    command: list[str] = Field(
+        ...,
+        min_length=1,
+        description="The companion's entrypoint argv, e.g. ['node', 'dist/scheduler.js'].",
+    )
+    memory: str = Field(
+        ...,
+        pattern=r"^\d+(\.\d+)?[MG]$",
+        description=(
+            "REQUIRED memory limit (e.g. '256M', '1G') — no default, because a "
+            "worker/scheduler's profile differs from the HTTP parent. The "
+            "fabrik per-service memory-limit invariant applies to companions too."
+        ),
+    )
+    env_overrides: dict[str, str] | None = Field(
+        default=None,
+        description="Optional env merged ON TOP of the inherited parent env.",
+    )
+
+
 class Spec(BaseModel):
     """
     Fabrik deployment specification.
@@ -673,6 +713,12 @@ class Spec(BaseModel):
     resources: Resources = Field(default_factory=Resources)
     health: Health | None = None
     volumes: list[Volume] = Field(default_factory=list)
+
+    # Companion services (deploy-readiness-gaps Phase 4): additional compose
+    # services that share THIS app's image but run a different command (scheduler,
+    # queue worker). Rendered by the node-api / python-api templates. Empty for
+    # every existing spec — fully backward-compatible.
+    companion_services: list[CompanionService] = Field(default_factory=list)
 
     dns: DNSConfig | None = None
     backup: Backup = Field(default_factory=Backup)
