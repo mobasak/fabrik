@@ -18,12 +18,75 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sqlite3
 import subprocess
 import sys
 import urllib.request
 from datetime import UTC, datetime
 from pathlib import Path
+
+_DATE_SUFFIX_RE = re.compile(r"-20\d{6}$")  # -YYYYMMDD (e.g. -20250805)
+_HYPHEN_DIGITS_RE = re.compile(r"(\d)-(\d)")
+_DISCOUNTED_SUFFIX = ":discounted"
+_STEALTH_PREFIX = "stealth/"
+
+# Provider re-spelling pairs the upstream catalogs use inconsistently.
+# Key = canonical (kept), Value = alias that folds onto it. Bidirectional —
+# the re-write happens after provider-prefix strip, so 'reka/' and 'rekaai/'
+# both reduce to the same bare form via the second-pass alias map.
+_PROVIDER_ALIASES = {
+    "rekaai": "reka",
+}
+
+
+def _canonicalize_id(model_id: str) -> str:
+    """Reduce a model id to a dedup identity key.
+
+    Treated as the SAME model (fold onto the canonical row):
+      anthropic/claude-opus-4.6      -> claude-opus-4.6
+      claude-opus-4-6                -> claude-opus-4.6   (Kilo bare, hyphen→dot)
+      claude-opus-4-1-20250805       -> claude-opus-4.1   (date snapshot)
+      claude-opus-4-5-20251101       -> claude-opus-4.5
+      stealth/claude-opus-4.6        -> claude-opus-4.6   (pre-launch alpha)
+      deepseek-v4-flash:discounted   -> deepseek-v4-flash (only folds when
+                                                           parent also in DB)
+      reka/reka-edge ↔ rekaai/reka-edge -> reka/reka-edge (provider alias)
+
+    Treated as DIFFERENT models (intentional non-fold):
+      anthropic/claude-opus-4.6 vs anthropic/claude-opus-4.6-fast
+        (Fast is a 2x pricing tier — separate route)
+      kilo-auto/* meta-routers
+        (no specific underlying model to fold to)
+      openrouter/auto, openrouter/fusion, openrouter/owl-alpha
+        (meta-routers — keep separate)
+    """
+    s = (model_id or "").strip().lower()
+    # 1. Strip stealth/ prefix (pre-launch alpha routes)
+    if s.startswith(_STEALTH_PREFIX):
+        s = s[len(_STEALTH_PREFIX) :]
+    # 2. Strip provider prefix + apply provider-alias normalization
+    if "/" in s:
+        provider, rest = s.split("/", 1)
+        provider = _PROVIDER_ALIASES.get(provider, provider)
+        s = rest  # discard provider — we only need the model identity
+    # 3. Strip :discounted suffix
+    if s.endswith(_DISCOUNTED_SUFFIX):
+        s = s[: -len(_DISCOUNTED_SUFFIX)]
+    # 4. Strip date suffix (-YYYYMMDD)
+    s = _DATE_SUFFIX_RE.sub("", s)
+    # 5. Normalize hyphen-between-digits → dot ("4-6" → "4.6"). Applies
+    #    across the whole string but only between digits, so identifiers
+    #    like "gpt-4" stay as "gpt-4" (hyphen between letter+digit).
+    s = _HYPHEN_DIGITS_RE.sub(r"\1.\2", s)
+    # 6. Strip trailing ".0" — Kilo CLI's "initial release" version suffix
+    #    that OR drops. So `claude-opus-4-0` (Kilo) → `claude-opus-4.0`
+    #    (step 5) → `claude-opus-4` (this step), matching OR's
+    #    `anthropic/claude-opus-4`. No legit model name ends in ".0" today;
+    #    revisit if one ever does.
+    if s.endswith(".0"):
+        s = s[:-2]
+    return s
 
 
 def _today_utc_iso() -> str:
@@ -332,36 +395,50 @@ def verify(db_path: Path = DB_PATH) -> dict:
     # the db_rows / all_db_ids block above. Using db_rows here would re-fail
     # with UNIQUE constraint in ingest_new() for any row that exists in DB
     # with status='deprecated' or via_openrouter=0 but is still listed live.
-    # Bare-vs-prefixed ID normalization (catalog dedup, 2026-06-30 fix).
-    # Kilo CLI returns bare model IDs ("claude-fable-5") while OpenRouter
-    # returns provider-prefixed IDs ("anthropic/claude-fable-5"). Pre-fix,
-    # the verifier treated these as DIFFERENT models and the same underlying
-    # route ended up as TWO rows in the DB — one Kilo-only, one OR-only —
-    # which broke the "Kilo only" / "OR only" sidebar chips in
-    # models_browser.html (a model present on BOTH gateways was shown as
-    # exclusive to each). Fixed by building a bare→full map from the live
-    # OpenRouter catalog and rerouting Kilo bare hits onto the canonical
-    # prefixed ID.
-    or_bare_to_full = {mid.split("/", 1)[1]: mid for mid in live if "/" in mid}
+    # Full canonical-ID dedup (2026-07-01 generalization of the 2026-06-30
+    # bare-vs-prefixed fix). The earlier fix only collapsed exact bare↔prefixed
+    # matches: `claude-fable-5` ↔ `anthropic/claude-fable-5`. Live audit found
+    # the same model surfacing under SIX patterns that string-equality misses:
+    #
+    #   1. Provider prefix:     anthropic/claude-opus-4.6
+    #   2. Bare ID (Kilo):      claude-opus-4-6              (dot → hyphen)
+    #   3. Date snapshot:       claude-opus-4-1-20250805     (-YYYYMMDD)
+    #   4. Stealth alpha route: stealth/claude-opus-4.6
+    #   5. Discounted suffix:   deepseek-v4-flash:discounted
+    #   6. Provider re-spelling: reka/reka-edge ↔ rekaai/reka-edge
+    #
+    # Patterns 1-4 + 6 are "same model, different listing" and should fold
+    # onto the canonical (OR-prefixed) row. Pattern 5 (:discounted) is a
+    # tier-pricing variant the UI already handles via the show_discounted
+    # toggle — _canonicalize_id strips the suffix so :discounted folds onto
+    # its parent only when the parent ALSO exists in DB.
+    #
+    # NOT canonicalized (intentional):
+    #   - `-fast` variants ("claude-opus-4.8-fast") — Anthropic charges 2x
+    #     for them; treat as separate routing tiers, not the same row.
+    #   - `kilo-auto/*` meta-routers — no specific underlying model to fold to.
+    or_canonical_to_full = {_canonicalize_id(mid): mid for mid in live}
 
     live_only = [mid for mid in live if mid not in all_db_ids]
-    # kilo_only after dedup: Kilo CLI ID is "really" Kilo-only only if it's
-    # not present in OR as bare OR as prefixed.
+    # kilo_only after dedup: Kilo CLI ID is "really" Kilo-only only if its
+    # canonical key doesn't match any OR row.
     kilo_only = [
         mid
         for mid in kilo
-        if mid not in all_db_ids and mid not in live and mid not in or_bare_to_full
+        if mid not in all_db_ids
+        and mid not in live
+        and _canonicalize_id(mid) not in or_canonical_to_full
     ]
 
     # Build per-id Kilo Gateway pricing so apply_fixes can populate
     # `kilo_input_cost_per_m` / `kilo_output_cost_per_m` / `via_kilo`.
-    # When a Kilo bare ID has a matching OR prefixed ID, route the Kilo
+    # When a Kilo ID's canonical matches an OR canonical, route the Kilo
     # pricing onto the CANONICAL (prefixed) row so the UI sees one
     # dual-routed model, not two split-only rows.
     kilo_sourced: dict[str, dict] = {}
     for mid, rec in kilo.items():
         k_in, k_out = _kilo_pricing(rec)
-        canonical_id = or_bare_to_full.get(mid, mid)
+        canonical_id = or_canonical_to_full.get(_canonicalize_id(mid), mid)
         kilo_sourced[canonical_id] = {"input": k_in, "output": k_out}
 
     # Recompute delisted: a row is truly delisted only if NEITHER the
@@ -377,22 +454,34 @@ def verify(db_path: Path = DB_PATH) -> dict:
     truly_delisted = [mid for mid in delisted if mid not in kilo and mid not in direct_routed]
     delisted_or_only = [mid for mid in delisted if mid in kilo]
 
-    # Catalog-dedup duplicates: bare-ID DB rows whose canonical
-    # (provider-prefixed) form ALSO exists in DB. Pre-fix every nightly
-    # run created these whenever Kilo CLI returned a bare ID for a model
-    # OpenRouter publishes under a prefix. The kilo_sourced normalization
-    # above prevents NEW dups from being created, but it doesn't remove
-    # the historical ones. apply_fixes will mark these rows as
-    # status='deprecated' so the UI's chips show one row per model
-    # rather than two split-only siblings.
-    #
-    # Use `all_db_ids` (the broader set including deprecated + via_openrouter=0
-    # rows) rather than `db_rows.keys()` — the bare-ID dup has
-    # via_openrouter=0 after the first dedup-aware verifier run cleared its
-    # via_kilo, so it's not in the active set. all_db_ids catches it.
-    catalog_dupes = [
-        mid for mid in all_db_ids if mid in or_bare_to_full and or_bare_to_full[mid] in all_db_ids
-    ]
+    # Catalog-dedup duplicates: bucket every DB ID by its canonical key,
+    # then for any bucket with 2+ IDs, mark the non-canonical members as
+    # `status='deprecated'`. The canonical choice priority:
+    #   1. The OR-prefixed live ID for that canonical key (if any)
+    #   2. The longest non-stealth/ DB ID (Anthropic's dotted form beats
+    #      Kilo's hyphenated form when neither is in OR's live catalog)
+    #   3. The longest ID overall (last-resort tiebreaker)
+    # The earlier (2026-06-30) version of this only detected bare↔prefixed
+    # 1:1 dupes via dict lookup; now we group across every canonicalization
+    # rule (hyphen-vs-dot, date suffix, stealth/, discounted, provider
+    # re-spelling like reka/ ↔ rekaai/).
+    canonical_groups: dict[str, list[str]] = {}
+    for mid in all_db_ids:
+        canonical_groups.setdefault(_canonicalize_id(mid), []).append(mid)
+
+    catalog_dupes: list[str] = []
+    for canonical_key, ids in canonical_groups.items():
+        if len(ids) < 2:
+            continue
+        # Preferred canonical row for this bucket
+        canonical_id = or_canonical_to_full.get(canonical_key)
+        if not canonical_id:
+            non_stealth = [i for i in ids if not i.startswith("stealth/")]
+            canonical_id = max(non_stealth or ids, key=len)
+        # Everything else in the bucket is a dup to deprecate
+        for mid in ids:
+            if mid != canonical_id:
+                catalog_dupes.append(mid)
 
     return {
         "summary": {

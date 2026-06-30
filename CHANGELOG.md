@@ -4,6 +4,34 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — verify_openrouter_catalog: full canonical-ID dedup across 6 dup patterns (same model surfaced under multiple rows) (2026-07-01)
+
+Generalization of the earlier `bare-vs-prefixed` fix. Operator-reported: "you treat same models as they are different models. fix this classification workflow properly." Live audit found the catalog had **6 distinct dup patterns** where the verifier was treating the same underlying model as separate rows:
+
+1. **Provider prefix vs bare**: `anthropic/claude-opus-4.6` ↔ `claude-opus-4-6` (Kilo CLI uses hyphens for Anthropic's dotted versions)
+2. **Date snapshots**: `claude-opus-4-1-20250805` ↔ `anthropic/claude-opus-4.1` (Kilo CLI exposes dated snapshots OR drops)
+3. **Stealth alpha routes**: `stealth/claude-opus-4.6` ↔ `anthropic/claude-opus-4.6` (pre-launch routes)
+4. **Discounted suffix**: `deepseek/deepseek-v4-flash:discounted` ↔ `deepseek/deepseek-v4-flash` (folds when parent in DB)
+5. **Provider re-spelling**: `reka/reka-edge` ↔ `rekaai/reka-edge` (catalogs disagree on spelling)
+6. **Initial-release `.0`**: `claude-opus-4-0` ↔ `anthropic/claude-opus-4` (Kilo CLI adds `.0` that OR drops)
+
+**Fix**: new `_canonicalize_id(model_id)` helper that reduces any catalog ID to a dedup identity key by applying all 6 rules in order. The `verify()` function now buckets every DB ID by its canonical key — any bucket with 2+ IDs is a dup group. Canonical-row choice priority: OR-prefixed live ID > longest non-stealth/ ID > longest ID overall. `apply_fixes()` marks every non-canonical bucket member as `status='deprecated'` (preserves audit trail vs DELETE).
+
+**Intentional non-folds** (kept as separate rows):
+- `-fast` variants (Anthropic charges 2x — separate routing tier)
+- `kilo-auto/*` meta-routers, `openrouter/auto`, `openrouter/owl-alpha` (no specific underlying model)
+- `:free` variants (different tier, not a dup)
+
+**Live impact** (two verifier runs):
+- 25 catalog dups deprecated total (23 via the main pattern set + 2 via the `.0` strip)
+- Active row count: 565 → 543 (22-row collapse, kind=embedding shifts the headline difference)
+- Kilo-only chip: **20 → 1** (only `microsoft/phi-4-mini-instruct` left — genuinely not in OR's catalog)
+- OR-only chip: still 2 (both genuine: `openai/gpt-5-chat`, `google/gemini-3.1-flash-lite-image`)
+- Dual-routed: now includes the merged Anthropic frontier family (claude-opus-4.x, claude-sonnet-4.x, claude-haiku-4.x)
+- Kilo-cheaper / OR-cheaper chips: surface additional dual-routed rows now that prices land on the canonical row (e.g. `anthropic/claude-opus-4.8`, `deepseek/deepseek-v4-flash`)
+
+Smoke-tested the canonicalization function with 19 fixture cases covering every pattern + the non-fold cases — all pass.
+
 ### Fixed — verify_openrouter_catalog: bare-vs-prefixed ID dedup (Kilo-only / OR-only chips were silently wrong) (2026-07-01)
 
 Operator-reported: the "Kilo-only" and "OR-only" sidebar chips on `models_browser.html` showed the same model under two different IDs. Specifically `claude-fable-5` (Kilo CLI's bare ID) and `anthropic/claude-fable-5` (OpenRouter's provider-prefixed ID) were two separate DB rows — one Kilo-only, one OR-only — when they're the same underlying model that's routed via BOTH gateways.
