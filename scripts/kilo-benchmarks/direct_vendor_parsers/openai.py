@@ -105,11 +105,13 @@ def extract(payload: str, source_url: str) -> list[ParsedRow]:
         normalized = _normalize(price, unit_text)
         if normalized is None:
             continue
-        price_per_M, db_unit = normalized
+        # noqa: N806 — `price_per_m_value` would be misleading; the M is the
+        # semantic unit (per-million-billable-units), not a mixedCase style flag.
+        price_per_m_value, db_unit = normalized  # noqa: N806
         rows.append(
             ParsedRow(
                 model_slug=name,
-                input_price_per_M=price_per_M,
+                input_price_per_M=price_per_m_value,
                 pricing_unit=db_unit,
                 raw_price_text=f"${price} / {unit_text}",
                 source_url=source_url,
