@@ -348,10 +348,32 @@
     width: 460px; background: var(--panel); border-left: 1px solid var(--border);
     padding: 20px; overflow-y: auto;
     transition: right 0.2s ease;
-    z-index: 10;
+    z-index: 11;
     box-shadow: -10px 0 20px rgba(0,0,0,0.3);
   }
   .detail.open { right: 0; }
+  /* Click-outside-to-close backdrop. Hidden by default; shown only when
+     the drawer is open. Sits BELOW the drawer (z:10 < 11) but ABOVE the
+     rest of the page. Click anywhere on it triggers closeDetail(). */
+  .detail-backdrop {
+    position: fixed; inset: 0;
+    background: transparent;
+    z-index: 10;
+    display: none;
+  }
+  .detail-backdrop.open { display: block; }
+  /* "Copy ID" affordance next to the drawer's h2 — the model id is the
+     thing operators most often need to grab. */
+  .copy-id-btn {
+    display: inline-block; margin-left: 8px;
+    padding: 2px 8px; border-radius: 4px;
+    background: var(--panel2); border: 1px solid var(--border);
+    color: var(--muted); font-family: inherit; font-size: 10px;
+    cursor: pointer; vertical-align: middle;
+    text-transform: uppercase; letter-spacing: 0.04em;
+  }
+  .copy-id-btn:hover { color: var(--accent); border-color: var(--accent-dim); }
+  .copy-id-btn.copied { color: var(--good); border-color: var(--good); }
   .detail h2 {
     font-size: 14px; margin: 0 0 12px;
     font-family: ui-monospace, monospace; word-break: break-all;
@@ -579,8 +601,9 @@
   </main>
 </div>
 
+<div class="detail-backdrop" id="detail-backdrop" onclick="closeDetail()"></div>
 <div class="detail" id="detail">
-  <button class="close" onclick="closeDetail()">×</button>
+  <button class="close" onclick="closeDetail()" title="Close (or press Esc)">×</button>
   <div id="detail-body"></div>
 </div>
 
@@ -1270,9 +1293,20 @@ function openDetail(m, tr) {
   const sourceHtml = sourceRows.length
     ? `<h4>Benchmark sources</h4><div class="sources">${sourceRows.map(([k, v]) => `<div class="source-row"><span>${k}</span><span>${v}</span></div>`).join("")}</div>`
     : "";
-  const linkHtml = m.id && m.id.includes("/")
-    ? `<h4>External</h4><a href="https://openrouter.ai/${m.id}" target="_blank">openrouter.ai/${m.id}</a>`
-    : "";
+  // External link: only emit the openrouter.ai link if the model is
+  // actually routed through OpenRouter (m.via_openrouter). Direct-vendor
+  // rows like cartesia/sonic-2 are slash-prefixed in the catalog but the
+  // openrouter.ai/<id> page would 404. For direct vendors we surface the
+  // provider name + (when present) the row's source_url from the scraper.
+  let linkHtml = "";
+  if (m.via_openrouter && m.id && m.id.includes("/")) {
+    linkHtml = `<h4>External</h4><a href="https://openrouter.ai/${m.id}" target="_blank">openrouter.ai/${m.id}</a>`;
+  } else if (m.provider) {
+    const directNote = m.via_kilo
+      ? `Routed via Kilo Gateway (<code>api.kilo.ai</code>) — no OpenRouter listing.`
+      : `Direct vendor — no OpenRouter listing.`;
+    linkHtml = `<h4>External</h4><div style="font-size:11px;color:var(--muted)">${directNote}</div>`;
+  }
   // Pricing-staleness warning banner — surface clearly when the row's
   // price columns haven't been refreshed by the daily OpenRouter
   // scraper in a while (likely deprecated/delisted upstream).
@@ -1328,14 +1362,31 @@ function openDetail(m, tr) {
     const ci = m.input_cost_per_m, co = m.output_cost_per_m || 0;
     const primaryLabel = m.via_openrouter
       ? "OpenRouter"
-      : (m.via_kilo ? "Kilo Gateway" : "Primary");
+      : (m.via_kilo ? "Kilo Gateway" : (m.provider || "Direct vendor"));
     const fmt = v => v === 0
       ? "<span style='color:var(--free);font-weight:600'>free</span>"
       : "$" + v.toFixed(2);
+    // Unit-aware cost summary. The default "(USD per million tokens)"
+    // hardcoded label was wrong for STT/TTS/image/video/OCR rows whose
+    // input_cost_per_m is normalized to a different unit (M-audio-min,
+    // M-chars, M-images, etc.). Derive the human-readable label from
+    // pricing_unit and only show $/M out when it's actually meaningful
+    // (LLM rows with M-tokens).
+    const unit = m.pricing_unit || "M-tokens";
+    const unitLabel = {
+      "M-tokens":  "USD per million tokens",
+      "M-chars":   "USD per million characters",
+      "audio-min": "USD per million audio-minutes (≈ $/min × 1,000,000)",
+      "image":     "USD per million images",
+      "video-sec": "USD per million video-seconds",
+      "page":      "USD per million pages",
+    }[unit] || `USD per million billable units (${unit})`;
+    // For non-LLM rows the $/M-out column is normally 0 / null — skip it.
+    const showOut = unit === "M-tokens" && co > 0;
     costSummary = `<div style="font-size:12px;margin-bottom:10px;color:var(--muted)">
       <strong style="color:var(--text)">${primaryLabel}:</strong>
-      ${fmt(ci)} /M in · ${fmt(co)} /M out
-      <span style="font-size:10px">(USD per million tokens)</span>
+      ${fmt(ci)} /M in${showOut ? ` · ${fmt(co)} /M out` : ""}
+      <span style="font-size:10px">(${unitLabel})</span>
     </div>`;
     if (m.via_openrouter && m.via_kilo && m.kilo_input_cost_per_m !== null && m.kilo_input_cost_per_m !== undefined) {
       const ki = m.kilo_input_cost_per_m;
@@ -1358,7 +1409,7 @@ function openDetail(m, tr) {
     }
   }
   body.innerHTML = `
-    <h2>${m.id}</h2>
+    <h2>${escapeHtml(m.id)}<button class="copy-id-btn" data-copy="${escapeHtml(m.id)}" title="Copy id to clipboard">copy</button></h2>
     ${costSummary}
     ${descBlock}
     ${staleBanner}
@@ -1369,9 +1420,42 @@ function openDetail(m, tr) {
     ${linkHtml}
   `;
   panel.classList.add("open");
+  document.getElementById("detail-backdrop").classList.add("open");
+  // Wire the copy button (per-open, since innerHTML re-creates it).
+  const copyBtn = body.querySelector(".copy-id-btn");
+  if (copyBtn) {
+    copyBtn.onclick = (ev) => {
+      ev.stopPropagation();
+      const id = copyBtn.dataset.copy;
+      const onDone = () => {
+        copyBtn.textContent = "copied";
+        copyBtn.classList.add("copied");
+        setTimeout(() => {
+          copyBtn.textContent = "copy";
+          copyBtn.classList.remove("copied");
+        }, 1500);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(id).then(onDone, () => {
+          // Permission denied (rare for same-origin file://) — fall back to selection.
+          const range = document.createRange();
+          range.selectNodeContents(body.querySelector("h2"));
+          const sel = window.getSelection();
+          sel.removeAllRanges(); sel.addRange(range);
+        });
+      } else {
+        // No clipboard API (old browser / restricted env) — select instead.
+        const range = document.createRange();
+        range.selectNodeContents(body.querySelector("h2"));
+        const sel = window.getSelection();
+        sel.removeAllRanges(); sel.addRange(range);
+      }
+    };
+  }
 }
 function closeDetail() {
   document.getElementById("detail").classList.remove("open");
+  document.getElementById("detail-backdrop").classList.remove("open");
   document.querySelectorAll('tbody tr.selected').forEach(r => r.classList.remove('selected'));
 }
 function escapeHtml(s) {
