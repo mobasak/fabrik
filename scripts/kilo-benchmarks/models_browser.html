@@ -284,9 +284,17 @@
     background: var(--accent-dim); color: white; font-weight: 600;
   }
   td.tier { font-weight: 600; }
-  td.tier.t-1 { color: var(--good); }
-  td.tier.t-2 { color: var(--warn); }
-  td.tier.t-3, td.tier.t-4 { color: var(--bad); }
+  /* Quality tier color semantics (CRITICAL — historically inverted!):
+     Per the column-header tooltip and derive_quality_v2.py docstring,
+     HIGHER tier = BETTER (T3 = frontier/best, T1 = baseline). The
+     previous rule had T3 in --bad (red) and T1 in --good (green) which
+     visually flagged the best models as errors. Fixed 2026-06-30. */
+  td.tier.t-3 { color: var(--good); font-weight: 600; }  /* frontier / best */
+  td.tier.t-2 { color: var(--warn); }                    /* strong mid-tier */
+  td.tier.t-1 { color: var(--muted); }                   /* baseline / no signal */
+  /* T4 is reserved but unused — live distribution shows only T1/T2/T3.
+     Style it as worst-of-the-worst if it ever appears. */
+  td.tier.t-4 { color: var(--bad); }
   td.status {
     font-size: 10px; text-transform: uppercase;
     letter-spacing: 0.03em;
@@ -1211,8 +1219,8 @@ function refresh() {
       <td class="cost" title="${priceSourceLabel(m)} — input cost">${fmtCost(m.input_cost_per_m, m)}${maybeCheaperBadge(m)}</td>
       <td class="cost" title="${priceSourceLabel(m)} — output cost">${(m.service_type && m.service_type !== "llm" && m.service_type !== "embedding") ? "<span style='color:var(--muted)' title='Not applicable — this service bills on a single axis (see Price column)'>n/a</span>" : fmtCost(m.output_cost_per_m, m)}</td>
       <td class="num">${m.context_window_k || ""}</td>
-      <td class="num" title="${m.output_tokens_per_sec ? 'Throughput from Artificial Analysis (' + (m.speed_source || 'AA') + ')' : 'No throughput data'}">${m.output_tokens_per_sec != null ? m.output_tokens_per_sec.toFixed(0) : ""}</td>
-      <td class="num" title="${m.ttft_ms != null ? 'Time-to-first-token: ' + m.ttft_ms.toFixed(0) + ' ms' : 'No TTFT data'}">${m.ttft_ms != null ? m.ttft_ms.toFixed(0) : ""}</td> <!-- noqa: 'token' is the LLM-token concept, not a secret -->
+      <td class="num" title="${m.output_tokens_per_sec ? 'Throughput from Artificial Analysis (' + (m.speed_source || 'AA') + ')' : 'No throughput data'}">${m.output_tokens_per_sec != null ? m.output_tokens_per_sec.toFixed(0) + "<span class='unit-suffix'>tok/s</span>" : ""}</td>
+      <td class="num" title="${m.ttft_ms != null ? 'Time-to-first-token: ' + m.ttft_ms.toFixed(0) + ' ms' : 'No TTFT data'}">${m.ttft_ms != null ? m.ttft_ms.toFixed(0) + "<span class='unit-suffix'>ms</span>" : ""}</td> <!-- noqa: 'token' is the LLM-token concept, not a secret -->
       <td class="tier t-${m.quality_tier || 0}" title="${m.quality_tier ? '' : 'Not yet rated by the local ranking pipeline'}">${m.quality_tier ? "T" + m.quality_tier : "—"}</td>
       <td class="cap">${m.kind === "chat" ? fmtCaps(m) : "<span style='color:var(--muted)'>embed</span>"}</td>
       <td class="num" title="${m._best_code_label ? "Strongest available coding signal: " + m._best_code_label : "No coding signal — tiered by family/cost"}" style="${m._best_code_label ? "font-weight:600;color:var(--accent)" : "color:var(--muted)"}">${m._best_code_label || "—"}</td>
