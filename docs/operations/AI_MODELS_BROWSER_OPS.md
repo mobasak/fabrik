@@ -1,10 +1,35 @@
 # AI Models Browser — operations runbook
 
-Owner: ozgur · Last reviewed: 2026-06-30 (Phase 5 of the direct-vendor pricing plan)
+Owner: ozgur · Last reviewed: 2026-06-30 (Phase 5 + Pass-8 review of the direct-vendor pricing plan)
 
 ## What this runbook covers
 
 The AI Models Browser at [scripts/kilo-benchmarks/models_browser.html](../../scripts/kilo-benchmarks/models_browser.html) is regenerated daily by [scripts/kilo-benchmarks/daily_refresh.sh](../../scripts/kilo-benchmarks/daily_refresh.sh) (cron `0 6 * * *` UTC). This doc explains how to operate the direct-vendor pricing scraper that was shipped in the converged plan [docs/development/plans/2026-06-29-plan-direct-vendor-pricing.md](../development/plans/2026-06-29-plan-direct-vendor-pricing.md).
+
+## Current scraper coverage (2026-06-30)
+
+**17 rows actively scraped daily** across 7 vendors. Use [audit_direct_vendor_freshness.py](../../scripts/kilo-benchmarks/audit_direct_vendor_freshness.py) for the live count.
+
+| Vendor | Method | DB rows scraped | Source page |
+|---|---|---|---|
+| assemblyai | static | 1 (`universal-2`) | `www.assemblyai.com/pricing` |
+| deepgram | static | 2 (`nova-2`, `nova-3`) | `deepgram.com/pricing` |
+| soniox | static | 2 (`stt-async-v4`, `stt-realtime-v4`) | `soniox.com/pricing/` |
+| cartesia | static | 1 (`sonic-2`) | `cartesia.ai/pricing` |
+| speechmatics | static | 1 (`enhanced`) | `www.speechmatics.com/pricing` |
+| anthropic | rendered | 4 (Claude Opus 4.8 / Sonnet 4.6 / Haiku 4.5 / Fable 5) | `docs.anthropic.com/en/docs/about-claude/pricing` |
+| openai | rendered | 6 (`whisper-large-v3`, `gpt-4o-transcribe`, `gpt-4o-mini-transcribe`, `tts-1`, `tts-1-hd`, `gpt-4o-mini-tts`) | `platform.openai.com/docs/pricing` |
+
+**Vendors with parsers NOT shipped** (registry entries exist, `parser_module: null`):
+
+Most remaining vendors are NOT amenable to per-row scraping for one of these reasons:
+- **Subscription/credit billing only** (no per-call rates published): elevenlabs, heygen, pika, recraft, runway, suno, udio, llamaindex
+- **Pricing rendered via client-side JS calls** that browserless doesn't capture: mistral, stability, luma, kling, aws, azure, google-cloud
+- **Cloudflare-walled even with stealth**: deepl, coqui (HF)
+- **Image-gen with credit-only billing**: bfl, ideogram
+- **Vendor lists 1 row only**, low ROI: mistral (`mistral/ocr` only — rest via OR/Kilo); qwen (catalog via Alibaba portal)
+
+For these, prefer the quarterly-audit helper below over building a parser per vendor.
 
 ## Manually triggering the scraper
 

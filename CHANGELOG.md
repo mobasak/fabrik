@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — AI_MODELS_BROWSER_OPS.md: documented current scraper coverage (17 rows / 7 vendors) + why remaining vendors are stubbed (2026-06-30)
+
+Added a "Current scraper coverage" section to the runbook so future operators see at a glance what's actively scraped vs. what's deliberately stubbed. Vendors NOT shipped are grouped by reason (subscription-only, client-side-rendered, CF-walled, low-ROI) so future-me doesn't try to rebuild a parser for something already determined infeasible. Pointer to `audit_direct_vendor_freshness.py` for the live count.
+
 ### Fixed — Pass-8 adversarial review: OpenAI window-size headroom + stderr logging for silent filters (2026-06-30)
 
 Background adversarial review of the new parsers (8 findings, 3 worth fixing).
