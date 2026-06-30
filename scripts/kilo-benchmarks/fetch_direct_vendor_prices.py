@@ -112,6 +112,7 @@ def _read_vendor_failures(path: Path = VENDOR_FAILURES_PATH) -> dict[str, int]:
     """
     try:
         import json
+
         return json.loads(path.read_text())
     except (FileNotFoundError, json.JSONDecodeError, OSError):
         return {}
@@ -122,6 +123,7 @@ def _write_vendor_failures(counters: dict[str, int], path: Path = VENDOR_FAILURE
     to stderr but don't crash the pipeline."""
     try:
         import json
+
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(counters, indent=2, sort_keys=True))
     except OSError as e:
@@ -647,18 +649,18 @@ def process_vendor(
                         # Don't update on unmapped — registry mistake
                         continue
                     elif w.action == "missing":
-                        # Row was expected but vendor didn't return it: bump miss counter
-                        new_misses = (
-                            conn.execute(
-                                "SELECT COALESCE(consecutive_pricing_misses, 0) FROM agents WHERE id=?",
-                                (w.db_id,),
-                            ).fetchone()
-                            or (0,)
-                        )[0] + 1
-                        conn.execute(
-                            "UPDATE agents SET consecutive_pricing_misses=? WHERE id=?",
-                            (new_misses, w.db_id),
-                        )
+                        # Row was expected but vendor didn't return it: bump miss counter.
+                        # Adversarial review M3: pre-fix used read-modify-write
+                        # (SELECT then UPDATE in separate statements). Under
+                        # SQLite's default isolation that's race-prone if a
+                        # second writer slips in between. Replaced with atomic
+                        # row-level UPDATE; read back the new value with RETURNING.
+                        new_misses = conn.execute(
+                            "UPDATE agents SET consecutive_pricing_misses = "
+                            "COALESCE(consecutive_pricing_misses, 0) + 1 "
+                            "WHERE id=? RETURNING consecutive_pricing_misses",
+                            (w.db_id,),
+                        ).fetchone()[0]
                         if new_misses >= MISS_TO_DEPRECATE:
                             conn.execute(
                                 "UPDATE agents SET status='deprecated', "

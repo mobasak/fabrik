@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Phase 4: first-class `companion_services` (app + scheduler/worker in one compose) (2026-06-30)
+
+Multi-service deploys without hand-rolling compose. New `companion_services` spec field (`CompanionService` model: `id` slug, non-empty `command`, REQUIRED `memory` like `256M`, optional `env_overrides`) renders an additional compose service that shares the parent app's image/build + env + `DATABASE_URL`/`REDIS_URL`, overriding only `command` + `container_name` + `memory` — **no Traefik labels** (companions are workers, not HTTP-routed). Rendered by `node-api`/`python-api` via the new `templates/_partials/_companion_service.yaml.j2`; passes `deployer_ssh._validate_compose` (per-service memory invariant covers companions). New `core/30-ops.md` rule documents the **companion (same `git push`) vs standalone `kind: worker` (separate repo)** decision. `tests/test_companion_services.py` (10: model validation, 2-service render, command/memory/db/env-override/no-traefik, `_validate_compose`, single-service back-compat). Fully backward-compatible — every existing spec renders unchanged. NOTE: `source.type: git` projects (committed compose) hand-roll the companion in their own repo; this field drives the scaffold-emitted path.
+
+### Fixed — adversarial review H3+M1+M2+M3+M4+M6: audit clock-skew + heartbeat alert + roundtrip backup + atomic counter + ISO-datetime + Sonic regex (2026-06-30)
+
+Fifth and final fix cluster from the adversarial review. 6 smaller correctness/hardening items shipped together.
+
+**H3 (HIGH — audit misleads operator)**: future-dated `last_price_scraped` (clock skew or bad write) used to classify as `scraped` with NEGATIVE age. Now: new `clock-skew` status.
+
+**M4 (MEDIUM — silent fall-through)**: `_parse_iso_date` used `date.fromisoformat` which rejected datetime strings; those rows silently fell to `seed-only` as if never scraped. Now tolerant of both date and datetime forms.
+
+**M1 (MEDIUM — heartbeat write-failure invisible until next day)**: [daily_refresh.sh:298-303](scripts/kilo-benchmarks/daily_refresh.sh#L298) CRITICAL line only landed in `update.log`. Now ALSO fires `_send_alert(severity="critical")` via the alerting module (best-effort; silent if module unavailable).
+
+**M2 (MEDIUM — roundtrip nuked operator edits)**: [test_add_vendor_roundtrip.sh](scripts/kilo-benchmarks/test_add_vendor_roundtrip.sh) cleanup used `git checkout --` which silently destroyed operator's uncommitted registry edits if the test ran mid-edit. Now snapshots via `cp` to `$SCRATCH/registry.yaml.preserve` at startup; restores from snapshot on exit. Step-3 reset also uses the snapshot.
+
+**M3 (MEDIUM — counter race)**: miss-counter increment used SELECT-then-UPDATE (read-modify-write across 2 statements). Race-prone under interleaved writers. Now: single atomic `UPDATE ... SET = COALESCE(...) + 1 RETURNING ...`.
+
+**M6 (MEDIUM — Sonic regex too lax)**: `\bsonic[\s\-_]?2?\b` accepted bare "Sonic". Live probe revealed Cartesia's page now lists `Sonic-3` (registry slug `sonic-2` is stale — orchestrator's >50% diff REFUSE catches the magnitude shift). Updated to `\bsonic[\s\-_]?[23]\b` — accepts Sonic-2 OR Sonic-3, rejects bare "Sonic" and Sonic-4+.
+
+4 regression tests. 203/203 kilo-benchmarks tests green. Live roundtrip test re-run: TEST_PASS in 6.4s.
+
 ### Fixed — adversarial review H1+H2: narrow except + consecutive_fetch_failures persistence (2026-06-30)
 
 Fourth fix cluster from the adversarial review.

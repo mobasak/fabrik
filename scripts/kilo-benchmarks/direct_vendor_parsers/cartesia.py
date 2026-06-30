@@ -32,7 +32,14 @@ _PRICE_RE = re.compile(
     r"\$(\d+\.\d{1,3})\s*(?:per minute|/minute|/min)",
     re.I,
 )
-_SONIC_RE = re.compile(r"\bsonic[\s\-_]?2?\b", re.I)
+# Adversarial review M6 (2026-06-30): pre-fix `\bsonic[\s\-_]?2?\b` accepted
+# bare "Sonic" without a version qualifier — risk of silently picking a wrong
+# sub-product if Cartesia ships a future variant. Live re-probe today shows
+# Cartesia's page now lists Sonic-3 (the registry slug `cartesia/sonic-2` is
+# stale, but the orchestrator's >50% diff REFUSE catches the magnitude shift).
+# Compromise: accept Sonic-2 OR Sonic-3 explicitly (bounded versions). A new
+# version (Sonic-4+) requires a deliberate code update.
+_SONIC_RE = re.compile(r"\bsonic[\s\-_]?[23]\b", re.I)
 
 
 def extract(payload: str, source_url: str) -> list[ParsedRow]:

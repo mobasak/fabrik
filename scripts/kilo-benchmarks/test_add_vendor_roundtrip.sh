@@ -40,13 +40,19 @@ REGISTRY="$KB/direct_vendor_pricing_registry.yaml"
 SCRATCH=$(mktemp -d -t fabrik-roundtrip-XXXXXX)
 AUDIT_MD="$SCRATCH/audit.md"
 
-# Restore registry on exit (success OR failure) so the test never leaves
-# the committed file dirty. Uses git index, not file backup, so this is
-# robust against partial writes.
+# Restore registry on exit (success OR failure). Adversarial review M2:
+# pre-fix used `git checkout --` which silently DELETED operator's uncommitted
+# registry edits if the test was run mid-edit. Now snapshots via `cp` so we
+# only restore what THIS test put in place — operator's uncommitted edits are
+# preserved.
+_REGISTRY_BACKUP="$SCRATCH/registry.yaml.preserve"
+cp "$REGISTRY" "$_REGISTRY_BACKUP"
 cleanup() {
   local rc=$?
-  if [ -d "$FABRIK_ROOT/.git" ]; then
-    git -C "$FABRIK_ROOT" checkout -- "scripts/kilo-benchmarks/direct_vendor_pricing_registry.yaml" 2>/dev/null || true
+  if [ -f "$_REGISTRY_BACKUP" ]; then
+    # Restore from our own pre-test snapshot — preserves any uncommitted
+    # operator edits to the registry that existed before this script ran.
+    cp "$_REGISTRY_BACKUP" "$REGISTRY"
   fi
   rm -rf "$SCRATCH"
   exit $rc
@@ -117,8 +123,9 @@ log "Step 2 OK: stub correctly skipped (require_parser=True path)"
 # ----------------------------------------------------------------------
 log "Step 3: switch parser_module → subscription_monitor (no DB writes in dry-run)"
 # Restore registry first (so we apply a clean swap), then re-add the stub
-# with parser_module set this time.
-git -C "$FABRIK_ROOT" checkout -- "scripts/kilo-benchmarks/direct_vendor_pricing_registry.yaml"
+# with parser_module set this time. M2: use our own backup, not git checkout
+# (which would also wipe operator's uncommitted edits if any).
+cp "$_REGISTRY_BACKUP" "$REGISTRY"
 
 cat >> "$REGISTRY" <<EOF
 

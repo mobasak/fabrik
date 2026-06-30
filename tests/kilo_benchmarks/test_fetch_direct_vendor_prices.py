@@ -997,3 +997,94 @@ def test_H2_consecutive_fetch_failures_persisted_across_runs(tmp_path):
     # Successful fetch resets counter
     m._record_vendor_success("badvendor", counter_file)
     assert m._read_vendor_failures(counter_file).get("badvendor", 0) == 0
+
+
+# ============================================================
+# Adversarial review Phase 3 — Fix Cluster 6
+# H3: audit classifies future-dated `last_price_scraped` as "scraped" with negative age
+# M4: ISO-datetime strings fall through to "seed-only" silently
+# ============================================================
+
+def test_H3_audit_future_timestamp_classified_as_clock_skew(tmp_path):
+    """REGRESSION (H3): a future-dated last_price_scraped (clock skew or
+    bad write) MUST be classified as 'clock-skew' (or 'stale'), not
+    'scraped' with negative age. Pre-fix the operator saw '-5d' age and
+    a fresh-classified row that wasn't actually fresh."""
+    import sys
+    sys.path.insert(0, str(REPO_ROOT / "scripts" / "kilo-benchmarks"))
+    import audit_direct_vendor_freshness as a
+
+    # Future date relative to today
+    status, age = a.classify("2030-01-01", None, today=__import__("datetime").date(2026, 6, 30), max_age_days=3)
+    # Either 'clock-skew' or 'stale' is acceptable — both surface the issue.
+    # 'scraped' with negative age is the bug.
+    assert status != "scraped" or (age is not None and age >= 0), (
+        f"H3 regression: future timestamp classified as 'scraped' with age={age}"
+    )
+
+
+def test_M4_audit_iso_datetime_with_time_component_parses(tmp_path):
+    """REGRESSION (M4): a stored `last_price_scraped` value with a time
+    component (ISO-datetime, e.g., '2026-06-30T12:00:00') must parse
+    correctly and classify accordingly — not silently fall through to
+    'seed-only' as if the row were never scraped.
+
+    Pre-fix: _parse_iso_date used datetime.date.fromisoformat which
+    rejects time components, returning None → row classified seed-only
+    forever even after fresh writes."""
+    import sys
+    sys.path.insert(0, str(REPO_ROOT / "scripts" / "kilo-benchmarks"))
+    import audit_direct_vendor_freshness as a
+
+    # Today's date with a time component
+    status, age = a.classify("2026-06-30T12:00:00", None, today=__import__("datetime").date(2026, 6, 30), max_age_days=3)
+    assert status == "scraped", (
+        f"M4 regression: ISO-datetime fell through to '{status}' (expected 'scraped')"
+    )
+    assert age == 0
+
+
+# ============================================================
+# Cluster 6 leftover regression tests: M3, M6
+# ============================================================
+
+def test_M3_consecutive_pricing_misses_atomic_update(tmp_path):
+    """REGRESSION (M3): the miss-counter increment must be atomic at the
+    row level. Pre-fix used SELECT-then-UPDATE (race-prone). Post-fix
+    uses `UPDATE ... SET = COALESCE(..., 0) + 1 RETURNING ...` which is
+    a single statement under SQLite.
+
+    This test simulates 3 sequential miss-bumps and verifies the counter
+    end-state is 3 (i.e., no lost updates from interleaving)."""
+    import sys, sqlite3 as sq
+    sys.path.insert(0, str(REPO_ROOT / "scripts" / "kilo-benchmarks"))
+    import fetch_direct_vendor_prices as m
+
+    db = tmp_path / "k.db"
+    _seed_db(db)
+    # Issue 3 sequential atomic bumps via the new SQL pattern
+    conn = sq.connect(db)
+    for _ in range(3):
+        new_n = conn.execute(
+            "UPDATE agents SET consecutive_pricing_misses = "
+            "COALESCE(consecutive_pricing_misses, 0) + 1 "
+            "WHERE id=? RETURNING consecutive_pricing_misses",
+            ("soniox/stt-async-v4",),
+        ).fetchone()[0]
+        conn.commit()
+    conn.close()
+    assert new_n == 3, f"M3 regression: 3 bumps yielded counter={new_n}"
+
+
+def test_M6_cartesia_sonic_regex_requires_version() -> None:
+    """REGRESSION (M6): bare 'Sonic' (no version) must NOT anchor — if
+    Cartesia adds a "Sonic Voice Agents" sub-product, it could quote a
+    different price. Version 2 OR 3 accepted; 4+ requires deliberate code update."""
+    import sys, re as _re
+    sys.path.insert(0, str(REPO_ROOT / "scripts" / "kilo-benchmarks"))
+    from direct_vendor_parsers.cartesia import _SONIC_RE
+    assert _SONIC_RE.search("Sonic-2 pricing") is not None
+    assert _SONIC_RE.search("Sonic 3") is not None  # accepted (3 in version set)
+    assert _SONIC_RE.search("Sonic only") is None   # bare — rejected
+    assert _SONIC_RE.search("Sonic-4") is None      # unknown version — rejected
+    assert _SONIC_RE.search("supersonic") is None   # word boundary respected

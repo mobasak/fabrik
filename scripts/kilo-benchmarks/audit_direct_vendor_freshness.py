@@ -44,10 +44,22 @@ def _today() -> date:
 
 
 def _parse_iso_date(s: str | None) -> date | None:
+    """Parse an ISO date or datetime to a `date`. Adversarial review M4:
+    pre-fix used `date.fromisoformat(s)` which raises ValueError on
+    datetime strings (e.g. '2026-06-30T12:00:00') — those rows then
+    silently fell through to 'seed-only' as if they'd never been scraped.
+
+    Now tolerant of both date and datetime forms."""
     if not s:
         return None
+    s = s.strip()
     try:
-        return date.fromisoformat(s.strip())
+        return date.fromisoformat(s)
+    except (ValueError, AttributeError):
+        pass
+    # Try datetime form (date.fromisoformat is strict pre-3.11)
+    try:
+        return datetime.fromisoformat(s).date()
     except (ValueError, AttributeError):
         return None
 
@@ -60,8 +72,13 @@ def classify(
 ) -> tuple[str, int | None]:
     """Return (status, age_days) for a row.
 
-    status ∈ {'scraped', 'stale', 'seed-only', 'url-broken'}
+    status ∈ {'scraped', 'stale', 'seed-only', 'url-broken', 'clock-skew'}
     age_days is None for seed-only / url-broken or invalid timestamp.
+
+    Adversarial review H3: a future-dated `last_price_scraped` (clock skew
+    or a bad write) used to be classified as 'scraped' with NEGATIVE age,
+    so the row looked perpetually fresh in the audit. Now classified as
+    'clock-skew' so the operator sees the problem.
     """
     today = today or _today()
     if (price_scrape_source or "").startswith("URL_BROKEN_"):
@@ -70,6 +87,9 @@ def classify(
     if last is None:
         return "seed-only", None
     age = (today - last).days
+    if age < 0:
+        # H3: timestamp in the future. Don't trust it.
+        return "clock-skew", age
     if age <= max_age_days:
         return "scraped", age
     return "stale", age

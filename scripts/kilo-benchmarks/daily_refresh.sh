@@ -295,9 +295,18 @@ mkdir -p "$(dirname "$LOG_FILE")"
   # >36h), but we ALSO log the immediate write failure so the operator
   # sees it in the same daily_refresh log they'd grep for the staleness
   # alert. Two-layer defense.
-  mkdir -p "$KB/cache" || echo "[daily_refresh] CRITICAL: heartbeat cache dir creation failed"
+  # Adversarial review M1 (2026-06-30): pre-fix, write failures only landed
+  # in update.log — nobody tails it day-to-day, so the disk-full / perm-denied
+  # case only surfaced via the NEXT day's stale-heartbeat alert. Now we ALSO
+  # fire a direct Telegram alert via the alerting module so the operator sees
+  # it within minutes, not 36h later.
+  if ! mkdir -p "$KB/cache"; then
+    echo "[daily_refresh] CRITICAL: heartbeat cache dir creation failed"
+    "$VENV_PY" -c "from alerting import send_alert; send_alert(title='daily_refresh.sh: heartbeat cache dir creation FAILED', body='Disk full or permission denied on $KB/cache/. Next-day staleness alert will fire as backup but operator should investigate immediately.', severity='critical')" 2>/dev/null || true
+  fi
   if ! date -u +'%Y-%m-%dT%H:%M:%S+00:00' > "$KB/cache/daily_refresh_last_success.txt" 2>/dev/null; then
     echo "[daily_refresh] CRITICAL: heartbeat timestamp write failed (disk full? permission?)"
+    "$VENV_PY" -c "from alerting import send_alert; send_alert(title='daily_refresh.sh: heartbeat timestamp write FAILED', body='Could not write to $KB/cache/daily_refresh_last_success.txt. Tomorrow heartbeat will alert as STALE; please investigate disk / permissions now.', severity='critical')" 2>/dev/null || true
   fi
 
   printf '[timing] TOTAL: %ds\n' "$((SECONDS - T0_TOTAL))"
