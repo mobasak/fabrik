@@ -217,6 +217,16 @@
   thead th.sorted.asc::after {
     content: " ▲ worst→best";
   }
+  /* Lower-is-better columns (Price / $/M out / TTFT / STT WER): the
+     sort direction reads inverted from the indicator above, so flip
+     the labels here. These rules come AFTER the defaults so the
+     attribute-selector specificity wins. */
+  thead th.sorted[data-lower-better="true"]::after {
+    content: " ▼ worst→best";
+  }
+  thead th.sorted.asc[data-lower-better="true"]::after {
+    content: " ▲ best→worst";
+  }
   tbody td {
     padding: 8px 10px;
     border-bottom: 1px solid #1c1f27;
@@ -539,13 +549,13 @@
       <thead>
         <tr id="thead-row">
           <th data-sort="name" data-tabs="overview reasoning coding translation transcription voice image video ocr" title="Human-readable model name + provider/id below in dim mono. Sortable by name; sort by id via the URL prefix in the dim line. Provider already implied by the id prefix.">Model</th>
-          <th data-sort="input_cost_per_m" data-tabs="overview reasoning coding translation transcription voice image video ocr" title="Vendor-quoted price per service-type unit (LLM: $/M tokens · STT: $/audio-minute · TTS/Translation: $/1K chars · Image: $/image · Video: $/sec · OCR: $/page). Hover any cell for source / canonical metric.">Price</th>
-          <th data-sort="output_cost_per_m" data-tabs="overview reasoning coding translation" title="USD per million output tokens (LLMs only). For non-LLM services see the unit hover on the Price column.">$/M out</th>
-          <th data-sort="context_window_k" data-tabs="overview reasoning coding translation">Ctx (k)</th>
+          <th data-sort="input_cost_per_m" data-lower-better="true" data-tabs="overview reasoning coding translation transcription voice image video ocr" title="Vendor-quoted price per service-type unit (LLM: $/M tokens · STT: $/audio-minute · TTS/Translation: $/1K chars · Image: $/image · Video: $/sec · OCR: $/page). LOWER is better — first-click sorts cheapest first. Hover any cell for source / canonical metric.">Price</th>
+          <th data-sort="output_cost_per_m" data-lower-better="true" data-tabs="overview reasoning coding translation" title="USD per million output tokens (LLMs only). LOWER is better — first-click sorts cheapest first. For non-LLM services see the unit hover on the Price column.">$/M out</th>
+          <th data-sort="context_window_k" data-tabs="overview reasoning coding translation" title="Context window in thousands of tokens (the model's input length cap). Higher is better. Empty cells = unknown for direct-vendor specialty rows (STT/TTS/image/video/OCR — context isn't the right metric there).">Ctx (k)</th>
           <th data-sort="output_tokens_per_sec" data-tabs="overview reasoning coding" title="Throughput in output tokens per second (Artificial Analysis benchmark). Higher is better. Empty cells = AA didn't match this model.">Speed</th>
-          <th data-sort="ttft_ms" data-tabs="overview reasoning coding" title="Time-to-first-token in milliseconds (Artificial Analysis). LOWER is better — interactive UX feel.">TTFT</th>
+          <th data-sort="ttft_ms" data-lower-better="true" data-tabs="overview reasoning coding" title="Time-to-first-token in milliseconds (Artificial Analysis). LOWER is better — first-click sorts fastest first. Interactive UX feel.">TTFT</th>
           <th data-sort="quality_tier" data-tabs="overview reasoning coding translation transcription voice image video ocr" title="Quality tier: T3 = frontier/best, T2 = strong mid-tier, T1 = baseline / no comparable signal. Higher number = better (so sort DESC puts T3 at top — that's intentional). Derived daily by derive_quality_v2.py from up to 9 signals: family-pattern regex (claude-opus → T3, claude-sonnet → T2, gpt-4-class → T2, etc.), Chatbot Arena ELO, Terminal Bench, weighted_coding, SWE-bench, Aider Polyglot, design_arena ELO, Artificial Analysis Intelligence Index, OpenRouter mandatory-reasoning flag, and LLM input price (≥$10/M-tokens → T3 floor, ≥$3/M-tokens → T2 floor). Cost floor is gated on M-tokens unit only — direct-vendor STT/TTS/image/video rows fall back to family/benchmark signals; if neither fires they default to T1. ANY single signal hitting a floor moves the row up — no signal is required. T1 also covers unrated models (just-ingested or specialty rows with no LLM-style benchmark coverage).">Tier</th>
-          <th data-tabs="overview reasoning coding translation">Caps</th>
+          <th data-tabs="overview reasoning coding translation" title="Capability flags (badges, brightened when on). V=vision input · T=tools / function calling · A=agentic (Kilo-confirmed) · R=reasoning model · S=speech-to-text capable · Tr=translation-scored on the fabrik bake-off · GA=generally available (not preview/beta). Not sortable — use the Model flags chips in the sidebar to filter.">Caps</th>
           <th data-sort="_best_code_score" data-tabs="coding" title="Best-available coding signal per row, max'd across SWE-bench Verified + SWE-bench Multilingual, then falling back through Aider Polyglot > weighted_coding (BenchLM) > design_arena_coding ELO normalized to 0-100. CAVEAT: scores from different sources aren't strictly comparable (a SWE 75 ≠ an Aider 75 ≠ a DA 1280). Hover any cell to see which source drove the number. Click to sort descending; toggle 'has Best Code' chip in the sidebar to hide rows without any explicit coding signal.">Best Code</th>
           <th data-sort="arena_elo" data-tabs="overview reasoning translation" title="Chatbot Arena ELO (LMSys / openlm.ai)">Arena</th>
           <th data-sort="tbench_accuracy" data-tabs="reasoning" title="Terminal Bench 2.0 % (tbench.ai)">TBench</th>
@@ -556,11 +566,11 @@
           <th data-sort="design_arena_coding_elo" data-tabs="coding" title="Mean ELO across coding-only design_arena categories (OpenRouter API benchmarks block)">DA-code</th>
           <th data-sort="weighted_coding" data-tabs="coding" title="BenchLM weighted coding score (composite of HumanEval / MBPP / etc.). Higher is better. Sparser than SWE/Aider but covers some models those leaderboards miss.">W-Code</th>
           <th data-sort="translation_avg_pct" data-tabs="overview translation" title="Translation chrF++ average across 23 languages (fabrik translation bake-off v2.2). Hover the row's cell for per-language breakdown.">Trans</th>
-          <th data-sort="stt_wer_avg" data-tabs="transcription" title="Speech-to-text Word Error Rate avg of (LibriSpeech test-clean en + FLEURS multilingual). LOWER is better. Direct-API STT models seeded from public benchmarks (Whisper, gpt-4o-transcribe, Deepgram Nova, AssemblyAI Universal).">STT WER</th>
-          <th data-tabs="overview reasoning coding translation">Categories</th>
+          <th data-sort="stt_wer_avg" data-lower-better="true" data-tabs="transcription" title="Speech-to-text Word Error Rate avg of (LibriSpeech test-clean en + FLEURS multilingual). LOWER is better — first-click sorts most-accurate first. Direct-API STT models seeded from public benchmarks (Whisper, gpt-4o-transcribe, Deepgram Nova, AssemblyAI Universal).">STT WER</th>
+          <th data-tabs="overview reasoning coding translation" title="Route categories assigned by OpenRouter (language, code, vision, multimodal, agentic, long-context, speech-audio). Pinned categories — ones the model is currently routed under in today's OpenRouter shortlist — are highlighted. Not sortable; use the Route categories chips in the sidebar to filter.">Categories</th>
           <th data-sort="status" data-tabs="overview reasoning coding translation transcription voice image video ocr" title="Lifecycle state. 'active' = currently routable; 'deprecated' = no longer in upstream catalog (won't be selected by routers). Maintained two ways: (1) verify_openrouter_catalog.py --apply runs daily and flips OpenRouter-routed models to 'deprecated' when they vanish from the live OpenRouter /api/v1/models response (cause: delisting, EOL, rename); (2) direct-vendor specialty rows (Soniox, ElevenLabs, AssemblyAI, Coqui, etc.) are seeded 'active' by seed_direct_vendors.py and have NO automatic deprecation check — the OpenRouter verifier doesn't see them. If a direct vendor EOLs a model, status stays 'active' until someone updates seed_direct_vendors.py manually. So 'active' on the Voice/Audio/Image/Video/OCR tabs is a strong signal for OpenRouter-routed rows and a weak signal for direct-vendor rows.">Status</th>
           <th data-sort="last_verified" data-tabs="overview reasoning coding translation" title="Days since the pricing/benchmark scrape last refreshed this row. Useful for LLM tabs where benchmark sources have varying cadence (some weekly, some monthly). Hidden on specialty tabs (Transcription / Voice / Image / Video / OCR) because every direct-vendor row is bumped daily by seed_direct_vendors.py — the column is uniformly 'today' and carries no signal there.">Verified</th>
-          <th data-tabs="overview reasoning coding translation transcription voice image video ocr">Source</th>
+          <th data-tabs="overview reasoning coding translation transcription voice image video ocr" title="Routing source (badges). OR=OpenRouter · K=Kilo Gateway · DS=Alibaba DashScope (qwen-mt-turbo etc.) · SF=SiliconFlow (Hunyuan etc.) · R=Replicate mirror · F=fal.ai mirror · K +N% = Kilo price markup vs OpenRouter for dual-routed. Direct-vendor rows (no gateway) show the vendor name. Not sortable; use the Routing / Exclusivity chips in the sidebar to filter.">Source</th>
         </tr>
       </thead>
       <tbody id="tbody"></tbody>
@@ -748,8 +758,17 @@ document.getElementById("reset").onclick = () => location.reload();
 document.querySelectorAll('thead th[data-sort]').forEach(th => {
   th.onclick = () => {
     const k = th.dataset.sort;
-    if (state.sortKey === k) state.sortAsc = !state.sortAsc;
-    else { state.sortKey = k; state.sortAsc = false; }
+    if (state.sortKey === k) {
+      state.sortAsc = !state.sortAsc;
+    } else {
+      state.sortKey = k;
+      // First-click default: for columns marked `data-lower-better="true"`
+      // (Price, $/M out, TTFT, STT WER) the user expectation on a fresh
+      // click is "best first", which means ASCENDING (cheapest, fastest,
+      // most-accurate). All other columns default to DESCENDING (highest
+      // tier / SWE-score / ELO / etc. first).
+      state.sortAsc = th.dataset.lowerBetter === "true";
+    }
     refresh();
   };
 });
