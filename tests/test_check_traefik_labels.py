@@ -350,3 +350,36 @@ class TestAgainstRealTemplates:
         assert "tls=true" in combined, (
             "report must name the specific missing label so operators fix fast"
         )
+
+
+class TestSkipWhenTemplatesDirAbsent:
+    """Phase 2 (deploy-readiness-gaps): no ``templates/`` dir → skip with exit 0,
+    not the old exit 2 that red-gated every non-fabrik project this script syncs to.
+    final_gate's run_optional_check fails on any non-zero exit."""
+
+    def test_cli_skips_with_exit_zero_when_templates_dir_missing(self, tmp_path: Path) -> None:
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT_PATH), "--templates-dir", str(tmp_path / "nope")],
+            capture_output=True,
+            text=True,
+            cwd=str(REPO_ROOT),
+            timeout=10,
+        )
+        assert result.returncode == 0, (
+            f"missing templates/ must skip with exit 0 (was exit 2). "
+            f"got {result.returncode}\nstdout={result.stdout}\nstderr={result.stderr}"
+        )
+        assert "[skip]" in result.stdout
+
+    def test_cli_exits_zero_when_templates_dir_empty(self, tmp_path: Path) -> None:
+        (tmp_path / "templates").mkdir()
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT_PATH), "--templates-dir", str(tmp_path / "templates")],
+            capture_output=True,
+            text=True,
+            cwd=str(REPO_ROOT),
+            timeout=10,
+        )
+        assert result.returncode == 0, (
+            f"empty templates/ must exit 0\nstdout={result.stdout}\nstderr={result.stderr}"
+        )

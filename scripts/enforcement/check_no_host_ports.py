@@ -321,11 +321,12 @@ def main(argv: list[str] | None = None) -> int:
 
     templates_dir: Path = args.templates_dir
     if not templates_dir.is_dir():
-        print(
-            f"ERROR: --templates-dir {templates_dir} does not exist or is not a directory",
-            file=sys.stderr,
-        )
-        return 2
+        # A project with no templates/ dir (every non-fabrik project) has no
+        # template compose files to scan — a valid state, not a violation.
+        # Skip with exit 0 so final_gate's run_optional_check passes; only real
+        # host-port violations (exit 1) should red-gate.
+        print(f"[skip] no templates/ dir at {templates_dir} — nothing to check")
+        return 0
 
     all_violations: list[Violation] = []
     for path in sorted(templates_dir.rglob("compose.yaml.j2")):
