@@ -28,6 +28,7 @@ Registry slug_on_page values map to the page-side model name verbatim
 from __future__ import annotations
 
 import re
+import sys
 
 from . import ParsedRow, per_M_tokens
 
@@ -81,6 +82,13 @@ def extract(payload: str, source_url: str) -> list[ParsedRow]:
         # (e.g. the Mythos preview rows have a different column order),
         # output ends up < input — refuse to emit a corrupt ParsedRow.
         if output_price <= input_price:
+            # Pass-8 review: silent filter is fail-closed (right call) but
+            # operators skimming cron stderr should see what was dropped.
+            sys.stderr.write(
+                f"[anthropic parser] WARN: skipping '{model_name}' — "
+                f"output ${output_price} <= input ${input_price} "
+                "(impossible for Anthropic; likely non-standard table layout)\n"
+            )
             continue
         rows.append(
             ParsedRow(

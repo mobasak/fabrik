@@ -38,6 +38,7 @@ from __future__ import annotations
 
 import html as html_mod
 import re
+import sys
 
 from . import (
     ParsedRow,
@@ -56,9 +57,14 @@ _PRICE_RE = re.compile(
     r'"\$([0-9]+(?:\.[0-9]+)?)\s*/\s*(minute|1M characters|1M tokens|MTok|hour|second)"'
 )
 
-# How many chars after the anchor to scan for the FIRST price (each model
-# definition is small — under 800 chars in the live fixture).
-_WINDOW_BYTES = 1200
+# How many chars after the anchor to scan for the FIRST price.
+# Sized at 2000 (was 1200) after Pass-8 review caught gpt-4o-realtime-preview
+# at offset 1112 in the live fixture — only 88 chars of headroom. If OpenAI
+# adds another row (image-modality pricing) to that model's block, the parser
+# would have walked into the NEXT model's first price. 2000 gives us 900+
+# chars of slack while still being smaller than the gap between adjacent
+# pricing tables (~3KB) so we don't cross table boundaries.
+_WINDOW_BYTES = 2000
 
 
 def _normalize(price: float, unit: str) -> tuple[float, str] | None:
@@ -104,6 +110,13 @@ def extract(payload: str, source_url: str) -> list[ParsedRow]:
         unit_text = price_match.group(2)
         normalized = _normalize(price, unit_text)
         if normalized is None:
+            # Pass-8 review: per-second prices (or any unrecognized unit) get
+            # silently filtered. Log so the daily-refresh stderr captures it
+            # — an operator skimming the cron output sees what dropped.
+            sys.stderr.write(
+                f"[openai parser] WARN: skipping '{name}' — unit '{unit_text}' "
+                "has no normalization to a seed unit\n"
+            )
             continue
         # noqa: N806 — `price_per_m_value` would be misleading; the M is the
         # semantic unit (per-million-billable-units), not a mixedCase style flag.

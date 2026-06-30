@@ -354,3 +354,46 @@ def test_openai_skips_per_second_unit() -> None:
     html_fragment = '"model":[0,"hypothetical-per-sec-model"],"rows":[1,[[1,[[0,"x"],[0,1],[0,2],[0,"$0.00028 / second"]]]]]}'
     rows = _load("openai").extract(html_fragment, "https://example.com/")
     assert rows == [], "per-second prices have no seed unit; must be skipped"
+
+
+def test_openai_window_size_handles_multi_row_models() -> None:
+    """Pass-8 regression: _WINDOW_BYTES must be large enough that a model
+    with several rows (e.g. Image + Audio + Text + Cached + Output ~ 1500
+    chars after the anchor) still finds its FIRST price before walking into
+    the next model's price. Synthetic fixture: model "test-multi-row" has
+    1700 chars of filler before its $X/minute, then "next-model" follows."""
+    filler = "x" * 1700
+    html_fragment = (
+        f'"model":[0,"test-multi-row"]' + filler +
+        '[0,"$0.999 / minute"],"model":[0,"next-model"],"rows":[1,[[1,[[0,"x"],[0,1],[0,2],[0,"$0.001 / minute"]]]]]}'
+    )
+    rows = _load("openai").extract(html_fragment, "https://example.com/")
+    by_slug = {r.model_slug: r for r in rows}
+    # test-multi-row must report ITS price ($0.999/min → 16650/M), NOT next-model's.
+    assert "test-multi-row" in by_slug, "window too small — model lost"
+    assert abs(by_slug["test-multi-row"].input_price_per_M - 16650.0) < 1.0, (
+        f"window walked into next model: got {by_slug['test-multi-row'].input_price_per_M}"
+    )
+
+
+def test_openai_per_second_skip_logs_to_stderr(capsys) -> None:
+    """Pass-8 regression: per-second prices skip silently — verify they now
+    emit a stderr WARN line so operators see the filter in cron output."""
+    html_fragment = '"model":[0,"hypothetical-per-sec"],"rows":[1,[[1,[[0,"x"],[0,1],[0,2],[0,"$0.00028 / second"]]]]]}'
+    _load("openai").extract(html_fragment, "https://example.com/")
+    captured = capsys.readouterr()
+    assert "hypothetical-per-sec" in captured.err
+    assert "WARN" in captured.err
+
+
+def test_anthropic_output_lt_input_filter_logs_to_stderr(capsys) -> None:
+    """Pass-8 regression: sanity-check filter (output <= input) now emits
+    a stderr WARN line."""
+    html = (
+        r'\"children\":[\"Claude Mythos 5\"] '
+        r'$$7.50 / MTok $$37.50 / MTok $$1.50 / MTok $$7.50 / MTok $$1.50 / MTok'
+    )
+    _load("anthropic").extract(html, "https://example.com/")
+    captured = capsys.readouterr()
+    assert "Mythos 5" in captured.err
+    assert "WARN" in captured.err

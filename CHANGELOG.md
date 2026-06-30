@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Pass-8 adversarial review: OpenAI window-size headroom + stderr logging for silent filters (2026-06-30)
+
+Background adversarial review of the new parsers (8 findings, 3 worth fixing).
+
+**OpenAI `_WINDOW_BYTES` was barely sufficient** (was 1200, gpt-4o-realtime-preview's price sits at offset 1112 in the live fixture — only 88 chars of headroom). If OpenAI added another row (e.g., image-modality pricing) to that model's block the parser would walk into the NEXT model's first price. Bumped to 2000 (still smaller than the ~3KB gap between adjacent pricing tables, so no cross-boundary risk). New regression test `test_openai_window_size_handles_multi_row_models` constructs a synthetic fixture with 1700 chars of filler between anchor and price and asserts the parser still finds the right model's price. With the larger window, live `--apply` now extracts 20 OpenAI models (was 17) — 3 more get captured; all 6 DB-mapped rows still write cleanly.
+
+**Silent filters now log to stderr** so operators reading cron output see what was dropped: OpenAI parser warns when an unrecognized unit (e.g., `$X / second`) causes a row to be skipped; Anthropic parser warns when a model fails the `output > input` sanity check (the impossible-for-Anthropic case caught by the Mythos preview's reversed-column layout). 2 regression tests verify the stderr lines are emitted.
+
+177/177 kilo-benchmarks tests green (up from 174 — 3 new Pass-8 regression tests).
+
 ### Fixed — CRITICAL: Anthropic seed _add() was clobbering via_openrouter/via_kilo routing flags (2026-06-30)
 
 Self-found pre-review bug in `d8e84d5b`: the 4 new `_add("anthropic/claude-opus-4.8", ...)` etc. calls added in that commit did NOT pass `via_openrouter` or `via_kilo` kwargs, so the seed's per-row `setdefault(field, 0)` set them to 0,0. The seed's UPSERT loop then writes those 0s to the existing rows. Existing `anthropic/claude-opus-4.8` (and the 3 sister rows) had `via_openrouter=1, via_kilo=1` from the OR/Kilo daily sync — my seed silently overwrote them. Downstream impact: the OR verifier (post-`5d61eb5e` fix) now filters on `via_openrouter=1`, so those rows would have dropped out of OR-coverage; the Kilo CLI sync would have stopped updating their Kilo-side prices. Fix: removed the 4 seed `_add()` blocks entirely + restored the flags via direct SQL `UPDATE`. The Anthropic parser writes to whatever rows the registry's `slug_on_page` maps to — `fetch_direct_vendor_prices.py` does NOT filter on routing flags, so it updates the existing OR/Kilo-routed rows just fine. Both the OR/Kilo path AND the parser source from Anthropic's authoritative docs, so prices stay consistent. Verified: re-ran seed (no flag corruption); re-ran orchestrator (`anthropic APPLY parsed=8 wrote=4 refused=0 missing=4` — all 4 rows updated to current Anthropic-published prices); via_openrouter/via_kilo confirmed back at `1,1` for all 4 rows.
