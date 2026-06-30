@@ -29,7 +29,7 @@ DEFAULT_MAX_RETRIES = 6
 # (iptables DOCKER-USER chain blocks :8080 externally). The admin-dashboard
 # middleware check SSHs to the VPS and curls this URL — same pattern as
 # scripts/audit_authelia_gates.py (Phase 4l Track 5).
-TRAEFIK_ROUTERS_API = "http://127.0.0.1:8080/api/http/routers"
+TRAEFIK_ROUTERS_API = "http://127.0.0.1:8080/api/http/routers"  # noqa — VPS-internal Traefik admin API; iptables DOCKER-USER blocks :8080 externally
 
 # The host that Authelia's 302-to-login points at. If a GET of
 # ``https://<admin-dashboard>/api/`` returns a 302 with a Location pointing
@@ -134,7 +134,11 @@ class DeploymentVerifier:
             # machine callers get intercepted by Authelia and every
             # automation breaks (LESSONS_LEARNT §8.11).
             if shape.get("has_bearer_api"):
-                check_api_bypass(domain, timeout=self.timeout)
+                check_api_bypass(
+                    domain,
+                    prefix=shape.get("bearer_bypass_prefix") or "^/api/",
+                    timeout=self.timeout,
+                )
 
         # Only set deployed_url AFTER all verification passes.
         ctx.deployed_url = f"https://{domain}"
@@ -439,8 +443,12 @@ class DeploymentVerifier:
             return False
 
 
-def check_api_bypass(domain: str, timeout: int = DEFAULT_TIMEOUT) -> None:
-    """Assert the ``^/api/`` Authelia bypass is in place for an admin dashboard.
+def check_api_bypass(domain: str, prefix: str = "^/api/", timeout: int = DEFAULT_TIMEOUT) -> None:
+    """Assert the configured Authelia bearer bypass is in place for an admin dashboard.
+
+    ``prefix`` is the spec's ``shape.bearer_bypass_prefix`` (default ``^/api/``);
+    a service that bypasses only a sub-prefix (e.g. ``^/api/v1``) is probed at
+    that path, not the broad ``/api/``.
 
     Plan §10 + LESSONS_LEARNT §8.11. When an admin dashboard serves both
     a 2FA-gated UI and a Bearer-token API on the same host, the Authelia
@@ -472,7 +480,10 @@ def check_api_bypass(domain: str, timeout: int = DEFAULT_TIMEOUT) -> None:
             after the ``two_factor`` catch-all
             (check_type=``api_bypass``).
     """
-    url = f"https://{domain}/api/"
+    # Probe the bypassed prefix itself: strip the leading ^ (and any trailing $)
+    # so '^/api/v1' -> '/api/v1'. Falls back to '/api/' for an empty/odd prefix.
+    probe_path = prefix.lstrip("^").rstrip("$") or "/api/"
+    url = f"https://{domain}{probe_path}"
     # urlopen follows redirects by default; we need to observe the 302
     # itself. A bare Request without a redirect handler still auto-follows,
     # so we rely on the mocked response in tests and on the VPS-level
@@ -483,7 +494,7 @@ def check_api_bypass(domain: str, timeout: int = DEFAULT_TIMEOUT) -> None:
     # exposes .getcode() and .headers consistently — this matches both
     # urllib's real behaviour (when redirect-following is disabled) and
     # the MagicMock shape used in tests.
-    logger.info("Checking ^/api/ bypass at %s", url)
+    logger.info("Checking %s bypass at %s", prefix, url)
     try:
         # Build a Request so tests and production follow the same path.
         # Only allow https:// URLs for security (same pattern as
@@ -519,11 +530,11 @@ def check_api_bypass(domain: str, timeout: int = DEFAULT_TIMEOUT) -> None:
             location = headers.get("Location", "") if hasattr(headers, "get") else ""
         if AUTHELIA_HOST in location:
             raise VerificationError(
-                f"^/api/ bypass missing on {domain} — "
+                f"{prefix} bypass missing on {domain} — "
                 f"Authelia is intercepting API calls ({url} -> {location}). "
-                f"Fix: add `policy: bypass, resources: ['^/api/']` BEFORE "
+                f"Fix: add `policy: bypass, resources: ['{prefix}']` BEFORE "
                 f"the `two_factor` rule in configuration.yml.",
                 check_type="api_bypass",
             )
 
-    logger.info("^/api/ bypass working on %s (status=%s)", domain, status)
+    logger.info("%s bypass working on %s (status=%s)", prefix, domain, status)

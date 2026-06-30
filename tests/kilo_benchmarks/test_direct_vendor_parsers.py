@@ -397,3 +397,75 @@ def test_anthropic_output_lt_input_filter_logs_to_stderr(capsys) -> None:
     captured = capsys.readouterr()
     assert "Mythos 5" in captured.err
     assert "WARN" in captured.err
+
+
+# ============================================================
+# subscription_monitor parser (Phase 3 deliverable, added 2026-06-30)
+# ============================================================
+
+def test_subscription_monitor_returns_empty_for_sub_only_html() -> None:
+    """The canonical case: rendered HTML with only tier-card prices ($N/mo,
+    $N/yr) returns an empty list = subscription-only confirmed."""
+    html = '<html><body>Free $0/mo · Pro $99/mo · Enterprise $999/yr</body></html>'
+    rows = _load("subscription_monitor").extract(html, "https://example.com/pricing")
+    assert rows == []
+
+
+def test_subscription_monitor_emits_alert_when_per_call_pattern_appears() -> None:
+    """If a vendor flips from subscription to per-call API pricing, the
+    monitor must detect it and emit an alert row that the orchestrator's
+    unit-validator catches as `missing` (no DB row matches the alert slug)."""
+    html = '<html><body>Pro $99/mo · NEW API: $5 / 1M tokens</body></html>'
+    rows = _load("subscription_monitor").extract(html, "https://elevenlabs.io/pricing")
+    assert len(rows) == 1
+    (r,) = rows
+    assert r.model_slug.endswith(":per-call-pricing-emergence-alert")
+    assert "elevenlabs.io" in r.model_slug
+    assert r.pricing_unit == "alert"
+    assert "ALERT" in r.raw_price_text
+    assert "1M tokens" in r.raw_price_text
+
+
+def test_subscription_monitor_ignores_nextjs_framework_artifacts() -> None:
+    """Next.js renders strings like `$undefined`, `$L15` in the page source —
+    these are NOT prices. Must not false-positive."""
+    html = (
+        '<html><body>'
+        '{"key":"$undefined","other":"$L15","x":"$3","y":"$1c"}'
+        ' bare $5 button with no per-unit qualifier'
+        '</body></html>'
+    )
+    rows = _load("subscription_monitor").extract(html, "https://example.com/")
+    assert rows == []
+
+
+def test_subscription_monitor_detects_per_minute_pricing() -> None:
+    """Audio TTS vendors quote per-minute rates. If a sub-only vendor flips
+    to per-minute API pricing, alert must fire."""
+    html = '<html>Suno API: $0.05 / minute (new!)</html>'
+    rows = _load("subscription_monitor").extract(html, "https://suno.com/pricing")
+    assert len(rows) == 1
+    assert "$0.05 / minute" in rows[0].raw_price_text
+
+
+def test_subscription_monitor_detects_per_image_pricing() -> None:
+    html = '<html>HeyGen API: $0.10 per image generated</html>'
+    rows = _load("subscription_monitor").extract(html, "https://www.heygen.com/pricing")
+    assert len(rows) == 1
+    assert "image" in rows[0].raw_price_text.lower()
+
+
+def test_subscription_monitor_rejects_dict_payload() -> None:
+    import pytest
+    with pytest.raises(TypeError):
+        _load("subscription_monitor").extract({}, "https://example.com/")
+
+
+def test_subscription_monitor_caps_at_3_hits_for_alert() -> None:
+    """If 100 per-call patterns appear, we still emit only 1 alert row with
+    the first 3 hits in raw_price_text. Bounded output."""
+    html = '<html>' + (' $1 / 1M tokens') * 100 + '</html>'
+    rows = _load("subscription_monitor").extract(html, "https://example.com/")
+    assert len(rows) == 1
+    # Alert raw text should contain at most 3 hit samples
+    assert rows[0].raw_price_text.count("$1 / 1M tokens") <= 3

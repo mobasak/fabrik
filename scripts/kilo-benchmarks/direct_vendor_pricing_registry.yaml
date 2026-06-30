@@ -115,18 +115,31 @@ bfl:
 
 coqui:
   pricing_url: https://huggingface.co/coqui/XTTS-v2
-  fetch_method: stealth        # HF behind Cloudflare
+  # Phase 3 (2026-06-30): live-probed 144KB rendered, 0 prices total. Coqui XTTS-v2
+  # is an HF model card (self-hosted; NOT commercial — no pricing to scrape).
+  # Parser stays null; seed values reflect self-host cost estimate. Operator audit
+  # quarterly only — vendor will never publish per-call prices for this model.
+  fetch_method: rendered
   parser_module: null
 
 deepl:
   pricing_url: https://www.deepl.com/pro
-  fetch_method: stealth        # CF challenge
-  parser_module: null
+  # Phase 3 (2026-06-30): live-probed rendered HTML — 493KB, 0 per-call patterns.
+  # Per-char rate is hidden behind subscription tier prices (`{{pricePerCharacter}}`
+  # template placeholder, never populated). Marketing page shows only €X/mo tiers.
+  # Wired to subscription_monitor: scans daily for per-call pattern emergence.
+  fetch_method: rendered
+  parser_module: direct_vendor_parsers.subscription_monitor
 
 elevenlabs:
   pricing_url: https://elevenlabs.io/pricing
-  fetch_method: rendered       # client-side React
-  parser_module: null
+  # Phase 3 (2026-06-30): live-probed 700KB, 0 per-call patterns. Confirmed
+  # subscription-only — 147 $-patterns on the page are all tier-card values
+  # ($0/mo, $22/mo, $99/mo, etc.) and effective per-minute rates per tier
+  # (which assume multilingual-v2; per-model rate differentials documented
+  # but not priced). Wired to subscription_monitor.
+  fetch_method: rendered
+  parser_module: direct_vendor_parsers.subscription_monitor
 
 google-cloud:
   pricing_url: https://cloud.google.com/speech-to-text/pricing
@@ -135,8 +148,12 @@ google-cloud:
 
 heygen:
   pricing_url: https://www.heygen.com/pricing
-  fetch_method: stealth        # CF bot-wall (also subscription-only — Phase 3)
-  parser_module: null
+  # Phase 3 (2026-06-30): live-probed 771KB rendered, 0 per-call patterns.
+  # All 122 $-patterns are subscription tier prices ($0, $24, $69, $89, $349 per mo).
+  # Earlier "CF bot-wall" classification was wrong — plain rendered works fine.
+  # Wired to subscription_monitor.
+  fetch_method: rendered
+  parser_module: direct_vendor_parsers.subscription_monitor
 
 ideogram:
   pricing_url: https://ideogram.ai/manage/api   # Pass-7+ resolved: needs stealth
@@ -150,8 +167,12 @@ kling:
 
 llamaindex:
   pricing_url: https://www.llamaindex.ai/pricing
-  fetch_method: stealth        # CF protection
-  parser_module: null
+  # Phase 3 (2026-06-30): live-probed 934KB rendered, 0 per-call patterns.
+  # 6 $-patterns are subscription tier prices ($0, $50, $500) + credit notation
+  # ("1,000 credits = $1.25" — credit not per-call). Earlier "CF protection"
+  # classification was wrong — plain rendered works. Wired to subscription_monitor.
+  fetch_method: rendered
+  parser_module: direct_vendor_parsers.subscription_monitor
 
 luma:
   pricing_url: https://lumalabs.ai/dream-machine/pricing
@@ -227,10 +248,16 @@ stability:
 
 suno:
   pricing_url: https://suno.com/pricing
-  fetch_method: stealth        # CF bot-wall (subscription-only — Phase 3)
-  parser_module: null
+  # Phase 3 (2026-06-30): live-probed 393KB rendered, 0 per-call patterns, 0 per-unit
+  # qualifiers (just bare $-amounts = subscription tier prices). Pure subscription.
+  # Earlier "CF bot-wall" classification was wrong — plain rendered works.
+  fetch_method: rendered
+  parser_module: direct_vendor_parsers.subscription_monitor
 
 udio:
   pricing_url: https://www.udio.com/pricing
-  fetch_method: stealth        # CF bot-wall (subscription-only — Phase 3)
-  parser_module: null
+  # Phase 3 (2026-06-30): live-probed 189KB rendered, 0 per-call patterns. 12
+  # $-patterns are subscription tier prices (Free $0, Standard $10, Pro $30).
+  # Earlier "CF bot-wall" classification was wrong — plain rendered works.
+  fetch_method: rendered
+  parser_module: direct_vendor_parsers.subscription_monitor
