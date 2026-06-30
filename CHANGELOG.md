@@ -4,6 +4,33 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Phase 8 deploy-readiness: watchdog deploy key auto-push to GitHub (2026-06-30)
+
+Closes the watchdog → GitHub copy-paste loop. Previously `_ensure_deploy_key` generated an SSH keypair on the VPS and logged the pubkey at WARNING level, requiring the operator to paste it manually into GitHub's Settings → Deploy keys UI. Now: the pubkey is also auto-registered via `gh api` from the operator's WSL hub.
+
+**Pipeline (new helpers in `src/fabrik/drivers/watchdog.py`):**
+1. `_parse_github_repo(url)` — regex parser accepting `https://github.com/<o>/<r>(.git)` and `git@github.com:<o>/<r>(.git)`. Non-GitHub URLs raise `ValueError` (other VCS hosts out of scope).
+2. `_has_repo_scope()` — runs `gh auth status --show-token`, scans for `\brepo\b` in `Token scopes:` line. Returns False if `gh` not installed, auth failed, or scope absent.
+3. `_push_deploy_key_to_github(owner, repo, title, pubkey)`:
+   - If no repo scope → status:skipped (logged) — fall back to print-pubkey.
+   - GET `/repos/<o>/<r>/keys` → if title exists with matching key → status:idempotent (compares normalized type+base64 pair, ignoring comment).
+   - GET shows title with DIFFERENT key → status:conflict (operator must rotate manually).
+   - POST `/repos/<o>/<r>/keys` with `read_only=false`. 0 = registered, 422 "key is already in use" = idempotent (race-safe between parallel applies), anything else = status:failed → fall back to print-pubkey.
+
+**Wired into `_ensure_deploy_key`** after the existing keygen path. Push runs ONLY if `rctx.project_git_remote` is set (Docker/local-source projects skip silently). ALL failures (token scope missing, gh not installed, non-GitHub URL, network error, GET/POST 5xx) fall back to the pre-Phase-8 print-pubkey behavior — the deploy NEVER crashes on auto-push failure. Key title per project: `fabrik-watchdog-<project_id>` (each project owns its own key; no cross-project conflict).
+
+**Security**:
+- Fixed argv list passed to `subprocess.run` (no shell interpolation).
+- `\brepo\b` boundary check rejects `read:repo_hook` false-positive.
+- ANY non-GitHub URL → ValueError before any network call.
+- `read_only=false` is the right setting: watchdog needs to push fix branches.
+
+18 hermetic regression tests (`tests/test_watchdog_deploy_key.py`): 7 URL-parse (https±.git, ssh±.git, gitlab reject, empty reject, malformed reject), 4 scope-check (present, absent, no-gh, auth-failed), 7 push orchestration (skip-no-scope, idempotent-matching, conflict-different, post-new, 422-race-safe, 500-fallback, FileNotFoundError-fallback).
+
+**Operator preflight** before relying on auto-push: `gh auth status --show-token 2>&1 | grep -E "Token scopes:.*\brepo\b"` should show 1 match. If not, re-auth with `gh auth refresh -s repo` once; auto-push then works automatically on every subsequent apply.
+
+**Plan progress**: Phase 8 of [docs/development/plans/2026-06-30-plan-fabrik-deploy-readiness-gaps.md](docs/development/plans/2026-06-30-plan-fabrik-deploy-readiness-gaps.md) complete. Remaining: Phase 6 (per-DB Backrest plans — needs vps1 re-probe). Phase 7 DEFERRED (no GlitchTip programmatic webhook API).
+
 ### Added — Phase 5 deploy-readiness: DB seed auto-restore via `depends.postgres_seed` (2026-06-30)
 
 A new spec field `depends.postgres_seed: backups/<dump>.sql.gz` (project-relative `.sql.gz` path) lets `create_database()` auto-restore a checked-in dump into a freshly-created DB. Closes the deploy-readiness gap where new projects with non-empty initial state (calendar-orchestration-engine seed tables, dictionary tables, etc.) required a manual post-deploy `psql` step that often got skipped or mis-applied.

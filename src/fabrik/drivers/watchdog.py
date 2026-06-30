@@ -70,10 +70,12 @@ NOT in this driver:
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import re
 import shutil
+import subprocess  # noqa: S404 — used for `gh` CLI invocation (Phase 8 deploy-key auto-push); fixed argv, no shell
 import tarfile
 import tempfile
 from dataclasses import dataclass, field
@@ -838,13 +840,227 @@ class WatchdogDriver:
             pubkey = ssh(f"cat {remote_pub}", timeout=15).strip()
         finally:
             ssh(f"rm -f {remote_priv} {remote_pub}", timeout=15)
-        logger.warning(
-            "watchdog: generated git deploy key for %s. Register this PUBLIC key "
-            "as a WRITE-enabled deploy key on the project's GitHub repo "
-            "(Settings → Deploy keys → Allow write access):\n%s",
-            rctx.project_id,
-            pubkey,
+        # Phase 8 of deploy-readiness-gaps (2026-06-30): auto-push the pubkey
+        # to GitHub as a write-enabled deploy key. Falls back to the print-
+        # pubkey path on ANY failure (token scope missing, gh not installed,
+        # non-GitHub URL, network error) — the deploy must never crash here.
+        push_result = {"status": "skipped", "reason": "no_repo_url"}
+        if rctx.project_git_remote:
+            try:
+                owner, repo = _parse_github_repo(rctx.project_git_remote)
+                push_result = _push_deploy_key_to_github(
+                    owner=owner,
+                    repo=repo,
+                    title=f"fabrik-watchdog-{rctx.project_id}",
+                    pubkey=pubkey,
+                )
+            except ValueError as exc:
+                push_result = {"status": "skipped", "reason": str(exc)}
+                logger.info(
+                    "watchdog: deploy-key auto-push skipped for %s (%s)",
+                    rctx.project_id,
+                    exc,
+                )
+            except Exception as exc:  # noqa: BLE001 — must not crash deploy
+                push_result = {"status": "failed", "reason": str(exc)}
+                logger.warning(
+                    "watchdog: deploy-key auto-push raised unexpected error for %s (%s); "
+                    "falling back to print-pubkey",
+                    rctx.project_id,
+                    exc,
+                )
+
+        if push_result["status"] in {"registered", "idempotent"}:
+            logger.info(
+                "watchdog: deploy key %s on GitHub for %s",
+                push_result["status"],
+                rctx.project_id,
+            )
+        else:
+            # Fall-back: log the pubkey so the operator can paste it manually
+            # into GitHub Settings → Deploy keys. Preserves the pre-Phase-8
+            # behavior on any path the push didn't succeed.
+            logger.warning(
+                "watchdog: generated git deploy key for %s (auto-push: %s/%s). "
+                "Register this PUBLIC key as a WRITE-enabled deploy key on the "
+                "project's GitHub repo (Settings → Deploy keys → Allow write access):\n%s",
+                rctx.project_id,
+                push_result["status"],
+                push_result.get("reason", "—"),
+                pubkey,
+            )
+
+
+# ---------------------------------------------------------------------------
+# Phase 8 of deploy-readiness-gaps plan (2026-06-30): deploy key auto-push.
+#
+# Helpers below are module-level (not WatchdogDriver methods) so the test
+# suite can patch them at the module path without setting up a driver.
+# ---------------------------------------------------------------------------
+
+_GITHUB_REPO_RE = re.compile(
+    r"^(?:https?://github\.com/|git@github\.com:)"
+    r"(?P<owner>[A-Za-z0-9][A-Za-z0-9-]*)/"
+    r"(?P<repo>[A-Za-z0-9_.-]+?)"
+    r"(?:\.git)?/?$"
+)
+
+
+def _parse_github_repo(repo_url: str) -> tuple[str, str]:
+    """Parse `https://github.com/<owner>/<repo>(.git)` or `git@github.com:<owner>/<repo>(.git)`.
+
+    Returns (owner, repo). Raises ValueError for empty, malformed, or non-GitHub URLs.
+    """
+    if not repo_url:
+        raise ValueError("repo_url is empty")
+    m = _GITHUB_REPO_RE.match(repo_url.strip())
+    if not m:
+        raise ValueError(
+            f"not a recognized GitHub URL: {repo_url!r} "
+            "(supported: https://github.com/<o>/<r>(.git), git@github.com:<o>/<r>(.git))"
         )
+    return m.group("owner"), m.group("repo")
+
+
+def _has_repo_scope() -> bool:
+    """True if `gh auth status` shows the `repo` scope is present.
+
+    Defensive: returns False on FileNotFoundError (gh not installed),
+    non-zero exit (auth failed), or absent scope. Never raises.
+    """
+    try:
+        proc = subprocess.run(  # noqa: S603,S607 — fixed argv, no shell
+            ["gh", "auth", "status", "--show-token"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+    except (FileNotFoundError, subprocess.SubprocessError):
+        return False
+    if proc.returncode != 0:
+        return False
+    # gh writes auth status to stderr by design. Look for `repo` as a
+    # standalone scope token (avoid false-positive on `read:repo_hook`).
+    combined = (proc.stderr or "") + (proc.stdout or "")
+    return bool(re.search(r"Token scopes:.*\brepo\b", combined))
+
+
+def _push_deploy_key_to_github(
+    owner: str,
+    repo: str,
+    title: str,
+    pubkey: str,
+) -> dict:
+    """Idempotently register `pubkey` as a write-enabled deploy key on the repo.
+
+    Pipeline:
+      1. _has_repo_scope() — if False, return early with status:skipped.
+      2. GET /repos/<o>/<r>/keys — if a key with matching title exists:
+         - same pubkey → status:idempotent
+         - different pubkey → status:conflict (caller should fall back)
+      3. POST /repos/<o>/<r>/keys with read_only=false. If 422
+         "key is already in use" → status:idempotent (race-safe).
+      4. Any other failure → status:failed (caller falls back).
+
+    Returns: {"status": <enum>, ...metadata}. Never raises.
+    """
+    if not _has_repo_scope():
+        logger.warning(
+            "watchdog: `gh` token lacks `repo` scope — manual deploy-key registration required"
+        )
+        return {"status": "skipped", "reason": "no_repo_scope"}
+
+    # ----- GET existing keys -----
+    try:
+        get_proc = subprocess.run(  # noqa: S603,S607
+            ["gh", "api", f"repos/{owner}/{repo}/keys"],
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+    except (FileNotFoundError, subprocess.SubprocessError) as exc:
+        logger.warning(
+            "watchdog: gh GET keys failed (%s) — falling back to print-pubkey",
+            exc,
+        )
+        return {"status": "failed", "reason": str(exc)}
+
+    if get_proc.returncode != 0:
+        logger.warning(
+            "watchdog: gh GET keys returned %d — falling back to print-pubkey",
+            get_proc.returncode,
+        )
+        return {"status": "failed", "reason": "get_failed"}
+
+    try:
+        existing = json.loads(get_proc.stdout or "[]")
+    except json.JSONDecodeError:
+        existing = []
+
+    pubkey_normalized = _normalize_pubkey(pubkey)
+    for entry in existing:
+        if entry.get("title") == title:
+            if _normalize_pubkey(entry.get("key", "")) == pubkey_normalized:
+                return {"status": "idempotent", "reason": "matching_key_present"}
+            logger.warning(
+                "watchdog: deploy-key conflict on %s/%s — title %r already registered "
+                "with a DIFFERENT key; falling back to print-pubkey",
+                owner,
+                repo,
+                title,
+            )
+            return {"status": "conflict", "reason": "title_taken_by_different_key"}
+
+    # ----- POST new key -----
+    try:
+        post_proc = subprocess.run(  # noqa: S603,S607
+            [
+                "gh",
+                "api",
+                "-X",
+                "POST",
+                f"repos/{owner}/{repo}/keys",
+                "-f",
+                f"title={title}",
+                "-f",
+                f"key={pubkey}",
+                "-F",
+                "read_only=false",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+    except (FileNotFoundError, subprocess.SubprocessError) as exc:
+        logger.warning(
+            "watchdog: gh POST key failed (%s) — falling back to print-pubkey",
+            exc,
+        )
+        return {"status": "failed", "reason": str(exc)}
+
+    if post_proc.returncode == 0:
+        return {"status": "registered"}
+
+    # Race-safe: 422 "key is already in use" is success-equivalent.
+    if "key is already in use" in (post_proc.stderr or "") + (post_proc.stdout or ""):
+        return {"status": "idempotent", "reason": "key_already_in_use"}
+
+    logger.warning(
+        "watchdog: gh POST key returned %d (%s) — falling back to print-pubkey",
+        post_proc.returncode,
+        (post_proc.stderr or "").strip()[:200],
+    )
+    return {"status": "failed", "reason": "post_failed"}
+
+
+def _normalize_pubkey(raw: str) -> str:
+    """Compare keys by the (type, base64-blob) pair only — strip the trailing
+    comment + whitespace so a re-rendered comment doesn't cause a false conflict.
+    """
+    parts = (raw or "").strip().split()
+    if len(parts) < 2:
+        return raw.strip()
+    return f"{parts[0]} {parts[1]}"
 
 
 __all__ = ("WatchdogDriver", "WatchdogProvisionError")
