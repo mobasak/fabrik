@@ -357,7 +357,7 @@ class InfrastructureProvisioner:
         should_run = {k: v[0] for k, v in resolved.items()}
 
         if should_run["postgres"]:
-            self._provision_postgres(name, ctx, dry_run)
+            self._provision_postgres(name, spec, ctx, dry_run)
 
         if should_run["redis"]:
             self._provision_redis(name, ctx, dry_run)
@@ -423,13 +423,51 @@ class InfrastructureProvisioner:
         except Exception as e:  # noqa: BLE001 — bounded non-fatal
             logger.warning("shared analytics provisioning failed (non-fatal): %s", e)
 
-    def _provision_postgres(self, name: str, ctx: DeploymentContext, dry_run: bool) -> None:
+    def _provision_postgres(
+        self, name: str, spec: dict[str, Any], ctx: DeploymentContext, dry_run: bool
+    ) -> None:
         try:
-            from fabrik.drivers.postgres import create_database
+            from fabrik.drivers.postgres import create_database, database_exists
 
             # PostgreSQL identifiers don't allow hyphens without quoting.
             # Normalize to snake_case — same pattern used throughout Fabrik.
-            db_name = name.replace("-", "_")
+            derived = name.replace("-", "_")
+            # Phase 1a (deploy-readiness-gaps): respect spec.depends.postgres when
+            # set — it is now load-bearing, the derived spec-id name is only the
+            # fallback. `spec` is a raw dict here; `depends` may be absent or null.
+            configured = (spec.get("depends", {}) or {}).get("postgres")
+            db_name = configured or derived
+            # RENAME GUARD: if the spec pins a name that differs from the historical
+            # derived name, and a DB under the derived name already exists while the
+            # pinned one does not, applying would point the app at a NEW empty DB and
+            # orphan the derived DB's data (app /health passes on SELECT 1 but real
+            # endpoints 500). Refuse loudly + skip rather than silently mis-provision,
+            # unless the operator explicitly opts in.
+            if (
+                configured
+                and db_name != derived
+                and not dry_run
+                and database_exists(derived)
+                and not database_exists(db_name)
+                and os.getenv("FABRIK_ALLOW_DB_RENAME") != "1"
+            ):
+                logger.error(
+                    "postgres: RENAME GUARD blocked '%s' — spec pins depends.postgres='%s' "
+                    "but DB '%s' (historical derived name) exists and '%s' does not. NOT "
+                    "creating '%s' (would orphan '%s' data + point the app at an empty DB). "
+                    "Migrate (pg_dump '%s' | psql '%s'), then re-apply; or set "
+                    "FABRIK_ALLOW_DB_RENAME=1 to create the new DB intentionally.",
+                    name,
+                    db_name,
+                    derived,
+                    db_name,
+                    db_name,
+                    derived,
+                    derived,
+                    db_name,
+                )
+                ctx.add_resource("postgres", derived, status="rename_guard_blocked")
+                return
             # Mint a DEDICATED non-superuser role that OWNS the DB (db_user==db_name)
             # so the app can connect as a non-superuser — the only way Postgres RLS
             # (multi-tenant isolation) actually applies; the postgres superuser would
@@ -445,7 +483,7 @@ class InfrastructureProvisioner:
             # password is returned — the prior .env value is preserved by the merge.
             password = result.get("password")
             if password and not dry_run:
-                database_url = f"postgresql://{db_user}:{password}@postgres-main:5432/{db_name}"
+                database_url = f"postgresql://{db_user}:{password}@postgres-main:5432/{db_name}"  # noqa: password is a runtime CSPRNG value from create_database, not a hardcoded secret
                 self.deployer.inject_env(ctx, {"DATABASE_URL": database_url})
                 logger.info("postgres: DATABASE_URL injected for role %s", db_user)
             logger.info("postgres: %s → %s", db_name, result.get("status"))

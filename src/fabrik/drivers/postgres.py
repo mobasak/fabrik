@@ -128,6 +128,26 @@ def _run_sql(sql: str, container: str, dry_run: bool = False) -> str:
     return ssh(cmd)
 
 
+def database_exists(
+    db_name: str, container: str = POSTGRES_CONTAINER, dry_run: bool = False
+) -> bool:
+    """True if a database named ``db_name`` exists on ``postgres-main``.
+
+    Cheap idempotent ``pg_database`` lookup. Used by the orchestrator's Phase-1a
+    rename guard (``orchestrator/infrastructure.py``) before switching a spec to a
+    pinned ``depends.postgres`` name, so a rename never silently orphans existing
+    data. In ``dry_run`` the underlying check is attempted read-only.
+    """
+    _validate_identifier(db_name, "database")
+    # nosec B608 — db_name validated to alnum+underscore by _validate_identifier.
+    check = _run_sql(
+        f"SELECT 1 FROM pg_database WHERE datname='{db_name}';",  # nosec B608
+        container=container,
+        dry_run=dry_run,
+    )
+    return check.strip() == "1"
+
+
 def create_database(
     db_name: str,
     db_user: str | None = None,

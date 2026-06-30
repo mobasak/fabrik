@@ -17,7 +17,13 @@ source:
   type: git
   repository: https://github.com/mobasak/fabrik-citation-verifier.git
   branch: main
-depends: {}
+depends:
+  # The app's actual DB (project DATABASE_URL -> .../citation_verifier). Was
+  # absent, so the orchestrator derived 'fabrik_citation_verifier' (drift caught
+  # by check_spec_db_match.py). Differs from the derived name, so the Phase-1a
+  # rename guard will block the next apply if a 'fabrik_citation_verifier' DB
+  # already holds data (migrate it, then re-apply).
+  postgres: citation_verifier
 infra:
   glitchtip: true                # real service, error tracking worthwhile
 infrastructure:
@@ -40,7 +46,7 @@ env:
   CRAWL4AI_URL: http://crawl4ai:11235
 secrets:
   required:
-    - DATABASE_URL                    # postgresql://postgres:PW@postgres-main:5432/fabrik_citation_verifier
+    - DATABASE_URL                    # app DB 'citation_verifier' on postgres-main (matches depends.postgres)
     - SERVICE_INTERNAL_SECRET_KEY     # X-Internal-Token auth for m2m calls
     - NCBI_API_KEY                    # NCBI polite-pool (strongly recommended)
     - NCBI_CONTACT_EMAIL

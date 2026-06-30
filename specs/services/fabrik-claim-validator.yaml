@@ -17,7 +17,10 @@ source:
   type: template
   branch: main
 depends:
-  postgres: main
+  # The app's actual DB (project DATABASE_URL -> .../fabrik_claim_validator).
+  # Was 'main' (drift caught by check_spec_db_match.py) — the orchestrator now
+  # respects this field (Phase 1a), so it must match the app's runtime DB name.
+  postgres: fabrik_claim_validator
 infrastructure:
   database: local
   storage: local

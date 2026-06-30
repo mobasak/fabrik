@@ -677,6 +677,18 @@ def run_consistency_checks(
                 "Full Traefik Label Set (§7)",
             )
         )
+        # Spec <-> project DB-name consistency (deploy-readiness-gaps Phase 1c).
+        # The postgres registrar provisions (spec.depends.postgres or the derived
+        # spec-id name); this catches drift vs the project's own PG_DATABASE /
+        # DATABASE_URL — the bug class that left calendar pointed at an empty/wrong
+        # DB (/api/health passed on SELECT 1 while real endpoints 500'd). Skips
+        # cleanly where there's no specs/services/ dir (every non-fabrik project).
+        results.append(
+            run_optional_check(
+                "scripts/enforcement/check_spec_db_match.py",
+                "Spec <-> Project DB Name Match (Phase 1c)",
+            )
+        )
         # Fabrik-synced files must match the /opt/fabrik canonical source — they
         # are centrally distributed and overwritten on sync, so a local edit is a
         # mistake (revert + change upstream). Self-exempts inside /opt/fabrik;

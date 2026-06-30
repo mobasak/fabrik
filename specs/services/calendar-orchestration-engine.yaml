@@ -29,7 +29,11 @@ source:
   branch: master
 
 depends:
-  postgres: calendar
+  # The app's canonical DB name (PG_DATABASE / DATABASE_URL). Now LOAD-BEARING:
+  # the orchestrator respects this (Phase 1a) instead of deriving
+  # `calendar_orchestration_engine` from the spec id. No data to migrate — the DB
+  # was never created (see shape.needs_database above).
+  postgres: calendar_engine
 
 env:
   PORT: "3001"
