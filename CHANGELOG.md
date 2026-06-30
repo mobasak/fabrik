@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — daily_refresh.sh: implemented the lockfile coordination the migration commit claimed (2026-06-30)
+
+The 2026-06-28 migration commit (`1372325e`) claimed: "Both the wsl_startup_hook and the cron share the same lockfile semantics, so they're idempotent — whichever fires first wins the day." But `daily_refresh.sh` was never given a lockfile check; today both paths fire independently and (now that cron has parity with bashrc-hook per the previous commit) run the same ~30-step pipeline twice on every shell-active day. Implemented the claimed coordination: cron now checks `/tmp/.fabrik_daily_$(date -u +%Y%m%d)` (same convention as `wsl_startup_hook.sh:61,81-82`) and skips with a logged message if it exists. UTC date in the lockfile name means it rolls over cleanly at 00:00 UTC. Manual override: `rm /tmp/.fabrik_daily_<today-UTC>`. Heartbeat timing verified safe — cron's 03:00 UTC slot fires before typical morning shell opens, so the heartbeat-write keeps running daily as expected; the freshness check correctly stays inside the gate (just a read of the timestamp, no write). Net effect: pipeline runs exactly once per UTC day across both paths, instead of up to twice.
+
 ### Fixed — daily_refresh.sh: ported the 7 Traycer + embedding steps that bashrc-hook still owned (2026-06-30)
 
 The 2026-06-28 cron migration (commit `1372325e`) ported only the catalog/pricing/browser-regen steps — leaving the deterministic Kilo-agent role mapping + Traycer registry export + agent-script generation + 4-step embedding pipeline ONLY in `wsl_startup_hook.sh`. So on days the operator didn't open a terminal, `~/.traycer/cli-agents/` and `scripts/kilo_47_agents_final.json` drifted from the DB.

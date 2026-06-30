@@ -57,6 +57,25 @@ mkdir -p "$(dirname "$LOG_FILE")"
 
   cd "$KB" || { echo "[daily_refresh] cd failed — aborting"; exit 0; }
 
+  # Lockfile coordination with wsl_startup_hook.sh (the bashrc-sourced
+  # path). The 2026-06-28 migration commit (1372325e) CLAIMED both paths
+  # would share lockfile semantics — but daily_refresh.sh never had the
+  # check. Implemented 2026-06-30: now mirrors the bashrc-hook's
+  # /tmp/.fabrik_daily_$(date -u +%Y%m%d) convention. Whichever path
+  # fires first (typically cron at 03:00 UTC) wins the day; the other
+  # path sees the lockfile and skips. Lockfile name uses UTC date so it
+  # rolls over cleanly at 00:00 UTC.
+  #
+  # Manual override: rm /tmp/.fabrik_daily_$(date -u +%Y%m%d) to re-run
+  # within the same UTC day.
+  LOCK_FILE="/tmp/.fabrik_daily_$(date -u +%Y%m%d)"
+  if [ -f "$LOCK_FILE" ]; then
+    echo "[daily_refresh] skipping — already ran today (lockfile $LOCK_FILE exists)"
+    echo "=== Skipped at $(date -u +'%Y-%m-%d %H:%M:%S UTC') ==="
+    exit 0
+  fi
+  touch "$LOCK_FILE"
+
   # Heartbeat: check that yesterday's run actually completed. Fires a
   # critical alert if the last-success timestamp is >36h old. First-run
   # condition is silent. Per Plan §"Phase 5 cron-skip heartbeat".
