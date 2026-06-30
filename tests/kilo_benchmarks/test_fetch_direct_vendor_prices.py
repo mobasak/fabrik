@@ -661,3 +661,175 @@ def test_write_report_md_alert_section_on_per_call_emergence(tmp_path) -> None:
     body = out.read_text()
     assert "## Alerts (operator review needed)" in body
     assert "🚨 **suno**: subscription-only vendor may have flipped" in body
+
+
+# ============================================================
+# Adversarial review Phase 3 — Fix Cluster 1
+# C1: write_report_md uses "refused" instead of "refused_unit"/"refused_diff"
+# C2: subscription_monitor's missing+alert action never reaches Telegram
+# ============================================================
+
+def test_C1_write_report_md_counts_refused_unit_in_totals(tmp_path) -> None:
+    """REGRESSION (C1): an action="refused_unit" row must increment the
+    Totals "Rows refused" count and appear in the Alerts section.
+
+    Pre-fix: the writer used `action == "refused"` (a string that never
+    exists in the codebase) so refused_unit writes silently counted as 0.
+    Operator saw "Rows refused: 0" while critical writes were blocked.
+    """
+    import sys
+    sys.path.insert(0, str(REPO_ROOT / "scripts" / "kilo-benchmarks"))
+    from fetch_direct_vendor_prices import VendorOutcome, WriteOutcome, write_report_md
+
+    outcomes = [
+        VendorOutcome(
+            vendor="testvendor",
+            fetched=True,
+            parsed_count=2,
+            writes=[
+                WriteOutcome(
+                    vendor="testvendor",
+                    db_id="testvendor/foo",
+                    before_price=1.0, after_price=2.0, pct_diff=1.0,
+                    pricing_unit="M-tokens",
+                    action="refused_unit",
+                    raw_price_text="$2.0/Mtok",
+                    explanation="parsed M-chars; DB expects M-tokens",
+                    source_url="https://test.example/",
+                ),
+                WriteOutcome(
+                    vendor="testvendor",
+                    db_id="testvendor/bar",
+                    before_price=1.0, after_price=99.0, pct_diff=98.0,
+                    pricing_unit="M-tokens",
+                    action="refused_diff",
+                    raw_price_text="$99.0/Mtok",
+                    explanation="|diff|=9800% > 50% (refuse threshold)",
+                    source_url="https://test.example/",
+                ),
+            ],
+            error=None,
+        ),
+    ]
+    out = tmp_path / "audit.md"
+    write_report_md(out, outcomes, apply=True)
+    body = out.read_text()
+    # Totals must count BOTH refused_unit + refused_diff
+    assert "Rows refused: **2**" in body, body
+    # Alerts section must surface both
+    assert "## Alerts" in body
+    assert "testvendor/foo" in body
+    assert "testvendor/bar" in body
+
+
+def test_C2_subscription_monitor_alert_fires_telegram(monkeypatch) -> None:
+    """REGRESSION (C2): when subscription_monitor emits an alert row
+    (action="missing", pricing_unit="alert"), _fire_per_vendor_alerts
+    MUST call _send_alert with severity="critical".
+
+    Pre-fix: only action in {refused_diff, refused_unit, wrote+drift,
+    vendor-error} triggered _send_alert. action="missing" with
+    pricing_unit="alert" silently bypassed Telegram — so a subscription
+    vendor flipping to per-call pricing produced ZERO alerts.
+    Direct invariant-2 violation per the plan.
+    """
+    import sys
+    sys.path.insert(0, str(REPO_ROOT / "scripts" / "kilo-benchmarks"))
+    import fetch_direct_vendor_prices as m
+
+    captured = []
+    def fake_send(title, body, severity="warning"):
+        captured.append({"title": title, "body": body, "severity": severity})
+        return True
+    monkeypatch.setattr(m, "_send_alert", fake_send)
+
+    outcomes = m.VendorOutcome(
+        vendor="suno",
+        fetched=True,
+        parsed_count=1,
+        writes=[
+            m.WriteOutcome(
+                vendor="suno",
+                db_id="<unmapped:suno.com:per-call-pricing-emergence-alert>",
+                before_price=None, after_price=0.0, pct_diff=None,
+                pricing_unit="alert",
+                action="missing",
+                raw_price_text="ALERT: per-call pattern(s) detected — $5 / 1M tokens",
+                explanation="parser returned slug 'suno.com:per-call-pricing-emergence-alert' not in registry",
+                source_url="https://suno.com/pricing",
+            ),
+        ],
+        error=None,
+    )
+    m._fire_per_vendor_alerts(outcomes)
+    # Telegram MUST receive the alert
+    alerts = [a for a in captured if "per-call" in (a["title"] + a["body"]).lower()]
+    assert len(alerts) == 1, f"expected 1 per-call alert, got {len(captured)}: {captured}"
+    assert alerts[0]["severity"] == "critical"
+
+
+# ============================================================
+# Adversarial review Phase 3 — Fix Cluster 2: H4
+# H4: _UPSERT_FIELDS includes via_openrouter + via_kilo → operator-set
+# routing flags get silently reset to 0 on next seed run.
+# ============================================================
+
+def test_H4_seed_does_not_overwrite_operator_set_routing_flags(tmp_path):
+    """REGRESSION (H4): seed_direct_vendors.upsert() must NEVER overwrite
+    via_openrouter or via_kilo flags on an existing row.
+
+    Pre-fix: _UPSERT_FIELDS included via_openrouter + via_kilo, and the
+    per-spec `setdefault('via_openrouter', 0)` forced the spec dict to
+    carry value 0 for every _add() call (none pass these kwargs). The
+    UPDATE path then wrote 0 to the DB, silently resetting any
+    operator-flipped value to 0. This bit us this morning (commit
+    cb7e7631 only removed the 4 Anthropic INSTANCES; the structural
+    bug remained for any future direct-vendor row that gets OR-listed).
+    """
+    import importlib, sys, sqlite3 as sq
+    sys.path.insert(0, str(REPO_ROOT / "scripts" / "kilo-benchmarks"))
+    db = tmp_path / "seed.db"
+    # Mirror just enough schema for the seed-upsert path
+    sq.connect(db).executescript("""
+        CREATE TABLE agents (
+            id TEXT PRIMARY KEY,
+            api_id TEXT, name TEXT, provider TEXT, service_type TEXT,
+            status TEXT NOT NULL DEFAULT 'active',
+            via_openrouter INTEGER NOT NULL DEFAULT 0,
+            via_kilo INTEGER NOT NULL DEFAULT 0,
+            input_cost_per_m REAL, output_cost_per_m REAL,
+            context_window_k INTEGER, pricing_unit TEXT,
+            quality_tier INTEGER, is_ga INTEGER,
+            description TEXT,
+            is_stt_capable INTEGER, is_translation_capable INTEGER,
+            stt_quality REAL,
+            last_verified TEXT, created_at TEXT, updated_at TEXT,
+            discard_reason TEXT
+        );
+        -- Seed an existing direct-vendor row that operator has flipped to
+        -- via_openrouter=1 (e.g., the vendor got OR-listed since seed insert)
+        INSERT INTO agents (
+            id, api_id, name, provider, service_type, status,
+            via_openrouter, via_kilo, input_cost_per_m, pricing_unit,
+            created_at, updated_at
+        ) VALUES (
+            'soniox/stt-async-v4', 'stt-async-v4', 'Soniox Async', 'soniox', 'stt',
+            'active', 1, 1, 27.78, 'audio-min',
+            '2026-01-01 00:00:00', '2026-01-01 00:00:00'
+        );
+    """)
+
+    # Force a re-import so DB_PATH respects our temp path
+    import seed_direct_vendors as sd
+    importlib.reload(sd)
+    conn = sq.connect(db)
+    sd.upsert(conn, today="2026-06-30")
+    conn.commit()
+    row = conn.execute(
+        "SELECT via_openrouter, via_kilo FROM agents WHERE id='soniox/stt-async-v4'"
+    ).fetchone()
+    conn.close()
+    assert row == (1, 1), (
+        f"REGRESSION: seed reset operator-flipped routing flags. "
+        f"Expected via_openrouter=1, via_kilo=1; got via_openrouter={row[0]}, via_kilo={row[1]}"
+    )

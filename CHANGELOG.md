@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — adversarial review C1+C2+H4: audit MD action-string + sub-monitor Telegram path + seed via_* preservation (2026-06-30)
+
+Adversarial review Phase 1 (4 parallel grounders) → Phase 2 (merge/triage) → Phase 3 (TDD-fix). First cluster of 3 fixes shipped together:
+
+**C1 (HIGH — invariant: "alerts must reach the daily-refresh log")**: [fetch_direct_vendor_prices.py:667,687,720](scripts/kilo-benchmarks/fetch_direct_vendor_prices.py#L667) used `action == "refused"` but actions are `refused_unit` / `refused_diff`. Result: `Rows refused: 0` always reported in MD audit even when writes were blocked. Now uses `action.startswith("refused")`.
+
+**C2 (HIGH — invariant #2: "never silently miss a vendor flipping to per-call")**: subscription_monitor's emergence-alert ParsedRow flowed through `<unmapped:...>` → `action="missing"` → `_fire_per_vendor_alerts` had no branch for this → zero Telegram alerts. New branch at [fetch_direct_vendor_prices.py:600](scripts/kilo-benchmarks/fetch_direct_vendor_prices.py#L600) fires `severity="critical"` when `action="missing" and pricing_unit="alert"`.
+
+**H4 (HIGH — structural root cause that commit `cb7e7631` only papered over)**: [seed_direct_vendors.py:_UPSERT_FIELDS](scripts/kilo-benchmarks/seed_direct_vendors.py) had `via_openrouter` + `via_kilo` in the field list, and `setdefault('via_openrouter', 0)` forced 0 into the spec dict for every `_add()` call. The UPDATE path then wrote 0, silently resetting any operator-flipped routing flag. `cb7e7631` only removed the 4 Anthropic _add() INSTANCES that hit it; the structural bug remained. Now: split into `_UPSERT_FIELDS` (drops via_*) + new `_INSERT_ONLY_FIELDS = ("via_openrouter", "via_kilo")` consumed by INSERT path only. Operator-flipped values are preserved across daily seed runs.
+
+3 regression tests (1 per fix), all pass. 190/190 kilo-benchmarks tests green. Live seed-run on real DB: 74 specs updated, 0 inserts (idempotent).
+
 ### Changed — direct-vendor pricing plan: Phase 5 Telegram kilo-catalog channel DEFERRED by operator (2026-06-30)
 
 Operator review on 2026-06-30 dropped the dedicated kilo-catalog Telegram channel from Phase 5 scope. Rationale: solo-operator workload + existing `_send_alert()` in [fetch_direct_vendor_prices.py:101](scripts/kilo-benchmarks/fetch_direct_vendor_prices.py#L101) already fires per-vendor failures (HTTP errors / unit mismatches / >50% diffs / 7-day URL_BROKEN / heartbeat-stale) to the main Telegram chat via `fabrik-lib/alerting`. Channel separation is noise-reduction for fleet-volume ops, not load-bearing for solo workflow. The daily audit MD at `cache/direct_vendor_audit_<date>.md` provides the "what happened today" view without needing a separate channel. Plan §"Phase 5" status flipped to ✅ COMPLETE (3/4 deliverables shipped + 1 bonus Gate-3 roundtrip test; 1 deferred-by-decision documented inline with revival trigger if operator scale changes).

@@ -600,6 +600,22 @@ def _fire_per_vendor_alerts(o: VendorOutcome) -> None:
                 body=f"{w.db_id}: {w.explanation}",
                 severity="critical",
             )
+        elif w.action == "missing" and w.pricing_unit == "alert":
+            # Adversarial-review C2: subscription_monitor emergence alerts must
+            # reach Telegram. Pre-fix, this path silently fell into the
+            # <unmapped:...> bucket and never fired _send_alert, violating
+            # invariant #2 ("never silently miss a vendor flipping to per-call").
+            _send_alert(
+                title=f"{o.vendor}: per-call pricing detected on sub-only vendor",
+                body=(
+                    f"Vendor was confirmed subscription-only previously. "
+                    f"Per-call pattern(s) appeared on {w.source_url}\n"
+                    f"Parser output: {w.raw_price_text}\n"
+                    f"Operator should re-classify the vendor (consider adding "
+                    f"real parser_module + registry mappings)."
+                ),
+                severity="critical",
+            )
 
 
 def write_report_csv(path: Path, outcomes: list[VendorOutcome]) -> None:
@@ -664,7 +680,9 @@ def write_report_md(path: Path, outcomes: list[VendorOutcome], apply: bool) -> N
     # Totals
     total_parsed = sum(o.parsed_count for o in outcomes)
     total_wrote = sum(sum(1 for w in o.writes if w.action == "wrote") for o in outcomes)
-    total_refused = sum(sum(1 for w in o.writes if w.action == "refused") for o in outcomes)
+    total_refused = sum(
+        sum(1 for w in o.writes if w.action.startswith("refused")) for o in outcomes
+    )
     total_missing = sum(sum(1 for w in o.writes if w.action == "missing") for o in outcomes)
     total_errors = sum(1 for o in outcomes if o.error)
     total_subs = sum(1 for o in outcomes if o.parsed_count == 0 and not o.error)
@@ -684,7 +702,7 @@ def write_report_md(path: Path, outcomes: list[VendorOutcome], apply: bool) -> N
     lines.append("")
     for o in outcomes:
         wrote = sum(1 for w in o.writes if w.action == "wrote")
-        refused = sum(1 for w in o.writes if w.action == "refused")
+        refused = sum(1 for w in o.writes if w.action.startswith("refused"))
         missing = sum(1 for w in o.writes if w.action == "missing")
         err_suffix = f" — ERROR: {o.error}" if o.error else ""
         sub_suffix = (
@@ -717,7 +735,7 @@ def write_report_md(path: Path, outcomes: list[VendorOutcome], apply: bool) -> N
         if o.error:
             alerts.append(f"- ❌ **{o.vendor}**: {o.error}")
         for w in o.writes:
-            if w.action == "refused":
+            if w.action.startswith("refused"):
                 alerts.append(f"- 🚫 **{o.vendor}**: refused `{w.db_id}` — {w.explanation}")
             elif w.action == "missing" and w.pricing_unit == "alert":
                 alerts.append(

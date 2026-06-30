@@ -989,6 +989,15 @@ _add(
 # Anthropic-published prices, so no conflict.
 
 
+# Adversarial-review H4 (2026-06-30): via_openrouter + via_kilo REMOVED from this
+# tuple. These are routing flags set by the OpenRouter/Kilo daily sync (via_*=1
+# when the vendor's row is also in OR/Kilo's catalog). The commit cb7e7631 fix
+# only removed the 4 Anthropic _add() INSTANCES that hit the structural bug;
+# this removal closes the root cause for every future direct-vendor row.
+#
+# Now: spec setdefault still seeds 0 on INSERT path (for net-new rows), but
+# UPDATE path never touches these columns again. Operator-flipped values are
+# preserved across daily seed runs.
 _UPSERT_FIELDS = (
     "name",
     "provider",
@@ -1000,12 +1009,14 @@ _UPSERT_FIELDS = (
     "quality_tier",
     "is_ga",
     "description",
-    "via_openrouter",
-    "via_kilo",
     "is_stt_capable",
     "is_translation_capable",
     "stt_quality",
 )
+
+# Fields that should ONLY be set on INSERT, never on UPDATE. Preserves any
+# operator-flipped values (e.g., a direct-vendor row that got OR-listed later).
+_INSERT_ONLY_FIELDS = ("via_openrouter", "via_kilo")
 
 
 def upsert(conn: sqlite3.Connection, today: str) -> dict[str, int]:
@@ -1046,7 +1057,10 @@ def upsert(conn: sqlite3.Connection, today: str) -> dict[str, int]:
             cols = ["id", "api_id", "status", "last_verified", "created_at", "updated_at"]
             placeholders = ["?", "?", "'active'", "?", "?", "?"]
             vals = [mid, mid.split("/")[-1], today, f"{today} 00:00:00", f"{today} 00:00:00"]
-            for field in _UPSERT_FIELDS:
+            # INSERT path: include both regular AND insert-only fields (the latter
+            # populate via_openrouter / via_kilo on net-new rows; on UPDATE they
+            # are intentionally skipped to preserve operator-flipped values).
+            for field in (*_UPSERT_FIELDS, *_INSERT_ONLY_FIELDS):
                 if field in spec:
                     cols.append(field)
                     placeholders.append("?")
