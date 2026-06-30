@@ -63,6 +63,12 @@ Traycer decides which configuration applies during `epic-brief` or `trigger-work
 - Use `INSERT INTO webhook_events (event_id, ...) ... ON CONFLICT DO NOTHING`. If no rows inserted, the event is a duplicate — return `200 OK` and skip processing.
 - This prevents double-provisioning, duplicate subscription creation, or erroneous cancellations from Paddle retries.
 
+### Refunds & Adjustments
+
+- Paddle Billing has **no `transaction.refunded` event** — it does not exist. Refunds, credits, and chargebacks are modelled through the **Adjustments API**: `POST /adjustments` with `action: "refund"`, `type: "full" | "partial"`, `transaction_id`, a `reason` string, and (for partial) an `items[]` array of `{ item_id, type, amount }`. An **`adjustment.created`** webhook fires (later state changes emit **`adjustment.updated`**); subscribe to both and record them in `webhook_events` for the same idempotency guarantee.
+- As **Merchant of Record, Paddle reverses the proportional sales tax/VAT automatically inside the adjustment** — `items[].amount` is tax-inclusive by default. The seller does **not** separately reverse or reclaim tax on a refund; the adjustment totals already net it out. (Teknokent _döviz beyanı_: the monthly Transactions/Reverse-Invoice reports already reflect adjustments.)
+- Map adjustment events to your metrics: a full-refund `adjustment.created` reverses the corresponding conversion and decrements MRR; revoke the entitlement (`subscriptions.status`) accordingly.
+
 ### Environment Isolation
 
 - Paddle Sandbox and Live environments must be strictly separated via environment variables: `PADDLE_ENVIRONMENT`, `PADDLE_CLIENT_TOKEN`, `PADDLE_API_KEY`, `PADDLE_WEBHOOK_SECRET`.
@@ -83,7 +89,9 @@ iyzico is used when the SaaS product serves Turkish domestic customers with TRY 
 
 ### Webhook Security
 
-- iyzico sends payment notifications to a callback URL. Verify payment status by calling the **iyzico API** server-side to confirm the transaction (do not trust the callback payload alone — it can be spoofed).
+- iyzico sends payment notifications to a callback URL (configured in Merchant Portal → Settings → Merchant Settings → Merchant Notifications; HTTPS required). First notification ~10–15s after the attempt; iyzico retries every 15 min until your server returns 2xx, then stops after 3 attempts.
+- Verify payment status by calling the **iyzico API** server-side to confirm the transaction (do not trust the callback payload alone — it can be spoofed). Webhook `status` values: `SUCCESS` (paid), `FAILURE`, plus 3DS/APM intermediate states; `CONTACTLESS_REFUND` signals a refund.
+- If you enable signed webhooks, verify the **`X-Iyz-Signature-V3`** header (V1/V2 are deprecated): `HMAC-SHA256` (hex) over `merchantId + secretKey + eventType + subscriptionReferenceCode + orderReferenceCode + customerReferenceCode`, compared with `hmac.compare_digest()`.
 - Load `IYZICO_API_KEY` and `IYZICO_SECRET_KEY` from environment variables.
 
 ### Webhook Processing
