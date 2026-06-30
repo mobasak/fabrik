@@ -49,6 +49,11 @@ import uuid
 from pathlib import Path
 from typing import Any
 
+# Phase 6 of deploy-readiness-gaps (2026-06-30): per-DB Backrest plan
+# registration. Importing here is safe — backrest.py doesn't import postgres,
+# so no circular dependency. Module-level import keeps the test patch path
+# `fabrik.drivers.postgres.register_postgres_plan` stable.
+from fabrik.drivers.backrest import register_postgres_plan, unregister_postgres_plan
 from fabrik.drivers.ssh import scp_to_vps, ssh
 from fabrik.locks_local import file_lock
 
@@ -365,6 +370,17 @@ def create_database(
                 db_name,
                 exc,
             )
+        # Phase 6: per-DB Backrest plan. Non-fatal on failure — DB exists
+        # already, operator can re-register the plan manually if backrest
+        # is down at apply time.
+        try:
+            register_postgres_plan(db_name)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "backrest: register per-DB plan for %s failed (%s); operator must register manually",
+                db_name,
+                exc,
+            )
         return {"status": "created", "database": db_name}
 
     # Dedicated role — generate CSPRNG password, create + grant in one SQL
@@ -445,6 +461,16 @@ def create_database(
     except Exception as exc:  # noqa: BLE001 — registry failure is non-fatal
         logger.warning(
             "postgres allocations: register %s failed (%s); DB+role exist but registry skipped",
+            db_name,
+            exc,
+        )
+
+    # Phase 6: per-DB Backrest plan. Non-fatal on failure.
+    try:
+        register_postgres_plan(db_name)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "backrest: register per-DB plan for %s failed (%s); operator must register manually",
             db_name,
             exc,
         )
@@ -537,6 +563,18 @@ def drop_database(
     except Exception as exc:  # noqa: BLE001 — registry failure is non-fatal
         logger.warning(
             "postgres allocations: unregister %s failed (%s); DB dropped but registry stale",
+            db_name,
+            exc,
+        )
+
+    # Phase 6: unregister per-DB Backrest plan + scrub the tracked-DBs file.
+    # Non-fatal: if backrest is down, the orphaned plan is harmless (pre-
+    # backup.sh skips DBs that no longer exist via pg_dump's own check).
+    try:
+        unregister_postgres_plan(db_name)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "backrest: unregister per-DB plan for %s failed (%s); operator may need to scrub",
             db_name,
             exc,
         )

@@ -509,6 +509,66 @@ ssh vps "bash /opt/fabrik/scripts/vps_apply_limits.sh"
 
 ---
 
+## One-Time Setup — Per-DB Backup Loop (Phase 6 of deploy-readiness-gaps, 2026-06-30)
+
+Fabrik's `create_database()` registers a per-DB Backrest plan with path `/opt/backups/postgres/<db_name>/` and appends the DB name to `/opt/backups/fabrik-tracked-dbs.txt`. To actually populate that path, the existing host-side `pre-backup.sh` script must dump each tracked DB nightly.
+
+**Operator step (run once per VPS)**: append the per-DB dump loop to `/opt/backups/pre-backup.sh`. Idempotent — re-running is safe.
+
+```bash
+ssh vps 'sudo bash -c '\''
+set -e
+SCRIPT=/opt/backups/pre-backup.sh
+TRACKED=/opt/backups/fabrik-tracked-dbs.txt
+touch "$TRACKED"
+if grep -q "fabrik-tracked-dbs" "$SCRIPT"; then
+  echo "(already patched)"
+else
+  cat >> "$SCRIPT" <<"EOF"
+
+# Phase 6 of deploy-readiness-gaps (2026-06-30): per-DB pg_dump
+# Reads /opt/backups/fabrik-tracked-dbs.txt (managed by fabrik
+# create_database / drop_database) and dumps each DB to its own
+# directory. Backrest plan postgres-<db> backs up the directory.
+PG_CONTAINER=$(docker ps --format "{{.Names}}" | grep "^postgres-main" | head -1)
+if [ -n "$PG_CONTAINER" ] && [ -f /opt/backups/fabrik-tracked-dbs.txt ]; then
+  while IFS= read -r db; do
+    [ -z "$db" ] && continue
+    mkdir -p "/opt/backups/postgres/$db"
+    docker exec "$PG_CONTAINER" pg_dump -U postgres -F c -Z 9 "$db" \
+      > "/opt/backups/postgres/$db/latest.dump" 2>>/opt/backups/per-db-dump.log \
+      || echo "WARN: pg_dump failed for $db (see /opt/backups/per-db-dump.log)"
+  done < /opt/backups/fabrik-tracked-dbs.txt
+fi
+EOF
+  echo "Appended per-DB dump loop to $SCRIPT"
+fi
+'\'''
+```
+
+**Verify after patching**:
+
+```bash
+# 1. Script contains the new loop:
+ssh vps "grep fabrik-tracked-dbs /opt/backups/pre-backup.sh"
+# Expected: 2+ matches (the comment + the read line)
+
+# 2. Tracked-DBs file is present + readable:
+ssh vps "ls -la /opt/backups/fabrik-tracked-dbs.txt"
+
+# 3. After next nightly run (or manual): per-DB dumps exist
+ssh vps "ls /opt/backups/postgres/"
+# Expected: directories per tracked DB, each containing latest.dump
+
+# 4. Backrest registered the per-DB plans:
+ssh vps "cat /opt/backrest/config/config.json | jq '.plans[] | select(.id | startswith(\"postgres-\")) | .id'"
+# Expected: ["postgres-dumps", "postgres-<dbname>", ...]
+```
+
+**Why this is a one-time manual step rather than automated**: editing the host-side `pre-backup.sh` script is a privileged operation outside the normal `fabrik apply` flow, and per the plan §"One-time migration" the simpler `Path B` (documented operator step) was chosen over `Path A` (a new `fabrik vps install-pg-per-db-backup` subcommand). If you find yourself running this on more than 2 VPS hosts, upgrade to Path A.
+
+---
+
 ## Related Files
 
 | File | Purpose |

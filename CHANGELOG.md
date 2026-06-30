@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Phase 6 deploy-readiness: per-DB Backrest plan registration (2026-06-30)
+
+Each fabrik-created database now gets its own Backrest plan with per-DB retention, layered on top of the existing whole-cluster `postgres-dumps` plan. Restoring a single DB no longer requires unpacking the whole-cluster `pg_dumpall` archive.
+
+**Pipeline**:
+1. `register_postgres_plan(db_name)` in `src/fabrik/drivers/backrest.py` calls `add_backup_plan(plan_id="postgres-<db>", paths=["/opt/backups/postgres/<db>/"], schedule_cron="0 2 * * *")` (matches the whole-cluster cadence) + appends `db_name` to `/opt/backups/fabrik-tracked-dbs.txt` via SSH (`grep -qxF + tee -a` pattern → idempotent).
+2. `unregister_postgres_plan(db_name)` mirrors on `drop_database()`: removes the Backrest plan + scrubs the tracked-DBs file via `sed -i '/^<db>$/d'`. Tracked-file scrub runs unconditionally — even if `remove_backup_plan` failed (lock/script error) — so the next register attempt for the same name won't double-append.
+3. Wired into `create_database()` (BOTH code paths: no-role + dedicated-role) AFTER role+grant + allocation registration. Wired into `drop_database()` AFTER `unregister_allocation`.
+4. **Pass-2 adversarial defense**: new `_validate_db_name` enforces `^[a-z][a-z0-9_]{0,62}$` (tighter than `_IDENT_RE` — lower-case only, no leading underscore) so the name is shell-safe inside the `for db in $(cat …)` loop on the VPS. Rejects `foo;rm -rf /`, `$x`, ``foo`whoami``` etc.
+5. **Non-fatal failures**: register_postgres_plan / unregister_postgres_plan exceptions are caught + logged; create_database / drop_database still succeed (DB+role are the load-bearing artifacts; the per-DB backup plan is a nice-to-have the operator can register manually if backrest is down at apply time).
+
+15 hermetic regression tests (`tests/test_backrest_postgres_plan.py`): 4 register (plan args, idempotency, invalid-name rejection, valid-name acceptance), 2 unregister (calls remove + scrub, scrub runs even on remove-fail), 4 tracked-file helpers (SSH commands + name validation), 5 postgres integration (called on create, skipped on dry-run, skipped on existing-DB, non-fatal on backrest error, called on drop).
+
+**Operator one-time step** (documented in `docs/operations/deployment.md` — "Per-DB Backup Loop"): append a `for db in $(cat /opt/backups/fabrik-tracked-dbs.txt)` block to `/opt/backups/pre-backup.sh` so each tracked DB gets dumped to `/opt/backups/postgres/<db>/latest.dump` nightly. Idempotent patcher script provided. Per the plan §"One-time migration": chose the simpler `Path B` (documented step) over `Path A` (new `fabrik vps install-pg-per-db-backup` subcommand); upgrade to Path A only if rolling out to >2 VPS hosts.
+
+**Live VPS inventory grounded this implementation** (2026-06-30): the actual backup tool is `garethgeorge/backrest` (the Docker tool), NOT `pgbackrest`. Plan was renamed accordingly during Pass-2 verification. The existing `postgres-dumps` Backrest plan (paths=`/opt/backups`, cron=`0 2 * * *`, retention=`daily:7, weekly:4, monthly:6`) was inspected via SSH; per-DB plans inherit its schedule.
+
+**Plan progress**: Phase 6 of [docs/development/plans/2026-06-30-plan-fabrik-deploy-readiness-gaps.md](docs/development/plans/2026-06-30-plan-fabrik-deploy-readiness-gaps.md) complete. Phases 1, 2, 3, 4, 5, 6, 8 shipped today. Only Phase 7 (GlitchTip webhook) remains DEFERRED (no programmatic API).
+
 ### Added — Phase 8 deploy-readiness: watchdog deploy key auto-push to GitHub (2026-06-30)
 
 Closes the watchdog → GitHub copy-paste loop. Previously `_ensure_deploy_key` generated an SSH keypair on the VPS and logged the pubkey at WARNING level, requiring the operator to paste it manually into GitHub's Settings → Deploy keys UI. Now: the pubkey is also auto-registered via `gh api` from the operator's WSL hub.
