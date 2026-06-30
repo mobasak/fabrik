@@ -508,29 +508,28 @@
       <span class="chip" data-source="kilo" title="Reachable via Kilo Gateway (including dual-routed). Use Exclusivity below to pick Kilo-only.">via Kilo</span>
     </div>
 
-    <h3>Exclusivity <span style="font-weight: normal; text-transform: none; color: var(--muted)">(any of)</span></h3>
+    <h3>Exclusivity / price compare <span style="font-weight: normal; text-transform: none; color: var(--muted)">(any of)</span></h3>
     <div class="chip-grid">
       <span class="chip" data-source="both" title="Both OpenRouter AND Kilo route the same model">Dual-routed</span>
       <span class="chip" data-source="kilo_only" title="Kilo Gateway only — not on OpenRouter">Kilo-only</span>
       <span class="chip" data-source="or_only" title="OpenRouter only — not on Kilo">OR-only</span>
+      <span class="chip" data-source="kilo_cheaper" title="Dual-routed AND Kilo input price is cheaper than OpenRouter's (within $0.005/M tolerance). Rare today — Kilo mostly proxies OR prices — but a handful of routes diverge.">Kilo cheaper</span>
+      <span class="chip" data-source="or_cheaper" title="Dual-routed AND OpenRouter input price is cheaper than Kilo's (within $0.005/M tolerance).">OR cheaper</span>
     </div>
     <!--
-      "Kilo cheaper" / "OR cheaper" chips removed 2026-06-30: live data shows
-      ALL 336 dual-routed rows have kilo_input_cost_per_m EXACTLY equal to
-      input_cost_per_m (verified via DB query). Kilo Gateway proxies
-      OpenRouter prices for dual-routed models; there is no diff to filter on
-      and the chips were silently dead — clicking either yielded 0 rows.
-      If upstream Kilo CLI ever exposes its own markup, re-introduce these
-      chips AND the matching K +N% badge logic in fmtSource() at the same
-      time. The filterRow dispatch in JS still ignores these source values
-      (no harm) so a future regen with a custom `data-source="kilo_cheaper"`
-      chip would Just Work without further code change.
+      "Kilo cheaper" / "OR cheaper" reinstated 2026-07-01. The earlier
+      removal (commit 3b1b5131) was based on a verifier snapshot where
+      ALL 336 dual-routed rows had byte-identical OR/Kilo prices and
+      the chips were silently dead. A later verifier run picked up real
+      diffs:
+        qwen/qwen3-235b-a22b-thinking-2507  OR=0.1495 K=0.1     (Kilo cheaper)
+        ~anthropic/claude-sonnet-latest      OR=2.0    K=3.0     (OR cheaper)
+        z-ai/glm-5.2                         OR=0.93   K=0.94    (OR cheaper)
+      The matching `K +N%` markup badge in fmtSource() now fires on the
+      latter two (the badge tolerance is $0.005/M), so the chips and the
+      badge are aligned again. Filter dispatch in filterRow uses the same
+      $0.005 tolerance via Math.abs() comparison.
     -->
-    <div style="font-size:10px; color:var(--muted); margin-top:6px">
-      Kilo Gateway currently mirrors OpenRouter prices for dual-routed
-      models — there's no price-diff to filter on. If that ever changes
-      upstream, "Kilo cheaper" / "OR cheaper" chips will be re-introduced.
-    </div>
 
     <h3>Pricing freshness</h3>
     <div class="chip-grid">
@@ -985,11 +984,12 @@ function filterRow(m) {
       if (s === "both" && viaOr && viaKilo) { pass = true; break; }
       if (s === "kilo_only" && viaKilo && !viaOr) { pass = true; break; }
       if (s === "or_only" && viaOr && !viaKilo) { pass = true; break; }
-      // kilo_cheaper / or_cheaper branches removed 2026-06-30 — see the
-      // matching comment in the Exclusivity sidebar block. The chips were
-      // dead because Kilo Gateway proxies OR prices for dual-routed rows.
-      // Re-introduce both the chips AND these dispatch branches together
-      // when upstream Kilo ever differentiates pricing.
+      // Kilo-cheaper / OR-cheaper restored 2026-07-01 once verifier-fresh
+      // data picked up real price diffs (the snapshot used at chip-removal
+      // time, 2026-06-30, had all 336 dual-routed rows at byte-identical
+      // prices). $0.005/M tolerance matches the fmtSource() `K +N%` badge.
+      if (s === "kilo_cheaper" && viaOr && viaKilo && m.kilo_input_cost_per_m !== null && m.kilo_input_cost_per_m !== undefined && m.input_cost_per_m - m.kilo_input_cost_per_m > 0.005) { pass = true; break; }
+      if (s === "or_cheaper"   && viaOr && viaKilo && m.kilo_input_cost_per_m !== null && m.kilo_input_cost_per_m !== undefined && m.kilo_input_cost_per_m - m.input_cost_per_m > 0.005) { pass = true; break; }
       // show_discounted is a meta-toggle handled above, not a per-row predicate.
       if (s === "show_discounted") { pass = true; break; }
     }
