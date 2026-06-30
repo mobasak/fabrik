@@ -160,13 +160,96 @@ def _kilo_description(record: dict) -> str:
 
 def _live_caps(record: dict) -> dict[str, int]:
     """Vision flag from architecture.input_modalities; tools from
-    supported_parameters."""
+    supported_parameters. has_reasoning is derived from OR's `reasoning`
+    block when present (more accurate than inference)."""
     arch = record.get("architecture", {}) or {}
     mods = arch.get("input_modalities", []) or []
     has_vision = 1 if "image" in mods else 0
     params = record.get("supported_parameters", []) or []
     has_tools = 1 if ("tools" in params or "tool_choice" in params) else 0
-    return {"has_vision": has_vision, "has_tools": has_tools}
+    # has_reasoning: OR-authoritative when the `reasoning` block exists
+    # (mandatory OR supports configurable efforts). Pre-fix the verifier
+    # heuristically inferred from family / weighted_coding / etc.
+    reasoning = record.get("reasoning") or {}
+    has_reasoning = 1 if (reasoning.get("mandatory") or reasoning.get("supported_efforts")) else 0
+    return {"has_vision": has_vision, "has_tools": has_tools, "has_reasoning": has_reasoning}
+
+
+def _live_caching(record: dict) -> tuple[float | None, float | None]:
+    """Extract prompt-caching pricing from OR's `pricing.input_cache_read` /
+    `pricing.input_cache_write`. Same scale as `prompt` / `completion`
+    (per-token USD strings). Returns (read_per_m, write_per_m) as floats,
+    or (None, None) if the field is absent.
+
+    Production cost impact: caching cuts real cost 5-10x for repeat
+    prompts; surfacing it lets operators reason about per-call vs
+    sustained-load economics.
+    """
+    p = record.get("pricing", {}) or {}
+
+    def _parse(field: str) -> float | None:
+        raw = p.get(field)
+        if raw is None:
+            return None
+        try:
+            val = float(raw)
+        except (TypeError, ValueError):
+            return None
+        if val < 0:
+            return None
+        return val * 1_000_000
+
+    return _parse("input_cache_read"), _parse("input_cache_write")
+
+
+def _live_reasoning_efforts(record: dict) -> tuple[int, str | None]:
+    """Extract OR's reasoning metadata: (mandatory, supported_efforts_json).
+
+    `mandatory` = 1 if the model REQUIRES reasoning (cannot disable
+    thinking — affects first-token latency expectations).
+    `supported_efforts` = JSON list of effort levels (e.g. "low", "medium",
+    "high"), or None if the model doesn't expose configurable efforts.
+    """
+    r = record.get("reasoning") or {}
+    mandatory = 1 if r.get("mandatory") else 0
+    efforts = r.get("supported_efforts")
+    efforts_json = json.dumps(efforts) if efforts else None
+    return mandatory, efforts_json
+
+
+def _live_top_provider(record: dict) -> tuple[int | None, int | None, int]:
+    """Pull (context_length, max_completion_tokens, is_moderated) from
+    `top_provider`. The provider-side context_length is often LOWER than
+    the model's stated max — surface both so the operator picks the right
+    one for their use case.
+    """
+    tp = record.get("top_provider") or {}
+    ctx = tp.get("context_length")
+    if ctx is not None:
+        try:
+            ctx = int(ctx)
+        except (TypeError, ValueError):
+            ctx = None
+    max_out = tp.get("max_completion_tokens")
+    if max_out is not None:
+        try:
+            max_out = int(max_out)
+        except (TypeError, ValueError):
+            max_out = None
+    is_moderated = 1 if tp.get("is_moderated") else 0
+    return ctx, max_out, is_moderated
+
+
+def _live_canonical_slug(record: dict) -> str | None:
+    """OR's `canonical_slug` (e.g. anthropic/claude-sonnet-5-20260630).
+    Often longer than the route id and carries a date suffix. None when
+    OR doesn't provide one."""
+    return (record.get("canonical_slug") or "").strip() or None
+
+
+def _live_knowledge_cutoff(record: dict) -> str | None:
+    """OR's `knowledge_cutoff` (ISO date string). None when absent."""
+    return (record.get("knowledge_cutoff") or "").strip() or None
 
 
 def _fetch_kilo() -> dict[str, dict]:
@@ -552,13 +635,24 @@ def ingest_new(report: dict, db_path: Path = DB_PATH) -> dict:
             desc = _live_description(rec)
             if not desc and also_kilo:
                 desc = _kilo_description(kilo_by_id[mid])
+            # Richer-extraction fields (2026-07-01 migration)
+            slug = _live_canonical_slug(rec)
+            cutoff = _live_knowledge_cutoff(rec)
+            cache_r, cache_w = _live_caching(rec)
+            r_mandatory, r_efforts = _live_reasoning_efforts(rec)
+            _, max_out, is_mod = _live_top_provider(rec)
             conn.execute(
                 "INSERT INTO agents (id, api_id, name, provider, "
                 "input_cost_per_m, output_cost_per_m, context_window_k, "
-                "has_vision, has_tools, status, last_verified, "
+                "has_vision, has_tools, has_reasoning, status, last_verified, "
                 "via_openrouter, via_kilo, kilo_input_cost_per_m, kilo_output_cost_per_m, "
-                "is_variable_pricing, description) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, 1, ?, ?, ?, ?, ?)",
+                "is_variable_pricing, description, "
+                "canonical_slug, knowledge_cutoff, "
+                "cache_read_cost_per_m, cache_write_cost_per_m, "
+                "reasoning_mandatory, reasoning_supported_efforts, "
+                "max_completion_tokens, is_moderated) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, 1, ?, ?, ?, ?, ?, "
+                "?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     mid,
                     mid,
@@ -569,12 +663,21 @@ def ingest_new(report: dict, db_path: Path = DB_PATH) -> dict:
                     ctx,
                     caps["has_vision"],
                     caps["has_tools"],
+                    caps["has_reasoning"],
                     today_iso,
                     also_kilo,
                     k_in,
                     k_out,
                     1 if is_var else 0,
                     desc,
+                    slug,
+                    cutoff,
+                    cache_r,
+                    cache_w,
+                    r_mandatory,
+                    r_efforts,
+                    max_out,
+                    is_mod,
                 ),
             )
             inserted_or += 1
@@ -729,6 +832,39 @@ def apply_fixes(report: dict, db_path: Path = DB_PATH) -> dict:
             if cur.rowcount:
                 kilo_descs_written += cur.rowcount
         counts["kilo_descriptions_written"] = kilo_descs_written
+
+        # Richer OR extraction (2026-07-01): for every live OR row, refresh
+        # the 8 new columns the migration added — canonical_slug,
+        # knowledge_cutoff, cache_read/write costs, reasoning_mandatory,
+        # reasoning_supported_efforts, max_completion_tokens, is_moderated.
+        # Operator-flagged: "are you sure we can extract all models with all
+        # their columns?" — answer was no, only 6 of 18 fields. This pass
+        # closes the gap for OR-routed rows. Direct-vendor + Kilo-only rows
+        # don't get these fields populated here (no OR data to pull from).
+        richer_rows_updated = 0
+        live_raw = _fetch_live()
+        for mid, rec in live_raw.items():
+            slug = _live_canonical_slug(rec)
+            cutoff = _live_knowledge_cutoff(rec)
+            cache_r, cache_w = _live_caching(rec)
+            r_mandatory, r_efforts = _live_reasoning_efforts(rec)
+            tp_ctx, max_out, is_mod = _live_top_provider(rec)
+            cur = conn.execute(
+                "UPDATE agents SET "
+                "canonical_slug = ?, "
+                "knowledge_cutoff = ?, "
+                "cache_read_cost_per_m = ?, "
+                "cache_write_cost_per_m = ?, "
+                "reasoning_mandatory = ?, "
+                "reasoning_supported_efforts = ?, "
+                "max_completion_tokens = ?, "
+                "is_moderated = ? "
+                "WHERE id = ?",
+                (slug, cutoff, cache_r, cache_w, r_mandatory, r_efforts, max_out, is_mod, mid),
+            )
+            if cur.rowcount:
+                richer_rows_updated += cur.rowcount
+        counts["richer_fields_refreshed"] = richer_rows_updated
 
         # Catalog-dedup cleanup: mark Kilo-bare duplicate rows as deprecated
         # so the UI's Kilo-only chip stops showing them as exclusive routes.

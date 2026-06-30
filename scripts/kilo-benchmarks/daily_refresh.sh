@@ -100,6 +100,17 @@ mkdir -p "$(dirname "$LOG_FILE")"
   _step "check_daily_refresh_freshness" "$VENV_PY" "$KB/check_daily_refresh_freshness.py" \
     || echo "[daily_refresh] freshness check errored (non-fatal)"
 
+  # Ensure the OR richer-extraction columns (canonical_slug, knowledge_cutoff,
+  # cache_read/write_cost_per_m, reasoning_mandatory, reasoning_supported_efforts,
+  # max_completion_tokens, is_moderated) exist BEFORE the verifier writes to
+  # them. The other migrations below run AFTER the verifier but were added in
+  # commits where the verifier didn't depend on them — those effectively take
+  # effect on the FOLLOWING day's run. The richer-extraction columns must be
+  # available SAME-DAY because verify_openrouter_catalog --apply now populates
+  # them in apply_fixes() + ingest_new(). Idempotent.
+  _step "migrate_or_richer_extraction" "$VENV_PY" "$KB/migrate_or_richer_extraction.py" \
+    || echo "[daily_refresh] OR richer-extraction migration failed (non-fatal)"
+
   _step "verify_openrouter_catalog" "$VENV_PY" "$KB/verify_openrouter_catalog.py" --apply --ingest-new \
     || echo "[daily_refresh] verifier failed (non-fatal)"
 

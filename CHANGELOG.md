@@ -4,6 +4,38 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — verify_openrouter_catalog: richer extraction (8 new OR fields populated per row) + new migration (2026-07-01)
+
+Operator-flagged: "are you sure we can extract all models with all their columns?" — answer was no; we were pulling 6 of OR's 18 per-model fields. Phase 1 of the gap-fix: extract + populate 8 new columns.
+
+New columns (via `migrate_or_richer_extraction.py`, idempotent):
+
+| Column | Source | Population (340 OR-active rows) |
+|---|---|---|
+| `canonical_slug` | OR `canonical_slug` (e.g. `anthropic/claude-sonnet-5-20260630`) | 338 / 340 (99%) |
+| `knowledge_cutoff` | OR `knowledge_cutoff` (ISO date) | 171 / 340 (50%) |
+| `cache_read_cost_per_m` | OR `pricing.input_cache_read × 1e6` (USD per million cached-read tokens) | 155 / 340 (45%) |
+| `cache_write_cost_per_m` | OR `pricing.input_cache_write × 1e6` | 155 / 340 (45%) |
+| `reasoning_mandatory` | OR `reasoning.mandatory` (1 = can't disable thinking) | 59 mandatory-reasoning models |
+| `reasoning_supported_efforts` | OR `reasoning.supported_efforts` (JSON array: `["high","medium","low","minimal"]` etc.) | 67 / 340 (20%) |
+| `max_completion_tokens` | OR `top_provider.max_completion_tokens` | most rows |
+| `is_moderated` | OR `top_provider.is_moderated` | flag |
+
+**`has_reasoning` is now OR-authoritative**: pre-fix the verifier inferred reasoning capability from family-pattern matches / weighted_coding score / etc. Now `_live_caps()` reads `reasoning.mandatory` or `reasoning.supported_efforts` directly — much more accurate. Example: Gemini 3.5 Flash now correctly flagged as reasoning_mandatory=1 (explains its 18-second TTFT).
+
+**Two new helpers** in the verifier alongside `_live_caps`/`_live_pricing`/`_live_description`:
+- `_live_caching(record) -> (read_per_m, write_per_m)`
+- `_live_reasoning_efforts(record) -> (mandatory, efforts_json)`
+- `_live_top_provider(record) -> (ctx, max_completion, is_moderated)`
+- `_live_canonical_slug(record) -> str | None`
+- `_live_knowledge_cutoff(record) -> str | None`
+
+Wired into `apply_fixes()` (new "richer extraction refresh" pass that iterates the live catalog and UPDATEs every OR row) AND into `ingest_new()` (new OR rows get the new fields on first insert).
+
+`daily_refresh.sh` updated: `migrate_or_richer_extraction.py` runs **BEFORE** `verify_openrouter_catalog.py --apply` (not after, like the existing `migrate_aggregator_columns` / `migrate_selector_columns`) because the verifier writes to these columns same-day. Idempotent.
+
+**Phase 2** (separate commit): hidden OR alpha-route discovery — finding `openrouter/*-alpha` and similar routes that OR hides from `/api/v1/models`. The reason `openrouter/owl-alpha` and `openrouter/elephant-alpha` had to be manually restored.
+
 ### Fixed — verify_openrouter_catalog: stop deprecating `openrouter/*` alpha routes that OR hides from `/api/v1/models` (2026-07-01)
 
 Operator-reported: "https://openrouter.ai/openrouter/owl-alpha why I don't see this when OR-only selected." Investigation:
