@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — daily_refresh.sh: ported the 7 Traycer + embedding steps that bashrc-hook still owned (2026-06-30)
+
+The 2026-06-28 cron migration (commit `1372325e`) ported only the catalog/pricing/browser-regen steps — leaving the deterministic Kilo-agent role mapping + Traycer registry export + agent-script generation + 4-step embedding pipeline ONLY in `wsl_startup_hook.sh`. So on days the operator didn't open a terminal, `~/.traycer/cli-agents/` and `scripts/kilo_47_agents_final.json` drifted from the DB.
+
+Added 7 missing steps to [scripts/kilo-benchmarks/daily_refresh.sh](scripts/kilo-benchmarks/daily_refresh.sh) in two blocks: (1) Kilo-agent block `role_mapper.py → export_traycer_registry.py → generate_kilo_agents.py`, gated by `FABRIK_DISABLE_KILO_WORKFLOW=1` env var like the bashrc-hook; (2) embedding block `embedding_pre_filter.py → embedding_role_mapper.py → embedding_export_markdown.py`, placed after `embedding_models_db.py all` which was already in cron. All 6 scripts smoke-tested from a cron-clean env (`env -i PATH=/usr/local/bin:/usr/bin:/bin`); each ran to completion with no TTY/interactive failure.
+
+The bashrc-hook still runs the same chain on every terminal open — that's deliberate (its lockfile makes the work idempotent within a UTC day). Cron is now the canonical guaranteed path; bashrc is the freshness booster for shell-active days. Note: the migration commit's claim that "both share lockfile semantics" was never implemented in cron (drift) — fixing that is a separate followup; today both paths fire independently.
+
 ### Changed — registry YAML: documented Pass-9 diagnosis for qwen + mistral (2026-06-30)
 
 Probed the next two stub candidates by row count (qwen 12 rows; mistral 1 row). Both hit the SAME wall: page returns 300-900KB rendered HTML cleanly (no bot wall) but ZERO $/¥/€ patterns — pricing tables are bound to React state populated by client-side API fetches that browserless v2 doesn't deep-execute. AWS / Google Cloud have **zero direct-vendor rows in the DB** (only present in registry for audit-completeness), so no parser would have anything to write. Updated the YAML comments for both vendors with the diagnosis so future-me doesn't re-investigate. Also verified daily_refresh.sh end-to-end: heartbeat FRESH, all pipeline steps ran, 17 direct-vendor rows updated, models_browser.html regenerated (1.09MB, 556 chat + 26 embedding models). Direct-vendor scraping work is now at objective end-of-line.

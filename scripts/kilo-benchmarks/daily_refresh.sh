@@ -109,9 +109,43 @@ mkdir -p "$(dirname "$LOG_FILE")"
   "$VENV_PY" "$KB/update_kilo_benchmarks.py" --force \
     || echo "[daily_refresh] kilo benchmark scrape failed (non-fatal)"
 
+  # ============================================================
+  # Kilo agent + Traycer registry workflow (ported from wsl_startup_hook.sh
+  # on 2026-06-30 — the 2026-06-28 cron migration left these out, so
+  # ~/.traycer/cli-agents/ + scripts/kilo_47_agents_final.json only got
+  # refreshed when a terminal opened. Now also runs in cron.)
+  #
+  # Deterministic: pre_filter → selector → post_filter → DB. ~50ms, $0 cost,
+  # byte-identical re-runs. No TTY, no interactive prompts → cron-safe.
+  # Honors FABRIK_DISABLE_KILO_WORKFLOW=1 like the bashrc-hook does.
+  # ============================================================
+  if [ "${FABRIK_DISABLE_KILO_WORKFLOW:-0}" = "1" ]; then
+    echo "[daily_refresh] kilo agent workflow skipped (FABRIK_DISABLE_KILO_WORKFLOW=1)"
+  else
+    # 1) Role mapping (deterministic role-winner assignment)
+    "$VENV_PY" "$KB/role_mapper.py" \
+      || echo "[daily_refresh] role_mapper failed (non-fatal)"
+    # 2) Refresh scripts/kilo_47_agents_final.json from the DB
+    "$VENV_PY" "$KB/export_traycer_registry.py" \
+      || echo "[daily_refresh] export_traycer_registry failed (non-fatal)"
+    # 3) Emit Traycer CLI agent scripts to ~/.traycer/cli-agents/
+    "$VENV_PY" "$FABRIK_ROOT/scripts/generate_kilo_agents.py" \
+      || echo "[daily_refresh] generate_kilo_agents failed (non-fatal)"
+  fi
+
   # Embedding catalog sync (sibling to kilo_agents_db.py for embedding models).
   "$VENV_PY" "$KB/embedding_models_db.py" all \
     || echo "[daily_refresh] embedding catalog sync failed (non-fatal)"
+
+  # Embedding selection pipeline (ported with the kilo-agent workflow above).
+  # Mirrors chat pipeline shape: catalog scrape → shortlists → role winners
+  # → markdown export.
+  "$VENV_PY" "$KB/embedding_pre_filter.py" \
+    || echo "[daily_refresh] embedding_pre_filter failed (non-fatal)"
+  "$VENV_PY" "$KB/embedding_role_mapper.py" \
+    || echo "[daily_refresh] embedding_role_mapper failed (non-fatal)"
+  "$VENV_PY" "$KB/embedding_export_markdown.py" \
+    || echo "[daily_refresh] embedding_export_markdown failed (non-fatal)"
 
   # Translation + STT capability seeds. Translation reads the
   # operator-curated bake-off doc in /opt/fabrik-lib/mt-router/docs/;
