@@ -638,6 +638,101 @@ def write_report_csv(path: Path, outcomes: list[VendorOutcome]) -> None:
                 )
 
 
+def write_report_md(path: Path, outcomes: list[VendorOutcome], apply: bool) -> None:
+    """Per-vendor markdown summary for the daily refresh log.
+
+    Phase 5 deliverable: human-readable per-day audit at
+    `cache/direct_vendor_audit_<YYYY-MM-DD>.md`. Sections:
+      - Header: timestamp + total counts
+      - Per-vendor: parsed / wrote / refused / missing + per-row diffs
+      - Alerts: unit mismatches, big-diff refusals, scrape errors,
+        subscription-only confirmations
+
+    Cron consumes this via `--report-md cache/direct_vendor_audit_$(date -u +%F).md`.
+    """
+    from datetime import UTC
+    from datetime import datetime as _dt
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    lines: list[str] = []
+    mode = "APPLY" if apply else "DRY-RUN"
+    lines.append(f"# Direct-vendor pricing audit — {_dt.now(UTC).date().isoformat()}")
+    lines.append("")
+    lines.append(f"Run mode: **{mode}** · Timestamp: {_dt.now(UTC).isoformat()}")
+    lines.append("")
+
+    # Totals
+    total_parsed = sum(o.parsed_count for o in outcomes)
+    total_wrote = sum(sum(1 for w in o.writes if w.action == "wrote") for o in outcomes)
+    total_refused = sum(sum(1 for w in o.writes if w.action == "refused") for o in outcomes)
+    total_missing = sum(sum(1 for w in o.writes if w.action == "missing") for o in outcomes)
+    total_errors = sum(1 for o in outcomes if o.error)
+    total_subs = sum(1 for o in outcomes if o.parsed_count == 0 and not o.error)
+    lines.append("## Totals")
+    lines.append("")
+    lines.append(f"- Vendors processed: **{len(outcomes)}**")
+    lines.append(f"- Rows parsed: **{total_parsed}**")
+    lines.append(f"- Rows wrote: **{total_wrote}**")
+    lines.append(f"- Rows refused: **{total_refused}** (unit mismatch or >50% diff)")
+    lines.append(f"- Rows missing: **{total_missing}** (parser returned slug not in registry)")
+    lines.append(f"- Vendor errors: **{total_errors}**")
+    lines.append(f"- Subscription-confirmed (parsed=0, no error): **{total_subs}**")
+    lines.append("")
+
+    # Per-vendor
+    lines.append("## Per-vendor")
+    lines.append("")
+    for o in outcomes:
+        wrote = sum(1 for w in o.writes if w.action == "wrote")
+        refused = sum(1 for w in o.writes if w.action == "refused")
+        missing = sum(1 for w in o.writes if w.action == "missing")
+        err_suffix = f" — ERROR: {o.error}" if o.error else ""
+        sub_suffix = (
+            " — subscription-only confirmed" if (o.parsed_count == 0 and not o.error) else ""
+        )
+        lines.append(
+            f"### {o.vendor} (parsed={o.parsed_count}, wrote={wrote}, "
+            f"refused={refused}, missing={missing}){err_suffix}{sub_suffix}"
+        )
+        lines.append("")
+        if not o.writes and not o.error:
+            lines.append("_no writes_")
+            lines.append("")
+            continue
+        for w in o.writes:
+            bp = "—" if w.before_price is None else f"{w.before_price:.4f}"
+            ap = "—" if w.after_price is None else f"{w.after_price:.4f}"
+            pd = "—" if w.pct_diff is None else f"{w.pct_diff:+.1%}"
+            lines.append(
+                f"- **{w.action}** `{w.db_id}` ({w.pricing_unit}): {bp} → {ap} "
+                f"({pd}) — {w.raw_price_text}"
+            )
+            if w.explanation:
+                lines.append(f"    - _note:_ {w.explanation}")
+        lines.append("")
+
+    # Alerts (de-duplicated by action type)
+    alerts: list[str] = []
+    for o in outcomes:
+        if o.error:
+            alerts.append(f"- ❌ **{o.vendor}**: {o.error}")
+        for w in o.writes:
+            if w.action == "refused":
+                alerts.append(f"- 🚫 **{o.vendor}**: refused `{w.db_id}` — {w.explanation}")
+            elif w.action == "missing" and w.pricing_unit == "alert":
+                alerts.append(
+                    f"- 🚨 **{o.vendor}**: subscription-only vendor may have flipped "
+                    f"to per-call pricing — {w.raw_price_text}"
+                )
+    if alerts:
+        lines.append("## Alerts (operator review needed)")
+        lines.append("")
+        lines.extend(alerts)
+        lines.append("")
+
+    path.write_text("\n".join(lines), encoding="utf-8")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--db", type=Path, default=DB_PATH)
@@ -664,6 +759,12 @@ def main() -> int:
     )
     parser.add_argument(
         "--report", type=Path, default=None, help="Write a per-row CSV diff report to this path."
+    )
+    parser.add_argument(
+        "--report-md",
+        type=Path,
+        default=None,
+        help="Write a per-vendor markdown audit report (Phase 5 deliverable).",
     )
     parser.add_argument("--quiet", action="store_true")
     args = parser.parse_args()
@@ -716,6 +817,11 @@ def main() -> int:
         write_report_csv(args.report, all_outcomes)
         if not args.quiet:
             print(f"[fetch] wrote diff report -> {args.report}")
+
+    if args.report_md:
+        write_report_md(args.report_md, all_outcomes, args.apply)
+        if not args.quiet:
+            print(f"[fetch] wrote markdown audit -> {args.report_md}")
 
     # Exit 2 on hard failure under --apply (lets daily_refresh.sh detect breakage)
     return 2 if (any_error and args.apply) else 0

@@ -218,7 +218,12 @@ mkdir -p "$(dirname "$LOG_FILE")"
   # Deepgram, Soniox, Cartesia, Speechmatics). The orchestrator runs in
   # --apply mode here; per-vendor errors don't fail the daily pipeline.
   # Plan: docs/development/plans/2026-06-29-plan-direct-vendor-pricing.md
-  _step "fetch_direct_vendor_prices" "$VENV_PY" "$KB/fetch_direct_vendor_prices.py" --apply --quiet \
+  # Phase 5 of the direct-vendor pricing plan: write a per-vendor markdown audit
+  # alongside the silent --quiet run. Filename includes UTC date so each day's
+  # audit is preserved as operator history at cache/direct_vendor_audit_<date>.md.
+  _step "fetch_direct_vendor_prices" "$VENV_PY" "$KB/fetch_direct_vendor_prices.py" \
+      --apply --quiet \
+      --report-md "$KB/cache/direct_vendor_audit_$(date -u +%F).md" \
     || echo "[daily_refresh] direct-vendor pricing scraper had vendor errors (non-fatal)"
 
   # Phase 4 of the direct-vendor pricing plan: every daily refresh re-infers

@@ -565,3 +565,99 @@ def test_load_dotenv_runs_at_module_entry(tmp_path: Path, monkeypatch: pytest.Mo
         "`def`), otherwise cron runs miss the env load — see adversarial-review "
         "finding documented in CHANGELOG."
     )
+
+
+# ============================================================
+# write_report_md (Phase 5 deliverable, added 2026-06-30)
+# ============================================================
+
+def test_write_report_md_basic_structure(tmp_path) -> None:
+    """The audit MD must include date header, totals, per-vendor sections."""
+    import sys
+    sys.path.insert(0, str(REPO_ROOT / "scripts" / "kilo-benchmarks"))
+    from fetch_direct_vendor_prices import VendorOutcome, WriteOutcome, write_report_md
+
+    outcomes = [
+        VendorOutcome(
+            vendor="testvendor",
+            fetched=True,
+            parsed_count=1,
+            writes=[
+                WriteOutcome(
+                    vendor="testvendor",
+                    db_id="testvendor/foo",
+                    before_price=1.0,
+                    after_price=1.5,
+                    pct_diff=0.5,
+                    pricing_unit="M-tokens",
+                    action="wrote",
+                    raw_price_text="$1.5/M",
+                    explanation="|diff|=50% — within tolerance",
+                    source_url="https://test.example.com/",
+                ),
+            ],
+            error=None,
+        ),
+    ]
+    out = tmp_path / "audit.md"
+    write_report_md(out, outcomes, apply=True)
+    body = out.read_text()
+    assert "# Direct-vendor pricing audit —" in body
+    assert "Run mode: **APPLY**" in body
+    assert "## Totals" in body
+    assert "Rows wrote: **1**" in body
+    assert "### testvendor (parsed=1, wrote=1" in body
+    assert "wrote" in body and "testvendor/foo" in body
+
+
+def test_write_report_md_subscription_only_suffix(tmp_path) -> None:
+    """Vendors with parsed=0 and no error get the subscription-only suffix."""
+    import sys
+    sys.path.insert(0, str(REPO_ROOT / "scripts" / "kilo-benchmarks"))
+    from fetch_direct_vendor_prices import VendorOutcome, write_report_md
+
+    outcomes = [
+        VendorOutcome(vendor="elevenlabs", fetched=True, parsed_count=0, writes=[], error=None),
+    ]
+    out = tmp_path / "audit.md"
+    write_report_md(out, outcomes, apply=True)
+    body = out.read_text()
+    assert "subscription-only confirmed" in body
+    assert "Subscription-confirmed" in body
+    assert "1" in body  # 1 subscription-confirmed vendor
+
+
+def test_write_report_md_alert_section_on_per_call_emergence(tmp_path) -> None:
+    """If subscription_monitor emits an alert row, the audit must include it
+    in the Alerts section so operator sees in daily-refresh stream."""
+    import sys
+    sys.path.insert(0, str(REPO_ROOT / "scripts" / "kilo-benchmarks"))
+    from fetch_direct_vendor_prices import VendorOutcome, WriteOutcome, write_report_md
+
+    outcomes = [
+        VendorOutcome(
+            vendor="suno",
+            fetched=True,
+            parsed_count=1,
+            writes=[
+                WriteOutcome(
+                    vendor="suno",
+                    db_id="<unmapped:suno.com:per-call-pricing-emergence-alert>",
+                    before_price=None,
+                    after_price=0.0,
+                    pct_diff=None,
+                    pricing_unit="alert",
+                    action="missing",
+                    raw_price_text="ALERT: per-call pattern(s) detected — $5 / 1M tokens",
+                    explanation="parser returned slug 'suno.com:per-call-pricing-emergence-alert' not in registry",
+                    source_url="https://suno.com/pricing",
+                ),
+            ],
+            error=None,
+        ),
+    ]
+    out = tmp_path / "audit.md"
+    write_report_md(out, outcomes, apply=True)
+    body = out.read_text()
+    assert "## Alerts (operator review needed)" in body
+    assert "🚨 **suno**: subscription-only vendor may have flipped" in body
