@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — registry YAML: documented Pass-9 diagnosis for qwen + mistral (2026-06-30)
+
+Probed the next two stub candidates by row count (qwen 12 rows; mistral 1 row). Both hit the SAME wall: page returns 300-900KB rendered HTML cleanly (no bot wall) but ZERO $/¥/€ patterns — pricing tables are bound to React state populated by client-side API fetches that browserless v2 doesn't deep-execute. AWS / Google Cloud have **zero direct-vendor rows in the DB** (only present in registry for audit-completeness), so no parser would have anything to write. Updated the YAML comments for both vendors with the diagnosis so future-me doesn't re-investigate. Also verified daily_refresh.sh end-to-end: heartbeat FRESH, all pipeline steps ran, 17 direct-vendor rows updated, models_browser.html regenerated (1.09MB, 556 chat + 26 embedding models). Direct-vendor scraping work is now at objective end-of-line.
+
 ### Changed — AI_MODELS_BROWSER_OPS.md: documented current scraper coverage (17 rows / 7 vendors) + why remaining vendors are stubbed (2026-06-30)
 
 Added a "Current scraper coverage" section to the runbook so future operators see at a glance what's actively scraped vs. what's deliberately stubbed. Vendors NOT shipped are grouped by reason (subscription-only, client-side-rendered, CF-walled, low-ROI) so future-me doesn't try to rebuild a parser for something already determined infeasible. Pointer to `audit_direct_vendor_freshness.py` for the live count.

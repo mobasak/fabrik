@@ -160,7 +160,11 @@ luma:
 
 mistral:
   pricing_url: https://mistral.ai/pricing
-  fetch_method: static         # Pass-1 found raw HTML has no $-pattern; Phase 2 may need rendered
+  # Pass-9 (2026-06-30): probed 3 URLs (mistral.ai/pricing, docs.mistral.ai,
+  # products/la-plateforme) — all return 312-899KB rendered HTML with ZERO
+  # $ or € patterns. Same client-render-bound-to-API-fetch wall as qwen.
+  # Only 1 DB row (mistral/ocr) — low ROI. Operator quarterly check.
+  fetch_method: rendered
   parser_module: null
 
 openai:
@@ -196,8 +200,14 @@ pika:
 # see CHANGELOG entry + seed_direct_vendors.py comment block.
 
 qwen:
-  pricing_url: https://www.alibabacloud.com/help/en/model-studio/model-pricing  # Pass-7+ resolved
-  fetch_method: static
+  pricing_url: https://www.alibabacloud.com/help/en/model-studio/model-pricing
+  # Pass-9 (2026-06-30): probed 4 URLs (alibabacloud.com, help.aliyun.com,
+  # bailian.console, qwenlm.ai) — all return 300-900KB rendered HTML with
+  # ZERO $ or ¥ patterns. Pricing tables are bound to React state populated
+  # by client-side API fetches that browserless v2 doesn't deep-execute.
+  # Same wall as mistral. 12 DB rows would benefit; not worth a Playwright
+  # parser given Qwen prices change ~quarterly. Operator quarterly check.
+  fetch_method: rendered
   parser_module: null
 
 recraft:
