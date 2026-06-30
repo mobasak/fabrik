@@ -907,3 +907,93 @@ def test_C3_classify_diff_refuses_first_scrape_when_magnitude_outside_bounds() -
         before_price=0, after_price=999_999.0, pricing_unit="M-tokens"
     )
     assert block is True, f"C3 invariant violation: {reason}"
+
+
+# ============================================================
+# Adversarial review Phase 3 — Fix Cluster 5
+# H1: except (FetchError, Exception) swallows programming bugs as
+#     "fetch failed" → vendor URL marked broken, run continues green,
+#     real bugs hide as URL_BROKEN flags.
+# H2: consecutive_fetch_failures defined in constants + docstring but
+#     NEVER incremented → 7-day escalation path is dead code.
+# ============================================================
+
+def test_H1_programming_errors_propagate_not_masked_as_fetch_failure(tmp_path):
+    """REGRESSION (H1): a scraper raising a non-network exception (e.g.,
+    AttributeError from a typo) MUST propagate out of process_vendor —
+    not get swallowed as 'fetch failed: X'.
+
+    Pre-fix: except (FetchError, Exception) caught every Exception subclass
+    including programming bugs → masked as transient outage, vendor marked
+    URL_BROKEN, 7-day deprecation countdown begins.
+
+    Post-fix: process_vendor catches only (FetchError, OSError); programming
+    errors propagate to the main loop's defensive wrap, which records them
+    with the actual exception name ('orchestrator error: AttributeError: …')
+    instead of the misleading 'fetch failed' prefix."""
+    import sys
+    sys.path.insert(0, str(REPO_ROOT / "scripts" / "kilo-benchmarks"))
+    import fetch_direct_vendor_prices as m
+
+    db = tmp_path / "k.db"
+    _seed_db(db)
+    reg = _registry()
+
+    class BuggyScraper:
+        def fetch_static(self, url, **kw):
+            raise AttributeError("typo in our own code (NOT a network error)")
+        def fetch_rendered(self, url, **kw):
+            raise AttributeError("same")
+
+    # Post-fix: AttributeError propagates out of process_vendor.
+    with pytest.raises(AttributeError):
+        m.process_vendor(
+            vendor="soniox", cfg=reg["soniox"], scraper=BuggyScraper(),
+            db_path=db, apply=True,
+        )
+    # And URL_BROKEN must NOT have been written.
+    import sqlite3
+    conn = sqlite3.connect(db)
+    row = conn.execute(
+        "SELECT price_scrape_source FROM agents WHERE id='soniox/stt-async-v4'"
+    ).fetchone()
+    conn.close()
+    assert row[0] is None or "URL_BROKEN" not in (row[0] or ""), (
+        f"H1 regression: programming bug masked as URL_BROKEN sentinel "
+        f"({row[0]!r}). AttributeError should never look like a vendor outage."
+    )
+
+
+def test_H2_consecutive_fetch_failures_persisted_across_runs(tmp_path):
+    """REGRESSION (H2): consecutive_fetch_failures must persist across
+    cron runs (in-memory counter is meaningless because each daily
+    invocation starts fresh). Pre-fix, the constant existed and the
+    docstring promised escalation at 7 — but nothing ever incremented
+    a counter ANYWHERE.
+
+    Post-fix: persisted in cache/vendor_failures.json. Run 1 fails →
+    counter becomes 1. Run 2 fails → counter becomes 2. Successful run
+    resets to 0. Escalation alert fires at VENDOR_FAILURE_ESCALATE=7.
+    """
+    import sys, json
+    sys.path.insert(0, str(REPO_ROOT / "scripts" / "kilo-benchmarks"))
+    import fetch_direct_vendor_prices as m
+
+    counter_file = tmp_path / "vendor_failures.json"
+
+    # Initial: vendor not in counter file → 0 failures
+    n = m._read_vendor_failures(counter_file)
+    assert n == {}, f"H2 regression: expected empty initial state, got {n}"
+
+    # Record 1 failure
+    m._record_vendor_failure("badvendor", counter_file)
+    assert m._read_vendor_failures(counter_file)["badvendor"] == 1
+
+    # Record 2 more
+    m._record_vendor_failure("badvendor", counter_file)
+    m._record_vendor_failure("badvendor", counter_file)
+    assert m._read_vendor_failures(counter_file)["badvendor"] == 3
+
+    # Successful fetch resets counter
+    m._record_vendor_success("badvendor", counter_file)
+    assert m._read_vendor_failures(counter_file).get("badvendor", 0) == 0

@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — adversarial review H1+H2: narrow except + consecutive_fetch_failures persistence (2026-06-30)
+
+Fourth fix cluster from the adversarial review.
+
+**H1 (HIGH — Pokémon except hides programming bugs as vendor outages)**: pre-fix [process_vendor](scripts/kilo-benchmarks/fetch_direct_vendor_prices.py) used `except (FetchError, Exception)` — the `Exception` superset caught EVERY programming bug (AttributeError typo, TypeError, NameError, ImportError) and laundered it as `"fetch failed: X"`. Vendor URL got marked URL_BROKEN, run continued green, real bugs hid behind a 7-day deprecation countdown. Now: narrowed to `except (FetchError, OSError)` — only network errors are treated as transient outages. Programming errors propagate to a new main-loop defensive wrap that records them as `"orchestrator error: <ActualType>: <msg>"` (still non-fatal per per-vendor isolation, but visibly wrong-shape instead of fake-URL_BROKEN).
+
+**H2 (HIGH — consecutive_fetch_failures was dead code)**: pre-fix the constant `VENDOR_FAILURE_ESCALATE = 7` was defined + the docstring claimed "Phase 1 tracks in-memory only" but **nothing ever incremented a counter anywhere**. Plan-promised 7-day vendor-outage escalation was nonexistent. Now: persisted at `scripts/kilo-benchmarks/cache/vendor_failures.json` as `{vendor: consecutive_failures}`. New helpers `_read_vendor_failures()` / `_record_vendor_failure()` / `_record_vendor_success()`. Every fetch failure bumps the counter; every successful fetch resets to 0 (even if downstream parse/write fails — the scraper still functioned). At 7 consecutive failures, fires `_send_alert(severity="critical")` with the cumulative count + recovery instructions.
+
+2 regression tests:
+- `test_H1_programming_errors_propagate_not_masked_as_fetch_failure` — `BuggyScraper` raising `AttributeError` propagates (post-fix); URL_BROKEN not written.
+- `test_H2_consecutive_fetch_failures_persisted_across_runs` — counter persists, increments on failure, resets on success.
+
+199/199 kilo-benchmarks tests green. Cache file `vendor_failures.json` is in `cache/` (gitignored).
+
 ### Fixed — adversarial review C3+C4: magnitude bounds + deepgram anchor hardening (2026-06-30)
 
 Third fix cluster from the adversarial review.

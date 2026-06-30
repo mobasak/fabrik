@@ -92,7 +92,75 @@ BROWSERLESS_URL_DEFAULT = "https://browser.vps1.ocoron.com"
 DIFF_ALERT_PCT = 0.10  # > this → alert + write
 DIFF_BLOCK_PCT = 0.50  # > this → REFUSE to write
 MISS_TO_DEPRECATE = 7  # >= this → flip row to 'deprecated'
-VENDOR_FAILURE_ESCALATE = 7  # in-memory counter; Phase 5 persists
+VENDOR_FAILURE_ESCALATE = 7  # consecutive cron failures → critical alert
+
+# Adversarial review H2 (2026-06-30): consecutive_fetch_failures was claimed in
+# the docstring + a constant defined, but nothing ever incremented it in the
+# orchestrator. The plan-stated 7-day escalation path was dead code. Persisted
+# now in this JSON file: {vendor: consecutive_failures}. Survives cron runs.
+VENDOR_FAILURES_PATH = SCRIPT_DIR / "cache" / "vendor_failures.json"
+
+
+# ---------------------------------------------------------------------------
+# Vendor-failure counter (H2)
+# ---------------------------------------------------------------------------
+def _read_vendor_failures(path: Path = VENDOR_FAILURES_PATH) -> dict[str, int]:
+    """Read the persisted {vendor: consecutive_failures} map.
+
+    Defensive: missing file or malformed JSON → return empty dict so the
+    counter starts fresh after a manual cache clear.
+    """
+    try:
+        import json
+        return json.loads(path.read_text())
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return {}
+
+
+def _write_vendor_failures(counters: dict[str, int], path: Path = VENDOR_FAILURES_PATH) -> None:
+    """Best-effort persist. Mirrors the heartbeat write pattern: log failure
+    to stderr but don't crash the pipeline."""
+    try:
+        import json
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(counters, indent=2, sort_keys=True))
+    except OSError as e:
+        print(f"[vendor-failures] write to {path} failed: {e!r}", file=sys.stderr)
+
+
+def _record_vendor_failure(vendor: str, path: Path = VENDOR_FAILURES_PATH) -> int:
+    """Bump the consecutive-failures counter for `vendor` by 1. Returns new count.
+
+    Fires a critical alert at VENDOR_FAILURE_ESCALATE so an operator sees the
+    persistent outage. Pre-fix this path was missing entirely.
+    """
+    counters = _read_vendor_failures(path)
+    counters[vendor] = counters.get(vendor, 0) + 1
+    _write_vendor_failures(counters, path)
+    n = counters[vendor]
+    if n >= VENDOR_FAILURE_ESCALATE:
+        _send_alert(
+            title=f"{vendor} scraper: {n} consecutive failures",
+            body=(
+                f"Vendor {vendor} has failed {n} consecutive cron runs "
+                f"(threshold: {VENDOR_FAILURE_ESCALATE}).\n"
+                f"Check the daily_refresh log for the failure mode. The "
+                f"counter persists until a successful fetch is recorded "
+                f"(see _record_vendor_success)."
+            ),
+            severity="critical",
+        )
+    return n
+
+
+def _record_vendor_success(vendor: str, path: Path = VENDOR_FAILURES_PATH) -> None:
+    """Reset consecutive-failures for `vendor` to 0. Called on every
+    successful fetch + parse (not write — even a refused-write counts as
+    "vendor scraper is functioning" for this counter)."""
+    counters = _read_vendor_failures(path)
+    if vendor in counters:
+        counters[vendor] = 0
+        _write_vendor_failures(counters, path)
 
 
 # ---------------------------------------------------------------------------
@@ -372,8 +440,16 @@ def process_vendor(
                 writes=[],
                 error=f"unknown fetch_method {method!r}",
             )
-    except (FetchError, Exception) as e:
+    # Adversarial review H1 (2026-06-30): narrowed `except (FetchError, Exception)`
+    # to ONLY catch network-class errors. Pre-fix, the broad `Exception` catch
+    # swallowed every programming bug (AttributeError, TypeError, NameError, etc.)
+    # as "fetch failed: X" → vendor URL marked broken, run continues green, real
+    # bugs hidden behind a 7-day deprecation countdown. Now: only network
+    # exceptions are treated as transient outages; programming errors propagate
+    # and are reported with their actual type.
+    except (FetchError, OSError) as e:
         _mark_url_broken(f"fetch failed: {type(e).__name__}: {e}")
+        _record_vendor_failure(vendor)  # H2: bump persistent counter
         return VendorOutcome(
             vendor=vendor,
             fetched=False,
@@ -386,8 +462,9 @@ def process_vendor(
     if isinstance(html, str) and is_bot_wall(html) and method != "stealth":
         try:
             html = scraper.fetch_rendered(url, stealth=True)
-        except (FetchError, Exception) as e:
+        except (FetchError, OSError) as e:
             _mark_url_broken(f"bot-wall escalation failed: {type(e).__name__}: {e}")
+            _record_vendor_failure(vendor)  # H2
             return VendorOutcome(
                 vendor=vendor,
                 fetched=False,
@@ -395,6 +472,12 @@ def process_vendor(
                 writes=[],
                 error=f"bot-wall escalation also failed: {type(e).__name__}: {e}",
             )
+
+    # Successful fetch + bot-wall check passed → record success (H2: reset
+    # the consecutive-failure counter for this vendor; even a downstream
+    # parser/write failure means the SCRAPER is functioning, only the parser
+    # or data layer is at fault).
+    _record_vendor_success(vendor)
 
     # Parse
     try:
@@ -887,14 +970,29 @@ def main() -> int:
             print(f"[fetch] iteration {iteration + 1}/{args.max_iter}")
         for vendor in vendors:
             simulate = vendor == args.simulate_failure
-            outcome = process_vendor(
-                vendor=vendor,
-                cfg=registry[vendor],
-                scraper=scraper,
-                db_path=args.db,
-                apply=args.apply,
-                simulate_failure=simulate,
-            )
+            # Adversarial review H1: process_vendor narrowly catches only
+            # network errors. A programming bug now propagates here. Wrap
+            # at the main-loop level so one vendor's bug doesn't crash the
+            # whole pipeline — but record it as a vendor error with the
+            # ACTUAL exception type (not "fetch failed: X").
+            try:
+                outcome = process_vendor(
+                    vendor=vendor,
+                    cfg=registry[vendor],
+                    scraper=scraper,
+                    db_path=args.db,
+                    apply=args.apply,
+                    simulate_failure=simulate,
+                )
+            except Exception as exc:  # noqa: BLE001 — pipeline defensive
+                tb = traceback.format_exc(limit=3)
+                outcome = VendorOutcome(
+                    vendor=vendor,
+                    fetched=False,
+                    parsed_count=0,
+                    writes=[],
+                    error=f"orchestrator error: {type(exc).__name__}: {exc}\n{tb}",
+                )
             all_outcomes.append(outcome)
             if not args.quiet:
                 _emit_outcome(outcome, args.apply)
