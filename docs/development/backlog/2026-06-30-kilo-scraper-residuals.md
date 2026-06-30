@@ -47,7 +47,14 @@ The adversarial review closed 14 confirmed correctness/security defects across 7
 
 **Decision rule**: don't sweep these proactively. If 3+ of them surface in the same week as real incidents, batch them into a 1-hour cleanup commit.
 
-## Fabrik-synced finding (M5) — upstream PR required
+## Fabrik-synced finding (M5) — upstream PR open: [#8](https://github.com/mobasak/fabrik-lib/pull/8) ✅
+
+**Status (2026-06-30)**: branch `fix/web-scrape-skip-cache-bot-walls` pushed to `mobasak/fabrik-lib`, commit `9168e6d`, PR #8 open. 24/26 tests green (2 browserless integration smokes skipped without env vars).
+
+**After merge**: vendor sync into `scripts/kilo-benchmarks/web_scrape/` + any other downstream consumer of `fabrik-lib/web-scrape`.
+
+---
+
 
 **M5 (MEDIUM — fabrik-lib/web-scrape)**: `WebScraper` caches `fetch_static` HTML for 24h even when the response body is a Cloudflare bot-wall (HTTP 200 with WAF interstitial content). Result: 24-hour cached bot-wall poisons subsequent fetches — every run re-pays the stealth-escalation tax without re-fetching the static path.
 
