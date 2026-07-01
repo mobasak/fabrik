@@ -41,7 +41,7 @@ shape:
   needs_database: true
   needs_cache: false
   has_search_feature: false
-  exposes_metrics: true
+  exposes_metrics: false   # app exposes no /metrics (Flask dashboard + poll workers); flip to true + add a /metrics endpoint to enable the Prometheus job
 
 depends:
   postgres: youtube_pipeline
@@ -53,12 +53,11 @@ depends:
 # Then run: scripts/init_db.sh (handles extensions + migrations)
 
 resources:
-  limits:
-    memory: 1G
-    cpus: "1.0"
+  memory: 1G
+  cpu: "1.0"
 
 health:
-  path: /healthz
+  path: /health   # matches the app + Dockerfile HEALTHCHECK (both dashboard.app:app and api/main.py serve /health, not /healthz)
   interval: 30s
   timeout: 10s
   retries: 3
