@@ -1,6 +1,6 @@
 # Plan: Fabrik CI-Parity — scaffold a CI workflow + a matching local replica from one source
 
-**Status**: DRAFT v1 (awaiting owner approval before any commits)
+**Status**: SHIPPED (core) 2026-07-01 — **Phase 1** (one-source generator `src/fabrik/ci_scaffold.py`) + **Phase 3** (scaffold auto-emits `ci.yml` + `ci_local.sh` for python-api/gpu/file-api) landed and are gate-green; the generator was hardened by an adversarial review (bounded pg-wait, venv-PATH exec, always-install ruff). **Deferred to future tickets** (not blocking; archived): **Phase 2** (spec-driven `shape.db_extensions: [pgvector]`) needs a spec→CI regen path that doesn't exist yet — new scaffolds default to plain `postgres:16`, which is correct for most; **Phase 4** (backfill the existing 39 projects) is deliberately NOT a blind overwrite — a project's hand-rolled `ci.yml` (e.g. trade-intelligence's) must not be clobbered, and generating a matching `ci_local.sh` from an *existing* `ci.yml` is a separate tool. Both are clean follow-ups, not gaps in the shipped mechanism.
 **Owner**: ozgur · **Author**: Claude (Opus 4.8)
 **Created**: 2026-07-01
 **Context-trigger**: `/opt/trade-intelligence` + `/opt/youtube` fail GitHub CI regularly. Root diagnosis: `final_gate.py` is a *static* gate (ruff/mypy/bandit/consistency, no pytest, no DB) so it structurally cannot catch **environment drift**. Fix A (shipped, `check_undeclared_imports.py`) closed the one static-catchable class (imported-but-undeclared deps). This plan (Fix B) closes the rest.
@@ -34,7 +34,7 @@ services:
   postgres:
     image: pgvector/pgvector:pg16          # postgres:16 + the vector extension
 env:
-  TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres   # PLAIN url, no +asyncpg
+  TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres   # PLAIN url, no +asyncpg # noqa: throwaway CI container credential (documented example)
 steps:
   - pip install -r requirements.txt        # the fresh-install that Fix A now guards
   - pip install ruff pytest pytest-asyncio xlrd
