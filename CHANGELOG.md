@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Sidebar filter for output cost ($/M output) alongside the existing input-cost range (2026-07-01)
+
+Operator ask: "output cost is more important and we don't have filtering for output." Added a second range filter (min/max) directly below the input-cost block. Non-LLM rows (STT/TTS/image/video/OCR) typically have `output_cost_per_m = 0` — setting a minimum > 0 naturally filters them out, matching operator intent.
+
+Refactored the range-input wiring from a fragile `id.replace(...)` chain to an explicit `RANGE_INPUT_MAP` — the old transform would have produced `outputcostMin` (broken) for the multi-hyphen id.
+
+JS syntax verified; 35/35 tests still pass.
+
 ### Added — Detail-panel "Providers on OpenRouter" section — every endpoint OR knows about for a model, with status + price + quant + region tag (2026-07-01)
 
 Operator confusion: for `anthropic/claude-opus-4` the Cheapest column shows "Google $15.00/M" — factually correct (Google Vertex is the only in-service reseller of that specific Claude version on OR right now, since Anthropic themselves have moved on to 4.1/4.5/4.6/4.7/4.8) but visually alarming for an Anthropic-namespaced model.

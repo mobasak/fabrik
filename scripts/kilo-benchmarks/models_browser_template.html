@@ -579,6 +579,16 @@
       Filter axis is $/M billable units, regardless of unit shape (tokens / chars / minutes / images / sec / pages). Cross-unit comparison is misleading — set range while a service-type chip is active.
     </div>
 
+    <h3>Cost ($/M output) <span style="font-weight: normal; text-transform: none; color: var(--muted)">(LLM tabs only)</span></h3>
+    <div class="range">
+      <input type="number" id="output-cost-min" placeholder="min" step="0.1">
+      –
+      <input type="number" id="output-cost-max" placeholder="max" step="0.1">
+    </div>
+    <div style="font-size:10px; color:var(--muted); margin-top:2px">
+      $/M output tokens. Non-LLM rows (STT/TTS/image/video/OCR) bill on a single input axis — setting this range filters them out.
+    </div>
+
     <h3>Context window (k)</h3>
     <div class="range">
       <input type="number" id="ctx-min" placeholder="min" step="1">
@@ -686,6 +696,8 @@ const state = {
   svctypes: new Set(),
   costMin: null,
   costMax: null,
+  outputCostMin: null,
+  outputCostMax: null,
   ctxMin: null,
   ctxMax: null,
   // Default: tier descending (T3 frontier first), so the page loads
@@ -826,9 +838,19 @@ document.getElementById("search").addEventListener("input", e => {
 document.querySelectorAll('input[name=kind]').forEach(r => {
   r.addEventListener("change", e => { state.kind = e.target.value; refresh(); });
 });
-["cost-min","cost-max","ctx-min","ctx-max"].forEach(id => {
+// Range-input → state-key map. Explicit map (not a hyphen→camelCase
+// transform) so multi-hyphen ids like "output-cost-min" don't produce
+// garbage keys like "outputcostMin".
+const RANGE_INPUT_MAP = {
+  "cost-min": "costMin",
+  "cost-max": "costMax",
+  "output-cost-min": "outputCostMin",
+  "output-cost-max": "outputCostMax",
+  "ctx-min": "ctxMin",
+  "ctx-max": "ctxMax",
+};
+Object.entries(RANGE_INPUT_MAP).forEach(([id, key]) => {
   document.getElementById(id).addEventListener("input", e => {
-    const key = id.replace("-min", "Min").replace("-max", "Max").replace("cost", "cost").replace("ctx", "ctx");
     state[key] = e.target.value === "" ? null : parseFloat(e.target.value);
     refresh();
   });
@@ -969,6 +991,12 @@ function filterRow(m) {
   if (state.costMin !== null && m.input_cost_per_m !== null && m.input_cost_per_m !== undefined && m.input_cost_per_m < state.costMin) return false;
   if (state.costMax !== null && m.input_cost_per_m !== null && m.input_cost_per_m !== undefined && m.input_cost_per_m > state.costMax) return false;
   if ((state.costMin !== null || state.costMax !== null) && (m.input_cost_per_m === null || m.input_cost_per_m === undefined)) return false;
+  // Output cost filter (LLM-relevant). Non-LLM rows typically have
+  // output_cost_per_m = 0 / null — setting a min > 0 filters them out,
+  // which is the natural expectation (you're asking for output-token pricing).
+  if (state.outputCostMin !== null && m.output_cost_per_m !== null && m.output_cost_per_m !== undefined && m.output_cost_per_m < state.outputCostMin) return false;
+  if (state.outputCostMax !== null && m.output_cost_per_m !== null && m.output_cost_per_m !== undefined && m.output_cost_per_m > state.outputCostMax) return false;
+  if ((state.outputCostMin !== null || state.outputCostMax !== null) && (m.output_cost_per_m === null || m.output_cost_per_m === undefined)) return false;
   if (state.ctxMin !== null && (m.context_window_k || 0) < state.ctxMin) return false;
   if (state.ctxMax !== null && (m.context_window_k || 0) > state.ctxMax) return false;
   if (state.fresh.size > 0 && !state.fresh.has(m._staleBucket)) return false;
@@ -1242,6 +1270,7 @@ function refresh() {
   if (state.scored.size) activeFilterParts.push("scored-signal");
   if (state.svctypes.size) activeFilterParts.push("svc-type");
   if (state.costMin !== null || state.costMax !== null) activeFilterParts.push("cost");
+  if (state.outputCostMin !== null || state.outputCostMax !== null) activeFilterParts.push("output cost");
   if (state.ctxMin !== null || state.ctxMax !== null) activeFilterParts.push("ctx");
   const fi = document.getElementById("filter-indicator");
   if (activeFilterParts.length) {
