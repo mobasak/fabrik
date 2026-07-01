@@ -79,7 +79,6 @@ PROVIDER_MAP = {
     # despite AA benchmarking all of them.
     "meta-llama": "meta",
     "mistralai": "mistral",
-    "mistral": "mistral",
     "xai": "x-ai",
     "x ai": "x-ai",
     "meituan": "meituan",
