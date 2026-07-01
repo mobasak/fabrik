@@ -20,6 +20,8 @@
 
 Per the single-operator threat model + §4, first Tier-D enablement must be a **stable, already-deployed, non-critical, git-sourced** service with an app HEALTHCHECK — chosen by the operator. When such a target exists, enablement is:
 
+> **📌 Designated first targets (2026-07-01): `calendar-orchestration-engine` + `youtube`.** Both qualify — git-sourced (`calendar-orchestration-engine.git`, `youtube-pipeline.git`), real HEALTHCHECK (`/api/health`, `/health`), and each already carries a `watchdog:` block. Both are *close to deploy but not yet deployed*. **REMINDER: once either is deployed and has run stably, enable + test Tier-D on it** using the steps below (start with the lower-blast-radius one). Enablement was simulated end-to-end via `fabrik plan` on 2026-07-01 (validator + rendered env confirmed); only a live target + the deploy-key registration remain.
+
 1. In its spec `watchdog:` block set `enabled: true`, `propose_fix_prs: true`, `auto_code_fix: true`, `code_fix_window_sec: <window>`, optional `critical_paths: [...]`. (Validator enforces `auto_code_fix ⇒ propose_fix_prs`.) Ensure `source.type: git` + the app image/compose has a real `HEALTHCHECK` (else the driver degrades to escalate-only).
 2. Add to `secrets.required`: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` (the bootstrap's `TelegramBot.from_env()` accepts these fallback names; both are populated in hub `.env`), plus set `WATCHDOG_TEST_CMD` (e.g. `["pytest","-q"]`) and optional `WATCHDOG_REDEPLOY_CMD` in the project `.env`.
 3. `fabrik plan <spec>` → review → `fabrik apply <spec>` (background; build ~3 min). The driver renders `bootstrap.py`, switches the CMD, generates the deploy key once and **logs the public key**.
