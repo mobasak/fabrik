@@ -42,6 +42,25 @@ __all__ = [
 ]
 
 
+def _assert_error_webhook_colocated(spec: dict[str, Any], target_vps: str) -> None:
+    """Fail closed if a spec ingests ``error_webhook`` but deploys off the hub.
+
+    Phase 2 (deploy-readiness): GlitchTip is pinned to vps1 and the ``fabrik``
+    network is a per-host bridge, so a watchdog sidecar on vps2/vps3 can't receive
+    GlitchTip's POST to ``<id>-watchdog:8889``. Rather than silently ship a dead
+    alerting path, reject at apply time. Only ``error_webhook`` needs same-host
+    ingest — the HTTP-based sources (``emitter``, ``health``) are unaffected.
+    """
+    sources = (spec.get("watchdog") or {}).get("trigger_sources") or []
+    if "error_webhook" in sources and target_vps != "vps1":
+        raise ValidationError(
+            f"watchdog.trigger_sources includes 'error_webhook' but target_vps={target_vps!r}: "
+            "GlitchTip (vps1) cannot reach a :8889 ingest on another host over the per-host "
+            "fabrik bridge. Deploy on vps1, or drop 'error_webhook' from trigger_sources.",
+            field="watchdog.trigger_sources",
+        )
+
+
 class DeploymentOrchestrator:
     """Unified orchestrator for end-to-end deployments.
 
@@ -126,6 +145,8 @@ class DeploymentOrchestrator:
             # that target the app's location (SSHDeployer.deploy, inject_env)
             # swap; they read ctx.target_vps themselves.
             ctx.target_vps = target_vps or spec.get("target_vps") or "vps1"
+            # Phase 2: fail closed on cross-host error_webhook (unreachable :8889).
+            _assert_error_webhook_colocated(spec, ctx.target_vps)
             for w in warnings:
                 logger.warning("Validation warning: %s", w)
 
