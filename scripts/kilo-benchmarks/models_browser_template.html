@@ -1004,8 +1004,12 @@ function filterRow(m) {
       // data picked up real price diffs (the snapshot used at chip-removal
       // time, 2026-06-30, had all 336 dual-routed rows at byte-identical
       // prices). $0.005/M tolerance matches the fmtSource() `K +N%` badge.
-      if (s === "kilo_cheaper" && viaOr && viaKilo && m.kilo_input_cost_per_m !== null && m.kilo_input_cost_per_m !== undefined && m.input_cost_per_m - m.kilo_input_cost_per_m > 0.005) { pass = true; break; }
-      if (s === "or_cheaper"   && viaOr && viaKilo && m.kilo_input_cost_per_m !== null && m.kilo_input_cost_per_m !== undefined && m.kilo_input_cost_per_m - m.input_cost_per_m > 0.005) { pass = true; break; }
+      // Require kilo_input_cost_per_m > 0 for both filter chips.
+      // A stored $0 on a paid model means Kilo doesn't quote its own
+      // price (they re-route via OpenRouter — kilo_provider_id often
+      // ='openrouter') — treating that as "-100% free" is wrong.
+      if (s === "kilo_cheaper" && viaOr && viaKilo && m.kilo_input_cost_per_m > 0 && m.input_cost_per_m - m.kilo_input_cost_per_m > 0.005) { pass = true; break; }
+      if (s === "or_cheaper"   && viaOr && viaKilo && m.kilo_input_cost_per_m > 0 && m.kilo_input_cost_per_m - m.input_cost_per_m > 0.005) { pass = true; break; }
       // show_discounted is a meta-toggle handled above, not a per-row predicate.
       if (s === "show_discounted") { pass = true; break; }
     }
@@ -1041,9 +1045,12 @@ function fmtSource(m) {
     } catch (e) {}
   }
   // markup indicator if dual-routed AND prices differ
-  if (m.via_openrouter && m.via_kilo && m.kilo_input_cost_per_m !== null && m.kilo_input_cost_per_m !== undefined) {
+  // K +N% markup badge: only when Kilo actually quotes a price
+  // (kilo_input_cost_per_m > 0). Zero means "no independent quote,
+  // Kilo re-routes via OR" — showing "K -100%" there is a lie.
+  if (m.via_openrouter && m.via_kilo && m.kilo_input_cost_per_m > 0) {
     const orIn = m.input_cost_per_m || 0;
-    const kIn = m.kilo_input_cost_per_m || 0;
+    const kIn = m.kilo_input_cost_per_m;
     if (orIn > 0 && Math.abs(kIn - orIn) > 0.005) {
       const pct = Math.round((kIn - orIn) / orIn * 100);
       const sign = pct > 0 ? "+" : "";
@@ -1481,7 +1488,13 @@ function openDetail(m, tr) {
     if (m.via_openrouter && m.via_kilo && m.kilo_input_cost_per_m !== null && m.kilo_input_cost_per_m !== undefined) {
       const ki = m.kilo_input_cost_per_m;
       const ko = m.kilo_output_cost_per_m || 0;
-      if (Math.abs(ki - ci) > 0.005 || Math.abs(ko - co) > 0.005) {
+      // Kilo stored $0 on a paid model = "no independent quote,
+      // re-routes via OpenRouter". Not free. Show the honest label.
+      if (ki === 0 && ci > 0) {
+        costSummary += `<div style="font-size:11px;margin-bottom:10px;color:var(--muted)">
+          Kilo Gateway re-routes this via OpenRouter — Kilo doesn't quote its own price. Effective cost = OpenRouter's above (+ any Kilo-side markup at billing time).
+        </div>`;
+      } else if (Math.abs(ki - ci) > 0.005 || Math.abs(ko - co) > 0.005) {
         const pctIn = ci > 0 ? Math.round((ki - ci) / ci * 100) : 0;
         const pctOut = co > 0 ? Math.round((ko - co) / co * 100) : 0;
         const sign = (v) => v >= 0 ? "+" : "";

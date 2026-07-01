@@ -132,6 +132,77 @@ def test_fetch_endpoints_handles_non_utf8_body(monkeypatch):
     assert result is None, "must return None on non-UTF-8 body, not raise"
 
 
+def test_namespace_preference_breaks_tie_for_first_party():
+    """When multiple providers tie at the min price, prefer the one
+    matching the model's namespace prefix. Regression guard for the
+    Claude Opus 4.8 case where 6 endpoints all list $5/M and Google
+    (arbitrary first-in-list) was mislabeled as the cheapest —
+    misleading operators into thinking Vertex is a discount route."""
+    # 6 providers, all identical price — mirrors the real OR response
+    # for anthropic/claude-opus-4.8.
+    payload = {
+        "data": {
+            "endpoints": [
+                {"provider_name": "Google", "pricing": {"prompt": "0.000005"}, "status": 0},
+                {"provider_name": "Anthropic", "pricing": {"prompt": "0.000005"}, "status": 0},
+                {"provider_name": "Amazon Bedrock", "pricing": {"prompt": "0.000005"}, "status": 0},
+            ]
+        }
+    }
+    p, _, _ = _extract_cheapest(payload, model_id="anthropic/claude-opus-4.8")
+    assert p == "Anthropic", f"expected Anthropic (namespace match), got {p!r}"
+
+    # Without model_id, no preference applies — sort-first wins
+    p2, _, _ = _extract_cheapest(payload)
+    assert p2 == "Google", f"without model_id expected Google (first), got {p2!r}"
+
+    # Namespace normalization: `x-ai/grok-4` → provider "xAI" wins
+    payload_grok = {
+        "data": {
+            "endpoints": [
+                {"provider_name": "Google Vertex", "pricing": {"prompt": "0.000002"}, "status": 0},
+                {"provider_name": "xAI", "pricing": {"prompt": "0.000002"}, "status": 0},
+            ]
+        }
+    }
+    p3, _, _ = _extract_cheapest(payload_grok, model_id="x-ai/grok-4")
+    assert p3 == "xAI"
+
+
+def test_strictly_cheaper_provider_beats_namespace_preference():
+    """Namespace preference ONLY applies on price ties. If a non-namespace
+    provider is materially cheaper, they win — DeepInfra @ $0.10 must
+    beat Meta-preference on llama-3.3-70b (Meta doesn't run its own
+    endpoint anyway, but the invariant matters generally)."""
+    payload = {
+        "data": {
+            "endpoints": [
+                {"provider_name": "Meta", "pricing": {"prompt": "0.000005"}, "status": 0},
+                {"provider_name": "DeepInfra", "pricing": {"prompt": "0.0000001"}, "status": 0},
+            ]
+        }
+    }
+    p, price, _ = _extract_cheapest(payload, model_id="meta-llama/llama-3.3-70b")
+    assert p == "DeepInfra"
+    assert abs(price - 0.1) < 1e-9
+
+
+def test_prefers_namespace_normalization():
+    """`_prefers_namespace` normalizes hyphens, underscores, spaces + casing."""
+    from scrape_openrouter_endpoints import _prefers_namespace
+
+    assert _prefers_namespace("Anthropic", "anthropic/claude-opus-4.8")
+    assert _prefers_namespace("xAI", "x-ai/grok-4")
+    assert _prefers_namespace("Alibaba", "alibaba/qwen-plus")
+    assert _prefers_namespace("Google", "google/gemini-2.5-pro")
+    assert not _prefers_namespace("Google", "anthropic/claude-opus-4.8")
+    assert not _prefers_namespace("DeepInfra", "meta-llama/llama-3.3-70b")
+    # None/empty guards
+    assert not _prefers_namespace("", "anthropic/foo")
+    assert not _prefers_namespace("Anthropic", None)
+    assert not _prefers_namespace(None, "anthropic/foo")
+
+
 def test_non_numeric_status_is_skipped():
     """A string status like 'unknown' should NOT be treated as in-service."""
     payload = {

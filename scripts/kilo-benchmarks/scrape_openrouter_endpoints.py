@@ -73,10 +73,39 @@ def _fetch_endpoints(slug: str) -> dict | None:
         return None
 
 
-def _extract_cheapest(payload: dict) -> tuple[str | None, float | None, str | None]:
+def _prefers_namespace(provider: str, model_id: str | None) -> bool:
+    """True if `provider` matches the model-id namespace prefix.
+
+    Anthropic-family models (anthropic/claude-*) are served on OR by
+    Anthropic, Google Vertex, and Amazon Bedrock at IDENTICAL prices
+    — Anthropic's wholesale deal. Which endpoint "wins" is meaningless
+    for the operator's cost question, but showing "Google" as the
+    cheapest is misleading (implies Vertex is a discount). When there's
+    a tie at min price, prefer the provider whose name matches the model
+    namespace (Anthropic for anthropic/*, xAI for x-ai/*, Alibaba for
+    alibaba/*, etc.) — that's the natural first-party.
+    """
+    if not model_id or not provider:
+        return False
+    ns = model_id.split("/", 1)[0].lower().replace("-", "").replace("_", "")
+    pn = provider.lower().replace(" ", "").replace("-", "").replace("_", "")
+    if not ns or not pn:
+        return False
+    return pn.startswith(ns) or ns.startswith(pn) or ns in pn
+
+
+def _extract_cheapest(
+    payload: dict, model_id: str | None = None
+) -> tuple[str | None, float | None, str | None]:
     """Return (provider_name, price_per_m, quant) for the min-price
     in-service endpoint. In-service = status >= 0 (OR uses negative
-    codes for disabled/degraded routes)."""
+    codes for disabled/degraded routes).
+
+    When multiple providers tie at min price (common for first-party
+    models where all endpoints re-sell the same wholesale rate),
+    prefer the provider matching `model_id`'s namespace so the UI
+    shows "Anthropic" for anthropic/* instead of an arbitrary
+    Google/Bedrock re-seller."""
     data = payload.get("data") or {}
     eps = data.get("endpoints") or []
     candidates: list[tuple[float, str, str | None]] = []
@@ -113,6 +142,16 @@ def _extract_cheapest(payload: dict) -> tuple[str | None, float | None, str | No
     if not candidates:
         return None, None, None
     candidates.sort(key=lambda x: x[0])
+    min_price = candidates[0][0]
+    # Namespace preference on price ties (within $0.005/M of the min).
+    # Prefers the first-party for models like anthropic/claude-opus-4.8
+    # where 6 endpoints all list identical $5/M and the first-in-list is
+    # arbitrary (Google Vertex misleadingly labeled as "cheapest").
+    ties = [c for c in candidates if c[0] - min_price <= 0.005]
+    if len(ties) > 1:
+        for cand_price, cand_provider, cand_quant in ties:
+            if _prefers_namespace(cand_provider, model_id):
+                return cand_provider, cand_price, cand_quant
     price, provider, quant = candidates[0]
     return provider, price, quant
 
@@ -156,7 +195,7 @@ def run(db_path: Path, force: bool = False, limit: int | None = None) -> dict:
                 counts["errors"] += 1
                 time.sleep(RATE_LIMIT_S)
                 continue
-            provider, price, quant = _extract_cheapest(payload)
+            provider, price, quant = _extract_cheapest(payload, model_id=mid)
             eps = payload.get("data", {}).get("endpoints", [])
             if not eps:
                 counts["no_endpoints"] += 1

@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — cheapest-provider tie-break + Kilo "$0 = free" misread (2026-07-01)
+
+Two operator-reported bugs on the Overview tab, both fixed:
+
+**1. Google mislabeled as cheapest on first-party models.** For `anthropic/claude-opus-4.8` the Cheapest column showed `Google $5.00/M` even though all 6 OR endpoints (Google Vertex, Anthropic, Anthropic-2, Amazon Bedrock eu-west-1, Google-europe, Amazon Bedrock us) list IDENTICAL $5/M — a wholesale-price tie. Google won by OR's response-list ordering — arbitrary and misleading (implies Vertex is a discount route). Fix: `_extract_cheapest` now prefers the provider matching the model's namespace prefix when candidates tie within $0.005/M. `Anthropic` wins for `anthropic/*`, `xAI` for `x-ai/*`, `Alibaba` for `alibaba/*`, `OpenAI` for `openai/*`. Strictly-cheaper providers still win (regression tested with `meta-llama/llama-3.3-70b-instruct → DeepInfra @ $0.10/M`, unaffected). Rescrape flipped `anthropic/claude-opus-4.8` from `or:Google` → `or:Anthropic`.
+
+**2. Kilo Gateway shown as "free /M in (-100%)" on paid models.** When Kilo re-routes a model via OR (`kilo_provider_id='openrouter'`), Kilo's own quoted `kilo_input_cost_per_m` is stored as $0 — meaning "no independent quote", not "free". Three UI sites mis-read $0 as -100% cheaper: (a) filter chips `kilo_cheaper` / `or_cheaper` now require `kilo_input_cost_per_m > 0`; (b) Source-column `K±%` markup badge same guard; (c) detail-panel "Kilo Gateway:" block now shows honest text — *"Kilo Gateway re-routes this via OpenRouter — Kilo doesn't quote its own price. Effective cost = OpenRouter's above (+ any Kilo-side markup at billing time)."* — instead of the misleading -100%. Only 1 row was in this state at scrape time (Claude Opus 4.8 itself).
+
+Data freshness for both fixes is nightly: `daily_refresh.sh` (cron `0 6 * * *`) chains `verify_openrouter_catalog → scrape_openrouter_endpoints → derive_cheapest_gateway → export_models_browser` — every 24h the Cheapest column reflects the current OR catalog + provider pricing.
+
+Regression tests added (`test_namespace_preference_breaks_tie_for_first_party`, `test_strictly_cheaper_provider_beats_namespace_preference`, `test_prefers_namespace_normalization`) — 10/10 pass.
+
 ### Fixed — scrape/derive/UI: three findings from adversarial review pass on the cheapest-provider feature (2026-07-01)
 
 Ran a multi-pass adversarial review on this session's cheapest-inference-provider work (commits `135e5dc9`, `f4969e36`). Three findings surfaced, each reproduced with a runnable test then fixed:
