@@ -63,8 +63,13 @@ def test_live_caps_no_reasoning_when_truly_absent():
     record = {
         "architecture": {"input_modalities": ["text", "image"]},
         "supported_parameters": [
-            "max_tokens", "response_format", "seed", "temperature",
-            "tool_choice", "tools", "top_p",
+            "max_tokens",
+            "response_format",
+            "seed",
+            "temperature",
+            "tool_choice",
+            "tools",
+            "top_p",
         ],
     }
     assert _live_caps(record)["has_reasoning"] == 0
@@ -147,7 +152,6 @@ def test_zombie_orphan_sweep_deprecates_routeless_rows(tmp_path, monkeypatch):
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     grok = conn.execute("SELECT status FROM agents WHERE id='x-ai/grok-4-fast'").fetchone()
-    opus = conn.execute("SELECT status FROM agents WHERE id='anthropic/claude-opus-4.8'").fetchone()
     dashscope = conn.execute("SELECT status FROM agents WHERE id='qwen/qwen-mt-turbo'").fetchone()
     owl = conn.execute("SELECT status FROM agents WHERE id='openrouter/owl-alpha'").fetchone()
     conn.close()
