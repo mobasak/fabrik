@@ -98,6 +98,7 @@ def _live_caps_expected(live: dict) -> dict:
         else 0,
     }
 
+
 # Fields the verifier already checks — surface separately so drift here is a
 # critical bug in the verifier itself.
 VERIFIER_TRACKED = {
@@ -136,9 +137,7 @@ def _load_db_rows(db_path: Path) -> list[dict]:
     entry are surfaced explicitly as `row_missing_from_live`."""
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
-    rows = conn.execute(
-        "SELECT * FROM agents WHERE status='active'"
-    ).fetchall()
+    rows = conn.execute("SELECT * FROM agents WHERE status='active'").fetchall()
     conn.close()
     return [dict(r) for r in rows]
 
@@ -236,6 +235,104 @@ def audit_or_fields(db_rows: list[dict], live_catalog: dict[str, dict]) -> dict:
     return findings
 
 
+def _audit_derived_consistency(db_path: Path) -> list[dict]:
+    """Phase E: cheapest_gateway_price must equal one of the candidate
+    prices (input_cost_per_m, kilo_input_cost_per_m, or one of the
+    endpoint provider prices). Catches derive/apply drift where the
+    cheapest column diverges from its sources."""
+    drifts: list[dict] = []
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    rows = conn.execute(
+        "SELECT id, input_cost_per_m, kilo_input_cost_per_m, cheapest_provider, "
+        "cheapest_provider_price, cheapest_gateway, cheapest_gateway_price "
+        "FROM agents WHERE cheapest_gateway IS NOT NULL AND status='active'"
+    ).fetchall()
+    conn.close()
+    for r in rows:
+        gw, price = r["cheapest_gateway"], r["cheapest_gateway_price"]
+        if gw == "direct":
+            expected = r["input_cost_per_m"]
+        elif gw == "kilo":
+            expected = r["kilo_input_cost_per_m"]
+        elif gw and gw.startswith("or:"):
+            expected = r["cheapest_provider_price"]
+        else:
+            continue  # mirror gateways — skip (already priced from gateway_prices)
+        if expected is None or price is None:
+            continue
+        if abs(price - expected) > 0.005:
+            drifts.append({"id": r["id"], "gateway": gw, "price": price, "expected": expected})
+    return drifts
+
+
+def _audit_kilo(db_path: Path) -> list[dict]:
+    """Phase C: kilo_input/output_cost_per_m + kilo_family match live Kilo.
+    Uses the verifier's tested parser."""
+    sys.path.insert(0, str(SCRIPT_DIR))
+    try:
+        from verify_openrouter_catalog import _canonicalize_id, _fetch_kilo
+    except ImportError:
+        return []
+    try:
+        kilo = _fetch_kilo()
+    except Exception:  # noqa: BLE001
+        return []
+
+    # Priority selection (same rule as verify_openrouter_catalog:672-712)
+    canon_to_rec: dict[str, dict] = {}
+    scores: dict[str, int] = {}
+    for kid, rec in kilo.items():
+        cost = rec.get("cost") or {}
+        try:
+            kin = float(cost.get("input") or 0)
+            kout = float(cost.get("output") or 0)
+        except (TypeError, ValueError):
+            kin, kout = 0.0, 0.0
+        s = 0
+        if "/" in kid:
+            s += 100
+        if kin > 0 or kout > 0:
+            s += 50
+        if kid.startswith("stealth/"):
+            s -= 20
+        canon = _canonicalize_id(kid)
+        if canon in scores and scores[canon] >= s:
+            continue
+        canon_to_rec[canon] = rec
+        scores[canon] = s
+
+    drifts: list[dict] = []
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    rows = conn.execute(
+        "SELECT id, kilo_input_cost_per_m, kilo_output_cost_per_m, kilo_family "
+        "FROM agents WHERE via_kilo=1 AND status='active'"
+    ).fetchall()
+    conn.close()
+    for r in rows:
+        live = canon_to_rec.get(_canonicalize_id(r["id"])) or kilo.get(r["id"])
+        if not live:
+            continue
+        cost = live.get("cost") or {}
+        for db_col, cost_key in (
+            ("kilo_input_cost_per_m", "input"),
+            ("kilo_output_cost_per_m", "output"),
+        ):
+            live_val = cost.get(cost_key)
+            if live_val is None:
+                continue
+            db_val = r[db_col] or 0
+            if abs(db_val - live_val) > 0.005:
+                drifts.append({"id": r["id"], "field": db_col, "db": db_val, "live": live_val})
+        live_family = live.get("family")
+        if r["kilo_family"] != live_family:
+            drifts.append(
+                {"id": r["id"], "field": "kilo_family", "db": r["kilo_family"], "live": live_family}
+            )
+    return drifts
+
+
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--db", type=Path, default=DB_PATH)
@@ -257,6 +354,8 @@ def main() -> int:
         print(f"[audit] sampled {len(db_rows)} rows for audit", file=sys.stderr)
 
     findings = audit_or_fields(db_rows, live)
+    findings["derived_consistency_drift"] = _audit_derived_consistency(args.db)
+    findings["kilo_drift"] = _audit_kilo(args.db)
 
     if args.json:
         print(json.dumps(findings, default=str, indent=2))
@@ -290,6 +389,27 @@ def main() -> int:
         print(
             "✓ No drift in verifier-tracked fields (input_cost, output_cost, ctx, name, max_out, moderated, canonical)"
         )
+
+    if findings.get("derived_consistency_drift"):
+        print(
+            f"❌ CRITICAL — {len(findings['derived_consistency_drift'])} rows where "
+            f"cheapest_gateway_price disagrees with its source column:"
+        )
+        for d in findings["derived_consistency_drift"][:10]:
+            print(
+                f"  {d['id']:45s}  gw={d['gateway']}  price=${d['price']}  expected=${d['expected']}"
+            )
+    else:
+        print(
+            "✓ cheapest_gateway prices consistent with input_cost_per_m / kilo_input / cheapest_provider_price"
+        )
+
+    if findings.get("kilo_drift"):
+        print(f"❌ CRITICAL — {len(findings['kilo_drift'])} Kilo drifts:")
+        for d in findings["kilo_drift"][:10]:
+            print(f"  {d['id']:45s}  {d['field']:30s}  db={d['db']!r}  live={d['live']!r}")
+    else:
+        print("✓ Kilo pricing + family match live `kilo models --verbose`")
 
     if findings["verifier_untracked_drift"]:
         print(

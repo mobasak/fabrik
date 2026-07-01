@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — zombie sweep collateral: 16 direct-vendor aggregator-mirror rows wrongly deprecated + audit now covers Kilo + derived-consistency (2026-07-01)
+
+Proactively-surfaced issue after refreshing models. My earlier zombie-orphan sweep (commit 8380a58a) carved out `via_dashscope` and `via_siliconflow` but missed rows routable via aggregator mirrors (Replicate + fal.ai). Result: 16 direct-vendor STT/TTS/image models (`openai/whisper-large-v3`, `elevenlabs/multilingual-v2`, `bfl/flux-pro-1.1`, `bfl/flux-schnell`, `stability/sdxl`, and 11 more) were wrongly deprecated even though they have live `gateway_prices` JSON entries.
+
+**Fix (`verify_openrouter_catalog.py:1155-1180`)**: sweep now exempts rows with a non-empty `gateway_prices` JSON — the right invariant is "reachable via ANY known route" (OR / Kilo / DashScope / SiliconFlow / aggregator mirror). Added a one-shot restore query that re-activates any currently-deprecated row satisfying the exemption criteria (idempotent — only flips rows that shouldn't have been deprecated in the first place). All 16 rows restored.
+
+**Audit expanded (`audit_ui_values.py`)**: the nightly `daily_refresh.sh` audit was Phase A only (OR /api/v1/models). Wired in two more checks that were previously one-off manual work:
+- **cheapest_gateway derived-consistency**: `cheapest_gateway_price` must equal its source (`input_cost_per_m` for `direct`, `kilo_input_cost_per_m` for `kilo`, `cheapest_provider_price` for `or:*`). Catches derive/apply drift.
+- **Kilo drift**: `kilo_input_cost_per_m`, `kilo_output_cost_per_m`, `kilo_family` must match live `kilo models --verbose` (with the same priority-selected canonical resolution the verifier uses). Catches Kilo-side pricing changes between daily runs.
+
+Regression test extended (`test_verify_reasoning_and_zombies.py`): now also seeds an aggregator-mirror row and asserts the zombie sweep leaves it active.
+
+Known residual gaps NOT yet covered by the automated audit:
+- Benchmark-cache freshness (arena_elo, aa_intelligence_index, tok/s, TTFT, weekly_rank, weighted_coding, swe_bench, aider, DA-code, translation, STT WER)
+- Derived tier fields (quality_tier, task_tier, service_type)
+- Kilo capabilities beyond family/pricing (cache_read/write, provider_id, release_date)
+- endpoints_last_scraped recency
+
+Those remain in the "next-fix-if-needed" queue rather than being silently claimed clean.
+
+26/26 tests pass.
+
 ### Added — check_model_live.py truth-oracle + audit self-test; guardrails against the "100% clean" tautology (2026-07-01)
 
 Follow-on to the reasoning/zombie-orphan bug: the audit's "100% clean" was structurally incapable of finding those bugs because the coverage was implicit and self-referential. Two guardrails now enforce that any future drift is caught:

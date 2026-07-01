@@ -1164,6 +1164,15 @@ def apply_fixes(report: dict, db_path: Path = DB_PATH) -> dict:
         # Exempt `openrouter/*` rows (OR-controlled alpha/preview routes
         # that OR hides from /api/v1/models but keeps routable — same
         # rationale as the truly_delisted exemption).
+        # Also exempt rows with a non-empty `gateway_prices` JSON — these
+        # are direct-vendor STT/TTS/image models routable via Replicate
+        # or fal.ai mirrors (openai/whisper-large-v3, elevenlabs/*,
+        # bfl/flux-*, stability/sdxl, etc.). Bug caught 2026-07-01
+        # by proactive audit after commit 8380a58a wrongly deprecated
+        # 16 such rows. The right invariant is "reachable via ANY known
+        # route" — OR / Kilo / DashScope / SiliconFlow / aggregator
+        # mirror. Adding an `active-aggregator-mirror` check via
+        # gateway_prices covers Replicate + fal.ai + any future mirror.
         cur = conn.execute(
             "UPDATE agents SET status = 'deprecated' "
             "WHERE status = 'active' "
@@ -1171,9 +1180,26 @@ def apply_fixes(report: dict, db_path: Path = DB_PATH) -> dict:
             "AND COALESCE(via_kilo, 0) = 0 "
             "AND COALESCE(via_dashscope, 0) = 0 "
             "AND COALESCE(via_siliconflow, 0) = 0 "
+            "AND (gateway_prices IS NULL OR gateway_prices = '' OR gateway_prices = '{}') "
             "AND id NOT LIKE 'openrouter/%'"
         )
         counts["zombie_orphans_deprecated"] = cur.rowcount
+
+        # Restore the 16 direct-vendor mirror rows that commit 8380a58a
+        # wrongly deprecated. Idempotent — only flips rows that (a) are
+        # currently deprecated, (b) have a live gateway_prices entry,
+        # (c) have no route flag set (so we're not undoing a legitimate
+        # deprecation on an OR/Kilo row).
+        cur = conn.execute(
+            "UPDATE agents SET status = 'active' "
+            "WHERE status = 'deprecated' "
+            "AND gateway_prices IS NOT NULL "
+            "AND gateway_prices != '' "
+            "AND gateway_prices != '{}' "
+            "AND COALESCE(via_openrouter, 0) = 0 "
+            "AND COALESCE(via_kilo, 0) = 0"
+        )
+        counts["aggregator_mirror_reactivated"] = cur.rowcount
         conn.commit()
     except Exception:
         conn.rollback()

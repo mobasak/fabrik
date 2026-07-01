@@ -113,7 +113,7 @@ def _make_seed_db_with_zombie(tmp_path: Path) -> Path:
             kilo_cache_read_cost_per_m REAL, kilo_cache_write_cost_per_m REAL,
             kilo_release_date TEXT, pricing_unit TEXT,
             is_moderated INTEGER DEFAULT 0, reasoning_mandatory INTEGER DEFAULT 0,
-            discard_reason TEXT
+            discard_reason TEXT, gateway_prices TEXT
         );
         -- Zombie orphan: all route flags 0, still active. Must deprecate.
         INSERT INTO agents (id, name, provider, status) VALUES
@@ -127,6 +127,13 @@ def _make_seed_db_with_zombie(tmp_path: Path) -> Path:
         -- OR meta-route (openrouter/*): must NOT deprecate.
         INSERT INTO agents (id, name, provider, status) VALUES
             ('openrouter/owl-alpha', 'OwlAlpha', 'openrouter', 'active');
+        -- Aggregator-mirror row: routed via Replicate/fal.ai, no via_* flag
+        -- but has gateway_prices JSON. Must NOT deprecate. Regression guard
+        -- for the direct-vendor STT/TTS/image models (whisper, elevenlabs,
+        -- flux, sdxl, etc.) that commit 8380a58a wrongly deprecated.
+        INSERT INTO agents (id, name, provider, status, gateway_prices) VALUES
+            ('openai/whisper-large-v3', 'Whisper Large v3', 'openai', 'active',
+             '{"replicate":{"price":0.0025,"unit":"audio-minute","confidence":1.0,"last_seen":"2026-07-01"}}');
         """
     )
     conn.commit()
@@ -154,6 +161,9 @@ def test_zombie_orphan_sweep_deprecates_routeless_rows(tmp_path, monkeypatch):
     grok = conn.execute("SELECT status FROM agents WHERE id='x-ai/grok-4-fast'").fetchone()
     dashscope = conn.execute("SELECT status FROM agents WHERE id='qwen/qwen-mt-turbo'").fetchone()
     owl = conn.execute("SELECT status FROM agents WHERE id='openrouter/owl-alpha'").fetchone()
+    whisper = conn.execute(
+        "SELECT status FROM agents WHERE id='openai/whisper-large-v3'"
+    ).fetchone()
     conn.close()
 
     assert grok["status"] == "deprecated", (
@@ -172,4 +182,11 @@ def test_zombie_orphan_sweep_deprecates_routeless_rows(tmp_path, monkeypatch):
     assert owl["status"] == "active", (
         "openrouter/* meta-routes must stay active — OR hides them from "
         "/api/v1/models but keeps them routable"
+    )
+
+    assert whisper["status"] == "active", (
+        "aggregator-mirror rows (gateway_prices JSON set, no via_* flag) "
+        "must stay active — routable via Replicate/fal.ai. Regression guard "
+        "for the direct-vendor STT/TTS/image models wrongly deprecated by "
+        "commit 8380a58a."
     )
