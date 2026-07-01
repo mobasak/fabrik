@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — AA speed/intelligence matcher missed all Meta and Mistral models (0% coverage → 33-37%) (2026-07-01)
+
+Operator noticed the Overview tab's Speed column was empty for a lot of models. Traced to two matcher bugs in `scrape_artificial_analysis.py`:
+
+**Bug A — Provider aliases**: PROVIDER_MAP mapped `"meta"` → `"meta"` but our DB stores Meta's family as `"meta-llama"` (matches OR's `meta-llama/` id prefix). Same for `"mistralai"` and `"x-ai"`. `canon_provider("meta-llama")` fell through to identity → didn't match AA's `"Meta"` → identity. Result: 0/12 Meta models and 0/19 Mistral models got speed data despite AA benchmarking all of them.
+
+**Bug B — Instruct/date suffixes**: `canon_name("Meta: Llama 3.1 70B Instruct")` produced `"meta-llama-3-1-70b-instruct"` while AA's `"Meta-Llama-3.1-70B"` produced `"meta-llama-3-1-70b"`. The `-instruct` suffix broke every LLM whose OR name has it. Same for Codestral/Ministral's date suffix (`-2508`, `-2512`) vs AA's bare `"Codestral"` / `"Ministral 3"`.
+
+Fixes:
+- `PROVIDER_MAP` now aliases `"meta-llama" → "meta"`, `"mistralai" → "mistral"`.
+- `canon_name` strips variant/state suffixes `instruct|chat|hf|latest` and trailing date suffixes `-\d{4,8}`.
+
+Result (verified against fresh AA cache): Meta 0→33%, Mistral 0→37%, total LLM Speed coverage 23%→28%. Speeds spot-checked as sensible (llama-4-scout 101 tok/s, ministral-3b 153 tok/s, mistral-large 51 tok/s — correlate with model size). 35/35 tests still pass.
+
 ### Added — Sidebar filter for output cost ($/M output) alongside the existing input-cost range (2026-07-01)
 
 Operator ask: "output cost is more important and we don't have filtering for output." Added a second range filter (min/max) directly below the input-cost block. Non-LLM rows (STT/TTS/image/video/OCR) typically have `output_cost_per_m = 0` — setting a minimum > 0 naturally filters them out, matching operator intent.

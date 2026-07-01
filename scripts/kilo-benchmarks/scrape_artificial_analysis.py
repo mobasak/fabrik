@@ -72,6 +72,14 @@ PROVIDER_MAP = {
     "deepseek": "deepseek",
     "xiaomi": "xiaomi",
     "meta": "meta",
+    # Our DB stores llama-family provider as "meta-llama" (matches OR's
+    # id prefix) but AA labels the creator as just "Meta". Same for
+    # Mistral (mistralai/ in OR ids) and xAI (x-ai/ in OR ids). Without
+    # these aliases, Llama and Mistral models had 0% Speed coverage
+    # despite AA benchmarking all of them.
+    "meta-llama": "meta",
+    "mistralai": "mistral",
+    "mistral": "mistral",
     "xai": "x-ai",
     "x ai": "x-ai",
     "meituan": "meituan",
@@ -207,8 +215,20 @@ def canon_provider(p: str) -> str:
 def canon_name(s: str) -> str:
     # Strip parenthetical suffix: "(max)", "(Non-reasoning, high)"
     s = re.sub(r"\s*\([^)]*\)\s*$", "", s).strip().lower()
-    # Strip noise tokens that signal variant/state, not identity
-    s = re.sub(r"\b(preview|experimental|exp|alpha|beta|rc\d*|it)\b", "", s)
+    # Strip noise tokens that signal variant/state, not identity.
+    # `instruct`/`chat`/`hf`/`latest`: variant labels that OR appends but
+    # AA doesn't (AA had 0% Llama/Mistral coverage before this fix
+    # because "Llama 3.1 70B Instruct" canonicalized to
+    # "llama-3-1-70b-instruct" while AA had "llama-3-1-70b").
+    s = re.sub(
+        r"\b(preview|experimental|exp|alpha|beta|rc\d*|it|instruct|chat|hf|latest)\b",
+        "",
+        s,
+    )
+    # Strip trailing date/version suffixes: -YYYY, -YYYYMMDD, -MMDD,
+    # or bare 4-digit year. Codestral "-2508" and Ministral "-2512" are
+    # OR's date-of-release suffix; AA uses the bare family name.
+    s = re.sub(r"[- ]\d{4,8}$", "", s)
     # Normalise to alphanum + single hyphen separator
     return re.sub(r"[^a-z0-9]+", "-", s).strip("-")
 
