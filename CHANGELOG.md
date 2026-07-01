@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — convergence audit iterations (Passes 1-5): defensive escapeHtml on speed_source + direct unit tests for the 3 new audit checks (2026-07-01)
+
+Ran the convergence audit loop across 5 passes hunting different failure classes. Only 2 real findings surfaced; both fixed.
+
+**Pass 3 finding (JS/XSS surface)**: `speed_source` was interpolated raw into the tok/s column's `title="..."` attribute (`models_browser_template.html:1310`). Currently safe — 6 distinct values in the DB are all HTML-clean (`artificialanalysis.ai (n=1..5)` + `manual_override`) — but if AA changes their format someday and adds a quote or angle bracket, we'd have an attribute breakout. Wrapped with `escapeHtml()` defensively (same pattern as the earlier cheapestLabel fix). Zero-risk latent-issue fix.
+
+**Pass 5 finding (test coverage)**: 3 audit functions added in the previous commits (`_audit_derived_consistency`, `_audit_benchmark_freshness`, `_audit_endpoints_recency`) had no direct unit tests — only indirect coverage via the seeded-bug meta-regression. Added 9 direct tests in `test_audit_new_checks.py`: missing/stale cache detection, clean-cache no-drift, null/stale endpoints_last_scraped flagged, direct-vendor rows exempt. Full suite: 35/35 pass.
+
+**Passes 1, 2, 4 clean** (verified: no bugs, only soft findings):
+- Pass 1: 4 UI-referenced columns don't exist in DB (`livecodebench`, `stt_quality`, `swe_bench_pro`, `translation_quality`) — but wrapped in defensive `if (m.field)` guards, so never error. Dead paths, not bugs.
+- Pass 2: 11 rows with prices >$1000/M turned out to be image/audio models where `input_cost_per_m` = per-image/per-second (unit is different, values are correct). 9 rows with $0-direct-active are all OR meta-routes (openrouter/*) or Lyria previews (confirmed free on live OR).
+- Pass 4: verify --apply on a freshly-refreshed DB → 0 fields updated, 0 rows deprecated. Idempotent.
+
 ### Added — audit now covers benchmark cache freshness + endpoints scrape recency (2026-07-01)
 
 Follow-on from the "what's not automated" disclosure. Two of the four gaps I called out were cheap-to-add and high-value; the other two were low-value and skipped honestly.
