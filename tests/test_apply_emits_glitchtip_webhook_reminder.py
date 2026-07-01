@@ -24,10 +24,9 @@ def test_reminder_logged_when_error_webhook_enabled(monkeypatch):
     monkeypatch.delenv("GLITCHTIP_URL", raising=False)
     rem = webhook_registration_reminder(_spec(["health", "error_webhook"]))
     assert rem is not None
-    # Honest PENDING note (the sidecar :8889 ingest is unbuilt) — must tell the
-    # operator NOT to register yet, while still carrying the eventual URLs.
-    assert "NOTE [error_webhook PENDING]" in rem
-    assert "do NOT register" in rem
+    # Un-gated (Phase 3): the :8889 ingest is built + deployed, so this is an
+    # actionable registration reminder again.
+    assert "ACTION REQUIRED: register GlitchTip webhook" in rem
     assert "https://errors.vps1.ocoron.com/ocoron/demo-svc/" in rem
     assert "http://demo-svc-watchdog:8889/" in rem
 
@@ -70,8 +69,7 @@ def test_apply_helper_emits_for_error_webhook_spec(capsys, monkeypatch):
     monkeypatch.setattr(cli, "load_spec", lambda p: _spec(["error_webhook"], sid="cal-api"))
     cli._emit_glitchtip_webhook_reminder("ignored.yaml")
     out = capsys.readouterr().out
-    assert "NOTE [error_webhook PENDING]" in out
-    assert "cal-api" in out
+    assert "ACTION REQUIRED: register GlitchTip webhook for cal-api" in out
     assert "http://cal-api-watchdog:8889/" in out
 
 
@@ -125,8 +123,7 @@ def test_fabrik_apply_command_emits_reminder_on_complete(tmp_path, monkeypatch):
     spec_file.write_text("id: cal-api\n")  # only needs to satisfy click's exists=True
     result = CliRunner().invoke(cli.apply, [str(spec_file), "--dry-run"])
     assert result.exit_code == 0, result.output
-    assert "NOTE [error_webhook PENDING]" in result.output
-    assert "cal-api" in result.output
+    assert "ACTION REQUIRED: register GlitchTip webhook for cal-api" in result.output
 
 
 def test_reminder_honours_org_and_base_overrides(monkeypatch):

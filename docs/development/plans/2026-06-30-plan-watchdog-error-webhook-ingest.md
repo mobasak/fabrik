@@ -1,6 +1,6 @@
 # Plan — Watchdog `error_webhook` → `:8889` ingest (build the missing sidecar consumer)
 
-**Status:** PLANNED (ready to implement) — 2026-06-30
+**Status:** DONE (2026-07-01) — Phase 1 (sidecar `:8889` ingest) shipped in fabrik-lib `main` (`watchdog_sidecar/`, deploy-verified GREEN 2026-07-01); Phase 2 (cross-host fail-closed guard, `orchestrator._assert_error_webhook_colocated`) + Phase 3 (un-gate the apply reminder `PENDING → ACTION REQUIRED`) shipped fabrik-side.
 **Owner:** operator (single-host WSL dev)
 **Repo:** `/opt/fabrik-lib/watchdog` (sidecar) + a small guard in `/opt/fabrik` (orchestrator)
 **Origin:** Residual-risks #1/#2 from the Phase 7 adversarial review. Grounding 2026-06-30 found the `:8889` ingest is **entirely unbuilt**, so the apply reminder + docs are now gated to PENDING (commit on master). This plan builds the real consumer so `error_webhook` works end-to-end.

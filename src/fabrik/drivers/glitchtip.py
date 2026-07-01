@@ -118,18 +118,18 @@ def _is_loopback_dsn(dsn: str) -> bool:
 
 
 def webhook_registration_reminder(spec: Any) -> str | None:
-    """Phase 7 (deploy-readiness-gaps): honest STATUS note for a watchdog
+    """Phase 7 (deploy-readiness-gaps): actionable reminder for a watchdog
     ``error_webhook`` spec.
 
-    Reality (verified 2026-06-30 against ``/opt/fabrik-lib/watchdog``): the
-    sidecar does NOT yet listen on ``:8889`` — it has no ``error_webhook`` /
-    ``WATCHDOG_TRIGGER_SOURCES`` handling and detects errors by polling
-    ``docker logs`` (container-state + regex). So registering a GlitchTip
-    webhook → ``:8889`` would POST into a dead port. Until the sidecar ingest
-    ships (tracked: ``docs/development/plans/2026-06-30-plan-watchdog-error-webhook-ingest.md``),
-    this returns a PENDING note that tells the operator NOT to register the
-    webhook yet — error detection is already live via log-polling. The note
-    still carries the eventual GlitchTip + ``:8889`` URLs for when it lands.
+    GlitchTip exposes no API to register a webhook recipient (probed 2026-06-29 —
+    ``/rules/``, ``/alert-rules/``, ``/alerts/`` all 404), so ``fabrik apply``
+    can't automate it. The sidecar ``:8889`` ingest is now BUILT + DEPLOYED
+    (fabrik-lib ``main`` ``watchdog_sidecar/``; a fresh deploy binds it whenever
+    ``error_webhook`` is a trigger source — deploy-verified 2026-07-01), and
+    Phase 2 (``orchestrator._assert_error_webhook_colocated``) guarantees such
+    specs land on vps1, same host as GlitchTip. So registration is a real,
+    working step — return a one-line ``ACTION REQUIRED`` reminder with the
+    GlitchTip UI + ``:8889`` recipient URLs.
 
     Returns ``None`` for any spec that doesn't ingest ``error_webhook``. Total +
     exact-match: never raises, never substring-matches (runs inside ``fabrik
@@ -144,12 +144,10 @@ def webhook_registration_reminder(spec: Any) -> str | None:
     project_url = f"{base}/{org}/{sid}/"
     ingest_url = f"http://{sid}-watchdog:8889/"
     return (
-        f"NOTE [error_webhook PENDING]: {sid}'s watchdog detects errors via "
-        f"docker-log polling today — that is LIVE. The GlitchTip → {ingest_url} "
-        f"push is NOT yet wired in the sidecar, so do NOT register a GlitchTip "
-        f"webhook yet (nothing listens on :8889). When the ingest ships, register "
-        f"at {project_url} → Alerts → Create → recipient: webhook → URL: "
-        f"{ingest_url}. Tracked: docs/development/plans/2026-06-30-plan-watchdog-error-webhook-ingest.md"
+        f"ACTION REQUIRED: register GlitchTip webhook for {sid} — open "
+        f"{project_url} → Alerts → Create → trigger 'a new issue is created' → "
+        f"recipient: webhook → URL: {ingest_url} (no API to automate; see "
+        f"docs/operations/deployment.md)"
     )
 
 

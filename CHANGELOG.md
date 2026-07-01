@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Phase 3: un-gate the GlitchTip webhook reminder (ingest is now live) (2026-07-01)
+
+The `:8889` error_webhook ingest is built + deployed (fabrik-lib `main` `watchdog_sidecar/`, deploy-verified 2026-07-01) and Phase 2 pins such specs to vps1, so registering the webhook is now a real, working step. `glitchtip.webhook_registration_reminder` flips from the honest `NOTE [error_webhook PENDING]` (do-not-register) back to the actionable `ACTION REQUIRED: register GlitchTip webhook …`; `docs/operations/deployment.md` banner goes `PENDING → ✅ ACTIVE`; the 3 reminder tests assert the actionable text again. This closes the watchdog-error-webhook-ingest plan (Phase 1 fabrik-lib + Phases 2–3 fabrik-side all done).
+
 ### Added — watchdog_ro read-only PG role + Phase 2 cross-host error_webhook guard (2026-07-01)
 
 Two deploy-readiness follow-ons for the watchdog. **`watchdog_ro`** (`scripts/provision_watchdog_ro.py`, run live on `postgres-main`): a `LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE` role for the watchdog's direct-DB investigation tool (used only when `WATCHDOG_INVESTIGATE=true`). Least-privilege by construction — **no grants** until `grant <db>` opts a specific project DB into read-only (`CONNECT` + `USAGE` + `SELECT`, incl. future tables); `revoke`/`status` too. Password is 32-char CSPRNG stored in `/opt/fabrik/.env.sysadmin` (0600, gitignored). The `grant`/`revoke` db name is validated (`^[a-z_][a-z0-9_]{0,62}$`) against SQL injection — the tested highest-risk path. **Phase 2** (`orchestrator._assert_error_webhook_colocated`, wired into `deploy()` after `target_vps` resolution): fail-closed `ValidationError` when `watchdog.trigger_sources` includes `error_webhook` and `target_vps != vps1` — GlitchTip is vps1-pinned and `fabrik` is a per-host bridge, so a `:8889` ingest on vps2/3 is unreachable; reject rather than ship a dead alerting path (HTTP sources `emitter`/`health` and vps1 deploys untouched). 15 tests (guard + injection-validation).
