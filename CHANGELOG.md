@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — check_secrets: three false-positive shapes now correctly skipped (2026-07-01)
+
+The `Secrets (Zero Hardcoding)` gate was firing on legitimate code that (a) uses angle-bracket placeholders in docstrings (`postgresql://user:<pw>@host/db`), and (b) parses `.env` files by matching env-var-name strings (`if line.startswith("WATCHDOG_RO_PG_PASSWORD="):`). Two narrow regex refinements in `scripts/enforcement/check_secrets.py`:
+
+1. `postgresql://` and `mongodb://` patterns: extend the shell-var lookahead `(?!\$\{|\$[A-Z])` to also skip `<` — angle-bracket placeholders in READMEs/docstrings are references, not credentials.
+2. `password|secret|api_key|token` credential pattern: replace `[^'\"]{8,}` with `[^'\"\n]{8,}` — value must be on the SAME LINE. Without the `\n` exclusion the pattern spans line breaks and glues an env-var-name string on line N to an unrelated quote on line N+1, producing spurious hits.
+
+Regression-verified: real DB URLs with literal passwords, real `password = "hunter2xyz"`, and real API keys still caught; `${POSTGRES_PASSWORD}` refs, `<pw>` placeholders, and `.env`-parsing code no longer trigger. `check_secrets.py` is Fabrik-synced, so the fix propagates to every project's gate on next sync.
+
 ### Added — models_browser: Cheapest column now names the winning INFERENCE provider (DeepInfra/Groq/Together/etc.), not just the routing gateway (2026-07-01)
 
 Operator complaint: on the Overview tab, the Cheapest column showed only routing gateways ("direct", "kilo", "replicate", "fal.ai") — useless for the actual question "for THIS model, who is the cheapest provider I should pin?" (e.g. llama-3.3-70b: DeepInfra $0.10/M vs Together $1.04/M for the same model, both routed via OR).
