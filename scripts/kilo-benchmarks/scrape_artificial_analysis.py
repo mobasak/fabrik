@@ -79,6 +79,18 @@ PROVIDER_MAP = {
     # despite AA benchmarking all of them.
     "meta-llama": "meta",
     "mistralai": "mistral",
+    # AA uses spaces in some creator names; canon_provider lowercases them
+    # but doesn't strip spaces — so "ai21 labs" and "arcee ai" become the
+    # keys we need to map. Keeps a stable path for models where AA and OR
+    # spell the provider differently (arcee ai vs arcee-ai, etc.).
+    "ai21 labs": "ai21",
+    "ai21": "ai21",
+    "arcee ai": "arcee-ai",
+    "arcee-ai": "arcee-ai",
+    "liquid ai": "liquid",
+    "liquid": "liquid",
+    "nex agi": "nex-agi",
+    "nex-agi": "nex-agi",
     "xai": "x-ai",
     "x ai": "x-ai",
     "meituan": "meituan",
@@ -212,24 +224,58 @@ def canon_provider(p: str) -> str:
 
 
 def canon_name(s: str) -> str:
-    # Strip parenthetical suffix: "(max)", "(Non-reasoning, high)"
-    s = re.sub(r"\s*\([^)]*\)\s*$", "", s).strip().lower()
+    # Drop parens, KEEP their content. AA uses parens for both:
+    #   noise:  "(max)", "(Non-reasoning, high)", "(Feb 2026)"
+    #   real:   "(Vision)" — distinguishes multimodal from text-only
+    # We keep everything and let the noise-token stripper below remove
+    # the actual noise words (max/high/low/etc). Stripping paren content
+    # entirely would collapse "Llama 3.2 11B (Vision)" onto "Llama 3.2 11B"
+    # — a real different-model false-match.
+    s = re.sub(r"[()]", " ", s).strip().lower()
     # Strip noise tokens that signal variant/state, not identity.
     # `instruct`/`chat`/`hf`/`latest`: variant labels that OR appends but
     # AA doesn't (AA had 0% Llama/Mistral coverage before this fix
     # because "Llama 3.1 70B Instruct" canonicalized to
     # "llama-3-1-70b-instruct" while AA had "llama-3-1-70b").
     s = re.sub(
-        r"\b(preview|experimental|exp|alpha|beta|rc\d*|it|instruct|chat|hf|latest)\b",
+        r"\b(preview|experimental|exp|alpha|beta|rc\d*|it|instruct|chat|hf|latest|thinking"
+        # Reasoning-effort words that AA sometimes attaches:
+        # "(max)", "(high)", "(Non-reasoning, high)"
+        r"|max|high|medium|low|minimal|xhigh|non-reasoning"
+        # Month names for date parentheticals like "(Feb 2026)", "(June 2026)"
+        r"|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec"
+        r"|january|february|march|april|june|july|august|september|october|november|december"
+        r")\b",
         "",
         s,
     )
+    # Strip trailing "-v<version>" suffix: nova-micro-v1, nova-premier-v1.
+    # AA reports "Nova Micro" while OR carries "-v1".
+    s = re.sub(r"[- ]v\d+(\.\d+)?$", "", s)
     # Strip trailing date/version suffixes: -YYYY, -YYYYMMDD, -MMDD,
     # or bare 4-digit year. Codestral "-2508" and Ministral "-2512" are
     # OR's date-of-release suffix; AA uses the bare family name.
     s = re.sub(r"[- ]\d{4,8}$", "", s)
     # Normalise to alphanum + single hyphen separator
     return re.sub(r"[^a-z0-9]+", "-", s).strip("-")
+
+
+def canon_name_tokens(s: str) -> frozenset[str]:
+    """Order-independent token set for word-order variants.
+    AA has "Claude 4.5 Haiku" while OR carries "claude-haiku-4.5" —
+    the exact same tokens in different orders. Same for
+    "Jamba 1.7 Large" (AA) vs "jamba-large-1.7" (OR). Set-based
+    match handles this without brittle order-permutation guessing.
+
+    We drop 1-char tokens (except numeric ones like "4") and pure
+    filler ("the", "a", "of") to avoid false positives.
+    """
+    canon = canon_name(s)
+    return frozenset(
+        t
+        for t in canon.split("-")
+        if t and t not in {"the", "a", "of", "and"} and (t.isdigit() or "." in t or len(t) > 1)
+    )
 
 
 def build_index(aa_rows: list[dict]) -> dict[tuple[str, str], list[dict]]:
@@ -287,6 +333,19 @@ def match_db_agents(aa_index: dict, db_agents: list[sqlite3.Row], overrides: dic
     Return {agent_id: {tps, ttft_ms, source}} for every agent we can resolve.
     Agents not in result have no speed data and remain NULL in DB.
     """
+    # Build a parallel token-set index for the word-order fallback:
+    # (provider, frozenset(tokens)) → list[row]. Handles cases like
+    # AA "Claude 4.5 Haiku" ↔ OR "claude-haiku-4.5" (identical tokens,
+    # different order).
+    token_index: dict[tuple[str, frozenset[str]], list[dict]] = {}
+    # Each aa_index bucket holds rows that share (provider, canon_name).
+    # For each unique canonical name in aa_index, compute its token set.
+    for (prov, cname), rows in aa_index.items():
+        tokens = frozenset(
+            t for t in cname.split("-") if t and (t.isdigit() or "." in t or len(t) > 1)
+        )
+        token_index.setdefault((prov, tokens), []).extend(rows)
+
     out = {}
     for a in db_agents:
         agent_id = a["id"]
@@ -302,22 +361,37 @@ def match_db_agents(aa_index: dict, db_agents: list[sqlite3.Row], overrides: dic
             }
             continue
 
+        matched_rows = None
+        # First pass: strict ordered-name match
         for key in db_candidate_keys(agent_id, a["name"], a["provider"]):
             if key in aa_index:
-                speeds = [d["tps"] for d in aa_index[key] if d.get("tps") is not None]
-                ttfts = [d["ttft_ms"] for d in aa_index[key] if d.get("ttft_ms") is not None]
-                intels = [
-                    d["intelligence_index"]
-                    for d in aa_index[key]
-                    if d.get("intelligence_index") is not None
-                ]
-                out[agent_id] = {
-                    "tps": median(speeds) if speeds else None,
-                    "ttft_ms": median(ttfts) if ttfts else None,
-                    "intelligence_index": median(intels) if intels else None,
-                    "source": f"artificialanalysis.ai (n={len(aa_index[key])})",
-                }
+                matched_rows = aa_index[key]
                 break
+        # Second pass: token-set fallback — order-independent match
+        # against the same provider. Only triggers when strict match
+        # missed. Requires tokens set to be non-empty and match exactly
+        # (subset match would over-match "Haiku" against "Haiku 4.5").
+        if matched_rows is None:
+            cp = canon_provider(a["provider"])
+            name_only = a["name"].split(":", 1)[1].strip() if ":" in a["name"] else a["name"]
+            tokens = canon_name_tokens(name_only)
+            if tokens and (cp, tokens) in token_index:
+                matched_rows = token_index[(cp, tokens)]
+
+        if matched_rows:
+            speeds = [d["tps"] for d in matched_rows if d.get("tps") is not None]
+            ttfts = [d["ttft_ms"] for d in matched_rows if d.get("ttft_ms") is not None]
+            intels = [
+                d["intelligence_index"]
+                for d in matched_rows
+                if d.get("intelligence_index") is not None
+            ]
+            out[agent_id] = {
+                "tps": median(speeds) if speeds else None,
+                "ttft_ms": median(ttfts) if ttfts else None,
+                "intelligence_index": median(intels) if intels else None,
+                "source": f"artificialanalysis.ai (n={len(matched_rows)})",
+            }
     return out
 
 

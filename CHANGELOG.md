@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — AA matcher improvements: added provider aliases, paren content preservation, noise-word expansion, token-set fallback (28% → 32% Speed coverage) (2026-07-01)
+
+Follow-on to the earlier Meta/Mistral fix. Enumerated all 47 AA-benchmark models that still weren't matching; ~15 were real matcher gaps.
+
+Changes to `scrape_artificial_analysis.py`:
+
+- **Provider aliases**: `"ai21 labs" → ai21`, `"arcee ai" → arcee-ai`, `"liquid ai" → liquid`, `"nex agi" → nex-agi`. These providers had 0% coverage because canon_provider identity-mapped their labels while our DB uses hyphens.
+- **Paren content preservation**: canon_name now keeps content of parenthetical annotations (only strips the parens). Previously "Llama 3.2 11B (Vision)" collapsed to "Llama 3.2 11B" — false-matching a different model.
+- **Noise word expansion**: added reasoning-effort words (`max|high|medium|low|minimal|xhigh|non-reasoning`) and month names to the stripped-tokens regex. Handles AA's "(max)", "(high)", "(Feb 2026)" suffixes.
+- **`-vN` version suffix strip**: `[- ]v\d+(\.\d+)?$` — nova-micro-v1 → nova-micro.
+- **Token-set fallback in `match_db_agents`**: when strict ordered-name lookup fails, try a token-set index. Handles word-order variants: AA "Claude 4.5 Haiku" ↔ OR "claude-haiku-4.5", AA "Jamba 1.7 Large" ↔ OR "jamba-large-1.7". Only triggers on strict miss; requires exact token-set equality (not subset).
+
+Coverage: Speed 92 → 106 rows (+14, 28% → 32%). Anthropic 73% → 80%, Meta 33% → 42%, Cohere 0% → 80%. 35/35 tests still pass.
+
+Remaining ~30 unmatched AA entries are (a) models not in our DB, (b) deprecated rows, (c) variants AA benchmarks that OR doesn't route.
+
 ### Added — check_doc_sync: SERVICES/OPERATIONS/RESILIENCE coverage + Doc Sync Matrix rows (2026-07-01)
 
 Expanded the doc-sync gate from 6 to 9 mechanically-detectable triggers. `scripts/enforcement/check_doc_sync.py` gains three WARN rows (advisory, never block): **SERVICES.md** + **OPERATIONS.md** ← `compose.yaml`/`compose.yml` changed (hoisted the `compose_changed` var, now shared by PORTS/SERVICES/OPERATIONS), and **RESILIENCE.md** ← retry/backoff/circuit-breaker/fallback/`max_retries` touched (inspects the *staged diff*, `-U0`, not the whole file, so pre-existing retry code doesn't false-positive). Doc Sync Matrix rows added to `CLAUDE.md`, `AGENTS-compact.md`, and the Cascade pack `.windsurf/rules/core/40-documentation.md` (`.windsurfrules` carries no matrix — Cascade reads it from the pack). Deliberately NOT added (no diff signal): TROUBLESHOOTING (recurring symptom), LESSONS_LEARNT (Completion-Contract-enforced), BUSINESS_MODEL/STRATEGIC_BACKLOG (pure business). Verified: clean tree → exit 0; WARN-only → exit 0; ruff/mypy clean. Re-synced to projects.
