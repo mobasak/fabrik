@@ -61,3 +61,7 @@ watchdog:
   deadman_timeout_seconds: 300
   external_docs_enabled: true
   propose_fix_prs: false
+  auto_code_fix: false
+  code_fix_window_sec: 300
+  critical_paths: []
+  trigger_sources: []

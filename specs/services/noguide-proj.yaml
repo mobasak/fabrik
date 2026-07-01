@@ -10,6 +10,8 @@ shape:
   has_persistent_data: false
   needs_database: false
   has_search_feature: false
+  needs_cache: false
+  exposes_metrics: true
 expose:
   http: true
   internal_only: false
@@ -27,7 +29,8 @@ env:
 secrets:
   required: []
   generate: []
-  from_env: []
+  from_env:
+  - SERVICE_INTERNAL_SECRET_KEY
   from_file: {}
 resources:
   memory: 512M
@@ -37,8 +40,28 @@ health:
   interval: 30s
   timeout: 10s
   retries: 3
+  disabled: false
 volumes: []
+companion_services: []
 backup:
   enabled: true
   frequency: daily
   retention: 30
+watchdog:
+  enabled: false
+  daily_budget_usd: 1.0
+  daily_invocations_cap: 200
+  auto_tier_b: false
+  escalation_channel: apprise
+  llm_provider_primary: claude-code
+  llm_provider_fallback: openrouter
+  cheap_model: haiku
+  expensive_model: sonnet
+  per_incident_budget_usd: 0.5
+  deadman_timeout_seconds: 300
+  external_docs_enabled: true
+  propose_fix_prs: false
+  auto_code_fix: false
+  code_fix_window_sec: 300
+  critical_paths: []
+  trigger_sources: []
