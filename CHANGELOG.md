@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — verify_openrouter_catalog: Kilo capabilities-fallback pass no longer clobbers OR-authoritative writes on dual-routed rows (2026-07-01)
+
+Discovered while validating yesterday's extended discrepancy loop: after the OR-side pass wrote 98 `has_reasoning=0` corrections, the Kilo capabilities-fallback pass (`verify_openrouter_catalog.py:1023-1043`) immediately reverted them because it applied `COALESCE(NULLIF(has_reasoning, 0), kilo_value)` unconditionally — and Kilo reports `capabilities.reasoning=1` for those routes (perplexity/sonar-reasoning-pro, qwen/qwen3-14b, etc.). The same silent revert affected `has_vision`, `has_tools`, `context_window_k`, `max_completion_tokens`, `cache_read/write_cost_per_m`, `reasoning_supported_efforts`.
+
+Added `AND (via_openrouter = 0 OR via_openrouter IS NULL)` to the fallback UPDATE so Kilo authority applies **only to Kilo-only rows**. OR remains authoritative for every dual-routed row on these shared columns — matching the intent of the comment block above the UPDATE (which said "don't clobber OR-authoritative data" but wasn't enforced by the SQL).
+
+**Verified**: post-fix, `verify()` reports `discrepancies=0` on back-to-back runs (idempotent). The 98 `has_reasoning` corrections now stick.
+
 ### Fixed — verify_openrouter_catalog discrepancy loop now covers 7 more fields (Phase 1 richer-extraction columns) (2026-07-01)
 
 Prior to today the daily verifier only tracked drift on `input_cost_per_m`, `output_cost_per_m`, `context_window_k`, `has_vision`, `has_tools`, `name`. The Phase 1 richer-extraction fields (added earlier today) got populated at ingest time but were never re-checked — the audit caught 3 `has_reasoning` drifts because of this gap.

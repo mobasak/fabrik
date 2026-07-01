@@ -1015,9 +1015,15 @@ def apply_fixes(report: dict, db_path: Path = DB_PATH) -> dict:
                 (k_cache_r, k_cache_w, k_provider, k_release, k_family, mid),
             )
 
-            # Shared columns: write ONLY IF currently NULL/0 (don't clobber
-            # OR-authoritative data on dual-routed rows). Caps + limits +
-            # cache pricing fall back to Kilo for Kilo-only rows.
+            # Shared columns: write ONLY for Kilo-ONLY rows (via_openrouter=0).
+            # OR-routed rows have OR as authority for these fields — writing
+            # Kilo's values here silently reverts the discrepancy loop's
+            # nightly correction. Bug caught 2026-07-01: perplexity/sonar-
+            # reasoning-pro et al. had OR-say has_reasoning=0 written by the
+            # discrepancy pass, then this Kilo pass immediately reverted to 1
+            # because Kilo's capabilities.reasoning=1 for those routes.
+            # `AND via_openrouter = 0` is the fix: Kilo authority applies
+            # only where OR isn't in the picture.
             cur = conn.execute(
                 "UPDATE agents SET "
                 "has_vision      = COALESCE(NULLIF(has_vision, 0),      ?), "
@@ -1028,7 +1034,7 @@ def apply_fixes(report: dict, db_path: Path = DB_PATH) -> dict:
                 "cache_read_cost_per_m = COALESCE(cache_read_cost_per_m, ?), "
                 "cache_write_cost_per_m = COALESCE(cache_write_cost_per_m, ?), "
                 "reasoning_supported_efforts = COALESCE(reasoning_supported_efforts, ?) "
-                "WHERE id = ?",
+                "WHERE id = ? AND (via_openrouter = 0 OR via_openrouter IS NULL)",
                 (
                     k_caps["has_vision"],
                     k_caps["has_tools"],
