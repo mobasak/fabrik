@@ -535,6 +535,77 @@ def verify(db_path: Path = DB_PATH) -> dict:
                     "live": live_caps["has_tools"],
                 }
             )
+        # has_reasoning drift detection (2026-07-01): pre-fix this field was
+        # set at ingest time and never re-verified — the daily catalog audit
+        # found 3 rows drifted. Now covered by the same discrepancy path as
+        # has_vision/has_tools so future drift gets auto-corrected nightly.
+        if (row.get("has_reasoning") or 0) != live_caps["has_reasoning"]:
+            row_disc.append(
+                {
+                    "field": "has_reasoning",
+                    "db": row.get("has_reasoning"),
+                    "live": live_caps["has_reasoning"],
+                }
+            )
+        # knowledge_cutoff drift (Phase 1 field). Empty→empty stays clean.
+        live_cutoff = _live_knowledge_cutoff(live_rec)
+        db_cutoff = row.get("knowledge_cutoff") or None
+        if live_cutoff and db_cutoff != live_cutoff:
+            row_disc.append(
+                {
+                    "field": "knowledge_cutoff",
+                    "db": db_cutoff,
+                    "live": live_cutoff,
+                }
+            )
+        # max_completion_tokens drift (Phase 1 field).
+        _, live_max_out, live_moderated = _live_top_provider(live_rec)
+        if live_max_out is not None and row.get("max_completion_tokens") != live_max_out:
+            row_disc.append(
+                {
+                    "field": "max_completion_tokens",
+                    "db": row.get("max_completion_tokens"),
+                    "live": live_max_out,
+                }
+            )
+        if (row.get("is_moderated") or 0) != live_moderated:
+            row_disc.append(
+                {
+                    "field": "is_moderated",
+                    "db": row.get("is_moderated"),
+                    "live": live_moderated,
+                }
+            )
+        # reasoning_mandatory + reasoning_supported_efforts drift (Phase 1 fields).
+        live_rmandatory, live_refforts = _live_reasoning_efforts(live_rec)
+        if (row.get("reasoning_mandatory") or 0) != live_rmandatory:
+            row_disc.append(
+                {
+                    "field": "reasoning_mandatory",
+                    "db": row.get("reasoning_mandatory"),
+                    "live": live_rmandatory,
+                }
+            )
+        # supported_efforts is a JSON string; compare as-is (both sides serialize
+        # the same way via json.dumps ordering).
+        if (row.get("reasoning_supported_efforts") or None) != live_refforts:
+            row_disc.append(
+                {
+                    "field": "reasoning_supported_efforts",
+                    "db": row.get("reasoning_supported_efforts"),
+                    "live": live_refforts,
+                }
+            )
+        # canonical_slug drift (Phase 1 field) — OR occasionally re-slugs.
+        live_slug = _live_canonical_slug(live_rec)
+        if live_slug and (row.get("canonical_slug") or None) != live_slug:
+            row_disc.append(
+                {
+                    "field": "canonical_slug",
+                    "db": row.get("canonical_slug"),
+                    "live": live_slug,
+                }
+            )
         if live_name and row.get("name") != live_name:
             row_disc.append(
                 {
