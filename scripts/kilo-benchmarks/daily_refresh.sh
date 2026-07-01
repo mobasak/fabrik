@@ -289,6 +289,12 @@ mkdir -p "$(dirname "$LOG_FILE")"
     _step "fetch_fal_prices" "$VENV_PY" "$KB/fetch_fal_prices.py" \
       || echo "[daily_refresh] fal price fetch failed (non-fatal)"
   fi
+  # OR per-model /endpoints scrape — fetches the full inference-provider
+  # list for every OR-routed model so the "Cheapest" column can surface
+  # the raw provider (DeepInfra/Groq/etc.) that beats OR's default routing.
+  # ~340 API calls @ 4/s = ~90s. Non-fatal on transient OR outage.
+  _step "scrape_openrouter_endpoints" "$VENV_PY" "$KB/scrape_openrouter_endpoints.py" \
+    || echo "[daily_refresh] OR endpoints scrape failed (non-fatal)"
   _step "derive_cheapest_gateway" "$VENV_PY" "$KB/derive_cheapest_gateway.py" \
     || echo "[daily_refresh] cheapest gateway derive failed (non-fatal)"
 

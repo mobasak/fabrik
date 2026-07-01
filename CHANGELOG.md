@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — models_browser: Cheapest column now names the winning INFERENCE provider (DeepInfra/Groq/Together/etc.), not just the routing gateway (2026-07-01)
+
+Operator complaint: on the Overview tab, the Cheapest column showed only routing gateways ("direct", "kilo", "replicate", "fal.ai") — useless for the actual question "for THIS model, who is the cheapest provider I should pin?" (e.g. llama-3.3-70b: DeepInfra $0.10/M vs Together $1.04/M for the same model, both routed via OR).
+
+**New nightly step**: `scrape_openrouter_endpoints.py` fetches OR's per-model `/api/v1/models/<slug>/endpoints` for every active `via_openrouter=1` row (~340 calls, 4 req/s, ~90s wall time), stores the full endpoint list as JSON, and records the min-price in-service provider in three new columns: `cheapest_provider`, `cheapest_provider_price`, `cheapest_provider_quant`.
+
+**`derive_cheapest_gateway.py` extended**: OR endpoint providers now compete as candidates alongside `direct` / `kilo` / mirrors. When an OR provider price is ≤ direct (near-universal — OR normalizes headline to min-provider), the specific provider name wins the tie because "DeepInfra" is actionable (`provider.only=["DeepInfra"]`) while "direct" is not. Encoded as `or:<provider>` so the UI can distinguish OR-endpoint winners from raw-gateway winners.
+
+**UI update**: models_browser_template.html gets two new helpers (`cheapestLabel`, `cheapestTooltip`) that strip the `or:` prefix for display. The Cheapest column tooltip now explains the four-source comparison. Column header tooltip rewritten to reflect the new axis.
+
+**Result**: 292 of 518 active chat rows now show the raw OR provider name in the Cheapest column (top winners: OpenAI 41, DeepInfra 37, Alibaba 24, Google 21, Azure 16). 224 rows still show "direct" (no OR endpoint data — non-OR-routed rows or rows OR didn't expose /endpoints for). 1 kilo, 1 replicate, 57 free-tier direct-$0.
+
+Wired into `daily_refresh.sh` (non-fatal on transient OR outage).
+
 ### Fixed — verify_openrouter_catalog: Kilo capabilities-fallback pass no longer clobbers OR-authoritative writes on dual-routed rows (2026-07-01)
 
 Discovered while validating yesterday's extended discrepancy loop: after the OR-side pass wrote 98 `has_reasoning=0` corrections, the Kilo capabilities-fallback pass (`verify_openrouter_catalog.py:1023-1043`) immediately reverted them because it applied `COALESCE(NULLIF(has_reasoning, 0), kilo_value)` unconditionally — and Kilo reports `capabilities.reasoning=1` for those routes (perplexity/sonar-reasoning-pro, qwen/qwen3-14b, etc.). The same silent revert affected `has_vision`, `has_tools`, `context_window_k`, `max_completion_tokens`, `cache_read/write_cost_per_m`, `reasoning_supported_efforts`.

@@ -628,7 +628,7 @@
         <tr id="thead-row">
           <th data-sort="name" data-tabs="overview reasoning coding translation transcription voice image video ocr" title="Human-readable model name + provider/id below in dim mono. Sortable by name; sort by id via the URL prefix in the dim line. Provider already implied by the id prefix.">Model</th>
           <th data-sort="input_cost_per_m" data-lower-better="true" data-tabs="overview reasoning coding translation transcription voice image video ocr" title="Vendor-quoted price per service-type unit (LLM: $/M tokens · STT: $/audio-minute · TTS/Translation: $/1K chars · Image: $/image · Video: $/sec · OCR: $/page). LOWER is better — first-click sorts cheapest first. Hover any cell for source / canonical metric.">Price</th>
-          <th data-sort="cheapest_gateway_price" data-lower-better="true" data-tabs="overview reasoning coding translation transcription voice image video ocr" title="Cheapest known gateway to reach this model — considering the direct/primary price, the Kilo Gateway price (for OR+Kilo dual-routed models), and any aggregator mirrors (Replicate, fal.ai). Shows gateway name + price. Cell turns green when a non-direct gateway saves you money. LOWER is better — click to sort cheapest first. Derived nightly by derive_cheapest_gateway.py.">Cheapest</th>
+          <th data-sort="cheapest_gateway_price" data-lower-better="true" data-tabs="overview reasoning coding translation transcription voice image video ocr" title="Cheapest known route to reach this model, considering FOUR sources: (1) OR/direct-vendor headline price · (2) all inference providers OR itself exposes (DeepInfra, Fireworks, Groq, Cerebras, Novita, Together, Nebius, SambaNova — often 5-10× cheaper than OR's default routing on the same model) · (3) Kilo Gateway (for OR+Kilo dual-routed models) · (4) aggregator mirrors (Replicate, fal.ai). Shows the winning entity + price. When the winner is an OR endpoint provider, the label is the raw provider name (e.g. 'DeepInfra' — pass `provider.only=['DeepInfra']` in your OR API call to route there); when it's a gateway, the gateway name. Cell turns green whenever the winner beats the default routing. LOWER is better — click to sort cheapest first. Derived nightly from scrape_openrouter_endpoints.py + derive_cheapest_gateway.py.">Cheapest</th>
           <th data-sort="output_cost_per_m" data-lower-better="true" data-tabs="overview reasoning coding translation" title="USD per million output tokens (LLMs only). LOWER is better — first-click sorts cheapest first. For non-LLM services see the unit hover on the Price column.">$/M out</th>
           <th data-sort="context_window_k" data-tabs="overview reasoning coding translation" title="Context window in thousands of tokens (the model's input length cap). Higher is better. Empty cells = unknown for direct-vendor specialty rows (STT/TTS/image/video/OCR — context isn't the right metric there).">Ctx (k)</th>
           <th data-sort="output_tokens_per_sec" data-tabs="overview reasoning coding" title="Throughput in output tokens per second (Artificial Analysis benchmark). Higher is better. Empty cells = AA didn't match this model.">Speed</th>
@@ -1119,14 +1119,34 @@ function fmtCost(v, m) {
 // Append a "cheaper via X" badge when an aggregator beats the row's primary price.
 // Only fires when cheapest_gateway is set AND it's not 'direct' AND the savings
 // are material (>=5% to filter noise).
+// Render the cheapest-route label. Values that start with "or:" mean
+// "on OpenRouter, but routed to the named inference provider (DeepInfra,
+// Groq, Cerebras, ...) — cheaper than OR's default routing." Strip the
+// prefix for display.
+function cheapestLabel(gw) {
+  if (!gw) return "";
+  if (gw.startsWith("or:")) return gw.slice(3);
+  if (gw === "fal_ai") return "fal.ai";
+  return gw;
+}
+function cheapestTooltip(gw) {
+  if (!gw) return "No cheapest data";
+  if (gw === "direct") return "Cheapest via primary route (OR / direct vendor)";
+  if (gw === "kilo") return "Cheapest via Kilo Gateway (api.kilo.ai)";
+  if (gw === "replicate") return "Cheapest via Replicate mirror";
+  if (gw === "fal_ai") return "Cheapest via fal.ai mirror";
+  if (gw.startsWith("or:"))
+    return `Cheapest via OpenRouter — route provider=${gw.slice(3)} in your API call`;
+  return "Cheapest via " + gw;
+}
 function maybeCheaperBadge(m) {
   if (!m || !m.cheapest_gateway || m.cheapest_gateway === "direct") return "";
   if (!m.cheapest_gateway_price || !m.input_cost_per_m) return "";
   const savings = (m.input_cost_per_m - m.cheapest_gateway_price) / m.input_cost_per_m;
   if (savings < 0.05) return "";  // <5% noise floor
   const pct = Math.round(savings * 100);
-  const gw = m.cheapest_gateway;
-  return ` <span class="cheaper-badge" title="${pct}% cheaper via ${gw} ($${m.cheapest_gateway_price.toFixed(2)}/M vs $${m.input_cost_per_m.toFixed(2)}/M direct)">−${pct}% ${gw}</span>`;
+  const label = cheapestLabel(m.cheapest_gateway);
+  return ` <span class="cheaper-badge" title="${pct}% cheaper via ${label} ($${m.cheapest_gateway_price.toFixed(2)}/M vs $${m.input_cost_per_m.toFixed(2)}/M default). ${cheapestTooltip(m.cheapest_gateway)}">−${pct}% ${label}</span>`;
 }
 function priceSourceLabel(m) {
   // Which gateway's price is in input_cost_per_m / output_cost_per_m?
@@ -1276,7 +1296,7 @@ function refresh() {
         ${idLine}
       </td>
       <td class="cost" title="${priceSourceLabel(m)} — input cost">${fmtCost(m.input_cost_per_m, m)}${maybeCheaperBadge(m)}</td>
-      <td class="cost cheapest" title="${m.cheapest_gateway ? 'Cheapest via ' + m.cheapest_gateway + ' — ' + (m.cheapest_gateway === 'direct' ? 'primary route (OR / direct vendor)' : m.cheapest_gateway === 'kilo' ? 'Kilo Gateway (api.kilo.ai)' : m.cheapest_gateway === 'replicate' ? 'Replicate mirror' : m.cheapest_gateway === 'fal_ai' ? 'fal.ai mirror' : m.cheapest_gateway) : 'No cheapest-gateway data'}" style="${m.cheapest_gateway && m.cheapest_gateway !== 'direct' ? 'color:var(--good);font-weight:600' : ''}">${m.cheapest_gateway ? "<span class='gateway-name'>" + (m.cheapest_gateway === 'fal_ai' ? 'fal.ai' : m.cheapest_gateway) + "</span> " + fmtCost(m.cheapest_gateway_price, m) : _D}</td>
+      <td class="cost cheapest" title="${cheapestTooltip(m.cheapest_gateway)}" style="${m.cheapest_gateway && m.cheapest_gateway !== 'direct' ? 'color:var(--good);font-weight:600' : ''}">${m.cheapest_gateway ? "<span class='gateway-name'>" + cheapestLabel(m.cheapest_gateway) + "</span> " + fmtCost(m.cheapest_gateway_price, m) : _D}</td>
       <td class="cost" title="${priceSourceLabel(m)} — output cost">${(m.service_type && m.service_type !== "llm" && m.service_type !== "embedding") ? "<span style='color:var(--muted)' title='Not applicable — this service bills on a single axis (see Price column)'>n/a</span>" : fmtCost(m.output_cost_per_m, m)}</td>
       <td class="num">${m.context_window_k || _D}</td>
       <td class="num" title="${m.output_tokens_per_sec ? 'Throughput from Artificial Analysis (' + (m.speed_source || 'AA') + ')' : 'No throughput data'}">${m.output_tokens_per_sec != null ? m.output_tokens_per_sec.toFixed(0) + "<span class='unit-suffix'>tok/s</span>" : _D}</td>

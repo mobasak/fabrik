@@ -68,6 +68,8 @@ def derive_row(
     kilo_price: float | None = None,
     kilo_cache_read_price: float | None = None,
     direct_cache_read_price: float | None = None,
+    cheapest_provider: str | None = None,
+    cheapest_provider_price: float | None = None,
 ) -> tuple[str | None, float | None]:
     """Pure function: pick cheapest gateway+price for a single row.
 
@@ -90,8 +92,26 @@ def derive_row(
         # Pass 1 Finding B: no canonical unit on the row → no safe comparison.
         return None, None
     candidates: list[tuple[str, float]] = []
+    # OR endpoint provider first — when present and priced at-or-below the
+    # `direct` (OR headline) price, it's strictly more useful than the
+    # label "direct" because the operator can PIN their API call to it via
+    # `provider.only=["DeepInfra"]`. OR's headline `input_cost_per_m` is
+    # already the min-provider price on most models, so the two prices
+    # tie — but "direct" tells the user nothing actionable while
+    # "DeepInfra" tells them exactly which endpoint carries that price.
+    # Added FIRST in the candidate list so a stable sort makes it win any
+    # tie with the (later-appended) "direct" entry.
+    or_provider_present = (
+        cheapest_provider and cheapest_provider_price is not None and cheapest_provider_price > 0
+    )
+    if or_provider_present:
+        candidates.append((f"or:{cheapest_provider}", cheapest_provider_price))
     if direct_price is not None and direct_price > 0:
-        candidates.append(("direct", direct_price))
+        # Skip the generic "direct" label when we already have the specific
+        # provider name at the same or better price — no reason to surface
+        # the less-informative label.
+        if not (or_provider_present and cheapest_provider_price <= direct_price + 0.005):
+            candidates.append(("direct", direct_price))
     # Kilo Gateway: same-unit by construction (Kilo prices are always M-tokens
     # for LLMs — Kilo-only STT/TTS/etc. rows don't have kilo_input_cost_per_m
     # set). Include only if meaningfully different from direct so we don't
@@ -139,10 +159,19 @@ def run(db_path: Path = DB_PATH) -> dict[str, int]:
         # Pass 2 Finding F4: explicit transaction for atomicity.
         conn.execute("BEGIN")
         rows = conn.execute(
-            "SELECT id, gateway_prices, input_cost_per_m, pricing_unit, kilo_input_cost_per_m "
+            "SELECT id, gateway_prices, input_cost_per_m, pricing_unit, "
+            "kilo_input_cost_per_m, cheapest_provider, cheapest_provider_price "
             "FROM agents WHERE status = 'active'"
         ).fetchall()
-        for agent_id, gp_json, direct_price, direct_unit, kilo_price in rows:
+        for (
+            agent_id,
+            gp_json,
+            direct_price,
+            direct_unit,
+            kilo_price,
+            cheapest_provider,
+            cheapest_provider_price,
+        ) in rows:
             # Every active row gets a `cheapest_gateway` value. Priority:
             #   1. Rows with mirror data (gateway_prices JSON): compare all
             #      candidates, pick the winner.
@@ -176,7 +205,12 @@ def run(db_path: Path = DB_PATH) -> dict[str, int]:
                 counts["rows_no_unit"] += 1
                 continue
             winner_name, winner_price = derive_row(
-                gp_json, direct_price, direct_unit, kilo_price=kilo_price
+                gp_json,
+                direct_price,
+                direct_unit,
+                kilo_price=kilo_price,
+                cheapest_provider=cheapest_provider,
+                cheapest_provider_price=cheapest_provider_price,
             )
             conn.execute(
                 "UPDATE agents SET cheapest_gateway = ?, cheapest_gateway_price = ? WHERE id = ?",
