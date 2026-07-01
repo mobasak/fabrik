@@ -1,6 +1,6 @@
 # AGENTS.md — Fabrik Identity & Knowledge (Traycer)
 
-**Last Updated:** 2026-06-18
+**Last Updated:** 2026-07-01
 **Read by:** Traycer (ticket planning) **and any agent planning or making non-trivial changes directly** (Claude Code / Cascade / Kilo). This is the canonical infra + codebase map — a direct agent must ground its plan in it the same way Traycer does, not guess. Coding agents still bootstrap from their compact contract (below) but consult this file before planning.
 **Coding agents:** Claude Code reads `CLAUDE.md`; Windsurf Cascade reads `.windsurfrules` (the file at repo root, NOT the `.windsurf/` directory); Kilo CLI reads `AGENTS-compact.md` (via `opencode.json` `instructions:` array). These four files are siblings — Traycer's planner brief, plus one bootstrap per coding agent.
 **Deployment references (canonical):** [`docs/DEPLOYMENT_ARCHITECTURE.md`](docs/DEPLOYMENT_ARCHITECTURE.md) — code-level map of every file on the deploy path · [`docs/operations/deployment.md`](docs/operations/deployment.md) — procedures (apply/redeploy/destroy) · [`docs/operations/fabrik-lifecycle.md`](docs/operations/fabrik-lifecycle.md) — runtime behavior & data safety · [`docs/infrastructure/vps-complete-inventory.md`](docs/infrastructure/vps-complete-inventory.md) — canonical live-state inventory of every container, port, and mesh IP across the 3-host fleet. Supersede any narrative pasted into individual tickets.
@@ -14,28 +14,28 @@
 | #   | Layer                 | Component                                                                                    | Purpose                                                                                                                                                                                                                |
 | --- | --------------------- | -------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 1   | **CLI**               | `fabrik` (40+ subcommands)                                                                   | scaffold, apply (single deploy entry — `deploy` removed/folded in), redeploy, destroy, verify, audit, dev, review, logs, domain, seo, ai                                                                                |
-| 2   | **Scaffolding**       | `scaffold.py`                                                                                | Creates projects with governance + infra wiring (11 types)                                                                                                                                                             |
+| 2   | **Scaffolding**       | `scaffold.py`                                                                                | Creates projects with governance + infra wiring (12 types)                                                                                                                                                             |
 | 3   | **Planning**          | mega-epic-breakdown (5 commands: 00-trigger, 02-05)                                          | Large vision → epics → tickets → dispatch. `00-trigger` is a single entry point serving both new and existing projects via owner-declared mode (Step 0).                                                                |
 | 4   | **Planning**          | epic-to-ticket-workflow (00-11)                                                                          | Single-epic planning + execution. Also the execution engine per epic after mega-epic dispatch.                                                                                                                          |
 | 5   | **Governance**        | `AGENTS.md` / `CLAUDE.md` / `.windsurfrules` / `AGENTS-compact.md` / `opencode.json`        | Agent bootstraps (5 files)                                                                                                                                                                                             |
-| 6   | **Rules**             | `.windsurf/rules/**/*.md`                                                                    | 38 domain discipline packs (27 `core/` · 4 `saas/` · 5 `mobile-app/` · 1 `chrome-ext/` · 1 `desktop-app/`)                                                                                                              |
-| 7   | **Enforcement**       | `final_gate.py` + 34 checks in `enforcement/`                                               | Task completion + structural validation                                                                                                                                                                                |
+| 6   | **Rules**             | `.windsurf/rules/**/*.md`                                                                    | 49 packs (27 `core/` · 4 `saas/` · 5 `mobile-app/` · 1 `chrome-ext/` · 1 `desktop-app/` · 11 `ai/`)                                                                                                              |
+| 7   | **Enforcement**       | `final_gate.py` + 39 checks in `enforcement/`                                               | Task completion + structural validation                                                                                                                                                                                |
 | 8   | **Dispatch**          | `kilo_dispatch.py` + kilo pipeline (15 scripts)                                              | Agent routing, model selection, benchmarks                                                                                                                                                                             |
 | 9   | **Sync**              | `sync_enforcement_to_projects.py`                                                            | Pushes governance to all projects. These files are **centrally managed** (canonical list: `/opt/fabrik/scripts/fabrik_synced_manifest.py`) — never plan tickets that edit a synced copy in a project; it's overwritten on the next sync (gate-enforced by `scripts/enforcement/check_synced_unmodified.py`). Changes go upstream in `/opt/fabrik`, and ONLY if correct for ALL projects.                                                                                                                                                                                      |
 | 9a  | **Sync Scripts**      | `scripts/consolidate_envs.py.deprecated` (DEPRECATED — not active)                           | Was: merge all `/opt/*` project `.env` files into `/opt/fabrik/.env` with project-scoped sections. Retired; do not plan around it                                                                                     |
 | 9b  | **Sync Scripts**      | `scripts/sync_projects.py`                                                                   | `project.yaml` from every `/opt/*` project → merged into `data/projects.yaml` + updates `BUSINESS_MODEL.md`                                                                                                           |
 | 10  | **Specs**             | `specs/services/<id>.yaml`                                                                   | Shape contract → registrars                                                                                                                                                                                            |
-| 11  | **Orchestrator**      | `src/fabrik/orchestrator/` (9 registrars + 29 drivers)                                      | postgres/redis/gatus/backrest/glitchtip/grafana/authelia/meilisearch/prometheus. Active deployer: `deployer_ssh.py`; archived: `deployer_coolify.py` + `coolify_alias.py` (off the active path, kept for reference) |
+| 11  | **Orchestrator**      | `src/fabrik/orchestrator/` (10 registrars incl. opt-in `watchdog` + 27 drivers)                                      | postgres/redis/gatus/backrest/glitchtip/grafana/authelia/meilisearch/prometheus/watchdog. Active deployer: `deployer_ssh.py`; archived: `deployer_coolify.py` + `coolify_alias.py` (off the active path, kept for reference) |
 | 12  | **AI Sysadmin**       | `scripts/sysadmin/` — `bot.py` (Telegram FastAPI), `proactive-check.sh` (every 15 min via cron), `daily-digest.sh` (09:XX UTC hash-slotted), `morning-report.sh`, `weekly-security.sh`, `weekly-maintenance.sh`, `monthly-backup-verify.sh`, `detect_reversals.py` (`*/5 min`), `send-telegram.sh`, `system-prompt.txt` | **Deployed on ALL 3 hosts** (vps1 hub + vps2 + vps3 spokes). Telegram ↔ Claude Code on each host; on-host `aro-wake.service` (FastAPI :8201 with `/metrics`). Proactive checks now include Authelia + GlitchTip + GlitchTip-worker probes (2026-06-17). System prompt instructs LESSONS_LEARNT.md consultation (75+ incidents, ~250KB) before deciding fixes. Peer protocol `consult` verb LIVE since 2026-06-06 (loop-prevention guards: trace_id dedup, hop cap, forward intersection, storm breaker). Stage 2 hourly rate-limited. |
 | 13  | **VPS Infra**         | Hub: ~31 services (vps1) · Spokes: 5 each (vps2, vps3)                                       | **Hub (vps1)** — Traefik (standalone proxy on 80/443), PG (postgres-main), Redis (redis-main), Gatus, GlitchTip (web + worker), Grafana, Prometheus, Loki, Alertmanager, n8n, Apprise, Authelia, MeiliSearch, Backrest, Gotenberg, Browserless, cAdvisor, node-exporter, postgres-exporter, redis-exporter, Pushgateway, Promtail, watchdog-test + sidecar, aro-wake, vps-sysadmin-bot, plus shared infra exposed on `10.99.0.1:<port>` for mesh access. **Spokes (vps2, vps3)** — Traefik (public TLS for `*.vpsN.ocoron.com`), node-exporter, cadvisor, promtail, aro-wake. (Coolify fully decommissioned 2026-05-30; Docker network renamed `coolify` → `fabrik` on 2026-05-31. `fabrik apply` now rejects any compose still declaring the `coolify` network.) |
-| 14  | **Microservices**     | site-provisioner (live); others retired/not-deployed                                         | **Live:** site-provisioner (`dns.vps1.ocoron.com`). **Retired / not deployed (no container, no router):** Captcha, Translator, Proxy, File API, Image Broker, Email Gateway, File Worker — code may exist but none are running on the fleet                                                                                            |
+| 14  | **Microservices**     | site-provisioner (live); others retired/not-deployed                                         | **Live:** site-provisioner (`provision.vps1.ocoron.com`). **Retired / not deployed (no container, no router):** Captcha, Translator, Proxy, File API, Image Broker, Email Gateway, File Worker — code may exist but none are running on the fleet                                                                                            |
 | 15  | **Alerting**          | Prometheus → Alertmanager → Telegram (native `telegram_configs`) + Gatus → Apprise → Telegram | Multi-path alerting chain. Pushgateway-fed `fabrik_audit_drift_total{spec_id,registrar}` gauge has its own alert + Telegram route                                                                                       |
 | 16  | **VPS Daemons**       | `vps-sysadmin-bot.service` + `aro-wake.service` (per host), iptables-docker-user persistence | Systemd services. **Removed 2026-06-xx:** `coolify-alias-watcher.service` + `/opt/coolify-alias-watcher/` — obsolete under stable `container_name:` from compose; the watcher is no longer loaded and the directory is gone. |
 | 17  | **Cron/Scheduled**    | Hourly drift audit, daily morning report, weekly security/maintenance, monthly backup verify | Automated ops                                                                                                                                                                                                          |
-| 18  | **WSL Startup**       | `wsl_startup_hook.sh` (6-step pipeline)                                                     | Env watcher, registry sync, health summary, Kilo agent refresh                                                                                                                                                         |
+| 18  | **WSL Startup**       | `wsl_startup_hook.sh` (8-step pipeline)                                                     | Env watcher, registry sync, health summary, Kilo agent refresh                                                                                                                                                         |
 | 19  | **Local LLM**         | 4 Ollama agents (coder/reviewer/fixer/docs)                                                  | Offline AI for quick tasks                                                                                                                                                                                             |
 | 20  | **Background Runner** | `rund/runc/runwait/runlast/runls/runtail/runk`                                               | Non-blocking long command execution                                                                                                                                                                                    |
-| 21  | **Shared Code**       | `/opt/fabrik-lib/` — 18 vendorable modules (copy, don't import)                             | Reusable modules graduated from projects; see `/opt/fabrik-lib/README.md` for full table + which-module-do-I-need matrix                                                                                               |
+| 21  | **Shared Code**       | `/opt/fabrik-lib/` — 47 vendorable modules (copy, don't import)                             | Reusable modules graduated from projects; see `/opt/fabrik-lib/README.md` for full table + which-module-do-I-need matrix                                                                                               |
 | 22  | **VPS Audits**        | 7 audit scripts (system/health/security/performance/observability/backup/hardening)          | Deep VPS inspection                                                                                                                                                                                                    |
 
 ---
@@ -109,7 +109,7 @@ Traycer plans against `AGENTS.md`. Agent-execution contracts, rule packs, and wo
 
 - **Dev:** WSL Ubuntu 24.04 on Windows. IDE: Windsurf (Cascade) + Kilo CLI + Claude Code + Local LLM agents.
 - **VPS Fleet (3 hosts):**
-  - **vps1 (hub, LA)** — `172.93.160.197` (Hivelocity) · x86_64 Ubuntu · AMD EPYC-Genoa, 6 vCPU, 12 GB RAM. Runs all shared infra + ~31 containers.
+  - **vps1 (hub, LA)** — `172.93.160.197` (Hivelocity) · x86_64 Ubuntu · AMD EPYC-Genoa, 6 vCPU, 11.6 GB RAM. Runs all shared infra + ~31 containers.
   - **vps2 (spoke, Coventry UK)** — `96.9.214.128` · 5 containers (Traefik + monitoring agents only).
   - **vps3 (spoke, Coventry UK)** — `104.128.190.151` · 5 containers (same as vps2).
   - **Mesh:** WireGuard `10.99.0.0/24` (UDP 51820, MTU 1420, hub-and-spoke). Cross-Atlantic RTT 133–134 ms, 0% loss. Shared infra (postgres-main, redis-main, glitchtip, authelia, loki) is bound on the hub at `10.99.0.1:<port>` so spokes can reach it.
@@ -117,7 +117,7 @@ Traycer plans against `AGENTS.md`. Agent-execution contracts, rule packs, and wo
 - **Deploy:** SSH + Docker Compose, direct to VPS — no intermediary platform. Single entry point: `fabrik apply <spec>` (spec-driven; `fabrik deploy` removed — folded into apply). Source types: git / template / docker / local. Tenant routing: spec declares target host (default: hub). Full reference: `docs/DEPLOYMENT_ARCHITECTURE.md` + `docs/operations/deployment.md`.
 - **DB:** PostgreSQL on hub (`postgres-main` container, default) · Supabase (managed auth / realtime / pgvector when needed). Connection strings use Docker DNS on the hub (`postgres-main:5432`, `redis-main:6379`), never `localhost`. From spokes: use the mesh IP `10.99.0.1:5432` / `10.99.0.1:6379` (verified cross-host reachable).
 - **Proxy:** Traefik runs on every host (standalone compose stacks). Hub at `/opt/traefik/` routes `*.vps1.ocoron.com` + `ocoron.com`. Spokes each run their own Traefik for `*.vpsN.ocoron.com` with `authelia-vps1@file` middleware (forward-auth → `http://10.99.0.1:9091/api/verify`) for tenant admin routes. Let's Encrypt on all 3.
-- **Domains:** Domain registration + DNS + Cloudflare zone provisioning automated through site-provisioner (`dns.vps1.ocoron.com`). Implementation: `docs/reference/service-contracts/site-provisioner.md`. The `fabrik domain` CLI is the single entry point.
+- **Domains:** Domain registration + DNS + Cloudflare zone provisioning automated through site-provisioner (`provision.vps1.ocoron.com`). Implementation: `docs/reference/service-contracts/site-provisioner.md`. The `fabrik domain` CLI is the single entry point.
 - **Monitoring:** Gatus · Grafana · Prometheus · Alertmanager · Loki (+ node-exporter / cAdvisor / promtail / aro-wake) — hub stack under `/opt/monitoring/`. Spokes run agents only (node-exporter on `:9100`, cadvisor on `:8080`, promtail on `:9080`, aro-wake on `:8201`) — bound to `10.99.0.x` (wg0 only, NOT publicly exposed). Hub Prometheus federates spoke jobs via wg0 (`node-spokes`, `cadvisor-spokes`, `promtail-spokes` — 6 spoke targets total, all `up`). Hub-Grafana queries the federated time-series with `host` + `role` labels. (Netdata removed 2026-05-30.)
 
 ### Local LLM Agents
@@ -177,7 +177,7 @@ kebab-case. Exceptions: `README.md`, `CHANGELOG.md`, `INDEX.md`, `PORTS.md`, `AG
 
 ### Resource limits on every service
 
-Every compose service MUST declare `deploy.resources.limits.memory` to prevent OOM on the shared 12 GB VPS. This is enforced at deploy time by `deployer_ssh._validate_compose()` (fatal — blocks the deploy if missing) for template/docker sources, and warned by `compose_linter.lint()`. Scaffolded compose files emit it automatically; hand-written or git-sourced composes must declare it themselves.
+Every compose service MUST declare `deploy.resources.limits.memory` to prevent OOM on the shared 12 GB VPS. This is enforced at deploy time by `deployer_ssh._validate_compose()` (fatal — blocks the deploy if missing) for template/docker sources. (`compose_linter.lint()` warns on missing `container_name` / `restart` / DB-without-healthcheck — the memory-limit check lives only in `_validate_compose()`.) Scaffolded compose files emit it automatically; hand-written or git-sourced composes must declare it themselves.
 
 ## Observability & Alerting
 
@@ -190,8 +190,8 @@ Prometheus (rules) → Alertmanager → Telegram (native telegram_configs)
 ```
 
 > Alertmanager uses its native `telegram_configs` receiver (same bot as Apprise).
-> ARO Brain (LLM alert triage) is planned; when it ships, it will be added as a new
-> receiver routed BEFORE `telegram` with telegram as the fallback route.
+> ARO Brain (LLM alert triage) is LIVE (fleet-wide since 2026-06-06): the `aro-wake-routed`
+> receiver is routed BEFORE `telegram` (`continue: true`), with telegram as the fallback route.
 > Apprise's stateless `/notify` endpoint does NOT accept Alertmanager's webhook
 > schema — do not point AM at it.
 
@@ -205,9 +205,9 @@ Authelia 2FA codes → filesystem (/config/notification.txt)
 
 > Authelia SMTP is disabled (SES port 465 failed). Codes are written to a file; users grab them via `docker exec`.
 
-### Alert Rules (10 total)
+### Alert Rules (13 total, across 2 rule files)
 
-Source: `configs/prometheus/rules/alerts.yml`.
+Source: `configs/prometheus/rules/alerts.yml` (12 rules) + `configs/prometheus/rules/fabrik-drift.yml` (1 rule).
 
 | Alert | Severity | Threshold | For |
 |---|---|---|---|
@@ -221,6 +221,9 @@ Source: `configs/prometheus/rules/alerts.yml`.
 | HostHighMemory | critical | >90% | 5m |
 | HostDiskFull | critical | >85% | 5m |
 | ServiceUnhealthy | critical | target down | 2m |
+| AroWakeLowSuccessRate | warning | aro-wake fix success rate low | 15m |
+| AroWakeCostBurnHigh | warning | aro-wake LLM cost burn high | 10m |
+| FabrikRegistrarDrift | warning | any registrar drift (`fabrik_audit_drift_total > 0`; in `fabrik-drift.yml`) | 10m |
 
 ### Key config files (local mirror in Fabrik `configs/`)
 
@@ -262,7 +265,7 @@ Source: `configs/prometheus/rules/alerts.yml`.
 
 | Service | Port (reserved) | Status | Purpose |
 |---|---|---|---|
-| DNS Manager (site-provisioner) | 18014 | **LIVE** (`dns.vps1.ocoron.com`) | Domain registration, DNS (Namecheap / Cloudflare), SSL, CDN, analytics (GA4 / GSC), webmaster tools |
+| DNS Manager (site-provisioner) | 18014 | **LIVE** (`provision.vps1.ocoron.com`) | Domain registration, DNS (Namecheap / Cloudflare), SSL, CDN, analytics (GA4 / GSC), webmaster tools |
 | Captcha | 18011 | retired / not deployed | Anti-Captcha solving |
 | Translator | 18012 | retired / not deployed | DeepL + Azure translation |
 | Proxy | 18013 | retired / not deployed | Webshare.io proxy management |
@@ -273,7 +276,7 @@ Source: `configs/prometheus/rules/alerts.yml`.
 
 ### DNS Manager — Key Capabilities
 
-DNS Manager (`dns.vps1.ocoron.com`) is the single gateway for all domain / DNS / provisioning operations. Fabrik calls it via the `fabrik domain` CLI or the `DNSClient` driver.
+DNS Manager (`provision.vps1.ocoron.com`) is the single gateway for all domain / DNS / provisioning operations. Fabrik calls it via the `fabrik domain` CLI or the `DNSClient` driver.
 
 | Workflow | CLI | Endpoint |
 |---|---|---|
@@ -339,7 +342,7 @@ Before creating any plan, verify:
 
 Traycer injects rule-pack guidance into coding-agent execution prompts based on `project.yaml::type` + ticket scope. Coding agents do NOT self-select packs.
 
-### Pack Registry (38 packs in `.windsurf/rules/**/*.md`)
+### Pack Registry (38 scaffold/type packs listed below; the `ai/` folder adds 11 more → 49 total in `.windsurf/rules/**/*.md`)
 
 Organized by folder:
 
@@ -516,15 +519,15 @@ Canonical entry point: `fabrik scaffold <name> --type <type>`. Creates the proje
 | Type | Template | Stack | shape.kind | shape flags (true only) |
 |---|---|---|---|---|
 | python-api | `templates/scaffold/` | FastAPI + Uvicorn + Docker | service | is_public, exposes_metrics |
-| saas-skeleton | `templates/saas-skeleton/` | Next.js 15 + React 19 + TypeScript + Tailwind | service | is_public, has_persistent_data, needs_database |
+| saas-skeleton | `templates/saas-skeleton/` | Next.js 15 + React 19 + TypeScript + Tailwind | service | is_public, has_bearer_api, has_persistent_data, needs_database, needs_cache, exposes_metrics |
 | node-api | `templates/node-api/` | Node.js API + Docker | service | is_public, exposes_metrics |
 | file-api | `templates/file-api/` | File operations API | service | is_public, has_persistent_data |
 | file-worker | `templates/file-worker/` | Background file worker | worker | has_persistent_data |
 | wordpress | **scaffold path retired 2026-06-17** (commit `ef27a2c`) — `fabrik scaffold --type wordpress` now redirects to the standalone `/opt/wpf` project (use `wpf new <name>` instead). `wordpress` remains a recognised deploy/shape **type** (`Kind.WORDPRESS`, rule-pack mapping, registrar applicability) — only the Fabrik-side template/scaffolder is gone. | WordPress + WP-CLI (via `wpf`) | wordpress | is_public, has_persistent_data, needs_database |
 | docusaurus | `templates/docusaurus/` | Documentation site | static | is_public |
-| chrome-extension | `templates/chrome-extension/` | Chrome extension + Python backend | static | (none — CRX, not VPS-deployed) |
-| mobile-app | `templates/mobile-app/` | React Native | static | (none — distributed via app stores) |
-| desktop-app | `templates/desktop-app/` | Electron | static | (none — distributed as installer) |
+| chrome-extension | `templates/chrome-extension/` | Chrome extension + Python backend | service | (none true; Python backend deploys, CRX ships separately) |
+| mobile-app | `templates/mobile-app/` | React Native | service | (none true; companion backend deploys, app ships via stores) |
+| desktop-app | `templates/desktop-app/` | Electron | service | (none true; companion backend deploys, installer ships separately) |
 | static-site | `templates/saas-skeleton/` | Next.js / static HTML | static | is_public |
 
 > Each scaffold propagates `.windsurfrules`, `.windsurf/rules/` (with subdirectory structure: `core/`, `saas/`, `mobile-app/`, `chrome-ext/`), and `.windsurf/workflows/` to generated projects automatically.
@@ -572,7 +575,7 @@ Traycer plans against these rules but does NOT inline them into tickets — the 
 | Document | Path | Use When |
 |---|---|---|
 | Project Portfolio | `docs/BUSINESS_MODEL.md` | Full project list, statuses, duplicate-check |
-| AI Taxonomy | `docs/reference/AI_TAXONOMY.md` | Selecting AI tools / models for a ticket |
+| AI Capability Packs | `.windsurf/rules/ai/` (11 packs) | Selecting AI tools / models for a ticket |
 | Local LLM Infrastructure | `docs/reference/LOCAL_LLM_INFRASTRUCTURE.md` | Ollama setup, agent → model assignments |
 | Stack Decision Guide | `docs/reference/technology-stack-decision-guide.md` | Choosing tech stack for new project |
 | Prebuilt Containers | `docs/reference/prebuilt-app-containers.md` | Avoid writing custom code when a container exists |
