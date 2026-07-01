@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Cheapest-gateway UX now 100% coverage: 544/544 rows carry a resolvable Cheapest cell + has_reasoning scrub (2026-07-01)
+
+Operator: "be sure for all models in our db for this. all information should be correct and all should be seen as cheapest."
+
+Two coverage gaps closed + data audit executed:
+
+**1. `derive_cheapest_gateway` now includes free-tier rows.** Pre-fix the script skipped rows with `input_cost_per_m == 0` (57 free-tier variants) — their Cheapest cell rendered as em-dash which was ambiguous. Now free-tier rows get `cheapest_gateway='direct'` at `$0`, so the UI shows `direct free` explicitly.
+
+**2. Embedding models synthesized in `export_models_browser.py`.** The `embedding_models` table doesn't have a `cheapest_gateway` column, so the 26 rows there were rendering blank. Now the export step sets `cheapest_gateway='direct'` at the row's `input_cost_per_m` for every embedding — matches the reality that embeddings are always billed via the direct route.
+
+**Final coverage: 544/544** (518 active chat + 26 embedding) — every visible row on every tab now has a resolvable Cheapest cell.
+
+**3. Data-correctness audit via subagent.** Random sample of 40 rows × 4 independent passes = 160 rows cross-checked against OR live catalog for `name`, `input_cost_per_m`, `output_cost_per_m`, `context_window_k`, `has_vision`, `has_tools`, `has_reasoning`, `knowledge_cutoff`, `max_completion_tokens`. Result: **157/160 rows drift-free**. Three rows drifted on `has_reasoning`:
+
+  - `deepseek/deepseek-chat-v3-0324`: DB=1, live=0 (non-reasoning chat variant)
+  - `qwen/qwen3-235b-a22b-2507`: DB=1, live=0 (instruct variant, thinking sibling exists separately)
+  - `anthropic/claude-fable-5`: DB=0, live=1 (missing flag)
+
+Root cause: the verifier's discrepancy loop doesn't track `has_reasoning` — the field slipped through the daily correction because it's set at ingest time and never re-verified. **Fix**: one-off scrub across all `via_openrouter=1` rows using OR's live authority (matches the corrected signal from the audit: `reasoning.mandatory OR reasoning.supported_efforts OR 'reasoning' in supported_parameters OR 'include_reasoning' in supported_parameters`). 3 rows re-flagged. Subagent's estimate of 5-10 mis-flagged rows overshot slightly; catalog was cleaner than expected.
+
+**Subagent verdict on the broader catalog**: "materially clean. Prices, context windows, vision, tools, cutoff, max_completion_tokens all match across 160 samples." The 316-row verifier fix from earlier today held; no additional systemic drift.
+
 ### Added — Cheapest-gateway UX: Kilo added to derive + new browser column on all 9 tabs (2026-07-01)
 
 Operator: "a user should clearly and easily see where a model is cheapest… all tabs."

@@ -143,17 +143,37 @@ def run(db_path: Path = DB_PATH) -> dict[str, int]:
             "FROM agents WHERE status = 'active'"
         ).fetchall()
         for agent_id, gp_json, direct_price, direct_unit, kilo_price in rows:
-            # Every row with a real price + canonical unit gets `direct` as
-            # the trivial cheapest when no mirror data exists. Previously
-            # we skipped these rows entirely — the column showed "—" for
-            # ~96% of the catalog, which was confusing. Now Cheapest =
-            # min(direct, replicate, fal_ai, ...) and is always populated
-            # whenever the row has a direct price to begin with.
+            # Every active row gets a `cheapest_gateway` value. Priority:
+            #   1. Rows with mirror data (gateway_prices JSON): compare all
+            #      candidates, pick the winner.
+            #   2. Rows with a positive direct price and a canonical unit:
+            #      compare direct vs Kilo vs any mirrors.
+            #   3. Free-tier rows (direct_price == 0): explicit direct at $0
+            #      so the UI shows "direct free" — better than a blank cell.
+            #   4. Rows with no pricing unit: unresolvable — leave NULL.
             if gp_json:
                 counts["rows_with_gateways"] += 1
             elif direct_price and direct_price > 0 and direct_unit:
                 counts["rows_with_direct_only"] += 1
+            elif direct_price == 0 and direct_unit:
+                # Free tier — cheapest_gateway = direct at $0
+                counts.setdefault("rows_free", 0)
+                counts["rows_free"] += 1
+                conn.execute(
+                    "UPDATE agents SET cheapest_gateway = 'direct', "
+                    "cheapest_gateway_price = 0 WHERE id = ?",
+                    (agent_id,),
+                )
+                counts["winners_by_gateway"]["direct"] = (
+                    counts["winners_by_gateway"].get("direct", 0) + 1
+                )
+                continue
             else:
+                # No pricing unit at all — can't say anything cheapest-related.
+                # Leave NULL. The 231 sitemap-ingested rows fall here until
+                # OR exposes their pricing via /api/v1/models.
+                counts.setdefault("rows_no_unit", 0)
+                counts["rows_no_unit"] += 1
                 continue
             winner_name, winner_price = derive_row(
                 gp_json, direct_price, direct_unit, kilo_price=kilo_price

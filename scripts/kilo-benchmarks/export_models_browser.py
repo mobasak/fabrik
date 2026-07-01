@@ -86,6 +86,13 @@ def _fetch_embedding_models(conn: sqlite3.Connection) -> list[dict]:
     for m in models:
         m["embedding_pins"] = roles_by_model.get(m["id"], [])
         m["kind"] = "embedding"
+        # Synthesize `cheapest_gateway` for embeddings (the embedding_models
+        # table doesn't carry the column). Every priced embedding is
+        # `direct` at its input_cost_per_m; free embeddings map to direct $0.
+        price = m.get("input_cost_per_m")
+        if price is not None and price >= 0:
+            m["cheapest_gateway"] = "direct"
+            m["cheapest_gateway_price"] = float(price)
     return models
 
 
