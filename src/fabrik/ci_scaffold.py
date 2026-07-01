@@ -19,7 +19,7 @@ from dataclasses import dataclass, field
 
 # The plain URL CI uses — NOT `postgresql+asyncpg://…`. The driver is chosen by the
 # app at runtime; the test env var must be the bare libpq URL both here and in CI.
-TEST_DATABASE_URL = "postgresql://postgres:postgres@localhost:5432/postgres"
+TEST_DATABASE_URL = "postgresql://postgres:postgres@localhost:5432/postgres"  # noqa: throwaway CI/localhost container credential (postgres:postgres), not a real secret
 DEFAULT_TEST_CMD = "python -m pytest -q"
 _PG_PLAIN = "postgres:16"
 _PG_PGVECTOR = "pgvector/pgvector:pg16"  # postgres:16 + the vector extension
@@ -66,7 +66,7 @@ def render_ci_workflow(cfg: CiConfig) -> str:
             "          POSTGRES_PASSWORD: postgres",
             "        ports:",
             "          - 5432:5432",
-            '        options: >-',
+            "        options: >-",
             "          --health-cmd pg_isready --health-interval 10s"
             " --health-timeout 5s --health-retries 5",
             "    env:",
@@ -76,7 +76,7 @@ def render_ci_workflow(cfg: CiConfig) -> str:
         "    steps:",
         "      - uses: actions/checkout@v4",
         "      - uses: actions/setup-python@v5",
-        '        with:',
+        "        with:",
         '          python-version: "3.12"',
         "      - name: install",
         "        run: |",
@@ -100,7 +100,7 @@ def render_ci_workflow(cfg: CiConfig) -> str:
             "    steps:",
             "      - uses: actions/checkout@v4",
             "      - uses: actions/setup-node@v4",
-            '        with:',
+            "        with:",
             '          node-version: "20"',
             "      - run: npm ci",
             "      - run: npm run type-check --if-present",
@@ -119,10 +119,8 @@ def render_ci_local(cfg: CiConfig) -> str:
         "#!/usr/bin/env bash",
         "# fabrik-managed — regenerate via fabrik scaffold; keep in sync with"
         " .github/workflows/ci.yml.",
-        "# Local clean-room replica of CI: catches env drift (test-DB URL format,"
-        " shared-DB test",
-        "# pollution, missing PG extension) that the static final_gate cannot. Run before"
-        " pushing.",
+        "# Local clean-room replica of CI: catches env drift (test-DB URL format, shared-DB test",
+        "# pollution, missing PG extension) that the static final_gate cannot. Run before pushing.",
         "set -euo pipefail",
         'cd "$(dirname "$0")/.."',
         "",
