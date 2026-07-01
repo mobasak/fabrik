@@ -19,12 +19,12 @@ Read `expertise-pack/wpf-expertise-pack-spec-v3.md` + `.claude/skills/wpf-wordpr
 2. `AFCL.md`: read if exists; append friction as hit.
 3. Glob-matched packs in `.windsurf/rules/` auto-activate. Honour packs in the ticket's Context Files.
 4. **Only when PLANNING** (producing/revising a plan): read `AGENTS.md` (infra + codebase map); run `scripts/select_rules.py`; read every ACTIVE pack + any AVAILABLE pack matching the work (binding); ground every step in `path:line`. **Not planning?** Skip — applicable `.windsurf/rules` auto-activate by glob on edit.
-5. **Executing a plan** (`/execute-plan`): read the plan + its spec + `AGENTS.md` + all ACTIVE packs (`scripts/select_rules.py`) first. Those + `.windsurf/rules/`, `docs/`, `AFCL.md`, codebase grep are self-service sources — exhaust them all before escalating to a human.
+5. **Executing a plan:** read the plan + its spec + `AGENTS.md` + all ACTIVE packs (`scripts/select_rules.py`) first. Those + `.windsurf/rules/`, `docs/`, `AFCL.md`, codebase grep are self-service sources — exhaust them all before escalating to a human.
 
 ## Behavior
 - **Check before create:** file exists = STOP, ask.
 - **Present before execute:** plan → approval → execute. Read-only IDE calls (`read_file`, `grep_search`, `list_dir`, `find_references`) exempt.
-- **Plan-execution override:** executing a pre-approved plan (via `/execute-plan`) suspends *present-before-execute* + *no-commit-unless-said* **for the plan's scope** — the plan IS approval. Commit per phase (explicit paths only, never `git add -A`), run `/fabrik-review` at phase boundaries, fix autonomously, obey all other HARD STOPS. Stop only on: 3 consecutive same-test failures, missing infra, or an unresolvable spec contradiction — `BLOCKED: <what> — searched: <sources> — missing: <need>`.
+- **Plan-execution override:** executing a pre-approved plan suspends *present-before-execute* + *no-commit-unless-said* **for the plan's scope** — the plan IS approval. Commit per phase (explicit paths only, never `git add -A`), run the code-review workflow at phase boundaries, fix autonomously, obey all other HARD STOPS. Stop only on: 3 consecutive same-test failures, missing infra, or an unresolvable spec contradiction — `BLOCKED: <what> — searched: <sources> — missing: <need>`.
 - **NEVER `run_terminal_cmd` for `npm i`/`pytest`/`docker *`/`fabrik *`/builds/deploys/any cmd >10s** — Cascade hangs. Use `run_command` (all in `scripts/`): `rund -- <cmd>` → `runwait $(runlast) 60` → `runc $(runlast)`. Never one terminal. Doc: `docs/reference/long-command-monitoring.md`.
 - **Stay on task:** no unsolicited advice/commentary.
 - **Conflict:** rule pack > ticket. Surface conflict first.
@@ -56,6 +56,7 @@ Read `expertise-pack/wpf-expertise-pack-spec-v3.md` + `.claude/skills/wpf-wordpr
 | Files outside project tree | local project paths only |
 | Recreate `.venv` / replace existing Docker config | extend, don't replace |
 | `/tmp/` | project `.tmp/` |
+| new `.md` outside allowlist | root files · scaffold docs · `docs/development/plans/YYYY-MM-DD-plan-<n>.md` · `docs/reference/**/*.md` · `docs/archive/**` · `docs/superpowers/plans/**` · `docs/superpowers/specs/**` |
 
 Other technical hard stops (Alpine, raw `pip install`, port exposure, M2M `internal_auth.py`, kebab-case, port ranges) → packs.
 

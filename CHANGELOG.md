@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — governance follow-up: superpowers allowlist made functional; Kilo/Cascade command refs generalized (2026-07-01)
+
+Three corrections to the prior governance change. **(1) The superpowers allowlist was cosmetic** — the enforcement lives in `check_structure.py::VALID_DOCS_SUBDIRS` (which binds all tools via the gate), not the rule docs; added `superpowers` there so `docs/superpowers/**` is a valid subdir (no warning). **(2) Command refs** — `/execute-plan` + `/fabrik-review` are Claude Code slash-commands (`~/.claude/commands/`); Kilo/Cascade have their own workflows under different names, so those refs were generalized in `AGENTS-compact.md` + `.windsurfrules` ("a pre-approved plan" + "the code-review workflow at phase boundaries"); CLAUDE.md keeps the concrete names. **(3) `.md` allowlist parity** — added the allowlist row to `.windsurfrules` (Cascade was already bound by the gate; it just wasn't documented there). Re-synced to 38 projects.
+
 ### Changed — governance: plan-execution override + plan knowledge-hierarchy + superpowers .md allowlist (2026-07-01)
 
 Added an autonomous-plan-execution rule to all three ruleset files (`CLAUDE.md`, `AGENTS-compact.md`, `.windsurfrules`). **Behavior:** executing a pre-approved plan via `/execute-plan` suspends *present-before-execute* + *no-commit-unless-user-said-so* **for the plan's scope** (the plan is the approval) — commit per phase (explicit paths only, never `git add -A`), run `/fabrik-review` at phase boundaries, fix autonomously, obey all other HARD STOPS; stop only on 3 consecutive same-test failures / missing infra / unresolvable spec contradiction (`BLOCKED:` format). **Orient:** added a plan-execution knowledge-hierarchy item (read plan+spec+AGENTS.md+ACTIVE packs; exhaust self-service sources before escalating). **HARD STOPS:** expanded the `.md` allowlist with `docs/superpowers/plans/**` + `docs/superpowers/specs/**` (in `CLAUDE.md` + `AGENTS-compact.md`; `.windsurfrules` has no `.md`-allowlist row). Re-synced to 38 projects.

@@ -41,6 +41,7 @@ VALID_DOCS_SUBDIRS = {
     "operations",
     "development",
     "archive",
+    "superpowers",  # brainstorming/writing-plans skills save specs/ + plans/ here
 }
 
 # Directories that should not contain .md files directly
