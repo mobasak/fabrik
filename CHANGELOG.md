@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — verify_openrouter_catalog discrepancy loop now covers 7 more fields (Phase 1 richer-extraction columns) (2026-07-01)
+
+Prior to today the daily verifier only tracked drift on `input_cost_per_m`, `output_cost_per_m`, `context_window_k`, `has_vision`, `has_tools`, `name`. The Phase 1 richer-extraction fields (added earlier today) got populated at ingest time but were never re-checked — the audit caught 3 `has_reasoning` drifts because of this gap.
+
+Extended the drift-detection loop to also check:
+- `has_reasoning`
+- `knowledge_cutoff`
+- `max_completion_tokens`
+- `is_moderated`
+- `reasoning_mandatory`
+- `reasoning_supported_efforts`
+- `canonical_slug`
+
+**Immediate effect**: first run of the extended verifier caught **98 additional rows** with drift on one or more of the new fields — mostly `has_reasoning` (perplexity/sonar-reasoning-pro, qwen/qwen-plus-2025-07-28:thinking, qwen/qwen3-14b, etc.). All corrected in the same pass.
+
+**Ongoing**: future OR-side changes on these fields (Anthropic ships a new reasoning-effort level, OR updates a knowledge_cutoff, etc.) will now be caught by the nightly `daily_refresh.sh` run instead of accumulating until the next targeted scrub.
+
 ### Added — Undeclared-imports gate check: catch packages imported but declared in no manifest (2026-07-01)
 
 Closes the gap that broke trade-intelligence + youtube CI. `check_deps_sync` only compares `requirements.txt` ↔ `pyproject.toml` (manifest vs manifest) and is blind to what the code imports, so a package imported but listed in NEITHER manifest (e.g. `pydantic-settings`) passes the static gate — then a fresh `pip install -r requirements.txt` (CI's clean room, or a fresh `fabrik apply` deploy) crashes on import.
