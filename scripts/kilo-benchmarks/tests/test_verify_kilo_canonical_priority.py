@@ -103,7 +103,7 @@ def test_canonical_collision_picks_priced_prefixed_record(tmp_path, monkeypatch)
     db_path = _make_seed_db(tmp_path)
 
     # Patch _fetch_kilo + _fetch_live to return the fake data
-    monkeypatch.setattr(V, "_fetch_kilo", lambda: fake_kilo)
+    monkeypatch.setattr(verify_module, "_fetch_kilo", lambda: fake_kilo)
 
     def fake_or():
         # Serve the DB rows with a matching canonical_slug so canonical
@@ -141,7 +141,7 @@ def test_canonical_collision_picks_priced_prefixed_record(tmp_path, monkeypatch)
             },
         }
 
-    monkeypatch.setattr(V, "_fetch_live", fake_or)
+    monkeypatch.setattr(verify_module, "_fetch_live", fake_or)
 
     report = verify_module.verify(db_path)
 
