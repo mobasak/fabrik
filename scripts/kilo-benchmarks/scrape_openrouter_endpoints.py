@@ -64,7 +64,11 @@ def _fetch_endpoints(slug: str) -> dict | None:
             return {"data": {"id": slug, "endpoints": []}}
         _log(f"HTTP {e.code} for {slug}")
         return None
-    except (URLError, TimeoutError, json.JSONDecodeError) as e:
+    except (URLError, TimeoutError, json.JSONDecodeError, UnicodeDecodeError) as e:
+        # UnicodeDecodeError: OR normally returns UTF-8; a mangling proxy
+        # or edge case can send non-UTF-8 bytes. Without this catch the
+        # whole 340-row loop would crash mid-run, wasting rate-limit
+        # budget and leaving partial state. Log + skip is the right call.
         _log(f"error for {slug}: {type(e).__name__} {e}")
         return None
 
@@ -94,7 +98,16 @@ def _extract_cheapest(payload: dict) -> tuple[str | None, float | None, str | No
         if price_per_token <= 0:
             continue
         price_per_m = price_per_token * 1_000_000
-        provider = e.get("provider_name") or e.get("name") or ""
+        # OR's endpoint schema uses `provider_name` for the clean
+        # display name ("DeepInfra"). The bare `name` field is the full
+        # endpoint identifier ("DeepInfra | meta-llama/llama-3.3-70b-
+        # instruct") — useless as a provider label and misleading in the
+        # UI. If provider_name is missing (never observed in practice
+        # but defensive), skip the endpoint rather than fall back to a
+        # garbage label that then hits the DB and the browser.
+        provider = e.get("provider_name")
+        if not provider:
+            continue
         quant = pr.get("quantization") or e.get("quantization")
         candidates.append((price_per_m, provider, quant))
     if not candidates:

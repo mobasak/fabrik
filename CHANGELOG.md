@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — scrape/derive/UI: three findings from adversarial review pass on the cheapest-provider feature (2026-07-01)
+
+Ran a multi-pass adversarial review on this session's cheapest-inference-provider work (commits `135e5dc9`, `f4969e36`). Three findings surfaced, each reproduced with a runnable test then fixed:
+
+1. **`_extract_cheapest` provider-name fallback**: fell back from `provider_name` to `name` when `provider_name` was missing. OR's `name` field is the full endpoint identifier ("DeepInfra | meta-llama/llama-3.3-70b-instruct"), not the provider label — would surface garbage in the Cheapest column. Fix: drop the fallback, skip the endpoint if `provider_name` is absent. Regression test: `test_returns_none_when_provider_name_missing`.
+
+2. **XSS surface in `cheapestLabel`/`cheapestTooltip`**: label and tooltip strings originated from OR's `provider_name` and were interpolated raw into `innerHTML` and `title="..."` attributes in the Cheapest cell and cheaper-badge. Consistent with the rest of the template (line 1059 already escapes `m.provider`), wrapped both callsites with `escapeHtml()`. Neutralization verified end-to-end with `<img src=x onerror=alert(1)>` payload.
+
+3. **Missing `UnicodeDecodeError` in the network path**: `_fetch_endpoints` catches HTTPError/URLError/TimeoutError/JSONDecodeError but not UnicodeDecodeError from `resp.read().decode("utf-8")`. A mangling proxy or non-UTF-8 body would crash the 340-row loop mid-run, wasting rate-limit budget and leaving partial state. Fix: add to the except tuple. Regression test: `test_fetch_endpoints_handles_non_utf8_body` (monkeypatch injects invalid UTF-8 bytes).
+
+Verifier convergence: back-to-back `verify()` returns drift=0. Gate: success. Full pytest suite for the scraper: 7/7.
+
 ### Changed — Phase 3: un-gate the GlitchTip webhook reminder (ingest is now live) (2026-07-01)
 
 The `:8889` error_webhook ingest is built + deployed (fabrik-lib `main` `watchdog_sidecar/`, deploy-verified 2026-07-01) and Phase 2 pins such specs to vps1, so registering the webhook is now a real, working step. `glitchtip.webhook_registration_reminder` flips from the honest `NOTE [error_webhook PENDING]` (do-not-register) back to the actionable `ACTION REQUIRED: register GlitchTip webhook …`; `docs/operations/deployment.md` banner goes `PENDING → ✅ ACTIVE`; the 3 reminder tests assert the actionable text again. This closes the watchdog-error-webhook-ingest plan (Phase 1 fabrik-lib + Phases 2–3 fabrik-side all done).
