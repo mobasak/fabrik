@@ -674,11 +674,44 @@ def verify(db_path: Path = DB_PATH) -> dict:
     # When a Kilo ID's canonical matches an OR canonical, route the Kilo
     # pricing onto the CANONICAL (prefixed) row so the UI sees one
     # dual-routed model, not two split-only rows.
+    #
+    # Priority for canonical collisions (up to 3 Kilo records share a
+    # canonical: `<provider>/<name>`, `stealth/<name>`, bare `<name>`).
+    # Bug caught 2026-07-01: naive last-write-wins overwrote the real
+    # $5/$25 price for anthropic/claude-opus-4.8 with the bare-form
+    # `claude-opus-4-8` record which Kilo emits as $0/$0 (placeholder).
+    # Score records so the properly-prefixed, priced record wins:
+    #   +100  provider-prefixed id (contains "/")
+    #   +50   priced (input > 0 or output > 0)   — placeholders are $0/$0
+    #   -20   stealth/* prefix (beta discount preview, not the real price)
+    def _rec_priority(kid: str, k_in: float, k_out: float) -> int:
+        score = 0
+        if "/" in kid:
+            score += 100
+        if k_in > 0 or k_out > 0:
+            score += 50
+        if kid.startswith("stealth/"):
+            score -= 20
+        return score
+
+    # Also expose the priority-selected raw record per canonical so the
+    # richer-field capabilities pass in apply_fixes (family, provider_id,
+    # cache pricing) writes to the correct canonical DB row too. Without
+    # this, bare-form Kilo records like `claude-fable-5` UPDATE
+    # non-existent rows while the real `anthropic/claude-fable-5` DB row
+    # gets no update at all (kilo_family stays NULL).
     kilo_sourced: dict[str, dict] = {}
+    kilo_scores: dict[str, int] = {}
+    kilo_best_record: dict[str, dict] = {}
     for mid, rec in kilo.items():
         k_in, k_out = _kilo_pricing(rec)
         canonical_id = or_canonical_to_full.get(_canonicalize_id(mid), mid)
+        score = _rec_priority(mid, k_in, k_out)
+        if canonical_id in kilo_scores and kilo_scores[canonical_id] >= score:
+            continue
         kilo_sourced[canonical_id] = {"input": k_in, "output": k_out}
+        kilo_best_record[canonical_id] = rec
+        kilo_scores[canonical_id] = score
 
     # Recompute delisted: a row is truly delisted only if NEITHER the
     # OpenRouter nor the Kilo CLI catalog returns it AND the DB row is
@@ -757,6 +790,7 @@ def verify(db_path: Path = DB_PATH) -> dict:
         "kilo_only": kilo_only,
         "matched_clean": matched_clean,
         "kilo_sourced": kilo_sourced,
+        "kilo_best_record": kilo_best_record,
         "openrouter_sourced": list(live.keys()),
         "catalog_dupes": catalog_dupes,
     }
@@ -981,8 +1015,14 @@ def apply_fixes(report: dict, db_path: Path = DB_PATH) -> dict:
         # OR doesn't expose.
         kilo_descs_written = 0
         kilo_richer_rows = 0
-        kilo_raw = _fetch_kilo()
-        for mid, rec in kilo_raw.items():
+        # Use the priority-selected best record per canonical DB id
+        # (built in verify()). Iterating raw kilo_raw would attempt
+        # UPDATE agents WHERE id='claude-fable-5' — a bare-form Kilo id
+        # that has no DB row — while the real `anthropic/claude-fable-5`
+        # row would get no update because it's not a raw Kilo key.
+        # Bug caught 2026-07-01 by audit_ui_values.py Phase C.
+        kilo_best = report.get("kilo_best_record") or {}
+        for mid, rec in kilo_best.items():
             # Description: only fill if OR didn't.
             desc = _kilo_description(rec)
             if desc:

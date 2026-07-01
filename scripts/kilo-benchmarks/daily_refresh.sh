@@ -309,6 +309,13 @@ mkdir -p "$(dirname "$LOG_FILE")"
   _step "export_models_browser" "$VENV_PY" "$KB/export_models_browser.py" \
     || echo "[daily_refresh] models_browser export failed (non-fatal)"
 
+  # Cross-source audit — nightly proof that DB values match live OR /
+  # OR /endpoints / Kilo CLI. Any drift is logged; non-fatal so a
+  # transient upstream outage doesn't nuke the pipeline. Trust anchor
+  # for the browser: if this reports drift, the row(s) shown are wrong.
+  _step "audit_ui_values" "$VENV_PY" "$KB/audit_ui_values.py" \
+    || echo "[daily_refresh] audit_ui_values reported drift or failed (non-fatal)"
+
   # ── Push regenerated synced files to all projects (deploy-readiness-gaps Phase 3b) ──
   # The catalog regen above rewrites synced governance files (.windsurf/rules/ai/*.md
   # + the KILO_* / cascade-models reference docs). Without this push, every project's

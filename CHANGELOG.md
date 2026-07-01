@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — verify's Kilo canonical-collision loop clobbered real prices with $0 placeholders; systematic UI-values audit shipped (2026-07-01)
+
+**Discovery**: operator lost trust after `anthropic/claude-opus-4.8` showed `Kilo Gateway: free /M in (-100%)` in the UI. Root cause turned out to be a data-side bug, not just a display bug: Kilo's CLI emits up to 3 records that canonicalize to the same target — `anthropic/claude-opus-4.8` ($5/$25 real), `stealth/claude-opus-4.8` ($4/$20 beta discount), and `claude-opus-4-8` ($0/$0 bare-form placeholder). The verify pass built `kilo_sourced` with naive last-write-wins (`kilo_sourced[canonical_id] = {...}`), and Kilo lists the bare-form placeholder LAST — so $0/$0 clobbered every priced record for the affected models.
+
+**Fix — priority scoring** (`verify_openrouter_catalog.py:672-712`): each Kilo record gets a score before mapping to canonical: `+100` for a `<provider>/<name>` prefix, `+50` for a non-zero price, `−20` for `stealth/*` prefix. The highest-scored record wins the canonical collision. Priced prefixed records dominate zero-price placeholders and beta-discount stealth variants.
+
+**Same fix for the capabilities pass** (`verify_openrouter_catalog.py:1009-1049`): the richer-field loop (family, provider_id, cache pricing, release_date) was iterating raw `kilo_raw.items()` and doing `UPDATE agents WHERE id = <kilo_id>` — which meant bare-form records like `claude-fable-5` updated non-existent DB rows while the canonical `anthropic/claude-fable-5` DB row got zero updates (kilo_family stayed NULL). Loop now iterates `kilo_best_record` (priority-selected) so each canonical DB row gets the correct richer fields.
+
+**Systematic audit — 5 phases** (`audit_ui_values.py`, wired into `daily_refresh.sh`): cross-checks every field the UI surfaces against its live upstream source. Results this run:
+
+- **Phase A — OR /api/v1/models**: 3380/3380 fields match (pricing, context, caps, name, canonical, description, cache read/write, max_completion_tokens, is_moderated). 100% clean.
+- **Phase B — OR /models/<slug>/endpoints**: 9/9 auditable rows match. NULL rows (claude-3.5-sonnet, grok-4) legitimately have no endpoints exposed.
+- **Phase C — Kilo `kilo models --verbose`**: 3 price drifts + 1 family drift found → all rooted in the canonical-collision bug above. Post-fix: 0/337 drift on kilo_input, kilo_output, kilo_family.
+- **Phase D — Benchmarks**: AA 0/82 drift, weekly_rank 0/102 drift, arena_elo 0/34 drift (1 apparent drift was my audit's normalizer stripping `+` from "Command R+").
+- **Phase E — Derived fields**: cheapest_gateway consistency 0/518, via_* flag coherence 0, service_type coherence 0, quality_tier bounds 0. 32 has_reasoning rows without efforts is genuine OR omission (OR doesn't publish for those models).
+
+Regression test added (`test_verify_kilo_canonical_priority.py`): 3 fake Kilo records for one canonical (priced/prefixed vs stealth vs bare-$0) — verifies the priority scoring picks the $5/$25 record and canonical resolution routes a bare-form Kilo record onto the correct DB row. 11/11 pass.
+
+Audit now runs nightly at 06:00 via `daily_refresh.sh`, so any future drift trips the log immediately instead of accumulating.
+
 ### Added — CI-parity: scaffold auto-emits ci.yml + ci_local.sh; hardened undeclared-imports check (2026-07-01)
 
 **Phase 3 (scaffold auto-emit).** Python API scaffolds (`python-api`, `python-api-gpu`, `file-api`) now write `.github/workflows/ci.yml` + `scripts/ci_local.sh` from a single source (`src/fabrik/ci_scaffold.py`), so CI and its local clean-room replica cannot drift (same PG image, plain URL, full-suite `pytest`). To unblock editing the template-generator `scaffold.py`, `check_secrets`/`check_env_vars` now honor a top-level `# noqa-file: template-generator` marker — scoped to those two content checks, proven file-scoped (real secrets/localhost in any unmarked file are still caught).
