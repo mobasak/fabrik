@@ -61,6 +61,19 @@ Update matched docs in the SAME staged change. Skipping = task failure (gate-enf
 
 **Skip:** refactor/docs/test-only → `CHANGELOG.md` only.
 
+## AGENT PROVENANCE TRAILERS (every AI commit)
+Git can't tell agents apart — every commit shows the same user. Add trailers to the commit **body** (blank line first, above `Co-Authored-By:`) for attribution.
+
+| Trailer | Values | When |
+|---|---|---|
+| `Agent-Role` | `primary`/`orchestrator`/`subagent`/`review-fix` | every AI commit |
+| `Agent-Phase` | `A`,`B`,`C`… | plan execution |
+| `Agent-Task` | task # | subagent commits |
+| `Agent-Context` | what the agent did | every AI commit |
+| `Merged-From` / `Conflicts-Resolved` | branch list / count | orchestrator squash |
+
+Standalone (non-plan) work → `Agent-Role: primary` + `Agent-Context: <what you did>`. Plan execution roles + phase/task/merge trailers: `.claude/commands/execute-plan.md`. Query: `git log --grep='Agent-Role: subagent'`.
+
 ## CROSS-CUTTING
 1. **Structured logging** — JSON + correlation IDs. Use scaffolded logger at `src/{pkg}/logger.py` or `src/logger.js`. Never `print()`/`console.log()`. Never write a custom logger.
 2. **GlitchTip error reporting** — Scaffold-emitted (`glitchtip_init.{py,js}`). With `GLITCHTIP_DSN` set: unhandled errors auto-report. DO NOT also `logger.exception()` with full traceback (Loki dup). `capture_exception()` only for caught-then-rethrown control flow.
@@ -113,7 +126,7 @@ Update matched docs in the SAME staged change. Skipping = task failure (gate-enf
 ## HARD STOPS — NEVER
 | Rule | Instead |
 |:--|:--|
-| `git commit` / `git push` (unless user said so this turn) | gate auto-stages — task ends there |
+| `git commit` / `git push` (unless user said so this turn) | gate auto-stages — task ends there; any AI commit MUST carry Agent Provenance Trailers (§ above) |
 | `git add -A` / `git add .` / `git commit -a` · overwriting `CHANGELOG.md` `[Unreleased]` | Shared tree — multiple agents + the daily pipeline commit to one `master`. Stage explicit paths only (`git add <file>…`); `git diff --cached --name-only` before commit; never bundle files you didn't author. Append your entry atop `[Unreleased]` (don't reset the section). After the gate auto-stages on success, `git reset` then re-add only your files. |
 | edit outside ticket Scope | stay strict |
 | modify deps files (`pyproject.toml`/`requirements.txt`/`package.json`/`uv.lock`/`package-lock.json`) | only if ticket authorises |

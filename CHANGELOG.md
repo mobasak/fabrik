@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Agent Provenance Trailers convention across agent-governance files (2026-07-01)
+
+Git can't distinguish AI agents — every commit on the shared `master` is authored by the same user. Added a required commit-trailer convention so commits can be attributed post-hoc via `git log --format='%(trailers:key=Agent-Role)'`.
+
+- Trailers: `Agent-Role` (`primary`/`orchestrator`/`subagent`/`review-fix`), `Agent-Phase`, `Agent-Task`, `Agent-Context`, `Merged-From`, `Conflicts-Resolved` — placed in the commit body above `Co-Authored-By`.
+- `CLAUDE.md`: new §Agent Provenance Trailers after the Doc Sync Matrix; the `git commit`/`git push` HARD-STOP row now mandates trailers on every AI commit.
+- `AGENTS-compact.md`: compact mirror section + HARD-STOP row.
+- `.windsurf/rules/core/40-documentation.md`: mirror section after the Documentation Sync Matrix.
+- Standalone (non-plan) work uses `Agent-Role: primary`; `/execute-plan` (`.claude/commands/execute-plan.md`) remains the canonical source for the orchestrator/subagent/review-fix plan-execution extension.
+- Synced to all `/opt` projects via `sync_enforcement_to_projects.py`.
+
 ### Fixed — AA matcher improvements: added provider aliases, paren content preservation, noise-word expansion, token-set fallback (28% → 32% Speed coverage) (2026-07-01)
 
 Follow-on to the earlier Meta/Mistral fix. Enumerated all 47 AA-benchmark models that still weren't matching; ~15 were real matcher gaps.

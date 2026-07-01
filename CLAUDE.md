@@ -40,7 +40,7 @@ Skip: stdlib, syntax, Fabrik conventions.
 ## HARD STOPS — NEVER
 | Rule | Instead |
 |:--|:--|
-| `git commit` / `git push` (unless user said so this turn) | gate auto-stages — task ends there |
+| `git commit` / `git push` (unless user said so this turn) | gate auto-stages — task ends there; any AI commit MUST carry Agent Provenance Trailers (§ Agent Provenance Trailers) |
 | `git add -A` / `git add .` / `git commit -a` · overwriting `CHANGELOG.md` `[Unreleased]` | Shared tree — multiple agents + the daily pipeline commit to one `master`. Stage explicit paths only (`git add <file>…`); `git diff --cached --name-only` before commit; never bundle files you didn't author. Append your entry atop `[Unreleased]` (don't reset the section). After the gate auto-stages on success, `git reset` then re-add only your files. |
 | edit outside ticket Scope | stay strict |
 | modify deps files (`pyproject.toml`/`requirements.txt`/`package.json`/`uv.lock`/`package-lock.json`) | only if ticket authorises |
@@ -72,6 +72,29 @@ Skip: stdlib, syntax, Fabrik conventions.
 | Recurring symptom | `docs/TROUBLESHOOTING.md` |
 | Compose service added/removed | `docs/SERVICES.md` + `docs/OPERATIONS.md` |
 | Resilience pattern changed | `docs/RESILIENCE.md` |
+
+## Agent Provenance Trailers (required on all AI-authored commits)
+Git can't distinguish AI agents — every commit is authored by the same user. Trailers are the metadata layer for post-hoc attribution (`git log --format='%h %s %(trailers:key=Agent-Role)'`).
+
+| Trailer | Values | When |
+|---|---|---|
+| `Agent-Role` | `primary` · `orchestrator` · `subagent` · `review-fix` | every AI commit |
+| `Agent-Phase` | `A`, `B`, `C`, … | plan execution only |
+| `Agent-Task` | task number | subagent commits only |
+| `Agent-Context` | short description of what the agent did | every AI commit |
+| `Merged-From` | comma-separated branch list | orchestrator squash commits |
+| `Conflicts-Resolved` | count | orchestrator squash commits |
+
+Standalone work (not plan execution) → `Agent-Role: primary`. Trailers go in the commit **body** (blank line before them), above `Co-Authored-By`. Example:
+```
+fix(worker): handle OOM exit code -9 in poll_worker
+
+Agent-Role: primary
+Agent-Context: added OOM detection to _handle_crashed_job, triggers alert
+
+Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
+```
+Query: `git log --grep='Agent-Role: subagent'` · `git log --format='%h %(trailers:key=Conflicts-Resolved)'`. Plan execution extends this with `orchestrator`/`subagent`/`review-fix` roles + `Agent-Phase`/`Agent-Task`/`Merged-From` (see the execute-plan skill).
 
 ## Pointers (detail in packs)
 - **Backup secrets before edit** (`.env`, `*.key`, `*.pem`, `secrets/`, `.ssh/`) → `backups/` dir (gitignored).

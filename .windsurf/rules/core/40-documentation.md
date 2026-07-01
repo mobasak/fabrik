@@ -65,6 +65,34 @@ This matrix is the canonical source. `my-workflow/06-ticket-breakdown-command` i
 
 ---
 
+## Agent Provenance Trailers (required on all AI-authored commits)
+
+Git can't distinguish AI agents — every commit is authored by the same user. Trailers in the commit **body** are the attribution layer (`git log --format='%h %s %(trailers:key=Agent-Role)'`).
+
+| Trailer | Values | When |
+|---------|--------|------|
+| `Agent-Role` | `primary` · `orchestrator` · `subagent` · `review-fix` | every AI commit |
+| `Agent-Phase` | `A`, `B`, `C`, … | plan execution only |
+| `Agent-Task` | task number | subagent commits only |
+| `Agent-Context` | short description of what the agent did | every AI commit |
+| `Merged-From` | comma-separated branch list | orchestrator squash commits |
+| `Conflicts-Resolved` | count | orchestrator squash commits |
+
+Standalone work (not plan execution) → `Agent-Role: primary`. Trailers go below a blank line, above `Co-Authored-By`:
+
+```
+fix(worker): handle OOM exit code -9 in poll_worker
+
+Agent-Role: primary
+Agent-Context: added OOM detection to _handle_crashed_job, triggers alert
+
+Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
+```
+
+Plan execution extends this with `orchestrator`/`subagent`/`review-fix` roles + `Agent-Phase`/`Agent-Task`/`Merged-From`/`Conflicts-Resolved` — the `/execute-plan` command (`.claude/commands/execute-plan.md`) is the canonical source for that.
+
+---
+
 ## CHANGELOG.md
 
 **Update when:** Any change to code (`src/`, `scripts/`, `templates/`) or config (`Dockerfile`, `compose.yaml`, `.env.example`, `pyproject.toml`, `package.json`, `uv.lock`)
