@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — CI-parity: scaffold auto-emits ci.yml + ci_local.sh; hardened undeclared-imports check (2026-07-01)
+
+**Phase 3 (scaffold auto-emit).** Python API scaffolds (`python-api`, `python-api-gpu`, `file-api`) now write `.github/workflows/ci.yml` + `scripts/ci_local.sh` from a single source (`src/fabrik/ci_scaffold.py`), so CI and its local clean-room replica cannot drift (same PG image, plain URL, full-suite `pytest`). To unblock editing the template-generator `scaffold.py`, `check_secrets`/`check_env_vars` now honor a top-level `# noqa-file: template-generator` marker — scoped to those two content checks, proven file-scoped (real secrets/localhost in any unmarked file are still caught).
+
+**Adversarial-review hardening of `check_undeclared_imports.py`** (6 correctness fixes, each with a regression test): optional `try/except ImportError` imports no longer flagged; `-r` requirement includes now followed; multi-provider modules only flagged when no provider is declared; and the generated `ci_local.sh` got a bounded Postgres wait (was an unbounded `until` that could hang forever), venv-PATH test execution, and always-installed ruff.
+
 ### Fixed — cheapest-provider tie-break + Kilo "$0 = free" misread (2026-07-01)
 
 Two operator-reported bugs on the Overview tab, both fixed:
