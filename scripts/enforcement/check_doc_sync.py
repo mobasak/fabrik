@@ -12,7 +12,8 @@ Cascade post_cascade_response surfaces it, Kilo runs it as its mandated final st
 Severity:
 - ERROR (blocks): tight code↔doc links — CHANGELOG, CONFIGURATION, db/schema.sql.
 - WARN (advisory): fuzzy links — INDEX (file add/remove), QUICKSTART (API routes),
-  FEATURES (shape), PORTS (compose).
+  FEATURES (shape), PORTS (compose), SERVICES (compose), OPERATIONS (compose),
+  RESILIENCE (retry/backoff patterns).
 
 Consolidates: check_changelog, check_configuration_md, check_index_md (touch), and
 check_openapi_sync. Exit codes: 0 = pass (incl. warnings only); 1 = an ERROR violation.
@@ -46,6 +47,13 @@ ROUTE_PATTERNS = (
     r"@api_router\.(get|post|put|patch|delete|options|head)\s*\(",
 )
 CHANGELOG_ENTRY_RE = re.compile(r"###\s+(Added|Changed|Fixed|Removed|Security|Deprecated)")
+RESILIENCE_PATTERNS = (
+    r"\bretry\b",
+    r"\bbackoff\b",
+    r"\bcircuit.?breaker\b",
+    r"\bfallback\b",
+    r"\bmax_retries\b",
+)
 
 
 def _git(args: list[str]) -> list[str]:
@@ -202,11 +210,38 @@ def main() -> int:
     shape = [f for f in staged if f.startswith("specs/services/") and f.endswith(".yaml")]
     if shape and "docs/FEATURES.md" not in staged_set:
         warnings.append("Service shape/spec changed but docs/FEATURES.md not updated (check it).")
-    if (
-        any(Path(f).name in {"compose.yaml", "compose.yml"} for f in staged)
-        and "PORTS.md" not in staged_set
-    ):
+    compose_changed = any(Path(f).name in {"compose.yaml", "compose.yml"} for f in staged)
+    if compose_changed and "PORTS.md" not in staged_set:
         warnings.append("compose changed but PORTS.md not updated (update if a port changed).")
+    # SERVICES ← compose service added/removed (new worker, sidecar, etc.).
+    if compose_changed and "docs/SERVICES.md" not in staged_set:
+        warnings.append("compose service changed but docs/SERVICES.md not updated (check it).")
+    # OPERATIONS ← compose changed; ops runbooks track per-service procedures.
+    if compose_changed and "docs/OPERATIONS.md" not in staged_set:
+        warnings.append("compose changed but docs/OPERATIONS.md not updated (check runbooks).")
+
+    # RESILIENCE ← retry/backoff/circuit-breaker/fallback code changed. Inspect the
+    # STAGED DIFF (not the whole file) so pre-existing retry code doesn't false-positive.
+    resilience_touched = False
+    for f in staged:
+        if Path(f).suffix != ".py" or _skip(f):
+            continue
+        try:
+            diff_text = subprocess.run(
+                ["git", "diff", "--cached", "-U0", "--", f],
+                capture_output=True,
+                text=True,
+                timeout=20,
+            ).stdout
+        except (subprocess.SubprocessError, OSError):
+            continue
+        if any(re.search(p, diff_text, re.IGNORECASE) for p in RESILIENCE_PATTERNS):
+            resilience_touched = True
+            break
+    if resilience_touched and "docs/RESILIENCE.md" not in staged_set:
+        warnings.append(
+            "Retry/backoff/circuit-breaker code changed but docs/RESILIENCE.md not updated."
+        )
 
     for w in warnings:
         print(f"WARNING: {w}")

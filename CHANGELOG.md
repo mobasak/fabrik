@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — check_doc_sync: SERVICES/OPERATIONS/RESILIENCE coverage + Doc Sync Matrix rows (2026-07-01)
+
+Expanded the doc-sync gate from 6 to 9 mechanically-detectable triggers. `scripts/enforcement/check_doc_sync.py` gains three WARN rows (advisory, never block): **SERVICES.md** + **OPERATIONS.md** ← `compose.yaml`/`compose.yml` changed (hoisted the `compose_changed` var, now shared by PORTS/SERVICES/OPERATIONS), and **RESILIENCE.md** ← retry/backoff/circuit-breaker/fallback/`max_retries` touched (inspects the *staged diff*, `-U0`, not the whole file, so pre-existing retry code doesn't false-positive). Doc Sync Matrix rows added to `CLAUDE.md`, `AGENTS-compact.md`, and the Cascade pack `.windsurf/rules/core/40-documentation.md` (`.windsurfrules` carries no matrix — Cascade reads it from the pack). Deliberately NOT added (no diff signal): TROUBLESHOOTING (recurring symptom), LESSONS_LEARNT (Completion-Contract-enforced), BUSINESS_MODEL/STRATEGIC_BACKLOG (pure business). Verified: clean tree → exit 0; WARN-only → exit 0; ruff/mypy clean. Re-synced to projects.
+
 ### Fixed — governance follow-up: superpowers allowlist made functional; Kilo/Cascade command refs generalized (2026-07-01)
 
 Three corrections to the prior governance change. **(1) The superpowers allowlist was cosmetic** — the enforcement lives in `check_structure.py::VALID_DOCS_SUBDIRS` (which binds all tools via the gate), not the rule docs; added `superpowers` there so `docs/superpowers/**` is a valid subdir (no warning). **(2) Command refs** — `/execute-plan` + `/fabrik-review` are Claude Code slash-commands (`~/.claude/commands/`); Kilo/Cascade have their own workflows under different names, so those refs were generalized in `AGENTS-compact.md` + `.windsurfrules` ("a pre-approved plan" + "the code-review workflow at phase boundaries"); CLAUDE.md keeps the concrete names. **(3) `.md` allowlist parity** — added the allowlist row to `.windsurfrules` (Cascade was already bound by the gate; it just wasn't documented there). Re-synced to 38 projects.

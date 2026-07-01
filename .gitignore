@@ -157,3 +157,6 @@ state.json
 # the duration of the session, never committed to remote history.
 *.backup.*
 *.bak.*
+
+# Derived kilo pipeline cache — regenerated every run, never source
+scripts/kilo-benchmarks/cache/

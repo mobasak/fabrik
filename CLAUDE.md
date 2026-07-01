@@ -70,6 +70,8 @@ Skip: stdlib, syntax, Fabrik conventions.
 | Feature shipped | `docs/FEATURES.md` |
 | Schema migration | Alembic + `db/schema.sql` |
 | Recurring symptom | `docs/TROUBLESHOOTING.md` |
+| Compose service added/removed | `docs/SERVICES.md` + `docs/OPERATIONS.md` |
+| Resilience pattern changed | `docs/RESILIENCE.md` |
 
 ## Pointers (detail in packs)
 - **Backup secrets before edit** (`.env`, `*.key`, `*.pem`, `secrets/`, `.ssh/`) → `backups/` dir (gitignored).

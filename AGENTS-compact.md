@@ -49,6 +49,8 @@ Update matched docs in the SAME staged change. Skipping = task failure (gate-enf
 | API/SDK/CLI/integration changed | `docs/QUICKSTART.md` |
 | New port allocated | `PORTS.md` |
 | Recurring symptom | `docs/TROUBLESHOOTING.md` (Symptom/Cause/Fix) |
+| Compose service added/removed | `docs/SERVICES.md` + `docs/OPERATIONS.md` |
+| Resilience pattern changed | `docs/RESILIENCE.md` |
 | Feature shipped/deprecated | `docs/FEATURES.md` |
 | New plan | `docs/development/plans/YYYY-MM-DD-plan-<name>.md` |
 | Schema migration | Alembic + `db/schema.sql` |
