@@ -1511,9 +1511,80 @@ function openDetail(m, tr) {
       }
     }
   }
+  // Providers-on-OpenRouter block. Shows every endpoint OR knows about,
+  // with in-service status + price + who runs the inference. Cuts through
+  // the "cheapest = Google?? but this is a Claude model" confusion by
+  // showing the FULL provider list up front: if only Google is listed,
+  // Google is genuinely the only reseller of that specific model version
+  // on OR. If 6 endpoints are listed, the tie-break makes more sense.
+  let providersBlock = "";
+  if (m.endpoints_json) {
+    try {
+      const eps = JSON.parse(m.endpoints_json);
+      if (Array.isArray(eps) && eps.length > 0) {
+        // Sort: in-service first, then by price
+        const rows = eps.map(e => {
+          const st = typeof e.status === "number" ? e.status : parseInt(e.status || "0", 10);
+          const inService = !isNaN(st) && st >= 0;
+          const pr = e.pricing || {};
+          const priceRaw = pr.prompt ? parseFloat(pr.prompt) * 1_000_000 : null;
+          return {
+            provider: e.provider_name || e.name || "?",
+            inService,
+            status: st,
+            priceRaw,
+            quant: pr.quantization || e.quantization || null,
+            tag: e.tag || "",
+          };
+        });
+        rows.sort((a, b) => {
+          if (a.inService !== b.inService) return a.inService ? -1 : 1;
+          return (a.priceRaw || Infinity) - (b.priceRaw || Infinity);
+        });
+        const inSvc = rows.filter(r => r.inService).length;
+        const rowsHtml = rows.map(r => {
+          const isWinner = m.cheapest_provider && r.provider === m.cheapest_provider && r.inService;
+          const tick = r.inService
+            ? `<span style="color:var(--good)">✓</span>`
+            : `<span style="color:var(--warn)" title="OR reports status=${r.status} — out-of-service">✗</span>`;
+          const priceStr = r.priceRaw != null
+            ? `$${r.priceRaw.toFixed(3)}/M`
+            : `<span style="color:var(--muted)">?</span>`;
+          const quantStr = r.quant
+            ? `<span style="color:var(--muted);font-size:10px">${escapeHtml(r.quant)}</span>`
+            : "";
+          const winnerBadge = isWinner
+            ? `<span style="background:var(--good);color:#000;padding:0 4px;border-radius:2px;font-size:10px;font-weight:600" title="Cheapest in-service endpoint — winner of the Cheapest column">winner</span>`
+            : "";
+          const tagStr = r.tag
+            ? `<span style="color:var(--muted);font-size:10px">${escapeHtml(r.tag)}</span>`
+            : "";
+          return `<tr style="${!r.inService ? 'opacity:0.5' : ''}">
+            <td>${tick}</td>
+            <td style="font-weight:${isWinner ? '600' : '400'}">${escapeHtml(r.provider)}</td>
+            <td style="text-align:right">${priceStr}</td>
+            <td>${quantStr}</td>
+            <td>${tagStr}</td>
+            <td>${winnerBadge}</td>
+          </tr>`;
+        }).join("");
+        providersBlock = `<div style="font-size:12px;margin-bottom:14px;color:var(--muted);background:var(--panel2);padding:8px 10px;border-radius:4px;border-left:3px solid var(--accent)">
+          <strong style="color:var(--text)">Providers on OpenRouter</strong>
+          <span style="font-size:10px">— ${inSvc} of ${rows.length} in-service. OR routes your request to the winner (or one you pin via <code>provider.only=["Name"]</code>).</span>
+          <table style="width:100%;margin-top:6px;border-collapse:collapse;font-size:11px">
+            <thead style="color:var(--muted);text-align:left">
+              <tr><th style="width:20px"></th><th>Provider</th><th style="text-align:right">Price</th><th>Quant</th><th>Region/tag</th><th></th></tr>
+            </thead>
+            <tbody>${rowsHtml}</tbody>
+          </table>
+        </div>`;
+      }
+    } catch (e) { /* malformed endpoints_json — silently skip */ }
+  }
   body.innerHTML = `
     <h2>${escapeHtml(m.id)}<button class="copy-id-btn" data-copy="${escapeHtml(m.id)}" title="Copy id to clipboard">copy</button></h2>
     ${costSummary}
+    ${providersBlock}
     ${descBlock}
     ${staleBanner}
     <dl>${fields.join("")}</dl>

@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Detail-panel "Providers on OpenRouter" section — every endpoint OR knows about for a model, with status + price + quant + region tag (2026-07-01)
+
+Operator confusion: for `anthropic/claude-opus-4` the Cheapest column shows "Google $15.00/M" — factually correct (Google Vertex is the only in-service reseller of that specific Claude version on OR right now, since Anthropic themselves have moved on to 4.1/4.5/4.6/4.7/4.8) but visually alarming for an Anthropic-namespaced model.
+
+Fix: added a compact "Providers on OpenRouter" table to the model detail panel, populated from the row's stored `endpoints_json`. Shows:
+- **Provider name** (Google, Anthropic, Amazon Bedrock, DeepInfra, etc.)
+- **In-service tick** (✓ / ✗ with tooltip explaining OR's negative status codes)
+- **$/M price** per provider — because different endpoints can charge different rates on the same model
+- **Quantization** (fp8, bf16, fp16, unknown)
+- **Region/tag** (google-vertex/global, anthropic/2, amazon-bedrock/us, etc.) — clarifies why 6 rows for one model
+- **`winner` badge** on the endpoint that owns the Cheapest column
+
+Cuts through the "why is my Claude model routed to Google?" moment: if the list shows 1 provider, that's genuinely the only route. If it shows 6, the tie-break makes sense at a glance. Zero new data fetched — reuses `endpoints_json` already stored per row.
+
+35/35 tests still pass.
+
 ### Added — convergence audit iterations (Passes 1-5): defensive escapeHtml on speed_source + direct unit tests for the 3 new audit checks (2026-07-01)
 
 Ran the convergence audit loop across 5 passes hunting different failure classes. Only 2 real findings surfaced; both fixed.
