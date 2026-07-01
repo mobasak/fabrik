@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — governance: plan-execution override + plan knowledge-hierarchy + superpowers .md allowlist (2026-07-01)
+
+Added an autonomous-plan-execution rule to all three ruleset files (`CLAUDE.md`, `AGENTS-compact.md`, `.windsurfrules`). **Behavior:** executing a pre-approved plan via `/execute-plan` suspends *present-before-execute* + *no-commit-unless-user-said-so* **for the plan's scope** (the plan is the approval) — commit per phase (explicit paths only, never `git add -A`), run `/fabrik-review` at phase boundaries, fix autonomously, obey all other HARD STOPS; stop only on 3 consecutive same-test failures / missing infra / unresolvable spec contradiction (`BLOCKED:` format). **Orient:** added a plan-execution knowledge-hierarchy item (read plan+spec+AGENTS.md+ACTIVE packs; exhaust self-service sources before escalating). **HARD STOPS:** expanded the `.md` allowlist with `docs/superpowers/plans/**` + `docs/superpowers/specs/**` (in `CLAUDE.md` + `AGENTS-compact.md`; `.windsurfrules` has no `.md`-allowlist row). Re-synced to 38 projects.
+
 ### Fixed — AA speed/intelligence matcher missed all Meta and Mistral models (0% coverage → 33-37%) (2026-07-01)
 
 Operator noticed the Overview tab's Speed column was empty for a lot of models. Traced to two matcher bugs in `scrape_artificial_analysis.py`:

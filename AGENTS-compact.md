@@ -18,10 +18,12 @@ Hard rules: no raw SQL, no hand-edited serialized PHP, no invented `wp_options` 
 1. `project.yaml::type` — one of 11 `fabrik scaffold` scaffolds. All projects use `.venv` and deploy via `fabrik apply` (SSH + Docker Compose to the VPS).
 2. `AFCL.md`: read if exists; append friction findings as you hit them.
 3. **Only when PLANNING** (producing/revising a plan): read `AGENTS.md` (canonical infra + codebase map); run `python scripts/select_rules.py` and read every ACTIVE pack + any AVAILABLE pack whose description matches the work (binding); ground every step in real `path:line`. Same awareness Traycer plans with. **Not planning** (routine implementation)? Skip this — the applicable `.windsurf/rules` auto-activate by glob when you edit matching files.
+4. **Executing a plan** (`/execute-plan`): read the plan + its spec + `AGENTS.md` + all ACTIVE packs (`python scripts/select_rules.py`) first. Those + `.windsurf/rules/`, `docs/`, `AFCL.md`, codebase grep are self-service sources — exhaust them all before escalating to a human.
 
 ## BEHAVIOR
 - **Check before create:** file exists = STOP, ask.
 - **Present before execute:** plan → approval → execute. Read-only ops exempt.
+- **Plan-execution override:** executing a pre-approved plan (via `/execute-plan`) suspends *present-before-execute* + *no-commit-unless-said* **for the plan's scope** — the plan IS approval. Commit per phase (explicit paths only, never `git add -A`), run `/fabrik-review` at phase boundaries, fix autonomously, obey all other HARD STOPS. Stop only on: 3 consecutive same-test failures, missing infra, or an unresolvable spec contradiction — `BLOCKED: <what> — searched: <sources> — missing: <need>`.
 - **Stay on task:** no unsolicited advice or process commentary.
 - **State conflict:** task contradicts existing state → stop, report. Never silently overwrite.
 
@@ -121,7 +123,7 @@ Update matched docs in the SAME staged change. Skipping = task failure (gate-enf
 | admin dashboard w/o auth | Authelia forward-auth OR app-layer TOTP |
 | FastAPI `except Exception` swallowing `HTTPException` | always `except HTTPException: raise` before generic catch |
 | foreground command likely >30s (build/deploy/test/sync/`fabrik`/`docker`/`pytest`/`npm i`) | `scripts/rund -- <cmd>`; `runwait $(runlast) <s>`; `runc $(runlast)`. Doc: `docs/reference/long-command-monitoring.md` |
-| new `.md` outside allowlist | root files · scaffold docs · `docs/development/plans/YYYY-MM-DD-plan-<n>.md` · `docs/reference/**/*.md` · `docs/archive/**` |
+| new `.md` outside allowlist | root files · scaffold docs · `docs/development/plans/YYYY-MM-DD-plan-<n>.md` · `docs/reference/**/*.md` · `docs/archive/**` · `docs/superpowers/plans/**` · `docs/superpowers/specs/**` |
 | destructive script on prod data w/o dry-run | dry-run first, show diff |
 | credentials change w/o backup + diff approval | `cp <f> <f>.backup.$(date +%Y%m%d-%H%M%S)` first |
 | `/tmp/` | project `.tmp/` |

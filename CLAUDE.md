@@ -11,10 +11,12 @@ Solo dev WSL Ubuntu. **Fast but pro. Ship, iterate, no over-engineering.** Read 
 2. `AFCL.md`: read if exists; append friction findings as you hit them.
 3. Packs in `.windsurf/rules/` activate via frontmatter globs when you touch matching files. If a ticket lists specific packs in Context Files, read those too.
 4. **Only when PLANNING** (producing/revising a plan): (a) read `AGENTS.md` (the canonical infra + codebase map); (b) run `python scripts/select_rules.py` and **read every ACTIVE pack + any AVAILABLE pack whose description matches the work** — binding; (c) ground every step in real `path:line`. Same awareness Traycer plans with. **Not planning** (routine implementation)? Skip this — the applicable `.windsurf/rules` auto-activate by glob when you edit matching files.
+5. **When executing a plan** (`/execute-plan`): read the plan + its spec + `AGENTS.md` + all ACTIVE rule packs (via `python scripts/select_rules.py`) before starting. Those, plus `.windsurf/rules/`, `docs/`, `AFCL.md`, and codebase `Grep`, are self-service sources — exhaust them all before escalating to a human.
 
 ## Behavior
 - **Check before create:** verify file does not exist before write. Exists = STOP, ask.
 - **Present before execute:** plan → approval → execute. Read-only calls (`Read`, `Grep`, `Glob`, `LS`) exempt.
+- **Plan-execution override:** when executing a pre-approved plan dispatched via `/execute-plan`, *present-before-execute* and *no-commit-unless-user-said-so* are **suspended for the plan's scope** — the plan IS the approval. Commit per phase (explicit paths only, never `git add -A`), run `/fabrik-review` at phase boundaries, fix autonomously, and obey all other HARD STOPS. Stop only on: 3 consecutive same-test failures, missing infra, or an unresolvable spec contradiction — format: `BLOCKED: <what> — searched: <sources> — missing: <need>`.
 - **Stay on task:** no unsolicited advice or process commentary.
 - **Conflict resolution:** rule pack > ticket (for *how* to write). `spec.shape` is canonical for *what* the code must match — orthogonal axis, never up for negotiation. Surface any conflict before proceeding.
 - **State conflict:** task contradicts existing state → stop, report. Never silently overwrite.
@@ -51,7 +53,7 @@ Skip: stdlib, syntax, Fabrik conventions.
 | New Gatus endpoint using UUID container name | stable Docker DNS only: compose service name (Service stacks) or registered alias (single-image Apps). UUID drifts per redeploy. Pairs in `vps_apply_limits.sh` |
 | Health check `/health` behind auth | Authelia bypass is **resource-based, not domain-bound** — `/health`, `/healthz`, `/metrics`, `/api/health` are bypassed on every domain routed through Authelia (hub + spokes via `authelia-vps1@file`). Never protect these paths. |
 | Container ports bound to host directly | all on `fabrik` net (renamed from `coolify` 2026-05-31; `fabrik apply` rejects `coolify`); Traefik routes. Middleware (scaffold-emitted): admin `authelia-forward@docker,gzip@docker`; API `gzip@docker`; public none |
-| new `.md` outside allowlist | root files · scaffold docs · `docs/development/plans/YYYY-MM-DD-plan-<n>.md` · `docs/reference/**/*.md` · `docs/archive/**` |
+| new `.md` outside allowlist | root files · scaffold docs · `docs/development/plans/YYYY-MM-DD-plan-<n>.md` · `docs/reference/**/*.md` · `docs/archive/**` · `docs/superpowers/plans/**` · `docs/superpowers/specs/**` |
 | destructive script on prod data w/o dry-run | dry-run first, show diff |
 | credentials change w/o backup + diff approval | `cp <f> backups/<f>.backup.$(date +%Y%m%d-%H%M%S)` first |
 | edit a **Fabrik-synced** file (canonical list: `/opt/fabrik/scripts/fabrik_synced_manifest.py` — the `.gitignore` "Fabrik-synced" block is generated from it) | these are centrally distributed from `/opt/fabrik` and **overwritten on every sync** (gate-enforced by `scripts/enforcement/check_synced_unmodified.py`). Never edit locally. If the change is correct for **ALL** projects, make it in `/opt/fabrik/<path>` + re-sync; otherwise propose it upstream — don't fork it here |
