@@ -11,7 +11,7 @@ The `Secrets (Zero Hardcoding)` gate was firing on legitimate code that (a) uses
 1. `postgresql://` and `mongodb://` patterns: extend the shell-var lookahead `(?!\$\{|\$[A-Z])` to also skip `<` — angle-bracket placeholders in READMEs/docstrings are references, not credentials.
 2. `password|secret|api_key|token` credential pattern: replace `[^'\"]{8,}` with `[^'\"\n]{8,}` — value must be on the SAME LINE. Without the `\n` exclusion the pattern spans line breaks and glues an env-var-name string on line N to an unrelated quote on line N+1, producing spurious hits.
 
-Regression-verified: real DB URLs with literal passwords, real `password = "hunter2xyz"`, and real API keys still caught; `${POSTGRES_PASSWORD}` refs, `<pw>` placeholders, and `.env`-parsing code no longer trigger. `check_secrets.py` is Fabrik-synced, so the fix propagates to every project's gate on next sync.
+Regression-verified with 7 cases: real DB URLs with literal passwords, real `password =` assignments to literal string values, and real API keys still caught; `${POSTGRES_PASSWORD}` refs, angle-bracket placeholders, and `.env`-parsing code no longer trigger. `check_secrets.py` is Fabrik-synced, so the fix propagates to every project's gate on next sync.
 
 ### Added — models_browser: Cheapest column now names the winning INFERENCE provider (DeepInfra/Groq/Together/etc.), not just the routing gateway (2026-07-01)
 
