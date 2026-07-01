@@ -14,9 +14,7 @@ from __future__ import annotations
 
 import sqlite3
 import sys
-import types
 from pathlib import Path
-from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -68,7 +66,7 @@ def test_canonical_collision_picks_priced_prefixed_record(tmp_path, monkeypatch)
       - stealth/claude-opus-4.8     $4/$20   (priced but stealth → medium)
       - claude-opus-4-8             $0/$0    (bare placeholder → lowest)
     Priority selection must pick the $5/$25 record."""
-    import verify_openrouter_catalog as V
+    import verify_openrouter_catalog as verify_module
 
     fake_kilo = {
         # Order matters — this mirrors Kilo's actual output where the
@@ -117,7 +115,11 @@ def test_canonical_collision_picks_priced_prefixed_record(tmp_path, monkeypatch)
                 "description": "test",
                 "pricing": {"prompt": "0.000005", "completion": "0.000025"},
                 "context_length": 1000000,
-                "top_provider": {"context_length": 1000000, "max_completion_tokens": 128000, "is_moderated": False},
+                "top_provider": {
+                    "context_length": 1000000,
+                    "max_completion_tokens": 128000,
+                    "is_moderated": False,
+                },
                 "canonical_slug": "anthropic/claude-4.8-opus-20260528",
                 "supported_parameters": ["reasoning", "tools"],
                 "architecture": {"input_modalities": ["text", "image"]},
@@ -128,7 +130,11 @@ def test_canonical_collision_picks_priced_prefixed_record(tmp_path, monkeypatch)
                 "description": "test",
                 "pricing": {"prompt": "0.00001", "completion": "0.00005"},
                 "context_length": 1000000,
-                "top_provider": {"context_length": 1000000, "max_completion_tokens": 128000, "is_moderated": False},
+                "top_provider": {
+                    "context_length": 1000000,
+                    "max_completion_tokens": 128000,
+                    "is_moderated": False,
+                },
                 "canonical_slug": "anthropic/claude-fable-5",
                 "supported_parameters": ["reasoning"],
                 "architecture": {"input_modalities": ["text"]},
@@ -137,7 +143,7 @@ def test_canonical_collision_picks_priced_prefixed_record(tmp_path, monkeypatch)
 
     monkeypatch.setattr(V, "_fetch_live", fake_or)
 
-    report = V.verify(db_path)
+    report = verify_module.verify(db_path)
 
     # The report must expose the priority-selected record per canonical.
     # Both `kilo_sourced` (pricing) and `kilo_best_record` (raw record for
