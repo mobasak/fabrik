@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — check_model_live.py truth-oracle + audit self-test; guardrails against the "100% clean" tautology (2026-07-01)
+
+Follow-on to the reasoning/zombie-orphan bug: the audit's "100% clean" was structurally incapable of finding those bugs because the coverage was implicit and self-referential. Two guardrails now enforce that any future drift is caught:
+
+**`scripts/kilo-benchmarks/check_model_live.py`** — truth-oracle CLI for a specific model ID. Fetches live OR `/api/v1/models`, OR `/models/<slug>/endpoints`, and Kilo CLI, then diffs each against the DB row. Emits a machine-friendly verdict (`safe_to_recommend` + `reasoning_state` + `warnings`) and a per-source human dump. Use BEFORE quoting any specific model's price / context / capability flag — DB alone is not trustable. `--list-candidates` prints the current live shortlist of TRULY non-thinking models (no reasoning param at all) at ≤$1/M input with ≥128k context, sorted by price. Discipline recorded in operator's memory: [feedback_verify_model_ids_live_first.md](/home/ozgur/.claude/projects/-opt-fabrik/memory/feedback_verify_model_ids_live_first.md).
+
+**`scripts/kilo-benchmarks/tests/test_audit_finds_seeded_bugs.py`** — meta-regression that seeds a DB with intentional drift on EVERY field type the audit claims to cover (input/output/cache prices, context, max_completion_tokens, canonical_slug, has_reasoning, has_vision, has_tools, plus `row_missing_from_live` on an OR-claimed row that isn't upstream). Each seed runs the audit against a controlled fake live-OR catalog and asserts the drift is surfaced. Also asserts a fully-correct row produces ZERO drift findings — no false positives.
+
+**26/26 tests pass.** The audit is now provably capable of finding the class of bugs the 2026-07-01 external fact-check surfaced.
+
 ### Fixed — has_reasoning heuristic missed toggle-support signal; zombie-orphan deprecation blind spot; audit inherited both (2026-07-01)
 
 Two systemic bugs surfaced by an external fact-check that invalidated my model recommendation for a downstream task. Both were structural — my prior "100% clean" audit was incapable of finding them.
