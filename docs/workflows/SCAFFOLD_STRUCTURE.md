@@ -57,6 +57,9 @@ When you run `fabrik scaffold <project-name> --type python-api`, the following s
 │   │   └── .gitkeep
 │   └── traycer-reports/
 │       └── .gitignore
+├── .github/                       # CI (python-api / python-api-gpu / file-api only)
+│   └── workflows/
+│       └── ci.yml                 # generated from src/fabrik/ci_scaffold.py
 ├── db/
 │   └── schema.sql
 ├── docs/
@@ -75,7 +78,8 @@ When you run `fabrik scaffold <project-name> --type python-api`, the following s
 │   ├── README.md
 │   └── TROUBLESHOOTING.md
 ├── scripts/
-│   ├── enforcement/              # Entire dir copied from Fabrik (35 files inc. __init__.py)
+│   ├── enforcement/              # Entire dir copied from Fabrik (41 files inc. __init__.py)
+│   ├── ci_local.sh               # CI local clean-room replica (python API types) — mirrors .github/workflows/ci.yml
 │   ├── docs_updater.py
 │   ├── final_gate.py
 │   ├── health_checker.py
@@ -144,6 +148,7 @@ When you run `fabrik scaffold <project-name> --type python-api`, the following s
 | `PORTS.md` | Port allocation tracking |
 | `docs/development/PLANS.md` | Development plans index |
 | `docs/archive/README.md` | Archive directory index |
+| `.github/workflows/ci.yml` + `scripts/ci_local.sh` | **python API types only** — CI workflow + a matching local clean-room replica, both rendered from one source (`src/fabrik/ci_scaffold.py`) so they can't drift. `pgvector/pgvector:pg16` when the project uses a DB, else plain `postgres:16`; run `scripts/ci_local.sh` before pushing test/dep/migration changes. |
 
 ### Copied from Fabrik
 

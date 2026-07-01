@@ -301,7 +301,7 @@ When you run `fabrik scaffold my-project -d "My description"`, the following str
 ├── logs/                            # Log files (gitignored)
 ├── output/                          # Output files (gitignored)
 ├── scripts/
-│   ├── enforcement/                 # Quality gate checks (35 files inc. __init__.py, entire dir copied)
+│   ├── enforcement/                 # Quality gate checks (41 files inc. __init__.py, entire dir copied)
 │   │   ├── __init__.py
 │   │   ├── check_android_env.py
 │   │   ├── check_changelog.py       # CHANGELOG.md updated
@@ -332,6 +332,7 @@ When you run `fabrik scaffold my-project -d "My description"`, the following str
 │   │   ├── check_test_proposal.py
 │   │   ├── check_watchdog.py
 │   │   └── validate_conventions.py
+│   ├── ci_local.sh                  # CI local clean-room replica (python API types) — mirrors .github/workflows/ci.yml
 │   ├── docs_updater.py              # Documentation drift checker
 │   ├── final_gate.py                # Pre-commit quality gate
 │   ├── health_checker.py            # Health endpoint checker
@@ -371,6 +372,7 @@ When you run `fabrik scaffold my-project -d "My description"`, the following str
 ├── tests/
 │   ├── __init__.py
 │   └── test_health.py               # Health endpoint test
+├── .github/workflows/ci.yml         # CI (python API types) — rendered from src/fabrik/ci_scaffold.py
 ├── AGENTS.md                        # Copied from /opt/fabrik/AGENTS.md
 ├── CHANGELOG.md                     # Version history
 ├── compose.yaml                     # Docker Compose config
