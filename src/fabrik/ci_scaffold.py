@@ -39,11 +39,6 @@ class CiConfig:
         return _PG_PGVECTOR if "pgvector" in self.db_extensions else _PG_PLAIN
 
 
-def _test_dep_install(cfg: CiConfig) -> str:
-    deps = " ".join(cfg.extra_test_deps)
-    return f"pip install {deps}" if deps else ""
-
-
 def render_ci_workflow(cfg: CiConfig) -> str:
     """GitHub Actions `ci.yml`. Mirrors render_ci_local exactly (parity-tested)."""
     lines: list[str] = [
@@ -83,9 +78,8 @@ def render_ci_workflow(cfg: CiConfig) -> str:
         "          python -m pip install --upgrade pip",
         "          pip install -r requirements.txt",
     ]
-    dep = _test_dep_install(cfg)
-    if dep:
-        lines.append(f"          pip install ruff {' '.join(cfg.extra_test_deps)}")
+    # ruff is always installed (the ruff step below always runs); test deps appended.
+    lines.append(f"          pip install ruff {' '.join(cfg.extra_test_deps)}".rstrip())
     lines += [
         "      - name: ruff",
         "        run: ruff check .",
@@ -128,10 +122,18 @@ def render_ci_local(cfg: CiConfig) -> str:
     if cfg.needs_database:
         lines += [
             f'PG_IMAGE="{cfg.pg_image()}"',
+            'command -v docker >/dev/null || { echo "[ci_local] docker is required" >&2; exit 1; }',
             'echo "[ci_local] starting $PG_IMAGE"',
             'CID=$(docker run -d --rm -e POSTGRES_PASSWORD=postgres -p 5432:5432 "$PG_IMAGE")',
             "trap 'docker stop \"$CID\" >/dev/null 2>&1 || true' EXIT",
-            'until docker exec "$CID" pg_isready -U postgres >/dev/null 2>&1; do sleep 0.5; done',
+            # BOUNDED readiness wait — an unbounded `until` hangs forever if the container
+            # dies or the image never becomes ready.
+            'pg_ready=""',
+            "for _ in $(seq 1 60); do",
+            '  if docker exec "$CID" pg_isready -U postgres >/dev/null 2>&1; then pg_ready=1; break; fi',
+            "  sleep 1",
+            "done",
+            '[ -n "$pg_ready" ] || { echo "[ci_local] postgres not ready after 60s" >&2; exit 1; }',
             f'export TEST_DATABASE_URL="{TEST_DATABASE_URL}"',
             "",
         ]
@@ -141,17 +143,14 @@ def render_ci_local(cfg: CiConfig) -> str:
         '"$VENV/bin/pip" install --quiet --upgrade pip',
         '"$VENV/bin/pip" install --quiet -r requirements.txt',
     ]
-    if cfg.extra_test_deps:
-        lines.append(f'"$VENV/bin/pip" install --quiet ruff {" ".join(cfg.extra_test_deps)}')
-    # Run the test command through the fresh venv's interpreter. "python -m pytest -q"
-    # -> "$VENV/bin/python" -m pytest -q (the interpreter is quoted, its args are not).
-    if cfg.test_cmd.startswith("python "):
-        test_line = '"$VENV/bin/python"' + cfg.test_cmd[len("python") :]
-    else:
-        test_line = cfg.test_cmd
+    lines.append(f'"$VENV/bin/pip" install --quiet ruff {" ".join(cfg.extra_test_deps)}'.rstrip())
+    # Prepend the fresh venv to PATH so `python`, `pytest`, `ruff` — however test_cmd is
+    # spelled — resolve to the venv, never a system install. (The earlier per-command
+    # "$VENV/bin/…" prefixing silently ran a bare `pytest`/`make` from the system PATH.)
     lines += [
-        '"$VENV/bin/ruff" check .',
-        test_line,
+        'export PATH="$VENV/bin:$PATH"',
+        "ruff check .",
+        cfg.test_cmd,
         'echo "[ci_local] OK — matches CI"',
     ]
     return "\n".join(lines) + "\n"

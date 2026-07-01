@@ -79,6 +79,38 @@ def test_skips_first_party_local_modules(tmp_path: Path):
     assert _load().find_undeclared_imports(tmp_path) == []
 
 
+def test_optional_import_guarded_by_try_except_not_flagged(tmp_path: Path):
+    # `try: import X except ImportError` is OPTIONAL — the app handles its absence, so
+    # a fresh install missing it does not crash. Flagging it is a false positive.
+    _write(tmp_path, "requirements.txt", "# empty\n")
+    _write(
+        tmp_path,
+        "src/app/main.py",
+        "try:\n    import yaml\nexcept ImportError:  # pragma: no cover\n    yaml = None\n",
+    )
+    assert _load().find_undeclared_imports(tmp_path) == []
+
+
+def test_required_import_still_flagged_when_try_catches_other_error(tmp_path: Path):
+    # a try that catches a NON-import error does not make the import optional
+    _write(tmp_path, "requirements.txt", "# empty\n")
+    _write(tmp_path, "src/app/main.py", "try:\n    import yaml\nexcept ValueError:\n    pass\n")
+    dists = {d for _, d, _ in _load().find_undeclared_imports(tmp_path)}
+    assert "PyYAML" in dists
+
+
+def test_fallback_import_in_handler_still_flagged(tmp_path: Path):
+    # the fallback that runs when the primary import fails IS required on that path
+    _write(tmp_path, "requirements.txt", "# empty\n")
+    _write(
+        tmp_path,
+        "src/app/main.py",
+        "try:\n    import cjson\nexcept ImportError:\n    import yaml  # fallback\n",
+    )
+    dists = {d for _, d, _ in _load().find_undeclared_imports(tmp_path)}
+    assert "PyYAML" in dists  # the fallback (yaml) is flagged; cjson (optional) is not
+
+
 def test_skips_project_with_no_requirements_txt(tmp_path: Path):
     # non-requirements projects (pure pyproject, or non-python) are out of scope
     _write(tmp_path, "src/app/main.py", "import yaml\n")
@@ -105,6 +137,38 @@ def test_main_exit_code(tmp_path: Path, capsys, monkeypatch):
     # now declare it -> exit 0
     _write(tmp_path, "requirements.txt", "PyYAML>=6\n")
     assert mod.main() == 0
+
+
+def test_follows_r_includes_in_requirements(tmp_path: Path):
+    # deps declared via `-r base.txt` must count as declared (finding B regression)
+    _write(tmp_path, "requirements.txt", "-r base.txt\n")
+    _write(tmp_path, "base.txt", "PyYAML>=6\n")
+    _write(tmp_path, "src/app/main.py", "import yaml\n")
+    assert _load().find_undeclared_imports(tmp_path) == []
+
+
+def test_r_include_cycle_does_not_hang(tmp_path: Path):
+    _write(tmp_path, "requirements.txt", "-r a.txt\n")
+    _write(tmp_path, "a.txt", "-r requirements.txt\nPyYAML>=6\n")  # cycle back
+    _write(tmp_path, "src/app/main.py", "import yaml\n")
+    assert _load().find_undeclared_imports(tmp_path) == []  # terminates + PyYAML found
+
+
+def test_multi_provider_module_not_flagged_when_one_declared(tmp_path: Path, monkeypatch):
+    # a module provided by multiple dists is satisfied if ANY provider is declared
+    # (finding F regression)
+    mod = _load()
+    _write(tmp_path, "requirements.txt", "declared-dist>=1\n")
+    _write(tmp_path, "src/app/main.py", "import shared_ns\n")
+    monkeypatch.setattr(
+        mod.importlib.metadata,
+        "packages_distributions",
+        lambda: {"shared_ns": ["other-dist", "declared-dist"]},
+    )
+    monkeypatch.setattr(mod, "_module_is_local", lambda m, root: False)
+    # 'declared-dist' has no installed metadata -> requires() skips; it's still in the
+    # declared set, so shared_ns is satisfied.
+    assert mod.find_undeclared_imports(tmp_path) == []
 
 
 def test_transitive_of_declared_is_not_flagged(tmp_path: Path):

@@ -55,9 +55,18 @@ def _strip_version(name: str) -> str:
     return name
 
 
-def parse_requirements_txt(file_path: Path) -> set[str]:
-    """Normalized package names declared in a requirements.txt."""
+def parse_requirements_txt(file_path: Path, _seen: set[Path] | None = None) -> set[str]:
+    """Normalized package names declared in a requirements.txt, FOLLOWING `-r`/
+    `--requirement` includes (relative to each file's dir; cycle-guarded)."""
     packages: set[str] = set()
+    seen = _seen if _seen is not None else set()
+    try:
+        resolved = file_path.resolve()
+    except OSError:
+        return packages
+    if resolved in seen:
+        return packages  # include cycle
+    seen.add(resolved)
     try:
         content = file_path.read_text(encoding="utf-8", errors="ignore")
     except OSError:
@@ -66,7 +75,12 @@ def parse_requirements_txt(file_path: Path) -> set[str]:
         line = raw.strip()
         if not line or line.startswith("#"):
             continue
-        if line.startswith(("-r", "--requirement", "-e", "--editable")):
+        if line.startswith(("-r", "--requirement")):
+            parts = line.split(None, 1)
+            if len(parts) == 2:
+                packages |= parse_requirements_txt(file_path.parent / parts[1].strip(), seen)
+            continue
+        if line.startswith(("-e", "--editable")):
             continue
         if "://" in line or line.startswith((".", "/")):
             continue
@@ -132,23 +146,59 @@ def _iter_py_files(roots: list[Path]):
             yield path
 
 
+def _handler_catches_import_error(handler: ast.ExceptHandler) -> bool:
+    """True if an `except` clause catches ImportError (so its try body is optional)."""
+    exc = handler.type
+    if exc is None:
+        return True  # bare `except:`
+    caught: list[str] = []
+    if isinstance(exc, ast.Tuple):
+        caught = [e.id for e in exc.elts if isinstance(e, ast.Name)]
+    elif isinstance(exc, ast.Name):
+        caught = [exc.id]
+    return any(
+        n in ("ImportError", "ModuleNotFoundError", "Exception", "BaseException") for n in caught
+    )
+
+
+class _ImportCollector(ast.NodeVisitor):
+    """Collect top-level absolute-import module names, skipping OPTIONAL imports —
+    those guarded by `try/except ImportError`. An optional import's absence is handled
+    by the code, so a fresh install missing it does not crash; flagging it would be a
+    false positive."""
+
+    def __init__(self) -> None:
+        self.names: set[str] = set()
+
+    def visit_Import(self, node: ast.Import) -> None:
+        for alias in node.names:
+            self.names.add(alias.name.split(".", 1)[0])
+
+    def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
+        if node.level and node.level > 0:
+            return  # relative import -> first-party by definition
+        if node.module:
+            self.names.add(node.module.split(".", 1)[0])
+
+    def visit_Try(self, node: ast.Try) -> None:
+        if any(_handler_catches_import_error(h) for h in node.handlers):
+            # skip the guarded try body; still scan handlers/else/finally, where a
+            # fallback import IS required on the path that runs.
+            for child in (*node.handlers, *node.orelse, *node.finalbody):
+                self.visit(child)
+        else:
+            self.generic_visit(node)
+
+
 def _top_level_imports(py_file: Path) -> set[str]:
-    """Top-level module names from absolute imports in one file (best-effort)."""
-    names: set[str] = set()
+    """Top-level module names from absolute, non-optional imports in one file."""
     try:
         tree = ast.parse(py_file.read_text(encoding="utf-8", errors="ignore"))
     except (SyntaxError, ValueError, OSError):
-        return names  # unparseable file — skip, never crash the gate
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            for alias in node.names:
-                names.add(alias.name.split(".", 1)[0])
-        elif isinstance(node, ast.ImportFrom):
-            if node.level and node.level > 0:
-                continue  # relative import -> first-party by definition
-            if node.module:
-                names.add(node.module.split(".", 1)[0])
-    return names
+        return set()  # unparseable file — skip, never crash the gate
+    collector = _ImportCollector()
+    collector.visit(tree)
+    return collector.names
 
 
 def _local_toplevel_names(project_root: Path, roots: list[Path]) -> set[str]:
@@ -278,12 +328,13 @@ def find_undeclared_imports(project_root: Path) -> list[tuple[str, str, str]]:
             continue  # not attributable to an installed distribution -> skip
         if _module_is_local(mod, project_root):
             continue  # vendored / editable first-party inside the repo -> not a dep
-        for dist in dists:
-            norm = _norm_pkg(dist)
-            if norm == own or norm in reachable:
-                continue
-            undeclared.append((mod, dist, imported[mod]))
-            break
+        # A module may be provided by MULTIPLE distributions (namespace packages). The
+        # import is satisfied if ANY provider is declared/reachable; only flag when NONE
+        # is (report the first provider name).
+        norm_dists = [_norm_pkg(d) for d in dists]
+        if any(nd == own or nd in reachable for nd in norm_dists):
+            continue
+        undeclared.append((mod, dists[0], imported[mod]))
     return undeclared
 
 

@@ -45,8 +45,37 @@ def test_same_test_command_both_sides():
     wf = render_ci_workflow(cfg)
     local = render_ci_local(cfg)
     assert "python -m pytest -q" in wf
-    # local runs it through the fresh venv interpreter, args preserved
-    assert '"$VENV/bin/python" -m pytest -q' in local
+    # local prepends the fresh venv to PATH then runs the command verbatim
+    assert 'export PATH="$VENV/bin:$PATH"' in local
+    assert "python -m pytest -q" in local
+
+
+def test_local_runs_bare_test_cmd_via_venv_path():
+    # a non-`python ...` test_cmd (e.g. "pytest -q") must still run from the venv, not
+    # the system — the PATH prepend guarantees it (finding E regression).
+    local = render_ci_local(CiConfig(test_cmd="pytest -q"))
+    assert 'export PATH="$VENV/bin:$PATH"' in local
+    assert "\npytest -q\n" in local  # verbatim, resolved via PATH
+
+
+def test_ruff_always_installed_even_with_no_test_deps():
+    # finding G: `ruff check .` always runs, so ruff must always be installed —
+    # even when extra_test_deps is empty.
+    for cfg in (CiConfig(extra_test_deps=()), CiConfig()):
+        local = render_ci_local(cfg)
+        wf = render_ci_workflow(cfg)
+        assert "ruff check ." in local and "install --quiet ruff" in local
+        assert "ruff check ." in wf and "pip install ruff" in wf
+
+
+def test_pg_readiness_wait_is_bounded():
+    # finding D: an unbounded `until pg_isready` hangs forever if the container dies /
+    # docker is missing. The wait must be bounded and fail cleanly.
+    local = render_ci_local(CiConfig(needs_database=True))
+    assert "until docker exec" not in local  # no unbounded loop
+    assert "seq 1 60" in local  # bounded retries
+    assert "not ready after 60s" in local  # clean failure message
+    assert "command -v docker" in local  # fail fast if docker absent
 
 
 def test_no_database_no_postgres_service():
