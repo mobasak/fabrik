@@ -11,7 +11,7 @@ trigger: glob
 
 # 3. Language AI
 
-Last content verification: 2026-06-29
+Last content verification: 2026-07-01
 
 **Purpose:** Process and generate text.
 
@@ -30,11 +30,11 @@ Last content verification: 2026-06-29
 
 Pick the **cheaper gateway per model** — the bake-off browser shows the per-row markup. For translation specifically, prefer a dedicated MT model (DeepL, or `qwen-mt-turbo` via DashScope) over an LLM when the language is in scope.
 
-<!-- GATEWAY_COUNTS:START — last-refreshed: 2026-06-29 (auto-managed by update_gateway_counts.py) -->
-*Live gateway counts (active models, 2026-06-29 UTC; auto-refreshed from `kilo_agents.db`):*
+<!-- GATEWAY_COUNTS:START — last-refreshed: 2026-07-01 (auto-managed by update_gateway_counts.py) -->
+*Live gateway counts (active models, 2026-07-01 UTC; auto-refreshed from `kilo_agents.db`):*
 
-language-tagged (any gateway): **207**
-translation-scored (any gateway): **14**
+language-tagged (any gateway): **251**
+translation-scored (any gateway): **16**
 
 Sweet-spot dedicated MT: `qwen-mt-turbo` via DashScope (top-3 on FR/PT/DE/ID/AR, weaker on HU/RO/UR/KO; see the Translation tab in the bake-off browser).
 <!-- GATEWAY_COUNTS:END -->
@@ -43,8 +43,8 @@ Sweet-spot dedicated MT: `qwen-mt-turbo` via DashScope (top-3 on FR/PT/DE/ID/AR,
 
 **Anti-pattern:** standing up a dedicated vector DB when pgvector is already on the project's Postgres.
 
-<!-- OPENROUTER_ROUTES:START — last-refreshed: 2026-06-29 (auto-managed by category_export_markdown.py) -->
-*Auto-generated 2026-06-29 (UTC) by `category_route_mapper.py` → injected here by `category_export_markdown.py`. Edits between the markers will be overwritten on the next daily run.*
+<!-- OPENROUTER_ROUTES:START — last-refreshed: 2026-07-01 (auto-managed by category_export_markdown.py) -->
+*Auto-generated 2026-07-01 (UTC) by `category_route_mapper.py` → injected here by `category_export_markdown.py`. Edits between the markers will be overwritten on the next daily run.*
 
 | Priority | OpenRouter ID | Cost ($/M in) | Context | Status |
 |---|---|---|---|---|

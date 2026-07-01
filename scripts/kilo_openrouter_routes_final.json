@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-29",
+  "generated_at": "2026-07-01",
   "categories": {
     "language": {
       "1": "openrouter/fusion",
@@ -16,17 +16,17 @@
       "2": "openai/gpt-5-nano"
     },
     "multimodal": {
-      "1": "openai/gpt-5-nano",
-      "2": "qwen/qwen3.5-flash-02-23"
+      "1": "openrouter/auto",
+      "2": "openai/gpt-5-nano"
     },
     "agentic": {
-      "1": "openai/gpt-5.4",
-      "2": "openai/gpt-5.3-codex",
-      "3": "anthropic/claude-opus-4.6"
+      "1": "openai/gpt-5.5",
+      "2": "openai/gpt-5.4",
+      "3": "anthropic/claude-opus-4.7"
     },
     "long-context": {
-      "1": "meta-llama/llama-4-scout",
-      "2": "x-ai/grok-4.20"
+      "1": "x-ai/grok-4.20",
+      "2": "x-ai/grok-4-fast"
     },
     "speech-audio": {
       "1": "openai/gpt-audio-mini"
