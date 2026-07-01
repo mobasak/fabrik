@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Undeclared-imports gate check: catch packages imported but declared in no manifest (2026-07-01)
+
+Closes the gap that broke trade-intelligence + youtube CI. `check_deps_sync` only compares `requirements.txt` ↔ `pyproject.toml` (manifest vs manifest) and is blind to what the code imports, so a package imported but listed in NEITHER manifest (e.g. `pydantic-settings`) passes the static gate — then a fresh `pip install -r requirements.txt` (CI's clean room, or a fresh `fabrik apply` deploy) crashes on import.
+
+New `scripts/enforcement/check_undeclared_imports.py` scans the deployable app source (`src/` or root; `tests/` + `scripts/` excluded), maps each third-party import to its installed distribution via `importlib.metadata.packages_distributions()`, and fails when that distribution is reachable from **nothing declared** — using the transitive closure of `Requires-Dist`, so transitively-satisfied imports (starlette via fastapi) do not false-fire. Vendored/editable first-party packages whose module file lives inside the repo (e.g. youtube's `libs/mt-router`) are recognized as local. Wired into `final_gate` tier 1; distributed fleet-wide via `scripts/enforcement/`. Blast-radius verified clean on trade-intelligence + youtube.
+
 ### Added — Cheapest-gateway UX now 100% coverage: 544/544 rows carry a resolvable Cheapest cell + has_reasoning scrub (2026-07-01)
 
 Operator: "be sure for all models in our db for this. all information should be correct and all should be seen as cheapest."

@@ -689,6 +689,18 @@ def run_consistency_checks(
                 "Spec <-> Project DB Name Match (Phase 1c)",
             )
         )
+        # Undeclared-import guard (ci-parity): the app source imports a package
+        # declared in NO manifest -> a fresh `pip install -r requirements.txt` (CI's
+        # clean room, or a fresh `fabrik apply` deploy) crashes on import. check_deps_sync
+        # only compares requirements.txt<->pyproject to each other and is blind to what
+        # the code imports; this closes that gap. Runs in the project's own .venv, skips
+        # cleanly where there's no requirements.txt. See the CI-parity plan (Fix B).
+        results.append(
+            run_optional_check(
+                "scripts/enforcement/check_undeclared_imports.py",
+                "Undeclared Imports (requirements.txt)",
+            )
+        )
         # Fabrik-synced files must match the /opt/fabrik canonical source — they
         # are centrally distributed and overwritten on sync, so a local edit is a
         # mistake (revert + change upstream). Self-exempts inside /opt/fabrik;
