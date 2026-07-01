@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — has_reasoning heuristic missed toggle-support signal; zombie-orphan deprecation blind spot; audit inherited both (2026-07-01)
+
+Two systemic bugs surfaced by an external fact-check that invalidated my model recommendation for a downstream task. Both were structural — my prior "100% clean" audit was incapable of finding them.
+
+**Bug 1 — `_live_caps` has_reasoning heuristic**: `verify_openrouter_catalog.py:161-175` only checked OR's top-level `reasoning` block (mandatory/supported_efforts). It ignored `reasoning` appearing in `supported_parameters` — the toggle-support signal for reasoning-capable models that don't publish explicit effort levels. Models incorrectly stored as `has_reasoning=0` despite being thinking-capable: `google/gemini-2.5-flash`, `qwen/qwen3.5-flash-02-23`, `x-ai/grok-4.20`, and 95 others. Fix: also flag has_reasoning=1 when `'reasoning' in supported_parameters`. Verify --apply corrected 98 rows.
+
+**Bug 2 — deprecation blind spot**: `verify_openrouter_catalog.py:428-433` builds `db_rows` filtered to `status='active' AND via_openrouter=1`. Once OR delists a model and the flag flips to 0, the row becomes invisible to the delisted-check forever — permanent zombie state. Real case: `x-ai/grok-4-fast` (OR delisted post-2026-06-28) shown as `$0.20/M active` in the browser. **178 rows** were zombies. Fix: post-loop sweep in `apply_fixes` deprecates any `status='active'` row with `via_openrouter=0 AND via_kilo=0 AND via_dashscope=0 AND via_siliconflow=0`, exempting `openrouter/*` meta-routes.
+
+**Bug 3 — audit inherited both blind spots**: `audit_ui_values.py` filtered DB rows to `via_openrouter=1` (missed the 178 zombies) AND had no coverage of capability flags (missed the has_reasoning drift). Both structural — the "100% clean" report was tautologically clean because it couldn't see either failure mode. Fixed: audit now iterates all `status='active'` rows and also cross-checks `has_vision`/`has_tools`/`has_reasoning` against a duplicated `_live_caps_expected` (so a future bug in verify's derivation is caught).
+
+**Verified post-fix**: 178 zombie orphans deprecated (grok-4-fast among them). 98 has_reasoning drifts corrected. Regenerated `models_browser.html`. 15/15 tests pass — new regression guards `test_live_caps_flags_parameter_supported_reasoning` + `test_zombie_orphan_sweep_deprecates_routeless_rows`.
+
+**Downstream impact**: my earlier YouTube-pipeline recommendation was partly wrong — `x-ai/grok-4-fast` doesn't exist on OR (real ID is `x-ai/grok-4.20` at $1.25/$2.50, 6× pricier). `gemini-2.5-flash` and `qwen3.5-flash-02-23` are thinking-capable — must disable reasoning explicitly, not "no mechanism to toggle" as I claimed. Only `meta-llama/llama-4-*` are truly non-thinking of the shortlist.
+
 ### Fixed — verify's Kilo canonical-collision loop clobbered real prices with $0 placeholders; systematic UI-values audit shipped (2026-07-01)
 
 **Discovery**: operator lost trust after `anthropic/claude-opus-4.8` showed `Kilo Gateway: free /M in (-100%)` in the UI. Root cause turned out to be a data-side bug, not just a display bug: Kilo's CLI emits up to 3 records that canonicalize to the same target — `anthropic/claude-opus-4.8` ($5/$25 real), `stealth/claude-opus-4.8` ($4/$20 beta discount), and `claude-opus-4-8` ($0/$0 bare-form placeholder). The verify pass built `kilo_sourced` with naive last-write-wins (`kilo_sourced[canonical_id] = {...}`), and Kilo lists the bare-form placeholder LAST — so $0/$0 clobbered every priced record for the affected models.

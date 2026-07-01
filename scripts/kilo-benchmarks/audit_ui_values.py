@@ -77,6 +77,27 @@ OR_FIELD_MAP = {
     "description": ("description", lambda v: v),  # audit whether stored matches (may truncate)
 }
 
+
+# Capability flags derived from `supported_parameters` and `architecture`.
+# Kept as a separate map because they need multi-field logic, not a single
+# nested-path lookup. These were the ones my Phase-A audit missed 2026-07-01
+# by not modeling the toggle-support signal for reasoning-capable models.
+def _live_caps_expected(live: dict) -> dict:
+    arch = live.get("architecture") or {}
+    params = live.get("supported_parameters") or []
+    reasoning_block = live.get("reasoning") or {}
+    return {
+        "has_vision": 1 if "image" in (arch.get("input_modalities") or []) else 0,
+        "has_tools": 1 if ("tools" in params or "tool_choice" in params) else 0,
+        "has_reasoning": 1
+        if (
+            reasoning_block.get("mandatory")
+            or reasoning_block.get("supported_efforts")
+            or "reasoning" in params
+        )
+        else 0,
+    }
+
 # Fields the verifier already checks — surface separately so drift here is a
 # critical bug in the verifier itself.
 VERIFIER_TRACKED = {
@@ -107,10 +128,16 @@ def _fetch_or_catalog() -> dict[str, dict]:
 
 
 def _load_db_rows(db_path: Path) -> list[dict]:
+    """Load ALL status='active' rows, not just via_openrouter=1. Bug caught
+    2026-07-01: prior filter matched verify's blind spot — rows with
+    via_openrouter=0 that are still active (zombie orphans like the
+    delisted x-ai/grok-4-fast) were invisible to both the verifier and
+    this audit. Now we audit every active row; rows without a live OR
+    entry are surfaced explicitly as `row_missing_from_live`."""
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     rows = conn.execute(
-        "SELECT * FROM agents WHERE via_openrouter=1 AND status='active'"
+        "SELECT * FROM agents WHERE status='active'"
     ).fetchall()
     conn.close()
     return [dict(r) for r in rows]
@@ -139,10 +166,34 @@ def audit_or_fields(db_rows: list[dict], live_catalog: dict[str, dict]) -> dict:
     for row in db_rows:
         mid = row["id"]
         if mid not in live_catalog:
-            findings["row_missing_from_live"].append(mid)
+            # Only flag as missing if the row CLAIMS to be OR-routed. Kilo-
+            # only + direct-vendor rows legitimately don't appear here.
+            if row.get("via_openrouter"):
+                findings["row_missing_from_live"].append(mid)
             continue
         live = live_catalog[mid]
         findings["totals"]["rows_audited"] += 1
+        # Also audit capability flags (has_vision / has_tools / has_reasoning)
+        # against the OR-authoritative derivation. Previously missing from
+        # this audit — that's how gemini-2.5-flash / qwen3.5-flash /
+        # grok-4.20 showed has_reasoning=0 in the DB for months without
+        # anyone catching it.
+        expected_caps = _live_caps_expected(live)
+        for cap_col, cap_val in expected_caps.items():
+            findings["totals"]["fields_checked"] += 1
+            actual = row.get(cap_col)
+            if actual == cap_val or (actual is None and cap_val == 0):
+                findings["totals"]["field_matches"] += 1
+            else:
+                findings["verifier_tracked_drift"].append(
+                    {
+                        "id": mid,
+                        "field": cap_col,
+                        "db": actual,
+                        "live": cap_val,
+                        "or_path": "derived: architecture + supported_parameters + reasoning",
+                    }
+                )
         for db_col, (or_path, transform) in OR_FIELD_MAP.items():
             raw = _get_nested(live, or_path)
             try:

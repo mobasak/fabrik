@@ -167,11 +167,24 @@ def _live_caps(record: dict) -> dict[str, int]:
     has_vision = 1 if "image" in mods else 0
     params = record.get("supported_parameters", []) or []
     has_tools = 1 if ("tools" in params or "tool_choice" in params) else 0
-    # has_reasoning: OR-authoritative when the `reasoning` block exists
-    # (mandatory OR supports configurable efforts). Pre-fix the verifier
-    # heuristically inferred from family / weighted_coding / etc.
+    # has_reasoning: OR-authoritative via TWO signals — either the top-level
+    # `reasoning` block exists (mandatory / supports configurable efforts)
+    # OR `reasoning` appears in `supported_parameters` (the toggle-support
+    # signal for models that accept the reasoning param but don't publish
+    # explicit effort levels — gemini-2.5-flash, qwen3.5-flash-02-23,
+    # grok-4.20, etc.). Bug caught 2026-07-01 by external fact-check: the
+    # DB had has_reasoning=0 for all three despite them being thinking-
+    # capable, because the verifier only checked the top-level block.
     reasoning = record.get("reasoning") or {}
-    has_reasoning = 1 if (reasoning.get("mandatory") or reasoning.get("supported_efforts")) else 0
+    has_reasoning = (
+        1
+        if (
+            reasoning.get("mandatory")
+            or reasoning.get("supported_efforts")
+            or "reasoning" in params
+        )
+        else 0
+    )
     return {"has_vision": has_vision, "has_tools": has_tools, "has_reasoning": has_reasoning}
 
 
@@ -1139,6 +1152,28 @@ def apply_fixes(report: dict, db_path: Path = DB_PATH) -> dict:
                 catalog_dupes,
             )
             counts["catalog_dupes_deprecated"] = cur.rowcount
+
+        # Zombie-orphan sweep: rows that are status='active' but reachable
+        # via NO known route (via_openrouter=0 AND via_kilo=0 AND no
+        # direct-vendor flag). These fall through verify's main loop
+        # because db_rows filters to via_openrouter=1 — once OR delists a
+        # model and the flag flips, the row is invisible to the delisted
+        # check forever. Bug caught 2026-07-01: external fact-check found
+        # `x-ai/grok-4-fast` shown as "active $0.20/M" in the browser
+        # despite OR having removed it (178 orphan rows in this state).
+        # Exempt `openrouter/*` rows (OR-controlled alpha/preview routes
+        # that OR hides from /api/v1/models but keeps routable — same
+        # rationale as the truly_delisted exemption).
+        cur = conn.execute(
+            "UPDATE agents SET status = 'deprecated' "
+            "WHERE status = 'active' "
+            "AND COALESCE(via_openrouter, 0) = 0 "
+            "AND COALESCE(via_kilo, 0) = 0 "
+            "AND COALESCE(via_dashscope, 0) = 0 "
+            "AND COALESCE(via_siliconflow, 0) = 0 "
+            "AND id NOT LIKE 'openrouter/%'"
+        )
+        counts["zombie_orphans_deprecated"] = cur.rowcount
         conn.commit()
     except Exception:
         conn.rollback()
