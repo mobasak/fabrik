@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — audit now covers benchmark cache freshness + endpoints scrape recency (2026-07-01)
+
+Follow-on from the "what's not automated" disclosure. Two of the four gaps I called out were cheap-to-add and high-value; the other two were low-value and skipped honestly.
+
+**Added to `audit_ui_values.py`:**
+- **Benchmark cache freshness**: any of `arena_parsed.json`, `aa_parsed.json`, `tbench_parsed.json`, `benchmark_cache.json` older than 7 days trips a warning. Doesn't check accuracy (would require re-scraping the upstream leaderboard) — only that the nightly scraper has actually been running. Silent-fail canary for Arena / AA / TBench / composite scrapers.
+- **Endpoints scrape recency**: any active `via_openrouter=1` row with `endpoints_last_scraped` more than 3 days old trips a warning. The Cheapest column is a headline UX surface — if the endpoints scraper misses ~2 days, per-row winners can drift silently.
+
+**Skipped (with reasons)**:
+- Kilo capabilities beyond family/pricing (cache_read/write, provider_id, release_date) — only shown in detail panel, same priority-canonical resolution as the pricing check already catches misroutes.
+- Derived tier fields (quality_tier, task_tier, service_type) — re-derivable from inputs already audited; verified zero llm-row / pricing_unit mismatches in the current data.
+
+Current audit run: all 6 checks green (Phase A field-match 100%, cheapest_gateway consistency, Kilo drift, benchmark freshness, endpoints recency, verifier-untracked). 26/26 tests pass.
+
 ### Fixed — zombie sweep collateral: 16 direct-vendor aggregator-mirror rows wrongly deprecated + audit now covers Kilo + derived-consistency (2026-07-01)
 
 Proactively-surfaced issue after refreshing models. My earlier zombie-orphan sweep (commit 8380a58a) carved out `via_dashscope` and `via_siliconflow` but missed rows routable via aggregator mirrors (Replicate + fal.ai). Result: 16 direct-vendor STT/TTS/image models (`openai/whisper-large-v3`, `elevenlabs/multilingual-v2`, `bfl/flux-pro-1.1`, `bfl/flux-schnell`, `stability/sdxl`, and 11 more) were wrongly deprecated even though they have live `gateway_prices` JSON entries.

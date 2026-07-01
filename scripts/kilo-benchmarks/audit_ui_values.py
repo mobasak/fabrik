@@ -266,6 +266,71 @@ def _audit_derived_consistency(db_path: Path) -> list[dict]:
     return drifts
 
 
+BENCHMARK_CACHES = [
+    ("arena_parsed.json", "scraped_at"),
+    ("aa_parsed.json", "fetched_at"),
+    ("benchmark_cache.json", "last_updated"),
+    ("tbench_parsed.json", "scraped_at"),
+]
+BENCHMARK_STALE_DAYS = 7
+ENDPOINTS_STALE_DAYS = 3
+
+
+def _audit_benchmark_freshness() -> list[dict]:
+    """Any benchmark cache older than BENCHMARK_STALE_DAYS is flagged.
+    Doesn't check accuracy (would require re-scraping the upstream
+    leaderboard) — only that the nightly scraper has been running."""
+    from datetime import UTC, datetime
+
+    stale: list[dict] = []
+    now = datetime.now(UTC)
+    for filename, ts_key in BENCHMARK_CACHES:
+        p = SCRIPT_DIR / "cache" / filename
+        if not p.exists():
+            stale.append({"cache": filename, "problem": "MISSING"})
+            continue
+        try:
+            with p.open() as f:
+                obj = json.load(f)
+            ts_str = obj.get(ts_key)
+            if not ts_str:
+                # Fall through to file-mtime as a proxy — some caches don't
+                # emit a timestamp field
+                mtime = datetime.fromtimestamp(p.stat().st_mtime, UTC)
+                age_days = (now - mtime).days
+            else:
+                ts = datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
+                if ts.tzinfo is None:
+                    ts = ts.replace(tzinfo=UTC)
+                age_days = (now - ts).days
+        except (OSError, ValueError, json.JSONDecodeError) as e:
+            stale.append({"cache": filename, "problem": f"UNREADABLE: {e}"})
+            continue
+        if age_days > BENCHMARK_STALE_DAYS:
+            stale.append(
+                {"cache": filename, "age_days": age_days, "threshold": BENCHMARK_STALE_DAYS}
+            )
+    return stale
+
+
+def _audit_endpoints_recency(db_path: Path) -> list[dict]:
+    """Any active OR-routed row whose endpoints haven't been scraped in
+    ENDPOINTS_STALE_DAYS days — the Cheapest column is a headline UX
+    surface, must not silently drift."""
+    from datetime import UTC, datetime, timedelta
+
+    cutoff = (datetime.now(UTC).date() - timedelta(days=ENDPOINTS_STALE_DAYS)).isoformat()
+    conn = sqlite3.connect(db_path)
+    rows = conn.execute(
+        "SELECT id, endpoints_last_scraped FROM agents "
+        "WHERE via_openrouter=1 AND status='active' "
+        "AND (endpoints_last_scraped IS NULL OR endpoints_last_scraped < ?)",
+        (cutoff,),
+    ).fetchall()
+    conn.close()
+    return [{"id": r[0], "endpoints_last_scraped": r[1]} for r in rows]
+
+
 def _audit_kilo(db_path: Path) -> list[dict]:
     """Phase C: kilo_input/output_cost_per_m + kilo_family match live Kilo.
     Uses the verifier's tested parser."""
@@ -356,6 +421,8 @@ def main() -> int:
     findings = audit_or_fields(db_rows, live)
     findings["derived_consistency_drift"] = _audit_derived_consistency(args.db)
     findings["kilo_drift"] = _audit_kilo(args.db)
+    findings["benchmark_freshness_issues"] = _audit_benchmark_freshness()
+    findings["endpoints_stale_rows"] = _audit_endpoints_recency(args.db)
 
     if args.json:
         print(json.dumps(findings, default=str, indent=2))
@@ -410,6 +477,30 @@ def main() -> int:
             print(f"  {d['id']:45s}  {d['field']:30s}  db={d['db']!r}  live={d['live']!r}")
     else:
         print("✓ Kilo pricing + family match live `kilo models --verbose`")
+
+    if findings.get("benchmark_freshness_issues"):
+        print(f"⚠ {len(findings['benchmark_freshness_issues'])} benchmark cache freshness issues:")
+        for d in findings["benchmark_freshness_issues"]:
+            if "problem" in d:
+                print(f"  {d['cache']:30s}  {d['problem']}")
+            else:
+                print(
+                    f"  {d['cache']:30s}  age={d['age_days']}d "
+                    f"(threshold {d['threshold']}d) — scraper may be silently failing"
+                )
+    else:
+        print(f"✓ Benchmark caches all fresh (within {BENCHMARK_STALE_DAYS}d)")
+
+    if findings.get("endpoints_stale_rows"):
+        n = len(findings["endpoints_stale_rows"])
+        print(
+            f"⚠ {n} OR-active rows haven't had endpoints scraped in "
+            f">{ENDPOINTS_STALE_DAYS}d — Cheapest column may be stale:"
+        )
+        for d in findings["endpoints_stale_rows"][:10]:
+            print(f"  {d['id']:45s}  last scraped: {d['endpoints_last_scraped']}")
+    else:
+        print(f"✓ All OR-active rows scraped for endpoints within {ENDPOINTS_STALE_DAYS}d")
 
     if findings["verifier_untracked_drift"]:
         print(
