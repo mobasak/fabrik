@@ -5,6 +5,14 @@
   - docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md (detailed tree + file tables + examples)
 """
 
+# noqa-file: template-generator
+# This module EMITS project config into scaffolded projects — its string literals are
+# output TEMPLATES (localhost dev URLs, <user>:<pass> example creds, placeholder
+# DATABASE_URLs), not this repo's runtime config. check_secrets/check_env_vars would
+# otherwise false-flag that template content on every edit; they skip this file via the
+# marker above (scoped to those two content checks — all other gate checks still run).
+# Real runtime secrets never live here; they belong in .env.
+
 import json
 import logging
 import os
@@ -757,6 +765,24 @@ networks:
     external: true
 """
     (project_dir / "compose.yaml").write_text(content, encoding="utf-8")
+
+
+_CI_PYTHON_TYPES = frozenset({"python-api", "python-api-gpu", "file-api"})
+
+
+def _write_ci_files(project_dir: Path, *, needs_database: bool, needs_web: bool = False) -> None:
+    """Emit .github/workflows/ci.yml + scripts/ci_local.sh from the one-source generator
+    so CI and its local replica cannot drift (Fix B —
+    docs/development/plans/2026-07-01-plan-fabrik-ci-parity.md). Python types only."""
+    from fabrik.ci_scaffold import CiConfig, ci_files
+
+    cfg = CiConfig(needs_database=needs_database, needs_web=needs_web)
+    for rel, content in ci_files(cfg).items():
+        dest = project_dir / rel
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_text(content, encoding="utf-8")
+        if dest.suffix == ".sh":
+            dest.chmod(0o755)
 
 
 def _scaffold_shared(
@@ -4580,6 +4606,12 @@ def create_project(
     _scaffold_shared(project_dir, name, description, today, host_port)
 
     scaffolder(project_dir, name, description, preset=preset, **kwargs)
+
+    # CI-parity (Fix B): Python API types get ci.yml + ci_local.sh from one source, so
+    # "green locally" (scripts/ci_local.sh) means "green CI". needs_database reuses the
+    # same signal the compose scaffolder uses; pgvector/web toggles come from the spec.
+    if project_type in _CI_PYTHON_TYPES:
+        _write_ci_files(project_dir, needs_database=bool(kwargs.get("use_database", False)))
 
     # Provision i18n-kit for GUI-enabled scaffold types
     _provision_i18n(project_dir, project_type)

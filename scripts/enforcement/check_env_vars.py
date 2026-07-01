@@ -60,6 +60,13 @@ def check_file(file_path: Path) -> list:
     except (OSError, UnicodeDecodeError):
         return results
 
+    # Template-generator modules (e.g. scaffold.py) EMIT localhost dev URLs into
+    # scaffolded projects — their string literals are output templates, not runtime
+    # config. Such a file opts out with a top-level `# noqa-file: template-generator`
+    # marker. Scoped to THIS localhost check; all other gate checks still run.
+    if "noqa-file: template-generator" in content:
+        return results
+
     lines = content.splitlines()
 
     for line_num, line in enumerate(lines, 1):

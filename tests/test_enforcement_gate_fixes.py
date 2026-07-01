@@ -39,6 +39,35 @@ def test_check_secrets_has_entry_point():
     assert callable(getattr(check_secrets, "main", None)), "check_secrets must expose main()"
 
 
+# --- template-generator pragma (Phase 3 / CI-parity enablement) -------------
+# A generator module (scaffold.py) EMITS config templates (localhost dev URLs,
+# <user>:<pass> examples) into new projects — content-scanning secret/localhost checks
+# false-fire on it. A file opts out with `# noqa-file: template-generator`. The
+# exemption MUST be file-scoped: real secrets in any other file are still caught.
+def test_secrets_pragma_skips_generator_file(tmp_path):
+    gen = tmp_path / "gen.py"
+    gen.write_text('# noqa-file: template-generator\nDSN = "postgresql://u:realpass@localhost/db"\n')
+    assert check_secrets.check_file(gen) == []
+
+
+def test_secrets_pragma_is_file_scoped(tmp_path):
+    leak = tmp_path / "app.py"
+    leak.write_text('DSN = "postgresql://u:realpass@localhost/db"\n')
+    assert check_secrets.check_file(leak), "non-pragma'd file must STILL catch real secrets"
+
+
+def test_env_vars_pragma_skips_generator_file(tmp_path):
+    gen = tmp_path / "gen.py"
+    gen.write_text('# noqa-file: template-generator\nURL = "http://localhost:3100/x"\n')
+    assert check_env_vars.check_file(gen) == []
+
+
+def test_env_vars_pragma_is_file_scoped(tmp_path):
+    app = tmp_path / "app.py"
+    app.write_text('URL = "http://localhost:3100/x"\n')
+    assert check_env_vars.check_file(app), "non-pragma'd file must STILL catch localhost"
+
+
 # --- #2 check_env_vars ------------------------------------------------------
 def test_check_env_vars_main_fails_on_hardcoded_localhost(tmp_path, monkeypatch):
     leak = tmp_path / "db.py"

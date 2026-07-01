@@ -65,6 +65,14 @@ def check_file(file_path: Path) -> list:
     except (OSError, UnicodeDecodeError):
         return results
 
+    # Template-generator modules (e.g. scaffold.py) EMIT project config into scaffolded
+    # projects — their string literals are output templates (localhost dev URLs,
+    # <user>:<pass> example creds), not runtime secrets. Such a file opts out with a
+    # top-level `# noqa-file: template-generator` marker. Scoped to THIS content check;
+    # all other gate checks still run on the file. Runtime secrets belong in .env.
+    if "noqa-file: template-generator" in content:
+        return results
+
     lines = content.splitlines()
     for pattern, desc in SECRET_PATTERNS:
         for match in re.finditer(pattern, content, re.I):

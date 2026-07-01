@@ -109,6 +109,17 @@ def test_local_script_is_valid_bash():
         assert proc.returncode == 0, f"bash -n rejected the script: {proc.stderr}\n{script}"
 
 
+def test_scaffold_write_ci_files_emits_both(tmp_path):
+    from fabrik.scaffold import _write_ci_files
+
+    _write_ci_files(tmp_path, needs_database=True)
+    ci = tmp_path / ".github" / "workflows" / "ci.yml"
+    local = tmp_path / "scripts" / "ci_local.sh"
+    assert ci.exists() and local.exists()
+    assert local.stat().st_mode & 0o111  # executable
+    assert "python -m pytest" in ci.read_text()
+
+
 def test_workflow_is_valid_yaml():
     yaml = pytest.importorskip("yaml")
     doc = yaml.safe_load(render_ci_workflow(CiConfig(needs_database=True, needs_web=True)))
