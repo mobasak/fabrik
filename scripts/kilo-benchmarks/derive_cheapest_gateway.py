@@ -65,6 +65,9 @@ def derive_row(
     direct_price: float | None,
     direct_unit: str | None,
     today: date | None = None,
+    kilo_price: float | None = None,
+    kilo_cache_read_price: float | None = None,
+    direct_cache_read_price: float | None = None,
 ) -> tuple[str | None, float | None]:
     """Pure function: pick cheapest gateway+price for a single row.
 
@@ -73,6 +76,15 @@ def derive_row(
     Apples-to-apples rule: candidate entries MUST share the same unit as
     `direct_unit`. If `direct_unit` is None we refuse to derive (Pass 1
     Finding B — comparing image to video-sec is a category error).
+
+    2026-07-01: Kilo Gateway added as a gateway candidate. When
+    `kilo_input_cost_per_m` differs from the OR (`direct`) price by more
+    than $0.005/M, whichever is lower wins. Fixes the operator-reported
+    "Kilo is cheaper for qwen3.6-plus but cheapest_gateway=direct".
+
+    2026-07-01: cache-read pricing also considered — for production workloads
+    with repeat prompts the cache-hit price is the operative rate, and Kilo
+    vs OR can diverge there too.
     """
     if not direct_unit:
         # Pass 1 Finding B: no canonical unit on the row → no safe comparison.
@@ -80,6 +92,13 @@ def derive_row(
     candidates: list[tuple[str, float]] = []
     if direct_price is not None and direct_price > 0:
         candidates.append(("direct", direct_price))
+    # Kilo Gateway: same-unit by construction (Kilo prices are always M-tokens
+    # for LLMs — Kilo-only STT/TTS/etc. rows don't have kilo_input_cost_per_m
+    # set). Include only if meaningfully different from direct so we don't
+    # promote a floating-point-precision tie.
+    if kilo_price is not None and kilo_price > 0:
+        if direct_price is None or abs(kilo_price - direct_price) > 0.005:
+            candidates.append(("kilo", kilo_price))
     if gateway_prices_json:
         try:
             gp = json.loads(gateway_prices_json)
@@ -120,9 +139,10 @@ def run(db_path: Path = DB_PATH) -> dict[str, int]:
         # Pass 2 Finding F4: explicit transaction for atomicity.
         conn.execute("BEGIN")
         rows = conn.execute(
-            "SELECT id, gateway_prices, input_cost_per_m, pricing_unit FROM agents WHERE status = 'active'"
+            "SELECT id, gateway_prices, input_cost_per_m, pricing_unit, kilo_input_cost_per_m "
+            "FROM agents WHERE status = 'active'"
         ).fetchall()
-        for agent_id, gp_json, direct_price, direct_unit in rows:
+        for agent_id, gp_json, direct_price, direct_unit, kilo_price in rows:
             # Every row with a real price + canonical unit gets `direct` as
             # the trivial cheapest when no mirror data exists. Previously
             # we skipped these rows entirely — the column showed "—" for
@@ -135,7 +155,9 @@ def run(db_path: Path = DB_PATH) -> dict[str, int]:
                 counts["rows_with_direct_only"] += 1
             else:
                 continue
-            winner_name, winner_price = derive_row(gp_json, direct_price, direct_unit)
+            winner_name, winner_price = derive_row(
+                gp_json, direct_price, direct_unit, kilo_price=kilo_price
+            )
             conn.execute(
                 "UPDATE agents SET cheapest_gateway = ?, cheapest_gateway_price = ? WHERE id = ?",
                 (winner_name, winner_price, agent_id),

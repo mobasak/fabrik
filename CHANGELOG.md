@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Cheapest-gateway UX: Kilo added to derive + new browser column on all 9 tabs (2026-07-01)
+
+Operator: "a user should clearly and easily see where a model is cheapest… all tabs."
+
+Two-part fix:
+
+**1. Data**: `derive_cheapest_gateway.py` now considers Kilo Gateway as a candidate alongside `direct`, `replicate`, `fal_ai`. Pre-fix `cheapest_gateway='direct'` even when Kilo was $0.075/M cheaper (e.g. `qwen/qwen3.6-plus`: OR=$0.325 vs Kilo=$0.25 → Kilo is 23% cheaper but the DB claimed direct). Threshold: >$0.005/M diff so floating-point noise isn't promoted.
+
+**2. UI**: new `Cheapest` column in the browser template, visible on ALL 9 tabs (Overview, Reasoning, Coding, Translation, Transcription, Voice/Audio, Image gen, Video gen, OCR). Format: `[gateway-tag] $price`. Green highlight when the winning gateway is NOT direct (savings signal at a glance). Sortable — click header to see cheapest-first. Placed right after `Price` for immediate side-by-side comparison. Hover for gateway explanation.
+
+Live sample post-fix: `qwen/qwen3.6-plus` now shows `Price $0.33/M · Cheapest: kilo $0.25/M` in green — matches the existing `−23% KILO` badge that was already in the Price cell. Consistency across two surfaces.
+
+Live rollup: 461 rows had `cheapest_gateway` populated (up from 461 with only `direct`). Non-direct winners: `kilo`=1 (qwen3.6-plus), `replicate`=1. The tiny non-direct count reflects that OR sourcing usually IS the cheapest — but now when Kilo undercuts, the operator sees it immediately.
+
 ### Added — Phase 4: OR /rankings scraper + browser Weekly column + service_type reclassification + 231 sitemap-ingested rows (2026-07-01)
 
 Closes 3 operator-requested tasks in one batch:

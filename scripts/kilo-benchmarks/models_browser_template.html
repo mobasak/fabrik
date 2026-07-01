@@ -342,6 +342,20 @@
     font-size: 9px; font-weight: 600; text-transform: uppercase;
     letter-spacing: 0.03em;
   }
+  /* Cheapest-gateway column: small provider-name tag right before the price.
+     Green when the winning gateway isn't the primary route (savings signal). */
+  td.cost.cheapest .gateway-name {
+    display: inline-block; margin-right: 4px; padding: 1px 5px;
+    border-radius: 3px; background: var(--panel2); border: 1px solid var(--border);
+    color: var(--muted); font-size: 10px; font-weight: 500; text-transform: lowercase;
+    letter-spacing: 0.02em;
+  }
+  /* When cheapest is NON-direct, the whole cell is already colored green;
+     tint the gateway-name tag to match for at-a-glance recognition. */
+  td.cost.cheapest[style*="var(--good)"] .gateway-name,
+  td.cost.cheapest[style*="4ade80"] .gateway-name {
+    background: #163a20; border-color: #2a6a3a; color: var(--good);
+  }
   td.source .markup {
     display: inline-block;
     margin-left: 4px;
@@ -614,6 +628,7 @@
         <tr id="thead-row">
           <th data-sort="name" data-tabs="overview reasoning coding translation transcription voice image video ocr" title="Human-readable model name + provider/id below in dim mono. Sortable by name; sort by id via the URL prefix in the dim line. Provider already implied by the id prefix.">Model</th>
           <th data-sort="input_cost_per_m" data-lower-better="true" data-tabs="overview reasoning coding translation transcription voice image video ocr" title="Vendor-quoted price per service-type unit (LLM: $/M tokens · STT: $/audio-minute · TTS/Translation: $/1K chars · Image: $/image · Video: $/sec · OCR: $/page). LOWER is better — first-click sorts cheapest first. Hover any cell for source / canonical metric.">Price</th>
+          <th data-sort="cheapest_gateway_price" data-lower-better="true" data-tabs="overview reasoning coding translation transcription voice image video ocr" title="Cheapest known gateway to reach this model — considering the direct/primary price, the Kilo Gateway price (for OR+Kilo dual-routed models), and any aggregator mirrors (Replicate, fal.ai). Shows gateway name + price. Cell turns green when a non-direct gateway saves you money. LOWER is better — click to sort cheapest first. Derived nightly by derive_cheapest_gateway.py.">Cheapest</th>
           <th data-sort="output_cost_per_m" data-lower-better="true" data-tabs="overview reasoning coding translation" title="USD per million output tokens (LLMs only). LOWER is better — first-click sorts cheapest first. For non-LLM services see the unit hover on the Price column.">$/M out</th>
           <th data-sort="context_window_k" data-tabs="overview reasoning coding translation" title="Context window in thousands of tokens (the model's input length cap). Higher is better. Empty cells = unknown for direct-vendor specialty rows (STT/TTS/image/video/OCR — context isn't the right metric there).">Ctx (k)</th>
           <th data-sort="output_tokens_per_sec" data-tabs="overview reasoning coding" title="Throughput in output tokens per second (Artificial Analysis benchmark). Higher is better. Empty cells = AA didn't match this model.">Speed</th>
@@ -1261,6 +1276,7 @@ function refresh() {
         ${idLine}
       </td>
       <td class="cost" title="${priceSourceLabel(m)} — input cost">${fmtCost(m.input_cost_per_m, m)}${maybeCheaperBadge(m)}</td>
+      <td class="cost cheapest" title="${m.cheapest_gateway ? 'Cheapest via ' + m.cheapest_gateway + ' — ' + (m.cheapest_gateway === 'direct' ? 'primary route (OR / direct vendor)' : m.cheapest_gateway === 'kilo' ? 'Kilo Gateway (api.kilo.ai)' : m.cheapest_gateway === 'replicate' ? 'Replicate mirror' : m.cheapest_gateway === 'fal_ai' ? 'fal.ai mirror' : m.cheapest_gateway) : 'No cheapest-gateway data'}" style="${m.cheapest_gateway && m.cheapest_gateway !== 'direct' ? 'color:var(--good);font-weight:600' : ''}">${m.cheapest_gateway ? "<span class='gateway-name'>" + (m.cheapest_gateway === 'fal_ai' ? 'fal.ai' : m.cheapest_gateway) + "</span> " + fmtCost(m.cheapest_gateway_price, m) : _D}</td>
       <td class="cost" title="${priceSourceLabel(m)} — output cost">${(m.service_type && m.service_type !== "llm" && m.service_type !== "embedding") ? "<span style='color:var(--muted)' title='Not applicable — this service bills on a single axis (see Price column)'>n/a</span>" : fmtCost(m.output_cost_per_m, m)}</td>
       <td class="num">${m.context_window_k || _D}</td>
       <td class="num" title="${m.output_tokens_per_sec ? 'Throughput from Artificial Analysis (' + (m.speed_source || 'AA') + ')' : 'No throughput data'}">${m.output_tokens_per_sec != null ? m.output_tokens_per_sec.toFixed(0) + "<span class='unit-suffix'>tok/s</span>" : _D}</td>
