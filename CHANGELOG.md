@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Phase 5 of 2026-07-02 plan-1-speed-coverage: audit freshness gates for Groq + microbench (2026-07-02)
+
+Two new checks in the nightly `audit_ui_values.py`:
+
+- **Groq cache freshness** — `groq_parsed.json` added to `BENCHMARK_CACHES`. If the daily scrape silently dies, the cache goes stale > 7 days and audit surfaces it.
+- **Microbench recency** — `_audit_microbench_recency(db_path)` flags any `speed_source LIKE 'own_microbench%'` row whose `speed_updated_at` is > 45 days old (6 missed weekly cycles). Ignores AA / groq_lpu / manual_override rows — scope is specifically our own microbench data.
+
+Both checks wired into `main()`'s findings dict + the human-readable output block. First live run confirms both green (`✓ Benchmark caches all fresh`, `✓ All own_microbench rows benched within 45d`).
+
+Regression tests added: (a) `test_groq_cache_in_benchmark_freshness_list` asserts the list drift, (b) `test_microbench_recency_flags_stale_rows`, (c) `test_microbench_recency_ignores_other_speed_sources` (scope guard), (d) `test_microbench_recency_flags_null_speed_updated_at` (defensive corruption signal). Updated the pre-existing `test_benchmark_freshness_clean_when_all_fresh` to seed the newly-required `groq_parsed.json` — regression guard for future BENCHMARK_CACHES additions.
+
+Full suite: 60/60 pass (35 pre-existing + 8 Groq + 13 microbench + 4 audit-new).
+
 ### Added — Phase 4 of 2026-07-02 plan-1-speed-coverage: per-row Speed source in tooltip (2026-07-02)
 
 New JS helper `speedSourceLabel(src)` in the browser template translates DB `speed_source` tags into human-readable phrases:

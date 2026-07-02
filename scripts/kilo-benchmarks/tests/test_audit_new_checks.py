@@ -124,7 +124,16 @@ def test_benchmark_freshness_clean_when_all_fresh(tmp_path, monkeypatch):
     cache_dir = tmp_path / "cache"
     cache_dir.mkdir()
     fresh_ts = datetime.now(UTC).isoformat()
-    for f in ("arena_parsed.json", "aa_parsed.json", "tbench_parsed.json", "benchmark_cache.json"):
+    # Seed every cache the audit knows about — new caches added to
+    # BENCHMARK_CACHES require an entry here too or the audit reports
+    # MISSING and this "clean" assertion regresses.
+    for f in (
+        "arena_parsed.json",
+        "aa_parsed.json",
+        "tbench_parsed.json",
+        "benchmark_cache.json",
+        "groq_parsed.json",
+    ):
         # Each cache has a different timestamp key — cover them all
         key = {"aa_parsed.json": "fetched_at", "benchmark_cache.json": "last_updated"}.get(
             f, "scraped_at"
@@ -190,3 +199,101 @@ def test_endpoints_recency_skips_non_or_rows(tmp_path):
     conn.commit()
     conn.close()
     assert not _audit_endpoints_recency(db)
+
+
+# ---------- Phase 5 additions: Groq freshness + microbench recency ----------
+
+
+def _seed_speed_source_db(tmp_path: Path) -> Path:
+    """Seed a DB with a `speed_source` + `speed_updated_at` column set."""
+    db = tmp_path / "seed.db"
+    conn = sqlite3.connect(db)
+    conn.executescript(
+        """
+        CREATE TABLE agents (
+            id TEXT PRIMARY KEY, status TEXT DEFAULT 'active',
+            speed_source TEXT, speed_updated_at TEXT
+        );
+        """
+    )
+    conn.commit()
+    conn.close()
+    return db
+
+
+def test_groq_cache_in_benchmark_freshness_list():
+    """Phase 5 wired `groq_parsed.json` into BENCHMARK_CACHES so the
+    daily audit surfaces silent Groq scraper failures."""
+    import audit_ui_values
+
+    filenames = {f for f, _ in audit_ui_values.BENCHMARK_CACHES}
+    assert "groq_parsed.json" in filenames, (
+        f"groq_parsed.json missing from BENCHMARK_CACHES: {filenames}"
+    )
+
+
+def test_microbench_recency_flags_stale_rows(tmp_path):
+    """A row benched > MICROBENCH_STALE_DAYS ago is surfaced."""
+    from audit_ui_values import MICROBENCH_STALE_DAYS, _audit_microbench_recency
+
+    db = _seed_speed_source_db(tmp_path)
+    stale = (date.today() - timedelta(days=MICROBENCH_STALE_DAYS + 5)).isoformat()
+    fresh = date.today().isoformat()
+    conn = sqlite3.connect(db)
+    conn.execute(
+        "INSERT INTO agents (id, speed_source, speed_updated_at) VALUES (?, ?, ?)",
+        ("stale/model", "own_microbench 2026-05-15", stale),
+    )
+    conn.execute(
+        "INSERT INTO agents (id, speed_source, speed_updated_at) VALUES (?, ?, ?)",
+        ("fresh/model", "own_microbench 2026-07-02", fresh),
+    )
+    conn.commit()
+    conn.close()
+
+    stale_rows = _audit_microbench_recency(db)
+    ids = {r["id"] for r in stale_rows}
+    assert "stale/model" in ids, "stale own_microbench row should be flagged"
+    assert "fresh/model" not in ids, "fresh own_microbench row should NOT be flagged"
+
+
+def test_microbench_recency_ignores_other_speed_sources(tmp_path):
+    """AA / groq_lpu / manual_override rows are OUT of the audit's scope —
+    this check is specifically for microbench-tagged rows."""
+    from audit_ui_values import MICROBENCH_STALE_DAYS, _audit_microbench_recency
+
+    db = _seed_speed_source_db(tmp_path)
+    old = (date.today() - timedelta(days=MICROBENCH_STALE_DAYS + 5)).isoformat()
+    conn = sqlite3.connect(db)
+    conn.executemany(
+        "INSERT INTO agents (id, speed_source, speed_updated_at) VALUES (?, ?, ?)",
+        [
+            ("aa/mdl", "artificialanalysis.ai (n=1)", old),
+            ("groq/mdl", "groq_lpu (pin required)", old),
+            ("manual/mdl", "manual_override", old),
+        ],
+    )
+    conn.commit()
+    conn.close()
+
+    stale_rows = _audit_microbench_recency(db)
+    assert stale_rows == [], (
+        f"non-microbench rows should not trigger the microbench recency check; got {stale_rows}"
+    )
+
+
+def test_microbench_recency_flags_null_speed_updated_at(tmp_path):
+    """A microbench row with NULL speed_updated_at is flagged (defensive:
+    the writer always sets it, so NULL is a corruption signal)."""
+    from audit_ui_values import _audit_microbench_recency
+
+    db = _seed_speed_source_db(tmp_path)
+    conn = sqlite3.connect(db)
+    conn.execute(
+        "INSERT INTO agents (id, speed_source, speed_updated_at) "
+        "VALUES ('null-ts/model', 'own_microbench ???', NULL)"
+    )
+    conn.commit()
+    conn.close()
+    stale_rows = _audit_microbench_recency(db)
+    assert any(r["id"] == "null-ts/model" for r in stale_rows)

@@ -271,9 +271,11 @@ BENCHMARK_CACHES = [
     ("aa_parsed.json", "fetched_at"),
     ("benchmark_cache.json", "last_updated"),
     ("tbench_parsed.json", "scraped_at"),
+    ("groq_parsed.json", "scraped_at"),
 ]
 BENCHMARK_STALE_DAYS = 7
 ENDPOINTS_STALE_DAYS = 3
+MICROBENCH_STALE_DAYS = 45  # microbench runs weekly; 45d is 6 missed cycles
 
 
 def _audit_benchmark_freshness() -> list[dict]:
@@ -329,6 +331,25 @@ def _audit_endpoints_recency(db_path: Path) -> list[dict]:
     ).fetchall()
     conn.close()
     return [{"id": r[0], "endpoints_last_scraped": r[1]} for r in rows]
+
+
+def _audit_microbench_recency(db_path: Path) -> list[dict]:
+    """Any row previously benched by our own microbench whose value is
+    now older than MICROBENCH_STALE_DAYS. Microbench runs weekly on
+    Sundays; 45 days = 6 missed cycles → likely a real regression."""
+    from datetime import UTC, datetime, timedelta
+
+    cutoff = (datetime.now(UTC).date() - timedelta(days=MICROBENCH_STALE_DAYS)).isoformat()
+    conn = sqlite3.connect(db_path)
+    rows = conn.execute(
+        "SELECT id, speed_updated_at FROM agents "
+        "WHERE status='active' "
+        "AND speed_source LIKE 'own_microbench%' "
+        "AND (speed_updated_at IS NULL OR speed_updated_at < ?)",
+        (cutoff,),
+    ).fetchall()
+    conn.close()
+    return [{"id": r[0], "speed_updated_at": r[1]} for r in rows]
 
 
 def _audit_kilo(db_path: Path) -> list[dict]:
@@ -423,6 +444,7 @@ def main() -> int:
     findings["kilo_drift"] = _audit_kilo(args.db)
     findings["benchmark_freshness_issues"] = _audit_benchmark_freshness()
     findings["endpoints_stale_rows"] = _audit_endpoints_recency(args.db)
+    findings["microbench_stale_rows"] = _audit_microbench_recency(args.db)
 
     if args.json:
         print(json.dumps(findings, default=str, indent=2))
@@ -501,6 +523,17 @@ def main() -> int:
             print(f"  {d['id']:45s}  last scraped: {d['endpoints_last_scraped']}")
     else:
         print(f"✓ All OR-active rows scraped for endpoints within {ENDPOINTS_STALE_DAYS}d")
+
+    if findings.get("microbench_stale_rows"):
+        n = len(findings["microbench_stale_rows"])
+        print(
+            f"⚠ {n} rows with own_microbench Speed data are stale "
+            f"(> {MICROBENCH_STALE_DAYS}d, i.e. 6 missed weekly cycles):"
+        )
+        for d in findings["microbench_stale_rows"][:10]:
+            print(f"  {d['id']:45s}  benched at: {d['speed_updated_at']}")
+    else:
+        print(f"✓ All own_microbench rows benched within {MICROBENCH_STALE_DAYS}d")
 
     if findings["verifier_untracked_drift"]:
         print(
