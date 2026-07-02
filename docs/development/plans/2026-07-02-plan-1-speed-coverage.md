@@ -1,6 +1,7 @@
 # Plan: Speed/TTFT coverage — zero-manual automated pipeline
 
-**Status: IN-PROGRESS**
+**Status: EXECUTED 2026-07-02**
+**Completion:** 5/5 phases done, 60/60 tests pass, final gate green (`14/14` tier-1 checks). Groq scraper landed +3 rows immediately; microbench cohort verified at 195 rows / ~$0.58 est cost / dry-run; scheduled Sunday-only weekly. Commits: `7c278f54` (P1) · `6a1d272c` (P2) · `ef5a473c` (P3) · `5fdd2146` (P4) · `4ca5f348` (P5).
 **Author stream:** kilo-benchmarks (AI-2)
 **Created:** 2026-07-02
 **Skill origin:** `/fabrik-plan-after-chat` (this session)

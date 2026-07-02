@@ -1,7 +1,7 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
-**Last Updated:** 2026-06-30 (Lesson 79 — adversarial-review residuals belong in a tracked backlog, not the commit-and-forget pile)
+**Last Updated:** 2026-07-02 (Lesson 80 — Provider-page scrapers: probe with a browser User-Agent AND assume the DOM shifts)
 
 **Purpose:** CAPTURE TECHNICAL HURDLES, AI-SPECIFIC QUIRKS, AND ARCHITECTURAL DECISIONS TO PREVENT REGRESSION AS CODEBASES AND AI AGENTS EVOLVE.
 
@@ -4428,3 +4428,15 @@ What's the right move for the residual **12 LOW findings + 1 fabrik-synced-upstr
 **Why:** the residuals doc is greppable by AI sessions, gets re-read whenever I touch the same code, and converts "shoulds" into "trigger-prompted" actions. Items only get fixed when there's a real reason — not from completionist guilt. Fabrik-synced findings get a stub `Lean PR steps` block so the upstream proposal is one `git checkout -b` away when motivation arrives.
 
 **How to apply:** After any adversarial review with N>5 LOW findings, write a `docs/development/backlog/<date>-<topic>-residuals.md`. Each item gets: (1) source citation (which grounder/finding flagged it), (2) explicit trigger to fix, (3) rough effort estimate. Don't promise to fix any of them in a follow-up. The trigger does that work.
+
+## Lesson 80 — Provider-page scrapers: probe with a browser User-Agent AND assume the DOM shifts
+
+**2026-07-02** — Building Phase 1 of the speed-coverage plan I confidently claimed Groq's pricing page embedded a **Sanity CMS `richTable` JSON blob** — a "richer" data path than DOM walking. During `/fabrik-plan-review` I re-fetched the page and the extraction returned **zero rows**. Two things had gone wrong: (a) the "Sanity CMS JSON" claim was an earlier-session misread — the page is standard HTML `<table>` with server-rendered rows; (b) the minimal `fabrik-audit/1.0` User-Agent I used for the probe returned content with none of the pricing table rendered.
+
+Both errors would have shipped as-is if the plan-review pass hadn't re-verified — the initial draft's parse strategy (`parse_richtable`, richTableCell regex) would have failed on first run and produced silent-empty output through the daily_refresh pipeline.
+
+**Root cause:** I inferred structure from a fragmentary grep result once, encoded it as design, and didn't re-probe with the actual browser posture the scraper would need. The Sanity mention in the HTML was a decorative `_type` marker on unrelated content elsewhere on the page.
+
+**How to apply:** For every third-party scraper target: (a) probe the page **twice**, once with the minimal UA the scraper will use and once with a Chrome/Firefox UA, and diff the two outputs — if they differ meaningfully, hardcode the browser UA in the scraper; (b) capture the first ~5 real rows verbatim as evidence in the plan (`Extracted from <url> with browser UA: ...`) — that's the artefact that catches a misread during review; (c) build the scraper against a BS4 walk of the real DOM structure, not a regex against an inferred JSON shape — regex-on-inferred is the failure mode that ships silently.
+
+Bonus finding from the same phase: OR's `/api/v1/chat/completions` streaming response **only** carries the `usage` block (with `usage.cost` — real billed USD) when the request body sets `usage: {"include": true}`. I would have written a cost-estimator based on headline pricing if this hadn't been re-verified during plan-review. Two probes: one for schema, one for the specific flag that unlocks the field.
