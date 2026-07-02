@@ -1,0 +1,125 @@
+# trade-intelligence — Python event/trade-intelligence API (FastAPI, boto3 storage).
+# DRAFT 2026-07-01 by fabrik hub (Agent-Role: primary). Models the DB-backed `app`
+# service (:8022) — the one whose shape drives the registrars. The compose also ships
+# `tax-refresh` (worker), `web` (Next.js public frontend), and `docs`; those are extra
+# Traefik routers in the existing compose and need no DB/redis/backup registrar of their own.
+#
+# ⚠️ FIELDS INFERRED FROM THE REPO — confirm before `fabrik apply`:
+#   - shape.has_bearer_api (AUTH_JWT_SECRET + INTERNAL_API_CORS_ORIGINS seen in code)
+#   - domain set to the API host (gatus should watch the API /health with real deps,
+#     not the Next.js web root). project.yaml's domain is the web root — decide which.
+#   - resources (1G/1.0 is a starting guess for a RAG+workers Python API)
+#   - secrets partition (from_env vs required) depends on what's in hub /opt/fabrik/.env
+id: trade-intelligence
+kind: service
+template: python-api
+domain: api.trade-intelligence.vps1.ocoron.com   # INFERRED: API host; web root is trade-intelligence.vps1.ocoron.com
+
+source:
+  type: git
+  repository: https://github.com/mobasak/trade-intelligence.git
+  branch: mobasak/trading-intelligence
+
+env:
+  PORT: "8022"
+  LOG_LEVEL: INFO
+  ENVIRONMENT: production
+  EXPORT_STORAGE_BACKEND: supabase   # flip to `b2` ONLY after the P4 boto3 rewrite lands + the dedicated bucket is provisioned
+  EXPORT_STORAGE_PATH_PREFIX: exports
+
+secrets:
+  # Partitioned by presence in hub /opt/fabrik/.env (verified 2026-07-01).
+  # required = NOT in hub .env → owner supplies at apply (`-s`) or in the project .env.
+  required:
+    - FRED_API_KEY
+    - COMTRADE_SUBSCRIPTION_KEY
+    - CLAUDE_CODE_OAUTH_TOKEN   # tax-refresh ÖTV reload (Claude Code OAuth; lives in .env.sysadmin, not hub .env)
+    - AUTH_JWT_SECRET           # existing user-session signing key — supply the CURRENT value (rotating invalidates sessions)
+  # from_env = already in hub /opt/fabrik/.env → pulled automatically at apply.
+  from_env:
+    - OPENROUTER_API_KEY
+    - BOLDATA_API_KEY           # ⚠ leaked in git history — rotate at cutover (update hub .env value)
+    - SERVICE_INTERNAL_SECRET_KEY   # X-Internal-Token gate for /api/internal/data
+    - B2_KEY_ID
+    - B2_APPLICATION_KEY
+    - B2_BUCKET_NAME
+    - SUPABASE_URL              # transitional — drop after Supabase decommission
+    - SUPABASE_SERVICE_ROLE_KEY # transitional — drop after Supabase decommission
+
+shape:
+  kind: service
+  is_public: true               # user-facing product (Next.js web + API)
+  is_admin_dashboard: false     # 35-security-auth.md:44,50,54 — this is the CANONICAL native-auth user-facing product (000_native_auth.sql + fabrik_admin RLS); "Authelia is NOT for end-user auth". Native cookie/session auth, not an operator back-office dashboard.
+  has_bearer_api: false         # user auth is native cookie/session (AUTH_JWT_SECRET); the X-Internal-Token routes (/api/internal/data) are service-to-service, NOT a public bearer API — keep them network-internal (see notes)
+  has_persistent_data: true     # user export blobs → object storage (Backrest plan auto-created)
+  needs_database: true          # canonical DB: trade_intelligence (DB SELECT 1 in /health)
+  needs_cache: true             # Redis — auth denylist + RAG classifier
+  has_search_feature: false     # search is pgvector RAG over rag_chunks (tariff classification), NOT Meilisearch — pending operator decision on adding keyword/faceted search
+  exposes_metrics: true         # OPERATOR-CONFIRMED — to-build: trade-intelligence AI adds a /metrics endpoint (prometheus_client) BEFORE apply, else the Prometheus scrape 404s. Circuit breakers + job workers are worth scraping.
+
+depends:
+  postgres: trade_intelligence
+  redis: trade-intelligence
+
+# PostgreSQL extensions required on the trade_intelligence DB (superuser, run once
+# after DB creation) — the RAG hybrid search fails without them:
+#   CREATE EXTENSION IF NOT EXISTS vector;    -- pgvector: embedding vector(1024) + HNSW (src/rag/migration.sql:6,26,40)
+#   CREATE EXTENSION IF NOT EXISTS pg_trgm;   -- trigram fuzzy leg of the 3-leg hybrid search
+# tsvector (keyword leg) is built-in, no extension needed.
+
+resources:
+  memory: 1G      # INFERRED starting point (RAG classifier + job workers)
+  cpu: "1.0"
+
+health:
+  path: /health   # app serves /health at :8022 (compose HEALTHCHECK); deps: DB SELECT 1 + plans read + /health/tuik-sources freshness
+  interval: 30s
+  timeout: 10s
+  retries: 3
+  start_period: 30s
+
+backup:
+  enabled: true
+  frequency: daily
+  retention: 30
+
+# ── AI watchdog: full Tier-D autonomous code-fix (OPERATOR-CONFIRMED) ──
+# 3rd Tier-D target after calendar-orchestration-engine + youtube. Enable/test
+# once trade-intelligence deploys & stabilizes on postgres-main.
+watchdog:
+  enabled: true
+  daily_budget_usd: 5.00
+  daily_invocations_cap: 100
+  per_incident_budget_usd: 1.00
+  deadman_timeout_seconds: 300
+  external_docs_enabled: true
+  llm_provider_primary: claude-code
+  llm_provider_fallback: openrouter
+  cheap_model: anthropic/claude-3.5-haiku
+  expensive_model: anthropic/claude-opus-4
+  propose_fix_prs: true
+  auto_code_fix: true
+  code_fix_window_sec: 300
+  critical_paths:
+    - /api/data                 # user data API
+    - /api/internal/data        # agent (X-Internal-Token) path
+    - CircuitBreakerOpen        # OPENROUTER_EMBED_CB_* / RAG_CLASSIFY_CB_* trips
+  trigger_sources:
+    - health
+    - error_webhook             # NOTE: the :8889 GlitchTip-ingest is not built yet — pages via docker-log polling meanwhile
+
+notes: |
+  Migration off Supabase → postgres-main. SUPABASE_* secrets are transitional and drop
+  after decommission (deleting the Supabase project revokes them — no separate rotation).
+  Surviving vendor keys leaked in git history (f0c6793/7da8772, PRIVATE repo) rotate at
+  cutover: app API_KEY, BOLDATA_API_KEY, and audit for OPENROUTER/FRED/COMTRADE/AUTH_JWT.
+  P4 storage flip (EXPORT_STORAGE_BACKEND supabase→b2, boto3) is branch-local, pending.
+  web (Next.js) + docs + tax-refresh (worker) ship in the same compose; only `app` is
+  DB/redis/backup-backed. B2 fleet creds are NOT in the leak — do not rotate them.
+  SECURITY: /api/internal/data is gated by X-Internal-Token == SERVICE_INTERNAL_SECRET_KEY
+  (agent path). It must NOT be publicly routable — keep it on the fabrik net / IP-restricted;
+  confirm Traefik doesn't expose /api/internal on the public domain.
+  SEARCH: pgvector RAG (rag_chunks) grounds tariff CLASSIFICATION — semantic match of a
+  plain-English product query to official tariff notes/GIR rules (keywords don't overlap, so
+  BM25/Meilisearch would miss). Meilisearch would only add keyword/faceted lookup over the
+  structured GTİP catalog / tuik trade rows — optional, not required for current features.

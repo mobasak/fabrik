@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — trade-intelligence deploy spec (draft, pre-cutover) (2026-07-01)
+
+`specs/services/trade-intelligence.yaml.draft` — the fabrik spec for the Supabase→postgres-main migration, grounded against the app repo. Kept as `.draft` (out of the `specs/services/*.yaml` glob) because the project still points at Supabase, so a live `.yaml` would trip the Phase-1c DB-name-drift gate until cutover.
+
+- Shape (evidence-based): `needs_database`/`needs_cache`/`has_persistent_data` true; `exposes_metrics` true (to-build `/metrics`); `is_admin_dashboard` false (canonical native-auth product per `35-security-auth.md:44`); `has_bearer_api` false (native cookie/session; `X-Internal-Token` routes are internal); `has_search_feature` false (in-DB hybrid RAG: pgvector + tsvector + pg_trgm — Meilisearch redundant); watchdog Tier-D enabled (3rd target).
+- Registrars that will run: postgres, redis, gatus, backrest, glitchtip, grafana, prometheus, watchdog.
+- Requires `CREATE EXTENSION vector` + `pg_trgm` on the `trade_intelligence` DB. Secrets partitioned by hub `.env` presence (8 `from_env`, 4 `required`). Promotes `.draft`→`.yaml` at cutover once the project `DATABASE_URL` repoints to postgres-main.
+
 ### Added — Script coupling header gate (`check_script_headers.py`) (2026-07-02)
 
 Every `scripts/**/*.py` now declares, via a `# AFTER-EDIT: <files | none>` header, the files to update when it changes. New WARN-tier enforcement `check_script_headers.py` (registered in `final_gate.py` Tier 1, touch-on-change like Doc Sync): warns on a missing header or when a listed coupled file wasn't also staged. Non-blocking; no mass backfill (scripts gain the header as they're next edited). Convention documented in `CLAUDE.md`; check listed in `docs/workflows/FINAL_GATE_WORKFLOW.md`.
