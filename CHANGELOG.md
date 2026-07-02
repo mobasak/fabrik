@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Phase 2 of 2026-07-02 plan-1-speed-coverage: OR microbench (2026-07-02)
+
+New `scripts/kilo-benchmarks/microbench_or_models.py` — calls each active OR-routed LLM via the `/api/v1/chat/completions` streaming endpoint with a fixed 200-word prompt, measures TTFT (time from send to first non-empty content chunk) + TPS (`usage.completion_tokens / (t_last_content_chunk - t_first_content_chunk)`), and takes the median of 3 runs. Writes `output_tokens_per_sec`, `ttft_ms`, `speed_source="own_microbench YYYY-MM-DD"`.
+
+Cost cap enforced via **`usage.cost`** (OR's actual billed USD per call, returned when the request body includes `usage.include=true`). Hard $10/run limit with runtime kill switch. First-run dry-run: 195 rows eligible, est cost $0.58 (well under cap).
+
+Cohort filters (per plan Phase 2 Design):
+
+- `input_cost_per_m > 0 AND output_cost_per_m > 0` (skip zero-priced misclassifications like lyria music-gen)
+- `input_cost_per_m <= 10` (skip Opus/GPT-5-Fable tier — too expensive to bench weekly)
+- Skip `id LIKE '%:free'` (rate limits corrupt median)
+- Skip `id LIKE 'openrouter/%'` (meta-routers — no fixed model)
+- Idempotent: skip rows benched < 30 days ago (`speed_source LIKE 'own_microbench%' AND speed_updated_at >= today - 30d`)
+
+Non-fatal on missing `OPENROUTER_API_KEY` — logs `[microbench] SKIP: OPENROUTER_API_KEY not set` and exits 0 so daily_refresh continues. Every run appends a summary JSONL entry to `cache/microbench_log.jsonl`: `{run_at, cohort_size, models_updated, models_failed, total_cost_usd, cost_cap_usd, cost_stop}`.
+
+Regression tests: 13/13 pass (streaming parser math, cost-cap abort, idempotency window, dotenv+env paths, all 4 cohort exclusions).
+
 ### Added — Phase 1 of 2026-07-02 plan-1-speed-coverage: Groq LPU scraper (2026-07-02)
 
 New `scripts/kilo-benchmarks/scrape_groq_speeds.py` — scrapes Groq's pricing HTML for their LPU tokens/second table. Matched all 8 current models via an explicit `GROQ_TO_OR_ID` map (Groq's stable ~8-model catalog is hand-mapped to avoid fuzzy-canonicalizer false positives from Groq's variant tokens `Versatile`/`Instant`/`17Bx16E`/`128k`). Writes `output_tokens_per_sec` + `speed_source="groq_lpu (pin required)"` — the tag warns operators that Groq's LPU tps only realizes when `provider.only=["Groq"]` is pinned in the OR request.

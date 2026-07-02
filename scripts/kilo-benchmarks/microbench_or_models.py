@@ -1,0 +1,392 @@
+#!/usr/bin/env python3
+"""
+Microbench every active OR-routed LLM model for output_tokens_per_sec + ttft_ms.
+
+Design rationale (from docs/development/plans/2026-07-02-plan-1-speed-coverage.md
+Phase 2): AA leaderboard only covers ~166 models. To close the coverage gap
+on the long tail, call each unbenched model via OR's streaming API with a
+fixed prompt, measure TTFT + TPS, and take the median of 3 runs.
+
+Cost is capped by a hard $10/run kill switch. OR's streaming response
+carries `usage.cost` (actual billed USD) when `usage.include=true` — we
+use that directly instead of estimating from headline prices, eliminating
+the U8 cost-drift concern.
+
+Weekly cadence (invoked from daily_refresh.sh Sunday-only). Idempotent —
+rows benched within the last 30 days are skipped without API calls.
+
+Usage:
+    python microbench_or_models.py                   # bench + update DB
+    python microbench_or_models.py --dry-run         # cohort + est cost only
+    python microbench_or_models.py --limit 5         # cap models per run
+    python microbench_or_models.py --cost-cap 3      # override $10 hard cap
+
+Environment:
+    OPENROUTER_API_KEY  required; script exits 0 (non-fatal) if missing
+
+Cost-budget note: this script does NOT vendor fabrik-lib's cost-budget/
+module (that's a production LLM-caller pattern with PG cost_ledger + WAL
+— overkill for a weekly batch). The in-script running-sum cost tracker
+with a hard $10 exit gate is proportional. A future migration to
+cost-budget/ is a one-file swap: replace `_check_cost_cap` + `_log_cost`
+with the module's `check_caps()` / `record_cost()` calls.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sqlite3
+import statistics
+import sys
+import time
+from datetime import UTC, date, datetime, timedelta
+from pathlib import Path
+
+import requests
+from dotenv import load_dotenv
+
+SCRIPT_DIR = Path(__file__).parent
+CACHE_DIR = SCRIPT_DIR / "cache"
+CACHE_DIR.mkdir(parents=True, exist_ok=True)
+DB_PATH = SCRIPT_DIR / "kilo_agents.db"
+LOG_PATH = CACHE_DIR / "microbench_log.jsonl"
+
+OR_URL = "https://openrouter.ai/api/v1/chat/completions"
+BENCH_PROMPT = (
+    "Write exactly a 200-word explanation of how gears mesh in a "
+    "mechanical clock. Do not use markdown."
+)
+MAX_TOKENS = 300
+TEMPERATURE = 0.2
+REQ_TIMEOUT_S = 90
+RATE_LIMIT_SLEEP_S = 0.5  # 2 req/s ceiling
+COST_CAP_USD = 10.0
+RECENCY_WINDOW_DAYS = 30
+BENCH_N_RUNS = 3  # median-of-3
+
+SPEED_SOURCE_PREFIX = "own_microbench"
+
+
+def log(msg: str) -> None:
+    print(f"[microbench] {msg}", flush=True)
+
+
+# ---------- SSE stream parser ----------
+
+
+def _parse_stream(resp: requests.Response) -> dict:
+    """Consume OR's SSE stream and compute (tps, ttft_ms, cost_usd).
+
+    Returns `{tps, ttft_ms, prompt_tokens, completion_tokens, cost_usd,
+    error}`. `error` is None on success, string on failure.
+
+    TTFT = time from stream start to first `data:` chunk whose
+    `delta.content` is non-empty (the first delta often carries
+    `role:"assistant"` with empty content — skip).
+
+    TPS = completion_tokens / (t_last_content_chunk - t_first_content_chunk).
+    """
+    t0 = time.monotonic()
+    t_first_content = None
+    t_last_content = None
+    usage_block = None
+
+    try:
+        for line in resp.iter_lines(decode_unicode=True):
+            if not line:
+                continue
+            if line.startswith(":"):
+                continue  # ": OPENROUTER PROCESSING" keepalive
+            if not line.startswith("data:"):
+                continue
+            data = line[5:].strip()
+            if data == "[DONE]":
+                break
+            try:
+                obj = json.loads(data)
+            except json.JSONDecodeError:
+                continue  # skip malformed line, keep parsing
+
+            # Content chunk?
+            choices = obj.get("choices") or []
+            if choices:
+                delta = (choices[0] or {}).get("delta") or {}
+                content = delta.get("content") or ""
+                if content:
+                    now = time.monotonic()
+                    if t_first_content is None:
+                        t_first_content = now
+                    t_last_content = now
+
+            # Final chunk with usage?
+            if obj.get("usage"):
+                usage_block = obj["usage"]
+    except (requests.exceptions.RequestException, ConnectionError) as e:
+        return _err(f"stream error: {e}")
+
+    if usage_block is None:
+        return _err("no usage block in stream")
+    if t_first_content is None or t_last_content is None:
+        return _err("no content chunks in stream")
+
+    completion_tokens = int(usage_block.get("completion_tokens") or 0)
+    if completion_tokens <= 0:
+        return _err(f"zero completion_tokens (usage={usage_block})")
+
+    stream_duration = t_last_content - t_first_content
+    if stream_duration <= 0:
+        # All tokens came in one chunk — measurement floor of 100 ms
+        stream_duration = 0.1
+    tps = completion_tokens / stream_duration
+    ttft_ms = (t_first_content - t0) * 1000.0
+    cost = float(usage_block.get("cost") or 0.0)
+
+    return {
+        "tps": round(tps, 2),
+        "ttft_ms": round(ttft_ms, 1),
+        "prompt_tokens": int(usage_block.get("prompt_tokens") or 0),
+        "completion_tokens": completion_tokens,
+        "cost_usd": round(cost, 8),
+        "error": None,
+    }
+
+
+def _err(msg: str) -> dict:
+    return {
+        "tps": None,
+        "ttft_ms": None,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "cost_usd": 0.0,
+        "error": msg,
+    }
+
+
+# ---------- Bench primitives ----------
+
+
+def bench_one(model_id: str, api_key: str) -> dict:
+    """One microbench call. Returns dict from `_parse_stream`."""
+    body = {
+        "model": model_id,
+        "messages": [{"role": "user", "content": BENCH_PROMPT}],
+        "stream": True,
+        "usage": {"include": True},
+        "max_tokens": MAX_TOKENS,
+        "temperature": TEMPERATURE,
+    }
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+        "Accept": "text/event-stream",
+    }
+    try:
+        resp = requests.post(OR_URL, headers=headers, json=body, stream=True, timeout=REQ_TIMEOUT_S)
+    except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as e:
+        return _err(f"request error: {e}")
+    if resp.status_code >= 500:
+        return _err(f"HTTP {resp.status_code}")
+    if resp.status_code >= 400:
+        try:
+            body_text = resp.text[:300]
+        except Exception:  # noqa: BLE001
+            body_text = "?"
+        return _err(f"HTTP {resp.status_code}: {body_text}")
+    return _parse_stream(resp)
+
+
+def bench_median(model_id: str, api_key: str, n: int = BENCH_N_RUNS) -> dict:
+    """Call `bench_one` n times, take median of tps + ttft_ms. Aggregate cost.
+
+    Skips model (returns error) if 2 of n calls fail.
+    """
+    attempts = []
+    total_cost = 0.0
+    fail_count = 0
+    for i in range(n):
+        r = bench_one(model_id, api_key)
+        total_cost += r["cost_usd"]
+        if r["error"]:
+            fail_count += 1
+        else:
+            attempts.append(r)
+        if fail_count >= 2:
+            return {
+                "tps": None,
+                "ttft_ms": None,
+                "cost_usd": round(total_cost, 8),
+                "error": f"{fail_count}/{i + 1} calls failed",
+                "attempts": [],
+            }
+        # Rate-limit between calls (not before first, not after last)
+        if i < n - 1:
+            time.sleep(RATE_LIMIT_SLEEP_S)
+
+    if not attempts:
+        return {
+            "tps": None,
+            "ttft_ms": None,
+            "cost_usd": round(total_cost, 8),
+            "error": "all attempts failed",
+            "attempts": [],
+        }
+    return {
+        "tps": round(statistics.median(a["tps"] for a in attempts), 2),
+        "ttft_ms": round(statistics.median(a["ttft_ms"] for a in attempts), 1),
+        "cost_usd": round(total_cost, 8),
+        "error": None,
+        "attempts": attempts,
+    }
+
+
+# ---------- Cohort selection ----------
+
+
+def _select_cohort(conn: sqlite3.Connection) -> list[dict]:
+    """Rows eligible for microbench per plan Phase 2 Design filters."""
+    cutoff = (date.today() - timedelta(days=RECENCY_WINDOW_DAYS)).isoformat()
+    conn.row_factory = sqlite3.Row
+    rows = conn.execute(
+        """
+        SELECT id, input_cost_per_m, output_cost_per_m, speed_source, speed_updated_at
+        FROM agents
+        WHERE status = 'active'
+          AND service_type = 'llm'
+          AND input_cost_per_m IS NOT NULL AND input_cost_per_m > 0
+          AND output_cost_per_m IS NOT NULL AND output_cost_per_m > 0
+          AND input_cost_per_m <= 10
+          AND id NOT LIKE '%:free'
+          AND id NOT LIKE 'openrouter/%'
+          AND (
+            output_tokens_per_sec IS NULL
+            OR (speed_source LIKE 'own_microbench%'
+                AND (speed_updated_at IS NULL OR speed_updated_at < ?))
+          )
+        ORDER BY input_cost_per_m ASC
+        """,
+        (cutoff,),
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+# ---------- DB writer ----------
+
+
+def _write_result(conn: sqlite3.Connection, agent_id: str, result: dict) -> None:
+    today = datetime.now(UTC).date().isoformat()
+    tag = f"{SPEED_SOURCE_PREFIX} {today}"
+    conn.execute(
+        "UPDATE agents SET "
+        "output_tokens_per_sec = ?, "
+        "ttft_ms = ?, "
+        "speed_source = ?, "
+        "speed_updated_at = ? "
+        "WHERE id = ? "
+        "AND (speed_source IS NULL OR speed_source LIKE 'own_microbench%'"
+        "     OR speed_source LIKE 'groq_lpu%')",
+        (result["tps"], result["ttft_ms"], tag, today, agent_id),
+    )
+    conn.commit()
+
+
+# ---------- Run log ----------
+
+
+def _append_log(entry: dict) -> None:
+    with LOG_PATH.open("a") as f:
+        f.write(json.dumps(entry, default=str) + "\n")
+
+
+# ---------- Main loop ----------
+
+
+def run_microbench(
+    db_path: Path = DB_PATH,
+    cost_cap_usd: float = COST_CAP_USD,
+    dry_run: bool = False,
+    limit: int | None = None,
+) -> int:
+    """Bench the eligible cohort; return exit code (0 success, 1 error)."""
+    load_dotenv()
+    api_key = os.getenv("OPENROUTER_API_KEY")
+    if not api_key:
+        log("SKIP: OPENROUTER_API_KEY not set")
+        return 0  # non-fatal for daily_refresh
+
+    conn = sqlite3.connect(db_path)
+    try:
+        cohort = _select_cohort(conn)
+    finally:
+        conn.close()
+
+    if limit is not None:
+        cohort = cohort[:limit]
+
+    log(f"cohort: {len(cohort)} rows eligible")
+    if dry_run:
+        # Estimate: median priced call ~ $0.001 × 3 runs per model
+        est_cost = len(cohort) * 3 * 0.001
+        log(f"would bench {len(cohort)} models (dry-run), est. cost ${est_cost:.2f}")
+        return 0
+
+    conn = sqlite3.connect(db_path)
+    running_cost = 0.0
+    models_updated = 0
+    models_failed = 0
+    started_at = datetime.now(UTC).isoformat()
+
+    try:
+        for i, row in enumerate(cohort, 1):
+            agent_id = row["id"]
+            if running_cost >= cost_cap_usd:
+                log(f"cost_stop: ${running_cost:.4f} >= cap ${cost_cap_usd} after {i - 1} calls")
+                break
+            log(f"[{i}/{len(cohort)}] bench {agent_id} (running cost ${running_cost:.4f})")
+            result = bench_median(agent_id, api_key)
+            running_cost += result["cost_usd"]
+            if result["error"]:
+                models_failed += 1
+                log(f"  → FAIL: {result['error']}")
+                continue
+            _write_result(conn, agent_id, result)
+            models_updated += 1
+            log(f"  → tps={result['tps']} ttft={result['ttft_ms']}ms cost=${result['cost_usd']}")
+            time.sleep(RATE_LIMIT_SLEEP_S)
+    finally:
+        conn.close()
+
+    _append_log(
+        {
+            "run_at": started_at,
+            "finished_at": datetime.now(UTC).isoformat(),
+            "cohort_size": len(cohort),
+            "models_updated": models_updated,
+            "models_failed": models_failed,
+            "total_cost_usd": round(running_cost, 6),
+            "cost_cap_usd": cost_cap_usd,
+            "cost_stop": running_cost >= cost_cap_usd,
+        }
+    )
+    log(
+        f"summary: cohort={len(cohort)} updated={models_updated} "
+        f"failed={models_failed} cost=${running_cost:.4f}"
+    )
+    return 0
+
+
+def main() -> int:
+    p = argparse.ArgumentParser(description="OR microbench for output_tokens_per_sec + ttft_ms")
+    p.add_argument("--dry-run", action="store_true", help="Show cohort + est cost only")
+    p.add_argument("--limit", type=int, default=None, help="Cap models per run (smoke test)")
+    p.add_argument(
+        "--cost-cap", type=float, default=COST_CAP_USD, help=f"USD cap (default: {COST_CAP_USD})"
+    )
+    p.add_argument("--db", type=Path, default=DB_PATH)
+    args = p.parse_args()
+    return run_microbench(args.db, args.cost_cap, args.dry_run, args.limit)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
