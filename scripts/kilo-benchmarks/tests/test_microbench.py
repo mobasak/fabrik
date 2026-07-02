@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import sqlite3
 import sys
+import time
 from datetime import timedelta
 from pathlib import Path
 from unittest.mock import patch
@@ -122,6 +123,35 @@ def test_parse_stream_rejects_single_chunk_streams_instead_of_fabricating_tps():
     assert r["error"] is not None, "single-chunk stream must return an error"
     assert "single-chunk" in r["error"], f"expected 'single-chunk' in error, got {r['error']!r}"
     assert r["tps"] is None, "must not fabricate a TPS value"
+
+
+def test_parse_stream_counts_reasoning_chunks_for_tps_math():
+    """Live probe finding 2026-07-02: reasoning models (gpt-5-nano,
+    arcee-ai/trinity-mini, o1/o3, R1, QwQ, nemotron-nano) emit
+    delta.content="" and put every token in delta.reasoning. Prior
+    parser looked at delta.content only, saw zero content chunks, and
+    the single-chunk guard fired → returned error. This kills 50-80
+    rows of the ~186-model cohort. Fix: count reasoning as generated
+    output for TPS timing (usage.completion_tokens already includes
+    reasoning_tokens, so the math stays consistent)."""
+    from microbench_or_models import _parse_stream
+
+    class FakeResp:
+        def iter_lines(self, decode_unicode=True):
+            # Real gpt-5-nano shape: content="" always, tokens in reasoning
+            yield 'data: {"choices":[{"delta":{"content":"","reasoning":"Formulating"}}]}'
+            time.sleep(0.01)
+            yield 'data: {"choices":[{"delta":{"content":"","reasoning":" a friendly"}}]}'
+            time.sleep(0.01)
+            yield 'data: {"choices":[{"delta":{"content":"","reasoning":" greeting"}}]}'
+            yield 'data: {"usage":{"prompt_tokens":10,"completion_tokens":128,"cost":8e-5}}'
+            yield "data: [DONE]"
+
+    r = _parse_stream(FakeResp())
+    assert r["error"] is None, f"reasoning-model stream must succeed, got: {r['error']}"
+    assert r["tps"] > 0, f"tps must be positive, got {r['tps']}"
+    assert r["ttft_ms"] >= 0, f"ttft must be non-negative, got {r['ttft_ms']}"
+    assert r["completion_tokens"] == 128
 
 
 def test_bench_one_catches_unicode_decode_error_from_iter_lines(monkeypatch):

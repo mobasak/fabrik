@@ -113,11 +113,14 @@ def _parse_stream(resp: requests.Response) -> dict:
             except json.JSONDecodeError:
                 continue  # skip malformed line, keep parsing
 
-            # Content chunk?
+            # Content chunk? Reasoning models (gpt-5, o1/o3, R1, QwQ, arcee,
+            # nemotron-nano) emit content="" and put tokens in delta.reasoning;
+            # usage.completion_tokens counts reasoning + content, so timing
+            # from first-any-chunk to last-any-chunk keeps TPS math consistent.
             choices = obj.get("choices") or []
             if choices:
                 delta = (choices[0] or {}).get("delta") or {}
-                content = delta.get("content") or ""
+                content = (delta.get("content") or "") + (delta.get("reasoning") or "")
                 if content:
                     now = time.monotonic()
                     if t_first_content is None:
