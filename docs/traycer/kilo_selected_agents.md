@@ -1,6 +1,6 @@
 # Kilo Agents Master Table
 
-**Last Updated:** 2026-07-02T11:07:16.275059
+**Last Updated:** 2026-07-02T17:29:13.344464
 **Source:** [openlm.ai/chatbot-arena](https://openlm.ai/chatbot-arena/) | [tbench.ai](https://www.tbench.ai/leaderboard/terminal-bench/2.0)
 
 ## Top 60 Agents Ranked by Chatbot Arena Elo
@@ -61,7 +61,7 @@
 | 52 | **minimax-m2.1** | minimax | 1430 | 36.6 | $0.30 | $1.20 | 204K |  | ✓ | ✓ | 2 | 1467 | ✅ |
 | 53 | **qwen3-30b-a3b-instruct-2507** | qwen | 1425 | ~ | $0.05 | $0.19 | 128K |  | ✓ |  | 1 | 9087 | ✅ |
 | 54 | **gemini-3.1-flash-lite-preview** | google | 1421 | ~ | $0.25 | $1.50 | 1048K | ✓ | ✓ | ✓ | 2 | 1197 | ✅ |
-| 55 | **gpt-5-chat** | openai | 1421 | ~ | $0.00 | $0.00 | 128K | ✓ |  |  | 1 | 181888000 | ✅ |
+| 55 | **gpt-5-chat** | openai | 1421 | ~ | $1.25 | $10.00 | 128K | ✓ |  |  | 1 | 182 | ✅ |
 | 56 | **gemini-3.1-flash-lite** | google | 1421 | ~ | $0.25 | $1.50 | 1048K | ✓ | ✓ | ✓ | 2 | 1197 | ✅ |
 | 57 | **gemini-2.5-flash** | google | 1420 | 17.1 | $0.30 | $2.50 | 1048K | ✓ | ✓ | ✓ | 2 | 728 | ✅ |
 | 58 | **gpt-5-mini** | openai | 1419 | 34.8 | $0.25 | $2.00 | 400K | ✓ | ✓ | ✓ | 2 | 908 | ✅ |

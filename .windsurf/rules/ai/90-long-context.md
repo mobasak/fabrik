@@ -28,8 +28,8 @@ Claude Opus 4.8 (1M), Claude Fable 5 (1M), Gemini 2.5 Pro (1M), GPT-4o (128K).
 
 | Priority | OpenRouter ID | Cost ($/M in) | Context | Status |
 |---|---|---|---|---|
-| P1 | `meta-llama/llama-4-scout` | $0.10 | 10000k | GA |
-| P2 | `x-ai/grok-4.20` | $1.25 | 2000k | GA |
+| P1 | `x-ai/grok-4.20` | $1.25 | 2000k | GA |
+| P2 | `openrouter/auto` | free | 2000k | free |
 
 To consume via a Fabrik spec: `llm_provider: openrouter` + `llm_model: <P1 id>`. Fallback chain via the OpenRouter `models: [P1, P2, P3]` request parameter.
 <!-- OPENROUTER_ROUTES:END -->

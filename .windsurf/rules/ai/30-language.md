@@ -33,7 +33,7 @@ Pick the **cheaper gateway per model** — the bake-off browser shows the per-ro
 <!-- GATEWAY_COUNTS:START — last-refreshed: 2026-07-02 (auto-managed by update_gateway_counts.py) -->
 *Live gateway counts (active models, 2026-07-02 UTC; auto-refreshed from `kilo_agents.db`):*
 
-language-tagged (any gateway): **148**
+language-tagged (any gateway): **154**
 translation-scored (any gateway): **9**
 
 Sweet-spot dedicated MT: `qwen-mt-turbo` via DashScope (top-3 on FR/PT/DE/ID/AR, weaker on HU/RO/UR/KO; see the Translation tab in the bake-off browser).
