@@ -1,0 +1,80 @@
+#!/usr/bin/env python3
+# AFTER-EDIT: none
+"""Enforce the `# AFTER-EDIT:` coupling header on staged scripts.
+
+Every script self-declares which files must be updated when *it* changes, via a header
+line in its first lines:
+
+    # AFTER-EDIT: scripts/fabrik_synced_manifest.py, .gitignore     (or `none`)
+
+This gate mirrors check_doc_sync (touch-on-change, WARN-tier — never blocks):
+- WARN if a staged `scripts/**/*.py` has no `# AFTER-EDIT:` header.
+- WARN if the header names a coupled file that was NOT also staged in this change.
+
+Touch-on-change by design: only *staged* scripts are inspected, so there is no mass
+backfill — a script gains its header the next time it is edited. WARN-only (always
+exit 0); promote to an ERROR gate once the active scripts are headered.
+"""
+
+from __future__ import annotations
+
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+HEADER_RE = re.compile(r"#\s*AFTER-EDIT:\s*(.+)", re.IGNORECASE)
+NONE_VALUES = {"none", "n/a", "na", "-", ""}
+SKIP_PATTERNS = ("tests/", "test_", "_test.py", "__pycache__/", "/__init__.py")
+HEADER_SCAN_LINES = 25
+
+
+def _git(args: list[str]) -> list[str]:
+    out = subprocess.run(["git", *args], capture_output=True, text=True, timeout=20).stdout.strip()
+    return out.split("\n") if out else []
+
+
+def _skip(f: str) -> bool:
+    return any(p in f for p in SKIP_PATTERNS)
+
+
+def main() -> int:
+    staged = _git(["diff", "--cached", "--name-only"])
+    if not staged:
+        return 0
+    staged_set = set(staged)
+    scripts = [f for f in staged if f.startswith("scripts/") and f.endswith(".py") and not _skip(f)]
+
+    warnings: list[str] = []
+    for f in scripts:
+        p = Path(f)
+        if not p.exists():  # staged deletion — nothing to check
+            continue
+        head = "\n".join(
+            p.read_text(encoding="utf-8", errors="replace").splitlines()[:HEADER_SCAN_LINES]
+        )
+        m = HEADER_RE.search(head)
+        if not m:
+            warnings.append(
+                f"{f}: no `# AFTER-EDIT:` header — declare the files to update when this "
+                "script changes (or `# AFTER-EDIT: none`)."
+            )
+            continue
+        listed = m.group(1).strip()
+        if listed.lower() in NONE_VALUES:
+            continue
+        coupled = [c for c in re.split(r"[,\s]+", listed) if c]
+        missing = [c for c in coupled if c not in staged_set]
+        if missing:
+            warnings.append(
+                f"{f}: `# AFTER-EDIT:` lists coupled file(s) not updated in this change: "
+                f"{', '.join(missing)}."
+            )
+
+    for w in warnings:
+        print(f"WARNING: {w}")
+    return 0  # WARN-only — never blocks the gate
+
+
+if __name__ == "__main__":
+    sys.exit(main())

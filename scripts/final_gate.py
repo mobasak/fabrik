@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# AFTER-EDIT: docs/workflows/FINAL_GATE_WORKFLOW.md
 """
 Final Gate - Deterministic checks for coder AI before Traycer commit.
 
@@ -647,6 +648,14 @@ def run_consistency_checks(
         # FEATURES / PORTS touch-on-change). Tier 1+2 so it blocks in --lean.
         results.append(
             run_optional_check("scripts/enforcement/check_doc_sync.py", "Doc Sync Matrix")
+        )
+        # Script coupling header — each staged scripts/**/*.py declares (via a
+        # `# AFTER-EDIT:` header) the files to update when it changes. WARN-tier,
+        # touch-on-change (mirrors Doc Sync); never blocks.
+        results.append(
+            run_optional_check(
+                "scripts/enforcement/check_script_headers.py", "Script Coupling Header"
+            )
         )
         # Print/console.log ban in production code
         results.append(

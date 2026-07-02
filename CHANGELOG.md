@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Script coupling header gate (`check_script_headers.py`) (2026-07-02)
+
+Every `scripts/**/*.py` now declares, via a `# AFTER-EDIT: <files | none>` header, the files to update when it changes. New WARN-tier enforcement `check_script_headers.py` (registered in `final_gate.py` Tier 1, touch-on-change like Doc Sync): warns on a missing header or when a listed coupled file wasn't also staged. Non-blocking; no mass backfill (scripts gain the header as they're next edited). Convention documented in `CLAUDE.md`; check listed in `docs/workflows/FINAL_GATE_WORKFLOW.md`.
+
 ### Fixed — Post-execution `/fabrik-review` of 2026-07-02 plan-1-speed-coverage: 9 findings actioned (2026-07-02)
 
 Skipped the per-phase `/fabrik-review` gates during plan execution — retroactively ran the full adversarial review methodology on the 6-commit accumulated surface and surfaced 11 findings (2 refuted, 9 actioned). Correctness/resource findings fixed with red-before-green regression tests; plan and docstrings updated for the two plan↔code deviations.

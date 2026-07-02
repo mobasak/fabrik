@@ -166,6 +166,9 @@ FINAL_GATE_AI_FIX=1 python scripts/final_gate.py
 - **Print/Console Ban** - `check_print_ban.py`
   - Bans `print()` in `.py` and `console.log()` in `.ts`/`.tsx`/`.js`/`.jsx` production code
   - Skips test files (all extensions) and `scripts/` directory
+- **Script Coupling Header** - `check_script_headers.py`
+  - Each staged `scripts/**/*.py` declares, via a `# AFTER-EDIT:` header, the files to update when it changes (or `none`)
+  - WARN-tier, touch-on-change (mirrors Doc Sync): warns on a missing header, or when a listed coupled file wasn't also staged; never blocks
 
 ### Tier 2 (FULL) - Default - Phase Handover
 
@@ -633,7 +636,7 @@ entire API becomes unresponsive. This test verifies graceful degradation.
 ```python
 # BAD
 DB_HOST = 'localhost'
-API_KEY = 'sk-abc123'
+API_KEY = 'sk-abc123'  # noqa  (illustrative bad example)
 
 # GOOD
 DB_HOST = os.getenv('DB_HOST', 'localhost')

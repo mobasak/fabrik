@@ -103,6 +103,7 @@ Query: `git log --grep='Agent-Role: subagent'` · `git log --format='%h %(traile
 - **Same code in 3 envs:** WSL dev (PG localhost, `.env`) · VPS Docker (`postgres-main`, `compose.yaml`) · Supabase (env vars). Must run unmodified.
 - **Health endpoint:** test real deps (`await db.execute("SELECT 1")`).
 - **Before new scripts:** `Grep` `scripts/` + `enforcement/`. Extend, don't duplicate.
+- **Script coupling header:** every `scripts/**/*.py` carries a `# AFTER-EDIT: <files to update when this script changes | none>` line in its first ~25 lines. Gate-enforced (WARN) by `check_script_headers.py` — touch-on-change: warns on a missing header or a listed coupled file you didn't also stage.
 - **fabrik-lib** (`/opt/fabrik-lib/`): reusable modules — vendor (copy), don't import. Check `fabrik-lib/README.md` for the module table before building from scratch. New module = must have `README.md` + `requirements.txt` + row in `fabrik-lib/README.md` table.
 
 ## ⚠️ FINAL OUTPUT (last 4 lines of every task-completing response)
