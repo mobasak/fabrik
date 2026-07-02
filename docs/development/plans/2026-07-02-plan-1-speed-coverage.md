@@ -385,7 +385,7 @@ Focused review on the `daily_refresh.sh` diff: (a) conditional syntax correctnes
 
 ---
 
-## Phase 4 — UI clarity (per-row source in tooltip)
+## Phase 4 — UI clarity (per-row source in tooltip) — ✅ EXECUTED 2026-07-02
 
 ### Files
 

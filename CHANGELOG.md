@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Phase 4 of 2026-07-02 plan-1-speed-coverage: per-row Speed source in tooltip (2026-07-02)
+
+New JS helper `speedSourceLabel(src)` in the browser template translates DB `speed_source` tags into human-readable phrases:
+
+- `null` / undefined / `AA` → `"Artificial Analysis"`
+- `artificialanalysis*` → passthrough (already carries `(n=…)`)
+- `groq_lpu*` → `"Groq LPU (only realized if you pin provider.only=[\"Groq\"] in the OR request)"`
+- `own_microbench 2026-07-02` → `"own microbench 2026-07-02"`
+- `manual_override` → `"manual override"`
+- fallback → passthrough
+
+Wired into both sites (line numbers verified in plan Evidence):
+
+- table Speed cell `title=` attribute — was hardcoded `"from Artificial Analysis"`
+- detail-panel `sourceRows.push` for Throughput
+
+Phase 4 self-review caught a pre-existing XSS surface at the detail-panel callsite (values interpolated into innerHTML without escaping). Fixed by wrapping with `escapeHtml()` — same pattern as the Cheapest column's earlier defensive fix.
+
+JS syntax verified via `new Function()` parse. Export counts unchanged (790 chat / 26 embedding / 107 providers).
+
 ### Added — Phase 3 of 2026-07-02 plan-1-speed-coverage: microbench weekly cadence (2026-07-02)
 
 Wired `microbench_or_models.py` into `daily_refresh.sh` with a Sunday-only gate (`[ "$(date -u +%u)" = "7" ]`). Placed AFTER `scrape_openrouter_endpoints` and BEFORE `derive_cheapest_gateway` so fresh Speed rows feed the derived views on the weekly benching day. Two-layer guard: outer date check + inner OPENROUTER_API_KEY presence check, emits a distinct `SKIP` log line if the key is missing on a Sunday (surfaces config gaps only when they matter). Non-fatal on failure per daily_refresh's convention.
