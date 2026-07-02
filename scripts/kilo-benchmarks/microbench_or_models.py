@@ -7,10 +7,14 @@ Phase 2): AA leaderboard only covers ~166 models. To close the coverage gap
 on the long tail, call each unbenched model via OR's streaming API with a
 fixed prompt, measure TTFT + TPS, and take the median of 3 runs.
 
-Cost is capped by a hard $10/run kill switch. OR's streaming response
-carries `usage.cost` (actual billed USD) when `usage.include=true` — we
-use that directly instead of estimating from headline prices, eliminating
-the U8 cost-drift concern.
+Cost is capped by a $10/run stop-before-next kill switch: after each
+call's `usage.cost` gets added to the running sum, if we've crossed
+the cap the loop breaks before the NEXT call. Real max overrun is
+one bench's cost (~$0.001-$0.05 realistic worst-case with the cohort
+filter) — we cannot refund a call already in flight. OR's streaming
+response carries `usage.cost` (actual billed USD) when
+`usage.include=true`, so the cap uses real spend not headline-price
+estimates.
 
 Weekly cadence (invoked from daily_refresh.sh Sunday-only). Idempotent —
 rows benched within the last 30 days are skipped without API calls.
@@ -41,7 +45,7 @@ import sqlite3
 import statistics
 import sys
 import time
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import requests
@@ -123,7 +127,15 @@ def _parse_stream(resp: requests.Response) -> dict:
             # Final chunk with usage?
             if obj.get("usage"):
                 usage_block = obj["usage"]
-    except (requests.exceptions.RequestException, ConnectionError) as e:
+    except (
+        requests.exceptions.RequestException,
+        ConnectionError,
+        # A mangling proxy or partial-multibyte chunk from OR/CDN can send
+        # non-UTF-8 bytes mid-stream — iter_lines(decode_unicode=True) then
+        # raises. Without this catch the whole weekly run would crash
+        # instead of skipping just this model. (Review finding 2026-07-02.)
+        UnicodeDecodeError,
+    ) as e:
         return _err(f"stream error: {e}")
 
     if usage_block is None:
@@ -137,8 +149,16 @@ def _parse_stream(resp: requests.Response) -> dict:
 
     stream_duration = t_last_content - t_first_content
     if stream_duration <= 0:
-        # All tokens came in one chunk — measurement floor of 100 ms
-        stream_duration = 0.1
+        # Single-chunk stream — first and last content chunk are the same.
+        # Fast providers (Cerebras, Groq LPU via OR routing, small responses)
+        # deliver all completion tokens in one chunk. We cannot compute TPS
+        # from a single sample without fabricating; return an error so the
+        # bench is skipped instead of writing nonsense (fixed by review
+        # 2026-07-02 — earlier fallback of 0.1s inflated TPS 10x-30x).
+        return _err(
+            f"single-chunk stream — TPS unmeasurable "
+            f"(completion_tokens={completion_tokens}, duration=0)"
+        )
     tps = completion_tokens / stream_duration
     ttft_ms = (t_first_content - t0) * 1000.0
     cost = float(usage_block.get("cost") or 0.0)
@@ -186,15 +206,18 @@ def bench_one(model_id: str, api_key: str) -> dict:
         resp = requests.post(OR_URL, headers=headers, json=body, stream=True, timeout=REQ_TIMEOUT_S)
     except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as e:
         return _err(f"request error: {e}")
-    if resp.status_code >= 500:
-        return _err(f"HTTP {resp.status_code}")
-    if resp.status_code >= 400:
-        try:
-            body_text = resp.text[:300]
-        except Exception:  # noqa: BLE001
-            body_text = "?"
-        return _err(f"HTTP {resp.status_code}: {body_text}")
-    return _parse_stream(resp)
+    # Use as-context so the underlying HTTP connection is returned to the
+    # pool even if _parse_stream raises (leak surfaced by review 2026-07-02).
+    with resp:
+        if resp.status_code >= 500:
+            return _err(f"HTTP {resp.status_code}")
+        if resp.status_code >= 400:
+            try:
+                body_text = resp.text[:300]
+            except Exception:  # noqa: BLE001
+                body_text = "?"
+            return _err(f"HTTP {resp.status_code}: {body_text}")
+        return _parse_stream(resp)
 
 
 def bench_median(model_id: str, api_key: str, n: int = BENCH_N_RUNS) -> dict:
@@ -245,8 +268,14 @@ def bench_median(model_id: str, api_key: str, n: int = BENCH_N_RUNS) -> dict:
 
 
 def _select_cohort(conn: sqlite3.Connection) -> list[dict]:
-    """Rows eligible for microbench per plan Phase 2 Design filters."""
-    cutoff = (date.today() - timedelta(days=RECENCY_WINDOW_DAYS)).isoformat()
+    """Rows eligible for microbench per plan Phase 2 Design filters.
+
+    Cutoff uses `datetime.now(UTC).date()` to match `_write_result` which
+    writes `speed_updated_at` as a UTC date. Local `date.today()` would
+    drift by ±1 day depending on wall-clock time (bug caught by review
+    2026-07-02: operator TZ is +0300; at 02:30 UTC the two dates differ).
+    """
+    cutoff = (datetime.now(UTC).date() - timedelta(days=RECENCY_WINDOW_DAYS)).isoformat()
     conn.row_factory = sqlite3.Row
     rows = conn.execute(
         """

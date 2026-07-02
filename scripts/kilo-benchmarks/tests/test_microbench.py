@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import sqlite3
 import sys
-from datetime import date, timedelta
+from datetime import timedelta
 from pathlib import Path
 from unittest.mock import patch
 
@@ -89,12 +89,128 @@ def test_parse_stream_ignores_malformed_data_lines():
         def iter_lines(self, decode_unicode=True):
             yield "data: not-valid-json"  # skipped
             yield 'data: {"choices":[{"delta":{"content":"hi"}}]}'
+            yield "data: also-not-json {malformed"  # skipped
+            # Two content chunks (not one) so the single-chunk rejection
+            # doesn't hide the malformed-line-ignore behavior we're testing.
+            yield 'data: {"choices":[{"delta":{"content":" there"}}]}'
             yield 'data: {"usage":{"prompt_tokens":1,"completion_tokens":2,"cost":1e-6}}'
             yield "data: [DONE]"
 
     r = _parse_stream(FakeResp())
     assert r["error"] is None
     assert r["completion_tokens"] == 2
+
+
+# ---------- Review-2026-07-02 regression tests ----------
+
+
+def test_parse_stream_rejects_single_chunk_streams_instead_of_fabricating_tps():
+    """Review finding: single-chunk streams previously got a fake 0.1s
+    stream_duration fallback that inflated TPS 10-30x. Must now return
+    an error so the bench is skipped, not written to DB."""
+    from microbench_or_models import _parse_stream
+
+    class FakeResp:
+        def iter_lines(self, decode_unicode=True):
+            # One content chunk carrying all 300 tokens (Cerebras/Groq-LPU
+            # pattern via OR routing on small responses).
+            yield 'data: {"choices":[{"delta":{"content":"...all 300 tokens..."}}]}'
+            yield 'data: {"usage":{"prompt_tokens":10,"completion_tokens":300,"cost":1e-5}}'
+            yield "data: [DONE]"
+
+    r = _parse_stream(FakeResp())
+    assert r["error"] is not None, "single-chunk stream must return an error"
+    assert "single-chunk" in r["error"], f"expected 'single-chunk' in error, got {r['error']!r}"
+    assert r["tps"] is None, "must not fabricate a TPS value"
+
+
+def test_bench_one_catches_unicode_decode_error_from_iter_lines(monkeypatch):
+    """Review finding: iter_lines(decode_unicode=True) can raise
+    UnicodeDecodeError on non-UTF-8 bytes from a mangling proxy. Must
+    be caught and returned as an error (not propagate + crash the loop)."""
+    from microbench_or_models import _parse_stream
+
+    class BrokenResp:
+        def iter_lines(self, decode_unicode=True):
+            yield 'data: {"choices":[{"delta":{"content":"hi"}}]}'
+            raise UnicodeDecodeError("utf-8", b"\xff", 0, 1, "invalid start byte")
+
+    r = _parse_stream(BrokenResp())
+    assert r["error"] is not None
+    assert "stream error" in r["error"] or "UnicodeDecodeError" in r["error"], r["error"]
+
+
+def test_bench_one_uses_context_manager_to_close_response(monkeypatch):
+    """Review finding: `with resp:` ensures the HTTP connection is
+    released even if _parse_stream raises. Guard against reversion."""
+    from microbench_or_models import bench_one
+
+    closed = {"flag": False}
+
+    class FakeResp:
+        status_code = 200
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            closed["flag"] = True
+            return False
+
+        def iter_lines(self, decode_unicode=True):
+            yield 'data: {"choices":[{"delta":{"content":"hi"}}]}'
+            yield 'data: {"usage":{"prompt_tokens":1,"completion_tokens":2,"cost":1e-6}}'
+            yield "data: [DONE]"
+
+    monkeypatch.setattr("microbench_or_models.requests.post", lambda *a, **k: FakeResp())
+    bench_one("test/model", "fake-key")
+    assert closed["flag"], "bench_one must close the response (with-context)"
+
+
+def test_cohort_cutoff_uses_utc_not_local_timezone(tmp_path, monkeypatch):
+    """Review finding: _select_cohort previously used local `date.today()`
+    while _write_result uses `datetime.now(UTC).date()`. Under any non-UTC
+    TZ the recency boundary drifts by ±1 day. This test seeds a boundary
+    row and verifies the cutoff uses UTC."""
+    import sqlite3
+    from datetime import UTC, datetime
+
+    from microbench_or_models import RECENCY_WINDOW_DAYS, _select_cohort
+
+    # A row written at 30 UTC-days ago is exactly on the boundary.
+    just_inside = (datetime.now(UTC).date() - timedelta(days=RECENCY_WINDOW_DAYS - 1)).isoformat()
+    just_outside = (datetime.now(UTC).date() - timedelta(days=RECENCY_WINDOW_DAYS + 1)).isoformat()
+
+    db = tmp_path / "cohort.db"
+    conn = sqlite3.connect(db)
+    conn.executescript(
+        """
+        CREATE TABLE agents (
+            id TEXT PRIMARY KEY, status TEXT DEFAULT 'active',
+            service_type TEXT DEFAULT 'llm',
+            input_cost_per_m REAL, output_cost_per_m REAL,
+            output_tokens_per_sec REAL, ttft_ms REAL,
+            speed_source TEXT, speed_updated_at TEXT
+        );
+        """
+    )
+    conn.executemany(
+        "INSERT INTO agents (id, input_cost_per_m, output_cost_per_m, output_tokens_per_sec, "
+        "speed_source, speed_updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+        [
+            ("inside/model", 1.0, 3.0, 50.0, "own_microbench x", just_inside),
+            ("outside/model", 1.0, 3.0, 50.0, "own_microbench x", just_outside),
+        ],
+    )
+    conn.commit()
+    cohort = _select_cohort(conn)
+    conn.close()
+
+    ids = {r["id"] for r in cohort}
+    # inside-window row (< 30 UTC days old) must be skipped
+    assert "inside/model" not in ids
+    # outside-window row (> 30 UTC days old) must be picked up
+    assert "outside/model" in ids
 
 
 # ---------- bench_median ----------
@@ -254,24 +370,31 @@ def test_cohort_excludes_zero_priced_rows(tmp_path):
 
 
 def test_idempotent_skips_recently_benched_rows(tmp_path):
-    """A row benched today with own_microbench source is not re-selected."""
+    """A row benched today with own_microbench source is not re-selected.
+
+    Uses `datetime.now(UTC).date()` for the test boundary (not the local
+    `date.today()`), matching production's `_write_result` + `_select_cohort`
+    convention. Review 2026-07-02 caught that the earlier form (local
+    date.today()) masked a TZ bug in _select_cohort.
+    """
+    from datetime import UTC, datetime
+
     from microbench_or_models import _select_cohort
 
     db = _seed_cohort_db(tmp_path)
-    today = date.today().isoformat()
+    today = datetime.now(UTC).date().isoformat()
+    old = (datetime.now(UTC).date() - timedelta(days=45)).isoformat()
     conn = sqlite3.connect(db)
     conn.execute(
         "INSERT INTO agents (id, input_cost_per_m, output_cost_per_m, "
         "output_tokens_per_sec, speed_source, speed_updated_at) VALUES "
-        "('fresh/mdl', 1.0, 3.0, 50.0, 'own_microbench 2026-07-02', ?)",
+        "('fresh/mdl', 1.0, 3.0, 50.0, 'own_microbench x', ?)",
         (today,),
     )
-    # And an old own_microbench row (older than 30 days) — should be re-benched.
-    old = (date.today() - timedelta(days=45)).isoformat()
     conn.execute(
         "INSERT INTO agents (id, input_cost_per_m, output_cost_per_m, "
         "output_tokens_per_sec, speed_source, speed_updated_at) VALUES "
-        "('stale/mdl', 1.0, 3.0, 50.0, 'own_microbench 2026-05-15', ?)",
+        "('stale/mdl', 1.0, 3.0, 50.0, 'own_microbench y', ?)",
         (old,),
     )
     conn.commit()

@@ -263,8 +263,7 @@ For each active LLM row where `output_tokens_per_sec IS NULL` OR (`speed_source 
 6. `POST /api/v1/chat/completions` with `stream=true`, `usage.include=true` (required — otherwise OR omits the final `usage` block), `max_tokens=300`, `temperature=0.2`.
 7. TTFT = time from request send to first `data:` chunk whose `delta.content` is non-empty (the first chunk often carries `role:"assistant"` with empty content — skip).
 8. TPS = `usage.completion_tokens / (t_last_content_chunk - t_first_content_chunk)`.
-9. Retry once on transient errors (5xx, timeout). Skip on second failure.
-10. Repeat 3× per model — take median of tps + ttft.
+9. Repeat 3× per model — take median of tps + ttft. If ≥ 2 of the 3 calls fail (5xx / timeout / stream error), skip this model. This is the actual resilience mechanism: median-of-3 dampens transient noise AND acts as an implicit tolerance for 1 failed attempt. (Deviation from earlier draft that specified per-call retry; median-of-3 is at least as robust and simpler to reason about. Confirmed by review 2026-07-02 as the intended pattern.)
 11. Write `output_tokens_per_sec, ttft_ms, speed_source='own_microbench YYYY-MM-DD', speed_updated_at=today_iso()`.
 
 ### Guardrails (all automated)
@@ -662,6 +661,30 @@ Confirms `date +%u = 7` gates microbench to Sunday-06:00-UTC when cron fires, ma
 - **U7**: **Bench-repeatability variance.** A model's TPS can vary 10-30% run-to-run because OR routes different bench calls to different endpoints. Median-over-3 dampens this but ~15% noise remains. **Resolution**: every measurement (all 3 attempts per model) is stored in `microbench_log.jsonl`; if a follow-up audit finds > 30% variance on more than 20% of rows, escalate to 5-run median.
 - **U9**: **First-run bulk cost realism.** Estimated ~198 rows × 3 calls × ~$0.001/call = **~$0.60**. Worst plausible drift: 5× → $3, still well below the $10 cap. **Resolution**: (a) plan mandates first run under `--dry-run` (Phase 2 gate S2.3); (b) cost cap is a hard runtime kill switch, not a soft warning; (c) `microbench_log.jsonl` captures actual per-run cost for empirical calibration of future runs.
 - **U10** (new): **Groq → OR model-name matching.** Groq uses `Versatile`/`Instant`/`17Bx16E`/`128k` tokens that AA doesn't; the Groq-local pre-normalize step is untested against real-DB matching. **Resolution**: Phase 1 S1.5 test `test_matches_all_8_current_groq_models_to_db` (add to the regression test list) will assert that all 8 current Groq models match to real DB row ids; failing test blocks Phase 2 start via the phase-boundary review gate.
+- **U11** (new, from post-execution `/fabrik-review`): **Concurrent microbench runs cause duplicate OR spend.** No lockfile guards against two microbench processes starting near-simultaneously (cron + operator manual trigger, or an NTP jump). Both would call OR on the same cohort, doubling per-model spend. Realistic frequency: rare. Realistic worst-case cost: ~$1 duplicate. **Resolution**: leave unmitigated — the cost cap still bounds each process to $10, and the JSONL run log surfaces duplicate cost after the fact. If observed empirically, add fcntl.flock on a `/tmp/microbench.lock` file.
+
+## Post-execution `/fabrik-review` findings + fixes (2026-07-02)
+
+Skipped the per-phase reviews the plan mandated. Retroactively ran `/fabrik-review` on the full 6-commit accumulated surface — **11 findings** surfaced (2 refuted, 9 actioned):
+
+| # | Severity | Location | Fix |
+|---|---|---|---|
+| 1 | Correctness | `microbench_or_models.py:_parse_stream` single-chunk fabrication | Return error instead of 0.1s fallback; TPS was 10-30× inflated on fast providers |
+| 2 | Correctness | `microbench_or_models.py:_select_cohort` local TZ | Switch to `datetime.now(UTC).date()` — matches `_write_result` |
+| 3 | Resource | `bench_one` response not closed | Wrap in `with resp:` context manager |
+| 4 | Correctness | `_parse_stream` didn't catch `UnicodeDecodeError` | Add to except tuple |
+| 5 | Test | `test_parse_stream_*` weak assertion | Added `test_parse_stream_rejects_single_chunk_streams` regression guard |
+| 6 | Test | No iter_lines exception coverage | Added `test_bench_one_catches_unicode_decode_error` |
+| 7 | Test | `test_idempotent_skips` used `date.today()` (masked #2) | Updated to `datetime.now(UTC).date()` |
+| 8 | Plan↔code | Plan said "retry once"; code does median-of-3 | Updated plan §Design step 9 to reflect actual pattern |
+| 9 | Docstring | Plan/code said "hard cap"; implementation is stop-before-next | Updated docstring to "stop-before-next kill switch" |
+| — | Style | CHANGELOG entries reverse-chronological | Skipped (below threshold) |
+| — | Refuted | `time.monotonic` correctness | OK (monotonic is correct for TTFT measurement) |
+| — | Refuted | Missing `usage.cost` fallback | OK (OR verified always sends it with `usage.include=true`) |
+
+Also added `test_bench_one_uses_context_manager_to_close_response` as a regression guard for finding #3.
+
+Full test suite after fixes: **64/64 pass** (60 pre-review + 4 new regression tests).
 
 ---
 

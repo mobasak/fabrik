@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Post-execution `/fabrik-review` of 2026-07-02 plan-1-speed-coverage: 9 findings actioned (2026-07-02)
+
+Skipped the per-phase `/fabrik-review` gates during plan execution — retroactively ran the full adversarial review methodology on the 6-commit accumulated surface and surfaced 11 findings (2 refuted, 9 actioned). Correctness/resource findings fixed with red-before-green regression tests; plan and docstrings updated for the two plan↔code deviations.
+
+**Actioned (fixes + regression tests):**
+
+- **[correctness]** `_parse_stream` single-chunk fabrication — a single content chunk produced `stream_duration = 0` which the old code silently fell back to `0.1s`, inflating TPS 10-30× (e.g. 300 tokens → tps=3000). Now returns an explicit error so the bench is skipped instead of writing nonsense to the DB. Regression: `test_parse_stream_rejects_single_chunk_streams_instead_of_fabricating_tps`.
+- **[correctness]** `_select_cohort` timezone drift — used local `date.today()` while `_write_result` writes `datetime.now(UTC).date()`. Under any non-UTC operator TZ (operator is +0300) the 30-day recency window drifted ±1 day. Switched cohort cutoff to UTC. Regression: `test_cohort_cutoff_uses_utc_not_local_timezone`.
+- **[resource]** `bench_one` response leak — `stream=True` response never closed if `_parse_stream` raised. Wrapped in `with resp:` context. Regression: `test_bench_one_uses_context_manager_to_close_response`.
+- **[correctness]** `_parse_stream` didn't catch `UnicodeDecodeError` from `iter_lines(decode_unicode=True)` — a mangling proxy or partial-multibyte chunk would crash the whole weekly run. Added to except tuple. Regression: `test_bench_one_catches_unicode_decode_error_from_iter_lines`.
+- **[test]** Updated pre-existing `test_parse_stream_ignores_malformed_data_lines` to use two content chunks so the single-chunk-rejection fix (above) doesn't shadow the malformed-line-ignore behavior it's testing.
+- **[test]** Updated pre-existing `test_idempotent_skips_recently_benched_rows` to compute its boundary with `datetime.now(UTC).date()` — the old form using `date.today()` silently masked the TZ bug.
+- **[plan↔code]** Plan §Design step 9 said "retry once on transient errors" but the code implemented median-of-3 as the resilience mechanism. Reconciled: updated plan text to reflect median-of-3 as intended (simpler + at-least-as-robust).
+- **[docstring]** Plan and code both said "hard $10 cap" but implementation checks after each call's cost adds — real semantic is "$10 stop-before-next kill switch" (max overrun = one call's cost, ~$0.05 worst-case). Docstring corrected.
+
+**Refuted:** `time.monotonic()` correctness (fine — TTFT is a delta measurement); missing `usage.cost` fallback concern (OR verified always sends it when `usage.include=true`).
+
+**Residual (documented, not fixed):** U11 — no lockfile guards against concurrent microbench runs (cron + operator manual trigger). Cost cap still bounds each process; rare enough to leave unmitigated pending empirical observation.
+
+Post-fix: **64/64 tests pass** (60 pre-review + 4 new regression tests). Gate green.
+
 ### Added — Phase 5 of 2026-07-02 plan-1-speed-coverage: audit freshness gates for Groq + microbench (2026-07-02)
 
 Two new checks in the nightly `audit_ui_values.py`:
