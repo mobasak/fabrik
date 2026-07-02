@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Phase 3 of 2026-07-02 plan-1-speed-coverage: microbench weekly cadence (2026-07-02)
+
+Wired `microbench_or_models.py` into `daily_refresh.sh` with a Sunday-only gate (`[ "$(date -u +%u)" = "7" ]`). Placed AFTER `scrape_openrouter_endpoints` and BEFORE `derive_cheapest_gateway` so fresh Speed rows feed the derived views on the weekly benching day. Two-layer guard: outer date check + inner OPENROUTER_API_KEY presence check, emits a distinct `SKIP` log line if the key is missing on a Sunday (surfaces config gaps only when they matter). Non-fatal on failure per daily_refresh's convention.
+
 ### Added — Phase 2 of 2026-07-02 plan-1-speed-coverage: OR microbench (2026-07-02)
 
 New `scripts/kilo-benchmarks/microbench_or_models.py` — calls each active OR-routed LLM via the `/api/v1/chat/completions` streaming endpoint with a fixed 200-word prompt, measures TTFT (time from send to first non-empty content chunk) + TPS (`usage.completion_tokens / (t_last_content_chunk - t_first_content_chunk)`), and takes the median of 3 runs. Writes `output_tokens_per_sec`, `ttft_ms`, `speed_source="own_microbench YYYY-MM-DD"`.

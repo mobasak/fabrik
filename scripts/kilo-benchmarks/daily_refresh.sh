@@ -17,7 +17,8 @@
 #   6. fetch_replicate_prices.py / fetch_fal_prices.py
 #        → scrape per-model pricing from aggregators; populate
 #          agents.gateway_prices JSON (plan-2-aggregator-pricing.md)
-#   7. derive_cheapest_gateway.py
+#   7. derive_cheapest_gateway.py (preceded on Sundays by microbench_or_models.py
+#      — OR microbench for rows without Speed data; needs OPENROUTER_API_KEY)
 #        → picks the cheapest (gateway, price) per row from
 #          gateway_prices + direct price; writes cheapest_gateway +
 #          cheapest_gateway_price for the browser to badge
@@ -301,6 +302,20 @@ mkdir -p "$(dirname "$LOG_FILE")"
   # ~340 API calls @ 4/s = ~90s. Non-fatal on transient OR outage.
   _step "scrape_openrouter_endpoints" "$VENV_PY" "$KB/scrape_openrouter_endpoints.py" \
     || echo "[daily_refresh] OR endpoints scrape failed (non-fatal)"
+
+  # Weekly (Sundays UTC): OR microbench for rows without Speed data.
+  # Skipped if OPENROUTER_API_KEY not set. Placed BEFORE derive so the
+  # freshly-benched Speed rows feed the derived views on Sundays.
+  # `date +%u` returns 1-7 (Mon-Sun) — 7 = Sunday.
+  if [ "$(date -u +%u)" = "7" ]; then
+    if [ -n "${OPENROUTER_API_KEY:-}" ]; then
+      _step "microbench_or_models" "$VENV_PY" "$KB/microbench_or_models.py" \
+        || echo "[daily_refresh] microbench failed (non-fatal)"
+    else
+      echo "[daily_refresh] microbench: SKIP (Sunday but OPENROUTER_API_KEY not set)"
+    fi
+  fi
+
   _step "derive_cheapest_gateway" "$VENV_PY" "$KB/derive_cheapest_gateway.py" \
     || echo "[daily_refresh] cheapest gateway derive failed (non-fatal)"
 
