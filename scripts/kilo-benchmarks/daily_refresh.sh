@@ -172,6 +172,12 @@ mkdir -p "$(dirname "$LOG_FILE")"
   _step "scrape_artificial_analysis" "$VENV_PY" "$KB/scrape_artificial_analysis.py" \
     || echo "[daily_refresh] artificial-analysis scrape failed (non-fatal)"
 
+  # Groq LPU tokens/sec table. Provider-specific — only realized when
+  # provider.only=["Groq"] is pinned in the OR request. Never clobbers
+  # higher-precedence sources (AA / own_microbench / manual_override).
+  _step "scrape_groq_speeds" "$VENV_PY" "$KB/scrape_groq_speeds.py" \
+    || echo "[daily_refresh] groq speeds scrape failed (non-fatal)"
+
   # Terminal Bench + general benchmark scraper.
   _step "update_kilo_benchmarks" "$VENV_PY" "$KB/update_kilo_benchmarks.py" --force \
     || echo "[daily_refresh] kilo benchmark scrape failed (non-fatal)"

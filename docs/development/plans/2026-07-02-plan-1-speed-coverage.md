@@ -1,6 +1,6 @@
 # Plan: Speed/TTFT coverage — zero-manual automated pipeline
 
-**Status: CONVERGED**
+**Status: IN-PROGRESS**
 **Author stream:** kilo-benchmarks (AI-2)
 **Created:** 2026-07-02
 **Skill origin:** `/fabrik-plan-after-chat` (this session)
@@ -140,7 +140,7 @@ New Groq step will land right after AA (line ~173). New microbench step will be 
 
 ---
 
-## Phase 1 — Groq LPU scraper (free, deterministic)
+## Phase 1 — Groq LPU scraper (free, deterministic) — ✅ EXECUTED 2026-07-02
 
 ### Files
 

@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Phase 1 of 2026-07-02 plan-1-speed-coverage: Groq LPU scraper (2026-07-02)
+
+New `scripts/kilo-benchmarks/scrape_groq_speeds.py` — scrapes Groq's pricing HTML for their LPU tokens/second table. Matched all 8 current models via an explicit `GROQ_TO_OR_ID` map (Groq's stable ~8-model catalog is hand-mapped to avoid fuzzy-canonicalizer false positives from Groq's variant tokens `Versatile`/`Instant`/`17Bx16E`/`128k`). Writes `output_tokens_per_sec` + `speed_source="groq_lpu (pin required)"` — the tag warns operators that Groq's LPU tps only realizes when `provider.only=["Groq"]` is pinned in the OR request.
+
+**Authority precedence** (WHERE-clause enforced): `manual_override > own_microbench* > artificialanalysis.ai* > groq_lpu* > NULL`. First real run: 3 rows written, 5 correctly deferred to AA (higher precedence). Wired into `daily_refresh.sh` right after the AA scraper step.
+
+Regression tests: 8/8 pass, including the U10 resolution test that asserts all 8 current Groq models are in the explicit map.
+
 ### Added — Agent Provenance Trailers convention across agent-governance files (2026-07-01)
 
 Git can't distinguish AI agents — every commit on the shared `master` is authored by the same user. Added a required commit-trailer convention so commits can be attributed post-hoc via `git log --format='%(trailers:key=Agent-Role)'`.
