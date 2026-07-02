@@ -1,6 +1,6 @@
 # Cascade Models and Credits
 
-**Last Updated:** 2026-07-01
+**Last Updated:** 2026-07-02
 
 > 📋 **Source:** Automatically extracted from https://docs.windsurf.com/plugins/cascade/models
 >
