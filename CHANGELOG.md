@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — `final_gate.py` passes `mypy --strict` (0 errors) (2026-07-02)
+
+Annotated `results`/`changed` and made the `fabrik.spec_loader` import ignore context-safe (`type: ignore[import-not-found,unused-ignore]` — needed in projects without the `fabrik` package, unused in fabrik itself). The most-run distributed script is now type-clean.
+
 ### Fixed — Enforcement scripts now pass `mypy --strict` (0 errors) (2026-07-02)
 
 All 42 `scripts/enforcement/*.py` are type-clean under `mypy --strict` (was 31 latent errors across 16 files) so projects that type-check `scripts/` stop flagging the distributed copies. Annotation-only, no logic change: parameterized bare `list`/`dict` generics, annotated `results`/`env_vars`, added `-> list[CheckResult]` / generator / `-> None` return types, hoisted the fn-local `validate_conventions` import to a module-level try/except (with `# type: ignore[no-redef]` on the standalone-fallback branch), and used `dict[str, Any]` where values are consumed. Verified: both `python <path>` (standalone) and package import modes still work.

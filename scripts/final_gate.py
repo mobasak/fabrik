@@ -414,7 +414,7 @@ def run_static_checks(
     tier: int = 2, changed_files: set[str] | None = None
 ) -> list[tuple[str, bool, str]]:
     """Run static analysis checks, filtered by tier and changed files."""
-    results = []
+    results: list[tuple[str, bool, str]] = []
     changed = changed_files or set()
 
     # Tier 3: Skip all static checks (systemic only runs consistency)
@@ -481,7 +481,7 @@ def run_static_checks(
                 if _src not in _sys.path:
                     _sys.path.insert(0, _src)
                 from fabrik.spec_loader import (
-                    load_spec as _load_spec,  # type: ignore[import-not-found]
+                    load_spec as _load_spec,  # type: ignore[import-not-found,unused-ignore]
                 )
 
                 load_spec = _load_spec
@@ -1053,7 +1053,7 @@ def get_changed_files() -> set[str]:
     Used by tiered execution to skip checks whose relevant files haven't changed.
     Combines both staged and unstaged changes.
     """
-    changed = set()
+    changed: set[str] = set()
     # Staged changes
     code, out = run_cmd(["git", "diff", "--name-only", "--cached"])
     if code == 0 and out:
