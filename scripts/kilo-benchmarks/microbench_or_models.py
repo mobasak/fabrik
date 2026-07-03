@@ -306,21 +306,39 @@ def _select_cohort(conn: sqlite3.Connection) -> list[dict]:
 # ---------- DB writer ----------
 
 
-def _write_result(conn: sqlite3.Connection, agent_id: str, result: dict) -> None:
+def _write_result(db_path: Path, agent_id: str, result: dict) -> bool:
+    """Open a fresh short-lived connection per write.
+
+    WSL2 filesystem behavior 2026-07-02: a long-lived sqlite connection
+    that idles for 30-60s during a streaming model call can lose write
+    privilege on the underlying file handle (SQLITE_READONLY on next
+    UPDATE) even though the file is 644 and the process owns it. A
+    per-write connection sidesteps the issue at negligible cost (<1ms
+    per open vs. seconds per model call).
+
+    Returns True on success, False on write failure — caller treats
+    write failures as non-fatal (row left with prior speed_source, gets
+    retried on the next cron run).
+    """
     today = datetime.now(UTC).date().isoformat()
     tag = f"{SPEED_SOURCE_PREFIX} {today}"
-    conn.execute(
-        "UPDATE agents SET "
-        "output_tokens_per_sec = ?, "
-        "ttft_ms = ?, "
-        "speed_source = ?, "
-        "speed_updated_at = ? "
-        "WHERE id = ? "
-        "AND (speed_source IS NULL OR speed_source LIKE 'own_microbench%'"
-        "     OR speed_source LIKE 'groq_lpu%')",
-        (result["tps"], result["ttft_ms"], tag, today, agent_id),
-    )
-    conn.commit()
+    try:
+        with sqlite3.connect(db_path, timeout=30.0) as conn:
+            conn.execute(
+                "UPDATE agents SET "
+                "output_tokens_per_sec = ?, "
+                "ttft_ms = ?, "
+                "speed_source = ?, "
+                "speed_updated_at = ? "
+                "WHERE id = ? "
+                "AND (speed_source IS NULL OR speed_source LIKE 'own_microbench%'"
+                "     OR speed_source LIKE 'groq_lpu%')",
+                (result["tps"], result["ttft_ms"], tag, today, agent_id),
+            )
+        return True
+    except sqlite3.OperationalError as e:
+        log(f"  → WRITE-FAIL: {e} (row unchanged, will retry next cron)")
+        return False
 
 
 # ---------- Run log ----------
@@ -363,31 +381,29 @@ def run_microbench(
         log(f"would bench {len(cohort)} models (dry-run), est. cost ${est_cost:.2f}")
         return 0
 
-    conn = sqlite3.connect(db_path)
     running_cost = 0.0
     models_updated = 0
     models_failed = 0
     started_at = datetime.now(UTC).isoformat()
 
-    try:
-        for i, row in enumerate(cohort, 1):
-            agent_id = row["id"]
-            if running_cost >= cost_cap_usd:
-                log(f"cost_stop: ${running_cost:.4f} >= cap ${cost_cap_usd} after {i - 1} calls")
-                break
-            log(f"[{i}/{len(cohort)}] bench {agent_id} (running cost ${running_cost:.4f})")
-            result = bench_median(agent_id, api_key)
-            running_cost += result["cost_usd"]
-            if result["error"]:
-                models_failed += 1
-                log(f"  → FAIL: {result['error']}")
-                continue
-            _write_result(conn, agent_id, result)
+    for i, row in enumerate(cohort, 1):
+        agent_id = row["id"]
+        if running_cost >= cost_cap_usd:
+            log(f"cost_stop: ${running_cost:.4f} >= cap ${cost_cap_usd} after {i - 1} calls")
+            break
+        log(f"[{i}/{len(cohort)}] bench {agent_id} (running cost ${running_cost:.4f})")
+        result = bench_median(agent_id, api_key)
+        running_cost += result["cost_usd"]
+        if result["error"]:
+            models_failed += 1
+            log(f"  → FAIL: {result['error']}")
+            continue
+        if _write_result(db_path, agent_id, result):
             models_updated += 1
             log(f"  → tps={result['tps']} ttft={result['ttft_ms']}ms cost=${result['cost_usd']}")
-            time.sleep(RATE_LIMIT_SLEEP_S)
-    finally:
-        conn.close()
+        else:
+            models_failed += 1
+        time.sleep(RATE_LIMIT_SLEEP_S)
 
     _append_log(
         {

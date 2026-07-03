@@ -154,6 +154,21 @@ def test_parse_stream_counts_reasoning_chunks_for_tps_math():
     assert r["completion_tokens"] == 128
 
 
+def test_write_result_returns_false_on_readonly_instead_of_crashing(tmp_path, monkeypatch):
+    """WSL2 filesystem behavior 2026-07-02: a long-lived sqlite connection
+    could raise SQLITE_READONLY on UPDATE after a 30s+ network idle. Fixed
+    by per-write short-lived connections + treating write failures as
+    non-fatal (row left unchanged, retried next cron)."""
+    from microbench_or_models import _write_result
+
+    def raise_readonly(*a, **kw):
+        raise sqlite3.OperationalError("attempt to write a readonly database")
+
+    monkeypatch.setattr("microbench_or_models.sqlite3.connect", raise_readonly)
+    ok = _write_result(tmp_path / "fake.db", "any/model", {"tps": 100, "ttft_ms": 5})
+    assert ok is False, "must return False on OperationalError, not crash"
+
+
 def test_bench_one_catches_unicode_decode_error_from_iter_lines(monkeypatch):
     """Review finding: iter_lines(decode_unicode=True) can raise
     UnicodeDecodeError on non-UTF-8 bytes from a mangling proxy. Must
