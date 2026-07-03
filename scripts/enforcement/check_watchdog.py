@@ -1,16 +1,21 @@
 #!/usr/bin/env python3
 """Check that services have watchdog scripts."""
 
+from __future__ import annotations
+
 from pathlib import Path
 
+try:
+    from .validate_conventions import CheckResult, Severity
+except ImportError:  # standalone run (final_gate executes `python <path>`)
+    from validate_conventions import CheckResult, Severity  # type: ignore[no-redef]
 
-def check_file(file_path: Path) -> list:
+
+def check_file(file_path: Path) -> list[CheckResult]:
     """Check if a service project has a watchdog script.
 
     Returns list of CheckResult objects.
     """
-    from .validate_conventions import CheckResult, Severity
-
     results: list[CheckResult] = []
 
     # Only check compose.yaml files (indicates a service)

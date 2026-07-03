@@ -76,6 +76,7 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
+from typing import Any
 
 # Tuple carried back from ``scan_template`` so downstream formatters can
 # render a self-contained "file:line — why" report. Kept as a plain tuple
@@ -198,7 +199,7 @@ def scan_template(path: Path) -> list[Violation]:
         return []
 
     # Per-service state. Order-preserving so violation reports mirror source.
-    service_states: dict[str, dict] = {}
+    service_states: dict[str, dict[str, Any]] = {}
     current_service: str | None = None
     in_services_block = False
     inside_labels_block = False

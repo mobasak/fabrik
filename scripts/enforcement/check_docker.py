@@ -1,8 +1,15 @@
 #!/usr/bin/env python3
 """Check Docker conventions (base images, healthcheck, port consistency)."""
 
+from __future__ import annotations
+
 import re
 from pathlib import Path
+
+try:
+    from .validate_conventions import CheckResult, Severity
+except ImportError:  # standalone run (final_gate executes `python <path>`)
+    from validate_conventions import CheckResult, Severity  # type: ignore[no-redef]
 
 ALPINE_PATTERN = re.compile(r"FROM\s+.*alpine", re.IGNORECASE)
 HEALTHCHECK_PATTERN = re.compile(r"HEALTHCHECK", re.IGNORECASE)
@@ -21,11 +28,9 @@ APPROVED_BASES = [
 COMPOSE_ALPINE_PATTERN = re.compile(r"image:\s*['\"]?(?:alpine|[^'\"\s]*-alpine)", re.IGNORECASE)
 
 
-def check_compose_arm64(file_path: Path) -> list:
+def check_compose_arm64(file_path: Path) -> list[CheckResult]:
     """Check compose.yaml for amd64 platform specification."""
-    from .validate_conventions import CheckResult, Severity
-
-    results = []
+    results: list[CheckResult] = []
     name = file_path.name.lower()
 
     # Only check compose files
@@ -75,11 +80,9 @@ def check_compose_arm64(file_path: Path) -> list:
     return results
 
 
-def check_file(file_path: Path) -> list:
+def check_file(file_path: Path) -> list[CheckResult]:
     """Check Docker files for convention violations."""
-    from .validate_conventions import CheckResult, Severity
-
-    results = []
+    results: list[CheckResult] = []
     name = file_path.name.lower()
 
     # Check compose files for amd64 and Alpine images
@@ -147,7 +150,7 @@ def check_file(file_path: Path) -> list:
                 line_number=1,
                 fix_hint=(
                     "Add: HEALTHCHECK --interval=30s"
-                    " CMD curl -f http://localhost:${PORT:-8000}/health || exit 1"
+                    " CMD curl -f http://localhost:${PORT:-8000}/health || exit 1"  # noqa
                 ),
             )
         )

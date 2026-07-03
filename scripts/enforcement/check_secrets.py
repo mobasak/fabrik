@@ -1,8 +1,15 @@
 #!/usr/bin/env python3
 """Check for hardcoded secrets and credentials."""
 
+from __future__ import annotations
+
 import re
 from pathlib import Path
+
+try:
+    from .validate_conventions import CheckResult, Severity
+except ImportError:  # standalone run (final_gate executes `python <path>`)
+    from validate_conventions import CheckResult, Severity  # type: ignore[no-redef]
 
 SECRET_PATTERNS = [
     (r"AKIA[0-9A-Z]{16}", "AWS Access Key ID"),
@@ -47,14 +54,9 @@ SKIP_PATTERNS = [
 ]
 
 
-def check_file(file_path: Path) -> list:
+def check_file(file_path: Path) -> list[CheckResult]:
     """Check a file for hardcoded secrets."""
-    try:
-        from .validate_conventions import CheckResult, Severity
-    except ImportError:  # standalone run (final_gate executes `python <path>`)
-        from validate_conventions import CheckResult, Severity
-
-    results = []
+    results: list[CheckResult] = []
     if any(re.search(p, str(file_path), re.I) for p in SKIP_PATTERNS):
         return results
     if file_path.suffix.lower() in (".jpg", ".png", ".gif", ".pdf", ".zip"):
@@ -124,14 +126,6 @@ def main() -> int:
     was a permanent no-op. Runs standalone (how final_gate invokes it); the
     Severity import falls back to absolute when there is no package context.
     """
-    import sys
-
-    sys.path.insert(0, str(Path(__file__).resolve().parent))
-    try:
-        from .validate_conventions import Severity
-    except ImportError:
-        from validate_conventions import Severity
-
     errors = [
         r
         for rel in _changed_files()

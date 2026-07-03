@@ -1,8 +1,15 @@
 #!/usr/bin/env python3
 """Check port registration in PORTS.md and validate port ranges."""
 
+from __future__ import annotations
+
 import re
 from pathlib import Path
+
+try:
+    from .validate_conventions import CheckResult, Severity
+except ImportError:  # standalone run (final_gate executes `python <path>`)
+    from validate_conventions import CheckResult, Severity  # type: ignore[no-redef]
 
 # Patterns for SERVICE ports (not client connection ports)
 # Matches: PORT=8000, port: 8000, EXPOSE 8000
@@ -20,11 +27,9 @@ PORT_RANGES = {
 }
 
 
-def check_file(file_path: Path) -> list:
+def check_file(file_path: Path) -> list[CheckResult]:
     """Check if ports are registered in PORTS.md."""
-    from .validate_conventions import CheckResult, Severity
-
-    results = []
+    results: list[CheckResult] = []
     suffix = file_path.suffix.lower()
     name = file_path.name.lower()
 

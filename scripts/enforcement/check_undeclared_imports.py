@@ -30,6 +30,7 @@ import ast
 import importlib.metadata
 import importlib.util
 import sys
+from collections.abc import Iterator
 from pathlib import Path
 
 # Self-contained (like check_spec_db_match): run via `python <path>` in any project's
@@ -136,7 +137,7 @@ def _scan_roots(project_root: Path) -> list[Path]:
     return [src] if src.is_dir() else [project_root]
 
 
-def _iter_py_files(roots: list[Path]):
+def _iter_py_files(roots: list[Path]) -> Iterator[Path]:
     for root in roots:
         if not root.is_dir():
             continue

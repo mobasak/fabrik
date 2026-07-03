@@ -6,6 +6,7 @@ Ensures documents are placed in the correct locations per Fabrik conventions.
 
 import sys
 from pathlib import Path
+from typing import Any
 
 # Allowed .md files in project root
 ALLOWED_ROOT_MD = {
@@ -75,7 +76,7 @@ LEGACY_DIRS = {
 # outputs (specs/<project>/00-idea.md, 01-scope.md, 02-spec.md) per AGENTS.md
 
 
-def check_structure(project_root: Path, files: list[str] | None = None) -> list[dict]:
+def check_structure(project_root: Path, files: list[str] | None = None) -> list[dict[str, Any]]:
     """Check project structure for violations.
 
     Args:

@@ -38,7 +38,7 @@ class CheckResult:
     line_number: int | None = None
     fix_hint: str | None = None
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, object]:
         result = asdict(self)
         result["severity"] = self.severity.value
         return result

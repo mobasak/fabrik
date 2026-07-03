@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Enforcement scripts now pass `mypy --strict` (0 errors) (2026-07-02)
+
+All 42 `scripts/enforcement/*.py` are type-clean under `mypy --strict` (was 31 latent errors across 16 files) so projects that type-check `scripts/` stop flagging the distributed copies. Annotation-only, no logic change: parameterized bare `list`/`dict` generics, annotated `results`/`env_vars`, added `-> list[CheckResult]` / generator / `-> None` return types, hoisted the fn-local `validate_conventions` import to a module-level try/except (with `# type: ignore[no-redef]` on the standalone-fallback branch), and used `dict[str, Any]` where values are consumed. Verified: both `python <path>` (standalone) and package import modes still work.
+
 ### Added — trade-intelligence deploy spec (draft, pre-cutover) (2026-07-01)
 
 `specs/services/trade-intelligence.yaml.draft` — the fabrik spec for the Supabase→postgres-main migration, grounded against the app repo. Kept as `.draft` (out of the `specs/services/*.yaml` glob) because the project still points at Supabase, so a live `.yaml` would trip the Phase-1c DB-name-drift gate until cutover.

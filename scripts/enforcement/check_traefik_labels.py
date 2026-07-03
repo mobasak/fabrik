@@ -67,6 +67,7 @@ import argparse
 import re
 import sys
 from pathlib import Path
+from typing import Any
 
 # (path, service_name, missing_label_names) — deliberately NOT a dataclass
 # to keep this script import-free for the lean gate; dependency minimalism
@@ -161,7 +162,7 @@ def scan_template(path: Path) -> list[Violation]:
     #     True → require the full label set.
     #     False → explicit opt-out; skip enforcement.
     #   label_hits: which of the REQUIRED_LABELS patterns matched so far.
-    service_states: dict[str, dict] = {}
+    service_states: dict[str, dict[str, Any]] = {}
     current_service: str | None = None
     in_services_block = False
     inside_labels_block = False

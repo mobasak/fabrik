@@ -10,9 +10,10 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 
-def run_jscpd(report_path: Path) -> dict:
+def run_jscpd(report_path: Path) -> dict[str, Any]:
     """Run jscpd and return the JSON report."""
     # Run jscpd with JSON reporter
     subprocess.run(
@@ -49,7 +50,8 @@ def run_jscpd(report_path: Path) -> dict:
     # The JSON report is written to the output directory
     json_report = report_path.parent / "jscpd-report.json"
     if json_report.exists():
-        return json.loads(json_report.read_text())
+        report: dict[str, Any] = json.loads(json_report.read_text())
+        return report
     return {"statistics": {"total": {"duplicatedLines": 0, "percentage": 0}}, "duplicates": []}
 
 

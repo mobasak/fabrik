@@ -12,7 +12,7 @@ from pathlib import Path
 try:
     from .validate_conventions import CheckResult, Severity
 except ImportError:
-    from validate_conventions import CheckResult, Severity
+    from validate_conventions import CheckResult, Severity  # type: ignore[no-redef]
 
 FABRIK_ROOT = Path("/opt/fabrik")
 

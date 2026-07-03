@@ -83,7 +83,7 @@ def get_env_vars_from_diff(filepath: str) -> set[str]:
 
 def get_env_example_vars() -> set[str]:
     """Get all variable names from .env.example."""
-    env_vars = set()
+    env_vars: set[str] = set()
     env_example = Path(".env.example")
 
     if not env_example.exists():

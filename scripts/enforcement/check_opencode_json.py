@@ -92,7 +92,7 @@ def check_opencode_json(project_root: Path) -> tuple[bool, str]:
     return True, "opencode.json contains correct Kilo-safe instruction list"
 
 
-def main():
+def main() -> None:
     """Main entry point for enforcement check."""
     project_root = Path.cwd()
 

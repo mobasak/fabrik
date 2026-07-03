@@ -4,8 +4,15 @@
 Also verifies that projects with health endpoints have corresponding test files.
 """
 
+from __future__ import annotations
+
 import re
 from pathlib import Path
+
+try:
+    from .validate_conventions import CheckResult, Severity
+except ImportError:  # standalone run (final_gate executes `python <path>`)
+    from validate_conventions import CheckResult, Severity  # type: ignore[no-redef]
 
 FAKE_HEALTH_PATTERN = re.compile(
     r'@(?:app|router)\.(?:get|route)\s*\(\s*[\'"]/?health[\'"]', re.IGNORECASE
@@ -22,10 +29,8 @@ GOOD_PATTERNS = [
 ]
 
 
-def check_file(file_path: Path) -> list:
+def check_file(file_path: Path) -> list[CheckResult]:
     """Check health endpoints test dependencies."""
-    from .validate_conventions import CheckResult, Severity
-
     results: list[CheckResult] = []
     if file_path.suffix.lower() != ".py":
         return results

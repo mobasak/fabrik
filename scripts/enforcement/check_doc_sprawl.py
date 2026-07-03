@@ -23,7 +23,7 @@ from pathlib import Path
 try:
     from .validate_conventions import CheckResult, Severity
 except ImportError:
-    from validate_conventions import CheckResult, Severity
+    from validate_conventions import CheckResult, Severity  # type: ignore[no-redef]
 
 # Root level - CLOSED allowlist
 ALLOWED_NEW_ROOT_DOCS = frozenset(
@@ -142,7 +142,7 @@ def get_suggestion(path_str: str) -> str:
 
 def check_file(file_path: Path) -> list[CheckResult]:
     """Default-deny policy: block all new .md except explicit allowlist/patterns."""
-    results = []
+    results: list[CheckResult] = []
 
     # Normalize suffix case for cross-platform compatibility
     if file_path.suffix.lower() != ".md":
