@@ -181,7 +181,7 @@ RISK_DIFF_SIZE_THRESHOLD = 500  # lines changed
 PROGRESS_PREFIX = "[KILO_PROGRESS]"
 
 
-def emit_progress(event: str, **kwargs) -> None:
+def emit_progress(event: str, **kwargs: Any) -> None:
     """
     Emit a progress event for calling agents (Kilo CLI or Cascade) to parse.
 
@@ -699,7 +699,7 @@ IGNORE_DIRS = {
 MAX_DIFF_SIZE = 15_000  # 15KB
 
 # Session state directory (configurable via env var)
-SESSION_DIR = Path(os.getenv("KILO_SESSION_DIR", ".droid/reviews"))
+SESSION_DIR: Path = Path(os.getenv("KILO_SESSION_DIR", ".droid/reviews"))
 
 # Model cache file and refresh tracking
 MODEL_CACHE_FILE = Path(os.getenv("KILO_MODEL_CACHE", ".droid/kilo_models_cache.json"))
@@ -1497,7 +1497,8 @@ def load_issue_state(tracked_review_id: str) -> dict[str, Any]:
         return {"tracked_review_id": tracked_review_id, "issues": {}}
 
     try:
-        return json.loads(state_file.read_text())
+        state: dict[str, Any] = json.loads(state_file.read_text())
+        return state
     except Exception:
         return {"tracked_review_id": tracked_review_id, "issues": {}}
 
@@ -1722,10 +1723,10 @@ def run_stats_command(by_filetype: bool = False, by_model: bool = False, days: i
 
     # Calculate totals (handle both ReviewSession and log_usage schemas)
     def get_cost(s: dict[str, Any]) -> float:
-        return s.get("total_cost", s.get("total_cost_usd", s.get("cost_usd", 0.0)))
+        return float(s.get("total_cost", s.get("total_cost_usd", s.get("cost_usd", 0.0))))
 
     def get_model(s: dict[str, Any]) -> str:
-        return s.get("model", s.get("session_id", "unknown"))
+        return str(s.get("model", s.get("session_id", "unknown")))
 
     total_cost = sum(get_cost(s) for s in sessions)
     total_tokens = sum(s.get("total_tokens", 0) for s in sessions)
@@ -2129,7 +2130,13 @@ def parse_kilo_jsonl(output: str) -> dict[str, Any]:
         raise RuntimeError(f"Failed to parse Kilo JSONL output: {e}") from e
 
 
-def _monitor_process(proc, idle_timeout, hard_timeout, poll_interval, stream_output=False):
+def _monitor_process(
+    proc: Any,
+    idle_timeout: float,
+    hard_timeout: float,
+    poll_interval: float,
+    stream_output: bool = False,
+) -> tuple[bytes, bytes, int]:
     """
     Monitor subprocess with liveness checking and optional streaming.
 
@@ -2152,10 +2159,10 @@ def _monitor_process(proc, idle_timeout, hard_timeout, poll_interval, stream_out
     import queue
     import threading
 
-    stdout_queue = queue.Queue()
-    stderr_queue = queue.Queue()
+    stdout_queue: queue.Queue[tuple[str, Any]] = queue.Queue()
+    stderr_queue: queue.Queue[tuple[str, Any]] = queue.Queue()
 
-    def reader_thread(stream, q):
+    def reader_thread(stream: Any, q: queue.Queue[tuple[str, Any]]) -> None:
         """Read stream in chunks, push to queue."""
         try:
             while True:
@@ -3189,7 +3196,7 @@ def get_latest_session() -> SessionState | None:
 # =============================================================================
 
 
-def _extract_json_object(text: str) -> dict | None:
+def _extract_json_object(text: str) -> dict[str, Any] | None:
     """
     Extract the first valid JSON object from text using json.JSONDecoder.raw_decode.
 

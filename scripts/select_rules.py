@@ -19,6 +19,7 @@ import json
 import re
 import sys
 from pathlib import Path
+from typing import Any
 
 _FM = re.compile(r"^---\s*\n(.*?)\n---", re.DOTALL)
 _GLOBS = re.compile(r"^globs:\s*\[(.*?)\]", re.MULTILINE | re.DOTALL)
@@ -95,10 +96,10 @@ def _project_type(root: Path) -> str:
     return m.group(1).strip().strip("\"'") if m else ""
 
 
-def collect(root: Path) -> dict:
+def collect(root: Path) -> dict[str, Any]:
     rules_dir = root / ".windsurf" / "rules"
-    active: list[dict] = []
-    available: list[dict] = []
+    active: list[dict[str, Any]] = []
+    available: list[dict[str, Any]] = []
     if rules_dir.exists():
         for pack in sorted(rules_dir.rglob("*.md")):
             globs, desc = _parse_frontmatter(pack.read_text(encoding="utf-8", errors="replace"))

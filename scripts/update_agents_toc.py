@@ -123,7 +123,7 @@ def update_toc(file_path: Path, dry_run: bool = False) -> tuple[bool, str]:
     return changed, new_content
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(description="Update AGENTS.md Table of Contents")
     parser.add_argument(
         "--check", action="store_true", help="Check if TOC is current (exit 1 if stale)"

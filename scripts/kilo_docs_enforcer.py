@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# noqa-file: template-generator  (prompt templates below carry example DATABASE_URL / curl snippets, not real secrets)
 """
 Kilo Documentation Enforcer - Professional-grade documentation enforcement.
 
@@ -692,7 +693,7 @@ def select_documentation_agent(complexity: ComplexityLevel) -> dict[str, Any]:
         NoAgentAvailableError: If no suitable agent found
     """
     try:
-        agent = select_agent("documentation", complexity)
+        agent: dict[str, Any] = select_agent("documentation", complexity)
         if not agent:
             raise NoAgentAvailableError(
                 f"No documentation agent available for complexity={complexity}"
@@ -956,7 +957,13 @@ def parse_kilo_jsonl(output: str) -> dict[str, Any]:
     }
 
 
-def _monitor_process(proc, idle_timeout, hard_timeout, poll_interval, stream_output=False):
+def _monitor_process(
+    proc: Any,
+    idle_timeout: float,
+    hard_timeout: float,
+    poll_interval: float,
+    stream_output: bool = False,
+) -> tuple[bytes, bytes, int]:
     """
     Monitor subprocess with liveness checking and optional streaming.
 
@@ -979,10 +986,10 @@ def _monitor_process(proc, idle_timeout, hard_timeout, poll_interval, stream_out
     import queue
     import threading
 
-    stdout_queue = queue.Queue()
-    stderr_queue = queue.Queue()
+    stdout_queue: queue.Queue[tuple[str, Any]] = queue.Queue()
+    stderr_queue: queue.Queue[tuple[str, Any]] = queue.Queue()
 
-    def reader_thread(stream, q):
+    def reader_thread(stream: Any, q: queue.Queue[tuple[str, Any]]) -> None:
         """Read stream in chunks, push to queue."""
         try:
             while True:

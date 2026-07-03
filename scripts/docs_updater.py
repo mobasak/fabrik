@@ -79,7 +79,7 @@ except ImportError:
     PROCESS_MONITOR_AVAILABLE = False
 
 
-def _stream_reader(stream, output_queue: Queue, name: str) -> None:
+def _stream_reader(stream: Any, output_queue: Queue[Any], name: str) -> None:
     """Read lines from a stream and push them to a queue (for threading)."""
     try:
         for line in iter(stream.readline, ""):
@@ -118,7 +118,7 @@ def get_docs_model() -> str:
         # Check for documentation scenario
         docs_config = config.get("scenarios", {}).get("documentation", {})
         if "primary" in docs_config:
-            return docs_config["primary"]
+            return str(docs_config["primary"])
 
         return fallback
     except Exception:
@@ -187,7 +187,7 @@ def get_pending_tasks() -> list[dict[str, Any]]:
 
 def mark_task_status(task: dict[str, Any], status: str, result: str = "") -> None:
     """Mark a task with a status and handle appropriately."""
-    task_file: Path = task.get("_file")
+    task_file: Path | None = task.get("_file")
     if not task_file or not task_file.exists():
         return
 
@@ -366,7 +366,7 @@ def run_docs_update(files: list[str]) -> dict[str, Any]:
                 monitor = ProcessMonitor(process, warn_threshold=warn_after_seconds)
 
         # Use threading to read stdout/stderr without blocking
-        output_queue: Queue = Queue()
+        output_queue: Queue[Any] = Queue()
         stdout_thread = threading.Thread(
             target=_stream_reader, args=(process.stdout, output_queue, "stdout")
         )
@@ -455,12 +455,12 @@ def process_batch(tasks: list[dict[str, Any]]) -> None:
         # Mark all tasks based on result
         status = "completed" if result["success"] else "failed"
         for task in tasks:
-            mark_task_status(task, status, result.get("result", ""))
+            mark_task_status(task, status, str(result.get("result", "")))
     except Exception as e:
         # On error, mark tasks as failed for retry
         result = {"success": False, "result": str(e)[:500]}
         for task in tasks:
-            mark_task_status(task, "failed", result["result"])
+            mark_task_status(task, "failed", str(result["result"]))
 
     # Log the update
     log_entry = {
@@ -468,7 +468,7 @@ def process_batch(tasks: list[dict[str, Any]]) -> None:
         "files": files,
         "model": get_docs_model(),
         "success": result["success"],
-        "result": result.get("result", "")[:1000],
+        "result": str(result.get("result", ""))[:1000],
     }
 
     log_file = DOCS_LOG_DIR / f"update_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
@@ -664,7 +664,7 @@ def detect_new_modules() -> list[Path]:
     return mods
 
 
-def extract_block_body(text: str, block_re: re.Pattern) -> str | None:
+def extract_block_body(text: str, block_re: re.Pattern[str]) -> str | None:
     """Extract current body from bounded block (excluding stamp line)."""
     match = block_re.search(text)
     if not match:
@@ -676,7 +676,7 @@ def extract_block_body(text: str, block_re: re.Pattern) -> str | None:
 
 
 def replace_block(
-    text: str, new_body: str, block_re: re.Pattern, block_name: str
+    text: str, new_body: str, block_re: re.Pattern[str], block_name: str
 ) -> tuple[str, bool]:
     """Replace block only if body changed; do not update stamp otherwise."""
     current_body = extract_block_body(text, block_re)
@@ -685,7 +685,7 @@ def replace_block(
 
     stamp = datetime.now().strftime("%Y-%m-%dT%H:%M")
 
-    def replacer(m):
+    def replacer(m: re.Match[str]) -> str:
         return (
             f"{m.group(1)}\n<!-- AUTO-GENERATED:{block_name} v1 | {stamp} -->"
             f"\n{new_body}\n{m.group(2)}"
@@ -805,7 +805,7 @@ def generate_docs_structure_tree() -> str:
 
     tree = ["docs/"]
 
-    def walk(directory: Path, prefix: str = ""):
+    def walk(directory: Path, prefix: str = "") -> None:
         items = sorted(directory.iterdir())
         # Filter items
         items = [i for i in items if not i.name.startswith(".")]
@@ -923,7 +923,7 @@ def validate_plan_consistency() -> list[str]:
     ERROR: Plan marked COMPLETE but has unchecked boxes
     WARNING: Plan marked COMPLETE for >14 days (should archive)
     """
-    errors = []
+    errors: list[str] = []
     if not PLANS_DIR.exists():
         return errors
 
@@ -1007,7 +1007,7 @@ from {PROJECT_ROOT.name}.{module.name} import ...
 
 def check_stub_completeness() -> list[str]:
     """Check that reference docs aren't just empty stubs."""
-    issues = []
+    issues: list[str] = []
     ref_dir = PROJECT_ROOT / "docs" / "reference"
     if not ref_dir.exists():
         return issues
@@ -1026,7 +1026,7 @@ def check_stub_completeness() -> list[str]:
 
 def check_link_integrity() -> list[str]:
     """Check all internal markdown links are valid."""
-    issues = []
+    issues: list[str] = []
     docs_dir = PROJECT_ROOT / "docs"
     if not docs_dir.exists():
         return issues
@@ -1098,7 +1098,7 @@ def check_link_integrity() -> list[str]:
 
 def check_staleness() -> list[str]:
     """Check for docs that haven't been updated recently."""
-    issues = []
+    issues: list[str] = []
     today = datetime.now()
     last_updated_re = re.compile(r"\*\*Last Updated:\*\*\s*(\d{4}-\d{2}-\d{2})")
 
@@ -1123,7 +1123,7 @@ def check_staleness() -> list[str]:
 
 def validate_docs() -> tuple[bool, list[str]]:
     """Check for drift. Returns (valid, issues)."""
-    issues = []
+    issues: list[str] = []
 
     # Check plan status/checkbox consistency (plans indexing is Traycer-managed)
     issues.extend(validate_plan_consistency())
@@ -1250,7 +1250,7 @@ def run_custom_prompt(prompt: str, files_to_check: list[str] | None = None) -> d
             with suppress(Exception):
                 monitor = ProcessMonitor(process, warn_threshold=warn_after_seconds)
 
-        output_queue: Queue = Queue()
+        output_queue: Queue[Any] = Queue()
         stdout_thread = threading.Thread(
             target=_stream_reader, args=(process.stdout, output_queue, "stdout")
         )
@@ -1312,7 +1312,7 @@ def run_custom_prompt(prompt: str, files_to_check: list[str] | None = None) -> d
         return {"success": False, "result": str(e)[:500]}
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(description="Fabrik Documentation Updater")
     parser.add_argument("--daemon", action="store_true", help="Run continuously")
     parser.add_argument("--file", type=str, help="Update docs for a specific file")

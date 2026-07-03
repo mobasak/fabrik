@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — All distributed CORE_SCRIPTS pass `mypy --strict` (0 errors) (2026-07-02)
+
+Cleaned 38 remaining strict-mypy errors across the synced top-level scripts — `docs_updater.py` (18), `kilo_code_review.py` (10), `kilo_docs_enforcer.py` (5), `select_rules.py` (3), `update_agents_toc.py` (2). Annotation-only + minimal safe coercions: parameterized bare `list`/`dict`/`Queue`/`re.Pattern` generics, typed `results`/`issues`/`errors`/queues, added missing `-> None` / return / `**kwargs: Any` annotations, wrapped genuine `Any→str/float` returns and `object`-typed values with `str()`/`float()` (no `type: ignore` suppression of the real mismatches), annotated `SESSION_DIR` to fix a forward-ref `has-type`, and marked `kilo_docs_enforcer.py` with the sanctioned `# noqa-file: template-generator` (its prompt templates carry example DB URLs). With the enforcement dir + `final_gate.py`, every distributed `scripts/` file is now strict-clean. Verified: imports + entry points still run.
+
 ### Fixed — `final_gate.py` passes `mypy --strict` (0 errors) (2026-07-02)
 
 Annotated `results`/`changed` and made the `fabrik.spec_loader` import ignore context-safe (`type: ignore[import-not-found,unused-ignore]` — needed in projects without the `fabrik` package, unused in fabrik itself). The most-run distributed script is now type-clean.
