@@ -81,4 +81,4 @@ LESSONS LEARNT: <none | docs/LESSONS_LEARNT.md entry title>
 Missing any line = task failure. Run gate; fix to `success`; then output the 4 lines.
 
 ## Spec contract awareness
-`specs/services/<id>.yaml::shape` drives registrars on `fabrik apply`. Code MUST match shape — update both: DB call → `needs_database`; cache → `needs_cache`; `/metrics` → `exposes_metrics`; search → `has_search_feature`; admin UI behind auth → `is_admin_dashboard`. Contradiction = registrar skipped = broken deploy. Preview: `fabrik plan <spec>`.
+`specs/services/<id>.yaml::shape` drives registrars on `fabrik apply`. Code MUST match shape — update both: DB call → `needs_database`; cache → `needs_cache`; `/metrics` → `exposes_metrics`; search → `has_search_feature`; admin UI behind auth → `is_admin_dashboard`. Contradiction = registrar skipped = broken deploy. Preview (hub-side only, `fabrik` not on a project's PATH): `fabrik plan <spec>`; from a project, reason from the shape flags above.

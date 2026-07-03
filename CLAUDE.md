@@ -135,4 +135,4 @@ If your code:
 If you change code in a way that affects any of the above, ALSO update `specs/services/<id>.yaml`.
 Don't ship code that contradicts the spec — `fabrik apply` will skip the registrar and you'll have a silently broken deploy.
 
-To preview what the spec will trigger: `fabrik plan specs/services/<id>.yaml`
+To preview what the spec will trigger, **hub-side** (from `/opt/fabrik`): `fabrik plan specs/services/<id>.yaml`. `fabrik` is not on a project's PATH — from a project, ground it by **reading the spec's `shape:` block** and the flag→registrar mapping above (inspection, not a shell-out).
