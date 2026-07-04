@@ -1,0 +1,57 @@
+# trytond — Tryton 8.0 ERP server (serves the JSON-RPC API for proteus + the sao web UI).
+# A.1 SKELETON: declares the pinned image + the shared `tryton` DB trigger + memory guard.
+# A.2 wires the runtime: trytond.conf `[database] uri` from the registrar-injected DATABASE_URL
+# (env_file: .env), `trytond-admin` DB init, module install (party / company / sale), a real
+# healthcheck, and the sao web-UI access decision. Part of the tryton-crm project (Phase A).
+id: trytond
+kind: service
+template: python-api
+domain: trytond.vps1.ocoron.com
+shape:
+  kind: service
+  is_public: false            # internal-only: proteus RPC from the bridge. sao web-UI exposure = OPEN ITEM (below)
+  is_admin_dashboard: false
+  has_bearer_api: false
+  has_persistent_data: true   # Tryton is the CRM system-of-record → Backrest backups run
+  needs_database: true        # TRIGGERS the postgres registrar → creates the shared `tryton` DB + role (Decision A)
+  has_search_feature: false
+  needs_cache: false
+  exposes_metrics: false
+expose:
+  http: true
+  internal_only: true
+source:
+  type: docker
+  image: tryton/tryton:8.0    # A.0 web-verified: Tryton 8.0.6 (2026-07-01); one image serves API + sao. Pin digest at deploy.
+  image_port: 8000            # trytond default HTTP port
+depends:
+  postgres: tryton
+infra:
+  glitchtip: false            # third-party image — the GlitchTip SDK can't instrument it
+infrastructure:
+  database: local
+  storage: local
+  auth: none
+env:
+  PORT: ${PORT:-8000}
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  # A.2: map the registrar-injected DATABASE_URL (plain postgresql://) into trytond's
+  # [database] uri / TRYTOND_DATABASE_URI via env_file: .env + trytond.conf.
+secrets:
+  required: []
+  generate: []
+  from_env: []
+  from_file: {}
+resources:
+  memory: 2G                  # Tryton server headroom + OOM guard (raise before any ODT→PDF / LibreOffice path — plan A.4)
+  cpu: '1.0'
+health:
+  # A.2 wires a real check once trytond-admin init + modules load (trytond won't serve / on an
+  # empty DB). The bridge's /health (proteus ping to trytond) is the CRM liveness signal.
+  disabled: true
+  path: /
+volumes: []
+backup:
+  enabled: true
+  frequency: daily
+  retention: 30

@@ -1,0 +1,69 @@
+id: tryton-crm
+kind: service
+template: python-api
+domain: tryton-crm.vps1.ocoron.com
+shape:
+  kind: service
+  is_public: false            # internal-only M2M bridge (X-Internal-Token); no public Traefik route
+  is_admin_dashboard: false
+  has_bearer_api: false       # X-Internal-Token M2M, not a public bearer API
+  has_persistent_data: false
+  needs_database: false       # Decision F-DB: DB-free — reaches trytond via proteus RPC, never opens Postgres
+  has_search_feature: false
+  needs_cache: false
+  exposes_metrics: false      # to-build: no /metrics endpoint yet (flip true when added; avoids Prometheus 404 at apply)
+expose:
+  http: true
+  internal_only: true         # fabrik-net DNS only (tryton-crm:8000); TI + Tojlo call it internally
+source:
+  type: git
+  repository: git@github.com:mobasak/tryton-crm.git
+  branch: mobasak/tryton-crm
+depends: {}
+infrastructure:
+  database: local
+  storage: local
+  auth: none
+env:
+  PORT: ${PORT:-8000}
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+secrets:
+  required: []
+  generate:
+  - X_INTERNAL_TOKEN          # fabrik mints the bridge M2M token (never hand-delivered)
+  from_env:
+  - SERVICE_INTERNAL_SECRET_KEY   # bridge accepts TI's shared token too (X-Internal-Token == either)
+  from_file: {}
+resources:
+  memory: 512M
+  cpu: '0.5'
+health:
+  path: /health
+  interval: 30s
+  timeout: 10s
+  retries: 3
+  disabled: false
+volumes: []
+companion_services: []
+backup:
+  enabled: true
+  frequency: daily
+  retention: 30
+watchdog:
+  enabled: false
+  daily_budget_usd: 1.0
+  daily_invocations_cap: 200
+  auto_tier_b: false
+  escalation_channel: apprise
+  llm_provider_primary: claude-code
+  llm_provider_fallback: openrouter
+  cheap_model: haiku
+  expensive_model: sonnet
+  per_incident_budget_usd: 0.5
+  deadman_timeout_seconds: 300
+  external_docs_enabled: true
+  propose_fix_prs: false
+  auto_code_fix: false
+  code_fix_window_sec: 300
+  critical_paths: []
+  trigger_sources: []
