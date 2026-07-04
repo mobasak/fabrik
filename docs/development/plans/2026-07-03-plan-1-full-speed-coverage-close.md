@@ -27,7 +27,20 @@ Binding sources for this plan's design (grounded per `scripts/select_rules.py` o
 - `ai/10-speech-audio.md` — Soniox default for multilingual TTS, ElevenLabs for expressive
 - `ai/30-language.md` — pgvector-only, DeepL for translation; corroborates why we bench qwen-mt-turbo via DashScope
 
-**No `fabrik-lib` modules vendored** — the specialty bench matches the existing microbench pattern (in-script running sum + hard $10 cap). Comment in `microbench_or_models.py:31-36` documents why cost-budget is not vendored yet; specialty bench inherits the same rationale.
+**Fabrik-lib module survey 2026-07-04** (during Phase A→B transition, per operator request):
+
+| Module | Fits? | Why not |
+|---|---|---|
+| `mt-router` | Closest architectural analog (multi-provider routing + fallback) | Scoped to translation; our bench is measurement, not user-facing translation calls. Vendoring saves nothing meaningful. |
+| `ai-consult` | ⚠️ Partial | Great for OR LLM calls; not for direct-vendor image/TTS/STT. `fan_out` primitive requested upstream but not yet built. |
+| `async-http-client` | Useful primitive, not required | Our bench is sync-by-design (median-of-3 sequential). Async gives no win. |
+| `cost-budget` | Overkill | In-script running-sum + $10 kill switch is proportional to a weekly batch (matches microbench_or_models precedent). |
+| `multi-key-api-client` | ✅ Future | Directly useful for Soniox (3 keys) — but Soniox isn't in the current cohort. Deferred to a follow-up plan. |
+| `adaptive-dispatch` | ❌ | Solves a scraping-strategy-per-domain problem, not applicable. |
+
+**Decision: no fabrik-lib module vendored.** The specialty bench design (per-provider clients + dispatcher + PRICING table + speed_source tag) is the right shape and doesn't need replacement. **Follow-up**: once this ships and proves out, propose upstreaming as a new `bench-dispatcher` module.
+
+Existing microbench pattern rationale (unchanged): comment in `microbench_or_models.py:31-36` documents why cost-budget is not vendored yet; specialty bench inherits the same rationale.
 
 **No `AGENTS.md` invariants touched** — no compose changes, no port allocations, no new services deployed.
 
