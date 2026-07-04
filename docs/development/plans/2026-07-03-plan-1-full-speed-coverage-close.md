@@ -1,8 +1,9 @@
 # Full Speed Coverage Close — LLM gap retry + specialty-service bench
 
-**Status:** IN-PROGRESS
+**Status:** EXECUTED 2026-07-04 (7798aec4)
 **Date:** 2026-07-03
 **Started:** 2026-07-03 via /fabrik-execute-plan
+**Completed:** 2026-07-04 — Phases A + B end-to-end; 24 hermetic tests + 7 opt-in smoke tests; real bench closed 18 rows (287→305/598 active-Speed coverage). Final gate: 2 failures OUTSIDE this plan's File Scope (other-AI plan `2026-07-04-plan-1-saas-fastapi-user-auth-flip.md` missing One-Test Rule + pre-existing `scripts/kilo-benchmarks/cache/direct_vendor_audit_*.md` structure warnings). Zero regressions from this plan's diff — verified via targeted test run: 24 passed, 7 skipped by design.
 **Follow-up to:** [2026-07-02-plan-1-speed-coverage.md](2026-07-02-plan-1-speed-coverage.md) (EXECUTED)
 **Owner:** solo (Özgür)
 **Review passes:** DRAFT → CONVERGED via `/fabrik-plan-review` 2026-07-03 (see Self-audit)

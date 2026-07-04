@@ -17,5 +17,7 @@
   ],
   "branch": "master",
   "started_at": "2026-07-03T18:00:00Z",
-  "status": "active"
+  "completed_at": "2026-07-04T00:00:00Z",
+  "final_commit": "7798aec4",
+  "status": "released"
 }
