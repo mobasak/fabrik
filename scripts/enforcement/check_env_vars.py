@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# AFTER-EDIT: none
 """Check for hardcoded localhost/127.0.0.1 in code.
 
 Detects environment variable violations that break Docker/VPS deployments.
@@ -25,16 +26,37 @@ HARDCODED_PATTERNS = [
     (r'["\']127\.0\.0\.1:\d+["\']', "hardcoded 127.0.0.1 with port"),
     (r"http://localhost[:/]", "hardcoded http://localhost URL"),
     (r"http://127\.0\.0\.1[:/]", "hardcoded http://127.0.0.1 URL"),
+    # Any-scheme URL whose host is localhost, with optional userinfo — catches
+    # `postgresql://user@localhost:5432/db` and `redis://localhost:6379`, the exact
+    # DATABASE_URL/REDIS_URL "@localhost" HARD STOP that the http-only patterns above
+    # miss. Sanctioned env-var defaults are exempted first via ALLOWED_CONTEXTS.
+    (
+        r"://(?:[^'\"\s/@]*@)?(?:localhost|127\.0\.0\.1)[:/]",
+        "hardcoded localhost in URL (any scheme)",
+    ),
 ]
+
+# A localhost/127.0.0.1 literal is SANCTIONED only when it is the dev-time DEFAULT of
+# an environment-variable read — the same code reads the real host (postgres-main,
+# redis-main, …) from the env in Docker/VPS. Recognize that idiom broadly, or the gate
+# false-flags legitimate config: the check scans .py AND .ts/.tsx/.js/.jsx, so it must
+# know the JS/TS `process.env.X || "…"` / `?? "…"` form too, not just Python's; it must
+# accept ANY URL scheme (redis://, postgresql://, amqp://, ws://, http(s)://), not only
+# http(s); and Python's keyword-arg `default="…"` form, not only the positional one.
+# The teeth stay intact: a bare `url = "http://localhost:3000"` (no env read) is NOT
+# matched here and is still flagged by HARDCODED_PATTERNS.
+_ENV_DEFAULT_LOCALHOST = (
+    r"['\"](?:[a-zA-Z][\w+.\-]*://)?(?:[^'\"@\s/]*@)?(?:localhost|127\.0\.0\.1)"
+)
 
 # Patterns that indicate proper usage (allowlist) - must be specific
 ALLOWED_CONTEXTS = [
-    # os.getenv / os.environ.get default — allow an optional URL scheme so
-    # os.getenv("LOKI_URL", "http://localhost:3100") is recognized as the
-    # sanctioned pattern, not just the bare "localhost" form.
-    r"os\.getenv\s*\([^)]*,\s*['\"](?:https?://)?(?:localhost|127\.0\.0\.1)",  # os.getenv default
-    r"os\.environ\.get\s*\([^)]*,\s*['\"](?:https?://)?(?:localhost|127\.0\.0\.1)",  # os.environ.get default
-    r"#\s*.*(?:localhost|127\.0\.0\.1)",  # Comments with localhost/127.0.0.1
+    # Python: os.getenv(KEY, "…localhost…") / os.environ.get(KEY, default="…localhost…")
+    rf"os\.getenv\s*\([^)]*,\s*(?:default\s*=\s*)?{_ENV_DEFAULT_LOCALHOST}",
+    rf"os\.environ\.get\s*\([^)]*,\s*(?:default\s*=\s*)?{_ENV_DEFAULT_LOCALHOST}",
+    # JS/TS: process.env.KEY || "…localhost…"  /  process.env.KEY ?? "…localhost…"
+    rf"process\.env\.[A-Za-z0-9_]+\s*(?:\|\||\?\?)\s*{_ENV_DEFAULT_LOCALHOST}",
+    r"#\s*.*(?:localhost|127\.0\.0\.1)",  # Python comments referencing localhost/127.0.0.1
     r"^\s*#",  # Line starting with comment
     r"\.env\.example",  # Example env files
     r"#\s*noqa",  # noqa comments
