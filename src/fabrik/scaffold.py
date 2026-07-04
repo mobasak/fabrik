@@ -362,7 +362,7 @@ def _fabrik_synced_gitignore_block() -> str:
         _sys.path.insert(0, scripts_dir)
     from fabrik_synced_manifest import gitignore_block_text
 
-    return gitignore_block_text()
+    return str(gitignore_block_text())  # str() pins the type (dynamic-path import is Any to mypy)
 
 
 def _assert_not_hub(target: Path) -> None:
@@ -2583,8 +2583,9 @@ async def lifespan(app: FastAPI) -> Any:  # noqa: ARG001
 
 app = FastAPI(title="__NAME__", lifespan=lifespan)
 
-# add_middleware stacks outermost-last: Correlation (outer) -> Security -> Tenant
-# (inner, runs right before the route so the ContextVar is set for handlers).
+# add_middleware stacks outermost-last, so the actual request order is:
+# CORS (outermost, when configured) -> Correlation -> Security -> Tenant (innermost,
+# runs right before the route so the ContextVar is set for handlers).
 app.add_middleware(TenantMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(CorrelationMiddleware)
@@ -3597,7 +3598,9 @@ SERVICE_NAME={name}
     )
 
 
-def _write_placeholder_png(path: Path, size: int, rgba: tuple = (66, 133, 244, 255)) -> None:
+def _write_placeholder_png(
+    path: Path, size: int, rgba: tuple[int, int, int, int] = (66, 133, 244, 255)
+) -> None:
     """Write a solid-color square PNG (pure stdlib — no Pillow dependency).
 
     The chrome-extension manifest references icon16/48/128.png; without real

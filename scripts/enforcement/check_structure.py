@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
+# AFTER-EDIT: none
 """Enforce project documentation structure.
 
 Ensures documents are placed in the correct locations per Fabrik conventions.
 """
 
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -76,6 +78,27 @@ LEGACY_DIRS = {
 # outputs (specs/<project>/00-idea.md, 01-scope.md, 02-spec.md) per AGENTS.md
 
 
+def _gitignored_files(root: Path) -> set[str]:
+    """Posix-relative paths of gitignored (untracked-ignored) files under ``root``.
+
+    Structure rules gate the REPO, not local artifacts git doesn't track — a gitignored
+    file (e.g. a ``scripts/**/cache/*.md`` audit dump written by a benchmark run) must NOT
+    fail the gate. Best-effort: empty set when git is unavailable, so the walk falls back
+    to checking everything.
+    """
+    try:
+        out = subprocess.run(
+            ["git", "-C", str(root), "ls-files", "--others", "--ignored", "--exclude-standard"],
+            capture_output=True,
+            text=True,
+            timeout=15,
+            check=True,
+        ).stdout
+    except Exception:
+        return set()
+    return {line.strip() for line in out.splitlines() if line.strip()}
+
+
 def check_structure(project_root: Path, files: list[str] | None = None) -> list[dict[str, Any]]:
     """Check project structure for violations.
 
@@ -96,6 +119,10 @@ def check_structure(project_root: Path, files: list[str] | None = None) -> list[
         # Check all .md files in project
         paths_to_check = list(project_root.rglob("*.md"))
 
+    # Gitignored files are local artifacts, not part of the repo — never gate them.
+    # (When `files` is passed, pre-commit already scoped to tracked changes.)
+    ignored = set() if files else _gitignored_files(project_root)
+
     for path in paths_to_check:
         # Make path relative to project root
         if path.is_absolute():
@@ -105,6 +132,9 @@ def check_structure(project_root: Path, files: list[str] | None = None) -> list[
                 continue  # File outside project
         else:
             rel_path = path
+
+        if rel_path.as_posix() in ignored:
+            continue  # gitignored local artifact — not part of the repo
 
         # Skip hidden directories (except .windsurf, .droid)
         parts = rel_path.parts

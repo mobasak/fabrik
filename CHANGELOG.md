@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — `check_structure` skips gitignored files; `scaffold.py` is `mypy --strict`-clean (2026-07-04)
+
+Structure enforcement (`check_structure.py`) walked the whole disk and flagged **gitignored** files (e.g. a `scripts/**/cache/*.md` benchmark audit dump) as "markdown forbidden in scripts/" — a false positive on local artifacts git doesn't even track, which failed the shared-master gate for files no agent should touch. It now excludes gitignored files (`git ls-files --others --ignored --exclude-standard`, best-effort) on full scans; pre-commit (scoped `files=`) is unchanged. Also cleaned the 2 pre-existing `mypy --strict` errors in `scaffold.py` (`str()`-pinned a dynamic-import return; parameterized a bare `tuple`) so it is strict-clean, and corrected the generated `main.py` middleware-order comment (CORS is the outermost layer, not Correlation).
+
 ### Changed — saas-skeleton (+ mobile-app) scaffold flips from Supabase Auth (Pattern B) to self-hosted fastapi-user-auth (Pattern A) (2026-07-04)
 
 New saas projects now default to **Pattern A** — the FastAPI backend is the sole IdP and issues its own JWTs, vendoring `fabrik-lib/fastapi-user-auth` (Argon2 login, atomic refresh-token rotation, jti-denylist revocation, native-mode tenant RLS via `app.tenant_id`/`app.user_id`). Supabase Auth is demoted to legacy/migration-only. `AuthType.FASTAPI_USER_AUTH` added (`spec_loader.py`); the backend generators in `scaffold.py` emit the vendored `/auth` router, a citext `users` + refresh/verify/reset token schema (citext is a *trusted* extension — the DB-owning role creates it, no superuser needed), Redis denylist wiring, and a `tests/test_auth.py` smoke; `tenant.py` decodes our own token. The saas frontend drops `@supabase/*` (holds no DB creds — health route reflects the backend), and the mobile client drops `EXPO_PUBLIC_SUPABASE_*`. The `fastapi-user-auth` module needed **no changes** (already `core/25`+`core/35`+`saas/95` compliant). Plan: `docs/development/plans/2026-07-04-plan-1-saas-fastapi-user-auth-flip.md`.
