@@ -6,7 +6,6 @@ provider APIs. We register the marker via a directory-local conftest rather
 than editing the top-level pyproject.toml (a HARD-STOP deps file).
 """
 
-
 import pytest
 
 

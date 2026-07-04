@@ -49,12 +49,14 @@ def bench_one(model_id: str, api_key: str) -> dict:
     body = {"prompt": "a cat on a sofa", "image_size": "square"}
     t0 = time.monotonic()
     try:
-        r = requests.post(endpoint, json=body, headers=headers, timeout=30)
+        r = requests.post(endpoint, json=body, headers=headers, timeout=30, allow_redirects=False)
         if r.status_code == 403 and "Exhausted balance" in r.text:
             return _err("[FAL-BALANCE-EXHAUSTED] top up at fal.ai/dashboard/billing")
         if r.status_code >= 400:
             return _err(_http_err("enqueue", r))
         data = r.json()
+        if not isinstance(data, dict):
+            return _err(f"enqueue non-dict body: {str(data)[:200]}")
         status_url = data.get("status_url")
         if not status_url:
             return _err("no status_url in enqueue response")
@@ -63,10 +65,12 @@ def bench_one(model_id: str, api_key: str) -> dict:
         # Poll queue
         deadline = t0 + MAX_POLL_SECONDS
         while time.monotonic() < deadline:
-            pr = requests.get(status_url, headers=headers, timeout=15)
+            pr = requests.get(status_url, headers=headers, timeout=15, allow_redirects=False)
             if pr.status_code >= 400:
                 return _err(_http_err("poll", pr))
             pd = pr.json()
+            if not isinstance(pd, dict):
+                return _err(f"poll non-dict body: {str(pd)[:200]}")
             status = (pd.get("status") or "").upper()
             if status == "COMPLETED":
                 perf_seconds = time.monotonic() - t0
@@ -75,7 +79,7 @@ def bench_one(model_id: str, api_key: str) -> dict:
                 cost = float((PRICING.get(model_id) or {}).get("per_image", 0.0))
                 return {"perf_seconds": round(perf_seconds, 2), "cost_usd": cost, "error": None}
             if status in ("FAILED", "ERROR"):
-                return _err(f"fal status {status}: {pd}")
+                return _err(f"fal status {status}: {str(pd)[:200]}")
             time.sleep(1.0)
         return _err(f"timeout after {MAX_POLL_SECONDS}s")
     except requests.exceptions.RequestException as e:

@@ -31,10 +31,12 @@ def bench_one(model_id: str, api_key: str) -> dict:
     body = {"prompt": "a cat on a sofa", "model": recraft_model, "style": "digital_illustration"}
     t0 = time.monotonic()
     try:
-        r = requests.post(ENDPOINT, json=body, headers=headers, timeout=60)
+        r = requests.post(ENDPOINT, json=body, headers=headers, timeout=60, allow_redirects=False)
         if r.status_code >= 400:
             return _err(_http_err(r))
         data = r.json()
+        if not isinstance(data, dict):
+            return _err(f"non-dict body: {str(data)[:200]}")
         credits = data.get("credits")
         if credits is None:
             # Missing credits on a 2xx means the API contract shifted; recording

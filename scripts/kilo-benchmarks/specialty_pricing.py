@@ -100,11 +100,23 @@ PRICING: dict[str, dict] = {
 }
 
 
-def estimate_cost(model_id: str, *, chars: int = 200, minutes: float = 0.17) -> float:
+# Per-model prompt lengths actually used by the specialty clients — keep in
+# sync with each client's BENCH_TEXT so dry-run cost previews match real spend.
+# Values verified via `len(client.BENCH_TEXT)` at import time (see the drift
+# test in test_microbench_specialty).
+_BENCH_CHARS_BY_MODEL = {
+    "qwen/qwen-mt-turbo": 64,  # dashscope_translation.BENCH_TEXT
+}
+_DEFAULT_TTS_CHARS = 213  # elevenlabs_tts.BENCH_TEXT length
+_DEFAULT_STT_MINUTES = 10 / 60.0  # openai_whisper.SILENCE_SECONDS
+
+
+def estimate_cost(model_id: str, *, chars: int | None = None, minutes: float | None = None) -> float:
     """Estimate cost per single bench call for a specialty model.
 
-    `chars=200` matches the fixed TTS prompt. `minutes=0.17` = 10 seconds
-    of audio for Whisper. Image gen is per_image (no arg needed).
+    Char counts come from a per-model table so translation (64 chars) isn't
+    over-estimated as TTS (213 chars). Callers may still override via `chars=`
+    for a custom sizing.
     """
     p = PRICING.get(model_id)
     if p is None:
@@ -114,7 +126,9 @@ def estimate_cost(model_id: str, *, chars: int = 200, minutes: float = 0.17) -> 
     if "per_generation" in p:
         return p["per_generation"]
     if "per_char" in p:
-        return p["per_char"] * chars
+        c = chars if chars is not None else _BENCH_CHARS_BY_MODEL.get(model_id, _DEFAULT_TTS_CHARS)
+        return p["per_char"] * c
     if "per_minute" in p:
-        return p["per_minute"] * minutes
+        m = minutes if minutes is not None else _DEFAULT_STT_MINUTES
+        return p["per_minute"] * m
     return 0.0

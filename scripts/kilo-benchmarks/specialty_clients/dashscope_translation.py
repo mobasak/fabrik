@@ -34,10 +34,12 @@ def bench_one(model_id: str, api_key: str) -> dict:
     }
     t0 = time.monotonic()
     try:
-        r = requests.post(ENDPOINT, json=body, headers=headers, timeout=30)
+        r = requests.post(ENDPOINT, json=body, headers=headers, timeout=30, allow_redirects=False)
         if r.status_code >= 400:
             return _err(_http_err(r))
         data = r.json()
+        if not isinstance(data, dict):
+            return _err(f"non-dict body: {str(data)[:200]}")
         content = (data.get("output") or {}).get("choices") or []
         if not content or not (content[0].get("message") or {}).get("content"):
             return _err(f"no translation in response: {data}")

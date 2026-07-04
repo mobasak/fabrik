@@ -42,10 +42,12 @@ def bench_one(model_id: str, api_key: str) -> dict:
     body = {"version": version, "input": {"prompt": "a cat on a sofa"}}
     t0 = time.monotonic()
     try:
-        r = requests.post(CREATE_URL, json=body, headers=headers, timeout=30)
+        r = requests.post(CREATE_URL, json=body, headers=headers, timeout=30, allow_redirects=False)
         if r.status_code >= 400:
             return _err(_http_err("create", r))
         data = r.json()
+        if not isinstance(data, dict):
+            return _err(f"create non-dict body: {str(data)[:200]}")
         # `.get("urls") or {}` guards against an explicit JSON null on that key —
         # `.get("urls", {})` returns None when the key IS present but null, which
         # would then AttributeError on the next `.get("get")` and crash the whole
@@ -60,10 +62,12 @@ def bench_one(model_id: str, api_key: str) -> dict:
             )
         deadline = t0 + MAX_POLL_SECONDS
         while time.monotonic() < deadline:
-            pr = requests.get(poll_url, headers=headers, timeout=15)
+            pr = requests.get(poll_url, headers=headers, timeout=15, allow_redirects=False)
             if pr.status_code >= 400:
                 return _err(_http_err("poll", pr))
             pd = pr.json()
+            if not isinstance(pd, dict):
+                return _err(f"poll non-dict body: {str(pd)[:200]}")
             status = pd.get("status", "")
             if status == "succeeded":
                 perf_seconds = time.monotonic() - t0
@@ -86,7 +90,7 @@ def bench_one(model_id: str, api_key: str) -> dict:
                     "error": None,
                 }
             if status in ("failed", "canceled"):
-                return _err(f"replicate {status}: {pd.get('error')}")
+                return _err(f"replicate {status}: {str(pd.get('error'))[:200]}")
             time.sleep(1.5)
         return _err(f"timeout after {MAX_POLL_SECONDS}s")
     except requests.exceptions.RequestException as e:

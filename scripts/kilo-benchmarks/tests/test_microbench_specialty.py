@@ -485,6 +485,43 @@ def test_pricing_table_covers_all_active_specialty_rows():
 # --------------------------------------------------------------- 16
 
 
+def test_dispatch_defense_in_depth_rejects_llm_service_type():
+    """Even if the id prefix matches an image-gen client, an llm service_type
+    row must NOT reach the image-gen client — cohort SELECT is the primary
+    guard but _dispatch adds a second layer."""
+    import microbench_specialty as mb
+
+    keys = {"RECRAFT_API_KEY": "k", "FAL_KEY": "k", "REPLICATE_API_TOKEN": "k"}
+    # `recraft/recraft-v4-pro` etc. are real active llm rows sharing the recraft/ prefix
+    fn, key, tag = mb._dispatch("recraft/recraft-v4-pro", "llm", keys)
+    assert fn is None
+    assert tag is None
+    # bfl/ prefix llm row (hypothetical) — same defense
+    fn, key, tag = mb._dispatch("bfl/anything", "llm", keys)
+    assert fn is None
+    # Same model_id in the correct service_type still routes properly
+    fn, key, tag = mb._dispatch("recraft/v3", "image_gen", keys)
+    assert fn is not None
+    assert tag == "recraft_direct"
+
+
+def test_precedence_guard_catches_fal_bfl_tag(tmpdb, capsys):
+    """The fal_bfl tag has no '_direct' suffix; the guard must still catch it
+    (regression: earlier guard used LIKE '%_direct%' which missed fal_bfl)."""
+    import microbench_specialty as mb
+
+    ensure_perf_seconds_column(tmpdb)
+    with sqlite3.connect(tmpdb) as c:
+        c.execute(
+            "INSERT INTO agents(id, service_type, status, speed_source, speed_updated_at) "
+            "VALUES('anthropic/claude-x','llm','active','fal_bfl 2026-07-04',date('now'))"
+        )
+    rc = mb._post_run_verify(tmpdb)
+    out = capsys.readouterr().out
+    assert rc == 1
+    assert "[BENCH-QA-FAIL]" in out
+
+
 def test_ssrf_allowlist_rejects_http_scheme_downgrade():
     """https-only guard on both Fal and Replicate poll URLs."""
     enqueue_fal = _resp(
@@ -498,6 +535,111 @@ def test_ssrf_allowlist_rejects_http_scheme_downgrade():
     with patch.object(replicate.requests, "post", return_value=create_rep):
         r2 = replicate.bench_one("stability/sdxl", "K")
     assert r2["error"] is not None and "api.replicate.com" in r2["error"]
+
+
+def test_fal_client_survives_non_dict_json_body():
+    """A 2xx response with a non-dict JSON body (list, string, WAF interstitial
+    parsed as JSON) must NOT AttributeError — it must return a clean error."""
+    non_dict = _resp(200, json_data=None)
+    non_dict.json.return_value = ["not", "a", "dict"]
+    with patch.object(bfl_via_fal.requests, "post", return_value=non_dict):
+        r = bfl_via_fal.bench_one("bfl/flux-schnell", "K")
+    assert r["error"] is not None
+    assert "non-dict" in r["error"]
+
+
+def test_recraft_client_survives_non_dict_json_body():
+    non_dict = _resp(200, json_data=None)
+    non_dict.json.return_value = "just a string"
+    with patch.object(recraft.requests, "post", return_value=non_dict):
+        r = recraft.bench_one("recraft/v3", "K")
+    assert r["error"] is not None
+    assert "non-dict" in r["error"]
+
+
+def test_replicate_client_survives_non_dict_json_body():
+    non_dict = _resp(200, json_data=None)
+    non_dict.json.return_value = []
+    with patch.object(replicate.requests, "post", return_value=non_dict):
+        r = replicate.bench_one("stability/sdxl", "K")
+    assert r["error"] is not None
+    assert "non-dict" in r["error"]
+
+
+def test_dashscope_client_survives_non_dict_json_body():
+    non_dict = _resp(200, json_data=None)
+    non_dict.json.return_value = 42
+    with patch.object(dashscope_translation.requests, "post", return_value=non_dict):
+        r = dashscope_translation.bench_one("qwen/qwen-mt-turbo", "K")
+    assert r["error"] is not None
+    assert "non-dict" in r["error"]
+
+
+def test_fal_failure_body_is_truncated_in_error_message():
+    """A large FAILED body from Fal must be truncated so a huge or crafted
+    error payload can't blow up log volume."""
+    enqueue = _resp(200, json_data={"status": "IN_QUEUE", "status_url": "https://queue.fal.run/y"})
+    big_body = {"error": "X" * 5000, "status": "FAILED"}
+    poll_big = _resp(200, json_data=big_body)
+    with (
+        patch.object(bfl_via_fal.requests, "post", return_value=enqueue),
+        patch.object(bfl_via_fal.requests, "get", return_value=poll_big),
+        patch.object(bfl_via_fal.time, "sleep"),
+    ):
+        r = bfl_via_fal.bench_one("bfl/flux-schnell", "K")
+    assert r["error"] is not None
+    assert len(r["error"]) < 400  # 200 body slice + prefix
+
+
+def test_replicate_failure_error_is_truncated_in_error_message():
+    create = _resp(200, json_data={"id": "p", "urls": {"get": "https://api.replicate.com/x"}})
+    big_err = {"status": "failed", "error": "Y" * 5000}
+    failed_big = _resp(200, json_data=big_err)
+    with (
+        patch.object(replicate.requests, "post", return_value=create),
+        patch.object(replicate.requests, "get", return_value=failed_big),
+        patch.object(replicate.time, "sleep"),
+    ):
+        r = replicate.bench_one("stability/sdxl", "K")
+    assert r["error"] is not None
+    assert len(r["error"]) < 400
+
+
+def test_credentialed_calls_disable_redirects():
+    """Every client's outbound requests.post/get must pass allow_redirects=False
+    so a 3xx from a compromised/misbehaving upstream can't send the API key
+    (or the fabricated 'succeeded' body) to an arbitrary host."""
+    ok_fal = _resp(200, json_data={"status": "IN_QUEUE", "status_url": "https://queue.fal.run/y"})
+    poll_ok = _resp(200, json_data={"status": "COMPLETED"})
+    with (
+        patch.object(bfl_via_fal.requests, "post", return_value=ok_fal) as p_post,
+        patch.object(bfl_via_fal.requests, "get", return_value=poll_ok) as p_get,
+        patch.object(bfl_via_fal.time, "sleep"),
+    ):
+        bfl_via_fal.bench_one("bfl/flux-schnell", "K")
+    assert p_post.call_args.kwargs.get("allow_redirects") is False
+    assert p_get.call_args.kwargs.get("allow_redirects") is False
+
+    # Recraft
+    ok = _resp(200, json_data={"credits": 40, "data": [{"url": "x"}]})
+    with patch.object(recraft.requests, "post", return_value=ok) as pm:
+        recraft.bench_one("recraft/v3", "K")
+    assert pm.call_args.kwargs.get("allow_redirects") is False
+
+    # ElevenLabs TTS (custom xi-api-key — not stripped by requests on redirect)
+    ok_tts = _resp(200, content=b"\x00" * 4096)
+    with patch.object(elevenlabs_tts.requests, "post", return_value=ok_tts) as pm:
+        elevenlabs_tts.bench_one("elevenlabs/multilingual-v2", "K")
+    assert pm.call_args.kwargs.get("allow_redirects") is False
+
+
+def test_estimate_cost_uses_real_bench_text_length_for_dashscope():
+    """dashscope BENCH_TEXT is 64 chars, not the 200-char TTS default."""
+    from specialty_pricing import estimate_cost
+
+    est = estimate_cost("qwen/qwen-mt-turbo")
+    # 64 chars × $0.000018/char = $0.001152
+    assert est == pytest.approx(64 * 0.000018)
 
 
 def test_replicate_survives_explicit_null_metrics():

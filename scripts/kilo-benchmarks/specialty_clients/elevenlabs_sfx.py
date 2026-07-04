@@ -29,7 +29,7 @@ def bench_one(model_id: str, api_key: str) -> dict:
     body = {"text": BENCH_PROMPT, "duration_seconds": DURATION_SECONDS}
     t0 = time.monotonic()
     try:
-        r = requests.post(ENDPOINT, json=body, headers=headers, timeout=60)
+        r = requests.post(ENDPOINT, json=body, headers=headers, timeout=60, allow_redirects=False)
         if r.status_code >= 400:
             return _err(_http_err(r))
         if len(r.content) < 100:

@@ -83,8 +83,21 @@ def _parse_retry_after(err: str | None) -> int | None:
     return max(0, min(60, n))
 
 
+SPECIALTY_SERVICE_TYPES = frozenset(
+    {"image_gen", "tts", "music_gen", "stt", "translation"}
+)
+
+
 def _dispatch(model_id: str, service_type: str, keys: dict) -> tuple:
-    """Return (bench_fn, api_key, provider_tag)."""
+    """Return (bench_fn, api_key, provider_tag).
+
+    Defense-in-depth: every branch also asserts `service_type` is a specialty
+    type, so a caller that bypasses `_select_cohort`'s filter can't route an
+    LLM row into an image-gen client even if the id happens to share a prefix
+    (e.g., an active `recraft/recraft-v4-*` llm row won't hit `recraft.bench_one`).
+    """
+    if service_type not in SPECIALTY_SERVICE_TYPES:
+        return None, None, None
     via = (PRICING.get(model_id) or {}).get("via", "")
     if via == "fal_ai" or model_id.startswith("bfl/") or model_id.startswith("black-forest-labs/"):
         return bfl_via_fal.bench_one, keys.get("FAL_KEY"), "fal_bfl"
@@ -267,12 +280,24 @@ def _post_run_verify(db_path: Path) -> int:
         ).fetchall():
             band = "IMPLAUSIBLE" if r["perf_seconds"] < 0.1 else "SLOW-WARN"
             log(f"  [{band}] {r['id']} ({r['service_type']}) = {r['perf_seconds']}s")
-        # Precedence guard — a *_direct speed_source on today's llm row means the
-        # specialty dispatcher misrouted onto text-LLM territory.
+        # Precedence guard — any specialty tag on today's llm row means the
+        # specialty dispatcher misrouted onto text-LLM territory. Explicit tag
+        # list (not `LIKE '%_direct%'`) so a non-suffixed tag like `fal_bfl`
+        # can't silently escape the check.
+        specialty_tags = (
+            "fal_bfl",
+            "recraft_direct",
+            "replicate_direct",
+            "elevenlabs_direct",
+            "openai_direct",
+            "dashscope_direct",
+        )
+        placeholders = " OR ".join(["speed_source LIKE ? || ' %'"] * len(specialty_tags))
         offending = conn.execute(
-            "SELECT COUNT(*) FROM agents "
-            "WHERE service_type='llm' AND speed_updated_at = date('now') "
-            "  AND speed_source LIKE '%_direct%'"
+            f"SELECT COUNT(*) FROM agents "
+            f"WHERE service_type='llm' AND speed_updated_at = date('now') "
+            f"  AND ({placeholders})",
+            specialty_tags,
         ).fetchone()[0]
     if offending:
         log(f"[BENCH-QA-FAIL] {offending} LLM rows carry *_direct speed_source today")
