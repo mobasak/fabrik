@@ -333,6 +333,12 @@ mkdir -p "$(dirname "$LOG_FILE")"
   _step "derive_cheapest_gateway" "$VENV_PY" "$KB/derive_cheapest_gateway.py" \
     || echo "[daily_refresh] cheapest gateway derive failed (non-fatal)"
 
+  # Coding-subagent ranking → docs/reference/kilo/CODING_SUBAGENT_SELECTION.md.
+  # Runs AFTER derive_cheapest_gateway so the table reflects today's pricing.
+  # Non-fatal — a missing table doesn't take down the rest of the pipeline.
+  _step "rank_coding_subagents" "$VENV_PY" "$KB/rank_coding_subagents.py" \
+    || echo "[daily_refresh] rank_coding_subagents failed (non-fatal)"
+
   # Live gateway counts in the ai/ rule packs. Runs AFTER the OR-routes
   # injector + freshness stamp so both marker blocks land in the same
   # daily refresh. The script is idempotent and self-heals around

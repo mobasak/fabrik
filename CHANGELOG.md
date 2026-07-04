@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Coding-subagent selection table (auto-generated, daily-refreshed) (2026-07-04)
+
+`docs/reference/kilo/CODING_SUBAGENT_SELECTION.md` — ranked table of coding-subagent candidates across the GLM / Kimi / Minimax / DeepSeek families, regenerated nightly by `scripts/kilo-benchmarks/rank_coding_subagents.py` after `derive_cheapest_gateway.py` updates pricing. Composite ranking (30% verified SWE + 15% Aider + 20% AA intelligence + 15% Arena ELO + 10% speed + 10% cost-inverse) plus a Doc↔Code review letter grade (A+/A/B+/B/B-/C+/C) that measures each model's ability to spot drift between documentation and implementation from context size + verified scores + Arena/AA. Ships with an `EXCLUDE_MODELS` blocklist (currently `moonshotai/kimi-k2-thinking` — reasoning-mandatory model that returns 0 output tokens when reasoning is excluded), a `PROVIDER_PINS` map (currently `minimax/minimax-m3` → exclude DeepInfra route, whose fp8 streaming decoder duplicates every word), and per-model `BODY_HINTS` for OR request params. Initial run ranked 38 models against the live DB.
+
 ### Fixed — `check_structure` skips gitignored files; `scaffold.py` is `mypy --strict`-clean (2026-07-04)
 
 Structure enforcement (`check_structure.py`) walked the whole disk and flagged **gitignored** files (e.g. a `scripts/**/cache/*.md` benchmark audit dump) as "markdown forbidden in scripts/" — a false positive on local artifacts git doesn't even track, which failed the shared-master gate for files no agent should touch. It now excludes gitignored files (`git ls-files --others --ignored --exclude-standard`, best-effort) on full scans; pre-commit (scoped `files=`) is unchanged. Also cleaned the 2 pre-existing `mypy --strict` errors in `scaffold.py` (`str()`-pinned a dynamic-import return; parameterized a bare `tuple`) so it is strict-clean, and corrected the generated `main.py` middleware-order comment (CORS is the outermost layer, not Correlation).
