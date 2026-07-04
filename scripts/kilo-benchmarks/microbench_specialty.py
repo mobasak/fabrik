@@ -75,7 +75,12 @@ def _dispatch(model_id: str, service_type: str, keys: dict) -> tuple:
 def bench_median(model_id: str, service_type: str, keys: dict) -> dict:
     fn, key, tag = _dispatch(model_id, service_type, keys)
     if fn is None:
-        return {"perf_seconds": None, "cost_usd": 0.0, "error": f"no client for {model_id}", "tag": None}
+        return {
+            "perf_seconds": None,
+            "cost_usd": 0.0,
+            "error": f"no client for {model_id}",
+            "tag": None,
+        }
     if not key:
         return {"perf_seconds": None, "cost_usd": 0.0, "error": "provider key not set", "tag": tag}
     results = []
@@ -90,11 +95,18 @@ def bench_median(model_id: str, service_type: str, keys: dict) -> dict:
         if i < BENCH_N_RUNS - 1:
             time.sleep(RATE_LIMIT_SLEEP_S)
     if len(results) < 2:
-        return {"perf_seconds": None, "cost_usd": total_cost,
-                "error": f"{BENCH_N_RUNS - len(results)}/{BENCH_N_RUNS} calls failed",
-                "tag": tag}
-    return {"perf_seconds": round(statistics.median(results), 2),
-            "cost_usd": round(total_cost, 6), "error": None, "tag": tag}
+        return {
+            "perf_seconds": None,
+            "cost_usd": total_cost,
+            "error": f"{BENCH_N_RUNS - len(results)}/{BENCH_N_RUNS} calls failed",
+            "tag": tag,
+        }
+    return {
+        "perf_seconds": round(statistics.median(results), 2),
+        "cost_usd": round(total_cost, 6),
+        "error": None,
+        "tag": tag,
+    }
 
 
 def _select_cohort(conn: sqlite3.Connection) -> list[dict]:
@@ -120,8 +132,7 @@ def _write_result(db_path: Path, agent_id: str, result: dict) -> bool:
     try:
         with sqlite3.connect(db_path, timeout=30.0) as conn:
             conn.execute(
-                "UPDATE agents SET perf_seconds=?, speed_source=?, speed_updated_at=? "
-                "WHERE id=?",
+                "UPDATE agents SET perf_seconds=?, speed_source=?, speed_updated_at=? WHERE id=?",
                 (result["perf_seconds"], tag, today, agent_id),
             )
         return True
@@ -157,7 +168,9 @@ def run_specialty(dry_run: bool = False, limit: int | None = None) -> int:
         if running_cost >= COST_CAP_USD:
             log(f"cost_stop: ${running_cost:.4f} >= cap ${COST_CAP_USD}")
             break
-        log(f"[{i}/{len(cohort)}] bench {row['id']} ({row['service_type']}) (spent ${running_cost:.4f})")
+        log(
+            f"[{i}/{len(cohort)}] bench {row['id']} ({row['service_type']}) (spent ${running_cost:.4f})"
+        )
         result = bench_median(row["id"], row["service_type"], keys)
         running_cost += result.get("cost_usd", 0.0)
         if result["error"]:

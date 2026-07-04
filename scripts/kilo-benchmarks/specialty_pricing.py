@@ -56,7 +56,11 @@ PRICING: dict[str, dict] = {
     "google/gemini-3-pro-image": {"per_image": 0.08, "via": "openrouter", "estimate": True},
     "google/gemini-3-pro-image-preview": {"per_image": 0.08, "via": "openrouter", "estimate": True},
     "google/gemini-3.1-flash-image": {"per_image": 0.04, "via": "openrouter", "estimate": True},
-    "google/gemini-3.1-flash-image-preview": {"per_image": 0.04, "via": "openrouter", "estimate": True},
+    "google/gemini-3.1-flash-image-preview": {
+        "per_image": 0.04,
+        "via": "openrouter",
+        "estimate": True,
+    },
     "microsoft/mai-image-2.5": {"per_image": 0.05, "via": "openrouter", "estimate": True},
     "openai/gpt-5-image": {"per_image": 0.05, "via": "openrouter", "estimate": True},
     "openai/gpt-5-image-mini": {"per_image": 0.03, "via": "openrouter", "estimate": True},
@@ -70,14 +74,22 @@ PRICING: dict[str, dict] = {
     # -- STT expansions --
     "google/chirp-3": {"per_minute": 0.024, "via": "openrouter", "estimate": True},
     "microsoft/mai-transcribe-1.5": {"per_minute": 0.020, "via": "openrouter", "estimate": True},
-    "mistralai/voxtral-mini-transcribe": {"per_minute": 0.010, "via": "openrouter", "estimate": True},
+    "mistralai/voxtral-mini-transcribe": {
+        "per_minute": 0.010,
+        "via": "openrouter",
+        "estimate": True,
+    },
     "nvidia/parakeet-tdt-0.6b-v3": {"per_minute": 0.010, "via": "openrouter", "estimate": True},
     "openai/whisper-1": {"per_minute": 0.006, "via": "openai_direct"},
     "openai/whisper-large-v3-turbo": {"per_minute": 0.006, "via": "openai_direct"},
     "qwen/qwen3-asr-flash-2026-02-10": {"per_minute": 0.010, "via": "openrouter", "estimate": True},
     # -- TTS expansions --
     "canopylabs/orpheus-3b-0.1-ft": {"per_char": 0.00003, "via": "openrouter", "estimate": True},
-    "google/gemini-3.1-flash-tts-preview": {"per_char": 0.00003, "via": "openrouter", "estimate": True},
+    "google/gemini-3.1-flash-tts-preview": {
+        "per_char": 0.00003,
+        "via": "openrouter",
+        "estimate": True,
+    },
     "hexgrad/kokoro-82m": {"per_char": 0.00002, "via": "openrouter", "estimate": True},
     "microsoft/mai-voice-2": {"per_char": 0.00003, "via": "openrouter", "estimate": True},
     "mistralai/voxtral-mini-tts-2603": {"per_char": 0.00003, "via": "openrouter", "estimate": True},
