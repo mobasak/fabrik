@@ -5,6 +5,12 @@ Owner: primary (AI)
 Created: 2026-07-04
 Converged: 2026-07-04 (grounding fixed point — every path:line re-read; final verification pass made zero edits)
 Execution started: 2026-07-04
+
+**fabrik-lib module assessment (2026-07-04) — NO module changes required.** Evaluated `fastapi-user-auth` against `.windsurf/rules` + infra: it already encodes our conventions — `core/25` (UUIDv7 `router.py:95`, asyncpg, citext), `core/35` (Argon2, jti denylist, refresh rotation, Pattern-A `access_ttl=900` `settings.py:18`), `saas/95` (native-mode RLS via `app.tenant_id`/`app.user_id` GUCs + `SET LOCAL`, fail-closed `rls/native.sql` — **identical** to the scaffold's own `current_tenant_id()` at `scaffold.py:1766`), env-driven (`env_prefix="AUTH_"`), no hardcoded infra. Its only Supabase references are in `rls/compat.sql` — the deliberate Pattern-B→A migration surface (keep it). All integration is scaffold-side. **Native-mode wiring for Phase B:** (a) vendor `fastapi_user_auth/` + apply `schema.sql` then `rls/native.sql`; (b) scaffold `current_tenant_id()` is redundant with native.sql's (identical) — apply native.sql's; (c) construct `Settings(database_url=os.getenv("DATABASE_URL"), redis_url=os.getenv("REDIS_URL"), jwt_secret=os.getenv("JWT_SECRET"))` explicitly in the emitted `auth.py` (our infra injects unprefixed vars; the module's `AUTH_` prefix stays generic — no module change); (d) `tenant.py` decodes the app's own access token (module `decode_access_token`) and sets both `app.user_id` + `app.tenant_id` (native mode), replacing `decode_supabase_jwt`.
+
+**Phase-B resolution (2026-07-04) — schema reconciliation, blocker dissolved.**
+
+The Phase-B blocker (raised: "scaffold's non-superuser role can't `CREATE EXTENSION citext`") was based on the scaffold's **outdated** comment at `scaffold.py:1744`. Verified: `citext.control` → `trusted = true`, and `postgres.py:409` (`ALTER DATABASE … OWNER TO "{db_user}"`) confirms the fabrik role **owns** the DB → a DB owner can create **trusted** extensions without superuser (PG13+; fleet is PG16). So `CREATE EXTENSION IF NOT EXISTS citext` succeeds. User initially chose "adapt schema to TEXT", but its precondition ("module doesn't hard-depend on citext") **failed** — `router.py:102,143` do `WHERE email = :e` on the **raw** email (no `lower()`), so citext is load-bearing for case-insensitive auth; a TEXT swap would force a module-code fork + risk duplicate accounts. **Resolved approach: keep the module's citext `users.email`, code-free vendor.** Reconciliation: keep the scaffold's richer `tenants` (slug/created_at/`gen_random_uuid`) + `widgets`/`jobs`/`current_tenant_id()` RLS untouched; ADD `CREATE EXTENSION citext`, `users` (citext email), `refresh_tokens`, `email_verify_tokens`, `password_reset_tokens`; point `memberships.user_id` at `users(id)`. User id is app-supplied UUIDv7 (`router.py:95`) so a `gen_random_uuid()` DDL default is a harmless fallback; `uuid_utils` is a pip dep (not an extension). Also fix the stale `:1744` comment.
 Scaffold surface: `src/fabrik/scaffold.py`, `src/fabrik/spec_loader.py`, `templates/saas-skeleton/**`, `templates/mobile-app/**`
 
 ## Goal
@@ -70,7 +76,7 @@ python -m ruff check src/fabrik/spec_loader.py       # All checks passed
 
 **Phase boundary → BLOCKING `/fabrik-review`:** run the full `/fabrik-review` methodology (independent finder subagents in parallel for recall → refute → prove-before-fix with a kept test → correctness/security vs style → re-run gate after each fix) on the `spec_loader.py` diff **plus every caller of `AuthType`/`Infrastructure.auth`** (grep-enumerated). Phase B does not start until a demonstrably-thorough pass yields zero new correctness/security findings.
 
-## Phase B — Backend flip in `scaffold.py` (vendor the module; the hard half)
+## Phase B — Backend flip in `scaffold.py` (vendor the module; the hard half) — ✅ EXECUTED 2026-07-04
 
 **Files:** `src/fabrik/scaffold.py` — `_SAAS_AUTH_PY` (`1947-2042`), `_SAAS_SERVER_REQUIREMENTS` (`1720-1730`), membership SQL (`1754+`), `_scaffold_saas_backend` (`2648`, `auth.py` write `2681`), server-reqs write (`2662`). **Subagents:** dispatch three in parallel where independent — (i) the Pattern-A `auth.py` generator, (ii) schema reconciliation (`schema.sql`), (iii) the `tests/test_auth.py` generator — merged before the phase gate.
 

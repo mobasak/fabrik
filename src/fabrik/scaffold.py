@@ -1720,7 +1720,7 @@ _SAAS_SKIP_DIRS = {"node_modules", ".next", ".turbo", "dist", "build", "__pycach
 _SAAS_SERVER_REQUIREMENTS = (
     "fastapi>=0.115.0\n"
     "uvicorn[standard]>=0.32.0\n"
-    "pydantic>=2.9.0\n"
+    "pydantic[email]>=2.9.0\n"  # [email] => email-validator, for fastapi_user_auth EmailStr
     "python-dotenv>=1.0.0\n"
     "httpx>=0.28.0\n"
     "structlog>=24.0.0\n"
@@ -1728,6 +1728,12 @@ _SAAS_SERVER_REQUIREMENTS = (
     "sentry-sdk[fastapi]>=2.18.0\n"
     "asyncpg>=0.30.0\n"
     "pyjwt[crypto]>=2.9.0\n"
+    # --- vendored fastapi_user_auth (Pattern A) runtime deps ---
+    "sqlalchemy[asyncio]>=2.0\n"
+    "argon2-cffi>=23.1\n"  # password hashing (core/35)
+    "pydantic-settings>=2.2\n"  # module Settings (BaseSettings)
+    "uuid-utils>=0.10\n"  # UUIDv7 PKs (core/25)
+    "redis>=5.0\n"  # jti denylist / instant revocation
 )
 
 _SAAS_SCHEMA_SQL = """-- schema.sql — multi-tenant schema for __NAME__ (PostgreSQL, RLS fail-closed).
@@ -1740,8 +1746,13 @@ _SAAS_SCHEMA_SQL = """-- schema.sql — multi-tenant schema for __NAME__ (Postgr
 -- database and injects its DATABASE_URL, so the app (api + worker) connects as
 -- that role and apply this schema as that role (it owns the tables → FORCE RLS
 -- bites). Do NOT connect as the postgres superuser — it bypasses RLS entirely.
--- ``gen_random_uuid()`` is built into PostgreSQL 13+ (no pgcrypto extension,
--- which a non-superuser could not create anyway).
+-- ``gen_random_uuid()`` is built into PostgreSQL 13+. ``citext`` is a TRUSTED
+-- extension (PG13+), so the DB-owning role can CREATE it without superuser — no
+-- registrar step needed. It backs the case-insensitive ``users.email`` UNIQUE.
+
+-- Auth (Pattern A — this app is the IdP; see src/__PKG__/auth.py) -------------
+-- Case-insensitive email UNIQUE via citext (trusted extension; owner-creatable).
+CREATE EXTENSION IF NOT EXISTS citext;
 
 -- Tenants — the isolation boundary -------------------------------------------
 CREATE TABLE IF NOT EXISTS tenants (
@@ -1751,20 +1762,59 @@ CREATE TABLE IF NOT EXISTS tenants (
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Membership — which Supabase user belongs to which tenant -------------------
+-- Users — app-owned identities (Pattern A). PKs are UUIDv7 supplied by the app
+-- (uuid_utils); the gen_random_uuid() default is a harmless fallback.
+CREATE TABLE IF NOT EXISTS users (
+    id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email          CITEXT NOT NULL UNIQUE,
+    password_hash  TEXT NOT NULL,
+    email_verified BOOLEAN NOT NULL DEFAULT false,
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Membership — which app user belongs to which tenant ------------------------
 CREATE TABLE IF NOT EXISTS memberships (
     tenant_id   UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    user_id     UUID NOT NULL,              -- Supabase auth.users.id (JWT ``sub``)
+    user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,  -- app users.id (JWT ``sub``)
     role        TEXT NOT NULL DEFAULT 'member',
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     PRIMARY KEY (tenant_id, user_id)
 );
 CREATE INDEX IF NOT EXISTS idx_memberships_user ON memberships(user_id);
 
+-- Auth tokens (Pattern A) — opaque refresh tokens + email-verify/reset nonces.
+-- Tokens are app-generated (secrets.token_urlsafe); no DB default needed.
+CREATE TABLE IF NOT EXISTS refresh_tokens (
+    token       TEXT PRIMARY KEY,
+    user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    tenant_id   UUID REFERENCES tenants(id) ON DELETE CASCADE,
+    expires_at  TIMESTAMPTZ NOT NULL,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_refresh_user ON refresh_tokens(user_id);
+
+CREATE TABLE IF NOT EXISTS email_verify_tokens (
+    token       TEXT PRIMARY KEY,
+    user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    expires_at  TIMESTAMPTZ NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+    token       TEXT PRIMARY KEY,
+    user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    expires_at  TIMESTAMPTZ NOT NULL
+);
+
 -- Fail-closed tenant resolver: NULL when app.tenant_id is unset/blank --------
 -- NULLIF(...,'')::UUID => NULL => every tenant_isolation policy DENIES.
 CREATE OR REPLACE FUNCTION current_tenant_id() RETURNS UUID AS $$
     SELECT NULLIF(current_setting('app.tenant_id', TRUE), '')::UUID;
+$$ LANGUAGE sql STABLE;
+
+-- Native-mode companion (fastapi_user_auth rls/native.sql): the current user id
+-- from app.user_id, for user-scoped policies. Fail-closed like current_tenant_id().
+CREATE OR REPLACE FUNCTION current_user_id() RETURNS UUID AS $$
+    SELECT NULLIF(current_setting('app.user_id', TRUE), '')::UUID;
 $$ LANGUAGE sql STABLE;
 
 -- Example tenant-scoped resource (the wired CRUD pattern) -------------------
@@ -1837,19 +1887,29 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
-from __PKG__.auth import decode_supabase_jwt
+from __PKG__.auth import decode_token
 
 # Empty default => current_setting('app.tenant_id') is '' => current_tenant_id()
 # returns NULL => RLS denies. The context is fail-closed by construction.
 tenant_context: ContextVar[str] = ContextVar("tenant_id", default="")
+# Native-mode companion GUC (app.user_id) for current_user_id() (fastapi_user_auth
+# rls/native.sql). Empty default = fail-closed, same as the tenant context.
+user_context: ContextVar[str] = ContextVar("user_id", default="")
 
 # Paths that never carry a tenant (health/metrics/landing) — pass straight through.
+# ``/auth/*`` (login/signup/refresh/reset) is the IdP router: it manages its own DB
+# sessions and must NOT be gated by tenant resolution, so it is skipped here too.
 _PUBLIC_PREFIXES = ("/api/health", "/health", "/metrics", "/")
 
 
 def get_tenant_id() -> str:
     """Return the current request's tenant id, or '' when unset (RLS denies)."""
     return tenant_context.get()
+
+
+def get_user_id() -> str:
+    """Return the current request's user id, or '' when unset."""
+    return user_context.get()
 
 
 def _problem(status: int, title: str, detail: str, request: Request) -> JSONResponse:
@@ -1880,10 +1940,10 @@ async def _is_member(tenant_id: str, user_id: str) -> bool:
 
 
 class TenantMiddleware(BaseHTTPMiddleware):
-    """Decode the Supabase JWT, resolve + validate the tenant, bind the ContextVar.
+    """Decode our access token, resolve + validate the tenant, bind the ContextVars.
 
     Tenant resolution is fail-closed and trust-aware:
-      * ``tenant_id`` on the **validated JWT** is trusted (Supabase signed it) —
+      * ``tid`` on the **validated JWT** is trusted (this service signed it) —
         bound directly.
       * ``X-Tenant-ID`` **header** is user-controlled and untrusted — bound only
         if ``_is_member`` confirms membership (403 otherwise; denied by default).
@@ -1892,20 +1952,24 @@ class TenantMiddleware(BaseHTTPMiddleware):
     """
 
     async def dispatch(self, request: Request, call_next: Any) -> Response:
-        if request.url.path in _PUBLIC_PREFIXES or request.url.path.startswith("/metrics"):
+        if (
+            request.url.path in _PUBLIC_PREFIXES
+            or request.url.path.startswith("/metrics")
+            or request.url.path.startswith("/auth/")  # IdP router; NOT "/authors" etc.
+        ):
             return await call_next(request)
 
         claims: dict[str, Any] = {}
         auth_header = request.headers.get("Authorization", "")
         if auth_header.lower().startswith("bearer "):
             try:
-                claims = decode_supabase_jwt(auth_header[7:].strip())
+                claims = decode_token(auth_header[7:].strip())
             except Exception:  # noqa: BLE001 — any decode failure is a 401
                 return _problem(401, "Unauthorized", "Invalid or expired token", request)
         request.state.jwt_claims = claims
 
         user_id = claims.get("sub", "") if claims else ""
-        claim_tenant = (claims.get("tenant_id") or "") if claims else ""
+        claim_tenant = (claims.get("tid") or "") if claims else ""
         if claim_tenant:
             tenant_id = claim_tenant  # trusted: signed into the JWT
         elif claims:
@@ -1921,10 +1985,12 @@ class TenantMiddleware(BaseHTTPMiddleware):
             tenant_id = ""
 
         ctx_token = tenant_context.set(tenant_id)
+        usr_token = user_context.set(user_id)
         try:
             return await call_next(request)
         finally:
             tenant_context.reset(ctx_token)
+            user_context.reset(usr_token)
 
 
 async def apply_tenant(conn: Any) -> None:
@@ -1935,68 +2001,112 @@ async def apply_tenant(conn: Any) -> None:
                 await apply_tenant(conn)
                 rows = await conn.fetch("SELECT * FROM widgets")  # RLS-filtered
 
-    Sets ``app.tenant_id`` (``LOCAL`` → reset at COMMIT) so ``current_tenant_id()``
-    resolves it and the ``tenant_isolation`` RLS policy filters the query. No role
-    switch is needed: the app already connects as Fabrik's dedicated, NON-superuser
-    DB-owning role, so RLS (``FORCE``) applies directly. An empty tenant context →
-    ``current_tenant_id()`` is NULL → the policy denies every row (fail-closed).
+    Sets ``app.tenant_id`` + ``app.user_id`` (``LOCAL`` → reset at COMMIT) so
+    ``current_tenant_id()`` / ``current_user_id()`` resolve them and the
+    ``tenant_isolation`` RLS policy filters the query. No role switch is needed: the
+    app already connects as Fabrik's dedicated, NON-superuser DB-owning role, so RLS
+    (``FORCE``) applies directly. An empty tenant context → ``current_tenant_id()``
+    is NULL → the policy denies every row (fail-closed).
     """
     await conn.execute("SELECT set_config('app.tenant_id', $1, true)", get_tenant_id())
+    await conn.execute("SELECT set_config('app.user_id', $1, true)", get_user_id())
 '''
 
-_SAAS_AUTH_PY = '''"""Auth Pattern B for __NAME__ — validate Supabase-issued JWTs via JWKS.
+_SAAS_AUTH_PY = '''"""Auth Pattern A for __NAME__ — this service is the IdP (issues its own JWTs).
 
-Per .windsurf/rules/core/35-security-auth.md: a saas-skeleton backend does NOT
-issue its own user tokens. Supabase Auth is the IdP; this service only
-*validates* the Supabase JWT (asymmetric RS256/ES256 via the project JWKS) and
-trusts its claims. Also ships the standard security-headers middleware and a
-CORS allow-list sourced from the environment (never ``*`` with credentials).
-
-NOTE — signing algorithm (35 §Supabase JWT Validation): this validates the
-ASYMMETRIC (RS256/ES256) tokens issued by Supabase's modern JWT signing keys.
-LEGACY Supabase projects still on the symmetric HS256 secret have an EMPTY JWKS
-endpoint, so this path silently fails for them — verify those with the legacy
-JWT secret (HMAC) instead, or migrate the project to asymmetric keys.
-Login / signup / password-reset (and their rate limiting, 35 §Rate Limiting)
-live in Supabase Auth, NOT in this backend — there is nothing here to rate-limit.
+Per .windsurf/rules/core/35-security-auth.md Pattern A: this backend issues AND
+validates its own user tokens — there is no external IdP. Login / signup / refresh
+/ logout / password-reset are the vendored ``fastapi_user_auth`` router mounted at
+``/auth`` (Argon2 login, atomic refresh-token rotation, jti-denylist revocation,
+native-mode tenant RLS). This module also ships the standard security-headers
+middleware and a CORS allow-list (never ``*`` with credentials), plus a
+``decode_token`` helper the TenantMiddleware uses to validate the request bearer.
 """
 from __future__ import annotations
 
 import os
+from functools import lru_cache
 from typing import Any
 
-import jwt
-from fastapi import HTTPException, Request
-from jwt import PyJWKClient
+from fastapi import APIRouter, HTTPException, Request
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
 
-# Supabase JWKS: https://<project>.supabase.co/auth/v1/.well-known/jwks.json
-SUPABASE_JWKS_URL = os.getenv("SUPABASE_JWKS_URL", "")
-SUPABASE_JWT_AUD = os.getenv("SUPABASE_JWT_AUD", "authenticated")
-
-_jwks_client: PyJWKClient | None = None
-
-
-def _client() -> PyJWKClient:
-    global _jwks_client
-    if not SUPABASE_JWKS_URL:
-        raise RuntimeError("SUPABASE_JWKS_URL is not configured")
-    if _jwks_client is None:
-        _jwks_client = PyJWKClient(SUPABASE_JWKS_URL)
-    return _jwks_client
+from fastapi_user_auth import (
+    Settings,
+    build_auth_router,
+    make_engine,
+    make_sessionmaker,
+)
+from fastapi_user_auth.tokens import NullDenylist, RedisDenylist, decode_access_token
 
 
-def decode_supabase_jwt(token: str) -> dict[str, Any]:
-    """Validate a Supabase JWT and return its claims. Raises on any failure."""
-    signing_key = _client().get_signing_key_from_jwt(token)
-    return jwt.decode(
-        token,
-        signing_key.key,
-        algorithms=["RS256", "ES256"],
-        audience=SUPABASE_JWT_AUD,
-        options={"require": ["exp", "sub"]},
+@lru_cache
+def get_settings() -> Settings:
+    """Pattern-A settings from OUR infra env — unprefixed DATABASE_URL / REDIS_URL /
+    JWT_SECRET (postgres-main / redis-main; the module's own env_prefix stays
+    generic). Fails fast if JWT_SECRET is missing or < 32 chars (module validator)."""
+    return Settings(
+        database_url=os.environ["DATABASE_URL"],
+        redis_url=os.getenv("REDIS_URL"),
+        jwt_secret=os.environ["JWT_SECRET"],
+        email_from=os.getenv("EMAIL_FROM", ""),
     )
+
+
+def _denylist(settings: Settings) -> Any:
+    """Redis-backed jti denylist for instant revocation (35 §Token Revocation);
+    NullDenylist when REDIS_URL is unset (revocation degrades to token expiry)."""
+    if settings.redis_url:
+        import redis.asyncio as aioredis
+
+        return RedisDenylist(aioredis.from_url(settings.redis_url))
+    return NullDenylist()
+
+
+class _LogEmailSender:
+    """Scaffold-default EmailSender — logs the verify/reset link instead of sending.
+    Swap to fabrik-lib/email-transport (Resend) for production (35 §Email, 86)."""
+
+    async def send(
+        self, *, to_email: str, subject: str, html: str, plain_text: str | None = None
+    ) -> None:
+        print(f"[email:stub] to={to_email} subject={subject!r} — wire email-transport")
+
+
+class _LogAuditLogger:
+    """Scaffold-default AuditLogger — structured stdout. Swap to fabrik-lib/app-audit-log."""
+
+    async def log(
+        self,
+        *,
+        actor: str,
+        action: str,
+        target_type: str | None = None,
+        target_id: str | None = None,
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        print(f"[audit] actor={actor} action={action} target={target_type}:{target_id} {details or {}}")
+
+
+def build_saas_auth_router() -> APIRouter:
+    """The vendored Pattern-A /auth router (login/signup/refresh/logout/reset),
+    mounted by main.py. Owns its own DB sessions via the module sessionmaker."""
+    settings = get_settings()
+    sessionmaker = make_sessionmaker(make_engine(settings))
+    return build_auth_router(
+        settings=settings,
+        sessionmaker=sessionmaker,
+        email=_LogEmailSender(),
+        audit=_LogAuditLogger(),
+        denylist=_denylist(settings),
+    )
+
+
+def decode_token(token: str) -> dict[str, Any]:
+    """Validate one of OUR access tokens (HS256 / JWT_SECRET) and return its claims
+    (sub / tid / role / jti / exp). Raises on any failure. Used by TenantMiddleware."""
+    return decode_access_token(token, secret=get_settings().jwt_secret)
 
 
 async def require_user(request: Request) -> dict[str, Any]:
@@ -2358,7 +2468,12 @@ from pydantic import BaseModel, ConfigDict
 from pydantic.alias_generators import to_camel
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from __PKG__.auth import SecurityHeadersMiddleware, cors_origins, require_user
+from __PKG__.auth import (
+    SecurityHeadersMiddleware,
+    build_saas_auth_router,
+    cors_origins,
+    require_user,
+)
 from __PKG__.glitchtip_init import init_glitchtip
 from __PKG__.logger import get_logger
 from __PKG__.metrics import metrics_app
@@ -2416,6 +2531,11 @@ if _origins:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+# Pattern-A IdP: mount the vendored fastapi_user_auth router at /auth
+# (login/signup/refresh/logout/password-reset). TenantMiddleware skips /auth — the
+# router owns its own DB sessions and issues tokens; it is not tenant-scoped.
+app.include_router(build_saas_auth_router())
 
 # Prometheus metrics — scraped internally at /metrics (shape.exposes_metrics).
 app.mount("/metrics", metrics_app())
@@ -2645,6 +2765,41 @@ networks:
     (project_dir / "compose.yaml").write_text(content, encoding="utf-8")
 
 
+_SAAS_TEST_AUTH_PY = '''"""Pattern-A auth smoke tests for __NAME__.
+
+Asserts the vendored ``fastapi_user_auth`` /auth router is mounted and the
+access-token round-trip (issue -> decode_token) works — the wiring the app boots
+with. DB-backed signup/login is a separate integration test (needs a live
+DATABASE_URL); these run with NO DB/Redis (create_async_engine is lazy; REDIS_URL
+unset -> NullDenylist).
+"""
+import os
+
+os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://u@localhost/x")
+os.environ.setdefault("JWT_SECRET", "test-" + "x" * 40)  # >= 32 chars (module validator)
+
+
+def test_auth_router_mounted() -> None:
+    from __PKG__.auth import build_saas_auth_router
+
+    routes = {getattr(r, "path", "") for r in build_saas_auth_router().routes}
+    assert any(p.endswith("/login") for p in routes), routes
+    assert any(p.endswith("/signup") for p in routes), routes
+
+
+def test_access_token_round_trip() -> None:
+    from fastapi_user_auth.tokens import issue_access_token
+
+    from __PKG__.auth import decode_token
+
+    secret = os.environ["JWT_SECRET"]
+    token = issue_access_token(subject="u1", tenant_id="t1", secret=secret, ttl_seconds=60)
+    claims = decode_token(token)
+    assert claims["sub"] == "u1"
+    assert claims["tid"] == "t1"
+'''
+
+
 def _scaffold_saas_backend(project_dir: Path, name: str, package_name: str) -> None:
     """Emit the multi-tenant FastAPI backend under ``<project>/server``.
 
@@ -2682,6 +2837,41 @@ def _scaffold_saas_backend(project_dir: Path, name: str, package_name: str) -> N
     (pkg_dir / "worker.py").write_text(_sub(_SAAS_WORKER_PY))
     # Overwrite the base main.py with the saas (multi-tenant) variant.
     (pkg_dir / "main.py").write_text(_sub(_SAAS_MAIN_PY))
+
+    # Vendor fabrik-lib/fastapi-user-auth (Pattern-A IdP) as a top-level package on
+    # the server src path, so its internal ``from fastapi_user_auth.…`` imports resolve
+    # unchanged (vendor, don't rewrite — fabrik-lib README rule).
+    _vendor_fastapi_user_auth(server_dir / "src")
+
+    # Pattern-A auth smoke test (router mounted + token round-trip) beside test_health.
+    (server_dir / "tests").mkdir(parents=True, exist_ok=True)
+    (server_dir / "tests" / "test_auth.py").write_text(_sub(_SAAS_TEST_AUTH_PY))
+
+
+def _vendor_fastapi_user_auth(dest_src: Path) -> None:
+    """Copy the ``fastapi_user_auth`` package from ``/opt/fabrik-lib`` into ``<server>/src/``.
+
+    It lands as a top-level package (``server/src/fastapi_user_auth/``) so its own
+    ``from fastapi_user_auth.…`` imports work with no rewriting. ``reference_adapter.py``
+    is excluded — it composes other fabrik-lib modules (email-transport / app-audit-log)
+    that are not vendored here; the scaffold supplies its own EmailSender/AuditLogger.
+    No-op (with a warning) when fabrik-lib is absent (e.g. a CI checkout without the
+    sibling repo) — the generated project then vendors it at first ``fabrik apply``.
+    """
+    module_src = FABRIK_LIB_DIR / "fastapi-user-auth" / "fastapi_user_auth"
+    if not module_src.is_dir():
+        print(f"⚠️  fabrik-lib/fastapi-user-auth not found at {module_src} — skipped vendor")
+        return
+    dest = dest_src / "fastapi_user_auth"
+    if dest.exists():
+        shutil.rmtree(dest)
+    shutil.copytree(
+        module_src,
+        dest,
+        ignore=shutil.ignore_patterns(
+            "__pycache__", "*.pyc", "reference_adapter.py", "conftest.py", "pytest.ini"
+        ),
+    )
 
 
 def _scaffold_saas_skeleton(
