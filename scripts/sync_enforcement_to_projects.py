@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 import re
 import shutil
 import sys
@@ -43,6 +44,7 @@ from fabrik_synced_manifest import (  # noqa: E402
     RUN_SCRIPTS,
     RUN_SCRIPTS_SRC_DIR,
     gitignore_block_text,
+    iter_synced_pairs,
 )
 
 # Matches the existing "Fabrik-synced" block in a project's .gitignore (either the
@@ -379,6 +381,30 @@ def sync_scripts_to_project(
                 file_results.append(
                     SyncResult("DELETE", stale_path, stale_path, "stale rename orphan")
                 )
+
+        # Write the per-project synced-files lock: the md5 of every synced file AS
+        # DISTRIBUTED to THIS project. check_synced_unmodified compares a project's copy
+        # against this lock (what it was given) — NOT live /opt/fabrik — so a project
+        # merely BEHIND the advancing hub is never false-flagged; only a genuine local
+        # edit (a file that differs from its recorded hash) fails. Best-effort: the
+        # check degrades gracefully (skips) when the lock is absent.
+        if not dry_run:
+            try:
+                lock = {
+                    dest.relative_to(project_dir).as_posix(): compute_file_hash(dest)
+                    for _src, dest in iter_synced_pairs(project_dir, FABRIK_ROOT)
+                    if dest.exists()
+                }
+                lock_path = project_dir / ".fabrik" / "synced.lock"
+                lock_path.parent.mkdir(parents=True, exist_ok=True)
+                lock_path.write_text(json.dumps(lock, indent=0, sort_keys=True))
+                file_results.append(
+                    SyncResult(
+                        "COPY", lock_path, lock_path, f".fabrik/synced.lock ({len(lock)} files)"
+                    )
+                )
+            except Exception:
+                pass  # lock is best-effort; never fail a sync over it
 
         # Summarize
         copy_count = sum(1 for r in file_results if r.action in ("COPY", "BACKUP"))

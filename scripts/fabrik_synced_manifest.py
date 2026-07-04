@@ -180,6 +180,9 @@ def gitignore_block_text() -> str:
         lines.append(f"# {group}")
         lines.extend(paths)
         lines.append("")
+    # Per-project synced-files lock — written by the sync (md5 of what was distributed);
+    # local state, never committed. check_synced_unmodified compares against it.
+    lines += ["# Synced-files lock", ".fabrik/synced.lock", ""]
     lines += [_GI_BAR, GITIGNORE_BLOCK_END, _GI_BAR]
     return "\n".join(lines) + "\n"
 
@@ -218,5 +221,5 @@ def iter_synced_pairs(
             # hosts/Python versions and would cause spurious drift in the check.
             if "__pycache__" in src_file.parts or src_file.suffix == ".pyc":
                 continue
-            rel = src_file.relative_to(fabrik_root)
-            yield src_file, project_root / rel
+            rel_path = src_file.relative_to(fabrik_root)
+            yield src_file, project_root / rel_path
