@@ -3,7 +3,7 @@
  * Matches Node 22 File API backend schema
  */
 
-/** File status matching the Supabase schema */
+/** File status matching the backend Postgres schema */
 export type FileStatus = 'pending' | 'ready' | 'error';
 
 /** Primary metadata for files stored in R2 */

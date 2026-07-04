@@ -124,4 +124,4 @@ curl http://localhost:3000/api/health
 
 - Never commit `.env` — Use `.env.example` as template
 - API keys in environment variables only
-- Supabase RLS policies for data access
+- App-owned PostgreSQL RLS (`current_tenant_id()` / `app.tenant_id`) for tenant-scoped data access (Pattern A)

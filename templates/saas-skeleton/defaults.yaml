@@ -6,7 +6,7 @@
 shape:
   kind: service
   is_public: true
-  is_admin_dashboard: false        # end-user auth is Supabase (Pattern B), not Authelia
+  is_admin_dashboard: false        # end-user auth is Pattern A (fastapi-user-auth), not Authelia
   has_bearer_api: true             # the FastAPI backend exposes a bearer-auth API
   has_persistent_data: true
   needs_database: true

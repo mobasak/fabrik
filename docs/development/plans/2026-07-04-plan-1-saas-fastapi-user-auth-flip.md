@@ -107,7 +107,7 @@ Expected: vendored `server/fastapi_user_auth/`, reconciled schema, default `auth
 
 **Phase boundary → BLOCKING `/fabrik-review`** on the `scaffold.py` diff + the generated backend surface (parallel finder subagents; prove-before-fix; zero new correctness/security findings before Phase C/D).
 
-## Phase C ∥ Phase D — run in PARALLEL after B (independent surfaces, disjoint files)
+## Phase C ∥ Phase D — run in PARALLEL after B (independent surfaces, disjoint files) — ✅ EXECUTED 2026-07-04 (inline; small disjoint template edits)
 
 Phases C and D touch disjoint file sets (`templates/saas-skeleton/**` vs `templates/mobile-app/**`) and both depend only on A+B → **dispatch as two parallel subagent streams; merge at the Phase-E gate.**
 

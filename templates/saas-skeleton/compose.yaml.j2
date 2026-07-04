@@ -27,7 +27,12 @@ services:
       {% if depends.redis %}
       - REDIS_URL=${REDIS_URL:-redis://redis-main:6379/0}
       {% endif %}
-      {% if infrastructure.auth.value == 'supabase' %}
+      {% if infrastructure.auth.value == 'fastapi_user_auth' %}
+      # Pattern A (default): the backend (server/) is the IdP; the frontend only
+      # needs the API base URL. The backend gets JWT_SECRET/DATABASE_URL/REDIS_URL.
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+      {% elif infrastructure.auth.value == 'supabase' %}
+      # Pattern B (legacy / migration-only).
       - NEXT_PUBLIC_SUPABASE_URL=${SUPABASE_URL}
       - NEXT_PUBLIC_SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
       {% endif %}

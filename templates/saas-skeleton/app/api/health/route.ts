@@ -1,15 +1,18 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 
 interface HealthStatus {
   status: "ok" | "degraded" | "error";
   timestamp: string;
   uptime: number;
   environment: string;
-  database?: "connected" | "error" | "not_configured";
+  backend?: "connected" | "error" | "not_configured";
   error?: string;
 }
 
+// Pattern A: the Next.js frontend holds NO database credentials — the FastAPI
+// backend owns auth + Postgres and exposes its own /api/health with the real DB
+// check. This route reports frontend liveness, and (when NEXT_PUBLIC_API_URL is
+// set) reflects the backend's health so a single probe covers the pair.
 export async function GET() {
   const health: HealthStatus = {
     status: "ok",
@@ -18,35 +21,22 @@ export async function GET() {
     environment: process.env.NODE_ENV || "development",
   };
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey =
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-  if (supabaseUrl && supabaseKey) {
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+  if (apiUrl) {
     try {
-      const supabase = createClient(supabaseUrl, supabaseKey);
-      const { error } = await supabase.from("profiles").select("id").limit(1);
-      if (error) {
-        // Table may not exist yet — try a raw RPC ping instead
-        const { error: rpcError } = await supabase.rpc("ping").maybeSingle();
-        if (rpcError) {
-          // Last resort: if both fail, mark as degraded (DB reachable but no tables)
-          health.database = "connected";
-        } else {
-          health.database = "connected";
-        }
-      } else {
-        health.database = "connected";
-      }
+      const res = await fetch(`${apiUrl.replace(/\/$/, "")}/api/health`, {
+        cache: "no-store",
+        signal: AbortSignal.timeout(3000),
+      });
+      health.backend = res.ok ? "connected" : "error";
+      if (!res.ok) health.status = "degraded";
     } catch (err) {
-      health.database = "error";
+      health.backend = "error";
       health.status = "degraded";
-      health.error =
-        err instanceof Error ? err.message : "Database connection failed";
+      health.error = err instanceof Error ? err.message : "Backend unreachable";
     }
   } else {
-    health.database = "not_configured";
+    health.backend = "not_configured";
   }
 
   const statusCode = health.status === "ok" ? 200 : 503;

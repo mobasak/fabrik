@@ -10,7 +10,7 @@ const API_BASE = process.env.EXPO_PUBLIC_API_BASE_URL || 'https://api.your-vps.c
 export const fileService = {
   /**
    * 1. Request presigned upload URL from Node 22 File API
-   * API validates tenant access and creates pending file record in Supabase
+   * API validates tenant access and creates a pending file record in Postgres
    */
   getUploadUrl: async (token: string, file: any): Promise<UploadResponse> => {
     const response = await fetch(`${API_BASE}/upload-url`, {
@@ -51,7 +51,7 @@ export const fileService = {
   },
 
   /**
-   * 3. Notify Supabase that upload is complete
+   * 3. Notify the backend that upload is complete
    * Updates file status from 'pending' to 'ready'
    */
   confirmUpload: async (token: string, fileId: string): Promise<FileMetadata> => {
@@ -114,7 +114,7 @@ export const fileService = {
   },
 
   /**
-   * Delete a file (both R2 storage and Supabase record)
+   * Delete a file (both R2 storage and the Postgres record)
    * Backend enforces tenant isolation
    */
   deleteFile: async (token: string, fileId: string): Promise<void> => {

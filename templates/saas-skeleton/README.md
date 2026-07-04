@@ -9,7 +9,7 @@ A reusable Next.js SaaS starter with marketing pages, authenticated app shell, a
 - **Marketing Site**: Landing, pricing, FAQ, terms, privacy pages
 - **App Shell**: Sidebar navigation, dashboard, job workflow
 - **Chat UI**: SSE streaming component for AI chat integration
-- **Supabase Ready**: Auth and database integration
+- **Self-hosted auth (Pattern A)**: the FastAPI backend (`server/`) is the IdP — issues its own JWTs via the vendored `fastapi_user_auth` (Argon2, refresh rotation, jti denylist, tenant RLS) on `postgres-main` + `redis-main`
 
 ## Quick Start
 
@@ -23,7 +23,8 @@ npm install
 
 # Configure environment
 cp .env.example .env
-# Edit .env with your Supabase + OpenRouter credentials
+# Edit .env — frontend needs NEXT_PUBLIC_API_URL + OpenRouter; the backend
+# (server/.env) holds DATABASE_URL, REDIS_URL, JWT_SECRET (Pattern A)
 
 # Start development
 npm run dev
@@ -126,10 +127,13 @@ deploy it as its own service (its `nginx.conf` serves the static build). See
 ## Environment Variables
 
 ```bash
-# Supabase
-NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
-SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+# Frontend (Pattern A: no DB/auth secrets — just the backend API base URL)
+NEXT_PUBLIC_API_URL=http://localhost:8000
+
+# Backend (server/.env) — the IdP owns these:
+#   DATABASE_URL=postgresql://…@postgres-main:5432/<db>
+#   REDIS_URL=redis://redis-main:6379/0
+#   JWT_SECRET=<32+ char secret>
 
 # App
 NEXT_PUBLIC_APP_NAME=Your SaaS
