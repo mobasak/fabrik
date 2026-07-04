@@ -192,8 +192,13 @@ def test_compose_score_stays_bounded_under_negative_cost_anomaly():
 
     # All signals maxed + impossibly-negative cost
     row = {
-        "swe": 100, "aider": 100, "aa_idx": 60, "arena": 2000,
-        "db_tps": 1000, "in_M": -5.0, "out_M": -5.0,
+        "swe": 100,
+        "aider": 100,
+        "aa_idx": 60,
+        "arena": 2000,
+        "db_tps": 1000,
+        "in_M": -5.0,
+        "out_M": -5.0,
     }
     score = _compose_score(row)
     assert 0.0 <= score <= 1.0, f"score {score} out of bounds"
