@@ -1,6 +1,6 @@
 # Kilo Agents Master Table
 
-**Last Updated:** 2026-07-02T17:29:13.344464
+**Last Updated:** 2026-07-04T11:59:43.638772
 **Source:** [openlm.ai/chatbot-arena](https://openlm.ai/chatbot-arena/) | [tbench.ai](https://www.tbench.ai/leaderboard/terminal-bench/2.0)
 
 ## Top 60 Agents Ranked by Chatbot Arena Elo
@@ -14,7 +14,7 @@
 | 5 | **gemini-3.5-flash** | google | 1535 | ~ | $1.50 | $9.00 | 1048K | ✓ | ✓ | ✓ | 3 | 215 | ✅ |
 | 6 | **gemini-3.1-pro-preview** | google | 1531 | 80.2 | $2.00 | $12.00 | 1048K | ✓ | ✓ | ✓ | 3 | 161 | ✅ |
 | 7 | **grok-4.20** | x-ai | 1518 | ~ | $1.25 | $2.50 | 2000K | ✓ | ✓ | ✓ | 2 | 694 | ✅ |
-| 8 | **glm-5.1** | z-ai | 1506 | ~ | $0.97 | $4.30 | 65K |  | ✓ | ✓ | 2 | 434 | ✅ |
+| 8 | **glm-5.1** | z-ai | 1506 | ~ | $0.97 | $3.04 | 200K |  | ✓ | ✓ | 2 | 598 | ✅ |
 | 9 | **qwen3.7-max** | qwen | 1505 | ~ | $1.25 | $3.75 | 1000K |  | ✓ | ✓ | 2 | 482 | ✅ |
 | 10 | **claude-sonnet-4.6** | anthropic | 1500 | 53.4 | $3.00 | $15.00 | 1000K | ✓ | ✓ | ✓ | 3 | 125 | ✅ |
 | 11 | **claude-opus-4.5** | anthropic | 1496 | 63.1 | $5.00 | $25.00 | 200K | ✓ | ✓ | ✓ | 3 | 75 | ✅ |
@@ -61,7 +61,7 @@
 | 52 | **minimax-m2.1** | minimax | 1430 | 36.6 | $0.30 | $1.20 | 204K |  | ✓ | ✓ | 2 | 1467 | ✅ |
 | 53 | **qwen3-30b-a3b-instruct-2507** | qwen | 1425 | ~ | $0.05 | $0.19 | 128K |  | ✓ |  | 1 | 9087 | ✅ |
 | 54 | **gemini-3.1-flash-lite-preview** | google | 1421 | ~ | $0.25 | $1.50 | 1048K | ✓ | ✓ | ✓ | 2 | 1197 | ✅ |
-| 55 | **gpt-5-chat** | openai | 1421 | ~ | $1.25 | $10.00 | 128K | ✓ |  |  | 1 | 182 | ✅ |
+| 55 | **gpt-5-chat** | openai | 1421 | ~ | $0.00 | $0.00 | 128K | ✓ |  |  | 1 | 181888000 | ✅ |
 | 56 | **gemini-3.1-flash-lite** | google | 1421 | ~ | $0.25 | $1.50 | 1048K | ✓ | ✓ | ✓ | 2 | 1197 | ✅ |
 | 57 | **gemini-2.5-flash** | google | 1420 | 17.1 | $0.30 | $2.50 | 1048K | ✓ | ✓ | ✓ | 2 | 728 | ✅ |
 | 58 | **gpt-5-mini** | openai | 1419 | 34.8 | $0.25 | $2.00 | 400K | ✓ | ✓ | ✓ | 2 | 908 | ✅ |
@@ -80,4 +80,4 @@
 - **Agentic**: Has reasoning/thinking capabilities
 - **Tier**: 1=cheap, 2=balanced, 3=heavy
 - **$/Perf**: Performance per dollar (Elo / blended cost)
-- **2026-07-02:** Auto-updated from benchmarks
+- **2026-07-04:** Auto-updated from benchmarks

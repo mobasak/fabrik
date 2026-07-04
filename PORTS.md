@@ -83,7 +83,7 @@ If you encounter a port conflict:
 
 
 <!-- AUTO-GENERATED:PORTS:START -->
-<!-- Last synced: 2026-07-02 11:05:00 -->
+<!-- Last synced: 2026-07-04 16:28:39 -->
 
 ### Project Port Allocations (from project.yaml)
 
@@ -93,6 +93,8 @@ If you encounter a port conflict:
 | 3001 | **calendar-orchestration-engine** | node-api | /opt/calendar-orchestration-engine |
 | 3002 | **test-saas-scaffold** | saas-skeleton | /opt/test-saas-scaffold |
 | 3003 | **transdoc** | saas-skeleton | /opt/transdoc |
+| 3004 | **tojlo-mail** | saas-skeleton | /opt/tojlo-mail |
+| 8000 | **tryton-crm** | python-api | /opt/tryton-crm |
 | 8001 | **longephedia-vault** | python-api | /opt/longephedia-vault |
 | 8002 | **fabrik-claim-validator** | python-api | /opt/fabrik-claim-validator |
 | 8003 | **obsidian-agents** | desktop-app | /opt/obsidian-agents |

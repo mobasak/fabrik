@@ -91,7 +91,7 @@ With ~$50/month infrastructure cost:
 ## Project Portfolio
 
 <!-- AUTO-GENERATED:PROJECTS:START -->
-<!-- Total projects: 38 -->
+<!-- Total projects: 43 -->
 
 ### Production Services (5 projects)
 
@@ -103,7 +103,7 @@ With ~$50/month infrastructure cost:
 | **site-provisioner** | Unified site provisioning API - domain registration, DNS, SSL, CDN, analytics, and webmaster to... | Python | ✅ Production | https://provision.vps1.ocoron.com | ✅ Current |
 | **youtube** | **Status:** Production Ready - Multi-Tenant SaaS ✅ | Python | ✅ Production | Multi-tenant SaaS | ✅ Current |
 
-### Active Development (15 projects)
+### Active Development (17 projects)
 
 | Project | Purpose | Stack | Status | URL | Scaffold |
 |---------|---------|-------|--------|-----|----------|
@@ -117,13 +117,15 @@ With ~$50/month infrastructure cost:
 | **seo** | SEO keyword research and long-tail keyword generation for AI content creation | FastAPI | 🔨 Development | https://seo.vps1.ocoron.com | ✅ Current |
 | **test-saas-platform** | Full-blown SaaS platform for testing mega-epic workflow | Node.js | 🔨 Development | - | ✅ Current |
 | **test-saas-scaffold** | Test SaaS scaffold project | Node.js | 🔨 Development | - | ✅ Current |
+| **tojlo-mail** | Multi-tenant AI mail-intelligence layer (inbox-zero fork -> Tryton CRM membrane) | Node.js | 🔨 Development | - | ✅ Current |
 | **trade-intelligence** | **Last Updated:** 2026-03-10 | FastAPI | 🔨 Development | https://trade-intelligence.vps1.ocoron.com | ✅ Current |
 | **trading-core** | Crash-safe Python FX trading service with Pepperstone/cTrader integration and risk gates. | FastAPI | 🔨 Development | - | ✅ Current |
 | **transdoc** | Structure-preserving document-translation SaaS — vendors fabrik-lib doc modules + mt-router + s... | Node.js | 🔨 Development | - | ✅ Current |
 | **triggered-content-orchestration** | Multi-platform content orchestration pipeline for automated content creation and distribution. | FastAPI | 🔨 Development | https://triggered-content-orchestration.vps1.ocoron.com | ✅ Current |
+| **tryton-crm** | FastAPI bridge to Tryton CRM via proteus RPC - shared CRM system-of-record for trade-intelligen... | FastAPI | 🔨 Development | - | ✅ Current |
 | **wpf** | WordPress Factory — Python orchestrator (CLI now, FastAPI in Phase 3, Next.js wizard in Phase 4... | Python | 🔨 Development | - | ✅ Current |
 
-### Planning/Research (17 projects)
+### Planning/Research (20 projects)
 
 | Project | Purpose | Stack | Status | URL | Scaffold |
 |---------|---------|-------|--------|-----|----------|
@@ -135,10 +137,13 @@ With ~$50/month infrastructure cost:
 | **emailgateway** | No description available | Unknown | 🔨 Development | - | ⚠️ No project.yaml |
 | **exam-coach** | AI-powered exam preparation and coaching assistant. | Python | 🔨 Development | https://exam-coach.vps1.ocoron.com | ✅ Current |
 | **fabrik-dr-store** | Plain mirror of `/opt/fabrik/.env` from the dev WSL machine. | Unknown | 🔨 Development | - | ⚠️ No project.yaml |
+| **fabrik-lib-account** | Reference implementations of reusable modules at `/opt/fabrik-lib/`. Projects **vendor** (copy)... | Unknown | 🔨 Development | - | ⚠️ No project.yaml |
+| **fabrik-lib-review** | Reference implementations of reusable modules at `/opt/fabrik-lib/`. Projects **vendor** (copy)... | Unknown | 🔨 Development | - | ⚠️ No project.yaml |
 | **gmailaccountcreator** | Automated Gmail account creation and management tool. | Python | 🔨 Development | - | ✅ Current |
 | **image-generation** | Complete product photography system with platform-specific requirements and DIY setup guidance. | Python | 🔨 Development | - | ✅ Current |
 | **iterative_image_editor** | AI-powered product photography tool for automated background removal and scene placement. | Python | 🔨 Development | https://iterative-image-editor.vps1.ocoron.com | ✅ Current |
 | **llm_batch_processor** | A self-hosted automation tool for processing documents through Claude and ChatGPT web interface... | Python | 🔨 Development | - | ✅ Current |
+| **logo-export** | No description available | Unknown | 🔨 Development | - | ⚠️ No project.yaml |
 | **marketing-argumant-generator** | AI-powered marketing argument and copy generation tool. | Python | 🔨 Development | https://marketing-argument-generator.vps1.ocoron.com | ✅ Current |
 | **supplement-tracker-advisor** | Health supplement tracking and personalized advisory system. | Python | 🔨 Development | - | ✅ Current |
 | **test-saas-for-epic-wf** | No description available | Unknown | 🔨 Development | - | ⚠️ No project.yaml |
