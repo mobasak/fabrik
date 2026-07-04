@@ -27,6 +27,8 @@ trigger: glob
 
 Defaults preserve current behavior — existing specs without a `watchdog:` block inherit the shape-driven default and don't break.
 
+**Make it project-specific** — set `watchdog.project_system_prompt_file: docs/WATCHDOG_PROMPT.md` (project-relative Markdown, ≤32 KB). The driver injects its contents as `WATCHDOG_SYSTEM_PROMPT`; the sidecar appends it as a `## This project` section *after* the canonical veteran-sysadmin prompt (rails never replaced). Use it to teach the watchdog THIS app's architecture, failure modes, what "healthy" means, and hands-off zones. Absolute / `..`-escaping / missing / oversized path → the apply fails closed.
+
 ---
 
 ## Architecture summary

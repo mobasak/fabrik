@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Watchdog per-project system prompt (`project_system_prompt_file`) (2026-07-05)
+
+Hub half of the per-project watchdog prompt (the sidecar composition shipped in fabrik-lib). New `watchdog.project_system_prompt_file` spec field — a project-relative Markdown path (e.g. `docs/WATCHDOG_PROMPT.md`) whose contents the driver reads at render and injects as `WATCHDOG_SYSTEM_PROMPT`. The sidecar appends it as a delimited `## This project` section AFTER the canonical veteran-sysadmin prompt (safety rails never replaced), so a project can teach its watchdog what it is (architecture, failure modes, what "healthy" means, hands-off zones). Fail-closed on a misconfigured path — absolute / `..` escape / missing / >32 KB → `WatchdogProvisionError` (no silent deploy without the intended prompt). `WatchdogConfig` field (`spec_loader.py`) + `_load_project_prompt` (`drivers/watchdog.py`) + 6 tests.
+
 ### Added — AI Models Browser: coding-subagent columns + role filter + detail-panel recipes (Phase B) (2026-07-05)
 
 `scripts/kilo-benchmarks/models_browser_template.html` gains two new sortable columns — `Code Fit` (composite score 0-1) and `Doc↔Code` (letter grade badge) — plus inline `EXCL` / `PIN` badges on the Code Fit cell, a new `Role suitability` sidebar chip filter ("coding-subagent") that narrows to the ~38 ranked candidates, and 4 detail-panel entries per model (fit score + grade, OR body-hint recipe, provider-pin recipe, ⚠ excluded status). Grade badge palette covers all 7 tiers (A+/A/B+/B/B-/C+/C) plus `grade-na` for out-of-pool rows. Phase B of `docs/development/plans/2026-07-04-plan-2-browser-coding-subagent-integration.md`.

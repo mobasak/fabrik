@@ -588,6 +588,20 @@ class WatchdogConfig(BaseModel):
             "Optional shared-secret: set WATCHDOG_INGEST_TOKEN in the project .env."
         ),
     )
+    project_system_prompt_file: str | None = Field(
+        default=None,
+        description=(
+            "Project-relative path to a Markdown file (e.g. 'docs/WATCHDOG_PROMPT.md') "
+            "whose contents the driver reads at render and injects as "
+            "WATCHDOG_SYSTEM_PROMPT. The sidecar APPENDS it, as a delimited "
+            "'## This project' section, AFTER the canonical veteran-sysadmin prompt "
+            "(rails never replaced). Use it to teach the watchdog what THIS app is: "
+            "architecture, dependencies, known failure modes, what 'healthy' means, "
+            "hands-off zones. Unset (default) → canonical prompt only. Must be a "
+            "relative path under the project dir (no absolute, no '..'), ≤32 KB; a "
+            "set-but-missing/oversized/escaping path fails the apply (fail-closed)."
+        ),
+    )
 
     @model_validator(mode="after")
     def _check_caps_set_when_enabled(self) -> "WatchdogConfig":

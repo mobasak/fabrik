@@ -234,6 +234,46 @@ class WatchdogProvisionError(RuntimeError):
     """Driver failed in a way the orchestrator should treat as non-fatal warn."""
 
 
+# Cap the per-project prompt so it can't bloat the sidecar's --system-prompt / env.
+_MAX_PROMPT_BYTES = 32768
+# Base for resolving project-relative prompt paths (overridable in tests).
+_PROJECTS_ROOT = Path("/opt")
+
+
+def _load_project_prompt(wcfg: dict, project_id: str) -> str:
+    """Read watchdog.project_system_prompt_file (project-relative Markdown) and
+    return its contents for injection as WATCHDOG_SYSTEM_PROMPT.
+
+    Returns "" when unset — the sidecar then runs the canonical prompt only.
+    Fail-CLOSED on a misconfigured path (set-but-missing / absolute / '..' escape /
+    oversized) → WatchdogProvisionError, so the operator fixes it rather than
+    silently shipping a sidecar without the intended project awareness.
+    """
+    rel = wcfg.get("project_system_prompt_file")
+    if not rel:
+        return ""
+    if os.path.isabs(rel):
+        raise WatchdogProvisionError(
+            f"project_system_prompt_file must be project-relative (got absolute {rel!r})"
+        )
+    project_dir = (_PROJECTS_ROOT / project_id).resolve()
+    candidate = (project_dir / rel).resolve()
+    if not candidate.is_relative_to(project_dir):
+        raise WatchdogProvisionError(
+            f"project_system_prompt_file {rel!r} resolves outside the project dir "
+            f"({candidate}) — directory traversal refused"
+        )
+    if not candidate.is_file():
+        raise WatchdogProvisionError(f"project_system_prompt_file not found: {candidate}")
+    text = candidate.read_text(encoding="utf-8")
+    if len(text.encode("utf-8")) > _MAX_PROMPT_BYTES:
+        raise WatchdogProvisionError(
+            f"project_system_prompt_file too large "
+            f"({len(text.encode('utf-8'))} > {_MAX_PROMPT_BYTES} bytes): {candidate}"
+        )
+    return text
+
+
 @dataclass(slots=True)
 class _RenderContext:
     """Substitution values + paths threaded through the build flow."""
@@ -422,7 +462,7 @@ class WatchdogDriver:
             llm_provider_fallback=wcfg.get("llm_provider_fallback", "openrouter"),
             cheap_model=wcfg.get("cheap_model", "anthropic/claude-3.5-haiku"),
             expensive_model=wcfg.get("expensive_model", "anthropic/claude-opus-4"),
-            project_system_prompt=wcfg.get("project_system_prompt", ""),
+            project_system_prompt=_load_project_prompt(wcfg, project_id),
             project_git_remote=project_git_remote,
             check_interval_seconds=int(wcfg.get("check_interval_seconds", 60)),
             log_level=str(wcfg.get("log_level", "INFO")),
