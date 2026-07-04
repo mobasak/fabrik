@@ -10,9 +10,14 @@ ElevenLabs SFX API 2026-07-03 (live-verified):
 
 from __future__ import annotations
 
+import sys
 import time
+from pathlib import Path
 
 import requests
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from specialty_pricing import PRICING  # noqa: E402
 
 ENDPOINT = "https://api.elevenlabs.io/v1/sound-generation"
 BENCH_PROMPT = "gentle wind blowing through trees"
@@ -26,17 +31,24 @@ def bench_one(model_id: str, api_key: str) -> dict:
     try:
         r = requests.post(ENDPOINT, json=body, headers=headers, timeout=60)
         if r.status_code >= 400:
-            return _err(f"http {r.status_code}: {r.text[:200]}")
+            return _err(_http_err(r))
         if len(r.content) < 100:
             return _err(f"suspiciously small audio: {len(r.content)} bytes")
         perf_seconds = time.monotonic() - t0
+        per_gen = float((PRICING.get(model_id) or {}).get("per_generation", 0.02))
         return {
             "perf_seconds": round(perf_seconds, 2),
-            "cost_usd": 0.02,  # per_generation from PRICING
+            "cost_usd": per_gen,
             "error": None,
         }
     except requests.exceptions.RequestException as e:
         return _err(f"http error: {e}")
+
+
+def _http_err(r) -> str:
+    retry = r.headers.get("Retry-After") if getattr(r, "headers", None) else None
+    suffix = f" Retry-After: {retry}" if retry else ""
+    return f"http {r.status_code}: {r.text[:200]}{suffix}"
 
 
 def _err(msg: str) -> dict:

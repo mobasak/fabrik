@@ -131,7 +131,16 @@ New projects never needed a Coolify API token.
 
 Used by `scripts/kilo-benchmarks/fetch_*_prices.py` to populate `agents.gateway_prices` with live per-model pricing across aggregators, so the AI Models Browser surfaces the cheapest gateway per row (same OR ↔ Kilo cheapest-rate pattern, extended to non-LLM specialists). See [docs/development/plans/2026-06-29-plan-2-aggregator-pricing.md](development/plans/2026-06-29-plan-2-aggregator-pricing.md).
 
-- `FAL_KEY` — fal.ai key in `KEY_ID:SECRET` format. Get from [fal.ai/dashboard/keys](https://fal.ai/dashboard/keys). Read-only catalog access is sufficient; no balance required for price discovery.
+- `FAL_KEY` — fal.ai key in `KEY_ID:SECRET` format. Get from [fal.ai/dashboard/keys](https://fal.ai/dashboard/keys). Read-only catalog access is sufficient for price discovery. **Positive balance required** for the specialty bench (`microbench_specialty.py`) since it enqueues real image generations against Fal.ai's BFL Flux mirror.
+
+### Specialty-service bench providers (kilo-benchmarks)
+
+Used by [scripts/kilo-benchmarks/microbench_specialty.py](../scripts/kilo-benchmarks/microbench_specialty.py) to fill the AI Models Browser Speed column for non-LLM rows (`image_gen`, `tts`, `music_gen`, `stt`, `translation`). Sunday cron; $10 hard / $2.50 soft per-run cost cap. See [docs/development/plans/2026-07-03-plan-1-full-speed-coverage-close.md](development/plans/2026-07-03-plan-1-full-speed-coverage-close.md).
+
+- `REPLICATE_API_TOKEN` — Replicate prediction API. Get from [replicate.com/account/api-tokens](https://replicate.com/account/api-tokens). Unlocks Stability SD family + Stable Audio rows (~6 rows).
+- `RECRAFT_API_KEY` — Recraft direct REST. Get from [recraft.ai/profile/api](https://www.recraft.ai/profile/api). Unlocks `recraft/v3` + `recraft/nano-banana` (~2 rows; 40 credits ≈ $0.04 per image).
+- `DASHSCOPE_API_KEY` — Alibaba DashScope, `sk-ws-…` format. Get from [dashscope.console.aliyun.com](https://dashscope.console.aliyun.com/apiKey). Unlocks `qwen/qwen-mt-turbo` (translation).
+- `ELEVENLABS_API_KEY` — ElevenLabs REST. Get from [elevenlabs.io/app/settings/api-keys](https://elevenlabs.io/app/settings/api-keys). Unlocks TTS (`multilingual-v2`, `turbo-v2.5`, `eleven-v3-alpha`) + `sound-effects` (~4 rows). Free tier absorbs the bench cost (~2.4k of 10k chars).
 
 ### GlitchTip (error tracking)
 

@@ -323,6 +323,11 @@ mkdir -p "$(dirname "$LOG_FILE")"
     else
       echo "[daily_refresh] microbench: SKIP (Sunday but OPENROUTER_API_KEY not set)"
     fi
+    # Specialty bench (image_gen/tts/music_gen/stt/translation) — Sundays too.
+    # Cost-capped at $10 hard / $2.50 soft. Non-fatal so a provider outage
+    # doesn't take down the rest of the pipeline.
+    _step "microbench_specialty" "$VENV_PY" "$KB/microbench_specialty.py" \
+      || echo "[daily_refresh] microbench_specialty failed (non-fatal)"
   fi
 
   _step "derive_cheapest_gateway" "$VENV_PY" "$KB/derive_cheapest_gateway.py" \

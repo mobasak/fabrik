@@ -33,9 +33,13 @@ def bench_one(model_id: str, api_key: str) -> dict:
     try:
         r = requests.post(ENDPOINT, json=body, headers=headers, timeout=60)
         if r.status_code >= 400:
-            return _err(f"http {r.status_code}: {r.text[:200]}")
+            return _err(_http_err(r))
         data = r.json()
-        credits = data.get("credits", 0)
+        credits = data.get("credits")
+        if credits is None:
+            # Missing credits on a 2xx means the API contract shifted; log real
+            # spend as zero would silently break the cost cap. Fail loud.
+            return _err(f"recraft 2xx but no credits field: {str(data)[:200]}")
         perf_seconds = time.monotonic() - t0
         return {
             "perf_seconds": round(perf_seconds, 2),
@@ -44,6 +48,12 @@ def bench_one(model_id: str, api_key: str) -> dict:
         }
     except requests.exceptions.RequestException as e:
         return _err(f"http error: {e}")
+
+
+def _http_err(r) -> str:
+    retry = r.headers.get("Retry-After") if getattr(r, "headers", None) else None
+    suffix = f" Retry-After: {retry}" if retry else ""
+    return f"http {r.status_code}: {r.text[:200]}{suffix}"
 
 
 def _err(msg: str) -> dict:

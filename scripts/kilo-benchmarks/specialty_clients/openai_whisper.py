@@ -13,9 +13,14 @@ from __future__ import annotations
 
 import io
 import struct
+import sys
 import time
+from pathlib import Path
 
 import requests
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from specialty_pricing import PRICING  # noqa: E402
 
 ENDPOINT = "https://api.openai.com/v1/audio/transcriptions"
 MODEL_MAP = {
@@ -60,15 +65,22 @@ def bench_one(model_id: str, api_key: str) -> dict:
     try:
         r = requests.post(ENDPOINT, headers=headers, files=files, data=data, timeout=60)
         if r.status_code >= 400:
-            return _err(f"http {r.status_code}: {r.text[:200]}")
+            return _err(_http_err(r))
         perf_seconds = time.monotonic() - t0
+        per_minute = float((PRICING.get(model_id) or {}).get("per_minute", 0.006))
         return {
             "perf_seconds": round(perf_seconds, 2),
-            "cost_usd": SILENCE_SECONDS / 60.0 * 0.006,
+            "cost_usd": SILENCE_SECONDS / 60.0 * per_minute,
             "error": None,
         }
     except requests.exceptions.RequestException as e:
         return _err(f"http error: {e}")
+
+
+def _http_err(r) -> str:
+    retry = r.headers.get("Retry-After") if getattr(r, "headers", None) else None
+    suffix = f" Retry-After: {retry}" if retry else ""
+    return f"http {r.status_code}: {r.text[:200]}{suffix}"
 
 
 def _err(msg: str) -> dict:

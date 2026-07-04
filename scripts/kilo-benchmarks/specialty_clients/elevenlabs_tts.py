@@ -11,9 +11,14 @@ ElevenLabs TTS API 2026-07-03 (live-verified):
 
 from __future__ import annotations
 
+import sys
 import time
+from pathlib import Path
 
 import requests
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from specialty_pricing import PRICING  # noqa: E402
 
 DEFAULT_VOICE_ID = "CwhRBWXzGAHq8TQ4Fs17"
 BENCH_TEXT = (
@@ -32,12 +37,12 @@ def bench_one(model_id: str, api_key: str) -> dict:
     try:
         r = requests.post(url, json=body, headers=headers, timeout=60)
         if r.status_code >= 400:
-            return _err(f"http {r.status_code}: {r.text[:200]}")
+            return _err(_http_err(r))
         if len(r.content) < 100:
             return _err(f"suspiciously small audio: {len(r.content)} bytes")
         perf_seconds = time.monotonic() - t0
-        # Cost from PRICING (per-char) — actual char count in prompt
-        cost = len(BENCH_TEXT) * 0.00003
+        per_char = float((PRICING.get(model_id) or {}).get("per_char", 0.00003))
+        cost = len(BENCH_TEXT) * per_char
         return {
             "perf_seconds": round(perf_seconds, 2),
             "cost_usd": round(cost, 8),
@@ -45,6 +50,12 @@ def bench_one(model_id: str, api_key: str) -> dict:
         }
     except requests.exceptions.RequestException as e:
         return _err(f"http error: {e}")
+
+
+def _http_err(r) -> str:
+    retry = r.headers.get("Retry-After") if getattr(r, "headers", None) else None
+    suffix = f" Retry-After: {retry}" if retry else ""
+    return f"http {r.status_code}: {r.text[:200]}{suffix}"
 
 
 def _err(msg: str) -> dict:
