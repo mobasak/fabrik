@@ -135,6 +135,13 @@ def bench_median(model_id: str, service_type: str, keys: dict) -> dict:
         if r["error"] is None:
             results.append(r["perf_seconds"])
         elif "[FAL-BALANCE-EXHAUSTED]" in (r["error"] or ""):
+            # Don't throw away already-paid-for good samples if we already have
+            # enough to compute a valid median — otherwise a balance-exhaustion
+            # on the last run of 3 permanently loses 2 successful measurements
+            # AND the row stays perf_seconds=NULL forever, re-spending the same
+            # 2 calls every future Sunday.
+            if len(results) >= 2:
+                break
             return {"perf_seconds": None, "cost_usd": total_cost, "error": r["error"], "tag": tag}
         if i < BENCH_N_RUNS - 1:
             sleep_s: float = RATE_LIMIT_SLEEP_S
@@ -281,9 +288,10 @@ def _post_run_verify(db_path: Path) -> int:
             band = "IMPLAUSIBLE" if r["perf_seconds"] < 0.1 else "SLOW-WARN"
             log(f"  [{band}] {r['id']} ({r['service_type']}) = {r['perf_seconds']}s")
         # Precedence guard — any specialty tag on today's llm row means the
-        # specialty dispatcher misrouted onto text-LLM territory. Explicit tag
-        # list (not `LIKE '%_direct%'`) so a non-suffixed tag like `fal_bfl`
-        # can't silently escape the check.
+        # specialty dispatcher misrouted onto text-LLM territory. `speed_source`
+        # is written as `"<tag> <YYYY-MM-DD>"` so exact-match compare vs a
+        # rebuilt "tag date('now')" is unambiguous — no LIKE (whose `_` is a
+        # single-char wildcard would false-match `recraftXdirect ...`).
         specialty_tags = (
             "fal_bfl",
             "recraft_direct",
@@ -292,12 +300,14 @@ def _post_run_verify(db_path: Path) -> int:
             "openai_direct",
             "dashscope_direct",
         )
-        placeholders = " OR ".join(["speed_source LIKE ? || ' %'"] * len(specialty_tags))
+        today = datetime.now(UTC).date().isoformat()
+        expected = tuple(f"{t} {today}" for t in specialty_tags)
+        placeholders = ",".join(["?"] * len(expected))
         offending = conn.execute(
             f"SELECT COUNT(*) FROM agents "
-            f"WHERE service_type='llm' AND speed_updated_at = date('now') "
-            f"  AND ({placeholders})",
-            specialty_tags,
+            f"WHERE service_type='llm' AND speed_updated_at = ? "
+            f"  AND speed_source IN ({placeholders})",
+            (today, *expected),
         ).fetchone()[0]
     if offending:
         log(f"[BENCH-QA-FAIL] {offending} LLM rows carry *_direct speed_source today")

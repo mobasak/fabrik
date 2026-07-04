@@ -505,6 +505,52 @@ def test_dispatch_defense_in_depth_rejects_llm_service_type():
     assert tag == "recraft_direct"
 
 
+def test_precedence_guard_does_not_false_match_wildcard_underscore(tmpdb, capsys):
+    """SQLite's `_` is a single-char LIKE wildcard; a naive
+    `LIKE 'recraft_direct %'` pattern would match `recraftXdirect ...` too.
+    The exact-match rewrite must NOT trip on such a collision."""
+    import microbench_specialty as mb
+
+    ensure_perf_seconds_column(tmpdb)
+    with sqlite3.connect(tmpdb) as c:
+        c.execute(
+            "INSERT INTO agents(id, service_type, status, speed_source, speed_updated_at) "
+            "VALUES('llm/x','llm','active','recraftXdirect ' || date('now'),date('now'))"
+        )
+    rc = mb._post_run_verify(tmpdb)
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "precedence guard OK" in out
+
+
+def test_bench_median_keeps_good_samples_when_balance_exhausts_on_last_run(monkeypatch):
+    """If runs 1-2 succeed and run 3 hits [FAL-BALANCE-EXHAUSTED], the two
+    already-paid measurements must NOT be thrown away — the row was already
+    successfully benched, and re-running on a future Sunday would just burn
+    the same 2 calls again."""
+    import microbench_specialty as mb
+
+    calls = {"n": 0}
+
+    def flaky(model_id, key):
+        calls["n"] += 1
+        if calls["n"] <= 2:
+            return {"perf_seconds": 3.0, "cost_usd": 0.05, "error": None}
+        return {
+            "perf_seconds": None,
+            "cost_usd": 0.0,
+            "error": "[FAL-BALANCE-EXHAUSTED] top up",
+        }
+
+    monkeypatch.setattr(mb, "_dispatch", lambda *a: (flaky, "K", "fal_bfl"))
+    monkeypatch.setattr(mb.time, "sleep", lambda s: None)
+    r = mb.bench_median("bfl/flux-schnell", "image_gen", {"FAL_KEY": "K"})
+    # Should have BOTH the median AND the accumulated cost — not a NULL result
+    assert r["error"] is None, r
+    assert r["perf_seconds"] == pytest.approx(3.0)
+    assert r["cost_usd"] > 0
+
+
 def test_precedence_guard_catches_fal_bfl_tag(tmpdb, capsys):
     """The fal_bfl tag has no '_direct' suffix; the guard must still catch it
     (regression: earlier guard used LIKE '%_direct%' which missed fal_bfl)."""
