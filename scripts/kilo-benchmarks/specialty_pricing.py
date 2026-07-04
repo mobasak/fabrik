@@ -41,6 +41,50 @@ PRICING: dict[str, dict] = {
     "openai/whisper-large-v3": {"per_minute": 0.006, "via": "openai_direct"},
     # ---------- Alibaba DashScope (Qwen-MT translation) ----------
     "qwen/qwen-mt-turbo": {"per_char": 0.000018, "via": "dashscope_direct"},
+    # ---------- Post-A.7 expansion (B.3.0, review pass 10) ----------
+    # Conservative defaults + best-known routing. Client overrides with real
+    # cost from provider response. `estimate: True` flag lets B.2's drift
+    # test flag entries that should be tightened once verified live.
+    # -- BFL Flux 2 family via Fal.ai --
+    "black-forest-labs/flux.2-flex": {"per_image": 0.04, "via": "fal_ai", "estimate": True},
+    "black-forest-labs/flux.2-klein-4b": {"per_image": 0.02, "via": "fal_ai", "estimate": True},
+    "black-forest-labs/flux.2-max": {"per_image": 0.08, "via": "fal_ai", "estimate": True},
+    "black-forest-labs/flux.2-pro": {"per_image": 0.06, "via": "fal_ai", "estimate": True},
+    # -- ByteDance / Google / Microsoft / xAI image via OpenRouter --
+    "bytedance-seed/seedream-4.5": {"per_image": 0.05, "via": "openrouter", "estimate": True},
+    "google/gemini-2.5-flash-image": {"per_image": 0.04, "via": "openrouter", "estimate": True},
+    "google/gemini-3-pro-image": {"per_image": 0.08, "via": "openrouter", "estimate": True},
+    "google/gemini-3-pro-image-preview": {"per_image": 0.08, "via": "openrouter", "estimate": True},
+    "google/gemini-3.1-flash-image": {"per_image": 0.04, "via": "openrouter", "estimate": True},
+    "google/gemini-3.1-flash-image-preview": {"per_image": 0.04, "via": "openrouter", "estimate": True},
+    "microsoft/mai-image-2.5": {"per_image": 0.05, "via": "openrouter", "estimate": True},
+    "openai/gpt-5-image": {"per_image": 0.05, "via": "openrouter", "estimate": True},
+    "openai/gpt-5-image-mini": {"per_image": 0.03, "via": "openrouter", "estimate": True},
+    "openai/gpt-5.4-image-2": {"per_image": 0.06, "via": "openrouter", "estimate": True},
+    "openai/gpt-image-1-mini": {"per_image": 0.03, "via": "openrouter", "estimate": True},
+    "openai/gpt-image-2": {"per_image": 0.05, "via": "openrouter", "estimate": True},
+    "sourceful/riverflow-v2-fast": {"per_image": 0.03, "via": "openrouter", "estimate": True},
+    "sourceful/riverflow-v2.5-fast": {"per_image": 0.03, "via": "openrouter", "estimate": True},
+    "x-ai/grok-imagine-image-quality": {"per_image": 0.05, "via": "openrouter", "estimate": True},
+    "recraft/recraft-v4.1": {"per_image": 0.04, "via": "recraft_direct", "estimate": True},
+    # -- STT expansions --
+    "google/chirp-3": {"per_minute": 0.024, "via": "openrouter", "estimate": True},
+    "microsoft/mai-transcribe-1.5": {"per_minute": 0.020, "via": "openrouter", "estimate": True},
+    "mistralai/voxtral-mini-transcribe": {"per_minute": 0.010, "via": "openrouter", "estimate": True},
+    "nvidia/parakeet-tdt-0.6b-v3": {"per_minute": 0.010, "via": "openrouter", "estimate": True},
+    "openai/whisper-1": {"per_minute": 0.006, "via": "openai_direct"},
+    "openai/whisper-large-v3-turbo": {"per_minute": 0.006, "via": "openai_direct"},
+    "qwen/qwen3-asr-flash-2026-02-10": {"per_minute": 0.010, "via": "openrouter", "estimate": True},
+    # -- TTS expansions --
+    "canopylabs/orpheus-3b-0.1-ft": {"per_char": 0.00003, "via": "openrouter", "estimate": True},
+    "google/gemini-3.1-flash-tts-preview": {"per_char": 0.00003, "via": "openrouter", "estimate": True},
+    "hexgrad/kokoro-82m": {"per_char": 0.00002, "via": "openrouter", "estimate": True},
+    "microsoft/mai-voice-2": {"per_char": 0.00003, "via": "openrouter", "estimate": True},
+    "mistralai/voxtral-mini-tts-2603": {"per_char": 0.00003, "via": "openrouter", "estimate": True},
+    "sesame/csm-1b": {"per_char": 0.00002, "via": "openrouter", "estimate": True},
+    "x-ai/grok-voice-tts-1.0": {"per_char": 0.00003, "via": "openrouter", "estimate": True},
+    "zyphra/zonos-v0.1-hybrid": {"per_char": 0.00003, "via": "openrouter", "estimate": True},
+    "zyphra/zonos-v0.1-transformer": {"per_char": 0.00003, "via": "openrouter", "estimate": True},
 }
 
 
