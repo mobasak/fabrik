@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — AI Models Browser: coding-subagent columns + role filter + detail-panel recipes (Phase B) (2026-07-05)
+
+`scripts/kilo-benchmarks/models_browser_template.html` gains two new sortable columns — `Code Fit` (composite score 0-1) and `Doc↔Code` (letter grade badge) — plus inline `EXCL` / `PIN` badges on the Code Fit cell, a new `Role suitability` sidebar chip filter ("coding-subagent") that narrows to the ~38 ranked candidates, and 4 detail-panel entries per model (fit score + grade, OR body-hint recipe, provider-pin recipe, ⚠ excluded status). Grade badge palette covers all 7 tiers (A+/A/B+/B/B-/C+/C) plus `grade-na` for out-of-pool rows. Phase B of `docs/development/plans/2026-07-04-plan-2-browser-coding-subagent-integration.md`.
+
 ### Added — Coding-subagent ranking: public API + browser payload overlay (Phase A) (2026-07-04)
 
 `scripts/kilo-benchmarks/rank_coding_subagents.py` now exposes 3 public functions (`rank_all(db_path=None)`, `grade_doc_review(...)`, `fmt_body_hint(mid)`) plus 3 constant aliases (`CODING_EXCLUDE_MODELS`, `CODING_PROVIDER_PINS`, `CODING_BODY_HINTS`) so `export_models_browser.py` can overlay coding-subagent ranking data onto the AI Models Browser without forking scoring/exclusion/pin/body-hint state. `_fetch_chat_models` now projects 6 uniform-schema per-row fields onto every chat model in the JSON payload: `code_subagent_candidate`, `code_fit_score`, `doc_code_grade`, `code_excluded_reason`, `code_provider_pin`, `code_body_hint`. Phase A of `docs/development/plans/2026-07-04-plan-2-browser-coding-subagent-integration.md`; Phase B (browser template columns + badge + chip + detail-panel) follows.

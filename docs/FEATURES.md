@@ -1,6 +1,21 @@
 # Fabrik — Features
 
-**Last Updated:** 2026-05-20
+**Last Updated:** 2026-07-05
+
+## AI Models Browser — Coding-subagent columns (2026-07-05)
+
+The single-file `scripts/kilo-benchmarks/models_browser.html` now surfaces the coding-subagent ranking data alongside the existing Speed / Best Code / SWE / Aider columns:
+
+- **`Code Fit` column** — composite score (0-1) shown on Overview / Reasoning / Coding / Translation tabs. 45% max(SWE-bench, Aider-Polyglot) + 20% AA intelligence + 15% Arena ELO + 10% output tok/s + 10% cost-inverse. Populated for the GLM / Kimi / Minimax / DeepSeek subagent pool (~38 rows); empty on all other rows.
+- **`Doc↔Code` column** — letter grade (A+/A/B+/B/B-/C+/C) with a color-coded badge palette. Composite of context size + verified code-understanding + Arena/AA intelligence. Measures ability to compare documentation against implementation across a whole service. Sortable by grade rank (A+ > A > B+ > B > B- > C+ > C), not alphabetical.
+- **`EXCL` / `PIN` inline badges** on the Code Fit cell — `EXCL` for reasoning-only models the ranker excludes (currently `moonshotai/kimi-k2-thinking`), `PIN` for models that need `provider.only=[…]` to avoid a broken OR sub-provider route (currently `minimax/minimax-m3` → exclude DeepInfra).
+- **`Role suitability` filter chip** in the left sidebar — "coding-subagent" chip narrows the visible rows to the ranked pool. Registers in the "+N filters active" indicator alongside the other sidebar chips.
+- **Detail-panel entries** on click: `Coding-subagent fit score` + `Doc↔Code` grade, `OR request body hint` (e.g. `{"reasoning":{"exclude":true},"max_tokens":30000}` for `minimax/minimax-m2.5`), `Provider pin` recipe, `⚠ Coding subagent status` (when excluded).
+
+Data source: `scripts/kilo-benchmarks/rank_coding_subagents.py` (single source of truth for scoring/exclusion/pin/body-hint state; overlaid onto the browser payload by `scripts/kilo-benchmarks/export_models_browser.py` with the same `db_path` the chat rows come from). Full narrative + routing strategy lives in `docs/reference/kilo/CODING_SUBAGENT_SELECTION.md`.
+
+---
+
 
 ---
 

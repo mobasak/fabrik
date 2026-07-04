@@ -303,7 +303,7 @@ Run the full `/fabrik-review` adversarial methodology on the Phase A surface (`r
 - Re-run the gate + review after each fix
 - Phase B does NOT begin until a demonstrably-thorough round returns zero new correctness/security findings.
 
-## Phase B — Frontend: template columns + chip + badge + detail-panel
+## Phase B — Frontend — ✅ EXECUTED 2026-07-05: template columns + chip + badge + detail-panel
 
 ### B.1 — Add 2 columns to `models_browser_template.html`
 
