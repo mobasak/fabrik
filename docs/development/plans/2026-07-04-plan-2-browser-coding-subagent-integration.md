@@ -1,6 +1,6 @@
 # Browser: coding-subagent ranking integration
 
-**Status:** IN-PROGRESS
+**Status:** EXECUTED 2026-07-05 (88394f4c)
 **Date:** 2026-07-04
 **Started:** 2026-07-04 via /fabrik-execute-plan
 **Owner:** solo (Özgür)
@@ -10,6 +10,16 @@
 ## Goal
 
 Surface the coding-subagent ranking data (composite score, Doc↔Code grade, exclusion flag, provider-pin recipe, body-hint recipe, "when to route" narrative) inside the interactive `models_browser.html` so an operator or an orchestrating AI can pick a subagent without opening `docs/reference/kilo/CODING_SUBAGENT_SELECTION.md` separately. Reuses `scripts/kilo-benchmarks/rank_coding_subagents.py` (no duplicate scoring logic).
+
+## One-Test Rule
+
+**Why:** the plan's highest-risk axis is silent data drift — the browser payload's per-row `code_fit_score` / `doc_code_grade` / `code_provider_pin` fields must reflect the ranker's authoritative output for the SAME `db_path` the chat rows come from. If the overlay reads from a different DB (round-1 bug found by parallel finders), or if a future change re-forks `EXCLUDE_MODELS` / `PROVIDER_PINS` / `BODY_HINTS` inside `export_models_browser.py`, the browser would misroute an orchestrator to a wrong model and no gate would catch it.
+
+**Contract:**
+- **Given:** an in-repo `kilo_agents.db` with the current 4-family (GLM/Kimi/Minimax/DeepSeek) LLM catalog and the ranker's live `PROVIDER_PINS` / `EXCLUDE_MODELS` state.
+- **When:** `export_models_browser._build_payload(db_path)` runs, then `_fetch_chat_models` overlays coding-subagent fields on every chat model.
+- **Then:** `moonshotai/kimi-k2-thinking` has `code_subagent_candidate=False` + non-empty `code_excluded_reason`; `minimax/minimax-m3` has `code_subagent_candidate=True` + `code_provider_pin == ["Minimax","Novita","Parasail","Together"]`; ≥30 chat rows carry `code_fit_score ∈ [0,1]` + `doc_code_grade ∈ {A+,A,B+,B,B-,C+,C}`; every chat row has uniform-schema 6-key coverage.
+- **Mocked:** nothing on the highest-risk path — the test hits real `rank_coding_subagents.rank_all(db_path)` against the real DB. Sibling regression tests build tmp_path SQLite fixtures for db_path plumbing verification.
 
 ## Context Ledger
 
