@@ -35,10 +35,10 @@ Ranked candidates for coding-subagent dispatch across the GLM (z-ai), Kimi (moon
 | 21 | `deepseek/deepseek-v3.2-exp` | ✅ | Novita | 35 | 0.270 | 0.410 | — | — | — | 1431 | 163k | **C+** | 0.224 |
 | 22 | `deepseek/deepseek-chat-v3.1` | ✅ | DeepInfra | 23 | 0.210 | 0.790 | — | — | — | 1430 | 163k | **C+** | 0.212 |
 | 23 | `deepseek/deepseek-r1-0528` | ✅ | DeepInfra | 16 | 0.500 | 2.150 | — | — | — | 1436 | 163k | **C+** | 0.196 |
-| 24 | `deepseek/deepseek-v4-flash:discounted` | — | INVALID_ID_8662 | 108 | 0.000 | 0.000 | — | — | — | — | 1048k | **B** | 0.189 |
+| 24 | `deepseek/deepseek-v4-flash:discounted` | — | — | 108 | <0.001 | <0.001 | — | — | — | — | 1048k | **B** | 0.189 |
 | 25 | `deepseek/deepseek-chat-v3-0324` | ✅ | DeepInfra | 27 | 0.240 | 0.900 | — | — | — | 1391 | 163k | **C** | 0.184 |
 | 26 | `moonshotai/kimi-k2-0905` | ✅ | Novita | 38 | 0.600 | 2.500 | — | — | — | 1403 | 262k | **B-** | 0.183 |
-| 27 | `deepseek/deepseek-v4-pro:discounted` | — | INVALID_ID_8662 | 74 | 0.000 | 0.000 | — | — | — | — | 1048k | **B** | 0.181 |
+| 27 | `deepseek/deepseek-v4-pro:discounted` | — | — | 74 | <0.001 | <0.001 | — | — | — | — | 1048k | **B** | 0.181 |
 | 28 | `minimax/minimax-m2-her` | ✅ | Minimax | 87 | 0.300 | 1.200 | — | — | — | — | 65k | **C** | 0.172 |
 | 29 | `z-ai/glm-4.7-flash` | ✅ | DeepInfra | 54 | 0.060 | 0.400 | — | — | — | — | 202k | **C+** | 0.171 |
 | 30 | `deepseek/deepseek-r1-distill-llama-70b` | ✅ | Novita | 45 | 0.800 | 0.800 | — | — | — | — | 128k | **C** | 0.163 |

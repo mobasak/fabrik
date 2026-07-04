@@ -42,6 +42,7 @@ import re
 import sqlite3
 import sys
 import tempfile
+import zlib
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -100,6 +101,8 @@ def _grade_doc_review(ctx_k: float, swe: float, aider: float, aa_idx: float, are
         return "A+"
     if huge_ctx and good_intel:
         return "A"
+    if huge_ctx and verified >= 70:
+        return "A"  # huge ctx + verified code-understanding beats "mid intel"
     if huge_ctx and mid_intel:
         return "B+"
     if huge_ctx:
@@ -150,9 +153,25 @@ def _compose_score(row: dict) -> float:
     )
 
 
+_FMT_PRECISION_RE = re.compile(r"\.(\d+)f")
+
+
 def _fmt_or_dash(v, fmt: str = "{}") -> str:
     if v is None or v == 0:
         return "—"
+    # A price like 1.4e-07 rounds to "0.000" under "{:.3f}", visually
+    # indistinguishable from the em-dash convention. Show "<X" for a
+    # non-zero-but-below-precision value so :discounted / promo rows
+    # aren't mistaken for actually-free ones. Parse the precision directly
+    # from the format string (works for suffixed formats like `{:.0f}k` too,
+    # where `float()`-based sniffing on the formatted string would crash).
+    m = _FMT_PRECISION_RE.search(fmt)
+    if m:
+        precision = int(m.group(1))
+        threshold = 10**-precision if precision else 1
+        if 0 < abs(v) < threshold:
+            suffix = fmt.rsplit("}", 1)[-1] if "}" in fmt else ""
+            return f"<{threshold:.{precision}f}{suffix}"
     return fmt.format(v)
 
 
@@ -232,7 +251,10 @@ def _safe_md_id(mid: str) -> str:
     """
     if _MD_ID_SAFE.match(mid) and "\n" not in mid:
         return mid
-    return "INVALID_ID_" + str(abs(hash(mid)) % 10_000)
+    # Use zlib.crc32 (deterministic across processes) rather than hash() which
+    # is randomized by PYTHONHASHSEED — otherwise the same bad id would produce
+    # a different placeholder every nightly run, creating spurious diff churn.
+    return f"INVALID_ID_{zlib.crc32(mid.encode()) % 10_000}"
 
 
 def _render(rows: list[dict]) -> str:
@@ -259,7 +281,9 @@ def _render(rows: list[dict]) -> str:
                 i=i,
                 mid=_safe_md_id(r["id"]),
                 or_ok="✅" if r.get("or_ok") else "—",
-                prov=_safe_md_id(r.get("or_prov") or "—"),
+                # `_safe_md_id` on the em-dash fallback would trip the regex
+                # and emit `INVALID_ID_<hash>`; check-then-sanitize instead.
+                prov=_safe_md_id(r["or_prov"]) if r.get("or_prov") else "—",
                 tps=_fmt_or_dash(r.get("db_tps"), "{:.0f}"),
                 inp=_fmt_or_dash(r.get("in_M"), "{:.3f}"),
                 out=_fmt_or_dash(r.get("out_M"), "{:.3f}"),
@@ -317,12 +341,21 @@ def _render(rows: list[dict]) -> str:
 
 def _atomic_write(path: Path, content: str) -> None:
     """Write via temp file in the same dir + os.replace so a concurrent
-    reader (or a crash mid-write) never sees a truncated/partial file."""
+    reader (or a crash mid-write) never sees a truncated/partial file.
+
+    `tempfile.mkstemp` creates the temp file at mode 0600 regardless of
+    umask, and `os.replace` preserves that mode onto the final path — which
+    would silently strip group/world read from a previously-0644 doc. Restore
+    umask-respecting behavior explicitly (matches plain `open(path,'w')`).
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=str(path.parent))
     try:
         with os.fdopen(fd, "w") as f:
             f.write(content)
+        current_umask = os.umask(0)
+        os.umask(current_umask)
+        os.chmod(tmp_name, 0o666 & ~current_umask)
         os.replace(tmp_name, path)
     except Exception:
         try:
