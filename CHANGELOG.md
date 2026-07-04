@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — `check_synced_unmodified` no longer false-fails on uncommitted canonical edits (2026-07-03)
+
+The synced-files gate compared each project's copy against `/opt/fabrik`'s **live working tree**, so while a maintainer was mid-editing a governance/enforcement file (uncommitted), every project holding the last-published version was red-flagged as "modified locally" — blocking running agents for something they didn't do and can't fix (the files are git-ignored + sync-managed). Now compares against canonical's **git HEAD** (the last-published version, i.e. what the commit-time sync distributed); uncommitted upstream edits no longer flag projects, while a genuine project-local edit still differs from HEAD and is caught. Verified with an A/B test (skew → pass, local edit → flag).
+
 ### Fixed — All distributed CORE_SCRIPTS pass `mypy --strict` (0 errors) (2026-07-02)
 
 Cleaned 38 remaining strict-mypy errors across the synced top-level scripts — `docs_updater.py` (18), `kilo_code_review.py` (10), `kilo_docs_enforcer.py` (5), `select_rules.py` (3), `update_agents_toc.py` (2). Annotation-only + minimal safe coercions: parameterized bare `list`/`dict`/`Queue`/`re.Pattern` generics, typed `results`/`issues`/`errors`/queues, added missing `-> None` / return / `**kwargs: Any` annotations, wrapped genuine `Any→str/float` returns and `object`-typed values with `str()`/`float()` (no `type: ignore` suppression of the real mismatches), annotated `SESSION_DIR` to fix a forward-ref `has-type`, and marked `kilo_docs_enforcer.py` with the sanctioned `# noqa-file: template-generator` (its prompt templates carry example DB URLs). With the enforcement dir + `final_gate.py`, every distributed `scripts/` file is now strict-clean. Verified: imports + entry points still run.
