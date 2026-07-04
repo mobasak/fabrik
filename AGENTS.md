@@ -1,6 +1,6 @@
 # AGENTS.md — Fabrik Identity & Knowledge (Traycer)
 
-**Last Updated:** 2026-07-01
+**Last Updated:** 2026-07-03
 **Read by:** Traycer (ticket planning) **and any agent planning or making non-trivial changes directly** (Claude Code / Cascade / Kilo). This is the canonical infra + codebase map — a direct agent must ground its plan in it the same way Traycer does, not guess. Coding agents still bootstrap from their compact contract (below) but consult this file before planning.
 **Coding agents:** Claude Code reads `CLAUDE.md`; Windsurf Cascade reads `.windsurfrules` (the file at repo root, NOT the `.windsurf/` directory); Kilo CLI reads `AGENTS-compact.md` (via `opencode.json` `instructions:` array). These four files are siblings — Traycer's planner brief, plus one bootstrap per coding agent.
 **Deployment references (canonical):** [`docs/DEPLOYMENT_ARCHITECTURE.md`](docs/DEPLOYMENT_ARCHITECTURE.md) — code-level map of every file on the deploy path · [`docs/operations/deployment.md`](docs/operations/deployment.md) — procedures (apply/redeploy/destroy) · [`docs/operations/fabrik-lifecycle.md`](docs/operations/fabrik-lifecycle.md) — runtime behavior & data safety · [`docs/infrastructure/vps-complete-inventory.md`](docs/infrastructure/vps-complete-inventory.md) — canonical live-state inventory of every container, port, and mesh IP across the 3-host fleet. Supersede any narrative pasted into individual tickets.
@@ -141,7 +141,7 @@ kebab-case. Exceptions: `README.md`, `CHANGELOG.md`, `INDEX.md`, `PORTS.md`, `AG
 |---|---|---|
 | Backend | Python + FastAPI + Uvicorn | Node.js for web-adjacent workers |
 | Frontend | Next.js 15 + React 19 + TypeScript + Tailwind | — always use this (saas-skeleton bumped 2026-06-18) |
-| Database | PostgreSQL 16 (VPS, `postgres-main` container) | Supabase for managed auth / realtime / pgvector |
+| Database | PostgreSQL 16 (VPS, `postgres-main` container) | Self-host by default (see § Supabase below); Supabase only as a deliberate ADR-recorded exception |
 | Background jobs | PostgreSQL jobs table + worker | Redis queue for high throughput |
 | AI/LLM | Kilo CLI free tiers → OpenAI / Anthropic APIs | Local Ollama for offline/free |
 | Local LLM | Ollama (localhost:11434) | See `docs/reference/LOCAL_LLM_INFRASTRUCTURE.md` |
@@ -150,6 +150,19 @@ kebab-case. Exceptions: `README.md`, `CHANGELOG.md`, `INDEX.md`, `PORTS.md`, `AG
 | Search | MeiliSearch (self-hosted) | PostgreSQL FTS for simple cases |
 | Notifications | Apprise (self-hosted) | Direct API for single-channel |
 | Object storage | Backblaze B2 via Backrest (deployed 2026-04-17) | MinIO for self-hosted S3-compatible |
+
+### Supabase — self-hosted by default (you don't need it)
+
+Every Supabase capability has a first-party self-hosted equivalent; the one thing you don't self-host (realtime) is used **nowhere** on the fleet (zero hand-written usage as of 2026-07-03), and the lone runtime user (`trade-intelligence`) is migrating off it. Use Supabase **only as a deliberate, ADR-recorded exception** — never a silent default. New SaaS uses `fabrik-lib/fastapi-user-auth`, not Supabase auth.
+
+| Supabase capability | Your self-hosted equivalent | Verdict |
+|---|---|---|
+| Postgres DB | `postgres-main` (PG16, shared, on the mesh) | ✅ fully replaced |
+| End-user auth (JWT/email/social) | `fabrik-lib/fastapi-user-auth` — app issues its own JWTs: Argon2, refresh-token rotation, `jti` denylist, tenant-isolation RLS (55 tests, used in 9 projects) | ✅ replaced (Pattern A) |
+| pgvector / vector search | `pgvector/pgvector:pg16` + `fabrik-lib/rag` (pgvector+tsvector+pg_trgm+RRF hybrid) | ✅ fully self-hosted |
+| Object storage | `fabrik-lib/storage` (B2 backend, URI-routed) + Backblaze B2 via Backrest | ✅ replaced |
+| Edge functions | container deploys via `fabrik apply` | ✅ different model, covered |
+| Realtime subscriptions | `redis-main` pubsub — no drop-in "postgres-changes → websocket" product | ⚠️ not used anywhere on the fleet; build on Redis pubsub + WS/SSE only if a product ever needs it |
 
 ## Infrastructure Services — Running on VPS
 
