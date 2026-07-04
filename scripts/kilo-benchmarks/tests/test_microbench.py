@@ -169,6 +169,30 @@ def test_write_result_returns_false_on_readonly_instead_of_crashing(tmp_path, mo
     assert ok is False, "must return False on OperationalError, not crash"
 
 
+def test_parse_stream_extracts_openai_reasoning_details_array():
+    """Belt-and-suspenders: OpenAI o-family (o3-mini, o4-mini, gpt-5-*) may
+    emit tokens ONLY in delta.reasoning_details = [{type, summary, ...}]
+    without a plain delta.reasoning string in some edge cases. Live probe
+    2026-07-03 confirmed the shape. Parser must extract text from either
+    source to prevent silent 'no content chunks' failures."""
+    from microbench_or_models import _parse_stream
+
+    class FakeResp:
+        def iter_lines(self, decode_unicode=True):
+            # Only reasoning_details, no reasoning string (edge case)
+            yield 'data: {"choices":[{"delta":{"content":"","reasoning_details":[{"type":"reasoning.summary","summary":"Formulating a plan"}]}}]}'
+            time.sleep(0.01)
+            yield 'data: {"choices":[{"delta":{"content":"","reasoning_details":[{"type":"reasoning.summary","summary":" then answering"}]}}]}'
+            yield 'data: {"usage":{"prompt_tokens":10,"completion_tokens":100,"cost":6e-4}}'
+            yield "data: [DONE]"
+
+    r = _parse_stream(FakeResp())
+    assert r["error"] is None, f"reasoning_details-only stream must succeed, got: {r['error']}"
+    assert r["tps"] > 0
+    assert r["ttft_ms"] >= 0
+    assert r["completion_tokens"] == 100
+
+
 def test_bench_one_catches_unicode_decode_error_from_iter_lines(monkeypatch):
     """Review finding: iter_lines(decode_unicode=True) can raise
     UnicodeDecodeError on non-UTF-8 bytes from a mangling proxy. Must
@@ -343,14 +367,21 @@ def _seed_cohort_db(tmp_path: Path) -> Path:
     return db
 
 
-def test_cohort_excludes_expensive_models(tmp_path):
+def test_cohort_excludes_ultra_expensive_models_above_200(tmp_path):
+    """Plan A.3 (2026-07-03) lifted cost cap 10 → 200 to include 9 frontier
+    LLMs (o1-pro $150 is highest). Cap remains to exclude image-gen rows
+    with nominal $/M in the thousands (bfl/flux $3000+, stability $65000+)."""
     from microbench_or_models import _select_cohort
 
     db = _seed_cohort_db(tmp_path)
     conn = sqlite3.connect(db)
     conn.executemany(
         "INSERT INTO agents (id, input_cost_per_m, output_cost_per_m) VALUES (?, ?, ?)",
-        [("cheap/mdl", 0.5, 2.0), ("expensive/mdl", 15.0, 30.0)],
+        [
+            ("cheap/mdl", 0.5, 2.0),
+            ("frontier/mdl", 150.0, 300.0),  # o1-pro tier — now IN cohort
+            ("image_gen/mdl", 3000.0, 0),    # nominal $/M for image gen — still excluded
+        ],
     )
     conn.commit()
 
@@ -358,10 +389,13 @@ def test_cohort_excludes_expensive_models(tmp_path):
     conn.close()
     ids = {r["id"] for r in cohort}
     assert "cheap/mdl" in ids
-    assert "expensive/mdl" not in ids
+    assert "frontier/mdl" in ids, "Plan A.3 lifted cap to 200; o1-pro tier must be in-cohort"
+    assert "image_gen/mdl" not in ids, "Cap 200 must still exclude nominal image-gen pricing"
 
 
-def test_cohort_excludes_free_variants(tmp_path):
+def test_cohort_includes_free_variants_after_plan_a2(tmp_path):
+    """Plan A.2 (2026-07-03) removed the `:free` filter — free-tier models
+    are benched (fail-and-continue handles occasional 429s)."""
     from microbench_or_models import _select_cohort
 
     db = _seed_cohort_db(tmp_path)
@@ -375,7 +409,7 @@ def test_cohort_excludes_free_variants(tmp_path):
     conn.close()
     ids = {r["id"] for r in cohort}
     assert "paid/mdl" in ids
-    assert "paid/mdl:free" not in ids
+    assert "paid/mdl:free" in ids, "Plan A.2 removed :free filter; must now be in cohort"
 
 
 def test_cohort_excludes_openrouter_meta_routers(tmp_path):

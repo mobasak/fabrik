@@ -1,7 +1,8 @@
 # Full Speed Coverage Close — LLM gap retry + specialty-service bench
 
-**Status:** CONVERGED
+**Status:** IN-PROGRESS
 **Date:** 2026-07-03
+**Started:** 2026-07-03 via /fabrik-execute-plan
 **Follow-up to:** [2026-07-02-plan-1-speed-coverage.md](2026-07-02-plan-1-speed-coverage.md) (EXECUTED)
 **Owner:** solo (Özgür)
 **Review passes:** DRAFT → CONVERGED via `/fabrik-plan-review` 2026-07-03 (see Self-audit)
@@ -150,7 +151,10 @@ Verified via `find /opt -maxdepth 3 -name .env -type f | xargs grep -l KEY_NAME`
 
 Not held (structurally NULL for now): direct Stability.ai key (only via Fal/Replicate mirror).
 
-## Phase A — LLM coverage gap closure
+## Phase A — LLM coverage gap closure — ✅ EXECUTED 2026-07-04
+
+**Result**: cohort=35 updated=6 failed=29 cost=$0.6097. Text-LLM coverage 285/334 = **85.3%** (up from 83.5%). Remaining fails are structural (OpenAI o-family rate-limits + audio/deep-research models + provider-side issues) — retry next Sunday won't recover them without provider-side fixes.
+
 
 ### A.1 Retry the 26 failed text-LLM rows
 

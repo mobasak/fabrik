@@ -117,10 +117,19 @@ def _parse_stream(resp: requests.Response) -> dict:
             # nemotron-nano) emit content="" and put tokens in delta.reasoning;
             # usage.completion_tokens counts reasoning + content, so timing
             # from first-any-chunk to last-any-chunk keeps TPS math consistent.
+            # OpenAI o-family also mirrors tokens in delta.reasoning_details
+            # (array of {type, summary/text, ...}) — extract as belt-and-suspenders
+            # in case some model returns ONLY reasoning_details without reasoning.
             choices = obj.get("choices") or []
             if choices:
                 delta = (choices[0] or {}).get("delta") or {}
                 content = (delta.get("content") or "") + (delta.get("reasoning") or "")
+                if not content:
+                    details = delta.get("reasoning_details") or []
+                    content = "".join(
+                        (d.get("summary") or d.get("text") or "")
+                        for d in details if isinstance(d, dict)
+                    )
                 if content:
                     now = time.monotonic()
                     if t_first_content is None:
@@ -288,8 +297,7 @@ def _select_cohort(conn: sqlite3.Connection) -> list[dict]:
           AND service_type = 'llm'
           AND input_cost_per_m IS NOT NULL AND input_cost_per_m > 0
           AND output_cost_per_m IS NOT NULL AND output_cost_per_m > 0
-          AND input_cost_per_m <= 10
-          AND id NOT LIKE '%:free'
+          AND input_cost_per_m <= 200
           AND id NOT LIKE 'openrouter/%'
           AND (
             output_tokens_per_sec IS NULL

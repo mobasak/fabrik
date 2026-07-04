@@ -1,0 +1,21 @@
+{
+  "plan": "docs/development/plans/2026-07-03-plan-1-full-speed-coverage-close.md",
+  "owned_paths": [
+    "scripts/kilo-benchmarks/microbench_or_models.py",
+    "scripts/kilo-benchmarks/microbench_specialty.py",
+    "scripts/kilo-benchmarks/specialty_pricing.py",
+    "scripts/kilo-benchmarks/specialty_clients/",
+    "scripts/kilo-benchmarks/tests/test_microbench.py",
+    "scripts/kilo-benchmarks/tests/test_microbench_specialty.py",
+    "scripts/kilo-benchmarks/tests/test_specialty_clients/",
+    "scripts/kilo-benchmarks/models_browser_template.html",
+    "scripts/kilo-benchmarks/models_browser.html",
+    "scripts/kilo-benchmarks/kilo_agents.db",
+    "scripts/kilo-benchmarks/add_perf_seconds_column.py",
+    "scripts/kilo-benchmarks/daily_refresh.sh",
+    "docs/development/plans/2026-07-03-plan-1-full-speed-coverage-close.md"
+  ],
+  "branch": "master",
+  "started_at": "2026-07-03T18:00:00Z",
+  "status": "active"
+}
