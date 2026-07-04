@@ -244,34 +244,80 @@ def _load_project_prompt(wcfg: dict, project_id: str) -> str:
     """Read watchdog.project_system_prompt_file (project-relative Markdown) and
     return its contents for injection as WATCHDOG_SYSTEM_PROMPT.
 
-    Returns "" when unset — the sidecar then runs the canonical prompt only.
-    Fail-CLOSED on a misconfigured path (set-but-missing / absolute / '..' escape /
-    oversized) → WatchdogProvisionError, so the operator fixes it rather than
-    silently shipping a sidecar without the intended project awareness.
+    Returns "" when unset. FAIL-SOFT on any problem with a set path (non-str /
+    absolute / '..'-escape / unsafe id / missing / non-file / oversized / unreadable /
+    non-UTF-8 / null byte / symlink loop): log a warning and return "" so the sidecar
+    runs the CANONICAL prompt only. Traversal / symlink-escape / absolute / unsafe-id
+    paths are refused WITHOUT reading; the read is bounded to _MAX_PROMPT_BYTES+1 bytes
+    (no unbounded load). (A same-filesystem HARDLINK is indistinguishable from a regular
+    in-project file and is not defended against — acceptable under the single-operator
+    threat model: the operator already has read access, and there is no other actor.)
+    Rationale: the watchdog registrar is non-fatal by design
+    (``infrastructure.py`` swallows WatchdogProvisionError as a warning), so RAISING
+    here would silently skip the WHOLE sidecar over an optional prompt-file typo —
+    leaving the app unmonitored. A loud warning + canonical fallback keeps monitoring
+    alive and never blocks the deploy.
     """
     rel = wcfg.get("project_system_prompt_file")
     if not rel:
         return ""
-    if os.path.isabs(rel):
-        raise WatchdogProvisionError(
-            f"project_system_prompt_file must be project-relative (got absolute {rel!r})"
+    if not isinstance(rel, str):
+        logger.warning(
+            "watchdog: project_system_prompt_file must be a string, got %s — "
+            "ignoring, using canonical prompt",
+            type(rel).__name__,
         )
-    project_dir = (_PROJECTS_ROOT / project_id).resolve()
-    candidate = (project_dir / rel).resolve()
-    if not candidate.is_relative_to(project_dir):
-        raise WatchdogProvisionError(
-            f"project_system_prompt_file {rel!r} resolves outside the project dir "
-            f"({candidate}) — directory traversal refused"
+        return ""
+    try:
+        if os.path.isabs(rel):
+            logger.warning(
+                "watchdog: project_system_prompt_file must be project-relative "
+                "(got absolute %r) — ignoring, using canonical prompt",
+                rel,
+            )
+            return ""
+        # Guard the id STRING (real specs validate id to ^[a-z][a-z0-9-]*$, so this is
+        # defense-in-depth for unvalidated dicts). Checking the string — not the resolved
+        # path — also lets a legitimately symlinked /opt/<id> still work.
+        if not project_id or "/" in project_id or ".." in project_id or project_id.startswith("."):
+            logger.warning("watchdog: unsafe project id %r — ignoring project prompt", project_id)
+            return ""
+        project_dir = (_PROJECTS_ROOT / project_id).resolve()
+        candidate = (project_dir / rel).resolve()
+        if not candidate.is_relative_to(project_dir):
+            logger.warning(
+                "watchdog: project_system_prompt_file %r resolves outside the project "
+                "dir (%s) — refused, using canonical prompt",
+                rel,
+                candidate,
+            )
+            return ""
+        if not candidate.is_file():
+            logger.warning(
+                "watchdog: project_system_prompt_file not found: %s — using canonical prompt",
+                candidate,
+            )
+            return ""
+        # Bounded read — never load more than the cap into memory, even if the file
+        # grows / is swapped after any stat (read at most MAX+1 bytes, then check).
+        with candidate.open("rb") as fh:
+            data = fh.read(_MAX_PROMPT_BYTES + 1)
+        if len(data) > _MAX_PROMPT_BYTES:
+            logger.warning(
+                "watchdog: project_system_prompt_file too large (> %d bytes): %s — "
+                "using canonical prompt",
+                _MAX_PROMPT_BYTES,
+                candidate,
+            )
+            return ""
+        return data.decode("utf-8")  # decode error → outer except → canonical
+    except Exception as e:  # noqa: BLE001 — fail-soft: ANY prompt-file problem → canonical
+        logger.warning(
+            "watchdog: could not read project_system_prompt_file %r: %s — using canonical prompt",
+            rel,
+            e,
         )
-    if not candidate.is_file():
-        raise WatchdogProvisionError(f"project_system_prompt_file not found: {candidate}")
-    text = candidate.read_text(encoding="utf-8")
-    if len(text.encode("utf-8")) > _MAX_PROMPT_BYTES:
-        raise WatchdogProvisionError(
-            f"project_system_prompt_file too large "
-            f"({len(text.encode('utf-8'))} > {_MAX_PROMPT_BYTES} bytes): {candidate}"
-        )
-    return text
+        return ""
 
 
 @dataclass(slots=True)

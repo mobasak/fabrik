@@ -598,8 +598,11 @@ class WatchdogConfig(BaseModel):
             "(rails never replaced). Use it to teach the watchdog what THIS app is: "
             "architecture, dependencies, known failure modes, what 'healthy' means, "
             "hands-off zones. Unset (default) → canonical prompt only. Must be a "
-            "relative path under the project dir (no absolute, no '..'), ≤32 KB; a "
-            "set-but-missing/oversized/escaping path fails the apply (fail-closed)."
+            "relative path under the project dir (no absolute, no '..'), ≤32 KB. "
+            "FAIL-SOFT: a missing / unreadable / oversized / absolute / '..'-escaping "
+            "path is ignored with a logged warning and the sidecar runs the canonical "
+            "prompt only — a prompt-file problem never disables the watchdog or blocks "
+            "the deploy, and a bad path is never read."
         ),
     )
 
