@@ -555,12 +555,15 @@ def test_precedence_guard_catches_fal_bfl_tag(tmpdb, capsys):
     """The fal_bfl tag has no '_direct' suffix; the guard must still catch it
     (regression: earlier guard used LIKE '%_direct%' which missed fal_bfl)."""
     import microbench_specialty as mb
+    from datetime import UTC, datetime
 
     ensure_perf_seconds_column(tmpdb)
+    today = datetime.now(UTC).date().isoformat()
     with sqlite3.connect(tmpdb) as c:
         c.execute(
             "INSERT INTO agents(id, service_type, status, speed_source, speed_updated_at) "
-            "VALUES('anthropic/claude-x','llm','active','fal_bfl 2026-07-04',date('now'))"
+            "VALUES('anthropic/claude-x','llm','active',?,date('now'))",
+            (f"fal_bfl {today}",),
         )
     rc = mb._post_run_verify(tmpdb)
     out = capsys.readouterr().out
@@ -745,15 +748,22 @@ def test_recraft_rejects_non_numeric_credits():
 
 
 def test_post_run_verify_flags_misroute_as_bench_qa_fail(tmpdb, capsys):
-    """If a llm row ever gets a *_direct speed_source today, exit non-zero."""
+    """If a llm row ever gets a specialty speed_source today, exit non-zero.
+
+    The exact-match round-8 guard checks `speed_source = '<tag> ' || date('now')`,
+    so the row's speed_source date suffix MUST match today — hardcoding
+    2026-07-04 in the fixture would time-bomb the test on 2026-07-05.
+    """
     import microbench_specialty as mb
+    from datetime import UTC, datetime
 
     ensure_perf_seconds_column(tmpdb)
-    today = "date('now')"
+    today = datetime.now(UTC).date().isoformat()
     with sqlite3.connect(tmpdb) as c:
         c.execute(
-            f"INSERT INTO agents(id, service_type, status, speed_source, speed_updated_at) "
-            f"VALUES('anthropic/claude-x','llm','active','recraft_direct 2026-07-04',{today})"
+            "INSERT INTO agents(id, service_type, status, speed_source, speed_updated_at) "
+            "VALUES('anthropic/claude-x','llm','active',?,date('now'))",
+            (f"recraft_direct {today}",),
         )
     rc = mb._post_run_verify(tmpdb)
     out = capsys.readouterr().out
@@ -764,12 +774,16 @@ def test_post_run_verify_flags_misroute_as_bench_qa_fail(tmpdb, capsys):
 def test_post_run_verify_clean_when_no_misroute(tmpdb, capsys):
     import microbench_specialty as mb
 
+    from datetime import UTC, datetime
+
     ensure_perf_seconds_column(tmpdb)
+    today = datetime.now(UTC).date().isoformat()
     with sqlite3.connect(tmpdb) as c:
         c.execute(
             "INSERT INTO agents(id, service_type, status, perf_seconds, speed_source, "
-            "speed_updated_at) VALUES('recraft/v3','image_gen','active',1.2,"
-            "'recraft_direct 2026-07-04',date('now'))"
+            "speed_updated_at) VALUES('recraft/v3','image_gen','active',1.2,?,"
+            "date('now'))",
+            (f"recraft_direct {today}",),
         )
     rc = mb._post_run_verify(tmpdb)
     out = capsys.readouterr().out
