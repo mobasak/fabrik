@@ -63,7 +63,9 @@ def bench_one(model_id: str, api_key: str) -> dict:
     data = {"model": whisper_model}
     t0 = time.monotonic()
     try:
-        r = requests.post(ENDPOINT, headers=headers, files=files, data=data, timeout=60, allow_redirects=False)
+        r = requests.post(
+            ENDPOINT, headers=headers, files=files, data=data, timeout=60, allow_redirects=False
+        )
         if r.status_code >= 400:
             return _err(_http_err(r))
         perf_seconds = time.monotonic() - t0

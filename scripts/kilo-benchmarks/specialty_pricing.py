@@ -111,7 +111,9 @@ _DEFAULT_TTS_CHARS = 213  # elevenlabs_tts.BENCH_TEXT length
 _DEFAULT_STT_MINUTES = 10 / 60.0  # openai_whisper.SILENCE_SECONDS
 
 
-def estimate_cost(model_id: str, *, chars: int | None = None, minutes: float | None = None) -> float:
+def estimate_cost(
+    model_id: str, *, chars: int | None = None, minutes: float | None = None
+) -> float:
     """Estimate cost per single bench call for a specialty model.
 
     Char counts come from a per-model table so translation (64 chars) isn't

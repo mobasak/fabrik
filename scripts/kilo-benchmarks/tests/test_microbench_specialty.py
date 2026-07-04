@@ -554,8 +554,9 @@ def test_bench_median_keeps_good_samples_when_balance_exhausts_on_last_run(monke
 def test_precedence_guard_catches_fal_bfl_tag(tmpdb, capsys):
     """The fal_bfl tag has no '_direct' suffix; the guard must still catch it
     (regression: earlier guard used LIKE '%_direct%' which missed fal_bfl)."""
-    import microbench_specialty as mb
     from datetime import UTC, datetime
+
+    import microbench_specialty as mb
 
     ensure_perf_seconds_column(tmpdb)
     today = datetime.now(UTC).date().isoformat()
@@ -754,8 +755,9 @@ def test_post_run_verify_flags_misroute_as_bench_qa_fail(tmpdb, capsys):
     so the row's speed_source date suffix MUST match today — hardcoding
     2026-07-04 in the fixture would time-bomb the test on 2026-07-05.
     """
-    import microbench_specialty as mb
     from datetime import UTC, datetime
+
+    import microbench_specialty as mb
 
     ensure_perf_seconds_column(tmpdb)
     today = datetime.now(UTC).date().isoformat()
@@ -772,9 +774,9 @@ def test_post_run_verify_flags_misroute_as_bench_qa_fail(tmpdb, capsys):
 
 
 def test_post_run_verify_clean_when_no_misroute(tmpdb, capsys):
-    import microbench_specialty as mb
-
     from datetime import UTC, datetime
+
+    import microbench_specialty as mb
 
     ensure_perf_seconds_column(tmpdb)
     today = datetime.now(UTC).date().isoformat()

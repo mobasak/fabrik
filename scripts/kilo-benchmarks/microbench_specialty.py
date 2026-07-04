@@ -83,9 +83,7 @@ def _parse_retry_after(err: str | None) -> int | None:
     return max(0, min(60, n))
 
 
-SPECIALTY_SERVICE_TYPES = frozenset(
-    {"image_gen", "tts", "music_gen", "stt", "translation"}
-)
+SPECIALTY_SERVICE_TYPES = frozenset({"image_gen", "tts", "music_gen", "stt", "translation"})
 
 
 def _dispatch(model_id: str, service_type: str, keys: dict) -> tuple:
