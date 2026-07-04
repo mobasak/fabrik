@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — CLAUDE.md: gate `GATE:` line must be FRESH (run this turn), not a cited earlier result (2026-07-04)
+
+Added a "Freshness — evidence before assertions" clause to the FINAL OUTPUT contract: the `GATE:` line (and every "fixed / passing / converged / reviewed" claim) must report a verification run made **in the same turn** — never an earlier run. On shared `master`, if any file changed since your last gate run (yours or a sibling's), re-run before claiming; a stale green is how a turn claims done while the tree is red. A subagent's "success" is a claim, not proof — verify it (its diff + re-run its tests). Closes the `verification-before-completion` freshness gap that let a run cite an out-of-date gate result.
+
 ### Added — Coding-subagent selection table (auto-generated, daily-refreshed) (2026-07-04)
 
 `docs/reference/kilo/CODING_SUBAGENT_SELECTION.md` — ranked table of coding-subagent candidates across the GLM / Kimi / Minimax / DeepSeek families, regenerated nightly by `scripts/kilo-benchmarks/rank_coding_subagents.py` after `derive_cheapest_gateway.py` updates pricing. Composite ranking (30% verified SWE + 15% Aider + 20% AA intelligence + 15% Arena ELO + 10% speed + 10% cost-inverse) plus a Doc↔Code review letter grade (A+/A/B+/B/B-/C+/C) that measures each model's ability to spot drift between documentation and implementation from context size + verified scores + Arena/AA. Ships with an `EXCLUDE_MODELS` blocklist (currently `moonshotai/kimi-k2-thinking` — reasoning-mandatory model that returns 0 output tokens when reasoning is excluded), a `PROVIDER_PINS` map (currently `minimax/minimax-m3` → exclude DeepInfra route, whose fp8 streaming decoder duplicates every word), and per-model `BODY_HINTS` for OR request params. Initial run ranked 38 models against the live DB.

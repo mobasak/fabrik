@@ -117,6 +117,8 @@ LESSONS LEARNT: <none | docs/LESSONS_LEARNT.md entry title>
 
 Missing any line on a task-completing response = failure. Re-run gate until `success`, then output the 4 lines. Pure-conversational / clarifying / read-only turns are exempt — no gate, no entry, no block.
 
+**Freshness — evidence before assertions.** The `GATE:` line must report a run made **in THIS turn**; never cite an earlier run's result. If ANY file changed since your last gate run — yours OR a sibling's on shared `master` — re-run before you claim. "Should pass" / "passed earlier" is not evidence, and a stale green is exactly how a turn claims done while the tree is red. The same rule binds every "fixed / passing / converged / reviewed" claim anywhere in a response: run the proving command in the **same message** you make the claim, read its actual output, then claim. A subagent's "success" is a claim, not proof — verify it yourself (its diff + re-run its tests).
+
 ## Spec contract awareness
 
 Every Fabrik project has `specs/services/<id>.yaml` with a `shape:` block that drives:
