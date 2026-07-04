@@ -407,7 +407,7 @@ The goal is alignment, not artifacts. Work through each section via clarificatio
    |---|---|---|
    | Frontend | Next.js 14 + TypeScript + Tailwind | — always use this |
    | Backend | Python + FastAPI + Uvicorn | Node.js for web-adjacent workers |
-   | Database | PostgreSQL 16 (VPS-managed) | Supabase for managed auth/realtime/pgvector |
+   | Database | PostgreSQL 16 (`postgres-main`, VPS self-hosted) | Self-host by default — auth via `fabrik-lib/fastapi-user-auth`, pgvector via `pgvector/pgvector:pg16` + `fabrik-lib/rag`, realtime via `redis-main` pubsub. Supabase only as a deliberate ADR-recorded exception for a project already on it (legacy — migrate to self-hosted per `AGENTS.md § Supabase`) |
    | Base images | `python:<current-stable>-slim-bookworm` / `node:<current-LTS>-bookworm-slim` | Never Alpine |
    | Platform | `linux/amd64` | Never x86-only |
    | Hosting | SSH + Docker Compose on x86_64 VPS | — |

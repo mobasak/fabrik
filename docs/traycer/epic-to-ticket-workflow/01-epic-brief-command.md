@@ -63,7 +63,7 @@ Consume `trigger_workflow` findings — do not repeat its checks:
 - `Duplicate` non-none? → State extends / wraps / replaces / complements.
 - `Internal APIs`? → Name consumed services (tech-plan does the heavy lifting).
 - Unresolved `conflict` from constraints? → Surface as question. Do not draft past unresolved conflicts.
-- Name ANY backing service the project will use: postgres-main, redis-main, MeiliSearch, Backblaze B2, Supabase, Gotenberg, etc.
+- Name ANY backing service the project will use: postgres-main, redis-main, MeiliSearch, Backblaze B2 (via `fabrik-lib/storage`), Gotenberg, etc. (self-hosted default — Supabase only for a legacy/migration project already on it, per `AGENTS.md § Supabase`).
 - Confirm: can `fabrik apply` deploy this end-to-end? If not, what's the gap?
 
 ### Step 5: Draft the Epic Brief

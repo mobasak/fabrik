@@ -137,7 +137,7 @@ When `02-epic-decomposition-command` encounters a RAG pipeline in the Vision Sum
 
 ## Infrastructure Requirements
 
-- **PostgreSQL** with `pgvector` + `pg_trgm` extensions (postgres-main or Supabase). HNSW index, `m=16, ef_construction=64`.
+- **PostgreSQL** with `pgvector` + `pg_trgm` extensions on **postgres-main** (`pgvector/pgvector:pg16` image); vendor `fabrik-lib/rag` for the pipeline. HNSW index, `m=16, ef_construction=64`.
 - **Spec flag:** `shape.has_search_feature: true` — registrar owns index/extension lifecycle. Never create indexes manually.
 - **Background worker** for chunking, embedding, classification (never inline in API handlers).
 - **OpenRouter** (`OPENROUTER_API_KEY`) — **the only gateway for embeddings** (Kilo CLI has no embedding endpoint). LLM components (classifier / generator / summarizer / re-ranker) may use OpenRouter API (high-volume, app code) OR Kilo CLI (low-volume scripts/tooling). Vendor SDKs (`dashscope`, `google-cloud-aiplatform`, OpenAI direct) are **banned**.

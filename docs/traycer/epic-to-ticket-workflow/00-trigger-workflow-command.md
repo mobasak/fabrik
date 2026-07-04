@@ -39,7 +39,7 @@ Execution phase (execute onward): zero ambiguity. Agents execute tickets without
 - **Error-free execution.** Tickets must be executable by agents WITHOUT errors, questions, or assumptions. Quality is non-negotiable.
 - **Versatility.** One workflow handles 10 fabrik-scaffolded types (`python-api` / `node-api` / `saas-skeleton` / `file-api` / `file-worker` / `static-site` / `docusaurus` / `chrome-extension` / `mobile-app` / `desktop-app` per `mega-epic-breakdown/00-trigger-workflow-command` L83; WordPress is out-of-scope here, routed to standalone `/opt/wpf` via `wpf new <name>` + `wpf wp apply`). The routing table adapts; the principles don't change.
 - **Solo dev + AI workforce.** One human orchestrating multiple AI agents in parallel. Fewer larger tickets. Maximize what ships per session. No over-engineering.
-- **Use what exists.** postgres-main, redis-main, MeiliSearch, Gotenberg, Browserless, Apprise, n8n, Supabase, Backblaze B2 are all live. NEVER build what's already deployed. `/opt/fabrik-lib/` has vendorable modules (abuse prevention, API auth, billing, cookies, emails, file cache, GDPR, i18n, legal, MT routing, pause state, storage, webhooks, and more) — check `fabrik-lib/README.md` for the current table before planning custom implementations.
+- **Use what exists.** postgres-main, redis-main, MeiliSearch, Gotenberg, Browserless, Apprise, n8n, Backblaze B2 are all live self-hosted infra. NEVER build what's already deployed. Supabase is NOT a default — the org self-hosts every Supabase capability (auth → `fabrik-lib/fastapi-user-auth`, pgvector → `pgvector/pgvector:pg16` + `fabrik-lib/rag`, storage → `fabrik-lib/storage`/B2, realtime → `redis-main` pubsub); reach for Supabase only as a deliberate, ADR-recorded exception for a project already on it (`AGENTS.md § Supabase`). `/opt/fabrik-lib/` has vendorable modules (abuse prevention, API auth, billing, cookies, emails, file cache, GDPR, i18n, legal, MT routing, pause state, storage, webhooks, and more) — check `fabrik-lib/README.md` for the current table before planning custom implementations.
 - **The owner's workflow:** Research externally → drop file in project → trigger Traycer → Traycer reads + plans thoroughly → tickets dispatched to agents in parallel → `fabrik apply` → live.
 
 ## **The Fabrik Lifecycle (mental model for ALL planning)**
@@ -155,7 +155,7 @@ State which source(s) read (or `none — interview-only`).
 
 Surface gaps, opportunities (existing VPS services!), conflicts (ports, Alpine, deps), stack recommendations. Present as interview questions.
 
-**4c. External Knowledge Verification** (per AGENTS.md pre-flight #6): For third-party vendors (Supabase, Backblaze, Cloudflare, Paddle, iyzico, RevenueCat, n8n — note: Stripe is NOT available to Turkish entities, do not research Stripe integration):
+**4c. External Knowledge Verification** (per AGENTS.md pre-flight #6): For third-party vendors (Backblaze, Cloudflare, Paddle, iyzico, RevenueCat, n8n — note: Stripe is NOT available to Turkish entities, do not research Stripe integration; Supabase only for a legacy/migration project already on it, never as a new-work default — see `AGENTS.md § Supabase`):
 
 1. Search local docs first.
 2. If absent → fetch vendor docs, cite URL.
@@ -184,7 +184,7 @@ State EVERY constraint as `all clear` / `conflict (<details>)` / `unknown (<ques
 22. **Dark + light mode** — any scaffold with a GUI surface (same feature-trigger as constraint #19 above): both mandatory, OS detection + toggle + persistence. No HTML/native UI surface: N/A.
 23. **Abuse detection** — SaaS with free tier: registration gating required per `saas/87-abuse-detection.md`. No free tier: N/A.
 24. **Email streams** — if product sends email: transactional + marketing on separate streams/subdomains. No email: N/A.
-25. **Vector DB ban** — if search/RAG: pgvector only (postgres-main or Supabase). Pinecone/Qdrant/Weaviate = conflict.
+25. **Vector DB ban** — if search/RAG: pgvector only, self-hosted on postgres-main (`pgvector/pgvector:pg16` + `fabrik-lib/rag`). Pinecone/Qdrant/Weaviate = conflict.
 26. **FINANCIALS.md** — SaaS scaffolds: must be populated before launch per `saas/88-saas-launch-checklist.md`. Non-SaaS: N/A.
 
 ### **Step 6: Project Type Classification & Smart Routing**

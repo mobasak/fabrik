@@ -43,10 +43,10 @@ Every command in mega-epic-breakdown (00, 02-05) must be evaluated against this 
 
 21. Are ALL shared infrastructure decisions made ONCE, not deferred to each epic?
 22. Database: which databases, which schemas are shared vs epic-owned?
-23. Auth: which auth mechanism (Authelia forward-auth, Supabase Auth, custom)?
+23. Auth: which auth mechanism (`fabrik-lib/fastapi-user-auth` Pattern A [default], Authelia forward-auth, custom — Supabase Auth is legacy/migration-only)?
 24. Deploy target: VPS via `fabrik apply` (SSH + Docker Compose) confirmed? (not Vercel/Railway/K8s)
 25. Backing services: which existing VPS services will be used (postgres-main, redis-main, MeiliSearch, etc.)?
-26. External services: which third-party APIs/services (Supabase, Backblaze, Paddle, etc.)?
+26. External services: which third-party APIs/services (Backblaze B2, Paddle, Cloudflare, etc.)?
 27. Domain/routing: which subdomains, which Traefik routing rules?
 28. Scaffold type per epic: which of the 10 mega-epic-breakdown scaffold types applies (`python-api`, `node-api`, `saas-skeleton`, `file-api`, `file-worker`, `static-site`, `docusaurus`, `chrome-extension`, `mobile-app`, `desktop-app` per `00-trigger-workflow-command` L83 — WordPress is out-of-scope, delegated to standalone `/opt/wpf`)?
 29. Shape block per epic: what registrars will each epic's `fabrik apply` activate?

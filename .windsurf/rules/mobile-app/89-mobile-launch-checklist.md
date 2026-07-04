@@ -13,7 +13,7 @@ trigger: glob
 
 Apply when planning or building a mobile app — especially during epic decomposition, epic-brief, and ticket creation. This pack answers "what must a mobile app include for launch?" not "how to code it." Skip for web-only SaaS, internal tools, or services with no mobile distribution.
 
-**Source:** Gemini Deep Research (2026-05-24), validated against `80-mobile.md`, `81-mobile-billing.md`, and production experience. Specific to a React Native / Expo / Supabase / FastAPI stack deployed from a Turkish Teknokent LLC.
+**Source:** Gemini Deep Research (2026-05-24), validated against `80-mobile.md`, `81-mobile-billing.md`, and production experience. Specific to a React Native / Expo client on a self-hosted FastAPI + `postgres-main` backend (Pattern A; see `AGENTS.md § Supabase`), deployed from a Turkish Teknokent LLC.
 
 ## Five Phases
 
@@ -95,14 +95,14 @@ Both stores offer 15% commission (vs 30%) for the first $1M/year. **Neither is a
 ### Privacy Compliance
 
 - [ ] **Apple Privacy Manifest** (`PrivacyInfo.xcprivacy`) — declare every Required Reason API (NSUserDefaults, NSFileTimestamp for Sentry/Expo). Injected via `expo.ios.privacyManifests` in `app.json`.
-- [ ] **Google Play Data Safety form** — accurately declare all SDK data collection (Sentry, Tenjin, RevenueCat, Supabase). Claiming "no data collected" while using MMPs/crash reporters triggers automatic suspension.
+- [ ] **Google Play Data Safety form** — accurately declare all SDK data collection (Sentry, Tenjin, RevenueCat). The self-hosted FastAPI backend is your own first-party server, not a third-party data SDK — list a data SDK only if one is actually integrated. Claiming "no data collected" while using MMPs/crash reporters triggers automatic suspension.
 - [ ] **Privacy Policy URL** — publicly accessible (no geo-blocking), linked in both store listings AND in-app Settings.
 - [ ] **ATT prompt** (iOS) — fires before any IDFA collection or Tenjin initialization. See `80-mobile.md` § Compliance.
 - [ ] **GDPR consent gate** — blocks analytics and non-essential SDKs for EU/EEA/UK users until consent. See `80-mobile.md` § Compliance.
 
 ### Account Deletion & Restore
 
-- [ ] **Account deletion** — in-app mechanism accessible from Settings. Backend: authenticated request → FastAPI endpoint → business logic (cancel RevenueCat, log in GlitchTip) → Supabase Admin API delete → `ON DELETE CASCADE` purges relational data. Never client-side RPC deletion.
+- [ ] **Account deletion** — in-app mechanism accessible from Settings. Backend: authenticated request → FastAPI endpoint → business logic (cancel RevenueCat, log in GlitchTip) → delete the user row on `postgres-main` → `ON DELETE CASCADE` purges relational data. Never client-side deletion.
 - [ ] **"Restore Purchases" button** on paywall — mandatory on both stores. Apple is especially strict. Omission = automatic rejection.
 
 ### Review Traps
@@ -110,7 +110,7 @@ Both stores offer 15% commission (vs 30%) for the first $1M/year. **Neither is a
 - [ ] **IPv6 compatibility** — Apple reviews in an IPv6-only sandbox. FastAPI backend must bind to `::` (not just `0.0.0.0`). VPS DNS must have AAAA records. IPv4-only backends fail silently during review.
 - [ ] **Paywall transparency** — Terms and Privacy links must be directly visible below the subscription button without scrolling.
 - [ ] **Sign in with Apple** — mandatory if any third-party/social login is offered (Apple Guideline 4.8). See `80-mobile.md`.
-- [ ] **Test credentials** — prepare demo account credentials for Apple/Google reviewers to bypass Supabase Auth during review.
+- [ ] **Test credentials** — prepare a demo account (a real login on the FastAPI auth service, `fabrik-lib/fastapi-user-auth`) for Apple/Google reviewers to sign in during review.
 
 ### Deep Link Verification
 
@@ -139,7 +139,7 @@ Organization accounts skip the 14-day closed testing mandate. Progression: Inter
 ### Apple TestFlight Progression
 
 - [ ] **Internal Testing** (up to 100 team members) — no App Review required. Rapid iteration.
-- [ ] **External Testing** (up to 10,000 testers) — requires Beta App Review. Provide test credentials for Supabase Auth bypass.
+- [ ] **External Testing** (up to 10,000 testers) — requires Beta App Review. Provide test credentials (a real FastAPI auth-service login) for reviewer sign-in.
 - [ ] Testers must accept invitation via the TestFlight app — email delivery alone is insufficient.
 
 ### Beta Metrics Gates
@@ -215,7 +215,7 @@ Before authorizing production release, validate:
 | Skip 15% fee enrollment on either store | Explicit enrollment before first submission on each store |
 | Missing W-8BEN-E on either store | File before first payout to avoid 30% US withholding |
 | Invoice net store deposit (Turkish entity) | Invoice gross 100%; expense commission via KDV2 |
-| Client-side account deletion (RPC) | Authenticated FastAPI endpoint → Supabase Admin API |
+| Client-side account deletion | Authenticated FastAPI endpoint → `postgres-main` delete → `ON DELETE CASCADE` |
 | Missing "Restore Purchases" on paywall | Mandatory — omission = store rejection |
 | IPv4-only backend (no AAAA records) | Dual-stack (IPv4 + IPv6), FastAPI binds to `::` |
 | Rating prompt on first launch | Trigger after user milestone / moment of delight |
@@ -230,7 +230,7 @@ Before authorizing production release, validate:
 
 - `80-mobile.md` — client-side architecture, styling, compliance, i18n, ATT, GDPR consent
 - `81-mobile-billing.md` — RevenueCat, entitlements, Turkey GPB-mandatory, Teknokent tax, store fee enrollment
-- `35-security-auth.md` — Pattern B (Supabase Auth), token storage, CORS
+- `35-security-auth.md` — Pattern A (`fabrik-lib/fastapi-user-auth`, default), token storage, CORS; Pattern B (Supabase Auth) legacy-only
 - `55-observability.md` — Sentry, GlitchTip, health endpoints, Gatus
 - `86-email-templates.md` — transactional email pipeline (verify, reset, dunning)
 - `ocoron-mobile-design-system.md` — mobile component patterns
@@ -259,7 +259,7 @@ During epic decomposition or epic-brief, verify these map to features or tickets
 - [ ] Privacy Manifest (iOS) + Data Safety form (Android) completed
 - [ ] Privacy Policy URL accessible and linked in stores + in-app Settings
 - [ ] ATT prompt + GDPR consent gate implemented
-- [ ] Account deletion endpoint (FastAPI → Supabase Admin API → CASCADE)
+- [ ] Account deletion endpoint (FastAPI → `postgres-main` delete → `ON DELETE CASCADE`)
 - [ ] "Restore Purchases" on paywall
 - [ ] IPv6 dual-stack backend (AAAA records + `::` binding)
 - [ ] Deep links verified (AASA + assetlinks.json)

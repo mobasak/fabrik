@@ -147,8 +147,8 @@ Every chrome extension ships these surfaces. Traycer derives additional project-
 
 The extension authenticates with the backend per `35-security-auth.md`:
 
-- **Pattern A (FastAPI sole IdP):** extension calls `/auth/login/extension`, receives JWT in JSON body, stores in `chrome.storage.session`, sends via `Authorization: Bearer` header on every API call.
-- **Pattern B (Supabase Auth):** extension uses `supabase-js` with a custom storage adapter wrapping `chrome.storage.session`. Token refresh handled by the SDK.
+- **Pattern A (FastAPI sole IdP — default):** the extension calls the FastAPI backend (`fabrik-lib/fastapi-user-auth`) at `/auth/login/extension`, receives an app-issued JWT in the JSON body, stores it in `chrome.storage.session`, and sends it via the `Authorization: Bearer` header on every API call. The extension talks to your FastAPI backend, never to a third-party auth SDK.
+- **Pattern B (Supabase Auth) — legacy only, migrate to Pattern A:** older extensions used `supabase-js` with a custom storage adapter wrapping `chrome.storage.session`. New work does NOT use `supabase-js`; the extension calls the FastAPI backend + `fabrik-lib/fastapi-user-auth` (Pattern A) with the JWT in `chrome.storage.session`. See `AGENTS.md § Supabase`.
 - **CORS:** backend must include `chrome-extension://<id>` in `allow_origins`. Use `allow_origin_regex` in dev (ID changes per build); exact ID in production (from CWS or crx key).
 - **Never** store tokens in `localStorage`, `sessionStorage`, or `chrome.storage.local`. `chrome.storage.session` is the only acceptable location.
 

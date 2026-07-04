@@ -36,7 +36,7 @@ Mode is **owner-declared at the start** (Step 0). Do not auto-detect from filesy
 2. **Total cost of ownership** — dev time is the most expensive resource. A $10/month managed service that saves 2 weeks of dev is a win. Don't build for days what you can buy for dollars.
 3. **Speed to ship** — prefer solutions that deploy through the standard pipeline (WSL → push → `fabrik apply` deploys via SSH+Compose and fires 9 registrars; `fabrik redeploy` handles code-only updates — see `docs/operations/fabrik-lifecycle.md`). Custom CI/CD or off-pipeline infra = slower and riskier.
 4. **Easy to maintain** — when two solutions both work, prefer the one needing less ongoing attention. Start with what exists on the VPS; escalate when proven necessary.
-5. **Set and forget** — prefer managed services (Supabase, Paddle, Cloudflare) over self-hosted alternatives that need babysitting.
+5. **Set and forget** — prefer low-maintenance solutions (self-hosted `postgres-main` / `redis-main` on the fleet; managed Paddle, Cloudflare, Resend where a managed edge genuinely wins) over anything that needs babysitting.
 
 **Grounding rules.** Ground in what EXISTS on the VPS (read `AGENTS.md` § Infrastructure Services fresh each run), not theoretical architecture. Decide NOTHING about epic boundaries — that is `02-epic-decomposition-command`. Challenge research against Fabrik reality, but treat it as expert input, not hallucination to dismiss. All paths are Linux (WSL Ubuntu 24.04) — never generate Windows-style paths.
 
@@ -156,7 +156,7 @@ Plus `kind:` (one of: `service`, `worker`, `static` — per `src/fabrik/spec_loa
 | `core/58-resilience.md` | Timeout/retry/circuit-breaker/fallback for external calls |
 | `core/60-watchdog.md` | Sidecar/auto-recovery patterns (e.g. watchdog-test → Claude-Code-driven container self-heal) |
 | `core/65-rag-search.md`, `core/66-rag-chunking.md` | RAG ingestion, embedding, chunking; MeiliSearch vs pgvector decision |
-| `core/67-file-api.md` | File-handling discipline — storage backend (B2/R2/Supabase), presigned URLs, multipart streaming, MIME validation, content-hash dedup, AV scan, image-broker delegation |
+| `core/67-file-api.md` | File-handling discipline — storage backend (`fabrik-lib/storage`: B2/R2), presigned URLs, multipart streaming, MIME validation, content-hash dedup, AV scan, image-broker delegation |
 | `core/75-workers-jobs.md`, `core/76-gpu-workers.md` | Background jobs, GPU workers |
 | `core/85-payments-billing.md` | Paddle / iyzico billing flows (Stripe NOT available to TR entity) |
 | `core/86-email-templates.md` | Email two-stream (transactional vs marketing) |
@@ -230,7 +230,7 @@ Synthesize answers into the same internal structure (vision, personas, features,
 
 **N3a. Extract** from input (research or interview synthesis): product vision (what/for whom/why), all personas (named/implied), all features (numbered inventory), all constraints, all tech choices (made/implied), revenue/value model.
 
-**N3b. Identify gaps** → become Open Questions: missing personas, missing revenue model, missing features (Y component not mentioned — in scope?), missing auth decision (Authelia / Supabase Auth / custom?), etc.
+**N3b. Identify gaps** → become Open Questions: missing personas, missing revenue model, missing features (Y component not mentioned — in scope?), missing auth decision (`fabrik-lib/fastapi-user-auth` Pattern A / Authelia / custom?), etc.
 
 **N3c. Challenge research against Fabrik reality and owner's decision criteria.** External research may violate the owner's 5 decision criteria (Orientation § Owner's decision criteria). Apply these 6 checks:
 
@@ -243,7 +243,7 @@ Synthesize answers into the same internal structure (vision, personas, features,
 
 If research direction is fundamentally wrong for Fabrik (e.g., AWS serverless when everything deploys to VPS via `fabrik apply`), say so directly and recommend an alternative or pause for re-research.
 
-**N3d. Identify opportunities** → become Backing Services: VPS services (postgres-main, redis-main, MeiliSearch, Gotenberg, Browserless, Apprise, n8n, Backblaze B2, Supabase), prebuilt containers, consumable Fabrik microservices.
+**N3d. Identify opportunities** → become Backing Services: VPS services (postgres-main, redis-main, MeiliSearch, Gotenberg, Browserless, Apprise, n8n, Backblaze B2), prebuilt containers, consumable Fabrik microservices.
 
 **N3e. Scale assessment** (by feature complexity, NOT ticket count — ticket counts belong to `05-ticket-outline-command`):
 
@@ -272,14 +272,14 @@ If research direction is fundamentally wrong for Fabrik (e.g., AWS serverless wh
 8. **12-Factor compliance** — any architectural violations?
 9. **Solo dev capacity** — achievable by one person + AI agents?
 10. **Observability** — every service exposes `/metrics` (Prometheus) and `/health` (Gatus)?
-11. **Vector DB ban** — Pinecone/Qdrant/Weaviate/Milvus = reject. pgvector or Supabase only (`65-rag-search.md`).
+11. **Vector DB ban** — Pinecone/Qdrant/Weaviate/Milvus = reject. pgvector on `postgres-main` only (`65-rag-search.md`).
 12. **Email streams** — if product sends email, transactional + marketing on separate streams/subdomains (`86-email-templates.md`).
 13. **Compose invariants** — every Fabrik-deployed service declares `container_name: <name>`, `deploy.resources.limits.memory`, `platform: linux/amd64`, no `ports:`, and joins the **`fabrik`** Docker network (NOT `coolify` — renamed 2026-05-31; `fabrik apply` REJECTS the old name). Enforced fatally by `deployer_ssh._validate_compose()`. See `30-ops.md`.
 14. **Billing routing** — if product takes payment: TR domestic SaaS → **iyzico**; international cross-border → **Paddle Billing v2** (MoR); mobile digital goods → **RevenueCat + IAP**. **Stripe is NOT available to the TR-resident LLC** — never plan around it (`85-payments-billing.md`). PayTR is WooCommerce-only, not SaaS.
 15. **LLM gateway** — if product calls any LLM: **OpenRouter is the only gateway**. Never plan direct vendor SDK usage (`openai`, `@anthropic-ai/sdk`, `dashscope`, `google-cloud-aiplatform`) (`65-rag-search.md` + `12-node.md`). Kilo CLI permitted for low-volume non-embedding tasks.
 16. **i18n en+tr from day 1** — every GUI / user-facing surface ships with `en` + `tr` locale files. Translation validated via `scripts/validate_i18n.py`. Adding a language = locale file only, zero code changes (Architectural Mandate § i18n).
 17. **Target host (per service)** — every Fabrik-deployed service declares `target_vps:` (`vps1` / `vps2` / `vps3`; absent → `vps1`). Hub for shared-infra-coupled; spoke for tenant-isolated / EU-proximate / capacity-spillover (Fleet topology mandate above).
-18. **KVKK / GDPR data residency** — if product stores user PII or file blobs: Supabase region defaults to `eu-central-1` (Frankfurt) for KVKK alignment (`mobile-app/80-mobile.md`); file erasure events use `file_erasure_audit` hash-chained table with 3-year retention (`67-file-api.md`, Article 7(3)); telemetry opt-in only — no foreign-cloud egress without consent (`72-desktop.md`).
+18. **KVKK / GDPR data residency** — if product stores user PII or file blobs: PII lives on self-hosted `postgres-main` and blobs in `fabrik-lib/storage` (Backblaze B2) — for KVKK/EU alignment host the storing service on an EU-proximate spoke (`vps2`/`vps3`, Coventry UK) and/or a B2 EU-region bucket; file erasure events use `file_erasure_audit` hash-chained table with 3-year retention (`67-file-api.md`, Article 7(3)); telemetry opt-in only — no foreign-cloud egress without consent (`72-desktop.md`).
 19. **Watchdog sidecar (when needed)** — if any service calls paid LLM APIs in **any unattended loop, scheduled job, or user-triggered flow that can re-fire without human approval** (i.e., not strictly one call per explicit human click): declare watchdog sidecar opt-in (`60-watchdog.md`) AND a `cost-budget` cap (`cost-budget.md`). Concrete trigger examples: agentic loop with self-retry, cron job that calls an LLM, webhook that re-invokes on retry, user chat with reasoning steps. Concrete non-triggers: one LLM call per human button-press with no auto-retry and no agentic recursion. Without a cap, a runaway-reasoning loop can empty the budget overnight.
 20. **Node ESM / Python version floors** — Node greenfield: `"type": "module"` + `engines.node ">=22.0.0"` (24 LTS preferred). Python: `python:<current-stable>-slim-bookworm` (3.13 today). `12-node.md` + `10-python.md`.
 
@@ -338,11 +338,11 @@ contracts that all epics inherit. 02-epic-decomposition-command reads
 these and does NOT re-decide them. Fill ONLY bullets relevant to this
 vision — omit N/A bullets entirely rather than writing "Billing: N/A"
 across multiple lines.]
-- **Auth:** [Authelia (admin) + Supabase Auth (user-facing) / Authelia only / custom — state which and why]
-- **Database:** [postgres-main / Supabase / both — state which holds what]
+- **Auth:** [`fabrik-lib/fastapi-user-auth` Pattern A (user-facing, DEFAULT — the app issues its own JWTs) + Authelia (admin) / Authelia only / custom — state which and why. Supabase Auth is legacy/migration-only per `AGENTS.md § Supabase`; pick it only for a project already on it.]
+- **Database:** [postgres-main (DEFAULT) / Supabase (legacy — plan migration to postgres-main) — state which holds what]
 - **Search:** [MeiliSearch / pgvector / none — state what's being searched]
 - **Billing:** [Paddle (international MoR) / iyzico (Turkish domestic) / RevenueCat + IAP (mobile digital goods — Paddle does NOT apply in-app) / none — state pricing model. Stripe is NOT available to a TR entity.]
-- **File storage:** [Backblaze B2 / Supabase Storage / none — state what's stored]
+- **File storage:** [`fabrik-lib/storage` (Backblaze B2 backend, DEFAULT) / none — state what's stored. Supabase Storage is legacy/migration-only.]
 - **Notifications (internal/ops):** [Apprise (already deployed) / direct API / none]
 - **Email (transactional):** [Resend (default, 3k/mo free) / escalate to Postmark for critical auth mail — state what triggers emails]
 - **Email (marketing):** [Resend Broadcasts (start) / Listmonk + SES (at scale) / none — MUST be separate stream from transactional. See `core/86-email-templates.md`.]
@@ -443,7 +443,7 @@ Present the snapshot — what EXISTS right now:
 
 ### Locked Technology Decisions (cannot change)
 - **Auth:** [what's implemented — Pattern A / Pattern B / custom]
-- **Database:** [postgres-main / Supabase / both — what tables exist]
+- **Database:** [postgres-main / Supabase (legacy — plan migration to postgres-main) / both — what tables exist]
 - **Frontend:** [Next.js 15 + React 19 + Tailwind (current saas-skeleton default — bumped 2026-06-18) / Jinja + Bootstrap / etc.]
 - **Target host:** [`vps1` (hub) / `vps2` / `vps3` — read from `specs/services/<id>.yaml::target_vps`; missing = `vps1`]
 - **Billing:** [Paddle / iyzico / RevenueCat / none — if wired, it's locked]
@@ -458,7 +458,7 @@ Present the snapshot — what EXISTS right now:
 
 ### Existing Infrastructure
 - [VPS services used: postgres-main, redis-main, etc.]
-- [External services: Supabase, Cloudflare, etc.]
+- [External services: Cloudflare, Backblaze B2, Paddle, Supabase (legacy — only if the project still runs on it), etc.]
 - [Monitoring: Gatus endpoint, GlitchTip project, Prometheus scrape]
 ```
 
@@ -528,7 +528,7 @@ For each rule pack applicable to this scaffold type (per `AGENTS.md` § Project 
 | Structured logging | structlog, no `print()` | grep `print(` in src/ | Compliant / Partial |
 | asyncpg | No psycopg2 | grep imports | Compliant / Deviates |
 | UUIDv7 | `uuid_utils.compat.uuid7` | grep `uuid.uuid4` | Compliant / Deviates |
-| Vector DB | pgvector / Supabase only — no Pinecone/Qdrant/Weaviate/Milvus | Inspect deps | Compliant / Deviates / N/A |
+| Vector DB | pgvector on postgres-main only — no Pinecone/Qdrant/Weaviate/Milvus | Inspect deps | Compliant / Deviates / N/A |
 | Shape contract | Code matches `spec.shape` | Cross-check audit-registrars output | Compliant / Drift |
 | Observability | `/health` for Gatus + `/metrics` for Prometheus | Inspect endpoints | Compliant / Partial |
 | Target host (multi-host) | `spec.target_vps` declared (or absent → `vps1` by default); spoke services use mesh IPs for hub infra | Read spec; grep for hardcoded `vps1.ocoron.com` URLs in spoke services | Compliant / Drift / N/A |

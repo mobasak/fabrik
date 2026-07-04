@@ -65,7 +65,7 @@ Every SaaS project must ship these pages. Traycer ensures each maps to a ticket 
 |---|---|---|
 | **Landing / marketing** | `/` | Value proposition + CTA. Never shown to authenticated users. |
 | **Pricing** | `/pricing` | All tiers side-by-side, feature matrix, annual/monthly toggle. |
-| **Login** | `/login` | Supabase Auth (Pattern B) or FastAPI login (Pattern A). |
+| **Login** | `/login` | FastAPI login (Pattern A, default — `fabrik-lib/fastapi-user-auth`). Legacy Supabase Auth (Pattern B) only if the project already runs on it. |
 | **Signup** | `/signup` | Registration. Redirects to onboarding after email verification. |
 | **Verify email** | `/verify-email` | "Check your email" — shown after signup. Displays sent-to address, resend button, change email link. User cannot enter the app until verified. |
 | **Forgot password** | `/forgot-password` | Email input → triggers reset flow. |
@@ -206,7 +206,7 @@ For SaaS products with tenant isolation (reference `95-multi-tenant-saas.md`):
 ### Tenant-Scoped Navigation
 
 - Nav items that are tenant-scoped show the org context. Items that are user-scoped (profile, personal settings) do not.
-- Admin-only nav items visible only to Admin/Owner roles. See `35-security-auth.md` Pattern B for role definitions.
+- Admin-only nav items visible only to Admin/Owner roles. See `35-security-auth.md` (Pattern A default) for role definitions.
 
 ---
 
@@ -297,8 +297,8 @@ All user-facing text follows the Ocoron Verbal Identity (see design system § Vo
 | `console.log()` in production code | `pino` logger (see `55-observability.md`) |
 | Marketing content shown to logged-in users | Gate on auth state; dashboard for authenticated |
 | WebSocket for dashboards | 30s polling with `fetch` |
-| `localStorage` / `sessionStorage` for auth tokens | HttpOnly cookies or Supabase SDK (see `35-security-auth.md`) |
-| Custom auth components (NextAuth, Clerk) | FastAPI Pattern A or Supabase Auth Pattern B (see `35-security-auth.md`) |
+| `localStorage` / `sessionStorage` for auth tokens | HttpOnly cookies (Pattern A default; legacy Supabase SDK) — see `35-security-auth.md` |
+| Custom auth components (NextAuth, Clerk) | FastAPI Pattern A (default); legacy Supabase Auth Pattern B only if already on it (see `35-security-auth.md`) |
 | Hiding features from higher-tier plans | Soft gate: show locked + upgrade CTA |
 | Infrastructure metrics visible to regular users | Admin-only dashboard section |
 | Reinventing component primitives per page | Shared primitives composed into patterns |

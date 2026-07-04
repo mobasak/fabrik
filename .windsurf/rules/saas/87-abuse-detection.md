@@ -139,7 +139,7 @@ async def on_email_verified(user_id: str, db: AsyncSession):
 ## Database Schema
 
 ```sql
--- Add to users table (Supabase or direct PostgreSQL)
+-- Add to users table (postgres-main; the fastapi-user-auth `auth` schema owns users)
 ALTER TABLE users ADD COLUMN IF NOT EXISTS registration_ip INET;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS registration_fingerprint VARCHAR(64);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS quota_unlocked_at TIMESTAMPTZ;

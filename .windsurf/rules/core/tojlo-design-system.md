@@ -200,7 +200,7 @@ Canonical module list (from Unified Architecture v3):
 | Core | **Tojlo MAIL** | M365 + Gemini email automation |
 | Core | **Tojlo PORTAL** | External read-only portal |
 | Core | **Tojlo VAULT** | Document and data archive |
-| Core | **Tojlo AUTH** | Supabase SSO |
+| Core | **Tojlo AUTH** | Self-hosted SSO (`fabrik-lib/fastapi-user-auth`) |
 | Intelligence | **Tojlo TI** | Trade and market intelligence |
 | Growth | **Tojlo WEB** | Public site / SEO |
 | Growth | **Tojlo MARKETS** | Paid acquisition |
@@ -366,7 +366,7 @@ Ocoron is the **parent / endorser**. Tojlo is the **product brand** sold into th
 
 - **Endorsement.** "Tojlo, by Ocoron" carries in product footer, login screen, first-contact materials, and legal pages — never "Ocoron Tojlo." See *Logo → Lockups* for sizing.
 - **Co-marketing with clients** (white-label, partnerships): equal optical sizing with the partner mark, clear separation, never inside the partner's logo. See lockup L-4.
-- **Third-party integrations** (M365, ERPNext, Wati, Supabase): show the partner's mark alongside Tojlo's at equal visual weight in integration panels and trust pages.
+- **Third-party integrations** (M365, ERPNext, Wati): show the partner's mark alongside Tojlo's at equal visual weight in integration panels and trust pages.
 - **The Tojlo wordmark is never recolored, modified, distorted, or set in a text font.** Full constraints in *Logo → Misuse*.
 
 ---
@@ -508,7 +508,7 @@ Never check in alternate, modified, or "experimental" wordmark assets to product
 | `--color-accent-hover` | `#7676FF` | Accent hover state |
 | `--color-accent-muted` | `rgba(91, 91, 247, 0.12)` | Accent backgrounds (tags, badges, subtle highlights, selected states) |
 
-**Rationale:** Indigo is the shared Ocoron accent (`#5B5BF7`). Tojlo inherits it unchanged. Sits cleanly next to ERPNext blue, Wati green, M365 blue, and Supabase green when modules are embedded.
+**Rationale:** Indigo is the shared Ocoron accent (`#5B5BF7`). Tojlo inherits it unchanged. Sits cleanly next to ERPNext blue, Wati green, and M365 blue when modules are embedded.
 
 ### Secondary Semantic Colors (Inherited from Ocoron, Unchanged)
 
@@ -856,7 +856,7 @@ Tojlo Dashboard entry surface (`tojlo.com` / `bhd.tojlo.com` / `<tenant>.tojlo.c
 Layout: centered single column, 360px max width, vertical center on viewport
 Logo: top, Tojlo wordmark, 64px width minimum
 Tagline below logo: "The B2B Operating System." in Inter 400, 14px, --text-muted
-Auth control: Supabase Auth UI themed with Tojlo tokens
+Auth control: self-hosted auth UI (Tojlo AUTH / `fabrik-lib/fastapi-user-auth`) themed with Tojlo tokens
 Footer: "Tojlo, by Ocoron · v[X.Y]" in Inter 400, 12px, --text-muted
 ```
 
@@ -2099,8 +2099,8 @@ Reference for engineers building Tojlo surfaces:
 | Date / Time | `date-fns` + `date-fns-tz` + `Intl.DateTimeFormat` | UTC storage |
 | Numbers / Currency | `Intl.NumberFormat` | Per *Date, Time, Currency, and Number Formatting* |
 | Phone | `libphonenumber-js` | E.164 storage |
-| Auth | Supabase Auth (Tojlo AUTH) | SSO across all modules |
-| Database | Supabase Postgres | Per Tojlo OPS / VAULT architecture |
+| Auth | Self-hosted SSO — `fabrik-lib/fastapi-user-auth` (Tojlo AUTH) | SSO across all modules; app issues its own JWTs |
+| Database | `postgres-main` (PG16, shared) | Per Tojlo OPS / VAULT architecture |
 | Background jobs | n8n (Tojlo HUB) | For workflow execution |
 | Email | M365 + Microsoft Graph (Tojlo MAIL) | Operator's own M365 |
 | AI models | Gemini Flash (Tojlo MAIL OCR/translation), Claude / GPT class (Tojlo TI) | Model-agnostic surfaces |

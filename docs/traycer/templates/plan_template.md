@@ -48,16 +48,16 @@ Create database migrations matching the Data Model in spec.
 **Acceptance Criteria**:
 - [ ] All entities from spec created as tables
 - [ ] Relationships (foreign keys) implemented
-- [ ] Row-level security policies if using Supabase
+- [ ] Row-level security (RLS) policies on `postgres-main` (multi-tenant isolation; `auth` schema owned by `fabrik-lib/fastapi-user-auth`)
 - [ ] Seed data for initial configuration
 
 ### Task 1.3: Authentication
-Implement signup/login flows.
+Implement signup/login flows. Default auth is Pattern A — the app issues its own JWTs via `fabrik-lib/fastapi-user-auth`; clients call the FastAPI backend, not a third-party auth SDK. (Supabase Auth / Pattern B is legacy/migration-only.)
 
 **Acceptance Criteria**:
 - [ ] User can sign up with email/password
 - [ ] User can log in
-- [ ] Session management works
+- [ ] Session management works (app-issued JWT + refresh-token rotation via `fabrik-lib/fastapi-user-auth`)
 - [ ] Role-based access control foundation
 
 ### Task 1.4: Base Layout & Navigation

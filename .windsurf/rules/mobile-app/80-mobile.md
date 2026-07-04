@@ -15,7 +15,7 @@ Apply when working on React Native / TypeScript mobile projects. Skip for web fr
 
 Worldwide-shipping baseline. Compliance floor is GDPR + EU AI Act; other markets are regional addenda. i18n is built in from day 1, not retrofitted.
 
-**Two-faced scaffold:** the client (React Native app) builds via EAS and ships to stores. The backend (python-api + Supabase) deploys to VPS via `fabrik apply` with full registrar set. This file covers the **client lane**. Backend rules: `10-python.md`, `30-ops.md`, `55-observability.md`. For planning-level decisions (architecture, monetization, distribution, attribution), see `00-domain-mobile-app.md`.
+**Two-faced scaffold:** the client (React Native app) builds via EAS and ships to stores. The backend (FastAPI on `postgres-main`, auth via `fabrik-lib/fastapi-user-auth`) deploys to VPS via `fabrik apply` with full registrar set — the same self-hosted Pattern-A stack as web (see `AGENTS.md § Supabase`; Supabase is retired as a default). This file covers the **client lane**. Backend rules: `10-python.md`, `30-ops.md`, `55-observability.md`. For planning-level decisions (architecture, monetization, distribution, attribution), see `00-domain-mobile-app.md`.
 
 ---
 
@@ -29,7 +29,7 @@ Every mobile app project must ship these screens. Traycer derives additional pro
 |---|---|---|
 | **Splash** | App launch | Brand splash (800ms max per design system § Motion). Checks auth state → routes to onboarding or home. |
 | **Onboarding wizard** | `Onboarding` | 3-5 swipeable value screens. Skippable. Shows before signup for value-before-signup pattern. |
-| **Login** | `Login` | Supabase Auth (email + social). Per Apple Guideline 4.8, if you offer any third-party/social login you must also offer an equivalent privacy-preserving option — Sign in with Apple is the canonical way to satisfy this. |
+| **Login** | `Login` | FastAPI auth service (`fabrik-lib/fastapi-user-auth`) — email + social/OAuth handled server-side; client stores the app-issued JWT in `expo-secure-store`. Per Apple Guideline 4.8, if you offer any third-party/social login you must also offer an equivalent privacy-preserving option — Sign in with Apple (via the FastAPI auth service) is the canonical way to satisfy this. |
 | **Signup** | `Signup` | Registration. Redirects to verify-email screen. |
 | **Verify email** | `VerifyEmail` | "Check your email" — resend button, change email link. Cannot proceed until verified. |
 | **Forgot password** | `ForgotPassword` | Email input → triggers reset flow. |
@@ -100,24 +100,25 @@ Every mobile app project must ship these screens. Traycer derives additional pro
 
 - Use unidirectional data flow: state flows down, events flow up.
 - **Server/API state:** TanStack React Query for caching, deduplication, and optimistic updates.
-  - **Supabase (primary backend):** use `supabase-js` wrapped in React Query hooks. Run `supabase gen types typescript` after every schema change and commit the generated types. Validate at the React Query boundary with Zod when input/output crosses a trust boundary.
-  - **FastAPI (custom backend on VPS):** mirror Zod schemas with Pydantic to keep types aligned across the network boundary. Reserved for AI workflows, scraping, scheduled jobs, and anything that should not run client-side.
+  - **FastAPI backend (primary data layer):** the client talks only to FastAPI endpoints (Pattern A, same client model as web). Wrap each endpoint in a typed React Query hook; mirror the backend Pydantic schemas with Zod and validate at the React Query boundary when input/output crosses a trust boundary. Generate/maintain the client types from the FastAPI OpenAPI schema (e.g. `openapi-typescript`) — never `supabase gen types`, and never a `supabase-js` client.
+  - The client never talks to Postgres or any data store directly — all data goes through FastAPI, which owns `postgres-main` access, AI workflows, scraping, and scheduled jobs.
 - **Global UI state:** Zustand. Avoid Redux boilerplate and standalone `React.Context` for high-frequency updates.
 - **Local persistence:** `react-native-mmkv` for fast, synchronous key-value storage (30× faster than AsyncStorage via JSI memory-mapped files). Reserve `expo-sqlite` + Drizzle ORM for complex offline relational queries only.
-- Never call Supabase or FastAPI directly from a screen component — wrap in a typed React Query hook.
+- Never call the FastAPI backend directly from a screen component — wrap in a typed React Query hook.
 
 ---
 
 ## Backend Integration
 
-- **Supabase is the primary data layer**: auth, app data, RLS, realtime, storage, edge functions.
-- **Self-hosted Supabase on the Fabrik VPS for production**. Supabase Cloud is acceptable only for the first 2 weeks of prototyping while schema is unstable.
-- All tables must have RLS enabled before any client query. No exceptions. Tables without RLS are blocked at code review.
-- Auth: Supabase Auth with `expo-auth-session` for OAuth flows and `expo-secure-store` for token storage. Never store JWTs in AsyncStorage or MMKV.
-- **FastAPI on VPS** is reserved for: AI workflows, scraping, third-party integrations requiring secrets, scheduled jobs, anything that should not run client-side.
-- Auth handoff between Supabase and FastAPI: pass the Supabase JWT in the `Authorization` header, validate server-side per `35-security-auth.md` Pattern B. Confirm the project's JWT signing method first: asymmetric (ES256) projects expose keys at the JWKS endpoint; legacy HS256 projects return an empty JWKS and must validate with the shared secret. Prefer `getClaims()` (auto-selects). Always assert `aud == "authenticated"`, `iss`, and `exp`.
-- Default Supabase region: **`eu-central-1` (Frankfurt)** — satisfies GDPR, KVKK alignment, acceptable latency to USA and worldwide.
-- Multi-region only when justified: deploy a second project (e.g., `us-east-1`) and route by user region at signup once any non-home region exceeds 5K MAU. Do not pre-shard.
+The RN client is a **Pattern-A client** (same model as web): it talks to a **self-hosted FastAPI backend**, never to a data store or an external BaaS. See `AGENTS.md § Supabase` (self-hosted by default) and `35-security-auth.md` § Pattern A. Supabase is retired as a default; treat any Supabase-native path below as **legacy only — migrate to self-hosted**.
+
+- **FastAPI + `postgres-main` is the primary data layer**: app data, tenant-isolation RLS, storage routing, realtime. Auth is `fabrik-lib/fastapi-user-auth`.
+- **Auth (Pattern A):** the FastAPI auth service (`fabrik-lib/fastapi-user-auth`) issues the app's own JWT and owns registration, login, password reset, email verification, and OAuth/social — including **Sign in with Apple** (handled server-side, not by Supabase). The client stores the app-issued JWT in `expo-secure-store` and sends it in the `Authorization` header. Never store JWTs in AsyncStorage or MMKV. Token lifecycle (Argon2, 15-min access, refresh-token rotation, denylist) is exactly per `35-security-auth.md` § Pattern A.
+- **Data:** the client uses typed React Query hooks against FastAPI endpoints. No `supabase-js`, no direct-from-client DB access, no Supabase Edge Functions. Anything needing secrets, AI workflows, scraping, or scheduled jobs runs behind FastAPI.
+- **RLS:** keep tenant-isolation RLS on `postgres-main`. `fabrik-user-auth` owns the `auth` schema; policies use `auth.uid()` reimplemented over the `request.jwt.claims` GUC (per `35-security-auth.md` § Pattern A-compat and `95-multi-tenant-saas.md`). All tables enforce RLS before any query. No exceptions.
+- **Vector / RAG:** pgvector on `postgres-main` + `fabrik-lib/rag`. **Storage:** `fabrik-lib/storage` (Backblaze B2), fronted by FastAPI presigned URLs. **Realtime:** `redis-main` pub/sub with WS/SSE from FastAPI — only if a feature actually needs it; default to React Query polling.
+- **Hosting region:** `postgres-main` runs on the Fabrik VPS (EU) — satisfies GDPR and KVKK alignment with acceptable worldwide latency. Data residency is a VPS-placement decision, not a per-project BaaS region setting.
+- **Legacy (Pattern B / Supabase Auth):** for a project that *already* runs on Supabase Auth and has not yet migrated, pass the Supabase JWT in the `Authorization` header and validate server-side per `35-security-auth.md` § Pattern B (confirm signing method — ES256 JWKS vs legacy HS256 shared secret; prefer `getClaims()`; always assert `aud == "authenticated"`, `iss`, `exp`). Such projects should plan their move to Pattern A / Pattern A-compat. Do not use this path for new work.
 
 ---
 
@@ -240,7 +241,7 @@ Key points for the client-side agent:
 
 - Use `expo-notifications` for cross-platform push. APNs (iOS) and FCM (Android) credentials managed via EAS.
 - Never request push permission on first app launch. Defer until the user has experienced value (post-onboarding, after first meaningful action).
-- Store device tokens in Supabase keyed to `user_id`. Send via Supabase Edge Function or FastAPI using the Expo Push API.
+- Store device tokens in `postgres-main` keyed to `user_id`. Send via a FastAPI endpoint using the Expo Push API.
 - Always include a deep link payload so taps route correctly via React Navigation `linking`.
 
 ---
@@ -252,14 +253,14 @@ The compliance baseline is **GDPR + EU AI Act** because they are the strictest. 
 ### Mandatory in every build, every market
 
 - Privacy policy and Terms of Service URLs configured in `app.json` and reachable from in-app Settings.
-- Data export and account deletion endpoints implemented (Supabase Edge Function or FastAPI route), reachable from in-app Settings. Required by GDPR, CCPA, KVKK, and Apple App Store policy.
+- Data export and account deletion endpoints implemented as authenticated FastAPI routes (→ `postgres-main`, `ON DELETE CASCADE`), reachable from in-app Settings. Required by GDPR, CCPA, KVKK, and Apple App Store policy.
 - **Apple Privacy Manifest** (`PrivacyInfo.xcprivacy`): declare every reason API and tracking domain. Required for App Store submission.
 - **Play Data Safety form**: filled accurately in Play Console. Inaccuracies trigger removal.
 - **Apple App Tracking Transparency (ATT)**: prompt before any IDFA collection or third-party tracking SDK fires. No exceptions, all markets.
 - **GDPR consent gate**: no analytics, advertising, or non-essential third-party SDKs may fire before user consent. Use a CMP or built-in consent screen. Applies to all EU/EEA/UK users — detect via locale and IP.
-- Encrypt PII at rest. Supabase handles this; for FastAPI VPS, use disk encryption + column-level encryption for sensitive fields.
+- Encrypt PII at rest on the FastAPI VPS: use disk encryption + column-level encryption on `postgres-main` for sensitive fields.
 - Never include PII in AI agent prompts or in any `chat text` sent to Gemini/Claude/OpenAI APIs from the app. Enforce via server-side redaction (the durable control). `.aiexclude` only applies to Google/Gemini tooling that honors it — it is not a cross-vendor guarantee.
-- Document the chosen Supabase region(s) in the privacy policy.
+- Document the data-hosting region (Fabrik VPS, EU) in the privacy policy.
 
 ### Automated decision features (AI/ML)
 
@@ -273,7 +274,7 @@ If the app makes any AI-driven recommendation, score, match, classification, or 
 ### Regional layers
 
 - **EU/EEA/UK (GDPR + AI Act)**: full consent gate, DPA addendum required for any third-party processor, cookie/tracking notice on first launch in EU locales.
-- **Turkey (KVKK)**: processing Turkish-user PII in EU infrastructure (e.g. `eu-central-1`) is a cross-border transfer under KVKK and requires a lawful transfer basis — it is not automatically compliant by virtue of being in the EU. <!-- Confirm the transfer basis with counsel. --> Manual override on automated decisions covered by the global rule above.
+- **Turkey (KVKK)**: processing Turkish-user PII on the EU-hosted Fabrik VPS (`postgres-main`) is a cross-border transfer under KVKK and requires a lawful transfer basis — it is not automatically compliant by virtue of being in the EU. <!-- Confirm the transfer basis with counsel. --> Manual override on automated decisions covered by the global rule above.
 - **California, USA (CCPA/CPRA)**: "Do Not Sell or Share My Personal Information" link/toggle in Settings if any data is shared with third parties. Honor Global Privacy Control (GPC) signal.
 - **Brazil (LGPD)**: equivalent to GDPR — covered by the GDPR baseline.
 - **Children**: if app could be used by under-13s (under-16 in some EU states), comply with COPPA and follow Apple/Google child-directed app rules. Default to no third-party tracking SDKs.
@@ -294,8 +295,9 @@ If the app makes any AI-driven recommendation, score, match, classification, or 
 | NativeWind v2/v3 (runtime parsing) | NativeWind v4+ (build-time) or `react-native-unistyles` (preferred for dynamic theming) |
 | Legacy bridge-dependent native modules | New Architecture (Fabric/JSI) compatible modules |
 | Manual edits to `android/` / `ios/` in Expo projects | Expo Config Plugins in `app.json` |
-| Direct Supabase/FastAPI calls from screen components | Typed React Query hooks |
-| Supabase tables without RLS | RLS enabled before any client query |
+| Direct FastAPI calls from screen components | Typed React Query hooks |
+| `supabase-js` / direct-Supabase-from-client / `supabase gen types` | FastAPI endpoints via typed React Query hooks; types from the FastAPI OpenAPI schema |
+| `postgres-main` tables without RLS | RLS enabled before any query |
 | Hardcoded user-facing strings | `i18next` translation files |
 | Hardcoded prices or offering IDs | RevenueCat dashboard remote config |
 | Push permission requested on first launch | Deferred until post-onboarding value moment |
@@ -310,7 +312,7 @@ If the app makes any AI-driven recommendation, score, match, classification, or 
 ## Related Rule Packs
 
 - `20-typescript.md` — TypeScript strict mode, type safety, module patterns
-- `35-security-auth.md` — Pattern B (Supabase Auth), `expo-secure-store`, CORS
+- `35-security-auth.md` — Pattern A (`fabrik-lib/fastapi-user-auth`, default), `expo-secure-store`, CORS; Pattern B (Supabase Auth) legacy-only
 - `45-testing-strategy.md` — Maestro E2E, `@testing-library/react-native` + Jest
 - `55-observability.md` — backend structlog + GlitchTip; client Sentry RN SDK
 - `58-resilience.md` — backend external call resilience (timeout/retry/CB)
@@ -331,9 +333,9 @@ If the app makes any AI-driven recommendation, score, match, classification, or 
 - [ ] TypeScript strict mode enabled — no `any` types.
 - [ ] Navigation is type-safe with explicit route/param types.
 - [ ] Ocoron color tokens applied via `react-native-unistyles` theme — no raw hex values in components.
-- [ ] Supabase types regenerated and committed (`supabase gen types`).
-- [ ] All Supabase tables have RLS enabled.
-- [ ] JWTs stored in `expo-secure-store`, not AsyncStorage or MMKV.
+- [ ] Client types generated from the FastAPI OpenAPI schema and committed — no `supabase-js`, no `supabase gen types`.
+- [ ] All `postgres-main` tables have RLS enabled.
+- [ ] App-issued JWT stored in `expo-secure-store`, not AsyncStorage or MMKV.
 - [ ] EAS profiles defined in `eas.json` (development, preview, production).
 - [ ] At least one MCP server wired and used in the verification loop.
 - [ ] RevenueCat integrated (free ≤ $2.5K MTR, then 1% — see `81-mobile-billing.md`), paywall remote-configurable.
@@ -350,6 +352,6 @@ If the app makes any AI-driven recommendation, score, match, classification, or 
 - [ ] App tested in `en-US`, `tr-TR`, and at least one RTL or non-Latin locale.
 - [ ] Dates, numbers, currency rendered via `Intl` APIs with user locale.
 - [ ] Pricing configured per country in RevenueCat dashboard.
-- [ ] Single Supabase region documented in privacy policy; multi-region only deployed if user base justifies it.
+- [ ] Data-hosting region (Fabrik VPS, EU) documented in privacy policy.
 - [ ] No PII in AI agent prompts or external LLM calls.
 - [ ] Both dark and light mode implemented. OS preference detected + manual toggle in Settings + preference persists in MMKV.

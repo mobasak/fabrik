@@ -1,7 +1,7 @@
 ---
 activation: glob
 globs: ["**/file-api/**", "**/uploads/**", "**/storage/**", "**/presigned/**", "**/multipart/**", "**/clamav/**", "**/file-api*.js", "**/file-api*.ts"]
-description: File-handling discipline (2026) — S3-compatible storage routing (B2/R2/Supabase), undici handler, adaptive retry, presigned URL contracts, busboy + pipeline streams, magic-byte + polyglot validation, blake3 dedup, clamd sidecar, KVKK lifecycle
+description: File-handling discipline (2026) — S3-compatible storage routing (B2/R2 default; Supabase Storage legacy), undici handler, adaptive retry, presigned URL contracts, busboy + pipeline streams, magic-byte + polyglot validation, blake3 dedup, clamd sidecar, KVKK lifecycle
 trigger: glob
 ---
 <!-- CONSUMER: Coding agents (Claude Code, Windsurf Cascade, Kilo CLI)
@@ -22,19 +22,19 @@ trigger: glob
 
 - **Container volumes are ephemeral.** A redeploy destroys local disk; Backrest doesn't index large mutable blobs efficiently. **Therefore all binary persistence is to an external S3-compatible backend** — never local disk in production.
 - **Multi-tenant isolation enforced at the metadata tier.** Every file row carries `tenant_id`; cross-tenant access is banned at the DB level (see `95-multi-tenant-saas.md`).
-- **Auth:** Supabase Bearer JWT for end-user uploads, `X-Internal-Token` for M2M (see `35-security-auth.md` + Node implementation in `12-node.md`).
+- **Auth:** Pattern A FastAPI-issued Bearer JWT for end-user uploads (`fabrik-lib/fastapi-user-auth`, per `AGENTS.md § Supabase`), `X-Internal-Token` for M2M (see `35-security-auth.md` + Node implementation in `12-node.md`). Legacy Supabase Auth (Pattern B) Bearer JWTs validate the same way for a project not yet migrated.
 - **Threats this pack defends against:** SSRF via PDF rendering, ZIP bombs, ImageMagick coder vulns, polyglot files, presigned URL replay, cross-tenant dedup side-channel, OOM via in-memory buffering, supply-chain tampering of file-type detection.
 - **Decoupling principle:** every high-risk binary mutation is **physically isolated** in its own container. Image manipulation → `image-broker` microservice. AV scanning → `clamd` sidecar.
 
 ## Storage Backend Selection
 
-Three valid backends. Pick by need; never run multiple in parallel for the same project.
+Two default backends (B2/R2) plus one legacy option. Pick by need; never run multiple in parallel for the same project.
 
 | Backend | When | SDK Configuration |
 | --- | --- | --- |
-| **Backblaze B2** | Default for new file-api services. Cheap egress, simple billing. | `endpoint: https://s3.<region>.backblazeb2.com`, **`forcePathStyle: true`** (B2 requires path-style — virtual-hosted bucket DNS fails). |
+| **Backblaze B2** | Default for new file-api services. Cheap egress, simple billing. Pairs with `fabrik-lib/storage` (B2 backend, URI-routed) per `AGENTS.md § Supabase`. | `endpoint: https://s3.<region>.backblazeb2.com`, **`forcePathStyle: true`** (B2 requires path-style — virtual-hosted bucket DNS fails). |
 | **Cloudflare R2** | High-egress workloads or projects already on Cloudflare. Zero egress fees. | `endpoint: https://<account>.r2.cloudflarestorage.com`, **`region: 'auto'`** (R2 ignores explicit regions; global routing). 5 MiB min chunk, 10000 max parts. |
-| **Supabase Storage** | ONLY when the project already uses Supabase for auth/DB. Aligns RLS-style policies. | Inject user's JWT into the `sessionToken` field — enforces RLS at the storage layer. Do NOT pass `x-amz-acl` headers (rejected by Supabase Storage API). |
+| **Supabase Storage** (legacy) | **Legacy — migrate to self-hosted.** ONLY a project already on Supabase for auth/DB and not yet migrated. New services use B2/R2 (`fabrik-lib/storage`); do not adopt Supabase Storage for new work. | Inject user's JWT into the `sessionToken` field — enforces RLS at the storage layer. Do NOT pass `x-amz-acl` headers (rejected by Supabase Storage API). |
 
 **Banned:**
 
@@ -302,7 +302,7 @@ CREATE TABLE files (
   tenant_id       UUID NOT NULL,
   uploader_id     UUID NOT NULL,
   storage_key     TEXT NOT NULL UNIQUE,         -- tenant-scoped path in bucket
-  bucket          TEXT NOT NULL,                 -- which backend (b2 / r2 / supabase)
+  bucket          TEXT NOT NULL,                 -- which backend (b2 / r2 default; supabase legacy)
   original_filename TEXT NOT NULL,               -- raw (audited)
   sanitized_filename TEXT NOT NULL,              -- NFC-normalized, sanitized
   mime_type       TEXT NOT NULL,                 -- SERVER-SNIFFED, not client-claimed
@@ -507,7 +507,7 @@ All S3, clamd, image-broker calls follow `58-resilience.md`:
 | Synchronous clamd scan during the upload request | Async worker via state machine (`scanning` → `available` / `quarantined`) | Streaming large files to clamd in-request exhausts API threads |
 | Commercial AV API (VirusTotal etc.) | `clamd` sidecar TCP :3310 INSTREAM | TR data sovereignty — no third-party file transmission |
 | Unix-socket clamd communication | TCP :3310 over `fabrik` network | Shared-volume mounts are incompatible with sidecar orchestration |
-| Local-disk storage in production | B2 / R2 / Supabase Storage | Containers redeploy and lose volumes; Backrest can't index large mutable blobs |
+| Local-disk storage in production | B2 / R2 (Supabase Storage legacy-only) | Containers redeploy and lose volumes; Backrest can't index large mutable blobs |
 | Hard-delete user file without storage-side `DeleteObjectCommand` | Dual-action transaction (PG row + SDK delete) | Storage backends don't track orphans; KVKK compliance violation |
 | Pure soft-delete with no hard-delete sweeper | Sweeper at ≤ 6 month interval per KVKK By-Law Article 11 | KVKK mandate; non-compliance + bloated storage bill |
 | File erasure without audit row | `file_erasure_audit` hash-chained row, retained 3 years | KVKK By-Law Article 7(3); legal-evidence trail |
@@ -521,7 +521,7 @@ All S3, clamd, image-broker calls follow `58-resilience.md`:
 - `12-node.md` — Node runtime, Express/Fastify, `pipeline()`, `crypto.timingSafeEqual()`, npm hygiene
 - `15-api-contracts.md` — request/response shape, idempotency, error format
 - `25-data-postgres.md` — `gen_random_uuid()`, indexing, RLS pattern
-- `35-security-auth.md` — Supabase Bearer JWT, M2M `X-Internal-Token`, secrets policy
+- `35-security-auth.md` — Pattern A FastAPI Bearer JWT (Supabase Pattern B legacy), M2M `X-Internal-Token`, secrets policy
 - `55-observability.md` — `/health` real-dep check (now must include `HeadBucketCommand`), `/metrics`
 - `58-resilience.md` — timeout / retry / opossum circuit breakers
 - `30-ops.md` — `clamd` + `image-broker` sidecar declarations in compose, fabrik network membership
@@ -535,10 +535,10 @@ All S3, clamd, image-broker calls follow `58-resilience.md`:
 ## Done When
 
 - [ ] `S3Client` instantiated via `@smithy/undici-http-handler` with adaptive `ConfiguredRetryStrategy`.
-- [ ] Cloudflare R2 clients set `region: 'auto'`; Backblaze B2 clients set `forcePathStyle: true`; Supabase Storage injects user JWT via `sessionToken`.
+- [ ] Cloudflare R2 clients set `region: 'auto'`; Backblaze B2 clients set `forcePathStyle: true`; (legacy) Supabase Storage injects user JWT via `sessionToken`.
 - [ ] Presigned PUT URLs cap `expiresIn: 900` AND include `ContentType` + `ContentLength` in the signature.
 - [ ] Single-use enforcement via DB state machine: `pending_upload` → `/finalize` → `scanning` → `available`/`quarantined`.
-- [ ] No `x-amz-acl` headers on Supabase Storage requests.
+- [ ] (legacy Supabase Storage only) No `x-amz-acl` headers on requests.
 - [ ] Direct uploads use `busboy` v2 + `pipeline()` from `node:stream/promises` + `@aws-sdk/lib-storage` `Upload` (`partSize: 5MiB`, `queueSize` bounded).
 - [ ] Bucket lifecycle policy aborts incomplete multipart uploads after 24h.
 - [ ] MIME validation via `file-type` v19+ magic-byte sniff on first 4 KB; no `mmmagic` or `libmagic`.

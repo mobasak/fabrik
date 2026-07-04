@@ -31,12 +31,12 @@ Every workflow command (00-11) must be evaluated against this list before it's c
 11d. **Abuse detection** — does it enforce registration gating for SaaS with free tiers per `saas/87-abuse-detection.md`?
 11e. **Email two-stream** — does it enforce separate transactional/marketing streams on separate subdomains per `core/86-email-templates.md`?
 11f. **Observability** — does it enforce `/health` for Gatus and `/metrics` for Prometheus on every service?
-11g. **Vector DB ban** — if search/RAG: does it enforce pgvector only (postgres-main or Supabase)? Pinecone/Qdrant/Weaviate = rejection.
+11g. **Vector DB ban** — if search/RAG: does it enforce pgvector only, self-hosted on postgres-main (`pgvector/pgvector:pg16` + `fabrik-lib/rag`)? Pinecone/Qdrant/Weaviate = rejection.
 11h. **FINANCIALS.md** — does it enforce populated unit economics before launch for SaaS scaffolds per `saas/88-saas-launch-checklist.md`?
 
 ## Infrastructure Awareness
 
-12. Does it check/use existing VPS services BEFORE building new (postgres-main, redis-main, MeiliSearch, Gotenberg, Browserless, Apprise, n8n, Backblaze B2, Supabase)?
+12. Does it check/use existing self-hosted VPS services BEFORE building new (postgres-main, redis-main, MeiliSearch, Gotenberg, Browserless, Apprise, n8n, Backblaze B2)? (Supabase is NOT a default — legacy/migration-only per `AGENTS.md § Supabase`.)
 13. Does it reference the correct backing service addresses (internal Docker names, not localhost)?
 14. Does it check for duplicate projects in `AGENTS.md` microservices table + `docs/BUSINESS_MODEL.md`?
 15. Does it respect the external services decision matrix?
@@ -209,11 +209,11 @@ Every workflow command (00-11) must be evaluated against this list before it's c
 107. Stage 3: Proper Registration — fabrik apply, 9 registrars, auto-observability, network security.
 108. Stage 4: Verification & Testing — health check, drift detection, Telegram alert, auto-rollback (WIP), VPS watchdog (planned).
 
-## External Services (Supabase, Backblaze, etc.)
+## External Services (self-hosted-first — Backblaze B2, etc.; Supabase legacy/migration-only)
 
-109. Supabase available for: managed auth, realtime, pgvector, storage — USE when appropriate.
-110. Backblaze B2 for file storage — never local filesystem in production (Factor VI).
-111. Both PostgreSQL (self-hosted) and Supabase (managed) are valid — project decides based on needs.
+109. Self-hosted defaults enforced (per `AGENTS.md § Supabase`): auth → `fabrik-lib/fastapi-user-auth` (Pattern A, app issues its own JWTs); pgvector → `pgvector/pgvector:pg16` + `fabrik-lib/rag`; object storage → `fabrik-lib/storage`/B2; realtime → `redis-main` pubsub (+ WS/SSE only if needed). Supabase is NOT proposed for new work.
+110. Backblaze B2 for file storage (via `fabrik-lib/storage`) — never local filesystem in production (Factor VI).
+111. PostgreSQL on `postgres-main` is the default; Supabase is a deliberate, ADR-recorded exception only for a project already running on it (legacy — plan its migration to self-hosted).
 112. Technology choice documented in tech-plan with justification.
 
 ## Documentation Templates (scaffolded, must be FILLED)

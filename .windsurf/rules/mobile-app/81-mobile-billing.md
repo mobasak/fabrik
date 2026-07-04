@@ -66,7 +66,7 @@ const info = await Purchases.getCustomerInfo();
 const isPremium = info.entitlements.active['premium'] !== undefined;
 ```
 
-- Sync RevenueCat user IDs to Supabase `auth.users.id` on first launch.
+- Sync RevenueCat user IDs to the app's user ID (`auth.users.id` on `postgres-main`, owned by `fabrik-lib/fastapi-user-auth`) on first launch.
 - **Never trust client-side entitlement state for gating premium content.** Client-side checks are for UX only. Backend is the source of truth.
 - Paywall components must support remote config via RevenueCat dashboard — never hardcode pricing or offering IDs.
 
@@ -287,7 +287,7 @@ Process-level gates — complete before first submission on each store.
 
 - `80-mobile.md` — client-side mobile architecture, styling, compliance, i18n
 - `85-payments-billing.md` — SaaS web billing (Paddle/iyzico) — different model, do not mix
-- `35-security-auth.md` — Pattern B (Supabase Auth), token storage in `expo-secure-store`
+- `35-security-auth.md` — Pattern A (`fabrik-lib/fastapi-user-auth`, default), token storage in `expo-secure-store`; Pattern B (Supabase Auth) legacy-only
 - `55-observability.md` — backend structlog + GlitchTip; client Sentry RN SDK
 - `10-python.md` — backend FastAPI patterns for webhook endpoints
 - `00-domain-mobile-app.md` — planning-level decisions (monetization §5, finance §14)

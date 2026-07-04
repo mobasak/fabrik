@@ -386,7 +386,7 @@ Optimistic-UI + local mutation log + queue-and-replay:
 ```text
 user action → INSERT INTO mutations_pending (action, payload, ts) → UI updates immediately
 network up → background sync worker reads mutations_pending
-           → POST batched mutations to Fabrik backend (X-Internal-Token or Supabase JWT)
+           → POST batched mutations to Fabrik backend (X-Internal-Token or app-issued Bearer JWT from fabrik-lib/fastapi-user-auth)
            → on success: DELETE FROM mutations_pending; APPLY canonical state from response
            → on conflict: invoke conflict resolver (CRDT or last-write-wins per field)
 ```
@@ -543,7 +543,7 @@ Test pyramid:
 - `core/12-node.md` — main process is Node; SIGTERM drain, structured logging via pino, `crypto.timingSafeEqual()` (for M2M token validation if connecting to Fabrik backend)
 - `core/20-typescript.md` — TS-specific patterns (auto-loads on `.ts` files)
 - `core/15-api-contracts.md` — when connecting to Fabrik backend, request/response contracts
-- `core/35-security-auth.md` — Supabase Bearer JWT, M2M `X-Internal-Token` (backend-side)
+- `core/35-security-auth.md` — app-issued Bearer JWT (`fabrik-lib/fastapi-user-auth`, Pattern A default), M2M `X-Internal-Token` (backend-side)
 - `core/55-observability.md` — `@sentry/electron` for both processes; GlitchTip DSN
 - `core/58-resilience.md` — sync queue retry + circuit breaker patterns
 - `core/45-testing-strategy.md` — test pyramid (Playwright at peak; unit base via vitest)

@@ -110,8 +110,8 @@ Every email must be sent in the **recipient's preferred language**. The template
 
 | Project type | Where locale lives | How it's set |
 |---|---|---|
-| SaaS (Supabase) | `users.locale` column in PostgreSQL | Set at signup from `Accept-Language` header; user changes via profile settings |
-| Mobile | `users.locale` synced from device | `expo-localization` device locale, synced to Supabase on first launch |
+| SaaS (Pattern A) | `users.locale` column in `postgres-main` | Set at signup from `Accept-Language` header; user changes via profile settings |
+| Mobile | `users.locale` synced from device | `expo-localization` device locale, synced to the FastAPI backend on first launch |
 | WordPress | WP `get_user_locale()` or ESP subscriber tag | WP user profile or FluentCRM subscriber language field |
 
 ### Repo Structure
@@ -174,13 +174,15 @@ Every project must ship these transactional templates before go-live. Check the 
 
 #### Auth & Account (all project types)
 
-**Pattern B (Supabase Auth) note:** Supabase sends verify-email and password-reset emails by default using its own generic template — wrong brand, wrong fonts, no i18n, no version control. **Disable Supabase's built-in emails** and send all auth emails through your MJML pipeline instead. Configure via Supabase Auth Hooks or custom SMTP pointing to your Resend-authenticated subdomain. This ensures every email the user receives matches your brand, is localized, and is version-controlled in the repo.
+**Pattern A (default) — the app owns auth email natively.** With `fabrik-lib/fastapi-user-auth` (Pattern A, the default per `AGENTS.md § Supabase`), FastAPI issues its own JWTs and triggers verify-email and password-reset emails directly through **this MJML+Jinja2 pipeline** — no third-party auth mailer, no Auth Hooks, no built-in emails to disable. Every auth email is brand-correct, localized, and version-controlled in the repo by construction. Send via Resend on your authenticated subdomain like any other transactional mail.
+
+**Legacy — migrating off Supabase Auth (Pattern B):** a project still on Supabase Auth sends verify-email and password-reset by default using Supabase's generic template — wrong brand, wrong fonts, no i18n, no version control. **Disable Supabase's built-in emails** and route all auth emails through your MJML pipeline instead (via Supabase Auth Hooks or custom SMTP pointing to your Resend-authenticated subdomain) until the project migrates to Pattern A, after which the app owns these emails natively.
 
 | Template | Trigger | SaaS | Mobile | WP | Notes |
 |---|---|---|---|---|---|
-| **Verify email** | Signup / email change | Yes | Yes | Yes | MJML template with verification token link. Expires in 24h. Pattern B: disable Supabase's built-in, send via your pipeline. |
+| **Verify email** | Signup / email change | Yes | Yes | Yes | MJML template with verification token link. Expires in 24h. Pattern A: app sends it natively. Legacy Pattern B: disable Supabase's built-in, send via your pipeline. |
 | **Welcome** | Email verified | Yes | Yes | Yes | Confirms account is active. Links to first action / onboarding. |
-| **Password reset request** | User clicks "forgot password" | Yes | Yes | Yes | MJML template with reset token link. Expires in 1h. Never confirm whether email exists. Pattern B: disable Supabase's built-in, send via your pipeline. |
+| **Password reset request** | User clicks "forgot password" | Yes | Yes | Yes | MJML template with reset token link. Expires in 1h. Never confirm whether email exists. Pattern A: app sends it natively. Legacy Pattern B: disable Supabase's built-in, send via your pipeline. |
 | **Password reset confirmation** | Password successfully changed | Yes | Yes | Yes | Informational — no action needed. Includes "if this wasn't you" warning. |
 | **Email changed** | User updates email in settings | Yes | Yes | — | Sent to OLD email as security alert. |
 | **Account deleted** | User deletes account | Yes | Yes | — | Confirms deletion. Notes data retention period if applicable. |

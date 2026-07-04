@@ -212,7 +212,7 @@ Loading is best-effort: if a scaffold type identified in the Vision Summary has 
 
 Produce the shared infrastructure document (≤5,000 tokens). These decisions are made ONCE here, referenced by each epic — never duplicated.
 
-**Existing mode:** Sections of Infrastructure Decisions that overlap with `Locked Decisions` from the Vision Summary (Auth Strategy, Database Strategy, Frontend, Billing, current shape block) inherit those locked values **verbatim**. Do NOT propose alternative choices for locked areas. State the inheritance explicitly: e.g., *"**Auth Strategy:** Supabase Auth Pattern B (inherited from Locked Decisions — 1,800 active users, tokens issued)."* New decisions are only made for components the existing project did NOT have.
+**Existing mode:** Sections of Infrastructure Decisions that overlap with `Locked Decisions` from the Vision Summary (Auth Strategy, Database Strategy, Frontend, Billing, current shape block) inherit those locked values **verbatim**. Do NOT propose alternative choices for locked areas. State the inheritance explicitly: e.g., *"**Auth Strategy:** Supabase Auth Pattern B (legacy — inherited from Locked Decisions: 1,800 active users, tokens issued; plan migration to `fastapi-user-auth` Pattern A / Pattern A-compat per `AGENTS.md § Supabase`)."* New decisions are only made for components the existing project did NOT have — and new auth defaults to `fabrik-lib/fastapi-user-auth` Pattern A, never Supabase.
 
 ```markdown
 # Infrastructure Decisions — Shared Across All Epics
@@ -222,7 +222,7 @@ Do NOT re-decide in epic-to-ticket-workflow. Do NOT copy into epic files.]
 
 ## Database Strategy
 - [which DB holds what, shared schemas, per-epic schemas]
-- [postgres-main / Supabase / both — carried from Vision Summary]
+- [postgres-main (default) / Supabase (legacy — migration-only) / both — carried from Vision Summary]
 
 ## Auth Strategy
 - [carried from Vision Summary Technology Decisions — not re-derived]

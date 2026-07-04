@@ -23,7 +23,7 @@ When decomposing a chrome extension project into epics:
 
 ### Epic 1: Backend API + Auth (always first)
 - FastAPI backend on VPS — standard python-api scaffold
-- Auth: Supabase Auth (user-facing) or API key (internal tool)
+- Auth: `fabrik-lib/fastapi-user-auth` (Pattern A, user-facing) or API key (internal tool)
 - Shape block, registrars, health/metrics — full lifecycle
 - The extension is useless without its backend
 
@@ -51,7 +51,7 @@ Three legitimate channels; choose by audience:
 
 ## Technology Decisions (chrome-extension specific)
 
-- **Auth:** Supabase Auth with `chrome.identity` API for OAuth flows, or shared API key for internal tools. Tokens **MUST** live in `chrome.storage.session` (never `chrome.storage.local`, `localStorage`, or `sessionStorage`). Backend CORS must include `chrome-extension://<id>`. See `35-security-auth.md`.
+- **Auth:** `fabrik-lib/fastapi-user-auth` (Pattern A — the FastAPI backend issues its own JWTs: Argon2, refresh-token rotation, `jti` denylist) with the `chrome.identity` API for social-provider OAuth flows, or shared API key for internal tools. Tokens **MUST** live in `chrome.storage.session` (never `chrome.storage.local`, `localStorage`, or `sessionStorage`). Backend CORS must include `chrome-extension://<id>`. See `35-security-auth.md` — Pattern A is the default; Supabase Auth is legacy/migration-only (`AGENTS.md § Supabase`).
 - **Storage:** `chrome.storage.sync` for user preferences (synced across devices, small quota), `chrome.storage.local` for app data that must persist locally, backend PostgreSQL for canonical application data.
 - **Billing:** Paddle web checkout opened in a new tab (extension cannot embed payment forms). Chrome Web Store payments API was deprecated by Google (Dec 2020) — do NOT plan around it. RevenueCat does NOT apply.
 - **UI framework:** **Preact** (smallest bundle, popup-only), **Svelte** (medium-complexity spanning popup + options + content-script overlays — pair with Shadow DOM for overlay isolation), **React** only when sharing code with a SaaS app or for complex side-panel flows, **vanilla JS** for the absolute smallest scope. Never full Next.js inside an extension.

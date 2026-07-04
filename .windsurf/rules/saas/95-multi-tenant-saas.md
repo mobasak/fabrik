@@ -58,14 +58,14 @@ Two canonical RLS context contracts. A project uses **one**; both enforce the sa
 
 | | **native** (default) | **compat** (migrating off Supabase Auth) |
 |---|---|---|
-| Auth pattern | Pattern A or B (`35-security-auth.md`) | Pattern A-compat (`35` § Pattern A-compat) |
+| Auth pattern | Pattern A (`35-security-auth.md`) — the default | Pattern A-compat (`35` § Pattern A-compat) |
 | Context GUC | `app.tenant_id` | `request.jwt.claims` (+ `role`) |
 | Set per txn | `SET LOCAL app.tenant_id = '<uuid>'` | `SET LOCAL role = 'authenticated'; SET LOCAL request.jwt.claims = '{"sub":…,"role":…}'` |
 | Helper | `current_tenant_id()` | `auth.uid()` / `auth.jwt()` / `auth.role()` |
 | Policy predicate | `tenant_id = current_tenant_id()` | existing `… = auth.uid()` policies, **unchanged** |
 | Use when | new projects | preserve existing Supabase RLS policies with zero rewrite |
 
-**native** is documented above (`app.tenant_id` + `current_tenant_id()`). **compat** keeps Supabase's PostgreSQL contract so a project migrating off Supabase Auth keeps every `auth.uid()` policy, `auth.users` FK, and `authenticated`/`service_role` grant working unchanged — FastAPI owns the `auth` schema and sets the GUCs itself (token lifecycle stays Pattern A). Canonical reference build: trade-intelligence `000_native_auth.sql` + `053_force_rls_and_admin.sql`.
+**native** (`app.tenant_id` + `current_tenant_id()`, documented above) is the default for all new projects — Pattern A owns the `auth` schema and issues its own JWTs (`fabrik-lib/fastapi-user-auth`, per `AGENTS.md § Supabase`). **compat** is the **migration path**: it keeps Supabase's PostgreSQL contract so a project *migrating off Supabase Auth* keeps every `auth.uid()` policy, `auth.users` FK, and `authenticated`/`service_role` grant working unchanged — FastAPI owns the `auth` schema and sets the GUCs itself (token lifecycle is still Pattern A). Canonical reference build: trade-intelligence `000_native_auth.sql` + `053_force_rls_and_admin.sql`.
 
 ### compat mode — the `auth.*` helpers (fail-closed)
 
@@ -159,14 +159,16 @@ tenant_context: ContextVar[str] = ContextVar("tenant_id", default="")
 
 ---
 
-## Supabase RLS Note
+## Supabase Auth RLS Note (legacy — migrate to self-hosted)
 
-When using Supabase Auth (Pattern B per `35-security-auth.md`), RLS context works differently:
+**Legacy only.** New projects use native mode with Pattern A (`fabrik-lib/fastapi-user-auth`); a project already on Supabase Auth (Pattern B) should migrate to native or compat mode (`AGENTS.md § Supabase`). For a project *still* on Supabase Auth, RLS context works differently:
 
 - Supabase automatically sets `auth.uid()` from the JWT — no manual `SET LOCAL` needed for user-level isolation.
 - For **tenant-level** isolation (org/workspace), you still need `tenant_id` + RLS policies. Set tenant context via a Supabase Edge Function or by embedding `tenant_id` as a custom JWT claim.
 - Supabase's `FORCE ROW LEVEL SECURITY` and `ENABLE ROW LEVEL SECURITY` rules apply identically.
 - The `current_tenant_id()` function pattern above works alongside Supabase's built-in `auth.uid()`. Use `auth.uid()` for user-scoping, `current_tenant_id()` for tenant-scoping.
+
+Once migrated, compat mode owns the `auth.*` helpers natively (§ compat mode above) — no Supabase runtime dependency remains.
 
 ---
 

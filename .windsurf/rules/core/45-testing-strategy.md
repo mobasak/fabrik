@@ -36,7 +36,7 @@ The One-Test Rule does not apply to these high-risk domains — exhaustive permu
 - **Auth / RBAC boundaries** — test both positive access and negative (401/403) for each role.
 - **Financial transactions / payment webhooks** — test edge cases, race conditions, idempotent retries.
 - **Data deletion / cascades** — verify foreign key constraints and orphan prevention.
-- **Multi-tenant isolation (SaaS/mobile with Supabase RLS)** — query as tenant A, verify tenant B's data is invisible. See Tenant Isolation Testing below.
+- **Multi-tenant isolation (SaaS/mobile with `postgres-main` RLS)** — query as tenant A, verify tenant B's data is invisible. See Tenant Isolation Testing below.
 
 ## FastAPI + PostgreSQL (async)
 
@@ -95,7 +95,7 @@ async def test_create_item(client: AsyncClient):
 
 ## Tenant Isolation Testing (SaaS / Mobile with RLS)
 
-For multi-tenant projects using Supabase RLS or postgres-main with `tenant_id`:
+For multi-tenant projects using `postgres-main` RLS with `tenant_id` (RLS is owned by `fabrik-lib/fastapi-user-auth` on the `auth` schema; `auth.uid()` reads `request.jwt.claims`). Legacy Supabase-RLS projects run the same tests unchanged after migrating to `postgres-main` — see `AGENTS.md § Supabase`:
 
 ```python
 @pytest.mark.asyncio

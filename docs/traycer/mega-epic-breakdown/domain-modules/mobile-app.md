@@ -20,7 +20,7 @@
 ## Mobile is not web — the 3 forks (do NOT inherit SaaS defaults here)
 
 1. **Billing is forced IAP** — Apple/Google mandate StoreKit/Play Billing for in-app digital goods (15-30% cut). **Paddle does NOT apply in-app.** Paddle only for physical goods/services consumed *outside* the app.
-2. **The app ships outside Fabrik** — the binary goes through EAS to stores, **not the VPS deploy pipeline**. Only the **backend** (python-api + Supabase) follows the 4-stage VPS lifecycle. State this explicitly in the Vision Summary.
+2. **The app ships outside Fabrik** — the binary goes through EAS to stores, **not the VPS deploy pipeline**. Only the **backend** (python-api + postgres-main) follows the 4-stage VPS lifecycle. State this explicitly in the Vision Summary.
 3. **Platform dependency is existential** — Apple/Google can reject, delay, or remove you. This is the #1 mobile risk, not a footnote.
 
 ## Completeness Test (apply per dimension)
@@ -64,8 +64,8 @@ A dimension belongs at intake **only if** wrong = **irreversible** or **kills be
 Reference `.windsurf/rules/mobile-app/80-mobile.md` for implementation detail. At intake, force:
 
 - **Framework: React Native + Expo + EAS** (decided — do not reopen). One codebase, managed build/submit/OTA, TypeScript synergy with web stack, Ocoron design system mapping via unistyles, MCP verification loop. **Never dual-native. Never Flutter** (evaluated and rejected — RN+Expo is the Fabrik standard; switching would discard the entire 80-mobile ruleset, i18n pipeline, and TS ecosystem).
-- **Backend:** **Supabase** (auth, db, realtime, storage — first-class mobile SDKs) + python-api for custom logic; postgres-main for non-Supabase data.
-- **Auth: Supabase Auth** (decided — do not reopen). Firebase Auth was evaluated and rejected: Supabase Auth serves the same "managed IdP" role but keeps identity + data + RLS + realtime on one platform, avoids dual-UID systems, and the JWKS verification flow is identical. See `core/35-security-auth.md` Pattern B. **Sign in with Apple is mandatory** if you offer any other social login on iOS; tokens in `expo-secure-store`.
+- **Backend:** **python-api (FastAPI)** — owns auth (`fabrik-lib/fastapi-user-auth`), business logic, and all client data access; **postgres-main** (shared VPS PostgreSQL 16, `postgres-main:5432`) for data; **`fabrik-lib/storage`** (Backblaze B2 backend) for object storage; **redis-main** pubsub + WS/SSE for realtime only if the product needs it (currently unused fleet-wide). The app talks to this FastAPI backend over HTTPS — never a hosted-BaaS SDK (`supabase-js` / `supabase-py`) directly.
+- **Auth: `fabrik-lib/fastapi-user-auth` (Pattern A — decided, do not reopen).** The FastAPI backend issues its own JWTs (Argon2, refresh-token rotation, `jti` denylist, tenant-isolation RLS on `postgres-main` with the `auth` schema owned natively — `auth.uid()` over the `request.jwt.claims` GUC). Pattern A is THE default per `core/35-security-auth.md`; Supabase Auth is legacy/migration-only (see `AGENTS.md § Supabase`). Firebase Auth was evaluated and rejected: self-hosting keeps identity + data + RLS on one platform, avoids dual-UID systems. The app calls the backend's auth endpoints — never `supabase-js` / `getClaims()` / a hosted JWKS. **Sign in with Apple is mandatory** if you offer any other social login on iOS; tokens in `expo-secure-store`.
 - **Offline/sync:** online-first + offline-read cache by default; full offline-write+sync only if the use case demands it (large maintenance lift).
 - **Attribution plumbing (build-time mandate):** MMP SDK (Tenjin — 2k conv/mo free, flat $200 after) + Universal Links (iOS AASA) / App Links (Android assetlinks.json) wired as **Expo config plugins at prebuild, tested via EAS dev build — not Expo Go.** Deep-link routing via ChottuLink (25k MAU free). **Firebase Dynamic Links is dead (Aug 2025) — never reference it.** Retrofit = full binary re-review + permanently lost early-cohort attribution.
 
@@ -160,7 +160,7 @@ Reference `.windsurf/rules/mobile-app/80-mobile.md` § Compliance (Worldwide). A
 
 **Force:** Apple privacy nutrition labels, ATT prompt, Play Data Safety form, **in-app account deletion (Apple-mandated)**, KVKK/GDPR.
 
-**Default:** Supabase handles data terms; account-delete flow built in v1; honest data disclosures.
+**Default:** the FastAPI backend owns data terms + the account-delete flow (hard-deletes rows on `postgres-main` and purges `fabrik-lib/storage` blobs); account-delete built in v1; honest data disclosures.
 
 **Why now:** missing account-deletion or false privacy labels = guaranteed rejection.
 
@@ -184,7 +184,7 @@ Reference `.windsurf/rules/mobile-app/80-mobile.md` § Compliance (Worldwide). A
 
 **Force:** what's automated (build, submit, OTA, entitlements, alerting) vs needs you; version-support matrix; review-response load.
 
-**Default:** EAS + RevenueCat + Supabase + Sentry = near-zero recurring ops; set-and-forget bias.
+**Default:** EAS + RevenueCat + self-hosted FastAPI backend (`fastapi-user-auth` + postgres-main) + Sentry = near-zero recurring ops; set-and-forget bias.
 
 **Why now:** two store accounts + version sprawl scales to burnout if not automated from day 1.
 
@@ -202,7 +202,7 @@ Vision Summary may confirm only when **all 17 are resolved or logged as Open Que
 
 - Decisions to `Technology Decisions` + `Value Streams`.
 - Unresolved to `Open Questions` (block confirmation).
-- **Fabrik-fit:** backend = `python-api` + Supabase follows the 4-stage VPS lifecycle. App binary goes through EAS to stores, **outside the VPS deploy pipeline** — state this in the summary. App + backend = multi-epic, route to `02-epic-decomposition-command`.
+- **Fabrik-fit:** backend = `python-api` + postgres-main (auth via `fabrik-lib/fastapi-user-auth`) follows the 4-stage VPS lifecycle. App binary goes through EAS to stores, **outside the VPS deploy pipeline** — state this in the summary. App + backend = multi-epic, route to `02-epic-decomposition-command`.
 
 ### 1B. Epic Decomposition Directives
 
@@ -214,7 +214,7 @@ Every mobile mega-epic MUST have dedicated coverage for:
 
 | Dimension | Epic boundary rule |
 |---|---|
-| §4 Backend + Auth + Data model | Foundation epic (Epic 1) — Supabase schema, RLS, auth (incl. Sign in with Apple), API scaffold. Everything else depends on this. |
+| §4 Backend + Auth + Data model | Foundation epic (Epic 1) — postgres-main schema, RLS, `fabrik-lib/fastapi-user-auth` (incl. Sign in with Apple), API scaffold. Everything else depends on this. |
 | §4 App skeleton + Navigation | Own epic or first part of foundation — framework setup, navigation structure, design system, platform config. |
 | §5 Monetization (RevenueCat + IAP) | Own epic or explicitly assigned. Entitlement gating must exist before paywalled features. |
 | §6 Push + Re-engagement | Belongs in the epic that owns notification triggers, not deferred to "polish." |
@@ -226,7 +226,7 @@ Every mobile mega-epic MUST have dedicated coverage for:
 
 Mobile projects naturally split into two parallel lanes after the foundation epic:
 
-- **Backend lane** (python-api + Supabase) — deploys to VPS via `fabrik apply` (SSH + Docker Compose). Follows Fabrik 4-stage lifecycle.
+- **Backend lane** (python-api + postgres-main) — deploys to VPS via `fabrik apply` (SSH + Docker Compose). Follows Fabrik 4-stage lifecycle.
 - **Client lane** (React Native app) — builds via EAS, submits to stores. Does NOT deploy to the VPS.
 
 These lanes are naturally parallel. Each lane can have multiple agents working simultaneously. The integration point is the API contract — define it in the foundation epic, both lanes implement against it.
@@ -271,7 +271,7 @@ When creating the epic brief for a mobile epic:
 - State which of the 17 dimensions this epic addresses (by number).
 - Carry forward resolved decisions from the Vision Summary — do not re-decide.
 - **State the lane:** is this a backend epic, a client epic, or a cross-cutting epic? This determines the agent's working environment (VPS/Docker vs Expo/EAS).
-- If this epic is the foundation epic (§4), the brief must include: framework choice, Supabase schema, auth provider (incl. Sign in with Apple mandate), API contract shape, navigation structure.
+- If this epic is the foundation epic (§4), the brief must include: framework choice, postgres-main schema, auth provider (`fabrik-lib/fastapi-user-auth`, incl. Sign in with Apple mandate), API contract shape, navigation structure.
 - If this epic touches monetization (§5), the brief must include: IAP product types, RevenueCat offering IDs, entitlement gating matrix, pricing tiers. The coding agent implements a decided design.
 - If this epic touches compliance (§13), the brief must include: which privacy labels, which permissions, account deletion flow.
 
@@ -294,11 +294,11 @@ Each flow must identify the `[PRIMARY PATH]` — the happy path. These become Ma
 
 When creating the tech plan for a mobile epic, enforce:
 
-- **Two-lane architecture:** backend (Supabase + python-api on VPS) and client (React Native + EAS) are separate build/deploy units. API contract is the bridge — define versioned endpoints.
-- **Auth architecture:** Supabase Auth with `expo-auth-session` for OAuth, `expo-secure-store` for tokens. Sign in with Apple mandatory if any social login offered on iOS. Reference `.windsurf/rules/mobile-app/80-mobile.md` § Backend Integration.
+- **Two-lane architecture:** backend (python-api + postgres-main on VPS) and client (React Native + EAS) are separate build/deploy units. API contract is the bridge — define versioned endpoints.
+- **Auth architecture:** `fabrik-lib/fastapi-user-auth` (Pattern A) — the FastAPI backend issues its own JWTs; `expo-auth-session` for social-provider OAuth, `expo-secure-store` for tokens. Sign in with Apple mandatory if any social login offered on iOS. Reference `.windsurf/rules/mobile-app/80-mobile.md` § Backend Integration + `core/35-security-auth.md` Pattern A.
 - **State management:** React Query for server state, Zustand for UI state, MMKV for local persistence. Reference `.windsurf/rules/mobile-app/80-mobile.md` § State Management.
-- **Monetization architecture:** RevenueCat SDK, server-side entitlement verification via RevenueCat webhook to Supabase, paywall remote-configurable. Reference `.windsurf/rules/mobile-app/80-mobile.md` § Monetization.
-- **Push architecture:** `expo-notifications`, APNs/FCM via EAS credentials, device tokens in Supabase, deep link payloads. Reference `.windsurf/rules/mobile-app/80-mobile.md` § Push Notifications.
+- **Monetization architecture:** RevenueCat SDK, server-side entitlement verification via RevenueCat webhook to the FastAPI backend (persisted on postgres-main), paywall remote-configurable. Reference `.windsurf/rules/mobile-app/80-mobile.md` § Monetization.
+- **Push architecture:** `expo-notifications`, APNs/FCM via EAS credentials, device tokens in postgres-main, deep link payloads. Reference `.windsurf/rules/mobile-app/80-mobile.md` § Push Notifications.
 - **Offline architecture:** online-first + MMKV read cache. Full offline-write+sync only if Vision Summary explicitly required it (large maintenance cost).
 - **API versioning:** backend supports N and N-1 API versions simultaneously. Forced upgrade gate in client for breaking changes.
 - **Compliance architecture:** Privacy Manifest, ATT prompt before tracking, GDPR consent gate, account deletion endpoint. Reference `.windsurf/rules/mobile-app/80-mobile.md` § Compliance.
@@ -307,7 +307,7 @@ When creating the tech plan for a mobile epic, enforce:
 
 When creating the ticket outline for a mobile epic, verify coverage:
 
-- If this epic owns auth: tickets for Supabase Auth setup + Sign in with Apple + secure token storage + org model (if B2B).
+- If this epic owns auth: tickets for `fastapi-user-auth` setup (Pattern A) + Sign in with Apple + secure token storage + org model (if B2B).
 - If this epic owns the app skeleton: tickets for Expo config + navigation structure + design system (Ocoron via unistyles) + safe area handling.
 - If this epic owns monetization: tickets for RevenueCat integration + IAP product config + paywall UI + entitlement gating middleware + server-side verification.
 - If this epic owns push: tickets for `expo-notifications` setup + permission priming + token storage + deep link routing.
@@ -328,11 +328,11 @@ For every ticket, check which dimensions apply and inject into Acceptance Criter
 
 | If ticket touches... | Inject |
 |---|---|
-| Supabase schema | RLS on every table before client queries; `supabase gen types` committed; reference `80-mobile.md` § Backend |
-| Auth / signup | Supabase Auth + `expo-secure-store`; Sign in with Apple if social login exists; activation event instrumented |
+| postgres-main schema | RLS on every tenant table before any query; API types generated from the FastAPI OpenAPI schema and committed; clients never query the DB directly (no BaaS SDK); reference `80-mobile.md` § Backend |
+| Auth / signup | `fastapi-user-auth` (Pattern A) + `expo-secure-store`; Sign in with Apple if social login exists; activation event instrumented |
 | Any API endpoint | Versioned endpoint; backward-compat with N-1; correlation IDs; rate limiting |
 | Monetization / paywall | RevenueCat SDK; server-side entitlement check (not client-trusted); paywall remote-configurable; reference `80-mobile.md` § Monetization |
-| Push notifications | Permission priming before OS prompt; deep link payload; token stored in Supabase; reference `80-mobile.md` § Push |
+| Push notifications | Permission priming before OS prompt; deep link payload; token stored in postgres-main; reference `80-mobile.md` § Push |
 | UI screen / component | React Native primitives (no DOM); Ocoron design system via unistyles; 44pt/48dp touch targets; accessibility labels; reference `80-mobile.md` § Styling + Accessibility |
 | List / scrolling | FlatList or FlashList (no ScrollView+map); stable keyExtractor; reference `80-mobile.md` § Lists |
 | Offline / caching | MMKV for read cache; sync indicator in UI; graceful offline UX |
@@ -364,7 +364,7 @@ For backend tickets within a mobile project, also include:
 When Traycer creates the execution plan (the plan the coding agent follows), embed these constraints:
 
 1. **No web DOM elements.** `<View>`, `<Text>`, `<Pressable>`, `<Image>` only. No `<div>`, `<span>`, `<p>`, `<img>`.
-2. **Every table has RLS enabled.** No Supabase table is queryable from the client without RLS. No exceptions.
+2. **Every table has RLS enabled.** No `postgres-main` table is reachable without RLS; clients reach data only through the FastAPI backend, never a direct DB or BaaS SDK. No exceptions.
 3. **Every token in secure storage.** JWTs in `expo-secure-store`, never AsyncStorage or MMKV.
 4. **Every paywalled feature checks entitlements.** RevenueCat server-side verification, not client-trusted state.
 5. **Every permission is just-in-time.** No permission requests at app launch. Prime, then prompt.

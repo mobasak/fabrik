@@ -53,7 +53,7 @@ Read these in order; everything else builds on them:
    - `Dark+Light` — if `mandatory`, confirm theme architecture (OS detection + toggle + persistence). Same feature-trigger as Responsive above.
    - `Abuse Detection` — if `required`, vendor `fabrik-lib/abuse-prevention/` into the project (authority: `saas/87-abuse-detection.md`).
    - `Email` — if `two-stream`, vendor `fabrik-lib/email-templates/` and confirm transactional/marketing separation on separate subdomains (authority: `core/86-email-templates.md`).
-   - `Vector DB` — if `pgvector`, confirm pgvector on postgres-main or Supabase (no external vector DBs).
+   - `Vector DB` — if `pgvector`, confirm pgvector self-hosted on postgres-main (`pgvector/pgvector:pg16` + `fabrik-lib/rag`; no external vector DBs, no Supabase).
    - `FINANCIALS` — if `required`, note that `docs/FINANCIALS.md` must be populated before launch (authority: `saas/88-saas-launch-checklist.md`).
    - `x86_64`, `Deploy`, `Design System`, `Duplicate`, `Platform Debt` — consult; surface only if they materially shape the design.
 3. **Core Flows** (only if scaffold's route included it) — Personas, Flow Index, `[PRIMARY PATH]` markers per flow. The `[PRIMARY PATH]` markers feed the Testability Gate (Step 7).
@@ -70,7 +70,7 @@ If a required upstream artifact is missing, pause and ask the user. Do not guess
 Tech-plan adds scaffold-aware reads:
 
 - **UI scaffolds** (`saas-skeleton`, `static-site`, `chrome-extension`, `mobile-app`, `desktop-app`): `.windsurf/rules/core/ocoron-design-system.md` (confirm `Design System: read` in INFRA-CHECK). For `mobile-app`, also read `.windsurf/rules/mobile-app/ocoron-mobile-design-system.md`.
-- **Database-backed scaffolds**: `.windsurf/rules/core/25-data-postgres.md` — PostgreSQL conventions, migration policy, host selection (postgres-main vs Supabase).
+- **Database-backed scaffolds**: `.windsurf/rules/core/25-data-postgres.md` — PostgreSQL conventions, migration policy; host is `postgres-main` (self-host default per `AGENTS.md § Supabase` — Supabase only as a deliberate ADR-recorded exception for a project already on it).
 - **AI/ML projects**: `.windsurf/rules/ai/00-ai-model-selection.md` (+ matching category pack `10`–`90`) — confirm correct category + tool selection.
 - **All scaffolds**: `docs/operations/fabrik-lifecycle.md` — confirm architecture fits all 4 stages.
 
@@ -185,7 +185,7 @@ Work each section: think → clarify → document. Trace requests end-to-end. In
 - **M2M auth for internal APIs:** Every internal service call uses `X-Internal-Token` + `SERVICE_INTERNAL_SECRET_KEY`. State which services are called and confirm auth mechanism.
 - Clear boundaries and responsibilities.
 - Integration points and data flow.
-- **Resilience per external dependency:** Every call to an external service (Internal APIs, Supabase, Backblaze, payment providers) has: timeout (state ms value), retry with exponential backoff, circuit-breaker for repeated failures, graceful fallback. State per-dependency in a table.
+- **Resilience per external dependency:** Every call to an external service (Internal APIs, Backblaze B2, payment providers, email/SMS vendors) has: timeout (state ms value), retry with exponential backoff, circuit-breaker for repeated failures, graceful fallback. State per-dependency in a table.
 - **Deployment configuration:**
   - `compose.yaml` with `deploy.resources.limits` (memory + cpus).
   - `platform: linux/amd64` in compose.

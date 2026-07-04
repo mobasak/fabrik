@@ -59,8 +59,8 @@ A dimension belongs at intake **only if** getting it wrong is **irreversible** o
 
 Reference `.windsurf/rules/saas/95-multi-tenant-saas.md` for implementation detail. At intake, force:
 
-- **Tenancy:** shared postgres-main + `tenant_id` + Supabase RLS. DB-per-tenant only if contractually required.
-- **Identity/org:** Supabase Auth (users) + org/role/invite model; Authelia for back-office only.
+- **Tenancy:** shared postgres-main + `tenant_id` + Postgres RLS (`fabrik-lib/fastapi-user-auth` owns the `auth` schema natively — `auth.uid()` over the `request.jwt.claims` GUC). DB-per-tenant only if contractually required.
+- **Identity/org:** `fabrik-lib/fastapi-user-auth` (Pattern A — the app issues its own JWTs: Argon2, refresh-token rotation, `jti` denylist, tenant-isolation RLS) for users + org/role/invite model; Authelia for back-office only. Pattern A is THE default per `core/35-security-auth.md`; Supabase Auth is legacy/migration-only (see `AGENTS.md § Supabase`).
 - **Billing+gating:** plan-to-feature gating matrix exists *before* features. **Provider picked by target market** per `.windsurf/rules/core/85-payments-billing.md` § Payment Providers: **Paddle Billing v2 (MoR)** for international, **iyzico** for Turkish domestic, **both** when serving both markets (BIN-based card routing). Stripe is unavailable to a Turkey-resident entity — do NOT plan around it.
 - **Metering:** redis-main counters reconciled to postgres-main for billing-grade truth. Never bill off Redis alone.
 - **Isolation+audit:** RLS/tenant-scope enforced in one place; audit log + soft-delete + per-tenant export.
@@ -159,7 +159,7 @@ Reference `.windsurf/rules/saas/88-saas-launch-checklist.md` § Legal. At intake
 
 #### 15. Risk Register
 
-**Force:** top 5 concentration risks + mitigation — Paddle / Supabase / single-VPS / single-channel / key-person.
+**Force:** top 5 concentration risks + mitigation — Paddle / shared postgres-main / single-VPS / single-channel / key-person.
 
 **Default:** named owner-actions per risk; revisit at each epic.
 
@@ -299,7 +299,7 @@ For every ticket, check which dimensions apply and inject into Acceptance Criter
 | If ticket touches... | Inject |
 | --- | --- |
 | Database schema | `tenant_id` on every tenant-scoped table; RLS policy; reference `95-multi-tenant-saas.md` |
-| Auth / signup / registration | Supabase Auth config; org/role/invite model; activation event instrumentation; **abuse-prevention Phase 1 (LAUNCH-BLOCKING)** — `registration_ip` + `registration_fingerprint` columns, IP rate limit (2/IP/24h), disposable-email blocklist, email verification before quota grant, progressive unlock (30% / 70% @ 24h), FingerprintJS open-source. Reference `87-abuse-detection.md` |
+| Auth / signup / registration | `fastapi-user-auth` (Pattern A) config; org/role/invite model; activation event instrumentation; **abuse-prevention Phase 1 (LAUNCH-BLOCKING)** — `registration_ip` + `registration_fingerprint` columns, IP rate limit (2/IP/24h), disposable-email blocklist, email verification before quota grant, progressive unlock (30% / 70% @ 24h), FingerprintJS open-source. Reference `87-abuse-detection.md` |
 | Any API endpoint | Tenant-scoped queries only (never cross-tenant); correlation IDs; **per-tenant** rate limiting (key by `tenant_id`, NOT user/IP; default limits in `plan_features`) |
 | Billing / subscription | Plan-to-feature gating check; Paddle webhook handler; BIN-based card routing (reference `88-saas-launch-checklist.md`) |
 | Usage metering | Redis counter + postgres-main reconciliation; never bill off Redis alone |

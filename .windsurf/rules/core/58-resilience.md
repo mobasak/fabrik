@@ -131,26 +131,27 @@ async function fetchWithRetry(url: string, options: RequestInit = {}, maxRetries
 }
 ```
 
-### Supabase Client Resilience (SaaS / Mobile)
+### FastAPI Client Resilience (SaaS / Mobile)
 
-The Supabase JS client (`supabase-js`) has built-in retry for realtime connections but NOT for REST API calls (`from('table').select()`). Configure:
+Clients call a **self-hosted FastAPI backend** (Pattern A — `fabrik-lib/fastapi-user-auth`, per `AGENTS.md § Supabase`), never a database-as-a-service SDK directly. Browser `fetch` / mobile HTTP clients have no built-in timeout or retry for these calls — wire them explicitly:
 
 ```typescript
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(url, anonKey, {
-  global: {
-    fetch: (url, options) => fetch(url, { ...options, signal: AbortSignal.timeout(30_000) }),
-  },
-  realtime: {
-    params: { eventsPerSecond: 10 },
-  },
-});
+async function apiFetch(path: string, options: RequestInit = {}): Promise<Response> {
+  const resp = await fetch(`${API_BASE_URL}${path}`, {
+    ...options,
+    signal: AbortSignal.timeout(30_000),  // no request hangs forever
+  });
+  if (!resp.ok && resp.status >= 500) throw new Error(`Server error: ${resp.status}`);
+  return resp;
+}
 ```
 
-- **Wrap Supabase REST calls in try/catch** at the service layer. Handle `PostgrestError` and network errors gracefully.
-- **Supabase outage fallback:** if the Supabase API is down, the app should show cached data (MMKV on mobile, localStorage on web) or a clear error state — never a blank screen or crash.
-- **Supabase Auth token refresh:** the SDK handles this automatically. Do not build custom refresh logic (per `35-security-auth.md` Pattern B).
+- **Explicit timeout on every client→backend call** (`AbortSignal.timeout`) — the default `fetch` has none.
+- **Wrap backend calls in try/catch** at the service layer. Handle non-2xx responses and network errors gracefully; retry transient failures (timeout, connection, 5xx) with backoff, never 4xx.
+- **Backend outage fallback:** if the FastAPI API is down, the app shows cached data (MMKV on mobile, localStorage on web) or a clear error state — never a blank screen or crash.
+- **Auth token refresh:** Pattern A issues its own JWTs with atomic refresh-token rotation; the app's auth client owns the refresh flow (per `35-security-auth.md` Pattern A). Do not scatter ad-hoc refresh logic across service calls — centralize it in the auth client.
+
+> **Legacy note.** A project still on Supabase Auth (Pattern B) wraps `supabase-js` REST calls (`from('table').select()`) in the same try/catch + cached-data-fallback discipline, and lets the SDK own token refresh. Pattern B is legacy — migrate to self-hosted Pattern A (`AGENTS.md § Supabase`).
 
 ### Circuit-Breaker Pattern
 
@@ -356,7 +357,7 @@ Why it matters: a terminal mislabeled as transient just costs a retry; a **trans
 | Two error classifiers in different files | One file. Always. |
 | Adding a billable vendor without a balance check Beat task | Proactive check is mandatory for any dep with a balance |
 | Backup that has never been restored to staging | Run §10 drill within 30 days or it doesn't exist |
-| Custom Supabase token refresh logic | SDK handles refresh automatically (per `35-security-auth.md`) |
+| Scattered ad-hoc token refresh across service calls | Centralize refresh in the Pattern A auth client (legacy Pattern B: SDK handles it) — per `35-security-auth.md` |
 
 ---
 
@@ -396,6 +397,6 @@ Why it matters: a terminal mislabeled as transient just costs a retry; a **trans
 
 ### SaaS / Mobile (additionally)
 
-- [ ] Supabase client configured with explicit timeout.
-- [ ] Supabase REST call errors handled with try/catch at service layer.
-- [ ] Supabase outage fallback shows cached data or clear error state — never blank screen.
+- [ ] Client→FastAPI-backend calls configured with explicit timeout (`AbortSignal.timeout`).
+- [ ] Backend call errors handled with try/catch at the service layer.
+- [ ] Backend outage fallback shows cached data or clear error state — never blank screen.

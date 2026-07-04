@@ -65,7 +65,7 @@ This epic is ALWAYS required (a desktop app that can't ship is not shipping).
 - **Mode:** **standalone** OR **connected** (declare at Epic 1). Cannot defer.
 - **Local storage:** `better-sqlite3` + SQLCipher via `better-sqlite3-multiple-ciphers`. NOT IndexedDB, NOT leveldb.
 - **Credential storage:** `safeStorage` (replaces unmaintained `keytar`). Explicit Linux fallback handling required (Secret Service may be absent).
-- **Auth (connected mode):** Supabase Auth via OAuth-in-system-browser → deep-link callback. Or M2M `X-Internal-Token` for headless integrations.
+- **Auth (connected mode):** `fabrik-lib/fastapi-user-auth` (Pattern A — the FastAPI backend issues its own JWTs: Argon2, refresh-token rotation, `jti` denylist) via login/OAuth-in-system-browser → deep-link callback. Or M2M `X-Internal-Token` for headless integrations. Pattern A is the default per `core/35-security-auth.md`; Supabase Auth is legacy/migration-only (`AGENTS.md § Supabase`).
 - **Backend (connected mode):** standard Fabrik python-api or node-api scaffold; same as any other Fabrik service.
 - **Observability:**
   - Backend gets full stack (Sentry/GlitchTip, /health, /metrics, GlitchTip).
