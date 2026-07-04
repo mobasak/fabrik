@@ -153,6 +153,18 @@ Not held (structurally NULL for now): direct Stability.ai key (only via Fal/Repl
 
 ## Phase A — LLM coverage gap closure — ✅ EXECUTED 2026-07-04
 
+### A.7 (orthogonal fix) Restore wrongly-deprecated direct-vendor rows — ✅ 2026-07-04
+
+Discovered mid-execution: the `models_browser.html` UI shows 792 chat models but only 359 were `status='active'` — 433 rows were flagged `status='deprecated'` by an older bug in `verify_openrouter_catalog.py` (SELECT lacked a `via_openrouter=1` filter, so any row NOT in OR's `/api/v1/models` — Anthropic direct `claude-*`, Soniox, ElevenLabs, DashScope Qwen, etc. — got swept into `delisted[]`). The verifier is patched, and a `restore_wrongly_deprecated_direct_vendors.py` script already exists (built 2026-06-29 per plan `2026-06-29-plan-direct-vendor-pricing.md`). It was never wired into the cron.
+
+Applied here:
+1. Ran `restore_wrongly_deprecated_direct_vendors.py --apply` — **239 rows restored** to `status='active'` (Anthropic claude-* IDs, Soniox, ElevenLabs, and other direct-vendor models).
+2. Wired the same script into `daily_refresh.sh` right after `verify_openrouter_catalog` as a self-healing corrective sweep (idempotent — no-op on subsequent runs unless the verifier misfires again).
+3. Re-ran `derive_cheapest_gateway.py` — **cheapest-provider coverage jumped 359 → 598 = 100%** across active models. 310 rows win with `direct` gateway (Anthropic direct etc.), rest via OR sub-gateways.
+
+Result — active model count 359 → 598. This is orthogonal to the Speed-column work (Phase A.1-A.6 + Phase B) but the plan's specialty bench cohort math must be re-verified after this: the newly-active Anthropic direct rows have `perf_seconds`=NULL AND `output_tokens_per_sec`=NULL, so they enter Phase B's cohort selection — but the cost cap + PRICING table already covers them (they're LLMs, not specialty types). No plan re-convergence needed.
+
+
 **Result**: cohort=35 updated=6 failed=29 cost=$0.6097. Text-LLM coverage 285/334 = **85.3%** (up from 83.5%). Remaining fails are structural (OpenAI o-family rate-limits + audio/deep-research models + provider-side issues) — retry next Sunday won't recover them without provider-side fixes.
 
 

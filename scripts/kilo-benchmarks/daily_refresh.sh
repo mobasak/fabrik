@@ -115,6 +115,15 @@ mkdir -p "$(dirname "$LOG_FILE")"
   _step "verify_openrouter_catalog" "$VENV_PY" "$KB/verify_openrouter_catalog.py" --apply --ingest-new \
     || echo "[daily_refresh] verifier failed (non-fatal)"
 
+  # Corrective sweep: verify_openrouter_catalog historically over-deprecated
+  # direct-vendor rows (Soniox, ElevenLabs, Anthropic-direct claude-* IDs,
+  # etc.) because they don't appear in OR's /api/v1/models. The verifier
+  # itself is patched (via_openrouter=1 filter), but this restore keeps the
+  # DB self-healing against any future verifier-side regression. Idempotent
+  # via exact discard_reason match. Plan 2026-07-03-plan-1-full-speed-coverage-close A.7.
+  _step "restore_wrongly_deprecated_direct_vendors" "$VENV_PY" "$KB/restore_wrongly_deprecated_direct_vendors.py" --apply \
+    || echo "[daily_refresh] restore-direct-vendors failed (non-fatal)"
+
   # Hidden-route discovery (Phase 2 of operator's "extract all models" ask).
   # Ensures the 7 known openrouter/* meta-routes (auto, fusion, owl-alpha,
   # elephant-alpha, pareto-code, bodybuilder, free) stay active+via_or=1
