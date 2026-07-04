@@ -56,10 +56,8 @@ Apply for instant keyword search: product catalogs, documentation, autocomplete,
 
 ## Vector Storage
 
-- **pgvector** on PostgreSQL is the sole vector store. Two valid hosts:
-  - **`postgres-main` on VPS** (shared Fabrik Postgres, on the `fabrik` Docker network) — default for backend services. pgvector + pg_trgm extensions enabled.
-  - **Supabase** — valid when the project already uses Supabase for auth/realtime. Supabase includes pgvector out of the box. Same HNSW indexes, same hybrid search patterns apply.
-- Dedicated vector databases (Pinecone, Qdrant, Weaviate, Milvus) are **banned** — they add network latency, duplicate data synchronization, and complicate backups. pgvector on either host eliminates these problems.
+- **pgvector** on PostgreSQL is the sole vector store, on **`postgres-main`** (shared Fabrik Postgres on the `fabrik` Docker network; `pgvector/pgvector:pg16` — pgvector + pg_trgm enabled) — the default. Pair with `fabrik-lib/rag` for the ingest→search pipeline. (A legacy Supabase project ships pgvector too; the same HNSW indexes + hybrid-search patterns apply until it migrates to `postgres-main`.)
+- Dedicated vector databases (Pinecone, Qdrant, Weaviate, Milvus) are **banned** — they add network latency, duplicate data synchronization, and complicate backups. pgvector on `postgres-main` eliminates these problems.
 - pgvector with HNSW indexes comfortably handles hundreds of thousands to low single-digit millions of vectors in-RAM. This exceeds Fabrik's projected capacity needs.
 - Ensure `pgvector` and `pg_trgm` extensions are enabled in whichever PostgreSQL instance you use.
 
@@ -203,7 +201,7 @@ if token_count > budget:
 
 | Pattern | Use Instead |
 |---------|-------------|
-| Dedicated vector DBs (Pinecone, Qdrant, Weaviate, Milvus) | pgvector on PostgreSQL (`postgres-main` or Supabase) — no network latency, no sync, single backup, $0 cost |
+| Dedicated vector DBs (Pinecone, Qdrant, Weaviate, Milvus) | pgvector on `postgres-main` — no network latency, no sync, single backup, $0 cost |
 | IVFFlat indexes | HNSW with `m=16, ef_construction=64` |
 | Pure vector search for user-facing queries | Hybrid search (pgvector + tsvector + RRF) |
 | Adding raw cosine scores to raw keyword ranking scores | Reciprocal Rank Fusion: `1.0 / (60 + rank)` |

@@ -17,11 +17,12 @@ Apply when working on database models, migrations, schema changes, or query logi
 
 | Need | Use | Connection |
 |---|---|---|
-| Default backend (CRUD, jobs, queues) | **`postgres-main` on VPS** (shared container, SSH+Compose) | `postgresql+asyncpg://...@postgres-main:5432/` |
-| Managed auth + realtime + pgvector + RLS | **Supabase** | Supabase connection string from dashboard |
-| Both (mobile-app pattern: Supabase Auth + VPS FastAPI) | **Supabase for auth/client, postgres-main for backend data** | Two DATABASE_URLs |
+| **Everything** (CRUD, jobs, queues, auth, pgvector, RLS) | **`postgres-main` on VPS** (shared container, SSH+Compose) — **the default** | `postgresql+asyncpg://...@postgres-main:5432/` |
+| Auth / RLS | `postgres-main` + `fabrik-lib/fastapi-user-auth` (Pattern A; owns the `auth` schema natively — see `35-security-auth.md`) | same `postgres-main` DSN |
+| Vector search | `postgres-main` with pgvector (`pgvector/pgvector:pg16`) + `fabrik-lib/rag` | same `postgres-main` DSN |
+| Legacy Supabase project (not yet migrated) | **Supabase** | Supabase connection string from dashboard |
 
-**Decision:** Supabase when you need its managed auth, realtime subscriptions, or client-side RLS. VPS postgres-main for everything else. Both is valid for two-faced scaffolds (mobile-app, chrome-extension) where the client talks to Supabase and the backend talks to postgres-main.
+**Decision:** `postgres-main` for everything — it self-hosts DB, auth (`fastapi-user-auth`), pgvector, and RLS. Supabase is **retired as a default** (see `AGENTS.md § Supabase`); use it only for a legacy project that already runs on it, and plan its migration to `postgres-main` + Pattern A.
 
 ---
 

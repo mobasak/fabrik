@@ -19,9 +19,9 @@ Apply when working on authentication, authorization, CORS, security headers, or 
 
 The auth architecture depends on the project's scaffold type and domain module decisions. Two canonical patterns exist:
 
-### Pattern A — FastAPI as sole IdP (custom auth)
+### Pattern A — FastAPI as sole IdP (self-hosted auth) — **DEFAULT**
 
-Use when the project does NOT use Supabase Auth (e.g., internal tools, file-workers, API-only services without user-facing signup).
+**The default for ALL new projects, including user-facing SaaS + mobile.** Vendor `fabrik-lib/fastapi-user-auth`: the app issues its own JWTs — Argon2 + timing-equalized login, atomic refresh-token rotation (`DELETE … RETURNING`), JWT `jti` denylist revocation, and dual-mode tenant-isolation RLS. Supabase is retired as a default (see `AGENTS.md § Supabase`); reach for Pattern B only for a project that *already* runs on Supabase Auth.
 
 - FastAPI owns credential hashing (Argon2), user state, token issuance, and validation.
 - Do not use NextAuth.js, Clerk, Auth0, or Firebase Auth.
@@ -45,16 +45,16 @@ Tenant isolation, the dual-mode RLS contract, the `auth.*` helper definitions, `
 
 > **Fail-closed invariant (hard, every mode).** `auth.uid()` and `current_tenant_id()` MUST return `NULL` (→ the policy denies) on unset, empty, or malformed claims — wrap the body in `EXCEPTION WHEN OTHERS THEN RETURN NULL`. **Never** raise and never default to a value: an error-open helper turns one bad/empty JWT into a full cross-tenant read. This is the single most security-critical line in the build — verify it explicitly with a no-context probe (`SELECT auth.uid()` → `NULL`).
 
-### Pattern B — Supabase Auth + FastAPI backend (SaaS / Mobile)
+### Pattern B — Supabase Auth + FastAPI backend (legacy / migration-only)
 
-Use when the domain module (SaaS or mobile) mandates Supabase Auth. This is the default for user-facing products.
+Use ONLY when a project **already runs on Supabase Auth** (a legacy or in-flight project). **Not for new work** — new user-facing products use Pattern A (`fabrik-lib/fastapi-user-auth`). A project still on Pattern B should plan its move to Pattern A / Pattern A-compat (see `AGENTS.md § Supabase`). The Supabase-JWT-validation guidance below remains authoritative for such projects.
 
 - **Supabase Auth** handles user registration, login, password hashing, OAuth providers (including Sign in with Apple — mandatory on iOS if any social login is offered), email verification, and password reset.
 - **FastAPI** handles custom business logic, M2M auth, and any endpoints that need data beyond what Supabase exposes. FastAPI validates Supabase JWTs per the Supabase JWT validation section below — it does not issue its own user tokens.
 - **Authelia** protects admin/back-office dashboards via Traefik forward-auth. Not for end-user auth.
 - For multi-tenant SaaS: Supabase RLS enforces tenant isolation at the database level. See `95-multi-tenant-saas.md` for full patterns.
 
-**Which pattern?** Check the project's domain module or `specs/services/<id>.yaml`. If `shape` references Supabase or the scaffold is `saas-skeleton` / `mobile-app`, use Pattern B. Otherwise Pattern A.
+**Which pattern?** **Pattern A by default** — every new project, including `saas-skeleton` / `mobile-app`. Use Pattern B only if the project *already* runs on Supabase Auth (its `spec.shape` / domain module says so and it hasn't migrated yet), and plan its move to Pattern A / Pattern A-compat.
 
 ---
 
