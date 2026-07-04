@@ -1,5 +1,5 @@
 {
-  "plan": "docs/development/plans/2026-07-04-plan-1-saas-fastapi-user-auth-flip.md",
+  "plan": "docs/development/plans/archived/2026-07-04-plan-1-saas-fastapi-user-auth-flip.md",
   "owned_paths": [
     "src/fabrik/spec_loader.py",
     "src/fabrik/scaffold.py",
@@ -9,7 +9,7 @@
     "docs/FEATURES.md",
     "docs/CONFIGURATION.md",
     ".env.example",
-    "docs/development/plans/2026-07-04-plan-1-saas-fastapi-user-auth-flip.md"
+    "docs/development/plans/archived/2026-07-04-plan-1-saas-fastapi-user-auth-flip.md"
   ],
   "branch": "master",
   "started_at": "2026-07-04T00:00:00Z",
