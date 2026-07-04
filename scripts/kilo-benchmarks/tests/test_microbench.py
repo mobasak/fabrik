@@ -380,7 +380,7 @@ def test_cohort_excludes_ultra_expensive_models_above_200(tmp_path):
         [
             ("cheap/mdl", 0.5, 2.0),
             ("frontier/mdl", 150.0, 300.0),  # o1-pro tier — now IN cohort
-            ("image_gen/mdl", 3000.0, 0),    # nominal $/M for image gen — still excluded
+            ("image_gen/mdl", 3000.0, 0),  # nominal $/M for image gen — still excluded
         ],
     )
     conn.commit()

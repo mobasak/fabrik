@@ -128,7 +128,8 @@ def _parse_stream(resp: requests.Response) -> dict:
                     details = delta.get("reasoning_details") or []
                     content = "".join(
                         (d.get("summary") or d.get("text") or "")
-                        for d in details if isinstance(d, dict)
+                        for d in details
+                        if isinstance(d, dict)
                     )
                 if content:
                     now = time.monotonic()
