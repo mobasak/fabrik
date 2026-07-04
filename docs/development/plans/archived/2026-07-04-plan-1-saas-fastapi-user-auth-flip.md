@@ -1,6 +1,6 @@
 # Flip saas-skeleton (and mobile-app) from Supabase Auth (Pattern B) to self-hosted fastapi-user-auth (Pattern A)
 
-Status: EXECUTED 2026-07-04 — Phases A–E done (4b7b09db, 4a5e9b5b, 73b0e1b5, + Phase E). All plan-scoped checks pass (ruff, mypy no-new-errors, generated-backend smoke, doc_sync, One-Test Rule). The whole-tree `final_gate.py --check` shows ONE remaining failure — Project Structure flags `scripts/kilo-benchmarks/cache/*.md` (the kilo-benchmarks sibling agent's untracked files), which is OUT of this plan's File Scope and must not be touched (shared-master discipline). Nothing of this plan's surface fails.
+Status: EXECUTED + REVIEWED + ARCHIVED 2026-07-04 — Phases A–E done (4b7b09db, 4a5e9b5b, 73b0e1b5, d44d12bb). `/fabrik-review` ran (3 parallel Opus finders + convergence round); 10 findings dispositioned (fixed / documented / upstreamed) — see `docs/development/reviews/2026-07-04-plan-1-saas-fastapi-user-auth-flip-review.md`. Headline fix: F1-1 (HIGH) — jti denylist was never checked on business routes (revocation no-op); now enforced in TenantMiddleware. All plan-scoped checks pass; the sole whole-tree `final_gate` failure is out-of-scope `scripts/kilo-benchmarks/cache/*.md` (sibling agent, untouched per shared-master).
 Owner: primary (AI)
 Created: 2026-07-04
 Converged: 2026-07-04 (grounding fixed point — every path:line re-read; final verification pass made zero edits)

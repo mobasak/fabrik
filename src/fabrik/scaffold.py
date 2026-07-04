@@ -1755,6 +1755,11 @@ _SAAS_SCHEMA_SQL = """-- schema.sql — multi-tenant schema for __NAME__ (Postgr
 CREATE EXTENSION IF NOT EXISTS citext;
 
 -- Tenants — the isolation boundary -------------------------------------------
+-- NOTE (Pattern-A onboarding): /auth signup creates a ``users`` row ONLY — it does
+-- NOT create a tenant or membership (the module has no tenant endpoint; onboarding is
+-- app work per saas/95). Until you wire tenant + membership creation, a new user's
+-- login WITH a tenant 403s (no membership) and tenant-scoped queries return nothing
+-- (empty tenant context => current_tenant_id() NULL => RLS denies). Wire it here.
 CREATE TABLE IF NOT EXISTS tenants (
     id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     slug        TEXT UNIQUE NOT NULL,
@@ -1807,12 +1812,15 @@ CREATE TABLE IF NOT EXISTS password_reset_tokens (
 
 -- Fail-closed tenant resolver: NULL when app.tenant_id is unset/blank --------
 -- NULLIF(...,'')::UUID => NULL => every tenant_isolation policy DENIES.
+-- LANGUAGE sql (inlinable → the planner folds it into the RLS predicate; fastest). The
+-- GUC is only ever set from a signed-JWT ``tid`` (a valid UUID) or '' (empty), so the
+-- ``::UUID`` cast never sees malformed input in practice; empty/unset => NULL => deny.
 CREATE OR REPLACE FUNCTION current_tenant_id() RETURNS UUID AS $$
     SELECT NULLIF(current_setting('app.tenant_id', TRUE), '')::UUID;
 $$ LANGUAGE sql STABLE;
 
--- Native-mode companion (fastapi_user_auth rls/native.sql): the current user id
--- from app.user_id, for user-scoped policies. Fail-closed like current_tenant_id().
+-- Native-mode companion (fastapi_user_auth rls/native.sql): the current user id from
+-- app.user_id, for user-scoped policies you add. Fail-closed like current_tenant_id().
 CREATE OR REPLACE FUNCTION current_user_id() RETURNS UUID AS $$
     SELECT NULLIF(current_setting('app.user_id', TRUE), '')::UUID;
 $$ LANGUAGE sql STABLE;
@@ -1887,7 +1895,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
-from __PKG__.auth import decode_token
+from __PKG__.auth import decode_token, token_revoked
 
 # Empty default => current_setting('app.tenant_id') is '' => current_tenant_id()
 # returns NULL => RLS denies. The context is fail-closed by construction.
@@ -1966,6 +1974,10 @@ class TenantMiddleware(BaseHTTPMiddleware):
                 claims = decode_token(auth_header[7:].strip())
             except Exception:  # noqa: BLE001 — any decode failure is a 401
                 return _problem(401, "Unauthorized", "Invalid or expired token", request)
+            # Revocation must bite on EVERY protected route, not just /auth (the module's
+            # current_user only guards /auth/logout). A logged-out / denylisted jti is 401.
+            if await token_revoked(claims.get("jti", "")):
+                return _problem(401, "Unauthorized", "Token has been revoked", request)
         request.state.jwt_claims = claims
 
         user_id = claims.get("sub", "") if claims else ""
@@ -2024,6 +2036,7 @@ middleware and a CORS allow-list (never ``*`` with credentials), plus a
 """
 from __future__ import annotations
 
+import logging
 import os
 from functools import lru_cache
 from typing import Any
@@ -2054,13 +2067,27 @@ def get_settings() -> Settings:
     )
 
 
-def _denylist(settings: Settings) -> Any:
-    """Redis-backed jti denylist for instant revocation (35 §Token Revocation);
-    NullDenylist when REDIS_URL is unset (revocation degrades to token expiry)."""
+@lru_cache
+def _engine() -> Any:
+    """One shared AsyncEngine for the whole app (disposed on shutdown via aclose())."""
+    return make_engine(get_settings())
+
+
+@lru_cache
+def _denylist() -> Any:
+    """Shared jti denylist for instant revocation (35 §Token Revocation). Redis-backed
+    when REDIS_URL is set; otherwise NullDenylist — which SILENTLY disables revocation,
+    so we log a loud warning (a missing REDIS_URL is a security downgrade, not a default)."""
+    settings = get_settings()
     if settings.redis_url:
         import redis.asyncio as aioredis
 
         return RedisDenylist(aioredis.from_url(settings.redis_url))
+    logging.getLogger("__NAME__.auth").warning(
+        "REDIS_URL is unset — jti token revocation is DISABLED (NullDenylist). Logout / "
+        "revoked access tokens stay valid until they expire. Set REDIS_URL (redis-main) "
+        "to enable instant revocation."
+    )
     return NullDenylist()
 
 
@@ -2091,15 +2118,13 @@ class _LogAuditLogger:
 
 def build_saas_auth_router() -> APIRouter:
     """The vendored Pattern-A /auth router (login/signup/refresh/logout/reset),
-    mounted by main.py. Owns its own DB sessions via the module sessionmaker."""
-    settings = get_settings()
-    sessionmaker = make_sessionmaker(make_engine(settings))
+    mounted by main.py. Shares the app engine + denylist singletons."""
     return build_auth_router(
-        settings=settings,
-        sessionmaker=sessionmaker,
+        settings=get_settings(),
+        sessionmaker=make_sessionmaker(_engine()),
         email=_LogEmailSender(),
         audit=_LogAuditLogger(),
-        denylist=_denylist(settings),
+        denylist=_denylist(),
     )
 
 
@@ -2107,6 +2132,44 @@ def decode_token(token: str) -> dict[str, Any]:
     """Validate one of OUR access tokens (HS256 / JWT_SECRET) and return its claims
     (sub / tid / role / jti / exp). Raises on any failure. Used by TenantMiddleware."""
     return decode_access_token(token, secret=get_settings().jwt_secret)
+
+
+async def token_revoked(jti: str) -> bool:
+    """True if this access token's jti has been revoked (logout / denylist). Consulted by
+    TenantMiddleware on EVERY protected request so revocation takes effect app-wide — NOT
+    just on /auth routes (the module's own current_user only guards /auth/logout). Empty
+    jti => not revoked.
+
+    Fails OPEN if the denylist backend (Redis) is unreachable: logs a warning and returns
+    False. Rationale — the token is still cryptographically valid and short-lived
+    (access_ttl), so a Redis blip degrades early-revocation to normal token expiry rather
+    than 500-ing every protected request (an availability foot-gun). Auth itself (signature
+    + exp) is unaffected."""
+    if not jti:
+        return False
+    try:
+        return bool(await _denylist().contains(jti))
+    except Exception:  # noqa: BLE001 — denylist backend down: degrade to token expiry
+        logging.getLogger("__NAME__.auth").warning(
+            "denylist check failed (Redis unreachable?) — revocation degraded to token "
+            "expiry for this request",
+            exc_info=True,
+        )
+        return False
+
+
+async def aclose() -> None:
+    """Dispose the shared engine + Redis client on shutdown (called from main.py lifespan)
+    so the SQLAlchemy pool and the aioredis connection close cleanly."""
+    await _engine().dispose()
+    client = getattr(_denylist(), "_client", None)
+    if client is not None:
+        closer = getattr(client, "aclose", None) or getattr(client, "close", None)
+        if closer is not None:
+            try:
+                await closer()
+            except Exception:  # noqa: BLE001 — best-effort shutdown
+                pass
 
 
 async def require_user(request: Request) -> dict[str, Any]:
@@ -2451,7 +2514,7 @@ Wires the layers the saas-skeleton mandates:
   * RFC 9457 ``application/problem+json`` errors (15 §Error Schema)
   * ``/api/v1`` versioned business routes; unversioned ``/api/health`` + ``/metrics``
   * camelCase JSON via a ``to_camel`` base model (15 §Casing)
-  * Supabase JWT auth (Pattern B) + security headers + CORS allow-list (35)
+  * Self-hosted Pattern-A auth (this app is the IdP; /auth router) + security headers + CORS allow-list (35)
   * Tenant context middleware feeding PostgreSQL RLS (95)
 """
 from __future__ import annotations
@@ -2470,6 +2533,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from __PKG__.auth import (
     SecurityHeadersMiddleware,
+    aclose,
     build_saas_auth_router,
     cors_origins,
     require_user,
@@ -2513,6 +2577,8 @@ async def lifespan(app: FastAPI) -> Any:  # noqa: ARG001
     logger.info("service_starting", port=os.getenv("PORT", "8000"))
     yield
     logger.info("service_stopping")
+    # Close the shared auth engine + Redis client (build_saas_auth_router creates them).
+    await aclose()
 
 
 app = FastAPI(title="__NAME__", lifespan=lifespan)
@@ -2855,13 +2921,18 @@ def _vendor_fastapi_user_auth(dest_src: Path) -> None:
     ``from fastapi_user_auth.…`` imports work with no rewriting. ``reference_adapter.py``
     is excluded — it composes other fabrik-lib modules (email-transport / app-audit-log)
     that are not vendored here; the scaffold supplies its own EmailSender/AuditLogger.
-    No-op (with a warning) when fabrik-lib is absent (e.g. a CI checkout without the
-    sibling repo) — the generated project then vendors it at first ``fabrik apply``.
+
+    A Pattern-A saas backend cannot boot without this module (``auth.py``/``main.py``
+    import it), so its absence is FATAL: fail the scaffold loudly rather than emit a
+    project that ``ModuleNotFound``-crashes at boot with no recovery path.
     """
     module_src = FABRIK_LIB_DIR / "fastapi-user-auth" / "fastapi_user_auth"
     if not module_src.is_dir():
-        print(f"⚠️  fabrik-lib/fastapi-user-auth not found at {module_src} — skipped vendor")
-        return
+        raise FileNotFoundError(
+            f"Cannot scaffold a Pattern-A saas backend: fabrik-lib/fastapi-user-auth was "
+            f"not found at {module_src}. The auth module must be vendored (auth.py and "
+            f"main.py import it). Ensure /opt/fabrik-lib is present next to /opt/fabrik."
+        )
     dest = dest_src / "fastapi_user_auth"
     if dest.exists():
         shutil.rmtree(dest)
