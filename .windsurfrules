@@ -53,7 +53,7 @@ Infra/security hard stops (compose limits/ports/`gzip`/`container_name`-no-UUID,
 Training is stale. 3rd-party API/SDK: (1) repo first — `grep_search` `docs/`, `AFCL.md`, `LESSONS_LEARNT.md`; (2) else `search_web` → `*web_search_exa` → `*firecrawl_search`, cite URL in code; (3) 3 misses → `BLOCKED: <vendor> — <searched> — <missing>`. Skip stdlib, syntax, Fabrik conventions.
 
 ## Environment
-WSL Ubuntu, Linux paths. Same code runs unmodified in WSL dev (PG localhost, `.env`), VPS Docker (`postgres-main`, `compose.yaml`), Supabase (env vars).
+WSL Ubuntu, Linux paths. Same code runs unmodified in WSL dev (PG localhost, `.env`) and VPS Docker (`postgres-main`, `compose.yaml`). Self-host by default.
 
 ## FINAL OUTPUT (last 4 lines, every response)
 ```
