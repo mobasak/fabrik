@@ -86,14 +86,14 @@ Rule: for the shared files, edit with explicit `git add <file>` per CLAUDE.md HA
 
 ## Goal
 
-Close the remaining Speed-column NULL rows in the kilo-benchmarks catalog UI from **279 / 359 (77.7%)** to **~95–100% of the truly benchable set (338 rows)** by:
+Close the remaining Speed-column NULL rows in the kilo-benchmarks catalog UI. Original baseline (2026-07-03 pre-A.7): **279 / 359 (77.7%)**. Post-A.7 restoration of 239 direct-vendor rows (2026-07-04) shifted the denominator: **287 / 598 (48%)** — the drop isn't regression, it's the newly-active direct-vendor rows entering the counted set. This plan closes the Speed gap for the LLM + specialty service_types (image_gen, tts, music_gen, stt, translation) by:
 
 1. **Phase A — LLM gap closure**: retry the 26 failed text-LLM rows, remove the `:free` filter, lift the `input_cost_per_m` cap so 9 frontier LLMs (o1, o1-pro, claude-opus-4, gpt-5-pro variants) are benched once.
-2. **Phase B — Specialty-service bench**: build `microbench_specialty.py` — a per-service-type dispatcher that benches the 25 non-LLM rows (`image_gen`, `tts`, `music_gen`, `stt`, `translation`) with the right metric per type (seconds-per-generation, not tokens-per-second).
+2. **Phase B — Specialty-service bench**: build `microbench_specialty.py` — a per-service-type dispatcher that benches the 53 non-LLM in-scope rows (`image_gen`, `tts`, `music_gen`, `stt`, `translation`; expanded from the original 25 after A.7 row restoration + new catalog entries surfaced review pass 10) with the right metric per type (seconds-per-generation, not tokens-per-second).
 
 Zero manual steps for the Sunday cadence; both phases must be idempotent and cost-capped.
 
-## Prior state (grounded 2026-07-03 against real DB)
+## Prior state — post-A.7 snapshot 2026-07-04 (updated during plan-review pass 9)
 
 Baseline queries (against `/opt/fabrik/scripts/kilo-benchmarks/kilo_agents.db` after commit `7e18f5b8`):
 
@@ -112,10 +112,29 @@ speed_source distribution (status='active'):
   artificialanalysis.ai (n=4)    1
   NULL                          80
 
-Total active rows: 359
+Total active rows: 359 (pre-A.7)
 Covered (any speed_source): 279 = 77.7%
 NULL: 80 = 22.3%
 ```
+
+**Post-A.7 reality (2026-07-04)** — A.7 restored 239 wrongly-deprecated direct-vendor rows:
+```
+Total active rows: 598 (up 239)
+Covered (any speed_source): 287 = 48.0%
+NULL by service_type:
+  llm         218   (many newly-active Anthropic direct + other direct LLMs)
+  image_gen    30   (up from 18)
+  embedding    20   (NEW — out of scope for this plan, uses different metric)
+  video_gen    16   (NEW — out of scope for this plan, uses different metric)
+  tts          12   (up from 3 — Soniox, AssemblyAI etc.)
+  stt           8   (up from 1)
+  rerank        4   (NEW — out of scope)
+  music_gen     2   (unchanged)
+  translation   1   (unchanged)
+```
+
+**In-scope for Phase B** (image_gen + tts + stt + music_gen + translation): **53 rows** (30 + 12 + 8 + 2 + 1). Up from the original 25. `embedding` (20), `video_gen` (16), `rerank` (4) are **out-of-scope** — each needs a different metric (embedding: dimension throughput; video: seconds per output-second; rerank: docs ranked/sec) — deferred to a follow-up plan.
+
 
 NULL breakdown by cause (grounded via SQL against the DB):
 
@@ -454,13 +473,50 @@ def test_pricing_table_covers_all_active_specialty_rows():
 **Runnable gate**:
 ```bash
 /opt/fabrik/.venv/bin/python -m pytest /opt/fabrik/scripts/kilo-benchmarks/tests/test_microbench_specialty.py::test_pricing_table_covers_all_active_specialty_rows -xvs
-# expect: 1 passed (all 25 non-LLM active rows priced in PRICING dict)
+# expect: 1 passed (all 53 in-scope non-LLM active rows priced in PRICING dict — post-A.7 count)
 /opt/fabrik/.venv/bin/python -c "
 import sys; sys.path.insert(0, '/opt/fabrik/scripts/kilo-benchmarks')
 from specialty_pricing import PRICING
 assert len(PRICING) >= 19, f'expected ≥19 entries covering all non-LLM catalog rows, got {len(PRICING)}'
 print(f'PRICING has {len(PRICING)} entries')
 "
+```
+
+### B.3.0 PRICING expansion (BLOCKING sub-step of B.3, added review pass 10)
+
+DB query 2026-07-04 shows the in-scope specialty cohort is **53 rows** but `specialty_pricing.py` covers only **17**. The 36 missing rows are net-new catalog entries:
+
+- BFL Flux 2 family (`black-forest-labs/flux.2-max`, `.2-pro`, `.2-flex`, `.2-klein-4b`) — 4 rows
+- New OpenAI image models (`openai/gpt-5-image`, `gpt-5-image-mini`, `gpt-5.4-image-2`, `gpt-image-1-mini`, `gpt-image-2`) — 5 rows
+- Google gemini image variants (`gemini-2.5-flash-image`, `gemini-3-pro-image`, `gemini-3-pro-image-preview`, `gemini-3.1-flash-image`, `gemini-3.1-flash-image-preview`) — 5 rows
+- Microsoft, ByteDance, Sourceful, xAI image models — ~5 rows
+- New STT rows (Whisper-1, Whisper-large-v3-turbo, chirp-3, parakeet, voxtral-mini-transcribe, qwen3-asr-flash) — 6 rows
+- New TTS rows (kokoro-82m, orpheus-3b, gemini-3.1-flash-tts-preview) — 3 rows
+- ~8 miscellaneous
+
+**Blocking step**: extend `specialty_pricing.py` with entries for all 53 in-scope rows before dispatching B.3 subagents. Two paths:
+
+**Path A — full research (preferred)**: WebFetch each vendor's public pricing page + populate PRICING with real per-image/per-char/per-second rates. Effort: ~30 min inline research.
+
+**Path B — conservative default**: For any unknown row, add `{"per_image": 0.05, "via": "<known_router>", "estimate": True}` as a conservative upper bound so the cost cap protects us. Requires a `real_cost` post-call update in each client. Effort: 15 min.
+
+**Recommended: Path B for the 36 new rows** — real per-call cost gets logged by each client from the provider's response (Fal returns `credits`, Recraft returns `credits`, Replicate returns `metrics.total_cost`, OR returns `usage.cost`), so the conservative estimate is only used for the PRE-call cap check. If the estimate is wrong high, we skip; if wrong low, we bill actual. The drift test at B.2 stays green.
+
+**Runnable gate for B.3.0**:
+```bash
+/opt/fabrik/.venv/bin/python -c "
+import sys, sqlite3
+sys.path.insert(0, '/opt/fabrik/scripts/kilo-benchmarks')
+from specialty_pricing import PRICING
+c = sqlite3.connect('/opt/fabrik/scripts/kilo-benchmarks/kilo_agents.db')
+rows = c.execute(\"\"\"SELECT id FROM agents WHERE status='active'
+  AND output_tokens_per_sec IS NULL
+  AND service_type IN ('image_gen','tts','music_gen','stt','translation')\"\"\").fetchall()
+missing = [r[0] for r in rows if r[0] not in PRICING]
+assert not missing, f'PRICING is missing {len(missing)} rows: {missing}'
+print(f'PRICING complete: {len(rows)} in-scope rows all covered')
+"
+# expect: exit 0 + 'PRICING complete: 53 in-scope rows all covered'
 ```
 
 ### B.3 Per-provider clients (7 files)
@@ -707,7 +763,8 @@ python /opt/fabrik/scripts/enforcement/check_convergence.py
 | B specialty — Whisper direct | 1 | ~$0.003 | OpenAI |
 | B specialty — DashScope qwen-mt-turbo | 1 | ~$0.003 | Alibaba DashScope |
 | B specialty — music_gen via Replicate | ~2 overlap | included above | Replicate |
-| **Total real cash spend** | 71 | **~$2.20** | — (26 A.1 + 11 A.2 + 9 A.3 + 25 B specialty; A.4 retries are a subset of A.1) |
+| **Total real cash spend** (original) | 71 | **~$2.20** | — (26 A.1 + 11 A.2 + 9 A.3 + 25 B specialty; A.4 retries are a subset of A.1) |
+| **Post-A.7 adjusted** | 99 | **~$2.60** | — expanded specialty cohort (30 image_gen + 12 tts + 8 stt + 2 music_gen + 1 translation = 53 rows vs original 25). Additional ~$0.40 for the newly-eligible rows (mostly Soniox STT/TTS + more Recraft + BFL variants). Still comfortably under $10 hard cap. |
 
 Recurring monthly (Sunday cron, 30-day recency): ~$0.60 (LLM) + ~$0.40 (specialty) = **~$1.00/mo**.
 
@@ -838,6 +895,8 @@ Adversarial grounding pass 2026-07-03 (DRAFT-time):
 - Long-term: add per-service metric variety — image gen could also expose `output_dims`, TTS `mos_score` (deferred).
 - Long-term: audio-model bench for `gpt-audio`, `gpt-audio-mini` (unmeasurable via text-token bench; needs audio-latency metric). Deferred — 2 rows, low priority.
 - Long-term: deep-research bench for `perplexity/sonar-deep-research`, `openai/o3-deep-research`, `openai/o4-mini-deep-research` (multi-step tool loops; needs batch-completion metric). Deferred — 4 rows, low priority.
+- **Pass 9 addition (post-A.7)**: new service_types surfaced by the row restoration — 20 `embedding` rows, 16 `video_gen` rows, 4 `rerank` rows. Each needs a different metric (embedding: `dimensions_per_sec` throughput; video: `seconds_of_output_per_second_wall_clock`; rerank: `docs_ranked_per_sec`). Explicitly OUT-OF-SCOPE for this plan — track in a follow-up plan `2026-07-XX-plan-N-embedding-video-rerank-bench.md`.
+- **Pass 9 addition**: Soniox has 3 API keys already loaded (`SONIOX_API_KEYS`, comma-separated). If Soniox TTS/STT rows join Phase B, the client should use `multi-key-api-client` pattern (per-key quota rotation). Currently not needed — the plan's ElevenLabs TTS covers the TTS bench baseline; Soniox rows will get benched by the expanded cohort but simple single-key rotation is fine at N=3 median calls.
 
 ## Hand-off
 
