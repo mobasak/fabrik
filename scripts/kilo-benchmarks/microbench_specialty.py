@@ -236,7 +236,9 @@ def _post_run_verify(db_path: Path) -> int:
     Returns non-zero (with `[BENCH-QA-FAIL]`) if the specialty bench wrote
     into a text-LLM row — that would mean the dispatcher misrouted.
     """
-    with sqlite3.connect(db_path) as conn:
+    # Same `contextlib.closing` pattern as _write_result — bare `with
+    # sqlite3.connect(...)` only ends the transaction, not the connection.
+    with contextlib.closing(sqlite3.connect(db_path)) as conn:
         conn.row_factory = sqlite3.Row
         log("post-run coverage:")
         for r in conn.execute(
