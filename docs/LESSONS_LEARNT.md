@@ -1,7 +1,7 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
-**Last Updated:** 2026-07-02 (Lesson 80 — Provider-page scrapers: probe with a browser User-Agent AND assume the DOM shifts)
+**Last Updated:** 2026-07-04 (Lesson 81 — a stale "non-superuser can't CREATE EXTENSION" comment is not a real blocker; verify trusted-extension status)
 
 **Purpose:** CAPTURE TECHNICAL HURDLES, AI-SPECIFIC QUIRKS, AND ARCHITECTURAL DECISIONS TO PREVENT REGRESSION AS CODEBASES AND AI AGENTS EVOLVE.
 
@@ -4440,3 +4440,15 @@ Both errors would have shipped as-is if the plan-review pass hadn't re-verified 
 **How to apply:** For every third-party scraper target: (a) probe the page **twice**, once with the minimal UA the scraper will use and once with a Chrome/Firefox UA, and diff the two outputs — if they differ meaningfully, hardcode the browser UA in the scraper; (b) capture the first ~5 real rows verbatim as evidence in the plan (`Extracted from <url> with browser UA: ...`) — that's the artefact that catches a misread during review; (c) build the scraper against a BS4 walk of the real DOM structure, not a regex against an inferred JSON shape — regex-on-inferred is the failure mode that ships silently.
 
 Bonus finding from the same phase: OR's `/api/v1/chat/completions` streaming response **only** carries the `usage` block (with `usage.cost` — real billed USD) when the request body sets `usage: {"include": true}`. I would have written a cost-estimator based on headline pricing if this hadn't been re-verified during plan-review. Two probes: one for schema, one for the specific flag that unlocks the field.
+
+---
+
+# Lesson 81: A stale "non-superuser can't CREATE EXTENSION" comment is not a real blocker — verify trusted-extension status
+
+**Context:** Flipping the saas-skeleton scaffold to self-hosted Pattern-A auth (vendoring `fabrik-lib/fastapi-user-auth`) required the `citext` extension (case-insensitive email UNIQUE). The scaffold's own `schema.sql` carried a comment — "``gen_random_uuid()`` is built in (no pgcrypto extension, which a non-superuser could not create anyway)" — and I initially treated that as a hard blocker (the fabrik DB role is a dedicated **non-superuser**), even surfacing it to the user as an architecture fork.
+
+**The catch:** the comment is outdated. Since **PostgreSQL 13**, many extensions (`citext`, `pgcrypto`, `hstore`, `pg_trgm`, `unaccent`, `uuid-ossp`, …) are marked **`trusted = true`** in their `.control` file — a role with **CREATE on the database** (which a database *owner* has) can `CREATE EXTENSION` them **without** superuser. Verified: `citext.control` → `trusted = true`, and `drivers/postgres.py:409` does `ALTER DATABASE "<db>" OWNER TO "<role>"` → the fabrik role owns the DB → it can create trusted extensions. So `CREATE EXTENSION IF NOT EXISTS citext` just works; no registrar/superuser step, no schema fork.
+
+**Why it matters:** I nearly forked the vendored module's schema (TEXT + app-side `lower()`) to dodge a non-existent constraint — which would have been *more* code, less faithful vendoring, and the module actually hard-depends on citext (its `WHERE email = :e` never lowercases). A stale in-repo comment sent the design the wrong way.
+
+**How to apply:** before treating `CREATE EXTENSION <x>` as a superuser-only blocker, check `<x>.control` for `trusted = true` (or the PG docs "trusted extensions" list) and whether the connecting role owns/has CREATE on the database. Don't trust a code comment about DB privileges — verify against the actual `.control` file and the role grant. And when a vendored fabrik-lib module "conflicts" with a scaffold convention, first check whether the *convention* (or its comment) is the stale side.

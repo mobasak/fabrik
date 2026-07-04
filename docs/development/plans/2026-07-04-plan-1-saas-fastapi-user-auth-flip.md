@@ -1,6 +1,6 @@
 # Flip saas-skeleton (and mobile-app) from Supabase Auth (Pattern B) to self-hosted fastapi-user-auth (Pattern A)
 
-Status: IN-PROGRESS
+Status: EXECUTED 2026-07-04 — Phases A–E done (4b7b09db, 4a5e9b5b, 73b0e1b5, + Phase E). All plan-scoped checks pass (ruff, mypy no-new-errors, generated-backend smoke, doc_sync, One-Test Rule). The whole-tree `final_gate.py --check` shows ONE remaining failure — Project Structure flags `scripts/kilo-benchmarks/cache/*.md` (the kilo-benchmarks sibling agent's untracked files), which is OUT of this plan's File Scope and must not be touched (shared-master discipline). Nothing of this plan's surface fails.
 Owner: primary (AI)
 Created: 2026-07-04
 Converged: 2026-07-04 (grounding fixed point — every path:line re-read; final verification pass made zero edits)
@@ -144,7 +144,7 @@ python -c "import json; d=json.load(open('templates/saas-skeleton/package.json')
 
 **Phase boundary (C and D each) → BLOCKING `/fabrik-review`** on the respective template diff before Phase E consumes them.
 
-## Phase E — Full gate + docs convergence (final; merges C∥D)
+## Phase E — Full gate + docs convergence (final; merges C∥D) — ✅ EXECUTED 2026-07-04
 
 **Steps**
 1. **Scaffold smoke (acceptance proof, CLI-free):** via `python` import of `_scaffold_saas_skeleton` (and the mobile entrypoint), generate real projects into temp dirs, run **their** `pytest` (`tests/test_health.py` + new `tests/test_auth.py`) + the generated project's `scripts/final_gate.py --lean --json`. Expected: `pytest` green + generated-project gate `"status":"success"`. (No `fabrik` CLI — the review rules bar it in gates; the scaffold Python API is the runnable path.)
@@ -159,6 +159,16 @@ python scripts/enforcement/check_convergence.py  # expect pass
 **A green gate is necessary, not sufficient** — the real proof is step 1 (a generated project boots Pattern A and its own tests pass).
 
 ---
+
+## One-Test Rule
+
+**Why:** The highest-risk path is the generated Pattern-A auth wiring. A scaffold that emits a broken `/auth` router, an unmountable app, or a token the tenant middleware can't decode would ship broken authentication to **every** new saas project — a silent, fleet-wide failure. The generated `tests/test_auth.py` guards exactly this seam.
+
+**Contract:**
+- **Given:** a saas backend generated from the flipped `scaffold.py`, with `JWT_SECRET` (≥32 chars) set and no live DB/Redis.
+- **When:** the app builds the vendored `/auth` router (`build_saas_auth_router()`) and issues then decodes an access token (`issue_access_token` → `decode_token`).
+- **Then:** the router exposes `/auth/login` + `/auth/signup`, and `decode_token` round-trips the `sub`/`tid` claims.
+- **Mocked:** DB + Redis are NOT connected — `create_async_engine` is lazy and `REDIS_URL` unset → `NullDenylist`; the test asserts the *wiring* (router mounted, token round-trip), not DB persistence. DB-backed signup/login is a separate integration test needing a live `DATABASE_URL`.
 
 ## File Scope (owned paths)
 
