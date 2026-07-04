@@ -422,25 +422,26 @@ def test_readonly_recovery_reuses_the_llm_bench_pattern(tmpdb, monkeypatch, caps
 # --------------------------------------------------------------- 14
 
 
-def test_cohort_selects_only_null_specialty_rows_with_recency_guard(tmpdb):
+def test_cohort_selects_only_perf_seconds_null_rows_one_time_bench(tmpdb):
+    """One-time bench: once a row has perf_seconds, it never re-enters cohort,
+    regardless of how old the stamp is."""
     import microbench_specialty as mb
 
     ensure_perf_seconds_column(tmpdb)
     with sqlite3.connect(tmpdb) as c:
-        # Fresh row within recency window → EXCLUDED
+        # Already-benched → EXCLUDED forever (even if from 90 days ago)
         c.execute(
             "INSERT INTO agents(id, service_type, status, perf_seconds, speed_updated_at) "
             "VALUES('recraft/v3','image_gen','active', 3.0, date('now'))"
         )
-        # NULL perf_seconds → INCLUDED
-        c.execute(
-            "INSERT INTO agents(id, service_type, status) "
-            "VALUES('bfl/flux-schnell','image_gen','active')"
-        )
-        # Stale row (> recency window) → INCLUDED
         c.execute(
             "INSERT INTO agents(id, service_type, status, perf_seconds, speed_updated_at) "
             "VALUES('elevenlabs/multilingual-v2','tts','active', 2.0, date('now','-90 days'))"
+        )
+        # NULL perf_seconds → INCLUDED (never been benched)
+        c.execute(
+            "INSERT INTO agents(id, service_type, status) "
+            "VALUES('bfl/flux-schnell','image_gen','active')"
         )
         # LLM row → EXCLUDED (wrong service_type)
         c.execute(
@@ -456,7 +457,7 @@ def test_cohort_selects_only_null_specialty_rows_with_recency_guard(tmpdb):
     with sqlite3.connect(tmpdb) as c:
         cohort = mb._select_cohort(c)
     ids = {r["id"] for r in cohort}
-    assert ids == {"bfl/flux-schnell", "elevenlabs/multilingual-v2"}
+    assert ids == {"bfl/flux-schnell"}
 
 
 # --------------------------------------------------------------- 15

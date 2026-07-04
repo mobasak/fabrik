@@ -5,7 +5,12 @@
 Plan 2026-07-03-plan-1-full-speed-coverage-close.md Phase B.4.
 
 Cohort: agents.status='active' AND service_type IN ('image_gen','tts','music_gen','stt','translation')
-        AND (perf_seconds IS NULL OR speed_updated_at < cutoff).
+        AND perf_seconds IS NULL.
+
+One-time-per-row bench: once a row is benched successfully, `perf_seconds` is
+non-NULL and it drops out of every future cohort. The Sunday cron still runs
+so genuinely NEW catalog rows (or rows whose previous bench failed and left
+perf_seconds NULL) get picked up automatically — but no re-benching.
 
 Dispatches by row's `id` prefix to the right specialty_clients/*.bench_one().
 Reuses microbench_or_models.py's per-write short-lived sqlite connections
@@ -22,7 +27,7 @@ import sqlite3
 import statistics
 import sys
 import time
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -45,7 +50,6 @@ from specialty_pricing import PRICING, estimate_cost  # noqa: E402
 DB_PATH = SCRIPT_DIR / "kilo_agents.db"
 COST_CAP_USD = 10.0
 COST_SOFT_CAP_USD = 2.50
-RECENCY_WINDOW_DAYS = 30
 BENCH_N_RUNS = 3
 RATE_LIMIT_SLEEP_S = 1.0
 
@@ -141,7 +145,12 @@ def bench_median(model_id: str, service_type: str, keys: dict) -> dict:
 
 
 def _select_cohort(conn: sqlite3.Connection) -> list[dict]:
-    cutoff = (datetime.now(UTC).date() - timedelta(days=RECENCY_WINDOW_DAYS)).isoformat()
+    """One-time bench: only rows that have never been benched successfully.
+
+    Once `perf_seconds` is written, the row is out of scope for every future
+    run. The Sunday cron keeps running so newly-ingested catalog rows get
+    benched on their first appearance, but no re-benching of already-done rows.
+    """
     conn.row_factory = sqlite3.Row
     rows = conn.execute(
         """
@@ -149,10 +158,9 @@ def _select_cohort(conn: sqlite3.Connection) -> list[dict]:
         FROM agents
         WHERE status='active'
           AND service_type IN ('image_gen','tts','music_gen','stt','translation')
-          AND (perf_seconds IS NULL OR speed_updated_at < ?)
+          AND perf_seconds IS NULL
         ORDER BY service_type, id
         """,
-        (cutoff,),
     ).fetchall()
     return [dict(r) for r in rows]
 
