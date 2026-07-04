@@ -46,7 +46,11 @@ def bench_one(model_id: str, api_key: str) -> dict:
         if r.status_code >= 400:
             return _err(_http_err("create", r))
         data = r.json()
-        poll_url = data.get("urls", {}).get("get")
+        # `.get("urls") or {}` guards against an explicit JSON null on that key —
+        # `.get("urls", {})` returns None when the key IS present but null, which
+        # would then AttributeError on the next `.get("get")` and crash the whole
+        # cohort run (not caught by `except RequestException`).
+        poll_url = (data.get("urls") or {}).get("get")
         if not poll_url:
             return _err("no poll url in create response")
         if not _host_allowed(poll_url):
@@ -63,15 +67,22 @@ def bench_one(model_id: str, api_key: str) -> dict:
             status = pd.get("status", "")
             if status == "succeeded":
                 perf_seconds = time.monotonic() - t0
-                metrics_cost = pd.get("metrics", {}).get("total_cost") or 0.0
+                metrics_cost = (pd.get("metrics") or {}).get("total_cost") or 0.0
                 # Replicate omits total_cost on some routes; back-fill from PRICING
                 # so cost-cap arithmetic still tracks real spend.
                 if not metrics_cost:
                     p = PRICING.get(model_id) or {}
                     metrics_cost = p.get("per_image") or p.get("per_generation") or 0.0
+                try:
+                    cost = float(metrics_cost)
+                except (TypeError, ValueError):
+                    cost = float((PRICING.get(model_id) or {}).get("per_image", 0.0))
+                # Reject negatives — a compromised upstream returning -X would
+                # otherwise DECREMENT running_cost and defeat the cap.
+                cost = max(cost, 0.0)
                 return {
                     "perf_seconds": round(perf_seconds, 2),
-                    "cost_usd": float(metrics_cost),
+                    "cost_usd": cost,
                     "error": None,
                 }
             if status in ("failed", "canceled"):
@@ -83,7 +94,10 @@ def bench_one(model_id: str, api_key: str) -> dict:
 
 
 def _host_allowed(url: str) -> bool:
-    host = urlparse(url).hostname or ""
+    p = urlparse(url)
+    if p.scheme != "https":
+        return False
+    host = p.hostname or ""
     return host in ALLOWED_HOSTS or any(host.endswith("." + h) for h in ALLOWED_HOSTS)
 
 

@@ -65,9 +65,7 @@ def tmpdb():
 
 
 def test_bfl_via_fal_client_polls_queue_and_returns_seconds():
-    enqueue = _resp(
-        200, json_data={"status": "IN_QUEUE", "status_url": "https://queue.fal.run/y"}
-    )
+    enqueue = _resp(200, json_data={"status": "IN_QUEUE", "status_url": "https://queue.fal.run/y"})
     poll_completed = _resp(200, json_data={"status": "COMPLETED"})
     with (
         patch.object(bfl_via_fal.requests, "post", return_value=enqueue),
@@ -121,9 +119,7 @@ def test_bfl_via_fal_client_returns_error_on_fal_moderation_response():
     assert "[FAL-BALANCE-EXHAUSTED]" in r["error"]
 
     # Moderation surfaces as FAILED on the poll:
-    enqueue = _resp(
-        200, json_data={"status": "IN_QUEUE", "status_url": "https://queue.fal.run/y"}
-    )
+    enqueue = _resp(200, json_data={"status": "IN_QUEUE", "status_url": "https://queue.fal.run/y"})
     moderated = _resp(200, json_data={"status": "FAILED", "error": "content_moderated"})
     with (
         patch.object(bfl_via_fal.requests, "post", return_value=enqueue),
@@ -473,6 +469,112 @@ def test_pricing_table_covers_all_active_specialty_rows():
 # --------------------------------------------------------------- 16
 
 
+def test_ssrf_allowlist_rejects_http_scheme_downgrade():
+    """https-only guard on both Fal and Replicate poll URLs."""
+    enqueue_fal = _resp(
+        200, json_data={"status": "IN_QUEUE", "status_url": "http://queue.fal.run/y"}
+    )
+    with patch.object(bfl_via_fal.requests, "post", return_value=enqueue_fal):
+        r = bfl_via_fal.bench_one("bfl/flux-schnell", "K")
+    assert r["error"] is not None and "queue.fal.run" in r["error"]
+
+    create_rep = _resp(200, json_data={"id": "p", "urls": {"get": "http://api.replicate.com/x"}})
+    with patch.object(replicate.requests, "post", return_value=create_rep):
+        r2 = replicate.bench_one("stability/sdxl", "K")
+    assert r2["error"] is not None and "api.replicate.com" in r2["error"]
+
+
+def test_replicate_survives_explicit_null_metrics():
+    """`.get('metrics') or {}` handles a JSON explicit null without crashing."""
+    create = _resp(200, json_data={"id": "p", "urls": {"get": "https://api.replicate.com/x"}})
+    succeeded_null_metrics = _resp(200, json_data={"status": "succeeded", "metrics": None})
+    with (
+        patch.object(replicate.requests, "post", return_value=create),
+        patch.object(replicate.requests, "get", return_value=succeeded_null_metrics),
+        patch.object(replicate.time, "sleep"),
+    ):
+        r = replicate.bench_one("stability/sdxl", "K")
+    assert r["error"] is None
+    assert r["cost_usd"] == pytest.approx(0.003)
+
+
+def test_replicate_survives_explicit_null_urls():
+    """Explicit null on `urls` must not AttributeError; must return a clean error."""
+    create_null_urls = _resp(200, json_data={"id": "p", "urls": None})
+    with patch.object(replicate.requests, "post", return_value=create_null_urls):
+        r = replicate.bench_one("stability/sdxl", "K")
+    assert r["error"] is not None
+    assert "no poll url" in r["error"]
+
+
+def test_bfl_via_fal_survives_explicit_null_status():
+    """Explicit null status field on poll response must not crash `.upper()`."""
+    enqueue = _resp(
+        200, json_data={"status": "IN_QUEUE", "status_url": "https://queue.fal.run/y"}
+    )
+    poll_null = _resp(200, json_data={"status": None})
+    # After one null-status poll we'd loop again; feed COMPLETED next so bench exits.
+    poll_ok = _resp(200, json_data={"status": "COMPLETED"})
+    with (
+        patch.object(bfl_via_fal.requests, "post", return_value=enqueue),
+        patch.object(bfl_via_fal.requests, "get", side_effect=[poll_null, poll_ok]),
+        patch.object(bfl_via_fal.time, "sleep"),
+    ):
+        r = bfl_via_fal.bench_one("bfl/flux-schnell", "K")
+    assert r["error"] is None
+
+
+def test_recraft_rejects_negative_credits():
+    """A negative credits value from a misbehaving upstream must be floored to 0,
+    not allowed to decrement running_cost."""
+    ok = _resp(200, json_data={"credits": -40, "data": [{"url": "x"}]})
+    with patch.object(recraft.requests, "post", return_value=ok):
+        r = recraft.bench_one("recraft/v3", "K")
+    assert r["error"] is None
+    assert r["cost_usd"] == 0.0
+
+
+def test_recraft_rejects_non_numeric_credits():
+    ok = _resp(200, json_data={"credits": "abc", "data": [{"url": "x"}]})
+    with patch.object(recraft.requests, "post", return_value=ok):
+        r = recraft.bench_one("recraft/v3", "K")
+    assert r["error"] is not None
+    assert "not numeric" in r["error"]
+
+
+def test_post_run_verify_flags_misroute_as_bench_qa_fail(tmpdb, capsys):
+    """If a llm row ever gets a *_direct speed_source today, exit non-zero."""
+    import microbench_specialty as mb
+
+    ensure_perf_seconds_column(tmpdb)
+    today = "date('now')"
+    with sqlite3.connect(tmpdb) as c:
+        c.execute(
+            f"INSERT INTO agents(id, service_type, status, speed_source, speed_updated_at) "
+            f"VALUES('anthropic/claude-x','llm','active','recraft_direct 2026-07-04',{today})"
+        )
+    rc = mb._post_run_verify(tmpdb)
+    out = capsys.readouterr().out
+    assert rc == 1
+    assert "[BENCH-QA-FAIL]" in out
+
+
+def test_post_run_verify_clean_when_no_misroute(tmpdb, capsys):
+    import microbench_specialty as mb
+
+    ensure_perf_seconds_column(tmpdb)
+    with sqlite3.connect(tmpdb) as c:
+        c.execute(
+            "INSERT INTO agents(id, service_type, status, perf_seconds, speed_source, "
+            "speed_updated_at) VALUES('recraft/v3','image_gen','active',1.2,"
+            "'recraft_direct 2026-07-04',date('now'))"
+        )
+    rc = mb._post_run_verify(tmpdb)
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "precedence guard OK" in out
+
+
 def test_log_scrubs_control_chars_and_newlines():
     """Server-echoed error must not spoof extra log lines."""
     import microbench_specialty as mb
@@ -488,8 +590,7 @@ def test_soft_cost_cap_emits_warning(tmpdb, monkeypatch, capsys):
     with sqlite3.connect(tmpdb) as c:
         for i in range(3):
             c.execute(
-                "INSERT INTO agents(id, service_type, status) "
-                f"VALUES('r/{i}','image_gen','active')"
+                f"INSERT INTO agents(id, service_type, status) VALUES('r/{i}','image_gen','active')"
             )
 
     monkeypatch.setattr(mb, "DB_PATH", tmpdb)

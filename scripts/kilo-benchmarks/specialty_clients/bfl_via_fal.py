@@ -67,7 +67,7 @@ def bench_one(model_id: str, api_key: str) -> dict:
             if pr.status_code >= 400:
                 return _err(_http_err("poll", pr))
             pd = pr.json()
-            status = pd.get("status", "").upper()
+            status = (pd.get("status") or "").upper()
             if status == "COMPLETED":
                 perf_seconds = time.monotonic() - t0
                 # Fal.ai's sync response has no cost field; back-fill from PRICING
@@ -83,7 +83,12 @@ def bench_one(model_id: str, api_key: str) -> dict:
 
 
 def _host_allowed(url: str) -> bool:
-    host = urlparse(url).hostname or ""
+    """https-only host allow-list. Rejects plaintext downgrades so FAL_KEY
+    can never travel unencrypted to a same-hostname http endpoint."""
+    p = urlparse(url)
+    if p.scheme != "https":
+        return False
+    host = p.hostname or ""
     return host in ALLOWED_HOSTS or any(host.endswith("." + h) for h in ALLOWED_HOSTS)
 
 

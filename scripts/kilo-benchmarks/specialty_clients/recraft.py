@@ -37,13 +37,20 @@ def bench_one(model_id: str, api_key: str) -> dict:
         data = r.json()
         credits = data.get("credits")
         if credits is None:
-            # Missing credits on a 2xx means the API contract shifted; log real
-            # spend as zero would silently break the cost cap. Fail loud.
+            # Missing credits on a 2xx means the API contract shifted; recording
+            # real spend as zero would silently break the cost cap. Fail loud.
             return _err(f"recraft 2xx but no credits field: {str(data)[:200]}")
+        try:
+            credits_f = float(credits)
+        except (TypeError, ValueError):
+            return _err(f"recraft credits not numeric: {credits!r}")
+        # Negative credits from a misbehaving upstream would DECREMENT running_cost
+        # and defeat the cap; floor to 0.
+        credits_f = max(credits_f, 0.0)
         perf_seconds = time.monotonic() - t0
         return {
             "perf_seconds": round(perf_seconds, 2),
-            "cost_usd": credits * 0.001,
+            "cost_usd": credits_f * 0.001,
             "error": None,
         }
     except requests.exceptions.RequestException as e:
