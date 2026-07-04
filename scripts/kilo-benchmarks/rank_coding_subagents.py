@@ -149,7 +149,10 @@ def _compose_score(row: dict) -> float:
         + min(aa / 60, 1.0) * 0.20
         + min(max((arena - 1350) / 200, 0), 1.0) * 0.15
         + min(math.log1p(tps) / math.log(200), 1.0) * 0.10
-        + max(1 - task_cost / 0.03, 0) * 0.10  # $0.03 = expensive cutoff
+        # `1 - task_cost/0.03` maxes at 1.0 when task_cost=0 and goes negative
+        # otherwise — but a negative cost from a data-entry anomaly would push
+        # the term > 1.0; wrap in min for defense-in-depth so composite ≤ 1.0.
+        + min(max(1 - task_cost / 0.03, 0), 1.0) * 0.10
     )
 
 
@@ -194,8 +197,8 @@ def _fmt_body_hint(mid: str) -> str:
     return json.dumps(body, separators=(",", ":"))
 
 
-def _rows_from_db() -> list[dict]:
-    with sqlite3.connect(DB_PATH) as conn:
+def _rows_from_db(db_path: Path | None = None) -> list[dict]:
+    with sqlite3.connect(db_path if db_path is not None else DB_PATH) as conn:
         conn.row_factory = sqlite3.Row
         placeholder = " OR ".join(["id LIKE ? || '%'"] * len(FAMILIES))
         rows = conn.execute(
@@ -373,6 +376,38 @@ def main() -> int:
     _atomic_write(OUT_PATH, _render(rows))
     print(f"[rank_coding_subagents] wrote {OUT_PATH} · {len(rows)} models ranked")
     return 0
+
+
+# ---------------------------------------------------------------------------
+# Public API — consumers (e.g. export_models_browser.py) call these to overlay
+# coding-subagent ranking data onto other views. Never fork the constants below.
+# ---------------------------------------------------------------------------
+
+
+def rank_all(db_path: Path | None = None) -> list[dict]:
+    """Public entrypoint: return the ranked candidates.
+
+    Same shape as `_rows_from_db` (adds `score` + `doc_grade` per row), but
+    accepts a caller-supplied db_path so `export_models_browser` can invoke
+    it directly instead of shelling out to the CLI. Thread-safe: the db_path
+    is passed straight through to `_rows_from_db` — no global state mutation.
+    """
+    return _rows_from_db(Path(db_path) if db_path is not None else None)
+
+
+def grade_doc_review(ctx_k: float, swe: float, aider: float, aa_idx: float, arena: float) -> str:
+    """Public alias — see `_grade_doc_review`."""
+    return _grade_doc_review(ctx_k, swe, aider, aa_idx, arena)
+
+
+def fmt_body_hint(mid: str) -> str:
+    """Public alias — see `_fmt_body_hint`."""
+    return _fmt_body_hint(mid)
+
+
+CODING_EXCLUDE_MODELS = EXCLUDE_MODELS
+CODING_PROVIDER_PINS = PROVIDER_PINS
+CODING_BODY_HINTS = BODY_HINTS
 
 
 if __name__ == "__main__":

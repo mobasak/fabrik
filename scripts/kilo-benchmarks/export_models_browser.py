@@ -32,10 +32,44 @@ TEMPLATE_PATH = SCRIPT_DIR / "models_browser_template.html"
 OUTPUT_PATH = SCRIPT_DIR / "models_browser.html"
 
 
-def _fetch_chat_models(conn: sqlite3.Connection) -> list[dict]:
-    """Load every agents row + joined category list + today's role pins."""
+def _fetch_chat_models(conn: sqlite3.Connection, db_path: Path) -> list[dict]:
+    """Load every agents row + joined category list + today's role pins.
+
+    `db_path` is threaded through so the coding-subagent overlay ranks against
+    the SAME DB the chat rows come from — a `--db /some/other.db` CLI arg
+    otherwise silently ranked against the ranker's own default and produced
+    incoherent overlay data.
+    """
     conn.row_factory = sqlite3.Row
     agents = [dict(r) for r in conn.execute("SELECT * FROM agents").fetchall()]
+
+    # Coding-subagent overlay — single source of truth is
+    # `rank_coding_subagents.rank_all()`. Never fork EXCLUDE_MODELS /
+    # PROVIDER_PINS / BODY_HINTS.
+    from rank_coding_subagents import (
+        CODING_EXCLUDE_MODELS,
+        CODING_PROVIDER_PINS,
+        fmt_body_hint,
+        rank_all,
+    )
+
+    ranked_by_id = {r["id"]: r for r in rank_all(db_path)}
+    for a in agents:
+        mid = a["id"]
+        ranked = ranked_by_id.get(mid)
+        a["code_subagent_candidate"] = ranked is not None
+        a["code_fit_score"] = round(ranked["score"], 3) if ranked else None
+        a["doc_code_grade"] = ranked["doc_grade"] if ranked else None
+        a["code_excluded_reason"] = (
+            "reasoning-only — returns 0 output tokens when reasoning is excluded"
+            if mid in CODING_EXCLUDE_MODELS
+            else None
+        )
+        a["code_provider_pin"] = (
+            list(CODING_PROVIDER_PINS[mid]) if mid in CODING_PROVIDER_PINS else None
+        )
+        hint = fmt_body_hint(mid)
+        a["code_body_hint"] = hint if hint != "—" else None
 
     # Categories per agent (multi-row → list).
     cats_by_agent: dict[str, list[str]] = {}
@@ -126,7 +160,7 @@ def _fetch_local_models(conn: sqlite3.Connection) -> list[dict]:
 def _build_payload(db_path: Path) -> dict:
     conn = sqlite3.connect(db_path)
     try:
-        chat = _fetch_chat_models(conn)
+        chat = _fetch_chat_models(conn, db_path)
         embed = _fetch_embedding_models(conn)
     finally:
         conn.close()

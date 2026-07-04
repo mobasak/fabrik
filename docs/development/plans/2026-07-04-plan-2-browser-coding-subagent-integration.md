@@ -1,7 +1,8 @@
 # Browser: coding-subagent ranking integration
 
-**Status:** CONVERGED
+**Status:** IN-PROGRESS
 **Date:** 2026-07-04
+**Started:** 2026-07-04 via /fabrik-execute-plan
 **Owner:** solo (Özgür)
 **Follow-up to:** commit `8405eecd..5b3af308` — coding-subagent ranking pipeline
 **Review passes:** DRAFT → CONVERGED via `/fabrik-plan-review` 2026-07-04 (5 grounding passes; passes 4 + 5 both no-op with distinct coverage — fixed point reached)
@@ -57,7 +58,7 @@ Plan-lock inventory verified 2026-07-04 via `cat .fabrik/plan-locks/*.json`:
 
 No active-status locks. This plan's owned paths are disjoint from every archived plan's declared paths at the time of grounding. **Serialization note**: `CHANGELOG.md`, `INDEX.md`, and `docs/FEATURES.md` are hub-shared documents any future plan might touch — this plan's doc-update steps must use append-only edits (never rewrite the entire `[Unreleased]` section).
 
-## Phase A — Backend: expose ranker API + inject fields into browser payload
+## Phase A — Backend — ✅ EXECUTED 2026-07-04: expose ranker API + inject fields into browser payload
 
 Highest-risk path: the composite score → JSON payload → template read chain. Test first.
 

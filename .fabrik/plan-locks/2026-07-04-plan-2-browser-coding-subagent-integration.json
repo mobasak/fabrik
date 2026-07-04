@@ -1,0 +1,17 @@
+{
+  "plan": "docs/development/plans/2026-07-04-plan-2-browser-coding-subagent-integration.md",
+  "owned_paths": [
+    "scripts/kilo-benchmarks/rank_coding_subagents.py",
+    "scripts/kilo-benchmarks/export_models_browser.py",
+    "scripts/kilo-benchmarks/models_browser_template.html",
+    "scripts/kilo-benchmarks/models_browser.html",
+    "scripts/kilo-benchmarks/tests/test_export_models_browser_coding_fields.py",
+    "INDEX.md",
+    "CHANGELOG.md",
+    "docs/FEATURES.md",
+    "docs/development/plans/2026-07-04-plan-2-browser-coding-subagent-integration.md"
+  ],
+  "branch": "master",
+  "started_at": "2026-07-04T23:30:00Z",
+  "status": "active"
+}

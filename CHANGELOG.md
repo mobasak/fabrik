@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Coding-subagent ranking: public API + browser payload overlay (Phase A) (2026-07-04)
+
+`scripts/kilo-benchmarks/rank_coding_subagents.py` now exposes 3 public functions (`rank_all(db_path=None)`, `grade_doc_review(...)`, `fmt_body_hint(mid)`) plus 3 constant aliases (`CODING_EXCLUDE_MODELS`, `CODING_PROVIDER_PINS`, `CODING_BODY_HINTS`) so `export_models_browser.py` can overlay coding-subagent ranking data onto the AI Models Browser without forking scoring/exclusion/pin/body-hint state. `_fetch_chat_models` now projects 6 uniform-schema per-row fields onto every chat model in the JSON payload: `code_subagent_candidate`, `code_fit_score`, `doc_code_grade`, `code_excluded_reason`, `code_provider_pin`, `code_body_hint`. Phase A of `docs/development/plans/2026-07-04-plan-2-browser-coding-subagent-integration.md`; Phase B (browser template columns + badge + chip + detail-panel) follows.
+
 ### Changed — CLAUDE.md: gate `GATE:` line must be FRESH (run this turn), not a cited earlier result (2026-07-04)
 
 Added a "Freshness — evidence before assertions" clause to the FINAL OUTPUT contract: the `GATE:` line (and every "fixed / passing / converged / reviewed" claim) must report a verification run made **in the same turn** — never an earlier run. On shared `master`, if any file changed since your last gate run (yours or a sibling's), re-run before claiming; a stale green is how a turn claims done while the tree is red. A subagent's "success" is a claim, not proof — verify it (its diff + re-run its tests). Closes the `verification-before-completion` freshness gap that let a run cite an out-of-date gate result.
