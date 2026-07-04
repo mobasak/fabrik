@@ -314,6 +314,21 @@ def test_dispatcher_skips_row_without_matching_provider_key():
 # --------------------------------------------------------------- 11
 
 
+def test_write_result_reports_failure_on_zero_row_match(tmpdb):
+    """UPDATE that matches no row must return False so the run summary
+    doesn't lie about how many rows got benched."""
+    import microbench_specialty as mb
+
+    ensure_perf_seconds_column(tmpdb)
+    # No INSERT — agents table is empty
+    ok = mb._write_result(
+        tmpdb,
+        "nonexistent/id",
+        {"perf_seconds": 1.0, "cost_usd": 0.0, "error": None, "tag": "recraft_direct"},
+    )
+    assert ok is False
+
+
 def test_write_result_stores_perf_seconds_not_tokens_per_sec(tmpdb):
     import microbench_specialty as mb
 
@@ -509,9 +524,7 @@ def test_replicate_survives_explicit_null_urls():
 
 def test_bfl_via_fal_survives_explicit_null_status():
     """Explicit null status field on poll response must not crash `.upper()`."""
-    enqueue = _resp(
-        200, json_data={"status": "IN_QUEUE", "status_url": "https://queue.fal.run/y"}
-    )
+    enqueue = _resp(200, json_data={"status": "IN_QUEUE", "status_url": "https://queue.fal.run/y"})
     poll_null = _resp(200, json_data={"status": None})
     # After one null-status poll we'd loop again; feed COMPLETED next so bench exits.
     poll_ok = _resp(200, json_data={"status": "COMPLETED"})

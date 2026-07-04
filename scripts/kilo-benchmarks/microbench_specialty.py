@@ -15,6 +15,7 @@ Reuses microbench_or_models.py's per-write short-lived sqlite connections
 from __future__ import annotations
 
 import argparse
+import contextlib
 import os
 import re
 import sqlite3
@@ -160,11 +161,20 @@ def _write_result(db_path: Path, agent_id: str, result: dict) -> bool:
     today = datetime.now(UTC).date().isoformat()
     tag = f"{result['tag']} {today}" if result.get("tag") else f"unknown_direct {today}"
     try:
-        with sqlite3.connect(db_path, timeout=30.0) as conn:
-            conn.execute(
+        # `contextlib.closing` guarantees the connection is closed on scope exit;
+        # `with sqlite3.connect(...)` alone only ends the transaction.
+        with contextlib.closing(sqlite3.connect(db_path, timeout=30.0)) as conn:
+            cur = conn.execute(
                 "UPDATE agents SET perf_seconds=?, speed_source=?, speed_updated_at=? WHERE id=?",
                 (result["perf_seconds"], tag, today, agent_id),
             )
+            conn.commit()
+            if cur.rowcount == 0:
+                # UPDATE matched no row — silent no-op would lie in the "updated"
+                # counter. Fail the write so run_specialty's failed counter
+                # reflects reality.
+                log(f"  → WRITE-NO-MATCH: agent_id={agent_id!r} not in agents")
+                return False
         return True
     except sqlite3.OperationalError as e:
         log(f"  → WRITE-FAIL: {e}")
