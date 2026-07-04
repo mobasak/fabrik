@@ -76,7 +76,8 @@ class AuthType(str, Enum):
     """Authentication backend options."""
 
     NONE = "none"
-    SUPABASE = "supabase"  # Supabase Auth (Phase 1b)
+    FASTAPI_USER_AUTH = "fastapi_user_auth"  # self-hosted Pattern A (app issues its own JWTs) — DEFAULT for saas
+    SUPABASE = "supabase"  # Supabase Auth — legacy / migration-only (Pattern B)
 
 
 # --- Sub-models ---

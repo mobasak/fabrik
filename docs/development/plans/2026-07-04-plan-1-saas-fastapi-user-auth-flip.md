@@ -1,9 +1,10 @@
 # Flip saas-skeleton (and mobile-app) from Supabase Auth (Pattern B) to self-hosted fastapi-user-auth (Pattern A)
 
-Status: CONVERGED
+Status: IN-PROGRESS
 Owner: primary (AI)
 Created: 2026-07-04
 Converged: 2026-07-04 (grounding fixed point — every path:line re-read; final verification pass made zero edits)
+Execution started: 2026-07-04
 Scaffold surface: `src/fabrik/scaffold.py`, `src/fabrik/spec_loader.py`, `templates/saas-skeleton/**`, `templates/mobile-app/**`
 
 ## Goal
@@ -52,7 +53,7 @@ names Pattern A the DEFAULT). Today the scaffold still *emits* Pattern B uncondi
 
 ---
 
-## Phase A — `AuthType` enum + legacy demotion (foundation; imported by B/C/D)
+## Phase A — `AuthType` enum + legacy demotion (foundation; imported by B/C/D) — ✅ EXECUTED 2026-07-04
 
 **Files:** `src/fabrik/spec_loader.py`. **Subagents:** none (single small file).
 
