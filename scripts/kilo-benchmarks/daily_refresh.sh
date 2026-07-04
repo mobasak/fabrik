@@ -18,11 +18,16 @@
 #        → scrape per-model pricing from aggregators; populate
 #          agents.gateway_prices JSON (plan-2-aggregator-pricing.md)
 #   7. derive_cheapest_gateway.py (preceded on Sundays by microbench_or_models.py
-#      — OR microbench for rows without Speed data; needs OPENROUTER_API_KEY)
+#      + microbench_specialty.py — OR / specialty microbench for rows without
+#      Speed data; needs OPENROUTER_API_KEY + specialty-provider keys)
 #        → picks the cheapest (gateway, price) per row from
 #          gateway_prices + direct price; writes cheapest_gateway +
 #          cheapest_gateway_price for the browser to badge
-#   8. export_models_browser.py
+#   8. rank_coding_subagents.py
+#        → queries the DB for GLM/Kimi/Minimax/DeepSeek active LLMs,
+#          applies a weighted composite score + Doc↔Code letter grade,
+#          writes docs/reference/kilo/CODING_SUBAGENT_SELECTION.md
+#   9. export_models_browser.py
 #        → regenerates the single-file models_browser.html
 #
 # Each step is wrapped in `|| echo "[step] failed (non-fatal)"` so a
