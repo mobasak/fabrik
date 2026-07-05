@@ -45,6 +45,7 @@ Skip: stdlib, syntax, Fabrik conventions.
 | edit outside ticket Scope | stay strict |
 | modify deps files (`pyproject.toml`/`requirements.txt`/`package.json`/`uv.lock`/`package-lock.json`) | only if ticket authorises |
 | files outside project tree | local paths only |
+| create/edit/**commit** files in a repo OTHER than the one you were launched in (cross-repo) | HALT — needs the user's **explicit approval THIS turn**. A `/opt/fabrik` agent reaching into `/opt/fabrik-lib` (or vice-versa) is the #1 cause of shared-tree commit collisions; each repo has its own gate that never sees the other's commits. Stay in your own project tree; to change another repo, tell the user which repo + why and let *its* agent do it. |
 | foreground command likely >30s (build/deploy/test/sync/`fabrik`/`docker`/`pytest`/`npm i`) | Bash `run_in_background=true`, OR `rund -- <cmd>`; `runwait $(runlast) <s>`; `runc $(runlast)`. Doc: `docs/reference/long-command-monitoring.md` |
 | `fabrik redeploy` on git-sourced app without `git push` first | commit → push → redeploy; the VPS runs `git pull` from the GitHub remote, not from your local `/opt/` |
 | compose without `deploy.resources.limits.memory` | Memory limit required per service to prevent OOM on the shared VPS (Fabrik invariant; enforced by `deployer_ssh._validate_compose()`). Scaffolder auto-emits via `_write_canonical_compose`; manual composes MUST declare |
