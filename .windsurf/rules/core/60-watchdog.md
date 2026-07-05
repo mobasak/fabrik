@@ -78,7 +78,7 @@ Defaults preserve current behavior — existing specs without a `watchdog:` bloc
 
 **Tier D** — code-remediation, **off by default**, opt-in like B/C and **human-gated**. This is the only tier that can change running code, and it never does so silently.
 
-**Enable:** `watchdog: { auto_code_fix: true, code_fix_window_sec: 300 }` in the spec **plus** an injected `deploy_adapter` + `test_cmd`. Absent → Tier D is unavailable and code-class incidents behave exactly as today (Tier C escalate / `propose_fix_prs`).
+**Enable:** `watchdog: { auto_code_fix: true }` in the spec **plus** an injected `deploy_adapter` + `test_cmd` (the `code_fix_window_sec` silence window defaults to 1800s / 30 min — see below). Absent → Tier D is unavailable and code-class incidents behave exactly as today (Tier C escalate / `propose_fix_prs`).
 
 | Action | What | Guards |
 |---|---|---|
@@ -102,7 +102,7 @@ When `apply_code_fix` produces a **green, secret-scanned** diff, the sidecar fir
 - **Approve** → `deploy_adapter.apply(branch)` immediately.
 - **Reject** → discard the branch; fall back to Tier C escalate.
 - **STOP** → kill-switch: disable Tier-D for this project until re-enabled in the spec.
-- **No response within `code_fix_window_sec`** (default 300) → treated as approval and applied. The configured silence window IS the operator-bound terminal (see [self-healing](self-healing.md) acceptance checklist), not a fully-autonomous layer.
+- **No response within `code_fix_window_sec`** (default **1800s / 30 min**) → treated as approval and applied. Since silence auto-applies a tested-green fix, the window is sized for a realistic human review (5 min was too short to reliably `Reject` a wrong-but-passing fix); it IS the operator-bound terminal (see [self-healing](self-healing.md) acceptance checklist), not a fully-autonomous layer.
 
 Every apply/rollback is written to the `deploys` table (and the approval to `approvals`); post-apply health VERIFY failing triggers automatic rollback. Tier-D requires the `auto_code_fix` opt-in **plus** an injected `deploy_adapter` + `test_cmd`; absent any of these, code-class incidents stay Tier C.
 

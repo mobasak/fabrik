@@ -93,7 +93,7 @@ watchdog:
   expensive_model: anthropic/claude-opus-4
   propose_fix_prs: true       # Tier-D reuses the proposed-fix workspace clone
   auto_code_fix: true
-  code_fix_window_sec: 300
+  code_fix_window_sec: 1800
   critical_paths:
     - /api/v1/events          # the agent's failing path (RangeError on bad date)
     - RangeError

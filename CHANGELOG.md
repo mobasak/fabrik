@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Watchdog Tier-D approval window default 300s → 1800s (2026-07-05)
+
+`code_fix_window_sec` (the silence window after which an unanswered, tested-green Tier-D fix **auto-applies**) now defaults to **1800s / 30 min** instead of 300s. 5 minutes was too short for an operator to reliably `Reject` a wrong-but-passing fix before it deployed to prod. Fleet-wide: the `WatchdogConfig` default + the driver fallback + all 19 specs that carried the old `300` (real: calendar/tojlo-mail/tryton-crm; + 16 test fixtures) + `60-watchdog.md` + the default-assertion test. Bounds unchanged (60–3600s); any project can still override. New scaffolds inherit 1800 automatically (the watchdog block serializes the model default).
+
 ### Added — Wire Replicate as an evaluation route: Recraft models reachable via existing REPLICATE_API_TOKEN (2026-07-05)
 
 `scripts/kilo-benchmarks/specialty_pricing.py` gains 5 Recraft rows under a new `via: "replicate_official"` gateway: `recraft-ai/recraft-v3`, `recraft-v4`, `recraft-v4-svg`, `recraft-v4.1`, `recraft-v4.1-svg`. `scripts/kilo-benchmarks/specialty_clients/replicate.py` extended with an `OFFICIAL_MODELS` frozenset — listed models route through `/v1/models/{owner}/{name}/predictions` (Replicate's official-model endpoint, no version-hash pinning needed — matches the pattern in `/opt/brand-identiy-creator/src/brand_identity/services/replicate.py`). `microbench_specialty._dispatch` now routes both `via: "replicate"` and `via: "replicate_official"` to the same client. 5 DB rows seeded as `image_gen · status='active' · quality_tier=3`; they'll enter the Sunday specialty-bench cohort on the next cron. 2 hermetic regression tests. Enables reuse of the existing `REPLICATE_API_TOKEN` for Recraft workloads in downstream projects (e.g. an MEB 5th-grade Anki-flashcards visuals pipeline) without a separate `RECRAFT_API_KEY` provisioning step.

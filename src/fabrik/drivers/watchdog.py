@@ -500,7 +500,7 @@ class WatchdogDriver:
             auto_tier_b=bool(wcfg.get("auto_tier_b", False)),
             propose_fix_prs=bool(wcfg.get("propose_fix_prs", False)),
             auto_code_fix=bool(wcfg.get("auto_code_fix", False)),
-            code_fix_window_sec=int(wcfg.get("code_fix_window_sec", 300)),
+            code_fix_window_sec=int(wcfg.get("code_fix_window_sec", 1800)),
             critical_paths=list(wcfg.get("critical_paths", []) or []),
             trigger_sources=list(wcfg.get("trigger_sources", []) or []),
             external_docs_enabled=bool(wcfg.get("external_docs_enabled", True)),

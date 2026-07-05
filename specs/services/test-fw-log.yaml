@@ -56,6 +56,6 @@ watchdog:
   external_docs_enabled: true
   propose_fix_prs: false
   auto_code_fix: false
-  code_fix_window_sec: 300
+  code_fix_window_sec: 1800
   critical_paths: []
   trigger_sources: []

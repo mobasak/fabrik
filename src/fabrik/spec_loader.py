@@ -547,7 +547,7 @@ class WatchdogConfig(BaseModel):
         ),
     )
     code_fix_window_sec: int = Field(
-        default=300,
+        default=1800,
         ge=60,
         le=3600,
         description=(
@@ -555,7 +555,9 @@ class WatchdogConfig(BaseModel):
             "the operator via Telegram, this is how long the sidecar waits for an "
             "explicit Approve/Reject/STOP before the silence-window auto-applies. "
             "Passed to the bootstrap as WATCHDOG_APPROVAL_WINDOW_SEC. 60s min / "
-            "3600s max. Default 300s."
+            "3600s max. Default 1800s (30 min): silence auto-applies a tested-green "
+            "fix, so the window must be long enough for a realistic human review — "
+            "5 min was too short to reliably Reject a wrong-but-passing fix."
         ),
     )
     critical_paths: list[str] = Field(
