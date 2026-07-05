@@ -64,7 +64,7 @@ secrets:
     - WATCHDOG_PG_PASSWORD
 
 resources:
-  memory: 512M
+  memory: 768M   # app runs ts-node in prod (TS compiler resident ~200-350MB); 768M gives burst headroom for concurrent cursor queries. Scheduler stays 512M (compose). Real fix = compile to dist (later, non-blocking).
   cpu: "0.5"
 
 health:
@@ -81,6 +81,7 @@ health:
 # Telegram-approved fix and auto-rollback on health regression.
 watchdog:
   enabled: true
+  project_system_prompt_file: docs/WATCHDOG_PROMPT.md   # orients the sidecar to THIS app: driver reads it → WATCHDOG_SYSTEM_PROMPT, appended AFTER the canonical veteran-sysadmin prompt. Fail-soft (bad path → canonical only, never blocks deploy).
   daily_budget_usd: 5.00
   daily_invocations_cap: 100
   per_incident_budget_usd: 1.00
