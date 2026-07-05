@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Wire Replicate as an evaluation route: Recraft models reachable via existing REPLICATE_API_TOKEN (2026-07-05)
+
+`scripts/kilo-benchmarks/specialty_pricing.py` gains 5 Recraft rows under a new `via: "replicate_official"` gateway: `recraft-ai/recraft-v3`, `recraft-v4`, `recraft-v4-svg`, `recraft-v4.1`, `recraft-v4.1-svg`. `scripts/kilo-benchmarks/specialty_clients/replicate.py` extended with an `OFFICIAL_MODELS` frozenset — listed models route through `/v1/models/{owner}/{name}/predictions` (Replicate's official-model endpoint, no version-hash pinning needed — matches the pattern in `/opt/brand-identiy-creator/src/brand_identity/services/replicate.py`). `microbench_specialty._dispatch` now routes both `via: "replicate"` and `via: "replicate_official"` to the same client. 5 DB rows seeded as `image_gen · status='active' · quality_tier=3`; they'll enter the Sunday specialty-bench cohort on the next cron. 2 hermetic regression tests. Enables reuse of the existing `REPLICATE_API_TOKEN` for Recraft workloads in downstream projects (e.g. an MEB 5th-grade Anki-flashcards visuals pipeline) without a separate `RECRAFT_API_KEY` provisioning step.
+
 ### Fixed — `check_doc_sprawl` now allows `docs/superpowers/{plans,specs}/` (matches CLAUDE.md) (2026-07-05)
 
 The doc-sprawl gate rejected `docs/superpowers/specs/` and `docs/superpowers/plans/` even though CLAUDE.md's new-`.md` allowlist permits both — so `/fabrik-spec` (which writes designs to `docs/superpowers/specs/`) and the superpowers plan flow red the gate for a file in a sanctioned location. Added a matcher for `docs/superpowers/(plans|specs)/**/*.md`. Note the canonical gate already allowed `docs/development/plans/…` (a fabrik-lib report to the contrary was reading a stale governance snapshot — re-run `refresh-governance.sh` to pull current); `docs/plans/` remains correctly rejected (not a CLAUDE.md location). Fabrik-synced — distributes on commit.
