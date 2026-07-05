@@ -543,6 +543,98 @@ def test_dispatch_routes_recraft_ai_via_replicate():
         assert key == "K", mid
 
 
+def test_dispatch_recraft_ai_defense_in_depth_rejects_llm_service_type():
+    """Symmetric to `test_dispatch_defense_in_depth_rejects_llm_service_type`
+    (which covers `recraft/*`). A `recraft-ai/*` ID must NOT reach the
+    Replicate client when service_type is anything other than an image-gen
+    specialty type — the `SPECIALTY_SERVICE_TYPES` gate in `_dispatch` is
+    the second-layer guard."""
+    import microbench_specialty as mb
+
+    keys = {"REPLICATE_API_TOKEN": "K"}
+    for st in ["llm", "embedding", "video_gen", "rerank"]:
+        fn, key, tag = mb._dispatch("recraft-ai/recraft-v3", st, keys)
+        assert fn is None, f"service_type={st} unexpectedly routed"
+        assert tag is None, f"service_type={st} unexpectedly tagged"
+
+
+def test_official_models_and_pricing_are_bidirectionally_consistent():
+    """PRICING entries with `via: replicate_official` MUST all appear in
+    OFFICIAL_MODELS, and every OFFICIAL_MODELS entry MUST have a matching
+    PRICING row. A drift here silently produces `no Replicate version
+    pinned` errors on every Sunday cron for that row."""
+    from specialty_clients.replicate import OFFICIAL_MODELS
+    from specialty_pricing import PRICING
+
+    pricing_official = {
+        mid for mid, p in PRICING.items() if p.get("via") == "replicate_official"
+    }
+    only_in_pricing = pricing_official - OFFICIAL_MODELS
+    only_in_official = OFFICIAL_MODELS - pricing_official
+    assert not only_in_pricing, (
+        f"PRICING has {only_in_pricing} with via=replicate_official but "
+        f"they're missing from OFFICIAL_MODELS → bench_one will return "
+        f"'no Replicate version pinned' every run."
+    )
+    assert not only_in_official, (
+        f"OFFICIAL_MODELS has {only_in_official} that aren't in PRICING "
+        f"with via=replicate_official → dispatcher's PRICING lookup returns "
+        f"empty and the model can't be reached."
+    )
+
+
+def test_seeded_recraft_ai_rows_use_image_pricing_convention():
+    """The 5 DB-seeded `recraft-ai/*` rows MUST use `pricing_unit='image'`
+    with `input_cost_per_m = per_image * 1_000_000`, matching every other
+    image_gen row's convention (bfl/*, stability/*, recraft/v3). Wrong
+    convention (`M-tokens` + 0) makes browser render them as "free" and
+    `derive_cheapest_gateway.py` stamps `cheapest_gateway='direct free'`.
+
+    Also asserts `output_cost_per_m=0` (image_gen rows bill per_image only —
+    a nonzero output cost would double-count in consumers that sum in+out)
+    AND cross-validates DB input_cost_per_m == PRICING[id][per_image]*1e6
+    so PRICING↔DB drift is caught immediately."""
+    import sqlite3
+    from pathlib import Path
+
+    from specialty_pricing import PRICING
+
+    db = Path(__file__).resolve().parent.parent / "kilo_agents.db"
+    if not db.exists():
+        pytest.skip(f"convention test needs the shared catalog DB at {db}")
+    with sqlite3.connect(db) as c:
+        rows = c.execute(
+            "SELECT id, pricing_unit, input_cost_per_m, output_cost_per_m "
+            "FROM agents WHERE id LIKE 'recraft-ai/%' AND status='active'"
+        ).fetchall()
+    assert len(rows) >= 1, "no active recraft-ai/* rows found in DB"
+    for mid, unit, in_cost, out_cost in rows:
+        assert unit == "image", f"{mid}: pricing_unit={unit!r}, expected 'image'"
+        assert in_cost and in_cost > 0, (
+            f"{mid}: input_cost_per_m={in_cost}, expected non-zero (per_image * 1e6)"
+        )
+        # image_gen bills per_image only — a nonzero output cost would
+        # double-count downstream in any consumer that sums input+output.
+        assert (out_cost or 0) == 0, (
+            f"{mid}: output_cost_per_m={out_cost}, expected 0 (image_gen convention)"
+        )
+        # Cross-validate DB against PRICING: drift here means the browser
+        # shows one price while the cost cap uses another.
+        p = PRICING.get(mid)
+        assert p is not None, f"{mid}: seeded in DB but missing from PRICING"
+        assert "per_image" in p, (
+            f"{mid}: DB row is `image_gen` but PRICING key shape is "
+            f"{list(p)} — expected `per_image` (a future row using "
+            f"`per_generation`/`per_char` would need its own convention test)."
+        )
+        expected = p["per_image"] * 1_000_000
+        assert abs(in_cost - expected) < 1e-6, (
+            f"{mid}: DB input_cost_per_m={in_cost} disagrees with "
+            f"PRICING per_image * 1e6 = {expected} — drift means browser + "
+            f"cost cap use different prices."
+        )
+
+
 def test_precedence_guard_does_not_false_match_wildcard_underscore(tmpdb, capsys):
     """SQLite's `_` is a single-char LIKE wildcard; a naive
     `LIKE 'recraft_direct %'` pattern would match `recraftXdirect ...` too.

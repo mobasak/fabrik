@@ -34,11 +34,13 @@ PRICING: dict[str, dict] = {
     # Same model as `recraft/v3` direct route but reached through the
     # existing REPLICATE_API_TOKEN (no separate RECRAFT_API_KEY required in
     # projects that already talk to Replicate — e.g. /opt/brand-identiy-creator).
+    # All 5 model IDs live-verified against Replicate 2026-07-05:
+    #   `GET https://api.replicate.com/v1/models/recraft-ai/{name}` → HTTP 200
     "recraft-ai/recraft-v3": {"per_image": 0.04, "via": "replicate_official"},
-    "recraft-ai/recraft-v4": {"per_image": 0.04, "via": "replicate_official", "estimate": True},
-    "recraft-ai/recraft-v4-svg": {"per_image": 0.06, "via": "replicate_official", "estimate": True},
-    "recraft-ai/recraft-v4.1": {"per_image": 0.04, "via": "replicate_official", "estimate": True},
-    "recraft-ai/recraft-v4.1-svg": {"per_image": 0.06, "via": "replicate_official", "estimate": True},
+    "recraft-ai/recraft-v4": {"per_image": 0.04, "via": "replicate_official"},
+    "recraft-ai/recraft-v4-svg": {"per_image": 0.06, "via": "replicate_official"},
+    "recraft-ai/recraft-v4.1": {"per_image": 0.04, "via": "replicate_official"},
+    "recraft-ai/recraft-v4.1-svg": {"per_image": 0.06, "via": "replicate_official"},
     # ---------- ElevenLabs direct ----------
     # Creator tier $22/mo = $0.00003/char, ~30 chars/word.
     "elevenlabs/multilingual-v2": {"per_char": 0.00003, "via": "elevenlabs_direct"},
