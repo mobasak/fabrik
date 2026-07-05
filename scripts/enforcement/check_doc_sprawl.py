@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
+# AFTER-EDIT: none
 """Default-deny policy for new .md files - systematic anti-sprawl enforcement.
 
 Enforcement timing: Step 3 (pre-kilo) and Step 5 (post-kilo) via final_gate.py
 
 Policy:
+
 - ALLOW: Edits to tracked .md files (git tracked)
 - ALLOW: New files matching exact allowlists (root + docs scaffold)
 - ALLOW: New files matching strict patterns (plans, archive)
@@ -66,6 +68,12 @@ ALLOWED_PATTERNS = [
     # Blocks: docs/archive.md
     # Rationale: Agents may automatically archive completed plans
     re.compile(r"^docs/archive/(?!$).+\.md$"),
+    # Superpowers spec/plan pipeline: /fabrik-spec writes designs to
+    # docs/superpowers/specs/ and superpowers:writing-plans writes to
+    # docs/superpowers/plans/. Both are in the CLAUDE.md new-.md allowlist
+    # (docs/superpowers/plans/** · docs/superpowers/specs/**); this matcher keeps
+    # the gate in lockstep with the contract so those artifacts don't red the gate.
+    re.compile(r"^docs/superpowers/(plans|specs)/.+\.md$"),
 ]
 
 

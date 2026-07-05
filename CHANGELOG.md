@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — `check_doc_sprawl` now allows `docs/superpowers/{plans,specs}/` (matches CLAUDE.md) (2026-07-05)
+
+The doc-sprawl gate rejected `docs/superpowers/specs/` and `docs/superpowers/plans/` even though CLAUDE.md's new-`.md` allowlist permits both — so `/fabrik-spec` (which writes designs to `docs/superpowers/specs/`) and the superpowers plan flow red the gate for a file in a sanctioned location. Added a matcher for `docs/superpowers/(plans|specs)/**/*.md`. Note the canonical gate already allowed `docs/development/plans/…` (a fabrik-lib report to the contrary was reading a stale governance snapshot — re-run `refresh-governance.sh` to pull current); `docs/plans/` remains correctly rejected (not a CLAUDE.md location). Fabrik-synced — distributes on commit.
+
 ### Added — `docs/reference/openrouter-api.md` — live-grounded OpenRouter API reference (2026-07-05)
 
 The canonical internal OpenRouter reference the OR-using modules (`ai-consult`, `code-agent`, the recruit/subagents runtime) build against — there was none before, so every spec re-scraped live or worked from stale memory. Authored by 4 parallel research subagents live-fetching `openrouter.ai/docs` (exa/WebFetch/firecrawl/context7), cited by URL + fetch date, covering: request/response, streaming SSE + `[DONE]` + cancellation, provider routing (`provider` object + Auto Exacto), model routing + Auto Router, reasoning tokens, context-compression plugin, structured outputs, tool calling (the full loop for code-agent), usage accounting, prompt caching, and typed errors/limits. Caught three facts my prior from-memory brief had stale: `usage:{include}`/`stream_options.include_usage` are now deprecated no-ops (usage is auto), `transforms:["middle-out"]` → the `plugins:[{"id":"context-compression"}]` plugin, and the expanded `provider` field set. `/fabrik-spec-review` verifies OR claims against this (re-fetching if stale).
