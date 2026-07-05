@@ -31,18 +31,35 @@ ALLOWED_HOSTS = {"api.replicate.com", "replicate.com", "replicate.delivery"}
 VERSION_MAP = {
     "stability/sdxl": "39ed52f2a78e934b3ba6e2a89f5b1c712de7dfea535525255b1aa35c5565e08b",
 }
+# "Official model" IDs — reached via `/v1/models/{owner}/{name}/predictions`
+# (no version hash needed; Replicate resolves the current default version).
+# Matches the pattern used by /opt/brand-identiy-creator's replicate.py client.
+OFFICIAL_MODELS = frozenset(
+    {
+        "recraft-ai/recraft-v3",
+        "recraft-ai/recraft-v4",
+        "recraft-ai/recraft-v4-svg",
+        "recraft-ai/recraft-v4.1",
+        "recraft-ai/recraft-v4.1-svg",
+    }
+)
 MAX_POLL_SECONDS = 180
 
 
 def bench_one(model_id: str, api_key: str) -> dict:
-    version = VERSION_MAP.get(model_id)
-    if version is None:
-        return _err(f"no Replicate version pinned for {model_id}")
+    if model_id in OFFICIAL_MODELS:
+        create_url = f"https://api.replicate.com/v1/models/{model_id}/predictions"
+        body: dict = {"input": {"prompt": "a cat on a sofa"}}
+    else:
+        version = VERSION_MAP.get(model_id)
+        if version is None:
+            return _err(f"no Replicate version pinned for {model_id}")
+        create_url = CREATE_URL
+        body = {"version": version, "input": {"prompt": "a cat on a sofa"}}
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
-    body = {"version": version, "input": {"prompt": "a cat on a sofa"}}
     t0 = time.monotonic()
     try:
-        r = requests.post(CREATE_URL, json=body, headers=headers, timeout=30, allow_redirects=False)
+        r = requests.post(create_url, json=body, headers=headers, timeout=30, allow_redirects=False)
         if r.status_code >= 400:
             return _err(_http_err("create", r))
         data = r.json()

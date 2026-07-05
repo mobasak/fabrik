@@ -101,7 +101,7 @@ def _dispatch(model_id: str, service_type: str, keys: dict) -> tuple:
         return bfl_via_fal.bench_one, keys.get("FAL_KEY"), "fal_bfl"
     if via == "recraft_direct" or model_id.startswith("recraft/"):
         return recraft.bench_one, keys.get("RECRAFT_API_KEY"), "recraft_direct"
-    if via == "replicate":
+    if via == "replicate" or via == "replicate_official":
         return replicate.bench_one, keys.get("REPLICATE_API_TOKEN"), "replicate_direct"
     if model_id.startswith("elevenlabs/") and service_type == "tts":
         return elevenlabs_tts.bench_one, keys.get("ELEVENLABS_API_KEY"), "elevenlabs_direct"

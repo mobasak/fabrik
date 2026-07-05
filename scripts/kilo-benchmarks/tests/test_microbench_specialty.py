@@ -505,6 +505,44 @@ def test_dispatch_defense_in_depth_rejects_llm_service_type():
     assert tag == "recraft_direct"
 
 
+def test_replicate_official_models_use_model_endpoint():
+    """Recraft-via-Replicate (`recraft-ai/*`) uses the official-model endpoint
+    `/v1/models/{owner}/{name}/predictions` — no version hash needed."""
+    from specialty_clients import replicate
+
+    create_resp = _resp(200, json_data={"id": "p", "urls": {"get": "https://api.replicate.com/x"}})
+    succeeded = _resp(200, json_data={"status": "succeeded", "metrics": {"total_cost": 0.04}})
+    with (
+        patch.object(replicate.requests, "post", return_value=create_resp) as p_post,
+        patch.object(replicate.requests, "get", return_value=succeeded),
+        patch.object(replicate.time, "sleep"),
+    ):
+        r = replicate.bench_one("recraft-ai/recraft-v3", "K")
+    assert r["error"] is None
+    called_url = p_post.call_args.args[0]
+    assert called_url == "https://api.replicate.com/v1/models/recraft-ai/recraft-v3/predictions"
+    # No `version` field on the official-model body
+    assert "version" not in p_post.call_args.kwargs["json"]
+
+
+def test_dispatch_routes_recraft_ai_via_replicate():
+    """`recraft-ai/*` model IDs must land on the Replicate client (not the
+    Recraft-direct client that handles `recraft/*`)."""
+    import microbench_specialty as mb
+    from specialty_clients import replicate
+
+    keys = {"REPLICATE_API_TOKEN": "K"}
+    for mid in [
+        "recraft-ai/recraft-v3",
+        "recraft-ai/recraft-v4.1-svg",
+        "recraft-ai/recraft-v4",
+    ]:
+        fn, key, tag = mb._dispatch(mid, "image_gen", keys)
+        assert fn is replicate.bench_one, mid
+        assert tag == "replicate_direct", mid
+        assert key == "K", mid
+
+
 def test_precedence_guard_does_not_false_match_wildcard_underscore(tmpdb, capsys):
     """SQLite's `_` is a single-char LIKE wildcard; a naive
     `LIKE 'recraft_direct %'` pattern would match `recraftXdirect ...` too.

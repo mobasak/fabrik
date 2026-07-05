@@ -29,6 +29,16 @@ PRICING: dict[str, dict] = {
     "stability/sd3.5-large": {"per_image": 0.065, "via": "replicate"},
     "stability/sd3.5-large-turbo": {"per_image": 0.04, "via": "replicate"},
     "stability/sdxl": {"per_image": 0.003, "via": "replicate"},
+    # ---------- Recraft via Replicate (official-model endpoint) ----------
+    # Uses `/v1/models/{owner}/{name}/predictions` — no version hash needed.
+    # Same model as `recraft/v3` direct route but reached through the
+    # existing REPLICATE_API_TOKEN (no separate RECRAFT_API_KEY required in
+    # projects that already talk to Replicate — e.g. /opt/brand-identiy-creator).
+    "recraft-ai/recraft-v3": {"per_image": 0.04, "via": "replicate_official"},
+    "recraft-ai/recraft-v4": {"per_image": 0.04, "via": "replicate_official", "estimate": True},
+    "recraft-ai/recraft-v4-svg": {"per_image": 0.06, "via": "replicate_official", "estimate": True},
+    "recraft-ai/recraft-v4.1": {"per_image": 0.04, "via": "replicate_official", "estimate": True},
+    "recraft-ai/recraft-v4.1-svg": {"per_image": 0.06, "via": "replicate_official", "estimate": True},
     # ---------- ElevenLabs direct ----------
     # Creator tier $22/mo = $0.00003/char, ~30 chars/word.
     "elevenlabs/multilingual-v2": {"per_char": 0.00003, "via": "elevenlabs_direct"},
