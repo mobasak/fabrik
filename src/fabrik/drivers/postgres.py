@@ -825,60 +825,44 @@ def create_subagent_ins_role(
     role_exists = _role_exists(role, container)
     pw = None if role_exists else _generate_password()
 
-    # Same failure-loud discipline as create_watchdog_roles: on a create race,
-    # a bare CREATE errors → ON_ERROR_STOP aborts → we DON'T inject a password
-    # that wouldn't match the role. Winning apply injects a valid DSN; this one
-    # fails loud and heals on the next apply.
-    sql_parts: list[str] = ["\\set ON_ERROR_STOP on"]
+    # Split into TWO psql invocations to avoid the wedge state the convergence
+    # review flagged (Finder A#2 + A#3):
+    #
+    #   * Call 1 (postgres db): CREATE ROLE only, atomically. If this fails
+    #     because a concurrent apply already created the role (CREATE race), the
+    #     failure is loud, NO cleanup runs, the winner's role stays intact.
+    #     Docstring's "fails loud and heals on next apply" contract is preserved.
+    #
+    #   * Call 2 (fabrik_analytics db): all GRANTs. Idempotent — re-applied every
+    #     call, safe to re-run on the next apply if a mid-batch failure aborts
+    #     this one. No transaction needed because the effect of "some grants
+    #     applied, some not" is self-healing: the next apply re-issues them all.
+    #
+    # An earlier attempt used a single combined batch with a try/except drop-role
+    # cleanup on partial failure. That cleanup was UNSAFE — it dropped the
+    # role even when the failure was "CREATE ROLE already exists" from a race,
+    # killing the winning apply's just-created role.
     if not role_exists:
-        sql_parts.append(
-            f'CREATE ROLE "{role}" WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE '
-            f"PASSWORD '{pw}';"  # nosec B608 — pw is CSPRNG alnum, single-quote-safe
+        # nosec B608 — role name identifier-validated; pw is CSPRNG alnum.
+        _run_sql(
+            f'CREATE ROLE "{role}" WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE '  # nosec B608
+            f"PASSWORD '{pw}';",
+            container=container,
         )
-    # CONNECT is DB-level; INSERT + sequence USAGE must run INSIDE fabrik_analytics
-    # (\c) so `subagent_runs` and `subagent_runs_id_seq` resolve there.
-    # Grants are idempotent → re-applied every call so a re-apply after a schema
-    # change (e.g. a future ALTER TABLE ADD COLUMN) still carries the grant.
-    # Qualified with `public.` to survive a future search_path drift (Finder A#9).
-    sql_parts += [
-        f'GRANT CONNECT ON DATABASE "{FABRIK_ANALYTICS_DB}" TO "{role}";',
-        f"\\c {FABRIK_ANALYTICS_DB}",
-        f'GRANT USAGE ON SCHEMA public TO "{role}";',
+
+    # Grants — always re-applied (idempotent, additive). Qualified with `public.`
+    # to survive a future search_path drift (Finder A#9).
+    grant_sql = (
+        "\\set ON_ERROR_STOP on\n"
+        f'GRANT CONNECT ON DATABASE "{FABRIK_ANALYTICS_DB}" TO "{role}";\n'
+        f"\\c {FABRIK_ANALYTICS_DB}\n"
+        f'GRANT USAGE ON SCHEMA public TO "{role}";\n'
         # INSERT only — least privilege. NO SELECT/UPDATE/DELETE on subagent_runs.
-        f'GRANT INSERT ON public.subagent_runs TO "{role}";',
+        f'GRANT INSERT ON public.subagent_runs TO "{role}";\n'
         # `id BIGSERIAL` needs sequence USAGE for INSERT to allocate the next id.
-        f'GRANT USAGE ON SEQUENCE public.subagent_runs_id_seq TO "{role}";',
-    ]
-    # nosec B608 — role name identifier-validated above; password is CSPRNG alnum.
-    try:
-        _run_sql("\n".join(sql_parts) + "\n", container=container)  # nosec B608
-    except Exception:
-        # Wedge-state guard (Finder A#3): if any GRANT failed AFTER a fresh
-        # CREATE ROLE succeeded (each statement outside \c auto-commits under
-        # psql, so ON_ERROR_STOP can't roll back the CREATE), the cluster ends
-        # up with a role whose password lives only in our Python-side `pw`
-        # local — which we're about to lose to the exception. Next apply would
-        # see `role_exists=True`, return `password=None`, and never inject a
-        # matching DSN. Drop the just-created role so the next apply gets a
-        # fresh CREATE with a fresh matching password.
-        if not role_exists:
-            try:
-                _run_sql(  # nosec B608 — role name identifier-validated above
-                    f'DROP ROLE IF EXISTS "{role}";', container=container
-                )
-                logger.warning(
-                    "subagent-ins role %s: dropped after partial-provision failure "
-                    "(will retry on next apply)",
-                    role,
-                )
-            except Exception as drop_exc:  # noqa: BLE001 — bounded non-fatal
-                logger.warning(
-                    "subagent-ins role %s: failed to drop after partial-provision "
-                    "(operator must DROP ROLE manually before next apply): %s",
-                    role,
-                    drop_exc,
-                )
-        raise
+        f'GRANT USAGE ON SEQUENCE public.subagent_runs_id_seq TO "{role}";\n'
+    )
+    _run_sql(grant_sql, container=container)  # nosec B608
 
     logger.info(
         "subagent-ins role: %s (%s) on fabrik_analytics.subagent_runs",
@@ -1163,15 +1147,29 @@ requiring a copy of the DDL to live here."""
 def _read_subagent_runs_ddl() -> str:
     """Import SUBAGENT_RUNS_DDL from the vendored subagents module and return it.
 
-    Runs `python -c` in a subprocess with cwd=/opt/fabrik-lib/subagents so we don't
-    have to add that path to fabrik's sys.path at import time (would create a
-    circular dep if fabrik-lib ever imports back). Raises RuntimeError on any
-    failure so the caller can decide whether to bail or degrade.
+    Runs `sys.executable -c` in a subprocess with cwd=/opt/fabrik-lib/subagents so we
+    don't have to add that path to fabrik's sys.path at import time (would create a
+    circular dep if fabrik-lib ever imports back). Raises RuntimeError on any failure
+    so the caller can decide whether to bail or degrade.
+
+    Two subtleties the convergence review caught:
+      * Use `sys.executable` (fabrik's venv), NOT `python3` (system PATH). A lean
+        orchestrator host may lack fabrik-lib's httpx / anthropic deps in system
+        python; sys.executable reuses fabrik's own venv which HAS them.
+      * Import from `subagents.pg_ledger` submodule directly, NOT via the package's
+        `__init__.py`. The package's __init__ transitively imports httpx via
+        `.agent → .loop → httpx`; even under sys.executable this is unnecessary
+        weight for reading a plain string constant.
     """
     import subprocess
+    import sys
 
     result = subprocess.run(
-        ["python3", "-c", "from subagents import SUBAGENT_RUNS_DDL; print(SUBAGENT_RUNS_DDL)"],
+        [
+            sys.executable,
+            "-c",
+            "from subagents.pg_ledger import SUBAGENT_RUNS_DDL; print(SUBAGENT_RUNS_DDL)",
+        ],
         capture_output=True,
         text=True,
         check=False,

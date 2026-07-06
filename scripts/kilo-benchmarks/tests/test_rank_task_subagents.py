@@ -56,17 +56,71 @@ def _postgres_reachable() -> bool:
     return r.returncode == 0
 
 
-def test_empty_input_emits_stub_content() -> None:
-    """No aggregated rows → stub markdown, exit 0."""
-    from rank_task_subagents import render
+def test_empty_input_emits_stub_content(monkeypatch) -> None:
+    """No aggregated rows AND no CODING fallback → stub markdown, exit 0.
 
-    md = render([])
+    Isolates from the real CODING_SUBAGENT_SELECTION.md file (which typically
+    exists in the repo) so this test proves the stub-emit path specifically —
+    a separate test covers the CODING-blend behavior.
+    """
+    import rank_task_subagents
+
+    monkeypatch.setattr(rank_task_subagents, "_load_coding_fallback", lambda *_a, **_k: [])
+    md = rank_task_subagents.render([])
     assert "No aggregated runs yet" in md
     assert md.startswith("Last refresh:")
     # And critically, no `### <task_type>` sections at all — the module's
     # load_task_ranking() distinguishes stub from real data by the absence
-    # of section headers (verified against select.py:112).
+    # of section headers.
     assert "### " not in md
+
+
+def test_empty_fleet_with_coding_available_blends_code_section(monkeypatch) -> None:
+    """Convergence Finder C fix: when the fleet has NO `code` empirical data BUT
+    CODING_SUBAGENT_SELECTION.md has ranked models, the emitted TASK doc includes
+    a `### code` section seeded from CODING. This is the hub-side blend that
+    replaces the (broken) comma-separated SUBAGENT_SELECTION_DOC approach — one
+    file, blended at emit time, single-path reader.
+    """
+    import rank_task_subagents
+
+    monkeypatch.setattr(
+        rank_task_subagents,
+        "_load_coding_fallback",
+        lambda *_a, **_k: ["minimax/minimax-m2.5", "z-ai/glm-5", "deepseek/deepseek-v3.2"],
+    )
+    md = rank_task_subagents.render([])
+    # Must have the code section — NOT the empty-stub message.
+    assert "### code" in md
+    assert "No aggregated runs yet" not in md
+    # And all 3 CODING models must appear as reader-parseable table rows.
+    for model in ("minimax/minimax-m2.5", "z-ai/glm-5", "deepseek/deepseek-v3.2"):
+        assert f"`{model}`" in md
+    # Marked as benchmark-sourced so a human reader can distinguish them from
+    # real fleet rows.
+    assert "[benchmark]" in md
+    # Section header is n_total=0 (no real runs), with the fallback source noted.
+    assert "n_total=0" in md
+    assert "fallback from CODING_SUBAGENT_SELECTION.md" in md
+
+
+def test_coding_fallback_not_emitted_when_fleet_has_code_data(monkeypatch) -> None:
+    """When the fleet has empirical `code` runs, the CODING fallback is NOT
+    blended — real fleet data always wins for a task_type it has data for."""
+    import rank_task_subagents
+
+    monkeypatch.setattr(
+        rank_task_subagents,
+        "_load_coding_fallback",
+        lambda *_a, **_k: ["should-NOT-appear/model"],
+    )
+    rows = [("code", "real-fleet/model", 5, 0.10, 1.5, 0.9)]
+    md = rank_task_subagents.render(rows)
+    assert "`real-fleet/model`" in md
+    assert "should-NOT-appear" not in md, (
+        "CODING fallback must not blend when fleet has data for the same task_type"
+    )
+    assert "[benchmark]" not in md
 
 
 def test_ranks_by_value_success_x_quality_over_cost() -> None:
@@ -279,16 +333,20 @@ def test_query_rows_skips_null_cost_row(monkeypatch, capsys) -> None:
     assert "no cost signal" in err  # operator-visible warning about the skipped row
 
 
-def test_error_state_emits_distinct_stub_with_failure_banner() -> None:
+def test_error_state_emits_distinct_stub_with_failure_banner(monkeypatch) -> None:
     """A6 fix: on query failure, the emitted stub must say AGGREGATION FAILED (not
     "No aggregated runs yet"). Otherwise the daily-regenerated Last-refresh date
     makes broken indistinguishable from healthy-but-empty, and an operator watching
     for stale content sees the file changing daily and thinks it's healthy.
-    """
-    from rank_task_subagents import render
 
-    md_ok = render([], state="ok")
-    md_err = render([], state="error")
+    Isolates from real CODING file so the assertions target the state-distinction
+    behavior specifically.
+    """
+    import rank_task_subagents
+
+    monkeypatch.setattr(rank_task_subagents, "_load_coding_fallback", lambda *_a, **_k: [])
+    md_ok = rank_task_subagents.render([], state="ok")
+    md_err = rank_task_subagents.render([], state="error")
 
     assert "No aggregated runs yet" in md_ok
     assert "AGGREGATION FAILED" not in md_ok
@@ -309,11 +367,15 @@ def test_main_exit_code_reflects_state(monkeypatch, tmp_path) -> None:
     Also asserts OUTPUT_PATH is actually WRITTEN (Finder B#5) — a regression in
     `_atomic_write` (swapped `os.replace(tmp, path)` args, path.parent race) would
     still return the right exit code but leave the target unwritten or deleted.
+
+    Isolates from real CODING file so 'No aggregated runs yet' stub is emitted
+    cleanly for the state=ok+empty-rows case.
     """
     import rank_task_subagents
 
     out_path = tmp_path / "TASK_SUBAGENT_SELECTION.md"
     monkeypatch.setattr(rank_task_subagents, "OUTPUT_PATH", out_path)
+    monkeypatch.setattr(rank_task_subagents, "_load_coding_fallback", lambda *_a, **_k: [])
 
     monkeypatch.setattr(rank_task_subagents, "_query_rows", lambda: ("ok", []))
     assert rank_task_subagents.main() == 0

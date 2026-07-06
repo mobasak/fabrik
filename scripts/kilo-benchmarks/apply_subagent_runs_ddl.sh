@@ -44,7 +44,8 @@ echo "$DDL" | sudo -n -u postgres psql -v ON_ERROR_STOP=1 -d fabrik_analytics
 # Assert the emitted column set matches expectations (Finder B#2). Not just display.
 ACTUAL_COLUMNS=$(sudo -n -u postgres psql -v ON_ERROR_STOP=1 -d fabrik_analytics -tAc \
   "SELECT string_agg(column_name, ',' ORDER BY ordinal_position) \
-   FROM information_schema.columns WHERE table_name='subagent_runs'")
+   FROM information_schema.columns \
+   WHERE table_name='subagent_runs' AND table_schema='public'")
 
 if [ "$ACTUAL_COLUMNS" != "$EXPECTED_COLUMNS" ]; then
   echo "FAIL — subagent_runs schema drift detected."

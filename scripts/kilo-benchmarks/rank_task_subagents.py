@@ -114,7 +114,12 @@ def _query_rows() -> tuple[str, list[tuple[str, str, int, float, float, float]]]
             check=False,
             timeout=QUERY_TIMEOUT_SECONDS,
         )
-    except (subprocess.TimeoutExpired, FileNotFoundError) as exc:
+    except (subprocess.TimeoutExpired, OSError) as exc:
+        # Broadened from (TimeoutExpired, FileNotFoundError) → (TimeoutExpired, OSError)
+        # per convergence-pass Finder B#2. The docstring says "never raises" but a
+        # generic OSError (PermissionError, EMFILE, ENOMEM, broken sudo executable)
+        # would otherwise propagate up and crash main() before the AGGREGATION FAILED
+        # stub is written. OSError covers FileNotFoundError + everything similar.
         print(f"[rank_task_subagents] DB query failed: {exc}", file=sys.stderr)
         return ("error", [])
     if result.returncode != 0:
@@ -125,18 +130,22 @@ def _query_rows() -> tuple[str, list[tuple[str, str, int, float, float, float]]]
     # quoting=csv.QUOTE_NONE — psql `-A` mode never emits CSV-style quoting, so a
     # value starting with `"` would otherwise collapse subsequent tab-separated
     # columns into one field (Finder B#3). QUOTE_NONE treats `"` as literal.
-    try:
-        parsed_lines = list(
-            csv.reader(io.StringIO(result.stdout), delimiter=PSQL_FIELD_SEP, quoting=csv.QUOTE_NONE)
-        )
-    except csv.Error as exc:
-        # csv.Error is not a subclass of ValueError/TypeError → would otherwise
-        # escape the row-level try/except and crash main() before the AGGREGATION
-        # FAILED stub is written (Finder B#4). Treat parse-level failure as a
-        # query error (state="error") so render() emits the distinct banner.
-        print(f"[rank_task_subagents] CSV parse failed: {exc}", file=sys.stderr)
-        return ("error", [])
-    for line in parsed_lines:
+    #
+    # Per-row parse (Finder B#4): iterate the reader lazily instead of materializing
+    # with list(). A mid-iteration csv.Error would otherwise abort ALL data — 99
+    # good rows + 1 bad row would collapse to state="error" and rows=[]. Per-row
+    # handling drops the one bad row while preserving the rest.
+    reader = csv.reader(
+        io.StringIO(result.stdout), delimiter=PSQL_FIELD_SEP, quoting=csv.QUOTE_NONE
+    )
+    while True:
+        try:
+            line = next(reader)
+        except StopIteration:
+            break
+        except csv.Error as exc:
+            print(f"[rank_task_subagents] skip malformed line: {exc}", file=sys.stderr)
+            continue
         if not line or not line[0]:
             continue
         try:
@@ -204,6 +213,60 @@ def _value(avg_cost: float, avg_quality: float, success_rate: float) -> float:
     return success_rate * avg_quality * avg_cost
 
 
+CODING_FALLBACK_PATH = (
+    Path(__file__).resolve().parent.parent.parent
+    / "docs"
+    / "reference"
+    / "kilo"
+    / "CODING_SUBAGENT_SELECTION.md"
+)
+CODING_FALLBACK_MAX = 10  # how many CODING models to blend when the fleet has no `code` data
+
+
+def _load_coding_fallback(path: Path = CODING_FALLBACK_PATH) -> list[str]:
+    """Parse `docs/reference/kilo/CODING_SUBAGENT_SELECTION.md` and return the top-N
+    model IDs from its `### code` section.
+
+    We use this as a FALLBACK when the fleet has no empirical `code` runs yet — the
+    vendored subagents module's reader accepts ONE file (not comma-separated), so
+    to give projects benchmark-based rankings for the `code` task_type before real
+    fleet data accumulates, we blend CODING's ranked models into TASK_SUBAGENT_
+    SELECTION.md's emitted `### code` section here at doc-emit time.
+
+    Never raises. Returns [] on any parse/read failure — the caller then just
+    omits the `### code` section and pick_models falls through to _TABLE."""
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return []
+    # The CODING file has ONE `### code` section followed by a markdown table.
+    # Extract rows: `| N | \`model\` | ... |`. Rank cell isdecimal, model cell
+    # is backticked. This mirrors the parse logic in the subagents module's
+    # `load_task_ranking()` at select.py so what we blend WILL be readable by
+    # the same reader that eventually consumes TASK_SUBAGENT_SELECTION.md.
+    in_code = False
+    models: list[str] = []
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("###"):
+            head = stripped.lower()
+            in_code = head.startswith("### code")
+            continue
+        if not in_code or not stripped.startswith("|"):
+            continue
+        cells = [c.strip() for c in stripped.strip("|").split("|")]
+        if len(cells) < 2 or not cells[0].isdecimal():
+            continue
+        model = cells[1].strip("`")
+        if "/" not in model:
+            continue
+        if model not in models:  # dedup, preserve rank order
+            models.append(model)
+        if len(models) >= CODING_FALLBACK_MAX:
+            break
+    return models
+
+
 def render(rows: list, state: str = "ok") -> str:
     """Emit the ranked markdown from aggregated rows.
 
@@ -230,15 +293,26 @@ def render(rows: list, state: str = "ok") -> str:
             "no functional regression, but the ranking is stale until this is fixed.\n"
         )
     kept = filter_min_runs(rows)
-    if not kept:
+    # Group by task_type — start early so the CODING fallback can check whether
+    # `code` has real fleet data before we decide whether to blend.
+    by_task: dict[str, list] = {}
+    for r in kept:
+        by_task.setdefault(r[0], []).append(r)
+
+    # CODING fallback (Finder C fix): when the fleet has NO empirical `code` data,
+    # seed the `### code` section from CODING_SUBAGENT_SELECTION.md so
+    # pick_models("code") returns benchmark-ranked models instead of falling
+    # through to the vendored `_TABLE`. Only applies to `code` — other task
+    # types have no benchmark analog and correctly fall through when empty.
+    coding_fallback_models: list[str] = []
+    if not by_task.get("code"):
+        coding_fallback_models = _load_coding_fallback()
+
+    if not kept and not coding_fallback_models:
         return header + (
             "No aggregated runs yet — `pick_models` continues to use vendored `_TABLE` default at "
             "`/opt/fabrik-lib/subagents/subagents/select.py:58`.\n"
         )
-    # Group by task_type
-    by_task: dict[str, list] = {}
-    for r in kept:
-        by_task.setdefault(r[0], []).append(r)
     out = [header]
     for task_type in sorted(by_task):
         task_rows = by_task[task_type]
@@ -256,6 +330,21 @@ def render(rows: list, state: str = "ok") -> str:
                 f"| {rank} | `{r[1]}` | {val:.2f} | {r[5]:.2f} | ${r[3]:.4f} | {r[4]:.2f} | {r[2]} |"
             )
         out.append("")
+
+    # Blended `### code` section from CODING_SUBAGENT_SELECTION.md — emitted only
+    # when the fleet has no empirical `code` runs yet. Reader-compatible table
+    # rows (rank in first cell, backticked model in second) so the module's
+    # load_task_ranking() parses them just like fleet rows. Marker `[benchmark]`
+    # in the source column tells human readers these came from public benchmarks,
+    # not from live fleet invocations.
+    if coding_fallback_models:
+        out.append("### code (n_total=0, fallback from CODING_SUBAGENT_SELECTION.md)")
+        out.append("| rank | model | source |")
+        out.append("|---:|---|:-:|")
+        for rank, model in enumerate(coding_fallback_models, start=1):
+            out.append(f"| {rank} | `{model}` | [benchmark] |")
+        out.append("")
+
     return "\n".join(out) + "\n"
 
 

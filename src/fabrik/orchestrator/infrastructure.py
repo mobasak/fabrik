@@ -580,18 +580,20 @@ class InfrastructureProvisioner:
                         f"postgresql://{sa['ins']['user']}:{sa['ins']['password']}"
                         f"@postgres-main:5432/fabrik_analytics"  # noqa: runtime CSPRNG password, not a hardcoded secret
                     )
-                # SUBAGENT_SELECTION_DOC = the governance-synced ranking doc.
-                # Two paths (comma-separated), read in order — the module's reader
-                # first tries TASK (real fleet data), falls back to CODING (public
-                # benchmark rankings for coding task_type) per-task_type. Both
-                # governance-synced to every project's docs/reference/kilo/.
-                # NOTE: relative path resolved from cwd; if the container's WORKDIR
-                # doesn't have docs/ mounted, projects should override to an absolute
-                # path in their .env (documented in the workflow doc's Part B).
-                sa_env["SUBAGENT_SELECTION_DOC"] = (
-                    "docs/reference/kilo/TASK_SUBAGENT_SELECTION.md,"
-                    "docs/reference/kilo/CODING_SUBAGENT_SELECTION.md"
-                )
+                # SUBAGENT_SELECTION_DOC = the governance-synced ranking doc. SINGLE
+                # path — the vendored subagents module's reader (`_synced_ranking()`
+                # in select.py) accepts one file, not a list. To combine the fleet's
+                # real-run data (TASK) with the public benchmarks (CODING), the
+                # HUB-SIDE aggregator (`rank_task_subagents.py`) BLENDS both signals
+                # into this one file: fleet data wins where present, CODING seeds
+                # the `### code` section when the fleet has no coding runs yet.
+                # A prior draft of this code injected `TASK,CODING` comma-separated,
+                # but the reader treats the whole string as ONE literal filename
+                # → OSError → silent `{}` → pick_models permanently on `_TABLE`.
+                # Reverted to single-path 2026-07-06 after the convergence review
+                # caught the regression; the CODING blend now happens at doc-emit
+                # time (rank_task_subagents.py) instead of at read time.
+                sa_env["SUBAGENT_SELECTION_DOC"] = "docs/reference/kilo/TASK_SUBAGENT_SELECTION.md"
                 if not dry_run:
                     self.deployer.inject_env(ctx, sa_env)
                     injected = ", ".join(sorted(sa_env))

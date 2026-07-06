@@ -37,7 +37,14 @@ _FORBIDDEN_VERBS = ("SELECT", "UPDATE", "DELETE", "TRUNCATE", "REFERENCES", "TRI
 
 def _capture(project: str = PROJECT, *, role_exists: bool = False):
     """Run create_subagent_ins_role with _run_sql/_role_exists/_generate_password
-    mocked; return (result, batch_sql)."""
+    mocked; return (result, combined_sql). All _run_sql calls' SQL are concatenated
+    with `\\n---SPLIT---\\n` separators so downstream assertions can grep the
+    full emitted SQL surface (across both the CREATE ROLE and the GRANT batches).
+
+    Convergence Finder A#2/A#3 refactor: create_subagent_ins_role now issues TWO
+    _run_sql calls — a first one that runs CREATE ROLE alone (atomic under race),
+    and a second one with all GRANTs (idempotent). This helper collapses both
+    into one string so existing assertions on the SQL shape keep working."""
     calls: list[str] = []
 
     def fake_run_sql(sql, container=pg.POSTGRES_CONTAINER, dry_run=False):
@@ -50,9 +57,10 @@ def _capture(project: str = PROJECT, *, role_exists: bool = False):
         mock.patch.object(pg, "_generate_password", return_value="INS_PW"),
     ):
         result = pg.create_subagent_ins_role(project)
-    batch_calls = [c for c in calls if "GRANT CONNECT" in c]
-    assert len(batch_calls) == 1, f"expected exactly one grant batch, got {len(batch_calls)}"
-    return result, batch_calls[0]
+    grant_calls = [c for c in calls if "GRANT CONNECT" in c]
+    assert len(grant_calls) == 1, f"expected exactly one grant batch, got {len(grant_calls)}"
+    combined = "\n---SPLIT---\n".join(calls)
+    return result, combined
 
 
 # ── privilege boundary ────────────────────────────────────────────────────
@@ -113,8 +121,13 @@ def test_ins_role_uses_least_privilege_options_on_create():
     # assertion `'SUPERUSER' not in create or 'NOSUPERUSER' in create` was
     # always True whenever NOSUPERUSER was present (Finder A#7). Strip the
     # NO-prefixed form first, then reject any remaining SUPERUSER.
-    create_without_no = create.replace("NOSUPERUSER", "")
-    assert not re.search(r"\bSUPERUSER\b", create_without_no), (
+    #
+    # Case-insensitive (convergence Finder A#5): Postgres keywords are
+    # case-insensitive (`NOSUPERUSER` == `nosuperuser`), so a future code-gen
+    # that emits lowercase would evade a case-sensitive strip. re.IGNORECASE
+    # on both the substitution and the search handles this.
+    create_without_no = re.sub(r"\bNOSUPERUSER\b", "", create, flags=re.IGNORECASE)
+    assert not re.search(r"\bSUPERUSER\b", create_without_no, flags=re.IGNORECASE), (
         f"bare SUPERUSER present in CREATE ROLE: {create}"
     )
 
@@ -151,13 +164,24 @@ def test_ins_role_grants_use_public_schema_qualification():
 
 
 def test_batch_runs_under_on_error_stop_so_a_failed_grant_aborts_the_batch():
-    """Without ON_ERROR_STOP, a mid-batch failure would leave the role created
-    but ungranted, and this function would report success. Pin the psql \\set."""
+    """Without ON_ERROR_STOP, a mid-GRANT-batch failure would leave the role
+    partially granted and this function would report success. Pin the psql \\set
+    at the top of the GRANT batch (the CREATE ROLE call is a single statement,
+    doesn't need it — raises on non-zero exit via _run_sql's contract).
+
+    Convergence Finder A#2/A#3: `create_subagent_ins_role` now issues TWO
+    _run_sql calls (CREATE ROLE atomically, then all GRANTs). The combined SQL
+    exposed by `_capture` joins them with `---SPLIT---`. The ON_ERROR_STOP
+    directive lives at the top of the GRANT batch specifically.
+    """
     _, sql = _capture()
-    assert "\\set ON_ERROR_STOP on" in sql
-    # And it must be the FIRST line — otherwise a failure before the \\set still
-    # exits 0 and reports success.
-    assert sql.strip().splitlines()[0] == "\\set ON_ERROR_STOP on"
+    # Find the GRANT batch — it's the one that contains `GRANT CONNECT`.
+    parts = sql.split("---SPLIT---")
+    grant_batch = next(p for p in parts if "GRANT CONNECT" in p).strip()
+    assert "\\set ON_ERROR_STOP on" in grant_batch
+    # And it must be the FIRST line of the GRANT batch — otherwise a mid-batch
+    # failure before the \\set still exits 0 and reports success.
+    assert grant_batch.splitlines()[0] == "\\set ON_ERROR_STOP on"
 
 
 def test_password_generated_only_on_fresh_create_not_on_reapply():

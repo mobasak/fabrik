@@ -78,15 +78,22 @@ The module's `pick_models()` reads TWO governance-synced markdown files, in prio
 | **`docs/reference/kilo/TASK_SUBAGENT_SELECTION.md`** | `fabrik_analytics.subagent_runs` — YOUR fleet's real invocations | All 6 TaskKinds (spec/plan/code/review/docs/research) | `success × quality / cost` over 90-day window, min 3 runs | Whenever the fleet has ≥3 runs for a (task_type, model) pair |
 | **`docs/reference/kilo/CODING_SUBAGENT_SELECTION.md`** | `kilo_agents.db` — public benchmarks (SWE-bench, Aider, Arena, AA) | Coding LLMs only (GLM / Kimi / Minimax / DeepSeek families), tagged under `### code` header | `45% max(SWE, Aider) + 20% AA + 15% Arena + 10% speed + 10% cost-inv` | Falls back for the `code` task_type when the fleet has thin/no data |
 
-**The reader (`load_task_ranking` at `select.py`) reads BOTH.** `SUBAGENT_SELECTION_DOC` is comma-separated — first-file-that-has-data-for-a-task-type wins, per task_type. So for the `code` task, TASK wins if you have real fleet runs, CODING wins otherwise; for `spec`/`plan`/`review`/`docs`/`research`, only TASK contributes (CODING doesn't have those sections). This is why `fabrik apply` injects the env var as:
+**The reader accepts ONE path.** `_synced_ranking()` in the vendored module reads a single file — no comma-separated list. So how do both signals reach `pick_models`? **Hub-side blending**: the aggregator (`rank_task_subagents.py`) READS `CODING_SUBAGENT_SELECTION.md` and BLENDS its `### code` section into `TASK_SUBAGENT_SELECTION.md` whenever the fleet has no empirical `code` data. The reader then only ever opens the ONE file `TASK_SUBAGENT_SELECTION.md`, but the content it sees is:
+
+- Real fleet rows for every task type where you have ≥3 runs, PLUS
+- A `### code (n_total=0, fallback from CODING_SUBAGENT_SELECTION.md)` section with `[benchmark]`-tagged rows when the fleet lacks coding data.
+
+This is why `fabrik apply` injects the env var as a **single path**:
 
 ```
-SUBAGENT_SELECTION_DOC=docs/reference/kilo/TASK_SUBAGENT_SELECTION.md,docs/reference/kilo/CODING_SUBAGENT_SELECTION.md
+SUBAGENT_SELECTION_DOC=docs/reference/kilo/TASK_SUBAGENT_SELECTION.md
 ```
 
-**Both files are governance-synced** to every project's `docs/reference/kilo/`, so they stay fresh without projects fetching anything.
+**A prior draft of this doc claimed the injection was comma-separated (`TASK,CODING`)** — that was a real bug: `select.py`'s `Path(path).read_text()` treated the whole string as one literal filename → OSError → silent `{}` → `pick_models` permanently on `_TABLE`. **Fixed 2026-07-06** by reverting to single-path + adding the hub-side blend.
 
-**Neither file replaces the module's vendored `_TABLE` default** — that stays as the last-resort fallback for when both files are missing / stale (>14 days) / empty.
+**Both files are governance-synced** to every project's `docs/reference/kilo/`, so they stay fresh without projects fetching anything. Only the TASK file is READ by the module; the CODING file is read (and blended) by the hub's aggregator before emit.
+
+**Neither file replaces the module's vendored `_TABLE` default** — that stays as the last-resort fallback when the TASK file is missing / stale (>14 days) / has no `### <task>` sections at all.
 
 ## Prerequisites
 
@@ -389,7 +396,7 @@ The file lives under `docs/reference/kilo/` which is fabrik-synced (`scripts/fab
 
 The vendored `pick_models` (per the fabrik-lib AI's implementation at `select.py` — `load_task_ranking(path, *, min_n=0, max_age_days=None)` with `max_age_days=14` in `_synced_ranking()`) automatically ignores the doc if `Last refresh:` is more than 14 days old — falls back per-task-type to the next configured doc, and ultimately to `_TABLE`. So if `daily_refresh.sh` silently stops running for 3 weeks, `pick_models` reverts to the vendored default instead of serving a months-old ranking.
 
-**Note on fallback granularity.** The fallback is per-task_type, not all-or-nothing. If TASK_SUBAGENT_SELECTION.md has a `### code` section but no `### spec` section (because your fleet has run code but not spec agents yet), a call to `pick_models("code")` uses the fleet data while `pick_models("spec")` falls through to the CODING file (which doesn't have `### spec` either) then to `_TABLE["spec"]`. Diagnosis: `pick_models` returning `_TABLE` order for one task type but real data for another is expected and means "no fleet data yet for that specific task_type."
+**Note on fallback granularity.** The reader's fallback to `_TABLE` is per-task_type via `table.get(task_type) or _TABLE[task_type]` at `select.py`. If TASK_SUBAGENT_SELECTION.md has a `### code` section but no `### spec` section (because your fleet has run code but not spec agents yet), a call to `pick_models("code")` uses the fleet data while `pick_models("spec")` falls through to `_TABLE["spec"]`. The `### code` section is auto-blended from CODING when your fleet lacks coding runs; other task types (`spec`/`plan`/`review`/`docs`/`research`) have no benchmark analog, so they just fall through to `_TABLE` cleanly. Diagnosis: `pick_models` returning `_TABLE` order for one task type but real data for another is expected and means "no fleet data yet for that specific task_type."
 
 ---
 
