@@ -471,6 +471,7 @@ docs/
 | [drivers.md](docs/reference/drivers.md) | Fabrik driver API (Coolify, DNS, etc.) |
 | [templates.md](docs/reference/templates.md) | Available deployment templates |
 | [SaaS-GUI.md](docs/reference/SaaS-GUI.md) | SaaS skeleton template guide |
+| [gui-toolchain.md](docs/reference/gui-toolchain.md) | Standing decision — the MCP/skill/tool stack for building high-quality GUIs (Playwright MCP visual loop, shadcn MCP, frontend-design, axe/screenshot gate); verified 2026-07-06 |
 <!-- archived 2026-04-28: SCAFFOLD_TO_DEPLOY_INTEGRATION.md (HISTORICAL gap analysis), DEPLOY_TEMPLATE_AUDIT_2026-04-10.md (HISTORICAL audit), POSTGRESQL_LOCAL_DEV_*.md ×4 (impl shipped, see CHANGELOG line 4041); see docs/archive/2026-04-28-* and docs/DEPLOYMENT_ARCHITECTURE.md for current canonical reference -->
 | [DOCUMENTATION_STANDARD.md](docs/reference/DOCUMENTATION_STANDARD.md) | Documentation standards and conventions |
 | [global-gates.md](docs/reference/global-gates.md) | Global gate definitions |
