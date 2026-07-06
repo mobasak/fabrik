@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — allowlist docs/ui-design.md in the doc-sprawl gate (2026-07-06)
+
+`/fabrik-ui-design` creates `docs/ui-design.md`, but only `docs/data-contract.md` was in `check_doc_sprawl.py`'s `ALLOWED_NEW_DOCS_SCAFFOLD` — so the command's own output would trip the default-deny doc-sprawl gate in every project. Added `docs/ui-design.md`. No template/scaffold seed is needed for it (unlike data-contract's fill-in skeleton, `/fabrik-ui-design` generates the whole file on demand) — the allowlist entry was the only gap.
+
 ### Changed — wire the GUI design-first pipeline into governance (2026-07-06)
 
 Governance now references the frozen-contract → plan → verify loop end-to-end. `.windsurf/rules/saas/60-saas-ui.md` gains a **"Design-first workflow + verification"** section: freeze fields (`/fabrik-data-contract` → `docs/data-contract.md`) → freeze screens (`/fabrik-ui-design` → `docs/ui-design.md`, design-system-first, minimal-click flows) → build with the `docs/reference/gui-toolchain.md` stack (shadcn MCP + `frontend-design`) → verify each built screen to a no-op via Playwright MCP + the `@axe-core/playwright`/`toHaveScreenshot`/token gate + `/design-review`. `CLAUDE.md`'s Doc Sync Matrix gains two coupling rows: DB field/enum change → re-freeze `docs/data-contract.md` (gate-WARN'd by `check_schema_sync.py`); screen/flow change → re-freeze `docs/ui-design.md`. (The matching command edits — `/fabrik-plan-after-chat` now reads both frozen contracts + runs the UI build-verification gate on GUI phases, `/fabrik-spec`'s handoff shows the fuller pipeline, `/fabrik-execute-plan` honors the UI loop at GUI phase boundaries — are user-level `~/.claude` commands, not repo-tracked.)
