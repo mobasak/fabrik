@@ -725,6 +725,127 @@ def create_watchdog_roles(
     }
 
 
+# ── Subagent-runs telemetry: per-project INSERT-only role ─────────────────── #
+#
+# Every project vendoring `fabrik-lib/subagents` writes each run to the shared
+# `subagent_runs` table on `fabrik_analytics`. Rather than sharing the postgres
+# superuser DSN (which grants everything to every project), we mint a per-project
+# `{project_id}_subagent_ins` role that can INSERT and nothing else. A compromised
+# project key can only append rows tagged with its own SUBAGENT_PROJECT — no
+# ability to read other projects' history, alter the schema, or delete anything.
+#
+# Password lifecycle mirrors :func:`create_watchdog_roles`: CSPRNG only on create,
+# `password=None` on re-apply so the caller preserves the running project's `.env`.
+# ---------------------------------------------------------------------------
+
+_SUBAGENT_INS_SUFFIX = "_subagent_ins"
+
+
+def _subagent_ins_role_name(project_id: str) -> str:
+    """Return `{project_id}_subagent_ins`; raise if it exceeds 63 chars.
+
+    Same 63-char guard as :func:`_wd_role_names` — Postgres silently truncates
+    beyond ``NAMEDATALEN`` (63), which would let two long project names collide
+    on the same role. Refuse loudly.
+    """
+    _validate_identifier(project_id, "project")
+    role = f"{project_id}{_SUBAGENT_INS_SUFFIX}"
+    if len(role) > 63:
+        raise ValueError(
+            f"subagent-ins role name {role!r} exceeds Postgres' 63-char identifier "
+            f"limit — shorten the project id {project_id!r}"
+        )
+    return role
+
+
+def create_subagent_ins_role(
+    project_id: str,
+    container: str = POSTGRES_CONTAINER,
+    dry_run: bool = False,
+) -> dict:
+    """Provision a per-project INSERT-only role on `fabrik_analytics.subagent_runs`.
+
+    Mirrors :func:`create_watchdog_roles` in discipline (CSPRNG-only-on-create,
+    idempotent re-grant, ``\\set ON_ERROR_STOP on``, plain ``CREATE ROLE`` not
+    IF-NOT-EXISTS so a create race errors loudly rather than injecting a
+    mismatched password) but scoped per-PROJECT (not per-DB) since every project
+    writes to the same shared table.
+
+    Grants: ``CONNECT`` on ``fabrik_analytics``, ``USAGE`` on ``public``,
+    ``INSERT`` on ``subagent_runs``, ``USAGE`` on ``subagent_runs_id_seq`` (needed
+    because ``id BIGSERIAL`` allocates from that sequence). **No SELECT / UPDATE /
+    DELETE** — a compromised project key cannot read other projects' rows,
+    alter data, or delete history.
+
+    Requires ``fabrik_analytics`` + ``subagent_runs`` to exist. Call after
+    :func:`ensure_shared_analytics_db` has applied the ``SUBAGENT_RUNS_DDL``.
+
+    Args:
+        project_id: The project identifier (usually spec name / db_name).
+        container: Postgres container override.
+        dry_run: Skip all VPS mutations; return marker with no password.
+
+    Returns:
+        ``{"ins": {"user", "password"|None, "status"}}``. ``password`` is a fresh
+        CSPRNG value only when the role was newly created (``None`` when the role
+        already existed or in dry-run) — the caller injects a DSN only when a
+        fresh password is present, so the .env of a running project is preserved.
+
+    Raises:
+        ValueError: role name would exceed Postgres' 63-char identifier limit.
+    """
+    role = _subagent_ins_role_name(project_id)
+
+    if dry_run:
+        logger.info(
+            "[DRY RUN] Would ensure subagent-ins role %s on fabrik_analytics.subagent_runs",
+            role,
+        )
+        return {"ins": {"user": role, "password": None, "status": "dry_run"}}
+
+    role_exists = _role_exists(role, container)
+    pw = None if role_exists else _generate_password()
+
+    # Same failure-loud discipline as create_watchdog_roles: on a create race,
+    # a bare CREATE errors → ON_ERROR_STOP aborts → we DON'T inject a password
+    # that wouldn't match the role. Winning apply injects a valid DSN; this one
+    # fails loud and heals on the next apply.
+    sql_parts: list[str] = ["\\set ON_ERROR_STOP on"]
+    if not role_exists:
+        sql_parts.append(
+            f'CREATE ROLE "{role}" WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE '
+            f"PASSWORD '{pw}';"  # nosec B608 — pw is CSPRNG alnum, single-quote-safe
+        )
+    # CONNECT is DB-level; INSERT + sequence USAGE must run INSIDE fabrik_analytics
+    # (\c) so `subagent_runs` and `subagent_runs_id_seq` resolve there.
+    # Grants are idempotent → re-applied every call so a re-apply after a schema
+    # change (e.g. a future ALTER TABLE ADD COLUMN) still carries the grant.
+    sql_parts += [
+        f'GRANT CONNECT ON DATABASE "{FABRIK_ANALYTICS_DB}" TO "{role}";',
+        f"\\c {FABRIK_ANALYTICS_DB}",
+        f'GRANT USAGE ON SCHEMA public TO "{role}";',
+        # INSERT only — least privilege. NO SELECT/UPDATE/DELETE on subagent_runs.
+        f'GRANT INSERT ON subagent_runs TO "{role}";',
+        # `id BIGSERIAL` needs sequence USAGE for INSERT to allocate the next id.
+        f'GRANT USAGE ON SEQUENCE subagent_runs_id_seq TO "{role}";',
+    ]
+    # nosec B608 — role name identifier-validated above; password is CSPRNG alnum.
+    _run_sql("\n".join(sql_parts) + "\n", container=container)  # nosec B608
+
+    logger.info(
+        "subagent-ins role: %s (%s) on fabrik_analytics.subagent_runs",
+        role,
+        "created" if not role_exists else "exists",
+    )
+    return {
+        "ins": {
+            "user": role,
+            "password": pw,
+            "status": "created" if not role_exists else "exists",
+        }
+    }
+
+
 def drop_database(
     db_name: str,
     db_user: str | None = None,

@@ -550,6 +550,51 @@ class InfrastructureProvisioner:
                         e,
                     )
                     ctx.add_resource("watchdog-db-roles", db_name, status="failed")
+
+            # Subagent-runs telemetry: per-project INSERT-only role on the shared
+            # fabrik_analytics.subagent_runs table + fleet-wide env injection so
+            # projects vendoring fabrik-lib/subagents just work after `fabrik apply`,
+            # no manual .env.local edits. Gated on the SAME analytics-DB availability:
+            # ensure_shared_analytics_db() (which applied SUBAGENT_RUNS_DDL) already
+            # ran during this apply, so the table exists. Own try/except: a role
+            # failure must NOT abort the app DB provisioning above.
+            #
+            # Unconditional (not shape-flag-gated): unset SUBAGENT_RUNS_DSN is a
+            # harmless no-op per the module (JSONL-only fail-open). Fleet-wide inject
+            # mirrors DATABASE_URL — every project gets it; only those that vendor
+            # `subagents` and set OPENROUTER_API_KEY actually use it.
+            try:
+                from fabrik.drivers.postgres import create_subagent_ins_role
+
+                sa = create_subagent_ins_role(name, dry_run=dry_run)
+                sa_env: dict[str, str] = {"SUBAGENT_PROJECT": name}
+                if sa["ins"].get("password"):
+                    sa_env["SUBAGENT_RUNS_DSN"] = (
+                        f"postgresql://{sa['ins']['user']}:{sa['ins']['password']}"
+                        f"@postgres-main:5432/fabrik_analytics"  # noqa: runtime CSPRNG password, not a hardcoded secret
+                    )
+                # SUBAGENT_SELECTION_DOC = the governance-synced ranking doc.
+                # Relative path resolved by the project's cwd (WORKDIR /app in most
+                # scaffolds). Documented in the module's README. Injected fleet-wide
+                # so pick_models(...) reads the real-fleet ranking once populated.
+                sa_env["SUBAGENT_SELECTION_DOC"] = "docs/reference/kilo/TASK_SUBAGENT_SELECTION.md"
+                if not dry_run:
+                    self.deployer.inject_env(ctx, sa_env)
+                    injected = ", ".join(sorted(sa_env))
+                    logger.info("postgres: subagent-runs env injected for %s (%s)", name, injected)
+                ctx.add_resource(
+                    "subagent-ins-role",
+                    name,
+                    status="dry_run" if dry_run else "provisioned",
+                )
+            except Exception as e:  # noqa: BLE001 — bounded non-fatal
+                logger.warning(
+                    "postgres: subagent-ins role provisioning failed for %s (non-fatal): %s",
+                    name,
+                    e,
+                )
+                ctx.add_resource("subagent-ins-role", name, status="failed")
+
             logger.info("postgres: %s → %s", db_name, result.get("status"))
         except Exception as e:  # noqa: BLE001 — bounded non-fatal
             logger.warning("postgres provisioning failed (non-fatal): %s", e)

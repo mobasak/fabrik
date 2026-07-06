@@ -384,6 +384,98 @@ def test_query_rows_skips_non_finite_or_negative_cost(monkeypatch, capsys) -> No
     not _postgres_reachable(),
     reason="live postgres not reachable via `sudo -n -u postgres psql` — CI or fresh clone",
 )
+def test_subagent_ins_role_can_insert_but_not_select_on_real_db() -> None:
+    """Live-DB proof of the privilege boundary: the per-project INSERT-only role
+    minted by `create_subagent_ins_role()` can INSERT a row into subagent_runs
+    but CANNOT SELECT anything back. If SELECT ever succeeds, one project could
+    exfiltrate another's history — this test catches that immediately.
+    """
+    import os
+
+    from fabrik.drivers import postgres as pg
+
+    tag = f"testproj{os.getpid()}"  # underscore-free — pg identifier
+    role = pg._subagent_ins_role_name(tag)
+
+    def _psql_as_postgres(sql: str, *, expect_success: bool = True) -> tuple[int, str]:
+        r = subprocess.run(
+            [
+                "sudo",
+                "-n",
+                "-u",
+                "postgres",
+                "psql",
+                "-d",
+                "fabrik_analytics",
+                "-v",
+                "ON_ERROR_STOP=1",
+                "-c",
+                sql,
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+        )
+        if expect_success:
+            assert r.returncode == 0, f"expected success: {r.stderr}"
+        return r.returncode, r.stderr
+
+    try:
+        # `create_subagent_ins_role()` uses `_run_sql` which SSHes to VPS by design.
+        # We can't invoke it against WSL local postgres. Instead, apply the SAME SQL
+        # the function would emit — that's what we're proving-behaviorally-correct.
+        # (The unit tests in `tests/test_subagent_ins_role.py` prove the SQL SHAPE;
+        # this test proves the RESULTING PRIVILEGES on a live cluster.)
+        _psql_as_postgres(
+            f'CREATE ROLE "{role}" WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE '
+            f"PASSWORD 'dummy-test-pw'; "
+            f'GRANT CONNECT ON DATABASE fabrik_analytics TO "{role}"; '
+            f'GRANT USAGE ON SCHEMA public TO "{role}"; '
+            f'GRANT INSERT ON subagent_runs TO "{role}"; '
+            f'GRANT USAGE ON SEQUENCE subagent_runs_id_seq TO "{role}";',
+        )
+
+        # Try INSERT as the role via SET ROLE (avoids TCP/scram config for the test).
+        _psql_as_postgres(
+            f'SET ROLE "{role}"; '
+            f"INSERT INTO subagent_runs (project, agent_id, task_type, model, status) "
+            f"VALUES ('{tag}', 'a', 'spec', 'test/model', 'done')",
+        )
+
+        # Try SELECT as the role — must FAIL with permission denied.
+        rc, err = _psql_as_postgres(
+            f'SET ROLE "{role}"; SELECT COUNT(*) FROM subagent_runs',
+            expect_success=False,
+        )
+        assert rc != 0, f"SELECT as {role} should have been denied; got: {err}"
+        assert "permission denied" in err.lower(), f"expected permission-denied error, got: {err}"
+
+        # Try DELETE as the role — must also FAIL.
+        rc, err = _psql_as_postgres(
+            f"SET ROLE \"{role}\"; DELETE FROM subagent_runs WHERE project='{tag}'",
+            expect_success=False,
+        )
+        assert rc != 0
+        assert "permission denied" in err.lower()
+
+    finally:
+        # Clean up as postgres superuser. REASSIGN can fail if the role owns
+        # nothing (which is the common case for this fresh role) — that failure
+        # is expected; the DROP OWNED + DROP ROLE that follow do the real work.
+        _psql_as_postgres(
+            f"DELETE FROM subagent_runs WHERE project='{tag}'",
+        )
+        _psql_as_postgres(
+            f'DROP OWNED BY "{role}"; DROP ROLE IF EXISTS "{role}"',
+            expect_success=False,
+        )
+
+
+@pytest.mark.skipif(
+    not _postgres_reachable(),
+    reason="live postgres not reachable via `sudo -n -u postgres psql` — CI or fresh clone",
+)
 def test_sql_having_clause_enforces_min_runs_on_real_db() -> None:
     """B5 fix: the SQL `HAVING COUNT(*) >= MIN_RUNS` clause was previously untested —
     only the Python belt-and-braces `filter_min_runs()` had coverage. This test hits
