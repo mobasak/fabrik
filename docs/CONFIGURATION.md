@@ -152,6 +152,10 @@ GlitchTip (`errors.vps1.ocoron.com`, Sentry-compatible) is declared in `specs/in
 
 ⚠️ Do not `fabrik apply specs/infrastructure/glitchtip.yaml` until these match the live deployment, or the live tracker + its session keys break. The spec declares the existing hand-deployed stack; `fabrik apply` is targeted, so adding it does not auto-redeploy.
 
+### Watchdog DB access — `WATCHDOG_DB_URL_RO` / `WATCHDOG_DB_URL_RW` (auto-injected, do NOT set by hand)
+
+For a watchdog-enabled project with `shape.needs_database`, the postgres registrar auto-provisions two per-project roles on the app DB and injects their DSNs into the project `.env` at `fabrik apply`: `WATCHDOG_DB_URL_RO` (SELECT-only, the sidecar's default diagnosis lane) and `WATCHDOG_DB_URL_RW` (DML-only — no DDL/DROP — the Tier-C approved-write lane). These are **generated + managed by the hub, never operator-set** (like `DATABASE_URL`): minted on fresh role creation, preserved on re-apply. Full contract + privilege boundary in the `WATCHDOG` rule pack (`.windsurf/rules/core/60-watchdog.md`).
+
 ---
 
 ## Architecture Context

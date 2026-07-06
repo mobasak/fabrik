@@ -78,7 +78,7 @@ When `fabrik apply` targets a service that already exists (`/opt/<name>/compose.
    - Layers spec `env:` block values on top
    - Layers `ctx.secrets` on top (highest priority)
    - Writes merged result back
-   - **Registrar-injected vars (SENTRY_DSN, GLITCHTIP_DSN, REDIS_URL) and spec-sourced vars (DATABASE_URL) are preserved** because they exist in the old .env and aren't overwritten unless the spec explicitly declares them
+   - **Registrar-injected vars (SENTRY_DSN, GLITCHTIP_DSN, REDIS_URL, and — for watchdog-enabled DB projects — `WATCHDOG_DB_URL_RO`/`WATCHDOG_DB_URL_RW`) and spec-sourced vars (DATABASE_URL) are preserved** because they exist in the old .env and aren't overwritten unless the spec explicitly declares them. The two `WATCHDOG_DB_URL_*` DSNs (a SELECT-only + a DML-only per-project role on the app DB, minted by the postgres registrar) are injected only on fresh role creation and preserved thereafter — same no-rotation contract as `DATABASE_URL`
 3. **`sudo docker compose up -d --wait`** — for git source, `sudo docker compose build` runs first (same as redeploy), then `up -d --wait` recreates only if config changed and blocks until healthy
 4. **Infrastructure registrars** run again — they are idempotent (CREATE IF NOT EXISTS, add-if-missing patterns)
 5. **Resource tracking** — no new `compose` resource tracked (only new deploys get tracked for rollback)
