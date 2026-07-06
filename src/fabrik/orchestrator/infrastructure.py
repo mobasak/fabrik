@@ -357,7 +357,9 @@ class InfrastructureProvisioner:
         should_run = {k: v[0] for k, v in resolved.items()}
 
         if should_run["postgres"]:
-            self._provision_postgres(name, spec, ctx, dry_run)
+            self._provision_postgres(
+                name, spec, ctx, dry_run, provision_watchdog_roles=should_run["watchdog"]
+            )
 
         if should_run["redis"]:
             self._provision_redis(name, ctx, dry_run)
@@ -424,7 +426,12 @@ class InfrastructureProvisioner:
             logger.warning("shared analytics provisioning failed (non-fatal): %s", e)
 
     def _provision_postgres(
-        self, name: str, spec: dict[str, Any], ctx: DeploymentContext, dry_run: bool
+        self,
+        name: str,
+        spec: dict[str, Any],
+        ctx: DeploymentContext,
+        dry_run: bool,
+        provision_watchdog_roles: bool = False,
     ) -> None:
         try:
             from fabrik.drivers.postgres import create_database, database_exists
@@ -498,6 +505,51 @@ class InfrastructureProvisioner:
                 database_url = f"postgresql://{db_user}:{password}@postgres-main:5432/{db_name}"  # noqa: password is a runtime CSPRNG value from create_database, not a hardcoded secret
                 self.deployer.inject_env(ctx, {"DATABASE_URL": database_url})
                 logger.info("postgres: DATABASE_URL injected for role %s", db_user)
+            # Watchdog per-project DB roles (fabrik-lib product-aware contract):
+            # when the watchdog sidecar is applicable for this spec, mint a
+            # SELECT-only RO role (sidecar default; the diagnosis lane used across
+            # all tiers) + a DML-only RW role (Tier-C approved-write lane) on the
+            # app DB and inject their DSNs. Gated on the SAME predicate as the
+            # watchdog registrar (should_run["watchdog"]) so the roles never drift
+            # from the sidecar. Own try/except: a role failure must NOT abort the
+            # app DB provisioning that already succeeded above.
+            if provision_watchdog_roles:
+                try:
+                    from fabrik.drivers.postgres import create_watchdog_roles
+
+                    wd = create_watchdog_roles(db_name, dry_run=dry_run)
+                    wd_env: dict[str, str] = {}
+                    if wd["ro"].get("password"):
+                        wd_env["WATCHDOG_DB_URL_RO"] = (
+                            f"postgresql://{wd['ro']['user']}:{wd['ro']['password']}"
+                            f"@postgres-main:5432/{db_name}"  # noqa: runtime CSPRNG password, not a hardcoded secret
+                        )
+                    if wd["rw"].get("password"):
+                        wd_env["WATCHDOG_DB_URL_RW"] = (
+                            f"postgresql://{wd['rw']['user']}:{wd['rw']['password']}"
+                            f"@postgres-main:5432/{db_name}"  # noqa: runtime CSPRNG password, not a hardcoded secret
+                        )
+                    if wd_env and not dry_run:
+                        self.deployer.inject_env(ctx, wd_env)
+                        logger.info(
+                            "postgres: watchdog DSNs injected for %s (%s)",
+                            db_name,
+                            ", ".join(sorted(wd_env)),
+                        )
+                    # Record in the deploy resource summary so a provisioning
+                    # problem is visible to the operator, not buried in a warning.
+                    ctx.add_resource(
+                        "watchdog-db-roles",
+                        db_name,
+                        status="dry_run" if dry_run else "provisioned",
+                    )
+                except Exception as e:  # noqa: BLE001 — bounded non-fatal
+                    logger.warning(
+                        "postgres: watchdog role provisioning failed for %s (non-fatal): %s",
+                        db_name,
+                        e,
+                    )
+                    ctx.add_resource("watchdog-db-roles", db_name, status="failed")
             logger.info("postgres: %s → %s", db_name, result.get("status"))
         except Exception as e:  # noqa: BLE001 — bounded non-fatal
             logger.warning("postgres provisioning failed (non-fatal): %s", e)

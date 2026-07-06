@@ -486,6 +486,245 @@ def create_database(
     return result
 
 
+# ---------------------------------------------------------------------------
+# Watchdog per-project DB roles (fabrik-lib "product-aware watchdog" contract).
+#
+# When a spec has shape.needs_database AND the watchdog sidecar is applicable,
+# the registrar mints two dedicated, PER-PROJECT roles on the app DB alongside
+# the app's owner role:
+#   {db}_wd_ro : SELECT-only  -> injected as WATCHDOG_DB_URL_RO (sidecar default,
+#                                the diagnosis lane used across all tiers)
+#   {db}_wd_rw : DML-only      -> injected as WATCHDOG_DB_URL_RW (Tier-C
+#                                approved-write lane only)
+# Per-project (NOT the shared, manual scripts/provision_watchdog_ro.py role):
+# each sidecar's DSN reaches ONLY its own DB, so a compromised RO credential
+# cannot read another tenant. RW carries no DDL/DROP and no ownership, so even
+# the write lane cannot reshape the schema.
+# ---------------------------------------------------------------------------
+
+_WD_RO_SUFFIX = "_wd_ro"
+_WD_RW_SUFFIX = "_wd_rw"
+
+
+def _wd_role_names(db_name: str) -> tuple[str, str]:
+    """Return ``(ro_role, rw_role)`` for ``db_name``; raise if either exceeds 63 chars.
+
+    Postgres silently truncates identifiers past ``NAMEDATALEN`` (63), which would
+    let two long db names collide on the same role — refuse loudly instead.
+    """
+    _validate_identifier(db_name, "database")
+    ro = f"{db_name}{_WD_RO_SUFFIX}"
+    rw = f"{db_name}{_WD_RW_SUFFIX}"
+    for role in (ro, rw):
+        if len(role) > 63:
+            raise ValueError(
+                f"watchdog role name {role!r} exceeds Postgres' 63-char identifier "
+                f"limit — shorten depends.postgres for {db_name!r}"
+            )
+    return ro, rw
+
+
+def _wd_drop_role_sql(db_name: str) -> str:
+    """``DROP ROLE IF EXISTS`` for the two per-project watchdog roles.
+
+    Empty string when the role names would be invalid / too long (they could
+    never have been created, so nothing to drop). Idempotent: the roles own
+    nothing and their grants live in the app DB, so a plain ``DROP ROLE IF
+    EXISTS`` is a safe no-op when they are absent.
+    """
+    try:
+        wd_ro, wd_rw = _wd_role_names(db_name)
+    except ValueError:
+        return ""
+    return f'DROP ROLE IF EXISTS "{wd_ro}";\nDROP ROLE IF EXISTS "{wd_rw}";\n'
+
+
+def _role_exists(role: str, container: str) -> bool:
+    """True if a login role named ``role`` already exists on the cluster."""
+    return (
+        _run_sql(
+            f"SELECT 1 FROM pg_roles WHERE rolname='{role}';",  # nosec B608 — role is a validated identifier, never free text
+            container=container,
+        ).strip()
+        == "1"
+    )
+
+
+def _db_owner(db_name: str, container: str) -> str | None:
+    """Return the role that OWNS ``db_name`` (validated), or ``None`` if unknown.
+
+    ``ALTER DEFAULT PRIVILEGES FOR ROLE <owner>`` must name the role that CREATES
+    future tables. Fabrik's convention is ``owner == db_name`` (see
+    :func:`create_database`), but a legacy / manually-created / seed-restored DB
+    can be owned by ``postgres`` or another role — assuming ``db_name`` there
+    would make the ``ALTER DEFAULT PRIVILEGES`` statement reference a non-existent
+    role and (under ``ON_ERROR_STOP``) abort the whole batch. Query the real owner
+    from ``pg_database.datdba``. Return ``None`` when the lookup is empty (DB
+    absent) or the name fails identifier validation — the caller then OMITS the
+    default-privileges statements (existing tables are still granted; only
+    auto-coverage of future tables is skipped) rather than emit a statement that
+    references a role that may not exist.
+    """
+    # nosec B608 — db_name is validated by _wd_role_names before we get here.
+    owner = _run_sql(
+        f"SELECT pg_catalog.pg_get_userbyid(datdba) FROM pg_database WHERE datname='{db_name}';",  # nosec B608
+        container=container,
+    ).strip()
+    if not owner:
+        logger.warning(
+            "watchdog roles: could not resolve owner of DB %s (empty datdba lookup) — "
+            "skipping DEFAULT PRIVILEGES; future tables won't auto-grant to RO/RW",
+            db_name,
+        )
+        return None
+    try:
+        _validate_identifier(owner, "owner role")
+    except ValueError:
+        logger.warning(
+            "watchdog roles: DB %s owner %r failed identifier validation — skipping "
+            "DEFAULT PRIVILEGES (future tables won't auto-grant to RO/RW)",
+            db_name,
+            owner,
+        )
+        return None
+    return owner
+
+
+def create_watchdog_roles(
+    db_name: str,
+    container: str = POSTGRES_CONTAINER,
+    dry_run: bool = False,
+) -> dict:
+    """Provision the watchdog RO + RW roles on an EXISTING app DB.
+
+    Idempotent on the re-apply (existing-role) path; a fresh role is created with
+    a plain ``CREATE ROLE`` (not a ``DO … IF NOT EXISTS`` block) *on purpose* — see
+    the create-branch comment for why that's the safer choice under a create race.
+
+    Password lifecycle mirrors :func:`create_database`'s ``DATABASE_URL``: a fresh
+    CSPRNG password is generated and RETURNED **only when the role is newly
+    created**; an already-existing role is left untouched and reports
+    ``password=None``, so the caller does NOT re-inject its DSN and the value
+    already in the project ``.env`` is preserved by :meth:`inject_env`'s merge.
+    This is deliberate — rotating the password on every apply would break a
+    running sidecar whenever a cached image build means Compose does not recreate
+    the container to pick up the new ``.env`` (adversarial-review finding). The
+    rare residual (a role orphaned by a partial failure mid-batch keeping an
+    unrecoverable password) is the same accepted residual :func:`create_database`
+    carries, and ``ON_ERROR_STOP`` makes any such failure loud rather than a false
+    success.
+
+    The batch runs under ``\\set ON_ERROR_STOP on`` so a failed GRANT / ``\\c``
+    exits non-zero (``ssh`` raises) instead of psql's default continue-on-error
+    that would report false success while leaving a role without its grants.
+    Schema/table GRANTs are re-applied every call (idempotent, additive) so a
+    watchdog enabled on a pre-existing DB — or tables added by a later migration —
+    are covered; future tables are auto-covered via ``ALTER DEFAULT PRIVILEGES FOR
+    ROLE <real-owner>`` (looked up, not assumed — see :func:`_db_owner`; omitted
+    when the owner can't be resolved).
+
+    Note: the roles are NON-owner, NON-superuser. On tables under ``FORCE ROW
+    LEVEL SECURITY`` with no policy naming them, RLS default-denies — the RO
+    diagnosis lane then reads only policy-permitted rows. A multi-tenant app that
+    needs cross-tenant diagnosis must add a policy for ``{db}_wd_ro`` (or opt the
+    role into ``BYPASSRLS`` upstream); least privilege is the default here.
+
+    Args:
+        db_name: The app DB. Must already exist (call after :func:`create_database`).
+        container: Postgres container override.
+        dry_run: Skip all VPS mutations; return markers with no passwords.
+
+    Returns:
+        ``{"ro": {"user", "password"|None, "status"}, "rw": {...}}``. ``password``
+        is a fresh value only when the role was newly created (``None`` when the
+        role already existed, or in dry-run) — the caller injects a DSN only when
+        a fresh password is present.
+
+    Raises:
+        ValueError: a role name would exceed Postgres' 63-char identifier limit.
+    """
+    ro, rw = _wd_role_names(db_name)
+
+    if dry_run:
+        logger.info(
+            "[DRY RUN] Would ensure watchdog roles %s (RO) + %s (RW) on %s", ro, rw, db_name
+        )
+        return {
+            "ro": {"user": ro, "password": None, "status": "dry_run"},
+            "rw": {"user": rw, "password": None, "status": "dry_run"},
+        }
+
+    ro_exists = _role_exists(ro, container)
+    rw_exists = _role_exists(rw, container)
+    pw_ro = None if ro_exists else _generate_password()
+    pw_rw = None if rw_exists else _generate_password()
+    owner = _db_owner(db_name, container)
+
+    # Abort (non-zero exit) on the FIRST error rather than psql's default
+    # continue-on-error-exit-0, which would report false success.
+    sql_parts: list[str] = ["\\set ON_ERROR_STOP on"]
+    # Create fresh roles only — an existing role is preserved (no password churn),
+    # so its DSN in .env stays valid. LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE:
+    # least privilege by construction. Plain CREATE (not a DO/IF-NOT-EXISTS block)
+    # is deliberate: in the rare create race (two applies of one spec, or an
+    # out-of-band role appearing between the _role_exists check and this batch),
+    # a bare CREATE errors → ON_ERROR_STOP aborts → we DON'T inject a password that
+    # wouldn't match the role. The winning apply injects a valid DSN; this one
+    # fails loud and heals next apply. An IF-NOT-EXISTS create would instead
+    # silently skip and let us inject a MISMATCHED password.
+    if not ro_exists:
+        sql_parts.append(
+            f'CREATE ROLE "{ro}" WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE '
+            f"PASSWORD '{pw_ro}';"  # nosec B608 — pw is CSPRNG alnum, single-quote-safe
+        )
+    if not rw_exists:
+        sql_parts.append(
+            f'CREATE ROLE "{rw}" WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE '
+            f"PASSWORD '{pw_rw}';"  # nosec B608
+        )
+    # CONNECT is database-level; the rest must run INSIDE the app DB (\c), so ALL
+    # TABLES / DEFAULT PRIVILEGES resolve against the app schema, not the
+    # superuser's default `postgres` DB. Grants are idempotent → re-applied every
+    # call so a newly-added table (or a watchdog enabled on a pre-existing DB) is
+    # covered.
+    sql_parts += [
+        f'GRANT CONNECT ON DATABASE "{db_name}" TO "{ro}", "{rw}";',
+        f"\\c {db_name}",
+        f'GRANT USAGE ON SCHEMA public TO "{ro}", "{rw}";',
+        # RO: SELECT only.
+        f'GRANT SELECT ON ALL TABLES IN SCHEMA public TO "{ro}";',
+        # RW: DML only (no DDL, no ownership, no DROP) + sequence usage for INSERTs.
+        f'GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO "{rw}";',
+        f'GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO "{rw}";',
+    ]
+    if owner:
+        # Future tables the owner creates auto-grant to the watchdog roles.
+        sql_parts += [
+            f'ALTER DEFAULT PRIVILEGES FOR ROLE "{owner}" IN SCHEMA public '
+            f'GRANT SELECT ON TABLES TO "{ro}";',
+            f'ALTER DEFAULT PRIVILEGES FOR ROLE "{owner}" IN SCHEMA public '
+            f'GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO "{rw}";',
+            f'ALTER DEFAULT PRIVILEGES FOR ROLE "{owner}" IN SCHEMA public '
+            f'GRANT USAGE, SELECT ON SEQUENCES TO "{rw}";',
+        ]
+    # nosec B608 — every interpolated value (db_name, ro, rw, owner) is a role/DB
+    # identifier already gated by _validate_identifier; passwords are CSPRNG alnum.
+    _run_sql("\n".join(sql_parts) + "\n", container=container)  # nosec B608
+    logger.info(
+        "watchdog roles on %s (owner=%s): %s (RO, %s) + %s (RW, %s)",
+        db_name,
+        owner or "unknown",
+        ro,
+        "created" if not ro_exists else "exists",
+        rw,
+        "created" if not rw_exists else "exists",
+    )
+    return {
+        "ro": {"user": ro, "password": pw_ro, "status": "created" if not ro_exists else "exists"},
+        "rw": {"user": rw, "password": pw_rw, "status": "created" if not rw_exists else "exists"},
+    }
+
+
 def drop_database(
     db_name: str,
     db_user: str | None = None,
@@ -544,6 +783,12 @@ def drop_database(
 
     if not exists:
         logger.info("PostgreSQL database not found (nothing to drop): %s", db_name)
+        # Still clean up any ORPHANED per-project watchdog roles: a prior drop may
+        # have removed the DB but left these behind (or the DB was dropped
+        # manually), which is the exact stuck state the cleanup exists to prevent.
+        wd_sql = _wd_drop_role_sql(db_name)
+        if wd_sql:
+            _run_sql(wd_sql, container=container)
         return {"status": "not_found", "database": db_name}
 
     # DROP DATABASE cannot run inside a transaction; psql's ``-tA`` +
@@ -554,6 +799,12 @@ def drop_database(
     sql = f'DROP DATABASE IF EXISTS "{db_name}" WITH (FORCE);\n'
     if db_user and db_user != "postgres":
         sql += f'DROP ROLE IF EXISTS "{db_user}";\n'
+    # Also drop the per-project watchdog roles (created by create_watchdog_roles),
+    # AFTER the DB so their grants/default-privileges are already gone. Without this
+    # a drop+recreate cycle leaves them behind → the next apply sees them as
+    # existing → no fresh password minted → a reset .env stuck without a
+    # WATCHDOG_DB_URL_*.
+    sql += _wd_drop_role_sql(db_name)
     _run_sql(sql, container=container)
     logger.info("Dropped PostgreSQL database: %s", db_name)
 
