@@ -70,6 +70,8 @@ Skip: stdlib, syntax, Fabrik conventions.
 | New port allocated | `PORTS.md` |
 | Feature shipped | `docs/FEATURES.md` |
 | Schema migration | Alembic + `db/schema.sql` |
+| DB field / enum / model changed | re-freeze `docs/data-contract.md` (via `/fabrik-data-contract`) — gate-WARN'd by `check_schema_sync.py` |
+| Screen / flow / UI changed (GUI projects) | re-freeze `docs/ui-design.md` (via `/fabrik-ui-design`) |
 | Recurring symptom | `docs/TROUBLESHOOTING.md` |
 | Compose service added/removed | `docs/SERVICES.md` + `docs/OPERATIONS.md` |
 | Resilience pattern changed | `docs/RESILIENCE.md` |

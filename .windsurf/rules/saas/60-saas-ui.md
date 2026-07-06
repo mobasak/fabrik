@@ -15,6 +15,19 @@ Apply when working on frontend/UI code (Next.js, React, Tailwind). Skip for Pyth
 
 ---
 
+## Design-first workflow + verification (the pipeline this pack plugs into)
+
+UI is **designed and its truth frozen BEFORE it is built**, then **verified against that truth** — not improvised per ticket:
+
+1. **Freeze the fields** — `/fabrik-data-contract` → `docs/data-contract.md` (every GUI field ↔ its DB column). A screen never shows a field absent from this file.
+2. **Freeze the screens** — `/fabrik-ui-design` → `docs/ui-design.md` (design-system-FIRST, then screen inventory + **minimal-click flows with a click budget** + IA + per-screen components/states/field-mapping). Build every screen against it verbatim; invent no screen/flow/component not listed.
+3. **Build with the toolchain** — see `docs/reference/gui-toolchain.md` (hub) for the verified stack: **shadcn MCP** (install real components, don't hand-write markup), the **`frontend-design`** skill (anti-slop: tokens + signature element + self-critique before CSS), and this design system for tokens/components.
+4. **Verify each built screen — a blocking loop to a no-op** (the UI analogue of `/fabrik-review`): **Playwright MCP** (open the running screen, read the a11y tree, click the flow, screenshot 375/768/1440) → the a11y/visual/token gate (`@axe-core/playwright` + `toHaveScreenshot` + design-token lint) → **`/design-review`**. Every finding FIXED or REFUTED; iterate until `found: 0, fixed: 0`.
+
+The rules below are the *standards* the frozen design and the verification enforce.
+
+---
+
 ## Ocoron Design System
 
 All SaaS UI projects follow `ocoron-design-system.md` as the single source of truth. Key points for agents:
