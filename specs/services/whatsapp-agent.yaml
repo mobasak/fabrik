@@ -4,17 +4,17 @@ template: python-api
 domain: whatsapp-agent.vps1.ocoron.com
 shape:
   kind: service
-  is_public: false            # internal-only: Evolution posts webhooks over fabrik-net; Baileys is OUTBOUND so no public inbound is needed. Flip true ONLY if migrating to Meta Cloud API (internet-posted webhooks).
-  is_admin_dashboard: false
-  has_bearer_api: false       # X-Internal-Token M2M to the bridge, not a public bearer API
-  has_persistent_data: false
-  needs_database: false       # calls the tryton-crm bridge over M2M; NO direct Tryton / no direct DB
+  is_public: false            # not a public/marketing site
+  is_admin_dashboard: true    # MULTI-TENANT: self-service "connect your WhatsApp" QR dashboard, Authelia-gated (authelia-forward@docker); each CRM user pairs their OWN number
+  has_bearer_api: false       # bridge call + Evolution->middleware webhook are internal M2M; the human dashboard is Authelia-gated, not a public bearer API
+  has_persistent_data: true   # the instance<->tenant registry must survive redeploys
+  needs_database: true        # MULTI-TENANT: the middleware's OWN operational DB — instance<->org/user registry + per-tenant mapping. NOT CRM data (that stays in Tryton via the bridge).
   has_search_feature: false
-  needs_cache: false
+  needs_cache: true           # per-tenant conversation buffer / short-lived session state (redis-main)
   exposes_metrics: false      # no /metrics endpoint yet (flip true when added; avoids Prometheus 404 at apply)
 expose:
   http: true
-  internal_only: true         # fabrik-net DNS only (whatsapp-agent:8000); Evolution API calls this webhook internally
+  internal_only: false        # the QR-connect dashboard needs an Authelia-gated Traefik route (whatsapp-agent.vps1.ocoron.com) so CRM users can reach it. The Evolution->middleware WEBHOOK stays INTERNAL (Evolution posts to http://whatsapp-agent:8000 over fabrik-net, bypassing Traefik/Authelia).
 source:
   type: git
   repository: git@github.com:mobasak/whatsapp-agent.git

@@ -43,8 +43,8 @@ secrets:
   from_env: []
   from_file: {}
 resources:
-  memory: 1G                  # WhatsApp gateway + Baileys session(s); raise if adding more SIMs/instances
-  cpu: '0.5'
+  memory: 2G                  # MULTI-TENANT: one Baileys instance per CRM user (~100-150 MB each, in-process) + overhead. 2G is a STARTING point (~10-15 active instances); RAISE before onboarding many tenants — this is the scaling knob. Instance/session auth persists in Postgres (DATABASE_ENABLED) + Redis, so a redeploy reconnects instances without re-scanning the QR.
+  cpu: '1.0'                   # N concurrent WhatsApp sockets
 health:
   disabled: true              # 3rd-party image; wire a real GET / check once the DB-init + instance-connect settle (mirrors trytond). The middleware's own /health is the channel liveness signal.
   path: /
