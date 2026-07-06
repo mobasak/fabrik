@@ -28,7 +28,9 @@ MAX_STALE_DAYS = 30
 DATE_PATTERN = re.compile(r"\*\*(?:Last Updated|Date):\*\*\s*(\d{4}-\d{2}-\d{2})")
 
 
-def check_vps_doc_freshness(changed_files: list[Path] | None = None) -> list[CheckResult]:  # noqa: ARG001
+def check_vps_doc_freshness(
+    changed_files: list[Path] | None = None,  # noqa: ARG001
+) -> list[CheckResult]:
     """Check that VPS docs have been updated within MAX_STALE_DAYS."""
     results: list[CheckResult] = []
     now = datetime.now()

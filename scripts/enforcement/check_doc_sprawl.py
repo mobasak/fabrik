@@ -51,8 +51,8 @@ ALLOWED_NEW_DOCS_SCAFFOLD = frozenset(
         "docs/FEATURES.md",
         "docs/development/PLANS.md",
         "docs/archive/README.md",
-        "docs/data-contract.md",  # frozen field dictionary — scaffold-seeded, filled by /fabrik-data-contract
-        "docs/ui-design.md",  # frozen screen+flow contract — generated on demand by /fabrik-ui-design
+        "docs/data-contract.md",  # frozen field dict (scaffold-seeded; /fabrik-data-contract)
+        "docs/ui-design.md",  # frozen screen+flow contract (/fabrik-ui-design, on demand)
     }
 )
 

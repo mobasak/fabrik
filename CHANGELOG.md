@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — E501 (>100 char) lines in synced enforcement scripts red projects that enforce E501 (2026-07-07)
+
+Three lines in fleet-synced enforcement scripts exceeded 100 chars — `check_doc_sprawl.py:54,55` (the `docs/data-contract.md` / `docs/ui-design.md` allowlist comments) and `check_vps_docs.py:31`. This repo's ruff **ignores E501** (`pyproject.toml`), so `/opt/fabrik`'s own gate never caught them — but they sync verbatim to projects, and a project whose ruff enforces E501 fails `ruff check scripts/` (whole-tree) on the synced file, a line it's forbidden to edit (Fabrik-synced HARD STOP). Reported by the calendar-orchestration agent (blocked, correctly refused to edit the synced file). Shortened the two allowlist comments and wrapped the `check_vps_doc_freshness` signature; all three now ≤100 chars and ruff-clean under `--select E501 --line-length 100`. Projects clear the block on next governance sync.
+
 ### Fixed — check_secrets scans only diff-touched lines (shared-master false positive) (2026-07-07)
 
 `scripts/enforcement/check_secrets.py` bounded its scan to changed *files* but then scanned each file's *whole* content — so a sibling's unrelated edit anywhere in a shared file (e.g. `bootstrap-vps.sh`) pulled the whole file into scope and re-flagged a pre-existing, already-committed line (a runtime `.env` read the author had even `# noqa`'d, one line off from the check's same-line rule). This contradicted the check's own docstring ("only new changes are gated"). Added `_changed_line_numbers()` (parses `git diff HEAD --unified=0` hunk headers → working-tree line numbers) and an optional `allowed_lines` param to `check_file()`; findings on untouched lines are now dropped. Untracked files / no-HEAD / no-git fail open to a whole-file scan (unchanged behavior). Change can only *reduce* false positives — it never un-greens a currently-green project. Regression test in `tests/test_enforcement.py`. Did **not** touch the sibling-owned `bootstrap-vps.sh`.
