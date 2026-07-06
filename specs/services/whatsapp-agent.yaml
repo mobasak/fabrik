@@ -1,0 +1,73 @@
+id: whatsapp-agent
+kind: service
+template: python-api
+domain: whatsapp-agent.vps1.ocoron.com
+shape:
+  kind: service
+  is_public: false            # internal-only: Evolution posts webhooks over fabrik-net; Baileys is OUTBOUND so no public inbound is needed. Flip true ONLY if migrating to Meta Cloud API (internet-posted webhooks).
+  is_admin_dashboard: false
+  has_bearer_api: false       # X-Internal-Token M2M to the bridge, not a public bearer API
+  has_persistent_data: false
+  needs_database: false       # calls the tryton-crm bridge over M2M; NO direct Tryton / no direct DB
+  has_search_feature: false
+  needs_cache: false
+  exposes_metrics: false      # no /metrics endpoint yet (flip true when added; avoids Prometheus 404 at apply)
+expose:
+  http: true
+  internal_only: true         # fabrik-net DNS only (whatsapp-agent:8000); Evolution API calls this webhook internally
+source:
+  type: git
+  repository: git@github.com:mobasak/whatsapp-agent.git
+  branch: mobasak/whatsapp-agent
+depends: {}
+infrastructure:
+  database: local
+  storage: local
+  auth: none
+env:
+  PORT: ${PORT:-8000}
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  TRYTON_CRM_URL: http://tryton-crm:8000        # the M2M CRM bridge (fabrik-net DNS) — NOT direct Tryton
+  EVOLUTION_API_URL: http://evolution-api:8080  # the Evolution gateway (fixed container port 8080, fabrik-net DNS)
+secrets:
+  required: []
+  generate:
+  - X_INTERNAL_TOKEN          # PER-SERVICE token to call the bridge (prod). Blast-radius containment: an internet-adjacent channel client must NOT share the internal SERVICE_INTERNAL_SECRET_KEY. The tryton-crm bridge accepts this token once Plan 2's per-consumer token registry (R-token-registry) ships.
+  from_env:
+  - SERVICE_INTERNAL_SECRET_KEY   # DEV / BRING-UP FALLBACK ONLY — the bridge accepts it today, but do NOT ship to prod on the shared secret. Remove once the bridge accepts X_INTERNAL_TOKEN.
+  - OPENROUTER_API_KEY            # LLM (agent reasoning)
+  - EVOLUTION_API_KEY             # to call the Evolution API HTTP endpoint (SAME value as the evolution-api service's AUTHENTICATION_API_KEY)
+  from_file: {}
+resources:
+  memory: 512M
+  cpu: '0.5'
+health:
+  path: /health
+  interval: 30s
+  timeout: 10s
+  retries: 3
+  disabled: false
+volumes: []
+companion_services: []
+backup:
+  enabled: true
+  frequency: daily
+  retention: 30
+watchdog:
+  enabled: false
+  daily_budget_usd: 1.0
+  daily_invocations_cap: 200
+  auto_tier_b: false
+  escalation_channel: apprise
+  llm_provider_primary: claude-code
+  llm_provider_fallback: openrouter
+  cheap_model: haiku
+  expensive_model: sonnet
+  per_incident_budget_usd: 0.5
+  deadman_timeout_seconds: 300
+  external_docs_enabled: true
+  propose_fix_prs: false
+  auto_code_fix: false
+  code_fix_window_sec: 1800
+  critical_paths: []
+  trigger_sources: []

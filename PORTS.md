@@ -83,7 +83,7 @@ If you encounter a port conflict:
 
 
 <!-- AUTO-GENERATED:PORTS:START -->
-<!-- Last synced: 2026-07-04 16:28:39 -->
+<!-- Last synced: 2026-07-06 19:35:17 -->
 
 ### Project Port Allocations (from project.yaml)
 
@@ -101,12 +101,14 @@ If you encounter a port conflict:
 | 8004 | **brand-identiy-creator** | python-api | /opt/brand-identiy-creator |
 | 8005 | **candle** | python-api | /opt/candle |
 | 8006 | **exam-coach** | python-api | /opt/exam-coach |
+| 8007 | **whatsapp-agent** | python-api | /opt/whatsapp-agent |
 | 8008 | **gmailaccountcreator** | python-api | /opt/gmailaccountcreator |
 | 8009 | **image-generation** | python-api | /opt/image-generation |
 | 8010 | **iterative_image_editor** | python-api | /opt/iterative_image_editor |
 | 8011 | **job-agent** | python-api | /opt/job-agent |
 | 8012 | **llm_batch_processor** | python-api | /opt/llm_batch_processor |
 | 8013 | **marketing-argumant-generator** | python-api | /opt/marketing-argumant-generator |
+| 8014 | **evolution-api** (whatsapp-agent) | docker `evoapicloud/evolution-api` | /opt/whatsapp-agent |
 | 8015 | **proposal-creator** | python-api | /opt/proposal-creator |
 | 8016 | **seo** | python-api | /opt/seo |
 | 8017 | **supplement-tracker-advisor** | python-api | /opt/supplement-tracker-advisor |

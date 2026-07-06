@@ -1,0 +1,58 @@
+id: evolution-api
+kind: service
+template: python-api          # nominal — this is a source.type=docker service (no build); template is unused for docker specs
+domain: evolution-api.vps1.ocoron.com   # internal fabrik-net DNS naming; NOT publicly routed (internal_only below)
+shape:
+  kind: service
+  is_public: false            # internal-only: Baileys keeps an OUTBOUND WebSocket to WhatsApp (dedicated SIM); it does NOT need public inbound. Flip true ONLY for a future Meta Cloud API migration (internet-posted webhooks).
+  is_admin_dashboard: false
+  has_bearer_api: false       # its HTTP API is guarded by AUTHENTICATION_API_KEY (Evolution's own scheme)
+  has_persistent_data: true   # WhatsApp instance/session state lives in Postgres → Backrest backups run
+  needs_database: true        # Evolution API v2 requires Postgres → registrar provisions the `evolution` DB + injects DATABASE_URL
+  has_search_feature: false
+  needs_cache: true           # Evolution API v2 requires Redis → registrar injects REDIS_URL
+  exposes_metrics: false
+expose:
+  http: true
+  internal_only: true         # fabrik-net DNS only (evolution-api:8080); the middleware calls it internally
+source:
+  type: docker
+  image: evoapicloud/evolution-api:v2.2.1   # maintained fork (docs.evolutionfoundation.com.br). Pin digest at deploy.
+  image_port: 8080            # Evolution API v2 fixed container port
+depends:
+  postgres: evolution
+infra:
+  glitchtip: false            # 3rd-party image — the GlitchTip SDK can't instrument it
+infrastructure:
+  database: local
+  storage: local
+  auth: none
+env:
+  SERVER_URL: http://evolution-api:8080      # internal base URL (Baileys outbound model). Set the public HTTPS URL only if migrating to Meta Cloud API.
+  DATABASE_ENABLED: "true"
+  DATABASE_PROVIDER: postgresql
+  DATABASE_CONNECTION_URI: ${DATABASE_URL}   # registrar-injected DSN for the `evolution` DB on postgres-main
+  CACHE_REDIS_ENABLED: "true"
+  CACHE_REDIS_URI: ${REDIS_URL}              # registrar-injected (redis://redis-main:6379/<idx>)
+  CACHE_REDIS_PREFIX_KEY: evolution
+  AUTHENTICATION_API_KEY: ${EVOLUTION_API_KEY}   # SAME value the middleware reads (fabrik mints it here, share into the middleware .env)
+secrets:
+  required: []
+  generate:
+  - EVOLUTION_API_KEY         # fabrik mints the Evolution API key once; whatsapp-agent middleware consumes the same value via from_env
+  from_env: []
+  from_file: {}
+resources:
+  memory: 1G                  # WhatsApp gateway + Baileys session(s); raise if adding more SIMs/instances
+  cpu: '0.5'
+health:
+  disabled: true              # 3rd-party image; wire a real GET / check once the DB-init + instance-connect settle (mirrors trytond). The middleware's own /health is the channel liveness signal.
+  path: /
+volumes: []
+companion_services: []
+backup:
+  enabled: true
+  frequency: daily
+  retention: 30
+watchdog:
+  enabled: false              # EXPLICIT off — a missing block would default watchdog ON; a 3rd-party image can't run the product-aware sidecar. The middleware carries the watchdog for this project.
