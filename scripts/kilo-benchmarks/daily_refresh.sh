@@ -344,6 +344,13 @@ mkdir -p "$(dirname "$LOG_FILE")"
   _step "rank_coding_subagents" "$VENV_PY" "$KB/rank_coding_subagents.py" \
     || echo "[daily_refresh] rank_coding_subagents failed (non-fatal)"
 
+  # Task-subagent ranking → docs/reference/kilo/TASK_SUBAGENT_SELECTION.md.
+  # Reads fleet-wide subagent_runs on fabrik_analytics; emits per-task ranking.
+  # Empty pool → stub file with "No aggregated runs yet". Fail-open by design
+  # (mirrors rank_coding_subagents fail-soft discipline).
+  _step "rank_task_subagents" "$VENV_PY" "$KB/rank_task_subagents.py" \
+    || echo "[daily_refresh] rank_task_subagents failed (non-fatal)"
+
   # Live gateway counts in the ai/ rule packs. Runs AFTER the OR-routes
   # injector + freshness stamp so both marker blocks land in the same
   # daily refresh. The script is idempotent and self-heals around
