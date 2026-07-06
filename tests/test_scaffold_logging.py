@@ -10,14 +10,12 @@ Verifies that scaffolded projects contain:
 - file-worker logger.py with correct structlog config (PrintLoggerFactory, context_class=dict)
 """
 
-import os
 import shutil
 import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-import yaml
 
 
 @pytest.fixture()
@@ -51,8 +49,9 @@ def mock_fabrik_root(temp_dir: Path) -> Path:
         "TROUBLESHOOTING_TEMPLATE.md",
         "BUSINESS_MODEL_TEMPLATE.md",
         "FEATURES_TEMPLATE.md",
+        "data-contract-template.md",
     ]:
-        (docs_dir / tpl_name).write_text(f"# [Project Name]\n\nYYYY-MM-DD\n[Brief description]\n")
+        (docs_dir / tpl_name).write_text("# [Project Name]\n\nYYYY-MM-DD\n[Brief description]\n")
 
     # Create docker templates
     docker_dir = scaffold_tpl / "docker"
@@ -380,3 +379,46 @@ class TestFileWorkerLogging:
         content = (project / ".env.example").read_text()
         assert "# Service identity for structured logging" in content
         assert "SERVICE_NAME=test-worker" in content
+
+
+class TestDataContractSeeding:
+    """docs/data-contract.md is seeded for every type EXCEPT the docs-publisher (docusaurus),
+    where it would leak into the public docs site. Regression guard for the
+    `_NO_DATA_CONTRACT_TYPES` skip in `_scaffold_shared` — including that `static-site` (which maps
+    to the DB-backed saas-skeleton scaffolder) is NOT wrongly excluded."""
+
+    def _scaffold(self, mock_fabrik_root: Path, temp_dir: Path, project_type: str) -> Path:
+        from fabrik import scaffold
+
+        project_dir = temp_dir / f"proj-{project_type}"
+        project_dir.mkdir()
+        with (
+            patch.object(scaffold, "FABRIK_ROOT", mock_fabrik_root),
+            patch.object(scaffold, "TEMPLATE_DIR", mock_fabrik_root / "templates" / "scaffold"),
+            patch.object(scaffold, "FABRIK_AGENTS_MD", mock_fabrik_root / "AGENTS.md"),
+            patch("subprocess.run"),
+        ):
+            scaffold._scaffold_shared(
+                project_dir, "svc", "Test", "2026-07-06", 8099, project_type
+            )
+        return project_dir
+
+    def test_python_api_seeds_contract(
+        self, mock_fabrik_root: Path, temp_dir: Path
+    ) -> None:
+        project_dir = self._scaffold(mock_fabrik_root, temp_dir, "python-api")
+        assert (project_dir / "docs" / "data-contract.md").exists()
+
+    def test_static_site_seeds_contract(
+        self, mock_fabrik_root: Path, temp_dir: Path
+    ) -> None:
+        # static-site maps to the DB-backed saas-skeleton scaffolder — must NOT be excluded.
+        project_dir = self._scaffold(mock_fabrik_root, temp_dir, "static-site")
+        assert (project_dir / "docs" / "data-contract.md").exists()
+
+    def test_docusaurus_skips_contract(
+        self, mock_fabrik_root: Path, temp_dir: Path
+    ) -> None:
+        # docusaurus publishes docs/ as a public site — the contract must NOT be seeded there.
+        project_dir = self._scaffold(mock_fabrik_root, temp_dir, "docusaurus")
+        assert not (project_dir / "docs" / "data-contract.md").exists()

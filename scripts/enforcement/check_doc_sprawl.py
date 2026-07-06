@@ -51,6 +51,7 @@ ALLOWED_NEW_DOCS_SCAFFOLD = frozenset(
         "docs/FEATURES.md",
         "docs/development/PLANS.md",
         "docs/archive/README.md",
+        "docs/data-contract.md",  # frozen field dictionary — scaffold-seeded, filled by /fabrik-data-contract
     }
 )
 

@@ -640,7 +640,9 @@ def run_consistency_checks(
         if not changed or _has_extension(changed, ".py", ".sql"):
             results.append(
                 run_optional_check(
-                    "scripts/enforcement/check_schema_sync.py", "Schema Sync (DB Models)"
+                    "scripts/enforcement/check_schema_sync.py",
+                    "Schema Sync (DB Models)",
+                    advisory=True,  # preserve the data-contract-drift WARN on exit 0
                 )
             )
         # Doc Sync Matrix — the single "update docs when code changes" gate
@@ -1319,6 +1321,15 @@ def main() -> int:
             "failures": [
                 {"check": name, "output": output[:500]}  # Truncate long outputs
                 for name, _, output in failed
+            ],
+            # Advisory warnings a check OPTS INTO by prefixing with ⚠ — surfaced in --json (the mode
+            # CLAUDE.md mandates for schema gates), where passed-check output was otherwise invisible.
+            # The ⚠ gate keeps benign chatter ("✅ …", "(bandit not installed, skipping)") out; a check
+            # emitting a plain "WARNING:" (e.g. check_reusable_modules) stays human-mode-only by design.
+            "warnings": [
+                {"check": name, "output": output[:500]}
+                for name, ok, output in all_results
+                if ok and output and output.lstrip().startswith("⚠")
             ],
         }
         print(json.dumps(result, indent=2))

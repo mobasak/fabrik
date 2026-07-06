@@ -211,6 +211,12 @@ FINAL_GATE_AI_FIX=1 python scripts/final_gate.py
 - **Reusable Module Tagging** - `check_reusable_modules.py` *(advisory — warning only)*
   - Checks `src/utils/` and `src/lib/` modules are tagged `[reusable]` in `INDEX.md`
   - Surfaces warnings in yellow but does not fail the gate
+- **Schema Sync** - `check_schema_sync.py` also runs *advisory* (`advisory=True`): when a model/schema
+  change is staged, it emits a `⚠`-marked WARN if `docs/data-contract.md` exists and wasn't updated. It
+  never fails the gate (grandfathers existing projects); the model-without-schema check remains hard-fail.
+- **`--json` `warnings` array:** advisory checks that emit a `⚠`-prefixed line surface it under a top-level
+  `warnings` list in `--json` output (previously advisory output was human-mode-only). Benign passed-check
+  chatter and plain `WARNING:` output are excluded — a check opts in by prefixing with `⚠`.
 
 ### Tier 3 (SYSTEMIC) - `--systemic` - Repo Health
 

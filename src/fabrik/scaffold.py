@@ -10,7 +10,8 @@
 # output TEMPLATES (localhost dev URLs, <user>:<pass> example creds, placeholder
 # DATABASE_URLs), not this repo's runtime config. check_secrets/check_env_vars would
 # otherwise false-flag that template content on every edit; they skip this file via the
-# marker above (scoped to those two content checks — all other gate checks still run).
+# marker above. check_print_ban honors it too (its emitted-code print()s are template
+# strings), so three checks now consult the marker — all other gate checks still run.
 # Real runtime secrets never live here; they belong in .env.
 
 import json
@@ -205,11 +206,19 @@ SHARED_TEMPLATE_MAP = {
     "docs/FEATURES_TEMPLATE.md": "docs/FEATURES.md",
     "docs/STRATEGIC_BACKLOG_TEMPLATE.md": "docs/STRATEGIC_BACKLOG.md",
     "docs/LESSONS_LEARNT_TEMPLATE.md": "docs/LESSONS_LEARNT.md",
+    "docs/data-contract-template.md": "docs/data-contract.md",  # frozen field dictionary; filled by /fabrik-data-contract
     "docs/workflows/KILO_CONSULT_WORKFLOW.md": "docs/workflows/kilo-consult-workflow.md",
     # Note: Phase docs removed - Traycer Phases replace manual phase tracking
     # Note: tasks.md removed - Traycer UI replaces manual task dashboard
     # Note: PLANS.md and archive/README.md are generated inline, not from templates
 }
+
+# Scaffold types where seeding `docs/data-contract.md` would LEAK it: `docusaurus` autogenerates
+# its public site from the whole `docs/` tree, so an internal schema/PII field-dictionary would be
+# published. We gate ONLY the leak vector — deliberately NOT on "has a database", which is not a
+# type property (it's the per-project `--db`/`use_database` flag, and `static-site` maps to the
+# saas-skeleton scaffolder so it IS DB-backed). Non-DB types just get a harmless, deletable stub.
+_NO_DATA_CONTRACT_TYPES = frozenset({"docusaurus"})
 
 _PYTHON_API_TEMPLATE_MAP = {
     # Droid exec / Docker workflow files (AGENTS.md copied separately in create_project)
@@ -786,7 +795,12 @@ def _write_ci_files(project_dir: Path, *, needs_database: bool, needs_web: bool 
 
 
 def _scaffold_shared(
-    project_dir: Path, name: str, description: str, today: str, host_port: int
+    project_dir: Path,
+    name: str,
+    description: str,
+    today: str,
+    host_port: int,
+    project_type: str = "",
 ) -> None:
     """Create the shared project structure common to all project types, including git init."""
     # Create shared directories
@@ -807,6 +821,9 @@ def _scaffold_shared(
 
     # Copy shared templates
     for src, dest in SHARED_TEMPLATE_MAP.items():
+        # Skip seeding the contract into a docs-publisher (would leak it — see _NO_DATA_CONTRACT_TYPES).
+        if dest == "docs/data-contract.md" and project_type in _NO_DATA_CONTRACT_TYPES:
+            continue
         src_path = TEMPLATE_DIR / src
         if src_path.exists():
             content = src_path.read_text()
@@ -4867,7 +4884,7 @@ def create_project(
         host_port = _next_available_port(port_range=(8000, 8099))
 
     # _scaffold_shared() creates all shared structure AND runs git init + pre-commit install.
-    _scaffold_shared(project_dir, name, description, today, host_port)
+    _scaffold_shared(project_dir, name, description, today, host_port, project_type)
 
     scaffolder(project_dir, name, description, preset=preset, **kwargs)
 

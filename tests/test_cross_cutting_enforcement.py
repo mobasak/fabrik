@@ -294,7 +294,7 @@ class TestFinalGateAdvisory:
         # Import and call run_optional_check with advisory=True
         from scripts.final_gate import run_optional_check
 
-        with patch("scripts.final_gate.FABRIK_ROOT", tmp_path):
+        with patch("scripts.final_gate.PROJECT_ROOT", tmp_path):
             name, passed, msg = run_optional_check(
                 str(script.name), "Test Advisory", advisory=True
             )
@@ -308,7 +308,7 @@ class TestFinalGateAdvisory:
 
         from scripts.final_gate import run_optional_check
 
-        with patch("scripts.final_gate.FABRIK_ROOT", tmp_path):
+        with patch("scripts.final_gate.PROJECT_ROOT", tmp_path):
             name, passed, msg = run_optional_check(
                 str(script.name), "Test Non-Advisory"
             )

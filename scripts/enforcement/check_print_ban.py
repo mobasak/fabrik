@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# AFTER-EDIT: none
 """
 Tier 1 enforcement: bans print() in production .py files and console.log() in
 production .ts/.tsx/.js/.jsx files.
@@ -52,6 +53,29 @@ def should_skip(filepath: str) -> bool:
     return any(pattern in filepath for pattern in SKIP_PATTERNS)
 
 
+def is_template_generator(filepath: str) -> bool:
+    """A file whose first lines carry a '# noqa-file: template-generator' COMMENT
+    (e.g. src/fabrik/scaffold.py) emits code as strings; its apparent print()/console.log()
+    are generated-PROJECT code, not this file's own runtime output — so the ban must not flag
+    them. Matched only as a top-of-file COMMENT that BEGINS with the marker (a directive) — NOT
+    a bare substring, and NOT a comment that merely mentions the marker in prose: a string
+    literal referencing it (e.g. another check comparing against it) or a note like
+    '# see noqa-file: ...' must not silently disable the ban. Honors the existing file-level
+    marker instead of us noqa-ing each emitted line. Trade-off: this is a whole-file exemption
+    (the marker's intent), so a real runtime print() in such a file is also unbanned — acceptable
+    for a declared template generator, and scaffold.py uses logging for its own output."""
+    try:
+        with open(filepath, encoding="utf-8") as fh:
+            head = [next(fh, "") for _ in range(20)]
+    except (OSError, UnicodeDecodeError):
+        return False
+    return any(
+        line.lstrip().startswith("#")
+        and line.lstrip().lstrip("#").strip().startswith("noqa-file: template-generator")
+        for line in head
+    )
+
+
 def scan_file_for_pattern(filepath: str, pattern: str) -> list[int]:
     """Scan a file for a substring pattern, returning matching line numbers."""
     try:
@@ -80,6 +104,8 @@ def main() -> int:
 
     for filepath in staged_files:
         if should_skip(filepath):
+            continue
+        if is_template_generator(filepath):
             continue
 
         ext = Path(filepath).suffix

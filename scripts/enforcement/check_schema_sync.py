@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# AFTER-EDIT: none
 """Enforce database schema synchronization.
 
 When model/entity files change, schema.sql or migrations must be updated.
@@ -18,9 +19,12 @@ Exit codes:
     1 - Fail (model changed without schema update)
 """
 
+import os
 import re
 import subprocess
 import sys
+
+DATA_CONTRACT_FILE = "docs/data-contract.md"
 
 MODEL_FILE_PATTERNS = [
     r"src/.*/models\.py$",
@@ -106,12 +110,40 @@ def migration_added(staged_files: list[str]) -> bool:
     return False
 
 
+def _repo_root() -> str:
+    """Absolute repo root, so filesystem checks match git's root-relative staged paths
+    regardless of the process CWD (the gate may run from a subdir)."""
+    result = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True)
+    return result.stdout.strip() if result.returncode == 0 else "."
+
+
+def warn_if_data_contract_stale(staged_files: list[str]) -> None:
+    """WARN (never fail) if the schema changed but the frozen data contract wasn't updated too.
+
+    docs/data-contract.md is the frozen GUI<->DB field dictionary. When db/schema.sql or a
+    migration changes, the contract may be drifting from the schema. Advisory only — it nudges,
+    it does not block (existing projects are grandfathered; a schema change may not touch fields).
+    """
+    schema_changed = schema_file_updated(staged_files) or migration_added(staged_files)
+    if not schema_changed:
+        return
+    if not os.path.exists(os.path.join(_repo_root(), DATA_CONTRACT_FILE)):
+        return
+    if DATA_CONTRACT_FILE in staged_files:
+        return
+    print(f"⚠️  WARN: schema changed but {DATA_CONTRACT_FILE} was not updated.")
+    print("    The frozen data contract may be drifting from the schema.")
+    print("    Re-run /fabrik-data-contract (bump Version) if fields/enums changed; ignore if not.")
+
+
 def main() -> int:
     """Check schema synchronization."""
     staged_files = get_staged_files()
 
     if not staged_files or staged_files == [""]:
         return 0
+
+    warn_if_data_contract_stale(staged_files)
 
     model_files_changed = [f for f in staged_files if is_model_file(f)]
 
@@ -123,12 +155,8 @@ def main() -> int:
     if not model_files_with_db_changes:
         return 0
 
-    if schema_file_updated(staged_files):
-        print("✅ Schema sync check PASSED (schema.sql updated)")
-        return 0
-
-    if migration_added(staged_files):
-        print("✅ Schema sync check PASSED (migration added)")
+    if schema_file_updated(staged_files) or migration_added(staged_files):
+        # Schema kept in sync — pass silently (no benign chatter for advisory=True to forward).
         return 0
 
     print("ERROR: Database model changes detected without schema update.")
