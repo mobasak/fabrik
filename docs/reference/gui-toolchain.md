@@ -1,6 +1,6 @@
 # GUI Toolchain — the standing decision for building high-quality GUIs with Claude Code
 
-**Status:** Reference / decision doc · **Researched + live-verified:** 2026-07-06 · **Scope:** web (Next.js/React) primary; React Native gap flagged.
+**Status:** Reference / decision doc · **Researched + live-verified:** 2026-07-06 · **Scope:** web (Next.js/React) + React Native — both stacks specified (see § React Native / mobile stack).
 
 The question this answers: *what MCP / skill / tool / library can we integrate into Claude Code so an agent reliably ships professional GUIs?* The answer is not one tool — it is a **four-layer stack**, almost entirely free and self-hostable. The single highest-leverage piece is the **visual feedback loop**: an agent that opens its own running UI, screenshots it, reads the accessibility tree, and self-verifies. Without it an agent builds blind; with it, GUI quality becomes *checkable* instead of hopeful.
 
@@ -58,9 +58,22 @@ REVIEW         OneRedOak design-review (critique the RENDERED UI) + Vercel web-d
 | **Chromatic / Argos** | Visual-regression **cloud SaaS**. Keep out of the agent's pass/fail loop; use free `toHaveScreenshot` + reg-suit instead. |
 | **Lost Pixel** | ❌ **Dead** — OSS repo archived April 2026. Do not adopt. |
 
-## React Native gap (honest)
+## React Native / mobile stack (the web loop is browser-only — RN has its own)
 
-The whole free web loop (Playwright MCP / shadcn MCP / Chrome DevTools MCP / axe) is **web/Chromium only**. For RN: foundation = **NativeWind / Tamagui / React Native Reusables** (shadcn-for-RN); the RN *visual* feedback loop is weak — community `Android-Ui-MCP` / `uitars`, or paid Chromatic RN-simulator testing. Plan RN visual verification separately; do not assume the web tools cover it.
+The web loop (Playwright MCP / shadcn MCP / Chrome DevTools MCP / axe) **cannot drive a running RN app** — it's Chromium-only. RN has its own stack, and **`.windsurf/rules/mobile-app/80-mobile.md` (§ Testing + § MCP Servers) is the authority — this table is the *toolchain view* of what that pack already mandates** (Maestro E2E in `.maestro/`, `@testing-library/react-native`, **Mobile Next MCP**, plus Expo / iOS-Simulator / Appium MCP), with two additions verified 2026-07-06: Maestro now ships its *own MCP*, and a static a11y lint. Where this doc and `80-mobile.md` ever differ, **the pack wins.** Mostly-free, Linux/Docker-friendly:
+
+| Layer | Tool | Role | Cost / CI | Install |
+|---|---|---|---|---|
+| foundation (styling) | **`react-native-unistyles` v3** (Ocoron theming) or **NativeWind v4.1** | RN styling with the same Ocoron tokens as web (`mobile-app/80-mobile.md` decides) | free | npm |
+| foundation (components) | **React Native Reusables** (shadcn-for-RN) | copy-in universal components; **CLI, not MCP** — the agent calls `npx @react-native-reusables/cli@latest add <c>` | free (MIT) | CLI |
+| **see + verify (primary)** ⭐ | **Maestro MCP** | one server = **drive + E2E flows + screenshots + visual regression** (`inspect_screen`, `take_screenshot`, `run`). The RN analogue of Playwright MCP *and* toHaveScreenshot combined. | free/self-host; Cloud tools paid | `claude mcp add maestro -- maestro mcp` (needs the `maestro` CLI) |
+| see + verify (exploratory) | **Mobile Next MCP** (`@mobilenext/mobile-mcp`) — the pack's listed a11y-tree driver | free-form element-level driving (a11y-tree list, coordinate taps) when YAML flows are too coarse; Apache-2.0, active | free/self-host | `claude mcp add mobile-mcp -- npx -y @mobilenext/mobile-mcp@latest` |
+| visual regression | **Maestro `assertScreenshot`** (built-in) | pixel-diff vs committed baselines, diff image on failure — no extra dep | free | in the Maestro flow |
+| **a11y gate (headless — no device)** | **`eslint-plugin-react-native-a11y`** + **`@testing-library/react-native`** matchers | the axe-equivalent for RN (no DOM): static lint + component-test a11y assertions; runs in any Linux CI with **no simulator** | free | npm devDeps |
+
+**Leanest primary for RN: Maestro's MCP** (`claude mcp add maestro -- maestro mcp`) — it unifies drive/flow/screenshot/regression and is the *same Maestro* `80-mobile.md` already mandates for E2E. **Mobile Next MCP** (`@mobilenext/mobile-mcp`) is the finer exploratory add. The pack also lists **Expo MCP** (EAS/SDK, simulator screenshots) and **iOS Simulator MCP** (idb) — use them for their niches, and **Appium MCP** only when Maestro/Mobile-Next can't cover a case. Skip `uitars-mcp` (desktop/browser only) and Chromatic (paid). The one *net-new* addition beyond the pack is **`eslint-plugin-react-native-a11y`** as a static a11y lint alongside the pack's `@testing-library/react-native`.
+
+**CI platform reality:** **Android emulator runs headless on Linux/Docker** (KVM, `reactivecircus/android-emulator-runner`, `-no-window`) — gate mobile there. The **a11y layer (ESLint + RNTL) needs no device at all**. **iOS simulator is macOS-only** (Xcode/WebDriverAgent) — treat iOS verification as a separate macOS job when needed. Prereqs for the MCPs are heavier than the web ones (Android SDK/emulator, or macOS+Xcode, and the `maestro` CLI), so wire them **at mobile-build-time**, not pre-emptively user-global.
 
 ---
 

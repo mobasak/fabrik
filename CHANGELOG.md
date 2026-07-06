@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — gui-toolchain.md: add the React Native / mobile verify stack (2026-07-06)
+
+Expanded the doc's one-line RN gap-flag into a full mobile verify stack (live-verified 2026-07-06), and made it **defer to `.windsurf/rules/mobile-app/80-mobile.md`** (the RN authority) — aligning naming (Mobile Next MCP = `@mobilenext/mobile-mcp`; Maestro E2E in `.maestro/`) rather than conflicting. The mobile loop: **Maestro's MCP** (drive + flow + screenshot + `assertScreenshot` visual regression — the same Maestro the pack already mandates for E2E, now also an MCP) + **Mobile Next MCP** (element-level) + `@testing-library/react-native`, with one net-new addition — **`eslint-plugin-react-native-a11y`** (static lint enforcing the pack's § Accessibility rules). Android emulator gates on Linux/Docker; the a11y layer is headless (no device); iOS is a macOS-only job. `/fabrik-ui-design`'s Build Verification Loop is now surface-aware (web vs mobile drivers), deferring to `80-mobile.md` for RN. Foundation confirmed current: react-native-unistyles v3 / NativeWind v4.1 / React Native Reusables (CLI, no MCP).
+
 ### Fixed — allowlist docs/ui-design.md in the doc-sprawl gate (2026-07-06)
 
 `/fabrik-ui-design` creates `docs/ui-design.md`, but only `docs/data-contract.md` was in `check_doc_sprawl.py`'s `ALLOWED_NEW_DOCS_SCAFFOLD` — so the command's own output would trip the default-deny doc-sprawl gate in every project. Added `docs/ui-design.md`. No template/scaffold seed is needed for it (unlike data-contract's fill-in skeleton, `/fabrik-ui-design` generates the whole file on demand) — the allowlist entry was the only gap.
