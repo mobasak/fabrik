@@ -69,6 +69,25 @@ Wire a Fabrik project into the fleet-wide model-selection flywheel: every subage
                                     └───────────────────────────────────────────────────────┘
 ```
 
+## Two ranking docs — what's the difference?
+
+The module's `pick_models()` reads TWO governance-synced markdown files, in priority order — this gives you real-fleet data where you have it AND rich benchmark data everywhere else:
+
+| File | Source data | Scope | Ranking formula | When it wins |
+|---|---|---|---|---|
+| **`docs/reference/kilo/TASK_SUBAGENT_SELECTION.md`** | `fabrik_analytics.subagent_runs` — YOUR fleet's real invocations | All 6 TaskKinds (spec/plan/code/review/docs/research) | `success × quality / cost` over 90-day window, min 3 runs | Whenever the fleet has ≥3 runs for a (task_type, model) pair |
+| **`docs/reference/kilo/CODING_SUBAGENT_SELECTION.md`** | `kilo_agents.db` — public benchmarks (SWE-bench, Aider, Arena, AA) | Coding LLMs only (GLM / Kimi / Minimax / DeepSeek families), tagged under `### code` header | `45% max(SWE, Aider) + 20% AA + 15% Arena + 10% speed + 10% cost-inv` | Falls back for the `code` task_type when the fleet has thin/no data |
+
+**The reader (`load_task_ranking` at `select.py`) reads BOTH.** `SUBAGENT_SELECTION_DOC` is comma-separated — first-file-that-has-data-for-a-task-type wins, per task_type. So for the `code` task, TASK wins if you have real fleet runs, CODING wins otherwise; for `spec`/`plan`/`review`/`docs`/`research`, only TASK contributes (CODING doesn't have those sections). This is why `fabrik apply` injects the env var as:
+
+```
+SUBAGENT_SELECTION_DOC=docs/reference/kilo/TASK_SUBAGENT_SELECTION.md,docs/reference/kilo/CODING_SUBAGENT_SELECTION.md
+```
+
+**Both files are governance-synced** to every project's `docs/reference/kilo/`, so they stay fresh without projects fetching anything.
+
+**Neither file replaces the module's vendored `_TABLE` default** — that stays as the last-resort fallback for when both files are missing / stale (>14 days) / empty.
+
 ## Prerequisites
 
 - [ ] Hub at `/opt/fabrik` on latest master (commit ≥ `07961166` — this is where the driver + orchestrator changes live)
@@ -136,7 +155,12 @@ Three env vars close the flywheel. The module has independent fallbacks for each
 
 ### For VPS deploy (via `fabrik apply`) — automatic
 
-The `_provision_postgres` block in the orchestrator (`src/fabrik/orchestrator/infrastructure.py`) invokes `create_subagent_ins_role(<project>)` and injects all 3 env vars via `deployer.inject_env(ctx, {…})` after the watchdog roles block. **No manual step required.** Just run `fabrik apply` and check the resource summary:
+Two orchestrator hooks work together, both wire in automatically on `fabrik apply`:
+
+1. **`ensure_shared_analytics_db()`** at `src/fabrik/drivers/postgres.py` applies BOTH the `cost_ledger` DDL (via `schema_path`) AND `SUBAGENT_RUNS_DDL` (imported from `/opt/fabrik-lib/subagents` via `_read_subagent_runs_ddl()`). Both idempotent (`CREATE TABLE IF NOT EXISTS` + `CREATE INDEX IF NOT EXISTS`). Runs once per apply and creates the `subagent_runs` table before any per-project role provisioning.
+2. **`_provision_postgres`** in `src/fabrik/orchestrator/infrastructure.py` invokes `create_subagent_ins_role(<sanitized-project-name>)` (hyphens → underscores because Postgres identifiers reject `-`) and injects the 3 env vars via `deployer.inject_env(ctx, {…})` after the watchdog roles block.
+
+**No manual step required.** Just run `fabrik apply` and check the resource summary:
 
 // turbo
 
@@ -263,18 +287,22 @@ The module's automatic `run_agents` path writes `quality_score=NULL` because it 
 from libs.subagents.subagents import record_run
 
 record_run(
-    agent_id="agent-42",
-    task_type="review",
-    model="z-ai/glm-5",
-    provider="openrouter",
-    status="done",
-    cost_usd=0.31,
-    turns=5,
-    latency_s=42.1,
-    quality_score=0.87,    # ← YOUR scoring — 0..2 conventionally
-    tool_calls=None,
+    {
+        "agent_id": "agent-42",
+        "task_type": "review",
+        "model": "z-ai/glm-5",
+        "provider": "openrouter",
+        "status": "done",
+        "cost_usd": 0.31,
+        "turns": 5,
+        "latency_s": 42.1,
+        "tool_calls": None,
+    },
+    quality_score=0.87,   # ← YOUR scoring — 0..2 conventionally
 )
 ```
+
+**Signature note.** The real signature is `record_run(record: dict, *, dsn=None, project=None, quality_score=None, connect=None)` — row fields (`agent_id`, `task_type`, `model`, `provider`, `status`, `cost_usd`, `turns`, `latency_s`, `tool_calls`) live INSIDE the `record` dict; only `quality_score`, `dsn`, `project`, and `connect` are separate kwargs. A previous draft of this doc showed them as top-level kwargs — copy-pasting that raised `TypeError: unexpected keyword argument 'agent_id'`.
 
 Rows with a real `quality_score` sharpen the ranking. Rows without (`NULL`) fall back to `success_rate / cost` in the aggregator (neutral quality = 1.0).
 
@@ -359,7 +387,9 @@ The file lives under `docs/reference/kilo/` which is fabrik-synced (`scripts/fab
 
 ### The 14-day staleness gate
 
-The vendored `pick_models` (per the fabrik-lib AI's implementation at `select.py:84` — `load_task_ranking(path, *, min_n=0, max_age_days=None)` with `max_age_days=14` in `_synced_ranking()`) automatically ignores the doc if `Last refresh:` is more than 14 days old — falls back to `_TABLE`. So if `daily_refresh.sh` silently stops running for 3 weeks, `pick_models` reverts to the vendored default instead of serving a months-old ranking.
+The vendored `pick_models` (per the fabrik-lib AI's implementation at `select.py` — `load_task_ranking(path, *, min_n=0, max_age_days=None)` with `max_age_days=14` in `_synced_ranking()`) automatically ignores the doc if `Last refresh:` is more than 14 days old — falls back per-task-type to the next configured doc, and ultimately to `_TABLE`. So if `daily_refresh.sh` silently stops running for 3 weeks, `pick_models` reverts to the vendored default instead of serving a months-old ranking.
+
+**Note on fallback granularity.** The fallback is per-task_type, not all-or-nothing. If TASK_SUBAGENT_SELECTION.md has a `### code` section but no `### spec` section (because your fleet has run code but not spec agents yet), a call to `pick_models("code")` uses the fleet data while `pick_models("spec")` falls through to the CODING file (which doesn't have `### spec` either) then to `_TABLE["spec"]`. Diagnosis: `pick_models` returning `_TABLE` order for one task type but real data for another is expected and means "no fleet data yet for that specific task_type."
 
 ---
 
@@ -527,7 +557,7 @@ docker compose up -d --force-recreate <service>
 
 Not blocking anyone; noted for future planning.
 
-1. **VPS `postgres-main` DDL apply.** `ensure_shared_analytics_db()` at `src/fabrik/drivers/postgres.py:990` applies `cost_ledger` today. Extend it to also apply `SUBAGENT_RUNS_DDL` alongside — ~5 lines. Currently VPS deploys will hit `role does not exist` because the table isn't there yet, and `create_subagent_ins_role` will error. Do this before the first VPS project vendors `subagents`.
+1. ~~**VPS `postgres-main` DDL apply.**~~ **SHIPPED** — `ensure_shared_analytics_db()` (definition at `src/fabrik/drivers/postgres.py`, look for `def ensure_shared_analytics_db`) now imports `SUBAGENT_RUNS_DDL` from the vendored subagents module via `_read_subagent_runs_ddl()` and applies it to `fabrik_analytics` alongside `cost_ledger`. VPS deploys create the table + role in one apply.
 
 2. **WSL-dev scaffolder update.** New projects scaffolded via `fabrik scaffold` don't get the 3 env vars in their `.env.local` template. Extend `src/fabrik/scaffold.py` to add them. Existing projects still need manual `.env.local` edits per Part B.
 

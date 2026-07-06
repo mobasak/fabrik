@@ -305,16 +305,29 @@ def test_error_state_emits_distinct_stub_with_failure_banner() -> None:
 def test_main_exit_code_reflects_state(monkeypatch, tmp_path) -> None:
     """A6 fix: main() must exit 1 on state='error' so daily_refresh.sh's `|| echo failed`
     fires only on real failures, and 0 on healthy state='ok' (whether or not rows exist).
+
+    Also asserts OUTPUT_PATH is actually WRITTEN (Finder B#5) — a regression in
+    `_atomic_write` (swapped `os.replace(tmp, path)` args, path.parent race) would
+    still return the right exit code but leave the target unwritten or deleted.
     """
     import rank_task_subagents
 
-    monkeypatch.setattr(rank_task_subagents, "OUTPUT_PATH", tmp_path / "TASK_SUBAGENT_SELECTION.md")
+    out_path = tmp_path / "TASK_SUBAGENT_SELECTION.md"
+    monkeypatch.setattr(rank_task_subagents, "OUTPUT_PATH", out_path)
 
     monkeypatch.setattr(rank_task_subagents, "_query_rows", lambda: ("ok", []))
     assert rank_task_subagents.main() == 0
+    assert out_path.exists(), "main() with state='ok' must write OUTPUT_PATH"
+    ok_content = out_path.read_text()
+    assert "No aggregated runs yet" in ok_content
+    assert "AGGREGATION FAILED" not in ok_content
 
     monkeypatch.setattr(rank_task_subagents, "_query_rows", lambda: ("error", []))
     assert rank_task_subagents.main() == 1
+    assert out_path.exists(), "main() with state='error' must ALSO write OUTPUT_PATH"
+    err_content = out_path.read_text()
+    assert "AGGREGATION FAILED" in err_content
+    assert "No aggregated runs yet" not in err_content
 
 
 def test_query_rows_treats_null_quality_as_neutral_not_zero(monkeypatch) -> None:

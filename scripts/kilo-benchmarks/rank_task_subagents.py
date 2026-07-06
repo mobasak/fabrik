@@ -122,7 +122,21 @@ def _query_rows() -> tuple[str, list[tuple[str, str, int, float, float, float]]]
         return ("error", [])
     rows = []
     # delimiter must match the psql `-F` we passed (verified above).
-    for line in csv.reader(io.StringIO(result.stdout), delimiter=PSQL_FIELD_SEP):
+    # quoting=csv.QUOTE_NONE — psql `-A` mode never emits CSV-style quoting, so a
+    # value starting with `"` would otherwise collapse subsequent tab-separated
+    # columns into one field (Finder B#3). QUOTE_NONE treats `"` as literal.
+    try:
+        parsed_lines = list(
+            csv.reader(io.StringIO(result.stdout), delimiter=PSQL_FIELD_SEP, quoting=csv.QUOTE_NONE)
+        )
+    except csv.Error as exc:
+        # csv.Error is not a subclass of ValueError/TypeError → would otherwise
+        # escape the row-level try/except and crash main() before the AGGREGATION
+        # FAILED stub is written (Finder B#4). Treat parse-level failure as a
+        # query error (state="error") so render() emits the distinct banner.
+        print(f"[rank_task_subagents] CSV parse failed: {exc}", file=sys.stderr)
+        return ("error", [])
+    for line in parsed_lines:
         if not line or not line[0]:
             continue
         try:
@@ -199,11 +213,9 @@ def render(rows: list, state: str = "ok") -> str:
     otherwise the daily-regenerated "Last refresh" date makes broken indistinguishable
     from healthy-but-empty (per /fabrik-review A6 fix).
     """
-    today = (
-        date.today().isoformat()
-        if os.environ.get("_TEST_FIXED_DATE") is None
-        else os.environ["_TEST_FIXED_DATE"]
-    )
+    # Truthy check (not `is None`) so an empty _TEST_FIXED_DATE="" env-var doesn't
+    # produce `Last refresh: \n` — Finder B#6. Empty string falls through to today.
+    today = os.environ.get("_TEST_FIXED_DATE") or date.today().isoformat()
     header = (
         f"Last refresh: {today}\n"
         f"Formula: success × quality / cost | Window: {WINDOW_DAYS} days | Min runs: {MIN_RUNS}\n\n"
@@ -231,9 +243,11 @@ def render(rows: list, state: str = "ok") -> str:
     for task_type in sorted(by_task):
         task_rows = by_task[task_type]
         n_total = sum(r[2] for r in task_rows)
-        # Score + sort desc
+        # Score + sort desc. Model-id is the tie-breaker so ties don't shuffle
+        # non-deterministically between daily runs (Finder B#8). Postgres doesn't
+        # guarantee stable GROUP BY output order, so we sort by (value desc, model asc).
         scored = [(r, _value(r[3], r[4], r[5])) for r in task_rows]
-        scored.sort(key=lambda x: x[1], reverse=True)
+        scored.sort(key=lambda x: (-x[1], x[0][1]))
         out.append(f"### {task_type} (n_total={n_total})")
         out.append("| rank | model | value | success | avg_cost | avg_quality | n |")
         out.append("|---:|---|---:|---:|---:|---:|---:|")

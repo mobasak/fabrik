@@ -539,6 +539,25 @@ def _wd_drop_role_sql(db_name: str) -> str:
     return f'DROP ROLE IF EXISTS "{wd_ro}";\nDROP ROLE IF EXISTS "{wd_rw}";\n'
 
 
+def _subagent_drop_role_sql(db_name: str) -> str:
+    """``DROP ROLE IF EXISTS`` for the per-project subagent-ins role.
+
+    Uses the same hyphen→underscore sanitization as `_provision_postgres` because
+    the role was created against the sanitized identifier. Empty string when the
+    sanitized name would be invalid / too long (the role could never have been
+    created, so nothing to drop). Same wedge-cleanup motivation as watchdog: a
+    drop+recreate cycle would leave the ins role behind with an out-of-band
+    password → next apply's `_role_exists` returns True → no fresh DSN injected.
+    Fixes Finder A#4.
+    """
+    sanitized = db_name.replace("-", "_")
+    try:
+        role = _subagent_ins_role_name(sanitized)
+    except ValueError:
+        return ""
+    return f'DROP ROLE IF EXISTS "{role}";\n'
+
+
 def _role_exists(role: str, container: str) -> bool:
     """True if a login role named ``role`` already exists on the cluster."""
     return (
@@ -820,17 +839,46 @@ def create_subagent_ins_role(
     # (\c) so `subagent_runs` and `subagent_runs_id_seq` resolve there.
     # Grants are idempotent → re-applied every call so a re-apply after a schema
     # change (e.g. a future ALTER TABLE ADD COLUMN) still carries the grant.
+    # Qualified with `public.` to survive a future search_path drift (Finder A#9).
     sql_parts += [
         f'GRANT CONNECT ON DATABASE "{FABRIK_ANALYTICS_DB}" TO "{role}";',
         f"\\c {FABRIK_ANALYTICS_DB}",
         f'GRANT USAGE ON SCHEMA public TO "{role}";',
         # INSERT only — least privilege. NO SELECT/UPDATE/DELETE on subagent_runs.
-        f'GRANT INSERT ON subagent_runs TO "{role}";',
+        f'GRANT INSERT ON public.subagent_runs TO "{role}";',
         # `id BIGSERIAL` needs sequence USAGE for INSERT to allocate the next id.
-        f'GRANT USAGE ON SEQUENCE subagent_runs_id_seq TO "{role}";',
+        f'GRANT USAGE ON SEQUENCE public.subagent_runs_id_seq TO "{role}";',
     ]
     # nosec B608 — role name identifier-validated above; password is CSPRNG alnum.
-    _run_sql("\n".join(sql_parts) + "\n", container=container)  # nosec B608
+    try:
+        _run_sql("\n".join(sql_parts) + "\n", container=container)  # nosec B608
+    except Exception:
+        # Wedge-state guard (Finder A#3): if any GRANT failed AFTER a fresh
+        # CREATE ROLE succeeded (each statement outside \c auto-commits under
+        # psql, so ON_ERROR_STOP can't roll back the CREATE), the cluster ends
+        # up with a role whose password lives only in our Python-side `pw`
+        # local — which we're about to lose to the exception. Next apply would
+        # see `role_exists=True`, return `password=None`, and never inject a
+        # matching DSN. Drop the just-created role so the next apply gets a
+        # fresh CREATE with a fresh matching password.
+        if not role_exists:
+            try:
+                _run_sql(  # nosec B608 — role name identifier-validated above
+                    f'DROP ROLE IF EXISTS "{role}";', container=container
+                )
+                logger.warning(
+                    "subagent-ins role %s: dropped after partial-provision failure "
+                    "(will retry on next apply)",
+                    role,
+                )
+            except Exception as drop_exc:  # noqa: BLE001 — bounded non-fatal
+                logger.warning(
+                    "subagent-ins role %s: failed to drop after partial-provision "
+                    "(operator must DROP ROLE manually before next apply): %s",
+                    role,
+                    drop_exc,
+                )
+        raise
 
     logger.info(
         "subagent-ins role: %s (%s) on fabrik_analytics.subagent_runs",
@@ -904,12 +952,13 @@ def drop_database(
 
     if not exists:
         logger.info("PostgreSQL database not found (nothing to drop): %s", db_name)
-        # Still clean up any ORPHANED per-project watchdog roles: a prior drop may
-        # have removed the DB but left these behind (or the DB was dropped
-        # manually), which is the exact stuck state the cleanup exists to prevent.
-        wd_sql = _wd_drop_role_sql(db_name)
-        if wd_sql:
-            _run_sql(wd_sql, container=container)
+        # Still clean up any ORPHANED per-project watchdog + subagent roles: a
+        # prior drop may have removed the DB but left these behind (or the DB
+        # was dropped manually), which is the exact stuck state the cleanup
+        # exists to prevent.
+        orphan_sql = _wd_drop_role_sql(db_name) + _subagent_drop_role_sql(db_name)
+        if orphan_sql:
+            _run_sql(orphan_sql, container=container)
         return {"status": "not_found", "database": db_name}
 
     # DROP DATABASE cannot run inside a transaction; psql's ``-tA`` +
@@ -920,12 +969,13 @@ def drop_database(
     sql = f'DROP DATABASE IF EXISTS "{db_name}" WITH (FORCE);\n'
     if db_user and db_user != "postgres":
         sql += f'DROP ROLE IF EXISTS "{db_user}";\n'
-    # Also drop the per-project watchdog roles (created by create_watchdog_roles),
-    # AFTER the DB so their grants/default-privileges are already gone. Without this
-    # a drop+recreate cycle leaves them behind → the next apply sees them as
-    # existing → no fresh password minted → a reset .env stuck without a
-    # WATCHDOG_DB_URL_*.
+    # Also drop the per-project watchdog + subagent-ins roles (created by
+    # create_watchdog_roles + create_subagent_ins_role), AFTER the DB so their
+    # grants/default-privileges are already gone. Without this a drop+recreate
+    # cycle leaves them behind → the next apply sees them as existing → no
+    # fresh password minted → .env stuck without WATCHDOG_DB_URL_*/SUBAGENT_RUNS_DSN.
     sql += _wd_drop_role_sql(db_name)
+    sql += _subagent_drop_role_sql(db_name)
     _run_sql(sql, container=container)
     logger.info("Dropped PostgreSQL database: %s", db_name)
 
@@ -1102,6 +1152,43 @@ fabrik-lib module); future shared analytics tables land here too.
 """
 
 COST_BUDGET_SCHEMA_PATH = "/opt/fabrik-lib/cost-budget/schema_pg.sql"
+
+SUBAGENTS_MODULE_ROOT = "/opt/fabrik-lib/subagents"
+"""Path to the vendored subagents fabrik-lib module. Home of `SUBAGENT_RUNS_DDL`
+(read at apply-time via `python -c "from subagents import SUBAGENT_RUNS_DDL"`)
+so schema changes to the module propagate on the next `fabrik apply` without
+requiring a copy of the DDL to live here."""
+
+
+def _read_subagent_runs_ddl() -> str:
+    """Import SUBAGENT_RUNS_DDL from the vendored subagents module and return it.
+
+    Runs `python -c` in a subprocess with cwd=/opt/fabrik-lib/subagents so we don't
+    have to add that path to fabrik's sys.path at import time (would create a
+    circular dep if fabrik-lib ever imports back). Raises RuntimeError on any
+    failure so the caller can decide whether to bail or degrade.
+    """
+    import subprocess
+
+    result = subprocess.run(
+        ["python3", "-c", "from subagents import SUBAGENT_RUNS_DDL; print(SUBAGENT_RUNS_DDL)"],
+        capture_output=True,
+        text=True,
+        check=False,
+        cwd=SUBAGENTS_MODULE_ROOT,
+        timeout=10,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"failed to import SUBAGENT_RUNS_DDL from {SUBAGENTS_MODULE_ROOT}: "
+            f"{result.stderr.strip()}"
+        )
+    ddl = result.stdout.strip()
+    if not ddl or "CREATE TABLE" not in ddl:
+        raise RuntimeError(f"SUBAGENT_RUNS_DDL imported but content looks wrong: {ddl[:200]!r}")
+    return ddl
+
+
 """Canonical DDL location read by :func:`ensure_shared_analytics_db`.
 
 The fabrik-lib module is the single source of truth — change the DDL
@@ -1223,6 +1310,32 @@ def ensure_shared_analytics_db(
     )
     result["schema_applied"] = True
     logger.info("Applied cost_ledger DDL from %s", schema_path)
+
+    # Step 2b (2026-07-06): also apply SUBAGENT_RUNS_DDL from the vendored subagents
+    # module. The DDL is a Python string exported by pg_ledger.py — import it in a
+    # subprocess so we don't have to add fabrik-lib/subagents to fabrik's sys.path.
+    # Idempotent (`CREATE TABLE IF NOT EXISTS` + `CREATE INDEX IF NOT EXISTS`).
+    # Failure here is non-fatal (logged): a cluster missing subagent_runs falls back
+    # to JSONL-only in vendored projects; the per-project subagent_ins role provisioning
+    # in _provision_postgres will log a warning if the table isn't there.
+    try:
+        subagent_ddl = _read_subagent_runs_ddl()
+    except Exception as exc:  # noqa: BLE001 — non-fatal
+        logger.warning(
+            "Could not read SUBAGENT_RUNS_DDL from /opt/fabrik-lib/subagents (%s); "
+            "subagent_runs table NOT applied. Projects that vendor subagents will "
+            "fall back to JSONL-only.",
+            exc,
+        )
+    else:
+        payload = base64.b64encode(subagent_ddl.encode()).decode()
+        # Use ON_ERROR_STOP so mid-batch failures propagate as non-zero and get logged,
+        # rather than psql's default continue-on-error (which returns 0 even on partial DDL).
+        ssh(
+            f"echo {payload} | base64 -d | sudo docker exec -i {container} "
+            f"psql -U postgres -d {FABRIK_ANALYTICS_DB} -v ON_ERROR_STOP=1 -tA"
+        )
+        logger.info("Applied SUBAGENT_RUNS_DDL to %s", FABRIK_ANALYTICS_DB)
 
     # Step 3: optional GRANT.
     if grant_to_role and grant_to_role != "postgres":

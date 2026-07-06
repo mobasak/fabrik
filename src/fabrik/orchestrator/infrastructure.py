@@ -566,7 +566,14 @@ class InfrastructureProvisioner:
             try:
                 from fabrik.drivers.postgres import create_subagent_ins_role
 
-                sa = create_subagent_ins_role(name, dry_run=dry_run)
+                # Sanitize hyphens → underscores for the pg role name (Finder A#1: the
+                # `_validate_identifier` regex `^[a-zA-Z_][a-zA-Z0-9_]{0,62}$` rejects
+                # hyphens; nearly every fleet spec has one). SUBAGENT_PROJECT keeps the
+                # ORIGINAL name so row tagging stays human-friendly for querying — the
+                # sanitized form is only the role/DSN handle. Same discipline as db_user
+                # derivation for DATABASE_URL: `derived = name.replace('-', '_')` (:441).
+                sa_project_id = name.replace("-", "_")
+                sa = create_subagent_ins_role(sa_project_id, dry_run=dry_run)
                 sa_env: dict[str, str] = {"SUBAGENT_PROJECT": name}
                 if sa["ins"].get("password"):
                     sa_env["SUBAGENT_RUNS_DSN"] = (
@@ -574,10 +581,17 @@ class InfrastructureProvisioner:
                         f"@postgres-main:5432/fabrik_analytics"  # noqa: runtime CSPRNG password, not a hardcoded secret
                     )
                 # SUBAGENT_SELECTION_DOC = the governance-synced ranking doc.
-                # Relative path resolved by the project's cwd (WORKDIR /app in most
-                # scaffolds). Documented in the module's README. Injected fleet-wide
-                # so pick_models(...) reads the real-fleet ranking once populated.
-                sa_env["SUBAGENT_SELECTION_DOC"] = "docs/reference/kilo/TASK_SUBAGENT_SELECTION.md"
+                # Two paths (comma-separated), read in order — the module's reader
+                # first tries TASK (real fleet data), falls back to CODING (public
+                # benchmark rankings for coding task_type) per-task_type. Both
+                # governance-synced to every project's docs/reference/kilo/.
+                # NOTE: relative path resolved from cwd; if the container's WORKDIR
+                # doesn't have docs/ mounted, projects should override to an absolute
+                # path in their .env (documented in the workflow doc's Part B).
+                sa_env["SUBAGENT_SELECTION_DOC"] = (
+                    "docs/reference/kilo/TASK_SUBAGENT_SELECTION.md,"
+                    "docs/reference/kilo/CODING_SUBAGENT_SELECTION.md"
+                )
                 if not dry_run:
                     self.deployer.inject_env(ctx, sa_env)
                     injected = ", ".join(sorted(sa_env))

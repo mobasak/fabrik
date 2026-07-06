@@ -22,6 +22,7 @@ INSERT + SELECT-forbidden behavioral proof.
 
 from __future__ import annotations
 
+import re
 from unittest import mock
 
 import pytest
@@ -59,16 +60,21 @@ def _capture(project: str = PROJECT, *, role_exists: bool = False):
 
 def test_ins_role_gets_only_insert_never_a_read_or_delete_verb():
     """INSERT is the ONLY DML the role can perform on subagent_runs. A regression
-    that adds e.g. `GRANT SELECT ... TO "<role>"` on a NEW line must be caught."""
+    that adds e.g. `GRANT SELECT ... TO "<role>"` on a NEW line must be caught,
+    including comma-separated multi-verb GRANTs like `GRANT SELECT, INSERT ...`."""
     _, sql = _capture()
-    assert f'GRANT INSERT ON subagent_runs TO "{ROLE}";' in sql
+    assert f'GRANT INSERT ON public.subagent_runs TO "{ROLE}";' in sql
     # Check every line naming this role — none may carry any forbidden verb.
+    # Uses word-boundary regex (Finder A#5): the previous `f' {verb} ' not in line`
+    # missed `GRANT SELECT, INSERT ON ...` because `SELECT,` has no trailing space
+    # and doesn't start the line. `\b` matches SELECT preceded by ANY non-word char
+    # (space, comma, tab, semicolon), then followed by ANY non-word char (space or
+    # comma or semicolon before ON).
     for line in sql.splitlines():
         if f'"{ROLE}"' not in line:
             continue
         for verb in _FORBIDDEN_VERBS:
-            # `USAGE` is allowed (on schema + sequence); reject only the DML/DDL verbs.
-            assert f" {verb} " not in line and not line.strip().startswith(verb), (
+            assert not re.search(rf"\b{verb}\b", line), (
                 f"forbidden verb {verb!r} granted to {ROLE!r} on line: {line}"
             )
 
@@ -78,7 +84,7 @@ def test_ins_role_gets_sequence_usage_for_bigserial_id():
     on that sequence, INSERT would fail with `permission denied for sequence`.
     This test pins that grant so it can't drift away."""
     _, sql = _capture()
-    assert f'GRANT USAGE ON SEQUENCE subagent_runs_id_seq TO "{ROLE}";' in sql
+    assert f'GRANT USAGE ON SEQUENCE public.subagent_runs_id_seq TO "{ROLE}";' in sql
 
 
 def test_ins_role_gets_connect_on_fabrik_analytics_only():
@@ -101,10 +107,47 @@ def test_ins_role_uses_least_privilege_options_on_create():
     assert "NOSUPERUSER" in create
     assert "NOCREATEDB" in create
     assert "NOCREATEROLE" in create
-    assert "SUPERUSER" not in create or "NOSUPERUSER" in create  # no bare SUPERUSER
+    # A bare `SUPERUSER` — even alongside `NOSUPERUSER` — would let a rogue
+    # regression `CREATE ROLE "role" WITH LOGIN NOSUPERUSER SUPERUSER ...`
+    # ship: Postgres picks the LAST flag and grants superuser. The previous
+    # assertion `'SUPERUSER' not in create or 'NOSUPERUSER' in create` was
+    # always True whenever NOSUPERUSER was present (Finder A#7). Strip the
+    # NO-prefixed form first, then reject any remaining SUPERUSER.
+    create_without_no = create.replace("NOSUPERUSER", "")
+    assert not re.search(r"\bSUPERUSER\b", create_without_no), (
+        f"bare SUPERUSER present in CREATE ROLE: {create}"
+    )
 
 
 # ── failure-mode robustness ───────────────────────────────────────────────
+
+
+def test_create_role_is_plain_not_wrapped_in_do_block():
+    """Finder A#10: no test previously guarded against a well-intentioned regression
+    that wraps CREATE ROLE in `DO $$ IF NOT EXISTS (SELECT FROM pg_roles ...) THEN
+    CREATE ROLE ... END IF; END $$;` to 'fix' a perceived create race. That wrapping
+    is exactly what the docstring at postgres.py forbids — under a real create race,
+    the DO block silently skips CREATE, but the Python code has already generated
+    `pw` and injected a DSN using it. The role in the DB has a DIFFERENT password
+    → auth fails at runtime. Pin the plain CREATE ROLE discipline.
+    """
+    _, sql = _capture()
+    assert "DO $$" not in sql, "CREATE ROLE must be plain, not wrapped in DO block"
+    assert "IF NOT EXISTS" not in sql, "CREATE ROLE must not use IF NOT EXISTS"
+
+
+def test_ins_role_grants_use_public_schema_qualification():
+    """Finder A#9: unqualified `subagent_runs` / `subagent_runs_id_seq` grants are
+    fragile — a future migration that moves the table to a different schema would
+    silently target the wrong object or fail. Fully-qualified names make the
+    coupling explicit and survive a search_path drift."""
+    _, sql = _capture()
+    assert 'GRANT INSERT ON public.subagent_runs TO' in sql, (
+        f"INSERT grant must qualify table with public.: {sql}"
+    )
+    assert 'GRANT USAGE ON SEQUENCE public.subagent_runs_id_seq TO' in sql, (
+        f"sequence USAGE grant must qualify with public.: {sql}"
+    )
 
 
 def test_batch_runs_under_on_error_stop_so_a_failed_grant_aborts_the_batch():
@@ -138,7 +181,7 @@ def test_no_create_role_statement_when_role_already_exists():
     _, sql = _capture(role_exists=True)
     assert "CREATE ROLE" not in sql, "re-apply must skip CREATE ROLE for existing role"
     # But grants must still be re-applied — verify at least the INSERT one.
-    assert f'GRANT INSERT ON subagent_runs TO "{ROLE}";' in sql
+    assert f'GRANT INSERT ON public.subagent_runs TO "{ROLE}";' in sql
 
 
 # ── identifier guards ─────────────────────────────────────────────────────

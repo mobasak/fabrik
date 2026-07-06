@@ -275,6 +275,18 @@ def _render(rows: list[dict]) -> str:
         "",
         "## Ranked table",
         "",
+        # Level-3 header `### code` makes this file directly consumable by the
+        # subagents module's `load_task_ranking()` reader (at select.py:84) — it
+        # parses `### <task_type>` headers and reads the following table as
+        # `(rank, model, ..., n)`. The reader looks at cells[0] (rank), cells[1]
+        # (model), and cells[-1] (n; here it's Score, which isn't decimal → n=0,
+        # harmless when min_n=0). This lets projects set
+        #   SUBAGENT_SELECTION_DOC=docs/reference/kilo/CODING_SUBAGENT_SELECTION.md
+        # and get benchmark rankings for the `code` task_type immediately — no
+        # fleet data required. Fabrik-side wiring injects this file as a
+        # fallback comma-separated alongside TASK_SUBAGENT_SELECTION.md.
+        "### code",
+        "",
         "| # | Model | OR | OR_prov | db_tps | In $/M | Out $/M | SWE | Aider | AA | Arena | Ctx | Doc↔Code | Score |",
         "|---:|---|:-:|---|---:|---:|---:|---:|---:|---:|---:|---:|:-:|---:|",
     ]
