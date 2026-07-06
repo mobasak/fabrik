@@ -76,6 +76,26 @@ class TestCheckSecrets:
         results = check_file(bad_file)
         assert len(results) >= 1
 
+    def test_allowed_lines_scopes_to_changed_lines(self, tmp_path: Path) -> None:
+        """A secret on an UNTOUCHED line is dropped when allowed_lines is scoped.
+
+        Regression guard: on shared master a sibling's unrelated edit pulls the
+        whole file into the gate's changed-file set, and the whole-file scan
+        re-flagged a pre-existing (already-committed) credential line. Scoping to
+        the diff's touched lines must suppress that.
+        """
+        from scripts.enforcement.check_secrets import check_file
+
+        f = tmp_path / "settings.py"
+        f.write_text('x = 1\ny = 2\npassword = "mysecretpassword123"\n')  # secret on line 3
+
+        # Secret line NOT in the changed set → not reported (the sibling case).
+        assert check_file(f, allowed_lines={1, 2}) == []
+        # Secret line IS in the changed set → still reported.
+        assert len(check_file(f, allowed_lines={3})) >= 1
+        # None (default / untracked) → whole-file scan, still reported.
+        assert len(check_file(f, allowed_lines=None)) >= 1
+
 
 class TestCheckDocker:
     """Tests for check_docker.py."""

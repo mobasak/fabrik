@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Check for hardcoded secrets and credentials."""
+# AFTER-EDIT: tests/test_enforcement.py | none
 
 from __future__ import annotations
 
@@ -54,8 +55,17 @@ SKIP_PATTERNS = [
 ]
 
 
-def check_file(file_path: Path) -> list[CheckResult]:
-    """Check a file for hardcoded secrets."""
+def check_file(file_path: Path, allowed_lines: set[int] | None = None) -> list[CheckResult]:
+    """Check a file for hardcoded secrets.
+
+    ``allowed_lines`` — when given, only findings on those (new-side) line numbers
+    are reported; findings on unchanged lines are dropped. This bounds the gate to
+    what the current diff actually TOUCHED, so a sibling's unrelated edit elsewhere
+    in a shared file doesn't retroactively re-flag a pre-existing (already-committed)
+    line — the exact false positive the whole-file scan produced on shared master.
+    ``None`` (the default) scans the whole file, preserving standalone/test callers
+    and the untracked-file case (every line is new).
+    """
     results: list[CheckResult] = []
     if any(re.search(p, str(file_path), re.I) for p in SKIP_PATTERNS):
         return results
@@ -79,6 +89,9 @@ def check_file(file_path: Path) -> list[CheckResult]:
     for pattern, desc in SECRET_PATTERNS:
         for match in re.finditer(pattern, content, re.I):
             line_num = content[: match.start()].count("\n") + 1
+            # Only gate lines the current diff actually touched (when scoped).
+            if allowed_lines is not None and line_num not in allowed_lines:
+                continue
             # Skip lines with noqa comments
             if line_num <= len(lines) and "noqa" in lines[line_num - 1]:
                 continue
@@ -118,6 +131,57 @@ def _changed_files() -> list[str]:
     return [f for f in files if f]
 
 
+_HUNK_RE = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
+
+
+def _changed_line_numbers(rel: str) -> set[int] | None:
+    """Working-tree line numbers ``rel`` changed vs HEAD (both staged + unstaged).
+
+    A single ``git diff HEAD --unified=0`` — its new-side numbers are the
+    working-tree line numbers ``check_file`` reads off disk, so staged and unstaged
+    edits share one coordinate space (a two-diff union would mix index-space and
+    working-tree-space numbers and mis-map lines on a staged+unstaged file).
+    Returns ``None`` for an untracked file (no diff base — every line is new, scan
+    the whole file); ``None`` is also the fail-open fallback when git is
+    unavailable or HEAD doesn't exist, so the check never silently gates nothing.
+    """
+    import subprocess
+
+    try:
+        tracked = (
+            subprocess.run(
+                ["git", "ls-files", "--error-unmatch", rel],
+                capture_output=True,
+                text=True,
+            ).returncode
+            == 0
+        )
+    except FileNotFoundError:
+        return None
+    if not tracked:
+        return None  # untracked → all lines are new
+
+    try:
+        out = subprocess.run(
+            ["git", "diff", "HEAD", "--unified=0", "--", rel],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return None  # no HEAD / git unavailable → fail-open, scan whole file
+
+    changed: set[int] = set()
+    for line in out.splitlines():
+        m = _HUNK_RE.match(line)
+        if not m:
+            continue
+        start = int(m.group(1))
+        count = int(m.group(2)) if m.group(2) is not None else 1
+        changed.update(range(start, start + count))  # count 0 → empty (deletion)
+    return changed
+
+
 def main() -> int:
     """Scan CHANGED files for hardcoded secrets; exit 1 on any ERROR-severity
     finding so final_gate's "Secrets (Zero Hardcoding)" gate actually bites.
@@ -130,7 +194,7 @@ def main() -> int:
         r
         for rel in _changed_files()
         if (p := Path(rel)).is_file()
-        for r in check_file(p)
+        for r in check_file(p, _changed_line_numbers(rel))
         if r.severity == Severity.ERROR
     ]
     for r in errors:

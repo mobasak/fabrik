@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — check_secrets scans only diff-touched lines (shared-master false positive) (2026-07-07)
+
+`scripts/enforcement/check_secrets.py` bounded its scan to changed *files* but then scanned each file's *whole* content — so a sibling's unrelated edit anywhere in a shared file (e.g. `bootstrap-vps.sh`) pulled the whole file into scope and re-flagged a pre-existing, already-committed line (a runtime `.env` read the author had even `# noqa`'d, one line off from the check's same-line rule). This contradicted the check's own docstring ("only new changes are gated"). Added `_changed_line_numbers()` (parses `git diff HEAD --unified=0` hunk headers → working-tree line numbers) and an optional `allowed_lines` param to `check_file()`; findings on untouched lines are now dropped. Untracked files / no-HEAD / no-git fail open to a whole-file scan (unchanged behavior). Change can only *reduce* false positives — it never un-greens a currently-green project. Regression test in `tests/test_enforcement.py`. Did **not** touch the sibling-owned `bootstrap-vps.sh`.
+
 ### Added — bubblewrap + socat in host base provisioning (fleet subagents sandbox) (2026-07-07)
 
 `scripts/bootstrap/bootstrap-vps.sh` installs `bubblewrap` + `socat` in the base apt phase (alongside ufw/fail2ban/python3-venv/python3-pip). The fabrik-lib **subagents** module OS-sandboxes its `run_command` via `bwrap` and **fails closed** without it — a tool-enabled agent refuses to run on a host lacking bubblewrap. `socat` completes the Linux-sandbox pair the Claude Code CLI's own sandbox needs (same pair already shipped in the watchdog sidecar image). Installed **live on all 3 VPS (vps1/vps2/vps3) + the WSL dev host** (bubblewrap 0.9.0); ~2 MB combined. Every host that runs tool-enabled agents now has it, and re-provisioning/new spokes inherit it from base.
