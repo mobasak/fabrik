@@ -48,6 +48,12 @@ VALUE_FORMULA_COST_IN_DENOMINATOR = (
     True  # False → success × quality × cost (literal user shorthand)
 )
 
+# Query timeout — 300s covers real fleet scale on the indexed `ts` column
+# even at millions of rows. Bumped from 30s per /fabrik-review A7 (silent
+# TimeoutExpired at scale was indistinguishable from "no data yet").
+# Override via env for exceptional cases: SUBAGENT_RANK_TIMEOUT=600.
+QUERY_TIMEOUT_SECONDS = int(os.environ.get("SUBAGENT_RANK_TIMEOUT", "300"))
+
 OUTPUT_PATH = (
     Path(__file__).resolve().parent.parent.parent
     / "docs"
@@ -77,11 +83,14 @@ HAVING COUNT(*) >= {MIN_RUNS}
 PSQL_FIELD_SEP = "\t"
 
 
-def _query_rows() -> list[tuple[str, str, int, float, float, float]]:
-    """Query the DB via `sudo -u postgres psql -A -F, --tuples-only`. Parse CSV in-Python.
+def _query_rows() -> tuple[str, list[tuple[str, str, int, float, float, float]]]:
+    """Query the DB. Returns (state, rows) where state ∈ {"ok", "error"}.
 
-    Returns list of (task_type, model, n, avg_cost, avg_quality, success_rate).
-    Fail-soft: any error (DB down, table missing, permission) → empty list + stderr warning.
+    "ok" means the query ran cleanly (rows may be empty if there's genuinely no data).
+    "error" means subprocess/psql failed — data is UNKNOWN. Caller uses the state to
+    emit a distinct stub and set exit code (per /fabrik-review A6 fix — the old
+    fail-soft returned `[]` for both cases and the "Last refresh" date advanced daily
+    on the stub, making broken indistinguishable from healthy-but-empty).
     """
     try:
         result = subprocess.run(
@@ -103,14 +112,14 @@ def _query_rows() -> list[tuple[str, str, int, float, float, float]]:
             capture_output=True,
             text=True,
             check=False,
-            timeout=30,
+            timeout=QUERY_TIMEOUT_SECONDS,
         )
     except (subprocess.TimeoutExpired, FileNotFoundError) as exc:
         print(f"[rank_task_subagents] DB query failed: {exc}", file=sys.stderr)
-        return []
+        return ("error", [])
     if result.returncode != 0:
         print(f"[rank_task_subagents] psql non-zero exit: {result.stderr.strip()}", file=sys.stderr)
-        return []
+        return ("error", [])
     rows = []
     # delimiter must match the psql `-F` we passed (verified above).
     for line in csv.reader(io.StringIO(result.stdout), delimiter=PSQL_FIELD_SEP):
@@ -164,7 +173,7 @@ def _query_rows() -> list[tuple[str, str, int, float, float, float]]:
         except (ValueError, TypeError) as exc:
             print(f"[rank_task_subagents] skip malformed row {line!r}: {exc}", file=sys.stderr)
             continue
-    return rows
+    return ("ok", rows)
 
 
 def filter_min_runs(rows: list, min_n: int = MIN_RUNS) -> list:
@@ -181,11 +190,14 @@ def _value(avg_cost: float, avg_quality: float, success_rate: float) -> float:
     return success_rate * avg_quality * avg_cost
 
 
-def render(rows: list) -> str:
+def render(rows: list, state: str = "ok") -> str:
     """Emit the ranked markdown from aggregated rows.
 
     Rows shape: (task_type, model, n, avg_cost, avg_quality, success_rate).
-    Empty rows → stub with "No aggregated runs yet" line.
+    `state` distinguishes a healthy empty pool ("ok" + no rows) from an aggregation
+    failure ("error") so the emitted stub tells the operator which one it is —
+    otherwise the daily-regenerated "Last refresh" date makes broken indistinguishable
+    from healthy-but-empty (per /fabrik-review A6 fix).
     """
     today = (
         date.today().isoformat()
@@ -196,6 +208,15 @@ def render(rows: list) -> str:
         f"Last refresh: {today}\n"
         f"Formula: success × quality / cost | Window: {WINDOW_DAYS} days | Min runs: {MIN_RUNS}\n\n"
     )
+    if state == "error":
+        return header + (
+            "⚠️ AGGREGATION FAILED — the daily query against `subagent_runs` did not "
+            "complete. Check `daily_refresh.sh` logs at `scripts/kilo-benchmarks/cache/update.log` "
+            "for the stderr from `rank_task_subagents.py` (common causes: postgres down, "
+            "`sudo -n` NOPASSWD not configured, query timeout). `pick_models` continues to use "
+            "vendored `_TABLE` default at `/opt/fabrik-lib/subagents/subagents/select.py:58` — "
+            "no functional regression, but the ranking is stale until this is fixed.\n"
+        )
     kept = filter_min_runs(rows)
     if not kept:
         return header + (
@@ -234,11 +255,13 @@ def _atomic_write(path: Path, content: str) -> None:
 
 
 def main() -> int:
-    rows = _query_rows()
-    md = render(rows)
+    state, rows = _query_rows()
+    md = render(rows, state=state)
     _atomic_write(OUTPUT_PATH, md)
-    print(f"wrote {OUTPUT_PATH} ({len(rows)} rows aggregated)")
-    return 0
+    print(f"wrote {OUTPUT_PATH} (state={state}, {len(rows)} rows aggregated)")
+    # Exit non-zero on real aggregation failure so daily_refresh.sh's `|| echo "failed"`
+    # logs it. Empty-pool (state="ok", 0 rows) is a healthy outcome and exits 0.
+    return 1 if state == "error" else 0
 
 
 if __name__ == "__main__":

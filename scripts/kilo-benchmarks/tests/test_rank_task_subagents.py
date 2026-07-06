@@ -23,8 +23,37 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 # Import the module under test
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+
+def _postgres_reachable() -> bool:
+    """True iff `sudo -n -u postgres psql` can connect to fabrik_analytics.subagent_runs
+    on this host. Used to gate the live-DB integration test — CI hosts without postgres
+    skip; the WSL dev machine and the phase-gate smoke both run it."""
+    try:
+        r = subprocess.run(
+            [
+                "sudo",
+                "-n",
+                "-u",
+                "postgres",
+                "psql",
+                "-d",
+                "fabrik_analytics",
+                "-tAc",
+                "SELECT 1 FROM subagent_runs LIMIT 0",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=5,
+        )
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        return False
+    return r.returncode == 0
 
 
 def test_empty_input_emits_stub_content() -> None:
@@ -199,7 +228,8 @@ def test_query_rows_fail_soft_on_missing_sudo(monkeypatch) -> None:
         raise FileNotFoundError("no sudo binary")
 
     monkeypatch.setattr(subprocess, "run", _boom)
-    rows = _query_rows()
+    state, rows = _query_rows()
+    assert state == "error"
     assert rows == []
 
 
@@ -217,7 +247,8 @@ def test_query_rows_fail_soft_on_psql_nonzero_exit(monkeypatch) -> None:
         )
 
     monkeypatch.setattr(subprocess, "run", _bad_exit)
-    rows = _query_rows()
+    state, rows = _query_rows()
+    assert state == "error"
     assert rows == []
 
 
@@ -240,11 +271,50 @@ def test_query_rows_skips_null_cost_row(monkeypatch, capsys) -> None:
         return subprocess.CompletedProcess(args=args[0], returncode=0, stdout=stdout, stderr="")
 
     monkeypatch.setattr(subprocess, "run", _fake_run)
-    rows = _query_rows()
+    state, rows = _query_rows()
+    assert state == "ok"  # query ran; only some rows dropped for data quality
     assert len(rows) == 1
     assert rows[0][1] == "good-model"
     err = capsys.readouterr().err
     assert "no cost signal" in err  # operator-visible warning about the skipped row
+
+
+def test_error_state_emits_distinct_stub_with_failure_banner() -> None:
+    """A6 fix: on query failure, the emitted stub must say AGGREGATION FAILED (not
+    "No aggregated runs yet"). Otherwise the daily-regenerated Last-refresh date
+    makes broken indistinguishable from healthy-but-empty, and an operator watching
+    for stale content sees the file changing daily and thinks it's healthy.
+    """
+    from rank_task_subagents import render
+
+    md_ok = render([], state="ok")
+    md_err = render([], state="error")
+
+    assert "No aggregated runs yet" in md_ok
+    assert "AGGREGATION FAILED" not in md_ok
+
+    assert "AGGREGATION FAILED" in md_err
+    assert "check" in md_err.lower()
+    assert "No aggregated runs yet" not in md_err
+    # Both stubs share the same header format so the reader (select.py:112)
+    # falls back to _TABLE in both cases (no `### <task>` sections).
+    assert "### " not in md_err
+    assert md_err.startswith("Last refresh:")
+
+
+def test_main_exit_code_reflects_state(monkeypatch, tmp_path) -> None:
+    """A6 fix: main() must exit 1 on state='error' so daily_refresh.sh's `|| echo failed`
+    fires only on real failures, and 0 on healthy state='ok' (whether or not rows exist).
+    """
+    import rank_task_subagents
+
+    monkeypatch.setattr(rank_task_subagents, "OUTPUT_PATH", tmp_path / "TASK_SUBAGENT_SELECTION.md")
+
+    monkeypatch.setattr(rank_task_subagents, "_query_rows", lambda: ("ok", []))
+    assert rank_task_subagents.main() == 0
+
+    monkeypatch.setattr(rank_task_subagents, "_query_rows", lambda: ("error", []))
+    assert rank_task_subagents.main() == 1
 
 
 def test_query_rows_treats_null_quality_as_neutral_not_zero(monkeypatch) -> None:
@@ -265,7 +335,8 @@ def test_query_rows_treats_null_quality_as_neutral_not_zero(monkeypatch) -> None
         return subprocess.CompletedProcess(args=args[0], returncode=0, stdout=stdout, stderr="")
 
     monkeypatch.setattr(subprocess, "run", _fake_run)
-    rows = _query_rows()
+    state, rows = _query_rows()
+    assert state == "ok"
     assert len(rows) == 1
     assert rows[0][1] == "auto-ledger-model"
     # avg_quality was NULL → parsed as 1.0 (neutral), NOT 0.0 (collapse).
@@ -301,8 +372,79 @@ def test_query_rows_skips_non_finite_or_negative_cost(monkeypatch, capsys) -> No
         return subprocess.CompletedProcess(args=args[0], returncode=0, stdout=stdout, stderr="")
 
     monkeypatch.setattr(subprocess, "run", _fake_run)
-    rows = _query_rows()
+    state, rows = _query_rows()
+    assert state == "ok"
     assert len(rows) == 1
     assert rows[0][1] == "real-model"
     err = capsys.readouterr().err
     assert "bad avg_cost" in err  # each bad row logs, so the operator can trace the data
+
+
+@pytest.mark.skipif(
+    not _postgres_reachable(),
+    reason="live postgres not reachable via `sudo -n -u postgres psql` — CI or fresh clone",
+)
+def test_sql_having_clause_enforces_min_runs_on_real_db() -> None:
+    """B5 fix: the SQL `HAVING COUNT(*) >= MIN_RUNS` clause was previously untested —
+    only the Python belt-and-braces `filter_min_runs()` had coverage. This test hits
+    the actual production query path by seeding real rows into a unique test-scoped
+    (project, model) namespace, running `_query_rows()`, then cleaning up.
+
+    Seeds: 2 runs for (proj=test-havingclause-XXX, model=UNDER-THRESHOLD) — must be
+    dropped by HAVING. 3 runs for (proj=..., model=AT-THRESHOLD) — must survive. 5
+    runs for (proj=..., model=OVER-THRESHOLD) — must survive.
+    """
+    import os
+
+    from rank_task_subagents import _query_rows
+
+    # Unique project id per run so parallel test runs don't collide + so
+    # we can DELETE exactly what we seeded (never touching other test data).
+    tag = f"test-havingclause-{os.getpid()}"
+
+    def _psql(sql: str) -> None:
+        r = subprocess.run(
+            [
+                "sudo",
+                "-n",
+                "-u",
+                "postgres",
+                "psql",
+                "-d",
+                "fabrik_analytics",
+                "-v",
+                "ON_ERROR_STOP=1",
+                "-c",
+                sql,
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+        )
+        assert r.returncode == 0, f"seed failed: {r.stderr}"
+
+    try:
+        # Seed 2 + 3 + 5 = 10 rows across 3 (task_type, model) pairs, all under our tag.
+        # ts is now() so all fall inside the 90-day WHERE window.
+        _psql(f"""
+            INSERT INTO subagent_runs (project, agent_id, task_type, model, status, cost_usd, quality_score)
+            SELECT '{tag}', 'a', 'code', 'UNDER-THRESHOLD', 'done', 0.10, 1.5 FROM generate_series(1, 2)
+            UNION ALL SELECT '{tag}', 'a', 'code', 'AT-THRESHOLD',    'done', 0.10, 1.5 FROM generate_series(1, 3)
+            UNION ALL SELECT '{tag}', 'a', 'code', 'OVER-THRESHOLD',  'done', 0.10, 1.5 FROM generate_series(1, 5)
+        """)
+
+        state, rows = _query_rows()
+        assert state == "ok"
+        # Filter to our seeded models only — the real table may have other rows.
+        my_rows = {
+            r[1] for r in rows if r[1] in {"UNDER-THRESHOLD", "AT-THRESHOLD", "OVER-THRESHOLD"}
+        }
+        assert "UNDER-THRESHOLD" not in my_rows, "SQL HAVING failed — 2-run row leaked through"
+        assert my_rows == {"AT-THRESHOLD", "OVER-THRESHOLD"}, (
+            f"expected AT+OVER only, got {my_rows}"
+        )
+
+    finally:
+        # Always clean up, even if the assert failed.
+        _psql(f"DELETE FROM subagent_runs WHERE project='{tag}'")
