@@ -353,8 +353,13 @@ step_02_install_firewall_fail2ban() {
     # rollout. Installing here (step_02) keeps the apt phase atomic.
     # python3-pip is also required so step_14 can install python-telegram-bot
     # for the sysadmin bot (system Python, since the bot doesn't use a venv).
+    # bubblewrap + socat: the fabrik-lib subagents module OS-sandboxes its
+    # run_command via `bwrap` and FAILS CLOSED without it — a tool-enabled agent
+    # refuses to run on a host that lacks bubblewrap. socat is the companion the
+    # Claude Code CLI's own Linux sandbox needs (same pair shipped in the watchdog
+    # sidecar image). ~2 MB combined; required on every host that runs agents.
     remote 'sudo DEBIAN_FRONTEND=noninteractive apt-get update -qq && \
-        sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq ufw fail2ban python3-venv python3-pip'
+        sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq ufw fail2ban python3-venv python3-pip bubblewrap socat'
     # Lesson 68 hardening: a prior `apt remove ufw` (without --purge) leaves the
     # package in `rc` state (config files remain, binary purged). `apt install`
     # normally brings it back to `ii`, but if `ufw` is still missing from PATH,
@@ -815,7 +820,7 @@ step_13_create_dns_records() {
         # script; inside, $API_KEY expands on vps1, $sd / $spoke_pub_ip
         # expand here on the dev machine.
         local response
-        response=$(ssh "${FABRIK_HUB_SSH_HOST}" "API=\$(sudo grep '^API_KEY=' /opt/site-provisioner/.env | cut -d= -f2- | tr -d '\"'); curl -fsS -X POST -H \"X-API-Key: \$API\" -H 'Content-Type: application/json' -d '{\"subdomain\":\"${sd}\",\"ip\":\"${spoke_pub_ip}\",\"proxied\":false}' '${cf_endpoint}'") || {
+        response=$(ssh "${FABRIK_HUB_SSH_HOST}" "API=\$(sudo grep '^API_KEY=' /opt/site-provisioner/.env | cut -d= -f2- | tr -d '\"'); curl -fsS -X POST -H \"X-API-Key: \$API\" -H 'Content-Type: application/json' -d '{\"subdomain\":\"${sd}\",\"ip\":\"${spoke_pub_ip}\",\"proxied\":false}' '${cf_endpoint}'") || {  # noqa: $API read from /opt/site-provisioner/.env at runtime, not a hardcoded secret
             err "step 13: site-provisioner call failed for ${fqdn}"
             return 1
         }
