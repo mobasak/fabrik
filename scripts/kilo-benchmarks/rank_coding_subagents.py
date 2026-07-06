@@ -276,15 +276,20 @@ def _render(rows: list[dict]) -> str:
         "## Ranked table",
         "",
         # Level-3 header `### code` makes this file directly consumable by the
-        # subagents module's `load_task_ranking()` reader (at select.py:84) — it
+        # subagents module's `load_task_ranking()` reader (at select.py) — it
         # parses `### <task_type>` headers and reads the following table as
         # `(rank, model, ..., n)`. The reader looks at cells[0] (rank), cells[1]
         # (model), and cells[-1] (n; here it's Score, which isn't decimal → n=0,
-        # harmless when min_n=0). This lets projects set
+        # harmless when min_n=0). This lets projects EITHER set
         #   SUBAGENT_SELECTION_DOC=docs/reference/kilo/CODING_SUBAGENT_SELECTION.md
-        # and get benchmark rankings for the `code` task_type immediately — no
-        # fleet data required. Fabrik-side wiring injects this file as a
-        # fallback comma-separated alongside TASK_SUBAGENT_SELECTION.md.
+        # directly (for benchmark-only rankings, no fleet data required), OR
+        # let `fabrik apply` inject the default `TASK_SUBAGENT_SELECTION.md`
+        # path — the hub-side aggregator (`rank_task_subagents.py`) reads
+        # THIS file and BLENDS its `### code` section into the emitted TASK
+        # doc when the fleet has no empirical code data. A prior wiring tried
+        # comma-separated `TASK,CODING`; that broke because `select.py` reads
+        # SUBAGENT_SELECTION_DOC as one literal filename. See workflow doc's
+        # "Two ranking docs" section.
         "### code",
         "",
         "| # | Model | OR | OR_prov | db_tps | In $/M | Out $/M | SWE | Aider | AA | Arena | Ctx | Doc↔Code | Score |",
