@@ -1,6 +1,6 @@
 # GUI Toolchain — the standing decision for building high-quality GUIs with Claude Code
 
-**Status:** Reference / decision doc · **Researched + live-verified:** 2026-07-06 · **Scope:** web (Next.js/React) + React Native — both stacks specified (see § React Native / mobile stack).
+**Status:** Reference / decision doc · **Researched + live-verified:** 2026-07-06 (chrome-ext addendum 2026-07-07) · **Scope:** web (Next.js/React) + React Native + Chrome extension (MV3) — all three surfaces specified (see § React Native / mobile stack and § Chrome extension).
 
 The question this answers: *what MCP / skill / tool / library can we integrate into Claude Code so an agent reliably ships professional GUIs?* The answer is not one tool — it is a **four-layer stack**, almost entirely free and self-hostable. The single highest-leverage piece is the **visual feedback loop**: an agent that opens its own running UI, screenshots it, reads the accessibility tree, and self-verifies. Without it an agent builds blind; with it, GUI quality becomes *checkable* instead of hopeful.
 
@@ -74,6 +74,20 @@ The web loop (Playwright MCP / shadcn MCP / Chrome DevTools MCP / axe) **cannot 
 **Leanest primary for RN: Maestro's MCP** (`claude mcp add maestro -- maestro mcp`) — it unifies drive/flow/screenshot/regression and is the *same Maestro* `80-mobile.md` already mandates for E2E. **Mobile Next MCP** (`@mobilenext/mobile-mcp`) is the finer exploratory add. The pack also lists **Expo MCP** (EAS/SDK, simulator screenshots) and **iOS Simulator MCP** (idb) — use them for their niches, and **Appium MCP** only when Maestro/Mobile-Next can't cover a case. Skip `uitars-mcp` (desktop/browser only) and Chromatic (paid). The one *net-new* addition beyond the pack is **`eslint-plugin-react-native-a11y`** as a static a11y lint alongside the pack's `@testing-library/react-native`.
 
 **CI platform reality:** **Android emulator runs headless on Linux/Docker** (KVM, `reactivecircus/android-emulator-runner`, `-no-window`) — gate mobile there. The **a11y layer (ESLint + RNTL) needs no device at all**. **iOS simulator is macOS-only** (Xcode/WebDriverAgent) — treat iOS verification as a separate macOS job when needed. Prereqs for the MCPs are heavier than the web ones (Android SDK/emulator, or macOS+Xcode, and the `maestro` CLI), so wire them **at mobile-build-time**, not pre-emptively user-global.
+
+---
+
+## Chrome extension (MV3) surface (reuse the web loop + 3 additions)
+
+Extension surfaces (popup / options / side-panel / content-script overlay) are **web tech**, so the agent **reuses the entire web loop above** (frontend-design → shadcn MCP → Playwright MCP → `@axe-core/playwright` + `toHaveScreenshot` → `/design-review`) with the **same Ocoron (Compact) design system** `.windsurf/rules/chrome-ext/70-chrome-ext.md` already mandates. **`70-chrome-ext.md` (§ Testing & UI Verification) is the authority — this is the toolchain view.** MV3 forces exactly three additions (full research: `docs/reference/chrome-ext-gui-research.md`, live-verified 2026-07-07):
+
+| # | Addition | Why (MV3 fact) |
+|---|---|---|
+| 1 | **Playwright test *fixture* that loads the unpacked build** (`launchPersistentContext('', { channel:'chromium', args:['--disable-extensions-except=…','--load-extension=…'] })`, ID from the service worker, `goto('chrome-extension://<id>/…')`). Pin `@playwright/test` ≥1.59. | **Playwright MCP alone can't load an extension** (drives a running browser); **stable Chrome ≥137 removed `--load-extension`** → must use bundled Chromium / Chrome-for-Testing. |
+| 2 | **`bypassCSP: true` on the extension context for axe** + pinned **400px popup viewport** for `toHaveScreenshot`. | Extension CSP is strict + **non-relaxable** → axe throws on `chrome-extension://` pages without it; a `goto`-ed popup otherwise renders at the tab viewport. |
+| 3 | **`size-limit` + `@size-limit/preset-app`** per-surface budget gate. | `70-chrome-ext.md` § Bundle Budgets sets the KB numbers but names no *tool* — this is the CI gate for them. |
+
+**Nice-to-have:** Chrome DevTools MCP `--category-extensions` (already user-global) — `install_extension`/`reload_extension`/`trigger_extension_action` + live SW console/perf, pointed at Chrome-for-Testing; interactive debug, not the automated gate. Everything is **free / self-hostable** — skip paid visual-diff SaaS. No bespoke extension MCP is needed: the Playwright fixture is the load+assert backbone, the web gate tools all apply unchanged.
 
 ---
 

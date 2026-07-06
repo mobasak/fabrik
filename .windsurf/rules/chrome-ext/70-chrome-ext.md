@@ -193,6 +193,18 @@ The backend gets full observability per `55-observability.md` (structlog, `/heal
 
 ---
 
+## Testing & UI Verification
+
+Extension surfaces (popup / options / side-panel / content-script overlay) are **web tech**, so the agent **reuses the web GUI loop** — `frontend-design` skill → shadcn MCP → build → **see** (Playwright MCP) → match the design system → `@axe-core/playwright` + `toHaveScreenshot` gate → `/design-review`, exactly as `docs/reference/gui-toolchain.md` and `saas/60-saas-ui.md` describe. The design system is unchanged: the same Ocoron (Compact) tokens from § Ocoron Design System (below). **MV3 forces exactly three additions** (full rationale + pinned versions: `docs/reference/chrome-ext-gui-research.md`):
+
+- **Load the unpacked build via a Playwright test *fixture* — Playwright MCP alone cannot.** MCP drives an already-running browser; extensions load only through `chromium.launchPersistentContext('', { channel: 'chromium', args: ['--disable-extensions-except=<dist>', '--load-extension=<dist>'] })`. Read the extension ID from the MV3 service worker (`context.serviceWorkers()[0].url()`), then `page.goto('chrome-extension://<id>/popup.html' | 'options.html' | 'sidepanel.html')`. **Stable Chrome ≥137 removed `--load-extension`** — always target Playwright's bundled Chromium / Chrome-for-Testing, never installed Chrome. Pin `@playwright/test` **≥1.59** (MV3 service-worker restart handling). Content-script overlays: `goto` the host page, assert the injected Shadow-DOM node by stable `id`/`data-testid`. *(Optional: `vitest-environment-web-ext` when the project is on CRXJS + Vitest.)*
+- **Run axe with `bypassCSP: true`, screenshot the popup at a pinned 400px viewport.** Extension CSP (`script-src 'self'`, no `unsafe-eval`) is non-relaxable and makes `@axe-core/playwright` throw on `chrome-extension://` pages unless the context is launched with `bypassCSP: true`. Pin `test.use({ viewport: { width: 400, height: 600 } })` so popup `toHaveScreenshot` baselines match the real popup box (a `goto`-ed popup otherwise renders at the tab viewport). axe pierces **open** shadow roots automatically — use `mode: 'open'` for overlays.
+- **Gate bundle budgets with `size-limit` + `@size-limit/preset-app`.** § Bundle Budgets sets the numbers but names no tool: add a `.size-limit.json` entry per surface (popup / side-panel / content-script), each with its own `limit`; `size-limit --json` exits non-zero over budget — the machine-checked form of "verify bundle budgets before shipping."
+
+**Nice-to-have (interactive debug, not the gate):** Chrome DevTools MCP `--category-extensions` (already user-global) — `install_extension` / `reload_extension` / `trigger_extension_action` + live service-worker console/perf, pointed at Chrome-for-Testing. Everything above is free / self-hostable; skip paid visual-diff SaaS (`toHaveScreenshot` covers it). GUI extension phases in a plan carry this loop per-surface, iterated to `found: 0, fixed: 0`, exactly as `/fabrik-ui-design` and `/fabrik-plan-review` require.
+
+---
+
 ## Versioning & Updates
 
 - **CWS distribution:** version in `manifest.json` follows semver. Increment on every CWS submission. CWS auto-updates users.
@@ -281,7 +293,8 @@ Chrome extension UI follows `ocoron-design-system.md` with compact adaptations:
 - [ ] `@sentry/browser` initialized in popup/content scripts for crash reporting.
 - [ ] Service worker telemetry uses buffer + flush pattern (not `console.log`).
 - [ ] All interactive controls are keyboard accessible and show visible focus.
-- [ ] Bundle sizes checked against popup and side-panel budgets.
+- [ ] Bundle sizes checked against popup and side-panel budgets (`size-limit` gate, per surface).
+- [ ] Each surface verified through the web loop + MV3 additions (§ Testing & UI Verification): Playwright load-extension fixture, `@axe-core/playwright` with `bypassCSP: true`, `toHaveScreenshot` at the pinned popup viewport.
 - [ ] `_locales/en/messages.json` exists and synced with `static/i18n/en.json`.
 - [ ] Permissions are minimal; each justified in manifest comments.
 - [ ] Backend deploys via `fabrik apply` with full registrar set (`/health`, `/metrics`, GlitchTip).
