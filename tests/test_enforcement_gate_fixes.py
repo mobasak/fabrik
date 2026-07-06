@@ -147,3 +147,52 @@ def test_validate_conventions_m_fails_on_violation():
     finally:
         subprocess.run(["git", "rm", "--cached", "-q", str(leak)], cwd=repo, check=False)
         leak.unlink(missing_ok=True)
+
+
+# --- #9 diff-scoping: the gate never touches/reds a file the change didn't touch ---
+# Root cause of the calendar-orchestration block + the 12-file auto-fix churn:
+# get_changed_files saw only the working tree, so a committed-clean tree looked empty
+# and the gate fell back to whole-tree (ruff-checking a Fabrik-synced E501 line it
+# couldn't edit; ruff-format/EOF-sweeping unrelated sibling files). These pin the
+# scoping fix.
+from scripts import final_gate  # noqa: E402
+
+
+def test_changed_python_filters_to_existing_py_under_roots(tmp_path, monkeypatch):
+    monkeypatch.setattr(final_gate, "PROJECT_ROOT", tmp_path)
+    (tmp_path / "scripts").mkdir()
+    (tmp_path / "src").mkdir()
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "scripts" / "a.py").write_text("x = 1\n")
+    (tmp_path / "src" / "b.py").write_text("y = 2\n")
+    (tmp_path / "docs" / "c.md").write_text("# hi\n")
+    changed = {"scripts/a.py", "src/b.py", "docs/c.md", "scripts/gone.py", "top.py"}
+    # .md dropped, missing file dropped, root-less top.py dropped
+    assert final_gate._changed_python(changed) == ["scripts/a.py", "src/b.py"]
+
+
+def test_fixers_only_touch_files_in_the_change_set(tmp_path, monkeypatch):
+    """The churn fix: a sibling's file with pre-existing trailing whitespace is NOT
+    rewritten just because the gate ran — only the changed file is."""
+    monkeypatch.setattr(final_gate, "PROJECT_ROOT", tmp_path)
+    (tmp_path / "scripts").mkdir()
+    mine = tmp_path / "scripts" / "mine.py"
+    mine.write_text("x = 1  \n")  # trailing ws + no final newline issue
+    sibling = tmp_path / "scripts" / "sibling.py"
+    sibling.write_text("y = 2  ")  # trailing ws AND missing EOF newline
+
+    ws_ok, _, ws_n = final_gate.fix_trailing_whitespace(["scripts/mine.py"])
+    eof_ok, _, _ = final_gate.fix_end_of_files(["scripts/mine.py"])
+
+    assert ws_ok and eof_ok and ws_n == 1
+    assert mine.read_text() == "x = 1\n"  # my file fixed
+    assert sibling.read_text() == "y = 2  "  # sibling untouched — the whole point
+
+
+def test_run_formatting_fixes_is_a_noop_on_empty_change_set(tmp_path, monkeypatch):
+    """Empty change set (fully-pushed clean tree) → no ruff steps run, nothing mutated."""
+    monkeypatch.setattr(final_gate, "PROJECT_ROOT", tmp_path)
+    results = final_gate.run_formatting_fixes(tier=2, changed_files=set())
+    names = {r[0] for r in results}
+    assert "ruff-format" not in names and "ruff --fix" not in names
+    assert all(passed for _, passed, _ in results)  # whitespace/eof steps no-op cleanly

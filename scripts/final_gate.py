@@ -271,17 +271,14 @@ def print_step(name: str, passed: bool, output: str = "") -> None:
             print(f"       {YELLOW}{line}{RESET}")
 
 
-def fix_trailing_whitespace() -> tuple[bool, str, int]:
-    """Fix trailing whitespace in tracked text files. Preserves line endings (LF/CRLF)."""
-    code, out = run_cmd(
-        ["git", "ls-files", "-z", "--", "*.py", "*.md", "*.yaml", "*.yml", "*.json", "*.sh"]
-    )
-    if code != 0:
-        return False, "Failed to list files", 0
+def fix_trailing_whitespace(files: list[str]) -> tuple[bool, str, int]:
+    """Fix trailing whitespace in the given (changed) text files. Preserves LF/CRLF.
 
+    Operates ONLY on the files the current change touched — never a whole-tree
+    sweep, which on shared master churns a sibling's or a Fabrik-synced file.
+    """
     files_fixed = 0
     errors = []
-    files = [f for f in out.split("\0") if f]
     for f in files:
         path = PROJECT_ROOT / f
         if not path.exists():
@@ -315,17 +312,13 @@ def fix_trailing_whitespace() -> tuple[bool, str, int]:
     return True, f"({files_fixed} files fixed)" if files_fixed else "", files_fixed
 
 
-def fix_end_of_files() -> tuple[bool, str, int]:
-    """Ensure all tracked text files end with newline. Preserves LF/CRLF line endings."""
-    code, out = run_cmd(
-        ["git", "ls-files", "-z", "--", "*.py", "*.md", "*.yaml", "*.yml", "*.json", "*.sh"]
-    )
-    if code != 0:
-        return False, "Failed to list files", 0
+def fix_end_of_files(files: list[str]) -> tuple[bool, str, int]:
+    """Ensure the given (changed) text files end with a newline. Preserves LF/CRLF.
 
+    Scoped to the current change's files only (see fix_trailing_whitespace).
+    """
     files_fixed = 0
     errors = []
-    files = [f for f in out.split("\0") if f]
     for f in files:
         path = PROJECT_ROOT / f
         if not path.exists():
@@ -348,46 +341,54 @@ def fix_end_of_files() -> tuple[bool, str, int]:
     return True, f"({files_fixed} files fixed)" if files_fixed else "", files_fixed
 
 
-def run_formatting_fixes(tier: int = 2) -> list[tuple[str, bool, str]]:
-    """Run auto-fix formatting steps (direct Python implementation, no pre-commit dependency)."""
+def run_formatting_fixes(
+    tier: int = 2, changed_files: set[str] | None = None
+) -> list[tuple[str, bool, str]]:
+    """Run auto-fix formatting steps, SCOPED to the current change's files.
+
+    Every auto-fixer here mutates the working tree, so it must only ever touch files
+    the change touched — a whole-tree `ruff format scripts/` or a `git ls-files`
+    whitespace sweep reformats a sibling's or a Fabrik-synced file that merely had
+    non-canonical formatting sitting in the tree, manufacturing phantom churn (and,
+    on shared master, risking clobbering concurrent work). Empty change set → nothing
+    to fix.
+    """
     # Tier 3 (systemic): Skip formatting - systemic checks don't auto-fix
     if tier == 3:
         return []
 
+    changed = changed_files or set()
+    text_files = _changed_text(changed)
+    ruff_py = _changed_python(changed)
+
     results = []
 
-    # Trim trailing whitespace (direct implementation)
-    ok, msg, _ = fix_trailing_whitespace()
+    # Trim trailing whitespace (changed text files only)
+    ok, msg, _ = fix_trailing_whitespace(text_files)
     results.append(("trim trailing whitespace", ok, msg if not ok else ""))
 
-    # Fix end of files (direct implementation)
-    ok, msg, _ = fix_end_of_files()
+    # Fix end of files (changed text files only)
+    ok, msg, _ = fix_end_of_files(text_files)
     results.append(("fix end of files", ok, msg if not ok else ""))
 
-    # Ruff format (skip src/ if not present for non-Python projects)
-    ruff_targets = ["scripts/"]
-    if (PROJECT_ROOT / "src").exists():
-        ruff_targets.append("src/")
-    code, out = run_cmd(
-        [PYTHON, "-m", "ruff", "format"] + ruff_targets,
-        timeout=TIMEOUTS["ruff"],
-    )
-    results.append(("ruff-format", code == 0, out if code != 0 else ""))
+    # Ruff format + fix — changed .py only; skip entirely when none changed.
+    if ruff_py:
+        code, out = run_cmd(
+            [PYTHON, "-m", "ruff", "format", *ruff_py],
+            timeout=TIMEOUTS["ruff"],
+        )
+        results.append(("ruff-format", code == 0, out if code != 0 else ""))
 
-    # Ruff fix (use returncode, not substring matching)
-    ruff_targets = ["scripts/"]
-    if (PROJECT_ROOT / "src").exists():
-        ruff_targets.append("src/")
-    code, out = run_cmd(
-        [PYTHON, "-m", "ruff", "check", "--fix"] + ruff_targets,
-        timeout=TIMEOUTS["ruff"],
-    )
-    # returncode 0 = clean, 1 = issues found (some fixed), other = error
-    # We treat 0 and 1 as acceptable (fixes applied, remaining issues caught by ruff check)
-    if code in (0, 1):
-        results.append(("ruff --fix", True, ""))
-    else:
-        results.append(("ruff --fix", False, out))
+        code, out = run_cmd(
+            [PYTHON, "-m", "ruff", "check", "--fix", *ruff_py],
+            timeout=TIMEOUTS["ruff"],
+        )
+        # returncode 0 = clean, 1 = issues found (some fixed), other = error
+        # We treat 0 and 1 as acceptable (remaining issues caught by ruff check)
+        if code in (0, 1):
+            results.append(("ruff --fix", True, ""))
+        else:
+            results.append(("ruff --fix", False, out))
 
     return results
 
@@ -425,15 +426,18 @@ def run_static_checks(
     if changed and _only_md_changed(changed):
         return results
 
-    # --- Ruff check (Tier 1 + Tier 2) ---
-    ruff_targets = ["scripts/"]
-    if (PROJECT_ROOT / "src").exists():
-        ruff_targets.append("src/")
-    code, out = run_cmd(
-        [PYTHON, "-m", "ruff", "check"] + ruff_targets,
-        timeout=TIMEOUTS["ruff"],
-    )
-    results.append(("ruff", code == 0, out if code != 0 else ""))
+    # --- Ruff check (Tier 1 + Tier 2) — scoped to the CHANGED python files ---
+    # Whole-tree `ruff check scripts/` reds the gate on a pre-existing or Fabrik-synced
+    # line the current change never touched (and, in a project, is forbidden to edit).
+    # Bind it to the .py this change actually adds/edits under the lint roots; no
+    # changed .py → nothing to lint.
+    ruff_py = _changed_python(changed)
+    if ruff_py:
+        code, out = run_cmd(
+            [PYTHON, "-m", "ruff", "check", *ruff_py],
+            timeout=TIMEOUTS["ruff"],
+        )
+        results.append(("ruff", code == 0, out if code != 0 else ""))
 
     # --- JSON validation (Tier 1 + Tier 2) ---
     import json
@@ -1049,13 +1053,42 @@ def get_git_status_hash() -> str:
     return out if code == 0 else ""
 
 
-def get_changed_files() -> set[str]:
-    """Get set of changed file paths from git diff.
+def _diff_base() -> str | None:
+    """Ref to diff HEAD against for 'what this session will publish' — the tracking
+    upstream if set, else origin/master|main. None when no remote base exists (fresh
+    repo / detached HEAD) → callers fall back to the working tree only.
 
-    Used by tiered execution to skip checks whose relevant files haven't changed.
-    Combines both staged and unstaged changes.
+    Without this, a session that has COMMITTED its work leaves a clean working tree,
+    get_changed_files() returns empty, and the gate falls back to whole-tree — which
+    reds on Fabrik-synced lines the change never touched and auto-formats a sibling's
+    unrelated files (phantom churn). Committed-but-unpushed IS the change.
+    """
+    for cmd in (
+        ["git", "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"],
+        ["git", "rev-parse", "--verify", "--quiet", "origin/master"],
+        ["git", "rev-parse", "--verify", "--quiet", "origin/main"],
+    ):
+        code, out = run_cmd(cmd)
+        if code == 0 and out.strip():
+            return out.strip().splitlines()[0]
+    return None
+
+
+def get_changed_files() -> set[str]:
+    """Get set of changed file paths from git.
+
+    The change set = everything this session will PUSH: committed-but-unpushed
+    (`base...HEAD`) PLUS the working tree (staged + unstaged + untracked). Used to
+    scope the fixers and static checks so the gate never touches or reds a file the
+    change didn't touch — the shared-master invariant.
     """
     changed: set[str] = set()
+    # Committed but not yet pushed (the session's own commits) — see _diff_base.
+    base = _diff_base()
+    if base:
+        code, out = run_cmd(["git", "diff", "--name-only", f"{base}...HEAD"])
+        if code == 0 and out:
+            changed.update(f for f in out.strip().split("\n") if f)
     # Staged changes
     code, out = run_cmd(["git", "diff", "--name-only", "--cached"])
     if code == 0 and out:
@@ -1069,6 +1102,29 @@ def get_changed_files() -> set[str]:
     if code == 0 and out:
         changed.update(f for f in out.strip().split("\n") if f)
     return changed
+
+
+# File extensions the whitespace/EOF fixers operate on (mirrors the git ls-files
+# globs they used before scoping).
+_FIXABLE_TEXT_EXTS = (".py", ".md", ".yaml", ".yml", ".json", ".sh")
+# Roots ruff lints/formats.
+_RUFF_ROOTS = ("scripts/", "src/")
+
+
+def _changed_python(changed_files: set[str]) -> list[str]:
+    """Changed .py files under the ruff roots that still exist on disk."""
+    return sorted(
+        f
+        for f in changed_files
+        if f.endswith(".py") and f.startswith(_RUFF_ROOTS) and (PROJECT_ROOT / f).is_file()
+    )
+
+
+def _changed_text(changed_files: set[str]) -> list[str]:
+    """Changed fixable text files (any root) that still exist on disk."""
+    return sorted(
+        f for f in changed_files if f.endswith(_FIXABLE_TEXT_EXTS) and (PROJECT_ROOT / f).is_file()
+    )
 
 
 def _has_extension(changed_files: set[str], *extensions: str) -> bool:
@@ -1155,7 +1211,7 @@ def run_iteration(
     if not check_only and tier != 3:
         if not json_mode:
             print_header("PHASE 1: AUTO-FIX FORMATTING")
-        results = run_formatting_fixes(tier=tier)
+        results = run_formatting_fixes(tier=tier, changed_files=changed_files)
         all_results.extend(results)
         if not json_mode:
             for name, passed, out in results:
