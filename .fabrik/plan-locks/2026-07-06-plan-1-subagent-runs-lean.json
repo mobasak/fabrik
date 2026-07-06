@@ -1,0 +1,25 @@
+{
+  "plan": "docs/development/plans/archived/2026-07-06-plan-1-subagent-runs-lean.md",
+  "owned_paths": [
+    "scripts/kilo-benchmarks/rank_task_subagents.py",
+    "scripts/kilo-benchmarks/apply_subagent_runs_ddl.sh",
+    "scripts/kilo-benchmarks/daily_refresh.sh",
+    "scripts/kilo-benchmarks/tests/test_rank_task_subagents.py",
+    "docs/reference/kilo/TASK_SUBAGENT_SELECTION.md",
+    "CHANGELOG.md",
+    "INDEX.md"
+  ],
+  "branch": "master",
+  "started_at": "2026-07-06T00:00:00Z",
+  "status": "released",
+  "baseline_commit": "15f660b50cbd670c22929f12c1d380fe4051a545",
+  "baseline_gate": {
+    "status": "failure",
+    "red_checks": [
+      "Doc Sync Matrix"
+    ],
+    "note": "sibling-owned, not mine"
+  },
+  "completed_at": "2026-07-06T00:00:00Z",
+  "final_commit": "5e402a42"
+}
