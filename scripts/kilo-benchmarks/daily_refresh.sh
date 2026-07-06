@@ -27,6 +27,11 @@
 #        → queries the DB for GLM/Kimi/Minimax/DeepSeek active LLMs,
 #          applies a weighted composite score + Doc↔Code letter grade,
 #          writes docs/reference/kilo/CODING_SUBAGENT_SELECTION.md
+#   8b. rank_task_subagents.py
+#        → queries fabrik_analytics.subagent_runs, aggregates per
+#          (task_type, model) with 90-day window + min 3 runs, writes
+#          docs/reference/kilo/TASK_SUBAGENT_SELECTION.md. Consumed by
+#          the subagents module's pick_models (select.py:174).
 #   9. export_models_browser.py
 #        → regenerates the single-file models_browser.html
 #
@@ -346,8 +351,10 @@ mkdir -p "$(dirname "$LOG_FILE")"
 
   # Task-subagent ranking → docs/reference/kilo/TASK_SUBAGENT_SELECTION.md.
   # Reads fleet-wide subagent_runs on fabrik_analytics; emits per-task ranking.
-  # Empty pool → stub file with "No aggregated runs yet". Fail-open by design
-  # (mirrors rank_coding_subagents fail-soft discipline).
+  # Empty pool → stub file with "No aggregated runs yet". Fail-soft by design
+  # (mirrors rank_coding_subagents discipline; DB down / sudo -n misconfig /
+  # timeout → empty list → stub emitted with same date bump so the "Last refresh"
+  # header alerts an operator watching for stale content).
   _step "rank_task_subagents" "$VENV_PY" "$KB/rank_task_subagents.py" \
     || echo "[daily_refresh] rank_task_subagents failed (non-fatal)"
 

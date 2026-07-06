@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import csv
 import io
+import math
 import os
 import subprocess
 import sys
@@ -67,6 +68,14 @@ GROUP BY task_type, model
 HAVING COUNT(*) >= {MIN_RUNS}
 """.strip()
 
+# psql field separator. Tab picked over comma because a comma in a task_type or model_id
+# (however unlikely today — TASK_KINDS is fixed at {spec,plan,code,review,docs,research}
+# and OR model IDs are `provider/model` with no `,`) would silently corrupt the fixed
+# 6-column unpack: `-A -F,` does NOT emit CSV-style quoting (verified `psql --help`).
+# `\t` is guaranteed absent from both column values by convention. Note this must match
+# what render() and _query_rows() below use.
+PSQL_FIELD_SEP = "\t"
+
 
 def _query_rows() -> list[tuple[str, str, int, float, float, float]]:
     """Query the DB via `sudo -u postgres psql -A -F, --tuples-only`. Parse CSV in-Python.
@@ -85,7 +94,8 @@ def _query_rows() -> list[tuple[str, str, int, float, float, float]]:
                 "-d",
                 DB_NAME,
                 "-A",
-                "-F,",
+                "-F",
+                PSQL_FIELD_SEP,
                 "--tuples-only",
                 "-c",
                 QUERY,
@@ -102,21 +112,55 @@ def _query_rows() -> list[tuple[str, str, int, float, float, float]]:
         print(f"[rank_task_subagents] psql non-zero exit: {result.stderr.strip()}", file=sys.stderr)
         return []
     rows = []
-    for line in csv.reader(io.StringIO(result.stdout)):
+    # delimiter must match the psql `-F` we passed (verified above).
+    for line in csv.reader(io.StringIO(result.stdout), delimiter=PSQL_FIELD_SEP):
         if not line or not line[0]:
             continue
         try:
             task_type, model, n, avg_cost, avg_quality, success_rate = line
-            rows.append(
-                (
-                    task_type,
-                    model,
-                    int(n),
-                    float(avg_cost) if avg_cost else 0.0,
-                    float(avg_quality) if avg_quality else 0.0,
-                    float(success_rate),
+            # Empty string in `-A` output = NULL in psql. avg_cost=NULL means this
+            # (task_type, model) group has NO cost signal — treating as 0.0 then
+            # dividing by ~1e-9 inflates value and ranks the row #1 with no evidence.
+            # Skip; operator sees the missing model and fixes the instrumentation.
+            if avg_cost == "":
+                print(
+                    f"[rank_task_subagents] skip {task_type}/{model}: no cost signal",
+                    file=sys.stderr,
                 )
+                continue
+            # NULL avg_quality is treated as NEUTRAL (1.0) — not 0. Rationale from
+            # fabrik-lib AI (UPSTREAM_FEEDBACK.md 2026-07-06): the module's auto-ledger
+            # path records only objective metrics; `quality_score` is opt-in via an
+            # orchestrator that calls `record_run(..., quality_score=)`. Most rows
+            # will have NULL quality until orchestrators start scoring. Treating NULL
+            # as 0.0 would collapse `success × quality / cost` to 0 for every un-scored
+            # row and destroy the entire ranking. 1.0 gracefully degrades the formula
+            # to `success / cost` when no quality signal is present.
+            row = (
+                task_type,
+                model,
+                int(n),
+                float(avg_cost),
+                float(avg_quality) if avg_quality else 1.0,
+                float(success_rate) if success_rate else 0.0,
             )
+            # Reject non-finite (NaN/inf) or negative avg_cost. `max(nan, 1e-9)` returns
+            # nan (Python: NaN comparisons are always False), and `sort()` with a nan key
+            # silently mis-orders. A negative avg_cost (e.g. refund credited as -0.02)
+            # would clamp to 1e-9 and rank as artificial #1. Skip both explicitly.
+            if not math.isfinite(row[3]) or row[3] < 0:
+                print(
+                    f"[rank_task_subagents] skip {task_type}/{model}: bad avg_cost {row[3]!r}",
+                    file=sys.stderr,
+                )
+                continue
+            if any(isinstance(v, float) and not math.isfinite(v) for v in row[4:]):
+                print(
+                    f"[rank_task_subagents] skip {task_type}/{model}: non-finite value in row {row!r}",
+                    file=sys.stderr,
+                )
+                continue
+            rows.append(row)
         except (ValueError, TypeError) as exc:
             print(f"[rank_task_subagents] skip malformed row {line!r}: {exc}", file=sys.stderr)
             continue
