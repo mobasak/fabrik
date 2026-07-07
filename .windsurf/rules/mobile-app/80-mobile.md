@@ -103,7 +103,8 @@ Every mobile app project must ship these screens. Traycer derives additional pro
   - **FastAPI backend (primary data layer):** the client talks only to FastAPI endpoints (Pattern A, same client model as web). Wrap each endpoint in a typed React Query hook; mirror the backend Pydantic schemas with Zod and validate at the React Query boundary when input/output crosses a trust boundary. Generate/maintain the client types from the FastAPI OpenAPI schema (e.g. `openapi-typescript`) — never `supabase gen types`, and never a `supabase-js` client.
   - The client never talks to Postgres or any data store directly — all data goes through FastAPI, which owns `postgres-main` access, AI workflows, scraping, and scheduled jobs.
 - **Global UI state:** Zustand. Avoid Redux boilerplate and standalone `React.Context` for high-frequency updates.
-- **Local persistence:** `react-native-mmkv` for fast, synchronous key-value storage (30× faster than AsyncStorage via JSI memory-mapped files). Reserve `expo-sqlite` + Drizzle ORM for complex offline relational queries only.
+- **Local persistence:** `react-native-mmkv` (V4+) for fast, synchronous key-value storage (30× faster than AsyncStorage via JSI memory-mapped files). Reserve `expo-sqlite` + Drizzle ORM for complex offline relational queries only.
+  - **V4 API — the constructor and one method were renamed** (do not copy pre-V3 snippets): create a store with `createMMKV(...)` (not `new MMKV(...)` — the JS class was removed, MMKV is now a purely native Nitro/JSI HybridObject) and delete a key with `.remove(key)` (not `.delete(key)` — `delete` is a reserved keyword in C++). Also `AppGroup` in Info.plist was renamed to `AppGroupIdentifier`. V4 requires `react-native-nitro-modules` and RN ≥ 0.75. See [react-native-mmkv V4_UPGRADE_GUIDE.md](https://github.com/mrousavy/react-native-mmkv/blob/main/docs/V4_UPGRADE_GUIDE.md).
 - Never call the FastAPI backend directly from a screen component — wrap in a typed React Query hook.
 
 ---
@@ -196,7 +197,8 @@ The RN client is a **Pattern-A client** (same model as web): it talks to a **sel
 
 ## Testing
 
-- **Unit / component:** `@testing-library/react-native` + Jest.
+- **Unit / component:** `@testing-library/react-native` (v14+) + Jest.
+  - **v14 API is async** — `render`, `renderHook`, `fireEvent`, and `act` all return Promises and MUST be awaited. Tests written against v13 or earlier that used `const { getByText } = render(<Comp/>)` without `await` will now leak the Promise and fail on Suspense boundaries / the React 19 `use()` hook. If you migrated the v13.3 `renderAsync` / `fireEventAsync` / `renderHookAsync` APIs, rename them to their non-`Async` counterparts (they were the preview, now the default). Codemod: `rntl-v14-async-functions`. See [migration-v14](https://oss.callstack.com/react-native-testing-library/docs/start/migration-v14).
 - **E2E automation:** Maestro (declarative YAML flows targeting `testID` attributes, stored in `.maestro/`). Maestro handles implicit waits for network and animations, reducing flakiness vs Detox/Appium.
 
 ---
@@ -216,10 +218,41 @@ The RN client is a **Pattern-A client** (same model as web): it talks to a **sel
 
 - Use Metro bundler for development (`npx expo start` for managed projects, `npx react-native start` otherwise).
 - Test on physical devices for performance-critical features — simulators hide real-world frame drops and thermal throttling.
-- **Builds**: EAS Build for all production iOS and Android binaries. No local Xcode/Android Studio builds for release. Define EAS profiles in `eas.json` (development, preview, production).
-- **Submission**: EAS Submit to TestFlight and Play Console Internal Testing as the default first ring.
-- **OTA updates**: Expo Updates for JS-only patches. Reserve full EAS rebuilds for native module changes. Channel strategy must match EAS profiles.
-- **CI/CD**: trigger EAS builds via GitHub Actions on tag push. No manual builds in production.
+
+### Builds — pick by distribution surface (this is the load-bearing decision)
+
+The right build path depends on WHO consumes the binary, not on personal preference. Pick before wiring CI:
+
+- **Store / team distribution** (App Store, Play Store, TestFlight, Play Console Internal Testing, RevenueCat-gated releases) → **EAS Build is primary.** Managed signing, CI, shareable install links, quota is a non-issue at this scale. Define EAS profiles in `eas.json` (`development`, `preview`, `production`). Trigger from GitHub Actions on tag push. **EAS Submit** to TestFlight and Play Console Internal Testing is the default first ring.
+- **Sideload / solo / personal APK** (one-operator dev builds, personal utility apps, non-store distribution) → **Local `expo prebuild` + `./gradlew assembleRelease` is primary; EAS is the backup.** First build is 15–40 min (Gradle downloads the toolchain), repeat builds are 2–5 min from Gradle cache; EAS is a constant ~15 min per run + account + monthly quota. For the solo path, local is strictly faster and has no external dependency once the toolchain is set up.
+
+### Local Android toolchain (one-time setup — required for sideload builds AND for anything with a native C++ module)
+
+Pinned versions (verified against the RN 0.76 android template):
+
+- **JDK 17** (`openjdk-17-jdk` or Temurin 17).
+- **Android SDK** — install via Android Studio SDK Manager (platform + build-tools matching your `compileSdkVersion`).
+- **NDK 27.1.12297006** — MANDATORY for any app with a native/C++ module. RN 0.76+ defaults to NDK 27 for 16KB page-size support (Play Store requirement from Nov 2025). `react-native-mmkv` V4 is a Nitro/JSI C++ module, so if MMKV is in the tree you WILL exercise the NDK path.
+- **CMake 3.22.1** — the version RN 0.76's android template pins. Newer CMakes work in general but the template hardcodes this one; matching avoids a class of surprising build failures.
+
+Install NDK + CMake via `sdkmanager` (not Android Studio — the CLI pins the exact versions):
+
+```bash
+sdkmanager --install "ndk;27.1.12297006" "cmake;3.22.1"
+```
+
+### Bundled-assets rule (the .gitignore gotcha that killed our first EAS upload)
+
+**EAS Build honors `.gitignore` — anything gitignored is silently dropped from the uploaded tarball.** We shipped a first cloud upload of 1.6 MB instead of ~20 MB because the deck-media directory was gitignored (working-tree-only), so the bundle would fail at runtime. Concrete rule:
+
+- **Runtime assets (images, decks, fonts, seed data, on-device DBs) MUST be git-tracked**, not gitignored. `.easignore` is unreliable when the app lives in a subdir of a parent git repo — the parent-repo `.gitignore` wins.
+- **Local Gradle builds are immune** — they read from the working tree, so gitignored assets still land in the APK. This is a second reason the sideload path is easier for solo work.
+- If a large binary asset genuinely does not belong in git, host it externally and download on first run — do NOT rely on `.easignore` overrides.
+
+### Shared rules (both build paths)
+
+- **OTA updates**: Expo Updates for JS-only patches. Reserve full rebuilds (EAS or local) for native module changes. Channel strategy must match your build profiles.
+- **CI/CD**: on the store path, trigger EAS via GitHub Actions on tag push. No manual production builds. On the sideload path, `./gradlew assembleRelease` from a clean checkout is sufficient — commit the APK output path to `.gitignore`, not the artifact.
 - For backend Docker deployments (FastAPI on VPS), use `python:<version>-slim-bookworm`. Never use `alpine` (musl libc compilation failures, missing pre-built wheels).
 
 ---
