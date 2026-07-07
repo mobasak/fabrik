@@ -128,6 +128,13 @@ IMAGE_REPO = "fabrik/watchdog"
 # under /tmp so a failed build doesn't leave a per-project residue under
 # /opt; cleaned up by the driver in finally{}.
 VPS_BUILD_ROOT = "/tmp/fabrik-watchdog-build"  # nosec B108 — path on the REMOTE VPS (docker build context), not a local temp; cleaned in finally
+# REMOTE VPS host dir holding the per-project governance set (CLAUDE.md +
+# AGENTS.md + .windsurf/rules), bind-mounted RO into the sidecar at /governance.
+# Dedicated dir OUTSIDE /opt/<id> (Option B) so it never touches the app's git
+# working tree — a hub copy of a git-tracked CLAUDE.md/AGENTS.md would otherwise
+# collide with `git pull` on redeploy. See docs/superpowers/specs/2026-07-07-
+# watchdog-governance-mount-design.md.
+VPS_GOVERNANCE_ROOT = "/var/lib/watchdog-governance"
 # Path on the VPS where the operator's Claude Code OAuth credentials live.
 # Mounted RO into the sidecar so it inherits the subscription. Defaults to
 # /home/ozgur/.claude (matches the current single-operator fleet) but
@@ -365,6 +372,12 @@ class _RenderContext:
     # _build_render_context; defaults to "vps1" so existing single-host
     # behavior is preserved if the orchestrator didn't set target_vps.
     target_vps: str = "vps1"
+    # Governance mount (plan-2): set by _push_governance() to True iff the
+    # project's CLAUDE.md/AGENTS.md/.windsurf/rules were shipped to the VPS
+    # governance dir. Gates the /governance:ro mount (_push_overlay) +
+    # WATCHDOG_GOVERNANCE_MOUNT env (_render_env). Fail-soft: False → neither is
+    # emitted and the sidecar's materialize falls back to /project.
+    governance_mount_ready: bool = False
 
 
 # ── Driver ────────────────────────────────────────────────────────────────
@@ -416,6 +429,9 @@ class WatchdogDriver:
             has_hc = self._check_app_healthcheck(rctx)
             self._gate_tier_d(rctx, has_hc)
             self._build_image(rctx)
+            # Ship governance BEFORE the overlay — the overlay's volume list +
+            # env read the returned flag. Fail-soft (False → no mount/env).
+            rctx.governance_mount_ready = self._push_governance(rctx)
             self._push_overlay(rctx)
             self._bring_up(rctx)
             # Projects that push (PR proposals OR Tier-D) need a git deploy key.
@@ -677,6 +693,74 @@ class WatchdogDriver:
         result = ssh("stat -c %g /var/run/docker.sock", timeout=10)
         return int(result.strip())
 
+    def _push_governance(self, rctx: _RenderContext) -> bool:
+        """Ship the project's governance set to a dedicated VPS dir for the mount.
+
+        Tars ``CLAUDE.md`` + ``AGENTS.md`` + ``.windsurf/rules/`` from the hub's
+        local project tree (``_PROJECTS_ROOT/<id>``) — arcname-flat at the root so
+        the mount presents ``/governance/CLAUDE.md``, ``/governance/AGENTS.md``,
+        ``/governance/.windsurf/rules/**`` — ``scp``s it, and extracts into
+        ``VPS_GOVERNANCE_ROOT/<id>`` (wiped + recreated each apply, since governance
+        drifts with every sync). fabrik-lib's ``_materialize_conventions`` reads it
+        via ``WATCHDOG_GOVERNANCE_MOUNT`` (set by :meth:`_render_env` when this
+        returns ``True``).
+
+        Returns ``True`` iff the files shipped (caller then adds the mount + env).
+        **Fail-soft:** returns ``False`` — never raises — on ANY error or when no
+        governance member exists locally, so a governance problem never aborts
+        ``provision()``; the sidecar's materialize then falls back to ``/project``
+        (today's behavior). Governance files are NON-secret (rules/contracts):
+        ``chmod a+rX`` (world-readable), NOT the ``chmod 600`` credential path.
+        """
+        # Guard project_id before it flows into paths + ssh commands — same
+        # check as _load_project_prompt (rejects traversal / absolute / hidden).
+        pid = rctx.project_id
+        if not pid or "/" in pid or ".." in pid or pid.startswith("."):
+            logger.warning("watchdog: unsafe project id %r — skipping /governance", pid)
+            return False
+        src_root = _PROJECTS_ROOT / pid
+        members = [m for m in ("CLAUDE.md", "AGENTS.md", ".windsurf/rules") if (src_root / m).exists()]
+        if not members:
+            logger.warning(
+                "watchdog: no governance files under %s (CLAUDE.md/AGENTS.md/.windsurf/rules) — "
+                "skipping /governance mount; sidecar materialize falls back to /project",
+                src_root,
+            )
+            return False
+        remote_dir = f"{VPS_GOVERNANCE_ROOT}/{rctx.project_id}"
+        remote_tar = f"{VPS_BUILD_ROOT}/{rctx.project_id}-governance.tar.gz"
+        local_ctx = Path(tempfile.mkdtemp(prefix=f"watchdog-gov-{rctx.project_id}-"))
+        try:
+            local_tar = local_ctx / "governance.tar.gz"
+            with tarfile.open(local_tar, "w:gz") as tar:
+                for m in members:
+                    tar.add(str(src_root / m), arcname=m)
+            ssh(f"mkdir -p {VPS_BUILD_ROOT}", timeout=15)
+            scp_to_vps(str(local_tar), remote_tar)
+            # Wipe+recreate (fresh each apply), extract, make world-readable (RO mount).
+            ssh(
+                f"sudo rm -rf {remote_dir} && sudo mkdir -p {remote_dir} && "
+                f"sudo tar -xzf {remote_tar} -C {remote_dir} && sudo rm -f {remote_tar} && "
+                f"sudo chmod -R a+rX {remote_dir}",
+                timeout=60,
+            )
+            logger.info(
+                "watchdog: shipped governance (%s) → %s:/governance:ro",
+                ", ".join(members),
+                remote_dir,
+            )
+            return True
+        except Exception as exc:  # noqa: BLE001 — fail-soft: governance never aborts provision
+            logger.warning(
+                "watchdog: governance ship failed for %s (%s) — skipping /governance mount; "
+                "sidecar materialize falls back to /project",
+                rctx.project_id,
+                exc,
+            )
+            return False
+        finally:
+            shutil.rmtree(local_ctx, ignore_errors=True)
+
     def _push_overlay(self, rctx: _RenderContext) -> None:
         """Write ``compose.watchdog.yaml`` to ``/opt/<project_id>/``."""
         docker_gid = self._detect_docker_sock_gid()
@@ -711,6 +795,15 @@ class WatchdogDriver:
                         "/var/run/docker.sock:/var/run/docker.sock",
                         # Project tree RO — for Read/Grep/Glob.
                         f"/opt/{rctx.project_id}:/project:ro",
+                        # Governance set RO (plan-2) — dedicated dir, added ONLY
+                        # when _push_governance shipped it (Option B, never the
+                        # git working tree). Sidecar materialize reads it via
+                        # WATCHDOG_GOVERNANCE_MOUNT; unset → falls back to /project.
+                        *(
+                            [f"{VPS_GOVERNANCE_ROOT}/{rctx.project_id}:/governance:ro"]
+                            if rctx.governance_mount_ready
+                            else []
+                        ),
                     ],
                     "environment": self._render_env(rctx),
                     # Operator-supplied env vars (e.g. WATCHDOG_OPENROUTER_KEY,
@@ -821,6 +914,11 @@ class WatchdogDriver:
             env["WATCHDOG_PROPOSE_FIX_PRS"] = "true"  # workspace clone prereq
             env["WATCHDOG_APPROVAL_WINDOW_SEC"] = str(rctx.code_fix_window_sec)
             env["WATCHDOG_TARGET_VPS"] = rctx.target_vps  # default redeploy_cmd
+        # Governance mount (plan-2): point the sidecar's materialize at the
+        # dedicated RO mount when _push_governance succeeded. Unset → materialize
+        # falls back to /project (today's behavior). Independent of Tier-D.
+        if rctx.governance_mount_ready:
+            env["WATCHDOG_GOVERNANCE_MOUNT"] = "/governance"
         # OpenRouter key + Postgres password come from the project's .env via
         # docker-compose env-file inclusion; we don't ship secrets in compose.
         # Sidecar code looks them up via os.environ.

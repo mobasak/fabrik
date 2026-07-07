@@ -156,6 +156,14 @@ GlitchTip (`errors.vps1.ocoron.com`, Sentry-compatible) is declared in `specs/in
 
 For a watchdog-enabled project with `shape.needs_database`, the postgres registrar auto-provisions two per-project roles on the app DB and injects their DSNs into the project `.env` at `fabrik apply`: `WATCHDOG_DB_URL_RO` (SELECT-only, the sidecar's default diagnosis lane) and `WATCHDOG_DB_URL_RW` (DML-only — no DDL/DROP — the Tier-C approved-write lane). These are **generated + managed by the hub, never operator-set** (like `DATABASE_URL`): minted on fresh role creation, preserved on re-apply. Full contract + privilege boundary in the `WATCHDOG` rule pack (`.windsurf/rules/core/60-watchdog.md`).
 
+### Watchdog governance mount — `WATCHDOG_GOVERNANCE_MOUNT` (auto-set, do NOT set by hand)
+
+At `fabrik apply`, the watchdog driver ships the project's governance set — `CLAUDE.md` + `AGENTS.md` + `.windsurf/rules/**` — from the hub's project tree to a dedicated per-project host dir on the VPS (`/var/lib/watchdog-governance/<id>/`, world-readable, refreshed every apply), bind-mounts it **read-only** into the sidecar at `/governance`, and sets `WATCHDOG_GOVERNANCE_MOUNT=/governance` in the sidecar env. fabrik-lib's `_materialize_conventions` reads that path (else falls back to `/project`) to make the watchdog's Tier-D fixes convention-conforming. This exists because the `/opt/<id>:/project:ro` mount is **hollow** — VPS deploy excludes gitignored `.windsurf/rules/`. **Hub-managed, never operator-set;** fail-soft (if the governance set is absent the mount + env are skipped, and materialize falls back to `/project`). Design: `docs/superpowers/specs/2026-07-07-watchdog-governance-mount-design.md`.
+
+### Watchdog Tier-D operator knobs — `WATCHDOG_REDEPLOY_TIMEOUT` / `WATCHDOG_TELEGRAM_OPERATOR_IDS` (operator-supplied, project `.env`)
+
+Unlike the auto-injected vars above, these two are **operator-supplied** in the project `.env` (loaded by the sidecar via `env_file`; the hub does NOT mint them): `WATCHDOG_REDEPLOY_TIMEOUT` (seconds before a redeploy is considered timed-out) and `WATCHDOG_TELEGRAM_OPERATOR_IDS` (comma-separated Telegram chat IDs that gate the fail-closed approval channel). Fail-closed behaviors they drive (fabrik-lib `watchdog/`, commit `1226196`): the sidecar does **not** auto-deploy when the Telegram channel is unreachable, and only PROPOSE-phase incidents auto-apply on timeout. Full behavior in the `WATCHDOG` rule pack.
+
 ---
 
 ## Architecture Context

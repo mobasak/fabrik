@@ -130,7 +130,7 @@ ssh vps 'sudo docker exec site-provisioner curl -sf http://localhost:8001/health
 | `ocoron-com-redis-1` | — | Tenant: per-WP Redis cache |
 | `ocoron-com-backup-1` | — | Tenant: nightly mysqldump sidecar |
 | `watchdog-test` | 64m | T-P5 dogfood — nginx:alpine target. Container the sidecar watches. |
-| `watchdog-test-watchdog` | 1024m | T-P5 dogfood — per-project Claude-driven watchdog sidecar. Bind-mounts `~/.claude/` + `~/.claude.json` from host (`FABRIK_VPS_CLAUDE_HOME`), `/var/run/docker.sock`, project tree RO. Self-heals via Tier A `restart_container` when the main container exits. Verified end-to-end 2026-06-04: `docker kill watchdog-test` → detection in 60s → Opus diagnose → restart → resolved in 3s. |
+| `watchdog-test-watchdog` | 1024m | T-P5 dogfood — per-project Claude-driven watchdog sidecar. Bind-mounts `~/.claude/` + `~/.claude.json` from host (`FABRIK_VPS_CLAUDE_HOME`), `/var/run/docker.sock`, project tree RO at `/project`, and (when shipped) the project's governance set RO at `/governance` (`/var/lib/watchdog-governance/<id>` — `CLAUDE.md`+`AGENTS.md`+`.windsurf/rules`, since the `/project` mount omits gitignored rules). Self-heals via Tier A `restart_container` when the main container exits. Verified end-to-end 2026-06-04: `docker kill watchdog-test` → detection in 60s → Opus diagnose → restart → resolved in 3s. |
 
 ### `/opt` service stacks on vps1
 
