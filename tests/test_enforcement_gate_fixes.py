@@ -196,3 +196,28 @@ def test_run_formatting_fixes_is_a_noop_on_empty_change_set(tmp_path, monkeypatc
     names = {r[0] for r in results}
     assert "ruff-format" not in names and "ruff --fix" not in names
     assert all(passed for _, passed, _ in results)  # whitespace/eof steps no-op cleanly
+
+
+def test_synced_files_excluded_from_lint_and_fix_in_consumer(tmp_path, monkeypatch):
+    """A Fabrik-synced file (listed in .fabrik/synced.lock) is NOT linted or auto-fixed
+    in a consumer project — reformatting a centrally-distributed file to the project's
+    ruff style breaks the synced-hash check (the tojlo-mail block), and the project
+    can't legally edit it. The project's OWN files are still checked."""
+    monkeypatch.setattr(final_gate, "PROJECT_ROOT", tmp_path)
+    (tmp_path / "scripts" / "enforcement").mkdir(parents=True)
+    (tmp_path / "scripts" / "enforcement" / "check_x.py").write_text("x = 1\n")
+    (tmp_path / "scripts" / "app.py").write_text("y = 2\n")
+    (tmp_path / ".fabrik").mkdir()
+    (tmp_path / ".fabrik" / "synced.lock").write_text(
+        '{"scripts/enforcement/check_x.py": "deadbeef"}'
+    )
+    changed = {"scripts/enforcement/check_x.py", "scripts/app.py"}
+    # synced file dropped; the project's own file kept
+    assert final_gate._changed_python(changed) == ["scripts/app.py"]
+    assert final_gate._changed_text(changed) == ["scripts/app.py"]
+
+
+def test_synced_paths_empty_in_hub(tmp_path, monkeypatch):
+    """In the hub (/opt/fabrik) synced files ARE the source → not excluded (lint them)."""
+    monkeypatch.setattr(final_gate, "PROJECT_ROOT", final_gate._FABRIK_ROOT)
+    assert final_gate._synced_paths() == set()

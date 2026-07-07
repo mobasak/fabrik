@@ -1109,21 +1109,54 @@ def get_changed_files() -> set[str]:
 _FIXABLE_TEXT_EXTS = (".py", ".md", ".yaml", ".yml", ".json", ".sh")
 # Roots ruff lints/formats.
 _RUFF_ROOTS = ("scripts/", "src/")
+_FABRIK_ROOT = Path("/opt/fabrik")
+
+
+def _synced_paths() -> set[str]:
+    """Fabrik-synced files (repo-relative) this repo must NOT lint or auto-fix.
+
+    They are centrally distributed from /opt/fabrik and the synced-hash check
+    (check_synced_unmodified) requires them to match the distributed BYTES exactly —
+    so reformatting them to a consumer project's ruff style (which may differ from the
+    hub's) rewrites them and self-fails that check, and the project can't legally edit
+    them anyway. Empty in the hub (/opt/fabrik): there they ARE the source and get
+    linted/formatted like any other file. In a consumer, read from the per-project
+    lock (.fabrik/synced.lock) — the same source check_synced_unmodified trusts. Any
+    failure → empty (fail-open: lint normally rather than silently skip everything).
+    """
+    try:
+        if PROJECT_ROOT.resolve() == _FABRIK_ROOT.resolve():
+            return set()
+        lock = PROJECT_ROOT / ".fabrik" / "synced.lock"
+        if not lock.exists():
+            return set()
+        import json
+
+        return set(json.loads(lock.read_text()).keys())
+    except Exception:
+        return set()
 
 
 def _changed_python(changed_files: set[str]) -> list[str]:
-    """Changed .py files under the ruff roots that still exist on disk."""
+    """Changed .py under the ruff roots that exist on disk and are NOT Fabrik-synced."""
+    synced = _synced_paths()
     return sorted(
         f
         for f in changed_files
-        if f.endswith(".py") and f.startswith(_RUFF_ROOTS) and (PROJECT_ROOT / f).is_file()
+        if f.endswith(".py")
+        and f.startswith(_RUFF_ROOTS)
+        and f not in synced
+        and (PROJECT_ROOT / f).is_file()
     )
 
 
 def _changed_text(changed_files: set[str]) -> list[str]:
-    """Changed fixable text files (any root) that still exist on disk."""
+    """Changed fixable text files that exist on disk and are NOT Fabrik-synced."""
+    synced = _synced_paths()
     return sorted(
-        f for f in changed_files if f.endswith(_FIXABLE_TEXT_EXTS) and (PROJECT_ROOT / f).is_file()
+        f
+        for f in changed_files
+        if f.endswith(_FIXABLE_TEXT_EXTS) and f not in synced and (PROJECT_ROOT / f).is_file()
     )
 
 
