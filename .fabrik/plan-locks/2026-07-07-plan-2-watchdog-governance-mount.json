@@ -1,5 +1,5 @@
 {
-  "plan": "docs/development/plans/2026-07-07-plan-2-watchdog-governance-mount.md",
+  "plan": "docs/development/plans/archived/2026-07-07-plan-2-watchdog-governance-mount.md",
   "owned_paths": [
     "src/fabrik/drivers/watchdog.py",
     "tests/test_watchdog_governance_mount.py",
@@ -11,5 +11,7 @@
   "branch": "master",
   "started_at": "2026-07-07",
   "baseline_commit": "68351aea",
-  "status": "active"
+  "final_commit": "bedcfe99",
+  "completed_at": "2026-07-07",
+  "status": "released"
 }

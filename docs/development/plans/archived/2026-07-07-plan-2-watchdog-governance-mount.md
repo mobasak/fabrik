@@ -1,6 +1,6 @@
 # Watchdog governance-mount materialization (hub side) — implementation plan
 
-**Status:** IN-PROGRESS
+**Status:** EXECUTED 2026-07-07 — Phase A `bedcfe99`; full Tier-2 gate `36 passed / 0 failed / 0 warnings`; 12 governance tests + 156 watchdog tests green; whole-plan review clean.
 **Spec:** [docs/superpowers/specs/2026-07-07-watchdog-governance-mount-design.md](../../superpowers/specs/2026-07-07-watchdog-governance-mount-design.md) (CONVERGED)
 **Author:** Claude Opus 4.8 (hub) · from chat 2026-07-07
 
@@ -54,7 +54,17 @@ Ship the project's governance set to a dedicated per-project VPS path at `fabrik
 - **Infra invariants:** `fabrik` external network, per-service `deploy.resources.limits.memory` (unchanged — this touches the existing sidecar service, whose limits are already set at `watchdog.py:724-729`), no host `ports:`.
 - **Shared-master:** explicit-path staging, provenance trailers, CHANGELOG atop `[Unreleased]`.
 
-## Phase A — `_push_governance` + conditional mount/env wiring — ✅ EXECUTED 2026-07-07 (13 tests, mypy clean, 156 watchdog tests green, review clean)
+## One-Test Rule
+
+**Why:** The highest-risk path is the **fail-soft conditional gate** — `_push_governance` returns a bool that gates the `/governance:ro` mount + `WATCHDOG_GOVERNANCE_MOUNT` env. A raise would abort `provision()`; a wrong `True` emits a `/governance` volume pointing at a non-existent host dir (compose `up` fails); a wrong `False` leaves the watchdog blind to the rule packs. One test pins that the ship result correctly gates mount+env and never raises.
+
+**Contract:**
+- **Given:** a project tree with (or without) `CLAUDE.md`/`AGENTS.md`/`.windsurf/rules` under a patched `_PROJECTS_ROOT`, with `ssh` + `scp_to_vps` mocked.
+- **When:** `_push_governance(rctx)` runs, and `_push_overlay` / `_render_env` consume `rctx.governance_mount_ready`.
+- **Then:** populated source → returns `True`, `scp` fired once, the overlay volumes contain `…/governance:ro` and the env has `WATCHDOG_GOVERNANCE_MOUNT=/governance`; absent source **or** an `ssh` that raises → returns `False` (no exception), no `scp`, no mount, no env.
+- **Mocked:** `ssh` + `scp_to_vps` (VPS I/O) + `_PROJECTS_ROOT` (source tree). **Real:** member-detection, tar arcname-flat layout, the return-value gating, and the conditional volume/env logic.
+
+## Phase A — `_push_governance` + conditional mount/env wiring — ✅ EXECUTED 2026-07-07 (12 tests, mypy clean, 156 watchdog tests green, review clean)
 
 **Responsibility:** one cohesive change in the watchdog driver: ship the governance set to the VPS and conditionally add the mount + env to the sidecar compose, fail-soft.
 
@@ -95,7 +105,7 @@ Ship the project's governance set to a dedicated per-project VPS path at `fabrik
 
 **Non-GUI phase — no Build Verification Loop.**
 
-## Phase B — docs convergence + whole-plan review + full gate (finish)
+## Phase B — docs convergence + whole-plan review + full gate (finish) — ✅ EXECUTED 2026-07-07 (docs-review fixed test-count drift 8/13→12 + added One-Test Rule block; full gate 36/0/0)
 
 1. **`/fabrik-docs-review`** across touched docs (`CHANGELOG.md`, `docs/CONFIGURATION.md`, `docs/infrastructure/vps-complete-inventory.md`, `INDEX.md`) → truthful fixed point.
 2. **`/fabrik-review` on the WHOLE changed surface** (Phase A's `watchdog.py` diff + the docs) — dispatch independent finder subagents (parallel) → refute → prove-before-fix with kept regression tests → re-run the gate after each fix → **loop to a no-op pass** (zero CONFIRMED/PLAUSIBLE). Catches any doc↔code drift or interaction the per-phase (Phase A) review didn't see; risk-gate finders to Opus (deploy + SSH-command surface).
