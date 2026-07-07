@@ -103,6 +103,7 @@ Query: `git log --grep='Agent-Role: subagent'` · `git log --format='%h %(traile
 - **Backup secrets before edit** (`.env`, `*.key`, `*.pem`, `secrets/`, `.ssh/`) → `backups/` dir (gitignored).
 - **Password policy** (32-char `[a-zA-Z0-9]` via `secrets.choice()`).
 - **Naming:** kebab-case. Exceptions: `README.md`, `CHANGELOG.md`, `INDEX.md`, `PORTS.md`, `AGENTS.md`, `AGENTS-compact.md`, `LESSONS_LEARNT.md`, `CLAUDE.md`, `Makefile`, `Dockerfile`, Python pkgs (snake_case), auto-generated, dotfiles.
+- **Authoring a prompt** (system prompt · subagent brief · skill · tool/function description · `AGENTS.md`): follow `docs/reference/MD/ai-prompt-templates.md` — the template (Part A) + the agentic patterns you MUST enforce (Part B: termination contract · evidence-before-assertion · path:line grounding · question bar · untrusted-input) + the markdown rules (Part C). Distil, don't dump.
 - **Same code in 2 envs:** WSL dev (PG localhost, `.env`) · VPS Docker (`postgres-main`, `compose.yaml`). Must run unmodified. (Supabase retired as a runtime target — self-host by default; see `AGENTS.md` § Supabase.)
 - **Health endpoint:** test real deps (`await db.execute("SELECT 1")`).
 - **Before new scripts:** `Grep` `scripts/` + `enforcement/`. Extend, don't duplicate.

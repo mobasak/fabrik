@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — ai-prompt-templates.md enhanced + wired as the prompt-authoring standard (2026-07-08)
+
+Reviewed/corrected/enhanced `docs/reference/MD/ai-prompt-templates.md`: fixed Part C's markdownlint IDs to the real rule numbers (`MD041`/`MD022`/`MD004`/`MD032`/`MD046`/`MD040`/`MD031`/`MD038`/`MD055`/`MD060`/`MD056`; the prior IDs were wrong), added a new **Part B — Agentic Prompting Patterns** (termination contract, evidence-before-assertion, path:line grounding, negative-space NEVER-lists, question bar, least-powerful-model routing, distil-don't-dump, self-critique, honest-reporting, untrusted-input) distilled from `CLAUDE.md` + the `/fabrik-*` contracts, plus two templates (tool/function schema, few-shot) and a binding "when to use this" header. **Wired it so agents apply it:** a Pointers line in `CLAUDE.md` and a brief-composition note in `.windsurf/rules/core/62-using-subagents.md` both route prompt-authoring to the doc.
+
 ### Fixed — best-model-suggester specialty_clients gap for A.5.5 microbench failures (2026-07-07)
 
 A.5.5 in Phase A had all 12 microbench attempts return "no client for X" or "no Replicate version pinned" (cost $0.00). Root cause: `microbench_specialty._dispatch` had no branch for `via='openrouter'` (blocking 8 openai/gpt-*-image + google/gemini-*-image rows) and `specialty_clients/replicate.py` had no marketplace-slug bridge for stability's newer models (blocking 3 stability rows). Fixes:
