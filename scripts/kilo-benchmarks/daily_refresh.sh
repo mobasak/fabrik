@@ -371,6 +371,14 @@ mkdir -p "$(dirname "$LOG_FILE")"
   _step "rank_image_gen" "$VENV_PY" "$KB/rank_image_gen.py" \
     || echo "[daily_refresh] rank_image_gen failed (non-fatal)"
 
+  # Phase E — GPU price refresh + candidate signups ranker.
+  # scrape_gpu_prices is fail-soft (leaves DB prices intact on network error);
+  # rank_candidate_signups emits CANDIDATE_SIGNUPS.md.
+  _step "scrape_gpu_prices" "$VENV_PY" "$KB/scrape_gpu_prices.py" \
+    || echo "[daily_refresh] scrape_gpu_prices failed (non-fatal)"
+  _step "rank_candidate_signups" "$VENV_PY" "$KB/rank_candidate_signups.py" \
+    || echo "[daily_refresh] rank_candidate_signups failed (non-fatal)"
+
   # Live gateway counts in the ai/ rule packs. Runs AFTER the OR-routes
   # injector + freshness stamp so both marker blocks land in the same
   # daily refresh. The script is idempotent and self-heals around

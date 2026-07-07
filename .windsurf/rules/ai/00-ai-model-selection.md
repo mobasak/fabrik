@@ -73,6 +73,20 @@ Every recommendation the operator will actually run should be grounded in the co
 | TTS (expressive voices) | **ElevenLabs** | When prosody matters more than faithfulness. |
 | LLM (default) | **Claude Opus 4.8** | Current lineup: Opus 4.8 / Sonnet 4.6 / Haiku 4.5 / Fable 5. Sonnet for high-volume, Haiku for speed-critical. |
 
+## Candidate signup vendors (watch-list — not currently active)
+
+Vendors that would beat the accessible set on cost or speed but need signup + payment method before we can call them. Details + break-even math in `docs/reference/kilo/CANDIDATE_SIGNUPS.md` (auto-regenerated daily by `rank_candidate_signups.py`).
+
+| Vendor | Category | Why signup | Blocker |
+|---|---|---|---|
+| Hyperbolic | LLM inference (Llama 3.3 70B) + GPU (H100) | ~30% cheaper Llama 3.3 vs OR; cheaper H100 than vast/runpod on-demand | new account + payment method |
+| Together | LLM inference (Llama 3.3 70B) | Direct-vendor throughput often beats OR routing | new account + payment method |
+| Cerebras | LLM inference (Llama 3.3 70B) | LPU is fastest tier for Llama 3.3 | new account + payment method |
+| Novita | LLM inference + GPU (H100) | Cheapest observed for Llama 3.3 (est.); mid-market H100 | new account + payment method |
+| DeepL | Translation | Free tier up to 500K chars/mo | new account (Free tier is enough for dev) |
+
+When the ranker (`suggest_model.py`) sees a locked-out row Pareto-beating the accessible frontier by ≥30% for equivalent quality, it emits a `💡 Consider signup: <vendor>` hint on stderr — that's when the watch-list is worth acting on.
+
 ## Gateway coverage by category
 
 Kilo CLI (`kilo run kilo/<provider>/<model>`) and OpenRouter (`https://openrouter.ai/api/v1/chat/completions`) are **peer gateways**. Either is valid — pick by per-model price (the bake-off browser shows the cheaper rate per row). DashScope and SiliconFlow are direct-API gateways for specialist routes (e.g. `qwen-mt-turbo`).

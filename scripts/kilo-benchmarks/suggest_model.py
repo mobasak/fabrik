@@ -36,6 +36,11 @@ AVG_TOKENS_PER_IMAGE = {
 }
 DEFAULT_TOKENS_PER_IMAGE = 2048  # conservative over-estimate
 
+# E.5 upsell watcher — best-locked-out must beat best-accessible by ≥30% on cost
+# AND stay within 50 Elo points on quality to fire the "💡 Consider signup" hint.
+UPSELL_MIN_SAVING_PCT = 0.30
+UPSELL_QUALITY_TOLERANCE_ELO = 50.0
+
 VOLUME_FLAG_BY_TASK = {
     "tts": "--volume-chars",
     "stt": "--volume-minutes",
@@ -76,16 +81,27 @@ def _normalize_cost(row: dict, volume: dict) -> float:
     return 0.0
 
 
-def _rank_service_type(conn: sqlite3.Connection, service_type: str, **volume) -> list[dict]:
-    """Query accessible rows for the service_type, compute per-workload cost, Pareto-rank."""
-    rows = conn.execute(
-        "SELECT id, provider, service_type, pricing_unit, input_cost_per_m, "
-        "quality_elo, output_tokens_per_sec, perf_seconds, reachable_with_existing_keys "
-        "FROM agents "
-        "WHERE service_type = ? AND status = 'active' "
-        "AND reachable_with_existing_keys = 1",
-        (service_type,),
-    ).fetchall()
+def _rank_service_type(conn: sqlite3.Connection, service_type: str,
+                       *, include_locked_out: bool = False, **volume) -> list[dict]:
+    """Query accessible rows for the service_type, compute per-workload cost, Pareto-rank.
+
+    include_locked_out=True returns the full unfiltered set (used by the upsell
+    watcher to compare accessible vs. locked-out best rows).
+    """
+    if include_locked_out:
+        sql = (
+            "SELECT id, provider, service_type, pricing_unit, input_cost_per_m, "
+            "quality_elo, output_tokens_per_sec, perf_seconds, reachable_with_existing_keys "
+            "FROM agents WHERE service_type = ? AND status = 'active'"
+        )
+    else:
+        sql = (
+            "SELECT id, provider, service_type, pricing_unit, input_cost_per_m, "
+            "quality_elo, output_tokens_per_sec, perf_seconds, reachable_with_existing_keys "
+            "FROM agents WHERE service_type = ? AND status = 'active' "
+            "AND reachable_with_existing_keys = 1"
+        )
+    rows = conn.execute(sql, (service_type,)).fetchall()
     fields = [
         "id", "provider", "service_type", "pricing_unit", "input_cost_per_m",
         "quality_elo", "output_tokens_per_sec", "perf_seconds",
@@ -134,6 +150,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--language", default=None)
     p.add_argument("--top", type=int, default=5)
     p.add_argument("--json", action="store_true")
+    p.add_argument("--strict", action="store_true",
+                   help="Suppress the 💡 Consider signup upsell hint")
     args = p.parse_args(argv)
 
     required_flag = VOLUME_FLAG_BY_TASK[args.task]
@@ -168,7 +186,50 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(top, indent=2, default=str))
     else:
         _print_markdown_table(top)
+
+    # E.5 upsell watcher — compare best-accessible vs best-locked-out.
+    if not args.strict:
+        conn2 = sqlite3.connect(_db_path())
+        try:
+            full = _rank_service_type(
+                conn2, args.task, include_locked_out=True,
+                chars=args.volume_chars or 0,
+                minutes=args.volume_minutes or 0.0,
+                images=args.volume_images or 0,
+            )
+        finally:
+            conn2.close()
+        _emit_upsell(frontier, full)
+
     return 0
+
+
+def _emit_upsell(accessible: list[dict], full: list[dict]) -> None:
+    """Print `💡 Consider signup:` to stderr if a locked-out row Pareto-beats accessible.
+
+    Fires only when: best-locked-out cost ≤ (1 - UPSELL_MIN_SAVING_PCT) * best-accessible,
+    AND (best-locked-out quality unknown OR within UPSELL_QUALITY_TOLERANCE_ELO of best-accessible).
+    """
+    best_a = min(accessible, key=lambda r: r["cost_usd"]) if accessible else None
+    locked = [r for r in full if not r.get("reachable_with_existing_keys")]
+    best_l = min(locked, key=lambda r: r["cost_usd"]) if locked else None
+    if not best_a or not best_l:
+        return
+    if best_a["cost_usd"] <= 0:
+        return
+    saving = (best_a["cost_usd"] - best_l["cost_usd"]) / best_a["cost_usd"]
+    if saving < UPSELL_MIN_SAVING_PCT:
+        return
+    q_a = best_a.get("quality_elo") or 0
+    q_l = best_l.get("quality_elo") or 0
+    if q_l and q_a and q_l < q_a - UPSELL_QUALITY_TOLERANCE_ELO:
+        return
+    pct = int(saving * 100)
+    print(
+        f"💡 Consider signup: {best_l['id']} — {pct}% cheaper "
+        f"for equivalent quality — needs new signup + payment method.",
+        file=sys.stderr,
+    )
 
 
 if __name__ == "__main__":
