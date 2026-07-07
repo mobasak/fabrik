@@ -719,7 +719,9 @@ class WatchdogDriver:
             logger.warning("watchdog: unsafe project id %r — skipping /governance", pid)
             return False
         src_root = _PROJECTS_ROOT / pid
-        members = [m for m in ("CLAUDE.md", "AGENTS.md", ".windsurf/rules") if (src_root / m).exists()]
+        members = [
+            m for m in ("CLAUDE.md", "AGENTS.md", ".windsurf/rules") if (src_root / m).exists()
+        ]
         if not members:
             logger.warning(
                 "watchdog: no governance files under %s (CLAUDE.md/AGENTS.md/.windsurf/rules) — "
