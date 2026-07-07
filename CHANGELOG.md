@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — best-model-suggester Phase C: ai/00-ai-model-selection.md references all 5 selection MDs + AI_VENDOR_ACCESS (2026-07-07)
+
+Extended the canonical AI-model-selection rule pack (`.windsurf/rules/ai/00-ai-model-selection.md`) with a `## Selection MDs — read before recommending` block listing all 5 selection docs (CODING_SUBAGENT_SELECTION.md + TTS/STT/TRANSLATION/IMAGE_GEN) and their regenerator scripts, plus an advisory line at the top of `## Selection workflow` pointing agents at `docs/reference/kilo/AI_VENDOR_ACCESS.md` before recommending and at `suggest_model.py` (exit=1 hard-fail on empty pool) when in doubt. Governance-synced to every project via `fabrik_synced_manifest.py:67`. Un-orphans the pre-existing `CODING_SUBAGENT_SELECTION.md` (previously referenced from nowhere in the pack).
+
 ### Added — best-model-suggester Phase B: suggest_model.py + 4 per-task rankers + daily_refresh wire-in (2026-07-07)
 
 `scripts/kilo-benchmarks/suggest_model.py` — Pareto-ranked CLI over `agents WHERE service_type=? AND reachable_with_existing_keys=1`. Exit codes: 0 (candidates), 1 (empty pool — NEVER extrapolate from thin air), 2 (missing `--volume-<unit>`). Handles mixed pricing_unit (image vs M-tokens) via `_normalize_cost`. 4 per-task rankers `rank_{tts,stt,translation,image_gen}.py` pattern-clone `rank_coding_subagents.py`'s atomic-write layout; each emits `docs/reference/kilo/{TTS,STT,TRANSLATION,IMAGE_GEN}_SELECTION.md` with `Last refresh: YYYY-MM-DD` header. Wired into `daily_refresh.sh` between the sibling `rank_task_subagents` (:358) and `export_models_browser` (:369) as 4 non-fatal `_step` invocations. 7 tests (`test_suggest_model.py` empty-pool exit=1 + missing-volume exit=2 + mixed-pricing-unit cost math; `test_rank_specialty.py` 4× parameterized).
