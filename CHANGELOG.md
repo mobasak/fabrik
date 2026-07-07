@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — CODING_SUBAGENT_SELECTION.md now splits Auto vs On-request tiers by the $1.5/Mtok output rule (2026-07-08)
+
+Enforces the BINDING cost policy from `.windsurf/rules/core/62-using-subagents.md:39-71`: rows with OR output price ≤ $1.5/Mtok land under `### code` (Auto — `pick_models` auto-selects freely); everything with `Out $/M > $1.5` (or NULL — fail-safe conservative) lands under `### code-onrequest` (operator opt-in only). No models deleted — pricier ones stay tracked + benchmarked + priced. A pricier model that benchmarks brilliantly stays in On-request; a new cheaper model that clears $1.5 auto-joins Auto on the next daily refresh.
+
+The header rename to `code-onrequest` is deliberate: `pick_models` (in `/opt/fabrik-lib/subagents/subagents/select.py:load_task_ranking`) matches level-3 headers against `TASK_KINDS = {"spec","plan","code","review","docs","research"}`; a header outside that set resets `current` to None and scopes its rows out. So the reader ONLY sees Auto-tier rows in the "code" pool. No fabrik-lib coordination needed — the reader already does the right thing on the new shape.
+
+Ranker changes in `scripts/kilo-benchmarks/rank_coding_subagents.py`: new `AUTO_OUTPUT_PRICE_CEILING = 1.5` constant, new `_is_auto_tier(row)` predicate (NULL price → False, conservative on-request), `_render` splits into two tables in Auto-first order.
+
+Currently on the live DB: 19 Auto rows (deepseek-v4-flash $0.18/M, deepseek-v3.2 $0.343/M, minimax-m3 $1.20/M, +16 more all ≤$1.5) and 17 On-request rows (glm-5 $1.92/M, glm-5.1 $3.036/M, glm-5.2 $2.856/M, kimi-k2.5 $2.025/M, kimi-k2.7-code $3.50/M, deepseek-r1 $2.50/M, +11 more). 14 regression tests (`tests/test_rank_coding_subagents_tier_split.py`) including an end-to-end test that loads the REAL `pick_models` reader and asserts glm-5/kimi/grok do NOT surface in the code pool.
+
 ### Added — subagent pool governance in 62-using-subagents: cost rule, dispatch mix, two tiers, flywheel loop (2026-07-08)
 
 `.windsurf/rules/core/62-using-subagents.md` now defines the pool-worker policy the `/fabrik-*` commands inherit: the **≤ $1.5/Mtok output rule** (auto pool = the 5 benchmarked models deepseek-v4-flash/v3.2/v4-pro + minimax-m2.5/m3; a cheaper model auto-joins once benchmarked); the module's **per-stage rankings** (plan/review/code/spec/docs-research); a **two-tier split** — Auto (≤$1.5, `pick_models` picks freely) vs On-request (>$1.5: glm/kimi/grok/qwen, operator-approved only, never auto); the **standard dispatch mix** (1–2+ Claude subagents + `minimax/minimax-m3` + optional one more cheap, parallel where suitable); and the **closed flywheel loop** (`pick_models(task_type)` → `record_run(quality_score)`) with the **three-source-alignment** warning (module `_TABLE` · flywheel-refreshed `CODING_SUBAGENT_SELECTION.md` which overrides the vendored default · this pack — and the flywheel→doc aggregation must filter to ≤$1.5 or it silently re-admits the pricier models). Aligned with fabrik-lib `subagents` (fleet-ready, `fbe692f`).

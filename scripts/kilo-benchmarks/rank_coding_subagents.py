@@ -52,6 +52,42 @@ OUT_PATH = SCRIPT_DIR.parent.parent / "docs" / "reference" / "kilo" / "CODING_SU
 
 FAMILIES = ("z-ai/glm-", "moonshotai/kimi-", "minimax/minimax-", "deepseek/")
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Auto vs On-request tier split (BINDING — see .windsurf/rules/core/62-using-subagents.md:39-71)
+# ─────────────────────────────────────────────────────────────────────────────
+# The pool is defined by a RULE, not a frozen list: OpenRouter output price ≤
+# $1.5/Mtok is the Auto tier (`pick_models` selects freely, no operator approval).
+# Everything with output > $1.5 stays fully benchmarked and priced but is tagged
+# On-request (never auto-selected — the operator names it explicitly).
+#
+# Three sources must agree or the cost policy silently drifts:
+#   (1) the fabrik-lib subagents module's vendored `_TABLE` (set to the ≤$1.5 pool),
+#   (2) this doc (CODING_SUBAGENT_SELECTION.md — it OVERRIDES the vendored _TABLE
+#       via SUBAGENT_SELECTION_DOC, so it is the one that must filter correctly), and
+#   (3) `.windsurf/rules/core/62-using-subagents.md`.
+#
+# The tier is a filter/flag, NOT a cut:
+#   - A pricier model that benchmarks brilliantly stays in On-request.
+#   - A new cheaper model that clears $1.5 auto-joins Auto on next daily refresh.
+#   - Unknown / NULL output price is treated as On-request (fail-safe: never
+#     auto-select an unpriced row — the operator might get charged $10/Mtok).
+AUTO_OUTPUT_PRICE_CEILING = 1.5
+
+
+def _is_auto_tier(row: dict) -> bool:
+    """A row is Auto-selectable iff its OR output price is known AND ≤ $1.5/Mtok.
+
+    Unknown price → On-request (conservative: never auto-select an unpriced row).
+    """
+    out = row.get("out_M")
+    if out is None:
+        return False
+    try:
+        return float(out) <= AUTO_OUTPUT_PRICE_CEILING
+    except (TypeError, ValueError):
+        return False
+
+
 # Models filtered out of the ranked table.
 # Add here only when a model is verifiably unusable in a code-subagent role
 # (e.g. reasoning-mandatory + returns 0 output when reasoning is excluded).
@@ -290,32 +326,80 @@ def _render(rows: list[dict]) -> str:
         # comma-separated `TASK,CODING`; that broke because `select.py` reads
         # SUBAGENT_SELECTION_DOC as one literal filename. See workflow doc's
         # "Two ranking docs" section.
+        # BINDING tier split (.windsurf/rules/core/62-using-subagents.md:39-71):
+        # rows with OR output price ≤ $1.5/Mtok land under `### code`;
+        # everything else under `### code-onrequest`. The `pick_models` reader
+        # in the fabrik-lib subagents module (select.py:load_task_ranking)
+        # resets `current` to None on ANY `###` header whose name is NOT a
+        # known TaskKind — since `code-onrequest` is not in TASK_KINDS
+        # (`spec`, `plan`, `code`, `review`, `docs`, `research`), its rows are
+        # scoped out and pick_models NEVER sees them. Only the Auto table is
+        # readable by the module. NULL out_M → On-request (fail-safe: never
+        # auto-select an unpriced row).
         "### code",
+        "",
+        f"Auto tier — OpenRouter output ≤ ${AUTO_OUTPUT_PRICE_CEILING:.1f}/Mtok. `pick_models` auto-selects freely from this table (no operator approval required).",
         "",
         "| # | Model | OR | OR_prov | db_tps | In $/M | Out $/M | SWE | Aider | AA | Arena | Ctx | Doc↔Code | Score |",
         "|---:|---|:-:|---|---:|---:|---:|---:|---:|---:|---:|---:|:-:|---:|",
     ]
-    for i, r in enumerate(rows, 1):
-        lines.append(
-            "| {i} | `{mid}` | {or_ok} | {prov} | {tps} | {inp} | {out} | {swe} | {aider} | {aa} | {arena} | {ctx} | **{grade}** | {score} |".format(
-                i=i,
-                mid=_safe_md_id(r["id"]),
-                or_ok="✅" if r.get("or_ok") else "—",
-                # `_safe_md_id` on the em-dash fallback would trip the regex
-                # and emit `INVALID_ID_<hash>`; check-then-sanitize instead.
-                prov=_safe_md_id(r["or_prov"]) if r.get("or_prov") else "—",
-                tps=_fmt_or_dash(r.get("db_tps"), "{:.0f}"),
-                inp=_fmt_or_dash(r.get("in_M"), "{:.3f}"),
-                out=_fmt_or_dash(r.get("out_M"), "{:.3f}"),
-                swe=_fmt_or_dash(r.get("swe"), "{:.1f}"),
-                aider=_fmt_or_dash(r.get("aider"), "{:.1f}"),
-                aa=_fmt_or_dash(r.get("aa_idx"), "{:.0f}"),
-                arena=_fmt_or_dash(r.get("arena"), "{:.0f}"),
-                ctx=_fmt_or_dash(r.get("ctx_k"), "{:.0f}k"),
-                grade=r["doc_grade"],
-                score=f"{r['score']:.3f}",
-            )
+
+    def _fmt_row(i: int, r: dict) -> str:
+        return (
+            "| {i} | `{mid}` | {or_ok} | {prov} | {tps} | {inp} | {out} | {swe} | {aider} | {aa} | {arena} | {ctx} | **{grade}** | {score} |"
+        ).format(
+            i=i,
+            mid=_safe_md_id(r["id"]),
+            or_ok="✅" if r.get("or_ok") else "—",
+            # `_safe_md_id` on the em-dash fallback would trip the regex
+            # and emit `INVALID_ID_<hash>`; check-then-sanitize instead.
+            prov=_safe_md_id(r["or_prov"]) if r.get("or_prov") else "—",
+            tps=_fmt_or_dash(r.get("db_tps"), "{:.0f}"),
+            inp=_fmt_or_dash(r.get("in_M"), "{:.3f}"),
+            out=_fmt_or_dash(r.get("out_M"), "{:.3f}"),
+            swe=_fmt_or_dash(r.get("swe"), "{:.1f}"),
+            aider=_fmt_or_dash(r.get("aider"), "{:.1f}"),
+            aa=_fmt_or_dash(r.get("aa_idx"), "{:.0f}"),
+            arena=_fmt_or_dash(r.get("arena"), "{:.0f}"),
+            ctx=_fmt_or_dash(r.get("ctx_k"), "{:.0f}k"),
+            grade=r["doc_grade"],
+            score=f"{r['score']:.3f}",
         )
+
+    auto_rows = [r for r in rows if _is_auto_tier(r)]
+    onreq_rows = [r for r in rows if not _is_auto_tier(r)]
+
+    # Auto table
+    for i, r in enumerate(auto_rows, 1):
+        lines.append(_fmt_row(i, r))
+    if not auto_rows:
+        lines.append(
+            "| — | _no Auto-tier candidates today (all rows over $1.5/Mtok output or unpriced)_ | — | — | — | — | — | — | — | — | — | — | — | — |"
+        )
+
+    lines.extend(
+        [
+            "",
+            # Level-3 header with a name that is NOT a TaskKind — this makes
+            # pick_models RESET current to None, so the On-request table's
+            # rows are scoped out of the reader entirely (that's the whole
+            # point of the tier split — see the BINDING comment above the
+            # `### code` header).
+            "### code-onrequest",
+            "",
+            f"On-request tier — OpenRouter output > ${AUTO_OUTPUT_PRICE_CEILING:.1f}/Mtok. Operator opt-in only: `pick_models` NEVER auto-promotes these. Selectable when the operator names one this turn and says why the Auto tier didn't suffice for this specific hard task. A pricier model that benchmarks brilliantly stays here until its OR output price drops ≤ ${AUTO_OUTPUT_PRICE_CEILING:.1f}/Mtok, at which point it auto-joins Auto on the next daily refresh.",
+            "",
+            "| # | Model | OR | OR_prov | db_tps | In $/M | Out $/M | SWE | Aider | AA | Arena | Ctx | Doc↔Code | Score |",
+            "|---:|---|:-:|---|---:|---:|---:|---:|---:|---:|---:|---:|:-:|---:|",
+        ]
+    )
+    for i, r in enumerate(onreq_rows, 1):
+        lines.append(_fmt_row(i, r))
+    if not onreq_rows:
+        lines.append(
+            "| — | _no On-request rows today_ | — | — | — | — | — | — | — | — | — | — | — | — |"
+        )
+
     lines.extend(
         [
             "",

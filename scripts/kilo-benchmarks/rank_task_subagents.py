@@ -252,7 +252,13 @@ def _load_coding_fallback(path: Path = CODING_FALLBACK_PATH) -> list[str]:
         stripped = line.strip()
         if stripped.startswith("###"):
             head = stripped.lower()
-            in_code = head.startswith("### code")
+            # EXACT match on `### code`. `startswith("### code")` would ALSO
+            # match `### code-onrequest` (the pricey-tier header the ranker
+            # emits under the Auto/On-request split), which would silently
+            # re-admit glm-5/kimi/grok into the fleet-synced TASK doc —
+            # exactly the failure mode .windsurf/rules/core/62-using-subagents.md:71
+            # warns against. Match by EXACT header, not by prefix.
+            in_code = head == "### code"
             continue
         if not in_code or not stripped.startswith("|"):
             continue

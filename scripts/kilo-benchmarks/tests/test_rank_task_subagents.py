@@ -392,6 +392,52 @@ def test_main_exit_code_reflects_state(monkeypatch, tmp_path) -> None:
     assert "No aggregated runs yet" not in err_content
 
 
+def test_coding_fallback_skips_on_request_tier_regression(tmp_path) -> None:
+    """Regression: `### code-onrequest` header must NOT leak into the coding
+    fallback pool. A prefix-match on "### code" would drag glm-5/kimi/grok
+    into the fleet-synced TASK_SUBAGENT_SELECTION.md — that's the exact
+    failure mode .windsurf/rules/core/62-using-subagents.md:71 warns against.
+
+    Build a synthetic CODING_SUBAGENT_SELECTION.md with both tiers and assert
+    only Auto-tier models come back.
+    """
+    from rank_task_subagents import _load_coding_fallback
+
+    fake = tmp_path / "CODING_SUBAGENT_SELECTION.md"
+    fake.write_text(
+        "# Coding subagent selection\n\n"
+        "**Generated:** 2026-07-08\n\n"
+        "## Ranked table\n\n"
+        "### code\n\n"
+        "| # | Model | ...\n"
+        "|---:|---|---|\n"
+        "| 1 | `deepseek/deepseek-v4-flash` | ... |\n"
+        "| 2 | `minimax/minimax-m2.5` | ... |\n"
+        "\n"
+        "### code-onrequest\n\n"
+        "| # | Model | ...\n"
+        "|---:|---|---|\n"
+        "| 1 | `z-ai/glm-5.2` | ... |\n"
+        "| 2 | `moonshotai/kimi-k2.7-code` | ... |\n"
+        "| 3 | `x-ai/grok-code-fast` | ... |\n",
+        encoding="utf-8",
+    )
+    models = _load_coding_fallback(fake)
+    assert "deepseek/deepseek-v4-flash" in models
+    assert "minimax/minimax-m2.5" in models
+    # These MUST NOT be blended — On-request tier is operator-opt-in only
+    assert "z-ai/glm-5.2" not in models, (
+        "policy violation: glm-5.2 blended into fleet-synced fallback via "
+        "prefix-match on `### code-onrequest`"
+    )
+    assert "moonshotai/kimi-k2.7-code" not in models, (
+        "policy violation: kimi blended into fleet-synced fallback"
+    )
+    assert "x-ai/grok-code-fast" not in models, (
+        "policy violation: grok blended into fleet-synced fallback"
+    )
+
+
 def test_query_rows_treats_null_quality_as_neutral_not_zero(monkeypatch) -> None:
     """quality_score is NULL on the module's auto-ledger path (per fabrik-lib AI's
     2026-07-06 UPSTREAM_FEEDBACK reply — `quality_score` is orchestrator opt-in).
