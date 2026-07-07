@@ -117,6 +117,19 @@ class TestPushGovernance:
             ok = d._push_governance(rctx)  # must NOT raise
         assert ok is False
 
+    def test_mkdtemp_failure_is_fail_soft(self, governance_src):
+        """Even a local temp-dir failure must stay fail-soft (not raise out of provision)."""
+        d = WatchdogDriver()
+        rctx = _rctx(d)
+        with (
+            mock.patch("fabrik.drivers.watchdog.tempfile.mkdtemp", side_effect=OSError("no space")),
+            mock.patch("fabrik.drivers.watchdog.ssh"),
+            mock.patch("fabrik.drivers.watchdog.scp_to_vps") as m_scp,
+        ):
+            ok = d._push_governance(rctx)  # must NOT raise
+        assert ok is False
+        assert m_scp.call_count == 0
+
 
 class TestOverlayVolumeGate:
     def _run_push_overlay(self, ready: bool, governance_src):

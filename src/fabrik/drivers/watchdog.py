@@ -731,8 +731,11 @@ class WatchdogDriver:
             return False
         remote_dir = f"{VPS_GOVERNANCE_ROOT}/{rctx.project_id}"
         remote_tar = f"{VPS_BUILD_ROOT}/{rctx.project_id}-governance.tar.gz"
-        local_ctx = Path(tempfile.mkdtemp(prefix=f"watchdog-gov-{rctx.project_id}-"))
+        # mkdtemp INSIDE the try so even a temp-dir failure (disk full / perms)
+        # stays fail-soft (returns False) instead of raising out of provision().
+        local_ctx: Path | None = None
         try:
+            local_ctx = Path(tempfile.mkdtemp(prefix=f"watchdog-gov-{rctx.project_id}-"))
             local_tar = local_ctx / "governance.tar.gz"
             with tarfile.open(local_tar, "w:gz") as tar:
                 for m in members:
@@ -761,7 +764,8 @@ class WatchdogDriver:
             )
             return False
         finally:
-            shutil.rmtree(local_ctx, ignore_errors=True)
+            if local_ctx is not None:
+                shutil.rmtree(local_ctx, ignore_errors=True)
 
     def _push_overlay(self, rctx: _RenderContext) -> None:
         """Write ``compose.watchdog.yaml`` to ``/opt/<project_id>/``."""
