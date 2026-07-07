@@ -358,6 +358,19 @@ mkdir -p "$(dirname "$LOG_FILE")"
   _step "rank_task_subagents" "$VENV_PY" "$KB/rank_task_subagents.py" \
     || echo "[daily_refresh] rank_task_subagents failed (non-fatal)"
 
+  # Per-task specialty rankers (best-model-suggester Phase B). Emit
+  # {TTS,STT,TRANSLATION,IMAGE_GEN}_SELECTION.md via Pareto rank on
+  # (cost ↑, quality_elo ↓) over reachable_with_existing_keys=1 rows.
+  # Each is non-fatal individually.
+  _step "rank_tts" "$VENV_PY" "$KB/rank_tts.py" \
+    || echo "[daily_refresh] rank_tts failed (non-fatal)"
+  _step "rank_stt" "$VENV_PY" "$KB/rank_stt.py" \
+    || echo "[daily_refresh] rank_stt failed (non-fatal)"
+  _step "rank_translation" "$VENV_PY" "$KB/rank_translation.py" \
+    || echo "[daily_refresh] rank_translation failed (non-fatal)"
+  _step "rank_image_gen" "$VENV_PY" "$KB/rank_image_gen.py" \
+    || echo "[daily_refresh] rank_image_gen failed (non-fatal)"
+
   # Live gateway counts in the ai/ rule packs. Runs AFTER the OR-routes
   # injector + freshness stamp so both marker blocks land in the same
   # daily refresh. The script is idempotent and self-heals around
