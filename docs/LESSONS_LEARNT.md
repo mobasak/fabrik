@@ -1,7 +1,7 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
-**Last Updated:** 2026-07-04 (Lesson 81 — a stale "non-superuser can't CREATE EXTENSION" comment is not a real blocker; verify trusted-extension status)
+**Last Updated:** 2026-07-07 (Lesson 82 — "provisioning code landed" ≠ "provisioning ran"; a stale role with a no-op grant is the tell, query the live resource)
 
 **Purpose:** CAPTURE TECHNICAL HURDLES, AI-SPECIFIC QUIRKS, AND ARCHITECTURAL DECISIONS TO PREVENT REGRESSION AS CODEBASES AND AI AGENTS EVOLVE.
 
@@ -4452,3 +4452,15 @@ Bonus finding from the same phase: OR's `/api/v1/chat/completions` streaming res
 **Why it matters:** I nearly forked the vendored module's schema (TEXT + app-side `lower()`) to dodge a non-existent constraint — which would have been *more* code, less faithful vendoring, and the module actually hard-depends on citext (its `WHERE email = :e` never lowercases). A stale in-repo comment sent the design the wrong way.
 
 **How to apply:** before treating `CREATE EXTENSION <x>` as a superuser-only blocker, check `<x>.control` for `trusted = true` (or the PG docs "trusted extensions" list) and whether the connecting role owns/has CREATE on the database. Don't trust a code comment about DB privileges — verify against the actual `.control` file and the role grant. And when a vendored fabrik-lib module "conflicts" with a scaffold convention, first check whether the *convention* (or its comment) is the stale side.
+
+---
+
+# Lesson 82: "Provisioning code landed" ≠ "provisioning ran" — a stale role with a no-op grant is the tell
+
+**Context:** The fleet-wide subagent-runs flywheel writes to `fabrik_analytics.subagent_runs` on `postgres-main`. The full auto-provisioning path was code-complete — `ensure_shared_analytics_db()` Step 2b applies the table DDL on `fabrik apply`, `create_subagent_ins_role()` grants a per-project INSERT-only role, and `SUBAGENT_RUNS_DSN` is injected unconditionally. Everything imported and the code read correct. But a live check found the **table did not exist on the VPS** — the code path had simply never been *triggered* against `postgres-main` (VPS table deploy was the spec's "follow-up"; no DB-bearing apply had run since Step 2b landed).
+
+**The tell:** a `testproj3515960_subagent_ins` **role existed** while its target table did **not**. `create_subagent_ins_role` had run at some apply, `CREATE ROLE` succeeded, but `GRANT INSERT ON subagent_runs` silently no-op'd (the whole block is non-fatal by design). So the fleet sat in a "looks provisioned" state — roles present, DSN injected — where every real `record_run()` would connect, fail to INSERT, and **fail-open to JSONL-only**, starving the flywheel with zero errors surfaced. Same class as the earlier monitoring gotcha (keepalive "fresh" via mtime, not content): non-fatal + fail-open = silent-broken.
+
+**Why:** "the code that provisions X exists and is correct" is not evidence that "X exists in prod." Provisioning runs on a trigger (an apply, a cron, a one-shot). Between the code landing and the trigger firing, the resource is absent — and if the consumer fails-open, nothing complains.
+
+**How to apply:** when asked "is <infra> ready?", never answer from the code path alone — **query the live resource** (`\d table`, `pg_roles`, `has_table_privilege`). Treat a **dependent object that exists while its dependency is missing** (a role/grant with no table, an alias with no target, a monitor with no source) as a red flag that a non-fatal provisioning step half-completed. Prove a write path end-to-end with the actual least-privilege role (`SET ROLE … ; INSERT` in a rolled-back txn) — a `has_privilege` boolean says the grant exists, an `INSERT 0 1` says the write actually works.

@@ -92,8 +92,8 @@ Empty-pool (no rows yet or none meet ≥3 threshold): emit a stub with a "No agg
 
 ## Explicitly out of scope
 
-- **Per-project INSERT-only roles.** Same postgres superuser as `cost_ledger`. Follow-up ticket when the fleet grows or hits real multi-operator territory.
-- **VPS deploy of the table.** For now WSL-local. When ready for prod: extend `ensure_shared_analytics_db()` at `postgres.py:990` to also apply `SUBAGENT_RUNS_DDL` — that's ~5 lines and a follow-up.
+- **Per-project INSERT-only roles.** ~~Same postgres superuser as `cost_ledger`.~~ **RESOLVED 2026-07-07** — `create_subagent_ins_role()` provisions a per-project `{project}_subagent_ins` role (INSERT + sequence USAGE only) and `_provision_postgres` injects `SUBAGENT_RUNS_DSN` unconditionally into every DB-bearing project. Least-privilege proven live on vps1 (`INSERT` ok, `SELECT/UPDATE/DELETE` denied).
+- **VPS deploy of the table.** ~~For now WSL-local.~~ **RESOLVED 2026-07-07** — `ensure_shared_analytics_db()` Step 2b (landed 2026-07-06) reads `SUBAGENT_RUNS_DDL` hub-side and applies it to `postgres-main` on `fabrik apply`; the table is now **live** on vps1 `fabrik_analytics` (13 cols + 2 indexes, types match the module DDL). Was code-complete but un-applied until a one-shot provisioning run on 2026-07-07 (see CHANGELOG).
 - **Rule pack update.** `.windsurf/rules/ai/00-ai-model-selection.md` gets `TASK_SUBAGENT_SELECTION.md` added to its selection MDs table — but only after the file has real data. Follow-up.
 - **`pick_models` reader.** Upstream module work. My reply to fabrik-lib AI (below) proposes the doc format.
 - **`/fabrik-spec-review`, `/fabrik-data-contract`, `/fabrik-plan-review`.** Skipped for speed. Schema comes from module DDL export (no negotiation); doc format is simple markdown; the whole thing is ~100 lines. Full pipeline discipline returns on the next non-trivial spec.
