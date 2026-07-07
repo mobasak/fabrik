@@ -1,0 +1,40 @@
+{
+  "plan": "docs/development/plans/2026-07-05-plan-1-best-model-suggester.md",
+  "owned_paths": [
+    "docs/reference/kilo/AI_VENDOR_ACCESS.md",
+    "docs/reference/kilo/TTS_SELECTION.md",
+    "docs/reference/kilo/STT_SELECTION.md",
+    "docs/reference/kilo/TRANSLATION_SELECTION.md",
+    "docs/reference/kilo/IMAGE_GEN_SELECTION.md",
+    "docs/reference/kilo/CANDIDATE_SIGNUPS.md",
+    "scripts/kilo-benchmarks/seed_specialty_catalog.py",
+    "scripts/kilo-benchmarks/suggest_model.py",
+    "scripts/kilo-benchmarks/rank_tts.py",
+    "scripts/kilo-benchmarks/rank_stt.py",
+    "scripts/kilo-benchmarks/rank_translation.py",
+    "scripts/kilo-benchmarks/rank_image_gen.py",
+    "scripts/kilo-benchmarks/scrape_gpu_prices.py",
+    "scripts/kilo-benchmarks/seed_watchlist_and_gpu.py",
+    "scripts/kilo-benchmarks/rank_candidate_signups.py",
+    "scripts/kilo-benchmarks/libs/web_scrape/",
+    "scripts/kilo-benchmarks/tests/test_seed_specialty_catalog.py",
+    "scripts/kilo-benchmarks/tests/test_suggest_model.py",
+    "scripts/kilo-benchmarks/tests/test_rank_specialty.py",
+    "scripts/kilo-benchmarks/tests/test_watchlist_and_gpu.py",
+    "scripts/kilo-benchmarks/tests/test_upsell_watcher.py",
+    "scripts/kilo-benchmarks/kilo_agents.db",
+    "scripts/kilo-benchmarks/daily_refresh.sh",
+    "scripts/kilo-benchmarks/models_browser_template.html",
+    ".windsurf/rules/ai/00-ai-model-selection.md",
+    "CHANGELOG.md",
+    "INDEX.md"
+  ],
+  "branch": "master",
+  "started_at": "2026-07-07T00:00:00Z",
+  "status": "active",
+  "baseline_commit": "715d0d3d",
+  "baseline_gate": {
+    "status": "success",
+    "red_checks": []
+  }
+}
