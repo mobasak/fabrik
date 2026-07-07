@@ -160,14 +160,16 @@ def _query_rows() -> tuple[str, list[tuple[str, str, int, float, float, float]]]
                     file=sys.stderr,
                 )
                 continue
-            # NULL avg_quality is treated as NEUTRAL (1.0) — not 0. Rationale from
-            # fabrik-lib AI (UPSTREAM_FEEDBACK.md 2026-07-06): the module's auto-ledger
-            # path records only objective metrics; `quality_score` is opt-in via an
-            # orchestrator that calls `record_run(..., quality_score=)`. Most rows
-            # will have NULL quality until orchestrators start scoring. Treating NULL
-            # as 0.0 would collapse `success × quality / cost` to 0 for every un-scored
-            # row and destroy the entire ranking. 1.0 gracefully degrades the formula
-            # to `success / cost` when no quality signal is present.
+            # NULL avg_quality is treated as NEUTRAL (1.0) — not 0. Under the
+            # current contract (fabrik-lib update landing after run_agents shipped)
+            # the module no longer silently auto-writes rows; every row now lands
+            # via an explicit record_run(..., quality_score=) call the orchestrator
+            # makes AFTER judging the output, so NULL quality is defensive tolerance
+            # (hand-written INSERT, legacy row, orchestrator that still passes None)
+            # rather than the norm. Treating that residual NULL as 0.0 would
+            # collapse `success × quality / cost` to 0 for every such row and
+            # destroy the ranking, so we degrade the formula to `success / cost`
+            # instead.
             row = (
                 task_type,
                 model,

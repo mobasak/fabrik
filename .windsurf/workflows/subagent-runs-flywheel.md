@@ -286,9 +286,9 @@ models = pick_models("code", n=1, exclude=("anthropic/claude-opus-4.8",))
 
 The `prefer="value"` mode re-ranks by `rank_weight / price` — a slightly-worse but much-cheaper model can beat a top-tier one on that axis. Default `prefer="quality"` uses the doc's rank order (best-first).
 
-### Manual `record_run` (for orchestrator-scored quality)
+### `record_run` — the ONLY write path (orchestrator-scored quality)
 
-The module's automatic `run_agents` path writes `quality_score=NULL` because it has no way to know how good the agent's output was. If you have an orchestrator that can score outcomes (e.g. "did the test pass? did the PR get approved?"), call `record_run` directly:
+As of the fabrik-lib update landing after `run_agents` shipped: **the module no longer silently auto-writes rows during `run_agents`**. Every ledger row lands via an explicit `record_run` call that the orchestrator makes AFTER evaluating the subagent's output (gate + tests, or the review verdict), so every row is quality-bearing — no duplicates, no NULL-quality noise. The wired `/fabrik-execute-plan` and `/fabrik-review` command steps make that call for you. If you have your own orchestrator (e.g. "did the test pass? did the PR get approved?"), call `record_run` directly:
 
 ```python
 from libs.subagents.subagents import record_run
@@ -311,7 +311,7 @@ record_run(
 
 **Signature note.** The real signature is `record_run(record: dict, *, dsn=None, project=None, quality_score=None, connect=None)` — row fields (`agent_id`, `task_type`, `model`, `provider`, `status`, `cost_usd`, `turns`, `latency_s`, `tool_calls`) live INSIDE the `record` dict; only `quality_score`, `dsn`, `project`, and `connect` are separate kwargs. A previous draft of this doc showed them as top-level kwargs — copy-pasting that raised `TypeError: unexpected keyword argument 'agent_id'`.
 
-Rows with a real `quality_score` sharpen the ranking. Rows without (`NULL`) fall back to `success_rate / cost` in the aggregator (neutral quality = 1.0).
+Every row now carries a real `quality_score` (the `/fabrik-*` command steps supply one on every write, so the fleet-wide default is quality-bearing). The aggregator still tolerates a NULL as a defensive fallback — it degrades the formula to `success_rate / cost` (neutral quality = 1.0) rather than collapsing to zero — but under the new contract that path is dead code, not the norm.
 
 ---
 
@@ -441,7 +441,7 @@ CREATE INDEX IF NOT EXISTS subagent_runs_ts_idx ON subagent_runs (ts);
 | `cost_usd` | DOUBLE PRECISION | yes | NULL rows are dropped by the aggregator (would collapse ranking) |
 | `turns` | INTEGER | yes | agent conversation turns — informational, not ranked on |
 | `latency_s` | DOUBLE PRECISION | yes | wall-clock — informational, not ranked on |
-| `quality_score` | REAL | yes | orchestrator opt-in via `record_run`; NULL → aggregator treats as 1.0 (neutral) |
+| `quality_score` | REAL | yes | supplied by the orchestrator on every `record_run` call under the new contract (auto-writes removed); aggregator treats a defensive NULL as 1.0 (neutral) |
 | `tool_calls` | JSONB | yes | structured trace of tools invoked — informational |
 
 ### Per-project INSERT-only role

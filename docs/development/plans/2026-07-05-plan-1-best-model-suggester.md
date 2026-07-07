@@ -1,6 +1,7 @@
 # Best-Model-Suggester — Implementation Plan
 
-**Status:** CONVERGED (re-converged after Phase E.7 GUI scope expansion — 2 adversarial passes to md5-verified fixed point)
+**Status:** CONVERGED (re-converged 2026-07-06 for post-subagent-runs repo-drift — 2 adversarial passes to md5-verified fixed point)
+**Fifth `/fabrik-plan-review` (post-subagent-runs drift, 2026-07-06):** Pass 1 fixed 6 defects surfaced by adversarial re-grounding against the current tree: (a) `daily_refresh.sh` `_step "rank_coding_subagents"` invocation drifted :344→:349 + `_step "export_models_browser"` :355→:369 (Context Ledger row + Phase B.6 body); (b) sibling `rank_task_subagents` now sits between them at :358 (subagent-runs-lean plan, released `final_commit: 5e402a42`) — updated Phase B.6 to insert BEFORE :369, and Gate B.6 `_step "rank_` count from `5` to `6` + awk order check extended with `rank_task_subagents` anchor; (c) `rank_coding_subagents.py:_atomic_write` drifted :345→:362 + `main` :371→:388 (Context Ledger + Phase B evidence + Phase E evidence); (d) `check_convergence.py` failure-branch drifted :92→:91 (Phase D evidence); (e) concurrency check narrative added the 4th plan-lock (`2026-07-06-plan-1-subagent-runs-lean.json`, released) with its overlap disclosure on `daily_refresh.sh` / `CHANGELOG.md` / `INDEX.md`; (f) header status blurb refreshed. Pass 2 no-op verified: START md5 (recorded in Pass Ledger below) == END md5.
 **Fourth `/fabrik-plan-review` (GUI-completeness):** Pass 1 fixed 4 defects: (a) Interfaces block still said "new `<div id="tab-watchlist">`" — real template at `models_browser_template.html:651` uses `<span class="tab" data-tab="X">` chips with `data-tabs` visibility, no `<div id="tab-X">` exists — rewrote to spec § E.3 architecture; (b) subagent E.5c owned-paths description referenced the wrong tab structure; (c) E.7 step body listed items 3-5 with `<div id="tab-rent-gpu">` / `<div id="tab-candidates">` — replaced with `<span class="tab" data-tab="...">` chips + dual `<tbody id="rows-gpu">` / `<tbody id="rows-candidates">` swap; (d) stale duplicate Gate E.7 block from pre-GUI-expansion `id="tab-watchlist"` gate was left in place at line 1033 after the fresh gate at line 995 — removed the duplicate. Pass 2 md5 START (`a9ac1099e1ae42ccca4d712ff9f88ff4`) == END → true no-op.
 **Third `/fabrik-plan-review` (post-Phase-E):** 2 adversarial passes to md5-verified fixed point. Pass 1 fixed 1 defect: E.2 test does `from seed_watchlist_and_gpu import _migrate_gpu_providers` but Interfaces.Produces block declared only `seed_watchlist_and_gpu()` — a subagent reading Interfaces alone would inline the migration and the test would ImportError; added `_migrate_gpu_providers(conn) -> None` as an explicit Produces entry with "MUST be top-level and importable" flag. Pass 2 md5 START (`e9160dc63290e8d0b30ed3e8691b06f4`) == END → true no-op. Coverage re-verified: 11 path:line citations still resolve; all 3 plan-locks still `released` (no new concurrent runs); Phase E `/fabrik-review` gate + subagent parallelism mandate + step-to-subagent map intact.
 **Phase E re-convergence:** 2026-07-05 — Pass 1 fixed 3 defects: (1) Phase E steps E.5–E.8 touch 4 different files with no cross-signature dependency after E.4 but were staged sequentially — added Subagent Mandates block dispatching them as 4 parallel worktree-isolated subagents (E.5a/b/c/d) per Phase 3 pillar #3; (2) File Scope decorations for `kilo_agents.db`, `daily_refresh.sh`, `suggest_model.py` showed only Phase A/B ownership — extended to note Phase E migrations/modifications too; (3) step-to-subagent mapping table added so an executor can pick the right subagent per step. Pass 2 md5 START (`d4cfcf67d15daad3be968518fba54c99`) == END → true no-op fixed point.
@@ -56,10 +57,11 @@ CHANGELOG.md                                                     [APPEND per pha
 INDEX.md                                                         [APPEND per phase — new files]
 ```
 
-**Concurrency check (2026-07-05).** `.fabrik/plan-locks/` shows 3 recent locks, **all status: `released`** — no active plan-lock is in flight, so a fresh `/fabrik-execute-plan` run of THIS plan will not collide on start:
+**Concurrency check (2026-07-06 re-verified).** `.fabrik/plan-locks/` shows 4 recent locks, **all status: `released`** — no active plan-lock is in flight, so a fresh `/fabrik-execute-plan` run of THIS plan will not collide on start:
 - `2026-07-03-plan-1-full-speed-coverage-close.json` (released) — owned `microbench_specialty.py`, `specialty_pricing.py`, `specialty_clients/**`, `kilo_agents.db` (this plan MIGRATES the DB, but that lock is released — no conflict).
 - `2026-07-04-plan-1-saas-fastapi-user-auth-flip.json` (released) — unrelated auth work.
-- `2026-07-04-plan-2-browser-coding-subagent-integration.json` (released) — owned `rank_coding_subagents.py`, `export_models_browser.py`, `models_browser*.html`, `INDEX.md`, `CHANGELOG.md`. This plan does NOT touch `rank_coding_subagents.py` (it references its helper API only, doesn't modify it) and does NOT touch the browser template, but DOES append to `INDEX.md` + `CHANGELOG.md`. Since that lock is released, the append is safe on start; a future new plan that RE-acquires those files would need to serialize with THIS plan for those two shared files — flag them as serialization points if concurrent execution is later needed.
+- `2026-07-04-plan-2-browser-coding-subagent-integration.json` (released) — owned `rank_coding_subagents.py`, `export_models_browser.py`, `models_browser*.html`, `INDEX.md`, `CHANGELOG.md`. This plan does NOT touch `rank_coding_subagents.py` (it references its helper API only, doesn't modify it), DOES touch the browser template (Phase E.7), and DOES append to `INDEX.md` + `CHANGELOG.md`.
+- `2026-07-06-plan-1-subagent-runs-lean.json` (released, `final_commit: 5e402a42`) — owned `daily_refresh.sh`, `rank_task_subagents.py`, `apply_subagent_runs_ddl.sh`, `docs/reference/kilo/TASK_SUBAGENT_SELECTION.md`, `CHANGELOG.md`, `INDEX.md`. Since that lock is **released**, the overlap with THIS plan's `daily_refresh.sh` (Phase B.6, E.9) + `CHANGELOG.md` + `INDEX.md` is not an active conflict — but the sibling already inserted `_step "rank_task_subagents"` at `daily_refresh.sh:358` between `rank_coding_subagents` (:349) and `export_models_browser` (:369). Phase B.6's insertion instructions were updated to reflect this (the 4 new rankers now land after :358, not immediately after :349). A future new plan re-acquiring `daily_refresh.sh`, `INDEX.md`, or `CHANGELOG.md` would need to serialize with THIS plan for those shared files.
 
 **Serialization points (shared-file mandate):** `INDEX.md` and `CHANGELOG.md` are shared across all plans by nature. Every phase's commit stages them explicitly and appends (never rewrites `[Unreleased]`).
 
@@ -88,8 +90,8 @@ Binding sources — the cold executor inherits all of these.
 | ACTIVE rule pack `core/45-testing-strategy.md` | 1 test for the highest-risk path (empty-pool exit=1, mixed pricing_unit cost math) | `.windsurf/rules/core/45-testing-strategy.md` |
 | ACTIVE rule pack `ai/00-ai-model-selection.md` | The pack Phase C extends; the "Fabrik defaults" table + "Selection workflow" section it hooks into | `.windsurf/rules/ai/00-ai-model-selection.md:20,49` (verified: `## Selection workflow` at :20, `## Fabrik defaults` at :49) |
 | fabrik-lib verdict (inherited from spec) | Every capability adjudicated: SQLite query = stdlib; markdown-table parse = build small; Pareto ranking = clone `rank_coding_subagents.py` pattern; CLI = argparse. No vendor/enhance for this plan. | Spec § "fabrik-lib verdict" |
-| `rank_coding_subagents.py` — real API | Reuse `_rows_from_db(db_path)`, `_atomic_write(path, content)`, `_safe_md_id(mid)`, `_fmt_or_dash(v, fmt)`, `main() -> int` | `scripts/kilo-benchmarks/rank_coding_subagents.py:127,200,247,162,345,371` (verified via grep) |
-| `daily_refresh.sh` insertion point | New rankers added as steps 8b–8e, after `rank_coding_subagents.py` (step 8) and before `export_models_browser.py` (step 9) | `scripts/kilo-benchmarks/daily_refresh.sh:344` (rank_coding_subagents invocation body) → insert BEFORE `:355` (export_models_browser invocation body). Header comment at `:26,30` documents the numbered step contract. |
+| `rank_coding_subagents.py` — real API | Reuse `_rows_from_db(db_path)`, `_atomic_write(path, content)`, `_safe_md_id(mid)`, `_fmt_or_dash(v, fmt)`, `main() -> int` | `scripts/kilo-benchmarks/rank_coding_subagents.py:127,200,247,162,362,388` (re-verified 2026-07-06 via grep; `_atomic_write` drifted :345→:362 and `main` :371→:388 since 2026-07-05 as sibling `rank_coding_subagents.py` gained the CODING fallback loader for the subagent-runs flywheel) |
+| `daily_refresh.sh` insertion point | New rankers added as steps after `rank_coding_subagents.py` (step 8) and `rank_task_subagents.py` (step 8b — sibling-added 2026-07-06), before `export_models_browser.py` (step 9). Insert the 4 new rank_{tts,stt,translation,image_gen} steps immediately BEFORE `_step "export_models_browser"` at :369, forming steps 8c–8f. | `scripts/kilo-benchmarks/daily_refresh.sh:349` (rank_coding_subagents invocation body) → `:358` (rank_task_subagents, sibling-inserted 2026-07-06) → insert BEFORE `:369` (export_models_browser invocation body). Header comment at `:26,30,35` documents the numbered step contract. |
 | Sync manifest reality | `.windsurf/rules` at line 67; `docs/reference/kilo` at line 69 → both DO sync. `scripts/kilo-benchmarks/**` NOT in manifest → hub-only. `scripts/enforcement/check_synced_unmodified.py` runs on projects, not the hub source. | `scripts/fabrik_synced_manifest.py:66-71` (verified) |
 | AGENTS.md invariants | **N/A for this plan** — no deployed service, no `compose.yaml`, no `postgres-main`, no Traefik routing, no memory limits, no ports. Hub-side tooling only. | AGENTS.md (no infra invariants touched — confirmed by scope) |
 | `shape:` flag | **N/A** — no `specs/services/*.yaml` touched. Confirmed via file scope. | Spec § "Shape / infra implications" |
@@ -326,13 +328,47 @@ print('A.5 gate OK', n, 'quality_elo populated:', q)
 # Expected: A.5 gate OK ...
 ```
 
+**A.5.5 — Backfill `perf_seconds` on the seeded rows via `microbench_specialty.py`** (added 2026-07-07, closes Residual #3).
+
+The Sunday cron would eventually populate `perf_seconds` / `output_tokens_per_sec` on the new rows, but the ranker needs the speed axis on day 1 — running microbench here means Phase B's Pareto frontier includes speed from the first invocation, not just cost + quality_elo.
+
+Cohort selection at `scripts/kilo-benchmarks/microbench_specialty.py:165` is exactly `agents.status='active' AND service_type IN ('image_gen','tts','music_gen','stt','translation') AND perf_seconds IS NULL` — the seeded rows drop in automatically.
+
+Sequence:
+```bash
+# 1. Dry-run first — shows cost estimate + row count, spends nothing.
+python scripts/kilo-benchmarks/microbench_specialty.py --dry-run 2>&1 | tail -20
+# 2. Real run, bounded by --limit so a runaway cohort can't blow COST_CAP_USD=10.0.
+#    Set --limit to the count of newly-seeded rows from A.5 gate (typically ≤15).
+#    Re-runs are safe: successful rows have perf_seconds NON-NULL and drop out of the
+#    cohort automatically (`perf_seconds IS NULL` filter at :165).
+python scripts/kilo-benchmarks/microbench_specialty.py --limit 20 2>&1 | tail -30
+```
+
+**Gate A.5.5:**
+```bash
+# Assert ≥50% of the specialty rows seeded by A.5 now carry a real perf_seconds bench.
+python -c "
+import sqlite3
+c = sqlite3.connect('scripts/kilo-benchmarks/kilo_agents.db')
+seeded = c.execute(\"SELECT COUNT(*) FROM agents WHERE reachable_with_existing_keys=1 AND status='active' AND service_type IN ('tts','stt','translation','image_gen','music_gen')\").fetchone()[0]
+benched = c.execute(\"SELECT COUNT(*) FROM agents WHERE reachable_with_existing_keys=1 AND status='active' AND service_type IN ('tts','stt','translation','image_gen','music_gen') AND perf_seconds IS NOT NULL\").fetchone()[0]
+# Coverage floor: at least half — vendor timeouts / rate-limits are non-fatal and re-runs pick up the tail.
+assert seeded > 0, 'no specialty rows to bench — A.5 gate should have caught this'
+assert benched * 2 >= seeded, f'perf_seconds coverage {benched}/{seeded} < 50% — re-run microbench_specialty.py or add --limit'
+print(f'A.5.5 gate OK — perf_seconds populated on {benched}/{seeded} accessible specialty rows')
+"
+```
+
+Partial coverage is acceptable — the ranker treats NULL speed as "no speed signal, rank on cost + quality." If a specific vendor's bench keeps timing out or hitting a paid-tier wall, note it in `docs/LESSONS_LEARNT.md` and move on; do not block Phase A on it.
+
 **A.6 — Doc-sync + review + commit.**
 
 1. Update `CHANGELOG.md` — append under `## [Unreleased]`:
    ```
    ### Added — best-model-suggester Phase A: vendor catalog + specialty-catalog seed (2026-07-05)
    AI_VENDOR_ACCESS.md (hand-editable) + seeded TTS/STT/translation rows + quality_elo column
-   populated from Arena Elos.
+   populated from Arena Elos + perf_seconds backfilled via microbench_specialty.py (A.5.5).
    ```
 2. Update `INDEX.md` — add rows for the 2 new files (`AI_VENDOR_ACCESS.md`, `seed_specialty_catalog.py`).
 3. `python scripts/enforcement/check_doc_sync.py` → any WARNING whose trigger file is Phase-A's diff must be resolved before commit.
@@ -629,7 +665,7 @@ cd scripts/kilo-benchmarks && python -m pytest tests/test_rank_specialty.py -x 2
 # Expected: 4 files listed; header present; 4 passed
 ```
 
-**B.6 — Wire the 4 rankers into `daily_refresh.sh`** — insert after the existing `_step "rank_coding_subagents" …` invocation at `:344-345` and before `_step "export_models_browser" …` at `:355`. Match the exact wrapper convention: the real function is `_step` (underscore prefix), args are **space-separated** (`"$VENV_PY" "$KB/<script>.py"`, not concatenated), and each invocation ends with a trailing `\` and an `|| echo "[daily_refresh] <name> failed (non-fatal)"` fallback so a single ranker crash can't short-circuit the pipeline (script header comment lines 41-43 spell out this convention).
+**B.6 — Wire the 4 rankers into `daily_refresh.sh`** — insert immediately BEFORE `_step "export_models_browser" …` at `:369`. Note that as of 2026-07-06 the sibling subagent-runs-lean plan inserted `_step "rank_task_subagents"` at `:358` between `_step "rank_coding_subagents"` (:349) and `_step "export_models_browser"` (:369), so the 4 new rankers land AFTER `rank_task_subagents` at :358 and immediately before `export_models_browser` at :369 — forming steps 8c–8f in the header numbering. Match the exact wrapper convention: the real function is `_step` (underscore prefix), args are **space-separated** (`"$VENV_PY" "$KB/<script>.py"`, not concatenated), and each invocation ends with a trailing `\` and an `|| echo "[daily_refresh] <name> failed (non-fatal)"` fallback so a single ranker crash can't short-circuit the pipeline (script header comment lines 41-43 spell out this convention).
 
 Insert block (verbatim indentation — 2 spaces to match the enclosing `{ … }` block):
 ```bash
@@ -646,12 +682,12 @@ Insert block (verbatim indentation — 2 spaces to match the enclosing `{ … }`
 **Gate B.6:**
 ```bash
 bash -n scripts/kilo-benchmarks/daily_refresh.sh && echo "syntax OK"
-# _step prefix (real function name), 5 rank_* invocations expected: 1 existing (rank_coding_subagents) + 4 new.
+# _step prefix (real function name), 6 rank_* invocations expected: 2 existing (rank_coding_subagents, rank_task_subagents — sibling-added 2026-07-06) + 4 new.
 n=$(grep -cE '^\s*_step "rank_' scripts/kilo-benchmarks/daily_refresh.sh)
-[ "$n" = "5" ] && echo "step-count OK ($n)" || { echo "expected 5 _step \"rank_ lines, got $n"; exit 1; }
-# Insertion ordering: rank_coding_subagents must appear BEFORE the 4 new rankers, all before export_models_browser.
-awk '/_step "rank_coding_subagents"/{c=NR} /_step "rank_image_gen"/{i=NR} /_step "export_models_browser"/{e=NR} END{ if(c<i && i<e) print "order OK"; else { printf "bad order: rank_coding_subagents@%d rank_image_gen@%d export_models_browser@%d\n", c, i, e; exit 1 } }' scripts/kilo-benchmarks/daily_refresh.sh
-# Expected: syntax OK; step-count OK (5); order OK
+[ "$n" = "6" ] && echo "step-count OK ($n)" || { echo "expected 6 _step \"rank_ lines, got $n"; exit 1; }
+# Insertion ordering: rank_coding_subagents + rank_task_subagents must appear BEFORE the 4 new rankers, all before export_models_browser.
+awk '/_step "rank_coding_subagents"/{c=NR} /_step "rank_task_subagents"/{t=NR} /_step "rank_image_gen"/{i=NR} /_step "export_models_browser"/{e=NR} END{ if(c<i && t<i && i<e) print "order OK"; else { printf "bad order: rank_coding_subagents@%d rank_task_subagents@%d rank_image_gen@%d export_models_browser@%d\n", c, t, i, e; exit 1 } }' scripts/kilo-benchmarks/daily_refresh.sh
+# Expected: syntax OK; step-count OK (6); order OK
 ```
 
 **B.7 — Doc-sync + review + commit.**
@@ -1168,8 +1204,8 @@ Edit this plan file: `**Status:** IN-PROGRESS` → `**Status:** EXECUTED 2026-07
   ```
 
 ### Phase B evidence
-- **`path:line`**: `scripts/kilo-benchmarks/rank_coding_subagents.py:127,200,247,345` — helper API (`_compose_score`, `_rows_from_db`, `_safe_md_id`, `_atomic_write`) that the new rankers clone.
-- **`path:line`**: `scripts/kilo-benchmarks/daily_refresh.sh:1-40` — insertion point for the 4 new `step "rank_<task>"` lines is between existing step 8 (`rank_coding_subagents.py`) and step 9 (`export_models_browser.py`).
+- **`path:line`**: `scripts/kilo-benchmarks/rank_coding_subagents.py:127,200,247,362` — helper API (`_compose_score`, `_rows_from_db`, `_safe_md_id`, `_atomic_write`) that the new rankers clone. Note `_atomic_write` drifted :345→:362 since 2026-07-05 (subagent-runs-lean plan added the CODING fallback loader upstream in the file).
+- **`path:line`**: `scripts/kilo-benchmarks/daily_refresh.sh:1-45` — insertion point for the 4 new `_step "rank_<task>"` lines is between step 8b (`rank_task_subagents.py` at :358, sibling-added 2026-07-06) and step 9 (`export_models_browser.py` at :369).
 - **External URLs grounded 2026-07-05** — Pricing for cost-normalization test constants:
   - `https://openai.com/business/pricing` (OpenAI TTS $15/1M chars)
   - `https://deepgram.com/pricing` (Nova-3 $0.0043/min batch)
@@ -1191,7 +1227,7 @@ Edit this plan file: `**Status:** IN-PROGRESS` → `**Status:** EXECUTED 2026-07
 - **`path:line`**: `/opt/fabrik-lib/web-scrape/web_scrape/webscrape.py:253` — `WebScraper.fetch_static()` signature verified via grep; matches the vendored API the scraper uses.
 - **`path:line`**: `/opt/fabrik-lib/web-scrape/web_scrape/webscrape.py:146` — `extract_nextjs_data(html) -> dict` verified; parses Modal/RunPod Next.js pricing pages.
 - **`path:line`**: `/opt/fabrik-lib/gpu-rent/gpu_rent/drivers/vast_provider.py:1` (one of the 3 drivers) — coherence anchor for SC #13 (`{vast, runpod, modal}` is the exact driver set on disk).
-- **`path:line`**: `scripts/kilo-benchmarks/rank_coding_subagents.py:345` — `_atomic_write()` cloned into `rank_candidate_signups.py`.
+- **`path:line`**: `scripts/kilo-benchmarks/rank_coding_subagents.py:362` — `_atomic_write()` cloned into `rank_candidate_signups.py` (re-verified 2026-07-06 — drifted from :345 since 2026-07-05).
 - **Command output** (E.1 — coherence check that gpu-rent has exactly 3 drivers):
   ```
   $ ls /opt/fabrik-lib/gpu-rent/gpu_rent/drivers/*.py | grep -v __init__ | grep -v __pycache__
@@ -1209,7 +1245,7 @@ Edit this plan file: `**Status:** IN-PROGRESS` → `**Status:** EXECUTED 2026-07
 ### Phase D evidence
 - **`path:line`**: `scripts/final_gate.py:1` — the tier-2 gate entrypoint (`--check --json` mode; Tier 2 = mypy + bandit + semgrep, never `--lean`).
 - **`path:line`**: `scripts/enforcement/check_convergence.py:39` — the `PROOF` regex `[\w./-]+\.(?:py|ts|tsx|js|sql|md|csv|ya?ml|sh|json):\d+` that enforces "≥1 file:line citation per phase" — verified via `grep -n "PROOF = re.compile"`.
-- **`path:line`**: `scripts/enforcement/check_convergence.py:92` — the failure branch that fired on this plan's DRAFT during pass-5 close: `len(set(PROOF.findall(text))) < phases`. Fix in this phase was to add file-format-matching citations, not to change the plan's design.
+- **`path:line`**: `scripts/enforcement/check_convergence.py:91` — the failure branch that fired on this plan's DRAFT during pass-5 close: `if len(set(PROOF.findall(text))) < phases:` (re-verified 2026-07-06 — drifted from :92 since 2026-07-05). Fix in this phase was to add file-format-matching citations, not to change the plan's design.
 - **`path:line`**: `scripts/enforcement/check_doc_sync.py:1` — the doc-sync gate D.1 runs before `/fabrik-docs-review`.
 - **Command output** (D.2 tier-2 gate — post-execution expected shape):
   ```
@@ -1261,11 +1297,24 @@ This is the DRAFT — `/fabrik-plan-review` will run the adversarial convergence
 - Mixed `pricing_unit` within `image_gen` — Phase B.2 `AVG_TOKENS_PER_IMAGE` hardcoded dict; test at Phase B.1.
 - `⚠️ low balance` accessibility semantics — accessible for filtering, surfaced as note in output (Phase B.2 `_print_markdown_table`).
 - `avg_tokens_per_image` mechanism (column vs dict) — hardcoded dict in `suggest_model.py`, no schema change.
+- **`perf_seconds` on new specialty rows** (was Still-open #3 pre-2026-07-07) — resolved in-plan by new step **A.5.5**: `microbench_specialty.py --limit 20` runs against the newly-seeded cohort (cohort filter at `microbench_specialty.py:165` auto-picks up `perf_seconds IS NULL` rows). No need to wait for Sunday cron.
 
 ### Still-open (resolution step named)
 1. **`tts` `quality_elo` values.** The two Arena leaders (Vocu V3.0, Inworld TTS MAX) have no matching row in our DB. **Resolution:** Phase A leaves `quality_elo` NULL for all TTS rows; a follow-up ticket (out of this plan) seeds Vocu/Inworld if we ever gain access, or maps existing rows (ElevenLabs, OpenAI TTS, Azure) to their Arena V2 Elos if published. Not blocking — the ranker treats NULL as "no quality signal, rank on cost + speed."
 2. **CosyVoice English per-character price.** Public English Alibaba pricing pages describe billing "per character" without publishing the rate. **Resolution:** Phase A.3 uses the same conservative $0.00003/char rate as `qwen-tts` and marks the PRICING entry `estimate: True` — the existing drift test in `test_microbench_specialty.py` will flag it if the estimate is off when a real bench call succeeds.
-3. **Whether `microbench_specialty.py` (owned by the other in-flight plan `2026-07-03-plan-1-full-speed-coverage-close.md`) will populate `output_tokens_per_sec` / `perf_seconds` for the new seeded rows.** **Resolution:** the ranker treats missing speed columns as NULL and ranks on cost + quality alone; when the other plan's microbench runs next Sunday, the speed axis lights up automatically. Non-blocking.
+
+---
+
+## One-Test Rule
+
+**Why:** The plan's whole promise is *never extrapolate from empty specialty data* — the driving session's 3 failure modes (hallucinated OR/TTS route, cost-wrong image recommendation, orphaned CODING_SUBAGENT_SELECTION.md) all trace to the tool silently guessing when it should have hard-failed. If ONE test guards the entire shipped tool, it is the empty-pool exit=1 test: get this wrong and every recommendation is potentially fabricated; get this right and the tool's contract holds even when catalog rows go missing.
+
+**Contract:**
+
+- **Given:** a `kilo_agents.db` in which the `agents` cohort for `service_type='video_gen'` is empty (no rows with `status='active' AND reachable_with_existing_keys=1`), and `KILO_DB` points at that DB.
+- **When:** the executor invokes `python scripts/kilo-benchmarks/suggest_model.py --task video_gen --volume-images 100`.
+- **Then:** the process exits with return code **1** (non-zero, machine-checkable), stderr contains the literal substring `NO DATA for task=video_gen`, and stdout is empty of any `| \`model_id\` |` recommendation row — proving the tool refused to extrapolate. The test lives at `scripts/kilo-benchmarks/tests/test_suggest_model.py::test_empty_pool_exits_1` and is the canonical Phase B.1 red-first TDD gate.
+- **Mocked:** the `kilo_agents.db` connection uses a `tmp_path` SQLite file with a fixed cohort seeded by the `tmp_db_empty_for_task` fixture — NOT the production DB, NOT mocked `sqlite3.connect`. All argparse, exit-code, and stderr behavior is REAL (via `main(argv)` + `capsys`); no `subprocess`, no mocked `sys.exit`. The vendor-catalog markdown file is not read in this path (empty-pool short-circuits before it opens), so no filesystem mock is needed.
 
 ---
 
