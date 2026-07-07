@@ -43,6 +43,7 @@ health:
   retries: 3
   disabled: false
 volumes: []
+companion_services: []
 backup:
   enabled: true
   frequency: daily

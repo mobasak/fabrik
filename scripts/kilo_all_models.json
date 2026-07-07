@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-07-04T11:59:07.931310",
+  "timestamp": "2026-07-07T11:59:05.509841",
   "total_models": 684,
   "models": {
     "~anthropic/claude-fable-latest": {
@@ -749,6 +749,11 @@
     },
     "morph/morph-v3-large": {
       "id": "morph/morph-v3-large",
+      "url": "https://openrouter.ai/api/v1",
+      "npm": "@openrouter/ai-sdk-provider"
+    },
+    "nex-agi/nex-n2-mini": {
+      "id": "nex-agi/nex-n2-mini",
       "url": "https://openrouter.ai/api/v1",
       "npm": "@openrouter/ai-sdk-provider"
     },
@@ -1507,8 +1512,18 @@
       "url": "https://openrouter.ai/api/v1",
       "npm": "@openrouter/ai-sdk-provider"
     },
+    "tencent/hy3": {
+      "id": "tencent/hy3",
+      "url": "https://openrouter.ai/api/v1",
+      "npm": "@openrouter/ai-sdk-provider"
+    },
     "tencent/hy3-preview": {
       "id": "tencent/hy3-preview",
+      "url": "https://openrouter.ai/api/v1",
+      "npm": "@openrouter/ai-sdk-provider"
+    },
+    "tencent/hy3:free": {
+      "id": "tencent/hy3:free",
       "url": "https://openrouter.ai/api/v1",
       "npm": "@openrouter/ai-sdk-provider"
     },
@@ -1649,22 +1664,6 @@
       "id": "claude-haiku-4-5-20251001",
       "npm": "@ai-sdk/anthropic"
     },
-    "claude-opus-4-0": {
-      "id": "claude-opus-4-0",
-      "npm": "@ai-sdk/anthropic"
-    },
-    "claude-opus-4-1": {
-      "id": "claude-opus-4-1",
-      "npm": "@ai-sdk/anthropic"
-    },
-    "claude-opus-4-1-20250805": {
-      "id": "claude-opus-4-1-20250805",
-      "npm": "@ai-sdk/anthropic"
-    },
-    "claude-opus-4-20250514": {
-      "id": "claude-opus-4-20250514",
-      "npm": "@ai-sdk/anthropic"
-    },
     "claude-opus-4-5": {
       "id": "claude-opus-4-5",
       "npm": "@ai-sdk/anthropic"
@@ -1684,14 +1683,6 @@
     "claude-opus-4-8": {
       "id": "claude-opus-4-8",
       "npm": "@ai-sdk/openai-compatible"
-    },
-    "claude-sonnet-4-0": {
-      "id": "claude-sonnet-4-0",
-      "npm": "@ai-sdk/anthropic"
-    },
-    "claude-sonnet-4-20250514": {
-      "id": "claude-sonnet-4-20250514",
-      "npm": "@ai-sdk/anthropic"
     },
     "claude-sonnet-4-5": {
       "id": "claude-sonnet-4-5",

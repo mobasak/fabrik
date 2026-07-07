@@ -91,7 +91,7 @@ With ~$50/month infrastructure cost:
 ## Project Portfolio
 
 <!-- AUTO-GENERATED:PROJECTS:START -->
-<!-- Total projects: 43 -->
+<!-- Total projects: 45 -->
 
 ### Production Services (5 projects)
 
@@ -103,7 +103,7 @@ With ~$50/month infrastructure cost:
 | **site-provisioner** | Unified site provisioning API - domain registration, DNS, SSL, CDN, analytics, and webmaster to... | Python | ✅ Production | https://provision.vps1.ocoron.com | ✅ Current |
 | **youtube** | **Status:** Production Ready - Multi-Tenant SaaS ✅ | Python | ✅ Production | Multi-tenant SaaS | ✅ Current |
 
-### Active Development (17 projects)
+### Active Development (19 projects)
 
 | Project | Purpose | Stack | Status | URL | Scaffold |
 |---------|---------|-------|--------|-----|----------|
@@ -112,6 +112,7 @@ With ~$50/month infrastructure cost:
 | **fabrik-claim-validator** | Multi-tradition claim validation + substance discovery service. Sibling to fabrik-citation-veri... | FastAPI | 🔨 Development | - | ✅ Current |
 | **job-agent** | AI agent orchestration and job processing system | FastAPI | 🔨 Development | https://job-agent.vps1.ocoron.com | ✅ Current |
 | **longephedia-vault** | Structured ontology + RAG over Longephedia constitution (12 themes, discipline rules, protocols... | FastAPI | 🔨 Development | - | ✅ Current |
+| **meb** | MEB curriculum flashcard app for the owner's kids. Phase 1: offline Expo/React Native/TS Androi... | React Native | 🔨 Development | - | ✅ Current |
 | **obsidian-agents** | Obsidian plugin: right-pane chat view that drives Claude Code and Kilo CLI agents via headless ... | Node.js | 🔨 Development | - | ✅ Current |
 | **proposal-creator** | A professional B2B proposal generation system based on best practices from McKinsey, Shipley, a... | FastAPI | 🔨 Development | https://proposal-creator.vps1.ocoron.com | ✅ Current |
 | **seo** | SEO keyword research and long-tail keyword generation for AI content creation | FastAPI | 🔨 Development | https://seo.vps1.ocoron.com | ✅ Current |
@@ -123,6 +124,7 @@ With ~$50/month infrastructure cost:
 | **transdoc** | Structure-preserving document-translation SaaS — vendors fabrik-lib doc modules + mt-router + s... | Node.js | 🔨 Development | - | ✅ Current |
 | **triggered-content-orchestration** | Multi-platform content orchestration pipeline for automated content creation and distribution. | FastAPI | 🔨 Development | https://triggered-content-orchestration.vps1.ocoron.com | ✅ Current |
 | **tryton-crm** | FastAPI bridge to Tryton CRM via proteus RPC - shared CRM system-of-record for trade-intelligen... | FastAPI | 🔨 Development | - | ✅ Current |
+| **whatsapp-agent** | WhatsApp channel agent for the tryton-crm bridge: FastAPI middleware (M2M to the CRM hub) + sel... | FastAPI | 🔨 Development | - | ✅ Current |
 | **wpf** | WordPress Factory — Python orchestrator (CLI now, FastAPI in Phase 3, Next.js wizard in Phase 4... | Python | 🔨 Development | - | ✅ Current |
 
 ### Planning/Research (20 projects)

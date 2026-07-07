@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-07-04",
+  "generated_at": "2026-07-07",
   "assigned_by": "category_route_mapper",
   "categories": {
     "language": {
@@ -121,16 +121,16 @@
         },
         {
           "priority": 2,
-          "id": "openai/gpt-5-nano",
-          "provider": "openai",
-          "input_cost_per_m": 0.05,
-          "output_cost_per_m": 0.4,
-          "context_window_k": 400,
+          "id": "nex-agi/nex-n2-mini",
+          "provider": "nex-agi",
+          "input_cost_per_m": 0.025,
+          "output_cost_per_m": 0.1,
+          "context_window_k": 262,
           "has_vision": true,
           "has_tools": true,
           "has_reasoning": true,
           "is_ga": true,
-          "score_used": 0.05,
+          "score_used": 0.025,
           "score_type": "input_cost_per_m",
           "reason": "Specialized vendors (Recraft/FLUX) own image generation; this pack\ncovers VLM (vision-language) \u2014 only general-purpose LLMs with image\ninput."
         }
@@ -156,16 +156,16 @@
         },
         {
           "priority": 2,
-          "id": "openai/gpt-5-nano",
-          "provider": "openai",
-          "input_cost_per_m": 0.05,
-          "output_cost_per_m": 0.4,
-          "context_window_k": 400,
+          "id": "nex-agi/nex-n2-mini",
+          "provider": "nex-agi",
+          "input_cost_per_m": 0.025,
+          "output_cost_per_m": 0.1,
+          "context_window_k": 262,
           "has_vision": true,
           "has_tools": true,
           "has_reasoning": true,
           "is_ga": true,
-          "score_used": 0.05,
+          "score_used": 0.025,
           "score_type": "input_cost_per_m",
           "reason": "Vision + tool-calling + reasoning together. Live 2026-06-27: 76\ncandidates match all three flags. Stability + non-free required for\nthe operational SLA reasoning workflows expect."
         }

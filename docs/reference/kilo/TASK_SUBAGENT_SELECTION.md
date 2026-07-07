@@ -1,4 +1,4 @@
-Last refresh: 2026-07-06
+Last refresh: 2026-07-07
 Formula: success × quality / cost | Window: 90 days | Min runs: 3
 
 

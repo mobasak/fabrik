@@ -566,9 +566,7 @@ def test_official_models_and_pricing_are_bidirectionally_consistent():
     from specialty_clients.replicate import OFFICIAL_MODELS
     from specialty_pricing import PRICING
 
-    pricing_official = {
-        mid for mid, p in PRICING.items() if p.get("via") == "replicate_official"
-    }
+    pricing_official = {mid for mid, p in PRICING.items() if p.get("via") == "replicate_official"}
     only_in_pricing = pricing_official - OFFICIAL_MODELS
     only_in_official = OFFICIAL_MODELS - pricing_official
     assert not only_in_pricing, (
