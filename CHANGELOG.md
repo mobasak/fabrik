@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — propagate the full-gate-is-standard guidance to the Kilo + Cascade rulesets (2026-07-07)
+
+Updated the GATE line in `AGENTS-compact.md` (Kilo CLI ruleset) and `.windsurfrules` (Windsurf Cascade ruleset) to match `CLAUDE.md`: **`--json` (full Tier 2) is the standard completion gate**, `--lean` is the fast in-iteration subset (not the completion gate), and `--check` is the read-only mode; noted the diff-scoped, synced-file-excluded auto-fix. All three agent rulesets (Claude Code / Kilo / Cascade) now say the same thing.
+
 ### Fixed — gate excludes Fabrik-synced files from ruff lint + auto-fix in consumer projects (2026-07-07)
 
 The diff-scoped auto-fix still touched Fabrik-synced files whenever they landed in a consumer's change set — after a mid-session sync, or in projects that track + commit the synced copies (e.g. tojlo-mail). The gate then reformatted them to the **project's** ruff config, diverging from the distributed bytes and **self-failing `check_synced_unmodified`** (the synced-hash check the gate is supposed to protect) — an unbreakable loop from inside the project. Now `_changed_python`/`_changed_text` exclude any path listed in the project's `.fabrik/synced.lock` (the same source `check_synced_unmodified` trusts); the hub (`/opt/fabrik`) self-exempts, since there the synced files ARE the source and are linted/formatted normally. Consumers now **never lint or rewrite a synced file** — which also makes the whole "synced file trips a project's stricter ruff" class (yesterday's per-line E501 fix) impossible, not just patched. Regression tests: synced file excluded in a consumer, hub not excluded.
