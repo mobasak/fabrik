@@ -41,14 +41,31 @@ OFFICIAL_MODELS = frozenset(
         "recraft-ai/recraft-v4-svg",
         "recraft-ai/recraft-v4.1",
         "recraft-ai/recraft-v4.1-svg",
+        # Stability official models — internal id → replicate slug via SLUG_TRANSLATION below.
+        "stability-ai/stable-diffusion-3.5-large",
+        "stability-ai/stable-diffusion-3.5-large-turbo",
+        "stackadoc/stable-audio-open-1.0",
     }
 )
+# Internal `agents.id` → replicate marketplace slug.
+# Best-model-suggester Phase A seeds specialty rows with the OpenRouter-style id
+# (`stability/sd3.5-large`); Replicate's marketplace path uses the vendor's own
+# slug (`stability-ai/stable-diffusion-3.5-large`). This dict is the bridge; if
+# a row isn't listed here, `bench_one` falls through to VERSION_MAP → not-pinned.
+_SLUG_TRANSLATION = {
+    "stability/sd3.5-large": "stability-ai/stable-diffusion-3.5-large",
+    "stability/sd3.5-large-turbo": "stability-ai/stable-diffusion-3.5-large-turbo",
+    "stability/stable-audio-2": "stackadoc/stable-audio-open-1.0",
+}
 MAX_POLL_SECONDS = 180
 
 
 def bench_one(model_id: str, api_key: str) -> dict:
-    if model_id in OFFICIAL_MODELS:
-        create_url = f"https://api.replicate.com/v1/models/{model_id}/predictions"
+    # Translate internal ids (e.g. best-model-suggester's `stability/sd3.5-large`)
+    # to Replicate marketplace slugs (`stability-ai/stable-diffusion-3.5-large`).
+    slug = _SLUG_TRANSLATION.get(model_id, model_id)
+    if slug in OFFICIAL_MODELS:
+        create_url = f"https://api.replicate.com/v1/models/{slug}/predictions"
         body: dict = {"input": {"prompt": "a cat on a sofa"}}
     else:
         version = VERSION_MAP.get(model_id)

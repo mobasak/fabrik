@@ -197,8 +197,15 @@ def test_replicate_rejects_poll_url_on_untrusted_host():
 
 def test_replicate_returns_error_on_unpinned_model():
     """Placeholder version strings were removed; unpinned models fail loud
-    instead of enqueuing a malformed prediction every week."""
-    r = replicate.bench_one("stability/sd3.5-large", "K")
+    instead of enqueuing a malformed prediction every week.
+
+    (best-model-suggester Phase A specialty-clients-gap fix, 2026-07-07: added
+    `stability/sd3.5-large` + `stability/sd3.5-large-turbo` + `stability/stable-audio-2`
+    to `replicate._SLUG_TRANSLATION` → OFFICIAL_MODELS. Those are now PINNED; this
+    test needs a model_id that is NOT in `VERSION_MAP`, `OFFICIAL_MODELS`, or
+    `_SLUG_TRANSLATION` to still hit the unpinned error path.)
+    """
+    r = replicate.bench_one("stability/never-existed-placeholder", "K")
     assert r["error"] is not None
     assert "no Replicate version pinned" in r["error"]
 
@@ -561,14 +568,26 @@ def test_dispatch_recraft_ai_defense_in_depth_rejects_llm_service_type():
 def test_official_models_and_pricing_are_bidirectionally_consistent():
     """PRICING entries with `via: replicate_official` MUST all appear in
     OFFICIAL_MODELS, and every OFFICIAL_MODELS entry MUST have a matching
-    PRICING row. A drift here silently produces `no Replicate version
-    pinned` errors on every Sunday cron for that row."""
-    from specialty_clients.replicate import OFFICIAL_MODELS
+    PRICING row EITHER directly OR indirectly via `_SLUG_TRANSLATION`.
+    A drift here silently produces `no Replicate version pinned` errors
+    on every Sunday cron for that row.
+
+    (best-model-suggester Phase A specialty-clients-gap fix, 2026-07-07:
+    `stability/sd3.5-large` + `stability/sd3.5-large-turbo` + `stability/stable-audio-2`
+    live in PRICING with `via='replicate'` and translate to their marketplace
+    slugs in OFFICIAL_MODELS via `_SLUG_TRANSLATION`. The bidirectional check
+    must resolve through the translation.)
+    """
+    from specialty_clients.replicate import _SLUG_TRANSLATION, OFFICIAL_MODELS
     from specialty_pricing import PRICING
 
     pricing_official = {mid for mid, p in PRICING.items() if p.get("via") == "replicate_official"}
+    # A slug in OFFICIAL_MODELS is "reachable" if either:
+    #  (a) it appears directly in PRICING with via=replicate_official, OR
+    #  (b) it is the SLUG_TRANSLATION target of some PRICING id (with via=replicate).
+    translated_targets = set(_SLUG_TRANSLATION.values())
     only_in_pricing = pricing_official - OFFICIAL_MODELS
-    only_in_official = OFFICIAL_MODELS - pricing_official
+    only_in_official = OFFICIAL_MODELS - pricing_official - translated_targets
     assert not only_in_pricing, (
         f"PRICING has {only_in_pricing} with via=replicate_official but "
         f"they're missing from OFFICIAL_MODELS → bench_one will return "

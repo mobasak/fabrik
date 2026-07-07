@@ -42,6 +42,7 @@ from specialty_clients import (  # noqa: E402
     elevenlabs_sfx,
     elevenlabs_tts,
     openai_whisper,
+    openrouter_image_gen,
     recraft,
     replicate,
 )
@@ -103,6 +104,12 @@ def _dispatch(model_id: str, service_type: str, keys: dict) -> tuple:
         return recraft.bench_one, keys.get("RECRAFT_API_KEY"), "recraft_direct"
     if via == "replicate" or via == "replicate_official":
         return replicate.bench_one, keys.get("REPLICATE_API_TOKEN"), "replicate_direct"
+    if via == "openrouter" and service_type == "image_gen":
+        # Route openai/*-image + google/*-image (best-model-suggester Phase A seeds)
+        # through OpenRouter's OpenAI-compatible chat endpoint with modalities=["image","text"].
+        # Response's `images` array carries per-choice image URLs; we don't download
+        # them — the round-trip time is the perf metric we care about.
+        return openrouter_image_gen.bench_one, keys.get("OPENROUTER_API_KEY"), "openrouter"
     if model_id.startswith("elevenlabs/") and service_type == "tts":
         return elevenlabs_tts.bench_one, keys.get("ELEVENLABS_API_KEY"), "elevenlabs_direct"
     if model_id.startswith("elevenlabs/") and service_type == "music_gen":

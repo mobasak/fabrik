@@ -21,8 +21,7 @@ from pathlib import Path
 
 _DEFAULT_DB = Path(__file__).parent / "kilo_agents.db"
 CATALOG_PATH = (
-    Path(__file__).parent.parent.parent
-    / "docs" / "reference" / "kilo" / "AI_VENDOR_ACCESS.md"
+    Path(__file__).parent.parent.parent / "docs" / "reference" / "kilo" / "AI_VENDOR_ACCESS.md"
 )
 
 # Grounded 2026-07-05 — per-family avg tokens per image (for M-tokens image_gen rows).
@@ -81,8 +80,9 @@ def _normalize_cost(row: dict, volume: dict) -> float:
     return 0.0
 
 
-def _rank_service_type(conn: sqlite3.Connection, service_type: str,
-                       *, include_locked_out: bool = False, **volume) -> list[dict]:
+def _rank_service_type(
+    conn: sqlite3.Connection, service_type: str, *, include_locked_out: bool = False, **volume
+) -> list[dict]:
     """Query accessible rows for the service_type, compute per-workload cost, Pareto-rank.
 
     include_locked_out=True returns the full unfiltered set (used by the upsell
@@ -103,13 +103,19 @@ def _rank_service_type(conn: sqlite3.Connection, service_type: str,
         )
     rows = conn.execute(sql, (service_type,)).fetchall()
     fields = [
-        "id", "provider", "service_type", "pricing_unit", "input_cost_per_m",
-        "quality_elo", "output_tokens_per_sec", "perf_seconds",
+        "id",
+        "provider",
+        "service_type",
+        "pricing_unit",
+        "input_cost_per_m",
+        "quality_elo",
+        "output_tokens_per_sec",
+        "perf_seconds",
         "reachable_with_existing_keys",
     ]
     result = []
     for r in rows:
-        d = dict(zip(fields, r))
+        d = dict(zip(fields, r, strict=False))
         d["cost_usd"] = _normalize_cost(d, volume)
         result.append(d)
     # Pareto: drop rows dominated on (lower cost, higher quality_elo).
@@ -121,8 +127,11 @@ def _rank_service_type(conn: sqlite3.Connection, service_type: str,
                 continue
             q_a = a.get("quality_elo") or 0
             q_b = b.get("quality_elo") or 0
-            if (b["cost_usd"] <= a["cost_usd"] and q_b >= q_a
-                    and (b["cost_usd"] < a["cost_usd"] or q_b > q_a)):
+            if (
+                b["cost_usd"] <= a["cost_usd"]
+                and q_b >= q_a
+                and (b["cost_usd"] < a["cost_usd"] or q_b > q_a)
+            ):
                 dominated = True
                 break
         if not dominated:
@@ -146,12 +155,15 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--volume-chars", type=int)
     p.add_argument("--volume-minutes", type=float)
     p.add_argument("--volume-images", type=int)
-    p.add_argument("--quality-tier", choices=["cheap", "balanced", "expressive", "premium"], default="balanced")
+    p.add_argument(
+        "--quality-tier", choices=["cheap", "balanced", "expressive", "premium"], default="balanced"
+    )
     p.add_argument("--language", default=None)
     p.add_argument("--top", type=int, default=5)
     p.add_argument("--json", action="store_true")
-    p.add_argument("--strict", action="store_true",
-                   help="Suppress the 💡 Consider signup upsell hint")
+    p.add_argument(
+        "--strict", action="store_true", help="Suppress the 💡 Consider signup upsell hint"
+    )
     args = p.parse_args(argv)
 
     required_flag = VOLUME_FLAG_BY_TASK[args.task]
@@ -162,13 +174,21 @@ def main(argv: list[str] | None = None) -> int:
             print(f"error: {required_flag} required for --task {args.task}", file=sys.stderr)
             return 2
 
+    volume_kwargs = {
+        "chars": args.volume_chars or 0,
+        "minutes": args.volume_minutes or 0.0,
+        "images": args.volume_images or 0,
+    }
     conn = sqlite3.connect(_db_path())
     try:
-        frontier = _rank_service_type(
-            conn, args.task,
-            chars=args.volume_chars or 0,
-            minutes=args.volume_minutes or 0.0,
-            images=args.volume_images or 0,
+        frontier = _rank_service_type(conn, args.task, **volume_kwargs)
+        # Fetch the full unfiltered set now while we hold the connection — the
+        # upsell watcher needs it downstream, and re-connecting for the same DB
+        # is wasteful noise in strace/audit trails.
+        full = (
+            _rank_service_type(conn, args.task, include_locked_out=True, **volume_kwargs)
+            if not args.strict
+            else []
         )
     finally:
         conn.close()
@@ -187,18 +207,7 @@ def main(argv: list[str] | None = None) -> int:
     else:
         _print_markdown_table(top)
 
-    # E.5 upsell watcher — compare best-accessible vs best-locked-out.
     if not args.strict:
-        conn2 = sqlite3.connect(_db_path())
-        try:
-            full = _rank_service_type(
-                conn2, args.task, include_locked_out=True,
-                chars=args.volume_chars or 0,
-                minutes=args.volume_minutes or 0.0,
-                images=args.volume_images or 0,
-            )
-        finally:
-            conn2.close()
         _emit_upsell(frontier, full)
 
     return 0
