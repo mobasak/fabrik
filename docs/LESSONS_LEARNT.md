@@ -1,7 +1,7 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
-**Last Updated:** 2026-07-07 (Lesson 82 — "provisioning code landed" ≠ "provisioning ran"; a stale role with a no-op grant is the tell, query the live resource)
+**Last Updated:** 2026-07-07 (Lesson 83 — `stmt.split()[N]` for column-name extraction is off-by-one-fragile; test the migration twice on the same connection)
 
 **Purpose:** CAPTURE TECHNICAL HURDLES, AI-SPECIFIC QUIRKS, AND ARCHITECTURAL DECISIONS TO PREVENT REGRESSION AS CODEBASES AND AI AGENTS EVOLVE.
 
@@ -4464,3 +4464,15 @@ Bonus finding from the same phase: OR's `/api/v1/chat/completions` streaming res
 **Why:** "the code that provisions X exists and is correct" is not evidence that "X exists in prod." Provisioning runs on a trigger (an apply, a cron, a one-shot). Between the code landing and the trigger firing, the resource is absent — and if the consumer fails-open, nothing complains.
 
 **How to apply:** when asked "is <infra> ready?", never answer from the code path alone — **query the live resource** (`\d table`, `pg_roles`, `has_table_privilege`). Treat a **dependent object that exists while its dependency is missing** (a role/grant with no table, an alias with no target, a monitor with no source) as a red flag that a non-fatal provisioning step half-completed. Prove a write path end-to-end with the actual least-privilege role (`SET ROLE … ; INSERT` in a rolled-back txn) — a `has_privilege` boolean says the grant exists, an `INSERT 0 1` says the write actually works.
+
+---
+
+# Lesson 83: `stmt.split()[N]` for column-name extraction is off-by-one-fragile — a re-run raises `duplicate column name` and hides the bug behind idempotency
+
+**Context:** best-model-suggester Phase A `_migrate()` was supposed to be idempotent — re-running `seed_specialty_catalog.py` was meant to be a no-op. Migration list was `["ALTER TABLE agents ADD COLUMN quality_elo REAL", "ALTER TABLE agents ADD COLUMN reachable_with_existing_keys INTEGER NOT NULL DEFAULT 0"]`. Guard was `col = stmt.split()[4]; if col not in existing: conn.execute(stmt)`. First run worked (columns added, tests green). **Second run raised `sqlite3.OperationalError: duplicate column name: quality_elo`** — my inline self-review reproduced it before the reviewer subagent ever ran.
+
+**The bug:** `"ALTER TABLE agents ADD COLUMN quality_elo REAL".split()` = `["ALTER", "TABLE", "agents", "ADD", "COLUMN", "quality_elo", "REAL"]`. Index `[4]` is `"COLUMN"` — the SQL keyword, not the column name. Since `"COLUMN"` is never in the `PRAGMA table_info` name set, the guard **always fired**, and every re-run tried to ALTER TABLE ADD COLUMN on a column that already existed.
+
+**Why:** SQLite's `duplicate column name` is a distinctive error, but the classic "idempotent migration" testing shape — write once, assert schema — never catches it. You need a **regression test that calls the migration twice on the same connection**.
+
+**How to apply:** any migration guard that indexes into `stmt.split()` for a column/table name: either **name the index explicitly with a comment showing all the tokens**, or better — parse via regex (`re.match(r"ALTER\s+TABLE\s+\w+\s+ADD\s+COLUMN\s+(\w+)", stmt)`), or best — take the column name as a separate parameter instead of parsing SQL. And always write a **`test_migrate_is_idempotent_on_repeated_runs`** style test: call `_migrate(conn)` twice on the same fixture — a bug that only surfaces on the second call is not caught by "did the columns get added?" and slips into commit.
