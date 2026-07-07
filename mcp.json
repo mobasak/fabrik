@@ -1,0 +1,29 @@
+{
+  "_comment": "Canonical MCP server list — source of truth for the fabrik-lib subagents POOL (read via AgentSpec.mcp_config). Standard .mcp.json format; keys via ${ENV} expansion from the process env (never inline). NOT named .mcp.json on purpose: Claude Code auto-loads a project .mcp.json and would double-register the user-scoped servers in ~/.claude.json. Claude Code stays on user scope; the pool reads THIS file. Keep the two consistent when adding a server. Design: docs/superpowers/specs/2026-07-07-subagent-tool-parity-design.md + .windsurf/rules/core/62-using-subagents.md.",
+  "mcpServers": {
+    "exa": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "exa-mcp-server"],
+      "env": { "EXA_API_KEY": "${EXA_API_KEY}" }
+    },
+    "brave-search": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@brave/brave-search-mcp-server", "--transport", "stdio"],
+      "env": { "BRAVE_API_KEY": "${BRAVE_API_KEY}" }
+    },
+    "firecrawl": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "firecrawl-mcp"],
+      "env": { "FIRECRAWL_API_KEY": "${FIRECRAWL_API_KEY}" }
+    },
+    "context7": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@upstash/context7-mcp@latest"],
+      "env": { "CONTEXT7_API_KEY": "${CONTEXT7_API_KEY}" }
+    }
+  }
+}
