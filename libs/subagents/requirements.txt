@@ -1,0 +1,16 @@
+# subagents runtime deps: vendor this folder, then install these.
+httpx==0.28.1          # sync + async OpenRouter client with native SSE streaming (vendored transport)
+#
+# git is invoked via subprocess on the system `git` (worktrees + diffs) — there is
+# NO Python git dependency. Everything else is the Python standard library.
+#
+# OPTIONAL — only when the centralized run-metrics sink is enabled (env SUBAGENT_RUNS_DSN
+# pointed at the shared `subagent_runs` table on postgres-main). psycopg is lazy-imported,
+# so the module runs JSONL-only without it:
+# psycopg[binary]>=3.1
+#
+# OPTIONAL — MCP-client research tools (AgentSpec.mcp_servers). Lazy-imported, and stdio
+# servers additionally need Node/`npx` on the host; absent (or too old to expose
+# streamablehttp_client) ⇒ ImportError is caught and MCP is disabled (no crash). The
+# stdio/ClientSession API is stable across v1.x; validated against mcp 1.28.1:
+# mcp>=1.9
