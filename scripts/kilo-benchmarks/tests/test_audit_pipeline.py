@@ -98,3 +98,91 @@ def test_render_findings_md_emits_phase_header(tmp_path):
     text = out.read_text(encoding="utf-8")
     assert text.startswith("# Phase A"), f"header missing; got: {text[:100]!r}"
     assert "| x |" in text, "row not rendered"
+
+
+def test_render_findings_md_escapes_pipe_in_summary(tmp_path):
+    """Pass-1 review Finding 10 regression: a `|` in a cell value must be
+    escaped so it doesn't create a false extra column that the loader would
+    then drop as len(cells) != len(header).
+    """
+    from audit_pipeline import _load_findings_generic, _render_findings_md
+
+    rows = [
+        {"script": "x", "severity": "CONFIRMED", "summary": "regex `a|b` broke", "fix-commit": "—"},
+    ]
+    out = tmp_path / "phase-x-findings.md"
+    _render_findings_md("X", rows, out)
+    # Round-trip: what we wrote must be readable back with the same row shape.
+    loaded = _load_findings_generic(out)
+    assert len(loaded) == 1, f"pipe-in-cell dropped the row; got {loaded}"
+    assert "regex" in loaded[0]["summary"], f"summary lost: {loaded[0]}"
+
+
+def test_render_findings_md_preserves_heterogeneous_row_columns(tmp_path):
+    """Pass-1 review Finding 5 regression: rows with different key sets must
+    all render fully. Using rows[0].keys() as headers silently drops columns
+    that only later rows carry.
+    """
+    from audit_pipeline import _render_findings_md
+
+    rows = [
+        {"script": "a", "severity": "STYLE", "summary": "ok"},
+        {"script": "b", "severity": "PLAUSIBLE", "summary": "note", "extra-field": "important"},
+    ]
+    out = tmp_path / "phase-x-findings.md"
+    _render_findings_md("X", rows, out)
+    text = out.read_text(encoding="utf-8")
+    assert "extra-field" in text, "later-row column dropped from header"
+    assert "important" in text, "later-row value dropped"
+
+
+def test_dispatch_pool_audit_fails_soft_when_libs_subagents_missing(tmp_path, monkeypatch):
+    """Pass-1 review Finding 13 regression: guarded import failure returns []
+    instead of raising, so callers can fall back to the inline scan.
+    """
+    # Simulate the ImportError path by stashing sys.modules['libs.subagents']
+    # and reloading audit_pipeline's inner import. Simpler: shadow the module
+    # at import time by monkeypatching sys.modules to a broken shim.
+    import sys as _sys
+
+    import audit_pipeline
+
+    monkeypatch.setitem(_sys.modules, "libs.subagents", None)
+    # sys.modules[key]=None causes `from libs.subagents import X` to raise
+    # ImportError — which the function's try/except should swallow.
+    result = audit_pipeline._dispatch_pool_audit([tmp_path / "dummy.py"], task="x")
+    assert result == [], f"expected [] on import failure, got {result}"
+
+
+def test_render_consolidated_report_aggregates_two_phase_d_mds(tmp_path):
+    """Pass-1 review Finding 14 regression: consolidator must aggregate BOTH
+    phase-d-emitter-findings.md and phase-d-browser-findings.md into ONE
+    counter row for phase D (not overwrite the first with the second).
+    """
+    from audit_pipeline import _render_consolidated_report, _render_findings_md
+
+    _render_findings_md(
+        "D",
+        [{"artifact": "doc-1", "severity": "STYLE", "summary": "ok"}],
+        tmp_path / "phase-d-emitter-findings.md",
+    )
+    _render_findings_md(
+        "D",
+        [
+            {"tab": "tab-1", "severity": "STYLE", "summary": "ok"},
+            {"tab": "tab-2", "severity": "PLAUSIBLE", "summary": "note"},
+        ],
+        tmp_path / "phase-d-browser-findings.md",
+    )
+    out = tmp_path / "consolidated.md"
+    _render_consolidated_report(
+        [tmp_path / "phase-d-emitter-findings.md", tmp_path / "phase-d-browser-findings.md"],
+        out,
+    )
+    text = out.read_text(encoding="utf-8")
+    # Phase D row must reflect BOTH files: 1 (emitter STYLE) + 1 (browser STYLE) = 2 STYLE,
+    # plus 1 PLAUSIBLE from browser. If the pre-Finding-14 bug regressed, we'd see 2 STYLE + 1 PLAUSIBLE
+    # from only the second file's read.
+    assert "| D | 0 | 1 | 2 | 0 |" in text, (
+        f"phase D aggregation wrong; expected 2 STYLE + 1 PLAUSIBLE, got:\n{text}"
+    )

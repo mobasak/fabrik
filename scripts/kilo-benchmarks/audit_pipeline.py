@@ -29,6 +29,11 @@ from pathlib import Path
 # pool worker record_agent_run calls (hub peer-auth to fabrik_analytics).
 # Idempotent + silent on missing file.
 _ENV_PATH = Path("/opt/fabrik/.env")
+
+# Max inline source size for a pool audit dispatch. Larger sources are truncated;
+# a warning fires on truncation so the caller knows review coverage is partial.
+_MAX_INLINE_SOURCE_BYTES = 100_000
+
 if _ENV_PATH.exists():
     for _line in _ENV_PATH.read_text(encoding="utf-8").splitlines():
         _line = _line.strip()
@@ -97,10 +102,27 @@ def _render_findings_md(phase: str, rows: list[dict], out: Path) -> None:
             "",
         ]
     else:
-        header_keys = list(rows[0].keys())
+        # Header = union of all keys across rows (in first-seen order) so a later
+        # row with an extra column doesn't lose it. Pass-1 review Finding 5.
+        header_keys: list[str] = []
+        seen: set[str] = set()
+        for r in rows:
+            for k in r:
+                if k not in seen:
+                    seen.add(k)
+                    header_keys.append(k)
+
+        # Substitute pipes in cell values so a `|` in a summary doesn't produce
+        # a row with too many columns (which _load_findings_generic would drop).
+        # Using `¦` (U+00A6 broken bar) — visually close, semantically distinct,
+        # and survives the pipe-split loader unchanged (`\|` would still be
+        # split on the `|`, defeating the escape). Pass-1 review Finding 10.
+        def _cell(v: object) -> str:
+            return str(v).replace("|", "¦") if v is not None else ""
+
         header = "| " + " | ".join(header_keys) + " |"
         sep = "| " + " | ".join(["---"] * len(header_keys)) + " |"
-        body = ["| " + " | ".join(str(r.get(k, "")) for k in header_keys) + " |" for r in rows]
+        body = ["| " + " | ".join(_cell(r.get(k, "")) for k in header_keys) + " |" for r in rows]
         lines = [
             f"# Phase {phase} — Findings",
             "",
@@ -223,12 +245,19 @@ def _dispatch_pool_audit(
             body = src.read_text(encoding="utf-8")
         except OSError:
             body = f"(source unreadable: {src})"
+        # Pass-1 review Finding 9: warn if source is truncated so the caller
+        # knows the review's coverage is incomplete for oversized files.
+        if len(body) > _MAX_INLINE_SOURCE_BYTES:
+            print(
+                f"[audit_pipeline] WARN: {src} is {len(body):,} bytes > {_MAX_INLINE_SOURCE_BYTES:,} — pool worker sees a truncated view",
+                file=sys.stderr,
+            )
         prompt = (
             f"{task}\n\n"
             f"Report as ONE markdown table row: `| <script> | <ran> | <dry-run> | "
             f"<writes-tagged> | <fail-soft> | <severity: STYLE|CONFIRMED|PLAUSIBLE|ESCALATE> | "
             f"<summary ≤ 100 chars> | — |`\n\n"
-            f"=== source: {src} ===\n\n{body[:100_000]}"
+            f"=== source: {src} ===\n\n{body[:_MAX_INLINE_SOURCE_BYTES]}"
         )
         specs.append(
             AgentSpec(  # type: ignore[call-arg]
@@ -242,7 +271,7 @@ def _dispatch_pool_audit(
         )
 
     try:
-        results = run_agents(specs, repo=Path("/opt/fabrik"))
+        results = run_agents(specs, repo="/opt/fabrik")
     except Exception as e:  # noqa: BLE001 — fail-soft: pool outage returns [].
         print(f"[audit_pipeline] run_agents failed: {e}", file=sys.stderr)
         return []
@@ -296,7 +325,7 @@ def _dispatch_pool_audit(
             try:
                 record_agent_run(spec, result, quality_score=3, project="fabrik-hub")
             except Exception:  # noqa: BLE001 — fail-open per pg_ledger contract.
-                pass
+                pass  # nosec B110 — intentional fail-open; contract at pg_ledger.py:record_agent_run
 
     return rows
 
@@ -452,8 +481,10 @@ def _render_consolidated_report(phase_mds: list[Path], out: Path) -> None:
             counts[sev] = counts.get(sev, 0) + 1
         all_rows.extend(rows)
 
-    # Reproducibility metrics.
-    db_path = Path("scripts/kilo-benchmarks/kilo_agents.db")
+    # Reproducibility metrics. Pass-1 review Finding 12: resolve DB relative
+    # to THIS module so a caller with cwd ≠ /opt/fabrik still finds the DB
+    # (falls through to 0-counts on a genuine miss, which is signal not noise).
+    db_path = Path(__file__).parent / "kilo_agents.db"
     agents_active = agents_total = gpu_total = embed_total = 0
     if db_path.exists():
         conn = sqlite3.connect(db_path)
