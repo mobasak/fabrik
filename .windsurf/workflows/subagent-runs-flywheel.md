@@ -22,9 +22,9 @@ Wire a Fabrik project into the fleet-wide model-selection flywheel: every subage
 ```
 ┌───────────────────────────┐    each run_agents() call        ┌──────────────────────────┐
 │ project X                 │  ──────────────────────────►     │ postgres-main            │
-│  (vendored subagents lib) │   record_run(project=X,          │ fabrik_analytics         │
+│  (vendored subagents lib) │   record_agent_run→row:          │ fabrik_analytics         │
 │                           │       agent_id, task_type,       │  subagent_runs           │
-│  from subagents import    │       model, provider, status,   │  (13 cols, 2 indexes)    │
+│  from libs.subagents      │       model, provider, status,   │  (13 cols, 2 indexes)    │
 │      run_agents,          │       cost_usd, turns,           │                          │
 │      pick_models          │       latency_s, quality_score,  │  1 row per invocation    │
 │                           │       tool_calls)                │                          │
@@ -115,26 +115,20 @@ Do this per-project, once, on the WSL dev machine. Not every project needs it �
 ### Step 1. Copy the module
 
 ```bash
-# From the project root:
-cp -r /opt/fabrik-lib/subagents ./libs/subagents
+# From the project root — FLAT: copy the package CONTENTS, not the outer dir:
+cp -r /opt/fabrik-lib/subagents/subagents/. ./libs/subagents/
+cp /opt/fabrik-lib/subagents/requirements.txt ./libs/subagents/
 ```
 
-### Step 2. Fix internal imports
+### Step 2. (nothing to do — flat layout uses relative imports)
 
-Vendored fabrik-lib modules follow the convention `libs/<name>/`. The module's own internal imports use `from subagents import ...`. Rewrite them to `from libs.subagents import ...`:
-
-```bash
-# Optional grep to see what needs rewriting (usually zero — the module is stdlib-clean):
-grep -rn "^from subagents" libs/subagents/subagents/*.py
-```
-
-If nothing shows up, the module is import-clean and you skip this step. Otherwise, rewrite the offending imports.
+The flat copy above lands `libs/subagents/__init__.py` directly under `libs/`, and the package uses **relative** intra-imports (`from .agent import …`), so `from libs.subagents import …` resolves with **no rewrite**. (The old nested `libs/subagents/subagents/` layout — copying the outer dir — is the anti-pattern; don't create it.)
 
 ### Step 3. Verify import works
 
 ```bash
 cd <project root>
-python -c "from libs.subagents.subagents import run_agents, pick_models, record_run, SUBAGENT_RUNS_DDL; print('vendored OK:', run_agents.__name__, pick_models.__name__)"
+python -c "from libs.subagents import run_agents, pick_models, record_agent_run, SUBAGENT_RUNS_DDL; print('vendored OK:', run_agents.__name__, pick_models.__name__)"
 ```
 
 Expected: `vendored OK: run_agents pick_models`.
@@ -244,7 +238,7 @@ The cleanest lean answer: **use Option 1 (unix socket peer auth)** in WSL. It's 
 Every call to `run_agents([AgentSpec, …])` records one row per agent to the ledger (JSONL always; Postgres too when `SUBAGENT_RUNS_DSN` is set — fail-open, never blocks the run).
 
 ```python
-from libs.subagents.subagents import run_agents, AgentSpec
+from libs.subagents import run_agents, AgentSpec
 
 results = run_agents(
     [
@@ -271,14 +265,16 @@ for r in results:
 Before dispatching, ask `pick_models` for the best-ranked candidate:
 
 ```python
-from libs.subagents.subagents import pick_models
+from libs.subagents import pick_models
 
 # Simplest form — return the top-1 model for this task type
 models = pick_models("code", n=1)
 best_model = models[0]
 
-# With a cost ceiling — drops models over $2/M output tokens
-models = pick_models("code", n=3, max_cost_per_mtok=2.0, prefer="value")
+# With a TIGHTER ceiling — the always-on ≤$1.5/Mtok cap ALWAYS applies (select.py:67);
+# max_cost_per_mtok can only lower it further (min of the two). A pricier On-request
+# model needs allow_above_cap=True, not a higher ceiling.
+models = pick_models("code", n=3, max_cost_per_mtok=1.0, prefer="value")
 
 # Excluding one that failed earlier in this session
 models = pick_models("code", n=1, exclude=("anthropic/claude-opus-4.8",))
@@ -286,32 +282,20 @@ models = pick_models("code", n=1, exclude=("anthropic/claude-opus-4.8",))
 
 The `prefer="value"` mode re-ranks by `rank_weight / price` — a slightly-worse but much-cheaper model can beat a top-tier one on that axis. Default `prefer="quality"` uses the doc's rank order (best-first).
 
-### `record_run` — the ONLY write path (orchestrator-scored quality)
+### `record_agent_run` — the canonical write (orchestrator-scored quality)
 
-As of the fabrik-lib update landing after `run_agents` shipped: **the module no longer silently auto-writes rows during `run_agents`**. Every ledger row lands via an explicit `record_run` call that the orchestrator makes AFTER evaluating the subagent's output (gate + tests, or the review verdict), so every row is quality-bearing — no duplicates, no NULL-quality noise. The wired `/fabrik-execute-plan` and `/fabrik-review` command steps make that call for you. If you have your own orchestrator (e.g. "did the test pass? did the PR get approved?"), call `record_run` directly:
+As of the fabrik-lib update landing after `run_agents` shipped: **the module no longer silently auto-writes Postgres rows during `run_agents`** (it only appends the local JSONL ledger). Every `subagent_runs` row lands via an explicit call the orchestrator makes AFTER evaluating the subagent's output (gate + tests, or the review verdict), so every row is quality-bearing. **The canonical call is `record_agent_run(spec, result, …)`** — it merges the `AgentSpec` (which carries `model`/`task_type`) with the `AgentResult` for you. ⚠️ Do NOT call `record_run(result)` on a raw `AgentResult` — it **silently no-ops** (`record_run` wants a `dict`; `model`/`task_type` are not on the result). The wired `/fabrik-execute-plan` and `/fabrik-review` steps make the call for you; for your own orchestrator:
 
 ```python
-from libs.subagents.subagents import record_run
+from libs.subagents import record_agent_run
 
-record_run(
-    {
-        "agent_id": "agent-42",
-        "task_type": "review",
-        "model": "z-ai/glm-5",
-        "provider": "openrouter",
-        "status": "done",
-        "cost_usd": 0.31,
-        "turns": 5,
-        "latency_s": 42.1,
-        "tool_calls": None,
-    },
-    quality_score=0.87,   # ← YOUR scoring — 0..2 conventionally
-)
+# after run_agents(...) → for each (spec, result) you judged:
+record_agent_run(spec, result, quality_score=5, project="myproj")  # quality 0–5
 ```
 
-**Signature note.** The real signature is `record_run(record: dict, *, dsn=None, project=None, quality_score=None, connect=None)` — row fields (`agent_id`, `task_type`, `model`, `provider`, `status`, `cost_usd`, `turns`, `latency_s`, `tool_calls`) live INSIDE the `record` dict; only `quality_score`, `dsn`, `project`, and `connect` are separate kwargs. A previous draft of this doc showed them as top-level kwargs — copy-pasting that raised `TypeError: unexpected keyword argument 'agent_id'`.
+**Low-level path.** `record_agent_run` wraps `record_run(record: dict, *, dsn=None, project=None, quality_score=None, connect=None)`. Call `record_run` directly ONLY with a pre-built dict — row fields (`agent_id`, `task_type`, `model`, `provider`, `status`, `cost_usd`, `turns`, `latency_s`, `tool_calls`) live INSIDE the dict; `quality_score`/`dsn`/`project`/`connect` are kwargs. Passing anything that fails `isinstance(record, dict)` (a raw `AgentResult`) **no-ops fail-open** — that is exactly why you prefer `record_agent_run`.
 
-Every row now carries a real `quality_score` (the `/fabrik-*` command steps supply one on every write, so the fleet-wide default is quality-bearing). The aggregator still tolerates a NULL as a defensive fallback — it degrades the formula to `success_rate / cost` (neutral quality = 1.0) rather than collapsing to zero — but under the new contract that path is dead code, not the norm.
+Every row now carries a real `quality_score` (0–5; the `/fabrik-*` steps supply one on every write). The aggregator still tolerates a NULL as a defensive fallback — degrading to `success_rate / cost` — but under the current contract that path is not the norm.
 
 ---
 
@@ -404,7 +388,7 @@ The vendored `pick_models` (per the fabrik-lib AI's implementation at `select.py
 
 ### Database schema — `fabrik_analytics.subagent_runs`
 
-Applied by `apply_subagent_runs_ddl.sh` (WSL) or `ensure_shared_analytics_db()` on VPS. Source of truth: `python -c "from subagents import SUBAGENT_RUNS_DDL; print(SUBAGENT_RUNS_DDL)"`.
+Applied by `apply_subagent_runs_ddl.sh` (WSL) or `ensure_shared_analytics_db()` on VPS. Source of truth: `python -c "from libs.subagents import SUBAGENT_RUNS_DDL; print(SUBAGENT_RUNS_DDL)"`.
 
 ```sql
 CREATE TABLE IF NOT EXISTS subagent_runs (
@@ -570,7 +554,7 @@ Not blocking anyone; noted for future planning.
 
 3. **`SUBAGENT_SELECTION_DOC` absolute-path resolution.** Currently injected as a relative path (`docs/reference/kilo/TASK_SUBAGENT_SELECTION.md`) resolved from the app's cwd. If a project runs Python from a different working dir, `pick_models` misses the doc. Consider using an env-var-expanded absolute path or letting the module resolve via `pkg_resources` / project root discovery.
 
-4. **Orchestrator quality scoring.** Every row currently has `quality_score=NULL` because `run_agents` has no automatic way to score outcomes. Building an orchestrator that scores outcomes (test-pass rate, PR-approval rate, human vote) and calls `record_run(..., quality_score=x)` closes the last-mile of the ranking.
+4. **Orchestrator quality scoring — in place.** The wired `/fabrik-*` steps call `record_agent_run(spec, result, quality_score=…)` after judging, so every pool-dispatched row is quality-bearing (0–5). Remaining work is volume — the phased pool rollout (execute-plan implementers → review finders) that produces rows at scale.
 
 ---
 
@@ -595,7 +579,7 @@ For a project X to be fully wired into the flywheel:
 - [ ] `SUBAGENT_PROJECT=X` set
 - [ ] `SUBAGENT_SELECTION_DOC=docs/reference/kilo/TASK_SUBAGENT_SELECTION.md` set
 - [ ] `docs/reference/kilo/TASK_SUBAGENT_SELECTION.md` present (governance-synced)
-- [ ] A `python -c "from libs.subagents.subagents import run_agents, AgentSpec; …"` smoke run has recorded a row to `subagent_runs` (verify via `SELECT COUNT(*) WHERE project='X'`)
+- [ ] A `python -c "from libs.subagents import run_agents, AgentSpec; …"` smoke run has recorded a row to `subagent_runs` (verify via `SELECT COUNT(*) WHERE project='X'`)
 - [ ] After ≥3 runs per (task_type, model), the nightly aggregator will list your project's data in the ranked doc.
 
 The flywheel closes automatically from there — every future `pick_models(task_type)` call in any project returns the fleet-best model backed by real runs, and every future `run_agents` call adds a data point that sharpens the ranking further.

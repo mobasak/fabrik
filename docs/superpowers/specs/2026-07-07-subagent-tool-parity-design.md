@@ -6,7 +6,7 @@
 **Date:** 2026-07-07
 **Author:** Claude (via `/fabrik-spec`, driven by Özgür)
 **Scope:** hub-side governance in `/opt/fabrik` (agent types, command briefs, a rules pack, MCP config) + one enhancement proposed to `/opt/fabrik-lib/subagents`. No deployed service; no `shape.*` flags apply.
-**Related:** `2026-07-06-subagent-runs-telemetry-design.md` (the *flywheel*/`record_run` side) — this spec is the complementary *tool-access* side; both concern the same three runtimes.
+**Related:** `2026-07-06-subagent-runs-telemetry-design.md` (the *flywheel*/`record_agent_run` side) — this spec is the complementary *tool-access* side; both concern the same three runtimes.
 
 ---
 
@@ -21,7 +21,7 @@ When any Fabrik command dispatches a subagent (research grounder, code finder, G
 
 ## Non-goals / out of scope
 
-- The `record_run`/telemetry flywheel (covered by `2026-07-06-subagent-runs-telemetry-design.md`).
+- The `record_agent_run`/telemetry flywheel (covered by `2026-07-06-subagent-runs-telemetry-design.md`).
 - Building a new subagent runtime — the pool already exists (`fabrik-lib/subagents`).
 - Giving the pool browser/GUI tools — there is no OpenRouter-side equivalent (see Constraints).
 - Re-grounding the `.windsurf/rules` write-style packs (that is `/fabrik-plan-after-chat`'s job).
@@ -42,8 +42,8 @@ When any Fabrik command dispatches a subagent (research grounder, code finder, G
    - Sources: https://www.npmjs.com/package/@brave/brave-search-mcp-server · https://github.com/brave/brave-search-mcp-server (fetched 2026-07-07).
    - **Wired this session:** `BRAVE_API_KEY` saved to `/opt/fabrik/.env` (+ `.env.example` placeholder); `claude mcp add brave-search --scope user` → **✔ Connected**. Tool namespace `mcp__brave-search__*`.
 3. **fabrik-lib `subagents` module** — the Runtime-C runtime (VENDOR target).
-   - `AgentSpec` (`subagents/subagents/agent.py:42-82`): `web_tools: frozenset[str] | None` (off by default — `{web_search, web_scrape, web_crawl, docs_lookup}`), `tools_enabled`, `allowed_commands` (default `python/pytest/ruff/mypy`, **no `git`, no network**), `sandbox` (bubblewrap, fail-closed), `task_type` (`spec/plan/code/review/docs/research`).
-   - `web_tools.py`: *"Env-keyed HTTP tools that call the hosted Exa / Firecrawl / Context7 APIs. OFF by default."* (`web_search`→Exa, `web_scrape`/`web_crawl`→Firecrawl, `docs_lookup`→Context7). **No Brave provider; no browser tool.**
+   - `AgentSpec` (`subagents/subagents/agent.py:42-82`): `web_tools: frozenset[str] | None` (off by default — `{web_search, web_search_brave, web_scrape, web_crawl, docs_lookup}`), `tools_enabled`, `allowed_commands` (default `python/pytest/ruff/mypy`, **no `git`, no network**), `sandbox` (bubblewrap, fail-closed), `task_type` (`spec/plan/code/review/docs/research`).
+   - `web_tools.py`: *"Env-keyed HTTP tools that call the hosted Exa / Brave / Firecrawl / Context7 APIs. OFF by default."* (`web_search`→Exa, `web_search_brave`→Brave, `web_scrape`/`web_crawl`→Firecrawl, `docs_lookup`→Context7). **Brave provider SHIPPED (`web_search_brave`, `web_tools.py:130`); no browser tool.**
    - `PROPOSED_RULE-using-subagents.md`: the never-route list (auth/identity/crypto · schema/migrations · secrets · security controls · deploy/infra) + "enable web_tools per task type, not by default" + "keep the sandbox on."
    - Source: read directly this session at the paths above.
 
@@ -67,7 +67,7 @@ When any Fabrik command dispatches a subagent (research grounder, code finder, G
 
 | Capability | Main agent (A) | Claude Code subagent (B) | Pool (C) |
 |---|---|---|---|
-| Web search | `mcp__exa__*`, `mcp__brave-search__*`, `WebSearch` | `mcpServers: [exa, brave-search]` (scoped type) or inherit | `web_tools={"web_search"}` (Exa; Brave = fabrik-lib enhancement) |
+| Web search | `mcp__exa__*`, `mcp__brave-search__*`, `WebSearch` | `mcpServers: [exa, brave-search]` (scoped type) or inherit | `web_tools={"web_search","web_search_brave"}` (Exa + Brave — both shipped) |
 | Page scrape/crawl | `mcp__firecrawl__*` | `mcpServers: [firecrawl]` | `web_tools={"web_scrape","web_crawl"}` |
 | Library docs | `mcp__context7__*` | `mcpServers: [context7]` | `web_tools={"docs_lookup"}` |
 | GUI drive/verify | `mcp__playwright__*`, `shadcn`, `chrome-devtools`, `maestro` | `mcpServers: [playwright, …]` (or `design-review` type) | **❌ none — stays in A/B (primary or a Claude Code subagent)** |

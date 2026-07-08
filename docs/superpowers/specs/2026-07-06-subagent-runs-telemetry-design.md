@@ -70,9 +70,9 @@ GROUP BY task_type, model
 HAVING COUNT(*) >= 3;
 ```
 
-`value = success_rate × avg_quality / max(avg_cost, 1e-9)` (cost-in-denominator = "value per dollar" — matches `select.py:126` pattern of `rank_weight / price`). Constant at the top of the script, invert to `× avg_cost` if the user's original shorthand meant literal multiplication.
+`value = success_rate × avg_quality / max(avg_cost, 1e-9)` (cost-in-denominator = "value per dollar" — matches `select.py:349`'s `prefer="value"` `rank_weight / price` pattern). Constant at the top of the script, invert to `× avg_cost` if the user's original shorthand meant literal multiplication.
 
-Output shape (mirrors the module's `_TABLE: dict[str, list[str]]` at `select.py:58`):
+Output shape (mirrors the module's `_TABLE: dict[str, list[str]]` at `select.py:119`):
 
 ```markdown
 Last refresh: 2026-07-06
