@@ -1,7 +1,8 @@
 # Subagent pool adoption + enforced flywheel scoring
 
-Status: IN-PROGRESS
+Status: EXECUTED 2026-07-08
 Spec: `docs/superpowers/specs/2026-07-08-subagent-usage-enforcement-design.md` (CONVERGED)
+Executed: 2026-07-08 — Phases A–E complete (commits 60abf964 A · d1973502 B · dfb909ae C · e3219eb9 D · bedfb141 E); whole-plan review clean, final gate `--json` success (37/0), all 6 success criteria + requirements covered.
 Date: 2026-07-08
 Converged: 2026-07-08 (/fabrik-plan-review — 2 passes to an edit-free md5-verified no-op; all path:line re-grounded, gates confirmed WSL-runnable)
 
