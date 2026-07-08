@@ -142,7 +142,7 @@ provenance).
 
 ---
 
-## Phase C — `SUBAGENT_RUNS_DSN` provisioning (record by default)
+## Phase C — `SUBAGENT_RUNS_DSN` provisioning (record by default) — ✅ EXECUTED 2026-07-08 (WSL `/opt/fabrik/.env` DSN already live — proven: `load_env` → `record_agent_run` True → row in `subagent_runs`; NO cross-AI block; added scaffold `.env.example` placeholders + `docs/CONFIGURATION.md` § Subagent flywheel; repo `.env.example` already carried the vars)
 
 **Files:** `src/fabrik/scaffold.py` (`.env.example` template), `/opt/fabrik/.env` (WSL dev — backed up first),
 `.env.example` (repo). **Responsibility:** every project + WSL dev has the writer DSN so `record_agent_run`
@@ -282,8 +282,11 @@ files are user-level (no commit) — commit only the `CHANGELOG.md` note.
   canonical AND re-vendored before Phase D's check is fully live. Resolution: Phase A's UPSTREAM proposal →
   fabrik-lib AI builds → re-vendor → `python -c "from libs.subagents import audit_unrecorded"` exits 0. Phase
   D ships guarded (`ImportError` → skip) so it isn't blocked from landing.
-- **[OPEN → Phase C]** WSL-dev `SUBAGENT_RUNS_DSN`: reuse `subagent_smoke_writer` (exists) or a dedicated dev
-  writer? Resolution: confirm with the coding-selection AI at Phase C start.
+- **[RESOLVED — Phase C, 2026-07-08]** WSL-dev `SUBAGENT_RUNS_DSN` is **already provisioned + working** in
+  `/opt/fabrik/.env` — no cross-AI coordination needed. Proven: `load_env("/opt/fabrik")` loads the DSN →
+  `record_agent_run(...)` returned `True` → a row landed in `fabrik_analytics.subagent_runs` (superuser
+  SELECT). The module autoloads it via `run_agents`; a bare `record_agent_run` needs `load_env` (or an
+  `export`) first, as the pool flow does.
 - **[RESOLVED — Phase A interface, 2026-07-08]** receipt file path/format finalized with the fabrik-lib AI:
   `record_agent_run(…, receipt_dir=None)` → `<cwd>/.tmp/subagents/receipts.jsonl`; `run_agents`-callers pass
   `receipt_dir=<repo>/.tmp/subagents` explicitly (never cwd-dependent); line

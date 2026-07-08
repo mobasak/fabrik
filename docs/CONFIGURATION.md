@@ -164,6 +164,15 @@ At `fabrik apply`, the watchdog driver ships the project's governance set — `C
 
 Unlike the auto-injected vars above, these two are **operator-supplied** in the project `.env` (loaded by the sidecar via `env_file`; the hub does NOT mint them): `WATCHDOG_REDEPLOY_TIMEOUT` (seconds before a redeploy is considered timed-out) and `WATCHDOG_TELEGRAM_OPERATOR_IDS` (comma-separated Telegram chat IDs that gate the fail-closed approval channel). Fail-closed behaviors they drive (fabrik-lib `watchdog/`, commit `1226196`): the sidecar does **not** auto-deploy when the Telegram channel is unreachable, and only PROPOSE-phase incidents auto-apply on timeout. Full behavior in the `WATCHDOG` rule pack.
 
+### Subagent flywheel — `SUBAGENT_RUNS_DSN` / `SUBAGENT_PROJECT` (hub-injected; do NOT hand-set the DSN)
+
+The vendored `libs/subagents` pool scores every run to `fabrik_analytics.subagent_runs` via `record_agent_run`, which `pick_models(task_type)` learns from. The module autoloads both vars from `.env` (`_dotenv.py`, non-overriding — a real `export` or a deploy-injected value always wins):
+
+- `SUBAGENT_RUNS_DSN` — an **INSERT-only** writer DSN for `fabrik_analytics.subagent_runs`. The hub mints the per-project role (`create_subagent_ins_role`) and injects the DSN at `fabrik apply` (VPS) — like `WATCHDOG_DB_URL_*`, generated + managed by the hub, never operator-set; on **WSL dev** it lives in `/opt/fabrik/.env`. **Unset ⇒ `record_agent_run` fail-opens** (no row, no crash) and the flywheel silently doesn't learn — `scripts/enforcement/check_subagent_flywheel.py` WARNs on the resulting unreceipted pool runs.
+- `SUBAGENT_PROJECT` — the project tag written on each row (e.g. `fabrik-hub`), so runs are attributable per project.
+
+The writer role is INSERT-only (no SELECT) — read the table via the `postgres` superuser, never the writer DSN.
+
 ---
 
 ## Architecture Context
