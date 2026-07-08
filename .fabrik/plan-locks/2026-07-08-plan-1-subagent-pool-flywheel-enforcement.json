@@ -1,0 +1,18 @@
+{
+  "plan": "docs/development/plans/2026-07-08-plan-1-subagent-pool-flywheel-enforcement.md",
+  "owned_paths": [
+    ".windsurf/rules/core/62-using-subagents.md",
+    "scripts/enforcement/check_subagent_flywheel.py",
+    "scripts/final_gate.py",
+    "src/fabrik/scaffold.py",
+    "libs/subagents/",
+    "tests/test_check_subagent_flywheel.py",
+    ".env.example",
+    "docs/CONFIGURATION.md",
+    "INDEX.md",
+    "CHANGELOG.md"
+  ],
+  "branch": "master",
+  "started_at": "2026-07-08",
+  "status": "active"
+}

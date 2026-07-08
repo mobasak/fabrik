@@ -1,6 +1,6 @@
 # Subagent pool adoption + enforced flywheel scoring
 
-Status: CONVERGED
+Status: IN-PROGRESS
 Spec: `docs/superpowers/specs/2026-07-08-subagent-usage-enforcement-design.md` (CONVERGED)
 Date: 2026-07-08
 Converged: 2026-07-08 (/fabrik-plan-review — 2 passes to an edit-free md5-verified no-op; all path:line re-grounded, gates confirmed WSL-runnable)
@@ -78,7 +78,7 @@ either toothless (misses gaps) or a false-positive nuisance (blocks clean work) 
 
 ---
 
-## Phase A — fabrik-lib ENHANCE proposal (cross-repo coordination; blocks Phase D)
+## Phase A — fabrik-lib ENHANCE proposal (cross-repo coordination; blocks Phase D) — ✅ EXECUTED 2026-07-08 (fabrik-lib AI built + upstreamed the ENHANCE; re-vendored @ 823754ee for 64896f2, then bumped to 18f5af8 for the fail-closed `allow_ungrounded` guard; `from libs.subagents import audit_unrecorded` resolves → Phase D unguarded)
 
 **Files:** `/opt/fabrik-lib/subagents/UPSTREAM_FEEDBACK.md` (append only — the one sanctioned cross-repo write).
 **Responsibility:** specify the receipt + audit interface precisely so the fabrik-lib AI builds the right

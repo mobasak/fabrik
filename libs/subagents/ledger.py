@@ -198,7 +198,11 @@ def audit_unrecorded(
     return [
         e
         for e in ledger_entries
-        if e.get("agent_id") and e.get("agent_id") not in recorded
+        if e.get("agent_id")
+        and e.get("agent_id") not in recorded
+        # an errored run (a config-refusal — sandbox/grounding — or a transport failure) produced no
+        # gradeable output to score, so it must NOT be flagged as "ran-but-unrecorded".
+        and e.get("status") != "error"
     ]
 
 

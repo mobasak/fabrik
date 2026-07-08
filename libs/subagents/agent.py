@@ -39,6 +39,11 @@ from .loop import LoopOutcome, run_loop
 
 AgentStatus = Literal["done", "capped", "error", "out_of_scope"]
 
+# Verification task_types that MUST read the repo to be truthful — a single-shot (tools_enabled=False)
+# worker on one of these hallucinates about code it can't see. `research`/`spec` ground against the
+# web (via `web_tools`), and `code` writes rather than verifies, so they are NOT gated here.
+_GROUNDED_TASK_KINDS = frozenset({"review", "docs"})
+
 
 @dataclass
 class AgentSpec:
@@ -95,6 +100,12 @@ class AgentSpec:
     # MCP would hand an untrusted pool model unsandboxed I/O, so the default REFUSES it
     # (like sandbox=False for the OS sandbox). Leave False unless you trust the server.
     mcp_allow_unlisted: bool = False
+    # A single-shot (tools_enabled=False) worker on a VERIFICATION task_type (review/docs) can't
+    # read the repo, so it HALLUCINATES about files/code it can't see (empirically q0-1 vs q4-5 for
+    # tool-enabled). The dispatch REFUSES that combo up-front (fail-closed, no paid call) unless you
+    # set this True to acknowledge you've inlined the FULL content into `task` (the finder pattern).
+    # Prefer tools_enabled=True for grounding. Like sandbox=False, treat True as a reviewable opt-out.
+    allow_ungrounded: bool = False
 
 
 @dataclass
@@ -199,6 +210,28 @@ async def _run_one(
             ),
         )
         result.latency_s = time.monotonic() - t0  # match every other exit path's provenance
+        await asyncio.to_thread(_safe_ledger, ledger, spec, result)
+        return result
+    # Pre-flight FAIL-CLOSED: a single-shot (tools_enabled=False) worker on a VERIFICATION task_type
+    # can't read the repo, so it hallucinates about files/code it can't see (empirically q0-1). Refuse
+    # UP FRONT (no paid call) unless the caller acknowledged it inlined the content (allow_ungrounded).
+    if (
+        not spec.tools_enabled
+        # case-insensitive + None-safe: a safety guard must fail-safe — `task_type="Review"` from a
+        # hand-built spec (which skips pick_models' lowercasing) must not slip past.
+        and (spec.task_type or "").lower() in _GROUNDED_TASK_KINDS
+        and not spec.allow_ungrounded
+    ):
+        result = AgentResult(
+            agent_id, "", "", "error", None, None, 0,
+            error=(
+                f"single-shot (tools_enabled=False) '{spec.task_type}' worker can't read the repo — "
+                "it hallucinates about files/code it cannot see (empirically q0-1 vs q4-5 tool-"
+                "enabled). Use tools_enabled=True so it reads the real files, OR inline the FULL "
+                "content into `task` and set AgentSpec.allow_ungrounded=True to acknowledge it."
+            ),
+        )
+        result.latency_s = time.monotonic() - t0
         await asyncio.to_thread(_safe_ledger, ledger, spec, result)
         return result
     async with sem:
