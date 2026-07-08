@@ -161,6 +161,13 @@ def check_structure(project_root: Path, files: list[str] | None = None) -> list[
         if len(parts) >= 2 and parts[0] == "scripts" and parts[1] == "sysadmin":
             continue
 
+        # libs/<module>/ holds VENDORED fabrik-lib modules — each owns its docs
+        # (README already allowed above, plus VENDORING.md / API notes shipped with
+        # the copy). These are the module's own reference material that travels with
+        # the vendored code, not stray project docs. (2026-07-08)
+        if parts and parts[0] == "libs":
+            continue
+
         # Flag forbidden directories as errors (not skip!)
         forbidden_dir = next((p for p in parts if p in NO_MD_DIRS), None)
         if forbidden_dir:

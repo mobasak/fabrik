@@ -60,6 +60,12 @@ _OUT_PRICE: dict[str, float] = {
     "x-ai/grok-4.20-multi-agent": 2.50,
 }
 
+# Fleet cost policy: the Auto-tier output-price cap. `pick_models` ALWAYS enforces this (so it is
+# the sole gatekeeper — no rule/command file needs to name a roster or a price); a caller opts into
+# the On-request tier for a pricier model with `allow_above_cap=True`. Changing the policy = change
+# this one constant.
+_MAX_POOL_PRICE_PER_MTOK = 1.5
+
 # --- Live pricing fallback (opt-in) --------------------------------------------------
 # The static table above is the offline default; it only covers the curated pool and can
 # go stale. When live pricing is enabled (``model_price(..., live=True)`` or env
@@ -275,14 +281,26 @@ def pick_models(
     prefer: Literal["quality", "value"] = "quality",
     ranking: dict[str, list[str]] | None = None,
     live: bool | None = None,
+    allow_above_cap: bool = False,
 ) -> list[str]:
-    """Return up to ``n`` model ids for ``task_type``, best-first, honoring a cost ceiling.
+    """Return up to ``n`` model ids for ``task_type``, best-first, under the fleet cost cap.
+
+    This is the SOLE gatekeeper for the ≤$1.5/Mtok fleet policy: it ALWAYS enforces
+    :data:`_MAX_POOL_PRICE_PER_MTOK` on the default (Auto) tier — a pricier model can never
+    reach the default pool even if the synced ranking doc surfaces one or a caller passes a
+    looser ``max_cost_per_mtok``. Rule/command packs therefore name no model rosters; they name
+    only the invariant + this mechanism (see ``PROPOSED_RULE-using-subagents.md``).
 
     Args:
         task_type: one of :data:`TASK_KINDS`. Unknown → ``ValueError``.
         n: how many models to return (e.g. for a parallel A/B). May return fewer if the
            ceiling or ``exclude`` filters them out.
-        max_cost_per_mtok: drop models whose output $/M exceeds this — the min-spend guard.
+        max_cost_per_mtok: an ADDITIONAL, tighter ceiling on output $/M — the min-spend guard.
+           It can only lower the effective cap (``min`` with the always-on fleet cap), never
+           raise it above $1.5 on the Auto tier.
+        allow_above_cap: the On-request tier. ``True`` drops the always-on ≤$1.5 fleet cap so a
+           pricier benchmarked model (kept in the data, never in the default pool) can be
+           selected — then only ``max_cost_per_mtok`` (if given) applies. Default ``False``.
         exclude: model ids to skip (e.g. one that failed this session — the reliability lever).
         prefer: ``"quality"`` = the source ranking (best output first); ``"value"`` = re-rank
                 by rank-adjusted cheapness (``(rank_weight)/price``) so a nearly-as-good but
@@ -309,13 +327,24 @@ def pick_models(
     ranked = [
         m for m in (table.get(task_type) or _TABLE[task_type]) if m not in excluded
     ]
-    if max_cost_per_mtok is not None:
-        # FAIL-CLOSED: an unpriced model (unknown to the vendored price table, e.g. one a synced
-        # doc surfaced) is DROPPED by any ceiling — a hard budget guard must not be bypassed by
-        # an unknown price. The caller lifts the ceiling or adds the model's price to select it.
-        ranked = [
-            m for m in ranked if _price_or_inf(m, live) <= max_cost_per_mtok
-        ]
+    # AUTO-TIER PRICE CAP — pick_models is the SOLE gatekeeper. The fleet ≤$1.5/Mtok cap is ALWAYS
+    # enforced: even if the synced CODING_SUBAGENT_SELECTION.md is refreshed with a pricier model, or
+    # a caller passes a looser `max_cost_per_mtok`, a >$1.5 model can never reach the default pool.
+    # `max_cost_per_mtok` can only make the ceiling TIGHTER (min of the two). A caller opts into the
+    # On-request tier for a pricier model with `allow_above_cap=True` — then only its own ceiling (if
+    # any) applies. FAIL-CLOSED: an unpriced model (unknown even to the live fetch) prices to +inf and
+    # is DROPPED by any ceiling — a hard budget guard must not be bypassed by an unknown price.
+    ceilings = [
+        c
+        for c in (
+            None if allow_above_cap else _MAX_POOL_PRICE_PER_MTOK,
+            max_cost_per_mtok,
+        )
+        if c is not None
+    ]
+    if ceilings:
+        cap = min(ceilings)
+        ranked = [m for m in ranked if _price_or_inf(m, live) <= cap]
     if prefer == "value":
         # value = rank_weight / price; rank_weight is higher for better-ranked models, so a
         # cheaper model only overtakes a better-ranked one when its price advantage outweighs
