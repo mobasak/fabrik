@@ -172,6 +172,18 @@ cross-project `cost_ledger`). Turn it on by setting **one env var**; it is other
   `record_agent_run(spec, result, quality_score=<0–5>, project=…)` (WSL dev: pass a peer-auth
   `connect=`; VPS: the injected `SUBAGENT_RUNS_DSN` connects directly). Skipping it means the
   ranking never improves.
+- **⚠️ Debugging a silent `False` (fail-open hides the cause).** `record_agent_run` returns `False`
+  — no row, no error — for **every** failure: no DSN, driver absent, unreachable DB, missing table,
+  or a **GRANT gap**. A returned `False` when you expected a write is ambiguous by design; walk this
+  ladder to disambiguate: **(1)** `python -c "import psycopg"` — `ModuleNotFoundError` ⇒ install
+  `psycopg[binary]` (it's lazy-imported in `pg_ledger._connect`, so a missing driver looks exactly
+  like a GRANT gap). **(2)** direct `psql` INSERT as the writer role — if that works but
+  `record_agent_run` still returns `False`, it's the **driver/DSN**. **(3)** if the direct INSERT
+  *also* fails, it's a **privilege** gap: the INSERT-only writer role needs `INSERT ON subagent_runs`
+  **plus** `USAGE ON SCHEMA public` **plus** `USAGE ON SEQUENCE subagent_runs_id_seq` (all three — the
+  `BIGSERIAL` id needs the sequence grant, a common miss). On the VPS the hub provisions this role
+  automatically on `fabrik apply`; on WSL dev you provision a writer role yourself and pass its
+  peer-auth `connect=` factory.
 
 ## Web research tools (opt-in, paid)
 
