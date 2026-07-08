@@ -174,7 +174,7 @@ writes without hand-wiring. VPS is already provisioned (`postgres.py:782 create_
 
 ---
 
-## Phase D — `check_subagent_flywheel.py` + wire `final_gate` (fleet-synced, WARN)
+## Phase D — `check_subagent_flywheel.py` + wire `final_gate` (fleet-synced, WARN) — ✅ EXECUTED 2026-07-08 (built the advisory check calling `audit_unrecorded` (guarded for un-re-vendored projects) + 3 behavior tests + registered `advisory=True` at `final_gate.py` with a dated warn→fail escalation TODO; gate 33/0)
 
 **Files:** `scripts/enforcement/check_subagent_flywheel.py` (new, fleet-synced), `scripts/final_gate.py`
 (register), `tests/test_check_subagent_flywheel.py`. **Depends on Phase A** (`audit_unrecorded` vendored).
@@ -278,10 +278,10 @@ files are user-level (no commit) — commit only the `CHANGELOG.md` note.
 
 ## Residual unknowns
 
-- **[BLOCKING → Phase D]** the receipt + `audit_unrecorded` ENHANCE must be built by the fabrik-lib AI in
-  canonical AND re-vendored before Phase D's check is fully live. Resolution: Phase A's UPSTREAM proposal →
-  fabrik-lib AI builds → re-vendor → `python -c "from libs.subagents import audit_unrecorded"` exits 0. Phase
-  D ships guarded (`ImportError` → skip) so it isn't blocked from landing.
+- **[RESOLVED — Phase A/D, 2026-07-08]** the receipt + `audit_unrecorded` ENHANCE is **built + vendored**:
+  fabrik-lib landed it in canonical (`64896f2`, hardened by `18f5af8`'s `allow_ungrounded` guard), re-vendored
+  flat into `libs/subagents` (`from libs.subagents import audit_unrecorded` exits 0), and Phase D's check calls
+  it (still `ImportError`-guarded so the fleet-synced check ships to not-yet-re-vendored projects too).
 - **[RESOLVED — Phase C, 2026-07-08]** WSL-dev `SUBAGENT_RUNS_DSN` is **already provisioned + working** in
   `/opt/fabrik/.env` — no cross-AI coordination needed. Proven: `load_env("/opt/fabrik")` loads the DSN →
   `record_agent_run(...)` returned `True` → a row landed in `fabrik_analytics.subagent_runs` (superuser

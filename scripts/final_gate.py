@@ -655,6 +655,18 @@ def run_consistency_checks(
         results.append(
             run_optional_check("scripts/enforcement/check_doc_sync.py", "Doc Sync Matrix")
         )
+        # Subagent flywheel — WARN when a POOL run (run_agents) ran but was never scored+recorded
+        # (ledger − receipts, reconciled locally since the subagent_runs writer role is INSERT-only).
+        # Native Task subagents write no ledger → never flagged. Advisory now (never blocks).
+        # TODO(2026-07-22): flip advisory=False — operator-approved warn-then-fail escalation once
+        # pool-default + DSN provisioning have settled fleet-wide.
+        results.append(
+            run_optional_check(
+                "scripts/enforcement/check_subagent_flywheel.py",
+                "Subagent Flywheel (pool runs recorded)",
+                advisory=True,
+            )
+        )
         # Script coupling header — each staged scripts/**/*.py declares (via a
         # `# AFTER-EDIT:` header) the files to update when it changes. WARN-tier,
         # touch-on-change (mirrors Doc Sync); never blocks.
