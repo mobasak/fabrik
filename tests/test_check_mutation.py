@@ -27,6 +27,17 @@ def test_parse_survivors_clean_when_none_survive():
     assert cm.parse_survivors("all mutants killed") == 0
 
 
+def test_parse_survivors_no_false_positive_on_negation():
+    # "survived" in a NEGATION must NOT read as a survivor (a false advisory alarm).
+    assert cm.parse_survivors("no mutants survived") == 0
+    assert cm.parse_survivors("Done. All killed. No survivors.") == 0
+
+
+def test_parse_survivors_handles_survived_colon_n():
+    # tolerate the `survived: N` ordering some mutmut summaries use.
+    assert cm.parse_survivors("Survived: 3") == 3
+
+
 def test_flag_unset_skips_advisory_in_gate():
     # Given FABRIK_MUTMUT unset (the per-commit gate), Then the runner skips with a pointer, exit 0.
     env = {k: v for k, v in os.environ.items() if k != "FABRIK_MUTMUT"}

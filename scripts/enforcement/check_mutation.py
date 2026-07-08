@@ -47,12 +47,12 @@ def changed_python(base: str | None = None) -> list[str]:
 
 
 def parse_survivors(results_text: str) -> int:
-    """Surviving-mutant count from ``mutmut results`` output (tolerant of format drift): prefer an
-    explicit ``N survived`` summary, else count survived-marked mutant lines."""
-    m = re.search(r"(\d+)\s+survived", results_text, re.IGNORECASE)
-    if m:
-        return int(m.group(1))
-    return len(re.findall(r"^\s*\S+.*\bsurvived\b", results_text, re.IGNORECASE | re.MULTILINE))
+    """Surviving-mutant count from ``mutmut results`` output (tolerant of `N survived` / `survived: N`
+    ordering). If no explicit count is present, report **0** — NEVER count lines that merely contain
+    the word "survived" (``no mutants survived`` must not read as one survivor → a false advisory
+    alarm). Under-reporting is the safe failure mode for an advisory signal."""
+    m = re.search(r"(\d+)\s+survived|survived[:\s]+(\d+)", results_text, re.IGNORECASE)
+    return int(m.group(1) or m.group(2)) if m else 0
 
 
 def main() -> int:
