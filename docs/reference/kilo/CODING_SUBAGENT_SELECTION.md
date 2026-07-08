@@ -1,6 +1,6 @@
 # Coding subagent selection
 
-**Generated:** 2026-07-07 · **Source:** `scripts/kilo-benchmarks/kilo_agents.db` · **Generator:** `scripts/kilo-benchmarks/rank_coding_subagents.py`
+**Generated:** 2026-07-08 · **Source:** `scripts/kilo-benchmarks/kilo_agents.db` · **Generator:** `scripts/kilo-benchmarks/rank_coding_subagents.py`
 
 Ranked candidates for coding-subagent dispatch across the GLM (z-ai), Kimi (moonshotai), Minimax, and DeepSeek families. Regenerated daily by `scripts/kilo-benchmarks/daily_refresh.sh` after pricing and microbench data refreshes.
 
@@ -19,10 +19,10 @@ Auto tier — OpenRouter output ≤ $1.5/Mtok. `pick_models` auto-selects freely
 | 1 | `minimax/minimax-m2.5` | ✅ | Inceptron | 54 | 0.120 | 0.480 | 75.8 | — | — | 1436 | 204k | **B+** | 0.576 |
 | 2 | `deepseek/deepseek-v3.2` | ✅ | StreamLake | 63 | 0.229 | 0.343 | 70.0 | 70.2 | — | 1431 | 131k | **B** | 0.551 |
 | 3 | `minimax/minimax-m2` | ✅ | Minimax | 54 | 0.255 | 1.020 | 61.0 | — | — | — | 204k | **C+** | 0.440 |
-| 4 | `minimax/minimax-m3` | ✅ | Minimax | 99 | 0.300 | 1.200 | — | — | 44 | 1485 | 1048k | **A+** | 0.422 |
-| 5 | `deepseek/deepseek-v4-flash` | ✅ | DeepInfra | 116 | 0.090 | 0.180 | — | — | 40 | 1460 | 1048k | **A** | 0.404 |
+| 4 | `minimax/minimax-m3` | ✅ | Minimax | 93 | 0.300 | 1.200 | — | — | 44 | 1485 | 1048k | **A+** | 0.421 |
+| 5 | `deepseek/deepseek-v4-flash` | ✅ | DeepInfra | 114 | 0.090 | 0.180 | — | — | 40 | 1460 | 1048k | **A** | 0.404 |
 | 6 | `minimax/minimax-m2.7` | ✅ | DeepInfra | 51 | 0.180 | 0.720 | — | — | 38 | 1448 | 204k | **B-** | 0.367 |
-| 7 | `deepseek/deepseek-v4-pro` | ✅ | DeepSeek | 70 | 0.435 | 0.870 | — | — | 44 | — | 1048k | **A** | 0.318 |
+| 7 | `deepseek/deepseek-v4-pro` | ✅ | DeepSeek | 69 | 0.435 | 0.870 | — | — | 44 | — | 1048k | **A** | 0.317 |
 | 8 | `minimax/minimax-m2.1` | ✅ | Minimax | 61 | 0.300 | 1.200 | — | — | — | 1430 | 204k | **B-** | 0.225 |
 | 9 | `z-ai/glm-4.5-air` | ✅ | Novita | 105 | 0.130 | 0.850 | — | — | — | 1410 | 131k | **C+** | 0.224 |
 | 10 | `deepseek/deepseek-v3.2-exp` | ✅ | Novita | 35 | 0.270 | 0.410 | — | — | — | 1431 | 163k | **C+** | 0.224 |
@@ -48,9 +48,9 @@ On-request tier — OpenRouter output > $1.5/Mtok. Operator opt-in only: `pick_m
 | 4 | `deepseek/deepseek-r1` | ✅ | Novita | 18 | 0.700 | 2.500 | — | 71.4 | — | 1382 | 163k | **B** | 0.475 |
 | 5 | `moonshotai/kimi-k2.5` | ✅ | DigitalOcean | 46 | 0.375 | 2.025 | 70.8 | — | — | — | 262k | **B+** | 0.470 |
 | 6 | `moonshotai/kimi-k2` | ✅ | Novita | 37 | 0.570 | 2.300 | — | 59.1 | — | 1402 | 131k | **C+** | 0.450 |
-| 7 | `z-ai/glm-5.1` | ✅ | StreamLake | 67 | 0.966 | 3.036 | — | — | 40 | 1506 | 202k | **B** | 0.398 |
-| 8 | `z-ai/glm-5.2` | ✅ | Novita | 218 | 0.930 | 3.000 | — | — | 51 | — | 1048k | **A+** | 0.338 |
-| 9 | `moonshotai/kimi-k2.6` | ✅ | Inceptron | 68 | 0.660 | 3.410 | — | — | 44 | — | 262k | **B** | 0.291 |
+| 7 | `z-ai/glm-5.1` | ✅ | StreamLake | 66 | 0.966 | 3.036 | — | — | 40 | 1506 | 202k | **B** | 0.398 |
+| 8 | `z-ai/glm-5.2` | ✅ | Novita | 215 | 0.930 | 3.000 | — | — | 51 | — | 1048k | **A+** | 0.338 |
+| 9 | `moonshotai/kimi-k2.6` | ✅ | Inceptron | 52 | 0.660 | 3.410 | — | — | 44 | — | 262k | **B** | 0.287 |
 | 10 | `moonshotai/kimi-k2.7-code` | ✅ | DeepInfra | 51 | 0.740 | 3.500 | — | — | 42 | — | 262k | **B** | 0.278 |
 | 11 | `z-ai/glm-4.7` | ✅ | DeepInfra | 70 | 0.400 | 1.750 | — | — | — | 1460 | 202k | **B** | 0.245 |
 | 12 | `deepseek/deepseek-r1-0528` | ✅ | DeepInfra | 16 | 0.500 | 2.150 | — | — | — | 1436 | 163k | **C+** | 0.196 |

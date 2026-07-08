@@ -100,10 +100,12 @@ specs = [AgentSpec(task=brief, model=m, task_type="spec", tools_enabled=False) f
 results = run_agents(specs, repo=repo)
 ```
 
-- `pick_models(task_type, n=1, *, max_cost_per_mtok=None, exclude=(), prefer="quality"|"value", live=None)`
+- `pick_models(task_type, n=1, *, max_cost_per_mtok=None, exclude=(), prefer="quality"|"value", live=None, allow_above_cap=False)`
   — `prefer="value"` re-ranks toward a nearly-as-good-but-cheaper worker (rank-weight ÷ price);
-  `max_cost_per_mtok` is the min-spend guard; `exclude` is the reliability lever; `live` prices
-  models beyond the static table (see below).
+  `max_cost_per_mtok` is an *additional, tighter* ceiling (it can only lower the always-on fleet cap,
+  never raise it); `exclude` is the reliability lever; `live` prices models beyond the static table
+  (see below); `allow_above_cap=True` is the **On-request tier** — it drops the always-on ≤$1.5 cap so
+  a pricier benchmarked model can be selected (see the allowed-pool bullet).
 - `TASK_KINDS`, `TASK_MODEL_TABLE` (read-only view), `model_price(model, *, live=None)` are also exported.
 - **Pricing — static table + live fallback.** `model_price` reads a vendored static table (the
   curated pool, seeded from `CODING_SUBAGENT_SELECTION.md`) offline. For a model **not** in that
@@ -117,11 +119,19 @@ results = run_agents(specs, repo=repo)
   plus empirical fabrik runs; every run's `task_type` is recorded to the ledger so aggregating
   real cost×quality×reliability per task type refines the table over time (the flywheel).
   Only models from the allowed `CODING_SUBAGENT_SELECTION.md` pool appear.
-- **Allowed pool — cost policy (2026-07-08):** a model is selectable only if its **output price is
-  ≤ $1.5/Mtok**. The current members are five benchmarked models — `deepseek-v4-flash`,
-  `deepseek-v3.2`, `minimax-m2.5`, `deepseek-v4-pro`, `minimax-m3` (output $0.18–$1.20). Models
-  over $1.5 (glm-5/5.x $3.00+, kimi $2.03–3.50, grok $2.50, qwen $3.75) are **not** selected by
-  `pick_models` — they stay *priced* for an explicit opt-in test only.
+- **Allowed pool — cost policy (2026-07-08), enforced IN `pick_models`:** a model is selectable only
+  if its **output price is ≤ $1.5/Mtok**. This cap (`_MAX_POOL_PRICE_PER_MTOK`) is enforced **inside
+  `pick_models` itself** — it is the SOLE gatekeeper. Even if the synced `CODING_SUBAGENT_SELECTION.md`
+  is refreshed with a pricier model, or a caller passes a looser `max_cost_per_mtok=`, a >$1.5 model can
+  never reach the default (Auto) pool. The current members are five benchmarked models —
+  `deepseek-v4-flash`, `deepseek-v3.2`, `minimax-m2.5`, `deepseek-v4-pro`, `minimax-m3` (output
+  $0.18–$1.20). Models over $1.5 (glm-5/5.x $3.00+, kimi $2.03–3.50, grok $2.50, qwen $3.75) stay
+  *priced and rankable* but are never returned by default.
+- **On-request tier — `allow_above_cap=True`:** because `pick_models` is the single enforcement point,
+  packs and callers name no roster and set no cap of their own — they just call `pick_models`. To
+  deliberately reach a pricier model for an explicit opt-in benchmark, pass `allow_above_cap=True`
+  (then only your own `max_cost_per_mtok`, if any, applies). Treat it like `sandbox=False` in review:
+  justified at the call site or it's a bug.
 - **Fresh empirical ranking (opt-in):** when the hub ships the aggregated
   `TASK_SUBAGENT_SELECTION.md` (from `kilo-benchmarks`, synced fleet-wide — one `### <task_type>`
   section per kind, ranked by success × quality / cost), point env **`SUBAGENT_SELECTION_DOC`** at
