@@ -22,10 +22,8 @@ The consolidated report + per-phase findings land under `docs/development/audits
 from __future__ import annotations
 
 import os
-import subprocess
 import sys
 from pathlib import Path
-from typing import Any
 
 # Autoload /opt/fabrik/.env so SUBAGENT_RUNS_DSN + SUBAGENT_PROJECT are set for
 # pool worker record_agent_run calls (hub peer-auth to fabrik_analytics).
@@ -102,10 +100,7 @@ def _render_findings_md(phase: str, rows: list[dict], out: Path) -> None:
         header_keys = list(rows[0].keys())
         header = "| " + " | ".join(header_keys) + " |"
         sep = "| " + " | ".join(["---"] * len(header_keys)) + " |"
-        body = [
-            "| " + " | ".join(str(r.get(k, "")) for k in header_keys) + " |"
-            for r in rows
-        ]
+        body = ["| " + " | ".join(str(r.get(k, "")) for k in header_keys) + " |" for r in rows]
         lines = [
             f"# Phase {phase} — Findings",
             "",
@@ -265,7 +260,9 @@ def _dispatch_pool_audit(
             # Worker returned no valid row → capture as an ESCALATE finding.
             rows.append(
                 {
-                    "script": Path(str(spec.task).split("=== source: ", 1)[-1].split(" ===", 1)[0]).name
+                    "script": Path(
+                        str(spec.task).split("=== source: ", 1)[-1].split(" ===", 1)[0]
+                    ).name
                     if "=== source: " in str(spec.task)
                     else "?",
                     "ran": "no",
@@ -297,9 +294,7 @@ def _dispatch_pool_audit(
         # may re-score after evaluating). Fail-soft on any error.
         if record_agent_run is not None:
             try:
-                record_agent_run(
-                    spec, result, quality_score=3, project="fabrik-hub"
-                )
+                record_agent_run(spec, result, quality_score=3, project="fabrik-hub")
             except Exception:  # noqa: BLE001 — fail-open per pg_ledger contract.
                 pass
 
@@ -360,12 +355,24 @@ def _run_inline_ingestor_scan(scripts: list[Path]) -> list[dict]:
         dry_run = "yes" if re.search(r'"--dry-run"|--dry-run', text) else "no"
         # (b) writes tagged
         has_ignore = bool(re.search(r"INSERT OR IGNORE|INSERT OR REPLACE", text, re.I))
-        has_upd_where = bool(re.search(r"UPDATE\s+\w+\s+SET.*?WHERE\s+\w+\s*=\s*[?\"]", text, re.I | re.S))
-        writes_tagged = "yes" if (has_ignore or has_upd_where) else (
-            "n/a" if "INSERT " not in text.upper() and "UPDATE " not in text.upper() else "no"
+        has_upd_where = bool(
+            re.search(r"UPDATE\s+\w+\s+SET.*?WHERE\s+\w+\s*=\s*[?\"]", text, re.I | re.S)
+        )
+        writes_tagged = (
+            "yes"
+            if (has_ignore or has_upd_where)
+            else (
+                "n/a" if "INSERT " not in text.upper() and "UPDATE " not in text.upper() else "no"
+            )
         )
         # (c) speed/last_verified/status
-        has_tag = bool(re.search(r"speed_source|last_verified|discard_reason|status\s*=\s*['\"](active|deprecated)", text, re.I))
+        has_tag = bool(
+            re.search(
+                r"speed_source|last_verified|discard_reason|status\s*=\s*['\"](active|deprecated)",
+                text,
+                re.I,
+            )
+        )
         # (d) fail-soft on network error
         has_fail_soft = bool(
             re.search(r"httpx\.HTTPError|httpx\.RequestError|requests\.exceptions", text)
@@ -377,7 +384,9 @@ def _run_inline_ingestor_scan(scripts: list[Path]) -> list[dict]:
         if dry_run == "no":
             summary_parts.append("no --dry-run flag")
         if writes_tagged == "no":
-            summary_parts.append("write path not tagged (missing INSERT OR IGNORE / UPDATE ... WHERE id=?)")
+            summary_parts.append(
+                "write path not tagged (missing INSERT OR IGNORE / UPDATE ... WHERE id=?)"
+            )
             severity = "PLAUSIBLE"
         if writes_tagged == "n/a":
             pass  # read-only script; no write path to tag
@@ -396,7 +405,9 @@ def _run_inline_ingestor_scan(scripts: list[Path]) -> list[dict]:
                 "writes-tagged": writes_tagged,
                 "fail-soft": "yes" if has_fail_soft else "no",
                 "severity": severity,
-                "summary": ("; ".join(summary_parts) if summary_parts else "all 4 audit criteria pass")[:120],
+                "summary": (
+                    "; ".join(summary_parts) if summary_parts else "all 4 audit criteria pass"
+                )[:120],
                 "fix-commit": "—",
             }
         )
@@ -456,9 +467,7 @@ def _render_consolidated_report(phase_mds: list[Path], out: Path) -> None:
             except sqlite3.OperationalError:
                 pass
             try:
-                embed_total = conn.execute(
-                    "SELECT COUNT(*) FROM embedding_models"
-                ).fetchone()[0]
+                embed_total = conn.execute("SELECT COUNT(*) FROM embedding_models").fetchone()[0]
             except sqlite3.OperationalError:
                 pass
         finally:
@@ -469,7 +478,7 @@ def _render_consolidated_report(phase_mds: list[Path], out: Path) -> None:
     summary_header = "| Phase | " + " | ".join(severities) + " |"
     summary_sep = "|---|" + "|".join(["---:"] * len(severities)) + "|"
     summary_body: list[str] = []
-    total_by_sev = {s: 0 for s in severities}
+    total_by_sev = dict.fromkeys(severities, 0)
     for phase in sorted(per_phase_counts):
         c = per_phase_counts[phase]
         summary_body.append(
@@ -494,8 +503,8 @@ def _render_consolidated_report(phase_mds: list[Path], out: Path) -> None:
         )
         subject = r.get(subject_key, "?")
         ledger_lines.append(
-            f"| {r.get('phase','?')} | {subject} | {r.get('severity','?')} | "
-            f"{r.get('summary','')} | {r.get('fix-commit','—')} |"
+            f"| {r.get('phase', '?')} | {subject} | {r.get('severity', '?')} | "
+            f"{r.get('summary', '')} | {r.get('fix-commit', '—')} |"
         )
 
     # Escalation subset.
@@ -510,17 +519,19 @@ def _render_consolidated_report(phase_mds: list[Path], out: Path) -> None:
             "?",
         )
         escal_lines.append(
-            f"| {r.get('phase','?')} | {r.get(subject_key,'?')} | "
-            f"{r.get('summary','')} | _(orchestrator to fill in Phase F.1)_ |"
+            f"| {r.get('phase', '?')} | {r.get(subject_key, '?')} | "
+            f"{r.get('summary', '')} | _(orchestrator to fill in Phase F.1)_ |"
         )
     if not escalations:
-        escal_lines.append("| — | _no ESCALATE-severity findings — every real finding was fixed inline or REFUTED_ | — | — |")
+        escal_lines.append(
+            "| — | _no ESCALATE-severity findings — every real finding was fixed inline or REFUTED_ | — | — |"
+        )
 
     lines = [
         "# Model-Discovery Pipeline Audit — 2026-07-08",
         "",
         f"Generated: {today}",
-        f"Plan: [`docs/development/plans/archived/2026-07-08-plan-3-model-pipeline-audit.md`](../plans/archived/2026-07-08-plan-3-model-pipeline-audit.md)",
+        "Plan: [`docs/development/plans/archived/2026-07-08-plan-3-model-pipeline-audit.md`](../plans/archived/2026-07-08-plan-3-model-pipeline-audit.md)",
         "",
         "## 1. Summary — findings by severity, per phase",
         "",
@@ -550,7 +561,7 @@ def _render_consolidated_report(phase_mds: list[Path], out: Path) -> None:
         "",
         "## 5. Reproducibility",
         "",
-        f"- **DB path:** `scripts/kilo-benchmarks/kilo_agents.db`",
+        "- **DB path:** `scripts/kilo-benchmarks/kilo_agents.db`",
         f"- **agents rows total:** {agents_total} (active: {agents_active})",
         f"- **gpu_providers rows:** {gpu_total}",
         f"- **embedding_models rows:** {embed_total}",
