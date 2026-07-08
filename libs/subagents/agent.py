@@ -115,6 +115,7 @@ class AgentResult:
     latency_s: float | None = (
         None  # wall-clock seconds for the run (provenance/value metric)
     )
+    out_tokens: int = 0  # summed output (completion) tokens — value/report metric
     # NOTE: `out_of_scope` is computed only for `done`/`capped` runs. An `error`
     # run may still carry a partial `diff` (earlier turns wrote before it failed) —
     # ALWAYS review an error run's diff before applying it; it is not scope-guarded.
@@ -240,6 +241,7 @@ async def _run_one(
                         outcome.turns,
                         error=f"diff capture failed (scope unverified): {exc}",
                         tool_calls=outcome.tool_calls,
+                        out_tokens=outcome.out_tokens,
                     )
                 else:
                     status: AgentStatus = outcome.status
@@ -260,6 +262,7 @@ async def _run_one(
                         outcome.turns,
                         error=outcome.error,
                         tool_calls=outcome.tool_calls,
+                        out_tokens=outcome.out_tokens,
                     )
         except Exception as exc:  # noqa: BLE001 — safety net: _run_one must NEVER raise into the batch
             result = AgentResult(
@@ -382,4 +385,42 @@ def run_agents(
     )
 
 
-__all__ = ["run_agents", "arun_agents", "AgentSpec", "AgentResult", "AgentStatus"]
+def results_table(entries: list[dict]) -> str:
+    """Render the STANDARD post-run report table an orchestrator emits after a pool run.
+
+    One row per unit; each ``entry`` is a dict:
+      ``unit``    — the work unit name (str)
+      ``model``   — the model id used (str)
+      ``result``  — the :class:`AgentResult` (supplies provider / cost / latency / out_tokens / status)
+      ``quality`` — YOUR 0–5 quality verdict (the same score you pass to ``record_run``)
+      ``fixes``   — one-line summary of confirmed fixes / output (str)
+
+    This is the human-readable report; it does NOT replace the flywheel — the orchestrator must
+    ALSO ``record_run(result, quality_score=…, project=…)`` per unit (see PROPOSED_RULE). Total:
+    a missing/oddly-typed field renders as ``—`` rather than raising."""
+    head = "| Unit | Model | Provider | Cost | Latency | Out | My quality score | Confirmed fixes |"
+    rows = [head, "|---|---|---|---:|---:|---:|:--:|---|"]
+    for e in entries:
+        r = e.get("result")
+        cost_v = getattr(r, "cost_usd", None)
+        lat_v = getattr(r, "latency_s", None)
+        out_tok = getattr(r, "out_tokens", 0) or 0
+        prov = getattr(r, "provider", None) or "—"
+        cost = f"${cost_v:.4f}" if cost_v is not None else "—"
+        lat = f"{lat_v:.0f}s" if lat_v is not None else "—"
+        out = f"{out_tok / 1000:.1f}k" if out_tok else "—"
+        rows.append(
+            f"| {e.get('unit', '—')} | {e.get('model', '—')} | {prov} | {cost} | {lat} | "
+            f"{out} | {e.get('quality', '—')}/5 | {e.get('fixes', '')} |"
+        )
+    return "\n".join(rows)
+
+
+__all__ = [
+    "run_agents",
+    "arun_agents",
+    "AgentSpec",
+    "AgentResult",
+    "AgentStatus",
+    "results_table",
+]

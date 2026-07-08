@@ -51,6 +51,7 @@ class LoopOutcome:
     tool_calls: dict[str, int] = field(
         default_factory=dict
     )  # name → call count (provenance)
+    out_tokens: int = 0  # summed completion (output) tokens across turns (value/report metric)
 
 
 def _normalize_tool_calls(result: _transport.Result) -> list[dict]:
@@ -256,6 +257,7 @@ def run_loop(
     body: dict | None = merged or None
     total_cost = 0.0
     cost_known = False
+    total_out_tokens = 0
     provider: str | None = None
     last_text = ""
     tool_counts: dict[str, int] = {}
@@ -275,6 +277,7 @@ def run_loop(
             error=error,
             provider=provider,
             tool_calls=dict(tool_counts),
+            out_tokens=total_out_tokens,
         )
 
     # The whole turn loop is wrapped so the MCP provider is ALWAYS torn down: `_finish`
@@ -317,6 +320,12 @@ def run_loop(
             if result.cost_usd is not None:
                 total_cost += result.cost_usd
                 cost_known = True
+            # sum output (completion) tokens across turns — a value/report metric; total,
+            # never crashes on a missing/oddly-shaped usage dict.
+            try:
+                total_out_tokens += int((result.usage or {}).get("completion_tokens") or 0)
+            except (TypeError, ValueError, AttributeError):
+                pass
             if result.text:
                 last_text = result.text
 

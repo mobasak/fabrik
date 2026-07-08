@@ -17,7 +17,7 @@ durable provenance ledger.
 
 from __future__ import annotations
 
-from .agent import AgentResult, AgentSpec, arun_agents, run_agents
+from .agent import AgentResult, AgentSpec, arun_agents, results_table, run_agents
 from .mcp_tools import SAFE_RESEARCH_SERVERS
 from .methodology import METHODOLOGY_KINDS, methodology
 from .pg_ledger import SUBAGENT_RUNS_DDL, record_run
@@ -32,6 +32,7 @@ from .select import (
 __all__ = [
     "run_agents",
     "arun_agents",
+    "results_table",
     "AgentSpec",
     "AgentResult",
     "methodology",
