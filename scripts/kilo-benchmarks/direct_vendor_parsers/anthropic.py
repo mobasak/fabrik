@@ -49,6 +49,24 @@ _MODEL_ANCHOR = re.compile(
 _PRICE_RE = re.compile(r"\$\$(\d+(?:\.\d+)?)\s*/\s*MTok")
 
 
+# Case-normalized model names where output ≤ input is a DOCUMENTED billing
+# shape (e.g. Claude Mythos-tier has a low output price for cache-hit paths)
+# — the pre-Mythos "output > input" invariant does not hold for these.
+# Add sparingly; each entry is a per-model attestation that we verified the
+# layout on Anthropic's page (plan-4 Phase C, 2026-07-08).
+MYTHOS_OUTPUT_LESS_THAN_INPUT_OK = frozenset(
+    {
+        "claude mythos 5",
+        "claude mythos preview",
+    }
+)
+
+
+def _model_key(model_name: str) -> str:
+    """Case- and whitespace-normalize a model name for whitelist lookup."""
+    return " ".join(model_name.lower().split())
+
+
 def extract(payload: str, source_url: str) -> list[ParsedRow]:
     if not isinstance(payload, str):
         raise TypeError(f"anthropic parser expects str HTML, got {type(payload).__name__}")
@@ -82,14 +100,18 @@ def extract(payload: str, source_url: str) -> list[ParsedRow]:
         # (e.g. the Mythos preview rows have a different column order),
         # output ends up < input — refuse to emit a corrupt ParsedRow.
         if output_price <= input_price:
-            # Pass-8 review: silent filter is fail-closed (right call) but
-            # operators skimming cron stderr should see what was dropped.
-            sys.stderr.write(
-                f"[anthropic parser] WARN: skipping '{model_name}' — "
-                f"output ${output_price} <= input ${input_price} "
-                "(impossible for Anthropic; likely non-standard table layout)\n"
-            )
-            continue
+            if _model_key(model_name) in MYTHOS_OUTPUT_LESS_THAN_INPUT_OK:
+                # Documented Mythos-tier billing layout — allow through.
+                pass
+            else:
+                # Pass-8 review: silent filter is fail-closed (right call) but
+                # operators skimming cron stderr should see what was dropped.
+                sys.stderr.write(
+                    f"[anthropic parser] WARN: skipping '{model_name}' — "
+                    f"output ${output_price} <= input ${input_price} "
+                    "(impossible for Anthropic; likely non-standard table layout)\n"
+                )
+                continue
         rows.append(
             ParsedRow(
                 model_slug=model_name,
