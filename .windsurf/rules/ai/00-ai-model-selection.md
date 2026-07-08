@@ -91,17 +91,17 @@ When the ranker (`suggest_model.py`) sees a locked-out row Pareto-beating the ac
 
 Kilo CLI (`kilo run kilo/<provider>/<model>`) and OpenRouter (`https://openrouter.ai/api/v1/chat/completions`) are **peer gateways**. Either is valid — pick by per-model price (the bake-off browser shows the cheaper rate per row). DashScope and SiliconFlow are direct-API gateways for specialist routes (e.g. `qwen-mt-turbo`).
 
-<!-- GATEWAY_COUNTS:START — last-refreshed: 2026-07-07 (auto-managed by update_gateway_counts.py) -->
-*Live gateway counts (active models, 2026-07-07 UTC; auto-refreshed from `kilo_agents.db`):*
+<!-- GATEWAY_COUNTS:START — last-refreshed: 2026-07-08 (auto-managed by update_gateway_counts.py) -->
+*Live gateway counts (active models, 2026-07-08 UTC; auto-refreshed from `kilo_agents.db`):*
 
 | Gateway | Active routable models | Notes |
 |---|---|---|
-| **OpenRouter** | 343 | of which **341** dual-routed with Kilo, **2** OR-only |
+| **OpenRouter** | 345 | of which **341** dual-routed with Kilo, **4** OR-only |
 | **Kilo CLI** | 341 | of which **341** dual-routed with OR, **0** Kilo-only |
 | **DashScope** (direct) | 1 | specialist routes (e.g. `qwen-mt-turbo`) |
 | **SiliconFlow** (direct) | 1 | specialist routes (e.g. Hunyuan) |
 
-Capability counts (any-gateway): reasoning **200** · tools/function-calling **263** · vision-input **169** · translation-scored **9** · STT-capable **21**.
+Capability counts (any-gateway): reasoning **202** · tools/function-calling **265** · vision-input **169** · translation-scored **9** · STT-capable **21**.
 <!-- GATEWAY_COUNTS:END -->
 
 For specialized categories 7–15 (Robotics / Synthetic data / Recommendation / Cybersecurity / Bio-Healthcare / Edge / Governance / Generative design) use domain tools, not gateway LLMs.
