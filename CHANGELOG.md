@@ -4,9 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Fixed — Pipeline-Health Coverage Closure Phase A: alert delivery restored via docker-run --network fabrik pattern (Plan 4, 2026-07-08)
+### Fixed — Pipeline-Health Coverage Closure Phases A+B (Plan 4, 2026-07-08)
 
-Executing `2026-07-08-plan-4-pipeline-health-coverage-closure` Phase A: the `apprise` container sits on the `fabrik` docker network with no host-port binding and no host-side DNS, so SSH-then-host-curl in `scripts/kilo-benchmarks/alerting/apprise.py` hit HTTP 000 on every alert (heartbeat + drift + blocked-write, all silent since ≥ 2026-07-07). Fix adopts the canonical Fabrik pattern already in production at `scripts/provision_grafana.sh:30`, `scripts/sysadmin/daily-digest.sh:285`, `scripts/sysadmin/system-prompt.txt:37`: `sudo docker run --rm --network fabrik curlimages/curl:latest -X POST …` inside a **single shell-quoted remote command** (SSH's remote-shell join was splitting `-H Content-Type: application/json` at the space and giving curl a malformed header → exit 3). 3 behavior-contract regression tests (`test_alerting_apprise.py` — argv contains docker-run pattern, SSH non-zero → False, TimeoutExpired → False). Live smoke sent + Telegram-received.
+Executing `2026-07-08-plan-4-pipeline-health-coverage-closure`.
+
+- **Phase A — alert delivery restored via `docker run --network fabrik` pattern.** The `apprise` container sits on the `fabrik` docker network with no host-port binding and no host-side DNS, so SSH-then-host-curl in `scripts/kilo-benchmarks/alerting/apprise.py` hit HTTP 000 on every alert (heartbeat + drift + blocked-write, all silent since ≥ 2026-07-07). Fix adopts the canonical Fabrik pattern already in production at `scripts/provision_grafana.sh:30`, `scripts/sysadmin/daily-digest.sh:285`, `scripts/sysadmin/system-prompt.txt:37`: `sudo docker run --rm --network fabrik curlimages/curl:latest -X POST …` inside a **single shell-quoted remote command** (SSH's remote-shell join was splitting `-H Content-Type: application/json` at the space and giving curl a malformed header → exit 3). 3 behavior-contract regression tests. Live smoke sent + Telegram-received.
+
+- **Phase B — Kilo CLI catalog fetch: 0 models → 687 models.** `kilo models --verbose` exits 0 but with stderr `Configuration is invalid at /home/…/kilo/opencode.json — Unrecognized keys: "subagent_model", "subagent_variant_overrides"` (stale keys the newer Kilo v7.0.33+ rejects). `kilo_agents_db.fetch_kilo_models` saw empty stdout → returned [] silently → dual-routing verification dead. Two-part fix: (1) `scripts/kilo-benchmarks/tools/sanitize_kilo_config.py` — idempotent removal of the 2 stale keys with backup, 3 behavior-contract tests; (2) defense-in-depth in `fetch_kilo_models` — detects the "Configuration is invalid" stderr sentinel + emits a Telegram alert via `alerting.apprise` before returning [], 2 behavior-contract tests. Live smoke: 687 kilo models now catalog-fetched.
 
 ### Changed — Behavior Contract test rule + cheap-pool test generation (Plan 2, 2026-07-08)
 

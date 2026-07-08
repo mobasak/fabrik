@@ -75,7 +75,13 @@ def init_db(force: bool = False) -> None:
 
 
 def fetch_kilo_models() -> list[dict[str, Any]]:
-    """Fetch all models from Kilo CLI with full metadata."""
+    """Fetch all models from Kilo CLI with full metadata.
+
+    Defense-in-depth: if `kilo models --verbose` exits 0 but stderr contains
+    `Configuration is invalid` (the Kilo CLI silent-config-error mode), emit
+    a Telegram alert via alerting.apprise + return []. Prior behavior was to
+    silently return [] with no operator signal — plan-4 Phase B fix.
+    """
     log("Fetching models from Kilo CLI...")
     try:
         result = subprocess.run(
@@ -85,6 +91,20 @@ def fetch_kilo_models() -> list[dict[str, Any]]:
             timeout=120,
         )
         output = result.stdout
+        stderr_text = result.stderr or ""
+        if "Configuration is invalid" in stderr_text:
+            log(f"Kilo CLI config invalid: {stderr_text[:300].strip()}")
+            try:
+                from alerting.apprise import send as _apprise_send  # local, optional
+
+                _apprise_send(
+                    "kilo-cli-config-invalid",
+                    "kilo_agents_db.fetch_kilo_models saw `Configuration is invalid` "
+                    f"from `kilo models --verbose`.\n\nstderr:\n{stderr_text[:800]}",
+                )
+            except Exception:  # noqa: BLE001 — fail-soft; alerting is not the primary path
+                pass
+            return []
 
         # Parse the verbose output (model ID followed by JSON blocks)
         # Each model starts with "kilo/..." line followed by a JSON object
