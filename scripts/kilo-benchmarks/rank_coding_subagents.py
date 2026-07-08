@@ -53,24 +53,32 @@ OUT_PATH = SCRIPT_DIR.parent.parent / "docs" / "reference" / "kilo" / "CODING_SU
 FAMILIES = ("z-ai/glm-", "moonshotai/kimi-", "minimax/minimax-", "deepseek/")
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Auto vs On-request tier split (BINDING — see .windsurf/rules/core/62-using-subagents.md:39-71)
+# Auto vs On-request tier split — LOAD-BEARING (see 62-using-subagents.md § Approved pool models)
 # ─────────────────────────────────────────────────────────────────────────────
-# The pool is defined by a RULE, not a frozen list: OpenRouter output price ≤
-# $1.5/Mtok is the Auto tier (`pick_models` selects freely, no operator approval).
-# Everything with output > $1.5 stays fully benchmarked and priced but is tagged
-# On-request (never auto-selected — the operator names it explicitly).
+# This filter is the ONLY thing keeping >$1.5/Mtok models out of the Auto pool
+# a consuming project reads from this doc — confirmed with fabrik-lib AI:
+#   - The vendored `pick_models` in `/opt/fabrik-lib/subagents/subagents/select.py`
+#     has NO hard price cap. It just reads whatever rows are under `### code`.
+#   - The module's `_TABLE` is only a SEED default when the flywheel doc is
+#     missing/stub; this doc OVERRIDES the seed via `SUBAGENT_SELECTION_DOC`.
+#   - The operator's `62-using-subagents.md` no longer names any model roster
+#     (policy: rule files don't name models). This doc is the single source of
+#     the roster + rankings.
+# → Two enforcement points remain:
+#   (1) the filter below at aggregation time (this file), and
+#   (2) the caller passing `max_cost_per_mtok` on the `pick_models` call.
+# Both must hold. Do NOT relax or remove this filter on the assumption that
+# `pick_models` enforces the cap — it won't until the module re-vendor lands.
 #
-# Three sources must agree or the cost policy silently drifts:
-#   (1) the fabrik-lib subagents module's vendored `_TABLE` (set to the ≤$1.5 pool),
-#   (2) this doc (CODING_SUBAGENT_SELECTION.md — it OVERRIDES the vendored _TABLE
-#       via SUBAGENT_SELECTION_DOC, so it is the one that must filter correctly), and
-#   (3) `.windsurf/rules/core/62-using-subagents.md`.
-#
-# The tier is a filter/flag, NOT a cut:
-#   - A pricier model that benchmarks brilliantly stays in On-request.
-#   - A new cheaper model that clears $1.5 auto-joins Auto on next daily refresh.
+# Rule shape (per 62-using-subagents.md § Approved pool models — BINDING):
+#   - Auto (output ≤ $1.5/Mtok): `pick_models` selects freely, no operator approval.
+#   - On-request (output > $1.5): fully benchmarked + priced, but NEVER
+#     auto-selected — the operator names it explicitly per turn.
 #   - Unknown / NULL output price is treated as On-request (fail-safe: never
 #     auto-select an unpriced row — the operator might get charged $10/Mtok).
+# The tier is a filter/flag, NOT a cut: a pricier model that benchmarks
+# brilliantly stays in On-request; a new cheaper model that clears $1.5
+# auto-joins Auto on next daily refresh.
 AUTO_OUTPUT_PRICE_CEILING = 1.5
 
 
@@ -326,7 +334,7 @@ def _render(rows: list[dict]) -> str:
         # comma-separated `TASK,CODING`; that broke because `select.py` reads
         # SUBAGENT_SELECTION_DOC as one literal filename. See workflow doc's
         # "Two ranking docs" section.
-        # BINDING tier split (.windsurf/rules/core/62-using-subagents.md:39-71):
+        # BINDING tier split (see .windsurf/rules/core/62-using-subagents.md § Approved pool models):
         # rows with OR output price ≤ $1.5/Mtok land under `### code`;
         # everything else under `### code-onrequest`. The `pick_models` reader
         # in the fabrik-lib subagents module (select.py:load_task_ranking)

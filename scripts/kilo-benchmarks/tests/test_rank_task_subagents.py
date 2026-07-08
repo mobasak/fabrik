@@ -396,7 +396,7 @@ def test_coding_fallback_skips_on_request_tier_regression(tmp_path) -> None:
     """Regression: `### code-onrequest` header must NOT leak into the coding
     fallback pool. A prefix-match on "### code" would drag glm-5/kimi/grok
     into the fleet-synced TASK_SUBAGENT_SELECTION.md — that's the exact
-    failure mode .windsurf/rules/core/62-using-subagents.md:71 warns against.
+    failure mode .windsurf/rules/core/62-using-subagents.md § Approved pool models warns against.
 
     Build a synthetic CODING_SUBAGENT_SELECTION.md with both tiers and assert
     only Auto-tier models come back.

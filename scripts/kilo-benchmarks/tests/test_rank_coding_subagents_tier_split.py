@@ -1,6 +1,10 @@
 """Regression tests for the Auto vs On-request tier split in
 `rank_coding_subagents.py` — the BINDING $1.5/Mtok output ceiling from
-`.windsurf/rules/core/62-using-subagents.md:39-71`.
+`.windsurf/rules/core/62-using-subagents.md § Approved pool models`.
+
+Load-bearing: the vendored `pick_models` has NO hard price cap (confirmed
+with fabrik-lib AI). This filter + the caller's `max_cost_per_mtok` are the
+only two things keeping >$1.5 models out of the Auto pool.
 
 These tests exercise the pure `_is_auto_tier` predicate and the `_render`
 composition against synthetic rows, so they don't depend on the live DB.
@@ -133,8 +137,9 @@ def test_auto_first_onrequest_second():
 
 
 def test_pick_models_would_never_see_a_pricey_row_in_the_code_section():
-    """The failure mode the .windsurf/rules/core/62-using-subagents.md:71
-    warning describes: a refreshed doc silently re-admits glm/kimi/grok/qwen.
+    """The failure mode the .windsurf/rules/core/62-using-subagents.md
+    § Approved pool models warning describes: a refreshed doc silently
+    re-admits glm/kimi/grok/qwen.
     Verify the pricey models are NOT under the `### code` header (the
     only header pick_models scopes to for coding-subagent picks).
     """
