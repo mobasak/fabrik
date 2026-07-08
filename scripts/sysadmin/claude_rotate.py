@@ -28,6 +28,7 @@ import re
 import select
 import subprocess
 import sys
+import time
 from collections.abc import Callable
 from pathlib import Path
 
@@ -203,24 +204,41 @@ def _rotate_active_account(avoid: frozenset[str] = frozenset()) -> str | None:
     return _activate_snapshot(selector=_select)
 
 
-def _read_piped_stdin() -> str | None:
+def _read_piped_stdin(max_wait_s: float = 2.0) -> str | None:
     """Read piped stdin ONCE (so a rotation retry can be re-supplied the same context).
-    Returns None for a tty, an absent/closed stdin, or a fd with no data *ready* — the
-    ``select(…, 0)`` guard means a never-EOF pipe (e.g. a manual ``ssh host 'sudo bash …'``
-    without ``-t``) can't block the read past the retry loop's timeout budget. The real
-    callers feed an EOF-terminated fd (heredoc ``<<<``, a file ``<``, or /dev/null), which
-    is always ready, so their context is read in full.
+    Returns None for a tty, an absent/closed stdin, or a fd that never has data ready. The
+    read is BOUNDED by *max_wait_s* total — a fd that yields partial data but never EOFs
+    (e.g. a manual ``ssh host 'sudo bash …'`` without ``-t``) returns what arrived rather
+    than blocking forever. The real callers feed an eagerly-materialized, EOF-terminated fd
+    (heredoc ``<<<``, a file ``<``, or /dev/null), so they read in full in milliseconds.
     """
     try:
         stdin = sys.stdin
         if stdin is None or stdin.isatty():
             return None
         fd = stdin.fileno()
-        if not select.select([fd], [], [], 0)[0]:
-            return None  # nothing ready → don't block on a never-EOF fd
-        return stdin.read()
     except (AttributeError, OSError, ValueError):
         return None
+    deadline = time.monotonic() + max_wait_s
+    chunks: list[bytes] = []
+    try:
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break  # bounded — never block past the budget
+            if not select.select([fd], [], [], min(remaining, 0.2))[0]:
+                if chunks:
+                    break  # partial data then stalled → return what we have
+                return None  # nothing ever ready → not a piped caller
+            block = os.read(fd, 65536)
+            if not block:
+                break  # EOF
+            chunks.append(block)
+    except (OSError, ValueError):
+        pass
+    if not chunks:
+        return None
+    return b"".join(chunks).decode("utf-8", errors="replace")
 
 
 def run_claude(

@@ -15,6 +15,7 @@ import json
 import os
 import pathlib
 import subprocess
+import time
 
 import claude_rotate  # co-located; pytest prepends this dir to sys.path
 
@@ -371,6 +372,28 @@ def test_run_claude_does_not_read_a_tty_stdin(monkeypatch):
     claude_rotate.run_claude(["claude"], timeout=1, cwd="/x", env={}, buffer_stdin=True)
 
     assert seen == [None], "a tty stdin must not be read (input=None)"
+
+
+def test_read_piped_stdin_bounded_on_never_eof(monkeypatch):
+    # partial data but the write end stays OPEN (no EOF): must return the partial data within
+    # the budget, NOT block forever (the docstring's bounded-read claim).
+    r_fd, w_fd = os.pipe()
+    os.write(w_fd, b"PARTIAL")  # data written, write end deliberately left open
+    monkeypatch.setattr(claude_rotate.sys, "stdin", os.fdopen(r_fd, "r"))
+    t0 = time.monotonic()
+    out = claude_rotate._read_piped_stdin(max_wait_s=0.3)
+    elapsed = time.monotonic() - t0
+    os.close(w_fd)
+    assert out == "PARTIAL", f"must return the partial data; got {out!r}"
+    assert elapsed < 1.5, f"must be bounded (returned in {elapsed:.2f}s), not block"
+
+
+def test_read_piped_stdin_none_on_idle_empty_pipe(monkeypatch):
+    r_fd, w_fd = os.pipe()  # open, nothing written, no EOF
+    monkeypatch.setattr(claude_rotate.sys, "stdin", os.fdopen(r_fd, "r"))
+    out = claude_rotate._read_piped_stdin(max_wait_s=0.3)
+    os.close(w_fd)
+    assert out is None, "an idle empty pipe (no data ever ready) → None"
 
 
 def test_run_claude_default_does_not_touch_stdin(monkeypatch):
