@@ -56,7 +56,19 @@ def test_mutmut_absent_skips(monkeypatch, capsys):
 
 
 def test_changed_python_excludes_tests_and_vendored():
-    # Then the diff scope is applied code only — never tests/ or the canonical-owned libs/.
+    # Then the diff scope is applied code only — never tests/ or the canonical-owned libs/ (smoke: the
+    # live call returns a list and never a tests/libs/ or non-.py entry).
     files = cm.changed_python()
     assert isinstance(files, list)
     assert all(f.endswith(".py") and not f.startswith(("tests/", "libs/")) for f in files)
+
+
+def test_changed_python_filters_tests_libs_and_nonpy(monkeypatch):
+    # Robust (non-vacuous): a controlled diff with tests/, libs/, a doc, and two src .py files →
+    # only the applied src .py survive. Path.exists forced True so the FILTER, not existence, is tested.
+    import types
+
+    fake = "src/fabrik/a.py\ntests/test_a.py\nlibs/subagents/b.py\ndocs/c.md\nsrc/fabrik/d.py\n"
+    monkeypatch.setattr(cm.subprocess, "run", lambda *a, **k: types.SimpleNamespace(stdout=fake))
+    monkeypatch.setattr(cm.Path, "exists", lambda self: True)
+    assert cm.changed_python(base="somebase") == ["src/fabrik/a.py", "src/fabrik/d.py"]
