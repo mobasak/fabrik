@@ -1,6 +1,6 @@
 # Behavior Contract test rule + cheap-pool test generation
 
-Status: CONVERGED
+Status: IN-PROGRESS
 Spec: `docs/superpowers/specs/2026-07-08-behavior-contract-test-generation-design.md` (CONVERGED)
 Date: 2026-07-08
 Converged: 2026-07-08 (/fabrik-plan-review — demonstrably-thorough single-pass no-op, md5-verified; all path:line re-grounded live, and the plan confirmed to pass check_test_proposal.py under the CURRENT gate)
@@ -78,7 +78,7 @@ No `shape:`/DB/deploy changes (governance + dev-tooling). No new external API be
 
 ---
 
-## Phase A — The RULE: Behavior Contract (fleet-synced; independent of plan-1)
+## Phase A — The RULE: Behavior Contract (fleet-synced; independent of plan-1) — ✅ EXECUTED 2026-07-08 (CLAUDE.md:25 + 45-testing-strategy.md §Core Philosophy/§table/§high-risk/§checklist flipped One-Test Rule → Behavior Contract; fabrik-plan-after-chat reframed "smallest highest-risk test" → per-behavior contract; "1 test for highest-risk" gone from CLAUDE.md, "One-Test Rule" gone from 45-testing)
 
 **Files:** `CLAUDE.md` (`:25`), `.windsurf/rules/core/45-testing-strategy.md` (`:19`, `:32`),
 `~/.claude/commands/fabrik-plan-after-chat.md` + `~/.claude/commands/fabrik-plan-review.md` (the test-rule

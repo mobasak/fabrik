@@ -16,12 +16,14 @@ Apply when writing, reviewing, or generating tests. Covers all scaffold types: F
 ## Core Philosophy
 
 - **Testing Trophy model**: integration and E2E tests are the primary source of truth. Unit tests are reserved exclusively for complex pure algorithms or data transformations.
-- **One-Test Rule**: every new feature ticket requires exactly **one** high-value happy-path integration or E2E test. Do not chase line coverage — ensure critical-path behavioral coverage.
+- **Behavior Contract**: every ticket enumerates its distinct **user-observable behaviors / acceptance criteria** and tests **each one** — one high-value integration/E2E test per behavior, risk-ordered, TDD for the risky ones. Skip trivia (getters / framework glue / config): **lean-but-complete, NOT 100%-line-coverage dogma**. Do not chase line coverage — ensure every behavior has a test that would fail if that behavior regressed. (Cheap pool subagents can author the per-behavior tests — the suggest→curate→author→fix workflow in `62-using-subagents.md` § Dispatch policy + `~/.claude/commands/fabrik-review.md`.)
 - **No cosmetic assertions**: never assert against CSS classes, Tailwind utility strings, pixel measurements, or snapshot hashes. Assert application state and user-visible outcomes only.
 
-## Minimum Test by Ticket Type
+## Test type by ticket type (one PER behavior, per the Behavior Contract)
 
-| Ticket Type | Minimum Test |
+The table gives the test **kind** per ticket type; author one of these **per user-observable behavior** the ticket adds (the Behavior Contract), not one per ticket.
+
+| Ticket Type | Test kind (per behavior) |
 |-------------|-------------|
 | **New Feature (Backend)** | One pytest integration test via `httpx.AsyncClient` against real PostgreSQL. Verify HTTP status + response schema. |
 | **New Feature (Frontend)** | One Playwright E2E test verifying the user happy path. Use semantic locators (`getByRole`). |
@@ -29,9 +31,9 @@ Apply when writing, reviewing, or generating tests. Covers all scaffold types: F
 | **Refactor** | Zero new tests. Existing integration/E2E tests must pass. Replace brittle unit tests with integration tests if encountered. |
 | **Chore / Infrastructure** | Zero new tests. Existing smoke tests verify stability. |
 
-## When One Test Is Not Enough
+## When one test per behavior is not enough
 
-The One-Test Rule does not apply to these high-risk domains — exhaustive permutation testing is required:
+The Behavior Contract goes beyond one-test-per-behavior for these high-risk domains — exhaustive permutation testing is required:
 
 - **Auth / RBAC boundaries** — test both positive access and negative (401/403) for each role.
 - **Financial transactions / payment webhooks** — test edge cases, race conditions, idempotent retries.
@@ -176,7 +178,7 @@ async def test_tenant_isolation(client_tenant_a: AsyncClient, client_tenant_b: A
 
 ## Done When
 
-- [ ] Every new feature has at least one integration or E2E test (One-Test Rule).
+- [ ] Every distinct user-observable behavior the feature adds has a test (Behavior Contract) — one per behavior, risk-ordered, not one per ticket.
 - [ ] Every bugfix has a regression test that fails before the fix.
 - [ ] Backend tests run against real PostgreSQL — no DB mocks in test files.
 - [ ] Test session uses `join_transaction_mode="create_savepoint"` — inner commits don't leak past rollback.
