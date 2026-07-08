@@ -1,5 +1,5 @@
 {
-  "plan": "docs/development/plans/2026-07-08-plan-5-unify-fleet-claude-account.md",
+  "plan": "docs/development/plans/archived/2026-07-08-plan-5-unify-fleet-claude-account.md",
   "owned_paths": [
     "scripts/sysadmin/claude-run.sh",
     "scripts/sysadmin/test_claude_run.py",
@@ -12,8 +12,10 @@
     "docs/infrastructure/vps-ai-sysadmin.md"
   ],
   "shared_serialization_points": ["CHANGELOG.md", "INDEX.md"],
-  "note": "CHANGELOG.md/INDEX.md are shared append-only files (overlap with plan-4 is benign — append-atop, explicit-path commit, re-read before commit). Code surface (scripts/sysadmin/*) disjoint from plan-4 (scripts/kilo-benchmarks/*).",
+  "note": "Also touched (whole-plan-review fix, prior-plan file): scripts/sysadmin/claude_rotate.py + aro-wake twin + test_claude_rotate.py — buffer_stdin so a rotation retry re-supplies the piped context the wired scripts feed.",
   "branch": "master",
   "started_at": "2026-07-08",
-  "status": "active"
+  "completed_at": "2026-07-08",
+  "final_commit": "7d914e70",
+  "status": "released"
 }

@@ -1,6 +1,6 @@
 # Unify all fleet Claude callers onto one account + guarantee auto-rotation on all 3 VPS
 
-**Status:** IN-PROGRESS (execution started 2026-07-08 via `/fabrik-execute-plan`)
+**Status:** EXECUTED 2026-07-08 — Phases A+B+C shipped; final gate `success` (34/0); whole-plan `/fabrik-review` converged (caught + fixed a stdin-lost-on-retry data-loss bug + a proactive-check fail-open + a root-cwd crash). Code + operator rollout runbook complete; the live 3-VPS rollout is operator-run (trigger-not-execute). Commits: A `2d51c448`, B `e99621f8`, C `d683204e`, review-fixes `b875f066`/`7d914e70`.
 **Author:** Claude Opus 4.8 (hub) · from chat 2026-07-08
 **Owner:** hub AI — sysadmin/watchdog stream. Extends the EXECUTED `docs/development/plans/archived/2026-07-07-plan-1-sysadmin-claude-rotation.md` (which wired only bot.py + aro-wake + keepalive). Not yet executed (`/fabrik-execute-plan` pending, user-triggered).
 
