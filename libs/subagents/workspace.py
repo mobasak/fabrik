@@ -18,11 +18,17 @@ Git is driven via ``subprocess`` on the system ``git`` (no GitPython dependency)
 
 from __future__ import annotations
 
+import contextlib
 import fnmatch
 import functools
 import re
 import subprocess
 from pathlib import Path
+
+try:
+    import fcntl  # POSIX advisory file locking (Linux/WSL — the fleet target)
+except ImportError:  # pragma: no cover - non-POSIX; the cross-process lock no-ops
+    fcntl = None  # type: ignore[assignment]
 
 _WILDCARD = re.compile(r"[*?\[]")
 # File-header lines of a git unified diff. We require the `a/`/`b/` prefix (git's
@@ -43,14 +49,42 @@ def _run_git(args: list[str], *, cwd: str) -> str:
     return proc.stdout
 
 
+@contextlib.contextmanager
+def _repo_worktree_lock(repo: str):
+    """CROSS-PROCESS advisory lock serializing git worktree admin (add/remove/prune) on ONE
+    repo's shared ``.git`` registry.
+
+    ``run_agents`` already serializes worktree admin *within* a process (its asyncio ``git_lock``);
+    this adds the *cross-process* guarantee so several independent orchestrators (e.g. multiple
+    Claude sessions in the same repo) can't race on git's worktree registry — a race that otherwise
+    surfaces as a spurious ``git worktree add/prune`` lock error. Held only for the fast admin op.
+    Best-effort: a no-op on non-POSIX (no ``fcntl``), and the lock releases on ``close()``.
+    """
+    if fcntl is None:
+        yield
+        return
+    lock_dir = Path(repo) / ".tmp" / "subagents"
+    lock_dir.mkdir(parents=True, exist_ok=True)
+    with (lock_dir / ".worktree-admin.lock").open("w") as fh:
+        fcntl.flock(fh.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            with contextlib.suppress(Exception):
+                fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
+
+
 def create_worktree(repo: str, agent_id: str, *, base: str = "HEAD") -> str:
     """Add a detached worktree for ``agent_id`` under ``<repo>/.tmp/subagents/``.
 
-    Returns the worktree path. Uses ``.tmp`` (not ``/tmp``) per project rule.
+    Returns the worktree path. Uses ``.tmp`` (not ``/tmp``) per project rule. The shared-``.git``
+    ``worktree add`` is serialized cross-process (see :func:`_repo_worktree_lock`) so concurrent
+    orchestrators in one repo don't contend on git's registry.
     """
     wt = Path(repo) / ".tmp" / "subagents" / agent_id
     wt.parent.mkdir(parents=True, exist_ok=True)
-    _run_git(["worktree", "add", "--detach", str(wt), base], cwd=repo)
+    with _repo_worktree_lock(repo):
+        _run_git(["worktree", "add", "--detach", str(wt), base], cwd=repo)
     return str(wt)
 
 
@@ -66,13 +100,19 @@ def worktree_diff(worktree: str) -> str:
 
 def remove_worktree(repo: str, worktree: str) -> None:
     """Force-remove a worktree (discards its uncommitted changes)."""
-    _run_git(["worktree", "remove", "--force", worktree], cwd=repo)
+    with _repo_worktree_lock(repo):
+        _run_git(["worktree", "remove", "--force", worktree], cwd=repo)
 
 
 def prune_worktrees(repo: str) -> None:
     """Prune stale/dangling worktree registrations (best-effort admin cleanup —
-    e.g. after a `git worktree add` that failed partway)."""
-    _run_git(["worktree", "prune"], cwd=repo)
+    e.g. after a `git worktree add` that failed partway).
+
+    Serialized cross-process: prune walks the shared registry, so it must not run while another
+    orchestrator is mid ``worktree add`` in the same repo.
+    """
+    with _repo_worktree_lock(repo):
+        _run_git(["worktree", "prune"], cwd=repo)
 
 
 def changed_paths(worktree: str) -> list[str]:

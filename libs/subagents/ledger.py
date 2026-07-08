@@ -23,6 +23,11 @@ import threading
 from datetime import datetime, timezone
 from pathlib import Path
 
+try:
+    import fcntl  # POSIX advisory file locking (Linux/WSL — the fleet target)
+except ImportError:  # pragma: no cover - non-POSIX; falls back to in-process lock only
+    fcntl = None  # type: ignore[assignment]
+
 # Defensive redaction for the one model/transport-controlled free-text field that
 # reaches the on-disk log (`error`): a token accidentally embedded in an exception
 # string must not be persisted. (OpenRouter sends the key in a header, not a URL,
@@ -60,9 +65,18 @@ class Ledger:
         be merged). One run → one authoritative flywheel row, via ``record_run``.
         """
         line = json.dumps(record, default=str) + "\n"
-        with self._lock:
+        with self._lock:  # in-process: serialize threads sharing this Ledger instance
             self.path.parent.mkdir(parents=True, exist_ok=True)
             with self.path.open("a", encoding="utf-8") as fh:
+                # cross-process: the per-repo DEFAULT ledger_path can be appended by SEVERAL
+                # orchestrator processes at once (multiple Claude sessions in one repo). A large,
+                # diff-bearing record exceeds the OS atomic-append size, so without an advisory
+                # lock two processes' lines can interleave and corrupt the JSONL. flock(LOCK_EX)
+                # serializes the write cross-process (releases on close); threading.Lock alone is
+                # per-process and can't. A distinct ledger_path per orchestrator also avoids it,
+                # but this makes the shared default safe too.
+                if fcntl is not None:
+                    fcntl.flock(fh.fileno(), fcntl.LOCK_EX)
                 fh.write(line)
                 fh.flush()
 

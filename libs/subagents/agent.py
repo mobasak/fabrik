@@ -33,6 +33,7 @@ from pathlib import Path
 from typing import Literal
 
 from . import sandbox, workspace
+from ._dotenv import load_env
 from .ledger import Ledger, agent_record
 from .loop import LoopOutcome, run_loop
 
@@ -300,12 +301,18 @@ async def arun_agents(
     max_concurrency: int = 4,
     loop_fn: LoopFn | None = None,
     on_progress: Callable[[dict], None] | None = None,
+    load_dotenv: bool = True,
 ) -> list[AgentResult]:
     """Async core: run all ``specs`` with owned_paths-aware concurrency.
 
     Disjoint groups run in parallel (bounded by ``max_concurrency``); members of
     an overlapping group run serially in index order. Results are returned in the
     input order, one per spec (partial-tolerant).
+
+    ``load_dotenv`` (default ``True``): populate the process env from ``<repo>/.env`` (the curated
+    subagents keys only — ``OPENROUTER_API_KEY`` / ``SUBAGENT_RUNS_DSN`` / web-tool keys) for any
+    that are not already set, so "use the pool" works with no manual ``export``. Real env vars
+    always win; set ``False`` to opt out (e.g. an embedder that manages env itself).
 
     ``on_progress`` (opt-in) fires once per completed transport turn, per agent, with
     ``{"agent_id", "turns", "cost_usd", "provider", "tools"}`` — for a live babysitting
@@ -315,6 +322,10 @@ async def arun_agents(
         raise ValueError(f"max_concurrency must be >= 1, got {max_concurrency}")
     if not specs:
         return []
+    # Autoload <repo>/.env FIRST (before any transport/flywheel env read) so a bare agent call from
+    # the project root has OPENROUTER_API_KEY + SUBAGENT_RUNS_DSN without manual sourcing.
+    if load_dotenv:
+        load_env(repo)
     call = loop_fn if loop_fn is not None else run_loop
     ledger = Ledger(ledger_path or _default_ledger_path(repo))
     # Read-only agents (tools_enabled=False → single-shot, they never write the tree) are ALWAYS
@@ -358,11 +369,13 @@ def run_agents(
     max_concurrency: int = 4,
     loop_fn: LoopFn | None = None,
     on_progress: Callable[[dict], None] | None = None,
+    load_dotenv: bool = True,
 ) -> list[AgentResult]:
     """Synchronous wrapper around :func:`arun_agents`.
 
     Raises ``RuntimeError`` if called from within a running event loop — use
-    ``await arun_agents(...)`` there instead. ``on_progress`` — see :func:`arun_agents`.
+    ``await arun_agents(...)`` there instead. ``load_dotenv`` / ``on_progress`` — see
+    :func:`arun_agents`.
     """
     try:
         asyncio.get_running_loop()
@@ -381,6 +394,7 @@ def run_agents(
             max_concurrency=max_concurrency,
             loop_fn=loop_fn,
             on_progress=on_progress,
+            load_dotenv=load_dotenv,
         )
     )
 

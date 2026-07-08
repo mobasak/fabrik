@@ -102,7 +102,14 @@ def _resolve_client(client: OpenRouterClient | None) -> OpenRouterClient:
         return client
     api_key = os.getenv("OPENROUTER_API_KEY")
     if not api_key:
-        raise ConsultError("OPENROUTER_API_KEY is not set")
+        raise ConsultError(
+            "OPENROUTER_API_KEY is not set. `run_agents` auto-loads `<repo>/.env` (the curated "
+            "subagents keys), so the usual fix is: put `OPENROUTER_API_KEY=…` in your project's "
+            "`.env` and pass the project root as `repo=`. If you dispatched with `load_dotenv=False`, "
+            "or called the transport directly, export it yourself (`set -a; . ./.env; set +a`). This "
+            "is an env/onboarding gap, NOT 'the pool is unavailable' — wire the key, don't fall back "
+            "to a different runtime."
+        )
     return OpenRouterClient(
         api_key,
         referer=os.getenv("SUBAGENTS_REFERER"),

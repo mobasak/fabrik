@@ -18,6 +18,7 @@ durable provenance ledger.
 from __future__ import annotations
 
 from .agent import AgentResult, AgentSpec, arun_agents, results_table, run_agents
+from ._dotenv import load_env
 from .mcp_tools import SAFE_RESEARCH_SERVERS
 from .methodology import METHODOLOGY_KINDS, methodology
 from .pg_ledger import SUBAGENT_RUNS_DDL, record_agent_run, record_run
@@ -44,6 +45,7 @@ __all__ = [
     "load_task_ranking",
     "record_run",
     "record_agent_run",
+    "load_env",
     "SUBAGENT_RUNS_DDL",
     "SAFE_RESEARCH_SERVERS",
 ]
