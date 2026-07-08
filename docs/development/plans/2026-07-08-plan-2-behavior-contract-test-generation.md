@@ -105,7 +105,7 @@ loop to no-op; (4) commit `CLAUDE.md` + `.windsurf/rules/core/45-testing-strateg
 
 ---
 
-## Phase B — The STRUCTURE gate: extend `check_test_proposal.py` (fleet-synced, HARD)
+## Phase B — The STRUCTURE gate: extend `check_test_proposal.py` (fleet-synced, HARD) — ✅ EXECUTED 2026-07-08 (keyword "One-Test Rule" → "Behavior Contract"; added `evaluate_plan` + section-scoped `_count_behaviors` (Given/When/Then in the `## Behavior Contract`) vs `_count_criteria` (`## Success criteria` items) — fail if behaviors < criteria, structure-only when no criteria section; 6 behavior tests; gate green on Plan 2)
 
 **Files:** `scripts/enforcement/check_test_proposal.py`, `tests/test_check_test_proposal.py` (new).
 **Responsibility:** the plan must carry a Behavior Contract enumerating **a behavior per acceptance
@@ -234,10 +234,12 @@ Contract + Phase C's `mutmut` runner.
 
 - **[BLOCKING → Phase D only]** the authoring workflow needs `2026-07-08-plan-1`'s pool live. Resolution:
   execute plan-1 first (Phases A–C here are independent + can land before). Phase D gates on the import probe.
-- **[OPEN → Phase B]** the exact parse of "acceptance criteria" the check counts behaviors against (the
-  plan's stated criteria vs the contract's `Then`-clauses). Resolution: define the count as `Given/When/Then`
-  triples in the `## Behavior Contract` section ≥ the plan's enumerated criteria; finalize against
-  `check_test_proposal.py`'s real parse in execution.
+- **[RESOLVED — Phase B, 2026-07-08]** the criteria-parse: **behaviors** = `Given` markers inside the
+  `## Behavior Contract` **section** (level-2+ heading, so the H1 plan title — which also contains "Behavior
+  Contract" — is skipped); **criteria** = top-level list items under a `## Success criteria` / `## Acceptance
+  criteria` heading. Fail if `behaviors < criteria`; when a plan has **no** criteria section (most Fabrik
+  plans — the Behavior Contract IS the criteria list) the check degrades to **structure-only** (≥1 behavior),
+  avoiding false positives. Substance (is each behavior actually tested) stays the `/fabrik-review` layer.
 - **[OPEN — coordination]** the `generate_tests` orchestration as a 🆕 fabrik-lib candidate — propose to the
   hub after project-local ship.
 - **[OPEN → Phase C]** which dev-deps file the project uses (`requirements-dev.txt` vs a `[dev]` extra) —
