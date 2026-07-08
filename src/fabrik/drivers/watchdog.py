@@ -381,15 +381,17 @@ class _RenderContext:
 
 
 def _governance_tar_filter(ti: tarfile.TarInfo) -> tarfile.TarInfo | None:
-    """tar.add filter for the governance set: DROP symlinks + hardlinks so only
-    regular files + dirs travel into the world-readable /governance mount. A
-    symlink shipped verbatim could resolve outside the tree once extracted, and
-    leaning on a (different-repo) consumer to skip links is fragile — filter at
-    the source. Regular content only.
+    """tar.add filter for the governance set: ALLOWLIST regular files + dirs only.
+
+    Everything else is dropped — symlinks/hardlinks (could resolve outside the
+    tree once extracted into the world-readable mount) AND special files
+    (FIFO/socket/device, which could BLOCK a reader's ``open()``). Only plain
+    governance content travels; leaning on a different-repo consumer to skip
+    these is fragile, so filter at the source with a denylist-proof allowlist.
     """
-    if ti.issym() or ti.islnk():
-        return None
-    return ti
+    if ti.isreg() or ti.isdir():
+        return ti
+    return None
 
 
 # ── Driver ────────────────────────────────────────────────────────────────

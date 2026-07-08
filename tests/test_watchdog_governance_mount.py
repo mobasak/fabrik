@@ -170,6 +170,31 @@ class TestPushGovernance:
         assert not any(n.endswith("evil") for n in names), names  # symlink dropped
         assert any(n.endswith("30-ops.md") for n in names)  # real rule still shipped
 
+    def test_special_file_under_rules_not_shipped(self, governance_src):
+        """A FIFO/socket/device under .windsurf/rules must be dropped (allowlist filter)
+        — a shipped FIFO could BLOCK a reader's open() on the world-readable mount."""
+        import os
+
+        rules = governance_src / "demo" / ".windsurf" / "rules"
+        os.mkfifo(rules / "pipe")
+        d = WatchdogDriver()
+        rctx = _rctx(d)
+        captured = {}
+
+        def cap_scp(local_path, remote_path, **kw):
+            import tarfile
+
+            with tarfile.open(local_path) as t:
+                captured["names"] = t.getnames()
+
+        with (
+            mock.patch("fabrik.drivers.watchdog.ssh"),
+            mock.patch("fabrik.drivers.watchdog.scp_to_vps", side_effect=cap_scp),
+        ):
+            assert d._push_governance(rctx) is True
+        assert not any(n.endswith("pipe") for n in captured["names"]), captured["names"]
+        assert any(n.endswith("30-ops.md") for n in captured["names"])  # real rule still shipped
+
     def test_symlinked_rules_dir_excluded_not_silent_empty(self, tmp_path, monkeypatch):
         """A symlinked .windsurf/rules member is EXCLUDED (D) — no silent empty ship."""
         proj = tmp_path / "demo"
