@@ -235,11 +235,12 @@ fi
 
 # ── OAuth keepalive heartbeat (trio plan §2.5 + Lesson 75) ────────────────
 #
-# /etc/cron.d/vps-sysadmin runs `claude -p "ping" > /var/log/claude-keepalive.log`
-# once per hour to keep this host's Claude Code OAuth token fresh (tokens go
-# stale every ~4 days when the host is idle). The log file's mtime is the
-# heartbeat. If mtime > 90 minutes, the cron itself is dead — the primary
-# LLM path will silently degrade to 401 within days. Escalate to operator.
+# /etc/cron.d/vps-sysadmin runs claude-keepalive-rotate.sh once per hour to keep this
+# host's Claude Code OAuth token fresh (tokens go stale every ~4 days when idle) and to
+# write a CONTENT token (KEEPALIVE_OK / KEEPALIVE_FAIL:<reason>) to the log. Two failure
+# modes, both escalated: (a) mtime > 90 min → the cron itself is dead; (b) a fresh mtime
+# but a FAIL/401/usage-limit token → the ping runs but auth/quota is broken (the mtime-only
+# check reported "fresh" straight through a month-long 401 outage — the bug this fixes).
 KEEPALIVE_LOG=/var/log/claude-keepalive.log
 if [ ! -e "$KEEPALIVE_LOG" ]; then
     # File doesn't exist yet — first-boot or cron never fired. Allow 2h grace.
@@ -248,9 +249,17 @@ if [ ! -e "$KEEPALIVE_LOG" ]; then
     fi
 else
     KEEPALIVE_AGE=$(( $(date +%s) - $(stat -c %Y "$KEEPALIVE_LOG") ))
-    if [ "$KEEPALIVE_AGE" -gt 5400 ]; then  # 90 minutes
+    if [ "$KEEPALIVE_AGE" -gt 5400 ]; then  # 90 minutes → cron dead
         ANOMALIES+="oauth_keepalive_stale[${KEEPALIVE_AGE}s] "
     fi
+    # CONTENT check — a fresh mtime does NOT mean healthy; parse the keepalive token.
+    _ka_reason=""
+    if [ -f "$(dirname "$0")/keepalive-status.sh" ]; then
+        # shellcheck source=scripts/sysadmin/keepalive-status.sh
+        . "$(dirname "$0")/keepalive-status.sh"
+        _ka_reason="$(keepalive_reason "$KEEPALIVE_LOG")"
+    fi
+    [ -n "$_ka_reason" ] && ANOMALIES+="oauth_keepalive_broken[${_ka_reason}] "
 fi
 
 # ── W10: DR store staleness (GitHub API last-commit age) ─────────────────

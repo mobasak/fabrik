@@ -130,7 +130,7 @@
 
 ---
 
-## Phase D — Monitoring honesty (page on a real break)
+## Phase D — Monitoring honesty (page on a real break) — ✅ EXECUTED 2026-07-08
 
 **Responsibility:** detect a 401/quota break instead of reporting "fresh" off mtime.
 

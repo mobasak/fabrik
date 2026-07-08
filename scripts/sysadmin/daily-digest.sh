@@ -87,11 +87,23 @@ fi
 # ── Health heartbeats ──────────────────────────────────────────────────────
 
 KEEPALIVE_LOG=/var/log/claude-keepalive.log
-if [ -e "$KEEPALIVE_LOG" ]; then
-    KEEPALIVE_AGE_MIN=$(( (NOW_EPOCH - $(stat -c %Y "$KEEPALIVE_LOG")) / 60 ))
-    KEEPALIVE_STATUS="fresh (mtime ${KEEPALIVE_AGE_MIN}m ago)"
-else
+if [ ! -e "$KEEPALIVE_LOG" ]; then
     KEEPALIVE_STATUS="MISSING — keepalive cron may be dead"
+else
+    KEEPALIVE_AGE_MIN=$(( (NOW_EPOCH - $(stat -c %Y "$KEEPALIVE_LOG")) / 60 ))
+    # CONTENT check, not just mtime: the hourly keepalive refreshes the mtime even while it
+    # writes a 401/usage-limit token, so a "fresh" mtime is NOT proof of health.
+    _ka_reason=""
+    if [ -f "$(dirname "$0")/keepalive-status.sh" ]; then
+        # shellcheck source=scripts/sysadmin/keepalive-status.sh
+        . "$(dirname "$0")/keepalive-status.sh"
+        _ka_reason="$(keepalive_reason "$KEEPALIVE_LOG")"
+    fi
+    if [ -n "$_ka_reason" ]; then
+        KEEPALIVE_STATUS="⚠️ BROKEN (${_ka_reason}; mtime ${KEEPALIVE_AGE_MIN}m ago)"
+    else
+        KEEPALIVE_STATUS="fresh (mtime ${KEEPALIVE_AGE_MIN}m ago)"
+    fi
 fi
 
 ARO_WAKE_STATUS="not enabled"
