@@ -679,34 +679,36 @@ def create_watchdog_roles(
     pw_rw = None if rw_exists else _generate_password()
     owner = _db_owner(db_name, container)
 
-    # Abort (non-zero exit) on the FIRST error rather than psql's default
-    # continue-on-error-exit-0, which would report false success.
-    sql_parts: list[str] = ["\\set ON_ERROR_STOP on"]
-    # Create fresh roles only — an existing role is preserved (no password churn),
-    # so its DSN in .env stays valid. LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE:
-    # least privilege by construction. Plain CREATE (not a DO/IF-NOT-EXISTS block)
-    # is deliberate: in the rare create race (two applies of one spec, or an
-    # out-of-band role appearing between the _role_exists check and this batch),
-    # a bare CREATE errors → ON_ERROR_STOP aborts → we DON'T inject a password that
-    # wouldn't match the role. The winning apply injects a valid DSN; this one
-    # fails loud and heals next apply. An IF-NOT-EXISTS create would instead
-    # silently skip and let us inject a MISMATCHED password.
+    # Split CREATE ROLE from the GRANTs (mirrors create_subagent_ins_role) so a
+    # GRANT failure can't orphan a just-created role with a lost password: each
+    # CREATE is its own atomic invocation, and the GRANTs are idempotent + fully
+    # re-applied every call, so a mid-batch GRANT failure self-heals on the next
+    # apply. Plain CREATE (not DO/IF-NOT-EXISTS) is deliberate — in the rare create
+    # race a bare CREATE errors loudly rather than silently letting us inject a
+    # MISMATCHED password (pw is None for an already-existing role → no injection).
+    # ON_ERROR_STOP on EACH create: psql via stdin exits 0 on a failed statement
+    # without it, so a bare CREATE that loses a race would false-succeed and we'd
+    # inject a DSN whose password doesn't match the role. Make it loud instead.
     if not ro_exists:
-        sql_parts.append(
-            f'CREATE ROLE "{ro}" WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE '
-            f"PASSWORD '{pw_ro}';"  # nosec B608 — pw is CSPRNG alnum, single-quote-safe
+        _run_sql(
+            "\\set ON_ERROR_STOP on\n"
+            f'CREATE ROLE "{ro}" WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE '  # nosec B608
+            f"PASSWORD '{pw_ro}';",  # nosec B608 — pw is CSPRNG alnum, single-quote-safe
+            container=container,
         )
     if not rw_exists:
-        sql_parts.append(
-            f'CREATE ROLE "{rw}" WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE '
-            f"PASSWORD '{pw_rw}';"  # nosec B608
+        _run_sql(
+            "\\set ON_ERROR_STOP on\n"
+            f'CREATE ROLE "{rw}" WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE '  # nosec B608
+            f"PASSWORD '{pw_rw}';",  # nosec B608
+            container=container,
         )
-    # CONNECT is database-level; the rest must run INSIDE the app DB (\c), so ALL
-    # TABLES / DEFAULT PRIVILEGES resolve against the app schema, not the
-    # superuser's default `postgres` DB. Grants are idempotent → re-applied every
-    # call so a newly-added table (or a watchdog enabled on a pre-existing DB) is
-    # covered.
-    sql_parts += [
+    # Grants run INSIDE the app DB (\c) so ALL TABLES / DEFAULT PRIVILEGES resolve
+    # against the app schema, not the superuser's default `postgres` DB. Idempotent
+    # → re-applied every call so a newly-added table (or a watchdog enabled on a
+    # pre-existing DB) is covered, and a partial-GRANT failure heals next apply.
+    grant_parts: list[str] = [
+        "\\set ON_ERROR_STOP on",
         f'GRANT CONNECT ON DATABASE "{db_name}" TO "{ro}", "{rw}";',
         f"\\c {db_name}",
         f'GRANT USAGE ON SCHEMA public TO "{ro}", "{rw}";',
@@ -718,7 +720,7 @@ def create_watchdog_roles(
     ]
     if owner:
         # Future tables the owner creates auto-grant to the watchdog roles.
-        sql_parts += [
+        grant_parts += [
             f'ALTER DEFAULT PRIVILEGES FOR ROLE "{owner}" IN SCHEMA public '
             f'GRANT SELECT ON TABLES TO "{ro}";',
             f'ALTER DEFAULT PRIVILEGES FOR ROLE "{owner}" IN SCHEMA public '
@@ -728,7 +730,7 @@ def create_watchdog_roles(
         ]
     # nosec B608 — every interpolated value (db_name, ro, rw, owner) is a role/DB
     # identifier already gated by _validate_identifier; passwords are CSPRNG alnum.
-    _run_sql("\n".join(sql_parts) + "\n", container=container)  # nosec B608
+    _run_sql("\n".join(grant_parts) + "\n", container=container)  # nosec B608
     logger.info(
         "watchdog roles on %s (owner=%s): %s (RO, %s) + %s (RW, %s)",
         db_name,
@@ -844,7 +846,10 @@ def create_subagent_ins_role(
     # killing the winning apply's just-created role.
     if not role_exists:
         # nosec B608 — role name identifier-validated; pw is CSPRNG alnum.
+        # ON_ERROR_STOP: a bare CREATE via stdin exits 0 on failure without it, so
+        # a lost race would false-succeed and we'd return a mismatched password.
         _run_sql(
+            "\\set ON_ERROR_STOP on\n"
             f'CREATE ROLE "{role}" WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE '  # nosec B608
             f"PASSWORD '{pw}';",
             container=container,

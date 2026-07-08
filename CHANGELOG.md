@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — watchdog DB-role review hardening (log redaction + CREATE/GRANT split) + print-ban false-positive (2026-07-08)
+
+Independent-panel review of the watchdog RO/RW DB-role feature: **(H1, med)** `_run_sql` ships role SQL (incl. `CREATE ROLE … PASSWORD '<pw>'`) as a base64 blob inside the `ssh()` command, and `ssh.py` logged the whole command at DEBUG → every generated RO/RW/app/subagent-ins password was recoverable the moment anyone enabled DEBUG. Added `_redact()` in `ssh.py` masking `echo <base64> | base64 -d` payloads at the log point. **(H2, low-med)** `create_watchdog_roles` bundled CREATE ROLE + GRANTs in one batch; split CREATE (each its own `ON_ERROR_STOP` invocation) from the idempotent GRANTs (mirrors `create_subagent_ins_role`), and backported `ON_ERROR_STOP` onto the subagent split's bare CREATE too (a bare CREATE via stdin exits 0 on failure → false-success). Added an injection-shaped `db_name` test + an H1 redaction test + an H2 split-invariant test. **(honest residual)** the split does NOT by itself eliminate orphan-role-with-lost-password on a GRANT failure (both bundled and split lose the password identically if the function raises before injecting the DSN) — that's the no-churn↔recover-orphan design tension the docstring already accepts. Also fixed `check_print_ban.py` to bound the ban to changed lines (parses the staged diff) — it was whole-file-scanning and flagging a pre-existing `python -c "…print(x)"` subprocess string in a merely-edited file (same fix already applied to `check_secrets.py`).
+
 ### Added — best-model-suggester Phase E.7 follow-up closed: rent-gpu + candidates browser tabs now render (2026-07-08)
 
 Closes the one deferred item from the archived `2026-07-05-plan-1-best-model-suggester.md` (Status: EXECUTED 2026-07-07): "Browser dynamic tbody/JS rendering for the 2 new tabs (Phase E.7) — structural markers landed, dynamic wiring did not fit in the pass."

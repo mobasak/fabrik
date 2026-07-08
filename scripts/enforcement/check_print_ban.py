@@ -48,6 +48,33 @@ def get_staged_files() -> list[str]:
     return result.stdout.strip().split("\n") if result.stdout.strip() else []
 
 
+def changed_line_numbers(filepath: str) -> set[int] | None:
+    """Added/changed line numbers for ``filepath`` in the staged diff (parses
+    ``git diff --cached --unified=0`` hunk headers). Returns ``None`` when there is
+    no usable diff (untracked / brand-new file / parse failure) → the caller then
+    fails OPEN to a whole-file scan so a real print in a NEW file is still caught.
+
+    This bounds the ban to lines THIS change actually touched: a pre-existing
+    print() elsewhere in a file you merely edited (e.g. a `python -c "…print(x)"`
+    subprocess string a sibling added) is not this change's to answer for — same
+    fix already applied to check_secrets.py."""
+    import re
+
+    result = subprocess.run(
+        ["git", "diff", "--cached", "--unified=0", "--", filepath],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0 or not result.stdout.strip():
+        return None
+    changed: set[int] = set()
+    for m in re.finditer(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@", result.stdout, re.MULTILINE):
+        start = int(m.group(1))
+        count = int(m.group(2)) if m.group(2) is not None else 1
+        changed.update(range(start, start + count))
+    return changed
+
+
 def should_skip(filepath: str) -> bool:
     """Check if file should be skipped (tests, scripts, cache, etc.)."""
     return any(pattern in filepath for pattern in SKIP_PATTERNS)
@@ -108,13 +135,19 @@ def main() -> int:
         if is_template_generator(filepath):
             continue
 
+        # Bound the ban to lines THIS change touched (None → whole-file, so a
+        # brand-new file's prints are still caught).
+        changed = changed_line_numbers(filepath)
+
         ext = Path(filepath).suffix
         if ext in PRODUCTION_PY_EXTENSIONS:
             lines = scan_file_for_pattern(filepath, "print(")
+            lines = [ln for ln in lines if changed is None or ln in changed]
             if lines:
                 all_violations.append((filepath, "print(", lines))
         elif ext in PRODUCTION_JS_EXTENSIONS:
             lines = scan_file_for_pattern(filepath, "console.log(")
+            lines = [ln for ln in lines if changed is None or ln in changed]
             if lines:
                 all_violations.append((filepath, "console.log(", lines))
 

@@ -67,7 +67,10 @@ def _capture(db: str = DB, *, owner: str | None = None, ro_exists: bool = False,
     # silently make the assertions inspect the wrong string.
     batch_calls = [c for c in calls if "GRANT CONNECT" in c]
     assert len(batch_calls) == 1, f"expected exactly one grant batch, got {len(batch_calls)}"
-    return result, batch_calls[0]
+    # CREATE ROLE is now a SEPARATE _run_sql call from the GRANT batch (split to
+    # avoid orphan-role-with-lost-password on a GRANT failure), so return the UNION
+    # of all emitted SQL — tests assert on the total CREATE + GRANT surface.
+    return result, "\n".join(calls)
 
 
 # ── privilege boundary ─────────────────────────────────────────────────────
@@ -395,3 +398,55 @@ def test_registrar_records_watchdog_roles_resource():
     recs = ctx.get_resources_by_type("watchdog-db-roles")
     assert len(recs) == 1
     assert recs[0].metadata.get("status") == "provisioned"
+
+
+# ── review hardening: injection guard, H1 log redaction, H2 create/grant split ──
+
+
+def test_injection_shaped_db_name_rejected():
+    """Mirror the subagent path: an injection-shaped db_name is rejected BEFORE it
+    can reach the role SQL. Delegated to `_validate_identifier` via _wd_role_names."""
+    with pytest.raises(ValueError):
+        pg._wd_role_names("calendar; DROP TABLE users; --")
+
+
+def test_ssh_debug_log_redacts_base64_payload():
+    """H1: a role PASSWORD ships as `echo <base64> | base64 -d | … psql`; the SSH
+    DEBUG log must MASK the base64 so enabling DEBUG can't leak the password."""
+    from fabrik.drivers.ssh import _redact
+
+    secret_cmd = (
+        "echo Q1JFQVRFIFJPTEUgcm8gUEFTU1dPUkQgJ3N1cGVyc2VjcmV0Jw== "
+        "| base64 -d | sudo docker exec -i postgres-main psql -U postgres -tA"
+    )
+    out = _redact(secret_cmd)
+    assert "Q1JFQVRF" not in out  # the base64 blob is gone
+    assert "<redacted-base64>" in out
+    assert "sudo docker exec" in out  # the non-secret tail is preserved
+
+
+def test_create_and_grant_are_separate_run_sql_calls():
+    """H2: CREATE ROLE and the GRANTs run in SEPARATE _run_sql calls, so a GRANT
+    failure can't orphan a just-created role with a lost password inside one batch."""
+    calls: list[str] = []
+
+    def fake(sql, container=pg.POSTGRES_CONTAINER, dry_run=False):
+        calls.append(sql)
+        return DB if "pg_get_userbyid" in sql else ""
+
+    with (
+        mock.patch.object(pg, "_run_sql", side_effect=fake),
+        mock.patch.object(pg, "_role_exists", return_value=False),
+        mock.patch.object(pg, "_generate_password", side_effect=["RO_PW", "RW_PW"]),
+    ):
+        pg.create_watchdog_roles(DB)
+
+    create_calls = [c for c in calls if "CREATE ROLE" in c]
+    grant_calls = [c for c in calls if "GRANT CONNECT" in c]
+    assert len(create_calls) == 2  # ro + rw, each its own atomic invocation
+    assert all("GRANT CONNECT" not in c for c in create_calls)  # no grants bundled with a CREATE
+    # each CREATE must carry ON_ERROR_STOP — else a failed CREATE exits 0 (psql
+    # via stdin) and we'd false-succeed into injecting a mismatched password.
+    assert all("ON_ERROR_STOP" in c for c in create_calls)
+    assert len(grant_calls) == 1
+    assert "CREATE ROLE" not in grant_calls[0]  # no CREATE bundled in the grant batch

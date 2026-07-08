@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import subprocess
 
 logger = logging.getLogger(__name__)
@@ -31,6 +32,17 @@ DEFAULT_SSH_HOST = "vps"
 """Default SSH alias resolved via ``~/.ssh/config``. Overridable via
 ``FABRIK_VPS_SSH_HOST``.
 """
+
+# Mask base64 payloads piped to `base64 -d` before they hit a DEBUG log. Callers
+# like ``postgres._run_sql`` ship SQL — which may carry a role ``PASSWORD`` — as
+# ``echo <base64> | base64 -d | … psql``; without this, enabling DEBUG (or wiring
+# a Loki sink at DEBUG) trivially leaks every generated DB-role password.
+_B64_PIPE = re.compile(r"echo\s+[A-Za-z0-9+/=]{20,}\s*\|\s*base64\s+-d")
+
+
+def _redact(cmd: str) -> str:
+    """Return ``cmd`` with any base64→``base64 -d`` payload masked for logging."""
+    return _B64_PIPE.sub("echo <redacted-base64> | base64 -d", cmd)
 
 
 def _ssh_host() -> str:
@@ -71,7 +83,7 @@ def ssh(cmd: str, timeout: int = 60, dry_run: bool = False) -> str:
         return ""
 
     host = _ssh_host()
-    logger.debug("SSH %s: %s", host, cmd)
+    logger.debug("SSH %s: %s", host, _redact(cmd))
     result = subprocess.run(
         ["ssh", host, cmd],
         capture_output=True,
