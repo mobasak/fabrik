@@ -52,6 +52,7 @@ Design choices
 from __future__ import annotations
 
 import logging
+import re
 import shutil
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -345,6 +346,33 @@ def _destroy_compose(name: str, dry_run: bool, drop_data: bool = False) -> Actio
         return ActionResult("compose", "error", error=repr(e))
 
 
+def _destroy_watchdog_governance(name: str, dry_run: bool) -> ActionResult:
+    """Remove the per-project watchdog governance dir on the VPS.
+
+    ``/var/lib/watchdog-governance/<name>`` (created by
+    ``watchdog.WatchdogDriver._push_governance``) lives OUTSIDE ``/opt/<name>``
+    by design — so ``_destroy_app`` / ``_destroy_files`` never reach it. Without
+    this, a decommissioned project's world-readable CLAUDE.md/AGENTS.md/
+    .windsurf/rules linger forever with no trace under /opt. Unconditional +
+    idempotent (``rm -rf`` of a missing dir is a no-op): cleanup must not depend
+    on the current spec still declaring a watchdog, since the project may have
+    HAD one earlier.
+    """
+    # Guard before the destructive ssh — name flows into `rm -rf`.
+    if not re.fullmatch(r"[a-z0-9][a-z0-9-]*", name or ""):
+        return ActionResult("watchdog-governance", "error", error=f"unsafe project id: {name!r}")
+    path = f"/var/lib/watchdog-governance/{name}"
+    if dry_run:
+        return ActionResult("watchdog-governance", "dry_run", detail=path)
+    try:
+        from fabrik.drivers.ssh import ssh as _ssh
+
+        _ssh(f"sudo rm -rf {path}", timeout=15)
+        return ActionResult("watchdog-governance", "removed", detail=path)
+    except Exception as e:  # noqa: BLE001
+        return ActionResult("watchdog-governance", "error", detail=path, error=repr(e))
+
+
 def _destroy_app(name: str, dry_run: bool, drop_data: bool = False) -> ActionResult:
     """Destroy an app via its /opt/<name> compose project.
 
@@ -565,6 +593,9 @@ def destroy_deployment(
 
     # ── Step B: App (compose project at /opt/<name>) ──
     report.actions.append(_destroy_app(name, dry_run, drop_data=drop_data))
+
+    # ── Step B2: Watchdog governance dir (lives OUTSIDE /opt/<name>) ──
+    report.actions.append(_destroy_watchdog_governance(name, dry_run))
 
     # ── Step C: DNS record ──
     if keep_dns:

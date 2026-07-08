@@ -380,6 +380,18 @@ class _RenderContext:
     governance_mount_ready: bool = False
 
 
+def _governance_tar_filter(ti: tarfile.TarInfo) -> tarfile.TarInfo | None:
+    """tar.add filter for the governance set: DROP symlinks + hardlinks so only
+    regular files + dirs travel into the world-readable /governance mount. A
+    symlink shipped verbatim could resolve outside the tree once extracted, and
+    leaning on a (different-repo) consumer to skip links is fragile — filter at
+    the source. Regular content only.
+    """
+    if ti.issym() or ti.islnk():
+        return None
+    return ti
+
+
 # ── Driver ────────────────────────────────────────────────────────────────
 
 
@@ -712,34 +724,46 @@ class WatchdogDriver:
         (today's behavior). Governance files are NON-secret (rules/contracts):
         ``chmod a+rX`` (world-readable), NOT the ``chmod 600`` credential path.
         """
-        # Guard project_id before it flows into paths + ssh commands — same
-        # check as _load_project_prompt (rejects traversal / absolute / hidden).
+        # Strict allowlist guard — project_id flows into a DESTRUCTIVE ssh
+        # (`sudo rm -rf {remote_dir}`). Real specs already reject shell metachars
+        # (spec_loader ^[a-z0-9][a-z0-9-]*[a-z0-9]$); this in-driver assert is
+        # defense-in-depth so the driver never depends SOLELY on that upstream
+        # invariant. Fail-soft (return False) on any non-conforming id.
         pid = rctx.project_id
-        if not pid or "/" in pid or ".." in pid or pid.startswith("."):
+        if not re.fullmatch(r"[a-z0-9][a-z0-9-]*", pid or ""):
             logger.warning("watchdog: unsafe project id %r — skipping /governance", pid)
             return False
-        src_root = _PROJECTS_ROOT / pid
-        members = [
-            m for m in ("CLAUDE.md", "AGENTS.md", ".windsurf/rules") if (src_root / m).exists()
-        ]
-        if not members:
-            logger.warning(
-                "watchdog: no governance files under %s (CLAUDE.md/AGENTS.md/.windsurf/rules) — "
-                "skipping /governance mount; sidecar materialize falls back to /project",
-                src_root,
-            )
-            return False
-        remote_dir = f"{VPS_GOVERNANCE_ROOT}/{rctx.project_id}"
-        remote_tar = f"{VPS_BUILD_ROOT}/{rctx.project_id}-governance.tar.gz"
-        # mkdtemp INSIDE the try so even a temp-dir failure (disk full / perms)
-        # stays fail-soft (returns False) instead of raising out of provision().
+        remote_dir = f"{VPS_GOVERNANCE_ROOT}/{pid}"
+        remote_tar = f"{VPS_BUILD_ROOT}/{pid}-governance.tar.gz"
+        # ALL filesystem I/O (exists()/is_symlink()/mkdtemp/tar) lives INSIDE the
+        # try: Path.exists() raises PermissionError on an EACCES parent, so keeping
+        # it outside would abort provision() and break the fail-soft contract.
         local_ctx: Path | None = None
         try:
-            local_ctx = Path(tempfile.mkdtemp(prefix=f"watchdog-gov-{rctx.project_id}-"))
+            src_root = _PROJECTS_ROOT / pid
+            # Exclude a symlinked member: a symlinked governance dir would ship
+            # EMPTY (silent content-loss reported as success), and a symlink could
+            # resolve outside the tree into the world-readable /governance mount.
+            members = [
+                m
+                for m in ("CLAUDE.md", "AGENTS.md", ".windsurf/rules")
+                if (src_root / m).exists() and not (src_root / m).is_symlink()
+            ]
+            if not members:
+                logger.warning(
+                    "watchdog: no governance files under %s (CLAUDE.md/AGENTS.md/"
+                    ".windsurf/rules) — skipping /governance mount; sidecar "
+                    "materialize falls back to /project",
+                    src_root,
+                )
+                return False
+            local_ctx = Path(tempfile.mkdtemp(prefix=f"watchdog-gov-{pid}-"))
             local_tar = local_ctx / "governance.tar.gz"
+            # _governance_tar_filter drops NESTED symlinks/hardlinks (a symlink
+            # under .windsurf/rules) — only regular files + dirs travel.
             with tarfile.open(local_tar, "w:gz") as tar:
                 for m in members:
-                    tar.add(str(src_root / m), arcname=m)
+                    tar.add(str(src_root / m), arcname=m, filter=_governance_tar_filter)
             ssh(f"mkdir -p {VPS_BUILD_ROOT}", timeout=15)
             scp_to_vps(str(local_tar), remote_tar)
             # Wipe+recreate (fresh each apply), extract, make world-readable (RO mount).

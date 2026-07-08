@@ -92,9 +92,12 @@ class TestPushGovernance:
         assert ok is False
         assert m_scp.call_count == 0
 
-    @pytest.mark.parametrize("bad_id", ["../etc", "a/b", ".hidden", ""])
+    @pytest.mark.parametrize(
+        "bad_id",
+        ["../etc", "a/b", ".hidden", "", "a;b", "a b", "a$b", "a&b", "a`b", "UPPER", "-lead"],
+    )
     def test_unsafe_project_id_returns_false_no_scp(self, bad_id, tmp_path, monkeypatch):
-        """A traversal/absolute/hidden id must be refused before any path/ssh use."""
+        """Traversal/absolute/hidden AND any shell-metachar id refused before path/ssh use."""
         monkeypatch.setattr(wd, "_PROJECTS_ROOT", tmp_path)
         d = WatchdogDriver()
         rctx = _rctx(d)
@@ -129,6 +132,92 @@ class TestPushGovernance:
             ok = d._push_governance(rctx)  # must NOT raise
         assert ok is False
         assert m_scp.call_count == 0
+
+    def test_exists_permissionerror_is_fail_soft(self, governance_src):
+        """Path.exists() raising (EACCES parent) must stay fail-soft — the members
+        check does I/O and must be inside the try, not abort provision()."""
+        d = WatchdogDriver()
+        rctx = _rctx(d)
+        with (
+            mock.patch("pathlib.Path.exists", side_effect=PermissionError("EACCES")),
+            mock.patch("fabrik.drivers.watchdog.ssh"),
+            mock.patch("fabrik.drivers.watchdog.scp_to_vps") as m_scp,
+        ):
+            ok = d._push_governance(rctx)  # must NOT raise
+        assert ok is False
+        assert m_scp.call_count == 0
+
+    def test_symlink_under_rules_is_not_shipped(self, governance_src):
+        """A symlink nested in .windsurf/rules must NOT travel into the mount (C)."""
+        rules = governance_src / "demo" / ".windsurf" / "rules"
+        (rules / "evil").symlink_to("/etc/passwd")
+        d = WatchdogDriver()
+        rctx = _rctx(d)
+        captured = {}
+
+        def cap_scp(local_path, remote_path, **kw):
+            import tarfile
+
+            with tarfile.open(local_path) as t:
+                captured["names"] = t.getnames()
+
+        with (
+            mock.patch("fabrik.drivers.watchdog.ssh"),
+            mock.patch("fabrik.drivers.watchdog.scp_to_vps", side_effect=cap_scp),
+        ):
+            assert d._push_governance(rctx) is True
+        names = captured["names"]
+        assert not any(n.endswith("evil") for n in names), names  # symlink dropped
+        assert any(n.endswith("30-ops.md") for n in names)  # real rule still shipped
+
+    def test_symlinked_rules_dir_excluded_not_silent_empty(self, tmp_path, monkeypatch):
+        """A symlinked .windsurf/rules member is EXCLUDED (D) — no silent empty ship."""
+        proj = tmp_path / "demo"
+        (proj / ".windsurf").mkdir(parents=True)
+        real = tmp_path / "real-rules"
+        real.mkdir()
+        (real / "x.md").write_text("x", encoding="utf-8")
+        (proj / ".windsurf" / "rules").symlink_to(real)  # rules is a SYMLINK
+        # no CLAUDE.md/AGENTS.md → the only candidate is the symlinked rules dir
+        monkeypatch.setattr(wd, "_PROJECTS_ROOT", tmp_path)
+        d = WatchdogDriver()
+        rctx = _rctx(d)
+        with (
+            mock.patch("fabrik.drivers.watchdog.ssh"),
+            mock.patch("fabrik.drivers.watchdog.scp_to_vps") as m_scp,
+        ):
+            ok = d._push_governance(rctx)
+        assert ok is False  # excluded → fail-soft, NOT a True with an empty mount
+        assert m_scp.call_count == 0
+
+
+class TestDestroyGovernance:
+    """fabrik destroy must remove /var/lib/watchdog-governance/<id> (B)."""
+
+    def test_dry_run_reports_path_no_ssh(self):
+        from fabrik.orchestrator import destroyer
+
+        with mock.patch("fabrik.drivers.ssh.ssh") as m_ssh:
+            r = destroyer._destroy_watchdog_governance("demo", dry_run=True)
+        assert r.status == "dry_run"
+        assert "/var/lib/watchdog-governance/demo" in r.detail
+        assert m_ssh.call_count == 0
+
+    def test_removes_the_dir(self):
+        from fabrik.orchestrator import destroyer
+
+        with mock.patch("fabrik.drivers.ssh.ssh") as m_ssh:
+            r = destroyer._destroy_watchdog_governance("demo", dry_run=False)
+        assert r.status == "removed"
+        assert "rm -rf /var/lib/watchdog-governance/demo" in m_ssh.call_args.args[0]
+
+    def test_unsafe_id_refused_no_ssh(self):
+        from fabrik.orchestrator import destroyer
+
+        with mock.patch("fabrik.drivers.ssh.ssh") as m_ssh:
+            r = destroyer._destroy_watchdog_governance("a;rm -rf /", dry_run=False)
+        assert r.status == "error"
+        assert m_ssh.call_count == 0
 
 
 class TestOverlayVolumeGate:
