@@ -1,6 +1,7 @@
 # Model-Discovery Pipeline Audit — Implementation Plan
 
-**Status:** CONVERGED
+**Status:** IN-PROGRESS (execution started 2026-07-08 from baseline_commit `ca25782a`, baseline_gate `success`)
+**Previously:** CONVERGED
 **Date:** 2026-07-08
 **Owner:** primary (this session)
 **Goal:** Systematically audit the daily-refresh model-discovery pipeline end-to-end (external ingest → DB → derivations → emitted docs → browser GUI) and surface every issue / wrong data / missing part / bug / discrepancy. Fix in-scope small issues inline; escalate large ones to their own follow-up plans + a consolidated audit report.

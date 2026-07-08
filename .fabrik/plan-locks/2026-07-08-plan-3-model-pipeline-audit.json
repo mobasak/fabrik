@@ -1,0 +1,23 @@
+{
+  "plan": "docs/development/plans/2026-07-08-plan-3-model-pipeline-audit.md",
+  "owned_paths": [
+    "scripts/kilo-benchmarks/audit_pipeline.py",
+    "scripts/kilo-benchmarks/tests/test_audit_pipeline.py",
+    "scripts/kilo-benchmarks/tests/test_audit_derivation_determinism.py",
+    "scripts/kilo-benchmarks/tests/test_audit_ranker_tier_split.py",
+    "scripts/kilo-benchmarks/tests/test_audit_emitter_row_counts.py",
+    "scripts/kilo-benchmarks/tests/test_audit_cross_consistency.py",
+    "docs/development/audits/",
+    "docs/development/plans/2026-07-08-plan-3-model-pipeline-audit.md",
+    "CHANGELOG.md",
+    "INDEX.md"
+  ],
+  "branch": "master",
+  "started_at": "2026-07-08T00:00:00Z",
+  "status": "active",
+  "baseline_commit": "ca25782a",
+  "baseline_gate": {
+    "status": "success",
+    "red_checks": []
+  }
+}
