@@ -39,10 +39,12 @@ from .loop import LoopOutcome, run_loop
 
 AgentStatus = Literal["done", "capped", "error", "out_of_scope"]
 
-# Verification task_types that MUST read the repo to be truthful — a single-shot (tools_enabled=False)
-# worker on one of these hallucinates about code it can't see. `research`/`spec` ground against the
-# web (via `web_tools`), and `code` writes rather than verifies, so they are NOT gated here.
-_GROUNDED_TASK_KINDS = frozenset({"review", "docs"})
+# Task_types that MUST read the REPO to be truthful — a single-shot (tools_enabled=False) worker on
+# one of these asserts about code it can't see and hallucinates: `review` (bugs in code), `docs`
+# (docs-vs-code), `plan` (grounds every ref at path:line — see methodology("plan")). NOT gated:
+# `research`/`spec` ground against the WEB (via `web_tools`, not repo files), and `code` GENERATES
+# (a self-contained "write function X" needs no repo grounding) — those set their own tools/keys.
+_GROUNDED_TASK_KINDS = frozenset({"review", "docs", "plan"})
 
 
 @dataclass
