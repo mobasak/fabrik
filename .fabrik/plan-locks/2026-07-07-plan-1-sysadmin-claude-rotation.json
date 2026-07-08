@@ -1,5 +1,5 @@
 {
-  "plan": "docs/development/plans/2026-07-07-plan-1-sysadmin-claude-rotation.md",
+  "plan": "docs/development/plans/archived/2026-07-07-plan-1-sysadmin-claude-rotation.md",
   "owned_paths": [
     "scripts/sysadmin/claude_rotate.py",
     "scripts/aro-wake/claude_rotate.py",
@@ -23,5 +23,7 @@
   ],
   "branch": "master",
   "started_at": "2026-07-08",
-  "status": "active"
+  "completed_at": "2026-07-08",
+  "final_commit": "ddffa96b",
+  "status": "released"
 }
