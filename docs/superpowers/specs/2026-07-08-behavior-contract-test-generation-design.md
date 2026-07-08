@@ -2,7 +2,7 @@
 
 Status: CONVERGED
 Date: 2026-07-08
-Converged: 2026-07-08 (/fabrik-spec-review — 2 passes to an edit-free md5-verified no-op; mutmut + all best-practice citations re-verified live this session and confirmed to support their claims)
+Converged: 2026-07-08 (/fabrik-spec-review — edit-free md5-verified no-op; mutmut + all best-practice citations re-verified live and confirmed to support their claims. Then folded in the fabrik-lib module author's review — multi-model suggest, worktree-HEAD discipline, author self-verify-collection, mutmut sequencing, and the `ce69478` `.env`-autoload re-vendor recommendation; the author confirmed the module needs NO change for this workflow — re-verified against `workspace.py:87` + canonical `ce69478`)
 Depends on (PARTIAL — only the authoring workflow):
 `docs/development/plans/2026-07-08-plan-1-subagent-pool-flywheel-enforcement.md`. The **pool-authoring
 workflow** (suggest/author/report — steps 1, 3, 4) needs plan-1's pool + `record_agent_run` live. The **rule**
@@ -29,12 +29,20 @@ blind spots, so a green suite overstates correctness).
 
 ## The workflow (operator-approved — cheap where cheap works, Claude where judgment matters)
 
-1. **Suggest** — one cheap **pool** subagent (`run_agents`, `task_type="review"`) reads the changed code +
-   proposes the behavior list. Ideation is cheap.
+1. **Suggest (multi-model fan-out)** — **2–3 diverse cheap pool models** (`run_agents` with a mixed model
+   list, e.g. `minimax/minimax-m3` + `deepseek/deepseek-v3.2`, `task_type="review"`, `tools_enabled=False`,
+   **the diff passed IN the task** — not read from a worktree) each propose a behavior list; **union** them.
+   A single suggester is the workflow's biggest blind spot — a behavior it misses is never tested and
+   curation can only cut, not invent; diverse model families catch what one misses, for cents.
 2. **Curate** — **Claude** evaluates the list: adds missing behaviors, cuts trivia/dupes, risk-orders. This
    is the **anti-bloat + anti-gap gate** — Claude owns *what* is tested before any authoring spend.
 3. **Author (parallel)** — multiple cheap **pool** subagents (`run_agents`, `task_type="code"`,
-   `tools_enabled=True`, worktree), **one per curated behavior**, write the tests. Cheap + fast.
+   `tools_enabled=True`, **disjoint `owned_paths`** — each writes its own test file), one per curated
+   behavior. ⚠️ **Tool-enabled authors see committed `HEAD`, not the dirty working tree**
+   (`workspace.py:87` `worktree add --detach HEAD`) — so the **code-under-test MUST be committed before
+   authoring** (automatic in the per-phase fabrik flow) or passed in the task; never let an author get a
+   stale/empty view. Each author **self-verifies collection** (runs `pytest` on its new test in the sandbox
+   to confirm it at least imports/collects) before returning its diff. Cheap + fast.
 4. **Report** — each returns its test + notes; `results_table` + `record_agent_run` per worker (feeds the
    flywheel).
 5. **Fix** — **Claude** reviews (test-quality: would it fail if the behavior broke? real assertions, no
@@ -58,7 +66,10 @@ You cannot mechanically judge "is this a good test" — but you can force the ar
    **changed functions only** (its incremental mode) to prove the new tests **kill mutants** — the current
    pro-grade way to catch the Test Homogenization Trap that coverage cannot. **ADVISORY, not a per-PR
    blocking gate** (see the cost caveat below): surfaces surviving mutants as a warning / nightly signal, so
-   Claude (or the next pass) strengthens the assertions. **[DECISION: include now vs. defer — see below.]**
+   Claude (or the next pass) strengthens the assertions. **Sequencing:** pool authors return *un-applied*
+   diffs → Claude applies + fixes (step 5) → **THEN** run `mutmut` on the **applied, changed functions**
+   (never against an un-applied worktree diff). **[DECISION: include now vs. defer — the fabrik-lib module
+   author recommends *include now* (diff-scoped keeps it lean); still the operator's call — see below.]**
 
 ## Chosen approach (recommended): all three layers, mutation advisory + diff-scoped
 
@@ -128,6 +139,14 @@ low-maintenance form is **diff-scoped + advisory**, never a full-suite per-PR bl
 - **Lean, not dogma:** behaviors = user-observable/acceptance-level, risk-ordered; never one-per-method /
   getter / framework glue. The operator's hard line: 8 real tests beat 200 brittle ones.
 - **Mutation testing is advisory + diff-scoped** — never a full-suite per-PR blocking gate (hours + noise).
+- **Worktree = committed HEAD:** tool-enabled pool authors see committed code (`workspace.py:87` `--detach
+  HEAD`), not the dirty working tree — commit the code-under-test before authoring, or pass it in the task.
+- **Re-vendor to canonical `ce69478` recommended** before turning authors loose: it adds `.env` autoload
+  (`_dotenv.py` + `load_env`, walks up from the repo) so an author's env "just works" (`OPENROUTER_API_KEY` /
+  `SUBAGENT_RUNS_DSN` read from `<repo>/.env`, **zero export**) — fixing the exact friction hit in this
+  session's dogfood. The current pin `90e0d0d6` works but needs a manual `.env` load. (Re-vendor is the
+  vendoring owner's action — flag to the operator; module author confirmed it needs **no module change** for
+  this workflow.)
 - Depends on `2026-07-08-plan-1` (pool + `record_agent_run` live) for the authoring workflow to record.
 - `requirements.txt` edit (adding `mutmut`) needs the authorization CLAUDE.md requires.
 
