@@ -22,7 +22,9 @@ now="$(date -Is)"
 OUT="$("$PYTHON" "$DIR/claude_rotate.py" "$CLAUDE_BIN" -p ping 2>&1)"
 RC=$?
 
-_limit_re='usage limit reached|hit your (weekly|session|opus|[0-9]+-hour) limit|[0-9]+-hour limit reached|out of extra usage'
+# Mirrors claude_rotate.py::_USAGE_LIMIT_RE (all 5 branches) so the same output that triggers
+# a rotation is also classified a usage-limit here — incl. the "limit · resets" render.
+_limit_re='usage limit reached|hit your (weekly|session|opus|[0-9]+-hour) limit|[0-9]+-hour limit reached|out of extra usage|limit[[:space:]]*·[[:space:]]*resets'
 
 # Classify STRICTLY and consistently — a benign response that merely contains the substring
 # "401" (e.g. a port number) is NOT a failure. A real 401 needs the auth wording; a usage

@@ -110,3 +110,10 @@ def test_shim_ok_on_benign_401_substring(tmp_path):
 def test_shim_fail_on_nonzero_exit_without_markers(tmp_path):
     token = _run_shim(tmp_path, "some transient error", 3)
     assert token.startswith("KEEPALIVE_FAIL:exit_3"), token
+
+
+def test_shim_fail_on_middot_limit_render_rc0(tmp_path):
+    # branch-5-only usage-limit render ("limit · resets") with RC=0 — the rotation core rotates
+    # on it, so the shim must NOT report OK (regex-parity regression guard vs the 4-branch bug)
+    token = _run_shim(tmp_path, "You've reached your limit · resets 3pm", 0)
+    assert token.startswith("KEEPALIVE_FAIL:usage_limit"), f"middot render must FAIL, got {token!r}"

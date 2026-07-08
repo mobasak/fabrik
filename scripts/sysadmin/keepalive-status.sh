@@ -13,7 +13,9 @@
 #     falling back to raw auth/quota detection for a pre-shim (old-format) log. A bare "401"
 #     substring without auth wording is NOT treated as a failure.
 
-_KEEPALIVE_LIMIT_RE='usage limit reached|hit your (weekly|session|opus|[0-9]+-hour) limit|[0-9]+-hour limit reached|out of extra usage'
+# Mirrors claude_rotate.py::_USAGE_LIMIT_RE (all 5 branches, incl. "limit · resets") so a
+# rotation-triggering render is also classified a usage-limit by the monitors.
+_KEEPALIVE_LIMIT_RE='usage limit reached|hit your (weekly|session|opus|[0-9]+-hour) limit|[0-9]+-hour limit reached|out of extra usage|limit[[:space:]]*·[[:space:]]*resets'
 
 keepalive_reason() {
     local log="$1"

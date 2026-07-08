@@ -6,10 +6,26 @@ monitors actually source the helper + still parse."""
 import pathlib
 import subprocess
 
+import claude_rotate  # cross-check the classifier against the rotation core's regex
+import pytest
+
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 HELPER = ROOT / "scripts/sysadmin/keepalive-status.sh"
 DIGEST = ROOT / "scripts/sysadmin/daily-digest.sh"
 PROACTIVE = ROOT / "scripts/sysadmin/proactive-check.sh"
+
+# Every render the Python rotation core treats as a usage-limit — INCLUDING a branch-5-only
+# "limit · resets" render (no "hit your…limit"). The monitors' classifier must match all of
+# them (the shim/classifier regex must not be a subset of the core's rotation trigger).
+GROUNDED_LIMIT_RENDERS = [
+    "Claude usage limit reached. Resets at 3pm",
+    "You've hit your weekly limit · resets 3pm",
+    "You've hit your session limit · resets 3:45pm",
+    "You've hit your Opus limit · resets 3:45pm",
+    "5-hour limit reached - resets 3pm",
+    "You're out of extra usage · resets 3pm",
+    "You've reached your limit · resets 3pm",  # branch-5 ONLY
+]
 
 
 def _reason(tmp_path, content, *, write=True):
@@ -62,6 +78,14 @@ def test_benign_401_substring_is_not_broken(tmp_path):
 
 def test_missing_log_is_empty(tmp_path):
     assert _reason(tmp_path, "", write=False) == "", "absent log → no reason (mtime check handles cron-dead)"
+
+
+@pytest.mark.parametrize("render", GROUNDED_LIMIT_RENDERS)
+def test_classifier_matches_every_rotation_trigger(tmp_path, render):
+    # Invariant: whatever the Python rotation core rotates on, the monitors must also classify
+    # as usage_limit (old-format log path) — same 5 regex branches, no subset drift.
+    assert claude_rotate.is_usage_limit(render), f"rotation core should match {render!r}"
+    assert _reason(tmp_path, render) == "usage_limit", f"classifier must match {render!r} too"
 
 
 def test_both_tokens_present_fails_closed(tmp_path):
