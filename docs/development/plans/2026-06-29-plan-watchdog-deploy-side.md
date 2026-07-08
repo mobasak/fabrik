@@ -1,5 +1,7 @@
 # Plan — Watchdog deploy-side: GlitchTip payload capture + Tier-D driver wiring
 
+**Owner:** hub AI — this session's watchdog stream (MINE; a 2026-07-08 plan inventory misattributed it as a sibling's — corrected). Code-complete + live-validated; Tier-D live-enablement + GlitchTip alert-wiring automation remain (see §9).
+
 > **Triage (2026-07-01, fabrik-AI): PARTIAL — but code-complete.**
 > - ✅ **Completed:** Issue-1 GlitchTip payload capture; Phase B + Phase C Tier-D driver wiring (loader/validator/registrar), live-validated via `fabrik plan`; the `project_git_remote` derivation bug fixed; default path byte-identical + unit-tested.
 > - ⏳ **Remaining:** enable Tier-D on an actual project (§9 runbook). This is an **operator toggle** (opt a project into autonomous remediation), **not fabrik code** — nothing further is pending on the code side.
