@@ -173,6 +173,17 @@ The vendored `libs/subagents` pool scores every run to `fabrik_analytics.subagen
 
 The writer role is INSERT-only (no SELECT) — read the table via the `postgres` superuser, never the writer DSN.
 
+### Fleet Claude-account sync — `CLAUDE_FLEET_HOSTS` / `CLAUDE_FLEET_SSH_USER` (WSL operator utility)
+
+`scripts/sysadmin/sync-claude-accounts-to-fleet.sh` runs on the operator's **WSL** box and pushes every local `~/.claude/manager-accounts/*/` snapshot + the active `~/.claude/.credentials.json` to each VPS, so a quota rotation on any host lands on a still-valid account (idle standby snapshots otherwise go stale — the failure that silently broke the fleet). Accounts are discovered by glob (a new `can-*` snapshot is picked up automatically once `claude-manager` captures it); the credential-rotation mechanism itself is `scripts/sysadmin/claude_rotate.py`.
+
+- `CLAUDE_FLEET_HOSTS` — space-separated SSH host aliases to sync (default `vps vps2 vps3`). **Add a new VPS by extending this** — the script is N-host by design. Aliases resolve via `~/.ssh/config`.
+- `CLAUDE_FLEET_SSH_USER` — the SSH user (default `ozgur`, non-root: creds live in `~ozgur/.claude`, and root SSH post-bootstrap trips fail2ban).
+- `DRY_RUN=1` — print the `ssh`/`scp` commands without touching any host (used by `test_sync_accounts.py`).
+- `CLAUDE_FLEET_SYNC_LOG` — log path (default `~/.cache/claude-fleet-sync.log`); logs host + account-dir names only, never token bytes.
+
+Run manually or on a WSL cron (e.g. every 6h). ⚠️ **Standby-token validity** (does an idle-synced snapshot's refresh token still work when rotated in?) can only be confirmed live: after a first sync, on one host, rotate to a standby account and `claude -p ping` — if it 401s, shorten the cadence.
+
 ---
 
 ## Architecture Context

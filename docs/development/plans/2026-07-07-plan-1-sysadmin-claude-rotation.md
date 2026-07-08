@@ -115,7 +115,7 @@
 
 ---
 
-## Phase C — Standby-credential freshness sync (WSL → fleet)
+## Phase C — Standby-credential freshness sync (WSL → fleet) — ✅ EXECUTED 2026-07-08 (script + dry-run tests; live sync operator-run)
 
 **Responsibility:** keep BOTH accounts valid on every VPS so a rotation lands on a usable account (the root cause).
 
@@ -181,7 +181,7 @@ scripts/sysadmin/claude-keepalive-rotate.sh              (create)
 scripts/sysadmin/sync-claude-accounts-to-fleet.sh        (create)
 scripts/sysadmin/test_claude_rotate.py                   (create)
 scripts/sysadmin/test_bot_rotation_wire.py               (create)
-scripts/sysadmin/test_sync_accounts.sh                   (create)
+scripts/sysadmin/test_sync_accounts.py                   (create — pytest DRY_RUN dry-run, gate-covered; N-host via CLAUDE_FLEET_HOSTS)
 scripts/sysadmin/test_daily_digest_keepalive.sh          (create)
 scripts/sysadmin/bot.py                                  (modify)
 scripts/sysadmin/daily-digest.sh                         (modify :89-92)
