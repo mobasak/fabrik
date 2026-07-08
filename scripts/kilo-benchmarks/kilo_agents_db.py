@@ -106,7 +106,13 @@ def fetch_kilo_models() -> list[dict[str, Any]]:
                 # F13 defense: log the swallowed exception so a broken import
                 # or apprise misconfiguration is at least visible in cron
                 # stderr, not silent. Fail-soft still — alert isn't primary.
-                log(f"kilo-cli-config alert path swallowed: {type(exc).__name__}: {exc}")
+                # PF1 defense: log() itself can raise on closed stderr / bad
+                # __str__ / recursion in the exception; wrap so the fail-soft
+                # contract survives even a broken logger.
+                try:
+                    log(f"kilo-cli-config alert path swallowed: {type(exc).__name__}: {exc}")
+                except Exception:  # noqa: BLE001, S110 — defensive last-resort
+                    pass
             return []
 
         # Parse the verbose output (model ID followed by JSON blocks)

@@ -764,10 +764,17 @@ def _fire_per_vendor_alerts(o: VendorOutcome) -> None:
                 # F13 defense: log the swallowed exception so a broken import
                 # or write is at least visible in cron stderr, not silent.
                 # Alert path stays primary.
-                sys.stderr.write(
-                    f"[direct_vendor] blocked_writes queue swallowed: "
-                    f"{type(exc).__name__}: {exc}\n"
-                )
+                # PF2 defense: sys.stderr.write itself can raise on closed
+                # stderr (cron 2>/dev/null after FD close) or on a buggy
+                # exception __str__ (RecursionError). Wrap so a broken
+                # stderr can't crash the daily_refresh vendor loop.
+                try:
+                    sys.stderr.write(
+                        f"[direct_vendor] blocked_writes queue swallowed: "
+                        f"{type(exc).__name__}: {exc}\n"
+                    )
+                except Exception:  # noqa: BLE001, S110 — defensive last-resort
+                    pass
             _send_alert(
                 title=f"{o.vendor}: blocked write (diff>{DIFF_BLOCK_PCT:.0%})",
                 body=(

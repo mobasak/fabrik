@@ -39,6 +39,38 @@ def test_sanitize_removes_known_stale_keys(tmp_path):
     assert backup.exists(), "backup not created"
 
 
+def test_sanitize_backup_mode_is_0600_from_creation(tmp_path):
+    """PF4 regression: the .bak MUST be 0600 from the moment it's created
+    (os.open with mode + umask 0o077), so a SIGKILL between create and any
+    later chmod can't leave the operator's Kilo apiKey world-readable.
+    """
+    import os as _os
+
+    from sanitize_kilo_config import sanitize
+
+    cfg = tmp_path / "opencode.json"
+    cfg.write_text(
+        json.dumps(
+            {
+                "apiKey": "sk-real-looking-secret-do-not-leak",
+                "subagent_model": "trigger-sanitize",
+            }
+        ),
+        encoding="utf-8",
+    )
+    sanitize(cfg)
+    backup = cfg.with_suffix(".json.bak")
+    assert backup.exists()
+    mode = _os.stat(backup).st_mode & 0o777
+    assert mode == 0o600, (
+        f"backup mode is {mode:o} (want 0o600) — a SIGKILL/OOM between create "
+        "and chmod would have left the apiKey world-readable"
+    )
+    # And the backup does contain the original secret (guards against "we
+    # protected the mode but wrote empty content" false green).
+    assert "sk-real-looking-secret-do-not-leak" in backup.read_text(encoding="utf-8")
+
+
 def test_sanitize_idempotent_on_clean_config(tmp_path):
     """B3: running twice on an already-clean config = no change."""
     from sanitize_kilo_config import sanitize

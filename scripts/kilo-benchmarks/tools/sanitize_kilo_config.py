@@ -15,6 +15,7 @@ mutating. Safe to run on cron.
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -62,15 +63,37 @@ def sanitize(config_path: Path = CONFIG) -> list[str]:
     for k in removed:
         del data[k]
     backup = config_path.with_suffix(".json.bak")
-    # F8: don't preserve source's world-readable 0644 mode on a file
-    # containing a secret. shutil.copy2 → open+write with 0600 explicitly.
-    backup.write_text(original, encoding="utf-8")
+    # PF4 defense: atomic mode-set at CREATE time via os.open(O_WRONLY|
+    # O_CREAT|O_TRUNC, 0o600). Previous "write_text then chmod" had a
+    # TOCTOU window where a SIGKILL / OOM / power-loss between the two
+    # calls left the .bak with the operator's Kilo apiKey at 0644.
+    # os.open respects the umask, so we clear it inside a scope guard.
+    old_umask = os.umask(0o077)
+    try:
+        # O_TRUNC in case the .bak already exists from a prior run.
+        fd = os.open(
+            str(backup),
+            os.O_WRONLY | os.O_CREAT | os.O_TRUNC,
+            0o600,
+        )
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(original)
+    finally:
+        os.umask(old_umask)
+    # PF5 defense: also chmod the finished .bak (defense-in-depth in case
+    # the FS ignored the create-time mode). Log a warning if that fails —
+    # DO NOT silent-swallow, or the operator believes the secret is
+    # protected on a FUSE / vfat / network mount that ignored the mode.
     try:
         backup.chmod(0o600)
-    except OSError:
-        # Best-effort — a filesystem that ignores chmod (rare on Linux/WSL,
-        # possible on some FUSE mounts) is not a reason to abort.
-        pass
+    except OSError as exc:
+        sys.stderr.write(
+            f"[sanitize_kilo_config] WARN: chmod 0o600 on {backup} failed "
+            f"({type(exc).__name__}: {exc}); filesystem may ignore mode. "
+            "Backup MAY be readable by other users on this host — verify "
+            "with `stat` and move to a mode-respecting FS if the operator "
+            "wants secret isolation.\n"
+        )
     config_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
     return removed
 
