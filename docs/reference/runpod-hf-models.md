@@ -2,7 +2,7 @@
 
 **Last verified:** 2026-06-16 (RunPod's "Deploy LLM from Hugging Face" picker, vLLM-backed endpoint)
 **Source:** RunPod console at `console.runpod.io/serverless/new` → "Deploy LLM from Hugging Face"
-**Why this exists:** when picking the template for the [`fabrik gpu rent`](../development/plans/2026-06-16-fabrik-gpu-rent.md) plan's `RUNPOD_SERVERLESS_TEMPLATE_ID`, you choose the underlying model. Re-verify before relying on any specific row — RunPod adds/removes models without notice.
+**Why this exists:** when picking the template for the [`fabrik gpu rent`](../development/plans/archived/2026-06-17-gpu-rent-and-serverless-shipped/2026-06-16-fabrik-gpu-rent.md) plan's `RUNPOD_SERVERLESS_TEMPLATE_ID`, you choose the underlying model. Re-verify before relying on any specific row — RunPod adds/removes models without notice.
 
 ---
 

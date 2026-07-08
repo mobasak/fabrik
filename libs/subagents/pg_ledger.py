@@ -137,6 +137,7 @@ def record_agent_run(
     project: str | None = None,
     dsn: str | None = None,
     connect: Callable[[str], Any] | None = None,
+    receipt_dir: str | None = None,
 ) -> bool:
     """Judge-once flywheel write for a (spec, result) pair — the call an orchestrator SHOULD use.
 
@@ -153,16 +154,27 @@ def record_agent_run(
         for spec, r in zip(specs, results):
             q = judge(r)  # YOUR 0–5 verdict after materializing the diff + running the gate/tests
             record_agent_run(spec, r, quality_score=q, project="my-project")
+
+    On a CONFIRMED DB write (return ``True``) it also drops a LOCAL receipt
+    (:func:`ledger.write_receipt`) so the fleet enforcement gate can reconcile ledger↔receipts
+    WITHOUT reading the INSERT-only ``subagent_runs`` table. ``receipt_dir`` locates the receipts
+    file (the run's ``<repo>/.tmp/subagents``); default co-locates with the ledger when the
+    orchestrator runs from the repo root. A fail-open ``False`` writes NO receipt — so an unrecorded
+    run stays unreceipted and :func:`ledger.audit_unrecorded` flags it (that is the point).
     """
-    from .ledger import agent_record
+    from .ledger import agent_record, write_receipt
 
     try:
         record = agent_record(spec, result)
     except Exception:  # noqa: BLE001 — fail-open: a malformed spec/result never raises
         return False
-    return record_run(
+    ok = record_run(
         record, dsn=dsn, project=project, quality_score=quality_score, connect=connect
     )
+    if ok:
+        # receipt ONLY on a confirmed insert — best-effort, never raises.
+        write_receipt(record.get("agent_id"), project, receipt_dir=receipt_dir)
+    return ok
 
 
 __all__ = ["SUBAGENT_RUNS_DDL", "record_run", "record_agent_run"]

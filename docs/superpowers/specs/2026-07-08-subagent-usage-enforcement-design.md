@@ -55,16 +55,16 @@ pool-suitable fan-out; native for GUI + authoritative + decide-merge.
 `final_gate.py`.** Detection uses the pool's own trace: every `run_agents` appends to
 `.tmp/subagents/ledger.jsonl` (`agent.py:286,292` — cumulative, append-only, `ledger.py:65`). **The check
 reconciles LOCALLY and does NOT read `subagent_runs`** — the provisioned writer role is **INSERT-only**
-(`postgres.py:860-861`, no `SELECT`), so a DB read isn't available to the gate anyway. Instead,
+(`postgres.py:865-866`, no `SELECT`), so a DB read isn't available to the gate anyway. Instead,
 `record_agent_run` is **enhanced to write a local receipt** on a successful (`True`) write (marking that
 ledger run as recorded+scored); the check flags any ledger entry with **no matching receipt** (= a pool run
 that ran but was never scored+recorded). This also dissolves the cumulative-ledger window problem —
 unrecorded = *ledger − receipts*, not a time window. **Native subagents never write the ledger, so they are
 automatically out of scope** (no false positives on GUI/authoritative work). Registered via the existing
-`run_optional_check(..., advisory=True)` runner (`final_gate.py:138`) initially.
+`run_optional_check(..., advisory=True)` runner (`final_gate.py:140`) initially.
 
 **C. Provisioning — `SUBAGENT_RUNS_DSN` (INSERT-only writer role) by default.** VPS is already handled
-(`postgres.py:785 create_subagent_ins_role` + `inject_env`). The gap is **WSL dev**: add a
+(`postgres.py:782 create_subagent_ins_role` + `inject_env`). The gap is **WSL dev**: add a
 `SUBAGENT_RUNS_DSN` placeholder to the scaffolder's `.env.example` (`scaffold.py:1022`) + a dev-setup step
 that points it at a local `fabrik_analytics` writer role, so `record_agent_run` writes without hunting for
 creds.
@@ -104,7 +104,7 @@ hard-fail from day 1 (max pressure, risks blocking commits mid-adoption).
   task. Model list prices live in `libs/subagents/select.py:_OUT_PRICE` + the synced
   `docs/reference/kilo/CODING_SUBAGENT_SELECTION.md` (coding-selection AI owns). No stale-memory pricing.
 - **Postgres `subagent_runs`** (internal) — hub auto-provisions on `fabrik apply`
-  (`ensure_shared_analytics_db` + `create_subagent_ins_role`, `postgres.py:785`). INSERT-only writer role.
+  (`ensure_shared_analytics_db` + `create_subagent_ins_role`, `postgres.py:782`). INSERT-only writer role.
   Step 2 (live write) proven this session.
 
 ## fabrik-lib vendor → enhance → build verdict
@@ -140,7 +140,7 @@ No new external API; no new fabrik-lib module needed.
 - `record_agent_run` **fail-opens to `False`** on a missing `psycopg` / GRANT gap / unreachable DB — the
   receipt is written **only on `True`**, so a fail-open write correctly leaves the ledger entry
   unreceipted → the check flags it (that's the point: a silent `False` becomes a visible gate finding).
-- The subagent writer role is **INSERT-only** (`postgres.py:860-861` — no `SELECT`/`UPDATE`/`DELETE`), so the
+- The subagent writer role is **INSERT-only** (`postgres.py:865-866` — no `SELECT`/`UPDATE`/`DELETE`), so the
   enforcement check **cannot read `subagent_runs`** — it reconciles locally (ledger ↔ receipts), never via a
   DB query.
 - Cross-repo HARD STOP: role/grant changes on `postgres-main`/`fabrik_analytics` are the coding-selection
@@ -154,7 +154,11 @@ No new external API; no new fabrik-lib module needed.
 - **[DECISION]** enforcement teeth: warn-then-fail (default) vs hard-fail-now. User confirms at approval.
 - **[RESOLVED in this pass]** the cumulative-ledger window — the local-receipt mechanism dissolves it
   (unrecorded = *ledger − receipts*, not a time window). Confirmed: `Ledger.append` is append-only to a
-  fixed per-repo path (`ledger.py:65`, `agent.py:292`). Open sub-detail for planning: receipt file location
-  + format (co-located with the ledger under `.tmp/subagents/`).
+  fixed per-repo path (`ledger.py:65`, `agent.py:292`). **Receipt location + format RESOLVED (2026-07-08,
+  w/ fabrik-lib AI):** `record_agent_run(…, receipt_dir=None)` appends `{agent_id, ts, recorded:true, project}`
+  to `<cwd>/.tmp/subagents/receipts.jsonl`; `audit_unrecorded(ledger_path, receipts_path=None)` co-locates
+  receipts at `ledger_path.parent/receipts.jsonl`. Receipt keyed by `agent_id` only (`task_type`/`model` come
+  from the ledger record via `audit_unrecorded`'s return, not the receipt); write is fail-open. `run_agents`-
+  callers pass `receipt_dir=<repo>/.tmp/subagents` explicitly so receipts never depend on cwd.
 - **[OPEN — coordination]** WSL-dev `SUBAGENT_RUNS_DSN`: reuse the `subagent_smoke_writer` role (exists) or a
   dedicated per-dev writer? Resolve with the coding-selection AI.

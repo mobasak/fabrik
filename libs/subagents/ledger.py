@@ -146,4 +146,60 @@ def agent_record(spec: object, result: object) -> dict:
     return record
 
 
-__all__ = ["Ledger", "agent_record"]
+# ── Local receipts — the flywheel-enforcement rail ─────────────────────────────
+# The enforcement gate CANNOT `SELECT subagent_runs` (the writer role is INSERT-only), so it needs a
+# LOCAL signal that a run was recorded+scored. `record_agent_run` writes a receipt here on a confirmed
+# DB write; `audit_unrecorded` reconciles ledger↔receipts to surface pool runs that ran but were never
+# recorded (= ledger − receipts). Native subagents never write the ledger, so they are never flagged.
+RECEIPTS_FILENAME = "receipts.jsonl"
+
+
+def _receipts_path(receipt_dir: str | None) -> Path:
+    """The receipts file. ``receipt_dir`` (the run's ``<repo>/.tmp/subagents``) if given, else
+    ``.tmp/subagents/`` relative to CWD — which co-locates with the DEFAULT ledger when the
+    orchestrator runs from the repo root (the convention). A caller not at repo-root passes
+    ``receipt_dir`` explicitly."""
+    base = Path(receipt_dir) if receipt_dir else Path(".tmp") / "subagents"
+    return base / RECEIPTS_FILENAME
+
+
+def write_receipt(agent_id: object, project: str | None, *, receipt_dir: str | None = None) -> bool:
+    """Append one receipt marking a run as recorded+scored. BEST-EFFORT: returns ``False`` and never
+    raises on any error (a missing receipt after a real DB write only costs a false advisory WARN,
+    never a broken run). Reuses :class:`Ledger` so the append is cross-process flock-protected."""
+    try:
+        Ledger(str(_receipts_path(receipt_dir))).append(
+            {
+                "agent_id": str(agent_id),
+                "ts": datetime.now(timezone.utc).isoformat(),
+                "recorded": True,
+                "project": project,
+            }
+        )
+        return True
+    except Exception:  # noqa: BLE001 — best-effort: a receipt-write failure never breaks a run
+        return False
+
+
+def audit_unrecorded(
+    ledger_path: str, receipts_path: str | None = None
+) -> list[dict]:
+    """Ledger entries whose ``agent_id`` has NO matching receipt — pool runs that ran but were never
+    scored+recorded. ``receipts_path`` defaults co-located with the ledger. Never raises; a missing
+    ledger (no pool use) → ``[]``."""
+    if receipts_path is None:
+        receipts_path = str(Path(ledger_path).parent / RECEIPTS_FILENAME)
+    ledger_entries = Ledger(ledger_path).read_all()  # [] if the ledger file is absent
+    recorded = {
+        r.get("agent_id")
+        for r in Ledger(receipts_path).read_all()
+        if r.get("recorded") and r.get("agent_id")
+    }
+    return [
+        e
+        for e in ledger_entries
+        if e.get("agent_id") and e.get("agent_id") not in recorded
+    ]
+
+
+__all__ = ["Ledger", "agent_record", "write_receipt", "audit_unrecorded", "RECEIPTS_FILENAME"]

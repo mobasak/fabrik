@@ -55,7 +55,11 @@ _PRESETS: dict[str, str] = {
         "fail-open vs fail-closed, concurrency, resource cleanup, and test quality (does "
         "each test actually prove its claim?). Prove a finding before fixing it, with a "
         "kept regression test; refute a false positive by quoting the guard. Don't drop "
-        "half-believed candidates — that is the dominant cause of misses."
+        "half-believed candidates — that is the dominant cause of misses. CRITICAL: you "
+        "see ONLY what this task provides. If a claim needs a file/symbol/line you were "
+        "not given, output UNVERIFIABLE (state what you'd need) — NEVER assert a defect, "
+        "or a TRUE/FALSE about code you cannot see. A fabricated finding is worse than a "
+        "gap; a confident wrong verdict is the failure mode here."
     ),
     "code": (
         "You are implementing. Write the failing test for the highest-risk behavior "
@@ -70,7 +74,10 @@ _PRESETS: dict[str, str] = {
         "signatures/behavior at the source before you write them. Update every doc a "
         "change triggers (config/env, API, features, schema). Prefer truthful and "
         "concise over comprehensive-but-stale; a doc that overstates what the code does "
-        "is a defect. Show a claim→proof line for each non-obvious statement."
+        "is a defect. Show a claim→proof line for each non-obvious statement. CRITICAL: "
+        "verify only against what this task gives you; if you cannot see the code a claim "
+        "refers to, mark it UNVERIFIABLE rather than guessing TRUE/FALSE — a confident "
+        "wrong verdict about a file you were not shown is the failure mode here."
     ),
 }
 

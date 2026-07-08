@@ -511,6 +511,6 @@ This plan was iterated through 4 grounding passes (10+ Explore subagents, ~15 ve
 
 ## References
 
-- Predecessor plan (LLM-side OR↔Kilo): [docs/development/plans/2026-06-27-plan-openrouter-routing.md](2026-06-27-plan-openrouter-routing.md).
+- Predecessor plan (LLM-side OR↔Kilo): [docs/development/plans/2026-06-27-plan-openrouter-routing.md](archived/2026-06-27-plan-openrouter-routing.md).
 - Convergence contract: [scripts/enforcement/check_convergence.py:33-49](../../../scripts/enforcement/check_convergence.py#L33-L49).
 - Prompt templates: [docs/reference/convergence-prompts.md](../../reference/convergence-prompts.md).

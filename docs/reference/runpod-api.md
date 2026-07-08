@@ -2,7 +2,7 @@
 
 **Last verified:** 2026-06-16 (against `docs.runpod.io/llms.txt` index + per-endpoint markdown specs + `docs.runpod.io/overview`)
 **Source of truth:** `https://docs.runpod.io/llms.txt` (canonical), `https://docs.runpod.io/api-reference/*` (per-endpoint specs), `https://docs.runpod.io/overview` (product surface)
-**Why this exists:** the [`fabrik gpu rent`](../development/plans/2026-06-16-fabrik-gpu-rent.md) implementation wraps these endpoints in [`src/fabrik/drivers/runpod.py`](../../src/fabrik/drivers/runpod.py). This doc is the "what's in" snapshot — re-verify if RunPod changes the shape and adjust the driver accordingly.
+**Why this exists:** the [`fabrik gpu rent`](../development/plans/archived/2026-06-17-gpu-rent-and-serverless-shipped/2026-06-16-fabrik-gpu-rent.md) implementation wraps these endpoints in [`src/fabrik/drivers/runpod.py`](../../src/fabrik/drivers/runpod.py). This doc is the "what's in" snapshot — re-verify if RunPod changes the shape and adjust the driver accordingly.
 
 Not exhaustive of RunPod's full API — only the endpoints Fabrik calls.
 
@@ -274,6 +274,6 @@ Other handlers accept different `input` shapes — check the template's docs. Fo
 
 - [`src/fabrik/drivers/runpod.py`](../../src/fabrik/drivers/runpod.py) — Fabrik's implementation of this surface (~360 lines)
 - [`docs/reference/runpod-hf-models.md`](runpod-hf-models.md) — HuggingFace models available for serverless deployment
-- [`docs/development/plans/2026-06-16-fabrik-gpu-rent.md`](../development/plans/2026-06-16-fabrik-gpu-rent.md) — implementation plan
+- [`docs/development/plans/2026-06-16-fabrik-gpu-rent.md`](../development/plans/archived/2026-06-17-gpu-rent-and-serverless-shipped/2026-06-16-fabrik-gpu-rent.md) — implementation plan
 - [`.windsurf/rules/core/76-gpu-workers.md`](../../.windsurf/rules/core/76-gpu-workers.md) — decision framework
 - `https://docs.runpod.io/llms.txt` — canonical API index (re-verify against this)

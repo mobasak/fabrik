@@ -3,7 +3,7 @@
 **Last updated:** 2026-06-16 (Phase 1+2+3+4+5 shipped; live-validated against RunPod)
 **Companion docs:**
 
-- [Plan](../development/plans/2026-06-16-fabrik-gpu-rent.md) — implementation plan + validation gates
+- [Plan](../development/plans/archived/2026-06-17-gpu-rent-and-serverless-shipped/2026-06-16-fabrik-gpu-rent.md) — implementation plan + validation gates
 - [RunPod API reference](../reference/runpod-api.md) — what the driver wraps
 - [RunPod HF models](../reference/runpod-hf-models.md) — deployable model catalog
 - [`.windsurf/rules/core/76-gpu-workers.md`](../../.windsurf/rules/core/76-gpu-workers.md) — decision framework
@@ -368,7 +368,7 @@ its next run. Or run `fabrik gpu reconcile --auto-destroy` manually.
 
 ## See also
 
-- [Plan](../development/plans/2026-06-16-fabrik-gpu-rent.md)
+- [Plan](../development/plans/archived/2026-06-17-gpu-rent-and-serverless-shipped/2026-06-16-fabrik-gpu-rent.md)
 - [RunPod API reference](../reference/runpod-api.md)
 - [RunPod HF models catalog](../reference/runpod-hf-models.md)
 - [`.windsurf/rules/core/76-gpu-workers.md`](../../.windsurf/rules/core/76-gpu-workers.md) — the decision framework

@@ -126,6 +126,23 @@ class AgentResult:
 LoopFn = Callable[..., LoopOutcome]
 
 
+def _capped_hint(spec: AgentSpec) -> str:
+    """The actionable message stamped onto a capped ``AgentResult.error`` — WHY the run is partial +
+    the fix, IN the result the orchestrator always inspects (it won't re-read docs after compaction).
+    The usual culprit is too-low ``max_turns`` for tool-enabled multi-file work (the default 8 caps
+    mid-task)."""
+    base = (
+        f"capped: hit the run budget (max_turns={spec.max_turns}, "
+        f"wall_clock_s={spec.wall_clock_s:.0f}s) before finishing — the output/diff is PARTIAL. "
+    )
+    if spec.tools_enabled:
+        return base + (
+            "Tool-enabled/multi-file work usually needs max_turns≈20+ (the default 8 is low for it); "
+            "raise max_turns (and/or wall_clock_s) and re-run this agent — do NOT trust a capped diff."
+        )
+    return base + "Raise max_turns/wall_clock_s and re-run this agent."
+
+
 def _invoke_loop(
     loop_fn: LoopFn,
     spec: AgentSpec,
@@ -253,6 +270,13 @@ async def _run_one(
                         paths, spec.owned_paths
                     ):
                         status = "out_of_scope"
+                    err = outcome.error
+                    if status == "capped" and not err:
+                        # A cap means the diff/text is PARTIAL. Put WHY + the fix IN the result —
+                        # the orchestrator always inspects AgentResult, but won't re-read the docs
+                        # (limited context / compaction). The usual culprit is too-low max_turns for
+                        # tool-enabled multi-file work (the default 8 caps mid-task).
+                        err = _capped_hint(spec)
                     result = AgentResult(
                         agent_id,
                         outcome.text,
@@ -261,7 +285,7 @@ async def _run_one(
                         outcome.provider,
                         outcome.cost_usd,
                         outcome.turns,
-                        error=outcome.error,
+                        error=err,
                         tool_calls=outcome.tool_calls,
                         out_tokens=outcome.out_tokens,
                     )

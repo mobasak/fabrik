@@ -71,21 +71,67 @@ def _parse_env_text(text: str) -> dict[str, str]:
     return out
 
 
-def load_env(repo: str, *, keys: tuple[str, ...] = DOTENV_KEYS) -> list[str]:
-    """Populate ``os.environ`` from ``<repo>/.env`` for the curated ``keys`` that are NOT already
-    set (real env wins). Returns the keys it actually set. Never raises."""
+def _find_dotenv(repo: str) -> Path | None:
+    """The nearest `.env` walking UP from ``repo`` — so a caller can pass the project root, a subdir,
+    OR a git worktree under it and still find the project's `.env`. Returns the first one found
+    (nearest wins), or ``None``. Bounded to ``repo``'s ancestors (never the cwd or unrelated trees),
+    so it can't accidentally pick up a stray `.env`. This is what makes "use the pool" work
+    regardless of which path inside the project the orchestrator passes as ``repo``."""
     try:
-        # utf-8-sig strips a leading BOM (a Windows-editor .env would otherwise glue it to the first
-        # key → `isidentifier()` fails → that key silently dropped). Identical for BOM-less files.
-        text = (Path(repo) / ".env").read_text(encoding="utf-8-sig")
+        base = Path(repo).resolve()
+    except OSError:
+        return None
+    for d in (base, *base.parents):
+        candidate = d / ".env"
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+_SHARED_ENV_VAR = "SUBAGENTS_ENV_FILE"
+
+
+def _shared_env_path() -> Path:
+    """The fleet-wide, USER-level env file — set ``OPENROUTER_API_KEY`` (+ ``SUBAGENT_RUNS_DSN``)
+    there ONCE and EVERY project's pool picks it up, with no per-repo `.env` edit and no copying a
+    credential between projects. ``SUBAGENTS_ENV_FILE`` overrides the location; else
+    ``$XDG_CONFIG_HOME/fabrik/subagents.env`` (default ``~/.config/fabrik/subagents.env``). It is the
+    operator's OWN config file, not another project's `.env`, so reading it raises no
+    cross-project-credential concern."""
+    override = os.getenv(_SHARED_ENV_VAR)
+    if override:
+        return Path(override)
+    xdg = os.getenv("XDG_CONFIG_HOME") or os.path.join(os.path.expanduser("~"), ".config")
+    return Path(xdg) / "fabrik" / "subagents.env"
+
+
+def _apply_env_file(path: Path, keys: tuple[str, ...], loaded: list[str]) -> None:
+    """Set curated ``keys`` from ``path`` into ``os.environ``, NON-overriding (skip a key already set
+    and an EMPTY `.env` value). utf-8-sig strips a leading BOM (a Windows-editor .env would otherwise
+    glue it to the first key → `isidentifier()` fails → that key silently dropped). Fail-open;
+    appends the keys it actually set to ``loaded``."""
+    try:
+        text = path.read_text(encoding="utf-8-sig")
     except (OSError, UnicodeDecodeError):
-        return []
+        return
     parsed = _parse_env_text(text)
-    loaded: list[str] = []
     for k in keys:
-        # skip an EMPTY .env value (`KEY=`) — treat it as unset rather than poisoning os.environ with
-        # "" (the transport already reads "" as missing, but this keeps the process env honest).
         if k not in os.environ and parsed.get(k):
             os.environ[k] = parsed[k]
             loaded.append(k)
+
+
+def load_env(repo: str, *, keys: tuple[str, ...] = DOTENV_KEYS) -> list[str]:
+    """Populate ``os.environ`` for the curated ``keys`` — precedence: real env (already set) wins,
+    then the project's ``.env`` (nearest, walking up from ``repo``), then the fleet-wide shared file
+    (:func:`_shared_env_path`). So a key set ONCE in ``~/.config/fabrik/subagents.env`` serves every
+    project with no per-repo edit, while a project can still override it in its own `.env`. Returns
+    the keys it set. Never raises."""
+    loaded: list[str] = []
+    proj = _find_dotenv(repo)  # project .env — more specific → applied FIRST (wins over the shared)
+    if proj is not None:
+        _apply_env_file(proj, keys, loaded)
+    shared = _shared_env_path()  # fleet-wide fallback — fills anything the project didn't set
+    if shared.is_file():
+        _apply_env_file(shared, keys, loaded)
     return loaded

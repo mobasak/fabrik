@@ -106,7 +106,7 @@ Until the upstream merge: a Cloudflare-walled vendor in the daily refresh will s
 
 Separately tracked. Shipped today: Phases 1, 2, 3, 4. Pending: Phase 5 (DB seed auto-restore), Phase 6 (per-DB Backrest plans), Phase 8 (deploy key auto-push). DEFERRED: Phase 7 (GlitchTip has no programmatic webhook API).
 
-See [docs/development/plans/2026-06-30-plan-fabrik-deploy-readiness-gaps.md](../plans/2026-06-30-plan-fabrik-deploy-readiness-gaps.md) for the converged plan with per-phase TDD protocol.
+See [docs/development/plans/2026-06-30-plan-fabrik-deploy-readiness-gaps.md](../plans/archived/2026-06-30-plan-fabrik-deploy-readiness-gaps.md) for the converged plan with per-phase TDD protocol.
 
 ## Review log
 

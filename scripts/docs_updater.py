@@ -52,6 +52,7 @@ import subprocess
 import sys
 import threading
 import time
+import urllib.parse
 from contextlib import suppress
 from datetime import datetime
 from pathlib import Path
@@ -607,7 +608,8 @@ TEMPLATE_PATH = PROJECT_ROOT / "templates" / "docs" / "MODULE_REFERENCE_TEMPLATE
 # All docs that need staleness/completeness checks
 MANUAL_DOCS = [
     "README.md",
-    "tasks.md",
+    # tasks.md is a deliberately-frozen 2026-03 superseded snapshot (see its banner) — kept as
+    # history, not a living doc, so it is exempt from the freshness/staleness gate.
     "AGENTS.md",
     "docs/INDEX.md",
     "docs/QUICKSTART.md",
@@ -1039,6 +1041,7 @@ def check_link_integrity() -> list[str]:
 
     # Skip files that are copies of external docs
     skip_files = (
+        "markdown-cheatsheet.md",  # a Markdown syntax reference — its links are illustrative examples
         "droid-exec-headless.md",
         "building-interactive-apps-with-droid-exec.md",
         "n8n-webhooks.md",
@@ -1060,8 +1063,8 @@ def check_link_integrity() -> list[str]:
         for match in link_pattern.finditer(content):
             link_text, link_path = match.groups()
 
-            # Skip external links, anchors, mailto
-            if link_path.startswith(("http://", "https://", "#", "mailto:")):
+            # Skip external links, anchors, mailto, and file:// URIs (usually cross-repo)
+            if link_path.startswith(("http://", "https://", "#", "mailto:", "file://")):
                 continue
 
             # Skip external Factory doc paths
@@ -1077,17 +1080,35 @@ def check_link_integrity() -> list[str]:
                 continue
             if "{" in link_path or "}" in link_path:
                 continue
+            # Skip template-date placeholders (e.g. infra-probe-YYYY-MM-DDTHH-MMZ.yaml)
+            if "YYYY" in link_path or "HH-MM" in link_path:
+                continue
 
-            # Resolve relative path
+            # Resolve relative path (URL-decode %20 etc — files with spaces are legitimately encoded)
             if link_path.startswith("/"):
+                # A real absolute FS path OUTSIDE this repo (e.g. /opt/fabrik-lib/...) is a
+                # cross-repo reference, not a repo-root-relative link — not ours to validate.
+                literal = Path(urllib.parse.unquote(link_path.split("#")[0]))
+                if literal.is_absolute() and literal.exists():
+                    try:
+                        literal.relative_to(PROJECT_ROOT)
+                    except ValueError:
+                        continue
                 # Absolute from repo root
-                target = PROJECT_ROOT / link_path.lstrip("/")
+                target = PROJECT_ROOT / urllib.parse.unquote(link_path.lstrip("/"))
             else:
                 # Handle anchor in path
-                path_part = link_path.split("#")[0]
+                path_part = urllib.parse.unquote(link_path.split("#")[0])
                 if not path_part:
                     continue
                 target = (doc.parent / path_part).resolve()
+
+            # Skip cross-repo / external references (resolve OUTSIDE this repo) — a link into
+            # /opt/fabrik-lib or another repo is not this checker's to validate.
+            try:
+                target.relative_to(PROJECT_ROOT)
+            except ValueError:
+                continue
 
             if not target.exists():
                 issues.append(

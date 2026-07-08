@@ -1,6 +1,6 @@
 # Fabrik Business Model
 
-**Last Updated:** 2026-02-26
+**Last Updated:** 2026-07-08
 
 Fabrik's monetization strategy and revenue opportunities.
 

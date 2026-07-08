@@ -27,13 +27,16 @@ def check_proposal() -> bool:
         print("INFO: No plans directory found - skipping One-Test Rule check")
         return True
 
-    # Find latest plan by modification time (not alphabetical)
+    # Find the latest plan by its filename date prefix (plans are named `YYYY-MM-DD-…`), NOT by
+    # mtime. mtime is fragile: any edit to an OLD plan (even a one-line link fix) bumps it to
+    # "latest" and retroactively demands new-format metadata it never had — a shared-master
+    # false-positive. The filename date is stable and reflects true authoring recency.
     plans = list(plans_dir.glob("*.md"))
     if not plans:
         print("INFO: No plan files found - skipping One-Test Rule check")
         return True
 
-    latest_plan = max(plans, key=lambda p: p.stat().st_mtime)
+    latest_plan = max(plans, key=lambda p: p.name)
     content = latest_plan.read_text()
 
     # Required keywords for One-Test Rule proposal

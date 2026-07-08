@@ -19,7 +19,7 @@ was never used and nothing recorded, despite the module being built + dogfood-pr
   the decide/refute/merge → no flywheel row by nature.
 - **Enforcement = fleet-synced, not prose:** `record_agent_run` writes a **local receipt** on `True`;
   `scripts/enforcement/check_subagent_flywheel.py` (synced) reconciles ledger ↔ receipts locally and WARNs
-  on an unreceipted pool run. Local because the writer role is **INSERT-only** (`postgres.py:860`) — the gate
+  on an unreceipted pool run. Local because the writer role is **INSERT-only** (`postgres.py:865-866`) — the gate
   can't `SELECT subagent_runs`.
 - **Operator DECISIONS (approved this turn):** (1) `path:line` grounders (`plan-after-chat`/`data-contract`)
   → pool + a native ~20% citation verify-sample; (2) enforcement teeth → **warn-then-fail** (WARN now,
@@ -50,7 +50,7 @@ was never used and nothing recorded, despite the module being built + dogfood-pr
 | Source | What binds | Grounded ref |
 |---|---|---|
 | `.windsurf/rules/core/62-using-subagents.md` (ACTIVE) | the runtime rule + flywheel contract this plan flips to pool-default | `select_rules.py` → ACTIVE (19 packs); this pack is edited in Phase B |
-| `libs/subagents` (VENDORED @ `90e0d0d6`) | `run_agents`/`pick_models`/`record_agent_run`/`results_table`/`Ledger` — vendor, don't build | `agent.py:353 run_agents`, `:286/292 ledger`, `ledger.py:39 Ledger/:65 append`, `pg_ledger.py:132 record_agent_run` |
+| `libs/subagents` (VENDORED @ `90e0d0d6`) | `run_agents`/`pick_models`/`record_agent_run`/`results_table`/`Ledger` — vendor, don't build | `agent.py:364 run_agents`, `:286/292 ledger`, `ledger.py:44 Ledger/:65 append`, `pg_ledger.py:132 record_agent_run` |
 | `libs/subagents` **ENHANCE** (receipt + `audit_unrecorded`) | new module capability — upstream via UPSTREAM_FEEDBACK, re-vendor | `/opt/fabrik-lib/subagents/UPSTREAM_FEEDBACK.md` (exists) |
 | `scripts/final_gate.py` | the enforcement runner to extend | `:140 run_optional_check(advisory=)`, registration site `:628` |
 | `scripts/fabrik_synced_manifest.py` | what propagates fleet-wide (the enforcement's teeth) | `ENFORCEMENT_DIR = "scripts/enforcement"`, `.windsurf/rules` |
@@ -86,8 +86,15 @@ thing, then it lands in canonical + is re-vendored. **The build itself is the fa
 
 **Interfaces — Produces (the contract Phase D consumes, once vendored):**
 - `record_agent_run(spec, result, *, quality_score, project, dsn=None, connect=None, receipt_dir=None) -> bool`
-  — on a `True` write, appends one line to `<repo>/.tmp/subagents/receipts.jsonl`:
-  `{"agent_id": <spec/result agent_id>, "ts": <iso>, "recorded": true, "project": <project>}`. No-op on `False`.
+  — on a `True` write, appends one line to the receipts JSONL:
+  `{"agent_id": <spec/result agent_id>, "ts": <iso>, "recorded": true, "project": <project>}`. Keyed by
+  `agent_id` **only** — `task_type`/`model` live on the ledger record (`agent_record` = `_SPEC_FIELDS` incl.
+  both + `_RESULT_FIELDS` incl. `agent_id`, `ledger.py:123`), which `audit_unrecorded` **returns**, so the WARN
+  reads them from the ledger side; the receipt need not duplicate them. No-op on `False`; the receipt write is
+  **fail-open** (a post-`True` disk error never raises → at worst one phantom advisory WARN, acceptable at
+  `advisory=True`). `receipt_dir=None` → `<cwd>/.tmp/subagents/receipts.jsonl`; since `record_agent_run` has no
+  repo context, **`run_agents`-callers (Phase E) pass `receipt_dir=<repo>/.tmp/subagents` explicitly** — the
+  same dir as the ledger — so receipts never depend on cwd.
 - `audit_unrecorded(ledger_path: str, receipts_path: str | None = None) -> list[dict]` — returns the ledger
   entries whose `agent_id` has **no** matching receipt (= pool runs that ran but were never scored+recorded).
   Receipts default co-located with the ledger (`.tmp/subagents/receipts.jsonl`).
@@ -139,7 +146,7 @@ provenance).
 
 **Files:** `src/fabrik/scaffold.py` (`.env.example` template), `/opt/fabrik/.env` (WSL dev — backed up first),
 `.env.example` (repo). **Responsibility:** every project + WSL dev has the writer DSN so `record_agent_run`
-writes without hand-wiring. VPS is already provisioned (`postgres.py:785 create_subagent_ins_role` + `inject_env`).
+writes without hand-wiring. VPS is already provisioned (`postgres.py:782 create_subagent_ins_role` + `inject_env`).
 
 **Interfaces — Produces:** env vars `SUBAGENT_RUNS_DSN` (INSERT-only writer DSN) + `SUBAGENT_PROJECT`.
 
@@ -249,11 +256,11 @@ files are user-level (no commit) — commit only the `CHANGELOG.md` note.
 
 ## Evidence
 
-- **A/D:** the writer role is INSERT-only → local reconciliation required. `postgres.py:860` `GRANT INSERT ON
+- **A/D:** the writer role is INSERT-only → local reconciliation required. `postgres.py:865-866` `GRANT INSERT ON
   public.subagent_runs` (grep confirmed, no SELECT). Ledger cumulative append-only: `ledger.py:65` mode `"a"`,
   `agent.py:292` fixed `.tmp/subagents/ledger.jsonl`.
 - **B:** 62 is ACTIVE (`select_rules.py` → 19 packs incl. `core/62-using-subagents.md`).
-- **C:** VPS provisioning exists — `postgres.py:785 create_subagent_ins_role`. Scaffold `.env.example` writer
+- **C:** VPS provisioning exists — `postgres.py:782 create_subagent_ins_role`. Scaffold `.env.example` writer
   at `scaffold.py:1022`.
 - **D:** registration pattern — `final_gate.py:628 run_optional_check(...)`, `:140` signature with `advisory`.
 - **Live proof the pipeline works:** dogfood 2026-07-08 — 3 `subagent_runs` rows (`project='pool-dogfood'`,
@@ -277,5 +284,7 @@ files are user-level (no commit) — commit only the `CHANGELOG.md` note.
   D ships guarded (`ImportError` → skip) so it isn't blocked from landing.
 - **[OPEN → Phase C]** WSL-dev `SUBAGENT_RUNS_DSN`: reuse `subagent_smoke_writer` (exists) or a dedicated dev
   writer? Resolution: confirm with the coding-selection AI at Phase C start.
-- **[OPEN → Phase D]** exact receipt file path/format (`.tmp/subagents/receipts.jsonl` proposed) — finalized
-  with the fabrik-lib AI as part of the ENHANCE (Phase A interface).
+- **[RESOLVED — Phase A interface, 2026-07-08]** receipt file path/format finalized with the fabrik-lib AI:
+  `record_agent_run(…, receipt_dir=None)` → `<cwd>/.tmp/subagents/receipts.jsonl`; `run_agents`-callers pass
+  `receipt_dir=<repo>/.tmp/subagents` explicitly (never cwd-dependent); line
+  `{agent_id, ts, recorded:true, project}` keyed by `agent_id` only; fail-open write. See Phase A Interfaces.
