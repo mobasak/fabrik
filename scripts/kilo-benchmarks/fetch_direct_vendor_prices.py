@@ -746,6 +746,22 @@ def _fire_per_vendor_alerts(o: VendorOutcome) -> None:
         return
     for w in o.writes:
         if w.action == "refused_diff":
+            # Plan-4 Phase D: also record to the operator review queue so a
+            # blocked write is never silently dropped (guarded import for
+            # test isolation + backwards compat).
+            try:
+                from blocked_writes import record_blocked_write
+
+                record_blocked_write(
+                    o.vendor,
+                    str(w.db_id),
+                    float(w.after_price),
+                    float(w.before_price),
+                    f"diff>{DIFF_BLOCK_PCT:.0%}",
+                    w.raw_price_text or "",
+                )
+            except Exception:  # noqa: BLE001 — queue is defense-in-depth, alert is primary
+                pass
             _send_alert(
                 title=f"{o.vendor}: blocked write (diff>{DIFF_BLOCK_PCT:.0%})",
                 body=(
