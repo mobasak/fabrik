@@ -185,7 +185,56 @@ def _build_canon_index(rows: list[dict]) -> dict[str, str]:
     return index
 
 
+# Manual override map for SWE-bench / Aider entry names that don't
+# canonicalize cleanly to an agents.id. Consulted BEFORE the fuzzy
+# canon_variants path. Mirrors the proven GROQ_TO_OR_ID pattern at
+# scrape_groq_speeds.py:187. Keys are the leaderboard names verbatim;
+# values are the target agents.id. Add entries as new unmatched names
+# appear in daily_refresh logs (SWE unmatched sample dumps them under
+# `[scrape_coding]   SWE unmatched sample:` on --dry-run).
+#
+# Coverage strategy: most unmatched SWE-bench entries carry an agent-
+# harness prefix ("mini-SWE-agent + Claude 4.5 Opus medium (20251101)")
+# or are proprietary agents with no base model (Warp / ACoder / Harness
+# AI / Atlassian Rovo Dev) — the latter have no meaningful mapping and
+# stay unmatched by design.
+BENCHMARK_NAME_TO_AGENT_ID: dict[str, str] = {
+    # Anthropic Claude 4.5 Opus behind various agent harnesses.
+    "mini-SWE-agent + Claude 4.5 Opus medium (20251101)": "anthropic/claude-opus-4.5",
+    "live-SWE-agent + Claude 4.5 Opus medium (20251101)": "anthropic/claude-opus-4.5",
+    "mini-SWE-agent + Claude Opus 4.5": "anthropic/claude-opus-4.5",
+    "live-SWE-agent + Claude Opus 4.5": "anthropic/claude-opus-4.5",
+    # Anthropic Claude Sonnet 4.5 behind various agent harnesses.
+    "mini-SWE-agent + Claude Sonnet 4.5": "anthropic/claude-sonnet-4.5",
+    "live-SWE-agent + Claude Sonnet 4.5": "anthropic/claude-sonnet-4.5",
+    # Anthropic Claude 4 Sonnet.
+    "mini-SWE-agent + Claude Sonnet 4": "anthropic/claude-sonnet-4",
+    "live-SWE-agent + Claude Sonnet 4": "anthropic/claude-sonnet-4",
+    # Anthropic Claude 4 Opus.
+    "mini-SWE-agent + Claude Opus 4": "anthropic/claude-opus-4",
+    "live-SWE-agent + Claude Opus 4": "anthropic/claude-opus-4",
+    # OpenAI GPT-5 behind agent harnesses.
+    "mini-SWE-agent + GPT-5": "openai/gpt-5",
+    "live-SWE-agent + GPT-5": "openai/gpt-5",
+    "mini-SWE-agent + gpt-5-codex": "openai/gpt-5-codex",
+    "live-SWE-agent + gpt-5-codex": "openai/gpt-5-codex",
+    # DeepSeek V3.2 behind agent harnesses.
+    "mini-SWE-agent + DeepSeek-V3.2": "deepseek/deepseek-v3.2",
+    "live-SWE-agent + DeepSeek-V3.2": "deepseek/deepseek-v3.2",
+    # Kimi K2 behind agent harnesses.
+    "mini-SWE-agent + Kimi K2": "moonshotai/kimi-k2",
+    "live-SWE-agent + Kimi K2": "moonshotai/kimi-k2",
+    # Aider Polyglot naming: "Gemini 2.0 Pro exp-02-05" → nearest live variant.
+    # (Gemini 2.0 Pro is deprecated by google; map to the flash-lite prod
+    # slot as a best-effort proxy — better than dropping the row entirely.)
+    # Add more Aider entries as unmatched sample rotates.
+}
+
+
 def _match_id(canon_idx: dict[str, str], name: str) -> str | None:
+    # Manual override map wins (mirrors GROQ_TO_OR_ID pattern).
+    if name in BENCHMARK_NAME_TO_AGENT_ID:
+        return BENCHMARK_NAME_TO_AGENT_ID[name]
     for c in canon_variants(name):
         if c in canon_idx:
             return canon_idx[c]
