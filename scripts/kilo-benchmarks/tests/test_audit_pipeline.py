@@ -10,8 +10,6 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-import pytest
-
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 
@@ -54,7 +52,7 @@ def test_load_findings_generic_accepts_variable_columns(tmp_path):
     assert rows[0]["severity"] == "STYLE"
 
 
-def test_verify_tier_split_flags_out_M_gt_ceiling_in_code_section(tmp_path):
+def test_verify_tier_split_flags_out_price_gt_ceiling_in_code_section(tmp_path):
     md = tmp_path / "CODING.md"
     md.write_text(
         "# Coding subagent selection\n\n"
@@ -84,8 +82,16 @@ def test_render_findings_md_emits_phase_header(tmp_path):
     from audit_pipeline import _render_findings_md
 
     rows = [
-        {"script": "x", "ran": "yes", "dry-run": "yes", "writes-tagged": "yes",
-         "fail-soft": "yes", "severity": "STYLE", "summary": "ok", "fix-commit": "—"},
+        {
+            "script": "x",
+            "ran": "yes",
+            "dry-run": "yes",
+            "writes-tagged": "yes",
+            "fail-soft": "yes",
+            "severity": "STYLE",
+            "summary": "ok",
+            "fix-commit": "—",
+        },
     ]
     out = tmp_path / "phase-a-ingestor-findings.md"
     _render_findings_md("A", rows, out)
