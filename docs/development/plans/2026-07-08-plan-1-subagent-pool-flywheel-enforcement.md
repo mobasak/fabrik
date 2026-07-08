@@ -206,7 +206,7 @@ script + a `run_optional_check(..., advisory=True)` registration.
 
 ---
 
-## Phase E — Wire the pool into the commands (per the runtime map)
+## Phase E — Wire the pool into the commands (per the runtime map) — ✅ EXECUTED 2026-07-08 (all 9 gradeable commands flipped to pool-default footers + `record_agent_run`/`results_table`/`allow_ungrounded` mechanics + the enforcement-check pointer; `fabrik-review`/`fabrik-repo-review`/`fabrik-execute-plan` bodies flipped inline; `fabrik-ui-design-review` correctly stays native (GUI). Residual: the 4 research commands' inline `subagent_type: fabrik-researcher` lines remain — the footer governs pool-default and native `fabrik-researcher` is the legit citation verify-sample per the runtime map. Command files are user-level, live immediately.)
 
 **Files:** `~/.claude/commands/*.md` (user-level — live, NOT repo-committed): `fabrik-review`,
 `fabrik-repo-review`, `fabrik-execute-plan`, `fabrik-docs-review`, `fabrik-rules-review`, `fabrik-spec-review`,
