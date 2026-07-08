@@ -1139,7 +1139,7 @@ COST_BUDGET_SCHEMA_PATH = "/opt/fabrik-lib/cost-budget/schema_pg.sql"
 
 SUBAGENTS_MODULE_ROOT = "/opt/fabrik-lib/subagents"
 """Path to the vendored subagents fabrik-lib module. Home of `SUBAGENT_RUNS_DDL`
-(read at apply-time via `python -c "from subagents import SUBAGENT_RUNS_DDL"`)
+(read at apply-time via `python -c "from subagents.pg_ledger import SUBAGENT_RUNS_DDL"`)
 so schema changes to the module propagate on the next `fabrik apply` without
 requiring a copy of the DDL to live here."""
 
@@ -1156,10 +1156,17 @@ def _read_subagent_runs_ddl() -> str:
       * Use `sys.executable` (fabrik's venv), NOT `python3` (system PATH). A lean
         orchestrator host may lack fabrik-lib's httpx / anthropic deps in system
         python; sys.executable reuses fabrik's own venv which HAS them.
-      * Import from `subagents.pg_ledger` submodule directly, NOT via the package's
-        `__init__.py`. The package's __init__ transitively imports httpx via
-        `.agent → .loop → httpx`; even under sys.executable this is unnecessary
-        weight for reading a plain string constant.
+      * Import from `subagents.pg_ledger` submodule (`from subagents.pg_ledger import
+        SUBAGENT_RUNS_DDL`), NOT `from subagents import SUBAGENT_RUNS_DDL`. The two
+        forms load the SAME chain today — Python runs the package's `__init__.py`
+        on any submodule access, and that init eager-imports `.agent → httpx`
+        (fabrik-lib AI confirmed: `httpx imported: True` after either import form).
+        Harmless in fabrik's venv (httpx is a hard dep); would raise on an
+        httpx-less orchestrator. The submodule form is kept because it names the
+        exact source of truth and reads more precisely — NOT because it avoids the
+        httpx chain. If a dep-free DDL read ever matters, ask fabrik-lib to move
+        the eager `.agent` import behind a lazy accessor in `subagents/__init__.py`;
+        this call site does not need to change.
     """
     import subprocess
     import sys
