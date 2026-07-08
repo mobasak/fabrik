@@ -83,7 +83,9 @@ def main() -> int:
             "`mutmut browse` to inspect."
         )
     else:
-        print("MUTATION (advisory): no surviving mutants in the changed code — tests kill their mutations.")
+        print(
+            "MUTATION (advisory): no surviving mutants in the changed code — tests kill their mutations."
+        )
     return 0
 
 

@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Behavior Contract test rule + cheap-pool test generation (Plan 2, 2026-07-08)
+
+Executed `2026-07-08-plan-2-behavior-contract-test-generation`: replaced fabrik's "1 test for highest-risk path" with a **Behavior Contract** (a test per distinct user-observable behavior), enforced fleet-wide with teeth + a cheap-pool authoring workflow.
+
+- **Rule (Phase A):** `CLAUDE.md:25` + `.windsurf/rules/core/45-testing-strategy.md` (Core Philosophy, the ticket-type table, the high-risk-domains section, the checklist) + `fabrik-plan-after-chat` now state the **Behavior Contract** — one test per user-observable behavior/acceptance criterion, risk-ordered, TDD for the risky, skip trivia (lean, not 100%-coverage). The One-Test Rule is gone.
+- **Structure gate (Phase B):** `scripts/enforcement/check_test_proposal.py` now requires a `## Behavior Contract` section (Given/When/Then) and, when the plan lists acceptance criteria, **fails if behaviors < criteria** (`_count_behaviors` scoped to the section vs `_count_criteria`); degrades to structure-only when no criteria section (no false positives). 6 behavior tests.
+- **Mutation layer (Phase C):** added `mutmut>=3.6.0` (dev dep) + `scripts/enforcement/check_mutation.py` — advisory, diff-scoped, **opt-in** (`FABRIK_MUTMUT=1`; never per-PR blocking), mutates only committed changed Python, always exits 0; registered `advisory=True` in `final_gate`; `docs/CONFIGURATION.md` § Mutation testing. 5 behavior tests.
+- **Workflow (Phase D):** wired suggest(multi-model pool)→curate(you)→author(parallel pool)→report(`record_agent_run`)→fix(you + mutmut) into `~/.claude/commands/fabrik-review.md`; smoke-proven (a `pick_models("review")` suggest run proposed 3 behaviors for $0.0019 + recorded a flywheel row).
+
 ### Added — Model-Discovery Pipeline Audit (Phases A-F) + consolidated report (2026-07-08)
 
 Systematic audit of the daily_refresh.sh pipeline surface: 13 ingestors + 7 derivers + 7 rankers + 14 emitted docs + 11 browser tabs + 3-way DB↔doc↔GUI cross-consistency. Full audit output at `docs/development/audits/2026-07-08-model-pipeline-audit.md` (with 5 per-phase findings MDs); helper module at `scripts/kilo-benchmarks/audit_pipeline.py` (~400 LOC, 6 helpers + 4 tests).
