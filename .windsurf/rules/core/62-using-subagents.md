@@ -64,6 +64,8 @@ A model over $1.5, or any off-Auto model without the operator's explicit per-tur
 
 **Native Claude Task subagents (`fabrik-*`, subscription-billed) are for GUI + the authoritative/high-risk pass + the decide/refute/merge.** GUI (`fabrik-gui`, browser MCPs — no pool equivalent); the authoritative line-precise verification (`fabrik-reviewer`/Opus on auth / schema / migrations / secrets / concurrency); and the decide/refute/merge you always own. A native fan-out produces no `AgentResult`, so it **records nothing** to the flywheel (nothing to rank — that is by nature, not a gap).
 
+**⚠️ BOTH layers, never either/or — native is ADDED ON TOP of the pool breadth, not instead of it.** A *substantial* review / repo-review / rules-audit runs the **pool** breadth layer (`run_agents` finders — recall + they record) **AND** native `fabrik-reviewer` (Opus) for the auth/schema/migrations/secrets/concurrency slices + the decide/merge. "Native for the high-risk pass" does NOT mean native-**only**: a high-risk surface needs the pool breadth *plus* the native authoritative pass. Going all-native and skipping the pool layer lands **zero** flywheel rows (the flywheel learns nothing) — the exact miss `check_subagent_flywheel.py` advisory-WARNs (a big changed surface with no pool run). Trivial one-file reviews may run a single layer; anything substantial runs both.
+
 **Always cost-conservative + you adjudicate:** stay within § Approved pool models; never add an expensive/unlisted model without the operator's explicit per-turn approval. Cheap pool workers *surface* candidates; you refute / merge / decide and own the verdict.
 
 ## Pool vs native — which runtime for a fan-out

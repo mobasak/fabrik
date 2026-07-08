@@ -19,6 +19,7 @@ Usage: `python scripts/enforcement/check_subagent_flywheel.py [ledger.jsonl]`
 
 from __future__ import annotations
 
+import subprocess
 import sys
 from pathlib import Path
 
@@ -28,10 +29,55 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 DEFAULT_LEDGER = PROJECT_ROOT / ".tmp" / "subagents" / "ledger.jsonl"
 
+# Above this many changed files, a review that ran ZERO pool subagents is worth an advisory nudge — the
+# all-native failure mode (native-only, skipping the pool breadth layer) the ledger↔receipt reconciliation
+# is structurally blind to (no pool runs → no ledger → nothing to reconcile). Per 62 § Dispatch policy a
+# substantial review runs the pool breadth layer AND native on top, not native-only.
+_REVIEW_SURFACE_THRESHOLD = 8
+
+
+def _changed_file_count() -> int:
+    """Files changed since the merge-base with origin/master (this cycle's surface). Fail-safe → 0."""
+    try:
+        base = (
+            subprocess.run(
+                ["git", "merge-base", "HEAD", "origin/master"],
+                capture_output=True,
+                text=True,
+                cwd=PROJECT_ROOT,
+            ).stdout.strip()
+            or "HEAD~1"
+        )
+        out = subprocess.run(
+            ["git", "diff", "--name-only", base, "HEAD"],
+            capture_output=True,
+            text=True,
+            cwd=PROJECT_ROOT,
+        ).stdout
+        return sum(1 for line in out.splitlines() if line.strip())
+    except Exception:  # noqa: BLE001 — advisory: a git failure never blocks the gate
+        return 0
+
+
+def _warn_all_native_gap() -> None:
+    """Advisory nudge: a substantial changed surface with ZERO pool runs → the pool breadth layer was
+    likely skipped (the all-native miss the ledger↔receipt reconciliation cannot see)."""
+    changed = _changed_file_count()
+    if changed > _REVIEW_SURFACE_THRESHOLD:
+        print(
+            f"SUBAGENT FLYWHEEL (advisory): {changed} files changed but ZERO pool subagent runs this "
+            "cycle — was the pool breadth layer skipped? A substantial review / repo-review / rules-audit "
+            "runs pool finders (recall + they record) AND native on top, not native-only "
+            "(62-using-subagents.md § Dispatch policy). All-native lands nothing in the flywheel."
+        )
+
 
 def check(ledger_path: Path) -> int:
     if not ledger_path.exists():
-        # no pool use (native-only / no run_agents dispatch) → nothing to reconcile
+        # no pool use at all (native-only / no run_agents dispatch) → nothing to reconcile. But an absent
+        # ledger on a BIG changed surface is exactly the all-native gap (a substantial review with no pool
+        # breadth layer) the ledger↔receipt reconciliation is structurally blind to. Nudge on it.
+        _warn_all_native_gap()
         return 0
     try:
         from libs.subagents import audit_unrecorded
