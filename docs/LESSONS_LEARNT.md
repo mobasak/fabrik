@@ -1,9 +1,19 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
-**Last Updated:** 2026-07-07 (Lesson 83 — `stmt.split()[N]` for column-name extraction is off-by-one-fragile; test the migration twice on the same connection)
+**Last Updated:** 2026-07-08 (Lesson 84 — a retry/rotation wrapper in front of a subprocess that reads PIPED stdin must buffer stdin once + re-supply it on every attempt)
 
 **Purpose:** CAPTURE TECHNICAL HURDLES, AI-SPECIFIC QUIRKS, AND ARCHITECTURAL DECISIONS TO PREVENT REGRESSION AS CODEBASES AND AI AGENTS EVOLVE.
+
+---
+
+# Lesson 84: A retry wrapper in front of a subprocess that reads PIPED stdin must buffer stdin ONCE and re-supply it on every attempt
+
+**Symptom (Plan 5, 2026-07-08):** routing the sysadmin scripts (`proactive-check.sh` `<<< "$CONTEXT"`, `morning-report.sh` `< file`) through `claude_rotate.run_claude` — which RETRIES `claude` on a usage-limit — silently lost the piped context on the retry. The first `subprocess.run(argv)` (no `input=`) let the child inherit fd 0 and read it to EOF; the rotation retry inherited the *same exhausted fd* → empty stdin → Claude analyzed nothing → could return `ALL_CLEAR`, defeating the fail-closed guard. The retry is exactly the case rotation exists for, so the data vanished precisely when it mattered.
+
+**Fix:** read stdin ONCE into a buffer and pass `input=<buffer>` to *every* attempt. **Scope it** (a `buffer_stdin` flag set only by the CLI passthrough) so argv-based direct callers sharing a long-running process's stdin (`bot.py`, `aro-wake`) are never touched — reading a shared `sys.stdin` from a systemd service is a cross-thread hazard and a blocking-read hazard. **Bound the read** (`select` + a deadline via `os.read`) so a partial-data-never-EOF fd (a manual `ssh host '…'` without `-t`) returns what arrived instead of hanging the parent past the subprocess timeout budget.
+
+**Why it slipped per-phase review:** rotation tests monkeypatch `subprocess.run` (masking the shared-fd/offset behavior) and wrapper tests use `<2` accounts so rotation never fires — the combination was only visible to the **whole-plan** `/fabrik-review` over the cumulative diff. Lesson: when a change puts a RETRY loop in front of a caller that feeds data via a *consumable* resource (stdin, a generator, a one-shot iterator, a cursor), buffer the resource; and test rotation/retry with a REAL `os.pipe`, not a mock.
 
 ---
 
