@@ -702,12 +702,10 @@
       </thead>
       <tbody id="tbody"></tbody>
       <tbody id="rows-gpu" style="display:none">
-        <!-- Rendered by export_models_browser.py (follow-up: wire gpu_providers rows).
-             Present here so activeTab handler can swap visibility for the rent-gpu tab. -->
+        <!--GPU_ROWS_PLACEHOLDER-->
       </tbody>
       <tbody id="rows-candidates" style="display:none">
-        <!-- Rendered by export_models_browser.py (follow-up: union of reachable_with_existing_keys=0
-             rows across agents + gpu_providers). Present here so the candidates tab has a target. -->
+        <!--CANDIDATES_ROWS_PLACEHOLDER-->
       </tbody>
     </table>
     <style>
@@ -944,6 +942,12 @@ const TAB_DEFAULTS = {
   image:         { sortKey: "input_cost_per_m",     sortAsc: true,  services: ["image_gen"] },
   video:         { sortKey: "input_cost_per_m",     sortAsc: true,  services: ["video_gen"] },
   ocr:           { sortKey: "input_cost_per_m",     sortAsc: true,  services: ["ocr"] },
+  // Phase E.7 tabs — rows are server-rendered into #rows-gpu / #rows-candidates
+  // at export time. Column-header re-sort is NOT wired on these two tabs; sort
+  // is fixed to the export-time order (gpu_providers by $/hr asc; candidates
+  // by kind then price asc). tbody swap happens in setTab.
+  "rent-gpu":    { sortKey: null, sortAsc: true, services: null, altTbody: "rows-gpu" },
+  candidates:    { sortKey: null, sortAsc: true, services: null, altTbody: "rows-candidates" },
 };
 const VALID_TABS = Object.keys(TAB_DEFAULTS);
 let activeTab = "overview";
@@ -973,14 +977,40 @@ function setTab(tab, opts = {}) {
     el.classList.toggle("on", el.dataset.tab === tab);
   });
   applyTabColumns(tab);
+  // Phase E.7 — swap tbody visibility. Only ONE tbody is visible at a time:
+  // the default #tbody (chat/embedding), OR one of the alt tbodies for rent-gpu
+  // / candidates. `altTbody` on the tab def points at the tbody id to show.
+  const def = TAB_DEFAULTS[tab];
+  const alt = def && def.altTbody;
+  const tbodyDefault = document.getElementById("tbody");
+  const tbodyGpu = document.getElementById("rows-gpu");
+  const tbodyCands = document.getElementById("rows-candidates");
+  if (alt === "rows-gpu") {
+    tbodyDefault.style.display = "none";
+    tbodyGpu.style.display = "";
+    tbodyCands.style.display = "none";
+  } else if (alt === "rows-candidates") {
+    tbodyDefault.style.display = "none";
+    tbodyGpu.style.display = "none";
+    tbodyCands.style.display = "";
+  } else {
+    tbodyDefault.style.display = "";
+    tbodyGpu.style.display = "none";
+    tbodyCands.style.display = "none";
+  }
   if (opts.resetSort !== false) {
-    const def = TAB_DEFAULTS[tab];
-    state.sortKey = def.sortKey;
-    state.sortAsc = def.sortAsc;
+    // Alt tbodies have their own fixed sort at export time; skip the reset for them.
+    if (!alt) {
+      state.sortKey = def.sortKey;
+      state.sortAsc = def.sortAsc;
+    }
   }
   if (opts.updateHash !== false) {
     history.replaceState(null, "", `#tab=${tab}`);
   }
+  // refresh() re-renders #tbody based on state.sortKey — a no-op for alt tabs
+  // (their tbody is server-rendered), but calling it keeps the tab-count badges
+  // and filter chips consistent.
   refresh();
 }
 
