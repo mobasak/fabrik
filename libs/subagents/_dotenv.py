@@ -60,6 +60,13 @@ def _parse_env_text(text: str) -> dict[str, str]:
             # char). Unterminated → best-effort drop the opening quote.
             close = val.find(val[0], 1)
             val = val[1:close] if close != -1 else val[1:]
+        elif val.startswith("#"):
+            # the value is ENTIRELY a comment (`KEY= # placeholder`, `KEY=#x`) — the user commented
+            # the value out. Treat as empty (→ skipped by _apply_env_file's empty-value guard) rather
+            # than storing the literal `# placeholder` as the key, which would send a bogus
+            # `Authorization: Bearer # placeholder` and 401 with no obvious cause. Curated keys never
+            # legitimately start with `#`; a real `#`-leading value must be quoted (`KEY="#FF0000"`).
+            val = ""
         else:
             # unquoted: strip a trailing inline comment — only when whitespace precedes the `#`, so a
             # `#` mid-value (e.g. a DSN query or a password) stays intact. `KEY=sk-x # note` → `sk-x`.
@@ -91,17 +98,24 @@ def _find_dotenv(repo: str) -> Path | None:
 _SHARED_ENV_VAR = "SUBAGENTS_ENV_FILE"
 
 
-def _shared_env_path() -> Path:
+def _shared_env_path() -> Path | None:
     """The fleet-wide, USER-level env file — set ``OPENROUTER_API_KEY`` (+ ``SUBAGENT_RUNS_DSN``)
     there ONCE and EVERY project's pool picks it up, with no per-repo `.env` edit and no copying a
     credential between projects. ``SUBAGENTS_ENV_FILE`` overrides the location; else
     ``$XDG_CONFIG_HOME/fabrik/subagents.env`` (default ``~/.config/fabrik/subagents.env``). It is the
     operator's OWN config file, not another project's `.env`, so reading it raises no
-    cross-project-credential concern."""
+    cross-project-credential concern. ``None`` when the home dir is unresolvable (HOME unset AND no
+    passwd entry — a minimal container: ``expanduser`` raises ``KeyError`` there) so ``load_env`` just
+    skips the fleet file and stays fail-open, never propagating the crash."""
     override = os.getenv(_SHARED_ENV_VAR)
     if override:
         return Path(override)
-    xdg = os.getenv("XDG_CONFIG_HOME") or os.path.join(os.path.expanduser("~"), ".config")
+    xdg = os.getenv("XDG_CONFIG_HOME")
+    if not xdg:
+        try:
+            xdg = os.path.join(os.path.expanduser("~"), ".config")
+        except (KeyError, RuntimeError):  # HOME unset + no /etc/passwd entry for this uid
+            return None
     return Path(xdg) / "fabrik" / "subagents.env"
 
 
@@ -132,6 +146,6 @@ def load_env(repo: str, *, keys: tuple[str, ...] = DOTENV_KEYS) -> list[str]:
     if proj is not None:
         _apply_env_file(proj, keys, loaded)
     shared = _shared_env_path()  # fleet-wide fallback — fills anything the project didn't set
-    if shared.is_file():
+    if shared is not None and shared.is_file():
         _apply_env_file(shared, keys, loaded)
     return loaded

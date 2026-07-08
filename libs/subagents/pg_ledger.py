@@ -162,9 +162,11 @@ def record_agent_run(
     orchestrator runs from the repo root. A fail-open ``False`` writes NO receipt — so an unrecorded
     run stays unreceipted and :func:`ledger.audit_unrecorded` flags it (that is the point).
     """
-    from .ledger import agent_record, write_receipt
-
     try:
+        # import INSIDE the try so a broken package context (relative import fails) is caught too —
+        # the documented "never raises" contract is absolute, so nothing above the guard may throw.
+        from .ledger import agent_record, write_receipt
+
         record = agent_record(spec, result)
     except Exception:  # noqa: BLE001 — fail-open: a malformed spec/result never raises
         return False

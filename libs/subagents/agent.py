@@ -139,14 +139,26 @@ class AgentResult:
 LoopFn = Callable[..., LoopOutcome]
 
 
-def _capped_hint(spec: AgentSpec) -> str:
+def _capped_hint(spec: AgentSpec, turns: int) -> str:
     """The actionable message stamped onto a capped ``AgentResult.error`` — WHY the run is partial +
     the fix, IN the result the orchestrator always inspects (it won't re-read docs after compaction).
-    The usual culprit is too-low ``max_turns`` for tool-enabled multi-file work (the default 8 caps
-    mid-task)."""
+
+    Distinguishes the TWO cap causes, because the fix differs:
+      * ``turns == 0`` → the model produced no turn at all: a PROVIDER STALL (it streamed nothing
+        before the wall clock, ``$0``/no provider). Raising ``max_turns`` does NOT help — re-dispatch
+        or pin a provider.
+      * ``turns >= 1`` → genuine budget exhaustion (it did work and ran out): raise ``max_turns``
+        (the default 8 is low for tool-enabled multi-file work)."""
+    if turns == 0:
+        return (
+            f"capped with 0 turns / $0 — the provider STALLED (streamed nothing before "
+            f"wall_clock_s={spec.wall_clock_s:.0f}s); this is NOT a too-small budget, so raising "
+            "max_turns won't help. Re-dispatch this agent (the batch is partial-tolerant) or pin a "
+            "provider via body={'provider': {'only': ['<name>']}}."
+        )
     base = (
         f"capped: hit the run budget (max_turns={spec.max_turns}, "
-        f"wall_clock_s={spec.wall_clock_s:.0f}s) before finishing — the output/diff is PARTIAL. "
+        f"wall_clock_s={spec.wall_clock_s:.0f}s) after {turns} turn(s) — the output/diff is PARTIAL. "
     )
     if spec.tools_enabled:
         return base + (
@@ -202,7 +214,15 @@ async def _run_one(
     # `sandbox is not False` (not truthiness) so a falsy-but-not-False value (None/0 from a
     # dict/JSON-built spec) still triggers the refusal — matches `_run_command`'s guard, so
     # the two can't disagree and leak an unsandboxed run.
-    if spec.tools_enabled and spec.sandbox is not False and not sandbox.sandbox_available():
+    # `allowed_commands == frozenset()` = NO command execution (file tools only, confined by
+    # `_resolve_in_workdir`, not bwrap) — bwrap is irrelevant, so DON'T over-refuse it (else a
+    # file-edit-only agent on a bwrap-less host is forced to the stronger `sandbox=False` opt-out).
+    if (
+        spec.tools_enabled
+        and spec.allowed_commands != frozenset()
+        and spec.sandbox is not False
+        and not sandbox.sandbox_available()
+    ):
         result = AgentResult(
             agent_id, "", "", "error", None, None, 0,
             error=(
@@ -309,9 +329,9 @@ async def _run_one(
                     if status == "capped" and not err:
                         # A cap means the diff/text is PARTIAL. Put WHY + the fix IN the result —
                         # the orchestrator always inspects AgentResult, but won't re-read the docs
-                        # (limited context / compaction). The usual culprit is too-low max_turns for
-                        # tool-enabled multi-file work (the default 8 caps mid-task).
-                        err = _capped_hint(spec)
+                        # (limited context / compaction). `turns` distinguishes a provider stall
+                        # (turns=0) from genuine budget exhaustion — the fix differs.
+                        err = _capped_hint(spec, outcome.turns)
                     result = AgentResult(
                         agent_id,
                         outcome.text,
