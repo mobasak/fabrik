@@ -579,6 +579,20 @@ class OpenRouterClient:
     _RETRYABLE = (StuckError, TruncatedError, TransientError, HardTimeoutError)
     _EMPTY_BUMP_TOKENS = 16000
 
+    @staticmethod
+    def _body_max_tokens(body: object) -> int | None:
+        """The caller's requested max_tokens from the passthrough ``body``, resolved the way
+        :meth:`_body` does (top-level, or a nested ``extra_body`` which wins on flatten). ``None``
+        if absent or not a positive int — so the empty-content bump can *floor* at it without ever
+        LOWERING a deliberately-large caller budget (e.g. glm-5's ``{"max_tokens": 20000}``)."""
+        if not isinstance(body, dict):
+            return None
+        val = body.get("max_tokens")
+        extra = body.get("extra_body")
+        if isinstance(extra, dict) and "max_tokens" in extra:
+            val = extra.get("max_tokens")  # extra_body wins — matches _body's merged.update(extra)
+        return val if isinstance(val, int) and not isinstance(val, bool) and val > 0 else None
+
     def call_model(
         self,
         messages: list[dict],
@@ -609,7 +623,16 @@ class OpenRouterClient:
                     exc.attempts = attempts
                     raise
                 bumped = True
-                max_tokens = self._EMPTY_BUMP_TOKENS  # distinct retry, not a restart
+                # distinct retry, not a restart. Bump the budget but NEVER below what the caller
+                # asked for (max_tokens kwarg OR the body passthrough) — the bump exists to RAISE a
+                # too-small budget, not shrink a deliberately-large one (regression: a body
+                # max_tokens=20000 was silently downgraded to 16000 on this path).
+                caller_mt = (
+                    max_tokens
+                    if max_tokens is not None
+                    else self._body_max_tokens(kw.get("body"))
+                )
+                max_tokens = max(self._EMPTY_BUMP_TOKENS, caller_mt or 0)
             except self._RETRYABLE as exc:
                 attempts.append(
                     {
@@ -668,7 +691,13 @@ class OpenRouterClient:
                     exc.attempts = attempts
                     raise
                 bumped = True
-                max_tokens = self._EMPTY_BUMP_TOKENS
+                # never below the caller's budget — see the sync call_model for the rationale.
+                caller_mt = (
+                    max_tokens
+                    if max_tokens is not None
+                    else self._body_max_tokens(kw.get("body"))
+                )
+                max_tokens = max(self._EMPTY_BUMP_TOKENS, caller_mt or 0)
             except self._RETRYABLE as exc:
                 attempts.append(
                     {
