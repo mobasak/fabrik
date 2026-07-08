@@ -1,6 +1,14 @@
 # Fabrik — Features
 
-**Last Updated:** 2026-07-05
+**Last Updated:** 2026-07-08
+
+## Fleet AI-sysadmin Claude quota-rotation (2026-07-08)
+
+The fleet AI-sysadmin (`vps-sysadmin-bot` + `aro-wake`) survives Claude subscription **usage/quota limits** by auto-rotating between the operator's Claude accounts instead of failing silently. `scripts/sysadmin/claude_rotate.py` wraps every `claude -p` call: when the output carries a usage-limit signal (weekly / session / Opus / N-hour / "out of extra usage"), it atomically swaps the active `~/.claude/.credentials.json` to another `manager-accounts/<org>/` snapshot and retries. **N accounts** are supported (currently mob@ / ob@; can@ pending snapshot capture) — a limited call walks through each *other* account at most once, bounded so it can never loop. A `401` (dead credentials) is deliberately **not** a rotate trigger — that's an alert, since rotation can't fix expired creds. Swaps are atomic (`os.replace`) under an `flock` so the bot, aro-wake, and a manual switch can't race the active file (the target is chosen *under* the lock), the credential bytes are written `O_EXCL|O_NOFOLLOW` at mode 0600 (no world-readable window, no symlink follow) with a full-write loop, and every filesystem step fails soft (a transient error skips the rotation, never crashes the bot). There's a single rolling backup to `.credentials.json.prev`; accounts are told apart by their non-secret `organizationUuid`, and no token bytes are ever logged, printed, or committed.
+
+**Manual account switch on WSL (no VS Code restart):** `python3 scripts/sysadmin/claude_rotate.py --list` shows the accounts (marking the active one), `--switch <name|email|prefix>` sets a chosen account active, and `--next` cycles to the next one. After a switch, just **reload the VS Code workspace** (Ctrl/Cmd+Shift+P → *Developer: Reload Window*) and the Claude Code extension picks up the new account. Empty or ambiguous names are rejected so you never silently switch to the wrong identity.
+
+---
 
 ## AI Models Browser — Coding-subagent columns (2026-07-05)
 

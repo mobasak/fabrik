@@ -1,0 +1,27 @@
+{
+  "plan": "docs/development/plans/2026-07-07-plan-1-sysadmin-claude-rotation.md",
+  "owned_paths": [
+    "scripts/sysadmin/claude_rotate.py",
+    "scripts/aro-wake/claude_rotate.py",
+    "scripts/sysadmin/claude-keepalive-rotate.sh",
+    "scripts/sysadmin/sync-claude-accounts-to-fleet.sh",
+    "scripts/sysadmin/test_claude_rotate.py",
+    "scripts/sysadmin/test_bot_rotation_wire.py",
+    "scripts/sysadmin/test_sync_accounts.sh",
+    "scripts/sysadmin/test_daily_digest_keepalive.sh",
+    "scripts/sysadmin/bot.py",
+    "scripts/sysadmin/daily-digest.sh",
+    "scripts/sysadmin/proactive-check.sh",
+    "scripts/aro-wake/main.py",
+    "scripts/bootstrap/templates/sysadmin-cron.template",
+    "scripts/bootstrap/bootstrap-vps.sh",
+    "scripts/bootstrap/bootstrap-hub.sh",
+    "configs/prometheus/rules/alerts.yml",
+    "scripts/vps_apply_limits.sh",
+    "docs/infrastructure/vps-ai-sysadmin.md",
+    "docs/infrastructure/vps-status.md"
+  ],
+  "branch": "master",
+  "started_at": "2026-07-08",
+  "status": "active"
+}

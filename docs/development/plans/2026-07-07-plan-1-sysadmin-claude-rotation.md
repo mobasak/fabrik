@@ -1,6 +1,6 @@
 # Fleet AI-sysadmin Claude auth resilience — quota-triggered account rotation + monitoring honesty
 
-**Status:** CONVERGED
+**Status:** IN-PROGRESS (execution started 2026-07-08 via `/fabrik-execute-plan`)
 **Author:** Claude Opus 4.8 (hub) · from chat 2026-07-07
 **Owner:** hub AI — sysadmin/watchdog stream (this session; created `f60f2bf4`). MINE, not a cross-stream sibling plan; a 2026-07-08 plan inventory misattributed it — corrected here. Not yet executed (`/fabrik-execute-plan` pending).
 
@@ -11,6 +11,8 @@
 | 1 | claims · gates · interfaces · completeness (3 parallel grounders: A+B, C+D+E, structural+URLs) | ~14 | `2a51f063…` → `f89091c3…` |
 | 2 | verify Pass-1 corrections (cron line, doc paths, alert lines, org names, proactive-check) | 1 (`:29`→`:32`) | `f89091c3…` → `22db642a…` |
 | 3 | remaining citations (bot.py `:145/179/184/176/190`, aro-wake `:499/537/542`, daily-digest mtime) + structural pillars | **0** | `22db642a…` → `22db642a…` ✓ → **CONVERGED** |
+| 4 (pre-execute re-review) | re-ground ALL citations vs current `master` (repo drifted since `f60f2bf4`) — every `path:line` still exact; found 2 residual consistency-drifts | 2 (Phase-B cron `:29`→`:32`; stale DRAFT self-audit line) | `a37d1b95…` → `83e27241…` |
+| 5 (pre-execute re-review) | full re-scan: no other `:29`, no DRAFT/status contradiction, no banned `fabrik` gate, all 6 phases carry `/fabrik-review`, gate runnable | **0** | `8430b100…` → `8430b100…` ✓ → **CONVERGED (holds)** |
 
 **Goal:** Make the fleet AI-sysadmin survive Claude subscription quota limits and stop failing silently. When a `claude -p` call hits a usage/quota limit, **auto-rotate** to the operator's second account and retry; keep both accounts' credentials **valid on every VPS**; make the health check **detect** an auth/quota break (it reports "fresh" through a month-long 401 outage); and **tune** the flapping alert that drives the wakes.
 
@@ -19,7 +21,7 @@
 ## What we already agreed (Phase 0 distillation)
 
 - **Emergency already fixed (this chat):** valid creds copied to all 3 VPS; `claude -p` returns OK on vps1/2/3. This plan is the **durable** mechanism, not the un-break.
-- **Two accounts** (WSL `vishalguptax.claude-manager`, manual "Switch Account", 100% local): `~/.claude/manager-accounts/mob-ocoron-com-s-organization/.credentials.json` (**Max 20x**) + `~/.claude/manager-accounts/ob-ocoron-com-s-organization/.credentials.json` (**Pro**). Active = `~/.claude/.credentials.json`. Rotation = **copy the other snapshot over the active file** (extension does this on manual switch; it does NOT auto-rotate — we build that).
+- **N accounts** (WSL `vishalguptax.claude-manager`, manual "Switch Account", 100% local) — the design supports **any number**, discovered by glob, account-name-agnostic. Currently on disk: `~/.claude/manager-accounts/mob-ocoron-com-s-organization/.credentials.json` (**Max 20x**) + `ob-ocoron-com-s-organization/.credentials.json` (**Pro**). **A 3rd login `can@ocoron.com` was added 2026-07-08 (user directive "n accounts should be supported"); its `manager-accounts/can-ocoron-com-s-organization/` snapshot must be captured via the claude-manager extension (switch to it once) — the rotation code + fleet-sync pick it up automatically by glob the moment it lands.** Active = `~/.claude/.credentials.json`. Rotation = **copy another snapshot over the active file** (extension does this on manual switch; it does NOT auto-rotate — we build that). On a usage-limit, `run_claude` walks through each *other* account at most once (bounded, no loop).
 - **The quota signal (live-researched 2026-07-07, user directive "research and find out"):** Claude Code prints a **distinct** usage-limit message (NOT 401). Grounded verbatim renders (`claude-auto-retry` README) + Anthropic's own current docs (`code.claude.com/docs/en/errors`, "Usage limits") give these variants: `Claude usage limit reached. Resets at <t>` · `You've hit your weekly limit · resets <t>` · `You've hit your session limit · resets <t>` · `You've hit your Opus limit · resets <t>` · `<N>-hour limit reached - resets <t>` · `You're out of extra usage · resets <t>`. Detection is **output-string matching** — there is NO on-disk quota file to poll (confirmed; the extension reads Claude Code's live statusline).
 - **401 ≠ quota:** `401 Invalid authentication credentials` = dead creds → **alert** (rotation won't help). Usage-limit → **rotate + retry once**.
 - **Standby-cred staleness** is why the fleet died: only the *active* account self-refreshes; the inactive snapshot expires with no manager on the VPS. Fix: a **WSL→fleet sync** pushing both refreshed `manager-accounts/*/.credentials.json` to all 3 VPS.
@@ -74,9 +76,9 @@
 
 ---
 
-## Phase A — Rotation core (`scripts/sysadmin/claude_rotate.py`)
+## Phase A — Rotation core (`scripts/sysadmin/claude_rotate.py`) — ✅ EXECUTED 2026-07-08
 
-**Responsibility:** one tested module: run `claude`; on a usage-limit signal, atomically rotate the active account (serialized, with backup) and retry once. Distinguish 401 (no rotate).
+**Responsibility:** one tested module: run `claude`; on a usage-limit signal, atomically rotate the active account (serialized, with backup) and retry. Distinguish 401 (no rotate). **N-account** (user directive 2026-07-08 "n accounts should be supported"): walk through each *other* account at most once — bounded, never loops. **Also (user directive) a manual account CLI for WSL** — `claude_rotate.py --list | --switch <name|email|prefix> | --next` — so the operator switches the active account and reloads the VS Code workspace (no restart). Selection happens *under* the flock (race-safe); creds written `O_EXCL|O_NOFOLLOW` 0600 with a full-write loop; all FS steps fail-soft. Converged through 4 `/fabrik-review` rounds (27 tests, gate/ruff/mypy green).
 
 **Files:**
 - `scripts/sysadmin/claude_rotate.py` (**create**) — `run_claude(argv, timeout, cwd, env) -> CompletedProcess`; helpers `is_usage_limit(text)->bool`, `is_auth_401(text)->bool`, `_list_accounts()`, `_active_account()`, `_rotate_active_account()->str|None` (flock + write `.credentials.json.prev` + `os.replace` + `chmod 600`; returns new account name or None if <2 accounts). Never logs token bytes. First-25-lines `# AFTER-EDIT: scripts/sysadmin/bot.py, scripts/aro-wake/claude_rotate.py` (its co-located caller + the vendored twin).
@@ -104,7 +106,7 @@
 - `scripts/sysadmin/bot.py` (**modify**) — `_run_claude` (`bot.py:145`): replace `subprocess.run(["claude"…])` (`bot.py:179`, which passes `cwd=PROJECT_DIR`, `env=…`) with `claude_rotate.run_claude(argv, timeout, cwd=PROJECT_DIR, env=env)`; keep the `401` alert branch (`bot.py:190`).
 - `scripts/aro-wake/main.py` (**modify**) — mirror `_run_claude` (`main.py:499`, subprocess at `:537` with `cwd=str(PROJECT_DIR)`): same swap, importing its co-located `claude_rotate`.
 - `scripts/sysadmin/claude-keepalive-rotate.sh` (**create**) — the shim: `claude -p ping` via rotation; writes a **content token** (`KEEPALIVE_OK` / `KEEPALIVE_FAIL:<reason>`) to `/var/log/claude-keepalive.log` (single-run overwrite, matching the cron's `>`).
-- `scripts/bootstrap/templates/sysadmin-cron.template` (**modify** `:29`) — swap the raw `/usr/bin/claude -p "ping" > …` for `/opt/fabrik/scripts/sysadmin/claude-keepalive-rotate.sh` (so new/re-provisioned hosts get the shim).
+- `scripts/bootstrap/templates/sysadmin-cron.template` (**modify** `:32`) — swap the raw `/usr/bin/claude -p "ping" > …` for `/opt/fabrik/scripts/sysadmin/claude-keepalive-rotate.sh` (so new/re-provisioned hosts get the shim).
 - `scripts/sysadmin/test_bot_rotation_wire.py` (**create**), + a byte-identity test: `cmp scripts/sysadmin/claude_rotate.py scripts/aro-wake/claude_rotate.py`.
 
 **Interfaces — Consumes:** `claude_rotate.run_claude` (Phase A). **Produces:** all 3 sites rotation-enabled; keepalive log carries `KEEPALIVE_OK`/`KEEPALIVE_FAIL` (consumed by Phase D).
@@ -211,7 +213,7 @@ Disjoint from other in-flight plans (universal-watchdog owns different paths).
 - **Grounding:** 3 parallel grounder subagents (A+B, C+D+E, structural+URLs) + my reads. All findings applied; none refuted (all confirmed against real lines). Fixed vs the DRAFT: cwd/env interface, cross-dir vendor, cron-template target + live-host rollout, `docs/OPERATIONS.md`→`docs/CONFIGURATION.md`, `session`/`Opus` regex variants, `expiresAt` misread dropped, `mkdir -p`, atomic+flock swap, backup carve-out, `:45`→`:35`, per-phase CHANGELOG/INDEX, `vps-status.md` in scope, `proactive-check.sh` content-check.
 - **Coverage of "What we agreed":** rotation trigger→A; 3 sites + cron→B; standby freshness→C; monitoring honesty→D; alert flap→E; live rollout+provisioning+docs→F. ✓
 - **Cross-phase signatures:** `run_claude(argv,timeout,cwd,env)->CompletedProcess` produced in A, consumed identically in B (both callers pass cwd+env); keepalive token `KEEPALIVE_OK`/`KEEPALIVE_FAIL` produced in B, consumed in D. Reconciled.
-- **Not a fixed point** — DRAFT; this pass made substantial edits, so ≥1 more review round is owed.
+- **Fixed point reached** — the Pass Ledger's final row (Pass 3) is `edits: 0` with `md5(start) == md5(end)` (`22db642a…`); a later `/fabrik-plan-review` re-ground (pre-execute) corrected two residual consistency-drifts (cron-template `:29`→`:32` in Phase B; this stale DRAFT sentence) and re-confirmed every `path:line` still holds against current `master`. **Status: CONVERGED.**
 
 ## Residual unknowns
 
