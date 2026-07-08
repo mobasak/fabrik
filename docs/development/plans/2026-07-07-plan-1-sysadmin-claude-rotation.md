@@ -145,7 +145,7 @@
 
 ---
 
-## Phase E — Tune `ContainerHighMemory` (stop the 38×/day flap)
+## Phase E — Tune `ContainerHighMemory` (stop the 38×/day flap) — ✅ EXECUTED 2026-07-08 (`for: 5m→15m`; per-container limit analysis operator-run)
 
 **Responsibility:** only a *sustained* breach should fire.
 

@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — tune ContainerHighMemory alert `for: 5m → 15m` to stop transient-spike flapping (2026-07-08)
+
+Phase E of the sysadmin-claude-rotation plan. `configs/prometheus/rules/alerts.yml` `ContainerHighMemory` fired ~38×/day at `for: 5m` on brief allocation/GC spikes that containers recover from on their own — the noise that drives the fleet wakes. Raised to `for: 15m` so only a *sustained* 85%-of-limit breach (a real leak/undersize) pages; the 85% threshold and the `> 0` denominator guard are unchanged. A container that steadily sits >85% because its limit is genuinely too low should have its limit raised in `scripts/vps_apply_limits.sh` (per-container decision — needs live Prometheus 7d firing history, operator-run).
+
 ### Fixed — keepalive monitoring honesty: page on a real 401/quota break, not just a stale mtime (2026-07-08)
 
 Phase D of the sysadmin-claude-rotation plan. The sysadmin health monitors reported the Claude keepalive "fresh" off the log's **mtime** alone — which the hourly ping refreshes even while writing a `401`/usage-limit token, so a month-long auth outage read as healthy. New shared classifier `scripts/sysadmin/keepalive-status.sh::keepalive_reason` parses the log CONTENT (the `KEEPALIVE_OK`/`KEEPALIVE_FAIL:<reason>` token from `claude-keepalive-rotate.sh`, with raw-401/limit fallback for a pre-shim log; a benign `401` substring without auth wording is not a break). `scripts/sysadmin/daily-digest.sh` now shows `⚠️ BROKEN (<reason>)` in its health line, and `scripts/sysadmin/proactive-check.sh` (the 15-min pager) adds `oauth_keepalive_broken[<reason>]` to its anomaly set — surfacing an auth/quota break even while the cron keeps the mtime fresh. Tested in `scripts/sysadmin/test_keepalive_status.py` (10 cases).

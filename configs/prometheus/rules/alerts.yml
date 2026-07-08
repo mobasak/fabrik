@@ -29,16 +29,22 @@ groups:
       # reports `container_spec_memory_limit_bytes = 0` and the division yields `+Inf`,
       # which would permanently exceed any threshold (root-cause of the 2026-04-19 spam).
       # For unlimited containers, see `ContainerMemoryHighOfHost` below.
+      # `for: 15m` (raised from 5m, 2026-07-08): at 5m this flapped ~38×/day on transient
+      # allocation/GC spikes that a container recovers from on its own. A *sustained* 15-min
+      # breach of 85% is a real leak/undersize worth waking on; a brief spike is not. The
+      # 85% threshold + `> 0` guard are unchanged. (If a specific container sits >85% steadily
+      # because its limit is genuinely too low, raise that limit in scripts/vps_apply_limits.sh
+      # rather than desensitising the alert.)
       - alert: ContainerHighMemory
         expr: |
           100 * container_memory_usage_bytes{name!=""}
           / (container_spec_memory_limit_bytes{name!=""} > 0) > 85
-        for: 5m
+        for: 15m
         labels:
           severity: warning
         annotations:
           summary: "Container {{ $labels.name }} high memory ({{ printf \"%.1f\" $value }}%)"
-          description: "Container {{ $labels.name }} memory usage above 85% of its configured limit for 5 minutes."
+          description: "Container {{ $labels.name }} memory usage above 85% of its configured limit for 15 minutes."
           value: "{{ $value }}"
 
       # Catches memory pressure from containers WITHOUT an explicit limit. Without this
