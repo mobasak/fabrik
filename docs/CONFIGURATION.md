@@ -184,6 +184,14 @@ The writer role is INSERT-only (no SELECT) — read the table via the `postgres`
 
 Run manually or on a WSL cron (e.g. every 6h). ⚠️ **Standby-token validity** (does an idle-synced snapshot's refresh token still work when rotated in?) can only be confirmed live: after a first sync, on one host, rotate to a standby account and `claude -p ping` — if it 401s, shorten the cadence.
 
+### Unified Claude entrypoint — `scripts/sysadmin/claude-run.sh` + `CLAUDE_OPERATOR_USER`
+
+Every sysadmin script (VPS-side) invokes Claude through `scripts/sysadmin/claude-run.sh` rather than a bare `claude`. It is a drop-in for `claude` (`claude-run.sh <claude-args…>`) that (1) routes through `claude_rotate.py` so a usage/quota limit auto-rotates the active account, and (2) **always runs as the operator account** so every caller shares the one credential home `/home/ozgur/.claude`. This is required because the cron runs `proactive-check.sh` / `morning-report.sh` / `weekly-security.sh` / `monthly-backup-verify.sh` as **root**, whose `/root/.claude` has no credentials — the wrapper re-enters as the operator via `sudo -u <operator> -H` (root→operator sudo needs no password; `-H` sets `HOME`) when the caller isn't already the operator, and runs directly when it is.
+
+- `CLAUDE_OPERATOR_USER` — the operator account the wrapper runs claude as (default `ozgur`). All callers therefore rotate one shared `~/.claude`.
+- `CLAUDE_BIN` — override the resolved claude binary (default: `command -v claude`, then `/usr/local/bin/claude` → `~operator/.local/bin/claude` → `/usr/bin/claude`).
+- The 3 pre-existing rotation callers (`bot.py`, `aro-wake/main.py`, `claude-keepalive-rotate.sh`) already run as ozgur through `claude_rotate` and are unchanged.
+
 ### Mutation testing — `FABRIK_MUTMUT` (dev; advisory, opt-in)
 
 The Behavior Contract's substance-mechanical layer: `mutmut` (dev dependency, `pyproject.toml [dev]`) proves the tests **kill mutants**, not just cover lines. `scripts/enforcement/check_mutation.py` is registered in `final_gate` as **advisory + opt-in** — it runs **only** when `FABRIK_MUTMUT=1` (diff-scoped + nightly/CI/on-demand, never a per-PR blocking gate per `45-testing-strategy.md`), mutates only **committed** changed Python (never the dirty worktree, never `tests/` or the vendored `libs/`), and **always exits 0**.

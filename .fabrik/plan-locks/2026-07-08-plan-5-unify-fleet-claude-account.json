@@ -1,0 +1,19 @@
+{
+  "plan": "docs/development/plans/2026-07-08-plan-5-unify-fleet-claude-account.md",
+  "owned_paths": [
+    "scripts/sysadmin/claude-run.sh",
+    "scripts/sysadmin/test_claude_run.py",
+    "scripts/sysadmin/proactive-check.sh",
+    "scripts/sysadmin/morning-report.sh",
+    "scripts/sysadmin/weekly-security.sh",
+    "scripts/sysadmin/monthly-backup-verify.sh",
+    "scripts/bootstrap/bootstrap-vps.sh",
+    "docs/CONFIGURATION.md",
+    "docs/infrastructure/vps-ai-sysadmin.md"
+  ],
+  "shared_serialization_points": ["CHANGELOG.md", "INDEX.md"],
+  "note": "CHANGELOG.md/INDEX.md are shared append-only files (overlap with plan-4 is benign — append-atop, explicit-path commit, re-read before commit). Code surface (scripts/sysadmin/*) disjoint from plan-4 (scripts/kilo-benchmarks/*).",
+  "branch": "master",
+  "started_at": "2026-07-08",
+  "status": "active"
+}
