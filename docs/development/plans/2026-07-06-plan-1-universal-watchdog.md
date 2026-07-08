@@ -2,6 +2,7 @@
 
 **Status:** CONVERGED
 **Author:** Claude Opus 4.8 (hub) · from chat 2026-07-06
+**Owner:** hub AI — governance/watchdog stream (this session; created `54cd2f95`). MINE, not a cross-stream sibling plan; a 2026-07-08 plan inventory misattributed it — corrected here. Not yet executed (`/fabrik-execute-plan` pending).
 **Converged:** 2026-07-06 via `/fabrik-plan-review` (3 grounding passes, 3 parallel grounders/pass; Pass 3 = edit-free no-op, md5 `ef47899b…` stable)
 **Goal:** Guarantee every deployed-with-a-runtime Fabrik project ships with a product-aware watchdog (Tier-D default-on) and a **mandatory, gate-enforced, project-specific** `WATCHDOG_PROMPT.md`. New projects get it from scaffold; existing projects get it via a phased fleet re-apply. Provide the canonical prompt template as a hub-synced reference doc that each project's own coder AI fills in.
 

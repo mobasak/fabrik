@@ -2,6 +2,7 @@
 
 **Status:** CONVERGED
 **Author:** Claude Opus 4.8 (hub) · from chat 2026-07-07
+**Owner:** hub AI — sysadmin/watchdog stream (this session; created `f60f2bf4`). MINE, not a cross-stream sibling plan; a 2026-07-08 plan inventory misattributed it — corrected here. Not yet executed (`/fabrik-execute-plan` pending).
 
 **Pass Ledger (`/fabrik-plan-review` — fixed point reached):**
 
