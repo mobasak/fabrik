@@ -21,12 +21,13 @@ if str(_ROOT) not in sys.path:
 def _make_payload(model_name: str, prices: tuple[float, float, float, float, float]) -> str:
     """Build a minimal React-flight-chunk-shaped payload the parser will accept."""
     price_body = "".join(f' \\"$${p} / MTok\\" ' for p in prices)
+    # F16: dropped a `.replace("\\", "\\")` no-op that survived a copy-edit.
     return (
         r"garbage_before "
         rf"\"children\":[\"{model_name}\"] more \"stuff\" "
         rf"{price_body}"
         r" tail_garbage"
-    ).replace("\\", "\\")
+    )
 
 
 def test_mythos_row_allowed_through():

@@ -4,9 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Added — unified `claude-run.sh`: every fleet Claude caller on one account + auto-rotation (Plan 5 Phase A, 2026-07-08)
+### Added — unified `claude-run.sh`: every fleet Claude caller on one account + auto-rotation (Plan 5 Phases A+B, 2026-07-08)
 
-New `scripts/sysadmin/claude-run.sh` — a drop-in for `claude` that runs every sysadmin claude call through `claude_rotate.py` (usage-limit auto-rotation) **and always as the operator account** (`sudo -u ozgur -H` when the caller is root; direct when already ozgur), so the root-run cron scripts (whose `/root/.claude` has no credentials) and the ozgur services share the one credential home `/home/ozgur/.claude` that rotation manages. Resolves an absolute `claude` binary regardless of the caller's PATH; passes all args through verbatim (incl. a multi-line `--system-prompt`); swaps no files itself (`claude_rotate.py` owns the atomic swap). `CLAUDE_OPERATOR_USER` overrides the operator (default `ozgur`). Tested (`scripts/sysadmin/test_claude_run.py`, 5 cases: arg pass-through, exit-code pass-through, rotation routing, root→operator sudo branch).
+New `scripts/sysadmin/claude-run.sh` — a drop-in for `claude` that runs every sysadmin claude call through `claude_rotate.py` (usage-limit auto-rotation) **and always as the operator account** (`sudo -u ozgur -H` when the caller is root; direct when already ozgur), so the root-run cron scripts (whose `/root/.claude` has no credentials — their `claude -p` was silently broken) and the ozgur services share the one credential home `/home/ozgur/.claude` that rotation manages. Resolves an absolute `claude` binary regardless of the caller's PATH; passes all args through verbatim (incl. a multi-line `--system-prompt`); a generous 300s timeout forwarded across sudo via `env` (the old bare `claude` had none); swaps no files itself (`claude_rotate.py` owns the atomic swap). `CLAUDE_OPERATOR_USER` overrides the operator (default `ozgur`). **Phase B wires the 4 previously-broken root cron scripts** (`proactive-check.sh`, `morning-report.sh`, `weekly-security.sh`, `monthly-backup-verify.sh`) to the wrapper. Tested (`scripts/sysadmin/test_claude_run.py`, 13 cases): arg/exit-code pass-through (word-split-proof), rotation routing, sudo-branch argv, CLAUDE_BIN resolution, timeout forward + sanitize, and the 4-script wiring.
+
+### Fixed — Plan 4 /fabrik-review — 7 finder fixes + Pass-2 UnicodeDecodeError bypass (2026-07-08)
+
+Adversarial `/fabrik-review` on the cumulative plan-4 diff, 3 parallel Sonnet `fabrik-reviewer` finders on disjoint failure classes. 16 candidates raised, 8 REFUTED with proofs, 7 FIXED, 1 pass-2 finding FIXED, converged in 3 passes:
+
+- **F1 Mythos price-floor sanity** — `direct_vendor_parsers/anthropic.py` now requires `output_price >= 0.1` AND `input_price >= 0.1` alongside the whitelist name match, so a parser regression landing `output=$0` on a Mythos-tier row still gets dropped (whitelist bypass was name-only).
+- **F5 sanitize fail-soft on malformed JSON / non-UTF-8** — `tools/sanitize_kilo_config.py::sanitize()` now catches `JSONDecodeError` + `UnicodeDecodeError` (Pass 2 caught the UnicodeDecodeError bypass — not a subclass of either JSONDecodeError or OSError) + `OSError`; validates top-level is a dict; returns [] with a stderr warning instead of raising into cron.
+- **F8 sanitize backup secret exposure** — `opencode.json` contains the operator's Kilo `apiKey` at mode 0644. Prior `shutil.copy2` preserved the world-readable mode → the `.bak` doubled secret exposure. Fix writes the backup then `chmod 0o600`.
+- **F13 bare-except swallowing ImportError** — `kilo_agents_db.py` alerting path + `fetch_direct_vendor_prices.py` blocked-writes path now log the swallowed exception, so a broken import stays visible in cron stderr. Fail-soft preserved.
+- **F14 test_alerting_apprise argv-order assertion** — old B1 asserted unordered substring soup on `" ".join(argv)`, false-passed on a nonsense argv `curl fabrik --network --rm run docker curlimages/curl:latest ...`. Now asserts `remote_cmd.startswith("sudo docker run --rm --network fabrik curlimages/curl:latest ")`.
+- **F15 test_override_covers overclaim** — renamed to `test_override_map_shape_and_all_targets_exist_in_db`; asserts ≥10 entries AND every value resolves to a real active `agents.id` (so a typo'd or renamed target silently no-op'ing every downstream UPDATE gets caught).
+- **F16 leftover `.replace("\\", "\\")` no-op** — dropped from `test_direct_vendor_anthropic.py::_make_payload`.
+
+Refuted with proofs (8): F2 pre-existing `_send_alert` behavior · F3 Kilo error signature is exact · F4 no caller mocks bare Mock() · F6 4-decimal dedup key intentional · F7/F10 dated-TODO format documented + self-inflicted · F9 daily_refresh.sh lockfile · F12 Kilo CLI Node.js UTF-8.
 
 ### Fixed — Pipeline-Health Coverage Closure — Plan 4 EXECUTED (2026-07-08)
 

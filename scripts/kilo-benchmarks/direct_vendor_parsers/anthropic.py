@@ -100,7 +100,15 @@ def extract(payload: str, source_url: str) -> list[ParsedRow]:
         # (e.g. the Mythos preview rows have a different column order),
         # output ends up < input — refuse to emit a corrupt ParsedRow.
         if output_price <= input_price:
-            if _model_key(model_name) in MYTHOS_OUTPUT_LESS_THAN_INPUT_OK:
+            # F1 defense: the Mythos whitelist bypasses the "output > input"
+            # guard by MODEL NAME only. Add a price-floor sanity so a genuine
+            # parser regression that lands output=$0 (or negative) doesn't
+            # slip through under a Mythos-tier name.
+            if (
+                _model_key(model_name) in MYTHOS_OUTPUT_LESS_THAN_INPUT_OK
+                and output_price >= 0.1  # cheapest documented Mythos output is $1.5
+                and input_price >= 0.1
+            ):
                 # Documented Mythos-tier billing layout — allow through.
                 pass
             else:

@@ -36,14 +36,23 @@ def test_send_uses_docker_run_fabrik_pattern(monkeypatch):
 
     assert apprise.send("t", "b") is True
     argv = captured["argv"]
+    # argv shape: ["ssh", "-o", "ConnectTimeout=5", "-o", "BatchMode=yes",
+    #              <host>, <remote_cmd_string>]
     assert argv[0] == "ssh", f"expected SSH prefix, got argv[0]={argv[0]!r}"
-    remote = " ".join(argv)
-    assert "docker" in remote and "run" in remote, "docker-run pattern missing"
-    assert "--rm" in remote, "--rm missing"
-    assert "--network" in remote and "fabrik" in remote, "--network fabrik missing"
-    assert "curlimages/curl:latest" in remote, "curlimages/curl image missing"
-    assert "POST" in remote
-    assert "/notify" in remote, "notify URL missing"
+    remote_cmd = argv[-1]
+    # F14 defense: assert the exact canonical Fabrik pattern IN ORDER as a
+    # prefix of the remote command — a nonsense reorder like
+    # "curl fabrik --network --rm run docker curlimages/curl:latest ..." must
+    # fail this. Matches provision_grafana.sh:30 + daily-digest.sh:285 +
+    # sysadmin/system-prompt.txt:37.
+    assert remote_cmd.startswith(
+        "sudo docker run --rm --network fabrik curlimages/curl:latest "
+    ), f"docker-run pattern not at start of remote cmd; got: {remote_cmd[:120]!r}"
+    assert "-X POST" in remote_cmd, "-X POST missing"
+    assert "'Content-Type: application/json'" in remote_cmd, "Content-Type header missing"
+    assert remote_cmd.rstrip().endswith(
+        "http://apprise:8000/notify"
+    ), f"notify URL missing/wrong at end; got: {remote_cmd[-80:]!r}"
 
 
 def test_send_returns_false_on_nonzero_exit(monkeypatch):

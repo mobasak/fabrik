@@ -102,8 +102,11 @@ def fetch_kilo_models() -> list[dict[str, Any]]:
                     "kilo_agents_db.fetch_kilo_models saw `Configuration is invalid` "
                     f"from `kilo models --verbose`.\n\nstderr:\n{stderr_text[:800]}",
                 )
-            except Exception:  # noqa: BLE001 — fail-soft; alerting is not the primary path
-                pass
+            except Exception as exc:  # noqa: BLE001 — fail-soft; alerting is not primary
+                # F13 defense: log the swallowed exception so a broken import
+                # or apprise misconfiguration is at least visible in cron
+                # stderr, not silent. Fail-soft still — alert isn't primary.
+                log(f"kilo-cli-config alert path swallowed: {type(exc).__name__}: {exc}")
             return []
 
         # Parse the verbose output (model ID followed by JSON blocks)

@@ -50,21 +50,46 @@ def test_unknown_returns_none():
     assert _match_id(canon_idx, "Some Proprietary Agent v99") is None
 
 
-def test_override_covers_top_20_unmatched_patterns():
-    """B4: coverage — the map covers the highest-value unmatched patterns.
+def test_override_map_shape_and_all_targets_exist_in_db():
+    """B4: guardrail — every override value MUST point to a real active
+    agents.id in kilo_agents.db, and the map must be non-trivially sized.
 
-    The daily_refresh --dry-run 2026-07-08 dumped these names as SWE
-    unmatched samples; the map targets the ones behind a resolvable base
-    model (proprietary-agent-only entries like Warp / ACoder / Harness AI
-    have no meaningful mapping and stay unmatched).
+    F15 defense: prior version of this test only asserted 2 hardcoded keys
+    exist + 3 values are present — trivially satisfied by almost any map,
+    overclaimed "top 20 coverage." Now assert:
+      (a) the map has ≥ 10 entries (real seed, not a stub);
+      (b) EVERY value resolves to a real (status='active') agents.id — a
+          typo'd or renamed agent_id in the map would silently no-op every
+          UPDATE downstream while still incrementing `swe_matched` counts.
     """
+    import sqlite3
+
     from scrape_coding_benchmarks import BENCHMARK_NAME_TO_AGENT_ID
 
-    # At least the mini-SWE-agent + Claude 4.5 Opus pair (highest frequency).
-    assert "mini-SWE-agent + Claude 4.5 Opus medium (20251101)" in BENCHMARK_NAME_TO_AGENT_ID
-    assert "live-SWE-agent + Claude 4.5 Opus medium (20251101)" in BENCHMARK_NAME_TO_AGENT_ID
-    # And the top-3 base models operators care about.
-    values = set(BENCHMARK_NAME_TO_AGENT_ID.values())
-    assert "anthropic/claude-opus-4.5" in values
-    assert "anthropic/claude-sonnet-4.5" in values
-    assert "openai/gpt-5" in values
+    assert len(BENCHMARK_NAME_TO_AGENT_ID) >= 10, (
+        f"map size {len(BENCHMARK_NAME_TO_AGENT_ID)} — too small; "
+        "either seed more entries or drop this test"
+    )
+    db_path = Path(__file__).resolve().parent.parent / "kilo_agents.db"
+    if not db_path.exists():
+        # Local dev without the DB — best-effort skip. CI has the DB.
+        import pytest as _pytest
+
+        _pytest.skip(f"kilo_agents.db not present at {db_path}")
+    con = sqlite3.connect(str(db_path))
+    try:
+        active_ids = {
+            row[0]
+            for row in con.execute("SELECT id FROM agents WHERE status='active'")
+        }
+    finally:
+        con.close()
+    missing = [
+        (name, target)
+        for name, target in BENCHMARK_NAME_TO_AGENT_ID.items()
+        if target not in active_ids
+    ]
+    assert not missing, (
+        "override map points to agents.id values that don't exist "
+        f"(or aren't active): {missing[:5]}"
+    )
