@@ -6,7 +6,7 @@ trigger: glob
 ---
 <!-- CONSUMER: Coding agents (all) + Traycer (ticket-breakdown test criteria)
      GOAL: What to test per ticket type, framework per scaffold, tenant isolation testing
-     TRAYCER USAGE: Injects test requirements into ticket ACs (one-test rule, regression test for bugfix).
+     TRAYCER USAGE: Injects test requirements into ticket ACs (Behavior Contract — one test per user-observable behavior; regression test for bugfix).
      AGENT USAGE: Write tests per the minimum test table. Use specified framework per scaffold. -->
 
 # Testing Strategy Rules

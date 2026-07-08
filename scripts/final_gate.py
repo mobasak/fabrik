@@ -770,7 +770,7 @@ def run_consistency_checks(
         # auto-generated INDEX tree-map stays in docs_updater --check, tier 3.)
         results.append(
             run_optional_check(
-                "scripts/enforcement/check_test_proposal.py", "One-Test Rule Proposal"
+                "scripts/enforcement/check_test_proposal.py", "Behavior Contract Proposal"
             )
         )
         results.append(

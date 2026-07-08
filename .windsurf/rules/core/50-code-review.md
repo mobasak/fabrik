@@ -143,7 +143,7 @@ When reviewing a diff, ask: "Could this helper, decorator, or class serve any ot
 These constraints prevent "agent drift" and bikeshedding:
 
 - **No Speculation:** If information is missing, state assumptions explicitly or stop and ask. Do not guess.
-- **One-Test Rule Enforcement:** Every non-trivial change must have a corresponding test justification in the plan. See `45-testing-strategy.md`.
+- **Behavior Contract Enforcement:** the plan enumerates a test per distinct user-observable behavior / acceptance criterion (Given/When/Then), risk-ordered, skip trivia — not a single test. See `45-testing-strategy.md`.
 - **Real-World Breakage Review:** For IO/FS/Exec changes, define:
   - **Trigger:** What action causes the failure?
   - **Symptom:** What does the user see (or what does the log show)?
@@ -158,7 +158,7 @@ These constraints prevent "agent drift" and bikeshedding:
 ## Related Rule Packs
 
 - `40-documentation.md` — Documentation Sync Matrix (14 triggers), CHANGELOG, INDEX.md, LESSONS_LEARNT
-- `45-testing-strategy.md` — One-Test Rule, framework per scaffold, test fixtures
+- `45-testing-strategy.md` — Behavior Contract, framework per scaffold, test fixtures
 - `30-ops.md` — Dockerfile + compose checklist (aggregated in the internal audit above)
 - `25-data-postgres.md` — Alembic migration discipline (no raw DDL)
 - `55-observability.md` — structlog, `/health`, `/metrics` (referenced in audit)
