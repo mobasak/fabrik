@@ -2,6 +2,7 @@
 """Phase B wiring tests: the vendored twins are byte-identical, every host `claude` call
 site routes through claude_rotate.run_claude (not a bare subprocess.run), the keepalive
 shim writes the right content token for each outcome, and the cron template calls the shim."""
+
 import os
 import pathlib
 import shlex
@@ -21,11 +22,12 @@ def _func_body(src: str, name: str) -> str:
     top-level def/decorator), so assertions target the call site, not the whole file."""
     lines = src.splitlines()
     start = next(
-        i for i, ln in enumerate(lines)
+        i
+        for i, ln in enumerate(lines)
         if ln.startswith(f"def {name}") or ln.startswith(f"async def {name}")
     )
     body = []
-    for ln in lines[start + 1:]:
+    for ln in lines[start + 1 :]:
         if ln[:1] not in (" ", "\t", "") and ln.startswith(("def ", "async def ", "@")):
             break
         body.append(ln)
@@ -41,21 +43,29 @@ def test_bot_run_claude_routes_through_rotation_not_bare_subprocess():
     assert "import claude_rotate" in src
     body = _func_body(src, "_run_claude")
     assert "claude_rotate.run_claude(" in body, "bot._run_claude must call the rotation wrapper"
-    assert "subprocess.run(" not in body, "the claude call must go through the wrapper, not bare subprocess"
+    assert "subprocess.run(" not in body, (
+        "the claude call must go through the wrapper, not bare subprocess"
+    )
 
 
 def test_aro_wake_run_claude_routes_through_rotation_not_bare_subprocess():
     src = ARO_MAIN.read_text()
     assert "import claude_rotate" in src
     body = _func_body(src, "_run_claude")
-    assert "claude_rotate.run_claude(" in body, "aro-wake._run_claude must call the rotation wrapper"
-    assert "subprocess.run(" not in body, "the claude call must go through the wrapper, not bare subprocess"
+    assert "claude_rotate.run_claude(" in body, (
+        "aro-wake._run_claude must call the rotation wrapper"
+    )
+    assert "subprocess.run(" not in body, (
+        "the claude call must go through the wrapper, not bare subprocess"
+    )
 
 
 def test_cron_template_uses_shim_not_bare_claude():
     src = CRON.read_text()
     assert "claude-keepalive-rotate.sh" in src, "cron keepalive must call the shim"
-    assert '/usr/bin/claude -p "ping" > /var/log/claude-keepalive.log' not in src, "bare ping replaced"
+    assert '/usr/bin/claude -p "ping" > /var/log/claude-keepalive.log' not in src, (
+        "bare ping replaced"
+    )
 
 
 def test_keepalive_shim_syntax_valid():
@@ -69,7 +79,9 @@ def test_keepalive_shim_syntax_valid():
 
 def _run_shim(tmp_path, fake_output: str, fake_rc: int) -> str:
     fakebin = tmp_path / "fakeclaude"
-    fakebin.write_text(f"#!/usr/bin/env bash\nprintf '%s' {shlex.quote(fake_output)}\nexit {fake_rc}\n")
+    fakebin.write_text(
+        f"#!/usr/bin/env bash\nprintf '%s' {shlex.quote(fake_output)}\nexit {fake_rc}\n"
+    )
     fakebin.chmod(0o755)
     home = tmp_path / "home"
     home.mkdir()  # no ~/.claude/manager-accounts → claude_rotate finds <2 accounts → no rotation

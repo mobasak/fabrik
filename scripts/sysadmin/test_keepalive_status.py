@@ -3,6 +3,7 @@
 daily-digest.sh + proactive-check.sh use so a fresh mtime with a 401/usage-limit token is
 reported BROKEN, not "fresh" (the month-long-401-reads-as-fresh bug). Also asserts both
 monitors actually source the helper + still parse."""
+
 import pathlib
 import subprocess
 
@@ -44,7 +45,9 @@ def test_helper_syntax_valid():
 
 
 def test_keepalive_ok_token_is_healthy(tmp_path):
-    assert _reason(tmp_path, "KEEPALIVE_OK 2026-07-08T10:00:00+00:00") == "", "OK token → healthy (empty)"
+    assert _reason(tmp_path, "KEEPALIVE_OK 2026-07-08T10:00:00+00:00") == "", (
+        "OK token → healthy (empty)"
+    )
 
 
 def test_keepalive_fail_401_token_is_broken(tmp_path):
@@ -77,7 +80,9 @@ def test_benign_401_substring_is_not_broken(tmp_path):
 
 
 def test_missing_log_is_empty(tmp_path):
-    assert _reason(tmp_path, "", write=False) == "", "absent log → no reason (mtime check handles cron-dead)"
+    assert _reason(tmp_path, "", write=False) == "", (
+        "absent log → no reason (mtime check handles cron-dead)"
+    )
 
 
 @pytest.mark.parametrize("render", GROUNDED_LIMIT_RENDERS)
