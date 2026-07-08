@@ -505,11 +505,11 @@ test('main window renders', async () => {
   });
   ```
 
-Test pyramid:
+Testing Trophy + Behavior Contract (per `45-testing-strategy.md`) — one integration/E2E test per distinct user-observable behavior, risk-ordered; **NOT** a wide base of business-logic unit tests:
 
-- **Wide base: unit tests** for business logic (`vitest` per `12-node.md`).
-- **Middle: IPC integration tests** — exercise preload `contextBridge` surface with mock main handlers.
-- **Peak: Playwright E2E** — golden-path user flows; keep small + fast.
+- **Primary: IPC integration tests** — exercise the preload `contextBridge` surface with mock main handlers (the main↔renderer contract is where Electron bugs live).
+- **Primary: Playwright E2E** — golden-path user flows, one per behavior; keep small + fast.
+- **Unit (`vitest` per `12-node.md`) ONLY for complex pure algorithms / data transformations** — reserved, not the base.
 
 ---
 
@@ -546,7 +546,7 @@ Test pyramid:
 - `core/35-security-auth.md` — app-issued Bearer JWT (`fabrik-lib/fastapi-user-auth`, Pattern A default), M2M `X-Internal-Token` (backend-side)
 - `core/55-observability.md` — `@sentry/electron` for both processes; GlitchTip DSN
 - `core/58-resilience.md` — sync queue retry + circuit breaker patterns
-- `core/45-testing-strategy.md` — test pyramid (Playwright at peak; unit base via vitest)
+- `core/45-testing-strategy.md` — Testing Trophy + Behavior Contract (integration/E2E primary per behavior; unit via vitest only for pure algorithms)
 - `core/ocoron-design-system.md` — color tokens, typography, spacing for the React UI
 - `core/cost-budget.md` — local LLM via Ollama as alternative to OpenRouter API spend
 - `docs/traycer/mega-epic-breakdown/domain-modules/desktop-app.md` — Traycer planning domain module (out of pack scope; for planning LLM)
