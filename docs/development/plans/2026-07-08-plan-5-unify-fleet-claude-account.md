@@ -125,6 +125,7 @@ scripts/sysadmin/morning-report.sh                (modify :94)
 scripts/sysadmin/weekly-security.sh               (modify :25)
 scripts/sysadmin/monthly-backup-verify.sh         (modify :33)
 scripts/bootstrap/bootstrap-vps.sh                (inspect only — rsync is dir-level (:999-1001), ships new files automatically; no edit expected)
+scripts/sysadmin/claude_rotate.py, scripts/aro-wake/claude_rotate.py, scripts/sysadmin/test_claude_rotate.py  (whole-plan-review fix — added buffer_stdin so a rotation retry re-supplies the piped stdin that the wired stdin-based scripts feed; prior-plan file, but plan-5's wiring exposed the bug)
 docs/CONFIGURATION.md, docs/infrastructure/vps-ai-sysadmin.md, CHANGELOG.md, INDEX.md  (modify)
 ```
 Disjoint from the sibling `2026-07-08-plan-*` (flywheel/behavior-contract/pipeline) — those own `scripts/enforcement/**`, `scripts/kilo-benchmarks/**`, `libs/**`, not `scripts/sysadmin/**`. **Serialization note:** `proactive-check.sh` was last touched by the archived rotation plan (Phase D) — now committed, no in-flight conflict.

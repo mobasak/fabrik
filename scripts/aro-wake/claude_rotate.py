@@ -25,6 +25,7 @@ import fcntl
 import json
 import os
 import re
+import select
 import subprocess
 import sys
 from collections.abc import Callable
@@ -202,8 +203,28 @@ def _rotate_active_account(avoid: frozenset[str] = frozenset()) -> str | None:
     return _activate_snapshot(selector=_select)
 
 
+def _read_piped_stdin() -> str | None:
+    """Read piped stdin ONCE (so a rotation retry can be re-supplied the same context).
+    Returns None for a tty, an absent/closed stdin, or a fd with no data *ready* — the
+    ``select(…, 0)`` guard means a never-EOF pipe (e.g. a manual ``ssh host 'sudo bash …'``
+    without ``-t``) can't block the read past the retry loop's timeout budget. The real
+    callers feed an EOF-terminated fd (heredoc ``<<<``, a file ``<``, or /dev/null), which
+    is always ready, so their context is read in full.
+    """
+    try:
+        stdin = sys.stdin
+        if stdin is None or stdin.isatty():
+            return None
+        fd = stdin.fileno()
+        if not select.select([fd], [], [], 0)[0]:
+            return None  # nothing ready → don't block on a never-EOF fd
+        return stdin.read()
+    except (AttributeError, OSError, ValueError):
+        return None
+
+
 def run_claude(
-    argv: list[str], timeout: int, cwd: str, env: dict[str, str]
+    argv: list[str], timeout: int, cwd: str, env: dict[str, str], buffer_stdin: bool = False
 ) -> subprocess.CompletedProcess:
     """Run ``claude`` (*argv*). On a usage-limit signal (and not a 401), rotate to another
     account and retry — walking through **each OTHER account at most once** (N-account
@@ -215,8 +236,19 @@ def run_claude(
     timeout``. In practice a usage-limit render returns fast (the retry cost is ~the next
     call, not a timeout), so this only extends time on a genuine per-attempt hang — and
     ``rotations`` is bounded by the (small) account count, so the total stays bounded.
+
+    *buffer_stdin*: when True (the CLI passthrough — ``main()`` → ``claude-run.sh`` →
+    stdin-piping sysadmin scripts), piped stdin is buffered ONCE via :func:`_read_piped_stdin`
+    and re-supplied on every attempt — otherwise the first attempt reads the fd to EOF and a
+    rotation retry (the very case rotation exists for) would run with EMPTY stdin, losing the
+    context. Direct callers (``bot.py`` / ``aro-wake`` — argv-based, systemd /dev/null stdin)
+    leave it False, so their shared process stdin is never touched (no cross-thread read, no
+    behavior change).
     """
-    result = subprocess.run(argv, capture_output=True, text=True, timeout=timeout, cwd=cwd, env=env)
+    stdin_data = _read_piped_stdin() if buffer_stdin else None
+    result = subprocess.run(
+        argv, capture_output=True, text=True, timeout=timeout, cwd=cwd, env=env, input=stdin_data
+    )
     accounts = _list_accounts()
     if len(accounts) < 2:
         return result  # 0 or 1 account → nothing to rotate to
@@ -245,7 +277,7 @@ def run_claude(
         tried.add(new_account)
         rotations += 1
         result = subprocess.run(
-            argv, capture_output=True, text=True, timeout=timeout, cwd=cwd, env=env
+            argv, capture_output=True, text=True, timeout=timeout, cwd=cwd, env=env, input=stdin_data
         )
     return result
 
@@ -370,7 +402,9 @@ def main(argv: list[str] | None = None) -> int:
     env = os.environ.copy()
     env.setdefault("CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC", "1")
     timeout = int(os.environ.get("CLAUDE_ROTATE_TIMEOUT", "120"))
-    result = run_claude(args, timeout=timeout, cwd=os.getcwd(), env=env)
+    # CLI passthrough (claude-run.sh → stdin-piping sysadmin scripts): buffer stdin so a
+    # rotation retry re-supplies the piped context.
+    result = run_claude(args, timeout=timeout, cwd=os.getcwd(), env=env, buffer_stdin=True)
     if result.stdout:
         sys.stdout.write(result.stdout)
     if result.stderr:

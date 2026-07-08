@@ -319,6 +319,82 @@ def test_run_claude_gives_up_when_rotator_returns_none(monkeypatch):
     assert len(calls) == 1, "rotator returns None (no untried account) → break, no retry"
 
 
+def test_run_claude_preserves_piped_stdin_across_rotation(monkeypatch):
+    # A piped-stdin caller (proactive-check.sh `<<< "$CONTEXT"`) must have its context
+    # re-supplied on the rotation RETRY. A REAL pipe (one-shot: a 2nd read returns "") makes
+    # this load-bearing — a regression that re-read stdin per attempt would show ["CTX", ""].
+    r_fd, w_fd = os.pipe()
+    os.write(w_fd, b"ANOMALY-CONTEXT")
+    os.close(w_fd)
+    monkeypatch.setattr(claude_rotate.sys, "stdin", os.fdopen(r_fd, "r"))
+    outputs = [
+        _cp(stdout="You've hit your session limit · resets 3pm", rc=1),
+        _cp(stdout='{"result":"ok"}', rc=0),
+    ]
+    seen_input = []
+
+    def fake_run(argv, **kw):
+        seen_input.append(kw.get("input"))
+        return outputs[len(seen_input) - 1]
+
+    monkeypatch.setattr(claude_rotate.subprocess, "run", fake_run)
+    monkeypatch.setattr(claude_rotate, "_list_accounts", lambda: _accounts("mob", "ob"))
+    monkeypatch.setattr(claude_rotate, "_active_account", lambda: _accounts("mob")[0])
+    monkeypatch.setattr(claude_rotate, "_rotate_active_account", _walk_rotator(["ob"], []))
+
+    claude_rotate.run_claude(["claude", "-p", "x"], timeout=1, cwd="/x", env={}, buffer_stdin=True)
+
+    assert seen_input == ["ANOMALY-CONTEXT", "ANOMALY-CONTEXT"], (
+        f"stdin must be buffered ONCE + re-supplied on the retry, not lost; got {seen_input}"
+    )
+
+
+def test_run_claude_does_not_read_a_tty_stdin(monkeypatch):
+    class _Tty:
+        def isatty(self):
+            return True
+
+        def read(self):
+            raise AssertionError("must not read a tty/interactive stdin")
+
+    monkeypatch.setattr(claude_rotate.sys, "stdin", _Tty())
+    seen = []
+
+    def fake_run(argv, **kw):
+        seen.append(kw.get("input"))
+        return _cp(stdout="ok", rc=0)
+
+    monkeypatch.setattr(claude_rotate.subprocess, "run", fake_run)
+    monkeypatch.setattr(claude_rotate, "_list_accounts", lambda: _accounts("mob", "ob"))
+    monkeypatch.setattr(claude_rotate, "_active_account", lambda: _accounts("mob")[0])
+
+    claude_rotate.run_claude(["claude"], timeout=1, cwd="/x", env={}, buffer_stdin=True)
+
+    assert seen == [None], "a tty stdin must not be read (input=None)"
+
+
+def test_run_claude_default_does_not_touch_stdin(monkeypatch):
+    # The direct authoritative path (bot.py / aro-wake) leaves buffer_stdin=False → the shared
+    # process stdin is NEVER read (no cross-thread read, no behavior change), even if piped.
+    r_fd, w_fd = os.pipe()
+    os.write(w_fd, b"SHOULD-NOT-BE-READ")
+    os.close(w_fd)
+    monkeypatch.setattr(claude_rotate.sys, "stdin", os.fdopen(r_fd, "r"))
+    seen = []
+
+    def fake_run(argv, **kw):
+        seen.append(kw.get("input"))
+        return _cp(stdout="ok", rc=0)
+
+    monkeypatch.setattr(claude_rotate.subprocess, "run", fake_run)
+    monkeypatch.setattr(claude_rotate, "_list_accounts", lambda: _accounts("mob", "ob"))
+    monkeypatch.setattr(claude_rotate, "_active_account", lambda: _accounts("mob")[0])
+
+    claude_rotate.run_claude(["claude"], timeout=1, cwd="/x", env={})  # buffer_stdin defaults False
+
+    assert seen == [None], "default path must NOT read/buffer stdin (input=None)"
+
+
 # --- real-filesystem coverage of the security/atomicity swap (was fully mocked) -------
 
 
