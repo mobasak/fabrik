@@ -1,7 +1,7 @@
 ---
 activation: glob
 globs: ["**/subagents/**", "**/libs/subagents/**", "**/*subagent*", "**/mcp.json", "**/.mcp.json", "**/agents/*.md"]
-description: How to dispatch subagents — the two runtimes, per-task tool access (Claude Code agent-types vs pool web_tools/mcp_servers), the never-route safety list, the mcp.json source-of-truth, and the record_run flywheel
+description: How to dispatch subagents — the two runtimes, per-task tool access (Claude Code agent-types vs pool web_tools/mcp_servers), the never-route safety list, the mcp.json source-of-truth, pool-vs-native, and the record_agent_run flywheel
 trigger: glob
 ---
 <!-- CONSUMER: Coding agents (all) + Traycer (planning)
@@ -51,19 +51,29 @@ The pool is a **rule, not a roster: OpenRouter output price ≤ $1.5/Mtok** (tur
 
 A model over $1.5, or any off-Auto model without the operator's explicit per-turn OK → **STOP, ask.**
 
-- **Close the flywheel loop (every pool dispatch):** `pick_models(task_type, max_cost_per_mtok=1.2)` → judge the run → `record_run(result, quality_score, project=<name>)`. Fleet runs → `subagent_runs` → aggregation (**filtered to ≤ $1.5/Mtok**, so a refresh never re-admits a pricier model) → `CODING_SUBAGENT_SELECTION.md` → sharper `pick_models` next time.
+- **Close the flywheel loop (every *pool* dispatch):** `pick_models(task_type)` (the in-code cap self-enforces ≤ $1.5, **inclusive** — don't pass `max_cost_per_mtok` unless you want a *tighter* project budget; the old `=1.2` was wrong, it excluded the legit $1.20–$1.50 band) → judge the run → **`record_agent_run(spec, result, quality_score, project=<name>)`**. ⚠️ `record_run(result, …)` on a raw `AgentResult` **silently no-ops** (it wants a dict; `model`/`task_type` live on the *spec*) — always `record_agent_run(spec, result, …)`. Fleet runs → `subagent_runs` → aggregation (**filtered to ≤ $1.5/Mtok inclusive**) → `CODING_SUBAGENT_SELECTION.md` → sharper `pick_models` next time.
 - **⚠️ Keep the TWO sources aligned:** the module's vendored `_TABLE` and the flywheel-refreshed `CODING_SUBAGENT_SELECTION.md` (which overrides it via `SUBAGENT_SELECTION_DOC`). **This pack lists NO models — only the rule — so it can never be the third source that drifts.**
 
-## Dispatch policy — parallel by default + a mixed cheap worker set (BINDING)
+## Dispatch policy — parallel fan-out, native by default, pool as the gated cost-lever (BINDING)
 
-**Every command task that decomposes is fanned out to subagents in parallel wherever suitable** (independent work, disjoint `owned_paths` — the finder / grounder / reconciler / implementer classes are the common case). Encourage parallelism in **every** command; do decomposable work via subagents, not inline. Serialize only on a true data dependency or a shared file.
+**Every command task that decomposes is fanned out in parallel wherever suitable** (independent work, disjoint `owned_paths` — finder / grounder / reconciler / implementer classes). Do decomposable work via subagents, not inline; serialize only on a true data dependency or a shared file.
 
-**Standard worker mix per fan-out — diversity for cents:**
-- **1–2+ Claude Code subagents** — the native `fabrik-*` type for the task (subscription-billed), scaled to size/risk: more (or **Opus**) for auth / schema / migrations / concurrency; **Sonnet/Haiku** for routine breadth.
-- **+ `minimax/minimax-m3`** via the pool (`run_agents`, the right `task_type`) — the proven cheap OpenRouter worker; adds an **independent, differently-biased** pass **and** feeds the flywheel, for cents. *(Gated on `libs/subagents/` being vendored; until then, Claude subagents only.)*
-- **+ optionally one more Auto-tier cheap model** (the next model `pick_models` returns for the task) **when the task warrants more breadth**.
+**Native Claude Task subagents are the DEFAULT worker** — the `fabrik-*` type for the task (subscription-billed), scaled to size/risk: **Opus** for auth / schema / migrations / concurrency, **Sonnet/Haiku** for routine breadth. Native is right for line-precise grounding, review recall, GUI, and the decide/refute/merge you always own. A native fan-out produces no `AgentResult`, so it **records nothing** to the flywheel (§ Report every pool run).
 
-**Always cost-conservative:** stay within § Approved pool models; never add an expensive/unlisted model without the operator's explicit per-turn approval. The **orchestrator (you) always adjudicates** — cheap pool workers *surface* candidates; you refute / merge / decide and own the verdict. `record_run` every pool worker so `pick_models` keeps improving.
+**The OpenRouter pool (`run_agents`) is the cost lever — phased + gated, NOT default-on.** Enable it only after the plumbing is **PROVEN**: `from libs.subagents import record_agent_run` resolves AND a smoke `record_agent_run(...)` row actually lands in `subagent_runs` (SELECT it back — the call is fail-open). Rollout order: **`/fabrik-execute-plan` implementer fan-out first** (you gate the diff anyway — biggest lever, lowest risk), **then `/fabrik-review` Phase-1 finders** (cheap recall breadth). Authoritative line-precise verification + GUI **stay native**. Select with `pick_models(task_type)` (the in-code cap self-enforces ≤$1.5); every pool worker owes `record_agent_run(spec, result)` + `results_table`.
+
+**Always cost-conservative + you adjudicate:** stay within § Approved pool models; never add an expensive/unlisted model without the operator's explicit per-turn approval. Cheap pool workers *surface* candidates; you refute / merge / decide and own the verdict.
+
+## Pool vs native — which runtime for a fan-out
+
+| | Native Claude Task subagent (`fabrik-reviewer`/`-researcher`/`-gui`) | OpenRouter pool (`run_agents`) |
+|---|---|---|
+| **Model** | Claude (subscription) | cheap non-Claude, ~$0.18–$1.20/Mtok (≤$1.5 cap) |
+| **Tools** | Read/Grep/Glob/Bash on the real tree; browser/UI | sandboxed worktree + `run_command`; real file R/W (`tools_enabled=True`) — **not** text-only |
+| **Best for** | line-precise grounding, review recall, GUI, the decide/refute/merge | parallel code implementation, cheap review-recall breadth, research/prose |
+| **Flywheel** | **no `AgentResult` → CANNOT record** (don't tell it to) | **must `record_agent_run(spec, result)` + `results_table`** per unit |
+
+Phased + gated (above): pool rolls out to `/fabrik-execute-plan` implementers first, then `/fabrik-review` finders, only once a row provably lands in `subagent_runs`. Keep the `try: from libs.subagents import record_agent_run / except ImportError: record_agent_run = None` guard **only** on genuine pool-dispatch commands — not as a device to pre-write native footers.
 
 ## NEVER route to the pool (fabrik-lib PROPOSED_RULE)
 
@@ -75,12 +85,12 @@ The canonical MCP server list is a hub-owned standard-format file — `/opt/fabr
 
 ## Report every pool run — the results table AND the flywheel (both, always)
 
-After any **pool** dispatch (`run_agents`) you EVALUATE, emit **BOTH** — sharing **one** quality verdict (judge once, put the same 0–5 in both). A run that showed a table but no `record_run` (or recorded but showed no table) is **half-done**:
+After any **pool** (`run_agents`, Runtime B) dispatch you EVALUATE, emit **BOTH** — sharing **one** quality verdict (judge once, put the same 0–5 in both). A run that showed a table but no flywheel row (or vice-versa) is **half-done**:
 
 1. **A results table** (one row per unit) so a human can compare models at a glance — use the helper `results_table([{ "unit":…, "model":…, "result":<AgentResult>, "quality":0-5, "fixes":… }, …])`. Provider / Cost / Latency / **Out** (`out_tokens`) come straight from the `AgentResult`; **quality + confirmed-fixes are YOUR verdict** after materializing the diff and running the gate/tests/review.
-2. **A flywheel row per unit** — `record_run(result, quality_score=<the same 0-5>, project=<name>)`. This is the fleet-wide `subagent_runs` the ranking `pick_models` uses is refined from; skipping it means the ranking never improves. On the VPS `SUBAGENT_RUNS_DSN` connects directly; on WSL dev pass a peer-auth `connect=` factory.
+2. **A flywheel row per unit** — **`record_agent_run(spec, result, quality_score=<the same 0-5>, project=<name>)`**. ⚠️ the older `record_run(result, …)` **silently no-ops** on a raw `AgentResult` (it wants a dict; `model`/`task_type` live on the *spec*) — always `record_agent_run(spec, result, …)`. On the VPS `SUBAGENT_RUNS_DSN` connects directly; on WSL dev pass a peer-auth `connect=` factory. It is fail-open (returns `False` silently on a DB problem) — to prove the plumbing, SELECT the row back, don't trust the return.
 
-Claude-Code-subagent (Runtime A) dispatches you evaluate: still `record_run` per evaluated run; `results_table` applies to the pool (Runtime B), which supplies the `AgentResult`. Inline / no-dispatch → nothing to record. See each command's "Flywheel" section + `docs/superpowers/specs/2026-07-06-subagent-runs-telemetry-design.md`.
+**A native Claude-Code-subagent (Runtime A) dispatch produces NO `AgentResult` — it CANNOT record; the flywheel is pool-only (Runtime B).** So a native-fan-out command carries no flywheel footer (see § Pool vs native). Inline / no-dispatch → nothing to record. Telemetry design: `docs/superpowers/specs/2026-07-06-subagent-runs-telemetry-design.md`.
 
 ## Vendored-module bug → UPSTREAM_FEEDBACK (binding)
 
@@ -93,5 +103,6 @@ When a project fixes a real bug in a **vendored `fabrik-lib` module** (e.g. `lib
 - A pool task with `sandbox=False`, an inline API key, or web/MCP enabled while it carries sensitive context.
 - Hard-coding the `mcp` SDK v2 API or the Tool schema attribute name.
 - Naming a model roster or per-stage ranking in this pack (they live in the module `_TABLE` + `CODING_SUBAGENT_SELECTION.md`) — only `minimax/minimax-m3` (the default) may appear by name.
-- A pool run that emitted a `record_run` but no `results_table` (or vice-versa) — both, one verdict.
+- A pool run that emitted a `record_agent_run` but no `results_table` (or vice-versa) — both, one verdict. (And never `record_run(result, …)` — it no-ops; use `record_agent_run(spec, result, …)`.)
+- Telling a **native** (Runtime A) fan-out to record a flywheel row — it has no `AgentResult`; recording is pool-only.
 - Fixing a bug in a vendored `fabrik-lib` module without an `UPSTREAM_FEEDBACK.md` entry.

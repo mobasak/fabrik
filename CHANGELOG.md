@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — flywheel `record_run(result)` silently no-ops; corrected to `record_agent_run` + native/pool split (2026-07-08)
+
+fabrik-lib proved `record_run(record: dict)` no-ops on a raw `AgentResult` (`pg_ledger.py:96` isinstance guard; `model`/`task_type` live on `AgentSpec`) — so every documented `record_run(result, …)` call (`62-using-subagents.md` + the command family) recorded **nothing**. Step-1 correction (no re-vendor dependency): (1) `62` §Report / flywheel-loop / Banned + a new CLAUDE.md pointer now mandate `record_agent_run(spec, result)` and warn that `record_run(result)` no-ops; (2) the 9 **native-fan-out** commands (review/grounder family) **drop the misapplied flywheel footer** — a native Claude Task subagent produces no `AgentResult` and cannot record; (3) added a **Pool-vs-native** table to `62` + `§Dispatch policy` reworked to native-default + **phased/gated pool** (`/fabrik-execute-plan` implementers → `/fabrik-review` finders, only after the plumbing is proven); (4) fixed the ceiling error — `pick_models(…, max_cost_per_mtok=1.2)` wrongly excluded the legit $1.20–$1.50 band and is redundant now the in-code `_MAX_POOL_PRICE_PER_MTOK = 1.5` (inclusive) self-enforces — dropped it. Command files (`~/.claude/commands`, user-level) updated in lockstep. Pending (vendor-side, relayed): re-vendor canonical `2be6954` **flat** so `from libs.subagents import record_agent_run` resolves + a smoke row lands in `subagent_runs`.
+
 ### Changed — re-vendor libs/subagents from canonical fa33a14 (hard cap + allow_above_cap) + nested layout per VENDORING.md (2026-07-08)
 
 Re-vendored `libs/subagents/` from `/opt/fabrik-lib/subagents/` @ `fa33a14` (feat(subagents): make pick_models the sole ≤$1.5 gatekeeper + allow_above_cap On-request tier). Two changes land together:
