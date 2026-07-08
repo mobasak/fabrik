@@ -97,7 +97,7 @@
 
 ---
 
-## Phase B — Vendor the twin + wire all three call sites + the cron template
+## Phase B — Vendor the twin + wire all three call sites + the cron template — ✅ EXECUTED 2026-07-08
 
 **Responsibility:** every host claude invocation (bot, aro-wake, keepalive) routes through rotation.
 

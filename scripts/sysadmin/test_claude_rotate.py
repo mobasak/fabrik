@@ -266,7 +266,9 @@ def test_run_claude_active_not_in_snapshots_tries_all_n(monkeypatch):
     rotations = []
     monkeypatch.setattr(claude_rotate.subprocess, "run", fake_run)
     monkeypatch.setattr(claude_rotate, "_list_accounts", lambda: _accounts("mob", "ob"))
-    monkeypatch.setattr(claude_rotate, "_active_account", lambda: None)  # active not among snapshots
+    monkeypatch.setattr(
+        claude_rotate, "_active_account", lambda: None
+    )  # active not among snapshots
     monkeypatch.setattr(
         claude_rotate, "_rotate_active_account", _walk_rotator(["mob", "ob"], rotations)
     )
@@ -299,8 +301,12 @@ def test_run_claude_gives_up_when_rotator_returns_none(monkeypatch):
 
 def _write_creds(path, org):
     path.write_text(
-        json.dumps({"claudeAiOauth": {"accessToken": "FAKE-" + org, "refreshToken": "FAKE"},
-                    "organizationUuid": org})
+        json.dumps(
+            {
+                "claudeAiOauth": {"accessToken": "FAKE-" + org, "refreshToken": "FAKE"},
+                "organizationUuid": org,
+            }
+        )
     )
     os.chmod(path, 0o600)
 
@@ -336,7 +342,9 @@ def test_rotate_real_fs_swaps_backs_up_and_stays_0600(tmp_path, monkeypatch):
     backup = claude_dir / ".credentials.json.prev"
     assert backup.exists() and claude_rotate._read_org(backup) == "org-mob", "outgoing backed up"
     assert oct(active.stat().st_mode & 0o777) == "0o600", "active stays 0600"
-    assert oct(backup.stat().st_mode & 0o777) == "0o600", "backup written 0600 (no world-readable window)"
+    assert oct(backup.stat().st_mode & 0o777) == "0o600", (
+        "backup written 0600 (no world-readable window)"
+    )
     assert not (claude_dir / ".credentials.json.tmp").exists(), "no leftover tmp"
 
 
@@ -448,7 +456,10 @@ def test_find_account_by_name_email_and_prefix(tmp_path, monkeypatch):
     )
     _write_profile(accounts_dir / "can-ocoron-com-s-organization", "can@ocoron.com")
 
-    assert claude_rotate._find_account("can-ocoron-com-s-organization").name == "can-ocoron-com-s-organization"
+    assert (
+        claude_rotate._find_account("can-ocoron-com-s-organization").name
+        == "can-ocoron-com-s-organization"
+    )
     assert claude_rotate._find_account("can@ocoron.com").name == "can-ocoron-com-s-organization"
     assert claude_rotate._find_account("can").name == "can-ocoron-com-s-organization"  # prefix
     assert claude_rotate._find_account("zzz") is None
@@ -467,7 +478,9 @@ def test_find_account_empty_and_ambiguous_prefix_return_none(tmp_path, monkeypat
 def test_account_email_tolerates_non_object_profile(tmp_path, monkeypatch):
     _, accounts_dir, _ = _setup_fake_claude(tmp_path, monkeypatch, {"mob-dir": "org-mob"})
     (accounts_dir / "mob-dir" / "profile.json").write_text('["not", "an", "object"]')
-    assert claude_rotate._account_email(accounts_dir / "mob-dir") == "?", "non-object JSON → '?', no crash"
+    assert claude_rotate._account_email(accounts_dir / "mob-dir") == "?", (
+        "non-object JSON → '?', no crash"
+    )
 
 
 def test_account_email_non_dict_account_field_falls_back(tmp_path, monkeypatch):
@@ -492,4 +505,6 @@ def test_cli_switch_empty_or_ambiguous_errors_without_touching_active(tmp_path, 
     _write_creds(active, "org-mob")
     assert claude_rotate.main(["--switch", ""]) == 1, "empty target rejected"
     assert claude_rotate.main(["--switch", "mob"]) == 1, "ambiguous prefix rejected"
-    assert claude_rotate._read_org(active) == "org-mob", "active identity never changed on a bad switch"
+    assert claude_rotate._read_org(active) == "org-mob", (
+        "active identity never changed on a bad switch"
+    )

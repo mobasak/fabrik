@@ -20,6 +20,7 @@ import json
 import logging
 import os
 import subprocess
+import sys
 import threading
 import time
 import uuid
@@ -29,6 +30,12 @@ from pathlib import Path
 
 from telegram import Update
 from telegram.ext import Application, ContextTypes, MessageHandler, filters
+
+# Co-located Claude usage-limit/rotation wrapper (vendored byte-identical into aro-wake too).
+_HERE = Path(__file__).resolve().parent
+if str(_HERE) not in sys.path:
+    sys.path.insert(0, str(_HERE))
+import claude_rotate  # noqa: E402  (sys.path adjusted above so the co-located module resolves)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -176,10 +183,11 @@ def _run_claude(message: str, resume_session: str | None = None) -> tuple[str, s
     env["CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC"] = "1"
 
     try:
-        result = subprocess.run(
+        # Route through claude_rotate: on a usage/quota-limit it rotates to another
+        # Claude account and retries; a 401 (dead creds) is returned unchanged for the
+        # branch below to alert on. Same cwd/env contract as the bare subprocess call.
+        result = claude_rotate.run_claude(
             cmd,
-            capture_output=True,
-            text=True,
             timeout=CLAUDE_TIMEOUT_SECONDS,
             cwd=PROJECT_DIR,
             env=env,
@@ -274,6 +282,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             return
 
         if _session_alive():
+            assert _session_id is not None  # _session_alive() guarantees a live session id
             logger.info("Resume %s: %s", _session_id[:8], text[:50])
             response, sid = await asyncio.to_thread(_run_claude, text, _session_id)
             _last_activity = time.time()

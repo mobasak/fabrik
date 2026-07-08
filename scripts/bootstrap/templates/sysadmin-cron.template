@@ -27,9 +27,12 @@
 # OAuth keepalive — hourly (trio plan §2.3 + r3 #22).
 # Claude Code OAuth tokens go stale every ~4 days when host is idle (Lesson 75).
 # One cheap ping per hour keeps the credentials file fresh. ~$0.005/ping × 24
-# = $0.12/host/day on Max subscription burn. Log file is the heartbeat —
-# proactive-check.sh flags mtime > 90min as anomalous (cron is dead).
-{{KEEPALIVE_MINUTE}} * * * * ozgur /usr/bin/claude -p "ping" > /var/log/claude-keepalive.log 2>&1
+# = $0.12/host/day on Max subscription burn. Routed through claude-keepalive-rotate.sh,
+# which pings via account rotation and writes a CONTENT token (KEEPALIVE_OK /
+# KEEPALIVE_FAIL:<reason>) to /var/log/claude-keepalive.log — for daily-digest.sh +
+# proactive-check.sh to check (their content-check lands in the monitoring-honesty phase),
+# so a real auth/quota break surfaces instead of a perpetually-fresh mtime.
+{{KEEPALIVE_MINUTE}} * * * * ozgur /opt/fabrik/scripts/sysadmin/claude-keepalive-rotate.sh > /dev/null 2>&1
 
 # Daily digest — 09:00 UTC (trio plan §2.8 + r3 #21 + r4 #31).
 # Per-host roll-up of Tier A actions / escalations / reverts / consults / health

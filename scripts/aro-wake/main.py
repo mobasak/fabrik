@@ -28,6 +28,7 @@ import json
 import logging
 import os
 import subprocess
+import sys
 import threading
 import time
 import uuid
@@ -39,6 +40,12 @@ from typing import Any
 import httpx
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
+
+# Co-located Claude usage-limit/rotation wrapper (vendored byte-identical from sysadmin).
+_HERE = Path(__file__).resolve().parent
+if str(_HERE) not in sys.path:
+    sys.path.insert(0, str(_HERE))
+import claude_rotate  # noqa: E402  (sys.path adjusted above so the co-located module resolves)
 
 # ── Config (env-driven; defaults sane for vps1 hub) ───────────────────────
 
@@ -534,14 +541,13 @@ def _run_claude(
     env["CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC"] = "1"
 
     try:
-        proc = subprocess.run(  # noqa: S603
+        # Route through claude_rotate: rotates to another account + retries on a
+        # usage/quota-limit; a 401 returns unchanged for the returncode branch below.
+        proc = claude_rotate.run_claude(
             cmd,
-            capture_output=True,
-            text=True,
             timeout=WAKE_TIMEOUT,
             cwd=str(PROJECT_DIR),
             env=env,
-            check=False,
         )
     except subprocess.TimeoutExpired:
         return {"ok": False, "error": "claude_timeout", "session_id": sid}

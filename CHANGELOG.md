@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — wire fleet claude call sites through quota-rotation + content-token keepalive (2026-07-08)
+
+Phase B of the sysadmin-claude-rotation plan. Vendored `claude_rotate.py` **byte-identical** into `scripts/aro-wake/` (separate rsync tree + venv — no shared import; a test asserts `cmp` identity). Routed every host `claude -p` call through it: `scripts/sysadmin/bot.py::_run_claude` and `scripts/aro-wake/main.py::_run_claude` now call `claude_rotate.run_claude(...)` (same cwd/env contract; the 401-alert + timeout/`FileNotFoundError` branches preserved). New `scripts/sysadmin/claude-keepalive-rotate.sh` pings `claude` through rotation and writes a **content token** (`KEEPALIVE_OK` / `KEEPALIVE_FAIL:<reason>` — never token bytes) to `/var/log/claude-keepalive.log`; `scripts/bootstrap/templates/sysadmin-cron.template` now runs that shim instead of a bare `claude -p ping >log`. Also fixed a pre-existing `bot.py` mypy narrowing error (adjacent, in the file being wired). Wiring tests in `scripts/sysadmin/test_bot_rotation_wire.py`.
+
 ### Added — subagent pool-default + fleet-synced flywheel enforcement (Plan 1, 2026-07-08)
 
 Executed `2026-07-08-plan-1-subagent-pool-flywheel-enforcement`: flipped fabrik's subagent dispatch from "native-default, pool gated/phased" to **pool-default for gradeable fan-out**, with fleet-synced enforcement that a pool run is actually scored+recorded.
