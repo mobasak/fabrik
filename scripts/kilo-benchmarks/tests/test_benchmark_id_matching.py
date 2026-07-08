@@ -61,14 +61,8 @@ def test_override_covers_top_20_unmatched_patterns():
     from scrape_coding_benchmarks import BENCHMARK_NAME_TO_AGENT_ID
 
     # At least the mini-SWE-agent + Claude 4.5 Opus pair (highest frequency).
-    assert (
-        "mini-SWE-agent + Claude 4.5 Opus medium (20251101)"
-        in BENCHMARK_NAME_TO_AGENT_ID
-    )
-    assert (
-        "live-SWE-agent + Claude 4.5 Opus medium (20251101)"
-        in BENCHMARK_NAME_TO_AGENT_ID
-    )
+    assert "mini-SWE-agent + Claude 4.5 Opus medium (20251101)" in BENCHMARK_NAME_TO_AGENT_ID
+    assert "live-SWE-agent + Claude 4.5 Opus medium (20251101)" in BENCHMARK_NAME_TO_AGENT_ID
     # And the top-3 base models operators care about.
     values = set(BENCHMARK_NAME_TO_AGENT_ID.values())
     assert "anthropic/claude-opus-4.5" in values

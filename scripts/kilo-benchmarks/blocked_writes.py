@@ -25,8 +25,7 @@ from pathlib import Path
 _CACHE_DIR = Path(__file__).parent / "cache" / "blocked_writes"
 
 _HEADER = (
-    "| vendor | model_id | parsed | db | reason | raw (truncated) |\n"
-    "|---|---|---:|---:|---|---|\n"
+    "| vendor | model_id | parsed | db | reason | raw (truncated) |\n|---|---|---:|---:|---|---|\n"
 )
 
 

@@ -22,10 +22,10 @@ def _make_payload(model_name: str, prices: tuple[float, float, float, float, flo
     """Build a minimal React-flight-chunk-shaped payload the parser will accept."""
     price_body = "".join(f' \\"$${p} / MTok\\" ' for p in prices)
     return (
-        r'garbage_before '
-        rf'\"children\":[\"{model_name}\"] more \"stuff\" '
-        rf'{price_body}'
-        r' tail_garbage'
+        r"garbage_before "
+        rf"\"children\":[\"{model_name}\"] more \"stuff\" "
+        rf"{price_body}"
+        r" tail_garbage"
     ).replace("\\", "\\")
 
 

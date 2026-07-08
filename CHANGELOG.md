@@ -8,9 +8,9 @@ All notable changes to this project will be documented in this file.
 
 New `scripts/sysadmin/claude-run.sh` — a drop-in for `claude` that runs every sysadmin claude call through `claude_rotate.py` (usage-limit auto-rotation) **and always as the operator account** (`sudo -u ozgur -H` when the caller is root; direct when already ozgur), so the root-run cron scripts (whose `/root/.claude` has no credentials) and the ozgur services share the one credential home `/home/ozgur/.claude` that rotation manages. Resolves an absolute `claude` binary regardless of the caller's PATH; passes all args through verbatim (incl. a multi-line `--system-prompt`); swaps no files itself (`claude_rotate.py` owns the atomic swap). `CLAUDE_OPERATOR_USER` overrides the operator (default `ozgur`). Tested (`scripts/sysadmin/test_claude_run.py`, 5 cases: arg pass-through, exit-code pass-through, rotation routing, root→operator sudo branch).
 
-### Fixed — Pipeline-Health Coverage Closure Phases A+B (Plan 4, 2026-07-08)
+### Fixed — Pipeline-Health Coverage Closure — Plan 4 EXECUTED (2026-07-08)
 
-Executing `2026-07-08-plan-4-pipeline-health-coverage-closure`.
+Executed `2026-07-08-plan-4-pipeline-health-coverage-closure`. Final gate Tier 2 green (38 passed, 0 failed). Archived to `docs/development/plans/archived/`. 5 phase commits: `1f6275a1` (A) · `8dd7be31` (B) · `d2bef091` (C) · `703312ca` (D) · `649f02ed` (E).
 
 - **Phase A — alert delivery restored via `docker run --network fabrik` pattern.** The `apprise` container sits on the `fabrik` docker network with no host-port binding and no host-side DNS, so SSH-then-host-curl in `scripts/kilo-benchmarks/alerting/apprise.py` hit HTTP 000 on every alert (heartbeat + drift + blocked-write, all silent since ≥ 2026-07-07). Fix adopts the canonical Fabrik pattern already in production at `scripts/provision_grafana.sh:30`, `scripts/sysadmin/daily-digest.sh:285`, `scripts/sysadmin/system-prompt.txt:37`: `sudo docker run --rm --network fabrik curlimages/curl:latest -X POST …` inside a **single shell-quoted remote command** (SSH's remote-shell join was splitting `-H Content-Type: application/json` at the space and giving curl a malformed header → exit 3). 3 behavior-contract regression tests. Live smoke sent + Telegram-received.
 
