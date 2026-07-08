@@ -119,7 +119,7 @@ thing, then it lands in canonical + is re-vendored. **The build itself is the fa
 
 ---
 
-## Phase B — Flip `62-using-subagents.md` to pool-default (fleet-synced)
+## Phase B — Flip `62-using-subagents.md` to pool-default (fleet-synced) — ✅ EXECUTED 2026-07-08 (§ Dispatch policy → pool-default + per-command map + `allow_ungrounded` note; CLAUDE.md:112 § Subagent fan-out reconciled to match)
 
 **Files:** `/opt/fabrik/.windsurf/rules/core/62-using-subagents.md` (synced fleet-wide).
 **Responsibility:** replace the "phased + gated / NOT default-on / Step-3" framing with the runtime rule +

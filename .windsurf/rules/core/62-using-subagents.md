@@ -21,6 +21,8 @@ Two runtimes dispatch subagents; each scopes tools differently. **Never restate 
 
 ## Which subagent_type per command (Runtime A)
 
+These are the **native** types — used for GUI, the authoritative/high-risk pass, and the decide/refute/merge. Under § Dispatch policy the **gradeable fan-out** of these same commands (review finders, research grounders, doc reconcilers, rules auditors, implementers) **defaults to the POOL** (Runtime B); native here is the authoritative complement, not the default worker.
+
 | Work | subagent_type | Access |
 |---|---|---|
 | web-research grounders (`/fabrik-spec-review`, `/fabrik-plan-after-chat`, `/fabrik-plan-review`, `/fabrik-data-contract`) | **`fabrik-researcher`** | search + docs MCPs; read-only |
@@ -54,13 +56,13 @@ A model over $1.5, or any off-Auto model without the operator's explicit per-tur
 - **Close the flywheel loop (every *pool* dispatch):** `pick_models(task_type)` (the in-code cap self-enforces ≤ $1.5, **inclusive** — don't pass `max_cost_per_mtok` unless you want a *tighter* project budget; the old `=1.2` was wrong, it excluded the legit $1.20–$1.50 band) → judge the run → **`record_agent_run(spec, result, quality_score, project=<name>)`**. ⚠️ `record_run(result, …)` on a raw `AgentResult` **silently no-ops** (it wants a dict; `model`/`task_type` live on the *spec*) — always `record_agent_run(spec, result, …)`. Fleet runs → `subagent_runs` → aggregation (**filtered to ≤ $1.5/Mtok inclusive**) → `CODING_SUBAGENT_SELECTION.md` → sharper `pick_models` next time.
 - **⚠️ Keep the TWO sources aligned:** the module's vendored `_TABLE` and the flywheel-refreshed `CODING_SUBAGENT_SELECTION.md` (which overrides it via `SUBAGENT_SELECTION_DOC`). **This pack lists NO models — only the rule — so it can never be the third source that drifts.**
 
-## Dispatch policy — parallel fan-out, native by default, pool as the gated cost-lever (BINDING)
+## Dispatch policy — pool-default for gradeable fan-out, native for GUI/authoritative/decide (BINDING)
 
-**Every command task that decomposes is fanned out in parallel wherever suitable** (independent work, disjoint `owned_paths` — finder / grounder / reconciler / implementer classes). Do decomposable work via subagents, not inline; serialize only on a true data dependency or a shared file.
+**Everything decomposable → a subagent; the only question is the runtime.** Every command task that decomposes is fanned out in parallel wherever suitable (independent work, disjoint `owned_paths` — finder / grounder / reconciler / auditor / implementer classes). Do decomposable work via subagents, not inline; serialize only on a true data dependency or a shared file.
 
-**Native Claude Task subagents are the DEFAULT worker** — the `fabrik-*` type for the task (subscription-billed), scaled to size/risk: **Opus** for auth / schema / migrations / concurrency, **Sonnet/Haiku** for routine breadth. Native is right for line-precise grounding, review recall, GUI, and the decide/refute/merge you always own. A native fan-out produces no `AgentResult`, so it **records nothing** to the flywheel (§ Report every pool run).
+**The OpenRouter pool (`run_agents`, ≤ $1.5/Mtok) is the DEFAULT worker for gradeable text/code fan-out** — review finders, repo-review unit reviewers, doc reconcilers, rules-pack auditors, spec/plan research grounders, code implementers. Select with `pick_models(task_type)` (the in-code cap self-enforces ≤$1.5); every pool worker owes `record_agent_run(spec, result)` + `results_table` (§ Report every pool run) — this feeds the flywheel (`pick_models` learns). A single-shot (`tools_enabled=False`) review/docs worker must set `allow_ungrounded=True` to attest it inlined the content into `task`, or use `tools_enabled=True` for real file reads — the module **refuses** ungrounded single-shot verification (it hallucinates). Enforced (not prose) by `scripts/enforcement/check_subagent_flywheel.py`.
 
-**The OpenRouter pool (`run_agents`) is the cost lever — phased + gated, NOT default-on.** Enable it only after the plumbing is **PROVEN**: `from libs.subagents import record_agent_run` resolves AND a smoke `record_agent_run(...)` row actually lands in `subagent_runs` (SELECT it back — the call is fail-open). Rollout order: **`/fabrik-execute-plan` implementer fan-out first** (you gate the diff anyway — biggest lever, lowest risk), **then `/fabrik-review` Phase-1 finders** (cheap recall breadth). Authoritative line-precise verification + GUI **stay native**. Select with `pick_models(task_type)` (the in-code cap self-enforces ≤$1.5); every pool worker owes `record_agent_run(spec, result)` + `results_table`.
+**Native Claude Task subagents (`fabrik-*`, subscription-billed) are for GUI + the authoritative/high-risk pass + the decide/refute/merge.** GUI (`fabrik-gui`, browser MCPs — no pool equivalent); the authoritative line-precise verification (`fabrik-reviewer`/Opus on auth / schema / migrations / secrets / concurrency); and the decide/refute/merge you always own. A native fan-out produces no `AgentResult`, so it **records nothing** to the flywheel (nothing to rank — that is by nature, not a gap).
 
 **Always cost-conservative + you adjudicate:** stay within § Approved pool models; never add an expensive/unlisted model without the operator's explicit per-turn approval. Cheap pool workers *surface* candidates; you refute / merge / decide and own the verdict.
 
@@ -73,7 +75,7 @@ A model over $1.5, or any off-Auto model without the operator's explicit per-tur
 | **Best for** | line-precise grounding, review recall, GUI, the decide/refute/merge | parallel code implementation, cheap review-recall breadth, research/prose |
 | **Flywheel** | **no `AgentResult` → CANNOT record** (don't tell it to) | **must `record_agent_run(spec, result)` + `results_table`** per unit |
 
-Phased + gated (above): pool rolls out to `/fabrik-execute-plan` implementers first, then `/fabrik-review` finders, only once a row provably lands in `subagent_runs`. Keep the `try: from libs.subagents import record_agent_run / except ImportError: record_agent_run = None` guard **only** on genuine pool-dispatch commands — not as a device to pre-write native footers.
+**Pool-default (above):** gradeable fan-out (finders / grounders / reconcilers / auditors / implementers) goes to the pool by default and records; GUI / authoritative / decide-merge stay native. Per-command map: `/fabrik-execute-plan` implementers · `/fabrik-review` + `/fabrik-repo-review` finders · `/fabrik-rules-review` per-pack auditors · `/fabrik-spec-review` + `/fabrik-plan-review` grounders · `/fabrik-docs-review` reconcilers · `/fabrik-plan-after-chat` + `/fabrik-data-contract` `path:line` grounders (+ a native ~20% citation verify-sample) → **all pool**; `/fabrik-ui-design(-review)` → **native** (`fabrik-gui`); decide/refute/merge → **always you/native**. Keep the `try: from libs.subagents import record_agent_run / except ImportError: record_agent_run = None` guard **only** on genuine pool-dispatch commands — not as a device to pre-write native footers.
 
 ## NEVER route to the pool (fabrik-lib PROPOSED_RULE)
 
