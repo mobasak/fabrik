@@ -323,11 +323,13 @@ class OpenRouterClient:
 
     def _emit(self, cb: StateCb | None, event: str, model: str, attempt: int) -> None:
         if self._progress:
-            print(
-                f"[CONSULT_PROGRESS] {json.dumps({'event': event, 'model': model, 'attempt': attempt})}",
-                file=sys.stderr,
-                flush=True,
+            # stderr.write, NOT print(): library code stays print-free so a consuming project's
+            # print-ban gate never trips on a vendored copy. Behaviour is identical to the old
+            # print(..., file=sys.stderr, flush=True) — same stream, explicit newline + flush.
+            sys.stderr.write(
+                f"[CONSULT_PROGRESS] {json.dumps({'event': event, 'model': model, 'attempt': attempt})}\n"
             )
+            sys.stderr.flush()
         if cb is not None:
             cb(event, model, attempt)  # callback fires regardless of the stderr flag
 

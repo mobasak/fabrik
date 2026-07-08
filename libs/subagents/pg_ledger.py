@@ -129,4 +129,40 @@ def record_run(
             conn.close()
 
 
-__all__ = ["SUBAGENT_RUNS_DDL", "record_run"]
+def record_agent_run(
+    spec: object,
+    result: object,
+    *,
+    quality_score: float | None = None,
+    project: str | None = None,
+    dsn: str | None = None,
+    connect: Callable[[str], Any] | None = None,
+) -> bool:
+    """Judge-once flywheel write for a (spec, result) pair — the call an orchestrator SHOULD use.
+
+    ``record_run`` takes the *merged provenance dict* (:func:`ledger.agent_record`), because the
+    flywheel row's ``model`` / ``task_type`` live on the **spec**, not the :class:`~agent.AgentResult`
+    (the result has no such fields). Passing a raw ``AgentResult`` straight to ``record_run`` therefore
+    matches ``isinstance(record, dict) → False`` and **silently no-ops** (fail-open) — a recorded run
+    that never reaches ``subagent_runs``. This wrapper closes that trap: it builds the canonical record
+    from the pair, then inserts it. Same fail-open contract (never raises; ``False`` on any error).
+
+    Typical loop::
+
+        results = run_agents(specs, repo=repo)
+        for spec, r in zip(specs, results):
+            q = judge(r)  # YOUR 0–5 verdict after materializing the diff + running the gate/tests
+            record_agent_run(spec, r, quality_score=q, project="my-project")
+    """
+    from .ledger import agent_record
+
+    try:
+        record = agent_record(spec, result)
+    except Exception:  # noqa: BLE001 — fail-open: a malformed spec/result never raises
+        return False
+    return record_run(
+        record, dsn=dsn, project=project, quality_score=quality_score, connect=connect
+    )
+
+
+__all__ = ["SUBAGENT_RUNS_DDL", "record_run", "record_agent_run"]

@@ -392,11 +392,12 @@ def results_table(entries: list[dict]) -> str:
       ``unit``    — the work unit name (str)
       ``model``   — the model id used (str)
       ``result``  — the :class:`AgentResult` (supplies provider / cost / latency / out_tokens / status)
-      ``quality`` — YOUR 0–5 quality verdict (the same score you pass to ``record_run``)
+      ``quality`` — YOUR 0–5 quality verdict (the same score you pass to ``record_agent_run``)
       ``fixes``   — one-line summary of confirmed fixes / output (str)
 
     This is the human-readable report; it does NOT replace the flywheel — the orchestrator must
-    ALSO ``record_run(result, quality_score=…, project=…)`` per unit (see PROPOSED_RULE). Total:
+    ALSO ``record_agent_run(spec, result, quality_score=…, project=…)`` per unit (NOT
+    ``record_run(result, …)``, which silently no-ops on a raw AgentResult — see PROPOSED_RULE). Total:
     a missing/oddly-typed field renders as ``—`` rather than raising."""
     head = "| Unit | Model | Provider | Cost | Latency | Out | My quality score | Confirmed fixes |"
     rows = [head, "|---|---|---|---:|---:|---:|:--:|---|"]

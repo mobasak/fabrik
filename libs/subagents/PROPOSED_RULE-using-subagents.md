@@ -147,24 +147,29 @@ guidance + the Claude Code 2.0 brevity shift) is a **short** system prompt — a
 
 ## Record every run to the flywheel (mechanical is automatic; quality is YOUR verdict)
 
-Two tiers, by design (`pg_ledger.record_run` — the module `INSERT`s the mechanical row; the
-table is not writable beyond that):
+Two tiers, by design (`pg_ledger.record_agent_run` builds the merged record + `INSERT`s the
+mechanical row; the table is not writable beyond that):
 
 - **Mechanical (cost/turns/latency/status/model/provider/tool_calls) — the module captures it
   factually.** `cost_usd` is the OpenRouter-billed `usage.cost`, not an estimate.
 - **`quality_score` — the ORCHESTRATOR (you) records it AFTER judging.** The module can't run
   your gate/tests, so quality is your verdict. After you evaluate each result (materialize the
   diff → run the gate/tests, or your review), call
-  `record_run(result, quality_score=<0–5>, project=<project>)` — one authoritative row per run.
-  This is the fleet-wide `subagent_runs` flywheel `pick_models` learns from; **skipping it means
-  the ranking never improves.** On the VPS `SUBAGENT_RUNS_DSN` connects directly; on WSL dev pass
-  a peer-auth `connect=` factory (postgres there is peer-auth-only, so the TCP DSN fails).
+  `record_agent_run(spec, result, quality_score=<0–5>, project=<project>)` — one authoritative row
+  per run. This is the fleet-wide `subagent_runs` flywheel `pick_models` learns from; **skipping it
+  means the ranking never improves.** On the VPS `SUBAGENT_RUNS_DSN` connects directly; on WSL dev
+  pass a peer-auth `connect=` factory (postgres there is peer-auth-only, so the TCP DSN fails).
+- **⚠️ Call `record_agent_run(spec, result, …)`, NOT `record_run(result, …)`.** The row's
+  `model` + `task_type` come from the **spec**, not the `AgentResult`; passing a raw `AgentResult`
+  to the low-level `record_run` matches `isinstance(record, dict) → False` and **silently no-ops**
+  (fail-open — no row, no error). `record_agent_run` merges the pair via `ledger.agent_record` and
+  is the only correct one-call flywheel write.
 - **You are IN the loop — recording is mandatory, not a nicety.** The per-task ranking
   `pick_models` uses for the **allowed pool** is refined by exactly these rows: every agent that
   dispatches the pool and records its verdict makes the *next* project's selection sharper (and
   keeps the current five honestly ranked as models change). So it is a closed loop — dispatch →
-  judge → `record_run` → better `pick_models` for everyone. One authoritative row per run, always;
-  an unrecorded run is a data point the fleet permanently loses.
+  judge → `record_agent_run` → better `pick_models` for everyone. One authoritative row per run,
+  always; an unrecorded run is a data point the fleet permanently loses.
 - Orchestrator commands that dispatch pools (e.g. `/fabrik-execute-plan`, `/fabrik-review`)
   **must** bake this record step into their flow — it is how the allowed-pool rankings stay current.
 
@@ -183,11 +188,13 @@ After a pool run the orchestrator MUST produce **two** things — no exceptions:
    `AgentResult` (`out_tokens` is the summed completion tokens); **quality + confirmed-fixes are
    YOUR verdict** after materializing the diff and running the gate/tests/review.
 
-2. **A flywheel row per unit** — `record_run(result, quality_score=<the same 0-5>, project=<name>)`.
+2. **A flywheel row per unit** — `record_agent_run(spec, result, quality_score=<the same 0-5>,
+   project=<name>)` (pairs the spec's model/task_type with the result; NOT `record_run(result, …)`,
+   which silently no-ops on a raw `AgentResult`).
 
 The table is the **human report**; the flywheel is the **machine record** that refines `pick_models`
 fleet-wide. **Do BOTH** — judge once, put the same score in both. A run that emitted a table but no
-`record_run` (or recorded but showed no table) is half-done. Bake both into the command flow.
+`record_agent_run` (or recorded but showed no table) is half-done. Bake both into the command flow.
 
 ## Provenance is not optional
 

@@ -154,18 +154,24 @@ cross-project `cost_ledger`). Turn it on by setting **one env var**; it is other
   cost_usd, turns, latency_s, quality_score, tool_calls`. The schema is `SUBAGENT_RUNS_DDL`
   (exported); apply it with `python -c "from subagents import SUBAGENT_RUNS_DDL; print(SUBAGENT_RUNS_DDL)" | psql "$SUBAGENT_RUNS_DSN"`.
 - **How — the orchestrator writes it, once, after judging.** The centralized row is written by
-  **`record_run(record, quality_score=…)`** — NOT automatically by the run. The local JSONL
-  `ledger` (`ledger_path`) is written on every run and is the durable audit copy, but it does
+  **`record_agent_run(spec, result, quality_score=…)`** — NOT automatically by the run. The local
+  JSONL `ledger` (`ledger_path`) is written on every run and is the durable audit copy, but it does
   **NOT** auto-write to Postgres: a runtime auto-write could only carry a NULL `quality_score`
   and would then **duplicate** the orchestrator's quality-bearing row (the table is INSERT-only,
-  so two rows can't be merged). So: **one run → one flywheel row, via `record_run`.** It is
+  so two rows can't be merged). So: **one run → one flywheel row, via `record_agent_run`.** It is
   **fail-open** (a Postgres outage never breaks a run), least-privilege (`INSERT`-only; the table
   is provisioned centrally by the hub, no auto-DDL), and `psycopg` is lazy-imported.
+- **⚠️ Use `record_agent_run(spec, result, …)`, NOT `record_run(result, …)`.** The flywheel row's
+  `model` + `task_type` live on the **spec**, not the `AgentResult` (the result has neither field).
+  The low-level `record_run` takes the *merged provenance dict* (`ledger.agent_record(spec, result)`);
+  handing it a raw `AgentResult` matches `isinstance(record, dict) → False` and **silently no-ops**
+  (fail-open — no row, no error). `record_agent_run(spec, result, …)` does the merge for you and is
+  the call every orchestrator should make.
 - **`quality_score`** is the one field only the **orchestrator** can supply — a verdict from your
   gate/tests/review, not a measurement. After you judge a run, call
-  `record_run(result, quality_score=<0–5>, project=…)` (WSL dev: pass a peer-auth `connect=`;
-  VPS: the injected `SUBAGENT_RUNS_DSN` connects directly). Skipping it means the ranking never
-  improves.
+  `record_agent_run(spec, result, quality_score=<0–5>, project=…)` (WSL dev: pass a peer-auth
+  `connect=`; VPS: the injected `SUBAGENT_RUNS_DSN` connects directly). Skipping it means the
+  ranking never improves.
 
 ## Web research tools (opt-in, paid)
 
@@ -261,7 +267,7 @@ either to review real code you'll act on, or to **benchmark models as reviewers*
   the code/diff to review in `task`. Cheap + fast (~1 turn).
 
 ```python
-from subagents import run_agents, AgentSpec, methodology, record_run
+from subagents import run_agents, AgentSpec, methodology, record_agent_run
 
 MODELS = ["minimax/minimax-m3", "qwen/qwen3.7-max", "x-ai/grok-4.20"]   # proven + on-trial
 specs = [AgentSpec(
@@ -271,8 +277,8 @@ specs = [AgentSpec(
     max_turns=2, max_cost_usd=0.25, wall_clock_s=600,   # tight (glm has runaway history)
 ) for m in MODELS]
 results = run_agents(specs, repo="/path/to/repo")
-for r in results:
-    record_run(r, quality_score=<0-5>, project="my-project")   # YOUR verdict → the flywheel
+for spec, r in zip(specs, results):
+    record_agent_run(spec, r, quality_score=<0-5>, project="my-project")  # YOUR verdict → flywheel
 ```
 
 - **Repo-wide (a big review).** Don't hand one agent the whole tree — **partition into units**

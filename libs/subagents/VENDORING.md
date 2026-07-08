@@ -10,29 +10,40 @@ package, no shared runtime dependency, no `/opt/` import at build time. It is **
 
 ---
 
-## 1. Copy the module
+## 1. Copy the module — FLAT (copy the package, not the module dir)
+
+**Copy the inner `subagents/` PACKAGE straight to `libs/subagents/`** so `libs/subagents/__init__.py`
+lands directly under `libs/` — this is what makes the documented `from libs.subagents import …`
+resolve. Do **NOT** copy the outer `subagents/` module dir (that nests it as
+`libs/subagents/subagents/` and only `from libs.subagents.subagents import …` would work — the
+import shape this module does **not** document, and the one that silently breaks every consumer +
+the `/fabrik-*` flywheel snippets).
 
 ```bash
-# from the consuming project root (adjust libs/ to wherever you keep vendored modules)
-cp -r /opt/fabrik-lib/subagents your-project/libs/subagents
-pip install -r your-project/libs/subagents/requirements.txt      # httpx==0.28.1
+# from the consuming project root — libs/subagents/ must NOT already exist (cp would nest into it)
+cp -r /opt/fabrik-lib/subagents/subagents your-project/libs/subagents        # the PACKAGE, flat
+cp /opt/fabrik-lib/subagents/requirements.txt your-project/libs/subagents/   # httpx==0.28.1
+pip install -r your-project/libs/subagents/requirements.txt
+# (optional) the tests, if you want to run them in-project:
+# cp -r /opt/fabrik-lib/subagents/tests your-project/libs/subagents/tests
 ```
 
-The layout after copying: `libs/subagents/` (kebab dir) contains `subagents/` (the snake_case
-Python package) + `README.md` + `requirements.txt` + `tests/`.
+Layout after copying (FLAT — the canonical shape):
+`libs/subagents/__init__.py`, `libs/subagents/agent.py`, `libs/subagents/select.py`, … — the
+package contents live **directly** under `libs/subagents/`.
 
-## 2. Fix the import path (only if you nest it under `libs/`)
+## 2. No import rewrite needed — the package is relative-import throughout
 
-The package imports itself as `subagents` (e.g. `from subagents import run_agents`). If you place
-it at `libs/subagents/`, either:
+The package imports its own internals **relatively** (`from .agent import …`, `from .select import
+…`, `from . import sandbox`) — it never hard-codes its own top-level name. So once it sits at
+`libs/subagents/` with the project root on `sys.path` (the default when you run from the project
+root), **`from libs.subagents import …` just works — no rewriting, no `PYTHONPATH` hack.** (Inside
+fabrik-lib the same package is imported as `subagents`; vendored flat it is `libs.subagents`. Same
+code, different top-level name — that is exactly what relative imports buy you.)
 
-- add `libs/` to `sys.path` / `PYTHONPATH` so `from subagents import …` resolves, **or**
-- rewrite the intra-package imports to your namespace: `from subagents…` → `from libs.subagents…`
-  (the fabrik vendoring convention).
-
-**Verify the copy imports:**
+**Verify the copy imports (all four — the flywheel write is `record_agent_run`, NOT `record_run`):**
 ```bash
-python -c "from libs.subagents import run_agents, AgentSpec, pick_models; print('ok')"
+python -c "from libs.subagents import run_agents, AgentSpec, pick_models, record_agent_run; print('ok')"
 ```
 
 ## 3. Prerequisites — only what your features need
@@ -73,13 +84,14 @@ for r in results:
 ```
 
 `run_agents` is synchronous; `arun_agents(...)` is the async core. See `README.md` for the full
-API (`AgentSpec` fields, caps, `web_tools`/`mcp_servers`, `pick_models`, the flywheel `record_run`)
+API (`AgentSpec` fields, caps, `web_tools`/`mcp_servers`, `pick_models`, the flywheel `record_agent_run`)
 and `PROPOSED_RULE-using-subagents.md` for the safety guardrails (keep the sandbox on for
 tool-enabled pools, never route auth/secrets/migrations to the pool, bound every agent).
 
 ## 5. Keeping the copy current
 
-You **own** the copy — divergence is fine. To pull upstream improvements later, re-copy from
-`/opt/fabrik-lib/subagents` and re-apply your local changes. If you fix a real bug in the vendored
-copy, report it upstream in `/opt/fabrik-lib/subagents/UPSTREAM_FEEDBACK.md` so every project
-benefits (that is the one write allowed back into fabrik-lib).
+You **own** the copy — divergence is fine. To pull upstream improvements later, re-copy the package
+(`/opt/fabrik-lib/subagents/subagents/` → `libs/subagents/`, the same **flat** shape as §1) and
+re-apply your local changes. If you fix a real bug in the vendored copy, report it upstream in
+`/opt/fabrik-lib/subagents/UPSTREAM_FEEDBACK.md` so every project benefits (that is the one write
+allowed back into fabrik-lib).

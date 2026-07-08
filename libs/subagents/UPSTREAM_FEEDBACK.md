@@ -7,6 +7,24 @@ should be upstreamed), or **RESOLVED &lt;sha&gt;** (fabrik-lib has merged the ch
 
 ---
 
+## 2026-07-08 — RESOLVED: `_client.py` shipped a bare `print()` (trips a consumer's print-ban gate)
+
+**Reported by fabrik AI during re-vendor.** `_client.py:326` (`OpenRouterClient._emit`, the opt-in
+`self._progress` branch) wrote its `[CONSULT_PROGRESS]` line with `print(..., file=sys.stderr,
+flush=True)`. A bare `print()` in **library** code trips fabrik's print-ban check whenever
+`libs/subagents` is in a gate's scope — so every consuming project would have to patch its vendored
+copy, which is exactly the silent-fork this log exists to prevent.
+
+**Fix.** Replaced with `sys.stderr.write(… + "\n"); sys.stderr.flush()` — **behaviour-identical**
+(same stream, explicit newline, explicit flush) but print-free. No functional change; the
+`self._progress` gate and the `cb` callback path are untouched.
+
+**Regression guard.** No test asserted on this stderr line (the `on_progress` tests use the callback,
+not the print), so no new test was needed; a module-wide `grep -rn "print(" subagents/subagents/`
+now returns nothing, and the full suite + module gate stay green.
+
+---
+
 ## 2026-07-08 — RESOLVED: reader agents (`tools_enabled=False`) must run in parallel
 
 **Reported + fixed in a vendored copy** (`/opt/trade-intelligence/libs/subagents`), validated and

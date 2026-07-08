@@ -20,7 +20,7 @@ from __future__ import annotations
 from .agent import AgentResult, AgentSpec, arun_agents, results_table, run_agents
 from .mcp_tools import SAFE_RESEARCH_SERVERS
 from .methodology import METHODOLOGY_KINDS, methodology
-from .pg_ledger import SUBAGENT_RUNS_DDL, record_run
+from .pg_ledger import SUBAGENT_RUNS_DDL, record_agent_run, record_run
 from .select import (
     TASK_KINDS,
     TASK_MODEL_TABLE,
@@ -43,6 +43,7 @@ __all__ = [
     "model_price",
     "load_task_ranking",
     "record_run",
+    "record_agent_run",
     "SUBAGENT_RUNS_DDL",
     "SAFE_RESEARCH_SERVERS",
 ]
