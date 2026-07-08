@@ -667,6 +667,16 @@ def run_consistency_checks(
                 advisory=True,
             )
         )
+        # Mutation testing (Behavior Contract substance-mechanical layer) — proves the new tests KILL
+        # mutants, not just cover lines. Advisory + diff-scoped + OPT-IN (runs only when FABRIK_MUTMUT=1;
+        # nightly/CI/on-demand, never per-PR blocking per 45-testing-strategy.md). Always exits 0.
+        results.append(
+            run_optional_check(
+                "scripts/enforcement/check_mutation.py",
+                "Mutation (advisory, opt-in FABRIK_MUTMUT)",
+                advisory=True,
+            )
+        )
         # Script coupling header — each staged scripts/**/*.py declares (via a
         # `# AFTER-EDIT:` header) the files to update when it changes. WARN-tier,
         # touch-on-change (mirrors Doc Sync); never blocks.

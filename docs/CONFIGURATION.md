@@ -184,6 +184,18 @@ The writer role is INSERT-only (no SELECT) — read the table via the `postgres`
 
 Run manually or on a WSL cron (e.g. every 6h). ⚠️ **Standby-token validity** (does an idle-synced snapshot's refresh token still work when rotated in?) can only be confirmed live: after a first sync, on one host, rotate to a standby account and `claude -p ping` — if it 401s, shorten the cadence.
 
+### Mutation testing — `FABRIK_MUTMUT` (dev; advisory, opt-in)
+
+The Behavior Contract's substance-mechanical layer: `mutmut` (dev dependency, `pyproject.toml [dev]`) proves the tests **kill mutants**, not just cover lines. `scripts/enforcement/check_mutation.py` is registered in `final_gate` as **advisory + opt-in** — it runs **only** when `FABRIK_MUTMUT=1` (diff-scoped + nightly/CI/on-demand, never a per-PR blocking gate per `45-testing-strategy.md`), mutates only **committed** changed Python (never the dirty worktree, never `tests/` or the vendored `libs/`), and **always exits 0**.
+
+```bash
+pip install -e '.[dev]'                                        # installs mutmut>=3.6.0
+FABRIK_MUTMUT=1 python scripts/enforcement/check_mutation.py   # run on your changed code
+mutmut browse                                                  # inspect surviving mutants
+```
+
+Surviving mutants = a change to the covered code that failed **no** test → strengthen the assertions (or mark an equivalent mutant).
+
 ---
 
 ## Architecture Context

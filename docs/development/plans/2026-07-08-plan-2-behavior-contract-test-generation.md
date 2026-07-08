@@ -133,7 +133,7 @@ criterion** — not a single test.
 
 ---
 
-## Phase C — `mutmut` diff-scoped advisory runner (fleet dev-dep; independent of plan-1)
+## Phase C — `mutmut` diff-scoped advisory runner (fleet dev-dep; independent of plan-1) — ✅ EXECUTED 2026-07-08 (added `mutmut>=3.6.0` to `pyproject.toml [dev]` + installed; `check_mutation.py` — advisory, OPT-IN (`FABRIK_MUTMUT=1`), diff-scoped to committed changed Python (never tests/libs/worktree), always exit 0; registered `advisory=True` in final_gate; 5 behavior tests; `docs/CONFIGURATION.md` § Mutation testing; gate 34/0)
 
 **Files:** the project's **dev** requirements (e.g. `requirements-dev.txt` / the `[dev]` extra — **authorized
 dep edit**), `scripts/enforcement/check_mutation.py` (new), `scripts/final_gate.py` (register advisory),
@@ -242,5 +242,5 @@ Contract + Phase C's `mutmut` runner.
   avoiding false positives. Substance (is each behavior actually tested) stays the `/fabrik-review` layer.
 - **[OPEN — coordination]** the `generate_tests` orchestration as a 🆕 fabrik-lib candidate — propose to the
   hub after project-local ship.
-- **[OPEN → Phase C]** which dev-deps file the project uses (`requirements-dev.txt` vs a `[dev]` extra) —
-  resolve by inspection at Phase C start.
+- **[RESOLVED — Phase C, 2026-07-08]** the dev-deps file is `pyproject.toml [project.optional-dependencies]
+  dev` (no `requirements-dev.txt` exists) — `mutmut>=3.6.0` added there + installed via `pip install -e '.[dev]'`.
