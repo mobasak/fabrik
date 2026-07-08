@@ -68,8 +68,8 @@ You cannot mechanically judge "is this a good test" — but you can force the ar
    blocking gate** (see the cost caveat below): surfaces surviving mutants as a warning / nightly signal, so
    Claude (or the next pass) strengthens the assertions. **Sequencing:** pool authors return *un-applied*
    diffs → Claude applies + fixes (step 5) → **THEN** run `mutmut` on the **applied, changed functions**
-   (never against an un-applied worktree diff). **[DECISION: include now vs. defer — the fabrik-lib module
-   author recommends *include now* (diff-scoped keeps it lean); still the operator's call — see below.]**
+   (never against an un-applied worktree diff). **[DECISION — RESOLVED: included now, fleet-wide dev dep
+   (operator, 2026-07-08).]**
 
 ## Chosen approach (recommended): all three layers, mutation advisory + diff-scoped
 
@@ -152,11 +152,12 @@ low-maintenance form is **diff-scoped + advisory**, never a full-suite per-PR bl
 
 ## Open / blocking unknowns
 
-- **[DECISION — for approval]** include the **mutation (`mutmut`) advisory layer now** (recommended — it's
-  the researched anti-junk-test mechanism, and diff-scoped keeps it lean) **vs. ship the 2-layer version
-  first** (rule + pool workflow + structure gate + `/fabrik-review`) and add mutation as a fast-follow.
-- **[DECISION — for approval]** behavior granularity — "user-observable behavior / acceptance criterion" is
-  the default line; confirm it's not "every branch" (bloat) nor "every user story" (too coarse).
+- **[DECISION — RESOLVED: include mutmut now, FLEET-WIDE]** (operator, 2026-07-08). The `mutmut` advisory
+  diff-scoped layer ships as part of this — and `mutmut` becomes a standard **dev dependency across all
+  projects** (the fleet needs the anti-junk-test mechanism, not just this one). The 2-layer fallback is off.
+- **[DECISION — RESOLVED: user-observable behavior / acceptance-criterion granularity]** (operator,
+  2026-07-08) — confirmed: one test per acceptance-level behavior, NOT per-branch (bloat) nor per-user-story
+  (too coarse).
 - **[OPEN — resolution step]** how `check_test_proposal.py` counts "behaviors vs acceptance criteria"
   mechanically (parse the Behavior Contract's `Given/When/Then` blocks vs the plan's stated criteria) —
   resolve in `/fabrik-plan-after-chat` against the check's real parsing model.
