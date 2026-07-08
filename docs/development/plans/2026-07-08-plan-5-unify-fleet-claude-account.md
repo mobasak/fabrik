@@ -102,7 +102,7 @@
 
 ---
 
-## Phase C — Provisioning check + rollout runbook + docs convergence + full gate
+## Phase C — Provisioning check + rollout runbook + docs convergence + full gate — ✅ EXECUTED 2026-07-08
 
 **Responsibility:** guarantee the wrapper + `claude_rotate.py` reach all 3 VPS, each host has ≥2 snapshots to rotate between, and the docs tell the true story. The live rollout is operator-run (trigger-not-execute).
 

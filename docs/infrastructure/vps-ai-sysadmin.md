@@ -887,6 +887,44 @@ ssh vps 'systemctl is-active vps-sysadmin-bot'  # should be "active"
 
 Send "status" on Telegram to confirm it survived.
 
+## Rollout runbook — unify all callers onto one account + enable rotation (operator-run)
+
+⚠️ **Not live yet.** The rotation code (`claude_rotate.py`, `claude-keepalive-rotate.sh`, `claude-run.sh` + the 4 wired root scripts) is committed, but the 3 running VPS still have the pre-rotation setup: the bare keepalive cron, **zero** `manager-accounts` snapshots (so rotation has nothing to rotate to), and root's `/root/.claude` has no creds (so the 4 root cron scripts' claude was silently broken). Run this once, from the **hub** (`/opt/fabrik`), to make all 3 VPS use one account (`/home/ozgur/.claude`) and auto-rotate. **Trigger-not-execute** — these are the operator's commands.
+
+**Prereq (WSL):** ≥2 account snapshots under `~/.claude/manager-accounts/` (mob@ + ob@ present; can@ optional — it joins by glob once captured, no code change).
+
+**1. Push fresh snapshots to every VPS** (rotation targets — the fleet has none today):
+```bash
+DRY_RUN=1 scripts/sysadmin/sync-claude-accounts-to-fleet.sh   # preview
+scripts/sysadmin/sync-claude-accounts-to-fleet.sh             # do it
+```
+
+**2. Deploy the updated scripts to each host** (sysadmin + aro-wake trees rsync dir-level, so `claude-run.sh` + the `claude_rotate.py` twin ship automatically):
+```bash
+for h in vps vps2 vps3; do
+  rsync -a --exclude __pycache__ /opt/fabrik/scripts/sysadmin/ ozgur@$h:/tmp/sysadmin/ \
+    && ssh ozgur@$h 'sudo rsync -a --delete /tmp/sysadmin/ /opt/fabrik/scripts/sysadmin/ && sudo chmod 755 /opt/fabrik/scripts/sysadmin/*.sh'
+  rsync -a --exclude __pycache__ --exclude templates /opt/fabrik/scripts/aro-wake/ ozgur@$h:/tmp/aro-wake/ \
+    && ssh ozgur@$h 'sudo rsync -a --delete --exclude __pycache__ /tmp/aro-wake/ /opt/fabrik/scripts/aro-wake/ && sudo chown -R ozgur:ozgur /opt/fabrik/scripts/aro-wake'
+done
+```
+
+**3. Re-install the keepalive cron shim** — re-render `/etc/cron.d/vps-sysadmin` from `scripts/bootstrap/templates/sysadmin-cron.template` (swaps the bare `claude -p "ping"` line for `claude-keepalive-rotate.sh`). The 4 root scripts' cron lines are **unchanged** — they now call `claude-run.sh` internally.
+
+**4. Restart the services:**
+```bash
+for h in vps vps2 vps3; do ssh ozgur@$h 'sudo systemctl restart vps-sysadmin-bot aro-wake'; done
+```
+
+**5. Verify (one host):**
+```bash
+ssh ozgur@vps 'python3 /opt/fabrik/scripts/sysadmin/claude_rotate.py --list'                    # ≥2 accounts, one active
+ssh ozgur@vps 'sudo /opt/fabrik/scripts/sysadmin/claude-run.sh -p ping'                          # root→ozgur → OK (was 401/broken)
+# force a rotation → confirm active flips to the other account → claude-run.sh -p ping still OK
+```
+
+⚠️ **Standby-token validity** (residual): after the first sync, on one host rotate to a standby account and `claude-run.sh -p ping` — if it 401s, an idle-synced refresh token died between syncs; shorten the WSL sync cadence.
+
 ## Files Manifest (for backup/replication)
 
 Everything needed to rebuild the sysadmin bot from scratch:
