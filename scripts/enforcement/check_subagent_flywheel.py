@@ -44,7 +44,16 @@ def check(ledger_path: Path) -> int:
         )
         return 0
 
-    unrecorded = audit_unrecorded(str(ledger_path))
+    try:
+        unrecorded = audit_unrecorded(str(ledger_path))
+    except Exception as exc:  # noqa: BLE001 — advisory MUST never block the gate: an unreadable /
+        # corrupt / bad-encoding ledger (read_text can raise OSError/UnicodeDecodeError) must degrade
+        # to a skip, not a non-zero exit that run_optional_check would treat as a blocking failure.
+        print(
+            "SUBAGENT FLYWHEEL (advisory): could not reconcile the pool ledger "
+            f"({type(exc).__name__}) — skipping."
+        )
+        return 0
     if not unrecorded:
         return 0
 

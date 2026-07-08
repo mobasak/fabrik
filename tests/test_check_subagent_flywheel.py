@@ -54,3 +54,14 @@ def test_no_ledger_is_clean(tmp_path):
     r = _run(tmp_path / "does-not-exist.jsonl")
     assert r.returncode == 0, r.stderr
     assert r.stdout.strip() == ""
+
+
+def test_corrupt_ledger_is_advisory_safe(tmp_path):
+    # An EXISTING but unreadable/bad-encoding ledger makes read_text raise (UnicodeDecodeError);
+    # the advisory check MUST still exit 0 (never a non-zero exit that run_optional_check would
+    # treat as a blocking gate failure) and say it skipped.
+    ledger = tmp_path / "ledger.jsonl"
+    ledger.write_bytes(b"\xff\xfe not valid utf-8 \x80\x81\n")
+    r = _run(ledger)
+    assert r.returncode == 0, r.stderr
+    assert "skipping" in r.stdout.lower()
