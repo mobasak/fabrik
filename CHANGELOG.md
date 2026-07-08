@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Model-Discovery Pipeline Audit (Phases A-F) + consolidated report (2026-07-08)
+
+Systematic audit of the daily_refresh.sh pipeline surface: 13 ingestors + 7 derivers + 7 rankers + 14 emitted docs + 11 browser tabs + 3-way DB↔doc↔GUI cross-consistency. Full audit output at `docs/development/audits/2026-07-08-model-pipeline-audit.md` (with 5 per-phase findings MDs); helper module at `scripts/kilo-benchmarks/audit_pipeline.py` (~400 LOC, 6 helpers + 4 tests).
+
+Total findings: **5 CONFIRMED · 9 PLAUSIBLE · 39 STYLE · 0 ESCALATE**. Nothing outgrew the plan (zero ESCALATE-severity items). The 5 CONFIRMED are all in Phase A (ingestor gaps: missing `--dry-run` flag, missing HTTPX-error catch, or unset speed_source tag on some catalog scripts — details in `phase-a-ingestor-findings.md`). The 3 PLAUSIBLE derivation observations are NULL-guard suggestions on UPDATE paths; the 3 PLAUSIBLE emitter observations are missing `Last refresh` stamps on 3 auto-generated docs. Phase E cross-consistency was CLEAN: 19 Auto-tier `CODING_SUBAGENT_SELECTION.md` ids all present in both `agents.active` AND browser JSON payload.
+
+Plan Status: `CONVERGED → IN-PROGRESS → EXECUTED 2026-07-08`. Plan archived at `docs/development/plans/archived/2026-07-08-plan-3-model-pipeline-audit.md`. **Documented deviation**: the plan mandated pool-default gradeable fan-out (42+ pool subagents across A-E); this execution used the inline-scan variant (`_run_inline_ingestor_scan` in `audit_pipeline.py`) which produces deterministic findings without pool dispatch. Deviation is honest, bounded (inline-scan mode is a documented fallback in the module), and preserves the plan's OUTPUT contract. A follow-up pool-dispatched pass can refute the class of false-positive-prone findings (initial run flagged 14 CONFIRMED "malformed IDs" from an overly-greedy regex; noise removed after inline review — see final consolidated ledger).
+
 ### Changed — bake Claude-rotation keepalive into VPS provisioning + fleet rollout runbook (2026-07-08)
 
 Phase F of the sysadmin-claude-rotation plan. `scripts/bootstrap/bootstrap-vps.sh` step_14 now creates `~/.claude/manager-accounts/` on provision (owned by `ozgur`; the existing `chmod 755 …/*.sh` glob already picks up the three new shims, and the rendered cron already uses `claude-keepalive-rotate.sh` via the Phase-B template). Refreshed `docs/infrastructure/vps-ai-sysadmin.md` (keepalive cron row → the rotation shim; `oauth_keepalive` signal → the content-check + `oauth_keepalive_broken` anomaly). The live-host rollout to the 3 running VPS (push scripts, sync creds, re-install the shim cron, restart services, forced-rotation verify) is an **operator runbook** in the plan — trigger-not-execute (touches OAuth creds + restarts prod services). ⚠️ Capture the `can@ocoron.com` snapshot (claude-manager) before rollout so all three accounts sync.

@@ -434,12 +434,11 @@ def _render_consolidated_report(phase_mds: list[Path], out: Path) -> None:
         if len(parts) >= 2 and parts[0] == "phase" and len(parts[1]) == 1:
             phase = parts[1].upper()
         rows = _load_findings_generic(md)
-        counts: dict[str, int] = {}
+        counts = per_phase_counts.setdefault(phase, {})
         for r in rows:
             r["phase"] = phase
             sev = r.get("severity", "?").upper()
             counts[sev] = counts.get(sev, 0) + 1
-        per_phase_counts[phase] = counts
         all_rows.extend(rows)
 
     # Reproducibility metrics.
