@@ -32,6 +32,7 @@ env:
   DATABASE_ENABLED: "true"
   DATABASE_PROVIDER: postgresql
   DATABASE_CONNECTION_URI: ${DATABASE_URL}   # registrar-injected DSN for the `evolution` DB on postgres-main
+  DATABASE_SAVE_DATA_INSTANCE: "true"        # persist instance/session state to Postgres → a redeploy reconnects each line WITHOUT re-scanning the QR (grounded requirement; Evolution v2 defaults this off)
   CACHE_REDIS_ENABLED: "true"
   CACHE_REDIS_URI: ${REDIS_URL}              # registrar-injected (redis://redis-main:6379/<idx>)
   CACHE_REDIS_PREFIX_KEY: evolution

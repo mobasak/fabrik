@@ -14,7 +14,7 @@ shape:
   exposes_metrics: false      # no /metrics endpoint yet (flip true when added; avoids Prometheus 404 at apply)
 expose:
   http: true
-  internal_only: false        # the QR-connect dashboard needs an Authelia-gated Traefik route (whatsapp-agent.vps1.ocoron.com) so CRM users can reach it. The Evolution->middleware WEBHOOK stays INTERNAL (Evolution posts to http://whatsapp-agent:8000 over fabrik-net, bypassing Traefik/Authelia).
+  internal_only: false        # the QR-connect dashboard needs an Authelia-gated Traefik route (whatsapp-agent.vps1.ocoron.com) so CRM users can reach it. The Evolution->middleware WEBHOOK stays INTERNAL (Evolution posts to http://whatsapp-agent:8007/webhook over fabrik-net, bypassing Traefik/Authelia).
 source:
   type: git
   repository: git@github.com:mobasak/whatsapp-agent.git
@@ -25,18 +25,28 @@ infrastructure:
   storage: local
   auth: none
 env:
-  PORT: ${PORT:-8000}
+  PORT: ${PORT:-8007}                            # fleet allocation per PORTS.md (whatsapp-agent = 8007); app reads $PORT (src/whatsapp_agent/main.py). Internal webhook target: http://whatsapp-agent:8007/webhook
   LOG_LEVEL: ${LOG_LEVEL:-INFO}
   TRYTON_CRM_URL: http://tryton-crm:8000        # the M2M CRM bridge (fabrik-net DNS) — NOT direct Tryton
   EVOLUTION_API_URL: http://evolution-api:8080  # the Evolution gateway (fixed container port 8080, fabrik-net DNS)
+  TRYTON_STAFF_RESOLVE_URL: ${TRYTON_STAFF_RESOLVE_URL:-http://tryton-crm:8000/internal/v1/staff/resolve}  # staff-identity resolve endpoint; defaults to ${TRYTON_CRM_URL}/internal/v1/staff/resolve
+# ── Dashboard trust boundary (non-standard; labels live in the whatsapp-agent project compose, docs/OPERATIONS.md) ──
+# The Authelia-gated Traefik router for whatsapp-agent.vps1.ocoron.com chains middlewares
+# authelia-forward@docker,wa-proxy,gzip@docker — the `wa-proxy` headers middleware injects
+# `X-Dashboard-Proxy: ${DASHBOARD_PROXY_SECRET}`. The app REJECTS a Remote-Email header in prod
+# unless that proxy header is present (proves the request passed Authelia, not spoofed direct to
+# the container). The /webhook path stays INTERNAL: Evolution posts to http://whatsapp-agent:8007/webhook
+# over fabrik-net, bypassing Traefik/Authelia — do NOT route /webhook through Authelia.
 secrets:
   required: []
   generate:
   - X_INTERNAL_TOKEN          # PER-SERVICE token to call the bridge (prod). Blast-radius containment: an internet-adjacent channel client must NOT share the internal SERVICE_INTERNAL_SECRET_KEY. The tryton-crm bridge accepts this token once Plan 2's per-consumer token registry (R-token-registry) ships.
+  - DASHBOARD_PROXY_SECRET    # NEW — dashboard trust-boundary secret injected as the X-Dashboard-Proxy header by the wa-proxy Traefik middleware (see the block above). fabrik mints it here so it lands in .env for BOTH the app (verifies it) and the router label (injects it).
   from_env:
   - SERVICE_INTERNAL_SECRET_KEY   # DEV / BRING-UP FALLBACK ONLY — the bridge accepts it today, but do NOT ship to prod on the shared secret. Remove once the bridge accepts X_INTERNAL_TOKEN.
   - OPENROUTER_API_KEY            # LLM (agent reasoning)
   - EVOLUTION_API_KEY             # to call the Evolution API HTTP endpoint (SAME value as the evolution-api service's AUTHENTICATION_API_KEY)
+  - TI_AGENT_USER_ID              # the trade-intelligence agent's staff/user id — the identity the agent acts as when resolving staff via the CRM bridge; supplied via .env
   from_file: {}
 resources:
   memory: 512M
