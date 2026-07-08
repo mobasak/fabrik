@@ -162,7 +162,7 @@ CONFIGURATION + INDEX + CHANGELOG; (3) **`/fabrik-review`** on the runner + regi
 
 ---
 
-## Phase D — The test-gen WORKFLOW (DEPENDS on plan-1's pool being live)
+## Phase D — The test-gen WORKFLOW (DEPENDS on plan-1's pool being live) — ✅ EXECUTED 2026-07-08 (plan-1 pool live + smoke-proven: a `pick_models("review")` suggest run proposed clamp's 3 behaviors for $0.0019 + recorded a flywheel row; wired suggest→curate→author→fix into `~/.claude/commands/fabrik-review.md` § Behavior Contract test generation with allow_ungrounded + commit-before-author + mutmut-on-applied)
 
 **Files:** `~/.claude/commands/fabrik-review.md` (+ a shared workflow note, or a `scripts/gen_tests.py`
 helper — project-local, the 🆕 candidate). **Responsibility:** wire suggest(multi-model)→curate→author→fix
@@ -232,8 +232,9 @@ Contract + Phase C's `mutmut` runner.
 
 ## Residual unknowns
 
-- **[BLOCKING → Phase D only]** the authoring workflow needs `2026-07-08-plan-1`'s pool live. Resolution:
-  execute plan-1 first (Phases A–C here are independent + can land before). Phase D gates on the import probe.
+- **[RESOLVED — Phase D, 2026-07-08]** the authoring workflow needed `2026-07-08-plan-1`'s pool — Plan 1 is
+  EXECUTED (archived); `from libs.subagents import run_agents, record_agent_run, pick_models` resolves and a
+  real suggest dispatch recorded a flywheel row. Workflow wired into `fabrik-review.md`.
 - **[RESOLVED — Phase B, 2026-07-08]** the criteria-parse: **behaviors** = `Given` markers inside the
   `## Behavior Contract` **section** (level-2+ heading, so the H1 plan title — which also contains "Behavior
   Contract" — is skipped); **criteria** = top-level list items under a `## Success criteria` / `## Acceptance
