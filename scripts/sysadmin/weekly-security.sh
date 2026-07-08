@@ -22,7 +22,7 @@ CHECKLIST_FILE="$PROJECT_DIR/docs/infrastructure/audit-prompts/03-security-harde
 SYS_PROMPT=""
 [ -f "$SYSTEM_PROMPT_FILE" ] && SYS_PROMPT=$(cat "$SYSTEM_PROMPT_FILE")
 
-RESULT=$(claude -p --model opus \
+RESULT=$("$PROJECT_DIR/scripts/sysadmin/claude-run.sh" -p --model opus \
   "Weekly security patrol. Analyze the audit output below against the security checklist.
 
 CHECKLIST:

@@ -417,7 +417,7 @@ $(sudo docker events --since 15m --until now --filter event=die --filter event=o
 SYS_PROMPT=""
 [ -f "$SYSTEM_PROMPT_FILE" ] && SYS_PROMPT=$(cat "$SYSTEM_PROMPT_FILE")
 
-RESULT=$(claude -p --model opus \
+RESULT=$("$PROJECT_DIR/scripts/sysadmin/claude-run.sh" -p --model opus \
   "Proactive health check found anomalies. Analyze this data and act autonomously per your system prompt rules.
 
 If the anomalies are benign (e.g. a scheduled restart, normal CPU spike), respond with exactly ALL_CLEAR.
@@ -441,7 +441,15 @@ Remember: you run locally on this VPS. Use sudo docker commands directly." \
 
 # ── Send to Telegram if issues found ──────────────────────────────────────
 
-if [ -z "$RESULT" ] || [ "$RESULT" = "ALL_CLEAR" ]; then
+if [ -z "$RESULT" ]; then
+  # Empty result = Claude FAILED to analyze (auth/quota/timeout/crash), NOT a benign verdict.
+  # Fail CLOSED: do not treat unreviewed anomalies as all-clear — escalate so a real problem
+  # isn't silently swallowed behind a claude failure.
+  APPRISE_SEND "⚠️ Proactive Check — Claude analysis FAILED" "Anomalies were detected but Claude returned NO analysis (auth/quota/timeout?). Review manually. Anomalies: ${ANOMALIES:-unknown}"
+  echo "Claude analysis failed (empty result) — escalated unreviewed anomalies."
+  exit 1
+fi
+if [ "$RESULT" = "ALL_CLEAR" ]; then
   echo "Claude says all clear despite triggers. Likely benign."
   exit 0
 fi

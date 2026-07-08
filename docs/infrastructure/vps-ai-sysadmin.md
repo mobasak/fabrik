@@ -7,6 +7,8 @@
 **Bot:** Telegram (`@ocoron_bot`), same bot as Alertmanager notifications
 **Brain:** Claude Code at `/usr/local/bin/claude` (Max subscription, authenticated via `claude auth login`). Version drifts per host as Claude Code auto-updates — vps1 was last observed on v2.1.144; the dev box is on v2.1.153. Check the live value with `claude --version`.
 
+**Unified Claude invocation (2026-07-08):** every sysadmin script calls Claude through `scripts/sysadmin/claude-run.sh` — a drop-in for `claude` that (1) routes through `claude_rotate.py` so a usage/quota limit auto-rotates the active account, and (2) **always runs as the operator account** (`sudo -u ozgur -H` when the caller is root, direct when already ozgur) so **one** credential home `/home/ozgur/.claude` serves every caller. This matters because the cron runs `proactive-check.sh` / `morning-report.sh` / `weekly-security.sh` / `monthly-backup-verify.sh` as **root**, whose own `/root/.claude` has **no credentials** — before this those four scripts' `claude -p` silently failed to authenticate. The 3 pre-existing rotation callers (`bot.py`, `aro-wake/main.py`, `claude-keepalive-rotate.sh`) already run as ozgur through `claude_rotate` and are unchanged. See `docs/CONFIGURATION.md` → *Unified Claude entrypoint*.
+
 ---
 
 ## What It Is

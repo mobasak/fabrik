@@ -159,3 +159,65 @@ def test_root_path_uses_sudo_as_operator_structurally():
     src = WRAPPER.read_text()
     assert 'sudo -u "$OPERATOR" -H' in src
     assert "id -un" in src
+
+
+# --- Phase B: the 4 root cron scripts route their claude call through claude-run.sh -------
+
+_ROOT_SCRIPTS = ["proactive-check.sh", "morning-report.sh", "weekly-security.sh", "monthly-backup-verify.sh"]
+_HAVE_FALLBACK = ["morning-report.sh", "weekly-security.sh", "monthly-backup-verify.sh"]
+
+
+def test_four_root_scripts_route_through_claude_run_not_bare_claude():
+    for s in _ROOT_SCRIPTS:
+        src = (ROOT / "scripts/sysadmin" / s).read_text()
+        assert 'claude-run.sh" -p' in src, f"{s} must invoke claude via claude-run.sh"
+        assert "$(claude -p" not in src, f"{s} still has a bare `claude -p` invocation"
+
+
+def test_four_root_scripts_syntax_valid():
+    for s in _ROOT_SCRIPTS:
+        r = subprocess.run(["bash", "-n", str(ROOT / "scripts/sysadmin" / s)], capture_output=True, text=True)
+        assert r.returncode == 0, f"{s}: {r.stderr}"
+
+
+def test_root_scripts_keep_their_claude_failed_fallback():
+    # the wiring must not disturb the surrounding capture + failure-handling logic
+    for s in _HAVE_FALLBACK:
+        src = (ROOT / "scripts/sysadmin" / s).read_text()
+        assert "Claude failed" in src, f"{s} lost its '⚠️ … Claude failed' fallback"
+        assert '-z "$RESULT"' in src, f"{s} fallback must be gated on an empty RESULT"
+
+
+def test_wrapper_runs_claude_from_operator_accessible_cwd_not_caller_cwd(tmp_path):
+    # F#1 regression guard: a root cron job starts in /root (0700); the wrapper must cd to an
+    # operator-accessible dir so claude_rotate's subprocess chdir doesn't PermissionError after
+    # the UID switch. Prove claude runs from the operator home (or /tmp), NOT the caller's cwd.
+    fakebin = tmp_path / "fc"
+    fakebin.write_text("#!/usr/bin/env bash\necho \"CWD=$(pwd)\"\n")
+    fakebin.chmod(0o755)
+    home = tmp_path / "home"
+    home.mkdir()
+    caller_cwd = tmp_path / "caller"
+    caller_cwd.mkdir()
+    op_home = os.path.expanduser(f"~{getpass.getuser()}")
+    env = {
+        **os.environ,
+        "CLAUDE_OPERATOR_USER": getpass.getuser(),
+        "CLAUDE_BIN": str(fakebin),
+        "HOME": str(home),
+        "CLAUDE_ROTATE_PYTHON": "python3",
+    }
+    r = subprocess.run(
+        ["bash", str(WRAPPER), "-p", "x"], env=env, cwd=str(caller_cwd), capture_output=True, text=True
+    )
+    assert f"CWD={op_home}" in r.stdout or "CWD=/tmp" in r.stdout, f"claude must run from a safe cwd; got {r.stdout!r}"
+    assert f"CWD={caller_cwd}" not in r.stdout, "must NOT inherit the caller's (maybe inaccessible) cwd"
+
+
+def test_proactive_check_fails_closed_on_empty_claude_result():
+    # F#1 fail-open fix: an empty RESULT (claude failed) must escalate, NOT be conflated with
+    # the ALL_CLEAR verdict and silently dismiss the detected anomalies.
+    src = (ROOT / "scripts/sysadmin/proactive-check.sh").read_text()
+    assert 'if [ -z "$RESULT" ]; then' in src, "empty RESULT must be handled on its own"
+    assert "Claude analysis FAILED" in src, "empty RESULT must escalate to the operator"
+    assert '[ -z "$RESULT" ] || [ "$RESULT" = "ALL_CLEAR" ]' not in src, "the fail-open conflation must be gone"

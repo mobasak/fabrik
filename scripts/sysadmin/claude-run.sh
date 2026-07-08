@@ -39,6 +39,14 @@ TIMEOUT="${CLAUDE_ROTATE_TIMEOUT:-300}"
 # Forwarding across sudo now exposes that, so fall back to the default on garbage.
 [[ "$TIMEOUT" =~ ^[0-9]+$ ]] || TIMEOUT=300
 
+# Run from a cwd the OPERATOR can access. A root cron job starts in /root (mode 0700); after
+# `sudo -u $OPERATOR` (which switches UID but does NOT chdir), claude_rotate.py runs claude
+# with cwd=os.getcwd()=/root, and subprocess.run's os.chdir("/root") then fails with
+# PermissionError as the operator → every call would crash. cd to the operator's home
+# (or /tmp) first so the inherited cwd is traversable after the UID switch. ROTATE/CLAUDE_BIN
+# are absolute, so this cd doesn't affect them.
+cd "/home/$OPERATOR" 2>/dev/null || cd /tmp || true
+
 if [ "$(id -un)" = "$OPERATOR" ]; then
     exec env "CLAUDE_ROTATE_TIMEOUT=$TIMEOUT" "$PYTHON" "$ROTATE" "$CLAUDE_BIN" "$@"
 else

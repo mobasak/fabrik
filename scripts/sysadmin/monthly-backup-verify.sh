@@ -30,7 +30,7 @@ CHECKLIST_FILE="$PROJECT_DIR/docs/infrastructure/audit-prompts/06-backup-disaste
 SYS_PROMPT=""
 [ -f "$SYSTEM_PROMPT_FILE" ] && SYS_PROMPT=$(cat "$SYSTEM_PROMPT_FILE")
 
-RESULT=$(claude -p --model opus \
+RESULT=$("$PROJECT_DIR/scripts/sysadmin/claude-run.sh" -p --model opus \
   "Monthly backup verification. Analyze the audit output against the backup checklist.
 
 CHECKLIST:

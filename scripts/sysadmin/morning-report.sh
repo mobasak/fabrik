@@ -91,7 +91,7 @@ except: print('  cannot query')
 SYS_PROMPT=""
 [ -f "$SYSTEM_PROMPT_FILE" ] && SYS_PROMPT=$(cat "$SYSTEM_PROMPT_FILE")
 
-RESULT=$(claude -p --model opus \
+RESULT=$("$PROJECT_DIR/scripts/sysadmin/claude-run.sh" -p --model opus \
   "Generate a concise daily morning report for Telegram. Format:
 
 💚 or ⚠️ or 🔥 — one-line overall status

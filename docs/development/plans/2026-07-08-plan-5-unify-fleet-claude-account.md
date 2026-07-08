@@ -81,7 +81,7 @@
 
 ---
 
-## Phase B — Wire the 4 root sysadmin scripts to the wrapper + test
+## Phase B — Wire the 4 root sysadmin scripts to the wrapper + test — ✅ EXECUTED 2026-07-08
 
 **Responsibility:** every root-run sysadmin claude call goes through `claude-run.sh` (→ operator account + rotation) instead of the broken bare `claude`.
 
