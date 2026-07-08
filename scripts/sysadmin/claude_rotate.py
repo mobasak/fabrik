@@ -229,6 +229,14 @@ def run_claude(
     rotations = 0
     while rotations < max_rotations:
         combined = (result.stdout or "") + "\n" + (result.stderr or "")
+        # Rotate on the usage-limit signal REGARDLESS of exit code / output format. Never
+        # missing a real limit is this feature's core guarantee, and Claude's exit code on a
+        # limit is not reliably known — gating on `returncode != 0` (or on "is it valid JSON")
+        # would risk silently failing to recover from a real limit that happened to exit 0.
+        # The cost is a bounded, self-correcting false-positive: a *successful* answer that
+        # merely quotes a limit phrase triggers up to N-1 wasted rotations (standby accounts
+        # stay valid, the operator still gets an answer). The operational callers (keepalive
+        # ping, aro-wake alerts) never quote limit phrases; only operator chat could.
         if not is_usage_limit(combined) or is_auth_401(combined):
             break
         new_account = _rotate_active_account(avoid=frozenset(tried))

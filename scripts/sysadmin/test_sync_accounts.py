@@ -5,6 +5,7 @@ the real (non-DRY_RUN) error/continue/exit-code path, and a static no-token-leak
 Fixtures use fake creds (organizationUuid only) and DRY_RUN or fake ssh/scp — no network."""
 import os
 import pathlib
+import re
 import subprocess
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -114,6 +115,70 @@ def test_real_run_error_path_continues_and_exits_nonzero(tmp_path):
     assert r.returncode != 0, "a failed host must yield a non-zero exit"
     assert "ERROR" in combined
     assert "vps" in combined and "vps2" in combined, "loop must continue past the first failed host"
+
+
+def test_real_run_scp_failure_sets_nonzero_and_no_false_ok(tmp_path):
+    """ssh (mkdir) succeeds but scp fails → exercises the scp-failure branch: host flagged
+    (host_ok=0, rc=1), no false 'OK' logged. (The mkdir-failure path is covered above.)"""
+    bindir = tmp_path / "bin"
+    bindir.mkdir()
+    (bindir / "ssh").write_text("#!/usr/bin/env bash\nexit 0\n")
+    (bindir / "scp").write_text("#!/usr/bin/env bash\nexit 7\n")
+    (bindir / "ssh").chmod(0o755)
+    (bindir / "scp").chmod(0o755)
+    claude_dir = _make_claude_dir(tmp_path)
+    env = {
+        **os.environ,
+        "DRY_RUN": "0",
+        "PATH": f"{bindir}:{os.environ['PATH']}",
+        "CLAUDE_DIR": str(claude_dir),
+        "CLAUDE_FLEET_HOSTS": "vps",
+        "CLAUDE_FLEET_SYNC_LOG": str(tmp_path / "sync.log"),
+    }
+    r = subprocess.run(["bash", str(SCRIPT)], env=env, capture_output=True, text=True)
+    combined = r.stdout + r.stderr
+    assert r.returncode != 0, "scp failure must yield a non-zero exit"
+    assert "scp of snapshot" in combined, "the scp-failure branch must be reached + logged"
+    assert "OK:" not in combined, "must not falsely claim OK when scp failed"
+
+
+def test_real_run_chmod_belt_failure_is_warn_not_host_failure(tmp_path):
+    """ssh succeeds for mkdir but FAILS for the find/chmod belt step; scp succeeds → the host
+    still syncs OK (the belt-step failure is a non-fatal WARN, since scp -p already set 0600),
+    and a host with no active-creds file must NOT be false-flagged (find matches nothing → 0)."""
+    bindir = tmp_path / "bin"
+    bindir.mkdir()
+    # fail only on the find/chmod belt command; succeed for the mkdir command
+    (bindir / "ssh").write_text('#!/usr/bin/env bash\ncase "$*" in *find*) exit 1;; *) exit 0;; esac\n')
+    (bindir / "scp").write_text("#!/usr/bin/env bash\nexit 0\n")
+    (bindir / "ssh").chmod(0o755)
+    (bindir / "scp").chmod(0o755)
+    claude_dir = _make_claude_dir(tmp_path)
+    env = {
+        **os.environ,
+        "DRY_RUN": "0",
+        "PATH": f"{bindir}:{os.environ['PATH']}",
+        "CLAUDE_DIR": str(claude_dir),
+        "CLAUDE_FLEET_HOSTS": "vps",
+        "CLAUDE_FLEET_SYNC_LOG": str(tmp_path / "sync.log"),
+    }
+    r = subprocess.run(["bash", str(SCRIPT)], env=env, capture_output=True, text=True)
+    combined = r.stdout + r.stderr
+    assert r.returncode == 0, "belt-step WARN must not fail the run (sync succeeded via scp -p)"
+    assert "WARN" in combined and "belt-step" in combined, "belt failure surfaced as a WARN"
+    assert "OK:" in combined, "host still reported OK"
+
+
+def test_missing_classifier_pages_in_proactive_check():
+    # F2-2 guard: proactive-check.sh must emit the anomaly in the ELSE of the classifier
+    # `-f` guard (fail-CLOSED) — not the if-branch (which would be fail-open / dead code).
+    src = (ROOT / "scripts/sysadmin/proactive-check.sh").read_text()
+    m = re.search(
+        r'-f "\$\(dirname "\$0"\)/keepalive-status\.sh".*?\belse\b.*?oauth_keepalive_classifier_missing',
+        src,
+        re.DOTALL,
+    )
+    assert m, "classifier-missing anomaly must be in the else-branch of the -f guard (fail-closed)"
 
 
 def test_script_never_reads_cred_content_into_output():

@@ -18,17 +18,27 @@ CRON = ROOT / "scripts/bootstrap/templates/sysadmin-cron.template"
 
 
 def _func_body(src: str, name: str) -> str:
-    """Return the source of the `def name`/`async def name` function body (until the next
-    top-level def/decorator), so assertions target the call site, not the whole file."""
+    """Return the source of the top-level `def name(`/`async def name(` function body, so
+    assertions target the exact call site. Matches the name exactly (the trailing `(` stops
+    `def _run_claude_v2` binding to `_run_claude`), skips a possibly multi-line signature,
+    and ends the body at the first dedent to column 0 (so trailing comments / the next
+    function are never folded in)."""
     lines = src.splitlines()
     start = next(
         i
         for i, ln in enumerate(lines)
-        if ln.startswith(f"def {name}") or ln.startswith(f"async def {name}")
+        if ln.startswith((f"def {name}(", f"async def {name}("))
     )
+    # Skip the signature (possibly multi-line) up to and including the line that ends in ':'.
+    sig_end = start
+    while sig_end < len(lines) and not lines[sig_end].rstrip().endswith(":"):
+        sig_end += 1
     body = []
-    for ln in lines[start + 1 :]:
-        if ln[:1] not in (" ", "\t", "") and ln.startswith(("def ", "async def ", "@")):
+    for ln in lines[sig_end + 1 :]:
+        if ln.strip() == "":
+            body.append(ln)
+            continue
+        if not ln[:1].isspace():  # dedent to column 0 → end of the function body
             break
         body.append(ln)
     return "\n".join(body)

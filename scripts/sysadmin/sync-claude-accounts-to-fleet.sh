@@ -95,10 +95,13 @@ for host in "${host_arr[@]}"; do
         fi
     fi
 
-    # 4. Belt-and-suspenders chmod (scp -p already set 0600). Surface a failure as a WARN —
-    #    do NOT swallow it and still claim OK.
-    if ! run ssh "$dest" "chmod 600 .claude/.credentials.json .claude/manager-accounts/*/.credentials.json"; then
-        log "WARN: ${host} — remote chmod belt-step failed (scp -p already set 0600)"
+    # 4. Belt-and-suspenders: reinforce 0600 on every remote creds file. `scp -p` already
+    #    carried the source mode and the local snapshots are 0600, so this is redundant.
+    #    `find … -exec chmod` tolerates a host with no active-creds file yet (matches nothing
+    #    → exit 0, no false failure); a genuine chmod error is surfaced as a non-fatal WARN
+    #    (the sync itself already succeeded via scp -p, so it does not fail the host).
+    if ! run ssh "$dest" "find .claude -maxdepth 3 -name .credentials.json -exec chmod 600 {} +"; then
+        log "WARN: ${host} — remote chmod belt-step reported an error"
     fi
 
     [ "$host_ok" = "1" ] && log "OK: ${host} synced ${#snapshots[@]} account(s)"

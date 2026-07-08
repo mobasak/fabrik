@@ -258,6 +258,10 @@ else
         # shellcheck source=scripts/sysadmin/keepalive-status.sh
         . "$(dirname "$0")/keepalive-status.sh"
         _ka_reason="$(keepalive_reason "$KEEPALIVE_LOG")"
+    else
+        # Fail-CLOSED: without the classifier we're blind to a real auth/quota break (the very
+        # bug this check fixes), so a broken/partial deploy must page, not silently pass.
+        ANOMALIES+="oauth_keepalive_classifier_missing "
     fi
     [ -n "$_ka_reason" ] && ANOMALIES+="oauth_keepalive_broken[${_ka_reason}] "
 fi

@@ -120,6 +120,29 @@ def test_run_claude_never_rotates_on_401(monkeypatch):
     assert len(calls) == 1, "no retry on 401"
 
 
+def test_run_claude_rotates_on_limit_string_regardless_of_exit_code(monkeypatch):
+    # DELIBERATE: rotation triggers on the usage-limit STRING regardless of exit code — never
+    # missing a real limit is the core guarantee, and Claude's exit code on a limit isn't
+    # reliably known. The accepted cost is a bounded false-positive when a *successful* answer
+    # (rc 0) quotes a limit phrase: it rotates (bounded by the account count), never loops.
+    calls = []
+
+    def fake_run(argv, **kw):
+        calls.append(kw)
+        return _cp(stdout="Claude usage limit reached. Resets at 3pm", rc=0)
+
+    rotations = []
+    monkeypatch.setattr(claude_rotate.subprocess, "run", fake_run)
+    monkeypatch.setattr(claude_rotate, "_list_accounts", lambda: _accounts("mob", "ob"))
+    monkeypatch.setattr(claude_rotate, "_active_account", lambda: _accounts("mob")[0])
+    monkeypatch.setattr(claude_rotate, "_rotate_active_account", _walk_rotator(["ob"], rotations))
+
+    claude_rotate.run_claude(["claude"], timeout=1, cwd="/x", env={})
+
+    assert len(rotations) == 1, "a limit string rotates even at rc 0 (never-miss); bounded to N-1"
+    assert len(calls) == 2, "original + one retry, then the bound stops it (no loop)"
+
+
 def test_run_claude_two_accounts_bounded_no_loop(monkeypatch):
     calls = []
 
