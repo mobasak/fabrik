@@ -146,6 +146,10 @@ def _changelog_quality_ok() -> bool:
     if not CHANGELOG_ENTRY_RE.search(defenced):
         return False
     body = defenced.lower()
+    # Strip dated escalations like `TODO(2026-07-22)` — those are valid
+    # follow-up markers, not placeholders. Only bare `todo` / `fixme` are
+    # unfinished-work signals.
+    body = re.sub(r"todo\(\d{4}-\d{2}-\d{2}\)", "", body)
     return not any(ph in body for ph in ("<brief title>", "<description>", "todo", "fixme"))
 
 

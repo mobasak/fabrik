@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Pipeline-Health Coverage Closure Phase A: alert delivery restored via docker-run --network fabrik pattern (Plan 4, 2026-07-08)
+
+Executing `2026-07-08-plan-4-pipeline-health-coverage-closure` Phase A: the `apprise` container sits on the `fabrik` docker network with no host-port binding and no host-side DNS, so SSH-then-host-curl in `scripts/kilo-benchmarks/alerting/apprise.py` hit HTTP 000 on every alert (heartbeat + drift + blocked-write, all silent since ≥ 2026-07-07). Fix adopts the canonical Fabrik pattern already in production at `scripts/provision_grafana.sh:30`, `scripts/sysadmin/daily-digest.sh:285`, `scripts/sysadmin/system-prompt.txt:37`: `sudo docker run --rm --network fabrik curlimages/curl:latest -X POST …` inside a **single shell-quoted remote command** (SSH's remote-shell join was splitting `-H Content-Type: application/json` at the space and giving curl a malformed header → exit 3). 3 behavior-contract regression tests (`test_alerting_apprise.py` — argv contains docker-run pattern, SSH non-zero → False, TimeoutExpired → False). Live smoke sent + Telegram-received.
+
 ### Changed — Behavior Contract test rule + cheap-pool test generation (Plan 2, 2026-07-08)
 
 Executed `2026-07-08-plan-2-behavior-contract-test-generation`: replaced fabrik's "1 test for highest-risk path" with a **Behavior Contract** (a test per distinct user-observable behavior), enforced fleet-wide with teeth + a cheap-pool authoring workflow.
