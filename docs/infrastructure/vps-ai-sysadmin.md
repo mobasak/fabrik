@@ -176,7 +176,7 @@ When deployed (along with the spoke scrape jobs above), they route via Alertmana
 | `dr_store` | GitHub API `commits?per_page=1` on `mobasak/fabrik-dr-store` (W9 mirror) | `dr_store_stale[<d>d]` if last commit > 30 d ago | 30 d |
 | `cert_expiry` (existing, scrubbed in W10) | `openssl s_client` against domain list (now: `ocoron.com`, `status/monitor/errors.vps1.ocoron.com`; dropped stale `coolify.vps1.ocoron.com`) | `cert_expiring:<domain>:<d>d` | < 14 d to expiry |
 | `aro_wake` health | `GET http://<host-ip>:8201/health` on this host's aro-wake endpoint, only when `aro-wake.service` is `is-enabled` | `aro_wake_unhealthy[<host-ip>]` | health endpoint not 2xx within 5 s |
-| `oauth_keepalive` | mtime of `/var/log/claude-keepalive.log` — the hourly `claude -p "ping"` keepalive cron that keeps this host's Claude Code OAuth token fresh (tokens go stale ~every 4 days when idle) | `oauth_keepalive_stale[<age>s]` (file present) or `oauth_keepalive_never_ran` (file absent + cron >2 h old) | mtime > 90 min |
+| `oauth_keepalive` | CONTENT **and** mtime of `/var/log/claude-keepalive.log` — the hourly `claude-keepalive-rotate.sh` (pings via account rotation, writes a `KEEPALIVE_OK` / `KEEPALIVE_FAIL:<reason>` token) keeps the OAuth token fresh AND lets the monitor detect a real auth/quota break (the mtime alone reads "fresh" straight through a 401 outage, since the cron refreshes it hourly) | `oauth_keepalive_stale[<age>s]` (cron dead) · `oauth_keepalive_never_ran` (file absent + cron >2 h old) · `oauth_keepalive_broken[<reason>]` (fresh mtime but a `KEEPALIVE_FAIL`/401/usage-limit token) | mtime > 90 min **OR** a FAIL/401/limit token in the log |
 
 **`dr_store` token requirement:** the watcher reads `GITHUB_TOKEN` (or `GH_TOKEN`) from `/opt/fabrik/.env.sysadmin` (preferred — it's root-readable and already in scope) or `/opt/fabrik/.env`. Token scope: fine-grained PAT with `Contents: Read` on `mobasak/fabrik-dr-store` only. **Until a token is added, the watcher logs a one-per-hour `WARN: dr_store watcher dormant` line to `/var/log/sysadmin-proactive.log` so the operator knows it's not running.** Adding it:
 
@@ -276,7 +276,7 @@ Default: **autonomous**. Acts first, reports after.
 
 | Script | Schedule | Uses Claude? | Purpose |
 |---|---|---|---|
-| `/usr/bin/claude -p "ping"` | Hourly at a hash-staggered minute — runs as `ozgur`, not root | Always | OAuth keepalive ping — Claude Code OAuth goes stale every ~4 days when idle; one cheap ping/hour keeps the credentials file fresh. Output to `/var/log/claude-keepalive.log`. Hash-staggered minute so hosts don't slam the API at the same moment. |
+| `claude-keepalive-rotate.sh` | Hourly at a hash-staggered minute — runs as `ozgur`, not root | Always | OAuth keepalive — pings `claude` **through account rotation** (`claude_rotate.py`: on a usage/quota limit, rotates to another `manager-accounts/` account and retries), keeping the credentials fresh, and writes a **content token** (`KEEPALIVE_OK` / `KEEPALIVE_FAIL:<reason>`) to `/var/log/claude-keepalive.log` so the monitors detect a real 401/quota break, not just a stale mtime. Hash-staggered minute so hosts don't slam the API together. |
 | `daily-digest.sh` | Daily 09:00 UTC at a hash-staggered minute | Always | Per-host daily roll-up (Tier A actions / escalations / reverts / consults / health heartbeats) — Telegrammed via the host's own `@SysAdminVPSn` bot. Staggered so per-host digests don't collide. |
 
 ### Operational Records (persistent across sessions)

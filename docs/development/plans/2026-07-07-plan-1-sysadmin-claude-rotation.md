@@ -159,13 +159,38 @@
 
 ---
 
-## Phase F — Fleet rollout to LIVE hosts + provisioning + docs convergence + full gate
+## Phase F — Fleet rollout to LIVE hosts + provisioning + docs convergence + full gate — ✅ EXECUTED 2026-07-08 (provisioning + docs + gate; live rollout = operator runbook below)
 
 **Responsibility:** land the mechanism on the 3 running VPS (not just future ones), bake into provisioning, converge docs.
 
 **Steps:**
-1. `scripts/bootstrap/bootstrap-vps.sh` / `bootstrap-hub.sh` (**modify**) — ensure `~/.claude/manager-accounts/` exists on provision + the rendered cron uses `claude-keepalive-rotate.sh` (via the Phase-B template edit).
-2. **Live-host rollout (explicit — the 3 running VPS are neither new nor re-provisioned):** `scp` updated `scripts/sysadmin/*` + `scripts/aro-wake/*` to each host's matching rsync tree; **re-render + install `/etc/cron.d/vps-sysadmin`** from the updated template (or a one-off `sed` of the live crontab) so the live keepalive uses the shim; `systemctl restart vps-sysadmin-bot aro-wake`; verify `claude -p ping` OK + a forced rotation lands on the standby account. Trigger-not-execute (operator-run; the plan documents the exact commands).
+1. `scripts/bootstrap/bootstrap-vps.sh` (**modified** — added `sudo -u ozgur mkdir -p /home/ozgur/.claude/manager-accounts` in the step_14 sysadmin-pack install, after the script chmod). The rendered cron already uses `claude-keepalive-rotate.sh` via the Phase-B template edit; the `chmod 755 …/*.sh` glob already picks up the three new shims. `bootstrap-hub.sh` has **no** `.claude`/sysadmin block (nothing to edit); every host also gets `manager-accounts` created by the Phase-C sync's remote `mkdir -p`.
+2. **Live-host rollout — OPERATOR RUNBOOK (trigger-not-execute; touches OAuth creds + restarts services on the 3 running VPS).** Run from WSL `/opt/fabrik`:
+   ```bash
+   # (0) capture the can@ocoron.com snapshot first (claude-manager → switch to it once),
+   #     so all THREE accounts sync. Verify locally:
+   python3 scripts/sysadmin/claude_rotate.py --list      # expect mob@ / ob@ / can@
+   # (1) push scripts to each host's rsync tree (sysadmin + aro-wake twins):
+   for h in vps vps2 vps3; do
+     ssh ozgur@$h 'mkdir -p /opt/fabrik/scripts/sysadmin /opt/fabrik/scripts/aro-wake'
+     scp -p scripts/sysadmin/{claude_rotate.py,claude-keepalive-rotate.sh,keepalive-status.sh,daily-digest.sh,proactive-check.sh,bot.py} ozgur@$h:/opt/fabrik/scripts/sysadmin/
+     scp -p scripts/aro-wake/{claude_rotate.py,main.py} ozgur@$h:/opt/fabrik/scripts/aro-wake/
+     ssh ozgur@$h 'chmod 755 /opt/fabrik/scripts/sysadmin/*.sh'
+   done
+   # (2) sync all account snapshots + active creds to the fleet:
+   scripts/sysadmin/sync-claude-accounts-to-fleet.sh          # DRY_RUN=1 first to preview
+   # (3) re-install the shim cron on each live host (or sudo sed the keepalive line):
+   #     render vps-sysadmin-cron from the template (bootstrap step_14 does this) OR:
+   for h in vps vps2 vps3; do
+     ssh ozgur@$h "sudo sed -i 's#/usr/bin/claude -p \"ping\".*#/opt/fabrik/scripts/sysadmin/claude-keepalive-rotate.sh > /dev/null 2>\&1#' /etc/cron.d/vps-sysadmin"
+   done
+   # (4) restart services + verify:
+   for h in vps vps2 vps3; do
+     ssh ozgur@$h 'sudo systemctl restart vps-sysadmin-bot aro-wake; /opt/fabrik/scripts/sysadmin/claude-keepalive-rotate.sh; cat /var/log/claude-keepalive.log'  # expect KEEPALIVE_OK
+   done
+   # (5) residual #1 live check — force a rotation on ONE host, expect it lands + pings OK:
+   ssh ozgur@vps 'python3 /opt/fabrik/scripts/sysadmin/claude_rotate.py --next && python3 /opt/fabrik/scripts/sysadmin/claude_rotate.py /usr/bin/claude -p ping'
+   ```
 3. **`/fabrik-docs-review`** across touched docs: `docs/infrastructure/vps-ai-sysadmin.md`, `docs/infrastructure/vps-status.md`, `docs/CONFIGURATION.md`, `docs/FEATURES.md`, `CHANGELOG.md`.
 4. **`/fabrik-review`** across the full changed surface — blocking, loop to no-op.
 5. Full gate: `python scripts/final_gate.py --check --json` → `"status":"success"`; `python scripts/enforcement/check_convergence.py` → green. Green is necessary, not sufficient — the real proof is a live forced-rotation succeeding on a VPS (step 2).

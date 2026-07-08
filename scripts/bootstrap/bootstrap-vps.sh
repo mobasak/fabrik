@@ -1018,6 +1018,7 @@ step_14_install_sysadmin_pack() {
         sudo rsync -a --delete /tmp/sysadmin/ /opt/fabrik/scripts/sysadmin/ && \
         sudo chown -R ozgur:ozgur /opt/fabrik/scripts/sysadmin && \
         sudo chmod 755 /opt/fabrik/scripts/sysadmin/*.sh /opt/fabrik/scripts/sysadmin/bot.py 2>/dev/null || true && \
+        sudo -u ozgur mkdir -p /home/ozgur/.claude/manager-accounts && \
         sudo install -m 644 -o root -g root /tmp/vps-sysadmin-bot.service /etc/systemd/system/vps-sysadmin-bot.service && \
         sudo install -m 644 -o root -g root /tmp/vps-sysadmin-cron /etc/cron.d/vps-sysadmin && \
         sudo install -m 600 -o ozgur -g ozgur /tmp/.env.sysadmin /opt/fabrik/.env.sysadmin && \

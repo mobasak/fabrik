@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — bake Claude-rotation keepalive into VPS provisioning + fleet rollout runbook (2026-07-08)
+
+Phase F of the sysadmin-claude-rotation plan. `scripts/bootstrap/bootstrap-vps.sh` step_14 now creates `~/.claude/manager-accounts/` on provision (owned by `ozgur`; the existing `chmod 755 …/*.sh` glob already picks up the three new shims, and the rendered cron already uses `claude-keepalive-rotate.sh` via the Phase-B template). Refreshed `docs/infrastructure/vps-ai-sysadmin.md` (keepalive cron row → the rotation shim; `oauth_keepalive` signal → the content-check + `oauth_keepalive_broken` anomaly). The live-host rollout to the 3 running VPS (push scripts, sync creds, re-install the shim cron, restart services, forced-rotation verify) is an **operator runbook** in the plan — trigger-not-execute (touches OAuth creds + restarts prod services). ⚠️ Capture the `can@ocoron.com` snapshot (claude-manager) before rollout so all three accounts sync.
+
 ### Changed — tune ContainerHighMemory alert `for: 5m → 15m` to stop transient-spike flapping (2026-07-08)
 
 Phase E of the sysadmin-claude-rotation plan. `configs/prometheus/rules/alerts.yml` `ContainerHighMemory` fired ~38×/day at `for: 5m` on brief allocation/GC spikes that containers recover from on their own — the noise that drives the fleet wakes. Raised to `for: 15m` so only a *sustained* 85%-of-limit breach (a real leak/undersize) pages; the 85% threshold and the `> 0` denominator guard are unchanged. A container that steadily sits >85% because its limit is genuinely too low should have its limit raised in `scripts/vps_apply_limits.sh` (per-container decision — needs live Prometheus 7d firing history, operator-run).
