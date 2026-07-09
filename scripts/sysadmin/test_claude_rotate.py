@@ -535,6 +535,27 @@ def test_rotate_corrupt_only_alternative_is_noop_not_brick(tmp_path, monkeypatch
     assert claude_rotate._read_org(active) == "org-mob", "active NOT bricked — stays valid mob"
 
 
+def test_activate_snapshot_refuses_corrupt_explicit_target_no_brick(tmp_path, monkeypatch):
+    # Defense-in-depth at the install chokepoint: the EXPLICIT target path (--switch/--next,
+    # not just automatic rotation) must refuse a corrupt/empty snapshot rather than atomically
+    # install empty bytes and brick auth. _activate_snapshot(target=<corrupt>) → None, and
+    # BOTH active and .prev are left untouched (the guard runs before the backup).
+    claude_dir, accounts_dir, active = _setup_fake_claude(
+        tmp_path, monkeypatch, {"mob-dir": "org-mob"}
+    )
+    _write_creds(active, "org-mob")  # healthy active
+    corrupt = accounts_dir / "can-dir"
+    corrupt.mkdir()
+    (corrupt / ".credentials.json").write_text("")  # 0-byte → unreadable
+    os.chmod(corrupt / ".credentials.json", 0o600)
+
+    assert claude_rotate._activate_snapshot(target=corrupt) is None, "corrupt target refused"
+    assert claude_rotate._read_org(active) == "org-mob", "active NOT bricked — stays valid mob"
+    assert not (claude_dir / ".credentials.json.prev").exists(), (
+        "guard runs before the backup — .prev not written for a refused target"
+    )
+
+
 def test_dir_fsync_failure_does_not_fail_rotation(tmp_path, monkeypatch):
     # the post-replace directory fsync is best-effort: a failure must NOT undo/fail a swap that
     # already completed. Inject the failure via the dir-fsync's O_RDONLY os.open.

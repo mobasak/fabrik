@@ -161,6 +161,20 @@ def _activate_snapshot(
         # the atomic os.replace at the end.
         active_bytes = ACTIVE_CREDS.read_bytes() if ACTIVE_CREDS.exists() else None
         target_bytes = (target / ".credentials.json").read_bytes()
+        # Never install unreadable creds as the active account. An empty/0-byte/non-JSON snapshot
+        # (interrupted capture, partial fleet-sync, or a target corrupted AFTER the selector read
+        # it — a TOCTOU the rotation lock can't cover for an external writer) would otherwise be
+        # atomically swapped in and BRICK auth. Validate the bytes parse to a real org BEFORE
+        # touching anything; refuse fail-soft otherwise, leaving BOTH active and .prev intact.
+        # This is the install-time chokepoint that guards the EXPLICIT target path (--switch/--next)
+        # too — the selector's pre-filter only covers automatic rotation (where it skips to the
+        # next VALID account). Diagnostic names the dir only, never token bytes.
+        try:
+            if not json.loads(target_bytes).get("organizationUuid"):
+                raise ValueError
+        except (ValueError, TypeError, AttributeError):
+            sys.stderr.write(f"refusing to activate {target.name}: unreadable/corrupt credentials\n")
+            return None
         # Single rolling backup of the outgoing active (satisfies the backup-before-swap rule).
         if active_bytes is not None:
             _secure_write(BACKUP_CREDS, active_bytes)
