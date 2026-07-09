@@ -145,32 +145,39 @@ def test_backfill_flips_shanghai_ai_lab(tmp_path):
     )
 
 
-def test_ai_vendor_access_lists_modelscope_providers():
-    """Plan-2 Phase A regression F1 (Phase-A review): the shanghai-ai-lab test
-    above uses a synthetic fixture and would pass even if the ModelScope
-    doc row were reverted. This test binds the doc row to reality: it runs
-    parse_vendor_catalog on the ACTUAL AI_VENDOR_ACCESS.md and asserts the
-    ModelScope-only providers appear as accessible — so a future edit that
-    accidentally drops or rewrites the ModelScope row would fail this test.
-    """
-    from seed_specialty_catalog import parse_vendor_catalog
+def test_ai_vendor_access_modelscope_row_uses_canonical_db_providers():
+    """Plan-2 Phase-E whole-plan review F1 regression guard.
 
+    Bug fixed: the initial ModelScope row listed provider strings
+    `paddlepaddle` / `xiaomimimo` / `tencent-hunyuan` (the HF-style names
+    ModelScope publishes), but the DB's canonical provider values are
+    `baidu` / `xiaomi` / `tencent`. Silent mismatch → zero flips + false
+    coverage claims in every downstream doc.
+
+    Grep the MS row's actual TEXT (not parse_vendor_catalog's union of
+    all rows — several of these providers ARE listed by other rows like
+    SF, so parse_vendor_catalog wouldn't discriminate). A regression that
+    re-introduces `paddlepaddle` / `xiaomimimo` / `tencent-hunyuan` here
+    would leave the correct string absent from the ModelScope row itself.
+    """
     doc = (
         Path(__file__).resolve().parent.parent.parent.parent
         / "docs/reference/kilo/AI_VENDOR_ACCESS.md"
     )
     assert doc.exists(), f"AI_VENDOR_ACCESS.md missing at {doc}"
-    accessible = parse_vendor_catalog(doc)
-    # ModelScope-added providers — canonical DB provider names (fixed
-    # 2026-07-09 by Phase-E whole-plan review F1: was paddlepaddle /
-    # xiaomimimo / tencent-hunyuan; corrected to the actual DB values
-    # baidu / xiaomi / tencent). These providers are shared with routes
-    # OR carries too — but the ModelScope row REPEATS them (multi-vendor
-    # coverage), so `parse_vendor_catalog` sees them as accessible whether
-    # or not other rows also list them. Shanghai_AI_Lab is truly MS-only.
-    ms_row_providers = ("shanghai-ai-lab", "baidu", "xiaomi", "tencent")
-    missing = [p for p in ms_row_providers if not accessible.get(p)]
-    assert not missing, (
-        f"ModelScope row appears missing or malformed in AI_VENDOR_ACCESS.md — "
-        f"parse_vendor_catalog does not see these providers as accessible: {missing}"
-    )
+    lines = [ln for ln in doc.read_text().splitlines() if ln.startswith("| ModelScope |")]
+    assert len(lines) == 1, f"expected exactly 1 ModelScope row, got {len(lines)}"
+    ms_row = lines[0]
+    # Canonical DB provider names — these MUST appear in the ModelScope
+    # row's provider column (2nd pipe-delimited field).
+    ms_row_second_col = ms_row.split("|")[2]
+    for canonical in ("baidu", "xiaomi", "tencent"):
+        assert f" {canonical}" in ms_row_second_col or f",{canonical}" in ms_row_second_col or ms_row_second_col.strip().startswith(canonical), (
+            f"ModelScope row's provider list missing canonical DB name {canonical!r}: {ms_row_second_col.strip()!r}"
+        )
+    # These wrong HF-style names must NOT appear (regression from Phase-E F1 fix).
+    for wrong in ("paddlepaddle", "xiaomimimo", "tencent-hunyuan"):
+        assert wrong not in ms_row_second_col, (
+            f"ModelScope row's provider list contains pre-fix wrong name {wrong!r} — "
+            f"was corrected 2026-07-09 to canonical DB provider name. Row: {ms_row_second_col.strip()!r}"
+        )

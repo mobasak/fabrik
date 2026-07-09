@@ -114,6 +114,42 @@ def test_b5_candidate_dedup_no_dot():
     assert len(set(cands)) == len(cands), f"dupes present: {cands}"
 
 
+def test_org_map_uses_canonical_db_providers():
+    """Phase-E whole-plan review F1 + F5 regression guard.
+
+    _ORG_MAP maps HF-style ModelScope org names → canonical DB provider.
+    3 mappings were wrong in the initial commit and got fixed in Phase E:
+    paddlepaddle → baidu, xiaomimimo → xiaomi, tencent-hunyuan → tencent.
+    A 4th (meituan-longcat → meituan) was fixed in this /fabrik-review Pass 1.
+    A regression here silently drops per-model matches to zero.
+    """
+    from scrape_modelscope_catalog import _ORG_MAP, _ms_to_agent_id_candidates
+
+    # These 3+1 corrected mappings MUST resolve to the specific DB provider.
+    assert _ORG_MAP["paddlepaddle"] == "baidu"
+    assert _ORG_MAP["xiaomimimo"] == "xiaomi"
+    assert _ORG_MAP["tencent-hunyuan"] == "tencent"
+    assert _ORG_MAP["meituan-longcat"] == "meituan"
+
+    # Candidate emission for the 4 real MS-catalog org strings.
+    cands_paddle = _ms_to_agent_id_candidates("PaddlePaddle/ERNIE-4.5-21B-A3B-PT")
+    assert all(c.startswith("baidu/") for c in cands_paddle), (
+        f"PaddlePaddle/ must map to baidu/, got {cands_paddle}"
+    )
+    cands_xiaomi = _ms_to_agent_id_candidates("XiaomiMiMo/MiMo-V2-Flash")
+    assert all(c.startswith("xiaomi/") for c in cands_xiaomi), (
+        f"XiaomiMiMo/ must map to xiaomi/, got {cands_xiaomi}"
+    )
+    cands_tencent = _ms_to_agent_id_candidates("Tencent-Hunyuan/Hy3")
+    assert all(c.startswith("tencent/") for c in cands_tencent), (
+        f"Tencent-Hunyuan/ must map to tencent/, got {cands_tencent}"
+    )
+    cands_meituan = _ms_to_agent_id_candidates("Meituan-LongCat/LongCat-Flash-Lite")
+    assert all(c.startswith("meituan/") for c in cands_meituan), (
+        f"Meituan-LongCat/ must map to meituan/, got {cands_meituan}"
+    )
+
+
 def test_b6_unmatched_ids_reported(tmp_path):
     """Unmatched MS models appear in the third return element."""
     from scrape_modelscope_catalog import apply_flags

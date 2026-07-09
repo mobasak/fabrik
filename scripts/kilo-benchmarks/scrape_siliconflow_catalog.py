@@ -47,7 +47,7 @@ _ORG_MAP = {
     "qwen": "qwen",
     "google": "google",
     "openai": "openai",
-    "meituan-longcat": "meituan-longcat",
+    "meituan-longcat": "meituan",  # DB is meituan/longcat-*, not meituan-longcat/*
     "nex-agi": "nex-agi",
     "bytedance-seed": "bytedance-seed",
     "microsoft": "microsoft",

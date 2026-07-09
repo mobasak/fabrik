@@ -125,7 +125,7 @@ Kilo CLI (`kilo run kilo/<provider>/<model>`) and OpenRouter (`https://openroute
 | **Kilo CLI** | 345 | of which **345** dual-routed with OR, **0** Kilo-only |
 | **DashScope** (direct) | 1 | specialist routes (e.g. `qwen-mt-turbo`) |
 | **SiliconFlow** (direct) | 41 | specialist routes (e.g. Hunyuan) |
-| **ModelScope** (direct) | 32 | Zhipu GLM direct + Tencent Hunyuan Hy3 + Xiaomi MiMo + Qwen/DeepSeek/MiniMax/Kimi overlap |
+| **ModelScope** (direct) | 32 | Zhipu GLM direct (4) + Tencent Hunyuan Hy3 (1) + 27 Qwen/DeepSeek/MiniMax/Kimi/stepfun/moonshotai/nex-agi active overlap |
 
 Capability counts (any-gateway): reasoning **203** · tools/function-calling **267** · vision-input **171** · translation-scored **9** · STT-capable **21**.
 <!-- GATEWAY_COUNTS:END -->
@@ -136,7 +136,7 @@ For specialized categories 7–15 (Robotics / Synthetic data / Recommendation / 
 
 - **DashScope** (`dashscope-intl.aliyuncs.com`) — Qwen-MT-Turbo (dedicated MT), Qwen-VL, etc.
 - **SiliconFlow** (`api.siliconflow.com`) — Hunyuan, Qwen3-Embedding, etc.
-- **ModelScope** (`api-inference.modelscope.cn`) — Zhipu GLM direct (5.2/5.1/5), Tencent Hunyuan Hy3, Xiaomi MiMo, plus Qwen/DeepSeek/MiniMax/Kimi overlap. Scraper also fetches (awaits new-row ingestion): Shanghai AI Lab Intern-S, PaddlePaddle ERNIE-4.5-PT, XiYanSQL.
+- **ModelScope** (`api-inference.modelscope.cn`) — Zhipu GLM direct (4 rows: 4.7-flash/5/5.1/5.2), Tencent Hunyuan Hy3 (1), plus 27 Qwen/DeepSeek/MiniMax/Kimi/stepfun/moonshotai/nex-agi active overlap. Also flipped `xiaomi/mimo-v2-flash` but `status='deprecated'` (not counted in active set). Scraper also fetches (awaits new-row ingestion): Shanghai AI Lab Intern-S, PaddlePaddle ERNIE-4.5-PT, XiYanSQL.
 - **Soniox / Recraft / FLUX (BFL)** — specialized vendors, see per-category packs.
 
 **Kilo capability flags:** `reasoning` (88) · `toolcall` (148) · `input.image` (70) · `input.audio` (9) · `input.video` (19) · `attachment` (70). **Sync:** `python /opt/fabrik/scripts/kilo_model_sync.py --sync`. (Counts/prices drift between syncs — re-verify from the sync, not this table.)

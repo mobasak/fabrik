@@ -150,14 +150,22 @@ def _changelog_quality_ok() -> bool:
     # follow-up markers, not placeholders. Only bare `todo` / `fixme` are
     # unfinished-work signals.
     body = re.sub(r"todo\(\d{4}-\d{2}-\d{2}\)", "", body)
+    # Strip the specific documentation-referring compound `dated-todo` (prose
+    # naming the TODO-format convention, not an unfinished-work marker).
+    # Require surrounds to be neither hyphens nor word chars, so it doesn't
+    # match inside compounds like `updated-todo-list` or `pre-dated-todo-item`.
+    body = re.sub(r"(?<![-\w])dated-todo(?![-\w])", "", body)
     if any(ph in body for ph in ("<brief title>", "<description>")):
         return False
-    # `todo` / `fixme` must be STANDALONE — not part of a compound word like
-    # `dated-todo` (a valid prose reference to the TODO format), `todo-list`,
-    # or `fixmeup`. Use lookaround boundaries that treat `-` as an intra-word
-    # char so hyphenated compounds don't count as unfinished-work markers.
-    return all(
-        not re.search(rf"(?<![a-z-]){word}(?![a-z-])", body) for word in ("todo", "fixme")
+    # `todo` / `fixme` are unfinished-work markers when they stand as tokens —
+    # separated from surrounding chars by non-letter (whitespace / hyphen /
+    # punctuation / start-or-end of string). They are NOT placeholders when
+    # they sit inside an unrelated word (`autodoc`, `photodocumentation`,
+    # `fixmeup`). Use letter-only boundaries so hyphenated compounds like
+    # `updated-todo-list` and `todo-cleanup` still flag (real placeholders),
+    # but fused words don't.
+    return not any(
+        re.search(rf"(?<![a-zA-Z]){word}(?![a-zA-Z])", body) for word in ("todo", "fixme")
     )
 
 

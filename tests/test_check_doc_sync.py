@@ -94,3 +94,63 @@ def test_docs_only_change_passes(repo: Path) -> None:
     _write(repo, "docs/QUICKSTART.md", "# qs\n")
     _stage(repo, "docs/QUICKSTART.md")
     assert _run(repo).returncode == 0
+
+
+def test_changelog_bare_todo_flagged(repo: Path) -> None:
+    """bare `todo` in an [Unreleased] entry body IS an unfinished-work marker."""
+    changelog = (
+        "# Changelog\n\n## [Unreleased]\n\n### Added\n- something bare todo needed\n"
+    )
+    _write(repo, "src/app/handler.py", "def f():\n    return 1\n")
+    _write(repo, "CHANGELOG.md", changelog)
+    _stage(repo, "src/app/handler.py", "CHANGELOG.md")
+    r = _run(repo)
+    assert r.returncode == 1, r.stdout
+    assert "placeholder" in r.stdout.lower()
+
+
+def test_changelog_dated_todo_prose_reference_passes(repo: Path) -> None:
+    """`dated-todo` as prose (naming the TODO-format convention) is NOT a placeholder."""
+    changelog = (
+        "# Changelog\n\n## [Unreleased]\n\n"
+        "### Changed\n- documented the dated-todo format convention\n"
+    )
+    _write(repo, "src/app/handler.py", "def f():\n    return 1\n")
+    _write(repo, "CHANGELOG.md", changelog)
+    _stage(repo, "src/app/handler.py", "CHANGELOG.md")
+    r = _run(repo)
+    assert r.returncode == 0, r.stdout
+
+
+def test_changelog_autodoc_not_flagged(repo: Path) -> None:
+    """P4F1 regression: `autodoc` / `photodocumentation` / `fixmeup` contain
+    the substring `todo`/`fixme` but are unrelated words — must NOT be flagged.
+    A regex based on plain substring matching wrongly rejects them.
+    """
+    changelog = (
+        "# Changelog\n\n## [Unreleased]\n\n"
+        "### Added\n- autodoc generation and photodocumentation support\n"
+    )
+    _write(repo, "src/app/handler.py", "def f():\n    return 1\n")
+    _write(repo, "CHANGELOG.md", changelog)
+    _stage(repo, "src/app/handler.py", "CHANGELOG.md")
+    r = _run(repo)
+    assert r.returncode == 0, r.stdout
+
+
+def test_changelog_compound_todo_still_flagged(repo: Path) -> None:
+    """`updated-todo-list` is NOT the safe `dated-todo` prose reference —
+    it's a genuine bare `todo` inside a hyphen chain. Substring bug in the
+    regex would silently strip `dated-todo` and let this pass. Regression
+    guard for the `\\bdated-todo\\b` fix.
+    """
+    changelog = (
+        "# Changelog\n\n## [Unreleased]\n\n"
+        "### Fixed\n- resolved the updated-todo-list before merge\n"
+    )
+    _write(repo, "src/app/handler.py", "def f():\n    return 1\n")
+    _write(repo, "CHANGELOG.md", changelog)
+    _stage(repo, "src/app/handler.py", "CHANGELOG.md")
+    r = _run(repo)
+    assert r.returncode == 1, r.stdout
+    assert "placeholder" in r.stdout.lower()
