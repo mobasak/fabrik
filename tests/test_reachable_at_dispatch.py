@@ -137,14 +137,26 @@ def test_C2_record_agent_run_null_reachable_when_kwarg_omitted(monkeypatch):
 
 
 def test_C4_fail_open_on_undefined_column(monkeypatch):
-    """C.4: if the DB rejects the INSERT (e.g. UndefinedColumn from a
-    pre-migration DB), record_agent_run returns False (fail-open, no raise).
+    """C.4: if the DB rejects the INSERT with the real psycopg
+    `UndefinedColumn` (pre-migration DB missing the reachable_at_dispatch
+    column), record_agent_run returns False (fail-open, no raise).
+
+    Post-Pass-2 PF5 fix: use the REAL psycopg exception class, not a stand-in
+    `RuntimeError`. A future refactor that narrows the `except Exception:` at
+    pg_ledger.py:145 to a specific class would then break this test — which
+    is exactly the coverage the test's name promised.
     """
+    try:
+        from psycopg.errors import UndefinedColumn
+    except ImportError:  # pragma: no cover — psycopg not installed in this env
+        import pytest as _pytest
+
+        _pytest.skip("psycopg not available — real UndefinedColumn class unreachable")
 
     class RaisingCursor(_FakeCursor):
         def execute(self, sql, params=None):
             if "INSERT" in sql:
-                raise RuntimeError("UndefinedColumn: reachable_at_dispatch")
+                raise UndefinedColumn("column reachable_at_dispatch does not exist")
             super().execute(sql, params)
 
     class RaisingConn(_FakeConn):
