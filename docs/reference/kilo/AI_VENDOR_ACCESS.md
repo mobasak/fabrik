@@ -1,4 +1,4 @@
-Last verified: 2026-07-07
+Last verified: 2026-07-09
 
 # AI Vendor Access — Özgür's Reachable Set
 
@@ -32,6 +32,7 @@ Single source of truth for which vendors the operator can call today. Hand-edite
 | Soniox | soniox | env `SONIOX_API_KEY` (3 keys rotated) | ✅ | 3-key rotation | Primary STT vendor — Universal-2 quality tier. |
 | ElevenLabs | elevenlabs | env `ELEVENLABS_API_KEY` | ✅ | free tier (10K chars/mo) | Primary TTS vendor for expressive voices. Free tier is enough for dev; watch quota. |
 | Alibaba DashScope | qwen, qwen-mt-turbo | env `DASHSCOPE_API_KEY` | ✅ | credits pool | Qwen inference + qwen-mt-turbo translation specialist route. |
+| SiliconFlow | qwen, deepseek, z-ai, moonshotai, minimax, tencent, google, bfl, black-forest-labs, meituan-longcat, stepfun, nex-agi, wan-ai, inclusionai, bytedance-seed, indexteam, fishaudio, funaudiollm, tongyi-mai, openai | env `SILICONFLOW_API_KEY` | ✅ | credits pool | 72-model gateway on international endpoint `api.siliconflow.com` (NOT `.cn` — different key domain). Covers LLMs (Qwen 2.5→3.6 line, DeepSeek V3/V4, GLM 4.5→5.2, Kimi K2.5-2.7, MiniMax M2.5/M3, Tencent Hunyuan+Hy3, gemma-4, gpt-oss-20b/120b), image gen (all FLUX + Qwen-Image + Wan2.2 + Z-Image-Turbo), TTS (fish-speech-1.5, IndexTTS-2, CosyVoice2), embeddings (Qwen3-Embedding 0.6B/4B/8B), rerankers (Qwen3-Reranker 0.6B/8B). Full list: `python scripts/kilo-benchmarks/scrape_siliconflow_catalog.py` (also flips `via_siliconflow=1` on affected agents rows). |
 | Anthropic direct API | anthropic | env `ANTHROPIC_API_KEY` | ⚠️ | subscription-billed via Claude Code | Kept for `fabrik ai generate` content utilities only — never for operational paths (those use Claude Max via Claude Code OAuth). |
 
 ## Direct-API vendors — need signup + payment method (not currently reachable)
