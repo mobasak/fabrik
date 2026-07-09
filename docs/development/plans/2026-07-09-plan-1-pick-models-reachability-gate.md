@@ -595,7 +595,7 @@ python -m pytest tests/test_reachable_at_dispatch.py -v 2>&1 | tail -6
 
 ---
 
-## Phase D — Cross-project sync + docs
+## Phase D — Cross-project sync + docs — ✅ EXECUTED 2026-07-09
 
 **Goal.** Land the `select.py` + `pg_ledger.py` changes upstream in fabrik-lib via `UPSTREAM_FEEDBACK.md`. Update the 3 docs.
 

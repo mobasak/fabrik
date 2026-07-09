@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Plan 1 Phase D: docs + fabrik-lib upstream note (2026-07-09)
+
+`docs/CONFIGURATION.md` — new row for `FABRIK_SUBAGENT_REQUIRE_REACHABLE` env override. `.windsurf/rules/ai/00-ai-model-selection.md` — new "Reachability gate" paragraph after the Vendor Access block requiring in-line justification for any `require_reachable=False` opt-out. `/opt/fabrik-lib/subagents/UPSTREAM_FEEDBACK.md` appended with a dated entry summarizing the 3 semantic additions (kwarg + reachable-set parse + `reachable_at_dispatch`) so fabrik-lib upstreams them across every future project's vendored copy.
+
 ### Added — Plan 1 Phase C: `subagent_runs.reachable_at_dispatch` column + `record_agent_run(reachable_at_dispatch=...)` kwarg (2026-07-09)
 
 New migration `scripts/kilo-benchmarks/migrations/2026-07-09-add-reachable-at-dispatch.sql` (`ALTER TABLE ... ADD COLUMN IF NOT EXISTS reachable_at_dispatch INTEGER` + index) applied to the shared `fabrik_analytics.subagent_runs`. `libs/subagents/pg_ledger.py::_INSERT` extends 11 → 12 columns; `record_run` picks up `record.get("reachable_at_dispatch")` (NULL when unset — semantically "unknown", not 0). `record_agent_run(spec, result, *, reachable_at_dispatch: int | None = None)` gains the kwarg. `scripts/kilo-benchmarks/apply_subagent_runs_ddl.sh` `EXPECTED_COLUMNS` constant bumped from 13 → 14 columns (verified: DDL applier passes assertion). 4 behavior-contract tests + **live INSERT smoke confirmed writing `reachable_at_dispatch=1`** on `fabrik-hub` project. Loop.py auto-wire (per plan File Scope) is a residual — callers currently pass the kwarg explicitly; the `_LAST_PICK_REACHABLE` module-level side-channel is not implemented.

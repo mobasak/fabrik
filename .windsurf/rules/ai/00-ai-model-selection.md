@@ -35,6 +35,8 @@ Every recommendation the operator will actually run should be grounded in the co
 
 **Vendor access:** `docs/reference/kilo/AI_VENDOR_ACCESS.md` is the single source of truth for which vendors the operator can call today. Rows with Status ✅ or ⚠️ are accessible (⚠️ = accessible but low balance — pick a ✅ peer if one is on the Pareto frontier).
 
+**Reachability gate (Plan-1, 2026-07-09):** `libs/subagents.pick_models(task_type)` now defaults to `require_reachable=True` and filters out any model whose vendor row isn't reachable-via-existing-keys. If you call it with `require_reachable=False` in code you're shipping, **you MUST justify it in an inline comment** — the opt-out exists for benchmarking on-request models the operator is considering signing up for, not for silent bypass. Fleet-wide disable via `FABRIK_SUBAGENT_REQUIRE_REACHABLE=0` env; the kwarg wins over the env.
+
 1. **Identify the category** from the 16 below.
 2. **Open the matching pack** (`10`–`90`) for its subcategories, tools, and the Fabrik default.
 3. **Pick the cheapest gateway for the model.** Kilo CLI (`kilo run kilo/<provider>/<model>`) and OpenRouter (`https://openrouter.ai/api/v1`) are **peer gateways** — the same model is frequently dual-routed. Use the bake-off browser (`scripts/kilo-benchmarks/models_browser.html`, "Source" column shows OR/K/DS badges and a Kilo-vs-OR markup %) to pick the cheaper rate per model. DashScope (`DS` badge — `qwen-mt-turbo` etc.) and SiliconFlow (`SF`) are valid direct-API gateways when the model isn't on Kilo or OR.
@@ -91,17 +93,17 @@ When the ranker (`suggest_model.py`) sees a locked-out row Pareto-beating the ac
 
 Kilo CLI (`kilo run kilo/<provider>/<model>`) and OpenRouter (`https://openrouter.ai/api/v1/chat/completions`) are **peer gateways**. Either is valid — pick by per-model price (the bake-off browser shows the cheaper rate per row). DashScope and SiliconFlow are direct-API gateways for specialist routes (e.g. `qwen-mt-turbo`).
 
-<!-- GATEWAY_COUNTS:START — last-refreshed: 2026-07-08 (auto-managed by update_gateway_counts.py) -->
-*Live gateway counts (active models, 2026-07-08 UTC; auto-refreshed from `kilo_agents.db`):*
+<!-- GATEWAY_COUNTS:START — last-refreshed: 2026-07-09 (auto-managed by update_gateway_counts.py) -->
+*Live gateway counts (active models, 2026-07-09 UTC; auto-refreshed from `kilo_agents.db`):*
 
 | Gateway | Active routable models | Notes |
 |---|---|---|
-| **OpenRouter** | 345 | of which **341** dual-routed with Kilo, **4** OR-only |
-| **Kilo CLI** | 341 | of which **341** dual-routed with OR, **0** Kilo-only |
+| **OpenRouter** | 347 | of which **345** dual-routed with Kilo, **2** OR-only |
+| **Kilo CLI** | 345 | of which **345** dual-routed with OR, **0** Kilo-only |
 | **DashScope** (direct) | 1 | specialist routes (e.g. `qwen-mt-turbo`) |
 | **SiliconFlow** (direct) | 1 | specialist routes (e.g. Hunyuan) |
 
-Capability counts (any-gateway): reasoning **202** · tools/function-calling **265** · vision-input **169** · translation-scored **9** · STT-capable **21**.
+Capability counts (any-gateway): reasoning **203** · tools/function-calling **267** · vision-input **171** · translation-scored **9** · STT-capable **21**.
 <!-- GATEWAY_COUNTS:END -->
 
 For specialized categories 7–15 (Robotics / Synthetic data / Recommendation / Cybersecurity / Bio-Healthcare / Edge / Governance / Generative design) use domain tools, not gateway LLMs.
