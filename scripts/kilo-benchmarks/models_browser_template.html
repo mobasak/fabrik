@@ -551,6 +551,8 @@
     <div class="chip-grid">
       <span class="chip" data-source="openrouter" title="Reachable via OpenRouter (including dual-routed). Use Exclusivity below to pick OR-only.">via OpenRouter</span>
       <span class="chip" data-source="kilo" title="Reachable via Kilo Gateway (including dual-routed). Use Exclusivity below to pick Kilo-only.">via Kilo</span>
+      <span class="chip" data-source="siliconflow" title="Reachable via SiliconFlow (api.siliconflow.com) — 72-model gateway covering LLMs (Qwen/DeepSeek/GLM/Kimi/MiniMax/Tencent/gemma/gpt-oss), FLUX images, fish-speech/IndexTTS/CosyVoice, Qwen3-Embedding + Reranker. Direct SF key bypasses OR fee.">via SiliconFlow</span>
+      <span class="chip" data-source="dashscope" title="Reachable via Alibaba Cloud DashScope (dashscope.aliyuncs.com) — qwen-mt-turbo specialist routes.">via DashScope</span>
     </div>
 
     <h3>Exclusivity / price compare <span style="font-weight: normal; text-transform: none; color: var(--muted)">(any of)</span></h3>
@@ -1110,6 +1112,8 @@ function filterRow(m) {
     for (const s of state.sources) {
       if (s === "openrouter" && viaOr) { pass = true; break; }
       if (s === "kilo" && viaKilo) { pass = true; break; }
+      if (s === "siliconflow" && !!m.via_siliconflow) { pass = true; break; }
+      if (s === "dashscope" && !!m.via_dashscope) { pass = true; break; }
       if (s === "both" && viaOr && viaKilo) { pass = true; break; }
       if (s === "kilo_only" && viaKilo && !viaOr) { pass = true; break; }
       if (s === "or_only" && viaOr && !viaKilo) { pass = true; break; }
