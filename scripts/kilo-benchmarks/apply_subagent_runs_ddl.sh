@@ -24,7 +24,7 @@ set -euo pipefail
 # WHEN SUBAGENT_RUNS_DDL in /opt/fabrik-lib/subagents/subagents/pg_ledger.py changes
 # its column list (13 columns as of 2026-07-06). The assertion below compares against
 # this string byte-for-byte, so a schema evolution that misses this update fails loudly.
-EXPECTED_COLUMNS="id,ts,project,agent_id,task_type,model,provider,status,cost_usd,turns,latency_s,quality_score,tool_calls"
+EXPECTED_COLUMNS="id,ts,project,agent_id,task_type,model,provider,status,cost_usd,turns,latency_s,quality_score,tool_calls,reachable_at_dispatch"
 
 DDL=$(cd /opt/fabrik-lib/subagents && python3 -c "from subagents import SUBAGENT_RUNS_DDL; print(SUBAGENT_RUNS_DDL)")
 

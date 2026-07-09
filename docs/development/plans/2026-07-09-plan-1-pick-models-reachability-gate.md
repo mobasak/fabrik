@@ -453,7 +453,7 @@ python -m pytest tests/test_pick_models_reachability.py -v 2>&1 | tail -6
 
 ---
 
-## Phase C — Fallback + `reachable_at_dispatch` telemetry
+## Phase C — Fallback + `reachable_at_dispatch` telemetry — ✅ EXECUTED 2026-07-09 (fallback WARN landed in Phase B; loop.py auto-wire deferred as residual)
 
 **Goal.** If Phase B's filter empties a task_type's pool, `pick_models` WARNs + falls through to the unfiltered pool (fail-open). Add a `reachable_at_dispatch INTEGER` column on `subagent_runs` and set it inside `record_agent_run` so the flywheel scores reachable vs unreachable pools separately.
 
