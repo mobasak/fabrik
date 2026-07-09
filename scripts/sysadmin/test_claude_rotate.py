@@ -340,6 +340,23 @@ def test_list_accounts_unreadable_dir_returns_empty(tmp_path, monkeypatch):
     assert claude_rotate._list_accounts() == [], "unreadable manager-accounts → [], no raise"
 
 
+def test_list_accounts_unstattable_dir_returns_empty(tmp_path, monkeypatch):
+    # The initial ACCOUNTS_DIR.is_dir() stat can ALSO raise (EACCES on an unsearchable parent, or a
+    # bad symlink) — pathlib re-raises those. It must degrade to [], not escape to main() as a 126.
+    accts = tmp_path / "manager-accounts"
+    accts.mkdir()
+    monkeypatch.setattr(claude_rotate, "ACCOUNTS_DIR", accts)
+    real_is_dir = pathlib.Path.is_dir
+
+    def boom_is_dir(self):
+        if self == accts:
+            raise PermissionError(13, "Permission denied")
+        return real_is_dir(self)
+
+    monkeypatch.setattr(pathlib.Path, "is_dir", boom_is_dir)
+    assert claude_rotate._list_accounts() == [], "is_dir() OSError → [], no raise"
+
+
 def test_run_claude_rotates_on_limit_string_regardless_of_exit_code(monkeypatch):
     # DELIBERATE: rotation triggers on the usage-limit STRING regardless of exit code — never
     # missing a real limit is the core guarantee, and Claude's exit code on a limit isn't

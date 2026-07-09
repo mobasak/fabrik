@@ -122,13 +122,16 @@ def _list_accounts() -> list[Path]:
     snapshots rather than raising — this runs inside ``run_claude``/``_active_account`` on every
     call, and an escaping OSError would be mislabeled by ``main()`` as an exec failure (126) and
     discard a perfectly good claude result."""
-    if not ACCOUNTS_DIR.is_dir():
-        return []
     try:
+        if not ACCOUNTS_DIR.is_dir():
+            return []
         return sorted(
             d for d in ACCOUNTS_DIR.iterdir() if d.is_dir() and (d / ".credentials.json").is_file()
         )
     except OSError:
+        # Covers the initial is_dir() stat AND iterdir + per-entry is_dir/is_file: an unsearchable
+        # dir/parent or a bad symlink (EACCES/ELOOP, which pathlib re-raises) yields no snapshots
+        # rather than an OSError that main() would mislabel 126 and discard a good claude result.
         return []
 
 
