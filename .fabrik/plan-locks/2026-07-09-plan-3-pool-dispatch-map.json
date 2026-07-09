@@ -1,0 +1,20 @@
+{
+  "plan": "docs/development/plans/2026-07-09-plan-3-pool-dispatch-map.md",
+  "owned_paths": [
+    ".windsurf/rules/core/62-using-subagents.md",
+    "CLAUDE.md",
+    "docs/reference/subagents-enhancement-proposal.md",
+    "libs/subagents/",
+    "docs/development/plans/2026-07-09-plan-3-pool-dispatch-map.md"
+  ],
+  "shared_append_paths": [
+    "CHANGELOG.md",
+    "INDEX.md"
+  ],
+  "branch": "master",
+  "started_at": "2026-07-09T22:04:29Z",
+  "baseline_commit": "c3c15a52e573393744cc5da5945fac6751a885cf",
+  "status": "released",
+  "final_commit": "d85bb162",
+  "completed_note": "Phases A-C executed; Phase D optional-offered. Full gate 38/0."
+}

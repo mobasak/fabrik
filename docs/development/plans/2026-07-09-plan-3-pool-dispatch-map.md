@@ -1,6 +1,7 @@
 # Land the verified pool-dispatch map + parallelism rule into governance; propose subagents enhancements
 
-Status: IN-PROGRESS
+Status: EXECUTED 2026-07-10 (Phases A–C; Phase D optional, offered — not run)
+Completion: A=89dabf63 (fleet-synced 62+CLAUDE.md) · B=8 command files (user-level, live) · C=d85bb162 (proposal+INDEX). Whole-plan /fabrik-review clean (cross-phase rule consistent); full Tier-2 gate success 38/0 (2026-07-10). Phase D (github re-vendor) held per plan default — offered at finish.
 Date: 2026-07-09
 Converged: 2026-07-09 (/fabrik-plan-review — 2 passes to an edit-free md5-verified no-op; all path:line citations re-verified stable, structural pillars completed — added /fabrik-docs-review + check_convergence to the final phase)
 Spec (source of truth): `docs/superpowers/specs/2026-07-09-pool-dispatch-map-and-enhancements-design.md` (CONVERGED 2026-07-09)
