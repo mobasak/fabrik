@@ -72,10 +72,9 @@ def _sf_to_agent_id_candidates(sf_id: str) -> list[str]:
     # Basic form: <prov>/<model-lowercase-with-.-preserved-and-_-to->
     model_kebab = model.lower().replace("_", "-")
     model_dot_kebab = model.lower().replace("_", "-").replace(".", "-")
-    return [
-        f"{prov}/{model_kebab}",
-        f"{prov}/{model_dot_kebab}",
-    ]
+    # Dedupe — for a model like `DeepSeek-V4-Flash` (no dots), both candidates
+    # collapse to the same string. Pass 2 review PF-2b: avoid duplicate SELECTs.
+    return list(dict.fromkeys([f"{prov}/{model_kebab}", f"{prov}/{model_dot_kebab}"]))
 
 
 def fetch_sf_models() -> list[dict]:
@@ -128,8 +127,13 @@ def apply_flags(conn: sqlite3.Connection, sf_models: list[dict]) -> tuple[int, i
     if not ids_to_flip:
         return matched, 0, unmatched
     placeholders = ",".join("?" for _ in ids_to_flip)
+    # Pass 2 review PF-2a: `AND via_siliconflow != 1` guard so the reported
+    # `updated` rowcount reflects ONLY newly-flipped rows (not already-flagged
+    # rows we're re-writing to the same value). Data is idempotent either way;
+    # this cleans up the observability output on repeat runs.
     cur = conn.execute(
-        f"UPDATE agents SET via_siliconflow = 1 WHERE id IN ({placeholders})",  # noqa: S608 — placeholders is a fixed count
+        f"UPDATE agents SET via_siliconflow = 1 "  # noqa: S608 — placeholders is a fixed count
+        f"WHERE id IN ({placeholders}) AND COALESCE(via_siliconflow, 0) != 1",
         tuple(sorted(ids_to_flip)),
     )
     updated = cur.rowcount
