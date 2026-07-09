@@ -467,8 +467,13 @@ def run_claude(
     behavior change).
     """
     stdin_data = _read_piped_stdin() if buffer_stdin else None
+    # Pin subprocess I/O to UTF-8 with errors="replace" (NOT text=True, which re-encodes stdin with
+    # the LOCALE's encoding + STRICT errors): _read_piped_stdin decoded leniently, so under a
+    # non-UTF-8 locale (LANG=C) a strict re-encode of any non-ASCII byte would raise UnicodeEncodeError
+    # — a ValueError that escapes main()'s OSError/TimeoutExpired handlers. UTF-8/replace is symmetric
+    # with the decode and locale-independent; claude's own I/O is UTF-8.
     result = subprocess.run(
-        argv, capture_output=True, text=True, timeout=timeout, cwd=cwd, env=env, input=stdin_data
+        argv, capture_output=True, encoding="utf-8", errors="replace", timeout=timeout, cwd=cwd, env=env, input=stdin_data
     )
     accounts = _list_accounts()
     start = _active_account()
@@ -507,7 +512,7 @@ def run_claude(
         tried.add(new_account)
         rotations += 1
         result = subprocess.run(
-            argv, capture_output=True, text=True, timeout=timeout, cwd=cwd, env=env, input=stdin_data
+            argv, capture_output=True, encoding="utf-8", errors="replace", timeout=timeout, cwd=cwd, env=env, input=stdin_data
         )
     # A 401 (dead creds) alerts ONCE, AFTER the loop, reflecting the ACTUAL final outcome — never an
     # optimistic mid-loop guess, since a standby we rotated to may itself be dead. Recovery = the

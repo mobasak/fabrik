@@ -101,6 +101,25 @@ def test_run_claude_rotates_once_on_limit_then_ok(monkeypatch):
     assert len(calls) == 2, "original call + one retry"
 
 
+def test_run_claude_pins_utf8_replace_io(monkeypatch):
+    # subprocess I/O must be UTF-8 with errors="replace" (locale-independent), NOT text=True — which
+    # re-encodes piped stdin STRICTLY against the locale, raising UnicodeEncodeError on non-ASCII
+    # under LANG=C (a ValueError that escapes main()'s OSError/TimeoutExpired handlers).
+    captured = {}
+
+    def fake_run(argv, **kw):
+        captured.update(kw)
+        return _cp(stdout="ok", rc=0)
+
+    monkeypatch.setattr(claude_rotate.subprocess, "run", fake_run)
+    monkeypatch.setattr(claude_rotate, "_list_accounts", lambda: [])
+    claude_rotate.run_claude(["claude"], timeout=1, cwd="/x", env={})
+
+    assert captured.get("encoding") == "utf-8", "I/O pinned to utf-8"
+    assert captured.get("errors") == "replace", "lenient re-encode, symmetric with the stdin decode"
+    assert "text" not in captured, "must NOT use text=True (locale-dependent strict re-encode)"
+
+
 def test_run_claude_rotates_and_alerts_on_401(monkeypatch):
     # 401 = the ACTIVE account's login token is dead. It now rotates to a standby AND fires a
     # one-shot Telegram alert — rotating to a valid account recovers what the dead account's own
