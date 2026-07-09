@@ -577,24 +577,42 @@ def test_active_identity_survives_token_drift_via_marker(tmp_path, monkeypatch):
     assert claude_rotate._rotate_active_account() == "mob-dir", "excludes drifted ob@, picks mob@"
 
 
-def test_active_account_backfills_and_corrects_marker(tmp_path, monkeypatch):
-    # (a) A no-org active with no marker but a token still matching its snapshot is identified by
-    #     token-match, and _active_account backfills the marker so identity survives later drift.
-    # (b) A STALE marker (external `claude auth login` swapped the live creds) is CORRECTED the
-    #     moment token-match re-identifies the true active account (the re-review's candidate #2).
+def test_token_match_beats_stale_marker(tmp_path, monkeypatch):
+    # After an external `claude auth login` swaps the live active creds, a marker left by a prior
+    # rotation is STALE. Token-match (step 1) runs BEFORE the marker (step 2), so while the new
+    # active token is fresh, _active_account returns the TRUE active account — not the stale
+    # marker's — and it does so as a PURE read (no lock-free write that could race a rotation).
     _, accounts_dir, active = _setup_fake_claude(tmp_path, monkeypatch, {"mob-dir": "org-mob"})
-    _write_creds(active, "org-mob")  # old-format mob@ (org present)
     ob = accounts_dir / "ob-dir"
     ob.mkdir()
     _write_creds_no_org(ob / ".credentials.json", "TOKEN-OB")
-    # (a) no marker yet; org-match identifies mob@ and seeds the marker
-    assert not claude_rotate.ACTIVE_MARKER.exists()
-    assert claude_rotate._active_account().name == "mob-dir"
-    assert claude_rotate.ACTIVE_MARKER.read_text().strip() == "mob-dir", "marker backfilled from org"
-    # (b) external swap: live creds become ob@ (fresh, token matches ob snapshot) but marker still mob
-    _write_creds_no_org(active, "TOKEN-OB")
+    claude_rotate.ACTIVE_MARKER.write_text("mob-dir")  # stale marker from a prior rotation
+    _write_creds_no_org(active, "TOKEN-OB")  # live active is really ob@ (fresh token)
+
     assert claude_rotate._active_account().name == "ob-dir", "token-match beats the stale marker"
-    assert claude_rotate.ACTIVE_MARKER.read_text().strip() == "ob-dir", "stale marker corrected"
+    assert claude_rotate.ACTIVE_MARKER.read_text().strip() == "mob-dir", "_active_account is a pure read"
+
+
+def test_old_format_active_identified_by_org_after_token_drift(tmp_path, monkeypatch):
+    # THE fleet-critical path (re-review candidate #1): mob@ is old-format (organizationUuid
+    # present) and its live token has DRIFTED from the frozen snapshot (Claude refreshed it in
+    # place); there is NO marker (never rotated via this tool). Identity must still resolve via
+    # org-match (step 3, org never drifts) so rotation excludes the active account and picks the
+    # standby — NOT re-install mob@'s own stale snapshot.
+    _, accounts_dir, active = _setup_fake_claude(tmp_path, monkeypatch, {"mob-dir": "org-mob"})
+    ob = accounts_dir / "ob-dir"
+    ob.mkdir()
+    _write_creds_no_org(ob / ".credentials.json", "TOKEN-OB")
+    active.write_text(  # mob@ with a DRIFTED token (matches no snapshot), org still "org-mob"
+        json.dumps(
+            {"claudeAiOauth": {"accessToken": "MOB-REFRESHED", "refreshToken": "R"}, "organizationUuid": "org-mob"}
+        )
+    )
+    os.chmod(active, 0o600)
+
+    assert not claude_rotate.ACTIVE_MARKER.exists()
+    assert claude_rotate._active_account().name == "mob-dir", "org-match identifies the drifted mob@"
+    assert claude_rotate._rotate_active_account() == "ob-dir", "excludes mob@, picks the ob@ standby"
 
 
 def test_rotate_skips_corrupt_snapshot_and_picks_valid_target(tmp_path, monkeypatch):
