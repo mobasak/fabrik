@@ -171,20 +171,45 @@ def test_usage_limit_rotation_does_not_alert(monkeypatch):
     assert len(alerts) == 0, "usage-limit rotation is silent (no 401 alert)"
 
 
-def test_telegram_config_env_then_file_then_none(tmp_path, monkeypatch):
-    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "envTok")
-    monkeypatch.setenv("TELEGRAM_OWNER_ID", "42")
-    assert claude_rotate._telegram_config() == ("envTok", "42"), "env wins"
+def test_run_claude_401_both_dead_alerts_giveup_not_recovered(monkeypatch):
+    # BOTH accounts' creds are dead (401 every attempt). The one post-loop alert must be the
+    # give-up message, NOT a false "recovered" — the alert reflects the ACTUAL final outcome, not
+    # the mid-loop intent of having rotated to a standby that then also 401'd.
+    def fake_run(argv, **kw):
+        return _cp(stderr="401 Invalid authentication credentials", rc=1)
 
-    monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
-    monkeypatch.delenv("TELEGRAM_OWNER_ID", raising=False)
+    rotations, alerts = [], []
+    monkeypatch.setattr(claude_rotate.subprocess, "run", fake_run)
+    monkeypatch.setattr(claude_rotate, "_list_accounts", lambda: _accounts("mob", "ob"))
+    monkeypatch.setattr(claude_rotate, "_active_account", lambda: _accounts("mob")[0])
+    monkeypatch.setattr(claude_rotate, "_rotate_active_account", _walk_rotator(["ob"], rotations))
+    monkeypatch.setattr(claude_rotate, "_notify_telegram", lambda text: alerts.append(text) is None)
+
+    claude_rotate.run_claude(["claude"], timeout=1, cwd="/x", env={})
+
+    assert len(rotations) == 1, "rotated to the (also-dead) standby once, then exhausted"
+    assert len(alerts) == 1, "exactly one alert, fired post-loop"
+    assert "giving up" in alerts[0] and "recovered" not in alerts[0], "give-up, not false-recovered"
+
+
+def test_telegram_config_env_beats_file_and_parses_file(tmp_path, monkeypatch):
     f = tmp_path / ".env.sysadmin"
     f.write_text('# c\nTELEGRAM_BOT_TOKEN="fileTok"\nTELEGRAM_OWNER_ID=99\nOTHER=x\n')
     monkeypatch.setattr(claude_rotate, "ENV_SYSADMIN", f)
+
+    # env set AND file set to DIFFERENT values → env must win.
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "envTok")
+    monkeypatch.setenv("TELEGRAM_OWNER_ID", "42")
+    assert claude_rotate._telegram_config() == ("envTok", "42"), "env beats the file"
+
+    # env absent → parsed from the file (quotes stripped, comments/other keys ignored).
+    monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
+    monkeypatch.delenv("TELEGRAM_OWNER_ID", raising=False)
     assert claude_rotate._telegram_config() == ("fileTok", "99"), "parsed from .env.sysadmin"
 
+    # neither → None (WSL dev box).
     monkeypatch.setattr(claude_rotate, "ENV_SYSADMIN", tmp_path / "nope")
-    assert claude_rotate._telegram_config() is None, "unconfigured → None (WSL dev)"
+    assert claude_rotate._telegram_config() is None
 
 
 def test_notify_telegram_failsoft(tmp_path, monkeypatch):
@@ -194,14 +219,24 @@ def test_notify_telegram_failsoft(tmp_path, monkeypatch):
     monkeypatch.setattr(claude_rotate, "ENV_SYSADMIN", tmp_path / "nope")
     assert claude_rotate._notify_telegram("hi") is False
 
-    # Configured but the network raises → swallowed, returns False, never propagates.
     monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "T")
     monkeypatch.setenv("TELEGRAM_OWNER_ID", "42")
 
-    def boom(*a, **k):
+    # A plain network error (OSError) is swallowed.
+    def boom_os(*a, **k):
         raise OSError("no network")
 
-    monkeypatch.setattr(claude_rotate.urllib.request, "urlopen", boom)
+    monkeypatch.setattr(claude_rotate.urllib.request, "urlopen", boom_os)
+    assert claude_rotate._notify_telegram("hi") is False
+
+    # CRITICAL (fail-soft): http.client.HTTPException is NOT an OSError/ValueError subclass — the
+    # broad catch must still swallow it, else it would escape _notify_telegram and abort rotation.
+    import http.client
+
+    def boom_http(*a, **k):
+        raise http.client.BadStatusLine("garbage-from-a-captive-portal")
+
+    monkeypatch.setattr(claude_rotate.urllib.request, "urlopen", boom_http)
     assert claude_rotate._notify_telegram("hi") is False
 
 

@@ -541,8 +541,9 @@ def _run_claude(
     env["CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC"] = "1"
 
     try:
-        # Route through claude_rotate: rotates to another account + retries on a
-        # usage/quota-limit; a 401 returns unchanged for the returncode branch below.
+        # Route through claude_rotate: on a usage/quota-limit OR a 401 (dead creds) it rotates to
+        # another account + retries (a 401 also fires a Telegram alert); only a still-failing
+        # result reaches the returncode branch below.
         proc = claude_rotate.run_claude(
             cmd,
             timeout=WAKE_TIMEOUT,

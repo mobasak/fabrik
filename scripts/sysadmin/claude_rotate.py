@@ -411,9 +411,13 @@ def _notify_telegram(text: str) -> bool:
         )
         with urllib.request.urlopen(req, timeout=10) as resp:  # noqa: S310 (fixed https host)
             return 200 <= resp.status < 300
-    except (OSError, ValueError):
-        # urllib.error.URLError/HTTPError are OSError subclasses — network + non-2xx both land here.
-        sys.stderr.write("claude_rotate: 401 Telegram alert failed to send (network/HTTP)\n")
+    except Exception:  # noqa: BLE001
+        # An alert MUST NEVER break rotation, so swallow EVERYTHING — not just OSError/ValueError.
+        # http.client.HTTPException (BadStatusLine / IncompleteRead / InvalidURL from a
+        # captive-portal/proxy/malformed-token) is NOT an OSError subclass and would otherwise
+        # escape and abort the retry. Emit a GENERIC line only — never str(e), which for an
+        # InvalidURL embeds the full request URL (and thus the bot token).
+        sys.stderr.write("claude_rotate: 401 Telegram alert failed to send (best-effort, ignored)\n")
         return False
 
 
@@ -453,7 +457,8 @@ def run_claude(
     # are valid targets, so the bound is N, not N-1.
     max_rotations = max(0, len(accounts) - (1 if start else 0))
     rotations = 0
-    alerted_401 = False
+    died_account: str | None = None  # the FIRST account whose creds 401'd (dead), for the alert
+    last_target: str | None = None  # the last account we rotated TO
     while True:
         combined = (result.stdout or "") + "\n" + (result.stderr or "")
         # Rotate on the usage-limit signal OR a 401, REGARDLESS of exit code / output format.
@@ -461,41 +466,44 @@ def run_claude(
         # is not reliably known — gating on `returncode != 0` (or on "is it valid JSON") would risk
         # silently failing to recover. The cost is a bounded, self-correcting false-positive: a
         # *successful* answer that merely quotes a limit/401 phrase triggers up to N-1 wasted
-        # rotations (standbys stay valid, the operator still gets an answer). The operational
-        # callers (keepalive ping, aro-wake alerts) never quote such phrases; only operator chat could.
+        # rotations (and, for a 401, a spurious alert) — bounded by the account count, standbys stay
+        # valid, the operator still gets an answer. The keepalive ping never quotes such phrases; a
+        # sysadmin analysis or operator chat could (accepted, same class as the usage-limit case).
         is_limit = is_usage_limit(combined)
         is_401 = is_auth_401(combined)
         if not is_limit and not is_401:
             break  # success or a non-rotatable error
-        # Capture the failing (currently-active) account BEFORE rotating, so the 401 alert names
-        # the account that died, not the one we rotate to.
-        failed = _active_account() if is_401 else None
+        if is_401 and died_account is None:
+            # Record the account that died BEFORE rotating, so the alert names it (not the target).
+            d = _active_account()
+            died_account = d.name if d is not None else "?"
         new_account = (
             _rotate_active_account(avoid=frozenset(tried)) if rotations < max_rotations else None
         )
-        if is_401 and not alerted_401:
-            # A 401 means the ACTIVE account's login token is dead (not a quota issue) — always
-            # alert the operator ONCE with the outcome, whether or not a standby was available.
-            alerted_401 = True
-            old_name = failed.name if failed is not None else "?"
-            host = _hostname()
-            if new_account:
-                _notify_telegram(
-                    f"⚠️ Claude 401 on {host}: account '{old_name}' credentials are dead — "
-                    f"auto-rotated to '{new_account}' and retried."
-                )
-            else:
-                _notify_telegram(
-                    f"🚨 Claude 401 on {host}: account '{old_name}' credentials are dead and no "
-                    f"working standby remains — giving up. Refresh the fleet account snapshots."
-                )
-        if not new_account:
+        if new_account is None:
             break  # no untried account left → give up (all exhausted / <2 accounts)
+        last_target = new_account
         tried.add(new_account)
         rotations += 1
         result = subprocess.run(
             argv, capture_output=True, text=True, timeout=timeout, cwd=cwd, env=env, input=stdin_data
         )
+    # A 401 (dead creds) alerts ONCE, AFTER the loop, reflecting the ACTUAL final outcome — never an
+    # optimistic mid-loop guess, since a standby we rotated to may itself be dead. Recovery = the
+    # final attempt is no longer a 401 (nor a limit). Best-effort; never raises (see _notify_telegram).
+    if died_account is not None:
+        final = (result.stdout or "") + "\n" + (result.stderr or "")
+        host = _hostname()
+        if last_target is not None and not is_auth_401(final) and not is_usage_limit(final):
+            _notify_telegram(
+                f"⚠️ Claude 401 on {host}: account '{died_account}' credentials were dead — "
+                f"auto-rotated to '{last_target}' and recovered."
+            )
+        else:
+            _notify_telegram(
+                f"🚨 Claude 401 on {host}: account '{died_account}' credentials are dead and no "
+                f"working standby remains — giving up. Refresh the fleet account snapshots."
+            )
     return result
 
 

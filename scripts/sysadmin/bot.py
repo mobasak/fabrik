@@ -183,9 +183,10 @@ def _run_claude(message: str, resume_session: str | None = None) -> tuple[str, s
     env["CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC"] = "1"
 
     try:
-        # Route through claude_rotate: on a usage/quota-limit it rotates to another
-        # Claude account and retries; a 401 (dead creds) is returned unchanged for the
-        # branch below to alert on. Same cwd/env contract as the bare subprocess call.
+        # Route through claude_rotate: on a usage/quota-limit OR a 401 (dead creds) it rotates to
+        # another Claude account and retries; a 401 also fires a Telegram alert from claude_rotate.
+        # Only a still-failing result (all accounts exhausted) reaches the error branch below. Same
+        # cwd/env contract as the bare subprocess call.
         result = claude_rotate.run_claude(
             cmd,
             timeout=CLAUDE_TIMEOUT_SECONDS,
