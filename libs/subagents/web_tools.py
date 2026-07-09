@@ -50,7 +50,7 @@ _MAX_RESP_BYTES = 2_000_000  # streaming read aborts past this — bounds peak m
 _SNIPPET = 1000  # per-result text cap before the overall _truncate
 
 
-class _MissingKey(Exception):
+class _MissingKeyError(Exception):
     """A required *_API_KEY env var is unset."""
 
 
@@ -61,7 +61,7 @@ class _HttpError(Exception):
 def _need(env: str) -> str:
     val = os.getenv(env)
     if not val:
-        raise _MissingKey(env)
+        raise _MissingKeyError(env)
     return val
 
 
@@ -269,7 +269,7 @@ def execute_web_tool(
         if name == "docs_lookup":
             return _context7_docs(arguments, cli, timeout_s)
         return ToolResult(ok=False, output="", error=f"unknown web tool {name!r}")
-    except _MissingKey as exc:
+    except _MissingKeyError as exc:
         return ToolResult(ok=False, output="", error=f"{exc.args[0]} not set")
     except (httpx.HTTPError, _HttpError) as exc:  # status/timeout/connect/transport
         return ToolResult(ok=False, output="", error=f"http error: {exc}")

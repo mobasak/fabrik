@@ -69,7 +69,7 @@ _MAX_READ_BYTES = 5_000_000  # refuse to slurp a file larger than this into memo
 _MAX_GREP_FILES = 5_000  # bound the grep walk so a huge tree can't stall the worker
 
 
-class WorkdirEscape(Exception):
+class WorkdirEscapeError(Exception):
     """Raised when a resolved path would leave the agent's workdir."""
 
 
@@ -86,7 +86,7 @@ class ToolResult:
 def _resolve_in_workdir(path: str, workdir: str) -> str:
     """Resolve ``path`` relative to ``workdir`` and confirm it stays inside.
 
-    Returns the absolute real path. Raises :class:`WorkdirEscape` if the real
+    Returns the absolute real path. Raises :class:`WorkdirEscapeError` if the real
     path is not the workdir itself or a descendant of it (blocks ``../`` and
     absolute-path escapes, symlinks included — we resolve before comparing).
     """
@@ -94,7 +94,7 @@ def _resolve_in_workdir(path: str, workdir: str) -> str:
     candidate = Path(workdir) / path if not os.path.isabs(path) else Path(path)
     real = candidate.resolve()
     if real != root and root not in real.parents:
-        raise WorkdirEscape(f"path {path!r} resolves outside workdir {workdir!r}")
+        raise WorkdirEscapeError(f"path {path!r} resolves outside workdir {workdir!r}")
     return str(real)
 
 
@@ -164,7 +164,7 @@ def _grep(arguments: dict, workdir: str) -> ToolResult:
         try:
             _resolve_in_workdir(os.path.relpath(f, workdir), workdir)
             lines = _read_text_bounded(f).splitlines()
-        except (OSError, WorkdirEscape):
+        except (OSError, WorkdirEscapeError):
             continue
         rel = os.path.relpath(f, workdir)
         for lineno, line in enumerate(lines, 1):
@@ -316,7 +316,7 @@ def execute_tool(
         if name == "run_command":
             return _run_command(arguments, workdir, timeout_s, allowed, sandbox_on)
         return ToolResult(ok=False, output="", error=f"unknown tool {name!r}")
-    except WorkdirEscape as exc:
+    except WorkdirEscapeError as exc:
         return ToolResult(ok=False, output="", error=str(exc))
     except KeyError as exc:
         return ToolResult(ok=False, output="", error=f"missing argument {exc}")

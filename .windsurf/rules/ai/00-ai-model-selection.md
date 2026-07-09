@@ -35,7 +35,24 @@ Every recommendation the operator will actually run should be grounded in the co
 
 **Vendor access:** `docs/reference/kilo/AI_VENDOR_ACCESS.md` is the single source of truth for which vendors the operator can call today. Rows with Status ✅ or ⚠️ are accessible (⚠️ = accessible but low balance — pick a ✅ peer if one is on the Pareto frontier).
 
-**Reachability gate (Plan-1, 2026-07-09):** `libs/subagents.pick_models(task_type)` now defaults to `require_reachable=True` and filters out any model whose vendor row isn't reachable-via-existing-keys. If you call it with `require_reachable=False` in code you're shipping, **you MUST justify it in an inline comment** — the opt-out exists for benchmarking on-request models the operator is considering signing up for, not for silent bypass. Fleet-wide disable via `FABRIK_SUBAGENT_REQUIRE_REACHABLE=0` env; the kwarg wins over the env.
+**Reachability filter (2026-07-09 canonical alignment):** to avoid dispatching to a vendor the operator can't reach with existing keys, call `pick_models` with the canonical `exclude=` seam:
+
+```python
+import sqlite3
+from libs.subagents import pick_models
+
+# Build the unreachable set from the seed catalog (agents.reachable_with_existing_keys=0):
+con = sqlite3.connect("scripts/kilo-benchmarks/kilo_agents.db")
+unreachable = tuple(
+    r[0] for r in con.execute(
+        "SELECT id FROM agents WHERE status='active' AND blocked=0 "
+        "AND reachable_with_existing_keys=0"
+    )
+)
+picks = pick_models("review", n=3, exclude=unreachable)
+```
+
+`exclude=` is the documented "reliability lever" in canonical `subagents`; the pre-filter is a plan-1 project-local mechanism (was a module fork — reverted). No env var, no kwarg toggle, no HTML-comment doc parsing — just pass the set at the call site.
 
 1. **Identify the category** from the 16 below.
 2. **Open the matching pack** (`10`–`90`) for its subcategories, tools, and the Fabrik default.

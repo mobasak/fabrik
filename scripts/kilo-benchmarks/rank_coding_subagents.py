@@ -309,43 +309,18 @@ def _safe_md_id(mid: str) -> str:
     return f"INVALID_ID_{zlib.crc32(mid.encode()) % 10_000}"
 
 
-def _reachable_stats() -> dict:
-    """Return {n_reach, n_total, reachable_ids} for the active-unblocked LLM pool.
-
-    Consumed at emit time so `pick_models` (Phase B) can filter by the
-    reachable-set without another DB round-trip. Emits `<!-- reachable: N/M -->`
-    header + `<!-- reachable-set: id1, id2, ... -->` block into the ranking MD.
-    """
-    with sqlite3.connect(str(DB_PATH)) as con:
-        n_total = con.execute(
-            "SELECT COUNT(*) FROM agents WHERE status='active' AND blocked=0 AND service_type='llm'"
-        ).fetchone()[0]
-        rows = con.execute(
-            "SELECT id FROM agents "
-            "WHERE status='active' AND blocked=0 AND service_type='llm' "
-            "AND reachable_with_existing_keys=1"
-        ).fetchall()
-    reachable_ids = {r[0] for r in rows}
-    sys.stderr.write(
-        f"[rank_coding] emitted reachable-set with {len(reachable_ids)}/{n_total} ids\n"
-    )
-    return {
-        "n_reach": len(reachable_ids),
-        "n_total": n_total,
-        "reachable_ids": reachable_ids,
-    }
-
-
 def _render(rows: list[dict]) -> str:
     today = datetime.now(UTC).date().isoformat()
-    # Phase A of plan-1: emit reachable stats + the reachable id set so
-    # `pick_models(require_reachable=True)` can filter without a DB roundtrip.
-    reachable_stats = _reachable_stats()
+    # NOTE (2026-07-09 canonical alignment): the earlier `<!-- reachable-set: ... -->`
+    # emit + `pick_models(require_reachable=True)` fork was reverted after
+    # fabrik-lib's source-of-truth AI ruled the mechanism wrong-layer. The
+    # canonical seam is `pick_models(task_type, exclude=unreachable_ids)`; callers
+    # in this project build `unreachable_ids` from `agents.reachable_with_existing_keys=0`
+    # at dispatch time. See `docs/reference/kilo/AI_VENDOR_ACCESS.md` for the source.
+    # The DB filter below (`AND reachable_with_existing_keys=1` in the SELECT that
+    # produced `rows`) still applies — this ranked doc lists only reachable models.
     lines = [
         "# Coding subagent selection",
-        "",
-        f"<!-- reachable: {reachable_stats['n_reach']}/{reachable_stats['n_total']} -->",
-        f"<!-- reachable-set: {', '.join(sorted(reachable_stats['reachable_ids']))} -->",
         "",
         f"**Generated:** {today} · **Source:** `scripts/kilo-benchmarks/kilo_agents.db` · **Generator:** `scripts/kilo-benchmarks/rank_coding_subagents.py`",
         "",

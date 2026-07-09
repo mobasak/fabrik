@@ -28,7 +28,8 @@ import contextlib
 import json
 import os
 import sys
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 # Canonical schema. Provisioned centrally (hub) — shipped here so the hub/DBA can apply it and
 # so a WSL-dev project can create it locally. `id` is a surrogate key; the indexes serve the
@@ -56,8 +57,8 @@ CREATE INDEX IF NOT EXISTS subagent_runs_ts_idx ON subagent_runs (ts);
 _INSERT = (
     "INSERT INTO subagent_runs "
     "(project, agent_id, task_type, model, provider, status, cost_usd, turns, "
-    "latency_s, quality_score, tool_calls, reachable_at_dispatch) "
-    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s)"
+    "latency_s, quality_score, tool_calls) "
+    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb)"
 )
 
 
@@ -126,11 +127,6 @@ def record_run(
             record.get("latency_s"),
             quality_score,
             json.dumps(record.get("tool_calls") or {}, default=str),
-            # Plan-1 Phase C: reachable_at_dispatch — 1 if pick_models had the
-            # model in the reachable-set at dispatch, 0 if it fell through the
-            # empty-pool WARN, None if the caller didn't wire it. NULL is OK
-            # (nullable column); the flywheel treats NULL as "unknown".
-            record.get("reachable_at_dispatch"),
         )
     except Exception:  # noqa: BLE001 — fail-open: a malformed record never raises
         return False
@@ -162,7 +158,6 @@ def record_agent_run(
     dsn: str | None = None,
     connect: Callable[[str], Any] | None = None,
     receipt_dir: str | None = None,
-    reachable_at_dispatch: int | None = None,
 ) -> bool:
     """Judge-once flywheel write for a (spec, result) pair — the call an orchestrator SHOULD use.
 
@@ -193,11 +188,6 @@ def record_agent_run(
         from .ledger import agent_record, write_receipt
 
         record = agent_record(spec, result)
-        # Plan-1 Phase C: thread reachable_at_dispatch into the record so
-        # record_run's INSERT picks it up. Kept None-safe: an omitted kwarg
-        # writes NULL (semantically "unknown", not 0).
-        if reachable_at_dispatch is not None:
-            record["reachable_at_dispatch"] = reachable_at_dispatch
     except Exception:  # noqa: BLE001 — fail-open: a malformed spec/result never raises
         return False
     ok = record_run(

@@ -17,8 +17,8 @@ durable provenance ledger.
 
 from __future__ import annotations
 
-from .agent import AgentResult, AgentSpec, arun_agents, results_table, run_agents
 from ._dotenv import load_env
+from .agent import AgentResult, AgentSpec, arun_agents, results_table, run_agents
 from .ledger import audit_unrecorded
 from .mcp_tools import SAFE_RESEARCH_SERVERS
 from .methodology import METHODOLOGY_KINDS, methodology

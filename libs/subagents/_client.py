@@ -8,14 +8,13 @@ timeout and the call is RESTARTED, then escalated. Vendor this folder, don't imp
 
 from __future__ import annotations
 
-from typing import Any
-
 import json
 import sys
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
+from typing import Any
 
 import httpx
 
@@ -36,7 +35,7 @@ StateCb = Callable[[str, str, int], None]
 TokenCb = Callable[[str], None]
 
 
-class State(str, Enum):
+class State(str, Enum):  # noqa: UP042 — exported public API; StrEnum would change str(member) output (a behavior change for vendored consumers), and nothing here relies on the modern form
     CONNECTING = "connecting"
     ALIVE_WAITING = "alive_waiting"
     STREAMING = "streaming"

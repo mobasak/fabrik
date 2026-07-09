@@ -51,7 +51,7 @@ _SANDBOX_TMP = tempfile.gettempdir()
 __all__ = ["sandbox_available", "wrap_command", "SandboxUnavailable"]
 
 
-class SandboxUnavailable(RuntimeError):
+class SandboxUnavailable(RuntimeError):  # noqa: N818 — exported public API (in __all__, caught by name in tools.py + consumers); the Error-less name is deliberate and renaming it is a breaking change for every vendored copy
     """Raised/queried when sandboxing is required but the platform can't provide it."""
 
 

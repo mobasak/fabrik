@@ -170,7 +170,9 @@ The vendored `libs/subagents` pool scores every run to `fabrik_analytics.subagen
 
 - `SUBAGENT_RUNS_DSN` — an **INSERT-only** writer DSN for `fabrik_analytics.subagent_runs`. The hub mints the per-project role (`create_subagent_ins_role`) and injects the DSN at `fabrik apply` (VPS) — like `WATCHDOG_DB_URL_*`, generated + managed by the hub, never operator-set; on **WSL dev** it lives in `/opt/fabrik/.env`. **Unset ⇒ `record_agent_run` fail-opens** (no row, no crash) and the flywheel silently doesn't learn — `scripts/enforcement/check_subagent_flywheel.py` WARNs on the resulting unreceipted pool runs.
 - `SUBAGENT_PROJECT` — the project tag written on each row (e.g. `fabrik-hub`), so runs are attributable per project.
-- `FABRIK_SUBAGENT_REQUIRE_REACHABLE` — **Plan-1 reachability gate** (default `1`). When `1` (or unset), `libs/subagents.pick_models(...)` filters returned model ids against the `<!-- reachable-set: ... -->` HTML comment emitted at the top of the selection MDs by `rank_coding_subagents.py` and `rank_task_subagents.py`, so an AI never gets recommended a vendor the operator can't call. Set `FABRIK_SUBAGENT_REQUIRE_REACHABLE=0` to disable fleet-wide (fallback to pre-gate behavior — useful for benchmarking on-request models the operator is considering signing up for). Note: an explicit `require_reachable=True|False` kwarg on `pick_models(...)` always wins over the env (kwarg-first precedence).
+<!-- FABRIK_SUBAGENT_REQUIRE_REACHABLE was introduced by plan-1 (2026-07-09) then reverted the same day when fabrik-lib source-of-truth ruled the fork wrong-layer. The canonical reachability seam is `pick_models(task_type, exclude=unreachable_ids)`; callers build the set from `agents.reachable_with_existing_keys=0` per `.windsurf/rules/ai/00-ai-model-selection.md`. No env var. -->
+
+
 
 The writer role is INSERT-only (no SELECT) — read the table via the `postgres` superuser, never the writer DSN.
 

@@ -20,7 +20,7 @@ from __future__ import annotations
 import json
 import re
 import threading
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 try:
@@ -139,7 +139,7 @@ def agent_record(spec: object, result: object) -> dict:
     a secret attribute (e.g. ``api_key``) or an excluded one (``system``, ``text``)
     is never serialized. The ``diff`` is truncated (see ``_MAX_DIFF_CHARS``).
     """
-    record: dict = {"ts": datetime.now(timezone.utc).isoformat()}
+    record: dict = {"ts": datetime.now(UTC).isoformat()}
     for field in _SPEC_FIELDS:
         record[field] = getattr(spec, field, None)
     for field in _RESULT_FIELDS:
@@ -189,7 +189,7 @@ def write_receipt(
         Ledger(str(_receipts_path(receipt_dir))).append(
             {
                 "agent_id": str(agent_id),
-                "ts": datetime.now(timezone.utc).isoformat(),
+                "ts": datetime.now(UTC).isoformat(),
                 "recorded": True,
                 "project": project,
             }

@@ -34,7 +34,6 @@ import csv
 import io
 import math
 import os
-import sqlite3
 import subprocess
 import sys
 from datetime import date
@@ -276,44 +275,6 @@ def _load_coding_fallback(path: Path = CODING_FALLBACK_PATH) -> list[str]:
     return models
 
 
-_AGENTS_DB = Path(__file__).parent / "kilo_agents.db"
-
-
-def _reachable_stats() -> dict:
-    """Read {n_reach, n_total, reachable_ids} from the SQLite agents DB.
-
-    Plan-1 Phase A.3: rank_task's query hits `subagent_runs` on postgres and
-    doesn't touch `agents`, so the reachability filter can't be a SQL WHERE
-    injection here. Instead we emit HTML comments the MD parser skips (per
-    _parse_selection_md at libs/subagents/select.py:145) but Phase B's
-    `pick_models` reads to filter.
-
-    Fail-soft: if the SQLite DB is missing or unreadable, emit zeros — the
-    consumer treats an empty reachable-set as "no filter available" and
-    falls through (Phase C's empty-pool fallback path).
-    """
-    try:
-        with sqlite3.connect(str(_AGENTS_DB)) as con:
-            n_total = con.execute(
-                "SELECT COUNT(*) FROM agents WHERE status='active' AND blocked=0"
-            ).fetchone()[0]
-            rows = con.execute(
-                "SELECT id FROM agents "
-                "WHERE status='active' AND blocked=0 "
-                "AND reachable_with_existing_keys=1"
-            ).fetchall()
-        reachable_ids = {r[0] for r in rows}
-    except sqlite3.Error as exc:
-        sys.stderr.write(f"[rank_task] WARN: reachable stats unavailable: {exc}\n")
-        return {"n_reach": 0, "n_total": 0, "reachable_ids": set()}
-    sys.stderr.write(f"[rank_task] emitted reachable-set with {len(reachable_ids)}/{n_total} ids\n")
-    return {
-        "n_reach": len(reachable_ids),
-        "n_total": n_total,
-        "reachable_ids": reachable_ids,
-    }
-
-
 def render(rows: list, state: str = "ok") -> str:
     """Emit the ranked markdown from aggregated rows.
 
@@ -326,15 +287,13 @@ def render(rows: list, state: str = "ok") -> str:
     # Truthy check (not `is None`) so an empty _TEST_FIXED_DATE="" env-var doesn't
     # produce `Last refresh: \n` — Finder B#6. Empty string falls through to today.
     today = os.environ.get("_TEST_FIXED_DATE") or date.today().isoformat()
-    # Plan-1 Phase A.3: emit reachability comments for pick_models filter.
-    # rank_task doesn't touch agents table (its query hits subagent_runs only),
-    # so we can't SQL-filter — instead read the agents sqlite for the reachable
-    # set and emit it as HTML comments the parser skips but Phase B reads.
-    reach = _reachable_stats()
+    # NOTE (2026-07-09 canonical alignment): the `<!-- reachable-set: ... -->`
+    # emit was reverted after fabrik-lib's source-of-truth AI ruled the
+    # mechanism wrong-layer. Canonical seam is `pick_models(task_type,
+    # exclude=unreachable_ids)`; callers build the set from
+    # `agents.reachable_with_existing_keys=0` at dispatch time.
     header = (
         f"Last refresh: {today}\n"
-        f"<!-- reachable: {reach['n_reach']}/{reach['n_total']} -->\n"
-        f"<!-- reachable-set: {', '.join(sorted(reach['reachable_ids']))} -->\n"
         f"Formula: success × quality / cost | Window: {WINDOW_DAYS} days | Min runs: {MIN_RUNS}\n\n"
     )
     if state == "error":
