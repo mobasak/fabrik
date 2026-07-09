@@ -119,15 +119,43 @@ def _list_accounts() -> list[Path]:
     )
 
 
+def _remember_active(acc: Path) -> Path:
+    """Persist *acc*'s dir NAME to the marker so a later in-place token refresh (which drifts the
+    live active token away from every frozen snapshot) can't lose track of which account is active.
+    Best-effort, and only rewrites when the value actually changed — so a stale marker left by an
+    external ``claude auth login``/switch is CORRECTED the moment a fresher signal (token or org
+    match) re-identifies the true active account. Never emits token bytes."""
+    try:
+        if ACTIVE_MARKER.read_text().strip() == acc.name:
+            return acc  # already correct — avoid churn/races
+    except OSError:
+        pass
+    try:
+        _secure_write(ACTIVE_MARKER, acc.name.encode())
+    except OSError:
+        pass
+    return acc
+
+
 def _active_account() -> Path | None:
-    """The snapshot dir that is currently active, or None. Identity is resolved in order:
-    (1) the ``.active-account`` marker (written on every install — org-independent, the only
-    reliable signal for newer creds that carry no ``organizationUuid``); (2) an access-token
-    match against the live active creds (identifies a just-installed / unrotated account on a
-    host whose marker is absent); (3) an ``organizationUuid`` match (old-format creds only).
-    Never emits token bytes."""
+    """The snapshot dir that is currently active, or None. Identity is resolved by, in order:
+    (1) an access-token match against the LIVE active creds — the freshest signal, so it beats a
+    marker left stale by an external ``claude auth login``/switch; (2) the ``.active-account``
+    marker — the durable signal once the live token has drifted from every frozen snapshot (the
+    normal steady state after Claude refreshes the token in place); (3) an ``organizationUuid``
+    match — old-format creds, where org is stable across token refresh. A successful (1) or (3)
+    match backfills/corrects the marker, so an old-format active (e.g. the fleet's mob@) seeds a
+    durable identity on first run. Never emits token bytes."""
     accounts = _list_accounts()
-    # (1) marker — authoritative once a rotation/switch has run at least once.
+    # (1) access-token match — the live creds right now; corrects a stale marker.
+    active_tok = _read_access_token(ACTIVE_CREDS)
+    if active_tok is not None:
+        hit = next(
+            (a for a in accounts if _read_access_token(a / ".credentials.json") == active_tok), None
+        )
+        if hit is not None:
+            return _remember_active(hit)
+    # (2) marker — survives token drift (live token no longer matches any snapshot).
     try:
         marked = ACTIVE_MARKER.read_text().strip()
     except OSError:
@@ -136,20 +164,13 @@ def _active_account() -> Path | None:
         hit = next((a for a in accounts if a.name == marked), None)
         if hit is not None:
             return hit
-    # (2) access-token match — works for newer no-org creds (freshly bootstrapped host, no marker).
-    active_tok = _read_access_token(ACTIVE_CREDS)
-    if active_tok is not None:
-        hit = next(
-            (a for a in accounts if _read_access_token(a / ".credentials.json") == active_tok), None
-        )
-        if hit is not None:
-            return hit
-    # (3) organizationUuid match — old-format creds that predate the token/marker scheme.
+    # (3) organizationUuid match — old-format creds; org never drifts, so this always re-identifies
+    #     an old-format active and (via _remember_active) seeds the marker before any drift matters.
     active_org = _read_org(ACTIVE_CREDS)
     if active_org is not None:
-        return next(
-            (a for a in accounts if _read_org(a / ".credentials.json") == active_org), None
-        )
+        hit = next((a for a in accounts if _read_org(a / ".credentials.json") == active_org), None)
+        if hit is not None:
+            return _remember_active(hit)
     return None
 
 
