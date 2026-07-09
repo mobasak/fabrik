@@ -453,8 +453,11 @@ if [ -z "$RESULT" ]; then
   # Empty result = Claude FAILED to analyze (auth/quota/timeout/crash), NOT a benign verdict.
   # Fail CLOSED: do not treat unreviewed anomalies as all-clear — escalate so a real problem
   # isn't silently swallowed behind a claude failure.
-  APPRISE_SEND "⚠️ Proactive Check — Claude analysis FAILED" "Anomalies were detected but Claude returned NO analysis (auth/quota/timeout?). Review manually. Anomalies: ${ANOMALIES:-unknown}"
-  echo "Claude analysis failed (empty result) — escalated unreviewed anomalies."
+  if APPRISE_SEND "⚠️ Proactive Check — Claude analysis FAILED" "Anomalies were detected but Claude returned NO analysis (auth/quota/timeout?). Review manually. Anomalies: ${ANOMALIES:-unknown}"; then
+    echo "Claude analysis failed (empty result) — escalated unreviewed anomalies."
+  else
+    echo "Claude analysis failed AND the escalation alert could NOT be delivered — check Apprise/fabrik network."
+  fi
   exit 1
 fi
 if [ "$RESULT" = "ALL_CLEAR" ]; then

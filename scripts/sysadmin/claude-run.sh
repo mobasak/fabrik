@@ -35,9 +35,9 @@ CLAUDE_BIN="${CLAUDE_BIN:-/usr/bin/claude}"
 # the sudo boundary with `env VAR=val` (independent of the sudoers env-reset policy, unlike
 # a plain exported var which sudo would drop).
 TIMEOUT="${CLAUDE_ROTATE_TIMEOUT:-300}"
-# Sanitize: claude_rotate.py does int(CLAUDE_ROTATE_TIMEOUT); a non-integer OR zero would crash
-# it (subprocess.run rejects timeout=0 with "timeout value must be positive"). Require a
-# POSITIVE integer, else fall back to the default. Forwarding across sudo exposes this.
+# Sanitize: claude_rotate.py does int(CLAUDE_ROTATE_TIMEOUT). A non-integer crashes it, and 0
+# (or negative, once forwarded) makes subprocess.run's deadline immediate → EVERY claude call
+# instantly TimeoutExpires = 100% failure. Require a POSITIVE integer, else the default.
 [[ "$TIMEOUT" =~ ^[1-9][0-9]*$ ]] || TIMEOUT=300
 
 # Run from a cwd the OPERATOR can access. A root cron job starts in /root (mode 0700); after

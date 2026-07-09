@@ -92,11 +92,12 @@ def _sudo_argv(tmp_path, args, extra_env=None):
 
 
 def test_zero_or_negative_timeout_rejected_uses_default(tmp_path):
-    # 0 passes an unsigned-int check but crashes subprocess.run("timeout must be positive"),
-    # so it must be rejected → default 300.
-    out = _sudo_argv(tmp_path, ["-p", "x"], extra_env={"CLAUDE_ROTATE_TIMEOUT": "0"})
-    assert "CLAUDE_ROTATE_TIMEOUT=300" in out, "0 is not a positive timeout → default 300"
-    assert "CLAUDE_ROTATE_TIMEOUT=0" not in out, "timeout=0 must NOT be forwarded"
+    # 0 makes subprocess.run's deadline immediate → every call TimeoutExpires (100% failure);
+    # a negative would too. Both must be rejected → default 300.
+    for bad in ("0", "-5"):
+        out = _sudo_argv(tmp_path, ["-p", "x"], extra_env={"CLAUDE_ROTATE_TIMEOUT": bad})
+        assert "CLAUDE_ROTATE_TIMEOUT=300" in out, f"{bad!r} → default 300"
+        assert f"CLAUDE_ROTATE_TIMEOUT={bad}" not in out, f"{bad!r} must NOT be forwarded"
 
 
 def test_root_branch_invokes_sudo_as_operator_with_args(tmp_path):
@@ -194,10 +195,14 @@ def test_four_scripts_apprise_uses_fabrik_network_not_coolify():
 
 def test_proactive_apprise_send_is_observable_on_failure():
     # the fail-closed escalation relies on Apprise actually delivering — a silent drop would
-    # defeat it, so APPRISE_SEND must check the docker-run exit and log a failure.
+    # defeat it, so APPRISE_SEND must check the docker-run exit and log a failure, AND both
+    # escalation call sites (empty-RESULT + found-issues) must gate on its return.
     src = (ROOT / "scripts/sysadmin/proactive-check.sh").read_text()
     assert "if ! sudo docker run" in src, "APPRISE_SEND must check the docker-run exit (not swallow it)"
     assert "APPRISE_SEND FAILED" in src, "a delivery failure must be logged (observable)"
+    assert src.count("if APPRISE_SEND") >= 2, (
+        "both the empty-RESULT escalation and the found-issues alert must gate on APPRISE_SEND's result"
+    )
 
 
 def test_four_root_scripts_syntax_valid():
