@@ -129,9 +129,15 @@ def _active_account() -> Path | None:
     the in-place token refresh that drifts the live token off the frozen snapshot; (3) an
     ``organizationUuid`` match — old-format creds (org is stable across token refresh), which is how
     a never-rotated old-format active (the fleet's bootstrap mob@) is identified with no marker.
-    Never emits token bytes."""
+    Never emits token bytes.
+
+    Order matters: both signals read from the LIVE active creds (token, org) come BEFORE the
+    persisted marker, so a marker left stale by an out-of-band ``claude auth login`` can never
+    shadow the true identity of an old-format active (its org is read live and is authoritative).
+    The marker is the last resort — used only for a newer no-org account this tool installed, whose
+    live token has since drifted off the frozen snapshot."""
     accounts = _list_accounts()
-    # (1) access-token match — the live creds right now.
+    # (1) access-token match — the freshest live signal.
     active_tok = _read_access_token(ACTIVE_CREDS)
     if active_tok is not None:
         hit = next(
@@ -139,7 +145,15 @@ def _active_account() -> Path | None:
         )
         if hit is not None:
             return hit
-    # (2) marker — set under the lock at install time; survives token drift.
+    # (2) organizationUuid match — read LIVE (authoritative, never stale), and org never drifts
+    #     across a token refresh; identifies an old-format active regardless of marker/token state.
+    active_org = _read_org(ACTIVE_CREDS)
+    if active_org is not None:
+        hit = next((a for a in accounts if _read_org(a / ".credentials.json") == active_org), None)
+        if hit is not None:
+            return hit
+    # (3) marker — last resort for a newer no-org account THIS tool installed (set under the lock
+    #     in _activate_snapshot) once its live token has drifted off the frozen snapshot.
     try:
         marked = ACTIVE_MARKER.read_text().strip()
     except OSError:
@@ -148,13 +162,6 @@ def _active_account() -> Path | None:
         hit = next((a for a in accounts if a.name == marked), None)
         if hit is not None:
             return hit
-    # (3) organizationUuid match — old-format creds; org never drifts, so a never-installed
-    #     old-format active (no marker) is still identified regardless of token refresh.
-    active_org = _read_org(ACTIVE_CREDS)
-    if active_org is not None:
-        return next(
-            (a for a in accounts if _read_org(a / ".credentials.json") == active_org), None
-        )
     return None
 
 

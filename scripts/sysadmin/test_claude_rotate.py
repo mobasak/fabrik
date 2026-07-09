@@ -615,6 +615,26 @@ def test_old_format_active_identified_by_org_after_token_drift(tmp_path, monkeyp
     assert claude_rotate._rotate_active_account() == "ob-dir", "excludes mob@, picks the ob@ standby"
 
 
+def test_org_match_beats_stale_marker_for_old_format(tmp_path, monkeypatch):
+    # Live org (read from the active creds, authoritative) must be resolved BEFORE the persisted
+    # marker, so a stale marker (e.g. an out-of-band `claude auth login` back to mob@ after a prior
+    # rotation left marker="ob-dir") can't shadow the true old-format active once its token drifts.
+    _, accounts_dir, active = _setup_fake_claude(tmp_path, monkeypatch, {"mob-dir": "org-mob"})
+    ob = accounts_dir / "ob-dir"
+    ob.mkdir()
+    _write_creds_no_org(ob / ".credentials.json", "TOKEN-OB")
+    claude_rotate.ACTIVE_MARKER.write_text("ob-dir")  # stale marker from a prior rotation to ob@
+    active.write_text(  # live active is really old-format mob@ with a drifted (snapshot-less) token
+        json.dumps(
+            {"claudeAiOauth": {"accessToken": "MOB-REFRESHED", "refreshToken": "R"}, "organizationUuid": "org-mob"}
+        )
+    )
+    os.chmod(active, 0o600)
+
+    assert claude_rotate._active_account().name == "mob-dir", "live org beats the stale marker"
+    assert claude_rotate._rotate_active_account() == "ob-dir", "rotates to the real standby ob@"
+
+
 def test_rotate_skips_corrupt_snapshot_and_picks_valid_target(tmp_path, monkeypatch):
     # A snapshot whose creds are empty/0-byte/non-JSON (interrupted capture or partial
     # fleet-sync) yields _read_org()==None. It must NOT be selected as a rotation target
