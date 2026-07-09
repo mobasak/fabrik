@@ -111,7 +111,9 @@ dispatch-map table; a `CLAUDE.md:112` clause pointing at it. Consumed by Phase B
 9. **Commit** (explicit paths: `62-using-subagents.md`, `CLAUDE.md`, `CHANGELOG.md`, this plan) with provenance
    trailers (`Agent-Role: primary`, `Agent-Phase: A`).
 
-## Phase B — Fix the commands: `data-contract:108` explicit trap + the shared footer caveat (user-level, no repo commit)
+## Phase B — Fix the commands: `data-contract:108` explicit trap + the shared footer caveat (user-level, no repo commit) — ✅ EXECUTED 2026-07-10
+
+> Fixed `data-contract.md:108` (the one explicit trap → parallel-safe: RO-inline OR TE-disjoint `owned_paths` per surface) + added the `62 § Parallelism` caveat to 8 command footers (spec, spec-review, plan-review, plan-after-chat, docs-review, rules-review, data-contract, ui-design-review). `/fabrik-review` + `/fabrik-repo-review` left unchanged (already the correct `tools_enabled=False`+`allow_ungrounded` reference). No repo commit (user-level files, live); this plan-file update rides into the Phase-C commit. Review: native (pool can't read `~/.claude/commands`) — coherent, no-op.
 
 **Files:** `~/.claude/commands/fabrik-data-contract.md` (explicit fix) + the shared § Subagents footer clause across
 the grounding commands (`fabrik-spec`, `-spec-review`, `-plan-review`, `-plan-after-chat`, `-docs-review`,
@@ -140,7 +142,9 @@ the grounding commands (`fabrik-spec`, `-spec-review`, `-plan-review`, `-plan-af
 6. **No commit** (user-level files). **Update the plan file** to mark Phase B done + note "no repo commit
    (user-level)"; stage the plan-file update into the **next** repo commit (Phase C or the finish).
 
-## Phase C — Propose the `subagents` enhancements to the fabrik-lib AI (cross-repo — hand-off, no write to fabrik-lib)
+## Phase C — Propose the `subagents` enhancements to the fabrik-lib AI (cross-repo — hand-off, no write to fabrik-lib) — ✅ EXECUTED 2026-07-10
+
+> Wrote `docs/reference/subagents-enhancement-proposal.md` (fanout helper + serialization guard + quality back-fill, each with the verified trap + `path:line`) + INDEX.md entry. Docs convergence: 1 pool RO reconciler (recorded, $0.0025) flagged `workspace.py:321` "empty→serial" as inverted — **REFUTED** (it misread `unrestricted=True`; that triggers `union()`→one group→serial per workspace.py:303,316-323, corroborated by Phase A's finder). Doc + 62 confirmed CORRECT; no fix. check_doc_sync + check_convergence + final_gate --check all green.
 
 **Files:** `docs/reference/subagents-enhancement-proposal.md` (a NEW `/opt/fabrik` doc — the hand-off note the user
 relays). **Never writes `/opt/fabrik-lib`.**
