@@ -28,17 +28,29 @@ try:
 except ImportError:  # pragma: no cover - non-POSIX; falls back to in-process lock only
     fcntl = None  # type: ignore[assignment]
 
-# Defensive redaction for the one model/transport-controlled free-text field that
-# reaches the on-disk log (`error`): a token accidentally embedded in an exception
-# string must not be persisted. (OpenRouter sends the key in a header, not a URL,
-# so this is belt-and-suspenders — cheap insurance for a durable audit log.)
+# Defensive redaction for every free-text field that reaches the on-disk log — `error`
+# (transport-controlled) AND `task`/`diff` (caller- and model-controlled: a caller can inline a
+# secret into the task, or the model can emit one into the diff — the tojlo-mail leak was a
+# `DATABASE_URL` password pasted into a review task landing in `.tmp/subagents/ledger.jsonl`, which
+# tripped a project secrets gate). It masks the COMMON credential SHAPES (keys/tokens, the password in
+# a URL/DSN incl. the no-user `redis://:pw@` form, `password=…`, AWS/GitHub tokens) and only those, so
+# it never mangles ordinary prose/code. NOT a full secret scanner — pair it with gitignoring `.tmp/`
+# (defense-in-depth for an exotic shape these patterns don't model).
 _SECRET_RE = re.compile(
-    r"sk-[A-Za-z0-9_\-]{6,}|Bearer\s+\S+|(?i:(?:api[_-]?key|token|secret)\s*[=:]\s*)\S+"
+    r"sk-[A-Za-z0-9_\-]{6,}"
+    r"|Bearer\s+\S+"
+    r"|AKIA[0-9A-Z]{16}"            # AWS access-key id
+    r"|gh[pousr]_[A-Za-z0-9]{20,}"  # GitHub token (ghp_/gho_/ghu_/ghs_/ghr_)
+    r"|(?i:(?:api[_-]?key|token|secret|password)\s*[=:]\s*)\S+"
 )
+# The password in a `scheme://[user]:password@host` URL/DSN — user is OPTIONAL (`*`) so the canonical
+# no-user Redis/PG form `redis://:pw@host` is caught too. Masks ONLY the password group, keeping the
+# scheme/user/host so the record stays legible.
+_URL_CRED_RE = re.compile(r"(://[^:@/\s]*:)([^@/\s]+)(@)")
 
 
 def _redact(text: str) -> str:
-    return _SECRET_RE.sub("[redacted]", text)
+    return _URL_CRED_RE.sub(r"\1[redacted]\3", _SECRET_RE.sub("[redacted]", text))
 
 
 class Ledger:
@@ -139,10 +151,14 @@ def agent_record(spec: object, result: object) -> dict:
     diff = record.get("diff")
     if isinstance(diff, str) and len(diff) > _MAX_DIFF_CHARS:
         record["diff"] = diff[:_MAX_DIFF_CHARS] + "\n…[diff truncated in ledger]"
-    # redact any secret that slipped into the transport error string
-    err = record.get("error")
-    if isinstance(err, str):
-        record["error"] = _redact(err)
+    # FAIL-CLOSED secret redaction on EVERY free-text field that reaches the on-disk log — the caller
+    # can inline a credential in the task, the model can emit one in the diff, and a token can slip
+    # into a transport error. Scrub all three so `.tmp/subagents/ledger.jsonl` never persists a
+    # plaintext secret regardless of whether the project gitignored `.tmp/` (enforcement, not a doc).
+    for f in ("task", "diff", "error"):
+        v = record.get(f)
+        if isinstance(v, str):
+            record[f] = _redact(v)
     return record
 
 
@@ -163,7 +179,9 @@ def _receipts_path(receipt_dir: str | None) -> Path:
     return base / RECEIPTS_FILENAME
 
 
-def write_receipt(agent_id: object, project: str | None, *, receipt_dir: str | None = None) -> bool:
+def write_receipt(
+    agent_id: object, project: str | None, *, receipt_dir: str | None = None
+) -> bool:
     """Append one receipt marking a run as recorded+scored. BEST-EFFORT: returns ``False`` and never
     raises on any error (a missing receipt after a real DB write only costs a false advisory WARN,
     never a broken run). Reuses :class:`Ledger` so the append is cross-process flock-protected."""
@@ -181,9 +199,7 @@ def write_receipt(agent_id: object, project: str | None, *, receipt_dir: str | N
         return False
 
 
-def audit_unrecorded(
-    ledger_path: str, receipts_path: str | None = None
-) -> list[dict]:
+def audit_unrecorded(ledger_path: str, receipts_path: str | None = None) -> list[dict]:
     """Ledger entries whose ``agent_id`` has NO matching receipt — pool runs that ran but were never
     scored+recorded. ``receipts_path`` defaults co-located with the ledger. Never raises; a missing
     ledger (no pool use) → ``[]``."""
@@ -206,4 +222,10 @@ def audit_unrecorded(
     ]
 
 
-__all__ = ["Ledger", "agent_record", "write_receipt", "audit_unrecorded", "RECEIPTS_FILENAME"]
+__all__ = [
+    "Ledger",
+    "agent_record",
+    "write_receipt",
+    "audit_unrecorded",
+    "RECEIPTS_FILENAME",
+]

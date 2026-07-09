@@ -27,6 +27,7 @@ from __future__ import annotations
 import contextlib
 import json
 import os
+import sys
 from typing import Any, Callable
 
 # Canonical schema. Provisioned centrally (hub) — shipped here so the hub/DBA can apply it and
@@ -92,9 +93,27 @@ def record_run(
     # the "never raises" contract is absolute.
     try:
         dsn = dsn or os.getenv("SUBAGENT_RUNS_DSN")
-        if not dsn or not isinstance(record, dict):
+        if not isinstance(record, dict):
+            # THE #1 flywheel footgun: a raw AgentResult (not a provenance dict) → silent no-op,
+            # indistinguishable from a real write. Warn LOUDLY (still fail-open — never raise) so the
+            # misuse is visible. An AgentResult has an ``agent_id`` attribute; a stray non-dict does not.
+            if hasattr(record, "agent_id"):
+                print(
+                    "subagents.record_run: received an AgentResult, not a provenance dict — this is a "
+                    "SILENT no-op (nothing was recorded). Use "
+                    "record_agent_run(spec, result, quality_score=…) instead.",
+                    file=sys.stderr,
+                    flush=True,
+                )
+            return False
+        if not dsn:
             return False
         proj = project or os.getenv("SUBAGENT_PROJECT") or "unknown"
+        # A run with no gradeable output (status != "done": capped/error) carries NO quality verdict —
+        # coerce to NULL so an infra/provider failure (e.g. a stalled `capped` run) can't teach
+        # pick_models a false 0. quality_score is a judgment of the OUTPUT; there is none to judge.
+        if str(record.get("status") or "") != "done":
+            quality_score = None
         row = (
             proj,
             str(record.get("agent_id") or ""),

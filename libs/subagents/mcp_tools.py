@@ -65,8 +65,12 @@ SAFE_RESEARCH_SERVERS: frozenset[str] = frozenset(
 
 _FN_NAME_RE = re.compile(r"[^a-zA-Z0-9_-]")
 _FN_NAME_MAX = 64  # OpenAI/OpenRouter function-name cap (grounded 2026-07-07)
-_BUILD_TIMEOUT_S = 60.0  # bound session opening so a hung npx/connect can't hang the agent
-_CALL_TIMEOUT_S = 120.0  # bound one MCP call so a hung server can't hang the agent forever
+_BUILD_TIMEOUT_S = (
+    60.0  # bound session opening so a hung npx/connect can't hang the agent
+)
+_CALL_TIMEOUT_S = (
+    120.0  # bound one MCP call so a hung server can't hang the agent forever
+)
 _CLOSE_TIMEOUT_S = 30.0  # bound session teardown
 
 # a connector opens ALL sessions on the given stack and returns
@@ -98,7 +102,9 @@ def load_mcp_config(mcp_config: dict | str) -> dict[str, dict]:
             raise ValueError(f"mcp_config file {mcp_config!r} is not a JSON object")
         servers = data.get("mcpServers")
         if not isinstance(servers, dict):
-            raise ValueError(f"mcp_config file {mcp_config!r} lacks a 'mcpServers' object")
+            raise ValueError(
+                f"mcp_config file {mcp_config!r} lacks a 'mcpServers' object"
+            )
         return servers
     if isinstance(mcp_config, dict):
         return mcp_config
@@ -117,10 +123,14 @@ def _resolve_env(env: Any) -> dict[str, str] | None:
     out: dict[str, str] = {}
     for k, v in env.items():
         expanded = os.path.expandvars(str(v))
-        if "${" in expanded or (expanded.startswith("$") and expanded[1:].isidentifier()):
+        if "${" in expanded or (
+            expanded.startswith("$") and expanded[1:].isidentifier()
+        ):
             logger.warning(
                 "mcp env var %r appears unset (value %r unexpanded) — the server will "
-                "likely fail auth; check the key is provisioned in the process env.", k, v,
+                "likely fail auth; check the key is provisioned in the process env.",
+                k,
+                v,
             )
         out[str(k)] = expanded
     return out
@@ -134,11 +144,15 @@ def _extract_text(result: Any) -> str:
     an empty "(no content)" for a call that actually succeeded."""
     parts: list[str] = []
     content = getattr(result, "content", None)
-    for block in content if isinstance(content, list) else []:  # non-list ⇒ no text blocks
+    for block in (
+        content if isinstance(content, list) else []
+    ):  # non-list ⇒ no text blocks
         if getattr(block, "type", None) == "text":
             parts.append(getattr(block, "text", "") or "")
         else:
-            parts.append(f"[non-text {getattr(block, 'type', 'unknown')} block omitted]")
+            parts.append(
+                f"[non-text {getattr(block, 'type', 'unknown')} block omitted]"
+            )
     text = "\n".join(parts)
     if not text.strip():
         structured = getattr(result, "structuredContent", None)
@@ -188,7 +202,9 @@ class McpProvider:
             target=self._thread_main, name="mcp-provider", daemon=True
         )
         self._req_q: asyncio.Queue | None = None  # created inside the serve task
-        self._name_map: dict[str, tuple[Any, str]] = {}  # fn_name -> (session, real_tool)
+        self._name_map: dict[
+            str, tuple[Any, str]
+        ] = {}  # fn_name -> (session, real_tool)
         self._schemas: list[dict] = []
         self._serve_future: concurrent.futures.Future | None = None
         self._started = False
@@ -285,19 +301,25 @@ class McpProvider:
             return ToolResult(ok=False, output="", error="mcp provider is closed")
         entry = self._name_map.get(fn_name)
         if entry is None:
-            return ToolResult(ok=False, output="", error=f"unknown mcp tool {fn_name!r}")
+            return ToolResult(
+                ok=False, output="", error=f"unknown mcp tool {fn_name!r}"
+            )
         session, real_tool = entry
         fut: concurrent.futures.Future = concurrent.futures.Future()
         try:
             self._loop.call_soon_threadsafe(
                 self._req_q.put_nowait, (session, real_tool, arguments, fut)
             )
-            result = fut.result(timeout=_CALL_TIMEOUT_S + 10)  # in-task wait_for fires first
+            result = fut.result(
+                timeout=_CALL_TIMEOUT_S + 10
+            )  # in-task wait_for fires first
         except Exception as exc:  # noqa: BLE001 — TOTAL: an escape would unwind the loop
             return ToolResult(ok=False, output="", error=f"mcp call failed: {exc}")
         text = _extract_text(result)
         if getattr(result, "isError", False):
-            return ToolResult(ok=False, output="", error=f"mcp tool error: {text[:500]}")
+            return ToolResult(
+                ok=False, output="", error=f"mcp tool error: {text[:500]}"
+            )
         return ToolResult(ok=True, output=_truncate(text or "(no content)"))
 
     def close(self) -> None:
@@ -310,7 +332,9 @@ class McpProvider:
             self._loop.close()
             return
         try:
-            if self._req_q is not None:  # signal the serve task to exit → in-task aclose
+            if (
+                self._req_q is not None
+            ):  # signal the serve task to exit → in-task aclose
                 self._loop.call_soon_threadsafe(self._req_q.put_nowait, None)
             if self._serve_future is not None:
                 self._serve_future.result(timeout=_CLOSE_TIMEOUT_S)
@@ -332,7 +356,9 @@ async def _open_session(server_def: dict, stack: AsyncExitStack, sdk: dict) -> A
     """Open one MCP session on ``stack``. ``url``-shaped def → Streamable HTTP;
     ``command``-shaped def → stdio via ``npx``. Returns an initialized ``ClientSession``."""
     if "url" in server_def:
-        transport = await stack.enter_async_context(sdk["streamablehttp_client"](server_def["url"]))
+        transport = await stack.enter_async_context(
+            sdk["streamablehttp_client"](server_def["url"])
+        )
         read, write = transport[0], transport[1]  # (read, write[, get_session_id])
     else:
         params = sdk["StdioServerParameters"](
@@ -382,7 +408,9 @@ def build_mcp_provider(
             from mcp.client.stdio import stdio_client
             from mcp.client.streamable_http import streamablehttp_client
         except ImportError:
-            logger.warning("mcp SDK not installed; MCP tools disabled (web_tools fallback).")
+            logger.warning(
+                "mcp SDK not installed; MCP tools disabled (web_tools fallback)."
+            )
             return None
         sdk = {
             "ClientSession": ClientSession,
@@ -406,7 +434,9 @@ def build_mcp_provider(
         for name in sorted(mcp_servers):
             server_def = config.get(name)
             if not isinstance(server_def, dict):
-                logger.warning("mcp server %r not present in mcp_config; skipped.", name)
+                logger.warning(
+                    "mcp server %r not present in mcp_config; skipped.", name
+                )
                 continue
             try:
                 if _connect is not None:
@@ -415,7 +445,9 @@ def build_mcp_provider(
                     session = await _open_session(server_def, stack, sdk)
                 tools = (await session.list_tools()).tools
             except Exception as exc:  # noqa: BLE001 — one bad server is skipped, not fatal
-                logger.warning("mcp server %r failed to connect (%s); skipped.", name, exc)
+                logger.warning(
+                    "mcp server %r failed to connect (%s); skipped.", name, exc
+                )
                 continue
             for tool in tools:
                 # one malformed tool must not take down the whole server (or every OTHER
@@ -424,7 +456,8 @@ def build_mcp_provider(
                 if not isinstance(tool_name, str) or not tool_name:
                     logger.warning(
                         "mcp server %r advertised a tool with a bad name (%r); skipped.",
-                        name, tool_name,
+                        name,
+                        tool_name,
                     )
                     continue
                 try:
@@ -435,7 +468,9 @@ def build_mcp_provider(
                         # would otherwise be 65 chars → OpenRouter 400 on the tools array).
                         suffix = 1
                         while True:
-                            cand = f"{fn[: _FN_NAME_MAX - 1 - len(str(suffix))]}_{suffix}"
+                            cand = (
+                                f"{fn[: _FN_NAME_MAX - 1 - len(str(suffix))]}_{suffix}"
+                            )
                             if cand not in name_map:
                                 break
                             suffix += 1
@@ -443,12 +478,16 @@ def build_mcp_provider(
                     # build the schema BEFORE mutating name_map so the (name→route) and
                     # (advertised schema) pair stays consistent even if a build ever raised.
                     schema = _mcp_tool_schema(
-                        fn, getattr(tool, "description", "") or "", getattr(tool, "inputSchema", None)
+                        fn,
+                        getattr(tool, "description", "") or "",
+                        getattr(tool, "inputSchema", None),
                     )
                     name_map[fn] = (session, tool_name)
                     schemas.append(schema)
                 except Exception as exc:  # noqa: BLE001 — skip a bad tool, not the server
-                    logger.warning("mcp server %r tool %r skipped (%s).", name, tool_name, exc)
+                    logger.warning(
+                        "mcp server %r tool %r skipped (%s).", name, tool_name, exc
+                    )
                     continue
         # Return the count of USABLE TOOLS, not connected servers: a server that connects
         # but exposes zero valid tools contributes nothing, so build_mcp_provider closes the

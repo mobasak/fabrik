@@ -63,23 +63,33 @@ class SandboxUnavailable(RuntimeError):
 def _base_flags(workdir: str) -> list[str]:
     return [
         "bwrap",
-        "--ro-bind", "/", "/",        # entire filesystem read-only …
-        "--dev", "/dev",              # minimal fresh /dev
-        "--proc", "/proc",            # fresh /proc (needs --unshare-pid)
-        "--tmpfs", _SANDBOX_TMP,      # ephemeral writable temp (isolated from host)
-        "--setenv", "TMPDIR", _SANDBOX_TMP,  # point the child's tempfile AT the tmpfs —
-                                             # else a stripped env resolves temp elsewhere
-                                             # (RO) and pytest/tempfile fail with EROFS
-        "--bind", workdir, workdir,   # … EXCEPT the worktree, which is writable
-        "--chdir", workdir,
+        "--ro-bind",
+        "/",
+        "/",  # entire filesystem read-only …
+        "--dev",
+        "/dev",  # minimal fresh /dev
+        "--proc",
+        "/proc",  # fresh /proc (needs --unshare-pid)
+        "--tmpfs",
+        _SANDBOX_TMP,  # ephemeral writable temp (isolated from host)
+        "--setenv",
+        "TMPDIR",
+        _SANDBOX_TMP,  # point the child's tempfile AT the tmpfs —
+        # else a stripped env resolves temp elsewhere
+        # (RO) and pytest/tempfile fail with EROFS
+        "--bind",
+        workdir,
+        workdir,  # … EXCEPT the worktree, which is writable
+        "--chdir",
+        workdir,
         "--unshare-user",
-        "--unshare-pid",              # + --die-with-parent → children are reaped
+        "--unshare-pid",  # + --die-with-parent → children are reaped
         "--unshare-ipc",
         "--unshare-uts",
-        "--unshare-net",              # no network — always
+        "--unshare-net",  # no network — always
         "--unshare-cgroup-try",
         "--die-with-parent",
-        "--new-session",              # detach controlling tty (blocks TIOCSTI injection)
+        "--new-session",  # detach controlling tty (blocks TIOCSTI injection)
     ]
 
 

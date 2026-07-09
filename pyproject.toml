@@ -47,6 +47,10 @@ packages = ["src/fabrik"]
 target-version = "py312"
 line-length = 100
 src = ["src"]
+# Vendored fabrik-lib module — canonical-owned, kept byte-identical to /opt/fabrik-lib on re-vendor.
+# We do NOT lint/format vendored code (reformatting would fork it from canonical); the final_gate
+# ruff scope already skips it (_RUFF_ROOTS = scripts/, src/) — this mirrors that for raw ruff/editors.
+extend-exclude = ["libs/subagents"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W", "UP", "B", "C4", "SIM"]

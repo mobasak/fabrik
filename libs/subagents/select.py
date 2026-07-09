@@ -79,10 +79,10 @@ _LIVE_FETCHED = False
 
 def _fetch_openrouter_prices() -> dict[str, float]:
     """OpenRouter's live model list → ``{model_id: output $/Mtok}``; ``{}`` on any failure."""
-    import httpx  # the module's core dep; imported here to keep pricing self-contained
-
     out: dict[str, float] = {}
     try:
+        import httpx  # inside the try so a missing dep also fails closed (pricing NEVER crashes selection)
+
         resp = httpx.get("https://openrouter.ai/api/v1/models", timeout=15.0)
         resp.raise_for_status()
         data = resp.json().get("data", []) if isinstance(resp.json(), dict) else []
@@ -104,6 +104,7 @@ def _fetch_openrouter_prices() -> dict[str, float]:
             continue
     return out
 
+
 # task_type -> models ranked BEST-FIRST (highest quality first).
 #   ALLOWED POOL — fleet policy (2026-07-08): a model is selectable only if its OUTPUT price is
 #   <= $1.5/Mtok. The current members are these five benchmarked models (output $0.18-$1.20); a
@@ -117,12 +118,48 @@ def _fetch_openrouter_prices() -> dict[str, float]:
 #     spec  — m2.5 4.3 > v3.2 3.8 (tested); m3/v4-pro/v4-flash by overall quality
 #   docs/research have no A/B yet → seeded by overall quality (m3 best); the flywheel refines.
 _TABLE: dict[str, list[str]] = {
-    "spec": ["minimax/minimax-m2.5", "deepseek/deepseek-v3.2", "minimax/minimax-m3", "deepseek/deepseek-v4-pro", "deepseek/deepseek-v4-flash"],
-    "plan": ["minimax/minimax-m3", "deepseek/deepseek-v4-pro", "deepseek/deepseek-v3.2", "deepseek/deepseek-v4-flash", "minimax/minimax-m2.5"],
-    "code": ["deepseek/deepseek-v4-flash", "minimax/minimax-m3", "deepseek/deepseek-v4-pro", "deepseek/deepseek-v3.2", "minimax/minimax-m2.5"],
-    "review": ["minimax/minimax-m3", "deepseek/deepseek-v3.2", "deepseek/deepseek-v4-pro", "minimax/minimax-m2.5", "deepseek/deepseek-v4-flash"],
-    "docs": ["minimax/minimax-m3", "deepseek/deepseek-v4-pro", "deepseek/deepseek-v3.2", "minimax/minimax-m2.5", "deepseek/deepseek-v4-flash"],
-    "research": ["minimax/minimax-m3", "deepseek/deepseek-v4-pro", "deepseek/deepseek-v3.2", "minimax/minimax-m2.5", "deepseek/deepseek-v4-flash"],
+    "spec": [
+        "minimax/minimax-m2.5",
+        "deepseek/deepseek-v3.2",
+        "minimax/minimax-m3",
+        "deepseek/deepseek-v4-pro",
+        "deepseek/deepseek-v4-flash",
+    ],
+    "plan": [
+        "minimax/minimax-m3",
+        "deepseek/deepseek-v4-pro",
+        "deepseek/deepseek-v3.2",
+        "deepseek/deepseek-v4-flash",
+        "minimax/minimax-m2.5",
+    ],
+    "code": [
+        "deepseek/deepseek-v4-flash",
+        "minimax/minimax-m3",
+        "deepseek/deepseek-v4-pro",
+        "deepseek/deepseek-v3.2",
+        "minimax/minimax-m2.5",
+    ],
+    "review": [
+        "minimax/minimax-m3",
+        "deepseek/deepseek-v3.2",
+        "deepseek/deepseek-v4-pro",
+        "minimax/minimax-m2.5",
+        "deepseek/deepseek-v4-flash",
+    ],
+    "docs": [
+        "minimax/minimax-m3",
+        "deepseek/deepseek-v4-pro",
+        "deepseek/deepseek-v3.2",
+        "minimax/minimax-m2.5",
+        "deepseek/deepseek-v4-flash",
+    ],
+    "research": [
+        "minimax/minimax-m3",
+        "deepseek/deepseek-v4-pro",
+        "deepseek/deepseek-v3.2",
+        "minimax/minimax-m2.5",
+        "deepseek/deepseek-v4-flash",
+    ],
 }
 
 # Read-only public view of the seed table (a copy, so a caller can't mutate the default).
@@ -272,6 +309,27 @@ def _price_or_inf(model: str, live: bool | None) -> float:
     return price if price is not None else float("inf")
 
 
+def provider_max_price(model: str) -> dict | None:
+    """The OpenRouter ``provider.max_price`` for this model — the native "same-price fallback"
+    ceiling, so a provider (including an automatic fallback) is never routed to above the model's
+    normal OUTPUT rate. Returns ``{"completion": <price $/Mtok>}`` or ``None`` when the price is
+    unknown (fail-open: don't over-constrain a model we can't price). NEVER raises.
+
+    Only the completion (output) dimension is capped — that is the metered "never pay more" axis and
+    the one the pool's ≤$1.5 policy is expressed in; an unpriced prompt dimension is left unconstrained
+    so a legitimately-cheap-output provider is not excluded on prompt price.
+
+    Uses the STATIC price table only (``live=False``): this runs on the per-dispatch hot path, and a
+    best-effort ceiling must never trigger a blocking live-pricing HTTP fetch there. An off-table model
+    simply gets no ceiling (fail-open) — the same-price guard is best-effort and primarily matters for
+    the curated in-table pool anyway."""
+    try:
+        p = model_price(model, live=False)
+    except Exception:  # noqa: BLE001 — never raises; treat any pricing failure as "unknown"
+        return None
+    return {"completion": p} if p is not None else None
+
+
 def pick_models(
     task_type: str,
     n: int = 1,
@@ -354,9 +412,7 @@ def pick_models(
         span = len(ranked)
         ranked = sorted(
             ranked,
-            key=lambda m: (
-                (span - ranked.index(m)) / max(_price_or_inf(m, live), 1e-9)
-            ),
+            key=lambda m: (span - ranked.index(m)) / max(_price_or_inf(m, live), 1e-9),
             reverse=True,
         )
     return ranked[:n]

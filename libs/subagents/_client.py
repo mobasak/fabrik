@@ -87,6 +87,21 @@ class HardTimeoutError(ConsultError):
     """Absolute hard_timeout_s ceiling hit — restart."""
 
 
+class ContentStallError(ConsultError):
+    """No CONTENT token (text/tool_call) within ``first_token_timeout_s`` — the provider connected
+    and may even be heart-beating (`: OPENROUTER PROCESSING`, which resets the byte-level read
+    timeout) but is producing no output. Deliberately NOT in ``_RETRYABLE`` so ``call_model`` does
+    not swallow/retry it — it propagates to the caller (``loop.py``), which owns the
+    exclude-the-stalled-provider-and-retry policy. ``provider`` is the served upstream provider when
+    known (any data chunk arrived — OR sends it in chunk 0), else ``None`` (a zero-chunk hang)."""
+
+    def __init__(
+        self, message: str, *, partial: str = "", provider: str | None = None
+    ) -> None:
+        super().__init__(message, partial=partial)
+        self.provider = provider
+
+
 class AuthError(ConsultError):
     """401/403 — not retryable (raise immediately)."""
 
@@ -125,6 +140,11 @@ class _Acc:
     tool_calls: dict[int, dict] = field(default_factory=dict)  # keyed by delta index
     provider: str | None = None  # served upstream provider (top-level chunk field)
     served_model: str | None = None  # resolved model id (top-level chunk field)
+    # monotonic count of OUTPUT frames — any data chunk whose `delta` carries a non-`role` value
+    # (content / tool_calls / reasoning / refusal / a field this parser doesn't model). It's the
+    # robust liveness signal the stall detector resets on: parsed-or-not, an output frame is the
+    # provider WORKING, whereas heartbeats / blank / role-only frames are not.
+    output_frames: int = 0
 
 
 def _feed(line: str, acc: _Acc, on_token: TokenCb | None) -> str:
@@ -171,6 +191,12 @@ def _feed(line: str, acc: _Acc, on_token: TokenCb | None) -> str:
         delta = ch.get("delta")
         if not isinstance(delta, dict):
             delta = {}
+        # Robust liveness: any non-`role` truthy delta key is the provider streaming an OUTPUT frame
+        # (content / tool_calls / reasoning / refusal / legacy function_call / audio / anything this
+        # parser doesn't model). Count the frame so the stall detector never false-positives on an
+        # output channel we don't parse — a `role`-only or empty delta doesn't count.
+        if any(v for k, v in delta.items() if k != "role"):
+            acc.output_frames += 1
         content = delta.get("content")
         if (
             isinstance(content, str) and content
@@ -187,6 +213,12 @@ def _feed(line: str, acc: _Acc, on_token: TokenCb | None) -> str:
             rv = delta.get(rk)
             if isinstance(rv, str) and rv:
                 acc.reasoning += rv
+        # A streamed safety `refusal` (OpenAI Structured-Outputs / moderation) IS the model's
+        # response — surface it as text (else it's silently dropped from RawResult) AND, because it
+        # then grows the output signal, a refusal-only stream is never misread as a content stall.
+        refusal = delta.get("refusal")
+        if isinstance(refusal, str) and refusal:
+            acc.text += refusal
         fr = ch.get("finish_reason")
         if fr:
             acc.finish_reason = fr
@@ -411,8 +443,10 @@ class OpenRouterClient:
         idle_timeout_s: float = 120.0,
         hard_timeout_s: float = 1800.0,
         connect_timeout_s: float = 30.0,
+        first_token_timeout_s: float = 0.0,
         on_token: TokenCb | None = None,
         on_state: StateCb | None = None,
+        _now: Callable[[], float] = time.monotonic,
     ) -> RawResult:
         payload = self._body(
             messages,
@@ -429,7 +463,16 @@ class OpenRouterClient:
             pool=connect_timeout_s,
         )
         acc = _Acc()
-        deadline = time.monotonic() + hard_timeout_s
+        deadline = _now() + hard_timeout_s
+        # Idle-since-last-OUTPUT window (0 = off). The window RESETS whenever new output arrives
+        # (text / tool_calls / reasoning) and is NOT reset by heartbeats (`: OPENROUTER PROCESSING`,
+        # which do reset the byte-level `read` timeout — that's why this exists). It catches BOTH a
+        # provider that never produces output AND one that produces then hangs mid-stream; a fixed
+        # one-shot deadline would miss the latter (a reasoner streams one token then stalls). Reasoning
+        # counts as output — a reasoner streaming its chain-of-thought is WORKING, not stalled.
+        stall_window = first_token_timeout_s if first_token_timeout_s > 0 else None
+        last_output = _now()
+        last_sig = 0
         self._emit(on_state, "model_start", model, 0)
         streaming = False
         with httpx.Client(
@@ -447,7 +490,7 @@ class OpenRouterClient:
                         )
                     self._emit(on_state, "alive_waiting", model, 0)
                     for line in resp.iter_lines():
-                        if time.monotonic() > deadline:
+                        if _now() > deadline:
                             raise HardTimeoutError(
                                 f"hard timeout {hard_timeout_s}s", partial=acc.text
                             )
@@ -461,6 +504,21 @@ class OpenRouterClient:
                             self._emit(on_state, "streaming", model, 0)
                         if kind == "done":
                             break
+                        # Idle-since-last-output stall. `sig` grows with any output (text + reasoning +
+                        # per-tool-call arg bytes); heartbeats/blank lines don't change it. New output ⇒
+                        # reset the window; NO new output for `stall_window` ⇒ the provider is
+                        # heart-beating into the void → stall. Checked AFTER the done-break so a
+                        # completed-but-empty response takes the EmptyContentError (bump) path, not a stall.
+                        if stall_window is not None:
+                            if acc.output_frames != last_sig:
+                                last_sig = acc.output_frames
+                                last_output = _now()
+                            elif _now() - last_output > stall_window:
+                                raise ContentStallError(
+                                    f"no output for {first_token_timeout_s}s",
+                                    partial=acc.text,
+                                    provider=acc.provider,
+                                )
             except httpx.ReadTimeout as exc:
                 raise StuckError(
                     f"idle > {idle_timeout_s}s (stuck)", partial=acc.text
@@ -489,8 +547,10 @@ class OpenRouterClient:
         idle_timeout_s: float = 120.0,
         hard_timeout_s: float = 1800.0,
         connect_timeout_s: float = 30.0,
+        first_token_timeout_s: float = 0.0,
         on_token: TokenCb | None = None,
         on_state: StateCb | None = None,
+        _now: Callable[[], float] = time.monotonic,
     ) -> RawResult:
         payload = self._body(
             messages,
@@ -507,7 +567,12 @@ class OpenRouterClient:
             pool=connect_timeout_s,
         )
         acc = _Acc()
-        deadline = time.monotonic() + hard_timeout_s
+        deadline = _now() + hard_timeout_s
+        # Idle-since-last-OUTPUT window (0 = off) — see stream_chat: resets on new output
+        # (text/tool_calls/reasoning), heartbeat-immune; catches never-produces AND produces-then-hangs.
+        stall_window = first_token_timeout_s if first_token_timeout_s > 0 else None
+        last_output = _now()
+        last_sig = 0
         self._emit(on_state, "model_start", model, 0)
         streaming = False
         atransport = (
@@ -530,7 +595,7 @@ class OpenRouterClient:
                         )
                     self._emit(on_state, "alive_waiting", model, 0)
                     async for line in resp.aiter_lines():
-                        if time.monotonic() > deadline:
+                        if _now() > deadline:
                             raise HardTimeoutError(
                                 f"hard timeout {hard_timeout_s}s", partial=acc.text
                             )
@@ -544,6 +609,21 @@ class OpenRouterClient:
                             self._emit(on_state, "streaming", model, 0)
                         if kind == "done":
                             break
+                        # Idle-since-last-output stall. `sig` grows with any output (text + reasoning +
+                        # per-tool-call arg bytes); heartbeats/blank lines don't change it. New output ⇒
+                        # reset the window; NO new output for `stall_window` ⇒ the provider is
+                        # heart-beating into the void → stall. Checked AFTER the done-break so a
+                        # completed-but-empty response takes the EmptyContentError (bump) path, not a stall.
+                        if stall_window is not None:
+                            if acc.output_frames != last_sig:
+                                last_sig = acc.output_frames
+                                last_output = _now()
+                            elif _now() - last_output > stall_window:
+                                raise ContentStallError(
+                                    f"no output for {first_token_timeout_s}s",
+                                    partial=acc.text,
+                                    provider=acc.provider,
+                                )
             except httpx.ReadTimeout as exc:
                 raise StuckError(
                     f"idle > {idle_timeout_s}s (stuck)", partial=acc.text
@@ -590,8 +670,14 @@ class OpenRouterClient:
         val = body.get("max_tokens")
         extra = body.get("extra_body")
         if isinstance(extra, dict) and "max_tokens" in extra:
-            val = extra.get("max_tokens")  # extra_body wins — matches _body's merged.update(extra)
-        return val if isinstance(val, int) and not isinstance(val, bool) and val > 0 else None
+            val = extra.get(
+                "max_tokens"
+            )  # extra_body wins — matches _body's merged.update(extra)
+        return (
+            val
+            if isinstance(val, int) and not isinstance(val, bool) and val > 0
+            else None
+        )
 
     def call_model(
         self,

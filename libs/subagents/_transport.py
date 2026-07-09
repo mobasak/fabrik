@@ -45,6 +45,10 @@ class Liveness:
     hard_timeout_s: float = 1800.0
     restart_max: int = 2
     connect_timeout_s: float = 30.0
+    # CONTENT-level first-token deadline (0 = off). Catches a provider that heart-beats but streams
+    # no content (defeating the byte-level idle timeout). Raises ContentStallError, which is NOT
+    # retried by the client — it propagates to the caller (loop.py) that owns exclude-and-retry.
+    first_token_timeout_s: float = 0.0
 
 
 @dataclass
@@ -138,6 +142,7 @@ def _run_raw(
         body=body,
         restart_max=lv.restart_max,
         idle_timeout_s=lv.idle_timeout_s,
+        first_token_timeout_s=lv.first_token_timeout_s,
         hard_timeout_s=lv.hard_timeout_s,
         connect_timeout_s=lv.connect_timeout_s,
         on_token=on_token,
@@ -162,6 +167,7 @@ async def _arun_raw(
         body=body,
         restart_max=lv.restart_max,
         idle_timeout_s=lv.idle_timeout_s,
+        first_token_timeout_s=lv.first_token_timeout_s,
         hard_timeout_s=lv.hard_timeout_s,
         connect_timeout_s=lv.connect_timeout_s,
         on_token=on_token,

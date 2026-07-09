@@ -224,14 +224,22 @@ async def _run_one(
         and not sandbox.sandbox_available()
     ):
         result = AgentResult(
-            agent_id, "", "", "error", None, None, 0,
+            agent_id,
+            "",
+            "",
+            "error",
+            None,
+            None,
+            0,
             error=(
                 "sandbox unavailable: install bubblewrap (`apt install bubblewrap`) with "
                 "unprivileged user namespaces, or set AgentSpec.sandbox=False for a "
                 "trusted agent. Refusing to run a tool-enabled agent unsandboxed."
             ),
         )
-        result.latency_s = time.monotonic() - t0  # match every other exit path's provenance
+        result.latency_s = (
+            time.monotonic() - t0
+        )  # match every other exit path's provenance
         await asyncio.to_thread(_safe_ledger, ledger, spec, result)
         return result
     # Pre-flight FAIL-CLOSED: a single-shot (tools_enabled=False) worker on a VERIFICATION task_type
@@ -245,7 +253,13 @@ async def _run_one(
         and not spec.allow_ungrounded
     ):
         result = AgentResult(
-            agent_id, "", "", "error", None, None, 0,
+            agent_id,
+            "",
+            "",
+            "error",
+            None,
+            None,
+            0,
             error=(
                 f"single-shot (tools_enabled=False) '{spec.task_type}' worker can't read the repo — "
                 "it hallucinates about files/code it cannot see (empirically q0-1 vs q4-5 tool-"

@@ -17,6 +17,7 @@ injectable (``run_fn``) so the loop is testable offline with a fake model.
 from __future__ import annotations
 
 import json
+import os
 import time
 import uuid
 from collections.abc import Callable
@@ -26,11 +27,66 @@ from typing import Literal
 import httpx
 
 from . import _transport
+from ._client import ContentStallError
 from .mcp_tools import McpProvider, build_mcp_provider
+from .select import provider_max_price
 from .tools import TOOL_SCHEMAS, execute_tool
 from .web_tools import WEB_TOOL_NAMES, WEB_TOOL_SCHEMAS, execute_web_tool
 
 RunFn = Callable[..., _transport.Result]
+
+
+def _apply_max_price(merged: dict, model: str) -> None:
+    """U1 — merge the model's `provider.max_price` (same-price ceiling) into the outgoing body,
+    IN PLACE, unless the caller already set one. Writes a NEW provider dict (never mutates the
+    caller's nested `provider` object — `merged` is only a shallow copy of `extra_body`). NEVER
+    adds `provider.sort` (it would disable OR's health-aware default routing). Fail-open: an
+    unpriced model leaves the body untouched."""
+    mp = provider_max_price(model)
+    if mp is None:
+        return
+    prov = merged.get("provider")
+    if prov is not None and not isinstance(prov, dict):
+        return  # malformed caller `provider` (non-dict) — leave it AS-IS (never silently discard the
+        # caller's value); OR will reject a malformed provider, which is the caller's bug to see.
+    prov = dict(prov) if isinstance(prov, dict) else {}
+    if "max_price" in prov:  # caller-set ceiling / opt-out wins
+        return
+    prov["max_price"] = mp
+    merged["provider"] = prov
+
+
+def _with_ignore(body: dict | None, excluded: list[str]) -> dict | None:
+    """A COPY of ``body`` with ``provider.ignore`` extended to skip the stalled ``excluded`` providers
+    (merged with any caller-supplied ignore). Never mutates the caller's body / provider dict. This is
+    how U2 tells OpenRouter's health-aware routing to route AROUND a provider that content-stalled."""
+    merged = dict(body or {})
+    prov = merged.get("provider")
+    prov = dict(prov) if isinstance(prov, dict) else {}
+    existing = prov.get("ignore")
+    existing = list(existing) if isinstance(existing, list) else []
+    prov["ignore"] = existing + [p for p in excluded if p not in existing]
+    merged["provider"] = prov
+    return merged or None
+
+
+def _env_int(name: str, default: int) -> int:
+    """A non-negative int env knob; any missing/garbage/negative value → ``default`` (fail-safe)."""
+    try:
+        v = int(os.environ[name])
+    except (KeyError, ValueError):
+        return default
+    return v if v >= 0 else default
+
+
+def _env_float(name: str, default: float) -> float:
+    """A non-negative float env knob; missing/garbage/negative → ``default`` (fail-safe)."""
+    try:
+        v = float(os.environ[name])
+    except (KeyError, ValueError):
+        return default
+    return v if v >= 0 else default
+
 
 LoopStatus = Literal["done", "capped", "error"]
 
@@ -51,7 +107,9 @@ class LoopOutcome:
     tool_calls: dict[str, int] = field(
         default_factory=dict
     )  # name → call count (provenance)
-    out_tokens: int = 0  # summed completion (output) tokens across turns (value/report metric)
+    out_tokens: int = (
+        0  # summed completion (output) tokens across turns (value/report metric)
+    )
 
 
 def _normalize_tool_calls(result: _transport.Result) -> list[dict]:
@@ -150,7 +208,10 @@ def _execute_one_tool_call(
             content = f"error: file/command tool {name!r} is disabled for this agent"
         else:
             result = execute_tool(
-                name, parsed, workdir=workdir, allowed_commands=allowed_commands,
+                name,
+                parsed,
+                workdir=workdir,
+                allowed_commands=allowed_commands,
                 sandbox_on=sandbox_on,
             )
             if result.ok:
@@ -253,7 +314,10 @@ def run_loop(
     if advertised:
         merged["tools"] = advertised  # the loop OWNS tools — authoritative
     else:
-        merged.pop("tools", None)     # single-shot / no web tools ⇒ advertise none
+        merged.pop("tools", None)  # single-shot / no web tools ⇒ advertise none
+    _apply_max_price(
+        merged, model
+    )  # U1: same-price ceiling (no `sort`), caller-override-safe
     body: dict | None = merged or None
     total_cost = 0.0
     cost_known = False
@@ -286,32 +350,58 @@ def run_loop(
     # orphan the provider's thread + `npx` child. close() is idempotent, so the finally is
     # a safe backstop even when `_finish` already closed.
     try:
+        stall_retry_max = _env_int("SUBAGENT_STALL_RETRY_MAX", 2)
+        first_token_timeout_s = _env_float("SUBAGENT_FIRST_TOKEN_TIMEOUT_S", 60.0)
         for _ in range(max_turns):
-            remaining = wall_clock_s - (time.monotonic() - start)
-            if remaining <= 0:
-                return _finish(last_text, "capped")
-
-            # Bound the single call to the REMAINING wall-clock budget AND disable the
-            # transport's retry loop (restart_max=0): its per-attempt deadline RESETS,
-            # so a retry would let one turn run up to ~2× the budget. wall_clock is then
-            # near-hard (one internal empty-content bump can still overrun ~2× before
-            # this loop's next between-turn cap — max_turns is the firm backstop). A
-            # transient error ends the agent as status="error", and the partial-tolerant
-            # batch lets the caller re-run just that agent.
-            liveness = _transport.Liveness(
-                hard_timeout_s=remaining,
-                idle_timeout_s=min(_defaults.idle_timeout_s, remaining),
-                connect_timeout_s=min(_defaults.connect_timeout_s, remaining),
-                restart_max=0,
-            )
-            try:
-                result = call(model, messages, body=body, liveness=liveness)
-            except Exception as exc:  # noqa: BLE001 — transport must never crash the loop
-                # a failure only after the budget is spent is a cap; a fast failure with
-                # budget remaining is a genuine error
-                if time.monotonic() - start >= wall_clock_s:
+            # Each turn = one transport call with U2 stall-retry. On a CONTENT stall (the provider
+            # heart-beats but streams no output — ContentStallError, which the client does NOT retry),
+            # exclude the stalled provider (when known — OR sends it in chunk 0) via provider.ignore
+            # and re-dispatch, so OR's health-aware default routing picks a DIFFERENT same-price
+            # provider; a zero-chunk hang (provider unknown) retries blind. Bounded by BOTH
+            # stall_retry_max AND wall_clock — each attempt's first-token deadline is short and
+            # hard_timeout_s=remaining is recomputed, so the 2×-budget trap the old restart_max=0
+            # avoided stays closed. restart_max stays 0 (the transport's own retry off) so THIS loop
+            # owns retry and can update provider.ignore between attempts.
+            attempt_body = body
+            excluded: list[str] = []
+            stalls = 0
+            while True:
+                remaining = wall_clock_s - (time.monotonic() - start)
+                if remaining <= 0:
                     return _finish(last_text, "capped")
-                return _finish(last_text, "error", error=str(exc))
+                liveness = _transport.Liveness(
+                    hard_timeout_s=remaining,
+                    idle_timeout_s=min(_defaults.idle_timeout_s, remaining),
+                    connect_timeout_s=min(_defaults.connect_timeout_s, remaining),
+                    first_token_timeout_s=(
+                        min(first_token_timeout_s, remaining)
+                        if first_token_timeout_s > 0
+                        else 0.0
+                    ),
+                    restart_max=0,
+                )
+                try:
+                    result = call(model, messages, body=attempt_body, liveness=liveness)
+                    break
+                except ContentStallError as exc:
+                    if stalls >= stall_retry_max:
+                        # kept content-stalling → cap (partial-tolerant; NOT scored — status !=
+                        # "done" ⇒ record_run nulls the quality, see U3).
+                        return _finish(last_text, "capped")
+                    stalls += 1
+                    if exc.provider and exc.provider not in excluded:
+                        excluded.append(
+                            exc.provider
+                        )  # nameable → exclude it and re-route
+                        attempt_body = _with_ignore(body, excluded)
+                    # else: zero-chunk hang, provider unknown → blind retry (attempt_body unchanged)
+                    continue
+                except Exception as exc:  # noqa: BLE001 — transport must never crash the loop
+                    # a failure only after the budget is spent is a cap; a fast failure with budget
+                    # remaining is a genuine error
+                    if time.monotonic() - start >= wall_clock_s:
+                        return _finish(last_text, "capped")
+                    return _finish(last_text, "error", error=str(exc))
             turns += 1
             provider = result.provider or provider
 
@@ -323,7 +413,9 @@ def run_loop(
             # sum output (completion) tokens across turns — a value/report metric; total,
             # never crashes on a missing/oddly-shaped usage dict.
             try:
-                total_out_tokens += int((result.usage or {}).get("completion_tokens") or 0)
+                total_out_tokens += int(
+                    (result.usage or {}).get("completion_tokens") or 0
+                )
             except (TypeError, ValueError, AttributeError):
                 pass
             if result.text:
@@ -342,7 +434,8 @@ def run_loop(
                             "cost_usd": total_cost if cost_known else None,
                             "provider": provider,
                             "tools": [
-                                (tc.get("function") or {}).get("name", "") for tc in tool_calls
+                                (tc.get("function") or {}).get("name", "")
+                                for tc in tool_calls
                             ],
                         }
                     )

@@ -114,7 +114,10 @@ def _shared_env_path() -> Path | None:
     if not xdg:
         try:
             xdg = os.path.join(os.path.expanduser("~"), ".config")
-        except (KeyError, RuntimeError):  # HOME unset + no /etc/passwd entry for this uid
+        except (
+            KeyError,
+            RuntimeError,
+        ):  # HOME unset + no /etc/passwd entry for this uid
             return None
     return Path(xdg) / "fabrik" / "subagents.env"
 
@@ -142,10 +145,14 @@ def load_env(repo: str, *, keys: tuple[str, ...] = DOTENV_KEYS) -> list[str]:
     project with no per-repo edit, while a project can still override it in its own `.env`. Returns
     the keys it set. Never raises."""
     loaded: list[str] = []
-    proj = _find_dotenv(repo)  # project .env — more specific → applied FIRST (wins over the shared)
+    proj = _find_dotenv(
+        repo
+    )  # project .env — more specific → applied FIRST (wins over the shared)
     if proj is not None:
         _apply_env_file(proj, keys, loaded)
-    shared = _shared_env_path()  # fleet-wide fallback — fills anything the project didn't set
+    shared = (
+        _shared_env_path()
+    )  # fleet-wide fallback — fills anything the project didn't set
     if shared is not None and shared.is_file():
         _apply_env_file(shared, keys, loaded)
     return loaded
