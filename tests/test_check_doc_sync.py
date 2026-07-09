@@ -122,6 +122,38 @@ def test_changelog_dated_todo_prose_reference_passes(repo: Path) -> None:
     assert r.returncode == 0, r.stdout
 
 
+def test_changelog_dated_todos_plural_prose_passes(repo: Path) -> None:
+    """P6F1 regression: `dated-todos` (plural of the prose reference) is also
+    a legitimate documentation naming — must NOT be flagged, symmetric with
+    the singular `dated-todo`.
+    """
+    changelog = (
+        "# Changelog\n\n## [Unreleased]\n\n"
+        "### Changed\n- documented the dated-todos format convention\n"
+    )
+    _write(repo, "src/app/handler.py", "def f():\n    return 1\n")
+    _write(repo, "CHANGELOG.md", changelog)
+    _stage(repo, "src/app/handler.py", "CHANGELOG.md")
+    r = _run(repo)
+    assert r.returncode == 0, r.stdout
+
+
+def test_changelog_plural_placeholders_flagged(repo: Path) -> None:
+    """P5F1 regression: plural `TODOS` / `FIXMEs` are placeholder markers too.
+    A letter-only boundary regex without `s?` would silently waive them
+    (verified: `re.search(r"(?<![a-zA-Z])todo(?![a-zA-Z])", "todos")` = None).
+    """
+    changelog = (
+        "# Changelog\n\n## [Unreleased]\n\n### Fixed\n- see TODOS list before shipping\n"
+    )
+    _write(repo, "src/app/handler.py", "def f():\n    return 1\n")
+    _write(repo, "CHANGELOG.md", changelog)
+    _stage(repo, "src/app/handler.py", "CHANGELOG.md")
+    r = _run(repo)
+    assert r.returncode == 1, r.stdout
+    assert "placeholder" in r.stdout.lower()
+
+
 def test_changelog_autodoc_not_flagged(repo: Path) -> None:
     """P4F1 regression: `autodoc` / `photodocumentation` / `fixmeup` contain
     the substring `todo`/`fixme` but are unrelated words — must NOT be flagged.

@@ -154,7 +154,7 @@ def _changelog_quality_ok() -> bool:
     # naming the TODO-format convention, not an unfinished-work marker).
     # Require surrounds to be neither hyphens nor word chars, so it doesn't
     # match inside compounds like `updated-todo-list` or `pre-dated-todo-item`.
-    body = re.sub(r"(?<![-\w])dated-todo(?![-\w])", "", body)
+    body = re.sub(r"(?<![-\w])dated-todos?(?![-\w])", "", body)
     if any(ph in body for ph in ("<brief title>", "<description>")):
         return False
     # `todo` / `fixme` are unfinished-work markers when they stand as tokens —
@@ -165,7 +165,7 @@ def _changelog_quality_ok() -> bool:
     # `updated-todo-list` and `todo-cleanup` still flag (real placeholders),
     # but fused words don't.
     return not any(
-        re.search(rf"(?<![a-zA-Z]){word}(?![a-zA-Z])", body) for word in ("todo", "fixme")
+        re.search(rf"(?<![a-zA-Z]){word}s?(?![a-zA-Z])", body) for word in ("todo", "fixme")
     )
 
 
