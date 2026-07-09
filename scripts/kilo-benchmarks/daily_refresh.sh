@@ -330,6 +330,13 @@ mkdir -p "$(dirname "$LOG_FILE")"
   _step "scrape_siliconflow_catalog" "$VENV_PY" "$KB/scrape_siliconflow_catalog.py" \
     || echo "[daily_refresh] SiliconFlow catalog scrape failed (non-fatal)"
 
+  # ModelScope catalog scrape — flips via_modelscope=1 on matched agents.id
+  # rows so the browser payload + rank scripts see MS as a real gateway.
+  # Fetches the 55-model catalog from https://api-inference.modelscope.cn/v1/models
+  # (OpenAI-compatible). Non-fatal on missing key or network failure. Idempotent.
+  _step "scrape_modelscope_catalog" "$VENV_PY" "$KB/scrape_modelscope_catalog.py" \
+    || echo "[daily_refresh] ModelScope catalog scrape failed (non-fatal)"
+
   # Weekly (Sundays UTC): OR microbench for rows without Speed data.
   # Skipped if OPENROUTER_API_KEY not set. Placed BEFORE derive so the
   # freshly-benched Speed rows feed the derived views on Sundays.

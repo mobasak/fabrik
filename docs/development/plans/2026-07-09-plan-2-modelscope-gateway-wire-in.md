@@ -234,7 +234,7 @@ print('A.3 LIVE OK — no regression; net-new providers flipped')
 
 ---
 
-## Phase B — `scrape_modelscope_catalog.py` + `daily_refresh.sh` wire
+## Phase B — `scrape_modelscope_catalog.py` + `daily_refresh.sh` wire — ✅ EXECUTED 2026-07-09
 
 **Goal.** Author `scripts/kilo-benchmarks/scrape_modelscope_catalog.py` mirroring `scrape_siliconflow_catalog.py:1-171` exactly. Flip `via_modelscope=1` on `agents` rows that exact-id-match ModelScope's 55-model catalog. Wire into `daily_refresh.sh` after the SiliconFlow scrape step (`daily_refresh.sh:330`).
 
