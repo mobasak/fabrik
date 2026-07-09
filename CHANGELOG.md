@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added/Fixed — fleet Claude rotation: real-creds identity + 401 rotate-and-alert (2026-07-09)
+
+Two changes to `scripts/sysadmin/claude_rotate.py` (+ its byte-identical `scripts/aro-wake/` twin), each converged through multiple adversarial `/fabrik-review` rounds, then deployed + live-tested on the fleet:
+- **Identity/validity by token, not `organizationUuid`.** The `/fabrik-review` corrupt-snapshot guard keyed account identity + validity on `organizationUuid` in `.credentials.json`, but newer Claude Code creds keep the org in `~/.claude.json` — so a valid account (verified live: ob@) read as `None` and was wrongly skipped, breaking rotation to it. Now validity = a usable OAuth token; account identity resolves token-match → live-org (unique only) → a `.active-account` marker written under the lock on install. Old-format actives (fleet mob@) stay identified by org (drift-immune). Live-proven: mob@ (quota-limited) auto-rotated to ob@ and returned `PONG`.
+- **A 401 (dead creds) now rotates + alerts.** Previously a 401 broke rotation (only quota limits rotated). Now `run_claude` rotates on a usage-limit OR a 401, and a 401 additionally fires a one-shot best-effort **Telegram** alert (stdlib `urllib` → Bot API; `TELEGRAM_BOT_TOKEN`/`TELEGRAM_OWNER_ID` from env or `/opt/fabrik/.env.sysadmin`) naming the dead account + the outcome (recovered to `<standby>`, or gave up if all dead). The alert is fully fail-soft — no config, network error, `http.client.HTTPException`, or `UnicodeDecodeError` from a corrupt env file can escape and break rotation; the bot token appears only in the request URL, never logged.
+
 ### Reverted — Plan 1 subagents fork unwound; realigned to canonical + `pick_models(exclude=)` seam (2026-07-09)
 
 Plan 1's Phase B/C edits to `libs/subagents/select.py` + `libs/subagents/pg_ledger.py` were a silent fork of the fabrik-lib module core. Canonical source-of-truth AI at `/opt/fabrik-lib` ruled the mechanism wrong-layer (dead schema fleet-wide + project-specific logic in the shared module; superseded by canonical `exclude=` reliability lever + plan-1 provider routing). Same-day unwind, sequenced to prevent silent row loss on any still-forked INSERT:
