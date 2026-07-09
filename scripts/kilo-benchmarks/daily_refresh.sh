@@ -322,6 +322,14 @@ mkdir -p "$(dirname "$LOG_FILE")"
   _step "scrape_openrouter_endpoints" "$VENV_PY" "$KB/scrape_openrouter_endpoints.py" \
     || echo "[daily_refresh] OR endpoints scrape failed (non-fatal)"
 
+  # SiliconFlow catalog scrape — flips via_siliconflow=1 on matched agents.id
+  # rows so the browser payload + rank scripts see SF as a real gateway. Fetches
+  # the 72-model catalog from https://api.siliconflow.com/v1/models (international
+  # endpoint; .cn returns 401 on international keys). Non-fatal on missing key or
+  # network failure. Idempotent.
+  _step "scrape_siliconflow_catalog" "$VENV_PY" "$KB/scrape_siliconflow_catalog.py" \
+    || echo "[daily_refresh] SiliconFlow catalog scrape failed (non-fatal)"
+
   # Weekly (Sundays UTC): OR microbench for rows without Speed data.
   # Skipped if OPENROUTER_API_KEY not set. Placed BEFORE derive so the
   # freshly-benched Speed rows feed the derived views on Sundays.

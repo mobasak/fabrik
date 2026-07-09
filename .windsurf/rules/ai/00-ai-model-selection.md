@@ -121,7 +121,7 @@ Kilo CLI (`kilo run kilo/<provider>/<model>`) and OpenRouter (`https://openroute
 | **OpenRouter** | 347 | of which **345** dual-routed with Kilo, **2** OR-only |
 | **Kilo CLI** | 345 | of which **345** dual-routed with OR, **0** Kilo-only |
 | **DashScope** (direct) | 1 | specialist routes (e.g. `qwen-mt-turbo`) |
-| **SiliconFlow** (direct) | 1 | specialist routes (e.g. Hunyuan) |
+| **SiliconFlow** (direct) | 41 | specialist routes (e.g. Hunyuan) |
 
 Capability counts (any-gateway): reasoning **203** · tools/function-calling **267** · vision-input **171** · translation-scored **9** · STT-capable **21**.
 <!-- GATEWAY_COUNTS:END -->
