@@ -22,7 +22,9 @@ APPRISE_SEND() {
   # Apprise also runs inside Docker — use docker exec or direct container IP
   local title="$1" body="$2"
   local escaped_body
-  escaped_body=$(echo "$body" | python3 -c "import sys,json; print(json.dumps(sys.stdin.read().strip()))")
+  # printf '%s' (NOT echo) — echo mangles backslash sequences (\n, \t) in Claude's output,
+  # silently corrupting the alert body before python json-encodes it.
+  escaped_body=$(printf '%s' "$body" | python3 -c "import sys,json; print(json.dumps(sys.stdin.read().strip()))")
   # Exit-check + log so a delivery failure (Apprise down, network gone) is OBSERVABLE — the
   # empty-RESULT escalation below relies on this actually reaching the operator, so a silent
   # drop would defeat "fail-closed". Logs to stderr → the cron's proactive log.
@@ -460,7 +462,12 @@ if [ "$RESULT" = "ALL_CLEAR" ]; then
   exit 0
 fi
 
-# Send to Telegram via Apprise (inside Docker network)
-APPRISE_SEND "🔍 Proactive Check" "$RESULT"
-
-echo "Sent proactive alert to Telegram."
+# Send to Telegram via Apprise (inside Docker network). Gate the success line on actual
+# delivery — an unconditional "Sent" after a failed APPRISE_SEND is a self-contradictory log
+# and hides a dropped alert (Claude found a real issue but the operator never heard).
+if APPRISE_SEND "🔍 Proactive Check" "$RESULT"; then
+  echo "Sent proactive alert to Telegram."
+else
+  echo "Proactive alert FAILED to send (see APPRISE_SEND FAILED above)."
+  exit 1
+fi

@@ -91,6 +91,14 @@ def _sudo_argv(tmp_path, args, extra_env=None):
     return subprocess.run(["bash", str(WRAPPER), *args], env=env, capture_output=True, text=True).stdout
 
 
+def test_zero_or_negative_timeout_rejected_uses_default(tmp_path):
+    # 0 passes an unsigned-int check but crashes subprocess.run("timeout must be positive"),
+    # so it must be rejected → default 300.
+    out = _sudo_argv(tmp_path, ["-p", "x"], extra_env={"CLAUDE_ROTATE_TIMEOUT": "0"})
+    assert "CLAUDE_ROTATE_TIMEOUT=300" in out, "0 is not a positive timeout → default 300"
+    assert "CLAUDE_ROTATE_TIMEOUT=0" not in out, "timeout=0 must NOT be forwarded"
+
+
 def test_root_branch_invokes_sudo_as_operator_with_args(tmp_path):
     out = _sudo_argv(tmp_path, ["-p", "--model", "opus", "hello"])
     # the sudo invocation: sudo -u operator-xyz -H env CLAUDE_ROTATE_TIMEOUT=… python3 <rotate> <bin> <args>

@@ -502,6 +502,26 @@ def test_rotate_org_filter_excludes_active_and_avoid(tmp_path, monkeypatch):
     assert claude_rotate._read_org(active) == "org-mob", "active untouched when no eligible target"
 
 
+def test_dir_fsync_failure_does_not_fail_rotation(tmp_path, monkeypatch):
+    # the post-replace directory fsync is best-effort: a failure must NOT undo/fail a swap that
+    # already completed. Inject the failure via the dir-fsync's O_RDONLY os.open.
+    _, _, active = _setup_fake_claude(tmp_path, monkeypatch, {"mob-dir": "org-mob", "ob-dir": "org-ob"})
+    _write_creds(active, "org-mob")
+    real_open = os.open
+
+    def flaky_open(path, flags, *a, **k):
+        if flags == os.O_RDONLY:  # the dir-fsync open (creds writes use O_WRONLY|O_CREAT|…)
+            raise OSError("EIO on directory open")
+        return real_open(path, flags, *a, **k)
+
+    monkeypatch.setattr(claude_rotate.os, "open", flaky_open)
+
+    new = claude_rotate._rotate_active_account()
+
+    assert new == "ob-dir", "dir-fsync failure must not fail the (already-completed) rotation"
+    assert claude_rotate._read_org(active) == "org-ob", "the atomic swap completed"
+
+
 def test_rotate_fail_soft_on_fs_error_leaves_active_intact(tmp_path, monkeypatch):
     _, _, active = _setup_fake_claude(
         tmp_path, monkeypatch, {"mob-dir": "org-mob", "ob-dir": "org-ob"}
