@@ -97,7 +97,10 @@ picks = pick_models("review", n=3, exclude=unreachable)
 
 ## Candidate signup vendors (watch-list — not currently active)
 
-Vendors that would beat the accessible set on cost or speed but need signup + payment method before we can call them. Details + break-even math in `docs/reference/kilo/CANDIDATE_SIGNUPS.md` (auto-regenerated daily by `rank_candidate_signups.py`).
+Vendors that would beat the accessible set on cost or speed but need signup + payment method before we can call them. Two docs for two questions:
+
+- **Per-model watch-list** (auto-generated daily by `rank_candidate_signups.py`) — `docs/reference/kilo/CANDIDATE_SIGNUPS.md`. Union-selects `reachable_with_existing_keys=0` rows from `agents` + `gpu_providers`, ranked by seeded price + `signup_trigger`.
+- **Aggregator-tier roadmap** (hand-authored, ranked by capability × ease × effort) — `docs/reference/kilo/AGGREGATOR_ROADMAP.md`. 5-tier list of gateways / meta-gateways / direct vendors worth signing up for (Groq, Cerebras, DeepInfra direct, Cloudflare Workers AI, xAI, Mistral, Cohere, etc.). Also contains the wiring pattern reference (SiliconFlow 2026-07-09 as the canonical 5-step recipe).
 
 | Vendor | Category | Why signup | Blocker |
 |---|---|---|---|
