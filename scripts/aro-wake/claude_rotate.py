@@ -653,13 +653,21 @@ def main(argv: list[str] | None = None) -> int:
         timeout = 120
     if timeout <= 0:
         timeout = 120
-    # CLI passthrough (claude-run.sh → stdin-piping sysadmin scripts): buffer stdin so a
-    # rotation retry re-supplies the piped context. Convert the two subprocess failure modes into
-    # clean exits — the service callers (bot.py/aro-wake) catch these, but the cron/keepalive path
-    # is main(), where an uncaught FileNotFoundError (claude bin absent on a mis-provisioned host)
-    # or TimeoutExpired (a hung attempt) would otherwise dump a traceback into the cron log.
+    # Resolve cwd defensively OUTSIDE the run_claude try: os.getcwd() raises if the process's cwd
+    # was unlinked mid-run, and we don't want that mislabeled as a claude exec failure below. Fall
+    # back to "/" (always traversable) — claude-run.sh already cd's to a valid dir, so this is a race
+    # backstop. Keeping it out of the try is what makes the "only a spawn OSError" comment below true.
     try:
-        result = run_claude(args, timeout=timeout, cwd=os.getcwd(), env=env, buffer_stdin=True)
+        cwd = os.getcwd()
+    except OSError:
+        cwd = "/"
+    # CLI passthrough (claude-run.sh → stdin-piping sysadmin scripts): buffer stdin so a
+    # rotation retry re-supplies the piped context. Convert the subprocess failure modes into clean
+    # exits — the service callers (bot.py/aro-wake) catch these, but the cron/keepalive path is
+    # main(), where an uncaught FileNotFoundError (claude bin absent on a mis-provisioned host) or
+    # TimeoutExpired (a hung attempt) would otherwise dump a traceback into the cron log.
+    try:
+        result = run_claude(args, timeout=timeout, cwd=cwd, env=env, buffer_stdin=True)
     except FileNotFoundError:
         sys.stderr.write(f"claude_rotate: claude binary not found: {args[0]!r}\n")
         return 127
