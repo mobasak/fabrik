@@ -14,6 +14,17 @@
 -- forked 12-col INSERT exists to silent-fail once the column is gone.
 --
 -- Idempotent: safe to re-run.
+--
+-- PF3 fix (post-Pass-1 review): wrap in BEGIN/COMMIT so DROP INDEX + DROP
+-- COLUMN commit atomically. IF EXISTS only swallows "object doesn't exist";
+-- lock timeouts, FK dependencies, replication-slot pinning, or privilege
+-- errors on the ALTER would otherwise leave the table with the column
+-- present but the index gone — an inconsistent shape that requires manual
+-- investigation. PostgreSQL supports transactional DDL; a two-statement
+-- transaction gives all-or-nothing semantics for future re-runs on other
+-- environments (staging, fresh provision, DR restore).
 
+BEGIN;
 DROP INDEX IF EXISTS idx_subagent_runs_reachable;
 ALTER TABLE subagent_runs DROP COLUMN IF EXISTS reachable_at_dispatch;
+COMMIT;
