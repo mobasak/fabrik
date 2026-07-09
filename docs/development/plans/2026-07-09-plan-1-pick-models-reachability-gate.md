@@ -390,7 +390,7 @@ head -1 docs/reference/kilo/TASK_SUBAGENT_SELECTION.md
 
 ---
 
-## Phase B — `pick_models(task_type, require_reachable=True)` opt-out
+## Phase B — `pick_models(task_type, require_reachable=True)` opt-out — ✅ EXECUTED 2026-07-09
 
 **Goal.** Add the kwarg + wire it into the ranking-doc parser so `pick_models` never returns an unreachable model by default. `require_reachable=False` preserves the current (permissive) behavior for benchmarking.
 

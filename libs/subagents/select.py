@@ -23,6 +23,7 @@ Only models from the allowed ``CODING_SUBAGENT_SELECTION.md`` pool appear here.
 from __future__ import annotations
 
 import os
+import sys
 import re
 from datetime import date
 from pathlib import Path
@@ -259,6 +260,29 @@ def load_task_ranking(
     return {k: v for k, v in out.items() if v}
 
 
+_REACHABLE_SET_RE = re.compile(r"<!--\s*reachable-set:\s*([^>]+?)\s*-->")
+
+
+def _reachable_set_from_doc(path: str) -> set[str] | None:
+    """Parse the `<!-- reachable-set: id1, id2, ... -->` HTML comment from the
+    top of a ranking doc emitted by rank_coding/rank_task (plan-1 Phase A).
+
+    Returns None if the comment is absent (older doc, no filter available) so
+    `pick_models` treats it as "no reachability info" and falls through to
+    the vendored table without filtering — backwards compatible with pre-plan-1
+    ranking docs.
+    """
+    try:
+        text = Path(path).read_text(encoding="utf-8")
+    except OSError:
+        return None
+    m = _REACHABLE_SET_RE.search(text)
+    if not m:
+        return None
+    ids = {s.strip() for s in m.group(1).split(",") if s.strip()}
+    return ids or None
+
+
 def _synced_ranking() -> dict[str, list[str]]:
     """Env-driven, mtime-cached parse of the synced doc (re-reads when the daily refresh bumps it)."""
     path = os.getenv("SUBAGENT_SELECTION_DOC")
@@ -340,6 +364,7 @@ def pick_models(
     ranking: dict[str, list[str]] | None = None,
     live: bool | None = None,
     allow_above_cap: bool = False,
+    require_reachable: bool | None = None,
 ) -> list[str]:
     """Return up to ``n`` model ids for ``task_type``, best-first, under the fleet cost cap.
 
@@ -385,6 +410,38 @@ def pick_models(
     ranked = [
         m for m in (table.get(task_type) or _TABLE[task_type]) if m not in excluded
     ]
+    # Plan-1 Phase B: reachability filter. Semantics:
+    #   require_reachable=True  → filter (kwarg wins, env ignored)
+    #   require_reachable=False → don't filter (kwarg wins, env ignored)
+    #   require_reachable=None (default) → env decides
+    #     FABRIK_SUBAGENT_REQUIRE_REACHABLE=0 disables; anything else filters
+    # Sentinel None default so kwarg=True can override env=0 (plan B.4
+    # kwarg-first precedence). Reads the `<!-- reachable-set: id1, ... -->`
+    # comment emitted by rank_coding/rank_task (Phase A). A doc without the
+    # comment → no filter available → don't filter (backwards compatible with
+    # pre-plan-1 selection docs).
+    if require_reachable is None:
+        effective_require = os.getenv("FABRIK_SUBAGENT_REQUIRE_REACHABLE", "1") != "0"
+    else:
+        effective_require = require_reachable
+    if effective_require:
+        doc_path = os.getenv("SUBAGENT_SELECTION_DOC")
+        reachable_set: set[str] | None = (
+            _reachable_set_from_doc(doc_path) if doc_path else None
+        )
+        if reachable_set is not None:
+            filtered = [m for m in ranked if m in reachable_set]
+            if not filtered:
+                # Empty pool — fail-open with WARN (Phase C.1 fallback semantics
+                # brought forward into Phase B for backwards-safety). Don't
+                # wedge daily_refresh on a stale reachable-set.
+                sys.stderr.write(
+                    f"[pick_models] WARN: no reachable model for task_type={task_type!r}; "
+                    "falling back to unreachable pool — dispatch may silently fail. "
+                    "Set FABRIK_SUBAGENT_REQUIRE_REACHABLE=0 to disable.\n"
+                )
+            else:
+                ranked = filtered
     # AUTO-TIER PRICE CAP — pick_models is the SOLE gatekeeper. The fleet ≤$1.5/Mtok cap is ALWAYS
     # enforced: even if the synced CODING_SUBAGENT_SELECTION.md is refreshed with a pricier model, or
     # a caller passes a looser `max_cost_per_mtok`, a >$1.5 model can never reach the default pool.
