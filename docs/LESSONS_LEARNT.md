@@ -1,9 +1,19 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
-**Last Updated:** 2026-07-08 (Lesson 84 — a retry/rotation wrapper in front of a subprocess that reads PIPED stdin must buffer stdin once + re-supply it on every attempt)
+**Last Updated:** 2026-07-10 (Lesson 85 — the pool serialization trap + always verify a cheap finder's direction on a critical claim)
 
 **Purpose:** CAPTURE TECHNICAL HURDLES, AI-SPECIFIC QUIRKS, AND ARCHITECTURAL DECISIONS TO PREVENT REGRESSION AS CODEBASES AND AI AGENTS EVOLVE.
+
+---
+
+# Lesson 85: A `run_agents` pool fan-out SILENTLY serializes unless it is one of two shapes — and a cheap finder can invert a critical claim, so re-read the code before acting on it
+
+**Symptom (plan-3, 2026-07-09/10):** dispatching pool review finders with `tools_enabled=True` + `owned_paths=[]` *looked* parallel but ran **serial** — even in a dogfood by someone who had read the module. `workspace.disjoint()` (`workspace.py:319-323`) unions any pair where `not owned[i] or not owned[j]` (empty overlaps everything) → one connected component → "one group (serialized)" (`agent.py:430` routes every `tools_enabled=True` worker through it). Read-only workers (`tools_enabled=False`) each become their own group (`agent.py:435`) → truly parallel.
+
+**Fix / rule (now `62 § Parallelism`, fleet-synced):** a pool fan-out parallelizes in exactly two shapes — **(1) read-only:** `tools_enabled=False` + `allow_ungrounded=True`, content inlined (each its own group); **(2) tools-enabled:** `tools_enabled=True` + **disjoint `owned_paths`** per unit. Anything else (esp. `tools_enabled=True` + empty/overlapping `owned_paths`) collapses to one serial group. Also: `pick_models` defaults to `n=1` — pass `n` for a K-model fan-out; `max_concurrency` defaults to 4.
+
+**The meta-lesson (both-layers doctrine, proven):** during this plan's own review, a cheap `minimax-m3` reconciler flagged "empty `owned_paths` → serial" as *inverted*, having read `unrestricted=True` as "parallelizable" — missing that it triggers `union()` → merge → serial. Had the orchestrator trusted the finder and "fixed" the doc, the **entire governance rule would have been inverted** (catastrophic). The authoritative Opus re-read of `workspace.py:303,316-323` caught it. On a claim whose inversion is catastrophic, the cheap finder is recall; the authoritative re-read is truth. Verify the finder; don't trust it.
 
 ---
 
