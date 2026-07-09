@@ -318,8 +318,7 @@ def _reachable_stats() -> dict:
     """
     with sqlite3.connect(str(DB_PATH)) as con:
         n_total = con.execute(
-            "SELECT COUNT(*) FROM agents "
-            "WHERE status='active' AND blocked=0 AND service_type='llm'"
+            "SELECT COUNT(*) FROM agents WHERE status='active' AND blocked=0 AND service_type='llm'"
         ).fetchone()[0]
         rows = con.execute(
             "SELECT id FROM agents "

@@ -99,9 +99,7 @@ def test_backfill_null_provider_stays_unreachable_by_design(tmp_path):
     con.commit()
     n = backfill_reachable_by_provider(con, {"openai"})
     assert n == 1, f"expected only the openai row to flip; got {n}"
-    reach_by_id = dict(
-        con.execute("SELECT id, reachable_with_existing_keys FROM agents")
-    )
+    reach_by_id = dict(con.execute("SELECT id, reachable_with_existing_keys FROM agents"))
     assert reach_by_id["openai/gpt-5"] == 1
     assert reach_by_id["unknown-vendor/mystery-model"] == 0, (
         "NULL-provider row must stay unreachable — can't route to unknown vendor"

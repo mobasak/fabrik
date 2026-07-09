@@ -1,5 +1,5 @@
 {
-    "plan": "docs/development/plans/2026-07-09-plan-1-pick-models-reachability-gate.md",
+    "plan": "docs/development/plans/archived/2026-07-09-plan-1-pick-models-reachability-gate.md",
     "owned_paths": [
         "scripts/kilo-benchmarks/seed_specialty_catalog.py",
         "scripts/kilo-benchmarks/tests/test_seed_reachability_backfill.py",
@@ -11,20 +11,19 @@
         "docs/reference/kilo/TASK_SUBAGENT_SELECTION.md",
         "libs/subagents/select.py",
         "libs/subagents/pg_ledger.py",
-        "libs/subagents/loop.py",
         "tests/test_pick_models_reachability.py",
         "tests/test_reachable_at_dispatch.py",
         "scripts/kilo-benchmarks/migrations/2026-07-09-add-reachable-at-dispatch.sql",
         "scripts/kilo-benchmarks/apply_subagent_runs_ddl.sh",
         ".windsurf/rules/ai/00-ai-model-selection.md",
         "docs/CONFIGURATION.md",
-        "docs/reference/kilo/AI_VENDOR_ACCESS.md",
         "CHANGELOG.md",
-        "INDEX.md",
         "docs/development/plans/2026-07-09-plan-1-pick-models-reachability-gate.md"
     ],
     "branch": "master",
     "started_at": "2026-07-09T20:15:00Z",
-    "status": "active",
-    "baseline_commit": "b7c0f9a56525e964bc46aea7ae61ef0306e73ed7"
+    "completed_at": "2026-07-09T21:00:00Z",
+    "status": "released",
+    "baseline_commit": "b7c0f9a56525e964bc46aea7ae61ef0306e73ed7",
+    "final_commit": "5a45b3a2"
 }

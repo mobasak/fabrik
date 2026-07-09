@@ -34,8 +34,8 @@ import csv
 import io
 import math
 import os
-import subprocess
 import sqlite3
+import subprocess
 import sys
 from datetime import date
 from pathlib import Path
@@ -295,8 +295,7 @@ def _reachable_stats() -> dict:
     try:
         with sqlite3.connect(str(_AGENTS_DB)) as con:
             n_total = con.execute(
-                "SELECT COUNT(*) FROM agents "
-                "WHERE status='active' AND blocked=0"
+                "SELECT COUNT(*) FROM agents WHERE status='active' AND blocked=0"
             ).fetchone()[0]
             rows = con.execute(
                 "SELECT id FROM agents "
@@ -307,9 +306,7 @@ def _reachable_stats() -> dict:
     except sqlite3.Error as exc:
         sys.stderr.write(f"[rank_task] WARN: reachable stats unavailable: {exc}\n")
         return {"n_reach": 0, "n_total": 0, "reachable_ids": set()}
-    sys.stderr.write(
-        f"[rank_task] emitted reachable-set with {len(reachable_ids)}/{n_total} ids\n"
-    )
+    sys.stderr.write(f"[rank_task] emitted reachable-set with {len(reachable_ids)}/{n_total} ids\n")
     return {
         "n_reach": len(reachable_ids),
         "n_total": n_total,
