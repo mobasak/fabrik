@@ -79,6 +79,39 @@ A model over $1.5, or any off-Auto model without the operator's explicit per-tur
 
 **Pool-default (above):** gradeable fan-out (finders / grounders / reconcilers / auditors / implementers) goes to the pool by default and records; GUI / authoritative / decide-merge stay native. Per-command map: `/fabrik-execute-plan` implementers · `/fabrik-review` + `/fabrik-repo-review` finders · `/fabrik-rules-review` per-pack auditors · `/fabrik-spec-review` + `/fabrik-plan-review` grounders · `/fabrik-docs-review` reconcilers · `/fabrik-plan-after-chat` + `/fabrik-data-contract` `path:line` grounders (+ a native ~20% citation verify-sample) · `/fabrik-spec` fact + best-practice grounders (research phases 1a/1c) → **all pool**; `/fabrik-ui-design` (screen build) → **native** (`fabrik-gui`); decide/refute/merge → **always you/native**. Keep the `try: from libs.subagents import record_agent_run / except ImportError: record_agent_run = None` guard **only** on genuine pool-dispatch commands — not as a device to pre-write native footers.
 
+## Parallelism — the two shapes (a fan-out that is neither SILENTLY SERIALIZES)
+
+`run_agents` parallelizes a fan-out in **exactly two shapes**; anything else collapses to one serial group — an
+**empty `owned_paths` overlaps everything** (`workspace.py:321` `unrestricted = not owned[i] or not owned[j]`) and
+every `tools_enabled=True` worker is routed through `disjoint()` (`agent.py:430`):
+
+1. **Read-only fan-out (finders / grounders / auditors / reconcilers) → `tools_enabled=False` +
+   `allow_ungrounded=True`, the unit's content INLINED into `task`.** Each read-only worker is its own group
+   (`agent.py:435` — `groups += [{i} … if not s.tools_enabled]`) → **all parallel**. This is the DEFAULT for every
+   gradeable read-only fan-out.
+2. **Tools-enabled fan-out (implementers, or graders that must read/write the tree themselves) →
+   `tools_enabled=True` + DISJOINT `owned_paths` (one unit's files each).** Disjoint globs → parallel worktrees.
+   ⚠️ **`tools_enabled=True` + empty/overlapping `owned_paths` → one group → SERIAL — the #1 dispatch trap** (looks
+   parallel, runs serial). If a read-only fan-out needs file reads, prefer shape 1 (inline) over shape 2.
+
+**Corollaries (verified against the module):** `pick_models(task_type, n=<K>)` for a K-model fan-out — the default
+is **`n=1`**, so you MUST pass `n` to get more than one model. Parallel groups run **`max_concurrency` (default 4)**
+at a time — raise it to widen a big fan-out. Worker tools (**tools-enabled workers only** — a read-only single-shot
+worker has none of these, it just returns text): `read_file · write_file · apply_patch · list_dir · grep ·
+run_command` (bwrap-sandboxed). Prices (vendored fallback, `select.py`): m3 $1.20 · v4-flash $0.18 · m2.5 $0.48 ·
+v3.2 $0.343 · v4-pro $0.87; best per kind — review/plan/docs/research → `minimax-m3`, code → `deepseek-v4-flash`,
+spec → `minimax-m2.5`.
+
+**Per-command dispatch mode** (which shape each command's fan-out uses — pairs with the routing map above):
+
+| Command | Fan-out | Shape |
+|---|---|---|
+| `/fabrik-review`, `/fabrik-repo-review` | finders (`n=3` differently-biased) | **RO** (inline) |
+| `/fabrik-rules-review` | one auditor per rules pack | **RO** (inline) |
+| `/fabrik-spec`, `-spec-review`, `-plan-review`, `-plan-after-chat`, `-data-contract`, `-docs-review`, `-ui-design-review` | grounders / reconcilers | **RO** (inline) — OR TE-disjoint (`owned_paths` per unit) if the worker reads the tree itself; **never** `tools_enabled=True` + empty `owned_paths` + "parallel" |
+| `/fabrik-execute-plan` | implementers | **TE-disjoint** (worktrees, one unit's `owned_paths` each) |
+| `/fabrik-ui-design` | screen build/drive | **native `fabrik-gui`** (no pool equivalent) |
+
 ## NEVER route to the pool (fabrik-lib PROPOSED_RULE)
 
 Auth/identity/session/crypto · schema/migrations · secrets/`.env`/keys · security controls (RLS, rate-limits, `final_gate`) · deploy/infra. These stay with the primary (human-supervised) agent. **Never web/MCP-enable a task carrying sensitive context** — the model's output exfiltrates via a scraped URL. Keep the bwrap sandbox on (`sandbox=True`, fail-closed).

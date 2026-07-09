@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Pool dispatch: the two-shape parallelism rule + per-command mode map in governance (2026-07-09)
+
+Landed the session-verified pool-dispatch rules into `62 § Parallelism` + a `CLAUDE.md` pointer (plan-3 Phase A). The gap this closes: **a pool fan-out silently serializes unless it is one of two shapes** — read-only (`tools_enabled=False` + inline → each its own group, all parallel) or tools-enabled with **disjoint `owned_paths`**; `tools_enabled=True` + empty/overlapping `owned_paths` collapses to one serial group (the #1 dispatch trap, which looked parallel but ran serial even in a dogfood this session). Grounded verbatim at `agent.py:430-435` + `workspace.py:321`. Corollaries added: `pick_models` default `n=1` (pass `n` for a K-model fan-out), `max_concurrency` default 4, the worker toolset incl. `apply_patch`, and a per-command dispatch-mode table. Fabrik-synced → distributed fleet-wide on commit.
+
 ### Added/Fixed — fleet Claude rotation: real-creds identity + 401 rotate-and-alert (2026-07-09)
 
 Two changes to `scripts/sysadmin/claude_rotate.py` (+ its byte-identical `scripts/aro-wake/` twin), each converged through multiple adversarial `/fabrik-review` rounds, then deployed + live-tested on the fleet:
