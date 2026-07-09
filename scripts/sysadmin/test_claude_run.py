@@ -174,6 +174,16 @@ def test_four_root_scripts_route_through_claude_run_not_bare_claude():
         assert "$(claude -p" not in src, f"{s} still has a bare `claude -p` invocation"
 
 
+def test_four_scripts_apprise_uses_fabrik_network_not_coolify():
+    # The escalation transport must use the live docker network. `coolify` was renamed to
+    # `fabrik` on 2026-05-31 (AGENTS.md) — a stale `--network coolify` makes the `docker run`
+    # fail silently (2>/dev/null, exit unchecked), so the fail-closed escalation never delivers.
+    for s in _ROOT_SCRIPTS:
+        src = (ROOT / "scripts/sysadmin" / s).read_text()
+        assert "--network coolify" not in src, f"{s} uses the removed 'coolify' docker network"
+        assert "--network fabrik" in src, f"{s} must send Apprise via the 'fabrik' network"
+
+
 def test_four_root_scripts_syntax_valid():
     for s in _ROOT_SCRIPTS:
         r = subprocess.run(["bash", "-n", str(ROOT / "scripts/sysadmin" / s)], capture_output=True, text=True)

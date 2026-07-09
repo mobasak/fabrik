@@ -388,6 +388,27 @@ def test_read_piped_stdin_bounded_on_never_eof(monkeypatch):
     assert elapsed < 1.5, f"must be bounded (returned in {elapsed:.2f}s), not block"
 
 
+def test_read_piped_stdin_reassembles_bursty_producer(monkeypatch):
+    # a producer writing in bursts with a gap > the select granularity must NOT be truncated
+    # at the first burst (the `continue`-not-`break` fix) — reassemble until EOF, within budget.
+    import threading
+
+    r_fd, w_fd = os.pipe()
+
+    def _produce():
+        os.write(w_fd, b"BURST1-")
+        time.sleep(0.25)  # gap larger than the 0.2s select poll granularity
+        os.write(w_fd, b"BURST2")
+        os.close(w_fd)  # EOF
+
+    monkeypatch.setattr(claude_rotate.sys, "stdin", os.fdopen(r_fd, "r"))
+    t = threading.Thread(target=_produce)
+    t.start()
+    out = claude_rotate._read_piped_stdin(max_wait_s=2.0)
+    t.join()
+    assert out == "BURST1-BURST2", f"bursty producer must reassemble, not truncate; got {out!r}"
+
+
 def test_read_piped_stdin_none_on_idle_empty_pipe(monkeypatch):
     r_fd, w_fd = os.pipe()  # open, nothing written, no EOF
     monkeypatch.setattr(claude_rotate.sys, "stdin", os.fdopen(r_fd, "r"))

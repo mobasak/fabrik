@@ -120,6 +120,11 @@ def _secure_write(dst: Path, data: bytes) -> None:
         written = 0
         while written < len(view):
             written += os.write(fd, view[written:])
+        # fsync before the caller's os.replace so the atomic RENAME is also crash-DURABLE:
+        # without it a power loss just after rotation could leave the active inode naming
+        # unwritten blocks (a zero-length/garbage active creds file). The .prev backup is the
+        # recovery aid, but data-durability here makes the "atomic swap" claim literally true.
+        os.fsync(fd)
     finally:
         os.close(fd)
 
@@ -228,7 +233,7 @@ def _read_piped_stdin(max_wait_s: float = 2.0) -> str | None:
                 break  # bounded — never block past the budget
             if not select.select([fd], [], [], min(remaining, 0.2))[0]:
                 if chunks:
-                    break  # partial data then stalled → return what we have
+                    continue  # partial data but a producer gap → keep polling to the deadline
                 return None  # nothing ever ready → not a piped caller
             block = os.read(fd, 65536)
             if not block:

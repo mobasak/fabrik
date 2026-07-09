@@ -23,7 +23,7 @@ APPRISE_SEND() {
   local title="$1" body="$2"
   local escaped_body
   escaped_body=$(echo "$body" | python3 -c "import sys,json; print(json.dumps(sys.stdin.read().strip()))")
-  sudo docker run --rm --network coolify curlimages/curl:latest -sf -X POST \
+  sudo docker run --rm --network fabrik curlimages/curl:latest -sf -X POST \
     "http://apprise:8000/notify/alerts" \
     -H "Content-Type: application/json" \
     -d "{\"title\":\"$title\",\"body\":${escaped_body}}" 2>/dev/null
