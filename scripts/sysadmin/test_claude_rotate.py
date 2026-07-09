@@ -323,6 +323,23 @@ def test_main_missing_bin_returns_127_and_timeout_returns_124(monkeypatch):
     assert claude_rotate.main(["/opt/fabrik/scripts/sysadmin", "-p", "hi"]) == 126
 
 
+def test_list_accounts_unreadable_dir_returns_empty(tmp_path, monkeypatch):
+    # An unreadable manager-accounts (iterdir raises OSError) must degrade to no-snapshots, not
+    # raise into run_claude → main() where it'd be mislabeled 126 and discard claude's real output.
+    accts = tmp_path / "manager-accounts"
+    accts.mkdir()
+    monkeypatch.setattr(claude_rotate, "ACCOUNTS_DIR", accts)
+    real_iterdir = pathlib.Path.iterdir
+
+    def boom(self):
+        if self == accts:
+            raise PermissionError(13, "Permission denied")
+        return real_iterdir(self)
+
+    monkeypatch.setattr(pathlib.Path, "iterdir", boom)
+    assert claude_rotate._list_accounts() == [], "unreadable manager-accounts → [], no raise"
+
+
 def test_run_claude_rotates_on_limit_string_regardless_of_exit_code(monkeypatch):
     # DELIBERATE: rotation triggers on the usage-limit STRING regardless of exit code — never
     # missing a real limit is the core guarantee, and Claude's exit code on a limit isn't

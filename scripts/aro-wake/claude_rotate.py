@@ -117,12 +117,19 @@ def _read_access_token(creds_path: Path) -> str | None:
 
 
 def _list_accounts() -> list[Path]:
-    """Manager-account snapshot dirs that hold a ``.credentials.json`` (sorted, stable order)."""
+    """Manager-account snapshot dirs that hold a ``.credentials.json`` (sorted, stable order).
+    Fail-soft: an unreadable/inaccessible ``manager-accounts`` (a rare permission mishap) yields no
+    snapshots rather than raising — this runs inside ``run_claude``/``_active_account`` on every
+    call, and an escaping OSError would be mislabeled by ``main()`` as an exec failure (126) and
+    discard a perfectly good claude result."""
     if not ACCOUNTS_DIR.is_dir():
         return []
-    return sorted(
-        d for d in ACCOUNTS_DIR.iterdir() if d.is_dir() and (d / ".credentials.json").is_file()
-    )
+    try:
+        return sorted(
+            d for d in ACCOUNTS_DIR.iterdir() if d.is_dir() and (d / ".credentials.json").is_file()
+        )
+    except OSError:
+        return []
 
 
 def _active_account() -> Path | None:
