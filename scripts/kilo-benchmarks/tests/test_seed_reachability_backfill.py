@@ -104,3 +104,66 @@ def test_backfill_null_provider_stays_unreachable_by_design(tmp_path):
     assert reach_by_id["unknown-vendor/mystery-model"] == 0, (
         "NULL-provider row must stay unreachable — can't route to unknown vendor"
     )
+
+
+def test_backfill_flips_shanghai_ai_lab(tmp_path):
+    """Plan-2 Phase A regression — ModelScope adds Shanghai_AI_Laboratory
+    (Intern-S line) as a new provider path. The seeder's coarse backfill
+    must flip a `shanghai-ai-lab` row to reachable=1 once ModelScope's
+    vendor row appears in AI_VENDOR_ACCESS.md (parse_vendor_catalog picks
+    it up → passes it to backfill_reachable_by_provider).
+    """
+    import sqlite3
+
+    from seed_specialty_catalog import backfill_reachable_by_provider
+
+    p = tmp_path / "agents.db"
+    con = sqlite3.connect(str(p))
+    con.execute(
+        "CREATE TABLE agents (id TEXT PRIMARY KEY, provider TEXT, status TEXT, "
+        "blocked INT DEFAULT 0, reachable_with_existing_keys INT DEFAULT 0)"
+    )
+    con.executemany(
+        "INSERT INTO agents (id, provider, status) VALUES (?, ?, 'active')",
+        [
+            ("shanghai-ai-lab/intern-s1", "shanghai-ai-lab"),
+            ("shanghai-ai-lab/intern-s1-mini", "shanghai-ai-lab"),
+            ("openai/gpt-5", "openai"),
+        ],
+    )
+    con.commit()
+    n = backfill_reachable_by_provider(con, {"shanghai-ai-lab"})
+    assert n == 2, f"expected both shanghai-ai-lab rows to flip; got {n}"
+    reach_by_provider = dict(
+        con.execute(
+            "SELECT provider, SUM(reachable_with_existing_keys) FROM agents GROUP BY provider"
+        )
+    )
+    assert reach_by_provider["shanghai-ai-lab"] == 2
+    assert reach_by_provider["openai"] == 0, (
+        "openai stays unreachable — not in the accessible set for this test"
+    )
+
+
+def test_ai_vendor_access_lists_modelscope_providers():
+    """Plan-2 Phase A regression F1 (Phase-A review): the shanghai-ai-lab test
+    above uses a synthetic fixture and would pass even if the ModelScope
+    doc row were reverted. This test binds the doc row to reality: it runs
+    parse_vendor_catalog on the ACTUAL AI_VENDOR_ACCESS.md and asserts the
+    ModelScope-only providers appear as accessible — so a future edit that
+    accidentally drops or rewrites the ModelScope row would fail this test.
+    """
+    from seed_specialty_catalog import parse_vendor_catalog
+
+    doc = Path(__file__).resolve().parent.parent.parent.parent / "docs/reference/kilo/AI_VENDOR_ACCESS.md"
+    assert doc.exists(), f"AI_VENDOR_ACCESS.md missing at {doc}"
+    accessible = parse_vendor_catalog(doc)
+    # ModelScope-added providers (Intern-S, ERNIE, MiMo, Hunyuan lines) —
+    # these are NEW paths that only appear in the ModelScope row. If the row
+    # is missing or malformed, none of these will be in the accessible set.
+    ms_only = ("shanghai-ai-lab", "paddlepaddle", "xiaomimimo", "tencent-hunyuan")
+    missing = [p for p in ms_only if not accessible.get(p)]
+    assert not missing, (
+        f"ModelScope row appears missing or malformed in AI_VENDOR_ACCESS.md — "
+        f"parse_vendor_catalog does not see these providers as accessible: {missing}"
+    )

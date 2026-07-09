@@ -1,9 +1,10 @@
 # ModelScope gateway wire-in — mirror the SiliconFlow 2026-07-09 pattern
 
-**Status:** CONVERGED
+**Status:** IN-PROGRESS
 **Date:** 2026-07-09
 **Owner:** primary (this session)
 **Converged:** 2026-07-09 via `/fabrik-plan-review` — 4 passes, md5 fixed-point verified.
+**Executing:** 2026-07-09 via `/fabrik-execute-plan` — baseline gate green (Tier-1 15/15).
 **Goal:** Make ModelScope the 5th wired peer gateway (after OR, Kilo, DashScope, SiliconFlow) — per-model `via_modelscope=1` flag on `agents`, GUI badge + sidebar filter chip, daily-refresh integration, rule-pack gateway-count block, catalog documented in `AI_VENDOR_ACCESS.md`. Follows the exact 5-step recipe already documented in `docs/reference/kilo/AGGREGATOR_ROADMAP.md` and captured verbatim in the SiliconFlow chain (`commits 965e273a → ba674dc1` — key → template → vendor row → seed → scraper → GUI chip).
 
 ## What we already agreed (Phase 0)
@@ -82,7 +83,7 @@ Verbatim from binding sources — every phase inherits these:
 
 ---
 
-## Phase A — Migration + `AI_VENDOR_ACCESS.md` row + re-seed
+## Phase A — Migration + `AI_VENDOR_ACCESS.md` row + re-seed — ✅ EXECUTED 2026-07-09
 
 **Goal.** Add the `via_modelscope INTEGER` column to `agents`. Add ModelScope row to `AI_VENDOR_ACCESS.md` under Specialty vendors, mirroring the SF row's shape (`AI_VENDOR_ACCESS.md:35` — the SF row). Re-run `seed_specialty_catalog.py` so the coarse-provider `reachable_with_existing_keys` flag flips for ModelScope-covered providers new to the DB (`ZhipuAI/z-ai`, `Shanghai_AI_Laboratory/shanghai-ai-lab`, `PaddlePaddle/paddlepaddle`, `Xiaomi/xiaomimimo`, `Tencent-Hunyuan/tencent-hunyuan`, etc.).
 

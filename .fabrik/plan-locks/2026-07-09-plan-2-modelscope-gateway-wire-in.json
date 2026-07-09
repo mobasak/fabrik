@@ -1,0 +1,22 @@
+{
+  "plan": "docs/development/plans/2026-07-09-plan-2-modelscope-gateway-wire-in.md",
+  "owned_paths": [
+    "docs/reference/kilo/AI_VENDOR_ACCESS.md",
+    "scripts/kilo-benchmarks/kilo_agents.db",
+    "scripts/kilo-benchmarks/tests/test_seed_reachability_backfill.py",
+    "scripts/kilo-benchmarks/scrape_modelscope_catalog.py",
+    "scripts/kilo-benchmarks/tests/test_scrape_modelscope_catalog.py",
+    "scripts/kilo-benchmarks/daily_refresh.sh",
+    "scripts/kilo-benchmarks/update_gateway_counts.py",
+    ".windsurf/rules/ai/00-ai-model-selection.md",
+    "scripts/kilo-benchmarks/models_browser_template.html",
+    "scripts/kilo-benchmarks/models_browser.html",
+    "docs/reference/kilo/AGGREGATOR_ROADMAP.md",
+    "CHANGELOG.md",
+    "INDEX.md",
+    "docs/development/plans/2026-07-09-plan-2-modelscope-gateway-wire-in.md"
+  ],
+  "branch": "master",
+  "started_at": "2026-07-09",
+  "status": "active"
+}
