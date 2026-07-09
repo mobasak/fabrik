@@ -114,7 +114,7 @@ When the ranker (`suggest_model.py`) sees a locked-out row Pareto-beating the ac
 
 ## Gateway coverage by category
 
-Kilo CLI (`kilo run kilo/<provider>/<model>`) and OpenRouter (`https://openrouter.ai/api/v1/chat/completions`) are **peer gateways**. Either is valid — pick by per-model price (the bake-off browser shows the cheaper rate per row). DashScope and SiliconFlow are direct-API gateways for specialist routes (e.g. `qwen-mt-turbo`).
+Kilo CLI (`kilo run kilo/<provider>/<model>`) and OpenRouter (`https://openrouter.ai/api/v1/chat/completions`) are **peer gateways**. Either is valid — pick by per-model price (the bake-off browser shows the cheaper rate per row). DashScope, SiliconFlow, and ModelScope are direct-API gateways for specialist routes (e.g. `qwen-mt-turbo`, Hunyuan, Zhipu GLM direct).
 
 <!-- GATEWAY_COUNTS:START — last-refreshed: 2026-07-09 (auto-managed by update_gateway_counts.py) -->
 *Live gateway counts (active models, 2026-07-09 UTC; auto-refreshed from `kilo_agents.db`):*
@@ -125,6 +125,7 @@ Kilo CLI (`kilo run kilo/<provider>/<model>`) and OpenRouter (`https://openroute
 | **Kilo CLI** | 345 | of which **345** dual-routed with OR, **0** Kilo-only |
 | **DashScope** (direct) | 1 | specialist routes (e.g. `qwen-mt-turbo`) |
 | **SiliconFlow** (direct) | 41 | specialist routes (e.g. Hunyuan) |
+| **ModelScope** (direct) | 31 | Zhipu GLM direct, Intern-S, PaddlePaddle ERNIE, Xiaomi MiMo |
 
 Capability counts (any-gateway): reasoning **203** · tools/function-calling **267** · vision-input **171** · translation-scored **9** · STT-capable **21**.
 <!-- GATEWAY_COUNTS:END -->
@@ -135,11 +136,12 @@ For specialized categories 7–15 (Robotics / Synthetic data / Recommendation / 
 
 - **DashScope** (`dashscope-intl.aliyuncs.com`) — Qwen-MT-Turbo (dedicated MT), Qwen-VL, etc.
 - **SiliconFlow** (`api.siliconflow.com`) — Hunyuan, Qwen3-Embedding, etc.
+- **ModelScope** (`api-inference.modelscope.cn`) — Zhipu GLM direct (5.2/5.1/5), Intern-S (Shanghai AI Lab), PaddlePaddle ERNIE-4.5, Xiaomi MiMo, Tencent Hunyuan Hy3.
 - **Soniox / Recraft / FLUX (BFL)** — specialized vendors, see per-category packs.
 
 **Kilo capability flags:** `reasoning` (88) · `toolcall` (148) · `input.image` (70) · `input.audio` (9) · `input.video` (19) · `attachment` (70). **Sync:** `python /opt/fabrik/scripts/kilo_model_sync.py --sync`. (Counts/prices drift between syncs — re-verify from the sync, not this table.)
 
-**Bake-off browser** (`scripts/kilo-benchmarks/models_browser.html`) is the source of truth for per-model gateway + price + quality. Tabbed by signal: Overview / Reasoning / Coding / Translation / Audio. The "Source" column badges (OR / K / DS / SF) and the Kilo-vs-OR markup % tell you the cheaper gateway at a glance.
+**Bake-off browser** (`scripts/kilo-benchmarks/models_browser.html`) is the source of truth for per-model gateway + price + quality. Tabbed by signal: Overview / Reasoning / Coding / Translation / Audio. The "Source" column badges (OR / K / DS / SF / MS) and the Kilo-vs-OR markup % tell you the cheaper gateway at a glance.
 
 ## Anti-patterns
 

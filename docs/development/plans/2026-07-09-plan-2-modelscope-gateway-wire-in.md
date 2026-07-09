@@ -453,7 +453,7 @@ git add scripts/kilo-benchmarks/scrape_modelscope_catalog.py \
 
 ---
 
-## Phase C — `update_gateway_counts.py` extension + rule-pack refresh
+## Phase C — `update_gateway_counts.py` extension + rule-pack refresh — ✅ EXECUTED 2026-07-09
 
 **Goal.** Extend `scripts/kilo-benchmarks/update_gateway_counts.py` to include a `via_modelscope=1` count query alongside the existing SF/DS ones (`update_gateway_counts.py:98-100`). Re-run it so the rule-pack `<!-- GATEWAY_COUNTS:START -->` block at `.windsurf/rules/ai/00-ai-model-selection.md:119` gains a `**ModelScope** (direct) | <N> | ...` row.
 

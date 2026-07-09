@@ -8,7 +8,7 @@ Why a sibling to `category_export_markdown.py`:
     logic carries strong invariants (Pass A-12 fixes vs. orphan markers, prose
     mentions, BOM frontmatter, etc.) and we don't want to risk regressing it.
   - GATEWAY_COUNTS is a parallel, independent concern: aggregate counts of
-    routable models by gateway (Kilo CLI / OpenRouter / DashScope / SiliconFlow)
+    routable models by gateway (Kilo CLI / OpenRouter / DashScope / SiliconFlow / ModelScope)
     per category, so the rules text never quotes a stale "Kilo has 235 models"
     number while the catalog drifts.
   - Both run in `daily_refresh.sh`. This script runs AFTER
@@ -99,6 +99,9 @@ def query_counts(db_path: Path) -> dict[str, int | dict[str, int]]:
             "siliconflow": n(
                 "SELECT count(*) FROM agents WHERE via_siliconflow=1 AND status='active'"
             ),
+            "modelscope": n(
+                "SELECT count(*) FROM agents WHERE via_modelscope=1 AND status='active'"
+            ),
             "with_vision": n("SELECT count(*) FROM agents WHERE has_vision=1 AND status='active'"),
             "with_tools": n("SELECT count(*) FROM agents WHERE has_tools=1 AND status='active'"),
             "with_reasoning": n(
@@ -138,6 +141,7 @@ def render_block(category: str, counts: dict, today: str) -> str:
     kilo_only = counts["kilo_only"]
     ds = counts["dashscope"]
     sf = counts["siliconflow"]
+    ms = counts["modelscope"]
 
     lines = [
         f"*Live gateway counts (active models, {today} UTC; auto-refreshed from `kilo_agents.db`):*",
@@ -157,6 +161,9 @@ def render_block(category: str, counts: dict, today: str) -> str:
             f"| **DashScope** (direct) | {ds:,} | specialist routes (e.g. `qwen-mt-turbo`) |"
         )
         lines.append(f"| **SiliconFlow** (direct) | {sf:,} | specialist routes (e.g. Hunyuan) |")
+        lines.append(
+            f"| **ModelScope** (direct) | {ms:,} | Zhipu GLM direct, Intern-S, PaddlePaddle ERNIE, Xiaomi MiMo |"
+        )
         lines.append("")
         lines.append(
             "Capability counts (any-gateway): "
