@@ -333,6 +333,7 @@
   td.source .src-badge.kilo { background: #3a2552; border-color: #663399; color: #cbb0ff; }
   td.source .src-badge.ds { background: #2a3a1a; border-color: #5a8033; color: #b0e0a0; }
   td.source .src-badge.sf { background: #3a2a1a; border-color: #80553a; color: #e0c0a0; }
+  td.source .src-badge.ms { background: #2a1f4a; border-color: #4a3a80; color: #b8a0e0; }
   td.source .src-badge.replicate { background: #2a1f3a; border-color: #7a4fa0; color: #e8c0ff; }
   td.source .src-badge.fal { background: #3a2420; border-color: #a05030; color: #ffb080; }
   td.source .src-badge.direct { background: #1f2a1a; border-color: #4a6b2c; color: #b8d68a; font-style: italic; }
@@ -553,6 +554,7 @@
       <span class="chip" data-source="kilo" title="Reachable via Kilo Gateway (including dual-routed). Use Exclusivity below to pick Kilo-only.">via Kilo</span>
       <span class="chip" data-source="siliconflow" title="Reachable via SiliconFlow (api.siliconflow.com) — 72-model gateway covering LLMs (Qwen/DeepSeek/GLM/Kimi/MiniMax/Tencent/gemma/gpt-oss), FLUX images, fish-speech/IndexTTS/CosyVoice, Qwen3-Embedding + Reranker. Direct SF key bypasses OR fee.">via SiliconFlow</span>
       <span class="chip" data-source="dashscope" title="Reachable via Alibaba Cloud DashScope (dashscope.aliyuncs.com) — qwen-mt-turbo specialist routes.">via DashScope</span>
+      <span class="chip" data-source="modelscope" title="Reachable via ModelScope (api-inference.modelscope.cn) — 55-model Alibaba model-hub gateway covering Zhipu GLM direct (5.2/5.1/5), Shanghai AI Lab Intern-S, PaddlePaddle ERNIE-4.5, Xiaomi MiMo, Tencent Hunyuan Hy3, XiYanSQL, plus Qwen/DeepSeek/MiniMax/Kimi overlap.">via ModelScope</span>
     </div>
 
     <h3>Exclusivity / price compare <span style="font-weight: normal; text-transform: none; color: var(--muted)">(any of)</span></h3>
@@ -699,7 +701,7 @@
           <th data-tabs="overview reasoning coding translation" title="Route categories assigned by OpenRouter (language, code, vision, multimodal, agentic, long-context, speech-audio). Pinned categories — ones the model is currently routed under in today's OpenRouter shortlist — are highlighted. Not sortable; use the Route categories chips in the sidebar to filter.">Categories</th>
           <th data-sort="status" data-tabs="overview reasoning coding translation transcription voice image video ocr" title="Lifecycle state. 'active' = currently routable; 'deprecated' = no longer in upstream catalog (won't be selected by routers). Maintained two ways: (1) verify_openrouter_catalog.py --apply runs daily and flips OpenRouter-routed models to 'deprecated' when they vanish from the live OpenRouter /api/v1/models response (cause: delisting, EOL, rename); (2) direct-vendor specialty rows (Soniox, ElevenLabs, AssemblyAI, Coqui, etc.) are seeded 'active' by seed_direct_vendors.py and have NO automatic deprecation check — the OpenRouter verifier doesn't see them. If a direct vendor EOLs a model, status stays 'active' until someone updates seed_direct_vendors.py manually. So 'active' on the Voice/Audio/Image/Video/OCR tabs is a strong signal for OpenRouter-routed rows and a weak signal for direct-vendor rows.">Status</th>
           <th data-sort="last_verified" data-tabs="overview reasoning coding translation" title="Days since the pricing/benchmark scrape last refreshed this row. Useful for LLM tabs where benchmark sources have varying cadence (some weekly, some monthly). Hidden on specialty tabs (Transcription / Voice / Image / Video / OCR) because every direct-vendor row is bumped daily by seed_direct_vendors.py — the column is uniformly 'today' and carries no signal there.">Verified</th>
-          <th data-tabs="overview reasoning coding translation transcription voice image video ocr" title="Routing source (badges). OR=OpenRouter · K=Kilo Gateway · DS=Alibaba DashScope (qwen-mt-turbo etc.) · SF=SiliconFlow (Hunyuan etc.) · R=Replicate mirror · F=fal.ai mirror · K +N% = Kilo price markup vs OpenRouter for dual-routed. Direct-vendor rows (no gateway) show the vendor name. Not sortable; use the Routing / Exclusivity chips in the sidebar to filter.">Source</th>
+          <th data-tabs="overview reasoning coding translation transcription voice image video ocr" title="Routing source (badges). OR=OpenRouter · K=Kilo Gateway · DS=Alibaba DashScope (qwen-mt-turbo etc.) · SF=SiliconFlow (Hunyuan etc.) · MS=ModelScope (Alibaba model hub — Zhipu/Intern-S/ERNIE etc.) · R=Replicate mirror · F=fal.ai mirror · K +N% = Kilo price markup vs OpenRouter for dual-routed. Direct-vendor rows (no gateway) show the vendor name. Not sortable; use the Routing / Exclusivity chips in the sidebar to filter.">Source</th>
         </tr>
       </thead>
       <tbody id="tbody"></tbody>
@@ -1114,6 +1116,7 @@ function filterRow(m) {
       if (s === "kilo" && viaKilo) { pass = true; break; }
       if (s === "siliconflow" && !!m.via_siliconflow) { pass = true; break; }
       if (s === "dashscope" && !!m.via_dashscope) { pass = true; break; }
+      if (s === "modelscope" && !!m.via_modelscope) { pass = true; break; }
       if (s === "both" && viaOr && viaKilo) { pass = true; break; }
       if (s === "kilo_only" && viaKilo && !viaOr) { pass = true; break; }
       if (s === "or_only" && viaOr && !viaKilo) { pass = true; break; }
@@ -1141,6 +1144,7 @@ function fmtSource(m) {
   if (m.via_kilo) parts.push('<span class="src-badge kilo" title="Reachable via Kilo Gateway (api.kilo.ai)">K</span>');
   if (m.via_dashscope) parts.push('<span class="src-badge ds" title="Reachable via Alibaba Cloud DashScope (dashscope.aliyuncs.com) — qwen-mt-turbo etc.">DS</span>');
   if (m.via_siliconflow) parts.push('<span class="src-badge sf" title="Reachable via SiliconFlow (siliconflow.com) — Hunyuan, etc.">SF</span>');
+  if (m.via_modelscope) parts.push('<span class="src-badge ms" title="Reachable via ModelScope (api-inference.modelscope.cn) — Alibaba model hub, 55 models: Zhipu GLM direct, Intern-S, ERNIE-4.5, MiMo, etc.">MS</span>');
   // Aggregator badges (populated by fetch_replicate_prices.py / fetch_fal_prices.py).
   // gateway_prices is a JSON map { gateway: {price, unit, slug, confidence, ...} }
   if (m.gateway_prices) {

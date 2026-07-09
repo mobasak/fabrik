@@ -529,7 +529,7 @@ git add scripts/kilo-benchmarks/update_gateway_counts.py \
 
 ---
 
-## Phase D — GUI wire (template chip + badge + tooltip + regen)
+## Phase D — GUI wire (template chip + badge + tooltip + regen) — ✅ EXECUTED 2026-07-09
 
 **Goal.** Add `via ModelScope` sidebar filter chip + `<span class="src-badge ms">MS</span>` per-row badge + tooltip mention in `models_browser_template.html`. Regenerate `models_browser.html` via `export_models_browser.py`.
 
