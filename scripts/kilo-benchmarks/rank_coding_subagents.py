@@ -50,7 +50,19 @@ SCRIPT_DIR = Path(__file__).parent
 DB_PATH = SCRIPT_DIR / "kilo_agents.db"
 OUT_PATH = SCRIPT_DIR.parent.parent / "docs" / "reference" / "kilo" / "CODING_SUBAGENT_SELECTION.md"
 
-FAMILIES = ("z-ai/glm-", "moonshotai/kimi-", "minimax/minimax-", "deepseek/")
+FAMILIES = (
+    "z-ai/glm-",
+    "moonshotai/kimi-",
+    "minimax/minimax-",
+    "deepseek/",
+    # 2026-07-09 — admits the qwen3-coder line (cheap OSS coders) per fabrik-lib
+    # request. TIGHT prefix (trailing `-`) so it matches -next/-flash/
+    # -30b-a3b-instruct/-plus but NOT `qwen/qwen3-coder` (base $1.80, above cap)
+    # and NOT `qwen/qwen3.7-max`, `qwen/qwen3-vl-*`, etc. The Auto/On-request
+    # price split at :86 then tiers automatically (-next $0.80, -flash $0.975,
+    # -30b-a3b-instruct $0.27 → Auto; -plus $3.25 → On-request).
+    "qwen/qwen3-coder-",
+)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Auto vs On-request tier split — defense-in-depth (see 62-using-subagents.md § Approved pool models)

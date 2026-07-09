@@ -23,18 +23,21 @@ Auto tier — OpenRouter output ≤ $1.5/Mtok. `pick_models` auto-selects freely
 | 5 | `deepseek/deepseek-v4-flash` | ✅ | DeepInfra | 114 | 0.090 | 0.180 | — | — | 40 | 1460 | 1048k | **A** | 0.403 |
 | 6 | `minimax/minimax-m2.7` | ✅ | Mara | 51 | 0.180 | 0.720 | — | — | 38 | 1448 | 204k | **B-** | 0.367 |
 | 7 | `deepseek/deepseek-v4-pro` | ✅ | DeepSeek | 69 | 0.435 | 0.870 | — | — | 44 | — | 1048k | **A** | 0.317 |
-| 8 | `minimax/minimax-m2.1` | ✅ | Minimax | 61 | 0.300 | 1.200 | — | — | — | 1430 | 204k | **B-** | 0.225 |
-| 9 | `z-ai/glm-4.5-air` | ✅ | Novita | 105 | 0.130 | 0.850 | — | — | — | 1410 | 131k | **C+** | 0.224 |
-| 10 | `deepseek/deepseek-v3.2-exp` | ✅ | Novita | 35 | 0.270 | 0.410 | — | — | — | 1431 | 163k | **C+** | 0.224 |
-| 11 | `deepseek/deepseek-chat-v3.1` | ✅ | DeepInfra | 23 | 0.210 | 0.790 | — | — | — | 1430 | 163k | **C+** | 0.212 |
-| 12 | `deepseek/deepseek-chat-v3-0324` | ✅ | SiliconFlow | 27 | 0.240 | 0.900 | — | — | — | 1391 | 163k | **C** | 0.184 |
-| 13 | `minimax/minimax-m2-her` | ✅ | Minimax | 87 | 0.300 | 1.200 | — | — | — | — | 65k | **C** | 0.172 |
-| 14 | `z-ai/glm-4.7-flash` | ✅ | DeepInfra | 54 | 0.060 | 0.400 | — | — | — | — | 202k | **C+** | 0.171 |
-| 15 | `deepseek/deepseek-r1-distill-llama-70b` | ✅ | Novita | 45 | 0.800 | 0.800 | — | — | — | — | 128k | **C** | 0.163 |
-| 16 | `deepseek/deepseek-chat` | ✅ | StreamLake | 42 | 0.200 | 0.800 | — | — | — | 1337 | 131k | **C** | 0.162 |
-| 17 | `z-ai/glm-4.6v` | ✅ | Novita | 33 | 0.300 | 0.900 | — | — | — | — | 131k | **C** | 0.157 |
-| 18 | `deepseek/deepseek-v3.1-terminus` | ✅ | DeepInfra | 24 | 0.270 | 0.950 | — | — | — | — | 163k | **C** | 0.151 |
-| 19 | `minimax/minimax-01` | ✅ | Minimax | 22 | 0.200 | 1.100 | — | — | — | — | 1000k | **B** | 0.148 |
+| 8 | `qwen/qwen3-coder-next` | ✅ | Ionstream | 91 | 0.110 | 0.800 | — | — | 21 | — | 262k | **C+** | 0.247 |
+| 9 | `minimax/minimax-m2.1` | ✅ | Minimax | 61 | 0.300 | 1.200 | — | — | — | 1430 | 204k | **B-** | 0.225 |
+| 10 | `z-ai/glm-4.5-air` | ✅ | Novita | 105 | 0.130 | 0.850 | — | — | — | 1410 | 131k | **C+** | 0.224 |
+| 11 | `deepseek/deepseek-v3.2-exp` | ✅ | Novita | 35 | 0.270 | 0.410 | — | — | — | 1431 | 163k | **C+** | 0.224 |
+| 12 | `deepseek/deepseek-chat-v3.1` | ✅ | DeepInfra | 23 | 0.210 | 0.790 | — | — | — | 1430 | 163k | **C+** | 0.212 |
+| 13 | `qwen/qwen3-coder-30b-a3b-instruct` | ✅ | SiliconFlow | 104 | 0.070 | 0.270 | — | — | — | — | 160k | **C** | 0.185 |
+| 14 | `deepseek/deepseek-chat-v3-0324` | ✅ | SiliconFlow | 27 | 0.240 | 0.900 | — | — | — | 1391 | 163k | **C** | 0.184 |
+| 15 | `qwen/qwen3-coder-flash` | ✅ | Alibaba | 123 | 0.195 | 0.975 | — | — | — | — | 1000k | **B** | 0.181 |
+| 16 | `minimax/minimax-m2-her` | ✅ | Minimax | 87 | 0.300 | 1.200 | — | — | — | — | 65k | **C** | 0.172 |
+| 17 | `z-ai/glm-4.7-flash` | ✅ | DeepInfra | 54 | 0.060 | 0.400 | — | — | — | — | 202k | **C+** | 0.171 |
+| 18 | `deepseek/deepseek-r1-distill-llama-70b` | ✅ | Novita | 45 | 0.800 | 0.800 | — | — | — | — | 128k | **C** | 0.163 |
+| 19 | `deepseek/deepseek-chat` | ✅ | StreamLake | 42 | 0.200 | 0.800 | — | — | — | 1337 | 131k | **C** | 0.162 |
+| 20 | `z-ai/glm-4.6v` | ✅ | Novita | 33 | 0.300 | 0.900 | — | — | — | — | 131k | **C** | 0.157 |
+| 21 | `deepseek/deepseek-v3.1-terminus` | ✅ | DeepInfra | 24 | 0.270 | 0.950 | — | — | — | — | 163k | **C** | 0.151 |
+| 22 | `minimax/minimax-01` | ✅ | Minimax | 22 | 0.200 | 1.100 | — | — | — | — | 1000k | **B** | 0.148 |
 
 ### code-onrequest
 
@@ -57,8 +60,9 @@ On-request tier — OpenRouter output > $1.5/Mtok. Operator opt-in only: `pick_m
 | 13 | `moonshotai/kimi-k2-0905` | ✅ | Novita | 38 | 0.600 | 2.500 | — | — | — | 1403 | 262k | **B-** | 0.183 |
 | 14 | `minimax/minimax-m1` | ✅ | Minimax | 41 | 0.400 | 2.200 | — | — | — | 1369 | 1000k | **B** | 0.162 |
 | 15 | `z-ai/glm-4.5v` | ✅ | Novita | 50 | 0.600 | 1.800 | — | — | — | — | 65k | **C** | 0.155 |
-| 16 | `z-ai/glm-5-turbo` | ✅ | AtlasCloud | 43 | 1.200 | 4.000 | — | — | — | — | 262k | **C+** | 0.129 |
-| 17 | `z-ai/glm-5v-turbo` | ✅ | Z.AI | 36 | 1.200 | 4.000 | — | — | — | — | 202k | **C+** | 0.126 |
+| 16 | `qwen/qwen3-coder-plus` | ✅ | Alibaba | 36 | 0.650 | 3.250 | — | — | — | — | 1000k | **B** | 0.135 |
+| 17 | `z-ai/glm-5-turbo` | ✅ | AtlasCloud | 43 | 1.200 | 4.000 | — | — | — | — | 262k | **C+** | 0.129 |
+| 18 | `z-ai/glm-5v-turbo` | ✅ | Z.AI | 36 | 1.200 | 4.000 | — | — | — | — | 202k | **C+** | 0.126 |
 
 ## API call recipes (OpenRouter)
 
