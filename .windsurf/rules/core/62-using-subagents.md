@@ -112,6 +112,10 @@ spec → `minimax-m2.5`.
 | `/fabrik-execute-plan` | implementers | **TE-disjoint** (worktrees, one unit's `owned_paths` each) |
 | `/fabrik-ui-design` | screen build/drive | **native `fabrik-gui`** (no pool equivalent) |
 
+> The two shapes govern **pool** fan-out (`run_agents`). `/fabrik-ui-design` runs a **native** `fabrik-gui`
+> subagent (browser) — not a pool fan-out at all, so the shapes don't apply; it's in the table only to mark it
+> non-pooled (native runtimes never hit the `disjoint()` grouping). Same for any native pass.
+
 ## NEVER route to the pool (fabrik-lib PROPOSED_RULE)
 
 Auth/identity/session/crypto · schema/migrations · secrets/`.env`/keys · security controls (RLS, rate-limits, `final_gate`) · deploy/infra. These stay with the primary (human-supervised) agent. **Never web/MCP-enable a task carrying sensitive context** — the model's output exfiltrates via a scraped URL. Keep the bwrap sandbox on (`sandbox=True`, fail-closed).
