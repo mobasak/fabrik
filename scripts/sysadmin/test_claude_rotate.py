@@ -101,24 +101,108 @@ def test_run_claude_rotates_once_on_limit_then_ok(monkeypatch):
     assert len(calls) == 2, "original call + one retry"
 
 
-def test_run_claude_never_rotates_on_401(monkeypatch):
-    calls = []
+def test_run_claude_rotates_and_alerts_on_401(monkeypatch):
+    # 401 = the ACTIVE account's login token is dead. It now rotates to a standby AND fires a
+    # one-shot Telegram alert — rotating to a valid account recovers what the dead account's own
+    # refresh cannot.
+    outputs = [
+        _cp(stderr="401 Invalid authentication credentials", rc=1),
+        _cp(stdout='{"result":"ok"}', rc=0),
+    ]
+    calls, alerts = [], []
 
     def fake_run(argv, **kw):
         calls.append(kw)
-        return _cp(stderr="401 Invalid authentication credentials", rc=1)
+        return outputs[len(calls) - 1]
 
     rotations = []
     monkeypatch.setattr(claude_rotate.subprocess, "run", fake_run)
     monkeypatch.setattr(claude_rotate, "_list_accounts", lambda: _accounts("mob", "ob"))
     monkeypatch.setattr(claude_rotate, "_active_account", lambda: _accounts("mob")[0])
     monkeypatch.setattr(claude_rotate, "_rotate_active_account", _walk_rotator(["ob"], rotations))
+    monkeypatch.setattr(claude_rotate, "_notify_telegram", lambda text: alerts.append(text) is None)
+
+    r = claude_rotate.run_claude(["claude"], timeout=1, cwd="/x", env={})
+
+    assert r.returncode == 0 and "ok" in r.stdout, "recovered by rotating off the dead account"
+    assert len(rotations) == 1, "rotated once to the standby"
+    assert len(calls) == 2, "original call + one retry"
+    assert len(alerts) == 1, "exactly one 401 alert"
+    assert "401" in alerts[0] and "mob" in alerts[0] and "ob" in alerts[0], "names old+new account"
+
+
+def test_run_claude_401_alerts_giveup_when_no_standby(monkeypatch):
+    # 401 with no untried standby → still alerts (give-up message), no retry, returns the 401.
+    calls, alerts = [], []
+
+    def fake_run(argv, **kw):
+        calls.append(kw)
+        return _cp(stderr="401 Invalid authentication credentials", rc=1)
+
+    monkeypatch.setattr(claude_rotate.subprocess, "run", fake_run)
+    monkeypatch.setattr(claude_rotate, "_list_accounts", lambda: _accounts("mob"))  # 1 acct → no standby
+    monkeypatch.setattr(claude_rotate, "_active_account", lambda: _accounts("mob")[0])
+    monkeypatch.setattr(claude_rotate, "_rotate_active_account", _walk_rotator([], []))
+    monkeypatch.setattr(claude_rotate, "_notify_telegram", lambda text: alerts.append(text) is None)
 
     r = claude_rotate.run_claude(["claude"], timeout=1, cwd="/x", env={})
 
     assert r.returncode == 1 and "401" in r.stderr
-    assert len(rotations) == 0, "dead creds → alert path, never rotate"
-    assert len(calls) == 1, "no retry on 401"
+    assert len(calls) == 1, "no retry — nothing to rotate to"
+    assert len(alerts) == 1 and "giving up" in alerts[0], "give-up alert still fires"
+
+
+def test_usage_limit_rotation_does_not_alert(monkeypatch):
+    # A routine usage-limit rotates but must NOT send a Telegram alert — only a 401 alerts.
+    outputs = [_cp(stdout="You've hit your session limit · resets 3pm", rc=1), _cp(stdout="ok", rc=0)]
+    calls, alerts = [], []
+
+    def fake_run(argv, **kw):
+        calls.append(kw)
+        return outputs[len(calls) - 1]
+
+    monkeypatch.setattr(claude_rotate.subprocess, "run", fake_run)
+    monkeypatch.setattr(claude_rotate, "_list_accounts", lambda: _accounts("mob", "ob"))
+    monkeypatch.setattr(claude_rotate, "_active_account", lambda: _accounts("mob")[0])
+    monkeypatch.setattr(claude_rotate, "_rotate_active_account", _walk_rotator(["ob"], []))
+    monkeypatch.setattr(claude_rotate, "_notify_telegram", lambda text: alerts.append(text) is None)
+
+    claude_rotate.run_claude(["claude"], timeout=1, cwd="/x", env={})
+    assert len(alerts) == 0, "usage-limit rotation is silent (no 401 alert)"
+
+
+def test_telegram_config_env_then_file_then_none(tmp_path, monkeypatch):
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "envTok")
+    monkeypatch.setenv("TELEGRAM_OWNER_ID", "42")
+    assert claude_rotate._telegram_config() == ("envTok", "42"), "env wins"
+
+    monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
+    monkeypatch.delenv("TELEGRAM_OWNER_ID", raising=False)
+    f = tmp_path / ".env.sysadmin"
+    f.write_text('# c\nTELEGRAM_BOT_TOKEN="fileTok"\nTELEGRAM_OWNER_ID=99\nOTHER=x\n')
+    monkeypatch.setattr(claude_rotate, "ENV_SYSADMIN", f)
+    assert claude_rotate._telegram_config() == ("fileTok", "99"), "parsed from .env.sysadmin"
+
+    monkeypatch.setattr(claude_rotate, "ENV_SYSADMIN", tmp_path / "nope")
+    assert claude_rotate._telegram_config() is None, "unconfigured → None (WSL dev)"
+
+
+def test_notify_telegram_failsoft(tmp_path, monkeypatch):
+    # No config → no-op False, no network attempt.
+    monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
+    monkeypatch.delenv("TELEGRAM_OWNER_ID", raising=False)
+    monkeypatch.setattr(claude_rotate, "ENV_SYSADMIN", tmp_path / "nope")
+    assert claude_rotate._notify_telegram("hi") is False
+
+    # Configured but the network raises → swallowed, returns False, never propagates.
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "T")
+    monkeypatch.setenv("TELEGRAM_OWNER_ID", "42")
+
+    def boom(*a, **k):
+        raise OSError("no network")
+
+    monkeypatch.setattr(claude_rotate.urllib.request, "urlopen", boom)
+    assert claude_rotate._notify_telegram("hi") is False
 
 
 def test_run_claude_rotates_on_limit_string_regardless_of_exit_code(monkeypatch):
@@ -238,29 +322,31 @@ def test_run_claude_passes_cwd_and_env_through(monkeypatch):
 # --- control-flow branches the mocked suite above doesn't exercise -------------------
 
 
-def test_run_claude_401_wins_over_usage_limit(monkeypatch):
-    """Output that is BOTH a usage-limit render AND a 401 → the 401 guard must suppress
-    rotation (dead creds can't be fixed by rotating). Exercises the `is_auth_401` operand
-    that a pure-401 string never reaches (is_usage_limit is already False there)."""
-    calls = []
+def test_run_claude_401_with_usage_limit_rotates_and_alerts(monkeypatch):
+    """Output that is BOTH a usage-limit render AND a 401 → rotate (either signal triggers it) and,
+    because a 401 is present, fire the one-shot 401 alert."""
+    outputs = [
+        _cp(stdout="hit your session limit · resets 3pm\n401 Invalid authentication credentials", rc=1),
+        _cp(stdout='{"result":"ok"}', rc=0),
+    ]
+    calls, alerts = [], []
 
     def fake_run(argv, **kw):
         calls.append(kw)
-        return _cp(
-            stdout="hit your session limit · resets 3pm\n401 Invalid authentication credentials",
-            rc=1,
-        )
+        return outputs[len(calls) - 1]
 
     rotations = []
     monkeypatch.setattr(claude_rotate.subprocess, "run", fake_run)
     monkeypatch.setattr(claude_rotate, "_list_accounts", lambda: _accounts("mob", "ob"))
     monkeypatch.setattr(claude_rotate, "_active_account", lambda: _accounts("mob")[0])
     monkeypatch.setattr(claude_rotate, "_rotate_active_account", _walk_rotator(["ob"], rotations))
+    monkeypatch.setattr(claude_rotate, "_notify_telegram", lambda text: alerts.append(text) is None)
 
     claude_rotate.run_claude(["claude"], timeout=1, cwd="/x", env={})
 
-    assert len(rotations) == 0, "401 present → never rotate, even alongside a usage-limit string"
-    assert len(calls) == 1, "no retry when a 401 is in the output"
+    assert len(rotations) == 1, "rotates on either signal (401 no longer suppresses rotation)"
+    assert len(calls) == 2, "original + one retry"
+    assert len(alerts) == 1, "401 present → exactly one alert"
 
 
 def test_run_claude_single_account_never_rotates(monkeypatch):
