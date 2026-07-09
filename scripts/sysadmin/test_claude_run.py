@@ -205,6 +205,22 @@ def test_proactive_apprise_send_is_observable_on_failure():
     )
 
 
+def test_sibling_scripts_gate_apprise_delivery_and_use_printf():
+    # The 3 report scripts (unlike proactive-check, which uses the APPRISE_SEND helper) send
+    # Apprise inline. Same defect class the helper was hardened against: a `docker run … >/dev/null
+    # 2>&1` whose exit is discarded drops the report silently while the log says "sent"; and `echo`
+    # (vs printf '%s') mangles a leading -n/-e/-E or backslash escapes in Claude's body. Both must
+    # be fixed in all 3 to stay in sync with proactive-check (per claude-run.sh's AFTER-EDIT header).
+    for s in _HAVE_FALLBACK:
+        src = (ROOT / "scripts/sysadmin" / s).read_text()
+        assert "if sudo docker run" in src, (
+            f"{s} must gate on the Apprise docker-run exit (not discard it with >/dev/null 2>&1)"
+        )
+        assert "FAILED to deliver" in src, f"{s} must log + exit on a delivery failure (observable)"
+        assert 'ESCAPED=$(echo ' not in src, f"{s} must escape via printf '%s', not echo (echo mangles the body)"
+        assert "ESCAPED=$(printf '%s'" in src, f"{s} must build ESCAPED with printf '%s'"
+
+
 def test_four_root_scripts_syntax_valid():
     for s in _ROOT_SCRIPTS:
         r = subprocess.run(["bash", "-n", str(ROOT / "scripts/sysadmin" / s)], capture_output=True, text=True)

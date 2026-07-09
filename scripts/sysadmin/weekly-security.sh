@@ -51,11 +51,19 @@ if [ -z "$RESULT" ]; then
   RESULT="⚠️ Weekly security patrol: Claude failed to analyze. Check logs."
 fi
 
-ESCAPED=$(echo "$RESULT" | python3 -c "import sys,json; print(json.dumps(sys.stdin.read().strip()))")
+# printf '%s' (NOT echo) — echo mangles backslash sequences (\n, \t) and a leading -n/-e/-E
+# in Claude's output, silently corrupting the alert body before python json-encodes it.
+ESCAPED=$(printf '%s' "$RESULT" | python3 -c "import sys,json; print(json.dumps(sys.stdin.read().strip()))")
 
-sudo docker run --rm --network fabrik curlimages/curl:latest -sf -X POST "http://apprise:8000/notify/alerts" \
+# Gate on delivery: `docker run -sf … >/dev/null 2>&1` discards its exit status, so a down/
+# unreachable Apprise (or a wrong docker network) would silently drop the report while the log
+# claimed "sent". Check the exit and surface a real failure (matches proactive-check's APPRISE_SEND).
+if sudo docker run --rm --network fabrik curlimages/curl:latest -sf -X POST "http://apprise:8000/notify/alerts" \
   -H "Content-Type: application/json" \
   -d "{\"title\":\"🔒 Weekly Security\",\"body\":${ESCAPED}}" \
-  >/dev/null 2>&1
-
-echo "$(date -Iseconds) Weekly security patrol sent"
+  >/dev/null 2>&1; then
+  echo "$(date -Iseconds) Weekly security patrol sent"
+else
+  echo "$(date -Iseconds) Weekly security patrol FAILED to deliver via fabrik network" >&2
+  exit 1
+fi
