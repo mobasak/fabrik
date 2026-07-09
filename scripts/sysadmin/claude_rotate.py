@@ -145,13 +145,15 @@ def _active_account() -> Path | None:
         )
         if hit is not None:
             return hit
-    # (2) organizationUuid match — read LIVE (authoritative, never stale), and org never drifts
-    #     across a token refresh; identifies an old-format active regardless of marker/token state.
+    # (2) organizationUuid match — read LIVE (authoritative, never stale); org never drifts across
+    #     a token refresh. Trusted ONLY when it identifies EXACTLY ONE snapshot: if two snapshots
+    #     share an org (two accounts in one Team/Enterprise org, or a duplicated capture) the match
+    #     is ambiguous, so fall through to the marker rather than guess the sorted-first snapshot.
     active_org = _read_org(ACTIVE_CREDS)
     if active_org is not None:
-        hit = next((a for a in accounts if _read_org(a / ".credentials.json") == active_org), None)
-        if hit is not None:
-            return hit
+        org_hits = [a for a in accounts if _read_org(a / ".credentials.json") == active_org]
+        if len(org_hits) == 1:
+            return org_hits[0]
     # (3) marker — last resort for a newer no-org account THIS tool installed (set under the lock
     #     in _activate_snapshot) once its live token has drifted off the frozen snapshot.
     try:

@@ -635,6 +635,29 @@ def test_org_match_beats_stale_marker_for_old_format(tmp_path, monkeypatch):
     assert claude_rotate._rotate_active_account() == "ob-dir", "rotates to the real standby ob@"
 
 
+def test_ambiguous_shared_org_falls_through_to_marker(tmp_path, monkeypatch):
+    # Two DISTINCT old-format accounts in one Team/Enterprise org share an organizationUuid, so the
+    # live-org step matches BOTH — it must NOT guess the sorted-first snapshot but fall through to
+    # the marker, which correctly names the active account. (Regression guard for the token->org->
+    # marker reorder: org must be trusted only when it uniquely identifies a snapshot.)
+    _, accounts_dir, active = _setup_fake_claude(tmp_path, monkeypatch, {})
+    for name, tok in (("a-dir", "TOK-A"), ("b-dir", "TOK-B")):
+        d = accounts_dir / name
+        d.mkdir()
+        (d / ".credentials.json").write_text(
+            json.dumps({"claudeAiOauth": {"accessToken": tok, "refreshToken": "R"}, "organizationUuid": "org-shared"})
+        )
+        os.chmod(d / ".credentials.json", 0o600)
+    claude_rotate.ACTIVE_MARKER.write_text("b-dir")  # the active account is really b-dir
+    active.write_text(  # live active = b@ with a drifted (snapshot-less) token; org = the shared org
+        json.dumps({"claudeAiOauth": {"accessToken": "B-REFRESHED", "refreshToken": "R"}, "organizationUuid": "org-shared"})
+    )
+    os.chmod(active, 0o600)
+
+    assert claude_rotate._active_account().name == "b-dir", "ambiguous org → marker disambiguates"
+    assert claude_rotate._rotate_active_account() == "a-dir", "rotates to the real other account"
+
+
 def test_rotate_skips_corrupt_snapshot_and_picks_valid_target(tmp_path, monkeypatch):
     # A snapshot whose creds are empty/0-byte/non-JSON (interrupted capture or partial
     # fleet-sync) yields _read_org()==None. It must NOT be selected as a rotation target
