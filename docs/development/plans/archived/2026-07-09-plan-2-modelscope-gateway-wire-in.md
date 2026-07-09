@@ -1,10 +1,10 @@
 # ModelScope gateway wire-in — mirror the SiliconFlow 2026-07-09 pattern
 
-**Status:** IN-PROGRESS
+**Status:** EXECUTED 2026-07-09
 **Date:** 2026-07-09
 **Owner:** primary (this session)
 **Converged:** 2026-07-09 via `/fabrik-plan-review` — 4 passes, md5 fixed-point verified.
-**Executing:** 2026-07-09 via `/fabrik-execute-plan` — baseline gate green (Tier-1 15/15).
+**Executed:** 2026-07-09 via `/fabrik-execute-plan` — final gate: `python scripts/final_gate.py --json` → success (Tier 2, 34/34). Whole-plan `/fabrik-review` caught 3 `_ORG_MAP` mismatches (paddlepaddle/xiaomimimo/tencent-hunyuan → baidu/xiaomi/tencent) which were fixed inline in Phase E; net-new coverage +2 rows (tencent/hy3, xiaomi/mimo-v2-flash). 14/14 tests pass. Commits: `c3c15a52` (A) · `b17331d3` (B) · `40066d50` (C) · `ee4b60f5` (D) · Phase E on this commit.
 **Goal:** Make ModelScope the 5th wired peer gateway (after OR, Kilo, DashScope, SiliconFlow) — per-model `via_modelscope=1` flag on `agents`, GUI badge + sidebar filter chip, daily-refresh integration, rule-pack gateway-count block, catalog documented in `AI_VENDOR_ACCESS.md`. Follows the exact 5-step recipe already documented in `docs/reference/kilo/AGGREGATOR_ROADMAP.md` and captured verbatim in the SiliconFlow chain (`commits 965e273a → ba674dc1` — key → template → vendor row → seed → scraper → GUI chip).
 
 ## What we already agreed (Phase 0)
@@ -403,7 +403,7 @@ python -m pytest scripts/kilo-benchmarks/tests/test_scrape_modelscope_catalog.py
 **B.3 — Live-run against real ModelScope API.**
 
 ```bash
-export MODELSCOPE_API_KEY="$(grep '^MODELSCOPE_API_KEY=' /opt/fabrik/.env | cut -d= -f2-)"
+export MODELSCOPE_API_KEY="$(grep '^MODELSCOPE_API_KEY=' /opt/fabrik/.env | cut -d= -f2-)"  # noqa: bash command-sub from .env, not a hardcoded value
 python scripts/kilo-benchmarks/scrape_modelscope_catalog.py 2>&1 | tail -5
 # Expected: "fetched 55 MS models; matched N to agents.id; flipped via_modelscope=1 on M rows"
 # N ≥ 30 (based on the 20-org overlap with existing DB providers)
@@ -807,7 +807,8 @@ This is the DRAFT. `/fabrik-plan-review` will run the adversarial convergence pa
 - **Provider ORG normalization (specifically ZhipuAI → z-ai vs new zhipuai provider)** — RESOLVED: `z-ai` (Z.ai IS Zhipu, same company rebrand). Verified via DB grep: 12 `z-ai` provider rows, 0 `zhipuai` provider rows.
 - **New-row auto-ingest** — RESOLVED: OUT OF SCOPE. Scraper is flip-only; new-row ingestion is `verify_openrouter_catalog.py`'s job. Unmatched IDs printed to stderr; operator handles or a follow-up plan authorizes.
 - **Migration mechanism (SQLite ALTER)** — RESOLVED: inline `ALTER TABLE agents ADD COLUMN` with `PRAGMA table_info` guard. Matches sibling `via_siliconflow` / `via_dashscope` column-add pattern.
-- **`.env` re-materialization** — RESOLVED: token already stored (commit `1067ab43`). This plan uses `export MODELSCOPE_API_KEY="$(grep '^MODELSCOPE_API_KEY=' /opt/fabrik/.env | cut -d= -f2-)"` — pulls from stored env, never echoes the value into stdout.
+- **`.env` re-materialization** — RESOLVED: token already stored (commit `1067ab43`). This plan uses `export MODELSCOPE_API_KEY="$(grep '^MODELSCOPE_API_KEY=' /opt/fabrik/.env | cut -d= -f2-)"` — pulls from stored env, never echoes the value into stdout. <!-- noqa: bash command-sub, not a hardcoded value -->
+
 
 ### Still-open (each carries a named resolution step)
 

@@ -8,6 +8,7 @@ Currently wired (see `AI_VENDOR_ACCESS.md`):
 - **OpenRouter** — primary LLM gateway (18 provider families, 347 active models)
 - **Kilo CLI** — peer gateway to OR (subscription-billed, dual-routes with OR on 345 models)
 - **SiliconFlow** — 72-model LLM/image/TTS/embedding gateway (wired 2026-07-09)
+- **ModelScope** — 55-model Alibaba model-hub gateway (Zhipu GLM direct, Intern-S, ERNIE-4.5, MiMo, Hunyuan Hy3, XiYanSQL) (wired 2026-07-09 as plan-2)
 - **Alibaba DashScope** — Qwen-MT-Turbo specialist route
 - **Replicate + Fal.ai** — FLUX image gateways
 - **Soniox** — primary STT
@@ -28,7 +29,7 @@ The strongest signal: these add speed tiers, fee-bypass, or exclusive-vendor cov
 
 | Vendor | Signup effort | What it adds | Verdict |
 |---|---|---|---|
-| **ModelScope** | trivial (token API — `ms-*` format) | **55-model Alibaba model hub inference.** Covers direct **ZhipuAI GLM** (`GLM-5.2` / `5.1` / `5` / `4.7-Flash` — Zhipu's own inference, likely cheapest route for GLM), **Shanghai AI Lab Intern-S series** (`Intern-S1` / `S1-mini` / `S2-Preview` — the InternLM3 successors), **PaddlePaddle ERNIE-4.5** (Baidu direct), **Xiaomi MiMo-V2-Flash**, **Tencent Hunyuan Hy3**, **XiYanSQL** (specialty SQL coder), plus overlap with 20 Qwen models, MiniMax M2.5/M2.7/M3, DeepSeek V3.2/V4-Flash/V4-Pro, Kimi K2.5. **Token operator has signed up 2026-07-09.** OpenAI-compatible endpoint `https://api-inference.modelscope.cn/v1`. Full wire-in TBD; env var `MODELSCOPE_API_KEY` in `.env`. | **KEY IN HAND — signed up.** Wire on par with SF |
+| **ModelScope** | trivial (token API — `ms-*` format) | **55-model Alibaba model hub inference.** Delivered coverage (via_modelscope=1 in DB): ZhipuAI GLM direct (`GLM-5` / `5.1` / `5.2` / `5-Turbo`), Tencent Hunyuan Hy3, Xiaomi MiMo-V2-Flash, plus 26 Qwen/DeepSeek/MiniMax/Kimi overlap = 32 total. Fetched but unmatched (awaits new-row ingestion — flip-only scraper by plan-2 design): Shanghai AI Lab Intern-S series, PaddlePaddle ERNIE-4.5-PT, XiYanSQL, IIC GUI-Owl, LLM-Research Llama-4-Maverick, MusePublic, OpenGVLab InternVL3.5, OpenCompass. OpenAI-compatible endpoint `https://api-inference.modelscope.cn/v1`; env var `MODELSCOPE_API_KEY` in `.env`. | **WIRED 2026-07-09 (plan-2)** — see `AI_VENDOR_ACCESS.md` + `scrape_modelscope_catalog.py`; 32 rows via_modelscope=1, 31 active+unblocked in GUI. Follow-up: new-row ingestion for Intern-S/ERNIE-PT/XiYanSQL/etc. |
 | **Groq** | trivial | **LPU inference** — fastest tier for `llama-3.3-70b` / `mixtral-8x7b` (2-3× faster than any OR route). Latency-sensitive paths where speed dominates. | **Signup now.** Free tier + speed |
 | **Cerebras** | trivial | **WSE inference** — peer of Groq, sometimes even faster; `llama-3.3-70b` at ~2000 tok/s | **Signup now.** Redundancy with Groq |
 | **DeepInfra direct** | trivial | **Bypasses OR's 5.5% fee** on models where DeepInfra is already OR's cheapest provider (v4-flash, kimi-k2.7-code, deepseek-r1-0528, glm-5.2 — many more) | **Signup now.** Pure savings on models you route anyway |

@@ -162,7 +162,7 @@ def render_block(category: str, counts: dict, today: str) -> str:
         )
         lines.append(f"| **SiliconFlow** (direct) | {sf:,} | specialist routes (e.g. Hunyuan) |")
         lines.append(
-            f"| **ModelScope** (direct) | {ms:,} | Zhipu GLM direct, Intern-S, PaddlePaddle ERNIE, Xiaomi MiMo |"
+            f"| **ModelScope** (direct) | {ms:,} | Zhipu GLM direct + Tencent Hunyuan Hy3 + Xiaomi MiMo + Qwen/DeepSeek/MiniMax/Kimi overlap |"
         )
         lines.append("")
         lines.append(

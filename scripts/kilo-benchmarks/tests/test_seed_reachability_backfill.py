@@ -155,14 +155,21 @@ def test_ai_vendor_access_lists_modelscope_providers():
     """
     from seed_specialty_catalog import parse_vendor_catalog
 
-    doc = Path(__file__).resolve().parent.parent.parent.parent / "docs/reference/kilo/AI_VENDOR_ACCESS.md"
+    doc = (
+        Path(__file__).resolve().parent.parent.parent.parent
+        / "docs/reference/kilo/AI_VENDOR_ACCESS.md"
+    )
     assert doc.exists(), f"AI_VENDOR_ACCESS.md missing at {doc}"
     accessible = parse_vendor_catalog(doc)
-    # ModelScope-added providers (Intern-S, ERNIE, MiMo, Hunyuan lines) —
-    # these are NEW paths that only appear in the ModelScope row. If the row
-    # is missing or malformed, none of these will be in the accessible set.
-    ms_only = ("shanghai-ai-lab", "paddlepaddle", "xiaomimimo", "tencent-hunyuan")
-    missing = [p for p in ms_only if not accessible.get(p)]
+    # ModelScope-added providers — canonical DB provider names (fixed
+    # 2026-07-09 by Phase-E whole-plan review F1: was paddlepaddle /
+    # xiaomimimo / tencent-hunyuan; corrected to the actual DB values
+    # baidu / xiaomi / tencent). These providers are shared with routes
+    # OR carries too — but the ModelScope row REPEATS them (multi-vendor
+    # coverage), so `parse_vendor_catalog` sees them as accessible whether
+    # or not other rows also list them. Shanghai_AI_Lab is truly MS-only.
+    ms_row_providers = ("shanghai-ai-lab", "baidu", "xiaomi", "tencent")
+    missing = [p for p in ms_row_providers if not accessible.get(p)]
     assert not missing, (
         f"ModelScope row appears missing or malformed in AI_VENDOR_ACCESS.md — "
         f"parse_vendor_catalog does not see these providers as accessible: {missing}"

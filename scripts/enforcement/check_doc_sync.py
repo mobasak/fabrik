@@ -150,7 +150,15 @@ def _changelog_quality_ok() -> bool:
     # follow-up markers, not placeholders. Only bare `todo` / `fixme` are
     # unfinished-work signals.
     body = re.sub(r"todo\(\d{4}-\d{2}-\d{2}\)", "", body)
-    return not any(ph in body for ph in ("<brief title>", "<description>", "todo", "fixme"))
+    if any(ph in body for ph in ("<brief title>", "<description>")):
+        return False
+    # `todo` / `fixme` must be STANDALONE — not part of a compound word like
+    # `dated-todo` (a valid prose reference to the TODO format), `todo-list`,
+    # or `fixmeup`. Use lookaround boundaries that treat `-` as an intra-word
+    # char so hyphenated compounds don't count as unfinished-work markers.
+    return all(
+        not re.search(rf"(?<![a-z-]){word}(?![a-z-])", body) for word in ("todo", "fixme")
+    )
 
 
 def main() -> int:

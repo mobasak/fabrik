@@ -33,23 +33,23 @@ _ORG_MAP = {
     "deepseek-ai": "deepseek",
     "zhipuai": "z-ai",  # Z.ai IS Zhipu — same company rebrand
     "minimax": "minimax",
-    "shanghai_ai_laboratory": "shanghai-ai-lab",
-    "paddlepaddle": "paddlepaddle",
-    "xiaomimimo": "xiaomimimo",
-    "tencent-hunyuan": "tencent-hunyuan",
-    "iic": "alibaba-iic",
-    "musepublic": "musepublic",
-    "opengvlab": "opengvlab",
-    "xgenerationlab": "xgenerationlab",
+    "shanghai_ai_laboratory": "shanghai-ai-lab",  # net-new (no DB rows yet — unmatched)
+    "paddlepaddle": "baidu",       # PaddlePaddle is Baidu's DL brand; DB uses baidu/ernie-4.5-*
+    "xiaomimimo": "xiaomi",        # MS publishes as XiaomiMiMo/, DB is xiaomi/mimo-v2-*
+    "tencent-hunyuan": "tencent",  # MS publishes as Tencent-Hunyuan/Hy3, DB is tencent/hy3
+    "iic": "alibaba-iic",          # net-new (no DB rows yet)
+    "musepublic": "musepublic",    # net-new
+    "opengvlab": "opengvlab",      # net-new
+    "xgenerationlab": "xgenerationlab",  # net-new (XiYanSQL)
     "stepfun-ai": "stepfun",
     "moonshotai": "moonshotai",
     "qwen": "qwen",
     "mistralai": "mistralai",
     "meituan-longcat": "meituan-longcat",
     "nex-agi": "nex-agi",
-    "llm-research": "llm-research",
-    "medaibase": "medaibase",
-    "opencompass": "opencompass",
+    "llm-research": "llm-research",  # net-new (LLM-Research/Llama-4-Maverick)
+    "medaibase": "medaibase",        # net-new
+    "opencompass": "opencompass",    # net-new
 }
 
 
