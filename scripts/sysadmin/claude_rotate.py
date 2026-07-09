@@ -653,6 +653,13 @@ def main(argv: list[str] | None = None) -> int:
     except FileNotFoundError:
         sys.stderr.write(f"claude_rotate: claude binary not found: {args[0]!r}\n")
         return 127
+    except OSError as e:
+        # Other spawn-time failures for the SAME mis-provisioned-host class: PermissionError (claude
+        # rsync'd without the exec bit), IsADirectoryError, or "Exec format error" (wrong arch/bad
+        # shebang). run_claude's own internals guard their OSErrors, so the only OSError that reaches
+        # here is subprocess.run's spawn failure → the child never ran; exit 126, don't traceback.
+        sys.stderr.write(f"claude_rotate: cannot execute {args[0]!r}: {e.strerror or 'exec error'}\n")
+        return 126
     except subprocess.TimeoutExpired:
         sys.stderr.write(f"claude_rotate: claude timed out after {timeout}s\n")
         return 124

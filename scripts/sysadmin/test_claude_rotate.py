@@ -315,6 +315,13 @@ def test_main_missing_bin_returns_127_and_timeout_returns_124(monkeypatch):
     monkeypatch.setattr(claude_rotate.subprocess, "run", timed_out)
     assert claude_rotate.main(["claude", "-p", "hi"]) == 124
 
+    # sibling spawn-time OSErrors (missing exec bit / directory / bad arch) → 126, not a traceback
+    def not_executable(*a, **k):
+        raise PermissionError(13, "Permission denied")
+
+    monkeypatch.setattr(claude_rotate.subprocess, "run", not_executable)
+    assert claude_rotate.main(["/opt/fabrik/scripts/sysadmin", "-p", "hi"]) == 126
+
 
 def test_run_claude_rotates_on_limit_string_regardless_of_exit_code(monkeypatch):
     # DELIBERATE: rotation triggers on the usage-limit STRING regardless of exit code — never
