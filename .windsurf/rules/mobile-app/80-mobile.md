@@ -72,13 +72,13 @@ Every mobile app project must ship these screens. Traycer derives additional pro
 - Paywall ships in the billing epic. "Restore Purchases" is store-mandatory.
 - Core feature screens are project-specific — Traycer defines them during `core-flows`.
 - Every screen follows the design system 5 states (loading, empty, error, success, disabled).
-- Navigation: `NativeStackNavigator` for hierarchical flows, `BottomTabNavigator` for top-level (3-5 tabs).
+- Navigation: **expo-router** file-based routing — `Stack` for hierarchical flows, `Tabs` for top-level (3-5 tabs).
 
 ---
 
 ## Architecture
 
-- React Native with TypeScript is the mobile framework. The New Architecture (Fabric/JSI) is the default since React Native 0.76 and Expo SDK 53; the legacy bridge was frozen in June 2025 and removed in RN 0.82 (Oct 2025). Expo SDK 55 (current stable, Feb 2026) made it mandatory — `newArchEnabled: false` no longer exists. Never generate code relying on the legacy asynchronous JSON bridge.
+- React Native with TypeScript is the mobile framework. The New Architecture (Fabric/JSI) is the default since React Native 0.76 and Expo SDK 53; the legacy bridge was frozen in June 2025 and removed in RN 0.82 (Oct 2025). Expo SDK 55 made it **mandatory** — `newArchEnabled: false` is a no-op. Current stable is **Expo SDK 57** (released 2026-06-30, built on React Native 0.86). Never generate code relying on the legacy asynchronous JSON bridge.
 - Web DOM elements (`<div>`, `<span>`, `<p>`, `<img>`, `<a>`) are **strictly forbidden**. Use React Native primitives: `<View>`, `<Text>`, `<Pressable>`, `<Image>`.
 - Minimize direct modifications to `android/` and `ios/` directories. Prefer config plugins or autolinking where possible.
 - If the project uses Expo Managed Workflow, never suggest `npx expo eject` or manual native file edits. All native configuration belongs in `app.json` config plugins.
@@ -87,10 +87,10 @@ Every mobile app project must ship these screens. Traycer derives additional pro
 
 ## Navigation
 
-- Use React Navigation (`@react-navigation/native`) for all navigation.
-- Use `NativeStackNavigator` for hierarchical screen flows and `BottomTabNavigator` for top-level sections.
-- Extract route names and param types into a shared type file (e.g., `NavigationTypes.ts`) to keep navigation type-safe.
-- Configure deep linking via React Navigation's `linking` prop. Use Universal Links (iOS AASA) and App Links (Android assetlinks.json) — wired as Expo config plugins at prebuild. Custom URL schemes are fallback only.
+- Use **expo-router** (file-based routing, screens under `app/`) for all navigation — Expo's recommended router and the `create-expo-app` default since SDK 50. **As of SDK 56, expo-router forked from React Navigation and no longer depends on `@react-navigation/*`**: importing directly from `@react-navigation/*` in app code no longer works out of the box (a codemod repoints those imports to expo-router's own entry points), and `expo-doctor` warns if both are installed. Do NOT add `@react-navigation/*` packages to a new app.
+- Use expo-router's `Stack` for hierarchical screen flows and `Tabs` for top-level sections (defined by the file layout in `app/`, e.g. `_layout.tsx`).
+- Enable **typed routes** (`experiments.typedRoutes: true` in `app.json`) for type-safe hrefs and route params — no hand-maintained route-name file.
+- Deep linking is handled by expo-router's file-based routes. Use Universal Links (iOS AASA) and App Links (Android assetlinks.json) — wired as Expo config plugins at prebuild. Custom URL schemes are fallback only.
 - Deep-link routing via ChottuLink (or equivalent) for attribution. See `00-domain-mobile-app.md` § Attribution for the full stack (ChottuLink + Tenjin + RevenueCat).
 - Use tabs for three to five top-level destinations; reserve modals for short focused tasks.
 
@@ -100,11 +100,11 @@ Every mobile app project must ship these screens. Traycer derives additional pro
 
 - Use unidirectional data flow: state flows down, events flow up.
 - **Server/API state:** TanStack React Query for caching, deduplication, and optimistic updates.
-  - **FastAPI backend (primary data layer):** the client talks only to FastAPI endpoints (Pattern A, same client model as web). Wrap each endpoint in a typed React Query hook; mirror the backend Pydantic schemas with Zod and validate at the React Query boundary when input/output crosses a trust boundary. Generate/maintain the client types from the FastAPI OpenAPI schema (e.g. `openapi-typescript`) — never `supabase gen types`, and never a `supabase-js` client.
+  - **FastAPI backend (primary data layer):** the client talks only to FastAPI endpoints (Pattern A, same client model as web). Wrap each endpoint in a typed React Query hook; mirror the backend Pydantic schemas with Zod and validate at the React Query boundary when input/output crosses a trust boundary. Generate the typed client from the FastAPI OpenAPI 3.1 schema with **`@hey-api/openapi-ts`** (FastAPI's own docs name Hey API as the purpose-built TypeScript generator) plus its **`@tanstack/react-query`** plugin (typed React Query v5 hooks) and **`zod`** plugin (Zod validators). Wire validation through with **`validator: true` on the `@hey-api/sdk` plugin** — plugin-scoped, i.e. `{ name: '@hey-api/sdk', validator: true }`, NOT `sdk.validator: true`. One config emits the hooks + validators, unlike `openapi-typescript` (types only → every hook and Zod schema hand-written). Never `supabase gen types`, and never a `supabase-js` client.
   - The client never talks to Postgres or any data store directly — all data goes through FastAPI, which owns `postgres-main` access, AI workflows, scraping, and scheduled jobs.
 - **Global UI state:** Zustand. Avoid Redux boilerplate and standalone `React.Context` for high-frequency updates.
 - **Local persistence:** `react-native-mmkv` (V4+) for fast, synchronous key-value storage (30× faster than AsyncStorage via JSI memory-mapped files). Reserve `expo-sqlite` + Drizzle ORM for complex offline relational queries only.
-  - **V4 API — the constructor and one method were renamed** (do not copy pre-V3 snippets): create a store with `createMMKV(...)` (not `new MMKV(...)` — the JS class was removed, MMKV is now a purely native Nitro/JSI HybridObject) and delete a key with `.remove(key)` (not `.delete(key)` — `delete` is a reserved keyword in C++). Also `AppGroup` in Info.plist was renamed to `AppGroupIdentifier`. V4 requires `react-native-nitro-modules` and RN ≥ 0.75. See [react-native-mmkv V4_UPGRADE_GUIDE.md](https://github.com/mrousavy/react-native-mmkv/blob/main/docs/V4_UPGRADE_GUIDE.md).
+  - **V4 API — the constructor and one method were renamed** (do not copy pre-V4 snippets — V3 and earlier used `new MMKV()`): create a store with `createMMKV(...)` (not `new MMKV(...)` — the JS class was removed, MMKV is now a purely native Nitro/JSI HybridObject) and delete a key with `.remove(key)` (not `.delete(key)` — `delete` is a reserved keyword in C++). Also `AppGroup` in Info.plist was renamed to `AppGroupIdentifier`. V4 requires `react-native-nitro-modules` and RN ≥ 0.75. See [react-native-mmkv V4_UPGRADE_GUIDE.md](https://github.com/mrousavy/react-native-mmkv/blob/main/docs/V4_UPGRADE_GUIDE.md).
 - Never call the FastAPI backend directly from a screen component — wrap in a typed React Query hook.
 
 ---
@@ -275,7 +275,7 @@ Key points for the client-side agent:
 - Use `expo-notifications` for cross-platform push. APNs (iOS) and FCM (Android) credentials managed via EAS.
 - Never request push permission on first app launch. Defer until the user has experienced value (post-onboarding, after first meaningful action).
 - Store device tokens in `postgres-main` keyed to `user_id`. Send via a FastAPI endpoint using the Expo Push API.
-- Always include a deep link payload so taps route correctly via React Navigation `linking`.
+- Always include a deep link payload so taps route correctly via expo-router's file-based routes.
 
 ---
 
@@ -329,7 +329,9 @@ If the app makes any AI-driven recommendation, score, match, classification, or 
 | Legacy bridge-dependent native modules | New Architecture (Fabric/JSI) compatible modules |
 | Manual edits to `android/` / `ios/` in Expo projects | Expo Config Plugins in `app.json` |
 | Direct FastAPI calls from screen components | Typed React Query hooks |
-| `supabase-js` / direct-Supabase-from-client / `supabase gen types` | FastAPI endpoints via typed React Query hooks; types from the FastAPI OpenAPI schema |
+| `supabase-js` / direct-Supabase-from-client / `supabase gen types` | FastAPI endpoints via typed React Query hooks; client generated with `@hey-api/openapi-ts` (react-query + zod plugins) |
+| `@react-navigation/*` in a new app; hand-written navigation | **expo-router** (file-based; forked from React Navigation in SDK 56 — `@react-navigation/*` imports don't work + `expo-doctor` warns) |
+| `openapi-typescript` (types only → hand-written hooks/Zod) | `@hey-api/openapi-ts` — hooks + Zod validators from one config (`validator: true` on `@hey-api/sdk`) |
 | `postgres-main` tables without RLS | RLS enabled before any query |
 | Hardcoded user-facing strings | `i18next` translation files |
 | Hardcoded prices or offering IDs | RevenueCat dashboard remote config |
@@ -364,9 +366,9 @@ If the app makes any AI-driven recommendation, score, match, classification, or 
 - [ ] Platform-specific behavior uses `Platform.OS` or `Platform.select()`.
 - [ ] `StyleSheet.create()` used for all styles — no inline web CSS patterns.
 - [ ] TypeScript strict mode enabled — no `any` types.
-- [ ] Navigation is type-safe with explicit route/param types.
+- [ ] Navigation uses **expo-router** file-based routes with typed routes enabled — no `@react-navigation/*` in app code.
 - [ ] Ocoron color tokens applied via `react-native-unistyles` theme — no raw hex values in components.
-- [ ] Client types generated from the FastAPI OpenAPI schema and committed — no `supabase-js`, no `supabase gen types`.
+- [ ] Client generated with `@hey-api/openapi-ts` (react-query + zod plugins) from the FastAPI OpenAPI schema and committed — no `supabase-js`, no `supabase gen types`, no hand-written hooks.
 - [ ] All `postgres-main` tables have RLS enabled.
 - [ ] App-issued JWT stored in `expo-secure-store`, not AsyncStorage or MMKV.
 - [ ] EAS profiles defined in `eas.json` (development, preview, production).
