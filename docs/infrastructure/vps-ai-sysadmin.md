@@ -1,6 +1,6 @@
 # VPS AI System Administrator — Reference
 
-**Last Updated:** 2026-06-16 (Trio Phase 1+2+3+4 LIVE across the FULL FLEET since 2026-06-06; **Phase 5.1.a operator-reversal cron LIVE on full fleet 2026-06-07** via `detect_reversals.py` + `*/5 min` cron entry; **rate-limited 429 wakes now tracked** via `aro_wake_requests_total{status="rate_limited"}` + `AroWakeLowSuccessRate` denominator updated; **stale netdata scrape job removed** 2026-06-07 (caused overnight 24× Telegram flood); **6 bootstrap defenses shipped** including preflight SSH-user-transition trap detection in `bootstrap-vps.sh` + `bootstrap-hub.sh` + new rule pack `.windsurf/rules/core/90-bootstrap-scripts.md`; **DR drill MEASURED end-to-end 2026-06-07**: bootstrap-vps.sh → 3m 13s wall-clock, 9.3× under the ≤30 min target, 15/15 substantive end-state checks.)
+**Last Updated:** 2026-07-09 (**Unified Claude entrypoint `claude-run.sh` + fleet auto-rotation shipped 2026-07-08** — see the boxed *Unified Claude invocation* note below + the *Rollout runbook*; **rotation + alerting hardened via `/fabrik-review` 2026-07-09** — corrupt-snapshot install guard + Apprise `--network fabrik` delivery gating. Prior: Trio Phase 1+2+3+4 LIVE across the FULL FLEET since 2026-06-06; **Phase 5.1.a operator-reversal cron LIVE on full fleet 2026-06-07** via `detect_reversals.py` + `*/5 min` cron entry; **rate-limited 429 wakes now tracked** via `aro_wake_requests_total{status="rate_limited"}` + `AroWakeLowSuccessRate` denominator updated; **stale netdata scrape job removed** 2026-06-07 (caused overnight 24× Telegram flood); **6 bootstrap defenses shipped** including preflight SSH-user-transition trap detection in `bootstrap-vps.sh` + `bootstrap-hub.sh` + new rule pack `.windsurf/rules/core/90-bootstrap-scripts.md`; **DR drill MEASURED end-to-end 2026-06-07**: bootstrap-vps.sh → 3m 13s wall-clock, 9.3× under the ≤30 min target, 15/15 substantive end-state checks.)
 **Last probe report:** [`probe-reports/infra-probe-2026-06-07T20-20Z.yaml`](probe-reports/infra-probe-2026-06-07T20-20Z.yaml)
 **Status:** Live since 2026-05-20
 **Service:** `vps-sysadmin-bot.service` (systemd, `Restart=always`)
@@ -833,8 +833,11 @@ ssh vps 'sudo tee /etc/cron.d/vps-sysadmin > /dev/null << "EOF"
 # Monthly backup verification — 1st of month 04:00
 0 4 1 * * root /opt/fabrik/scripts/sysadmin/monthly-backup-verify.sh >> /var/log/sysadmin-proactive.log 2>&1
 
-# OAuth keepalive — hourly at a hash-staggered minute; runs as ozgur, not root
-<KEEPALIVE_MINUTE> * * * * ozgur /usr/bin/claude -p "ping" > /var/log/claude-keepalive.log 2>&1
+# OAuth keepalive — hourly at a hash-staggered minute; runs as ozgur, not root.
+# Routed through claude-keepalive-rotate.sh — pings via account rotation (claude_rotate.py:
+# on a usage/quota limit, rotates to another manager-accounts/ snapshot) and writes a CONTENT
+# token (KEEPALIVE_OK / KEEPALIVE_FAIL:<reason>) to /var/log/claude-keepalive.log itself.
+<KEEPALIVE_MINUTE> * * * * ozgur /opt/fabrik/scripts/sysadmin/claude-keepalive-rotate.sh > /dev/null 2>&1
 
 # Daily digest — 09:00 UTC at a hash-staggered minute
 <DIGEST_MINUTE> 9 * * * root /opt/fabrik/scripts/sysadmin/daily-digest.sh >> /var/log/sysadmin-proactive.log 2>&1
@@ -925,6 +928,8 @@ ssh ozgur@vps 'sudo /opt/fabrik/scripts/sysadmin/claude-run.sh -p ping'         
 
 ⚠️ **Standby-token validity** (residual): after the first sync, on one host rotate to a standby account and `claude-run.sh -p ping` — if it 401s, an idle-synced refresh token died between syncs; shorten the WSL sync cadence.
 
+> **Corrupt-snapshot safety (`/fabrik-review` 2026-07-09).** Rotation will **not** brick a healthy account on a bad snapshot: a `manager-accounts/` snapshot whose `.credentials.json` is empty / 0-byte / non-JSON (e.g. an interrupted `can@` capture or a partial sync) is skipped by the auto-rotation selector, and `claude_rotate.py`'s install chokepoint refuses to activate any target that doesn't parse to a real `organizationUuid` (fail-soft — active + `.credentials.json.prev` left intact). So an explicit `--switch <corrupt>` prints `refusing to activate … unreadable/corrupt credentials` instead of installing empty creds. (`--list` still shows a corrupt snapshot — it only checks the file exists; the guard is at rotate/switch time. The rollout verify above — rotate to the standby + `claude-run.sh -p ping` — is what proves a standby is actually usable.)
+
 ## Files Manifest (for backup/replication)
 
 Everything needed to rebuild the sysadmin bot from scratch:
@@ -933,6 +938,9 @@ Everything needed to rebuild the sysadmin bot from scratch:
 |---|---|---|---|
 | `scripts/sysadmin/bot.py` | `/opt/fabrik/scripts/sysadmin/bot.py` | same | Telegram bot + session management |
 | `scripts/sysadmin/proactive-check.sh` | `/opt/fabrik/scripts/sysadmin/proactive-check.sh` | same | Two-stage cron script |
+| `scripts/sysadmin/claude-run.sh` | `/opt/fabrik/scripts/sysadmin/claude-run.sh` | same | **Unified Claude entrypoint (2026-07-08)** — drop-in for `claude`; routes every sysadmin call through `claude_rotate.py` as the operator account. The 4 root cron scripts + the bot invoke Claude via this. |
+| `scripts/sysadmin/claude_rotate.py` | `/opt/fabrik/scripts/sysadmin/claude_rotate.py` | same | Rotation core — usage-limit auto-rotation across `manager-accounts/` snapshots (atomic 0600 swap, N-account walk, corrupt-snapshot guard) + the `--list`/`--switch`/`--next` CLI. Byte-identical twin at `scripts/aro-wake/claude_rotate.py`. |
+| `scripts/sysadmin/claude-keepalive-rotate.sh` | `/opt/fabrik/scripts/sysadmin/claude-keepalive-rotate.sh` | same | Hourly OAuth keepalive — pings Claude through rotation, writes the `KEEPALIVE_OK`/`KEEPALIVE_FAIL` content token. |
 | `scripts/sysadmin/system-prompt.txt` | `/opt/fabrik/scripts/sysadmin/system-prompt.txt` | same | Claude Code role + rules |
 | `scripts/bootstrap/templates/vps-sysadmin-bot.service.template` | `/opt/fabrik/scripts/bootstrap/templates/vps-sysadmin-bot.service.template` | `/etc/systemd/system/vps-sysadmin-bot.service` (rendered) | Systemd service unit — renders `{{HOST_NAME}}` + `SYSADMIN_HOST_*`. (Legacy `ops/vps-sysadmin-bot.service` is superseded.) |
 | `.env.sysadmin` | — (VPS only, not in git) | `/opt/fabrik/.env.sysadmin` | Telegram token + owner ID + `WATCHDOG_OPENROUTER_KEY` + host-identity keys (template: `scripts/bootstrap/templates/env.sysadmin.template`) |
