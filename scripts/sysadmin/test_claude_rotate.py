@@ -116,10 +116,13 @@ def test_run_claude_rotates_and_alerts_on_401(monkeypatch):
         return outputs[len(calls) - 1]
 
     rotations = []
+    # Use NON-colliding account names ("primary"/"standby") so the assertions actually distinguish
+    # the two — "ob" is a substring of "mob", which let the old assertion pass even for the wrong
+    # (give-up) message or a died/target name swap.
     monkeypatch.setattr(claude_rotate.subprocess, "run", fake_run)
-    monkeypatch.setattr(claude_rotate, "_list_accounts", lambda: _accounts("mob", "ob"))
-    monkeypatch.setattr(claude_rotate, "_active_account", lambda: _accounts("mob")[0])
-    monkeypatch.setattr(claude_rotate, "_rotate_active_account", _walk_rotator(["ob"], rotations))
+    monkeypatch.setattr(claude_rotate, "_list_accounts", lambda: _accounts("primary", "standby"))
+    monkeypatch.setattr(claude_rotate, "_active_account", lambda: _accounts("primary")[0])
+    monkeypatch.setattr(claude_rotate, "_rotate_active_account", _walk_rotator(["standby"], rotations))
     monkeypatch.setattr(claude_rotate, "_notify_telegram", lambda text: alerts.append(text) is None)
 
     r = claude_rotate.run_claude(["claude"], timeout=1, cwd="/x", env={})
@@ -128,7 +131,9 @@ def test_run_claude_rotates_and_alerts_on_401(monkeypatch):
     assert len(rotations) == 1, "rotated once to the standby"
     assert len(calls) == 2, "original call + one retry"
     assert len(alerts) == 1, "exactly one 401 alert"
-    assert "401" in alerts[0] and "mob" in alerts[0] and "ob" in alerts[0], "names old+new account"
+    # message must reflect the RECOVERED outcome (not give-up) and name the dead + target accounts.
+    assert "recovered" in alerts[0] and "giving up" not in alerts[0], "reports recovery, not give-up"
+    assert "primary" in alerts[0] and "standby" in alerts[0], "names the dead + the rotated-to account"
 
 
 def test_run_claude_401_alerts_giveup_when_no_standby(monkeypatch):
@@ -252,6 +257,63 @@ def test_telegram_config_corrupt_file_is_noop_not_raise(tmp_path, monkeypatch):
 
     assert claude_rotate._telegram_config() is None, "undecodable file → no config, no raise"
     assert claude_rotate._notify_telegram("hi") is False, "fail-soft, never raises"
+
+
+def test_active_account_corrupt_marker_does_not_raise(tmp_path, monkeypatch):
+    # _active_account runs on EVERY run_claude call; a non-UTF-8 / corrupt .active-account must
+    # degrade to "no marker" (fall through), never raise UnicodeDecodeError and crash the claude
+    # path. Force resolution to REACH the marker step: active is new-format (no org) with a token
+    # matching no snapshot, so token(1) + org(2) both miss.
+    _, accounts_dir, active = _setup_fake_claude(tmp_path, monkeypatch, {"mob-dir": "org-mob"})
+    ob = accounts_dir / "ob-dir"
+    ob.mkdir()
+    _write_creds_no_org(ob / ".credentials.json", "TOKEN-OB")
+    _write_creds_no_org(active, "DRIFTED-TOKEN")  # matches no snapshot
+    claude_rotate.ACTIVE_MARKER.write_bytes(b"\xff\xfe not-utf8")  # corrupt marker
+
+    assert claude_rotate._active_account() is None, "corrupt marker → no identification, not a crash"
+
+
+def test_access_token_from_handles_missing_or_malformed_oauth():
+    # valid JSON, a dict, but NO claudeAiOauth key → None (not AttributeError on None.get);
+    # and non-dict / non-object JSON shapes → None. Only a real accessToken yields a token.
+    assert claude_rotate._access_token_from(json.dumps({"organizationUuid": "x"})) is None
+    assert claude_rotate._access_token_from(json.dumps({"claudeAiOauth": {}})) is None
+    assert claude_rotate._access_token_from(json.dumps({"claudeAiOauth": "notadict"})) is None
+    assert claude_rotate._access_token_from(b"[]") is None
+    assert claude_rotate._access_token_from(b"123") is None
+    assert claude_rotate._access_token_from(json.dumps({"claudeAiOauth": {"accessToken": "T"}})) == "T"
+
+
+def test_cmd_list_active_matches_no_snapshot(tmp_path, monkeypatch, capsys):
+    # The informational branch: active creds identify no snapshot → list the accounts AND print
+    # the "capture the account" hint (a real user-facing branch that was untested).
+    _, accounts_dir, active = _setup_fake_claude(tmp_path, monkeypatch, {"mob-dir": "org-mob"})
+    _write_creds_no_org(active, "UNKNOWN-TOKEN")  # no org, drifted token, no marker → matches none
+
+    rc = claude_rotate._cmd_list()
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "mob-dir" in out
+    assert "no snapshot" in out or "capture the account" in out, "prints the unidentified-active hint"
+
+
+def test_main_missing_bin_returns_127_and_timeout_returns_124(monkeypatch):
+    # The cron/keepalive path is main(); an uncaught FileNotFoundError (claude bin absent) or
+    # TimeoutExpired (hung attempt) must become a clean exit code, not a traceback.
+    monkeypatch.setattr(claude_rotate, "_read_piped_stdin", lambda *a, **k: None)
+
+    def missing(*a, **k):
+        raise FileNotFoundError("no such file")
+
+    monkeypatch.setattr(claude_rotate.subprocess, "run", missing)
+    assert claude_rotate.main(["/nonexistent/claude", "-p", "hi"]) == 127
+
+    def timed_out(*a, **k):
+        raise subprocess.TimeoutExpired(cmd="claude", timeout=1)
+
+    monkeypatch.setattr(claude_rotate.subprocess, "run", timed_out)
+    assert claude_rotate.main(["claude", "-p", "hi"]) == 124
 
 
 def test_run_claude_rotates_on_limit_string_regardless_of_exit_code(monkeypatch):
@@ -407,6 +469,9 @@ def test_run_claude_single_account_never_rotates(monkeypatch):
 
     monkeypatch.setattr(claude_rotate.subprocess, "run", fake_run)
     monkeypatch.setattr(claude_rotate, "_list_accounts", lambda: _accounts("mob"))  # 1 account
+    # Hermetic: mock _active_account too — else run_claude calls the REAL one, which reads the
+    # developer/CI machine's live ~/.claude/.credentials.json (the header promises no such dependency).
+    monkeypatch.setattr(claude_rotate, "_active_account", lambda: _accounts("mob")[0])
 
     claude_rotate.run_claude(["claude"], timeout=1, cwd="/x", env={})
 

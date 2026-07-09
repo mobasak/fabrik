@@ -19,7 +19,9 @@
 # $HOME-relative (ssh + scp both default to the remote home) — no ~ vs cwd divergence.
 #
 # Usage:
-#   scripts/sysadmin/sync-claude-accounts-to-fleet.sh                    # sync all hosts
+#   scripts/sysadmin/sync-claude-accounts-to-fleet.sh                    # push SNAPSHOTS to all hosts (safe)
+#   SYNC_ACTIVE=1 scripts/sysadmin/sync-claude-accounts-to-fleet.sh      # ALSO repoint each host's active
+#                                                                        #   to the WSL active (backs up first)
 #   DRY_RUN=1 scripts/sysadmin/sync-claude-accounts-to-fleet.sh          # print, touch nothing
 #   CLAUDE_FLEET_HOSTS="vps vps2 vps3 vps4" scripts/.../sync-...sh       # add a 4th host
 set -uo pipefail
@@ -88,8 +90,15 @@ for host in "${host_arr[@]}"; do
         fi
     done
 
-    # 3. Refresh the remote active account to match the local active one.
-    if [ -f "$CLAUDE_DIR/.credentials.json" ]; then
+    # 3. OPTIONALLY repoint the remote ACTIVE account to the WSL box's active one. OFF by default
+    #    (set SYNC_ACTIVE=1 to enable). Overwriting a host's active is a footgun for a routine
+    #    "refresh the standbys" sync: the WSL active may be a non-fleet / org-less account the
+    #    operator happened to switch to, so this would silently repoint all hosts' sysadmin identity;
+    #    and it clobbers the host's own self-refreshed active token with the WSL's frozen (possibly
+    #    staler) copy. Snapshots (Step 2) are always safe to push; the active is not. When enabled,
+    #    back the host's outgoing active up first (a raw scp, unlike rotation, keeps no .prev).
+    if [ "${SYNC_ACTIVE:-0}" = "1" ] && [ -f "$CLAUDE_DIR/.credentials.json" ]; then
+        run ssh "$dest" "cp -p .claude/.credentials.json .claude/.credentials.json.sync-bak 2>/dev/null || true"
         if ! run scp -pq "$CLAUDE_DIR/.credentials.json" "$dest:.claude/.credentials.json"; then
             log "ERROR: ${host} — scp of active creds failed"; host_ok=0; rc=1
         fi

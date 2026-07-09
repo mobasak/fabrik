@@ -22,7 +22,7 @@ def _make_claude_dir(tmp_path, names=("mob-dir", "ob-dir")):
     return claude_dir
 
 
-def _dry_run(tmp_path, hosts="vps vps2 vps3", claude_dir=None):
+def _dry_run(tmp_path, hosts="vps vps2 vps3", claude_dir=None, sync_active=False):
     claude_dir = claude_dir or _make_claude_dir(tmp_path)
     env = {
         **os.environ,
@@ -31,6 +31,8 @@ def _dry_run(tmp_path, hosts="vps vps2 vps3", claude_dir=None):
         "CLAUDE_FLEET_HOSTS": hosts,
         "CLAUDE_FLEET_SYNC_LOG": str(tmp_path / "sync.log"),
     }
+    if sync_active:
+        env["SYNC_ACTIVE"] = "1"
     r = subprocess.run(["bash", str(SCRIPT)], env=env, capture_output=True, text=True)
     return r
 
@@ -60,11 +62,25 @@ def test_dry_run_mkdirs_before_scp(tmp_path):
     assert first_mkdir < first_scp, "remote mkdir must precede scp"
 
 
-def test_dry_run_pushes_every_account_and_active(tmp_path):
+def test_dry_run_pushes_snapshots_but_not_active_by_default(tmp_path):
+    # Default sync pushes the manager-account SNAPSHOTS (safe) but must NOT touch each host's
+    # ACTIVE creds — overwriting the active repoints the fleet's sysadmin identity to whatever
+    # the WSL box is on and clobbers the host's self-refreshed token (SYNC_ACTIVE opt-in only).
     out = _dry_run(tmp_path).stdout
     assert "manager-accounts/mob-dir/.credentials.json" in out
     assert "manager-accounts/ob-dir/.credentials.json" in out
-    assert ".claude/.credentials.json" in out, "active creds must also be refreshed"
+    # the active-creds scp target is `:.claude/.credentials.json` with NO manager-accounts/ prefix
+    active_lines = [ln for ln in out.splitlines() if ln.rstrip().endswith(":.claude/.credentials.json")]
+    assert not active_lines, f"active creds must NOT be pushed by default, got: {active_lines}"
+
+
+def test_dry_run_sync_active_opt_in_pushes_active_with_backup(tmp_path):
+    out = _dry_run(tmp_path, sync_active=True).stdout
+    active_lines = [ln for ln in out.splitlines() if ln.rstrip().endswith(":.claude/.credentials.json")]
+    assert active_lines, "SYNC_ACTIVE=1 must push the active creds"
+    assert any(".credentials.json.sync-bak" in ln for ln in out.splitlines()), (
+        "SYNC_ACTIVE=1 must back up each host's outgoing active first"
+    )
 
 
 def test_unsafe_account_dirname_is_skipped(tmp_path):

@@ -164,7 +164,11 @@ def _active_account() -> Path | None:
     #     in _activate_snapshot) once its live token has drifted off the frozen snapshot.
     try:
         marked = ACTIVE_MARKER.read_text().strip()
-    except OSError:
+    except (OSError, ValueError):
+        # ValueError covers UnicodeDecodeError — a truncated/corrupt or non-UTF-8 .active-account
+        # (e.g. LANG=C reading a non-ASCII name, or external corruption). _active_account runs on
+        # EVERY run_claude call, so an undecodable marker must degrade to "no marker", never raise
+        # and crash the whole claude path. (Matches the _telegram_config guard.)
         marked = ""
     if marked:
         hit = next((a for a in accounts if a.name == marked), None)
@@ -633,10 +637,25 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_next()
     env = os.environ.copy()
     env.setdefault("CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC", "1")
-    timeout = int(os.environ.get("CLAUDE_ROTATE_TIMEOUT", "120"))
+    try:
+        timeout = int(os.environ.get("CLAUDE_ROTATE_TIMEOUT", "120"))
+    except ValueError:
+        timeout = 120
+    if timeout <= 0:
+        timeout = 120
     # CLI passthrough (claude-run.sh → stdin-piping sysadmin scripts): buffer stdin so a
-    # rotation retry re-supplies the piped context.
-    result = run_claude(args, timeout=timeout, cwd=os.getcwd(), env=env, buffer_stdin=True)
+    # rotation retry re-supplies the piped context. Convert the two subprocess failure modes into
+    # clean exits — the service callers (bot.py/aro-wake) catch these, but the cron/keepalive path
+    # is main(), where an uncaught FileNotFoundError (claude bin absent on a mis-provisioned host)
+    # or TimeoutExpired (a hung attempt) would otherwise dump a traceback into the cron log.
+    try:
+        result = run_claude(args, timeout=timeout, cwd=os.getcwd(), env=env, buffer_stdin=True)
+    except FileNotFoundError:
+        sys.stderr.write(f"claude_rotate: claude binary not found: {args[0]!r}\n")
+        return 127
+    except subprocess.TimeoutExpired:
+        sys.stderr.write(f"claude_rotate: claude timed out after {timeout}s\n")
+        return 124
     if result.stdout:
         sys.stdout.write(result.stdout)
     if result.stderr:
