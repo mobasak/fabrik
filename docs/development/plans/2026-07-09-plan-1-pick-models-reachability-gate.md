@@ -283,7 +283,7 @@ If the assert fails (< 60%): `BLOCKED: reachable coverage <60% — searched: AI_
 
 ---
 
-## Phase A — Filter at emit time in both rankers
+## Phase A — Filter at emit time in both rankers — ✅ EXECUTED 2026-07-09
 
 **Goal.** `rank_coding_subagents.py` and `rank_task_subagents.py` add `AND reachable_with_existing_keys=1` to their WHERE clauses so the emitted `CODING_SUBAGENT_SELECTION.md` + `TASK_SUBAGENT_SELECTION.md` never surface unreachable rows. Emit a `<!-- reachable: N/M -->` HTML comment at the top of each MD so downstream (`pick_models`, human operators) sees the coverage.
 
