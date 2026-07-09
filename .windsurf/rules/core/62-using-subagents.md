@@ -85,10 +85,14 @@ A model over $1.5, or any off-Auto model without the operator's explicit per-tur
 **empty `owned_paths` overlaps everything** (`workspace.py:321` `unrestricted = not owned[i] or not owned[j]`) and
 every `tools_enabled=True` worker is routed through `disjoint()` (`agent.py:430`):
 
-1. **Read-only fan-out (finders / grounders / auditors / reconcilers) → `tools_enabled=False` +
-   `allow_ungrounded=True`, the unit's content INLINED into `task`.** Each read-only worker is its own group
-   (`agent.py:435` — `groups += [{i} … if not s.tools_enabled]`) → **all parallel**. This is the DEFAULT for every
-   gradeable read-only fan-out.
+1. **Read-only fan-out (finders / grounders / auditors / reconcilers) → `tools_enabled=False`.** **The
+   parallelism trigger is `tools_enabled=False` ALONE** — every such worker becomes its own group (`agent.py:435`
+   — `groups += [{i} … if not s.tools_enabled]`) → **all parallel, regardless of `owned_paths`**. This is the
+   DEFAULT for every gradeable read-only fan-out. **Separately (orthogonal to parallelism — a *don't-get-refused*
+   requirement, NOT a shape condition):** a single-shot read-only worker on a **grounded** `task_type`
+   (`review`/`docs`/`plan`) must ALSO set `allow_ungrounded=True` and INLINE the unit's content into `task`, or the
+   module refuses it up-front (`agent.py:248`, it would hallucinate). Non-grounded read-only workers
+   (`research`/`spec`/`code`) parallelize on `tools_enabled=False` with no such attestation.
 2. **Tools-enabled fan-out (implementers, or graders that must read/write the tree themselves) →
    `tools_enabled=True` + DISJOINT `owned_paths` (one unit's files each).** Disjoint globs → parallel worktrees.
    ⚠️ **`tools_enabled=True` + empty/overlapping `owned_paths` → one group → SERIAL — the #1 dispatch trap** (looks
