@@ -24,10 +24,11 @@ Currently wired (see `AI_VENDOR_ACCESS.md`):
 
 ## Tier 1 — different-capability gateways (adds something OR + Kilo + SF can't)
 
-The strongest signal: these add speed tiers or fee-bypass that the current wire cannot deliver at any provider setting.
+The strongest signal: these add speed tiers, fee-bypass, or exclusive-vendor coverage that the current wire cannot deliver.
 
 | Vendor | Signup effort | What it adds | Verdict |
 |---|---|---|---|
+| **ModelScope** | trivial (token API — `ms-*` format) | **55-model Alibaba model hub inference.** Covers direct **ZhipuAI GLM** (`GLM-5.2` / `5.1` / `5` / `4.7-Flash` — Zhipu's own inference, likely cheapest route for GLM), **Shanghai AI Lab Intern-S series** (`Intern-S1` / `S1-mini` / `S2-Preview` — the InternLM3 successors), **PaddlePaddle ERNIE-4.5** (Baidu direct), **Xiaomi MiMo-V2-Flash**, **Tencent Hunyuan Hy3**, **XiYanSQL** (specialty SQL coder), plus overlap with 20 Qwen models, MiniMax M2.5/M2.7/M3, DeepSeek V3.2/V4-Flash/V4-Pro, Kimi K2.5. **Token operator has signed up 2026-07-09.** OpenAI-compatible endpoint `https://api-inference.modelscope.cn/v1`. Full wire-in TBD; env var `MODELSCOPE_API_KEY` in `.env`. | **KEY IN HAND — signed up.** Wire on par with SF |
 | **Groq** | trivial | **LPU inference** — fastest tier for `llama-3.3-70b` / `mixtral-8x7b` (2-3× faster than any OR route). Latency-sensitive paths where speed dominates. | **Signup now.** Free tier + speed |
 | **Cerebras** | trivial | **WSE inference** — peer of Groq, sometimes even faster; `llama-3.3-70b` at ~2000 tok/s | **Signup now.** Redundancy with Groq |
 | **DeepInfra direct** | trivial | **Bypasses OR's 5.5% fee** on models where DeepInfra is already OR's cheapest provider (v4-flash, kimi-k2.7-code, deepseek-r1-0528, glm-5.2 — many more) | **Signup now.** Pure savings on models you route anyway |
