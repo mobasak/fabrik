@@ -143,6 +143,7 @@ def test_run_claude_rotates_and_alerts_on_401(monkeypatch):
     monkeypatch.setattr(claude_rotate, "_active_account", lambda: _accounts("primary")[0])
     monkeypatch.setattr(claude_rotate, "_rotate_active_account", _walk_rotator(["standby"], rotations))
     monkeypatch.setattr(claude_rotate, "_notify_telegram", lambda text: alerts.append(text) is None)
+    monkeypatch.setattr(claude_rotate, "_should_alert_401", lambda: True)  # bypass the debounce here
 
     r = claude_rotate.run_claude(["claude"], timeout=1, cwd="/x", env={})
 
@@ -151,7 +152,7 @@ def test_run_claude_rotates_and_alerts_on_401(monkeypatch):
     assert len(calls) == 2, "original call + one retry"
     assert len(alerts) == 1, "exactly one 401 alert"
     # message must reflect the RECOVERED outcome (not give-up) and name the dead + target accounts.
-    assert "recovered" in alerts[0] and "giving up" not in alerts[0], "reports recovery, not give-up"
+    assert "recovered" in alerts[0] and "all credentials are dead" not in alerts[0], "reports recovery, not give-up"
     assert "primary" in alerts[0] and "standby" in alerts[0], "names the dead + the rotated-to account"
 
 
@@ -168,12 +169,13 @@ def test_run_claude_401_alerts_giveup_when_no_standby(monkeypatch):
     monkeypatch.setattr(claude_rotate, "_active_account", lambda: _accounts("mob")[0])
     monkeypatch.setattr(claude_rotate, "_rotate_active_account", _walk_rotator([], []))
     monkeypatch.setattr(claude_rotate, "_notify_telegram", lambda text: alerts.append(text) is None)
+    monkeypatch.setattr(claude_rotate, "_should_alert_401", lambda: True)  # bypass the debounce here
 
     r = claude_rotate.run_claude(["claude"], timeout=1, cwd="/x", env={})
 
     assert r.returncode == 1 and "401" in r.stderr
     assert len(calls) == 1, "no retry — nothing to rotate to"
-    assert len(alerts) == 1 and "giving up" in alerts[0], "give-up alert still fires"
+    assert len(alerts) == 1 and "all credentials are dead" in alerts[0], "give-up alert still fires"
 
 
 def test_usage_limit_rotation_does_not_alert(monkeypatch):
@@ -190,6 +192,7 @@ def test_usage_limit_rotation_does_not_alert(monkeypatch):
     monkeypatch.setattr(claude_rotate, "_active_account", lambda: _accounts("mob")[0])
     monkeypatch.setattr(claude_rotate, "_rotate_active_account", _walk_rotator(["ob"], []))
     monkeypatch.setattr(claude_rotate, "_notify_telegram", lambda text: alerts.append(text) is None)
+    monkeypatch.setattr(claude_rotate, "_should_alert_401", lambda: True)  # bypass the debounce here
 
     claude_rotate.run_claude(["claude"], timeout=1, cwd="/x", env={})
     assert len(alerts) == 0, "usage-limit rotation is silent (no 401 alert)"
@@ -208,12 +211,26 @@ def test_run_claude_401_both_dead_alerts_giveup_not_recovered(monkeypatch):
     monkeypatch.setattr(claude_rotate, "_active_account", lambda: _accounts("mob")[0])
     monkeypatch.setattr(claude_rotate, "_rotate_active_account", _walk_rotator(["ob"], rotations))
     monkeypatch.setattr(claude_rotate, "_notify_telegram", lambda text: alerts.append(text) is None)
+    monkeypatch.setattr(claude_rotate, "_should_alert_401", lambda: True)  # bypass the debounce here
 
     claude_rotate.run_claude(["claude"], timeout=1, cwd="/x", env={})
 
     assert len(rotations) == 1, "rotated to the (also-dead) standby once, then exhausted"
     assert len(alerts) == 1, "exactly one alert, fired post-loop"
-    assert "giving up" in alerts[0] and "recovered" not in alerts[0], "give-up, not false-recovered"
+    assert "all credentials are dead" in alerts[0] and "recovered" not in alerts[0], "give-up, not false-recovered"
+
+
+def test_should_alert_401_debounces_per_window(tmp_path, monkeypatch):
+    # The 401 alert must fire at most once per debounce window per host — else a persistently-dead
+    # account floods Telegram from every 15-min cron × N hosts.
+    state = tmp_path / ".last-401-alert"
+    monkeypatch.setattr(claude_rotate, "ALERT_STATE", state)
+
+    assert claude_rotate._should_alert_401() is True, "first call alerts + records the time"
+    assert state.exists()
+    assert claude_rotate._should_alert_401() is False, "second call within the window is suppressed"
+    state.write_text("0.0")  # last alert at epoch 0 → window elapsed
+    assert claude_rotate._should_alert_401() is True, "alerts again after the window"
 
 
 def test_telegram_config_env_beats_file_and_parses_file(tmp_path, monkeypatch):
@@ -512,6 +529,7 @@ def test_run_claude_401_with_usage_limit_rotates_and_alerts(monkeypatch):
     monkeypatch.setattr(claude_rotate, "_active_account", lambda: _accounts("mob")[0])
     monkeypatch.setattr(claude_rotate, "_rotate_active_account", _walk_rotator(["ob"], rotations))
     monkeypatch.setattr(claude_rotate, "_notify_telegram", lambda text: alerts.append(text) is None)
+    monkeypatch.setattr(claude_rotate, "_should_alert_401", lambda: True)  # bypass the debounce here
 
     claude_rotate.run_claude(["claude"], timeout=1, cwd="/x", env={})
 

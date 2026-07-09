@@ -49,6 +49,10 @@ ROTATE_LOCK = CLAUDE_DIR / ".claude-rotate.lock"
 # Dir-NAME of the currently-active snapshot, written on every install. Org-independent identity:
 # the only reliable "which account is active" signal for newer creds that carry no organizationUuid.
 ACTIVE_MARKER = CLAUDE_DIR / ".active-account"
+# 401 Telegram alerts are DEBOUNCED to once per this window PER HOST (shared across all callers on
+# the host) — a persistently-dead account must not flood Telegram from every 15-min cron × N hosts.
+ALERT_STATE = CLAUDE_DIR / ".last-401-alert"
+_ALERT_DEBOUNCE_S = 12 * 3600
 
 # Quota / usage-limit signal (case-insensitive). PURE alternation — no literal spaces
 # around '|'. Grounded verbatim (claude-auto-retry README + Anthropic errors docs,
@@ -381,6 +385,25 @@ def _hostname() -> str:
         return "?"
 
 
+def _should_alert_401() -> bool:
+    """True at most once per ``_ALERT_DEBOUNCE_S`` per host — rate-limits the 401 Telegram alert so a
+    persistently-dead account can't flood the operator (every 15-min cron + hourly keepalive + bot,
+    ×N hosts, each hitting the same 401, otherwise sends hundreds/day). The window is shared across
+    all callers on the host via a single state file. Fail-OPEN on any error (a rare alert beats a
+    swallowed one); records the send time so the next caller within the window stays quiet."""
+    try:
+        last = float(ALERT_STATE.read_text().strip())
+    except (OSError, ValueError):
+        last = 0.0
+    if time.time() - last < _ALERT_DEBOUNCE_S:
+        return False
+    try:
+        ALERT_STATE.write_text(str(time.time()))
+    except OSError:
+        pass
+    return True
+
+
 ENV_SYSADMIN = Path("/opt/fabrik/.env.sysadmin")  # fleet sysadmin env (ozgur-readable) — token fallback
 
 
@@ -514,21 +537,22 @@ def run_claude(
         result = subprocess.run(
             argv, capture_output=True, encoding="utf-8", errors="replace", timeout=timeout, cwd=cwd, env=env, input=stdin_data
         )
-    # A 401 (dead creds) alerts ONCE, AFTER the loop, reflecting the ACTUAL final outcome — never an
+    # A 401 (dead creds) alerts AFTER the loop, reflecting the ACTUAL final outcome — never an
     # optimistic mid-loop guess, since a standby we rotated to may itself be dead. Recovery = the
-    # final attempt is no longer a 401 (nor a limit). Best-effort; never raises (see _notify_telegram).
-    if died_account is not None:
+    # final attempt is no longer a 401 (nor a limit). DEBOUNCED per host (_should_alert_401) so a
+    # persistently-dead fleet doesn't flood Telegram. Best-effort; never raises (see _notify_telegram).
+    if died_account is not None and _should_alert_401():
         final = (result.stdout or "") + "\n" + (result.stderr or "")
         host = _hostname()
         if last_target is not None and not is_auth_401(final) and not is_usage_limit(final):
             _notify_telegram(
                 f"⚠️ Claude 401 on {host}: account '{died_account}' credentials were dead — "
-                f"auto-rotated to '{last_target}' and recovered."
+                f"auto-rotated to '{last_target}' and recovered. (alerts quiet ~12h)"
             )
         else:
             _notify_telegram(
-                f"🚨 Claude 401 on {host}: account '{died_account}' credentials are dead and no "
-                f"working standby remains — giving up. Refresh the fleet account snapshots."
+                f"🚨 Claude 401 on {host}: NO working Claude account — all credentials are dead. "
+                f"Re-capture a fresh account (claude auth login / claude-manager). (alerts quiet ~12h)"
             )
     return result
 
