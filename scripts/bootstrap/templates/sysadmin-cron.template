@@ -34,6 +34,14 @@
 # so a real auth/quota break surfaces instead of a perpetually-fresh mtime.
 {{KEEPALIVE_MINUTE}} * * * * ozgur /opt/fabrik/scripts/sysadmin/claude-keepalive-rotate.sh > /dev/null 2>&1
 
+# Standby-token refresh — DAILY at 04:{{KEEPALIVE_MINUTE}} (hash-staggered). The keepalive above
+# refreshes only the ACTIVE account; the frozen manager-accounts/ SNAPSHOTS go stale (~4-day OAuth
+# idle window). This cycles EVERY captured account — switch → bare ping (refresh in place) →
+# re-snapshot → restore the original active — so a rotation never lands on a dead standby. Runs as
+# ozgur; writes REFRESH_OK / REFRESH_DEAD:<names> to /var/log/claude-refresh-standbys.log (+ a
+# best-effort Telegram alert when an account is too dead to refresh — re-capture via claude-manager).
+{{KEEPALIVE_MINUTE}} 4 * * * ozgur /opt/fabrik/scripts/sysadmin/claude-refresh-standbys.sh > /dev/null 2>&1
+
 # Daily digest — 09:00 UTC (trio plan §2.8 + r3 #21 + r4 #31).
 # Per-host roll-up of Tier A actions / escalations / reverts / consults / health
 # heartbeats. Posted to Telegram once per day per host so the operator sees
