@@ -184,6 +184,14 @@ def test_four_scripts_apprise_uses_fabrik_network_not_coolify():
         assert "--network fabrik" in src, f"{s} must send Apprise via the 'fabrik' network"
 
 
+def test_proactive_apprise_send_is_observable_on_failure():
+    # the fail-closed escalation relies on Apprise actually delivering — a silent drop would
+    # defeat it, so APPRISE_SEND must check the docker-run exit and log a failure.
+    src = (ROOT / "scripts/sysadmin/proactive-check.sh").read_text()
+    assert "if ! sudo docker run" in src, "APPRISE_SEND must check the docker-run exit (not swallow it)"
+    assert "APPRISE_SEND FAILED" in src, "a delivery failure must be logged (observable)"
+
+
 def test_four_root_scripts_syntax_valid():
     for s in _ROOT_SCRIPTS:
         r = subprocess.run(["bash", "-n", str(ROOT / "scripts/sysadmin" / s)], capture_output=True, text=True)

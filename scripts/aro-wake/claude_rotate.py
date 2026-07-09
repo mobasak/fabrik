@@ -120,10 +120,10 @@ def _secure_write(dst: Path, data: bytes) -> None:
         written = 0
         while written < len(view):
             written += os.write(fd, view[written:])
-        # fsync before the caller's os.replace so the atomic RENAME is also crash-DURABLE:
-        # without it a power loss just after rotation could leave the active inode naming
-        # unwritten blocks (a zero-length/garbage active creds file). The .prev backup is the
-        # recovery aid, but data-durability here makes the "atomic swap" claim literally true.
+        # fsync the FILE DATA before the caller's os.replace so a power loss can't leave the
+        # active inode naming unwritten blocks (a zero-length/garbage creds file). The caller
+        # (_activate_snapshot) additionally fsyncs the CONTAINING DIRECTORY after os.replace so
+        # the rename itself is durable — together the swap is genuinely power-loss-safe.
         os.fsync(fd)
     finally:
         os.close(fd)
@@ -166,6 +166,18 @@ def _activate_snapshot(
             _secure_write(BACKUP_CREDS, active_bytes)
         _secure_write(tmp, target_bytes)
         os.replace(str(tmp), str(ACTIVE_CREDS))  # atomic swap (0600 mode carried from tmp)
+        # fsync the CONTAINING DIRECTORY so the rename (directory-entry update) is also
+        # crash-durable, not just the file data (_secure_write already fsync'd that). Together
+        # they make the swap genuinely power-loss-safe. Best-effort — a fsync failure here does
+        # not undo a successful replace, so it must not fail the rotation.
+        try:
+            dir_fd = os.open(str(ACTIVE_CREDS.parent), os.O_RDONLY)
+            try:
+                os.fsync(dir_fd)
+            finally:
+                os.close(dir_fd)
+        except OSError:
+            pass
         return target.name
     except OSError:
         # fail-soft on any FS error — active creds are left untouched. Clean up a leftover

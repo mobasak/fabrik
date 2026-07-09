@@ -23,10 +23,16 @@ APPRISE_SEND() {
   local title="$1" body="$2"
   local escaped_body
   escaped_body=$(echo "$body" | python3 -c "import sys,json; print(json.dumps(sys.stdin.read().strip()))")
-  sudo docker run --rm --network fabrik curlimages/curl:latest -sf -X POST \
+  # Exit-check + log so a delivery failure (Apprise down, network gone) is OBSERVABLE — the
+  # empty-RESULT escalation below relies on this actually reaching the operator, so a silent
+  # drop would defeat "fail-closed". Logs to stderr → the cron's proactive log.
+  if ! sudo docker run --rm --network fabrik curlimages/curl:latest -sf -X POST \
     "http://apprise:8000/notify/alerts" \
     -H "Content-Type: application/json" \
-    -d "{\"title\":\"$title\",\"body\":${escaped_body}}" 2>/dev/null
+    -d "{\"title\":\"$title\",\"body\":${escaped_body}}" 2>/dev/null; then
+    echo "$(date -Is) APPRISE_SEND FAILED to deliver via fabrik network: ${title}" >&2
+    return 1
+  fi
 }
 RATE_FILE="/tmp/sysadmin-proactive-rate"
 RATE_LIMIT=5
