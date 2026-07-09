@@ -1,6 +1,14 @@
 -- Plan 1 (pick_models reachability gate) Phase C.
 -- Additive column so pool runs record whether pick_models had a reachable option.
 --
+-- ⚠️ SUPERSEDED SAME-DAY (2026-07-09) — see companion file
+-- `2026-07-09-drop-reachable-at-dispatch.sql` which undoes this migration.
+-- The plan-1 fork was ruled wrong-layer by fabrik-lib's source-of-truth AI
+-- and unwound. This file is retained for migration-history honesty (any
+-- staging / DR restore that replayed migrations should apply BOTH files in
+-- their timestamp order — the alphabetical `add < drop` collation still
+-- yields the correct final state: column arrives, then leaves).
+--
 -- ADD COLUMN with no DEFAULT + no NOT NULL is a metadata-only operation in
 -- PostgreSQL 11+ (verified against pg 16 on WSL) — instant, no table rewrite,
 -- AccessExclusiveLock held only for the DDL itself (< 1ms in practice).
