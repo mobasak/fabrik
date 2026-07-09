@@ -1,6 +1,6 @@
 # pick_models reachability gate — close the "AI recommends unreachable model" trap
 
-**Status:** CONVERGED (2026-07-09 via `/fabrik-plan-review`, Pass 5 no-op — md5 `2814f34deba561a3128240b0c04144d0`)
+**Status:** IN-PROGRESS (started 2026-07-09 20:15 UTC from CONVERGED, baseline `b7c0f9a5`)
 **Date:** 2026-07-09
 **Owner:** primary (this session)
 **Goal:** Make `libs/subagents.pick_models(task_type)` refuse — by default — to return a model whose vendor requires an API key the operator doesn't currently have. Today's DB shows **93% of active agents (344/369) flagged unreachable** — every call is a silent-fail trap. Root cause is a real seeding gap (bulk backfill by provider never happens) compounded by the absence of a reachability filter in the emit path. Fix both.
@@ -75,7 +75,7 @@ Binding sources — the cold executor inherits all of these.
 
 ---
 
-## Phase 0 — Fix the seeding gap so Phase A's filter doesn't empty the pool
+## Phase 0 — Fix the seeding gap so Phase A's filter doesn't empty the pool — ✅ EXECUTED 2026-07-09
 
 **Goal.** Extend `seed_specialty_catalog.py` with a bulk-UPDATE that walks every gateway row in `AI_VENDOR_ACCESS.md` (`OpenRouter` at `:20`, `Kilo CLI` at `:21`, plus any `✅` direct-vendor row) and flips `agents.reachable_with_existing_keys=1` for every existing row whose `provider` matches. Re-run against the live DB. Coverage gate: reachable count must lift from 25/369 (7%) to ≥ 60% of active — below that, escalate (AI_VENDOR_ACCESS.md OR row is stale).
 

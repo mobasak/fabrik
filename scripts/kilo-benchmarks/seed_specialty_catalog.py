@@ -21,18 +21,13 @@ Idempotent: re-running is a no-op (INSERT OR IGNORE + PRAGMA-guarded migration).
 
 from __future__ import annotations
 
-import re
 import sqlite3
 import sys
 from pathlib import Path
 
 DB_PATH = Path(__file__).parent / "kilo_agents.db"
 CATALOG_PATH = (
-    Path(__file__).parent.parent.parent
-    / "docs"
-    / "reference"
-    / "kilo"
-    / "AI_VENDOR_ACCESS.md"
+    Path(__file__).parent.parent.parent / "docs" / "reference" / "kilo" / "AI_VENDOR_ACCESS.md"
 )
 
 MIGRATION_SQL = [
@@ -198,6 +193,32 @@ def seed_specialty_rows(conn: sqlite3.Connection, accessible: dict[str, bool]) -
     return count
 
 
+def backfill_reachable_by_provider(conn: sqlite3.Connection, accessible_providers: set[str]) -> int:
+    """Bulk-flip `agents.reachable_with_existing_keys=1` for every row whose
+    provider is in the accessible set AND is currently 0. Returns the count of
+    rows actually flipped this call (idempotent — repeat runs return 0).
+
+    Plan-1 Phase 0: the pre-fix per-ID UPDATE at line ~194 left ~340 pre-existing
+    LLM rows unreachable even when their provider (openai/anthropic/deepseek/...)
+    IS listed in AI_VENDOR_ACCESS.md's OpenRouter route row.
+    """
+    if not accessible_providers:
+        return 0
+    placeholders = ",".join("?" for _ in accessible_providers)
+    cur = conn.execute(
+        f"""
+        UPDATE agents
+        SET reachable_with_existing_keys = 1
+        WHERE reachable_with_existing_keys = 0
+          AND provider IN ({placeholders})
+        """,  # noqa: S608 — placeholders is a fixed count of "?" tokens; providers are parameterized
+        tuple(sorted(accessible_providers)),
+    )
+    n = cur.rowcount
+    conn.commit()
+    return n
+
+
 def _seed_quality_elo(conn: sqlite3.Connection) -> None:
     """Backfill quality_elo for rows whose id matches a hardcoded Arena entry.
 
@@ -217,10 +238,13 @@ def main() -> int:
         _migrate(conn)
         n = seed_specialty_rows(conn, accessible)
         _seed_quality_elo(conn)
+        accessible_providers = {p for p, ok in accessible.items() if ok}
+        n_flipped = backfill_reachable_by_provider(conn, accessible_providers)
         conn.commit()
         print(
             f"seeded/updated {n} specialty rows; "
-            f"{sum(accessible.values())} accessible providers"
+            f"{sum(accessible.values())} accessible providers; "
+            f"backfilled reachable=1 on {n_flipped} rows by provider match"
         )
     finally:
         conn.close()
