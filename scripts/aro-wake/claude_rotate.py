@@ -15,8 +15,11 @@ trigger — rotation cannot fix expired credentials; the caller alerts on that.
 Security (``core/35-security-auth``): ``~/.claude/*.credentials.json`` are ``chmod 600``
 and are **never logged, printed, or returned**. Rotation swaps whole files
 (``os.replace`` — atomic) between the ``manager-accounts/<org>/.credentials.json``
-snapshots and the active ``~/.claude/.credentials.json``; it only ever reads the
-non-secret ``organizationUuid`` to tell the two accounts apart — never a token byte.
+snapshots and the active ``~/.claude/.credentials.json``. To tell accounts apart / detect a
+usable account it reads the non-secret ``organizationUuid`` AND compares OAuth access tokens
+**in memory** — newer Claude Code creds keep the org in ``~/.claude.json`` so
+``.credentials.json`` has *no* ``organizationUuid``, and account identity/validity must not
+depend on it. A token is never logged, printed, or returned to a caller.
 """
 
 from __future__ import annotations
@@ -37,6 +40,9 @@ ACTIVE_CREDS = CLAUDE_DIR / ".credentials.json"
 ACCOUNTS_DIR = CLAUDE_DIR / "manager-accounts"
 BACKUP_CREDS = CLAUDE_DIR / ".credentials.json.prev"  # single rolling backup of outgoing active
 ROTATE_LOCK = CLAUDE_DIR / ".claude-rotate.lock"
+# Dir-NAME of the currently-active snapshot, written on every install. Org-independent identity:
+# the only reliable "which account is active" signal for newer creds that carry no organizationUuid.
+ACTIVE_MARKER = CLAUDE_DIR / ".active-account"
 
 # Quota / usage-limit signal (case-insensitive). PURE alternation — no literal spaces
 # around '|'. Grounded verbatim (claude-auto-retry README + Anthropic errors docs,
@@ -80,6 +86,30 @@ def _read_org(creds_path: Path) -> str | None:
         return None
 
 
+def _access_token_from(data: str | bytes) -> str | None:
+    """The OAuth access token inside a creds JSON blob (``claudeAiOauth.accessToken``), or None
+    if it doesn't parse / has no token. Used ONLY to detect a usable account and to tell two
+    accounts apart — the token is compared in memory and is NEVER logged, printed, or returned
+    to a CLI caller. This — not ``organizationUuid`` (absent in newer creds) — is the identity
+    and validity signal."""
+    try:
+        oauth = json.loads(data).get("claudeAiOauth")
+    except (ValueError, TypeError, AttributeError):
+        return None
+    if not isinstance(oauth, dict):
+        return None
+    tok = oauth.get("accessToken")
+    return tok if isinstance(tok, str) and tok else None
+
+
+def _read_access_token(creds_path: Path) -> str | None:
+    """``_access_token_from`` for a file on disk (or None if unreadable). Never emits the token."""
+    try:
+        return _access_token_from(Path(creds_path).read_bytes())
+    except OSError:
+        return None
+
+
 def _list_accounts() -> list[Path]:
     """Manager-account snapshot dirs that hold a ``.credentials.json`` (sorted, stable order)."""
     if not ACCOUNTS_DIR.is_dir():
@@ -90,13 +120,36 @@ def _list_accounts() -> list[Path]:
 
 
 def _active_account() -> Path | None:
-    """The snapshot dir whose org matches the currently-active creds, or None."""
+    """The snapshot dir that is currently active, or None. Identity is resolved in order:
+    (1) the ``.active-account`` marker (written on every install — org-independent, the only
+    reliable signal for newer creds that carry no ``organizationUuid``); (2) an access-token
+    match against the live active creds (identifies a just-installed / unrotated account on a
+    host whose marker is absent); (3) an ``organizationUuid`` match (old-format creds only).
+    Never emits token bytes."""
+    accounts = _list_accounts()
+    # (1) marker — authoritative once a rotation/switch has run at least once.
+    try:
+        marked = ACTIVE_MARKER.read_text().strip()
+    except OSError:
+        marked = ""
+    if marked:
+        hit = next((a for a in accounts if a.name == marked), None)
+        if hit is not None:
+            return hit
+    # (2) access-token match — works for newer no-org creds (freshly bootstrapped host, no marker).
+    active_tok = _read_access_token(ACTIVE_CREDS)
+    if active_tok is not None:
+        hit = next(
+            (a for a in accounts if _read_access_token(a / ".credentials.json") == active_tok), None
+        )
+        if hit is not None:
+            return hit
+    # (3) organizationUuid match — old-format creds that predate the token/marker scheme.
     active_org = _read_org(ACTIVE_CREDS)
-    if active_org is None:
-        return None
-    for acc in _list_accounts():
-        if _read_org(acc / ".credentials.json") == active_org:
-            return acc
+    if active_org is not None:
+        return next(
+            (a for a in accounts if _read_org(a / ".credentials.json") == active_org), None
+        )
     return None
 
 
@@ -161,18 +214,15 @@ def _activate_snapshot(
         # the atomic os.replace at the end.
         active_bytes = ACTIVE_CREDS.read_bytes() if ACTIVE_CREDS.exists() else None
         target_bytes = (target / ".credentials.json").read_bytes()
-        # Never install unreadable creds as the active account. An empty/0-byte/non-JSON snapshot
-        # (interrupted capture, partial fleet-sync, or a target corrupted AFTER the selector read
-        # it — a TOCTOU the rotation lock can't cover for an external writer) would otherwise be
-        # atomically swapped in and BRICK auth. Validate the bytes parse to a real org BEFORE
-        # touching anything; refuse fail-soft otherwise, leaving BOTH active and .prev intact.
-        # This is the install-time chokepoint that guards the EXPLICIT target path (--switch/--next)
-        # too — the selector's pre-filter only covers automatic rotation (where it skips to the
-        # next VALID account). Diagnostic names the dir only, never token bytes.
-        try:
-            if not json.loads(target_bytes).get("organizationUuid"):
-                raise ValueError
-        except (ValueError, TypeError, AttributeError):
+        # Never install unreadable creds as the active account. An empty/0-byte/non-JSON snapshot,
+        # or one with no OAuth access token (interrupted capture, partial fleet-sync, or a target
+        # corrupted AFTER the selector read it — a TOCTOU the lock can't cover for an external
+        # writer) would otherwise be atomically swapped in and BRICK auth. Validity is the presence
+        # of a usable TOKEN — NOT organizationUuid, which newer creds legitimately omit (keying on
+        # org here would wrongly reject a valid new-format account). Refuse fail-soft otherwise,
+        # leaving BOTH active and .prev intact. Guards the EXPLICIT --switch/--next path too.
+        # Diagnostic names the dir only, never token bytes.
+        if _access_token_from(target_bytes) is None:
             sys.stderr.write(f"refusing to activate {target.name}: unreadable/corrupt credentials\n")
             return None
         # Single rolling backup of the outgoing active (satisfies the backup-before-swap rule).
@@ -180,6 +230,13 @@ def _activate_snapshot(
             _secure_write(BACKUP_CREDS, active_bytes)
         _secure_write(tmp, target_bytes)
         os.replace(str(tmp), str(ACTIVE_CREDS))  # atomic swap (0600 mode carried from tmp)
+        # Record which account is now active BY DIR NAME (org-independent) so the next rotation can
+        # identify the active account even when its creds carry no organizationUuid. Best-effort —
+        # a marker-write failure must not fail an already-completed swap (token-match still recovers).
+        try:
+            _secure_write(ACTIVE_MARKER, target.name.encode())
+        except OSError:
+            pass
         # fsync the CONTAINING DIRECTORY so the rename (directory-entry update) is also
         # crash-durable, not just the file data (_secure_write already fsync'd that). Together
         # they make the swap genuinely power-loss-safe. Best-effort — a fsync failure here does
@@ -209,37 +266,38 @@ def _activate_snapshot(
 
 
 def _rotate_active_account(avoid: frozenset[str] = frozenset()) -> str | None:
-    """Rotate the active account to another snapshot: pick the first account whose dir name
-    is NOT in *avoid* and whose org differs from the active creds — so with 3+ accounts
-    (mob/ob/can), successive calls with a growing *avoid* set walk through each other account
-    exactly once. Selection runs **inside the install lock** (via the selector), so two
-    concurrent rotations can't both target the same account, over-write the ``.prev`` backup,
-    or report a phantom no-op rotation. Returns the new account's dir name, or None when there
-    is no eligible target or the install fails (fail-soft).
+    """Rotate the active account to another snapshot: pick the first snapshot that is NOT in
+    *avoid*, is a USABLE account (has an OAuth token — so an empty/0-byte/tokenless snapshot is
+    skipped rather than installed, which would brick auth), and is a DIFFERENT account than the
+    live active one. "Different" is judged by dir NAME (via the marker/token/org identity in
+    ``_active_account``) AND by token bytes — NOT by ``organizationUuid``, which newer creds omit
+    (keying on org made a valid no-org account invisible → rotation found no target). With 3+
+    accounts, successive calls with a growing *avoid* set walk each other account exactly once.
+    Selection runs **inside the install lock** (via the selector), so two concurrent rotations
+    can't both target the same account, over-write the ``.prev`` backup, or report a phantom
+    no-op rotation. Returns the new account's dir name, or None when there is no eligible target
+    or the install fails (fail-soft). Never emits token bytes.
     """
     accounts = _list_accounts()
     if len(accounts) < 2:
         return None
 
     def _select() -> Path | None:
-        active_org = _read_org(ACTIVE_CREDS)  # re-read live active — under the lock
-        # A snapshot whose org can't be read (empty / 0-byte / non-JSON creds — e.g. an
-        # interrupted capture or a partial fleet-sync) is NOT a usable rotation target: we
-        # can't confirm it's a different account, and installing its bytes would atomically
-        # replace healthy active creds with a broken blob and brick auth during auto-recovery.
-        # Require a readable org that DIFFERS from active — an unreadable one (org is None) is
-        # skipped so rotation walks on to the next valid account. If active itself is corrupt
-        # (active_org is None) we still rotate to any valid snapshot, which is the desired recovery.
-        return next(
-            (
-                acc
-                for acc in accounts
-                if acc.name not in avoid
-                and (org := _read_org(acc / ".credentials.json")) is not None
-                and org != active_org
-            ),
-            None,
-        )
+        active = _active_account()  # re-resolve the live active account — under the lock
+        active_name = active.name if active is not None else None
+        active_tok = _read_access_token(ACTIVE_CREDS)
+        for acc in accounts:
+            if acc.name in avoid:
+                continue
+            tok = _read_access_token(acc / ".credentials.json")
+            if tok is None:  # corrupt / empty / tokenless — never install
+                continue
+            if acc.name == active_name:  # the account we're rotating away FROM
+                continue
+            if active_tok is not None and tok == active_tok:  # same account under a different dir
+                continue
+            return acc
+        return None
 
     return _activate_snapshot(selector=_select)
 

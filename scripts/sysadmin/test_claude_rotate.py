@@ -454,6 +454,15 @@ def _write_creds(path, org):
     os.chmod(path, 0o600)
 
 
+def _write_creds_no_org(path, token):
+    """A REAL newer-format account snapshot: a valid OAuth token but NO top-level
+    organizationUuid (Claude Code keeps the org in ~/.claude.json). This is the fixture the
+    org-based guard wrongly treated as corrupt — the gap the 9-pass review missed because
+    _write_creds always wrote an org."""
+    path.write_text(json.dumps({"claudeAiOauth": {"accessToken": token, "refreshToken": "R-" + token}}))
+    os.chmod(path, 0o600)
+
+
 def _setup_fake_claude(tmp_path, monkeypatch, orgs):
     """Point claude_rotate's module paths at a throwaway ~/.claude under tmp_path."""
     claude_dir = tmp_path / ".claude"
@@ -469,6 +478,7 @@ def _setup_fake_claude(tmp_path, monkeypatch, orgs):
     monkeypatch.setattr(claude_rotate, "ACTIVE_CREDS", active)
     monkeypatch.setattr(claude_rotate, "BACKUP_CREDS", claude_dir / ".credentials.json.prev")
     monkeypatch.setattr(claude_rotate, "ROTATE_LOCK", claude_dir / ".claude-rotate.lock")
+    monkeypatch.setattr(claude_rotate, "ACTIVE_MARKER", claude_dir / ".active-account")
     return claude_dir, accounts_dir, active
 
 
@@ -500,6 +510,52 @@ def test_rotate_org_filter_excludes_active_and_avoid(tmp_path, monkeypatch):
     # avoid ob-dir → the only other account is excluded; mob is active-org (org filter) → no target
     assert claude_rotate._rotate_active_account(avoid=frozenset({"ob-dir"})) is None
     assert claude_rotate._read_org(active) == "org-mob", "active untouched when no eligible target"
+
+
+def test_rotate_selects_valid_no_org_account(tmp_path, monkeypatch):
+    # THE regression the /fabrik-review Pass-7/8 org-guard introduced: mob@ is old-format
+    # (organizationUuid present); ob@ is a REAL newer-format account — valid OAuth token, NO
+    # organizationUuid (org lives in ~/.claude.json). The org-based guard skipped ob@ as "corrupt"
+    # → rotation found no target. Validity/identity are token-based now, so ob@ must be selected.
+    _, accounts_dir, active = _setup_fake_claude(tmp_path, monkeypatch, {"mob-dir": "org-mob"})
+    _write_creds(active, "org-mob")  # active = old-format mob@ (org + token)
+    ob = accounts_dir / "ob-dir"
+    ob.mkdir()
+    _write_creds_no_org(ob / ".credentials.json", "TOKEN-OB")  # new-format, no org, valid token
+
+    new = claude_rotate._rotate_active_account()
+
+    assert new == "ob-dir", "must rotate to the valid no-org account, not skip it as corrupt"
+    assert claude_rotate._read_access_token(active) == "TOKEN-OB", "ob@ creds installed as active"
+
+
+def test_activate_accepts_valid_no_org_target(tmp_path, monkeypatch):
+    # The install chokepoint must accept a valid no-org account (token present) via the explicit
+    # --switch/--next path — only genuinely tokenless/corrupt creds are refused.
+    _, accounts_dir, active = _setup_fake_claude(tmp_path, monkeypatch, {"mob-dir": "org-mob"})
+    _write_creds(active, "org-mob")
+    ob = accounts_dir / "ob-dir"
+    ob.mkdir()
+    _write_creds_no_org(ob / ".credentials.json", "TOKEN-OB")
+
+    assert claude_rotate._activate_snapshot(target=ob) == "ob-dir", "no-org but valid → installed"
+    assert claude_rotate._read_access_token(active) == "TOKEN-OB"
+
+
+def test_rotate_back_from_no_org_active_via_marker(tmp_path, monkeypatch):
+    # After rotating TO a no-org account, the .active-account marker records it by name, so the
+    # NEXT rotation can identify the (org-less) active account and rotate back — proving the marker
+    # closes the "which account is active when org is absent" gap.
+    _, accounts_dir, active = _setup_fake_claude(tmp_path, monkeypatch, {"mob-dir": "org-mob"})
+    _write_creds(active, "org-mob")
+    ob = accounts_dir / "ob-dir"
+    ob.mkdir()
+    _write_creds_no_org(ob / ".credentials.json", "TOKEN-OB")
+
+    assert claude_rotate._rotate_active_account() == "ob-dir"  # active → ob@ (no org)
+    assert claude_rotate.ACTIVE_MARKER.read_text().strip() == "ob-dir", "marker records active by name"
+    assert claude_rotate._rotate_active_account() == "mob-dir"  # identifies ob@ active, rotates back
+    assert claude_rotate._read_org(active) == "org-mob"
 
 
 def test_rotate_skips_corrupt_snapshot_and_picks_valid_target(tmp_path, monkeypatch):
