@@ -240,6 +240,20 @@ def test_notify_telegram_failsoft(tmp_path, monkeypatch):
     assert claude_rotate._notify_telegram("hi") is False
 
 
+def test_telegram_config_corrupt_file_is_noop_not_raise(tmp_path, monkeypatch):
+    # A non-UTF-8 .env.sysadmin (corrupted write / a pasted smart-quote) must NOT raise
+    # UnicodeDecodeError (a ValueError, not OSError) into the 401 alert path — read_text() would
+    # otherwise escape and abort rotation. It must yield no config, fail-soft.
+    monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
+    monkeypatch.delenv("TELEGRAM_OWNER_ID", raising=False)
+    f = tmp_path / ".env.sysadmin"
+    f.write_bytes(b"TELEGRAM_BOT_TOKEN=\xff\xfe not-utf8\nTELEGRAM_OWNER_ID=1\n")
+    monkeypatch.setattr(claude_rotate, "ENV_SYSADMIN", f)
+
+    assert claude_rotate._telegram_config() is None, "undecodable file → no config, no raise"
+    assert claude_rotate._notify_telegram("hi") is False, "fail-soft, never raises"
+
+
 def test_run_claude_rotates_on_limit_string_regardless_of_exit_code(monkeypatch):
     # DELIBERATE: rotation triggers on the usage-limit STRING regardless of exit code — never
     # missing a real limit is the core guarantee, and Claude's exit code on a limit isn't

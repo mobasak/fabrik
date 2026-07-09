@@ -390,7 +390,10 @@ def _telegram_config() -> tuple[str, str] | None:
                     tok = val
                 elif key.strip() == "TELEGRAM_OWNER_ID" and not chat:
                     chat = val
-        except OSError:
+        except (OSError, ValueError):
+            # ValueError covers UnicodeDecodeError from read_text() on a non-UTF-8 .env.sysadmin
+            # (corrupted write / a pasted smart-quote) — a config read must never raise into the
+            # 401 alert path and abort rotation; an undecodable file simply yields no config.
             pass
     return (tok, chat) if tok and chat else None
 
@@ -399,12 +402,16 @@ def _notify_telegram(text: str) -> bool:
     """Best-effort Telegram alert via the Bot API (stdlib urllib). FAIL-SOFT: a missing config or
     any network/HTTP error is swallowed (returns False) — an alert must NEVER break rotation. The
     bot token appears only in the request URL; neither it nor the response body is ever logged."""
-    cfg = _telegram_config()
-    if cfg is None:
-        sys.stderr.write("claude_rotate: 401 alert skipped — no TELEGRAM_BOT_TOKEN/OWNER_ID configured\n")
-        return False
-    tok, chat = cfg
     try:
+        # The config read is INSIDE the try too (belt-and-suspenders): _telegram_config already
+        # guards its file read, but nothing that runs before the network call may escape this path.
+        cfg = _telegram_config()
+        if cfg is None:
+            sys.stderr.write(
+                "claude_rotate: 401 alert skipped — no TELEGRAM_BOT_TOKEN/OWNER_ID configured\n"
+            )
+            return False
+        tok, chat = cfg
         data = urllib.parse.urlencode({"chat_id": chat, "text": text}).encode()
         req = urllib.request.Request(
             f"https://api.telegram.org/bot{tok}/sendMessage", data=data, method="POST"
