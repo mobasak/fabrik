@@ -209,11 +209,20 @@ def _rotate_active_account(avoid: frozenset[str] = frozenset()) -> str | None:
 
     def _select() -> Path | None:
         active_org = _read_org(ACTIVE_CREDS)  # re-read live active — under the lock
+        # A snapshot whose org can't be read (empty / 0-byte / non-JSON creds — e.g. an
+        # interrupted capture or a partial fleet-sync) is NOT a usable rotation target: we
+        # can't confirm it's a different account, and installing its bytes would atomically
+        # replace healthy active creds with a broken blob and brick auth during auto-recovery.
+        # Require a readable org that DIFFERS from active — an unreadable one (org is None) is
+        # skipped so rotation walks on to the next valid account. If active itself is corrupt
+        # (active_org is None) we still rotate to any valid snapshot, which is the desired recovery.
         return next(
             (
                 acc
                 for acc in accounts
-                if acc.name not in avoid and _read_org(acc / ".credentials.json") != active_org
+                if acc.name not in avoid
+                and (org := _read_org(acc / ".credentials.json")) is not None
+                and org != active_org
             ),
             None,
         )

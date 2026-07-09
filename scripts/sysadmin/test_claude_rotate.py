@@ -502,6 +502,39 @@ def test_rotate_org_filter_excludes_active_and_avoid(tmp_path, monkeypatch):
     assert claude_rotate._read_org(active) == "org-mob", "active untouched when no eligible target"
 
 
+def test_rotate_skips_corrupt_snapshot_and_picks_valid_target(tmp_path, monkeypatch):
+    # A snapshot whose creds are empty/0-byte/non-JSON (interrupted capture or partial
+    # fleet-sync) yields _read_org()==None. It must NOT be selected as a rotation target
+    # (installing its bytes would brick active auth); rotation must skip it to the valid one.
+    _, accounts_dir, active = _setup_fake_claude(
+        tmp_path, monkeypatch, {"ob-dir": "org-ob"}
+    )
+    _write_creds(active, "org-mob")  # active = mob (its snapshot dir absent — irrelevant here)
+    corrupt = accounts_dir / "can-dir"
+    corrupt.mkdir()
+    (corrupt / ".credentials.json").write_text("")  # 0-byte → _read_org None
+    os.chmod(corrupt / ".credentials.json", 0o600)
+
+    new = claude_rotate._rotate_active_account()
+
+    assert new == "ob-dir", "skipped the corrupt can-dir, rotated to the valid ob snapshot"
+    assert claude_rotate._read_org(active) == "org-ob", "active is the valid ob account, not empty"
+
+
+def test_rotate_corrupt_only_alternative_is_noop_not_brick(tmp_path, monkeypatch):
+    # If the ONLY non-active snapshot is corrupt, rotation must return None and leave the
+    # active creds intact — never atomically replace healthy creds with an empty blob.
+    _, accounts_dir, active = _setup_fake_claude(tmp_path, monkeypatch, {"mob-dir": "org-mob"})
+    _write_creds(active, "org-mob")  # active = mob
+    corrupt = accounts_dir / "can-dir"
+    corrupt.mkdir()
+    (corrupt / ".credentials.json").write_text("{ not json")  # non-JSON → _read_org None
+    os.chmod(corrupt / ".credentials.json", 0o600)
+
+    assert claude_rotate._rotate_active_account() is None, "no valid target → no rotation"
+    assert claude_rotate._read_org(active) == "org-mob", "active NOT bricked — stays valid mob"
+
+
 def test_dir_fsync_failure_does_not_fail_rotation(tmp_path, monkeypatch):
     # the post-replace directory fsync is best-effort: a failure must NOT undo/fail a swap that
     # already completed. Inject the failure via the dir-fsync's O_RDONLY os.open.
