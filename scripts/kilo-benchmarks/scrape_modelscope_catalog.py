@@ -151,7 +151,15 @@ class IngestResult:
     skipped_bad_id: int = 0
 
 
+@dataclass
+class RetryResult:
+    """Result of retrying placeholder rows on the daily cron."""
+    promoted: int = 0
+    still_pending: int = 0
+
+
 _PLACEHOLDER_DISCARD = "needs_metadata_enrichment (MS-only, HF+MS scrape both failed)"
+_PLACEHOLDER_PREFIX = "needs_metadata_enrichment"
 
 
 def _canonical_id(ms_id: str) -> str | None:
@@ -266,6 +274,61 @@ def ingest_new(
     return result
 
 
+def retry_placeholders(
+    conn: sqlite3.Connection,
+    *,
+    scraper: object | None = None,
+) -> RetryResult:
+    """Retry HF+MS enrichment for previously-inserted placeholder rows.
+
+    Called by the daily cron so rows that landed as placeholders (because
+    HF+MS scrape both missed on the day of insertion) can auto-heal when
+    metadata later becomes available upstream. Guarded to the specific
+    block_reason plan-2-follow-up uses — never touches rows blocked for
+    other reasons (too slow, delisted, etc.).
+
+    On success, clears blocked/block_reason and enriches columns.
+    """
+    result = RetryResult()
+    rows = conn.execute(
+        "SELECT id, api_id FROM agents "
+        "WHERE via_modelscope = 1 AND blocked = 1 AND block_reason LIKE ?",
+        (f"{_PLACEHOLDER_PREFIX}%",),
+    ).fetchall()
+
+    for agent_id, api_id in rows:
+        updates: dict[str, object | None] = {}
+
+        # Tier 1: HF
+        hf = fetch_hf_metadata(api_id)
+        if hf is not None:
+            updates["context_window_k"] = hf.context_window_k
+            updates["has_reasoning"] = int(hf.has_reasoning)
+            updates["has_tools"] = int(hf.has_tools)
+            updates["has_vision"] = int(hf.has_vision)
+        else:
+            # Tier 2: MS SPA scrape
+            ms = fetch_ms_metadata(api_id, scraper=scraper)
+            if ms is not None:
+                updates["context_window_k"] = ms.context_window_k
+            else:
+                result.still_pending += 1
+                continue
+
+        # Promote: clear blocked + block_reason + apply enrichment
+        updates["blocked"] = 0
+        updates["block_reason"] = None
+        set_clause = ",".join(f"{k} = ?" for k in updates)
+        conn.execute(
+            f"UPDATE agents SET {set_clause} WHERE id = ?",  # noqa: S608
+            (*(updates[k] for k in updates), agent_id),
+        )
+        conn.commit()  # per-item so a kill preserves partial progress
+        result.promoted += 1
+
+    return result
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Scrape ModelScope catalog + optional ingest.")
     parser.add_argument(
@@ -304,6 +367,15 @@ def main(argv: list[str] | None = None) -> int:
                 f"[ms-scraper] ingest: hf={ir.hf_enriched} ms-scrape={ir.ms_enriched} "
                 f"placeholder={ir.placeholder} dup={ir.skipped_dup} bad-id={ir.skipped_bad_id}"
             )
+        if args.ingest_new:
+            # Auto-heal any prior-run placeholder rows whose metadata may now
+            # be available upstream. Runs whether or not there were unmatched
+            # IDs this pass — placeholders live across daily runs.
+            rr = retry_placeholders(conn)
+            if rr.promoted or rr.still_pending:
+                print(
+                    f"[ms-scraper] retry: promoted={rr.promoted} still-pending={rr.still_pending}"
+                )
     finally:
         conn.close()
     return 0

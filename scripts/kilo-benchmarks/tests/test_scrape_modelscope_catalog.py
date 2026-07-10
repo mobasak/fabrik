@@ -364,3 +364,120 @@ def test_d10_hf_unknown_context_writes_null(tmp_path, monkeypatch):
     assert r.hf_enriched == 1
     ctx = con.execute("SELECT context_window_k FROM agents").fetchone()[0]
     assert ctx is None, f"context_window_k must be NULL when unknown, got {ctx}"
+
+
+# ── Follow-up: retry_placeholders (auto-heal on daily cron) ────────────────────
+
+
+def _insert_placeholder(con, api_id, agent_id):
+    """Simulate a prior --ingest-new run that landed a placeholder row."""
+    provider, _, name = agent_id.partition("/")
+    con.execute(
+        "INSERT INTO agents "
+        "(id, api_id, name, provider, status, via_modelscope, reachable_with_existing_keys, "
+        "blocked, block_reason, has_reasoning, has_tools, has_vision) "
+        "VALUES (?, ?, ?, ?, 'active', 1, 1, 1, ?, 0, 0, 0)",
+        (agent_id, api_id, name, provider, "needs_metadata_enrichment (MS-only, HF+MS scrape both failed)"),
+    )
+    con.commit()
+
+
+def test_retry1_hf_now_returns_data_promotes_row(tmp_path, monkeypatch):
+    """A placeholder row from a prior run gets auto-promoted when HF
+    metadata becomes available on a later daily run."""
+    from ms_enrich import HFMetadata
+    from scrape_modelscope_catalog import retry_placeholders
+
+    con = _fresh_agents_db(tmp_path)
+    _insert_placeholder(con, "Shanghai_AI_Laboratory/Intern-S1", "shanghai-ai-lab/intern-s1")
+    monkeypatch.setattr(
+        "scrape_modelscope_catalog.fetch_hf_metadata",
+        lambda ms_id, **kw: HFMetadata(
+            context_window_k=32, has_reasoning=True, has_tools=False, has_vision=False,
+            is_gated=False, model_type="internlm3", pipeline_tag="text-generation",
+            source_url="x",
+        ),
+    )
+    r = retry_placeholders(con)
+    assert r.promoted == 1
+    row = con.execute(
+        "SELECT blocked, block_reason, context_window_k, has_reasoning FROM agents"
+    ).fetchone()
+    assert row[0] == 0  # blocked cleared
+    assert row[1] is None  # block_reason cleared
+    assert row[2] == 32  # context enriched
+    assert row[3] == 1  # has_reasoning enriched
+
+
+def test_retry2_both_still_miss_stays_placeholder(tmp_path, monkeypatch):
+    """Neither HF nor MS-scrape can enrich — row must stay placeholder."""
+    from scrape_modelscope_catalog import retry_placeholders
+
+    con = _fresh_agents_db(tmp_path)
+    _insert_placeholder(con, "IIC/GUI-Owl", "alibaba-iic/gui-owl")
+    monkeypatch.setattr("scrape_modelscope_catalog.fetch_hf_metadata", lambda ms_id, **kw: None)
+    monkeypatch.setattr("scrape_modelscope_catalog.fetch_ms_metadata", lambda ms_id, **kw: None)
+    r = retry_placeholders(con)
+    assert r.promoted == 0
+    assert r.still_pending == 1
+    row = con.execute("SELECT blocked, block_reason FROM agents").fetchone()
+    assert row[0] == 1  # still blocked
+    assert row[1] is not None
+
+
+def test_retry3_ms_scrape_only_promotes_with_partial_data(tmp_path, monkeypatch):
+    """HF misses but MS SPA scrape succeeds — row promotes with MS data."""
+    from ms_enrich import MSMetadata
+    from scrape_modelscope_catalog import retry_placeholders
+
+    con = _fresh_agents_db(tmp_path)
+    _insert_placeholder(con, "IIC/GUI-Owl", "alibaba-iic/gui-owl")
+    monkeypatch.setattr("scrape_modelscope_catalog.fetch_hf_metadata", lambda ms_id, **kw: None)
+    monkeypatch.setattr(
+        "scrape_modelscope_catalog.fetch_ms_metadata",
+        lambda ms_id, **kw: MSMetadata(
+            context_window_k=8, description="ok", is_gated=False, source_url="x",
+        ),
+    )
+    r = retry_placeholders(con)
+    assert r.promoted == 1
+    row = con.execute("SELECT blocked, context_window_k FROM agents").fetchone()
+    assert row[0] == 0
+    assert row[1] == 8
+
+
+def test_retry4_no_placeholders_is_noop(tmp_path):
+    """No placeholder rows in DB → retry returns cleanly with zero promotions."""
+    from scrape_modelscope_catalog import retry_placeholders
+
+    con = _fresh_agents_db(tmp_path)
+    r = retry_placeholders(con)
+    assert r.promoted == 0
+    assert r.still_pending == 0
+
+
+def test_retry5_only_touches_placeholder_rows(tmp_path, monkeypatch):
+    """A regular blocked=1 row for OTHER reasons (e.g. blocked-too-slow) must
+    NOT be touched by retry_placeholders — only our specific block_reason."""
+    from ms_enrich import HFMetadata
+    from scrape_modelscope_catalog import retry_placeholders
+
+    con = _fresh_agents_db(tmp_path)
+    # Regular blocked row (not ours)
+    con.execute(
+        "INSERT INTO agents (id, api_id, name, provider, status, blocked, block_reason) "
+        "VALUES ('deepseek/x', 'x', 'x', 'deepseek', 'active', 1, 'too slow')"
+    )
+    con.commit()
+    monkeypatch.setattr(
+        "scrape_modelscope_catalog.fetch_hf_metadata",
+        lambda ms_id, **kw: HFMetadata(
+            context_window_k=32, has_reasoning=False, has_tools=False, has_vision=False,
+            is_gated=False, model_type="x", pipeline_tag="x", source_url="x",
+        ),
+    )
+    r = retry_placeholders(con)
+    assert r.promoted == 0  # our function didn't touch it
+    row = con.execute("SELECT blocked, block_reason FROM agents").fetchone()
+    assert row[0] == 1  # still blocked
+    assert row[1] == "too slow"  # untouched
