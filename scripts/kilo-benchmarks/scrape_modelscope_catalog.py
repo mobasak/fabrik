@@ -259,7 +259,10 @@ def ingest_new(
             f"INSERT OR IGNORE INTO agents ({collist}) VALUES ({placeholders_i})",  # noqa: S608
             tuple(row[k] for k in cols),
         )
-    conn.commit()
+        # Per-item commit (F4 fix): a kill/OOM mid-batch preserves rows
+        # successfully enriched earlier, so the next --ingest-new run only
+        # re-attempts what actually failed. Cheap for SQLite in WAL mode.
+        conn.commit()
     return result
 
 

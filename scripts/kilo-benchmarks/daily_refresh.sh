@@ -330,8 +330,13 @@ mkdir -p "$(dirname "$LOG_FILE")"
   _step "scrape_siliconflow_catalog" "$VENV_PY" "$KB/scrape_siliconflow_catalog.py" \
     || echo "[daily_refresh] SiliconFlow catalog scrape failed (non-fatal)"
 
-  # ModelScope catalog scrape — flips via_modelscope=1 on matched agents.id
-  # rows so the browser payload + rank scripts see MS as a real gateway.
+  # ModelScope catalog scrape + new-row auto-ingest.
+  # - Flips via_modelscope=1 on matched agents.id rows so the browser payload
+  #   + rank scripts see MS as a real gateway.
+  # - With --ingest-new (plan-2 follow-up, 2026-07-10): INSERTs previously-
+  #   unmatched MS IDs via 3-tier enrichment fallback (HF Hub → MS SPA scrape
+  #   via web-scrape → placeholder+blocked=1 with block_reason). Placeholder
+  #   rows are visible in the browser MS chip but hidden from rankers.
   # Fetches the 55-model catalog from https://api-inference.modelscope.cn/v1/models
   # (OpenAI-compatible). Non-fatal on missing key or network failure. Idempotent.
   _step "scrape_modelscope_catalog" "$VENV_PY" "$KB/scrape_modelscope_catalog.py" --ingest-new \
