@@ -243,16 +243,18 @@ class Shape(BaseModel):
      wordpress           wordpress true       false                 false             true                 true              false
      file-worker         worker   false       false                 false             true                 false             false
      file-api            service  true        false                 false             true                 false             false
-     chrome-extension    static   false       false                 false             false                false             false
-     mobile-app          static   false       false                 false             false                false             false
+     chrome-extension    service  false       false                 false             false                false             false
+     mobile-app          service  false       false                 false             false                false             false
      desktop-app         static   false       false                 false             false                false             false
     ==================  =======  ==========  ====================  ================  ===================  ================  ====================
 
-    The last three (chrome-extension / mobile-app / desktop-app) are
-    packaged artefacts (CRX, app-store binary, installer) rather than
-    VPS deployments — every flag is ``false`` because no VPS registrar
-    applies. They get a ``shape:`` block anyway for schema uniformity,
-    so downstream tooling can assume it's always present.
+    ``chrome-extension`` and ``mobile-app`` are client artefacts (CRX / RN
+    build) that ALSO ship a deployable FastAPI backend (``server/``,
+    ``kind: service``) — ``fabrik apply`` deploys that backend. ``desktop-app``
+    is a pure packaged artefact (Electron installer) with no VPS deployment —
+    every flag is ``false`` because no registrar applies. All three get a
+    ``shape:`` block for schema uniformity, so downstream tooling can assume
+    it's always present.
     """
 
     model_config = {"extra": "forbid"}

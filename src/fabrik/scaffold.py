@@ -270,8 +270,7 @@ TYPE_REQUIRED_FILES: dict[str, list[str]] = {
         "compose.yaml",
         "Makefile",
     ],
-    "mobile-app": _SHARED_REQUIRED_FILES
-    + ["package.json", "src/App.tsx", "src/navigation/AppNavigator.tsx"],
+    "mobile-app": _SHARED_REQUIRED_FILES + ["package.json", "app.config.ts", "src/app/_layout.tsx"],
     "desktop-app": _SHARED_REQUIRED_FILES + ["package.json", "electron/main.js"],
 }
 
@@ -4259,9 +4258,19 @@ def _scaffold_mobile_app(project_dir: Path, name: str, description: str, **kwarg
     (project_dir / "env.ts").write_text(env_text)
     appcfg_src = MOBILE_APP_TEMPLATE_DIR / "app.config.ts"
     if appcfg_src.exists():
-        (project_dir / "app.config.ts").write_text(
-            appcfg_src.read_text().replace("'obytesapp'", f"'{slug}'")
+        # Blank the Obytes Expo account owner + shared EAS project id: each
+        # scaffolded app must bind its OWN (via `eas init`), never ship on
+        # Obytes's account/project.
+        appcfg_text = (
+            appcfg_src.read_text()
+            .replace("'obytesapp'", f"'{slug}'")
+            .replace("const EXPO_ACCOUNT_OWNER = 'obytes';", "const EXPO_ACCOUNT_OWNER = '';")
+            .replace(
+                "const EAS_PROJECT_ID = 'c3e1075b-6fe7-4686-aa49-35b46a229044';",
+                "const EAS_PROJECT_ID = '';",
+            )
         )
+        (project_dir / "app.config.ts").write_text(appcfg_text)
 
     # 4. AGENTS.md — render the .j2 (simple {{ spec.name }} substitution).
     agents_j2 = MOBILE_APP_TEMPLATE_DIR / "AGENTS.md.j2"
