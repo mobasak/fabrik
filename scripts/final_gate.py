@@ -663,11 +663,14 @@ def run_consistency_checks(
         # did not change behaviour). The check is fail-safe (any git/parse/exception → exit 0), and
         # native-only work escapes via `NO-POOL: <reason>` (commit msg) or `FABRIK_NO_POOL` (env).
         # Layer 2 (unrecorded-run reconciliation) stays advisory inside the same script.
+        # advisory=True preserves the script's stdout on exit 0 so Layer 2's unrecorded-run WARNs stay
+        # visible on a PASSING gate. It does NOT weaken blocking: run_optional_check returns passed=False
+        # on ANY non-zero exit regardless of this flag, so Layer 1's exit 1 still fails the gate.
         results.append(
             run_optional_check(
                 "scripts/enforcement/check_subagent_flywheel.py",
                 "Subagent Flywheel (pool-or-declare — BLOCKING)",
-                advisory=False,
+                advisory=True,
             )
         )
         # Mutation testing (Behavior Contract substance-mechanical layer) — proves the new tests KILL

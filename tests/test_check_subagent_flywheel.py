@@ -63,6 +63,7 @@ def test_selfscope_no_pool_module_never_blocks(tmp_path, monkeypatch):
 
 def test_pass_when_pool_used_this_cycle(tmp_path, monkeypatch):
     mod = _load()
+    monkeypatch.setattr(mod, "_pool_available", lambda: True)  # hermetic: exercise the real gating path
     monkeypatch.setattr(mod, "_changed_code_files", lambda: 20)
     monkeypatch.setattr(mod, "_declared_no_pool", lambda: False)
     monkeypatch.setattr(mod, "_merge_base_epoch", lambda: 1_000_000.0)
@@ -73,6 +74,7 @@ def test_pass_when_pool_used_this_cycle(tmp_path, monkeypatch):
 
 def test_pass_when_no_pool_declared(tmp_path, monkeypatch):
     mod = _load()
+    monkeypatch.setattr(mod, "_pool_available", lambda: True)
     monkeypatch.setattr(mod, "_changed_code_files", lambda: 20)
     monkeypatch.setattr(mod, "_declared_no_pool", lambda: True)  # NO-POOL: <reason> present
     assert mod.check(tmp_path / "ledger.jsonl") == 0
@@ -80,6 +82,7 @@ def test_pass_when_no_pool_declared(tmp_path, monkeypatch):
 
 def test_pass_on_docs_only_below_threshold(tmp_path, monkeypatch):
     mod = _load()
+    monkeypatch.setattr(mod, "_pool_available", lambda: True)
     monkeypatch.setattr(mod, "_changed_code_files", lambda: 2)  # <= threshold → not substantial
     monkeypatch.setattr(mod, "_declared_no_pool", lambda: False)
     assert mod.check(tmp_path / "ledger.jsonl") == 0
@@ -88,6 +91,7 @@ def test_pass_on_docs_only_below_threshold(tmp_path, monkeypatch):
 def test_failsafe_on_git_failure(tmp_path, monkeypatch):
     # git can't determine the surface → None → must NOT block (fail-safe)
     mod = _load()
+    monkeypatch.setattr(mod, "_pool_available", lambda: True)  # pool present → the code=None guard is what saves us
     monkeypatch.setattr(mod, "_changed_code_files", lambda: None)
     monkeypatch.setattr(mod, "_declared_no_pool", lambda: False)
     assert mod.check(tmp_path / "ledger.jsonl") == 0
@@ -96,6 +100,7 @@ def test_failsafe_on_git_failure(tmp_path, monkeypatch):
 def test_stale_ledger_prior_cycle_still_blocks(tmp_path, monkeypatch):
     # the Defect-2 fix: a pool run from a PRIOR cycle (ts < merge-base) does NOT satisfy this cycle
     mod = _load()
+    monkeypatch.setattr(mod, "_pool_available", lambda: True)  # else self-scope short-circuits → 0, test fails spuriously
     monkeypatch.setattr(mod, "_changed_code_files", lambda: 20)
     monkeypatch.setattr(mod, "_declared_no_pool", lambda: False)
     monkeypatch.setattr(mod, "_merge_base_epoch", lambda: 2_000_000.0)
@@ -116,6 +121,7 @@ def test_failsafe_on_check_exception(tmp_path, monkeypatch):
 def test_unbounded_cycle_is_lenient(tmp_path, monkeypatch):
     # merge-base epoch unknown (None) → can't bound the cycle → count all rows → no block (fail-safe)
     mod = _load()
+    monkeypatch.setattr(mod, "_pool_available", lambda: True)
     monkeypatch.setattr(mod, "_changed_code_files", lambda: 20)
     monkeypatch.setattr(mod, "_declared_no_pool", lambda: False)
     monkeypatch.setattr(mod, "_merge_base_epoch", lambda: None)
@@ -144,6 +150,65 @@ def test_mb3_no_pool_word_boundary_not_substring(monkeypatch):
     for msg in ("NO-POOL: mechanical rename", "Docs: NO-POOL: docs only", "chore\n\nNO-POOL : reason"):
         monkeypatch.setattr(mod, "_git", lambda args, m=msg: m)
         assert mod._declared_no_pool() is True, msg
+
+
+def test_regex_case_insensitive_and_underscore(monkeypatch):
+    # Finding-2: the escape must be lenient — case-insensitive and hyphen-OR-underscore. `no-pool:`
+    # (lowercase) and `NO_POOL:` (underscore, mirroring the FABRIK_NO_POOL env var) are REAL
+    # declarations a human/agent writes; missing them = a false block. `ANO-POOL:` still must NOT match.
+    mod = _load()
+    monkeypatch.delenv("FABRIK_NO_POOL", raising=False)
+    for msg in ("no-pool: lowercase rename", "NO_POOL: underscore mirrors the env var", "No-Pool: mixed"):
+        monkeypatch.setattr(mod, "_git", lambda args, m=msg: m)
+        assert mod._declared_no_pool() is True, msg
+    monkeypatch.setattr(mod, "_git", lambda args: "unrelated ANO_POOL: not a declaration")
+    assert mod._declared_no_pool() is False  # mid-word (preceded by 'A') → still not a declaration
+
+
+def test_declaration_scanned_across_in_cycle_commits(monkeypatch):
+    # Finding-1: the surface spans base..HEAD, and per-phase commits (CLAUDE.md) declare ONCE — on an
+    # earlier commit than HEAD. _declared_no_pool must scan the whole base..HEAD message blob, not
+    # just `git log -1` (HEAD). Simulate: base resolves, and the phase-A commit (not HEAD) carries it.
+    mod = _load()
+    monkeypatch.delenv("FABRIK_NO_POOL", raising=False)
+    monkeypatch.setattr(mod, "_resolve_base", lambda: "abc123")
+    calls = {}
+    def fake_git(args):
+        calls["args"] = args
+        # a base..HEAD log returns ALL in-cycle messages concatenated; the declaration is on phase A,
+        # HEAD (phase C) has none
+        return "phase C: wire it\n\nphase B: more\n\nphase A: rename\n\nNO-POOL: mechanical rename\n"
+    monkeypatch.setattr(mod, "_git", fake_git)
+    assert mod._declared_no_pool() is True
+    assert calls["args"] == ["log", "--format=%B", "abc123..HEAD"]  # scanned the RANGE, not -1
+
+
+def test_declaration_scan_all_history_when_base_unresolved(monkeypatch):
+    # Pass-3 finding: when base can't be resolved (no origin/master|main), the declaration scan must go
+    # maximally lenient — scan ALL reachable commit messages, SYMMETRIC with the ledger check counting
+    # all rows when since_epoch is None. Reading only `git log -1` (HEAD) would miss an earlier commit's
+    # NO-POOL declaration → a false block in the direction the fail-safe forbids.
+    mod = _load()
+    monkeypatch.delenv("FABRIK_NO_POOL", raising=False)
+    monkeypatch.setattr(mod, "_resolve_base", lambda: None)  # neither origin/master nor origin/main
+    calls = {}
+    def fake_git(args):
+        calls["args"] = args
+        return "HEAD: latest, no decl\n\nearlier: NO-POOL: native-only cleanup\n"
+    monkeypatch.setattr(mod, "_git", fake_git)
+    assert mod._declared_no_pool() is True
+    assert calls["args"] == ["log", "--format=%B"]  # ALL history, not `-1` (HEAD-only)
+
+
+def test_nondict_ledger_line_counts_lenient_not_sentinel(tmp_path):
+    # Finding-3: a non-object JSON ledger line (`[]`, `123`) must count leniently (n += 1) and NOT
+    # blow the whole count to the 1_000_000 sentinel via an escaped AttributeError on rec.get.
+    mod = _load()
+    ledger = tmp_path / "ledger.jsonl"
+    ledger.write_text("[]\n123\n" + json.dumps({"ts": _iso(1_000_500.0)}) + "\n")
+    n = mod._in_cycle_pool_runs(ledger, 1_000_000.0)
+    assert 0 < n < 1_000_000  # counted the lines, did not trip the disable-everything sentinel
+    assert n == 3
 
 
 def test_fb2_corrupt_ledger_line_counts_lenient(tmp_path):

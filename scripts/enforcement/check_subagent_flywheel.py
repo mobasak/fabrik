@@ -4,7 +4,8 @@
 
 LAYER 1 (BLOCKING — "pool-or-declare"): a substantial CODE change (committed + staged) with ZERO pool
 subagent runs THIS cycle FAILS the gate (exit 1) — unless the work declares a native-only exception via
-a `NO-POOL: <reason>` line in the HEAD commit message or a `FABRIK_NO_POOL` env var. This is the teeth
+a `NO-POOL: <reason>` line in ANY in-cycle commit message (`base..HEAD`) or a `FABRIK_NO_POOL` env var
+(pre-commit staged work, whose commit doesn't exist yet, uses the env var). This is the teeth
 that make `62-using-subagents.md` § Dispatch policy's pool-default real across EVERY agent
 (Kilo / Cascade / Claude) — prose can't be enforced, a gate can. Operator-approved 2026-07-10.
 
@@ -127,13 +128,17 @@ def _changed_code_files() -> int | None:
 
 
 def _merge_base_epoch() -> float | None:
-    """Commit time (epoch seconds) of the merge-base = the start of this cycle. None on failure → the
-    in-cycle filter counts ALL ledger rows (lenient / fail-safe)."""
+    """AUTHOR time (epoch seconds) of the merge-base = the start of this cycle. None on failure → the
+    in-cycle filter counts ALL ledger rows (lenient / fail-safe). We use ``%at`` (author date), NOT
+    ``%ct`` (committer date): a rebase / ``--amend`` of the base commit ADVANCES its committer date,
+    which would push ``since_epoch`` past legitimate this-cycle pool runs and filter them out → a false
+    block (the direction the fail-safe forbids). Author date is preserved across rebase, and if it's
+    skewed it skews OLD (→ counts more rows → false-pass, the tolerated direction)."""
     base = _resolve_base()
     if base is None:
         return None
     try:
-        return float((_git(["show", "-s", "--format=%ct", base]) or "").strip())
+        return float((_git(["show", "-s", "--format=%at", base]) or "").strip())
     except (TypeError, ValueError):
         return None
 
@@ -153,6 +158,12 @@ def _in_cycle_pool_runs(ledger_path: Path, since_epoch: float | None) -> int:
             try:
                 rec = json.loads(line)
             except Exception:  # noqa: BLE001 — a corrupt line might be a real run → count it (lenient)
+                n += 1
+                continue
+            if not isinstance(rec, dict):
+                # a non-object JSON line (e.g. `[]`, `123`, `"x"`) has no .get — count it leniently
+                # and move on, rather than letting the AttributeError escape to the 1_000_000 sentinel
+                # (which would silently disable the block for the ENTIRE run, not just this line).
                 n += 1
                 continue
             if since_epoch is None:
@@ -182,17 +193,32 @@ def _in_cycle_pool_runs(ledger_path: Path, since_epoch: float | None) -> int:
 
 def _declared_no_pool() -> bool:
     """True if the work consciously declared a native-only exception: a ``FABRIK_NO_POOL`` env var, or a
-    line-anchored ``NO-POOL:`` trailer in the HEAD commit message. A git failure to READ the message → True
-    (fail-safe: never block on a git failure). Any other error → True."""
+    ``NO-POOL:`` trailer in ANY commit message across THIS cycle (``base..HEAD``, not just HEAD). The
+    surface (:func:`_changed_code_files`) spans every commit since the merge-base, and the documented
+    workflow commits PER PHASE (CLAUDE.md) — so a declaration made on phase A's commit must still count
+    when HEAD is phase C. Reading only ``git log -1`` (HEAD) missed it → a false block. When the base
+    can't be resolved we scan ALL reachable commit messages (symmetric with the epoch/ledger check,
+    which counts ALL rows when the cycle can't be bounded — both go maximally lenient). A git failure to
+    READ → True (fail-safe: never block on a git failure). Any other error → True."""
     try:
         if os.environ.get("FABRIK_NO_POOL", "").strip():
             return True
-        msg = _git(["log", "-1", "--format=%B"])
+        base = _resolve_base()
+        # Scan EVERY in-cycle commit message, not just HEAD (per-phase commits declare once, on an
+        # earlier commit). `base..HEAD` is "" when HEAD == base (nothing committed this cycle) → the
+        # env var is then the only escape, which is correct (an unwritten commit message can't be read).
+        # When base can't be resolved we scan ALL reachable commit messages (`git log --format=%B`, no
+        # range) — SYMMETRIC with _merge_base_epoch/None → _in_cycle_pool_runs counting ALL ledger rows:
+        # if the cycle can't be bounded, both the pool-run check and the declaration check go maximally
+        # lenient (lean no-block), so an earlier commit's declaration is never missed into a false block.
+        args = ["log", "--format=%B", f"{base}..HEAD"] if base is not None else ["log", "--format=%B"]
+        msg = _git(args)
         if msg is None:
-            return True  # couldn't read the commit (git failure) → fail-safe, don't block
-        # word-boundary match: recognizes `NO-POOL:`, `Docs: NO-POOL:`, `NO-POOL :` — but NOT `ANO-POOL:`.
-        # Lenient on the escape (lean no-block): a declaration anywhere at a word boundary counts.
-        return bool(re.search(r"(?:^|\s)NO-POOL\s*:", msg))
+            return True  # couldn't read the commits (git failure) → fail-safe, don't block
+        # Case-INSENSITIVE, hyphen-OR-underscore: recognizes `NO-POOL:`, `no-pool:`, `NO_POOL:` (mirrors
+        # the FABRIK_NO_POOL env var's own spelling), `Docs: NO-POOL:`, `NO-POOL :` — but NOT `ANO-POOL:`
+        # (left context must be start-of-string or whitespace). Lenient on the escape (lean no-block).
+        return bool(re.search(r"(?:^|\s)NO[-_]POOL\s*:", msg, re.IGNORECASE))
     except Exception:  # noqa: BLE001
         return True
 
