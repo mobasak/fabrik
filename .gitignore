@@ -26,6 +26,7 @@ downloads/
 eggs/
 .eggs/
 lib/
+!templates/mobile-app/src/lib/
 lib64/
 parts/
 sdist/
