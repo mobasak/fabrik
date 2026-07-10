@@ -292,6 +292,7 @@ def _should_seed_doc(reg: ModuleType | None, project_type: str, dest: str) -> bo
     except Exception:  # noqa: BLE001 — degrade to seeding, never crash a scaffold
         return True
 
+
 _PYTHON_API_TEMPLATE_MAP = {
     # Droid exec / Docker workflow files (AGENTS.md copied separately in create_project)
     "docker/Dockerfile.python": "Dockerfile",

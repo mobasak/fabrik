@@ -62,7 +62,9 @@ def _trigger_detectors() -> dict[str, object]:
         return any(Path(f).name in {".env.example", ".env"} for f in staged)
 
     def _schema(staged: list[str]) -> bool:
-        return any(f.endswith(".sql") or "migration" in f.lower() or "alembic" in f.lower() for f in staged)
+        return any(
+            f.endswith(".sql") or "migration" in f.lower() or "alembic" in f.lower() for f in staged
+        )
 
     return {
         "docs/QUICKSTART.md": ds._has_route_change,
