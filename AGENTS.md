@@ -131,6 +131,10 @@ Ollama on localhost:11434. Full setup: `docs/reference/LOCAL_LLM_INFRASTRUCTURE.
 | `fabrik-fixer` | hybrid-gpu | ~9 GB (8 GB VRAM + 1 GB RAM) | Fast (~40–60 tok/s) | Stable |
 | `fabrik-docs` | gpu | ~5 GB VRAM | Instant (~80–100 tok/s) | Rock solid |
 
+> ⚠️ **These are LOCAL OLLAMA models** (offline, hub-only). **The name `fabrik-reviewer` is overloaded** — the row above is the Ollama model; the **Claude Code `fabrik-reviewer` subagent-type** (and its siblings `fabrik-researcher` / `fabrik-gui`) are a *different thing* — layered **on top of** the pool-default for GUI work + the authoritative/high-risk review pass + the decide/merge phase (not the default worker).
+>
+> **Subagent dispatch for gradeable fan-out** (review finders, research/`path:line` grounders, doc reconcilers, rules auditors, code implementers) is governed by [`.windsurf/rules/core/62-using-subagents.md`](.windsurf/rules/core/62-using-subagents.md) **§ Dispatch policy + § Parallelism** — **pool-default** (the OpenRouter pool, `run_agents` / `pick_models`, ≤$1.5/Mtok, records to the `subagent_runs` flywheel) with native Claude Code subagents added on top for GUI / the authoritative-high-risk pass / the decide-merge. **The two-shape parallelism rule (or a fan-out SILENTLY serializes):** read-only → `tools_enabled=False` (each its own group → parallel); tools-enabled → `tools_enabled=True` + **disjoint `owned_paths`** (empty/overlapping → one serial group). Traycer *plans*; the `/fabrik-*` execution + review commands are what dispatch the pool.
+
 ## File & Folder Naming
 
 kebab-case. Exceptions: `README.md`, `CHANGELOG.md`, `INDEX.md`, `PORTS.md`, `AGENTS.md`, `AGENTS-compact.md`, `LESSONS_LEARNT.md`, `CLAUDE.md`, `Makefile`, `Dockerfile`; Python packages use snake_case per PEP 8; auto-generated files (migrations, lock files, `__pycache__/`, `__init__.py`); dotfiles and dotdirs. Documentation files follow kebab-case too.
