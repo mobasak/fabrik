@@ -181,7 +181,7 @@ Ship a local coding benchmark runner at `scripts/kilo-benchmarks/microbench_codi
    )"
    ```
 
-## Phase B — Runner core: `microbench_coding.py` core functions + tests
+## Phase B — Runner core: `microbench_coding.py` core functions + tests — ✅ EXECUTED 2026-07-10
 
 **Purpose:** Author the runner's pure functions (`build_specs`, `parse_eval_results`, `merge_dataset_results`) + a sandbox regression pin. `main()` and CLI-flag argparse are wired in Phase C (they need `write_scores` + `is_fresh` which Phase C introduces) — do not test `main` here.
 
