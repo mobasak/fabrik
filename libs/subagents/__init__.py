@@ -29,7 +29,13 @@ from .agent import (
 from .ledger import audit_unrecorded
 from .mcp_tools import SAFE_RESEARCH_SERVERS
 from .methodology import METHODOLOGY_KINDS, methodology
-from .pg_ledger import SUBAGENT_RUNS_DDL, record_agent_run, record_run, set_quality
+from .pg_ledger import (
+    SUBAGENT_RUNS_DDL,
+    flush_outbox,
+    record_agent_run,
+    record_run,
+    set_quality,
+)
 from .select import (
     TASK_KINDS,
     TASK_MODEL_TABLE,
@@ -55,6 +61,7 @@ __all__ = [
     "record_run",
     "record_agent_run",
     "set_quality",
+    "flush_outbox",
     "audit_unrecorded",
     "load_env",
     "SUBAGENT_RUNS_DDL",
