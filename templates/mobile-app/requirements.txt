@@ -1,0 +1,8 @@
+# mobile-app companion backend — minimal Pattern-A FastAPI (no DB, no auth by default).
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+
+# mobile_config (vendored at server/src/mobile_config/) — correct semver comparison
+# for the force-update gate (1.10.0 > 1.9.0). Keep pinned floor in sync with
+# /opt/fabrik-lib/mobile-config/requirements.txt.
+packaging>=23.0

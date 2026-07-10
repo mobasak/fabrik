@@ -3,12 +3,19 @@
 # Authoritative matrix: `spec_loader.Shape` docstring + plan §CLI Entry Points.
 # Changing a flag here changes which infrastructure registrars run for every
 # project scaffolded from this template. Keep in sync with the pydantic Shape model.
-# NOTE: the mobile binary ships through EAS / App Store / Play Store,
-# but this template ALSO scaffolds a companion backend service
-# (see compose.yaml.j2) that IS deployed to the VPS via `fabrik apply` (SSH + Docker Compose).
+# NOTE: the mobile binary ships through EAS / App Store / Play Store, but this
+# template ALSO scaffolds a real companion FastAPI backend (server/src/app/ —
+# /health + /app-config via the vendored mobile_config module) that DOES deploy
+# to the VPS via `fabrik apply` (SSH + Docker Compose), same as chrome-extension's
+# backend lane. Dockerfile/compose.yaml are scaffolder-emitted at project-generation
+# time (Phase C), not template-shipped — this template ships only the backend
+# source + requirements.txt.
 # kind=service so GlitchTip error tracking fires for the backend;
 # is_public stays false so Gatus is opt-in (flip to true in the spec
 # when the backend has a stable public domain).
+# Minimal default = NO DB, NO auth. Flip BOTH needs_database and has_bearer_api
+# to true together when opting into the fabrik-lib/fastapi-user-auth vendor
+# (auth needs a users table — one without the other is a broken half-config).
 shape:
   kind: service
   is_public: false
