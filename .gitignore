@@ -161,3 +161,6 @@ state.json
 
 # Derived kilo pipeline cache — regenerated every run, never source
 scripts/kilo-benchmarks/cache/
+# Persistent microbench_coding run cache — completions samples survive process
+# exit so downstream sanitize/eval failures are $0-recoverable
+scripts/kilo-benchmarks/.microbench_cache/

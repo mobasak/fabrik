@@ -23,7 +23,6 @@ import shlex
 import sqlite3
 import subprocess
 import sys
-import tempfile
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
@@ -375,10 +374,37 @@ def main(argv: list[str] | None = None) -> int:
                 print("no models to bench (all fresh; use --force to override)")
                 return 0
 
-            # TemporaryDirectory auto-cleans on exit (F3 from Phase C review — mkdtemp
-            # leaked a tree under /tmp on every non-dry-run invocation)
-            with tempfile.TemporaryDirectory(prefix="microbench_coding_") as work_dir_str:
-                work_dir = pathlib.Path(work_dir_str)
+            # Persistent per-run cache under scripts/kilo-benchmarks/.microbench_cache/.
+            # Each run writes to <UTC-timestamp>-pid<pid>[-<n>]/, so the shim's expensive
+            # completions (JSONL samples — the $-cost) survive process exit. A downstream
+            # sanitize/evaluate failure is then $0-recoverable: re-run just those steps
+            # against the saved samples-*.jsonl instead of paying OpenRouter twice.
+            # .microbench_cache/ is gitignored; sweep manually under disk pressure
+            # (~2 MB × 8 units × N runs).
+            _CACHE_ROOT = SCRIPT_DIR / ".microbench_cache"
+            _CACHE_ROOT.mkdir(exist_ok=True)
+            _stamp = datetime.now(UTC).strftime("%Y-%m-%dT%H-%M-%S")
+            _base = f"{_stamp}-pid{os.getpid()}"
+            for _n in range(200):
+                _cand = _CACHE_ROOT / (_base if _n == 0 else f"{_base}-{_n}")
+                try:
+                    _cand.mkdir(parents=True, exist_ok=False)
+                    work_dir = _cand
+                    break
+                except FileExistsError:
+                    continue
+            else:
+                print(
+                    "error: could not allocate a fresh cache dir under "
+                    f"{_CACHE_ROOT} after 200 attempts",
+                    file=sys.stderr,
+                )
+                return 1
+            print(f"CACHE_DIR: {work_dir}")
+            # No context manager — outputs persist. Nested `if True` keeps indentation
+            # stable across the previous `with tempfile.TemporaryDirectory(...) as ...:`
+            # block so downstream code + tests don't re-indent.
+            if True:
                 units = build_units(
                     target_models=survivors,
                     datasets=datasets,
