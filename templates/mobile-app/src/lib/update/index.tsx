@@ -1,27 +1,37 @@
 /**
  * Force-update seam (Phase A / A5d).
  *
- * Fetches `${EXPO_PUBLIC_API_URL}/app-config` and blocks entry into the app
- * when the installed version is older than the server-declared
- * `min_version`. This is a shell: the request shape, retry policy, and
- * blocking screen design are expected to be filled in per-project — the
- * contract (fetch app-config, compare semver, block below min_version) is
- * what's fixed.
+ * Calls `GET ${EXPO_PUBLIC_API_URL}/app-config?platform=<ios|android>&version=<installed>`
+ * and blocks entry when the server returns `update_required: true`. The SERVER
+ * owns the semver comparison (the vendored `mobile_config.evaluate`, backend
+ * `routes/app_config.py`) — the client never re-implements version math, it just
+ * consumes the boolean verdict. `platform` + `version` are REQUIRED query params
+ * (the backend 422s without them).
  *
  * Fails OPEN: a network/backend error never blocks entry, since a broken
  * app-config endpoint should not be able to brick the app.
  */
 import * as React from 'react';
 import Constants from 'expo-constants';
-import { Linking } from 'react-native';
+import { Linking, Platform } from 'react-native';
 
 import { Button, Text, View } from '@/components/ui';
 
+/**
+ * The `/app-config` response shape (server `routes/app_config.py` +
+ * `mobile_config.AppConfigResponse.to_dict` + the route's `store_urls`).
+ * `update_required` is the authoritative gate computed server-side.
+ */
 export type AppConfig = {
-  min_version: string;
-  latest_version?: string;
-  message?: string;
-  update_url?: string;
+  update_required: boolean;
+  update_available: boolean;
+  min_version: string | null;
+  latest_version: string | null;
+  kill_switch: boolean;
+  kill_switch_message?: string | null;
+  features: Record<string, boolean>;
+  paywall_id?: string | null;
+  store_urls: { android: string; ios: string };
 };
 
 type UpdateCheckState =
@@ -29,33 +39,25 @@ type UpdateCheckState =
   | { status: 'checking' }
   | { status: 'ok' };
 
-/** Compare two dotted version strings ("1.2.3"). Returns -1, 0, or 1. */
-export function compareVersions(a: string, b: string): number {
-  const partsA = a.split('.').map(part => Number.parseInt(part, 10) || 0);
-  const partsB = b.split('.').map(part => Number.parseInt(part, 10) || 0);
-  const length = Math.max(partsA.length, partsB.length);
-
-  for (let i = 0; i < length; i += 1) {
-    const diff = (partsA[i] ?? 0) - (partsB[i] ?? 0);
-    if (diff !== 0) {
-      return diff > 0 ? 1 : -1;
-    }
-  }
-
-  return 0;
-}
-
 function getInstalledVersion(): string {
   return Constants.expoConfig?.version ?? '0.0.0';
 }
 
-async function fetchAppConfig(signal?: AbortSignal): Promise<AppConfig> {
+async function fetchAppConfig(
+  installedVersion: string,
+  signal?: AbortSignal,
+): Promise<AppConfig> {
   const apiUrl = process.env.EXPO_PUBLIC_API_URL;
   if (!apiUrl) {
     throw new Error('EXPO_PUBLIC_API_URL is not configured');
   }
 
-  const response = await fetch(`${apiUrl}/app-config`, { signal });
+  // platform + version are REQUIRED by the backend (it 422s without them).
+  const query = new URLSearchParams({
+    platform: Platform.OS,
+    version: installedVersion,
+  });
+  const response = await fetch(`${apiUrl}/app-config?${query.toString()}`, { signal });
   if (!response.ok) {
     throw new Error(`app-config request failed: ${response.status}`);
   }
@@ -92,12 +94,13 @@ export function useForceUpdateCheck(
     controllerRef.current = controller;
     setState({ status: 'checking' });
 
-    fetchAppConfig(controller.signal)
+    fetchAppConfig(installedVersion, controller.signal)
       .then((config) => {
         if (controller.signal.aborted || !mountedRef.current) {
           return;
         }
-        if (compareVersions(installedVersion, config.min_version) < 0) {
+        // Server owns the gate (mobile_config.evaluate) — just honor the verdict.
+        if (config.update_required) {
           setState({ status: 'blocked', config });
         }
         else {
@@ -142,18 +145,19 @@ function ForceUpdateScreen({
   onRetry: () => void;
 }) {
   const openStore = React.useCallback(() => {
-    if (config.update_url) {
-      void Linking.openURL(config.update_url);
+    const url = Platform.OS === 'ios' ? config.store_urls.ios : config.store_urls.android;
+    if (url) {
+      void Linking.openURL(url);
     }
     else {
       onRetry();
     }
-  }, [config.update_url, onRetry]);
+  }, [config.store_urls, onRetry]);
 
   return (
     <View className="flex-1 items-center justify-center gap-4 bg-white px-6 dark:bg-black">
       <Text className="text-center text-lg font-semibold">
-        {config.message ?? 'A required update is available'}
+        {config.kill_switch_message ?? 'A required update is available'}
       </Text>
       <Text className="text-center text-sm text-neutral-500 dark:text-neutral-400">
         Please update the app to continue using it.

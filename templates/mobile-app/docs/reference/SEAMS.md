@@ -42,6 +42,30 @@ against these tokens — never introduce `react-native-unistyles` or NativeWind.
 Documented extension points the client binds to (same opt-in-vendor pattern as auth) — these
 are backend routes, not client code; the client's job is to call them with the shapes below.
 
+- **`GET /app-config`** — **IMPLEMENTED (Phase B, `server/src/app/routes/app_config.py`).** The
+  force-update / kill-switch / feature-toggle gate, computed server-side by the vendored
+  `mobile_config.evaluate` (the client never re-implements semver). **Request (both query params
+  REQUIRED — the backend 422s without them):** `?platform=<ios|android>&version=<installed app version>`.
+  **Response:**
+
+  ```
+  {
+    update_required: boolean   // authoritative gate — client blocks entry when true
+    update_available: boolean
+    min_version: string | null
+    latest_version: string | null
+    kill_switch: boolean
+    kill_switch_message: string | null
+    features: { <key>: boolean }
+    paywall_id: string | null
+    store_urls: { android: string, ios: string }   // added by the route (mobile_config doesn't model it)
+  }
+  ```
+
+  Operator config is env-driven (`APP_MIN_VERSION`, `APP_LATEST_VERSION`, `STORE_URL_{ANDROID,IOS}`,
+  `APP_KILL_SWITCH*`, `APP_FEATURE_FLAGS`, `APP_PAYWALL_ID` — see `.env.example`). Fails open: a
+  malformed operator gate or a bad client version never wrongly blocks. Client binder: `src/lib/update/`.
+
 - **`GET /entitlements`** (over `revenuecat-entitlements.Subscriber`) — **pinned contract**
   (fabrik-lib 2026-07-10, grounded on `revenuecat_entitlements/state.py`):
 
