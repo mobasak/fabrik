@@ -163,3 +163,204 @@ def test_b6_unmatched_ids_reported(tmp_path):
     _matched, _updated, unmatched = apply_flags(con, ms_models)
     assert len(unmatched) == 2, f"expected both unmatched, got {unmatched}"
     assert "XiaomiMiMo/MiMo-V2-Flash" in unmatched
+
+
+# ── Phase D: ingest_new ────────────────────────────────────────────────────────
+
+
+def _fresh_agents_db(tmp_path):
+    """Build a fresh agents DB with the columns ingest_new INSERTs into."""
+    dbp = tmp_path / "agents.db"
+    con = sqlite3.connect(str(dbp))
+    con.execute(
+        """
+        CREATE TABLE agents (
+            id TEXT PRIMARY KEY,
+            api_id TEXT NOT NULL,
+            name TEXT NOT NULL,
+            provider TEXT NOT NULL,
+            input_cost_per_m REAL NOT NULL DEFAULT 0,
+            output_cost_per_m REAL NOT NULL DEFAULT 0,
+            context_window_k INTEGER DEFAULT 128,
+            has_vision INTEGER DEFAULT 0,
+            has_tools INTEGER DEFAULT 0,
+            has_reasoning INTEGER DEFAULT 0,
+            status TEXT DEFAULT 'active',
+            blocked INTEGER DEFAULT 0,
+            block_reason TEXT,
+            discard_reason TEXT,
+            via_modelscope INTEGER DEFAULT 0,
+            reachable_with_existing_keys INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+    con.commit()
+    return con
+
+
+def test_d1_hf_success_inserts_enriched(tmp_path, monkeypatch):
+    from ms_enrich import HFMetadata
+    from scrape_modelscope_catalog import ingest_new
+
+    con = _fresh_agents_db(tmp_path)
+    monkeypatch.setattr(
+        "scrape_modelscope_catalog.fetch_hf_metadata",
+        lambda ms_id, **kw: HFMetadata(
+            context_window_k=32,
+            has_reasoning=False,
+            has_tools=False,
+            has_vision=False,
+            is_gated=False,
+            model_type="internlm3",
+            pipeline_tag="text-generation",
+            source_url="https://huggingface.co/api/models/x",
+        ),
+    )
+    r = ingest_new(["Shanghai_AI_Laboratory/Intern-S1"], con)
+    assert r.hf_enriched == 1
+    assert r.placeholder == 0
+    row = con.execute("SELECT id, blocked, via_modelscope, context_window_k FROM agents").fetchone()
+    assert row is not None
+    assert row[1] == 0  # blocked=0
+    assert row[2] == 1  # via_modelscope=1
+    assert row[3] == 32  # context_window_k
+
+
+def test_d3_both_miss_placeholder(tmp_path, monkeypatch):
+    from scrape_modelscope_catalog import ingest_new
+
+    con = _fresh_agents_db(tmp_path)
+    monkeypatch.setattr("scrape_modelscope_catalog.fetch_hf_metadata", lambda ms_id, **kw: None)
+    monkeypatch.setattr("scrape_modelscope_catalog.fetch_ms_metadata", lambda ms_id, **kw: None)
+    r = ingest_new(["IIC/GUI-Owl-1.5-8B-Instruct"], con)
+    assert r.placeholder == 1
+    cols = [c[0] for c in con.execute("SELECT * FROM agents").description]
+    row = dict(zip(cols, con.execute("SELECT * FROM agents").fetchone(), strict=False))
+    assert row["blocked"] == 1
+    # F1 fix: use block_reason (pairs with blocked=1 per manage_blocked.py),
+    # NOT discard_reason (pairs with status='deprecated').
+    assert "needs_metadata_enrichment" in row["block_reason"]
+    assert row["discard_reason"] is None
+    assert row["via_modelscope"] == 1
+
+
+def test_d4_idempotent(tmp_path, monkeypatch):
+    from scrape_modelscope_catalog import ingest_new
+
+    con = _fresh_agents_db(tmp_path)
+    monkeypatch.setattr("scrape_modelscope_catalog.fetch_hf_metadata", lambda ms_id, **kw: None)
+    monkeypatch.setattr("scrape_modelscope_catalog.fetch_ms_metadata", lambda ms_id, **kw: None)
+    r1 = ingest_new(["IIC/x"], con)
+    assert r1.placeholder == 1
+    r2 = ingest_new(["IIC/x"], con)
+    assert r2.placeholder == 0
+    assert r2.skipped_dup == 1
+
+
+def test_d5_ingest_new_flag_off_by_default(monkeypatch):
+    """Running main without --ingest-new must NOT call ingest_new."""
+    import scrape_modelscope_catalog as smc
+
+    called = []
+    monkeypatch.setattr(smc, "fetch_ms_models", lambda: [])
+    monkeypatch.setattr(smc, "ingest_new", lambda *a, **kw: called.append(True) or None)
+    smc.main([])  # no --ingest-new
+    assert called == []
+
+
+def test_d6_bad_id_skipped(tmp_path):
+    from scrape_modelscope_catalog import ingest_new
+
+    con = _fresh_agents_db(tmp_path)
+    r = ingest_new(["no-slash-id"], con)
+    assert r.skipped_bad_id == 1
+    assert r.hf_enriched == 0
+
+
+def test_d7_ms_scrape_tier2_inserts(tmp_path, monkeypatch):
+    """Tier-2 (HF miss, MS-scrape success) — row inserted with blocked=0."""
+    from ms_enrich import MSMetadata
+    from scrape_modelscope_catalog import ingest_new
+
+    con = _fresh_agents_db(tmp_path)
+    monkeypatch.setattr("scrape_modelscope_catalog.fetch_hf_metadata", lambda ms_id, **kw: None)
+    monkeypatch.setattr(
+        "scrape_modelscope_catalog.fetch_ms_metadata",
+        lambda ms_id, **kw: MSMetadata(
+            context_window_k=16,
+            description="ms-only",
+            is_gated=False,
+            source_url="https://modelscope.cn/models/x",
+        ),
+    )
+    r = ingest_new(["MedAIBase/AntAngelMed"], con)
+    assert r.ms_enriched == 1
+    row = con.execute("SELECT blocked, context_window_k FROM agents").fetchone()
+    assert row[0] == 0  # blocked=0 (routable)
+    assert row[1] == 16
+
+
+def test_d8_dup_check_covers_all_candidates(tmp_path, monkeypatch):
+    """Phase-D review F3 regression — dup-check must consider ALL candidates,
+    not just cands[0]. Scenario: DB already has the dot-collapsed variant
+    (z-ai/glm-5-2); ingest of ZhipuAI/GLM-5.2 must skip (not double-insert
+    the primary candidate z-ai/glm-5.2)."""
+    from ms_enrich import HFMetadata
+    from scrape_modelscope_catalog import ingest_new
+
+    con = _fresh_agents_db(tmp_path)
+    # Insert the dot-collapsed variant (candidate #2, not #1)
+    con.execute(
+        "INSERT INTO agents (id, api_id, name, provider) VALUES (?, ?, ?, ?)",
+        ("z-ai/glm-5-2", "manual", "glm-5-2", "z-ai"),
+    )
+    con.commit()
+
+    monkeypatch.setattr(
+        "scrape_modelscope_catalog.fetch_hf_metadata",
+        lambda ms_id, **kw: HFMetadata(
+            context_window_k=128, has_reasoning=False, has_tools=False, has_vision=False,
+            is_gated=False, model_type=None, pipeline_tag=None, source_url="x",
+        ),
+    )
+    r = ingest_new(["ZhipuAI/GLM-5.2"], con)
+    assert r.skipped_dup == 1
+    assert r.hf_enriched == 0
+    # Confirm no duplicate row
+    n = con.execute("SELECT COUNT(*) FROM agents WHERE id LIKE 'z-ai/glm-5%'").fetchone()[0]
+    assert n == 1
+
+
+def test_d9_bad_id_empty_org_skipped(tmp_path):
+    """Phase-D review F4 regression — '/foo' has '/' so old bad-id guard
+    passed, but org is empty. Must skip (not insert row with provider='')."""
+    from scrape_modelscope_catalog import ingest_new
+
+    con = _fresh_agents_db(tmp_path)
+    r = ingest_new(["/foo", "org/"], con)
+    assert r.skipped_bad_id == 2
+    assert con.execute("SELECT COUNT(*) FROM agents").fetchone()[0] == 0
+
+
+def test_d10_hf_unknown_context_writes_null(tmp_path, monkeypatch):
+    """Phase-D review F2 regression — HF returns metadata but config.json
+    missed (context_window_k=None). MUST write NULL, not silently default to
+    128 (which would masquerade as verified 128K)."""
+    from ms_enrich import HFMetadata
+    from scrape_modelscope_catalog import ingest_new
+
+    con = _fresh_agents_db(tmp_path)
+    monkeypatch.setattr(
+        "scrape_modelscope_catalog.fetch_hf_metadata",
+        lambda ms_id, **kw: HFMetadata(
+            context_window_k=None,  # /resolve/config.json missed
+            has_reasoning=False, has_tools=False, has_vision=False,
+            is_gated=False, model_type=None, pipeline_tag=None, source_url="x",
+        ),
+    )
+    r = ingest_new(["gated/model"], con)
+    assert r.hf_enriched == 1
+    ctx = con.execute("SELECT context_window_k FROM agents").fetchone()[0]
+    assert ctx is None, f"context_window_k must be NULL when unknown, got {ctx}"

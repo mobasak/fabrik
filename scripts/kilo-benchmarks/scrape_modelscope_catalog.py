@@ -16,11 +16,15 @@ stderr for observability. Non-fatal on network failure or missing key
 
 from __future__ import annotations
 
+import argparse
 import os
 import re
 import sqlite3
 import sys
+from dataclasses import dataclass
 from pathlib import Path
+
+from ms_enrich import fetch_hf_metadata, fetch_ms_metadata
 
 DB_PATH = Path(__file__).parent / "kilo_agents.db"
 MS_URL = "https://api-inference.modelscope.cn/v1/models"
@@ -138,7 +142,136 @@ def apply_flags(conn: sqlite3.Connection, ms_models: list[dict]) -> tuple[int, i
     return matched, updated, unmatched
 
 
-def main() -> int:
+@dataclass
+class IngestResult:
+    hf_enriched: int = 0
+    ms_enriched: int = 0
+    placeholder: int = 0
+    skipped_dup: int = 0
+    skipped_bad_id: int = 0
+
+
+_PLACEHOLDER_DISCARD = "needs_metadata_enrichment (MS-only, HF+MS scrape both failed)"
+
+
+def _canonical_id(ms_id: str) -> str | None:
+    """Return the first candidate agents.id from _ms_to_agent_id_candidates, or None.
+
+    F4 guard: also reject IDs whose canonical yields an empty provider or model
+    (e.g. `/foo` or `foo/`) — `_ms_to_agent_id_candidates` accepts these but
+    they'd insert garbage rows.
+    """
+    cands = _ms_to_agent_id_candidates(ms_id)
+    if not cands:
+        return None
+    canonical = cands[0]
+    prov, sep, model = canonical.partition("/")
+    if not sep or not prov or not model:
+        return None
+    return canonical
+
+
+def ingest_new(
+    unmatched_ms_ids: list[str],
+    conn: sqlite3.Connection,
+    *,
+    scraper: object | None = None,
+) -> IngestResult:
+    """Insert rows for MS IDs that don't yet exist in agents.
+
+    Enrichment tiers (fail-open at each):
+      1. HuggingFace Hub (fetch_hf_metadata) — for HF-mirrored models
+      2. modelscope.cn SPA scrape (fetch_ms_metadata) — for MS-exclusive models
+      3. Placeholder + blocked=1 — visible in browser MS chip, hidden from rankers
+
+    Idempotent via `INSERT OR IGNORE` on agents.id PRIMARY KEY.
+    """
+    result = IngestResult()
+    for ms_id in unmatched_ms_ids:
+        canonical = _canonical_id(ms_id)
+        if not canonical:
+            result.skipped_bad_id += 1
+            continue
+
+        # F3 fix: dup-check ALL candidates, not just cands[0] — variants
+        # (e.g. glm-5.2 vs glm-5-2) exist as legitimate DB convention. If any
+        # candidate already exists, treat as dup.
+        all_cands = _ms_to_agent_id_candidates(ms_id)
+        placeholders_q = ",".join("?" for _ in all_cands)
+        existing = conn.execute(
+            f"SELECT id FROM agents WHERE id IN ({placeholders_q})",  # noqa: S608
+            tuple(all_cands),
+        ).fetchone()
+        if existing:
+            result.skipped_dup += 1
+            continue
+
+        provider, _, model_name = canonical.partition("/")
+        # F2 fix: explicit None (→ NULL) for context so it's not silently
+        # defaulted to 128 (misreports as "verified 128K"). Downstream code
+        # can detect "unknown" via NULL. Always include the column in INSERT.
+        row: dict[str, object | None] = {
+            "id": canonical,
+            "api_id": ms_id,
+            "name": model_name,
+            "provider": provider,
+            "input_cost_per_m": 0.0,
+            "output_cost_per_m": 0.0,
+            "context_window_k": None,  # NULL unless enriched below
+            "status": "active",
+            "via_modelscope": 1,
+            "reachable_with_existing_keys": 1,
+            "blocked": 0,  # overridden by placeholder path
+            "block_reason": None,
+            "has_reasoning": 0,
+            "has_tools": 0,
+            "has_vision": 0,
+        }
+
+        # Tier 1: HF
+        hf = fetch_hf_metadata(ms_id)
+        if hf is not None:
+            row["context_window_k"] = hf.context_window_k  # may be None
+            row["has_reasoning"] = int(hf.has_reasoning)
+            row["has_tools"] = int(hf.has_tools)
+            row["has_vision"] = int(hf.has_vision)
+            result.hf_enriched += 1
+        else:
+            # Tier 2: MS SPA scrape
+            ms = fetch_ms_metadata(ms_id, scraper=scraper)
+            if ms is not None:
+                row["context_window_k"] = ms.context_window_k  # may be None
+                result.ms_enriched += 1
+            else:
+                # Tier 3: placeholder — visible in browser MS chip, hidden
+                # from rankers via blocked=1. F1 fix: use block_reason (the
+                # column paired with blocked=1 per manage_blocked.py), NOT
+                # discard_reason (which pairs with status='deprecated').
+                row["blocked"] = 1
+                row["block_reason"] = _PLACEHOLDER_DISCARD
+                result.placeholder += 1
+
+        # Always include ALL columns in INSERT — sqlite handles None → NULL.
+        cols = list(row.keys())
+        placeholders_i = ",".join("?" for _ in cols)
+        collist = ",".join(cols)
+        conn.execute(
+            f"INSERT OR IGNORE INTO agents ({collist}) VALUES ({placeholders_i})",  # noqa: S608
+            tuple(row[k] for k in cols),
+        )
+    conn.commit()
+    return result
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Scrape ModelScope catalog + optional ingest.")
+    parser.add_argument(
+        "--ingest-new",
+        action="store_true",
+        help="INSERT rows for MS IDs missing from agents (with HF/MS-scrape enrichment).",
+    )
+    args = parser.parse_args(argv)
+
     ms = fetch_ms_models()
     if not ms:
         print("[ms-scraper] 0 MS models fetched — nothing to do", file=sys.stderr)
@@ -146,21 +279,30 @@ def main() -> int:
     conn = sqlite3.connect(DB_PATH)
     try:
         matched, updated, unmatched = apply_flags(conn, ms)
+        print(
+            f"[ms-scraper] fetched {len(ms)} MS models; matched {matched} to agents.id; "
+            f"flipped via_modelscope=1 on {updated} rows"
+        )
+        if unmatched:
+            print(
+                f"[ms-scraper] {len(unmatched)} unmatched MS ids (no agents row):",
+                file=sys.stderr,
+            )
+            for msid in unmatched[:20]:
+                print(f"  {msid}", file=sys.stderr)
+            if len(unmatched) > 20:
+                print(f"  ... and {len(unmatched) - 20} more", file=sys.stderr)
+        if args.ingest_new and unmatched:
+            print(
+                f"[ms-scraper] --ingest-new: attempting ingest of {len(unmatched)} unmatched IDs"
+            )
+            ir = ingest_new(unmatched, conn)
+            print(
+                f"[ms-scraper] ingest: hf={ir.hf_enriched} ms-scrape={ir.ms_enriched} "
+                f"placeholder={ir.placeholder} dup={ir.skipped_dup} bad-id={ir.skipped_bad_id}"
+            )
     finally:
         conn.close()
-    print(
-        f"[ms-scraper] fetched {len(ms)} MS models; matched {matched} to agents.id; "
-        f"flipped via_modelscope=1 on {updated} rows"
-    )
-    if unmatched:
-        print(
-            f"[ms-scraper] {len(unmatched)} unmatched MS ids (no agents row):",
-            file=sys.stderr,
-        )
-        for msid in unmatched[:20]:
-            print(f"  {msid}", file=sys.stderr)
-        if len(unmatched) > 20:
-            print(f"  ... and {len(unmatched) - 20} more", file=sys.stderr)
     return 0
 
 

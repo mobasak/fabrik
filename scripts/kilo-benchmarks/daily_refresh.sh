@@ -334,7 +334,7 @@ mkdir -p "$(dirname "$LOG_FILE")"
   # rows so the browser payload + rank scripts see MS as a real gateway.
   # Fetches the 55-model catalog from https://api-inference.modelscope.cn/v1/models
   # (OpenAI-compatible). Non-fatal on missing key or network failure. Idempotent.
-  _step "scrape_modelscope_catalog" "$VENV_PY" "$KB/scrape_modelscope_catalog.py" \
+  _step "scrape_modelscope_catalog" "$VENV_PY" "$KB/scrape_modelscope_catalog.py" --ingest-new \
     || echo "[daily_refresh] ModelScope catalog scrape failed (non-fatal)"
 
   # Weekly (Sundays UTC): OR microbench for rows without Speed data.
