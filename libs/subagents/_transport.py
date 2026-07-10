@@ -96,7 +96,7 @@ def make_run_id(model: str, messages: list[dict], body: dict | None) -> str:
         + "\x00"
         + json.dumps(body or {}, sort_keys=True, default=str)
     )
-    return f"{hashlib.sha1(payload.encode()).hexdigest()[:12]}-{uuid.uuid4().hex[:6]}"
+    return f"{hashlib.sha1(payload.encode(), usedforsecurity=False).hexdigest()[:12]}-{uuid.uuid4().hex[:6]}"
 
 
 def _resolve_client(client: OpenRouterClient | None) -> OpenRouterClient:

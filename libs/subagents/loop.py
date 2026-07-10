@@ -29,7 +29,7 @@ import httpx
 from . import _transport
 from ._client import ContentStallError
 from .mcp_tools import McpProvider, build_mcp_provider
-from .select import provider_max_price
+from .select import _MAX_POOL_PRICE_PER_MTOK, provider_max_price
 from .tools import TOOL_SCHEMAS, execute_tool
 from .web_tools import WEB_TOOL_NAMES, WEB_TOOL_SCHEMAS, execute_web_tool
 
@@ -45,6 +45,16 @@ def _apply_max_price(merged: dict, model: str) -> None:
     mp = provider_max_price(model)
     if mp is None:
         return
+    # BUGFIX (utilize-all reachability): cap at the POLICY (≤$1.5/Mtok output) with headroom over the
+    # model's rate — NOT the model's EXACT listed price. A provider serves a model at-or-slightly-ABOVE
+    # its canonical rate (provider variance), and the vendored price can be stale-low (e.g. m2.5 vendored
+    # $0.48 vs live $0.90) — so the exact price as a HARD ceiling makes OpenRouter reject EVERY provider
+    # ("No endpoints found that satisfy the max price"), leaving the model UNCALLABLE (proven: v4-pro /
+    # m2.5 / v3.2 all 200 without the cap, 404 with it). 3× headroom tolerates staleness + variance; the
+    # policy caps gross overpay. OR still routes cheapest-first — this only blocks a >policy fallback.
+    price = mp.get("completion")
+    if isinstance(price, (int, float)):
+        mp = {"completion": min(price * 3.0, _MAX_POOL_PRICE_PER_MTOK)}
     prov = merged.get("provider")
     if prov is not None and not isinstance(prov, dict):
         return  # malformed caller `provider` (non-dict) — leave it AS-IS (never silently discard the
@@ -222,6 +232,22 @@ def _execute_one_tool_call(
     return {"role": "tool", "tool_call_id": call_id, "content": content}
 
 
+def _partial_fallback(base: str, exc: object) -> str:
+    """``base`` when it has content, else the transport exception's streamed ``.partial`` text.
+
+    The client's ``ConsultError`` family (``HardTimeoutError``/``ContentStallError``/…) carries the text
+    streamed BEFORE the timeout/failure. On a cap/error we surface it ONLY to fill an empty ``base`` — so
+    a worker whose one call ran past ``wall_clock_s`` mid-stream returns its partial output instead of ""
+    ("capped, no output"), WITHOUT ever replacing a completed prior turn's ``base`` (multi-turn-safe: a
+    late-turn partial never clobbers an earlier turn's real answer). Fully defensive — this runs inside
+    the loop's "never crash" handler, so a non-str/absent ``.partial`` (an exotic caller exception caught
+    by the blanket ``except``) yields "" rather than a ``len()``/compare ``TypeError``."""
+    if base:
+        return base
+    partial = getattr(exc, "partial", "")
+    return partial if isinstance(partial, str) else ""
+
+
 def run_loop(
     *,
     model: str,
@@ -386,8 +412,9 @@ def run_loop(
                 except ContentStallError as exc:
                     if stalls >= stall_retry_max:
                         # kept content-stalling → cap (partial-tolerant; NOT scored — status !=
-                        # "done" ⇒ record_run nulls the quality, see U3).
-                        return _finish(last_text, "capped")
+                        # "done" ⇒ record_run nulls the quality, see U3). Surface any text streamed
+                        # before the stall (exc.partial) so a capped worker isn't silently empty.
+                        return _finish(_partial_fallback(last_text, exc), "capped")
                     stalls += 1
                     if exc.provider and exc.provider not in excluded:
                         excluded.append(
@@ -397,11 +424,15 @@ def run_loop(
                     # else: zero-chunk hang, provider unknown → blind retry (attempt_body unchanged)
                     continue
                 except Exception as exc:  # noqa: BLE001 — transport must never crash the loop
+                    # The transport's ConsultError carries `.partial` — the text streamed before the
+                    # timeout/failure. Surface it (esp. for a single-shot finder whose ONE call ran
+                    # past wall_clock mid-stream) so the worker returns its partial output, not "".
+                    text = _partial_fallback(last_text, exc)
                     # a failure only after the budget is spent is a cap; a fast failure with budget
                     # remaining is a genuine error
                     if time.monotonic() - start >= wall_clock_s:
-                        return _finish(last_text, "capped")
-                    return _finish(last_text, "error", error=str(exc))
+                        return _finish(text, "capped")
+                    return _finish(text, "error", error=str(exc))
             turns += 1
             provider = result.provider or provider
 

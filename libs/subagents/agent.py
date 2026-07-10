@@ -24,18 +24,23 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import logging
 import shutil
 import time
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 from . import sandbox, workspace
 from ._dotenv import load_env
 from .ledger import Ledger, agent_record
 from .loop import LoopOutcome, run_loop
+from .pg_ledger import record_agent_run
+from .select import pick_models
+
+logger = logging.getLogger(__name__)
 
 AgentStatus = Literal["done", "capped", "error", "out_of_scope"]
 
@@ -130,6 +135,8 @@ class AgentResult:
         None  # wall-clock seconds for the run (provenance/value metric)
     )
     out_tokens: int = 0  # summed output (completion) tokens — value/report metric
+    model: str = ""  # the model that produced this result (from the spec) — set by _run_one so a
+    # caller who only holds the results (e.g. from fanout) can score it via set_quality(model=…)
     # NOTE: `out_of_scope` is computed only for `done`/`capped` runs. An `error`
     # run may still carry a partial `diff` (earlier turns wrote before it failed) —
     # ALWAYS review an error run's diff before applying it; it is not scope-guarded.
@@ -240,6 +247,7 @@ async def _run_one(
         result.latency_s = (
             time.monotonic() - t0
         )  # match every other exit path's provenance
+        result.model = spec.model  # every exit path stamps model (AgentResult.model contract)
         await asyncio.to_thread(_safe_ledger, ledger, spec, result)
         return result
     # Pre-flight FAIL-CLOSED: a single-shot (tools_enabled=False) worker on a VERIFICATION task_type
@@ -268,6 +276,7 @@ async def _run_one(
             ),
         )
         result.latency_s = time.monotonic() - t0
+        result.model = spec.model  # every exit path stamps model (AgentResult.model contract)
         await asyncio.to_thread(_safe_ledger, ledger, spec, result)
         return result
     async with sem:
@@ -287,6 +296,7 @@ async def _run_one(
                 agent_id, "", "", "error", None, None, 0, error=f"worktree: {exc}"
             )
             result.latency_s = time.monotonic() - t0
+            result.model = spec.model  # every exit path stamps model (AgentResult.model contract)
             # offload the ledger write: its optional Postgres dual-write is a blocking network
             # call that must not run on the event loop (it would stall the whole batch).
             await asyncio.to_thread(_safe_ledger, ledger, spec, result)
@@ -370,6 +380,7 @@ async def _run_one(
                 pass
 
         result.latency_s = time.monotonic() - t0
+        result.model = spec.model  # stamp the model so a results-only holder can score it later
         # offload the ledger write off the event loop (its optional Postgres dual-write blocks).
         await asyncio.to_thread(_safe_ledger, ledger, spec, result)
         return result
@@ -384,6 +395,32 @@ def _safe_ledger(ledger: Ledger, spec: AgentSpec, result: AgentResult) -> None:
 
 def _default_ledger_path(repo: str) -> str:
     return str(Path(repo) / ".tmp" / "subagents" / "ledger.jsonl")
+
+
+def _warn_unrecorded_backlog(ledger_path: str, current_ids: set) -> None:
+    """Loud one-line WARNING iff EARLIER pool runs were ledgered but never scored+recorded — the
+    point-of-use signal that makes a forgotten `record_agent_run` visible instead of silent. Excludes
+    ``current_ids`` (this batch, which the caller scores after adjudication). Best-effort: ANY failure
+    here is swallowed — a flywheel nudge must never break a dispatch."""
+    try:
+        from .ledger import audit_unrecorded
+
+        prior = [
+            e
+            for e in audit_unrecorded(ledger_path)
+            if e.get("agent_id") not in current_ids
+        ]
+        if prior:
+            logger.warning(
+                "flywheel: %d earlier pool run(s) ran but were never recorded — score each with "
+                "record_agent_run(spec, result, quality_score=…) (or record_run from the ledger if "
+                "the results are gone); audit_unrecorded(%r) lists them. pick_models cannot learn "
+                "from an unrecorded run.",
+                len(prior),
+                ledger_path,
+            )
+    except Exception:  # noqa: BLE001 — a nudge must NEVER break a dispatch
+        pass
 
 
 async def arun_agents(
@@ -420,7 +457,8 @@ async def arun_agents(
     if load_dotenv:
         load_env(repo)
     call = loop_fn if loop_fn is not None else run_loop
-    ledger = Ledger(ledger_path or _default_ledger_path(repo))
+    resolved_ledger_path = ledger_path or _default_ledger_path(repo)
+    ledger = Ledger(resolved_ledger_path)
     # Read-only agents (tools_enabled=False → single-shot, they never write the tree) are ALWAYS
     # parallel-safe regardless of owned_paths — each is its own group. Only WRITER agents need
     # owned_paths serialization (empty owned_paths = "writes anywhere" ⇒ overlaps everything ⇒
@@ -451,7 +489,16 @@ async def arun_agents(
             )
 
     await asyncio.gather(*(run_group(g) for g in groups))
-    return [results[i] for i in range(len(specs))]
+    ordered = [results[i] for i in range(len(specs))]
+    # Point-of-use flywheel nudge (the fix for the 25%-record-rate footgun): every run is durably
+    # ledgered, but SCORING it (record_agent_run) is a deferred, manual, silently-forgettable step —
+    # a caller can accumulate a large unrecorded pile with ZERO signal, and pick_models then learns
+    # nothing. Surface any EARLIER unrecorded runs here (never THIS batch — you score it AFTER
+    # adjudication), so the backlog can't grow unseen across dispatches.
+    _warn_unrecorded_backlog(
+        resolved_ledger_path, {getattr(r, "agent_id", None) for r in ordered}
+    )
+    return ordered
 
 
 def run_agents(
@@ -524,6 +571,206 @@ def results_table(entries: list[dict]) -> str:
     return "\n".join(rows)
 
 
+def fanout(
+    task_type: str,
+    units: list[str | dict],
+    *,
+    repo: str,
+    project: str | None = None,
+    mode: Literal["read_only", "write"] = "read_only",
+    k: int | None = None,
+    prefer: Literal["quality", "value"] = "quality",
+    max_concurrency: int | None = None,
+    record: bool = True,
+    **spec_kwargs: Any,
+) -> tuple[list[AgentResult], str]:
+    """One call for a K-way, family-diverse, parallel-safe, auto-recorded pool fan-out — the
+    "utilize the whole pool" vehicle that replaces hand-rolled ``run_agents`` boilerplate (and the
+    forgotten-``record_agent_run`` footgun it invites).
+
+    ``units`` is either ``list[str]`` — each a unit's ``task`` text (for a ``mode="read_only"``
+    single-shot fan-out; you MUST have inlined what it needs to read into that text) — OR
+    ``list[dict]`` ``{"task": …, "owned_paths": […]}`` for a ``mode="write"`` writer fan-out. (A
+    read_only unit may also be a ``{"task": …}`` dict; any ``owned_paths`` on it is IGNORED — a
+    single-shot reader writes nothing, so path scoping is meaningless and the sentinel is used.)
+
+    What it does:
+      1. Model selection under the ≤$1.5 cap (Phase-A ranking). **``prefer`` defaults to ``"quality"``,
+         and fanout ENFORCES family diversity itself**: it draws a generous ``pick_models`` pool and
+         reorders it distinct-family-FIRST, so the first ``min(draw, #families)`` units always get
+         DISTINCT vendor families — the whole point of a recall fan-out (different families catch
+         different bugs). This holds regardless of the ranking SOURCE: the vendored ``_TABLE`` is only
+         family-diverse in its top-3, and an active synced ranking doc (``SUBAGENT_SELECTION_DOC``)
+         orders by empirical value with NO family notion — fanout's own reorder makes the guarantee real
+         in both. (The concrete top models differ per ``task_type``: judgment → v4-pro/m3/glm-4.5-air;
+         code → v4-flash/qwen3-coder-next/glm-4.7-flash — always 3 families, different vendors.)
+         ``prefer="value"`` instead takes ``pick_models``' cheapest-first order VERBATIM (no diversity
+         reorder) — for cost-optimised BULK work where per-unit diversity doesn't matter. If fewer
+         distinct models than units, models CYCLE distinct-first (never a crash, never a needless repeat
+         while a distinct model is free).
+      2. Builds parallel-safe specs:
+         * ``read_only`` → ``tools_enabled=False, allow_ungrounded=True``, each a UNIQUE sentinel
+           ``owned_paths`` so every unit is its own disjoint group (belt-and-suspenders with the
+           single-shot always-parallel rule) — all run concurrently.
+         * ``write`` → ``tools_enabled=True`` carrying each unit's ``owned_paths`` (**required,
+           non-empty**), which MUST be pairwise-DISJOINT (checked via :func:`workspace.disjoint`) or
+           this raises ``ValueError`` — a writer fan-out that would silently serialize is a bug, not a
+           slow path.
+      3. ``run_agents(specs, repo=…, max_concurrency=max_concurrency or len(specs))`` — full
+         parallelism by default.
+      4. If ``record and project``: ``record_agent_run(spec, r, project=project)`` per pair —
+         UNSCORED (score after you adjudicate, via ``set_quality``). Fail-open: a record error never
+         loses the returned results.
+
+    Returns ``(results, results_table_markdown)`` — the results plus the standard report table.
+
+    ``**spec_kwargs`` pass through to every :class:`AgentSpec` (e.g. ``system=``, ``max_cost_usd=``,
+    ``wall_clock_s=``, ``max_turns=``, ``body=``). Do NOT pass ``tools_enabled`` / ``allow_ungrounded``
+    / ``owned_paths`` / ``task_type`` there — ``fanout`` owns those and rejects them UP FRONT with a
+    ``ValueError`` (uniformly across modes — not left to Python's per-branch duplicate-kwarg
+    ``TypeError``, which would miss a field a given mode doesn't itself pass).
+    """
+    if mode not in ("read_only", "write"):
+        raise ValueError(f"fanout: mode must be 'read_only' or 'write', got {mode!r}")
+    if not units:
+        raise ValueError("fanout: units is empty — nothing to dispatch")
+    # fanout OWNS these AgentSpec fields (mode/task_type/parallel-safety are its job). Reject them
+    # in **spec_kwargs UNIFORMLY + up front — Python's own duplicate-kwarg TypeError only fires for
+    # the fields a given branch happens to pass (e.g. write-mode never passes allow_ungrounded), so
+    # relying on it would let allow_ungrounded slip through silently in write mode.
+    reserved = {"tools_enabled", "allow_ungrounded", "owned_paths", "task_type"} & spec_kwargs.keys()
+    if reserved:
+        raise ValueError(
+            f"fanout: {sorted(reserved)} are set by fanout itself — don't pass them in **spec_kwargs"
+        )
+    if k is not None and k <= 0:
+        raise ValueError(f"fanout: k must be a positive int (or None), got {k}")
+    if max_concurrency is not None and max_concurrency <= 0:
+        raise ValueError(
+            f"fanout: max_concurrency must be a positive int (or None), got {max_concurrency}"
+        )
+
+    draw = k if k is not None else len(units)
+    if prefer == "value":
+        # value = cheapest-first for BULK work; diversity is explicitly NOT the goal here, so take
+        # pick_models' value order verbatim.
+        models = pick_models(task_type, n=draw, prefer="value")
+    else:
+        # prefer="quality" is the RECALL fan-out: fanout OWNS the family-diversity guarantee rather
+        # than trusting the source ranking's top-K — which is family-diverse in the vendored _TABLE but
+        # NOT under an active synced ranking doc (SUBAGENT_SELECTION_DOC orders by empirical value with
+        # no family notion) and, even in the default, only for the top-3. Draw a GENEROUS pool and
+        # greedily reorder distinct-family-FIRST so the first min(draw, #families) models are always
+        # distinct families regardless of the ranking source.
+        ranked = pick_models(task_type, n=max(draw, 24), prefer="quality")
+        seen: set[str] = set()
+        diverse: list[str] = []
+        rest: list[str] = []
+        for m in ranked:
+            fam = m.split("/")[0]
+            if fam not in seen:
+                seen.add(fam)
+                diverse.append(m)
+            else:
+                rest.append(m)
+        models = (diverse + rest)[:draw]
+    if not models:
+        raise ValueError(
+            f"fanout: pick_models({task_type!r}) returned no models under the ≤$1.5 cost cap"
+        )
+
+    specs: list[AgentSpec] = []
+    if mode == "read_only":
+        for i, unit in enumerate(units):
+            if isinstance(unit, str):
+                task = unit
+            elif isinstance(unit, dict) and "task" in unit:
+                task = unit["task"]
+            else:
+                raise ValueError(
+                    f"fanout: read_only unit {i} must be a str or a dict with a 'task' key, "
+                    f"got {type(unit).__name__}"
+                )
+            specs.append(
+                AgentSpec(
+                    task=task,
+                    model=models[i % len(models)],
+                    task_type=task_type,
+                    tools_enabled=False,
+                    allow_ungrounded=True,
+                    # unique sentinel ⇒ each read-only unit is its own disjoint group (never
+                    # matches a real path; a single-shot agent writes nothing, so it's inert).
+                    owned_paths=[f"<fanout-ro-{i}>"],
+                    **spec_kwargs,
+                )
+            )
+    else:  # write — owned_paths required + must be disjoint, else the fan-out serializes silently
+        owned_lists: list[list[str]] = []
+        tasks: list[str] = []
+        for i, unit in enumerate(units):
+            if not isinstance(unit, dict) or not unit.get("owned_paths"):
+                raise ValueError(
+                    f"fanout(mode='write'): unit {i} must be a dict with a non-empty 'owned_paths' "
+                    "(a writer with no owned_paths writes anywhere → overlaps everything → serializes)"
+                )
+            if "task" not in unit:
+                raise ValueError(f"fanout(mode='write'): unit {i} is missing the required 'task' key")
+            op = unit["owned_paths"]
+            if not isinstance(op, list):
+                # a bare str is truthy so it slips the guard above, then list("src/a.py") would
+                # char-split into garbage single-char "paths" that disjoint() sees as non-overlapping
+                raise ValueError(
+                    f"fanout(mode='write'): unit {i} 'owned_paths' must be a list of globs, "
+                    f"got {type(op).__name__} — wrap a single glob as [\"...\"]"
+                )
+            if not all(isinstance(g, str) and g.strip() for g in op):
+                # a degenerate element (empty/whitespace-only str, None, int) would either match
+                # nothing (silent fail-closed) or crash fnmatch inside disjoint() — reject it up front
+                raise ValueError(
+                    f"fanout(mode='write'): unit {i} 'owned_paths' must be NON-EMPTY glob strings, "
+                    f"got {op!r}"
+                )
+            owned_lists.append(list(op))
+            tasks.append(unit["task"])
+        groups = workspace.disjoint(owned_lists)
+        if len(groups) != len(units):
+            raise ValueError(
+                f"fanout(mode='write'): owned_paths overlap — {len(units)} units collapse to "
+                f"{len(groups)} parallel group(s). Writers MUST be pairwise-disjoint or they "
+                "serialize; split the work so no two units can touch the same path."
+            )
+        for i, task in enumerate(tasks):
+            specs.append(
+                AgentSpec(
+                    task=task,
+                    model=models[i % len(models)],
+                    task_type=task_type,
+                    tools_enabled=True,
+                    owned_paths=owned_lists[i],
+                    **spec_kwargs,
+                )
+            )
+
+    results = run_agents(
+        specs,
+        repo=repo,
+        max_concurrency=max_concurrency if max_concurrency is not None else len(specs),
+    )
+
+    if record and project:
+        for spec, r in zip(specs, results, strict=True):
+            try:
+                record_agent_run(spec, r, project=project)  # unscored — set_quality later
+            except Exception:  # noqa: BLE001 — a record failure NEVER loses the returned results
+                logger.warning("fanout: record_agent_run failed for model %s", spec.model)
+
+    entries = [
+        {"unit": f"{task_type}[{i}]", "model": s.model, "result": r}
+        for i, (s, r) in enumerate(zip(specs, results, strict=True))
+    ]
+    return results, results_table(entries)
+
+
 __all__ = [
     "run_agents",
     "arun_agents",
@@ -531,4 +778,5 @@ __all__ = [
     "AgentResult",
     "AgentStatus",
     "results_table",
+    "fanout",
 ]

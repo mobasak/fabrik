@@ -18,11 +18,18 @@ durable provenance ledger.
 from __future__ import annotations
 
 from ._dotenv import load_env
-from .agent import AgentResult, AgentSpec, arun_agents, results_table, run_agents
+from .agent import (
+    AgentResult,
+    AgentSpec,
+    arun_agents,
+    fanout,
+    results_table,
+    run_agents,
+)
 from .ledger import audit_unrecorded
 from .mcp_tools import SAFE_RESEARCH_SERVERS
 from .methodology import METHODOLOGY_KINDS, methodology
-from .pg_ledger import SUBAGENT_RUNS_DDL, record_agent_run, record_run
+from .pg_ledger import SUBAGENT_RUNS_DDL, record_agent_run, record_run, set_quality
 from .select import (
     TASK_KINDS,
     TASK_MODEL_TABLE,
@@ -34,6 +41,7 @@ from .select import (
 __all__ = [
     "run_agents",
     "arun_agents",
+    "fanout",
     "results_table",
     "AgentSpec",
     "AgentResult",
@@ -46,6 +54,7 @@ __all__ = [
     "load_task_ranking",
     "record_run",
     "record_agent_run",
+    "set_quality",
     "audit_unrecorded",
     "load_env",
     "SUBAGENT_RUNS_DDL",

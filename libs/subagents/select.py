@@ -42,7 +42,7 @@ TASK_KINDS: tuple[TaskKind, ...] = (
 # CODING_SUBAGENT_SELECTION.md. Used to honor a cost ceiling + compute value. Prices
 # drift — the synced doc is canonical; this is the vendored fallback.
 _OUT_PRICE: dict[str, float] = {
-    "minimax/minimax-m2.5": 0.48,
+    "minimax/minimax-m2.5": 0.90,  # corrected 2026-07-10 from a stale $0.48 (live OR = $0.90)
     "z-ai/glm-5": 1.92,
     "deepseek/deepseek-v3.2": 0.343,
     "moonshotai/kimi-k2.5": 2.025,
@@ -50,6 +50,15 @@ _OUT_PRICE: dict[str, float] = {
     "minimax/minimax-m3": 1.20,
     "deepseek/deepseek-v4-flash": 0.18,
     "deepseek/deepseek-v4-pro": 0.87,
+    # Registered 2026-07-10 (plan-1 pool-utilization) — live OR OUTPUT $/Mtok, all validated callable;
+    # roles web-live-researched (spec 2026-07-10-pool-cost-utilization-design.md):
+    "z-ai/glm-4.7-flash": 0.40,  # cheap coder — SWE-bench 59.2%
+    "z-ai/glm-4.5-air": 0.85,  # moderate reasoning/agentic — MMLU-Pro 71.9%
+    "qwen/qwen3-coder-flash": 0.975,  # fast/long-ctx code — 123 tps, 1M ctx
+    "deepseek/deepseek-r1-distill-llama-70b": 0.80,  # niche reasoning/math (verbose, slow)
+    # Registered 2026-07-09 (operator request) — OUTPUT $/Mtok from openrouter.ai/api/v1/models;
+    # $0.80 ≤ $1.5 → Auto-tier eligible (a coder model, added to _TABLE["code"] below):
+    "qwen/qwen3-coder-next": 0.80,
     "z-ai/glm-5.2": 3.00,
     "moonshotai/kimi-k2": 2.30,
     # Registered on request 2026-07-08 — OUTPUT $/Mtok from openrouter.ai/api/v1/models
@@ -107,58 +116,79 @@ def _fetch_openrouter_prices() -> dict[str, float]:
 
 # task_type -> models ranked BEST-FIRST (highest quality first).
 #   ALLOWED POOL — fleet policy (2026-07-08): a model is selectable only if its OUTPUT price is
-#   <= $1.5/Mtok. The current members are these five benchmarked models (output $0.18-$1.20); a
+#   <= $1.5/Mtok. The Auto-tier members are the ≤$1.5 models in _OUT_PRICE (output $0.18-$1.20); a
 #   future cheaper model can join once it clears a benchmark. glm-5/5.x ($3.00+), kimi ($2.03-3.50),
 #   grok ($2.50), qwen ($3.75) all EXCEED $1.5 -> excluded from selection; they stay PRICED (for an
 #   explicit opt-in test) but pick_models never returns them.
-#   Rankings are EMPIRICAL from the fabrik api-quota benchmark (subagent_runs, 2026-07-06/07):
-#     plan  — minimax-m3 4.8 > v4-pro 4.4 > v3.2 4.3 > v4-flash 3.9 > m2.5 3.3
-#     review— minimax-m3 4.55 > v3.2 4.25 > v4-pro 4.05 > (m2.5 untested) > v4-flash 2.15 (weak)
-#     code  — v4-flash 4.8 > minimax-m3 4.7 > v4-pro 4.1 > v3.2 3.4 > (m2.5 untested)
-#     spec  — m2.5 4.3 > v3.2 3.8 (tested); m3/v4-pro/v4-flash by overall quality
-#   docs/research have no A/B yet → seeded by overall quality (m3 best); the flywheel refines.
+#   (The earlier 2026-07-06/07 api-quota empirical seed — m3-first for review, m2.5-first for spec — was
+#    SUPERSEDED by the 2026-07-10 research-backed reorder below; the flywheel still refines from real runs.)
+# Reordered 2026-07-10 (plan-1 pool-utilization) to a RESEARCH-BACKED, best-first (quality) order with a
+# FAMILY-DIVERSE top-K — the first 3 of each list are DISTINCT vendor families so a K-way fan-out gets
+# distinct-family recall (a same-family top-K defeats the diversity the design is built on). This IS the
+# source (quality) order `pick_models` returns for prefer="quality" (the default); prefer="value" re-ranks
+# it toward cheaper at call time — the table itself is NOT value-ordered. Roles from the web-live research in
+# spec 2026-07-10-pool-cost-utilization-design.md: `deepseek-v4-pro` leads judgment tasks (frontier — ties
+# Claude Opus 4.6 on SWE-bench @ $0.87, cheaper than m3); `deepseek-v4-flash` leads code (TOP empirical code
+# score AND cheapest — both agree, not a value compromise). EVERY Auto-tier model (≤$1.5) appears in ≥1 list
+# so pick_models can reach all of them (the `r1-distill` reasoning tail lives in the judgment lists). This is
+# the vendored FALLBACK seed; the flywheel (CODING_SUBAGENT_SELECTION.md) refines it. `pick_models` best-first.
 _TABLE: dict[str, list[str]] = {
+    # judgment/generalist task_types → v4-pro (deepseek) → m3 (minimax) → glm-4.5-air (zai) = 3 families
     "spec": [
-        "minimax/minimax-m2.5",
-        "deepseek/deepseek-v3.2",
-        "minimax/minimax-m3",
         "deepseek/deepseek-v4-pro",
+        "minimax/minimax-m3",
+        "z-ai/glm-4.5-air",
+        "deepseek/deepseek-v3.2",
         "deepseek/deepseek-v4-flash",
+        "minimax/minimax-m2.5",
+        "deepseek/deepseek-r1-distill-llama-70b",  # reasoning tail (verbose/slow) — reachable at n>=7
     ],
     "plan": [
-        "minimax/minimax-m3",
         "deepseek/deepseek-v4-pro",
+        "minimax/minimax-m3",
+        "z-ai/glm-4.5-air",
         "deepseek/deepseek-v3.2",
         "deepseek/deepseek-v4-flash",
         "minimax/minimax-m2.5",
+        "deepseek/deepseek-r1-distill-llama-70b",  # reasoning tail (verbose/slow) — reachable at n>=7
     ],
+    # code → v4-flash (deepseek, cheap bulk) → qwen3-coder-next (qwen) → glm-4.7-flash (zai) = 3 families;
+    # then v4-pro (hard) → qwen3-coder-flash (fast/long-ctx):
     "code": [
         "deepseek/deepseek-v4-flash",
-        "minimax/minimax-m3",
+        "qwen/qwen3-coder-next",
+        "z-ai/glm-4.7-flash",
         "deepseek/deepseek-v4-pro",
+        "qwen/qwen3-coder-flash",
+        "minimax/minimax-m3",
         "deepseek/deepseek-v3.2",
-        "minimax/minimax-m2.5",
     ],
     "review": [
-        "minimax/minimax-m3",
-        "deepseek/deepseek-v3.2",
         "deepseek/deepseek-v4-pro",
-        "minimax/minimax-m2.5",
+        "minimax/minimax-m3",
+        "z-ai/glm-4.5-air",
+        "deepseek/deepseek-v3.2",
         "deepseek/deepseek-v4-flash",
+        "minimax/minimax-m2.5",
+        "deepseek/deepseek-r1-distill-llama-70b",  # reasoning tail (verbose/slow) — reachable at n>=7
     ],
     "docs": [
-        "minimax/minimax-m3",
         "deepseek/deepseek-v4-pro",
+        "minimax/minimax-m3",
+        "z-ai/glm-4.5-air",
         "deepseek/deepseek-v3.2",
-        "minimax/minimax-m2.5",
         "deepseek/deepseek-v4-flash",
+        "minimax/minimax-m2.5",
+        "deepseek/deepseek-r1-distill-llama-70b",  # reasoning tail (verbose/slow) — reachable at n>=7
     ],
     "research": [
-        "minimax/minimax-m3",
         "deepseek/deepseek-v4-pro",
+        "minimax/minimax-m3",
+        "z-ai/glm-4.5-air",
         "deepseek/deepseek-v3.2",
-        "minimax/minimax-m2.5",
         "deepseek/deepseek-v4-flash",
+        "minimax/minimax-m2.5",
+        "deepseek/deepseek-r1-distill-llama-70b",  # reasoning tail (verbose/slow) — reachable at n>=7
     ],
 }
 

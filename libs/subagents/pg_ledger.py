@@ -17,6 +17,11 @@ Storage contract (what a vendoring project must know):
     provisioned centrally (the hub, alongside ``kilo-benchmarks``), so it does NOT auto-DDL.
   * **Why:** aggregating these rows per (task_type, model) — success rate × avg cost ×
     avg quality → value — is what refines ``select.pick_models`` fleet-wide (the flywheel).
+    NOTE: a run may have MORE THAN ONE row — an objective dispatch row plus a later
+    ``status='scored'`` delta from :func:`set_quality`. The aggregation MUST therefore reconcile
+    PER ``agent_id`` first (a run's effective quality = the non-NULL/latest ``quality_score``
+    across its rows) and count RUNS from the objective rows only (``status <> 'scored'``), so a
+    back-filled score neither double-counts ``n`` nor skews ``avg quality``. See :func:`set_quality`.
 
 ``quality_score`` is the one field the ORCHESTRATOR records after judging (it is a verdict,
 not a measurement); the objective columns are captured automatically from the run.
@@ -199,4 +204,103 @@ def record_agent_run(
     return ok
 
 
-__all__ = ["SUBAGENT_RUNS_DDL", "record_run", "record_agent_run"]
+def set_quality(
+    agent_id: str,
+    quality_score: float,
+    *,
+    project: str,
+    task_type: str,
+    model: str,
+    dsn: str | None = None,
+    connect: Callable[[str], Any] | None = None,
+    receipt_dir: str | None = None,
+) -> bool:
+    """Back-fill a post-adjudication ``quality_score`` for a run that was recorded UNSCORED (e.g. by
+    :func:`agent.fanout`, which auto-records at dispatch, before you've judged the output).
+
+    The writer is INSERT-only by design (least-privilege — it never ``UPDATE``s, so it *cannot* rewrite
+    the ``NULL``-quality dispatch-time row). So this APPENDS a **scored delta row**: same
+    ``(project, agent_id, task_type, model)``, ``status="scored"``, every OBJECTIVE metric
+    (provider/cost/turns/latency/tool_calls) ``NULL``, and ``quality_score`` set. Note the delta's
+    status is ``"scored"`` (not ``"done"``) precisely so it is NOT the dispatch row and so it bypasses
+    :func:`record_run`'s "non-``done`` ⇒ null the score" gate.
+
+    **Aggregation contract (the hub rank scripts must honor this — see README):** reconcile PER
+    ``agent_id`` — a run's effective quality is the non-``NULL`` / latest ``quality_score`` across its
+    rows (the ``scored`` delta wins over the dispatch ``NULL``); count RUNS from the objective rows
+    (``status <> 'scored'``) so a back-fill never inflates ``n``.
+
+    Pass the run's OWN ``task_type``/``model`` — the ``model`` is on the result (``AgentResult.model``,
+    stamped by ``run_agents``/``fanout``), the ``task_type`` is the one you dispatched. Both are REQUIRED
+    and non-empty (an empty/defaulted bucket silently misattributes the score — this returns ``False``
+    instead). The INSERT-only writer can't read the dispatch row to verify them, so a wrong value would
+    misattribute to the wrong ``(task_type, model)`` bucket. Use this for a run recorded UNSCORED (don't
+    ALSO score it inline via ``record_agent_run(quality_score=…)`` — that leaves two non-NULL rows).
+
+    On a committed insert it drops a local receipt (:func:`ledger.write_receipt`) so
+    :func:`ledger.audit_unrecorded` stops flagging the ``agent_id`` (the orchestrator has now scored the
+    run). If the ORIGINAL dispatch insert never landed (a DB blip at dispatch — ``record_agent_run``
+    returned ``False`` then), this scored delta stands ALONE: the objective metrics for that one run are
+    gone, but the quality verdict — the key flywheel signal — is preserved. FAIL-OPEN: returns ``False``
+    on any error (bad score, missing project, no DSN, unreachable DB) and NEVER raises. ``quality_score``
+    must be a real number in ``[0, 5]`` (``bool``/``NaN``/``inf`` rejected). ``dsn``/``connect``/
+    ``receipt_dir`` are the injectable DB factory + receipt location, as on :func:`record_agent_run`."""
+    try:
+        dsn = dsn or os.getenv("SUBAGENT_RUNS_DSN")
+        # validate the verdict up front — a bad score must never reach the flywheel (a bool is an int
+        # subclass, so exclude it explicitly, else True/False would sneak in as 1.0/0.0).
+        if (
+            not agent_id
+            or not project
+            or not task_type
+            or not model
+            or isinstance(quality_score, bool)
+            or not isinstance(quality_score, (int, float))
+            or not (0.0 <= float(quality_score) <= 5.0)
+        ):
+            # task_type/model are REQUIRED + non-empty: a scored delta with a defaulted/empty bucket
+            # (the old `task_type or "code"` / `model or ""`) silently misattributes quality to the
+            # wrong (task_type, model) aggregate — worse than a no-op. Reject it.
+            return False
+        row = (
+            project,
+            str(agent_id),
+            str(task_type),
+            str(model),
+            None,  # provider — objective dims live on the dispatch row, NULL on the scored delta
+            "scored",  # the delta marker (bypasses record_run's non-done score-null gate)
+            None,  # cost_usd
+            None,  # turns
+            None,  # latency_s
+            float(quality_score),
+            json.dumps({}),
+        )
+    except Exception:  # noqa: BLE001 — fail-open: never raises
+        return False
+    if not dsn:
+        return False
+    try:
+        conn = connect(dsn) if connect is not None else _connect(dsn)
+    except Exception:  # noqa: BLE001 — fail-open: connect failure is never fatal
+        return False
+    try:
+        with conn:  # commits on clean exit, rolls back on error
+            with conn.cursor() as cur:
+                cur.execute("SET LOCAL statement_timeout = 5000")
+                cur.execute(_INSERT, row)
+    except Exception:  # noqa: BLE001 — fail-open: a bad insert never breaks the run
+        return False
+    finally:
+        with contextlib.suppress(Exception):
+            conn.close()
+    # receipt ONLY after a committed insert (best-effort, never raises) so audit_unrecorded reconciles.
+    # The import is DEFERRED to here (inside the suppress) so a broken .ledger import can't block the
+    # score INSERT above — the receipt is a nice-to-have, the committed score is the point.
+    with contextlib.suppress(Exception):
+        from .ledger import write_receipt
+
+        write_receipt(str(agent_id), project, receipt_dir=receipt_dir)
+    return True
+
+
+__all__ = ["SUBAGENT_RUNS_DDL", "record_run", "record_agent_run", "set_quality"]

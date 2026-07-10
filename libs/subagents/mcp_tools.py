@@ -1,7 +1,8 @@
 """MCP-client research tools for tool-looping subagents (opt-in, OUTSIDE the sandbox).
 
 Connect a pool agent to the fleet's Model Context Protocol servers (the same
-``exa`` / ``brave-search`` / ``firecrawl`` / ``context7`` servers Claude Code uses) and
+``exa`` / ``brave-search`` / ``firecrawl`` / ``context7`` servers Claude Code uses, plus
+``github`` **read-only** — forced + write-verb-verified, see :data:`SAFE_RESEARCH_SERVERS`) and
 expose their tools to the OpenRouter tool-loop — the **MCP analogue of** ``web_tools``,
 superseding per-provider HTTP wrappers, auto-syncing with the fleet's Claude Code MCP set.
 
@@ -59,9 +60,79 @@ logger = logging.getLogger(__name__)
 # Read-only research servers safe to expose to an UNTRUSTED pool model (they reach the
 # web only — no filesystem/shell/exec). Matches /opt/fabrik/mcp.json + the hub
 # `using-subagents` rules pack. Anything else needs an explicit allow_unlisted=True.
+# `github` is allowlisted READ-ONLY: the pool FORCES GitHub's native read-only on connect
+# (GITHUB_READ_ONLY / X-MCP-Readonly) and REFUSES the server if it advertises any write-verb
+# tool — a leaf pool worker never gets a github write tool (see _force_github_readonly /
+# _github_advertises_write). Requires the OFFICIAL github/github-mcp-server, registered under
+# the name `github`, with a token in env; github *write* stays orchestrator-level (native).
 SAFE_RESEARCH_SERVERS: frozenset[str] = frozenset(
-    {"exa", "brave-search", "firecrawl", "context7"}
+    {"exa", "brave-search", "firecrawl", "context7", "github"}
 )
+
+# github read-only in the pool. Primary defense = GitHub's native read-only (forced on the
+# server def before connect). The write-verb verify is the fail-closed BACKSTOP for a
+# non-official / non-honoring fork — NOT the primary filter, so never weaken the forcing on
+# the theory "the verify catches writes". Both gate on name.lower()=="github" so a mixed-case
+# `GitHub` reached via allow_unlisted=True is still forced (the allowlist gate itself is
+# case-sensitive; this normalization backstops that one bypass path).
+_GITHUB_WRITE_VERBS: tuple[str, ...] = (
+    "create_", "update_", "delete_", "merge_", "push_", "fork_", "add_", "remove_",
+    "set_", "enable_", "disable_", "dismiss_", "request_", "assign_", "close_", "reopen_",
+    "transfer_", "rename_", "lock_", "unlock_", "approve_", "submit_", "run_", "rerun_",
+    "cancel_", "dispatch_", "convert_", "resolve_", "unresolve_", "mark_", "pin_", "unpin_",
+    "archive_", "block_", "star_", "watch_", "follow_", "upload_", "accept_", "decline_",
+    # widened after the Phase-A pool review named more fork-plausible write verbs (none collide
+    # with a github READ prefix get_/list_/search_, so no over-refusal of the official server):
+    "edit_", "modify_", "move_", "tag_", "trigger_", "import_", "export_", "sync_", "invite_",
+    "send_", "publish_", "revert_", "squash_", "rebase_", "restore_", "retry_", "bulk_",
+    "unlabel_", "unassign_", "unsubscribe_", "write_",
+)
+
+
+def _tool_name(tool: Any) -> str:
+    """A tool's name, string-tool-safe: a bare-string tool IS its name (else
+    ``getattr(t, "name", "")`` returns ``""`` and a string write verb would slip the verify)."""
+    return tool if isinstance(tool, str) else (getattr(tool, "name", "") or "")
+
+
+def _force_github_readonly(name: str, server_def: dict) -> dict:
+    """Return a COPY of ``server_def`` with GitHub's native read-only forced when this is a
+    github server (``name.lower() == "github"``); any other server is returned unchanged.
+    stdio → ``env["GITHUB_READ_ONLY"]="1"``; http → ``headers["X-MCP-Readonly"]="true"``.
+    The copy (incl. a fresh nested ``env``/``headers`` dict) leaves the caller's ``mcp_config``
+    untouched — no in-place mutation of a sub-dict."""
+    if name.lower() != "github":
+        return server_def
+    d = {**server_def}
+    # Coerce a non-dict sub-dict to {} (covers ``null`` AND a malformed ``["x"]`` list): this runs
+    # BEFORE the connect try, so a `{**None}` / `{**[...]}` TypeError here would abort the WHOLE
+    # provider build (every server's tools lost) instead of skipping just this one. Fail-isolation.
+    if "url" in d:
+        h = d.get("headers")
+        d["headers"] = {**(h if isinstance(h, dict) else {}), "X-MCP-Readonly": "true"}
+    else:
+        e = d.get("env")
+        d["env"] = {**(e if isinstance(e, dict) else {}), "GITHUB_READ_ONLY": "1"}
+    return d
+
+
+def _github_advertises_write(name: str, tools: Any) -> bool:
+    """``True`` iff this is a github server advertising ANY write tool despite forced read-only
+    — the fail-closed backstop for a non-honoring server. Catches BOTH github tool-naming
+    schemes: the legacy write-verb PREFIX (``create_``/``merge_``/``push_``/…) AND the current
+    consolidated ``<toolset>_write`` SUFFIX (``issue_write``, ``pull_request_review_write``,
+    ``label_write``, ``projects_write``, … — GitHub folded ``create_issue`` etc. into these, so a
+    prefix-only match now MISSES the official server's writes; grounded live 2026-07-09). Case
+    -folded + string-tool-safe so a ``Create_*`` / bare-string verb can't bypass. No github READ
+    tool (``get_``/``list_``/``search_``/``*_read``) matches either → never over-refuses reads."""
+    if name.lower() != "github":
+        return False
+
+    def _is_write(t: Any) -> bool:
+        n = _tool_name(t).lower()
+        return n.endswith("_write") or any(n.startswith(v) for v in _GITHUB_WRITE_VERBS)
+
+    return any(_is_write(t) for t in tools)
 
 _FN_NAME_RE = re.compile(r"[^a-zA-Z0-9_-]")
 _FN_NAME_MAX = 64  # OpenAI/OpenRouter function-name cap (grounded 2026-07-07)
@@ -356,8 +427,12 @@ async def _open_session(server_def: dict, stack: AsyncExitStack, sdk: dict) -> A
     """Open one MCP session on ``stack``. ``url``-shaped def → Streamable HTTP;
     ``command``-shaped def → stdio via ``npx``. Returns an initialized ``ClientSession``."""
     if "url" in server_def:
+        # forward `headers` (e.g. github's forced `X-MCP-Readonly: true`) to the transport;
+        # `None` when absent → identical to the pre-existing no-header call (backward-compatible).
         transport = await stack.enter_async_context(
-            sdk["streamablehttp_client"](server_def["url"])
+            sdk["streamablehttp_client"](
+                server_def["url"], headers=server_def.get("headers")
+            )
         )
         read, write = transport[0], transport[1]  # (read, write[, get_session_id])
     else:
@@ -438,12 +513,27 @@ def build_mcp_provider(
                     "mcp server %r not present in mcp_config; skipped.", name
                 )
                 continue
+            # UNCONDITIONAL: force GitHub read-only on any github server BEFORE connect (both
+            # the real path and the test hook see the mutated def), independent of the allowlist
+            # gate / allow_unlisted. A no-op copy for every non-github server.
+            server_def = _force_github_readonly(name, server_def)
             try:
                 if _connect is not None:
                     session = await _connect(name, server_def, stack)
                 else:
                     session = await _open_session(server_def, stack, sdk)
                 tools = (await session.list_tools()).tools
+                # fail-closed backstop: a github server advertising a write-verb tool DESPITE
+                # forced read-only is misconfigured/non-official → REFUSE it wholesale (skip,
+                # loud), never expose its tools. Inside the try so a raise in the verify itself
+                # is caught below (still fail-closed), before the tool loop.
+                if _github_advertises_write(name, tools):
+                    logger.warning(
+                        "mcp server %r advertised write tools despite forced read-only "
+                        "— REFUSED (untrusted).",
+                        name,
+                    )
+                    continue
             except Exception as exc:  # noqa: BLE001 — one bad server is skipped, not fatal
                 logger.warning(
                     "mcp server %r failed to connect (%s); skipped.", name, exc
