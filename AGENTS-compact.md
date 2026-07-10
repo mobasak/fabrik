@@ -86,6 +86,7 @@ Standalone (non-plan) work → `Agent-Role: primary` + `Agent-Context: <what you
    3. After 3 misses: `BLOCKED: <vendor> — <searched> — <missing>`; stop.
    Skip: stdlib, syntax, Fabrik conventions.
 7. **fabrik-lib** (`/opt/fabrik-lib/`) — reusable modules, vendor (copy) don't import. Check `fabrik-lib/README.md` for the module table before building from scratch. New module = must have `README.md` + `requirements.txt` + row in `fabrik-lib/README.md` table.
+8. **Subagent dispatch** (full rule: `.windsurf/rules/core/62-using-subagents.md` § Dispatch policy + § Parallelism) — gradeable fan-out (review finders / grounders / reconcilers / auditors / implementers) → **pool-default** (OpenRouter pool `run_agents`/`pick_models`, ≤$1.5/Mtok, records to the `subagent_runs` flywheel via `record_agent_run` — ⚠️ NOT `record_run`, which no-ops); native Claude subagents added **on top** for GUI / authoritative-high-risk / decide-merge. **Two-shape parallelism — a fan-out that is neither SILENTLY SERIALIZES:** read-only → `tools_enabled=False` (the trigger — each its own group → parallel; `allow_ungrounded=True`+inline is a *separate* anti-refusal need for grounded `review`/`docs`/`plan`); tools-enabled → `tools_enabled=True` + **disjoint `owned_paths`** (empty/overlapping = one serial group, the #1 trap). Pass `n` to `pick_models` (default `n=1`); `max_concurrency` default 4.
 
 ## SECURITY & DATA
 1. **Sensitive data** — Before editing `.env`, `*.key`, `*.pem`, files under `secrets/` or `.ssh/`:
