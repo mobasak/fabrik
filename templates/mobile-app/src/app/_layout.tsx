@@ -10,7 +10,7 @@ import FlashMessage from 'react-native-flash-message';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { useThemeConfig } from '@/components/ui/use-theme-config';
-import { hydrateAuth, useAuthStore } from '@/features/auth/use-auth-store';
+import { hydrateAuth, signOut, useAuthStore } from '@/features/auth/use-auth-store';
 
 import { APIProvider } from '@/lib/api';
 import { loadSelectedTheme } from '@/lib/hooks/use-selected-theme';
@@ -36,6 +36,8 @@ SplashScreen.setOptions({
 
 export default function RootLayout() {
   const status = useAuthStore.use.status();
+  const statusRef = React.useRef(status);
+  statusRef.current = status;
   const [laidOut, setLaidOut] = React.useState(false);
 
   const onLayoutRootView = React.useCallback(() => {
@@ -53,9 +55,15 @@ export default function RootLayout() {
   }, [laidOut, status]);
 
   React.useEffect(() => {
-    // Safety net: never let a stuck Keychain/Keystore read keep the splash
-    // up forever — hide it after a bounded wait regardless.
-    const timer = setTimeout(() => SplashScreen.hide(), 3000);
+    // Safety net: if a pathologically slow/hung secure-store read leaves auth
+    // stuck at 'idle', fail closed — sign out so the guard routes to /login
+    // (which flips status and lets the effect above hide the splash), instead
+    // of tearing the splash down onto the guard's blank 'idle' render.
+    const timer = setTimeout(() => {
+      if (statusRef.current === 'idle') {
+        void signOut();
+      }
+    }, 3000);
     return () => clearTimeout(timer);
   }, []);
 

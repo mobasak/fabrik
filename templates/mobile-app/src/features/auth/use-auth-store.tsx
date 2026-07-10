@@ -37,18 +37,23 @@ const _useAuthStore = create<AuthState>((set, get) => ({
     try {
       const userToken = await getToken();
       if (userToken !== null) {
-        await get().signIn(userToken);
+        // Already persisted in secure store — reflect it in state directly.
+        // Don't re-write via signIn(): a redundant Keychain write each launch
+        // could flake and, via the catch below, sign out a user who has a
+        // perfectly valid stored token.
+        set({ status: 'signIn', token: userToken });
       }
       else {
-        await get().signOut();
+        set({ status: 'signOut', token: null });
       }
     }
     catch (e) {
       console.error(e);
-      // Fail CLOSED: any token-read failure signs the user out rather than
-      // leaving `status` stuck at 'idle' — which the route guard would
-      // otherwise treat as authenticated (fail-open regression).
-      await get().signOut();
+      // Fail CLOSED: move out of 'idle' to 'signOut' so the guard routes to
+      // /login (never leave 'idle', which the guard would treat as allowed).
+      // Do NOT delete the token — a transient read failure shouldn't destroy
+      // a valid credential; retry on next launch.
+      set({ status: 'signOut', token: null });
     }
   },
 }));

@@ -26,7 +26,9 @@ const schema = z.object({
 export type FormType = z.infer<typeof schema>;
 
 export type LoginFormProps = {
-  onSubmit?: (data: FormType) => void;
+  // May be async (e.g. an expo-secure-store write) — the form awaits it so the
+  // submit button keeps its loading state until it resolves.
+  onSubmit?: (data: FormType) => void | Promise<void>;
 };
 
 export function LoginForm({ onSubmit = () => {} }: LoginFormProps) {
@@ -41,7 +43,7 @@ export function LoginForm({ onSubmit = () => {} }: LoginFormProps) {
       onChange: schema as any,
     },
     onSubmit: async ({ value }) => {
-      onSubmit(value);
+      await onSubmit(value);
     },
   });
 
