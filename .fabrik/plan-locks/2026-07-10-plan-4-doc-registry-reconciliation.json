@@ -1,5 +1,5 @@
 {
-  "plan": "docs/development/plans/2026-07-10-plan-4-doc-registry-reconciliation.md",
+  "plan": "docs/development/plans/archived/2026-07-10-plan-4-doc-registry-reconciliation.md",
   "owned_paths": [
     "scripts/enforcement/_doc_registry.py",
     "scripts/enforcement/check_structure.py",
@@ -18,12 +18,35 @@
     "CHANGELOG.md",
     "INDEX.md"
   ],
+  "out_of_scope_coupled_fixes": [
+    "scripts/kilo_docs_enforcer.py (DOC_TEMPLATE_MAP — required by the template archive; graceful)"
+  ],
   "out_of_repo_local_edits": [
-    "~/.claude/commands/fabrik-plan-after-chat.md"
+    "~/.claude/commands/fabrik-plan-after-chat.md (line 240 stale schema ref → data-contract.md)"
   ],
   "branch": "master",
   "started_at": "2026-07-11T00:00:00Z",
   "baseline_commit": "eb907489",
-  "status": "active",
-  "note": "Fleet-governance plan. Substantive owned paths disjoint from the concurrent active lock plan-3 (kilo-benchmarks); CHANGELOG.md/INDEX.md declared shared-append. Commit-stage pre-commit hooks are read-only w.r.t. the fabrik tree (governance-sync writes to other /opt projects only), so sharing the tree with the live sibling is data-loss-safe."
+  "baseline_gate": {
+    "status": "success",
+    "red_checks": []
+  },
+  "status": "released",
+  "completed_at": "2026-07-11",
+  "phase_commits": {
+    "A": "bc18536b",
+    "B": "543b1b05",
+    "C": "d4e06b5c",
+    "D": "bc96a491",
+    "E": "6df676d8",
+    "whole-plan-fix": "19296a4b"
+  },
+  "final_commit": "af88775b",
+  "final_gate": {
+    "status": "success",
+    "tier": 2,
+    "passed": 39,
+    "failed": 0
+  },
+  "notes": "Fleet-governance plan executed on shared master alongside an active sibling (plan-3 kilo-benchmarks). Committed via explicit pathspec throughout to protect the sibling's staged/uncommitted work; no data loss. governance-sync re-distributed the enforcement/CLAUDE.md changes to 47 projects (0 WARN storm — grandfather via LEGACY_TOLERATED). Grounded deviation from plan criterion #2: data-contract seeding kept all-but-docusaurus (use_database defaults False even for saas/static-site, so a needs_database gate would break them)."
 }

@@ -1,7 +1,8 @@
 # Plan — Canonical type-aware project-doc registry (SSOT + derived surfaces)
 
-Status: IN-PROGRESS
+Status: EXECUTED 2026-07-11
 Spec: docs/superpowers/specs/2026-07-10-doc-registry-reconciliation-design.md (CONVERGED)
+Executed: 2026-07-11 — Phases A–E shipped (A bc18536b · B 543b1b05 · C d4e06b5c · D bc96a491 · E 6df676d8 · whole-plan-fix 19296a4b). Final gate Tier-2 39/0 green; fleet re-synced (47 projects, 0 WARN storm). Grounded deviation: data-contract keeps all-but-docusaurus (needs_database gate would break saas/static-site). Out-of-plan coupled fix: kilo_docs_enforcer.py DOC_TEMPLATE_MAP.
 Date: 2026-07-10
 Converged: 2026-07-10 (/fabrik-plan-review — 2 passes to an edit-free md5-verified no-op; every path:line re-grounded; the import crux fixed — registry imported same-dir (not the hub-only FABRIK_ROOT pattern) + stdlib-only so it resolves project-side; scaffold/manifest/check_doc_sync/final_gate citations verified; sync rglob confirmed to distribute the new enforcement scripts; no deferred questions)
 
