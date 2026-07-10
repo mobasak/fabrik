@@ -14,6 +14,28 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
 import fabrik_synced_manifest as m  # noqa: E402
+import sync_enforcement_to_projects as sync  # noqa: E402
+
+
+def test_atomic_copy_is_safe_for_a_concurrent_reader(tmp_path: Path) -> None:
+    # A project actively importing libs/subagents holds the OLD inode open; the sync must swap the file
+    # atomically so the running process never sees a torn/partial file. Prove: after _atomic_copy, the
+    # dest has new content, but a reader that opened the old file still reads the OLD bytes (old inode
+    # preserved by os.replace), and no temp file leaks.
+    import os
+
+    src = tmp_path / "src.py"
+    src.write_text("NEW\n")
+    dst = tmp_path / "dst.py"
+    dst.write_text("OLD-being-read\n")
+    reader = open(dst)  # noqa: SIM115 — deliberately hold the old fd across the swap
+    try:
+        sync._atomic_copy(src, dst)
+        assert dst.read_text() == "NEW\n"  # file now updated
+        assert reader.read() == "OLD-being-read\n"  # the open reader still sees the old inode
+        assert not any(p.name.startswith(".sync-tmp-") for p in tmp_path.iterdir())  # no temp leak
+    finally:
+        reader.close()
 
 
 @pytest.fixture

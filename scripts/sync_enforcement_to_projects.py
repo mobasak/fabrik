@@ -24,9 +24,11 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
 import shutil
 import sys
+import tempfile
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -97,6 +99,26 @@ def create_backup(path: Path) -> Path:
     return backup_path
 
 
+def _atomic_copy(source: Path, destination: Path) -> None:
+    """Copy ``source`` onto ``destination`` ATOMICALLY: write to a temp file in the SAME directory
+    (so it's on the same filesystem, a hard requirement for an atomic rename) then ``os.replace`` it
+    into place. A concurrent reader (e.g. a project actively importing ``libs/subagents``) therefore
+    sees EITHER the whole old file OR the whole new file — never a half-written one — and a process
+    that already imported the module keeps the old inode alive until it exits (the rename only swaps
+    the directory entry). This is what makes a mid-dispatch sync safe: no torn reads, no ImportError.
+    Falls back to a plain copy only if the atomic path can't be used (cross-device temp, etc.)."""
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(dir=str(destination.parent), prefix=".sync-tmp-")
+    os.close(fd)
+    tmp = Path(tmp_name)
+    try:
+        shutil.copy2(source, tmp)  # content + mode/mtime, into the dest dir (same filesystem)
+        os.replace(tmp, destination)  # atomic on the same filesystem
+    except Exception:
+        tmp.unlink(missing_ok=True)
+        raise
+
+
 def sync_single_file(
     source: Path,
     destination: Path,
@@ -122,14 +144,14 @@ def sync_single_file(
         if dry_run:
             return SyncResult("COPY", source, destination, "replacing symlink with copy")
         destination.unlink()
-        shutil.copy2(source, destination)
+        _atomic_copy(source, destination)
         return SyncResult("COPY", source, destination, "replaced symlink with copy")
 
     # Destination doesn't exist - always copy
     if not destination.exists():
         if dry_run:
             return SyncResult("COPY", source, destination, "new file")
-        shutil.copy2(source, destination)
+        _atomic_copy(source, destination)
         return SyncResult("COPY", source, destination, "new file")
 
     # --force: skip all checks, always overwrite
@@ -138,9 +160,9 @@ def sync_single_file(
             return SyncResult("COPY", source, destination, "forced overwrite")
         if backup:
             backup_path = create_backup(destination)
-            shutil.copy2(source, destination)
+            _atomic_copy(source, destination)
             return SyncResult("COPY", source, destination, f"forced (backup: {backup_path.name})")
-        shutil.copy2(source, destination)
+        _atomic_copy(source, destination)
         return SyncResult("COPY", source, destination, "forced overwrite")
 
     # Compare hashes

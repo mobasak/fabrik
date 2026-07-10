@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — subagents distribution: fabrik-lib-commit trigger + atomic writes (safe during active use, 2026-07-10)
+
+Closed the two gaps in the auto-distribution: (1) **it now triggers on a `/opt/fabrik-lib` commit** — a `post-commit` hook there runs `scripts/distribute_subagents.sh`, which re-vendors canonical → the hub `libs/subagents` and runs the fleet sync (guarded to subagents-only changes; **fail-closed** — a module that doesn't import is never distributed, so a mid-edit canonical can't ship). No manual re-vendor step anymore. (2) **the sync writes atomically** — `sync_enforcement_to_projects._atomic_copy` writes each file to a temp file in the dest dir then `os.replace`s it, so a project **actively importing** `libs/subagents` never sees a torn/partial file and a running dispatch keeps its in-memory copy (old inode preserved) — the mid-dispatch-break edge is gone. The hook does NOT auto-commit the hub copy (the per-project `.fabrik/synced.lock` keeps `check_synced_unmodified` green regardless). +1 atomic-safety test (7 total).
+
 ### Added — subagents pool auto-distribution: synced fleet-wide + scaffold-wired (plan-6, 2026-07-10)
 
 Made the vendored `libs/subagents` pool a **Fabrik-synced module** so the vendor copy is distributed and kept current automatically instead of manually `cp`-ed per project (executes `plan-6-subagents-fleet-sync` leanly). (1) `scripts/fabrik_synced_manifest.py`: new `VENDORED_DIRS = ["libs/subagents"]`, wired into `iter_synced_pairs` (recursive flat copy, bytecode excluded) + `gitignore_dest_paths` (projects gitignore it like other synced dirs); (2) `scripts/sync_enforcement_to_projects.py`: a `VENDORED_DIRS` copy loop distributes it to all existing projects on every sync — so a hub fix now propagates fleet-wide with no re-vendor; (3) `src/fabrik/scaffold.py`: copies `libs/subagents` (bytecode-excluded) into every new project of **any** type at init; (4) pre-flight re-vendored the hub copy byte-identical to canonical `/opt/fabrik-lib/subagents`. +3 manifest tests (6 total). Dry-run: 20 files/project, 0 bytecode.
