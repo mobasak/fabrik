@@ -32,7 +32,7 @@ The strongest signal: these add speed tiers, fee-bypass, or exclusive-vendor cov
 | **ModelScope** | trivial (token API — `ms-*` format) | **55-model Alibaba model hub inference.** Delivered coverage (active-status set with via_modelscope=1): ZhipuAI GLM direct (4 rows: GLM-4.7-flash / GLM-5 / 5.1 / 5.2), Tencent Hunyuan Hy3 (1 row), plus 27 Qwen/DeepSeek/MiniMax/Kimi/stepfun/moonshotai/nex-agi active overlap rows = 32 active total. Also flipped but `status='deprecated'`: xiaomi/mimo-v2-flash. Fetched but unmatched (awaits new-row ingestion — flip-only scraper by plan-2 design): Shanghai AI Lab Intern-S series, PaddlePaddle ERNIE-4.5-PT, XiYanSQL, IIC GUI-Owl, LLM-Research Llama-4-Maverick, MusePublic, OpenGVLab InternVL3.5, OpenCompass. OpenAI-compatible endpoint `https://api-inference.modelscope.cn/v1`; env var `MODELSCOPE_API_KEY` in `.env`. | **WIRED 2026-07-09 (plan-2)** — see `AI_VENDOR_ACCESS.md` + `scrape_modelscope_catalog.py`; 32 rows via_modelscope=1, 31 active+unblocked in GUI. Follow-up: new-row ingestion for Intern-S/ERNIE-PT/XiYanSQL/etc. |
 | **Groq** | trivial | **LPU inference** — fastest tier for `llama-3.3-70b` / `mixtral-8x7b` (2-3× faster than any OR route). Latency-sensitive paths where speed dominates. | **Signup now.** Free tier + speed |
 | **Cerebras** | trivial | **WSE inference** — peer of Groq, sometimes even faster; `llama-3.3-70b` at ~2000 tok/s | **Signup now.** Redundancy with Groq |
-| **DeepInfra direct** | trivial | **Bypasses OR's 5.5% fee** on models where DeepInfra is already OR's cheapest provider (v4-flash, kimi-k2.7-code, deepseek-r1-0528, glm-5.2 — many more) | **Signup now.** Pure savings on models you route anyway |
+| **DeepInfra direct** | trivial | **Bypasses OR's 5.5% fee** on models where DeepInfra is already OR's cheapest provider (v4-flash, kimi-k2.7-code, deepseek-r1-0528, glm-5.2 — many more). OpenAI-compatible endpoint `https://api.deepinfra.com/v1/openai`. | **TOKEN SAVED 2026-07-10 (`DEEPINFRA_API_KEY` in `.env`) — WIRE-IN PENDING.** Same 5-step pattern as ModelScope plan-2: scraper → new-row ingest → `via_deepinfra=1` flag → placeholder-heal on daily cron. |
 
 ## Tier 2 — cheaper alt routes for models you already have
 
@@ -52,7 +52,7 @@ Low-commitment additions for dev workloads and A/B comparisons.
 | Vendor | Signup effort | What it adds | Verdict |
 |---|---|---|---|
 | **Cloudflare Workers AI** | trivial | Very cheap edge inference; free tier includes daily neurons; 30+ models (Llama, Mistral, DeepSeek-R1) | **Signup now — free is free.** Good for burstable dev workloads |
-| **HuggingFace Inference Providers** | trivial | Meta-gateway of gateways (Novita / Sambanova / Fireworks / Together / Cerebras all wired via HF); one key, many routes | Signup after Tier 1 if you'd rather have HF's aggregation layer than manage each provider directly |
+| **HuggingFace Inference Providers** | trivial | Meta-gateway of gateways (Novita / Sambanova / Fireworks / Together / Cerebras all wired via HF); one key, many routes. Router endpoint `https://router.huggingface.co/v1` is OpenAI-compatible. | **TOKEN SAVED 2026-07-10 (`HF_TOKEN` in `.env`) — NEXT AGGREGATOR WIRE-IN.** Follows the ModelScope plan-2 pattern: catalog scraper → new-row ingest → `via_hf=1` flag → placeholder-heal on daily cron. |
 
 ## Tier 4 — direct-vendor for specific families
 
@@ -91,13 +91,13 @@ Cost-adjusted-impact order for signup work:
    - Wire step into `daily_refresh.sh` before `export_models_browser.py`
    - Add sidebar chip in `models_browser_template.html` (`via Groq` / `via Cerebras`)
 
-2. **Signup + wire DeepInfra direct (Tier 1)** — pure savings on high-volume models. Same 5-step pattern.
+2. **Signup + wire DeepInfra direct (Tier 1)** — **token saved 2026-07-10 (`DEEPINFRA_API_KEY` in `.env`) — WIRE-IN PENDING.** Pure savings on high-volume models. Same 5-step pattern as ModelScope plan-2.
 
 3. **Signup + wire Cloudflare Workers AI (Tier 3)** — free tier is a no-brainer for burstable dev workloads.
 
 4. **Signup + wire xAI direct (Tier 4)** — if Grok matters for the workload.
 
-5. **Optionally: HuggingFace Inference Providers (Tier 3)** — meta-aggregator; one signup for many downstream providers, but adds a layer OR already provides.
+5. **HuggingFace Inference Providers (Tier 3) — NEXT AGGREGATOR** (token saved 2026-07-10, `HF_TOKEN` in `.env`). Meta-aggregator: one signup for many downstream providers (Novita / Sambanova / Fireworks / Together / Cerebras). Wire pattern mirrors ModelScope plan-2: `scrape_hf_catalog.py` → new-row ingest → `via_hf=1` flag → placeholder-heal on daily cron.
 
 **Skip:**
 - Zhipu / Moonshot direct — Chinese phone requirement

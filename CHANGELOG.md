@@ -12,9 +12,13 @@ All notable changes to this project will be documented in this file.
 
 `check_subagent_flywheel.py` now enforces the pool-or-declare block ONLY where the pool is actually reachable — `_pool_available()` checks the canonical hub module `/opt/fabrik-lib/subagents` (the pool is a **dev-time** tool used straight from the hub — no per-project vendor or fleet-sync needed) OR a local vendor copy; present in neither → no block (fail-safe). Makes fleet distribution safe: the block is a silent no-op in a project until the pool is reachable, and the block message points agents at the exact `sys.path.insert(0, '/opt/fabrik-lib/subagents'); from subagents import fanout` dispatch. Distributed fleet-wide. (Answers "do we have to vendor the module?" — no: agents import from `/opt/fabrik-lib` directly.) +1 self-scope test (17 total).
 
-### Added — HuggingFace Inference Providers token saved as next-aggregator wire-in (2026-07-10)
+### Added — HuggingFace Inference Providers + DeepInfra tokens saved for next-aggregator wire-ins (2026-07-10)
 
-`HF_TOKEN` (`hf_*`) saved to `.env` for the HuggingFace Inference Providers meta-gateway (Novita / Sambanova / Fireworks / Together / Cerebras behind one router endpoint `https://router.huggingface.co/v1`, OpenAI-compatible). Not wired yet — flagged as **NEXT AGGREGATOR** in [`docs/reference/kilo/AGGREGATOR_ROADMAP.md`](docs/reference/kilo/AGGREGATOR_ROADMAP.md) (Tier 3 row + step 5) with the wire pattern mirroring the ModelScope plan-2 sequence: scraper → new-row ingest → `via_hf=1` flag → placeholder-heal on daily cron. `.env.example` + `docs/CONFIGURATION.md` updated per the Doc Sync Matrix.
+Two aggregator tokens saved for wire-in via the ModelScope plan-2 pattern (scraper → new-row ingest → `via_<vendor>=1` flag → placeholder-heal on daily cron):
+- **`HF_TOKEN`** (`hf_*`) — HuggingFace Inference Providers meta-gateway across Novita / Sambanova / Fireworks / Together / Cerebras behind one OpenAI-compatible router endpoint `https://router.huggingface.co/v1`. Flagged **NEXT AGGREGATOR** in [`AGGREGATOR_ROADMAP.md`](docs/reference/kilo/AGGREGATOR_ROADMAP.md) (Tier 3 row + step 5).
+- **`DEEPINFRA_API_KEY`** — DeepInfra direct gateway; bypasses OpenRouter's 5.5% fee on models where DeepInfra is OR's cheapest provider (deepseek-v4-flash, kimi-k2.7-code, deepseek-r1-0528, glm-5.2, etc.). Endpoint `https://api.deepinfra.com/v1/openai`. Flagged Tier 1 in the roadmap (step 2).
+
+Both non-wired: `.env.example` + `docs/CONFIGURATION.md` updated per the Doc Sync Matrix.
 
 ### Changed — Subagent pool enforcement: "pool-or-declare" hard-block gate (2026-07-10)
 
