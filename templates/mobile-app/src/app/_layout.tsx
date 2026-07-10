@@ -12,8 +12,12 @@ import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { useThemeConfig } from '@/components/ui/use-theme-config';
 import { hydrateAuth, signOut, useAuthStore } from '@/features/auth/use-auth-store';
 
-import { APIProvider } from '@/lib/api';
+import { ConsentProvider } from '@/lib/consent';
 import { loadSelectedTheme } from '@/lib/hooks/use-selected-theme';
+// OfflineProvider replaces APIProvider — it renders PersistQueryClientProvider
+// around the same queryClient singleton, adding offline cache persistence.
+import { OfflineProvider } from '@/lib/offline';
+import { ForceUpdateGate } from '@/lib/update';
 // Import  global CSS file
 import '../global.css';
 
@@ -95,12 +99,14 @@ function Providers({
     >
       <KeyboardProvider>
         <ThemeProvider value={theme}>
-          <APIProvider>
-            <BottomSheetModalProvider>
-              {children}
-              <FlashMessage position="top" />
-            </BottomSheetModalProvider>
-          </APIProvider>
+          <OfflineProvider>
+            <ConsentProvider>
+              <BottomSheetModalProvider>
+                <ForceUpdateGate>{children}</ForceUpdateGate>
+                <FlashMessage position="top" />
+              </BottomSheetModalProvider>
+            </ConsentProvider>
+          </OfflineProvider>
         </ThemeProvider>
       </KeyboardProvider>
     </GestureHandlerRootView>

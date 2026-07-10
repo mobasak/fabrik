@@ -26,10 +26,13 @@ app = FastAPI(title="mobile-app-backend")
 # changes. Empty CORS_ALLOW_ORIGINS (default) disables cross-origin entirely.
 _cors_origins = [o for o in os.getenv("CORS_ALLOW_ORIGINS", "").split(",") if o]
 if _cors_origins:
+    # A wildcard origin combined with credentials is rejected by browsers (and
+    # is a security footgun) — only enable credentials for an explicit allowlist.
+    _allow_credentials = "*" not in _cors_origins
     app.add_middleware(
         CORSMiddleware,
         allow_origins=_cors_origins,
-        allow_credentials=True,
+        allow_credentials=_allow_credentials,
         allow_methods=["*"],
         allow_headers=["*"],
     )

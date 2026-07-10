@@ -99,8 +99,10 @@ export function useForceUpdateCheck(
         if (controller.signal.aborted || !mountedRef.current) {
           return;
         }
-        // Server owns the gate (mobile_config.evaluate) — just honor the verdict.
-        if (config.update_required) {
+        // Server owns the gate (mobile_config.evaluate) — honor the verdict.
+        // kill_switch is a separate maintenance/hard-stop that also blocks entry
+        // (its own message is shown via `kill_switch_message`).
+        if (config.update_required || config.kill_switch) {
           setState({ status: 'blocked', config });
         }
         else {
