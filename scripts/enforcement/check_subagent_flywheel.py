@@ -1,26 +1,39 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: none
-"""Advisory flywheel gate — WARN when the OpenRouter subagent POOL ran work it never recorded.
+# AFTER-EDIT: tests/test_check_subagent_flywheel.py
+"""Subagent-pool enforcement gate — two layers.
 
-Every `run_agents` pool worker appends to `<repo>/.tmp/subagents/ledger.jsonl`; `record_agent_run`
-writes a local receipt to `receipts.jsonl` **only on a confirmed DB write**. This check reconciles
-the two LOCALLY (the `subagent_runs` writer role is INSERT-only, so the gate cannot SELECT the table)
-and surfaces any ledger entry with no matching receipt = a pool run that ran but was never
-scored+recorded. Native Claude Task subagents never write the ledger, so they are out of scope
-(no false positives on GUI / authoritative work).
+LAYER 1 (BLOCKING — "pool-or-declare"): a substantial CODE change (committed + staged) with ZERO pool
+subagent runs THIS cycle FAILS the gate (exit 1) — unless the work declares a native-only exception via
+a `NO-POOL: <reason>` line in the HEAD commit message or a `FABRIK_NO_POOL` env var. This is the teeth
+that make `62-using-subagents.md` § Dispatch policy's pool-default real across EVERY agent
+(Kilo / Cascade / Claude) — prose can't be enforced, a gate can. Operator-approved 2026-07-10.
 
-ADVISORY: this ALWAYS exits 0 (it never blocks the gate); a finding is printed to stdout, which
-`final_gate.py`'s `run_optional_check(..., advisory=True)` preserves as a WARN. Escalation to a hard
-fail is a dated operator decision (see the registration in final_gate.py).
+LAYER 2 (ADVISORY — never blocks): reconciles the local pool ledger vs receipts and WARNs on any pool
+run that ran but was never `record_agent_run`-recorded.
+
+⚠️ FAIL-SAFE INVARIANT: the block fires ONLY when {code files > threshold, zero in-cycle pool rows, no
+NO-POOL declaration} are ALL confidently determined. ANY git failure, parse error, or exception in any
+helper degrades to EXIT 0 — never a false block. A blocking gate that false-blocks the whole fleet is
+worse than one that occasionally lets a violation through, so every ambiguous case leans no-block.
+
+Only COMMITTED (since the merge-base) + STAGED files count as "this cycle's work" — NOT the unstaged
+working tree, which in a shared clone carries other agents' WIP + build artifacts (would false-block).
+
+The `subagent_runs` writer role is INSERT-only (the gate cannot SELECT), so "this cycle's pool use" is
+read from the LOCAL ledger, filtered to entries newer than the merge-base commit (fixes the stale-ledger
+self-disable: a pool run from a PRIOR cycle does not satisfy THIS cycle).
 
 Usage: `python scripts/enforcement/check_subagent_flywheel.py [ledger.jsonl]`
-(default ledger: `<repo>/.tmp/subagents/ledger.jsonl`; receipts co-locate with the ledger).
 """
 
 from __future__ import annotations
 
+import json
+import os
+import re
 import subprocess
 import sys
+from datetime import datetime
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -29,98 +42,221 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 DEFAULT_LEDGER = PROJECT_ROOT / ".tmp" / "subagents" / "ledger.jsonl"
 
-# Above this many changed files, a review that ran ZERO pool subagents is worth an advisory nudge — the
-# all-native failure mode (native-only, skipping the pool breadth layer) the ledger↔receipt reconciliation
-# is structurally blind to (no pool runs → no ledger → nothing to reconcile). Per 62 § Dispatch policy a
-# substantial review runs the pool breadth layer AND native on top, not native-only.
-_REVIEW_SURFACE_THRESHOLD = 8
+# Above this many changed CODE files, a cycle with ZERO pool runs and no NO-POOL declaration is a
+# blocking violation. Docs / config / data files are excluded (they need no pool review).
+_BLOCK_CODE_THRESHOLD = 8
+_CODE_EXTS = frozenset(
+    {
+        ".py",
+        ".js",
+        ".ts",
+        ".tsx",
+        ".jsx",
+        ".mjs",
+        ".cjs",
+        ".go",
+        ".rs",
+        ".java",
+        ".kt",
+        ".swift",
+        ".rb",
+        ".php",
+        ".sql",
+        ".sh",
+        ".bash",
+        ".c",
+        ".cc",
+        ".cpp",
+        ".h",
+        ".hpp",
+        ".cs",
+        ".scala",
+        ".clj",
+        ".cljs",
+        ".ex",
+        ".exs",
+        ".lua",
+        ".dart",
+        ".jl",
+        ".r",
+        ".vue",
+        ".svelte",
+        ".m",
+        ".mm",
+    }
+)
 
 
-def _changed_file_count() -> int:
-    """Files changed since the merge-base with origin/master (this cycle's surface). Fail-safe → 0."""
+def _git(args: list[str]) -> str | None:
+    """Run a git command from PROJECT_ROOT; stdout on success, else None (fail-safe)."""
     try:
-        base = (
-            subprocess.run(
-                ["git", "merge-base", "HEAD", "origin/master"],
-                capture_output=True,
-                text=True,
-                cwd=PROJECT_ROOT,
-            ).stdout.strip()
-            or "HEAD~1"
-        )
-        out = subprocess.run(
-            ["git", "diff", "--name-only", base, "HEAD"],
-            capture_output=True,
-            text=True,
-            cwd=PROJECT_ROOT,
-        ).stdout
-        return sum(1 for line in out.splitlines() if line.strip())
-    except Exception:  # noqa: BLE001 — advisory: a git failure never blocks the gate
-        return 0
+        r = subprocess.run(["git", *args], capture_output=True, text=True, cwd=PROJECT_ROOT)
+        return r.stdout if r.returncode == 0 else None
+    except Exception:  # noqa: BLE001 — a git failure must never crash the gate
+        return None
 
 
-def _warn_all_native_gap() -> None:
-    """Advisory nudge: a substantial changed surface with ZERO pool runs → the pool breadth layer was
-    likely skipped (the all-native miss the ledger↔receipt reconciliation cannot see)."""
-    changed = _changed_file_count()
-    if changed > _REVIEW_SURFACE_THRESHOLD:
+def _resolve_base() -> str | None:
+    """The merge-base to diff committed work against — origin/master, else origin/main. None if neither
+    resolves (caller then counts only STAGED work — fail-safe: on a non-master/main repo a MISS beats a
+    false-block). `@{upstream}` is deliberately NOT a fallback: a distant tracked upstream yields an ancient
+    merge-base that over-counts the surface → false-block (the direction the fail-safe forbids)."""
+    for ref in ("origin/master", "origin/main"):
+        mb = (_git(["merge-base", "HEAD", ref]) or "").strip()
+        if mb:
+            return mb
+    return None
+
+
+def _changed_code_files() -> int | None:
+    """Count changed CODE files that are part of THIS cycle's work: committed-since-merge-base ∪ STAGED.
+    Unstaged working-tree files are EXCLUDED (other agents' WIP / build artifacts would false-block).
+    Returns None if git can't be interrogated — the caller then does NOT block (fail-safe)."""
+    names: set[str] = set()
+    staged = _git(["diff", "--cached", "--name-only"])  # the imminent commit
+    if staged is None:
+        return None  # git failure → unknown surface → fail-safe no-block
+    names.update(line.strip() for line in staged.splitlines() if line.strip())
+    base = _resolve_base()
+    if base is not None:  # committed since the branch point
+        committed = _git(["diff", "--name-only", base, "HEAD"])
+        if committed is None:
+            return None
+        names.update(line.strip() for line in committed.splitlines() if line.strip())
+    return sum(1 for f in names if Path(f).suffix in _CODE_EXTS)
+
+
+def _merge_base_epoch() -> float | None:
+    """Commit time (epoch seconds) of the merge-base = the start of this cycle. None on failure → the
+    in-cycle filter counts ALL ledger rows (lenient / fail-safe)."""
+    base = _resolve_base()
+    if base is None:
+        return None
+    try:
+        return float((_git(["show", "-s", "--format=%ct", base]) or "").strip())
+    except (TypeError, ValueError):
+        return None
+
+
+def _in_cycle_pool_runs(ledger_path: Path, since_epoch: float | None) -> int:
+    """Pool ledger rows whose ts is at/after ``since_epoch`` (this cycle). ``since_epoch=None`` counts
+    every row (can't bound the cycle → lenient). Corrupt lines / unparseable ts COUNT (a real run must
+    never be undercounted → lean no-block). Any read trouble → a large sentinel (no block)."""
+    try:
+        if not ledger_path.exists():
+            return 0
+        n = 0
+        for line in ledger_path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                rec = json.loads(line)
+            except Exception:  # noqa: BLE001 — a corrupt line might be a real run → count it (lenient)
+                n += 1
+                continue
+            if since_epoch is None:
+                n += 1
+                continue
+            ts = rec.get("ts")
+            try:
+                if isinstance(ts, str):
+                    dt = datetime.fromisoformat(ts)
+                    if dt.tzinfo is None:  # naive ISO ts is AMBIGUOUS (UTC? local?) — count it (lenient)
+                        n += 1
+                        continue
+                    row_epoch = dt.timestamp()
+                else:
+                    row_epoch = float(ts)
+            except Exception:  # noqa: BLE001 — unparseable ts → count it (lenient)
+                n += 1
+                continue
+            if row_epoch >= since_epoch:
+                n += 1
+        return n
+    except Exception:  # noqa: BLE001 — unexpected trouble → large sentinel → no block
+        return 1_000_000
+
+
+def _declared_no_pool() -> bool:
+    """True if the work consciously declared a native-only exception: a ``FABRIK_NO_POOL`` env var, or a
+    line-anchored ``NO-POOL:`` trailer in the HEAD commit message. A git failure to READ the message → True
+    (fail-safe: never block on a git failure). Any other error → True."""
+    try:
+        if os.environ.get("FABRIK_NO_POOL", "").strip():
+            return True
+        msg = _git(["log", "-1", "--format=%B"])
+        if msg is None:
+            return True  # couldn't read the commit (git failure) → fail-safe, don't block
+        # word-boundary match: recognizes `NO-POOL:`, `Docs: NO-POOL:`, `NO-POOL :` — but NOT `ANO-POOL:`.
+        # Lenient on the escape (lean no-block): a declaration anywhere at a word boundary counts.
+        return bool(re.search(r"(?:^|\s)NO-POOL\s*:", msg))
+    except Exception:  # noqa: BLE001
+        return True
+
+
+def _pool_or_declare(ledger_path: Path) -> int:
+    """LAYER 1 (blocking). Returns 1 to FAIL the gate, else 0. Every branch fail-safes to 0."""
+    code = _changed_code_files()
+    if code is None or code <= _BLOCK_CODE_THRESHOLD:
+        return 0  # git unknown, or not a substantial code change → not a violation
+    if _declared_no_pool():
         print(
-            f"SUBAGENT FLYWHEEL (advisory): {changed} files changed but ZERO pool subagent runs this "
-            "cycle — was the pool breadth layer skipped? A substantial review / repo-review / rules-audit "
-            "runs pool finders (recall + they record) AND native on top, not native-only "
-            "(62-using-subagents.md § Dispatch policy). All-native lands nothing in the flywheel."
+            f"SUBAGENT FLYWHEEL: {code} code files changed with no pool run this cycle, but a NO-POOL "
+            "declaration is present — allowed (native-only, on the record)."
+        )
+        return 0
+    if _in_cycle_pool_runs(ledger_path, _merge_base_epoch()) > 0:
+        return 0  # the pool WAS dispatched this cycle
+    print(
+        f"SUBAGENT FLYWHEEL (BLOCKING): {code} code files changed this cycle but ZERO OpenRouter pool "
+        "subagent runs were recorded — the pool-default review/implement fan-out was skipped "
+        "(62-using-subagents.md § Dispatch policy). Agent-agnostic: Kilo, Cascade, and Claude all hit it.\n"
+        "Fix ONE of:\n"
+        "  • dispatch the pool for this work — a review/implement fan-out via fanout(...) / run_agents(...) "
+        "(it records to the flywheel), then re-run the gate; OR\n"
+        "  • if this work is genuinely native-only (mechanical rename, trivial fix, GUI-only), declare it: "
+        "a `NO-POOL: <reason>` line in the commit message, or `FABRIK_NO_POOL='<reason>'`."
+    )
+    return 1
+
+
+def _warn_unrecorded(ledger_path: Path) -> None:
+    """LAYER 2 (advisory, never blocks): WARN on any pool run never record_agent_run-recorded."""
+    if not ledger_path.exists():
+        return
+    try:
+        from libs.subagents import audit_unrecorded
+    except ImportError:
+        return
+    try:
+        unrecorded = audit_unrecorded(str(ledger_path))
+    except Exception:  # noqa: BLE001 — corrupt/unreadable ledger → skip (advisory never blocks)
+        return
+    if not unrecorded:
+        return
+    print(
+        f"SUBAGENT FLYWHEEL (advisory): {len(unrecorded)} pool run(s) ran but were never "
+        "scored+recorded (ledger − receipts) — each owes record_agent_run(spec, result):"
+    )
+    for e in unrecorded:
+        print(
+            f"  - {e.get('agent_id', '?')} (model={e.get('model', '?')}, task_type={e.get('task_type', '?')})"
         )
 
 
 def check(ledger_path: Path) -> int:
-    if not ledger_path.exists():
-        # no pool use at all (native-only / no run_agents dispatch) → nothing to reconcile. But an absent
-        # ledger on a BIG changed surface is exactly the all-native gap (a substantial review with no pool
-        # breadth layer) the ledger↔receipt reconciliation is structurally blind to. Nudge on it.
-        _warn_all_native_gap()
-        return 0
+    # LAYER 1 — blocking pool-or-declare (its own bug never blocks the gate).
     try:
-        from libs.subagents import audit_unrecorded
-    except ImportError:
-        # the receipt/audit ENHANCE isn't vendored in this project yet — skip rather than error,
-        # so the fleet-synced check ships everywhere and activates once a project re-vendors.
-        print(
-            "SUBAGENT FLYWHEEL (advisory): libs.subagents.audit_unrecorded not available "
-            "(re-vendor the subagents module to enable this check) — skipping."
-        )
-        return 0
-
+        verdict = _pool_or_declare(ledger_path)
+    except Exception:  # noqa: BLE001 — fail-safe: never false-block on the check's own error
+        verdict = 0
+    # LAYER 2 — advisory unrecorded-run reconciliation (never affects the verdict).
     try:
-        unrecorded = audit_unrecorded(str(ledger_path))
-    except Exception as exc:  # noqa: BLE001 — advisory MUST never block the gate: an unreadable /
-        # corrupt / bad-encoding ledger (read_text can raise OSError/UnicodeDecodeError) must degrade
-        # to a skip, not a non-zero exit that run_optional_check would treat as a blocking failure.
-        print(
-            "SUBAGENT FLYWHEEL (advisory): could not reconcile the pool ledger "
-            f"({type(exc).__name__}) — skipping."
-        )
-        return 0
-    if not unrecorded:
-        return 0
-
-    print(
-        f"SUBAGENT FLYWHEEL (advisory): {len(unrecorded)} pool run(s) ran but were never "
-        "scored+recorded (ledger − receipts):"
-    )
-    for e in unrecorded:
-        agent_id = e.get("agent_id", "?")
-        model = e.get("model", "?")
-        task_type = e.get("task_type", "?")
-        print(
-            f"  - {agent_id} (model={model}, task_type={task_type}) — "
-            "owed record_agent_run(spec, result) after you scored it"
-        )
-    print(
-        "Fix: every run_agents pool worker owes record_agent_run(spec, result) + results_table "
-        "(see 62-using-subagents.md § Report every pool run). A native Task subagent produces no "
-        "AgentResult and is never in this list."
-    )
-    return 0
+        _warn_unrecorded(ledger_path)
+    except Exception:  # noqa: BLE001
+        pass
+    return verdict
 
 
 def main(argv: list[str]) -> int:

@@ -657,14 +657,17 @@ def run_consistency_checks(
         )
         # Subagent flywheel — WARN when a POOL run (run_agents) ran but was never scored+recorded
         # (ledger − receipts, reconciled locally since the subagent_runs writer role is INSERT-only).
-        # Native Task subagents write no ledger → never flagged. Advisory now (never blocks).
-        # TODO(2026-07-22): flip advisory=False — operator-approved warn-then-fail escalation once
-        # pool-default + DSN provisioning have settled fleet-wide.
+        # BLOCKING (operator-approved 2026-07-10): Layer 1 "pool-or-declare" fails the gate when a
+        # substantial CODE change ran ZERO pool subagent runs this cycle and carries no NO-POOL
+        # declaration — the teeth for 62 § Dispatch policy's pool-default (advisory prose demonstrably
+        # did not change behaviour). The check is fail-safe (any git/parse/exception → exit 0), and
+        # native-only work escapes via `NO-POOL: <reason>` (commit msg) or `FABRIK_NO_POOL` (env).
+        # Layer 2 (unrecorded-run reconciliation) stays advisory inside the same script.
         results.append(
             run_optional_check(
                 "scripts/enforcement/check_subagent_flywheel.py",
-                "Subagent Flywheel (pool runs recorded)",
-                advisory=True,
+                "Subagent Flywheel (pool-or-declare — BLOCKING)",
+                advisory=False,
             )
         )
         # Mutation testing (Behavior Contract substance-mechanical layer) — proves the new tests KILL
