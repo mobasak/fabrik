@@ -217,7 +217,7 @@ EOF
 
 ---
 
-## Phase B — HuggingFace Hub Tier-1 fetcher (`fetch_hf_metadata`)
+## Phase B — HuggingFace Hub Tier-1 fetcher (`fetch_hf_metadata`) — ✅ EXECUTED 2026-07-10
 
 **Goal.** Implement the HF Hub two-endpoint fetcher. Populate `ms_enrich.py` with `HFMetadata` dataclass + `fetch_hf_metadata(hf_id) -> HFMetadata | None`. Fail-open on ANY error (missing model, 404, 5xx, network failure, JSON parse error).
 
