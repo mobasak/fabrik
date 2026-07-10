@@ -1,9 +1,17 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
-**Last Updated:** 2026-07-10 (Lesson 86 — cheap pool ≠ RN scaffold authoring; cross-phase seam mismatches need a cross-phase reviewer)
+**Last Updated:** 2026-07-11 (Lesson 87 — a converged plan can still rest on a false premise; pathspec commits protect a live sibling on shared master)
 
 **Purpose:** CAPTURE TECHNICAL HURDLES, AI-SPECIFIC QUIRKS, AND ARCHITECTURAL DECISIONS TO PREVENT REGRESSION AS CODEBASES AND AI AGENTS EVOLVE.
+
+---
+
+# Lesson 87: A converged plan can still rest on a false premise — ground its acceptance criteria against the real mechanism before implementing; and pathspec commits protect a live sibling on shared master
+
+**Symptom A — plan criterion vs. reality (doc-registry plan-4, Phase C, 2026-07-11):** the CONVERGED plan's success-criterion #2 said a `python-api` scaffold should NOT seed `data-contract.md` and a `saas-skeleton` SHOULD — implying `data-contract` is gated on `shape.needs_database`. Grounding the actual scaffolder showed the premise was false: `--db`/`use_database` defaults **False** with **no per-type forcing** (`cli.py:1751`, `scaffold.py:5061` doesn't even pass it to `_scaffold_shared`), so a `saas-skeleton` scaffolded normally has `use_database=False`. Gating `data-contract` on it would strip it from saas/static-site too — contradicting the plan's own criterion AND breaking the committed `test_static_site_seeds_contract`. **Resolution:** implement the *intent* (type-awareness for the unambiguous deployed/saas buckets) but keep `data-contract`'s deliberate all-but-docusaurus behavior (documented deviation), because the code comment at `scaffold.py:216-221` already recorded that decision. **Rule:** `/fabrik-plan-review` grounds `path:line` citations, not necessarily whether an *acceptance criterion* matches the runtime mechanism — re-ground the criteria in Phase-1 execution; a converged plan is grounded-when-written, not necessarily true. A grounded deviation with a documented rationale beats blindly implementing a criterion that breaks existing tests.
+
+**Symptom B — protecting a live sibling on shared master:** mid-run, a concurrent sibling agent (plan-3) had `CHANGELOG.md` + `docs/LESSONS_LEARNT.md` **staged in the shared index** (not yet committed). A normal `git commit` of my own staged files would have swept the sibling's staged work into my commit (bundling + mis-attribution — a HARD STOP). **Fix:** `git commit -m "…" -- <explicit paths>` commits ONLY those pathspec files' working-tree content and leaves everything else staged/untouched — used it for every phase commit. Complementary safety: reading `.pre-commit-config.yaml` showed the commit-stage hooks (`governance-sync` writes to *other* `/opt/*` projects, validators are read-only) never mutate the fabrik tree, so the `pre-commit` framework's stash/restore cleanly returned the sibling's unstaged edits every commit. **Rule:** on shared master with a live sibling, verify the pre-commit hooks are read-only w.r.t. your tree, commit with `-- <explicit paths>`, and `git diff --cached --name-only` before every commit. Zero data loss across 9 commits interleaved with an active sibling.
 
 ---
 
