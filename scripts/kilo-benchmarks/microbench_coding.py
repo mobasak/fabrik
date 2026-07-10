@@ -13,18 +13,22 @@ Does NOT call record_agent_run (would misattribute pass@1 to orchestrator per pg
 
 from __future__ import annotations
 
+import argparse
 import json
 import pathlib
 import re
 import shlex
-import subprocess  # noqa: F401  — kept for Phase C main()
+import sqlite3
 import sys
+import tempfile
+from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 
 SCRIPT_DIR = pathlib.Path(__file__).parent
 DB_PATH = SCRIPT_DIR / "kilo_agents.db"
 sys.path.insert(0, str((SCRIPT_DIR / "libs").resolve()))
 
-from subagents import AgentSpec, run_agents  # noqa: E402, F401
+from subagents import AgentSpec, run_agents  # noqa: E402
 
 # Injection-safety boundary — reject anything not in this whitelist BEFORE it
 # reaches the shell task string. Model IDs from OR are always vendor/name-tag
@@ -63,20 +67,38 @@ DEFAULT_DATASETS = ["humaneval", "mbpp"]
 ORCHESTRATOR_MODEL = "qwen/qwen3-coder-flash"  # verified live on OR in Phase A step 2c
 
 
-def build_specs(
+@dataclass(frozen=True)
+class BenchUnit:
+    """One (target_model, dataset) dispatch unit.
+
+    Threads target + dataset alongside the AgentSpec so main() doesn't have to
+    parse them back out of `spec.task` — regex-parsing a shell string that went
+    through shlex.quote is fragile (Phase C native review F1: shlex.quote does
+    NOT wrap legit model IDs like `bytedance-seed/seed-1.6-flash` in quotes, so
+    a `--model '([^']+)'` extraction fails silently and collapses every dispatch
+    into `by_target[""][""]`, silently writing zero-scores against `WHERE id=""`).
+    """
+
+    target: str
+    dataset: str
+    spec: AgentSpec
+    unit_dir: pathlib.Path
+
+
+def build_units(
     target_models: list[str],
     datasets: list[str],
     work_dir: pathlib.Path,
     orchestrator: str = ORCHESTRATOR_MODEL,
     cost_cap: float = 5.0,
-) -> list[AgentSpec]:
-    """Build one AgentSpec per (target_model, dataset). Owned-paths disjoint.
+) -> list[BenchUnit]:
+    """Build one BenchUnit per (target_model, dataset). Owned-paths disjoint.
 
     Each spec's `task` is the shell command that runs `evalplus.evaluate` against
     the target model on the given dataset. spec.model is the ORCHESTRATOR that
     executes the shell (any cheap Auto-tier coder), NOT the target being benched.
     """
-    specs: list[AgentSpec] = []
+    units: list[BenchUnit] = []
     for target in target_models:
         _validate_model_id(target)  # fail-closed on shell metachars / leading -
         for ds in datasets:
@@ -94,18 +116,34 @@ def build_specs(
                 f"--dataset {shlex.quote(ds)} "
                 f"--greedy --root ./results"
             )
-            specs.append(
-                AgentSpec(
-                    task=task,
-                    model=orchestrator,
-                    task_type="code",
-                    tools_enabled=True,
-                    owned_paths=[str(unit_dir)],
-                    max_cost_usd=cost_cap,
-                    wall_clock_s=1800,  # 30 min per unit
-                )
+            spec = AgentSpec(
+                task=task,
+                model=orchestrator,
+                task_type="code",
+                tools_enabled=True,
+                owned_paths=[str(unit_dir)],
+                max_cost_usd=cost_cap,
+                wall_clock_s=1800,  # 30 min per unit
             )
-    return specs
+            units.append(
+                BenchUnit(target=target, dataset=ds, spec=spec, unit_dir=unit_dir)
+            )
+    return units
+
+
+def build_specs(
+    target_models: list[str],
+    datasets: list[str],
+    work_dir: pathlib.Path,
+    orchestrator: str = ORCHESTRATOR_MODEL,
+    cost_cap: float = 5.0,
+) -> list[AgentSpec]:
+    """Thin wrapper for tests: returns just the AgentSpecs from build_units.
+
+    Phase C uses build_units directly; this is kept for the Phase B B2 test that
+    predates the refactor.
+    """
+    return [u.spec for u in build_units(target_models, datasets, work_dir, orchestrator, cost_cap)]
 
 
 def parse_eval_results(results_json: pathlib.Path) -> dict[str, float]:
@@ -156,3 +194,267 @@ def merge_dataset_results(
         "mbpp_base": mbpp["base"],  # MBPP pass@1
         "mbpp_plus": mbpp["plus"],  # MBPP+ pass@1
     }
+
+
+# ─── Phase C: DB write + freshness gate + main CLI ─────────────────────────────
+
+
+def write_scores(
+    conn: sqlite3.Connection, model_id: str, scores: dict[str, float]
+) -> None:
+    """Write pass@1 scores to agents.humaneval_score + agents.coding_score.
+
+    Scale: 0-100 (raw pass@1 × 100), matching weighted_coding's BenchLM-composite
+    calibration in derive_quality_v2.py:87,101.
+
+    Reads keys {base, plus, mbpp_base, mbpp_plus} from the merged dict
+    merge_dataset_results() produces. Extra keys are IGNORED — the UPDATE
+    column list is EXPLICIT so a bug injecting weighted_coding into scores
+    dict cannot leak through.
+
+    ⚠️ Explicitly does NOT write weighted_coding — that column is BenchLM-owned
+    via scrape_benchlm.py:70. Crossing populators breaks tier threshold
+    cross-model comparability (Tier 3 ≥88 / Tier 2 ≥70 in derive_quality_v2.py).
+    """
+    base = scores["base"] * 100
+    plus = scores["plus"] * 100
+    mbpp_base = scores["mbpp_base"] * 100
+    mbpp_plus = scores["mbpp_plus"] * 100
+    humaneval = round(base, 2)
+    coding_composite = round((base + plus + mbpp_base + mbpp_plus) / 4, 2)
+    conn.execute(
+        "UPDATE agents SET humaneval_score = ?, coding_score = ?, "
+        "last_verified = ? WHERE id = ?",
+        (humaneval, coding_composite, datetime.now(UTC).date().isoformat(), model_id),
+    )
+    conn.commit()
+
+
+def is_fresh(conn: sqlite3.Connection, model_id: str, ttl_days: int = 60) -> bool:
+    """Mirror microbench_or_models.py:70,286-291 — UTC-anchored freshness gate.
+
+    Local `date.today()` would drift by up to 24h relative to the writer, which
+    also uses UTC (see write_scores). ttl_days=60 default matches the coding
+    bench cadence; the sibling speed bench uses RECENCY_WINDOW_DAYS=30.
+    """
+    cutoff = (datetime.now(UTC).date() - timedelta(days=ttl_days)).isoformat()
+    row = conn.execute(
+        "SELECT last_verified FROM agents WHERE id = ? AND last_verified >= ?",
+        (model_id, cutoff),
+    ).fetchone()
+    return row is not None
+
+
+def _model_exists(conn: sqlite3.Connection, model_id: str) -> bool:
+    row = conn.execute(
+        "SELECT 1 FROM agents WHERE id = ? LIMIT 1", (model_id,)
+    ).fetchone()
+    return row is not None
+
+
+def _build_argparser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(
+        prog="microbench_coding",
+        description="Local coding-quality microbench runner (EvalPlus + libs.subagents).",
+    )
+    p.add_argument(
+        "--models",
+        default=",".join(DEFAULT_MODELS),
+        help=f"Comma-separated OR model IDs. Default: {','.join(DEFAULT_MODELS)}",
+    )
+    p.add_argument(
+        "--datasets",
+        default=",".join(DEFAULT_DATASETS),
+        help=f"Comma-separated subset of humaneval,mbpp. Default: {','.join(DEFAULT_DATASETS)}",
+    )
+    p.add_argument(
+        "--cost-cap",
+        type=float,
+        default=5.0,
+        help="Per-unit AgentSpec.max_cost_usd (default: 5.0)",
+    )
+    p.add_argument(
+        "--force",
+        action="store_true",
+        help="Bypass the is_fresh gate; re-bench even fresh rows.",
+    )
+    p.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Print the dispatch plan + estimated cost; do NOT call OR.",
+    )
+    p.add_argument(
+        "--ttl-days",
+        type=int,
+        default=60,
+        help="Freshness window in days (default: 60).",
+    )
+    return p
+
+
+def main(argv: list[str] | None = None) -> int:
+    """CLI entrypoint. Returns 0 on success, 1 on user error.
+
+    Always prints `TOTAL_SPEND_USD: <float>` as the last stdout line — Phase E
+    E4 grep-asserts this emission. try/finally guarantees the emission fires
+    even on unhandled exceptions in the dispatch loop.
+    """
+    total_spend = 0.0
+    exit_code = 0
+    try:
+        args = _build_argparser().parse_args(argv)
+
+        # Argparse-level positivity guards (F5 from Phase C review)
+        if args.cost_cap <= 0:
+            print(
+                f"error: --cost-cap must be > 0 (got {args.cost_cap})", file=sys.stderr
+            )
+            return 1
+        if args.ttl_days <= 0:
+            print(
+                f"error: --ttl-days must be > 0 (got {args.ttl_days})", file=sys.stderr
+            )
+            return 1
+
+        target_models = [m.strip() for m in args.models.split(",") if m.strip()]
+        # Dedup datasets preserving order (F4 from Phase C review — duplicate datasets
+        # would produce colliding owned_paths and silently serialize the dispatch)
+        datasets = list(dict.fromkeys(d.strip() for d in args.datasets.split(",") if d.strip()))
+
+        if not target_models:
+            print("error: --models is empty after parsing", file=sys.stderr)
+            return 1
+        if not datasets:
+            print("error: --datasets is empty after parsing", file=sys.stderr)
+            return 1
+
+        # Boundary validation (build_units re-validates — defense in depth)
+        for m in target_models:
+            try:
+                _validate_model_id(m)
+            except ValueError as e:
+                print(f"error: {e}", file=sys.stderr)
+                return 1
+        for d in datasets:
+            try:
+                _validate_dataset(d)
+            except ValueError as e:
+                print(f"error: {e}", file=sys.stderr)
+                return 1
+
+        conn = sqlite3.connect(DB_PATH)
+        try:
+            # Reject unknown models EARLY (before dispatch, before spend)
+            for m in target_models:
+                if not _model_exists(conn, m):
+                    print(
+                        f"error: model {m!r} not in agents table — refusing to bench a "
+                        f"model the DB has no row for",
+                        file=sys.stderr,
+                    )
+                    return 1
+
+            # Freshness filter (unless --force)
+            if args.force:
+                survivors = target_models
+            else:
+                survivors = []
+                for m in target_models:
+                    if is_fresh(conn, m, ttl_days=args.ttl_days):
+                        print(f"SKIP (fresh): {m}")
+                    else:
+                        survivors.append(m)
+
+            if not survivors:
+                print("no models to bench (all fresh; use --force to override)")
+                return 0
+
+            # TemporaryDirectory auto-cleans on exit (F3 from Phase C review — mkdtemp
+            # leaked a tree under /tmp on every non-dry-run invocation)
+            with tempfile.TemporaryDirectory(prefix="microbench_coding_") as work_dir_str:
+                work_dir = pathlib.Path(work_dir_str)
+                units = build_units(
+                    target_models=survivors,
+                    datasets=datasets,
+                    work_dir=work_dir,
+                    cost_cap=args.cost_cap,
+                )
+
+                if args.dry_run:
+                    print(f"DRY RUN — would dispatch {len(units)} units:")
+                    for i, u in enumerate(units):
+                        print(f"  [{i}] target={u.target} dataset={u.dataset} model={u.spec.model}")
+                        print(f"      task={u.spec.task[:120]}...")
+                    return 0
+
+                specs = [u.spec for u in units]
+                if not specs:
+                    # Shouldn't reach here (survivors + datasets both non-empty), but
+                    # defend against run_agents(max_concurrency=0) → ValueError (F2)
+                    print("error: no dispatch units built", file=sys.stderr)
+                    return 1
+
+                # Live dispatch — max_concurrency=len(specs) overrides default of 4
+                results = run_agents(
+                    specs,
+                    repo=str(work_dir.parent),
+                    max_concurrency=len(specs),
+                )
+                total_spend = sum(
+                    getattr(r, "cost_usd", 0.0) or 0.0 for r in results
+                )
+
+                # Group results by target model — threading (target, dataset) via
+                # BenchUnit avoids the shlex.quote/regex-extraction dead-write bug
+                # the Phase C native review caught (F1).
+                by_target: dict[str, dict[str, dict[str, float]]] = {}
+                for unit, _res in zip(units, results, strict=True):
+                    results_json = unit.unit_dir / "results" / "eval_results.json"
+                    if not results_json.exists():
+                        candidates = list(
+                            unit.unit_dir.glob("**/*eval_results*.json")
+                        )
+                        results_json = candidates[0] if candidates else None
+                    if results_json and results_json.exists():
+                        by_target.setdefault(unit.target, {})[unit.dataset] = (
+                            parse_eval_results(results_json)
+                        )
+                    else:
+                        print(
+                            f"warn: no eval_results.json for {unit.target}/{unit.dataset} "
+                            f"at {unit.unit_dir}",
+                            file=sys.stderr,
+                        )
+                        by_target.setdefault(unit.target, {})[unit.dataset] = {
+                            "base": 0.0,
+                            "plus": 0.0,
+                        }
+
+                # Write per-target scores (per-model commit inside the loop
+                # preserves progress on kill)
+                for target, per_ds in by_target.items():
+                    he = per_ds.get("humaneval", {"base": 0.0, "plus": 0.0})
+                    mb = per_ds.get("mbpp", {"base": 0.0, "plus": 0.0})
+                    merged = merge_dataset_results(he, mb)
+                    write_scores(conn, target, merged)
+                    print(
+                        f"WROTE {target}: humaneval={merged['base']*100:.2f} "
+                        f"coding={round((sum(merged.values())/4)*100, 2)}"
+                    )
+            return 0
+        finally:
+            conn.close()
+    except SystemExit:
+        raise  # argparse-driven exits, propagate cleanly
+    except Exception as e:
+        # F2: any unhandled exception must still emit TOTAL_SPEND_USD before returning,
+        # so Phase E's E4 grep contract survives runtime failures.
+        print(f"error: unhandled exception: {e!r}", file=sys.stderr)
+        exit_code = 1
+    finally:
+        print(f"TOTAL_SPEND_USD: {total_spend:.2f}")
+    return exit_code
+
+
+if __name__ == "__main__":
+    sys.exit(main())

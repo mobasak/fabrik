@@ -357,7 +357,7 @@ Ship a local coding benchmark runner at `scripts/kilo-benchmarks/microbench_codi
    )"
    ```
 
-## Phase C — DB write layer + `main` CLI + argparse contract + freshness gate
+## Phase C — DB write layer + `main` CLI + argparse contract + freshness gate — ✅ EXECUTED 2026-07-10
 
 **Purpose:** Wire the merged per-model score dict to `agents` UPDATE (0-100 scale, deliberately NOT `weighted_coding`) + author `main()` with full argparse contract + idempotent freshness gate.
 
