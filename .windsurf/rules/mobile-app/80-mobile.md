@@ -87,7 +87,7 @@ Every mobile app project must ship these screens. Traycer derives additional pro
 
 ## Navigation
 
-- Use **expo-router** (file-based routing, screens under `app/`) for all navigation — Expo's recommended router and the `create-expo-app` default since SDK 50. **As of SDK 56, expo-router forked from React Navigation and no longer depends on `@react-navigation/*`**: importing directly from `@react-navigation/*` in app code no longer works out of the box (a codemod repoints those imports to expo-router's own entry points), and `expo-doctor` warns if both are installed. Do NOT add `@react-navigation/*` packages to a new app.
+- Use **expo-router** (file-based routing, screens under `app/`) for all navigation — Expo's recommended router and the `create-expo-app` default since SDK 50. **As of SDK 56, expo-router forked from React Navigation and no longer depends on `@react-navigation/*`**: importing directly from `@react-navigation/*` in app code no longer works out of the box (a codemod repoints those imports to expo-router's own entry points). Importing `@react-navigation/*` from app code triggers a **Metro/Expo CLI bundler ERROR** at build time (override with `EXPO_ROUTER_DISABLE_RN_NAVIGATION_CHECK=1`) — it is **not** an `expo-doctor` warning. Do NOT add `@react-navigation/*` packages to a new app.
 - Use expo-router's `Stack` for hierarchical screen flows and `Tabs` for top-level sections (defined by the file layout in `app/`, e.g. `_layout.tsx`).
 - Enable **typed routes** (`experiments.typedRoutes: true` in `app.json`) for type-safe hrefs and route params — no hand-maintained route-name file.
 - Deep linking is handled by expo-router's file-based routes. Use Universal Links (iOS AASA) and App Links (Android assetlinks.json) — wired as Expo config plugins at prebuild. Custom URL schemes are fallback only.
@@ -104,7 +104,7 @@ Every mobile app project must ship these screens. Traycer derives additional pro
   - The client never talks to Postgres or any data store directly — all data goes through FastAPI, which owns `postgres-main` access, AI workflows, scraping, and scheduled jobs.
 - **Global UI state:** Zustand. Avoid Redux boilerplate and standalone `React.Context` for high-frequency updates.
 - **Local persistence:** `react-native-mmkv` (V4+) for fast, synchronous key-value storage (30× faster than AsyncStorage via JSI memory-mapped files). Reserve `expo-sqlite` + Drizzle ORM for complex offline relational queries only.
-  - **V4 API — the constructor and one method were renamed** (do not copy pre-V4 snippets — V3 and earlier used `new MMKV()`): create a store with `createMMKV(...)` (not `new MMKV(...)` — the JS class was removed, MMKV is now a purely native Nitro/JSI HybridObject) and delete a key with `.remove(key)` (not `.delete(key)` — `delete` is a reserved keyword in C++). Also `AppGroup` in Info.plist was renamed to `AppGroupIdentifier`. V4 requires `react-native-nitro-modules` and RN ≥ 0.75. See [react-native-mmkv V4_UPGRADE_GUIDE.md](https://github.com/mrousavy/react-native-mmkv/blob/main/docs/V4_UPGRADE_GUIDE.md).
+  - **V4 API — the constructor and one method were renamed** (do not copy pre-V4 snippets — V3 and earlier used `new MMKV()`): create a store with `createMMKV(...)` (not `new MMKV(...)` — the JS class was removed, MMKV is now a purely native Nitro/JSI HybridObject) and delete a key with `.remove(key)` (not `.delete(key)` — `delete` is a reserved keyword in C++). Also `AppGroup` in Info.plist was renamed to `AppGroupIdentifier`. V4 requires `react-native-nitro-modules` and RN ≥ 0.76 (README Limitations: "V4 requires react-native 0.76 or higher"). See [react-native-mmkv V4_UPGRADE_GUIDE.md](https://github.com/mrousavy/react-native-mmkv/blob/main/docs/V4_UPGRADE_GUIDE.md).
 - Never call the FastAPI backend directly from a screen component — wrap in a typed React Query hook.
 
 ---
@@ -140,6 +140,7 @@ The RN client is a **Pattern-A client** (same model as web): it talks to a **sel
 - Never use web CSS properties (`className`, media queries, `hover`) in React Native components.
 - **NativeWind v4** moved to build-time compilation (Metro plugin) — static styles compile to `StyleSheet.create()` objects at build, so static-style performance is equivalent to raw StyleSheet. However, **dynamic styles (theming, responsive, state-driven)** still require React context/bridge; `react-native-unistyles` (C++/JSI, synchronous) is faster for these. **Recommendation:** use `react-native-unistyles` for projects with deep theming (Ocoron Design System dark/light switching) or frequent dynamic style updates. NativeWind v4 is acceptable for static-heavy UIs if the team prefers Tailwind DX. NativeWind v5 (aligns with Tailwind CSS v4 Rust engine) is in preview — not production-ready.
 - For complex adaptive theming with design tokens, `react-native-unistyles` (C++/JSI, zero re-render overhead) is the approved alternative.
+- **Uniwind** (`uniwind`, by the Unistyles team — `uni-stack/uniwind`, "from the creators of Unistyles") is an **accepted third styling option**: a **build-time Tailwind-v4 Metro compiler** with `className` DX and **no runtime style parsing** (so the perf reason NativeWind v2/v3 was banned does not apply). It is **NOT** the `react-native-unistyles` C++/JSI runtime — it **re-renders on theme change** (a rare, non-hot-path event — a deliberate dark/light toggle — acceptable for Ocoron theming; not a scroll/gesture/animation path). The zero-re-render synchronous C++ engine is the **unreleased "Uniwind Pro"** tier (the clean future upgrade). Custom tokens are fed via Tailwind-v4 CSS-first `@theme`/`@variant` blocks + the Metro plugin (no `tailwind.config.js`). RN ≥ 0.81, Expo-compatible (incl. Expo Go), MIT, currently v1.x. **Choose raw `react-native-unistyles` when zero-re-render synchronous theming is a hard requirement; Uniwind otherwise** (e.g. when adopting the Obytes template, which ships it).
 
 ### Ocoron Design System (Mobile)
 
@@ -325,12 +326,12 @@ If the app makes any AI-driven recommendation, score, match, classification, or 
 | Hardcoded top/bottom padding for notches | `useSafeAreaInsets()` from `react-native-safe-area-context` |
 | `AsyncStorage` for performance-critical data | `react-native-mmkv` (synchronous JSI) |
 | JWTs in AsyncStorage or MMKV | `expo-secure-store` |
-| NativeWind v2/v3 (runtime parsing) | NativeWind v4+ (build-time) or `react-native-unistyles` (preferred for dynamic theming) |
+| NativeWind v2/v3 (runtime parsing) | NativeWind v4+ or `uniwind` (build-time compilers) or `react-native-unistyles` (C++/JSI, zero-re-render dynamic theming) |
 | Legacy bridge-dependent native modules | New Architecture (Fabric/JSI) compatible modules |
 | Manual edits to `android/` / `ios/` in Expo projects | Expo Config Plugins in `app.json` |
 | Direct FastAPI calls from screen components | Typed React Query hooks |
 | `supabase-js` / direct-Supabase-from-client / `supabase gen types` | FastAPI endpoints via typed React Query hooks; client generated with `@hey-api/openapi-ts` (react-query + zod plugins) |
-| `@react-navigation/*` in a new app; hand-written navigation | **expo-router** (file-based; forked from React Navigation in SDK 56 — `@react-navigation/*` imports don't work + `expo-doctor` warns) |
+| `@react-navigation/*` in a new app; hand-written navigation | **expo-router** (file-based; forked from React Navigation in SDK 56 — `@react-navigation/*` app-code imports error at bundle time, not `expo-doctor`) |
 | `openapi-typescript` (types only → hand-written hooks/Zod) | `@hey-api/openapi-ts` — hooks + Zod validators from one config (`validator: true` on `@hey-api/sdk`) |
 | `postgres-main` tables without RLS | RLS enabled before any query |
 | Hardcoded user-facing strings | `i18next` translation files |
