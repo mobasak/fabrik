@@ -102,6 +102,7 @@ grep -c "^MODELSCOPE_API_KEY=" /opt/fabrik/.env               # → 1
 grep -c "^BROWSERLESS_URL=" /opt/fabrik/.env                  # → 1
 grep -c "^BROWSERLESS_TOKEN=" /opt/fabrik/.env                # → 1
 # Verify browserless reachable (LIVE probe — needed for Phase C):
+# noqa: bash command-sub from .env, not a hardcoded credential
 curl -s -o /dev/null -w "%{http_code}\n" \
   -H "Authorization: Bearer $(grep '^BROWSERLESS_TOKEN=' /opt/fabrik/.env | cut -d= -f2-)" \
   "$(grep '^BROWSERLESS_URL=' /opt/fabrik/.env | cut -d= -f2-)/health"
