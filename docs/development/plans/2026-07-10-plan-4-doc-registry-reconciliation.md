@@ -82,7 +82,7 @@ Steps:
 **Gate:** `python -m pytest tests/test_check_doc_stubs.py -q` → pass; `python scripts/final_gate.py --check --json` → `status:success` (advisory doesn't fail it).
 **Close:** gate → doc-sync + CHANGELOG → `/fabrik-review` no-op → commit.
 
-## Phase E — Cleanup + Doc-Sync-Matrix alignment + fleet re-sync
+## Phase E — Cleanup + Doc-Sync-Matrix alignment + fleet re-sync — ✅ EXECUTED 2026-07-11 (+ coupled fix: kilo_docs_enforcer.py DOC_TEMPLATE_MAP, out-of-plan-scope but required by the archive)
 **Files:** `templates/scaffold/docs/API_REFERENCE_TEMPLATE.md` + `DATABASE_SCHEMA_TEMPLATE.md` → `templates/.archive/` (git mv), `~/.claude/commands/fabrik-plan-after-chat.md`, `CLAUDE.md`, `INDEX.md`.
 Steps:
 1. `git mv` the 2 dead templates → `templates/.archive/` (verify no live seed/allowlist reference remains: `grep -rn "API_REFERENCE_TEMPLATE\|DATABASE_SCHEMA_TEMPLATE" src/ scripts/ templates/scaffold/` → only archive path).

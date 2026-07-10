@@ -307,12 +307,13 @@ RETRYABLE_EXIT_CODES = {137, 143}  # SIGKILL, SIGTERM
 # Maps doc path patterns to template filenames
 DOC_TEMPLATE_MAP: dict[str, str] = {
     "CHANGELOG.md": "CHANGELOG_TEMPLATE.md",
-    "docs/reference/": "API_REFERENCE_TEMPLATE.md",
     "docs/CONFIGURATION.md": "CONFIGURATION_TEMPLATE.md",
-    "docs/database/schema.md": "DATABASE_SCHEMA_TEMPLATE.md",
     "docs/TROUBLESHOOTING.md": "TROUBLESHOOTING_TEMPLATE.md",
     "docs/QUICKSTART.md": "QUICKSTART_TEMPLATE.md",
     "README.md": "PROJECT_README_TEMPLATE.md",
+    # API_REFERENCE_TEMPLATE / DATABASE_SCHEMA_TEMPLATE removed (plan-4 Phase E): the API
+    # reference is superseded by QUICKSTART + the live /docs endpoint, and DB schema by
+    # db/schema.sql + docs/data-contract.md. Neither is a registry doc; templates archived.
 }
 
 # Module-level cache for loaded templates

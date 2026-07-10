@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Doc-registry cleanup + Doc-Sync-Matrix alignment (plan-4 Phase E, 2026-07-11)
+
+Archived the 2 superseded scaffold templates (`API_REFERENCE_TEMPLATE.md`, `DATABASE_SCHEMA_TEMPLATE.md` → `templates/.archive/`) and dropped their now-dangling mappings from `kilo_docs_enforcer.py`'s `DOC_TEMPLATE_MAP` (API reference → QUICKSTART + live `/docs`; DB schema → `db/schema.sql` + `data-contract.md`). Aligned the CLAUDE.md Doc Sync Matrix with the registry (added DEPLOYMENT / docs-index / LESSONS_LEARNT / design-system / BUSINESS_MODEL / STRATEGIC_BACKLOG rows; canonicalized `LESSONS_LEARNT.md`). Fixed the stale `~/.claude/commands/fabrik-plan-after-chat.md` schema→`docs/DATABASE_SCHEMA.md` reference to `docs/data-contract.md`. Indexed the new registry + check + tests.
+
 ### Added — `check_doc_stubs.py` advisory force-fill gate (plan-4 Phase D, 2026-07-11)
 
 New advisory enforcement check: WARN when a seeded doc still carries template placeholders (`[Project Name]`, `YYYY-MM-DD`, …) AFTER its Doc-Sync trigger fired in the staged change (a stub that rotted past relevance). The doc set is the registry SSOT; the trigger detectors reuse `check_doc_sync`. Always exits 0 (never blocks), fail-safe on any error; registered advisory in `final_gate.py`.
