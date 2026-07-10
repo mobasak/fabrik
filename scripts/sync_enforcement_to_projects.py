@@ -43,6 +43,7 @@ from fabrik_synced_manifest import (  # noqa: E402
     REFERENCE_DOCS,
     RUN_SCRIPTS,
     RUN_SCRIPTS_SRC_DIR,
+    VENDORED_DIRS,
     gitignore_block_text,
     iter_synced_pairs,
 )
@@ -251,6 +252,51 @@ def sync_scripts_to_project(
                         source, destination, dry_run=dry_run, backup=backup, force=force
                     )
                     file_results.append(result)
+
+        # Sync vendored fabrik-lib modules (libs/subagents pool) — recursive flat copy, bytecode
+        # excluded (same rule as the enforcement dir), WITH orphan pruning: a Python module churns, so
+        # a file REMOVED from the hub must be removed from every project too — else a stale
+        # `from libs.subagents import <gone>` keeps resolving to dead code. Hub source is kept
+        # byte-identical to canonical /opt/fabrik-lib/subagents by re-vendoring before a sync.
+        for vendored_rel in VENDORED_DIRS:
+            fabrik_vendored = FABRIK_ROOT / vendored_rel
+            project_vendored = project_dir / vendored_rel
+            if not fabrik_vendored.is_dir():
+                continue  # missing or clobbered-to-a-file hub source → skip (never make an empty dir)
+            if not dry_run:
+                project_vendored.mkdir(parents=True, exist_ok=True)
+            live_rel: set[Path] = set()
+            for source in fabrik_vendored.rglob("*"):
+                if "__pycache__" in source.parts or source.suffix == ".pyc":
+                    continue
+                if source.is_file():
+                    relative = source.relative_to(fabrik_vendored)
+                    live_rel.add(relative)
+                    destination = project_vendored / relative
+                    if not dry_run:
+                        destination.parent.mkdir(parents=True, exist_ok=True)
+                    result = sync_single_file(
+                        source, destination, dry_run=dry_run, backup=backup, force=force
+                    )
+                    file_results.append(result)
+            # Prune orphans: files in the project copy no longer present in the hub (skip project
+            # bytecode so a stray .pyc never keeps a deleted source "alive" in the live set).
+            if project_vendored.is_dir():
+                for dest_file in list(project_vendored.rglob("*")):
+                    if not dest_file.is_file():
+                        continue
+                    if "__pycache__" in dest_file.parts or dest_file.suffix == ".pyc":
+                        continue
+                    if dest_file.relative_to(project_vendored) not in live_rel:
+                        if not dry_run:
+                            dest_file.unlink()
+                        file_results.append(
+                            SyncResult("DELETE", dest_file, dest_file, "orphan removed")
+                        )
+                if not dry_run:  # remove empty dirs left after pruning
+                    for dirpath in sorted(project_vendored.rglob("*"), reverse=True):
+                        if dirpath.is_dir() and not any(dirpath.iterdir()):
+                            dirpath.rmdir()
 
         # Sync governance files (AGENTS.md, opencode.json, .windsurfrules)
         for gov_file in GOVERNANCE_FILES:

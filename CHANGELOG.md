@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — subagents pool auto-distribution: synced fleet-wide + scaffold-wired (plan-6, 2026-07-10)
+
+Made the vendored `libs/subagents` pool a **Fabrik-synced module** so the vendor copy is distributed and kept current automatically instead of manually `cp`-ed per project (executes `plan-6-subagents-fleet-sync` leanly). (1) `scripts/fabrik_synced_manifest.py`: new `VENDORED_DIRS = ["libs/subagents"]`, wired into `iter_synced_pairs` (recursive flat copy, bytecode excluded) + `gitignore_dest_paths` (projects gitignore it like other synced dirs); (2) `scripts/sync_enforcement_to_projects.py`: a `VENDORED_DIRS` copy loop distributes it to all existing projects on every sync — so a hub fix now propagates fleet-wide with no re-vendor; (3) `src/fabrik/scaffold.py`: copies `libs/subagents` (bytecode-excluded) into every new project of **any** type at init; (4) pre-flight re-vendored the hub copy byte-identical to canonical `/opt/fabrik-lib/subagents`. +3 manifest tests (6 total). Dry-run: 20 files/project, 0 bytecode.
+
 ### Changed — subagents pool: flip the hub-import outliers back to the VENDOR-copy model (2026-07-10)
 
 Operator kept the **vendor-copy** model (each project has `libs/subagents`, imported `from libs.subagents`); only the hub-import (`/opt/fabrik-lib` `sys.path.insert`) direction was rejected. The canonical rule `62`, the flywheel workflow, `ai/00`, `docs/CONFIGURATION.md`, and the 7 command guards already taught vendoring (unchanged). Flipped the 3 outliers that still taught hub-import: (1) `check_subagent_flywheel._pool_available()` self-scopes to the vendored `libs/subagents` (dropped the `/opt/fabrik-lib/subagents` branch) — enforce where vendored; (2) its block message points at `from libs.subagents import fanout`; (3) `/fabrik-generate-tests` uses the vendored guarded import. Tests green (21). (Auto-distribution of the vendor copy — existing projects + sync-on-change + scaffold-wire — lands next by executing `plan-6-subagents-fleet-sync`.)

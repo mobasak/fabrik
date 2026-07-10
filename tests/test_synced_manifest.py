@@ -37,6 +37,13 @@ def fake_fabrik(tmp_path: Path) -> Path:
     (root / "docs" / "reference" / "kilo" / "k.md").write_text("kilo\n")
     (root / "AGENTS.md").write_text("agents\n")
     (root / "PORTS.md").write_text("ports\n")
+    # Vendored fabrik-lib module (subagents pool) → synced dir (VENDORED_DIRS).
+    (root / "libs" / "subagents").mkdir(parents=True)
+    (root / "libs" / "subagents" / "__init__.py").write_text("# pool\n")
+    (root / "libs" / "subagents" / "agent.py").write_text("# agent\n")
+    (root / "libs" / "subagents" / "requirements.txt").write_text("httpx\n")
+    (root / "libs" / "subagents" / "__pycache__").mkdir()
+    (root / "libs" / "subagents" / "__pycache__" / "agent.cpython-312.pyc").write_bytes(b"\x00bc")
     return root
 
 
@@ -52,6 +59,8 @@ def test_iter_synced_pairs_covers_each_category(fake_fabrik: Path, tmp_path: Pat
     assert "docs/reference/kilo/k.md" in dests  # governance dir
     assert "AGENTS.md" in dests  # governance file
     assert "PORTS.md" in dests  # reference doc (seeded)
+    assert "libs/subagents/agent.py" in dests  # vendored fabrik-lib module (recursive, flat)
+    assert "libs/subagents/requirements.txt" in dests  # vendored dep manifest synced too
 
 
 def test_iter_synced_pairs_excludes_compiled_bytecode(fake_fabrik: Path, tmp_path: Path) -> None:
@@ -80,3 +89,13 @@ def test_gitignore_block_collapses_windsurf_and_groups() -> None:
     assert dirs.count(".windsurf/") == 1
     assert "docs/reference/kilo/" in dirs
     assert "scripts/enforcement/" in groups["Synced scripts"]
+
+
+def test_vendored_subagents_gitignored_and_pycache_excluded(fake_fabrik: Path, tmp_path: Path) -> None:
+    # the vendored pool must be gitignored in projects (synced dir) AND its bytecode never synced.
+    assert "libs/subagents/" in m.gitignore_block_text()
+    proj = tmp_path / "proj"
+    dests = [d.as_posix() for _src, d in m.iter_synced_pairs(proj, fake_fabrik)]
+    vendored = [d for d in dests if "libs/subagents" in d]
+    assert any(d.endswith("libs/subagents/agent.py") for d in vendored)
+    assert not any("__pycache__" in d or d.endswith(".pyc") for d in vendored), vendored

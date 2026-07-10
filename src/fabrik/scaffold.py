@@ -374,6 +374,19 @@ def _fabrik_synced_gitignore_block() -> str:
     return str(gitignore_block_text())  # str() pins the type (dynamic-path import is Any to mypy)
 
 
+def _fabrik_vendored_dirs() -> list[str]:
+    """The vendored fabrik-lib module dirs to copy into a new project — read from the SAME manifest
+    constant the fleet sync uses (``VENDORED_DIRS``), so scaffold and sync can never drift."""
+    import sys as _sys
+
+    scripts_dir = str(FABRIK_ROOT / "scripts")
+    if scripts_dir not in _sys.path:
+        _sys.path.insert(0, scripts_dir)
+    from fabrik_synced_manifest import VENDORED_DIRS
+
+    return list(VENDORED_DIRS)
+
+
 def _assert_not_hub(target: Path) -> None:
     """Refuse to scaffold/fix the Fabrik hub (/opt/fabrik) or any path inside it.
 
@@ -873,6 +886,21 @@ def _scaffold_shared(
     project_enforcement = project_dir / "scripts" / "enforcement"
     if fabrik_enforcement.exists():
         shutil.copytree(fabrik_enforcement, project_enforcement, dirs_exist_ok=True)
+
+    # Copy vendored fabrik-lib modules (the subagents pool → libs/subagents) so every new project — of
+    # ANY type — ships with the dev-time pool the /fabrik-* commands import (`from libs.subagents import …`).
+    # Driven by the SAME manifest constant the fleet sync uses (VENDORED_DIRS) so the two never drift; the
+    # .gitignore "Fabrik-synced" block already lists libs/subagents/ (via gitignore_block_text()), so the
+    # copy is gitignored in the project, matching the other synced dirs. Skip bytecode.
+    for _vendored_rel in _fabrik_vendored_dirs():
+        fabrik_vendored = FABRIK_ROOT / _vendored_rel
+        if fabrik_vendored.is_dir():
+            shutil.copytree(
+                fabrik_vendored,
+                project_dir / _vendored_rel,
+                dirs_exist_ok=True,
+                ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
+            )
 
     # Copy .windsurfrules, .windsurf/rules/, .windsurf/workflows/ (authoritative)
     # Fail fast if fabrik targets are missing - environment is broken

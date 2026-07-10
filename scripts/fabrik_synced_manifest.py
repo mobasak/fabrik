@@ -73,6 +73,13 @@ GOVERNANCE_DIRS = [
 # Enforcement directory → synced recursively into project ``scripts/enforcement/``.
 ENFORCEMENT_DIR = "scripts/enforcement"
 
+# Vendored fabrik-lib modules → synced recursively (flat copy) into each project. The subagents pool is a
+# DEV-TIME tool the /fabrik-* commands import as ``from libs.subagents import …``; making it a synced dir
+# means a fix in the hub copy propagates fleet-wide on the next sync (no manual re-vendor), and new projects
+# get it via the scaffold (which copies the synced dirs). Hub source: ``/opt/fabrik/libs/subagents`` (kept
+# byte-identical to canonical ``/opt/fabrik-lib/subagents`` by re-vendoring before a sync).
+VENDORED_DIRS = ["libs/subagents"]
+
 # Agent "definition of done" hooks → synced to project root verbatim (they are
 # cwd/path-agnostic: the Claude Code hook resolves its project via ${CLAUDE_PROJECT_DIR}
 # + stdin cwd; the Cascade hook commands self-locate via `git rev-parse`). This is
@@ -151,6 +158,7 @@ def gitignore_dest_paths() -> dict[str, list[str]]:
             + [f"{ENFORCEMENT_DIR}/"]
             + [f"scripts/{s}" for s in RUN_SCRIPTS]
         ),
+        "Vendored fabrik-lib modules (synced fleet-wide)": [f"{d}/" for d in VENDORED_DIRS],
     }
 
 
@@ -209,8 +217,8 @@ def iter_synced_pairs(
     for src_rel, dest_rel in REFERENCE_DOCS:
         yield fabrik_root / src_rel, project_root / dest_rel
 
-    # Recursive directories (governance + enforcement)
-    for rel_dir in [*GOVERNANCE_DIRS, ENFORCEMENT_DIR]:
+    # Recursive directories (governance + enforcement + vendored fabrik-lib modules)
+    for rel_dir in [*GOVERNANCE_DIRS, ENFORCEMENT_DIR, *VENDORED_DIRS]:
         src_dir = fabrik_root / rel_dir
         if not src_dir.exists():
             continue
