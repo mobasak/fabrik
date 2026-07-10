@@ -36,6 +36,13 @@ const _useAuthStore = create<AuthState>((set, get) => ({
   hydrate: async () => {
     try {
       const userToken = await getToken();
+      // If auth was already resolved while we awaited the (async) token read
+      // — e.g. the splash safety-net signed out, or the user logged in — do
+      // NOT clobber it. `status` only leaves 'idle' via signIn/signOut, so a
+      // non-'idle' status means a newer, authoritative decision already won.
+      if (get().status !== 'idle') {
+        return;
+      }
       if (userToken !== null) {
         // Already persisted in secure store — reflect it in state directly.
         // Don't re-write via signIn(): a redundant Keychain write each launch
@@ -49,6 +56,9 @@ const _useAuthStore = create<AuthState>((set, get) => ({
     }
     catch (e) {
       console.error(e);
+      if (get().status !== 'idle') {
+        return;
+      }
       // Fail CLOSED: move out of 'idle' to 'signOut' so the guard routes to
       // /login (never leave 'idle', which the guard would treat as allowed).
       // Do NOT delete the token — a transient read failure shouldn't destroy
