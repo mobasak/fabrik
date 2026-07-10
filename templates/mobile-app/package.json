@@ -43,7 +43,8 @@
     "test:ci": "pnpm run test --coverage",
     "test:watch": "pnpm run test --watch",
     "install-maestro": "curl -Ls 'https://get.maestro.mobile.dev' | bash",
-    "e2e-test": "maestro test .maestro/ -e APP_ID=com.obytes.development"
+    "e2e-test": "maestro test .maestro/ -e APP_ID=com.obytes.development",
+    "generate-api": "openapi-ts -f openapi-ts.config.ts"
   },
   "dependencies": {
     "@expo-google-fonts/inter": "^0.4.2",
@@ -114,6 +115,7 @@
     "@dev-plugins/react-query": "^0.4.0",
     "@eslint-react/eslint-plugin": "^2.7.2",
     "@expo/config": "~12.0.13",
+    "@hey-api/openapi-ts": "^0.99.0",
     "@tailwindcss/cli": "^4.0.0",
     "@testing-library/react-native": "^13.3.3",
     "@types/i18n-js": "^4.0.1",
