@@ -23,6 +23,7 @@ import subprocess
 from collections.abc import Callable
 from datetime import date
 from pathlib import Path
+from types import ModuleType
 
 import yaml
 
@@ -219,6 +220,77 @@ SHARED_TEMPLATE_MAP = {
 # type property (it's the per-project `--db`/`use_database` flag, and `static-site` maps to the
 # saas-skeleton scaffolder so it IS DB-backed). Non-DB types just get a harmless, deletable stub.
 _NO_DATA_CONTRACT_TYPES = frozenset({"docusaurus"})
+
+
+def _load_doc_registry() -> ModuleType | None:
+    """Import the canonical doc registry HUB-SIDE. scaffold runs on the hub, so the
+    FABRIK_ROOT/scripts/enforcement path is correct here — UNLIKE check_structure.py, which
+    runs project-side and uses a same-dir import. Returns the module, or ``None`` on any
+    failure (seeding then falls back to the untyped SHARED_TEMPLATE_MAP — never crash a scaffold)."""
+    import sys as _sys  # noqa: PLC0415 — lazy, matching this module's import idiom
+
+    # FABRIK_ROOT is the normal hub path; fall back to the real module-relative repo root so
+    # the registry (a fixed code asset, not a template) still resolves when a test patches
+    # FABRIK_ROOT to a mock templates dir.
+    for base in (FABRIK_ROOT, Path(__file__).resolve().parents[2]):
+        try:
+            enforce_dir = str(base / "scripts" / "enforcement")
+            if enforce_dir not in _sys.path:
+                _sys.path.insert(0, enforce_dir)
+            import _doc_registry  # noqa: PLC0415  (lazy: only needed at scaffold time)
+
+            return _doc_registry
+        except Exception:  # noqa: BLE001 — try the next base; never break scaffolding
+            continue
+    return None
+
+
+def _type_seeds_doc(reg: ModuleType, project_type: str, dest: str) -> bool:
+    """Whether a SHARED_TEMPLATE_MAP destination ``dest`` is seeded for ``project_type``, per
+    the canonical registry's type buckets (the SSOT — type-aware seeding).
+
+    - ``universal`` docs → always seeded (byte-identical to prior behavior).
+    - ``data`` (data-contract) → seeded, keeping the deliberate all-but-docusaurus behavior
+      (the leak guard is applied separately by the caller via ``_NO_DATA_CONTRACT_TYPES``).
+      Gating it on ``shape.needs_database`` is unreliable at scaffold time: ``use_database``
+      defaults False even for saas-skeleton / static-site, which legitimately carry the
+      contract — so a needs_database gate would wrongly strip it from them.
+    - ``deployed`` / ``gui`` / ``saas`` docs → seeded only when ``project_type`` is in that
+      bucket (a headless python-api no longer gets BUSINESS_MODEL; a client app no longer
+      gets SERVICES/OPERATIONS/RESILIENCE).
+    - a ``dest`` not in the registry → seeded unconditionally (preserve prior behavior).
+    """
+    row = next((r for r in reg.PROJECT_DOCS if r.name == dest), None)
+    if row is None:
+        return True
+    for bucket in row.applies_to:
+        if bucket in ("universal", "data"):
+            return True
+        if project_type in reg.TYPE_BUCKETS.get(bucket, frozenset()):
+            return True
+    return False
+
+
+def _is_data_doc(reg: ModuleType, dest: str) -> bool:
+    """Whether ``dest``'s registry row is in the ``data`` bucket (used to generalize the
+    docusaurus leak guard to ANY data-shaped doc, not just data-contract.md by name)."""
+    row = next((r for r in reg.PROJECT_DOCS if r.name == dest), None)
+    return row is not None and "data" in row.applies_to
+
+
+def _should_seed_doc(reg: ModuleType | None, project_type: str, dest: str) -> bool:
+    """Robust seeding decision — NEVER raises (a registry glitch must not break a scaffold).
+    Returns True (seed) when ``reg`` is None or on ANY error (degrade to the prior full-seed
+    behavior). Applies the docusaurus data-leak guard for every ``data``-bucket doc, then the
+    type-bucket gate."""
+    if reg is None:
+        return True
+    try:
+        if project_type in _NO_DATA_CONTRACT_TYPES and _is_data_doc(reg, dest):
+            return False  # docs-publisher must never carry a data-shaped doc (leak)
+        return _type_seeds_doc(reg, project_type, dest)
+    except Exception:  # noqa: BLE001 — degrade to seeding, never crash a scaffold
+        return True
 
 _PYTHON_API_TEMPLATE_MAP = {
     # Droid exec / Docker workflow files (AGENTS.md copied separately in create_project)
@@ -831,9 +903,16 @@ def _scaffold_shared(
 
     package_name = _get_package_name(name)
 
-    # Copy shared templates
+    # Copy shared templates — type-aware, driven by the canonical registry (SSOT).
+    _doc_reg = _load_doc_registry()
     for src, dest in SHARED_TEMPLATE_MAP.items():
-        # Skip seeding the contract into a docs-publisher (would leak it — see _NO_DATA_CONTRACT_TYPES).
+        # Type-aware seeding: skip a doc whose registry bucket doesn't cover this type (e.g.
+        # a headless python-api skips BUSINESS_MODEL; a client app skips SERVICES). Crash-safe:
+        # any registry problem degrades to seeding, never breaks a scaffold.
+        if not _should_seed_doc(_doc_reg, project_type, dest):
+            continue
+        # Belt-and-suspenders leak guard (registry-independent): a docs-publisher never gets
+        # the data contract even if the registry is unavailable.
         if dest == "docs/data-contract.md" and project_type in _NO_DATA_CONTRACT_TYPES:
             continue
         src_path = TEMPLATE_DIR / src

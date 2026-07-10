@@ -51,7 +51,7 @@ Steps:
 **Gate:** `python -m pytest tests/test_check_structure_docs_allowlist.py -q` → pass; `python scripts/enforcement/check_structure.py` on a fixture project with `docs/RESILIENCE.md` → no WARN for it.
 **Close:** gate → doc-sync + CHANGELOG → `/fabrik-review` no-op → commit.
 
-## Phase C — Type-aware scaffold seeding
+## Phase C — Type-aware scaffold seeding — ✅ EXECUTED 2026-07-11 (data-contract gating: grounded deviation — kept all-but-docusaurus, see below)
 **Files:** `src/fabrik/scaffold.py`, `tests/test_scaffold_doc_seeding.py` (new).
 **Consumes:** `PROJECT_DOCS`, `TYPE_BUCKETS` (Phase A).
 Steps:
