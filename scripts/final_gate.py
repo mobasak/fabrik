@@ -495,7 +495,10 @@ def run_static_checks(
                 path = PROJECT_ROOT / f
                 if path.exists():
                     try:
-                        yaml.safe_load(path.read_text(encoding="utf-8"))
+                        # safe_load_all validates EVERY document — multi-document YAML
+                        # (e.g. Maestro flows: `appId:` config + `---` + flow) is valid
+                        # YAML that plain safe_load rejects ("expected a single document").
+                        list(yaml.safe_load_all(path.read_text(encoding="utf-8")))
                     except yaml.YAMLError as e:
                         yaml_ok = False
                         yaml_errors.append(f"{f}: {e}")
