@@ -162,7 +162,9 @@ def _in_cycle_pool_runs(ledger_path: Path, since_epoch: float | None) -> int:
             try:
                 if isinstance(ts, str):
                     dt = datetime.fromisoformat(ts)
-                    if dt.tzinfo is None:  # naive ISO ts is AMBIGUOUS (UTC? local?) — count it (lenient)
+                    if (
+                        dt.tzinfo is None
+                    ):  # naive ISO ts is AMBIGUOUS (UTC? local?) — count it (lenient)
                         n += 1
                         continue
                     row_epoch = dt.timestamp()
