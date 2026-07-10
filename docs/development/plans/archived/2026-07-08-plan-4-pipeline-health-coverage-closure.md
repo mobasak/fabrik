@@ -1,6 +1,6 @@
 # Pipeline-Health Coverage Closure — Implementation Plan
 
-**Status:** IN-PROGRESS (started 2026-07-08 20:45 UTC from CONVERGED)
+**Status:** EXECUTED 2026-07-08 — Phases A/B/C/D shipped fully; Phase E partial (machinery + 20 seeds, +2 SWE rows, unique unchanged); AA-side found already covered by cache/speed_overrides.json. Final gate Tier 2 green (38 passed, 0 failed). Commits: 1f6275a1 (A) · 8dd7be31 (B) · d2bef091 (C) · 703312ca (D) · 649f02ed (E).
 **Date:** 2026-07-08
 **Owner:** primary (this session)
 **Goal:** Close the 6 findings surfaced by the 2026-07-08 live audit of `daily_refresh.sh`. Restore alert delivery (currently 100% failing), fix the Kilo-CLI catalog fetch (returning 0 models due to stale config), teach the Anthropic parser to handle new Claude Mythos pricing layouts, add a review queue for safety-blocked direct-vendor writes, and lift SWE-bench + ArtificialAnalysis benchmark match rates from 40% and 22% to ≥ 70% and ≥ 50% respectively.

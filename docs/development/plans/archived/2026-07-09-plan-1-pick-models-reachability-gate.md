@@ -1,6 +1,6 @@
 # pick_models reachability gate — close the "AI recommends unreachable model" trap
 
-**Status:** IN-PROGRESS (started 2026-07-09 20:15 UTC from CONVERGED, baseline `b7c0f9a5`)
+**Status:** EXECUTED 2026-07-09 — Phases 0/A/B/C/D shipped. Live: 25 → 260 reachable (7% → 71%), 18 B-contract tests green, live INSERT recorded reachable_at_dispatch=1 on subagent_runs. Loop.py auto-wire deferred as residual (callers pass kwarg explicitly). Commits: 2e4505e1 (0) · 073aee70 (A) · cbe0f056 (B) · 4d0457e8 (C) · 5a45b3a2 (D).
 **Date:** 2026-07-09
 **Owner:** primary (this session)
 **Goal:** Make `libs/subagents.pick_models(task_type)` refuse — by default — to return a model whose vendor requires an API key the operator doesn't currently have. Today's DB shows **93% of active agents (344/369) flagged unreachable** — every call is a silent-fail trap. Root cause is a real seeding gap (bulk backfill by provider never happens) compounded by the absence of a reachability filter in the emit path. Fix both.

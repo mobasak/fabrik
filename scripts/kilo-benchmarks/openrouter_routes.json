@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-07-08",
+  "generated_at": "2026-07-10",
   "assigned_by": "category_route_mapper",
   "categories": {
     "language": {
@@ -38,14 +38,14 @@
           "priority": 3,
           "id": "openai/gpt-oss-120b",
           "provider": "openai",
-          "input_cost_per_m": 0.03,
-          "output_cost_per_m": 0.15,
+          "input_cost_per_m": 0.036,
+          "output_cost_per_m": 0.18,
           "context_window_k": 131,
           "has_vision": false,
           "has_tools": true,
           "has_reasoning": true,
           "is_ga": true,
-          "score_used": 0.03,
+          "score_used": 0.036,
           "score_type": "input_cost_per_m",
           "reason": "Default LLM category. Free tier is included so the route ladder is\nP1=paid-mid, P2=paid-mid-cheaper, P3=free-fallback. Consumers decide\nto consume P3 or not via cost-budget.md per-project caps."
         }

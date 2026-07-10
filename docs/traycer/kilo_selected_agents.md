@@ -1,6 +1,6 @@
 # Kilo Agents Master Table
 
-**Last Updated:** 2026-07-08T10:19:53.957978
+**Last Updated:** 2026-07-10T03:35:56.760383
 **Source:** [openlm.ai/chatbot-arena](https://openlm.ai/chatbot-arena/) | [tbench.ai](https://www.tbench.ai/leaderboard/terminal-bench/2.0)
 
 ## Top 60 Agents Ranked by Chatbot Arena Elo
@@ -47,12 +47,12 @@
 | 38 | **mistral-large-2512** | mistralai | 1450 | ~ | $0.50 | $1.50 | 262K | ✓ | ✓ |  | 2 | 1160 | ✅ |
 | 39 | **kimi-k2-thinking** | moonshotai | 1450 | 35.7 | $0.60 | $2.50 | 262K |  | ✓ | ✓ | 2 | 716 | ✅ |
 | 40 | **gpt-5.1** | openai | 1450 | 47.6 | $1.25 | $10.00 | 400K | ✓ | ✓ | ✓ | 3 | 186 | ✅ |
-| 41 | **minimax-m2.7** | minimax | 1448 | 45.1 | $0.18 | $0.72 | 204K |  | ✓ | ✓ | 2 | 2475 | ✅ |
+| 41 | **minimax-m2.7** | minimax | 1448 | 45.1 | $0.24 | $0.96 | 204K |  | ✓ | ✓ | 2 | 1856 | ✅ |
 | 42 | **glm-4.5** | z-ai | 1448 | ~ | $0.60 | $2.20 | 131K |  | ✓ | ✓ | 2 | 804 | ✅ |
 | 43 | **qwen3-235b-a22b-thinking-2507** | qwen | 1442 | ~ | $0.15 | $1.50 | 262K |  | ✓ | ✓ | 2 | 1245 | ✅ |
 | 44 | **claude-haiku-4.5** | anthropic | 1436 | 35.5 | $1.00 | $5.00 | 200K | ✓ | ✓ | ✓ | 2 | 359 | ✅ |
 | 45 | **deepseek-r1-0528** | deepseek | 1436 | ~ | $0.50 | $2.15 | 163K |  | ✓ | ✓ | 2 | 826 | ✅ |
-| 46 | **minimax-m2.5** | minimax | 1436 | 42.7 | $0.12 | $0.48 | 204K |  | ✓ | ✓ | 1 | 3682 | ✅ |
+| 46 | **minimax-m2.5** | minimax | 1436 | 42.7 | $0.15 | $0.90 | 204K |  | ✓ | ✓ | 2 | 2015 | ✅ |
 | 47 | **step-3.5-flash** | stepfun | 1433 | ~ | $0.10 | $0.30 | 262K |  | ✓ | ✓ | 1 | 5732 | ✅ |
 | 48 | **qwen3-vl-235b-a22b-thinking** | qwen | 1432 | ~ | $0.26 | $2.60 | 131K | ✓ | ✓ | ✓ | 2 | 711 | ✅ |
 | 49 | **deepseek-v3.2** | deepseek | 1431 | 39.6 | $0.23 | $0.34 | 131K |  | ✓ | ✓ | 1 | 4549 | ✅ |
@@ -61,7 +61,7 @@
 | 52 | **minimax-m2.1** | minimax | 1430 | 36.6 | $0.30 | $1.20 | 204K |  | ✓ | ✓ | 2 | 1467 | ✅ |
 | 53 | **qwen3-30b-a3b-instruct-2507** | qwen | 1425 | ~ | $0.05 | $0.19 | 131K |  | ✓ |  | 1 | 9087 | ✅ |
 | 54 | **gemini-3.1-flash-lite-preview** | google | 1421 | ~ | $0.25 | $1.50 | 1048K | ✓ | ✓ | ✓ | 2 | 1197 | ✅ |
-| 55 | **gpt-5-chat** | openai | 1421 | ~ | $1.25 | $10.00 | 128K | ✓ |  |  | 1 | 182 | ✅ |
+| 55 | **gpt-5-chat** | openai | 1421 | ~ | $0.00 | $0.00 | 128K | ✓ |  |  | 1 | 181888000 | ✅ |
 | 56 | **gemini-3.1-flash-lite** | google | 1421 | ~ | $0.25 | $1.50 | 1048K | ✓ | ✓ | ✓ | 2 | 1197 | ✅ |
 | 57 | **gemini-2.5-flash** | google | 1420 | 17.1 | $0.30 | $2.50 | 1048K | ✓ | ✓ | ✓ | 2 | 728 | ✅ |
 | 58 | **gpt-5-mini** | openai | 1419 | 34.8 | $0.25 | $2.00 | 400K | ✓ | ✓ | ✓ | 2 | 908 | ✅ |
@@ -80,4 +80,3 @@
 - **Agentic**: Has reasoning/thinking capabilities
 - **Tier**: 1=cheap, 2=balanced, 3=heavy
 - **$/Perf**: Performance per dollar (Elo / blended cost)
-- **2026-07-08:** Auto-updated from benchmarks

@@ -83,7 +83,7 @@ If you encounter a port conflict:
 
 
 <!-- AUTO-GENERATED:PORTS:START -->
-<!-- Last synced: 2026-07-08 10:19:13 -->
+<!-- Last synced: 2026-07-10 03:35:44 -->
 
 ### Project Port Allocations (from project.yaml)
 
