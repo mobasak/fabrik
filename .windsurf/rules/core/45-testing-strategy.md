@@ -133,8 +133,9 @@ async def test_tenant_isolation(client_tenant_a: AsyncClient, client_tenant_b: A
 
 - **Framework**: Playwright with `chromium.launchPersistentContext`.
 - **Banned**: Puppeteer standard headless mode (cannot load extensions).
-- Pass `--disable-extensions-except` and `--load-extension` flags pointing to the built extension directory.
+- Launch Playwright's **bundled Chromium** (`channel: 'chromium'`) — stable Chrome/Edge removed the `--load-extension` / `--disable-extensions-except` side-load flags (Chrome 137/139), so those args only work under bundled Chromium, never installed stable Chrome.
 - Extract the MV3 service worker dynamically from `context.serviceWorkers()` to get the extension ID, then navigate to `chrome-extension://<id>/popup.html` for UI verification.
+- Run `@axe-core/playwright` with **`bypassCSP: true`** (the non-relaxable extension CSP otherwise makes axe throw on `chrome-extension://` pages); keep `@axe-core/playwright` a **dev-dependency only** (MPL-2.0 — never bundled into the shipped artifact). Gate bundle size with `size-limit` **per surface** (popup / side-panel / content-script). Full loop: `chrome-ext/70-chrome-ext.md` § Testing & UI Verification.
 
 ## Contract Testing
 

@@ -2,7 +2,7 @@
 
 **Status:** Research reference (the *findings*; the *ruling* lives in `.windsurf/rules/chrome-ext/70-chrome-ext.md` — the authority — and the summary in `docs/reference/gui-toolchain.md` § Chrome extension).
 **Live-verified:** 2026-07-07 (every claim sourced below; nothing from training memory).
-**Scope:** how an agent BUILDS + VERIFIES an MV3 extension GUI. Context: TS + Preact/Svelte/React, Vite + `@crxjs/vite-plugin`, Ocoron Design System (Compact); surfaces = popup / options / side-panel / content-script overlay (Shadow DOM).
+**Scope:** how an agent BUILDS + VERIFIES an MV3 extension GUI. Context: TS + Preact/Svelte/React; **build tool = WXT** (v0.20.27, MIT — the default per `70-chrome-ext.md` § Build Tooling; auto-manifest, first-party `@wxt-dev/storage`/`@wxt-dev/i18n`), with **Vite + `@crxjs/vite-plugin`** (v2.7.1, healthy — see § tooling health below) as the documented max-control alternative; Ocoron Design System (Compact); surfaces = popup / options / side-panel / content-script overlay (Shadow DOM).
 
 > **Bottom line:** a Chrome extension is *web tech*, so the agent **reuses the web loop** (Playwright MCP + `@axe-core/playwright` + `toHaveScreenshot` + `frontend-design` skill + shadcn MCP) — the design system is the same Ocoron (Compact) `70-chrome-ext.md` already mandates. Only **three** extension-specific additions are needed. Where this doc and `70-chrome-ext.md` differ, the pack wins.
 

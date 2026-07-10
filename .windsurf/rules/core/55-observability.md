@@ -33,7 +33,7 @@ Not every scaffold type gets every observability feature. This matrix is the sou
 | `docusaurus` | N/A (static site) | Nginx responds on `/` | N/A | N/A | N/A | Yes (site URL) |
 | `static-site` | N/A (static site) | Nginx responds on `/` | N/A | N/A | N/A | Yes (site URL) |
 
-**Two-faced types** (mobile-app, desktop-app, chrome-extension): the backend lane gets full observability (logging + health + metrics + GlitchTip). The client lane gets crash reporting only (Sentry SDK for the platform).
+**Two-faced types** (mobile-app, desktop-app, chrome-extension): the backend lane gets full observability (logging + health + metrics + GlitchTip). The client lane gets crash reporting (Sentry SDK for the platform) **plus product analytics** where the product needs it — for `chrome-extension`, GA4 Measurement Protocol v2 or PostHog-core behind a `chrome.storage` queue + `chrome.alarms` flush (see § Chrome Extension Telemetry). Consent-gated per the product's opt-out state.
 
 ---
 
@@ -205,7 +205,7 @@ For `mobile-app` projects, the backend gets GlitchTip (above). The **client app*
 
 For `desktop-app`: use `@sentry/electron`. Same principles.
 
-For `chrome-extension`: use `@sentry/browser` in the popup/content script. Service workers use the `chrome.storage.local` buffer pattern (see Chrome Extension Telemetry below).
+For `chrome-extension`: use `@sentry/browser` in the popup/options/side-panel (trusted extension pages). **In content scripts, never call the global `Sentry.init`** — a content script shares the host page's `window`, so global-state integrations hijack host-page errors. Build an isolated `BrowserClient` + `Scope` (drop `GlobalHandlers` / `Breadcrumbs`) and wrap with `makeBrowserOfflineTransport` (IndexedDB buffer/flush). Service workers use the `chrome.storage.local` buffer pattern (see Chrome Extension Telemetry below).
 
 ---
 
@@ -321,6 +321,7 @@ Install procedure + currently-registered alias pairs (`browserless`, `gotenberg`
 
 - MV3 service workers are ephemeral (terminated after ~30s idle). Do not hold logs in memory waiting for a batch window.
 - Buffer logs to `chrome.storage.local` or `chrome.storage.session`, then flush asynchronously to the backend via `navigator.sendBeacon()` or non-blocking `fetch` when network permits.
+- **Product analytics** (GA4 Measurement Protocol v2 or PostHog-core) use the same discipline: enqueue events to a `chrome.storage` queue and flush on a **`chrome.alarms`** tick — a fire-and-forget request from the SW dies with the worker. GA4-MP is pure HTTP (MV3-safe); PostHog-core needs `module.no-external` with rrweb stripped.
 - Handle `chrome.runtime.lastError` during I/O to prevent unhandled promise rejections from crashing the worker.
 
 ---
