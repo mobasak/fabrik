@@ -19,5 +19,7 @@
   ],
   "branch": "master",
   "started_at": "2026-07-10",
-  "status": "active"
+  "status": "blocked",
+  "blocked_at": "2026-07-10",
+  "blocker": "evalplus\u2194OR incompat \u2014 8/8 units failed with JSONDecodeError"
 }
