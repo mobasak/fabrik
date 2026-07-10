@@ -77,6 +77,43 @@ LEGACY_DIRS = {
 # Note: specs/ is NOT legacy - it's the canonical location for Stage 0 pipeline
 # outputs (specs/<project>/00-idea.md, 01-scope.md, 02-spec.md) per AGENTS.md
 
+# --- docs/ allowlist: DERIVED from the canonical registry (SSOT), never hand-maintained ---
+# The registry lives sibling-to-sibling in scripts/enforcement/ (synced fleet-wide), so a
+# SAME-DIR import resolves both hub-side and project-side. Do NOT use the
+# sys.path.insert(0, FABRIK_ROOT/"scripts") pattern (e.g. check_synced_unmodified.py) —
+# FABRIK_ROOT is hardcoded /opt/fabrik, so a project would import the HUB's registry
+# instead of its own synced copy. We call docs_allowlist() with NO argument: the permissive
+# full union, so a recognized doc never false-WARNs regardless of the project's exact shape
+# (that is where the grandfather / no-regression guarantee lives), then union LEGACY_TOLERATED
+# for once-standard names older projects carry. Fail-safe: any import error falls back to the
+# previous literal set so the gate can never crash.
+_FALLBACK_DOCS_ALLOWLIST = frozenset(
+    {
+        "README.md",
+        "QUICKSTART.md",
+        "CONFIGURATION.md",
+        "TROUBLESHOOTING.md",
+        "BUSINESS_MODEL.md",
+        "SERVICES.md",
+        "OPERATIONS.md",
+        "DEPLOYMENT.md",
+        "EXTERNAL_SYSTEMS.md",
+        "FAQ.md",
+        "FEATURES.md",
+        "TESTING.md",
+        "owner_ozgur_basak.md",
+    }
+)
+try:
+    _enforce_dir = str(Path(__file__).resolve().parent)
+    if _enforce_dir not in sys.path:  # dedup — avoid unbounded path pollution on re-import
+        sys.path.insert(0, _enforce_dir)
+    import _doc_registry  # noqa: E402  (same-dir sibling, synced fleet-wide)
+
+    DOCS_ALLOWLIST = _doc_registry.docs_allowlist() | _doc_registry.LEGACY_TOLERATED
+except Exception:  # noqa: BLE001 — a registry glitch must never crash the structure gate
+    DOCS_ALLOWLIST = _FALLBACK_DOCS_ALLOWLIST
+
 
 def _gitignored_files(root: Path) -> set[str]:
     """Posix-relative paths of gitignored (untracked-ignored) files under ``root``.
@@ -197,23 +234,10 @@ def check_structure(project_root: Path, files: list[str] | None = None) -> list[
         # Check docs/ structure
         elif parts[0] == "docs":
             if len(parts) == 2:
-                # File directly in docs/ - only these standard files allowed
+                # File directly in docs/ - only registry-recognized standard files allowed
+                # (DOCS_ALLOWLIST is derived from _doc_registry — the SSOT, not a 2nd copy).
                 filename = parts[1]
-                if filename not in {
-                    "README.md",
-                    "QUICKSTART.md",
-                    "CONFIGURATION.md",
-                    "TROUBLESHOOTING.md",
-                    "BUSINESS_MODEL.md",
-                    "SERVICES.md",
-                    "OPERATIONS.md",
-                    "DEPLOYMENT.md",
-                    "EXTERNAL_SYSTEMS.md",
-                    "FAQ.md",
-                    "FEATURES.md",
-                    "TESTING.md",
-                    "owner_ozgur_basak.md",
-                }:
+                if filename not in DOCS_ALLOWLIST:
                     violations.append(
                         {
                             "file": str(rel_path),

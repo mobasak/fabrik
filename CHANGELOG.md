@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — `check_structure` derives its `docs/` allowlist from the registry (SSOT) (plan-4 Phase B, 2026-07-11)
+
+The hard-coded `docs/` allowlist in `scripts/enforcement/check_structure.py` is replaced by `_doc_registry.docs_allowlist() | LEGACY_TOLERATED` (same-dir import, fail-safe fallback to the old literal). The permissive union kills the false-WARN drift (RESILIENCE/data-contract/ui-design/STRATEGIC_BACKLOG/LESSONS_LEARNT no longer WARN) while grandfathering the 47 existing projects (derived ⊇ old set; misplaced docs still WARN).
+
 ### Added — Canonical type-aware project-doc registry (SSOT) — `scripts/enforcement/_doc_registry.py` (plan-4 Phase A, 2026-07-11)
 
 `PROJECT_DOCS` is now the single source of truth for which docs a project has/allows/updates, with type buckets (universal/deployed/gui/saas/data) over the real `SCAFFOLD_TYPES`. `docs_allowlist()` derives the `check_structure` allowlist (Phase B), `seed_rows()` drives type-aware scaffolding (Phase C), and each row carries its Doc-Sync trigger (Phase D). Stdlib-only (synced fleet-wide, imported project-side); drift-guarded by tests (allowlist derivation, grandfather/no-regression via `LEGACY_TOLERATED`, `ALL_TYPES == SCAFFOLD_TYPES`, stdlib-only).

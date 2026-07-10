@@ -42,7 +42,7 @@ Steps:
 **Gate:** `python -m pytest tests/test_doc_registry.py -q` → pass. `python -c "import sys; sys.path.insert(0,'scripts/enforcement'); from _doc_registry import docs_allowlist; print(sorted(docs_allowlist('python-api')))"` → prints the derived set.
 **Close:** phase gate green → `check_doc_sync.py` (+ CHANGELOG entry) → `/fabrik-review` to a no-op → commit (explicit paths + trailers).
 
-## Phase B — Derive the `check_structure` allowlist (drop the hard-coded copy)
+## Phase B — Derive the `check_structure` allowlist (drop the hard-coded copy) — ✅ EXECUTED 2026-07-11
 **Files:** `scripts/enforcement/check_structure.py`, `tests/test_check_structure_docs_allowlist.py` (new).
 **Consumes:** `_doc_registry.docs_allowlist`, `LEGACY_TOLERATED` (Phase A).
 Steps:
