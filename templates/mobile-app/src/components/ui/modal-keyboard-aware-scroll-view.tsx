@@ -21,13 +21,16 @@ import {
   createBottomSheetScrollableComponent,
   SCROLLABLE_TYPE,
 } from '@gorhom/bottom-sheet';
-import { memo } from 'react';
+import { type ComponentType, memo } from 'react';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import Reanimated from 'react-native-reanimated';
 
 const AnimatedScrollView
-  = Reanimated.createAnimatedComponent<KeyboardAwareScrollViewProps>(
-    KeyboardAwareScrollView,
+  // Reanimated 4's createAnimatedComponent overloads resolve to a class-component
+  // signature a forwardRef component (KeyboardAwareScrollView) doesn't match; it's
+  // animatable at runtime, so cast past the type-only overload mismatch.
+  = Reanimated.createAnimatedComponent(
+    KeyboardAwareScrollView as ComponentType<KeyboardAwareScrollViewProps>,
   );
 const BottomSheetScrollViewComponent = createBottomSheetScrollableComponent<
   BottomSheetScrollViewMethods,

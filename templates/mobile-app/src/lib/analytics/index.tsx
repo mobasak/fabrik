@@ -25,7 +25,7 @@ export function useTrackEvent() {
       if (!hasAnalyticsConsent()) {
         return;
       }
-      posthog?.capture(event, properties);
+      posthog?.capture(event, properties as Record<string, any>);
     },
     [posthog],
   );

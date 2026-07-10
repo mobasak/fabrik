@@ -1,4 +1,3 @@
-import type { LoginFormProps } from './login-form';
 
 import * as React from 'react';
 
@@ -7,7 +6,7 @@ import { LoginForm } from './login-form';
 
 afterEach(cleanup);
 
-const onSubmitMock: jest.Mock<LoginFormProps['onSubmit']> = jest.fn();
+const onSubmitMock = jest.fn();
 
 describe('loginForm Form ', () => {
   it('renders correctly', async () => {
