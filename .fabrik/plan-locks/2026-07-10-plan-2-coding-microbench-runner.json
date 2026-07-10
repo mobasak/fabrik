@@ -1,0 +1,23 @@
+{
+  "plan": "docs/development/plans/2026-07-10-plan-2-coding-microbench-runner.md",
+  "owned_paths": [
+    "pyproject.toml",
+    "scripts/kilo-benchmarks/microbench_coding.py",
+    "scripts/kilo-benchmarks/microbench_coding_tier_snapshot.py",
+    "scripts/kilo-benchmarks/tests/test_microbench_coding.py",
+    "scripts/kilo-benchmarks/tests/test_derive_quality_v2_tier_lift.py",
+    "scripts/kilo-benchmarks/tests/fixtures/eval_results_sample.json",
+    "scripts/kilo-benchmarks/libs/subagents/",
+    "scripts/kilo-benchmarks/derive_quality_v2.py",
+    "scripts/kilo-benchmarks/rank_coding_subagents.py",
+    "docs/reference/kilo/CODING_SUBAGENT_SELECTION.md",
+    "CHANGELOG.md",
+    "INDEX.md",
+    "docs/FEATURES.md",
+    "docs/development/plans/2026-07-10-plan-2-coding-microbench-runner.md",
+    ".fabrik/plan-locks/2026-07-10-plan-2-coding-microbench-runner.json"
+  ],
+  "branch": "master",
+  "started_at": "2026-07-10",
+  "status": "active"
+}
