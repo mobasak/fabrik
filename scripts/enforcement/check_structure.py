@@ -87,8 +87,16 @@ LEGACY_DIRS = {
 # (that is where the grandfather / no-regression guarantee lives), then union LEGACY_TOLERATED
 # for once-standard names older projects carry. Fail-safe: any import error falls back to the
 # previous literal set so the gate can never crash.
+# A no-regression SUPERSET: the old literal (pre-plan allowlist) PLUS the docs that became
+# canonical when the registry landed — so even if _doc_registry is momentarily unimportable
+# (corrupt file / stale .pyc / half-synced deploy) the gate does not suddenly WARN on
+# RESILIENCE/data-contract/ui-design/design-system/LESSONS_LEARNT/STRATEGIC_BACKLOG. This is a
+# deliberate belt-and-suspenders copy used ONLY on the fallback path; the real allowlist derives
+# from the registry (docs_allowlist()). Keep loosely in sync with _doc_registry (permissive — a
+# stray extra name here only ever suppresses an advisory WARN, never adds a false one).
 _FALLBACK_DOCS_ALLOWLIST = frozenset(
     {
+        # pre-plan literal
         "README.md",
         "QUICKSTART.md",
         "CONFIGURATION.md",
@@ -102,6 +110,13 @@ _FALLBACK_DOCS_ALLOWLIST = frozenset(
         "FEATURES.md",
         "TESTING.md",
         "owner_ozgur_basak.md",
+        # docs that became canonical with the registry (no transient regression when it's down)
+        "RESILIENCE.md",
+        "data-contract.md",
+        "ui-design.md",
+        "design-system.md",
+        "LESSONS_LEARNT.md",
+        "STRATEGIC_BACKLOG.md",
     }
 )
 try:

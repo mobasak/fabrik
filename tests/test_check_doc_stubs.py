@@ -131,6 +131,16 @@ def test_registry_alignment_doc_not_in_registry_is_skipped(monkeypatch, tmp_path
     assert rc == 0 and "SERVICES.md" not in capsys.readouterr().out
 
 
+def test_detector_keys_are_all_registry_docs():
+    # every mechanically-detected doc must be a real registry doc (drift guard — a rename in
+    # the registry that isn't mirrored here shows up as a stale detector key)
+    import _doc_registry
+
+    reg_names = {r.name for r in _doc_registry.PROJECT_DOCS}
+    for doc in stubs._trigger_detectors():
+        assert doc in reg_names, f"detector doc {doc!r} is not in the registry SSOT"
+
+
 def test_inner_detector_exception_is_swallowed(monkeypatch, tmp_path):
     # a detector raising is caught by the INNER except → exit 0, no crash (fleet never-block)
     monkeypatch.chdir(tmp_path)
