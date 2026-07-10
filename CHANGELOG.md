@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — mobile-app template: the REAL `fabrik scaffold` CLI now passes all 3 gates (not just the internal fn) (plan-1 follow-up, 2026-07-11)
+
+The prior SDK-57 fix was only verified via `_scaffold_mobile_app` (the sub-function) — but the CLI entry `create_project()` *also* runs `_scaffold_shared`, which copies the hub's governance dirs (`templates/`, `docs/`, `scripts/`, `libs/`, `.claude/`) and root files (`AFCL.md`, `project.yaml`, `.pre-commit-config.yaml`) into every project. Those broke a real full-CLI scaffold two ways the internal-fn scaffold never hit: (1) **type-check 45 errors** — `tsconfig.json`'s `include: ["**/*.tsx"]` swept up `templates/saas-skeleton/*.tsx`; (2) **lint exit 2 (crash)** — antfu's markdown processor extracted code blocks from `AFCL.md` and ran the custom `max-lines-per-function` rule against them → `sourceCode.getAllComments is not a function` on ESLint 9.39.x, plus antfu's YAML rules flagged the scaffolder-generated/synced governance YAML. Fixes: scoped `tsconfig.json` `exclude` + `eslint.config.mjs` `ignores` to the governance dirs, and set antfu `markdown: false` + `yaml: false` (those files have their own doc-sync/compose validators — the JS/TS linter shouldn't touch them). **Verified end-to-end on a fresh `create_project(..., project_type="mobile-app")` (the exact CLI path, cruft dirs present): `pnpm install` → `pnpm test` 41/41 (6 suites) · `pnpm type-check` 0 errors · `pnpm lint` exit 0 (11 advisory warnings).**
+
 ### Changed — `check_structure` derives its `docs/` allowlist from the registry (SSOT) (plan-4 Phase B, 2026-07-11)
 
 The hard-coded `docs/` allowlist in `scripts/enforcement/check_structure.py` is replaced by `_doc_registry.docs_allowlist() | LEGACY_TOLERATED` (same-dir import, fail-safe fallback to the old literal). The permissive union kills the false-WARN drift (RESILIENCE/data-contract/ui-design/STRATEGIC_BACKLOG/LESSONS_LEARNT no longer WARN) while grandfathering the 47 existing projects (derived ⊇ old set; misplaced docs still WARN).
