@@ -1,9 +1,17 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
-**Last Updated:** 2026-07-10 (Lesson 85 — the pool serialization trap + always verify a cheap finder's direction on a critical claim)
+**Last Updated:** 2026-07-10 (Lesson 86 — cheap pool ≠ RN scaffold authoring; cross-phase seam mismatches need a cross-phase reviewer)
 
 **Purpose:** CAPTURE TECHNICAL HURDLES, AI-SPECIFIC QUIRKS, AND ARCHITECTURAL DECISIONS TO PREVENT REGRESSION AS CODEBASES AND AI AGENTS EVOLVE.
+
+---
+
+# Lesson 86: Match the worker to the work (cheap pool is wrong for RN authoring), and a cross-phase seam mismatch is invisible to per-phase reviews
+
+**Symptom A — cheap pool on RN authoring (mobile-app-factory plan-1, Phase A, 2026-07-10):** a `run_agents` fan-out of 4 cheap code models (`deepseek-v4-flash`/`qwen3-coder-next`/`glm-4.7-flash`/`deepseek-v4-pro`) to author the React-Native stack swaps went **3/4 `out_of_scope`** + low quality — they wandered outside their `owned_paths` (e.g. trying to wire providers into a file they didn't own) and one hit the 40-turn cap mid-task. Re-dispatching the SAME 4 tasks to **native Claude Sonnet worktree subagents** produced clean, in-scope, mergeable results first try. **Rule:** the pool is the default for *gradeable fan-out* (finders/reconcilers/graders that record to the flywheel), NOT for multi-file RN/TS scaffold authoring that needs pattern-matching + restraint. Match the model tier to the task; the flywheel row that says "cheap model, `out_of_scope`, 0/5" IS the signal. (The pool run still recorded — the negative result is valuable data.)
+
+**Symptom B — a cross-phase seam mismatch survives per-phase review (Phase A client ↔ Phase B backend):** Phase A's force-update client did `GET /app-config` with **no query params** and expected a raw `min_version` to compare client-side; Phase B's backend **required** `platform`+`version` (422 without them) and returned a server-computed verdict. Each phase's own `/fabrik-review` passed — the defect only exists *at the boundary*, where the client calls a contract the backend doesn't offer → every call 422s → the client's fail-open `.catch` means **force-update silently never fires**. Neither phase's reviewer saw both sides. **Rule:** a client↔backend (or any producer↔consumer) contract needs a reviewer that reads **both ends together** — this is exactly the `/fabrik-execute-plan` Finish step's whole-plan `/fabrik-review` over the cumulative diff. Reconcile the seam to a single source of truth (here: the server owns semver via the vendored `mobile_config`; the client just sends `platform`+`version` and honors `update_required`), document the request+response shape in `SEAMS.md`, and prove it with a runnable test (`TestClient` for the 422 + the `1.10.0>1.9.0` numeric compare — Python, so it runs in WSL, unlike the RN client test).
 
 ---
 
