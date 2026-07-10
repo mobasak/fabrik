@@ -644,10 +644,10 @@ class TestStaticSiteScaffold:
 
 @requires_fabrik_env
 class TestMobileAppScaffold:
-    """Test mobile-app scaffold generates template-backed React Native structure."""
+    """Test mobile-app scaffold generates the Obytes/expo-router client + bundled FastAPI backend."""
 
     def test_uses_expo_scripts(self, tmp_path):
-        """Verify package.json has Expo scripts (SDK 55 rebase, 2026-06-18)."""
+        """Verify package.json has Expo SDK 57 scripts (plan-1 Phase A rebase)."""
         import json
 
         create_project(
@@ -664,14 +664,12 @@ class TestMobileAppScaffold:
         assert scripts["start"] == "expo start"
         assert scripts["android"] == "expo run:android"
         assert scripts["ios"] == "expo run:ios"
-        assert pkg["dependencies"].get("expo", "").startswith("~55"), "expected Expo SDK 55"
+        assert pkg["dependencies"].get("expo", "").startswith("~57"), "expected Expo SDK 57"
 
     def test_scaffolds_expo_config_files(self, tmp_path):
-        """The Expo foundation must be scaffolded — without app.json / babel /
-        the entry, the project does not build. Regression for the rebase bug
-        where _scaffold_mobile_app only copied package.json + src/."""
-        import json
-
+        """The Expo/expo-router foundation must ship, and the app identity must be
+        substituted off the Obytes defaults (else every scaffolded app collides on
+        `com.obytes` / `ObytesApp`)."""
         create_project(
             name="test-mobile",
             project_type="mobile-app",
@@ -681,23 +679,26 @@ class TestMobileAppScaffold:
 
         project_dir = tmp_path / "test-mobile"
         for f in (
-            "app.json",
+            "app.config.ts",
             "eas.json",
             "babel.config.js",
             "metro.config.js",
             "tsconfig.json",
-            "index.ts",
+            "env.ts",
         ):
             assert (project_dir / f).exists(), f"missing Expo config file: {f}"
 
-        app = json.loads((project_dir / "app.json").read_text())
-        assert app["expo"]["slug"] == "test-mobile", "app.json slug not set to project name"
+        # Identity substituted (slug "test-mobile" -> "testmobile").
+        assert "slug: 'testmobile'" in (project_dir / "app.config.ts").read_text(), "app slug not substituted"
+        env_ts = (project_dir / "env.ts").read_text()
+        assert "com.testmobile" in env_ts, "bundle id not substituted"
+        assert "com.obytes" not in env_ts, "Obytes bundle id leaked into the scaffold"
 
         env = (project_dir / ".env.example").read_text()
         assert "EXPO_PUBLIC_" in env, ".env.example missing EXPO_PUBLIC_* vars"
 
     def test_has_full_react_native_deps(self, tmp_path):
-        """Verify package.json has real React Native deps from template."""
+        """Verify package.json has the expo-router client deps (no @react-navigation)."""
         import json
 
         create_project(
@@ -708,15 +709,17 @@ class TestMobileAppScaffold:
         )
 
         project_dir = tmp_path / "test-mobile"
-        pkg = json.loads((project_dir / "package.json").read_text())
+        deps = json.loads((project_dir / "package.json").read_text()).get("dependencies", {})
 
-        # Must have full deps from template, not bare inline
-        assert "react-native" in pkg.get("dependencies", {}), "Missing react-native dep"
-        assert "react" in pkg.get("dependencies", {}), "Missing react dep"
-        assert "@react-navigation/native" in pkg.get("dependencies", {}), "Missing navigation dep"
+        assert "react-native" in deps, "Missing react-native dep"
+        assert "react" in deps, "Missing react dep"
+        assert "expo-router" in deps, "Missing expo-router (the routing entry)"
+        assert not any(k.startswith("@react-navigation") for k in deps), (
+            "expo-router template must not carry @react-navigation"
+        )
 
-    def test_creates_navigation_tree(self, tmp_path):
-        """Verify src/navigation/ tree is copied from template."""
+    def test_creates_router_tree(self, tmp_path):
+        """Verify the expo-router src/app/ tree is copied (replaces the old navigation/ tree)."""
         create_project(
             name="test-mobile",
             project_type="mobile-app",
@@ -725,16 +728,11 @@ class TestMobileAppScaffold:
         )
 
         project_dir = tmp_path / "test-mobile"
-        nav = project_dir / "src" / "navigation" / "AppNavigator.tsx"
-        assert nav.exists(), "src/navigation/AppNavigator.tsx not created"
-        content = nav.read_text()
-        assert "NavigationContainer" in content, "AppNavigator missing NavigationContainer"
-
-        types_file = project_dir / "src" / "navigation" / "types.ts"
-        assert types_file.exists(), "src/navigation/types.ts not created"
+        assert (project_dir / "src" / "app" / "_layout.tsx").exists(), "src/app/_layout.tsx not created"
+        assert (project_dir / "src" / "app" / "(app)" / "_layout.tsx").exists(), "src/app/(app)/_layout.tsx not created"
 
     def test_creates_features_tree(self, tmp_path):
-        """Verify src/features/ tree is copied from template."""
+        """Verify src/features/ tree is copied from the Obytes template."""
         create_project(
             name="test-mobile",
             project_type="mobile-app",
@@ -743,11 +741,11 @@ class TestMobileAppScaffold:
         )
 
         project_dir = tmp_path / "test-mobile"
-        assert (project_dir / "src" / "features" / "files" / "types.ts").exists()
-        assert (project_dir / "src" / "features" / "files" / "services" / "fileService.ts").exists()
+        assert (project_dir / "src" / "features" / "auth").is_dir(), "src/features/auth missing"
+        assert (project_dir / "src" / "features" / "settings").is_dir(), "src/features/settings missing"
 
-    def test_creates_entry_file(self, tmp_path):
-        """Verify src/App.tsx exists with SafeAreaProvider (template content)."""
+    def test_ships_client_seams(self, tmp_path):
+        """The Phase-A seams ship + JWTs use expo-secure-store, never MMKV."""
         create_project(
             name="test-mobile",
             project_type="mobile-app",
@@ -756,13 +754,15 @@ class TestMobileAppScaffold:
         )
 
         project_dir = tmp_path / "test-mobile"
-        app_tsx = project_dir / "src" / "App.tsx"
-        assert app_tsx.exists(), "src/App.tsx not created"
-        content = app_tsx.read_text()
-        assert "SafeAreaProvider" in content, "App.tsx missing SafeAreaProvider from template"
+        for seam in ("consent", "offline", "update", "auth"):
+            assert (project_dir / "src" / "lib" / seam).exists(), f"missing seam lib/{seam}"
+        auth_utils = (project_dir / "src" / "lib" / "auth" / "utils.tsx").read_text()
+        assert "expo-secure-store" in auth_utils, "auth token must use expo-secure-store"
+        assert "@/lib/storage" not in auth_utils, "JWT must not fall back to MMKV storage"
 
-    def test_no_dockerfile(self, tmp_path):
-        """Verify mobile-app does not generate Docker files (non-container)."""
+    def test_emits_backend_dockerfile(self, tmp_path):
+        """mobile-app now ships a FastAPI backend that DEPLOYS — Dockerfile + compose +
+        server/ (reverses the old ``test_no_dockerfile``: plan-1 Phase C bundled backend)."""
         create_project(
             name="test-mobile",
             project_type="mobile-app",
@@ -771,7 +771,21 @@ class TestMobileAppScaffold:
         )
 
         project_dir = tmp_path / "test-mobile"
-        assert not (project_dir / "Dockerfile").exists()
+        dockerfile = project_dir / "Dockerfile"
+        assert dockerfile.exists(), "mobile-app must emit a backend Dockerfile"
+        df = dockerfile.read_text()
+        assert "python:" in df, "Dockerfile is not a Python/FastAPI image"
+        assert "8000" in df, "backend must expose port 8000"
+        assert "app.main:app" in df, "uvicorn entrypoint must be app.main:app"
+
+        assert (project_dir / "compose.yaml").exists(), "missing compose.yaml"
+        assert (project_dir / "server" / "src" / "app" / "main.py").exists(), "backend code not shipped"
+        assert (project_dir / "server" / "src" / "mobile_config" / "__init__.py").exists(), "vendored mobile_config not shipped"
+        assert (project_dir / "requirements.txt").exists(), "backend requirements.txt not shipped"
+
+        # .dockerignore excludes the RN client (root-anchored) so the image ships server/ only.
+        dockerignore = (project_dir / ".dockerignore").read_text()
+        assert "/src/" in dockerignore, ".dockerignore must root-anchor-exclude the RN client src/"
 
 
 @requires_fabrik_env

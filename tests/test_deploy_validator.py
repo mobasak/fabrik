@@ -92,7 +92,9 @@ class TestCheckDockerfile:
         assert result.passed is True
 
     def test_skipped_for_mobile_app(self, tmp_path: Path):
-        """mobile-app distributes via app stores, no container image."""
+        """mobile-app stays in _NO_DOCKERFILE_TYPES (mixed layout: RN client at root +
+        backend under server/) — the standard root-Dockerfile requirement is skipped even
+        though the scaffolder DOES emit a root Dockerfile that builds only server/."""
         result = _check_dockerfile(tmp_path, "mobile-app")
         assert result.passed is True
 
@@ -181,11 +183,24 @@ class TestCheckHealthEndpoint:
         assert result.passed is True
         assert "no HTTP server by design" in result.message
 
-    def test_skipped_for_mobile_app(self, tmp_path: Path):
-        """mobile-app is a native client — no HTTP server."""
+    def test_validates_mobile_app_backend_health(self, tmp_path: Path):
+        """mobile-app now ships a FastAPI backend — its /health under server/src IS validated
+        (plan-1 Phase C: mobile-app removed from _NO_HTTP_HEALTH_TYPES)."""
+        routes = tmp_path / "server" / "src" / "app" / "routes"
+        routes.mkdir(parents=True)
+        (routes / "health.py").write_text(
+            '@router.get("/health")\nasync def health():\n    return {"status": "ok"}\n'
+        )
         result = _check_health_endpoint(tmp_path, "mobile-app")
         assert result.passed is True
-        assert "no HTTP server by design" in result.message
+        assert "Health endpoint detected" in result.message
+
+    def test_mobile_app_missing_backend_health_fails(self, tmp_path: Path):
+        """No /health in the backend → validation FAILS — proving mobile-app is no
+        longer exempt from the health check (it scans server/src, not the RN client src/)."""
+        (tmp_path / "server" / "src").mkdir(parents=True)
+        result = _check_health_endpoint(tmp_path, "mobile-app")
+        assert result.passed is False
 
     def test_skipped_for_desktop_app(self, tmp_path: Path):
         """desktop-app is an electron/native client — no HTTP server by default."""

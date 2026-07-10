@@ -4189,48 +4189,84 @@ SERVICE_NAME={name}
 
 
 def _scaffold_mobile_app(project_dir: Path, name: str, description: str, **kwargs: object) -> None:
-    """Create the Expo (React Native) mobile app from templates/mobile-app/.
+    """Create the Expo (React Native) client + bundled FastAPI backend from
+    templates/mobile-app/.
 
-    Copies the Expo SDK 55 foundation — package.json, app.json, eas.json,
-    babel/metro/tsconfig, the ``index.ts`` entry, and the full ``src/`` tree —
-    so the scaffold output is a buildable Expo project. The template's
-    ``compose.yaml.j2``/``Dockerfile.j2`` are NOT copied: mobile-app is a
-    packaged client artifact with no VPS container (see ``test_no_dockerfile``).
+    Ships the full RN client (``src/``, Expo/babel/metro/tsconfig, ``.github``
+    CI, ``.maestro`` E2E, jest, ``openapi.json`` + generated hey-api client) AND
+    a minimal Pattern-A FastAPI backend (``server/``) that DOES deploy to the VPS
+    via ``fabrik apply`` — mirroring ``_scaffold_chrome_extension``: the inline
+    Dockerfile builds only the backend (the RN client is excluded from the image
+    via a root-anchored ``.dockerignore``) and ``_write_canonical_compose``
+    emits the Coolify-correct compose. The app identity (name/slug/bundle id/
+    package/scheme) is substituted off the Obytes defaults so scaffolded apps
+    don't collide on ``com.obytes`` / ``ObytesApp``.
     """
     import json
+    import re
 
-    # package.json — name + description substitution.
+    slug = re.sub(r"[^a-z0-9]", "", name.lower()) or "app"
+
+    # 1. Wholesale copy of the template tree, minus scaffolder-only config,
+    #    build cruft, and the files substituted / generated below. A wholesale
+    #    copy (vs the old enumerated list) ensures server/, requirements*,
+    #    openapi.json, .github CI, .maestro, jest config, eslint config, etc. all
+    #    ship — the enumeration silently dropped most of them.
+    _skip = {
+        "node_modules",
+        "__pycache__",
+        ".git",
+        "defaults.yaml",  # scaffolder shape config — read by the scaffolder, not shipped
+        ".gitignore",  # generated below
+        "package.json",  # name/description-substituted below
+        "AGENTS.md.j2",  # rendered below
+        "env.ts",  # identity-substituted below
+        "app.config.ts",  # identity-substituted below
+    }
+    for entry in sorted(MOBILE_APP_TEMPLATE_DIR.iterdir()):
+        if entry.name in _skip:
+            continue
+        dest = project_dir / entry.name
+        if entry.is_dir():
+            shutil.copytree(
+                entry,
+                dest,
+                dirs_exist_ok=True,
+                ignore=shutil.ignore_patterns("node_modules", "__pycache__", "*.pyc"),
+            )
+        else:
+            shutil.copy2(entry, dest)
+
+    # 2. package.json — name + description substitution.
     pkg = json.loads((MOBILE_APP_TEMPLATE_DIR / "package.json").read_text())
     pkg["name"] = name
     pkg["description"] = description
     (project_dir / "package.json").write_text(json.dumps(pkg, indent=2) + "\n")
 
-    # app.json — point the Expo app name/slug at the project.
-    app_src = MOBILE_APP_TEMPLATE_DIR / "app.json"
-    if app_src.exists():
-        app = json.loads(app_src.read_text())
-        if isinstance(app.get("expo"), dict):
-            app["expo"]["name"] = name
-            app["expo"]["slug"] = name
-        (project_dir / "app.json").write_text(json.dumps(app, indent=2) + "\n")
+    # 3. env.ts / app.config.ts — replace the Obytes app identity (display name,
+    #    slug, bundle id, package, scheme) with the project's, so two scaffolded
+    #    apps don't ship the same `com.obytes` bundle id / `ObytesApp` name.
+    env_text = (MOBILE_APP_TEMPLATE_DIR / "env.ts").read_text()
+    env_text = (
+        env_text.replace("com.obytes", f"com.{slug}")
+        .replace("'ObytesApp'", f"'{name}'")
+        .replace("obytesApp", slug)
+    )
+    (project_dir / "env.ts").write_text(env_text)
+    appcfg_src = MOBILE_APP_TEMPLATE_DIR / "app.config.ts"
+    if appcfg_src.exists():
+        (project_dir / "app.config.ts").write_text(
+            appcfg_src.read_text().replace("'obytesapp'", f"'{slug}'")
+        )
 
-    # Remaining Expo config + entry — copy verbatim (no substitution needed).
-    for fname in ("eas.json", "babel.config.js", "metro.config.js", "tsconfig.json", "index.ts"):
-        src = MOBILE_APP_TEMPLATE_DIR / fname
-        if src.exists():
-            shutil.copy2(src, project_dir / fname)
+    # 4. AGENTS.md — render the .j2 (simple {{ spec.name }} substitution).
+    agents_j2 = MOBILE_APP_TEMPLATE_DIR / "AGENTS.md.j2"
+    if agents_j2.exists():
+        (project_dir / "AGENTS.md").write_text(
+            agents_j2.read_text().replace("{{ spec.name }}", name)
+        )
 
-    # src/ tree (App.tsx, lib, theme, locales, navigation, features).
-    template_src = MOBILE_APP_TEMPLATE_DIR / "src"
-    if template_src.exists():
-        shutil.copytree(template_src, project_dir / "src", dirs_exist_ok=True)
-
-    # .env.example — Expo public env vars (EXPO_PUBLIC_*) from the template.
-    env_src = MOBILE_APP_TEMPLATE_DIR / ".env.example"
-    if env_src.exists():
-        shutil.copy2(env_src, project_dir / ".env.example")
-
-    # .gitignore — fabrik blocks + Expo patterns.
+    # 5. .gitignore — fabrik blocks + Expo patterns.
     (project_dir / ".gitignore").write_text(
         _COMMON_GITIGNORE_PATTERNS
         + "\n"
@@ -4247,6 +4283,68 @@ def _scaffold_mobile_app(project_dir: Path, name: str, description: str, **kwarg
         "# Metro / logs\n"
         "*.log\n"
         ".metro-health-check*\n"
+    )
+
+    # 6. Backend Dockerfile (inline, FastAPI — package ``app``), mirroring
+    #    _scaffold_chrome_extension. The RN client is excluded via .dockerignore.
+    (project_dir / "Dockerfile").write_text(
+        """FROM python:3.12-slim-bookworm AS builder
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+FROM python:3.12-slim-bookworm
+WORKDIR /app
+
+# Install curl for healthcheck
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+
+ENV PYTHONPATH=/app/server/src
+ENV PORT=8000
+
+EXPOSE ${PORT}
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \\
+  CMD curl -f http://localhost:${PORT}/health || exit 1
+
+# Copy Python packages and binaries from builder
+COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
+COPY --from=builder /usr/local/bin /usr/local/bin
+COPY requirements.txt .
+COPY server/ ./server/
+
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+"""
+    )
+
+    # 7. compose.yaml — canonical Coolify-correct helper. No CORS labels: a
+    #    native RN client makes no cross-origin browser requests (unlike the
+    #    chrome extension), so it needs no Traefik CORS middleware. 256M matches
+    #    the mobile-app _TYPE_DEFAULTS row.
+    _write_canonical_compose(
+        project_dir,
+        name,
+        port=8000,
+        healthcheck_path="/health",
+        memory="256M",
+    )
+
+    # 8. .dockerignore — the backend image ships server/ only. Exclude the RN
+    #    client with ROOT-ANCHORED patterns: an unanchored ``src/`` would also
+    #    match the backend's own ``server/src/`` and empty it in the image,
+    #    breaking ``uvicorn app.main:app``.
+    (project_dir / ".dockerignore").write_text(
+        "# Backend image ships server/ only — exclude the RN client (root-anchored).\n"
+        "/src/\n"
+        "/node_modules/\n"
+        "/.expo/\n"
+        "/ios/\n"
+        "/android/\n"
+        "/dist/\n"
+        "/web-build/\n"
+        "/.maestro/\n"
+        "/assets/\n"
+        "*.log\n"
     )
 
 

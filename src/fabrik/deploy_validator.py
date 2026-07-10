@@ -35,7 +35,6 @@ _NODE_TYPES: frozenset[str] = frozenset(
         "file-api",
         "static-site",
         "desktop-app",
-        "mobile-app",
         "docusaurus",
     }
 )
@@ -43,10 +42,13 @@ _NODE_TYPES: frozenset[str] = frozenset(
 _STATIC_TYPES: frozenset[str] = frozenset({"docusaurus", "static-site"})
 _ELECTRON_TYPES: frozenset[str] = frozenset({"desktop-app"})
 
-# Types that don't produce a container image at the project root:
+# Types whose validator does NOT require the standard root-Dockerfile check:
 #  - docusaurus / static-site → static files (Netlify / Vercel / S3)
-#  - mobile-app / desktop-app → binaries (app stores / distributable installers)
-#  - chrome-extension → browser packaging (CRX / web store)
+#  - desktop-app → binaries (distributable installers)
+#  - chrome-extension / mobile-app → mixed layout: the CLIENT lives at the repo
+#    root and the deployable FastAPI backend under ``server/``, so the scaffolder
+#    DOES emit a root Dockerfile (building only ``server/``) but the standard
+#    "src/-app needs a root Dockerfile" requirement is skipped for this shape.
 #  - wordpress → uses compose.yaml(.j2) with multi-stage php-fpm/ + nginx/ Dockerfiles,
 #    never a root-level Dockerfile
 _NO_DOCKERFILE_TYPES: frozenset[str] = frozenset(
@@ -75,14 +77,14 @@ _NO_SRC_LAYOUT_TYPES: frozenset[str] = frozenset(
 
 # Types that legitimately do NOT serve an HTTP /health endpoint:
 #  - file-worker → background worker (processes tasks, uses worker/ dir, no HTTP server)
-#  - mobile-app → native mobile app, no server
 #  - desktop-app → electron/native desktop app, no HTTP server by default
 # For these, operators monitor liveness via the process manager (Coolify container
 # restart policy / watchdog scripts) rather than an HTTP route.
+# NOTE: mobile-app is NOT here (plan-1 Phase C) — its bundled FastAPI backend serves
+# /health under server/src/, which the health check validates (see _check_health_endpoint).
 _NO_HTTP_HEALTH_TYPES: frozenset[str] = frozenset(
     {
         "file-worker",
-        "mobile-app",
         "desktop-app",
     }
 )
@@ -186,7 +188,14 @@ def _check_health_endpoint(project_path: Path, project_type: str) -> ValidationR
             ),
         )
 
-    src_dir = project_path / "electron" if project_type in _ELECTRON_TYPES else project_path / "src"
+    if project_type in _ELECTRON_TYPES:
+        src_dir = project_path / "electron"
+    elif project_type == "mobile-app":
+        # The root src/ is the RN client; the deployable FastAPI backend (and
+        # its /health route) lives under server/src/ — scan there, not src/.
+        src_dir = project_path / "server" / "src"
+    else:
+        src_dir = project_path / "src"
 
     if not src_dir.exists():
         return ValidationResult(

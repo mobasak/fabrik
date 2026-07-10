@@ -157,9 +157,10 @@ class TestScaffoldSpecHookNewTypes:
       Chrome Web Store, but the scaffolder also emits a real FastAPI
       backend (``server/``) with ``compose.yaml`` + Traefik labels.
       The spec drives the **backend**, not the CRX.
-    * **Artifact-only types** (mobile-app, desktop-app) MUST NOT trigger
-      spec generation. Their scaffolders do not emit a ``compose.yaml``
-      — they have no companion backend yet. Pre-fix (B3) the scaffolder
+    * **Artifact-only ``desktop-app``** MUST NOT trigger spec generation —
+      its scaffolder emits no ``compose.yaml`` (no companion backend).
+      ``mobile-app`` was promoted in plan-1 Phase C (it now ships a real
+      FastAPI backend). Pre-fix (B3) the scaffolder
       emitted ``specs/services/<name>.yaml`` for them with public
       domains — ``fabrik apply`` would have created phantom Cloudflare
       DNS + Coolify resources for non-existent services.
@@ -194,10 +195,10 @@ class TestScaffoldSpecHookNewTypes:
     @patch("fabrik.scaffold.generate_and_save_spec")
     @patch("fabrik.scaffold._post_scaffold_sync")
     @patch("fabrik.scaffold._scaffold_shared")
-    def test_spec_not_generated_for_mobile_app(
+    def test_spec_generated_for_mobile_app(
         self, mock_shared: MagicMock, mock_sync: MagicMock, mock_gen: MagicMock, tmp_path: Path
     ) -> None:
-        """B3 regression: mobile-app must NOT emit a deployment spec."""
+        """plan-1 Phase C: mobile-app now emits a deployment spec (bundled FastAPI backend)."""
         from fabrik.scaffold import create_project
 
         def fake_shared(pd: Path, *_args: object, **_kw: object) -> None:
@@ -215,7 +216,7 @@ class TestScaffoldSpecHookNewTypes:
             )
 
         assert result == tmp_path / "test-mobile"
-        mock_gen.assert_not_called()
+        mock_gen.assert_called_once()
 
     @patch("fabrik.scaffold.generate_and_save_spec")
     @patch("fabrik.scaffold._post_scaffold_sync")

@@ -68,6 +68,7 @@ SPEC_ENABLED_TYPES: frozenset[str] = frozenset(
         "static-site",
         "docusaurus",
         "chrome-extension",
+        "mobile-app",  # ships a bundled FastAPI backend (port 8000, /health) like chrome-extension
     }
 )
 
@@ -81,9 +82,9 @@ SECRET_PATTERNS: tuple[str, ...] = (
 )
 
 # Resource & health defaults per VPS-deployable project type. Keys MUST match
-# ``SPEC_ENABLED_TYPES``; artifact-only types (desktop-app, mobile-app) have
-# no entry here because they don't deploy. ``chrome-extension`` IS here
-# because its FastAPI backend (port 8000, ``/health``) is deployable.
+# ``SPEC_ENABLED_TYPES``; the artifact-only ``desktop-app`` has no entry because
+# it doesn't deploy. ``chrome-extension`` and ``mobile-app`` ARE here because
+# each bundles a FastAPI backend (port 8000, ``/health``) that is deployable.
 _TYPE_DEFAULTS: dict[str, dict] = {
     "python-api": {"memory": "512M", "cpu": "0.5", "health_path": "/health"},
     "python-api-gpu": {"memory": "512M", "cpu": "0.5", "health_path": "/health"},
@@ -94,6 +95,7 @@ _TYPE_DEFAULTS: dict[str, dict] = {
     "file-worker": {"memory": "256M", "cpu": "0.5", "health_path": None},
     "docusaurus": {"memory": "256M", "cpu": "0.5", "health_path": "/docs/intro"},
     "chrome-extension": {"memory": "256M", "cpu": "0.5", "health_path": "/health"},
+    "mobile-app": {"memory": "256M", "cpu": "0.5", "health_path": "/health"},
 }
 
 # ---------------------------------------------------------------------------

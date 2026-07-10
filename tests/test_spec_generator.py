@@ -27,15 +27,16 @@ class TestConstants:
     """Verify module-level constants are correctly defined."""
 
     def test_spec_enabled_types_has_nine_entries(self):
-        # 9 deployable types: python-api, python-api-gpu, node-api,
+        # 10 deployable types: python-api, python-api-gpu, node-api,
         # saas-skeleton, file-api, file-worker, static-site, docusaurus,
-        # chrome-extension. The CRX is client-side but its companion FastAPI
-        # backend (``server/``) IS a real VPS service; python-api-gpu is
-        # python-api + a GPU rental helper (same deploy shape) — see the
-        # ``SPEC_ENABLED_TYPES`` docstring.
-        # Still excluded: desktop-app, mobile-app (no companion backend),
-        # wordpress (scaffolding moved to /opt/wpf).
-        assert len(SPEC_ENABLED_TYPES) == 9
+        # chrome-extension, mobile-app. chrome-extension + mobile-app are client
+        # artifacts (CRX / RN build) whose companion FastAPI backend
+        # (``server/``) IS a real VPS service; python-api-gpu is python-api + a
+        # GPU rental helper (same deploy shape) — see the ``SPEC_ENABLED_TYPES``
+        # docstring.
+        # Still excluded: desktop-app (Electron artifact, no backend), wordpress
+        # (scaffolding moved to /opt/wpf).
+        assert len(SPEC_ENABLED_TYPES) == 10
 
     def test_file_worker_in_enabled_types(self):
         assert "file-worker" in SPEC_ENABLED_TYPES
@@ -54,26 +55,23 @@ class TestConstants:
     def test_wordpress_excluded_from_enabled_types(self):
         assert "wordpress" not in SPEC_ENABLED_TYPES
 
-    def test_desktop_mobile_excluded_from_enabled_types(self):
-        """B3 regression (narrowed): desktop-app/mobile-app must NOT
-        emit a deployable spec.
+    def test_mobile_app_in_enabled_types(self):
+        """plan-1 Phase C: mobile-app's scaffolder now emits a real FastAPI
+        backend (``server/``) + a canonical ``compose.yaml``, so it IS a
+        deployable spec type (like chrome-extension). Pure-client users opt out
+        with ``--no-spec``."""
+        assert "mobile-app" in SPEC_ENABLED_TYPES
 
-        Why: the scaffolder does not currently emit a ``compose.yaml``
-        for these — they have no companion backend, only an Electron /
-        React Native build artifact. Adding them to ``SPEC_ENABLED_TYPES``
-        would make ``fabrik apply`` create a phantom Cloudflare DNS
-        record + Coolify app pointing at a service that doesn't exist.
-
-        chrome-extension was removed from this assertion in G9 because
-        its scaffolder DOES emit a real backend ``compose.yaml``.
-        Tracked under Phase C (G11): finish the desktop/mobile backend
-        scaffolders so they can be promoted to deployable too.
-        """
-        for artifact_type in ("desktop-app", "mobile-app"):
-            assert artifact_type not in SPEC_ENABLED_TYPES, (
-                f"{artifact_type!r} has no companion backend yet "
-                f"and must not be in SPEC_ENABLED_TYPES until Phase C"
-            )
+    def test_desktop_excluded_from_enabled_types(self):
+        """B3 regression: desktop-app must NOT emit a deployable spec — it has no
+        companion backend, only an Electron build artifact. Adding it to
+        ``SPEC_ENABLED_TYPES`` would make ``fabrik apply`` create a phantom
+        Cloudflare DNS record + Coolify app pointing at a nonexistent service.
+        (chrome-extension left in G9, mobile-app in plan-1 Phase C — both now
+        emit a real backend compose.yaml.)"""
+        assert "desktop-app" not in SPEC_ENABLED_TYPES, (
+            "desktop-app has no companion backend and must not be in SPEC_ENABLED_TYPES"
+        )
 
     def test_secret_patterns_are_uppercase(self):
         for pattern in SECRET_PATTERNS:
@@ -97,16 +95,16 @@ class TestNewTypeDefaults:
         """G9: chrome-extension defaults to /health (FastAPI backend convention)."""
         assert _TYPE_DEFAULTS["chrome-extension"]["health_path"] == "/health"
 
-    def test_desktop_mobile_have_no_type_defaults(self):
-        """B3 regression (narrowed): desktop-app/mobile-app must not
-        appear in ``_TYPE_DEFAULTS`` — the resource/health defaults are
-        meaningless for types with no compose.yaml.
+    def test_mobile_app_health_path(self):
+        """plan-1 Phase C: mobile-app defaults to /health + 256M (FastAPI backend, like chrome)."""
+        assert _TYPE_DEFAULTS["mobile-app"]["health_path"] == "/health"
+        assert _TYPE_DEFAULTS["mobile-app"]["memory"] == "256M"
 
-        chrome-extension was removed from this assertion in G9 because
-        it now deploys its FastAPI backend.
-        """
-        for artifact_type in ("desktop-app", "mobile-app"):
-            assert artifact_type not in _TYPE_DEFAULTS
+    def test_desktop_has_no_type_defaults(self):
+        """B3 regression: desktop-app must not appear in ``_TYPE_DEFAULTS`` — the
+        resource/health defaults are meaningless for a type with no compose.yaml.
+        (chrome-extension removed in G9, mobile-app in plan-1 Phase C — both deploy.)"""
+        assert "desktop-app" not in _TYPE_DEFAULTS
 
 
 # ---------------------------------------------------------------------------
@@ -439,23 +437,23 @@ class TestGenerateSpec:
         spec = generate_spec("my-docs", "docusaurus", "my-docs.vps1.ocoron.com")
         assert spec.health.path == "/docs/intro"
 
-    def test_artifact_types_raise_value_error(self):
-        """B3 regression (narrowed): passing desktop-app or mobile-app
-        to generate_spec must raise ``ValueError``, not silently emit
-        a phantom spec.
-
-        chrome-extension was removed from this assertion in G9 because
-        its FastAPI backend is now deployable. See
-        ``test_chrome_extension_emits_valid_spec`` for the positive
-        contract.
+    def test_desktop_app_raises_value_error(self):
+        """B3 regression: passing desktop-app to generate_spec must raise ``ValueError``,
+        not silently emit a phantom spec (no companion backend). chrome-extension (G9)
+        and mobile-app (plan-1 Phase C) both deploy — see their positive-contract tests.
         """
-        for artifact_type in ("desktop-app", "mobile-app"):
-            with pytest.raises(ValueError, match="Unsupported project type"):
-                generate_spec(
-                    f"my-{artifact_type}",
-                    artifact_type,
-                    f"my-{artifact_type}.vps1.ocoron.com",
-                )
+        with pytest.raises(ValueError, match="Unsupported project type"):
+            generate_spec(
+                "my-desktop",
+                "desktop-app",
+                "my-desktop.vps1.ocoron.com",
+            )
+
+    def test_mobile_app_emits_valid_spec(self):
+        """plan-1 Phase C: mobile-app now generates a deployable backend spec
+        (its FastAPI server at port 8000, /health)."""
+        spec = generate_spec("my-mobile", "mobile-app", "my-mobile.vps1.ocoron.com")
+        assert spec.health.path == "/health"
 
     def test_chrome_extension_emits_valid_spec(self):
         """G9: chrome-extension's FastAPI backend produces a valid Spec.
