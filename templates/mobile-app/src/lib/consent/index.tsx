@@ -53,14 +53,17 @@ function ConsentBoundary({ children }: PropsWithChildren) {
 
   const optIn = React.useCallback(() => {
     consentSnapshot = true;
-    void setItem(CONSENT_STORAGE_KEY, true);
+    // Best-effort persistence: the in-memory snapshot is the session's source
+    // of truth; if the write fails, next launch safely re-defaults to
+    // no-consent (privacy-preserving). Catch so it never rejects unhandled.
+    setItem(CONSENT_STORAGE_KEY, true).catch((e) => console.error(e));
     setHasConsent(true);
     posthog?.optIn();
   }, [posthog]);
 
   const optOut = React.useCallback(() => {
     consentSnapshot = false;
-    void setItem(CONSENT_STORAGE_KEY, false);
+    setItem(CONSENT_STORAGE_KEY, false).catch((e) => console.error(e));
     setHasConsent(false);
     posthog?.optOut();
   }, [posthog]);

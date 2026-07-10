@@ -71,13 +71,32 @@ export function useForceUpdateCheck(
   installedVersion: string = getInstalledVersion(),
 ): UpdateCheckState & { check: () => void } {
   const [state, setState] = React.useState<UpdateCheckState>({ status: 'checking' });
+  const controllerRef = React.useRef<AbortController | null>(null);
+  const mountedRef = React.useRef(true);
+
+  React.useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      // Abort any in-flight check when the gate unmounts.
+      controllerRef.current?.abort();
+    };
+  }, []);
 
   const check = React.useCallback(() => {
-    setState({ status: 'checking' });
+    // Cancel any in-flight check first, so a slow earlier response can't
+    // land after (and overwrite) a newer one — the retry path calls this
+    // directly, not via the effect, so it must self-cancel.
+    controllerRef.current?.abort();
     const controller = new AbortController();
+    controllerRef.current = controller;
+    setState({ status: 'checking' });
 
     fetchAppConfig(controller.signal)
       .then((config) => {
+        if (controller.signal.aborted || !mountedRef.current) {
+          return;
+        }
         if (compareVersions(installedVersion, config.min_version) < 0) {
           setState({ status: 'blocked', config });
         }
@@ -86,14 +105,17 @@ export function useForceUpdateCheck(
         }
       })
       .catch(() => {
+        if (controller.signal.aborted || !mountedRef.current) {
+          return;
+        }
         // Fail open: never let an app-config outage block entry.
         setState({ status: 'ok' });
       });
-
-    return () => controller.abort();
   }, [installedVersion]);
 
-  React.useEffect(() => check(), [check]);
+  React.useEffect(() => {
+    check();
+  }, [check]);
 
   return { ...state, check };
 }

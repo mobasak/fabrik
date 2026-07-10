@@ -22,7 +22,15 @@ const _useAuthStore = create<AuthState>((set, get) => ({
     set({ status: 'signIn', token });
   },
   signOut: async () => {
-    await removeToken();
+    try {
+      await removeToken();
+    }
+    catch (e) {
+      // Deleting the token can fail (Keychain/Keystore error); log it but
+      // still clear local state so the user is always signed out and the
+      // promise never rejects (callers wire it straight to onPress).
+      console.error(e);
+    }
     set({ status: 'signOut', token: null });
   },
   hydrate: async () => {
@@ -36,10 +44,11 @@ const _useAuthStore = create<AuthState>((set, get) => ({
       }
     }
     catch (e) {
-      // only to remove eslint error, handle the error properly
       console.error(e);
-      // catch error here
-      // Maybe sign_out user!
+      // Fail CLOSED: any token-read failure signs the user out rather than
+      // leaving `status` stuck at 'idle' — which the route guard would
+      // otherwise treat as authenticated (fail-open regression).
+      await get().signOut();
     }
   },
 }));

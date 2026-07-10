@@ -17,6 +17,12 @@ export default function TabLayout() {
   if (isFirstTime) {
     return <Redirect href="/onboarding" />;
   }
+  // Auth is not yet hydrated (async secure-store read in flight). Render
+  // nothing rather than the protected tabs — the root splash stays up until
+  // status leaves 'idle', at which point this re-renders with the real state.
+  if (status === 'idle') {
+    return null;
+  }
   if (status === 'signOut') {
     return <Redirect href="/login" />;
   }

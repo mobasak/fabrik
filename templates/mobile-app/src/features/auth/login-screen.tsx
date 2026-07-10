@@ -10,10 +10,20 @@ export function LoginScreen() {
   const router = useRouter();
   const signIn = useAuthStore.use.signIn();
 
-  const onSubmit: LoginFormProps['onSubmit'] = (data) => {
+  const onSubmit: LoginFormProps['onSubmit'] = async (data) => {
     console.log(data);
-    signIn({ access: 'access-token', refresh: 'refresh-token' });
-    router.push('/');
+    try {
+      // Await the async secure-store write so `status` is 'signIn' BEFORE we
+      // navigate — otherwise the (app) guard sees the stale 'signOut' and
+      // bounces straight back to /login.
+      await signIn({ access: 'access-token', refresh: 'refresh-token' });
+      router.push('/');
+    }
+    catch (e) {
+      // Keychain/Keystore write failed — surface it rather than leaving an
+      // unhandled rejection; the user stays on the login screen.
+      console.error('Sign-in failed', e);
+    }
   };
 
   return (

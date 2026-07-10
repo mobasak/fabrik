@@ -18,7 +18,21 @@ export type TokenType = {
 
 export async function getToken(): Promise<TokenType | null> {
   const raw = await SecureStore.getItemAsync(TOKEN);
-  return raw ? (JSON.parse(raw) as TokenType) : null;
+  if (!raw) {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(raw) as Partial<TokenType>;
+    // Guard the shape: a corrupt/partial stored value must read as "no
+    // token" (signed out), never as a valid token with undefined fields.
+    if (typeof parsed?.access === 'string' && typeof parsed?.refresh === 'string') {
+      return parsed as TokenType;
+    }
+    return null;
+  }
+  catch {
+    return null;
+  }
 }
 
 export async function setToken(value: TokenType): Promise<void> {

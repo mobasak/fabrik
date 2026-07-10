@@ -10,7 +10,7 @@ import FlashMessage from 'react-native-flash-message';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { useThemeConfig } from '@/components/ui/use-theme-config';
-import { hydrateAuth } from '@/features/auth/use-auth-store';
+import { hydrateAuth, useAuthStore } from '@/features/auth/use-auth-store';
 
 import { APIProvider } from '@/lib/api';
 import { loadSelectedTheme } from '@/lib/hooks/use-selected-theme';
@@ -35,15 +35,28 @@ SplashScreen.setOptions({
 });
 
 export default function RootLayout() {
-  const hasHiddenSplash = React.useRef(false);
+  const status = useAuthStore.use.status();
+  const [laidOut, setLaidOut] = React.useState(false);
 
   const onLayoutRootView = React.useCallback(() => {
-    if (hasHiddenSplash.current) {
-      return;
-    }
+    setLaidOut(true);
+  }, []);
 
-    hasHiddenSplash.current = true;
-    SplashScreen.hide();
+  React.useEffect(() => {
+    // Hide the splash only once the view is laid out AND auth state is
+    // hydrated (status has left 'idle'). Since token I/O is now async
+    // (expo-secure-store), hiding on first layout alone would flash the
+    // protected tabs or the login screen before we know who the user is.
+    if (laidOut && status !== 'idle') {
+      SplashScreen.hide();
+    }
+  }, [laidOut, status]);
+
+  React.useEffect(() => {
+    // Safety net: never let a stuck Keychain/Keystore read keep the splash
+    // up forever — hide it after a bounded wait regardless.
+    const timer = setTimeout(() => SplashScreen.hide(), 3000);
+    return () => clearTimeout(timer);
   }, []);
 
   return (
