@@ -13,9 +13,9 @@
  */
 import type { PropsWithChildren } from 'react';
 import NetInfo from '@react-native-community/netinfo';
+import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister';
 import { onlineManager } from '@tanstack/react-query';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
-import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister';
 
 import { queryClient } from '@/lib/api/provider';
 import { storage } from '@/lib/storage';

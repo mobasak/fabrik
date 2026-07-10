@@ -9,5 +9,5 @@ import { client } from './generated/client.gen';
 // on-device. Set once at module load so every generated call/hook is configured.
 client.setConfig({ baseUrl: process.env.EXPO_PUBLIC_API_URL });
 
-export { client } from './generated/client.gen';
 export * from './generated';
+export { client } from './generated/client.gen';

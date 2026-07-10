@@ -14,8 +14,8 @@
  * `useConsent()` still work, but no analytics client is initialized.
  */
 import type { PropsWithChildren } from 'react';
-import * as React from 'react';
 import { PostHogProvider, usePostHog } from 'posthog-react-native';
+import * as React from 'react';
 
 import { getItem, setItem } from '@/lib/storage';
 
@@ -52,18 +52,20 @@ function ConsentBoundary({ children }: PropsWithChildren) {
   const [hasConsent, setHasConsent] = React.useState(consentSnapshot);
 
   const optIn = React.useCallback(() => {
+    // eslint-disable-next-line react-compiler/react-compiler -- module snapshot for the non-React hasAnalyticsConsent()
     consentSnapshot = true;
     // Best-effort persistence: the in-memory snapshot is the session's source
     // of truth; if the write fails, next launch safely re-defaults to
     // no-consent (privacy-preserving). Catch so it never rejects unhandled.
-    setItem(CONSENT_STORAGE_KEY, true).catch((e) => console.error(e));
+    setItem(CONSENT_STORAGE_KEY, true).catch(e => console.error(e));
     setHasConsent(true);
     posthog?.optIn();
   }, [posthog]);
 
   const optOut = React.useCallback(() => {
+    // eslint-disable-next-line react-compiler/react-compiler -- module snapshot for the non-React hasAnalyticsConsent()
     consentSnapshot = false;
-    setItem(CONSENT_STORAGE_KEY, false).catch((e) => console.error(e));
+    setItem(CONSENT_STORAGE_KEY, false).catch(e => console.error(e));
     setHasConsent(false);
     posthog?.optOut();
   }, [posthog]);
@@ -74,7 +76,7 @@ function ConsentBoundary({ children }: PropsWithChildren) {
   );
 
   return (
-    <ConsentContext.Provider value={value}>{children}</ConsentContext.Provider>
+    <ConsentContext value={value}>{children}</ConsentContext>
   );
 }
 
@@ -83,7 +85,7 @@ function ConsentBoundary({ children }: PropsWithChildren) {
  * within `<ConsentProvider>`.
  */
 export function useConsent(): ConsentContextValue {
-  const ctx = React.useContext(ConsentContext);
+  const ctx = React.use(ConsentContext);
   if (!ctx) {
     throw new Error('useConsent must be used within a ConsentProvider');
   }

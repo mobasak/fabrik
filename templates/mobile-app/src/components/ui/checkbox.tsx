@@ -155,7 +155,7 @@ export function RadioIcon({ checked = false }: IconProps) {
         width: SIZE,
         borderColor: color,
       }}
-      className="items-center justify-center rounded-[20px] border-2 bg-transparent"
+      className="items-center justify-center rounded-pill border-2 bg-transparent"
       from={{ borderColor: '#CCCFD6' }}
       animate={{
         borderColor: color,

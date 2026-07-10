@@ -1,3 +1,4 @@
+import { usePostHog } from 'posthog-react-native';
 /**
  * Analytics seam (Phase A). A single consent-gated event-capture hook built
  * on top of the PostHog client wired in `@/lib/consent`. No event is ever
@@ -6,7 +7,6 @@
  * immediately.
  */
 import * as React from 'react';
-import { usePostHog } from 'posthog-react-native';
 
 import { hasAnalyticsConsent } from '@/lib/consent';
 

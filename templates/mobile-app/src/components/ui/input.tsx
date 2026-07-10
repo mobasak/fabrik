@@ -99,7 +99,7 @@ export function Input({ ref, ...props }: NInputProps & { ref?: React.Ref<NTextIn
       {error && (
         <Text
           testID={testID ? `${testID}-error` : undefined}
-          className="text-sm text-danger-400 dark:text-danger-600"
+          className="text-danger-400 dark:text-danger-600 text-sm"
         >
           {error}
         </Text>

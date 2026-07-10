@@ -1,3 +1,4 @@
+import Constants from 'expo-constants';
 /**
  * Force-update seam (Phase A / A5d).
  *
@@ -12,7 +13,6 @@
  * app-config endpoint should not be able to brick the app.
  */
 import * as React from 'react';
-import Constants from 'expo-constants';
 import { Linking, Platform } from 'react-native';
 
 import { Button, Text, View } from '@/components/ui';
@@ -34,10 +34,10 @@ export type AppConfig = {
   store_urls: { android: string; ios: string };
 };
 
-type UpdateCheckState =
-  | { status: 'blocked'; config: AppConfig }
-  | { status: 'checking' }
-  | { status: 'ok' };
+type UpdateCheckState
+  = | { status: 'blocked'; config: AppConfig }
+    | { status: 'checking' }
+    | { status: 'ok' };
 
 function getInstalledVersion(): string {
   return Constants.expoConfig?.version ?? '0.0.0';

@@ -27,16 +27,17 @@ export function normalizePages<T>(pages?: PaginateQuery<T>[]): T[] {
 }
 
 // a function that accept a url and return params as an object
+const URL_PARAM_REGEX = /[?&]([^=#]+)=([^&#]*)/g;
+
 export function getUrlParameters(
   url: string | null,
 ): { [k: string]: string } | null {
   if (url === null) {
     return null;
   }
-  const regex = /[?&]([^=#]+)=([^&#]*)/g;
   const params = {};
   let match;
-  while ((match = regex.exec(url))) {
+  while ((match = URL_PARAM_REGEX.exec(url))) {
     if (match[1] !== null) {
       // @ts-expect-error - Dynamic key assignment
       params[match[1]] = match[2];

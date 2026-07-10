@@ -11,12 +11,12 @@
 // Storage returns undefined for an unset key → the module snapshot must
 // default to `false`. Mock BEFORE importing the module under test, since it
 // reads storage at import time to seed the snapshot.
+import { hasAnalyticsConsent } from './index';
+
 jest.mock('@/lib/storage', () => ({
   getItem: jest.fn(() => undefined),
   setItem: jest.fn(),
 }));
-
-import { hasAnalyticsConsent } from './index';
 
 describe('hasAnalyticsConsent', () => {
   it('defaults to false when no consent has been stored', () => {
