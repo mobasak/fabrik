@@ -21,8 +21,9 @@ from dataclasses import dataclass
 from typing import Any
 
 import httpx
+from libs.web_scrape import FetchError, ParseError, WebScraper, extract_nextjs_data
 
-__all__: list[str] = ["HFMetadata", "fetch_hf_metadata"]
+__all__: list[str] = ["HFMetadata", "MSMetadata", "fetch_hf_metadata", "fetch_ms_metadata"]
 
 _HF_API = "https://huggingface.co/api/models/{}"
 _HF_CONFIG = "https://huggingface.co/{}/resolve/main/config.json"
@@ -142,3 +143,125 @@ def fetch_hf_metadata(hf_id: str, *, client: httpx.Client | None = None) -> HFMe
     finally:
         if owned_client:
             client.close()
+
+
+_MS_URL_FMT = "https://modelscope.cn/models/{}"
+_MS_CTX_KEYS = frozenset({"max_tokens", "max_length", "context_length", "max_position_embeddings"})
+_MS_DESC_KEYS = frozenset({"description", "summary"})
+_MS_GATED_KEYS = frozenset({"gated", "is_gated"})
+
+
+@dataclass(frozen=True)
+class MSMetadata:
+    context_window_k: int | None
+    description: str | None
+    is_gated: bool
+    source_url: str
+
+
+def _walk_find(obj: Any, keys: frozenset[str]) -> Any | None:
+    """DFS the payload for the first key from `keys` with a truthy value."""
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            if k in keys and v:
+                return v
+            found = _walk_find(v, keys)
+            if found is not None:
+                return found
+    elif isinstance(obj, list):
+        for item in obj:
+            found = _walk_find(item, keys)
+            if found is not None:
+                return found
+    return None
+
+
+def _primary_model_block(payload: Any) -> Any:
+    """Extract the *primary* model block from a Next.js hydration payload.
+
+    ModelScope pages typically expose the model at props.pageProps.model.
+    Falls back to props.pageProps if that anchor misses (still narrower than
+    walking the whole page, which would pick up relatedModels / recommendation
+    carousels and leak their fields into the primary model's metadata).
+    """
+    if not isinstance(payload, dict):
+        return payload
+    props = payload.get("props")
+    if isinstance(props, dict):
+        page_props = props.get("pageProps")
+        if isinstance(page_props, dict):
+            model = page_props.get("model")
+            if isinstance(model, dict):
+                return model
+            return page_props
+    return payload
+
+
+def _coerce_context_k(value: Any) -> int | None:
+    """Convert a scraped context value to K-tokens. Handles ints, floats, and
+    numeric strings (SPA payloads sometimes stringify numbers)."""
+    if isinstance(value, bool):  # bool is subclass of int — reject early
+        return None
+    try:
+        n = int(value)
+    except (TypeError, ValueError):
+        return None
+    if n <= 0:
+        return None
+    k = n // 1024
+    # Sub-1024 raw values → floor to 0; treat as unknown rather than misreport 0K.
+    return k if k > 0 else None
+
+
+def fetch_ms_metadata(ms_id: str, *, scraper: WebScraper | None = None) -> MSMetadata | None:
+    """Fetch model-page metadata from modelscope.cn via web-scrape.
+
+    Fail-open: returns None on any error (fetch failure, parse failure,
+    unexpected payload shape).
+    """
+    url = _MS_URL_FMT.format(ms_id)
+    owned_scraper = scraper is None
+    if scraper is None:
+        import os
+        from pathlib import Path
+
+        scraper = WebScraper(
+            cache_dir=Path("/tmp/ms-enrich-cache"),
+            browserless_url=os.getenv("BROWSERLESS_URL"),
+            browserless_token=os.getenv("BROWSERLESS_TOKEN"),
+        )
+    try:
+        try:
+            html = scraper.fetch_rendered(url, wait_for_selector="body")
+            payload = extract_nextjs_data(html)
+        except (FetchError, ParseError, OSError) as exc:
+            print(f"[ms_enrich] WARN: MS scrape miss for {ms_id}: {exc}", file=sys.stderr)
+            return None
+        except Exception as exc:  # noqa: BLE001 — fail-open contract
+            print(f"[ms_enrich] WARN: MS scrape exception for {ms_id}: {exc}", file=sys.stderr)
+            return None
+
+        # Anchor to the primary model block to avoid leaking sibling data
+        # (relatedModels / recommendation widgets share the same __NEXT_DATA__).
+        primary = _primary_model_block(payload)
+
+        ctx_raw = _walk_find(primary, _MS_CTX_KEYS)
+        context_window_k = _coerce_context_k(ctx_raw)
+
+        desc = _walk_find(primary, _MS_DESC_KEYS)
+        description: str | None = desc if isinstance(desc, str) and desc.strip() else None
+
+        gated = _walk_find(primary, _MS_GATED_KEYS)
+
+        return MSMetadata(
+            context_window_k=context_window_k,
+            description=description,
+            is_gated=bool(gated),
+            source_url=url,
+        )
+    finally:
+        if owned_scraper:
+            try:
+                scraper.close()
+            except Exception:  # noqa: BLE001 — cleanup best-effort
+                pass

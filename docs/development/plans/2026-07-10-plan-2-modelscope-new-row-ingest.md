@@ -500,7 +500,7 @@ Commit trailer: `Agent-Phase: B`, `Agent-Context: HF Hub Tier-1 fetcher (fetch_h
 
 ---
 
-## Phase C — modelscope.cn Tier-2 SPA scraper (`fetch_ms_metadata`)
+## Phase C — modelscope.cn Tier-2 SPA scraper (`fetch_ms_metadata`) — ✅ EXECUTED 2026-07-10
 
 **Goal.** Second-tier enrichment: for models where HF misses (IIC/GUI-Owl, MedAIBase, etc.), scrape `modelscope.cn/models/<id>` via the vendored `web-scrape` module, extract `__NEXT_DATA__` payload, pull context/description/gated status. Fail-open (returns `None` on any error).
 

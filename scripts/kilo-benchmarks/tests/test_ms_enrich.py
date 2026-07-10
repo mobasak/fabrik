@@ -246,6 +246,147 @@ def test_b13_hf_pipeline_tag_vision_detected():
     assert md.has_vision is True
 
 
+# ── Phase C: fetch_ms_metadata ────────────────────────────────────────────────
+
+
+def _make_next_html(payload: dict) -> str:
+    """Build a minimal HTML fragment with __NEXT_DATA__ embedded."""
+    import json as _json
+    return (
+        '<html><body><script id="__NEXT_DATA__" type="application/json">'
+        + _json.dumps(payload)
+        + "</script></body></html>"
+    )
+
+
+class _FakeScraper:
+    def __init__(self, response_map):
+        self._map = response_map
+
+    def fetch_rendered(self, url, **kw):
+        if isinstance(self._map, Exception):
+            raise self._map
+        return self._map[url]
+
+
+def test_c1_ms_happy_path():
+    from ms_enrich import fetch_ms_metadata
+
+    html = _make_next_html(
+        {"props": {"pageProps": {"model": {"max_tokens": 32768, "description": "S1 model"}}}}
+    )
+    scraper = _FakeScraper(
+        {"https://modelscope.cn/models/Shanghai_AI_Laboratory/Intern-S1": html}
+    )
+    md = fetch_ms_metadata("Shanghai_AI_Laboratory/Intern-S1", scraper=scraper)
+    assert md is not None
+    assert md.context_window_k == 32
+    assert md.description == "S1 model"
+
+
+def test_c2_ms_no_nextdata_returns_none():
+    from ms_enrich import fetch_ms_metadata
+
+    scraper = _FakeScraper({"https://modelscope.cn/models/x/y": "<html>no next data</html>"})
+    assert fetch_ms_metadata("x/y", scraper=scraper) is None
+
+
+def test_c3_ms_fetch_error_returns_none():
+    from libs.web_scrape import FetchError
+    from ms_enrich import fetch_ms_metadata
+
+    scraper = _FakeScraper(FetchError("simulated"))
+    assert fetch_ms_metadata("x/y", scraper=scraper) is None
+
+
+def test_c4_ms_context_missing_partial_ok():
+    from ms_enrich import fetch_ms_metadata
+
+    html = _make_next_html({"props": {"pageProps": {"model": {"description": "no context"}}}})
+    scraper = _FakeScraper({"https://modelscope.cn/models/x/y": html})
+    md = fetch_ms_metadata("x/y", scraper=scraper)
+    assert md is not None
+    assert md.context_window_k is None
+    assert md.description == "no context"
+
+
+def test_c5_ms_walker_finds_nested():
+    from ms_enrich import fetch_ms_metadata
+
+    html = _make_next_html(
+        {"props": {"pageProps": {"model": {"details": {"deeply": {"max_length": 16384}}}}}}
+    )
+    scraper = _FakeScraper({"https://modelscope.cn/models/x/y": html})
+    md = fetch_ms_metadata("x/y", scraper=scraper)
+    assert md.context_window_k == 16
+
+
+def test_c6_ms_walker_ignores_related_model_gated():
+    """Phase-C review F1 regression — walker MUST be anchored to primary
+    model block, not the whole page. A relatedModels/carousel entry with
+    gated=True must NOT leak into the primary model's is_gated flag.
+    """
+    from ms_enrich import fetch_ms_metadata
+
+    html = _make_next_html(
+        {
+            "props": {
+                "pageProps": {
+                    "model": {"gated": False, "max_tokens": 32768, "description": "primary"},
+                    "relatedModels": [{"id": "other/model", "gated": True, "description": "other"}],
+                }
+            }
+        }
+    )
+    scraper = _FakeScraper({"https://modelscope.cn/models/x/y": html})
+    md = fetch_ms_metadata("x/y", scraper=scraper)
+    assert md is not None
+    assert md.is_gated is False, "primary model is not gated; relatedModels leaked in"
+    assert md.description == "primary"
+    assert md.context_window_k == 32
+
+
+def test_c7_ms_context_string_value_coerced():
+    """Phase-C review F3 regression — string numeric max_tokens (JS-authored
+    JSON often stringifies numbers) must be coerced, not silently dropped."""
+    from ms_enrich import fetch_ms_metadata
+
+    html = _make_next_html(
+        {"props": {"pageProps": {"model": {"max_tokens": "32768"}}}}
+    )
+    scraper = _FakeScraper({"https://modelscope.cn/models/x/y": html})
+    md = fetch_ms_metadata("x/y", scraper=scraper)
+    assert md is not None
+    assert md.context_window_k == 32
+
+
+def test_c8_ms_description_dict_rejected():
+    """Phase-C review F4 regression — a dict description (i18n {en, zh})
+    must NOT be stringified into a Python repr; return None instead."""
+    from ms_enrich import fetch_ms_metadata
+
+    html = _make_next_html(
+        {"props": {"pageProps": {"model": {"description": {"en": "hi", "zh": "你好"}}}}}
+    )
+    scraper = _FakeScraper({"https://modelscope.cn/models/x/y": html})
+    md = fetch_ms_metadata("x/y", scraper=scraper)
+    assert md is not None
+    assert md.description is None, "dict description must not stringify to repr"
+
+
+def test_c9_ms_subkilo_context_returns_none():
+    """Phase-C review F5 regression — value < 1024 must return None, not 0."""
+    from ms_enrich import fetch_ms_metadata
+
+    html = _make_next_html(
+        {"props": {"pageProps": {"model": {"max_tokens": 512}}}}
+    )
+    scraper = _FakeScraper({"https://modelscope.cn/models/x/y": html})
+    md = fetch_ms_metadata("x/y", scraper=scraper)
+    assert md is not None
+    assert md.context_window_k is None, "sub-1024 value must not misreport 0K"
+
+
 def test_b14_hf_vlm_nested_text_config_context():
     """Phase-B review F5 regression — LLaVA-style VLM has max_position_embeddings
     under text_config.*, not top-level. Fallback walker must find it."""
