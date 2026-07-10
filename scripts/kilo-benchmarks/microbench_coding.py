@@ -381,12 +381,12 @@ def main(argv: list[str] | None = None) -> int:
             # against the saved samples-*.jsonl instead of paying OpenRouter twice.
             # .microbench_cache/ is gitignored; sweep manually under disk pressure
             # (~2 MB × 8 units × N runs).
-            _CACHE_ROOT = SCRIPT_DIR / ".microbench_cache"
-            _CACHE_ROOT.mkdir(exist_ok=True)
+            _cache_root = SCRIPT_DIR / ".microbench_cache"
+            _cache_root.mkdir(exist_ok=True)
             _stamp = datetime.now(UTC).strftime("%Y-%m-%dT%H-%M-%S")
             _base = f"{_stamp}-pid{os.getpid()}"
             for _n in range(200):
-                _cand = _CACHE_ROOT / (_base if _n == 0 else f"{_base}-{_n}")
+                _cand = _cache_root / (_base if _n == 0 else f"{_base}-{_n}")
                 try:
                     _cand.mkdir(parents=True, exist_ok=False)
                     work_dir = _cand
@@ -396,7 +396,7 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 print(
                     "error: could not allocate a fresh cache dir under "
-                    f"{_CACHE_ROOT} after 200 attempts",
+                    f"{_cache_root} after 200 attempts",
                     file=sys.stderr,
                 )
                 return 1
