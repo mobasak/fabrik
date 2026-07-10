@@ -1,6 +1,6 @@
 # Mobile App Factory — Design Spec
 
-**Status:** CONVERGED (via `/fabrik-spec-review` 2026-07-10 — round 2: styling decision reversed to **keep Uniwind** on corrected live grounding, `80-mobile.md` fixed in lockstep; 3-pass fixed point. Round 1 also converged. The derived plan is separately converged via `/fabrik-plan-review`)
+**Status:** CONVERGED (via `/fabrik-spec-review` 2026-07-10 — round 3: fabrik-lib re-grounding after the fabrik-lib AI shipped `mobile-config`/`revenuecat-entitlements`/`payments`/`expo-push` → the `GET /app-config` "build" verdict flipped to **vendor `mobile-config`**, billing backend → vendor `revenuecat-entitlements`+`payments`; Pass-2 no-op. Round 2 kept Uniwind; round 1 converged. The derived plan is separately converged via `/fabrik-plan-review`)
 **Date:** 2026-07-09 · **Author:** fabrik AI (from the fabrik-lib AI proposal + live grounding)
 **Derived plan:** `docs/development/plans/2026-07-10-plan-1-mobile-app-factory.md` (the reserved `2026-07-09-plan-1` slot was taken by an archived plan)
 **Binding rules:** `.windsurf/rules/mobile-app/80-mobile.md` (updated `fce2f3c9`), `81-mobile-billing.md`, `89-mobile-launch-checklist.md`, `ocoron-mobile-design-system.md`
@@ -37,7 +37,7 @@ This is an **upgrade of the existing scaffold**, not a greenfield build. The cur
 ## 4. Discrepancies found vs the fabrik-lib AI proposal (flagged; resolved below)
 
 1. **Existing backend lane is Node — and broken.** `Dockerfile.j2` is `FROM node:22` + `npm run build`, healthchecking the **Metro dev bundler** on `:8081` — nonsensical as a deployed API, and it violates Pattern A. → **RESOLVED: replace with a bundled minimal FastAPI backend** (§7, operator decision "full scaffold").
-2. **The `rn-*` kits and `mobile-config` do NOT exist in fabrik-lib yet** (`rn-auth/compliance/analytics/media/billing-kit`, `mobile-config`). → They are **kit-SEAMS** (contracts to target), not dependencies; the force-update `GET /app-config` is hosted by the **bundled FastAPI backend**, not a non-existent `mobile-config` service.
+2. **The `rn-*` *client* kits don't exist yet** (`rn-auth/compliance/analytics/media/billing-kit`) → **kit-SEAMS** (contracts to target). **BUT `mobile-config` NOW EXISTS** as a fabrik-lib backend module (shipped 2026-07-10) → the `GET /app-config` route **vendors `fabrik-lib/mobile-config/`**, it is NOT hand-rolled (§6). (The spec's original "doesn't exist" was true at authoring; the fabrik-lib AI has since shipped `mobile-config` + `revenuecat-entitlements` + `payments` + `expo-push`.)
 3. **Obytes is on SDK 54, not 57** → the SDK-57 bump is explicit factory work atop the fork.
 4. **Obytes uses TanStack Form, not react-hook-form** (its `claude.md` says so explicitly) → **RESOLVED: keep Obytes' TanStack Form + Zod** (avoid swapping away from the base; the AI's "react-hook-form" was stale; `80-mobile.md` mandates no specific form lib). Operator may override.
 5. **The existing template is already on mmkv V4 in the rules but v3.1.0 in `package.json`** — the Obytes/new stack supplies v4; the stale v3 client is discarded (§5).
@@ -74,7 +74,7 @@ expo-router `app/`, the auth flow, forms (**TanStack Form + Zod** — Obytes cur
 - **PostHog behind the consent gate** (`posthog-react-native`; init with `defaults.defaultOptIn: false` so nothing — autocapture included — fires until `optIn()` runs after the consent gate). (posthog.com/docs/libraries/react-native — fetched 2026-07-10)
 - **Offline resilience** — `onlineManager.setEventListener` wired to `@react-native-community/netinfo` + `PersistQueryClientProvider` + `createSyncStoragePersister` (all TanStack-documented) over an **MMKV**-backed sync storage (**community pattern — MMKV is not named in TanStack docs**; MMKV is synchronous so it satisfies the `createSyncStoragePersister` interface) + an Offline screen. (tanstack.com/query/latest/docs/framework/react/react-native — fetched 2026-07-10)
 - **UX primitives** (`expo-haptics`, `expo-local-authentication`, `expo-store-review`, `expo-image-picker`/camera, QR via camera).
-- **Force-update shell** calling the bundled backend's `GET /app-config`.
+- **Force-update shell** (client) calling the backend's `GET /app-config` (the backend vendors `fabrik-lib/mobile-config/`).
 - Ship the **mobile rule packs** + a project `CLAUDE.md` for AI-agent conformance.
 
 ### 5.6 KIT-SEAMS (contracts so the future `fabrik-lib/rn-*` kits drop in)
@@ -87,16 +87,17 @@ Define + document the seam contracts — **the hey-api client location, the styl
 |---|---|
 | i18n | **Vendor** `fabrik-lib/i18n/` into the project (`libs/i18n`) using the canonical RN adapter `templates/i18n-kit/adapters/sync_rn_locales.py` (`scaffold.py:178`). The **Mobile-column flip is fabrik-lib's**: the fabrik-lib AI vendors that RN adapter into `/opt/fabrik-lib/i18n/` first, then flips the column (stays `–` until then). Cross-repo edits from this repo are a HARD STOP. |
 | Auth | Seam only now (`rn-auth-kit` future) — backend uses `fastapi-user-auth` (Pattern A). |
-| Consent / analytics / media / billing | **Seams** — `rn-*` kits don't exist yet; define contracts, don't build the kits in this spec. |
-| `mobile-config` / app-config | **Build into the bundled FastAPI backend** (a `GET /app-config`), NOT a separate service (doesn't exist). |
+| Consent / analytics / media | **Seams** — the `rn-*` *client* kits don't exist yet; define contracts, don't build them here. |
+| billing (backend/entitlements) | **Vendor `revenuecat-entitlements/`** (+ `payments/` for Paddle/iyzico) for server-side entitlement derivation — both now EXIST (grounded 2026-07-10). The client-side RevenueCat SDK stays the `rn-billing-kit` seam. |
+| `mobile-config` / app-config | **Vendor `fabrik-lib/mobile-config/`** — the module now EXISTS (grounded 2026-07-10: `from mobile_config import AppConfig, evaluate`). Wire it into the backend's `GET /app-config` route; **do NOT hand-roll** the semver force-update (the module encodes the `1.10.0 > 1.9.0` footgun + fail-safe malformed-version + kill-switch + feature toggles + remote-paywall pointer; one dep `packaging`, DB-agnostic). |
 
-**Backend vendor-ladder (audited against `/opt/fabrik-lib/README.md` 2026-07-10 — don't re-build what exists):** the bundled FastAPI's own capabilities are **vendor**, not build — auth ⇒ `fastapi-user-auth` (Pattern A JWTs) + `account` (profile CRUD) + `oauth-login` (federated sign-in) if needed; any data-subject-rights ⇒ `gdpr-data-rights`; outbound HTTP ⇒ `async-http-client`. The `rn-*` **client** kits remain seams (client-side RN; the fabrik-lib modules above are backend/web — a different layer, so this is not a missed-module reuse, it's the correct build-the-seam call).
+**Backend vendor-ladder (audited against `/opt/fabrik-lib/README.md` 2026-07-10 — don't re-build what exists):** the bundled FastAPI's own capabilities are **vendor**, not build — auth ⇒ `fastapi-user-auth` (Pattern A JWTs) + `account` (profile CRUD) + `oauth-login` (federated sign-in) if needed; any data-subject-rights ⇒ `gdpr-data-rights`; outbound HTTP ⇒ `async-http-client`; **`GET /app-config` ⇒ `mobile-config`** (force-update/kill-switch/toggles/paywall); **billing/entitlements ⇒ `revenuecat-entitlements` + `payments`**; **push ⇒ `expo-push`** (if push is added later — out of this spec's scope). The `rn-*` **client** kits remain seams (client-side RN; the fabrik-lib modules above are backend/web — a different layer, so this is not a missed-module reuse, it's the correct build-the-seam call).
 
 ## 7. Backend lane (RESOLVED — operator decision: "full scaffold")
 
 The scaffold ships a **minimal bundled FastAPI backend** (Pattern A) alongside the Expo client, in one repo:
 - It is the sole data layer the app's hey-api client talks to; **hey-api's OpenAPI source = the bundled backend's `/openapi.json`**.
-- It hosts the force-update `GET /app-config`.
+- It hosts the force-update `GET /app-config` — **vendoring `fabrik-lib/mobile-config/`** (`AppConfig`+`evaluate`), not a hand-rolled semver check.
 - It deploys to the VPS via a **rewritten `compose.yaml.j2` + `Dockerfile.j2`** (Python/FastAPI, real `/health`, memory limit, `fabrik` network — replacing the broken Node/Metro lane), `defaults.yaml` shape stays `kind: service`.
 - Reuses the fabrik FastAPI conventions (`fastapi-user-auth`, `postgres-main` when `needs_database`, GlitchTip).
 
@@ -121,6 +122,6 @@ The scaffold ships a **minimal bundled FastAPI backend** (Pattern A) alongside t
 
 - All execution-blocking decisions are **resolved or self-service**: backend lane (RESOLVED, §7), form lib (RESOLVED → TanStack Form, §4.4, operator-overridable), SDK/mmkv/router (rule-mandated), kits (seams).
 - **Licensing (RESOLVED):** Obytes `LICENSE` is **MIT** (Copyright 2021 Obytes, fetched 2026-07-10) → forking its files into the fabrik repo is legally clear; retain the copyright+license notice. No longer a blocker.
-- **rn-* kits + mobile-config** are future fabrik-lib work — this spec only defines their seams.
+- **rn-* *client* kits** are future fabrik-lib work — this spec defines their seams. (**`mobile-config`, `revenuecat-entitlements`, `payments`, `expo-push` now EXIST** as fabrik-lib backend modules → vendored per §6, no longer "future".)
 - **Styling (RESOLVED):** KEEP Uniwind as the factory default — grounded 2026-07-10 that it is build-time compiled (meets the rule's perf intent) though **not** the unistyles C++ engine; **zero rewrite** (the earlier "largest single swap" is dropped). Raw `react-native-unistyles` is the documented fallback for a hard zero-re-render requirement; "Uniwind Pro" (C++/JSI) is the future upgrade when it ships.
 - **Raw-unistyles fallback caveat (only if a project opts out of Uniwind):** raw `react-native-unistyles` SDK-57 compat is inferential (docs state RN ≥ 0.78 / SDK ≥ 53, which SDK 57/RN 0.86 exceeds) and it needs the `react-native-unistyles/plugin` Babel plugin + `expo prebuild` — smoke-run to confirm. Not on the Uniwind default path.
