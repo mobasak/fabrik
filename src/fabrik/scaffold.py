@@ -4240,11 +4240,14 @@ def _scaffold_mobile_app(project_dir: Path, name: str, description: str, **kwarg
         else:
             shutil.copy2(entry, dest)
 
-    # 2. package.json — name + description substitution.
+    # 2. package.json — name + description substitution; also rewrite the Obytes
+    #    bundle id in the maestro `e2e-test` script (APP_ID=com.obytes.development)
+    #    to the project's, matching the env.ts/app.config.ts identity substitution.
     pkg = json.loads((MOBILE_APP_TEMPLATE_DIR / "package.json").read_text())
     pkg["name"] = name
     pkg["description"] = description
-    (project_dir / "package.json").write_text(json.dumps(pkg, indent=2) + "\n")
+    pkg_text = (json.dumps(pkg, indent=2) + "\n").replace("com.obytes", f"com.{slug}")
+    (project_dir / "package.json").write_text(pkg_text)
 
     # 3. env.ts / app.config.ts — replace the Obytes app identity (display name,
     #    slug, bundle id, package, scheme) with the project's, so two scaffolded
