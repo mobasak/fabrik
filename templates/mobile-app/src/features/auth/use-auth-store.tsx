@@ -7,30 +7,32 @@ import { createSelectors } from '@/lib/utils';
 type AuthState = {
   token: TokenType | null;
   status: 'idle' | 'signOut' | 'signIn';
-  signIn: (data: TokenType) => void;
-  signOut: () => void;
-  hydrate: () => void;
+  // Token I/O is async (JWTs live in expo-secure-store per A5e), so these
+  // resolve once the Keychain/Keystore write completes.
+  signIn: (data: TokenType) => Promise<void>;
+  signOut: () => Promise<void>;
+  hydrate: () => Promise<void>;
 };
 
 const _useAuthStore = create<AuthState>((set, get) => ({
   status: 'idle',
   token: null,
-  signIn: (token) => {
-    setToken(token);
+  signIn: async (token) => {
+    await setToken(token);
     set({ status: 'signIn', token });
   },
-  signOut: () => {
-    removeToken();
+  signOut: async () => {
+    await removeToken();
     set({ status: 'signOut', token: null });
   },
-  hydrate: () => {
+  hydrate: async () => {
     try {
-      const userToken = getToken();
+      const userToken = await getToken();
       if (userToken !== null) {
-        get().signIn(userToken);
+        await get().signIn(userToken);
       }
       else {
-        get().signOut();
+        await get().signOut();
       }
     }
     catch (e) {
