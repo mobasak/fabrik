@@ -4205,7 +4205,11 @@ def _scaffold_mobile_app(project_dir: Path, name: str, description: str, **kwarg
     import json
     import re
 
-    slug = re.sub(r"[^a-z0-9]", "", name.lower()) or "app"
+    slug = re.sub(r"[^a-z0-9]", "", name.lower())
+    # Android package segments (and Expo slugs) must start with a letter, never a
+    # digit — ``com.123shop`` is an invalid package. Prefix if empty or digit-first.
+    if not slug or not slug[0].isalpha():
+        slug = "app" + slug
 
     # 1. Wholesale copy of the template tree, minus scaffolder-only config,
     #    build cruft, and the files substituted / generated below. A wholesale
