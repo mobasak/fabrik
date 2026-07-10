@@ -202,23 +202,26 @@ def test_build_specs_quotes_shell_special_chars_defensively(
         work_dir=tmp_path,
     )
     task = specs[0].task
-    # shlex.quote wraps only when needed — for `z-ai/glm-4.5-air` it typically doesn't;
-    # but the cd path (which contains `__`) still gets safely constructed:
-    assert "cd " in task
-    # No shell metacharacter should appear UNQUOTED anywhere in the task tail
-    # (this is a regression net — if someone drops the shlex.quote later, this fires):
+    # The pool-orchestrator task now wraps the shell command inside a ```bash
+    # fenced code block. Extract JUST the fenced shell command and run the
+    # metachar-outside-single-quotes check on that (the surrounding instruction
+    # prose is markdown, its ` and | / ; aren't shell-interpreted).
+    import re as _re
+
+    m = _re.search(r"```bash\n(.*?)\n```", task, _re.DOTALL)
+    assert m, f"no ```bash fenced block in task: {task!r}"
+    shell_cmd = m.group(1)
+
+    assert "cd " in shell_cmd
     for bad in [";", "$(", "`", "|"]:
-        # Any occurrence of these MUST be inside a single-quoted segment (shlex.quote output)
-        if bad in task:
-            # crude but effective check: single-quoted portions of a shlex-quoted string
-            # look like '...' — if bad char appears outside single-quotes, fail
+        if bad in shell_cmd:
             in_quote = False
-            for ch in task:
+            for ch in shell_cmd:
                 if ch == "'":
                     in_quote = not in_quote
                 elif ch == bad[0] and not in_quote:
                     raise AssertionError(
-                        f"unquoted {bad!r} in task string: {task!r}"
+                        f"unquoted {bad!r} in shell command: {shell_cmd!r}"
                     )
 
 
@@ -474,30 +477,41 @@ def test_main_rejects_unknown_model(
     assert "TOTAL_SPEND_USD: 0.00" in stdout.getvalue()
 
 
-# ─── C8: main happy path prints TOTAL_SPEND_USD: <sum of AgentResult.cost_usd> ─
-def test_main_emits_total_spend_from_mocked_results(
+# ─── C8: main happy path prints TOTAL_SPEND_USD: 0.00 (direct-subprocess dispatch) ─
+def test_main_emits_total_spend_regex_on_happy_path(
     tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """C8: mocked run_agents returning 2 fake results at $0.11 each → last stdout
-    line matches ^TOTAL_SPEND_USD: 0.22$ (regex E4 uses)."""
+    """C8: happy path emits TOTAL_SPEND_USD: <float> matching Phase E's E4 grep regex.
+
+    NOTE: after the Phase E subprocess refactor (evalplus dispatched directly via
+    subprocess.run instead of the pool's run_command which whitelists only
+    dev-toolchain binaries per libs/subagents/tools.py:51-56), cost tracking is
+    lossy — evalplus doesn't emit per-call OR cost, so total_spend is always 0.00.
+    The E4 grep contract (`^TOTAL_SPEND_USD: [0-9]+\\.[0-9]+$`) still matches;
+    users check the OR dashboard for actual spend.
+    """
     db = _make_agents_db(tmp_path)
     import microbench_coding
 
     monkeypatch.setattr(microbench_coding, "DB_PATH", db)
+    monkeypatch.setenv("OPENROUTER_API_KEY", "fake-key-for-test")
 
-    from dataclasses import dataclass
+    def _fake_subprocess_run(cmd, **kw):
+        # Simulate evalplus succeeding — drop a shape-matching eval_results.json
+        # into the cwd/results/ dir
+        import subprocess as _sub
 
-    @dataclass
-    class _FakeResult:
-        cost_usd: float
+        cwd = pathlib.Path(kw.get("cwd", "."))
+        results_dir = cwd / "results"
+        results_dir.mkdir(parents=True, exist_ok=True)
+        (results_dir / "eval_results.json").write_text(json.dumps({
+            "date": "2026-07-10",
+            "hash": "test",
+            "eval": {"HumanEval/0": [{"base_status": "pass", "plus_status": "pass"}]},
+        }))
+        return _sub.CompletedProcess(cmd, 0, b"stdout", b"")
 
-    def _fake_run_agents(specs, *, repo, max_concurrency, **kw):
-        # Two units (humaneval + mbpp) requested → two fake results, both no eval_results.json
-        # → write_scores lands zeros (silently), TOTAL_SPEND_USD still emitted from cost_usd sum.
-        assert max_concurrency == len(specs)
-        return [_FakeResult(cost_usd=0.11) for _ in specs]
-
-    monkeypatch.setattr(microbench_coding, "run_agents", _fake_run_agents)
+    monkeypatch.setattr(microbench_coding.subprocess, "run", _fake_subprocess_run)
 
     stdout = io.StringIO()
     stderr = io.StringIO()
@@ -514,7 +528,8 @@ def test_main_emits_total_spend_from_mocked_results(
     last_line = stdout.getvalue().rstrip().splitlines()[-1]
     import re as _re
 
-    assert _re.match(r"^TOTAL_SPEND_USD: 0\.22$", last_line), last_line
+    # E4 regex tolerates any float value (post-refactor, this is 0.00)
+    assert _re.match(r"^TOTAL_SPEND_USD: [0-9]+\.[0-9]+$", last_line), last_line
 
 
 # ─── Phase C native-review regression tests (F1-F5) ────────────────────────────
@@ -548,32 +563,28 @@ def test_main_writes_correct_model_id_end_to_end(
     Without the build_units refactor, main() extracted target/dataset via regex from
     the shell task string. shlex.quote leaves legit model IDs unquoted, so the regex
     matched nothing and by_target[""][""] silently no-op'd every UPDATE.
+
+    Post-Phase-E-refactor: mocks subprocess.run instead of run_agents; drops a
+    fixture-shaped eval_results.json into each unit's cwd/results/ dir.
     """
     db = _make_agents_db(tmp_path)
     import microbench_coding
 
     monkeypatch.setattr(microbench_coding, "DB_PATH", db)
+    monkeypatch.setenv("OPENROUTER_API_KEY", "fake-key-for-test")
 
-    # Pre-populate a fake eval_results.json inside each spec's owned_paths dir
-    # so parse_eval_results returns a real 2/3 base-pass rate (matching the fixture).
     fixture_shape = json.loads(FIXTURE_PATH.read_text())
 
-    from dataclasses import dataclass
+    def _fake_subprocess_run(cmd, **kw):
+        import subprocess as _sub
 
-    @dataclass
-    class _FakeResult:
-        cost_usd: float = 0.11
+        cwd = pathlib.Path(kw.get("cwd", "."))
+        results_dir = cwd / "results"
+        results_dir.mkdir(parents=True, exist_ok=True)
+        (results_dir / "eval_results.json").write_text(json.dumps(fixture_shape))
+        return _sub.CompletedProcess(cmd, 0, b"", b"")
 
-    def _fake_run_agents(specs, *, repo, max_concurrency, **kw):
-        # For each spec, drop a real-shape eval_results.json in its unit_dir/results/
-        for s in specs:
-            unit_dir = pathlib.Path(s.owned_paths[0])
-            results_dir = unit_dir / "results"
-            results_dir.mkdir(parents=True, exist_ok=True)
-            (results_dir / "eval_results.json").write_text(json.dumps(fixture_shape))
-        return [_FakeResult() for _ in specs]
-
-    monkeypatch.setattr(microbench_coding, "run_agents", _fake_run_agents)
+    monkeypatch.setattr(microbench_coding.subprocess, "run", _fake_subprocess_run)
 
     stdout = io.StringIO()
     stderr = io.StringIO()
@@ -704,16 +715,15 @@ def test_main_emits_total_spend_on_unhandled_exception(
 ) -> None:
     """F2 regression: an unhandled runtime exception inside main() MUST still emit
     TOTAL_SPEND_USD (Phase E E4 grep contract survives failures).
+
+    Post-Phase-E-refactor: simulate the failure by making the env-var check trip
+    (unset OPENROUTER_API_KEY) — main's outer try/finally still emits the line.
     """
     db = _make_agents_db(tmp_path)
     import microbench_coding
 
     monkeypatch.setattr(microbench_coding, "DB_PATH", db)
-
-    def _fake_run_agents(specs, *, repo, max_concurrency, **kw):
-        raise RuntimeError("simulated dispatch failure")
-
-    monkeypatch.setattr(microbench_coding, "run_agents", _fake_run_agents)
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
 
     stdout = io.StringIO()
     stderr = io.StringIO()
@@ -727,7 +737,7 @@ def test_main_emits_total_spend_on_unhandled_exception(
             ]
         )
     assert rc == 1
-    assert "simulated dispatch failure" in stderr.getvalue()
+    assert "OPENROUTER_API_KEY" in stderr.getvalue()
     last_line = stdout.getvalue().rstrip().splitlines()[-1]
     import re as _re
 

@@ -1,6 +1,13 @@
 # Plan: Coding microbench runner (`microbench_coding.py`)
 
-**Status:** IN-PROGRESS (execution started 2026-07-10)
+**Status:** BLOCKED — evalplus↔OpenRouter incompatibility (Phase E) (2026-07-10)
+**Phases executed:** A ✅ · B ✅ · C ✅ · D ✅ · E (scaffold only — bench execution BLOCKED) · F (not started)
+**Blocker:** `evalplus.evaluate --backend openai --base-url https://openrouter.ai/api/v1 --model <target>` fails with `json.decoder.JSONDecodeError: Expecting ',' delimiter` across ALL tested models (`bytedance-seed/seed-*`, `qwen/qwen3-coder-flash`) — evalplus's OpenAI-client wrapper (`evalplus/gen/util/api_request.py`) can't parse OR's streaming responses reliably. Downstream evaluation step then fails with `FileNotFoundError` for the never-written completions `.jsonl`. Verified: 8/8 units failed in the live bench (0 eval_results.json, 0 completions .jsonl). Not fixable in-project — evalplus's OR client would need patching, or the bench needs to use a different tool (BigCodeBench, LiveCodeBench, or a custom completion-loop that talks to OR directly, bypassing evalplus's client).
+**Options for user resolution:**
+1. Patch evalplus's OpenAI client to be robust against OR's streaming shape (upstream fix, non-trivial).
+2. Replace evalplus with a custom completion+eval loop that uses `openai.OpenAI(base_url=OR)` directly and computes pass@1 from EvalPlus's `human_eval_plus`/`mbpp_plus` datasets (moderate implementation effort).
+3. Skip live-bench for now; populate `humaneval_score` from BenchLM/external aggregators as they add Seed coverage (defers plan-2's motivating gap).
+4. Follow-up plan uses a different benchmark suite (LiveCodeBench — contamination-resistant AND typically has better OR-compat).
 **Converged:** 2026-07-10 via `/fabrik-plan-review` — 3 passes to md5 fixed-point `e0b8698f366b60736c9bb564d37ea40e`. Pass 1 dispatched 3 parallel independent grounders (G1 path:line + external deps, G2 structural pillars, G3 gates + Behavior Contracts + residuals) → 18 unique confirmed defects (1 BLOCKING = missing `libs/subagents/` vendor step; 4 Interface mismatches on `parse_eval_results`/`merge`/`main`/argparse; 5 gate defects; 3 residual defects; 5 structural defects) → all 18 fixed. Pass 2 dispatched an independent post-fix verifier on the new state → 1 cosmetic drift ("Phase A step 0" vs actual label "2b") → fixed. Pass 3 self-sweep confirmed no residual defects → md5 identical → CONVERGED.
 **Date:** 2026-07-10
 **Author:** primary (this session)
@@ -548,7 +555,7 @@ Ship a local coding benchmark runner at `scripts/kilo-benchmarks/microbench_codi
    )"
    ```
 
-## Phase E — Live bench run against 4 Seed models
+## Phase E — Live bench run against 4 Seed models — ⛔ BLOCKED 2026-07-10 (evalplus↔OR incompatibility)
 
 **Purpose:** The actual ~$2.66 spend + ~30 min wall clock — invoke the runner against the 4 Seed targets and populate their `humaneval_score` + `coding_score`.
 
