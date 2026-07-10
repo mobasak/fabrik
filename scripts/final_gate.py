@@ -686,6 +686,16 @@ def run_consistency_checks(
                 advisory=True,
             )
         )
+        # Doc stub force-fill — WARN when a seeded doc still carries template placeholders
+        # AFTER its Doc-Sync trigger fired (a scaffolded stub that rotted past relevance).
+        # Advisory + fail-safe (always exits 0); the doc set is the registry SSOT.
+        results.append(
+            run_optional_check(
+                "scripts/enforcement/check_doc_stubs.py",
+                "Doc stub fill (advisory)",
+                advisory=True,
+            )
+        )
         # Script coupling header — each staged scripts/**/*.py declares (via a
         # `# AFTER-EDIT:` header) the files to update when it changes. WARN-tier,
         # touch-on-change (mirrors Doc Sync); never blocks.

@@ -30,6 +30,18 @@ Reconcile Fabrik's project-doc system into **one type-aware registry** that all 
 
 fabrik-lib checked — no module covers a scaffold-doc registry (the `doc-*` modules are content-processing); build in-fabrik by extension. No 🆕 candidate (hub-governance-specific).
 
+## Behavior Contract
+- **Given** a `python-api` project type, **When** `docs_allowlist("python-api")` is derived, **Then** it excludes `BUSINESS_MODEL.md`/`data-contract.md`/`ui-design.md` and includes `SERVICES.md`/`README.md`. *(Mocked: none — pure data.)*
+- **Given** the 47-project fleet's existing doc names, **When** the derived allowlist ∪ `LEGACY_TOLERATED` is compared to the old hard-coded set, **Then** it is a superset (no currently-clean project newly WARNs). *(Mocked: none.)*
+- **Given** the `_doc_registry` module is missing/unimportable, **When** `check_structure` derives its allowlist, **Then** it falls back to the old literal set and never crashes the gate. *(Mocked: sabotaged `sys.modules["_doc_registry"]`.)*
+- **Given** a headless `python-api` scaffold, **When** `_scaffold_shared` seeds docs, **Then** `BUSINESS_MODEL.md`/`STRATEGIC_BACKLOG.md` are NOT seeded but `SERVICES.md`/`README.md` are. *(Mocked: `FABRIK_ROOT`/`TEMPLATE_DIR`, `subprocess.run`.)*
+- **Given** a `saas-skeleton` scaffold, **When** docs are seeded, **Then** `BUSINESS_MODEL.md` + `data-contract.md` are present. *(Mocked: as above.)*
+- **Given** a `docusaurus` scaffold, **When** docs are seeded, **Then** any `data`-bucket doc (incl. `data-contract.md`) is skipped (leak guard). *(Mocked: as above.)*
+- **Given** a malformed registry that raises on use, **When** `_should_seed_doc` is called, **Then** it returns True (degrades to seeding) and never raises. *(Mocked: a registry stub whose `PROJECT_DOCS` raises.)*
+- **Given** a staged `compose.yaml` change and a placeholder-bearing `docs/SERVICES.md`, **When** `check_doc_stubs` runs, **Then** it WARNs and exits 0. *(Mocked: `_staged()` return value, temp cwd.)*
+- **Given** any git error inside `check_doc_stubs`, **When** it runs, **Then** it exits 0 (advisory never blocks). *(Mocked: `_staged()` raises.)*
+- **Mocked:** scaffold integration tests mock the fabrik root + `subprocess.run`; registry/allowlist/stub-detector tests run against real data with the trigger inputs mocked.
+
 ## Phase A — The registry (SSOT) + `docs_allowlist()` derivation — ✅ EXECUTED 2026-07-11
 **Files:** `scripts/enforcement/_doc_registry.py` (new), `tests/test_doc_registry.py` (new).
 **Responsibility:** the single source of truth + the derivation. No consumers change yet.
@@ -60,7 +72,7 @@ Steps:
 **Gate:** `python -m pytest tests/test_scaffold_doc_seeding.py -q` → pass (use the scaffolder's existing test harness / a tmp dir).
 **Close:** gate → doc-sync + CHANGELOG → `/fabrik-review` no-op → commit.
 
-## Phase D — Force-fill: `check_doc_stubs.py` (advisory)
+## Phase D — Force-fill: `check_doc_stubs.py` (advisory) — ✅ EXECUTED 2026-07-11
 **Files:** `scripts/enforcement/check_doc_stubs.py` (new), `tests/test_check_doc_stubs.py` (new), `scripts/final_gate.py` (register advisory).
 **Consumes:** `check_doc_sync` trigger-detection helpers; `PROJECT_DOCS` triggers (Phase A).
 Steps:

@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — `check_doc_stubs.py` advisory force-fill gate (plan-4 Phase D, 2026-07-11)
+
+New advisory enforcement check: WARN when a seeded doc still carries template placeholders (`[Project Name]`, `YYYY-MM-DD`, …) AFTER its Doc-Sync trigger fired in the staged change (a stub that rotted past relevance). The doc set is the registry SSOT; the trigger detectors reuse `check_doc_sync`. Always exits 0 (never blocks), fail-safe on any error; registered advisory in `final_gate.py`.
+
 ### Changed — Type-aware scaffold doc seeding driven by the registry (plan-4 Phase C, 2026-07-11)
 
 `_scaffold_shared` now gates `SHARED_TEMPLATE_MAP` seeding through `_doc_registry` (SSOT): a headless `python-api` no longer seeds `BUSINESS_MODEL`/`STRATEGIC_BACKLOG`; client apps (chrome-extension/mobile-app/desktop-app) no longer seed `SERVICES`/`OPERATIONS`/`RESILIENCE`. Crash-safe (any registry glitch degrades to full seeding, never breaks a scaffold); the docusaurus data-leak guard is generalized to any `data`-bucket doc. Grounded deviation: `data-contract.md` keeps its deliberate all-but-docusaurus behavior (gating on `needs_database` would wrongly strip it from saas/static-site, whose `use_database` defaults False).
