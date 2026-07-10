@@ -1,0 +1,233 @@
+# Mobile App Factory — Implementation Plan
+
+**Status:** CONVERGED (via `/fabrik-plan-review` 2026-07-10, round 2 — re-architected Phase B/C to mirror the `chrome-extension` precedent; Pass 3 edit-free no-op, Tier-2 gate green 32/0 + `check_convergence` pass. Next: user-triggered `/fabrik-execute-plan`)
+**Date:** 2026-07-10 · **Author:** fabrik AI
+**Design spec (CONVERGED, binding source of truth):** `docs/superpowers/specs/2026-07-08-mobile-app-factory-design.md`
+**Supersedes reserved name** `2026-07-09-plan-1-mobile-app-factory.md` — that (date,number) slot is taken by an archived plan (`2026-07-09-plan-1-pick-models-reachability-gate.md`); per the datetime-first + next-unused-integer convention and today's date, this is `2026-07-10-plan-1`.
+
+Turn `fabrik scaffold mobile-app <name>` into a **factory**: fork **Obytes** (`react-native-template-obytes`, MIT) into `templates/mobile-app/`, swap its stack to `80-mobile.md` (SDK 57 / hey-api / mmkv v4 / **keep Uniwind**), add the factory layers (PostHog-behind-consent, offline, UX primitives, force-update), replace the broken Node/Metro backend lane with a **bundled minimal FastAPI backend** (Pattern A), and leave clean seams for the future `fabrik-lib/rn-*` kits. **Upgrade of the existing 29-file scaffold, not greenfield.**
+
+---
+
+## Global Constraints (every phase inherits these verbatim)
+
+- **Styling = KEEP Uniwind** (Obytes ships `uniwind@^1.2.4`, Tailwind-v4 build-time Metro compiler by the Unistyles team; wired via `metro.config.js` `withUniwindConfig(config, { cssEntryFile: './src/global.css' })`, **no Babel plugin**). Feed Ocoron tokens as `src/global.css` `@theme`/`@variant`. Raw `react-native-unistyles` is the documented fallback only for a hard zero-re-render need — **do NOT rewrite to it**.
+- **Expo SDK 57** (RN 0.86); scaffold with `--template default@sdk-57` (bare `create-expo-app` lags to SDK 54). Obytes base is SDK 54 → the bump is explicit factory work.
+- **expo-router** under `src/app/` (Obytes layout). Never add `@react-navigation/*` to app code — SDK-56 fork makes it a **Metro bundler error** (override `EXPO_ROUTER_DISABLE_RN_NAVIGATION_CHECK=1`), not an `expo-doctor` warning.
+- **react-native-mmkv v4** (`createMMKV()`/`.remove()`/`AppGroupIdentifier`; New-Arch-only; **RN ≥ 0.76**).
+- **API client = `@hey-api/openapi-ts`** (+ `@tanstack/react-query` plugin + `zod` plugin; validation via `{ name: '@hey-api/sdk', validator: true }` — plugin-scoped, list the sdk plugin explicitly when zod is added, issue #2720). Replaces Obytes' axios `src/lib/api/client.tsx` + per-feature `feed/api.ts` hooks; **keep** `src/lib/api/provider.tsx`.
+- **Backend = Pattern A FastAPI, emitted the `chrome-extension` way** — mirror `_scaffold_chrome_extension` (`scaffold.py:3662`): the scaffolder writes the FastAPI **Dockerfile inline** (`python:3.12-slim-bookworm`, port 8000, `/health` healthcheck, `uvicorn` CMD) and calls **`_write_canonical_compose(project_dir, name, port=8000, healthcheck_path="/health")`** — the canonical helper auto-emits the `deploy.resources.limits.memory` invariant + `fabrik` network + Traefik labels (do NOT hand-maintain a `compose.yaml.j2`). The client talks ONLY to this backend (`EXPO_PUBLIC_API_URL`), never a data store/BaaS; `postgres-main:5432`/`redis-main:6379` (never `localhost`). Backend lives under `server/` (chrome layout). Docker base `python:<ver>-slim-bookworm` (never alpine).
+- **Package manager = pnpm** (Obytes `only-allow pnpm` + `pnpm-lock.yaml`) for the RN client; the Python backend uses `.venv`/pip.
+- **Toolchain reality (WSL dev has NO Android/Java/Maestro):** RN builds go through **cloud EAS** (`eas build -p android --profile preview`) + CI; Maestro E2E runs in **CI** (the ported Obytes `e2e-android-maestro.yml`), NOT as a local WSL gate. Local gates = `python scripts/final_gate.py --check --json`, `pytest` on the scaffolder, `ruff`, config-lint. Do NOT emit `eas build --local` / `expo run:android` as a local gate.
+- **Naming** kebab-case (RN files follow Obytes' existing kebab convention, e.g. `login-screen.tsx`); Python pkgs snake_case. No secrets/localhost hardcoding (`os.getenv("KEY","default")`).
+- **`fabrik` CLI is hub-side** — never a plan gate; assert on files/specs by inspection.
+
+## Context Ledger
+
+| Source | What binds | Grounded ref |
+|---|---|---|
+| `mobile-app/80-mobile.md` (ACTIVE) | styling (Uniwind default), expo-router, hey-api, SDK 57, mmkv v4, Pattern A, no `@react-navigation/*` in app code | `.windsurf/rules/mobile-app/80-mobile.md` (corrected 2026-07-10) |
+| `core/10-python.md`, `15-api-contracts.md`, `35-security-auth.md`, `25-data-postgres.md`, `30-ops.md`, `45-testing-strategy.md` (ACTIVE) | FastAPI/typing/env; OpenAPI-first + error schema; Pattern-A auth (Argon2, JWT, RLS); migrations; Docker/compose; test-per-behavior | `select_rules.py` ACTIVE set |
+| Existing scaffolder | `_scaffold_mobile_app()` copies pkg/app.json/configs/src + writes `.gitignore`; **does NOT copy compose/Dockerfile** (client-only) — MUST change | `src/fabrik/scaffold.py:4163-4222`; `MOBILE_APP_TEMPLATE_DIR` :175; `I18N_KIT_DIR` :178; `I18N_ENABLED_TYPES["mobile-app"]="rn"` :190; dispatch map :4737 |
+| Existing template (to replace) | 29-file Expo SDK-55 client + broken Node/Metro backend lane (`Dockerfile.j2 FROM node:22`, healthcheck `:8081/status`, `compose.yaml.j2` port 8081) + `defaults.yaml` shape | `templates/mobile-app/` (29 files); `Dockerfile.j2`; `compose.yaml.j2`; `defaults.yaml` |
+| Obytes template (fork base, MIT) | `src/app/` router, `src/lib/api/{client.tsx axios, provider.tsx, index.ts}` + per-feature `feed/api.ts`, Uniwind via `metro.config.js`+`src/global.css @theme`, `env.ts` Zod v4, `src/lib/auth/`, 13 `.github/workflows/`, `.maestro/`, pnpm | github.com/obytes/react-native-template-obytes @ `master` (fetched 2026-07-10; §3 spec facts) |
+| **`chrome-extension` precedent (the model to mirror)** | the ONLY existing client-artifact + deployable-FastAPI-backend type. `_scaffold_chrome_extension` writes the Dockerfile inline + `_write_canonical_compose(...)`; it IS in `SPEC_ENABLED_TYPES` + `_TYPE_DEFAULTS` (`{memory,cpu,health_path:/health}`); it IS in `_NO_DOCKERFILE_TYPES` (validator won't require a root Dockerfile) but NOT in `_NODE_TYPES`/`_NO_HTTP_HEALTH_TYPES` (its `/health` IS validated). **mobile-app must land in exactly this state.** | `scaffold.py:3662,3942,3977`; `spec_generator.py:60,88`; `deploy_validator.py:58,71` (chrome in NO_DOCKERFILE/NO_SRC), not in `_NODE_TYPES`/`_NO_HTTP_HEALTH_TYPES` |
+| ⚠️ **Guard set to change for `mobile-app`** (to match the chrome precedent) | **ADD** to `SPEC_ENABLED_TYPES:60` + `_TYPE_DEFAULTS:88`; **REMOVE** from `_NODE_TYPES:38` (Python backend) + `_NO_HTTP_HEALTH_TYPES:85` (validate `/health`); **KEEP** in `_NO_DOCKERFILE_TYPES:56` (like chrome — client at root). `preplan.py:55` is the full type-set enum, **NOT a guard** (no change). | `spec_generator.py:60,88`; `deploy_validator.py:38,56,85`; tests `test_scaffold.py:764`, `test_scaffold_spec_generation.py:197`, `test_spec_generator.py:57,100`, `test_deploy_validator.py:184` (health) — NOT `:94` (dockerfile stays skipped) |
+| `fabrik-lib/i18n/` (vendor) | i18n SoT — vendor into `libs/i18n`; RN adapter source = `templates/i18n-kit/adapters/sync_rn_locales.py` (`scaffold.py:178`). Mobile-column flip is **fabrik-lib's** after it vendors the adapter (stays `–`) — cross-repo HARD STOP | `/opt/fabrik-lib/i18n/README.md`; `templates/i18n-kit/adapters/sync_rn_locales.py` |
+| `fabrik-lib/fastapi-user-auth`, `account`, `oauth-login`, `gdpr-data-rights`, `async-http-client` (vendor if used) | backend capabilities are **vendor, not build** (audited 2026-07-10) | `/opt/fabrik-lib/README.md` |
+| `defaults.yaml` `shape.*` | `kind: service` (backend deploys); flip `needs_database`/`has_bearer_api` iff the backend uses `postgres-main`/issues JWTs | `templates/mobile-app/defaults.yaml:12-19` |
+| Deploy/spec tests encoding "client-only" | must be reconciled to "client + deployable FastAPI backend" | `tests/test_scaffold.py:764`; `tests/test_deploy_validator.py:94,184`; `tests/test_scaffold_spec_generation.py:197`; `tests/orchestrator/test_template_defaults.py:110`; `tests/test_spec_generator.py:57,100` |
+
+**💡 fabrik-lib candidates (propose only, never write cross-repo):** the five `rn-*` client kits (`rn-auth-kit`, `rn-compliance-kit`, `rn-analytics-kit`, `rn-media-kit`, `rn-billing-kit`) — this plan builds their **seams**, not the kits; surface in the handoff report.
+
+---
+
+## Phase A — Client template fork (Obytes → `templates/mobile-app/`, swapped to the rules stack)
+
+**Goal:** replace the 29-file SDK-55 client with an Obytes-forked, `80-mobile.md`-conformant Expo SDK-57 client template (`.j2` project-name substitution preserved).
+
+**Files:** wholesale replace `templates/mobile-app/src/**`, `metro.config.js`, `babel.config.js`, `package.json`, `app.json`→`app.config.ts`, `env.ts`, `tsconfig.json`, add `src/global.css`, `.maestro/`, `.github/workflows/**`; delete the SDK-55 `src/App.tsx`, `src/navigation/*`, `src/features/files/*`, `src/lib/{storage.ts,i18n.ts,queryClient.ts}`, `src/theme/tokens.ts` (ported into `global.css`).
+
+### Interfaces
+
+- **Consumes:** the Obytes `master` tree (fetched 2026-07-10) as the fork base.
+- **Produces:** a scaffold-ready client template dir whose structure Phase C's `_scaffold_mobile_app` copies; the **hey-api client seam** at `src/lib/api/` (generated client + `provider.tsx`); the **Uniwind theme seam** `src/global.css`; the **consent-state provider seam** (`src/lib/consent/`); `EXPO_PUBLIC_API_URL` env contract consumed by the backend (Phase B).
+
+### Steps
+
+A1. **Fork the Obytes base into `templates/mobile-app/`** — port its `src/app/` router, `src/lib/{api,auth,hooks,i18n}`, `src/components/ui`, `src/features/{auth,onboarding,settings}` (drop `feed`/`style-demo` demos or convert `feed`→a minimal example), `.maestro/`, `.github/workflows/`, `env.ts`, `app.config.ts`, `metro.config.js`, `babel.config.js`. Add `.j2` project-name substitution only where a literal `obytesapp`/bundle-id appears (Phase C templates these). *Gate:* `test -f templates/mobile-app/src/app/_layout.tsx && test -f templates/mobile-app/src/global.css && ! test -e templates/mobile-app/src/navigation` → all true.
+A2. **Pin Expo SDK 57 + mmkv v4** in `package.json` (`expo` → SDK 57 line, RN 0.86; `react-native-mmkv` → `^4`, add `react-native-nitro-modules`). Replace any `new MMKV()` with `createMMKV()` and `.delete(`→`.remove(` in `src/lib/storage.tsx`. *Gate:* `grep -q '"expo"' templates/mobile-app/package.json && ! grep -rn 'new MMKV(' templates/mobile-app/src && ! grep -rn '\.delete(' templates/mobile-app/src/lib/storage.tsx` → true.
+A3. **Keep Uniwind; feed Ocoron tokens into `src/global.css`** `@theme`/`@variant` (dark-first + light `@media`/`@variant dark`), mapping the retired `src/theme/tokens.ts` values. Confirm `metro.config.js` retains `withUniwindConfig(config, { cssEntryFile: './src/global.css' })` and NO nativewind/unistyles Babel plugin. *Gate:* `grep -q 'withUniwindConfig' templates/mobile-app/metro.config.js && grep -q '@theme' templates/mobile-app/src/global.css && ! grep -rqi 'react-native-unistyles' templates/mobile-app/package.json`.
+A4. **[TDD, highest risk] SWAP axios → `@hey-api/openapi-ts`.** Add hey-api dev config (`openapi-ts.config.ts`) with `@tanstack/react-query` + `zod` + explicit `{ name:'@hey-api/sdk', validator:true }` plugins, sourcing `EXPO_PUBLIC_API_URL`'s `/openapi.json` (Phase B backend). Replace `src/lib/api/client.tsx` (axios) + the per-feature query hooks with generated client/hooks; keep `src/lib/api/provider.tsx`. Add a **CI OpenAPI-drift gate** workflow. *Behavior test (write first, watch fail):* a `type-check` + a jest test asserting the generated client module shape imports a query hook + a zod validator. *Gate:* `grep -q 'validator: true' templates/mobile-app/openapi-ts.config.ts && ! grep -rn "axios.create" templates/mobile-app/src/lib/api`.
+A5. **ADD factory layers:** (a) **PostHog behind consent** — `posthog-react-native`, init `defaults.defaultOptIn:false`; a `src/lib/consent/` provider that calls `optIn()` only post-consent; (b) **offline** — `onlineManager.setEventListener`↔`@react-native-community/netinfo` + `PersistQueryClientProvider` + `createSyncStoragePersister` over an MMKV-backed sync storage (community pattern) + an Offline screen; (c) **UX primitives** deps (`expo-haptics`, `expo-local-authentication`, `expo-store-review`, `expo-image-picker`); (d) **force-update shell** calling `GET /app-config` (Phase B). *Gate:* `grep -rq 'defaultOptIn' templates/mobile-app/src` (consent) and `grep -rq 'onlineManager' templates/mobile-app/src`.
+A6. **Kit-seams:** create `src/lib/{consent,analytics,media,billing}/` seam stubs + a `SEAMS.md` documenting the contracts (hey-api client location, Uniwind `@theme` shape, consent-state provider) so the future `rn-*` kits drop in.
+
+### Phase-A close (literal steps)
+
+1. Run the phase gates above → fix to green; run `pnpm -C templates/mobile-app install --lockfile-only` equivalence check is deferred to CI (no pnpm-run in WSL gate) — instead `python -c "import json,sys; json.load(open('templates/mobile-app/package.json'))"` validates JSON.
+2. `python scripts/enforcement/check_doc_sync.py`; update `docs/FEATURES.md` (new factory capability) if triggered.
+3. **`/fabrik-review`** on Phase A's changed surface (template fork) — pool finders (`run_agents`, `pick_models("review")`, `record_agent_run`) for breadth + native `fabrik-reviewer` — looped to a no-op (every finding FIXED/REFUTED). *Note: this is a template, not a running app; the live-UI Build Verification Loop (Maestro) is a CI/DONE concern per Global Constraints, not a local step.*
+4. Commit `templates/mobile-app/**` with `Agent-Role: subagent`/`Agent-Phase: A` trailers.
+
+---
+
+## Phase B — Bundled FastAPI backend code (the `chrome-extension` layout)
+
+**Goal:** create the minimal Pattern-A FastAPI backend **code** under `templates/mobile-app/server/` (mirroring chrome-extension's `server/`), and **delete the broken Node lane** — the Dockerfile/compose are NOT templates; the scaffolder writes them (Phase C, chrome way).
+
+**Files:** new `templates/mobile-app/server/` (`{{package}}/main.py`, `routes/app_config.py`, `routes/health.py`, `requirements.txt`); **DELETE** `templates/mobile-app/Dockerfile.j2` + `templates/mobile-app/compose.yaml.j2` (the broken Node/Metro lane — chrome-extension ships no such templates); update `templates/mobile-app/defaults.yaml` shape.
+
+### Interfaces
+
+- **Consumes:** `_scaffold_chrome_extension` (`scaffold.py:3942-3989`) as the exact reference for the inline Dockerfile + `_write_canonical_compose` (wired in Phase C); `EXPO_PUBLIC_API_URL` (Phase A) points at this backend.
+- **Produces:** `GET /health` (real; tests a dep — `await db.execute("SELECT 1")` — only when DB enabled), `GET /app-config` (force-update payload: `min_version`, `latest_version`, `store_urls`, `flags`), `/openapi.json` (hey-api's source, Phase A4). Env contract: `APP_MIN_VERSION`, etc.
+
+### Steps
+
+B1. **Author the minimal FastAPI backend** under `templates/mobile-app/server/` (chrome layout: `ENV PYTHONPATH=/app/server/src`) — `main.py` (FastAPI app; CORS is optional for a native client — RN HTTP clients don't enforce CORS, unlike chrome-extension's `chrome-extension://` origin), `routes/app_config.py` (`GET /app-config`), `routes/health.py` (`GET /health`), `requirements.txt`. **Minimal default = no DB, no auth** → `needs_database:false`, `has_bearer_api:false`. Auth is opt-in that **vendors `fabrik-lib/fastapi-user-auth`** (+ `account`) and flips both flags (§8 spec; audited vendor-ladder — never build these). *Gate:* `python -c "import ast; ast.parse(open('templates/mobile-app/server/routes/app_config.py').read())"` and `grep -rq 'app-config' templates/mobile-app/server`.
+B2. **Delete the broken Node lane** — `git rm templates/mobile-app/Dockerfile.j2 templates/mobile-app/compose.yaml.j2` (chrome-extension has neither; the scaffolder emits them in Phase C). *Gate:* `! test -e templates/mobile-app/Dockerfile.j2 && ! test -e templates/mobile-app/compose.yaml.j2`.
+B3. **Update `defaults.yaml`** — keep `kind: service`; fix the stale comment (the backend now really deploys, like chrome); default `needs_database:false`/`has_bearer_api:false` + an inline note on flipping for auth. *Gate:* `python -c "import yaml; d=yaml.safe_load(open('templates/mobile-app/defaults.yaml')); assert d['shape']['kind']=='service'"`.
+
+### Phase-B close
+
+1. Phase gates green.
+2. `check_doc_sync.py` → update `docs/SERVICES.md` + `docs/OPERATIONS.md` (new backend service) + `docs/CONFIGURATION.md` + `.env.example` (new backend env vars) + `PORTS.md` (8000 if a new allocation).
+3. **`/fabrik-review`** on the backend + compose/Dockerfile surface (**auth/deploy = native `fabrik-reviewer` Opus** + pool breadth) → no-op.
+4. Commit with `Agent-Phase: B` trailers.
+
+---
+
+## Phase C — Scaffolder wiring + reverse the 6 client-only guards (mobile-only)
+
+**Goal:** make `_scaffold_mobile_app` emit the client + backend + Dockerfile/compose + auto-gen the backend spec, and reverse the 6 guards that wire `mobile-app` as client-only (operator decision: full auto-spec-gen) — keeping `desktop-app` excluded.
+
+**Files:** `src/fabrik/scaffold.py` (`_scaffold_mobile_app`: inline Dockerfile + `_write_canonical_compose` + copy `server/` + i18n wiring `scaffold.py:4569+`); `src/fabrik/spec_generator.py:60,88` (add mobile to `SPEC_ENABLED_TYPES` + `_TYPE_DEFAULTS`); `src/fabrik/deploy_validator.py:38,85` (drop mobile from `_NODE_TYPES` + `_NO_HTTP_HEALTH_TYPES` only — **keep `_NO_DOCKERFILE_TYPES:56`**); tests `test_scaffold.py:764`, `test_deploy_validator.py:184` (health only, NOT `:94`), `test_scaffold_spec_generation.py:197`, `test_spec_generator.py:57,100`, `tests/orchestrator/test_template_defaults.py:110` (flip mobile, keep desktop excluded). **NOT `preplan.py`** (its `:55` is the full type-set enum, not a guard).
+
+### Interfaces
+
+- **Consumes:** Phase A client template + Phase B `server/` backend code; `_scaffold_chrome_extension` (`scaffold.py:3942-3989`) as the emit pattern.
+- **Produces:** a `_scaffold_mobile_app` that (like chrome) writes the FastAPI Dockerfile **inline** + calls **`_write_canonical_compose(project_dir, name, port=8000, healthcheck_path="/health")`** + copies `server/`; a mobile-app scaffold that **auto-generates a backend service spec** (`generate_and_save_spec`) so the hub can apply it. **Operator decision 2026-07-10 (refines spec §7/§8): "bundled backend, FULL auto-spec-gen" — land `mobile-app` in the same guard-state as `chrome-extension`.** Generating the spec file ≠ self-deploy (the hub applies it — consistent with the deploy control-plane).
+
+### Steps
+
+C1. **[TDD, highest risk] Emit the backend from `_scaffold_mobile_app` the chrome way** — copy the `server/` tree; write the FastAPI `Dockerfile` **inline** (mirror `scaffold.py:3942-3970`: `python:3.12-slim-bookworm`, `PYTHONPATH=/app/server/src`, port 8000, `/health` HEALTHCHECK, `uvicorn {{package}}.main:app` CMD); call **`_write_canonical_compose(project_dir, name, port=8000, healthcheck_path="/health")`** (mirror `scaffold.py:3977` — auto-emits the memory-limit invariant + Traefik + `fabrik` net). Keep the existing name/desc substitution + `.gitignore`. *Test first (flip `test_no_dockerfile`, `tests/test_scaffold.py:764` → asserts a `Dockerfile` + `compose.yaml` now exist and are FastAPI):* scaffold a temp mobile-app → assert both exist + contain `python:`/`8000`. *Gate:* `pytest tests/test_scaffold.py -k mobile -q` green.
+C2. **Land `mobile-app` in the `chrome-extension` guard-state (mobile-app ONLY — `desktop-app` stays excluded).** Grounded sites:
+  - (a) **Spec-gen** — add `"mobile-app"` to `SPEC_ENABLED_TYPES` (`src/fabrik/spec_generator.py:60`; excluded per :49,:84) so `scaffold.py:4939` auto-emits the backend spec, **AND add a `mobile-app` row to `_TYPE_DEFAULTS` (`:88`)** = `{"memory":"256M","cpu":"0.5","health_path":"/health"}` (mirrors `chrome-extension`). **Invert** `test_spec_not_generated_for_mobile_app` (`tests/test_scaffold_spec_generation.py:197` → asserts generated, keep `_desktop_app` excluded), and split `test_desktop_mobile_excluded_from_enabled_types` / `test_desktop_mobile_have_no_type_defaults` (`tests/test_spec_generator.py:57,100`) so **mobile is included + has type-defaults, desktop still excluded**.
+  - (b) **Deploy validator** — remove `"mobile-app"` from **exactly two** frozensets in `src/fabrik/deploy_validator.py` (matching chrome): `_NODE_TYPES:38` (its deployable is Python now — chrome isn't in it) and `_NO_HTTP_HEALTH_TYPES:85` (so `/health` IS validated, consumed at `:179` — chrome isn't in it). **KEEP `mobile-app` in `_NO_DOCKERFILE_TYPES:56`** (chrome stays in it — the RN client is at repo root, so the validator must not require a *root* Dockerfile; consumed at `:135`). Invert **only** the health `test_skipped_for_mobile_app` (`tests/test_deploy_validator.py:184` → assert validated); **leave the dockerfile `test_skipped_for_mobile_app` (`:94`) passing** (mobile stays in `_NO_DOCKERFILE_TYPES`).
+  - (c) **GlitchTip** — `tests/orchestrator/test_template_defaults.py:110` already asserts `kind:service`; no change (now consistent).
+  *Gate:* `pytest tests/test_deploy_validator.py tests/test_scaffold_spec_generation.py tests/test_spec_generator.py tests/orchestrator/test_template_defaults.py -q` green.
+C3. **Formalize i18n** — vendor `fabrik-lib/i18n` into the scaffold as `libs/i18n` and wire the RN adapter via `templates/i18n-kit/adapters/sync_rn_locales.py` (already the `I18N_KIT_DIR` source, `scaffold.py:178`) into the Obytes `src/lib/i18n/` + `src/translations/`. **Do NOT flip the fabrik-lib Mobile column** (fabrik-lib's job after it vendors the adapter — cross-repo HARD STOP; note the handoff in the report). *Gate:* `grep -q 'sync_rn_locales' <the wired path>`; scaffold a temp app → `src/translations` present.
+
+### Phase-C close
+
+1. Phase gates green (`pytest` on the touched scaffolder tests).
+2. `check_doc_sync.py` → `INDEX.md` (files added/removed), `CHANGELOG.md`.
+3. **`/fabrik-review`** on the scaffolder diff (native `fabrik-reviewer` — scaffolder is high-blast-radius) → no-op.
+4. Commit with `Agent-Phase: C` trailers.
+
+---
+
+## Phase D — Kit-seam docs, project AI-conformance, doc convergence, final gate
+
+**Goal:** ship the seam contracts + project `CLAUDE.md`/`AGENTS.md.j2`, converge docs, prove the whole.
+
+**Files:** `templates/mobile-app/AGENTS.md.j2` (rewrite for the FastAPI backend + Uniwind stack), a project `templates/mobile-app/CLAUDE.md` (AI-agent conformance), `templates/mobile-app/src/lib/SEAMS.md`; repo docs per Doc Sync Matrix.
+
+### Steps
+
+D1. Rewrite `AGENTS.md.j2` (Node→FastAPI backend, Uniwind styling, hey-api, the seam map) + add project `CLAUDE.md`. *Gate:* `! grep -qi 'metro bundler\|node:22' templates/mobile-app/AGENTS.md.j2`.
+D2. Ship the `80-mobile.md` rule pack reference into the scaffold (per §5.5) + document the seams in `SEAMS.md`.
+D3. **Doc convergence** — run **`/fabrik-docs-review`** over the changed surface to a truthful fixed point.
+D4. **Final gate** — `python scripts/final_gate.py --check --json` → `"status":"success"` AND `python scripts/enforcement/check_convergence.py`. (Green proves citations/format, **not** design soundness — the real proof is Evidence below.)
+
+### Phase-D close
+
+1. Gates green. 2. Doc-sync clean. 3. **`/fabrik-review`** over the cumulative D surface → no-op. 4. Commit with `Agent-Phase: D` trailers.
+
+---
+
+## Subagent Strategy & Parallelism (mandated, not optional)
+
+- **Phase A (fan-out):** dispatch parallel implementer subagents over **disjoint** `src/` subtrees — (1) `src/app/` router + `src/lib/api` hey-api swap, (2) `src/lib/{consent,analytics}` + offline layer, (3) `src/global.css` Uniwind/Ocoron tokens + `src/components/ui`, (4) `.github/workflows/` + `.maestro/`. **Merge point:** the orchestrator reconciles `package.json` (each subtree's deps) + runs the Phase-A gates once merged. Worktree isolation per subagent.
+- **Phase B (inline or 2-way):** backend code (B1) ‖ Dockerfile/compose (B2/B3) are independent → 2 subagents, merge at `defaults.yaml` (B4).
+- **Phase C (serialized):** `scaffold.py` + `spec_generator.py` + `deploy_validator.py` are cross-coupled (the guard reversal) → **inline/serial** (shared `scaffold.py` is the serialization point); the 5 test-file updates fan out in parallel (disjoint files) after the source change lands.
+- **Reviews (every phase close):** pool finders (`run_agents`, `pick_models("review")`, each owes `record_agent_run` + `results_table`) for breadth **+** native `fabrik-reviewer` (Opus on the C scaffolder + B auth/deploy surfaces) — merge/refute/prove-before-fix owned by the orchestrator; loop to a no-op.
+- Guard the flywheel import: `try: from libs.subagents import record_agent_run / except ImportError: record_agent_run = None`.
+
+## Behavior Contract
+
+One test per distinct user-observable behavior (risk-ordered; the risky ones are TDD in their phase). **Mocked:** the OpenAPI source for hey-api codegen (a fixture `openapi.json`); no network in scaffolder tests (temp-dir scaffold only); pnpm/EAS/Maestro run in CI, not local gates.
+
+- **Given** `fabrik scaffold mobile-app <name>`, **When** it runs, **Then** the output has a `Dockerfile` (python FastAPI, not `node:`) + `compose.yaml` (port 8000 `/health`, via `_write_canonical_compose`) + `server/` — reversing `test_no_dockerfile`. *(Phase C1)*
+- **Given** the scaffolded client, **When** type-checked/inspected, **Then** it uses Uniwind (`withUniwindConfig`, no `react-native-unistyles` dep) + a hey-api client (no `axios.create`) + mmkv v4 (`createMMKV`, no `new MMKV()`). *(Phase A2–A4)*
+- **Given** a scaffolded mobile-app, **When** the deploy validator runs, **Then** `/health` IS validated (mobile removed from `_NODE_TYPES` + `_NO_HTTP_HEALTH_TYPES`) and the root-Dockerfile check stays N/A (mobile keeps `_NO_DOCKERFILE_TYPES`, like `chrome-extension`), while `desktop-app` stays fully skipped. *(Phase C2b)*
+- **Given** `create_project(..., generate_spec=True)` for `mobile-app`, **When** it runs, **Then** a backend service spec IS generated (`generate_and_save_spec` called) — and for `desktop-app` it is NOT. *(Phase C2a)*
+- **Given** PostHog initialized with `defaults.defaultOptIn:false`, **When** the user has not consented, **Then** no events capture until `optIn()` runs. *(Phase A5a)*
+- **Given** the device is offline, **When** a screen queries, **Then** the MMKV-persisted React Query cache serves and the Offline screen renders. *(Phase A5b)*
+- **Given** installed version < `min_version` from `GET /app-config`, **When** the app launches, **Then** the force-update shell blocks entry. *(Phase A5d)*
+- **Given** `@react-navigation/*` imported in app code, **When** bundled, **Then** Metro errors (rule conformance — no hand-nav). *(Phase A1)*
+
+## File Scope (owned paths)
+
+- `templates/mobile-app/**` (wholesale replace + backend add)
+- `src/fabrik/scaffold.py` (`_scaffold_mobile_app` + i18n wiring) — **serialization point** (shared file; do not run concurrently with another plan touching `scaffold.py`)
+- `src/fabrik/spec_generator.py` (add `mobile-app` to `SPEC_ENABLED_TYPES:60` + `_TYPE_DEFAULTS:88`), `src/fabrik/deploy_validator.py` (remove `mobile-app` from `_NODE_TYPES:38` + `_NO_HTTP_HEALTH_TYPES:85` only — **keep `_NO_DOCKERFILE_TYPES:56`**). **Not `preplan.py`** (`:55` is the type-set enum, not a guard).
+- `tests/test_scaffold.py`, `tests/test_deploy_validator.py`, `tests/test_scaffold_spec_generation.py`, `tests/test_spec_generator.py`, `tests/orchestrator/test_template_defaults.py` (all: flip mobile-app, **keep `desktop-app` excluded**)
+- `docs/FEATURES.md`, `docs/SERVICES.md`, `docs/OPERATIONS.md`, `docs/CONFIGURATION.md`, `.env.example`, `PORTS.md`, `INDEX.md`, `CHANGELOG.md`
+- **NOT owned (cross-repo HARD STOP):** `/opt/fabrik-lib/**` — the i18n Mobile-column flip + RN-adapter vendoring is fabrik-lib's; propose via handoff, never edit here.
+
+## Evidence
+
+- **Scaffolder client-only behavior** — `src/fabrik/scaffold.py:4163-4171` (docstring: "compose.yaml.j2/Dockerfile.j2 are NOT copied … see test_no_dockerfile"); dispatch map `:4737`; spec-gen gate `:4939` (`generate_spec and project_type in SPEC_ENABLED_TYPES`).
+- **The guard set (land mobile in the chrome-extension state)** — `SPEC_ENABLED_TYPES:60` excludes mobile (add) + `_TYPE_DEFAULTS:88` (add mobile row, `health_path:/health`); `deploy_validator.py` `_NODE_TYPES:38` + `_NO_HTTP_HEALTH_TYPES:85` (remove mobile), `_NO_DOCKERFILE_TYPES:56` (**KEEP** — chrome does); `preplan.py:55` = full type enum (NOT a guard); tests `test_scaffold.py:764`, `test_scaffold_spec_generation.py:197`, `test_spec_generator.py:57,100`, `test_deploy_validator.py:184` (health; `:94` dockerfile stays passing). All read this pass.
+- **Backend emit pattern (chrome precedent, the model)** — `_scaffold_chrome_extension` writes the FastAPI Dockerfile **inline** (`scaffold.py:3942-3970`: `python:3.12-slim-bookworm`, `PYTHONPATH=/app/server/src`, `EXPOSE ${PORT}`=8000, `/health` HEALTHCHECK, `uvicorn {pkg}.main:app` CMD) + `_write_canonical_compose(project_dir, name, port=8000, healthcheck_path="/health", extra_labels=...)` (`scaffold.py:3977`). Chrome ships **no** `Dockerfile.j2`/`compose.yaml.j2` — mobile mirrors this (delete its broken ones).
+- **Broken Node lane** — `templates/mobile-app/Dockerfile.j2:1,16-17` (`FROM node:22`, `HEALTHCHECK curl … :8081/status`); `compose.yaml.j2:22,26` (port 8081, `/status`).
+
+Grounded command output (this session, 2026-07-10) — the guard sites + the `chrome-extension` precedent mobile must match:
+
+```
+$ grep -nE "mobile-app|chrome-extension|frozenset|_NO_" src/fabrik/deploy_validator.py
+31:_NODE_TYPES: frozenset[str] = frozenset(
+38:        "mobile-app",              # remove (Python backend; chrome not here)
+52:_NO_DOCKERFILE_TYPES: frozenset[str] = frozenset(
+56:        "mobile-app",              # KEEP (chrome is here → :58)
+58:        "chrome-extension",
+82:_NO_HTTP_HEALTH_TYPES: frozenset[str] = frozenset(
+85:        "mobile-app",              # remove (chrome not here → /health validated)
+
+$ sed -n '84,97p' src/fabrik/spec_generator.py   # the precedent, stated
+# artifact-only types (desktop-app, mobile-app) have no entry ... chrome-extension IS
+# here because its FastAPI backend (port 8000, /health) is deployable.
+_TYPE_DEFAULTS = { "python-api": {...}, ... "chrome-extension": {"health_path": "/health"} }
+
+$ sed -n '3942,3989p' src/fabrik/scaffold.py     # _scaffold_chrome_extension: the emit pattern
+(project_dir / "Dockerfile").write_text("FROM python:3.12-slim-bookworm ... EXPOSE ${PORT} ... /health")
+_write_canonical_compose(project_dir, name, port=8000, healthcheck_path="/health", extra_labels=(...))
+```
+- **defaults.yaml shape** — `templates/mobile-app/defaults.yaml:12-19` (`kind: service`, all other flags false).
+- **Obytes live structure (fetched 2026-07-10):** `src/app/` router, `src/lib/api/{client.tsx axios, provider.tsx}` + `src/features/feed/api.ts`, `metro.config.js withUniwindConfig(config,{cssEntryFile:'./src/global.css'})`, `src/global.css @import 'tailwindcss'/'uniwind' + @theme`, `env.ts` Zod v4, pnpm; `package.json`: `uniwind@^1.2.4`, `expo-router@~6.0.22`, `@tanstack/react-query@^5.90`, `@tanstack/react-form@^1.27`, `zod@^4`, `axios@^1.13`.
+- **External facts (inherited from CONVERGED spec, re-verified 2026-07-10):** Expo SDK 57 (expo.dev/changelog/sdk-57); Uniwind = build-time Tailwind-v4 Metro compiler, not the unistyles engine (npmjs.com/package/uniwind, docs.uniwind.dev); mmkv RN ≥ 0.76 (github.com/mrousavy/react-native-mmkv); hey-api `validator:true` plugin-scoped + #2720 (heyapi.dev/openapi-ts/plugins/sdk); PostHog `defaults.defaultOptIn:false` (posthog.com/docs/libraries/react-native); TanStack offline onlineManager+NetInfo+PersistQueryClientProvider (tanstack.com/query/latest/docs/framework/react/react-native); Obytes LICENSE MIT.
+- **Deploy-validator frozensets** — `mobile-app` ∈ `_NODE_TYPES:38`, `_NO_DOCKERFILE_TYPES:56`, `_NO_HTTP_HEALTH_TYPES:85` (consumed `:135,:179`). `chrome-extension` ∈ `_NO_DOCKERFILE_TYPES:58` + `_NO_SRC_LAYOUT_TYPES:71` but NOT `_NODE_TYPES`/`_NO_HTTP_HEALTH_TYPES` → the exact target state for mobile (remove 2, keep `_NO_DOCKERFILE_TYPES`). `SPEC_ENABLED_TYPES:60` + `_TYPE_DEFAULTS:88` both include `chrome-extension` (`health_path:/health`), exclude mobile.
+- **Tests encoding client-only** — `tests/test_scaffold.py:764 test_no_dockerfile`, `test_deploy_validator.py:94,184`, `test_scaffold_spec_generation.py:197`, `test_spec_generator.py:57,100`, `tests/orchestrator/test_template_defaults.py:110`.
+
+## Self-audit
+
+- **Grounding passes run:** (1) local — `select_rules.py` (19 ACTIVE), `scaffold.py` `_scaffold_mobile_app`+`_scaffold_chrome_extension:3662,3942-3989`+spec-gen gate `:4939`, template shell, 29-file tree, the guard set (`spec_generator.py:60,84,88`; `deploy_validator.py:38,56,71,85,135,179`; `preplan.py:55`=enum-not-guard; `test_scaffold.py:764`; `test_scaffold_spec_generation.py:197`; `test_spec_generator.py:57,100`; `test_deploy_validator.py:94,184`; `test_template_defaults.py:110` — all read); (2) external — one `fabrik-researcher` for the live Obytes tree (fetched 2026-07-10); stack facts inherited from the CONVERGED spec.
+- **Round-2 `/fabrik-plan-review` finding:** the **`chrome-extension` precedent** (existing client-artifact + deployable-FastAPI-backend type) is the exact model — re-architected Phase B/C to mirror `_scaffold_chrome_extension` (inline Dockerfile + `_write_canonical_compose`, no `.j2` deploy templates) and corrected the guard treatment (keep `_NO_DOCKERFILE_TYPES`; `preplan.py` is not a guard).
+- **`/fabrik-plan-review` decisions:** round 1 — the bundled-backend blast radius (client-only guards) → operator chose **full auto-spec-gen** (Phase C2 + Residual); round 2 — grounding found the **`chrome-extension` precedent**, which superseded the round-1 "rewrite Dockerfile.j2 / model on `Dockerfile.python`" approach with the canonical **inline Dockerfile + `_write_canonical_compose`** (delete the `.j2` deploy templates) and corrected the guard treatment (keep `_NO_DOCKERFILE_TYPES`; `preplan.py` is not a guard).
+- **Coverage vs "What we agreed" (spec §5):** DISCARD/KEEP+PORT/ADOPT/SWAP → Phase A; ADD factory layers → A5; KIT-SEAMS → A6/D2; bundled FastAPI backend + backend-lane rewrite → Phase B; scaffolder emit + test reconciliation → Phase C; i18n vendor (no cross-repo flip) → C3; docs → D. Keep-Uniwind decision → Global Constraints + A3. All mapped.
+- **Cross-phase signature consistency:** `EXPO_PUBLIC_API_URL` (A) ↔ backend base URL (B); `GET /openapi.json` (B) ↔ hey-api source (A4); `GET /app-config` (B) ↔ force-update shell (A5d); backend `compose/Dockerfile` (B) ↔ `_scaffold_mobile_app` render (C1). Consistent.
+- **Fixed-point claim:** NOT YET — this is the DRAFT create pass; `/fabrik-plan-review` converges it.
+
+## Residual unknowns
+
+**Resolved / self-service:**
+- Styling — KEEP Uniwind (operator decision, corrected grounding). Raw unistyles = documented fallback, not used.
+- Backend minimal surface — default `needs_database:false`/`has_bearer_api:false`; auth is opt-in that vendors `fastapi-user-auth` + flips flags (self-service default baked in, B1/B4).
+- Plan naming — `2026-07-10-plan-1` (07-09-plan-1 slot taken); spec's "Derived plan:" pointer updated to match.
+- i18n Mobile-column flip — fabrik-lib's action (handoff, not this plan).
+- **Backend↔spec registration + the client-only guard set — RESOLVED (operator decision 2026-07-10):** "bundled backend, FULL auto-spec-gen." `mobile-app` joins `SPEC_ENABLED_TYPES` (auto-emits the backend spec) and leaves the deploy-validator skip sets; all 6 guards reverse for mobile-app, `desktop-app` stays excluded. Exact sites grounded in Evidence + Phase C2. The hub applies the generated spec (not self-deploy) — consistent with the control-plane.
+
+**Still-open (each with a resolution step, none execution-blocking):**
+- **Ocoron token → Uniwind `@theme` fidelity** — the exact dark/light token mapping from the retired `src/theme/tokens.ts`. *Resolution (self-service):* Phase A3 maps the values 1:1 into `src/global.css` `@theme`/`@variant dark`; visual parity is a CI/EAS-preview check, not a local WSL gate.
+- **Backend build context — RESOLVED by the chrome precedent:** root `Dockerfile` with `COPY server/ ./server/`, build context = repo root (`scaffold.py:3966`). *Self-service:* Phase C1 adds a `.dockerignore` excluding the RN client (`src/`, `node_modules`, `.expo`, `ios/`, `android/`) so it's not in the backend image; assert the built image excludes `node_modules`.
