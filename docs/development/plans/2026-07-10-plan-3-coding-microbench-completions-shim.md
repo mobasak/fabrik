@@ -402,6 +402,8 @@ Phase D closes both plans in the same commit sequence so their final states land
 
 ## Phase C — Live bench run + DB verification + selection MD regen
 
+> **Post-first-run fix (2026-07-11, review-fix commit):** the first live run of Phase C tripped C1 with `humaneval=0.00` for all 4 models despite $4.76 real spend + 8/8 units OK. Root cause: chat-tuned Seed models return prose + fenced code (e.g. `"To solve this problem…\n\n```python\ndef foo(): …\n```"`) but evalplus's `--samples` path `exec()`s the whole solution string → SyntaxError on the prose → grade 0. Fix: insert `python -m evalplus.sanitize --samples <path>` between `generate_samples` and `evalplus.evaluate`; evaluate consumes the resulting `-sanitized.jsonl`. Verified live on 3 humaneval problems against `seed-1.6-flash` → all 3 pass_at_1. Second live run re-attempts with the sanitize step in `_run_one`.
+
 **Purpose:** Actually populate `humaneval_score` + `coding_score` for the 4 ByteDance-Seed models. This is the ~$2.66 live spend + ~30 min wall clock plan-2 Phase E BLOCKED at. Regen `CODING_SUBAGENT_SELECTION.md`.
 
 ### Interfaces

@@ -517,7 +517,16 @@ def test_main_emits_total_spend_regex_on_happy_path(
     def _fake_subprocess_run(cmd, **kw):
         import subprocess as _sub
 
+        # Post-2026-07-11: _run_one runs sanitize before evaluate; the mock must
+        # handle both call shapes or the eval step won't be reached.
         cwd = pathlib.Path(kw.get("cwd", "."))
+        if "evalplus.sanitize" in cmd:
+            samples_idx = cmd.index("--samples") + 1
+            sp = pathlib.Path(cmd[samples_idx])
+            sp.with_name(sp.name.replace(".jsonl", "-sanitized.jsonl")).write_text(
+                sp.read_text()
+            )
+            return _sub.CompletedProcess(cmd, 0, b"", b"")
         results_dir = cwd / "results"
         results_dir.mkdir(parents=True, exist_ok=True)
         (results_dir / "eval_results.json").write_text(

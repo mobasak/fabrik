@@ -439,6 +439,46 @@ def main(argv: list[str] | None = None) -> int:
                         )
                     except Exception as e:  # noqa: BLE001
                         return u, False, f"generate_samples failed: {e!r}", 0.0
+                    # step 1b — sanitize: strip prose/markdown, extract Python via
+                    # tree-sitter. Chat-tuned LLMs return prose + fenced code; evalplus's
+                    # raw --samples path exec()s the whole string → SyntaxError → 0%.
+                    # evalplus ships this exact tool for the exact case.
+                    try:
+                        san_result = subprocess.run(
+                            [
+                                sys.executable,
+                                "-m",
+                                "evalplus.sanitize",
+                                "--samples",
+                                str(samples_path),
+                            ],
+                            cwd=str(u.unit_dir),
+                            env=env,
+                            capture_output=True,
+                            timeout=180,
+                            check=False,
+                        )
+                        if san_result.returncode != 0:
+                            return (
+                                u,
+                                False,
+                                f"evalplus.sanitize failed: {(san_result.stderr or b'').decode()[-1500:]}",
+                                cost,
+                            )
+                    except subprocess.TimeoutExpired as e:
+                        return u, False, f"evalplus.sanitize timeout after 180s: {e}", cost
+                    except Exception as e:  # noqa: BLE001
+                        return u, False, f"evalplus.sanitize failed: {e!r}", cost
+                    sanitized_path = samples_path.with_name(
+                        samples_path.name.replace(".jsonl", "-sanitized.jsonl")
+                    )
+                    if not sanitized_path.exists():
+                        return (
+                            u,
+                            False,
+                            f"evalplus.sanitize produced no output at {sanitized_path}",
+                            cost,
+                        )
                     # step 2 — offline eval (no OR call; evalplus's local sandbox)
                     try:
                         result = subprocess.run(
@@ -449,7 +489,7 @@ def main(argv: list[str] | None = None) -> int:
                                 "--dataset",
                                 u.dataset,
                                 "--samples",
-                                str(samples_path),
+                                str(sanitized_path),
                             ],
                             cwd=str(u.unit_dir),
                             env=env,

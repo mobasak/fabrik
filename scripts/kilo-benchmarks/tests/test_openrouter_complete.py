@@ -169,9 +169,7 @@ def test_resolve_client_raises_when_key_missing(
     def _noop_load_env(*a, **kw):
         return []
 
-    monkeypatch.setattr(
-        "libs.subagents._dotenv.load_env", _noop_load_env, raising=False
-    )
+    monkeypatch.setattr("libs.subagents._dotenv.load_env", _noop_load_env, raising=False)
     with pytest.raises(RuntimeError, match="OPENROUTER_API_KEY"):
         openrouter_complete._resolve_client(env_path="/does-not-exist")
 

@@ -44,9 +44,7 @@ def _make_agents_db(tmp_path: pathlib.Path) -> pathlib.Path:
         "weighted_coding REAL, "
         "last_verified DATE)"
     )
-    conn.execute(
-        "INSERT INTO agents (id) VALUES (?)", ("bytedance-seed/seed-2.0-lite",)
-    )
+    conn.execute("INSERT INTO agents (id) VALUES (?)", ("bytedance-seed/seed-2.0-lite",))
     conn.commit()
     conn.close()
     return db
@@ -55,10 +53,21 @@ def _make_agents_db(tmp_path: pathlib.Path) -> pathlib.Path:
 def _fake_evalplus_writes_results(
     fixture_shape: dict,
 ):
-    """Factory for a subprocess.run mock that writes eval_results.json into cwd/results/."""
+    """Factory for a subprocess.run mock that:
+    - on `evalplus.sanitize` — writes the -sanitized.jsonl next to the input
+    - on `evalplus.evaluate` — writes eval_results.json into cwd/results/
+    Mirrors the real 3-step (shim → sanitize → evaluate) flow post-2026-07-11 fix."""
 
     def _run(cmd, **kw):
         cwd = pathlib.Path(kw.get("cwd", "."))
+        if "evalplus.sanitize" in cmd:
+            samples_idx = cmd.index("--samples") + 1
+            samples_path = pathlib.Path(cmd[samples_idx])
+            sanitized = samples_path.with_name(
+                samples_path.name.replace(".jsonl", "-sanitized.jsonl")
+            )
+            sanitized.write_text(samples_path.read_text())
+            return subprocess.CompletedProcess(cmd, 0, b"", b"")
         results_dir = cwd / "results"
         results_dir.mkdir(parents=True, exist_ok=True)
         (results_dir / "eval_results.json").write_text(json.dumps(fixture_shape))
@@ -92,17 +101,14 @@ def test_two_step_happy_path_writes_correct_scores(
         p = pathlib.Path(out_path)
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(
-            "\n".join(json.dumps({"task_id": tid, "solution": "pass\n"}) for tid in problems)
-            + "\n"
+            "\n".join(json.dumps({"task_id": tid, "solution": "pass\n"}) for tid in problems) + "\n"
         )
         return p, 0.11
 
     monkeypatch.setattr(
         microbench_coding.openrouter_complete, "generate_samples", _fake_generate_samples
     )
-    monkeypatch.setattr(
-        microbench_coding.subprocess, "run", _fake_evalplus_writes_results(fixture)
-    )
+    monkeypatch.setattr(microbench_coding.subprocess, "run", _fake_evalplus_writes_results(fixture))
 
     stdout = io.StringIO()
     stderr = io.StringIO()
@@ -158,9 +164,7 @@ def test_main_accumulates_real_spend_from_shim(
     monkeypatch.setattr(
         microbench_coding.openrouter_complete, "generate_samples", _fake_generate_samples
     )
-    monkeypatch.setattr(
-        microbench_coding.subprocess, "run", _fake_evalplus_writes_results(fixture)
-    )
+    monkeypatch.setattr(microbench_coding.subprocess, "run", _fake_evalplus_writes_results(fixture))
 
     stdout = io.StringIO()
     with redirect_stdout(stdout):
@@ -205,9 +209,7 @@ def test_outer_dispatch_uses_max_workers_1(
     monkeypatch.setattr(
         microbench_coding.openrouter_complete, "generate_samples", _fake_generate_samples
     )
-    monkeypatch.setattr(
-        microbench_coding.subprocess, "run", _fake_evalplus_writes_results(fixture)
-    )
+    monkeypatch.setattr(microbench_coding.subprocess, "run", _fake_evalplus_writes_results(fixture))
 
     # Instrument ThreadPoolExecutor to capture max_workers
     seen_max_workers: list[int] = []
@@ -218,9 +220,7 @@ def test_outer_dispatch_uses_max_workers_1(
             seen_max_workers.append(max_workers)
             super().__init__(*a, max_workers=max_workers, **kw)
 
-    monkeypatch.setattr(
-        microbench_coding.concurrent.futures, "ThreadPoolExecutor", _CapturingTPE
-    )
+    monkeypatch.setattr(microbench_coding.concurrent.futures, "ThreadPoolExecutor", _CapturingTPE)
 
     stdout = io.StringIO()
     with redirect_stdout(stdout):
@@ -267,9 +267,7 @@ def test_run_one_returns_4_tuple_with_shim_cost(
     monkeypatch.setattr(
         microbench_coding.openrouter_complete, "generate_samples", _fake_generate_samples
     )
-    monkeypatch.setattr(
-        microbench_coding.subprocess, "run", _fake_evalplus_writes_results(fixture)
-    )
+    monkeypatch.setattr(microbench_coding.subprocess, "run", _fake_evalplus_writes_results(fixture))
 
     stdout = io.StringIO()
     with redirect_stdout(stdout):
