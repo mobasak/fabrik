@@ -472,7 +472,7 @@ Ship a local coding benchmark runner at `scripts/kilo-benchmarks/microbench_codi
    )"
    ```
 
-## Phase D — Tier ladder + FAMILIES + non-regression guard
+## Phase D — Tier ladder + FAMILIES + non-regression guard — ✅ EXECUTED 2026-07-10
 
 **Purpose:** Wire the bench signal downstream — add `humaneval_score` to `derive_quality_v2.py`'s tier ladder AND assert no non-Seed model tier-flips (spec §Success criteria "Non-regression on the tier ladder").
 

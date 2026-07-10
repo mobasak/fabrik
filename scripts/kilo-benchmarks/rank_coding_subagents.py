@@ -62,6 +62,13 @@ FAMILIES = (
     # price split at :86 then tiers automatically (-next $0.80, -flash $0.975,
     # -30b-a3b-instruct $0.27 → Auto; -plus $3.25 → On-request).
     "qwen/qwen3-coder-",
+    # 2026-07-10 — admits ByteDance Seed coding models per plan-2-coding-microbench-runner.
+    # TIGHT prefix (trailing `-`) so it matches -1.6-flash/-2.0-mini/-1.6/-2.0-lite
+    # but NOT bytedance-seed/dola-* (image), bytedance-seed/seedream-* (image), or
+    # bytedance/ui-tars-* (GUI-agent, deferred to a separate follow-up plan).
+    # Price tiering (per rank_coding_subagents.py:98 AUTO_OUTPUT_PRICE_CEILING = 1.5):
+    # -1.6-flash $0.30 / -2.0-mini $0.40 → Auto; -1.6 $2.00 / -2.0-lite $2.00 → On-request.
+    "bytedance-seed/seed-",
 )
 
 # ─────────────────────────────────────────────────────────────────────────────
