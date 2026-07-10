@@ -1,56 +1,21 @@
 /* eslint-disable ts/ban-ts-comment */
 /* eslint-disable no-restricted-globals */
 
-// Mock react-native-worklets first
-jest.mock('react-native-worklets', () => ({
-  __esModule: true,
-  default: {},
-}));
+// @gorhom/bottom-sheet calls reanimated APIs (addWhitelistedUIProps) at import
+// time that the reanimated-4 rewrite removed; use its official jest mock so test
+// files importing it (e.g. test-utils) don't crash on load.
+jest.mock('@gorhom/bottom-sheet', () => require('@gorhom/bottom-sheet/mock'));
 
-// Mock react-native-reanimated
-jest.mock('react-native-reanimated', () => {
-  const View = require('react-native').View;
+// Reanimated 4 delegates worklets to react-native-worklets, whose native side is
+// not available under jest ("[Worklets] Native part ... not initialized"). Mock
+// worklets with its own test mock BEFORE reanimated loads, then reanimated's mock.
+// (Fix per docs.swmansion.com/react-native-worklets troubleshooting + reanimated#8806.)
+jest.mock('react-native-worklets', () => require('react-native-worklets/src/mock'));
+jest.mock('react-native-reanimated', () => require('react-native-reanimated/mock'));
 
-  return {
-    __esModule: true,
-    default: {
-      View,
-      ScrollView: View,
-      createAnimatedComponent: (component: any) => component,
-    },
-    useSharedValue: jest.fn(() => ({ value: 0 })),
-    useAnimatedStyle: jest.fn(fn => fn()),
-    withTiming: jest.fn(value => value),
-    withSpring: jest.fn(value => value),
-    withDecay: jest.fn(value => value),
-    withDelay: jest.fn((_, value) => value),
-    withRepeat: jest.fn(value => value),
-    withSequence: jest.fn((...values) => values[0]),
-    cancelAnimation: jest.fn(),
-    Easing: {
-      linear: jest.fn(),
-      ease: jest.fn(),
-      quad: jest.fn(),
-      cubic: jest.fn(),
-      bezier: jest.fn(),
-      in: jest.fn(fn => fn),
-      out: jest.fn(fn => fn),
-      inOut: jest.fn(fn => fn),
-    },
-    FadeIn: { duration: jest.fn(() => ({})) },
-    FadeOut: { duration: jest.fn(() => ({})) },
-    FadeInDown: { duration: jest.fn(() => ({})) },
-    FadeInUp: { duration: jest.fn(() => ({})) },
-    FadeInLeft: { duration: jest.fn(() => ({})) },
-    FadeInRight: { duration: jest.fn(() => ({})) },
-    SlideInDown: { duration: jest.fn(() => ({})) },
-    SlideInUp: { duration: jest.fn(() => ({})) },
-    SlideInLeft: { duration: jest.fn(() => ({})) },
-    SlideInRight: { duration: jest.fn(() => ({})) },
-    Layout: {},
-    Keyframe: jest.fn(),
-  };
-});
+// react-native-keyboard-controller is a native module — use its official jest mock.
+jest.mock('react-native-keyboard-controller', () =>
+  require('react-native-keyboard-controller/jest'));
 
 // Mock expo-localization
 jest.mock('expo-localization', () => ({

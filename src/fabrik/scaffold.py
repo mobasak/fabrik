@@ -943,7 +943,32 @@ def _scaffold_shared(
         claude_target = project_dir / ".claude"
         if claude_target.exists():
             shutil.rmtree(claude_target)
-        shutil.copytree(fabrik_claude, claude_target)
+        # Copy ONLY the hook essentials (settings.json + hooks/ + commands/agents),
+        # NOT Claude Code's runtime/session state — worktrees/ alone can be hundreds
+        # of MB (agent worktrees) and would bloat every scaffold; session/cache dirs
+        # and any credential files must never ship to a project.
+        shutil.copytree(
+            fabrik_claude,
+            claude_target,
+            ignore=shutil.ignore_patterns(
+                "worktrees",
+                "projects",
+                "todos",
+                "shell-snapshots",
+                "cache",
+                "file-history",
+                "downloads",
+                "debug",
+                "ide",
+                "statsig",
+                "backups",
+                "history.jsonl",
+                ".credentials.json*",
+                "manager-accounts",
+                "*.log",
+                "__pycache__",
+            ),
+        )
 
     # Copy docs/reference/kilo/ directory (Kilo AI agent system docs)
     fabrik_kilo_docs = FABRIK_ROOT / "docs" / "reference" / "kilo"
