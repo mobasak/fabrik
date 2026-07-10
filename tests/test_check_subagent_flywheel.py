@@ -41,11 +41,24 @@ def _write_ledger(p: Path, rows: list[dict]) -> None:
 def test_block_big_code_no_pool_no_declare(tmp_path, monkeypatch):
     # substantial code change, zero in-cycle pool runs, no declaration → BLOCK (exit 1)
     mod = _load()
+    monkeypatch.setattr(mod, "_pool_available", lambda: True)  # pool-equipped project
     monkeypatch.setattr(mod, "_changed_code_files", lambda: 20)
     monkeypatch.setattr(mod, "_declared_no_pool", lambda: False)
     monkeypatch.setattr(mod, "_merge_base_epoch", lambda: 1_000_000.0)
     ledger = tmp_path / "ledger.jsonl"  # absent → zero in-cycle
     assert mod.check(ledger) == 1
+
+
+def test_selfscope_no_pool_module_never_blocks(tmp_path, monkeypatch):
+    # a project WITHOUT libs/subagents can't dispatch the pool → the gate must NOT block it (self-scope),
+    # even on a huge code change with no pool runs + no declaration. This is what makes fleet distribution
+    # safe: the block is a silent no-op until a project vendors the module.
+    mod = _load()
+    monkeypatch.setattr(mod, "_pool_available", lambda: False)
+    monkeypatch.setattr(mod, "_changed_code_files", lambda: 50)
+    monkeypatch.setattr(mod, "_declared_no_pool", lambda: False)
+    monkeypatch.setattr(mod, "_merge_base_epoch", lambda: 1_000_000.0)
+    assert mod.check(tmp_path / "ledger.jsonl") == 0
 
 
 def test_pass_when_pool_used_this_cycle(tmp_path, monkeypatch):

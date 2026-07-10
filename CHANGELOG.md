@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — pool-or-declare gate: self-scoping to pool-equipped hosts + fleet-distributed (2026-07-10)
+
+`check_subagent_flywheel.py` now enforces the pool-or-declare block ONLY where the pool is actually reachable — `_pool_available()` checks the canonical hub module `/opt/fabrik-lib/subagents` (the pool is a **dev-time** tool used straight from the hub — no per-project vendor or fleet-sync needed) OR a local vendor copy; present in neither → no block (fail-safe). Makes fleet distribution safe: the block is a silent no-op in a project until the pool is reachable, and the block message points agents at the exact `sys.path.insert(0, '/opt/fabrik-lib/subagents'); from subagents import fanout` dispatch. Distributed fleet-wide. (Answers "do we have to vendor the module?" — no: agents import from `/opt/fabrik-lib` directly.) +1 self-scope test (17 total).
+
+### Added — HuggingFace Inference Providers token saved as next-aggregator wire-in (2026-07-10)
+
+`HF_TOKEN` (`hf_*`) saved to `.env` for the HuggingFace Inference Providers meta-gateway (Novita / Sambanova / Fireworks / Together / Cerebras behind one router endpoint `https://router.huggingface.co/v1`, OpenAI-compatible). Not wired yet — flagged as **NEXT AGGREGATOR** in [`docs/reference/kilo/AGGREGATOR_ROADMAP.md`](docs/reference/kilo/AGGREGATOR_ROADMAP.md) (Tier 3 row + step 5) with the wire pattern mirroring the ModelScope plan-2 sequence: scraper → new-row ingest → `via_hf=1` flag → placeholder-heal on daily cron. `.env.example` + `docs/CONFIGURATION.md` updated per the Doc Sync Matrix.
+
 ### Changed — Subagent pool enforcement: "pool-or-declare" hard-block gate (2026-07-10)
 
 `check_subagent_flywheel.py` flipped from advisory WARN to a **BLOCKING** `final_gate` check (operator-approved; the pre-planned `TODO(2026-07-22)` escalation) — the teeth for `62 § Dispatch policy`'s pool-default after advisory prose demonstrably failed to change behaviour (two Claude AIs in this repo skipped the pool and admitted it). **Layer 1 (blocking):** a substantial CODE change (committed + staged, >8 code files) with ZERO pool subagent runs *this cycle* fails the gate — unless the work declares `NO-POOL: <reason>` (commit-msg trailer) or `FABRIK_NO_POOL` (env). Agent-agnostic (Kilo/Cascade/Claude all hit it, at commit time). "This cycle" = ledger rows newer than the merge-base (fixes the stale-ledger self-disable). **Layer 2** stays advisory (unrecorded-run reconciliation). Fail-safe invariant: any git/parse/exception → exit 0 (never a false block); only committed+staged files count (never unstaged WIP/artifacts). Hardened through 3 adversarial pool-review passes (found + fixed real false-block paths: unstaged over-count, git-log-failure, naive-ts undercount, `@{upstream}` inflation). 16-case behavior contract.
