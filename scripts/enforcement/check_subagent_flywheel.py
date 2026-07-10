@@ -211,7 +211,9 @@ def _declared_no_pool() -> bool:
         # range) — SYMMETRIC with _merge_base_epoch/None → _in_cycle_pool_runs counting ALL ledger rows:
         # if the cycle can't be bounded, both the pool-run check and the declaration check go maximally
         # lenient (lean no-block), so an earlier commit's declaration is never missed into a false block.
-        args = ["log", "--format=%B", f"{base}..HEAD"] if base is not None else ["log", "--format=%B"]
+        args = (
+            ["log", "--format=%B", f"{base}..HEAD"] if base is not None else ["log", "--format=%B"]
+        )
         msg = _git(args)
         if msg is None:
             return True  # couldn't read the commits (git failure) → fail-safe, don't block
@@ -224,15 +226,13 @@ def _declared_no_pool() -> bool:
 
 
 def _pool_available() -> bool:
-    """The gate enforces pool use ONLY where the pool can actually be dispatched. The subagents pool is a
-    DEV-TIME tool (review / test-authoring) — never app runtime (zero runtime callers), so agents use it
-    straight from the canonical hub module ``/opt/fabrik-lib/subagents`` (always present where the coding
-    agents run — no per-project vendor or fleet-sync needed) OR a local vendor copy. Present in NEITHER
-    (e.g. a CI/container gate off the dev host) → don't block (fail-safe: can't dispatch → can't enforce)."""
-    return (
-        Path("/opt/fabrik-lib/subagents/subagents/__init__.py").is_file()
-        or (PROJECT_ROOT / "libs" / "subagents" / "__init__.py").is_file()
-    )
+    """The gate enforces pool use ONLY where the pool can actually be dispatched. The subagents pool is
+    **vendored** into a project (``libs/subagents/`` — copied from ``/opt/fabrik-lib/subagents`` per the
+    flywheel workflow, `.windsurf/workflows/subagent-runs-flywheel.md`), and the commands import it as
+    ``from libs.subagents import …``. So "dispatchable here" == "vendored here": a project (or the hub,
+    which carries its own ``libs/subagents``) that has NOT vendored the module can't ``from libs.subagents
+    import`` → don't block (fail-safe: can't dispatch → can't enforce)."""
+    return (PROJECT_ROOT / "libs" / "subagents" / "__init__.py").is_file()
 
 
 def _pool_or_declare(ledger_path: Path) -> int:
@@ -255,10 +255,10 @@ def _pool_or_declare(ledger_path: Path) -> int:
         "subagent runs were recorded — the pool-default review/implement fan-out was skipped "
         "(62-using-subagents.md § Dispatch policy). Agent-agnostic: Kilo, Cascade, and Claude all hit it.\n"
         "Fix ONE of:\n"
-        "  • dispatch the pool for this work — a review/implement fan-out via fanout(...) / run_agents(...) "
-        "imported from the hub module (no vendor needed): "
-        "sys.path.insert(0, '/opt/fabrik-lib/subagents'); from subagents import fanout, pick_models "
-        "(it records to the flywheel), then re-run the gate; OR\n"
+        "  • dispatch the pool for this work — a review/implement fan-out via "
+        "`from libs.subagents import fanout, run_agents, pick_models` (vendor it first if absent: "
+        "`cp -r /opt/fabrik-lib/subagents/subagents/. ./libs/subagents/` — see "
+        "`.windsurf/workflows/subagent-runs-flywheel.md`); it records to the flywheel — then re-run the gate; OR\n"
         "  • if this work is genuinely native-only (mechanical rename, trivial fix, GUI-only), declare it: "
         "a `NO-POOL: <reason>` line in the commit message, or `FABRIK_NO_POOL='<reason>'`."
     )
