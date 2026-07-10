@@ -30,7 +30,11 @@ from datetime import UTC, datetime, timedelta
 SCRIPT_DIR = pathlib.Path(__file__).parent
 DB_PATH = SCRIPT_DIR / "kilo_agents.db"
 sys.path.insert(0, str((SCRIPT_DIR / "libs").resolve()))
+sys.path.insert(0, str(SCRIPT_DIR))  # for openrouter_complete (uses `libs.subagents.*` imports)
 
+import openrouter_complete  # noqa: E402
+from evalplus.data.humaneval import get_human_eval_plus  # noqa: E402
+from evalplus.data.mbpp import get_mbpp_plus  # noqa: E402
 from subagents import AgentSpec, run_agents  # noqa: E402, F401
 
 # Injection-safety boundary — reject anything not in this whitelist BEFORE it
@@ -140,9 +144,7 @@ def build_units(
                 max_cost_usd=cost_cap,
                 wall_clock_s=1800,  # 30 min per unit
             )
-            units.append(
-                BenchUnit(target=target, dataset=ds, spec=spec, unit_dir=unit_dir)
-            )
+            units.append(BenchUnit(target=target, dataset=ds, spec=spec, unit_dir=unit_dir))
     return units
 
 
@@ -196,9 +198,7 @@ def parse_eval_results(results_json: pathlib.Path) -> dict[str, float]:
     return {"base": base_correct / total, "plus": plus_correct / total}
 
 
-def merge_dataset_results(
-    humaneval: dict[str, float], mbpp: dict[str, float]
-) -> dict[str, float]:
+def merge_dataset_results(humaneval: dict[str, float], mbpp: dict[str, float]) -> dict[str, float]:
     """Merge two per-dataset {base, plus} dicts into the 4-key dict write_scores consumes.
 
     Raises KeyError if either input dict is missing a required key.
@@ -214,9 +214,7 @@ def merge_dataset_results(
 # ─── Phase C: DB write + freshness gate + main CLI ─────────────────────────────
 
 
-def write_scores(
-    conn: sqlite3.Connection, model_id: str, scores: dict[str, float]
-) -> None:
+def write_scores(conn: sqlite3.Connection, model_id: str, scores: dict[str, float]) -> None:
     """Write pass@1 scores to agents.humaneval_score + agents.coding_score.
 
     Scale: 0-100 (raw pass@1 × 100), matching weighted_coding's BenchLM-composite
@@ -238,8 +236,7 @@ def write_scores(
     humaneval = round(base, 2)
     coding_composite = round((base + plus + mbpp_base + mbpp_plus) / 4, 2)
     conn.execute(
-        "UPDATE agents SET humaneval_score = ?, coding_score = ?, "
-        "last_verified = ? WHERE id = ?",
+        "UPDATE agents SET humaneval_score = ?, coding_score = ?, last_verified = ? WHERE id = ?",
         (humaneval, coding_composite, datetime.now(UTC).date().isoformat(), model_id),
     )
     conn.commit()
@@ -261,9 +258,7 @@ def is_fresh(conn: sqlite3.Connection, model_id: str, ttl_days: int = 60) -> boo
 
 
 def _model_exists(conn: sqlite3.Connection, model_id: str) -> bool:
-    row = conn.execute(
-        "SELECT 1 FROM agents WHERE id = ? LIMIT 1", (model_id,)
-    ).fetchone()
+    row = conn.execute("SELECT 1 FROM agents WHERE id = ? LIMIT 1", (model_id,)).fetchone()
     return row is not None
 
 
@@ -321,14 +316,10 @@ def main(argv: list[str] | None = None) -> int:
 
         # Argparse-level positivity guards (F5 from Phase C review)
         if args.cost_cap <= 0:
-            print(
-                f"error: --cost-cap must be > 0 (got {args.cost_cap})", file=sys.stderr
-            )
+            print(f"error: --cost-cap must be > 0 (got {args.cost_cap})", file=sys.stderr)
             return 1
         if args.ttl_days <= 0:
-            print(
-                f"error: --ttl-days must be > 0 (got {args.ttl_days})", file=sys.stderr
-            )
+            print(f"error: --ttl-days must be > 0 (got {args.ttl_days})", file=sys.stderr)
             return 1
 
         target_models = [m.strip() for m in args.models.split(",") if m.strip()]
@@ -406,108 +397,114 @@ def main(argv: list[str] | None = None) -> int:
                     print("error: no dispatch units built", file=sys.stderr)
                     return 1
 
-                # Direct subprocess.run dispatch via ThreadPoolExecutor.
-                # NOTE: the plan initially specified libs.subagents.run_agents,
-                # but Phase E execution surfaced that the pool's run_command tool
-                # has a DEFAULT_ALLOWED_COMMANDS whitelist of
-                # {python,python3,pytest,ruff,mypy,bandit,semgrep} (verified at
-                # libs/subagents/tools.py:51-56) — `evalplus` is not admitted,
-                # and shell `cd &&` operators are refused. The pool is designed
-                # for developer-tool orchestration (test-authoring, review), not
-                # arbitrary-binary orchestration. Direct subprocess.run with
-                # bwrap wrap_command (same sandbox layer) achieves the same
-                # parallelism + sandbox properties without the LLM orchestration
-                # mismatch. Cost tracking loses granularity (evalplus doesn't
-                # emit cost); we emit TOTAL_SPEND_USD: 0.00 for the E4 grep
-                # contract and note the OR dashboard is the source of truth.
+                # Two-step dispatch — plan-3 (unblocks plan-2 Phase E's
+                # evalplus↔OR JSONDecodeError):
+                # (1) shim.generate_samples → jsonl of completions via
+                #     libs.subagents._transport.run (proven OR-compatible);
+                # (2) subprocess.run(evalplus.evaluate --samples <jsonl>) —
+                #     offline eval step, no OR call, uses evalplus's own sandbox.
+                # Real cost tracking: shim returns per-unit sum(Result.cost_usd)
+                # which is single-attempt (verified by fabrik-lib module owner's
+                # 2-finder doc↔code review: _client.py:530 _resolve_cost runs
+                # only after _finalize at :529 — retries never double-count).
+                # Outer max_workers=1 (serial across units) × shim's inner
+                # max_concurrency=8 caps OR-concurrency at 8 (per plan-3
+                # residual #1 resolution).
                 by_target: dict[str, dict[str, dict[str, float]]] = {}
                 env = os.environ.copy()
                 or_key = env.get("OPENROUTER_API_KEY", "")
                 if not or_key:
-                    print(
-                        "error: OPENROUTER_API_KEY not set", file=sys.stderr
-                    )
+                    print("error: OPENROUTER_API_KEY not set", file=sys.stderr)
                     return 1
                 env["OPENAI_API_KEY"] = or_key
 
-                def _run_one(u: BenchUnit) -> tuple[BenchUnit, bool, str]:
-                    """Run one evalplus.evaluate unit; returns (unit, ok, err)."""
-                    cmd = [
-                        sys.executable,
-                        "-m",
-                        "evalplus.evaluate",
-                        "--backend",
-                        "openai",
-                        "--base-url",
-                        "https://openrouter.ai/api/v1",
-                        "--model",
-                        u.target,
-                        "--dataset",
-                        u.dataset,
-                        "--greedy",
-                        "--root",
-                        "./results",
-                    ]
-                    # Bwrap sandbox — read-only-root, no-network-except-OR-egress
-                    # (bwrap --unshare-net would block OR egress too, so we RUN
-                    # WITHOUT --unshare-net for the bench; the shell-injection
-                    # regex-guards in build_units are the primary defense; wrap
-                    # for the read-only-root protection only).
-                    # Actually: keep it simple — direct subprocess is fine for a
-                    # controlled internal bench, sandbox_available() reports the
-                    # bwrap wrap capability but we skip it here because evalplus
-                    # NEEDS network for OR calls, and wrap_command uses
-                    # --unshare-net by default (verified sandbox.py:66-89).
+                def _run_one(u: BenchUnit) -> tuple[BenchUnit, bool, str, float]:
+                    """Two-step: shim.generate_samples → evalplus.evaluate --samples.
+                    Returns (unit, ok, err, cost)."""
+                    # step 1 — completion via vendored transport (SSE-robust)
+                    problems_dict = (
+                        get_human_eval_plus() if u.dataset == "humaneval" else get_mbpp_plus()
+                    )
+                    prompts = {task_id: p["prompt"] for task_id, p in problems_dict.items()}
+                    samples_path = (
+                        u.unit_dir / "results" / f"{u.target.replace('/', '--')}_samples.jsonl"
+                    )
+                    try:
+                        samples_path, cost = openrouter_complete.generate_samples(
+                            model=u.target,
+                            problems=prompts,
+                            out_path=samples_path,
+                            max_concurrency=8,
+                            env_path="/opt/fabrik",
+                        )
+                    except Exception as e:  # noqa: BLE001
+                        return u, False, f"generate_samples failed: {e!r}", 0.0
+                    # step 2 — offline eval (no OR call; evalplus's local sandbox)
                     try:
                         result = subprocess.run(
-                            cmd,
+                            [
+                                sys.executable,
+                                "-m",
+                                "evalplus.evaluate",
+                                "--dataset",
+                                u.dataset,
+                                "--samples",
+                                str(samples_path),
+                            ],
                             cwd=str(u.unit_dir),
                             env=env,
                             capture_output=True,
-                            timeout=1800,
+                            timeout=600,
                             check=False,
                         )
                         if result.returncode != 0:
-                            return u, False, (result.stderr or b"").decode()[
-                                -2000:
-                            ]
-                        return u, True, ""
+                            return (
+                                u,
+                                False,
+                                (result.stderr or b"").decode()[-2000:],
+                                cost,
+                            )
+                        return u, True, "", cost
                     except subprocess.TimeoutExpired as e:
-                        return u, False, f"timeout after 1800s: {e}"
+                        return (
+                            u,
+                            False,
+                            f"evalplus.evaluate --samples timeout after 600s: {e}",
+                            cost,
+                        )
                     except Exception as e:  # noqa: BLE001
-                        return u, False, f"subprocess failed: {e!r}"
+                        return (
+                            u,
+                            False,
+                            f"evalplus.evaluate --samples failed: {e!r}",
+                            cost,
+                        )
 
-                max_workers = min(len(units), args.cost_cap and 8 or 4)
                 print(
                     f"Dispatching {len(units)} units via subprocess "
-                    f"(max_workers={max_workers}); ~30 min wall clock expected"
+                    f"(outer max_workers=1 serial + shim inner=8 concurrent); "
+                    f"~30-60 min wall clock expected"
                 )
-                with concurrent.futures.ThreadPoolExecutor(
-                    max_workers=max_workers
-                ) as pool:
+                total_spend = 0.0
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
                     futs = [pool.submit(_run_one, u) for u in units]
-                    for i, fut in enumerate(
-                        concurrent.futures.as_completed(futs)
-                    ):
-                        u, ok, err = fut.result()
+                    for i, fut in enumerate(concurrent.futures.as_completed(futs)):
+                        u, ok, err, cost = fut.result()
+                        total_spend += cost
                         status = "OK" if ok else "FAIL"
                         print(
-                            f"[{i+1}/{len(units)}] {status} {u.target}/{u.dataset}"
+                            f"[{i + 1}/{len(units)}] {status} {u.target}/{u.dataset} cost=${cost:.4f}"
                         )
                         if not ok:
                             print(f"  err: {err[-500:]}", file=sys.stderr)
 
                 # Parse per-unit results
                 for u in units:
-                    results_json = u.unit_dir / "results" / "eval_results.json"
-                    if not results_json.exists():
-                        candidates = list(
-                            u.unit_dir.glob("**/*eval_results*.json")
-                        )
-                        results_json = candidates[0] if candidates else None
+                    results_json_candidates = list(u.unit_dir.glob("**/*eval_results*.json"))
+                    results_json = results_json_candidates[0] if results_json_candidates else None
                     if results_json and results_json.exists():
-                        by_target.setdefault(u.target, {})[u.dataset] = (
-                            parse_eval_results(results_json)
+                        by_target.setdefault(u.target, {})[u.dataset] = parse_eval_results(
+                            results_json
                         )
                     else:
                         print(
@@ -520,10 +517,6 @@ def main(argv: list[str] | None = None) -> int:
                             "plus": 0.0,
                         }
 
-                # Cost tracking via direct subprocess is lossy — evalplus doesn't
-                # emit per-call OR cost. Users should check the OR dashboard.
-                total_spend = 0.0  # E4 grep contract still satisfied
-
                 # Write per-target scores (per-model commit inside the loop
                 # preserves progress on kill)
                 for target, per_ds in by_target.items():
@@ -532,8 +525,8 @@ def main(argv: list[str] | None = None) -> int:
                     merged = merge_dataset_results(he, mb)
                     write_scores(conn, target, merged)
                     print(
-                        f"WROTE {target}: humaneval={merged['base']*100:.2f} "
-                        f"coding={round((sum(merged.values())/4)*100, 2)}"
+                        f"WROTE {target}: humaneval={merged['base'] * 100:.2f} "
+                        f"coding={round((sum(merged.values()) / 4) * 100, 2)}"
                     )
             return 0
         finally:

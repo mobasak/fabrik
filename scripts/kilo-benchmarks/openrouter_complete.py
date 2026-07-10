@@ -38,18 +38,20 @@ def _run(model: str, prompt: str, *, client: OpenRouterClient, max_cost_usd: flo
     )
 
 
-def complete(model: str, prompt: str, *, client: OpenRouterClient, max_cost_usd: float = 0.50) -> str:
+def complete(
+    model: str, prompt: str, *, client: OpenRouterClient, max_cost_usd: float = 0.50
+) -> str:
     """One greedy completion. Returns '' if the provider streamed nothing (zero-token stall)."""
     return _run(model, prompt, client=client, max_cost_usd=max_cost_usd).text or ""
 
 
 def generate_samples(
     model: str,
-    problems: dict[str, str],          # task_id -> the prompt evalplus assembled
+    problems: dict[str, str],  # task_id -> the prompt evalplus assembled
     out_path: str | Path,
     *,
     max_concurrency: int = 8,
-    solution_key: str = "solution",    # evalplus>=0.2 field; older raw format uses "completion" — confirm
+    solution_key: str = "solution",  # evalplus>=0.2 field; older raw format uses "completion" — confirm
     env_path: str | None = ".env",
 ) -> tuple[Path, float]:
     """Generate one greedy completion per problem, write evalplus's samples `.jsonl` in problems order,
@@ -65,15 +67,22 @@ def generate_samples(
         try:
             r = _run(model, prompt, client=client, max_cost_usd=0.50)
             if r.finish_reason == "length":
-                print(f"[warn] {task_id}: hit max_tokens (truncated) — may falsely fail", file=sys.stderr)
+                print(
+                    f"[warn] {task_id}: hit max_tokens (truncated) — may falsely fail",
+                    file=sys.stderr,
+                )
             return {"task_id": task_id, solution_key: r.text or ""}, (r.cost_usd or 0.0)
         except Exception as exc:  # noqa: BLE001 — one bad problem never aborts the batch, but MAKE IT VISIBLE
-            print(f"[error] {task_id}: completion FAILED ({type(exc).__name__}: {exc}) — empty solution",
-                  file=sys.stderr)
+            print(
+                f"[error] {task_id}: completion FAILED ({type(exc).__name__}: {exc}) — empty solution",
+                file=sys.stderr,
+            )
             return {"task_id": task_id, solution_key: ""}, 0.0
 
     with ThreadPoolExecutor(max_workers=max_concurrency) as ex:
-        results = list(ex.map(_one, problems.items()))  # map preserves input order → deterministic jsonl
+        results = list(
+            ex.map(_one, problems.items())
+        )  # map preserves input order → deterministic jsonl
 
     total_cost = sum(cost for _, cost in results)
     with out.open("w", encoding="utf-8") as fh:
@@ -89,6 +98,7 @@ def _resolve_client(*, env_path: str | None = ".env") -> OpenRouterClient:
     if env_path and not os.getenv("OPENROUTER_API_KEY"):
         try:
             from libs.subagents._dotenv import load_env
+
             load_env(env_path)
         except Exception:  # noqa: BLE001 — best-effort; a clear error below if the key is still absent
             pass

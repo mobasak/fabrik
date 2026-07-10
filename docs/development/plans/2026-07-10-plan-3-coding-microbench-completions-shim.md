@@ -249,7 +249,7 @@ Phase D closes both plans in the same commit sequence so their final states land
    )"
    ```
 
-## Phase B — 2-step refactor: `_run_one` uses shim + updated tests
+## Phase B — 2-step refactor: `_run_one` uses shim + updated tests — ✅ EXECUTED 2026-07-10
 
 **Purpose:** Refactor `microbench_coding._run_one` from the broken 1-step `subprocess.run(evalplus.evaluate --backend openai ...)` to the 2-step `generate_samples → evalplus.evaluate --samples`. Update 3 mocks + add 2 new behavior tests. Cap outer concurrency (resolves plan-3 still-open residual #1).
 
