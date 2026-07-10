@@ -1,0 +1,29 @@
+{
+  "plan": "docs/development/plans/2026-07-10-plan-4-doc-registry-reconciliation.md",
+  "owned_paths": [
+    "scripts/enforcement/_doc_registry.py",
+    "scripts/enforcement/check_structure.py",
+    "scripts/enforcement/check_doc_stubs.py",
+    "scripts/final_gate.py",
+    "src/fabrik/scaffold.py",
+    "tests/test_doc_registry.py",
+    "tests/test_check_structure_docs_allowlist.py",
+    "tests/test_scaffold_doc_seeding.py",
+    "tests/test_check_doc_stubs.py",
+    "templates/scaffold/docs/API_REFERENCE_TEMPLATE.md",
+    "templates/scaffold/docs/DATABASE_SCHEMA_TEMPLATE.md",
+    "CLAUDE.md"
+  ],
+  "shared_append_paths": [
+    "CHANGELOG.md",
+    "INDEX.md"
+  ],
+  "out_of_repo_local_edits": [
+    "~/.claude/commands/fabrik-plan-after-chat.md"
+  ],
+  "branch": "master",
+  "started_at": "2026-07-11T00:00:00Z",
+  "baseline_commit": "eb907489",
+  "status": "active",
+  "note": "Fleet-governance plan. Substantive owned paths disjoint from the concurrent active lock plan-3 (kilo-benchmarks); CHANGELOG.md/INDEX.md declared shared-append. Commit-stage pre-commit hooks are read-only w.r.t. the fabrik tree (governance-sync writes to other /opt projects only), so sharing the tree with the live sibling is data-loss-safe."
+}
