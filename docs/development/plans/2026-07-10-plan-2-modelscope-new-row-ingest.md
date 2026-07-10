@@ -1,6 +1,6 @@
 # ModelScope new-row auto-ingest — implementation plan
 
-**Status:** CONVERGED
+**Status:** IN-PROGRESS
 **Date:** 2026-07-10
 **Owner:** primary (this session)
 **Spec:** [`docs/superpowers/specs/2026-07-10-modelscope-new-row-ingest-design.md`](../superpowers/specs/2026-07-10-modelscope-new-row-ingest-design.md) — CONVERGED, `md5=0c6f4480…`
@@ -71,7 +71,7 @@ Verbatim from binding sources; every phase inherits these:
 
 ---
 
-## Phase A — Vendor `web-scrape` module + preflight + `ms_enrich.py` scaffold
+## Phase A — Vendor `web-scrape` module + preflight + `ms_enrich.py` scaffold — ✅ EXECUTED 2026-07-10
 
 **Goal.** Copy the `web-scrape` fabrik-lib module into `libs/web_scrape/`. Preflight-probe every external tool (Python, httpx, sqlite3, browserless connectivity, MS + HF endpoints). Create the empty `scripts/kilo-benchmarks/ms_enrich.py` module scaffold that Phases B/C will fill.
 

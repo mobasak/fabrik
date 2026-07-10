@@ -1,0 +1,18 @@
+{
+  "plan": "docs/development/plans/2026-07-10-plan-2-modelscope-new-row-ingest.md",
+  "owned_paths": [
+    "libs/web_scrape/",
+    "scripts/kilo-benchmarks/ms_enrich.py",
+    "scripts/kilo-benchmarks/tests/test_ms_enrich.py",
+    "scripts/kilo-benchmarks/scrape_modelscope_catalog.py",
+    "scripts/kilo-benchmarks/tests/test_scrape_modelscope_catalog.py",
+    "scripts/kilo-benchmarks/daily_refresh.sh",
+    "CHANGELOG.md",
+    "INDEX.md",
+    "docs/development/plans/2026-07-10-plan-2-modelscope-new-row-ingest.md",
+    ".fabrik/plan-locks/2026-07-10-plan-2-modelscope-new-row-ingest.json"
+  ],
+  "branch": "master",
+  "started_at": "2026-07-10",
+  "status": "active"
+}
