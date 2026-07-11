@@ -3763,7 +3763,7 @@ def _write_placeholder_png(
     """Write a solid-color square PNG (pure stdlib — no Pillow dependency).
 
     The chrome-extension manifest references icon16/48/128.png; without real
-    files the `@crxjs/vite-plugin` build ENOENTs (``Could not load manifest
+    files the extension build references (WXT copies public/ assets into the
     asset``). These placeholders (Google-blue #4285f4) make ``vite build``
     pass out of the box; the developer replaces them with real branding.
     """
@@ -4946,13 +4946,6 @@ def _provision_i18n(project_dir: Path, project_type: str) -> None:
         for f in (kit / "react").iterdir():
             if f.is_file():
                 shutil.copy2(f, i18n_lib / f.name)
-
-    elif strategy == "chrome":
-        # chrome-extension: vanilla loader for popup/options + adapter script
-        js_dir = project_dir / "extension" / "src"
-        js_dir.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(kit / "static" / "js" / "i18n.js", js_dir / "i18n.js")
-        shutil.copy2(kit / "adapters" / "chrome_messages.py", scripts_dir / "chrome_messages.py")
 
     elif strategy == "rn":
         # mobile-app (React Native): adapter that syncs to src/locales/

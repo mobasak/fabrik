@@ -166,7 +166,7 @@ When you run `fabrik scaffold <project-name> --type python-api`, the following s
 
 | Type | File | Purpose |
 |------|------|---------|
-| `chrome-extension` | `extension/icons/README.md` | Icon generation guide |
+| `chrome-extension` | `extension/wxt.config.ts` | WXT config (auto-manifest, Preact via @preact/preset-vite) |
 
 ---
 
@@ -277,7 +277,7 @@ Different scaffold types create variations:
 | `file-worker` | `templates/file-worker/` | Python background worker |
 | `wordpress` | _(retired — moved to `/opt/wpf/`)_ | `fabrik scaffold --type wordpress` redirects to the `wpf` CLI; no scaffolding or deploy in Fabrik |
 | `docusaurus` | `templates/docusaurus/` | Docusaurus docs site |
-| `chrome-extension` | `templates/chrome-extension/` | Chrome extension (Vite + CRXJS) + Python backend |
+| `chrome-extension` | `templates/chrome-extension/` | Chrome extension (WXT + Preact) + Python backend |
 | `mobile-app` | `templates/mobile-app/` | React Native + TypeScript |
 | `desktop-app` | `templates/desktop-app/` | Electron + TypeScript |
 

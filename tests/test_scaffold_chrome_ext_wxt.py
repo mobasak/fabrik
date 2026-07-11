@@ -7,6 +7,7 @@ integration verification run at plan-execution time — see the plan's Evidence.
 
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 
 import pytest
@@ -87,3 +88,41 @@ def test_type_required_files_flipped_to_wxt() -> None:
 def test_i18n_owned_by_wxt_dev_i18n() -> None:
     """chrome-extension dropped the legacy chrome_messages.py strategy (@wxt-dev/i18n owns it)."""
     assert "chrome-extension" not in I18N_ENABLED_TYPES
+
+
+def test_wxt_config_declares_mv3_permissions(ext: Path) -> None:
+    """The load-bearing manifest permissions (plan Behavior Contract a) are declared."""
+    cfg = (ext / "wxt.config.ts").read_text()
+    assert "permissions: ['storage', 'activeTab']" in cfg
+
+
+@pytest.mark.skipif(
+    shutil.which("pnpm") is None or shutil.which("node") is None,
+    reason="requires the node/pnpm toolchain (the build integration gate)",
+)
+def test_wxt_scaffold_builds_and_manifest_has_permissions(tmp_path: Path) -> None:
+    """Behavior Contract (a): a fresh scaffold `pnpm install` + `wxt build` exits 0 and
+    the generated manifest carries the declared MV3 permissions. This is the real proof
+    the rewrite builds — slow (installs deps), gated on the toolchain being present."""
+    import json
+    import subprocess
+
+    create_project(
+        "cxbuildtest",
+        "WXT build test",
+        base=tmp_path,
+        project_type="chrome-extension",
+        generate_spec=False,
+    )
+    ext = tmp_path / "cxbuildtest" / "extension"
+    inst = subprocess.run(
+        ["pnpm", "install"], cwd=ext, capture_output=True, text=True, timeout=600
+    )
+    assert inst.returncode == 0, f"pnpm install failed:\n{inst.stderr[-2000:]}"
+    build = subprocess.run(
+        ["npx", "wxt", "build"], cwd=ext, capture_output=True, text=True, timeout=400
+    )
+    assert build.returncode == 0, f"wxt build failed:\n{build.stderr[-2000:]}"
+    manifest = json.loads((ext / ".output" / "chrome-mv3" / "manifest.json").read_text())
+    assert manifest["permissions"] == ["storage", "activeTab"]
+    assert manifest["default_locale"] == "en"

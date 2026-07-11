@@ -283,7 +283,7 @@ class TestChromeExtensionLogging:
     ) -> None:
         """Extension frontend does not import structlog."""
         project = _scaffold_chrome_ext(mock_fabrik_root, temp_dir)
-        for ts_file in (project / "extension" / "src").glob("*.ts"):
+        for ts_file in (project / "extension" / "src").rglob("*.ts"):
             content = ts_file.read_text()
             assert "structlog" not in content
 

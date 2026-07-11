@@ -363,7 +363,7 @@ class TestChromeExtensionScaffold:
     """Test chrome-extension scaffold generates dual-artifact structure."""
 
     def test_creates_extension_directory_structure(self, tmp_path):
-        """Verify extension/ directory structure with manifest, Vite, stubs."""
+        """Verify extension/ is a WXT project (auto-manifest, file-based entrypoints)."""
         create_project(
             name="test-ext",
             project_type="chrome-extension",
@@ -373,54 +373,47 @@ class TestChromeExtensionScaffold:
 
         project_dir = tmp_path / "test-ext"
 
-        # Verify extension/ structure
-        assert (project_dir / "extension" / "src").is_dir()
-        assert (project_dir / "extension" / "icons").is_dir()
-
-        # Verify core files (Vite + CRXJS, not webpack)
-        assert (project_dir / "extension" / "manifest.json").exists()
+        # WXT layout (srcDir='src', file-based entrypoints, public/ for assets)
+        assert (project_dir / "extension" / "src" / "entrypoints").is_dir()
+        assert (project_dir / "extension" / "public").is_dir()
+        assert (project_dir / "extension" / "wxt.config.ts").exists()
         assert (project_dir / "extension" / "package.json").exists()
-        assert (project_dir / "extension" / "vite.config.ts").exists()
-        assert not (project_dir / "extension" / "webpack.config.js").exists()
 
-        # Verify stubs
-        assert (project_dir / "extension" / "src" / "popup.ts").exists()
-        assert (project_dir / "extension" / "src" / "background.ts").exists()
-        assert (project_dir / "extension" / "src" / "content.ts").exists()
-        assert (project_dir / "extension" / "src" / "popup.html").exists()
+        # WXT auto-generates the manifest at build — never a hand-written one; @crxjs's
+        # vite.config.ts and the old flat src/*.ts stubs are gone.
+        assert not (project_dir / "extension" / "manifest.json").exists()
+        assert not (project_dir / "extension" / "vite.config.ts").exists()
+        assert not (project_dir / "extension" / "src" / "popup.ts").exists()
 
-        # Verify manifest content
-        manifest = (project_dir / "extension" / "manifest.json").read_text()
-        assert '"name": "test-ext"' in manifest
-        assert '"description": "Test Extension"' in manifest
+        # File-based entrypoints
+        assert (project_dir / "extension" / "src" / "entrypoints" / "background.ts").exists()
+        assert (project_dir / "extension" / "src" / "entrypoints" / "content.ts").exists()
+        assert (project_dir / "extension" / "src" / "entrypoints" / "popup" / "index.html").exists()
 
-    def test_extension_uses_vite_crxjs(self, tmp_path):
-        """Verify extension uses Vite + CRXJS, not webpack."""
-        create_project(
-            name="test-ext",
-            project_type="chrome-extension",
-            description="Test Extension",
-            base=tmp_path,
-        )
-
-        project_dir = tmp_path / "test-ext"
-
-        # Verify vite.config.ts content
-        vite_config = (project_dir / "extension" / "vite.config.ts").read_text()
-        assert "@crxjs/vite-plugin" in vite_config
-        assert "crx({ manifest })" in vite_config
-
-        # Verify package.json uses Vite + CRXJS deps
+    def test_extension_uses_wxt_preact(self, tmp_path):
+        """Verify extension uses WXT + Preact, not Vite + CRXJS."""
         import json
 
+        create_project(
+            name="test-ext",
+            project_type="chrome-extension",
+            description="Test Extension",
+            base=tmp_path,
+        )
+
+        project_dir = tmp_path / "test-ext"
+
+        cfg = (project_dir / "extension" / "wxt.config.ts").read_text()
+        assert "@preact/preset-vite" in cfg
+        assert "@wxt-dev/i18n/module" in cfg
+
         pkg = json.loads((project_dir / "extension" / "package.json").read_text())
-        assert "vite" in pkg["scripts"]["dev"]
-        assert "vite build" in pkg["scripts"]["build"]
-        assert "@crxjs/vite-plugin" in pkg["devDependencies"]
-        assert "vite" in pkg["devDependencies"]
-        # No webpack deps
-        assert "webpack" not in pkg.get("devDependencies", {})
-        assert "webpack-cli" not in pkg.get("devDependencies", {})
+        deps = {**pkg.get("dependencies", {}), **pkg.get("devDependencies", {})}
+        assert "wxt" in deps
+        assert "preact" in deps
+        assert "wxt build" in pkg["scripts"]["build"]
+        assert not any("crxjs" in d for d in deps)
+        assert "webpack" not in deps
 
     def test_creates_server_directory_structure(self, tmp_path):
         """Verify server/ directory structure with FastAPI backend."""

@@ -162,7 +162,7 @@ class TestCheckHealthEndpoint:
         assert "N/A for saas-skeleton" in result.message
 
     def test_skipped_for_chrome_extension(self, tmp_path: Path):
-        """chrome-extension has manifest.json + scripts at root — no src/ dir."""
+        """chrome-extension: WXT auto-generates the manifest; health-check is skipped (client lane)."""
         result = _check_health_endpoint(tmp_path, "chrome-extension")
         assert result.passed is True
 
