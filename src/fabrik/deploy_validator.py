@@ -164,7 +164,7 @@ def _check_health_endpoint(project_path: Path, project_type: str) -> ValidationR
         )
 
     # Project types whose code does NOT live under src/ use a different layout
-    # convention (Next.js app/, chrome-extension root scripts, WordPress wp-content/).
+    # convention (Next.js app/, WordPress wp-content/).
     # Skip the src-based scan; operators verify health manually for these.
     if project_type in _NO_SRC_LAYOUT_TYPES:
         return ValidationResult(

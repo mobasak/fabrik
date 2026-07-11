@@ -4099,7 +4099,9 @@ render(<App />, document.getElementById('root')!);
         f"# CORS for extension\n"
         f"app.add_middleware(\n"
         f"    CORSMiddleware,\n"
-        f'    allow_origins=["*"],  # Configure appropriately for production\n'
+        f'    # Extension origins only (chrome-ext/70-chrome-ext.md § Auth) — never "*" with\n'
+        f'    # credentials (browsers reject that combo). Dev regex; set the exact ID for prod.\n'
+        f'    allow_origin_regex=r"chrome-extension://.*",\n'
         f"    allow_credentials=True,\n"
         f'    allow_methods=["*"],\n'
         f'    allow_headers=["*"],\n'
