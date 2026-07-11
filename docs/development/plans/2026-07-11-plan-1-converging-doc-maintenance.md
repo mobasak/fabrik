@@ -1,0 +1,146 @@
+# Plan — Converging doc maintenance (Tier-0 auto-gen + pool-author/native-verify reconcile loop + coverage gate)
+
+Status: CONVERGED
+Spec: docs/superpowers/specs/2026-07-11-converging-doc-maintenance-design.md (CONVERGED)
+Date: 2026-07-11
+Converged: 2026-07-11 (/fabrik-plan-review — 2 passes to an edit-free md5-verified no-op; every path:line re-grounded [agent.py:9-17 worktree diff-capture, check_doc_sync `_staged():64`, sync_projects:496→PROJECT_CATALOG AUTO-GEN, registry 22 rows]; 3 fixes: toolchain preflight note, check_doc_stubs `--range` reuses check_doc_sync `_range`, check_convergence.py added to the final gate; all structural pillars present [Context Ledger, File Scope disjoint, Behavior Contract per phase, /fabrik-review closing step in A–D, /fabrik-docs-review last]; no deferred-question residual — every still-open item carries a self-service default; no execution-blocking unknown)
+
+Implement the registry-driven doc-maintenance system the spec settled: **Tier-0** generates the computable docs (no model), **Tier-1** has cheap OpenRouter pool agents author each fired-trigger doc + native Claude verify + loop to a no-op, and a **whole-plan mechanical coverage gate** is the free "definitely-done" receipt. Build-by-extension of the vendored subagent pool + the plan-4 registry SSOT + the existing `AUTO-GENERATED`-block generators + the `check_doc_sync`/`check_doc_stubs` gates. Model selection is delegated to `pick_models("docs")` — no hardcoded model IDs.
+
+## What we already agreed (Phase 0 distill — RICH, spec-fed)
+
+- **Goal:** all applicable project docs kept current — complete/lean/fast/cheap/accurate — as an iterate-to-converge loop keyed off `_doc_registry.PROJECT_DOCS`.
+- **Approach (user-approved):** 4-tier ladder — Tier-0 deterministic generate (free) · Tier-1 pool-author→native-verify→no-op per fired trigger (cents) · Tier-2 `/fabrik-docs-review` at the boundary (exists) · backstop `check_doc_sync`+`check_doc_stubs` every commit (exists) · **whole-plan coverage gate** at Finish (free receipt).
+- **Two runtimes:** pool (`libs/subagents`) authors (records flywheel), native Claude (Haiku/Sonnet) verifies (no flywheel). **Model selection delegated** to `pick_models("docs")` + the fabrik-lib AI's per-command assignment — commands name the native tier by *risk*, never a model ID.
+- **Rejected:** all-native authoring (no flywheel, burns Claude), all-pool one-shot (invents endpoints — needs verify+converge), full LLM regen at boundary (expensive, fights deterministic-first).
+- **Structured edits only** (find/replace / section patch, never blind rewrite). **Never blocks on a doc-nuisance** (only the existing `check_doc_sync` ERROR-tier hard-blocks, unchanged).
+- **Command wiring (approved):** `/fabrik-execute-plan` per phase runs the reconcile loop before the phase commit; `/fabrik-docs-review` author-fixes go through the pool; `/fabrik-plan-after-chat` annotates each trigger→doc step as pool-reconciled+native-verified; Tier-0 docs are mechanical.
+- **External deps:** none (internal tooling). Approach grounded by 5 cited 2026 sources (inherited from spec § External dependencies).
+
+Branch: **RICH** — the spec pins goal + approach + vendor verdict + citations; no re-brainstorm.
+
+## Global Constraints (every phase inherits — verbatim)
+
+- **Registry is the SSOT:** every tier derives which docs/triggers from `_doc_registry.PROJECT_DOCS` (22 `DocRow`s: `name`·`template`·`applies_to`·`trigger`·`fills`). Never a second doc list.
+- **Pool dispatch (vendored, `libs/subagents`):** `run_agents(specs: list[AgentSpec], *, repo: str, max_concurrency=4) -> list[AgentResult]`. `AgentSpec(task=, model=, task_type="docs", tools_enabled=True, owned_paths=[<doc>], max_turns=, max_cost_usd=, wall_clock_s=, allow_ungrounded=)` — **no `label` kwarg**. Each agent runs in its own git worktree; **its `AgentResult.diff` is the captured patch (never auto-applied)** (`libs/subagents/agent.py:9-17`). Parallel needs **disjoint `owned_paths`** or it serializes. Model via `pick_models("docs", n=…)`; **never a hardcoded model ID**.
+- **Flywheel:** every pool unit owes `record_agent_run(spec, result, quality_score=<0-5>, project=…)` **+** `results_table([...])` — NOT `record_run` (no-ops). Guard the import: `try: from libs.subagents import record_agent_run / except ImportError: record_agent_run = None`. Native verify records nothing (no `AgentResult`).
+- **Fail-safe / never-block:** Tier-0 generators + the reconcile helper + the coverage gate must never crash a gate — any exception → exit 0 / degrade (like `check_doc_stubs`). Only the existing `check_doc_sync` ERROR-tier (CHANGELOG/CONFIGURATION/schema) hard-blocks, unchanged.
+- **Fleet blast radius:** `scripts/enforcement/*` + `.windsurf/rules/*` are Fabrik-synced → re-distribute to ~47 projects on commit (governance-sync hook). New `scripts/*.py` helpers that aren't in `check_synced_unmodified`'s manifest are hub-tooling (not synced unless added). Command prompts (`~/.claude/commands/*.md`) are operator-level, not fleet-synced.
+- **Conventions:** kebab-case; new `scripts/**/*.py` carry a `# AFTER-EDIT:` header; stdlib-only for anything imported project-side by an enforcement gate; no `git add -A`.
+- **Toolchain (preflight — all gates run in the fabrik `.venv`, WSL dev):** the only tools any phase shells out to are `python`, `pytest`, `ruff`, `git`, and `python scripts/final_gate.py` — all present in `/opt/fabrik/.venv` (verified: `python -c "import pytest, ruff"` OK). No exotic/system toolchain (no Android SDK / EAS / compiler) — pure Python, so no provisioning step or `which`-probe is needed. Live pool dispatches (Phase B *tuning* only, never the gate) use the already-configured OpenRouter key the pool ran under this session; the test suite stubs all pool calls (no live model in CI).
+- **Rules (ACTIVE, binding on HOW):** `ai/00-ai-model-selection.md` (model selection — prefer `pick_models`, cheapest gateway), `core/62-using-subagents.md` (pool-default + flywheel), `core/45-testing-strategy.md` (Behavior Contract), `core/40-documentation.md` (doc discipline + the ownership split just added).
+
+## Context Ledger
+
+| Source | What binds | Grounded ref |
+|---|---|---|
+| Spec (CONVERGED) | goal, 4-tier approach, rejected alts, vendor verdict, 5 citations | `docs/superpowers/specs/2026-07-11-converging-doc-maintenance-design.md` |
+| `libs/subagents` (VENDORED — vendor, don't build) | the pool: `run_agents`/`AgentSpec`/`pick_models`/`record_agent_run`/`results_table`; worktree diff-capture | `libs/subagents/__init__.py` (exports), `libs/subagents/agent.py:9-17` (worktree, `worktree_diff` captured-never-applied); README `subagents` row lists a **"docs"** task |
+| `_doc_registry.py` (plan-4 SSOT — extend) | `PROJECT_DOCS` (22 rows), `docs_allowlist()`, `seed_rows()`, `TYPE_BUCKETS`, `LEGACY_TOLERATED` | `scripts/enforcement/_doc_registry.py` |
+| `check_doc_sync.py` (extend → `--range`) | `_staged():64`, `_is_significant_code():111`, `_has_route_change():119`, `_schema_doc_for():97`, `main():172` | currently `git diff --cached --name-only`; add `git diff <base>..HEAD` |
+| `check_doc_stubs.py` (extend → `--range`) | `main()`, `_trigger_detectors()`, `PLACEHOLDERS`, `_has_placeholder()` | `scripts/enforcement/check_doc_stubs.py` (plan-4) |
+| `sync_projects.py` (AUTO-GEN precedent — mirror) | the `<!-- AUTO-GENERATED:X:START -->…END -->` `re.sub` block-replace pattern | `scripts/sync_projects.py:496-518` (`update_business_model`→PROJECT_CATALOG) |
+| `final_gate.py` (advisory registration) | `run_optional_check("scripts/enforcement/…", "label", advisory=True)` | `scripts/final_gate.py:~674` |
+| `ai/00-ai-model-selection.md` (ACTIVE) | model selection discipline — `pick_models`, cheapest gateway, no hardcoded IDs | `.windsurf/rules/ai/00-ai-model-selection.md` |
+| `core/62-using-subagents.md` (ACTIVE) | pool-default for gradeable fan-out + flywheel; native added on top | `.windsurf/rules/core/62-using-subagents.md` |
+| best-practice (1c, inherited) | deterministic-what + cheap-LLM-prose-as-structured-edit + verify + per-diff | spec § External dependencies (graphwiki/Cyberax/msiric/DeepDocs/patrickchugh, 2026) |
+
+fabrik-lib checked — the **pool** is VENDORED (use as-is; README lists a "docs" task); the `doc-*` modules are content-processing (convert/crawl/OCR/translate), not scaffold-doc reconcile → inapplicable. The `doc-reconcile` helper + Tier-0 generators + coverage `--range` mode are **BUILD-by-extension** (fabrik-governance-specific: registry doc set, fabrik `docs/` layout) — **no 🆕 fabrik-lib candidate** (hub-specific, like plan-4's `check_doc_stubs`). No core-enhancement of a vendored module → no `UPSTREAM_FEEDBACK.md` owed.
+
+## Behavior Contract
+
+- **Given** a project's repo state, **When** the Tier-0 generator runs, **Then** `PORTS.md`'s `AUTO-GENERATED:PORTS` block and `docs/README.md`'s doc-index list are (re)written deterministically from the repo, byte-stable on a second run. *(Mocked: a tmp repo fixture.)*
+- **Given** `INDEX.md`, **When** Tier-0 runs, **Then** the file-enumeration section reflects the real tracked files; per-file *description* prose is left for Tier-1 (not fabricated). *(Mocked: tmp repo.)*
+- **Given** a diff that fired doc X's trigger and a stale doc X, **When** `doc_reconcile(doc, diff)` dispatches a pool author, **Then** it returns a structured patch (from `AgentResult.diff`), the injected `verify_fn` confirms the patched doc references only real symbols, the patch is applied, and one flywheel row is recorded. *(Mocked: `run_agents` returns a canned `AgentResult` with a `.diff`; `record_agent_run` stubbed.)*
+- **Given** doc X already matches the diff, **When** the reconcile loop runs, **Then** a pass makes zero edits (md5-verified no-op) and the loop terminates. *(Mocked: pool returns an empty diff.)*
+- **Given** a patch that references a symbol absent from the code, **When** the default mechanical `verify_fn` runs, **Then** it flags the drift and the loop re-authors (does not apply); a native `verify_fn` injected by the orchestrator behaves the same. *(Mocked: a verify stub returning "drift".)*
+- **Given** the whole-plan cumulative diff `base..HEAD` where a fired-trigger doc was never touched, **When** `check_doc_sync --range base..HEAD` runs, **Then** it reports the missing doc (ERROR for CHANGELOG/CONFIG/schema, else WARN); **When** all were touched, **Then** it passes. *(Mocked: a git fixture with two commits.)*
+- **Given** any git / import / parse error in the reconcile helper or the coverage gate, **When** it runs, **Then** it exits 0 / degrades (never blocks). *(Mocked: `_git` raises.)*
+- **Given** the reconcile helper import of `libs.subagents` fails (project without the pool vendored), **When** it runs, **Then** it no-ops gracefully and the mechanical gate still runs. *(Mocked: `ImportError`.)*
+- **Mocked overall:** all pool dispatches are stubbed in tests (`run_agents`/`record_agent_run` monkeypatched) — no live model calls in the suite; Tier-0 + coverage-gate tests run against tmp git fixtures.
+
+## Phase A — Tier-0 deterministic doc generators (no model)
+
+**Files:** `scripts/doc_autogen.py` (new), `tests/test_doc_autogen.py` (new).
+**Responsibility:** regenerate the *computable* parts of `PORTS.md`, `docs/README.md` (doc index), and `INDEX.md` (file enumeration) from repo state — no LLM. Mirrors the `AUTO-GENERATED:X:START…END` `re.sub` block-replace pattern proven in `sync_projects.py:496-518`.
+**Produces:** `regen_ports(root) -> bool`, `regen_docs_index(root) -> bool`, `regen_index_filelist(root) -> bool`, `main(argv) -> int` (CLI: `python scripts/doc_autogen.py [--check]`). `# AFTER-EDIT: none` header. Stdlib-only.
+Steps:
+1. **TDD the riskiest (byte-stability):** write `test_regen_is_byte_stable` first (run regen twice on a tmp repo → identical output) — run it RED (function absent), then implement.
+2. Implement the three generators: each reads repo state (compose ports / `docs/*.md` listing / `git ls-files`), renders the block, `re.sub`-replaces between its `AUTO-GENERATED:<X>` markers (insert markers if absent, like `sync_projects.py:509-513`). `--check` mode = read-only diff-report, exit 1 if drift (for CI), bare = rewrite. Fail-safe: any exception → exit 0 in bare mode.
+3. **Behavior Contract tests:** byte-stability (all 3); `INDEX` file-list reflects real tracked files; description prose NOT fabricated (the block only lists names, leaves `— <desc>` slots for Tier-1); `--check` exits 1 on drift, 0 when clean; exception → exit 0.
+**Gate:** `python -m pytest tests/test_doc_autogen.py -q` → pass; `python scripts/doc_autogen.py --check` on the fabrik repo → exits 0 or reports real drift (no crash).
+**Close (literal steps):** (1) run the phase gate → green; (2) `python scripts/enforcement/check_doc_sync.py` + add the CHANGELOG entry + `INDEX.md` row for the new files; (3) **`/fabrik-review` on Phase A's changed surface — BLOCKING, looped to a no-op** (pool `minimax-m3` finders via `run_agents`/`pick_models("review")` recording the flywheel + native `fabrik-reviewer` if the diff warrants → refute → prove-before-fix → re-review until zero CONFIRMED/PLAUSIBLE); (4) commit (explicit paths + `Agent-Role`/`Agent-Phase: A` trailers).
+
+## Phase B — the `doc-reconcile` helper + convergence loop (pool author → native verify)
+
+**Files:** `scripts/doc_reconcile.py` (new), `tests/test_doc_reconcile.py` (new).
+**Consumes:** `_doc_registry.PROJECT_DOCS` (which docs + triggers) [Phase-independent]; `libs.subagents.run_agents`/`AgentSpec`/`pick_models`/`record_agent_run`/`results_table`; the reused trigger detectors from `check_doc_sync` (`_has_route_change` etc.).
+**Produces:** `fired_docs(diff_files: list[str]) -> list[DocRow]` (registry docs whose trigger fired in the diff); `reconcile_doc(doc: DocRow, diff_text: str, root: Path, verify_fn=<default mechanical symbol-check>) -> ReconcileResult` (one pool author → `verify_fn` on the patch → apply on pass / loop on drift → return); `reconcile_loop(docs, diff_text, root, verify_fn=<default mechanical>, max_rounds=3) -> dict` (author→verify→re-author until a zero-edit md5 round or `max_rounds`); `main(argv) -> int` (CLI: `python scripts/doc_reconcile.py --range base..HEAD`). `# AFTER-EDIT: none` header.
+Steps:
+1. **TDD the riskiest (the converge no-op):** write `test_loop_converges_on_matching_doc` first — a stubbed pool returning an **empty diff** → the loop makes zero edits and terminates (md5 stable). Run RED, implement.
+2. `fired_docs`: for each `DocRow`, run the mechanical trigger detector (reuse `check_doc_sync._has_route_change`/compose/env/schema, same mapping as `check_doc_stubs._trigger_detectors`) against `diff_files`; return the fired rows. Registry-driven — no second list.
+3. `reconcile_doc`: build an `AgentSpec(task=<structured-edit prompt: {diff} + {current doc} + {registry purpose}, "emit a find/replace patch, never a blind rewrite">, model=pick_models("docs", n=1)[0], task_type="docs", tools_enabled=True, owned_paths=[str(doc.name)], max_turns=~8, max_cost_usd=~0.20, wall_clock_s=~420)`; `run_agents([spec], repo=str(root))`; the patch is `result.diff`; **do NOT apply yet** — hand `result.diff` to the injected `verify_fn(patch, doc, root) -> bool`. On verify-pass apply `result.diff` to the doc; on drift, loop. `record_agent_run(spec, result, quality_score=…, project="doc-reconcile")` + `results_table`. Guard the import (ImportError → no-op).
+   **⚠️ verify_fn is injected because a standalone CLI script CANNOT dispatch a native Claude Task (the Agent tool is the orchestrating AI's, not a script's).** So the script's **DEFAULT** `verify_fn` is a **deterministic mechanical symbol cross-check** (extract backtick/quoted identifiers + endpoints from the patch, assert each exists in the codebase — Cyberax's "cross-check against exported symbol table"; free, no model, catches the "invented endpoint"). The **native-Claude verify** is the *higher-assurance* layer supplied by `/fabrik-execute-plan`'s AI (Phase D) as the injected `verify_fn` — so the two-runtime "native verify" from the spec is realized at the orchestration layer, not inside the script (which can't call native). Tests inject a stub.
+4. `reconcile_loop`: iterate `reconcile_doc` per fired doc (parallel-safe: disjoint `owned_paths` = one per doc), collect diffs, re-run until a round applies zero edits (md5 of the doc set unchanged) or `max_rounds`. Fail-safe: any exception → return `{status:"degraded"}`, never raise.
+5. **Behavior Contract tests** (all pool calls stubbed — no live models): structured-patch applied + flywheel row recorded; no-op convergence on a matching doc; a `verify_fn` returning drift → re-author-not-apply (test with a stub); the default mechanical symbol-check flags a patch citing a symbol absent from the code + passes one that matches; unknown/no fired trigger → no dispatch; `ImportError` on `libs.subagents` → graceful no-op; any git error → exit 0.
+**Gate:** `python -m pytest tests/test_doc_reconcile.py -q` → pass; `python -c "import scripts.doc_reconcile"` clean; `ruff check scripts/doc_reconcile.py` → pass.
+**Close (literal steps):** (1) phase gate green; (2) `check_doc_sync.py` + CHANGELOG + INDEX row; (3) **`/fabrik-review` — BLOCKING, looped to no-op** (pool finders record flywheel + **native `fabrik-reviewer` (Opus)** — this dispatches the pool + handles `AgentResult`, an authoritative slice) → refute → prove-before-fix → re-review clean; (4) commit (`Agent-Phase: B`).
+
+## Phase C — whole-plan coverage gate (`--range` mode on the mechanical checks)
+
+**Files:** `scripts/enforcement/check_doc_sync.py`, `scripts/enforcement/check_doc_stubs.py`, `tests/test_doc_coverage_range.py` (new).
+**Consumes:** the existing `_staged()`/detector/`main()` in both checks.
+Steps:
+1. Add a `--range <base>..<HEAD>` (or `--cumulative`) flag to both `main()`s. Add **one** `_range(base: str) -> list[str]` helper in `check_doc_sync.py` (alongside `_staged():64`, returning `_git(["diff", f"{base}..HEAD", "--name-only"])`); `check_doc_sync.main()` uses it when `--range` is set. **`check_doc_stubs.py` already calls `ds._staged()` (line 82)** — so its `--range` branch calls `ds._range(base)` (reusing check_doc_sync's helper, no duplicate). **All existing logic (trigger→doc mapping, severity, placeholder scan) is unchanged** — only the input file-set widens. Default (no flag) behavior is byte-identical (regression-guard it).
+2. This is the **Finish-step receipt**: `/fabrik-execute-plan` runs `check_doc_sync --range <baseline>..HEAD` + `check_doc_stubs --range …` asserting every fired-trigger doc across the whole plan was touched + no stub remains. Fail-safe unchanged (ERROR-tier only for CHANGELOG/CONFIG/schema; else WARN; any git error → exit 0).
+3. **Behavior Contract tests** (tmp git fixture, two commits): a fired-trigger doc untouched across `base..HEAD` → reported; all touched → clean; `--range` with a bad ref → exit 0 (fail-safe); **no-flag default identical to today** (the staged-scope regression guard).
+**Gate:** `python -m pytest tests/test_doc_coverage_range.py -q` → pass; `python scripts/enforcement/check_doc_sync.py --range HEAD~1..HEAD` on the fabrik repo → runs, no crash; `python scripts/final_gate.py --check --json` → `status:success` (the extended checks still pass).
+**Close (literal steps):** (1) phase gate green; (2) `check_doc_sync.py` + CHANGELOG + doc-sync-matrix note if needed; (3) **`/fabrik-review` — BLOCKING, looped to no-op** (these are fleet-wide enforcement gates → pool finders + **native `fabrik-reviewer` (Opus)** on the gate logic) → refute → prove-before-fix → clean; (4) commit (`Agent-Phase: C`).
+
+## Phase D — command wiring (the four approved touchpoints)
+
+**Files:** `~/.claude/commands/fabrik-execute-plan.md`, `~/.claude/commands/fabrik-docs-review.md`, `~/.claude/commands/fabrik-plan-after-chat.md`, `.windsurf/rules/core/40-documentation.md` (reference the loop). *(Operator-level command files — outside the repo tree; a local edit, not fleet-synced. `40-documentation.md` IS synced.)*
+Steps:
+1. `/fabrik-execute-plan` — in the per-phase execution loop, add the literal step: after the code change and before the phase commit, **run the Tier-1 doc-reconcile loop** (`scripts/doc_reconcile.py` — pool author `pick_models("docs")` → native verify → converge to no-op) on the phase's fired-trigger docs; and at **Finish**, run `check_doc_sync --range <baseline>..HEAD` + `check_doc_stubs --range …` as the coverage receipt. Replaces "run the plan's declared doc-update steps (coder hand-writes)".
+2. `/fabrik-docs-review` — make the author-*fixes* pool-dispatched (`pick_models("docs")`, structured edits, records flywheel); keep the Opus adjudication + the no-op termination.
+3. `/fabrik-plan-after-chat` — in its Doc-Sync-Matrix mapping step, annotate each trigger→doc step as "pool-reconciled + native-verified to no-op (`scripts/doc_reconcile.py`)," not hand-authored.
+4. `.windsurf/rules/core/40-documentation.md` — add a one-paragraph pointer under the ownership section: "coder docs are kept current by the reconcile loop (Tier-0 auto-gen + pool-author/native-verify per fired trigger); the mechanical `check_doc_sync`/`check_doc_stubs` + the whole-plan coverage receipt are the backstop."
+5. Decide the residual: default the reconciler to a **script** `scripts/doc_reconcile.py` (both the plan pipeline and a direct coder can invoke it); no new skill file unless a later need appears.
+**Gate (also the WHOLE-PLAN final gate — this is the last phase):** `grep -q "doc_reconcile" ~/.claude/commands/fabrik-execute-plan.md` → present; `grep -q "pick_models(\"docs\")\|pool-reconciled" ~/.claude/commands/fabrik-docs-review.md ~/.claude/commands/fabrik-plan-after-chat.md`; then the FULL gate `python scripts/final_gate.py --check --json` → `status:success` (Tier 2 — mypy+bandit+semgrep, never `--lean`) **and** `python scripts/enforcement/check_convergence.py` → pass. Green proves citations/format, not soundness — the real proof is this plan's Evidence + the per-phase `/fabrik-review` no-ops.
+**Close (literal steps):** (1) confirm the greps; (2) `check_doc_sync.py` + CHANGELOG; (3) **`/fabrik-review`** over the changed surface (prose edits — light, but still looped to no-op on the `40-documentation.md` diff) → clean; (4) commit (`Agent-Phase: D`); (5) **final phase → run `/fabrik-docs-review`** to converge all docs touched by this plan.
+
+## Phase 3 pillars (baked in above)
+
+- **`/fabrik-review` at every phase boundary** — a written closing step (3) in each of A–D, BLOCKING, looped to a no-op.
+- **Subagents — POOL-DEFAULT** (`62 § Dispatch policy`): Phase B *is* the pool-authoring feature; the per-phase reviews use pool finders (record flywheel) + native `fabrik-reviewer` (Opus) for the enforcement-gate slices (B/C). Behavior-Contract tests may be pool-authored via `/fabrik-generate-tests`.
+- **Parallelism:** A→B→C are sequential (B consumes A's presence of Tier-0; C is independent but small); **within** Phase B the reconcile helper fans out (one pool author per fired doc, disjoint `owned_paths`); Phase D is sequential prose. No inter-phase parallelism (shared registry + the doc_reconcile dependency).
+
+## File Scope (owned paths)
+
+- `scripts/doc_autogen.py` (new), `tests/test_doc_autogen.py` (new)
+- `scripts/doc_reconcile.py` (new), `tests/test_doc_reconcile.py` (new)
+- `scripts/enforcement/check_doc_sync.py`, `scripts/enforcement/check_doc_stubs.py`, `tests/test_doc_coverage_range.py` (new)
+- `.windsurf/rules/core/40-documentation.md`
+- `~/.claude/commands/fabrik-execute-plan.md`, `~/.claude/commands/fabrik-docs-review.md`, `~/.claude/commands/fabrik-plan-after-chat.md` (operator-level, out-of-repo)
+- Shared-append: `CHANGELOG.md`, `INDEX.md`
+
+## Evidence
+
+- **Pool API + worktree diff-capture:** `libs/subagents/__init__.py` exports `run_agents`/`AgentSpec`/`pick_models`/`record_agent_run`/`results_table`; `libs/subagents/agent.py:9-17` — "each agent gets its own git worktree … its diff is captured (`workspace.worktree_diff`) and never applied." `AgentResult` fields incl. `.diff`/`.status`/`.cost_usd`/`.model` (read this session). `pick_models("docs")` → cheap models (`deepseek-v4-pro`/`minimax-m3`) (ran this session).
+- **Registry SSOT:** `_doc_registry.PROJECT_DOCS` = 22 `DocRow`s with `.trigger` populated (ran: `all(d.trigger for d in PROJECT_DOCS)` → True).
+- **Coverage-gate extension point:** `check_doc_sync.py:64 def _staged(): return _git(["diff","--cached","--name-only"])` — a `--range` adds `git diff <base>..HEAD`.
+- **AUTO-GEN precedent:** `sync_projects.py:496-518` `re.sub` block-replace between `AUTO-GENERATED:PROJECTS:START…END` (9 AUTO-GEN blocks in the file).
+- **Best-practice (inherited, live this session):** graphwiki "deterministic decides what, LLM writes prose" · Cyberax "cheap-tier fine + validation catches invented endpoint" · msiric/DeepDocs/patrickchugh (spec § External dependencies, all 2026).
+
+## Self-audit
+
+- **Grounding passes:** solo (I built plan-4's registry + `check_doc_stubs` + the catalog split this session; re-read the pool API, `AgentResult.diff`, `check_doc_sync._staged`, `sync_projects` AUTO-GEN, `select_rules` ACTIVE packs this turn).
+- **Coverage vs "what we agreed":** Tier-0 (A) · pool-author/native-verify reconcile loop (B) · whole-plan coverage gate (C) · command wiring incl. execute-plan/docs-review/plan-after-chat + 40-documentation (D). Tier-2 `/fabrik-docs-review` already exists (D step 5 invokes it); backstop checks already exist (extended in C). All approved items mapped. ✓
+- **Cross-phase signatures:** `fired_docs`/`reconcile_doc`/`reconcile_loop` (B) consume `PROJECT_DOCS` (registry) + `run_agents`/`pick_models` (pool) with the exact grounded names; C's `--range` reuses B/D's `<baseline>..HEAD`; D references `scripts/doc_reconcile.py` (B's file) + the `--range` flag (C). Names consistent. ✓
+- **Not yet a fixed point** — this DRAFT owes `/fabrik-plan-review` (next step).
+
+## Residual unknowns
+
+- **RESOLVED (spec + user):** the 4-tier approach, two-runtime split, model-selection delegation, iterate-to-converge, the coverage-gate-as-receipt, and the 4 command touchpoints are all approved; vendor verdict (pool VENDOR) confirmed live.
+- **RESOLVED (self-service, defaults set in the plan):** the reconciler is a **script** `scripts/doc_reconcile.py` (Phase D step 5); the pool author uses `tools_enabled=True` + `owned_paths=[doc]` so `AgentResult.diff` is the structured patch (Phase B step 3); `verify_fn` is **injected**, its **default a deterministic mechanical symbol cross-check** (a script can't dispatch native Claude), and the **native-Claude verify is the orchestration-layer check `/fabrik-execute-plan` injects (Phase D)** — so the spec's "native verify" lands correctly without the script needing the Agent tool.
+- **Still-open (non-blocking, executor grounds in-phase):** (a) the exact structured-edit prompt wording that best coaxes a find/replace `diff` from `pick_models("docs")` — tune against a real dispatch in Phase B (default: the Cyberax "structured edit-list, one-line rationale per edit" shape); (b) the precise `INDEX.md` Tier-0/Tier-1 line split — grounded against the current INDEX format in Phase A (default: if INDEX's format doesn't cleanly host an `AUTO-GENERATED` file-list block, INDEX stays Tier-1/reconciled and only `PORTS.md` + `docs/README.md` are Tier-0). None blocks execution.
