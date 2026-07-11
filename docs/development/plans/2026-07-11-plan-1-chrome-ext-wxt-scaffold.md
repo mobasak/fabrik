@@ -1,6 +1,6 @@
 # Plan — chrome-extension scaffold: WXT rebuild (Part B)
 
-**Status:** CONVERGED
+**Status:** IN-PROGRESS
 **Spec:** `docs/superpowers/specs/2026-07-11-chrome-ext-wxt-scaffold-design.md` (CONVERGED, md5 `431ed0d4`) — the grounded source of truth; inherit its vendor verdict + external facts, do not re-derive.
 **Scope:** hub-side scaffolder work in `/opt/fabrik` — rebuild the `chrome-extension` scaffold's **extension-client lane** from Vite+`@crxjs` onto **WXT**. Backend lane (`server/`) unchanged.
 
@@ -39,7 +39,9 @@
 
 ---
 
-## Phase A — WXT foundation that BUILDS (the load-bearing phase)
+## Phase A — WXT foundation that BUILDS (the load-bearing phase) — ✅ EXECUTED 2026-07-11
+
+**Verified (fresh `create_project(chrome-extension)`):** `pnpm install` exit 0 (pnpm-11 `allowBuilds` fix) · `wxt build` exit 0 (`.output/chrome-mv3/manifest.json`) · `tsc` 0 · `size-limit` 0 · `eslint` 0. Build-debug caught + fixed: 4 wrong-major pins, the `@wxt-dev/i18n/module` path, eslint config, size-limit globs, and the pnpm-11 `allowBuilds` (removed `onlyBuiltDependencies`). Regression: `tests/test_scaffold_chrome_ext_wxt.py` (7 passing).
 
 **Deliverable:** `_scaffold_chrome_extension`'s extension lane emits a WXT project skeleton + config + deps that `wxt build`s green. Governance flipped. No product UI yet (stub surfaces).
 
