@@ -396,11 +396,18 @@ def test_main_cli_range(tmp_path, monkeypatch):
     (repo / ".env.example").write_text("A=1\nB=2\n")  # env change → CONFIGURATION trigger fires
     _git(repo, "add", "-A")
     _git(repo, "commit", "-q", "-m", "envchange")
+    called: list[str] = []
+
+    def _run(specs, **k):
+        called.append(specs[0].owned_paths[0])
+        return [_fake_result(diff="")]  # matches → noop
+
     monkeypatch.setattr(dr, "pick_models", lambda *a, **k: ["m"])
-    monkeypatch.setattr(dr, "run_agents", lambda specs, **k: [_fake_result(diff="")])  # matches → noop
+    monkeypatch.setattr(dr, "run_agents", _run)
     monkeypatch.setattr(dr, "record_agent_run", lambda *a, **k: True)
 
     assert dr.main(["--range", "HEAD~1..HEAD", "--root", str(repo)]) == 0
+    assert "docs/CONFIGURATION.md" in called  # proves the --range file-list wiring actually fired a doc
 
 
 # ── Behavior 17 (F1 regression): applied is STICKY across rounds ──────────────
@@ -607,3 +614,34 @@ def test_default_verify_fail_closed_on_error(tmp_path, monkeypatch):
     monkeypatch.setattr(dr, "_codebase_haystack", _boom)
     patch = "+++ b/docs/QUICKSTART.md\n+use `some_symbol` here\n"
     assert dr._default_verify(patch, _docrow(), repo) is False  # crashed verify → reject, not apply
+
+
+# ── Behavior 26 (P6-2): a symbol present only in ANOTHER doc's prose is NOT laundered as "real" ──
+def test_verify_ignores_other_doc_prose(tmp_path):
+    repo = _mk_repo(tmp_path)
+    (repo / "docs").mkdir()
+    (repo / "docs" / "OPERATIONS.md").write_text("stale prose mentions `zebra_widget` here\n")
+    (repo / "docs" / "QUICKSTART.md").write_text("qs\n")
+    (repo / "app.py").write_text("def genuine():\n    return 1\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "-m", "i")
+    # a patch to QUICKSTART invents `zebra_widget`, which exists ONLY in OPERATIONS.md's prose (a .md)
+    patch = "+++ b/docs/QUICKSTART.md\n+see `zebra_widget`\n"
+    assert dr._default_verify(patch, _docrow("docs/QUICKSTART.md"), repo) is False  # .md excluded → rejected
+    # sanity: a real code symbol still verifies
+    ok = "+++ b/docs/QUICKSTART.md\n+call `genuine`\n"
+    assert dr._default_verify(ok, _docrow("docs/QUICKSTART.md"), repo) is True
+
+
+# ── Behavior 27 (P6-3): an added content line starting with "++" is still scanned for tokens ──
+def test_added_lines_double_plus_content_scanned(tmp_path):
+    repo = _mk_repo(tmp_path)
+    (repo / "docs").mkdir()
+    (repo / "docs" / "QUICKSTART.md").write_text("qs\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "-m", "i")
+    # raw diff line "+++foo ... `made_up`" is CONTENT (no space after +++), not the file header —
+    # its invented token must still be extracted and rejected, not silently skipped.
+    patch = "+++ b/docs/QUICKSTART.md\n+++plus prefixed line with `made_up_sym`\n"
+    assert "made_up_sym" in dr._extract_tokens(dr._added_lines(patch))
+    assert dr._default_verify(patch, _docrow("docs/QUICKSTART.md"), repo) is False

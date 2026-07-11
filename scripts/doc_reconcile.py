@@ -116,10 +116,13 @@ def fired_docs(diff_files: list[str]) -> list[object]:
 
 
 def _added_lines(patch: str) -> str:
+    # A hunk's added lines start with a single "+"; the file header is "+++ b/path" (note the SPACE).
+    # Filter on "+++ " (with the space) so an added CONTENT line whose text starts with "++" (raw
+    # "+++foo") is still scanned for invented tokens, not mistaken for the header.
     return "\n".join(
         line[1:]
         for line in patch.splitlines()
-        if line.startswith("+") and not line.startswith("+++")
+        if line.startswith("+") and not line.startswith("+++ ")
     )
 
 
@@ -132,7 +135,7 @@ def _extract_tokens(added_text: str) -> set[str]:
     return toks
 
 
-def _codebase_haystack(root: Path | str, exclude: str | None = None) -> str:
+def _codebase_haystack(root: Path | str, exclude: str | None = None, skip_md: bool = False) -> str:
     parts: list[str] = []
     exclude_path = (Path(root) / exclude).resolve() if exclude else None
     try:
@@ -141,6 +144,8 @@ def _codebase_haystack(root: Path | str, exclude: str | None = None) -> str:
                 continue
             if any(seg in _SKIP_DIRS for seg in p.parts):
                 continue
+            if skip_md and p.suffix.lower() == ".md":
+                continue  # verify tokens against CODE/config, not another doc's (maybe stale) prose
             if p.suffix.lower() not in _TEXT_EXT and p.name not in _TEXT_NAMES:
                 continue
             if exclude_path is not None and p.resolve() == exclude_path:
@@ -160,6 +165,10 @@ def _default_verify(patch: str, doc: object, root: Path | str) -> bool:
     """Mechanical symbol cross-check: every backtick identifier the patch ADDS must appear somewhere
     in the codebase — an identifier present nowhere is an invented endpoint/symbol → drift (reject).
 
+    The haystack is CODE/config only (``skip_md=True``) and excludes the target doc itself — so a
+    token can NOT be laundered as "real" by appearing in some other doc's (possibly hallucinated/stale)
+    prose or in the target's own text; it must exist in actual code.
+
     Fail-CLOSED: any error → False (reject). A verify that could not complete must never be treated
     as "verified" and let an unverified patch apply — consistent with ``_patch_targets_only``. The
     rejection is safe: the loop re-authors (drift), and the reconcile layer's own fail-safe keeps the
@@ -170,7 +179,7 @@ def _default_verify(patch: str, doc: object, root: Path | str) -> bool:
         toks = _extract_tokens(_added_lines(patch))
         if not toks:
             return True
-        hay = _codebase_haystack(root, exclude=getattr(doc, "name", None))
+        hay = _codebase_haystack(root, exclude=getattr(doc, "name", None), skip_md=True)
         # word-boundary match (not raw substring) so an invented `Spec` is NOT satisfied by a real
         # `AgentSpec` — the token must appear as a whole identifier somewhere in the codebase.
         return all(re.search(r"\b" + re.escape(t) + r"\b", hay) for t in toks)
