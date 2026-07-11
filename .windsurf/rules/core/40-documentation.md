@@ -12,29 +12,35 @@ description: Documentation rules — scaffolded doc templates, Documentation Syn
 
 ---
 
-## Scaffolded Doc Templates
+## Doc ownership — who maintains what
 
-Every `fabrik scaffold` project emits these doc templates. They are **empty stubs** — tickets fill them during implementation. An empty template at epic end = governance failure.
+The canonical doc set is the **type-aware registry** (`scripts/enforcement/_doc_registry.py` → `PROJECT_DOCS`), the SSOT the scaffold seed + the `check_structure` allowlist + this matrix all derive from. Two ownership layers:
 
-| Template | Purpose | Filled by (typical ticket) |
-|----------|---------|---------------------------|
-| `README.md` | Primary entry point — overview, tech stack, requirements | Foundation ticket |
-| `CHANGELOG.md` | All notable changes under `## [Unreleased]` | Every code-shipping ticket |
-| `INDEX.md` | Single source of truth for all file purposes | Every ticket that adds/removes files |
-| `docs/CONFIGURATION.md` | Environment variables and settings | Ticket that adds env vars |
-| `docs/FEATURES.md` | Feature documentation with status | Feature implementation tickets |
-| `docs/QUICKSTART.md` | Integration contract — endpoints, SDKs, Docker wiring | API / integration ticket |
-| `docs/API_REFERENCE.md` | Detailed API documentation | API endpoint tickets |
-| `docs/DEPLOYMENT.md` | Deploy instructions, `fabrik apply` config, compose | Deploy / ops ticket |
-| `docs/RESILIENCE.md` | Resilience contract — deps, failure modes, recovery | Resilience ticket |
-| `docs/DATABASE_SCHEMA.md` | Schema docs — tables, columns, relationships, indexes | Schema / migration ticket |
-| `docs/TROUBLESHOOTING.md` | Common issues and fixes | Integration / closure ticket |
-| `docs/BUSINESS_MODEL.md` | Monetization and positioning (commercial projects only) | Epic brief / planning ticket |
-| `docs/LESSONS_LEARNT.md` | Lessons from incidents, auth changes, external integrations | Any ticket with a lessons trigger |
-| `docs/STRATEGIC_BACKLOG.md` | Issue prevention from Kilo CLI sessions | Kilo consult tickets |
-| `docs/DOCS_INDEX.md` | Documentation table of contents | Closure ticket |
+### A. Coder-AI-owned — YOU write/update these as you code (per-project)
 
-**Not all templates apply to every scaffold type.** A `file-worker` has no `API_REFERENCE.md`. Mark N/A in the ticket-outline's Documentation Assignment Matrix when a template doesn't apply.
+🔴 = the gate **hard-blocks the commit** if it's stale (`check_doc_sync` ERROR-tier).
+
+**Universal (every scaffold type):**
+`AGENTS.md` (scaffold seeds it; keep current on infra/topology change) · `README.md` · `INDEX.md` · `docs/README.md` · `CHANGELOG.md` 🔴 · `AFCL.md` · `docs/QUICKSTART.md` (API/SDK/CLI change) · `docs/CONFIGURATION.md` 🔴 **+ `.env.example`** 🔴 (new env var) · `docs/TROUBLESHOOTING.md` · `docs/FEATURES.md` · `docs/LESSONS_LEARNT.md`
+
+**Deployed types (`python-api*` / `node-api` / `file-api` / `file-worker` / `saas-skeleton` / `wordpress`):**
+`docs/SERVICES.md` · `docs/OPERATIONS.md` (compose service change) · `docs/RESILIENCE.md` · `docs/DEPLOYMENT.md` · `PORTS.md`
+
+**Data (`shape.needs_database`):** `db/schema.sql` 🔴 (migration) · `docs/data-contract.md` (via `/fabrik-data-contract`)
+
+**GUI types:** `docs/ui-design.md` · `docs/design-system.md` (via `/fabrik-ui-design`)
+
+**SaaS:** `docs/BUSINESS_MODEL.md` (this project's own monetization) · `docs/STRATEGIC_BACKLOG.md` (parked/postponed work)
+
+**Also coder-owned, not in the doc registry:** `specs/services/<id>.yaml` 🔴 — the **`shape:` contract**; update on any DB/cache/metrics/auth/search change or `fabrik apply` ships a broken deploy · `project.yaml` (type/port; mostly scaffold-set).
+
+### B. Fabrik-hub-owned — do NOT edit locally (centrally synced, overwritten every sync)
+
+`CLAUDE.md` · `AGENTS-compact.md` · `.windsurfrules` · `.windsurf/rules/**` · `opencode.json` · `docs/reference/**` — including `docs/reference/opt-project-catalog.md` (the /opt inventory — **read** it to wire to a sibling project instead of rebuilding; Fabrik regenerates it via `sync_projects.py`). These are gate-protected byte-identical by `check_synced_unmodified`.
+
+> Retired (do not create): `docs/API_REFERENCE.md` (→ `QUICKSTART` + the live `/docs` endpoint), `docs/DATABASE_SCHEMA.md` (→ `db/schema.sql` + `docs/data-contract.md`), `docs/DOCS_INDEX.md` (→ `docs/README.md`).
+
+**Not all docs apply to every scaffold type** — the registry buckets decide (a `file-worker` gets no GUI/SaaS docs). An empty *applicable* stub at epic end whose trigger fired = governance failure (`check_doc_stubs` WARNs it).
 
 ---
 
