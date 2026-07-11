@@ -64,7 +64,7 @@ _NO_DOCKERFILE_TYPES: frozenset[str] = frozenset(
 
 # Types whose application code does NOT live under src/ (different layout):
 #  - saas-skeleton → Next.js app-router layout uses app/ + components/ + lib/
-#  - chrome-extension → manifest.json + content/background scripts at root or in scripts/
+#  - chrome-extension → WXT extension (src/entrypoints, auto-manifest); backend at server/src/
 #  - wordpress → wp-content/ + plugins/ + themes/ (no src/)
 # static-site / docusaurus are already short-circuited as _STATIC_TYPES above.
 _NO_SRC_LAYOUT_TYPES: frozenset[str] = frozenset(

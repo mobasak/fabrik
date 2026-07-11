@@ -111,10 +111,13 @@ def test_tailwind_v4_wired(ext: Path) -> None:
     assert (ext / "src" / "global.css").read_text().strip() == '@import "tailwindcss";'
 
 
-def test_wxt_config_declares_mv3_permissions(ext: Path) -> None:
-    """The load-bearing manifest permissions (plan Behavior Contract a) are declared."""
+def test_wxt_config_declares_mv3_permissions_and_icons(ext: Path) -> None:
+    """The manifest permissions + explicit icons are declared (WXT auto-discovery
+    won't match our icon16.png names, so they must be wired or Chrome shows no icon)."""
     cfg = (ext / "wxt.config.ts").read_text()
     assert "permissions: ['storage', 'activeTab']" in cfg
+    assert "icons: {" in cfg
+    assert "/icon16.png" in cfg
 
 
 @pytest.mark.skipif(
@@ -147,3 +150,5 @@ def test_wxt_scaffold_builds_and_manifest_has_permissions(tmp_path: Path) -> Non
     manifest = json.loads((ext / ".output" / "chrome-mv3" / "manifest.json").read_text())
     assert manifest["permissions"] == ["storage", "activeTab"]
     assert manifest["default_locale"] == "en"
+    # Icons wired into the built manifest (else Chrome shows the gray puzzle default).
+    assert manifest["icons"] == {"16": "/icon16.png", "48": "/icon48.png", "128": "/icon128.png"}

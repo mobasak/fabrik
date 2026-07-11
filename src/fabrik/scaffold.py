@@ -3839,6 +3839,9 @@ export default defineConfig({
     description: '__MSG_extDescription__',
     default_locale: 'en',
     permissions: ['storage', 'activeTab'],
+    // Explicit icons — WXT's auto-discovery only matches dashed names (icon-16.png);
+    // ours are icon16.png in public/, so wire them so the built manifest carries them.
+    icons: { 16: '/icon16.png', 48: '/icon48.png', 128: '/icon128.png' },
   },
 });
 """
@@ -3871,7 +3874,7 @@ export default defineConfig({
             "webext-dynamic-content-scripts": "^10.0.4",
             "webext-permissions": "^3.1.3",
             "element-ready": "^9.0.2",
-            "zustand": "^5.0.0",
+            "zustand": "^4.5.7",
             "@webext-pegasus/store-zustand": "^0.3.6",
         },
         "devDependencies": {
@@ -3922,7 +3925,8 @@ export default defineConfig({
         """[
   { "name": "popup", "path": ".output/chrome-mv3/chunks/popup-*.js", "limit": "40 KB" },
   { "name": "options", "path": ".output/chrome-mv3/chunks/options-*.js", "limit": "60 KB" },
-  { "name": "background", "path": ".output/chrome-mv3/background.js", "limit": "30 KB" }
+  { "name": "background", "path": ".output/chrome-mv3/background.js", "limit": "30 KB" },
+  { "name": "styles", "path": ".output/chrome-mv3/assets/*.css", "limit": "20 KB" }
 ]
 """
     )
