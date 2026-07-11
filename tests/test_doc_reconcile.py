@@ -480,3 +480,41 @@ def test_patch_targets_only_scope_guard(tmp_path):
 
     # (d) an unparseable patch → fail-CLOSED (reject)
     assert dr._patch_targets_only("not a patch at all", "docs/QUICKSTART.md", repo) is False
+
+
+# ── Behavior 20: a "capped" run with an EMPTY diff is degraded (not a trusted no-op) ──
+# Locks the intentional asymmetry: a non-empty capped diff is trusted (test 10b), but a capped
+# run concluding "nothing to do" is NOT — else a budget-capped stall would masquerade as converged.
+def test_capped_empty_diff_degrades(tmp_path, monkeypatch):
+    repo = _mk_repo(tmp_path)
+    (repo / "docs").mkdir()
+    (repo / "docs" / "QUICKSTART.md").write_text("intro\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "-m", "i")
+    capped_empty = types.SimpleNamespace(
+        diff="", status="capped", model="m", cost_usd=0.2, turns=8, agent_id="a",
+        error=None, latency_s=0.1, out_tokens=0, provider="s", tool_calls=[],
+    )
+    monkeypatch.setattr(dr, "pick_models", lambda *a, **k: ["m"])
+    monkeypatch.setattr(dr, "run_agents", lambda specs, **k: [capped_empty])
+    monkeypatch.setattr(dr, "record_agent_run", lambda *a, **k: True)
+
+    res = dr.reconcile_doc(_docrow(), "d", repo)
+    assert res.status == "degraded"  # only a clean "done" empty diff is a trusted no-op
+
+
+# ── Behavior 21: pool-not-vendored → every doc "skipped" → loop converges (does NOT spin) ──
+def test_loop_all_skipped_converges(tmp_path, monkeypatch):
+    repo = _mk_repo(tmp_path)
+    (repo / "docs").mkdir()
+    (repo / "docs" / "QUICKSTART.md").write_text("intro\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "-m", "i")
+    monkeypatch.setattr(dr, "run_agents", None)  # pool not vendored
+    monkeypatch.setattr(dr, "AgentSpec", None)
+    monkeypatch.setattr(dr, "pick_models", None)
+
+    out = dr.reconcile_loop([_docrow()], "d", repo, max_rounds=3)
+    assert out["status"] == "converged"  # "skipped" is resolved → converge, not spin to max_rounds
+    assert out["rounds"] == 1
+    assert out["docs"]["docs/QUICKSTART.md"].status == "skipped"

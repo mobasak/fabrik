@@ -174,7 +174,12 @@ def _patch_targets_only(patch: str, name: str, root: Path | str) -> bool:
     Uses git's OWN patch parser (``git apply --numstat``) rather than regex header-scraping, so a
     ``b/``-less header, a rename/copy-only diff, or an extra file cannot slip a foreign-path change
     past the scope guard. Fail-CLOSED: an unparseable patch, a rename/copy, an empty file list, or
-    any error → reject (a scope guard must never fail open)."""
+    any error → reject (a scope guard must never fail open).
+
+    Assumes ``patch`` is git-format (``a/``/``b/`` prefixes) — which the pool guarantees, as
+    ``result.diff`` comes from ``libs/subagents/workspace.worktree_diff`` = ``git diff --cached``.
+    A prefix-less plain unified diff would numstat under ``-p1`` to a stripped path and be
+    conservatively rejected (safe: drift → re-author, never a misapply)."""
     try:
         out = subprocess.run(
             ["git", "-C", str(root), "apply", "--numstat", "-"],
