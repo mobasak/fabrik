@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Removed — Cut `kilo-consult-workflow.md` from the project-doc registry (superseded feature, 2026-07-11)
+
+The `kilo consult` feature is superseded by the OpenRouter fabrik-lib consult module (`run_agents`), so its how-to is no longer seeded to new projects or synced fleet-wide — dropped from `_doc_registry.PROJECT_DOCS`, `scaffold.SHARED_TEMPLATE_MAP`/`SHARED_DIRS`, and `fabrik_synced_manifest`. Template preserved in `templates/.archive/KILO_CONSULT_WORKFLOW.md` (recoverable); `kilo_consult.py` stays dormant. Consumer-gated cleanup — the other audited docs (BUSINESS_MODEL, STRATEGIC_BACKLOG, DEPLOYMENT) are kept (human-read).
+
 ### Added — Coding microbench: 4 ByteDance-Seed models scored via a completions-shim + evalplus offline eval (plan-3, 2026-07-11)
 
 Populates `agents.humaneval_score` + `agents.coding_score` for the 4 `bytedance-seed/seed-*` coding models (unblocks plan-2's Phase E which had failed with an evalplus↔OpenRouter JSONDecodeError). Ships a new completions shim [`scripts/kilo-benchmarks/openrouter_complete.py`](scripts/kilo-benchmarks/openrouter_complete.py) built on the vendored `libs.subagents._transport` primitive (proven OR-compatible via streaming SSE), refactors `microbench_coding._run_one` to a **3-step pipeline** — `generate_samples → evalplus.sanitize → evalplus.evaluate --samples` — and lands persistent run caches at `scripts/kilo-benchmarks/.microbench_cache/<UTC-stamp>-pid<pid>/` so downstream sanitize/eval failures are $0-recoverable (proven the same evening: v3's DB write crashed transiently → cached-replay wrote the scores for free). Real scores: seed-1.6 & seed-2.0-lite tie at coding_score=91.96 (98.17 HE+), seed-2.0-mini at 90.52, seed-1.6-flash at 87.16. Real OR spend: $9.64 total across v1 (wasted, sanitize gap) + v3 (successful, cached).

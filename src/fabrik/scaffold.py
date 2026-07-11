@@ -208,7 +208,8 @@ SHARED_TEMPLATE_MAP = {
     "docs/STRATEGIC_BACKLOG_TEMPLATE.md": "docs/STRATEGIC_BACKLOG.md",
     "docs/LESSONS_LEARNT_TEMPLATE.md": "docs/LESSONS_LEARNT.md",
     "docs/data-contract-template.md": "docs/data-contract.md",  # frozen field dictionary; filled by /fabrik-data-contract
-    "docs/workflows/KILO_CONSULT_WORKFLOW.md": "docs/workflows/kilo-consult-workflow.md",
+    # kilo-consult-workflow.md removed 2026-07-11 — `kilo consult` superseded by the OpenRouter
+    # fabrik-lib consult module; no longer seeded (template archived, kilo_consult.py dormant).
     # Note: Phase docs removed - Traycer Phases replace manual phase tracking
     # Note: tasks.md removed - Traycer UI replaces manual task dashboard
     # Note: PLANS.md and archive/README.md are generated inline, not from templates
@@ -356,7 +357,6 @@ SHARED_DIRS = [
     "docs/development",
     "docs/development/plans",
     "docs/archive",
-    "docs/workflows",  # Required by SHARED_TEMPLATE_MAP entry for kilo-consult-workflow.md
     "config",
     "scripts",
     "tests",

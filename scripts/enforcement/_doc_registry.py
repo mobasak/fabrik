@@ -197,13 +197,10 @@ PROJECT_DOCS: tuple[DocRow, ...] = (
         "end of ticket/run",
         "agent",
     ),
-    DocRow(
-        "docs/workflows/kilo-consult-workflow.md",
-        "docs/workflows/KILO_CONSULT_WORKFLOW.md",
-        frozenset({"universal"}),
-        "(static, synced)",
-        "static",
-    ),
+    # (removed 2026-07-11: docs/workflows/kilo-consult-workflow.md — the `kilo consult`
+    #  feature is superseded by the OpenRouter fabrik-lib consult module (run_agents), so its
+    #  how-to is no longer seeded/synced to projects. Template archived in templates/.archive/;
+    #  kilo_consult.py stays as a dormant tool.)
     # --- deployed (runs a backend service) ---
     DocRow(
         "docs/SERVICES.md",
