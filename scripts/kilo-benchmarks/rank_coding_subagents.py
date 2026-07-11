@@ -149,15 +149,29 @@ BODY_HINTS: dict[str, dict] = {
 }
 
 
-def _grade_doc_review(ctx_k: float, swe: float, aider: float, aa_idx: float, arena: float) -> str:
+def _grade_doc_review(
+    ctx_k: float,
+    swe: float,
+    aider: float,
+    aa_idx: float,
+    arena: float,
+    coding_score: float = 0,
+) -> str:
     """Return A+/A/B+/B/B-/C+/C for doc↔code review capability.
 
     Weight: context size (can hold docs+code together), verified code
-    understanding (SWE or Aider — whichever is available), general
-    intelligence (AA/Arena). Ladder is monotonic: a strictly-stronger
-    signal must never grade WORSE than a weaker one at the same ctx bucket.
+    understanding (SWE or Aider — whichever is available; falls back to
+    our own coding_score when neither is populated), general intelligence
+    (AA/Arena). Ladder is monotonic: a strictly-stronger signal must never
+    grade WORSE than a weaker one at the same ctx bucket.
+
+    coding_score fallback: HE+/MBPP+ pass_at_1 saturates ~10-15pp higher
+    than SWE-bench for the same model class, so discount to ~SWE scale
+    (× 0.7) — used ONLY when both swe and aider are 0/absent.
     """
     verified = max(swe or 0, aider or 0)
+    if verified == 0 and coding_score:
+        verified = coding_score * 0.7
     huge_ctx = ctx_k >= 800
     mid_ctx = 200 <= ctx_k < 800
     small_ctx = ctx_k < 200
@@ -200,7 +214,13 @@ def _compose_score(row: dict) -> float:
     """
     swe = row.get("swe") or 0
     aider = row.get("aider") or 0
+    coding_s = row.get("coding_s") or 0
     verified = max(swe, aider)  # "best verified code-understanding evidence"
+    # Fallback: our own live HumanEval+/MBPP+ pass_at_1 when neither
+    # external benchmark is populated. Discount × 0.7 to align scales
+    # (HE+/MBPP+ tops out ~10-15pp above SWE-bench for the same class).
+    if verified == 0 and coding_s:
+        verified = coding_s * 0.7
     aa = row.get("aa_idx") or 0
     arena = row.get("arena") or 0
     tps = row.get("db_tps") or 0
@@ -276,6 +296,7 @@ def _rows_from_db(db_path: Path | None = None) -> list[dict]:
                    output_tokens_per_sec AS db_tps,
                    swe_bench_verified_pct AS swe,
                    aider_polyglot_pct AS aider,
+                   coding_score AS coding_s,
                    aa_intelligence_index AS aa_idx,
                    arena_elo AS arena,
                    context_window_k AS ctx_k,
@@ -303,6 +324,7 @@ def _rows_from_db(db_path: Path | None = None) -> list[dict]:
             d.get("aider") or 0,
             d.get("aa_idx") or 0,
             d.get("arena") or 0,
+            d.get("coding_s") or 0,
         )
         out.append(d)
     out.sort(key=lambda x: (-x["score"], x["id"]))
@@ -345,7 +367,7 @@ def _render(rows: list[dict]) -> str:
         "",
         "Ranked candidates for coding-subagent dispatch across the GLM (z-ai), Kimi (moonshotai), Minimax, and DeepSeek families. Regenerated daily by `scripts/kilo-benchmarks/daily_refresh.sh` after pricing and microbench data refreshes.",
         "",
-        "> **Score composition**: 45% best-verified code score (max of SWE-bench-Verified and Aider-Polyglot — whichever is available) · 20% AA intelligence index · 15% Arena ELO · 10% output tok/s · 10% cost-inverse. Every component normalized to [0,1] before its weight is applied. Higher = better fit.",
+        "> **Score composition**: 45% best-verified code score (max of SWE-bench-Verified and Aider-Polyglot; falls back to our own live HumanEval+/MBPP+ `coding_score` × 0.7 when neither external benchmark is populated) · 20% AA intelligence index · 15% Arena ELO · 10% output tok/s · 10% cost-inverse. Every component normalized to [0,1] before its weight is applied. Higher = better fit.",
         "",
         "> **Doc↔Code grade**: composite of context size (fits code + docs together), verified code-understanding score, and general intelligence — measures ability to spot drift between documentation and implementation.",
         "",
