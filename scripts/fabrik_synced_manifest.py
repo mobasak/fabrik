@@ -29,6 +29,7 @@ CORE_SCRIPTS = [
     "kilo_code_review.py",
     "kilo_docs_enforcer.py",
     "docs_updater.py",
+    "doc_reconcile.py",  # Tier-1 doc-reconcile loop (pool author → verify → converge); agents run it per phase
     "update_agents_toc.py",
     "health_checker.py",
     "select_rules.py",  # plan-time: lists applicable .windsurf/rules packs
