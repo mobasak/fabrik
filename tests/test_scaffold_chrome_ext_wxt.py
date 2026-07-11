@@ -7,12 +7,21 @@ integration verification run at plan-execution time — see the plan's Evidence.
 
 from __future__ import annotations
 
+import os
 import shutil
 from pathlib import Path
 
 import pytest
 
 from fabrik.scaffold import I18N_ENABLED_TYPES, TYPE_REQUIRED_FILES, create_project
+
+FABRIK_ROOT = Path("/opt/fabrik")
+# Portability guard (matches tests/test_scaffold.py): these tests scaffold against the
+# real templates tree — skip cleanly where it isn't present (e.g. CI) rather than error.
+pytestmark = pytest.mark.skipif(
+    not FABRIK_ROOT.exists() or os.getenv("CI") == "true",
+    reason="Requires the full fabrik environment at /opt/fabrik (templates dir)",
+)
 
 
 @pytest.fixture

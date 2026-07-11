@@ -489,7 +489,7 @@ class TestChromeExtensionScaffold:
         makefile = (project_dir / "Makefile").read_text()
         assert "dev:" in makefile
         assert "trap 'kill 0' SIGINT" in makefile
-        assert "npm run dev" in makefile
+        assert "pnpm dev" in makefile
         assert "uvicorn" in makefile
         assert "dev-server:" in makefile
         assert "dev-ext:" in makefile
@@ -508,7 +508,8 @@ class TestChromeExtensionScaffold:
         project_dir = tmp_path / "test-ext"
 
         gitignore = (project_dir / ".gitignore").read_text()
-        assert "extension/dist/" in gitignore
+        assert "extension/.output/" in gitignore  # WXT build output
+        assert "extension/.wxt/" in gitignore  # WXT generated dir
         assert "extension/node_modules/" in gitignore
 
     def test_project_yaml_type_is_chrome_extension(self, tmp_path):

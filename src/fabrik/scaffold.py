@@ -3762,10 +3762,10 @@ def _write_placeholder_png(
 ) -> None:
     """Write a solid-color square PNG (pure stdlib — no Pillow dependency).
 
-    The chrome-extension manifest references icon16/48/128.png; without real
-    files the extension build references (WXT copies public/ assets into the
-    asset``). These placeholders (Google-blue #4285f4) make ``vite build``
-    pass out of the box; the developer replaces them with real branding.
+    The chrome-extension scaffold ships icon16/48/128.png under extension/public/
+    (WXT copies public/ verbatim into the build output). These placeholders
+    (Google-blue #4285f4) make the extension build usable out of the box; the
+    developer replaces them with real branding.
     """
     import struct
     import zlib
@@ -4199,10 +4199,10 @@ CMD ["sh", "-c", "uvicorn {package_name}.main:app --host 0.0.0.0 --port ${{PORT:
 PROJECT_NAME := {name}
 PORT := 8000
 
-# Parallel dev: extension Vite dev + server uvicorn reload
+# Parallel dev: WXT dev server + server uvicorn reload
 dev:
 \t@trap 'kill 0' SIGINT; \\
-\tcd extension && npm run dev & \\
+\tcd extension && pnpm dev & \\
 \t.venv/bin/uvicorn {package_name}.main:app --reload --host 0.0.0.0 --port $(PORT) --app-dir server/src & \\
 \twait
 
@@ -4210,19 +4210,19 @@ dev:
 dev-server:
 \t.venv/bin/uvicorn {package_name}.main:app --reload --host 0.0.0.0 --port $(PORT) --app-dir server/src
 
-# Extension only (Vite dev with HMR)
+# Extension only (WXT dev with HMR)
 dev-ext:
-\tcd extension && npm run dev
+\tcd extension && pnpm dev
 
-# Production extension build (Vite)
+# Production extension build (WXT → extension/.output/chrome-mv3)
 build-ext:
-\tcd extension && npm run build
+\tcd extension && pnpm build
 
 # Install all dependencies
 install:
 \tpython -m venv .venv
 \t.venv/bin/pip install -r requirements.txt
-\tcd extension && npm install
+\tcd extension && pnpm install
 
 # Run tests
 test:
@@ -4246,7 +4246,7 @@ docker-smoke: docker-build
 
 # Clean build artifacts
 clean:
-\trm -rf extension/dist extension/node_modules
+\trm -rf extension/.output extension/.wxt extension/node_modules
 \tfind . -type d -name "__pycache__" -exec rm -rf {{}} +
 \tdocker rmi $(PROJECT_NAME) 2>/dev/null || true
 """
@@ -4269,8 +4269,9 @@ SERVICE_NAME={name}
         + "\n"
         + _DROID_GITIGNORE_BLOCK
         + "\n"
-        + "# Chrome extension-specific\n"
-        "extension/dist/\n"
+        + "# Chrome extension-specific (WXT)\n"
+        "extension/.output/\n"
+        "extension/.wxt/\n"
         "extension/node_modules/\n"
         "\n"
         "# Python-specific\n"
