@@ -649,14 +649,21 @@ def test_added_lines_hunk_aware(tmp_path):
     (repo / "docs" / "QUICKSTART.md").write_text("qs\n")
     _git(repo, "add", "-A")
     _git(repo, "commit", "-q", "-m", "i")
-    # The Pass-7 bug: an added CONTENT line beginning with "++" — WITH a space (raw hunk line
-    # "++ …", which byte-for-byte matched the old "+++ " header filter) — was silently dropped,
-    # so its invented token slipped verification. Hunk-position parsing captures both variants.
-    space = _mini_patch("docs/QUICKSTART.md", "+ see `made_up_space` sym")  # raw hunk line: "++ see …"
-    nospace = _mini_patch("docs/QUICKSTART.md", "+plus `made_up_nospace`")  # raw hunk line: "++plus …"
-    assert "made_up_space" in dr._extract_tokens(dr._added_lines(space))
+    # The Pass-7 bug: an added CONTENT line whose TEXT begins with "++" makes the raw hunk line
+    # "+++…" — byte-identical to the "+++ b/path" header the old string-prefix filter matched, so
+    # it was silently dropped and its invented token slipped verification.
+    trap = _mini_patch("docs/QUICKSTART.md", "++ see `made_up_trap` sym")  # raw hunk line: "+++ see …"
+    nospace = _mini_patch("docs/QUICKSTART.md", "++plus `made_up_nospace`")  # raw hunk line: "+++plus …"
+    # the input MUST actually hit the trap, or the test proves nothing:
+    assert "\n+++ see `made_up_trap` sym\n" in trap  # the added line IS header-prefix-colliding
+    # the OLD fragile filter would DROP the trap line (regression proof); the new hunk-aware parser keeps it:
+    old_added = "\n".join(
+        ln[1:] for ln in trap.splitlines() if ln.startswith("+") and not ln.startswith("+++ ")
+    )
+    assert "made_up_trap" not in old_added  # old logic → token missed (the bug)
+    assert "made_up_trap" in dr._extract_tokens(dr._added_lines(trap))  # hunk-aware → token caught
     assert "made_up_nospace" in dr._extract_tokens(dr._added_lines(nospace))
-    assert dr._default_verify(space, _docrow("docs/QUICKSTART.md"), repo) is False  # invented → rejected
+    assert dr._default_verify(trap, _docrow("docs/QUICKSTART.md"), repo) is False  # invented → rejected
     assert dr._default_verify(nospace, _docrow("docs/QUICKSTART.md"), repo) is False
     # the file header's `+++ b/…` path is NEVER mistaken for content (only the hunk body is scanned)
     plain = _mini_patch("docs/QUICKSTART.md", "call `made_up_plain`")
