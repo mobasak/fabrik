@@ -247,7 +247,18 @@ def _load_quality_tiers(path: Path = KILO_AGENTS_DB) -> dict[str, int]:
             ).fetchall()
     except (sqlite3.Error, OSError):
         return {}
-    return {mid: int(tier) for mid, tier in rows if tier is not None}
+    # `int(tier)` guarded — schema is INTEGER today, but sqlite is dynamically
+    # typed and a future schema drift could store text ("high"), which would
+    # crash the daily doc regen otherwise. Skip malformed rows silently.
+    result: dict[str, int] = {}
+    for mid, tier in rows:
+        if tier is None:
+            continue
+        try:
+            result[mid] = int(tier)
+        except (ValueError, TypeError):
+            continue
+    return result
 
 
 def _fmt_tier(tiers: dict[str, int], model: str) -> str:

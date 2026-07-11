@@ -215,6 +215,82 @@ def test_quality_tier_column_emitted_and_reader_compat(monkeypatch) -> None:
     assert r2_cells[-1] == "5", f"cells[-1] must still be n=5, got {r2_cells}"
 
 
+def test_quality_tier_column_in_fallback_table(monkeypatch, tmp_path) -> None:
+    """The `### code (n_total=0, fallback ...)` table also carries the
+    quality_tier column — inserted BEFORE `source` so cells[-1] stays
+    `[benchmark]` (non-decimal → reader treats as n=0, matches "no fleet runs").
+    """
+    import rank_task_subagents as m
+
+    monkeypatch.setattr(m, "_load_quality_tiers", lambda: {"cheap/a": 3, "cheap/b": 2})
+    monkeypatch.setattr(
+        m, "_load_coding_fallback", lambda *_a, **_k: ["cheap/a", "cheap/b", "no-tier/c"]
+    )
+    md = m.render([])  # empty fleet → triggers fallback
+    lines = md.splitlines()
+
+    header = next(
+        line for line in lines if "quality_tier" in line and "|" in line and "source" in line
+    )
+    header_cells = [c.strip() for c in header.strip("|").split("|")]
+    # Column order in fallback: rank | model | quality_tier | source
+    assert header_cells == ["rank", "model", "quality_tier", "source"], header_cells
+
+    # cheap/a: tier=3
+    row_a = next(line for line in lines if "cheap/a" in line)
+    cells = [c.strip() for c in row_a.strip("|").split("|")]
+    assert cells[-2] == "3", cells
+    assert cells[-1] == "[benchmark]", cells
+
+    # no-tier/c: blank
+    row_c = next(line for line in lines if "no-tier/c" in line)
+    cells = [c.strip() for c in row_c.strip("|").split("|")]
+    assert cells[-2] == "", cells
+    assert cells[-1] == "[benchmark]", cells
+
+
+def test_load_quality_tiers_survives_malformed_tier_values(monkeypatch, tmp_path) -> None:
+    """Schema drift defence — _load_quality_tiers skips rows with non-int
+    quality_tier values instead of crashing the daily doc regen. Regression
+    guard: without the guarded int() the whole run raises ValueError.
+    """
+    import sqlite3
+
+    import rank_task_subagents as m
+
+    db = tmp_path / "test_agents.db"
+    with sqlite3.connect(db) as conn:
+        conn.execute("CREATE TABLE agents (id TEXT, quality_tier)")
+        conn.executemany(
+            "INSERT INTO agents (id, quality_tier) VALUES (?, ?)",
+            [
+                ("valid/a", 3),
+                ("valid/b", 2),
+                ("bad/a", "high"),  # non-numeric string — must be skipped
+                ("bad/b", "3.5"),  # decimal string — int() raises → skipped
+                ("null/a", None),  # NULL — filtered by SQL WHERE
+            ],
+        )
+        conn.commit()
+
+    tiers = m._load_quality_tiers(db)
+    assert tiers == {"valid/a": 3, "valid/b": 2}, tiers
+    assert "bad/a" not in tiers  # non-numeric skipped
+    assert "bad/b" not in tiers  # decimal string skipped
+    assert "null/a" not in tiers  # NULL filtered by SQL
+
+
+def test_load_quality_tiers_returns_empty_dict_when_file_missing(tmp_path) -> None:
+    """Fail-soft contract: a missing kilo_agents.db must not crash the daily
+    doc regen — the caller renders blank tier cells for every row instead."""
+    import rank_task_subagents as m
+
+    missing = tmp_path / "does-not-exist.db"
+    assert not missing.exists()
+    tiers = m._load_quality_tiers(missing)
+    assert tiers == {}
+
+
 def test_min_runs_threshold_filters_out_low_n() -> None:
     """Pairs with fewer than 3 runs must NOT appear in the ranking."""
     from rank_task_subagents import filter_min_runs

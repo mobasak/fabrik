@@ -118,7 +118,10 @@ def test_rank_all_respects_db_path_argument(tmp_path):
             aa_intelligence_index REAL, arena_elo REAL,
             context_window_k INTEGER, quality_tier INTEGER,
             has_reasoning INTEGER, via_openrouter INTEGER,
-            cheapest_provider TEXT
+            cheapest_provider TEXT,
+            coding_score REAL,
+            humaneval_score REAL,
+            reachable_with_existing_keys INTEGER
         )""")
 
     rows = rank_all(empty_db)
@@ -148,7 +151,10 @@ def test_export_payload_uses_supplied_db_path_for_overlay(tmp_path):
             has_reasoning INTEGER, via_openrouter INTEGER, cheapest_provider TEXT,
             aa_intelligence_index REAL, arena_elo REAL,
             swe_bench_verified_pct REAL, aider_polyglot_pct REAL,
-            output_tokens_per_sec REAL
+            output_tokens_per_sec REAL,
+            coding_score REAL,
+            humaneval_score REAL,
+            reachable_with_existing_keys INTEGER
         )""")
         c.execute("""CREATE TABLE agent_categories (agent_id TEXT, category TEXT)""")
         c.execute("""CREATE TABLE agent_roles (
@@ -183,6 +189,78 @@ def test_export_payload_uses_supplied_db_path_for_overlay(tmp_path):
     # m3 IS in PROVIDER_PINS regardless of DB — this is the constant.
     assert m["code_provider_pin"] == ["Minimax", "Novita", "Parasail", "Together"]
     assert m["code_body_hint"] is not None  # includes the pin
+
+
+def test_compose_score_coding_fallback_kicks_in_when_swe_aider_absent():
+    """b652151f: when both SWE and Aider are absent, our own live coding_score
+    fills the `verified` axis at a × 0.7 discount (aligning HE+/MBPP+ scale to
+    the SWE range). Regression pin against a mutation that drops the fallback."""
+    from rank_coding_subagents import _compose_score
+
+    row_no_ext = {
+        "swe": None,
+        "aider": None,
+        "coding_s": 90,
+        "aa_idx": None,
+        "arena": None,
+        "db_tps": 100,
+        "in_M": 0.1,
+        "out_M": 0.4,
+    }
+    row_all_null = {
+        "swe": None,
+        "aider": None,
+        "coding_s": None,
+        "aa_idx": None,
+        "arena": None,
+        "db_tps": 100,
+        "in_M": 0.1,
+        "out_M": 0.4,
+    }
+    # A row with only coding_s populated ranks higher than one with nothing
+    assert _compose_score(row_no_ext) > _compose_score(row_all_null)
+
+
+def test_compose_score_external_benchmarks_win_when_present():
+    """b652151f: coding_score fallback is ONLY used when both SWE and Aider are
+    absent. A row with SWE populated must NOT get lifted by a higher coding_s."""
+    from rank_coding_subagents import _compose_score
+
+    swe_only = {
+        "swe": 50,
+        "aider": None,
+        "coding_s": None,
+        "aa_idx": None,
+        "arena": None,
+        "db_tps": 100,
+        "in_M": 0.1,
+        "out_M": 0.4,
+    }
+    swe_plus_high_coding = {
+        "swe": 50,
+        "aider": None,
+        "coding_s": 95,  # 95 × 0.7 = 66.5 > 50, would win if fallback fired
+        "aa_idx": None,
+        "arena": None,
+        "db_tps": 100,
+        "in_M": 0.1,
+        "out_M": 0.4,
+    }
+    # Fallback must NOT overwrite the real SWE signal — same rank.
+    assert _compose_score(swe_only) == _compose_score(swe_plus_high_coding)
+
+
+def test_grade_doc_review_coding_fallback_lifts_grade_at_mid_ctx():
+    """b652151f: at mid_ctx (200-800k), a row with coding_score = 100 falls back
+    to `verified = 100 * 0.7 = 70` which crosses the ≥70 B+ threshold.
+    Without the fallback, no external benchmark → C+."""
+    from rank_coding_subagents import _grade_doc_review
+
+    # 262k ctx, no external benchmarks, no reasoning, no arena — only coding_score
+    with_coding = _grade_doc_review(262, swe=0, aider=0, aa_idx=0, arena=0, coding_score=100)
+    without_coding = _grade_doc_review(262, swe=0, aider=0, aa_idx=0, arena=0, coding_score=0)
+    assert with_coding == "B+", with_coding
+    assert without_coding == "C+", without_coding
 
 
 def test_compose_score_stays_bounded_under_negative_cost_anomaly():

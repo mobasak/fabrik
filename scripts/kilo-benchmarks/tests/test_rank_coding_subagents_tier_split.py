@@ -96,8 +96,12 @@ def test_render_splits_into_two_sections():
     assert "pricey/gamma" not in auto
     assert "pricey/delta" not in auto
     assert "unpriced/epsilon" not in auto  # NULL → On-request per contract
-    # On-request contains only the >$1.5 or unpriced rows
-    onreq = md.split("\n### code-onrequest\n")[1].split("## API call recipes")[0]
+    # On-request contains only the >$1.5 or unpriced rows.
+    # Bound onreq at the NEXT level-2 header (was `## API call recipes`, but
+    # commit 48b69416 added `## Candidates not yet benched by us` between the
+    # code-onrequest table and the API recipes — Auto-tier rows legitimately
+    # appear in that section so keying on `## API call recipes` would leak).
+    onreq = md.split("\n### code-onrequest\n")[1].split("\n## ")[0]
     assert "pricey/gamma" in onreq
     assert "pricey/delta" in onreq
     assert "unpriced/epsilon" in onreq
