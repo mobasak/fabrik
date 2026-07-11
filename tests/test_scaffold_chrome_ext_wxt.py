@@ -177,6 +177,73 @@ def test_phase_b_messaging_uses_webext_bridge(ext: Path) -> None:
     assert "get-token" in src
 
 
+def test_storage_seam_is_token_pair_plus_pkce(ext: Path) -> None:
+    """Storage widened from a single JWT to the {access, refresh} pair + the PKCE slot
+    (fabrik-lib auth-kit request) — all session-scoped, never local:."""
+    src = (ext / "src" / "lib" / "storage.ts").read_text()
+    assert "interface TokenPair" in src
+    for fn in ("getTokens", "setTokens", "clearTokens"):
+        assert f"export const {fn}" in src, fn
+    assert "'session:tokens'" in src, "tokens must be session-scoped (cleared on browser close)"
+    assert "'session:auth.pkceVerifier'" in src, "the transient OAuth PKCE slot"
+    # getToken() convenience read stays for the 'get-token' message; the raw single-token
+    # setter is gone (writes go through setTokens/clearTokens, which keep the pair invariant).
+    assert "export const getToken" in src
+    assert "export const setToken " not in src
+
+
+def test_messaging_seam_has_authed_fetch_protocol(ext: Path) -> None:
+    """The preferred authed-call path is a typed 'authed-fetch' message — the content
+    script hands the SW a request and never receives the token."""
+    src = (ext / "src" / "lib" / "messaging.ts").read_text()
+    assert "'authed-fetch'" in src
+    assert "interface SerializableRequest" in src
+    assert "AuthedFetchResult" in src
+    assert "interface ProblemDetails" in src
+
+
+def test_authed_fetch_is_api_origin_only_proxy(ext: Path) -> None:
+    """SECURITY INVARIANT (regression guard, from the pool review): authed-fetch REFUSES any
+    non-API origin at entry — a compromised content script cannot turn the SW into an open
+    proxy / SSRF vector or make it attach the token to an attacker URL. The Bearer is therefore
+    only ever attached for the (exact-origin-matched) API."""
+    src = (ext / "src" / "lib" / "api" / "authed-fetch.ts").read_text()
+    assert "new URL(url).origin === new URL(API_BASE_URL).origin" in src, "exact-origin guard"
+    assert "if (!isApiOrigin(req.url))" in src, "entry-gate refuses non-API origins"
+    assert "origin_not_allowed" in src
+    assert "setRefreshHandler" in src, "the pluggable 401-refresh hook"
+    assert "=== 401" in src, "401-refresh-retry-once machinery"
+
+
+def test_authed_fetch_single_flights_refresh(ext: Path) -> None:
+    """Regression (pool review): concurrent 401s must share ONE refresh, or a rotating /
+    single-use refresh token gets spent twice and logs the user out."""
+    src = (ext / "src" / "lib" / "api" / "authed-fetch.ts").read_text()
+    assert "refreshInFlight" in src
+    assert "refreshOnce" in src
+
+
+def test_authed_fetch_strips_authorization_from_response(ext: Path) -> None:
+    """Regression (pool review): defense-in-depth — an Authorization echo in a response header
+    must not be forwarded to the untrusted content script."""
+    src = (ext / "src" / "lib" / "api" / "authed-fetch.ts").read_text()
+    assert "!== 'authorization'" in src
+
+
+def test_authed_fetch_rejects_empty_access_refresh(ext: Path) -> None:
+    """Regression (confirming pool round): a malformed refresh ({access:''}) must NOT be
+    persisted — otherwise storage is corrupted and the user is silently de-authenticated."""
+    src = (ext / "src" / "lib" / "api" / "authed-fetch.ts").read_text()
+    assert "if (refreshed?.access)" in src, "guard the refresh on a non-empty access token"
+
+
+def test_authed_fetch_wired_into_background_sw(ext: Path) -> None:
+    """The SW answers 'authed-fetch' (the handler that keeps the token off the content script)."""
+    bg = (ext / "src" / "entrypoints" / "background.ts").read_text()
+    assert "onMessage('authed-fetch'" in bg
+    assert "authedFetch" in bg
+
+
 def test_phase_b_sentry_is_isolated_client(ext: Path) -> None:
     """Content scripts use an isolated BrowserClient + Scope, never a global
     Sentry.init (which would leak into / conflict with the host page)."""

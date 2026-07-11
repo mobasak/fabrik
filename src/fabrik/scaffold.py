@@ -3984,6 +3984,7 @@ export default antfu({
         """// MV3 service worker (WXT auto-imports defineBackground). The SW is ephemeral —
 // register everything inside onInstalled, never in a top-level global.
 import { onMessage } from 'webext-bridge/background';
+import { authedFetch } from '@/lib/api/authed-fetch';
 import { getToken } from '@/lib/storage';
 
 export default defineBackground(() => {
@@ -4011,6 +4012,9 @@ export default defineBackground(() => {
   // SW-mediated token access: tokens live in storage.session (TRUSTED_CONTEXTS), which
   // content scripts CANNOT read directly — they ask the SW for it via webext-bridge.
   onMessage('get-token', async () => ({ token: await getToken() }));
+  // PREFERRED authed-call path: the SW attaches the Bearer (API origin only) + refreshes-once
+  // on 401; the content script never receives the token. The auth kit wires setRefreshHandler().
+  onMessage('authed-fetch', async ({ data }) => authedFetch(data.req));
 });
 """
     )
@@ -4134,8 +4138,9 @@ render(<App />, document.getElementById('root')!);
     (ext / "src" / "lib" / "api").mkdir(parents=True, exist_ok=True)
     (ext / "src" / "components" / "ui").mkdir(parents=True, exist_ok=True)
 
-    # storage.ts — typed settings + the auth token. Settings persist (local); the JWT
-    # lives in storage.session (TRUSTED_CONTEXTS — content scripts read it via the SW).
+    # storage.ts — typed settings + the auth token PAIR + the transient PKCE slot. Settings
+    # persist (local); tokens live in storage.session (TRUSTED_CONTEXTS — content scripts reach
+    # them only via the SW). The {access, refresh} pair supports the 401-refresh-retry-once path.
     (ext / "src" / "lib" / "storage.ts").write_text(
         """import { storage } from '@wxt-dev/storage';
 
@@ -4147,21 +4152,63 @@ export const settings = storage.defineItem<Settings>('local:settings', {
   fallback: { apiUrl: '' },
 });
 
-// Auth JWT — session-scoped + TRUSTED_CONTEXTS (default). Never storage.local.
-const tokenItem = storage.defineItem<string | null>('session:token', { fallback: null });
-export const getToken = () => tokenItem.getValue();
-export const setToken = (t: string | null) => tokenItem.setValue(t);
+// The auth token pair. Session-scoped + TRUSTED_CONTEXTS (default) — NEVER storage.local.
+// session: clears on browser close, so a session-only refresh token means re-login per browser
+// session (a deliberate, secure-by-default tradeoff); it still drives mid-session 401-refresh.
+export interface TokenPair {
+  access: string;
+  refresh: string;
+}
+
+const tokensItem = storage.defineItem<TokenPair | null>('session:tokens', { fallback: null });
+export const getTokens = () => tokensItem.getValue();
+export const setTokens = (t: TokenPair) => tokensItem.setValue(t);
+export const clearTokens = () => tokensItem.setValue(null);
+
+// Convenience read for the 'get-token' message + simple callers (the access JWT only).
+export const getToken = async () => (await getTokens())?.access ?? null;
+
+// Transient PKCE code_verifier for the OAuth round-trip: set before the auth redirect, read on
+// the callback, then clear. Session-scoped (never persisted), documented as the OAuth slot.
+const pkceItem = storage.defineItem<string | null>('session:auth.pkceVerifier', { fallback: null });
+export const getPkceVerifier = () => pkceItem.getValue();
+export const setPkceVerifier = (v: string | null) => pkceItem.setValue(v);
 """
     )
 
-    # messaging.ts — typed webext-bridge protocol (SW-mediated token access).
+    # messaging.ts — typed webext-bridge protocol. Two paths: 'get-token' (raw JWT, for callers
+    # that truly need it) and 'authed-fetch' (PREFERRED — the SW attaches the Bearer for the API
+    # origin only + does 401-refresh-retry-once; the content script never receives the token).
     (ext / "src" / "lib" / "messaging.ts").write_text(
         """import type { ProtocolWithReturn } from 'webext-bridge';
 
+// A structured-clone-safe request the content script hands to the SW (it never sees the token).
+export interface SerializableRequest {
+  url: string;
+  method?: string;
+  headers?: Record<string, string>;
+  body?: string;
+}
+
+// RFC 7807 problem shape returned for a failed authed call.
+export interface ProblemDetails {
+  title: string;
+  status?: number;
+  detail?: string;
+  type?: string;
+}
+
+export type AuthedFetchResult
+  = | { ok: true; status: number; body: string; headers: Record<string, string> }
+    | { ok: false; problem: ProblemDetails };
+
 declare module 'webext-bridge' {
   export interface ProtocolMap {
-    // Content scripts can't read storage.session — they ask the SW for the token.
+    // Content scripts can't read storage.session — they ask the SW for the raw token.
     'get-token': ProtocolWithReturn<Record<string, never>, { token: string | null }>;
+    // PREFERRED authed-call path: the content script never receives the token — the SW attaches
+    // the Bearer (API origin ONLY) + refreshes-once on 401, then returns the serialized response.
+    'authed-fetch': ProtocolWithReturn<{ req: SerializableRequest }, AuthedFetchResult>;
   }
 }
 """
@@ -4205,6 +4252,106 @@ export function createIsolatedSentry(): Scope | null {
         """// The typed client is generated by `pnpm generate-api` into ./generated. Until then,
 // this exports the configured base URL (never hand-roll fetch from a screen — use the hooks).
 export const API_BASE_URL = (import.meta.env.VITE_PUBLIC_API_URL as string | undefined) ?? '';
+"""
+    )
+
+    # authed-fetch.ts — SW-only authed-call helper (the 'authed-fetch' message handler). The
+    # content script hands over a request; the SW attaches the Bearer for the API origin ONLY,
+    # refreshes-once on 401 (via a pluggable hook), and returns the serialized response. The
+    # origin guard is load-bearing: without it a compromised content script could make the SW
+    # attach the token to an attacker URL.
+    (ext / "src" / "lib" / "api" / "authed-fetch.ts").write_text(
+        """import type { AuthedFetchResult, SerializableRequest } from '@/lib/messaging';
+import type { TokenPair } from '@/lib/storage';
+import { API_BASE_URL } from '@/lib/api/config';
+import { getTokens, setTokens } from '@/lib/storage';
+
+// The auth kit registers its refresh here (POST the refresh token to your /auth/refresh, return
+// the new pair — do NOT persist; authedFetch persists it). Default: no refresh → a 401 is
+// returned as-is. Call setRefreshHandler(...) once from background.ts at SW startup.
+let refreshImpl: () => Promise<TokenPair | null> = async () => null;
+export function setRefreshHandler(fn: () => Promise<TokenPair | null>) {
+  refreshImpl = fn;
+}
+
+// SECURITY INVARIANT: the Bearer is attached ONLY for the trusted API origin. A content script
+// runs in an untrusted page — never let it make the SW attach the token to an arbitrary URL.
+function isApiOrigin(url: string): boolean {
+  if (!API_BASE_URL)
+    return false;
+  try {
+    return new URL(url).origin === new URL(API_BASE_URL).origin;
+  }
+  catch {
+    return false;
+  }
+}
+
+// Single-flight: concurrent 401s share ONE refresh, so a rotating / single-use refresh token
+// isn't spent twice (which logs the user out). A failed refresh resolves null (never masks the
+// original 401) and is not cached — the next call retries.
+let refreshInFlight: Promise<TokenPair | null> | null = null;
+async function refreshOnce(): Promise<TokenPair | null> {
+  refreshInFlight ??= (async () => {
+    try {
+      return await refreshImpl();
+    }
+    catch {
+      return null;
+    }
+    finally {
+      refreshInFlight = null;
+    }
+  })();
+  return refreshInFlight;
+}
+
+async function doFetch(req: SerializableRequest, access: string): Promise<Response> {
+  const headers = new Headers(req.headers);
+  // Caller guarantees the API origin (authedFetch refuses others); attach the Bearer when we
+  // actually have a token — an unauthenticated API call (e.g. pre-login) sends none.
+  if (access)
+    headers.set('Authorization', `Bearer ${access}`);
+  return fetch(req.url, { method: req.method ?? 'GET', headers, body: req.body });
+}
+
+async function serialize(res: Response): Promise<AuthedFetchResult> {
+  const body = await res.text();
+  const headers: Record<string, string> = {};
+  res.headers.forEach((v, k) => {
+    // Defense-in-depth: never echo a credential header back to the untrusted content script
+    // (Set-Cookie is already filtered by the platform; strip an Authorization echo too).
+    if (k.toLowerCase() !== 'authorization')
+      headers[k] = v;
+  });
+  return { ok: true, status: res.status, body, headers };
+}
+
+// SW-only. authed-fetch is an API-origin-ONLY proxy: it REFUSES any other origin, so an untrusted
+// content script cannot turn the SW into an open proxy / SSRF vector or make it attach the token
+// to an attacker URL. For the API origin it attaches the Bearer, refreshes-once on 401 (single-
+// flight), and returns the serialized response — the content script never sees the token.
+export async function authedFetch(req: SerializableRequest): Promise<AuthedFetchResult> {
+  if (!isApiOrigin(req.url))
+    return { ok: false, problem: { title: 'origin_not_allowed', status: 403, detail: 'authed-fetch only proxies the configured API origin' } };
+  try {
+    const access = (await getTokens())?.access ?? '';
+    let res = await doFetch(req, access);
+    if (res.status === 401) {
+      const refreshed = await refreshOnce();
+      // Only accept a refresh that actually yields an access token — a malformed
+      // { access: '', … } must NOT be persisted (that would silently de-authenticate).
+      if (refreshed?.access) {
+        await setTokens(refreshed);
+        res = await doFetch(req, refreshed.access);
+      }
+    }
+    return serialize(res);
+  }
+  catch (e) {
+    return { ok: false, problem: { title: 'network_error', detail: String(e) } };
+  }
+}
 """
     )
 
@@ -4291,14 +4438,46 @@ seam; a kit fills the behavior. **Do not rename or reshape these without updatin
 
 - `settings` — `storage.defineItem<Settings>('local:settings', …)`; `settings.getValue()` /
   `settings.setValue({{ apiUrl }})`. Persists (local area).
-- `getToken(): Promise<string | null>` / `setToken(t)` — the auth JWT, in **`session:` area**
-  (`TRUSTED_CONTEXTS`). Never `local:` — a content script cannot read it directly.
+- **Token pair** (`session:tokens`, `TRUSTED_CONTEXTS`, never `local:`):
+  `getTokens(): Promise<TokenPair | null>` / `setTokens({{ access, refresh }})` / `clearTokens()`
+  where `TokenPair = {{ access: string; refresh: string }}`. `getToken(): Promise<string | null>`
+  stays as a convenience read (the access JWT only, for `'get-token'`). `session:` clears on
+  browser close → re-login per browser session (secure-by-default); the refresh token drives
+  mid-session 401-refresh.
+- **PKCE slot** (`session:auth.pkceVerifier`, transient): `getPkceVerifier()` /
+  `setPkceVerifier(v)` — the OAuth `code_verifier`; set before the redirect, read on callback,
+  then clear.
 
-## (2) Messaging seam — `src/lib/messaging.ts`
+## (2) Messaging seam — `src/lib/messaging.ts` + `src/lib/api/authed-fetch.ts`
 
-Typed `webext-bridge` `ProtocolMap`. `'get-token'` → `{{ token: string | null }}`. Content
-scripts obtain the token **only** by `sendMessage('get-token', {{}}, 'background')`; the SW
-(`background.ts`) answers via `onMessage('get-token', …)`. This is the SW-mediated token seam.
+Typed `webext-bridge` `ProtocolMap`, two paths:
+
+- `'get-token'` → `{{ token: string | null }}` — the raw JWT, for callers that truly need it.
+  Content scripts get it via `sendMessage('get-token', {{}}, 'background')`; the SW answers.
+  ⚠️ **Tradeoff — this hands the raw token to the content-script context, which is UNTRUSTED**
+  (the scaffold's demo content script matches `<all_urls>`, i.e. every page). Prefer `authed-fetch`.
+  If a kit keeps `get-token`, it should narrow the content-script `matches` to its own domains and
+  MAY sender-validate in the handler (webext-bridge exposes the sender).
+- **`'authed-fetch'`** (PREFERRED) → `{{ req: SerializableRequest }}` →
+  `{{ ok: true; status; body; headers }} | {{ ok: false; problem: ProblemDetails }}`. The content
+  script sends `sendMessage('authed-fetch', {{ req }}, 'background')` and **never receives the
+  token** — the SW (`authedFetch` in `api/authed-fetch.ts`) attaches the Bearer, does
+  single-flight 401-refresh-retry-once, strips an `Authorization` echo from the response, and
+  returns the serialized response.
+  - **SECURITY INVARIANT (do not weaken):** `authed-fetch` is an **API-origin-ONLY proxy** — it
+    REFUSES any `req.url` whose origin ≠ `API_BASE_URL` origin (`origin_not_allowed`), so an
+    untrusted content script cannot turn the SW into an open proxy / SSRF vector or make it attach
+    the token to an attacker URL. Origin match is exact (`new URL(...).origin ===`), never substring.
+  - **Response headers:** the SW forwards the API's response headers to the content script (minus
+    an `Authorization` echo; `Set-Cookie` is already platform-filtered). Your API must therefore
+    **never return a credential in a response header** (it would leak to any caller, not just the
+    extension); a kit fronting a sensitive API should allowlist the forwarded headers.
+  - **Refresh hook:** the auth kit calls `setRefreshHandler(async () => TokenPair | null)`
+    **synchronously at the top of `defineBackground` (before any `await`)** — the SW is ephemeral, so
+    the module re-evaluates on every cold start and the handler must be re-registered before any
+    message dispatches. The hook POSTs the refresh token to your `/auth/refresh` and RETURNS the new
+    pair (do NOT persist — `authedFetch` persists + single-flights it). Default: no refresh → the 401
+    is returned as `{{ ok: true, status: 401 }}`.
 
 ## (3) Observability seam — `src/lib/sentry.ts`
 

@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — chrome-extension scaffold: SW-mediated `authed-fetch` + token-pair auth seams (2026-07-12)
+
+Two fabrik-lib-requested auth seams on the `chrome-extension` (WXT) scaffold, so a future
+`chrome-ext-auth-kit` binds without reshaping the scaffold. **Storage** (`src/lib/storage.ts`)
+widens from a single JWT to the `{access, refresh}` pair (`getTokens`/`setTokens`/`clearTokens`,
+all `session:`) plus a transient PKCE slot (`session:auth.pkceVerifier`); `getToken()` stays as a
+convenience read. **Messaging** (`src/lib/messaging.ts` + `src/lib/api/authed-fetch.ts`) adds a
+preferred `'authed-fetch'` path: the content script hands the SW a `SerializableRequest` and
+**never receives the token** — the SW attaches the Bearer, single-flight-refreshes on 401, and
+returns the serialized response. Hardened over a pool+native adversarial review: `authed-fetch`
+is an **API-origin-ONLY proxy** (exact-origin match; refuses other origins → closes open-proxy /
+SSRF and prevents attaching the token to an attacker URL), the refresh is **single-flighted** (a
+rotating refresh token isn't spent twice → no logout storm), an `Authorization` echo is stripped
+from forwarded response headers, a failed refresh returns null without masking the 401, and a
+malformed empty-access refresh is rejected rather than persisted. `get-token` is retained (raw
+token, documented tradeoff) and the refresh is a pluggable `setRefreshHandler()` hook the auth kit
+wires at SW startup. `docs/reference/SEAMS.md` updated in lockstep. Verified: `pnpm install`→
+`wxt build`→`tsc`→`eslint`→`size-limit` green + a Playwright GUI regression + node logic proofs of
+the origin guard (attacker/subdomain-confusion refused) and the single-flight (5 concurrent → 1).
+
 ### Changed — Distribute the Tier-1 doc-reconcile engine to projects (2026-07-11)
 
 `scripts/doc_reconcile.py` was hub-only (in `scripts/`, not a synced set), so the Tier-1 auto-author loop couldn't run in projects — the per-phase wiring would hit "no such file". Added it to `fabrik_synced_manifest.CORE_SCRIPTS` so it syncs to every project's `scripts/` (gitignored + drift-enforced by `check_synced_unmodified`, exactly like `docs_updater.py`/`final_gate.py`). Its dependencies were already synced (`libs/subagents`, `_doc_registry`, `check_doc_stubs`), so the full ladder — Tier-0 (`docs_updater`) + Tier-1 (`doc_reconcile`) + backstop (`check_doc_sync`/`check_doc_stubs`) — now reaches projects.
