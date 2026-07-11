@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Modernize `62-using-subagents.md` to the current pool API (fanout + set_quality) (2026-07-12)
+
+The canonical subagent dispatch-policy rule pack (fleet-synced; every `/fabrik-*` command defers to it) was stale — built entirely on the old `run_agents` + manual `record_agent_run` primitive, with zero mention of `fanout`, `set_quality`, or `recover_caps`, and it self-contradicted its own "no model rosters/prices here" rule by hard-coding a per-model price roster. Fixed: § Dispatch policy now leads with **`fanout(task_type, units, …)`** as the pool default (family-diverse, auto-records UNSCORED, `recover_caps` straggler recovery), with `run_agents` reframed as the lower-level primitive for a hand-tuned mix; § Report + the Banned list now cover the two-step **record (auto) → `set_quality` back-fill** flow (a `fanout` row left unscored is the new failure mode); and the hard-coded prices/roster (a drift + self-contradiction) were removed — `pick_models` + `CODING_SUBAGENT_SELECTION.md` remain the sole model source.
+
 ### Added — chrome-extension scaffold: SW-mediated `authed-fetch` + token-pair auth seams (2026-07-12)
 
 Two fabrik-lib-requested auth seams on the `chrome-extension` (WXT) scaffold, so a future

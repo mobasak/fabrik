@@ -1,7 +1,7 @@
 ---
 activation: glob
 globs: ["**/subagents/**", "**/libs/subagents/**", "**/*subagent*", "**/mcp.json", "**/.mcp.json", "**/agents/*.md"]
-description: How to dispatch subagents — the two runtimes, per-task tool access (Claude Code agent-types vs pool web_tools/mcp_servers), the never-route safety list, the mcp.json source-of-truth, pool-vs-native, and the record_agent_run flywheel
+description: How to dispatch subagents — the two runtimes, per-task tool access (Claude Code agent-types vs pool web_tools/mcp_servers), the never-route safety list, the mcp.json source-of-truth, pool-vs-native, and the fanout → set_quality flywheel
 trigger: glob
 ---
 <!-- CONSUMER: Coding agents (all) + Traycer (planning)
@@ -60,7 +60,7 @@ A model over $1.5, or any off-Auto model without the operator's explicit per-tur
 
 **Everything decomposable → a subagent; the only question is the runtime.** Every command task that decomposes is fanned out in parallel wherever suitable (independent work, disjoint `owned_paths` — finder / grounder / reconciler / auditor / implementer classes). Do decomposable work via subagents, not inline; serialize only on a true data dependency or a shared file.
 
-**The OpenRouter pool (`run_agents`, ≤ $1.5/Mtok) is the DEFAULT worker for gradeable text/code fan-out** — review finders, repo-review unit reviewers, doc reconcilers, rules-pack auditors, spec/plan research grounders, code implementers. Select with `pick_models(task_type)` (the in-code cap self-enforces ≤$1.5); every pool worker owes `record_agent_run(spec, result)` + `results_table` (§ Report every pool run) — this feeds the flywheel (`pick_models` learns). A single-shot (`tools_enabled=False`) **repo-grounded** worker (`task_type` `review`/`docs`/`plan` — they assert about code they can't see) must set `allow_ungrounded=True` to attest it inlined the content into `task`, or use `tools_enabled=True` for real file reads — the module **refuses** ungrounded single-shot verification (it hallucinates). Enforced (not prose) by `scripts/enforcement/check_subagent_flywheel.py`.
+**The OpenRouter pool (≤ $1.5/Mtok) is the DEFAULT worker for gradeable text/code fan-out** — review finders, repo-review unit reviewers, doc reconcilers, rules-pack auditors, spec/plan research grounders, code implementers. **Route it through `fanout(task_type, units, *, repo, project, mode="read_only"|"write")`** — the one-call helper that picks **family-diverse** models (`pick_models` under the in-code ≤$1.5 cap), runs them parallel-safe, and **auto-records each to the flywheel UNSCORED** (so the record step can't be silently skipped); then **back-fill your 0–5 verdict with `set_quality(agent_id, score, project=, task_type=, model=)`** after you judge (fanout scored nothing at dispatch → without this the flywheel never learns). It also **recovers a zero-output-cap straggler once** (same model, fresh dispatch → OpenRouter re-routes to a healthy provider; a *persistently* flaky model is down-ranked statistically, not reactively). `run_agents([AgentSpec, …])` is the lower-level primitive for a hand-tuned model mix — then YOU owe `record_agent_run(spec, result)` + `results_table` per unit (§ Report every pool run). A single-shot (`tools_enabled=False`) **repo-grounded** worker (`review`/`docs`/`plan` — they assert about code they can't see) must set `allow_ungrounded=True` to attest it inlined the content into `task`, or use `tools_enabled=True` for real file reads — the module **refuses** ungrounded single-shot verification (it hallucinates). Enforced (not prose) by `scripts/enforcement/check_subagent_flywheel.py`.
 
 **Native Claude Task subagents (`fabrik-*`, subscription-billed) are for GUI + the authoritative/high-risk pass + the decide/refute/merge.** GUI (`fabrik-gui`, browser MCPs — no pool equivalent); the authoritative line-precise verification (`fabrik-reviewer`/Opus on auth / schema / migrations / secrets / concurrency); and the decide/refute/merge you always own. A native fan-out produces no `AgentResult`, so it **records nothing** to the flywheel (nothing to rank — that is by nature, not a gap).
 
@@ -72,7 +72,7 @@ A model over $1.5, or any off-Auto model without the operator's explicit per-tur
 
 | | Native Claude Task subagent (`fabrik-reviewer`/`-researcher`/`-gui`) | OpenRouter pool (`run_agents`) |
 |---|---|---|
-| **Model** | Claude (subscription) | cheap non-Claude, ~$0.18–$1.20/Mtok (≤$1.5 cap) |
+| **Model** | Claude (subscription) | cheap non-Claude, well under the ≤$1.5/Mtok cap (`pick_models` picks) |
 | **Tools** | Read/Grep/Glob/Bash on the real tree; browser/UI | sandboxed worktree + `run_command`; real file R/W (`tools_enabled=True`) — **not** text-only |
 | **Best for** | line-precise grounding, review recall, GUI, the decide/refute/merge | parallel code implementation, cheap review-recall breadth, research/prose |
 | **Flywheel** | **no `AgentResult` → CANNOT record** (don't tell it to) | **must `record_agent_run(spec, result)` + `results_table`** per unit |
@@ -102,9 +102,9 @@ every `tools_enabled=True` worker is routed through `disjoint()` (`agent.py:430`
 is **`n=1`**, so you MUST pass `n` to get more than one model. Parallel groups run **`max_concurrency` (default 4)**
 at a time — raise it to widen a big fan-out. Worker tools (**tools-enabled workers only** — a read-only single-shot
 worker has none of these, it just returns text): `read_file · write_file · apply_patch · list_dir · grep ·
-run_command` (bwrap-sandboxed). Prices (vendored fallback, `select.py`): m3 $1.20 · v4-flash $0.18 · m2.5 $0.48 ·
-v3.2 $0.343 · v4-pro $0.87; best per kind — review/plan/docs/research → `minimax-m3`, code → `deepseek-v4-flash`,
-spec → `minimax-m2.5`.
+run_command` (bwrap-sandboxed). (Prices + the per-kind best model are the flywheel's *output* — they live in
+`select.py`'s `_TABLE` + the synced `CODING_SUBAGENT_SELECTION.md`, never restated here; `pick_models(task_type)`
+returns them cheapest-that-clears-the-bar first — see § Approved pool models for why no roster lives in this pack.)
 
 **Per-command dispatch mode** (which shape each command's fan-out uses — pairs with the routing map above):
 
@@ -130,10 +130,10 @@ The canonical MCP server list is a hub-owned standard-format file — `/opt/fabr
 
 ## Report every pool run — the results table AND the flywheel (both, always)
 
-After any **pool** (`run_agents`, Runtime B) dispatch you EVALUATE, emit **BOTH** — sharing **one** quality verdict (judge once, put the same 0–5 in both). A run that showed a table but no flywheel row (or vice-versa) is **half-done**:
+After any **pool** (Runtime B) dispatch you EVALUATE, the flywheel needs **BOTH** a results table AND a per-unit scored row, sharing **one** 0–5 verdict (judge once, same score in both). **`fanout` does both mechanically — it returns the table AND auto-records each row UNSCORED — so you owe ONLY the score back-fill (`set_quality`, below);** a raw `run_agents` dispatch, you owe both yourself. A run that showed a table but no scored flywheel row (or vice-versa) is **half-done**:
 
 1. **A results table** (one row per unit) so a human can compare models at a glance — use the helper `results_table([{ "unit":…, "model":…, "result":<AgentResult>, "quality":0-5, "fixes":… }, …])`. Provider / Cost / Latency / **Out** (`out_tokens`) come straight from the `AgentResult`; **quality + confirmed-fixes are YOUR verdict** after materializing the diff and running the gate/tests/review.
-2. **A flywheel row per unit** — **`record_agent_run(spec, result, quality_score=<the same 0-5>, project=<name>)`**. ⚠️ the older `record_run(result, …)` **silently no-ops** on a raw `AgentResult` (it wants a dict; `model`/`task_type` live on the *spec*) — always `record_agent_run(spec, result, …)`. On the VPS `SUBAGENT_RUNS_DSN` connects directly; on WSL dev pass a peer-auth `connect=` factory. It is fail-open (returns `False` silently on a DB problem) — to prove the plumbing, SELECT the row back, don't trust the return.
+2. **A scored flywheel row per unit** — record + score, in one call or two: **`fanout` recorded it at dispatch (UNSCORED) → back-fill the verdict with `set_quality(agent_id, <0-5>, project=, task_type=, model=r.model)`**; a hand-tuned `run_agents` records + scores together via **`record_agent_run(spec, result, quality_score=<0-5>, project=)`**. ⚠️ NEVER `record_run(result, …)` — it **silently no-ops** on a raw `AgentResult` (it wants a dict; `model`/`task_type` live on the *spec*). On the VPS `SUBAGENT_RUNS_DSN` connects directly; on WSL dev pass a peer-auth `connect=` factory. Both are fail-open (return `False` silently on a DB problem) — to prove the plumbing, SELECT the row back, don't trust the return.
 
 **A native Claude-Code-subagent (Runtime A) dispatch produces NO `AgentResult` — it CANNOT record; the flywheel is pool-only (Runtime B).** So a native-fan-out command carries no flywheel footer (see § Pool vs native). Inline / no-dispatch → nothing to record. Telemetry design: `docs/superpowers/specs/2026-07-06-subagent-runs-telemetry-design.md`.
 
@@ -148,6 +148,6 @@ When a project fixes a real bug in a **vendored `fabrik-lib` module** (e.g. `lib
 - A pool task with `sandbox=False`, an inline API key, or web/MCP enabled while it carries sensitive context.
 - Hard-coding the `mcp` SDK v2 API or the Tool schema attribute name.
 - Naming a model roster or per-stage ranking in this pack (they live in the module `_TABLE` + `CODING_SUBAGENT_SELECTION.md`) — only `minimax/minimax-m3` (the default) may appear by name.
-- A pool run that emitted a `record_agent_run` but no `results_table` (or vice-versa) — both, one verdict. (And never `record_run(result, …)` — it no-ops; use `record_agent_run(spec, result, …)`.)
+- A pool run **recorded but never scored** — a `fanout` row left at its dispatch `NULL` because you skipped `set_quality`, or a `run_agents` `record_agent_run` with no `results_table` (or vice-versa). Record AND score, one verdict. (And never `record_run(result, …)` — it no-ops.)
 - Telling a **native** (Runtime A) fan-out to record a flywheel row — it has no `AgentResult`; recording is pool-only.
 - Fixing a bug in a vendored `fabrik-lib` module without an `UPSTREAM_FEEDBACK.md` entry.
