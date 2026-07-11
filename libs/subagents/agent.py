@@ -29,7 +29,7 @@ import shutil
 import time
 import uuid
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, Literal
 
@@ -582,6 +582,7 @@ def fanout(
     prefer: Literal["quality", "value"] = "quality",
     max_concurrency: int | None = None,
     record: bool = True,
+    recover_caps: bool = True,
     **spec_kwargs: Any,
 ) -> tuple[list[AgentResult], str]:
     """One call for a K-way, family-diverse, parallel-safe, auto-recorded pool fan-out — the
@@ -629,6 +630,17 @@ def fanout(
     / ``owned_paths`` / ``task_type`` there — ``fanout`` owns those and rejects them UP FRONT with a
     ``ValueError`` (uniformly across modes — not left to Python's per-branch duplicate-kwarg
     ``TypeError``, which would miss a field a given mode doesn't itself pass).
+
+    ``recover_caps`` (default ``True``): a unit that returns a ZERO-OUTPUT cap (``status == "capped"`` with
+    ``out_tokens == 0`` — a provider-congestion stall, NOT model quality) is re-dispatched ONCE, preferring a
+    DIFFERENT VENDOR than the one that congested (a different failure domain) when one is available, else the
+    next-best remaining model — recovery never abandons a recoverable cap; honours the caller's ``prefer``.
+    Turns a wasted finder into recovered breadth. A structural
+    ``error`` (sandbox/ungrounded/worktree refusal) is NOT retried — a model swap can't fix a host problem.
+    Bounded 1× per unit, SEQUENTIAL (not a concurrent hedge), cost/wall-capped via ``run_agents``. On a
+    successful retry the flywheel record + the table name the model that RAN. A still-capped unit is recorded
+    UNSCORED (the ledger nulls a non-``done`` quality — a congested provider is not a bad model). Set
+    ``recover_caps=False`` to disable.
     """
     if mode not in ("read_only", "write"):
         raise ValueError(f"fanout: mode must be 'read_only' or 'write', got {mode!r}")
@@ -756,6 +768,44 @@ def fanout(
         repo=repo,
         max_concurrency=max_concurrency if max_concurrency is not None else len(specs),
     )
+
+    # L4 (plan-2 stall-resilience): recover a ZERO-OUTPUT CAP ONCE by re-dispatching that unit to a
+    # DIFFERENT VENDOR (a different failure domain) — turning a provider-congestion cap into recovered
+    # breadth instead of a wasted finder. Bounded 1× per unit, SEQUENTIAL (not a concurrent hedge —
+    # hedging a saturated pool amplifies load), inheriting the same worktree/cost/wall caps via run_agents.
+    # `specs[i]` is updated on success so the flywheel record + results_table name the model that ACTUALLY
+    # ran (L5: a still-capped unit stays status="capped" and is recorded UNSCORED by the ledger's no-false-0
+    # rule — a congested provider is not a bad model).
+    if recover_caps:
+        tried = {s.model for s in specs}  # never re-dispatch a model already used this batch
+        for i, (spec, r) in enumerate(zip(specs, results, strict=True)):
+            # ONLY a genuine provider-congestion cap (status="capped", 0 output). NOT a structural "error"
+            # (sandbox-unavailable / ungrounded / worktree-failure refusal): a model swap can't fix a
+            # host/config problem and would burn the whole pool retrying it. A capped run that produced
+            # partial output (out_tokens > 0) is not wasted and is left alone.
+            if r.status == "capped" and r.out_tokens == 0:
+                # Draw a GENEROUS pool (a tight n could let a dense same-vendor catalog crowd the
+                # cross-vendor candidate out of view) excluding models already used this batch, honouring
+                # the caller's `prefer`. PREFER a vendor different from the one that just congested (a
+                # different failure domain) — but only THIS capped model's family is suspect; a sibling of a
+                # vendor that SUCCEEDED elsewhere is fine, so we don't hard-exclude whole families. Fall
+                # back to the best remaining candidate rather than abandon a recoverable cap.
+                candidates = pick_models(task_type, n=64, exclude=tuple(tried), prefer=prefer)
+                if not candidates:
+                    continue  # nothing left under the ≤$1.5 cap → keep the capped result
+                capped_family = spec.model.split("/")[0]
+                alt = next(
+                    (m for m in candidates if m.split("/")[0] != capped_family), candidates[0]
+                )
+                retry_spec = replace(spec, model=alt)
+                retry_list = run_agents([retry_spec], repo=repo)
+                if not retry_list:
+                    continue  # defensive — run_agents returns one-per-spec, but never IndexError
+                tried.add(alt)  # mark AFTER the retry ran — a never-run model stays available to later units
+                retry = retry_list[0]
+                if retry.out_tokens > 0 or retry.status == "done":
+                    results[i] = retry
+                    specs[i] = retry_spec  # record + table now name the model that RAN
 
     if record and project:
         for spec, r in zip(specs, results, strict=True):

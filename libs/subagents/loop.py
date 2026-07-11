@@ -66,6 +66,29 @@ def _apply_max_price(merged: dict, model: str) -> None:
     merged["provider"] = prov
 
 
+def _apply_latency_prefs(merged: dict) -> None:
+    """L2 (plan-2 stall-resilience) — opt-in, env-driven provider LATENCY preferences merged into the
+    outgoing body IN PLACE. ``SUBAGENT_PREFERRED_MAX_LATENCY_S`` → ``provider.preferred_max_latency`` and
+    ``SUBAGENT_PREFERRED_MIN_THROUGHPUT`` → ``provider.preferred_min_throughput`` — each added ONLY when its
+    knob is > 0 (default 0 = OFF, so no fleet-wide routing change ships unopted). Per OpenRouter these
+    DEPRIORITIZE slow/low-throughput endpoints (never exclude, never prevent execution) — the SAFE analog
+    to ``provider.sort``, which this NEVER adds (sort would disable OR's health-aware default routing).
+    Caller-override-safe (a caller-set pref wins); a malformed non-dict caller ``provider`` is left AS-IS."""
+    max_latency = _env_float("SUBAGENT_PREFERRED_MAX_LATENCY_S", 0.0)
+    min_throughput = _env_float("SUBAGENT_PREFERRED_MIN_THROUGHPUT", 0.0)
+    if max_latency <= 0 and min_throughput <= 0:
+        return  # opt-in: neither knob set → body untouched (backward-compatible default)
+    prov = merged.get("provider")
+    if prov is not None and not isinstance(prov, dict):
+        return  # malformed caller `provider` (non-dict) — leave AS-IS (mirror _apply_max_price)
+    prov = dict(prov) if isinstance(prov, dict) else {}
+    if max_latency > 0 and "preferred_max_latency" not in prov:  # caller-set pref wins
+        prov["preferred_max_latency"] = max_latency
+    if min_throughput > 0 and "preferred_min_throughput" not in prov:
+        prov["preferred_min_throughput"] = min_throughput
+    merged["provider"] = prov
+
+
 def _with_ignore(body: dict | None, excluded: list[str]) -> dict | None:
     """A COPY of ``body`` with ``provider.ignore`` extended to skip the stalled ``excluded`` providers
     (merged with any caller-supplied ignore). Never mutates the caller's body / provider dict. This is
@@ -344,6 +367,7 @@ def run_loop(
     _apply_max_price(
         merged, model
     )  # U1: same-price ceiling (no `sort`), caller-override-safe
+    _apply_latency_prefs(merged)  # L2: opt-in latency-aware routing (deprioritize-safe, no `sort`)
     body: dict | None = merged or None
     total_cost = 0.0
     cost_known = False
@@ -377,7 +401,14 @@ def run_loop(
     # a safe backstop even when `_finish` already closed.
     try:
         stall_retry_max = _env_int("SUBAGENT_STALL_RETRY_MAX", 2)
-        first_token_timeout_s = _env_float("SUBAGENT_FIRST_TOKEN_TIMEOUT_S", 60.0)
+        # L1 (plan-2): 20s (down from 60s) so a never-served/congested provider is detected fast, leaving
+        # budget for reroutes within wall_clock. This does NOT clip a slow-but-healthy model: the window is
+        # idle-since-last-OUTPUT and resets on ANY frame incl. streamed reasoning (see _client.py + the
+        # test_reasoning_stream_is_not_a_stall / test_content_before_deadline_no_stall guards), so a model
+        # streaming its chain-of-thought never false-stalls — only a provider silent for the full window
+        # (congestion, the intended reroute target) trips. Raise the env var for a known heavy-reasoning
+        # On-request model that can go silent past 20s before its first frame.
+        first_token_timeout_s = _env_float("SUBAGENT_FIRST_TOKEN_TIMEOUT_S", 20.0)
         for _ in range(max_turns):
             # Each turn = one transport call with U2 stall-retry. On a CONTENT stall (the provider
             # heart-beats but streams no output — ContentStallError, which the client does NOT retry),
