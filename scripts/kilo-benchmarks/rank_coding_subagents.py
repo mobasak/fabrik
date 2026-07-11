@@ -297,6 +297,7 @@ def _rows_from_db(db_path: Path | None = None) -> list[dict]:
                    swe_bench_verified_pct AS swe,
                    aider_polyglot_pct AS aider,
                    coding_score AS coding_s,
+                   humaneval_score AS he_score,
                    aa_intelligence_index AS aa_idx,
                    arena_elo AS arena,
                    context_window_k AS ctx_k,
@@ -371,6 +372,8 @@ def _render(rows: list[dict]) -> str:
         "",
         "> **Doc↔Code grade**: composite of context size (fits code + docs together), verified code-understanding score, and general intelligence — measures ability to spot drift between documentation and implementation.",
         "",
+        '> **Column key** — `Reason` = native reasoning / thinking capability (may need `reasoning={"exclude":true}` in the request body for pure code — see API recipes). `Bench` = ✅ if `scripts/kilo-benchmarks/microbench_coding.py` has run our own live HumanEval+/MBPP+ pass_at_1 on this model (`humaneval_score` populated); `—` = external benchmarks only, our own live signal is not yet available. Un-benched candidates worth prioritizing are listed under **Candidates not yet benched by us** below.',
+        "",
         "## Ranked table",
         "",
         # Level-3 header `### code` makes this file directly consumable by the
@@ -402,13 +405,13 @@ def _render(rows: list[dict]) -> str:
         "",
         f"Auto tier — OpenRouter output ≤ ${AUTO_OUTPUT_PRICE_CEILING:.1f}/Mtok. `pick_models` auto-selects freely from this table (no operator approval required).",
         "",
-        "| # | Model | OR | OR_prov | db_tps | In $/M | Out $/M | SWE | Aider | AA | Arena | Ctx | Doc↔Code | Score |",
-        "|---:|---|:-:|---|---:|---:|---:|---:|---:|---:|---:|---:|:-:|---:|",
+        "| # | Model | OR | OR_prov | Reason | Bench | db_tps | In $/M | Out $/M | SWE | Aider | AA | Arena | Ctx | Doc↔Code | Score |",
+        "|---:|---|:-:|---|:-:|:-:|---:|---:|---:|---:|---:|---:|---:|---:|:-:|---:|",
     ]
 
     def _fmt_row(i: int, r: dict) -> str:
         return (
-            "| {i} | `{mid}` | {or_ok} | {prov} | {tps} | {inp} | {out} | {swe} | {aider} | {aa} | {arena} | {ctx} | **{grade}** | {score} |"
+            "| {i} | `{mid}` | {or_ok} | {prov} | {reason} | {bench} | {tps} | {inp} | {out} | {swe} | {aider} | {aa} | {arena} | {ctx} | **{grade}** | {score} |"
         ).format(
             i=i,
             mid=_safe_md_id(r["id"]),
@@ -416,6 +419,14 @@ def _render(rows: list[dict]) -> str:
             # `_safe_md_id` on the em-dash fallback would trip the regex
             # and emit `INVALID_ID_<hash>`; check-then-sanitize instead.
             prov=_safe_md_id(r["or_prov"]) if r.get("or_prov") else "—",
+            # Reason = model has native reasoning / thinking mode. Callers may
+            # need `reasoning={"exclude": true}` to suppress it for pure code
+            # output (see BODY_HINTS).
+            reason="✅" if r.get("reasoning") else "—",
+            # Bench = our own live HumanEval+/MBPP+ pass_at_1 pass ran on this
+            # model (populated humaneval_score / coding_score). Distinct from
+            # SWE/Aider (external benchmarks). "—" = not benched by us yet.
+            bench="✅" if r.get("he_score") is not None else "—",
             tps=_fmt_or_dash(r.get("db_tps"), "{:.0f}"),
             inp=_fmt_or_dash(r.get("in_M"), "{:.3f}"),
             out=_fmt_or_dash(r.get("out_M"), "{:.3f}"),
@@ -436,7 +447,7 @@ def _render(rows: list[dict]) -> str:
         lines.append(_fmt_row(i, r))
     if not auto_rows:
         lines.append(
-            "| — | _no Auto-tier candidates today (all rows over $1.5/Mtok output or unpriced)_ | — | — | — | — | — | — | — | — | — | — | — | — |"
+            "| — | _no Auto-tier candidates today (all rows over $1.5/Mtok output or unpriced)_ | — | — | — | — | — | — | — | — | — | — | — | — | — | — |"
         )
 
     lines.extend(
@@ -459,9 +470,57 @@ def _render(rows: list[dict]) -> str:
         lines.append(_fmt_row(i, r))
     if not onreq_rows:
         lines.append(
-            "| — | _no On-request rows today_ | — | — | — | — | — | — | — | — | — | — | — | — |"
+            "| — | _no On-request rows today_ | — | — | — | — | — | — | — | — | — | — | — | — | — | — |"
         )
 
+    # ─── Un-benched candidates (visibility for future microbench runs) ─────
+    #
+    # Any row in the coding families that (a) is OR-reachable, (b) sits under
+    # the Auto price ceiling, and (c) has NEITHER our own live pass_at_1 (from
+    # microbench_coding.py) NOR external SWE-bench / Aider-Polyglot / AA-idx
+    # data lands here — these are the models whose ranking score will lean
+    # entirely on TPS + cost until someone runs a live pass_at_1 on them.
+    # Explicit call-out so the operator can budget the next bench.
+    unbenched = [
+        r
+        for r in rows
+        if r.get("or_ok")
+        and r.get("out_M") is not None
+        and r["out_M"] < AUTO_OUTPUT_PRICE_CEILING
+        and r.get("he_score") is None
+        and not r.get("swe")
+        and not r.get("aider")
+        and not r.get("aa_idx")
+    ]
+    lines.extend(
+        [
+            "",
+            "## Candidates not yet benched by us",
+            "",
+            f"Auto-tier coding candidates (OR-reachable, output ≤ ${AUTO_OUTPUT_PRICE_CEILING:.1f}/Mtok) with no live pass_at_1 from `scripts/kilo-benchmarks/microbench_coding.py` AND no external SWE-bench / Aider-Polyglot / AA-idx signal. Their composite score rests only on TPS + cost until benched, so their ranking is provisional — an explicit `microbench_coding.py --models <id> --datasets humaneval,mbpp` run would move them into (or out of) the top of the Auto tier.",
+            "",
+            "| Model | In $/M | Out $/M | db_tps | Ctx | Arena | Reason | Score (provisional) |",
+            "|---|---:|---:|---:|---:|---:|:-:|---:|",
+        ]
+    )
+    if unbenched:
+        for r in unbenched:
+            lines.append(
+                "| `{mid}` | {inp} | {out} | {tps} | {ctx} | {arena} | {reason} | {score} |".format(
+                    mid=_safe_md_id(r["id"]),
+                    inp=_fmt_or_dash(r.get("in_M"), "{:.3f}"),
+                    out=_fmt_or_dash(r.get("out_M"), "{:.3f}"),
+                    tps=_fmt_or_dash(r.get("db_tps"), "{:.0f}"),
+                    ctx=_fmt_or_dash(r.get("ctx_k"), "{:.0f}k"),
+                    arena=_fmt_or_dash(r.get("arena"), "{:.0f}"),
+                    reason="✅" if r.get("reasoning") else "—",
+                    score=f"{r['score']:.3f}",
+                )
+            )
+    else:
+        lines.append(
+            "| — | _every Auto-tier candidate has some quality signal today (either our own bench or an external benchmark)_ | — | — | — | — | — | — |"
+        )
     lines.extend(
         [
             "",
