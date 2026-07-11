@@ -10,7 +10,7 @@
 
 ## The 2026 fact that reshapes everything
 
-**Chrome removed the `--load-extension` / `--disable-extensions-except` flags from *stable* Chrome as of Chrome 137 (June 2025)** (anti-malware). You can no longer side-load an unpacked extension into a normal installed Chrome — you must drive **Playwright's bundled Chromium** or **Chrome for Testing**. Playwright's docs now say so explicitly. Source: https://developer.chrome.com/blog/extension-news-june-2025 · https://playwright.dev/docs/chrome-extensions (2026-07-07)
+**Chrome removed the `--load-extension` / `--disable-extensions-except` flags from *stable* Chrome starting Chrome 137 (June 2025), with the removal landing across 137/139** (anti-malware; Playwright microsoft/playwright#37017 + #36459 track both). You can no longer side-load an unpacked extension into a normal installed Chrome — you must drive **Playwright's bundled Chromium** or **Chrome for Testing**. Playwright's docs now say so explicitly. Source: https://developer.chrome.com/blog/extension-news-june-2025 · https://playwright.dev/docs/chrome-extensions (2026-07-07)
 
 ## 1. Playwright ↔ MV3 — needs a test FIXTURE, not Playwright MCP
 

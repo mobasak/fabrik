@@ -131,7 +131,7 @@ async def test_tenant_isolation(client_tenant_a: AsyncClient, client_tenant_b: A
 
 ## Chrome Extension (MV3)
 
-- **Framework**: Playwright with `chromium.launchPersistentContext`.
+- **Framework**: Playwright with `chromium.launchPersistentContext`. Pin `@playwright/test` **≥1.59** (PR #39476 — keeps the same service-worker handle across an MV3 restart; the SW-restart flake fix).
 - **Banned**: Puppeteer standard headless mode (cannot load extensions).
 - Launch Playwright's **bundled Chromium** (`channel: 'chromium'`) — stable Chrome/Edge removed the `--load-extension` / `--disable-extensions-except` side-load flags (Chrome 137/139), so those args only work under bundled Chromium, never installed stable Chrome.
 - Extract the MV3 service worker dynamically from `context.serviceWorkers()` to get the extension ID, then navigate to `chrome-extension://<id>/popup.html` for UI verification.
