@@ -172,18 +172,17 @@ src/css/custom.css        # Custom Docusaurus theme CSS
 static/img/.gitkeep       # Static assets directory
 ```
 
-**`chrome-extension`** — Browser extension (Vite + CRXJS) + Python backend:
+**`chrome-extension`** — Browser extension (WXT + Preact) + Python backend:
 ```
-extension/          # Chrome extension (TypeScript + Vite + CRXJS)
+extension/          # Chrome extension (WXT + Preact; manifest auto-generated)
   src/
-    popup.html
-    popup.ts
-    background.ts
-    content.ts
-  icons/            # icon16.png, icon48.png, icon128.png + README.md
-  manifest.json
+    entrypoints/    # file-based: background.ts, content.ts, popup/, options/
+    locales/        # @wxt-dev/i18n (en.json, tr.json)
+    global.css      # Tailwind v4
+  public/           # icon16/48/128.png (copied verbatim into the build)
+  wxt.config.ts
   package.json
-  vite.config.ts
+  pnpm-workspace.yaml
 server/             # Python backend (FastAPI)
   src/<package>/main.py
 Dockerfile
@@ -804,7 +803,7 @@ Members of `SCAFFOLD_TYPES` (`@/opt/fabrik/src/fabrik/scaffold.py:127`):
 ├── file-worker/        # Background worker (Python)
 ├── wordpress/          # ⚠️ referenced by scaffold.py (WORDPRESS_TEMPLATE_DIR) but MISSING on disk (removed in WP→/opt/wpf migration)
 ├── docusaurus/         # Docusaurus documentation site
-├── chrome-extension/   # Browser extension (Vite + CRXJS) + FastAPI backend
+├── chrome-extension/   # Browser extension (WXT + Preact) + FastAPI backend
 ├── mobile-app/         # React Native
 ├── desktop-app/        # Electron
 ├── spec-pipeline/      # Traycer Stage 0 discovery pipeline (4 prompt files + README)

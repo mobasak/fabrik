@@ -99,6 +99,18 @@ def test_i18n_owned_by_wxt_dev_i18n() -> None:
     assert "chrome-extension" not in I18N_ENABLED_TYPES
 
 
+def test_tailwind_v4_wired(ext: Path) -> None:
+    """Tailwind v4 (@tailwindcss/vite) is wired into the build (plan Phase A wxt.config + deps)."""
+    import json
+
+    pkg = json.loads((ext / "package.json").read_text())
+    deps = {**pkg.get("dependencies", {}), **pkg.get("devDependencies", {})}
+    assert "@tailwindcss/vite" in deps
+    assert "tailwindcss" in deps
+    assert "tailwindcss()" in (ext / "wxt.config.ts").read_text()
+    assert (ext / "src" / "global.css").read_text().strip() == '@import "tailwindcss";'
+
+
 def test_wxt_config_declares_mv3_permissions(ext: Path) -> None:
     """The load-bearing manifest permissions (plan Behavior Contract a) are declared."""
     cfg = (ext / "wxt.config.ts").read_text()

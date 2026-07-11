@@ -3819,17 +3819,20 @@ def _scaffold_chrome_extension(
     # wxt.config.ts
     (ext / "wxt.config.ts").write_text(
         """import preact from '@preact/preset-vite';
+import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'wxt';
 
 // WXT generates manifest.json from this config + the entrypoints. @preact/preset-vite
 // aliases react/react-dom -> preact/compat (reactAliasesEnabled default), wiring Preact
 // JSX + HMR so React-API kit components run on the Preact default. To override to real
 // React for a heavy side-panel app, swap @preact/preset-vite for @wxt-dev/module-react.
+// @tailwindcss/vite is Tailwind v4 (CSS-first; tokens live in src/global.css @theme) —
+// the Ocoron Design System (chrome-ext/70-chrome-ext.md) is applied on top in the surfaces.
 export default defineConfig({
   srcDir: 'src',
   modules: ['@wxt-dev/i18n/module'],
   vite: () => ({
-    plugins: [preact()],
+    plugins: [tailwindcss(), preact()],
   }),
   manifest: {
     name: '__MSG_extName__',
@@ -3880,11 +3883,17 @@ export default defineConfig({
             "@size-limit/preset-app": "^12.1.0",
             "@playwright/test": "^1.59.0",
             "@axe-core/playwright": "^4.10.1",
+            "@tailwindcss/vite": "^4.3.2",
+            "tailwindcss": "^4.3.2",
             "eslint": "^9.39.2",
             "@antfu/eslint-config": "^7.2.0",
         },
     }
     (ext / "package.json").write_text(json.dumps(ext_package, indent=2) + "\n")
+
+    # src/global.css — Tailwind v4 (CSS-first). The Ocoron @theme tokens land here in
+    # the surfaces phase; Phase A wires the pipeline so styles resolve at build.
+    (ext / "src" / "global.css").write_text('@import "tailwindcss";\n')
 
     # pnpm-workspace.yaml — pnpm 11 build-script approval. pnpm 11 REMOVED
     # onlyBuiltDependencies (+ the package.json `pnpm` field) and replaced them with
@@ -3977,9 +3986,10 @@ export default defineContentScript({
     )
     (ext / "src" / "entrypoints" / "popup" / "main.tsx").write_text(
         f"""import {{ render }} from 'preact';
+import '../../global.css';
 
 function App() {{
-  return <main style={{{{ width: 360, padding: 16, fontFamily: 'system-ui' }}}}>{name}</main>;
+  return <main class="w-90 p-4 font-sans">{name}</main>;
 }}
 
 render(<App />, document.getElementById('root')!);
@@ -3987,9 +3997,10 @@ render(<App />, document.getElementById('root')!);
     )
     (ext / "src" / "entrypoints" / "options" / "main.tsx").write_text(
         f"""import {{ render }} from 'preact';
+import '../../global.css';
 
 function App() {{
-  return <main style={{{{ padding: 24, fontFamily: 'system-ui' }}}}>{name} — Settings</main>;
+  return <main class="p-6 font-sans">{name} — Settings</main>;
 }}
 
 render(<App />, document.getElementById('root')!);
