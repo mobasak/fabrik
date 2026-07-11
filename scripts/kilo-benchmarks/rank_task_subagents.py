@@ -408,14 +408,13 @@ def render(rows: list, state: str = "ok") -> str:
     # doc regen).
     tiers = _load_quality_tiers()
 
-    # CODING fallback (Finder C fix): when the fleet has NO empirical `code` data,
-    # seed the `### code` section from CODING_SUBAGENT_SELECTION.md so
-    # pick_models("code") returns benchmark-ranked models instead of falling
-    # through to the vendored `_TABLE`. Only applies to `code` — other task
-    # types have no benchmark analog and correctly fall through when empty.
-    coding_fallback_models: list[str] = []
-    if not by_task.get("code"):
-        coding_fallback_models = _load_coding_fallback()
+    # CODING supplement: ALWAYS load the top benchmark-ranked models from
+    # CODING_SUBAGENT_SELECTION.md — they're appended below any fleet rows in
+    # `### code` (deduped) so `pick_models("code", n=N)` gets fleet-first-then-
+    # benched, and models we've benched but haven't fleet-used yet aren't
+    # invisible to the router. Only applies to `code` — other task_types have
+    # no benchmark analog.
+    coding_fallback_models: list[str] = _load_coding_fallback()
 
     if not kept and not coding_fallback_models:
         return header + (
@@ -423,6 +422,10 @@ def render(rows: list, state: str = "ok") -> str:
             "`/opt/fabrik-lib/subagents/subagents/select.py:58`.\n"
         )
     out = [header]
+    # Track which task_types actually emitted a section — the CODING
+    # supplement below emits its own `### code` header when no fleet code
+    # section was produced.
+    emitted_task_types: set[str] = set()
     for task_type in sorted(by_task):
         task_rows = by_task[task_type]
         n_total = sum(r[2] for r in task_rows)
@@ -456,28 +459,52 @@ def render(rows: list, state: str = "ok") -> str:
             "| rank | model | shrunk_q | success | avg_cost | avg_quality | quality_tier | n |"
         )
         out.append("|---:|---|---:|---:|---:|---:|:-:|---:|")
+        emitted_code_models: set[str] = set()
+        code_last_rank = 0
         for rank, (r, shrunk_q) in enumerate(scored, start=1):
             out.append(
                 f"| {rank} | `{r[1]}` | {shrunk_q:.2f} | {r[5]:.2f} | ${r[3]:.4f} | {r[4]:.2f} | "
                 f"{_fmt_tier(tiers, r[1])} | {r[2]} |"
             )
-        out.append("")
+            if task_type == "code":
+                emitted_code_models.add(r[1])
+                code_last_rank = rank
 
-    # Blended `### code` section from CODING_SUBAGENT_SELECTION.md — emitted only
-    # when the fleet has no empirical `code` runs yet. Reader-compatible table
-    # rows (rank in first cell, backticked model in second) so the module's
-    # load_task_ranking() parses them just like fleet rows. Marker `[benchmark]`
-    # in the source column tells human readers these came from public benchmarks,
-    # not from live fleet invocations.
-    if coding_fallback_models:
+        # CODING supplement (inline mode a): append benchmark-ranked models
+        # from CODING_SUBAGENT_SELECTION.md below the fleet rows in this
+        # SAME `### code` table so a model we've benched but haven't
+        # fleet-used yet is still visible to `pick_models("code")`. Same
+        # 8-column shape so the reader treats them uniformly under one
+        # `### code` header. `[benchmark]` in the shrunk_q slot, `—` for
+        # per-run fields, tier populated from _load_quality_tiers, n=0
+        # (reader parses cells[-1] as int; n=0 with default min_n=0 is
+        # admitted; a caller passing min_n≥1 correctly filters benchmark
+        # rows out).
+        if task_type == "code" and coding_fallback_models:
+            for i, model in enumerate(
+                [m for m in coding_fallback_models if m not in emitted_code_models],
+                start=code_last_rank + 1,
+            ):
+                out.append(
+                    f"| {i} | `{model}` | [benchmark] | — | — | — | {_fmt_tier(tiers, model)} | 0 |"
+                )
+        out.append("")
+        emitted_task_types.add(task_type)
+
+    # CODING supplement — mode (b): if the fleet had zero `code` rows above
+    # the quality gate, no `### code` header was emitted in the loop above.
+    # Fall back to a dedicated section so `pick_models("code")` still has a
+    # benchmark-ranked list. Same 8-column shape as fleet sections.
+    if "code" not in emitted_task_types and coding_fallback_models:
         out.append("### code (n_total=0, fallback from CODING_SUBAGENT_SELECTION.md)")
-        # `source` stays LAST so `cells[-1]` is `[benchmark]` (non-decimal →
-        # reader treats as n=0, matching the "no fleet runs" reality). Tier
-        # goes between model + source.
-        out.append("| rank | model | quality_tier | source |")
-        out.append("|---:|---|:-:|:-:|")
+        out.append(
+            "| rank | model | shrunk_q | success | avg_cost | avg_quality | quality_tier | n |"
+        )
+        out.append("|---:|---|---:|---:|---:|---:|:-:|---:|")
         for rank, model in enumerate(coding_fallback_models, start=1):
-            out.append(f"| {rank} | `{model}` | {_fmt_tier(tiers, model)} | [benchmark] |")
+            out.append(
+                f"| {rank} | `{model}` | [benchmark] | — | — | — | {_fmt_tier(tiers, model)} | 0 |"
+            )
         out.append("")
 
     return "\n".join(out) + "\n"

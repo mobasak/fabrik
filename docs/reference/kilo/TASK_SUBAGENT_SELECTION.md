@@ -6,6 +6,15 @@ Formula: shrunk_q = (n·avg_q + 10·tier_baseline) / (n+10); quality-gate at shr
 | rank | model | shrunk_q | success | avg_cost | avg_quality | quality_tier | n |
 |---:|---|---:|---:|---:|---:|:-:|---:|
 | 1 | `deepseek/deepseek-v4-flash` | 3.03 | 0.67 | $0.0836 | 4.80 | 2 | 3 |
+| 2 | `minimax/minimax-m2.5` | [benchmark] | — | — | — | 3 | 0 |
+| 3 | `deepseek/deepseek-v3.2` | [benchmark] | — | — | — | 3 | 0 |
+| 4 | `bytedance-seed/seed-2.0-mini` | [benchmark] | — | — | — | 3 | 0 |
+| 5 | `bytedance-seed/seed-1.6-flash` | [benchmark] | — | — | — | 3 | 0 |
+| 6 | `qwen/qwen3-coder-30b-a3b-instruct` | [benchmark] | — | — | — | 1 | 0 |
+| 7 | `qwen/qwen3-coder-flash` | [benchmark] | — | — | — | 2 | 0 |
+| 8 | `minimax/minimax-m2` | [benchmark] | — | — | — | 3 | 0 |
+| 9 | `minimax/minimax-m3` | [benchmark] | — | — | — | 2 | 0 |
+| 10 | `z-ai/glm-4.7-flash` | [benchmark] | — | — | — | 1 | 0 |
 
 ### docs (n_total=5)
 | rank | model | shrunk_q | success | avg_cost | avg_quality | quality_tier | n |

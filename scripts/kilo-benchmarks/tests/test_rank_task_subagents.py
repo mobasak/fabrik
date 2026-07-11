@@ -104,26 +104,67 @@ def test_empty_fleet_with_coding_available_blends_code_section(monkeypatch) -> N
     assert "fallback from CODING_SUBAGENT_SELECTION.md" in md
 
 
-def test_coding_fallback_not_emitted_when_fleet_has_code_data(monkeypatch) -> None:
-    """When the fleet has empirical `code` runs, the CODING fallback is NOT
-    blended — real fleet data always wins for a task_type it has data for."""
+def test_coding_supplement_appended_below_fleet_in_same_code_section(monkeypatch) -> None:
+    """Post 2026-07-11 fix: fleet code rows are emitted FIRST in `### code`,
+    then CODING_SUBAGENT_SELECTION.md's ranked models are appended BELOW as
+    supplemental rows (marked `[benchmark]`, deduped against fleet models).
+    Both live under ONE `### code` header so `pick_models("code", n=N)` sees
+    fleet-first + benched-second — a benched-but-not-fleet-used model isn't
+    invisible to the router.
+    """
     import rank_task_subagents
 
     monkeypatch.setattr(
         rank_task_subagents,
         "_load_coding_fallback",
-        lambda *_a, **_k: ["should-NOT-appear/model"],
+        lambda *_a, **_k: ["supp/one", "real-fleet/model", "supp/two"],
     )
-    # avg_quality=3.5 is above the quality gate (≥2.5 after shrinkage) so the
-    # row survives to be emitted — the fixture must actually make it into the
-    # doc for the assertion "should-NOT-appear is absent" to be meaningful.
     rows = [("code", "real-fleet/model", 5, 0.10, 3.5, 0.9)]
     md = rank_task_subagents.render(rows)
-    assert "`real-fleet/model`" in md
-    assert "should-NOT-appear" not in md, (
-        "CODING fallback must not blend when fleet has data for the same task_type"
+
+    # Fleet row at rank 1, real fleet data.
+    lines = md.splitlines()
+    rank_1 = next(line for line in lines if line.startswith("| 1 "))
+    assert "real-fleet/model" in rank_1
+    assert "[benchmark]" not in rank_1  # fleet row is not [benchmark]
+
+    # Supplemental rows appear below with `[benchmark]` marker.
+    assert "supp/one" in md
+    assert "supp/two" in md
+    assert "[benchmark]" in md
+
+    # Dedup: `real-fleet/model` must NOT be re-emitted from the supplement
+    # (there's exactly ONE row with that model id).
+    assert md.count("`real-fleet/model`") == 1
+
+    # Reader-compat: cells[-1] on a benchmark row is `0` (a decimal int the
+    # reader parses as run count; min_n=0 admits, min_n≥1 correctly filters).
+    supp_line = next(line for line in lines if "supp/one" in line)
+    supp_cells = [c.strip() for c in supp_line.strip("|").split("|")]
+    assert supp_cells[-1] == "0", supp_cells
+    assert supp_cells[2] == "[benchmark]", supp_cells
+
+
+def test_dedicated_fallback_section_fires_only_when_fleet_has_zero_code_rows(monkeypatch) -> None:
+    """When the fleet emits NO gate-surviving `code` rows, the dedicated
+    fallback header `### code (n_total=0, fallback ...)` is emitted so
+    `pick_models("code")` still has a ranking. Uses the SAME 8-column shape
+    as fleet sections (post 2026-07-11 unification)."""
+    import rank_task_subagents
+
+    monkeypatch.setattr(
+        rank_task_subagents,
+        "_load_coding_fallback",
+        lambda *_a, **_k: ["bench/a", "bench/b"],
     )
-    assert "[benchmark]" not in md
+    # A `code` row with sub-gate avg_quality gets excluded → no fleet `### code`
+    rows = [("code", "cheap-terrible", 5, 0.10, 1.0, 0.5)]
+    md = rank_task_subagents.render(rows)
+
+    assert "### code (n_total=0, fallback from CODING_SUBAGENT_SELECTION.md)" in md
+    assert "`bench/a`" in md
+    assert "`bench/b`" in md
+    assert "cheap-terrible" not in md  # excluded by the quality gate
 
 
 def test_value_helper_math_is_success_x_quality_over_cost() -> None:
@@ -292,10 +333,11 @@ def test_quality_tier_column_emitted_and_reader_compat(monkeypatch) -> None:
     assert r2_cells[-1] == "5", f"cells[-1] must still be n=5, got {r2_cells}"
 
 
-def test_quality_tier_column_in_fallback_table(monkeypatch, tmp_path) -> None:
-    """The `### code (n_total=0, fallback ...)` table also carries the
-    quality_tier column — inserted BEFORE `source` so cells[-1] stays
-    `[benchmark]` (non-decimal → reader treats as n=0, matches "no fleet runs").
+def test_quality_tier_column_in_fallback_section(monkeypatch, tmp_path) -> None:
+    """Post 2026-07-11 unification: the dedicated `### code (fallback ...)`
+    table uses the SAME 8-column shape as fleet sections — `[benchmark]` in
+    the shrunk_q slot, `—` for per-run fields, tier from _load_quality_tiers,
+    n=0 (reader-compat: cells[-1] is a decimal int the reader parses as n).
     """
     import rank_task_subagents as m
 
@@ -303,27 +345,39 @@ def test_quality_tier_column_in_fallback_table(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(
         m, "_load_coding_fallback", lambda *_a, **_k: ["cheap/a", "cheap/b", "no-tier/c"]
     )
-    md = m.render([])  # empty fleet → triggers fallback
+    md = m.render([])  # empty fleet → triggers dedicated fallback section
     lines = md.splitlines()
 
     header = next(
-        line for line in lines if "quality_tier" in line and "|" in line and "source" in line
+        line
+        for line in lines
+        if line.startswith("| rank ") and "shrunk_q" in line and "quality_tier" in line
     )
     header_cells = [c.strip() for c in header.strip("|").split("|")]
-    # Column order in fallback: rank | model | quality_tier | source
-    assert header_cells == ["rank", "model", "quality_tier", "source"], header_cells
+    assert header_cells == [
+        "rank",
+        "model",
+        "shrunk_q",
+        "success",
+        "avg_cost",
+        "avg_quality",
+        "quality_tier",
+        "n",
+    ], header_cells
 
-    # cheap/a: tier=3
+    # cheap/a: tier=3, [benchmark] marker in shrunk_q slot, n=0
     row_a = next(line for line in lines if "cheap/a" in line)
     cells = [c.strip() for c in row_a.strip("|").split("|")]
-    assert cells[-2] == "3", cells
-    assert cells[-1] == "[benchmark]", cells
+    assert cells[2] == "[benchmark]", cells
+    assert cells[-2] == "3", cells  # quality_tier
+    assert cells[-1] == "0", cells  # reader-compat: n=0
 
-    # no-tier/c: blank
+    # no-tier/c: tier blank, still [benchmark]
     row_c = next(line for line in lines if "no-tier/c" in line)
     cells = [c.strip() for c in row_c.strip("|").split("|")]
+    assert cells[2] == "[benchmark]", cells
     assert cells[-2] == "", cells
-    assert cells[-1] == "[benchmark]", cells
+    assert cells[-1] == "0", cells
 
 
 def test_load_quality_tiers_survives_malformed_tier_values(monkeypatch, tmp_path) -> None:
