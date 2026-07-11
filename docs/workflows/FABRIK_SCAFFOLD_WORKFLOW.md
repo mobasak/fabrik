@@ -176,10 +176,12 @@ static/img/.gitkeep       # Static assets directory
 ```
 extension/          # Chrome extension (WXT + Preact; manifest auto-generated)
   src/
-    entrypoints/    # file-based: background.ts, content.ts, popup/, options/
+    entrypoints/    # file-based: background.ts, content.tsx, popup/, options/
+    lib/            # MV3 seams: storage, messaging, sentry, api/, consent (SEAMS.md)
+    components/ui/  # Ocoron Preact components (button.tsx)
     locales/        # @wxt-dev/i18n (en.json, tr.json)
-    global.css      # Tailwind v4
-  public/           # icon16/48/128.png (copied verbatim into the build)
+    global.css      # Tailwind v4 @theme (Ocoron tokens)
+  public/           # icon16/48/128.png + onboarding.html (copied verbatim into the build)
   wxt.config.ts
   package.json
   pnpm-workspace.yaml

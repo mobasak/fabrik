@@ -3872,6 +3872,9 @@ export default defineConfig({
             "compile": "tsc --noEmit",
             "size": "size-limit",
             "lint": "eslint .",
+            # Generates the typed @hey-api client from the running backend's OpenAPI schema
+            # into src/lib/api/generated (see src/lib/api/config.ts). Point -i at your backend.
+            "generate-api": "openapi-ts -i http://localhost:8000/openapi.json -o src/lib/api/generated",
         },
         "dependencies": {
             "preact": "^10.25.0",

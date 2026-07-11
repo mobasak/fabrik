@@ -1,6 +1,6 @@
 # Plan — chrome-extension scaffold: WXT rebuild (Part B)
 
-**Status:** IN-PROGRESS
+**Status:** EXECUTED (2026-07-11)
 **Spec:** `docs/superpowers/specs/2026-07-11-chrome-ext-wxt-scaffold-design.md` (CONVERGED, md5 `431ed0d4`) — the grounded source of truth; inherit its vendor verdict + external facts, do not re-derive.
 **Scope:** hub-side scaffolder work in `/opt/fabrik` — rebuild the `chrome-extension` scaffold's **extension-client lane** from Vite+`@crxjs` onto **WXT**. Backend lane (`server/`) unchanged.
 
@@ -111,9 +111,16 @@
 
 ---
 
-## Phase C — Scaffolder tests + docs convergence
+## Phase C — Scaffolder tests + docs convergence — ✅ EXECUTED 2026-07-11
 
 **Deliverable:** the content-asserting scaffolder tests match the WXT structure; docs converged.
+
+### Evidence (Phase C)
+
+- Scaffolder tests reconciled to WXT: `test_scaffold.py` (negative `@crxjs`/`manifest.json`/`vite.config.ts` asserts), `test_scaffold_logging.py` (removed the vestigial `manifest.json.j2` fixture — the WXT scaffold reads no chrome-ext template), `test_deploy_validator.py` + `test_template_defaults.py` clean. Suite green.
+- **Full Tier-2 gate** `final_gate.py --check --json` → `{"status":"success","passed":35,"failed":0}`; `check_convergence.py` exit 0.
+- **Docs reconciled** (doc↔code, one batch): `FABRIK_SCAFFOLD_WORKFLOW.md` tree fixed (`content.ts`→`content.tsx`, added `lib/` seams + `components/ui/` + `onboarding.html`); `SCAFFOLD_STRUCTURE.md` + `QUICKSTART_TEMPLATE.md` WXT claims verified true; `docs/reference/SEAMS.md` emitted. `docs_updater.py --check` + `check_docs` exit 0 (residual broken-links are pre-existing, in unrelated archived-plan refs). Added `pnpm generate-api` script so the `api/config.ts` + SEAMS reference resolves.
+- CHANGELOG `### Changed — chrome-extension scaffold rebuilt on WXT + Preact` present in HEAD (rode into sibling commit `172ede5c` on shared `master` — content preserved).
 
 **Files:**
 - **Modify** `tests/test_scaffold.py`, `tests/test_scaffold_logging.py`, `tests/test_deploy_validator.py`, `tests/orchestrator/test_template_defaults.py` — any assertion on the old chrome-ext `@crxjs`/`vite.config.ts`/`extension/manifest.json` structure → assert the WXT structure (`wxt.config.ts`, no `manifest.json`). (Lesson 78: content-asserting tests drift when the generator changes — update in lockstep.)

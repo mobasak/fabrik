@@ -87,14 +87,9 @@ def mock_fabrik_root(temp_dir: Path) -> Path:
     (fabrik_root / "opencode.json").write_text("{}\n")
     (fabrik_root / ".pre-commit-config.yaml").write_text("repos: []\n")
 
-    # Chrome extension manifest template
-    chrome_tpl = fabrik_root / "templates" / "chrome-extension"
-    chrome_tpl.mkdir(parents=True)
-    (chrome_tpl / "manifest.json.j2").write_text(
-        '{"manifest_version": 3, "name": "{{ spec.id }}", '
-        '"description": "{{ spec.description | default(\'Chrome extension\') }}", '
-        '"version": "1.0.0"}'
-    )
+    # chrome-extension is now WXT (wxt.config.ts auto-generates the manifest at build) —
+    # _scaffold_chrome_extension emits everything inline, reading no chrome-ext template,
+    # so no templates/chrome-extension/ fixture is needed.
 
     return fabrik_root
 
