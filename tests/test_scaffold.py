@@ -387,7 +387,7 @@ class TestChromeExtensionScaffold:
 
         # File-based entrypoints
         assert (project_dir / "extension" / "src" / "entrypoints" / "background.ts").exists()
-        assert (project_dir / "extension" / "src" / "entrypoints" / "content.ts").exists()
+        assert (project_dir / "extension" / "src" / "entrypoints" / "content.tsx").exists()
         assert (project_dir / "extension" / "src" / "entrypoints" / "popup" / "index.html").exists()
 
     def test_extension_uses_wxt_preact(self, tmp_path):

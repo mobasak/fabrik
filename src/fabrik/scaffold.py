@@ -3838,7 +3838,17 @@ export default defineConfig({
     name: '__MSG_extName__',
     description: '__MSG_extDescription__',
     default_locale: 'en',
-    permissions: ['storage', 'activeTab'],
+    // contextMenus is REQUIRED for the background snippet — without it chrome.contextMenus
+    // is undefined and the SW throws in onInstalled (chrome-ext/70-chrome-ext.md § Permissions).
+    permissions: ['storage', 'activeTab', 'contextMenus'],
+    // A CUSTOM command (not the reserved _execute_action, which the browser handles
+    // natively and never dispatches to onCommand) so the listener seam actually fires.
+    commands: {
+      'open-settings': {
+        suggested_key: { default: 'Ctrl+Shift+Y' },
+        description: 'Open settings',
+      },
+    },
     // Explicit icons — WXT's auto-discovery only matches dashed names (icon-16.png);
     // ours are icon16.png in public/, so wire them so the built manifest carries them.
     icons: { 16: '/icon16.png', 48: '/icon48.png', 128: '/icon128.png' },
@@ -3896,7 +3906,20 @@ export default defineConfig({
 
     # src/global.css — Tailwind v4 (CSS-first). The Ocoron @theme tokens land here in
     # the surfaces phase; Phase A wires the pipeline so styles resolve at build.
-    (ext / "src" / "global.css").write_text('@import "tailwindcss";\n')
+    (ext / "src" / "global.css").write_text(
+        """@import "tailwindcss";
+
+/* Ocoron Design System (Compact) tokens — Tailwind v4 CSS-first @theme. Dark-first.
+   chrome-ext/70-chrome-ext.md § Ocoron Design System. */
+@theme {
+  --color-accent: #4f46e5;
+  --color-bg: #0b0b0f;
+  --color-fg: #e6e6ea;
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+"""
+    )
 
     # pnpm-workspace.yaml — pnpm 11 build-script approval. pnpm 11 REMOVED
     # onlyBuiltDependencies (+ the package.json `pnpm` field) and replaced them with
@@ -3914,7 +3937,12 @@ export default defineConfig({
   "compilerOptions": {
     "jsx": "react-jsx",
     "jsxImportSource": "preact",
-    "strict": true
+    "strict": true,
+    "paths": {
+      "@/*": ["./src/*"],
+      "react": ["./node_modules/preact/compat/"],
+      "react-dom": ["./node_modules/preact/compat/"]
+    }
   }
 }
 """
@@ -3950,29 +3978,73 @@ export default antfu({
     # 1a. Entrypoints (WXT file-based; auto-imports defineBackground/defineContentScript
     #     after `wxt prepare`). Phase A = minimal stubs that build; surfaces fleshed out next.
     (ext / "src" / "entrypoints" / "background.ts").write_text(
-        """// MV3 service worker. WXT auto-imports defineBackground.
+        """// MV3 service worker (WXT auto-imports defineBackground). The SW is ephemeral —
+// register everything inside onInstalled, never in a top-level global.
+import { onMessage } from 'webext-bridge/background';
+import { getToken } from '@/lib/storage';
+
 export default defineBackground(() => {
-  // Onboarding + command/context-menu registration land here (native snippets).
   browser.runtime.onInstalled.addListener(({ reason }) => {
     if (reason === 'install') {
-      // Open packaged onboarding on first install (Phase B wires onboarding.html).
+      // Onboarding: open the packaged page only on first install (not on update).
+      browser.tabs.create({ url: browser.runtime.getURL('/onboarding.html') });
     }
+    // Commands / context-menus / omnibox must be (re)registered here — the SW restarts.
+    browser.contextMenus.create(
+      { id: 'open-options', title: 'Options', contexts: ['action'] },
+      () => void browser.runtime.lastError, // swallow "duplicate id" on SW restart
+    );
   });
+
+  browser.contextMenus.onClicked.addListener((info) => {
+    if (info.menuItemId === 'open-options')
+      browser.runtime.openOptionsPage();
+  });
+  browser.commands?.onCommand.addListener((command) => {
+    if (command === 'open-settings')
+      browser.runtime.openOptionsPage();
+  });
+
+  // SW-mediated token access: tokens live in storage.session (TRUSTED_CONTEXTS), which
+  // content scripts CANNOT read directly — they ask the SW for it via webext-bridge.
+  onMessage('get-token', async () => ({ token: await getToken() }));
 });
 """
     )
-    (ext / "src" / "entrypoints" / "content.ts").write_text(
-        """// Content script. WXT auto-imports defineContentScript.
-export default defineContentScript({
+    (ext / "src" / "entrypoints" / "content.tsx").write_text(
+        f"""// Content script (WXT auto-imports defineContentScript + createShadowRootUi).
+import {{ render }} from 'preact';
+import {{ sendMessage }} from 'webext-bridge/content-script';
+import './overlay.css';
+
+export default defineContentScript({{
   matches: ['<all_urls>'],
-  main() {
-    // Shadow-DOM overlay (createShadowRootUi) lands here in Phase B.
-  },
-});
+  cssInjectionMode: 'ui', // inject styles into the shadow root, not the host page
+  async main(ctx) {{
+    // Tokens are never read from storage.session here (TRUSTED_CONTEXTS) — ask the SW.
+    void sendMessage('get-token', {{}}, 'background');
+
+    const ui = await createShadowRootUi(ctx, {{
+      name: '{name}-overlay',
+      position: 'inline',
+      anchor: 'body',
+      onMount(container) {{
+        // Use px, not rem: a shadow root does NOT reset <html> font-size, so rem leaks
+        // the host page's root size (chrome-ext/70-chrome-ext.md § Surfaces).
+        render(<div style={{{{ padding: '8px', fontFamily: 'system-ui' }}}}>{name}</div>, container);
+      }},
+      onRemove() {{
+        // preact render cleanup is handled by WXT tearing down the container.
+      }},
+    }});
+    ui.mount();
+  }},
+}});
 """
     )
+    (ext / "src" / "entrypoints" / "overlay.css").write_text('@import "tailwindcss";\n')
     _cx_popup_html = """<!doctype html>
-<html>
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -3990,10 +4062,26 @@ export default defineContentScript({
     )
     (ext / "src" / "entrypoints" / "popup" / "main.tsx").write_text(
         f"""import {{ render }} from 'preact';
+// Imported from 'react' on purpose: @preact/preset-vite aliases it to preact/compat,
+// which is what lets the fabrik-lib UI kits' React-API components run on Preact.
+import {{ useState }} from 'react';
+import {{ Button }} from '@/components/ui/button';
 import '../../global.css';
 
 function App() {{
-  return <main class="w-90 p-4 font-sans">{name}</main>;
+  const [count, setCount] = useState(0);
+  return (
+    <main class="w-90 space-y-3 p-4 font-sans">
+      <h1 class="text-base font-semibold">{name}</h1>
+      <Button onClick={{() => setCount(c => c + 1)}}>
+        Clicked
+        {{count}}
+      </Button>
+      <Button variant="ghost" onClick={{() => chrome.runtime.openOptionsPage()}}>
+        Open settings
+      </Button>
+    </main>
+  );
 }}
 
 render(<App />, document.getElementById('root')!);
@@ -4001,13 +4089,169 @@ render(<App />, document.getElementById('root')!);
     )
     (ext / "src" / "entrypoints" / "options" / "main.tsx").write_text(
         f"""import {{ render }} from 'preact';
+import {{ useEffect, useState }} from 'react';
+import {{ settings }} from '@/lib/storage';
 import '../../global.css';
 
+// Settings auto-save: reads the typed @wxt-dev/storage item on mount, writes on change.
 function App() {{
-  return <main class="p-6 font-sans">{name} — Settings</main>;
+  const [apiUrl, setApiUrl] = useState('');
+  useEffect(() => {{
+    settings.getValue().then(s => setApiUrl(s.apiUrl));
+  }}, []);
+  const onChange = (v: string) => {{
+    setApiUrl(v);
+    void settings.setValue({{ apiUrl: v }}); // auto-save
+  }};
+  return (
+    <main class="max-w-xl space-y-4 p-6 font-sans">
+      <h1 class="text-lg font-semibold">{name} — Settings</h1>
+      <label class="block space-y-1">
+        <span class="text-sm">Backend API URL</span>
+        <input
+          class="w-full rounded border px-2 py-1"
+          value={{apiUrl}}
+          onInput={{e => onChange((e.target as HTMLInputElement).value)}}
+        />
+      </label>
+    </main>
+  );
 }}
 
 render(<App />, document.getElementById('root')!);
+"""
+    )
+
+    # --- lib seams (the frozen contracts the fabrik-lib kits bind to; see SEAMS.md) ---
+    (ext / "src" / "lib" / "api").mkdir(parents=True, exist_ok=True)
+    (ext / "src" / "components" / "ui").mkdir(parents=True, exist_ok=True)
+
+    # storage.ts — typed settings + the auth token. Settings persist (local); the JWT
+    # lives in storage.session (TRUSTED_CONTEXTS — content scripts read it via the SW).
+    (ext / "src" / "lib" / "storage.ts").write_text(
+        """import { storage } from '@wxt-dev/storage';
+
+export interface Settings {
+  apiUrl: string;
+}
+
+export const settings = storage.defineItem<Settings>('local:settings', {
+  fallback: { apiUrl: '' },
+});
+
+// Auth JWT — session-scoped + TRUSTED_CONTEXTS (default). Never storage.local.
+const tokenItem = storage.defineItem<string | null>('session:token', { fallback: null });
+export const getToken = () => tokenItem.getValue();
+export const setToken = (t: string | null) => tokenItem.setValue(t);
+"""
+    )
+
+    # messaging.ts — typed webext-bridge protocol (SW-mediated token access).
+    (ext / "src" / "lib" / "messaging.ts").write_text(
+        """import type { ProtocolWithReturn } from 'webext-bridge';
+
+declare module 'webext-bridge' {
+  export interface ProtocolMap {
+    // Content scripts can't read storage.session — they ask the SW for the token.
+    'get-token': ProtocolWithReturn<Record<string, never>, { token: string | null }>;
+  }
+}
+"""
+    )
+
+    # sentry.ts — ISOLATED BrowserClient for content scripts (never global Sentry.init,
+    # which would hijack the host page's errors); pages use the standard init.
+    (ext / "src" / "lib" / "sentry.ts").write_text(
+        """import {
+  BrowserClient,
+  defaultStackParser,
+  makeBrowserOfflineTransport,
+  makeFetchTransport,
+  Scope,
+} from '@sentry/browser';
+
+const DSN = import.meta.env.VITE_PUBLIC_SENTRY_DSN as string | undefined;
+
+// For content scripts: an isolated client+scope with NO global-state integrations
+// (chrome-ext/70-chrome-ext.md § Observability). Offline transport buffers to IndexedDB.
+export function createIsolatedSentry(): Scope | null {
+  if (!DSN)
+    return null;
+  const client = new BrowserClient({
+    dsn: DSN,
+    transport: makeBrowserOfflineTransport(makeFetchTransport),
+    stackParser: defaultStackParser,
+    integrations: [], // drop GlobalHandlers / Breadcrumbs — they hijack the host page
+  });
+  const scope = new Scope();
+  scope.setClient(client);
+  client.init();
+  return scope;
+}
+"""
+    )
+
+    # api.ts — the generated @hey-api client's base URL. Run `pnpm generate-api` (needs
+    # the backend openapi.json) to populate src/lib/api/generated, then wire client.setConfig.
+    (ext / "src" / "lib" / "api" / "config.ts").write_text(
+        """// The typed client is generated by `pnpm generate-api` into ./generated. Until then,
+// this exports the configured base URL (never hand-roll fetch from a screen — use the hooks).
+export const API_BASE_URL = (import.meta.env.VITE_PUBLIC_API_URL as string | undefined) ?? '';
+"""
+    )
+
+    # consent.ts — analytics consent gate (opt-out by default; no capture before optIn).
+    (ext / "src" / "lib" / "consent.ts").write_text(
+        """import { storage } from '@wxt-dev/storage';
+
+const consent = storage.defineItem<boolean>('local:analytics-consent', { fallback: false });
+export const hasAnalyticsConsent = () => consent.getValue();
+export const setAnalyticsConsent = (v: boolean) => consent.setValue(v);
+"""
+    )
+
+    # components/ui/button.tsx — an Ocoron (Compact) Preact component. React-API (props +
+    # children) so it renders identically on Preact (via preact/compat) and a React override.
+    (ext / "src" / "components" / "ui" / "button.tsx").write_text(
+        """import type { ComponentChildren, JSX } from 'preact';
+
+interface ButtonProps extends JSX.HTMLAttributes<HTMLButtonElement> {
+  children: ComponentChildren;
+  variant?: 'solid' | 'ghost';
+}
+
+// Ocoron (Compact) tokens are Tailwind utilities backed by src/global.css @theme.
+export function Button({ children, variant = 'solid', ...rest }: ButtonProps) {
+  const base = 'rounded px-3 py-1.5 text-sm font-medium';
+  const style
+    = variant === 'ghost'
+      ? 'bg-transparent text-[var(--color-accent)]'
+      : 'bg-[var(--color-accent)] text-white';
+  return (
+    <button class={`${base} ${style}`} {...rest}>
+      {children}
+    </button>
+  );
+}
+"""
+    )
+
+    # onboarding.html — packaged page opened on first install (public/ is copied verbatim).
+    (ext / "public" / "onboarding.html").write_text(
+        f"""<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Welcome to {name}</title>
+    <style>main {{ font-family: system-ui; max-width: 40rem; margin: 3rem auto; padding: 0 1rem; }}</style>
+  </head>
+  <body>
+    <main>
+      <h1>Welcome to {name}</h1>
+      <p>Thanks for installing. Open the popup to get started, or configure the backend URL in Settings.</p>
+    </main>
+  </body>
+</html>
 """
     )
 
@@ -4023,6 +4267,61 @@ render(<App />, document.getElementById('root')!);
     # public/ icons — real placeholder PNGs so the build has assets immediately.
     for icon_size in (16, 48, 128):
         _write_placeholder_png(ext / "public" / f"icon{icon_size}.png", icon_size)
+
+    # docs/reference/SEAMS.md — the binding contracts a future chrome-ext-* fabrik-lib kit
+    # (none exist yet) would bind to. The scaffold ships the SEAM (name/shape/location); a
+    # kit fills the behavior on top. Don't rename/reshape these without updating every binder.
+    (project_dir / "docs" / "reference").mkdir(parents=True, exist_ok=True)
+    (project_dir / "docs" / "reference" / "SEAMS.md").write_text(
+        f"""# SEAMS.md — extension seam contracts
+
+The `{name}` extension ships **seams** — stable module names/shapes at fixed locations — that
+future `fabrik-lib` `chrome-ext-*` kits (none exist yet) bind to. The scaffold provides the
+seam; a kit fills the behavior. **Do not rename or reshape these without updating every binder.**
+
+## (1) Storage seam — `src/lib/storage.ts`
+
+- `settings` — `storage.defineItem<Settings>('local:settings', …)`; `settings.getValue()` /
+  `settings.setValue({{ apiUrl }})`. Persists (local area).
+- `getToken(): Promise<string | null>` / `setToken(t)` — the auth JWT, in **`session:` area**
+  (`TRUSTED_CONTEXTS`). Never `local:` — a content script cannot read it directly.
+
+## (2) Messaging seam — `src/lib/messaging.ts`
+
+Typed `webext-bridge` `ProtocolMap`. `'get-token'` → `{{ token: string | null }}`. Content
+scripts obtain the token **only** by `sendMessage('get-token', {{}}, 'background')`; the SW
+(`background.ts`) answers via `onMessage('get-token', …)`. This is the SW-mediated token seam.
+
+## (3) Observability seam — `src/lib/sentry.ts`
+
+`createIsolatedSentry(): Scope | null` — an isolated `BrowserClient` + `Scope` with
+`integrations: []` (no global handlers) + offline transport. Content scripts use this, **never**
+a global `Sentry.init` (which would hijack the host page). DSN from `VITE_PUBLIC_SENTRY_DSN`.
+
+## (4) API-client seam — `src/lib/api/config.ts`
+
+`API_BASE_URL` from `VITE_PUBLIC_API_URL`. `pnpm generate-api` (needs the backend `openapi.json`)
+populates `src/lib/api/generated` with the `@hey-api` typed client; screens import that, never
+hand-rolled `fetch`.
+
+## (5) Consent seam — `src/lib/consent.ts`
+
+`hasAnalyticsConsent()` / `setAnalyticsConsent(v)` — opt-out by default (`fallback: false`). No
+analytics capture before `setAnalyticsConsent(true)`.
+
+## (6) Design-system seam — `src/global.css` + `src/components/ui/button.tsx`
+
+Tailwind-v4 CSS-first `@theme` Ocoron tokens (`--color-accent`, `--font-sans`, …). `Button` is a
+React-API Preact component (renders on Preact via `preact/compat`) — the pattern kit UI follows.
+
+## Native MV3 snippets (background.ts) — not seams, but the demonstrated capabilities
+
+Onboarding tab on first install; a `contextMenus` entry (needs the `contextMenus` permission);
+the custom `open-settings` command (a keyboard shortcut, declared in the manifest `commands`);
+the SW-mediated token relay. Registered inside `onInstalled` / as top-level listeners (the SW is
+ephemeral — never register in a bare global).
+"""
+    )
 
     # 2. Server files (FastAPI)
     server_pkg_dir = project_dir / "server" / "src" / package_name
@@ -4105,7 +4404,7 @@ render(<App />, document.getElementById('root')!);
         f"    allow_credentials=True,\n"
         f'    allow_methods=["*"],\n'
         f'    allow_headers=["Authorization", "Content-Type"],  # explicit — "*" is not a\n'
-        f'    # wildcard for credentialed requests (Bearer JWT per 70-chrome-ext.md § Auth)\n'
+        f"    # wildcard for credentialed requests (Bearer JWT per 70-chrome-ext.md § Auth)\n"
         f")\n"
         f"\n"
         f"\n"

@@ -72,9 +72,17 @@
 
 ---
 
-## Phase B — Surfaces + seams + native snippets
+## Phase B — Surfaces + seams + native snippets — ✅ EXECUTED 2026-07-11
 
 **Deliverable:** the WXT skeleton fleshed to a working minimal extension — Preact Ocoron surfaces, the MV3 lib seams, and the 4 native snippets — still `wxt build` green, with the behaviors tested.
+
+### Evidence (Phase B)
+
+- **5 build gates green** on a fresh scaffold (`/tmp/cxbf`): `pnpm install` → `wxt build` → `tsc --noEmit` → `size-limit` → `eslint .`, all exit 0.
+- **GUI Build-Verification Loop → no-op** (real loaded MV3 extension via Playwright `channel:chromium`, `@axe-core/playwright`): SW `typeof chrome.contextMenus==='object'` + 0 errors; popup axe=0 + Preact hook render/increment `Clicked0→Clicked1`; options axe=0; onboarding axe=0; 0 console errors on all surfaces.
+- **`/fabrik-review` (Phase B):** Pass 1 found+fixed 4 (contextMenus-perm SW crash proven via SW `typeof===undefined`; reserved `_execute_action`→custom `open-settings` command; popup/options `html-has-lang`; onboarding `landmark-one-main`+`region`), 2 refuted (`VITE_` env exposure proven live; seam exports intentional); Pass 2 = no-op.
+- **Tests:** `tests/test_scaffold_chrome_ext_wxt.py` — 59 passed, 1 deselected (toolchain build test).
+- Seam contracts emitted at `docs/reference/SEAMS.md` in the scaffolded project.
 
 **Files (emitted by `_scaffold_chrome_extension`, added in this phase):**
 - `entrypoints/background.ts` — onboarding (`onInstalled`→`reason==='install'`), commands/context-menus/omnibox (registered **inside** `onInstalled`).

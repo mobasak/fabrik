@@ -56,7 +56,7 @@ def test_file_based_entrypoints(ext: Path) -> None:
     """WXT file-based entrypoints under src/."""
     for p in (
         "src/entrypoints/background.ts",
-        "src/entrypoints/content.ts",
+        "src/entrypoints/content.tsx",
         "src/entrypoints/popup/index.html",
         "src/entrypoints/popup/main.tsx",
         "src/entrypoints/options/main.tsx",
@@ -123,16 +123,124 @@ def test_tailwind_v4_wired(ext: Path) -> None:
     assert "@tailwindcss/vite" in deps
     assert "tailwindcss" in deps
     assert "tailwindcss()" in (ext / "wxt.config.ts").read_text()
-    assert (ext / "src" / "global.css").read_text().strip() == '@import "tailwindcss";'
+    css = (ext / "src" / "global.css").read_text()
+    assert css.lstrip().startswith('@import "tailwindcss";')
+    # Ocoron design-system tokens are CSS-first (@theme), per chrome-ext/70-chrome-ext.md.
+    assert "@theme {" in css
+    assert "--color-accent:" in css
 
 
 def test_wxt_config_declares_mv3_permissions_and_icons(ext: Path) -> None:
     """The manifest permissions + explicit icons are declared (WXT auto-discovery
     won't match our icon16.png names, so they must be wired or Chrome shows no icon)."""
     cfg = (ext / "wxt.config.ts").read_text()
-    assert "permissions: ['storage', 'activeTab']" in cfg
+    # contextMenus is required or the background SW throws in onInstalled (GUI-loop finding).
+    assert "permissions: ['storage', 'activeTab', 'contextMenus']" in cfg
     assert "icons: {" in cfg
     assert "/icon16.png" in cfg
+
+
+# ---------------------------------------------------------------------------
+# Phase B — Preact Ocoron surfaces + MV3 seams + native snippets (structure).
+# The RUNTIME behaviors (compat render, onboarding-on-install, settings round-trip,
+# shadow-root overlay, SW-mediated token relay) are the Playwright load-extension
+# GUI loop — see the plan's Build Verification Loop; here we assert the seams exist.
+# ---------------------------------------------------------------------------
+
+
+def test_phase_b_lib_seams_present(ext: Path) -> None:
+    """The MV3 seams a real Ocoron extension binds to: storage, messaging, sentry,
+    api config, consent, and the Ocoron Preact Button."""
+    for p in (
+        "src/lib/storage.ts",
+        "src/lib/messaging.ts",
+        "src/lib/sentry.ts",
+        "src/lib/consent.ts",
+        "src/lib/api/config.ts",
+        "src/components/ui/button.tsx",
+    ):
+        assert (ext / p).exists(), p
+
+
+def test_phase_b_storage_uses_wxt_dev_storage(ext: Path) -> None:
+    """Settings + the token seam go through @wxt-dev/storage's defineItem (typed,
+    local vs. session), not raw chrome.storage — token in session (cleared on close)."""
+    src = (ext / "src" / "lib" / "storage.ts").read_text()
+    assert "defineItem" in src
+    assert "session:" in src, "the auth token must live in storage.session"
+
+
+def test_phase_b_messaging_uses_webext_bridge(ext: Path) -> None:
+    """SW-mediated token relay is a typed webext-bridge ProtocolMap (get-token)."""
+    src = (ext / "src" / "lib" / "messaging.ts").read_text()
+    assert "webext-bridge" in src
+    assert "get-token" in src
+
+
+def test_phase_b_sentry_is_isolated_client(ext: Path) -> None:
+    """Content scripts use an isolated BrowserClient + Scope, never a global
+    Sentry.init (which would leak into / conflict with the host page)."""
+    src = (ext / "src" / "lib" / "sentry.ts").read_text()
+    assert "BrowserClient" in src
+    assert "Sentry.init" not in src
+
+
+def test_phase_b_background_registers_onboarding_and_commands(ext: Path) -> None:
+    """background.ts: onboarding on install + contextMenus/commands registered INSIDE
+    onInstalled (MV3 SW re-runs; top-level registration double-registers)."""
+    src = (ext / "src" / "entrypoints" / "background.ts").read_text()
+    assert "onInstalled" in src
+    assert "onboarding.html" in src
+    assert "contextMenus" in src
+    assert "commands" in src
+    assert "onMessage('get-token'" in src, "SW mediates the token relay"
+
+
+def test_phase_b_content_uses_shadow_root_ui(ext: Path) -> None:
+    """content.tsx mounts via createShadowRootUi (cssInjectionMode:'ui') so host-page
+    CSS can't bleed into the overlay; px (shadow DOM has no rem context)."""
+    src = (ext / "src" / "entrypoints" / "content.tsx").read_text()
+    assert "createShadowRootUi" in src
+    assert "cssInjectionMode: 'ui'" in src
+
+
+def test_phase_b_popup_proves_preact_compat(ext: Path) -> None:
+    """popup imports a hook from 'react' — proving the preact/compat alias resolves
+    (a real React-ecosystem lib would import this way)."""
+    src = (ext / "src" / "entrypoints" / "popup" / "main.tsx").read_text()
+    assert "from 'react'" in src
+
+
+def test_phase_b_options_settings_form_over_storage(ext: Path) -> None:
+    """options is a settings form bound to the @/lib/storage settings item."""
+    src = (ext / "src" / "entrypoints" / "options" / "main.tsx").read_text()
+    assert "settings" in src
+    assert "@/lib/storage" in src
+
+
+def test_phase_b_onboarding_asset_present(ext: Path) -> None:
+    """The onboarding page background.ts opens on install ships in public/."""
+    assert (ext / "public" / "onboarding.html").exists()
+
+
+def test_phase_b_html_has_lang(ext: Path) -> None:
+    """Regression for the GUI-loop axe finding (html-has-lang, serious): the popup +
+    options index.html declare lang so the built pages pass @axe-core."""
+    for p in ("popup/index.html", "options/index.html"):
+        html = (ext / "src" / "entrypoints" / p).read_text()
+        assert '<html lang="en">' in html, p
+    # onboarding is a full-tab page — it needs lang too.
+    assert '<html lang="en">' in (ext / "public" / "onboarding.html").read_text()
+
+
+def test_phase_b_seams_doc_emitted(ext: Path) -> None:
+    """The scaffold documents the seam contracts a future chrome-ext-* kit binds to
+    (plan Phase B step 6). SEAMS.md sits in the project's docs/reference/."""
+    seams = ext.parent / "docs" / "reference" / "SEAMS.md"
+    assert seams.exists()
+    body = seams.read_text()
+    for seam in ("src/lib/storage.ts", "src/lib/messaging.ts", "get-token", "createIsolatedSentry"):
+        assert seam in body, seam
 
 
 @pytest.mark.skipif(
@@ -163,7 +271,9 @@ def test_wxt_scaffold_builds_and_manifest_has_permissions(tmp_path: Path) -> Non
     )
     assert build.returncode == 0, f"wxt build failed:\n{build.stderr[-2000:]}"
     manifest = json.loads((ext / ".output" / "chrome-mv3" / "manifest.json").read_text())
-    assert manifest["permissions"] == ["storage", "activeTab"]
+    assert manifest["permissions"] == ["storage", "activeTab", "contextMenus"]
+    # The custom command seam is registered (not the reserved _execute_action).
+    assert "open-settings" in manifest.get("commands", {})
     assert manifest["default_locale"] == "en"
     # Icons wired into the built manifest (else Chrome shows the gray puzzle default).
     assert manifest["icons"] == {"16": "/icon16.png", "48": "/icon48.png", "128": "/icon128.png"}
