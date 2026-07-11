@@ -175,6 +175,46 @@ def test_ranks_flip_when_quality_drops() -> None:
     )
 
 
+def test_quality_tier_column_emitted_and_reader_compat(monkeypatch) -> None:
+    """The quality_tier column joined from kilo_agents.db (SQLite) must appear
+    in every ### <task_type> table, SECOND-TO-LAST so cells[-1] stays `n`
+    for the fabrik-lib reader (libs/subagents/select.py:280 parses cells[-1]
+    as run count). Missing tier → blank cell.
+
+    Contract per fabrik-lib 2026-07-11: column name `quality_tier`, values 1/2/3
+    or blank; one SQLite read; no schema change.
+    """
+    import rank_task_subagents as m
+
+    # Fake the tier map — one row hits, one row doesn't
+    monkeypatch.setattr(m, "_load_quality_tiers", lambda: {"tier-known/a": 3})
+    rows = [
+        ("plan", "tier-known/a", 5, 0.10, 1.5, 1.0),
+        ("plan", "tier-missing/b", 5, 0.10, 1.5, 1.0),
+    ]
+    md = m.render(rows)
+    lines = md.splitlines()
+
+    header = next(line for line in lines if line.startswith("| rank"))
+    assert "quality_tier" in header, f"header missing tier column: {header!r}"
+    # Verify column ordering: tier is second-to-last (n at end)
+    header_cells = [c.strip() for c in header.strip("|").split("|")]
+    assert header_cells[-2] == "quality_tier", header_cells
+    assert header_cells[-1] == "n", header_cells
+
+    # Row with tier populated
+    rank_1 = next(line for line in lines if "tier-known/a" in line)
+    r1_cells = [c.strip() for c in rank_1.strip("|").split("|")]
+    assert r1_cells[-2] == "3", f"expected tier=3, cells={r1_cells}"
+    assert r1_cells[-1] == "5", f"cells[-1] must still be n=5, got {r1_cells}"
+
+    # Row with tier missing (blank)
+    rank_2 = next(line for line in lines if "tier-missing/b" in line)
+    r2_cells = [c.strip() for c in rank_2.strip("|").split("|")]
+    assert r2_cells[-2] == "", f"missing tier must render blank, cells={r2_cells}"
+    assert r2_cells[-1] == "5", f"cells[-1] must still be n=5, got {r2_cells}"
+
+
 def test_min_runs_threshold_filters_out_low_n() -> None:
     """Pairs with fewer than 3 runs must NOT appear in the ranking."""
     from rank_task_subagents import filter_min_runs

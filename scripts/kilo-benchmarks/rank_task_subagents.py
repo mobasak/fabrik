@@ -224,6 +224,37 @@ CODING_FALLBACK_PATH = (
 )
 CODING_FALLBACK_MAX = 10  # how many CODING models to blend when the fleet has no `code` data
 
+# SQLite store that carries `agents.quality_tier` (1/2/3). Same file
+# `rank_coding_subagents.py` opens — plain read-only join.
+KILO_AGENTS_DB = Path(__file__).resolve().parent / "kilo_agents.db"
+
+
+def _load_quality_tiers(path: Path = KILO_AGENTS_DB) -> dict[str, int]:
+    """Return `{model_id: quality_tier}` from `kilo_agents.db.agents` (SQLite).
+
+    Read-only, single query. Rows without a tier are omitted (caller will emit
+    a blank column value). Never raises — the docstring on the caller side is
+    that a missing DB or a schema drift just yields an empty dict, which then
+    surfaces as blank tier cells. Failing loud here would take out the daily
+    doc regeneration for a purely-cosmetic column.
+    """
+    import sqlite3
+
+    try:
+        with sqlite3.connect(f"file:{path}?mode=ro", uri=True) as conn:
+            rows = conn.execute(
+                "SELECT id, quality_tier FROM agents WHERE quality_tier IS NOT NULL"
+            ).fetchall()
+    except (sqlite3.Error, OSError):
+        return {}
+    return {mid: int(tier) for mid, tier in rows if tier is not None}
+
+
+def _fmt_tier(tiers: dict[str, int], model: str) -> str:
+    """Format the quality_tier cell — value 1/2/3 or blank per fabrik-lib contract."""
+    t = tiers.get(model)
+    return str(t) if t is not None else ""
+
 
 def _load_coding_fallback(path: Path = CODING_FALLBACK_PATH) -> list[str]:
     """Parse `docs/reference/kilo/CODING_SUBAGENT_SELECTION.md` and return the top-N
@@ -312,6 +343,14 @@ def render(rows: list, state: str = "ok") -> str:
     for r in kept:
         by_task.setdefault(r[0], []).append(r)
 
+    # Quality-tier join (fabrik-lib ask 2026-07-11): read `agents.quality_tier`
+    # from kilo_agents.db and emit a `quality_tier` column per row. Fabrik-lib's
+    # `pick_models` uses it as a blended prior (shrink real-run quality toward
+    # the tier — handles small-n gracefully) and optionally as a hard floor via
+    # SUBAGENT_MIN_TIER. Empty dict on failure → blank tier cells (never blocks
+    # doc regen).
+    tiers = _load_quality_tiers()
+
     # CODING fallback (Finder C fix): when the fleet has NO empirical `code` data,
     # seed the `### code` section from CODING_SUBAGENT_SELECTION.md so
     # pick_models("code") returns benchmark-ranked models instead of falling
@@ -336,11 +375,15 @@ def render(rows: list, state: str = "ok") -> str:
         scored = [(r, _value(r[3], r[4], r[5])) for r in task_rows]
         scored.sort(key=lambda x: (-x[1], x[0][1]))
         out.append(f"### {task_type} (n_total={n_total})")
-        out.append("| rank | model | value | success | avg_cost | avg_quality | n |")
-        out.append("|---:|---|---:|---:|---:|---:|---:|")
+        # `quality_tier` sits SECOND-TO-LAST so `cells[-1]` stays `n` — that's
+        # what fabrik-lib's `load_task_ranking()` reader parses as the run
+        # count (`libs/subagents/select.py:280`). Column position matters.
+        out.append("| rank | model | value | success | avg_cost | avg_quality | quality_tier | n |")
+        out.append("|---:|---|---:|---:|---:|---:|:-:|---:|")
         for rank, (r, val) in enumerate(scored, start=1):
             out.append(
-                f"| {rank} | `{r[1]}` | {val:.2f} | {r[5]:.2f} | ${r[3]:.4f} | {r[4]:.2f} | {r[2]} |"
+                f"| {rank} | `{r[1]}` | {val:.2f} | {r[5]:.2f} | ${r[3]:.4f} | {r[4]:.2f} | "
+                f"{_fmt_tier(tiers, r[1])} | {r[2]} |"
             )
         out.append("")
 
@@ -352,10 +395,13 @@ def render(rows: list, state: str = "ok") -> str:
     # not from live fleet invocations.
     if coding_fallback_models:
         out.append("### code (n_total=0, fallback from CODING_SUBAGENT_SELECTION.md)")
-        out.append("| rank | model | source |")
-        out.append("|---:|---|:-:|")
+        # `source` stays LAST so `cells[-1]` is `[benchmark]` (non-decimal →
+        # reader treats as n=0, matching the "no fleet runs" reality). Tier
+        # goes between model + source.
+        out.append("| rank | model | quality_tier | source |")
+        out.append("|---:|---|:-:|:-:|")
         for rank, model in enumerate(coding_fallback_models, start=1):
-            out.append(f"| {rank} | `{model}` | [benchmark] |")
+            out.append(f"| {rank} | `{model}` | {_fmt_tier(tiers, model)} | [benchmark] |")
         out.append("")
 
     return "\n".join(out) + "\n"
