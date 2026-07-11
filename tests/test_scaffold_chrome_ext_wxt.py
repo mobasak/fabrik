@@ -99,6 +99,21 @@ def test_i18n_owned_by_wxt_dev_i18n() -> None:
     assert "chrome-extension" not in I18N_ENABLED_TYPES
 
 
+def test_compose_traefik_cors_uses_regex_not_glob(tmp_path: Path) -> None:
+    """Traefik's accessControlAllowOriginList is EXACT-match (not glob) and Traefik
+    synthesizes the preflight itself (never reaching FastAPI). So `chrome-extension://*`
+    never matches a real ID → a deployed extension can't reach its backend. Must use the
+    *Regex variant + credentials."""
+    create_project(
+        "cxcompose", "x", base=tmp_path, project_type="chrome-extension", generate_spec=False
+    )
+    compose = (tmp_path / "cxcompose" / "compose.yaml").read_text()
+    assert "accesscontrolalloworiginlistregex=^chrome-extension://.*$" in compose
+    assert "accesscontrolallowcredentials=true" in compose
+    # the broken exact-match glob must be gone
+    assert "accesscontrolalloworiginlist=chrome-extension://*" not in compose
+
+
 def test_tailwind_v4_wired(ext: Path) -> None:
     """Tailwind v4 (@tailwindcss/vite) is wired into the build (plan Phase A wxt.config + deps)."""
     import json

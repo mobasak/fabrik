@@ -4100,7 +4100,7 @@ render(<App />, document.getElementById('root')!);
         f"app.add_middleware(\n"
         f"    CORSMiddleware,\n"
         f'    # Extension origins only (chrome-ext/70-chrome-ext.md § Auth) — never "*" with\n'
-        f'    # credentials (browsers reject that combo). Dev regex; set the exact ID for prod.\n'
+        f"    # credentials (browsers reject that combo). Dev regex; set the exact ID for prod.\n"
         f'    allow_origin_regex=r"chrome-extension://.*",\n'
         f"    allow_credentials=True,\n"
         f'    allow_methods=["*"],\n'
@@ -4215,7 +4215,12 @@ CMD ["sh", "-c", "uvicorn {package_name}.main:app --host 0.0.0.0 --port ${{PORT:
         healthcheck_path="/health",
         extra_labels=(
             f"traefik.http.middlewares.{name}-cors.headers.accesscontrolallowmethods=GET,POST,PUT,DELETE,OPTIONS",
-            f"traefik.http.middlewares.{name}-cors.headers.accesscontrolalloworiginlist=chrome-extension://*",
+            # Traefik synthesizes the preflight itself (never reaching the backend), and
+            # accessControlAllowOriginList is EXACT-match — chrome-extension://* never
+            # matches a real extension ID. Use the *Regex variant + credentials so a
+            # deployed extension can reach its backend (chrome-ext/70-chrome-ext.md § Auth).
+            f"traefik.http.middlewares.{name}-cors.headers.accesscontrolalloworiginlistregex=^chrome-extension://.*$",
+            f"traefik.http.middlewares.{name}-cors.headers.accesscontrolallowcredentials=true",
             f"traefik.http.middlewares.{name}-cors.headers.accesscontrolallowheaders=*",
             f"traefik.http.middlewares.{name}-cors.headers.accesscontrolmaxage=100",
             f"traefik.http.routers.{name}.middlewares={name}-cors",
