@@ -1616,7 +1616,7 @@ def projects(status: str | None, sync: bool):
 @click.option("--health", is_flag=True, help="Run health summary after scan")
 @click.option("--base", "-b", default="/opt", help="Base path to scan")
 def scan(health: bool, base: str):
-    """Scan /opt for projects and update registry + BUSINESS_MODEL.md."""
+    """Scan /opt for projects and update registry + PROJECT_CATALOG.md."""
     import subprocess
 
     sync_script = FABRIK_ROOT / "scripts" / "sync_projects.py"
@@ -1859,7 +1859,7 @@ def scaffold(
                 ["python", str(sync_script)], cwd=str(FABRIK_ROOT), capture_output=True, text=True
             )
             if result.returncode == 0:
-                click.echo("✅ BUSINESS_MODEL.md updated")
+                click.echo("✅ PROJECT_CATALOG.md updated")
             else:
                 click.echo(f"⚠️  Catalog sync failed: {result.stderr}", err=True)
 

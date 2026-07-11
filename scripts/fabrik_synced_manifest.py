@@ -113,7 +113,11 @@ REFERENCE_DOCS = [
         "docs/reference/ai_agent_prompt_directives.md",
     ),
     ("docs/operations/fabrik-lifecycle.md", "docs/operations/fabrik-lifecycle.md"),
-    ("docs/BUSINESS_MODEL.md", "docs/BUSINESS_MODEL.md"),
+    # The /opt project catalog (what exists, so a project can wire to a sibling instead of
+    # rebuilding). Renamed 2026-07-11 from BUSINESS_MODEL.md — that path is the per-project
+    # *monetization* doc and this fleet-synced catalog was overwriting it. Now its own doc,
+    # synced to a reference path that never collides with a project's own docs.
+    ("docs/PROJECT_CATALOG.md", "docs/reference/opt-project-catalog.md"),
     (
         "docs/reference/mobile-responsive-testing-guide.md",
         "docs/reference/mobile-responsive-testing-guide.md",

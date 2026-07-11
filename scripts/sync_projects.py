@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Sync /opt/* projects into data/projects.yaml + docs/BUSINESS_MODEL.md
+Sync /opt/* projects into data/projects.yaml + docs/PROJECT_CATALOG.md
 
 Source of truth: each project's project.yaml (created by fabrik scaffold).
 For projects without project.yaml, metadata is auto-detected from filesystem.
@@ -12,7 +12,7 @@ Triggers:
 
 Outputs:
 - /opt/fabrik/data/projects.yaml  (aggregated registry, machine-readable)
-- /opt/fabrik/docs/BUSINESS_MODEL.md  (AUTO-GENERATED:PROJECTS block, human-readable)
+- /opt/fabrik/docs/PROJECT_CATALOG.md  (AUTO-GENERATED:PROJECTS block, human-readable)
 
 Workflow Doc: docs/workflows/SYNC_PROJECTS_WORKFLOW.md
   ⚠️  Update the workflow doc when modifying this script.
@@ -436,7 +436,7 @@ def detect_deletions(current_projects: list[Project]) -> list[str]:
         return []
 
 
-# ── BUSINESS_MODEL.md output ─────────────────────────────────────────────────
+# ── PROJECT_CATALOG.md output ─────────────────────────────────────────────────
 
 
 def _display_status(status: str) -> str:
@@ -452,7 +452,7 @@ def _display_status(status: str) -> str:
 def generate_catalog_markdown(projects: list[Project]) -> str:
     """Generate markdown for project catalog.
 
-    Deterministic by design: BUSINESS_MODEL.md is a Fabrik-synced (byte-identical
+    Deterministic by design: PROJECT_CATALOG.md is a Fabrik-synced (byte-identical
     across projects) file, so the rendered block contains only the current /opt
     scan — no volatile timestamp and no transient "Recently Removed" section
     (that varies by each copy's scan history and would red the synced gate).
@@ -465,7 +465,7 @@ def generate_catalog_markdown(projects: list[Project]) -> str:
 
     total = len(projects)
 
-    # NOTE: no volatile "Last synced" timestamp here. BUSINESS_MODEL.md is a
+    # NOTE: no volatile "Last synced" timestamp here. PROJECT_CATALOG.md is a
     # Fabrik-synced file (``fabrik_synced_manifest.py``) enforced byte-identical
     # across every /opt project. A per-run timestamp would drift on every
     # regeneration (each ``fabrik apply`` refreshes this block) and red the
@@ -494,14 +494,18 @@ def generate_catalog_markdown(projects: list[Project]) -> str:
 
 
 def update_business_model(catalog_md: str) -> bool:
-    """Update /opt/fabrik/docs/BUSINESS_MODEL.md AUTO-GENERATED block."""
-    business_model_path = FABRIK_ROOT / "docs" / "BUSINESS_MODEL.md"
+    """Update the AUTO-GENERATED /opt project inventory in docs/PROJECT_CATALOG.md.
 
-    if not business_model_path.exists():
-        print(f"ERROR: {business_model_path} does not exist")
+    (Was docs/BUSINESS_MODEL.md until 2026-07-11 — that path is the per-project *monetization*
+    doc and was being clobbered by this fleet-synced catalog. The catalog now lives in its own
+    doc, synced to projects at docs/reference/opt-project-catalog.md.)"""
+    catalog_path = FABRIK_ROOT / "docs" / "PROJECT_CATALOG.md"
+
+    if not catalog_path.exists():
+        print(f"ERROR: {catalog_path} does not exist")
         return False
 
-    content = business_model_path.read_text(encoding="utf-8")
+    content = catalog_path.read_text(encoding="utf-8")
 
     pattern = r"(<!-- AUTO-GENERATED:PROJECTS:START -->).*?(<!-- AUTO-GENERATED:PROJECTS:END -->)"
     replacement = f"\\1\n{catalog_md}\\2"
@@ -514,7 +518,7 @@ def update_business_model(catalog_md: str) -> bool:
     else:
         content = re.sub(pattern, replacement, content, flags=re.DOTALL)
 
-    business_model_path.write_text(content, encoding="utf-8")
+    catalog_path.write_text(content, encoding="utf-8")
     return True
 
 
@@ -601,7 +605,7 @@ def update_ports_md(projects: list[Project], conflicts: dict[int, list[str]]) ->
 
 
 def main() -> int:
-    """Scan projects, detect changes, update registry + BUSINESS_MODEL.md + PORTS.md."""
+    """Scan projects, detect changes, update registry + PROJECT_CATALOG.md + PORTS.md."""
     print("📊 Scanning /opt/* projects...")
 
     projects = scan_projects()
@@ -623,9 +627,9 @@ def main() -> int:
     # Update human-readable catalog
     catalog_md = generate_catalog_markdown(projects)
     if update_business_model(catalog_md):
-        print("   📄 Updated docs/BUSINESS_MODEL.md")
+        print("   📄 Updated docs/PROJECT_CATALOG.md")
     else:
-        print("   ❌ Failed to update BUSINESS_MODEL.md")
+        print("   ❌ Failed to update PROJECT_CATALOG.md")
         return 1
 
     # Update port allocations

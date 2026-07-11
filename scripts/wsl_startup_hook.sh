@@ -7,7 +7,7 @@
 #
 # Pipeline:
 # 1. Env watcher: monitors /opt/*/.env changes → runs audit (violations logged, never writes secrets)
-# 2. Project registry sync: project.yaml → data/projects.yaml + BUSINESS_MODEL.md + PORTS.md (daily)
+# 2. Project registry sync: project.yaml → data/projects.yaml + PROJECT_CATALOG.md + PORTS.md (daily)
 # 3. Cascade backup freshness check (daily)
 # 4. Health summary (daily)
 # 5. Kilo agent workflow (daily, deterministic — no LLM):

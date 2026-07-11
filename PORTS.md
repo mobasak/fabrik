@@ -83,7 +83,7 @@ If you encounter a port conflict:
 
 
 <!-- AUTO-GENERATED:PORTS:START -->
-<!-- Last synced: 2026-07-10 03:35:44 -->
+<!-- Last synced: 2026-07-11 09:56:24 -->
 
 ### Project Port Allocations (from project.yaml)
 
@@ -108,6 +108,7 @@ If you encounter a port conflict:
 | 8011 | **job-agent** | python-api | /opt/job-agent |
 | 8012 | **llm_batch_processor** | python-api | /opt/llm_batch_processor |
 | 8013 | **marketing-argumant-generator** | python-api | /opt/marketing-argumant-generator |
+| 8014 | **rnfinal** | mobile-app | /opt/rnfinal |
 | 8015 | **proposal-creator** | python-api | /opt/proposal-creator |
 | 8016 | **seo** | python-api | /opt/seo |
 | 8017 | **supplement-tracker-advisor** | python-api | /opt/supplement-tracker-advisor |

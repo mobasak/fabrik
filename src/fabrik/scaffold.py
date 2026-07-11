@@ -1077,10 +1077,13 @@ def _scaffold_shared(
     if fabrik_claude_md.exists():
         shutil.copy(fabrik_claude_md, project_dir / "CLAUDE.md")
 
-    # Copy BUSINESS_MODEL.md (so Traycer can check for duplicate projects)
-    fabrik_catalog = FABRIK_ROOT / "docs" / "BUSINESS_MODEL.md"
+    # Copy the /opt project catalog (so Traycer can check for duplicate projects + wire to
+    # siblings). Renamed 2026-07-11 from BUSINESS_MODEL.md → PROJECT_CATALOG.md, and placed at
+    # docs/reference/opt-project-catalog.md so it never overwrites the project's own monetization
+    # BUSINESS_MODEL.md (which is seeded from its template via SHARED_TEMPLATE_MAP).
+    fabrik_catalog = FABRIK_ROOT / "docs" / "PROJECT_CATALOG.md"
     if fabrik_catalog.exists():
-        catalog_target = project_dir / "docs" / "BUSINESS_MODEL.md"
+        catalog_target = project_dir / "docs" / "reference" / "opt-project-catalog.md"
         catalog_target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy(fabrik_catalog, catalog_target)
 
@@ -4988,7 +4991,7 @@ _TYPE_SCAFFOLDERS: dict[str, Callable[..., None]] = {
 
 
 def _post_scaffold_sync(project_dir: Path) -> None:
-    """Post-scaffold hook: update project registry and BUSINESS_MODEL.md.
+    """Post-scaffold hook: update project registry and PROJECT_CATALOG.md.
 
     Runs sync_projects.py to pick up the new project. Failure is non-fatal
     (scaffold already succeeded).

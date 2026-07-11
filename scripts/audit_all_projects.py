@@ -1234,7 +1234,7 @@ def build_issues(audit: ProjectAudit):
                 "Weak or missing project description",
                 "project.yaml",
                 f"Current: `{audit.description or 'MISSING'}`",
-                "Meaningful description for BUSINESS_MODEL.md and Traycer context",
+                "Meaningful description for PROJECT_CATALOG.md and Traycer context",
                 "Update `description:` in project.yaml with 1-2 sentence purpose",
             )
         )
