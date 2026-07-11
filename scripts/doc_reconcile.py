@@ -116,14 +116,24 @@ def fired_docs(diff_files: list[str]) -> list[object]:
 
 
 def _added_lines(patch: str) -> str:
-    # A hunk's added lines start with a single "+"; the file header is "+++ b/path" (note the SPACE).
-    # Filter on "+++ " (with the space) so an added CONTENT line whose text starts with "++" (raw
-    # "+++foo") is still scanned for invented tokens, not mistaken for the header.
-    return "\n".join(
-        line[1:]
-        for line in patch.splitlines()
-        if line.startswith("+") and not line.startswith("+++ ")
-    )
+    """The ADDED content lines (a leading '+' INSIDE a hunk), distinguished from the file header
+    (``+++ b/path``, which precedes the first ``@@``) STRUCTURALLY — by hunk position, not a fragile
+    string prefix. So a content line that itself begins with '++' (raw '+++...' / '+++ ...', with or
+    without a space) is still captured for token extraction, while the real header is not."""
+    added: list[str] = []
+    in_hunk = False
+    for line in patch.splitlines():
+        if line.startswith("@@"):
+            in_hunk = True  # a hunk body follows (possibly several @@ hunks for one file)
+            continue
+        if not in_hunk or not line:
+            continue  # diff --git / index / --- / +++ headers that precede the first hunk
+        marker = line[0]
+        if marker == "+":
+            added.append(line[1:])
+        elif marker not in (" ", "-", "\\"):
+            in_hunk = False  # left the hunk body → the next file's header block has begun
+    return "\n".join(added)
 
 
 def _extract_tokens(added_text: str) -> set[str]:

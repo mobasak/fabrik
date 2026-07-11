@@ -50,6 +50,15 @@ def _diff_for(repo: Path, relpath: str, new_content: str) -> str:
     return diff
 
 
+def _mini_patch(target: str, *added: str, context: str = "ctx") -> str:
+    """A minimal but REALISTIC git-format unified diff (with a real @@ hunk header) adding lines."""
+    body = "".join(f"+{a}\n" for a in added)
+    return (
+        f"diff --git a/{target} b/{target}\n--- a/{target}\n+++ b/{target}\n"
+        f"@@ -1,1 +1,{1 + len(added)} @@\n {context}\n{body}"
+    )
+
+
 def _stub_pool(monkeypatch, *, diff: str, recorder: dict | None = None) -> None:
     monkeypatch.setattr(dr, "pick_models", lambda *a, **k: ["stub/model"])
     monkeypatch.setattr(dr, "run_agents", lambda specs, **k: [_fake_result(diff=diff)])
@@ -139,9 +148,9 @@ def test_default_mechanical_verify(tmp_path):
     _git(repo, "add", "-A")
     _git(repo, "commit", "-q", "-m", "i")
 
-    present = "+++ b/docs/QUICKSTART.md\n+use `real_symbol` here\n"
-    absent = "+++ b/docs/QUICKSTART.md\n+use `imaginary_zebra_func` here\n"
-    no_code = "+++ b/docs/QUICKSTART.md\n+just prose, no backticks\n"
+    present = _mini_patch("docs/QUICKSTART.md", "use `real_symbol` here")
+    absent = _mini_patch("docs/QUICKSTART.md", "use `imaginary_zebra_func` here")
+    no_code = _mini_patch("docs/QUICKSTART.md", "just prose, no backticks")
 
     assert dr._default_verify(present, _docrow(), repo) is True
     assert dr._default_verify(absent, _docrow(), repo) is False
@@ -598,7 +607,7 @@ def test_default_verify_excludes_target_doc(tmp_path):
     (repo / "docs" / "QUICKSTART.md").write_text("legacy prose mentions `phantom_symbol` here\n")
     _git(repo, "add", "-A")
     _git(repo, "commit", "-q", "-m", "i")
-    patch = "+++ b/docs/QUICKSTART.md\n+use `phantom_symbol` now\n"
+    patch = _mini_patch("docs/QUICKSTART.md", "use `phantom_symbol` now")
     # excluded from the haystack → not found anywhere in real code → rejected (would falsely pass if
     # the doc self-validated against its own text)
     assert dr._default_verify(patch, _docrow("docs/QUICKSTART.md"), repo) is False
@@ -612,7 +621,7 @@ def test_default_verify_fail_closed_on_error(tmp_path, monkeypatch):
         raise RuntimeError("scan blew up")
 
     monkeypatch.setattr(dr, "_codebase_haystack", _boom)
-    patch = "+++ b/docs/QUICKSTART.md\n+use `some_symbol` here\n"
+    patch = _mini_patch("docs/QUICKSTART.md", "use `some_symbol` here")
     assert dr._default_verify(patch, _docrow(), repo) is False  # crashed verify → reject, not apply
 
 
@@ -626,22 +635,29 @@ def test_verify_ignores_other_doc_prose(tmp_path):
     _git(repo, "add", "-A")
     _git(repo, "commit", "-q", "-m", "i")
     # a patch to QUICKSTART invents `zebra_widget`, which exists ONLY in OPERATIONS.md's prose (a .md)
-    patch = "+++ b/docs/QUICKSTART.md\n+see `zebra_widget`\n"
+    patch = _mini_patch("docs/QUICKSTART.md", "see `zebra_widget`")
     assert dr._default_verify(patch, _docrow("docs/QUICKSTART.md"), repo) is False  # .md excluded → rejected
     # sanity: a real code symbol still verifies
-    ok = "+++ b/docs/QUICKSTART.md\n+call `genuine`\n"
+    ok = _mini_patch("docs/QUICKSTART.md", "call `genuine`")
     assert dr._default_verify(ok, _docrow("docs/QUICKSTART.md"), repo) is True
 
 
-# ── Behavior 27 (P6-3): an added content line starting with "++" is still scanned for tokens ──
-def test_added_lines_double_plus_content_scanned(tmp_path):
+# ── Behavior 27 (P7 regression): hunk-aware _added_lines scans "++"/"++ " content, skips the header ──
+def test_added_lines_hunk_aware(tmp_path):
     repo = _mk_repo(tmp_path)
     (repo / "docs").mkdir()
     (repo / "docs" / "QUICKSTART.md").write_text("qs\n")
     _git(repo, "add", "-A")
     _git(repo, "commit", "-q", "-m", "i")
-    # raw diff line "+++foo ... `made_up`" is CONTENT (no space after +++), not the file header —
-    # its invented token must still be extracted and rejected, not silently skipped.
-    patch = "+++ b/docs/QUICKSTART.md\n+++plus prefixed line with `made_up_sym`\n"
-    assert "made_up_sym" in dr._extract_tokens(dr._added_lines(patch))
-    assert dr._default_verify(patch, _docrow("docs/QUICKSTART.md"), repo) is False
+    # The Pass-7 bug: an added CONTENT line beginning with "++" — WITH a space (raw hunk line
+    # "++ …", which byte-for-byte matched the old "+++ " header filter) — was silently dropped,
+    # so its invented token slipped verification. Hunk-position parsing captures both variants.
+    space = _mini_patch("docs/QUICKSTART.md", "+ see `made_up_space` sym")  # raw hunk line: "++ see …"
+    nospace = _mini_patch("docs/QUICKSTART.md", "+plus `made_up_nospace`")  # raw hunk line: "++plus …"
+    assert "made_up_space" in dr._extract_tokens(dr._added_lines(space))
+    assert "made_up_nospace" in dr._extract_tokens(dr._added_lines(nospace))
+    assert dr._default_verify(space, _docrow("docs/QUICKSTART.md"), repo) is False  # invented → rejected
+    assert dr._default_verify(nospace, _docrow("docs/QUICKSTART.md"), repo) is False
+    # the file header's `+++ b/…` path is NEVER mistaken for content (only the hunk body is scanned)
+    plain = _mini_patch("docs/QUICKSTART.md", "call `made_up_plain`")
+    assert dr._added_lines(plain).strip() == "call `made_up_plain`"
