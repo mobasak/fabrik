@@ -449,8 +449,12 @@ def main(argv: list[str] | None = None) -> int:
         os.chdir(root)
         if args.rng:
             name_run = _git_run(root, ["diff", args.rng, "--name-only"])
-            if name_run.returncode != 0:  # a bad/unresolvable range → surface it, don't mask as "no docs"
-                print(f"doc-reconcile: invalid range '{args.rng}' — {name_run.stderr.strip()[:120]}")
+            if (
+                name_run.returncode != 0
+            ):  # a bad/unresolvable range → surface it, don't mask as "no docs"
+                print(
+                    f"doc-reconcile: invalid range '{args.rng}' — {name_run.stderr.strip()[:120]}"
+                )
                 return 0
             diff = _git_out(root, ["diff", args.rng])
         else:
@@ -473,7 +477,9 @@ def main(argv: list[str] | None = None) -> int:
         print(f"doc-reconcile: degraded ({e})")
     finally:
         try:
-            os.chdir(prev_cwd)  # always restore the caller's cwd (matters for in-process/test callers)
+            os.chdir(
+                prev_cwd
+            )  # always restore the caller's cwd (matters for in-process/test callers)
         except OSError:
             pass
     return 0
