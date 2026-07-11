@@ -117,6 +117,24 @@ def test_empty_range_is_error(tmp_path, monkeypatch):
     assert cds_sync.main(["--range", "   "]) == 1
 
 
+# ── the ERROR-tier schema trigger is case-insensitive (WP-2) — consistent with check_doc_stubs/Tier-1 ──
+def test_schema_error_trigger_case_insensitive(tmp_path, monkeypatch):
+    repo = _mk_repo(tmp_path)
+    (repo / "db").mkdir()
+    (repo / "db" / "schema.sql").write_text("-- schema dump\n")  # a tracked dump that can drift
+    (repo / "Db" / "Migrations").mkdir(parents=True)  # UPPERCASE migration dir
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "-m", "base with schema dump")
+    (repo / "Db" / "Migrations" / "001.sql").write_text("CREATE TABLE x (id int);\n")
+    (repo / "CHANGELOG.md").write_text("## [Unreleased]\n\n### Added — m (2026-07-11)\n\nb\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "-m", "uppercase migration, schema dump NOT updated")
+    monkeypatch.chdir(repo)
+    # db/schema.sql was not updated for the `Db/Migrations/…` change → ERROR (exit 1). This only fires
+    # if the migration match is case-insensitive; a case-sensitive `/migrations/` would miss `Db/Migrations`.
+    assert cds_sync.main(["--range", "HEAD~1..HEAD"]) == 1
+
+
 # ── _git degrades to [] on a real subprocess error (git missing / timeout) — no gate crash ──
 def test_git_failsafe_on_subprocess_error(monkeypatch):
     def _boom(*a, **k):

@@ -625,6 +625,37 @@ def test_default_verify_fail_closed_on_error(tmp_path, monkeypatch):
     assert dr._default_verify(patch, _docrow(), repo) is False  # crashed verify → reject, not apply
 
 
+# ── Behavior 28 (whole-plan WP-1): STAGED mode sees uncommitted changes; --range would miss them ──
+def test_main_staged_mode_sees_uncommitted_changes(tmp_path, monkeypatch):
+    repo = _mk_repo(tmp_path)
+    (repo / ".env.example").write_text("A=1\n")
+    (repo / "docs").mkdir()
+    (repo / "docs" / "CONFIGURATION.md").write_text("cfg\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "-m", "base")
+    # a NEW env change, STAGED but NOT committed — HEAD has not advanced (the per-phase situation)
+    (repo / ".env.example").write_text("A=1\nB=2\n")
+    _git(repo, "add", ".env.example")
+
+    called: list[str] = []
+
+    def _run(specs, **k):
+        called.append(specs[0].owned_paths[0])
+        return [_fake_result(diff="")]
+
+    monkeypatch.setattr(dr, "pick_models", lambda *a, **k: ["m"])
+    monkeypatch.setattr(dr, "run_agents", _run)
+    monkeypatch.setattr(dr, "record_agent_run", lambda *a, **k: True)
+
+    # STAGED mode (no --range, the corrected per-phase wiring) MUST see the staged change → fire CONFIGURATION
+    assert dr.main(["--root", str(repo)]) == 0
+    assert "docs/CONFIGURATION.md" in called
+    # …and a committed-history range over the un-advanced HEAD sees NOTHING (why --range was the wrong per-phase call)
+    called.clear()
+    assert dr.main(["--range", "HEAD..HEAD", "--root", str(repo)]) == 0
+    assert called == []
+
+
 # ── Behavior 26 (P6-2): a symbol present only in ANOTHER doc's prose is NOT laundered as "real" ──
 def test_verify_ignores_other_doc_prose(tmp_path):
     repo = _mk_repo(tmp_path)

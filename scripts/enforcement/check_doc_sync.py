@@ -246,7 +246,13 @@ def main(argv: list[str] | None = None) -> int:
         f
         for f in staged
         if not _skip(f)
-        and (re.search(r"(^|/)models?(\.py|/)", f) or "/migrations/" in f or "/alembic/" in f)
+        # case-insensitive to match check_doc_stubs._schema (which doc_reconcile's Tier-1 loop reuses)
+        # — else a `Db/Migrations/x.sql` would reconcile the data-contract but not fire this ERROR gate.
+        and (
+            re.search(r"(^|/)models?(\.py|/)", f, re.IGNORECASE)
+            or "/migrations/" in f.lower()
+            or "/alembic/" in f.lower()
+        )
     ]
     # Each migration/model change must update ITS schema dump (the sibling in the
     # migration's own db/ tree, or root db/schema.sql by convention). A dump that
