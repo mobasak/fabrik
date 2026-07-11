@@ -4527,7 +4527,7 @@ Bonus finding from the same phase: OR's `/api/v1/chat/completions` streaming res
 
 ---
 
-# Lesson 84: For an RN/Expo scaffold, `test` + `type-check` + `lint` are NOT the build — you MUST run the bundler (`expo export`), or you ship a scaffold that installs green and fails to bundle
+# Lesson 89: For an RN/Expo scaffold, `test` + `type-check` + `lint` are NOT the build — you MUST run the bundler (`expo export`), or you ship a scaffold that installs green and fails to bundle
 
 **Context (2026-07-11):** I twice declared the `mobile-app` scaffold "flawless" on the strength of `pnpm test` (41/41) + `pnpm type-check` (0) + `pnpm lint` (0). An operator challenged "you spent hours and still can't be sure?" and pointed me at the sandbox: *run the build.* I did — `npx expo export --platform android` — and it **failed immediately**: `Error: As of SDK 56, expo-router is no longer compatible with react-navigation`. The template's `src/app/_layout.tsx` (+ 3 files) imported from `@react-navigation/native`, and — worse — **I** had added `@react-navigation/native` as a direct dependency during the plan-1 review, explicitly *refuting* the plan's "no `@react-navigation`" gate on the (SDK-≤55-era) belief that "expo-router is built on react-navigation." That belief was correct in 2024 and **false as of Expo SDK 56**, which severed the coupling: expo-router now vendors its own copy and re-homes the API under `expo-router/react-navigation` (docs.expo.dev/router/migrate/sdk-55-to-56). None of the three gates catch this — only Metro, running the actual dependency graph, does.
 
