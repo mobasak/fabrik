@@ -1,9 +1,27 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
-**Last Updated:** 2026-07-11 (Lesson 88 — expensive-live-step runners need persistence-first design; a bench-t0 that runs post-round-trip measures nothing)
+**Last Updated:** 2026-07-11 (Lesson 89 — WXT/MV3 chrome-ext scaffold: layered verification catches what a single layer misses, + the non-obvious MV3 facts)
 
 **Purpose:** CAPTURE TECHNICAL HURDLES, AI-SPECIFIC QUIRKS, AND ARCHITECTURAL DECISIONS TO PREVENT REGRESSION AS CODEBASES AND AI AGENTS EVOLVE.
+
+---
+
+# Lesson 89: WXT/MV3 chrome-ext scaffold — layered verification catches what a single layer misses, plus the non-obvious MV3 facts
+
+**Context (chrome-ext WXT scaffold rebuild, plan-1, 2026-07-11):** rebuilt the `chrome-extension` scaffold's client lane from Vite+`@crxjs` onto WXT+Preact. Two bugs would have shipped silently to every scaffolded extension, each caught by a *different* verification layer that the others missed — the meta-lesson.
+
+**The layered-verification payoff (the reusable meta-lesson):** static gates (tsc/eslint/size-limit) and even a popup-only Playwright smoke were ALL green while two real defects sat in the emitted code:
+- **The `contextMenus`-permission SW crash** was invisible to tsc/eslint AND to a popup/options Playwright smoke (they capture *page* console, not the *service-worker* console, and an uncaught SW exception in `onInstalled` is not a `console.error`). It only surfaced when I probed the SW context directly (`sw.evaluate(() => typeof chrome.contextMenus)` → `'undefined'`). **Rule:** to verify MV3 background behavior you must drive the **service worker** itself (Playwright `context.serviceWorkers()` / `waitForEvent('serviceworker')` + `sw.evaluate`), not just the extension pages.
+- **The Preact overlay memory leak** (`onRemove` didn't `render(null, container)` — Preact does NOT auto-unmount when WXT tears the shadow-root container down, so the vnode tree leaks on every SPA soft-navigation remount) was invisible to every static gate AND to my own native adversarial review — it took the **OpenRouter pool finder (`minimax/minimax-m3`)** to catch it. This is the concrete evidence for `62-using-subagents.md`'s "run BOTH layers": the cheap pool caught a real bug an Opus self-review missed. Native-only review also tripped the BLOCKING `check_subagent_flywheel` gate (a substantial code review that records zero pool rows).
+
+**Non-obvious MV3/WXT facts (grounded empirically this session — don't re-derive from memory):**
+- A **static `<all_urls>` content script injects WITHOUT `host_permissions`** — the `content_scripts.matches` declaration grants injection itself (host_permissions is for the `scripting` API / cross-origin fetch). *Proven*: loaded the built extension, navigated to a live local http page, saw the `<name>-overlay` shadow host mount.
+- **WXT exposes both `VITE_`- and `WXT_`-prefixed** env vars to `import.meta.env` (it's Vite underneath). *Proven*: a `VITE_PUBLIC_*` value appeared in the built bundle.
+- **Tailwind v4 has a DYNAMIC spacing scale** — `w-90` is valid (`width:calc(var(--spacing) * 90)`); a "not in the scale" instinct is v3 knowledge. Verify against the built CSS, not memory.
+- **The reserved `_execute_action` command never dispatches to `chrome.commands.onCommand`** (the browser handles it natively) — a listener for it is dead code; use a custom command name for a real onCommand seam.
+- **pnpm 11** replaced `onlyBuiltDependencies` with `allowBuilds:` in `pnpm-workspace.yaml` (`strictDepBuilds` defaults on) — the fix for the install-time `ERR_PNPM_IGNORED_BUILDS` caveat.
+- **Traefik CORS `accessControlAllowOriginList` is EXACT-match, not glob** — `chrome-extension://*` never matches a real extension ID; use `accessControlAllowOriginListRegex=^chrome-extension://.*$` (a deployed extension's authed calls silently fail otherwise).
 
 ---
 
