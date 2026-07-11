@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Coding microbench: 4 ByteDance-Seed models scored via a completions-shim + evalplus offline eval (plan-3, 2026-07-11)
+
+Populates `agents.humaneval_score` + `agents.coding_score` for the 4 `bytedance-seed/seed-*` coding models (unblocks plan-2's Phase E which had failed with an evalplus↔OpenRouter JSONDecodeError). Ships a new completions shim [`scripts/kilo-benchmarks/openrouter_complete.py`](scripts/kilo-benchmarks/openrouter_complete.py) built on the vendored `libs.subagents._transport` primitive (proven OR-compatible via streaming SSE), refactors `microbench_coding._run_one` to a **3-step pipeline** — `generate_samples → evalplus.sanitize → evalplus.evaluate --samples` — and lands persistent run caches at `scripts/kilo-benchmarks/.microbench_cache/<UTC-stamp>-pid<pid>/` so downstream sanitize/eval failures are $0-recoverable (proven the same evening: v3's DB write crashed transiently → cached-replay wrote the scores for free). Real scores: seed-1.6 & seed-2.0-lite tie at coding_score=91.96 (98.17 HE+), seed-2.0-mini at 90.52, seed-1.6-flash at 87.16. Real OR spend: $9.64 total across v1 (wasted, sanitize gap) + v3 (successful, cached).
+
+### Fixed — Speed microbench TTFT was measuring Python overhead, not network+provider latency (plan-3 side-fix, 2026-07-11)
+
+`_parse_stream` in [`scripts/kilo-benchmarks/microbench_or_models.py`](scripts/kilo-benchmarks/microbench_or_models.py) set `t0 = time.monotonic()` at the top of the function — but that runs **after** `requests.post()` returns, i.e. after the HTTP round-trip and (for fast models) after the entire SSE stream has already been buffered client-side. Result: TTFT for 3 of 4 Seed models read `1.5-3.2 ms` — physically impossible for a network-hosted LLM. Moved `t0` to just before `requests.post()` in `bench_one`; threaded as a parameter. Verified live: `seed-1.6` now reports `ttft_ms=1873.2` (was 1.7). 20/20 `test_microbench.py` green.
+
 ### Changed — Doc-registry cleanup + Doc-Sync-Matrix alignment (plan-4 Phase E, 2026-07-11)
 
 Archived the 2 superseded scaffold templates (`API_REFERENCE_TEMPLATE.md`, `DATABASE_SCHEMA_TEMPLATE.md` → `templates/.archive/`) and dropped their now-dangling mappings from `kilo_docs_enforcer.py`'s `DOC_TEMPLATE_MAP` (API reference → QUICKSTART + live `/docs`; DB schema → `db/schema.sql` + `data-contract.md`). Aligned the CLAUDE.md Doc Sync Matrix with the registry (added DEPLOYMENT / docs-index / LESSONS_LEARNT / design-system / BUSINESS_MODEL / STRATEGIC_BACKLOG rows; canonicalized `LESSONS_LEARNT.md`). Fixed the stale `~/.claude/commands/fabrik-plan-after-chat.md` schema→`docs/DATABASE_SCHEMA.md` reference to `docs/data-contract.md`. Indexed the new registry + check + tests.

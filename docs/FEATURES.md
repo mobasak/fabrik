@@ -1,6 +1,14 @@
 # Fabrik — Features
 
-**Last Updated:** 2026-07-08
+**Last Updated:** 2026-07-11
+
+## Coding microbench — live pass@1 for the coding-subagent ranking (2026-07-11)
+
+`scripts/kilo-benchmarks/microbench_coding.py` runs a live 3-step pipeline per `(model, dataset)` unit — `openrouter_complete.generate_samples` (via the vendored `libs.subagents._transport` primitive) → `evalplus.sanitize` (tree-sitter extracts Python from prose + fenced code) → `evalplus.evaluate --samples` (sandboxed pass@1 grading) — and writes real `agents.humaneval_score` + `agents.coding_score` for OpenRouter LLMs. Samples + eval_results persist under `scripts/kilo-benchmarks/.microbench_cache/<UTC-stamp>-pid<pid>/` so a downstream sanitize/evaluate failure is $0-recoverable (the $-cost sits entirely in the shim step). Outer serial × shim inner-8 concurrent → 8 in-flight OR calls, not 64. `TOTAL_SPEND_USD: {n.nn}` on the last stdout line; typical run cost ~$1.20 per 4-model × 2-dataset unit set (HumanEval+ 164 + MBPP+ 378 = 542 problems per model).
+
+**Initial coverage (2026-07-11):** the 4 `bytedance-seed/seed-*` coding models — `seed-1.6` and `seed-2.0-lite` tie at `coding_score = 91.96` (98.17 HumanEval+), `seed-2.0-mini` at 90.52, `seed-1.6-flash` at 87.16. Fed straight into `rank_coding_subagents.py` → `docs/reference/kilo/CODING_SUBAGENT_SELECTION.md`.
+
+---
 
 ## Fleet AI-sysadmin Claude quota-rotation (2026-07-08)
 
