@@ -4035,9 +4035,14 @@ export default defineContentScript({{
         // Use px, not rem: a shadow root does NOT reset <html> font-size, so rem leaks
         // the host page's root size (chrome-ext/70-chrome-ext.md § Surfaces).
         render(<div style={{{{ padding: '8px', fontFamily: 'system-ui' }}}}>{name}</div>, container);
+        return container; // handed to onRemove for teardown
       }},
-      onRemove() {{
-        // preact render cleanup is handled by WXT tearing down the container.
+      onRemove(container) {{
+        // preact does NOT auto-unmount when WXT removes the container — you must render(null)
+        // to unmount the vnode tree (runs effect cleanups, drops the detached-DOM refs). Without
+        // this the overlay leaks on every SPA soft-navigation remount.
+        if (container)
+          render(null, container);
       }},
     }});
     ui.mount();

@@ -204,6 +204,13 @@ def test_phase_b_content_uses_shadow_root_ui(ext: Path) -> None:
     assert "cssInjectionMode: 'ui'" in src
 
 
+def test_phase_b_content_unmounts_preact_on_remove(ext: Path) -> None:
+    """Regression (pool-review finding): preact does NOT auto-unmount when WXT tears the
+    container down — onRemove must render(null) or the overlay leaks on SPA remounts."""
+    src = (ext / "src" / "entrypoints" / "content.tsx").read_text()
+    assert "render(null, container)" in src, "onRemove must explicitly unmount the vnode tree"
+
+
 def test_phase_b_popup_proves_preact_compat(ext: Path) -> None:
     """popup imports a hook from 'react' — proving the preact/compat alias resolves
     (a real React-ecosystem lib would import this way)."""
