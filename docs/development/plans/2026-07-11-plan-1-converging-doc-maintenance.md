@@ -106,7 +106,9 @@ Steps:
 **Gate:** `python -m pytest tests/test_doc_coverage_range.py -q` → pass; `python scripts/enforcement/check_doc_sync.py --range HEAD~1..HEAD` on the fabrik repo → runs, no crash; `python scripts/final_gate.py --check --json` → `status:success` (the extended checks still pass).
 **Close (literal steps):** (1) phase gate green; (2) `check_doc_sync.py` + CHANGELOG + doc-sync-matrix note if needed; (3) **`/fabrik-review` — BLOCKING, looped to no-op** (these are fleet-wide enforcement gates → pool finders + **native `fabrik-reviewer` (Opus)** on the gate logic) → refute → prove-before-fix → clean; (4) commit (`Agent-Phase: C`).
 
-## Phase D — command wiring (the four approved touchpoints)
+## Phase D — command wiring (the four approved touchpoints) — ✅ EXECUTED 2026-07-11
+
+> **Executed:** wired all four — `~/.claude/commands/fabrik-execute-plan.md` (per-phase Tier-1 `doc_reconcile.py` loop replacing hand-authoring + a Finish `--range` coverage receipt), `fabrik-docs-review.md` (author-fixes via the reconcile loop), `fabrik-plan-after-chat.md` (trigger→doc steps annotated pool-reconciled), and the in-repo synced `.windsurf/rules/core/40-documentation.md` (a "How coder docs stay current" section: Tier-0 reuse → Tier-1 reconcile → mechanical backstop + coverage receipt). Residual (step 5) resolved: the reconciler is a script (`scripts/doc_reconcile.py`), no new skill file. The 3 command files are operator-level (out-of-repo, not committed); only `40-documentation.md` rides this commit. Prose-only phase — references verified accurate (doc_reconcile.py / pick_models("docs") / --range all exist), light self-review, no finder round.
 
 **Files:** `~/.claude/commands/fabrik-execute-plan.md`, `~/.claude/commands/fabrik-docs-review.md`, `~/.claude/commands/fabrik-plan-after-chat.md`, `.windsurf/rules/core/40-documentation.md` (reference the loop). *(Operator-level command files — outside the repo tree; a local edit, not fleet-synced. `40-documentation.md` IS synced.)*
 Steps:

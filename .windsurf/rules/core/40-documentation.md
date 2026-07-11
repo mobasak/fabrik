@@ -42,6 +42,14 @@ The canonical doc set is the **type-aware registry** (`scripts/enforcement/_doc_
 
 **Not all docs apply to every scaffold type** — the registry buckets decide (a `file-worker` gets no GUI/SaaS docs). An empty *applicable* stub at epic end whose trigger fired = governance failure (`check_doc_stubs` WARNs it).
 
+### How coder docs stay current — the converging doc-maintenance loop
+
+You don't hand-author every doc update from scratch. The system keeps the coder-owned docs current cheaply, in tiers:
+
+- **Tier-0 (deterministic, free):** the computable parts regenerate mechanically — `docs_updater.py` keeps the `INDEX.md` `AUTO-GENERATED:STRUCTURE` tree current (gate-checked); `sync_projects.py` keeps `PORTS.md`/the project catalog current. No model, no drift.
+- **Tier-1 (cheap-pool author → verify → converge):** for each doc whose Doc-Sync trigger fired, `scripts/doc_reconcile.py` dispatches a cheap OpenRouter-pool author (`libs.subagents`, `pick_models("docs")`) to emit a **minimal structured patch**, **verifies it before applying** (a symbol cross-check catches invented endpoints; the orchestrator injects a higher-assurance native-Claude verify), and loops to a zero-edit round. Runs per phase in `/fabrik-execute-plan`; never blocks (fail-safe).
+- **Backstop (mechanical, every commit):** `check_doc_sync` (ERROR: CHANGELOG/CONFIGURATION/schema; WARN: the rest) + `check_doc_stubs` (advisory) force touch-on-change; the whole-plan **`--range <base>..HEAD` coverage receipt** at Finish proves every fired-trigger doc was touched across the plan, not just the last commit. Truth still isn't mechanizable — these force the update; `/fabrik-docs-review` converges correctness.
+
 ---
 
 ## Documentation Sync Matrix (trigger-based)
