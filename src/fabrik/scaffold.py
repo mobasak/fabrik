@@ -4104,7 +4104,8 @@ render(<App />, document.getElementById('root')!);
         f'    allow_origin_regex=r"chrome-extension://.*",\n'
         f"    allow_credentials=True,\n"
         f'    allow_methods=["*"],\n'
-        f'    allow_headers=["*"],\n'
+        f'    allow_headers=["Authorization", "Content-Type"],  # explicit — "*" is not a\n'
+        f'    # wildcard for credentialed requests (Bearer JWT per 70-chrome-ext.md § Auth)\n'
         f")\n"
         f"\n"
         f"\n"
@@ -4221,7 +4222,7 @@ CMD ["sh", "-c", "uvicorn {package_name}.main:app --host 0.0.0.0 --port ${{PORT:
             # deployed extension can reach its backend (chrome-ext/70-chrome-ext.md § Auth).
             f"traefik.http.middlewares.{name}-cors.headers.accesscontrolalloworiginlistregex=^chrome-extension://.*$",
             f"traefik.http.middlewares.{name}-cors.headers.accesscontrolallowcredentials=true",
-            f"traefik.http.middlewares.{name}-cors.headers.accesscontrolallowheaders=*",
+            f"traefik.http.middlewares.{name}-cors.headers.accesscontrolallowheaders=Authorization,Content-Type",
             f"traefik.http.middlewares.{name}-cors.headers.accesscontrolmaxage=100",
             f"traefik.http.routers.{name}.middlewares={name}-cors",
         ),
