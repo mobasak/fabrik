@@ -46,7 +46,7 @@ def test_parse_stream_computes_tps_ttft_and_cost():
             for line in lines:
                 yield line.decode("utf-8") if decode_unicode else line
 
-    r = _parse_stream(FakeResp())
+    r = _parse_stream(FakeResp(), t0=time.monotonic())
     assert r["error"] is None, r
     assert r["prompt_tokens"] == 10
     assert r["completion_tokens"] == 30
@@ -66,7 +66,7 @@ def test_parse_stream_returns_error_when_no_usage_block():
             yield 'data: {"choices":[{"delta":{"content":"only content"}}]}'
             yield "data: [DONE]"
 
-    r = _parse_stream(FakeResp())
+    r = _parse_stream(FakeResp(), t0=time.monotonic())
     assert r["error"] and "no usage" in r["error"]
 
 
@@ -79,7 +79,7 @@ def test_parse_stream_returns_error_on_zero_completion_tokens():
             yield 'data: {"usage":{"prompt_tokens":5,"completion_tokens":0,"cost":0}}'
             yield "data: [DONE]"
 
-    r = _parse_stream(FakeResp())
+    r = _parse_stream(FakeResp(), t0=time.monotonic())
     assert r["error"] and "zero completion_tokens" in r["error"]
 
 
@@ -97,7 +97,7 @@ def test_parse_stream_ignores_malformed_data_lines():
             yield 'data: {"usage":{"prompt_tokens":1,"completion_tokens":2,"cost":1e-6}}'
             yield "data: [DONE]"
 
-    r = _parse_stream(FakeResp())
+    r = _parse_stream(FakeResp(), t0=time.monotonic())
     assert r["error"] is None
     assert r["completion_tokens"] == 2
 
@@ -119,7 +119,7 @@ def test_parse_stream_rejects_single_chunk_streams_instead_of_fabricating_tps():
             yield 'data: {"usage":{"prompt_tokens":10,"completion_tokens":300,"cost":1e-5}}'
             yield "data: [DONE]"
 
-    r = _parse_stream(FakeResp())
+    r = _parse_stream(FakeResp(), t0=time.monotonic())
     assert r["error"] is not None, "single-chunk stream must return an error"
     assert "single-chunk" in r["error"], f"expected 'single-chunk' in error, got {r['error']!r}"
     assert r["tps"] is None, "must not fabricate a TPS value"
@@ -147,7 +147,7 @@ def test_parse_stream_counts_reasoning_chunks_for_tps_math():
             yield 'data: {"usage":{"prompt_tokens":10,"completion_tokens":128,"cost":8e-5}}'
             yield "data: [DONE]"
 
-    r = _parse_stream(FakeResp())
+    r = _parse_stream(FakeResp(), t0=time.monotonic())
     assert r["error"] is None, f"reasoning-model stream must succeed, got: {r['error']}"
     assert r["tps"] > 0, f"tps must be positive, got {r['tps']}"
     assert r["ttft_ms"] >= 0, f"ttft must be non-negative, got {r['ttft_ms']}"
@@ -186,7 +186,7 @@ def test_parse_stream_extracts_openai_reasoning_details_array():
             yield 'data: {"usage":{"prompt_tokens":10,"completion_tokens":100,"cost":6e-4}}'
             yield "data: [DONE]"
 
-    r = _parse_stream(FakeResp())
+    r = _parse_stream(FakeResp(), t0=time.monotonic())
     assert r["error"] is None, f"reasoning_details-only stream must succeed, got: {r['error']}"
     assert r["tps"] > 0
     assert r["ttft_ms"] >= 0
@@ -204,7 +204,7 @@ def test_bench_one_catches_unicode_decode_error_from_iter_lines(monkeypatch):
             yield 'data: {"choices":[{"delta":{"content":"hi"}}]}'
             raise UnicodeDecodeError("utf-8", b"\xff", 0, 1, "invalid start byte")
 
-    r = _parse_stream(BrokenResp())
+    r = _parse_stream(BrokenResp(), t0=time.monotonic())
     assert r["error"] is not None
     assert "stream error" in r["error"] or "UnicodeDecodeError" in r["error"], r["error"]
 

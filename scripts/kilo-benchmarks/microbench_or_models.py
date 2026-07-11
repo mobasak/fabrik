@@ -80,19 +80,24 @@ def log(msg: str) -> None:
 # ---------- SSE stream parser ----------
 
 
-def _parse_stream(resp: requests.Response) -> dict:
+def _parse_stream(resp: requests.Response, t0: float) -> dict:
     """Consume OR's SSE stream and compute (tps, ttft_ms, cost_usd).
 
     Returns `{tps, ttft_ms, prompt_tokens, completion_tokens, cost_usd,
     error}`. `error` is None on success, string on failure.
 
-    TTFT = time from stream start to first `data:` chunk whose
-    `delta.content` is non-empty (the first delta often carries
-    `role:"assistant"` with empty content — skip).
+    TTFT = time from `t0` (moment the caller issued `requests.post`, per the
+    industry-standard definition — round-trip + provider queue + prefill) to
+    the first `data:` chunk whose `delta.content` is non-empty (the first
+    delta often carries `role:"assistant"` with empty content — skip).
+
+    Do NOT compute `t0` inside this function: by the time it's called the
+    HTTP round-trip already completed and the buffer may already hold the
+    entire response, producing 1-3 ms readings that measure Python overhead
+    only — not network + provider latency (fixed 2026-07-11).
 
     TPS = completion_tokens / (t_last_content_chunk - t_first_content_chunk).
     """
-    t0 = time.monotonic()
     t_first_content = None
     t_last_content = None
     usage_block = None
@@ -215,6 +220,8 @@ def bench_one(model_id: str, api_key: str) -> dict:
         "Content-Type": "application/json",
         "Accept": "text/event-stream",
     }
+    # t0 must bracket the network round-trip — see _parse_stream docstring.
+    t0 = time.monotonic()
     try:
         resp = requests.post(OR_URL, headers=headers, json=body, stream=True, timeout=REQ_TIMEOUT_S)
     except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as e:
@@ -230,7 +237,7 @@ def bench_one(model_id: str, api_key: str) -> dict:
             except Exception:  # noqa: BLE001
                 body_text = "?"
             return _err(f"HTTP {resp.status_code}: {body_text}")
-        return _parse_stream(resp)
+        return _parse_stream(resp, t0)
 
 
 def bench_median(model_id: str, api_key: str, n: int = BENCH_N_RUNS) -> dict:
