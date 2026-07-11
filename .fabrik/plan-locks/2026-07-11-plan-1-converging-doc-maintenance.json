@@ -1,0 +1,22 @@
+{
+  "plan": "docs/development/plans/archived/2026-07-11-plan-1-converging-doc-maintenance.md",
+  "owned_paths": [
+    "scripts/doc_reconcile.py",
+    "scripts/docs_updater.py",
+    "scripts/enforcement/check_doc_sync.py",
+    "scripts/enforcement/check_doc_stubs.py",
+    "tests/test_doc_reconcile.py",
+    "tests/test_doc_coverage_range.py",
+    "tests/test_docs_updater_ports.py",
+    ".windsurf/rules/core/40-documentation.md"
+  ],
+  "shared_append": [
+    "CHANGELOG.md",
+    "INDEX.md"
+  ],
+  "branch": "master",
+  "started_at": "2026-07-11T16:55:53Z",
+  "status": "released",
+  "completed_at": "2026-07-11T17:50:00Z",
+  "final_commit": "038aa8f9"
+}
