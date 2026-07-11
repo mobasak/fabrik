@@ -4308,8 +4308,10 @@ async function refreshOnce(): Promise<TokenPair | null> {
 
 async function doFetch(req: SerializableRequest, access: string): Promise<Response> {
   const headers = new Headers(req.headers);
-  // Caller guarantees the API origin (authedFetch refuses others); attach the Bearer when we
-  // actually have a token — an unauthenticated API call (e.g. pre-login) sends none.
+  // The SW is the SOLE authority on Authorization: drop any caller-supplied header (an untrusted
+  // content script must not inject one), then attach the Bearer only when we actually hold a token
+  // — an unauthenticated API call (e.g. pre-login) sends none.
+  headers.delete('Authorization');
   if (access)
     headers.set('Authorization', `Bearer ${access}`);
   return fetch(req.url, { method: req.method ?? 'GET', headers, body: req.body });

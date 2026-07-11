@@ -213,6 +213,9 @@ def test_authed_fetch_is_api_origin_only_proxy(ext: Path) -> None:
     assert "origin_not_allowed" in src
     assert "setRefreshHandler" in src, "the pluggable 401-refresh hook"
     assert "=== 401" in src, "401-refresh-retry-once machinery"
+    # The SW is the SOLE authority on Authorization — a caller-supplied header is dropped so an
+    # untrusted content script can't forward a forged Bearer when no token is stored.
+    assert "headers.delete('Authorization')" in src
 
 
 def test_authed_fetch_single_flights_refresh(ext: Path) -> None:

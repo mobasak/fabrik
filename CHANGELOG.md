@@ -15,10 +15,12 @@ preferred `'authed-fetch'` path: the content script hands the SW a `Serializable
 **never receives the token** — the SW attaches the Bearer, single-flight-refreshes on 401, and
 returns the serialized response. Hardened over a pool+native adversarial review: `authed-fetch`
 is an **API-origin-ONLY proxy** (exact-origin match; refuses other origins → closes open-proxy /
-SSRF and prevents attaching the token to an attacker URL), the refresh is **single-flighted** (a
-rotating refresh token isn't spent twice → no logout storm), an `Authorization` echo is stripped
-from forwarded response headers, a failed refresh returns null without masking the 401, and a
-malformed empty-access refresh is rejected rather than persisted. `get-token` is retained (raw
+SSRF and prevents attaching the token to an attacker URL), the SW is the **sole authority on
+`Authorization`** (a caller-supplied header is dropped so a content script can't forward a forged
+Bearer), the refresh is **single-flighted** (a rotating refresh token isn't spent twice → no
+logout storm), an `Authorization` echo is stripped from forwarded response headers, a failed
+refresh returns null without masking the 401, and a malformed empty-access refresh is rejected
+rather than persisted. `get-token` is retained (raw
 token, documented tradeoff) and the refresh is a pluggable `setRefreshHandler()` hook the auth kit
 wires at SW startup. `docs/reference/SEAMS.md` updated in lockstep. Verified: `pnpm install`→
 `wxt build`→`tsc`→`eslint`→`size-limit` green + a Playwright GUI regression + node logic proofs of
