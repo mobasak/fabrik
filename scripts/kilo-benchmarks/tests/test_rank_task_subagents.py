@@ -114,7 +114,10 @@ def test_coding_fallback_not_emitted_when_fleet_has_code_data(monkeypatch) -> No
         "_load_coding_fallback",
         lambda *_a, **_k: ["should-NOT-appear/model"],
     )
-    rows = [("code", "real-fleet/model", 5, 0.10, 1.5, 0.9)]
+    # avg_quality=3.5 is above the quality gate (≥2.5 after shrinkage) so the
+    # row survives to be emitted — the fixture must actually make it into the
+    # doc for the assertion "should-NOT-appear is absent" to be meaningful.
+    rows = [("code", "real-fleet/model", 5, 0.10, 3.5, 0.9)]
     md = rank_task_subagents.render(rows)
     assert "`real-fleet/model`" in md
     assert "should-NOT-appear" not in md, (
@@ -123,56 +126,128 @@ def test_coding_fallback_not_emitted_when_fleet_has_code_data(monkeypatch) -> No
     assert "[benchmark]" not in md
 
 
-def test_ranks_by_value_success_x_quality_over_cost() -> None:
-    """value = success × quality / cost — the numeric formula, not just ordering.
+def test_value_helper_math_is_success_x_quality_over_cost() -> None:
+    """The `_value()` helper (kept for legacy/analytics callers) is exact
+    success × quality / cost. Not used to drive rank order any more — that's
+    shrunk_q + cost — but the math is pinned for downstream tools."""
+    from rank_task_subagents import _value
 
-    Verifying value math directly catches the mutation `_value = -avg_cost` (which
-    would still put cheap-good before expensive-top by luck of this fixture).
-    """
-    from rank_task_subagents import _value, render
-
-    # Two models for task_type="spec"
-    rows = [
-        # (task_type, model, n, avg_cost, avg_quality, success_rate)
-        ("spec", "cheap-good", 10, 0.10, 1.5, 0.90),  # value = 0.9 * 1.5 / 0.10 = 13.5
-        ("spec", "expensive-top", 10, 0.50, 1.7, 0.95),  # value = 0.95 * 1.7 / 0.50 = 3.23
-    ]
-    # Direct math assertion — mutation-proof.
     assert _value(0.10, 1.5, 0.90) == 13.5
     assert abs(_value(0.50, 1.7, 0.95) - 3.23) < 0.01
-
-    md = render(rows)
-    # Cheap-good ranks #1 and its value column shows 13.50 (2dp per render()).
-    lines = md.splitlines()
-    rank_1_line = next(line for line in lines if line.startswith("| 1 "))
-    assert "cheap-good" in rank_1_line
-    assert "13.50" in rank_1_line, f"expected value=13.50 in rank-1 row, got: {rank_1_line}"
-    rank_2_line = next(line for line in lines if line.startswith("| 2 "))
-    assert "expensive-top" in rank_2_line
-    assert "3.23" in rank_2_line
-
-
-def test_ranks_flip_when_quality_drops() -> None:
-    """A row where cheap-but-lower-quality should NOT win over expensive-but-top —
-    catches the mutation `_value = -avg_cost` which ignores quality/success entirely.
-    """
-    from rank_task_subagents import _value, render
-
-    rows = [
-        # cheap but terrible: value = 0.5 * 0.5 / 0.10 = 2.5
-        ("spec", "cheap-terrible", 10, 0.10, 0.5, 0.5),
-        # pricier but excellent: value = 1.0 * 2.0 / 0.50 = 4.0
-        ("spec", "pricier-top", 10, 0.50, 2.0, 1.0),
-    ]
     assert _value(0.10, 0.5, 0.5) == 2.5
     assert _value(0.50, 2.0, 1.0) == 4.0
 
+
+def test_ranks_cheapest_first_among_survivors_above_gate() -> None:
+    """Fabrik-lib 2026-07-11 contract — among rows that pass the quality gate,
+    the cheapest wins. Both fixture rows have avg_quality above 2.5 (raw =
+    shrunk_q here because we don't monkeypatch a tier), so both survive. The
+    cheaper cost wins.
+    """
+    from rank_task_subagents import render
+
+    rows = [
+        # (task_type, model, n, avg_cost, avg_quality, success_rate)
+        ("spec", "cheap-good", 10, 0.10, 3.5, 0.90),
+        ("spec", "expensive-top", 10, 0.50, 4.0, 0.95),
+    ]
     md = render(rows)
     lines = md.splitlines()
     rank_1_line = next(line for line in lines if line.startswith("| 1 "))
-    assert "pricier-top" in rank_1_line, (
-        f"quality/success must beat pure-cost — expected pricier-top at #1, got: {rank_1_line}"
+    assert "cheap-good" in rank_1_line, f"cheapest survivor above the gate wins; got: {rank_1_line}"
+    rank_2_line = next(line for line in lines if line.startswith("| 2 "))
+    assert "expensive-top" in rank_2_line
+
+
+def test_shrunk_quality_matches_fabrik_lib_formula() -> None:
+    """Bayesian shrinkage math per fabrik-lib 2026-07-11:
+        shrunk_q = (n·avg_quality + K·tier_baseline) / (n+K)
+    with K=10 and T1=1.0, T2=2.5, T3=4.0. Concrete example from the spec:
+    glm-4.5-air (T2, avg_q=1.0, n=16) → 1.58, below the 2.5 gate.
+    """
+    from rank_task_subagents import _shrunk_quality
+
+    # T2 baseline = 2.5; K = 10. glm-4.5-air example from the fabrik-lib msg.
+    assert abs(_shrunk_quality(n=16, avg_quality=1.0, quality_tier=2) - 1.58) < 0.01
+    # A T3 model with strong runs stays strong.
+    assert abs(_shrunk_quality(n=30, avg_quality=4.5, quality_tier=3) - 4.375) < 0.01
+    # No tier → no shrinkage, raw avg passes through.
+    assert _shrunk_quality(n=5, avg_quality=3.2, quality_tier=None) == 3.2
+    # Small-n row shrinks HEAVILY toward the tier prior.
+    #   n=3, avg_q=5.0, T2 (2.5): (3·5.0 + 10·2.5)/13 = 40/13 = 3.08
+    assert abs(_shrunk_quality(n=3, avg_quality=5.0, quality_tier=2) - 3.08) < 0.02
+
+
+def test_top_2_slot_requires_min_runs_top2(monkeypatch) -> None:
+    """A row with n < MIN_RUNS_TOP2 (10) must NOT head a section — the
+    fabrik-lib contract prevents a lucky n=3 from sitting at rank #1
+    when a more-battle-tested row exists. Sort key uses (top-2-eligible
+    desc, cost asc), so ineligible rows go BELOW eligible ones regardless
+    of cost.
+    """
+    from rank_task_subagents import render
+
+    # Both survive the quality gate (avg_q well above 2.5 either way after
+    # shrinkage against no tier → raw avg_q). The thin-data row is CHEAPER
+    # but must not win the top slot.
+    rows = [
+        ("plan", "thin/cheap", 3, 0.01, 4.5, 1.0),  # n=3 < 10 → not top-eligible
+        ("plan", "thick/pricier", 50, 0.10, 3.5, 0.9),  # n=50 → top-eligible
+    ]
+    md = render(rows)
+    lines = md.splitlines()
+    rank_1 = next(line for line in lines if line.startswith("| 1 "))
+    rank_2 = next(line for line in lines if line.startswith("| 2 "))
+    assert "thick/pricier" in rank_1, (
+        f"top-eligible (n≥10) must lead, even against a cheaper n<10 row; got: {rank_1}"
     )
+    assert "thin/cheap" in rank_2
+
+
+def test_glm_4_5_air_style_demotion(monkeypatch) -> None:
+    """Fabrik-lib's concrete demotion example: a T2 model whose real-run
+    quality is well below its tier prior gets excluded by the quality gate
+    once shrinkage has been applied (the flywheel says the tier was too
+    kind).
+
+    Pin: exclude a row whose (T2, avg_q=1.0, n=16) yields shrunk_q=1.58.
+    """
+    from rank_task_subagents import render
+
+    monkeypatch.setattr(
+        "rank_task_subagents._load_quality_tiers",
+        lambda: {"z-ai/glm-4.5-air": 2},
+    )
+    rows = [
+        ("review", "z-ai/glm-4.5-air", 16, 0.002, 1.0, 0.81),  # → 1.58 shrunk_q
+        ("review", "keeper/model", 50, 0.005, 3.5, 0.9),
+    ]
+    md = render(rows)
+    assert "z-ai/glm-4.5-air" not in md, "glm-4.5-air must be excluded (shrunk_q=1.58 < 2.5)"
+    assert "keeper/model" in md
+
+
+def test_quality_gate_excludes_low_quality_rows() -> None:
+    """A row with shrunk_q below 2.5 is dropped from the emitted section —
+    the fabrik-lib contract requires "a bad model is never in the usable top
+    slots". Even if the low-quality row is cheaper, it must not appear.
+    """
+    from rank_task_subagents import render
+
+    rows = [
+        # Cheap but well below the gate — must not appear at all
+        ("spec", "cheap-terrible", 10, 0.05, 1.0, 0.5),
+        # Pricier but clearly above the gate
+        ("spec", "pricier-top", 10, 0.50, 4.0, 1.0),
+    ]
+    md = render(rows)
+    assert "cheap-terrible" not in md, (
+        "row with shrunk_q below 2.5 must be excluded by the quality gate"
+    )
+    assert "pricier-top" in md
+    lines = md.splitlines()
+    rank_1_line = next(line for line in lines if line.startswith("| 1 "))
+    assert "pricier-top" in rank_1_line
 
 
 def test_quality_tier_column_emitted_and_reader_compat(monkeypatch) -> None:
@@ -188,9 +263,11 @@ def test_quality_tier_column_emitted_and_reader_compat(monkeypatch) -> None:
 
     # Fake the tier map — one row hits, one row doesn't
     monkeypatch.setattr(m, "_load_quality_tiers", lambda: {"tier-known/a": 3})
+    # avg_quality 3.5 → both rows pass the gate (raw for tier-missing/b;
+    # shrunk toward T3=4.0 for tier-known/a). Testing column emit, not gate.
     rows = [
-        ("plan", "tier-known/a", 5, 0.10, 1.5, 1.0),
-        ("plan", "tier-missing/b", 5, 0.10, 1.5, 1.0),
+        ("plan", "tier-known/a", 5, 0.10, 3.5, 1.0),
+        ("plan", "tier-missing/b", 5, 0.10, 3.5, 1.0),
     ]
     md = m.render(rows)
     lines = md.splitlines()
@@ -314,10 +391,13 @@ def test_multiple_task_types_get_separate_sections_with_correct_placement() -> N
     """
     from rank_task_subagents import render
 
+    # avg_quality bumped above the 2.5 quality gate — this test asserts
+    # SECTION placement, not the gate; without a passing quality signal the
+    # rows would be excluded and no sections emitted.
     rows = [
-        ("spec", "MODEL_SPEC", 47, 0.32, 1.64, 0.94),
-        ("plan", "MODEL_PLAN", 62, 0.28, 1.30, 0.91),
-        ("code", "MODEL_CODE", 100, 0.15, 1.20, 0.88),
+        ("spec", "MODEL_SPEC", 47, 0.32, 3.64, 0.94),
+        ("plan", "MODEL_PLAN", 62, 0.28, 3.30, 0.91),
+        ("code", "MODEL_CODE", 100, 0.15, 3.20, 0.88),
     ]
     md = render(rows)
 

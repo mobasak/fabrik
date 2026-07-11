@@ -48,6 +48,48 @@ VALUE_FORMULA_COST_IN_DENOMINATOR = (
     True  # False → success × quality × cost (literal user shorthand)
 )
 
+# ─── Ranking policy — fabrik-lib 2026-07-11 contract ──────────────────────────
+# The doc's rank ORDER is the contract. `pick_models` takes top-N in doc order.
+# So the ranking here must be quality-safe AND cost-honest.
+#
+# Formula: shrink real-run avg_quality toward the capability tier prior
+# (Bayesian shrinkage, K runs' worth of prior weight), then quality-gate, then
+# order surviving rows cheapest-first, with top-2 slots requiring more runs
+# so a lucky n=3 can't head a section on thin evidence.
+#
+#     shrunk_q = (n · avg_quality + K · tier_baseline) / (n + K)
+#
+# TIER_BASELINE maps quality_tier (1/2/3) to a 0-5 quality prior. Rows with no
+# tier fall through to their raw avg_quality (no shrinkage applied).
+SHRINKAGE_K = 10  # ~10 runs of prior weight — flips only when real data is thick
+TIER_BASELINE = {1: 1.0, 2: 2.5, 3: 4.0}  # 0-5 scale; T2 baseline = QUALITY_GATE_MIN
+QUALITY_GATE_MIN = 2.5  # drop anything below the T2-tier baseline after shrinkage
+MIN_RUNS_TOP2 = 10  # slots #1-#2 require n≥10; lower-n rows sort below
+
+
+def _tier_baseline(quality_tier: int | None) -> float | None:
+    """Return the tier prior for the shrinkage formula, or None if the row has
+    no tier (caller will use raw avg_quality)."""
+    if quality_tier is None:
+        return None
+    return TIER_BASELINE.get(int(quality_tier))
+
+
+def _shrunk_quality(n: int, avg_quality: float, quality_tier: int | None) -> float:
+    """Blended prior + real-run signal: shrink avg_quality toward the tier
+    baseline with K runs of prior weight. Rows without a tier get raw
+    avg_quality (nothing to shrink toward — pick_models is on its own).
+
+    Concrete example (fabrik-lib 2026-07-11): glm-4.5-air (T2, avg_q=1.0 on
+    16 review runs) → (16·1.0 + 10·2.5) / (16+10) = 1.58 → below the 2.5
+    gate → excluded, exactly as intended (the flywheel says T2 was too kind).
+    """
+    prior = _tier_baseline(quality_tier)
+    if prior is None:
+        return float(avg_quality)
+    return (n * avg_quality + SHRINKAGE_K * prior) / (n + SHRINKAGE_K)
+
+
 # Query timeout — 300s covers real fleet scale on the indexed `ts` column
 # even at millions of rows. Bumped from 30s per /fabrik-review A7 (silent
 # TimeoutExpired at scale was indistinguishable from "no data yet").
@@ -336,7 +378,11 @@ def render(rows: list, state: str = "ok") -> str:
     # `agents.reachable_with_existing_keys=0` at dispatch time.
     header = (
         f"Last refresh: {today}\n"
-        f"Formula: success × quality / cost | Window: {WINDOW_DAYS} days | Min runs: {MIN_RUNS}\n\n"
+        f"Formula: shrunk_q = (n·avg_q + {SHRINKAGE_K}·tier_baseline) / (n+{SHRINKAGE_K}); "
+        f"quality-gate at shrunk_q ≥ {QUALITY_GATE_MIN}; then cost-asc among survivors; "
+        f"top-2 slots require n ≥ {MIN_RUNS_TOP2} | "
+        f"tier_baseline T1={TIER_BASELINE[1]}, T2={TIER_BASELINE[2]}, T3={TIER_BASELINE[3]} | "
+        f"Window: {WINDOW_DAYS} days | Min runs: {MIN_RUNS}\n\n"
     )
     if state == "error":
         return header + (
@@ -380,20 +426,39 @@ def render(rows: list, state: str = "ok") -> str:
     for task_type in sorted(by_task):
         task_rows = by_task[task_type]
         n_total = sum(r[2] for r in task_rows)
-        # Score + sort desc. Model-id is the tie-breaker so ties don't shuffle
-        # non-deterministically between daily runs (Finder B#8). Postgres doesn't
-        # guarantee stable GROUP BY output order, so we sort by (value desc, model asc).
-        scored = [(r, _value(r[3], r[4], r[5])) for r in task_rows]
-        scored.sort(key=lambda x: (-x[1], x[0][1]))
+        # Fabrik-lib 2026-07-11 contract — the doc's rank order IS the
+        # contract. Compute shrunk_q per row, apply the quality gate, then
+        # sort survivors by (top-2-eligible desc, cost asc, model asc). Model
+        # is the deterministic tie-breaker so daily runs don't shuffle.
+        scored: list[tuple[tuple, float]] = []
+        for r in task_rows:
+            _tt, model, n, avg_cost, avg_quality, _success = r
+            tier = tiers.get(model)
+            shrunk_q = _shrunk_quality(n, avg_quality, tier)
+            if shrunk_q < QUALITY_GATE_MIN:
+                continue  # quality gate — a bad model is never in the usable top slots
+            scored.append((r, shrunk_q))
+        # Top-2 eligibility: n < MIN_RUNS_TOP2 sorts BELOW top-2-eligible rows.
+        # False (n ≥ MIN_RUNS_TOP2) sorts before True (n < MIN_RUNS_TOP2).
+        scored.sort(key=lambda x: (x[0][2] < MIN_RUNS_TOP2, x[0][3], x[0][1]))
+        # Skip the whole section if the gate excluded every row — pick_models
+        # will fall through to its _TABLE default for this task_type. That's
+        # correct: better no signal than misleading signal.
+        if not scored:
+            continue
         out.append(f"### {task_type} (n_total={n_total})")
         # `quality_tier` sits SECOND-TO-LAST so `cells[-1]` stays `n` — that's
         # what fabrik-lib's `load_task_ranking()` reader parses as the run
         # count (`libs/subagents/select.py:280`). Column position matters.
-        out.append("| rank | model | value | success | avg_cost | avg_quality | quality_tier | n |")
+        # `shrunk_q` replaces the old `value` column (formula changed — the
+        # score no longer drives rank order; cost does, among gate-survivors).
+        out.append(
+            "| rank | model | shrunk_q | success | avg_cost | avg_quality | quality_tier | n |"
+        )
         out.append("|---:|---|---:|---:|---:|---:|:-:|---:|")
-        for rank, (r, val) in enumerate(scored, start=1):
+        for rank, (r, shrunk_q) in enumerate(scored, start=1):
             out.append(
-                f"| {rank} | `{r[1]}` | {val:.2f} | {r[5]:.2f} | ${r[3]:.4f} | {r[4]:.2f} | "
+                f"| {rank} | `{r[1]}` | {shrunk_q:.2f} | {r[5]:.2f} | ${r[3]:.4f} | {r[4]:.2f} | "
                 f"{_fmt_tier(tiers, r[1])} | {r[2]} |"
             )
         out.append("")
