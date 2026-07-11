@@ -1,30 +1,34 @@
-Last refresh: 2026-07-08
+Last refresh: 2026-07-11
 Formula: success × quality / cost | Window: 90 days | Min runs: 3
 
 
-### docs (n_total=3)
+### code (n_total=3)
 | rank | model | value | success | avg_cost | avg_quality | n |
 |---:|---|---:|---:|---:|---:|---:|
-| 1 | `minimax/minimax-m3` | 1070.23 | 1.00 | $0.0025 | 2.67 | 3 |
+| 1 | `deepseek/deepseek-v4-flash` | 38.28 | 0.67 | $0.0836 | 4.80 | 3 |
 
-### review (n_total=51)
+### docs (n_total=5)
 | rank | model | value | success | avg_cost | avg_quality | n |
 |---:|---|---:|---:|---:|---:|---:|
-| 1 | `deepseek/deepseek-v3.2` | 1646.79 | 1.00 | $0.0019 | 3.14 | 18 |
-| 2 | `deepseek/deepseek-v4-pro` | 292.93 | 1.00 | $0.0138 | 4.03 | 3 |
-| 3 | `minimax/minimax-m3` | 82.86 | 0.43 | $0.0210 | 4.01 | 30 |
+| 1 | `minimax/minimax-m3` | 976.62 | 1.00 | $0.0027 | 2.67 | 5 |
 
-### code (n_total=0, fallback from CODING_SUBAGENT_SELECTION.md)
-| rank | model | source |
-|---:|---|:-:|
-| 1 | `minimax/minimax-m2.5` | [benchmark] |
-| 2 | `deepseek/deepseek-v3.2` | [benchmark] |
-| 3 | `minimax/minimax-m2` | [benchmark] |
-| 4 | `minimax/minimax-m3` | [benchmark] |
-| 5 | `deepseek/deepseek-v4-flash` | [benchmark] |
-| 6 | `minimax/minimax-m2.7` | [benchmark] |
-| 7 | `deepseek/deepseek-v4-pro` | [benchmark] |
-| 8 | `minimax/minimax-m2.1` | [benchmark] |
-| 9 | `z-ai/glm-4.5-air` | [benchmark] |
-| 10 | `deepseek/deepseek-v3.2-exp` | [benchmark] |
+### plan (n_total=28)
+| rank | model | value | success | avg_cost | avg_quality | n |
+|---:|---|---:|---:|---:|---:|---:|
+| 1 | `deepseek/deepseek-v4-pro` | 182.97 | 0.96 | $0.0161 | 3.05 | 28 |
+
+### research (n_total=7)
+| rank | model | value | success | avg_cost | avg_quality | n |
+|---:|---|---:|---:|---:|---:|---:|
+| 1 | `minimax/minimax-m3` | 347.97 | 1.00 | $0.0129 | 4.50 | 4 |
+| 2 | `deepseek/deepseek-v4-pro` | 227.32 | 0.67 | $0.0132 | 4.50 | 3 |
+
+### review (n_total=303)
+| rank | model | value | success | avg_cost | avg_quality | n |
+|---:|---|---:|---:|---:|---:|---:|
+| 1 | `deepseek/deepseek-v4-flash` | 1122.71 | 0.67 | $0.0013 | 2.15 | 3 |
+| 2 | `deepseek/deepseek-v3.2` | 409.26 | 0.85 | $0.0060 | 2.88 | 33 |
+| 3 | `z-ai/glm-4.5-air` | 339.18 | 0.81 | $0.0024 | 1.00 | 16 |
+| 4 | `deepseek/deepseek-v4-pro` | 189.35 | 0.80 | $0.0145 | 3.42 | 80 |
+| 5 | `minimax/minimax-m3` | 171.64 | 0.77 | $0.0164 | 3.67 | 171 |
 

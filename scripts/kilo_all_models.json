@@ -1,6 +1,6 @@
 {
-  "timestamp": "2026-07-10T03:35:50.735933",
-  "total_models": 689,
+  "timestamp": "2026-07-11T00:30:13.211972",
+  "total_models": 688,
   "models": {
     "~anthropic/claude-fable-latest": {
       "id": "~anthropic/claude-fable-latest",
@@ -192,11 +192,6 @@
       "url": "https://openrouter.ai/api/v1",
       "npm": "@openrouter/ai-sdk-provider"
     },
-    "arcee-ai/trinity-mini": {
-      "id": "arcee-ai/trinity-mini",
-      "url": "https://openrouter.ai/api/v1",
-      "npm": "@openrouter/ai-sdk-provider"
-    },
     "arcee-ai/virtuoso-large": {
       "id": "arcee-ai/virtuoso-large",
       "url": "https://openrouter.ai/api/v1",
@@ -234,8 +229,8 @@
     },
     "cognitivecomputations/dolphin-mistral-24b-venice-edition": {
       "id": "cognitivecomputations/dolphin-mistral-24b-venice-edition",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
+      "url": "https://openrouter.ai/api/v1",
+      "npm": "@openrouter/ai-sdk-provider"
     },
     "cohere/command-a": {
       "id": "cohere/command-a",

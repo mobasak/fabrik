@@ -11,7 +11,7 @@ trigger: glob
 
 # 3. Language AI
 
-Last content verification: 2026-07-10
+Last content verification: 2026-07-11
 
 **Purpose:** Process and generate text.
 
@@ -30,10 +30,10 @@ Last content verification: 2026-07-10
 
 Pick the **cheaper gateway per model** — the bake-off browser shows the per-row markup. For translation specifically, prefer a dedicated MT model (DeepL, or `qwen-mt-turbo` via DashScope) over an LLM when the language is in scope.
 
-<!-- GATEWAY_COUNTS:START — last-refreshed: 2026-07-10 (auto-managed by update_gateway_counts.py) -->
-*Live gateway counts (active models, 2026-07-10 UTC; auto-refreshed from `kilo_agents.db`):*
+<!-- GATEWAY_COUNTS:START — last-refreshed: 2026-07-11 (auto-managed by update_gateway_counts.py) -->
+*Live gateway counts (active models, 2026-07-11 UTC; auto-refreshed from `kilo_agents.db`):*
 
-language-tagged (any gateway): **148**
+language-tagged (any gateway): **157**
 translation-scored (any gateway): **9**
 
 Sweet-spot dedicated MT: `qwen-mt-turbo` via DashScope (top-3 on FR/PT/DE/ID/AR, weaker on HU/RO/UR/KO; see the Translation tab in the bake-off browser).
@@ -43,8 +43,8 @@ Sweet-spot dedicated MT: `qwen-mt-turbo` via DashScope (top-3 on FR/PT/DE/ID/AR,
 
 **Anti-pattern:** standing up a dedicated vector DB when pgvector is already on the project's Postgres.
 
-<!-- OPENROUTER_ROUTES:START — last-refreshed: 2026-07-10 (auto-managed by category_export_markdown.py) -->
-*Auto-generated 2026-07-10 (UTC) by `category_route_mapper.py` → injected here by `category_export_markdown.py`. Edits between the markers will be overwritten on the next daily run.*
+<!-- OPENROUTER_ROUTES:START — last-refreshed: 2026-07-11 (auto-managed by category_export_markdown.py) -->
+*Auto-generated 2026-07-11 (UTC) by `category_route_mapper.py` → injected here by `category_export_markdown.py`. Edits between the markers will be overwritten on the next daily run.*
 
 | Priority | OpenRouter ID | Cost ($/M in) | Context | Status |
 |---|---|---|---|---|

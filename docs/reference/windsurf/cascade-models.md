@@ -1,6 +1,6 @@
 # Cascade Models and Credits
 
-**Last Updated:** 2026-07-09
+**Last Updated:** 2026-07-11
 
 > 📋 **Source:** Automatically extracted from https://docs.windsurf.com/plugins/cascade/models
 >
@@ -12,7 +12,7 @@
 
 ## Overview
 
-**Total Models:** 155 across 7 provider categories
+**Total Models:** 170 across 7 provider categories
 
 ---
 
@@ -131,6 +131,7 @@
 | GPT-5.4 Mini (Medium Reasoning) | 1.5 | — | 49.6% |  |
 | GPT-5.3-Codex (Low Reasoning) | 1.5 | — | 49.6% |  |
 | GPT-5.1-Codex Max (High Reasoning) | 1.5 | — | 49.6% |  |
+| GPT-5.6 Luna (No Reasoning) | 2 | — | 49.6% |  |
 | GPT-5.3-Codex (Medium Reasoning) | 2 | — | 49.6% |  |
 | GPT-5.2 (Medium Reasoning) | 2 | 1465 | 64.9% |  |
 | GPT-5.2 (No Reasoning Fast) | 2 | 1465 | 64.9% |  |
@@ -141,7 +142,9 @@
 | GPT-5.1 (High Reasoning) | 2 | 1450 | 47.6% |  |
 | GPT-5.1 (Medium Reasoning Fast) | 2 | 1450 | 47.6% |  |
 | GPT-5 (High Reasoning) | 2 | — | 49.6% |  |
+| GPT-5.6 Luna (Low Reasoning) | 2.5 | — | 49.6% |  |
 | GPT-5.3-Codex (High Reasoning) | 2.5 | — | 49.6% |  |
+| GPT-5.6 Luna (Medium Reasoning) | 3 | — | 49.6% |  |
 | GPT-5.4 (Medium Reasoning) | 3 | 1468 | 81.8% |  |
 | GPT-5.4 (No Reasoning) Fast | 3 | 1468 | 81.8% |  |
 | GPT-5.4 (Low Reasoning) Fast | 3 | 1468 | 81.8% |  |
@@ -154,26 +157,38 @@
 | GPT-5.2 (Medium Reasoning Fast) | 4 | 1465 | 64.9% |  |
 | GPT-5.2-Codex (High Reasoning Fast) | 4 | — | 49.6% |  |
 | GPT-5.1 (High Reasoning Fast) | 4 | 1450 | 47.6% |  |
+| GPT-5.6 Terra (No Reasoning) | 4.5 | 1560 | — |  |
 | GPT-5.4 Mini (High Reasoning) | 4.5 | — | 49.6% |  |
+| GPT-5.6 Luna (High Reasoning) | 5 | — | 49.6% |  |
 | GPT-5.3-Codex (High Reasoning Fast) | 5 | — | 49.6% |  |
+| GPT-5.6 Terra (Low Reasoning) | 6 | 1560 | — |  |
 | GPT-5.4 (Medium Reasoning) Fast | 6 | 1468 | 81.8% |  |
 | GPT-5.3-Codex (Extra High Reasoning Fast) | 6 | — | 49.6% |  |
 | GPT-5.2 (High Reasoning Fast) | 6 | 1465 | 64.9% |  |
 | GPT-5.2-Codex (Extra High Reasoning Fast) | 6 | — | 49.6% |  |
+| GPT-5.6 Luna (Extra High Reasoning) | 7 | — | 49.6% |  |
 | GPT-5.5 (No Reasoning) | 7 | — | 84.7% |  |
+| GPT-5.6 Terra (Medium Reasoning) | 7.5 | 1560 | — |  |
 | GPT-5.4 (High Reasoning) Fast | 8 | 1468 | 81.8% |  |
 | GPT-5.5 (Low Reasoning) | 8 | — | 84.7% |  |
 | GPT-5.2 (Extra High Reasoning) | 8 | 1465 | 64.9% |  |
+| GPT-5.6 Sol (No Reasoning) | 9 | 1563 | — |  |
+| GPT-5.6 Sol (Low Reasoning) | 12 | 1563 | — |  |
+| GPT-5.6 Terra (High Reasoning) | 12 | 1560 | — |  |
 | GPT-5.4 (Extra High Reasoning) | 12 | 1468 | 81.8% |  |
 | GPT-5.4 Mini (Extra High Reasoning) | 12 | — | 49.6% |  |
 | GPT-5.5 (Medium Reasoning) | 14 | — | 84.7% |  |
+| GPT-5.6 Sol (Medium Reasoning) | 15 | 1563 | — |  |
 | GPT-5.2 (Extra High Reasoning Fast) | 16 | 1465 | 64.9% |  |
 | GPT-5.5 (No Reasoning) Fast | 17.5 | — | 84.7% |  |
+| GPT-5.6 Terra (Extra High Reasoning) | 18 | 1560 | — |  |
 | GPT-5.5 (Low Reasoning) Fast | 20 | — | 84.7% |  |
+| GPT-5.6 Sol (High Reasoning) | 24 | 1563 | — |  |
 | GPT-5.4 (Extra High Reasoning) Fast | 24 | 1468 | 81.8% |  |
 | GPT-5.5 (High Reasoning) | 24 | — | 84.7% |  |
 | GPT-5.5 (Extra High Reasoning) | 32 | — | 84.7% |  |
 | GPT-5.5 (Medium Reasoning) Fast | 35 | — | 84.7% |  |
+| GPT-5.6 Sol (Extra High Reasoning) | 36 | 1563 | — |  |
 | GPT-5.5 (High Reasoning) Fast | 60 | — | 84.7% |  |
 | GPT-5.5 (Extra High Reasoning) Fast | 80 | — | 84.7% |  |
 

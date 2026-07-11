@@ -1,4 +1,4 @@
-Last refresh: 2026-07-08
+Last refresh: 2026-07-11
 
 # STT Selection — Pareto-ranked at 60 minutes
 
@@ -9,4 +9,4 @@ normalized to a 60-minute workload; Pareto frontier keeps rows not dominated on
 
 | # | Model | Provider | Cost @60 min (USD) | quality_elo |
 |---|---|---|---:|---:|
-| 1 | `openai/whisper-large-v3` | openai | $0.0060 | — |
+| 1 | `openai/gpt-4o-mini-transcribe` | openai | $0.0030 | — |
