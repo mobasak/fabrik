@@ -64,13 +64,14 @@ _NO_DOCKERFILE_TYPES: frozenset[str] = frozenset(
 
 # Types whose application code does NOT live under src/ (different layout):
 #  - saas-skeleton → Next.js app-router layout uses app/ + components/ + lib/
-#  - chrome-extension → WXT extension (src/entrypoints, auto-manifest); backend at server/src/
 #  - wordpress → wp-content/ + plugins/ + themes/ (no src/)
 # static-site / docusaurus are already short-circuited as _STATIC_TYPES above.
+# NOTE: chrome-extension is NOT here — like mobile-app, its bundled FastAPI backend
+# serves /health under server/src/, which the health check validates (a real scan,
+# not a vacuous skip — see _check_health_endpoint).
 _NO_SRC_LAYOUT_TYPES: frozenset[str] = frozenset(
     {
         "saas-skeleton",
-        "chrome-extension",
         "wordpress",
     }
 )
@@ -190,9 +191,10 @@ def _check_health_endpoint(project_path: Path, project_type: str) -> ValidationR
 
     if project_type in _ELECTRON_TYPES:
         src_dir = project_path / "electron"
-    elif project_type == "mobile-app":
-        # The root src/ is the RN client; the deployable FastAPI backend (and
-        # its /health route) lives under server/src/ — scan there, not src/.
+    elif project_type in ("mobile-app", "chrome-extension"):
+        # The repo root holds the client (RN app / WXT extension); the deployable
+        # FastAPI backend (and its /health route) lives under server/src/ — scan
+        # there, not src/.
         src_dir = project_path / "server" / "src"
     else:
         src_dir = project_path / "src"

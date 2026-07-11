@@ -66,7 +66,7 @@ def test_file_based_entrypoints(ext: Path) -> None:
 
 
 def test_package_json_is_wxt_not_crxjs(ext: Path) -> None:
-    """WXT dep set; no @crxjs; the load-bearing webext-permission-toggle pin is v6 (v7 doesn't exist)."""
+    """WXT dep set; no @crxjs; webext-permission-toggle pinned to the stable ^6 line."""
     import json
 
     pkg = json.loads((ext / "package.json").read_text())
@@ -75,7 +75,7 @@ def test_package_json_is_wxt_not_crxjs(ext: Path) -> None:
     assert "preact" in deps
     assert "@preact/preset-vite" in deps
     assert not any("crxjs" in d for d in deps), "must not depend on @crxjs"
-    assert deps["webext-permission-toggle"].startswith("^6"), "v7 does not exist"
+    assert deps["webext-permission-toggle"].startswith("^6"), "pin the stable v6 line"
 
 
 def test_pnpm_workspace_allowbuilds_not_onlybuilt(ext: Path) -> None:

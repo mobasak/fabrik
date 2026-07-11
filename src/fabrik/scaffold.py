@@ -4188,6 +4188,19 @@ CMD ["sh", "-c", "uvicorn {package_name}.main:app --host 0.0.0.0 --port ${{PORT:
 """
     )
 
+    # .dockerignore — the backend image ships server/ only (the Dockerfile COPYs it).
+    # Keep the WXT extension client (extension/node_modules can be hundreds of MB) + local
+    # cruft OUT of the build context sent to the daemon. Mirrors the mobile-app scaffold.
+    (project_dir / ".dockerignore").write_text(
+        "# Backend image ships server/ only — keep the extension client + cruft out of context.\n"
+        "/extension/\n"
+        "/.venv/\n"
+        "/.git/\n"
+        "/backups/\n"
+        "__pycache__/\n"
+        "*.log\n"
+    )
+
     # compose.yaml — chrome-extension's backend ships an FastAPI server
     # at port 8000 and the extension hits it cross-origin, so we add CORS
     # middleware via Traefik. B16/B18: the previous inline compose had

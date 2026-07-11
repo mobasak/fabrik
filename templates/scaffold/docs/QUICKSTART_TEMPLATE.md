@@ -104,7 +104,7 @@ curl http://localhost:[PORT]/health
 <!-- Python API: /opt/{project}/.venv/bin/uvicorn src.{package}.main:app --reload --port [PORT] -->
 <!-- Node: npm install && npm run dev -->
 <!-- Static site: npm install && npm run build && npm run preview -->
-<!-- Chrome extension: npm install && npm run build → load dist/ in chrome://extensions -->
+<!-- Chrome extension: pnpm install && pnpm build → load extension/.output/chrome-mv3/ in chrome://extensions -->
 
 ---
 

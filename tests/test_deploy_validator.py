@@ -161,10 +161,24 @@ class TestCheckHealthEndpoint:
         assert result.passed is True
         assert "N/A for saas-skeleton" in result.message
 
-    def test_skipped_for_chrome_extension(self, tmp_path: Path):
-        """chrome-extension health-check is skipped: the extension client lives outside a top-level src/ (_NO_SRC_LAYOUT_TYPES); the backend /health under server/src/ is validated separately."""
+    def test_validates_chrome_extension_backend_health(self, tmp_path: Path):
+        """chrome-extension ships a FastAPI backend — its /health under server/src/ IS
+        validated (a real scan, like mobile-app; not the old vacuous _NO_SRC_LAYOUT skip)."""
+        src = tmp_path / "server" / "src" / "app"
+        src.mkdir(parents=True)
+        (src / "main.py").write_text(
+            '@app.get("/health")\nasync def health():\n    return {"status": "ok"}\n'
+        )
         result = _check_health_endpoint(tmp_path, "chrome-extension")
         assert result.passed is True
+
+    def test_chrome_extension_backend_missing_health_fails(self, tmp_path: Path):
+        """The scan is real: no /health in server/src/ → fail-closed (not a vacuous pass)."""
+        src = tmp_path / "server" / "src" / "app"
+        src.mkdir(parents=True)
+        (src / "main.py").write_text("print('no health route')\n")
+        result = _check_health_endpoint(tmp_path, "chrome-extension")
+        assert result.passed is False
 
     def test_skipped_for_wordpress(self, tmp_path: Path):
         """WordPress uses wp-content/ + plugins/ + themes/ — no src/ dir."""
