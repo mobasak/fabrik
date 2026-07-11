@@ -122,8 +122,12 @@ def _schema_doc_for(path: str) -> str:
     change isn't under a ``db/`` directory.
     """
     parts = path.split("/")
-    if "db" in parts:
-        return "/".join(parts[: parts.index("db") + 1]) + "/schema.sql"
+    # case-insensitive on the `db` component to match the (now case-insensitive) trigger detection —
+    # a `Db/Migrations/x.sql` maps to its sibling `Db/schema.sql`, not the generic repo-root fallback.
+    lower = [p.lower() for p in parts]
+    if "db" in lower:
+        i = lower.index("db")
+        return "/".join(parts[: i + 1]) + "/schema.sql"
     return "db/schema.sql"
 
 

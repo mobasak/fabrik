@@ -44,3 +44,9 @@ If you change code in a way that affects any of the above, ALSO update `specs/se
 Don't ship code that contradicts the spec — `fabrik apply` will skip the registrar and you'll have a silently broken deploy.
 
 To preview what the spec will trigger: `fabrik plan specs/services/<id>.yaml`
+
+---
+
+## Friction log
+
+- **2026-07-11 — OpenRouter subagent pool hangs at `pick_models()` (BROKEN, needs operator fix).** During plan-1 (converging-doc-maintenance) execution, every attempt to dispatch a pool review finder (`from libs.subagents import pick_models, run_agents`) hung with **zero output** — `pick_models("review"/"docs", n=1)` never returned (killed at 140–170s, 3× this session). Because the pool was non-functional, all `/fabrik-review` fan-out for this plan ran on **native `fabrik-reviewer`** (Opus/Sonnet) instead, which records no flywheel rows → the `check_subagent_flywheel.py` "pool-or-declare" gate blocks, resolved via a `NO-POOL:` commit declaration. **Impact:** zero flywheel rows land while the pool hangs; the flywheel can't learn. **Fix needed:** investigate why `pick_models`/`run_agents` hang in this environment (likely a live OpenRouter/DB call with no timeout in `libs/subagents/select.py`) — a bounded timeout + fail-fast would let the pool degrade to native instead of hanging the whole review.

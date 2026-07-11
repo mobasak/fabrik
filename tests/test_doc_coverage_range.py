@@ -120,19 +120,26 @@ def test_empty_range_is_error(tmp_path, monkeypatch):
 # ── the ERROR-tier schema trigger is case-insensitive (WP-2) — consistent with check_doc_stubs/Tier-1 ──
 def test_schema_error_trigger_case_insensitive(tmp_path, monkeypatch):
     repo = _mk_repo(tmp_path)
-    (repo / "db").mkdir()
-    (repo / "db" / "schema.sql").write_text("-- schema dump\n")  # a tracked dump that can drift
-    (repo / "Db" / "Migrations").mkdir(parents=True)  # UPPERCASE migration dir
+    (repo / "db" / "MIGRATIONS").mkdir(parents=True)  # UPPERCASE subdir under lowercase db/
+    (repo / "db" / "schema.sql").write_text("-- schema dump\n")  # tracked dump (db/schema.sql)
     _git(repo, "add", "-A")
     _git(repo, "commit", "-q", "-m", "base with schema dump")
-    (repo / "Db" / "Migrations" / "001.sql").write_text("CREATE TABLE x (id int);\n")
+    (repo / "db" / "MIGRATIONS" / "001.sql").write_text("CREATE TABLE x (id int);\n")
     (repo / "CHANGELOG.md").write_text("## [Unreleased]\n\n### Added — m (2026-07-11)\n\nb\n")
     _git(repo, "add", "-A")
-    _git(repo, "commit", "-q", "-m", "uppercase migration, schema dump NOT updated")
+    _git(repo, "commit", "-q", "-m", "uppercase MIGRATIONS subdir, schema dump NOT updated")
     monkeypatch.chdir(repo)
-    # db/schema.sql was not updated for the `Db/Migrations/…` change → ERROR (exit 1). This only fires
-    # if the migration match is case-insensitive; a case-sensitive `/migrations/` would miss `Db/Migrations`.
+    # db/schema.sql was not updated for the `db/MIGRATIONS/…` change → ERROR (exit 1). This only fires
+    # if the migration match is case-insensitive; case-sensitive `/migrations/` would miss `MIGRATIONS`.
     assert cds_sync.main(["--range", "HEAD~1..HEAD"]) == 1
+
+
+# ── _schema_doc_for resolves the dump case-insensitively too (no half-applied fix) ──
+def test_schema_doc_for_case_insensitive():
+    assert cds_sync._schema_doc_for("Db/Migrations/x.sql") == "Db/schema.sql"  # preserves original case
+    assert cds_sync._schema_doc_for("web/DB/migrations/y.sql") == "web/DB/schema.sql"
+    assert cds_sync._schema_doc_for("db/models.py") == "db/schema.sql"
+    assert cds_sync._schema_doc_for("src/app.py") == "db/schema.sql"  # no db component → root fallback
 
 
 # ── _git degrades to [] on a real subprocess error (git missing / timeout) — no gate crash ──
