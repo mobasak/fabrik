@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# AFTER-EDIT: none
 """Doc Sync Matrix enforcement — the single "did you update docs when code changed" gate.
 
 One data-driven check, mirroring the CLAUDE.md Doc Sync Matrix. For each rule: if a
@@ -21,6 +22,7 @@ check_openapi_sync. Exit codes: 0 = pass (incl. warnings only); 1 = an ERROR vio
 
 from __future__ import annotations
 
+import argparse
 import re
 import subprocess
 import sys
@@ -57,7 +59,14 @@ RESILIENCE_PATTERNS = (
 
 
 def _git(args: list[str]) -> list[str]:
-    out = subprocess.run(["git", *args], capture_output=True, text=True, timeout=20).stdout.strip()
+    # Fail-safe: a git error, a bad/unresolvable range, OR a timeout (a --range scan can be much wider
+    # than a staged diff) → [] rather than an uncaught crash of this ERROR-tier, gate-blocking check.
+    try:
+        out = subprocess.run(
+            ["git", *args], capture_output=True, text=True, timeout=30
+        ).stdout.strip()
+    except (subprocess.SubprocessError, OSError):
+        return []
     return out.split("\n") if out else []
 
 
@@ -67,6 +76,16 @@ def _staged() -> list[str]:
 
 def _added_removed_renamed() -> list[str]:
     return _git(["diff", "--cached", "--diff-filter=ADR", "--name-only"])
+
+
+def _range(base_range: str) -> list[str]:
+    """Changed files across a git range (e.g. ``<base>..HEAD``) — the whole-plan cumulative scope
+    used by the ``--range`` coverage receipt (all the same trigger→doc logic, wider input set)."""
+    return _git(["diff", base_range, "--name-only"])
+
+
+def _range_adr(base_range: str) -> list[str]:
+    return _git(["diff", base_range, "--diff-filter=ADR", "--name-only"])
 
 
 def _skip(f: str) -> bool:
@@ -169,12 +188,37 @@ def _changelog_quality_ok() -> bool:
     )
 
 
-def main() -> int:
-    staged = _staged()
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(description="Doc Sync Matrix gate (touch-on-change).")
+    ap.add_argument(
+        "--range",
+        dest="rng",
+        metavar="BASE..HEAD",
+        help="check the CUMULATIVE diff of a git range instead of the staged diff "
+        "(the whole-plan coverage receipt). Same trigger→doc rules; wider input set.",
+    )
+    # argv=None (a bare programmatic main() call) → parse NO args (staged mode), NOT sys.argv — so a
+    # caller/test invoking main() never accidentally consumes the host process's argv. The CLI passes
+    # sys.argv[1:] explicitly (see __main__).
+    args = ap.parse_args(argv if argv is not None else [])
+    rng = args.rng.strip() if args.rng is not None else None
+    if args.rng is not None and not rng:
+        # --range was passed but empty/whitespace: a coverage receipt must NOT silently fall back to
+        # the staged diff (a false "clean"). Surface the caller's broken range as an error.
+        print("ERROR: --range was given an empty value.")
+        return 1
+    # NOTE: --range reads file CONTENT (route/resilience/changelog-quality) from the WORKING TREE, so
+    # it assumes the checkout is at the range's HEAD endpoint — true for the Finish-step receipt.
+    if rng:
+        staged = _range(rng)
+        diff_scope = ["diff", rng]
+    else:
+        staged = _staged()
+        diff_scope = ["diff", "--cached"]
     if not staged:
         return 0
     staged_set = set(staged)
-    adr = set(_added_removed_renamed())
+    adr = set(_range_adr(rng)) if rng else set(_added_removed_renamed())
 
     errors: list[str] = []
     warnings: list[str] = []
@@ -248,7 +292,7 @@ def main() -> int:
             continue
         try:
             diff_text = subprocess.run(
-                ["git", "diff", "--cached", "-U0", "--", f],
+                ["git", *diff_scope, "-U0", "--", f],
                 capture_output=True,
                 text=True,
                 timeout=20,
@@ -275,4 +319,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(main(sys.argv[1:]))

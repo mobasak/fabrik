@@ -93,7 +93,9 @@ Steps:
 **Gate:** `python -m pytest tests/test_doc_reconcile.py -q` → pass; `python -c "import scripts.doc_reconcile"` clean; `ruff check scripts/doc_reconcile.py` → pass.
 **Close (literal steps):** (1) phase gate green; (2) `check_doc_sync.py` + CHANGELOG + INDEX row; (3) **`/fabrik-review` — BLOCKING, looped to no-op** (pool finders record flywheel + **native `fabrik-reviewer` (Opus)** — this dispatches the pool + handles `AgentResult`, an authoritative slice) → refute → prove-before-fix → re-review clean; (4) commit (`Agent-Phase: B`).
 
-## Phase C — whole-plan coverage gate (`--range` mode on the mechanical checks)
+## Phase C — whole-plan coverage gate (`--range` mode on the mechanical checks) — ✅ EXECUTED 2026-07-11
+
+> **Executed:** `check_doc_sync` + `check_doc_stubs` gained `--range <base>..HEAD` (reusing `_range`/`_range_adr` + a threaded `diff_scope`; default staged behaviour byte-identical — all 26 existing tests green). Hardening from 2 `/fabrik-review` rounds: empty-range hard-error (no false-clean receipt), `_git` fail-safe on timeout/error, argparse `argv=None`→staged (no `sys.argv` capture), `.sql` case-insensitive, AFTER-EDIT headers = `none` (verified WARN-free). 9 behaviour tests (real git fixtures).
 
 **Files:** `scripts/enforcement/check_doc_sync.py`, `scripts/enforcement/check_doc_stubs.py`, `tests/test_doc_coverage_range.py` (new).
 **Consumes:** the existing `_staged()`/detector/`main()` in both checks.

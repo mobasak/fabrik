@@ -63,7 +63,8 @@ def _trigger_detectors() -> dict[str, object]:
 
     def _schema(staged: list[str]) -> bool:
         return any(
-            f.endswith(".sql") or "migration" in f.lower() or "alembic" in f.lower() for f in staged
+            f.lower().endswith(".sql") or "migration" in f.lower() or "alembic" in f.lower()
+            for f in staged
         )
 
     return {
@@ -75,11 +76,25 @@ def _trigger_detectors() -> dict[str, object]:
     }
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    import argparse
+
+    ap = argparse.ArgumentParser(description="Doc-stub force-fill advisory.")
+    ap.add_argument(
+        "--range",
+        dest="rng",
+        metavar="BASE..HEAD",
+        help="scan a git range's CUMULATIVE diff instead of the staged diff (whole-plan receipt)",
+    )
+    # argv=None (bare main() call) → parse NO args (staged mode), never the host's sys.argv.
+    args = ap.parse_args(argv if argv is not None else [])
     try:
         import check_doc_sync as ds
 
-        staged = ds._staged()
+        # --range reuses check_doc_sync's own _range helper (no duplicate git plumbing). Advisory, so
+        # an empty range just falls back to staged (never a false-clean concern — this never blocks).
+        rng = args.rng.strip() if args.rng else ""
+        staged = ds._range(rng) if rng else ds._staged()
         if not staged:
             return 0
         root = Path.cwd()
@@ -115,4 +130,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(main(sys.argv[1:]))
