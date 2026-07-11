@@ -1,6 +1,6 @@
 # Plan — Converging doc maintenance (Tier-0 REUSE existing generators + pool-author/native-verify reconcile loop + coverage gate)
 
-Status: CONVERGED
+Status: IN-PROGRESS
 Spec: docs/superpowers/specs/2026-07-11-converging-doc-maintenance-design.md (CONVERGED)
 Date: 2026-07-11
 Converged: 2026-07-11 (/fabrik-plan-review — 2 passes to an edit-free md5-verified no-op; every path:line re-grounded [agent.py:9-17 worktree diff-capture, check_doc_sync `_staged():64`, sync_projects:496→PROJECT_CATALOG AUTO-GEN, registry 22 rows]; 3 fixes: toolchain preflight note, check_doc_stubs `--range` reuses check_doc_sync `_range`, check_convergence.py added to the final gate; all structural pillars present [Context Ledger, File Scope disjoint, Behavior Contract per phase, /fabrik-review closing step in A–D, /fabrik-docs-review last]; no deferred-question residual — every still-open item carries a self-service default; no execution-blocking unknown)
@@ -61,7 +61,9 @@ fabrik-lib checked — the **pool** is VENDORED (use as-is; README lists a "docs
 - **Given** the reconcile helper import of `libs.subagents` fails (project without the pool vendored), **When** it runs, **Then** it no-ops gracefully and the mechanical gate still runs. *(Mocked: `ImportError`.)*
 - **Mocked overall:** all pool dispatches are stubbed in tests (`run_agents`/`record_agent_run` monkeypatched) — no live model calls in the suite; Tier-0 + coverage-gate tests run against tmp git fixtures.
 
-## Phase A — Tier-0 = REUSE the existing generators (no new `doc_autogen.py`)
+## Phase A — Tier-0 = REUSE the existing generators (no new `doc_autogen.py`) — ✅ EXECUTED 2026-07-11 (reuse-only, no code)
+
+> **Outcome (executed):** confirmed Tier-0 is fully covered by the existing generators — `INDEX.md` carries the live `AUTO-GENERATED:STRUCTURE` block, `docs_updater.py --check` runs (drift-gated, no crash), and `scripts/doc_autogen.py` was NOT created (no fork). The conditional project-`PORTS.md` extension was **SKIPPED per the step-2 default** — `PORTS.md` is registry `fills:agent` (trigger "new port allocated"), so the Phase-B Tier-1 reconcile loop covers it; a `docs_updater` PORTS block is marginal value for the SSOT-risk of editing a fleet-synced script. Phase A therefore shipped **no code** — Tier-0 is reuse-only.
 
 **Grounded correction (a `/fabrik-review` pre-flight caught this — plan-4-era assumption was wrong):** the "Tier-0 deterministic generators" the design imagined **already exist** and are gate-integrated + fleet-synced. Building a parallel `doc_autogen.py` would duplicate them — the exact SSOT/DRY violation this effort fights.
 - **`INDEX.md` file-list-with-purposes** → `docs_updater.py::generate_docs_structure_tree()` emits the `AUTO-GENERATED:STRUCTURE` block (the live INDEX tree: `CONFIGURATION.md # Environment variables …`); it is **synced to every project** (`fabrik_synced_manifest`) AND **gate-checked** (`final_gate.py:889 run_optional_check("scripts/docs_updater.py", "Documentation Drift", "--check")`, `:789` "auto-generated INDEX tree-map stays in docs_updater --check").
