@@ -22,22 +22,22 @@ Auto tier — OpenRouter output ≤ $1.5/Mtok. `pick_models` auto-selects freely
 | 2 | `deepseek/deepseek-v3.2` | ✅ | StreamLake | ✅ | — | 63 | 0.214 | 0.322 | 70.0 | 70.2 | — | 1431 | 131k | **B** | 0.552 |
 | 3 | `bytedance-seed/seed-2.0-mini` | ✅ | Seed | ✅ | ✅ | 135 | 0.100 | 0.400 | — | — | — | — | 262k | **C+** | 0.474 |
 | 4 | `bytedance-seed/seed-1.6-flash` | ✅ | Seed | ✅ | ✅ | 132 | 0.075 | 0.300 | — | — | — | — | 262k | **C+** | 0.464 |
-| 5 | `minimax/minimax-m2` | ✅ | Minimax | ✅ | — | 54 | 0.255 | 1.020 | 61.0 | — | — | — | 204k | **C+** | 0.440 |
-| 6 | `minimax/minimax-m3` | ✅ | Minimax | ✅ | — | 99 | 0.300 | 1.200 | — | — | 44 | 1485 | 1048k | **A+** | 0.422 |
-| 7 | `deepseek/deepseek-v4-flash` | ✅ | DeepInfra | ✅ | — | 100 | 0.084 | 0.168 | — | — | 40 | 1460 | 1048k | **A** | 0.401 |
-| 8 | `minimax/minimax-m2.7` | ✅ | Mara | ✅ | — | 44 | 0.240 | 0.960 | — | — | 38 | 1448 | 204k | **B-** | 0.362 |
-| 9 | `z-ai/glm-5.2` | ✅ | Novita | ✅ | — | 162 | 0.420 | 1.320 | — | — | 42 | — | 1048k | **A** | 0.324 |
-| 10 | `deepseek/deepseek-v4-pro` | ✅ | DeepSeek | ✅ | — | 58 | 0.435 | 0.870 | — | — | 44 | — | 1048k | **A** | 0.314 |
-| 11 | `qwen/qwen3-coder-next` | ✅ | Ionstream | — | — | 96 | 0.110 | 0.800 | — | — | 21 | — | 262k | **C+** | 0.248 |
-| 12 | `minimax/minimax-m2.1` | ✅ | Minimax | ✅ | — | 61 | 0.300 | 1.200 | — | — | — | 1430 | 204k | **B-** | 0.225 |
-| 13 | `z-ai/glm-4.5-air` | ✅ | Novita | ✅ | — | 105 | 0.130 | 0.850 | — | — | — | 1410 | 131k | **C+** | 0.224 |
-| 14 | `deepseek/deepseek-v3.2-exp` | ✅ | Novita | ✅ | — | 35 | 0.270 | 0.410 | — | — | — | 1431 | 163k | **C+** | 0.224 |
-| 15 | `deepseek/deepseek-chat-v3.1` | ✅ | DeepInfra | ✅ | — | 23 | 0.210 | 0.790 | — | — | — | 1430 | 163k | **C+** | 0.212 |
-| 16 | `qwen/qwen3-coder-30b-a3b-instruct` | ✅ | Novita | — | — | 104 | 0.070 | 0.270 | — | — | — | — | 160k | **C** | 0.185 |
-| 17 | `deepseek/deepseek-chat-v3-0324` | ✅ | SiliconFlow | — | — | 27 | 0.240 | 0.900 | — | — | — | 1391 | 163k | **C** | 0.184 |
-| 18 | `qwen/qwen3-coder-flash` | ✅ | Alibaba | — | — | 123 | 0.195 | 0.975 | — | — | — | — | 1000k | **B** | 0.181 |
-| 19 | `minimax/minimax-m2-her` | ✅ | Minimax | — | — | 87 | 0.300 | 1.200 | — | — | — | — | 65k | **C** | 0.172 |
-| 20 | `z-ai/glm-4.7-flash` | ✅ | DeepInfra | ✅ | — | 54 | 0.060 | 0.400 | — | — | — | — | 202k | **C+** | 0.171 |
+| 5 | `qwen/qwen3-coder-30b-a3b-instruct` | ✅ | Novita | — | ✅ | 104 | 0.070 | 0.270 | — | — | — | — | 160k | **C** | 0.458 |
+| 6 | `qwen/qwen3-coder-flash` | ✅ | Alibaba | — | ✅ | 123 | 0.195 | 0.975 | — | — | — | — | 1000k | **B** | 0.452 |
+| 7 | `minimax/minimax-m2` | ✅ | Minimax | ✅ | — | 54 | 0.255 | 1.020 | 61.0 | — | — | — | 204k | **C+** | 0.440 |
+| 8 | `minimax/minimax-m3` | ✅ | Minimax | ✅ | — | 99 | 0.300 | 1.200 | — | — | 44 | 1485 | 1048k | **A+** | 0.422 |
+| 9 | `z-ai/glm-4.7-flash` | ✅ | DeepInfra | ✅ | ✅ | 54 | 0.060 | 0.400 | — | — | — | — | 202k | **C+** | 0.413 |
+| 10 | `deepseek/deepseek-v4-flash` | ✅ | DeepInfra | ✅ | — | 100 | 0.084 | 0.168 | — | — | 40 | 1460 | 1048k | **A** | 0.401 |
+| 11 | `minimax/minimax-m2.7` | ✅ | Mara | ✅ | — | 44 | 0.240 | 0.960 | — | — | 38 | 1448 | 204k | **B-** | 0.362 |
+| 12 | `z-ai/glm-5.2` | ✅ | Novita | ✅ | — | 162 | 0.420 | 1.320 | — | — | 42 | — | 1048k | **A** | 0.324 |
+| 13 | `deepseek/deepseek-v4-pro` | ✅ | DeepSeek | ✅ | — | 58 | 0.435 | 0.870 | — | — | 44 | — | 1048k | **A** | 0.314 |
+| 14 | `qwen/qwen3-coder-next` | ✅ | Ionstream | — | — | 96 | 0.110 | 0.800 | — | — | 21 | — | 262k | **C+** | 0.248 |
+| 15 | `minimax/minimax-m2.1` | ✅ | Minimax | ✅ | — | 61 | 0.300 | 1.200 | — | — | — | 1430 | 204k | **B-** | 0.225 |
+| 16 | `z-ai/glm-4.5-air` | ✅ | Novita | ✅ | — | 105 | 0.130 | 0.850 | — | — | — | 1410 | 131k | **C+** | 0.224 |
+| 17 | `deepseek/deepseek-v3.2-exp` | ✅ | Novita | ✅ | — | 35 | 0.270 | 0.410 | — | — | — | 1431 | 163k | **C+** | 0.224 |
+| 18 | `deepseek/deepseek-chat-v3.1` | ✅ | DeepInfra | ✅ | — | 23 | 0.210 | 0.790 | — | — | — | 1430 | 163k | **C+** | 0.212 |
+| 19 | `deepseek/deepseek-chat-v3-0324` | ✅ | SiliconFlow | — | — | 27 | 0.240 | 0.900 | — | — | — | 1391 | 163k | **C** | 0.184 |
+| 20 | `minimax/minimax-m2-her` | ✅ | Minimax | — | — | 87 | 0.300 | 1.200 | — | — | — | — | 65k | **C** | 0.172 |
 | 21 | `deepseek/deepseek-r1-distill-llama-70b` | ✅ | Novita | ✅ | — | 45 | 0.800 | 0.800 | — | — | — | — | 128k | **C** | 0.163 |
 | 22 | `deepseek/deepseek-chat` | ✅ | StreamLake | — | — | 42 | 0.200 | 0.800 | — | — | — | 1337 | 131k | **C** | 0.162 |
 | 23 | `z-ai/glm-4.6v` | ✅ | Novita | ✅ | — | 33 | 0.300 | 0.900 | — | — | — | — | 131k | **C** | 0.157 |
@@ -80,11 +80,8 @@ Auto-tier coding candidates (OR-reachable, output ≤ $1.5/Mtok) with no live pa
 | `z-ai/glm-4.5-air` | 0.130 | 0.850 | 105 | 131k | 1410 | ✅ | 0.224 |
 | `deepseek/deepseek-v3.2-exp` | 0.270 | 0.410 | 35 | 163k | 1431 | ✅ | 0.224 |
 | `deepseek/deepseek-chat-v3.1` | 0.210 | 0.790 | 23 | 163k | 1430 | ✅ | 0.212 |
-| `qwen/qwen3-coder-30b-a3b-instruct` | 0.070 | 0.270 | 104 | 160k | — | — | 0.185 |
 | `deepseek/deepseek-chat-v3-0324` | 0.240 | 0.900 | 27 | 163k | 1391 | — | 0.184 |
-| `qwen/qwen3-coder-flash` | 0.195 | 0.975 | 123 | 1000k | — | — | 0.181 |
 | `minimax/minimax-m2-her` | 0.300 | 1.200 | 87 | 65k | — | — | 0.172 |
-| `z-ai/glm-4.7-flash` | 0.060 | 0.400 | 54 | 202k | — | ✅ | 0.171 |
 | `deepseek/deepseek-r1-distill-llama-70b` | 0.800 | 0.800 | 45 | 128k | — | ✅ | 0.163 |
 | `deepseek/deepseek-chat` | 0.200 | 0.800 | 42 | 131k | 1337 | — | 0.162 |
 | `z-ai/glm-4.6v` | 0.300 | 0.900 | 33 | 131k | — | ✅ | 0.157 |
