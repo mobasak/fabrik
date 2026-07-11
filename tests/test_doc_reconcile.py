@@ -518,3 +518,64 @@ def test_loop_all_skipped_converges(tmp_path, monkeypatch):
     assert out["status"] == "converged"  # "skipped" is resolved → converge, not spin to max_rounds
     assert out["rounds"] == 1
     assert out["docs"]["docs/QUICKSTART.md"].status == "skipped"
+
+
+# ── Behavior 22 (P4-2/3): a resolved doc is NOT re-dispatched while a sibling is still unresolved ──
+def test_loop_multi_doc_skips_resolved(tmp_path, monkeypatch):
+    repo = _mk_repo(tmp_path)
+    (repo / "docs").mkdir()
+    (repo / "docs" / "CONFIGURATION.md").write_text("cfg\n")
+    (repo / "docs" / "SERVICES.md").write_text("svc\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "-m", "i")
+    diff_b = _diff_for(repo, "docs/SERVICES.md", "svc\nchange\n")  # B's patch (verify will reject it)
+    dispatched = {"docs/CONFIGURATION.md": 0, "docs/SERVICES.md": 0}
+
+    def _run(specs, **k):
+        owned = specs[0].owned_paths[0]
+        dispatched[owned] += 1
+        # A (CONFIGURATION) is already correct → empty diff (noop, resolves round 1);
+        # B (SERVICES) returns a patch that verify_fn rejects → drift every round.
+        return [_fake_result(diff="" if owned == "docs/CONFIGURATION.md" else diff_b)]
+
+    monkeypatch.setattr(dr, "pick_models", lambda *a, **k: ["m"])
+    monkeypatch.setattr(dr, "run_agents", _run)
+    monkeypatch.setattr(dr, "record_agent_run", lambda *a, **k: True)
+
+    out = dr.reconcile_loop(
+        [_docrow("docs/CONFIGURATION.md"), _docrow("docs/SERVICES.md")],
+        "d", repo, verify_fn=lambda *a, **k: False, max_rounds=3,
+    )
+    assert out["status"] == "max_rounds"  # B never resolves
+    assert dispatched["docs/CONFIGURATION.md"] == 1  # A dispatched ONCE — frozen after it resolved
+    assert dispatched["docs/SERVICES.md"] == 3  # B re-dispatched every round
+    assert out["docs"]["docs/CONFIGURATION.md"].status == "noop"  # A's status not regressed by B
+
+
+# ── Behavior 23 (P4-1): main() chdirs to --root so the CWD-relative route detector works ──
+def test_main_root_route_detection(tmp_path, monkeypatch):
+    repo = _mk_repo(tmp_path)
+    (repo / "app").mkdir()
+    (repo / "app" / "routes.py").write_text("x = 1\n")
+    (repo / "docs").mkdir()
+    (repo / "docs" / "QUICKSTART.md").write_text("qs\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "-m", "base")
+    (repo / "app" / "routes.py").write_text("@app.get('/new')\ndef h():\n    return 1\n")  # route added
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "-m", "route")
+    called: list[str] = []
+
+    def _run(specs, **k):
+        called.append(specs[0].owned_paths[0])
+        return [_fake_result(diff="")]
+
+    monkeypatch.setattr(dr, "pick_models", lambda *a, **k: ["m"])
+    monkeypatch.setattr(dr, "run_agents", _run)
+    monkeypatch.setattr(dr, "record_agent_run", lambda *a, **k: True)
+
+    cwd_before = Path.cwd()
+    rc = dr.main(["--range", "HEAD~1..HEAD", "--root", str(repo)])  # run from THIS cwd, root elsewhere
+    assert rc == 0
+    assert "docs/QUICKSTART.md" in called  # route change detected under --root → QUICKSTART fired
+    assert Path.cwd() == cwd_before  # main restored the caller's cwd

@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import os
 import re
 import subprocess
 import sys
@@ -131,8 +132,9 @@ def _extract_tokens(added_text: str) -> set[str]:
     return toks
 
 
-def _codebase_haystack(root: Path | str) -> str:
+def _codebase_haystack(root: Path | str, exclude: str | None = None) -> str:
     parts: list[str] = []
+    exclude_path = (Path(root) / exclude).resolve() if exclude else None
     try:
         for p in Path(root).rglob("*"):
             if not p.is_file():
@@ -141,6 +143,8 @@ def _codebase_haystack(root: Path | str) -> str:
                 continue
             if p.suffix.lower() not in _TEXT_EXT and p.name not in _TEXT_NAMES:
                 continue
+            if exclude_path is not None and p.resolve() == exclude_path:
+                continue  # never let a symbol self-validate against the target doc's own prose
             try:
                 if p.stat().st_size > 1_000_000:
                     continue
@@ -160,7 +164,7 @@ def _default_verify(patch: str, doc: object, root: Path | str) -> bool:
         toks = _extract_tokens(_added_lines(patch))
         if not toks:
             return True
-        hay = _codebase_haystack(root)
+        hay = _codebase_haystack(root, exclude=getattr(doc, "name", None))
         # word-boundary match (not raw substring) so an invented `Spec` is NOT satisfied by a real
         # `AgentSpec` — the token must appear as a whole identifier somewhere in the codebase.
         return all(re.search(r"\b" + re.escape(t) + r"\b", hay) for t in toks)
@@ -349,6 +353,12 @@ def reconcile_loop(
         results: dict[str, ReconcileResult] = {}
         if not docs:
             return {"status": "converged", "rounds": 0, "docs": {}}
+        # A doc is RESOLVED once it reaches a terminal-good state ("applied"/"noop"/"skipped"): the
+        # code matches, or there's nothing the pool can do. Resolved docs are NOT re-dispatched in
+        # later rounds — that would burn pool budget re-checking a fixed doc AND risk a nondeterministic
+        # later response flipping its status back to drift/degraded, wrongly blocking convergence
+        # (e.g. SERVICES.md + OPERATIONS.md always fire together on a compose change).
+        resolved: set[str] = set()
         rounds = 0
         for rnd in range(max_rounds):
             rounds = rnd + 1
@@ -356,6 +366,9 @@ def reconcile_loop(
             round_status: list[str] = []
             for doc in docs:
                 name = getattr(doc, "name", "")
+                if name in resolved:
+                    round_status.append(results[name].status)  # already done — don't re-dispatch
+                    continue
                 try:
                     rr = reconcile_doc(doc, diff_text, root, verify_fn)
                 except Exception:  # noqa: BLE001
@@ -367,6 +380,8 @@ def reconcile_loop(
                 # or main()'s "N doc(s) updated" tally would under-count every doc it actually fixed.
                 if not (prev is not None and prev.applied and not rr.applied):
                     results[name] = rr
+                if results[name].status in ("applied", "noop", "skipped"):
+                    resolved.add(name)  # terminal-good → freeze it, skip in later rounds
             after = _docset_md5(docs, root)
             # Converge ONLY when the round made no edits AND nothing is unresolved. Both "drift"
             # (patch failed verify → not applied) and "degraded" (apply error / timeout / failed
@@ -380,10 +395,14 @@ def reconcile_loop(
         return {"status": "degraded", "rounds": 0, "docs": {}}
 
 
-def _git_out(root: Path | str, args: list[str]) -> str:
+def _git_run(root: Path | str, args: list[str]) -> subprocess.CompletedProcess:
     return subprocess.run(
         ["git", "-C", str(root), *args], capture_output=True, text=True, timeout=_GIT_TIMEOUT
-    ).stdout
+    )
+
+
+def _git_out(root: Path | str, args: list[str]) -> str:
+    return _git_run(root, args).stdout
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -395,14 +414,19 @@ def main(argv: list[str] | None = None) -> int:
     )
     ap.add_argument("--root", default=".", help="repo root (default: cwd)")
     args = ap.parse_args(argv)
+    prev_cwd = Path.cwd()
     try:
         root = Path(args.root).resolve()
+        # chdir so the reused CWD-relative detectors (check_doc_sync._has_route_change reads file
+        # contents via a bare Path(f)) resolve against root, not the caller's cwd — otherwise a
+        # `--root <elsewhere>` run silently misses the route-change (QUICKSTART) trigger.
+        os.chdir(root)
         if args.rng:
-            files = [
-                f
-                for f in _git_out(root, ["diff", args.rng, "--name-only"]).splitlines()
-                if f.strip()
-            ]
+            name_run = _git_run(root, ["diff", args.rng, "--name-only"])
+            if name_run.returncode != 0:  # a bad/unresolvable range → surface it, don't mask as "no docs"
+                print(f"doc-reconcile: invalid range '{args.rng}' — {name_run.stderr.strip()[:120]}")
+                return 0
+            files = [f for f in name_run.stdout.splitlines() if f.strip()]
             diff = _git_out(root, ["diff", args.rng])
         else:
             files = [
@@ -422,6 +446,11 @@ def main(argv: list[str] | None = None) -> int:
         )
     except Exception as e:  # noqa: BLE001 — never block a gate/commit
         print(f"doc-reconcile: degraded ({e})")
+    finally:
+        try:
+            os.chdir(prev_cwd)  # always restore the caller's cwd (matters for in-process/test callers)
+        except OSError:
+            pass
     return 0
 
 
