@@ -416,7 +416,8 @@ def test_applied_is_sticky_across_rounds(tmp_path, monkeypatch):
 
     def _run(specs, **k):
         calls["n"] += 1
-        # round 1: the real patch (applies → md5 changes → a 2nd round); round 2: doc matches → empty
+        # round 1: the real patch applies → md5 changes → a 2nd round. The doc is then FROZEN
+        # (resolved="applied"), so it is NOT re-dispatched in round 2 — the empty fallback never fires.
         return [_fake_result(diff=diff if calls["n"] == 1 else "")]
 
     monkeypatch.setattr(dr, "pick_models", lambda *a, **k: ["m"])
@@ -425,8 +426,9 @@ def test_applied_is_sticky_across_rounds(tmp_path, monkeypatch):
 
     out = dr.reconcile_loop([_docrow()], "d", repo, max_rounds=3)
     assert out["status"] == "converged"
-    assert out["rounds"] == 2  # applied round 1, noop round 2
-    assert out["docs"]["docs/QUICKSTART.md"].applied is True  # STICKY — round-2 noop did not erase it
+    assert out["rounds"] == 2  # round 1 applied (md5 changed), round 2 saw no unresolved → converged
+    assert calls["n"] == 1  # dispatched ONCE then frozen — "applied" persists via the freeze
+    assert out["docs"]["docs/QUICKSTART.md"].applied is True  # STICKY (freeze) — not erased
 
 
 # ── Behavior 18 (C1 regression): persistent "degraded" must NOT falsely converge ──────
@@ -579,3 +581,29 @@ def test_main_root_route_detection(tmp_path, monkeypatch):
     assert rc == 0
     assert "docs/QUICKSTART.md" in called  # route change detected under --root → QUICKSTART fired
     assert Path.cwd() == cwd_before  # main restored the caller's cwd
+
+
+# ── Behavior 24 (P5-7): _default_verify excludes the target doc — no self-validation from its prose ─
+def test_default_verify_excludes_target_doc(tmp_path):
+    repo = _mk_repo(tmp_path)
+    (repo / "docs").mkdir()
+    # the invented symbol appears ONLY in the target doc's OWN prose — no code defines it
+    (repo / "docs" / "QUICKSTART.md").write_text("legacy prose mentions `phantom_symbol` here\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "-m", "i")
+    patch = "+++ b/docs/QUICKSTART.md\n+use `phantom_symbol` now\n"
+    # excluded from the haystack → not found anywhere in real code → rejected (would falsely pass if
+    # the doc self-validated against its own text)
+    assert dr._default_verify(patch, _docrow("docs/QUICKSTART.md"), repo) is False
+
+
+# ── Behavior 25 (P5-1): a verify that crashes fails CLOSED (rejects, never passes an unverified patch) ─
+def test_default_verify_fail_closed_on_error(tmp_path, monkeypatch):
+    repo = _mk_repo(tmp_path)
+
+    def _boom(*a, **k):
+        raise RuntimeError("scan blew up")
+
+    monkeypatch.setattr(dr, "_codebase_haystack", _boom)
+    patch = "+++ b/docs/QUICKSTART.md\n+use `some_symbol` here\n"
+    assert dr._default_verify(patch, _docrow(), repo) is False  # crashed verify → reject, not apply

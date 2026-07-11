@@ -159,7 +159,13 @@ def _codebase_haystack(root: Path | str, exclude: str | None = None) -> str:
 def _default_verify(patch: str, doc: object, root: Path | str) -> bool:
     """Mechanical symbol cross-check: every backtick identifier the patch ADDS must appear somewhere
     in the codebase — an identifier present nowhere is an invented endpoint/symbol → drift (reject).
-    Fail-open: any error → True (a verify glitch must never block doc maintenance)."""
+
+    Fail-CLOSED: any error → False (reject). A verify that could not complete must never be treated
+    as "verified" and let an unverified patch apply — consistent with ``_patch_targets_only``. The
+    rejection is safe: the loop re-authors (drift), and the reconcile layer's own fail-safe keeps the
+    gate un-blocked. NOTE: this only catches *invented symbols*; it can't judge whether an EMPTY diff
+    ("doc already matches") is truthful — that trust in the pool is by design, backstopped at the
+    system level by the whole-plan coverage gate (``check_doc_sync --range``, Phase C)."""
     try:
         toks = _extract_tokens(_added_lines(patch))
         if not toks:
@@ -168,8 +174,8 @@ def _default_verify(patch: str, doc: object, root: Path | str) -> bool:
         # word-boundary match (not raw substring) so an invented `Spec` is NOT satisfied by a real
         # `AgentSpec` — the token must appear as a whole identifier somewhere in the codebase.
         return all(re.search(r"\b" + re.escape(t) + r"\b", hay) for t in toks)
-    except Exception:  # noqa: BLE001
-        return True
+    except Exception:  # noqa: BLE001 — a verify that crashed must NOT pass an unverified patch
+        return False
 
 
 def _patch_targets_only(patch: str, name: str, root: Path | str) -> bool:
@@ -348,18 +354,22 @@ def reconcile_loop(
 
     Docs are parallel-safe (disjoint ``owned_paths``, one per doc). Never raises → degraded on error.
     """
+    # results/rounds live OUTSIDE the try so a mid-loop crash still returns the progress already made
+    # on disk (round 1 applied a doc, round 2 raised → the caller must still see that applied=True,
+    # or main()'s "N doc(s) updated" tally would report 0 despite real changes).
+    results: dict[str, ReconcileResult] = {}
+    rounds = 0
     try:
         docs = list(docs)
-        results: dict[str, ReconcileResult] = {}
         if not docs:
             return {"status": "converged", "rounds": 0, "docs": {}}
         # A doc is RESOLVED once it reaches a terminal-good state ("applied"/"noop"/"skipped"): the
-        # code matches, or there's nothing the pool can do. Resolved docs are NOT re-dispatched in
-        # later rounds — that would burn pool budget re-checking a fixed doc AND risk a nondeterministic
-        # later response flipping its status back to drift/degraded, wrongly blocking convergence
-        # (e.g. SERVICES.md + OPERATIONS.md always fire together on a compose change).
+        # code matches, or there's nothing the pool can do. Resolved docs are FROZEN — never
+        # re-dispatched in later rounds. This avoids burning pool budget re-checking a fixed doc,
+        # prevents a nondeterministic later response from regressing its status back to drift/degraded
+        # (SERVICES.md + OPERATIONS.md always fire together on a compose change), AND makes "applied"
+        # sticky for free — a frozen doc is never re-processed, so its result persists to the return.
         resolved: set[str] = set()
-        rounds = 0
         for rnd in range(max_rounds):
             rounds = rnd + 1
             before = _docset_md5(docs, root)
@@ -367,21 +377,16 @@ def reconcile_loop(
             for doc in docs:
                 name = getattr(doc, "name", "")
                 if name in resolved:
-                    round_status.append(results[name].status)  # already done — don't re-dispatch
+                    round_status.append(results[name].status)  # frozen — don't re-dispatch
                     continue
                 try:
                     rr = reconcile_doc(doc, diff_text, root, verify_fn)
                 except Exception:  # noqa: BLE001
                     rr = ReconcileResult(name, "degraded", False)
+                results[name] = rr
                 round_status.append(rr.status)
-                prev = results.get(name)
-                # Keep the "applied" outcome sticky: once a doc was patched on disk, a LATER round's
-                # noop (the doc now matches → empty diff) must not overwrite it to applied=False,
-                # or main()'s "N doc(s) updated" tally would under-count every doc it actually fixed.
-                if not (prev is not None and prev.applied and not rr.applied):
-                    results[name] = rr
-                if results[name].status in ("applied", "noop", "skipped"):
-                    resolved.add(name)  # terminal-good → freeze it, skip in later rounds
+                if rr.status in ("applied", "noop", "skipped"):
+                    resolved.add(name)  # terminal-good → freeze it
             after = _docset_md5(docs, root)
             # Converge ONLY when the round made no edits AND nothing is unresolved. Both "drift"
             # (patch failed verify → not applied) and "degraded" (apply error / timeout / failed
@@ -391,8 +396,8 @@ def reconcile_loop(
             if before == after and not any(s in unresolved for s in round_status):
                 return {"status": "converged", "rounds": rounds, "docs": results}
         return {"status": "max_rounds", "rounds": rounds, "docs": results}
-    except Exception:  # noqa: BLE001 — fail-safe: never raise into a caller/gate
-        return {"status": "degraded", "rounds": 0, "docs": {}}
+    except Exception:  # noqa: BLE001 — fail-safe: never raise; preserve partial progress
+        return {"status": "degraded", "rounds": rounds, "docs": results}
 
 
 def _git_run(root: Path | str, args: list[str]) -> subprocess.CompletedProcess:
@@ -419,22 +424,23 @@ def main(argv: list[str] | None = None) -> int:
         root = Path(args.root).resolve()
         # chdir so the reused CWD-relative detectors (check_doc_sync._has_route_change reads file
         # contents via a bare Path(f)) resolve against root, not the caller's cwd — otherwise a
-        # `--root <elsewhere>` run silently misses the route-change (QUICKSTART) trigger.
+        # `--root <elsewhere>` run silently misses the route-change (QUICKSTART) trigger. NOTE: this
+        # makes main() NOT thread-safe (chdir is process-wide) — invoke it as a subprocess or
+        # single-threaded; batch multi-repo runs via separate processes, not a thread pool.
         os.chdir(root)
         if args.rng:
             name_run = _git_run(root, ["diff", args.rng, "--name-only"])
             if name_run.returncode != 0:  # a bad/unresolvable range → surface it, don't mask as "no docs"
                 print(f"doc-reconcile: invalid range '{args.rng}' — {name_run.stderr.strip()[:120]}")
                 return 0
-            files = [f for f in name_run.stdout.splitlines() if f.strip()]
             diff = _git_out(root, ["diff", args.rng])
         else:
-            files = [
-                f
-                for f in _git_out(root, ["diff", "--cached", "--name-only"]).splitlines()
-                if f.strip()
-            ]
+            name_run = _git_run(root, ["diff", "--cached", "--name-only"])
+            if name_run.returncode != 0:  # --root not a repo / git failure → surface, don't mask
+                print(f"doc-reconcile: git failed in '{root}' — {name_run.stderr.strip()[:120]}")
+                return 0
             diff = _git_out(root, ["diff", "--cached"])
+        files = [f for f in name_run.stdout.splitlines() if f.strip()]
         docs = fired_docs(files)
         if not docs:
             print("doc-reconcile: no fired-trigger docs in range")
