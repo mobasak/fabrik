@@ -76,7 +76,9 @@ Steps:
 **Gate:** `grep -q "AUTO-GENERATED:STRUCTURE" INDEX.md` → present; `test ! -e scripts/doc_autogen.py` → true (no fork); if the extension was built: `python -m pytest tests/test_docs_updater_ports.py -q` → pass.
 **Close (literal steps):** (1) confirm the greps; (2) if any code changed, `check_doc_sync.py` + CHANGELOG + INDEX row; (3) **`/fabrik-review`** on any changed surface — BLOCKING, looped to a no-op (skip if Phase A wrote no code — the default); (4) commit only if code changed (`Agent-Phase: A`); else record in the plan that Tier-0 is reuse-only and proceed to Phase B.
 
-## Phase B — the `doc-reconcile` helper + convergence loop (pool author → native verify)
+## Phase B — the `doc-reconcile` helper + convergence loop (pool author → native verify) — ✅ EXECUTED 2026-07-11
+
+> **Executed:** `scripts/doc_reconcile.py` (+ 21 behavior tests) — `fired_docs`/`reconcile_doc`/`reconcile_loop`/`main`, registry-driven, verify-before-apply (default mechanical symbol cross-check), flywheel-recorded, fail-safe. `/fabrik-review`: 3 finder rounds — round 1 (2 finders) found the applied-flag/flywheel/verify defects + coverage gaps; round 2 found the drift→`degraded` false-converge + the regex scope-guard bypass; both fixed with regression tests; capped-status apply bug caught in grounding. Gate green (mypy/bandit/semgrep), ruff+mypy clean.
 
 **Files:** `scripts/doc_reconcile.py` (new), `tests/test_doc_reconcile.py` (new).
 **Consumes:** `_doc_registry.PROJECT_DOCS` (which docs + triggers) [Phase-independent]; `libs.subagents.run_agents`/`AgentSpec`/`pick_models`/`record_agent_run`/`results_table`; the reused trigger detectors from `check_doc_sync` (`_has_route_change` etc.).
