@@ -1,6 +1,6 @@
 # Promote `subagents` from vendor-copy to a Fabrik-synced module
 
-Status: CONVERGED
+Status: EXECUTED (2026-07-10, lean per operator). Shipped the essence — `VENDORED_DIRS=["libs/subagents"]` in the synced manifest (`iter_synced_pairs` + `gitignore_dest_paths` + the `.fabrik/synced.lock` so `check_synced_unmodified` protects it); a `VENDORED_DIRS` copy+orphan-prune loop in `sync_enforcement_to_projects.py` (distributes to existing projects on every sync); a `libs/subagents` copytree in `scaffold.py` driven by the same `VENDORED_DIRS` constant (new projects, all types); pre-flight re-vendored the hub copy byte-identical to canonical. +3 manifest tests. Reviewed via the pool (2 passes, 4 defects fixed: orphan-prune, scaffold source-of-truth, is_dir guard). The detailed Phase-B docs/guardrail steps below were folded in leanly rather than executed verbatim.
 Date: 2026-07-08
 Converged: 2026-07-08 (/fabrik-plan-review — 3 passes to an edit-free md5-verified no-op; every path:line re-grounded live, the step-4c verify block + the namespace-package import PROVEN by running them, all residuals forced to RESOLVED/SELF-SERVICE)
 
