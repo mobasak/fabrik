@@ -400,9 +400,17 @@ Phase D closes both plans in the same commit sequence so their final states land
    )"
    ```
 
-## Phase C — Live bench run + DB verification + selection MD regen
+## Phase C — Live bench run + DB verification + selection MD regen — ✅ EXECUTED 2026-07-11 (v3, cached-replay to DB)
 
-> **Post-first-run fix (2026-07-11, review-fix commit):** the first live run of Phase C tripped C1 with `humaneval=0.00` for all 4 models despite $4.76 real spend + 8/8 units OK. Root cause: chat-tuned Seed models return prose + fenced code (e.g. `"To solve this problem…\n\n```python\ndef foo(): …\n```"`) but evalplus's `--samples` path `exec()`s the whole solution string → SyntaxError on the prose → grade 0. Fix: insert `python -m evalplus.sanitize --samples <path>` between `generate_samples` and `evalplus.evaluate`; evaluate consumes the resulting `-sanitized.jsonl`. Verified live on 3 humaneval problems against `seed-1.6-flash` → all 3 pass_at_1. Second live run re-attempts with the sanitize step in `_run_one`.
+> **Two review-fixes landed during Phase C (both required to converge on the real scores):**
+>
+> **Fix 1 — sanitize gap (commit 1ac76825).** v1 finished with `humaneval=0.00` for all 4 models despite $4.76 spend + 8/8 units OK. Chat-tuned Seed models return prose + fenced code (`"To solve this problem…\n\n```python\ndef foo(): …\n```"`), but evalplus's `--samples` path `exec()`s the whole solution string → SyntaxError on the prose → grade 0. Inserted `python -m evalplus.sanitize --samples <path>` between `generate_samples` and `evalplus.evaluate`; evaluate consumes the resulting `-sanitized.jsonl`. Verified live on 3 humaneval problems → all 3 pass_at_1.
+>
+> **Fix 2 — persistence gap (commit 419f32f7).** v1's samples were auto-deleted by `tempfile.TemporaryDirectory` on process exit, forcing v2 to fully re-shim ($4.76 again) instead of $0-recovering from cached samples + a re-sanitize/re-evaluate. Replaced the tempdir with a persistent `scripts/kilo-benchmarks/.microbench_cache/<UTC-stamp>-pid<pid>/` (gitignored). Then killed v2 mid-run and relaunched as v3 with both fixes.
+>
+> **v3 outcome — persistence paid off immediately.** v3 completed 8/8 units OK ($4.88 spend), sanitize worked, evalplus produced real per-task scores — but `main`'s final `write_scores` sqlite3 UPDATE crashed with `OperationalError('attempt to write a readonly database')` before the WROTE loop ran (transient — DB was writable at the very next probe). Because samples + eval_results.json were all in `.microbench_cache/2026-07-10T22-28-37-pid2361958/`, recovery was a one-shot Python replay of `parse_eval_results → merge_dataset_results → write_scores` against the cached files. **Zero additional OpenRouter spend to land the real scores.** C1+C2+C3+C4+C5 all pass.
+>
+> **Residual — transient-write hardening deferred to plan-D or a small follow-up.** `main`'s DB write path should retry-on-locked with exponential backoff (SQLite `busy_timeout` + PRAGMA journal_mode=WAL) so a sibling agent's momentary read-transaction can't crash a $5 run. Not blocking Phase C's completion — the manual replay was $0 — but the guard should exist.
 
 **Purpose:** Actually populate `humaneval_score` + `coding_score` for the 4 ByteDance-Seed models. This is the ~$2.66 live spend + ~30 min wall clock plan-2 Phase E BLOCKED at. Regen `CODING_SUBAGENT_SELECTION.md`.
 
