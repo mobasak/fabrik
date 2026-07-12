@@ -1,6 +1,6 @@
 <!-- ⚠️ FABRIK FACTORY WORKFLOW — ENTRYPOINT (our own, tool-capable)
      Run DIRECTLY by our orchestrator agent (Claude Code CLI, in Zed) — never pasted into a planner GUI.
-     Unlike the our orchestrator source (docs/traycer/mega-epic-breakdown/00-trigger-workflow-command.md), this
+     Unlike the Traycer source (docs/traycer/mega-epic-breakdown/00-trigger-workflow-command.md), this
      agent is TOOL-CAPABLE: it RUNS `python scripts/select_rules.py`, reads the files it cites, grounds
      external facts LIVE via MCP (exa/brave/context7, cite URL+date), and gates with
      `python scripts/final_gate.py`. Orientation file to read FIRST: `agents-fabrik.md`.
@@ -53,24 +53,24 @@ If a NEW vision cannot pass all 4 stages, state this explicitly and justify. If 
 
 ## Architectural Mandates (non-negotiable — single source of truth)
 
-These are **vision-level architectural commitments**. Every epic dispatched from this vision inherits them. **Violations block vision confirmation.** Per-epic verification happens later in `epic-to-ticket-workflow/00` Step 5 (overlay constraints #17–#24) — but the commitment is made here.
+These are **vision-level architectural commitments**. Every epic dispatched from this vision inherits them. **Violations block vision confirmation.** Per-epic verification happens later in `epic-to-ticket-workflow/00` Step 5 — but ⚠️ its overlay constraints #17–#24 cover only **8 of these mandates** (12-Factor, Concurrency, i18n, Shape, Responsive, Dark+Light, Abuse Detection, Email). **Resilience, Observability, and Fleet-topology (`target_vps`) have NO epic-level overlay constraint** — they are asserted here at vision level and never re-checked per epic. Verify them explicitly in the epic's tech-plan — but the commitment is made here.
 
 - **12-Factor App — ALL TWELVE.** Every backend service satisfies **all 12** factors of [The Twelve-Factor App](https://12factor.net/) — not the four we happen to remember. Each is grounded below with its **Fabrik binding** (source re-verified live 2026-07-12). **Violations are blockers**; state per-factor compliance at the 12-Factor check.
 
 | # | Factor | The mandate (12factor.net) | Fabrik binding — the violation to catch |
 |---|---|---|---|
-| I | Codebase | One codebase per app, many deploys. *"Multiple apps sharing the same code is a violation."* | One repo per project; shared code → `fabrik-lib`. **Deliberate, stated deviation:** 12F prescribes including shared code *"through the dependency manager"*; Fabrik **vendors (copies)** it to guarantee self-contained builds. Each app still owns its codebase, so the intent holds — say so, don't pretend. |
-| II | Dependencies | *"Never relies on implicit existence of system-wide packages."* If the app shells out to a system tool, **vendor the tool**. | Declare every dep in `requirements.txt`/`package.json`. **Never assume `curl` / ImageMagick exist in the image.** PDF/browser work → the **Gotenberg / Browserless** backing services, not a system binary. |
-| III | Config | Config in **env vars**. Litmus test: *"could the codebase be open-sourced at any moment without compromising credentials?"* **Explicitly rejects grouped named environments** — env vars are granular + orthogonal. | `os.getenv("KEY", "default")`; zero secrets in code. ⚠️ Do **not** build a `config/production.yml`-style env group — 12F names that exact anti-pattern. |
-| IV | Backing services | Attached resources, swappable by **config alone** — *"no distinction between local and third party services."* | `DATABASE_URL` / `REDIS_URL` are config. This is *why* WSL-dev ↔ `postgres-main:5432` must be an **env change, never a code change**. |
-| V | Build, release, run | Strict separation. Releases **immutable**, each with a **unique release ID**. *"It is impossible to make changes to the code at runtime."* | `fabrik apply`/`redeploy` build an image then deploy it; the **git SHA is the release ID**. **Never hot-patch a running container.** |
-| VI | Processes | Stateless + share-nothing. *"**Sticky sessions are a violation of twelve-factor and should never be used or relied upon.**"* Session state → **Memcached or Redis**. | Sessions/cache → `redis-main`. **Both** file-based sessions **and sticky sessions** are violations (we only ever named the first). |
-| VII | Port binding | App is **completely self-contained**, exports HTTP by **binding to a port**; *"does not rely on runtime injection of a webserver."* | Uvicorn binds inside the container; **Traefik is the routing layer**. This is precisely *why* compose declares **no host `ports:`**. |
-| VIII | Concurrency | Scale **out** via the process model (web / worker). *"**Processes should never daemonize or write PID files.**"* | `web` + `file-worker` process types; scale by adding processes. Docker/systemd supervises — **never daemonize, never write a PID file**. |
-| IX | Disposability | Fast startup (seconds). **SIGTERM:** web = stop listening + drain in-flight; **worker = return the current job to the queue**. *"All jobs are reentrant… idempotent."* Robust against sudden death. | ⚠️ **The half we were missing.** `fabrik-lib/job-queue` must **requeue/NACK its in-flight job on SIGTERM**, and **every job must be idempotent** — not merely "fast startup + SIGTERM". |
-| X | Dev/prod parity | *"**The twelve-factor developer resists the urge to use different backing services between development and production.**"* Same type **and version**. | ⚠️ **Binds the two-env rule directly:** WSL dev and the VPS both run **PostgreSQL + Redis**. **Never SQLite locally**; never an in-memory dict standing in for Redis. The same code must run unmodified in both. |
-| XI | Logs | Write the event stream **unbuffered to `stdout`**. *"A twelve-factor app **never** concerns itself with routing or storage of its output stream… It should not attempt to write to or manage logfiles."* | `structlog` → stdout. **The app must never write or rotate a logfile.** Promtail → Loki is the *execution environment* doing the routing — that is the 12F-correct split. |
-| XII | Admin processes | One-off admin tasks run **against the same release + config** as long-running processes; the admin code **ships with the app**. | Alembic migrations live in the repo and run against the **deployed release/env** — never from a laptop against prod with different config. |
+| I | Codebase | One codebase per app, many deploys. *"Multiple apps sharing the same code is a violation."* | One repo per project; shared code → `fabrik-lib`. **Deliberate, stated deviation:** 12F prescribes including shared code *"through the dependency manager"*; Fabrik **vendors (copies)** it for self-contained builds. Each app still owns its codebase, so the intent holds. |
+| II | Dependencies | *"Never relies on implicit existence of system-wide packages."* Shelling out to a system tool ⇒ **vendor the tool**. | Declare every dep. **Never assume `curl` / ImageMagick exist in the image.** PDF/browser work → **Gotenberg / Browserless** backing services, not a system binary. |
+| III | Config | Config in **env vars**. Litmus test: *"could the codebase be open-sourced at any moment without compromising credentials?"* **Rejects grouped named environments** — env vars are granular + orthogonal. | `os.getenv("KEY", "default")`; zero secrets in code. ⚠️ No `config/production.yml`-style env group — 12F names that anti-pattern explicitly. |
+| IV | Backing services | Attached resources, swappable by **config alone** — *"no distinction between local and third party services."* | `DATABASE_URL` / `REDIS_URL` are config: WSL-dev ↔ `postgres-main:5432` is an **env change, never a code change**. |
+| V | Build, release, run | Strict separation; releases **immutable** with a **unique release ID**. *"Impossible to make changes to the code at runtime."* | `fabrik apply`/`redeploy` build then deploy; the **git SHA is the release ID**. **Never hot-patch a running container.** |
+| VI | Processes | Stateless + share-nothing. *"**Sticky sessions are a violation of twelve-factor and should never be used or relied upon.**"* Session state → **Memcached or Redis**. | Sessions/cache → `redis-main`. **Both** file-based **and sticky** sessions are violations. |
+| VII | Port binding | **Completely self-contained**; exports HTTP by **binding to a port**; *"does not rely on runtime injection of a webserver."* | Uvicorn binds inside the container; **Traefik is the routing layer** — which is *why* compose declares **no host `ports:`**. |
+| VIII | Concurrency | Scale **out** via the process model. *"**Processes should never daemonize or write PID files.**"* | `web` + `file-worker` types; scale by adding processes. Docker/systemd supervises — **never daemonize or write a PID file**. |
+| IX | Disposability | Fast startup. **SIGTERM:** web = stop listening + drain; **worker = return the current job to the queue**; *"all jobs are reentrant… idempotent."* | ⚠️ **The missing half.** `fabrik-lib/job-queue` must **requeue on SIGTERM** and **every job must be idempotent** — not merely "fast startup". |
+| X | Dev/prod parity | *"**Resists the urge to use different backing services between development and production.**"* Same type **and version**. | ⚠️ **Binds the two-env rule:** WSL dev and VPS both run **PostgreSQL + Redis**. **No SQLite locally**, no in-memory stand-in for Redis. |
+| XI | Logs | **Unbuffered to `stdout`**. *"**Never** concerns itself with routing or storage… should not attempt to write to or manage logfiles."* | `structlog` → stdout. **Never write or rotate a logfile.** Promtail → Loki is the *environment* doing the routing. |
+| XII | Admin processes | One-off tasks run **against the same release + config**; admin code **ships with the app**. | Alembic migrations live in the repo and run against the **deployed release/env** — never from a laptop against prod. |
 - **Concurrency** — every service handles multiple simultaneous requests. Never single-threaded blocking.
 - **i18n** — every scaffold with a user/admin GUI surface (per the Rule-area applicability matrix at Step E3.B — **feature-trigger, NOT scaffold-type-gated**; includes python-api/node-api/file-api with `shape.is_admin_dashboard: true` OR `shape.is_public: true` + HTML output) supports multi-language from day one (en + tr minimum). Translation validated via `scripts/validate_i18n.py` (3-level: structural, back-translation, native-speaker critique). Adding a language = adding a locale file, zero code changes.
 - **Responsive** — every scaffold with a web GUI surface (same feature-trigger as i18n) responsive from 375px to 2560px (RWD1–RWD10). No desktop-only layouts. See `docs/reference/mobile-responsive-testing-guide.md`. Carve-outs: chrome-extension (400px fixed popup/sidepanel), mobile-app (native UI, not web breakpoints), desktop-app (electron window sizing).
@@ -80,7 +80,7 @@ These are **vision-level architectural commitments**. Every epic dispatched from
 - **Email two-stream** — transactional and marketing email MUST be on separate streams/subdomains. Rule pack: `.windsurf/rules/core/86-email-templates.md`.
 - **Shape contract** — every Fabrik-deployed service has a `specs/services/<id>.yaml` whose `shape:` block declares which registrars fire; code MUST match shape. Client-only artifacts (chrome-extension CRX, mobile-app binary, desktop-app binary) ship through their own distribution channels (Chrome Web Store, EAS/App Stores, signed installers) and have no Fabrik spec — only their backends do.
 - **Observability** — every backend service exposes `/health` for Gatus and `/metrics` for Prometheus. Static artifacts (static-site, docusaurus) have no app process exposing these endpoints — Gatus probes them externally for liveness instead.
-- **Fleet topology (multi-host)** — the fleet is **3 permanent hosts**: vps1 (LA, hub) + vps2 (Coventry UK, spoke) + vps3 (Coventry UK, spoke), connected by a WireGuard mesh (`10.99.0.0/24`). Shared infra (postgres-main, redis-main, glitchtip-web, authelia, loki, meilisearch) is **hub-only**; spoke services reach them via the mesh IP `10.99.0.1:<port>`. Every spec declares **`target_vps:`** (`vps1` | `vps2` | `vps3`; default = `vps1`) per the `Spec.target_vps` field in `src/fabrik/spec_loader.py` (regex `^vps[1-9][0-9]?$`). Resolution order: `--target-vps` CLI flag > `.fabrik/state/<id>.json::target_vps` > spec `target_vps:` field > `vps1` default (see `30-ops.md:185`). Hub vs spoke decision is a Vision-level choice: hub for shared-infra-coupled services; spokes for tenant-isolated, lower-latency-to-EU, or capacity-spillover workloads. See [`docs/infrastructure/vps-complete-inventory.md`](../../infrastructure/vps-complete-inventory.md) for live state. Live example: `specs/services/spoke-canary.yaml`.
+- **Fleet topology (multi-host)** — the fleet is **3 permanent hosts**: vps1 (LA, hub) + vps2 (Coventry UK, spoke) + vps3 (Coventry UK, spoke), connected by a WireGuard mesh (`10.99.0.0/24`). Shared infra (postgres-main, redis-main, glitchtip-web, authelia, loki, meilisearch) is **hub-only**; spoke services reach them via the mesh IP `10.99.0.1:<port>`. Every spec declares **`target_vps:`** (`vps1` | `vps2` | `vps3`; default = `vps1`) per the `Spec.target_vps` field in `src/fabrik/spec_loader.py` (regex `^vps[1-9][0-9]?$`). Resolution order: `--target-vps` CLI flag > `.fabrik/state/<id>.json::target_vps` > spec `target_vps:` field > `vps1` default (see `30-ops.md` § Multi-host targeting). Hub vs spoke decision is a Vision-level choice: hub for shared-infra-coupled services; spokes for tenant-isolated, lower-latency-to-EU, or capacity-spillover workloads. See [`docs/infrastructure/vps-complete-inventory.md`](../../infrastructure/vps-complete-inventory.md) for live state. Live example: `specs/services/spoke-canary.yaml`.
 
 ### Shape model (8 canonical flags)
 
@@ -436,7 +436,7 @@ If no open questions: state "None — research was comprehensive."]
 - Classification: [single-epic / multi-epic (~N epics)]
 - Reasoning: [why this classification — based on feature count and complexity, NOT which features become which epics]
 - Next step:
-  - If single-epic: "Proceed to epic-to-ticket-workflow/00-trigger-workflow-command. Confirm?"
+  - If single-epic: "Proceed to epic-to-ticket-workflow/00-trigger-fabrik. Confirm?"
   - If multi-epic: "Proceed to 02-epic-decomposition-command to define epic boundaries."
 ```
 
@@ -451,7 +451,7 @@ Present the COMPLETE Vision Summary — the only user-facing output of NEW mode.
 
 **CRITICAL: STOP GENERATION after presenting.** Do NOT simulate the owner's response. Do NOT self-confirm. Silence ≠ confirmation.
 
-**Routing after confirmation:** single-epic → "Proceed to `epic-to-ticket-workflow/00-trigger-workflow-command`." Multi-epic → "Proceed to `02-epic-decomposition-command` to define epic boundaries."
+**Routing after confirmation:** single-epic → "Proceed to `epic-to-ticket-workflow/00-trigger-fabrik`." Multi-epic → "Proceed to `02-epic-decomposition-command` to define epic boundaries."
 
 ---
 
@@ -473,7 +473,7 @@ Read the project's actual state — not from memory, from files. Owner must have
 
 **Lifecycle check (4 stages — completeness audit; gaps feed Step E3):**
 
-- **Stage 1 (Scaffolding):** `project.yaml` exists? **Full Fabrik-synced set** (canonical list in `scripts/fabrik_synced_manifest.py`; covers AGENTS.md, CLAUDE.md, AGENTS-compact.md, .windsurfrules, `.windsurf/rules/`, `scripts/enforcement/`, `KILO_CLI_RULES.md`, `opencode.json`, etc.) present AND byte-identical to `/opt/fabrik` source? Run `python scripts/enforcement/check_synced_unmodified.py` to verify both presence and unmodified state in one shot — same gate referenced at L416. A missing file and a locally-edited file are different gaps: missing → propose `fabrik fix /opt/<project> --type <scaffold-type>`; modified → revert + propose upstream change in `/opt/fabrik`.
+- **Stage 1 (Scaffolding):** `project.yaml` exists? **Full Fabrik-synced set** (canonical list in `scripts/fabrik_synced_manifest.py`; covers AGENTS.md, CLAUDE.md, AGENTS-compact.md, .windsurfrules, `.windsurf/rules/`, `scripts/enforcement/`, `KILO_CLI_RULES.md`, `opencode.json`, etc.) present AND byte-identical to `/opt/fabrik` source? Run `python scripts/enforcement/check_synced_unmodified.py` to verify both presence and unmodified state in one shot — same gate referenced above. A missing file and a locally-edited file are different gaps: missing → propose `fabrik fix /opt/<project> --type <scaffold-type>`; modified → revert + propose upstream change in `/opt/fabrik`.
 - **Stage 2 (Implementation):** structured code (src/, tests/, docs/)?
 - **Stage 3 (Registration):** `fabrik apply` run? `.fabrik/state/*.json` exists? Registrars active (Gatus, GlitchTip, Prometheus)?
 - **Stage 4 (Verification):** `fabrik verify` passes? `fabrik audit-registrars` clean?
@@ -644,7 +644,7 @@ Same shape and title as NEW-mode Vision Summary (so `02-epic-decomposition-comma
 
 ```markdown
 # Vision Summary: [Project Name] — [New Capability]
-<!-- This is an Existing-mode Continuation produced by 00-trigger-workflow-command.
+<!-- This is an Existing-mode Continuation produced by 00-trigger-fabrik.
      02-epic-decomposition-command consumes it identically to a new-project
      Vision Summary. Extra sections: Locked Decisions, Compliance Report. -->
 
@@ -672,7 +672,9 @@ R2. [Retrofit: add responsive design] — [description] (medium)
 [Which existing VPS services the NEW features will use]
 
 ## External Services
-[Any NEW third-party dependencies]
+[Any NEW third-party dependencies. Each MUST be live-grounded per N3k-1 —
+a memory-based claim is a defect. No entry ships without a cited source + fetch date.]
+- [Service] — [what for] · [cost tier + REAL pricing] · [rate limits / auth model] · **source:** [URL] (fetched YYYY-MM-DD)
 
 ## Technology Decisions
 [ONLY decisions for NEW components. State explicitly:]
@@ -718,6 +720,19 @@ one Retrofit epic per Fix-now item, alongside the delta-feature epics.]
 | psycopg2 used | Rule pack `core/25-data-postgres.md` | Accept-as-legacy | No action |
 | Shape drift: prometheus | `fabrik audit-registrars` | Fix-now | Retrofit epic |
 
+## fabrik-lib Verdict
+[Per N3k-3 — one row per NEW capability the delta needs. "Didn't check fabrik-lib" is a defect.
+Resolve modules from the index (`/opt/fabrik-lib/README.md`), never from a hard-coded name.]
+
+| Capability | Verdict | Module + one-line why | Upstream note |
+|---|---|---|---|
+| [new capability] | vendor / vendor+enhance / build | [module — why] | [`UPSTREAM_FEEDBACK.md` if core-enhanced] |
+
+## Rejected Alternatives
+[Per N3k-2 — what was considered and NOT picked, and why. Without this, every downstream
+epic re-litigates the same decision. Locked Decisions are NOT alternatives — they are inherited.]
+- [Option] — rejected: [violates hard constraint X / higher TCO / more maintenance / duplicates existing project Y]
+
 ## Constraints
 [Same format as NEW-mode Vision Summary — 20 constraint checks, scoped to the delta]
 - x86_64: all clear
@@ -739,7 +754,7 @@ one Retrofit epic per Fix-now item, alongside the delta-feature epics.]
 - Classification: [single-epic / multi-epic (~N epics)]
 - Reasoning: [why this classification — based on feature + retrofit complexity, NOT which become which epics]
 - Next step:
-  - If single-epic: "Proceed to `epic-to-ticket-workflow/00-trigger-workflow-command`."
+  - If single-epic: "Proceed to `epic-to-ticket-workflow/00-trigger-fabrik`."
   - If multi-epic: "Proceed to `02-epic-decomposition-command` to define epic boundaries."
 ```
 
@@ -748,7 +763,7 @@ one Retrofit epic per Fix-now item, alongside the delta-feature epics.]
 Wait for explicit confirmation. **STOP GENERATION HERE.** Silence ≠ confirmation.
 
 **Routing after confirmation:**
-- Single-epic → "This fits a single epic. Proceed to `epic-to-ticket-workflow/00-trigger-workflow-command`."
+- Single-epic → "This fits a single epic. Proceed to `epic-to-ticket-workflow/00-trigger-fabrik`."
 - Multi-epic → "Proceed to `02-epic-decomposition-command` to define epic boundaries."
 
 ---
@@ -761,7 +776,7 @@ Wait for explicit confirmation. **STOP GENERATION HERE.** Silence ≠ confirmati
 
 **Required sections** (both modes): Product Vision, Personas, Value Streams, Full Feature Inventory, Backing Services, External Services (each with a **cited source URL + fetch date**), Technology Decisions, **fabrik-lib Verdict**, **Rejected Alternatives**, Constraints, Out of Scope, Open Questions, Scale Assessment. **EXISTING adds:** `Locked Decisions` + `Compliance Report`. The Compliance Report drives Retrofit epics in 02.
 
-**Key routing output.** Scale Assessment determines single-epic (→ `epic-to-ticket-workflow/00-trigger-workflow-command`) vs multi-epic (→ `02-epic-decomposition-command`).
+**Key routing output.** Scale Assessment determines single-epic (→ `epic-to-ticket-workflow/00-trigger-fabrik`) vs multi-epic (→ `02-epic-decomposition-command`).
 
 **Acceptance — both modes:**
 - Mode declared explicitly at Step 0 — never auto-detected.
