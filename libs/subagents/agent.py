@@ -420,8 +420,9 @@ async def _run_one(
                         f"outer wall-clock backstop fired at wall_clock_s={spec.wall_clock_s:.0f}s "
                         f"+ grace {grace:.0f}s: the dispatch did not self-terminate (a provider "
                         "likely accepted the connection but never streamed a first token). The "
-                        "batch continued; retry a DIFFERENT model (pick_models exclude=…) or fall "
-                        "back to native. Tune with SUBAGENT_OUTER_GRACE_S."
+                        "batch continued; a fresh dispatch usually re-routes the provider "
+                        "(fanout's recover_caps retries this SAME model once), or fall back to "
+                        "native. Tune with SUBAGENT_OUTER_GRACE_S."
                     ),
                 )
             except Exception as exc:  # noqa: BLE001 — the loop failed → error (no cost); batch survives

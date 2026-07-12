@@ -58,15 +58,20 @@ from .tools import ToolResult, _truncate
 logger = logging.getLogger(__name__)
 
 # Read-only research servers safe to expose to an UNTRUSTED pool model (they reach the
-# web only — no filesystem/shell/exec). Matches /opt/fabrik/mcp.json + the hub
+# web/registry only — no filesystem/shell/exec). Matches /opt/fabrik/mcp.json + the hub
 # `using-subagents` rules pack. Anything else needs an explicit allow_unlisted=True.
 # `github` is allowlisted READ-ONLY: the pool FORCES GitHub's native read-only on connect
 # (GITHUB_READ_ONLY / X-MCP-Readonly) and REFUSES the server if it advertises any write-verb
 # tool — a leaf pool worker never gets a github write tool (see _force_github_readonly /
 # _github_advertises_write). Requires the OFFICIAL github/github-mcp-server, registered under
 # the name `github`, with a token in env; github *write* stays orchestrator-level (native).
+# `shadcn` is a read-only component-registry lookup (search/view/list/get_* — even
+# `get_add_command_for_items` returns a command STRING it never executes; the sandbox governs
+# any `run_command` the model then makes), so it carries no more risk than the web servers —
+# useful for pool CODE fan-out that builds shadcn/ui frontends. (Added 2026-07-12 on operator
+# request; the hub's mcp.json + rules pack must also list `shadcn` for it to be reachable.)
 SAFE_RESEARCH_SERVERS: frozenset[str] = frozenset(
-    {"exa", "brave-search", "firecrawl", "context7", "github"}
+    {"exa", "brave-search", "firecrawl", "context7", "github", "shadcn"}
 )
 
 # github read-only in the pool. Primary defense = GitHub's native read-only (forced on the

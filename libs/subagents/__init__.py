@@ -17,6 +17,8 @@ durable provenance ledger.
 
 from __future__ import annotations
 
+import os as _os
+
 from ._dotenv import load_env
 from .agent import (
     AgentResult,
@@ -43,6 +45,20 @@ from .select import (
     model_price,
     pick_models,
 )
+
+# Autoload the curated keys AT IMPORT so a bare `os.getenv("OPENROUTER_API_KEY")` works everywhere —
+# not just inside `run_agents(repo=…)`. A pre-check on the raw process env used to false-negative
+# ("no key → pool dead") because the key lives in `<repo>/.env` / the fleet file, not the shell env.
+# `import subagents` now surfaces it. Non-overriding (a real env var wins), never raises; opt out with
+# `SUBAGENTS_NO_AUTOLOAD=1`.
+if _os.getenv("SUBAGENTS_NO_AUTOLOAD") != "1":
+    try:
+        # Only the KEY — it's the "can I dispatch?" signal a pre-check false-negatives on. The DSN
+        # and web-tool keys stay loaded by run_agents(repo=…) at dispatch, so import has no effect on
+        # recording/tooling behaviour (and doesn't perturb tests that assume the no-DSN outbox default).
+        load_env(_os.getcwd(), keys=("OPENROUTER_API_KEY",))
+    except Exception:  # noqa: BLE001 — import must never fail on a best-effort env autoload
+        pass
 
 __all__ = [
     "run_agents",
