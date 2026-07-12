@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Fleet-wide reboot-race safety net (`fabrik-compose-boot.service`) (2026-07-12)
+
+**Incident:** vps1 `alertmanager` was `Exited (255)` for 4 days (since the 2026-07-08 kernel-upgrade reboot),
+silently breaking the Prometheus → Alertmanager → Telegram alert chain — undetected because the down service
+*was* the alerter. **Root cause:** Docker's `restart: unless-stopped` does not resume a container that had
+already fully exited (non-zero) when `dockerd` stopped at shutdown; alertmanager crash-exited during the
+reboot while its five still-running siblings were resumed. Config was valid and unchanged (last edit
+2026-06-05, `amtool check-config` SUCCESS) — not a config bug.
+
+**Immediate fix:** restarted alertmanager on vps1; verified healthy + re-registered by Prometheus
+(`activeAlertmanagers`). **Permanent fix (all 3 hosts):** new `fabrik-compose-boot.service` — a root oneshot
+(`After=docker.service`, mirrors the existing `iptables-docker-user.service`) that runs `docker compose up -d`
+for every `/opt/*/compose.yaml` on boot (shared-infra stacks first), reconciling any not-running stack member
+regardless of its shutdown exit state. Installed + enabled + verified on vps1/vps2/vps3 (vps2 live-tested:
+`Result=success`; vps1/vps3 confirmed no-op-no-drift); baked into `bootstrap-vps.sh` step 16 for future spoke
+rebuilds. New files: `scripts/systemd/fabrik-compose-boot.{sh,service}` + `install-compose-boot.sh`. Docs:
+`scripts/systemd/README.md`, `docs/TROUBLESHOOTING.md`, `infra/README.md`.
+
 ### Added — Capability doc-audit + operator defect ledger (2026-07-12)
 
 `scripts/audit_capability_docs.py` — consumes the Phase-A `capabilities.json` `defects[]` and mechanically

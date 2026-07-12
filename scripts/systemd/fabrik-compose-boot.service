@@ -1,0 +1,18 @@
+[Unit]
+Description=Fabrik — reconcile all /opt compose stacks to running on boot (reboot-race safety net)
+Documentation=https://github.com/mobasak/fabrik/blob/master/scripts/systemd/README.md
+# Docker's restart:unless-stopped does NOT resume a container that had already exited non-zero when dockerd
+# stopped (the reboot race that left vps1 alertmanager down 4 days on 2026-07-08). This oneshot reconciles
+# every stack to running once Docker is up. Ordered strictly after the daemon.
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/fabrik-compose-boot.sh
+RemainAfterExit=yes
+# Cold-boot bring-up of ~16 stacks (hub) can take a while; don't let systemd time it out.
+TimeoutStartSec=600
+
+[Install]
+WantedBy=multi-user.target

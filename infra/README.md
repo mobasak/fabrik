@@ -32,6 +32,13 @@ WordPress site — wordpress/db/redis/nginx/backup), `postgres` (shared `postgre
 
 > `aro-wake` (`:8201`) and the AI sysadmin run as **systemd** units on vps1, not Compose
 > stacks, so they are not under `infra/`. `watchdog-test` is included as a compose stack.
+>
+> **Boot resilience (ALL hosts):** `fabrik-compose-boot.service` (a root oneshot, `After=docker.service`)
+> reconciles every `/opt/*/compose.yaml` stack to running on boot — closing the Docker
+> `restart: unless-stopped` reboot race that left vps1 `alertmanager` down 4 days on 2026-07-08. Source +
+> installer: `scripts/systemd/{fabrik-compose-boot.sh,fabrik-compose-boot.service,install-compose-boot.sh}`;
+> spokes get it from `bootstrap-vps.sh` step 16. See `scripts/systemd/README.md` and
+> `docs/TROUBLESHOOTING.md` § "container stays down after a host reboot".
 
 ## vps2 / vps3 (spokes) — 3 compose stacks each
 

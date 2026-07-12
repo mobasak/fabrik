@@ -66,6 +66,29 @@ Common issues and solutions.
 3. Check health endpoint works locally
 4. Verify database connection string
 
+### A container stays down after a host reboot (Docker restart-policy race)
+
+**Symptom:** After a VPS reboot (e.g. an unattended kernel upgrade) one container is `Exited (255)` and did
+NOT come back, while its siblings show `Up N days`. Worst case: it's a monitoring/alerting service, so you
+get **no page about its own absence** (this is exactly how vps1 `alertmanager` sat dead 4 days from 2026-07-08).
+
+**Cause:** `restart: unless-stopped` does **not** resume a container that had already fully exited (non-zero)
+at the instant `dockerd` stopped during shutdown. Containers still *running* at that instant are resumed on
+boot; one that crash-exited first is left `Exited`.
+
+**Immediate fix:**
+
+```bash
+ssh <host> 'sudo docker inspect <name> --format "ExitCode={{.State.ExitCode}} OOMKilled={{.State.OOMKilled}} FinishedAt={{.State.FinishedAt}}"'
+# FinishedAt ≈ the reboot time + ExitCode 255 + OOMKilled=false ⇒ the reboot race (not a config bug)
+ssh <host> 'cd /opt/<svc> && sudo docker compose up -d'   # restores it; validate config first if unsure
+```
+
+**Permanent fix (already deployed fleet-wide):** `fabrik-compose-boot.service` reconciles every
+`/opt/*/compose.yaml` stack to running on boot — see `scripts/systemd/README.md`. Verify it's enabled:
+`ssh <host> 'systemctl is-enabled fabrik-compose-boot.service'` → `enabled`. Spokes get it from
+`bootstrap-vps.sh` step 16; the hub via `scripts/systemd/install-compose-boot.sh`.
+
 ### Out of Disk Space
 
 **Symptom:** Deployments fail, Docker errors

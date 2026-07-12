@@ -1150,6 +1150,27 @@ step_15_install_aro_wake() {
 # Main
 # ---------------------------------------------------------------------------
 
+step_16_install_compose_boot() {
+    log "step 16: install fabrik-compose-boot.service (reboot-race safety net — reconciles all /opt stacks on boot)"
+    if $DRY_RUN; then
+        dim "    [dry-run] would scp fabrik-compose-boot.{sh,service} + enable the boot unit"
+        return 0
+    fi
+    # Closes the Docker restart:unless-stopped reboot race (a container that exited non-zero at shutdown is
+    # NOT resumed) — the failure that left vps1 alertmanager down 4 days on 2026-07-08. Hub gets the same
+    # unit via scripts/systemd/install-compose-boot.sh (see scripts/systemd/README.md).
+    scp -q -o StrictHostKeyChecking=accept-new \
+        "${SCRIPT_DIR}/../systemd/fabrik-compose-boot.sh" \
+        "${SCRIPT_DIR}/../systemd/fabrik-compose-boot.service" \
+        "${EFFECTIVE_REMOTE}:/tmp/"
+    remote 'sudo install -m 755 -o root -g root /tmp/fabrik-compose-boot.sh /usr/local/bin/fabrik-compose-boot.sh && \
+        sudo install -m 644 -o root -g root /tmp/fabrik-compose-boot.service /etc/systemd/system/fabrik-compose-boot.service && \
+        sudo systemctl daemon-reload && \
+        sudo systemctl enable fabrik-compose-boot.service && \
+        rm -f /tmp/fabrik-compose-boot.sh /tmp/fabrik-compose-boot.service'
+    ok "step 16 done — fabrik-compose-boot.service enabled for boot"
+}
+
 main() {
     log "Fabrik bootstrap-vps.sh starting"
     log "  remote: ${REMOTE}"
@@ -1184,6 +1205,7 @@ main() {
     step_13_create_dns_records
     step_14_install_sysadmin_pack
     step_15_install_aro_wake
+    step_16_install_compose_boot
 
     echo
     ok "bootstrap complete for ${SPOKE_NAME}"
