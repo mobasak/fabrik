@@ -49,7 +49,7 @@ Every project passes through 4 stages (enumerated below; deploy/runtime detail i
 
 1. **Intent & Scaffolding (WSL)** — `fabrik preplan` → `fabrik scaffold` → AI guardrails (5 governance files + 50 rule packs across `core/` (28), `saas/` (4), `mobile-app/` (5), `chrome-ext/` (1), `desktop-app/` (1), `ai/` (11) + reference docs) + spec `shape:` block injected. The scaffold is a Context Injection.
 2. **Agentic Implementation (WSL)** — structured tickets dispatched to agents (Claude Code, Windsurf Cascade, Kilo CLI). Agents write infra-aware code against the spec contract. `fabrik dev` for local iteration. `fabrik review` for pre-PR bundling.
-3. **Proper Registration (VPS via SSH + Docker Compose)** — `fabrik apply` fires **10** registrars — the 9 shape-driven (postgres/redis/gatus/backrest/glitchtip/grafana/authelia/meilisearch/prometheus) **+ `watchdog`**, which fires from the spec's `watchdog:` block and is **ON by default** (opt-OUT: disable with `watchdog: { enabled: false }`). Observability auto-discovers via docker.sock. Network security via UFW + DOCKER-USER iptables chain.
+3. **Proper Registration (VPS via SSH + Docker Compose)** — `fabrik apply` fires **10** registrars. **Only 7 are flag-driven** — postgres (`needs_database`), redis (`needs_cache`), gatus (`is_public`+domain), backrest (`has_persistent_data`), authelia (`is_admin_dashboard`+domain), meilisearch (`has_search_feature`), prometheus (`exposes_metrics`+domain). The other 3 are NOT flag-driven: **grafana** fires *always*, **glitchtip** fires on `shape.kind`, and **`watchdog`** fires from the spec's `watchdog:` block and is **ON by default** (opt-OUT: disable with `watchdog: { enabled: false }`). Observability auto-discovers via docker.sock. Network security via UFW + DOCKER-USER iptables chain.
 4. **Verification & Testing** — `fabrik verify` health check, `fabrik audit-registrars` drift detection (manual today; hourly cron + Telegram on drift is target state per `agents-fabrik.md` § Deploy Pipeline, not yet wired), `fabrik destroy --use-state` for clean teardown from the recorded state file.
 
 If a project cannot pass through all 4 stages, state this explicitly and justify.
@@ -85,7 +85,7 @@ This command (`00-trigger`) is the **mandatory entry point** for every epic-to-t
 **Epic-flavor detection (Path B only):** Inspect the dispatched epic ticket Title. Two flavors emitted by `mega-epic-breakdown/03-expand-epic-files-command` Step 2:
 
 - **Delta-feature epic** — Title `Epic N — <feature area>`. Default behavior: 5–8 Success Criteria target, `fabrik apply` succeeds + `/health` returns 200 as the deploy-level criterion, Epic Closure mandatory.
-- **Retrofit epic** — Title `Epic N — Retrofit: <area>` (e.g. `Retrofit: i18n`, `Retrofit: Resilience on YouTube Data API`) per `mega-epic-breakdown/03-expand-epic-files-command` L82–86. Different defaults: 3–5 Success Criteria target, `scripts/final_gate.py` success + Compliance Report gap moves Partial/Violates → Compliant as the deploy/gate-level criterion, Epic Closure optional.
+- **Retrofit epic** — Title `Epic N — Retrofit: <area>` (e.g. `Retrofit: i18n`, `Retrofit: Resilience on YouTube Data API`) per `mega-epic-breakdown/03-expand-epic-files-command` § Retrofit epics (Title prefix + Success-Criteria defaults). Different defaults: 3–5 Success Criteria target, `scripts/final_gate.py` success + Compliance Report gap moves Partial/Violates → Compliant as the deploy/gate-level criterion, Epic Closure optional.
 
 Propagate the flavor into INFRA-CHECK by adding `Epic Flavor: Delta-feature | Retrofit` to the propagated block so downstream `01-epic-brief-command` and `05-ticket-outline-command` apply the correct branch without re-deriving from the Title.
 
@@ -163,7 +163,7 @@ State which source(s) read (or `none — interview-only`).
 
 Surface gaps, opportunities (existing VPS services!), conflicts (ports, Alpine, deps), stack recommendations. Present as interview questions.
 
-**4c. DUAL LIVE-RESEARCH GATE — external facts + approach (⛔ BLOCKING).** *The step a GUI planner cannot do and our tool-capable orchestrator can.* Do NOT emit INFRA-CHECK (Step 7) until BOTH gates pass.
+**4c. DUAL LIVE-RESEARCH GATE — external facts + approach (⛔ BLOCKING).** *The step a GUI planner cannot do and our tool-capable orchestrator can.* Do NOT emit INFRA-CHECK (Step 7) until 4c-1 and 4c-2 (both ⛔ BLOCKING) pass; 4c-3 (vendor notes) must be completed but may record a `BLOCKED: external-research-needed` item without halting the run.
 
 **4c-1 — External facts (BLOCKING).** For EVERY external dependency the epic touches — vendor / API / SDK / **pricing** / rate limit / library version / protocol — ground it to CURRENT truth, never from training memory. Repo-first (`grep docs/`, `docs/reference/`, `AFCL.md`, `docs/LESSONS_LEARNT.md`) → then **LIVE**: `mcp__exa__web_search_exa` → `WebSearch`/`WebFetch` → `mcp__brave-search__brave_web_search` → `mcp__firecrawl__firecrawl_search` → `mcp__context7` (library docs) → `mcp__github` (real source/release). Capture the **real** endpoint / auth model / limits / pricing and **cite the source URL + fetch date**; pass those URLs into the downstream tickets so executors don't re-research. **Freshness:** fetched THIS run, or it's a defect. Every dep ends **grounded-with-a-cited-source** or a **named BLOCKING unknown with a resolution step**.
 
@@ -255,6 +255,7 @@ User confirms. Proceed.
   best-practice that violates a hard constraint (Stripe / a managed vector DB / a direct vendor LLM SDK)
   was **cut, not planned**.
 - Cited source URLs passed into the downstream tickets so executors don't re-research them.
+- **4c-3 (vendor notes)** applied for third-party vendors; any vendor unresolved after 3 attempts recorded as `BLOCKED: external-research-needed` on that ticket (does not halt the run).
 - All 26 constraints verified. No silent unknowns.
 - 12-Factor: compliant or violations resolved.
 - Concurrency: mechanism stated; blocking rejected.
