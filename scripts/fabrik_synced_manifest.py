@@ -230,3 +230,65 @@ def iter_synced_pairs(
                 continue
             rel_path = src_file.relative_to(fabrik_root)
             yield src_file, project_root / rel_path
+
+
+# --------------------------------------------------------------------------- #
+# Review scope — consumed by the /fabrik-*-review commands                     #
+# --------------------------------------------------------------------------- #
+# Reviews kept raising findings against centrally-distributed files. Inside a
+# PROJECT those are read-only (check_synced_unmodified.py is the gate), so a
+# finding there is unactionable — and an agent that "helpfully fixes" it creates
+# the very drift the gate exists to catch. Reviews therefore need the set
+# programmatically. Per this module's whole reason for existing (Lesson 44: the
+# list drifted when it lived in three places), review commands DERIVE it here —
+# they must never hand-copy a list into their own prose.
+
+
+def synced_project_paths(fabrik_root: Path = FABRIK_ROOT) -> list[str]:
+    """Project-relative paths of every centrally-distributed file.
+
+    This is the set a project cannot edit. Reviews treat it as *context*
+    (``.windsurf/rules`` still binds the code under review) but never as a
+    *target*.
+    """
+    probe = Path("/__project__")
+    return sorted(
+        str(dst.relative_to(probe))
+        for _src, dst in iter_synced_pairs(probe, fabrik_root)
+    )
+
+
+def review_readonly_paths(fabrik_root: Path = FABRIK_ROOT) -> list[str]:
+    """The synced set MINUS files a project is *allowed* to modify.
+
+    ``SEEDED_NOT_ENFORCED`` (``PORTS.md``) is distributed once but projects may
+    edit it, so it stays a normal review target. A naive "exclude everything
+    synced" list would wrongly skip a file that SHOULD be reviewed — which is
+    exactly why this is computed, not hand-written.
+    """
+    return [p for p in synced_project_paths(fabrik_root) if p not in SEEDED_NOT_ENFORCED]
+
+
+if __name__ == "__main__":  # pragma: no cover - thin CLI
+    import argparse
+
+    ap = argparse.ArgumentParser(
+        description="Fabrik synced-file manifest — the single source of truth."
+    )
+    g = ap.add_mutually_exclusive_group(required=True)
+    g.add_argument(
+        "--list",
+        action="store_true",
+        help="every centrally-distributed project-relative path",
+    )
+    g.add_argument(
+        "--review-readonly",
+        action="store_true",
+        help=(
+            "paths a PROJECT review must treat as context-only, never as a target "
+            "(synced set minus SEEDED_NOT_ENFORCED)"
+        ),
+    )
+    args = ap.parse_args()
+    paths = review_readonly_paths() if args.review_readonly else synced_project_paths()
+    print("\n".join(paths))
