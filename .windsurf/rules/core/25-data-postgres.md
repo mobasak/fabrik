@@ -233,10 +233,36 @@ engine = create_async_engine(
 
 ---
 
+## Backing-Service Parity — no SQLite server-side (12-Factor X) (CRITICAL)
+
+> 12factor.net, verbatim:
+> *"The twelve-factor developer resists the urge to use different backing services between development and production."*
+> *"Differences between backing services mean that tiny incompatibilities crop up, causing code that worked and passed tests in development or staging to fail in production."*
+
+**Mandate.** If production runs PostgreSQL, then **dev, test, and CI run real PostgreSQL too** — same major version as `postgres-main`.
+
+**BANNED as a server-side backing service** (dev, test, and prod alike):
+
+- `sqlite:///…` or `:memory:` as a stand-in for PostgreSQL — including in tests.
+- `fakeredis` / `mockredis` standing in for Redis; any in-memory substitute for a real backing service.
+- A local DB engine "just for convenience" that production does not run. A test suite that passes on SQLite and fails on Postgres has tested nothing — that is exactly the failure Factor X names (Postgres-only behaviour: `JSONB`, `RETURNING`, `FOR UPDATE SKIP LOCKED`, partial indexes, real transaction isolation).
+
+**⚠️ SCOPE — this ban is about BACKING SERVICES, not client-local storage.** It does **NOT** apply to:
+
+- **`desktop-app`** — SQLite is the **mandated** engine there (`desktop-app/72-desktop.md` § Local Persistence: `better-sqlite3` + SQLCipher; *"Production builds MUST encrypt the local SQLite file"*).
+- **`mobile-app`** — `expo-sqlite` is permitted for offline relational storage (`mobile-app/80-mobile.md`).
+
+Those are the **user's own on-device data**, not an attached backing service — SQLite *is* their production engine. This pack's glob (`**/db/**`) also matches a desktop app's `src/db/`, so read the scope before applying the ban.
+
+**12-Factor IV (Backing Services) — generalised:** swapping ANY attached backing service (DB, cache, object storage) is a **config change, never a code change**. The handle lives in `DATABASE_URL` / `REDIS_URL` / storage env — the code *reads* it, the code does not *decide* it. Never `if ENV == "prod":` branching to pick a host. (See § PostgreSQL Host Selection, which already mandates this for the DB.)
+
+---
+
 ## Banned Patterns
 
 | Pattern | Use Instead |
 |---------|-------------|
+| SQLite / `:memory:` / `fakeredis` as a **server-side** backing service in dev or test | Real PostgreSQL + real Redis, same major version as prod (§ Backing-Service Parity). *Exempt: `desktop-app` / `mobile-app` client-local stores.* |
 | `deleted_at` / `is_deleted` columns | Hard delete + journal tables via triggers (exception: `tenants` table for multi-tenant offboarding) |
 | `UUIDv4` / `uuid4()` primary keys | `UUIDv7` via `uuid_utils.compat.uuid7` (returns stdlib `uuid.UUID`) |
 | `uuid_utils.uuid7()` directly | `uuid_utils.compat.uuid7` — direct import returns non-stdlib type that asyncpg rejects |

@@ -11,6 +11,13 @@ services:
       # Core
       - LOG_LEVEL={{ env.get('LOG_LEVEL', 'info') }}
       - TZ={{ env.get('TZ', 'UTC') }}
+      # 12-Factor XI (Logs): stdout must be UNBUFFERED. Without this, Python block-buffers
+      # stdout when piped to Docker's log driver — so on an OOM-kill/SIGKILL the last 4-8 KB
+      # (the crash's own logs) never flush and never reach Promtail -> Loki. A worker is the
+      # most likely thing to be OOM-killed, which makes this the worst place to lose them.
+      {% if 'PYTHONUNBUFFERED' not in env %}
+      - PYTHONUNBUFFERED=1
+      {% endif %}
 
       # Worker config
       - WORKER_ID={{ env.get('WORKER_ID', 'worker-1') }}

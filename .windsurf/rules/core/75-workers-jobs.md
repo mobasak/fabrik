@@ -173,6 +173,54 @@ Workers need the same observability as any Fabrik service:
 - Workers must trap `SIGTERM` and `SIGINT` via Python's `signal` module. On signal: stop accepting new jobs, finish the current task, then exit cleanly.
 - Docker Compose `stop_grace_period` must be >= the longest possible task execution time (default: 45s).
 
+### SIGTERM Requeue Fast Path (Factor IX)
+
+The drain path ("finish current task, then exit") keeps the in-flight job alive inside the worker. But `stop_grace_period` is a hard deadline — Docker sends SIGKILL when it expires. At that point the job is reclaimed the long way: visibility timeout (§ Visibility Timeout) + orphan sweep (§ Orphan Sweep), which can take **up to ~10 minutes** (visibility timeout + sweep interval). The fast path turns that into an instant requeue.
+
+**Rule:** on SIGTERM, evaluate whether the in-flight job can complete within the remaining `stop_grace_period`. If not, the worker must **proactively reset the row** and exit:
+
+```python
+# On SIGTERM, before the drain-or-die decision:
+remaining = stop_grace_deadline - time.monotonic()
+if current_job is not None and current_job.estimated_remaining > remaining:
+    # Cannot finish before Docker sends SIGKILL — requeue now.
+    db.execute(
+        "UPDATE jobs SET status = 'pending', updated_at = NOW() WHERE id = %s",
+        (current_job.id,),
+    )
+    log.info("job_requeued_fast_path", job_id=current_job.id, remaining_s=remaining)
+    sys.exit(0)
+# Otherwise: drain normally (finish job, then exit).
+```
+
+- **This complements the existing drain path, never replaces it.** If the job can finish in time, drain normally.
+- **This complements the visibility timeout + orphan sweep, never replaces them.** The sweep is the crash-path backstop — SIGKILL, OOM, segfault, power loss. The fast path only fires on cooperative SIGTERM where the worker is still alive and can execute an `UPDATE`.
+- **Do NOT reset `attempts`.** The original claim already consumed an attempt. The proactive requeue moves the job to the front of the `pending` line; the retry budget is unchanged.
+- **Idempotency is already required** (§ Idempotency). The next worker re-processes from scratch — handlers must tolerate re-execution of partially-completed work.
+
+---
+
+## Process Formation (Factor VIII)
+
+Twelve-factor app processes **must never daemonize or write PID files.** Scale out via the process model (add container replicas), not up via in-process daemons. Docker supervises; Docker Compose restarts.
+
+Two Fabrik patterns are explicitly compatible — they are NOT 12F violations:
+
+1. **`tini` as PID 1** (mandatory — see Adaptive Worker Pool architecture and Done When checklist). `tini` is a minimal init/reaper. It reaps zombie children and forwards signals. It does **not** daemonize, double-fork, log to a file, or write a `.pid` file. It is the container's PID 1, not a daemon manager.
+
+2. **The Adaptive Worker Pool parent process** (§ Adaptive Worker Pool) forks child workers. This is a deliberate Fabrik pattern for within-container concurrency. Children are share-nothing processes synchronised through the PG queue (`SKIP LOCKED`). This is **not** a 12F violation: (a) the parent runs as the foreground CMD — it never daemonizes; (b) children are stateless workers, not daemons; (c) scaling *out* is still done by adding container replicas (`compose.yaml` `deploy.replicas`). The pool scales *within* one container; replicas scale *across* containers.
+
+These ARE 12F violations and are banned inside the container:
+
+- ❌ `daemon=True` in any thread/process start flag
+- ❌ Double-forking to detach from the session
+- ❌ Writing a `.pid` file to `/var/run/` or anywhere
+- ❌ supervisord, pm2, or any in-container process supervisor — Docker is the supervisor
+- ❌ `os.setsid()` / `os.setpgrp()` for daemonisation purposes (subprocess `start_new_session=True` for *process-group kill* is fine — see External Subprocess Lifecycle)
+
+✅ Scale by adding container replicas: `deploy.replicas: 3` in `compose.yaml`.
+✅ Docker restarts crashed containers; the Adaptive Worker Pool scales within one container.
+
 ---
 
 ## External Subprocess Lifecycle

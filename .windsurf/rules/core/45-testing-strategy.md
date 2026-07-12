@@ -146,6 +146,24 @@ async def test_tenant_isolation(client_tenant_a: AsyncClient, client_tenant_b: A
 
 ---
 
+## Backing-service parity in tests (12-Factor X) (CRITICAL)
+
+> 12factor.net, verbatim: *"Differences between backing services mean that tiny incompatibilities crop up, causing code that worked and passed tests in development or staging to fail in production."*
+
+Tests run against the **same backing services as production** — real PostgreSQL, real Redis. This pack's globs (`**/tests/**`, `**/test_*`) are the only ones that fire on test files, so the rule lives here.
+
+**BANNED in tests:**
+
+- `sqlite:///` or `:memory:` standing in for PostgreSQL.
+- `fakeredis` / `mockredis` standing in for Redis.
+- Any in-memory substitute for a real backing service.
+
+**A test suite that passes on SQLite and fails on Postgres has tested nothing.** The behaviours that matter are exactly the ones SQLite does not have: `JSONB`, `RETURNING`, `FOR UPDATE SKIP LOCKED` (the job queue depends on it), partial indexes, real transaction isolation, RLS. Integration / contract / e2e tests use a dedicated real Postgres test database (see § FastAPI + PostgreSQL (async)).
+
+**Scope:** this is about **server-side** backing services. `desktop-app` / `mobile-app` client-local SQLite stores are exempt — there SQLite *is* the production engine.
+
+---
+
 ## Banned Patterns
 
 | Pattern | Use Instead |

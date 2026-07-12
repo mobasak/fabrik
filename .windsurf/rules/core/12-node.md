@@ -63,6 +63,10 @@ trigger: glob
 
 ### Structured logging (pino v9+)
 
+> **12-Factor XI (Logs), verbatim:** *"each running process writes its event stream, unbuffered, to `stdout`"* — and *"A twelve-factor app never concerns itself with routing or storage of its output stream. It should not attempt to write to or manage logfiles."*
+>
+> **BANNED: any file transport.** `pino.destination('/path/app.log')`, `winston.transports.File`, `winston-daily-rotate-file`, `fs.createWriteStream` for logs, any `*.log` write, any in-app log rotation/retention. The app logs JSON to `stdout` and nothing else; **Docker → Promtail → Loki owns routing and retention.** Full rule: `55-observability.md` § Logs.
+
 - Use `pino` for application logs; `pino-http` for request logs. NEVER `console.log` outside bootstrap (breaks Loki/Promtail parsing + wastes GlitchTip).
 - **Mandatory redact paths** to prevent token leakage to Loki:
 
@@ -277,7 +281,8 @@ export function requireInternalToken(req, res, next) {
 | `==` / `===` for token / signature comparison | `crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b))` | Timing-leak CVE-2026-21713 |
 | Passing pino child loggers through call stack | `AsyncLocalStorage` with ambient context | Prop-drilling clutters business logic |
 | Custom TLS / SNI / `pskCallback` in Node | Traefik TLS termination | CVE-2026-21637 callback DoS |
-| `cluster` module | Multiple Docker container replicas behind Traefik | Cluster adds OS-level process count without observable scaling in containers |
+| `cluster` module | Multiple Docker container replicas behind Traefik | Cluster adds OS-level process count without observable scaling in containers. **This is 12-Factor VIII (Concurrency): scale OUT via the process model, not up** |
+| `pino.destination('*.log')` / `winston.transports.File` / any log file write or rotation | JSON → `stdout` only; Docker → Promtail → Loki routes | 12-Factor XI: the app must never write or manage a logfile |
 | `npm install` in CI/Dockerfile | `npm ci --ignore-scripts` | Non-deterministic + postinstall supply-chain risk (Mastra `easy-day-js` 2026) |
 | `node_modules/` committed | `.gitignored`; `npm ci` rebuilds | Always |
 | `console.log` in production paths | `pino` with structured fields | Breaks Loki query model + wastes GlitchTip |

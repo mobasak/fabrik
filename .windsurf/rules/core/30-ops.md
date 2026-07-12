@@ -136,7 +136,6 @@ networks:
 - **`platform: linux/amd64` is mandatory.** VPS is x86_64.
 - **No `depends_on: postgres-main`.** The shared database is a separate long-lived container on the `fabrik` network, not a service in your compose file. Docker DNS resolves `postgres-main` at runtime.
 - **Traefik labels** set routing, TLS, and middleware. The scaffolder emits the correct labels; middleware per service category: admin UI = `authelia-forward@docker,gzip@docker`; API = `gzip@docker`; public = none.
-- **Traefik entrypoints** are `web` (80) and `websecure` (443). The scaffold-emitted labels already use `web`/`websecure` — keep them; never use `http`/`https` (those entrypoints do not exist).
 
 ---
 
@@ -361,6 +360,72 @@ The VPS Traefik uses these entrypoint names:
 | Manual VPS edits / registrar fix-ups | `fabrik apply` / `reconcile-all` (spec-driven) |
 | `fabrik redeploy` without `git push` | `commit → push → redeploy` (the VPS runs `git pull` from the remote) |
 | PORT mismatch between CMD and HEALTHCHECK | Both must use the same literal port value |
+| Any Traefik `loadbalancer.sticky.*` label | Redis session store — processes are share-nothing; session state goes to `redis-main` with a TTL |
+
+---
+
+## 12‑Factor XII (Release & admin processes) (CRITICAL)
+
+**12‑Factor quotes:**
+- "one-off admin processes should be run in an identical environment as the regular long-running processes of the app"
+- "run against a release, using the same codebase and config"
+- "admin code ships with application code"
+
+**Mandate:** migrations and admin tasks run as a ONE‑OFF process against the DEPLOYED image + env — identical environment to regular processes. NEVER run admin tasks from a laptop against prod, NEVER via `docker exec` into a live container, and **ABSOLUTELY NEVER auto-run migrations from app startup/`lifespan`** (concurrent replicas race the Alembic version table → wedged deploy).
+
+**❌ Forbidden:**
+- Running migrations from laptop: `alembic upgrade head` (against prod DB)
+- `docker exec -it <live-container> alembic upgrade head`
+- Auto-running migrations in app startup/`lifespan` (`asynccontextmanager`)
+- Running admin tasks in the main app process
+
+**✅ Correct:**
+- `docker compose run --rm <svc> alembic upgrade head` (against deployed environment)
+- `fabrik run <app> --command "alembic upgrade head"` (Fabrik wrapper for the above)
+- Deploy-time hooks in `.fabrik/hooks/post‑deploy/` for idempotent migrations
+- Separate admin container/image for heavy admin tasks (same codebase)
+
+**Processes are share-nothing:** any state shared across requests MUST go to Redis (`redis-main`) with a TTL. A project using Redis for sessions MUST declare `shape.needs_cache: true` in `specs/services/<id>.yaml`, or `fabrik apply` skips the Redis registrar and the deploy is silently broken.
+
+---
+
+## 12‑Factor II (Dependencies — never assume a system tool exists) (CRITICAL)
+
+**12‑Factor quotes:**
+- "A twelve-factor app never relies on implicit existence of system-wide packages"
+- "if the app shells out to a system tool, that tool should be vendored into the app"
+
+**Mandate:** any binary the app shells out to (ffmpeg, yt-dlp, poppler, tesseract…) MUST be `apt-get install`-ed AND version-pinned in the Dockerfile, with a `shutil.which()` startup probe that fails fast. Never assume `curl`/ImageMagick/ffmpeg exist in the image — they don't by default.
+
+**Concrete failure this prevents:** `subprocess.Popen(["ffmpeg", …])` works in WSL (ffmpeg on the dev's PATH) and raises `FileNotFoundError` in the container.
+
+**❌ Forbidden:**
+- `subprocess.Popen(["ffmpeg", "-i", input, output])` (no Dockerfile install)
+- `subprocess.Popen(["convert", …])` (ImageMagick not installed)
+- `subprocess.Popen(["tesseract", …])` (OCR tool missing)
+- Assuming `curl` exists for health checks (install it)
+
+**✅ Correct:**
+```dockerfile
+# Install ALL required system tools, version-pinned
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    ffmpeg=7:6.1.1-3 \
+    tesseract-ocr=5.3.3-1 \
+    poppler-utils=23.11.0-1 \
+    && rm -rf /var/lib/apt/lists/*
+```
+
+```python
+# Startup validation — fail fast if a required tool is missing
+import shutil
+REQUIRED_TOOLS = ["ffmpeg", "tesseract", "pdftotext"]
+for tool in REQUIRED_TOOLS:
+    if not shutil.which(tool):
+        raise RuntimeError(f"{tool} not found in PATH; install it in Dockerfile")
+```
+
+**Health check:** The Dockerfile template already installs `curl` for HEALTHCHECK — this is the model. Extend it for any other shell-out dependency.
 
 ---
 

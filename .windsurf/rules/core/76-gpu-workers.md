@@ -343,7 +343,75 @@ GPU instances are inherently unreliable. Spot instances preempt. Marketplace hos
 - **TensorDock:** no snapshot API. Reproducibility via Cloud-Init scripts, not disk images.
 - **Salad Cloud:** 15-25% monthly node churn (confirmed — inherent to consumer-node architecture). $0 egress. Design for the node dying at any moment.
 - **Modal non-preemptible multiplier:** 3x cost. Most people don't realize until the bill arrives.
+---
 
+## Disposability (12-Factor IX)
+
+CRITICAL: GPU jobs are the MOST expensive kind to silently drop. A single dropped training run at hour 47 wastes $141+ in GPU time. Every GPU worker MUST implement disposability per 12-Factor IX.
+
+> *"Graceful shutdown is achieved by returning the current job to the work queue"*
+> *"All jobs are reentrant … idempotent"*
+> Processes must be *"robust against sudden death"*
+
+### SIGTERM Handler (mandatory)
+
+The GPU worker process MUST trap `SIGTERM` and `SIGINT` via Python's `signal` module. On signal:
+
+1. **Stop accepting new jobs immediately.** Set an in-process flag; the claim loop checks it before dequeuing.
+2. **Determine whether the in-flight job can complete.** If the remaining inference/training step can finish inside the grace period (default: `GRACEFUL_SHUTDOWN_TIMEOUT_SEC = 60`), let it finish.
+3. **If it cannot finish: return the job to the queue.** Update the queue row — reset `status` to `'pending'`, reset `attempts` if needed per retry policy. The orchestrator's orphan sweep re-enqueues it if the worker dies before resetting.
+4. **Free the GPU before exiting.** Release CUDA context (`torch.cuda.empty_cache()`, `del model`), unload the model from GPU memory, close provider SDK clients. This ensures the next worker can claim the device — GPU memory is a single-consumer resource; a leaked context blocks the next allocation.
+5. **Exit with code 0** after cleanup. Do not `os._exit(1)` — that bypasses signal handlers and leaves CUDA state dirty.
+
+```python
+import signal, os, torch
+
+_shutting_down = False
+_inflight_job_id: str | None = None
+_graceful_timeout: int = 60  # env GRACEFUL_SHUTDOWN_TIMEOUT_SEC
+
+def _handle_sigterm(signum, frame):
+    global _shutting_down
+    _shutting_down = True
+    if _inflight_job_id is None:
+        os._exit(0)
+    # If in-flight job can finish in time, let it; otherwise return to queue
+    # The claim loop checks _shutting_down after each token/step
+
+signal.signal(signal.SIGTERM, _handle_sigterm)
+signal.signal(signal.SIGINT, _handle_sigterm)
+```
+
+### Job Idempotency (deterministic key)
+
+Every GPU job MUST be idempotent — re-running must NOT double-charge a paid inference API, duplicate outputs, or submit duplicate training checkpoints.
+
+- **Derive the idempotency key deterministically** from the stable business properties that define the operation: e.g. `SHA-256(inference_request_id + model_hash + input_payload_hash)`. Do NOT include a wall-clock timestamp or random UUID — they defeat dedup on retry.
+- **Store the key** in a unique constraint column (dedicated `idempotency_keys` table or `processed_at` on the domain entity). On duplicate key, skip execution.
+- **Paid API safety:** if the GPU worker calls a billed external API (Together, Groq, RunPod serverless), the idempotency check MUST happen BEFORE the API call. Otherwise a retry burns money even though the result is discarded.
+- **Training checkpoint idempotency:** if a training step writes checkpoint N, a retry that replays step N from the prior checkpoint must produce byte-identical state N. Use deterministic random seeds (not wall-clock) and fixed data ordering.
+
+### Preemptible / Spot Instance Handling
+
+Preemptible GPU instances (spot, marketplace, consumer-node providers like Salad Cloud) can vanish without warning — no `SIGTERM` at all, just a kill signal from the hypervisor.
+
+- **Architect for non-graceful death by design.** If a worker is killed mid-job, the orchestrator's orphan sweep (visibility timeout + sweep query per `75-workers-jobs.md`) reclaims the job and resets it to `pending`.
+- **Checkpoint frequency for training:** every 5 min on spot/preemptible (already mandated in § Checkpoint above). Inference jobs that are interrupted just need requeue — the caller retries.
+- **No graceful-shutdown dependency.** Never assume the worker will get a clean `SIGTERM` on spot/preemptible. The job must survive a hard kill at any point.
+
+### Cross-Reference to 75-workers-jobs.md
+
+The full queue contract (PG `SKIP LOCKED`, outbox pattern, retry/backoff, dead-letter handling, visibility timeout, orphan sweep) lives in `75-workers-jobs.md`. THIS section adds the GPU-specific mandates that 75 does NOT cover:
+
+| Concern | 75 covers? | This section adds |
+|---|---|---|
+| SIGTERM handler | Mentions trapping signal | GPU-release (CUDA context, model unload) before exit |
+| Return job to queue | Generic reclaim | MUST reset row to `pending` on graceful shutdown |
+| Idempotency | Generic key derivation | Paid-API idempotency guard, checkpoint determinism |
+| Orphan sweep | Yes — full contract | Spot/preemptible death MUST be survivable without graceful path |
+| Visibility timeout | Yes — 6x expected time | Worst-case GPU jobs may need higher multiplier (10x+) |
+
+**Never skip this section because 75 exists.** If `src/inference/` loads THIS pack and NOT 75, the GPU worker gets zero disposability guidance without this section.
 ---
 
 ## Cost Control
@@ -524,3 +592,7 @@ Until the spec block above is implemented (Phase 6 work), services declare GPU u
 - [ ] Auto-terminate after work — verified via provider API poll.
 - [ ] Training/fine-tuning: async checkpointing to B2/S3/R2, frequency per instance type (5min spot, 15min on-demand).
 - [ ] Fault tolerance: checkpoint-resumable, heartbeat every 30s, replacement spin on 3 missed.
+- [ ] Disposability per 12-Factor IX:
+- [ ] SIGTERM handler traps signal, stops accepting new jobs, returns in-flight job to queue (`status = 'pending'`), frees GPU (CUDA context, model unload) before exiting.
+- [ ] Idempotency: deterministic job key (not random UUID/clock); paid-API idempotency check BEFORE the external call to prevent double-charge.
+- [ ] Preemptible/spot: architect for hard kill — no graceful shutdown dependency; checkpoint every 5 min (training), orphan sweep reclaims inference jobs.
