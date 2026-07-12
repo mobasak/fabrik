@@ -178,6 +178,8 @@ Plus `kind:` (one of: `service`, `worker`, `static` — per `src/fabrik/spec_loa
 
 This command has a mode declaration at the start, then a series of checkpoints depending on the mode. Do NOT silently proceed past a checkpoint.
 
+**⚠️ Question bar — a checkpoint is NOT a licence to ask trivia.** Ask the owner ONLY when a question clears BOTH tests: (1) the answer **materially changes the vision or the epic boundaries** (not cosmetic, not trivially reversible), AND (2) you **genuinely cannot resolve it** from a convention, `agents-fabrik.md`, the codebase, the rule packs, or an obvious default. Otherwise **decide it, apply the default, and record it in ONE line** the owner can override. **Never interrupt for:** folder / file / variable / table / endpoint names, field ordering, formatting, test placement, obvious version pins, or any Fabrik-conventioned choice (kebab-case; auth = Pattern A; DB host = `postgres-main`). **Do interrupt for:** ambiguous scope, a product/behaviour decision with no default, a data-model or security tradeoff, conflicting requirements, or anything irreversible. Batch the real questions rather than dripping one at a time. A run that stalls asking "what should I name this?" is the defect this bar exists to prevent.
+
 **Owner non-responsive at a checkpoint** — if the owner stops replying mid-run, the partial Vision Summary persists in our orchestrator's conversation context (no files written by this command). To resume: the owner re-enters the conversation and our orchestrator picks up at the last unresolved checkpoint. **Do NOT** time out and self-confirm; **do NOT** start over from Step 0 unless the owner explicitly says "restart". Silence ≠ confirmation; silence = "session paused, waiting for owner".
 
 ### Step 0: Mode Declaration
@@ -228,7 +230,7 @@ Synthesize answers into the same internal structure (vision, personas, features,
 
 ### Step N3: Analyze and Improve Input
 
-**Execute N3a → N3j in order. Do not skip; some later sub-steps depend on earlier ones (e.g., N3i constraint verification consumes the feature list from N3a, the tech choices from N3c, and the opportunities from N3d).**
+**Execute N3a → N3k in order. Do not skip; some later sub-steps depend on earlier ones (e.g., N3i constraint verification consumes the feature list from N3a, the tech choices from N3c, and the opportunities from N3d; N3k then grounds every external fact AND the approach itself, and is BLOCKING).**
 
 **N3a. Extract** from input (research or interview synthesis): product vision (what/for whom/why), all personas (named/implied), all features (numbered inventory), all constraints, all tech choices (made/implied), revenue/value model.
 
@@ -287,6 +289,28 @@ If research direction is fundamentally wrong for Fabrik (e.g., AWS serverless wh
 
 **N3j. Multi-scaffold check.** Single vision spanning multiple scaffold types (e.g., python-api + saas-skeleton + mobile-app, or chrome-extension + python-api backend) → list which features map to which scaffold. Strong multi-epic signal. **If scaffolds share no data, no auth, no deploy coupling** → candidate for **separate `fabrik scaffold` projects with own lifecycles**, not epics. Ask: "These components seem independent. Separate projects or epics within one project?" Note: if the vision includes a WordPress site, route the WordPress side to the standalone `/opt/wpf` project (out of scope here) and only retain the non-WordPress scaffolds for this run.
 
+**N3k. DUAL LIVE-RESEARCH GATE — external facts + approach (⛔ BLOCKING).** *This is the step a GUI planner cannot do and our tool-capable orchestrator can. Everything above only CHALLENGES research the owner supplied; this step GROUNDS it yourself.* Do NOT draft the Vision Summary (N4) until all three gates pass.
+
+**N3k-1 — External facts (BLOCKING).** For **every** external dependency the vision names — 3rd-party API / SDK, vendor, **pricing, rate limits**, library/framework version, protocol/standard — ground it to **CURRENT truth**, never from training memory (memory is stale by construction, and a wrong assumption here is inherited by every downstream epic):
+
+- Order: **repo-first** (`grep docs/`, `docs/reference/`, `AFCL.md`, `docs/LESSONS_LEARNT.md`) → then **LIVE**: `mcp__exa__web_search_exa` → `WebSearch`/`WebFetch` → `mcp__brave-search__brave_web_search` → `mcp__firecrawl__firecrawl_search`/`firecrawl_scrape` → `mcp__context7` (library docs) → `mcp__github` (read a dependency's actual source / latest release).
+- Capture the **real** endpoint / auth model / limits / **pricing**, and **cite the source URL + the date you fetched it** in the Vision Summary's External Services section.
+- **Freshness:** the fetch must happen in THIS run. An external claim with no fresh cited source is a **defect**.
+- **BLOCKING:** every external dep ends as **grounded-with-a-cited-source** OR a **named BLOCKING unknown with an explicit resolution step**. Never silently assume a vendor behaves a certain way.
+
+**N3k-2 — Approach / best-practice (BLOCKING).** Grounding the FACTS is not grounding the APPROACH. For the **core** of the vision, research the **current best-practice / leanest / lowest-maintenance / pro-grade** way the field actually does this now, and **cite source + date**. "Best practice is X" with no fresh cited source is memory — a defect.
+
+- **⚠️ Filter every finding through the Architectural Mandates + N3i's 20 constraints BEFORE it reaches the Vision Summary.** The web does not know your constraints — it will confidently recommend **Stripe**, **Pinecone**, or a direct **OpenAI SDK**, all beautifully cited. **A well-cited best-practice that violates a hard constraint is WORSE than no research** — it is a dead-on-arrival decision wearing a source URL. Cut it, then pick the best option that *survives* the constraints.
+- Score the survivors against the **Owner's decision criteria** (Orientation § Owner's decision criteria) and record the **rejected alternatives + why** in the Vision Summary.
+
+**N3k-3 — fabrik-lib vendor→enhance→build ladder (per capability).** For EACH capability the vision needs, read `/opt/fabrik-lib/README.md` and decide — **stop at the first rung that fits**:
+
+1. **VENDOR as-is** — a module already covers it.
+2. **VENDOR + ENHANCE** — a module covers *most* of it → vendor it and extend at the seams. **Enhance ≠ silent fork:** a change to the module's *core* goes back upstream (`UPSTREAM_FEEDBACK.md` at minimum), or every project ends up with a divergent copy.
+3. **BUILD** — genuinely nothing fits → build fresh and **justify it**. Then run the **new-module-candidate check** (generic · reused by ≥2 project types · small clean interface · no existing module · would have saved *this* project work). If it clears the bar → flag **`🆕 fabrik-lib candidate`** (`name · purpose · why ≥2 types · rough interface`) and surface it to the owner. **Never write into `/opt/fabrik-lib` from here** — propose only (cross-repo HARD STOP).
+
+Record the outcome as the **fabrik-lib Verdict table** in the Vision Summary. "Didn't check fabrik-lib" is a defect.
+
 #### ── CHECKPOINT N-1: Present Analysis ──
 
 Present: (1) Features extracted with complexity classification (N3a+N3e), (2) Gaps (N3b), (3) Conflicts with Fabrik (N3c), (4) Opportunities (N3d), (5) Scale estimate + single/multi-epic classification (N3e), (6) Constraints `all clear`/`conflict`/`unknown` (N3i), (7) Research sufficiency notes (N3h).
@@ -331,8 +355,9 @@ Every feature from the research MUST appear here. Nothing silently dropped.]
 - [etc.]
 
 ## External Services
-[Third-party dependencies outside the VPS]
-- [Service] — [what for, cost tier (free/paid)]
+[Third-party dependencies outside the VPS. Each MUST be live-grounded per N3k-1 — a memory-based
+claim is a defect. No entry ships without a cited source + fetch date.]
+- [Service] — [what for] · [cost tier + REAL pricing] · [rate limits / auth model] · **source:** [URL] (fetched YYYY-MM-DD)
 
 ## Technology Decisions
 [Every major technology choice RESOLVED — not deferred. These are the
@@ -356,6 +381,20 @@ across multiple lines.]
 - **Scaffold types:** [list all scaffold types this vision needs — each may become an epic. Valid: python-api, python-api-gpu, node-api, saas-skeleton, file-api, file-worker, docusaurus, chrome-extension, mobile-app, desktop-app, static-site. **wordpress is NOT valid here** — route any WordPress site requirement to the standalone `/opt/wpf` project.]
 - **Target host (per service, YAML field `target_vps:`):** [`vps1` (hub, default — shared infra here) / `vps2` or `vps3` (spoke — public Traefik only, reaches hub infra via `10.99.0.1:<port>`) — state per service. Hub = anything needing low-latency to postgres/redis/glitchtip/authelia; spoke = tenant-isolated, EU-proximate, or capacity-spillover.]
 - **Documentation site:** [SaaS scaffolds: vendor `/opt/fabrik-lib/docs-site/` (Docusaurus + Scalar + legal pages). Non-SaaS: N/A]
+
+## fabrik-lib Verdict
+[Per N3k-3 — one row per capability the vision needs. "Didn't check fabrik-lib" is a defect.]
+
+| Capability | Verdict | Module + one-line why | Upstream note |
+|---|---|---|---|
+| [end-user auth] | vendor | `fastapi-user-auth` — Pattern A covers it | — |
+| [PDF export] | vendor+enhance | `pdf-extract` — needs one new adapter | `UPSTREAM_FEEDBACK.md` |
+| [the novel core] | build | nothing fits because [why] | 🆕 fabrik-lib candidate: `name · purpose · why ≥2 types · interface` |
+
+## Rejected Alternatives
+[Per N3k-2 — what was considered and NOT picked, and why. Without this, every downstream
+epic re-litigates the same decision.]
+- [Option] — rejected: [violates hard constraint X / higher TCO / more maintenance / duplicates existing project Y]
 
 ## Constraints
 [Hard constraints from research + constraint verification (N3i).
@@ -570,7 +609,7 @@ Wait for owner decisions. **STOP GENERATION HERE.** These decisions shape which 
 
 **Load domain modules** — for each NEW capability, read the matching `domain-modules/` file: search/RAG → `rag.md`; mobile app → `mobile-app.md`; billing → `saas.md` (billing section); chrome extension → `chrome-ext.md`; desktop app → `desktop-app.md`. (WordPress site/theme work is delegated to `/opt/wpf` — do NOT load `domain-modules/wordpress.md` for new visions in this workflow.)
 
-**fabrik-lib check** — before designing any new component, check `fabrik-lib/README.md` for a vendorable module (copy, don't import). State: "fabrik-lib checked — [module used / no match]."
+**fabrik-lib check — run the FULL vendor→enhance→build ladder (N3k-3), not a yes/no.** For each NEW capability the delta needs, read `/opt/fabrik-lib/README.md` and decide **vendor / vendor+enhance / build** (build must be justified + run the `🆕 fabrik-lib candidate` check). Record it as a **fabrik-lib Verdict table** row. A bare "fabrik-lib checked — no match" without the ladder is a defect.
 
 **Force new tech decisions per current ruleset — for NEW components only** (do NOT re-decide locked choices): new search → pgvector + hybrid per `core/65-rag-search.md`; new billing → Paddle per `core/85-payments-billing.md`; new mobile → RevenueCat + IAP per `mobile-app/81-mobile-billing.md`.
 
@@ -705,7 +744,7 @@ Wait for explicit confirmation. **STOP GENERATION HERE.** Silence ≠ confirmati
 
 **Token budget.** NEW: ≤5,000 target / ≤8,000 hard cap. EXISTING: ≤6,000 target / ≤10,000 hard cap (extras add length).
 
-**Required sections** (both modes): Product Vision, Personas, Value Streams, Full Feature Inventory, Backing Services, External Services, Technology Decisions, Constraints, Out of Scope, Open Questions, Scale Assessment. **EXISTING adds:** `Locked Decisions` + `Compliance Report`. The Compliance Report drives Retrofit epics in 02.
+**Required sections** (both modes): Product Vision, Personas, Value Streams, Full Feature Inventory, Backing Services, External Services (each with a **cited source URL + fetch date**), Technology Decisions, **fabrik-lib Verdict**, **Rejected Alternatives**, Constraints, Out of Scope, Open Questions, Scale Assessment. **EXISTING adds:** `Locked Decisions` + `Compliance Report`. The Compliance Report drives Retrofit epics in 02.
 
 **Key routing output.** Scale Assessment determines single-epic (→ `epic-to-ticket-workflow/00-trigger-workflow-command`) vs multi-epic (→ `02-epic-decomposition-command`).
 
@@ -716,6 +755,10 @@ Wait for explicit confirmation. **STOP GENERATION HERE.** Silence ≠ confirmati
 - Personas named explicitly — not just "users." Value streams stated — not just "it's useful."
 - Backing services grounded in actual VPS inventory (`agents-fabrik.md` § Infrastructure Services). External services identified with cost tier (free/paid).
 - Technology Decisions complete — every major NEW choice resolved. No "TBD" allowed.
+- **N3k-1 (BLOCKING) satisfied** — EVERY external dependency live-grounded this run, with the real endpoint / limits / **pricing** and a **cited source URL + fetch date**. Any dep not grounded is a **named BLOCKING unknown with a resolution step**. A memory-based external claim = defect.
+- **N3k-2 (BLOCKING) satisfied** — the approach is backed by **cited current best-practice** (source + date), and every finding was **filtered through the Architectural Mandates + the 20 constraints**. A cited best-practice that violates a hard constraint (Stripe / a managed vector DB / a direct vendor LLM SDK) was **cut, not spec'd**.
+- **N3k-3 satisfied** — the fabrik-lib **vendor→enhance→build ladder** was run per capability and the **fabrik-lib Verdict table** is complete; every `build` is justified and `🆕 fabrik-lib candidate`-checked. "Didn't check fabrik-lib" = defect.
+- **Rejected Alternatives** recorded with reasons (so downstream epics don't re-litigate).
 - All 20 constraints verified: `all clear` / `conflict` / `unknown`. No silent unknowns.
 - Scale Assessment present with classification and clear next-step routing.
 - Vision Summary within token budget for the declared mode.
