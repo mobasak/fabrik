@@ -1,7 +1,8 @@
-<!-- ⚠️ TRAYCER WORKFLOW SOURCE FILE
-     Traycer does NOT read this file directly.
-     After editing, copy-paste the content into Traycer workflow GUI.
-     Location: Traycer > My Workflows > (select matching step)
+<!-- ⚠️ FABRIK FACTORY WORKFLOW — EPIC ENTRYPOINT (our own, tool-capable)
+     Run DIRECTLY by our orchestrator agent (Claude Code CLI, in Zed) — never pasted into a planner GUI.
+     TOOL-CAPABLE: it RUNS `python scripts/select_rules.py`, reads the files it cites, grounds external
+     facts LIVE via MCP (exa/brave/firecrawl/context7/github, cite URL + fetch date), and gates with
+     `python scripts/final_gate.py`. Orientation file to read FIRST: `agents-fabrik.md`.
      -->
 
 <!-- ⚠️ QUALITY GATE: Any modification to this command file MUST be evaluated
@@ -39,8 +40,8 @@ Execution phase (execute onward): zero ambiguity. Agents execute tickets without
 - **Error-free execution.** Tickets must be executable by agents WITHOUT errors, questions, or assumptions. Quality is non-negotiable.
 - **Versatility.** One workflow handles 11 fabrik-scaffolded types (`python-api` / `python-api-gpu` / `node-api` / `saas-skeleton` / `file-api` / `file-worker` / `static-site` / `docusaurus` / `chrome-extension` / `mobile-app` / `desktop-app` — per `mega-epic-breakdown/00-trigger-workflow-command` § Shape model; WordPress is out-of-scope here, routed to standalone `/opt/wpf` via `wpf new <name>` + `wpf wp apply`). The routing table adapts; the principles don't change.
 - **Solo dev + AI workforce.** One human orchestrating multiple AI agents in parallel. Fewer larger tickets. Maximize what ships per session. No over-engineering.
-- **Use what exists.** postgres-main, redis-main, MeiliSearch, Gotenberg, Browserless, Apprise, n8n, Backblaze B2 are all live self-hosted infra. NEVER build what's already deployed. Supabase is NOT a default — the org self-hosts every Supabase capability (auth → `fabrik-lib/fastapi-user-auth`, pgvector → `pgvector/pgvector:pg16` + `fabrik-lib/rag`, storage → `fabrik-lib/storage`/B2, realtime → `redis-main` pubsub); reach for Supabase only as a deliberate, ADR-recorded exception for a project already on it (`AGENTS.md § Supabase`). `/opt/fabrik-lib/` has vendorable modules (abuse prevention, API auth, billing, cookies, emails, file cache, GDPR, i18n, legal, MT routing, pause state, storage, webhooks, and more) — check `fabrik-lib/README.md` for the current table before planning custom implementations.
-- **The owner's workflow:** Research externally → drop file in project → trigger Traycer → Traycer reads + plans thoroughly → tickets dispatched to agents in parallel → `fabrik apply` → live.
+- **Use what exists.** postgres-main, redis-main, MeiliSearch, Gotenberg, Browserless, Apprise, n8n, Backblaze B2 are all live self-hosted infra. NEVER build what's already deployed. Supabase is NOT a default — the org self-hosts every Supabase capability (auth → `fabrik-lib/fastapi-user-auth`, pgvector → `pgvector/pgvector:pg16` + `fabrik-lib/rag`, storage → `fabrik-lib/storage`/B2, realtime → `redis-main` pubsub); reach for Supabase only as a deliberate, ADR-recorded exception for a project already on it (`agents-fabrik.md § Supabase`). `/opt/fabrik-lib/` has vendorable modules (abuse prevention, API auth, billing, cookies, emails, file cache, GDPR, i18n, legal, MT routing, pause state, storage, webhooks, and more) — check `fabrik-lib/README.md` for the current table before planning custom implementations.
+- **The owner's workflow:** Research externally → drop file in project → trigger our orchestrator → our orchestrator reads + plans thoroughly → tickets dispatched to agents in parallel → `fabrik apply` → live.
 
 ## **The Fabrik Lifecycle (mental model for ALL planning)**
 
@@ -49,7 +50,7 @@ Every project passes through 4 stages (enumerated below; deploy/runtime detail i
 1. **Intent & Scaffolding (WSL)** — `fabrik preplan` → `fabrik scaffold` → AI guardrails (5 governance files + 50 rule packs across `core/` (28), `saas/` (4), `mobile-app/` (5), `chrome-ext/` (1), `desktop-app/` (1), `ai/` (11) + reference docs) + spec `shape:` block injected. The scaffold is a Context Injection.
 2. **Agentic Implementation (WSL)** — structured tickets dispatched to agents (Claude Code, Windsurf Cascade, Kilo CLI). Agents write infra-aware code against the spec contract. `fabrik dev` for local iteration. `fabrik review` for pre-PR bundling.
 3. **Proper Registration (VPS via SSH + Docker Compose)** — `fabrik apply` fires 9 registrars (postgres/redis/gatus/backrest/glitchtip/grafana/authelia/meilisearch/prometheus) based on the `shape:` block. Observability auto-discovers via docker.sock. Network security via UFW + DOCKER-USER iptables chain.
-4. **Verification & Testing** — `fabrik verify` health check, `fabrik audit-registrars` drift detection (manual today; hourly cron + Telegram on drift is target state per `AGENTS.md` § Deploy Pipeline, not yet wired), `fabrik destroy --use-state` for clean teardown from the recorded state file.
+4. **Verification & Testing** — `fabrik verify` health check, `fabrik audit-registrars` drift detection (manual today; hourly cron + Telegram on drift is target state per `agents-fabrik.md` § Deploy Pipeline, not yet wired), `fabrik destroy --use-state` for clean teardown from the recorded state file.
 
 If a project cannot pass through all 4 stages, state this explicitly and justify.
 
@@ -57,7 +58,7 @@ If a project cannot pass through all 4 stages, state this explicitly and justify
 
 These are enforced at planning time. Violations block the workflow.
 
-- **12-Factor App** — every service satisfies [The Twelve-Factor App](https://12factor.net/). Traycer verifies the planned architecture against all 12 factors in Step 5. Violations are blockers (e.g. "file-based sessions violates Factor VI — use Redis"). Key factors to check: III (config via env only), VI (stateless), IX (fast startup + SIGTERM), XI (structured stdout logs).
+- **12-Factor App** — every service satisfies [The Twelve-Factor App](https://12factor.net/). our orchestrator verifies the planned architecture against all 12 factors in Step 5. Violations are blockers (e.g. "file-based sessions violates Factor VI — use Redis"). Key factors to check: III (config via env only), VI (stateless), IX (fast startup + SIGTERM), XI (structured stdout logs).
 - **Concurrency** — every service handles multiple simultaneous requests. Never single-threaded blocking.
 - **i18n** — every GUI/user-facing service supports multi-language from day one (en + tr minimum). Translation validated via `scripts/validate_i18n.py` (3-level: structural, back-translation, native-speaker critique). Adding a language = adding a locale file, zero code changes.
 - **Responsive** — every scaffold with a web GUI surface (per `mega-epic-breakdown/00-trigger-workflow-command` § Rule-area applicability matrix — **feature-trigger, NOT scaffold-type-gated**; includes python-api/node-api/file-api with `shape.is_admin_dashboard: true` OR `shape.is_public: true` + HTML output) responsive from 375px to 2560px (RWD1-RWD10). No desktop-only layouts. Carve-outs: chrome-extension popup (400px fixed), mobile-app (native UI), desktop-app (electron window sizing). See `docs/reference/mobile-responsive-testing-guide.md`.
@@ -85,6 +86,8 @@ Propagate the flavor into INFRA-CHECK by adding `Epic Flavor: Delta-feature | Re
 
 ## **Processing User Request**
 
+**⚠️ Question bar — do NOT stop the run for trivia.** Ask the owner ONLY when a question clears BOTH: (1) the answer **materially changes the epic or its tickets** (not cosmetic, not trivially reversible), AND (2) you **cannot resolve it** from a convention, `agents-fabrik.md`, the codebase, the rule packs, or an obvious default. Otherwise **decide it, apply the default, note it in ONE line** the owner can override. **Never interrupt for** names / field ordering / formatting / test placement / obvious version pins / any Fabrik-conventioned choice (kebab-case; auth = Pattern A; DB host = `postgres-main`). **Do interrupt for** ambiguous scope, a product decision with no default, a data-model or security tradeoff, conflicting requirements, or anything irreversible. Batch real questions; never drip trivia.
+
 ### **Step 1: Context Orientation**
 
 `AGENTS.md` is auto-loaded. Additionally orient on:
@@ -92,8 +95,8 @@ Propagate the flavor into INFRA-CHECK by adding `Epic Flavor: Delta-feature | Re
 - Owner's working style, capacity, budget constraints.
 - Tech stack defaults and when to deviate.
 - Existing infrastructure services and Fabrik microservices (read `## Infrastructure Services — Running on VPS` and `## Fabrik Microservices` fresh each run; do not cache).
-- All planning constraints in `AGENTS.md` § Planning Constraints.
-- `AGENTS.md` § `MANDATORY ORCHESTRATOR PRE-FLIGHT` — run all 7 checks.
+- All planning constraints in `agents-fabrik.md` § Planning Constraints.
+- `agents-fabrik.md` § `MANDATORY ORCHESTRATOR PRE-FLIGHT` — run all 7 checks.
 - `docs/operations/fabrik-lifecycle.md` — deploy/runtime behavior & data safety (lifecycle stages 3–4).
 - Projects are developed in Ubuntu 24.04 WSL and deployed to VPS via `fabrik apply` (SSH + Docker Compose).
 
@@ -146,16 +149,22 @@ State which source(s) read (or `none — interview-only`).
 - `docs/reference/prebuilt-app-containers.md` — off-the-shelf solutions.
 - `.windsurf/rules/ai/00-ai-model-selection.md` (+ matching category pack) — if AI/ML project, identify correct category + tool.
 - `docs/operations/fabrik-lifecycle.md` — confirm project fits the deploy/runtime stages; identify registrars.
-- `.windsurf/rules/` (subdirectories: `core/`, `saas/`, `mobile-app/`, `chrome-ext/`) — identify applicable packs using `AGENTS.md` § Project Type → Default Packs table. The table maps scaffold type → pack IDs. These pack IDs are injected into each ticket's Context Files during `ticket-breakdown`.
+- `.windsurf/rules/` (subdirectories: `core/`, `saas/`, `mobile-app/`, `chrome-ext/`) — identify applicable packs using `agents-fabrik.md` § Project Type → Default Packs table. The table maps scaffold type → pack IDs. These pack IDs are injected into each ticket's Context Files during `ticket-breakdown`.
 - `docs/traycer/kilo_selected_agents.md` — Kilo CLI agent rankings (Elo + pricing + capabilities).
 - `docs/reference/windsurf/cascade-models.md` — Windsurf Cascade model list.
-- Claude Code is always available (opus/sonnet via this tool). During `ticket-breakdown`, Traycer assigns agents from ALL THREE suppliers per ticket; user picks which to dispatch.
+- Claude Code is always available (opus/sonnet via this tool). During `ticket-breakdown`, our orchestrator assigns agents from ALL THREE suppliers per ticket; user picks which to dispatch.
 
 **4b. Research improvement** (if Step 3 found a file):
 
 Surface gaps, opportunities (existing VPS services!), conflicts (ports, Alpine, deps), stack recommendations. Present as interview questions.
 
-**4c. External Knowledge Verification** (per AGENTS.md pre-flight #6): For third-party vendors (Backblaze, Cloudflare, Paddle, iyzico, RevenueCat, n8n — note: Stripe is NOT available to Turkish entities, do not research Stripe integration; Supabase only for a legacy/migration project already on it, never as a new-work default — see `AGENTS.md § Supabase`):
+**4c. DUAL LIVE-RESEARCH GATE — external facts + approach (⛔ BLOCKING).** *The step a GUI planner cannot do and our tool-capable orchestrator can.* Do NOT emit INFRA-CHECK (Step 7) until BOTH gates pass.
+
+**4c-1 — External facts (BLOCKING).** For EVERY external dependency the epic touches — vendor / API / SDK / **pricing** / rate limit / library version / protocol — ground it to CURRENT truth, never from training memory. Repo-first (`grep docs/`, `docs/reference/`, `AFCL.md`, `docs/LESSONS_LEARNT.md`) → then **LIVE**: `mcp__exa__web_search_exa` → `WebSearch`/`WebFetch` → `mcp__brave-search__brave_web_search` → `mcp__firecrawl__firecrawl_search` → `mcp__context7` (library docs) → `mcp__github` (real source/release). Capture the **real** endpoint / auth model / limits / pricing and **cite the source URL + fetch date**; pass those URLs into the downstream tickets so executors don't re-research. **Freshness:** fetched THIS run, or it's a defect. Every dep ends **grounded-with-a-cited-source** or a **named BLOCKING unknown with a resolution step**.
+
+**4c-2 — Approach (BLOCKING) + the constraint filter.** Research the **current best-practice / leanest / lowest-maintenance** way to build the epic's core; cite source + date. **⚠️ Filter every finding through the Architectural Mandates + the 26 constraints (Step 5) BEFORE it reaches a ticket.** The web does not know your constraints — it will confidently recommend **Stripe**, **Pinecone**, or a direct **OpenAI SDK**, all beautifully cited. **A well-cited best-practice that violates a hard constraint is WORSE than no research** — it is a dead-on-arrival ticket wearing a source URL. Cut it; pick the option that *survives* the constraints.
+
+**4c-3 — Vendor notes** (Backblaze, Cloudflare, Paddle, iyzico, RevenueCat, n8n — note: **Stripe is NOT available to the TR entity**, never research/plan a Stripe integration; Supabase only for a legacy/migration project already on it, never as a new-work default — see `agents-fabrik.md § Supabase`):
 
 1. Search local docs first.
 2. If absent → fetch vendor docs, cite URL.
@@ -172,7 +181,7 @@ State EVERY constraint as `all clear` / `conflict (<details>)` / `unknown (<ques
 
 **Workflow overlays (#13–#26):**
 
-13. **Duplicate project** — check `docs/BUSINESS_MODEL.md` § Project Portfolio (the master project list) for an existing project that already solves this need. Also check `AGENTS.md` § Fabrik Microservices table for deployed services.
+13. **Duplicate project** — check `docs/BUSINESS_MODEL.md` § Project Portfolio (the master project list) for an existing project that already solves this need. Also check `agents-fabrik.md` § Fabrik Microservices table for deployed services.
 14. **Design System** — `.windsurf/rules/core/ocoron-design-system.md` read?
 15. **Platform debt** — informational; never blocks.
 16. **API audience / docs site** — `python-api`/`node-api`: external → User Guide true; internal → false. SaaS scaffolds: vendor `/opt/fabrik-lib/docs-site/` per `saas/88-saas-launch-checklist.md`.
