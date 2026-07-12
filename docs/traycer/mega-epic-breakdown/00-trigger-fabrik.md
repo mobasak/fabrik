@@ -36,7 +36,7 @@ Mode is **owner-declared at the start** (Step 0). Do not auto-detect from filesy
 
 1. **Quality first** — production-grade, no shortcuts. Never sacrifice quality to save money.
 2. **Total cost of ownership** — dev time is the most expensive resource. A $10/month managed service that saves 2 weeks of dev is a win. Don't build for days what you can buy for dollars.
-3. **Speed to ship** — prefer solutions that deploy through the standard pipeline (WSL → push → `fabrik apply` deploys via SSH+Compose and fires 9 registrars; `fabrik redeploy` handles code-only updates — see `docs/operations/fabrik-lifecycle.md`). Custom CI/CD or off-pipeline infra = slower and riskier.
+3. **Speed to ship** — prefer solutions that deploy through the standard pipeline (WSL → push → `fabrik apply` deploys via SSH+Compose and fires 10 registrars (9 shape-driven + `watchdog`, which is ON by default); `fabrik redeploy` handles code-only updates — see `docs/operations/fabrik-lifecycle.md`). Custom CI/CD or off-pipeline infra = slower and riskier.
 4. **Easy to maintain** — when two solutions both work, prefer the one needing less ongoing attention. Start with what exists on the VPS; escalate when proven necessary.
 5. **Set and forget** — prefer low-maintenance solutions (self-hosted `postgres-main` / `redis-main` on the fleet; managed Paddle, Cloudflare, Resend where a managed edge genuinely wins) over anything that needs babysitting.
 
@@ -46,7 +46,7 @@ Mode is **owner-declared at the start** (Step 0). Do not auto-detect from filesy
 
 1. **Intent & Scaffolding (WSL)** — `fabrik scaffold` → AI guardrails + spec `shape:` block.
 2. **Agentic Implementation (WSL)** — tickets dispatched to agents (Claude Code, Windsurf Cascade, Kilo CLI).
-3. **Proper Registration (VPS)** — `fabrik apply` fires 9 registrars based on `shape:` block.
+3. **Proper Registration (VPS)** — `fabrik apply` fires **10** registrars — the 9 shape-driven (postgres/redis/gatus/backrest/glitchtip/grafana/authelia/meilisearch/prometheus) **+ `watchdog`**, which fires from the spec's `watchdog:` block and is **ON by default** (opt-OUT: disable with `watchdog: { enabled: false }`) (the 9 fire from the `shape:` block).
 4. **Verification & Testing** — `fabrik verify`, drift detection (`fabrik audit-registrars`), alerting.
 
 If a NEW vision cannot pass all 4 stages, state this explicitly and justify. If an EXISTING project has incomplete stages, flag them in the Compliance Report (these are lifecycle gaps, not separate from compliance).
@@ -88,16 +88,16 @@ Every `specs/services/<id>.yaml` declares `shape:` with these booleans. Each fla
 
 | Flag | True when | Fires |
 | --- | --- | --- |
-| `is_public` | Anonymous traffic hits it (marketing site, landing, public API) | Authelia bypass rule |
+| `is_public` | Anonymous traffic hits it (marketing site, landing, public API) | **Gatus** uptime probe (⚠️ requires `spec.domain` too) — `infrastructure.py::resolve_applicability` |
 | `is_admin_dashboard` | UI behind auth for owner/staff | Authelia forward-auth middleware |
-| `has_bearer_api` | M2M/token-auth API endpoints | API gateway gzip middleware, no Authelia |
+| `has_bearer_api` | M2M/token-auth API endpoints | **Authelia `^/api/` bypass rule** (narrow it with `shape.bearer_bypass_prefix`) — WITHOUT this flag your M2M routes stay behind Authelia 2FA and every machine caller is 302'd to a login page. (It does NOT fire gzip — gzip is a scaffold-emitted Traefik label, not a registrar.) |
 | `has_persistent_data` | Writes durable state (DB rows, uploaded files, vector store) | Backrest backup plan |
 | `needs_database` | Reads/writes PostgreSQL | Postgres registrar creates DB + user on `postgres-main` |
 | `has_search_feature` | Full-text or semantic search | Meilisearch index |
 | `needs_cache` | Redis for sessions, queues, rate-limit, cache | Redis registrar allocates index, injects `REDIS_URL` |
 | `exposes_metrics` | App serves `/metrics` (Prometheus format) | Prometheus scrape target added |
 
-Plus `kind:` (one of: `service`, `worker`, `static` — per `src/fabrik/spec_loader.py:Kind`) — drives template selection and applicability gates (e.g., `kind: service|worker` gates GlitchTip; `static` skips it). Scaffold-to-kind mapping: python-api/python-api-gpu/node-api/saas-skeleton/file-api/chrome-extension/mobile-app/desktop-app → `service`; file-worker → `worker`; static-site/docusaurus → `static`. (chrome-extension/mobile-app/desktop-app are `kind: service` — their companion backend deploys per `templates/<type>/defaults.yaml`; only the client artefact ships separately.) **WordPress is out of scope for this workflow** — `Kind.WORDPRESS` is recognised by the codebase for legacy reasons but Fabrik scaffolding does NOT produce WordPress projects; WordPress site creation + deployment lives in the standalone `/opt/wpf` project (use `wpf new <name>` + `wpf wp apply` there). If a Vision Summary names "wordpress site" as a feature, route the owner to `/opt/wpf` and treat the WordPress side as out-of-scope for the current mega-epic-breakdown run.
+Plus `kind:` (`service` / `worker` / `static`; the `Kind` enum also has a 4th member, `WORDPRESS`, kept for the legacy deploy path — per `src/fabrik/spec_loader.py:Kind`) — drives template selection and applicability gates (e.g., `kind: service|worker` gates GlitchTip; `static` skips it). Scaffold-to-kind mapping: python-api/python-api-gpu/node-api/saas-skeleton/file-api/chrome-extension/mobile-app/desktop-app → `service`; file-worker → `worker`; static-site/docusaurus → `static`. (chrome-extension/mobile-app/desktop-app are `kind: service` — their companion backend deploys per `templates/<type>/defaults.yaml`; only the client artefact ships separately.) **WordPress is out of scope for this workflow** — `Kind.WORDPRESS` is recognised by the codebase for legacy reasons but Fabrik scaffolding does NOT produce WordPress projects; WordPress site creation + deployment lives in the standalone `/opt/wpf` project (use `wpf new <name>` + `wpf wp apply` there). If a Vision Summary names "wordpress site" as a feature, route the owner to `/opt/wpf` and treat the WordPress side as out-of-scope for the current mega-epic-breakdown run.
 
 ## Input Contract
 
@@ -221,8 +221,8 @@ The Input Contract files are already auto-loaded. Now focus on these specific se
 - `agents-fabrik.md` § `Fabrik Microservices` — existing custom services (live vs retired/not-deployed).
 - `agents-fabrik.md` § `Scaffold Types` — the 11 scaffoldable types + shape flags emitted by each (`templates/<type>/defaults.yaml` is the contract). WordPress is NOT in this list (deferred to `/opt/wpf`).
 - `agents-fabrik.md` § `MANDATORY ORCHESTRATOR PRE-FLIGHT` — run all 7 checks listed there (Ports, Business Model, Microservices, Hardware Audit, Design System, External Knowledge, fabrik-lib).
-- `agents-fabrik.md` § `Planning Constraints` — all 12 constraints. **These are a separate list from Step N3i's 20 checks** and cover orthogonal angles (Solo dev capacity, Module dependencies, DNS via site-provisioner, Scaffold immutability, State conflicts) that are NOT in N3i. Apply both: AGENTS.md's 12 at orientation time, N3i's 20 at vision-verification time.
-- `docs/infrastructure/vps-complete-inventory.md` — canonical fleet inventory if the AGENTS.md summary is ambiguous on host placement.
+- `agents-fabrik.md` § `Planning Constraints` — all 12 constraints. **These are a separate list from Step N3i's 20 checks** and cover angles mostly absent from N3i (Module dependencies, DNS via site-provisioner, Scaffold immutability, State conflicts). Note Solo-dev capacity DOES appear in both (N3i #9). Apply both: agents-fabrik.md's 12 at orientation time, N3i's 20 at vision-verification time.
+- `docs/infrastructure/vps-complete-inventory.md` — canonical fleet inventory if the agents-fabrik.md summary is ambiguous on host placement.
 - `docs/operations/fabrik-lifecycle.md` — runtime behavior, data safety, deploy/redeploy/destroy.
 - `docs/reference/technology-stack-decision-guide.md` — stack defaults.
 - `docs/reference/prebuilt-app-containers.md` — off-the-shelf solutions.
@@ -299,7 +299,7 @@ If research direction is fundamentally wrong for Fabrik (e.g., AWS serverless wh
 16. **i18n en+tr from day 1** — every GUI / user-facing surface ships with `en` + `tr` locale files. Translation validated via `scripts/validate_i18n.py`. Adding a language = locale file only, zero code changes (Architectural Mandate § i18n).
 17. **Target host (per service)** — every Fabrik-deployed service declares `target_vps:` (`vps1` / `vps2` / `vps3`; absent → `vps1`). Hub for shared-infra-coupled; spoke for tenant-isolated / EU-proximate / capacity-spillover (Fleet topology mandate above).
 18. **KVKK / GDPR data residency** — if product stores user PII or file blobs: PII lives on self-hosted `postgres-main` and blobs in `fabrik-lib/storage` (Backblaze B2) — for KVKK/EU alignment host the storing service on an EU-proximate spoke (`vps2`/`vps3`, Coventry UK) and/or a B2 EU-region bucket; file erasure events use `file_erasure_audit` hash-chained table with 3-year retention (`67-file-api.md`, Article 7(3)); telemetry opt-in only — no foreign-cloud egress without consent (`72-desktop.md`).
-19. **Watchdog sidecar (when needed)** — if any service calls paid LLM APIs in **any unattended loop, scheduled job, or user-triggered flow that can re-fire without human approval** (i.e., not strictly one call per explicit human click): declare watchdog sidecar opt-in (`60-watchdog.md`) AND a `cost-budget` cap (`cost-budget.md`). Concrete trigger examples: agentic loop with self-retry, cron job that calls an LLM, webhook that re-invokes on retry, user chat with reasoning steps. Concrete non-triggers: one LLM call per human button-press with no auto-retry and no agentic recursion. Without a cap, a runaway-reasoning loop can empty the budget overnight.
+19. **Watchdog sidecar (when needed)** — if any service calls paid LLM APIs in **any unattended loop, scheduled job, or user-triggered flow that can re-fire without human approval** (i.e., not strictly one call per explicit human click): declare the watchdog sidecar explicitly (`60-watchdog.md`) — ⚠️ it is **opt-OUT**: `resolve_applicability()` fires it for EVERY spec without a `watchdog: { enabled: false }` block AND a `cost-budget` cap (`cost-budget.md`). Concrete trigger examples: agentic loop with self-retry, cron job that calls an LLM, webhook that re-invokes on retry, user chat with reasoning steps. Concrete non-triggers: one LLM call per human button-press with no auto-retry and no agentic recursion. Without a cap, a runaway-reasoning loop can empty the budget overnight.
 20. **Node ESM / Python version floors** — Node greenfield: `"type": "module"` + `engines.node ">=22.0.0"` (24 LTS preferred). Python: `python:<current-stable>-slim-bookworm` (3.13 today). `12-node.md` + `10-python.md`.
 
 **N3j. Multi-scaffold check.** Single vision spanning multiple scaffold types (e.g., python-api + saas-skeleton + mobile-app, or chrome-extension + python-api backend) → list which features map to which scaffold. Strong multi-epic signal. **If scaffolds share no data, no auth, no deploy coupling** → candidate for **separate `fabrik scaffold` projects with own lifecycles**, not epics. Ask: "These components seem independent. Separate projects or epics within one project?" Note: if the vision includes a WordPress site, route the WordPress side to the standalone `/opt/wpf` project (out of scope here) and only retain the non-WordPress scaffolds for this run.
@@ -364,7 +364,7 @@ Every feature from the research MUST appear here. Nothing silently dropped.]
 ...
 
 ## Backing Services (from VPS)
-[Which existing VPS services this vision will use — grounded in AGENTS.md]
+[Which existing VPS services this vision will use — grounded in agents-fabrik.md]
 - postgres-main:5432 — [what for]
 - redis-main:6379 — [what for]
 - [etc.]
@@ -380,7 +380,7 @@ contracts that all epics inherit. 02-epic-decomposition-command reads
 these and does NOT re-decide them. Fill ONLY bullets relevant to this
 vision — omit N/A bullets entirely rather than writing "Billing: N/A"
 across multiple lines.]
-- **Auth:** [`fabrik-lib/fastapi-user-auth` Pattern A (user-facing, DEFAULT — the app issues its own JWTs) + Authelia (admin) / Authelia only / custom — state which and why. Supabase Auth is legacy/migration-only per `AGENTS.md § Supabase`; pick it only for a project already on it.]
+- **Auth:** [`fabrik-lib/fastapi-user-auth` Pattern A (user-facing, DEFAULT — the app issues its own JWTs) + Authelia (admin) / Authelia only / custom — state which and why. Supabase Auth is legacy/migration-only per `agents-fabrik.md § Supabase`; pick it only for a project already on it.]
 - **Database:** [postgres-main (DEFAULT) / Supabase (legacy — plan migration to postgres-main) — state which holds what]
 - **Search:** [MeiliSearch / pgvector / none — state what's being searched]
 - **Billing:** [Paddle (international MoR) / iyzico (Turkish domestic) / RevenueCat + IAP (mobile digital goods — Paddle does NOT apply in-app) / none — state pricing model. Stripe is NOT available to a TR entity.]
@@ -538,17 +538,17 @@ Run these in the project's directory:
 2. `fabrik audit-registrars --spec specs/services/<id>.yaml` — shape/registrar drift:
    - For each declared registrar: `present` / `missing` / `drift` / `n/a` / `override` / `unknown`.
    - Drift cases: orphan resources (created outside fabrik), ghost entries (spec says yes, live says no, vice versa).
-   - **Use `audit-registrars`, NOT `reconcile-all`.** Per AGENTS.md, `fabrik reconcile-all` is **currently broken** (still wired to the decommissioned Coolify — `CoolifyClient` is queried at runtime, so it fails when the command is invoked; pending Phase 11-2 migration). `audit-registrars` is the read-only audit path and works; `reconcile-all` is the auto-fix path and is unavailable today. Do not plan tickets that invoke reconcile-all.
+   - **Use `audit-registrars`, NOT `reconcile-all`.** Per agents-fabrik.md, `fabrik reconcile-all` is **currently broken** (still wired to the decommissioned Coolify — `CoolifyClient` is queried at runtime, so it fails when the command is invoked; pending Phase 11-2 migration). `audit-registrars` is the read-only audit path and works; `reconcile-all` is the auto-fix path and is unavailable today. Do not plan tickets that invoke reconcile-all.
 3. Inspect: does `.fabrik/state/<id>.json` exist? Does `docs/RESILIENCE.md` exist for projects with external deps?
 
 Report findings as a list of mechanical gaps with concrete locations.
 
 **Step E3.B — Rule-pack judgment (our orchestrator evaluates code/structure):**
 
-For each rule pack applicable to this scaffold type (per `agents-fabrik.md` § Project Type → Default Packs table; full pack list in the Rule Pack Index above in the Input Contract section), evaluate the project against the pack's mandates. Example table below is for `saas-skeleton`; for other scaffold types build the equivalent table:
+For each rule pack applicable to this scaffold type (per `agents-fabrik.md` § Project Type → Default Packs table; the Rule Pack Index above in the Input Contract section — ⚠️ that index is NOT exhaustive (it omits `core/62-using-subagents.md` and all 11 `ai/` packs); for the authoritative live set run `python scripts/select_rules.py`), evaluate the project against the pack's mandates. Example table below is for `saas-skeleton`; for other scaffold types build the equivalent table:
 
-- **Scaffold has a `domain-modules/<type>.md`** (chrome-ext, desktop-app, mobile-app, rag, saas) → use that as the structural starting point + add applicable rows from the Rule Pack Index.
-- **Scaffold has NO `domain-modules/<type>.md`** (python-api, node-api, file-api, file-worker, static-site, docusaurus) → build the table directly from the Rule Pack Index, scoped to the scaffold's Default Packs in `agents-fabrik.md` § Project Type → Default Packs. Use the applicability matrix below to decide which rows survive.
+- **Scaffold has a `domain-modules/<type>.md`** (chrome-ext, desktop-app, mobile-app, saas — plus the capability module `rag`, which is NOT a scaffold type) → use that as the structural starting point + add applicable rows from the Rule Pack Index.
+- **Scaffold has NO `domain-modules/<type>.md`** (python-api, **python-api-gpu**, node-api, file-api, file-worker, static-site, docusaurus) → build the table directly from the Rule Pack Index, scoped to the scaffold's Default Packs in `agents-fabrik.md` § Project Type → Default Packs. Use the applicability matrix below to decide which rows survive.
 - **WordPress projects are out of scope here** — delegate to `/opt/wpf`; do NOT build a Compliance table for WordPress sites under this workflow.
 
 **Rule-area applicability matrix** (use to scope rows in/out of the Compliance table for a given scaffold):

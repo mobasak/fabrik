@@ -48,7 +48,7 @@ Every project passes through 4 stages (enumerated below; deploy/runtime detail i
 
 1. **Intent & Scaffolding (WSL)** — `fabrik preplan` → `fabrik scaffold` → AI guardrails (5 governance files + 50 rule packs across `core/` (28), `saas/` (4), `mobile-app/` (5), `chrome-ext/` (1), `desktop-app/` (1), `ai/` (11) + reference docs) + spec `shape:` block injected. The scaffold is a Context Injection.
 2. **Agentic Implementation (WSL)** — structured tickets dispatched to agents (Claude Code, Windsurf Cascade, Kilo CLI). Agents write infra-aware code against the spec contract. `fabrik dev` for local iteration. `fabrik review` for pre-PR bundling.
-3. **Proper Registration (VPS via SSH + Docker Compose)** — `fabrik apply` fires 9 registrars (postgres/redis/gatus/backrest/glitchtip/grafana/authelia/meilisearch/prometheus) based on the `shape:` block. Observability auto-discovers via docker.sock. Network security via UFW + DOCKER-USER iptables chain.
+3. **Proper Registration (VPS via SSH + Docker Compose)** — `fabrik apply` fires **10** registrars — the 9 shape-driven (postgres/redis/gatus/backrest/glitchtip/grafana/authelia/meilisearch/prometheus) **+ `watchdog`**, which fires from the spec's `watchdog:` block and is **ON by default** (opt-OUT: disable with `watchdog: { enabled: false }`). Observability auto-discovers via docker.sock. Network security via UFW + DOCKER-USER iptables chain.
 4. **Verification & Testing** — `fabrik verify` health check, `fabrik audit-registrars` drift detection (manual today; hourly cron + Telegram on drift is target state per `AGENTS.md` § Deploy Pipeline, not yet wired), `fabrik destroy --use-state` for clean teardown from the recorded state file.
 
 If a project cannot pass through all 4 stages, state this explicitly and justify.
@@ -151,7 +151,7 @@ State which source(s) read (or `none — interview-only`).
 - `docs/reference/prebuilt-app-containers.md` — off-the-shelf solutions.
 - `.windsurf/rules/ai/00-ai-model-selection.md` (+ matching category pack) — if AI/ML project, identify correct category + tool.
 - `docs/operations/fabrik-lifecycle.md` — confirm project fits the deploy/runtime stages; identify registrars.
-- `.windsurf/rules/` (subdirectories: `core/`, `saas/`, `mobile-app/`, `chrome-ext/`) — identify applicable packs using `AGENTS.md` § Project Type → Default Packs table. The table maps scaffold type → pack IDs. These pack IDs are injected into each ticket's Context Files during `ticket-breakdown`.
+- `.windsurf/rules/` (subdirectories: `core/`, `saas/`, `mobile-app/`, `chrome-ext/`, `desktop-app/`, `ai/` — all six; omitting `desktop-app/` or `ai/` means those packs are never injected into tickets) — identify applicable packs using `AGENTS.md` § Project Type → Default Packs table. The table maps scaffold type → pack IDs. These pack IDs are injected into each ticket's Context Files during `ticket-breakdown`.
 - `docs/traycer/kilo_selected_agents.md` — Kilo CLI agent rankings (Elo + pricing + capabilities).
 - `docs/reference/windsurf/cascade-models.md` — Windsurf Cascade model list.
 - Claude Code is always available (opus/sonnet via this tool). During `ticket-breakdown`, Traycer assigns agents from ALL THREE suppliers per ticket; user picks which to dispatch.
