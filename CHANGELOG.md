@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Spoke firewall drift: `DOCKER-USER` chain was EMPTY on vps2/vps3 (2026-07-12)
+
+The `/fabrik-docs-review` reconciliation found that both spokes had **no `iptables-docker-user.service` and an
+empty `DOCKER-USER` chain**, despite the docs claiming `bootstrap-vps.sh` step_10 installs it. This matters
+because **Docker bypasses UFW** — a published container port is internet-reachable even when UFW would deny it,
+and `DOCKER-USER` is the only chain Docker consults first. It was **not an exposure at the time** (the only
+Docker-published spoke ports were Traefik 80/443, intentionally public; everything else is host-networked and
+UFW-governed), but any future spoke container publishing a mesh-only port would have been wide open.
+
+Fixed on both spokes with the step_10 rule set (`ACCEPT -i wg0`; `DROP -i ens3 -p tcp --dports` the 9
+`FABRIK_MESH_ONLY_PORTS`). Added `scripts/sysadmin/install-docker-user-rules.sh` — idempotent, and it **sources
+`bootstrap-config.sh`** so its port list can never drift from step_10's. Verified: unit `enabled` + `active` on
+both spokes; exactly 2 rules after a restart (idempotent, boot-safe); Traefik unchanged (443→404, 80→301,
+identical to the pre-change baseline); mesh healthy; **Prometheus 20/20 targets up** — including
+`cadvisor-spokes:8080`, which is in the DROP list but arrives over `wg0` (ACCEPT), proving the rules are
+correctly scoped. All 3 hosts now carry the unit.
+
 ### Fixed — DR regression: `bootstrap-hub.sh` / `bootstrap-spoke-restore.sh` did not install the boot unit (2026-07-12)
 
 `fabrik-compose-boot.service` was only wired into `bootstrap-vps.sh` (step_16, fresh spokes). The **hub DR
