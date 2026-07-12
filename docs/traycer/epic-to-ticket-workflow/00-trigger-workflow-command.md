@@ -57,7 +57,12 @@ If a project cannot pass through all 4 stages, state this explicitly and justify
 
 These are enforced at planning time. Violations block the workflow.
 
-- **12-Factor App** — every service satisfies [The Twelve-Factor App](https://12factor.net/). Traycer verifies the planned architecture against all 12 factors in Step 5. Violations are blockers (e.g. "file-based sessions violates Factor VI — use Redis"). Key factors to check: III (config via env only), VI (stateless), IX (fast startup + SIGTERM), XI (structured stdout logs).
+- **12-Factor App — ALL TWELVE.** Every service satisfies **all 12** factors of [The Twelve-Factor App](https://12factor.net/). **The canonical per-factor table (each factor + its Fabrik binding, source re-verified 2026-07-12) lives in `mega-epic-breakdown/00-trigger-workflow-command` § Architectural Mandates** — read it; never re-derive the factors from memory. Verify the planned architecture against **all twelve** at Step 5; **violations are blockers.** The five traps this stack actually hits:
+  - **IX Disposability** — a worker must **return its in-flight job to the queue on SIGTERM**, and **every job must be idempotent/reentrant** (not merely "fast startup").
+  - **X Dev/prod parity** — **never** a different backing service in dev vs prod: no SQLite locally, no in-memory dict standing in for Redis.
+  - **XI Logs** — the app **never writes or manages a logfile**; unbuffered `stdout` only (Promtail → Loki does the routing).
+  - **VI Processes** — **sticky sessions** are a violation too, not just file-based sessions. Session state → `redis-main`.
+  - **VIII Concurrency** — **never daemonize, never write a PID file.**
 - **Concurrency** — every service handles multiple simultaneous requests. Never single-threaded blocking.
 - **i18n** — every GUI/user-facing service supports multi-language from day one (en + tr minimum). Translation validated via `scripts/validate_i18n.py` (3-level: structural, back-translation, native-speaker critique). Adding a language = adding a locale file, zero code changes.
 - **Responsive** — every scaffold with a web GUI surface (per `mega-epic-breakdown/00-trigger-workflow-command` § Rule-area applicability matrix — **feature-trigger, NOT scaffold-type-gated**; includes python-api/node-api/file-api with `shape.is_admin_dashboard: true` OR `shape.is_public: true` + HTML output) responsive from 375px to 2560px (RWD1-RWD10). No desktop-only layouts. Carve-outs: chrome-extension popup (400px fixed), mobile-app (native UI), desktop-app (electron window sizing). See `docs/reference/mobile-responsive-testing-guide.md`.
