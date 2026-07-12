@@ -1,6 +1,6 @@
 # VPS Fleet — Status Snapshot
 
-**Last Updated:** 2026-06-16 — content re-verified live 2026-06-15/16 (Backrest plan state, DR drill validation across hub/spoke/spoke-restore). Detail below from the iteration day after 2026-06-06 fleet rollout (Trio Phase 1+2+3+4 LIVE across ALL 3 HOSTS since 2026-06-06; today added: **Phase 5.1.a operator-reversal detection cron LIVE on all 3 hosts** via new `detect_reversals.py` + `*/5 min` cron entry, writes to `/opt/fabrik/logs/lessons-pending.jsonl`; **rate-limited 429 wakes now tracked** via `aro_wake_requests_total{status="rate_limited"}` + `AroWakeLowSuccessRate` denominator updated to `status!="rate_limited"`; **stale netdata scrape job removed** (caused 24× Telegram flood overnight); **6 bootstrap defenses** added (preflight SSH-user-transition trap in both bootstrap scripts + remote-bash quote-escape fix + new rule pack `.windsurf/rules/core/90-bootstrap-scripts.md` + AFCL entries + 2 rebuild-doc updates); **DR drill MEASURED** end-to-end: `bootstrap-vps.sh --skip-mesh --skip-dns root@<vultr-ip> vps4` → 3m 13s wall-clock, 9.3× under the ≤30 min target, 15/15 substantive end-state checks, $0.04 total cost.)
+**Last Updated:** 2026-07-12 (`/fabrik-docs-review` reconciliation vs live fleet: Alertmanager sends to Telegram **natively** — it does NOT route via Apprise; Prometheus is **15 active jobs / 20 targets / 20 up** with spoke federation LIVE; Backrest hook + Apprise `alerts` config **fixed** (Apprise was 204-ing every alert); `fabrik-compose-boot.service` reboot-race unit added fleet-wide; spoke `DOCKER-USER` drift recorded.) **Prior:** 2026-06-16 — content re-verified live 2026-06-15/16 (Backrest plan state, DR drill validation across hub/spoke/spoke-restore). Detail below from the iteration day after 2026-06-06 fleet rollout (Trio Phase 1+2+3+4 LIVE across ALL 3 HOSTS since 2026-06-06; today added: **Phase 5.1.a operator-reversal detection cron LIVE on all 3 hosts** via new `detect_reversals.py` + `*/5 min` cron entry, writes to `/opt/fabrik/logs/lessons-pending.jsonl`; **rate-limited 429 wakes now tracked** via `aro_wake_requests_total{status="rate_limited"}` + `AroWakeLowSuccessRate` denominator updated to `status!="rate_limited"`; **stale netdata scrape job removed** (caused 24× Telegram flood overnight); **6 bootstrap defenses** added (preflight SSH-user-transition trap in both bootstrap scripts + remote-bash quote-escape fix + new rule pack `.windsurf/rules/core/90-bootstrap-scripts.md` + AFCL entries + 2 rebuild-doc updates); **DR drill MEASURED** end-to-end: `bootstrap-vps.sh --skip-mesh --skip-dns root@<vultr-ip> vps4` → 3m 13s wall-clock, 9.3× under the ≤30 min target, 15/15 substantive end-state checks, $0.04 total cost.)
 **Snapshot taken:** 2026-06-07 20:20 UTC (live probe via `scripts/audit_infra_vs_docs.py --hosts vps,vps2,vps3` + `ssh` + `docker ps` + Prometheus `/api/v1/targets` + per-spoke `curl :8201/metrics` + Vultr API `/v2/instances` for drill-instance cleanup). **Current-state sections (Fleet at a glance + health table) re-verified live 2026-06-15** (vps1 31 ctr, RAM 4.1/11 Gi, disk 32/108 GB 30 %, uptime ~2 w 1 d, UFW 16, Authelia 8; vps2/vps3 5 ctr each, UFW 11; mesh RTT ~135–136 ms; Prometheus 12 active/14 targets/14 up; Gatus 31 endpoints (was 33 until `coolify`/`coolify-public` removed 2026-06-17); DR drills green).
 **Hosts:** vps1 (LA, hub) · vps2 (Coventry UK, spoke) · vps3 (Coventry UK, spoke)
 **Deploy model:** SSH + Docker Compose (no Coolify — removed 2026-05-30)
@@ -32,7 +32,7 @@
 | :--- | :--- |
 | Wireguard mesh | ✅ both spokes handshaking in the last ~2 min |
 | Cross-Atlantic mesh RTT | ✅ ~135–136 ms, 0 % loss (vps2 ~135.6 ms, vps3 ~136.6 ms; re-verified live 2026-06-15) |
-| Prometheus scrape targets | ✅ 14 / 14 up across 12 active jobs (11 vps1-local jobs + aro-wake covers vps1+vps2+vps3); 13 jobs configured in `prometheus.yml` (`fabrik-services` has no targets yet) — re-verified live 2026-06-15; node-spokes/cadvisor-spokes/promtail-spokes jobs are NOT in current `prometheus.yml` |
+| Prometheus scrape targets | ✅ 20 / 20 up across 15 active jobs; 16 jobs configured in `prometheus.yml` (`fabrik-services` has null targets) — re-verified live 2026-07-12. `node-spokes` / `cadvisor-spokes` / `promtail-spokes` ARE live (2 targets each, `prometheus.yml:46,58,70`) |
 | Mesh-bound shared infra on vps1 (`5432, 6379, 8000, 9091, 3100`) | ✅ all 5 listening on `10.99.0.1` |
 | Spoke DNS resolving | ✅ `vps2.ocoron.com`, `*.vps2`, `vps3.ocoron.com`, `*.vps3` all return correct A records |
 | Cloudflare API token in `/opt/fabrik/.env` | ✅ verified active (refreshed today) |
@@ -610,11 +610,11 @@ backrest               running  (W11 — own restic repo at b2:vps1-ocoron-backu
 
 ## Observability snapshot
 
-### Prometheus — 14 / 14 targets up across 12 jobs (re-verified 2026-06-07T20:20Z; netdata job removed today + spoke-side scrape jobs no longer configured)
+### Prometheus — 20 / 20 targets up across 15 active jobs (re-verified live 2026-07-12; 16 job_names configured, `fabrik-services` null-target. Spoke federation `node-spokes` / `cadvisor-spokes` / `promtail-spokes` IS live — 2 targets each)
 
-vps1-local (11 jobs / 11 targets — verified against `/api/v1/targets`): `alertmanager`, `authelia`, `cadvisor`, `gatus`, `grafana`, `loki`, `meilisearch`, `node`, `postgres`, `prometheus`, `redis`. (`pushgateway` runs as a container but is NOT a scrape job; `fabrik-services` is configured with null targets — a placeholder. So 13 job_names configured → **12 active jobs** [11 local + `aro-wake` below] / **14 targets up** [11 local + `aro-wake`'s 3].)
+vps1-local (11 jobs / 11 targets — re-verified against `/api/v1/targets` 2026-07-12): `alertmanager`, `authelia`, `cadvisor`, `gatus`, `grafana`, `loki`, `meilisearch`, `node`, `postgres`, `prometheus`, `redis`. (`pushgateway` runs as a container but is NOT a scrape job; `fabrik-services` is configured with null targets — a placeholder.) Plus `aro-wake` (3 targets) and the spoke federation `node-spokes` / `cadvisor-spokes` / `promtail-spokes` (2 targets each). So **16 job_names configured → 15 active jobs / 20 targets up**.
 
-Spoke scrape jobs (`node-spokes`, `cadvisor-spokes`, `promtail-spokes`) — **NOT in current `prometheus.yml`** (verified 2026-06-07T20:20Z via `/api/v1/jobs`). Live spoke coverage comes from the `aro-wake` job (3 targets: vps1:10.0.1.1:8201, vps2:10.99.0.2:8201, vps3:10.99.0.3:8201) which exposes SLI/health/metrics. Spoke `node-exporter`/`cadvisor`/`promtail` agents ARE running at `/opt/monitoring-agent/` on each spoke, and the mesh + UFW permit scrapes (the `ufw allow from 10.99.0.0/24` rule from W8 2026-06-01 is still in place via `bootstrap-vps.sh` step_02), but the scrape blocks themselves aren't currently configured in vps1's `prometheus.yml`. Loki side: promtail push-based ingest works — Loki has `host=vps1|vps2|vps3` log streams (verified 2026-06-07T20:20Z).
+Spoke scrape jobs (`node-spokes`, `cadvisor-spokes`, `promtail-spokes`) — **live in `prometheus.yml`** (`:46,:58,:70`; re-verified 2026-07-12 via `/api/v1/targets`: 2 targets each, all up). They scrape the spoke-side `node-exporter`/`cadvisor`/`promtail` agents at `/opt/monitoring-agent/` over the mesh (the `ufw allow from 10.99.0.0/24` rule from W8 is in place via `bootstrap-vps.sh` step_02). The `aro-wake` job (3 targets: vps1:10.0.1.1:8201, vps2:10.99.0.2:8201, vps3:10.99.0.3:8201) adds SLI/health metrics on top. Loki side: promtail push-based ingest works — Loki has `host=vps1|vps2|vps3` log streams (verified 2026-06-07T20:20Z).
 
 Not scraped: `traefik` (no metrics scrape job — health observed via Gatus + Loki), `glitchtip-web` (django-prometheus not bundled). Every active series carries a `host` label (`vps1`, `vps2`, or `vps3`). Reload: `ssh vps "sudo docker kill -s HUP prometheus"`.
 
@@ -638,7 +638,7 @@ Not scraped: `traefik` (no metrics scrape job — health observed via Gatus + Lo
 
 ### Alerting
 
-- **Alertmanager → Apprise → Telegram** for vps1 alerts.
+- **Alertmanager → Telegram (native `telegram_configs`)** + webhook → `aro-wake` for vps1 alerts. Apprise is **not** in Alertmanager's path (it serves Gatus + the sysadmin scripts).
 - ~~`spoke_health` rule group active — `SpokeDown`, `SpokeHighCPU`, `SpokeHighRAM`~~ — **NOT in `alerts.yml` as of 2026-06-07T20:20Z probe**. The 5 actual live groups: `aro_wake` (2 rules), `container_health` (6), `host_health` (3), `service_health` (1), `fabrik-registrar-drift` (1, lives in separate `rules/fabrik-drift.yml`). `host_health` does fire on `host=vps2|vps3` labels so spoke-level CPU/RAM/down alerting still works through those rules; the dedicated spoke-named group never landed.
 - **Discipline (Lesson 11):** silence the `ContainerDown` rule before any planned op that takes containers down > 2 min, or Telegram floods.
 
@@ -711,7 +711,7 @@ Closing the "credentials only on vps1" DR weakness means the dev WSL can stand b
 Operating notes (recorded when the chain was stood up):
 
 - vps1 plans in place: `postgres-dumps` (`/opt/backups/pg_dump_*.sql`), `docker-volumes` (`/var/lib/docker/volumes/`), `opt-configs` (`/opt/<svc>/{compose.yaml,.env}`), `host-state`. Spoke plans: `host-state` + `opt-configs`.
-- Failure-hook URL: `http://apprise:8000/notify/<tag>` (the old `apprise-<uuid>:8000` hostname is broken; Issue 1 in inventory).
+- Failure-hook URL: `http://apprise:8000/notify/alerts` — Apprise's **stateful** endpoint (config key `alerts`), emitted by `src/fabrik/drivers/backrest.py`. There is no `/notify/<tag>` convention; the bare stateless `/notify` (`APPRISE_STATELESS_URLS`) is used only by n8n. The Coolify-era `apprise-<uuid>` hostname is gone from live configs (verified 2026-07-12).
 - `postgres-dumps` runs AFTER the host pg_dump cron, not concurrent (44 % race-condition failures previously).
 - Spoke backups now cover `host-state` + `opt-configs`; broaden only if vps2/vps3 start holding non-replicated data.
 
@@ -769,7 +769,7 @@ After the evening cleanup batch, the active list is short. The struck-through ro
 
 | # | Issue | Impact | Fix path |
 | :--- | :--- | :--- | :--- |
-| 1 | Backrest failure-notification hook references the old Coolify-era apprise UUID hostname | Cosmetic until backup plans exist; backup-failure alerts wouldn't reach Telegram | Fix on next plan creation: replace `apprise-<uuid>` with `apprise` |
+| 1 | ~~Backrest failure hook references the old Coolify-era apprise UUID hostname~~ — **RESOLVED 2026-07-12** | Live hooks use `http://apprise:8000/notify/alerts`. A deeper break (Apprise had no `alerts` stateful config → `204` silent-drop of ALL alerts) was also fixed 2026-07-12 | None — verified delivering (`200`) |
 | 2 | `errors.vps1.ocoron.com` remains in Authelia bypass rule #6 (intentional — GlitchTip is the cross-tenant error UI) | GlitchTip UI is reachable without 2FA | Accepted as intentional; move to `two_factor` if/when this changes |
 | ~~3~~ | ~~`/opt/prometheus/` on vps1~~ | **RESOLVED** evening | `rm -rf` |
 | ~~4~~ | ~~site-provisioner upstream `compose.yaml` says `coolify` network~~ | **RESOLVED** | `fa32d61` pushed to `mobasak/site-provisioner@main` |

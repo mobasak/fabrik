@@ -1,6 +1,6 @@
 # VPS Bootstrap Automation
 
-**Last Updated:** 2026-06-15 (step-list re-aligned to the script's `step_00`..`step_15` labels — monitoring=`step_11`, traefik=`step_12`, dns=`step_13`, sysadmin=`step_14`, aro-wake=`step_15`, DOCKER-USER persistence=`step_10`; `step 14a`/`14b` clarified as sub-stages logged inside `step_14_install_sysadmin_pack`, not top-level steps. Trio Phase 2+3 LIVE on full fleet since 2026-06-06; **4 spoke deps now BAKED INTO `bootstrap-vps.sh` 2026-06-07** — step_02 apt installs `python3-venv` + `python3-pip`, step_14a installs Node.js 22 + `@anthropic-ai/claude-code` via npm, step_14b installs `python-telegram-bot==22.7` via pip, step_14 mkdir block adds `chown ozgur:ozgur /opt/fabrik /opt/fabrik/scripts /opt/fabrik/logs`. All 4 deps validated end-to-end via DR drill #2 on Vultr 2026-06-07: 3m 13s wall-clock, 9.3× under the ≤30 min target, 15/15 substantive end-state checks. Both `bootstrap-vps.sh` + `bootstrap-hub.sh` preflights gained a **safe-rerun trap** that detects `root@<ip>` failing while `ozgur@<ip>` succeeds and emits an actionable "re-run as ozgur@" error BEFORE the 3rd-retry would trigger fail2ban — encoded in rule pack `.windsurf/rules/core/90-bootstrap-scripts.md` Rule 1.)
+**Last Updated:** 2026-07-12 (**`step_16_install_compose_boot` added** — installs `fabrik-compose-boot.service`, the reboot-race safety net; `bootstrap-vps.sh` is now **17 step functions, `step_00`..`step_16`**. The hub/spoke-restore runbooks gained the same unit as `bootstrap-hub.sh` step_15b / `bootstrap-spoke-restore.sh` step_11c. This supersedes the `step_00`..`step_15` range recorded below.) **Prior 2026-06-15** (step-list re-aligned to the script's `step_00`..`step_15` labels — monitoring=`step_11`, traefik=`step_12`, dns=`step_13`, sysadmin=`step_14`, aro-wake=`step_15`, DOCKER-USER persistence=`step_10`; `step 14a`/`14b` clarified as sub-stages logged inside `step_14_install_sysadmin_pack`, not top-level steps. Trio Phase 2+3 LIVE on full fleet since 2026-06-06; **4 spoke deps now BAKED INTO `bootstrap-vps.sh` 2026-06-07** — step_02 apt installs `python3-venv` + `python3-pip`, step_14a installs Node.js 22 + `@anthropic-ai/claude-code` via npm, step_14b installs `python-telegram-bot==22.7` via pip, step_14 mkdir block adds `chown ozgur:ozgur /opt/fabrik /opt/fabrik/scripts /opt/fabrik/logs`. All 4 deps validated end-to-end via DR drill #2 on Vultr 2026-06-07: 3m 13s wall-clock, 9.3× under the ≤30 min target, 15/15 substantive end-state checks. Both `bootstrap-vps.sh` + `bootstrap-hub.sh` preflights gained a **safe-rerun trap** that detects `root@<ip>` failing while `ozgur@<ip>` succeeds and emits an actionable "re-run as ozgur@" error BEFORE the 3rd-retry would trigger fail2ban — encoded in rule pack `.windsurf/rules/core/90-bootstrap-scripts.md` Rule 1.)
 **Last probe report:** [`probe-reports/infra-probe-2026-06-07T20-20Z.yaml`](probe-reports/infra-probe-2026-06-07T20-20Z.yaml)
 **Status:** Spoke bootstrap **shipped + verified on vps2 + vps3**; hub bootstrap remains manual (documented below)
 
@@ -16,9 +16,9 @@ takes a fresh GreenCloudVPS Ubuntu 24.04 instance to a state where it's a fully-
 
 Full reference: [`scripts/bootstrap/README.md`](../../scripts/bootstrap/README.md).
 
-### What `bootstrap-vps.sh` does (16 step functions, `step_00`..`step_15`, post-W16)
+### What `bootstrap-vps.sh` does (17 step functions, `step_00`..`step_16`)
 
-> Prose item N below maps to the script's `step_(N-1)`: item 1 = `step_00`, … item 16 = `step_15`. Verify the live count with `grep -cE '^step_[0-9]+_' scripts/bootstrap/bootstrap-vps.sh`.
+> Prose item N below maps to the script's `step_(N-1)`: item 1 = `step_00`, … item 17 = `step_16_install_compose_boot` (installs `fabrik-compose-boot.service`, the reboot-race safety net — see `scripts/systemd/README.md`). Verify the live count with `grep -cE '^step_[0-9]+[a-z]*_' scripts/bootstrap/bootstrap-vps.sh`.
 
 1. Create `ozgur` user, install SSH key, grant NOPASSWD sudo — verified working before disabling root SSH
 2. Harden SSH (PermitRootLogin no, PasswordAuthentication no) — drop-in must be `00-fabrik-hardening.conf` (NOT `99-`), since Ubuntu cloud-init's `50-cloud-init.conf` wins in first-match-wins order. The script verifies effectiveness via `sshd -T` post-edit to catch the override silently. (Trap surfaced live on the hub 2026-06-02 — fleet drift fixed in the same session.)
@@ -54,7 +54,7 @@ Full reference: [`scripts/bootstrap/README.md`](../../scripts/bootstrap/README.m
 
 ## Hub (vps1) — now scripted (2026-06-01)
 
-**The hub IS reproducible from a single script** as of 2026-06-01. Until then it was a copy-and-customize manual runbook (the prior paragraph here said `docs/operations/disaster-recovery.md § Path B`); now it's `scripts/bootstrap/bootstrap-hub.sh` — 18 idempotent steps + numbered preflight, target wall-clock ≤ 90 min from fresh VPS to "all 31 containers running, Telegram bot answering, Gatus all green."
+**The hub IS reproducible from a single script** as of 2026-06-01. Until then it was a copy-and-customize manual runbook (the prior paragraph here said `docs/operations/disaster-recovery.md § Path B`); now it's `scripts/bootstrap/bootstrap-hub.sh` — 24 idempotent step functions (`step_00`–`step_18` plus `12b`/`12c`/`15b`/`17b`/`17c`) + numbered preflight, target wall-clock ≤ 90 min from fresh VPS to "all 31 containers running, Telegram bot answering, Gatus all green."
 
 **Single-source operator doc:** [`vps-hub-rebuild.md`](vps-hub-rebuild.md). That doc holds the 5-command operator runbook, the per-step walkthrough, the 7-check end-state contract, and the same-IP vs new-IP decision.
 

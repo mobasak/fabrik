@@ -4,6 +4,41 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — DR regression: `bootstrap-hub.sh` / `bootstrap-spoke-restore.sh` did not install the boot unit (2026-07-12)
+
+`fabrik-compose-boot.service` was only wired into `bootstrap-vps.sh` (step_16, fresh spokes). The **hub DR
+runbook** (`bootstrap-hub.sh`) and the **spoke restore** path (`bootstrap-spoke-restore.sh`) never installed it —
+so a host rebuilt by either runbook came back **carrying the very reboot race the unit exists to close** (the one
+that left `alertmanager` `Exited(255)` for 4 days). Added `bootstrap-hub.sh` `step_15b_install_compose_boot` and
+`bootstrap-spoke-restore.sh` `step_11c_install_compose_boot`; all three rebuild paths now install + enable it.
+Caught by the `/fabrik-docs-review` authoritative pass.
+
+### Changed — `/fabrik-docs-review docs/infrastructure` reconciled to live fleet (2026-07-12)
+
+Converged 18 docs against the live 3-host fleet over 7 passes (**48 fixes**; Pass 7 = 0 discrepancies / 0 edits,
+md5-stable). Substantive corrections:
+
+- **Alertmanager does NOT route via Apprise** — it sends to Telegram with **native `telegram_configs`** + a
+  webhook to `aro-wake`. `configs/alertmanager/alertmanager.yml` has no Apprise receiver at all. This was wrong
+  in 7 places across 4 docs (inventory, fleet-architecture, status, prometheus-app-metrics). Apprise's real
+  feeders are Gatus + the sysadmin scripts + the watchdog driver.
+- **Prometheus: 15 active jobs / 20 targets / 20 up** (16 `job_name`s configured; `fabrik-services` null-target) —
+  docs claimed 12 jobs / 14 targets and asserted the spoke jobs (`node-spokes` / `cadvisor-spokes` /
+  `promtail-spokes`) were **absent**. They have been live since `8342ef1`. Fixed in 10 places.
+- **Apprise `/notify/<tag>` is not a convention** — the fleet uses the **stateful** `/notify/alerts`; bare
+  `/notify` (stateless) is n8n-only. Corrected in `vps-status` + `vps-urls`.
+- **Closed 2 stale Known Issues**: Backrest hook UUID hostname (live configs use `apprise:8000/notify/alerts`)
+  and `/opt/prometheus` stale leftover (directory no longer exists). Closed the **vps4 DNS orphans** as deleted
+  (re-verified NXDOMAIN) — the docs contradicted themselves on this.
+- **Recorded a live DRIFT**: `iptables-docker-user.service` is **absent on vps2/vps3** and their `DOCKER-USER`
+  chain is **empty** — the docs claimed it was installed by bootstrap step_10. Not an exposure today (only
+  Traefik 80/443 are Docker-published on spokes) but Docker bypasses UFW, so any future published spoke port
+  would be unguarded.
+- Documented `fabrik-compose-boot.service` + the alert canary cron across the host-mechanism tables, and
+  corrected 3 docs (`operations/fabrik-lifecycle.md`, `DEPLOYMENT_ARCHITECTURE.md`, `operations/deployment.md`)
+  that asserted `restart: unless-stopped` "auto-recovers **all** containers" on reboot — the belief the outage
+  disproved. Step counts refreshed (`bootstrap-vps.sh` is now 17 steps, `step_00`..`step_16`).
+
 ### Added — Alert-path canary: watch the watcher (2026-07-12)
 
 `scripts/sysadmin/fabrik-alert-canary.sh` — the check that would have caught the 2026-07-08 incident on day

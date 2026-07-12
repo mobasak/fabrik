@@ -83,6 +83,9 @@
 #   14. Fallback: if postgres-data volume restore came up empty, psql restore
 #       from /opt/backups/pg_dump_<latest>.sql.
 #   15. systemctl enable --now vps-sysadmin-bot authelia-config-sync.
+#   15b. Install + enable fabrik-compose-boot.service (reboot-race safety net — `restart: unless-stopped`
+#        does NOT resume a container that already exited non-zero when dockerd stopped; without this a
+#        DR-restored hub carries the race. See scripts/systemd/README.md).
 #   16. Install root crontab: 30 1 * * * /opt/backups/pre-backup.sh ...
 #   17. (Optional) Cloudflare DNS rewrite if --cf-rewrite-dns was passed:
 #       PATCH every *.vps1.ocoron.com A record to the new IP.
@@ -1399,6 +1402,30 @@ step_15_enable_custom_services() {
     ok "step_15 done"
 }
 
+step_15b_install_compose_boot() {
+    log "step_15b: install fabrik-compose-boot.service (reboot-race safety net) ($(elapsed))"
+    # Docker's `restart: unless-stopped` does NOT resume a container that had already exited non-zero when
+    # dockerd stopped at shutdown — the race that left vps1 alertmanager Exited(255) for 4 days after the
+    # 2026-07-08 kernel reboot. This root oneshot (After=docker.service) runs `docker compose up -d` for every
+    # /opt/*/compose.yaml on boot, reconciling any stack member that isn't running. Without it a hub restored
+    # by THIS runbook comes back carrying the reboot race. Spokes get the same unit from bootstrap-vps.sh
+    # step_16; see scripts/systemd/README.md.
+    if $DRY_RUN; then
+        dim "    [dry-run] would scp fabrik-compose-boot.{sh,service} + enable the boot unit"
+        return 0
+    fi
+    scp -q -o StrictHostKeyChecking=accept-new \
+        "${SCRIPT_DIR}/../systemd/fabrik-compose-boot.sh" \
+        "${SCRIPT_DIR}/../systemd/fabrik-compose-boot.service" \
+        "${EFFECTIVE_REMOTE}:/tmp/"
+    remote 'sudo install -m 755 -o root -g root /tmp/fabrik-compose-boot.sh /usr/local/bin/fabrik-compose-boot.sh && \
+        sudo install -m 644 -o root -g root /tmp/fabrik-compose-boot.service /etc/systemd/system/fabrik-compose-boot.service && \
+        sudo systemctl daemon-reload && \
+        sudo systemctl enable fabrik-compose-boot.service && \
+        rm -f /tmp/fabrik-compose-boot.sh /tmp/fabrik-compose-boot.service'
+    ok "step_15b done — fabrik-compose-boot.service enabled for boot"
+}
+
 step_16_install_root_crontab() {
     log "step_16: replay root crontab from /opt/backups/root-crontab.txt ($(elapsed))"
     # Root crontab is dumped nightly by pre-backup.sh to /opt/backups/root-crontab.txt
@@ -1835,6 +1862,7 @@ main() {
     step_13_compose_up_dep_order
     step_14_pg_dump_restore_fallback
     step_15_enable_custom_services
+    step_15b_install_compose_boot
     step_16_install_root_crontab
     step_17_cf_rewrite_dns
     step_17b_drill_le_staging_test

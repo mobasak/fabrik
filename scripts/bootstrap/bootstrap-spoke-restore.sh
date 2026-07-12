@@ -73,6 +73,9 @@
 #   09. restic restore /opt/ (monitoring-agent + traefik + backrest scaffolding).
 #   10. docker compose up -d for /opt/monitoring-agent/ + /opt/traefik/.
 #   11. docker compose up -d for /opt/backrest/ (restore the spoke's own backup chain).
+#   11c. Install + enable fabrik-compose-boot.service (reboot-race safety net — `restart: unless-stopped`
+#        does NOT resume a container that already exited non-zero when dockerd stopped; see
+#        scripts/systemd/README.md).
 #   12. Verify end-state contract (7 checks from spoke-restore-inventory.md § G).
 #
 # What this script does NOT do:
@@ -903,6 +906,28 @@ step_09c_start_core_services_drill() {
     fi
 }
 
+step_11c_install_compose_boot() {
+    log "step_11c: install fabrik-compose-boot.service (reboot-race safety net)"
+    # Docker's `restart: unless-stopped` does NOT resume a container that had already exited non-zero when
+    # dockerd stopped at shutdown (the race that left vps1 alertmanager Exited(255) for 4 days on 2026-07-08).
+    # Without this, a spoke restored by THIS runbook comes back carrying the reboot race. Mirrors
+    # bootstrap-vps.sh step_16 / bootstrap-hub.sh step_15b. See scripts/systemd/README.md.
+    if $DRY_RUN; then
+        dim "    [dry-run] would scp fabrik-compose-boot.{sh,service} + enable the boot unit"
+        return 0
+    fi
+    scp -q -o StrictHostKeyChecking=accept-new \
+        "${SCRIPT_DIR}/../systemd/fabrik-compose-boot.sh" \
+        "${SCRIPT_DIR}/../systemd/fabrik-compose-boot.service" \
+        "${EFFECTIVE_REMOTE}:/tmp/"
+    remote 'sudo install -m 755 -o root -g root /tmp/fabrik-compose-boot.sh /usr/local/bin/fabrik-compose-boot.sh && \
+        sudo install -m 644 -o root -g root /tmp/fabrik-compose-boot.service /etc/systemd/system/fabrik-compose-boot.service && \
+        sudo systemctl daemon-reload && \
+        sudo systemctl enable fabrik-compose-boot.service && \
+        rm -f /tmp/fabrik-compose-boot.sh /tmp/fabrik-compose-boot.service'
+    ok "step_11c done — fabrik-compose-boot.service enabled for boot"
+}
+
 step_12_verify_end_state() {
     log "step_12: verify end-state contract (spoke-restore-inventory.md § G) ($(elapsed))"
     if $DRY_RUN; then ok "step_12 done (dry-run)"; return 0; fi
@@ -1004,6 +1029,7 @@ main() {
     step_10_compose_up_services
     step_11_compose_up_backrest
     step_11b_drill_b2_write_test
+    step_11c_install_compose_boot
     step_12_verify_end_state
 
     echo

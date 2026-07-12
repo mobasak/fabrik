@@ -844,7 +844,7 @@ Every invariant below has been validated against live VPS behavior. Cross-refere
 | 23 | `.env` files root-owned at `/opt/<name>/.env` — written via scp-to-tmp-then-sudo-mv pattern |
 | 24 | `docker compose up -d` only recreates containers with changed config — volumes NEVER touched |
 | 25 | `docker compose down -v` removes named volumes — used by rollback's `delete()` (unconditional) and by destroy (gated behind `--drop-data`); never during redeploy |
-| 26 | VPS reboot: containers auto-recover via `restart: unless-stopped` |
+| 26 | VPS reboot: containers auto-recover via `restart: unless-stopped` **plus** `fabrik-compose-boot.service` — the restart policy alone does NOT resume a container that had already exited non-zero when dockerd stopped (the 2026-07-08 `alertmanager` reboot race) |
 | 27 | In-flight requests dropped during container restart (TCP RST, 3-15s of 502s from Traefik) |
 | 28 | DB migrations must be handled by container entrypoint, not the deployer |
 

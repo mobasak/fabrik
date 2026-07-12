@@ -1,6 +1,6 @@
 # VPS2 / VPS3 Spoke — How to Bring It Back
 
-**Last Updated:** 2026-06-15 (step table now lists `step_09b_verify_restored_configs` + `step_09c_start_core_services_drill`; drill safety flags `--skip-mesh` / `--skip-services` / `--skip-local-b2-check` / `--drill-start-core-only` enumerated; noted the 7-check `step_12` contract is SKIPPED in drill mode; `bootstrap-spoke-restore.sh` restore path went GREEN live 2026-06-15 — see validation-status section. W11 spoke DR shipped 2026-06-01; aro-wake + sysadmin pack LIVE on spokes 2026-06-06; **4 spoke-bootstrap deps now baked into `bootstrap-vps.sh` step_02 + step_14a/b + step_14 mkdir block** — Node.js 22 + `@anthropic-ai/claude-code`, `python3-venv` + `python3-pip` apt packages, `python-telegram-bot==22.7` via pip, `/opt/fabrik/` ownership reset to `ozgur:ozgur` — validated live on a Vultr throwaway droplet 2026-06-07 evening. **DR drill PASSED end-to-end**: wall-clock 3m 13s (9.3× under the ≤30 min target), 15/15 substantive end-state checks, total drill cost $0.04. One open finding: `sshd PasswordAuthentication=yes` despite step_01 (investigate next drill).)
+**Last Updated:** 2026-07-12 (`/fabrik-docs-review` reconciliation vs live fleet: Alertmanager sends to Telegram **natively** — it does NOT route via Apprise; Prometheus is **15 active jobs / 20 targets / 20 up** with spoke federation LIVE; Backrest hook + Apprise `alerts` config **fixed** (Apprise was 204-ing every alert); `fabrik-compose-boot.service` reboot-race unit added fleet-wide; spoke `DOCKER-USER` drift recorded.) **Prior:** 2026-06-15 (step table now lists `step_09b_verify_restored_configs` + `step_09c_start_core_services_drill`; drill safety flags `--skip-mesh` / `--skip-services` / `--skip-local-b2-check` / `--drill-start-core-only` enumerated; noted the 7-check `step_12` contract is SKIPPED in drill mode; `bootstrap-spoke-restore.sh` restore path went GREEN live 2026-06-15 — see validation-status section. W11 spoke DR shipped 2026-06-01; aro-wake + sysadmin pack LIVE on spokes 2026-06-06; **4 spoke-bootstrap deps now baked into `bootstrap-vps.sh` step_02 + step_14a/b + step_14 mkdir block** — Node.js 22 + `@anthropic-ai/claude-code`, `python3-venv` + `python3-pip` apt packages, `python-telegram-bot==22.7` via pip, `/opt/fabrik/` ownership reset to `ozgur:ozgur` — validated live on a Vultr throwaway droplet 2026-06-07 evening. **DR drill PASSED end-to-end**: wall-clock 3m 13s (9.3× under the ≤30 min target), 15/15 substantive end-state checks, total drill cost $0.04. One open finding: `sshd PasswordAuthentication=yes` despite step_01 (investigate next drill).)
 **Last probe report:** [`probe-reports/infra-probe-2026-06-07T20-20Z.yaml`](probe-reports/infra-probe-2026-06-07T20-20Z.yaml)
 **Status:** Scripted end-to-end + **DR drill MEASURED 2026-06-07**: `bootstrap-vps.sh --skip-mesh --skip-dns root@<vultr-ip> vps4` → 3m 13s wall-clock, all 4 today's spoke-bootstrap edits validated end-to-end. The ≤30 min target is no longer aspirational. Drill report at `/opt/fabrik/logs/dr-drill-history.jsonl` (gitignored, local-only).
 
@@ -47,7 +47,7 @@ Without restore-with-identity, an outage of vps2 followed by `bootstrap-vps.sh` 
 
 - No Postgres restore (spokes don't run Postgres today).
 - ~15 KB total host-state to restore (vs. hub's ~30 KB).
-- 2 compose stacks to bring up (vs. hub's 15).
+- 3 compose stacks to bring up — `monitoring-agent`, `traefik`, `backrest` (vs. the hub's 16).
 - No Let's Encrypt cert issuance during restore window (spoke Traefik has no live cert yet — W4 will exercise).
 
 ## Prerequisites — once, before disaster
@@ -192,7 +192,7 @@ Anything short of all 7 = drill failed = `bootstrap-spoke-restore.sh` has a gap.
 
 ### 2026-06-07 — Drill #1 + Drill #2 (`bootstrap-vps.sh` only, not yet `bootstrap-spoke-restore.sh`)
 
-**Note:** These drills exercised the *forward-spoke-install* path (`bootstrap-vps.sh`) — they validate the same step_00 through step_15 stack the restore path also runs, so they covered ~80% of the spoke-DR surface. The remaining ~20% (restic-restore-with-identity-preservation) is unmeasured and tracked separately as `bootstrap-spoke-restore.sh` drill in the strategic backlog. When that drill happens, append it below.
+**Note:** These drills exercised the *forward-spoke-install* path (`bootstrap-vps.sh`) — they validate the same `step_00` through `step_16` stack the restore path also runs, so they covered ~80% of the spoke-DR surface. The remaining ~20% (restic-restore-with-identity-preservation) is unmeasured and tracked separately as `bootstrap-spoke-restore.sh` drill in the strategic backlog. When that drill happens, append it below.
 
 **Drill #1** — caught 2 real bugs:
 

@@ -1,6 +1,6 @@
 # VPS Fleet — Architecture & Single-System Wiring
 
-**Last Updated:** 2026-06-15 — live values re-verified (mesh RTT, Prometheus jobs/targets, Gatus endpoints, container counts, drill kinds). Prior baseline 2026-06-07 (Trio Phase 1+2+3+4 LIVE across the FULL FLEET since 2026-06-06; **Phase 5.1.a operator-reversal cron LIVE on full fleet 2026-06-07** via `detect_reversals.py` + `*/5 min` cron; **rate-limited 429 wakes now tracked**; **stale netdata scrape job removed**; **6 bootstrap defenses shipped** including preflight SSH-user-transition trap; **DR drill MEASURED end-to-end** 2026-06-07 — `bootstrap-vps.sh --skip-mesh --skip-dns` → 3m 13s wall-clock, 9.3× under target, 15/15 substantive checks.)
+**Last Updated:** 2026-07-12 (`/fabrik-docs-review` reconciliation vs live fleet: Alertmanager sends to Telegram **natively** — it does NOT route via Apprise; Prometheus is **15 active jobs / 20 targets / 20 up** with spoke federation LIVE; Backrest hook + Apprise `alerts` config **fixed** (Apprise was 204-ing every alert); `fabrik-compose-boot.service` reboot-race unit added fleet-wide; spoke `DOCKER-USER` drift recorded.) **Prior:** 2026-06-15 — live values re-verified (mesh RTT, Prometheus jobs/targets, Gatus endpoints, container counts, drill kinds). Prior baseline 2026-06-07 (Trio Phase 1+2+3+4 LIVE across the FULL FLEET since 2026-06-06; **Phase 5.1.a operator-reversal cron LIVE on full fleet 2026-06-07** via `detect_reversals.py` + `*/5 min` cron; **rate-limited 429 wakes now tracked**; **stale netdata scrape job removed**; **6 bootstrap defenses shipped** including preflight SSH-user-transition trap; **DR drill MEASURED end-to-end** 2026-06-07 — `bootstrap-vps.sh --skip-mesh --skip-dns` → 3m 13s wall-clock, 9.3× under target, 15/15 substantive checks.)
 **Last probe report:** [`probe-reports/infra-probe-2026-06-07T20-20Z.yaml`](probe-reports/infra-probe-2026-06-07T20-20Z.yaml)
 **Purpose:** Single architectural picture of the 3-host fleet — what runs where, how they're wired together, what role each plays. Read this when onboarding new infra work, before designing anything that touches multiple hosts.
 
@@ -34,7 +34,7 @@ This doc answers: "we own 3 VPSes — what do we have, what's planned, and how i
 | Shared data plane (mesh-only) | `postgres-main` (`10.99.0.1:5432`), `redis-main` (`:6379`), `meilisearch` (`:7700`), `glitchtip-web` (`:8000` — Sentry DSN), `pushgateway` (`:9091`), `loki` (`:3100`) |
 | Observability | `prometheus`, `grafana`, `loki`, `alertmanager`, `cadvisor`, `node-exporter`, `promtail`, `gatus` |
 | Backups | `backrest` — 4 plans → B2 (see § Backups below) |
-| Notification | `apprise` — Telegram routing for `alertmanager` |
+| Notification | `apprise` — Telegram routing for **Gatus + the sysadmin scripts + the watchdog** (`POST /notify/alerts`). Alertmanager does **not** use Apprise — it sends to Telegram natively |
 | Workflow / utility | `n8n`, `glitchtip-worker`, `browserless`, `gotenberg` |
 | Provisioning | `site-provisioner` — Cloudflare + Namecheap API gateway |
 | **Per-project watchdog dogfood** | `watchdog-test` (nginx:alpine target) + `watchdog-test-watchdog` (Claude-driven sidecar). T-P5 dogfood live since 2026-06-03; self-heal verified end-to-end 2026-06-04. Sidecar pattern: 60s poll → rule detect → Claude Opus diagnose → Tier A `restart_container`. |
@@ -47,9 +47,10 @@ This doc answers: "we own 3 VPSes — what do we have, what's planned, and how i
 | Proactive checks | `proactive-check.sh` cron — 15-min intervals, spoke-aware (W-Multi M2). Queries Prometheus across all 3 hosts; **acts via local `sudo docker` only** (no SSH-out to spokes) so vps2/vps3 issues this finds get reported but not auto-fixed. |
 | Per-project watchdog driver | Deployed via `fabrik apply` for any spec with `watchdog.enabled: true` (default True). Driver at [`src/fabrik/drivers/watchdog.py`](../../src/fabrik/drivers/watchdog.py); detects host docker.sock GID, mounts `~/.claude` + `~/.claude.json` from `FABRIK_VPS_CLAUDE_HOME`, builds per-project image from `/opt/fabrik-lib/watchdog/sidecar/`, writes `compose.watchdog.yaml` overlay. |
 | Mesh hub | `wg-quick@wg0` (Wireguard hub at `10.99.0.1`, UDP 51820) |
+| Boot resilience | **`fabrik-compose-boot.service`** (root oneshot, `After/Requires=docker.service`, `WantedBy=multi-user.target`) — runs `docker compose up -d` for every `/opt/*/compose.yaml` on boot (shared-infra stacks first). Closes the Docker `restart: unless-stopped` reboot race: a container that had already exited non-zero when dockerd stopped is **not** resumed — the failure that left `alertmanager` `Exited(255)` for 4 days after the 2026-07-08 kernel reboot. Installed by `bootstrap-hub.sh` step_15b / `scripts/systemd/install-compose-boot.sh`. See `scripts/systemd/README.md`. |
 | iptables boot units | `iptables-docker-user.service` (DOCKER-USER ACCEPT-from-wg0 + DROP mesh-only-from-public); `iptables-openvpn.service` (operator's personal VPN forwards) |
 | Firewall | UFW 16 numbered rules (verified 2026-06-07): 5 v4 ALLOW (22, 80, 443, 1194, 51820) + 1 v4 DENY (8000, stale-comment Coolify-era) + 2 v4 ALLOW aro-wake on 8201 (`from 10.0.0.0/8` + `from 10.99.0.0/24`, added 2026-06-05) + 1 v4 routed-ALLOW `wg0→wg0` (spoke↔spoke routing, added 2026-06-06) + 6 v6 mirrors + 1 v6 routed-ALLOW; fail2ban active (150 historical bans as of 2026-06-07T20:20Z probe — internet-facing target, counts drift continuously) |
-| Cron | `pre-backup.sh` 01:30 nightly (pg_dumpall + crontab dump); `/etc/cron.d/vps-sysadmin` (proactive checks); 4 Backrest plan schedules |
+| Cron | `pre-backup.sh` 01:30 nightly (pg_dumpall + crontab dump); `/etc/cron.d/vps-sysadmin` (proactive checks); 4 Backrest plan schedules; **`fabrik-alert-canary.sh`** (root cron `17 * * * *` silent probe + `0 9 * * 1 --e2e`) — verifies the Apprise alert path can still page, self-heals it, and escalates DIRECT to `api.telegram.org` when it is dead |
 | Custom binaries | `/usr/local/bin/zellij` (operator-installed) |
 
 ### DR
@@ -76,7 +77,9 @@ This doc answers: "we own 3 VPSes — what do we have, what's planned, and how i
 | Mechanism | Where |
 |---|---|
 | Wireguard spoke | `wg-quick@wg0` (10.99.0.{2,3}, peer of vps1 hub) — own spoke privkey from `bootstrap-vps.sh` step_05 |
-| iptables | DOCKER-USER chain persisted via `iptables-docker-user.service` — installed by `bootstrap-vps.sh` step_10 (G5; dropped `iptables-persistent` which `Conflicts: ufw` on Ubuntu 24.04) and regenerated by `bootstrap-spoke-restore.sh` step_07 (G5b); no OpenVPN. UFW remains the canonical spoke firewall. |
+| Boot resilience | **`fabrik-compose-boot.service`** — enabled on both spokes; reconciles all 3 spoke stacks on boot (same reboot-race fix as the hub). Installed by `bootstrap-vps.sh` step_16 / `bootstrap-spoke-restore.sh` step_11c. |
+| AI sysadmin / aro-wake | `vps-sysadmin-bot.service` + `aro-wake.service` — both enabled on each spoke |
+| iptables | ⚠️ **DRIFT (verified live 2026-07-12): `iptables-docker-user.service` is NOT present on vps2/vps3 (`systemctl is-enabled` → not-found) and their `DOCKER-USER` chain is EMPTY** — `bootstrap-vps.sh` step_10 (G5) / `bootstrap-spoke-restore.sh` step_07 (G5b) hardening is not currently in effect on the spokes. Not an exposure today: the only Docker-published spoke ports are Traefik 80/443 (intentionally public); everything else is host-networked (UFW-governed) or unpublished. But Docker bypasses UFW, so any FUTURE spoke container that publishes a port would be unguarded. UFW is the de-facto spoke firewall today. No OpenVPN on spokes. |
 | Firewall | UFW 5 v4 + 4 v6 rules: public-port allows (22, 80, 443, 51820) + **mesh-allow `from 10.99.0.0/24`** (added by W8 2026-06-01, also pushed into `bootstrap-vps.sh` step_02 so future spokes get it on first bootstrap). Single-operator threat model: mesh is fully trusted. fail2ban active per host. |
 | sysctl tuning | `99-cloudimg-ipv6.conf` (cloud-init) + `99-sysctl.conf` (OS default) |
 | Sudoers | `/etc/sudoers.d/90-ozgur` (NOPASSWD line — `90-` prefix from `bootstrap-vps.sh` step_00; differs from hub's `/etc/sudoers.d/ozgur`) |
@@ -124,13 +127,13 @@ This doc answers: "we own 3 VPSes — what do we have, what's planned, and how i
 
 ### 2. Observability — single pane on vps1
 
-- `prometheus` on vps1 has 12 active jobs / 14 targets / 14 up (13 jobs configured in `prometheus.yml` — `fabrik-services` has no targets yet; re-verified live 2026-06-15). Spoke node/container metrics: ~~`node-spokes` / `cadvisor-spokes` / `promtail-spokes` jobs~~ — **NOT in `prometheus.yml` today** (spoke-side `node-exporter`/`cadvisor`/`promtail` agents ARE running at `/opt/monitoring-agent/` and the mesh is permissive; the scrape jobs were briefly live on 2026-05-31 but were dropped at some point). Spoke coverage currently flows via the `aro-wake` job (3 mesh targets: vps1:10.0.1.1:8201, vps2:10.99.0.2:8201, vps3:10.99.0.3:8201) exposing SLI counters; full node/container metrics from spokes are NOT in vps1 Prometheus today.
+- `prometheus` on vps1 has **15 active jobs / 20 targets / 20 up** (16 jobs configured in `prometheus.yml` — `fabrik-services` has null targets; re-verified live 2026-07-12). Spoke node/container/log metrics ARE federated: `node-spokes` / `cadvisor-spokes` / `promtail-spokes` (`prometheus.yml:46,58,70`) scrape `10.99.0.{2,3}` over the mesh — 2 targets each, all up. Plus the `aro-wake` job (3 mesh targets: vps1:10.0.1.1:8201, vps2:10.99.0.2:8201, vps3:10.99.0.3:8201) exposing SLI counters.
 - vps1-local series carry `host=vps1` label. ~~Spoke alert rules `spoke_health` group~~ — **NOT in alerts.yml**. The 5 live rule groups: `aro_wake` (2), `container_health` (6), `host_health` (3), `service_health` (1), `fabrik-registrar-drift` (1, separate file). `host_health` matches on `host` label — for spokes the only series with that label are the `aro-wake` job's, so spoke-side host-level alerting is currently aro-wake-flavored only.
 - `loki` receives logs from promtail on every host (promtail pushes to `10.99.0.1:3100` from spokes).
 - `grafana` (vps1) shows fleet-wide dashboards. Both Prometheus + Loki as datasources.
-- `alertmanager` routes via `apprise` → Telegram.
+- `alertmanager` sends to Telegram **natively** (`telegram_configs`) and webhooks `aro-wake` — it does **not** route via `apprise` (`configs/alertmanager/alertmanager.yml:58-84`).
 - `gatus` probes 31 endpoints (across 18 config files) via mesh (re-verified live 2026-06-17; was 33 before the `coolify`/`coolify-public` endpoints were removed).
-- Total: **14/14 scrape targets up across 12 active jobs** (re-verified live 2026-06-15 via `/api/v1/targets`); 13 jobs are configured in `prometheus.yml` (the `fabrik-services` job has null targets so it isn't counted active). 12 active jobs = 11 vps1-local + `aro-wake` job (3 targets: vps1, vps2, vps3 over mesh). Was 18/15 briefly on 2026-05-31 when 3 spoke-side jobs were added; those jobs are no longer in `prometheus.yml`.
+- Total: **20/20 scrape targets up across 15 active jobs** (re-verified live 2026-07-12 via `/api/v1/targets`); 16 jobs are configured in `prometheus.yml` (the `fabrik-services` job has null targets so it isn't counted active). The 3 spoke jobs (`node-spokes`, `cadvisor-spokes`, `promtail-spokes` — 2 targets each) are live.
 
 ### 3. Backups (as of 2026-06-01, W11 shipped)
 

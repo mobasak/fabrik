@@ -501,7 +501,7 @@ fabrik destroy specs/services/<name>.yaml --partial gatus --partial backrest
 
 ## Post-Reboot Recovery
 
-After a VPS reboot, containers auto-restart (`restart: unless-stopped`). Resource limits need re-applying:
+After a VPS reboot, containers auto-restart (`restart: unless-stopped`) — **and** `fabrik-compose-boot.service` reconciles every `/opt/*/compose.yaml` on boot, because the restart policy alone does NOT resume a container that had already exited non-zero when dockerd stopped (the 2026-07-08 `alertmanager` reboot race). Resource limits need re-applying:
 
 ```bash
 ssh vps "bash /opt/fabrik/scripts/vps_apply_limits.sh"

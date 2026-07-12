@@ -1,6 +1,6 @@
 # VPS Fleet — Service URLs and Endpoints
 
-**Last Updated:** 2026-06-17 (residue cleanup: **deleted the 2 `vps4` DNS A-record orphans** → CF zone `ocoron.com` now **18 A records**; also removed the dead `coolify` + `coolify-public` Gatus endpoints and 8 stale `prometheus.yml.bak-*` files from vps1). **Prior 2026-06-16** (live CF API + ufw re-verify: CF zone had **20 A records** (was 17) — delta = `watchdog-test.vps1` live router + 2 `vps4` DNS orphans; vps1 UFW has NO 6001/6002 rules (Coolify Realtime ports deleted 2026-05-31), and the aro-wake `8201/tcp` allows are present. **Prior 2026-06-15:** corrected Prometheus scrape-targets table to match live `prometheus.yml`: 12 active jobs / 14 targets all up, including the real `aro-wake` (3 targets) + `fabrik-services` jobs; removed the never-present `traefik`/`pushgateway`/`glitchtip`/`*-spokes` targets. **Prior 2026-06-07:** aro-wake LIVE on full fleet — `/wake`+`/health`+`/metrics` on every host at `:8201`; spoke↔spoke wg0 routing LIVE via vps1 hub-hop; Prometheus SLI scrape job `aro-wake` covers all 3 targets; `aro_wake_requests_total` gained `status="rate_limited"` value 2026-06-07; **stale `netdata:19959` scrape job removed 2026-06-07** after a left-over orphan triggered a 24× Telegram flood overnight)
+**Last Updated:** 2026-07-12 (`/fabrik-docs-review` reconciliation vs live fleet: Alertmanager sends to Telegram **natively** — it does NOT route via Apprise; Prometheus is **15 active jobs / 20 targets / 20 up** with spoke federation LIVE; Backrest hook + Apprise `alerts` config **fixed** (Apprise was 204-ing every alert); `fabrik-compose-boot.service` reboot-race unit added fleet-wide; spoke `DOCKER-USER` drift recorded.) **Prior:** 2026-06-17 (residue cleanup: **deleted the 2 `vps4` DNS A-record orphans** → CF zone `ocoron.com` now **18 A records**; also removed the dead `coolify` + `coolify-public` Gatus endpoints and 8 stale `prometheus.yml.bak-*` files from vps1). **Prior 2026-06-16** (live CF API + ufw re-verify: CF zone had **20 A records** (was 17) — delta = `watchdog-test.vps1` live router + 2 `vps4` DNS orphans; vps1 UFW has NO 6001/6002 rules (Coolify Realtime ports deleted 2026-05-31), and the aro-wake `8201/tcp` allows are present. **Prior 2026-06-15:** corrected Prometheus scrape-targets table to match live `prometheus.yml`: 12 active jobs / 14 targets all up, including the real `aro-wake` (3 targets) + `fabrik-services` jobs; removed the never-present `traefik`/`pushgateway`/`glitchtip`/`*-spokes` targets. **Prior 2026-06-07:** aro-wake LIVE on full fleet — `/wake`+`/health`+`/metrics` on every host at `:8201`; spoke↔spoke wg0 routing LIVE via vps1 hub-hop; Prometheus SLI scrape job `aro-wake` covers all 3 targets; `aro_wake_requests_total` gained `status="rate_limited"` value 2026-06-07; **stale `netdata:19959` scrape job removed 2026-06-07** after a left-over orphan triggered a 24× Telegram flood overnight)
 **Last probe report:** [`probe-reports/infra-probe-2026-06-07T20-20Z.yaml`](probe-reports/infra-probe-2026-06-07T20-20Z.yaml)
 **Hosts:** vps1 (hub, LA, `172.93.160.197`) · vps2 (Coventry UK, `96.9.214.128`) · vps3 (Coventry UK, `104.128.190.151`)
 **Mesh:** Wireguard `10.99.0.0/24` over UDP 51820 (vps1 = `.1`, vps2 = `.2`, vps3 = `.3`)
@@ -24,7 +24,7 @@ Plus zone apex: `ocoron.com`, `www.ocoron.com` (WordPress tenant; `www` is a CNA
 
 **13 vps1 records route to a live Traefik router** (the 12 below + `watchdog-test.vps1`).
 
-**ORPHAN residue (flagged, pending cleanup):** `*.vps4.ocoron.com` and `vps4.ocoron.com` both → `45.77.68.63` — leftover DR-drill residue. **There is NO live vps4 droplet** (all Vultr instances destroyed); these two A records are orphans to delete.
+**ORPHAN residue — RESOLVED 2026-06-17 (re-verified 2026-07-12):** `*.vps4.ocoron.com` and `vps4.ocoron.com` (leftover DR-drill residue → `45.77.68.63`, no live vps4 droplet) **have been deleted** — both now resolve NXDOMAIN. Consistent with the header and the 18-A-record count above.
 
 ### vps2 — `*.vps2.ocoron.com` → `96.9.214.128` (NEW today)
 
@@ -146,7 +146,8 @@ These resolve only *inside* a container on the same `fabrik` network on the same
 | Loki push API | `http://loki:3100/loki/api/v1/push` |
 | Prometheus query | `http://prometheus:9090` |
 | Authelia forward-auth target | `http://authelia:9091/api/verify` |
-| Apprise notify | `http://apprise:8000/notify/<tag>` |
+| Apprise notify (stateful — the fleet convention) | `http://apprise:8000/notify/alerts` |
+| Apprise notify (stateless — n8n only) | `http://apprise:8000/notify` |
 | Gotenberg | `http://gotenberg:3000` |
 | Browserless | `http://browserless:3000` |
 | n8n internal webhook | `http://n8n:5678` |
@@ -188,9 +189,9 @@ aro-wake binds the host's `0.0.0.0:8201`, but containers on the `fabrik` network
 
 ---
 
-## Prometheus scrape targets (12 active jobs / 14 targets, all 14 up — verified 2026-06-15)
+## Prometheus scrape targets (15 active jobs / 20 targets, all 20 up — re-verified live 2026-07-12)
 
-vps1's Prometheus runs 13 configured jobs; `fabrik-services` currently has null targets (spec-driven, populated by the prometheus registrar), leaving 12 active jobs and 14 active targets, all up. The live `prometheus.yml` job set:
+vps1's Prometheus runs **16 configured jobs**; `fabrik-services` currently has null targets (spec-driven, populated by the prometheus registrar), leaving **15 active jobs and 20 active targets, all up**. This includes the spoke federation (`node-spokes` / `cadvisor-spokes` / `promtail-spokes`, 2 targets each, live since `8342ef1`). The live `prometheus.yml` job set:
 
 | Job | Target(s) | Notes |
 | :--- | :--- | :--- |

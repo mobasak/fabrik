@@ -296,5 +296,5 @@ The Docker network is named `fabrik` (renamed from `coolify` 2026-05-31). All se
 | `fabrik redeploy --refresh-infra` | **Yes** | Registrars are idempotent. May inject new env vars. |
 | `fabrik destroy` | **Partially** | App removed; app-local volumes preserved (removed only with `--drop-data`). DB deliberately preserved unless `--drop-data`. |
 | `fabrik destroy --drop-data` | **No** | Drops everything including the database. |
-| VPS reboot | **Yes** | `restart: unless-stopped` auto-recovers all containers. |
+| VPS reboot | **Yes** | `restart: unless-stopped` restores MOST containers, but does **not** resume one that had already exited non-zero when dockerd stopped — `fabrik-compose-boot.service` reconciles every `/opt/*/compose.yaml` on boot to close that gap. (A container that crash-exited during shutdown is NOT resumed by the restart policy alone — that race left `alertmanager` `Exited(255)` for 4 days on 2026-07-08.) |
 | Failed deploy (auto-rollback) | **Yes** | Cleans up created resources. DB never auto-dropped. |
