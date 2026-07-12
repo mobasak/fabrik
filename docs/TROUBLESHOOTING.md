@@ -66,6 +66,36 @@ Common issues and solutions.
 3. Check health endpoint works locally
 4. Verify database connection string
 
+### Alerts are silently never delivered (Apprise `/notify/alerts` returns 204)
+
+**Symptom:** Gatus (and `scripts/sysadmin/{morning-report,weekly-security,daily-digest}.sh`, and the AI
+sysadmin) all report they *sent* an alert, but **nothing arrives in Telegram** — no error anywhere. This is
+how vps1's dead `alertmanager` went unnoticed for 4 days while Gatus logged **5,893** failed checks.
+
+**Cause:** The fleet convention is `POST http://apprise:8000/notify/alerts` — Apprise's **stateful** endpoint
+(config key `alerts`). But Apprise is deployed with only the **stateless** target
+(`APPRISE_STATELESS_URLS=tgram://…`, served at bare `/notify`). With no `alerts` config, Apprise answers
+**`204 No Content`** — request accepted, **nothing sent**. A 204 looks like success to every caller.
+
+**Diagnose (the 204 is the tell):**
+
+```bash
+ssh vps 'sudo docker logs apprise 2>&1 | grep "POST /notify" | tail'   # all 204 ⇒ every alert discarded
+sudo bash scripts/sysadmin/ensure-apprise-alerts-config.sh --check     # → BROKEN: … → 204
+```
+
+**Fix (idempotent, safe to re-run):**
+
+```bash
+sudo bash scripts/sysadmin/ensure-apprise-alerts-config.sh   # creates the 'alerts' config from APPRISE_STATELESS_URLS
+# verify: /notify/alerts → 200, and a probe message lands in Telegram
+```
+
+⚠️ The `alerts` config lives in the `apprise-config` volume — persistent across restarts/reboots, but **not
+reproducible from git**. Re-run the script after any Apprise volume rebuild, or the alert path silently dies
+again. Note a 200 from `/notify` (stateless) does **not** imply `/notify/alerts` works — test the path your
+callers actually use.
+
 ### A container stays down after a host reboot (Docker restart-policy race)
 
 **Symptom:** After a VPS reboot (e.g. an unattended kernel upgrade) one container is `Exited (255)` and did

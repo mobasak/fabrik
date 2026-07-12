@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Apprise `/notify/alerts` silently dropped EVERY alert (the 4-day blind spot) (2026-07-12)
+
+**Why vps1's dead alertmanager went unnoticed for 4 days.** Gatus worked perfectly — it logged **5,893**
+failed `alertmanager` health checks (both the `apps` and `observability` endpoints, `failure-threshold: 2`)
+and dispatched its custom alerts. The break was **downstream**: the fleet convention is
+`POST http://apprise:8000/notify/alerts` — Apprise's **stateful** endpoint (config key `alerts`) — but Apprise
+is deployed with only the **stateless** target (`APPRISE_STATELESS_URLS=tgram://…`, served at bare `/notify`).
+With no `alerts` config, Apprise answered every POST with **`204 No Content`**: accepted, nothing sent. A 204
+reads as success to every caller, so the failure was completely silent.
+
+This broke **all** callers, not just Gatus: `scripts/sysadmin/{morning-report,weekly-security,daily-digest}.sh`
+and the AI sysadmin (`system-prompt.txt`) all POST to `/notify/alerts` and were being discarded too.
+
+**Fix:** created the persistent stateful `alerts` config in Apprise from its own `APPRISE_STATELESS_URLS`
+(`/add/alerts` → 200). `/notify/alerts` now returns **200** and delivers to Telegram — **verified to survive an
+Apprise restart** (config persists in the `apprise-config` volume at `/config/0e/…`). Added
+`scripts/sysadmin/ensure-apprise-alerts-config.sh` (idempotent; `--check` mode reports BROKEN on a 204) because
+the config is **not reproducible from git** — an Apprise volume rebuild would silently re-break the path.
+Documented the failure mode in `docs/TROUBLESHOOTING.md`.
+
 ### Security — Scrub inline Telegram bot token from tracked files (2026-07-12)
 
 `configs/alertmanager/alertmanager.yml` had a real Telegram `bot_token` inline (violating the repo's
