@@ -1,6 +1,13 @@
 # Design Spec — Fabrik Capability Catalog + Tool-Doc Audit
 
-**Status:** CONVERGED (2026-07-12, re-review r3 — independently verified). **r3 (operator: "obey the command"):**
+**Status:** CONVERGED (2026-07-12, re-review r4 — independently verified, BOTH layers). **r4:** ran the full
+mandated floor — native Opus `fabrik-researcher` **AND** the pool breadth layer (the latter finally effective
+once its task inlined the spec text; my 3 prior pool dispatches failed on tool-mode/kwarg errors — a real
+ergonomics note). r4-Pass1 fixed one derivation defect the independent verify caught (the `~58` modules was
+shown as "61 non-hidden − 3 non-module"; live truth is **62 − 4** incl. `node_modules`) + clarified the 9
+extensionless `run*` helpers; r4-Pass2 = a genuine independent no-op — **both** the native Opus pass and the
+pool grounder returned 0 defects on md5 `18fc741e` (every count consistent across Status/table/C1/residuals,
+C1 = 269 with ≥250 floor, all 6 vendor verdicts present, all criteria testable). **r3 (operator: "obey the command"):**
 ran the review as the command actually mandates — **native Opus `fabrik-researcher` independent verification**
 (the step r1/r2 skipped and self-graded). It found real defects r1/r2's self-review had missed: scaffold count
 20→19 (my `find` had counted hidden `.archive`), `manual` status undefined + untestable, scripts under-scoped
@@ -55,8 +62,8 @@ builds serve known customers); teaching agents *how to write code here* (that st
 | `fabrik` CLI verbs | **23** | `@cli.command(` in `src/fabrik/cli.py` |
 | Drivers | **27** | `src/fabrik/drivers/*.py` minus `__init__.py` (glob returns 28) |
 | Registrars | **10** | `src/fabrik/orchestrator/infrastructure.py:90` `_REGISTRAR_ORDER` |
-| Scripts | **82 top-level** (`.py`+`.sh` directly in `scripts/`; excludes data/config files + the 9 `run*` helpers) — but **357** recursively excluding `.archive/` (387 incl. `.archive`). The catalog includes the **agent-relevant subdirs** (`scripts/enforcement/`, `sysadmin/`, `utils/`, `probes/`, `aro-wake/`) and **excludes `scripts/.archive/`** (retired). Final in-scope set defined in C1. | top-level `scripts/*.{py,sh}` + the named subdirs, minus `.archive/` |
-| fabrik-lib modules | **~58** module dirs (61 non-hidden top-level dirs − `docs`/`docs-site`/`scripts`; the README lists them across a module table **and** a capability matrix, ~110 raw rows → de-dup to unique dir-backed) | `/opt/fabrik-lib/README.md` + real dirs |
+| Scripts | **82 top-level** (`.py`+`.sh` directly in `scripts/`; excludes data/config files + the 9 **extensionless** `run*` helpers: `runc runclean rund rundsh runk runlast runls runtail runwait`) — but **357** recursively excluding `.archive/` (387 incl. `.archive`). The catalog includes the **agent-relevant subdirs** (`scripts/enforcement/`, `sysadmin/`, `utils/`, `probes/`, `aro-wake/`) and **excludes `scripts/.archive/`** (retired). Final in-scope set defined in C1. | top-level `scripts/*.{py,sh}` + the named subdirs, minus `.archive/` |
+| fabrik-lib modules | **~58** module dirs (**62** non-hidden top-level dirs − 4 non-module: `docs`/`docs-site`/`node_modules`/`scripts`; the README lists them across a module table **and** a capability matrix, ~110 raw rows → de-dup to unique dir-backed) | `/opt/fabrik-lib/README.md` + real dirs |
 | Scaffolds | **19** `templates/*/` (excludes the hidden `.archive`), of which **11 are scaffold-type dirs** (the `SCAFFOLD_TYPES` registry has **12** — `wordpress` is deploy-only, no template dir) + 8 build helpers (`_partials`, `preplan`, `prompts`, `scaffold`, `spec-pipeline`, `traycer`, `i18n-kit`, `modal`) — C1 tags each as `scaffold` vs `helper`. | `templates/*/` + `SCAFFOLD_TYPES` |
 | `.windsurf/rules` packs | **50** | `.windsurf/rules/**/*.md` |
 
@@ -223,8 +230,8 @@ Recommended: build **C1 first** (the catalog is the higher-value, standalone del
 - **`capabilities.json` location (self-service default):** repo root `capabilities.json` (next to a root
   `/llms.txt`), mirrored/linked from `docs/`. Decide finally in the plan.
 - **De-dup of the ~110 raw fabrik-lib README rows → ~58 module dirs (self-service):** the generator counts
-  unique dir-backed modules only (the capability-matrix table repeats names; excludes `docs`/`docs-site`/
-  `scripts`); handled in C1.
+  unique dir-backed modules only (the capability-matrix table repeats names; excludes the 4 non-module dirs
+  `docs`/`docs-site`/`node_modules`/`scripts`); handled in C1.
 - No BLOCKING unknowns — everything is local repo introspection + two file-format conventions grounded this
   session.
 
