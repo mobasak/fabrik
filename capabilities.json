@@ -1,0 +1,3761 @@
+{
+  "generated_at": "2026-07-12T17:50:18+00:00",
+  "capabilities": [
+    {
+      "name": "fabrik ai usage",
+      "kind": "cli",
+      "summary": "Show AI usage and cost summary.",
+      "invoke": "python -m fabrik.cli ai usage --help",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "AGENTS.md",
+      "verified_at": "2026-07-12T17:49:56+00:00"
+    },
+    {
+      "name": "fabrik app-logs",
+      "kind": "cli",
+      "summary": "(legacy) View application logs via the Coolify API (spec-based).",
+      "invoke": "python -m fabrik.cli app-logs --help",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "AGENTS.md",
+      "verified_at": "2026-07-12T17:49:57+00:00"
+    },
+    {
+      "name": "fabrik apply",
+      "kind": "cli",
+      "summary": "Deploy a service from spec.",
+      "invoke": "python -m fabrik.cli apply --help",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "AGENTS.md",
+      "verified_at": "2026-07-12T17:49:57+00:00"
+    },
+    {
+      "name": "fabrik audit-registrars",
+      "kind": "cli",
+      "summary": "Compare each spec's shape-resolved registrars to live VPS state (T2-02 G-G2).",
+      "invoke": "python -m fabrik.cli audit-registrars --help",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "AGENTS.md",
+      "verified_at": "2026-07-12T17:49:57+00:00"
+    },
+    {
+      "name": "fabrik content",
+      "kind": "cli",
+      "summary": "Content publishing commands.",
+      "invoke": "python -m fabrik.cli content --help",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "AGENTS.md",
+      "verified_at": "2026-07-12T17:49:58+00:00"
+    },
+    {
+      "name": "fabrik destroy",
+      "kind": "cli",
+      "summary": "Tear down every resource ``fabrik apply`` created for SPEC_PATH.",
+      "invoke": "python -m fabrik.cli destroy --help",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "AGENTS.md",
+      "verified_at": "2026-07-12T17:49:58+00:00"
+    },
+    {
+      "name": "fabrik dev",
+      "kind": "cli",
+      "summary": "Run the local dev stack via compose.dev.yaml (T3-03 G-I1).",
+      "invoke": "python -m fabrik.cli dev --help",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "AGENTS.md",
+      "verified_at": "2026-07-12T17:49:58+00:00"
+    },
+    {
+      "name": "fabrik domain buy",
+      "kind": "cli",
+      "summary": "Register a new domain.",
+      "invoke": "python -m fabrik.cli domain buy --help",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "AGENTS.md",
+      "verified_at": "2026-07-12T17:49:59+00:00"
+    },
+    {
+      "name": "fabrik domain check",
+      "kind": "cli",
+      "summary": "Check domain availability across all registrars.",
+      "invoke": "python -m fabrik.cli domain check --help",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "AGENTS.md",
+      "verified_at": "2026-07-12T17:49:59+00:00"
+    },
+    {
+      "name": "fabrik domain integrations",
+      "kind": "cli",
+      "summary": "Show stored integration metadata (GA4, GSC, Bing, IndexNow).",
+      "invoke": "python -m fabrik.cli domain integrations --help",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "AGENTS.md",
+      "verified_at": "2026-07-12T17:49:59+00:00"
+    },
+    {
+      "name": "fabrik domain provision",
+      "kind": "cli",
+      "summary": "Provision domain \u2014 DNS, CDN, WAF, and search engine setup.",
+      "invoke": "python -m fabrik.cli domain provision --help",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "AGENTS.md",
+      "verified_at": "2026-07-12T17:49:59+00:00"
+    },
+    {
+      "name": "fabrik domain ready",
+      "kind": "cli",
+      "summary": "Check if domain is ready for Coolify deployment.",
+      "invoke": "python -m fabrik.cli domain ready --help",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "AGENTS.md",
+      "verified_at": "2026-07-12T17:50:00+00:00"
+    },
+    {
+      "name": "fabrik domain sitemap",
+      "kind": "cli",
+      "summary": "Update sitemap and resubmit to Google, Bing, and IndexNow.",
+      "invoke": "python -m fabrik.cli domain sitemap --help",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "AGENTS.md",
+      "verified_at": "2026-07-12T17:50:00+00:00"
+    },
+    {
+      "name": "fabrik domain zones",
+      "kind": "cli",
+      "summary": "List all Cloudflare zones.",
+      "invoke": "python -m fabrik.cli domain zones --help",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "AGENTS.md",
+      "verified_at": "2026-07-12T17:50:00+00:00"
+    },
+    {
+      "name": "fabrik export",
+      "kind": "cli",
+      "summary": "Export the current VPS state as a portable bundle (T4-03 G-J2).",
+      "invoke": "python -m fabrik.cli export --help",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "AGENTS.md",
+      "verified_at": "2026-07-12T17:50:01+00:00"
+    },
+    {
+      "name": "fabrik fix",
+      "kind": "cli",
+      "summary": "Add missing required files to a project.",
+      "invoke": "python -m fabrik.cli fix --help",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "AGENTS.md",
+      "verified_at": "2026-07-12T17:50:01+00:00"
+    },
+    {
+      "name": "fabrik gpu compare",
+      "kind": "cli",
+      "summary": "Compare RunPod / Modal / Vast.ai cost for a workload + recommend.",
+      "invoke": "python -m fabrik.cli gpu compare --help",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "AGENTS.md",
+      "verified_at": "2026-07-12T17:50:01+00:00"
+    },
+    {
+      "name": "fabrik gpu destroy",
+      "kind": "cli",
+      "summary": "Destroy a session's pod/endpoint manually (orphan cleanup).",
+      "invoke": "python -m fabrik.cli gpu destroy --help",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "AGENTS.md",
+      "verified_at": "2026-07-12T17:50:02+00:00"
+    },
+    {
+      "name": "fabrik gpu history",
+      "kind": "cli",
+      "summary": "Tail the gpu-rent history log.",
+      "invoke": "python -m fabrik.cli gpu history --help",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "AGENTS.md",
+      "verified_at": "2026-07-12T17:50:02+00:00"
+    },
+    {
+      "name": "fabrik gpu list",
+      "kind": "cli",
+      "summary": "List active GPU sessions in local state + reconcile against RunPod.",
+      "invoke": "python -m fabrik.cli gpu list --help",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "AGENTS.md",
+      "verified_at": "2026-07-12T17:50:02+00:00"
+    },
+    {
+      "name": "fabrik gpu pause",
+      "kind": "cli",
+      "summary": "Pause (stop without destroy) a session's pod. Storage persists; GPU",
+      "invoke": "python -m fabrik.cli gpu pause --help",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "AGENTS.md",
+      "verified_at": "2026-07-12T17:50:03+00:00"
+    },
+    {
+      "name": "fabrik gpu reconcile",
+      "kind": "cli",
+      "summary": "Compare local state to live provider accounts; optionally auto-destroy.",
+      "invoke": "python -m fabrik.cli gpu reconcile --help",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "AGENTS.md",
+      "verified_at": "2026-07-12T17:50:03+00:00"
+    },
+    {
+      "name": "fabrik gpu rent",
+      "kind": "cli",
+      "summary": "Provision a GPU, optionally use it, always destroy (try/finally).",
+      "invoke": "python -m fabrik.cli gpu rent --help",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "AGENTS.md",
+      "verified_at": "2026-07-12T17:50:03+00:00"
+    },
+    {
+      "name": "fabrik gpu resume",
+      "kind": "cli",
+      "summary": "Resume a previously paused pod. Storage + container disk are preserved;",
+      "invoke": "python -m fabrik.cli gpu resume --help",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "AGENTS.md",
+      "verified_at": "2026-07-12T17:50:04+00:00"
+    },
+    {
+      "name": "fabrik gpu status",
+      "kind": "cli",
+      "summary": "Show detailed status for a session ID or a provider pod/endpoint ID.",
+      "invoke": "python -m fabrik.cli gpu status --help",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "AGENTS.md",
+      "verified_at": "2026-07-12T17:50:04+00:00"
+    },
+    {
+      "name": "fabrik import",
+      "kind": "cli",
+      "summary": "Import a portability bundle on a fresh target VPS (T4-03 G-J2).",
+      "invoke": "python -m fabrik.cli import --help",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "AGENTS.md",
+      "verified_at": "2026-07-12T17:50:04+00:00"
+    },
+    {
+      "name": "fabrik logs",
+      "kind": "cli",
+      "summary": "View logs for a service.",
+      "invoke": "python -m fabrik.cli logs --help",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "AGENTS.md",
+      "verified_at": "2026-07-12T17:50:04+00:00"
+    },
+    {
+      "name": "fabrik new",
+      "kind": "cli",
+      "summary": "[DEPRECATED \u2014 use ``fabrik scaffold``] Create a spec from a template.",
+      "invoke": "python -m fabrik.cli new --help",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "AGENTS.md",
+      "verified_at": "2026-07-12T17:50:05+00:00"
+    },
+    {
+      "name": "fabrik plan",
+      "kind": "cli",
+      "summary": "Show what will be deployed (dry run).",
+      "invoke": "python -m fabrik.cli plan --help",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "AGENTS.md",
+      "verified_at": "2026-07-12T17:50:05+00:00"
+    },
+    {
+      "name": "fabrik preplan new",
+      "kind": "cli",
+      "summary": "Create docs/preplans/<YYYY-MM-DD>-<slug>.md from the template.",
+      "invoke": "python -m fabrik.cli preplan new --help",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "AGENTS.md",
+      "verified_at": "2026-07-12T17:50:05+00:00"
+    },
+    {
+      "name": "fabrik projects",
+      "kind": "cli",
+      "summary": "List all tracked projects in /opt.",
+      "invoke": "python -m fabrik.cli projects --help",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "AGENTS.md",
+      "verified_at": "2026-07-12T17:50:06+00:00"
+    },
+    {
+      "name": "fabrik reconcile-all",
+      "kind": "cli",
+      "summary": "Walk every deployed spec, re-run infrastructure registrars (T2-02 G-F2).",
+      "invoke": "python -m fabrik.cli reconcile-all --help",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "AGENTS.md",
+      "verified_at": "2026-07-12T17:50:06+00:00"
+    },
+    {
+      "name": "fabrik redeploy",
+      "kind": "cli",
+      "summary": "Redeploy an application by name.",
+      "invoke": "python -m fabrik.cli redeploy --help",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "AGENTS.md",
+      "verified_at": "2026-07-12T17:50:07+00:00"
+    },
+    {
+      "name": "fabrik review",
+      "kind": "cli",
+      "summary": "Bundle git diff + spec + preplan + resolved registrars into a review pack (T3-03 G-D3).",
+      "invoke": "python -m fabrik.cli review --help",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "AGENTS.md",
+      "verified_at": "2026-07-12T17:50:08+00:00"
+    },
+    {
+      "name": "fabrik scaffold",
+      "kind": "cli",
+      "summary": "Create a new project with full structure.",
+      "invoke": "python -m fabrik.cli scaffold --help",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "AGENTS.md",
+      "verified_at": "2026-07-12T17:50:08+00:00"
+    },
+    {
+      "name": "fabrik scan",
+      "kind": "cli",
+      "summary": "Scan /opt for projects and update registry + PROJECT_CATALOG.md.",
+      "invoke": "python -m fabrik.cli scan --help",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "AGENTS.md",
+      "verified_at": "2026-07-12T17:50:08+00:00"
+    },
+    {
+      "name": "fabrik seo briefs-list",
+      "kind": "cli",
+      "summary": "List briefs for a site.",
+      "invoke": "python -m fabrik.cli seo briefs-list --help",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "AGENTS.md",
+      "verified_at": "2026-07-12T17:50:09+00:00"
+    },
+    {
+      "name": "fabrik seo job-create",
+      "kind": "cli",
+      "summary": "Create an SEO job for a site.",
+      "invoke": "python -m fabrik.cli seo job-create --help",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "AGENTS.md",
+      "verified_at": "2026-07-12T17:50:09+00:00"
+    },
+    {
+      "name": "fabrik seo job-run",
+      "kind": "cli",
+      "summary": "Run an SEO job.",
+      "invoke": "python -m fabrik.cli seo job-run --help",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "AGENTS.md",
+      "verified_at": "2026-07-12T17:50:10+00:00"
+    },
+    {
+      "name": "fabrik seo site-register",
+      "kind": "cli",
+      "summary": "Register a site in the SEO service.",
+      "invoke": "python -m fabrik.cli seo site-register --help",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "AGENTS.md",
+      "verified_at": "2026-07-12T17:50:10+00:00"
+    },
+    {
+      "name": "fabrik status",
+      "kind": "cli",
+      "summary": "Check deployment status.",
+      "invoke": "python -m fabrik.cli status --help",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "AGENTS.md",
+      "verified_at": "2026-07-12T17:50:10+00:00"
+    },
+    {
+      "name": "fabrik templates",
+      "kind": "cli",
+      "summary": "List available templates.",
+      "invoke": "python -m fabrik.cli templates --help",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "AGENTS.md",
+      "verified_at": "2026-07-12T17:50:11+00:00"
+    },
+    {
+      "name": "fabrik validate",
+      "kind": "cli",
+      "summary": "Validate project structure against standards.",
+      "invoke": "python -m fabrik.cli validate --help",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "AGENTS.md",
+      "verified_at": "2026-07-12T17:50:11+00:00"
+    },
+    {
+      "name": "fabrik validate-deploy",
+      "kind": "cli",
+      "summary": "Check deployment readiness of a scaffolded project.",
+      "invoke": "python -m fabrik.cli validate-deploy --help",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "AGENTS.md",
+      "verified_at": "2026-07-12T17:50:12+00:00"
+    },
+    {
+      "name": "fabrik verify",
+      "kind": "cli",
+      "summary": "Run postcondition checks against a deployed service.",
+      "invoke": "python -m fabrik.cli verify --help",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "AGENTS.md",
+      "verified_at": "2026-07-12T17:50:12+00:00"
+    },
+    {
+      "name": "fabrik vps-sync",
+      "kind": "cli",
+      "summary": "Refresh VPS documentation from live state.",
+      "invoke": "python -m fabrik.cli vps-sync --help",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "AGENTS.md",
+      "verified_at": "2026-07-12T17:50:12+00:00"
+    },
+    {
+      "name": "fabrik vultr cleanup",
+      "kind": "cli",
+      "summary": "Destroy disposable instances past their destroy_after deadline (orphan recovery).",
+      "invoke": "python -m fabrik.cli vultr cleanup --help",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "AGENTS.md",
+      "verified_at": "2026-07-12T17:50:13+00:00"
+    },
+    {
+      "name": "fabrik vultr cost",
+      "kind": "cli",
+      "summary": "Show this month's Vultr charges + estimated monthly run-rate of tracked instances.",
+      "invoke": "python -m fabrik.cli vultr cost --help",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "AGENTS.md",
+      "verified_at": "2026-07-12T17:50:13+00:00"
+    },
+    {
+      "name": "fabrik vultr destroy",
+      "kind": "cli",
+      "summary": "Destroy a tracked instance by NAME. Permanent spokes need --reverse-fleet-add.",
+      "invoke": "python -m fabrik.cli vultr destroy --help",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "AGENTS.md",
+      "verified_at": "2026-07-12T17:50:14+00:00"
+    },
+    {
+      "name": "fabrik vultr drill",
+      "kind": "cli",
+      "summary": "Run a disposable DR drill (auto-destroys). Phase 3a: `bare`.",
+      "invoke": "python -m fabrik.cli vultr drill --help",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "AGENTS.md",
+      "verified_at": "2026-07-12T17:50:15+00:00"
+    },
+    {
+      "name": "fabrik vultr drill-history",
+      "kind": "cli",
+      "summary": "Tail the drill history (logs/dr-drill-history.jsonl).",
+      "invoke": "python -m fabrik.cli vultr drill-history --help",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "AGENTS.md",
+      "verified_at": "2026-07-12T17:50:15+00:00"
+    },
+    {
+      "name": "fabrik vultr list",
+      "kind": "cli",
+      "summary": "List Fabrik-tracked Vultr instances + reconcile against the live account.",
+      "invoke": "python -m fabrik.cli vultr list --help",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "AGENTS.md",
+      "verified_at": "2026-07-12T17:50:16+00:00"
+    },
+    {
+      "name": "fabrik vultr provision",
+      "kind": "cli",
+      "summary": "Provision a PERMANENT spoke (real billing + fleet change). Prompts to confirm.",
+      "invoke": "python -m fabrik.cli vultr provision --help",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "AGENTS.md",
+      "verified_at": "2026-07-12T17:50:17+00:00"
+    },
+    {
+      "name": "fabrik vultr reconcile",
+      "kind": "cli",
+      "summary": "Compare local state to the live Vultr account and print the drift report.",
+      "invoke": "python -m fabrik.cli vultr reconcile --help",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "AGENTS.md",
+      "verified_at": "2026-07-12T17:50:17+00:00"
+    },
+    {
+      "name": "fabrik vultr status",
+      "kind": "cli",
+      "summary": "Show one tracked instance: local state + live Vultr state.",
+      "invoke": "python -m fabrik.cli vultr status --help",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "AGENTS.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "authelia",
+      "kind": "driver",
+      "summary": "Authelia access-control rule provisioning for the Coolify-managed container.",
+      "invoke": "from fabrik.drivers.authelia import ...",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "docs/SERVICES.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "backrest",
+      "kind": "driver",
+      "summary": "Backrest backup-plan provisioning \u2014 atomic under flock + jq on the VPS.",
+      "invoke": "from fabrik.drivers.backrest import ...",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "docs/SERVICES.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "cloudflare",
+      "kind": "driver",
+      "summary": "Cloudflare DNS Driver for Fabrik.",
+      "invoke": "from fabrik.drivers.cloudflare import ...",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "docs/SERVICES.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "compose_updater",
+      "kind": "driver",
+      "summary": "Compose YAML updater for Coolify-managed resources \u2014 LEGACY MODULE.",
+      "invoke": "from fabrik.drivers.compose_updater import ...",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "docs/SERVICES.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "coolify",
+      "kind": "driver",
+      "summary": "Coolify API Client - LEGACY driver, retained for archived CLI commands only.",
+      "invoke": "from fabrik.drivers.coolify import ...",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "docs/SERVICES.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "dns",
+      "kind": "driver",
+      "summary": "DNS Client - Wrapper for Site Provisioner service.",
+      "invoke": "from fabrik.drivers.dns import ...",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "docs/SERVICES.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "gatus",
+      "kind": "driver",
+      "summary": "Gatus health-monitoring endpoint provisioning via SSH + scp.",
+      "invoke": "from fabrik.drivers.gatus import ...",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "docs/SERVICES.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "glitchtip",
+      "kind": "driver",
+      "summary": "GlitchTip error-tracking project provisioning (Sentry-compatible API).",
+      "invoke": "from fabrik.drivers.glitchtip import ...",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "docs/SERVICES.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "grafana",
+      "kind": "driver",
+      "summary": "Grafana deployment-annotation driver \u2014 non-fatal, decorative.",
+      "invoke": "from fabrik.drivers.grafana import ...",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "docs/SERVICES.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "image_broker",
+      "kind": "driver",
+      "summary": "Image Broker Client - Wrapper for the unified stock image API.",
+      "invoke": "from fabrik.drivers.image_broker import ...",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "docs/SERVICES.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "locks",
+      "kind": "driver",
+      "summary": "VPS-side file locking + whitelisted git versioning.",
+      "invoke": "from fabrik.drivers.locks import ...",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "docs/SERVICES.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "meilisearch",
+      "kind": "driver",
+      "summary": "MeiliSearch index provisioning on the shared Coolify-managed instance.",
+      "invoke": "from fabrik.drivers.meilisearch import ...",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "docs/SERVICES.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "modal_provider",
+      "kind": "driver",
+      "summary": "Modal driver \u2014 Phase 2 of the fabrik gpu rent plan.",
+      "invoke": "from fabrik.drivers.modal_provider import ...",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "docs/SERVICES.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "postgres",
+      "kind": "driver",
+      "summary": "PostgreSQL database + role provisioning on the shared ``postgres-main`` container.",
+      "invoke": "from fabrik.drivers.postgres import ...",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "docs/SERVICES.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "preflight",
+      "kind": "driver",
+      "summary": "Pre-deploy checks run by ``fabrik apply`` before any mutating step.",
+      "invoke": "from fabrik.drivers.preflight import ...",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "docs/SERVICES.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "prometheus",
+      "kind": "driver",
+      "summary": "Prometheus scrape-target registration for Fabrik services exposing ``/metrics``.",
+      "invoke": "from fabrik.drivers.prometheus import ...",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "docs/SERVICES.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "r2",
+      "kind": "driver",
+      "summary": "Cloudflare R2 Driver - Client for R2 object storage operations.",
+      "invoke": "from fabrik.drivers.r2 import ...",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "docs/SERVICES.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "redis",
+      "kind": "driver",
+      "summary": "Per-service Redis logical-DB index allocation on the shared ``redis-main``.",
+      "invoke": "from fabrik.drivers.redis import ...",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "docs/SERVICES.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "runpod",
+      "kind": "driver",
+      "summary": "RunPod REST API driver.",
+      "invoke": "from fabrik.drivers.runpod import ...",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "docs/SERVICES.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "seo",
+      "kind": "driver",
+      "summary": "SEO Client - Wrapper for the SEO keyword research and brief generation service.",
+      "invoke": "from fabrik.drivers.seo import ...",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "docs/SERVICES.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "ssh",
+      "kind": "driver",
+      "summary": "SSH + SCP helpers for Fabrik VPS operations.",
+      "invoke": "from fabrik.drivers.ssh import ...",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "docs/SERVICES.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "supabase",
+      "kind": "driver",
+      "summary": "Supabase Driver - Client for Supabase Auth and Database operations.",
+      "invoke": "from fabrik.drivers.supabase import ...",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "docs/SERVICES.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "tco",
+      "kind": "driver",
+      "summary": "TCO Client - Wrapper for the Triggered Content Orchestration service.",
+      "invoke": "from fabrik.drivers.tco import ...",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "docs/SERVICES.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "uptime_kuma",
+      "kind": "driver",
+      "summary": "Uptime Kuma driver for Fabrik.",
+      "invoke": "from fabrik.drivers.uptime_kuma import ...",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "docs/SERVICES.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "vast_provider",
+      "kind": "driver",
+      "summary": "Vast.ai driver \u2014 Phase 2 of the fabrik gpu rent plan.",
+      "invoke": "from fabrik.drivers.vast_provider import ...",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "docs/SERVICES.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "vultr",
+      "kind": "driver",
+      "summary": "Vultr API v2 driver for Fabrik.",
+      "invoke": "from fabrik.drivers.vultr import ...",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "docs/SERVICES.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "watchdog",
+      "kind": "driver",
+      "summary": "Watchdog sidecar driver \u2014 per-project image build + compose overlay + bring-up.",
+      "invoke": "from fabrik.drivers.watchdog import ...",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "docs/SERVICES.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "postgres",
+      "kind": "registrar",
+      "summary": "postgres registrar (auto-provisioned per spec shape)",
+      "invoke": "specs/services/<id>.yaml shape \u2192 postgres",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "AGENTS.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "redis",
+      "kind": "registrar",
+      "summary": "redis registrar (auto-provisioned per spec shape)",
+      "invoke": "specs/services/<id>.yaml shape \u2192 redis",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "AGENTS.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "gatus",
+      "kind": "registrar",
+      "summary": "gatus registrar (auto-provisioned per spec shape)",
+      "invoke": "specs/services/<id>.yaml shape \u2192 gatus",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "AGENTS.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "backrest",
+      "kind": "registrar",
+      "summary": "backrest registrar (auto-provisioned per spec shape)",
+      "invoke": "specs/services/<id>.yaml shape \u2192 backrest",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "AGENTS.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "glitchtip",
+      "kind": "registrar",
+      "summary": "glitchtip registrar (auto-provisioned per spec shape)",
+      "invoke": "specs/services/<id>.yaml shape \u2192 glitchtip",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "AGENTS.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "grafana",
+      "kind": "registrar",
+      "summary": "grafana registrar (auto-provisioned per spec shape)",
+      "invoke": "specs/services/<id>.yaml shape \u2192 grafana",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "AGENTS.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "authelia",
+      "kind": "registrar",
+      "summary": "authelia registrar (auto-provisioned per spec shape)",
+      "invoke": "specs/services/<id>.yaml shape \u2192 authelia",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "AGENTS.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "meilisearch",
+      "kind": "registrar",
+      "summary": "meilisearch registrar (auto-provisioned per spec shape)",
+      "invoke": "specs/services/<id>.yaml shape \u2192 meilisearch",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "AGENTS.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "prometheus",
+      "kind": "registrar",
+      "summary": "prometheus registrar (auto-provisioned per spec shape)",
+      "invoke": "specs/services/<id>.yaml shape \u2192 prometheus",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "AGENTS.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "watchdog",
+      "kind": "registrar",
+      "summary": "watchdog registrar (auto-provisioned per spec shape)",
+      "invoke": "specs/services/<id>.yaml shape \u2192 watchdog",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "AGENTS.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/Kilo_Review.sh",
+      "kind": "script",
+      "summary": "Windsurf Cascade Wrapper - Code Review via Kilo CLI",
+      "invoke": "bash scripts/Kilo_Review.sh",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/Local_Coder_qwen32b.sh",
+      "kind": "script",
+      "summary": "Windsurf Cascade Wrapper - Coding Agent",
+      "invoke": "bash scripts/Local_Coder_qwen32b.sh",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/Local_Documentator_llama3.1-8b.sh",
+      "kind": "script",
+      "summary": "Windsurf Cascade Wrapper - Documentation Agent",
+      "invoke": "bash scripts/Local_Documentator_llama3.1-8b.sh",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/Local_Fixer_ds16b.sh",
+      "kind": "script",
+      "summary": "Windsurf Cascade Wrapper - Bug Fixing Agent",
+      "invoke": "bash scripts/Local_Fixer_ds16b.sh",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/Local_Review_llama70b.sh",
+      "kind": "script",
+      "summary": "Windsurf Cascade Wrapper - Code Review Agent",
+      "invoke": "bash scripts/Local_Review_llama70b.sh",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/__init__.py",
+      "kind": "script",
+      "summary": "Scripts package.",
+      "invoke": "python scripts/__init__.py",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/aro-wake/claude_rotate.py",
+      "kind": "script",
+      "summary": "AFTER-EDIT: scripts/sysadmin/bot.py, scripts/aro-wake/main.py, scripts/sysadmin/claude_rotate.py, scripts/aro-wake/claude_rotate.py",
+      "invoke": "python scripts/aro-wake/claude_rotate.py",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/aro-wake/main.py",
+      "kind": "script",
+      "summary": "aro-wake \u2014 push-trigger entry point for this host's veteran-sysadmin AI.",
+      "invoke": "python scripts/aro-wake/main.py",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/audit_all_projects.py",
+      "kind": "script",
+      "summary": "Deep audit all /opt projects for Fabrik scaffold compliance (v2).",
+      "invoke": "python scripts/audit_all_projects.py",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/audit_all_registrars.py",
+      "kind": "script",
+      "summary": "T4-04 G-G5 \u2014 hourly drift audit across all 9 registrars \u00d7 all specs.",
+      "invoke": "python scripts/audit_all_registrars.py",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/audit_authelia_gates.py",
+      "kind": "script",
+      "summary": "Weekly drift audit for Authelia gating on admin dashboards.",
+      "invoke": "python scripts/audit_authelia_gates.py",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/audit_envs.py",
+      "kind": "script",
+      "summary": "Audit .env files across all /opt/* projects.",
+      "invoke": "python scripts/audit_envs.py",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/audit_infra_vs_docs.py",
+      "kind": "script",
+      "summary": "Probe-vs-doc audit for the VPS fleet.",
+      "invoke": "python scripts/audit_infra_vs_docs.py",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/check_ai_pack_freshness.py",
+      "kind": "script",
+      "summary": "Warn when AI rule packs in .windsurf/rules/ai/*.md are >90 days unverified.",
+      "invoke": "python scripts/check_ai_pack_freshness.py",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/check_kilo_health.sh",
+      "kind": "script",
+      "summary": "Kilo CLI Health Check",
+      "invoke": "bash scripts/check_kilo_health.sh",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/coding-auto.sh",
+      "kind": "script",
+      "summary": "\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550",
+      "invoke": "bash scripts/coding-auto.sh",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/container_images.py",
+      "kind": "script",
+      "summary": "Container Image Discovery Tool for Fabrik",
+      "invoke": "python scripts/container_images.py",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/create_pg_dev_db.sh",
+      "kind": "script",
+      "summary": "Create PostgreSQL development database for Fabrik projects",
+      "invoke": "bash scripts/create_pg_dev_db.sh",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/deploy_doc_policy.py",
+      "kind": "script",
+      "summary": "Deploy .doc-policy.md to all /opt/* projects (excluding _* prefixes).",
+      "invoke": "python scripts/deploy_doc_policy.py",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/dev_tracker.py",
+      "kind": "script",
+      "summary": "Development Tracker - Track pre-kilo, kilo review, post-kilo workflow costs.",
+      "invoke": "python scripts/dev_tracker.py",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/distribute_subagents.sh",
+      "kind": "script",
+      "summary": "AFTER-EDIT: none",
+      "invoke": "bash scripts/distribute_subagents.sh",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/doc_reconcile.py",
+      "kind": "script",
+      "summary": "AFTER-EDIT: none",
+      "invoke": "python scripts/doc_reconcile.py",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/docs_updater.py",
+      "kind": "script",
+      "summary": "Fabrik Documentation Updater",
+      "invoke": "python scripts/docs_updater.py",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/dr_env_backup.sh",
+      "kind": "script",
+      "summary": "dr_env_backup.sh \u2014 DR mirror of credential files to private GitHub repo.",
+      "invoke": "bash scripts/dr_env_backup.sh",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/dr_env_recovery_test.sh",
+      "kind": "script",
+      "summary": "dr_env_recovery_test.sh \u2014 weekly DR self-test for the W9 chain.",
+      "invoke": "bash scripts/dr_env_recovery_test.sh",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/dr_env_watcher_loop.sh",
+      "kind": "script",
+      "summary": "dr_env_watcher_loop.sh \u2014 long-running watcher driving dr_env_backup.sh.",
+      "invoke": "bash scripts/dr_env_watcher_loop.sh",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/enforcement/__init__.py",
+      "kind": "script",
+      "summary": "Fabrik Convention Enforcement Scripts.",
+      "invoke": "python scripts/enforcement/__init__.py",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/enforcement/_doc_registry.py",
+      "kind": "script",
+      "summary": "AFTER-EDIT: scripts/enforcement/check_structure.py, src/fabrik/scaffold.py, scripts/enforcement/check_doc_stubs.py",
+      "invoke": "python scripts/enforcement/_doc_registry.py",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/enforcement/check_android_env.py",
+      "kind": "script",
+      "summary": "Verify WSL-to-Windows Android SDK communication.",
+      "invoke": "python scripts/enforcement/check_android_env.py",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/enforcement/check_changelog.py",
+      "kind": "script",
+      "summary": "Smart CHANGELOG.md enforcement for meaningful code and infrastructure changes.",
+      "invoke": "python scripts/enforcement/check_changelog.py",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/enforcement/check_compose_services.py",
+      "kind": "script",
+      "summary": "Enforce compose.yaml service documentation.",
+      "invoke": "python scripts/enforcement/check_compose_services.py",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/enforcement/check_configuration_md.py",
+      "kind": "script",
+      "summary": "Enforce configuration documentation pattern.",
+      "invoke": "python scripts/enforcement/check_configuration_md.py",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/enforcement/check_convergence.py",
+      "kind": "script",
+      "summary": "Convergence-evidence gate \u2014 run by final_gate via run_optional_check (non-zero = fail).",
+      "invoke": "python scripts/enforcement/check_convergence.py",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/enforcement/check_deps_sync.py",
+      "kind": "script",
+      "summary": "Check dependency synchronization between pyproject.toml and requirements.txt.",
+      "invoke": "python scripts/enforcement/check_deps_sync.py",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/enforcement/check_doc_sprawl.py",
+      "kind": "script",
+      "summary": "AFTER-EDIT: none",
+      "invoke": "python scripts/enforcement/check_doc_sprawl.py",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/enforcement/check_doc_stubs.py",
+      "kind": "script",
+      "summary": "AFTER-EDIT: none",
+      "invoke": "python scripts/enforcement/check_doc_stubs.py",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/enforcement/check_doc_sync.py",
+      "kind": "script",
+      "summary": "AFTER-EDIT: none",
+      "invoke": "python scripts/enforcement/check_doc_sync.py",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/enforcement/check_docker.py",
+      "kind": "script",
+      "summary": "Check Docker conventions (base images, healthcheck, port consistency).",
+      "invoke": "python scripts/enforcement/check_docker.py",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/enforcement/check_docs.py",
+      "kind": "script",
+      "summary": "Check that new src/ modules have corresponding documentation.",
+      "invoke": "python scripts/enforcement/check_docs.py",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/enforcement/check_duplicates.py",
+      "kind": "script",
+      "summary": "Check for code duplication using jscpd.",
+      "invoke": "python scripts/enforcement/check_duplicates.py",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/enforcement/check_env_contract.py",
+      "kind": "script",
+      "summary": "Check ENV contract across .env.example, compose.yaml, and docs/CONFIGURATION.md.",
+      "invoke": "python scripts/enforcement/check_env_contract.py",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/enforcement/check_env_example.py",
+      "kind": "script",
+      "summary": "Enforce .env.example completeness.",
+      "invoke": "python scripts/enforcement/check_env_example.py",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/enforcement/check_env_updates.py",
+      "kind": "script",
+      "summary": "Enforce .env file population when secrets are mentioned.",
+      "invoke": "python scripts/enforcement/check_env_updates.py",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/enforcement/check_env_vars.py",
+      "kind": "script",
+      "summary": "AFTER-EDIT: none",
+      "invoke": "python scripts/enforcement/check_env_vars.py",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/enforcement/check_health.py",
+      "kind": "script",
+      "summary": "Check that health endpoints test actual dependencies.",
+      "invoke": "python scripts/enforcement/check_health.py",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/enforcement/check_index_md.py",
+      "kind": "script",
+      "summary": "Enforce INDEX.md existence and updates.",
+      "invoke": "python scripts/enforcement/check_index_md.py",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/enforcement/check_mutation.py",
+      "kind": "script",
+      "summary": "AFTER-EDIT: docs/CONFIGURATION.md",
+      "invoke": "python scripts/enforcement/check_mutation.py",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/enforcement/check_no_host_ports.py",
+      "kind": "script",
+      "summary": "Tier 1 enforcement: ban host-bound ``ports:`` in Traefik-routed compose templates.",
+      "invoke": "python scripts/enforcement/check_no_host_ports.py",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/enforcement/check_openapi_sync.py",
+      "kind": "script",
+      "summary": "Enforce OpenAPI/API documentation synchronization.",
+      "invoke": "python scripts/enforcement/check_openapi_sync.py",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/enforcement/check_opencode_json.py",
+      "kind": "script",
+      "summary": "Enforcement check: Validate opencode.json contains Kilo-safe rule list only.",
+      "invoke": "python scripts/enforcement/check_opencode_json.py",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/enforcement/check_plan_quality.py",
+      "kind": "script",
+      "summary": "Check plan document quality - required sections and content.",
+      "invoke": "python scripts/enforcement/check_plan_quality.py",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/enforcement/check_plans.py",
+      "kind": "script",
+      "summary": "Check plan document conventions.",
+      "invoke": "python scripts/enforcement/check_plans.py",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/enforcement/check_ports.py",
+      "kind": "script",
+      "summary": "Check port registration in PORTS.md and validate port ranges.",
+      "invoke": "python scripts/enforcement/check_ports.py",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/enforcement/check_print_ban.py",
+      "kind": "script",
+      "summary": "AFTER-EDIT: none",
+      "invoke": "python scripts/enforcement/check_print_ban.py",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/enforcement/check_readme_md.py",
+      "kind": "script",
+      "summary": "Enforce README.md updates when structure changes.",
+      "invoke": "python scripts/enforcement/check_readme_md.py",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/enforcement/check_reusable_modules.py",
+      "kind": "script",
+      "summary": "Tier 2 enforcement (warning-level, non-blocking): verifies that every .py module",
+      "invoke": "python scripts/enforcement/check_reusable_modules.py",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/enforcement/check_rule_size.py",
+      "kind": "script",
+      "summary": "Check that .windsurf/rules/**/*.md files stay under the auto-load size limit.",
+      "invoke": "python scripts/enforcement/check_rule_size.py",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/enforcement/check_schema_sync.py",
+      "kind": "script",
+      "summary": "AFTER-EDIT: none",
+      "invoke": "python scripts/enforcement/check_schema_sync.py",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/enforcement/check_script_headers.py",
+      "kind": "script",
+      "summary": "AFTER-EDIT: none",
+      "invoke": "python scripts/enforcement/check_script_headers.py",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/enforcement/check_secrets.py",
+      "kind": "script",
+      "summary": "Check for hardcoded secrets and credentials.",
+      "invoke": "python scripts/enforcement/check_secrets.py",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/enforcement/check_spec_db_match.py",
+      "kind": "script",
+      "summary": "Phase 1c (deploy-readiness-gaps): spec <-> project DB-name consistency.",
+      "invoke": "python scripts/enforcement/check_spec_db_match.py",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/enforcement/check_structure.py",
+      "kind": "script",
+      "summary": "AFTER-EDIT: none",
+      "invoke": "python scripts/enforcement/check_structure.py",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/enforcement/check_subagent_flywheel.py",
+      "kind": "script",
+      "summary": "AFTER-EDIT: tests/test_check_subagent_flywheel.py",
+      "invoke": "python scripts/enforcement/check_subagent_flywheel.py",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/enforcement/check_synced_unmodified.py",
+      "kind": "script",
+      "summary": "AFTER-EDIT: none",
+      "invoke": "python scripts/enforcement/check_synced_unmodified.py",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/enforcement/check_test_coverage.py",
+      "kind": "script",
+      "summary": "Enforce test coverage for new code.",
+      "invoke": "python scripts/enforcement/check_test_coverage.py",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/enforcement/check_test_proposal.py",
+      "kind": "script",
+      "summary": "AFTER-EDIT: none",
+      "invoke": "python scripts/enforcement/check_test_proposal.py",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/enforcement/check_traefik_labels.py",
+      "kind": "script",
+      "summary": "Tier 1 enforcement: every Traefik-enabled service declares the full \u00a77 label set.",
+      "invoke": "python scripts/enforcement/check_traefik_labels.py",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/enforcement/check_undeclared_imports.py",
+      "kind": "script",
+      "summary": "Fail when the app source imports a package that is declared in no manifest.",
+      "invoke": "python scripts/enforcement/check_undeclared_imports.py",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/enforcement/check_user_guide.py",
+      "kind": "script",
+      "summary": "Tier 2 enforcement: verifies docs/user-guide/ exists and contains at least one",
+      "invoke": "python scripts/enforcement/check_user_guide.py",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/enforcement/check_vps_docs.py",
+      "kind": "script",
+      "summary": "Check VPS documentation freshness.",
+      "invoke": "python scripts/enforcement/check_vps_docs.py",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/enforcement/check_watchdog.py",
+      "kind": "script",
+      "summary": "Check that services have watchdog scripts.",
+      "invoke": "python scripts/enforcement/check_watchdog.py",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/enforcement/validate_conventions.py",
+      "kind": "script",
+      "summary": "Fabrik Convention Validator - Orchestrates all convention checks.",
+      "invoke": "python scripts/enforcement/validate_conventions.py",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/fabrik_synced_manifest.py",
+      "kind": "script",
+      "summary": "Single source of truth for files Fabrik centrally distributes to every /opt project.",
+      "invoke": "python scripts/fabrik_synced_manifest.py",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/final_gate.py",
+      "kind": "script",
+      "summary": "AFTER-EDIT: docs/workflows/FINAL_GATE_WORKFLOW.md",
+      "invoke": "python scripts/final_gate.py",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/fix_balanced_tier_agents.py",
+      "kind": "script",
+      "summary": "Apply Self-Review Workflow to Balanced Tier Agents",
+      "invoke": "python scripts/fix_balanced_tier_agents.py",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/fix_economy_tier_agents.py",
+      "kind": "script",
+      "summary": "Apply Self-Review Workflow to Economy Tier Agents",
+      "invoke": "python scripts/fix_economy_tier_agents.py",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/fix_traycer_agents.py",
+      "kind": "script",
+      "summary": "Fix Traycer CLI Free Tier Agents",
+      "invoke": "python scripts/fix_traycer_agents.py",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/generate_capability_index.py",
+      "kind": "script",
+      "summary": "Generate the Fabrik capability catalog \u2014 capabilities.json + docs/CAPABILITIES.md.",
+      "invoke": "python scripts/generate_capability_index.py",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/generate_kilo_agents.py",
+      "kind": "script",
+      "summary": "Generate Kilo CLI Agent Scripts from kilo_agents.db",
+      "invoke": "python scripts/generate_kilo_agents.py",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/generate_vps_inventory.py",
+      "kind": "script",
+      "summary": "Generate the VPS container inventory table for vps-complete-inventory.md.",
+      "invoke": "python scripts/generate_vps_inventory.py",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/health_check_autonomous.py",
+      "kind": "script",
+      "summary": "FABRIK_ROOT = Path(os.getenv(\"FABRIK_ROOT\", \"/opt/fabrik\"))",
+      "invoke": "python scripts/health_check_autonomous.py",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/health_checker.py",
+      "kind": "script",
+      "summary": "Run HTTP `/health` probe and DB TCP reachability checks for cron/CI use.",
+      "invoke": "python scripts/health_checker.py",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/health_summary.py",
+      "kind": "script",
+      "summary": "Scan /opt/* project directories and report health status.",
+      "invoke": "python scripts/health_summary.py",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/implement_self_review_workflow.py",
+      "kind": "script",
+      "summary": "Implement Complete Traycer\u2192Kilo Self-Review Workflow",
+      "invoke": "python scripts/implement_self_review_workflow.py",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/inject_deploy_resources.py",
+      "kind": "script",
+      "summary": "F5 backfill: inject deploy.resources.limits into a service compose.yaml.",
+      "invoke": "python scripts/inject_deploy_resources.py",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/kilo_agent_health.sh",
+      "kind": "script",
+      "summary": "Kilo Agent Health Check Utility",
+      "invoke": "bash scripts/kilo_agent_health.sh",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/kilo_auto_route.py",
+      "kind": "script",
+      "summary": "Kilo auto-router \u2014 runtime entry point Traycer calls instead of role-pinned",
+      "invoke": "python scripts/kilo_auto_route.py",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/kilo_code_review.py",
+      "kind": "script",
+      "summary": "Kilo-powered iterative code review with fix-and-revalidate loop.",
+      "invoke": "python scripts/kilo_code_review.py",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/kilo_code_review_bckp.py",
+      "kind": "script",
+      "summary": "Kilo-powered iterative code review with fix-and-revalidate loop.",
+      "invoke": "python scripts/kilo_code_review_bckp.py",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/kilo_consult.py",
+      "kind": "script",
+      "summary": "kilo_consult.py - Cascade consultation via Kilo CLI (Q&A only)",
+      "invoke": "python scripts/kilo_consult.py",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/kilo_cost_report.py",
+      "kind": "script",
+      "summary": "Kilo Cost Report - Analyze Kilo usage and costs.",
+      "invoke": "python scripts/kilo_cost_report.py",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/kilo_cost_tracker.py",
+      "kind": "script",
+      "summary": "Kilo Cost Tracker - Extract and analyze agent run costs.",
+      "invoke": "python scripts/kilo_cost_tracker.py",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/kilo_dispatch.py",
+      "kind": "script",
+      "summary": "Kilo Dispatch \u2014 Cascade-to-Kilo CLI Bridge",
+      "invoke": "python scripts/kilo_dispatch.py",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/kilo_docs_enforcer.py",
+      "kind": "script",
+      "summary": "noqa-file: template-generator  (prompt templates below carry example DATABASE_URL / curl snippets, not real secrets)",
+      "invoke": "python scripts/kilo_docs_enforcer.py",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/kilo_model_sync.py",
+      "kind": "script",
+      "summary": "Kilo Model Sync - Semi-automatic model discovery and sync.",
+      "invoke": "python scripts/kilo_model_sync.py",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/kilo_model_sync_startup.sh",
+      "kind": "script",
+      "summary": "Kilo Model Sync - WSL Startup Hook",
+      "invoke": "bash scripts/kilo_model_sync_startup.sh",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/kilo_terminal_runner.py",
+      "kind": "script",
+      "summary": "Kilo Terminal Runner - Rich TUI for Kilo CLI agent wrappers.",
+      "invoke": "python scripts/kilo_terminal_runner.py",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/kpi_tracker.py",
+      "kind": "script",
+      "summary": "KPI Tracker CLI for managing AI execution metrics.",
+      "invoke": "python scripts/kpi_tracker.py",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/lint_fix_agent.py",
+      "kind": "script",
+      "summary": "Lint Fix Sub-Agent - Cheap agent for lint-only fixes.",
+      "invoke": "python scripts/lint_fix_agent.py",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/mcp_kilo_server.py",
+      "kind": "script",
+      "summary": "MCP Server for Kilo CLI Integration",
+      "invoke": "python scripts/mcp_kilo_server.py",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/migrate_db_rename.py",
+      "kind": "script",
+      "summary": "Atomic, idempotent, rollback-capable Postgres database rename for Coolify-managed",
+      "invoke": "python scripts/migrate_db_rename.py",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/probes/glitchtip_probe.sh",
+      "kind": "script",
+      "summary": "GlitchTip API probe \u2014 Phase 4-pre Task 1",
+      "invoke": "bash scripts/probes/glitchtip_probe.sh",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/probes/glitchtip_webhook_capture.py",
+      "kind": "script",
+      "summary": "Capture + pin the live GlitchTip new-issue webhook envelope (watchdog Phase A).",
+      "invoke": "python scripts/probes/glitchtip_webhook_capture.py",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/probes/grafana_token_check.sh",
+      "kind": "script",
+      "summary": "Grafana service-account token verification \u2014 Phase 4-pre Task 3",
+      "invoke": "bash scripts/probes/grafana_token_check.sh",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/process_monitor.py",
+      "kind": "script",
+      "summary": "Process Monitor - Detect stuck/hung subprocess states.",
+      "invoke": "python scripts/process_monitor.py",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/proof_run.py",
+      "kind": "script",
+      "summary": "End-to-end deploy harness: prove every scaffold type deploys live on VPS.",
+      "invoke": "python scripts/proof_run.py",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/provision_glitchtip_project.sh",
+      "kind": "script",
+      "summary": "provision_glitchtip_project.sh \u2014 Idempotently provision a GlitchTip project + DSN.",
+      "invoke": "bash scripts/provision_glitchtip_project.sh",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/provision_grafana.sh",
+      "kind": "script",
+      "summary": "provision_grafana.sh \u2014 Idempotently provision Grafana datasources + dashboards.",
+      "invoke": "bash scripts/provision_grafana.sh",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/provision_watchdog_ro.py",
+      "kind": "script",
+      "summary": "Provision the ``watchdog_ro`` read-only Postgres role (deploy-readiness follow-on).",
+      "invoke": "python scripts/provision_watchdog_ro.py",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/run_kilo_workflow.sh",
+      "kind": "script",
+      "summary": "run_kilo_workflow.sh \u2014 Manual trigger for the Kilo agent benchmark workflow.",
+      "invoke": "bash scripts/run_kilo_workflow.sh",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/seed_real_ports.py",
+      "kind": "script",
+      "summary": "One-time script: extract real host ports from compose.yaml/.env and update project.yaml.",
+      "invoke": "python scripts/seed_real_ports.py",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/select_rules.py",
+      "kind": "script",
+      "summary": "Select the .windsurf/rules packs applicable to this project \u2014 run BEFORE planning.",
+      "invoke": "python scripts/select_rules.py",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/setup_model_updates.sh",
+      "kind": "script",
+      "summary": "Setup automated model updates via cron",
+      "invoke": "bash scripts/setup_model_updates.sh",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/snapshot_vps_state.py",
+      "kind": "script",
+      "summary": "Pre/post-deploy VPS state snapshot for the dev\u2192VPS workflow test.",
+      "invoke": "python scripts/snapshot_vps_state.py",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/sync-vps-sysadmin.sh",
+      "kind": "script",
+      "summary": "Sync sysadmin knowledge files from WSL to VPS.",
+      "invoke": "bash scripts/sync-vps-sysadmin.sh",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/sync_cascade_backup.sh",
+      "kind": "script",
+      "summary": "Check Cascade backup freshness and remind user to update if stale",
+      "invoke": "bash scripts/sync_cascade_backup.sh",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/sync_enforcement_to_projects.py",
+      "kind": "script",
+      "summary": "Sync enforcement scripts to all /opt projects for Fabrik compliance.",
+      "invoke": "python scripts/sync_enforcement_to_projects.py",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/sync_extensions.sh",
+      "kind": "script",
+      "summary": "Sync Windsurf extensions to documentation",
+      "invoke": "bash scripts/sync_extensions.sh",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/sync_gatus_to_vps.sh",
+      "kind": "script",
+      "summary": "Sync /opt/fabrik/configs/gatus/ \u2192 vps1's /opt/monitoring/configs/gatus/.",
+      "invoke": "bash scripts/sync_gatus_to_vps.sh",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/sync_projects.py",
+      "kind": "script",
+      "summary": "Sync /opt/* projects into data/projects.yaml + docs/PROJECT_CATALOG.md",
+      "invoke": "python scripts/sync_projects.py",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/sync_prometheus_to_vps.sh",
+      "kind": "script",
+      "summary": "Sync /opt/fabrik/configs/prometheus/ \u2192 vps1's /opt/monitoring/configs/prometheus/.",
+      "invoke": "bash scripts/sync_prometheus_to_vps.sh",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/sync_schema_to_projects.py",
+      "kind": "script",
+      "summary": "Sync db/schema.sql to all /opt projects that don't have it.",
+      "invoke": "python scripts/sync_schema_to_projects.py",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/sysadmin/bot.py",
+      "kind": "script",
+      "summary": "VPS AI Sysadmin Telegram Bot.",
+      "invoke": "python scripts/sysadmin/bot.py",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/sysadmin/claude-keepalive-rotate.sh",
+      "kind": "script",
+      "summary": "AFTER-EDIT: scripts/sysadmin/claude_rotate.py, scripts/sysadmin/daily-digest.sh, scripts/sysadmin/proactive-check.sh, scripts/bootstrap/templates/sysadmin-cron.",
+      "invoke": "bash scripts/sysadmin/claude-keepalive-rotate.sh",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/sysadmin/claude-run.sh",
+      "kind": "script",
+      "summary": "AFTER-EDIT: scripts/sysadmin/proactive-check.sh, scripts/sysadmin/morning-report.sh, scripts/sysadmin/weekly-security.sh, scripts/sysadmin/monthly-backup-verify",
+      "invoke": "bash scripts/sysadmin/claude-run.sh",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/sysadmin/claude_rotate.py",
+      "kind": "script",
+      "summary": "AFTER-EDIT: scripts/sysadmin/bot.py, scripts/aro-wake/main.py, scripts/sysadmin/claude_rotate.py, scripts/aro-wake/claude_rotate.py",
+      "invoke": "python scripts/sysadmin/claude_rotate.py",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/sysadmin/daily-digest.sh",
+      "kind": "script",
+      "summary": "daily-digest.sh \u2014 per-host AI-ops daily digest (trio plan \u00a72.8).",
+      "invoke": "bash scripts/sysadmin/daily-digest.sh",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/sysadmin/detect_reversals.py",
+      "kind": "script",
+      "summary": "Detect operator reversals of AI actions (trio plan Phase 5.1.a).",
+      "invoke": "python scripts/sysadmin/detect_reversals.py",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/sysadmin/keepalive-status.sh",
+      "kind": "script",
+      "summary": "AFTER-EDIT: scripts/sysadmin/daily-digest.sh, scripts/sysadmin/proactive-check.sh, scripts/sysadmin/test_keepalive_status.py",
+      "invoke": "bash scripts/sysadmin/keepalive-status.sh",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/sysadmin/monthly-backup-verify.sh",
+      "kind": "script",
+      "summary": "Monthly backup verification \u2014 runs 1st of each month at 04:00 via cron.",
+      "invoke": "bash scripts/sysadmin/monthly-backup-verify.sh",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/sysadmin/morning-report.sh",
+      "kind": "script",
+      "summary": "Daily morning report \u2014 runs at 08:00 via cron.",
+      "invoke": "bash scripts/sysadmin/morning-report.sh",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/sysadmin/proactive-check.sh",
+      "kind": "script",
+      "summary": "Two-stage proactive VPS health check.",
+      "invoke": "bash scripts/sysadmin/proactive-check.sh",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/sysadmin/send-telegram.sh",
+      "kind": "script",
+      "summary": "send-telegram.sh \u2014 fallback Telegram POST helper for daily-digest.sh.",
+      "invoke": "bash scripts/sysadmin/send-telegram.sh",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/sysadmin/sync-claude-accounts-to-fleet.sh",
+      "kind": "script",
+      "summary": "AFTER-EDIT: scripts/sysadmin/test_sync_accounts.py, docs/CONFIGURATION.md",
+      "invoke": "bash scripts/sysadmin/sync-claude-accounts-to-fleet.sh",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/sysadmin/test_bot_rotation_wire.py",
+      "kind": "script",
+      "summary": "AFTER-EDIT: none",
+      "invoke": "python scripts/sysadmin/test_bot_rotation_wire.py",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/sysadmin/test_claude_rotate.py",
+      "kind": "script",
+      "summary": "AFTER-EDIT: none",
+      "invoke": "python scripts/sysadmin/test_claude_rotate.py",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/sysadmin/test_claude_run.py",
+      "kind": "script",
+      "summary": "AFTER-EDIT: none",
+      "invoke": "python scripts/sysadmin/test_claude_run.py",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/sysadmin/test_keepalive_status.py",
+      "kind": "script",
+      "summary": "AFTER-EDIT: none",
+      "invoke": "python scripts/sysadmin/test_keepalive_status.py",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/sysadmin/test_sync_accounts.py",
+      "kind": "script",
+      "summary": "AFTER-EDIT: none",
+      "invoke": "python scripts/sysadmin/test_sync_accounts.py",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/sysadmin/weekly-maintenance.sh",
+      "kind": "script",
+      "summary": "Weekly preventive maintenance \u2014 runs Sunday 03:00 via cron.",
+      "invoke": "bash scripts/sysadmin/weekly-maintenance.sh",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/sysadmin/weekly-security.sh",
+      "kind": "script",
+      "summary": "Weekly security patrol \u2014 runs Monday 08:30 via cron.",
+      "invoke": "bash scripts/sysadmin/weekly-security.sh",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/test_process_monitor.py",
+      "kind": "script",
+      "summary": "Test Suite for ProcessMonitor",
+      "invoke": "python scripts/test_process_monitor.py",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/traycer_agent_review.py",
+      "kind": "script",
+      "summary": "Traycer Agent Auto-Review Wrapper",
+      "invoke": "python scripts/traycer_agent_review.py",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/traycer_write_report.py",
+      "kind": "script",
+      "summary": "Traycer Report Writer",
+      "invoke": "python scripts/traycer_write_report.py",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/update_agents_toc.py",
+      "kind": "script",
+      "summary": "Update AGENTS.md Table of Contents",
+      "invoke": "python scripts/update_agents_toc.py",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/update_vps_docs.py",
+      "kind": "script",
+      "summary": "update_vps_docs.py \u2014 regenerate dynamic sections of VPS documentation.",
+      "invoke": "python scripts/update_vps_docs.py",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/utils/__init__.py",
+      "kind": "script",
+      "summary": "Utility helpers for Fabrik scripts.",
+      "invoke": "python scripts/utils/__init__.py",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/utils/subprocess_helper.py",
+      "kind": "script",
+      "summary": "Subprocess utilities shared across Fabrik scripts.",
+      "invoke": "python scripts/utils/subprocess_helper.py",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/vps_apply_limits.sh",
+      "kind": "script",
+      "summary": "vps_apply_limits.sh \u2014 apply Docker memory limits to all VPS containers",
+      "invoke": "bash scripts/vps_apply_limits.sh",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/vps_sync.py",
+      "kind": "script",
+      "summary": "Refresh VPS documentation from live state.",
+      "invoke": "python scripts/vps_sync.py",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/vultr_weekly_maintenance.sh",
+      "kind": "script",
+      "summary": "Phase 6 \u2014 weekly Vultr maintenance (orphan cleanup + cost report).",
+      "invoke": "bash scripts/vultr_weekly_maintenance.sh",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/watch_enforcement_changes.sh",
+      "kind": "script",
+      "summary": "Auto-sync enforcement files when Fabrik governance files are modified",
+      "invoke": "bash scripts/watch_enforcement_changes.sh",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/watch_env_changes.sh",
+      "kind": "script",
+      "summary": "Monitor /opt/*/.env files for changes and run audit on modification.",
+      "invoke": "bash scripts/watch_env_changes.sh",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/watchdog.sh",
+      "kind": "script",
+      "summary": "set -euo pipefail",
+      "invoke": "bash scripts/watchdog.sh",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scripts/wsl_startup_hook.sh",
+      "kind": "script",
+      "summary": "WSL Startup Hook - Daily Fabrik Maintenance",
+      "invoke": "bash scripts/wsl_startup_hook.sh",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "abuse-prevention",
+      "kind": "lib-module",
+      "summary": "abuse-prevention",
+      "invoke": "vendor /opt/fabrik-lib/abuse-prevention/",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "/opt/fabrik-lib/abuse-prevention/README.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "account",
+      "kind": "lib-module",
+      "summary": "account",
+      "invoke": "vendor /opt/fabrik-lib/account/",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "/opt/fabrik-lib/account/README.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "adaptive-dispatch",
+      "kind": "lib-module",
+      "summary": "fabrik-lib/adaptive-dispatch \u2014 Learn Which Strategy Works Per Domain",
+      "invoke": "vendor /opt/fabrik-lib/adaptive-dispatch/",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "/opt/fabrik-lib/adaptive-dispatch/README.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "ai-consult",
+      "kind": "lib-module",
+      "summary": "ai-consult \u2014 frontier-AI consulting client (OpenRouter / fusion): long-fan-out-safe, durable, structured",
+      "invoke": "vendor /opt/fabrik-lib/ai-consult/",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "/opt/fabrik-lib/ai-consult/README.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "alerting",
+      "kind": "lib-module",
+      "summary": "alerting",
+      "invoke": "vendor /opt/fabrik-lib/alerting/",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "/opt/fabrik-lib/alerting/README.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "api-auth",
+      "kind": "lib-module",
+      "summary": "api-auth/",
+      "invoke": "vendor /opt/fabrik-lib/api-auth/",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "/opt/fabrik-lib/api-auth/README.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "api-quota",
+      "kind": "lib-module",
+      "summary": "fabrik-lib/api-quota \u2014 Track Upstream Quota + Rotate Across Many API Keys",
+      "invoke": "vendor /opt/fabrik-lib/api-quota/",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "/opt/fabrik-lib/api-quota/README.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "app-audit-log",
+      "kind": "lib-module",
+      "summary": "app-audit-log",
+      "invoke": "vendor /opt/fabrik-lib/app-audit-log/",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "/opt/fabrik-lib/app-audit-log/README.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "async-http-client",
+      "kind": "lib-module",
+      "summary": "fabrik-lib/async-http-client \u2014 Pooled AsyncClient + Asyncio Circuit Breaker",
+      "invoke": "vendor /opt/fabrik-lib/async-http-client/",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "/opt/fabrik-lib/async-http-client/README.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "captcha-solve",
+      "kind": "lib-module",
+      "summary": "captcha-solve \u2014 provider-pluggable captcha solving (reCAPTCHA / hCaptcha / Turnstile / image)",
+      "invoke": "vendor /opt/fabrik-lib/captcha-solve/",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "/opt/fabrik-lib/captcha-solve/README.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "claude-evaluator",
+      "kind": "lib-module",
+      "summary": "claude-evaluator/",
+      "invoke": "vendor /opt/fabrik-lib/claude-evaluator/",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "/opt/fabrik-lib/claude-evaluator/README.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "concurrency-throttle",
+      "kind": "lib-module",
+      "summary": "concurrency-throttle",
+      "invoke": "vendor /opt/fabrik-lib/concurrency-throttle/",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "/opt/fabrik-lib/concurrency-throttle/README.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "cookie-consent",
+      "kind": "lib-module",
+      "summary": "cookie-consent",
+      "invoke": "vendor /opt/fabrik-lib/cookie-consent/",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "/opt/fabrik-lib/cookie-consent/README.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "cost-budget",
+      "kind": "lib-module",
+      "summary": "cost-budget",
+      "invoke": "vendor /opt/fabrik-lib/cost-budget/",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "/opt/fabrik-lib/cost-budget/README.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "credits",
+      "kind": "lib-module",
+      "summary": "credits/",
+      "invoke": "vendor /opt/fabrik-lib/credits/",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "/opt/fabrik-lib/credits/README.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "cursor-pagination",
+      "kind": "lib-module",
+      "summary": "fabrik-lib/cursor-pagination \u2014 Keyset Cursor Pagination",
+      "invoke": "vendor /opt/fabrik-lib/cursor-pagination/",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "/opt/fabrik-lib/cursor-pagination/README.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "db-pool",
+      "kind": "lib-module",
+      "summary": "db-pool",
+      "invoke": "vendor /opt/fabrik-lib/db-pool/",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "/opt/fabrik-lib/db-pool/README.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "doc-convert",
+      "kind": "lib-module",
+      "summary": "doc-convert \u2014 legacy .doc/.xls \u2192 docx/xlsx via headless LibreOffice",
+      "invoke": "vendor /opt/fabrik-lib/doc-convert/",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "/opt/fabrik-lib/doc-convert/README.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "doc-crawl",
+      "kind": "lib-module",
+      "summary": "doc-crawl \u2014 framework-free doc/site crawl layer (sitemap + BFS + dedup + classify + markdown)",
+      "invoke": "vendor /opt/fabrik-lib/doc-crawl/",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "/opt/fabrik-lib/doc-crawl/README.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "doc-translate",
+      "kind": "lib-module",
+      "summary": "doc-translate \u2014 structure-preserving document translation orchestrator",
+      "invoke": "vendor /opt/fabrik-lib/doc-translate/",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "/opt/fabrik-lib/doc-translate/README.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "docx-io",
+      "kind": "lib-module",
+      "summary": "docx-io \u2014 structure-preserving text extract/apply for Word documents",
+      "invoke": "vendor /opt/fabrik-lib/docx-io/",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "/opt/fabrik-lib/docx-io/README.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "email-templates",
+      "kind": "lib-module",
+      "summary": "email-templates",
+      "invoke": "vendor /opt/fabrik-lib/email-templates/",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "/opt/fabrik-lib/email-templates/README.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "email-transport",
+      "kind": "lib-module",
+      "summary": "email-transport",
+      "invoke": "vendor /opt/fabrik-lib/email-transport/",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "/opt/fabrik-lib/email-transport/README.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "expo-push",
+      "kind": "lib-module",
+      "summary": "expo-push",
+      "invoke": "vendor /opt/fabrik-lib/expo-push/",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "/opt/fabrik-lib/expo-push/README.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "fastapi-user-auth",
+      "kind": "lib-module",
+      "summary": "fastapi-user-auth",
+      "invoke": "vendor /opt/fabrik-lib/fastapi-user-auth/",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "/opt/fabrik-lib/fastapi-user-auth/README.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "file-cache",
+      "kind": "lib-module",
+      "summary": "fabrik-lib/file-cache \u2014 Local Disk Cache with TTL and LRU Eviction",
+      "invoke": "vendor /opt/fabrik-lib/file-cache/",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "/opt/fabrik-lib/file-cache/README.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "gdpr-data-rights",
+      "kind": "lib-module",
+      "summary": "gdpr-data-rights",
+      "invoke": "vendor /opt/fabrik-lib/gdpr-data-rights/",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "/opt/fabrik-lib/gdpr-data-rights/README.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "gpu-rent",
+      "kind": "lib-module",
+      "summary": "gpu-rent \u2014 cold-start GPU renting across RunPod / Modal / Vast",
+      "invoke": "vendor /opt/fabrik-lib/gpu-rent/",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "/opt/fabrik-lib/gpu-rent/README.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "health-probe",
+      "kind": "lib-module",
+      "summary": "health-probe",
+      "invoke": "vendor /opt/fabrik-lib/health-probe/",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "/opt/fabrik-lib/health-probe/README.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "i18n",
+      "kind": "lib-module",
+      "summary": "fabrik-lib/i18n \u2014 Reusable i18n Module",
+      "invoke": "vendor /opt/fabrik-lib/i18n/",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "/opt/fabrik-lib/i18n/README.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "info-tooltip",
+      "kind": "lib-module",
+      "summary": "info-tooltip",
+      "invoke": "vendor /opt/fabrik-lib/info-tooltip/",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "/opt/fabrik-lib/info-tooltip/README.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "job-queue",
+      "kind": "lib-module",
+      "summary": "job-queue",
+      "invoke": "vendor /opt/fabrik-lib/job-queue/",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "/opt/fabrik-lib/job-queue/README.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "legal-pages",
+      "kind": "lib-module",
+      "summary": "legal-pages",
+      "invoke": "vendor /opt/fabrik-lib/legal-pages/",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "/opt/fabrik-lib/legal-pages/README.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "mobile-config",
+      "kind": "lib-module",
+      "summary": "mobile-config",
+      "invoke": "vendor /opt/fabrik-lib/mobile-config/",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "/opt/fabrik-lib/mobile-config/README.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "mt-router",
+      "kind": "lib-module",
+      "summary": "mt-router \u2014 Context-First Translation Router",
+      "invoke": "vendor /opt/fabrik-lib/mt-router/",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "/opt/fabrik-lib/mt-router/README.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "oauth-login",
+      "kind": "lib-module",
+      "summary": "oauth-login",
+      "invoke": "vendor /opt/fabrik-lib/oauth-login/",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "/opt/fabrik-lib/oauth-login/README.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "observability",
+      "kind": "lib-module",
+      "summary": "observability",
+      "invoke": "vendor /opt/fabrik-lib/observability/",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "/opt/fabrik-lib/observability/README.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "ocr",
+      "kind": "lib-module",
+      "summary": "ocr \u2014 text + bbox from images, with translated-text re-render",
+      "invoke": "vendor /opt/fabrik-lib/ocr/",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "/opt/fabrik-lib/ocr/README.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "pause-state",
+      "kind": "lib-module",
+      "summary": "pause-state",
+      "invoke": "vendor /opt/fabrik-lib/pause-state/",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "/opt/fabrik-lib/pause-state/README.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "payments",
+      "kind": "lib-module",
+      "summary": "payments/",
+      "invoke": "vendor /opt/fabrik-lib/payments/",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "/opt/fabrik-lib/payments/README.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "pdf-extract",
+      "kind": "lib-module",
+      "summary": "pdf-extract \u2014 positional text extract + overlay re-render for PDFs",
+      "invoke": "vendor /opt/fabrik-lib/pdf-extract/",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "/opt/fabrik-lib/pdf-extract/README.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "proxy-pool",
+      "kind": "lib-module",
+      "summary": "proxy-pool",
+      "invoke": "vendor /opt/fabrik-lib/proxy-pool/",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "/opt/fabrik-lib/proxy-pool/README.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "rag",
+      "kind": "lib-module",
+      "summary": "RAG Template",
+      "invoke": "vendor /opt/fabrik-lib/rag/",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "/opt/fabrik-lib/rag/README.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "request-metering",
+      "kind": "lib-module",
+      "summary": "request-metering",
+      "invoke": "vendor /opt/fabrik-lib/request-metering/",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "/opt/fabrik-lib/request-metering/README.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "revenuecat-entitlements",
+      "kind": "lib-module",
+      "summary": "revenuecat-entitlements",
+      "invoke": "vendor /opt/fabrik-lib/revenuecat-entitlements/",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "/opt/fabrik-lib/revenuecat-entitlements/README.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "rn-analytics-kit",
+      "kind": "lib-module",
+      "summary": "rn-analytics-kit",
+      "invoke": "vendor /opt/fabrik-lib/rn-analytics-kit/",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "/opt/fabrik-lib/rn-analytics-kit/README.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "rn-auth-kit",
+      "kind": "lib-module",
+      "summary": "rn-auth-kit",
+      "invoke": "vendor /opt/fabrik-lib/rn-auth-kit/",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "/opt/fabrik-lib/rn-auth-kit/README.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "rn-billing-kit",
+      "kind": "lib-module",
+      "summary": "",
+      "invoke": "vendor /opt/fabrik-lib/rn-billing-kit/",
+      "status": "ok",
+      "defects": [
+        "undocumented",
+        "incomplete"
+      ],
+      "doc_link": null,
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "rn-compliance-kit",
+      "kind": "lib-module",
+      "summary": "rn-compliance-kit",
+      "invoke": "vendor /opt/fabrik-lib/rn-compliance-kit/",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "/opt/fabrik-lib/rn-compliance-kit/README.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "rn-media-kit",
+      "kind": "lib-module",
+      "summary": "",
+      "invoke": "vendor /opt/fabrik-lib/rn-media-kit/",
+      "status": "ok",
+      "defects": [
+        "undocumented",
+        "incomplete"
+      ],
+      "doc_link": null,
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "speech-detect",
+      "kind": "lib-module",
+      "summary": "speech-detect",
+      "invoke": "vendor /opt/fabrik-lib/speech-detect/",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "/opt/fabrik-lib/speech-detect/README.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "storage",
+      "kind": "lib-module",
+      "summary": "fabrik-lib/storage \u2014 Unified File Storage",
+      "invoke": "vendor /opt/fabrik-lib/storage/",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "/opt/fabrik-lib/storage/README.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "subagents",
+      "kind": "lib-module",
+      "summary": "subagents \u2014 vendorable parallel-subagent runtime (OpenRouter-direct)",
+      "invoke": "vendor /opt/fabrik-lib/subagents/",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "/opt/fabrik-lib/subagents/README.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "tenancy",
+      "kind": "lib-module",
+      "summary": "tenancy",
+      "invoke": "vendor /opt/fabrik-lib/tenancy/",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "/opt/fabrik-lib/tenancy/README.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "watchdog",
+      "kind": "lib-module",
+      "summary": "watchdog \u2014 per-project AI self-heal sidecar (poll \u2192 diagnose \u2192 act \u2192 escalate)",
+      "invoke": "vendor /opt/fabrik-lib/watchdog/",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "/opt/fabrik-lib/watchdog/README.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "web-scrape",
+      "kind": "lib-module",
+      "summary": "web-scrape \u2014 deterministic scrape primitive: httpx for static, vps1 browserless for JS-rendered",
+      "invoke": "vendor /opt/fabrik-lib/web-scrape/",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "/opt/fabrik-lib/web-scrape/README.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "webhooks",
+      "kind": "lib-module",
+      "summary": "Webhooks",
+      "invoke": "vendor /opt/fabrik-lib/webhooks/",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "/opt/fabrik-lib/webhooks/README.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "xlsx-io",
+      "kind": "lib-module",
+      "summary": "xlsx-io \u2014 structure-preserving text extract/apply for spreadsheets",
+      "invoke": "vendor /opt/fabrik-lib/xlsx-io/",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "/opt/fabrik-lib/xlsx-io/README.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": ".archive",
+      "kind": "script",
+      "summary": "build helper (not a scaffold type)",
+      "invoke": "templates/.archive/",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "_partials",
+      "kind": "script",
+      "summary": "build helper (not a scaffold type)",
+      "invoke": "templates/_partials/",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "chrome-extension",
+      "kind": "scaffold",
+      "summary": "project scaffold",
+      "invoke": "fabrik scaffold --type chrome-extension",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "desktop-app",
+      "kind": "scaffold",
+      "summary": "project scaffold",
+      "invoke": "fabrik scaffold --type desktop-app",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "docusaurus",
+      "kind": "scaffold",
+      "summary": "project scaffold",
+      "invoke": "fabrik scaffold --type docusaurus",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "file-api",
+      "kind": "scaffold",
+      "summary": "project scaffold",
+      "invoke": "fabrik scaffold --type file-api",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "file-worker",
+      "kind": "scaffold",
+      "summary": "project scaffold",
+      "invoke": "fabrik scaffold --type file-worker",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "i18n-kit",
+      "kind": "script",
+      "summary": "build helper (not a scaffold type)",
+      "invoke": "templates/i18n-kit/",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "mobile-app",
+      "kind": "scaffold",
+      "summary": "project scaffold",
+      "invoke": "fabrik scaffold --type mobile-app",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "modal",
+      "kind": "script",
+      "summary": "build helper (not a scaffold type)",
+      "invoke": "templates/modal/",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "node-api",
+      "kind": "scaffold",
+      "summary": "project scaffold",
+      "invoke": "fabrik scaffold --type node-api",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "preplan",
+      "kind": "script",
+      "summary": "build helper (not a scaffold type)",
+      "invoke": "templates/preplan/",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "prompts",
+      "kind": "script",
+      "summary": "build helper (not a scaffold type)",
+      "invoke": "templates/prompts/",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "python-api",
+      "kind": "scaffold",
+      "summary": "project scaffold",
+      "invoke": "fabrik scaffold --type python-api",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "python-api-gpu",
+      "kind": "scaffold",
+      "summary": "project scaffold",
+      "invoke": "fabrik scaffold --type python-api-gpu",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "saas-skeleton",
+      "kind": "scaffold",
+      "summary": "project scaffold",
+      "invoke": "fabrik scaffold --type saas-skeleton",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "scaffold",
+      "kind": "script",
+      "summary": "build helper (not a scaffold type)",
+      "invoke": "templates/scaffold/",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "spec-pipeline",
+      "kind": "script",
+      "summary": "build helper (not a scaffold type)",
+      "invoke": "templates/spec-pipeline/",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "static-site",
+      "kind": "scaffold",
+      "summary": "project scaffold",
+      "invoke": "fabrik scaffold --type static-site",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "traycer",
+      "kind": "script",
+      "summary": "build helper (not a scaffold type)",
+      "invoke": "templates/traycer/",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "ai/00-ai-model-selection.md",
+      "kind": "rules-pack",
+      "summary": "AI model & tool selection INDEX \u2014 match the task to one of 16 categories, prefer specialized vendors over general LLMs, pick the cheapest gateway (Kilo CLI and ",
+      "invoke": ".windsurf/rules/ai/00-ai-model-selection.md",
+      "status": "ok",
+      "defects": [],
+      "doc_link": ".windsurf/rules/ai/00-ai-model-selection.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "ai/10-speech-audio.md",
+      "kind": "rules-pack",
+      "summary": "Speech & Audio AI (category 1) \u2014 transcription (Soniox/Whisper), TTS (Soniox default for multilingual/faithful, ElevenLabs for expressive), voice cloning, audio",
+      "invoke": ".windsurf/rules/ai/10-speech-audio.md",
+      "status": "ok",
+      "defects": [],
+      "doc_link": ".windsurf/rules/ai/10-speech-audio.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "ai/20-vision.md",
+      "kind": "rules-pack",
+      "summary": "Vision AI (category 2) \u2014 image gen (Recraft v4.1 for branded/recurring-style/vector, FLUX-schnell for bulk illustration, FLUX/BFL for photoreal, Replicate as ho",
+      "invoke": ".windsurf/rules/ai/20-vision.md",
+      "status": "ok",
+      "defects": [],
+      "doc_link": ".windsurf/rules/ai/20-vision.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "ai/25-3d-generation.md",
+      "kind": "rules-pack",
+      "summary": "3D asset generation \u2014 automated zero-edit mesh/asset pipeline (GLB/FBX/OBJ/STL/USDZ). Provider routing by asset type (Meshy/Tripo/Rodin/TRELLIS 2), mandatory he",
+      "invoke": ".windsurf/rules/ai/25-3d-generation.md",
+      "status": "ok",
+      "defects": [],
+      "doc_link": ".windsurf/rules/ai/25-3d-generation.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "ai/30-language.md",
+      "kind": "rules-pack",
+      "summary": "Language AI (category 3) \u2014 LLMs (Claude Opus 4.8 default; Sonnet 4.6 high-volume; Haiku 4.5 speed), embeddings/search (pgvector ONLY \u2014 dedicated vector DBs bann",
+      "invoke": ".windsurf/rules/ai/30-language.md",
+      "status": "ok",
+      "defects": [],
+      "doc_link": ".windsurf/rules/ai/30-language.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "ai/40-multimodal.md",
+      "kind": "rules-pack",
+      "summary": "Vision-Language & Multimodal AI (category 4) \u2014 combine text/image/audio/video understanding (Claude Opus 4.8, GPT-4o, Gemini 2.5 Pro, LLaVA). Visual QA, image c",
+      "invoke": ".windsurf/rules/ai/40-multimodal.md",
+      "status": "ok",
+      "defects": [],
+      "doc_link": ".windsurf/rules/ai/40-multimodal.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "ai/50-agentic.md",
+      "kind": "rules-pack",
+      "summary": "Agentic / Reasoning AI (category 5) \u2014 multi-step reasoning & tool use (OpenAI o3/o4-mini, Claude, LangChain Agents, AutoGPT). Automation, planning, research. Ki",
+      "invoke": ".windsurf/rules/ai/50-agentic.md",
+      "status": "ok",
+      "defects": [],
+      "doc_link": ".windsurf/rules/ai/50-agentic.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "ai/60-code.md",
+      "kind": "rules-pack",
+      "summary": "Code & Developer AI (category 6) \u2014 generate or explain code (Claude Code, GitHub Copilot, Cursor, Windsurf Cascade, Amazon Q). Code completion, refactoring, deb",
+      "invoke": ".windsurf/rules/ai/60-code.md",
+      "status": "ok",
+      "defects": [],
+      "doc_link": ".windsurf/rules/ai/60-code.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "ai/70-data-predictive.md",
+      "kind": "rules-pack",
+      "summary": "Data & Predictive AI (category 7) \u2014 analyze structured data, forecast, detect anomalies (DataRobot, H2O.ai, Vertex AI, SageMaker). Not covered by Kilo \u2014 use spe",
+      "invoke": ".windsurf/rules/ai/70-data-predictive.md",
+      "status": "ok",
+      "defects": [],
+      "doc_link": ".windsurf/rules/ai/70-data-predictive.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "ai/80-specialized-domains.md",
+      "kind": "rules-pack",
+      "summary": "Specialized AI domains (categories 8\u201315) \u2014 Robotics, Synthetic Data, Recommendation, Cybersecurity, Bio/Healthcare, Edge/Embedded, Governance/Trust/Safety, Gene",
+      "invoke": ".windsurf/rules/ai/80-specialized-domains.md",
+      "status": "ok",
+      "defects": [],
+      "doc_link": ".windsurf/rules/ai/80-specialized-domains.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "ai/90-long-context.md",
+      "kind": "rules-pack",
+      "summary": "Long-Context AI (category 16) \u2014 process extremely long documents, codebases, or conversations. Claude Opus 4.8 (1M), Claude Fable 5 (1M), Gemini 2.5 Pro (1M), G",
+      "invoke": ".windsurf/rules/ai/90-long-context.md",
+      "status": "ok",
+      "defects": [],
+      "doc_link": ".windsurf/rules/ai/90-long-context.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "chrome-ext/70-chrome-ext.md",
+      "kind": "rules-pack",
+      "summary": "Chrome extension discipline \u2014 MV3, two-faced architecture, surfaces, distribution, auth, observability, design system",
+      "invoke": ".windsurf/rules/chrome-ext/70-chrome-ext.md",
+      "status": "ok",
+      "defects": [],
+      "doc_link": ".windsurf/rules/chrome-ext/70-chrome-ext.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "core/10-python.md",
+      "kind": "rules-pack",
+      "summary": "Python/FastAPI patterns, typing, environment handling",
+      "invoke": ".windsurf/rules/core/10-python.md",
+      "status": "ok",
+      "defects": [],
+      "doc_link": ".windsurf/rules/core/10-python.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "core/12-node.md",
+      "kind": "rules-pack",
+      "summary": "Node.js 22 production backend patterns (2026-current) \u2014 Fastify/Express, ESM, pino + ALS, graceful drain, npm hygiene, helmet, CVE-aware",
+      "invoke": ".windsurf/rules/core/12-node.md",
+      "status": "ok",
+      "defects": [],
+      "doc_link": ".windsurf/rules/core/12-node.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "core/15-api-contracts.md",
+      "kind": "rules-pack",
+      "summary": "API contract discipline \u2014 OpenAPI-first, error schema, pagination, idempotency, versioning",
+      "invoke": ".windsurf/rules/core/15-api-contracts.md",
+      "status": "ok",
+      "defects": [],
+      "doc_link": ".windsurf/rules/core/15-api-contracts.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "core/20-typescript.md",
+      "kind": "rules-pack",
+      "summary": "TypeScript language discipline \u2014 strict mode, type safety, module patterns, error handling",
+      "invoke": ".windsurf/rules/core/20-typescript.md",
+      "status": "ok",
+      "defects": [],
+      "doc_link": ".windsurf/rules/core/20-typescript.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "core/25-data-postgres.md",
+      "kind": "rules-pack",
+      "summary": "PostgreSQL discipline \u2014 migrations, transactions, indexing, nullability, schema evolution",
+      "invoke": ".windsurf/rules/core/25-data-postgres.md",
+      "status": "ok",
+      "defects": [],
+      "doc_link": ".windsurf/rules/core/25-data-postgres.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "core/30-ops.md",
+      "kind": "rules-pack",
+      "summary": "Docker standards, deployment, infrastructure",
+      "invoke": ".windsurf/rules/core/30-ops.md",
+      "status": "ok",
+      "defects": [],
+      "doc_link": ".windsurf/rules/core/30-ops.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "core/35-security-auth.md",
+      "kind": "rules-pack",
+      "summary": "Security & auth discipline \u2014 JWT rules, CORS policy, secret handling, CSP, session patterns, sensitive-file backup, generated-password policy, M2M internal-auth",
+      "invoke": ".windsurf/rules/core/35-security-auth.md",
+      "status": "ok",
+      "defects": [],
+      "doc_link": ".windsurf/rules/core/35-security-auth.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "core/40-documentation.md",
+      "kind": "rules-pack",
+      "summary": "Documentation rules \u2014 scaffolded doc templates, Documentation Sync Matrix, plan documents, writing style",
+      "invoke": ".windsurf/rules/core/40-documentation.md",
+      "status": "ok",
+      "defects": [],
+      "doc_link": ".windsurf/rules/core/40-documentation.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "core/42-docusaurus.md",
+      "kind": "rules-pack",
+      "summary": "Docusaurus discipline \u2014 MDX, sidebar org, versioning, search, deployment, content quality",
+      "invoke": ".windsurf/rules/core/42-docusaurus.md",
+      "status": "ok",
+      "defects": [],
+      "doc_link": ".windsurf/rules/core/42-docusaurus.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "core/45-testing-strategy.md",
+      "kind": "rules-pack",
+      "summary": "Testing strategy \u2014 what to test per ticket type, smoke vs integration, regression rules",
+      "invoke": ".windsurf/rules/core/45-testing-strategy.md",
+      "status": "ok",
+      "defects": [],
+      "doc_link": ".windsurf/rules/core/45-testing-strategy.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "core/50-code-review.md",
+      "kind": "rules-pack",
+      "summary": "Code review workflow, quality gate commands, and reusability discipline. Apply when running a self-review/gate, closing a milestone, deciding what tests to writ",
+      "invoke": ".windsurf/rules/core/50-code-review.md",
+      "status": "ok",
+      "defects": [],
+      "doc_link": ".windsurf/rules/core/50-code-review.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "core/55-observability.md",
+      "kind": "rules-pack",
+      "summary": "Observability discipline \u2014 structured logs, correlation IDs, health/readiness, metrics, alert thresholds, crash reporting",
+      "invoke": ".windsurf/rules/core/55-observability.md",
+      "status": "ok",
+      "defects": [],
+      "doc_link": ".windsurf/rules/core/55-observability.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "core/58-resilience.md",
+      "kind": "rules-pack",
+      "summary": "Resilience contract \u2014 timeout/retry/circuit-breaker for all services, plus autonomous pause-state/queue-bloat for workers",
+      "invoke": ".windsurf/rules/core/58-resilience.md",
+      "status": "ok",
+      "defects": [],
+      "doc_link": ".windsurf/rules/core/58-resilience.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "core/60-watchdog.md",
+      "kind": "rules-pack",
+      "summary": "Watchdog sidecar contract \u2014 when to enable, how Tier A/B/C/D act, OAuth inheritance, fail-safe emitter, cost ceilings",
+      "invoke": ".windsurf/rules/core/60-watchdog.md",
+      "status": "ok",
+      "defects": [],
+      "doc_link": ".windsurf/rules/core/60-watchdog.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "core/62-using-subagents.md",
+      "kind": "rules-pack",
+      "summary": "How to dispatch subagents \u2014 the two runtimes, per-task tool access (Claude Code agent-types vs pool web_tools/mcp_servers), the never-route safety list, the mcp",
+      "invoke": ".windsurf/rules/core/62-using-subagents.md",
+      "status": "ok",
+      "defects": [],
+      "doc_link": ".windsurf/rules/core/62-using-subagents.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "core/65-rag-search.md",
+      "kind": "rules-pack",
+      "summary": "Search & retrieval discipline \u2014 MeiliSearch full-text, pgvector embeddings, hybrid search, chunking, citations, retrieval evals",
+      "invoke": ".windsurf/rules/core/65-rag-search.md",
+      "status": "ok",
+      "defects": [],
+      "doc_link": ".windsurf/rules/core/65-rag-search.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "core/66-rag-chunking.md",
+      "kind": "rules-pack",
+      "summary": "Markdown chunking discipline \u2014 heading-based splits, chunk envelopes, overlap strategy, quality checks for RAG pipelines",
+      "invoke": ".windsurf/rules/core/66-rag-chunking.md",
+      "status": "ok",
+      "defects": [],
+      "doc_link": ".windsurf/rules/core/66-rag-chunking.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "core/67-file-api.md",
+      "kind": "rules-pack",
+      "summary": "File-handling discipline (2026) \u2014 S3-compatible storage routing (B2/R2 default; Supabase Storage legacy), undici handler, adaptive retry, presigned URL contract",
+      "invoke": ".windsurf/rules/core/67-file-api.md",
+      "status": "ok",
+      "defects": [],
+      "doc_link": ".windsurf/rules/core/67-file-api.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "core/75-workers-jobs.md",
+      "kind": "rules-pack",
+      "summary": "Workers & jobs discipline \u2014 PG queue, retry/backoff, dead-letter, idempotency, pause-state, orphan sweep, beat tasks",
+      "invoke": ".windsurf/rules/core/75-workers-jobs.md",
+      "status": "ok",
+      "defects": [],
+      "doc_link": ".windsurf/rules/core/75-workers-jobs.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "core/76-gpu-workers.md",
+      "kind": "rules-pack",
+      "summary": "GPU worker discipline \u2014 decision framework for API vs self-host, provider/engine/quantization selection, two-faced architecture, lifecycle automation, fault tol",
+      "invoke": ".windsurf/rules/core/76-gpu-workers.md",
+      "status": "ok",
+      "defects": [],
+      "doc_link": ".windsurf/rules/core/76-gpu-workers.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "core/85-payments-billing.md",
+      "kind": "rules-pack",
+      "summary": "Payments & billing discipline \u2014 Paddle Billing v2 (MoR), iyzico (Turkish domestic), webhook idempotency, entitlement modeling, subscription lifecycle",
+      "invoke": ".windsurf/rules/core/85-payments-billing.md",
+      "status": "ok",
+      "defects": [],
+      "doc_link": ".windsurf/rules/core/85-payments-billing.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "core/86-email-templates.md",
+      "kind": "rules-pack",
+      "summary": "Email & template creation \u2014 MJML+Jinja2 pipeline, Resend ESP, push/in-app, deliverability, cross-cutting across SaaS/mobile/WordPress",
+      "invoke": ".windsurf/rules/core/86-email-templates.md",
+      "status": "ok",
+      "defects": [],
+      "doc_link": ".windsurf/rules/core/86-email-templates.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "core/90-bootstrap-scripts.md",
+      "kind": "rules-pack",
+      "summary": "Bootstrap script discipline \u2014 SSH user transition, fail2ban trap, idempotency, quote escaping",
+      "invoke": ".windsurf/rules/core/90-bootstrap-scripts.md",
+      "status": "ok",
+      "defects": [],
+      "doc_link": ".windsurf/rules/core/90-bootstrap-scripts.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "core/app-audit-log.md",
+      "kind": "rules-pack",
+      "summary": "Tamper-evident audit log for sensitive operations \u2014 canonical action vocabulary, hash-chain verification, retention policy",
+      "invoke": ".windsurf/rules/core/app-audit-log.md",
+      "status": "ok",
+      "defects": [],
+      "doc_link": ".windsurf/rules/core/app-audit-log.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "core/cost-budget.md",
+      "kind": "rules-pack",
+      "summary": "Per-project LLM cost caps + shared cost_ledger + fail-open WAL \u2014 required for any service calling paid AI APIs or the watchdog sidecar",
+      "invoke": ".windsurf/rules/core/cost-budget.md",
+      "status": "ok",
+      "defects": [],
+      "doc_link": ".windsurf/rules/core/cost-budget.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "core/ocoron-design-system.md",
+      "kind": "rules-pack",
+      "summary": "<!-- CONSUMER: Coding agents building UI + Traycer (epic-brief for visual decisions)",
+      "invoke": ".windsurf/rules/core/ocoron-design-system.md",
+      "status": "ok",
+      "defects": [],
+      "doc_link": ".windsurf/rules/core/ocoron-design-system.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "core/self-healing.md",
+      "kind": "rules-pack",
+      "summary": "Self-healing escalation ladder \u2014 orchestrates the primitives in 58-resilience, 60-watchdog, 75-workers-jobs into one ordered response per failure class",
+      "invoke": ".windsurf/rules/core/self-healing.md",
+      "status": "ok",
+      "defects": [],
+      "doc_link": ".windsurf/rules/core/self-healing.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "core/tojlo-design-system.md",
+      "kind": "rules-pack",
+      "summary": "<!-- CONSUMER: Coding agents building Tojlo-branded UI",
+      "invoke": ".windsurf/rules/core/tojlo-design-system.md",
+      "status": "ok",
+      "defects": [],
+      "doc_link": ".windsurf/rules/core/tojlo-design-system.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "desktop-app/72-desktop.md",
+      "kind": "rules-pack",
+      "summary": "Electron 30+ desktop app \u2014 process model, IPC zero-trust, code signing (Azure Trusted Signing / Apple notarization), R2 auto-update, native integrations, KVKK",
+      "invoke": ".windsurf/rules/desktop-app/72-desktop.md",
+      "status": "ok",
+      "defects": [],
+      "doc_link": ".windsurf/rules/desktop-app/72-desktop.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "mobile-app/80-mobile.md",
+      "kind": "rules-pack",
+      "summary": "React Native mobile discipline \u2014 architecture, backend, navigation, performance, monetization, compliance, and i18n for worldwide shipping",
+      "invoke": ".windsurf/rules/mobile-app/80-mobile.md",
+      "status": "ok",
+      "defects": [],
+      "doc_link": ".windsurf/rules/mobile-app/80-mobile.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "mobile-app/81-mobile-billing.md",
+      "kind": "rules-pack",
+      "summary": "Mobile billing discipline \u2014 Google Play Billing, RevenueCat entitlements, receipt validation, Turkey GPB-mandatory, Teknokent tax, launch checklist",
+      "invoke": ".windsurf/rules/mobile-app/81-mobile-billing.md",
+      "status": "ok",
+      "defects": [],
+      "doc_link": ".windsurf/rules/mobile-app/81-mobile-billing.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "mobile-app/89-mobile-launch-checklist.md",
+      "kind": "rules-pack",
+      "summary": "Mobile app launch checklist \u2014 Turkish LLC, store compliance, Teknokent tax, staged rollout, beta testing, post-launch",
+      "invoke": ".windsurf/rules/mobile-app/89-mobile-launch-checklist.md",
+      "status": "ok",
+      "defects": [],
+      "doc_link": ".windsurf/rules/mobile-app/89-mobile-launch-checklist.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "mobile-app/ocoron-mobile-design-system.md",
+      "kind": "rules-pack",
+      "summary": "Ocoron Mobile Design System \u2014 component patterns, navigation, interaction specs for React Native",
+      "invoke": ".windsurf/rules/mobile-app/ocoron-mobile-design-system.md",
+      "status": "ok",
+      "defects": [],
+      "doc_link": ".windsurf/rules/mobile-app/ocoron-mobile-design-system.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "mobile-app/tojlo-mobile-design-system.md",
+      "kind": "rules-pack",
+      "summary": "Tojlo Mobile Design System \u2014 module-aware mobile component patterns extending ocoron-mobile-design-system.md",
+      "invoke": ".windsurf/rules/mobile-app/tojlo-mobile-design-system.md",
+      "status": "ok",
+      "defects": [],
+      "doc_link": ".windsurf/rules/mobile-app/tojlo-mobile-design-system.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "saas/60-saas-ui.md",
+      "kind": "rules-pack",
+      "summary": "SaaS UI patterns \u2014 navigation, components, dashboards, performance, billing UI, tenant UI, i18n",
+      "invoke": ".windsurf/rules/saas/60-saas-ui.md",
+      "status": "ok",
+      "defects": [],
+      "doc_link": ".windsurf/rules/saas/60-saas-ui.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "saas/87-abuse-detection.md",
+      "kind": "rules-pack",
+      "summary": "Abuse detection discipline \u2014 registration gating, progressive unlock, fingerprinting, disposable email blocking for SaaS free tiers",
+      "invoke": ".windsurf/rules/saas/87-abuse-detection.md",
+      "status": "ok",
+      "defects": [],
+      "doc_link": ".windsurf/rules/saas/87-abuse-detection.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "saas/88-saas-launch-checklist.md",
+      "kind": "rules-pack",
+      "summary": "SaaS product completeness \u2014 launch-blocking checklist, legal compliance, payment routing, KVKK/GDPR, abuse prevention, onboarding, tenant settings",
+      "invoke": ".windsurf/rules/saas/88-saas-launch-checklist.md",
+      "status": "ok",
+      "defects": [],
+      "doc_link": ".windsurf/rules/saas/88-saas-launch-checklist.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    },
+    {
+      "name": "saas/95-multi-tenant-saas.md",
+      "kind": "rules-pack",
+      "summary": "Multi-tenant SaaS discipline \u2014 tenant isolation, PostgreSQL RLS, context propagation, cross-tenant prevention",
+      "invoke": ".windsurf/rules/saas/95-multi-tenant-saas.md",
+      "status": "ok",
+      "defects": [],
+      "doc_link": ".windsurf/rules/saas/95-multi-tenant-saas.md",
+      "verified_at": "2026-07-12T17:50:18+00:00"
+    }
+  ]
+}

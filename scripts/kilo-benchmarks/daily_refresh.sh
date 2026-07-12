@@ -216,6 +216,15 @@ mkdir -p "$(dirname "$LOG_FILE")"
   _step "scrape_windsurf_models" "$VENV_PY" "$KB/scrape_windsurf_models.py" \
     || echo "[daily_refresh] scrape_windsurf_models failed (non-fatal)"
 
+  # Fabrik capability catalog regen (plan 2026-07-12-plan-2). Re-derives
+  # capabilities.json + docs/CAPABILITIES.md + llms.txt by introspecting the
+  # 7 tool surfaces (cli/driver/registrar/script/lib-module/scaffold/rules)
+  # and liveness-probing each, so a cold AI agent always reads a current,
+  # self-verified tool catalog. Generated-not-hand-curated; fail-soft per
+  # probe (a broken probe → status:broken, never crashes the refresh).
+  _step "generate_capability_index" "$VENV_PY" "$FABRIK_ROOT/scripts/generate_capability_index.py" \
+    || echo "[daily_refresh] generate_capability_index failed (non-fatal)"
+
   # ============================================================
   # Kilo agent + Traycer registry workflow (ported from wsl_startup_hook.sh
   # on 2026-06-30 — the 2026-06-28 cron migration left these out, so

@@ -1,0 +1,6 @@
+# Fabrik
+
+> Fabrik is a one-operator project-deploy hub. The full invokable-capability catalog for AI agents lives in docs/CAPABILITIES.md (+ machine-readable capabilities.json).
+
+## Capabilities
+- [Capability catalog](docs/CAPABILITIES.md): every tool, verified

@@ -1,0 +1,299 @@
+# Fabrik Capability Catalog
+
+> Every invokable capability in the Fabrik repo, generated + liveness-verified. A cold AI planner/orchestrator agent reads this first to discover and invoke tools. Machine-readable form: capabilities.json.
+
+## cli
+- [fabrik ai usage](AGENTS.md): Show AI usage and cost summary.
+- [fabrik app-logs](AGENTS.md): (legacy) View application logs via the Coolify API (spec-based).
+- [fabrik apply](AGENTS.md): Deploy a service from spec.
+- [fabrik audit-registrars](AGENTS.md): Compare each spec's shape-resolved registrars to live VPS state (T2-02 G-G2).
+- [fabrik content](AGENTS.md): Content publishing commands.
+- [fabrik destroy](AGENTS.md): Tear down every resource ``fabrik apply`` created for SPEC_PATH.
+- [fabrik dev](AGENTS.md): Run the local dev stack via compose.dev.yaml (T3-03 G-I1).
+- [fabrik domain buy](AGENTS.md): Register a new domain.
+- [fabrik domain check](AGENTS.md): Check domain availability across all registrars.
+- [fabrik domain integrations](AGENTS.md): Show stored integration metadata (GA4, GSC, Bing, IndexNow).
+- [fabrik domain provision](AGENTS.md): Provision domain — DNS, CDN, WAF, and search engine setup.
+- [fabrik domain ready](AGENTS.md): Check if domain is ready for Coolify deployment.
+- [fabrik domain sitemap](AGENTS.md): Update sitemap and resubmit to Google, Bing, and IndexNow.
+- [fabrik domain zones](AGENTS.md): List all Cloudflare zones.
+- [fabrik export](AGENTS.md): Export the current VPS state as a portable bundle (T4-03 G-J2).
+- [fabrik fix](AGENTS.md): Add missing required files to a project.
+- [fabrik gpu compare](AGENTS.md): Compare RunPod / Modal / Vast.ai cost for a workload + recommend.
+- [fabrik gpu destroy](AGENTS.md): Destroy a session's pod/endpoint manually (orphan cleanup).
+- [fabrik gpu history](AGENTS.md): Tail the gpu-rent history log.
+- [fabrik gpu list](AGENTS.md): List active GPU sessions in local state + reconcile against RunPod.
+- [fabrik gpu pause](AGENTS.md): Pause (stop without destroy) a session's pod. Storage persists; GPU
+- [fabrik gpu reconcile](AGENTS.md): Compare local state to live provider accounts; optionally auto-destroy.
+- [fabrik gpu rent](AGENTS.md): Provision a GPU, optionally use it, always destroy (try/finally).
+- [fabrik gpu resume](AGENTS.md): Resume a previously paused pod. Storage + container disk are preserved;
+- [fabrik gpu status](AGENTS.md): Show detailed status for a session ID or a provider pod/endpoint ID.
+- [fabrik import](AGENTS.md): Import a portability bundle on a fresh target VPS (T4-03 G-J2).
+- [fabrik logs](AGENTS.md): View logs for a service.
+- [fabrik new](AGENTS.md): [DEPRECATED — use ``fabrik scaffold``] Create a spec from a template.
+- [fabrik plan](AGENTS.md): Show what will be deployed (dry run).
+- [fabrik preplan new](AGENTS.md): Create docs/preplans/<YYYY-MM-DD>-<slug>.md from the template.
+- [fabrik projects](AGENTS.md): List all tracked projects in /opt.
+- [fabrik reconcile-all](AGENTS.md): Walk every deployed spec, re-run infrastructure registrars (T2-02 G-F2).
+- [fabrik redeploy](AGENTS.md): Redeploy an application by name.
+- [fabrik review](AGENTS.md): Bundle git diff + spec + preplan + resolved registrars into a review pack (T3-03 G-D3).
+- [fabrik scaffold](AGENTS.md): Create a new project with full structure.
+- [fabrik scan](AGENTS.md): Scan /opt for projects and update registry + PROJECT_CATALOG.md.
+- [fabrik seo briefs-list](AGENTS.md): List briefs for a site.
+- [fabrik seo job-create](AGENTS.md): Create an SEO job for a site.
+- [fabrik seo job-run](AGENTS.md): Run an SEO job.
+- [fabrik seo site-register](AGENTS.md): Register a site in the SEO service.
+- [fabrik status](AGENTS.md): Check deployment status.
+- [fabrik templates](AGENTS.md): List available templates.
+- [fabrik validate](AGENTS.md): Validate project structure against standards.
+- [fabrik validate-deploy](AGENTS.md): Check deployment readiness of a scaffolded project.
+- [fabrik verify](AGENTS.md): Run postcondition checks against a deployed service.
+- [fabrik vps-sync](AGENTS.md): Refresh VPS documentation from live state.
+- [fabrik vultr cleanup](AGENTS.md): Destroy disposable instances past their destroy_after deadline (orphan recovery).
+- [fabrik vultr cost](AGENTS.md): Show this month's Vultr charges + estimated monthly run-rate of tracked instances.
+- [fabrik vultr destroy](AGENTS.md): Destroy a tracked instance by NAME. Permanent spokes need --reverse-fleet-add.
+- [fabrik vultr drill](AGENTS.md): Run a disposable DR drill (auto-destroys). Phase 3a: `bare`.
+- [fabrik vultr drill-history](AGENTS.md): Tail the drill history (logs/dr-drill-history.jsonl).
+- [fabrik vultr list](AGENTS.md): List Fabrik-tracked Vultr instances + reconcile against the live account.
+- [fabrik vultr provision](AGENTS.md): Provision a PERMANENT spoke (real billing + fleet change). Prompts to confirm.
+- [fabrik vultr reconcile](AGENTS.md): Compare local state to the live Vultr account and print the drift report.
+- [fabrik vultr status](AGENTS.md): Show one tracked instance: local state + live Vultr state.
+
+## driver
+- [authelia](docs/SERVICES.md): Authelia access-control rule provisioning for the Coolify-managed container.
+- [backrest](docs/SERVICES.md): Backrest backup-plan provisioning — atomic under flock + jq on the VPS.
+- [cloudflare](docs/SERVICES.md): Cloudflare DNS Driver for Fabrik.
+- [compose_updater](docs/SERVICES.md): Compose YAML updater for Coolify-managed resources — LEGACY MODULE.
+- [coolify](docs/SERVICES.md): Coolify API Client - LEGACY driver, retained for archived CLI commands only.
+- [dns](docs/SERVICES.md): DNS Client - Wrapper for Site Provisioner service.
+- [gatus](docs/SERVICES.md): Gatus health-monitoring endpoint provisioning via SSH + scp.
+- [glitchtip](docs/SERVICES.md): GlitchTip error-tracking project provisioning (Sentry-compatible API).
+- [grafana](docs/SERVICES.md): Grafana deployment-annotation driver — non-fatal, decorative.
+- [image_broker](docs/SERVICES.md): Image Broker Client - Wrapper for the unified stock image API.
+- [locks](docs/SERVICES.md): VPS-side file locking + whitelisted git versioning.
+- [meilisearch](docs/SERVICES.md): MeiliSearch index provisioning on the shared Coolify-managed instance.
+- [modal_provider](docs/SERVICES.md): Modal driver — Phase 2 of the fabrik gpu rent plan.
+- [postgres](docs/SERVICES.md): PostgreSQL database + role provisioning on the shared ``postgres-main`` container.
+- [preflight](docs/SERVICES.md): Pre-deploy checks run by ``fabrik apply`` before any mutating step.
+- [prometheus](docs/SERVICES.md): Prometheus scrape-target registration for Fabrik services exposing ``/metrics``.
+- [r2](docs/SERVICES.md): Cloudflare R2 Driver - Client for R2 object storage operations.
+- [redis](docs/SERVICES.md): Per-service Redis logical-DB index allocation on the shared ``redis-main``.
+- [runpod](docs/SERVICES.md): RunPod REST API driver.
+- [seo](docs/SERVICES.md): SEO Client - Wrapper for the SEO keyword research and brief generation service.
+- [ssh](docs/SERVICES.md): SSH + SCP helpers for Fabrik VPS operations.
+- [supabase](docs/SERVICES.md): Supabase Driver - Client for Supabase Auth and Database operations.
+- [tco](docs/SERVICES.md): TCO Client - Wrapper for the Triggered Content Orchestration service.
+- [uptime_kuma](docs/SERVICES.md): Uptime Kuma driver for Fabrik.
+- [vast_provider](docs/SERVICES.md): Vast.ai driver — Phase 2 of the fabrik gpu rent plan.
+- [vultr](docs/SERVICES.md): Vultr API v2 driver for Fabrik.
+- [watchdog](docs/SERVICES.md): Watchdog sidecar driver — per-project image build + compose overlay + bring-up.
+
+## registrar
+- [authelia](AGENTS.md): authelia registrar (auto-provisioned per spec shape)
+- [backrest](AGENTS.md): backrest registrar (auto-provisioned per spec shape)
+- [gatus](AGENTS.md): gatus registrar (auto-provisioned per spec shape)
+- [glitchtip](AGENTS.md): glitchtip registrar (auto-provisioned per spec shape)
+- [grafana](AGENTS.md): grafana registrar (auto-provisioned per spec shape)
+- [meilisearch](AGENTS.md): meilisearch registrar (auto-provisioned per spec shape)
+- [postgres](AGENTS.md): postgres registrar (auto-provisioned per spec shape)
+- [prometheus](AGENTS.md): prometheus registrar (auto-provisioned per spec shape)
+- [redis](AGENTS.md): redis registrar (auto-provisioned per spec shape)
+- [watchdog](AGENTS.md): watchdog registrar (auto-provisioned per spec shape)
+
+## script
+- [.archive](docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md): build helper (not a scaffold type)
+- [_partials](docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md): build helper (not a scaffold type)
+- [i18n-kit](docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md): build helper (not a scaffold type)
+- [modal](docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md): build helper (not a scaffold type)
+- [preplan](docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md): build helper (not a scaffold type)
+- [prompts](docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md): build helper (not a scaffold type)
+- [scaffold](docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md): build helper (not a scaffold type)
+- [scripts/audit_authelia_gates.py](INDEX.md): Weekly drift audit for Authelia gating on admin dashboards.
+- [scripts/audit_infra_vs_docs.py](INDEX.md): Probe-vs-doc audit for the VPS fleet.
+- [scripts/container_images.py](INDEX.md): Container Image Discovery Tool for Fabrik
+- [scripts/deploy_doc_policy.py](INDEX.md): Deploy .doc-policy.md to all /opt/* projects (excluding _* prefixes).
+- [scripts/doc_reconcile.py](INDEX.md): AFTER-EDIT: none
+- [scripts/docs_updater.py](INDEX.md): Fabrik Documentation Updater
+- [scripts/enforcement/check_android_env.py](INDEX.md): Verify WSL-to-Windows Android SDK communication.
+- [scripts/enforcement/check_configuration_md.py](INDEX.md): Enforce configuration documentation pattern.
+- [scripts/enforcement/check_convergence.py](INDEX.md): Convergence-evidence gate — run by final_gate via run_optional_check (non-zero = fail).
+- [scripts/enforcement/check_doc_stubs.py](INDEX.md): AFTER-EDIT: none
+- [scripts/enforcement/check_doc_sync.py](INDEX.md): AFTER-EDIT: none
+- [scripts/enforcement/check_duplicates.py](INDEX.md): Check for code duplication using jscpd.
+- [scripts/enforcement/check_env_example.py](INDEX.md): Enforce .env.example completeness.
+- [scripts/enforcement/check_env_updates.py](INDEX.md): Enforce .env file population when secrets are mentioned.
+- [scripts/enforcement/check_index_md.py](INDEX.md): Enforce INDEX.md existence and updates.
+- [scripts/enforcement/check_mutation.py](INDEX.md): AFTER-EDIT: docs/CONFIGURATION.md
+- [scripts/enforcement/check_no_host_ports.py](INDEX.md): Tier 1 enforcement: ban host-bound ``ports:`` in Traefik-routed compose templates.
+- [scripts/enforcement/check_opencode_json.py](INDEX.md): Enforcement check: Validate opencode.json contains Kilo-safe rule list only.
+- [scripts/enforcement/check_plans.py](INDEX.md): Check plan document conventions.
+- [scripts/enforcement/check_readme_md.py](INDEX.md): Enforce README.md updates when structure changes.
+- [scripts/enforcement/check_reusable_modules.py](INDEX.md): Tier 2 enforcement (warning-level, non-blocking): verifies that every .py module
+- [scripts/enforcement/check_rule_size.py](INDEX.md): Check that .windsurf/rules/**/*.md files stay under the auto-load size limit.
+- [scripts/enforcement/check_script_headers.py](INDEX.md): AFTER-EDIT: none
+- [scripts/enforcement/check_spec_db_match.py](INDEX.md): Phase 1c (deploy-readiness-gaps): spec <-> project DB-name consistency.
+- [scripts/enforcement/check_synced_unmodified.py](INDEX.md): AFTER-EDIT: none
+- [scripts/enforcement/check_traefik_labels.py](INDEX.md): Tier 1 enforcement: every Traefik-enabled service declares the full §7 label set.
+- [scripts/enforcement/check_user_guide.py](INDEX.md): Tier 2 enforcement: verifies docs/user-guide/ exists and contains at least one
+- [scripts/enforcement/check_vps_docs.py](INDEX.md): Check VPS documentation freshness.
+- [scripts/enforcement/validate_conventions.py](INDEX.md): Fabrik Convention Validator - Orchestrates all convention checks.
+- [scripts/final_gate.py](INDEX.md): AFTER-EDIT: docs/workflows/FINAL_GATE_WORKFLOW.md
+- [scripts/generate_capability_index.py](INDEX.md): Generate the Fabrik capability catalog — capabilities.json + docs/CAPABILITIES.md.
+- [scripts/generate_kilo_agents.py](INDEX.md): Generate Kilo CLI Agent Scripts from kilo_agents.db
+- [scripts/health_check_autonomous.py](INDEX.md): FABRIK_ROOT = Path(os.getenv("FABRIK_ROOT", "/opt/fabrik"))
+- [scripts/health_checker.py](INDEX.md): Run HTTP `/health` probe and DB TCP reachability checks for cron/CI use.
+- [scripts/health_summary.py](INDEX.md): Scan /opt/* project directories and report health status.
+- [scripts/inject_deploy_resources.py](INDEX.md): F5 backfill: inject deploy.resources.limits into a service compose.yaml.
+- [scripts/kilo_auto_route.py](INDEX.md): Kilo auto-router — runtime entry point Traycer calls instead of role-pinned
+- [scripts/kilo_code_review.py](INDEX.md): Kilo-powered iterative code review with fix-and-revalidate loop.
+- [scripts/kilo_code_review_bckp.py](INDEX.md): Kilo-powered iterative code review with fix-and-revalidate loop.
+- [scripts/kilo_consult.py](INDEX.md): kilo_consult.py - Cascade consultation via Kilo CLI (Q&A only)
+- [scripts/kilo_cost_report.py](INDEX.md): Kilo Cost Report - Analyze Kilo usage and costs.
+- [scripts/kilo_cost_tracker.py](INDEX.md): Kilo Cost Tracker - Extract and analyze agent run costs.
+- [scripts/kilo_dispatch.py](INDEX.md): Kilo Dispatch — Cascade-to-Kilo CLI Bridge
+- [scripts/kilo_docs_enforcer.py](INDEX.md): noqa-file: template-generator  (prompt templates below carry example DATABASE_URL / curl snippets, not real secrets)
+- [scripts/kilo_terminal_runner.py](INDEX.md): Kilo Terminal Runner - Rich TUI for Kilo CLI agent wrappers.
+- [scripts/kpi_tracker.py](INDEX.md): KPI Tracker CLI for managing AI execution metrics.
+- [scripts/lint_fix_agent.py](INDEX.md): Lint Fix Sub-Agent - Cheap agent for lint-only fixes.
+- [scripts/migrate_db_rename.py](INDEX.md): Atomic, idempotent, rollback-capable Postgres database rename for Coolify-managed
+- [scripts/probes/glitchtip_webhook_capture.py](INDEX.md): Capture + pin the live GlitchTip new-issue webhook envelope (watchdog Phase A).
+- [scripts/provision_glitchtip_project.sh](INDEX.md): provision_glitchtip_project.sh — Idempotently provision a GlitchTip project + DSN.
+- [scripts/seed_real_ports.py](INDEX.md): One-time script: extract real host ports from compose.yaml/.env and update project.yaml.
+- [scripts/select_rules.py](INDEX.md): Select the .windsurf/rules packs applicable to this project — run BEFORE planning.
+- [scripts/snapshot_vps_state.py](INDEX.md): Pre/post-deploy VPS state snapshot for the dev→VPS workflow test.
+- [scripts/sync_enforcement_to_projects.py](INDEX.md): Sync enforcement scripts to all /opt projects for Fabrik compliance.
+- [scripts/sync_gatus_to_vps.sh](INDEX.md): Sync /opt/fabrik/configs/gatus/ → vps1's /opt/monitoring/configs/gatus/.
+- [scripts/sync_prometheus_to_vps.sh](INDEX.md): Sync /opt/fabrik/configs/prometheus/ → vps1's /opt/monitoring/configs/prometheus/.
+- [scripts/sync_schema_to_projects.py](INDEX.md): Sync db/schema.sql to all /opt projects that don't have it.
+- [scripts/traycer_agent_review.py](INDEX.md): Traycer Agent Auto-Review Wrapper
+- [scripts/traycer_write_report.py](INDEX.md): Traycer Report Writer
+- [scripts/update_agents_toc.py](INDEX.md): Update AGENTS.md Table of Contents
+- [scripts/update_vps_docs.py](INDEX.md): update_vps_docs.py — regenerate dynamic sections of VPS documentation.
+- [scripts/vps_sync.py](INDEX.md): Refresh VPS documentation from live state.
+- [spec-pipeline](docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md): build helper (not a scaffold type)
+- [traycer](docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md): build helper (not a scaffold type)
+
+## lib-module
+- [abuse-prevention](/opt/fabrik-lib/abuse-prevention/README.md): abuse-prevention
+- [account](/opt/fabrik-lib/account/README.md): account
+- [adaptive-dispatch](/opt/fabrik-lib/adaptive-dispatch/README.md): fabrik-lib/adaptive-dispatch — Learn Which Strategy Works Per Domain
+- [ai-consult](/opt/fabrik-lib/ai-consult/README.md): ai-consult — frontier-AI consulting client (OpenRouter / fusion): long-fan-out-safe, durable, structured
+- [alerting](/opt/fabrik-lib/alerting/README.md): alerting
+- [api-auth](/opt/fabrik-lib/api-auth/README.md): api-auth/
+- [api-quota](/opt/fabrik-lib/api-quota/README.md): fabrik-lib/api-quota — Track Upstream Quota + Rotate Across Many API Keys
+- [app-audit-log](/opt/fabrik-lib/app-audit-log/README.md): app-audit-log
+- [async-http-client](/opt/fabrik-lib/async-http-client/README.md): fabrik-lib/async-http-client — Pooled AsyncClient + Asyncio Circuit Breaker
+- [captcha-solve](/opt/fabrik-lib/captcha-solve/README.md): captcha-solve — provider-pluggable captcha solving (reCAPTCHA / hCaptcha / Turnstile / image)
+- [claude-evaluator](/opt/fabrik-lib/claude-evaluator/README.md): claude-evaluator/
+- [concurrency-throttle](/opt/fabrik-lib/concurrency-throttle/README.md): concurrency-throttle
+- [cookie-consent](/opt/fabrik-lib/cookie-consent/README.md): cookie-consent
+- [cost-budget](/opt/fabrik-lib/cost-budget/README.md): cost-budget
+- [credits](/opt/fabrik-lib/credits/README.md): credits/
+- [cursor-pagination](/opt/fabrik-lib/cursor-pagination/README.md): fabrik-lib/cursor-pagination — Keyset Cursor Pagination
+- [db-pool](/opt/fabrik-lib/db-pool/README.md): db-pool
+- [doc-convert](/opt/fabrik-lib/doc-convert/README.md): doc-convert — legacy .doc/.xls → docx/xlsx via headless LibreOffice
+- [doc-crawl](/opt/fabrik-lib/doc-crawl/README.md): doc-crawl — framework-free doc/site crawl layer (sitemap + BFS + dedup + classify + markdown)
+- [doc-translate](/opt/fabrik-lib/doc-translate/README.md): doc-translate — structure-preserving document translation orchestrator
+- [docx-io](/opt/fabrik-lib/docx-io/README.md): docx-io — structure-preserving text extract/apply for Word documents
+- [email-templates](/opt/fabrik-lib/email-templates/README.md): email-templates
+- [email-transport](/opt/fabrik-lib/email-transport/README.md): email-transport
+- [expo-push](/opt/fabrik-lib/expo-push/README.md): expo-push
+- [fastapi-user-auth](/opt/fabrik-lib/fastapi-user-auth/README.md): fastapi-user-auth
+- [file-cache](/opt/fabrik-lib/file-cache/README.md): fabrik-lib/file-cache — Local Disk Cache with TTL and LRU Eviction
+- [gdpr-data-rights](/opt/fabrik-lib/gdpr-data-rights/README.md): gdpr-data-rights
+- [gpu-rent](/opt/fabrik-lib/gpu-rent/README.md): gpu-rent — cold-start GPU renting across RunPod / Modal / Vast
+- [health-probe](/opt/fabrik-lib/health-probe/README.md): health-probe
+- [i18n](/opt/fabrik-lib/i18n/README.md): fabrik-lib/i18n — Reusable i18n Module
+- [info-tooltip](/opt/fabrik-lib/info-tooltip/README.md): info-tooltip
+- [job-queue](/opt/fabrik-lib/job-queue/README.md): job-queue
+- [legal-pages](/opt/fabrik-lib/legal-pages/README.md): legal-pages
+- [mobile-config](/opt/fabrik-lib/mobile-config/README.md): mobile-config
+- [mt-router](/opt/fabrik-lib/mt-router/README.md): mt-router — Context-First Translation Router
+- [oauth-login](/opt/fabrik-lib/oauth-login/README.md): oauth-login
+- [observability](/opt/fabrik-lib/observability/README.md): observability
+- [ocr](/opt/fabrik-lib/ocr/README.md): ocr — text + bbox from images, with translated-text re-render
+- [pause-state](/opt/fabrik-lib/pause-state/README.md): pause-state
+- [payments](/opt/fabrik-lib/payments/README.md): payments/
+- [pdf-extract](/opt/fabrik-lib/pdf-extract/README.md): pdf-extract — positional text extract + overlay re-render for PDFs
+- [proxy-pool](/opt/fabrik-lib/proxy-pool/README.md): proxy-pool
+- [rag](/opt/fabrik-lib/rag/README.md): RAG Template
+- [request-metering](/opt/fabrik-lib/request-metering/README.md): request-metering
+- [revenuecat-entitlements](/opt/fabrik-lib/revenuecat-entitlements/README.md): revenuecat-entitlements
+- [rn-analytics-kit](/opt/fabrik-lib/rn-analytics-kit/README.md): rn-analytics-kit
+- [rn-auth-kit](/opt/fabrik-lib/rn-auth-kit/README.md): rn-auth-kit
+- [rn-billing-kit](#): vendor /opt/fabrik-lib/rn-billing-kit/
+- [rn-compliance-kit](/opt/fabrik-lib/rn-compliance-kit/README.md): rn-compliance-kit
+- [rn-media-kit](#): vendor /opt/fabrik-lib/rn-media-kit/
+- [speech-detect](/opt/fabrik-lib/speech-detect/README.md): speech-detect
+- [storage](/opt/fabrik-lib/storage/README.md): fabrik-lib/storage — Unified File Storage
+- [subagents](/opt/fabrik-lib/subagents/README.md): subagents — vendorable parallel-subagent runtime (OpenRouter-direct)
+- [tenancy](/opt/fabrik-lib/tenancy/README.md): tenancy
+- [watchdog](/opt/fabrik-lib/watchdog/README.md): watchdog — per-project AI self-heal sidecar (poll → diagnose → act → escalate)
+- [web-scrape](/opt/fabrik-lib/web-scrape/README.md): web-scrape — deterministic scrape primitive: httpx for static, vps1 browserless for JS-rendered
+- [webhooks](/opt/fabrik-lib/webhooks/README.md): Webhooks
+- [xlsx-io](/opt/fabrik-lib/xlsx-io/README.md): xlsx-io — structure-preserving text extract/apply for spreadsheets
+
+## scaffold
+- [chrome-extension](docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md): project scaffold
+- [desktop-app](docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md): project scaffold
+- [docusaurus](docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md): project scaffold
+- [file-api](docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md): project scaffold
+- [file-worker](docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md): project scaffold
+- [mobile-app](docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md): project scaffold
+- [node-api](docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md): project scaffold
+- [python-api](docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md): project scaffold
+- [python-api-gpu](docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md): project scaffold
+- [saas-skeleton](docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md): project scaffold
+- [static-site](docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md): project scaffold
+
+## rules-pack
+- [ai/00-ai-model-selection.md](.windsurf/rules/ai/00-ai-model-selection.md): AI model & tool selection INDEX — match the task to one of 16 categories, prefer specialized vendors over general LLMs, pick the cheapest gateway (Kilo CLI and 
+- [ai/10-speech-audio.md](.windsurf/rules/ai/10-speech-audio.md): Speech & Audio AI (category 1) — transcription (Soniox/Whisper), TTS (Soniox default for multilingual/faithful, ElevenLabs for expressive), voice cloning, audio
+- [ai/20-vision.md](.windsurf/rules/ai/20-vision.md): Vision AI (category 2) — image gen (Recraft v4.1 for branded/recurring-style/vector, FLUX-schnell for bulk illustration, FLUX/BFL for photoreal, Replicate as ho
+- [ai/25-3d-generation.md](.windsurf/rules/ai/25-3d-generation.md): 3D asset generation — automated zero-edit mesh/asset pipeline (GLB/FBX/OBJ/STL/USDZ). Provider routing by asset type (Meshy/Tripo/Rodin/TRELLIS 2), mandatory he
+- [ai/30-language.md](.windsurf/rules/ai/30-language.md): Language AI (category 3) — LLMs (Claude Opus 4.8 default; Sonnet 4.6 high-volume; Haiku 4.5 speed), embeddings/search (pgvector ONLY — dedicated vector DBs bann
+- [ai/40-multimodal.md](.windsurf/rules/ai/40-multimodal.md): Vision-Language & Multimodal AI (category 4) — combine text/image/audio/video understanding (Claude Opus 4.8, GPT-4o, Gemini 2.5 Pro, LLaVA). Visual QA, image c
+- [ai/50-agentic.md](.windsurf/rules/ai/50-agentic.md): Agentic / Reasoning AI (category 5) — multi-step reasoning & tool use (OpenAI o3/o4-mini, Claude, LangChain Agents, AutoGPT). Automation, planning, research. Ki
+- [ai/60-code.md](.windsurf/rules/ai/60-code.md): Code & Developer AI (category 6) — generate or explain code (Claude Code, GitHub Copilot, Cursor, Windsurf Cascade, Amazon Q). Code completion, refactoring, deb
+- [ai/70-data-predictive.md](.windsurf/rules/ai/70-data-predictive.md): Data & Predictive AI (category 7) — analyze structured data, forecast, detect anomalies (DataRobot, H2O.ai, Vertex AI, SageMaker). Not covered by Kilo — use spe
+- [ai/80-specialized-domains.md](.windsurf/rules/ai/80-specialized-domains.md): Specialized AI domains (categories 8–15) — Robotics, Synthetic Data, Recommendation, Cybersecurity, Bio/Healthcare, Edge/Embedded, Governance/Trust/Safety, Gene
+- [ai/90-long-context.md](.windsurf/rules/ai/90-long-context.md): Long-Context AI (category 16) — process extremely long documents, codebases, or conversations. Claude Opus 4.8 (1M), Claude Fable 5 (1M), Gemini 2.5 Pro (1M), G
+- [chrome-ext/70-chrome-ext.md](.windsurf/rules/chrome-ext/70-chrome-ext.md): Chrome extension discipline — MV3, two-faced architecture, surfaces, distribution, auth, observability, design system
+- [core/10-python.md](.windsurf/rules/core/10-python.md): Python/FastAPI patterns, typing, environment handling
+- [core/12-node.md](.windsurf/rules/core/12-node.md): Node.js 22 production backend patterns (2026-current) — Fastify/Express, ESM, pino + ALS, graceful drain, npm hygiene, helmet, CVE-aware
+- [core/15-api-contracts.md](.windsurf/rules/core/15-api-contracts.md): API contract discipline — OpenAPI-first, error schema, pagination, idempotency, versioning
+- [core/20-typescript.md](.windsurf/rules/core/20-typescript.md): TypeScript language discipline — strict mode, type safety, module patterns, error handling
+- [core/25-data-postgres.md](.windsurf/rules/core/25-data-postgres.md): PostgreSQL discipline — migrations, transactions, indexing, nullability, schema evolution
+- [core/30-ops.md](.windsurf/rules/core/30-ops.md): Docker standards, deployment, infrastructure
+- [core/35-security-auth.md](.windsurf/rules/core/35-security-auth.md): Security & auth discipline — JWT rules, CORS policy, secret handling, CSP, session patterns, sensitive-file backup, generated-password policy, M2M internal-auth
+- [core/40-documentation.md](.windsurf/rules/core/40-documentation.md): Documentation rules — scaffolded doc templates, Documentation Sync Matrix, plan documents, writing style
+- [core/42-docusaurus.md](.windsurf/rules/core/42-docusaurus.md): Docusaurus discipline — MDX, sidebar org, versioning, search, deployment, content quality
+- [core/45-testing-strategy.md](.windsurf/rules/core/45-testing-strategy.md): Testing strategy — what to test per ticket type, smoke vs integration, regression rules
+- [core/50-code-review.md](.windsurf/rules/core/50-code-review.md): Code review workflow, quality gate commands, and reusability discipline. Apply when running a self-review/gate, closing a milestone, deciding what tests to writ
+- [core/55-observability.md](.windsurf/rules/core/55-observability.md): Observability discipline — structured logs, correlation IDs, health/readiness, metrics, alert thresholds, crash reporting
+- [core/58-resilience.md](.windsurf/rules/core/58-resilience.md): Resilience contract — timeout/retry/circuit-breaker for all services, plus autonomous pause-state/queue-bloat for workers
+- [core/60-watchdog.md](.windsurf/rules/core/60-watchdog.md): Watchdog sidecar contract — when to enable, how Tier A/B/C/D act, OAuth inheritance, fail-safe emitter, cost ceilings
+- [core/62-using-subagents.md](.windsurf/rules/core/62-using-subagents.md): How to dispatch subagents — the two runtimes, per-task tool access (Claude Code agent-types vs pool web_tools/mcp_servers), the never-route safety list, the mcp
+- [core/65-rag-search.md](.windsurf/rules/core/65-rag-search.md): Search & retrieval discipline — MeiliSearch full-text, pgvector embeddings, hybrid search, chunking, citations, retrieval evals
+- [core/66-rag-chunking.md](.windsurf/rules/core/66-rag-chunking.md): Markdown chunking discipline — heading-based splits, chunk envelopes, overlap strategy, quality checks for RAG pipelines
+- [core/67-file-api.md](.windsurf/rules/core/67-file-api.md): File-handling discipline (2026) — S3-compatible storage routing (B2/R2 default; Supabase Storage legacy), undici handler, adaptive retry, presigned URL contract
+- [core/75-workers-jobs.md](.windsurf/rules/core/75-workers-jobs.md): Workers & jobs discipline — PG queue, retry/backoff, dead-letter, idempotency, pause-state, orphan sweep, beat tasks
+- [core/76-gpu-workers.md](.windsurf/rules/core/76-gpu-workers.md): GPU worker discipline — decision framework for API vs self-host, provider/engine/quantization selection, two-faced architecture, lifecycle automation, fault tol
+- [core/85-payments-billing.md](.windsurf/rules/core/85-payments-billing.md): Payments & billing discipline — Paddle Billing v2 (MoR), iyzico (Turkish domestic), webhook idempotency, entitlement modeling, subscription lifecycle
+- [core/86-email-templates.md](.windsurf/rules/core/86-email-templates.md): Email & template creation — MJML+Jinja2 pipeline, Resend ESP, push/in-app, deliverability, cross-cutting across SaaS/mobile/WordPress
+- [core/90-bootstrap-scripts.md](.windsurf/rules/core/90-bootstrap-scripts.md): Bootstrap script discipline — SSH user transition, fail2ban trap, idempotency, quote escaping
+- [core/app-audit-log.md](.windsurf/rules/core/app-audit-log.md): Tamper-evident audit log for sensitive operations — canonical action vocabulary, hash-chain verification, retention policy
+- [core/cost-budget.md](.windsurf/rules/core/cost-budget.md): Per-project LLM cost caps + shared cost_ledger + fail-open WAL — required for any service calling paid AI APIs or the watchdog sidecar
+- [core/ocoron-design-system.md](.windsurf/rules/core/ocoron-design-system.md): <!-- CONSUMER: Coding agents building UI + Traycer (epic-brief for visual decisions)
+- [core/self-healing.md](.windsurf/rules/core/self-healing.md): Self-healing escalation ladder — orchestrates the primitives in 58-resilience, 60-watchdog, 75-workers-jobs into one ordered response per failure class
+- [core/tojlo-design-system.md](.windsurf/rules/core/tojlo-design-system.md): <!-- CONSUMER: Coding agents building Tojlo-branded UI
+- [desktop-app/72-desktop.md](.windsurf/rules/desktop-app/72-desktop.md): Electron 30+ desktop app — process model, IPC zero-trust, code signing (Azure Trusted Signing / Apple notarization), R2 auto-update, native integrations, KVKK
+- [mobile-app/80-mobile.md](.windsurf/rules/mobile-app/80-mobile.md): React Native mobile discipline — architecture, backend, navigation, performance, monetization, compliance, and i18n for worldwide shipping
+- [mobile-app/81-mobile-billing.md](.windsurf/rules/mobile-app/81-mobile-billing.md): Mobile billing discipline — Google Play Billing, RevenueCat entitlements, receipt validation, Turkey GPB-mandatory, Teknokent tax, launch checklist
+- [mobile-app/89-mobile-launch-checklist.md](.windsurf/rules/mobile-app/89-mobile-launch-checklist.md): Mobile app launch checklist — Turkish LLC, store compliance, Teknokent tax, staged rollout, beta testing, post-launch
+- [mobile-app/ocoron-mobile-design-system.md](.windsurf/rules/mobile-app/ocoron-mobile-design-system.md): Ocoron Mobile Design System — component patterns, navigation, interaction specs for React Native
+- [mobile-app/tojlo-mobile-design-system.md](.windsurf/rules/mobile-app/tojlo-mobile-design-system.md): Tojlo Mobile Design System — module-aware mobile component patterns extending ocoron-mobile-design-system.md
+- [saas/60-saas-ui.md](.windsurf/rules/saas/60-saas-ui.md): SaaS UI patterns — navigation, components, dashboards, performance, billing UI, tenant UI, i18n
+- [saas/87-abuse-detection.md](.windsurf/rules/saas/87-abuse-detection.md): Abuse detection discipline — registration gating, progressive unlock, fingerprinting, disposable email blocking for SaaS free tiers
+- [saas/88-saas-launch-checklist.md](.windsurf/rules/saas/88-saas-launch-checklist.md): SaaS product completeness — launch-blocking checklist, legal compliance, payment routing, KVKK/GDPR, abuse prevention, onboarding, tenant settings
+- [saas/95-multi-tenant-saas.md](.windsurf/rules/saas/95-multi-tenant-saas.md): Multi-tenant SaaS discipline — tenant isolation, PostgreSQL RLS, context propagation, cross-tenant prevention

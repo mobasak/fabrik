@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Fabrik capability catalog generator (2026-07-12)
+
+`scripts/generate_capability_index.py` — a generated, self-verifying catalog of every invokable capability in
+the repo, so any AI planner/orchestrator agent discovers + correctly invokes every tool with zero onboarding.
+It introspects the **7 tool surfaces** (cli / driver / registrar / script / lib-module / scaffold / rules-pack),
+**liveness-probes** each (CLI `--help` exit 0 via `sys.executable`, driver/lib import, script header-parse,
+dir-check), and emits two artifacts: **`capabilities.json`** (machine-readable — 8 keys per record:
+name/kind/summary/invoke/status/defects/doc_link/verified_at) and **`docs/CAPABILITIES.md`** (llms.txt-style:
+H1 + blockquote + one H2 link-list per kind), plus a root **`llms.txt`** pointer. First snapshot: **375 entries**
+(281 ok, 93 manual, 1 retired). **Fail-soft** per `core/58-resilience.md` — a probe that errors is recorded
+`status:"broken"` and excluded from the usable set, never crashing the run; a **whole-surface-broken guard**
+raises if every entry of a `kind` probes broken (an env/generator error, not N broken tools). The CLI
+enumeration **recurses** the 7 nested click groups (55 leaf verbs vs 23 top-level). Generated-not-hand-curated:
+wired into `scripts/kilo-benchmarks/daily_refresh.sh` for daily regeneration. Tests:
+`tests/test_generate_capability_index.py` (10 behavior-contract tests).
+
 ### Changed — Modernize `62-using-subagents.md` to the current pool API (fanout + set_quality) (2026-07-12)
 
 The canonical subagent dispatch-policy rule pack (fleet-synced; every `/fabrik-*` command defers to it) was stale — built entirely on the old `run_agents` + manual `record_agent_run` primitive, with zero mention of `fanout`, `set_quality`, or `recover_caps`, and it self-contradicted its own "no model rosters/prices here" rule by hard-coding a per-model price roster. Fixed: § Dispatch policy now leads with **`fanout(task_type, units, …)`** as the pool default (family-diverse, auto-records UNSCORED, `recover_caps` straggler recovery), with `run_agents` reframed as the lower-level primitive for a hand-tuned mix; § Report + the Banned list now cover the two-step **record (auto) → `set_quality` back-fill** flow (a `fanout` row left unscored is the new failure mode); and the hard-coded prices/roster (a drift + self-contradiction) were removed — `pick_models` + `CODING_SUBAGENT_SELECTION.md` remain the sole model source.

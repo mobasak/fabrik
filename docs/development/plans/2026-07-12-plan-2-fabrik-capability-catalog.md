@@ -1,6 +1,6 @@
 # Plan — Fabrik Capability Catalog + Tool-Doc Audit
 
-**Status:** CONVERGED (2026-07-12) — `/fabrik-plan-review` fixed point, independently verified across two review
+**Status:** IN-PROGRESS (2026-07-12; was CONVERGED — `/fabrik-plan-review` fixed point, independently verified across two review
 rounds (pool `fanout` + native Opus `fabrik-researcher`, per the mandated floor; the md5-anti-cheat proof lives in
 each round's Pass Ledger, not pinned here — it drifts on every edit). **Round 1 (author→converge)** found **4 real
 defects** — the load-bearing one: `doc_reconcile.reconcile_doc` is diff-driven + edit-only (no delete path), so it
@@ -22,6 +22,41 @@ counts — and does not re-derive them.
 planner/orchestrator agent discovers + correctly invokes every tool with zero onboarding — plus a doc-audit that
 surfaces broken/retired/incomplete tools. Two artifacts: `capabilities.json` (machine-readable) + `docs/CAPABILITIES.md`
 (llms.txt-style).
+
+---
+
+## Behavior Contract
+
+Consolidated Given/When/Then view of the per-phase risk-ordered contracts below (Phase A §82, Phase B §127).
+One triple per distinct user-observable behavior; risk-ordered; TDD the RISK-tagged ones.
+
+- **Given** a surface with one probe that errors (a CLI verb whose `--help` exits non-zero) **alongside** a
+  healthy verb, **When** the catalog is built, **Then** the broken entry is `status:"broken"` + excluded from
+  the usable set, the healthy one is `"ok"`, and the run does NOT crash (fail-soft). *[RISK, TDD]*
+- **Given** a tool whose header carries a line-start `# DEPRECATED`/`# RETIRED` directive, **When** it is
+  classified, **Then** `status:"retired"` (retire-candidate, not auto-removed). *[RISK, TDD]*
+- **Given** a tool with an explicit `# CATALOG-MANUAL`/`# DESTRUCTIVE` marker **or** no safe probe, **When**
+  it is classified, **Then** `status:"manual"` (operator-checked), never `"broken"`. *[TDD]*
+- **Given** a marker word merely MENTIONED mid-prose (not a line-start directive), **When** the script is
+  classified, **Then** it is NOT retired/manual — only a real directive triggers it (the generator itself
+  stays `"ok"`). *[RISK, TDD — regression]*
+- **Given** a shebanged script, **When** its summary is derived, **Then** the shebang is skipped and the real
+  first doc/comment line becomes the summary (never `!/bin/bash`). *[RISK, TDD — regression]*
+- **Given** every entry of a `kind` probes `broken` (e.g. a bad interpreter path), **When** the catalog is
+  built, **Then** the generator RAISES (whole-surface guard), not emit a silently-all-broken catalog. *[RISK]*
+- **Given** the live repo, **When** the catalog is built, **Then** it covers all 7 kinds and
+  `len(capabilities) >= 250`; `capabilities.json` validates the 8-key schema and `docs/CAPABILITIES.md` is
+  valid llms.txt (H1 + blockquote + H2 link-lists).
+- **Given** a `capabilities.json` with one `dead_doc` orphan + one `retired` tool (Phase B), **When** the
+  audit runs, **Then** the default run is dry-run (lists, deletes nothing), `--apply` unlinks the dead doc,
+  the retired tool is surfaced in the operator ledger, and NO tool file is ever touched. *[RISK, TDD]*
+- **Given** an already-clean catalog (no defects), **When** the audit runs, **Then** it is idempotent — empty
+  operator ledger, zero file changes.
+
+**Mocked:** subprocess `--help` probes hit the REAL interpreter (`sys.executable`); enumerators run over the
+REAL repo. Fixtures/`tmp_path` seed synthetic broken/retired/manual scripts + orphan docs; `subprocess.run` is
+monkeypatched only to exercise the `TimeoutExpired` fail-soft path; `_ENUMERATORS` is monkeypatched to prove
+the whole-surface-broken guard deterministically targets a single surface.
 
 ---
 
@@ -62,7 +97,16 @@ surfaces broken/retired/incomplete tools. Two artifacts: `capabilities.json` (ma
 
 ---
 
-## Phase A — Catalog generator + manifest (C1)
+## Phase A — Catalog generator + manifest (C1) — ✅ EXECUTED 2026-07-12
+
+> **Executed 2026-07-12.** Built `scripts/generate_capability_index.py` (375 entries: 282 ok / 93 manual /
+> 0 broken / 0 retired across all 7 surfaces) + `tests/test_generate_capability_index.py` (15 behavior-contract
+> tests, all green); generated `capabilities.json` + `docs/CAPABILITIES.md` (llms.txt) + `/llms.txt`; wired into
+> `daily_refresh.sh`; docs synced (INDEX.md, CHANGELOG.md). `/fabrik-review` ran **4 rounds** (pool `fanout`
+> breadth + native Opus `fabrik-reviewer` each round) to a CLEAN — CONVERGED no-op: R1 fixed 2 CONFIRMED bugs
+> (shebang-leak summaries, substring self-retired), R2 fixed the `---` front-matter-fence leak (48 rules-packs),
+> R3 hardened 5 latent edges (empty/block-scalar description, HR-without-close, cli/registrar fail-closed
+> sentinels), R4 = clean. Full Tier-2 gate green.
 
 **Deliverable:** `scripts/generate_capability_index.py` that enumerates all 7 surfaces, liveness-verifies each, and
 emits `capabilities.json` + `docs/CAPABILITIES.md` (+ root `/llms.txt`) — wired into the daily pipeline. Ships
