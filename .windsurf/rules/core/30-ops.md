@@ -130,7 +130,7 @@ networks:
 ```
 
 **CRITICAL rules:**
-- **No `ports:` section.** All external traffic routes through Traefik. Never bind host ports. See Docker Port Security below.
+- **No `ports:` section.** All external traffic routes through Traefik. Never bind host ports. See Docker Port Security below. **12‑Factor VII (Port binding):** "the app is self‑contained and exports HTTP by binding to a port; it does not rely on runtime injection of a webserver" — which is exactly WHY no host `ports:`.
 - **`deploy.resources.limits.memory` is mandatory.** A Fabrik invariant enforced by `deployer_ssh._validate_compose()` — `fabrik apply` refuses any compose service without a memory limit (prevents OOM on the shared VPS). The compose must carry the declaration explicitly.
 - **`container_name: <name>` is mandatory.** Same `_validate_compose()` gate refuses any service without it. Stable names are required so Gatus endpoints, inter-service URLs, and `docker exec`/`docker inspect` keys don't drift per redeploy. Use the bare service name (`browserless`, `gotenberg`, `meilisearch`, `glitchtip-web`, `site-provisioner`, etc.) — never UUID-suffixed names.
 - **`platform: linux/amd64` is mandatory.** VPS is x86_64.
@@ -197,6 +197,29 @@ fabrik redeploy <app>
 
 ---
 
+## 12‑Factor V (Build, release, run) (CRITICAL)
+
+**12‑Factor quotes:**
+- "a release cannot be mutated once it is created. Any change must create a new release"
+- each release has "a unique release ID"
+- "it is impossible to make changes to the code at runtime, since there is no way to propagate those changes back to the build stage"
+
+**Mandate:** build → release → run are strictly separated. Releases are IMMUTABLE; the git SHA is the release ID. NEVER hot‑patch a running container (no `docker exec` to edit code/config in place, no in‑place code mutation on the VPS). Any change = a new build + a new release via `fabrik apply` / `fabrik redeploy`.
+
+**❌ Forbidden:**
+- `docker exec -it <container> vim /app/file.py`
+- Editing source code directly on the VPS under `/opt/<app>`
+- Changing environment variables with `docker exec <container> export VAR=value`
+- Runtime database migrations that modify the app container (migrations MUST be run as separate deploy‑time steps)
+
+**✅ Correct:**
+- `git commit -m "..."`
+- `git push`
+- `fabrik redeploy <app>`
+- Deploy‑time migration scripts in `.fabrik/hooks/post‑deploy/`
+
+---
+
 ## Multi-host targeting (`--target-vps`)
 
 The fleet is a **vps1 hub + vps2/vps3 spokes**. `fabrik apply` / `plan` / `redeploy` / `destroy` all take `--target-vps <vpsN>` to choose where a service deploys.
@@ -214,6 +237,26 @@ Spokes are full deploy targets, not standby boxes — a spoke-targeted service r
 | WSL | `http://localhost:PORT` |
 | VPS Internal | `http://service-name:PORT` |
 | VPS External | `https://service.vps1.ocoron.com` |
+
+---
+
+## 12‑Factor X (Dev/prod parity)
+
+**12‑Factor quote:**
+- "The twelve‑factor developer resists the urge to use different backing services between development and production" — use the same type AND version.
+
+**Mandate:** WSL dev and the VPS run the SAME backing services (PostgreSQL + Redis), same major version. NEVER substitute a different backing service in dev (no SQLite standing in for Postgres, no in‑memory dict standing in for Redis). The same code must run unmodified in both environments.
+
+**❌ Forbidden:**
+- SQLite in WSL → PostgreSQL on VPS
+- Python `dict` or `cachetools` in WSL → Redis on VPS
+- Different PostgreSQL major versions (14 in dev, 15 in prod)
+- Mock/stub backends in dev that don't exist in prod
+
+**✅ Correct:**
+- WSL runs PostgreSQL via `docker run postgres:16‑bookworm` (same tag as VPS)
+- WSL runs Redis via `docker run redis:7‑bookworm` (same tag as VPS)
+- Connection strings identical (`postgres-main:5432`, `redis-main:6379`)
 
 ---
 

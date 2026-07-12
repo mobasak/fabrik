@@ -1,7 +1,7 @@
 ---
 activation: glob
 globs: ["**/health*", "**/logging*", "**/logger*", "**/metrics*", "**/middleware/**", "**/monitoring/**", "**/glitchtip*", "**/sentry*"]
-description: Observability discipline — structured logs, correlation IDs, health/readiness, metrics, alert thresholds, crash reporting
+description: Observability discipline — structured logs (stdout only, no logfiles), correlation IDs, health/readiness, metrics, alert thresholds, crash reporting
 trigger: glob
 ---
 <!-- CONSUMER: Coding agents (all) + Traycer (tech-plan step)
@@ -46,10 +46,66 @@ App (structlog/pino) → JSON to stdout → Promtail (auto-discovers via docker.
   → Loki (indexes by service/env/level labels) → Grafana (LogQL queries)
 ```
 
-- **Apps emit JSON to stdout.** This is WHY JSON format is mandatory and `print()` is banned — Promtail parses JSON; raw text breaks field extraction.
+- **Apps emit JSON, unbuffered, to stdout — and nothing else.** This is WHY JSON format is mandatory and `print()` is banned — Promtail parses JSON; raw text breaks field extraction. See § Logs (12-Factor Factor XI) for the full ban on logfiles.
 - **Promtail auto-discovers ALL containers.** No per-service config needed. The lifecycle doc confirms: "auto-discovers ALL containers via docker.sock. No labels or config changes needed per service."
 - **Loki indexes by low-cardinality labels only.** High-cardinality labels (request_id, user_id) cause OOM. Keep them in the JSON payload.
 - **Grafana queries via LogQL** with JSON field extraction: `{service="myservice"} | json | level="error"`.
+
+---
+
+## Logs (12-Factor Factor XI) — stdout only, no logfiles (CRITICAL)
+
+> 12factor.net, verbatim:
+> *"each running process writes its event stream, unbuffered, to `stdout`"*
+> *"A twelve-factor app never concerns itself with routing or storage of its output stream. It should not attempt to write to or manage logfiles."*
+
+**Mandate.** The app writes structured events, unbuffered, to `stdout` and **nothing else**. The app MUST NEVER write, rotate, append to, truncate, compress, age out, or otherwise manage a logfile, and MUST NEVER decide where logs are stored, how long they are kept, or how they are routed. Routing, rotation, retention, and storage are exclusively the **execution environment's** concern.
+
+**The split is 12-Factor-correct:**
+
+```
+App:       JSON → stdout (unbuffered)   ← app's only job
+Runtime:   Docker captures stdout
+Platform:  Promtail → Loki → Grafana    → routing/retention lives here
+```
+
+**BANNED in app code:**
+
+- `logging.FileHandler` (Python stdlib)
+- `logging.handlers.RotatingFileHandler`
+- `logging.handlers.TimedRotatingFileHandler`
+- `watchedfiles`, `concurrent-log-handler`, `loguru` file sinks, or any third-party file sink
+- Direct file writes for log output: `open("/var/log/...", "a")`, `Path("/var/log/...").write_text(...)`, or any `*.log` file under `/var/log/`, `/tmp/`, the project tree, a mounted volume, or a sidecar path
+- Any in-app log rotation, retention, GC, archival, compression, or cleanup task
+- `docker-compose` `volumes:` that mount a host directory for the app to write logs into (the app does not own a log path)
+
+**Required behaviour:**
+
+- The scaffolded logger (structlog / pino — see § Pre-Scaffolded Logging) writes to stdout. Do not add a second handler, sink, or transport alongside the stdout one.
+- Python: `sys.stdout` is line-buffered for ttys but **block-buffered when piped** — flush after every record (the scaffolded `structlog` config already does this; do not add a `buffering=` or wrapper that batches).
+- Node: `pino` defaults to flush-on-write; do not set `pino.destination()` to a file path, and do not introduce a worker-thread file transport in app code.
+- Container stdout is captured by the Docker daemon and tailed by Promtail — that is the entire delivery path. The app has no business knowing any of that.
+
+❌ **BANNED — in-app file logging:**
+
+```python
+import logging
+from logging.handlers import RotatingFileHandler
+
+logger = logging.getLogger(__name__)
+logger.addHandler(RotatingFileHandler("/var/log/myapp/app.log", maxBytes=10_000_000, backupCount=5))
+logger.info("user_login")  # writes to /var/log — app owns routing/rotation
+```
+
+✅ **CORRECT — stdout only, unbuffered:**
+
+```python
+from myapp.logger import get_logger  # scaffolded structlog — see § Pre-Scaffolded Logging
+logger = get_logger(__name__)
+logger.info("user_login", user_id=user.id)  # JSON to stdout; Promtail picks it up
+```
+
+Local development may tee stdout to a terminal pane; that is a developer-machine concern, not an app concern, and is not wired in production code paths.
 
 ---
 
@@ -341,6 +397,8 @@ Install procedure + currently-registered alias pairs (`browserless`, `gotenberg`
 | Synchronous `console.log` for heavy objects in Node.js | `pino` with worker thread transport |
 | Custom metrics module from scratch | Extend scaffolded `metrics.py` / `metrics.js` |
 | Hardcoded GlitchTip DSN in repo | `GLITCHTIP_DSN` env var, injected by registrar |
+| `logging.FileHandler` / `RotatingFileHandler` / `TimedRotatingFileHandler` in app code | Scaffolded `structlog` / `pino` to stdout — see § Logs (12-Factor Factor XI) |
+| Writing logs to `/var/log/**`, a mounted volume, or a `*.log` file in app code | JSON to stdout only — routing/rotation is the execution environment's job |
 | Per-service watchdog bash scripts | Gatus + Docker `restart: unless-stopped` |
 | `sentry-expo` for source maps | `@sentry/react-native/expo` plugin (sentry-expo deprecated since SDK 50) |
 | `logger.exception()` for unhandled errors | Short event + correlation_id — GlitchTip auto-captures the traceback |
@@ -360,7 +418,7 @@ Install procedure + currently-registered alias pairs (`browserless`, `gotenberg`
 - [ ] Alert rules target RED symptoms only — no infrastructure cause-based paging.
 - [ ] Gatus configured for external synthetic monitoring of all public endpoints.
 - [ ] GlitchTip DSN provisioned and injected via env var (not hardcoded).
-- [ ] (Mobile) Sentry React Native SDK init'd in app entry point; crash-free >= 99.5%.
+- [ ] App emits logs to stdout only — no `FileHandler` / `RotatingFileHandler` / `TimedRotatingFileHandler`, no writes to `/var/log/**`, no in-app rotation/retention (see § Logs).
 - [ ] (WordPress) Gatus monitors site URL; `WP_DEBUG` off in production.
 
 ---

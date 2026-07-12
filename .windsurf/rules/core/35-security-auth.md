@@ -82,7 +82,32 @@ Use ONLY when a project **already runs on Supabase Auth** (a legacy or in-flight
 - **Signature is not validation.** EVERY path MUST also assert: `aud == "authenticated"`, `iss == https://<project-ref>.supabase.co/auth/v1`, and `exp` not passed. Verifying only the signature accepts tokens minted for other audiences.
 - Do NOT call `getUser()` (a network round-trip) on every protected request when asymmetric keys are available — use local `getClaims()`; reserve the round-trip for the HS256 fallback.
 
----
+## Factor VI (Processes) — Sticky Sessions
+
+**CRITICAL: 12-Factor mandate.**
+
+"Sticky sessions are a violation of twelve-factor and should never be used or relied upon."
+
+"Session state belongs in 'a datastore that offers time-expiration, such as Memcached or Redis.'"
+
+=> Mandate: processes are stateless/share-nothing. **STICKY SESSIONS ARE BANNED** (not just file-based sessions). Session state goes to `redis-main` (Redis) with a TTL. Never in-process memory, never on local disk. Any design that assumes "the same user hits the same process" is a violation.
+
+### ✅ Correct
+
+```python
+# Session state in Redis with TTL
+session_data = redis_main.get(f"user_session:{session_id}")
+if not session_data:
+    redis_main.setex(f"user_session:{session_id}", 3600, user_data)
+```
+
+### ❌ Banned
+
+```python
+# Sticky session - process-specific state
+user_cache[user_id] =  # In-process memory - VIOLATION
+session_store[process_id][user_id] =  # Local disk - VIOLATION
+```
 
 ## Token Storage by Client
 
@@ -171,6 +196,47 @@ Note: use internal Docker DNS (`http://<service>:<port>/api/endpoint`) for `fabr
 
 **Blast radius warning:** the shared `SERVICE_INTERNAL_SECRET_KEY` is identical across all services — compromise of any one service exposes the M2M credential for all. Document a rotation procedure, and issue a **per-service token** (not the shared key) for any internet-exposed service or one ingesting untrusted input.
 
+## Factor III (Config) — Environment Variables Only
+
+**CRITICAL: 12-Factor mandate.**
+
+"config is stored 'in environment variables'"
+
+"litmus test: 'whether the codebase could be made open source at any moment, without compromising any credentials'"
+
+"'env vars are granular controls, each fully orthogonal to other env vars' — 12F explicitly REJECTS batching config into named groups like 'development'/ 'production'."
+
+=> Mandate: config via env vars only (`os.getenv("KEY", "default")`); **ZERO secrets/constants in code**. Apply the open-source litmus test to every change. **BANNED**: grouped/named env config sets (e.g. a `config/production.yml` or a `settings.production` group) — env vars are granular and orthogonal, set per deploy. (The pack already covers secret handling — cross-reference existing secret patterns and extend with config orthogonality.)
+
+### ✅ Correct
+
+```python
+# Environment variables only - granular and orthogonal
+import os
+
+database_url = os.getenv("DATABASE_URL", "postgresql://localhost:5432/default")
+jwt_secret_key = os.getenv("JWT_SECRET_KEY")
+redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
+allowed_origins = os.getenv("ALLOWED_ORIGINS", "").split(",")
+
+# Never: settings.production.database_url or config.production.yml
+# Never: hardcoded defaults or secrets in source
+```
+
+### ❌ Banned
+
+```python
+# Grouped/named config sets - VIOLATION
+from app.config.production import database_url  # BANNED
+from settings import production as config       # BANNED
+
+# Secrets in code - VIOLATION  
+JWT_SECRET_KEY = "hardcoded-secret-value"     # BANNED
+DATABASE_PASSWORD = "secret123"               # BANNED
+
+# Cannot open source without compromising credentials - VIOLATION
+```
+
 ---
 
 ## Sensitive Data Protection
@@ -257,18 +323,5 @@ Escalate mission-critical auth mail (reset, receipts) to **Postmark** only on me
 - [ ] Bearer bypass scoped: `shape.bearer_bypass_prefix` narrows the Authelia bypass to the actually-authenticated API prefix — no unauthenticated `/api/*` route left public by a default `^/api/` bypass.
 - [ ] Web login uses HttpOnly + Secure + SameSite=Lax cookie (Pattern A) or Supabase SSR cookie strategy (Pattern B).
 - [ ] Mobile tokens stored in `expo-secure-store` — never AsyncStorage or MMKV.
-- [ ] All Next.js Server Actions and data-fetching Server Components call `verifySession()`.
-- [ ] CORS origins loaded from environment variables — no wildcards with credentials.
-- [ ] CSP nonce injected per-request in Next.js middleware.
-- [ ] FastAPI responses include HSTS, X-Content-Type-Options, X-Frame-Options headers.
-- [ ] Auth endpoints have rate limiting configured.
-- [ ] Internal service calls use `X-Internal-Token` header validation.
-- [ ] Transactional email via Resend + `86-email-templates.md` pipeline — no phantom gateway.
-
----
-
-## Spec Contract — Auth Registrars
-
-Public services with admin UI behind 2FA: set `shape.is_admin_dashboard: true` — the Authelia registrar adds a per-domain `two_factor` rule on `fabrik apply`. API services with bearer auth: set `shape.has_bearer_api: true` — the registrar inserts an Authelia **bypass** rule *before* the `two_factor` catch-all so machine/bearer callers aren't hit with interactive 2FA. Don't add Traefik `authelia-forward` middlewares manually — the scaffolder + registrars emit them.
-
-> **⚠️ Bearer bypass scope — security-critical.** The bypass defaults to `^/api/`, which makes the **entire** `/api/*` surface public (un-2FA'd). If the application authenticates only a **sub-prefix** (e.g. `/api/v1` carries the bearer/internal-token check) while OTHER `/api/*` routes are unauthenticated (legacy / admin / destructive), you **MUST** narrow the bypass with `shape.bearer_bypass_prefix: "^/api/v1"` — otherwise `fabrik apply` exposes those routes to the public internet. **Bypass ONLY the path the app itself authenticates.** Value must start with `^/`; the verifier (`orchestrator/verifier.check_api_bypass`) probes the configured prefix on deploy. When unsure whether a service has un-auth'd `/api/*` routes, ask the app owner before relying on the `^/api/` default.
+- [ ] All Next.js Server Actions and data-fetching
+…[truncated]
