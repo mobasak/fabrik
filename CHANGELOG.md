@@ -19,7 +19,9 @@ notifier itself, so a dead `alertmanager` **and** a silently-204ing Apprise went
 
 Installed to `/usr/local/bin/fabrik-alert-canary.sh` on vps1 and **verified against a live reproduction of the
 outage**: deleted the `alerts` config → canary detected the 204, auto-repaired it, and delivered the
-out-of-band Telegram escalation. (Cron scheduling pending operator approval.)
+out-of-band Telegram escalation. **Scheduled on vps1** (root cron, operator-approved): hourly silent probe
+(`17 * * * *`) + weekly end-to-end delivery heartbeat (`0 9 * * 1`), logging to
+`/var/log/fabrik-alert-canary.log`.
 
 ### Fixed — Apprise `/notify/alerts` silently dropped EVERY alert (the 4-day blind spot) (2026-07-12)
 
