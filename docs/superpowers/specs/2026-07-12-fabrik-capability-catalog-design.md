@@ -1,6 +1,12 @@
 # Design Spec — Fabrik Capability Catalog + Tool-Doc Audit
 
-**Status:** CONVERGED (2026-07-12) — `/fabrik-spec-review` fixed point. Pass 1 (all axes) corrected the
+**Status:** CONVERGED (2026-07-12, re-review r2). **r2 (operator "be 100% sure" + "some tools may be
+broken/retired/have missing capabilities to revise"):** closed a real scope gap — the catalog now carries a
+`status (ok|broken|retired|manual)` + a **`defects[]` ledger** (broken / retired-candidate / doc_drift /
+incomplete / undocumented / dead_doc); the audit mechanically fixes doc_drift/undocumented/dead_doc and
+**surfaces broken/retired/incomplete to the operator** (fix / retire-decision / revise — never auto-removes a
+tool). Retired-detection grounded (DEPRECATED markers already used in-repo). r2 Pass 1 = 5 edits → Pass 2
+md5-no-op (`9ba3734e`). **r1 (below) still holds:** `/fabrik-spec-review` fixed point. Pass 1 (all axes) corrected the
 AGENTS.md characterization (its audience is planner/orchestrator AI agents — Traycer / Kilo / Claude-Code-as-
 orchestrator — not humans; still prose, not a machine-invokable manifest) + the success-criteria arithmetic
 (267 raw, not 207); Pass 2 fixed a heading; Pass 3 re-grounded all axes with **zero edits** (md5 `100da1b5`
@@ -22,7 +28,8 @@ hand-curated). Grounded 2026-07-12.
 Produce and keep-current a **single, machine- and human-readable catalog of every invokable capability in the
 fabrik repo**, each entry verified to actually work, so a cold AI agent reads one file first and knows *what it
 can do and how to invoke it* — plus bring every tool's **documentation into line with reality** (fix stale,
-delete dead) as a side effect of the verification pass.
+delete dead) and **surface the tools that are broken, retired, or incomplete/missing-a-capability** for the
+operator to fix, retire, or revise — all as a by-product of the verification pass.
 
 **Success in one line:** a fresh agent, given only `docs/CAPABILITIES.md` + `capabilities.json`, can list and
 correctly invoke any fabrik tool; every listed entry's `--help`/import/`--check` actually returns 0; broken
@@ -60,8 +67,10 @@ orchestrator agents: `AGENTS.md` says *how to work here*, `capabilities.json` sa
 
 1. **`capabilities.json` (machine-readable, the invokable layer).** One record per capability:
    `{ name, kind (cli|driver|registrar|script|lib-module|scaffold|rules-pack), summary, invoke (the exact
-   command / import), status (ok|broken|manual), doc_link, verified_at }`. This is the layer AGENTS.md/INDEX.md
-   don't provide — a structured manifest an agent parses to *discover and call* tools.
+   command / import), status (ok|broken|retired|manual), defects[] (see below), doc_link, verified_at }`. This
+   is the layer AGENTS.md/INDEX.md don't provide — a structured manifest an agent parses to *discover and call*
+   tools. **Only `status:"ok"` (and documented) tools are offered to a cold agent as usable;** everything else
+   lands in the defect ledger for the operator to act on (§Audit).
 2. **`docs/CAPABILITIES.md` (human/LLM-readable) — follows the llms.txt convention** (see External deps): H1 +
    a blockquote summary + one H2 section per `kind`, each a markdown link-list `[name](doc_link): summary`.
    Generated from the same records so the two never drift.
@@ -69,10 +78,23 @@ orchestrator agents: `AGENTS.md` says *how to work here*, `capabilities.json` sa
    probe — CLI verb → `fabrik <verb> --help` exit 0; lib module → `import`; script → `--help`/`--check` or a
    header parse; scaffold → dir + required files present; rules pack → file parses. A probe that errors ⇒
    `status:"broken"`, listed as a defect, **excluded from the "usable" set** an agent is offered.
-4. **Doc-audit as a by-product (goal #2).** The same pass reconciles each entry's existing doc to reality —
-   **extending the existing** `scripts/doc_reconcile.py` / `docs_updater.py` / `check_docs.py` (not a new
-   engine): a capability whose doc is missing/stale is flagged; the reconcile loop fixes or the entry links to
-   the authoritative doc. Dead docs (a documented tool that no longer exists) are deleted.
+4. **Doc-audit + defect ledger as a by-product (goal #2 + "tools may be broken/retired/incomplete").** The
+   same pass reconciles each entry's doc to reality **extending the existing** `scripts/doc_reconcile.py` /
+   `docs_updater.py` / `check_docs.py` (not a new engine) AND emits a **`defects[]` per entry + a rolled-up
+   defect ledger** the operator acts on. Each `defects[]` item is one of:
+   - **`broken`** — the liveness probe errors → excluded from the usable set; fix.
+   - **`retired`** — the tool exists but is deprecated/superseded (detected: a `# DEPRECATED`/`RETIRED` marker,
+     a doc that says so, or zero real callers via grep) → surfaced as a **retire-candidate for operator
+     decision** (remove/archive — never auto-deleted, per the shared-tree + operator-authority rules).
+   - **`doc_drift`** — the doc claims a capability the tool doesn't have, or the tool has a capability the doc
+     omits (compared: the doc's asserted flags/subcommands vs the code's real ones) → reconcile.
+   - **`incomplete`** — works but is missing an expected capability (e.g. a driver without the standard
+     healthcheck, a CLI verb missing `--help`/`--json`) → **surfaced for revision**, not offered as complete.
+   - **`undocumented`** — no `doc_link` resolves → the reconcile loop drafts a stub or links the authority.
+   - **`dead_doc`** — a documented tool that no longer exists → the doc is deleted.
+   The reconcile loop fixes what is mechanically fixable (doc_drift, undocumented, dead_doc); `broken` /
+   `retired` / `incomplete` are **surfaced to the operator** (they need a code fix or a retire/revise decision),
+   not silently resolved.
 5. **Regenerated by the existing daily pipeline** (`scripts/wsl_startup_hook.sh` +
    `scripts/kilo-benchmarks/daily_refresh.sh`) so the catalog never rots — it's a build artifact, re-derived,
    not a document someone maintains by hand.
@@ -151,9 +173,11 @@ Tightly coupled (the generator's verify pass *is* the doc-audit's discovery), so
 - **C1 — Catalog generator + manifest.** `generate_capability_index.py` enumerates all 7 surfaces, runs the
   liveness probe per entry, emits `capabilities.json` + `docs/CAPABILITIES.md` (llms.txt-style) + optional
   `/llms.txt`; wire into the daily pipeline. *(Ships standalone value: the catalog exists + self-verifies.)*
-- **C2 — Doc audit/reconcile.** Feed C1's `status:"broken"` + stale-doc set into the extended
-  `doc_reconcile.py`/`docs_updater.py` loop; fix or delete; re-run until the catalog is all-`ok`/documented.
-  *(Depends on C1's output.)*
+- **C2 — Doc audit + defect ledger.** Feed C1's `defects[]` (broken / retired / doc_drift / incomplete /
+  undocumented / dead_doc) into the extended `doc_reconcile.py`/`docs_updater.py` loop: mechanically fix
+  doc_drift/undocumented/dead_doc; roll `broken`/`retired`/`incomplete` into an operator-facing **defect
+  report** (fix / retire-decision / revise) — never auto-remove a tool. Re-run until every entry is
+  `ok`+documented or sits in the ledger with an owner. *(Depends on C1's output.)*
 
 Recommended: build **C1 first** (the catalog is the higher-value, standalone deliverable), then C2.
 
@@ -166,8 +190,11 @@ Recommended: build **C1 first** (the catalog is the higher-value, standalone del
   raw, so **≥ ~250** after de-duping the fabrik-lib capability-matrix rows); every `status:"ok"` entry's `invoke` returns 0 on `--help`/import; a deliberately-broken entry
   re-scans to `status:"broken"` and is excluded from the usable set; `docs/CAPABILITIES.md` parses as valid
   llms.txt (H1 + blockquote + H2 link-lists).
-- **C2:** every catalog entry has a live `doc_link` OR is flagged; `python scripts/enforcement/check_docs.py`
-  green; no documented-but-absent tool remains (dead-doc count 0).
+- **C2:** every catalog entry has a live `doc_link` OR a `defects[]` entry; `python scripts/enforcement/check_docs.py`
+  green; no documented-but-absent tool remains (dead-doc count 0); the defect ledger enumerates every
+  `broken`/`retired`/`incomplete` tool with its recommended action (fix / retire-decision / revise) — a seeded
+  deprecated tool appears as `retired` and is NOT auto-removed; a seeded doc-vs-code capability mismatch appears
+  as `doc_drift` and is reconciled.
 - **Freshness:** the daily pipeline regenerates the catalog; the live-state block carries a `docker ps`
   timestamp ≤24h old.
 
