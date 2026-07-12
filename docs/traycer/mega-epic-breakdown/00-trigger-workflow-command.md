@@ -42,7 +42,7 @@ Mode is **owner-declared at the start** (Step 0). Do not auto-detect from filesy
 
 **Fabrik lifecycle (mental model).** Every project passes through 4 stages (full detail in `docs/operations/fabrik-lifecycle.md`):
 
-1. **Intent & Scaffolding (WSL)** — `fabrik scaffold` → AI guardrails + spec `shape:` block.
+1. **Intent & Scaffolding (WSL)** — `fabrik preplan` → `fabrik scaffold` → AI guardrails + spec `shape:` block. The scaffold is a Context Injection.
 2. **Agentic Implementation (WSL)** — tickets dispatched to agents (Claude Code, Windsurf Cascade, Kilo CLI).
 3. **Proper Registration (VPS)** — `fabrik apply` fires **10** registrars. **Only 7 are flag-driven** — postgres (`needs_database`), redis (`needs_cache`), gatus (`is_public`+domain), backrest (`has_persistent_data`), authelia (`is_admin_dashboard`+domain), meilisearch (`has_search_feature`), prometheus (`exposes_metrics`+domain). The other 3 are NOT flag-driven: **grafana** fires *always*, **glitchtip** fires on `shape.kind`, and **`watchdog`** fires from the spec's `watchdog:` block and is **ON by default** (opt-OUT: disable with `watchdog: { enabled: false }`).
 4. **Verification & Testing** — `fabrik verify`, drift detection (`fabrik audit-registrars`), alerting.

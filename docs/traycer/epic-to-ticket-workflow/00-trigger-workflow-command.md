@@ -72,6 +72,7 @@ These are enforced at planning time. Violations block the workflow.
 - **Email two-stream** — transactional and marketing email MUST be on separate streams/subdomains. Rule pack: `.windsurf/rules/core/86-email-templates.md`.
 - **Shape contract** — `specs/services/<id>.yaml` declares which registrars fire. Code MUST match shape.
 - **Observability** — every service exposes `/health` for Gatus and `/metrics` for Prometheus.
+- **Fleet topology (multi-host)** — the fleet is **3 permanent hosts**: vps1 (LA, hub) + vps2 (Coventry UK, spoke) + vps3 (Coventry UK, spoke), on a WireGuard mesh (`10.99.0.0/24`). Shared infra (postgres-main, redis-main, glitchtip-web, authelia, loki, meilisearch) is **hub-only**; spokes reach it over the mesh at `10.99.0.1:<port>`. Every spec declares **`target_vps:`** (regex `^vps[1-9][0-9]?$`, default `vps1`). ⚠️ Stated here because a **standalone single-epic project enters at this file and never sees the mega workflow** — there is no epic-level overlay constraint for fleet topology (`30-ops.md` § Multi-host targeting).
 
 ## **Entry Points**
 
