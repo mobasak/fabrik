@@ -15,8 +15,8 @@ Caught by the `/fabrik-docs-review` authoritative pass.
 
 ### Changed — `/fabrik-docs-review docs/infrastructure` reconciled to live fleet (2026-07-12)
 
-Converged 18 docs against the live 3-host fleet over 7 passes (**48 fixes**; Pass 7 = 0 discrepancies / 0 edits,
-md5-stable). Substantive corrections:
+Converged 18 docs against the live 3-host fleet over 7 passes (**64 edits** — 56 substantive corrections +
+8 `Last Updated` bumps; Pass 7 = 0 discrepancies / 0 edits, md5-stable). Substantive corrections:
 
 - **Alertmanager does NOT route via Apprise** — it sends to Telegram with **native `telegram_configs`** + a
   webhook to `aro-wake`. `configs/alertmanager/alertmanager.yml` has no Apprise receiver at all. This was wrong
