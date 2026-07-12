@@ -67,7 +67,7 @@ This command produces the compact epic proposal + Infrastructure Decisions in co
   - `mobile-app` → read `domain-modules/mobile-app.md`
   - `desktop-app` → read `domain-modules/desktop-app.md`
   - `chrome-extension` → read `domain-modules/chrome-ext.md`
-  - `wordpress` → read `domain-modules/wordpress.md` ONLY for projects under `/opt/wpf` — per `00-trigger-workflow-command` L83, WordPress is out-of-scope for the mega-epic-breakdown workflow; if a WordPress component reached 02, route it back to 00 for proper handling
+  - `wordpress` → read `domain-modules/wordpress.md` ONLY for projects under `/opt/wpf` — per `00-trigger-workflow-command` **§ Shape model**, WordPress is out-of-scope for the mega-epic-breakdown workflow; if a WordPress component reached 02, route it back to 00 for proper handling
   - If Vision Summary Technology Decisions includes **RAG pipeline** (any level) → read `domain-modules/rag.md`
   - Multi-scaffold vision (e.g., saas + mobile-app + chrome-extension) → read ALL matching modules. They inform epic patterns (mobile always has a "store submission" epic, SaaS always has "billing + tenant" epic, chrome-ext always has "backend API first, extension second" pattern, etc.). RAG module is additive — read it alongside scaffold modules when RAG is in scope.
 
@@ -178,17 +178,19 @@ Before drafting Infrastructure Decisions, audit the candidate epic set against t
 | 1 | Foundation | Always | scaffold sync, AI guardrails, `.windsurf/rules/` sync (via `fabrik fix`), `.env.example`, `project.yaml`, spec `shape:` block, `docs/RESILIENCE.md` |
 | 2 | Features | Always (one or more per Vision § Full Feature Inventory) | Vision Summary |
 | 3 | Persistence | `shape.needs_database` | `core/25-data-postgres.md` |
-| 4 | Workers | If pipeline/async work | `core/75-workers-jobs.md` + `pause-state/` |
-| 5 | External integrations | Any upstream API use | `core/58-resilience.md` + `async-http-client/circuit_breaker.py` + `upstream-quota/` |
+| 4 | Workers | If pipeline/async work | `core/75-workers-jobs.md` (+ vendor the queue / pause-state primitives — resolve the current module from the fabrik-lib index) |
+| 5 | External integrations | Any upstream API use | `core/58-resilience.md` (+ vendor the circuit-breaker and upstream rate-limit/quota primitives — resolve the current modules from the fabrik-lib index) |
 | 6 | Self-healing | `shape.kind ∈ {service, worker}` (wordpress is out-of-scope for this workflow per `00-trigger-workflow-command` Step N3j — `Kind.WORDPRESS` exists in `spec_loader.py` for the standalone `/opt/wpf` project, never reaches 02 here) | `core/self-healing.md` |
 | 7 | Watchdog wiring | `watchdog.enabled` (default per `kind`) | `core/60-watchdog.md` |
 | 8 | Observability | Always | `core/55-observability.md` |
-| 9 | Cost guardrails | Any LLM/paid-API use | `core/cost-budget.md` + `cost-budget/` |
+| 9 | Cost guardrails | Any LLM/paid-API use | `core/cost-budget.md` (+ vendor the cost-ledger module — resolve from the fabrik-lib index) |
 | 10 | Deployment | Always | `core/30-ops.md` |
 | 11 | Documentation | Always | `core/40-documentation.md` |
 | 12 | Security | Always | `core/35-security-auth.md` + `saas/87-abuse-detection.md` (if signup) + `core/app-audit-log.md` |
 | 13 | Testing | Always | `core/45-testing-strategy.md` |
 | 14 | Retrofit | EXISTING mode only — one per `fix-now` Compliance Report row | Compliance Report from `00-trigger-workflow-command` Step E5 (consumed in 2b above) |
+
+Rule-pack paths above are cited directly. **fabrik-lib modules are resolved from the index** (`/opt/fabrik-lib/README.md` § Modules) — never from a name written here.
 
 **Output produced by 2h into the proposal:**
 
@@ -197,7 +199,7 @@ Before drafting Infrastructure Decisions, audit the candidate epic set against t
 3. For each "ABSORBED in Step 3 § X" verdict: a stub-line in the Infrastructure Decisions document referencing the matching sub-section drafted in Step 3 (cross-link, not duplicate content).
 4. For each "N/A" verdict: a one-line note kept inside the `### Universal Coverage Check` block (audit trail; does not pollute the epic set).
 
-**Overlay-merge rule — apply AFTER the 14 verdicts (handles scaffold-type overlays loaded per Input Contract lines 62–68):**
+**Overlay-merge rule — apply AFTER the 14 verdicts (handles scaffold-type overlays loaded per § Input Contract → **Domain modules**):**
 
 For each loaded scaffold overlay, walk its Mandatory Epic Coverage rows (e.g., `domain-modules/saas.md § Mandatory Epic Coverage`). For each overlay row:
 
@@ -226,7 +228,7 @@ Do NOT re-decide in epic-to-ticket-workflow. Do NOT copy into epic files.]
 
 ## Auth Strategy
 - [carried from Vision Summary Technology Decisions — not re-derived]
-- **Universal category #12 — Security.** Sensitive ops (auth events, billing mutations, admin actions, GDPR data-rights flows, watchdog Tier B/C actions) MUST write to the hash-chained audit log per `core/app-audit-log.md` + `app-audit-log/` vendor module. The Universal Coverage Check in 2h asserts both auth strategy and audit-log coverage; missing audit-log integration fails acceptance A1.
+- **Universal category #12 — Security.** Sensitive ops (auth events, billing mutations, admin actions, GDPR data-rights flows, watchdog Tier B/C actions) MUST write to the hash-chained audit log per `core/app-audit-log.md` (vendor the audit-log module — resolve it from the fabrik-lib index). The Universal Coverage Check in 2h asserts both auth strategy and audit-log coverage; missing audit-log integration fails acceptance A1.
 
 ## Email Strategy
 - [Transactional: Resend (default). Marketing: Resend Broadcasts → Listmonk+SES at scale.]
@@ -240,11 +242,11 @@ Do NOT re-decide in epic-to-ticket-workflow. Do NOT copy into epic files.]
 - [ONE model for the entire pipeline — both ingest and query. See `core/65-rag-search.md` § Embedding Models for current roster.]
 
 ## Self-Healing Ladder (if `shape.kind` ∈ `{service, worker}`)
-- [Universal category #6 — Self-healing. Each epic's `docs/RESILIENCE.md` carries one row per failure class drawn from `core/self-healing.md § The escalation ladder` (OOM, queue backlog, upstream rate-limit, upstream timeout, signup flood, DB connection-pool exhaustion, sustained 5xx burst, stuck row locks). Operators implement the ladder via the primitives already shipped in fabrik-lib (`pause-state/`, `async-http-client/circuit_breaker.py`, `abuse-prevention/`) plus Watchdog Tier A/B actions — this command does NOT design new primitives, only asserts coverage in 2h.]
-- [N/A for `static-site` / `docusaurus` / `chrome-extension` / `mobile-app` (packaged artefacts; no in-cluster failure classes to recover from).]
+- [Universal category #6 — Self-healing. Each epic's `docs/RESILIENCE.md` carries one row per failure class drawn from `core/self-healing.md § The escalation ladder` (OOM, queue backlog, upstream rate-limit, upstream timeout, signup flood, DB connection-pool exhaustion, sustained 5xx burst, stuck row locks). Operators implement the ladder from the primitives already shipped in fabrik-lib (**resolve the current modules from the table in `/opt/fabrik-lib/README.md` — never from a hard-coded name**) plus Watchdog Tier A/B actions — this command does NOT design new primitives, only asserts coverage in 2h.]
+- [N/A only for `kind: static` — i.e. `static-site` and `docusaurus` (no app process to recover). ⚠️ `chrome-extension` / `mobile-app` / `desktop-app` are **`kind: service`** per `templates/<type>/defaults.yaml`: their companion backend DOES deploy and DOES carry the self-healing ladder — only the client artefact (CRX / store build / installer) ships separately.]
 
-## Watchdog Wiring (default-on per `WatchdogConfig.enabled`; opt-out per spec)
-- [Universal category #7 — Watchdog wiring. The `watchdog` registrar (resolved via `resolve_applicability()` and dispatched via `_provision_watchdog()` in `src/fabrik/orchestrator/infrastructure.py`) fires at `fabrik apply` time when `spec.watchdog.enabled` is `True` (default per `core/60-watchdog.md` when-to-enable matrix: on for `kind ∈ {service, worker}` in this workflow's scope (the upstream matrix also lists `wordpress`, but wordpress is out-of-scope here per `00-trigger-workflow-command` Step N3j); off for `kind: static` (covers static-site, docusaurus, chrome-extension, mobile-app, desktop-app)). The driver at `src/fabrik/drivers/watchdog.py` builds `fabrik/watchdog:<project_id>` from `/opt/fabrik-lib/watchdog/sidecar/`, writes `compose.watchdog.yaml` overlay alongside the spec's compose, and brings the sidecar up. Operators emit incidents from the host app via the vendored `watchdog/emitter/` module — never call the sidecar directly. Per-spec caps (`daily_budget_usd`, `per_incident_budget_usd`, `daily_invocations_cap`, `deadman_timeout_seconds`, `auto_tier_b`, `propose_fix_prs`) belong in the spec's `watchdog:` block, not in epic tickets.]
+## Watchdog Wiring (default derived from `shape.kind`; opt-out per spec)
+- [Universal category #7 — Watchdog wiring. The `watchdog` registrar (resolved via `resolve_applicability()` and dispatched via `_provision_watchdog()` in `src/fabrik/orchestrator/infrastructure.py`) fires at `fabrik apply` time when `spec.watchdog.enabled` resolves `True`. **The default is derived from `shape.kind`, NOT from the Pydantic field** — `WatchdogConfig.enabled` itself defaults to `False` (`src/fabrik/spec_loader.py`), and the kind-based default is applied outside that model (per its own docstring): **on for `kind ∈ {service, worker}`, off for `kind: static`**. ⚠️ `kind: static` is ONLY `static-site` + `docusaurus` — `chrome-extension` / `mobile-app` / `desktop-app` are `kind: service` per `templates/<type>/defaults.yaml`, so their companion backend DOES get a watchdog. (`wordpress` also appears in the upstream matrix but is out-of-scope here per `00-trigger-workflow-command` Step N3j.) The driver at `src/fabrik/drivers/watchdog.py` builds the sidecar image from the fabrik-lib watchdog module and writes a `compose.watchdog.yaml` overlay alongside the spec's compose. Operators emit incidents from the host app via the vendored emitter — never call the sidecar directly; **resolve the module path from the table in `/opt/fabrik-lib/README.md`, never from a hard-coded name**. Per-spec caps (`daily_budget_usd`, `per_incident_budget_usd`, `daily_invocations_cap`, `deadman_timeout_seconds`, `auto_tier_b`, `propose_fix_prs`) belong in the spec's `watchdog:` block, not in epic tickets.]
 - [Opt-out: `watchdog: { enabled: false }` in the spec. Honored by both resolver and dispatch.]
 
 ## Observability Defaults (always — per-scaffold matrix in `core/55-observability.md`)
@@ -252,7 +254,7 @@ Do NOT re-decide in epic-to-ticket-workflow. Do NOT copy into epic files.]
 - [Per-epic tickets do NOT re-derive the matrix; they pick the row matching the epic's scaffold and inherit it.]
 
 ## Cost Guardrails (any LLM / paid-API use)
-- [Universal category #9 — Cost guardrails. Any epic that calls a paid LLM API or other metered third-party service MUST vendor `cost-budget/` from `/opt/fabrik-lib/cost-budget/`; writes flow through `record_cost(pg_conn, wal_path, event)` to the shared `cost_ledger` table on `postgres-main:fabrik_analytics` (provisioned once by T-P1; SQLite WAL fail-open). Per-spec caps live in the spec's `watchdog:` block (`daily_budget_usd` default 5.0, `per_incident_budget_usd` default 0.25, `daily_invocations_cap` default 200) — `cost_budget.check_caps()` + `drop_to_rule_only_mode()` enforce; over-cap routes the incident to rule-only escalation per `core/cost-budget.md`. The watchdog sidecar vendors `cost_budget.py` directly — host-app epics that call paid APIs vendor it the same way (never `import` from `/opt/fabrik-lib/` at runtime).]
+- [Universal category #9 — Cost guardrails. Any epic that calls a paid LLM API or other metered third-party service MUST **vendor the cost-ledger module — resolve it from the table in `/opt/fabrik-lib/README.md`** (copy, never `import` from `/opt/fabrik-lib/` at runtime). Writes flow to the shared `cost_ledger` table on `postgres-main`; per-spec caps live in the spec's `watchdog:` block (`daily_budget_usd`, `per_incident_budget_usd`, `daily_invocations_cap`) and over-cap routes the incident to rule-only escalation per `core/cost-budget.md`. **Read the module's own README for the current API + cap defaults — do not copy signatures or default values into an epic ticket, they drift.** The watchdog sidecar vendors the same module; host-app epics vendor it the same way.]
 - [N/A when no paid-API call exists in the epic. Free-tier APIs (e.g., Cloudflare Free, GitHub-hosted public APIs without quota) do NOT trigger this category.]
 
 ## Backing Services
@@ -289,12 +291,12 @@ Epic [N]: [Name]
   Delivers: [what the owner can see/use after this epic ships]
   Rule Packs: [IDs from .windsurf/rules/]
   HAS_USER_GUIDE: [true/false]
-  Shape: [flags from spec shape block: kind, needs_database, needs_cache, is_public, is_admin_dashboard, has_persistent_data, has_search_feature, exposes_metrics, watchdog.enabled]
+  Shape: [`kind` + the 8 canonical flags from the spec shape block: is_public, is_admin_dashboard, has_bearer_api, has_persistent_data, needs_database, has_search_feature, needs_cache, exposes_metrics — plus watchdog.enabled]
   Concurrency: [pause-state | adaptive-pool | none — derived from category 4 (Workers) coverage in 2h]
   i18n: [en+tr | en-only | N/A — **feature-trigger per `00-trigger-workflow-command` § Rule-area applicability matrix**; N/A only when no HTML/native UI surface exists (pure JSON API, file-worker queue consumer). Inherited from saas overlay where applicable, but the underlying trigger is the GUI surface, NOT the scaffold type.]
   Responsive: [375px–2560px mandatory — any scaffold with a web GUI surface incl. python-api/node-api/file-api when `shape.is_admin_dashboard: true` OR `shape.is_public: true` with HTML output (feature-trigger, NOT scaffold-typed). Carve-outs: chrome-extension popup (fixed 400px), mobile-app (native UI), desktop-app (electron window sizing) — all per `00-trigger-workflow-command` § Architectural Mandates. N/A only when no HTML/native UI surface exists.]
   Dark+Light: [mandatory — same feature-trigger as Responsive above / N/A — same exclusion (no HTML/native UI surface)]
-  Registrars: [which of the 9 fire for this epic's deploy unit(s) — derived from shape block + watchdog.enabled]
+  Registrars: [which of the 10 fire for this epic's deploy unit(s) — the 9 shape-driven (postgres / redis / gatus / backrest / glitchtip / grafana / authelia / meilisearch / prometheus) + `watchdog` — derived from the shape block + `watchdog.enabled`]
   Universal categories: [comma-separated numbers from 1–14 this epic owns, per 2h verdict block]
   Abuse Detection: [required (SaaS w/ free-tier signup) / N/A — not a free-tier signup surface]
   Email: [transactional / marketing / two-stream / none / N/A]
