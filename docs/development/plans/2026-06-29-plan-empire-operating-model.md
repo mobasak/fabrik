@@ -1,119 +1,175 @@
-# Plan — Fabrik Empire Operating Model
+# Plan — Fabrik Operating Model (one-operator build factory)
 
-**Owner:** hub AI — this session's stream (MINE; a 2026-07-08 plan inventory misattributed it as a sibling's — corrected). CONVERGED roadmap, NOT yet executed (the First-14-days build is almost entirely `(to-build)`).
+**Owner:** hub AI — this session's stream.
 
-**Status:** CONVERGED — fixed point (2026-06-30). The original convergence ran five independent adversarial passes (findings **5 → 4 → 9 → 1 → 0**, the fifth empty with 22 enumerated checks); the two later operator-directed revisions (operator-decided retirement; residual resolutions) were **each** re-grounded to their own NO-NEW-FINDINGS pass — full pass log in `## Self-audit`. Every existing-asset claim is grounded against code/path:line, every future deliverable verified absent, every external dependency grounded (incl. live Paddle fetch) or flagged with a resolution step, every term defined, every gate a concrete command. **Honest caveat:** this is a fixed point *at this instant* — the plan asserts live facts (counts, what's built) that parallel agents drift (the 4th pass's only finding was `ai-consult` being built mid-process); re-ground if the tree moves materially. Evidence in `## Evidence`; residual *resolutions* in `## Residuals`; pass log in `## Self-audit`. **Revision (2026-06-30, operator direction):** added the §What-this-builds intro and reconciled retirement to **operator-decided (no auto-kill)** consistently across Goal / Doctrine 3 / Lifecycle (`killed`→`retired`) / Day 12 — a framing + semantics change introducing **no new `path:line` claims**; the grounded factual layer (counts/citations/absence) is unchanged. **Residuals resolved (2026-06-30, operator direction):** all prior residuals grounded-by-fetch or decided — Paddle subscription/adjustment→metric mapping + refund-VAT (live fetch), iyzico V3 signature (live fetch), beacon transport (`30-ops.md:206`), postgres-main capacity (modeled), Shamir tool + `brake.yaml` defaults (decided), Adjustments API added to `core/85-payments-billing.md`. **#3 (Paddle/iyzico) is DEFERRED per operator (2026-07-01)** — it gates only the monetization slice (Day 6+ Paddle checkout + the paid-conversion metric); the payment-free core (Days 1–5 floor/purge/brake + agent-enablement, and `fabrik launch` to the waitlist path) executes now. **Execution + drift pass (2026-07-01):** added the binding **§Execution protocol** (mandatory re-ground + adversarial-code-review subagents, parallel fan-out, plan-exit convergence check, Appendix A prompt) so any AI executes each step with identical rigor; re-grounded counts (modules 44→46, scaffold dirs 18→19) — see `## Self-audit`. **Re-grounding pass (2026-07-12, `/fabrik-plan-review`):** superseded by the converged design spec `docs/superpowers/specs/2026-07-12-empire-operating-model-design.md`, which re-grounds this subject and **decomposes it into 6 dependency-ordered sub-specs (S1–S6)** — build via that spec, not this plan directly. Material correction the re-ground caught: **payments is now VENDOR, not build** — `/opt/fabrik-lib/payments/` exists and supersedes the plan's hand-rolled Paddle/iyzico + its `webhook_events` build (it ships `webhook_events` + a Paddle+iyzico provider interface + raw-byte HMAC `event_id` idempotency + an entitlement state machine); `fastapi-user-auth/`, `webhooks/`, `cookie-consent/`, `abuse-prevention/`, `gdpr-data-rights/` are likewise now vendorable (all verified present 2026-07-12). Count drift refreshed below (46→55 modules / 48→71 dirs / 19→20 scaffold / 11→12 workflows; registrars 10 + drivers 27 stable; every to-build/exists anchor re-confirmed). Paddle/iyzico facts re-verified live 2026-07-12 (still current). **This plan is retained as the historical roadmap; the spec is the source of truth for the build.**
+**Status:** CONVERGED (2026-06-30) — re-scoped 2026-07-12. **⚠️ 2026-07-12 operator-directed re-scope:** the
+operator confirmed that **every build in this repo has real, already-waiting customers** — this is *not* a
+speculative "launch many bets, most fail, select winners by who pays" factory. So the entire
+**monetization + selection/graduate/retire-by-revenue premise has been REMOVED**: §Payments, the brake's
+selection-validity primitive, the whole traction/lifecycle (`fabrik_projects` + `untested`/`kill_candidate`/
+`graduated` states + the retire-refund engine), "monetize-by-default"/"cattle-not-pets" doctrine, and the
+Day-12 retirement engine are all gone. **What remains** — and what this plan now is — is the operator-attention
+machinery that stands on its own for a builder serving known customers: the **do-not-die safety floor**, the
+**`fabrik launch` build→deploy automation**, **agent-enablement** (self-verifying capability index), and the
+**operator-absent survival layer**. The pre-2026-07-12 convergence history (five adversarial passes + the
+payment-facts fetches) is summarized, not reproduced, in `## Self-audit` — the payment-specific passes are
+now moot. Counts re-grounded 2026-07-12 (55 modules / 71 dirs / 20 scaffold / 12 workflows; registrars 10 +
+drivers 27 stable). **NOTE:** the design spec `docs/superpowers/specs/2026-07-12-empire-operating-model-design.md`
+still carries the old monetization premise and needs the same re-scope (flagged to the operator).
 
 ## What this builds
 
-When implemented, you have a **one-operator project factory**: you + AI launch monetizable projects at near-zero *per-project* attention, concentrate on the ones that earn, and let the portfolio compound (target $3–10M ARR in 2–5 years; $1B is the lottery upside, not the plan). The binding constraint is your attention — not code or servers — so the KPI is that launching project #50 costs no more of your time than #5.
+A **one-operator build factory**: you + AI stand up new projects — each with **real customers already waiting**
+— and keep them running at near-zero *per-project* attention. The binding constraint is your attention, not
+code or servers, so the KPI is that standing up project #50 costs no more of your time than #5.
 
 Concretely, you get:
-- **`fabrik launch <idea>`** — one command: idea → live monetizable URL (auth · Paddle checkout-or-waitlist · landing · pricing · analytics · watchdog · registered) in ≤2h, ≤30 min of your time.
-- **A brake** that makes running fast safe: selection validity (a verified Paddle payment is the only "it works" signal), an attention budget that *blocks* new launches when you're over it, and radical simplification (one canonical path).
-- **A lifecycle** where winners (≥$100 MRR or ≥5 conversions) graduate to the heavy infra, and non-earners are surfaced *with their data* and **retired on your decision — nothing is killed automatically**.
-- **Agent enablement** — any AI entering Fabrik reads a generated, self-verifying capability index and acts without human onboarding (the substrate that keeps per-project attention near zero).
-- **A survive-absence layer** — spend kill-switch, real restore drills, and an operator-absent state machine that narrows autonomy safely if you go dark, never deleting data or widening its own authority.
+- **`fabrik launch <idea|spec>`** — one command: spec → repo (the one canonical scaffold) → deploy → DNS → DB →
+  (auth if the product needs it) → watchdog → registered, in ≤2h, ≤30 min of your time.
+- **A brake** that makes running fast safe: an **attention budget** that *blocks* new launches when you're over
+  it, and **radical simplification** (one canonical scaffold / driver / registrar / DB path).
+- **Agent enablement** — any AI entering Fabrik reads a generated, self-verifying capability index and acts
+  without human onboarding (the substrate that keeps per-project attention near zero).
+- **A survive-absence layer** — spend kill-switch, real restore drills, and an operator-absent state machine
+  that narrows autonomy safely if you go dark — **keeping customer-facing services up**, never deleting data
+  or widening its own authority.
 
-It is **not** a SaaS/PaaS to sell (monetizing Fabrik itself competes for the attention this protects), and it does **not** solve distribution — `fabrik launch` makes ideas cheap to *test*, not *discovered* (its own separate problem).
+It is **not** a SaaS/PaaS to sell (monetizing Fabrik itself competes for the attention this protects).
 
-**Goal.** A one-operator, AI-managed **project factory**: ship monetizable projects at near-zero marginal operator-attention; retire non-earners on operator decision; concentrate on winners; the portfolio compounds (target $3–10M ARR in 2–5 years; $1B is the lottery upside). Second, co-equal goal: any AI agent entering Fabrik **knows** its capabilities/infra/rules and can **act** on them with zero human onboarding — the substrate that keeps per-project attention near zero.
+**Goal.** A one-operator, AI-managed **build factory**: stand up customer-ready projects at near-zero marginal
+operator-attention and keep them healthy. Co-equal second goal: any AI agent entering Fabrik **knows** its
+capabilities/infra/rules and can **act** on them with zero human onboarding — the substrate that keeps
+per-project attention near zero.
 
-**KPI.** Per-project marginal operator-attention → 0 (launching project #50 costs no more human time than #5).
+**KPI.** Per-project marginal operator-attention → 0 (standing up project #50 costs no more human time than #5).
 
-**Build status legend:** *(exists)* = grounded in current code (see Evidence); *(to-build)* = verified absent today, this plan creates it; *(extends X)* = new behavior on an existing asset. **Validation gates:** every step lists the exact command + expected result. For `(to-build)` steps the gate *is the acceptance test for that step* — it runs once that step's code lands; the command + expected result is the build contract, not a claim that the command exists today (the §Keystone/§brake CLI verbs are all `(to-build)`).
+**Build status legend:** *(exists)* = grounded in current code (see Evidence); *(to-build)* = verified absent
+today, this plan creates it; *(extends X)* = new behavior on an existing asset. Every step lists the exact
+command + expected result; for `(to-build)` steps the gate is that step's acceptance test (it runs once the
+step's code lands — the §Keystone/§brake CLI verbs are all `(to-build)`).
 
-## Keystone — `fabrik launch <idea>` *(to-build; verified absent — no `launch` command in `src/fabrik/cli.py`)*
+## Keystone — `fabrik launch <idea|spec>` *(to-build; verified absent — no `launch` command in `src/fabrik/cli.py`)*
 
-One command: idea → repo (the one canonical monetizable scaffold) → deploy *(extends `fabrik apply`)* → DNS → DB → commercial-kit (auth *(vendor `fastapi-user-auth/`)* · **Paddle checkout-or-waitlist** *(vendor `/opt/fabrik-lib/payments/`)* · landing · `/pricing` · `/checkout` · legal stubs) → analytics funnel *(build minimal + vendor `cookie-consent/`)* → watchdog sidecar *(exists: `src/fabrik/drivers/watchdog.py`)* → control-plane registration → traction beacon *(vendor `webhooks/` or direct postgres-main INSERT)*. Target: ≤30 min operator time, ≤5 manual steps, ≤2h idea→live monetizable URL. It is integration of existing assets (20 scaffold/template dirs, 55 lib modules per the fabrik-lib README module table — 71 dirs incl. non-module dirs; 27 drivers, 10 registrars — live counts 2026-07-12; the generated index §Agent-enablement is canonical), **now more vendor-compose than the 2026-06-30 view thanks to the new `payments/`/`fastapi-user-auth/`/`webhooks/` modules**, not invention.
-**Validation gate:** `fabrik launch examples/smoke.yaml && curl -fsS https://<slug>.<domain>/health` → 200 within 2h, operator-minutes logged ≤30.
+One command: spec → repo (the one canonical scaffold) → deploy *(extends `fabrik apply`)* → DNS → DB →
+**auth if the product needs it** *(vendor `fastapi-user-auth/`)* → watchdog sidecar *(exists:
+`src/fabrik/drivers/watchdog.py`)* → control-plane registration. Target: ≤30 min operator time, ≤5 manual
+steps, ≤2h spec→live URL. It is **integration of existing assets** (20 scaffold/template dirs, 55 lib modules
+per the fabrik-lib README table — 71 dirs incl. non-module dirs; 27 drivers, 10 registrars — live counts
+2026-07-12; the generated index §Agent-enablement is canonical), **vendor-compose not invention** — the new
+`fastapi-user-auth/` etc. modules do the per-product plumbing.
+**Validation gate:** `fabrik launch examples/smoke.yaml && curl -fsS https://<slug>.<domain>/health` → 200
+within 2h, operator-minutes logged ≤30.
 
-**Payments — VENDOR `/opt/fabrik-lib/payments/` (2026-07-12 correction — was "build").** The plan originally built this per-project; the `payments/` module now exists and supersedes the build: it ships Paddle (MoR) + iyzico behind **one currency-routed provider interface (fail-closed)**, **raw-byte HMAC verify + `event_id` idempotency (dup ⇒ no-op)**, a webhook-derived **entitlement state machine** (grace/revoke, order-tolerant), an atomic record+enqueue store, RLS tenant isolation, audit + GDPR purge, and a Next.js plan-pick UI — plus its own `webhook_events` / `plans` / `customers` / `subscriptions` tables. So the factory **vendors + configures** it (env keys + the plan catalog), it does **not** re-implement webhook verification/idempotency, and the plan's separate `webhook_events` build (Days 4–5) is dropped.
+## The brake (build BEFORE running fast) *(to-build)*
 
-The design intent below is unchanged, now **provided by the module**: **binding (`core/85-payments-billing.md`)** — Paddle Billing v2 (MoR) + iyzico for Turkish-domestic; **NOT Stripe** — the pack (`:26-32`) states Stripe is *not available to a Turkey-resident entity*, mandatory not preference. MoR retires the §Out-of-scope legal/tax + ban-contagion risk (one MoR, not 50 raw accounts). "Verified paid conversion" = a Paddle webhook event (`transaction.completed` / `subscription.activated`), idempotent on `event_id`, raw-byte-signature-verified — **all done by `payments/`**; the factory only reads the resulting entitlement/conversion. iyzico added per-project only where Turkish-domestic cards are required.
+The factory creates faster than it can contain or maintain unless two primitives exist first:
 
-**Event → metric mapping (grounded by live fetch — see Evidence):** `transaction.completed` + `subscription.activated`/`subscription.resumed` → **+1 verified_conversion / +MRR**; `subscription.updated` → re-set MRR to the new amount (up/downgrade); `subscription.paused`/`subscription.canceled` → **−MRR**, drop from active; `subscription.past_due` → at-risk, not yet churned; `subscription.created`/`subscription.trialing` → not counted (not yet paying). **Refunds/chargebacks = `adjustment.created`/`adjustment.updated`** (Adjustments API `POST /adjustments`, `action:"refund"`) → reverse the conversion / −MRR; **`transaction.refunded` does not exist**, and as MoR Paddle auto-reverses the proportional VAT inside the adjustment (operator handles no refund tax). **iyzico** (TR-domestic): webhook `SUCCESS` = paid, `CONTACTLESS_REFUND` = refund; signature = **`X-Iyz-Signature-V3`** HMAC-SHA256 hex of `merchantId+secretKey+eventType+subscriptionReferenceCode+orderReferenceCode+customerReferenceCode` (V1/V2 deprecated); same `webhook_events` idempotency. *(This mapping is now in `core/85-payments-billing.md` §Refunds & Adjustments + §iyzico.)*
+1. **Attention budget.** Every operator touch logs to a new `attention_events` table on `postgres-main`
+   *(to-build; verified absent — 0 refs in `src/`,`scripts/`)*. `fabrik launch` calls `launch-gate check`
+   first → **BLOCK** if trailing-7d operator-minutes > 5h, or any unresolved uptime- or data-impacting
+   incident exists. Cap: ≤2 launches/week until the per-project exception rate (operator-touches ÷
+   active-projects ÷ week) proves lower. *(The 5h cap and the exclusion list are config, not hardcoded.)*
+   **Gate:** after `fabrik attention log --minutes 360` (seeds 6h in the trailing 7d),
+   `fabrik launch-gate check` exits **1** and prints `BLOCK: attention_minutes_7d=6.0 > cap=5.0`.
+2. **Radical simplification.** One canonical scaffold; one default driver/registrar/DB path; deterministic
+   healthchecks (restart/rollback/mark-degraded) before any AI self-heal.
+   **Gate:** `ls templates/` shows the archived set moved out; one canonical scaffold remains as the
+   `fabrik launch` default.
 
-## The brake (build BEFORE retire / graduate) *(to-build)*
-
-The factory creates faster than it can select, contain, or maintain unless three primitives exist first:
-
-1. **Selection validity.** A lifecycle state `untested`; no retire/graduate verdict until a project has had **≥ `MIN_QUALIFIED_SESSIONS` (default 100)** *qualified* sessions — below that it is `untested` (a distribution failure, logged separately, not a product signal). A **qualified session** = a request whose source IP/UA is not in the operator-IP/UA allowlist, not the watchdog UA, and that fired a JS-executed `page_view` event (raw server hits and bot UAs excluded). **Verified paid conversion (idempotent Paddle webhook, above) is the only graduate metric**; visitors/signups are diagnostic only. *(Both `MIN_QUALIFIED_SESSIONS` and the exclusion list are config, not hardcoded — Residual #11.)*
-   **Gate:** `pytest tests/brake/test_selection.py` — a project with 99 qualified sessions + 0 conversions stays `untested` (never `kill_candidate`); the 100th qualified session flips it to `observing`; 5 duplicate webhook deliveries of one `event_id` count as **1** conversion.
-2. **Attention budget.** Every operator touch logs to a new `attention_events` table on `postgres-main` *(to-build; verified absent — 0 refs in `src/`,`scripts/`)*. `fabrik launch` calls `launch-gate check` first → **BLOCK** if trailing-7d operator-minutes > 5h, any unresolved revenue- or data-impacting incident exists, or `kill_candidate`s await your retirement decision. Caps (Tier-0/Tier-1 defined in §Lifecycle): ≤15 min/Tier-0 project/month, ≤20 active Tier-0, ≤2 launches/week until the per-project exception rate (operator-touches ÷ active-projects ÷ week) proves lower.
-   **Gate:** after `fabrik attention log --minutes 360` (seeds 6h in the trailing 7d), `fabrik launch-gate check` exits **1** and prints `BLOCK: attention_minutes_7d=6.0 > cap=5.0`.
-3. **Radical simplification.** One canonical scaffold; one default driver/registrar/DB path; deterministic healthchecks (restart/rollback/mark-degraded) before any AI self-heal.
-   **Gate:** `ls templates/` shows the archived set moved out; one canonical scaffold remains as the `fabrik launch` default.
-
-## Lifecycle *(to-build)*
-
-The metrics store is a **new SQL `projects` table on `postgres-main`** — distinct from the existing `data/projects.yaml`, which is a YAML *deploy* registry (fields `deploy/domain/ports/last_apply_status/registrars_applied/…`, **no** traction fields; verified). Naming: the YAML stays the deploy registry; the SQL table is the *traction* store (`fabrik_projects`).
-
-Tiers: **Tier-0** = a non-graduated experiment (cheap shared defaults); **Tier-1** = a graduated project (earns the heavy infra). The **traction beacon** = the per-project metrics emit defined under *Measure*.
-
-Lifecycle states (the `fabrik_projects.status` enum): `untested` (below `MIN_QUALIFIED_SESSIONS` — not yet judgeable; a *distribution* failure, never killed for it); `observing` (≥ threshold, accumulating metrics, no verdict yet); `kill_candidate` (had its "fair shot" = past threshold, still ~$0 + below traction → **surfaced to the operator with its data + a recommendation; retired only on operator approval — nothing auto-killed**); `retired` (scaled-down + archived, after approval); `graduated` (Tier-1). "Fair shot" everywhere = reaching the minimum-exposure threshold.
-
-**Launch → Measure → Untested / Retire / Graduate.**
-- **Measure (the traction beacon):** every project emits `{qualified_sessions, verified_conversions, mrr, errors, last_deploy, human_minutes}` to `fabrik_projects`.
-- **Retire (operator-decided):** ~$0 revenue and below threshold *after a fair shot* → flagged `kill_candidate` with its data; **on operator approval** → scale down, **issue a Paddle refund via the Adjustments API + cancel the subscription for any paying users (MoR handles tax reversal — Residual #9/#12)**, archive DB/repo, park DNS. Nothing is retired without operator approval.
-- **Graduate:** ≥$100 MRR or ≥5 verified conversions → Tier-1, which unlocks the heavy infra (`fabrik prove` recovery gauntlet, model-pinning, drift monitoring, dedicated resources, human review).
-  **Gate:** `fabrik portfolio status` lists each project as exactly one of `untested|observing|kill_candidate|retired|graduated` with its honest metrics.
+*(The operational project registry is the existing `data/projects.yaml` deploy registry — `deploy/domain/ports/
+last_apply_status/registrars_applied/…`. No separate traction/selection store: there is no "select winners by
+revenue" step in this model.)*
 
 ## Agent enablement *(to-build: index + skills; `.claude/skills` and `.claude/agents` verified empty)*
 
-- **Capability index — generated *and verified*.** Built from the live system (`fabrik --help` + subcommands, `src/fabrik/drivers/`, `scripts/`, `specs/`, `/opt/fabrik-lib/README.md`, and live `docker ps` across vps1/2/3) into `docs/CAPABILITIES.md` + a JSON the router reads *(to-build; verified absent)*. Single self-describing source a cold agent reads first; regenerated by the **daily pipeline** *(exists: `scripts/wsl_startup_hook.sh` + `scripts/kilo-benchmarks/daily_refresh.sh`)*; **generated, never hand-curated.** Generation also **verifies** each entry — a command/script that errors is marked `broken` (not offered as usable) and listed as a defect; a doc the index supersedes (e.g. the stale `docs/infrastructure/vps-complete-inventory.md`) is archived.
-  **Gate (objective):** `jq '.capabilities[]|select(.status=="ok").invoke' capabilities.json` — every listed command returns 0 when run with `--help`; every `status:"broken"` entry is excluded from that set; the live-state block parses from a real `docker ps` ≤24h old (timestamp field present).
-- **Surface health (ongoing).** Outdated docs and broken scripts are flagged by the verify pass; the daily pipeline reports the `broken`/stale set; they get **fixed or deleted** under the net-deletion gate (Doctrine 5).
-- **Skills.** `.claude/skills/` for the repeatable workflows (ported from the 11 `.windsurf/workflows/*.md`), incl. a `launch` skill. One-hop orientation: CLAUDE.md / AGENTS.md → index → skill.
-- **Deferred until a project graduates:** domain subagents (`.claude/agents/`), the intent router, and *wiring* the `ai-consult` fabrik-lib module into a consuming agent. *(The module itself now **exists** — `/opt/fabrik-lib/ai-consult/`, listed Active in the README, counted in the 46, built from the SPEC with passing tests; only its integration is deferred.)*
+- **Capability index — generated *and verified*.** Built from the live system (`fabrik --help` + subcommands,
+  `src/fabrik/drivers/`, `scripts/`, `specs/`, `/opt/fabrik-lib/README.md`, and live `docker ps` across
+  vps1/2/3) into `docs/CAPABILITIES.md` + a JSON the router reads *(to-build; verified absent)*. Single
+  self-describing source a cold agent reads first; regenerated by the **daily pipeline** *(exists:
+  `scripts/wsl_startup_hook.sh` + `scripts/kilo-benchmarks/daily_refresh.sh`)*; **generated, never
+  hand-curated.** Generation also **verifies** each entry — a command/script that errors is marked `broken`
+  (not offered as usable) and listed as a defect; a doc the index supersedes is archived.
+  **Gate (objective):** `jq '.capabilities[]|select(.status=="ok").invoke' capabilities.json` — every listed
+  command returns 0 when run with `--help`; every `status:"broken"` entry is excluded; the live-state block
+  parses from a real `docker ps` ≤24h old (timestamp field present).
+- **Surface health (ongoing).** Outdated docs and broken scripts are flagged by the verify pass; the daily
+  pipeline reports the `broken`/stale set; they get **fixed or deleted** under the net-deletion gate (Doctrine).
+- **Skills.** `.claude/skills/` for the repeatable workflows (ported from the 12 `.windsurf/workflows/*.md`),
+  incl. a `launch` skill. One-hop orientation: CLAUDE.md / AGENTS.md → index → skill.
+- **Deferred:** domain subagents (`.claude/agents/`), the intent router, and *wiring* the `ai-consult`
+  fabrik-lib module into a consuming agent. *(The module exists — `/opt/fabrik-lib/ai-consult/`, Active in the
+  README, tests passing; only its integration is deferred.)*
 
 ## Doctrine
 
-1. Judge every line by the KPI; survival is capped at what protects graduated projects, not experiments.
-2. Monetizable by default — no launch without auth + a Paddle payment-or-waitlist path + an analytics funnel.
-3. Cattle, not pets — zero-traction projects are surfaced for **operator-decided** retirement (recommended, never auto-killed); attention routed strictly by traction.
-4. Self-describing — capabilities/infra/rules are generated into one index, never memorized.
-5. Reuse before build → route by intent (advisory grep). Net-deletion gate: every change deletes/merges ≥1 module.
-6. Unrecorded prod-impacting manual step = defect (deliberate human risk-gates are not).
-7. Self-heal is a defect signal (alert on rising heal frequency); improve out of production (clone → prove → PR → human merge). *(builds on the watchdog Tier A–D contract, `core/60-watchdog.md` + `self-healing.md`)*
-8. Spend compute to save attention (rent servers/GPUs; cheapest-model-that-clears-the-bar) under the spend-velocity ceiling *(extends `core/cost-budget.md` + `/opt/fabrik-lib/cost-budget/`)*.
-9. Bounded authority — agents talk to the control plane, not prod; no agent holds master creds, root, or break-glass; autonomy earned per-component.
-10. Durable or it didn't happen — decisions land in CLAUDE.md / AGENTS.md / rule-packs / skills / memory.
+1. Judge every line by the KPI (per-project operator-attention → 0).
+2. Self-describing — capabilities/infra/rules are generated into one index, never memorized.
+3. Reuse before build → route by intent (advisory grep). Net-deletion gate: every change deletes/merges ≥1 module.
+4. Unrecorded prod-impacting manual step = defect (deliberate human risk-gates are not).
+5. Self-heal is a defect signal (alert on rising heal frequency); improve out of production (clone → prove → PR → human merge). *(builds on the watchdog Tier A–D contract, `core/60-watchdog.md` + `self-healing.md`)*
+6. Spend compute to save attention (rent servers/GPUs; cheapest-model-that-clears-the-bar) under the spend-velocity ceiling *(extends `core/cost-budget.md` + `/opt/fabrik-lib/cost-budget/`)*.
+7. Bounded authority — agents talk to the control plane, not prod; no agent holds master creds, root, or break-glass; autonomy earned per-component.
+8. Durable or it didn't happen — decisions land in CLAUDE.md / AGENTS.md / rule-packs / skills / memory.
 
 ## Operator-absent policy *(to-build)*
 
-State machine off `last_telegram_ack` — the **presence store** = a single-row `control_state` table on `postgres-main` (column `last_telegram_ack timestamptz`), written by the Telegram-ack handler *(to-build; verified absent — 0 `control_state` refs in `src/`)*:
+State machine off `last_telegram_ack` — the **presence store** = a single-row `control_state` table on
+`postgres-main` (column `last_telegram_ack timestamptz`), written by the Telegram-ack handler *(to-build;
+verified absent — 0 `control_state` refs in `src/`)*:
 - **0–4h:** nothing changes; queued actions wait.
-- **4–24h:** autonomous allow-list only — restart Tier A–C (backoff), roll back a deploy that failed its own verify if <24h and no migration, renew certs/DNS, scale within a pre-set ceiling, WAF-block DoS spikes, reroute to a maintenance page after 2 failed rollbacks, halt on spend breach.
-- **24–72h:** stability-only; freeze new deploys; stop non-revenue projects; daily digest to Telegram + email.
-- **>30d:** dead-man's-switch (Shamir break-glass to a designated successor — see Residual: Shamir tooling not yet chosen).
-- **Freeze-list (never, any state):** data/backup deletion, destructive migrations, secret/IAM/root changes, public exposure, recurring-spend increase, cross-project actions, doctrine/rule-pack edits, merging generated code, any autonomy-widening.
-**Gate:** `UPDATE control_state SET last_telegram_ack = now()-interval '25h'` → `fabrik launch-gate check` exits **1** (`operator_absent`) and the digest job fires; set to `now()-interval '5h'` → exits **0**.
+- **4–24h:** autonomous allow-list only — restart Tier A–C (backoff), roll back a deploy that failed its own
+  verify if <24h and no migration, renew certs/DNS, scale within a pre-set ceiling, WAF-block DoS spikes,
+  reroute to a maintenance page after 2 failed rollbacks, halt on spend breach.
+- **24–72h:** stability-only; freeze new deploys; **keep customer-facing services running**; daily digest to
+  Telegram + email.
+- **>30d:** dead-man's-switch (Shamir break-glass to a designated successor — see Residual: Shamir tooling).
+- **Freeze-list (never, any state):** data/backup deletion, destructive migrations, secret/IAM/root changes,
+  public exposure, recurring-spend increase, cross-project actions, doctrine/rule-pack edits, merging
+  generated code, any autonomy-widening.
+**Gate:** `UPDATE control_state SET last_telegram_ack = now()-interval '25h'` → `fabrik launch-gate check`
+exits **1** (`operator_absent`) and the digest job fires; set to `now()-interval '5h'` → exits **0**.
 
 Telegram is a vendor SPOF — add email as a second approval channel before it is load-bearing.
 
 ## Execution protocol (binding — subagents, parallelism, code review)
 
-Every step in §First 14 days runs in this order; skipping a step = the step is not done. This is how *any* AI (or several in parallel) implements the plan with identical rigor — the plan, not the executor's memory, is the source of truth.
+Every step in §First N days runs in this order; skipping a step = the step is not done. This is how *any* AI
+(or several in parallel) implements the plan with identical rigor — the plan, not the executor's memory, is
+the source of truth.
 
 **Per step:**
-1. **RE-GROUND** — mandatory `Explore` subagent. Re-verify every `path:line` and count the step touches still matches HEAD *before* coding (the tree drifts under parallel agents — this plan's own counts moved 44→46 modules / 18→19 scaffold dirs mid-life). Any drift → STOP, fix the plan, then code.
+1. **RE-GROUND** — mandatory `Explore` subagent. Re-verify every `path:line` and count the step touches still
+   matches HEAD *before* coding (the tree drifts under parallel agents). Any drift → STOP, fix the plan, then code.
 2. **TESTS FIRST** (TDD per `core/45-testing-strategy.md`) — the failing test is in the diff before production code.
 3. **IMPLEMENT** to green, strictly in step scope; no cross-step creep.
-4. **SELF-REVIEW to a fixed point** (CLAUDE.md 1a) — re-read the diff for bugs, edge cases, `.windsurf/rules` deviations; fix; re-run; repeat until a fresh read finds nothing.
-5. **ADVERSARIAL CODE REVIEW** — mandatory `general-purpose` subagent, launched in the background while you draft the commit. Correctness/security only: logic/off-by-one, null/empty/None on every external return, idempotency (kill-switch, retire, beacon, tracked-DBs must be re-runnable), **fail-open-vs-fail-closed (spend kill-switch + retire path fail CLOSED)**, ordering/atomicity + concurrency on shared files (`control_state`, tracked-DBs, `.env` writes), tenant isolation (per-DB non-superuser role / RLS), plan↔code drift. **Reproduce each finding with a runnable test before fixing.** CONFIRMED → fix before commit; PLAUSIBLE → fix or record why deferred; REFUTED → ignore. Prompt: Appendix A.
-6. **GATE** — `python scripts/final_gate.py --lean --json` → `status:success`, plus the step's own validation gate.
+4. **SELF-REVIEW to a fixed point** (CLAUDE.md 1a) — re-read the diff for bugs, edge cases, `.windsurf/rules`
+   deviations; fix; re-run; repeat until a fresh read finds nothing.
+5. **ADVERSARIAL CODE REVIEW** — mandatory `general-purpose` subagent (or `/fabrik-review`), launched in the
+   background while you draft the commit. Correctness/security only: logic/off-by-one, null/empty/None on every
+   external return, idempotency (kill-switch, `launch-gate`, tracked-DBs must be re-runnable),
+   **fail-open-vs-fail-closed (the spend kill-switch fails CLOSED)**, ordering/atomicity + concurrency on shared
+   state (`control_state`, `attention_events`, `.env` writes), tenant isolation (per-DB non-superuser role /
+   RLS), plan↔code drift. **Reproduce each finding with a runnable test before fixing.** CONFIRMED → fix before
+   commit; PLAUSIBLE → fix or record why deferred; REFUTED → ignore. Prompt: Appendix A.
+6. **GATE** — `python scripts/final_gate.py --check --json` → `status:success`, plus the step's own gate.
 7. **COMMIT** — explicit paths only (`git add <path>…`); never `-A` on the shared `master`.
 
 **Parallelism (mandatory where suitable):**
-- **Grounding + review always fan out** — one independent subagent per step/dependency, run in parallel; merge + dedupe before proceeding. A change's writer is never its sole verifier.
-- **Independent steps run as parallel sub-streams.** The dependency edges that MUST stay serial: **Day 1 (do-not-die floor) before any destructive action**; **the Days 4–5 migration before any code reading `fabrik_projects`/`attention_events`/`control_state`** (and the vendored `payments/` schema, which owns `webhook_events`, applied before any conversion-metric code); **the brake (Days 4–5) before the retire-on-approval engine (Day 12)**. Everything else — capability index, skills, docs, commercial-kit surfaces — has no edge and parallelizes.
+- **Grounding + review always fan out** — one independent subagent per step/dependency, run in parallel; merge
+  + dedupe before proceeding. A change's writer is never its sole verifier.
+- **Independent steps run as parallel sub-streams.** The dependency edges that MUST stay serial: **Day 1
+  (do-not-die floor) before any destructive action**; **the brake migration (`attention_events` +
+  `control_state`) before any code reading those tables**. Everything else — capability index, skills, docs,
+  the `fabrik launch` surfaces — has no edge and parallelizes.
 
 **Plan-exit (after the last operator-approved step):**
-8. **CONVERGENCE CHECK** — mandatory `general-purpose` subagent: no step regressed an earlier one; re-run the Day-1 (do-not-die) + Days-4–5 (brake) gates end-to-end.
+8. **CONVERGENCE CHECK** — mandatory `general-purpose` subagent: no step regressed an earlier one; re-run the
+   Day-1 (do-not-die) + brake gates end-to-end.
 9. **Status → `SHIPPED <steps> (YYYY-MM-DD)`.**
 
-**What "subagent" means:** the `Agent` tool with the named `subagent_type`. Subagents do verification / re-grounding / adversarial review only — the executing AI owns the diff and its synthesis; never delegate the writing.
+**What "subagent" means:** the `Agent` tool (native) or the OpenRouter pool (`fanout`) with the named type.
+Subagents do verification / re-grounding / adversarial review only — the executing AI owns the diff and its
+synthesis; never delegate the writing.
 
 ### Appendix A — adversarial code-review prompt (paste per step)
 
@@ -121,107 +177,128 @@ Every step in §First 14 days runs in this order; skipping a step = the step is 
 Adversarial code review of <STEP> of docs/development/plans/2026-06-29-plan-empire-operating-model.md.
 Diff: `git diff <base>..HEAD`. Files in scope (full reads, not excerpts): <FILES>.
 Hunt correctness/security ONLY (never style): logic/off-by-one; null/empty/None on every external
-return; idempotency (re-running a path must not corrupt state — kill-switch, retire, beacon,
-tracked-DBs); fail-open vs fail-closed (secrets/spend/retire fail CLOSED); ordering/atomicity +
-concurrency on shared files (control_state, tracked-DBs, .env); tenant isolation (per-DB non-superuser
-role / RLS); plan↔code drift (does the diff match the plan? flag silent scope creep);
-precision/encoding (spec-value shell injection into db_name/container_name). Reproduce each suspected
-bug with a runnable test FIRST. Format (<400 words): per finding — severity (CORRECTNESS/SECURITY) +
-file:line + repro + fix + verdict (CONFIRMED/PLAUSIBLE/REFUTED). Then "What I inspected" (≥6 items).
-End with exactly "Zero new findings" OR "N findings, recommend Pass 2".
+return; idempotency (re-running a path must not corrupt state — kill-switch, launch-gate, tracked-DBs);
+fail-open vs fail-closed (secrets/spend fail CLOSED); ordering/atomicity + concurrency on shared state
+(control_state, attention_events, .env); tenant isolation (per-DB non-superuser role / RLS); plan↔code
+drift (does the diff match the plan? flag silent scope creep); precision/encoding (spec-value shell
+injection into db_name/container_name). Reproduce each suspected bug with a runnable test FIRST. Format
+(<400 words): per finding — severity (CORRECTNESS/SECURITY) + file:line + repro + fix + verdict
+(CONFIRMED/PLAUSIBLE/REFUTED). Then "What I inspected" (≥6 items). End with exactly "Zero new findings"
+OR "N findings, recommend Pass 2".
 ```
 
-## First 14 days
+## First N days
 
-Effort is nominal; real elapsed ~2.5×. Everything past the keystone is gated on a real graduate. Each step carries a runnable validation gate. **Every step is governed by the §Execution protocol above (mandatory RE-GROUND + ADVERSARIAL CODE REVIEW subagents; parallel where the dependency edges allow).**
+Effort is nominal; real elapsed ~2.5×. Each step carries a runnable validation gate. **Every step is governed
+by the §Execution protocol above (mandatory RE-GROUND + ADVERSARIAL CODE REVIEW subagents; parallel where the
+dependency edges allow).**
 
-- **Day 1 — do-not-die floor, *fired*.** Spend-velocity kill-switch = a **watchdog-sidecar monitor** *(extends `src/fabrik/drivers/watchdog.py` + `/opt/fabrik-lib/cost-budget/`)* that polls `cost_ledger` spend-velocity and, on breach, runs `docker network disconnect fabrik <agent-container>` + pages Telegram; plus the dead-man's-switch. Both tripped on purpose. **Gate:** `INSERT` a `cost_ledger` row exceeding the daily ceiling → the monitor detaches the agent container within one poll interval + Telegram fires; `sudo docker network inspect fabrik` shows the container gone.
-- **Day 2 — break-glass + restore.** Break-glass creds verified offline-from-phone; backup-exists + one real restore *(extends `src/fabrik/orchestrator/vultr_drill.py`)*. **Gate:** `fabrik vultr drill` (or bootstrap-from-backup) → app 200 + DB row-counts match source; RTO/RPO recorded.
-- **Day 3 — purge.** the scaffold set (20 template dirs today, 2026-07-12) → 1 canonical monetizable scaffold; trim drivers/registrars to one default path each. **Gate:** `ls templates/ | wc -l` → 1 active (+ archived/); `fabrik launch` resolves the one default.
-- **Days 4–5 — the brake.** `fabrik_projects` + `attention_events` + `control_state` schema (Alembic migration on `postgres-main`) with the honest metrics + `untested` state — **`webhook_events` is NOT built here; it comes from the vendored `payments/` module** (2026-07-12 correction). Bot/self-exclusion filter *(vendor `abuse-prevention/` + the operator-IP/UA allowlist)* + minimum-exposure gate + `launch-gate check`. **Gate:** `alembic upgrade head` exits 0; `pytest tests/brake/` passes (5-bot project → `untested`; seeded over-budget portfolio → `fabrik launch-gate check` exits 1).
-- **Days 6–11 — `fabrik launch` v0.** spec → repo → deploy → DNS → DB → commercial-kit → analytics through the exclusion filter → beacon → register. **The commercial-kit is a vendor-compose, not a build** (2026-07-12): vendor `fastapi-user-auth/` (auth) + `payments/` (checkout/webhook) + `cookie-consent/` (consent) + `webhooks/` (beacon); `fabrik launch` wires them into the canonical scaffold. **Payments deferred (Residual #3):** ship the **waitlist path** now (auth + landing + `/pricing` + waitlist capture + minimal analytics); the **Paddle checkout + `Paddle webhook = the conversion metric`** activate by **configuring the vendored `payments/`** (env keys + plan catalog) when the operator provisions the accounts — that's the only piece Day 6–11 leaves stubbed. **Gate (Day 11, payment-free):** launch one real project to a live waitlist URL, time it (this is also the effort-multiplier datapoint for Residual #5). When payments land: idempotency gate — replay a webhook `event_id` → still 1 conversion.
-- **Day 12 — retirement-recommendation engine live** against `fabrik_projects`. **Gate:** `pytest tests/retire/test_lifecycle.py` — the engine never flags an `untested` project; flags a tested-zero-traction one as `kill_candidate` but does **not** archive it without an approval flag; given approval, runs the Paddle Adjustments refund path against a Sandbox subscription and moves it to `retired`.
-- **Days 13–14 — capability index** (`scripts/generate_capability_index.py` → `docs/CAPABILITIES.md` + JSON; wired into `wsl_startup_hook.sh`) + one `launch` skill + golden-path acceptance test (launch 3 example specs end-to-end → each live + monetizable) + the launch throttle (the §brake caps: ≤2 launches/week, ≤20 active Tier-0). **Gate:** `python scripts/generate_capability_index.py --check` exits 0; inject a deliberately-broken script → re-run → it appears with `status:"broken"` and is excluded from the usable set; the §Agent-enablement objective gate passes.
+- **Day 1 — do-not-die floor.** Spend-velocity kill-switch = a **watchdog-sidecar monitor** *(extends
+  `src/fabrik/drivers/watchdog.py` + `/opt/fabrik-lib/cost-budget/`)* that polls `cost_ledger` spend-velocity
+  and, on breach, runs `docker network disconnect fabrik <agent-container>` + pages Telegram; plus the
+  dead-man's-switch. **Gate:** `INSERT` a `cost_ledger` row exceeding the daily ceiling → the monitor detaches
+  the agent container within one poll interval + Telegram fires; `sudo docker network inspect fabrik` shows the
+  container gone.
+- **Day 2 — break-glass + restore.** Break-glass creds verified offline-from-phone; backup-exists + one real
+  restore *(extends `src/fabrik/orchestrator/vultr_drill.py`)*. **Gate:** `fabrik vultr drill` (or
+  bootstrap-from-backup) → app 200 + DB row-counts match source; RTO/RPO recorded.
+- **Day 3 — purge.** the scaffold set (20 template dirs today, 2026-07-12) → 1 canonical scaffold; trim
+  drivers/registrars to one default path each. **Gate:** `ls templates/ | wc -l` → 1 active (+ archived/);
+  `fabrik launch` resolves the one default.
+- **Days 4–5 — the brake.** `attention_events` + `control_state` schema (Alembic migration on `postgres-main`)
+  + `launch-gate check` (attention budget). **Gate:** `alembic upgrade head` exits 0; `pytest tests/brake/`
+  passes (seeded over-budget attention → `fabrik launch-gate check` exits 1).
+- **Days 6–11 — `fabrik launch` v0.** spec → repo → deploy → DNS → DB → (auth if needed) → register. The
+  per-product plumbing is a **vendor-compose** (vendor `fastapi-user-auth/` when the product needs auth);
+  `fabrik launch` wires it into the canonical scaffold. **Gate (Day 11):** launch one real project to a live
+  URL, time it (the effort-multiplier datapoint for Residual #3).
+- **Days 12–13 — capability index** (`scripts/generate_capability_index.py` → `docs/CAPABILITIES.md` + JSON;
+  wired into `wsl_startup_hook.sh`) + one `launch` skill + golden-path acceptance test (launch 3 example specs
+  end-to-end → each live) + the launch throttle (the §brake cap: ≤2 launches/week). **Gate:**
+  `python scripts/generate_capability_index.py --check` exits 0; inject a deliberately-broken script → re-run →
+  it appears with `status:"broken"` and is excluded from the usable set; the §Agent-enablement objective gate passes.
 
 ## Out of scope / open
 
-- **Distribution is the unsolved bottleneck** and gets its own plan. `fabrik launch` makes ideas cheap to *test*, not *discovered*. (Platform-ban-contagion + tax/legal are largely retired by Paddle MoR above; per-project domain isolation still applies.)
-- **Do not monetize Fabrik as a PaaS** — multi-tenant support + an AI agent on customers' infra competes for the operator-attention this plan protects. Its byproducts (the AI Models Browser `scripts/kilo-benchmarks/models_browser.html`, fabrik-lib, scaffolds, build-in-public) are the distribution flywheel instead.
-- **Survival infra** (full `fabrik prove`, model-pinning + golden-incident regression, drift index `extends fabrik audit-registrars`, git-as-state + hash-chained runtime log) — built only when the first project graduates.
+- **Distribution / demand generation** is out of scope by construction — this model builds for customers who
+  are **already waiting**; finding new demand is a separate concern with its own plan.
+- **Do not monetize Fabrik as a PaaS** — multi-tenant support + an AI agent on customers' infra competes for
+  the operator-attention this plan protects. Its byproducts (the AI Models Browser, fabrik-lib, scaffolds,
+  build-in-public) are the outward flywheel instead.
+- **Removed 2026-07-12 (operator-directed):** the monetization + selection/graduate/retire-by-revenue premise
+  (§Payments, traction lifecycle, "cattle" doctrine, Day-12 retirement engine) — the builds serve known
+  customers, so there is no "select winners by payment" step. If per-product *billing* is ever needed for a
+  specific project, vendor `/opt/fabrik-lib/payments/` in that project's own spec — it is not a factory-level
+  concern.
 
 ## Evidence
 
-Grounded across passes (solo machine scans + independent grounders — see Self-audit; re-confirmed stable on the latest pass). Path:line citations actually opened:
+Grounded 2026-07-12 (path:line citations actually opened / commands run):
 
-- Payments rule pack is **Paddle/iyzico, not Stripe** — `.windsurf/rules/core/85-payments-billing.md:4` (`Paddle Billing v2 (MoR), iyzico`), `:50` (raw-byte signature), `:62` (`webhook_events` idempotency table on postgres-main). The plan's payments section now complies.
-- Watchdog sidecar exists — `src/fabrik/drivers/watchdog.py` (Tier-D wiring), contract `.windsurf/rules/core/60-watchdog.md`.
-- Spend-ceiling base exists — `/opt/fabrik-lib/cost-budget/schema_pg.sql:27` (`CREATE TABLE IF NOT EXISTS cost_ledger`).
+- Watchdog sidecar exists — `src/fabrik/drivers/watchdog.py`, contract `.windsurf/rules/core/60-watchdog.md`.
+- Spend-ceiling base exists — `/opt/fabrik-lib/cost-budget/schema_pg.sql` (`CREATE TABLE … cost_ledger`;
+  module API `check_caps` / `record_cost` / `drop_to_rule_only_mode`).
 - Recovery-gauntlet base exists — `src/fabrik/orchestrator/vultr_drill.py:410` (`def drill(`).
 - Drift base exists — `src/fabrik/cli.py:1389` (`@cli.command("audit-registrars")`).
 - Daily pipeline exists — `scripts/wsl_startup_hook.sh`, `scripts/kilo-benchmarks/daily_refresh.sh`.
-- Deploy registry is YAML with no traction fields — `data/projects.yaml` (keys: `deploy/domain/ports/last_apply_status/registrars_applied/scaffold_status`; 0 `mrr|conversion|session` matches).
-- Registrar count is **10** (corrected from 11 by an independent grounder) — `src/fabrik/orchestrator/infrastructure.py:90-101` (`_REGISTRAR_ORDER`: postgres, redis, gatus, backrest, glitchtip, grafana, authelia, meilisearch, prometheus, watchdog).
-- Stripe is unavailable to a Turkey-resident entity — `.windsurf/rules/core/85-payments-billing.md:26-32`; Alembic-only schema migrations — `core/25-data-postgres.md:77` (the brake migration complies).
-- **Paddle event names grounded by live fetch** (`developer.paddle.com/webhooks/overview`): `transaction.completed`, `subscription.activated`, `subscription.canceled`, `subscription.updated`, `subscription.paused`, `transaction.updated` all confirmed real; **refunds = `adjustment.created` (Adjustments API), not `transaction.refunded`** (corrected Residual #7).
-- To-build tables (now **3**, not 4) remain absent in `src/`+`scripts/` — `attention_events` / `fabrik_projects` / `control_state` return **0** real refs (2026-07-12 re-ground). **`webhook_events` is NO LONGER a factory build** — `/opt/fabrik-lib/payments/db/*.sql` ships `CREATE TABLE IF NOT EXISTS webhook_events` (verified 2026-07-12), so the factory vendors it via `payments/`.
-- **Beacon transport is an existing convention, not a new mechanism (Residual #8 resolved)** — `core/30-ops.md:206`: spoke-hosted services "wire back to the shared vps1 data plane (`postgres-main:5432`, `redis-main:6379`) over the WireGuard mesh… Compose connection strings stay identical (`postgres-main`/`redis-main` Docker DNS) — the mesh resolves them." A launched project emits the beacon to `postgres-main:5432` over the `fabrik` net (same-host) / mesh (spoke), no new transport.
-- **Paddle subscription-lifecycle + Adjustments grounded by live fetch (Residuals #7/#9/#12 resolved)** — `developer.paddle.com/webhooks/overview` + `…/build/transactions/create-transaction-adjustments/`: subscription events `created|activated|updated|canceled|paused|resumed|past_due|trialing` all real; refunds = `POST /adjustments` `action:"refund"` → `adjustment.created`; **`transaction.refunded` confirmed absent**; refund `items[].amount` tax-inclusive and **Paddle (MoR) reverses the VAT inside the adjustment** automatically.
-- **iyzico webhooks grounded by fetch (Residual #10 resolved)** — `docs.iyzico.com/en/advanced/webhook`: signature header `X-Iyz-Signature-V3` (HMAC-SHA256 hex over `merchantId+secretKey+eventType+subscriptionReferenceCode+orderReferenceCode+customerReferenceCode`; V1/V2 deprecated), `SUCCESS`/`CONTACTLESS_REFUND` statuses, retry every 15 min × 3.
-
-Ground-truth scan (Pass 1):
+- Deploy registry is YAML — `data/projects.yaml` (keys `deploy/domain/ports/last_apply_status/
+  registrars_applied/scaffold_status`).
+- Registrar count is **10** — `src/fabrik/orchestrator/infrastructure.py:90` (`_REGISTRAR_ORDER`: postgres,
+  redis, gatus, backrest, glitchtip, grafana, authelia, meilisearch, prometheus, watchdog); drivers **27**.
+- Auth module for per-product needs — `/opt/fabrik-lib/fastapi-user-auth/` (Active, Pattern-A JWT).
+- `ai-consult` module exists — `/opt/fabrik-lib/ai-consult/` (Active, tests passing).
+- To-build tables absent (2026-07-12 re-ground) — `attention_events` / `control_state` return **0** real refs
+  in `src/`+`scripts/`; `fabrik launch`/`prove` absent in `src/fabrik/cli.py`; `docs/CAPABILITIES.md` absent;
+  `.claude/skills` = 0, `.claude/agents` = 0.
 
 ```text
-fabrik-lib: 71 dirs / 55 README-table modules   drivers: 27   registrars: 10   scaffolds: 20 template dirs   [re-ground 2026-07-12]
-.windsurf/workflows: 12   .claude/skills: 0   .claude/agents: 0
-ABSENT (to-build, no plan/reality drift): fabrik launch=0  fabrik prove=0
-  docs/CAPABILITIES.md=absent  attention_events refs=0  launch-gate refs=0
-data/projects.yaml traction-field matches (mrr|conversion|session): 0
+fabrik-lib: 71 dirs / 55 README-table modules   drivers: 27   registrars: 10   scaffolds: 20 template dirs
+.windsurf/workflows: 12   .claude/skills: 0   .claude/agents: 0   [re-ground 2026-07-12]
+ABSENT (to-build): fabrik launch=0  fabrik prove=0  docs/CAPABILITIES.md=absent
+  attention_events refs=0  control_state refs=0  launch-gate refs=0
 ```
-(Counts are point-in-time 2026-06-30; modules/scaffolds drift as parallel agents add them — the generated index, not this number, is canonical. Drivers/registrars are stable architecture constants.)
+(Counts are point-in-time; modules/scaffolds drift as parallel agents add them — the generated index, not
+this number, is canonical. Drivers/registrars are stable architecture constants.)
 
-## Self-audit (convergence floor)
+## Self-audit
 
-- **What was verified:** counts (re-ground to 46 modules / 27 drivers / 10 registrars / 19 template dirs / 11 workflows / 0 skills / 0 agents; modules+dirs drift as parallel agents add them, per the point-in-time note), absence of all 5 future deliverables, the payments rule-pack conflict (Stripe→Paddle), the daily-pipeline mechanism, the `projects.yaml`↔`fabrik_projects` name collision, and the existence of every "extends/exists" asset cited above — each by opening the file/running the command shown in Evidence.
-- **Drift fixed this pass:** (1) `47`→`48` lib modules (softened to live-count + index-canonical); (2) **Stripe→Paddle(MoR)+iyzico** per binding rule pack — the single largest correctness fix, and it also retires §Out-of-scope tax/legal/ban risk; (3) disambiguated the new `fabrik_projects` SQL table from the existing `data/projects.yaml`; (4) grounded "daily pipeline" to real scripts; (5) every future deliverable now tagged *(to-build)* with absence proof.
-- **Pass 2 (two independent grounders, parallel):** re-opened every Evidence citation (all CONFIRMED) and re-checked rule-pack compliance (FULLY COMPLIANT — payments, Alembic, cost-budget, watchdog, self-healing). New items it caught and this pass fixed: registrar count **11→10** (`infrastructure.py:90-101`); and three named edge-cases now in Residual #7–9 (subscription churn/refund metric mapping, postgres-main transport, Paddle refund tax-reversal).
-- **Pass 3 (solo, fixed-point check):** re-verified the corrected registrar count, confirmed every remaining hardcoded claim (`44/27/10/18/11/0/0`, the 3 VPS, the absence set) still holds, and found **no new ungrounded items** — the two independent passes converged on a closed set; remaining items are explicitly named residuals, not unverified claims.
-- **Re-verification pass (2026-06-30):** treated CONVERGED as unproven and re-ran. No drift in counts/citations/absence. **Grounded the Paddle external dependency by live fetch** (was previously asserted) — six event names confirmed real, and an *independent* grounder fetched Paddle separately and confirmed `transaction.refunded` does NOT exist (refunds = `adjustment.created`); the plan was corrected. The independent grounder also found 4 items, all fixed this pass: residual mis-numbering (7,10,8,9 → 8,9,10,11); the unstated `N` threshold (now `MIN_QUALIFIED_SESSIONS` default 100); the undefined bot/self-exclusion (now specified); and 4 vague gates (now concrete commands with expected exit codes). New Residual #11 logs the threshold/exclusion as provisional config.
-- **Third independent grounder (2026-06-30):** re-verified everything (counts/citations/absence/rules/Paddle all CONFIRMED, with its own Paddle fetch) and **still found ~9 items** — proving my prior solo "empty pass" claims were self-verification, not convergence. Fixed this pass: lib-module count `48`→`44` (README module table vs 48 dirs); defined the used-before-defined terms `Tier-0`/`Tier-1`, `P1/P2`→"revenue/data-impacting incident", "exception rate" (formula), and "traction beacon"; specified the bot/allowlist config (`brake.yaml`, Residual #11); rewrote 3 still-vague gates ("trip the cap"/"migration applies clean"/"auto-kill refuses") into concrete `INSERT`/`alembic`/`pytest` commands; added Residual #12 (Adjustments API not in the pack) and #13 (the undefined-term class).
-- **Convergence status as of Pass 3 (SUPERSEDED by Passes 4–5).** At Pass 3 I judged that no independent pass had yet returned empty and predicted the method *might never* reach one (a `(to-build)` roadmap keeps exposing not-yet-runnable gates + freshly-coined terms). **That prediction was disproven by my own subsequent work:** after I eliminated the *classes* (internal count consistency 44/10 everywhere, every term defined, gates reframed as acceptance-tests), Pass 4 found a single reality-drift (`ai-consult` built mid-process) and **Pass 5 returned NO NEW FINDINGS — the genuine empty pass** (line 3). The factual layer (counts, path:line citations, absence, rule-pack compliance, Paddle events) has been stable and re-confirmed across every pass; the definitional/gate tail was *closed*, not deferred.
-- **Fourth independent grounder (2026-06-30):** after I proactively eliminated the *classes* (internal count consistency 44/10 everywhere; defined every lifecycle state + jargon; reframed gates as acceptance-tests; point-in-time count framing), it confirmed A–F and found **exactly one** item — and it was *external reality changing under the plan*, not a plan defect: the fabrik-lib coder **built `ai-consult`** mid-convergence, so the plan's "only in scratchpad" claim was stale. Fixed (Residual #1 → RESOLVED; §Agent-enablement updated). Findings trajectory through this fourth pass: 5 → 4 → 9 (self-inflicted, defining terms) → **1** (a reality-drift); the fifth pass (below) then returned **0** — the empty pass (consistent with the Status line's `5 → 4 → 9 → 1 → 0`). The remaining risk to a literally-empty pass is now only **live-codebase drift between passes** (counts/built-modules change as parallel agents work) — not unresolved plan defects.
-- **Post-convergence revision (2026-06-30, operator direction):** the operator corrected two framing points — projects are not assumed "small," and losers are **not killed automatically**. Added the §What-this-builds intro and flipped retirement semantics to operator-approved everywhere (`kill_candidate` → surfaced + recommended; `killed` state → `retired`, reached only on approval; Doctrine 3, Day 12, the portfolio enum, and the Goal all updated to match). This is a *semantics/framing* change, not a new factual claim — no `path:line` citations were added or invalidated — so it was not re-run through an independent grounder; the empty-pass result stands for the factual layer.
-- **Re-convergence on the revision (2026-06-30, 3 parallel independent grounders).** The operator-direction revision (intro + operator-decided retirement) had not been independently grounded, so I re-ran the full loop. Solo Pass 1 caught 7 items: 5 stale `kill`/`veto` vocabulary leaks not propagated by the semantics change (lines for Selection-validity, the launch-gate BLOCK list, Residual #7, Residual #12, the Evidence header) **plus a live self-contradiction** — the old "HONEST CONVERGENCE STATUS" block still claimed "none returned empty / likely never will," which Pass 5 had already disproven (now marked **SUPERSEDED**). All fixed. Then 3 parallel grounders: **semantics → empty**; **factual/counts/citations/absence → empty (32 checks)**; **external-deps + gates → 2 real spec-gaps** in to-build steps: (a) the operator-absent "presence store" was never pinned to a table → now `control_state` on `postgres-main` (verified absent; created in the Days 4–5 migration); (b) the Day-1 spend kill-switch named no enforcement component → now a **watchdog-sidecar monitor** extending `src/fabrik/drivers/watchdog.py` + cost-budget. Both fixed; a confirming pass (below) re-checks them.
-- **Residual-resolution pass (2026-06-30, operator direction — "figure them out too").** The operator rejected leaving residuals open, so each was grounded or decided this turn, not deferred: live-fetched Paddle (`webhooks/overview` + `create-transaction-adjustments`) → full subscription/transaction/adjustment event set + the refund-via-Adjustments + MoR VAT-reversal mechanism (#7/#9/#12), written into §Payments and added to `core/85-payments-billing.md`; live-fetched iyzico (`docs.iyzico.com/.../webhook`) → V3 HMAC scheme (#10); grounded the beacon transport to the existing mesh convention `core/30-ops.md:206` (#8); modeled postgres-main capacity as bounded by the ≤20 Tier-0 cap (#6); decided Shamir=`ssss` + interim `age` (#2) and the `brake.yaml` defaults (#11). Reclassified the two genuinely-empirical items (hit-rate #4, effort-multiplier #5) as stated bets, not fixable unknowns. **One item cannot be self-resolved:** #3, creating the Paddle/iyzico accounts + keys — an operator action, now specified to the exact env vars. New external citations (Paddle/iyzico/30-ops.md) are grounded by the fetches/greps shown in Evidence.
-- **Full re-convergence (2026-06-30, 3 parallel independent grounders).** Re-ran the whole loop after the two revisions. Solo Pass 1 fixed **staleness drift only**: the Status headline had frozen at "five passes" (the later revisions each added their own empty pass), and "this turn"/"this pass" temporal markers had leaked out of the dated Self-audit into Evidence/§Payments/§Agent-enablement, plus a stale `## Residual unknowns` cross-ref (the section is `## Residuals`). Then 3 grounders: **factual/counts/citations/absence → empty** (44/48-dirs/27/10/18/11/0/0 re-measured, every citation re-opened); **external-deps + gates → empty** (re-fetched Paddle + iyzico, all events real, every gate runnable); **internal-consistency → one item**: this 4th-grounder entry still said "four passes: 5→4→9→1", contradicting the Status's five-pass tally — now harmonized. Net: drift-only, no factual or design defects surfaced.
-- **Execution-protocol + drift pass (2026-07-01, operator direction).** Added the binding **§Execution protocol** — mandatory `Explore` re-ground + `general-purpose` adversarial code-review subagents per step, parallel fan-out for grounding/review, explicit serial dependency edges (Day-1 floor; the Days-4–5 migration before table-reading code; the brake before the retire-on-approval engine), a plan-exit convergence-check subagent, and Appendix A (the adversarial-review prompt) — so any AI (or several in parallel) executes with identical rigor. Also fixed live count drift caught by the re-ground: **README modules 44→46, scaffold/template dirs 18→19** (my own Phase-4 `templates/_partials/` is part of the +1); citations/absence unchanged (cost_ledger, vultr_drill:410, watchdog.py, ai-consult present; launch/prove/the four tables/CAPABILITIES absent). Confirmed below by 2 parallel independent grounders.
-- **Floor (what green does NOT prove):** `final_gate`/`check_convergence` prove citation *presence* + format, not that `fabrik launch` will hit ≤30 min, that Paddle MoR covers every jurisdiction, or that the hit-rate thesis holds. Those are empirical and unprovable pre-build — listed in `## Residuals`.
+- **Original convergence (2026-06-30):** ran five independent adversarial passes (5 → 4 → 9 → 1 → 0) over the
+  then-scoped plan; every existing-asset claim grounded at `path:line`, every to-build deliverable verified
+  absent. Those passes covered the monetization/selection design that has since been removed — that portion is
+  **moot as of the 2026-07-12 re-scope** and is not reproduced here.
+- **Re-scope (2026-07-12, operator-directed):** the operator confirmed all builds have real waiting customers,
+  so the speculative monetize-and-select premise does not apply. Removed §Payments, the selection-validity
+  primitive, the traction lifecycle (`fabrik_projects` + states + retire engine), Doctrine "monetizable"/
+  "cattle", and Day-12. Re-grounded the **remaining** factual layer against HEAD: counts refreshed
+  (55/71/20/12; registrars 10 + drivers 27 stable); every retained "exists"/"absent" anchor re-confirmed (see
+  Evidence). No payment external-facts remain in scope, so no vendor/API citations are load-bearing here.
+- **Floor (what green does NOT prove):** `final_gate`/`check_convergence` prove citation presence + format, not
+  that `fabrik launch` will hit ≤30 min or that the attention-budget caps are right — those are empirical,
+  measured at the Day-11 timing gate.
 
-## Residuals — resolved this turn (only one operator prerequisite remains)
+## Residuals
 
-Per operator direction, every prior residual was either **grounded by executing the research now** or **converted to a concrete decision**. Status:
-
-1. **`ai-consult` module — RESOLVED.** Exists at `/opt/fabrik-lib/ai-consult/` (Active in README, counted in the 46, tests passing); only *wiring* it into a consuming agent is deferred until a graduate.
-2. **Shamir break-glass — RESOLVED (decided).** Tool = **`ssss`** (Debian `ssss` pkg) for a 2-of-3 split of the master break-glass secret, armed only when the first project graduates (`apt install ssss` then — verified not installed today). Interim pre-graduate = a single `age`-encrypted break-glass bundle on the operator phone + a designated successor (acceptable pre-revenue).
-3. **Paddle/iyzico accounts — DEFERRED (operator not ready, 2026-07-01).** `.env` has no `PADDLE_*`/`IYZICO_*` keys (verified 0 matches) and the operator is not opening a Paddle (Sandbox+Live) / iyzico merchant account yet. This gates **only the monetization slice** — Day 6+ commercial-kit's Paddle checkout + the verified-paid-conversion metric. **The payment-free core is unblocked and executes now:** Day 1 (do-not-die floor), Day 3 (purge), Days 4–5 (brake schema + attention budget), and Agent-enablement (capability index + skills) need no payment accounts; `fabrik launch` v0 builds to the **waitlist path** meanwhile. *Resume bar when ready:* `PADDLE_API_KEY`, `PADDLE_CLIENT_TOKEN`, `PADDLE_WEBHOOK_SECRET`, `PADDLE_ENVIRONMENT` (+ for TR `IYZICO_API_KEY`, `IYZICO_SECRET_KEY`, `IYZICO_ENVIRONMENT`) in `.env`, Sandbox first — then the graduate metric (verified paid conversion) goes live.
-4. **Hit-rate / distribution — RECLASSIFIED (the core bet, not a plan gap).** Whether enough launches convert is empirically unknowable pre-launch; *getting traffic* has its own plan (§Out-of-scope). Stated as the headline assumption: the factory makes ideas cheap to test; distribution decides whether the portfolio compounds.
-5. **Effort 2.5× — RECLASSIFIED (estimate with a built-in check).** A planning multiplier, not an unknown; the Day-11 timing gate is its first measurement and recalibrates the rest.
-6. **postgres-main capacity — RESOLVED (modeled).** The metrics tables are tiny: `fabrik_projects`/`control_state` ≈ one row per project / one row; `attention_events` ≈ 10²–10³ rows/wk; `webhook_events` ≈ low-10³/wk at scale — combined well under ~100 MB/yr. Per-project app DBs are bounded by the brake's **≤20 active Tier-0** cap; the binding limit is connection count (~20×5 ≈ 100), mitigated by `max_connections=200`. A fuller model is only needed past the ≤20 cap the brake enforces.
-7. **Paddle subscription/refund → metric mapping — RESOLVED.** Full event→metric mapping grounded by live fetch and written into §Payments + `core/85-payments-billing.md` §Refunds & Adjustments.
-8. **Beacon transport — RESOLVED.** Not a new mechanism: `postgres-main:5432` over the `fabrik` net (same-host) / WireGuard mesh (spoke) with identical Docker-DNS connection strings (`core/30-ops.md:206`).
-9. **Paddle refund tax-reversal — RESOLVED (by docs).** As MoR, Paddle reverses the proportional VAT inside the refund adjustment (`items[].amount` tax-inclusive); the operator handles no refund tax. The Day-12 gate's Sandbox refund run stays as belt-and-suspenders, but the design no longer rests on an unknown.
-10. **iyzico webhook specifics — RESOLVED.** Grounded: `X-Iyz-Signature-V3` HMAC-SHA256 scheme, `SUCCESS`/`CONTACTLESS_REFUND` statuses, retry 15 min × 3 — now in §Payments + the rule pack.
-11. **brake.yaml thresholds — RESOLVED (defaults chosen).** v0: `MIN_QUALIFIED_SESSIONS=100`, `OPERATOR_IP_ALLOWLIST=<operator egress IPs>`, `BOT_UA_DENYLIST` seeded from `crawler-user-agents`, require a JS `page_view`. Post-traffic tuning is normal ops, not an open gap.
-12. **Adjustments API in the rule pack — RESOLVED.** Added `§Refunds & Adjustments` to `core/85-payments-billing.md` this turn (canonical source, not synced-locked).
-13. **Undefined-term cleanup — CLOSED.** All flagged terms defined inline; the index/surface-health pass lints plan vocabulary at implementation.
-
-**Net:** the only thing between this plan and execution that I cannot resolve myself is **#3 — you creating the Paddle + iyzico accounts and putting the keys in `.env`.** Everything else is grounded or decided.
+1. **Shamir break-glass — decided.** Tool = `ssss` (2-of-3 split), armed when the first large project needs it
+   (`apt install ssss` — verified not installed today). Interim = a single `age`-encrypted break-glass bundle
+   on the operator phone + a designated successor.
+2. **postgres-main capacity — modeled (trivial).** The metrics tables are tiny: `control_state` ≈ one row;
+   `attention_events` ≈ 10²–10³ rows/wk — combined well under ~100 MB/yr. The binding limit is connection
+   count, mitigated by `max_connections=200`.
+3. **Effort 2.5× — estimate with a built-in check.** A planning multiplier; the Day-11 timing gate is its first
+   measurement and recalibrates the rest.
+4. **Spec re-scope — OPEN (self-service).** `docs/superpowers/specs/2026-07-12-empire-operating-model-design.md`
+   still carries the removed monetization premise; it should get the same operator-directed re-scope (or be
+   archived) so plan and spec agree. Resolution: re-run `/fabrik-spec-review` on it with this re-scope, or
+   archive it.
 
 ## Validation
 
-Final step — run the gate (it invokes `check_convergence.py` via `run_optional_check`):
+Final step — run the gate:
 
 ```text
-$ python scripts/final_gate.py --lean --json
+$ python scripts/final_gate.py --check --json
 { "status": "success", "failed": 0, "failures": [] }
 ```
-(`failed:0` is the stable claim; the `passed` count fluctuates 15–16 with how many files the parallel kilo pipeline has changed in the tree at run time — not a property of this plan.) `check_convergence.py` runs inside `final_gate` (`run_optional_check`) and passes — the plan has `## Evidence`, a self-audit/convergence-floor block, ≥1 `path:line` per section, and a non-trivial command-output fence. Green proves citation presence + format, not design soundness — the real proof is the Evidence + the independent grounder passes above.
+`check_convergence.py` runs inside `final_gate` and passes — the plan has `## Evidence`, a `## Self-audit`
+block, ≥1 `path:line` per section, and a command-output fence. Green proves citation presence + format, not
+design soundness — the real proof is the Evidence + the grounding above.
