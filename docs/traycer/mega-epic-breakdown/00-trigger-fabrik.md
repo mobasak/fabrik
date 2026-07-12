@@ -1,12 +1,14 @@
-<!-- ⚠️ TRAYCER WORKFLOW SOURCE FILE
-     Traycer does NOT read this file directly.
-     After editing, copy-paste the content into Traycer workflow GUI.
-     Location: Traycer > My Workflows > mega-epic-breakdown > trigger-workflow
+<!-- ⚠️ FABRIK FACTORY WORKFLOW — ENTRYPOINT (our own, tool-capable)
+     Run DIRECTLY by our orchestrator agent (Claude Code CLI, in Zed) — never pasted into a planner GUI.
+     Unlike the our orchestrator source (docs/traycer/mega-epic-breakdown/00-trigger-workflow-command.md), this
+     agent is TOOL-CAPABLE: it RUNS `python scripts/select_rules.py`, reads the files it cites, grounds
+     external facts LIVE via MCP (exa/brave/context7, cite URL+date), and gates with
+     `python scripts/final_gate.py`. Orientation file to read FIRST: `agents-fabrik.md`.
+     "Wait for the operator" below means genuinely pause for their input — never fabricate their answer.
      -->
 
-<!-- ⚠️ QUALITY GATE: Any modification to this command file MUST be evaluated
-     against EVALUATION_CHECKLIST_FOR_MEGA_EPIC_COMMANDS.md.
-     Every applicable item must pass. "N/A" is valid; forgetting to check is not. -->
+<!-- ⚠️ QUALITY GATE: Any modification MUST be evaluated against
+     docs/traycer/mega-epic-breakdown/EVALUATION_CHECKLIST_FOR_MEGA_EPIC_COMMANDS.md. -->
 
 # Project Intake (Entrypoint — Vision for NEW, Continuation for EXISTING)
 
@@ -25,7 +27,7 @@ Mode is **owner-declared at the start** (Step 0). Do not auto-detect from filesy
 
 **Agreed outputs by mode:**
 
-- **NEW:** WHAT we're building (full feature inventory, nothing vague), WHO it's for (named personas, not "users"), WHY it matters (value streams), HOW BIG it is (single vs multi-epic), WHICH SERVICES (every major tech choice resolved — grounded in `AGENTS.md` § Infrastructure Services + `docs/reference/technology-stack-decision-guide.md`), WHAT EXISTS to leverage, WHAT DOESN'T FIT, WHAT'S MISSING.
+- **NEW:** WHAT we're building (full feature inventory, nothing vague), WHO it's for (named personas, not "users"), WHY it matters (value streams), HOW BIG it is (single vs multi-epic), WHICH SERVICES (every major tech choice resolved — grounded in `agents-fabrik.md` § Infrastructure Services + `docs/reference/technology-stack-decision-guide.md`), WHAT EXISTS to leverage, WHAT DOESN'T FIT, WHAT'S MISSING.
 - **EXISTING:** WHAT EXISTS (project snapshot), WHAT'S LOCKED (decisions that cannot change — data exists, users paying, APIs live), WHERE IT DEVIATES from current scaffold standards/rule packs (and per-gap fix-now/fix-later/accept-as-legacy), WHAT TO BUILD NEXT (delta only, not re-planning), WHICH SERVICES the delta needs (per current ruleset, inheriting locked decisions).
 
 **Core principles.** The goal is shared understanding, not a document. Questions are investments in correctness; surfacing assumptions early is cheap, fixing wrong epics is expensive. **Planning is SLOW. Execution is FAST.** NEW: never rush, never skip a constraint, never assume when you can ask. EXISTING: respect what's built — read the vision from the codebase, do NOT re-derive it; do NOT re-decide locked tech choices; DO compare against current rules and surface deviations.
@@ -38,7 +40,7 @@ Mode is **owner-declared at the start** (Step 0). Do not auto-detect from filesy
 4. **Easy to maintain** — when two solutions both work, prefer the one needing less ongoing attention. Start with what exists on the VPS; escalate when proven necessary.
 5. **Set and forget** — prefer low-maintenance solutions (self-hosted `postgres-main` / `redis-main` on the fleet; managed Paddle, Cloudflare, Resend where a managed edge genuinely wins) over anything that needs babysitting.
 
-**Grounding rules.** Ground in what EXISTS on the VPS (read `AGENTS.md` § Infrastructure Services fresh each run), not theoretical architecture. Decide NOTHING about epic boundaries — that is `02-epic-decomposition-command`. Challenge research against Fabrik reality, but treat it as expert input, not hallucination to dismiss. All paths are Linux (WSL Ubuntu 24.04) — never generate Windows-style paths.
+**Grounding rules.** Ground in what EXISTS on the VPS (read `agents-fabrik.md` § Infrastructure Services fresh each run), not theoretical architecture. Decide NOTHING about epic boundaries — that is `02-epic-decomposition-command`. Challenge research against Fabrik reality, but treat it as expert input, not hallucination to dismiss. All paths are Linux (WSL Ubuntu 24.04) — never generate Windows-style paths.
 
 **Fabrik lifecycle (mental model).** Every project passes through 4 stages (full detail in `docs/operations/fabrik-lifecycle.md`):
 
@@ -85,7 +87,7 @@ Plus `kind:` (one of: `service`, `worker`, `static` — per `src/fabrik/spec_loa
 ## Input Contract
 
 **Auto-loaded (both modes):**
-- `AGENTS.md` — full project context, infrastructure services, microservices table, planning constraints.
+- `agents-fabrik.md` — full project context, infrastructure services, microservices table, planning constraints (our tool-capable orientation file).
 - `docs/operations/fabrik-lifecycle.md` — deploy/runtime behavior, data safety.
 - `docs/reference/technology-stack-decision-guide.md` — stack defaults and decision flowchart.
 - `docs/reference/prebuilt-app-containers.md` — off-the-shelf solutions that eliminate custom work.
@@ -176,7 +178,7 @@ Plus `kind:` (one of: `service`, `worker`, `static` — per `src/fabrik/spec_loa
 
 This command has a mode declaration at the start, then a series of checkpoints depending on the mode. Do NOT silently proceed past a checkpoint.
 
-**Owner non-responsive at a checkpoint** — if the owner stops replying mid-run, the partial Vision Summary persists in Traycer's conversation context (no files written by this command). To resume: the owner re-enters the conversation and Traycer picks up at the last unresolved checkpoint. **Do NOT** time out and self-confirm; **do NOT** start over from Step 0 unless the owner explicitly says "restart". Silence ≠ confirmation; silence = "session paused, waiting for owner".
+**Owner non-responsive at a checkpoint** — if the owner stops replying mid-run, the partial Vision Summary persists in our orchestrator's conversation context (no files written by this command). To resume: the owner re-enters the conversation and our orchestrator picks up at the last unresolved checkpoint. **Do NOT** time out and self-confirm; **do NOT** start over from Step 0 unless the owner explicitly says "restart". Silence ≠ confirmation; silence = "session paused, waiting for owner".
 
 ### Step 0: Mode Declaration
 
@@ -197,12 +199,12 @@ Do NOT auto-detect from filesystem. Do NOT skip this question. The owner declare
 
 The Input Contract files are already auto-loaded. Now focus on these specific sections within them (and one new file):
 
-- `AGENTS.md` § `Infrastructure Services — Running on VPS` — what's already deployed (hub vs spoke per service).
-- `AGENTS.md` § `Development Environment` — **3-host fleet topology** (vps1 hub + vps2/vps3 spokes, wg0 mesh, per-host DNS).
-- `AGENTS.md` § `Fabrik Microservices` — existing custom services (live vs retired/not-deployed).
-- `AGENTS.md` § `Scaffold Types` — the 11 scaffoldable types + shape flags emitted by each (`templates/<type>/defaults.yaml` is the contract). WordPress is NOT in this list (deferred to `/opt/wpf`).
-- `AGENTS.md` § `MANDATORY ORCHESTRATOR PRE-FLIGHT` — run all 7 checks listed there (Ports, Business Model, Microservices, Hardware Audit, Design System, External Knowledge, fabrik-lib).
-- `AGENTS.md` § `Planning Constraints` — all 12 constraints. **These are a separate list from Step N3i's 20 checks** and cover orthogonal angles (Solo dev capacity, Module dependencies, DNS via site-provisioner, Scaffold immutability, State conflicts) that are NOT in N3i. Apply both: AGENTS.md's 12 at orientation time, N3i's 20 at vision-verification time.
+- `agents-fabrik.md` § `Infrastructure Services — Running on VPS` — what's already deployed (hub vs spoke per service).
+- `agents-fabrik.md` § `Development Environment` — **3-host fleet topology** (vps1 hub + vps2/vps3 spokes, wg0 mesh, per-host DNS).
+- `agents-fabrik.md` § `Fabrik Microservices` — existing custom services (live vs retired/not-deployed).
+- `agents-fabrik.md` § `Scaffold Types` — the 11 scaffoldable types + shape flags emitted by each (`templates/<type>/defaults.yaml` is the contract). WordPress is NOT in this list (deferred to `/opt/wpf`).
+- `agents-fabrik.md` § `MANDATORY ORCHESTRATOR PRE-FLIGHT` — run all 7 checks listed there (Ports, Business Model, Microservices, Hardware Audit, Design System, External Knowledge, fabrik-lib).
+- `agents-fabrik.md` § `Planning Constraints` — all 12 constraints. **These are a separate list from Step N3i's 20 checks** and cover orthogonal angles (Solo dev capacity, Module dependencies, DNS via site-provisioner, Scaffold immutability, State conflicts) that are NOT in N3i. Apply both: AGENTS.md's 12 at orientation time, N3i's 20 at vision-verification time.
 - `docs/infrastructure/vps-complete-inventory.md` — canonical fleet inventory if the AGENTS.md summary is ambiguous on host placement.
 - `docs/operations/fabrik-lifecycle.md` — runtime behavior, data safety, deploy/redeploy/destroy.
 - `docs/reference/technology-stack-decision-guide.md` — stack defaults.
@@ -239,7 +241,7 @@ Synthesize answers into the same internal structure (vision, personas, features,
 - **Build where consume exists?** Check prebuilt containers, existing Fabrik microservices (site-provisioner — the only one live on the fleet; image-broker and the rest are retired/not deployed), VPS services, `/opt/fabrik-lib/` vendorable modules (see `fabrik-lib/README.md` for the module table).
 - **High-maintenance where set-and-forget exists?** Prefer solutions that auto-heal/auto-backup/auto-monitor via the existing Prometheus/Gatus/Backrest stack.
 - **Incompatible with Fabrik infra?** Port conflicts (`PORTS.md`), Alpine images (bookworm-slim only), `localhost` assumptions (use `postgres-main:5432`), x86_64 issues, 12-Factor violations.
-- **Duplicate functionality?** Check `docs/BUSINESS_MODEL.md` § Portfolio + `AGENTS.md` § Microservices.
+- **Duplicate functionality?** Check `docs/BUSINESS_MODEL.md` § Portfolio + `agents-fabrik.md` § Microservices.
 
 If research direction is fundamentally wrong for Fabrik (e.g., AWS serverless when everything deploys to VPS via `fabrik apply`), say so directly and recommend an alternative or pause for re-research.
 
@@ -422,7 +424,7 @@ Read the project's actual state — not from memory, from files. Owner must have
 - **Stage 3 (Registration):** `fabrik apply` run? `.fabrik/state/*.json` exists? Registrars active (Gatus, GlitchTip, Prometheus)?
 - **Stage 4 (Verification):** `fabrik verify` passes? `fabrik audit-registrars` clean?
 
-**Pre-flight checks** — run all 7 checks per `AGENTS.md` § MANDATORY ORCHESTRATOR PRE-FLIGHT (same as Step N1): Ports, Business Model, Microservices, Hardware Audit, Design System, External Knowledge, fabrik-lib.
+**Pre-flight checks** — run all 7 checks per `agents-fabrik.md` § MANDATORY ORCHESTRATOR PRE-FLIGHT (same as Step N1): Ports, Business Model, Microservices, Hardware Audit, Design System, External Knowledge, fabrik-lib.
 
 **Scope note for pre-scaffold projects:** if the project predates `fabrik scaffold` (no `project.yaml`), several pre-flight checks are *retrospective only* — they document the current state rather than gate a new decision. Specifically: Hardware Audit and Design System checks describe what the project already runs/looks like (no "decide" step); Ports, Business Model, Microservices, External Knowledge, and fabrik-lib still apply forward (the delta being scoped in E4 must satisfy them). State pre-flight findings in the format "Retrospective: \[X\]" vs "Forward: \[Y\]" so E3 gaps are unambiguous.
 
@@ -487,12 +489,12 @@ Run these in the project's directory:
 
 Report findings as a list of mechanical gaps with concrete locations.
 
-**Step E3.B — Rule-pack judgment (Traycer evaluates code/structure):**
+**Step E3.B — Rule-pack judgment (our orchestrator evaluates code/structure):**
 
-For each rule pack applicable to this scaffold type (per `AGENTS.md` § Project Type → Default Packs table; full pack list in the Rule Pack Index above in the Input Contract section), evaluate the project against the pack's mandates. Example table below is for `saas-skeleton`; for other scaffold types build the equivalent table:
+For each rule pack applicable to this scaffold type (per `agents-fabrik.md` § Project Type → Default Packs table; full pack list in the Rule Pack Index above in the Input Contract section), evaluate the project against the pack's mandates. Example table below is for `saas-skeleton`; for other scaffold types build the equivalent table:
 
 - **Scaffold has a `domain-modules/<type>.md`** (chrome-ext, desktop-app, mobile-app, rag, saas) → use that as the structural starting point + add applicable rows from the Rule Pack Index.
-- **Scaffold has NO `domain-modules/<type>.md`** (python-api, node-api, file-api, file-worker, static-site, docusaurus) → build the table directly from the Rule Pack Index, scoped to the scaffold's Default Packs in `AGENTS.md` § Project Type → Default Packs. Use the applicability matrix below to decide which rows survive.
+- **Scaffold has NO `domain-modules/<type>.md`** (python-api, node-api, file-api, file-worker, static-site, docusaurus) → build the table directly from the Rule Pack Index, scoped to the scaffold's Default Packs in `agents-fabrik.md` § Project Type → Default Packs. Use the applicability matrix below to decide which rows survive.
 - **WordPress projects are out of scope here** — delegate to `/opt/wpf`; do NOT build a Compliance table for WordPress sites under this workflow.
 
 **Rule-area applicability matrix** (use to scope rows in/out of the Compliance table for a given scaffold):
@@ -546,7 +548,7 @@ For each rule pack applicable to this scaffold type (per `AGENTS.md` § Project 
 | file_erasure_audit hash-chain (file-api scaffold) | Tamper-evident sibling audit table with `prev_hash` + `current_hash` columns via `BEFORE INSERT` trigger; `verify_chain()` adapted from `/opt/fabrik-lib/app-audit-log/`; quarterly verification scheduled (per `67-file-api.md` § KVKK + Article 7(3)) | Inspect schema for `file_erasure_audit` + trigger + verify scheduler | Compliant / Missing / N/A |
 | Fabrik-synced files unmodified | The set in `scripts/fabrik_synced_manifest.py` (AGENTS.md, CLAUDE.md, AGENTS-compact.md, .windsurfrules, `.windsurf/rules/`, etc.) must be byte-identical to `/opt/fabrik` source — never edited locally; gate-enforced by `scripts/enforcement/check_synced_unmodified.py` | Run `python scripts/enforcement/check_synced_unmodified.py` from project root | Compliant / Drift |
 
-Adapt the table to the scaffold type — pull the relevant packs from `AGENTS.md` § Project Type → Default Packs. For non-applicable rule areas, mark `N/A` (e.g., abuse detection for an internal API).
+Adapt the table to the scaffold type — pull the relevant packs from `agents-fabrik.md` § Project Type → Default Packs. For non-applicable rule areas, mark `N/A` (e.g., abuse detection for an internal API).
 
 **Step E3.C — Owner decides per gap:**
 
@@ -699,7 +701,7 @@ Wait for explicit confirmation. **STOP GENERATION HERE.** Silence ≠ confirmati
 
 ## Output Contract & Acceptance Criteria
 
-**Format.** Vision Summary (markdown, exact structure from Step N4 / E5 skeleton) presented in Traycer conversation. No files written. Lives in Traycer conversation context titled "Vision Summary." Persisted by Traycer's spec store automatically. Consumed by `02-epic-decomposition-command` from conversation context; `03-expand-epic-files-command` creates tickets per epic from the confirmed decomposition.
+**Format.** Vision Summary (markdown, exact structure from Step N4 / E5 skeleton) presented in our orchestrator conversation. No files written. Lives in our orchestrator conversation context titled "Vision Summary." Persisted by our orchestrator's spec store automatically. Consumed by `02-epic-decomposition-command` from conversation context; `03-expand-epic-files-command` creates tickets per epic from the confirmed decomposition.
 
 **Token budget.** NEW: ≤5,000 target / ≤8,000 hard cap. EXISTING: ≤6,000 target / ≤10,000 hard cap (extras add length).
 
@@ -712,7 +714,7 @@ Wait for explicit confirmation. **STOP GENERATION HERE.** Silence ≠ confirmati
 - Input consumed per declared mode and path.
 - ALL features (or retrofits + new features in EXISTING) present in Feature Inventory — no silent drops.
 - Personas named explicitly — not just "users." Value streams stated — not just "it's useful."
-- Backing services grounded in actual VPS inventory (`AGENTS.md` § Infrastructure Services). External services identified with cost tier (free/paid).
+- Backing services grounded in actual VPS inventory (`agents-fabrik.md` § Infrastructure Services). External services identified with cost tier (free/paid).
 - Technology Decisions complete — every major NEW choice resolved. No "TBD" allowed.
 - All 20 constraints verified: `all clear` / `conflict` / `unknown`. No silent unknowns.
 - Scale Assessment present with classification and clear next-step routing.
@@ -743,4 +745,4 @@ Wait for explicit confirmation. **STOP GENERATION HERE.** Silence ≠ confirmati
 
 ## Examples
 
-The skeletons in Step N4 (NEW) and Step E5 (EXISTING) above are the authoritative output shape — Traycer follows them at runtime. Historical filled-in examples (read-once illustrative anchors, never pasted into Traycer) are archived at `docs/archive/2026-06-18-traycer-mega-epic-vision-summary-examples.md`.
+The skeletons in Step N4 (NEW) and Step E5 (EXISTING) above are the authoritative output shape — our orchestrator follows them at runtime. Historical filled-in examples (read-once illustrative anchors, never pasted into our orchestrator) are archived at `docs/archive/2026-06-18-traycer-mega-epic-vision-summary-examples.md`.
