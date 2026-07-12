@@ -34,7 +34,7 @@ Product manager who digs into the "why" behind a project. You produce a deploy-r
 
 **Required fields from Path A (single-epic INFRA-CHECK from `00-trigger-workflow-command`):** `Port`, `Scaffold`, `User Guide`, `Shape`, `Concurrency`, `i18n`, `Responsive`, `Dark+Light`, `Rule Packs` (9 required); `Abuse Detection`, `Email`, `FINANCIALS` (3 SaaS-conditional, `N/A` allowed).
 
-**Required fields from Path B (multi-epic 14-field block per `00-trigger-workflow-command` L77 post-`5a48017` + `1eaf22a`):** the 12 Path A fields PLUS `Registrars`, `Universal categories`, `Epic Flavor` (`Delta-feature` | `Retrofit`) — total 15. Path B does NOT silently drop `Registrars` or `Universal categories`; both propagate into the Epic Brief Metadata block.
+**Required fields from Path B (multi-epic 14-field block per `00-trigger-workflow-command` § Entry Points → Multi-epic (consume mode)):** the 12 Path A fields PLUS `Registrars`, `Universal categories`, `Epic Flavor` (`Delta-feature` | `Retrofit`) — total 15. Path B does NOT silently drop `Registrars` or `Universal categories`; both propagate into the Epic Brief Metadata block.
 
 **Informational (surface if material — both paths):** `Duplicate`, `Internal APIs`, `Design System`, `Platform Debt`, `12-Factor`, `Vector DB`.
 
@@ -146,7 +146,7 @@ If scope changes during iteration → suggest `revise-requirements` rather than 
 
 ## Acceptance Criteria
 
-- INFRA-CHECK consumed; all propagated fields in Metadata. Path A: 9 required + 3 SaaS-conditional. Path B: 12 required + 3 SaaS-conditional (the full 14-field block per `ettw/00-trigger-workflow-command` L77 + `Epic Flavor` = 15 propagated fields; none silently dropped at the boundary).
+- INFRA-CHECK consumed; all propagated fields in Metadata. Path A: 9 required + 3 SaaS-conditional. Path B: 12 required + 3 SaaS-conditional (the full 14-field block per `ettw/00-trigger-workflow-command` § Entry Points → Multi-epic (consume mode) + `Epic Flavor` = 15 propagated fields; none silently dropped at the boundary).
 - Research re-read (same file as trigger_workflow); gaps/opportunities surfaced.
 - Assumptions surfaced with confidence ratings when input is thin.
 - Infrastructure grounded by consuming trigger findings, not re-running checks.

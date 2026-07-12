@@ -30,7 +30,7 @@ The goal is alignment, not artifacts. Work through each section via clarificatio
 Read these in order; everything else builds on them:
 
 1. **Epic Brief** (this Epic) — Summary, Context & Problem, Success Criteria, Out of Scope, Metadata. Every architectural decision must trace back to either a Success Criterion or a Constraint surfaced by `trigger_workflow`.
-2. **`trigger_workflow` INFRA-CHECK** — capture every field. Path A: 9 required + 3 SaaS-conditional. Path B (multi-epic 14-field block per `ettw/00-trigger-workflow-command` L77 post-`5a48017` + `Epic Flavor` per `1eaf22a`): adds `Registrars`, `Universal categories`, `Epic Flavor` (Delta-feature | Retrofit). Path B-specific tech-plan rules:
+2. **`trigger_workflow` INFRA-CHECK** — capture every field. Path A: 9 required + 3 SaaS-conditional. Path B (multi-epic 14-field block per `ettw/00-trigger-workflow-command` § Entry Points → Multi-epic (consume mode) post-`5a48017` + `Epic Flavor` per `1eaf22a`): adds `Registrars`, `Universal categories`, `Epic Flavor` (Delta-feature | Retrofit). Path B-specific tech-plan rules:
    - **`Universal categories`** (Path B only) constrains the architecture surface: if the epic owns category #3 (Persistence) but NOT #4 (Workers), do NOT design worker subsystems. Categories owned by sibling epics → `Out of Scope` in Component Architecture (Step 6.C).
    - **`Epic Flavor: Retrofit`** (Path B only) changes section targeting throughout this command:
      - **Step 4b 12-Factor** — re-verify ONLY the factor the retrofit touches (e.g., `Retrofit: i18n` → Factor III config + Factor V build only). Skip the full 12-factor sweep; state inherited compliance for untouched factors.

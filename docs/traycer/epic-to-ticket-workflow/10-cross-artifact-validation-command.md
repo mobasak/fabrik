@@ -49,7 +49,7 @@ Read in order:
 4. **Deploy Plan** (when present — may be SKIPPED entirely for code-only Retrofit epics per `04-deploy-plan-command` post-`3060147`) — registrar surface, compose contract, env vars
 5. **Ticket Outline** (when present) — batches, parallel groupings, categories, Doc Sync Matrix
 6. **Ticket Breakdown** (when present) — full tickets, [PRIMARY PATH] Index, Acceptance Criteria
-7. **INFRA-CHECK** — Path A: Scaffold, Port, Internal APIs, User Guide, Shape, Concurrency, i18n, Rule Packs (8 fields). Path B (multi-epic 14-field block per `ettw/00-trigger-workflow-command` L77 post-`5a48017` + `1eaf22a`): ALSO Responsive, Dark+Light, Registrars, Universal categories, Epic Flavor, Abuse Detection, Email, FINANCIALS.
+7. **INFRA-CHECK** — Path A: Scaffold, Port, Internal APIs, User Guide, Shape, Concurrency, i18n, Rule Packs (8 fields). Path B (multi-epic 14-field block per `ettw/00-trigger-workflow-command` § Entry Points → Multi-epic (consume mode) post-`5a48017` + `1eaf22a`): ALSO Responsive, Dark+Light, Registrars, Universal categories, Epic Flavor, Abuse Detection, Email, FINANCIALS.
 8. `docs/operations/fabrik-lifecycle.md` — which stage the epic is at
 9. `docs/LESSONS_LEARNT.md` — accumulated entries from prior execution
 
@@ -244,7 +244,7 @@ Compare tickets against updated specs:
 
 - All artifact surfaces internalized (Brief, Flows, Tech Plan, Deploy Plan, Outline, Tickets, INFRA-CHECK, lifecycle, LESSONS_LEARNT).
 - All 8 dimensions analyzed. Findings classified by significance.
-- INFRA-CHECK propagation verified for all 7 Path A fields (Path A epic) OR all 14 Path B fields + Epic Flavor (Path B multi-epic dispatch per `ettw/00-trigger-workflow-command` L77 post-`5a48017`+`1eaf22a`).
+- INFRA-CHECK propagation verified for all 7 Path A fields (Path A epic) OR all 14 Path B fields + Epic Flavor (Path B multi-epic dispatch per `ettw/00-trigger-workflow-command` § Entry Points → Multi-epic (consume mode) post-`5a48017`+`1eaf22a`).
 - Ticket structure verified (Doc Sync Matrix, Final Gate, Lessons Learnt, first-output, no-git, [PRIMARY PATH], Epic Closure, parallelism budget).
 - LESSONS_LEARNT coherence verified (entries match, numbering sequential, no spec contradictions).
 - Findings presented: overall assessment → significant → minor (batched).

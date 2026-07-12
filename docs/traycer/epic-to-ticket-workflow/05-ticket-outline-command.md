@@ -42,7 +42,7 @@ Read (in order):
 
 **Two-faced types** (`chrome-extension`, `mobile-app`, `desktop-app`): tickets split into backend lane (deploys to VPS) and client lane (builds locally / ships to store). These lanes are naturally parallel.
 
-**Multi-epic dispatch mode (from `mega-epic-breakdown`):** If this command was invoked downstream of `mega-epic-breakdown/05-dispatch-epic-tickets-command` (i.e., `epic-to-ticket-workflow/00-trigger-workflow-command` ran in **consume mode** per its L77), additional rules apply:
+**Multi-epic dispatch mode (from `mega-epic-breakdown`):** If this command was invoked downstream of `mega-epic-breakdown/05-dispatch-epic-tickets-command` (i.e., `epic-to-ticket-workflow/00-trigger-workflow-command` ran in **consume mode** per its § Entry Points → Multi-epic (consume mode)), additional rules apply:
 
 - **14-field Metadata** is inherited verbatim from the dispatched epic ticket: Scaffold, Port, Shape, Concurrency, i18n, Responsive, Dark+Light, Rule Packs, HAS_USER_GUIDE, Registrars, Universal categories, Abuse Detection, Email, FINANCIALS. Carry forward to every ticket Metadata field; do NOT re-derive.
 - **Universal categories** (1–14, comma-separated, inherited from the ticket's Metadata field per `mega-epic-breakdown/02-epic-decomposition-command` sub-step 2h) constrain the scope of THIS outline: only the categories this epic owns may yield tickets; categories owned by sibling epics are out-of-scope and become `Out of Scope` lines on every ticket that might touch them.

@@ -30,7 +30,7 @@ Deploy Plan runs AFTER tech-plan, BEFORE ticket-outline. It's a pre-flight that 
 ### Step 1: Consume Upstream
 
 1. **Tech Plan** — Shape Block Declaration (Step 7), Component Architecture deployment config, resilience table.
-2. **INFRA-CHECK** — Path A (single-epic): capture `Shape`, `Concurrency`, `Port`, `Scaffold`, `Internal APIs`, `Rule Packs`, `User Guide`, `i18n`, `Responsive`, `Dark+Light`, `Abuse Detection`, `Email`, `FINANCIALS` (the 12 fields propagated by `01-epic-brief-command` Path A). Path B (multi-epic 14-field block per `00-trigger-workflow-command` L77 post-`5a48017`+`1eaf22a`): ALSO capture `Registrars`, `Universal categories`, `Epic Flavor` (Delta-feature | Retrofit).
+2. **INFRA-CHECK** — Path A (single-epic): capture `Shape`, `Concurrency`, `Port`, `Scaffold`, `Internal APIs`, `Rule Packs`, `User Guide`, `i18n`, `Responsive`, `Dark+Light`, `Abuse Detection`, `Email`, `FINANCIALS` (the 12 fields propagated by `01-epic-brief-command` Path A). Path B (multi-epic 14-field block per `00-trigger-workflow-command` § Entry Points → Multi-epic (consume mode) post-`5a48017`+`1eaf22a`): ALSO capture `Registrars`, `Universal categories`, `Epic Flavor` (Delta-feature | Retrofit).
 
    **Path B-specific deploy-plan rules:**
    - **`Registrars` cross-check (Path B only):** Step 4 Registrar Surface Map MUST match the `Registrars` list from Epic Brief Metadata. If Tech Plan says "fires authelia" but the Registrars list omits authelia → mismatch; route back to `mega-epic-breakdown/02-epic-decomposition-command` to update the spec.

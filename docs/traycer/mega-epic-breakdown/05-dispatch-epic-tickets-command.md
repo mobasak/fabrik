@@ -93,7 +93,7 @@ If any of the 3 checks fail, STOP. Do not proceed to Step 2.
 
 State dispatch instructions:
 
-"To execute an epic (Delta-feature OR Retrofit — same procedure): select its ticket → run `epic-to-ticket-workflow/00-trigger-workflow-command` in **consume mode** (per `epic-to-ticket-workflow/00-trigger-workflow-command` L77 Path B — it reads the epic ticket's Metadata block as the INFRA-CHECK input instead of deriving it from scratch). Then continue through `01-epic-brief-command` (Path B at L33 consumes the same Metadata via INFRA-CHECK). The ticket description IS the Epic Brief input."
+"To execute an epic (Delta-feature OR Retrofit — same procedure): select its ticket → run `epic-to-ticket-workflow/00-trigger-workflow-command` in **consume mode** (per `epic-to-ticket-workflow/00-trigger-workflow-command` § Entry Points → Multi-epic (consume mode) Path B — it reads the epic ticket's Metadata block as the INFRA-CHECK input instead of deriving it from scratch). Then continue through `01-epic-brief-command` (Path B at L33 consumes the same Metadata via INFRA-CHECK). The ticket description IS the Epic Brief input."
 
 "Dispatch order — execute one Phase at a time, in order; within a Phase, epics with `⚡` can be worked in any order but the owner runs one `epic-to-ticket-workflow` cycle at a time:"
 
@@ -108,7 +108,7 @@ State dispatch instructions:
 Dispatch instructions presented in conversation (structure-bounded, not document-style — per `EVALUATION_CHECKLIST_FOR_MEGA_EPIC_COMMANDS.md` item 93). Format:
 
 1. **Phased execution order** — rendered using one of the 4 patterns in Step 2 (multi-phase / single-epic / fully-parallel / fully-sequential), inherited verbatim from `04-cross-epic-validation-command` Step 7 Recommended Execution Order when present; re-derived from the Dependency Graph spec only when 04's order is absent.
-2. **Per-epic dispatch instruction** — invokes `epic-to-ticket-workflow/00-trigger-workflow-command` in **consume mode** (per `epic-to-ticket-workflow/00-trigger-workflow-command` L77 Path B; reads the epic ticket's 14-field Metadata block as INFRA-CHECK). Identical procedure for delta-feature and Retrofit epics.
+2. **Per-epic dispatch instruction** — invokes `epic-to-ticket-workflow/00-trigger-workflow-command` in **consume mode** (per `epic-to-ticket-workflow/00-trigger-workflow-command` § Entry Points → Multi-epic (consume mode) Path B; reads the epic ticket's 14-field Metadata block as INFRA-CHECK). Identical procedure for delta-feature and Retrofit epics.
 3. **Post-execution routing** — instructs the owner to run `epic-to-ticket-workflow/08-implementation-validation-command` per epic to verify implementation after all dispatched epics complete.
 
 **Consumed by:** Owner — executes one epic at a time per phase order; within a Phase, epics with `⚡` can be worked in any order.
