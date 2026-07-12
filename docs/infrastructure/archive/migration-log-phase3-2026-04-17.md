@@ -35,7 +35,7 @@
 ✓ Old container: Running, healthy
 ✓ Public URL: Accessible (302 → Authelia)
 ✓ Network: coolify (correct)
-✓ Telegram bot token retrieved: tgram://8751835294:AAHwhKgeCUoG2ovr9Sg-xo9fMl5Gy6kXj1I/6999645768
+✓ Telegram bot token retrieved: tgram://<REDACTED-TELEGRAM-BOT-TOKEN>/6999645768
 ✓ Volume identified: apprise_apprise_config
 ✓ Dependencies: Gatus, Alertmanager, n8n (will have brief notification outage)
 ```

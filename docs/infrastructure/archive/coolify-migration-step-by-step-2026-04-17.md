@@ -370,7 +370,7 @@ services:
     image: caronc/apprise:latest
     container_name: apprise
     environment:
-      - APPRISE_STATELESS_URLS=tgram://8751835294:AAHwhKgeCUoG2ovr9Sg-xo9fMl5Gy6kXj1I/6999645768
+      - APPRISE_STATELESS_URLS=tgram://<REDACTED-TELEGRAM-BOT-TOKEN>/6999645768
     volumes:
       - apprise-config:/config
     restart: unless-stopped

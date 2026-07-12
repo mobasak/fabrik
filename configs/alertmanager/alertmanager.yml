@@ -57,8 +57,8 @@ receivers:
   # Uses the same bot/chat as Apprise — credentials mirrored from .env.
   - name: telegram
     telegram_configs:
-      - bot_token: '8751835294:AAHwhKgeCUoG2ovr9Sg-xo9fMl5Gy6kXj1I'
-        chat_id: 6999645768
+      - bot_token: '${TELEGRAM_BOT_TOKEN}'   # placeholder — real value substituted at deploy render (see header)
+        chat_id: ${TELEGRAM_CHAT_ID}
         parse_mode: HTML
         send_resolved: true
         message: |

@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Security — Scrub inline Telegram bot token from tracked files (2026-07-12)
+
+`configs/alertmanager/alertmanager.yml` had a real Telegram `bot_token` inline (violating the repo's
+"no inline secrets — externalise via `.env`/`${VAR}`" policy and its own header, which says the value is a
+placeholder). Replaced it + the `chat_id` with `${TELEGRAM_BOT_TOKEN}` / `${TELEGRAM_CHAT_ID}` placeholders
+(the live file at `/opt/monitoring/configs/alertmanager/alertmanager.yml` on vps1 keeps the real values and
+is untouched). Redacted the same token from 4 historical dumps (`docs/infrastructure/archive/*`,
+`docs/development/plans/archived/2026-05-27-coolify-migration.md`, `docs/reference/coolify-services-compose-dump.txt`).
+Repo is private, so no rotation/history-rewrite — going-forward hygiene only.
+
 ### Fixed — Fleet-wide reboot-race safety net (`fabrik-compose-boot.service`) (2026-07-12)
 
 **Incident:** vps1 `alertmanager` was `Exited (255)` for 4 days (since the 2026-07-08 kernel-upgrade reboot),

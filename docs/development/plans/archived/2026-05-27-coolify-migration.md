@@ -226,7 +226,7 @@ Store these in password manager NOW:
 | `BROWSERLESS_TOKEN` | `TWrqUboUGCDIm8IEck5wsqJUlJNvssPi` | browserless |
 | `GOTENBERG_USER/PASS` | `gotenberg` / `aMuGTzjlZ7z9wPHeGiIbHq8noGjFSpY7` | gotenberg basic auth |
 | `GLITCHTIP_SECRET_KEY` | `YWH7736oLuTID-NmAVDw90Th0CljrpDqWvp4UsrtIfndvT3KYA` | GlitchTip |
-| `APPRISE_TELEGRAM` | `tgram://8751835294:AAHwhKgeCUoG2ovr9Sg-xo9fMl5Gy6kXj1I/6999645768` | apprise + alertmanager |
+| `APPRISE_TELEGRAM` | `tgram://<REDACTED-TELEGRAM-BOT-TOKEN>/6999645768` | apprise + alertmanager |
 | `BACKREST_REPO_PASSWORD` | `22966574d505b0d670a15d3f1d9d178162801222668cdc1047567537eebbd7a2` | backrest |
 | `AWS_ACCESS_KEY_ID` | `0044e7ca36a086b0000000001` | backrest (B2 key ID via S3-compat API) |
 | `AWS_SECRET_ACCESS_KEY` | `K004hcjQVRBA8hLY0uZzzKEYg4crlq8` | backrest (B2 application key) |
