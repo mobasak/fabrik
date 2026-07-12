@@ -1,9 +1,23 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
-**Last Updated:** 2026-07-11 (Lesson 89 — WXT/MV3 chrome-ext scaffold: layered verification catches what a single layer misses, + the non-obvious MV3 facts)
+**Last Updated:** 2026-07-12 (Lesson 90 — Stop-hook DoD check is not plan-lock-aware: shared-tree false positives on a concurrent executor's WIP)
 
 **Purpose:** CAPTURE TECHNICAL HURDLES, AI-SPECIFIC QUIRKS, AND ARCHITECTURAL DECISIONS TO PREVENT REGRESSION AS CODEBASES AND AI AGENTS EVOLVE.
+
+---
+
+# Lesson 90: Stop-hook DoD check is not plan-lock-aware — shared-tree false positives demand edits to a sibling's locked, mid-write WIP
+
+**Context (2026-07-12):** A session's Stop hook ("session introduced gate failures → fix ruff, then finish", 3 attempts) fired while a **concurrent agent was executing plan-2** (capability catalog). The ruff findings sat exclusively in `scripts/generate_capability_index.py` — **untracked, inside the active plan-lock's `owned_paths`** (`.fabrik/plan-locks/2026-07-12-plan-2-fabrik-capability-catalog.json`), and **being written in real time** (mtime 6s, then 22s, before successive probes). The hook compares gate state session-start-vs-now, so a *sibling's* mid-session WIP is misattributed to the stopping session.
+
+**Evidence method (reusable for classifying any shared-tree gate failure):** (1) `git status` — untracked/modified but never committed by this session; (2) active plan-lock `owned_paths` containing the failing paths; (3) `stat` mtime vs `date` — seconds-old writes prove live editing; (4) **re-run the gate twice**: the finding set *changing between runs* (here `UP017`+`C416` → fixed → `N811`) proves the author's own fix loop is converging — the strongest possible signal to NOT intervene.
+
+**The two traps:**
+- **Obeying the hook mechanically** = editing a file that changed seconds ago, owned by an active lock → the mid-write collision / sibling-data-loss scenario CLAUDE.md marks as a critical failure. Correct behavior (per § Shared repo): **report the false positive; do not edit; do not `noqa`.**
+- **Subtler:** even running the *bare* gate (`final_gate.py --lean` without `--check`) auto-applies diff-scoped `ruff --fix` — the gate's own fixers would have mutated the sibling's locked file. During a shared-tree standoff, only `--check` runs are safe.
+
+**Fix (upstream, when the tree is quiet):** make both the Stop hook's new-failure diff AND the gate's auto-fixer scoping **plan-lock-aware** — exclude paths listed in any active `.fabrik/plan-locks/*.json` `owned_paths` (and, cheaper heuristic: untracked files this session never wrote). A DoD check in a multi-agent tree must attribute failures by *authorship*, not by *time window*.
 
 ---
 

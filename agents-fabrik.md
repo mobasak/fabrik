@@ -1,8 +1,9 @@
-# AGENTS.md — Fabrik Identity & Knowledge (Traycer)
+# AGENTS-FABRIK.md — Fabrik Identity & Knowledge (autonomous factory)
 
 **Last Updated:** 2026-07-12
-**Read by:** Traycer (ticket planning) **and any agent planning or making non-trivial changes directly** (Claude Code / Cascade / Kilo). This is the canonical infra + codebase map — a direct agent must ground its plan in it the same way Traycer does, not guess. Coding agents still bootstrap from their compact contract (below) but consult this file before planning.
-**Coding agents:** Claude Code reads `CLAUDE.md`; Windsurf Cascade reads `.windsurfrules` (the file at repo root, NOT the `.windsurf/` directory); Kilo CLI reads `AGENTS-compact.md` (via `opencode.json` `instructions:` array). These four files are siblings — Traycer's planner brief, plus one bootstrap per coding agent.
+**Read by:** the factory's planning + coding agents (Claude Code CLI, in Zed). This is the canonical infra + codebase map — ground every plan in it, don't guess.
+**Our agents are tool-capable — orient, then act:** run `python scripts/select_rules.py` to load the ACTIVE rule packs; open every file/symbol you cite (`path:line`); ground external facts **live via MCP** (`exa` → `brave-search` → `context7`, cite URL + date, never from memory); gate with `python scripts/final_gate.py`. Enumerations here are copied from the live registry (`scaffold.py::SCAFFOLD_TYPES`, `.windsurf/rules/**`, `fabrik-lib/README.md`, `spec_loader.py::Shape`) — if a count disagrees with the registry, the registry wins.
+**Coding agents:** Claude Code reads `CLAUDE.md`; the rule packs live in `.windsurf/rules/**`. This file is the shared infra map; `CLAUDE.md` is the per-agent bootstrap.
 **Deployment references (canonical):** [`docs/DEPLOYMENT_ARCHITECTURE.md`](docs/DEPLOYMENT_ARCHITECTURE.md) — code-level map of every file on the deploy path · [`docs/operations/deployment.md`](docs/operations/deployment.md) — procedures (apply/redeploy/destroy) · [`docs/operations/fabrik-lifecycle.md`](docs/operations/fabrik-lifecycle.md) — runtime behavior & data safety · [`docs/infrastructure/vps-complete-inventory.md`](docs/infrastructure/vps-complete-inventory.md) — canonical live-state inventory of every container, port, and mesh IP across the 3-host fleet. Supersede any narrative pasted into individual tickets.
 **Deploy method:** SSH + Docker Compose, direct to VPS — **no intermediary platform** (Coolify decommissioned 2026-05-30; `fabrik` Docker network — renamed from `coolify` 2026-05-31; `fabrik apply` rejects composes still declaring the `coolify` network).
 **Fleet shape:** 3 permanent hosts — **vps1 (LA, hub)** + **vps2 (Coventry UK, spoke)** + **vps3 (Coventry UK, spoke)** connected by a WireGuard mesh (`10.99.0.0/24`, hub-and-spoke). Spokes run only public Traefik + monitoring agents (node-exporter, cadvisor, promtail, aro-wake) over the mesh; shared infra (postgres-main, redis-main, glitchtip, authelia, loki) lives only on the hub and is reachable from spokes via `10.99.0.1:<port>`. Spoke Prometheus jobs federated to hub (2026-06-17, commit `8342ef1`).
@@ -60,9 +61,9 @@ Two entry paths depending on scope:
 
 Full lifecycle from vision to running service — what is automated vs what requires human action:
 
-**Phase 1 — Planning (Traycer, mostly automated):**
+**Phase 1 — Planning (our agents, mostly automated):**
 1. Owner drops research file in `docs/development/plans/` or `docs/preplans/`.
-2. Traycer runs `mega-epic-breakdown` or `epic-to-ticket-workflow` to produce epic tickets.
+2. Our agents run `mega-epic-breakdown` or `epic-to-ticket-workflow` to produce epic tickets.
 3. Owner confirms decomposition and dispatches epic tickets. **Human gate: epic confirmation.**
 
 **Phase 2 — Implementation (coding agents: Claude Code / Windsurf / Kilo):**
@@ -84,11 +85,11 @@ Full lifecycle from vision to running service — what is automated vs what requ
 
 ## File Ownership
 
-Traycer plans against `AGENTS.md`. Agent-execution contracts, rule packs, and workflow definitions live elsewhere and are out of Traycer's edit scope.
+Our planning agents ground against this file. Agent-execution contracts, rule packs, and workflow definitions live elsewhere.
 
-| File / Path | Owner | Traycer May Edit? |
+| File / Path | Owner | Planner May Edit? |
 |---|---|---|
-| `AGENTS.md` | Traycer (this file — planner context) | ✅ Yes |
+| `agents-fabrik.md` | the planning agent (this file — planner context) | ✅ Yes |
 | `docs/traycer/epic-to-ticket-workflow/**` + `docs/traycer/mega-epic-breakdown/**` | Traycer (workflow definitions) | ✅ Yes |
 | `docs/traycer/fabrik-workflow.md` | Reference copy (do not diverge from workflow definitions) | ✅ Yes |
 | `CLAUDE.md` | Claude Code bootstrap | ❌ No |
@@ -133,7 +134,7 @@ Ollama on localhost:11434. Full setup: `docs/reference/LOCAL_LLM_INFRASTRUCTURE.
 
 > ⚠️ **These are LOCAL OLLAMA models** (offline, hub-only). **The name `fabrik-reviewer` is overloaded** — the row above is the Ollama model; the **Claude Code `fabrik-reviewer` subagent-type** (and its siblings `fabrik-researcher` / `fabrik-gui`) are a *different thing* — layered **on top of** the pool-default for GUI work + the authoritative/high-risk review pass + the decide/merge phase (not the default worker).
 >
-> **Subagent dispatch for gradeable fan-out** (review finders, research/`path:line` grounders, doc reconcilers, rules auditors, code implementers) is governed by [`.windsurf/rules/core/62-using-subagents.md`](.windsurf/rules/core/62-using-subagents.md) **§ Dispatch policy + § Parallelism** — **pool-default** (the OpenRouter pool, `run_agents` / `pick_models`, ≤$1.5/Mtok, records to the `subagent_runs` flywheel) with native Claude Code subagents added on top for GUI / the authoritative-high-risk pass / the decide-merge. **The two-shape parallelism rule (or a fan-out SILENTLY serializes):** read-only → `tools_enabled=False` (each its own group → parallel); tools-enabled → `tools_enabled=True` + **disjoint `owned_paths`** (empty/overlapping → one serial group). Traycer *plans*; the `/fabrik-*` execution + review commands are what dispatch the pool.
+> **Subagent dispatch for gradeable fan-out** (review finders, research/`path:line` grounders, doc reconcilers, rules auditors, code implementers) is governed by [`.windsurf/rules/core/62-using-subagents.md`](.windsurf/rules/core/62-using-subagents.md) **§ Dispatch policy + § Parallelism** — **pool-default** (the OpenRouter pool, `run_agents` / `pick_models`, ≤$1.5/Mtok, records to the `subagent_runs` flywheel) with native Claude Code subagents added on top for GUI / the authoritative-high-risk pass / the decide-merge. **The two-shape parallelism rule (or a fan-out SILENTLY serializes):** read-only → `tools_enabled=False` (each its own group → parallel); tools-enabled → `tools_enabled=True` + **disjoint `owned_paths`** (empty/overlapping → one serial group). The planning agents *plan*; the `/fabrik-*` execution + review commands are what dispatch the pool.
 
 ## File & Folder Naming
 
@@ -326,7 +327,7 @@ Full auto-generated project list: `docs/BUSINESS_MODEL.md` § Project Portfolio.
 
 ## 🛑 MANDATORY ORCHESTRATOR PRE-FLIGHT
 
-Traycer MUST run these checks before generating any Plan, PRD, or Execution Spec.
+Run these checks before generating any plan, PRD, or execution spec.
 
 1. **PORTS.md** — Assign a free port (Python 8000–8099 / Frontend 3000–3099). State it.
 2. **BUSINESS_MODEL.md** — Check for duplicate / similar project. State finding.
@@ -355,9 +356,9 @@ Before creating any plan, verify:
 
 ---
 
-## Rule-Pack Injection (Traycer Responsibility)
+## Rule-Pack Injection (our agents load these via `select_rules.py`)
 
-Traycer injects rule-pack guidance into coding-agent execution prompts based on `project.yaml::type` + ticket scope. Coding agents do NOT self-select packs.
+Our agents load rule-pack guidance via `python scripts/select_rules.py` based on `project.yaml::type` + ticket scope, then read the full pack files they match.
 
 ### Pack Registry (39 scaffold/type packs listed below; the `ai/` folder adds 11 more → 50 total in `.windsurf/rules/**/*.md`)
 
@@ -475,7 +476,7 @@ Organized by folder:
 
 ### Planning Protocol (epic-brief, decomposition, expand)
 
-During **planning** — `epic-to-ticket-workflow/01-epic-brief`, `mega-epic-breakdown/02-epic-decomposition`, `mega-epic-breakdown/03-expand-epic-files` — Traycer must **read the full `.windsurf/rules/**/<file>.md`** for every applicable pack. Rule pack mandates are constraints on the plan. A plan that violates a rule pack mandate is wrong.
+During **planning** — `epic-to-ticket-workflow/01-epic-brief`, `mega-epic-breakdown/02-epic-decomposition`, `mega-epic-breakdown/03-expand-epic-files` — the planning agent must **read the full `.windsurf/rules/**/<file>.md`** for every applicable pack. Rule pack mandates are constraints on the plan. A plan that violates a rule pack mandate is wrong.
 
 **Which packs to read during planning:**
 
@@ -555,7 +556,7 @@ Canonical entry point: `fabrik scaffold <name> --type <type>`. Creates the proje
 
 ### What every API scaffold emits automatically (no manual ticket needed)
 
-Traycer must NOT plan tickets to manually add any of these — `fabrik scaffold` (`python-api`, `node-api`) writes them on creation (the JS `file-api` scaffold differs — Supabase Bearer JWT instead of `internal_auth`, and no `/metrics`):
+Do NOT plan tickets to manually add any of these — `fabrik scaffold` (`python-api`, `node-api`) writes them on creation (the JS `file-api` scaffold differs — Supabase Bearer JWT instead of `internal_auth`, and no `/metrics`):
 
 - `internal_auth.py` — M2M auth module (`X-Internal-Token` validation via `hmac.compare_digest`).
 - `metrics.py` — Prometheus business metrics (`REQUEST_COUNT`, `ERROR_COUNT`, `ACTIVE_JOBS`, `PROCESSING_COUNT`).
@@ -580,7 +581,7 @@ If a ticket appears to need these, the existing scaffolded code already covers i
 
 ## Implementation Detail Pointers
 
-Traycer plans against these rules but does NOT inline them into tickets — the coding agents already load them via their bootstrap + packs:
+Our agents plan against these rules but do NOT inline them into tickets — the coding agents already load them via their bootstrap + packs:
 
 - **Python / FastAPI / config / temp files** → `.windsurf/rules/core/10-python.md`
 - **Docker / compose / `fabrik` Docker network (external bridge; renamed from `coolify` on 2026-05-31) / Authelia restart procedure / post-deploy checklist / `fabrik redeploy` sequence** → `.windsurf/rules/core/30-ops.md`
