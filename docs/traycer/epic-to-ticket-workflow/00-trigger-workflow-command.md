@@ -77,7 +77,7 @@ These are enforced at planning time. Violations block the workflow.
 
 This command (`00-trigger`) is the **mandatory entry point** for every epic-to-ticket-workflow run — both single-epic and multi-epic.
 
-**Single-epic (standalone projects):** Full processing — scaffold detection, research discovery, all 26 constraints, INFRA-CHECK from scratch.
+**Single-epic (standalone projects):** Full processing — scaffold detection, research discovery, all 28 constraints, INFRA-CHECK from scratch.
 
 **Multi-epic (dispatched from `mega-epic-breakdown`):** The epic ticket from `mega-epic-breakdown/03-expand-epic-files-command` provides the starting context. Its `### Metadata` section contains the **full 14-field block** per `mega-epic-breakdown/03-expand-epic-files-command` Metadata template + `mega-epic-breakdown/04-cross-epic-validation-command` Step 6: scaffold, port, shape, concurrency, i18n, responsive, dark+light, rule packs, HAS_USER_GUIDE, registrars, Universal categories, Abuse Detection, Email, FINANCIALS (last 3 conditional — N/A allowed). This command still runs but in **consume mode** — verify all 14 fields are present and consistent, run epic-level constraint checks (including the GUI-mandate feature-trigger validation per `mega-epic-breakdown/00-trigger-workflow-command` § Rule-area applicability matrix for Responsive/Dark+Light/i18n, and the SaaS-conditional triggers for Abuse Detection/Email/FINANCIALS), confirm no conflicts with the specific epic's scope, and emit INFRA-CHECK. Steps 2 (scaffold detection) and 3 (research discovery) are abbreviated: scaffold comes from the ticket, research was done at vision level.
 
@@ -104,7 +104,7 @@ Propagate the flavor into INFRA-CHECK by adding `Epic Flavor: Delta-feature | Re
 
 **Platform-repo branch (special case):** If the workspace root has no `project.yaml` AND contains `apps/` + `infrastructure/` + `templates/`, this is the **Fabrik platform monorepo** itself. Pause and ask the user to scope the request.
 
-**UI design-system read (conditional, both modes):** If scaffold is a GUI type (`saas-skeleton`, `static-site`, `chrome-extension`, `mobile-app`, `desktop-app`, `wordpress`, `docusaurus`), read `.windsurf/rules/core/ocoron-design-system.md` before generating any planning output. For `mobile-app`, also read `.windsurf/rules/mobile-app/ocoron-mobile-design-system.md`.
+**UI design-system read (conditional, both modes):** If scaffold is a GUI type (`saas-skeleton`, `static-site`, `chrome-extension`, `mobile-app`, `desktop-app`, `docusaurus` — **not** `wordpress`, which this workflow routes to `/opt/wpf`), read `.windsurf/rules/core/ocoron-design-system.md` before generating any planning output. For `mobile-app`, also read `.windsurf/rules/mobile-app/ocoron-mobile-design-system.md`.
 
 ### **Step 2: Scaffold Detection**
 
@@ -175,7 +175,7 @@ State EVERY constraint as `all clear` / `conflict (<details>)` / `unknown (<ques
 
 1. Solo developer  2. x86_64 VPS  3. Budget-conscious  4. Existing services  5. Prebuilt containers  6. Port conflicts  7. SSH + Docker Compose deployment  8. No Alpine  9. Module deps  10. DNS  11. Scaffold immutability  12. State conflicts
 
-**Workflow overlays (#13–#26):**
+**Workflow overlays (#13–#28):**
 
 13. **Duplicate project** — check `docs/BUSINESS_MODEL.md` § Project Portfolio (the master project list) for an existing project that already solves this need. Also check `AGENTS.md` § Fabrik Microservices table for deployed services.
 14. **Design System** — `.windsurf/rules/core/ocoron-design-system.md` read?
@@ -191,6 +191,8 @@ State EVERY constraint as `all clear` / `conflict (<details>)` / `unknown (<ques
 24. **Email streams** — if product sends email: transactional + marketing on separate streams/subdomains. No email: N/A.
 25. **Vector DB ban** — if search/RAG: pgvector only, self-hosted on postgres-main (`pgvector/pgvector:pg16` + `fabrik-lib/rag`). Pinecone/Qdrant/Weaviate = conflict.
 26. **FINANCIALS.md** — SaaS scaffolds: must be populated before launch per `saas/88-saas-launch-checklist.md`. Non-SaaS: N/A.
+27. **LLM gateway** — if the product calls any LLM: **OpenRouter API and Kilo CLI are the two permitted gateways** — peers; pick the cheaper per model (`ai/00-ai-model-selection.md` § selection rule 3). **Embeddings: OpenRouter API only** — Kilo has no embeddings endpoint (`65-rag-search.md:94`). Never plan a direct vendor SDK/API (`openai`, `@anthropic-ai/sdk`, `dashscope`, `google-cloud-aiplatform`, Vertex, OpenAI direct) (`65-rag-search.md:108` + `12-node.md:238`). No LLM call: N/A.
+28. **Watchdog + cost guardrails** — ⚠️ the watchdog sidecar is **opt-OUT on the `fabrik apply` path**: a spec with **no** `watchdog:` block still gets one (the dispatcher reads the raw dict — `.get("enabled", True)`). It ships **default caps of $1.00/day + 200 invocations/day** per project (`WatchdogConfig`, `src/fabrik/spec_loader.py:361`; a validator rejects both-caps-zero, so an *uncapped* path is unreachable). The epic MUST therefore state one of three: **accept** the defaults, **raise** them (`daily_budget_usd` / `daily_invocations_cap`), or **opt out** (`watchdog: {enabled: false}`) — never leave it unstated (`core/cost-budget.md` + `core/60-watchdog.md`).
 
 ### **Step 6: Project Type Classification & Smart Routing**
 
@@ -225,7 +227,7 @@ Present:
 
 1. Project type + detection signals.
 2. Research status + improvements.
-3. Constraint findings (all 26).
+3. Constraint findings (all 28).
 4. Recommended route + skipped commands.
 5. Suggested next command.
 
@@ -239,7 +241,7 @@ User confirms. Proceed.
 - Preplan read if exists (`docs/preplans/`).
 - All reference reads completed (tech-stack guide, prebuilt containers, AI taxonomy, lifecycle, rule packs, kilo agents).
 - External Knowledge Verification applied for vendor dependencies.
-- All 26 constraints verified. No silent unknowns.
+- All 28 constraints verified. No silent unknowns.
 - 12-Factor: compliant or violations resolved.
 - Concurrency: mechanism stated; blocking rejected.
 - i18n: mechanism confirmed for GUI types.
