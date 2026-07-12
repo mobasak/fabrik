@@ -85,7 +85,7 @@ This command (`00-trigger`) is the **mandatory entry point** for every epic-to-t
 **Epic-flavor detection (Path B only):** Inspect the dispatched epic ticket Title. Two flavors emitted by `mega-epic-breakdown/03-expand-epic-files-command` Step 2:
 
 - **Delta-feature epic** — Title `Epic N — <feature area>`. Default behavior: 5–8 Success Criteria target, `fabrik apply` succeeds + `/health` returns 200 as the deploy-level criterion, Epic Closure mandatory.
-- **Retrofit epic** — Title `Epic N — Retrofit: <area>` (e.g. `Retrofit: i18n`, `Retrofit: Resilience on YouTube Data API`) per `mega-epic-breakdown/03-expand-epic-files-command` § Retrofit epics (Title prefix + Success-Criteria defaults). Different defaults: 3–5 Success Criteria target, `scripts/final_gate.py` success + Compliance Report gap moves Partial/Violates → Compliant as the deploy/gate-level criterion, Epic Closure optional.
+- **Retrofit epic** — Title `Epic N — Retrofit: <area>` (e.g. `Retrofit: i18n`, `Retrofit: Resilience on YouTube Data API`) per `mega-epic-breakdown/03-expand-epic-files-command` Step 2 (`:58`) + § Success Criteria (`:87`) (Title prefix + Success-Criteria defaults). Different defaults: 3–5 Success Criteria target, `scripts/final_gate.py` success + Compliance Report gap moves Partial/Violates → Compliant as the deploy/gate-level criterion, Epic Closure optional.
 
 Propagate the flavor into INFRA-CHECK by adding `Epic Flavor: Delta-feature | Retrofit` to the propagated block so downstream `01-epic-brief-command` and `05-ticket-outline-command` apply the correct branch without re-deriving from the Title.
 
@@ -126,7 +126,7 @@ Explore the project folder and derive the scaffold type from concrete signals �
 | 7 | `package.json` + `react-native` in prod deps | `mobile-app` |
 | 8 | `package.json` + `electron` in prod deps | `desktop-app` |
 | 9 | `package.json` + Dockerfile + `src/` (no next/RN/electron) | `node-api` or `file-api` → ask |
-| 10 | `pyproject.toml` | `python-api` or `file-worker` → ask |
+| 10 | `pyproject.toml` | `python-api` or `file-worker` → ask. ⚠️ **GPU check first:** a GPU dep (`torch`, `vllm`, `transformers`) or `gpu_rent` in `project.yaml` ⇒ **`python-api-gpu`** (else the project silently loses `76-gpu-workers.md`) |
 | 11 | `compose.yaml` only (no project.yaml) | Inspect; not authoritative |
 | 12 | `Dockerfile` only | Inspect base; ask |
 | 13 | None of the above | Ask user |
@@ -200,8 +200,8 @@ State EVERY constraint as `all clear` / `conflict (<details>)` / `unknown (<ques
 24. **Email streams** — if product sends email: transactional + marketing on separate streams/subdomains. No email: N/A.
 25. **Vector DB ban** — if search/RAG: pgvector only, self-hosted on postgres-main (`pgvector/pgvector:pg16` + `fabrik-lib/rag`). Pinecone/Qdrant/Weaviate = conflict.
 26. **FINANCIALS.md** — SaaS scaffolds: must be populated before launch per `saas/88-saas-launch-checklist.md`. Non-SaaS: N/A.
-27. **LLM gateway** — if the product calls any LLM: **OpenRouter API and Kilo CLI are the two permitted gateways** — peers; pick the cheaper per model (`ai/00-ai-model-selection.md` § selection rule 3). **Embeddings: OpenRouter API only** — Kilo has no embeddings endpoint (`65-rag-search.md:94`). Never plan a direct vendor SDK/API (`openai`, `@anthropic-ai/sdk`, `dashscope`, `google-cloud-aiplatform`, Vertex, OpenAI direct) (`65-rag-search.md:108` + `12-node.md:238`). No LLM call: N/A.
-28. **Watchdog + cost guardrails** — ⚠️ the watchdog sidecar is **opt-OUT on the `fabrik apply` path**: a spec with **no** `watchdog:` block still gets one (the dispatcher reads the raw dict — `.get("enabled", True)`). It ships **default caps of $1.00/day + 200 invocations/day** per project (`WatchdogConfig`, `src/fabrik/spec_loader.py:361`; a validator rejects both-caps-zero, so an *uncapped* path is unreachable). The epic MUST therefore state one of three: **accept** the defaults, **raise** them (`daily_budget_usd` / `daily_invocations_cap`), or **opt out** (`watchdog: {enabled: false}`) — never leave it unstated (`core/cost-budget.md` + `core/60-watchdog.md`).
+27. **LLM gateway** — if the product calls any LLM: **OpenRouter is the default gateway**, and is **REQUIRED for embeddings** (Kilo has no embeddings endpoint — `65-rag-search.md:94`). **Kilo CLI is a peer gateway**, valid for low-volume LLM tasks *including* app components (classifier / answer-generator / summarizer — `65-rag-search.md:95-97`); its real constraint is **3–5s/call subprocess overhead**, not a prohibition. **Never wire a general-purpose vendor SDK** (`openai`, `@anthropic-ai/sdk`, `google-cloud-aiplatform`) as the LLM path (`65-rag-search.md:108` + `12-node.md:238`). ⚠️ **Direct-API gateways are CONTESTED — do not silently pick a side:** `ai/00-ai-model-selection.md:62,135` and `ai/30-language.md:39` permit DashScope / SiliconFlow / ModelScope when the model is on neither Kilo nor OpenRouter (Fabrik's own sweet-spot MT model, `qwen-mt-turbo`, is **DashScope-only**), while `65-rag-search.md:108` bans direct vendor APIs outright. If the epic needs one, **flag the pack conflict and get an operator ruling** — do not plan around it either way. No LLM call: N/A.
+28. **Watchdog + cost guardrails** — ⚠️ the watchdog sidecar is **opt-OUT on the `fabrik apply` path**: a spec with **no** `watchdog:` block still gets one (the dispatcher reads the raw dict — `.get("enabled", True)`). Its caps come from the **driver's** raw-dict defaults — **$5.00/day + 200 invocations/day** (`src/fabrik/drivers/watchdog.py:526`). ⚠️ The `$1.00` in `WatchdogConfig` (`spec_loader.py:361`) and its both-caps-zero validator are **dead on this path** — `fabrik apply` validates with `yaml.safe_load` and never constructs the Pydantic model, so a spec with `daily_budget_usd: 0` + `daily_invocations_cap: 0` **deploys genuinely uncapped** (only `validate`/`audit-registrars`/`destroy` would reject it). The epic MUST therefore state one of three: **accept** the defaults, **raise** them (`daily_budget_usd` / `daily_invocations_cap`), or **opt out** (`watchdog: {enabled: false}`) — never leave it unstated (`core/cost-budget.md` + `core/60-watchdog.md`).
 
 ### **Step 6: Project Type Classification & Smart Routing**
 
@@ -227,9 +227,9 @@ State EVERY constraint as `all clear` / `conflict (<details>)` / `unknown (<ques
 
 Emit **verbatim**, all fields populated:
 
-> ***INFRA-CHECK:** Port:* `XXXX` *| Scaffold:* `<type>` *| x86_64:* `Confirmed/Unknown/Conflict` *| Duplicate:* `[none / name]` *| Internal APIs:* `[list or none]` *| User Guide:* `true/false` *| Design System:* `read/N-A` *| Platform Debt:* `<N> open` *| 12-Factor:* `compliant/violations` *| Concurrency:* `<mechanism>` *| i18n:* `<mechanism>/N-A` *| Responsive:* `375px/N-A` *| Dark+Light:* `mandatory/N-A` *| Abuse Detection:* `required/N-A` *| Email:* `two-stream/none/N-A` *| Vector DB:* `pgvector/none` *| FINANCIALS:* `required/N-A` *| Shape:* `<fields>` *| Rule Packs:* `<IDs>`
+> ***INFRA-CHECK:** Port:* `XXXX` *| Scaffold:* `<type>` *| x86_64:* `Confirmed/Unknown/Conflict` *| Duplicate:* `[none / name]` *| Internal APIs:* `[list or none]` *| User Guide:* `true/false` *| Design System:* `read/N-A` *| Platform Debt:* `<N> open` *| 12-Factor:* `compliant/violations` *| Concurrency:* `<mechanism>` *| i18n:* `<mechanism>/N-A` *| Responsive:* `375px/N-A` *| Dark+Light:* `mandatory/N-A` *| Abuse Detection:* `required/N-A` *| Email:* `two-stream/none/N-A` *| Vector DB:* `pgvector/none` *| FINANCIALS:* `required/N-A` *| Shape:* `<fields>` *| Rule Packs:* `<IDs>` *| Epic Flavor:* `Delta-feature/Retrofit/N-A` *| LLM Gateway:* `openrouter/none` *| Watchdog:* `accept-defaults/raise/opt-out`
 
-**Propagated downstream:** Port, Scaffold, User Guide, Shape, Concurrency, i18n, Responsive, Dark+Light, Rule Packs.
+**Propagated downstream:** Port, Scaffold, User Guide, Shape, Concurrency, i18n, Responsive, Dark+Light, Rule Packs, **Epic Flavor** (drives the Success-Criteria branch in `01`/`05`), **Watchdog**, **LLM Gateway**.
 **Informational:** x86_64, Duplicate, Internal APIs, Design System, Platform Debt, 12-Factor, Abuse Detection, Email, Vector DB, FINANCIALS.
 
 Present:
