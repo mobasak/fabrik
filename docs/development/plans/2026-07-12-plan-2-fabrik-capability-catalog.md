@@ -1,6 +1,7 @@
 # Plan — Fabrik Capability Catalog + Tool-Doc Audit
 
-**Status:** IN-PROGRESS (2026-07-12; was CONVERGED — `/fabrik-plan-review` fixed point, independently verified across two review
+**Status:** EXECUTED 2026-07-12 (both phases shipped + independently reviewed to CLEAN — CONVERGED; full Tier-2
+gate green — see the per-phase EXECUTED blocks below. Was CONVERGED — `/fabrik-plan-review` fixed point, independently verified across two review
 rounds (pool `fanout` + native Opus `fabrik-researcher`, per the mandated floor; the md5-anti-cheat proof lives in
 each round's Pass Ledger, not pinned here — it drifts on every edit). **Round 1 (author→converge)** found **4 real
 defects** — the load-bearing one: `doc_reconcile.reconcile_doc` is diff-driven + edit-only (no delete path), so it
@@ -146,7 +147,16 @@ standalone value (the catalog exists + self-verifies).
 
 ---
 
-## Phase B — Doc-audit + defect ledger (C2)
+## Phase B — Doc-audit + defect ledger (C2) — ✅ EXECUTED 2026-07-12
+
+> **Executed 2026-07-12.** Built `scripts/audit_capability_docs.py` (defect-list-driven, **dry-run by
+> default**; `--apply` unlinks dead `.md` docs / writes stubs; `broken`/`retired`/`incomplete` →
+> `docs/development/capability-defects.md` operator ledger; NEVER removes a tool) + 9 behavior-contract tests;
+> `doc_reconcile.py` left untouched (the vendor-verdict correction). `/fabrik-review` ran **3 rounds** to
+> CLEAN — CONVERGED: R1 found a **CRITICAL** destructive-safety hole (`--apply` deleted any `.md` outside the
+> repo via `../`/absolute/symlink — proven live) + malformed-catalog crashes; R2 confirmed containment closed
+> (`_safe_to_unlink` = `.md` + resolved-inside-root) but found a non-string-`name` mid-loop crash; R3 = clean.
+> Full Tier-2 gate green.
 
 **Deliverable:** the doc-audit that consumes Phase A's `capabilities.json` `defects[]`, **mechanically resolves**
 the fixable set (`dead_doc` → delete the orphan doc; `undocumented` → write a stub + link; `doc_drift` → flag in

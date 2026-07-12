@@ -1,5 +1,5 @@
 {
   "plan": "docs/development/plans/2026-07-12-plan-2-fabrik-capability-catalog.md",
   "owned_paths": ["scripts/generate_capability_index.py","scripts/audit_capability_docs.py","scripts/kilo-benchmarks/daily_refresh.sh","capabilities.json","docs/CAPABILITIES.md","llms.txt","docs/development/capability-defects.md","tests/test_generate_capability_index.py","tests/test_audit_capability_docs.py","INDEX.md","CHANGELOG.md","docs/README.md","docs/development/plans/2026-07-12-plan-2-fabrik-capability-catalog.md"],
-  "branch": "master", "started_at": "2026-07-12", "status": "active"
+  "branch": "master", "started_at": "2026-07-12", "status": "released", "completed_at": "2026-07-12"
 }

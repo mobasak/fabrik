@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Capability doc-audit + operator defect ledger (2026-07-12)
+
+`scripts/audit_capability_docs.py` — consumes the Phase-A `capabilities.json` `defects[]` and mechanically
+resolves the fixable set while rolling the rest into an operator-facing ledger. **Mechanical** (dry-run by
+default per the CLAUDE.md destructive-script HARD STOP; `--apply` to execute): `dead_doc` → unlink the orphan
+doc (**.md only** — a `.py`/`.sh` tool file is NEVER unlinked), `undocumented` → write a stub under
+`docs/reference/capabilities/`, `doc_drift` → flag only (never auto-rewrite prose). **Operator** (never
+auto-actioned, surfaced with a recommended action): `broken`/`retired`/`incomplete` →
+`docs/development/capability-defects.md`. The report is written on every run with the full dry-run plan;
+idempotent over a clean catalog. Tests: `tests/test_audit_capability_docs.py` (6 behavior-contract tests
+incl. the destructive-path + tool-never-removed guard). Corrects the spec's inherited "VENDOR+ENHANCE
+`doc_reconcile`" verdict — `doc_reconcile.reconcile_doc` is diff-driven + edit-only (no delete path), so it
+cannot drive a defect-list-driven audit; this is a focused BUILD that leaves `doc_reconcile.py` untouched.
+
 ### Added — Fabrik capability catalog generator (2026-07-12)
 
 `scripts/generate_capability_index.py` — a generated, self-verifying catalog of every invokable capability in
