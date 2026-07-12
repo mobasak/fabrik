@@ -1,6 +1,6 @@
 # AGENTS.md — Fabrik Identity & Knowledge (Traycer)
 
-**Last Updated:** 2026-07-03
+**Last Updated:** 2026-07-12
 **Read by:** Traycer (ticket planning) **and any agent planning or making non-trivial changes directly** (Claude Code / Cascade / Kilo). This is the canonical infra + codebase map — a direct agent must ground its plan in it the same way Traycer does, not guess. Coding agents still bootstrap from their compact contract (below) but consult this file before planning.
 **Coding agents:** Claude Code reads `CLAUDE.md`; Windsurf Cascade reads `.windsurfrules` (the file at repo root, NOT the `.windsurf/` directory); Kilo CLI reads `AGENTS-compact.md` (via `opencode.json` `instructions:` array). These four files are siblings — Traycer's planner brief, plus one bootstrap per coding agent.
 **Deployment references (canonical):** [`docs/DEPLOYMENT_ARCHITECTURE.md`](docs/DEPLOYMENT_ARCHITECTURE.md) — code-level map of every file on the deploy path · [`docs/operations/deployment.md`](docs/operations/deployment.md) — procedures (apply/redeploy/destroy) · [`docs/operations/fabrik-lifecycle.md`](docs/operations/fabrik-lifecycle.md) — runtime behavior & data safety · [`docs/infrastructure/vps-complete-inventory.md`](docs/infrastructure/vps-complete-inventory.md) — canonical live-state inventory of every container, port, and mesh IP across the 3-host fleet. Supersede any narrative pasted into individual tickets.
@@ -13,13 +13,13 @@
 
 | #   | Layer                 | Component                                                                                    | Purpose                                                                                                                                                                                                                |
 | --- | --------------------- | -------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | **CLI**               | `fabrik` (40+ subcommands)                                                                   | scaffold, apply (single deploy entry — `deploy` removed/folded in), redeploy, destroy, verify, audit, dev, review, logs, domain, seo, ai                                                                                |
+| 1   | **CLI**               | `fabrik` (50+ subcommands)                                                                   | scaffold, apply (single deploy entry — `deploy` removed/folded in), redeploy, destroy, verify, audit, dev, review, logs, domain, seo, ai                                                                                |
 | 2   | **Scaffolding**       | `scaffold.py`                                                                                | Creates projects with governance + infra wiring (12 types)                                                                                                                                                             |
 | 3   | **Planning**          | mega-epic-breakdown (5 commands: 00-trigger, 02-05)                                          | Large vision → epics → tickets → dispatch. `00-trigger` is a single entry point serving both new and existing projects via owner-declared mode (Step 0).                                                                |
 | 4   | **Planning**          | epic-to-ticket-workflow (00-11)                                                                          | Single-epic planning + execution. Also the execution engine per epic after mega-epic dispatch.                                                                                                                          |
 | 5   | **Governance**        | `AGENTS.md` / `CLAUDE.md` / `.windsurfrules` / `AGENTS-compact.md` / `opencode.json`        | Agent bootstraps (5 files)                                                                                                                                                                                             |
-| 6   | **Rules**             | `.windsurf/rules/**/*.md`                                                                    | 49 packs (27 `core/` · 4 `saas/` · 5 `mobile-app/` · 1 `chrome-ext/` · 1 `desktop-app/` · 11 `ai/`)                                                                                                              |
-| 7   | **Enforcement**       | `final_gate.py` + 39 checks in `enforcement/`                                               | Task completion + structural validation                                                                                                                                                                                |
+| 6   | **Rules**             | `.windsurf/rules/**/*.md`                                                                    | 50 packs (28 `core/` · 4 `saas/` · 5 `mobile-app/` · 1 `chrome-ext/` · 1 `desktop-app/` · 11 `ai/`)                                                                                                              |
+| 7   | **Enforcement**       | `final_gate.py` + 43 checks in `enforcement/`                                               | Task completion + structural validation                                                                                                                                                                                |
 | 8   | **Dispatch**          | `kilo_dispatch.py` + kilo pipeline (15 scripts)                                              | Agent routing, model selection, benchmarks                                                                                                                                                                             |
 | 9   | **Sync**              | `sync_enforcement_to_projects.py`                                                            | Pushes governance to all projects. These files are **centrally managed** (canonical list: `/opt/fabrik/scripts/fabrik_synced_manifest.py`) — never plan tickets that edit a synced copy in a project; it's overwritten on the next sync (gate-enforced by `scripts/enforcement/check_synced_unmodified.py`). Changes go upstream in `/opt/fabrik`, and ONLY if correct for ALL projects.                                                                                                                                                                                      |
 | 9a  | **Sync Scripts**      | `scripts/consolidate_envs.py.deprecated` (DEPRECATED — not active)                           | Was: merge all `/opt/*` project `.env` files into `/opt/fabrik/.env` with project-scoped sections. Retired; do not plan around it                                                                                     |
@@ -35,7 +35,7 @@
 | 18  | **WSL Startup**       | `wsl_startup_hook.sh` (8-step pipeline)                                                     | Env watcher, registry sync, health summary, Kilo agent refresh                                                                                                                                                         |
 | 19  | **Local LLM**         | 4 Ollama agents (coder/reviewer/fixer/docs)                                                  | Offline AI for quick tasks                                                                                                                                                                                             |
 | 20  | **Background Runner** | `rund/runc/runwait/runlast/runls/runtail/runk`                                               | Non-blocking long command execution                                                                                                                                                                                    |
-| 21  | **Shared Code**       | `/opt/fabrik-lib/` — 47 vendorable modules (copy, don't import)                             | Reusable modules graduated from projects; see `/opt/fabrik-lib/README.md` for full table + which-module-do-I-need matrix                                                                                               |
+| 21  | **Shared Code**       | `/opt/fabrik-lib/` — 60 vendorable modules (copy, don't import)                             | Reusable modules graduated from projects; see `/opt/fabrik-lib/README.md` for full table + which-module-do-I-need matrix                                                                                               |
 | 22  | **VPS Audits**        | 7 audit scripts (system/health/security/performance/observability/backup/hardening)          | Deep VPS inspection                                                                                                                                                                                                    |
 
 ---
@@ -77,7 +77,7 @@ Full lifecycle from vision to running service — what is automated vs what requ
 
 **Current automation gaps (open tickets):**
 - **Gap 1 — Deploy supervision:** `fabrik apply` runs unmonitored. Target: AI Sysadmin watches apply log, reports pass/fail to Telegram.
-- **Gap 2 — Auto-verify post-apply:** `fabrik verify` is not triggered automatically after `fabrik apply` succeeds. Wire point: `verify.py:394`.
+- **Gap 2 — Auto-verify post-apply:** `fabrik verify` is not triggered automatically after `fabrik apply` succeeds.
 - **Gap 3 — Auto-reconcile on drift:** AI Sysadmin receives drift alert but does not yet run `fabrik reconcile-all` automatically.
 
 **When writing ticket success criteria:** if the ticket touches deploy, include: (a) `fabrik apply` passes, (b) `fabrik verify` returns all-green, (c) Gatus shows healthy within 5 min. Do NOT include "AI Sysadmin auto-reconciles" until Gap 3 is closed.
@@ -162,7 +162,7 @@ Every Supabase capability has a first-party self-hosted equivalent; the one thin
 | Supabase capability | Your self-hosted equivalent | Verdict |
 |---|---|---|
 | Postgres DB | `postgres-main` (PG16, shared, on the mesh) | ✅ fully replaced |
-| End-user auth (JWT/email/social) | `fabrik-lib/fastapi-user-auth` — app issues its own JWTs: Argon2, refresh-token rotation, `jti` denylist, tenant-isolation RLS (55 tests, used in 9 projects) | ✅ replaced (Pattern A) |
+| End-user auth (JWT/email/social) | `fabrik-lib/fastapi-user-auth` — app issues its own JWTs: Argon2, refresh-token rotation, `jti` denylist, tenant-isolation RLS (56 tests; the default end-user auth for new SaaS) | ✅ replaced (Pattern A) |
 | pgvector / vector search | `pgvector/pgvector:pg16` + `fabrik-lib/rag` (pgvector+tsvector+pg_trgm+RRF hybrid) | ✅ fully self-hosted |
 | Object storage | `fabrik-lib/storage` (B2 backend, URI-routed) + Backblaze B2 via Backrest | ✅ replaced |
 | Edge functions | container deploys via `fabrik apply` | ✅ different model, covered |
@@ -273,7 +273,7 @@ Source: `configs/prometheus/rules/alerts.yml` (12 rules) + `configs/prometheus/r
 
 ### Exceptions to the canonical M2M pattern
 
-- `file-api` uses Supabase Bearer JWT (user auth, different pattern).
+- `file-api` (retired / not deployed — see § Fabrik Microservices) uses Supabase Bearer JWT (user auth, different pattern) in its template; no live service on the fleet uses this exception.
 - `site-provisioner` uses Traefik IP allowlist (no app-level auth).
 
 ## Fabrik Microservices (Custom-Built)
@@ -359,11 +359,11 @@ Before creating any plan, verify:
 
 Traycer injects rule-pack guidance into coding-agent execution prompts based on `project.yaml::type` + ticket scope. Coding agents do NOT self-select packs.
 
-### Pack Registry (38 scaffold/type packs listed below; the `ai/` folder adds 11 more → 49 total in `.windsurf/rules/**/*.md`)
+### Pack Registry (39 scaffold/type packs listed below; the `ai/` folder adds 11 more → 50 total in `.windsurf/rules/**/*.md`)
 
 Organized by folder:
 
-**`core/` — shared across all scaffolds (27 packs)**
+**`core/` — shared across all scaffolds (28 packs)**
 
 | Pack ID | File | Category |
 |---|---|---|
@@ -381,6 +381,7 @@ Organized by folder:
 | `OBSERVABILITY` | `core/55-observability.md` | Infrastructure |
 | `RESILIENCE` | `core/58-resilience.md` | Backend |
 | `WATCHDOG` | `core/60-watchdog.md` | Infrastructure |
+| `SUBAGENTS` | `core/62-using-subagents.md` | Process |
 | `RAG_SEARCH` | `core/65-rag-search.md` | Domain |
 | `RAG_CHUNKING` | `core/66-rag-chunking.md` | Domain |
 | `FILE_API` | `core/67-file-api.md` | Domain |
@@ -536,6 +537,7 @@ Canonical entry point: `fabrik scaffold <name> --type <type>`. Creates the proje
 | Type | Template | Stack | shape.kind | shape flags (true only) |
 |---|---|---|---|---|
 | python-api | `templates/scaffold/` | FastAPI + Uvicorn + Docker | service | is_public, exposes_metrics |
+| python-api-gpu | `templates/python-api-gpu/` | FastAPI + Uvicorn + on-demand GPU rental (`gpu_rent`) | service | is_public, exposes_metrics |
 | saas-skeleton | `templates/saas-skeleton/` | Next.js 15 + React 19 + TypeScript + Tailwind | service | is_public, has_bearer_api, has_persistent_data, needs_database, needs_cache, exposes_metrics |
 | node-api | `templates/node-api/` | Node.js API + Docker | service | is_public, exposes_metrics |
 | file-api | `templates/file-api/` | File operations API | service | is_public, has_persistent_data |
@@ -553,7 +555,7 @@ Canonical entry point: `fabrik scaffold <name> --type <type>`. Creates the proje
 
 ### What every API scaffold emits automatically (no manual ticket needed)
 
-Traycer must NOT plan tickets to manually add any of these — `fabrik scaffold` (`python-api`, `node-api`, `file-api`) writes them on creation:
+Traycer must NOT plan tickets to manually add any of these — `fabrik scaffold` (`python-api`, `node-api`) writes them on creation (the JS `file-api` scaffold differs — Supabase Bearer JWT instead of `internal_auth`, and no `/metrics`):
 
 - `internal_auth.py` — M2M auth module (`X-Internal-Token` validation via `hmac.compare_digest`).
 - `metrics.py` — Prometheus business metrics (`REQUEST_COUNT`, `ERROR_COUNT`, `ACTIVE_JOBS`, `PROCESSING_COUNT`).
