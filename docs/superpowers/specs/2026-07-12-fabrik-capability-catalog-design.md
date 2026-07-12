@@ -1,6 +1,14 @@
 # Design Spec — Fabrik Capability Catalog + Tool-Doc Audit
 
-**Status:** CONVERGED (2026-07-12, re-review r2). **r2 (operator "be 100% sure" + "some tools may be
+**Status:** CONVERGED (2026-07-12, re-review r3 — independently verified). **r3 (operator: "obey the command"):**
+ran the review as the command actually mandates — **native Opus `fabrik-researcher` independent verification**
+(the step r1/r2 skipped and self-graded). It found real defects r1/r2's self-review had missed: scaffold count
+20→19 (my `find` had counted hidden `.archive`), `manual` status undefined + untestable, scripts under-scoped
+(82 top-level vs the recursive tree), fabrik-lib modules ~55→~58, a 267→266→269 arithmetic drift I introduced
+while fixing counts, and a driver-glob source label. Fixed across 3 fix rounds; the **4th independent pass
+returned a genuine no-op (0 defects)** on md5 `7204c750` — every count now stated once (surface table) + re-derived
+once (C1 ≥269, ≥250 floor), all success criteria testable, all 6 vendor verdicts present. The r1 self-graded
+"CONVERGED" was hollow; this one was verified by an independent grounder. **r2 (operator "be 100% sure" + "some tools may be
 broken/retired/have missing capabilities to revise"):** closed a real scope gap — the catalog now carries a
 `status (ok|broken|retired|manual)` + a **`defects[]` ledger** (broken / retired-candidate / doc_drift /
 incomplete / undocumented / dead_doc); the audit mechanically fixes doc_drift/undocumented/dead_doc and
@@ -9,7 +17,7 @@ tool). Retired-detection grounded (DEPRECATED markers already used in-repo). r2 
 md5-no-op (`9ba3734e`). **r1 (below) still holds:** `/fabrik-spec-review` fixed point. Pass 1 (all axes) corrected the
 AGENTS.md characterization (its audience is planner/orchestrator AI agents — Traycer / Kilo / Claude-Code-as-
 orchestrator — not humans; still prose, not a machine-invokable manifest) + the success-criteria arithmetic
-(267 raw, not 207); Pass 2 fixed a heading; Pass 3 re-grounded all axes with **zero edits** (md5 `100da1b5`
+was 207, corrected to the surface-table counts — see §The surface to catalog for the live figures, which r3 re-grounded); Pass 2 fixed a heading; Pass 3 re-grounded all axes with **zero edits** (md5 `100da1b5`
 start = end). Re-verified this session: llms.txt + agents.md standards (fetched 2026-07-12, citations support
 the claims); the in-repo precedent scripts (`generate_model_capabilities.py` + `verify_openrouter_catalog.py`)
 and doc-audit reuse targets exist; `docs/CAPABILITIES.md` + `generate_capability_index.py` still absent; no
@@ -45,11 +53,11 @@ builds serve known customers); teaching agents *how to write code here* (that st
 | Surface | Count | Source of truth |
 |---|---|---|
 | `fabrik` CLI verbs | **23** | `@cli.command(` in `src/fabrik/cli.py` |
-| Drivers | **27** | `src/fabrik/drivers/*.py` |
+| Drivers | **27** | `src/fabrik/drivers/*.py` minus `__init__.py` (glob returns 28) |
 | Registrars | **10** | `src/fabrik/orchestrator/infrastructure.py:90` `_REGISTRAR_ORDER` |
-| Scripts | **82** | `scripts/*.py` + `scripts/*.sh` |
-| fabrik-lib modules | **~55** (110 raw README rows incl. the capability matrix — de-dup to dir-backed) | `/opt/fabrik-lib/README.md` table + real dirs |
-| Scaffolds | **20** | `templates/*/` |
+| Scripts | **82 top-level** (`.py`+`.sh` directly in `scripts/`; excludes data/config files + the 9 `run*` helpers) — but **357** recursively excluding `.archive/` (387 incl. `.archive`). The catalog includes the **agent-relevant subdirs** (`scripts/enforcement/`, `sysadmin/`, `utils/`, `probes/`, `aro-wake/`) and **excludes `scripts/.archive/`** (retired). Final in-scope set defined in C1. | top-level `scripts/*.{py,sh}` + the named subdirs, minus `.archive/` |
+| fabrik-lib modules | **~58** module dirs (61 non-hidden top-level dirs − `docs`/`docs-site`/`scripts`; the README lists them across a module table **and** a capability matrix, ~110 raw rows → de-dup to unique dir-backed) | `/opt/fabrik-lib/README.md` + real dirs |
+| Scaffolds | **19** `templates/*/` (excludes the hidden `.archive`), of which **11 are scaffold-type dirs** (the `SCAFFOLD_TYPES` registry has **12** — `wordpress` is deploy-only, no template dir) + 8 build helpers (`_partials`, `preplan`, `prompts`, `scaffold`, `spec-pipeline`, `traycer`, `i18n-kit`, `modal`) — C1 tags each as `scaffold` vs `helper`. | `templates/*/` + `SCAFFOLD_TYPES` |
 | `.windsurf/rules` packs | **50** | `.windsurf/rules/**/*.md` |
 
 Existing agent-facing docs that this **complements** (does not duplicate): `AGENTS.md` (625 lines) +
@@ -76,8 +84,11 @@ orchestrator agents: `AGENTS.md` says *how to work here*, `capabilities.json` sa
    Generated from the same records so the two never drift.
 3. **Self-verifying generation (never hand-curated).** For each entry the generator runs a cheap liveness
    probe — CLI verb → `fabrik <verb> --help` exit 0; lib module → `import`; script → `--help`/`--check` or a
-   header parse; scaffold → dir + required files present; rules pack → file parses. A probe that errors ⇒
-   `status:"broken"`, listed as a defect, **excluded from the "usable" set** an agent is offered.
+   header parse; scaffold → dir + required files present; rules pack → file parses. **Status values:** `ok`
+   (probe passed), `broken` (probe errored — excluded from the usable set), `retired` (deprecated — §Audit),
+   and **`manual`** (the tool is destructive or interactive so it can't be safely auto-probed — e.g. a script
+   that mutates prod with no `--help`/`--check`/dry-run; marked `manual`, offered **with a caution flag**, and
+   verified by the operator, not the generator). Only `ok` (and documented) entries are offered as freely usable.
 4. **Doc-audit + defect ledger as a by-product (goal #2 + "tools may be broken/retired/incomplete").** The
    same pass reconciles each entry's doc to reality **extending the existing** `scripts/doc_reconcile.py` /
    `docs_updater.py` / `check_docs.py` (not a new engine) AND emits a **`defects[]` per entry + a rolled-up
@@ -186,10 +197,14 @@ Recommended: build **C1 first** (the catalog is the higher-value, standalone del
 ## Success criteria (testable)
 
 - **C1:** `python scripts/generate_capability_index.py` writes `capabilities.json` + `docs/CAPABILITIES.md`;
-  `jq '.capabilities | length' capabilities.json` ≥ the grounded surface count (23+27+10+82+~55+20+50 = **267**
-  raw, so **≥ ~250** after de-duping the fabrik-lib capability-matrix rows); every `status:"ok"` entry's `invoke` returns 0 on `--help`/import; a deliberately-broken entry
-  re-scans to `status:"broken"` and is excluded from the usable set; `docs/CAPABILITIES.md` parses as valid
-  llms.txt (H1 + blockquote + H2 link-lists).
+  `jq '.capabilities | length' capabilities.json` clears the grounded surface **floor** (23 CLI + 27 drivers +
+  10 registrars + ≥82 scripts + ~58 modules + 19 scaffolds + 50 rules ≈ **≥269** with top-level scripts only,
+  higher once the in-scope `scripts/` subdirs are added — **≥ ~250** is the safe floor after fabrik-lib
+  capability-matrix de-dup); every `status:"ok"` entry's `invoke` returns 0 on `--help`/import; a
+  deliberately-broken entry re-scans to `status:"broken"` and is excluded from the usable set; **a
+  destructive/interactive tool with no safe `--help`/`--check`/dry-run probe is tagged `status:"manual"` (not
+  `broken`) and offered with a caution flag**; `docs/CAPABILITIES.md` parses as valid llms.txt (H1 + blockquote
+  + H2 link-lists).
 - **C2:** every catalog entry has a live `doc_link` OR a `defects[]` entry; `python scripts/enforcement/check_docs.py`
   green; no documented-but-absent tool remains (dead-doc count 0); the defect ledger enumerates every
   `broken`/`retired`/`incomplete` tool with its recommended action (fix / retire-decision / revise) — a seeded
@@ -207,8 +222,9 @@ Recommended: build **C1 first** (the catalog is the higher-value, standalone del
   per-kind if a `--help` pass proves too shallow.
 - **`capabilities.json` location (self-service default):** repo root `capabilities.json` (next to a root
   `/llms.txt`), mirrored/linked from `docs/`. Decide finally in the plan.
-- **De-dup of the 110 raw fabrik-lib README rows → ~55 modules (self-service):** the generator counts
-  dir-backed module rows only (the capability-matrix table repeats names); handled in C1.
+- **De-dup of the ~110 raw fabrik-lib README rows → ~58 module dirs (self-service):** the generator counts
+  unique dir-backed modules only (the capability-matrix table repeats names; excludes `docs`/`docs-site`/
+  `scripts`); handled in C1.
 - No BLOCKING unknowns — everything is local repo introspection + two file-format conventions grounded this
   session.
 
