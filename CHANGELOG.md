@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Fleet health/security re-audit + docs/infrastructure reconciliation (2026-07-13)
+
+Second `/fabrik-docs-review docs/infrastructure` with a full live fleet health + security sweep (converged over
+4 passes; Pass 4 = 0 discrepancies / 0 edits, md5-stable). **Audit result — the operator's question answered:**
+
+- **All services up:** vps1 31/31 containers, vps2 5/5, vps3 5/5 (0 exited/dead/restarting). Disk 36%/13%/13%,
+  memory 37%/12%/13%, fail2ban active on all 3, no failed *fabrik* systemd units.
+- **No security issue:** UFW is `default deny (incoming)` on all 3 with a minimal allow-list (22/80/443/51820
+  public; `8201` mesh-only via `10.0.0.0/8`+`10.99.0.0/24`; `1194` OpenVPN on vps1 only). **No mesh-only service**
+  (postgres/redis/prometheus/node-exporter/cadvisor/loki/meilisearch/glitchtip) is publicly allowed, and the
+  `DOCKER-USER` chain is present on all 3 (vps1=9 rules, spokes=2) after yesterday's fix. No doc claims a
+  mesh-only port is public.
+- **One "broken" caveat, and it is NOT fabrik-infra:** `site-provisioner` (vps1) is up 5 days but its healthcheck
+  **flaps** — `/health` runs live Cloudflare+Postgres+Namecheap checks that occasionally exceed the 10s timeout,
+  so Docker health oscillates unhealthy→healthy without restarting; its app also logs `RuntimeError: No response
+  returned` ~36×/24h. Both are **`mobasak/site-provisioner`-repo** concerns (separate repo — not fixed from here).
+
+Doc corrections: documented the site-provisioner flap in 5 places (was flatly "healthy"); fixed two WRONG
+current-tense claims in `audit-prompts/README.md` (Prometheus "14 targets/12 jobs, spoke jobs never re-added" →
+20/20/15 with spoke federation live; "AI sysadmin on vps1 ONLY" → all 3 hosts); clarified the spoke UFW rule
+count (the live 8201 + mesh-allow rules are mesh-scoped, no public exposure).
+
 ### Fixed — Spoke firewall drift: `DOCKER-USER` chain was EMPTY on vps2/vps3 (2026-07-12)
 
 The `/fabrik-docs-review` reconciliation found that both spokes had **no `iptables-docker-user.service` and an

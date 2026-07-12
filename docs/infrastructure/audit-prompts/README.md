@@ -1,6 +1,6 @@
 # VPS Audit Prompts — Fleet Edition
 
-**Last Updated:** 2026-06-02 (full rewrite of all 8 prompts for the 3-VPS fleet; previous version was 2026-05-19 Coolify-era single-VPS vintage)
+**Last Updated:** 2026-07-13 (corrected two stale stack-context facts: Prometheus is 20/20 targets across 15 active jobs with spoke federation LIVE — was '14/12, spoke jobs never re-added'; vps-sysadmin-bot runs on all 3 hosts — was 'vps1 ONLY'.) **Prior:** 2026-06-02 (full rewrite of all 8 prompts for the 3-VPS fleet; previous version was 2026-05-19 Coolify-era single-VPS vintage)
 
 Structured prompts for comprehensive infrastructure auditing of the 3-VPS Fabrik fleet. Each prompt is a self-contained brief designed to be pasted into an AI assistant (Claude Code, ChatGPT, etc.) alongside the diagnostic output it requests.
 
@@ -68,10 +68,10 @@ vps2 + vps3: 5 containers each — traefik + node-exporter + cadvisor +
 ```text
 Prometheus + Alertmanager + Grafana + Loki + Promtail + Gatus + GlitchTip
 - Loki accepts mesh pushes at 10.99.0.1:3100; spokes' promtail uses it
-- Prometheus scrapes 14 active targets across 12 jobs (was 18/15 in pre-aro-wake era; spoke-specific node-spokes/cadvisor-spokes/promtail-spokes jobs were never re-added after a config drift, plus netdata scrape removed 2026-06-07) (12 vps1 + 3 spoke job-groups)
+- Prometheus scrapes 20 targets / 20 up across 15 active jobs (16 configured in `prometheus.yml`; `fabrik-services` is a null-target placeholder). Spoke federation `node-spokes`/`cadvisor-spokes`/`promtail-spokes` is LIVE (re-added 2026-06-17 via `8342ef1`, 2 targets each); netdata scrape removed 2026-06-07. Re-verified live 2026-07-13.
 - Every series has `host` label (vps1/vps2/vps3) for fleet filtering
 - ~~spoke_health rule group~~ — **NOT in alerts.yml as of 2026-06-07T20:20Z**; planned but never landed
-- AI sysadmin: vps-sysadmin-bot.service on vps1 ONLY
+- AI sysadmin: `vps-sysadmin-bot.service` on all 3 hosts (vps1 since 2026-05-20; vps2/vps3 since 2026-06-06, `@SysAdminVPS2`/`@SysAdminVPS3`)
 ```
 
 ## Backups (Backrest → Backblaze B2 in us-west-004)
