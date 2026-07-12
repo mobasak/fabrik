@@ -1,0 +1,18 @@
+{
+  "plan": "docs/development/plans/archived/2026-07-11-plan-1-chrome-ext-wxt-scaffold.md",
+  "owned_paths": [
+    "src/fabrik/scaffold.py",
+    "templates/chrome-extension/**",
+    "tests/test_scaffold_chrome_ext_wxt.py",
+    "tests/test_scaffold.py",
+    "tests/test_scaffold_logging.py",
+    "tests/test_deploy_validator.py",
+    "tests/orchestrator/test_template_defaults.py",
+    "docs/reference/SEAMS.md",
+    "docs/FEATURES.md"
+  ],
+  "branch": "master",
+  "started_at": "2026-07-11",
+  "status": "complete",
+  "completed_at": "2026-07-11"
+}

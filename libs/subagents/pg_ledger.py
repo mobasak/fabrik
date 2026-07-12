@@ -69,8 +69,17 @@ _INSERT = (
 # The `_INSERT` column order — the outbox serializes a row as a name→value dict so `flush_outbox`
 # can rebuild the exact tuple regardless of dict ordering. Keep in lockstep with `_INSERT`.
 _COLS = (
-    "project", "agent_id", "task_type", "model", "provider", "status",
-    "cost_usd", "turns", "latency_s", "quality_score", "tool_calls",
+    "project",
+    "agent_id",
+    "task_type",
+    "model",
+    "provider",
+    "status",
+    "cost_usd",
+    "turns",
+    "latency_s",
+    "quality_score",
+    "tool_calls",
 )
 
 
@@ -236,7 +245,11 @@ def record_agent_run(
     except Exception:  # noqa: BLE001 — fail-open: a malformed spec/result never raises
         return False
     ok = record_run(
-        record, dsn=dsn, project=project, quality_score=quality_score, connect=connect,
+        record,
+        dsn=dsn,
+        project=project,
+        quality_score=quality_score,
+        connect=connect,
         outbox_dir=outbox_dir if outbox_dir is not None else receipt_dir,
     )
     if ok:
@@ -479,7 +492,9 @@ def _flush_locked(
 
         for r in good:
             with contextlib.suppress(Exception):
-                write_receipt(r.get("agent_id"), r.get("project"), receipt_dir=receipt_dir)
+                write_receipt(
+                    r.get("agent_id"), r.get("project"), receipt_dir=receipt_dir
+                )
     with contextlib.suppress(Exception):
         flushing.unlink()
     return len(good)

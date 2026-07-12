@@ -76,16 +76,69 @@ SAFE_RESEARCH_SERVERS: frozenset[str] = frozenset(
 # `GitHub` reached via allow_unlisted=True is still forced (the allowlist gate itself is
 # case-sensitive; this normalization backstops that one bypass path).
 _GITHUB_WRITE_VERBS: tuple[str, ...] = (
-    "create_", "update_", "delete_", "merge_", "push_", "fork_", "add_", "remove_",
-    "set_", "enable_", "disable_", "dismiss_", "request_", "assign_", "close_", "reopen_",
-    "transfer_", "rename_", "lock_", "unlock_", "approve_", "submit_", "run_", "rerun_",
-    "cancel_", "dispatch_", "convert_", "resolve_", "unresolve_", "mark_", "pin_", "unpin_",
-    "archive_", "block_", "star_", "watch_", "follow_", "upload_", "accept_", "decline_",
+    "create_",
+    "update_",
+    "delete_",
+    "merge_",
+    "push_",
+    "fork_",
+    "add_",
+    "remove_",
+    "set_",
+    "enable_",
+    "disable_",
+    "dismiss_",
+    "request_",
+    "assign_",
+    "close_",
+    "reopen_",
+    "transfer_",
+    "rename_",
+    "lock_",
+    "unlock_",
+    "approve_",
+    "submit_",
+    "run_",
+    "rerun_",
+    "cancel_",
+    "dispatch_",
+    "convert_",
+    "resolve_",
+    "unresolve_",
+    "mark_",
+    "pin_",
+    "unpin_",
+    "archive_",
+    "block_",
+    "star_",
+    "watch_",
+    "follow_",
+    "upload_",
+    "accept_",
+    "decline_",
     # widened after the Phase-A pool review named more fork-plausible write verbs (none collide
     # with a github READ prefix get_/list_/search_, so no over-refusal of the official server):
-    "edit_", "modify_", "move_", "tag_", "trigger_", "import_", "export_", "sync_", "invite_",
-    "send_", "publish_", "revert_", "squash_", "rebase_", "restore_", "retry_", "bulk_",
-    "unlabel_", "unassign_", "unsubscribe_", "write_",
+    "edit_",
+    "modify_",
+    "move_",
+    "tag_",
+    "trigger_",
+    "import_",
+    "export_",
+    "sync_",
+    "invite_",
+    "send_",
+    "publish_",
+    "revert_",
+    "squash_",
+    "rebase_",
+    "restore_",
+    "retry_",
+    "bulk_",
+    "unlabel_",
+    "unassign_",
+    "unsubscribe_",
+    "write_",
 )
 
 
@@ -133,6 +186,7 @@ def _github_advertises_write(name: str, tools: Any) -> bool:
         return n.endswith("_write") or any(n.startswith(v) for v in _GITHUB_WRITE_VERBS)
 
     return any(_is_write(t) for t in tools)
+
 
 _FN_NAME_RE = re.compile(r"[^a-zA-Z0-9_-]")
 _FN_NAME_MAX = 64  # OpenAI/OpenRouter function-name cap (grounded 2026-07-07)

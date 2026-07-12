@@ -367,7 +367,9 @@ def run_loop(
     _apply_max_price(
         merged, model
     )  # U1: same-price ceiling (no `sort`), caller-override-safe
-    _apply_latency_prefs(merged)  # L2: opt-in latency-aware routing (deprioritize-safe, no `sort`)
+    _apply_latency_prefs(
+        merged
+    )  # L2: opt-in latency-aware routing (deprioritize-safe, no `sort`)
     body: dict | None = merged or None
     total_cost = 0.0
     cost_known = False

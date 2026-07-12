@@ -1,6 +1,6 @@
 {
-  "timestamp": "2026-07-11T00:30:13.211972",
-  "total_models": 688,
+  "timestamp": "2026-07-12T00:10:02.418965",
+  "total_models": 686,
   "models": {
     "~anthropic/claude-fable-latest": {
       "id": "~anthropic/claude-fable-latest",
@@ -504,11 +504,6 @@
     },
     "mancer/weaver": {
       "id": "mancer/weaver",
-      "url": "https://openrouter.ai/api/v1",
-      "npm": "@openrouter/ai-sdk-provider"
-    },
-    "meta-llama/llama-3-8b-instruct": {
-      "id": "meta-llama/llama-3-8b-instruct",
       "url": "https://openrouter.ai/api/v1",
       "npm": "@openrouter/ai-sdk-provider"
     },

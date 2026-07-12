@@ -39,7 +39,7 @@ except ImportError:  # pragma: no cover - non-POSIX; falls back to in-process lo
 _SECRET_RE = re.compile(
     r"sk-[A-Za-z0-9_\-]{6,}"
     r"|Bearer\s+\S+"
-    r"|AKIA[0-9A-Z]{16}"            # AWS access-key id
+    r"|AKIA[0-9A-Z]{16}"  # AWS access-key id
     r"|gh[pousr]_[A-Za-z0-9]{20,}"  # GitHub token (ghp_/gho_/ghu_/ghs_/ghr_)
     r"|(?i:(?:api[_-]?key|token|secret|password)\s*[=:]\s*)\S+"
 )

@@ -25,11 +25,13 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import os
 import shutil
+import threading
 import time
 import uuid
 from collections.abc import Callable
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
@@ -50,6 +52,75 @@ AgentStatus = Literal["done", "capped", "error", "out_of_scope"]
 # `research`/`spec` ground against the WEB (via `web_tools`, not repo files), and `code` GENERATES
 # (a self-contained "write function X" needs no repo grounding) — those set their own tools/keys.
 _GROUNDED_TASK_KINDS = frozenset({"review", "docs", "plan"})
+
+
+def _outer_grace_s() -> float:
+    """Grace added to ``wall_clock_s`` for the OUTER dispatch backstop (see :func:`_run_one`).
+
+    ``loop.run_loop`` already bounds each call by ``wall_clock_s`` (``hard_timeout_s=remaining``)
+    plus a 20s first-token stall timeout — but that bound is only as good as the verbatim-vendored
+    ``_transport.py``/``_client.py`` honoring it. A provider that accepts the connection then never
+    streams a first token has been observed to hang the transport FAR past ``wall_clock_s`` (AFCL
+    2026-07-11: a 260s-budget pool review finder hung >10min, forcing an all-native review with zero
+    flywheel rows — the exact "pool hangs at pick_models/dispatch" symptom). Since the transport is
+    vendored (a root-cause fix goes to ``ai-consult`` UPSTREAM_FEEDBACK, not a local fork),
+    :func:`_run_one` wraps the loop in an OUTER asyncio deadline = ``wall_clock_s`` + this grace so a
+    hung dispatch is force-capped and the BATCH proceeds (the pool degrades to native) instead of
+    hanging forever. Env ``SUBAGENT_OUTER_GRACE_S`` (default 30s); ``<= 0`` disables the backstop."""
+    try:
+        return float(os.getenv("SUBAGENT_OUTER_GRACE_S", "30"))
+    except ValueError:
+        return 30.0
+
+
+def _settle_result(fut: asyncio.Future, value: Any) -> None:  # noqa: ANN401
+    if not fut.done():
+        fut.set_result(value)
+
+
+def _settle_exc(fut: asyncio.Future, exc: BaseException) -> None:
+    if not fut.done():
+        fut.set_exception(exc)
+
+
+async def _await_loop_with_backstop(
+    call: Callable[[], LoopOutcome], deadline_s: float | None
+) -> LoopOutcome:
+    """Run ``call`` (the tool-loop — a blocking, network-bound call) in a DAEMON thread and await
+    it, but never longer than ``deadline_s``: on the deadline raise :class:`TimeoutError` and ABANDON
+    the thread.
+
+    Why a hand-rolled daemon thread instead of ``asyncio.to_thread`` + ``wait_for``: ``to_thread``
+    uses the loop's DEFAULT executor whose workers are non-daemon, and ``asyncio.run`` JOINS that
+    executor on teardown (``shutdown_default_executor``) — so a genuinely hung loop call would still
+    block the whole process at shutdown, re-introducing the exact hang this backstop exists to kill
+    (and ``wait_for`` itself awaits the un-cancellable thread). A **daemon** thread blocks neither the
+    executor shutdown nor interpreter exit, so the batch truly returns. ``deadline_s`` None/``<=0`` =
+    await unbounded (backstop disabled)."""
+    loop = asyncio.get_running_loop()
+    fut: asyncio.Future = loop.create_future()
+
+    def _worker() -> None:
+        # If the backstop already abandoned this thread, the batch's event loop is closed by the
+        # time we finish — settling the (discarded) future is then a silent no-op, NOT a crash.
+        try:
+            res = call()
+        except BaseException as exc:  # noqa: BLE001 — ferry ANY failure back to the awaiter
+            with contextlib.suppress(RuntimeError):
+                loop.call_soon_threadsafe(_settle_exc, fut, exc)
+        else:
+            with contextlib.suppress(RuntimeError):
+                loop.call_soon_threadsafe(_settle_result, fut, res)
+
+    threading.Thread(target=_worker, name="subagent-loop", daemon=True).start()
+    if deadline_s is None or deadline_s <= 0:
+        return await fut
+    # asyncio.wait does NOT cancel/await the pending future on timeout — so a still-running daemon
+    # thread is simply abandoned and control returns immediately (unlike wait_for).
+    done, _pending = await asyncio.wait({fut}, timeout=deadline_s)
+    if not done:
+        raise TimeoutError
+    return fut.result()
 
 
 @dataclass
@@ -135,7 +206,9 @@ class AgentResult:
         None  # wall-clock seconds for the run (provenance/value metric)
     )
     out_tokens: int = 0  # summed output (completion) tokens — value/report metric
-    model: str = ""  # the model that produced this result (from the spec) — set by _run_one so a
+    model: str = (
+        ""  # the model that produced this result (from the spec) — set by _run_one so a
+    )
     # caller who only holds the results (e.g. from fanout) can score it via set_quality(model=…)
     # NOTE: `out_of_scope` is computed only for `done`/`capped` runs. An `error`
     # run may still carry a partial `diff` (earlier turns wrote before it failed) —
@@ -247,7 +320,9 @@ async def _run_one(
         result.latency_s = (
             time.monotonic() - t0
         )  # match every other exit path's provenance
-        result.model = spec.model  # every exit path stamps model (AgentResult.model contract)
+        result.model = (
+            spec.model
+        )  # every exit path stamps model (AgentResult.model contract)
         await asyncio.to_thread(_safe_ledger, ledger, spec, result)
         return result
     # Pre-flight FAIL-CLOSED: a single-shot (tools_enabled=False) worker on a VERIFICATION task_type
@@ -276,7 +351,9 @@ async def _run_one(
             ),
         )
         result.latency_s = time.monotonic() - t0
-        result.model = spec.model  # every exit path stamps model (AgentResult.model contract)
+        result.model = (
+            spec.model
+        )  # every exit path stamps model (AgentResult.model contract)
         await asyncio.to_thread(_safe_ledger, ledger, spec, result)
         return result
     async with sem:
@@ -296,7 +373,9 @@ async def _run_one(
                 agent_id, "", "", "error", None, None, 0, error=f"worktree: {exc}"
             )
             result.latency_s = time.monotonic() - t0
-            result.model = spec.model  # every exit path stamps model (AgentResult.model contract)
+            result.model = (
+                spec.model
+            )  # every exit path stamps model (AgentResult.model contract)
             # offload the ledger write: its optional Postgres dual-write is a blocking network
             # call that must not run on the event loop (it would stall the whole batch).
             await asyncio.to_thread(_safe_ledger, ledger, spec, result)
@@ -311,7 +390,40 @@ async def _run_one(
         )
         try:
             try:
-                outcome = await asyncio.to_thread(_invoke_loop, loop_fn, spec, wt, prog)
+                # OUTER wall-clock BACKSTOP: run the loop in a thread, but never await it
+                # unbounded. `run_loop` self-bounds by `wall_clock_s`, yet a vendored-transport
+                # hang (a never-first-token provider) can blow past it — so cap the await at
+                # `wall_clock_s + grace`. On timeout the loop THREAD keeps running (a Python thread
+                # can't be cancelled) and finishes/cleans up on its own, but THIS coroutine returns,
+                # so the batch proceeds instead of hanging (see `_outer_grace_s`). `grace <= 0`
+                # disables the backstop (await unbounded — the pre-fix behavior).
+                grace = _outer_grace_s()
+                deadline = (spec.wall_clock_s + grace) if grace > 0 else None
+                outcome = await _await_loop_with_backstop(
+                    lambda: _invoke_loop(loop_fn, spec, wt, prog), deadline
+                )
+            except TimeoutError:
+                # The loop overran its own `wall_clock_s` bound — the transport/provider hung without
+                # honoring `hard_timeout_s`. Force-cap as `capped` (partial-tolerant, NOT scored:
+                # status != "done", so a provider stall can't teach `pick_models` a false 0 — mirrors
+                # the loop's own stall-cap). cost_usd=None: the call never returned, so the spend is
+                # unknown; report it honestly rather than guess.
+                result = AgentResult(
+                    agent_id,
+                    "",
+                    "",
+                    "capped",
+                    None,
+                    None,
+                    0,
+                    error=(
+                        f"outer wall-clock backstop fired at wall_clock_s={spec.wall_clock_s:.0f}s "
+                        f"+ grace {grace:.0f}s: the dispatch did not self-terminate (a provider "
+                        "likely accepted the connection but never streamed a first token). The "
+                        "batch continued; retry a DIFFERENT model (pick_models exclude=…) or fall "
+                        "back to native. Tune with SUBAGENT_OUTER_GRACE_S."
+                    ),
+                )
             except Exception as exc:  # noqa: BLE001 — the loop failed → error (no cost); batch survives
                 result = AgentResult(
                     agent_id, "", "", "error", None, None, 0, error=str(exc)
@@ -380,7 +492,9 @@ async def _run_one(
                 pass
 
         result.latency_s = time.monotonic() - t0
-        result.model = spec.model  # stamp the model so a results-only holder can score it later
+        result.model = (
+            spec.model
+        )  # stamp the model so a results-only holder can score it later
         # offload the ledger write off the event loop (its optional Postgres dual-write blocks).
         await asyncio.to_thread(_safe_ledger, ledger, spec, result)
         return result
@@ -632,15 +746,16 @@ def fanout(
     ``TypeError``, which would miss a field a given mode doesn't itself pass).
 
     ``recover_caps`` (default ``True``): a unit that returns a ZERO-OUTPUT cap (``status == "capped"`` with
-    ``out_tokens == 0`` — a provider-congestion stall, NOT model quality) is re-dispatched ONCE, preferring a
-    DIFFERENT VENDOR than the one that congested (a different failure domain) when one is available, else the
-    next-best remaining model — recovery never abandons a recoverable cap; honours the caller's ``prefer``.
-    Turns a wasted finder into recovered breadth. A structural
-    ``error`` (sandbox/ungrounded/worktree refusal) is NOT retried — a model swap can't fix a host problem.
-    Bounded 1× per unit, SEQUENTIAL (not a concurrent hedge), cost/wall-capped via ``run_agents``. On a
-    successful retry the flywheel record + the table name the model that RAN. A still-capped unit is recorded
-    UNSCORED (the ledger nulls a non-``done`` quality — a congested provider is not a bad model). Set
-    ``recover_caps=False`` to disable.
+    ``out_tokens == 0`` — provider CONGESTION, NOT model quality) is given ONE more chance on the **SAME
+    model** — a FRESH dispatch, so OpenRouter's health-aware routing re-routes it to a healthy provider (it
+    deprioritizes a provider with a recent outage). It is NOT a vendor swap: the cap is a transient provider
+    stall, the model deserves a second chance, and the 20s first-token detection makes the retry cheap. A
+    structural ``error`` (sandbox/ungrounded/worktree refusal) is NOT retried — a retry can't fix a host
+    problem. Bounded 1× per unit, SEQUENTIAL (not a concurrent hedge), cost/wall-capped via ``run_agents``. If
+    the retry ALSO zero-caps, the cap STANDS (the model's providers are saturated right now) and the flywheel
+    down-ranks a PERSISTENTLY flaky model statistically over many runs — never reactively on one blip. A
+    still-capped unit is recorded UNSCORED (the ledger nulls a non-``done`` quality — a congested provider is
+    not a bad model). Set ``recover_caps=False`` to disable.
     """
     if mode not in ("read_only", "write"):
         raise ValueError(f"fanout: mode must be 'read_only' or 'write', got {mode!r}")
@@ -650,7 +765,12 @@ def fanout(
     # in **spec_kwargs UNIFORMLY + up front — Python's own duplicate-kwarg TypeError only fires for
     # the fields a given branch happens to pass (e.g. write-mode never passes allow_ungrounded), so
     # relying on it would let allow_ungrounded slip through silently in write mode.
-    reserved = {"tools_enabled", "allow_ungrounded", "owned_paths", "task_type"} & spec_kwargs.keys()
+    reserved = {
+        "tools_enabled",
+        "allow_ungrounded",
+        "owned_paths",
+        "task_type",
+    } & spec_kwargs.keys()
     if reserved:
         raise ValueError(
             f"fanout: {sorted(reserved)} are set by fanout itself — don't pass them in **spec_kwargs"
@@ -726,14 +846,16 @@ def fanout(
                     "(a writer with no owned_paths writes anywhere → overlaps everything → serializes)"
                 )
             if "task" not in unit:
-                raise ValueError(f"fanout(mode='write'): unit {i} is missing the required 'task' key")
+                raise ValueError(
+                    f"fanout(mode='write'): unit {i} is missing the required 'task' key"
+                )
             op = unit["owned_paths"]
             if not isinstance(op, list):
                 # a bare str is truthy so it slips the guard above, then list("src/a.py") would
                 # char-split into garbage single-char "paths" that disjoint() sees as non-overlapping
                 raise ValueError(
                     f"fanout(mode='write'): unit {i} 'owned_paths' must be a list of globs, "
-                    f"got {type(op).__name__} — wrap a single glob as [\"...\"]"
+                    f'got {type(op).__name__} — wrap a single glob as ["..."]'
                 )
             if not all(isinstance(g, str) and g.strip() for g in op):
                 # a degenerate element (empty/whitespace-only str, None, int) would either match
@@ -769,50 +891,43 @@ def fanout(
         max_concurrency=max_concurrency if max_concurrency is not None else len(specs),
     )
 
-    # L4 (plan-2 stall-resilience): recover a ZERO-OUTPUT CAP ONCE by re-dispatching that unit to a
-    # DIFFERENT VENDOR (a different failure domain) — turning a provider-congestion cap into recovered
-    # breadth instead of a wasted finder. Bounded 1× per unit, SEQUENTIAL (not a concurrent hedge —
-    # hedging a saturated pool amplifies load), inheriting the same worktree/cost/wall caps via run_agents.
-    # `specs[i]` is updated on success so the flywheel record + results_table name the model that ACTUALLY
-    # ran (L5: a still-capped unit stays status="capped" and is recorded UNSCORED by the ledger's no-false-0
-    # rule — a congested provider is not a bad model).
+    # L4 (rethink 2026-07-12): recover a ZERO-OUTPUT CAP by giving the SAME model ONE more chance — a
+    # FRESH dispatch, NOT a vendor swap. A zero-output cap is provider CONGESTION, not model quality: the
+    # in-dispatch stall loop already excluded the stalled provider (`provider.ignore`) and exhausted its
+    # retries, and OpenRouter's health-aware routing deprioritizes a provider with an outage in the last
+    # 30s — so a fresh call re-routes the SAME model to a HEALTHY provider (the second chance the model
+    # deserves; OR picks the best path, we don't second-guess the model). Our 20s first-token detection
+    # makes it cheap: if it caps AGAIN the model's providers are genuinely saturated right now, so the cap
+    # STANDS and the flywheel down-ranks a PERSISTENTLY flaky model statistically over many runs — never
+    # reactively on one blip. Bounded 1× per unit, SEQUENTIAL (hedging a saturated pool amplifies load),
+    # inheriting the same worktree/cost/wall caps via run_agents. The model is unchanged, so `specs[i]`
+    # already names the model that ran; a still-capped unit stays status="capped" and is recorded UNSCORED
+    # (the ledger's no-false-0 rule — a congested provider is not a bad model).
     if recover_caps:
-        tried = {s.model for s in specs}  # never re-dispatch a model already used this batch
         for i, (spec, r) in enumerate(zip(specs, results, strict=True)):
             # ONLY a genuine provider-congestion cap (status="capped", 0 output). NOT a structural "error"
-            # (sandbox-unavailable / ungrounded / worktree-failure refusal): a model swap can't fix a
-            # host/config problem and would burn the whole pool retrying it. A capped run that produced
-            # partial output (out_tokens > 0) is not wasted and is left alone.
+            # (sandbox-unavailable / ungrounded / worktree-failure refusal): a retry can't fix a host/config
+            # problem and would burn the pool. A capped run that produced partial output (out_tokens > 0)
+            # is not wasted and is left alone.
             if r.status == "capped" and r.out_tokens == 0:
-                # Draw a GENEROUS pool (a tight n could let a dense same-vendor catalog crowd the
-                # cross-vendor candidate out of view) excluding models already used this batch, honouring
-                # the caller's `prefer`. PREFER a vendor different from the one that just congested (a
-                # different failure domain) — but only THIS capped model's family is suspect; a sibling of a
-                # vendor that SUCCEEDED elsewhere is fine, so we don't hard-exclude whole families. Fall
-                # back to the best remaining candidate rather than abandon a recoverable cap.
-                candidates = pick_models(task_type, n=64, exclude=tuple(tried), prefer=prefer)
-                if not candidates:
-                    continue  # nothing left under the ≤$1.5 cap → keep the capped result
-                capped_family = spec.model.split("/")[0]
-                alt = next(
-                    (m for m in candidates if m.split("/")[0] != capped_family), candidates[0]
-                )
-                retry_spec = replace(spec, model=alt)
-                retry_list = run_agents([retry_spec], repo=repo)
-                if not retry_list:
-                    continue  # defensive — run_agents returns one-per-spec, but never IndexError
-                tried.add(alt)  # mark AFTER the retry ran — a never-run model stays available to later units
-                retry = retry_list[0]
-                if retry.out_tokens > 0 or retry.status == "done":
-                    results[i] = retry
-                    specs[i] = retry_spec  # record + table now name the model that RAN
+                # Re-dispatch the SAME spec (same model) — a fresh call lets OpenRouter route around the
+                # provider that just congested. No model swap, no exclude bookkeeping.
+                retry_list = run_agents([spec], repo=repo)
+                if retry_list and (
+                    retry_list[0].out_tokens > 0 or retry_list[0].status == "done"
+                ):
+                    results[i] = retry_list[0]  # recovered on a healthy provider this time
 
     if record and project:
         for spec, r in zip(specs, results, strict=True):
             try:
-                record_agent_run(spec, r, project=project)  # unscored — set_quality later
+                record_agent_run(
+                    spec, r, project=project
+                )  # unscored — set_quality later
             except Exception:  # noqa: BLE001 — a record failure NEVER loses the returned results
-                logger.warning("fanout: record_agent_run failed for model %s", spec.model)
+                logger.warning(
+                    "fanout: record_agent_run failed for model %s", spec.model
+                )
 
     entries = [
         {"unit": f"{task_type}[{i}]", "model": s.model, "result": r}
