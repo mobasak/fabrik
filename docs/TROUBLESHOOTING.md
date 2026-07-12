@@ -96,6 +96,20 @@ reproducible from git**. Re-run the script after any Apprise volume rebuild, or 
 again. Note a 200 from `/notify` (stateless) does **not** imply `/notify/alerts` works — test the path your
 callers actually use.
 
+**Prevention — the alert-path canary.** `scripts/sysadmin/fabrik-alert-canary.sh` (installed at
+`/usr/local/bin/fabrik-alert-canary.sh` on vps1) watches the watcher: a monitoring stack that cannot page you
+is indistinguishable from "all quiet", which is why this outage lasted 4 days.
+
+- default → **silent** config probe (`POST /get/alerts`: 200 = config present, 204 = missing). No Telegram
+  noise, safe hourly.
+- `--e2e` → **true delivery** test (`POST /notify/alerts` must return 200 — Apprise returns 200 only when it
+  actually delivered; 424 = send failed). Sends one message; use as a weekly heartbeat.
+- On breakage it **auto-repairs** the config and **escalates via a DIRECT `api.telegram.org` call that bypasses
+  Apprise entirely** — because a dead alert path cannot report its own death.
+
+Verified by deleting the live `alerts` config: the canary detected the 204, repaired it, and delivered the
+out-of-band escalation.
+
 ### A container stays down after a host reboot (Docker restart-policy race)
 
 **Symptom:** After a VPS reboot (e.g. an unattended kernel upgrade) one container is `Exited (255)` and did

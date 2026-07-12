@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Alert-path canary: watch the watcher (2026-07-12)
+
+`scripts/sysadmin/fabrik-alert-canary.sh` — the check that would have caught the 2026-07-08 incident on day
+one. A monitoring stack that cannot page you is indistinguishable from "all quiet"; nothing was verifying the
+notifier itself, so a dead `alertmanager` **and** a silently-204ing Apprise went unnoticed for 4 days.
+
+- **default** — silent config probe (`POST /get/alerts`: 200 = present, 204 = missing). Sends no Telegram
+  message, so it is safe to run hourly.
+- **`--e2e`** — true delivery test (`POST /notify/alerts` must return 200; Apprise returns 200 only on a real
+  successful send, 424 on failure, 204 when silently dropping). Sends one message → weekly heartbeat.
+- **On breakage:** auto-repairs the `alerts` config, then **escalates via a DIRECT `api.telegram.org` call that
+  bypasses Apprise entirely** — because a dead alert path cannot report its own death.
+
+Installed to `/usr/local/bin/fabrik-alert-canary.sh` on vps1 and **verified against a live reproduction of the
+outage**: deleted the `alerts` config → canary detected the 204, auto-repaired it, and delivered the
+out-of-band Telegram escalation. (Cron scheduling pending operator approval.)
+
 ### Fixed — Apprise `/notify/alerts` silently dropped EVERY alert (the 4-day blind spot) (2026-07-12)
 
 **Why vps1's dead alertmanager went unnoticed for 4 days.** Gatus worked perfectly — it logged **5,893**
