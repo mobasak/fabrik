@@ -231,8 +231,8 @@ from app.config.production import database_url  # BANNED
 from settings import production as config       # BANNED
 
 # Secrets in code - VIOLATION  
-JWT_SECRET_KEY = "hardcoded-secret-value"     # BANNED
-DATABASE_PASSWORD = "secret123"               # BANNED
+JWT_SECRET_KEY = "hardcoded-secret-value"     # BANNED  # noqa
+DATABASE_PASSWORD = "secret123"               # BANNED  # noqa
 
 # Cannot open source without compromising credentials - VIOLATION
 ```

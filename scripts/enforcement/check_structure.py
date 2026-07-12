@@ -18,6 +18,12 @@ ALLOWED_ROOT_MD = {
     "tasks.md",
     "AGENTS.md",
     "AGENTS-compact.md",
+    # agents-fabrik.md (2026-07-12): the autonomous-factory orientation file — a
+    # direct peer of AGENTS.md (same infra map, reframed for our tool-capable
+    # agents), read FIRST by the factory's planning/coding agents. Root by the
+    # same architectural decision as AGENTS.md/CLAUDE.md below. Permissive entry:
+    # projects without the file are unaffected.
+    "agents-fabrik.md",
     "PORTS.md",
     "LICENSE.md",
     # T1-02 (2026-05-14): CLAUDE.md is Claude Code's per-project bootstrap;
