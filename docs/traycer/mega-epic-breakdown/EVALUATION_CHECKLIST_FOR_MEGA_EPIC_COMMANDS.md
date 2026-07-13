@@ -79,7 +79,7 @@ Every command in mega-epic-breakdown (00, 02-05) must be evaluated against this 
 44. Does it reference `docs/operations/fabrik-lifecycle.md`?
 45. Does each epic cover all 4 stages? (Intent → Implementation → Registration → Verification)
 46. Or is it explicitly stated that some epics only cover certain stages? (e.g., "Epic 1 is foundation-only — no user-facing features, no Stage 4 health checks")
-47. Are the 9 registrars considered per epic? (which registrars fire for each epic's `fabrik apply`)
+47. Are the 10 registrars (7 flag-driven + grafana always-on + glitchtip kind-driven + watchdog opt-out) considered per epic? (which registrars fire for each epic's `fabrik apply`)
 
 ## Solo Dev Reality
 
@@ -94,7 +94,7 @@ Every command in mega-epic-breakdown (00, 02-05) must be evaluated against this 
 53. Does it check for PORT conflicts? (`PORTS.md`)
 54. Does it check for DUPLICATE functionality? (don't build what exists)
 55. Does it use existing VPS services BEFORE building new? (postgres-main, redis-main, etc.)
-56. Does it respect the external services decision matrix from `AGENTS.md`?
+56. Does it respect the tech-stack defaults — `AGENTS.md` § Tech Stack Defaults + `docs/reference/technology-stack-decision-guide.md`? (There is no section named "external services decision matrix" — do not look for one.)
 
 ## Owner's Research-First Approach
 
