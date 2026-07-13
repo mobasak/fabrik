@@ -272,8 +272,16 @@ def bench_model(
 
     Cost is NOT measured here — the CALLER (``main``) brackets each call with
     balance reads, so a model that fails *after* spending credit still counts
-    toward the run budget. Raises on run/parse failure (one of ``MODEL_FAILURE``);
-    the caller logs + skips, never crashing the cohort.
+    toward the run budget.
+
+    Two failure classes, deliberately handled differently:
+    - **Per-model** (``MODEL_FAILURE``: tb non-zero exit / hang / no-results /
+      malformed output) → raised here, the caller logs + SKIPS, cohort continues.
+    - **Systemic infra** (``OSError`` from the filesystem wipe, ``sqlite3.Error``
+      from the DB write) → deliberately NOT caught: a read-only disk or a
+      locked/corrupt DB affects EVERY model, so it propagates and halts the run
+      LOUDLY (like the tb-missing pre-flight) rather than being masked as N benign
+      per-model skips. Fail-loud on a broken environment is the intended behaviour.
 
     The output dir is wiped before the run so ``parse_tbench_output`` can only
     ever see THIS run's results.json — a re-run that produces no fresh output
