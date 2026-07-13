@@ -305,7 +305,7 @@ User picks final dispatch. One local Ollama at a time.
 
 **Delta-feature epics (default):** Epic Closure ticket is MANDATORY as the last ticket in the final batch. Runs `final_gate.py --systemic --json` (Tier 3). Template below.
 
-**Retrofit epics (detected from the ticket Title prefix `Retrofit:` — `05` has no `Epic Flavor` field):** Epic Closure ticket is OPTIONAL per `05-ticket-outline-command` § Ticket-type table (`:127`) — ⚠️ `03-expand-epic-files-command` never mentions Epic Closure. SKIP when:
+**Retrofit epics (detected from the ticket Title prefix `Retrofit:` — `05` has no `Epic Flavor` field):** Epic Closure ticket is OPTIONAL per `05-ticket-outline-command` § Step 2b: Ticket Category Coverage Check — ⚠️ `03-expand-epic-files-command` never mentions Epic Closure. SKIP when:
 
 - The retrofit is scoped to one rule-pack area (e.g., `Retrofit: i18n`, `Retrofit: Resilience on one external API`, `Retrofit: Auth hardening`)
 - The parent project's last Delta-feature Epic Closure already covered the systemic gate (typically within the last 1-2 epics)

@@ -178,8 +178,8 @@ If contradictions → return to the layer where they originate. Don't hand off w
 ## Does NOT
 
 - Does NOT execute tickets — that is `07-execute-command`. ettw/09 pauses execution (per L126), updates specs, then suggests `execute` for new/amended tickets per Step 9.
-- Does NOT run the standalone cross-artifact audit — Step 8 Cross-Artifact Consistency Pass is a HANDOFF GATE during revision; the separate post-fact audit is `10-cross-artifact-validation-command`, suggested as follow-up per L165.
-- Does NOT validate implementation correctness — that is `08-implementation-validation-command`, suggested for Done-but-affected tickets per L167.
+- Does NOT run the standalone cross-artifact audit — Step 8 Cross-Artifact Consistency Pass is a HANDOFF GATE during revision; the separate post-fact audit is `10-cross-artifact-validation-command`, suggested as follow-up per its § Role.
+- Does NOT validate implementation correctness — that is `08-implementation-validation-command`, suggested for Done-but-affected tickets per its § Role.
 - Does NOT deploy — that is `11-deploy-command`. ettw/09 stops before deploy when scope changes; deploy resumes after the updated chain completes.
 - Does NOT restart the epic from scratch — when >50% Success Criteria are invalidated (per L63 Delta-feature, or >30% per the Retrofit branch above), recommend closing the epic and starting fresh via `trigger_workflow → epic-brief`. revise-requirements steers a plan, it doesn't pivot it.
 - Does NOT silently absorb mid-flight scope changes — every change goes through Step 4 Checkpoint with explicit user agreement per L90; never proceed to Step 5 cascade without confirmation.

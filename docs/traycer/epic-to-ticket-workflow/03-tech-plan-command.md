@@ -37,7 +37,7 @@ Read these in order; everything else builds on them:
      - **Step 4c Concurrency** — Retrofit on non-concurrency areas → state "concurrency inherited from existing project" + skip new design.
      - **Step 6 Architecture Design** — Retrofit target ≤100 lines total (vs Delta-feature ≤300 at L149). Single-subsystem focus.
      - **Step 7 Shape Block Declaration** — Retrofit INHERITS the existing project's shape; do NOT declare new shape. State "inherited; no new shape flags required" unless the retrofit explicitly adds a registrar (e.g., `Retrofit: search` adds `has_search_feature: true`).
-   - **`Registrars`** (Path B only) lists which of the **10** fire per `mega-epic-breakdown/00-trigger-workflow-command` § Fabrik lifecycle: postgres, redis, gatus, backrest, glitchtip, authelia, meilisearch, prometheus, grafana — Component Architecture (Step 6.C) MUST NOT contradict this list. If architecture needs a registrar not in the list, route back to `mega-epic-breakdown/02-epic-decomposition-command` to update the spec.
+   - **`Registrars`** (Path B only) lists which of the **10** fire per `mega-epic-breakdown/00-trigger-workflow-command` § Orientation → Fabrik lifecycle: postgres, redis, gatus, backrest, glitchtip, authelia, meilisearch, prometheus, grafana, **watchdog** — Component Architecture (Step 6.C) MUST NOT contradict this list. If architecture needs a registrar not in the list, route back to `mega-epic-breakdown/02-epic-decomposition-command` to update the spec.
 
    **Most heavily consumed fields (both paths):**
    - `Scaffold` — drives Stack injection (Step 4) and Commercial Mindset default (Step 5).

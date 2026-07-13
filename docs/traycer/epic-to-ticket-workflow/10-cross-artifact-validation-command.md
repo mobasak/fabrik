@@ -229,7 +229,7 @@ Compare tickets against updated specs:
 
 ## Does NOT
 
-- Does NOT execute tickets — that is `07-execute-command`. ettw/10 reports findings; user decides actions per Step 3 advisory pattern (matches ettw/08 L17 "advisory, not authoritative").
+- Does NOT execute tickets — that is `07-execute-command`. ettw/10 reports findings; user decides actions per Step 3 advisory pattern (matches `ettw/08-implementation-validation-command` § Role "advisory, not authoritative").
 - Does NOT validate implementation correctness (impl-vs-spec) — that is `08-implementation-validation-command`. ettw/10 is spec-vs-spec; ettw/08 reads code. Both run; they validate different surfaces.
 - Does NOT propagate changes through the artifact set — that is `09-revise-requirements-command`. ettw/10 FINDS contradictions; user runs revise-requirements to RESOLVE them per Step 6 follow-up.
 - Does NOT deploy — that is `11-deploy-command`. ettw/10 is a pre-deploy consistency gate.

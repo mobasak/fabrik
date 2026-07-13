@@ -231,7 +231,7 @@ When all clean → suggest `deploy`.
 - Does NOT execute the tickets or implement fixes — that is `07-execute-command` (the coding agent dispatch). ettw/08 advises; user decides actions per L17. Mechanical fixes are spawned as fix-agents per Step 8 L220, but ettw/08 does NOT write the code itself.
 - Does NOT validate cross-artifact consistency — that is `10-cross-artifact-validation-command` (across Epic Brief, Core Flows, Tech Plan, Deploy Plan, ticket specs). ettw/08 is implementation-vs-spec; ettw/10 is spec-vs-spec.
 - Does NOT execute `fabrik apply` / deploy the service — that is `11-deploy-command`. ettw/08 is the PRE-deploy review gate.
-- Does NOT change the Epic Brief / Core Flows / Tech Plan / Deploy Plan — Product Misalignment findings route to `09-revise-requirements-command` per L172, NOT direct edits in 08.
+- Does NOT change the Epic Brief / Core Flows / Tech Plan / Deploy Plan — Product Misalignment findings route to `09-revise-requirements-command` per its § Role, NOT direct edits in 08.
 - Does NOT mark tickets Done — that is `07-execute-command` Step 5 per-ticket validation. ettw/08 creates fix tickets when findings are Blockers/Bugs.
 - Does NOT force `final_gate.py --systemic` for Retrofit epics where Epic Closure was skipped at `06-ticket-breakdown` Step 10 — per Step 2 Retrofit branch, the prior Delta-feature closure already ran the systemic gate.
 - Does NOT flag Retrofit briefs with 3-5 Success Criteria as under-specced — Retrofit Brief default is 3-5 SC per `mega-epic-breakdown/03-expand-epic-files-command` § Success Criteria; flag low-SC as Blocker ONLY when Delta-feature with <5 SC.

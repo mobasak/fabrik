@@ -183,7 +183,7 @@ When passes → epic execution done.
 - Does NOT loop fixup attempts indefinitely — one fixup per failure, then escalate to user.
 - Does NOT bypass `scripts/final_gate.py` — Step 3 validation requires `status: "success"`; agent self-reports without gate output are rejected.
 - Does NOT unilaterally skip Epic Closure — `06-ticket-breakdown` decides skip eligibility per its Step 10 Retrofit branch (post-`8dcdd2b`). ettw/07 dispatches what was emitted; mismatches escalate per Step 6 detect-mismatch rules.
-- Does NOT change agent-supplier assignment from the outline's `Complexity` field — outline decided which tier (free local / mid / premium cloud per `05-ticket-outline-command` Step 9 + `06-ticket-breakdown-command` Step 9); ettw/07 dispatches accordingly per L69-71.
+- Does NOT change agent-supplier assignment from the outline's `Complexity` field — outline decided which tier (free local / mid / premium cloud per `05-ticket-outline-command` Step 9 + `06-ticket-breakdown-command` Step 9); ettw/07 dispatches accordingly per its § Step 2-71.
 - Does NOT run `git commit` / `git push` — auto-staged by `scripts/final_gate.py` on success per CLAUDE.md HARD STOPS.
 - Does NOT propose `revise-requirements` mid-execution — execution is for confirmed tickets; scope changes route back to `09-revise-requirements-command` and re-enter the chain.
 - Does NOT merge tickets across batch boundaries — Step 5 Merge happens AFTER batch completion per L164 "Merge sequential after batch."

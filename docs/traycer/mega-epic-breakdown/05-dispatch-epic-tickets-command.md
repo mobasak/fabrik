@@ -55,7 +55,7 @@ If any of the 3 checks fail, STOP. Do not proceed to Step 2.
 
 **Source-of-truth order:** PREFER the `Recommended Execution Order` already rendered by `04-cross-epic-validation-command` Step 7 in the conversation's most recent Validation Report — it's already topologically sorted into Phases. Only re-derive from the Dependency Graph spec if 04's order is absent.
 
-**Re-derivation path (if needed):** Read the Dependency Graph spec from `02-epic-decomposition-command` (mermaid format with `subgraph "Phase N"` blocks per `02-epic-decomposition-command` § Output Contract → 3. Dependency graph). Topologically sort: nodes with no incoming edges = Phase 1; remove them and repeat for Phase 2; continue until all nodes placed. Epics within a Phase have no mutual dependencies — render with `⚡` separator. This is the SAME terminology as 02 + 04 (`Phase`, not `Batch`) — keep it consistent so the owner sees one vocabulary across the chain.
+**Re-derivation path (if needed):** Read the Dependency Graph spec from `02-epic-decomposition-command` (mermaid format with `subgraph "Phase N"` blocks per `02-epic-decomposition-command` § ── CHECKPOINT: Present Epic Proposal + Infrastructure Decisions ── → 3. Dependency graph — the mermaid template with the `subgraph "Phase N"` blocks, NOT the one-line summary in § Output Contract). Topologically sort: nodes with no incoming edges = Phase 1; remove them and repeat for Phase 2; continue until all nodes placed. Epics within a Phase have no mutual dependencies — render with `⚡` separator. This is the SAME terminology as 02 + 04 (`Phase`, not `Batch`) — keep it consistent so the owner sees one vocabulary across the chain.
 
 **Render the execution order to the owner using these patterns:**
 
@@ -93,7 +93,7 @@ If any of the 3 checks fail, STOP. Do not proceed to Step 2.
 
 State dispatch instructions:
 
-"To execute an epic (Delta-feature OR Retrofit — same procedure): select its ticket → run `epic-to-ticket-workflow/00-trigger-workflow-command` in **consume mode** (per `epic-to-ticket-workflow/00-trigger-workflow-command` § Entry Points → Multi-epic (consume mode) Path B — it reads the epic ticket's Metadata block as the INFRA-CHECK input instead of deriving it from scratch). Then continue through `01-epic-brief-command` (Path B at L33 consumes the same Metadata via INFRA-CHECK). The ticket description IS the Epic Brief input."
+"To execute an epic (Delta-feature OR Retrofit — same procedure): select its ticket → run `epic-to-ticket-workflow/00-trigger-workflow-command` in **consume mode** (per `epic-to-ticket-workflow/00-trigger-workflow-command` § Entry Points → Multi-epic (consume mode) Path B — it reads the epic ticket's Metadata block as the INFRA-CHECK input instead of deriving it from scratch). Then continue through `01-epic-brief-command` (Path B § Step 1 consumes the same Metadata via INFRA-CHECK). The ticket description IS the Epic Brief input."
 
 "Dispatch order — execute one Phase at a time, in order; within a Phase, epics with `⚡` can be worked in any order but the owner runs one `epic-to-ticket-workflow` cycle at a time:"
 
