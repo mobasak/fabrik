@@ -79,7 +79,7 @@ These are enforced at planning time. Violations block the workflow.
 
 This command (`00-trigger`) is the **mandatory entry point** for every epic-to-ticket-workflow run — both single-epic and multi-epic.
 
-**Single-epic (standalone projects):** Full processing — scaffold detection, research discovery, all 28 constraints, INFRA-CHECK from scratch.
+**Single-epic (standalone projects):** Full processing — scaffold detection, research discovery, all 31 constraints, INFRA-CHECK from scratch.
 
 **Multi-epic (dispatched from `mega-epic-breakdown`):** The epic ticket from `mega-epic-breakdown/03-expand-epic-files-command` provides the starting context. Its `### Metadata` section contains the **full 14-field block** per `mega-epic-breakdown/03-expand-epic-files-command` Metadata template + `mega-epic-breakdown/04-cross-epic-validation-command` Step 6: scaffold, port, shape, concurrency, i18n, responsive, dark+light, rule packs, HAS_USER_GUIDE, registrars, Universal categories, Abuse Detection, Email, FINANCIALS (last 3 conditional — N/A allowed). This command still runs but in **consume mode** — verify all 14 fields are present and consistent, run epic-level constraint checks (including the GUI-mandate feature-trigger validation per `mega-epic-breakdown/00-trigger-fabrik` § Rule-area applicability matrix for Responsive/Dark+Light/i18n, and the SaaS-conditional triggers for Abuse Detection/Email/FINANCIALS), confirm no conflicts with the specific epic's scope, and emit INFRA-CHECK. Steps 2 (scaffold detection) and 3 (research discovery) are abbreviated: scaffold comes from the ticket, research was done at vision level.
 
@@ -169,7 +169,7 @@ Surface gaps, opportunities (existing VPS services!), conflicts (ports, Alpine, 
 
 **4c-1 — External facts (BLOCKING).** For EVERY external dependency the epic touches — vendor / API / SDK / **pricing** / rate limit / library version / protocol — ground it to CURRENT truth, never from training memory. Repo-first (`grep docs/`, `docs/reference/`, `AFCL.md`, `docs/LESSONS_LEARNT.md`) → then **LIVE**: `mcp__exa__web_search_exa` → `WebSearch`/`WebFetch` → `mcp__brave-search__brave_web_search` → `mcp__firecrawl__firecrawl_search` → `mcp__context7` (library docs) → `mcp__github` (real source/release). Capture the **real** endpoint / auth model / limits / pricing and **cite the source URL + fetch date**; pass those URLs into the downstream tickets so executors don't re-research. **Freshness:** fetched THIS run, or it's a defect. Every dep ends **grounded-with-a-cited-source** or a **named BLOCKING unknown with a resolution step**.
 
-**4c-2 — Approach (BLOCKING) + the constraint filter.** Research the **current best-practice / leanest / lowest-maintenance** way to build the epic's core; cite source + date. **⚠️ Filter every finding through the Architectural Mandates + the 28 constraints (Step 5) BEFORE it reaches a ticket.** The web does not know your constraints — it will confidently recommend **Stripe**, **Pinecone**, or a direct **OpenAI SDK**, all beautifully cited. **A well-cited best-practice that violates a hard constraint is WORSE than no research** — it is a dead-on-arrival ticket wearing a source URL. Cut it; pick the option that *survives* the constraints.
+**4c-2 — Approach (BLOCKING) + the constraint filter.** Research the **current best-practice / leanest / lowest-maintenance** way to build the epic's core; cite source + date. **⚠️ Filter every finding through the Architectural Mandates + the 31 constraints (Step 5) BEFORE it reaches a ticket.** The web does not know your constraints — it will confidently recommend **Stripe**, **Pinecone**, or a direct **OpenAI SDK**, all beautifully cited. **A well-cited best-practice that violates a hard constraint is WORSE than no research** — it is a dead-on-arrival ticket wearing a source URL. Cut it; pick the option that *survives* the constraints.
 
 **4c-3 — Vendor notes** (Backblaze, Cloudflare, Paddle, iyzico, RevenueCat, n8n — note: **Stripe is NOT available to the TR entity**, never research/plan a Stripe integration; Supabase only for a legacy/migration project already on it, never as a new-work default — see `agents-fabrik.md § Supabase`):
 
@@ -186,7 +186,7 @@ State EVERY constraint as `all clear` / `conflict (<details>)` / `unknown (<ques
 
 1. Solo developer  2. x86_64 VPS  3. Budget-conscious  4. Existing services  5. Prebuilt containers  6. Port conflicts  7. SSH + Docker Compose deployment  8. No Alpine  9. Module deps  10. DNS  11. Scaffold immutability  12. State conflicts
 
-**Workflow overlays (#13–#28):**
+**Workflow overlays (#13–#31):**
 
 13. **Duplicate project** — check `docs/BUSINESS_MODEL.md` § Project Portfolio (the master project list) for an existing project that already solves this need. Also check `agents-fabrik.md` § Fabrik Microservices table for deployed services.
 14. **Design System** — `.windsurf/rules/core/ocoron-design-system.md` read?
@@ -204,6 +204,9 @@ State EVERY constraint as `all clear` / `conflict (<details>)` / `unknown (<ques
 26. **FINANCIALS.md** — SaaS scaffolds: must be populated before launch per `saas/88-saas-launch-checklist.md`. Non-SaaS: N/A.
 27. **LLM gateway** — if the product calls any LLM: **OpenRouter is the default gateway**, and is **REQUIRED for embeddings** (Kilo has no embeddings endpoint — `65-rag-search.md:94`). **Kilo CLI is a peer gateway**, valid for low-volume LLM tasks *including* app components (classifier / answer-generator / summarizer — `65-rag-search.md:95-97`); its real constraint is **3–5s/call subprocess overhead**, not a prohibition. **Never wire a general-purpose vendor SDK** (`openai`, `@anthropic-ai/sdk`, `google-cloud-aiplatform`) as the LLM path (`65-rag-search.md:108` + `12-node.md:238`). ⚠️ **Direct-API gateways are CONTESTED — do not silently pick a side:** `ai/00-ai-model-selection.md:62,135` and `ai/30-language.md:39` permit DashScope / SiliconFlow / ModelScope when the model is on neither Kilo nor OpenRouter (Fabrik's own sweet-spot MT model, `qwen-mt-turbo`, is **DashScope-only**), while `65-rag-search.md:108` bans direct vendor APIs outright. If the epic needs one, **flag the pack conflict and get an operator ruling** — do not plan around it either way. No LLM call: N/A.
 28. **Watchdog + cost guardrails** — ⚠️ the watchdog sidecar is **opt-OUT on the `fabrik apply` path**: a spec with **no** `watchdog:` block still gets one (the dispatcher reads the raw dict — `.get("enabled", True)`). Its caps come from the **driver's** raw-dict defaults — **$5.00/day + 200 invocations/day** (`src/fabrik/drivers/watchdog.py:526-527`). ⚠️ The `$1.00` in `WatchdogConfig` (`spec_loader.py:389-390`) and its both-caps-zero validator are **dead on this path** — `fabrik apply` validates with `yaml.safe_load` and never constructs the Pydantic model, so a spec with `daily_budget_usd: 0` + `daily_invocations_cap: 0` **deploys genuinely uncapped — and NOTHING rejects it**: the Pydantic both-caps-zero validator (`spec_loader.py:621`) short-circuits on `self.enabled`, which defaults to `False`, so a spec that zeroes the caps without writing `enabled: true` is accepted on every path — while `fabrik apply` (raw dict, `.get("enabled", True)`) still deploys the sidecar. The epic MUST therefore state one of three: **accept** the defaults, **raise** them (`daily_budget_usd` / `daily_invocations_cap`), or **opt out** (`watchdog: {enabled: false}`) — never leave it unstated (`core/cost-budget.md` + `core/60-watchdog.md`).
+29. **Resilience** — every external call has **timeout + retry with backoff**; circuit-breaker on repeated failures; `/health` tests ALL real deps (not a static 200). `core/58-resilience.md`. No external call: N/A.
+30. **Observability** — the service exposes `/health` (Gatus) and, if `shape.exposes_metrics`, `/metrics` (Prometheus — ⚠️ which also requires `spec.domain`, or the Prometheus job is silently skipped). `core/55-observability.md`.
+31. **Fleet topology (`target_vps`)** — the spec declares `target_vps:` (regex `^vps[1-9][0-9]?$`, default `vps1`). Spoke-hosted? Then shared infra (postgres-main / redis-main / meilisearch / authelia) is reached over the WireGuard mesh at `10.99.0.1:<port>`, **not** `localhost`. `30-ops.md` § Multi-host targeting.
 
 ### **Step 6: Project Type Classification & Smart Routing**
 
@@ -229,16 +232,16 @@ State EVERY constraint as `all clear` / `conflict (<details>)` / `unknown (<ques
 
 Emit **verbatim**, all fields populated:
 
-> ***INFRA-CHECK:** Port:* `XXXX` *| Scaffold:* `<type>` *| x86_64:* `Confirmed/Unknown/Conflict` *| Duplicate:* `[none / name]` *| Internal APIs:* `[list or none]` *| User Guide:* `true/false` *| Design System:* `read/N-A` *| Platform Debt:* `<N> open` *| 12-Factor:* `compliant/violations` *| Concurrency:* `<mechanism>` *| i18n:* `<mechanism>/N-A` *| Responsive:* `375px/N-A` *| Dark+Light:* `mandatory/N-A` *| Abuse Detection:* `required/N-A` *| Email:* `two-stream/none/N-A` *| Vector DB:* `pgvector/none` *| FINANCIALS:* `required/N-A` *| Shape:* `<fields>` *| Rule Packs:* `<IDs>` *| Epic Flavor:* `Delta-feature/Retrofit/N-A` *| LLM Gateway:* `openrouter/kilo-cli/contested-<vendor>/none` *| Watchdog:* `accept-defaults/raise/opt-out`
+> ***INFRA-CHECK:** Port:* `XXXX` *| Scaffold:* `<type>` *| x86_64:* `Confirmed/Unknown/Conflict` *| Duplicate:* `[none / name]` *| Internal APIs:* `[list or none]` (produced by the **Microservices** pre-flight check — the project's own service-to-service endpoints, read from its spec + `compose.yaml`) *| User Guide:* `true/false` *| Design System:* `read/N-A` *| Platform Debt:* `<N> open` *| 12-Factor:* `compliant/violations` *| Concurrency:* `<mechanism>` *| i18n:* `<mechanism>/N-A` *| Responsive:* `375px/N-A` *| Dark+Light:* `mandatory/N-A` *| Abuse Detection:* `required/N-A` *| Email:* `two-stream/none/N-A` *| Vector DB:* `pgvector/none` *| FINANCIALS:* `required/N-A` *| Shape:* `<fields>` *| Rule Packs:* `<IDs>` *| Epic Flavor:* `Delta-feature/Retrofit/N-A` *| LLM Gateway:* `openrouter/kilo-cli/contested-<vendor>/none` *| Watchdog:* `accept-defaults/raise/opt-out`
 
 **Propagated downstream:** Port, Scaffold, User Guide, Shape, Concurrency, i18n, Responsive, Dark+Light, Rule Packs, **Epic Flavor** (Path B only — consumed by `01`'s Success-Criteria branch; `05` has **no** `Epic Flavor` field and re-derives the flavour from the ticket Title prefix), plus the **3 SaaS-conditional** fields `01` requires (`N/A` allowed): **Abuse Detection**, **Email**, **FINANCIALS** (`01-epic-brief-command:35`).
-**Informational:** x86_64, Duplicate, Internal APIs, Design System, Platform Debt, 12-Factor, Vector DB, **Watchdog**, **LLM Gateway** — ⚠️ recorded on the INFRA-CHECK line **only**; `01`'s Metadata has no field for Watchdog / LLM Gateway, so restate them in the tech-plan rather than assuming they carry forward.
+**Informational:** x86_64, Duplicate, Internal APIs, Design System, Platform Debt, 12-Factor, Vector DB, **Watchdog**, **LLM Gateway** — ⚠️ recorded on the **INFRA-CHECK line**, which IS the carrier that satisfies #27/#28's MUST-state (`03-tech-plan-command` Step 2 captures every INFRA-CHECK field). They do **not** enter `01`'s Epic-Brief Metadata — it has no slot for them — so do not expect them in the brief.
 
 Present:
 
 1. Project type + detection signals.
 2. Research status + improvements.
-3. Constraint findings (all 28).
+3. Constraint findings (all 31).
 4. Recommended route + skipped commands.
 5. Suggested next command.
 
@@ -255,12 +258,12 @@ User confirms. Proceed.
   endpoint / limits / **pricing** and a **cited source URL + fetch date**; any ungrounded dep is a named
   BLOCKING unknown with a resolution step. A memory-based external claim is a defect.
 - **4c-2 (⛔ BLOCKING) satisfied** — the approach is backed by **cited current best-practice**, and every
-  finding was **filtered through the Architectural Mandates + the 28 constraints**. A well-cited
+  finding was **filtered through the Architectural Mandates + the 31 constraints**. A well-cited
   best-practice that violates a hard constraint (Stripe / a managed vector DB / a direct vendor LLM SDK)
   was **cut, not planned**.
 - Cited source URLs passed into the downstream tickets so executors don't re-research them.
 - **4c-3 (vendor notes)** applied for third-party vendors; any vendor unresolved after 3 attempts recorded as `BLOCKED: external-research-needed` on that ticket (does not halt the run).
-- All 28 constraints verified. No silent unknowns.
+- All 31 constraints verified. No silent unknowns.
 - 12-Factor: compliant or violations resolved.
 - Concurrency: mechanism stated; blocking rejected.
 - i18n: mechanism confirmed for GUI types.

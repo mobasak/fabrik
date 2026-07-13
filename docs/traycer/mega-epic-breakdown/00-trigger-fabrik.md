@@ -53,7 +53,7 @@ If a NEW vision cannot pass all 4 stages, state this explicitly and justify. If 
 
 ## Architectural Mandates (non-negotiable — single source of truth)
 
-These are **vision-level architectural commitments**. Every epic dispatched from this vision inherits them. **Violations block vision confirmation.** Per-epic verification happens later in `epic-to-ticket-workflow/00-trigger-fabrik` Step 5 — but ⚠️ its overlay constraints #17–#24 cover only **8 of these mandates** (12-Factor, Concurrency, i18n, Shape, Responsive, Dark+Light, Abuse Detection, Email). **Resilience, Observability, and Fleet-topology (`target_vps`) have NO epic-level overlay constraint** — they are asserted here at vision level and never re-checked per epic. Verify them explicitly in the epic's tech-plan — but the commitment is made here.
+These are **vision-level architectural commitments**. Every epic dispatched from this vision inherits them. **Violations block vision confirmation.** Per-epic verification happens later in `epic-to-ticket-workflow/00-trigger-fabrik` Step 5 — but ⚠️ its overlay constraints #17–#24 cover only **8 of these mandates** (12-Factor, Concurrency, i18n, Shape, Responsive, Dark+Light, Abuse Detection, Email). Resilience, Observability and Fleet-topology (`target_vps`) are **now covered per-epic by overlay constraints #29–#31** (added because a standalone single-epic project enters at the epic-to-ticket file and never sees this one). The commitment is still made here at vision level; the epic re-checks it.
 
 - **12-Factor App — ALL TWELVE.** Every backend service satisfies **all 12** factors of [The Twelve-Factor App](https://12factor.net/) — not the four we happen to remember. Each is grounded below with its **Fabrik binding** (source re-verified live 2026-07-12). **Violations are blockers**; state per-factor compliance at the 12-Factor check.
 
@@ -646,7 +646,7 @@ Wait for owner decisions. **STOP GENERATION HERE.** These decisions shape which 
 
 ### Step E5: Produce Vision Summary (EXISTING mode — with extra sections)
 
-Same shape and title as NEW-mode Vision Summary (so `02-epic-decomposition-command` consumes both identically) + two extra sections (`Locked Decisions`, `Compliance Report`). Artifact title is `Vision Summary` — not "Continuation Summary".
+A **superset** of the NEW-mode Vision Summary: identical title and identical required sections (so `02-epic-decomposition-command` consumes both identically), **plus** two EXISTING-only sections `02` simply ignores (`Locked Decisions`, `Compliance Report`). Artifact title is `Vision Summary` — not "Continuation Summary".
 
 ```markdown
 # Vision Summary: [Project Name] — [New Capability]
