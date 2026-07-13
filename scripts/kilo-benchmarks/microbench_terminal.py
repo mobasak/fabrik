@@ -103,9 +103,11 @@ def _balance_or_none() -> float | None:
     credits-API blip must not lose a completed, paid-for bench. None = unknown."""
     try:
         return openrouter_balance()
-    except (httpx.HTTPError, KeyError, ValueError, RuntimeError) as e:
+    except (httpx.HTTPError, KeyError, ValueError, TypeError, RuntimeError) as e:
+        # TypeError covers a schema drift like {"data": null} → d["total_credits"] on
+        # None; this wrapper must NEVER crash the cohort (it runs in main's finally).
         print(
-            f"[terminal-bench] balance check failed ({e}); cost-cap skipped this model",
+            f"[terminal-bench] balance check failed ({e}); cost not counted for this model",
             file=sys.stderr,
         )
         return None

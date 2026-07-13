@@ -298,6 +298,22 @@ def test_parse_tbench_output_partial(tmp_path):
     assert mt.parse_tbench_output(tmp_path) == pytest.approx(64.3)
 
 
+@pytest.mark.parametrize("bad", [{"data": None}, {"data": {}}, {}, "not-a-dict"])
+def test_balance_or_none_degrades_on_schema_drift(bad, monkeypatch):
+    """_balance_or_none must NEVER crash the cohort (it runs in main's finally) — any
+    OpenRouter schema drift (data:null, missing keys, non-dict) degrades to None."""
+    class _Resp:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return bad
+
+    monkeypatch.setenv("OPENROUTER_API_KEY", "x")
+    monkeypatch.setattr(mt.httpx, "get", lambda *a, **k: _Resp())
+    assert mt._balance_or_none() is None  # graceful, no exception
+
+
 def test_parse_tbench_output_malformed_raises_valueerror(tmp_path):
     """A present-but-malformed results.json → ValueError (a MODEL_FAILURE the
     cohort loop catches), never an uncaught JSONDecodeError/KeyError crash."""
