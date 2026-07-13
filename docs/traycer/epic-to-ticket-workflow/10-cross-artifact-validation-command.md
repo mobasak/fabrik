@@ -145,7 +145,7 @@ Verify the contract flows correctly through the chain:
 
 For every ticket, verify present:
 - [ ] Documentation Sync Matrix ACs injected (per ticket's Scope triggers)
-- [ ] Final Gate Instruction (one of three valid commands)
+- [ ] Final Gate Instruction — **one of TWO valid commands**: `python scripts/final_gate.py --json` (Tier-2, every normal ticket) or `--systemic --json` (Tier-3, the Epic Closure ticket). ⚠️ `--lean --json` is **NEVER** valid as a Final Gate Instruction (`CLAUDE.md` § Completion Contract)
 - [ ] `Lessons Learnt:` line in Completion Self-Check
 - [ ] Agent-aware first-output line in Governance Checklist
 - [ ] No-git-commands in DO NOT

@@ -145,7 +145,7 @@ T<N> — <Title (action-oriented imperative)>
   Parallel: <⚡ with T2, T4> or <⛓️ after T3>
   Stage: <foundation | implementation | integration | closure>
   Category: <from Step 2b table — determines rule pack for ticket-breakdown>
-  Gate: <1 (lean) | 2 (full)>   # ⚠️ the CODING-TIME tier only — a ticket's **Final Gate Instruction is ALWAYS Tier-2 `--json`** (`CLAUDE.md` § Completion Contract: `--lean` is "not the completion gate")
+  Gate: <1 (lean) | 2 (full)>   # ⚠️ the CODING-TIME tier ONLY. A ticket's **Final Gate Instruction** is Tier-2 `--json` (or Tier-3 `--systemic --json` for the **Epic Closure** ticket) — `--lean` is **never** a completion gate (`CLAUDE.md` § Completion Contract)
   Touches: <PRIMARY PATH flow> or <none>
   Shape: <shape fields affected> or <N/A>
   Complexity: <simple | complex | critical>

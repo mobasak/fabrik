@@ -57,7 +57,7 @@ Count: "Ready to ticket [N] epics."
 For each epic in the confirmed compact proposal, create a Traycer ticket. Two flavours from 02:
 
 - **Delta-feature epic** — name like `User Management`, `Billing`, etc. Default template (Success Criteria 5–8).
-- **Retrofit epic** — name prefixed `Retrofit:` followed by the area (e.g. `Retrofit: i18n`, `Retrofit: Resilience on YouTube Data API`). Same template with the Retrofit-specific Success Criteria variants documented inline; 3–5 criteria permitted when the retrofit is code-only.
+- **Retrofit epic** — name prefixed `Retrofit:` followed by the area (e.g. `Retrofit: i18n`, `Retrofit: Resilience on YouTube Data API`). Same template with the Retrofit-specific Success Criteria variants documented inline; 3–5 criteria permitted (a Retrofit has fewer naturally testable criteria than a delta-feature epic). ⚠️ **Not** conditional on being "code-only": criteria #3/#4 are N/A only for a retrofit touching **neither** external-call sites **nor** mutation surfaces — a `Retrofit: Resilience …` epic MUST keep #3.
 
 Both flavours produce identical ticket structure — the Retrofit prefix carries from `02-epic-decomposition-command` Step 2b into the Title and Summary verbatim.
 

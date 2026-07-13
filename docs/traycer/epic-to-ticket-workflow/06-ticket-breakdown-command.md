@@ -73,7 +73,7 @@ For each ticket in the requested batch, read ALL outline fields:
 | Depends | Copy into Dependencies |
 | Parallel (⚡/⛓️) | Emit in parallel map |
 | Stage | Informs step ordering |
-| Gate (1/2) | Copy into Gate Tier (the **coding-time** tier). ⚠️ The ticket's **Final Gate Instruction is ALWAYS `python scripts/final_gate.py --json`** (Tier-2) regardless of this tier — `--lean` is never a completion gate (`CLAUDE.md`). Copy into Gate Tier + Final Gate command |
+| Gate (1/2) | Copy into **Gate Tier** — this is the **coding-time** tier ONLY. ⚠️ Do **NOT** copy it into the Final Gate command: a ticket's **Final Gate Instruction is `python scripts/final_gate.py --json`** (Tier-2), or `--systemic --json` for the **Epic Closure** ticket (Tier-3). `--lean` is **never** a completion gate (`CLAUDE.md` § Completion Contract) |
 | Touches (PRIMARY PATH) | Triggers test criterion |
 | Shape | Triggers shape mandate criterion |
 | Complexity | Drives agent selection |
@@ -340,7 +340,7 @@ State explicitly in the Step 12 batch presentation: `Epic Closure: included | sk
 ### Step 11: Docs-Only Exception
 
 If every file in Scope is `docs/`, root `*.md`, or templates:
-- Gate: Tier 1 lean.
+- Gate **Tier**: 1 (coding-time). **Final Gate Instruction: `python scripts/final_gate.py --json`** (unchanged — `final_gate` already skips the static checks when only `.md` changed, so Tier-2 costs nothing here).
 - No [PRIMARY PATH] test.
 - Doc Sync Matrix + Lessons Learnt still apply.
 
