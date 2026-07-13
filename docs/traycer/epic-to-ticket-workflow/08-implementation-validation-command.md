@@ -63,9 +63,9 @@ Small epics (≤8 tickets): all passes combine into one run.
 - **Success Criteria count expectation (Step 3):** Retrofit Brief is 3–5 SC (not 5–8 per `mega-epic-breakdown/03-expand-epic-files-command` § Success Criteria); flag low-SC as PASS when Retrofit, Blocker only when Delta-feature with <5 SC.
 - **Deploy Plan absence (L57):** if ettw/04 was SKIPPED per its Retrofit Skip rule (post-`3060147`), Deploy Plan doesn't exist as an artifact. State `Deploy Plan: skipped per Retrofit branch` and proceed; do NOT flag as missing.
 - **Core Flows absence (L55):** if ettw/02 produced no flows for a code-only retrofit (per its scope-narrow Retrofit branch at `ee8792c`), Core Flows may be absent or narrowly-scoped. Do NOT flag as missing; verify only the flows it produced match implementation.
-- **Lessons Learnt closure case (Step 6 L161-162):** Retrofit:Resilience and similar retrofits that RESOLVE a prior Lesson are themselves the closure; no new entry expected. PASS when Retrofit closure case is documented in the ticket's Completion Self-Check.
+- **Lessons Learnt closure case (§ Step 6 → per-ticket Lessons Learnt):** Retrofit:Resilience and similar retrofits that RESOLVE a prior Lesson are themselves the closure; no new entry expected. PASS when Retrofit closure case is documented in the ticket's Completion Self-Check.
 - **Per-ticket Architectural Mandate scope (Step 5):** for Retrofit tickets, only enforce the mandate rows touching the retrofit's target area (per ettw/06 Step 4 Retrofit branch at `8dcdd2b`). E.g., `Retrofit: i18n` ticket → enforce only i18n; other mandate rows inherited from existing project.
-- **Epic Closure presence (L215 systemic gate):** for Retrofit epics where Epic Closure was SKIPPED at ettw/06/07 (post-`bc639e4`), do NOT force `final_gate.py --systemic` here — the prior Delta-feature closure covered the systemic gate per ettw/06 Step 10 SKIP rule.
+- **Epic Closure presence (§ Step 8 → After fixes — the systemic gate):** for Retrofit epics where Epic Closure was SKIPPED at ettw/06/07 (post-`bc639e4`), do NOT force `final_gate.py --systemic` here — the prior Delta-feature closure covered the systemic gate per ettw/06 Step 10 SKIP rule.
 - **Validation Summary tier:** Retrofit validations target the SINGLE rule-pack area + the Compliance Report gap closure (Partial/Violates → Compliant); state explicitly which rule pack's gap was closed.
 
 **Read the implementation:**
@@ -222,7 +222,7 @@ Findings: 2 issues
 
 **After fixes:**
 - Re-read affected files to confirm resolution.
-- Run `final_gate.py --systemic` to verify nothing regressed.
+- Run `final_gate.py --systemic` to verify nothing regressed — ⚠️ **except** for a **Retrofit** epic where Epic Closure was skipped (`06-ticket-breakdown-command` § Step 10): use Tier-2 `--json` there.
 
 When all clean → suggest `deploy`.
 

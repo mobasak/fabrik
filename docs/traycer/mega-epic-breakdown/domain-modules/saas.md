@@ -286,7 +286,7 @@ When creating the ticket outline for a SaaS epic, verify coverage:
 - If this epic owns integrations: tickets for OAuth/API key flow + sync config + webhook receiver + marketplace listing prep.
 - Every ticket that touches tenant data must have `95-multi-tenant-saas.md` in its Rule Packs.
 - Analytics instrumentation is NOT a separate ticket — it belongs inside each feature ticket as an AC.
-- The closure ticket must include AARRR dashboard verification.
+- The closure ticket must include AARRR dashboard verification — ⚠️ on a **Retrofit** epic that skips Epic Closure (`06-ticket-breakdown-command` § Step 10) there is no closure ticket: carry the AARRR check on the epic's final integration ticket instead.
 
 ### 2E. Ticket Breakdown (epic-to-ticket-workflow/06)
 

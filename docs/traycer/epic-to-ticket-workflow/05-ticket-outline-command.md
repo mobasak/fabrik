@@ -238,7 +238,7 @@ Rules:
 - **Maximize ⚡ (parallel) within each batch.** If a batch has 5 tickets and 4 are parallel → that's a 4x speedup.
 - Batch ordering respects dependencies (no batch references an undetailed ticket from a later batch).
 - First batch is always zero-dependency foundation (highest parallelism potential).
-- Last batch contains Epic Closure — **delta-feature epics only**; for **Retrofit** epics Epic Closure is **OPTIONAL** (§ Step 2b / Step 10) and a correct Retrofit outline may have none.
+- Last batch contains Epic Closure — **delta-feature epics only**; for **Retrofit** epics Epic Closure is **OPTIONAL** (§ Step 2b / `06-ticket-breakdown-command` § Step 10) and a correct Retrofit outline may have none.
 - State the **expected time savings** from parallelism: "Batch 2: 3 tickets ⚡ = ~1 ticket time instead of 3x."
 
 ### Step 6: Lifecycle Stage Distribution
@@ -248,11 +248,11 @@ Verify the tickets cover all applicable lifecycle stages:
 | Stage | What it covers | Expected tickets |
 |---|---|---|
 | Foundation | Schema, config, env, scaffold setup, i18n structure | 2-4 (usually all parallel) |
-| Implementation | Endpoints, business logic, UI components, workers | 5-12 (maximize parallel lanes) |
+| Implementation | Endpoints, business logic, UI components, workers | 5-12 for **delta-feature** (maximize parallel lanes); a **Retrofit** targets 3–5 tickets TOTAL (§ Step 1) — do not pad to delta-feature volume |
 | Integration | Wiring, compose, deploy config, end-to-end tests | 2-3 (some sequential) |
 | Closure | Epic Closure systemic gate | 1 (last) for delta-feature; **0 permitted** for a Retrofit that skips closure (§ Step 2b) |
 
-If any stage has 0 tickets → flag as a gap — ⚠️ **except the Closure stage on a Retrofit epic**, where 0 is legal (Epic Closure is OPTIONAL for Retrofit, § Step 2b); state the skip justification instead (e.g. "no integration tickets means deploy config isn't explicitly ticketed — risk of it being forgotten").
+If any stage has 0 tickets → flag as a gap (e.g. "no integration tickets means deploy config isn't explicitly ticketed — risk of it being forgotten"). ⚠️ **Except the Closure stage on a Retrofit epic**, where 0 is legal (Epic Closure is OPTIONAL for Retrofit, § Step 2b) — state the skip justification instead.
 
 ### Step 6b: Documentation Assignment Matrix
 
@@ -313,7 +313,7 @@ Then instruct: *"Run `ticket-breakdown` for Batch 1 to get full detail. Batch 1 
 - **Parallelism validated:** no ticket ⚡ with a ticket it depends on (bidirectional). No shared-state conflicts between ⚡ tickets.
 - Mermaid diagram uses `subgraph` to show parallel groupings; consistent with Depends/Parallel fields.
 - Batches of 3-5; parallelism maximized within each batch. Time savings stated.
-- Lifecycle stages (foundation → implementation → integration → closure) all covered.
+- Lifecycle stages (foundation → implementation → integration → closure) all covered — ⚠️ **except the closure stage on a Retrofit epic that skips Epic Closure** (§ Step 2b), where 0 closure tickets is legal.
 - **Ticket category coverage check passed:** every mandatory category for this scaffold has ≥1 ticket.
 - **Scaffold-provided code not re-ticketed:** tickets extend/configure pre-scaffolded modules (auth, metrics, logging, GlitchTip), not recreate them.
 - Every Success Criterion covered. Every Tech Plan component covered.
@@ -323,6 +323,6 @@ Then instruct: *"Run `ticket-breakdown` for Batch 1 to get full detail. Batch 1 
 - Lessons Learnt triggers flagged on high-risk tickets.
 - CHANGELOG rule acknowledged (universal — `ticket-breakdown` enforces).
 - `revise-requirements` suggested if scope drifts during iteration.
-- Epic Closure ticket present as final — **delta-feature epics only**; for **Retrofit** epics Epic Closure is **OPTIONAL** (§ Step 2b / Step 10) and a correct Retrofit outline may have none.
+- Epic Closure ticket present as final — **delta-feature epics only**; for **Retrofit** epics Epic Closure is **OPTIONAL** (§ Step 2b / `06-ticket-breakdown-command` § Step 10) and a correct Retrofit outline may have none.
 - Output ≤100 lines for outline table (excluding mermaid, Doc Sync Matrix, category check).
 - User explicitly confirms. Silence ≠ confirmation.

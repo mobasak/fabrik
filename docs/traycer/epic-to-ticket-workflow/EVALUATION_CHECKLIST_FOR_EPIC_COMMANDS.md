@@ -207,7 +207,7 @@ Every workflow command (00-11) must be evaluated against this list before it's c
 105. Stage 1: Intent & Scaffolding — context injection, AI guardrails, shape block.
 106. Stage 2: Agentic Implementation — infra-aware code, spec contract, fabrik dev/review.
 107. Stage 3: Proper Registration — fabrik apply, 10 registrars, auto-observability, network security.
-108. Stage 4: Verification & Testing — health check, drift detection, Telegram alert, auto-rollback (WIP), VPS watchdog (planned).
+108. Stage 4: Verification & Testing — health check, drift detection, Telegram alert, auto-rollback (WIP — `verify.py:394` is a stub), VPS watchdog (**SHIPPED** — the 10th registrar, opt-OUT).
 
 ## External Services (self-hosted-first — Backblaze B2, etc.; Supabase legacy/migration-only)
 
