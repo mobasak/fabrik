@@ -60,39 +60,32 @@ def test_run_one_validates_before_dispatch(monkeypatch, tmp_path):
     assert called["ran"] is False  # never reached subprocess
 
 
-# --- Behavior 2: cost cap aborts a runaway -----------------------------------
-def test_cost_cap_aborts_when_spend_exceeds(monkeypatch, tmp_path):
+# --- Behavior 2: run (cohort) budget stops the run BEFORE the next model ------
+def test_cohort_budget_stops_run_before_next_model(monkeypatch, tmp_path):
+    """--cost-cap is a run budget checked BEFORE each model: once cumulative
+    spend reaches the cap, the run stops before dispatching the next model.
+    (It is honestly NOT a per-model mid-flight interrupt — see the docstring.)"""
     conn = _mkdb(tmp_path)
-    conn.execute(
+    conn.executemany(
         "INSERT INTO agents (id, via_openrouter, status, has_tools) VALUES (?,1,'active',1)",
-        ("vendor/m1",),
+        [("vendor/m1",), ("vendor/m2",)],
     )
     conn.commit()
+    monkeypatch.setattr(mt.sqlite3, "connect", lambda *a, **k: conn)
     monkeypatch.setattr(mt, "CACHE_DIR", tmp_path)
-    # balance: 100 before, 90 after → spent 10 > cap 2
-    balances = iter([100.0, 90.0])
+    # balances read: run_start=100; pre-m1=100 (spent 0 < cap); pre-m2=90 (spent 10 >= cap 2 → STOP)
+    balances = iter([100.0, 100.0, 90.0])
     monkeypatch.setattr(mt, "openrouter_balance", lambda: next(balances))
-    monkeypatch.setattr(mt, "run_one", lambda *a, **k: tmp_path)
-    monkeypatch.setattr(mt, "parse_tbench_output", lambda d: 55.0)
-    with pytest.raises(RuntimeError, match="cost cap breached"):
-        mt.bench_model(
-            conn,
-            "vendor/m1",
-            cost_cap=2.0,
-            dataset=mt.TB_DATASET,
-            n_tasks=1,
-            task_id=None,
-            n_concurrent=1,
-            n_attempts=1,
-        )
-    # score still written before the raise
-    row = conn.execute("SELECT tbench_accuracy FROM agents WHERE id='vendor/m1'").fetchone()
-    assert row[0] == 55.0
+    benched = []
+    monkeypatch.setattr(mt, "bench_model", lambda conn, m, **k: benched.append(m) or (55.0, 10.0))
+    rc = mt.main(["--models", "vendor/m1,vendor/m2", "--cost-cap", "2", "--n-tasks", "1", "--force"])
+    assert rc == 1  # stopped
+    assert benched == ["vendor/m1"]  # m2 never dispatched — budget stopped the run first
 
 
 def test_score_survives_balance_check_failure(monkeypatch, tmp_path):
     """core/58-resilience regression: a credits-API blip must NOT lose a
-    completed, paid-for bench — the score is still written; cost-cap is skipped."""
+    completed, paid-for bench — the score is still written; spent is None (unknown)."""
     conn = _mkdb(tmp_path)
     conn.execute(
         "INSERT INTO agents (id, via_openrouter, status, has_tools) VALUES (?,1,'active',1)",
@@ -108,22 +101,15 @@ def test_score_survives_balance_check_failure(monkeypatch, tmp_path):
     monkeypatch.setattr(mt, "run_one", lambda *a, **k: tmp_path)
     monkeypatch.setattr(mt, "parse_tbench_output", lambda d: 48.0)
     score, spent = mt.bench_model(
-        conn,
-        "vendor/m1",
-        cost_cap=0.01,
-        dataset=mt.TB_DATASET,
-        n_tasks=1,
-        task_id=None,
-        n_concurrent=1,
-        n_attempts=1,
+        conn, "vendor/m1", dataset=mt.TB_DATASET, n_tasks=1, task_id=None, n_concurrent=1, n_attempts=1
     )
     assert score == 48.0  # score written despite balance failure
-    assert spent == -1.0  # cost unknown → cap not enforced (no false breach)
+    assert spent is None  # honest "unknown", NOT 0 and NOT -1.0 (no top-up collision)
     row = conn.execute("SELECT tbench_accuracy FROM agents WHERE id='vendor/m1'").fetchone()
     assert row[0] == 48.0
 
 
-def test_cost_cap_ok_when_under(monkeypatch, tmp_path):
+def test_bench_model_reports_spend_delta(monkeypatch, tmp_path):
     conn = _mkdb(tmp_path)
     conn.execute(
         "INSERT INTO agents (id, via_openrouter, status, has_tools) VALUES (?,1,'active',1)",
@@ -131,22 +117,41 @@ def test_cost_cap_ok_when_under(monkeypatch, tmp_path):
     )
     conn.commit()
     monkeypatch.setattr(mt, "CACHE_DIR", tmp_path)
-    balances = iter([100.0, 99.5])  # spent 0.5 < cap 2
+    balances = iter([100.0, 99.5])  # spent 0.5
     monkeypatch.setattr(mt, "openrouter_balance", lambda: next(balances))
     monkeypatch.setattr(mt, "run_one", lambda *a, **k: tmp_path)
     monkeypatch.setattr(mt, "parse_tbench_output", lambda d: 42.0)
     score, spent = mt.bench_model(
-        conn,
-        "vendor/m1",
-        cost_cap=2.0,
-        dataset=mt.TB_DATASET,
-        n_tasks=1,
-        task_id=None,
-        n_concurrent=1,
-        n_attempts=1,
+        conn, "vendor/m1", dataset=mt.TB_DATASET, n_tasks=1, task_id=None, n_concurrent=1, n_attempts=1
     )
     assert score == 42.0
     assert round(spent, 2) == 0.5
+
+
+def test_stale_score_not_written_on_empty_rerun(monkeypatch, tmp_path):
+    """A --force re-run where tb writes NO fresh results.json must NOT persist the
+    previous run's score — the wiped out_dir makes parse raise FileNotFoundError."""
+    conn = _mkdb(tmp_path)
+    conn.execute(
+        "INSERT INTO agents (id, via_openrouter, status, has_tools, tbench_accuracy) "
+        "VALUES ('vendor/m1',1,'active',1, 77.0)"
+    )
+    conn.commit()
+    monkeypatch.setattr(mt, "CACHE_DIR", tmp_path)
+    # seed a STALE prior run dir under the model's out_dir
+    stale = tmp_path / "tb_run_vendor_m1" / "old-run"
+    stale.mkdir(parents=True)
+    (stale / "results.json").write_text(json.dumps({"accuracy": 0.99}))
+    # run_one writes nothing new (simulates all-tasks-errored) — but bench_model wipes out_dir first
+    monkeypatch.setattr(mt, "run_one", lambda *a, **k: k.get("out_dir") or a[1])
+    with pytest.raises(FileNotFoundError):
+        mt.bench_model(
+            conn, "vendor/m1", dataset=mt.TB_DATASET, n_tasks=1, task_id=None,
+            n_concurrent=1, n_attempts=1,
+        )
+    # the stale 77.0 was NOT overwritten with the old 99
+    row = conn.execute("SELECT tbench_accuracy FROM agents WHERE id='vendor/m1'").fetchone()
+    assert row[0] == 77.0
 
 
 # --- Behavior 3: pass-rate parse correct -------------------------------------
@@ -229,6 +234,28 @@ def test_cohort_override_validates(tmp_path):
     conn = _mkdb(tmp_path)
     with pytest.raises(ValueError):
         mt.select_cohort(conn, ["bad; rm"])
+
+
+def test_all_keyword_any_case_or_mixed_selects_full_cohort(monkeypatch, tmp_path):
+    """'all' (any case, or mixed with explicit ids) means the full tool-capable
+    OR cohort — never a literal model named 'all'/'All'."""
+    seed = _mkdb(tmp_path)  # creates tmp_path/t.db
+    seed.executemany(
+        "INSERT INTO agents (id, via_openrouter, status, has_tools) VALUES (?,1,'active',1)",
+        [("a/x",), ("b/y",)],
+    )
+    seed.commit()
+    seed.close()
+    monkeypatch.setattr(mt, "DB_PATH", tmp_path / "t.db")  # main() opens/closes this real file
+    seen = {}
+    monkeypatch.setattr(
+        mt, "bench_model", lambda conn, m, **k: seen.setdefault("models", []).append(m) or (1.0, 0.0)
+    )
+    monkeypatch.setattr(mt, "openrouter_balance", lambda: 100.0)
+    for arg in ("all", "All", "a/x,ALL"):
+        seen["models"] = []
+        mt.main(["--models", arg, "--n-tasks", "1", "--force", "--cost-cap", "99"])
+        assert set(seen["models"]) == {"a/x", "b/y"}, f"{arg!r} should select full cohort"
 
 
 # --- Behavior 7: freshness gate (tbench_accuracy presence, NOT last_verified) -

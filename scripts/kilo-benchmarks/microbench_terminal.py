@@ -19,9 +19,13 @@ the resolution pass-rate → ``tbench_accuracy = accuracy * 100``.
 
 Cost: the harness's per-trial ``total_*_tokens`` are 0 (terminus-2 does not
 populate them), so cost is measured via the OpenRouter balance-delta
-(``GET /api/v1/credits``), NOT token counts. Each model run is bounded by
-``--cost-cap`` (per-model USD ceiling; breach stops the cohort) and by
-``--n-tasks`` / ``--task-id``. ``--dry-run`` calls no model.
+(``GET /api/v1/credits``), NOT token counts. ``--cost-cap`` is a **run (cohort)
+budget**, checked BEFORE each model — it stops the run once cumulative spend
+reaches the cap, but cannot interrupt a single ``tb run`` mid-flight, so the
+real **per-model** spend bound is ``--n-tasks``. On a shared OpenRouter key the
+balance-delta is best-effort (concurrent sibling spend perturbs it) — treat it
+as approximate and rely on ``--n-tasks`` for a hard per-model bound.
+``--agent-timeout`` caps a stuck agent loop. ``--dry-run`` calls no model.
 
 ⚠️ Home scores use OUR harness run — they are a relative comparison across our
 candidates under one identical harness, NOT byte-identical to the public
@@ -38,6 +42,7 @@ import json
 import os
 import pathlib
 import re
+import shutil
 import sqlite3
 import subprocess
 import sys
@@ -161,10 +166,14 @@ def run_one(
     task_id: str | None = None,
     n_concurrent: int = 4,
     n_attempts: int = 1,
+    agent_timeout_sec: float = 600.0,
 ) -> pathlib.Path:
     """Shell out to ``tb run`` for one model. Returns the run's output dir.
 
     argv list, never shell=True. model_id is validated before interpolation.
+    ``agent_timeout_sec`` is passed to the harness (``--global-agent-timeout-sec``)
+    so a stuck agent loop is killed by ``tb`` instead of hanging the cohort
+    indefinitely (core/58-resilience).
     """
     _validate_model_id(model_id)
     argv = [
@@ -180,6 +189,8 @@ def run_one(
         str(n_concurrent),
         "--n-attempts",
         str(n_attempts),
+        "--global-agent-timeout-sec",
+        str(agent_timeout_sec),
         "--output-path",
         str(out_dir),
         "--no-upload-results",
@@ -216,20 +227,29 @@ def bench_model(
     conn,
     model_id: str,
     *,
-    cost_cap: float,
     dataset: str,
     n_tasks: int | None,
     task_id: str | None,
     n_concurrent: int,
     n_attempts: int,
-) -> tuple[float, float]:
+    agent_timeout_sec: float = 600.0,
+) -> tuple[float, float | None]:
     """Bench one model: balance-before → run → balance-after → parse → write.
 
-    Returns (score_0_100, spent_usd). Raises RuntimeError if the model's
-    spend-delta exceeds cost_cap (caller stops the cohort).
+    Returns ``(score_0_100, spent_usd_or_None)``. ``spent`` is ``None`` when the
+    OpenRouter balance could not be read (unknown cost — the caller must not
+    treat unknown as $0). Cohort-budget enforcement lives in ``main`` — this
+    function never raises on cost; a completed run's score is always written
+    (core/58-resilience).
+
+    The output dir is wiped before the run so ``parse_tbench_output`` can only
+    ever see THIS run's results.json — a re-run that produces no fresh output
+    raises FileNotFoundError instead of writing a stale prior score.
     """
     safe = re.sub(r"[^A-Za-z0-9]+", "_", model_id)
     out_dir = CACHE_DIR / f"tb_run_{safe}"
+    if out_dir.exists():
+        shutil.rmtree(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     before = _balance_or_none()
     run_one(
@@ -240,19 +260,16 @@ def bench_model(
         task_id=task_id,
         n_concurrent=n_concurrent,
         n_attempts=n_attempts,
+        agent_timeout_sec=agent_timeout_sec,
     )
     after = _balance_or_none()
     # Parse + WRITE the score first — a completed run's result is never lost to a
     # cost-check failure (core/58-resilience: graceful fallback on the external call).
     score = parse_tbench_output(out_dir)
     write_tbench_score(conn, model_id, score)
-    # Enforce the cap only when both balances are known.
-    spent = (before - after) if (before is not None and after is not None) else -1.0
-    if spent > cost_cap:
-        raise RuntimeError(
-            f"cost cap breached: {model_id} spent ${spent:.4f} > cap ${cost_cap:.2f} "
-            f"— stopping cohort (score {score:.1f} was still written)"
-        )
+    # None (not 0, not -1) when either balance read failed — an honest "unknown"
+    # the caller distinguishes from a genuine $0 (finding: -1.0 collided with a +$1 top-up).
+    spent = (before - after) if (before is not None and after is not None) else None
     return score, spent
 
 
@@ -265,19 +282,37 @@ def _build_argparser() -> argparse.ArgumentParser:
         "--models",
         default="",
         help="Comma-separated model ids. Default: the unbenched sysadmin cohort "
-        f"({','.join(DEFAULT_MODELS)}); pass 'all' for every tool-capable OR model.",
+        f"({','.join(DEFAULT_MODELS)}); include 'all' (any case, anywhere) for every "
+        "tool-capable OR model.",
     )
     p.add_argument(
-        "--cost-cap", type=float, default=5.0, help="Per-model USD ceiling (default 5.0)."
+        "--cost-cap",
+        type=float,
+        default=5.0,
+        help="Total USD budget for the RUN (cohort). Before each model, if cumulative "
+        "spend has reached the cap the run stops. NOTE: this cannot interrupt a single "
+        "model's tb-run mid-flight — bound per-model spend with --n-tasks. (default 5.0)",
     )
     p.add_argument("--dataset", default=TB_DATASET, help=f"tb dataset (default {TB_DATASET}).")
     p.add_argument(
-        "--n-tasks", type=int, default=None, help="Limit tasks per model (default: full set)."
+        "--n-tasks",
+        type=int,
+        default=None,
+        help="Tasks per model — the real per-model spend bound (default: full set; "
+        "with a cost-cap set, leaving this unbounded lets the first model run the whole "
+        "set before the cohort budget can act — a warning is printed).",
     )
     p.add_argument("--task-id", default=None, help="Task id/glob to run (overrides --n-tasks).")
     p.add_argument("--n-concurrent", type=int, default=4, help="Concurrent trials (default 4).")
     p.add_argument(
         "--n-attempts", type=int, default=1, help="Attempts (trials) per task (default 1)."
+    )
+    p.add_argument(
+        "--agent-timeout",
+        type=float,
+        default=600.0,
+        help="Per-agent-run wall-clock cap in seconds (tb --global-agent-timeout-sec) so a "
+        "stuck agent loop can't hang the cohort (default 600).",
     )
     p.add_argument("--force", action="store_true", help="Re-bench even if fresh.")
     p.add_argument(
@@ -296,7 +331,8 @@ def main(argv: list[str] | None = None) -> int:
     conn = sqlite3.connect(DB_PATH)
     try:
         raw = [m.strip() for m in args.models.split(",") if m.strip()]
-        if raw == ["all"]:
+        # 'all' (any case, anywhere in the list) → the full tool-capable OR cohort.
+        if any(m.lower() == "all" for m in raw):
             cohort = select_cohort(conn, None)
         else:
             cohort = select_cohort(conn, raw or DEFAULT_MODELS)
@@ -307,7 +343,8 @@ def main(argv: list[str] | None = None) -> int:
             print(f"[dry-run] would bench {len(cohort)} model(s) on {args.dataset}")
             print(
                 f"[dry-run] agent={TB_AGENT} n_concurrent={args.n_concurrent} "
-                f"n_attempts={args.n_attempts} cost_cap=${args.cost_cap:.2f}/model"
+                f"n_attempts={args.n_attempts} run_budget=${args.cost_cap:.2f} "
+                f"n_tasks={args.n_tasks if args.n_tasks is not None else 'ALL'}"
             )
             for m in cohort:
                 print(f"[dry-run]   {TB_CLI} run -a {TB_AGENT} -m openrouter/{m} -d {args.dataset}")
@@ -318,23 +355,42 @@ def main(argv: list[str] | None = None) -> int:
             print("[terminal-bench] nothing to bench (all fresh; use --force).")
             return 0
 
+        if args.n_tasks is None and args.task_id is None:
+            print(
+                f"[terminal-bench] ⚠ per-model task count is UNBOUNDED (full set) — a single "
+                f"model may spend well before the ${args.cost_cap:.2f} run budget can stop the "
+                f"cohort. Pass --n-tasks to bound per-model spend, or --dry-run first.",
+                file=sys.stderr,
+            )
+
+        cohort_spent = 0.0
+        run_start_balance = _balance_or_none()
         for m in cohort:
-            print(f"[terminal-bench] benching {m} …")
-            try:
-                score, spent = bench_model(
-                    conn,
-                    m,
-                    cost_cap=args.cost_cap,
-                    dataset=args.dataset,
-                    n_tasks=args.n_tasks,
-                    task_id=args.task_id,
-                    n_concurrent=args.n_concurrent,
-                    n_attempts=args.n_attempts,
-                )
-                print(f"[terminal-bench] {m}: tbench={score:.1f} spent=${spent:.4f}")
-            except RuntimeError as e:
-                print(f"[terminal-bench] STOP — {e}", file=sys.stderr)
-                return 1
+            # Cohort-budget PRE-CHECK: stop before starting a model once the run budget is spent.
+            if run_start_balance is not None:
+                now = _balance_or_none()
+                if now is not None:
+                    cohort_spent = run_start_balance - now
+                    if cohort_spent >= args.cost_cap:
+                        print(
+                            f"[terminal-bench] STOP — run budget reached: spent "
+                            f"${cohort_spent:.4f} >= cap ${args.cost_cap:.2f} before {m}",
+                            file=sys.stderr,
+                        )
+                        return 1
+            print(f"[terminal-bench] benching {m} … (run spend so far ${cohort_spent:.4f})")
+            score, spent = bench_model(
+                conn,
+                m,
+                dataset=args.dataset,
+                n_tasks=args.n_tasks,
+                task_id=args.task_id,
+                n_concurrent=args.n_concurrent,
+                n_attempts=args.n_attempts,
+                agent_timeout_sec=args.agent_timeout,
+            )
+            spent_str = f"${spent:.4f}" if spent is not None else "unknown (balance unavailable)"
+            print(f"[terminal-bench] {m}: tbench={score:.1f} spent={spent_str}")
         return 0
     finally:
         conn.close()
