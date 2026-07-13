@@ -104,7 +104,7 @@ Sections in order — line budget varies by epic flavour:
    - `Abuse Detection: required / N-A` (SaaS with free-tier signup surface — authority: `saas/87-abuse-detection.md`)
    - `Email: transactional / marketing / two-stream / none / N-A` (authority: `core/86-email-templates.md` — two-stream MUST be separate streams on separate subdomains)
    - `FINANCIALS: required / N-A` (SaaS scaffolds pre-launch — authority: `saas/88-saas-launch-checklist.md`)
-   - `Registrars: <list>` (which of the 9 fire per `mega-epic-breakdown/00-trigger-workflow-command` L47: postgres, redis, gatus, backrest, glitchtip, authelia, meilisearch, prometheus, grafana — glitchtip + grafana fire unconditionally; the other 7 are shape-gated per the 8 flags above)
+   - `Registrars: <list>` (which of the **10** fire per `mega-epic-breakdown/00-trigger-workflow-command` L47: postgres, redis, gatus, backrest, glitchtip, authelia, meilisearch, prometheus, grafana — glitchtip + grafana fire unconditionally; the other 7 are shape-gated per the 8 flags above)
    - `Universal categories: <comma-separated 1-14>` (Path B only — verbatim from `mega-epic-breakdown/02-epic-decomposition-command` sub-step 2h; constrains epic scope to ONLY the categories this epic owns)
    - `Epic Flavor: Delta-feature | Retrofit` (Path B only — propagated from `00-trigger-workflow-command` Path B Epic-flavor detection per `mega-epic-breakdown/03-expand-epic-files-command` L82-86)
 
