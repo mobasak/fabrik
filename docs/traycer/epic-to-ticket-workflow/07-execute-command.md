@@ -115,7 +115,7 @@ Read the actual diff when:
 Fixup T2a — Add missing CHANGELOG entry
   Scope: CHANGELOG.md only
   Steps: Add entry "### Added — User endpoints (2026-05-17)" under ## [Unreleased]
-  Gate: python scripts/final_gate.py --lean --json
+  Gate: python scripts/final_gate.py --json   # the ticket's Final Gate Instruction is the FULL Tier-2 gate (CLAUDE.md § Completion Contract); --lean is iteration-only
 ```
 
 If same issue recurs 3+ times across tickets → systemic problem. Escalate.

@@ -73,7 +73,7 @@ For each ticket in the requested batch, read ALL outline fields:
 | Depends | Copy into Dependencies |
 | Parallel (⚡/⛓️) | Emit in parallel map |
 | Stage | Informs step ordering |
-| Gate (1/2) | Copy into Gate Tier + Final Gate command |
+| Gate (1/2) | Copy into Gate Tier (the **coding-time** tier). ⚠️ The ticket's **Final Gate Instruction is ALWAYS `python scripts/final_gate.py --json`** (Tier-2) regardless of this tier — `--lean` is never a completion gate (`CLAUDE.md`). Copy into Gate Tier + Final Gate command |
 | Touches (PRIMARY PATH) | Triggers test criterion |
 | Shape | Triggers shape mandate criterion |
 | Complexity | Drives agent selection |

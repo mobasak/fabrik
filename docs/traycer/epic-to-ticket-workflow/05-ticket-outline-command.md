@@ -145,7 +145,7 @@ T<N> — <Title (action-oriented imperative)>
   Parallel: <⚡ with T2, T4> or <⛓️ after T3>
   Stage: <foundation | implementation | integration | closure>
   Category: <from Step 2b table — determines rule pack for ticket-breakdown>
-  Gate: <1 (lean) | 2 (full)>
+  Gate: <1 (lean) | 2 (full)>   # ⚠️ the CODING-TIME tier only — a ticket's **Final Gate Instruction is ALWAYS Tier-2 `--json`** (`CLAUDE.md` § Completion Contract: `--lean` is "not the completion gate")
   Touches: <PRIMARY PATH flow> or <none>
   Shape: <shape fields affected> or <N/A>
   Complexity: <simple | complex | critical>
@@ -155,7 +155,7 @@ T<N> — <Title (action-oriented imperative)>
 
 **Gate tiers** (from `scripts/final_gate.py`):
 
-- **1 (lean):** `--lean --json` — default during coding. Fast checks only.
+- **1 (lean):** `--lean --json` — **during coding only**. Fast checks. ⚠️ **Never** a ticket's Final Gate Instruction.
 - **2 (full):** `--json` — at milestone/schema/auth tickets. Full checks including spec validation.
 - Epic Closure always runs **Tier 3** (`--systemic --json`) — repo-wide health.
 
