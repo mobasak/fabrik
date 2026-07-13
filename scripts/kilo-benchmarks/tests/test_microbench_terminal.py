@@ -361,6 +361,19 @@ def test_explicit_models_bad_id_returns_2_not_traceback(monkeypatch, tmp_path):
     assert called["bench"] is False
 
 
+def test_noncatalog_model_id_returns_2_before_spending(monkeypatch, tmp_path):
+    """A --models id not present in the agents catalog fails up front (exit 2) —
+    never benches (write_tbench_score would silently no-op + waste credit)."""
+    _seed_main_db(tmp_path, ["vendor/real"])
+    monkeypatch.setattr(mt, "DB_PATH", tmp_path / "t.db")
+    monkeypatch.setattr(mt.shutil, "which", lambda x: "/usr/bin/tb")
+    called = {"bench": False}
+    monkeypatch.setattr(mt, "bench_model", lambda *a, **k: called.__setitem__("bench", True))
+    rc = mt.main(["--models", "vendor/not-in-catalog", "--n-tasks", "1", "--force"])
+    assert rc == 2
+    assert called["bench"] is False  # failed before spending any credit
+
+
 def test_dry_run_rejects_malformed_id(monkeypatch, tmp_path):
     """Validation runs BEFORE the dry-run block, so even a preview refuses a bad id
     (exit 2) rather than printing it and exiting 0."""

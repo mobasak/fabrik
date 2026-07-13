@@ -130,6 +130,13 @@ def select_cohort(conn, models: list[str] | None) -> list[str]:
     return [r[0] for r in rows]
 
 
+def _model_exists(conn, model_id: str) -> bool:
+    """True iff the id is a row in agents. write_tbench_score's UPDATE is a silent
+    no-op for an absent id, so main pre-checks existence to fail (before spending
+    credit) rather than bench + report success + persist nothing."""
+    return conn.execute("SELECT 1 FROM agents WHERE id = ? LIMIT 1", (model_id,)).fetchone() is not None
+
+
 def is_fresh(conn, model_id: str) -> bool:
     """A model is 'fresh' (skip re-benching) iff it already has a tbench score.
 
@@ -385,6 +392,17 @@ def main(argv: list[str] | None = None) -> int:
             cohort = [_validate_model_id(m) for m in cohort]
         except ValueError as e:
             print(f"error: malformed model id in cohort — {e}", file=sys.stderr)
+            return 2
+
+        # Existence pre-check: write_tbench_score's UPDATE silently no-ops for an id
+        # not in agents, so a --models id not in the catalog would bench (spend credit),
+        # report success, and persist nothing — non-idempotent. Fail up front instead.
+        absent = [m for m in cohort if not _model_exists(conn, m)]
+        if absent:
+            print(
+                f"error: not in the agents catalog (import first): {', '.join(absent)}",
+                file=sys.stderr,
+            )
             return 2
 
         if not args.force:
