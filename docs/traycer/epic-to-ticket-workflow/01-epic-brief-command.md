@@ -71,15 +71,15 @@ Consume `trigger_workflow` findings — do not repeat its checks:
 Sections in order — line budget varies by epic flavour:
 
 - **Delta-feature epic** (default for Path A; Path B `Epic Flavor: Delta-feature`): target 50 lines total, soft cap 100.
-- **Retrofit epic** (Path B `Epic Flavor: Retrofit` only — Title prefix `Retrofit:` per `mega-epic-breakdown/03-expand-epic-files-command` **Step 2** — the two flavours and the `Retrofit:` Title prefix): target **30 lines** total, soft cap 60. Retrofit briefs are naturally shorter — fewer features, focused scope, narrower Success Criteria.
+- **Retrofit epic** (Path B `Epic Flavor: Retrofit` only — Title prefix `Retrofit:` per `mega-epic-breakdown/03-expand-epic-files-command` **Step 2**): target **30 lines** total, soft cap 60. Retrofit briefs are naturally shorter — fewer features, focused scope, narrower Success Criteria.
 
 1. **Summary** (3–8 sentences) — What, for whom, why. NOT how. NOT success criteria.
 
 2. **Context & Problem** — Real users/personas, current pain, where in the product.
 
 3. **Success Criteria** — count varies by epic flavour:
-   - **Delta-feature epic: 5–8 measurable outcomes** (Path B per `mega-epic-breakdown/03-expand-epic-files-command` L82; Path A defaults to this range).
-   - **Retrofit epic: 3–5 measurable outcomes** (Path B `Epic Flavor: Retrofit` per `mega-epic-breakdown/03-expand-epic-files-command` L86) — a code-change retrofit may have fewer naturally testable criteria; document the justification inline.
+   - **Delta-feature epic: 5–8 measurable outcomes** (Path B per `mega-epic-breakdown/03-expand-epic-files-command` § Step 2; Path A defaults to this range).
+   - **Retrofit epic: 3–5 measurable outcomes** (Path B `Epic Flavor: Retrofit` per `mega-epic-breakdown/03-expand-epic-files-command` § Success Criteria) — a code-change retrofit may have fewer naturally testable criteria; document the justification inline.
    - Each either a concrete number or binary state.
    - MUST include at least one deploy/gate-level criterion:
      - **Delta-feature:** "`fabrik apply` succeeds, `/health` returns 200, `audit-registrars` reports present."
@@ -105,9 +105,9 @@ Sections in order — line budget varies by epic flavour:
    - `Abuse Detection: required / N-A` (SaaS with free-tier signup surface — authority: `saas/87-abuse-detection.md`)
    - `Email: transactional / marketing / two-stream / none / N-A` (authority: `core/86-email-templates.md` — two-stream MUST be separate streams on separate subdomains)
    - `FINANCIALS: required / N-A` (SaaS scaffolds pre-launch — authority: `saas/88-saas-launch-checklist.md`)
-   - `Registrars: <list>` (which of the **10** fire per `mega-epic-breakdown/00-trigger-workflow-command` § Fabrik lifecycle: postgres, redis, gatus, backrest, glitchtip, authelia, meilisearch, prometheus, grafana, watchdog — **grafana** fires always; **glitchtip** fires on `shape.kind`; **watchdog** is opt-OUT (fires unless `watchdog: {enabled: false}`); the other 7 are flag-gated, and gatus/authelia/prometheus **also** require `spec.domain`. Any registrar can be force-disabled by `infra: { <name>: false }`)
+   - `Registrars: <list>` (Path B only — which of the **10** fire per `mega-epic-breakdown/00-trigger-workflow-command` § Fabrik lifecycle: postgres, redis, gatus, backrest, glitchtip, authelia, meilisearch, prometheus, grafana, watchdog — **grafana** fires always; **glitchtip** fires on `shape.kind`; **watchdog** is opt-OUT (fires unless `watchdog: {enabled: false}`); the other 7 are flag-gated, and gatus/authelia/prometheus **also** require `spec.domain`. Any registrar can be force-disabled by `infra: { <name>: false }`)
    - `Universal categories: <comma-separated 1-14>` (Path B only — verbatim from `mega-epic-breakdown/02-epic-decomposition-command` sub-step 2h; constrains epic scope to ONLY the categories this epic owns)
-   - `Epic Flavor: Delta-feature | Retrofit` (Path B only — propagated from `00-trigger-workflow-command` Path B Epic-flavor detection per `mega-epic-breakdown/03-expand-epic-files-command` L82-86)
+   - `Epic Flavor: Delta-feature | Retrofit` (Path B only — propagated from `00-trigger-workflow-command` Path B Epic-flavor detection per `mega-epic-breakdown/03-expand-epic-files-command` § Step 2 (flavours + `Retrofit:` Title prefix))
 
 > **Drafting rules:**
 > - Complete every section — no stubs. Infrastructure Notes is the only omittable section.

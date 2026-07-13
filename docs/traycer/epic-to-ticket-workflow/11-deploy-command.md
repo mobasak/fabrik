@@ -55,7 +55,7 @@ Determine the spec from user input (try in order):
 
 Read the spec file. Extract: `id`, `domain`, `shape`, `port`, `kind`.
 
-**Retrofit-epic adjustments (when current epic Title prefix is `Retrofit:` per `mega-epic-breakdown/03-expand-epic-files-command` L82 or outline's `Epic Flavor: Retrofit` propagated from `05-ticket-outline-command` post-`ff2c427`):**
+**Retrofit-epic adjustments (when current epic Title prefix is `Retrofit:` per `mega-epic-breakdown/03-expand-epic-files-command` § Step 2):**
 
 - **First-ever-deploy vs redeploy distinction:** Retrofit deploys are ALWAYS redeploys (the existing project's compose unchanged for code-only retrofits per `04-deploy-plan-command` post-`3060147` Skip rule). Default dispatch target is **Kilo CLI** (redeploy path per L23).
 - **Deploy Plan absence:** if `04-deploy-plan-command` was SKIPPED entirely per its Retrofit Skip rule, derive from tech-plan + existing project spec. State explicitly in the deploy ticket: `Deploy Plan: skipped per Retrofit branch; derived from existing project spec`.

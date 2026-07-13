@@ -58,9 +58,9 @@ Small epics (≤8 tickets): all passes combine into one run.
 - Ticket set — every ticket's Scope, Steps, Acceptance Criteria
 - [PRIMARY PATH] Index — test file paths + flows they cover
 
-**Retrofit-epic adjustments (when ticket Title prefix is `Retrofit:` per `mega-epic-breakdown/03-expand-epic-files-command` L82 or outline's `Epic Flavor: Retrofit` propagated from `05-ticket-outline-command` post-`ff2c427`):**
+**Retrofit-epic adjustments (when ticket Title prefix is `Retrofit:` per `mega-epic-breakdown/03-expand-epic-files-command` § Step 2):**
 
-- **Success Criteria count expectation (Step 3):** Retrofit Brief is 3–5 SC (not 5–8 per `mega-epic-breakdown/03-expand-epic-files-command` L86); flag low-SC as PASS when Retrofit, Blocker only when Delta-feature with <5 SC.
+- **Success Criteria count expectation (Step 3):** Retrofit Brief is 3–5 SC (not 5–8 per `mega-epic-breakdown/03-expand-epic-files-command` § Success Criteria); flag low-SC as PASS when Retrofit, Blocker only when Delta-feature with <5 SC.
 - **Deploy Plan absence (L57):** if ettw/04 was SKIPPED per its Retrofit Skip rule (post-`3060147`), Deploy Plan doesn't exist as an artifact. State `Deploy Plan: skipped per Retrofit branch` and proceed; do NOT flag as missing.
 - **Core Flows absence (L55):** if ettw/02 produced no flows for a code-only retrofit (per its scope-narrow Retrofit branch at `ee8792c`), Core Flows may be absent or narrowly-scoped. Do NOT flag as missing; verify only the flows it produced match implementation.
 - **Lessons Learnt closure case (Step 6 L161-162):** Retrofit:Resilience and similar retrofits that RESOLVE a prior Lesson are themselves the closure; no new entry expected. PASS when Retrofit closure case is documented in the ticket's Completion Self-Check.
@@ -234,7 +234,7 @@ When all clean → suggest `deploy`.
 - Does NOT change the Epic Brief / Core Flows / Tech Plan / Deploy Plan — Product Misalignment findings route to `09-revise-requirements-command` per L172, NOT direct edits in 08.
 - Does NOT mark tickets Done — that is `07-execute-command` Step 5 per-ticket validation. ettw/08 creates fix tickets when findings are Blockers/Bugs.
 - Does NOT force `final_gate.py --systemic` for Retrofit epics where Epic Closure was skipped at `06-ticket-breakdown` Step 10 — per Step 2 Retrofit branch, the prior Delta-feature closure already ran the systemic gate.
-- Does NOT flag Retrofit briefs with 3-5 Success Criteria as under-specced — Retrofit Brief default is 3-5 SC per `mega-epic-breakdown/03-expand-epic-files-command` L86; flag low-SC as Blocker ONLY when Delta-feature with <5 SC.
+- Does NOT flag Retrofit briefs with 3-5 Success Criteria as under-specced — Retrofit Brief default is 3-5 SC per `mega-epic-breakdown/03-expand-epic-files-command` § Success Criteria; flag low-SC as Blocker ONLY when Delta-feature with <5 SC.
 - Does NOT enforce ALL Architectural Mandate rows for Retrofit tickets — per Step 2 Retrofit branch, only the rows touching the retrofit's target area apply (matches `06-ticket-breakdown` Step 4 Retrofit branch at `8dcdd2b`).
 - Does NOT flag missing Deploy Plan when `04-deploy-plan-command` was SKIPPED per its Retrofit Skip rule — per Step 2 Retrofit branch, missing Deploy Plan is valid for code-only retrofits.
 - Does NOT trust agent self-reports — every finding requires evidence (file:line + spec ref + verification per L25-27 Core Philosophy).

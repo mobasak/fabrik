@@ -94,7 +94,7 @@ These provide the CONTENT for writing Steps (function names, file paths, schemas
 
 ### Step 4: Produce Each Ticket
 
-**Retrofit-epic ticket adjustments (when outline's `Epic Flavor: Retrofit` is propagated from `05-ticket-outline-command` Multi-epic dispatch mode L49-51 per `ff2c427`):**
+**Retrofit-epic ticket adjustments (detected from the ticket Title prefix `Retrofit:` — ⚠️ `05-ticket-outline-command` has **no** `Epic Flavor` field; the Title prefix is the sole carrier):**
 
 - **Mandate enforcement (Step 6 table):** apply ONLY the rows touching the retrofit's target area. Examples: `Retrofit: i18n` → enforce only the i18n row; `Retrofit: Resilience` → enforce only Resilience row; `Retrofit: Auth hardening` → enforce only M2M auth + Security rows. Other mandate rows: inherited from existing project; do NOT re-enforce per-ticket.
 - **Lessons Learnt trigger (Step 8):** Retrofit:Resilience and similar retrofits that RESOLVE a prior Lesson are themselves the closure of that Lesson; do NOT trigger a new entry. Retrofit tickets that introduce a NEW compliance pattern DO trigger an entry per the standard format.
@@ -305,7 +305,7 @@ User picks final dispatch. One local Ollama at a time.
 
 **Delta-feature epics (default):** Epic Closure ticket is MANDATORY as the last ticket in the final batch. Runs `final_gate.py --systemic --json` (Tier 3). Template below.
 
-**Retrofit epics (`Epic Flavor: Retrofit` propagated from outline):** Epic Closure ticket is OPTIONAL per `mega-epic-breakdown/03-expand-epic-files-command` L86. SKIP when:
+**Retrofit epics (detected from the ticket Title prefix `Retrofit:` — `05` has no `Epic Flavor` field):** Epic Closure ticket is OPTIONAL per `05-ticket-outline-command` § Ticket-type table (`:127`) — ⚠️ `03-expand-epic-files-command` never mentions Epic Closure. SKIP when:
 
 - The retrofit is scoped to one rule-pack area (e.g., `Retrofit: i18n`, `Retrofit: Resilience on one external API`, `Retrofit: Auth hardening`)
 - The parent project's last Delta-feature Epic Closure already covered the systemic gate (typically within the last 1-2 epics)
@@ -398,7 +398,7 @@ If specs inconsistent → suggest `cross-artifact-validation`.
 - Does NOT execute the tickets — that is `07-execute-command` (the coding agent dispatch). ettw/06 writes the spec; agents implement against it.
 - Does NOT validate implementation correctness — that is `08-implementation-validation-command` after agents complete.
 - Does NOT validate cross-artifact consistency — that is `10-cross-artifact-validation-command` (across Epic Brief, Core Flows, Tech Plan, Deploy Plan, ticket specs).
-- Does NOT rename or restructure ticket Titles — ticket-outline emits `Tn — <action verb>` (or `Tn — Retrofit: <area>` for Retrofit epics per `mega-epic-breakdown/03-expand-epic-files-command` L82); ettw/06 expands the spec under the existing Title.
+- Does NOT rename or restructure ticket Titles — ticket-outline emits `Tn — <action verb>` (or `Tn — Retrofit: <area>` for Retrofit epics per `mega-epic-breakdown/03-expand-epic-files-command` § Step 2); ettw/06 expands the spec under the existing Title.
 - Does NOT inject rule packs not in the outline's category table — Step 5 rule pack injection follows the table verbatim. New rule pack needs route back to 05.
 - Does NOT write commit messages or PR descriptions — those are agent-time concerns post-`final_gate.py` success per CLAUDE.md HARD STOPS.
 - Does NOT run `git commit` / `git push` — auto-staged by `scripts/final_gate.py` on `status: "success"`; the spec only ENFORCES the gate, doesn't execute git.

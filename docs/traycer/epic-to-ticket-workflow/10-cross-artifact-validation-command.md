@@ -233,7 +233,7 @@ Compare tickets against updated specs:
 - Does NOT validate implementation correctness (impl-vs-spec) — that is `08-implementation-validation-command`. ettw/10 is spec-vs-spec; ettw/08 reads code. Both run; they validate different surfaces.
 - Does NOT propagate changes through the artifact set — that is `09-revise-requirements-command`. ettw/10 FINDS contradictions; user runs revise-requirements to RESOLVE them per Step 6 follow-up.
 - Does NOT deploy — that is `11-deploy-command`. ettw/10 is a pre-deploy consistency gate.
-- Does NOT change ticket Title prefixes — Delta-feature stays `T<n> — <action verb>`; Retrofit stays `T<n> — Retrofit: <area>` per `mega-epic-breakdown/03-expand-epic-files-command` L82.
+- Does NOT change ticket Title prefixes — Delta-feature stays `T<n> — <action verb>`; Retrofit stays `T<n> — Retrofit: <area>` per `mega-epic-breakdown/03-expand-epic-files-command` § Step 2.
 - Does NOT flag missing Epic Closure ticket for Retrofit epics where `06-ticket-breakdown` correctly skipped it (post-`8dcdd2b` Step 10 Retrofit branch) — per Step 2 Dimension 7 Retrofit branch, Epic Closure presence is conditional on Epic Flavor + ticket-breakdown's explicit skip statement.
 - Does NOT flag missing Deploy Plan when `04-deploy-plan-command` was SKIPPED entirely per its Retrofit Skip rule (post-`3060147`) — per Step 1 Retrofit branch and Step 2 Retrofit-epic adjustments, missing Deploy Plan is valid for code-only retrofits.
 - Does NOT enforce parallelism budget ≥3:1 for Retrofit epics — Retrofit epics have 3-5 tickets total; a 3-ticket linear chain is a legitimate 1:1 ratio that should NOT fail.
