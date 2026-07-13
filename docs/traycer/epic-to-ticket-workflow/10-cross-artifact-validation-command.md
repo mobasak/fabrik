@@ -244,7 +244,7 @@ Compare tickets against updated specs:
 
 - All artifact surfaces internalized (Brief, Flows, Tech Plan, Deploy Plan, Outline, Tickets, INFRA-CHECK, lifecycle, LESSONS_LEARNT).
 - All 8 dimensions analyzed. Findings classified by significance.
-- INFRA-CHECK propagation verified for all 7 Path A fields (Path A epic) OR all 15 Path B fields + Epic Flavor (Path B multi-epic dispatch per `ettw/00-trigger-workflow-command` § Entry Points → Multi-epic (consume mode) post-`5a48017`+`1eaf22a`).
+- INFRA-CHECK propagation verified for all 8 Path A fields (Path A epic) OR all 15 Path B fields + Epic Flavor (Path B multi-epic dispatch per `ettw/00-trigger-workflow-command` § Entry Points → Multi-epic (consume mode) post-`5a48017`+`1eaf22a`).
 - Ticket structure verified (Doc Sync Matrix, Final Gate, Lessons Learnt, first-output, no-git, [PRIMARY PATH], Epic Closure, parallelism budget).
 - LESSONS_LEARNT coherence verified (entries match, numbering sequential, no spec contradictions).
 - Findings presented: overall assessment → significant → minor (batched).

@@ -105,7 +105,7 @@ Sections in order — line budget varies by epic flavour:
    - `Abuse Detection: required / N-A` (SaaS with free-tier signup surface — authority: `saas/87-abuse-detection.md`)
    - `Email: transactional / marketing / two-stream / none / N-A` (authority: `core/86-email-templates.md` — two-stream MUST be separate streams on separate subdomains)
    - `FINANCIALS: required / N-A` (SaaS scaffolds pre-launch — authority: `saas/88-saas-launch-checklist.md`)
-   - `Registrars: <list>` (which of the **10** fire per `mega-epic-breakdown/00-trigger-workflow-command` L47: postgres, redis, gatus, backrest, glitchtip, authelia, meilisearch, prometheus, grafana — glitchtip + grafana fire unconditionally; the other 7 are shape-gated per the 8 flags above)
+   - `Registrars: <list>` (which of the **10** fire per `mega-epic-breakdown/00-trigger-workflow-command` § Fabrik lifecycle: postgres, redis, gatus, backrest, glitchtip, authelia, meilisearch, prometheus, grafana, watchdog — **grafana** fires always; **glitchtip** fires on `shape.kind`; **watchdog** is opt-OUT (fires unless `watchdog: {enabled: false}`); the other 7 are flag-gated, and gatus/authelia/prometheus **also** require `spec.domain`. Any registrar can be force-disabled by `infra: { <name>: false }`)
    - `Universal categories: <comma-separated 1-14>` (Path B only — verbatim from `mega-epic-breakdown/02-epic-decomposition-command` sub-step 2h; constrains epic scope to ONLY the categories this epic owns)
    - `Epic Flavor: Delta-feature | Retrofit` (Path B only — propagated from `00-trigger-workflow-command` Path B Epic-flavor detection per `mega-epic-breakdown/03-expand-epic-files-command` L82-86)
 
@@ -122,7 +122,7 @@ Sections in order — line budget varies by epic flavour:
 - Success Criteria: measurable, includes deploy-level, parallel-decomposable.
 - Infrastructure Notes: explicit designations or omitted entirely.
 - Out of Scope: 2–5 named exclusions.
-- Metadata: all fields match INFRA-CHECK. Path A: 9 required + 3 SaaS-conditional. Path B: 12 required + 3 SaaS-conditional (adds Registrars, Universal categories, Epic Flavor) — Path B does NOT silently drop Registrars or Universal categories.
+- Metadata: all fields match INFRA-CHECK. Path A: 10 required + 3 SaaS-conditional. Path B: 13 required + 3 SaaS-conditional (adds Registrars, Universal categories, Epic Flavor) — Path B does NOT silently drop Registrars or Universal categories.
 - Automation confirmed: `fabrik apply` can handle this (Delta-feature) OR `scripts/final_gate.py` succeeds + Compliance Report gap closes (Retrofit).
 - External deps have resilience expectation stated.
 - Length: Delta-feature ≤50 lines (or justified); Retrofit ≤30 lines.
