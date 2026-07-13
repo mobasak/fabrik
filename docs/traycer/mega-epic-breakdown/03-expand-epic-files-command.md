@@ -38,6 +38,8 @@ You are a ticket breakdown orchestrator. You read the confirmed compact epic pro
 - Infrastructure Decisions spec (from `02-epic-decomposition-command`) — confirmed
 - Dependency Graph (from `02-epic-decomposition-command`) — confirmed
 
+Additionally read: `docs/operations/fabrik-lifecycle.md` — a **delta-feature** epic ticket must pass all 4 lifecycle stages (scaffold → implement → `fabrik apply` → `fabrik verify`). ⚠️ **Retrofit exception:** a Retrofit on an already-deployed service creates **no new deploy unit** — it has no Stage-1/Stage-3 of its own; its Stage-3 equivalent is the gate + the compliance-row flip in Success Criteria #1.
+
 **Hard stop if:** any of the above are missing or not confirmed by owner.
 
 ## Processing User Request
@@ -85,8 +87,8 @@ Epic N — [Name]
 
 ### Success Criteria
 [5-8 measurable outcomes for delta-feature epics; 3-5 for Retrofit epics (a code-change retrofit may have fewer naturally testable criteria — document the justification inline). MUST include AT LEAST ONE deploy/gate-level criterion AND ONE feature/compliance-level criterion. Pick whichever variant of each fits the epic:]
-1. Deploy/gate-level — delta-feature epic: `fabrik apply` succeeds; health endpoint returns 200. — Retrofit epic on existing service (no new deploy unit): `scripts/final_gate.py --lean --json` returns `"status":"success"` for the modified scope, AND the rule pack's compliance check moves from Partial/Violates → Compliant (per the gap row in the Vision Summary's Compliance Report).
-2. Feature/compliance-level — delta-feature: [end-to-end user flow that proves the epic works] — Retrofit: [the specific behaviour the rule pack mandates is now observable — e.g., `tr` locale renders for an i18n retrofit; rate-limit middleware blocks the test request for an abuse-detection retrofit].
+1. Deploy/gate-level — delta-feature epic: `fabrik apply` succeeds; health endpoint returns 200. — Retrofit epic on existing service (no new deploy unit): `python scripts/final_gate.py --json` returns `"status":"success"` (the **FULL Tier-2** gate — mypy + bandit + semgrep; ⚠️ `--lean` is Tier-1, for iteration only, **never** an acceptance gate per `CLAUDE.md` § Completion Contract) for the modified scope, AND the rule pack's compliance check moves from Partial/Violates → Compliant (per the gap row in the Vision Summary's Compliance Report).
+2. Feature/compliance-level — delta-feature: [**the `Delivers:` value from 02's compact entry**, restated as an end-to-end user flow that proves the epic works. ⚠️ `Delivers` is the owner-visible outcome negotiated at 02's checkpoint — never drop it] — Retrofit: [the specific behaviour the rule pack mandates is now observable — e.g., `tr` locale renders for an i18n retrofit; rate-limit middleware blocks the test request for an abuse-detection retrofit].
 3. [Resilience criterion — what happens when a dependency is down] — N/A for Retrofit epics not touching external-call sites.
 4. [Audit logging captures key events from this epic] — N/A for Retrofit epics not touching mutation surfaces.
 ...
@@ -99,23 +101,23 @@ Epic N — [Name]
 - ...
 
 ### Dependencies
-- **Consumes from prior epics:** [specific artifacts: DB tables, API endpoints, env vars, middleware]
-- **Produces for later epics:** [specific artifacts this epic creates that others need]
+- **Consumes from prior epics:** [specific artifacts: DB tables, API endpoints, env vars, middleware — **carried verbatim from 02's `Consumes:` field**; expand into concrete names, never re-derive] or [`none — root epic`]
+- **Produces for later epics:** [specific artifacts this epic creates that others need — **carried verbatim from 02's `Produces:` field**. `Delivers:` is owner-visible value; this is the machine contract downstream epics consume]
 - **Depends on:** [Epic X (hard), Epic Y (soft)] or [none — root epic]
 - **Parallel with:** [Epic X] or [none]
 
 ### Metadata
-- Scaffold: [type]
+- Scaffold: [one of the 11 scaffoldable types per `00-trigger-workflow-command` § Shape model — carried verbatim from 02's `Scaffold:`]
 - Port: [value]
 - target_vps: [`vps1` (hub, default) / `vps2` / `vps3` — carried verbatim from 02's `Target host:`. Drives the spec's `target_vps:` field, and epic-to-ticket re-checks it as overlay constraint #31. ⚠️ A spoke-targeted service reaches shared infra over the mesh (`10.99.0.1`), NOT by Docker DNS]
-- Shape: [registrar flags]
+- Shape: [`kind` + the 8 canonical flags: is_public, is_admin_dashboard, has_bearer_api, has_persistent_data, needs_database, has_search_feature, needs_cache, exposes_metrics — plus `watchdog.enabled`. Carried verbatim from 02's `Shape:`. ⚠️ `has_bearer_api` fires **no** registrar of its own]
 - Concurrency: [mechanism]
 - i18n: [mechanism or N/A]
-- Responsive: [carry from compact entry verbatim — per `00-trigger-workflow-command` § Rule-area applicability matrix, GUI mandates trigger on the *GUI surface*, NOT the scaffold type; mandatory for saas-skeleton / docusaurus front / mobile-app / desktop-app AND for python-api/node-api/file-api when `shape.is_admin_dashboard: true` OR `shape.is_public: true` with HTML output; N/A only when no HTML/native UI exists (pure JSON API, file-worker queue consumer). Chrome-extension popup is fixed 400px (carve-out per `00-trigger-workflow-command` § Architectural Mandates → Responsive).]
+- Responsive: [carry from compact entry verbatim — per `00-trigger-workflow-command` § Architectural Mandates (always-read; it points to the Rule-area applicability matrix at Step E3.B), GUI mandates trigger on the *GUI surface*, NOT the scaffold type; mandatory for saas-skeleton / docusaurus front / mobile-app / desktop-app AND for python-api/node-api/file-api when `shape.is_admin_dashboard: true` OR `shape.is_public: true` with HTML output; N/A only when no HTML/native UI exists (pure JSON API, file-worker queue consumer). Chrome-extension popup is fixed 400px (carve-out per `00-trigger-workflow-command` § Architectural Mandates → Responsive).]
 - Dark+Light: [carry from compact entry verbatim — same feature-based trigger as Responsive above]
 - Rule Packs: [IDs]
 - HAS_USER_GUIDE: [true/false]
-- Registrars: [which of the **10** fire for this epic's deploy unit(s) — 7 flag-driven + grafana (always) + glitchtip (`shape.kind`) + watchdog (opt-OUT: fires unless `watchdog: {enabled: false}`). ⚠️ **Any** registrar — grafana included — can additionally be force-disabled by `infra: { <name>: false }` (`infrastructure.py::_enabled`)]
+- Registrars: [which of the **10** fire for this epic's deploy unit(s) — 7 flag-driven + grafana (always) + glitchtip (`shape.kind`) + watchdog (opt-OUT: fires unless `watchdog: {enabled: false}`). ⚠️ **gatus, authelia and prometheus ALSO require `spec.domain`** — the flag alone fires nothing (`infrastructure.py:214,256,293`). ⚠️ **Any** registrar — grafana included — can additionally be force-disabled by `infra: { <name>: false }` (`infrastructure.py::_enabled`)]
 - Universal categories: [comma-separated numbers from 1–14 this epic owns; copied verbatim from the per-epic compact entry produced by `02-epic-decomposition-command` sub-step 2h]
 - Abuse Detection: [required — SaaS scaffold with a free-tier signup surface (per `saas/87-abuse-detection.md`) / N/A — not a free-tier signup surface]
 - Email: [transactional / marketing / two-stream (both, separate subdomains per `core/86-email-templates.md`) / none — epic does not send email / N/A]
@@ -180,9 +182,10 @@ Total: [N] tickets. Each is dispatchable independently.
 ## Acceptance Criteria
 
 - All epics from the confirmed proposal have a corresponding Traycer ticket.
-- Each ticket title follows the format: `Epic N — [Name]`.
+- Each ticket title follows the format: `Epic N — [Name]` (delta-feature) **or** `Epic N — Retrofit: [area]` (Retrofit). ⚠️ The `Retrofit:` prefix is the **sole carrier** of the epic flavour downstream — `epic-to-ticket/00` string-parses the Title. A title like `Epic 4 — i18n Retrofit` silently classifies as Delta-feature.
 - Each ticket description is self-sufficient: a coding agent can run `epic-to-ticket-workflow/01-epic-brief-command` using only the ticket + Infrastructure Decisions spec.
-- Each ticket has ALL required sections: Summary, Scope (In/Out), Success Criteria (5-8 measurable), Out of Scope, Dependencies (with specific artifacts), Metadata (all fields), Infrastructure reference, Execution Order, Entry Point.
+- Ticket length is **structure-bounded by the template** (no numeric token cap — per `EVALUATION_CHECKLIST_FOR_MEGA_EPIC_COMMANDS` item 93). A ticket that will not fit the template means the epic is **over-scoped** → route back to `02-epic-decomposition-command`.
+- Each ticket has ALL required sections: Summary, Scope (In/Out), Success Criteria (**5-8** measurable for delta-feature; **3-5** for Retrofit), Out of Scope, Dependencies (with specific artifacts), Metadata (**all 15 fields**: Scaffold, Port, target_vps, Shape, Concurrency, i18n, Responsive, Dark+Light, Rule Packs, HAS_USER_GUIDE, Registrars, Universal categories, Abuse Detection, Email, FINANCIALS), Infrastructure reference, Execution Order, Entry Point.
 - Success Criteria are testable — "user can do X", not "system supports X."
 - Dependencies name specific artifacts (tables, functions, endpoints, env vars), not vague references.
 - Scope boundaries unchanged from 02's confirmed proposal — no feature migration without routing back to 02.
