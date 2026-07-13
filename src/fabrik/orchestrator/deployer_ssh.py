@@ -445,6 +445,18 @@ class SSHDeployer:
         else:
             _ssh(f"sudo git clone -b {branch} {repository} /opt/{name}", timeout=120)
 
+        # D1: validate the git-sourced compose against the Fabrik invariants BEFORE build/up.
+        # Git-sourced is the STANDARD project deploy path, so the memory-limit / no-host-ports /
+        # network invariants must be enforced here too — not only on the template/docker paths
+        # (whose call sites are :373 / :481). The compose lives in the cloned repo on the VPS, so
+        # read it back and validate; abort on any violation (matches _deploy_template's behaviour).
+        compose_content = _read_compose_from_vps(name)
+        errors = _validate_compose(compose_content)
+        if errors:
+            raise DeployError(
+                f"Compose validation failed for {name}:\n" + "\n".join(f"  - {e}" for e in errors)
+            )
+
         # Write .env (read-merge to preserve registrar-injected vars)
         env_content = self._build_env_content(ctx, name, existing)
         _write_file_to_vps(name, ".env", env_content)
@@ -735,6 +747,16 @@ def _validate_compose(content: str) -> list[str]:
 
     # Network: fabrik external (renamed from `coolify` 2026-05-31; W12 of fleet-hardening plan).
     networks = data.get("networks", {})
+    # D1 (deliberate decision — fail-closed): a compose with NO top-level `networks:` block is
+    # rejected. Every deployed service must join the external `fabrik` network — a container off it
+    # can't be routed by Traefik and can't reach shared infra (postgres-main / redis-main). Previously
+    # a missing block passed silently ("some inherit"), which is not true for an external network.
+    if not networks:
+        errors.append(
+            "Missing top-level 'networks:' block — declare `networks: { fabrik: { external: true } }` "
+            "and attach each service to it. A service off the fabrik network is unroutable by Traefik "
+            "and cannot reach shared infra."
+        )
     if "fabrik" in networks:
         fabrik_net = networks["fabrik"]
         if isinstance(fabrik_net, dict) and not fabrik_net.get("external"):
@@ -748,9 +770,29 @@ def _validate_compose(content: str) -> list[str]:
             "(both the service's `networks:` list and the top-level `networks:` block). "
             "The fabrik external network was renamed on 2026-05-31."
         )
-    # Note: not all composes declare networks at top level (some inherit)
 
     return errors
+
+
+def _read_compose_from_vps(name: str) -> str:
+    """Read the deployed compose file back from ``/opt/<name>`` on the VPS (D1).
+
+    Git-sourced deploys clone the compose onto the VPS rather than rendering it locally, so
+    validation must fetch it. Tries the four Compose-recognised filenames; raises if none exist.
+    """
+    from fabrik.drivers.ssh import ssh as _ssh
+
+    for filename in ("compose.yaml", "compose.yml", "docker-compose.yml", "docker-compose.yaml"):
+        try:
+            out = _ssh(f"cat /opt/{name}/{filename} 2>/dev/null", timeout=15)
+        except RuntimeError:
+            continue
+        if out and out.strip():
+            return out
+    raise DeployError(
+        f"No compose file found in /opt/{name} "
+        "(looked for compose.yaml, compose.yml, docker-compose.yml, docker-compose.yaml)"
+    )
 
 
 def _generate_docker_compose(
@@ -785,7 +827,7 @@ def _generate_docker_compose(
         "        limits:",
         f"          memory: {memory}",
         "    healthcheck:",
-        f'      test: ["CMD-SHELL", "wget -q --spider http://localhost:{port}{health_path} || exit 1"]',
+        f'      test: ["CMD-SHELL", "wget -q --spider http://localhost:{port}{health_path} || exit 1"]',  # noqa: localhost is correct — a container health-check probes its OWN port
         f"      interval: {health_interval}",
         "      timeout: 10s",
         "      retries: 3",

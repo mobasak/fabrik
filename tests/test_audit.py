@@ -460,6 +460,8 @@ class TestAuditReconcileRoundtrip:
                     return (True, "authelia-test")
                 if "backrest" in cmd:
                     return (True, "backrest-test")
+                if "watchdog" in cmd:  # D3: watchdog sidecar now audited — report present post-reconcile
+                    return (True, "present")
             if "pg_database" in cmd:
                 return (True, "1")
             if "gatus" in cmd and "test -f" in cmd:

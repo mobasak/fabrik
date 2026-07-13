@@ -523,7 +523,9 @@ class WatchdogDriver:
             apprise_url=apprise_url,
             redis_url=redis_url,
             pg_dsn=pg_dsn,
-            daily_budget_usd=float(wcfg.get("daily_budget_usd", 5.0)),
+            daily_budget_usd=float(
+                wcfg.get("daily_budget_usd", 1.0)
+            ),  # D2: match WatchdogConfig default ($1.00)
             daily_invocations_cap=int(wcfg.get("daily_invocations_cap", 200)),
             per_incident_budget_usd=float(wcfg.get("per_incident_budget_usd", 0.25)),
             deadman_timeout_seconds=int(wcfg.get("deadman_timeout_seconds", 300)),

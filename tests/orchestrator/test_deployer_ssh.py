@@ -606,6 +606,26 @@ class TestSSHDeployerDeployDispatch:
 # ======================================================================
 
 
+# A valid compose the git path reads back from the VPS for validation (D1, 2026-07-13).
+_VALID_GIT_COMPOSE = (
+    "services:\n"
+    "  web:\n"
+    "    image: python:3.12\n"
+    "    container_name: my-app\n"
+    "    platform: linux/amd64\n"
+    "    restart: unless-stopped\n"
+    "    deploy:\n"
+    "      resources:\n"
+    "        limits:\n"
+    "          memory: 256M\n"
+    "    networks:\n"
+    "      - fabrik\n"
+    "networks:\n"
+    "  fabrik:\n"
+    "    external: true\n"
+)
+
+
 class TestDeployGit:
     def test_new_clone(self):
         ctx = _ctx({
@@ -619,6 +639,7 @@ class TestDeployGit:
                 RuntimeError("not exists"),  # test -d .git
                 "",  # ssh-keyscan github.com → known_hosts (added 2026-05-31)
                 "",  # git clone
+                _VALID_GIT_COMPOSE,  # D1: cat compose.yaml (read back for validation)
                 "",  # docker compose build
                 "",  # docker compose up -d
             ]
@@ -644,6 +665,7 @@ class TestDeployGit:
                 "exists",  # test -d .git → exists
                 "",  # ssh-keyscan github.com → known_hosts
                 "",  # git pull
+                _VALID_GIT_COMPOSE,  # D1: cat compose.yaml (read back for validation)
                 "",  # docker compose build
                 "",  # docker compose up -d
             ]

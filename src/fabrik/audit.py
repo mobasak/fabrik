@@ -451,7 +451,7 @@ def audit_meilisearch(spec: Any) -> AuditResult:
         f"sudo docker exec {shlex.quote(container)} "
         f"sh -c 'curl -s -o /dev/null -w %{{http_code}} "
         f'-H "Authorization: Bearer ${{MEILI_MASTER_KEY}}" '
-        f"http://localhost:7700/indexes/{shlex.quote(index_uid)}'"
+        f"http://localhost:7700/indexes/{shlex.quote(index_uid)}'"  # noqa: localhost is correct — runs INSIDE the meilisearch container via docker exec
     )
     ok, code = _ssh_check(probe)
     if not ok:
@@ -513,6 +513,34 @@ def audit_prometheus(spec: Any) -> AuditResult:
     )
 
 
+def audit_watchdog(spec: Any) -> AuditResult:
+    """Audit the per-project watchdog sidecar (D3).
+
+    The sidecar is injected via a ``compose.watchdog.yaml`` overlay and named
+    ``<project>-watchdog`` (e.g. ``watchdog-test-watchdog``). Report whether that container is
+    running on the target VPS, so ``audit-registrars`` answers present/missing instead of the
+    ``unknown`` it returns today (``_AUDIT_FUNCS`` was missing a ``watchdog`` entry).
+    """
+    sid = _spec_id(spec)
+    applicable = _resolved_for(spec).get("watchdog", (False, "n/a"))
+    if not applicable[0]:
+        return AuditResult(status="n/a", detail=applicable[1])
+    container = f"{sid}-watchdog"
+    ok, out = _ssh_check(
+        f"sudo docker ps --filter name={shlex.quote('^' + container + '$')} "
+        "--format '{{.Names}}' | grep -q . && echo present || echo missing"
+    )
+    if not ok:
+        return AuditResult(status="unknown", detail=f"ssh probe failed: {out[:80]}")
+    found = "present" in out
+    return AuditResult(
+        status="present" if found else "missing",
+        detail=f"{container} sidecar {'running' if found else 'absent'}",
+        expected={"container": container},
+        actual={"found": found},
+    )
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Aggregator
 # ─────────────────────────────────────────────────────────────────────────────
@@ -528,11 +556,12 @@ _AUDIT_FUNCS = {
     "authelia": audit_authelia,
     "meilisearch": audit_meilisearch,
     "prometheus": audit_prometheus,
+    "watchdog": audit_watchdog,
 }
 
 
 def audit_all(spec: Any) -> dict[str, AuditResult]:
-    """Run all 9 per-registrar audits for ``spec``.
+    """Run all 10 per-registrar audits for ``spec``.
 
     Returns a dict keyed by registrar name. Every key in
     :data:`fabrik.orchestrator.infrastructure._REGISTRAR_ORDER` is present

@@ -266,6 +266,18 @@ def resolve_applicability(spec: dict[str, Any]) -> dict[str, tuple[bool, str]]:
     # gate one-line keeps applicability honest to what the spec actually says.
     watchdog_cfg = spec.get("watchdog", {}) or {}
     if watchdog_cfg.get("enabled", True):
+        # D2 (fail-closed): the apply path is raw-dict — WatchdogConfig (and its both-caps-zero
+        # validator) is never constructed here — so enforce the cost-ceiling at resolve time. An
+        # enabled watchdog with BOTH caps zeroed is an uncapped LLM sidecar (no ceiling); reject it
+        # so `fabrik apply` aborts loudly rather than deploying it. Defaults (1.0 / 200, matching
+        # WatchdogConfig + drivers/watchdog.py) protect specs that simply omit the caps.
+        _budget = float(watchdog_cfg.get("daily_budget_usd", 1.0))
+        _inv_cap = int(watchdog_cfg.get("daily_invocations_cap", 200))
+        if _budget <= 0 and _inv_cap <= 0:
+            raise ValueError(
+                "watchdog: enabled but uncapped — set daily_budget_usd > 0 or "
+                "daily_invocations_cap > 0 (an uncapped LLM sidecar has no cost ceiling)"
+            )
         out["watchdog"] = (
             _enabled(infra, "watchdog"),
             "spec.watchdog.enabled=true"

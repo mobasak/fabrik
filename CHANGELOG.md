@@ -4,6 +4,31 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Four deploy/watchdog-lifecycle code defects (2026-07-13-plan-1) (2026-07-13)
+
+Fixed the four proven defects filed in `docs/development/plans/2026-07-13-plan-1.md` — all fail-closed, each
+with a kept regression test (`tests/orchestrator/test_plan1_defects.py`, 6 tests RED→GREEN):
+
+- **D1 — git deploys were unvalidated.** `_deploy_git` (the *standard* project path) went straight to
+  `docker compose up` without `_validate_compose`, so the memory-limit / no-host-ports / network invariants
+  were advisory in normal operation. Now it reads the compose back from the VPS (`_read_compose_from_vps`) and
+  validates before build/up. Also a deliberate decision on the long-silent gap: a compose with **no top-level
+  `networks:` block is now an error** (a service off the external `fabrik` network is unroutable by Traefik and
+  can't reach shared infra).
+- **D2 — an uncapped watchdog could deploy.** The raw-dict apply path never built `WatchdogConfig`, so its
+  both-caps-zero validator was dead — a spec with `daily_budget_usd: 0` + `daily_invocations_cap: 0` deployed
+  an LLM sidecar with no ceiling. `resolve_applicability` now rejects it (raises). Reconciled the split
+  default: the driver wrote `$5.00/day` while the model documented `$1.00`; the driver now matches
+  `WatchdogConfig` (`$1.00`).
+- **D3 — the watchdog was un-auditable.** `_AUDIT_FUNCS` had 9 entries for 10 registrars, so `audit-registrars`
+  reported the watchdog `unknown` forever. Added `audit_watchdog` (checks the `<project>-watchdog` sidecar) →
+  now 10/10.
+- **D4 — `destroy --use-state` leaked the governance dir.** `destroy_from_state` never called
+  `_destroy_watchdog_governance`, so `/var/lib/watchdog-governance/<id>` survived the `--use-state` teardown.
+  Now called, symmetric with the spec-driven destroy. Idempotent.
+
+The plan's retracted 5th "bug" (orphaned watchdog containers) was correctly disproven and left as-is.
+
 ### Fixed — tbench NULL-ranking: unbenched models no longer tie with real 0-scorers in selection sorts (2026-07-13)
 
 `COALESCE(tbench_accuracy, 0) DESC` / `none_to_zero(tbench)` in a descending sort made an UNBENCHED (NULL)

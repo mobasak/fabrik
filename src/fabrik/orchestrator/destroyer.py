@@ -757,6 +757,11 @@ def destroy_from_state(
     # These are invariant of the registrar set; always run regardless of
     # state file contents. Symmetric with destroy_deployment Steps B/C/D.
     report.actions.append(_destroy_app(spec.id, dry_run, drop_data=drop_data))
+    # D4: watchdog governance dir cleanup must NOT depend on the spec still declaring a watchdog —
+    # symmetric with destroy_deployment:598. `--use-state` is the path you reach for when the spec is
+    # already gone, so without this /var/lib/watchdog-governance/<id> leaks (accumulating stale dirs
+    # on the VPS). Already idempotent (see _destroy_watchdog_governance docstring).
+    report.actions.append(_destroy_watchdog_governance(spec.id, dry_run))
 
     if keep_dns:
         report.add("dns", "skipped", detail="--keep-dns")
