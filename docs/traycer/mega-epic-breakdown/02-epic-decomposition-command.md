@@ -67,7 +67,7 @@ This command produces the compact epic proposal + Infrastructure Decisions in co
   - `mobile-app` → read `domain-modules/mobile-app.md`
   - `desktop-app` → read `domain-modules/desktop-app.md`
   - `chrome-extension` → read `domain-modules/chrome-ext.md`
-  - `wordpress` → **out of scope for this workflow** (per `00` § Shape model). Do **NOT** load `domain-modules/wordpress.md`. If a WordPress component reaches 02, route it back to 00 for the `/opt/wpf` handoff. — per `00-trigger-workflow-command` **§ Shape model**, WordPress is out-of-scope for the mega-epic-breakdown workflow; if a WordPress component reached 02, route it back to 00 for proper handling
+  - `wordpress` → **out of scope for this workflow** (per `00` § Shape model). Do **NOT** load `domain-modules/wordpress.md`. If a WordPress component reaches 02, route it back to 00 for the `/opt/wpf` handoff.
   - If Vision Summary Technology Decisions includes **RAG pipeline** (any level) → read `domain-modules/rag.md`
   - Multi-scaffold vision (e.g., saas + mobile-app + chrome-extension) → read ALL matching modules. They inform epic patterns (mobile always has a "store submission" epic, SaaS always has "billing + tenant" epic, chrome-ext always has "backend API first, extension second" pattern, etc.). RAG module is additive — read it alongside scaffold modules when RAG is in scope.
 
@@ -206,7 +206,7 @@ Rule-pack paths above are cited directly. **fabrik-lib modules are resolved from
 
 **Overlay-merge rule — apply AFTER the 14 verdicts (handles scaffold-type overlays loaded per § Input Contract → **Domain modules**):**
 
-For each loaded scaffold overlay, walk its mandatory-coverage section — **`§ Mandatory Epic Coverage`** (`saas.md`, `mobile-app.md`), **`§ Mandatory Epic Patterns`** (`chrome-ext.md`, `desktop-app.md`), or **`§ Epic Patterns for Decomposition`** (`rag.md`). Every in-scope module has one under a different name; if you cannot find it, list the module's `##` headings and state which you used. Walk its rows (e.g., `domain-modules/saas.md § Mandatory Epic Coverage`). For each overlay row:
+For each loaded scaffold overlay, walk its mandatory-coverage section — **`§ Mandatory Epic Coverage`** (`saas.md`, `mobile-app.md`), **`§ Mandatory Epic Patterns`** (`chrome-ext.md`, `desktop-app.md`), or **`§ Epic Patterns for Decomposition`** (`rag.md`). Every in-scope module has one under a different name; if you cannot find it, list **all** the module's `##`/`###`/`####` headings (saas.md and mobile-app.md nest it at `####`) and state which you used. Walk its rows (e.g., `domain-modules/saas.md § Mandatory Epic Coverage`). For each overlay row:
 
 - Identify which universal category(ies) the overlay row satisfies (e.g., "Billing + Gating" satisfies #2 Features AND #9 Cost Guardrails).
 - If the universal category was COVERED by a candidate epic in 2a–2g AND the overlay row matches the same epic → **merge**: cite both in that epic's compact entry. No new epic created.
@@ -219,7 +219,7 @@ Loading is best-effort: if a scaffold type identified in the Vision Summary has 
 
 Produce the shared infrastructure document (≤5,000 tokens). These decisions are made ONCE here, referenced by each epic — never duplicated.
 
-**Existing mode:** Sections of Infrastructure Decisions that overlap with `Locked Decisions` from the Vision Summary (Auth Strategy, Database Strategy, Frontend, Billing, current shape block) inherit those locked values **verbatim**. Do NOT propose alternative choices for locked areas. State the inheritance explicitly: e.g., *"**Auth Strategy:** Supabase Auth Pattern B (legacy — inherited from Locked Decisions: 1,800 active users, tokens issued; plan migration to `fastapi-user-auth` Pattern A / Pattern A-compat per `AGENTS.md § Supabase`)."* New decisions are only made for components the existing project did NOT have — and new auth defaults to `fabrik-lib/fastapi-user-auth` Pattern A, never Supabase.
+**Existing mode:** Sections of Infrastructure Decisions that overlap with `Locked Decisions` from the Vision Summary (Auth Strategy, Database Strategy, Shared Shape Decisions, External Services, current shape block — there is **no** § Frontend or § Billing section) inherit those locked values **verbatim**. Do NOT propose alternative choices for locked areas. State the inheritance explicitly: e.g., *"**Auth Strategy:** Supabase Auth Pattern B (legacy — inherited from Locked Decisions: 1,800 active users, tokens issued; plan migration to `fastapi-user-auth` Pattern A / Pattern A-compat per `AGENTS.md § Supabase`)."* New decisions are only made for components the existing project did NOT have — and new auth defaults to `fabrik-lib/fastapi-user-auth` Pattern A, never Supabase.
 
 ```markdown
 # Infrastructure Decisions — Shared Across All Epics
@@ -304,7 +304,7 @@ Epic [N]: [Name]
   i18n: [⚠️ if the GUI trigger fires but the epic's scaffold is NOT in `I18N_ENABLED_TYPES` (`saas-skeleton`, `static-site`, `desktop-app`, `mobile-app`, `docusaurus`), the epic MUST carry an explicit **vendor-the-i18n-kit** step (`templates/i18n-kit/` → `scripts/`) — otherwise its Done-When cites `scripts/validate_i18n.py`, a script that scaffold will never ship. | en+tr | en-only | N/A — **feature-trigger per `00-trigger-workflow-command` § Rule-area applicability matrix**; N/A only when no HTML/native UI surface exists (pure JSON API, file-worker queue consumer). Inherited from saas overlay where applicable, but the underlying trigger is the GUI surface, NOT the scaffold type.]
   Responsive: [375px–2560px mandatory — any scaffold with a web GUI surface incl. python-api/node-api/file-api when `shape.is_admin_dashboard: true` OR `shape.is_public: true` with HTML output (feature-trigger, NOT scaffold-typed). Carve-outs: chrome-extension popup (fixed 400px), mobile-app (native UI), desktop-app (electron window sizing) — all per `00-trigger-workflow-command` § Architectural Mandates. N/A only when no HTML/native UI surface exists.]
   Dark+Light: [mandatory — same feature-trigger as Responsive above / N/A — same exclusion (no HTML/native UI surface)]
-  Registrars: [which of the 10 fire for this epic's deploy unit(s) — **7 flag-driven** (postgres, redis, gatus, backrest, authelia, meilisearch, prometheus — ⚠️ gatus, authelia and prometheus **also require `spec.domain`**; the flag alone fires nothing) + **grafana** (always) + **glitchtip** (`shape.kind`) + `watchdog` — derived from the shape block + `watchdog.enabled`]
+  Registrars: [which of the 10 fire for this epic's deploy unit(s) — **7 flag-driven** (postgres, redis, gatus, backrest, authelia, meilisearch, prometheus — ⚠️ gatus, authelia and prometheus **also require `spec.domain`**; the flag alone fires nothing) + **grafana** (always) + **glitchtip** (`shape.kind`) + `watchdog` — derived from the shape block + `watchdog.enabled`. ⚠️ **Any** registrar — grafana included — can additionally be force-disabled by `infra: { <name>: false }` in the spec (override-only gate, `infrastructure.py::_enabled`)]
   Universal categories: [comma-separated numbers from 1–14 this epic owns, per 2h verdict block]
   Abuse Detection: [required (SaaS w/ free-tier signup) / N/A — not a free-tier signup surface]
   Email: [transactional / marketing / two-stream / none / N/A]
@@ -372,7 +372,7 @@ Iterate until the owner explicitly confirms:
 
 **Produced as Traycer specs (persisted in Traycer's spec store, readable via `read_spec`):**
 
-1. **Compact Epic Proposal** (**≤400 tokens per epic; ≤4,000 tokens total**) — one entry per epic (delta-feature epics + **Retrofit epics** if Existing mode) with: scope, features, scaffold, dependencies, parallel lanes, port, delivers, rule packs, HAS_USER_GUIDE.
+1. **Compact Epic Proposal** (**≤400 tokens per epic; ≤4,000 tokens total**) — one entry per epic (delta-feature epics + **Retrofit epics** if Existing mode) with **all 22 fields per the template** (incl. Target host, Consumes, Produces — see the Acceptance Criteria for the five groups).
 2. **Infrastructure Decisions** — shared across all epics. ≤5,000 tokens. In Existing mode, overlapping sections inherit Locked Decisions verbatim.
 3. **Dependency Graph** — mermaid diagram + execution order. Retrofit epics receive dependency analysis identical to delta epics.
 4. **Coverage Check** — every feature mapped to exactly one epic.
@@ -401,7 +401,7 @@ Iterate until the owner explicitly confirms:
 - Vision Summary consumed from conversation — not re-derived.
 - Technology Decisions inherited — not re-decided.
 - Every feature from Feature Inventory assigned to exactly one epic. No orphans. No duplicates.
-- Each epic entry has: scope summary, feature list, scaffold, dependencies, parallel lanes, port, delivers, rule packs, HAS_USER_GUIDE.
+- Each epic entry has **all 22 fields** of the Compact Epic Proposal template — including **Target host**, **Consumes** and **Produces**. (Enumerating a subset here is how fields get silently dropped: the template is the contract.)
 - Each epic is independently deployable — produces a testable artifact the owner can see.
 - Epic boundaries drawn by domain, not by layer.
 - Dependencies between epics are explicit. No circular dependencies.
@@ -416,7 +416,7 @@ Iterate until the owner explicitly confirms:
 - Every "ABSORBED in Step 3 § X" verdict in 2h matches a sub-section actually drafted in Step 3.
 - Every "N/A" verdict in 2h carries an explicit trigger-not-met reason cited from the spec shape block or Vision Summary.
 - Overlay-merge rule applied: no overlay-mandated epic is duplicated by a universal-category epic, and no overlay-mandated coverage is dropped.
-- Each per-epic compact entry carries **22 indented fields** under the `Epic [N]: [Name]` heading, in four groups: (1) **9 epic-shape fields** — Scope, Features, Scaffold, Depends on, Parallel with, Port, Delivers, Rule Packs, HAS_USER_GUIDE; (2) **6 inheritance-metadata fields** — Shape, Concurrency, i18n, Responsive, Dark+Light, Registrars; (3) **Universal categories** (1 field); (4) **3 conditional fields** — Abuse Detection, Email, FINANCIALS (each carries the project-wide Infrastructure Decisions value or `N/A` per the trigger). 03's Metadata block consumes 14 of these (the 6 metadata + Scaffold + Port + Rule Packs + HAS_USER_GUIDE + Universal categories + the 3 conditionals); the remaining 5 (Scope, Features, Depends on, Parallel with, Delivers) become other sections in 03's ticket (Summary, Scope > In, Dependencies, Dependencies, Success Criteria respectively). See `03-expand-epic-files-command` Metadata block and `epic-to-ticket-workflow/01-epic-brief-command` § Metadata expectation.
+- Each per-epic compact entry carries **22 indented fields** under the `Epic [N]: [Name]` heading, in **five** groups: (1) **9 epic-shape fields** — Scope, Features, Scaffold, Depends on, Parallel with, Port, Delivers, Rule Packs, HAS_USER_GUIDE; (2) **6 inheritance-metadata fields** — Shape, Concurrency, i18n, Responsive, Dark+Light, Registrars; (3) **Universal categories** (1 field); (4) **3 conditional fields** — Abuse Detection, Email, FINANCIALS (each carries the project-wide Infrastructure Decisions value or `N/A` per the trigger); (5) **3 cross-epic-contract fields** — **Target host**, **Consumes**, **Produces**. 03's Metadata block consumes **15** of these (the 6 metadata + Scaffold + Port + **Target host** + Rule Packs + HAS_USER_GUIDE + Universal categories + the 3 conditionals); **Consumes** and **Produces** feed 03 § Dependencies (`03:102-103`); the remaining 5 (Scope, Features, Depends on, Parallel with, Delivers) become other sections in 03's ticket (Summary, Scope > In, Dependencies, Dependencies, Success Criteria respectively). See `03-expand-epic-files-command` Metadata block and `epic-to-ticket-workflow/01-epic-brief-command` § Metadata expectation.
 - Owner explicitly confirms. Silence ≠ confirmation.
 
 **Existing mode adds:**
