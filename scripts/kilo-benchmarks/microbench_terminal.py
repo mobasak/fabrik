@@ -215,7 +215,10 @@ def parse_tbench_output(out_dir: pathlib.Path) -> float:
     """Read the newest top-level results.json under out_dir → accuracy * 100.
 
     tb writes <out_dir>/<run-id>/results.json with an ``accuracy`` field
-    (0.0-1.0) = resolution pass-rate. Returns 0-100.
+    (0.0-1.0) = resolution pass-rate. Returns 0-100. Raises FileNotFoundError if
+    no results.json exists (a run that produced nothing), or ValueError if the
+    file is present but malformed — the caller treats BOTH as a model failure
+    (never crashes the cohort on a bad results.json).
     """
     candidates = sorted(
         out_dir.glob("*/results.json"),
@@ -224,8 +227,21 @@ def parse_tbench_output(out_dir: pathlib.Path) -> float:
     )
     if not candidates:
         raise FileNotFoundError(f"no run results.json under {out_dir}")
-    data = json.loads(candidates[0].read_text())
-    return float(data["accuracy"]) * 100.0
+    try:
+        data = json.loads(candidates[0].read_text())
+        return float(data["accuracy"]) * 100.0
+    except (json.JSONDecodeError, KeyError, TypeError, ValueError) as e:
+        raise ValueError(f"malformed results.json in {out_dir}: {e}") from e
+
+
+# The exception classes that mean "this model failed — skip it, don't crash the
+# cohort" (a tb non-zero exit / hang / hard-timeout, no results, or malformed output).
+MODEL_FAILURE = (
+    subprocess.CalledProcessError,
+    subprocess.TimeoutExpired,
+    FileNotFoundError,
+    ValueError,
+)
 
 
 # --- Orchestration -----------------------------------------------------------
@@ -240,14 +256,13 @@ def bench_model(
     n_attempts: int,
     agent_timeout_sec: float = 600.0,
     run_timeout_sec: float | None = None,
-) -> tuple[float, float | None]:
-    """Bench one model: balance-before → run → balance-after → parse → write.
+) -> float:
+    """Wipe out_dir → run → parse → write → return the score (0-100).
 
-    Returns ``(score_0_100, spent_usd_or_None)``. ``spent`` is ``None`` when the
-    OpenRouter balance could not be read (unknown cost — the caller must not
-    treat unknown as $0). Cohort-budget enforcement lives in ``main`` — this
-    function never raises on cost; a completed run's score is always written
-    (core/58-resilience).
+    Cost is NOT measured here — the CALLER (``main``) brackets each call with
+    balance reads, so a model that fails *after* spending credit still counts
+    toward the run budget. Raises on run/parse failure (one of ``MODEL_FAILURE``);
+    the caller logs + skips, never crashing the cohort.
 
     The output dir is wiped before the run so ``parse_tbench_output`` can only
     ever see THIS run's results.json — a re-run that produces no fresh output
@@ -258,7 +273,6 @@ def bench_model(
     if out_dir.exists():
         shutil.rmtree(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    before = _balance_or_none()
     run_one(
         model_id,
         out_dir,
@@ -270,15 +284,9 @@ def bench_model(
         agent_timeout_sec=agent_timeout_sec,
         run_timeout_sec=run_timeout_sec,
     )
-    after = _balance_or_none()
-    # Parse + WRITE the score first — a completed run's result is never lost to a
-    # cost-check failure (core/58-resilience: graceful fallback on the external call).
     score = parse_tbench_output(out_dir)
     write_tbench_score(conn, model_id, score)
-    # None (not 0, not -1) when either balance read failed — an honest "unknown"
-    # the caller distinguishes from a genuine $0 (finding: -1.0 collided with a +$1 top-up).
-    spent = (before - after) if (before is not None and after is not None) else None
-    return score, spent
+    return score
 
 
 def _build_argparser() -> argparse.ArgumentParser:
@@ -328,7 +336,9 @@ def _build_argparser() -> argparse.ArgumentParser:
         default=None,
         help="Optional HARD wall-clock cap (seconds) on a single model's whole tb process — "
         "catches a hang outside the agent loop (e.g. stalled Docker pull). Default: none "
-        "(a full task set runs for hours); a timeout is treated as a model failure + skipped.",
+        "(a full task set runs for hours); a timeout is treated as a model failure + skipped. "
+        "CAVEAT: a killed tb bypasses its own --cleanup, so a leaked task container may remain — "
+        "the next tb run or a manual `docker container prune` clears it.",
     )
     p.add_argument("--force", action="store_true", help="Re-bench even if fresh.")
     p.add_argument(
@@ -342,6 +352,15 @@ def main(argv: list[str] | None = None) -> int:
     args = _build_argparser().parse_args(argv)
     if args.cost_cap <= 0:
         print(f"error: --cost-cap must be > 0 (got {args.cost_cap})", file=sys.stderr)
+        return 2
+    # Pre-flight: a missing tb binary must surface as an infra error, not be masked
+    # as N benign per-model "skips" with a success exit code (finding pass-3).
+    if not args.dry_run and shutil.which(TB_CLI) is None:
+        print(
+            f"error: '{TB_CLI}' not on PATH — is terminal-bench installed? "
+            f"(pip install terminal-bench)",
+            file=sys.stderr,
+        )
         return 2
 
     conn = sqlite3.connect(DB_PATH)
@@ -379,12 +398,14 @@ def main(argv: list[str] | None = None) -> int:
                 file=sys.stderr,
             )
 
-        # Budget is tracked by ACCUMULATING each model's measured spend (the before/after
-        # delta around THAT model's run) — not by re-reading the global balance, which
-        # fails open on any blip. `spent is None` (balance unreadable for a model) simply
-        # doesn't add to the tally: the known spends still bound the run, and the
-        # unmeasurable portion is bounded by --n-tasks / --run-timeout (documented).
+        # Budget is tracked by ACCUMULATING each model's measured spend. `main` brackets
+        # every bench_model call with balance reads (the `finally` below) so spend counts
+        # even when a model FAILS after spending credit — the pass-2 fix tracked budget by
+        # re-reading the global balance at the loop top, which both failed open on a blip
+        # AND lost a failed model's spend. `spent is None` (balance unreadable) doesn't add:
+        # known spends still bound the run, the unmeasurable part is bounded by --n-tasks.
         cohort_spent = 0.0
+        benched_ok = 0
         for m in cohort:
             if cohort_spent >= args.cost_cap:
                 print(
@@ -394,8 +415,10 @@ def main(argv: list[str] | None = None) -> int:
                 )
                 return 1
             print(f"[terminal-bench] benching {m} … (run spend so far ${cohort_spent:.4f})")
+            before = _balance_or_none()
+            score: float | None = None
             try:
-                score, spent = bench_model(
+                score = bench_model(
                     conn,
                     m,
                     dataset=args.dataset,
@@ -406,14 +429,27 @@ def main(argv: list[str] | None = None) -> int:
                     agent_timeout_sec=args.agent_timeout,
                     run_timeout_sec=args.run_timeout,
                 )
-            except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError) as e:
-                # One model failing (tb error / hang / no results) must not kill the cohort.
+            except MODEL_FAILURE as e:
+                # tb error / hang / no-results / malformed output → skip, don't crash cohort.
                 print(f"[terminal-bench] {m} FAILED ({type(e).__name__}) — skipping", file=sys.stderr)
-                continue
-            if spent is not None:
-                cohort_spent += max(0.0, spent)  # max() ignores a mid-run top-up (negative delta)
-            spent_str = f"${spent:.4f}" if spent is not None else "unknown (balance unavailable)"
-            print(f"[terminal-bench] {m}: tbench={score:.1f} spent={spent_str}")
+            finally:
+                # Count spend whether the model succeeded OR failed-after-spending.
+                after = _balance_or_none()
+                if before is not None and after is not None:
+                    model_spent = max(0.0, before - after)  # max() ignores a mid-run top-up
+                    cohort_spent += model_spent
+                    spent_str = f"${model_spent:.4f}"
+                else:
+                    spent_str = "unknown (balance unavailable)"
+            if score is not None:
+                benched_ok += 1
+                print(f"[terminal-bench] {m}: tbench={score:.1f} spent={spent_str}")
+        if cohort and benched_ok == 0:
+            print(
+                f"[terminal-bench] FAILED — 0 of {len(cohort)} models produced a score.",
+                file=sys.stderr,
+            )
+            return 1
         return 0
     finally:
         conn.close()

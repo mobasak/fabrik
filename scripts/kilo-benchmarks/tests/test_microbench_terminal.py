@@ -60,116 +60,131 @@ def test_run_one_validates_before_dispatch(monkeypatch, tmp_path):
     assert called["ran"] is False  # never reached subprocess
 
 
-# --- Behavior 2: run (cohort) budget stops the run BEFORE the next model ------
+def _seed_main_db(tmp_path, ids):
+    seed = _mkdb(tmp_path)
+    seed.executemany(
+        "INSERT INTO agents (id, via_openrouter, status, has_tools) VALUES (?,1,'active',1)",
+        [(i,) for i in ids],
+    )
+    seed.commit()
+    seed.close()
+
+
+# --- Behavior 2: run (cohort) budget — main measures spend, counts it even on failure -
 def test_cohort_budget_stops_run_before_next_model(monkeypatch, tmp_path):
-    """--cost-cap is a run budget: main ACCUMULATES each model's measured spend and,
-    before each model, stops once the tally reaches the cap. (Honestly NOT a
-    per-model mid-flight interrupt — see the docstring.) Budget tracking uses the
-    per-model spend bench_model returns, NOT a fragile global-balance re-read."""
-    seed = _mkdb(tmp_path)
-    seed.executemany(
-        "INSERT INTO agents (id, via_openrouter, status, has_tools) VALUES (?,1,'active',1)",
-        [("vendor/m1",), ("vendor/m2",)],
-    )
-    seed.commit()
-    seed.close()
+    """main accumulates each model's measured spend (balance before/after the call)
+    and stops before the next model once the tally reaches the cap."""
+    _seed_main_db(tmp_path, ["vendor/m1", "vendor/m2"])
     monkeypatch.setattr(mt, "DB_PATH", tmp_path / "t.db")
+    monkeypatch.setattr(mt.shutil, "which", lambda x: "/usr/bin/tb")
     benched = []
-    # m1 costs $3 → cohort_spent=3 >= cap 2 → m2 never dispatched.
-    monkeypatch.setattr(mt, "bench_model", lambda conn, m, **k: benched.append(m) or (55.0, 3.0))
+    monkeypatch.setattr(mt, "bench_model", lambda conn, m, **k: benched.append(m) or 55.0)
+    # m1: before=100, after=97 → spent 3 → cohort_spent 3 >= cap 2 → STOP before m2.
+    balances = iter([100.0, 97.0])
+    monkeypatch.setattr(mt, "openrouter_balance", lambda: next(balances))
     rc = mt.main(["--models", "vendor/m1,vendor/m2", "--cost-cap", "2", "--n-tasks", "1", "--force"])
-    assert rc == 1  # stopped
-    assert benched == ["vendor/m1"]  # m2 never dispatched — accumulated spend stopped the run
+    assert rc == 1
+    assert benched == ["vendor/m1"]
 
 
-def test_cohort_budget_survives_unknown_spend(monkeypatch, tmp_path):
-    """A model whose spend is unknown (None) does not add to the tally and does NOT
-    crash the accumulation — the run continues, bounded by known spends + --n-tasks."""
-    seed = _mkdb(tmp_path)
-    seed.executemany(
-        "INSERT INTO agents (id, via_openrouter, status, has_tools) VALUES (?,1,'active',1)",
-        [("vendor/m1",), ("vendor/m2",)],
-    )
-    seed.commit()
-    seed.close()
-    monkeypatch.setattr(mt, "DB_PATH", tmp_path / "t.db")
-    benched = []
-    monkeypatch.setattr(mt, "bench_model", lambda conn, m, **k: benched.append(m) or (50.0, None))
-    rc = mt.main(["--models", "vendor/m1,vendor/m2", "--cost-cap", "2", "--n-tasks", "1", "--force"])
-    assert rc == 0
-    assert benched == ["vendor/m1", "vendor/m2"]  # unknown spend never trips the cap, no crash
-
-
-def test_one_model_failure_does_not_kill_cohort(monkeypatch, tmp_path):
-    """A single model's tb failure (CalledProcessError) is logged and skipped;
-    the remaining models still run."""
+def test_spend_counted_even_when_model_fails(monkeypatch, tmp_path):
+    """Finding (pass-3): a model that FAILS after spending credit must still have
+    that spend counted toward the run budget — main brackets the call, so the
+    failed model's $spend blocks the next model."""
     import subprocess as _sp
 
-    seed = _mkdb(tmp_path)
-    seed.executemany(
-        "INSERT INTO agents (id, via_openrouter, status, has_tools) VALUES (?,1,'active',1)",
-        [("vendor/bad",), ("vendor/good",)],
-    )
-    seed.commit()
-    seed.close()
+    _seed_main_db(tmp_path, ["vendor/bad", "vendor/m2"])
     monkeypatch.setattr(mt, "DB_PATH", tmp_path / "t.db")
+    monkeypatch.setattr(mt.shutil, "which", lambda x: "/usr/bin/tb")
     benched = []
 
     def fake_bench(conn, m, **k):
         if m == "vendor/bad":
-            raise _sp.CalledProcessError(1, ["tb"])
+            raise _sp.CalledProcessError(1, ["tb"])  # fails AFTER spending
         benched.append(m)
-        return (60.0, 0.1)
+        return 60.0
+
+    monkeypatch.setattr(mt, "bench_model", fake_bench)
+    # bad: before=100, after=96 → spent 4 counted DESPITE the failure → 4 >= cap 3 → STOP before m2
+    balances = iter([100.0, 96.0])
+    monkeypatch.setattr(mt, "openrouter_balance", lambda: next(balances))
+    rc = mt.main(["--models", "vendor/bad,vendor/m2", "--cost-cap", "3", "--n-tasks", "1", "--force"])
+    assert rc == 1
+    assert benched == []  # m2 blocked by the FAILED model's counted spend
+
+
+def test_cohort_budget_survives_unknown_spend(monkeypatch, tmp_path):
+    """Unknown spend (balance unreadable) doesn't add to the tally and doesn't crash."""
+    _seed_main_db(tmp_path, ["vendor/m1", "vendor/m2"])
+    monkeypatch.setattr(mt, "DB_PATH", tmp_path / "t.db")
+    monkeypatch.setattr(mt.shutil, "which", lambda x: "/usr/bin/tb")
+    benched = []
+    monkeypatch.setattr(mt, "bench_model", lambda conn, m, **k: benched.append(m) or 50.0)
+    monkeypatch.setattr(mt, "openrouter_balance", lambda: (_ for _ in ()).throw(mt.httpx.HTTPError("down")))
+    rc = mt.main(["--models", "vendor/m1,vendor/m2", "--cost-cap", "2", "--n-tasks", "1", "--force"])
+    assert rc == 0
+    assert benched == ["vendor/m1", "vendor/m2"]  # no cap trip, no crash
+
+
+def test_one_model_failure_does_not_kill_cohort(monkeypatch, tmp_path):
+    """A single model's failure (tb error / malformed output) is skipped; others run."""
+    _seed_main_db(tmp_path, ["vendor/bad", "vendor/good"])
+    monkeypatch.setattr(mt, "DB_PATH", tmp_path / "t.db")
+    monkeypatch.setattr(mt.shutil, "which", lambda x: "/usr/bin/tb")
+    monkeypatch.setattr(mt, "openrouter_balance", lambda: 100.0)  # spent 0
+    benched = []
+
+    def fake_bench(conn, m, **k):
+        if m == "vendor/bad":
+            raise ValueError("malformed results.json")  # parse-error class
+        benched.append(m)
+        return 60.0
 
     monkeypatch.setattr(mt, "bench_model", fake_bench)
     rc = mt.main(["--models", "vendor/bad,vendor/good", "--cost-cap", "9", "--n-tasks", "1", "--force"])
     assert rc == 0
-    assert benched == ["vendor/good"]  # bad skipped, good still benched
+    assert benched == ["vendor/good"]
 
 
-def test_score_survives_balance_check_failure(monkeypatch, tmp_path):
-    """core/58-resilience regression: a credits-API blip must NOT lose a
-    completed, paid-for bench — the score is still written; spent is None (unknown)."""
-    conn = _mkdb(tmp_path)
-    conn.execute(
-        "INSERT INTO agents (id, via_openrouter, status, has_tools) VALUES (?,1,'active',1)",
-        ("vendor/m1",),
+def test_all_models_fail_returns_nonzero(monkeypatch, tmp_path):
+    """If a non-empty cohort produces 0 scores, the run reports failure (exit 1),
+    not a misleading success."""
+    import subprocess as _sp
+
+    _seed_main_db(tmp_path, ["vendor/a", "vendor/b"])
+    monkeypatch.setattr(mt, "DB_PATH", tmp_path / "t.db")
+    monkeypatch.setattr(mt.shutil, "which", lambda x: "/usr/bin/tb")
+    monkeypatch.setattr(mt, "openrouter_balance", lambda: 100.0)
+    monkeypatch.setattr(
+        mt, "bench_model", lambda conn, m, **k: (_ for _ in ()).throw(_sp.CalledProcessError(1, ["tb"]))
     )
+    rc = mt.main(["--models", "vendor/a,vendor/b", "--cost-cap", "9", "--n-tasks", "1", "--force"])
+    assert rc == 1
+
+
+def test_missing_tb_binary_returns_2(monkeypatch, tmp_path):
+    """A missing tb binary is an infra error (exit 2), not masked as benign skips."""
+    _seed_main_db(tmp_path, ["vendor/m1"])
+    monkeypatch.setattr(mt, "DB_PATH", tmp_path / "t.db")
+    monkeypatch.setattr(mt.shutil, "which", lambda x: None)  # tb not installed
+    rc = mt.main(["--models", "vendor/m1", "--n-tasks", "1", "--force"])
+    assert rc == 2
+
+
+def test_bench_model_returns_score_and_writes(monkeypatch, tmp_path):
+    """bench_model runs → parses → writes → returns the float score (cost is the
+    caller's concern now, so bench_model no longer reads the balance)."""
+    conn = _mkdb(tmp_path)
+    conn.execute("INSERT INTO agents (id, status) VALUES ('vendor/m1','active')")
     conn.commit()
     monkeypatch.setattr(mt, "CACHE_DIR", tmp_path)
-
-    def boom():
-        raise mt.httpx.HTTPError("credits API down")
-
-    monkeypatch.setattr(mt, "openrouter_balance", boom)
-    monkeypatch.setattr(mt, "run_one", lambda *a, **k: tmp_path)
-    monkeypatch.setattr(mt, "parse_tbench_output", lambda d: 48.0)
-    score, spent = mt.bench_model(
-        conn, "vendor/m1", dataset=mt.TB_DATASET, n_tasks=1, task_id=None, n_concurrent=1, n_attempts=1
-    )
-    assert score == 48.0  # score written despite balance failure
-    assert spent is None  # honest "unknown", NOT 0 and NOT -1.0 (no top-up collision)
-    row = conn.execute("SELECT tbench_accuracy FROM agents WHERE id='vendor/m1'").fetchone()
-    assert row[0] == 48.0
-
-
-def test_bench_model_reports_spend_delta(monkeypatch, tmp_path):
-    conn = _mkdb(tmp_path)
-    conn.execute(
-        "INSERT INTO agents (id, via_openrouter, status, has_tools) VALUES (?,1,'active',1)",
-        ("vendor/m1",),
-    )
-    conn.commit()
-    monkeypatch.setattr(mt, "CACHE_DIR", tmp_path)
-    balances = iter([100.0, 99.5])  # spent 0.5
-    monkeypatch.setattr(mt, "openrouter_balance", lambda: next(balances))
     monkeypatch.setattr(mt, "run_one", lambda *a, **k: tmp_path)
     monkeypatch.setattr(mt, "parse_tbench_output", lambda d: 42.0)
-    score, spent = mt.bench_model(
+    score = mt.bench_model(
         conn, "vendor/m1", dataset=mt.TB_DATASET, n_tasks=1, task_id=None, n_concurrent=1, n_attempts=1
     )
     assert score == 42.0
-    assert round(spent, 2) == 0.5
+    assert conn.execute("SELECT tbench_accuracy FROM agents WHERE id='vendor/m1'").fetchone()[0] == 42.0
 
 
 def test_stale_score_not_written_on_empty_rerun(monkeypatch, tmp_path):
@@ -182,21 +197,17 @@ def test_stale_score_not_written_on_empty_rerun(monkeypatch, tmp_path):
     )
     conn.commit()
     monkeypatch.setattr(mt, "CACHE_DIR", tmp_path)
-    monkeypatch.setattr(mt, "openrouter_balance", lambda: 100.0)  # no real network GET
-    # seed a STALE prior run dir under the model's out_dir
+    # seed a STALE prior run dir; bench_model wipes out_dir first, so parse finds nothing
     stale = tmp_path / "tb_run_vendor_m1" / "old-run"
     stale.mkdir(parents=True)
     (stale / "results.json").write_text(json.dumps({"accuracy": 0.99}))
-    # run_one writes nothing new (simulates all-tasks-errored) — but bench_model wipes out_dir first
     monkeypatch.setattr(mt, "run_one", lambda *a, **k: k.get("out_dir") or a[1])
     with pytest.raises(FileNotFoundError):
         mt.bench_model(
             conn, "vendor/m1", dataset=mt.TB_DATASET, n_tasks=1, task_id=None,
             n_concurrent=1, n_attempts=1,
         )
-    # the stale 77.0 was NOT overwritten with the old 99
-    row = conn.execute("SELECT tbench_accuracy FROM agents WHERE id='vendor/m1'").fetchone()
-    assert row[0] == 77.0
+    assert conn.execute("SELECT tbench_accuracy FROM agents WHERE id='vendor/m1'").fetchone()[0] == 77.0
 
 
 # --- Behavior 3: pass-rate parse correct -------------------------------------
@@ -215,6 +226,19 @@ def test_parse_tbench_output_partial(tmp_path):
         json.dumps({"accuracy": 0.643, "n_resolved": 57, "n_unresolved": 32})
     )
     assert mt.parse_tbench_output(tmp_path) == pytest.approx(64.3)
+
+
+def test_parse_tbench_output_malformed_raises_valueerror(tmp_path):
+    """A present-but-malformed results.json → ValueError (a MODEL_FAILURE the
+    cohort loop catches), never an uncaught JSONDecodeError/KeyError crash."""
+    run = tmp_path / "run"
+    run.mkdir()
+    (run / "results.json").write_text("{not json")
+    with pytest.raises(ValueError):
+        mt.parse_tbench_output(tmp_path)
+    (run / "results.json").write_text(json.dumps({"no_accuracy_key": 1}))
+    with pytest.raises(ValueError):
+        mt.parse_tbench_output(tmp_path)
 
 
 def test_parse_tbench_output_missing_raises(tmp_path):
@@ -292,9 +316,10 @@ def test_all_keyword_any_case_or_mixed_selects_full_cohort(monkeypatch, tmp_path
     seed.commit()
     seed.close()
     monkeypatch.setattr(mt, "DB_PATH", tmp_path / "t.db")  # main() opens/closes this real file
+    monkeypatch.setattr(mt.shutil, "which", lambda x: "/usr/bin/tb")
     seen = {}
     monkeypatch.setattr(
-        mt, "bench_model", lambda conn, m, **k: seen.setdefault("models", []).append(m) or (1.0, 0.0)
+        mt, "bench_model", lambda conn, m, **k: seen.setdefault("models", []).append(m) or 1.0
     )
     monkeypatch.setattr(mt, "openrouter_balance", lambda: 100.0)
     for arg in ("all", "All", "a/x,ALL"):
