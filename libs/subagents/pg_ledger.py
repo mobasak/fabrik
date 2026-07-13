@@ -87,8 +87,14 @@ def _outbox_path(outbox_dir: str | None) -> Path:
     """The store-and-forward outbox file. Co-located with the ledger under ``<repo>/.tmp/subagents``
     (or ``outbox_dir`` if given). Scored rows land here when the DB is UNREACHABLE (no DSN in dev,
     or a transient failure) so the quality verdict is never lost — :func:`flush_outbox` replays them
-    from a machine that CAN reach ``postgres-main`` (the hub)."""
-    base = Path(outbox_dir) if outbox_dir else Path(".tmp") / "subagents"
+    from a machine that CAN reach ``postgres-main`` (the hub). Env ``SUBAGENT_OUTBOX_DIR`` overrides the
+    cwd-relative default — the suite sets it to a tmp dir so a test can never append FIXTURE rows to the
+    real outbox (they were being flushed into the shared flywheel as bogus `project="unknown"` runs)."""
+    base = (
+        Path(outbox_dir)
+        if outbox_dir
+        else Path(os.getenv("SUBAGENT_OUTBOX_DIR") or Path(".tmp") / "subagents")
+    )
     return base / "pg_outbox.jsonl"
 
 

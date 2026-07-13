@@ -165,6 +165,7 @@
 - [scripts/sync_gatus_to_vps.sh](INDEX.md): Sync /opt/fabrik/configs/gatus/ → vps1's /opt/monitoring/configs/gatus/.
 - [scripts/sync_prometheus_to_vps.sh](INDEX.md): Sync /opt/fabrik/configs/prometheus/ → vps1's /opt/monitoring/configs/prometheus/.
 - [scripts/sync_schema_to_projects.py](INDEX.md): Sync db/schema.sql to all /opt projects that don't have it.
+- [scripts/sysadmin/ensure-apprise-alerts-config.sh](INDEX.md): ensure-apprise-alerts-config.sh — guarantee Apprise's stateful "alerts" config exists. Idempotent.
 - [scripts/traycer_agent_review.py](INDEX.md): Traycer Agent Auto-Review Wrapper
 - [scripts/traycer_write_report.py](INDEX.md): Traycer Report Writer
 - [scripts/update_agents_toc.py](INDEX.md): Update AGENTS.md Table of Contents
@@ -247,7 +248,7 @@
 - [static-site](docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md): project scaffold
 
 ## rules-pack
-- [ai/00-ai-model-selection.md](.windsurf/rules/ai/00-ai-model-selection.md): AI model & tool selection INDEX — match the task to one of 16 categories, prefer specialized vendors over general LLMs, pick the cheapest gateway (Kilo CLI and 
+- [ai/00-ai-model-selection.md](.windsurf/rules/ai/00-ai-model-selection.md): AI model & tool selection INDEX — match the task to one of 16 categories, prefer specialized vendors over general LLMs, pick the cheapest gateway (Kilo CLI and
 - [ai/10-speech-audio.md](.windsurf/rules/ai/10-speech-audio.md): Speech & Audio AI (category 1) — transcription (Soniox/Whisper), TTS (Soniox default for multilingual/faithful, ElevenLabs for expressive), voice cloning, audio
 - [ai/20-vision.md](.windsurf/rules/ai/20-vision.md): Vision AI (category 2) — image gen (Recraft v4.1 for branded/recurring-style/vector, FLUX-schnell for bulk illustration, FLUX/BFL for photoreal, Replicate as ho
 - [ai/25-3d-generation.md](.windsurf/rules/ai/25-3d-generation.md): 3D asset generation — automated zero-edit mesh/asset pipeline (GLB/FBX/OBJ/STL/USDZ). Provider routing by asset type (Meshy/Tripo/Rodin/TRELLIS 2), mandatory he
@@ -270,7 +271,7 @@
 - [core/42-docusaurus.md](.windsurf/rules/core/42-docusaurus.md): Docusaurus discipline — MDX, sidebar org, versioning, search, deployment, content quality
 - [core/45-testing-strategy.md](.windsurf/rules/core/45-testing-strategy.md): Testing strategy — what to test per ticket type, smoke vs integration, regression rules
 - [core/50-code-review.md](.windsurf/rules/core/50-code-review.md): Code review workflow, quality gate commands, and reusability discipline. Apply when running a self-review/gate, closing a milestone, deciding what tests to writ
-- [core/55-observability.md](.windsurf/rules/core/55-observability.md): Observability discipline — structured logs, correlation IDs, health/readiness, metrics, alert thresholds, crash reporting
+- [core/55-observability.md](.windsurf/rules/core/55-observability.md): Observability discipline — structured logs (stdout only, no logfiles), correlation IDs, health/readiness, metrics, alert thresholds, crash reporting
 - [core/58-resilience.md](.windsurf/rules/core/58-resilience.md): Resilience contract — timeout/retry/circuit-breaker for all services, plus autonomous pause-state/queue-bloat for workers
 - [core/60-watchdog.md](.windsurf/rules/core/60-watchdog.md): Watchdog sidecar contract — when to enable, how Tier A/B/C/D act, OAuth inheritance, fail-safe emitter, cost ceilings
 - [core/62-using-subagents.md](.windsurf/rules/core/62-using-subagents.md): How to dispatch subagents — the two runtimes, per-task tool access (Claude Code agent-types vs pool web_tools/mcp_servers), the never-route safety list, the mcp

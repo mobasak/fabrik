@@ -215,6 +215,14 @@ def _path_matches(path: str, glob: str) -> bool:
     return _compiled_glob(glob).match(path) is not None
 
 
+def out_of_scope_paths(paths: list[str], owned_paths: list[str]) -> list[str]:
+    """The paths matching NO owned glob (empty ``owned_paths`` ⇒ unrestricted ⇒ ``[]``). Names the
+    offenders so an ``out_of_scope`` result is actionable instead of an audit."""
+    if not owned_paths:
+        return []
+    return [p for p in paths if not any(_path_matches(p, g) for g in owned_paths)]
+
+
 def paths_in_scope(paths: list[str], owned_paths: list[str]) -> bool:
     """True if every path matches ≥1 owned glob. Empty ``owned_paths`` ⇒ True
     (unrestricted). This is the authoritative scope check (pair with

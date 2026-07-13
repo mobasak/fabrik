@@ -53,10 +53,11 @@ from .select import (
 # `SUBAGENTS_NO_AUTOLOAD=1`.
 if _os.getenv("SUBAGENTS_NO_AUTOLOAD") != "1":
     try:
-        # Only the KEY — it's the "can I dispatch?" signal a pre-check false-negatives on. The DSN
-        # and web-tool keys stay loaded by run_agents(repo=…) at dispatch, so import has no effect on
-        # recording/tooling behaviour (and doesn't perturb tests that assume the no-DSN outbox default).
-        load_env(_os.getcwd(), keys=("OPENROUTER_API_KEY",))
+        # The FULL curated set (key + SUBAGENT_RUNS_DSN + web-tool keys). Key-only wasn't enough: a
+        # standalone record_agent_run/set_quality (no run_agents call) then had no DSN and silently
+        # buffered to the outbox instead of recording live. Tests are unaffected — conftest sets
+        # SUBAGENTS_NO_AUTOLOAD=1 before any test imports this module.
+        load_env(_os.getcwd())
     except Exception:  # noqa: BLE001 — import must never fail on a best-effort env autoload
         pass
 

@@ -458,12 +458,24 @@ async def _run_one(
                     # scope-check any run that produced work (done OR capped) — a
                     # capped agent can still have written outside its bounds. Uses
                     # the authoritative git path list (handles renames/quoted/mode).
-                    if status in ("done", "capped") and not workspace.paths_in_scope(
-                        paths, spec.owned_paths
-                    ):
-                        status = "out_of_scope"
+                    stray: list[str] = []
+                    if status in ("done", "capped"):
+                        stray = workspace.out_of_scope_paths(paths, spec.owned_paths)
+                        if stray:
+                            status = "out_of_scope"
                     err = outcome.error
-                    if status == "capped" and not err:
+                    if status == "out_of_scope":
+                        # FAIL-CLOSED: withhold the diff. A caller that applies `r.diff` without
+                        # checking `r.status` then CANNOT contaminate its repo — which is exactly how
+                        # an out-of-scope agent's helper scripts once landed in a real one. Name the
+                        # offenders so the caller doesn't have to audit.
+                        diff = ""
+                        err = (
+                            f"out_of_scope: wrote {stray} outside owned_paths={spec.owned_paths}. "
+                            "Diff WITHHELD (nothing to apply). Re-run with corrected owned_paths or a "
+                            "tighter task."
+                        )
+                    elif status == "capped" and not err:
                         # A cap means the diff/text is PARTIAL. Put WHY + the fix IN the result —
                         # the orchestrator always inspects AgentResult, but won't re-read the docs
                         # (limited context / compaction). `turns` distinguishes a provider stall
@@ -917,7 +929,9 @@ def fanout(
                 if retry_list and (
                     retry_list[0].out_tokens > 0 or retry_list[0].status == "done"
                 ):
-                    results[i] = retry_list[0]  # recovered on a healthy provider this time
+                    results[i] = retry_list[
+                        0
+                    ]  # recovered on a healthy provider this time
 
     if record and project:
         for spec, r in zip(specs, results, strict=True):
