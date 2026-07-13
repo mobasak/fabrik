@@ -116,7 +116,7 @@ def select_for_category(
     # given the file is hub-only, but defense-in-depth).
     sort_clauses = {
         "input_cost_per_m ASC": "a.input_cost_per_m ASC",
-        "tbench_accuracy DESC": "COALESCE(a.tbench_accuracy, 0) DESC",
+        "tbench_accuracy DESC": "a.tbench_accuracy DESC",  # NULL last (SQLite) — unbenched below real 0, not tied
         "context_window_k DESC": "a.context_window_k DESC",
     }
     if sort_key not in sort_clauses:

@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — tbench NULL-ranking: unbenched models no longer tie with real 0-scorers in selection sorts (2026-07-13)
+
+`COALESCE(tbench_accuracy, 0) DESC` / `none_to_zero(tbench)` in a descending sort made an UNBENCHED (NULL)
+model tie with a genuinely-measured 0% model — so an unmeasured model ranked identically to one proven bad at
+terminal tasks. Fixed the sort sites to place NULL strictly last (below real 0): `category_selector.py`
+(`a.tbench_accuracy DESC`), `llm_selector.py` (tiebreaker), and `compute_assignments.py` (extracted testable
+`_null_last`/`filter_ge70`/`rank_testing_pool` helpers; the testing-role pool is not tbench-filtered so NULL
+reached the sort). The `>=70` hard-min filters and the `pre_filter.py` composite score are intentionally
+UNCHANGED — NULL→0 is correct there. This is the footgun that made a manual `ORDER BY COALESCE(tbench,0)` bury
+the newest models earlier this session.
+
 ### Added — microbench_terminal.py: home-run Terminal-Bench (Linux-sysadmin) scoring for OpenRouter models (2026-07-13)
 
 `scripts/kilo-benchmarks/microbench_terminal.py` — sibling of `microbench_coding.py`. Shells out to the

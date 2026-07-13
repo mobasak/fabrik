@@ -176,7 +176,9 @@ Trivia skipped: argparse `--help`, docstring format, print wording.
 
 ---
 
-## Phase C — NULL-ranking per-site fix + docs convergence
+## Phase C — NULL-ranking per-site fix + docs convergence — ✅ EXECUTED 2026-07-13
+
+**Execution notes:** Per-site adjudication (from reading `compute_assignments.py` fully) refined the plan's classification: **:29, :60 operate on already-`>=70`-filtered pools** (no NULL reaches them) — fixed for consistency but behavior-neutral; **:87, :98 are the real bugs** (the testing-role pool is only `has_tools AND is_agentic`-filtered, so NULL reached the sort and tied with real 0). SQL fix = drop `COALESCE(...,0)` → `tbench_accuracy DESC` (SQLite sorts NULL last, verified empirically). Extracted `_null_last`/`filter_ge70`/`rank_testing_pool` module-level helpers for testability. `>=70` filters (`:26,:57`) + `pre_filter.py:136` composite left unchanged (NULL→0 correct there), guarded by `test_hard_min_filter_still_excludes_unbenched`. `docs/README.md` didn't exist → the reference doc was indexed in `INDEX.md` (the canonical file index) instead. 6 null-ranking tests + 24 runner tests = 30 green.
 
 **Deliverable:** tbench-ordered ranking no longer buries unbenched models as tied-with-0; hard-min filters + composite score left correct; docs converged.
 

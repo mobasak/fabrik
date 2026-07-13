@@ -180,7 +180,7 @@ def select_llm(
     sql_parts.append(
         f"ORDER BY {cost_col} ASC, "
         "COALESCE(arena_elo, 0) DESC, "
-        "COALESCE(tbench_accuracy, 0) DESC, "
+        "tbench_accuracy DESC, "  # NULL last (SQLite) — unbenched below real 0, not tied
         "id ASC"
     )
     sql_parts.append("LIMIT 1")
