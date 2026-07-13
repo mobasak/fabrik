@@ -652,7 +652,7 @@ R2. [Retrofit: add responsive design] — [description] (medium)
 - Email (marketing): [Resend Broadcasts → Listmonk+SES / none]
 - Background processing: [file-worker needed? what runs async]
 - Scaffold types: [any NEW scaffold types — e.g., adding mobile-app alongside existing saas-skeleton]
-- Watchdog sidecar + cost-budget: [enable for new paid-AI-API callers? Per-project `daily_budget_usd` + `daily_invocations_cap` per `cost-budget.md`]
+- Watchdog sidecar + cost-budget: [**accept-defaults** ($5.00/day + 200 calls — what a delta silently inherits) / **raise** (state per-project `daily_budget_usd` + `daily_invocations_cap` per `cost-budget.md`) / **opt-out** (`watchdog: {enabled: false}`)] — ⚠️ state one of the three; "enable? yes/no" cannot express the accept-vs-raise distinction #28 requires.
 - Target host (per new service, YAML `target_vps:`): [`vps1` (hub, default) / `vps2` / `vps3` (spoke)]
 - Deploy target: VPS via fabrik apply / SSH + Docker Compose (confirmed — same as existing services)
 - Domain structure: [any NEW subdomains needed for the new capability]
@@ -685,7 +685,7 @@ one Retrofit epic per Fix-now item, alongside the delta-feature epics.]
 - Budget: [status]
 - [etc.]
 
-## Out of Scope
+## Out of Scope (Vision Level)
 [What we are NOT changing in the existing codebase — be specific]
 - Existing [X] feature — not being modified
 - Existing [Y] architecture — not being refactored
