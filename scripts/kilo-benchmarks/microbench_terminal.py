@@ -99,7 +99,10 @@ def _balance_or_none() -> float | None:
     try:
         return openrouter_balance()
     except (httpx.HTTPError, KeyError, ValueError, RuntimeError) as e:
-        print(f"[terminal-bench] balance check failed ({e}); cost-cap skipped this model", file=sys.stderr)
+        print(
+            f"[terminal-bench] balance check failed ({e}); cost-cap skipped this model",
+            file=sys.stderr,
+        )
         return None
 
 
@@ -165,13 +168,20 @@ def run_one(
     """
     _validate_model_id(model_id)
     argv = [
-        TB_CLI, "run",
-        "-a", TB_AGENT,
-        "-m", f"openrouter/{model_id}",
-        "-d", dataset,
-        "--n-concurrent", str(n_concurrent),
-        "--n-attempts", str(n_attempts),
-        "--output-path", str(out_dir),
+        TB_CLI,
+        "run",
+        "-a",
+        TB_AGENT,
+        "-m",
+        f"openrouter/{model_id}",
+        "-d",
+        dataset,
+        "--n-concurrent",
+        str(n_concurrent),
+        "--n-attempts",
+        str(n_attempts),
+        "--output-path",
+        str(out_dir),
         "--no-upload-results",
         "--cleanup",
     ]
@@ -223,9 +233,13 @@ def bench_model(
     out_dir.mkdir(parents=True, exist_ok=True)
     before = _balance_or_none()
     run_one(
-        model_id, out_dir,
-        dataset=dataset, n_tasks=n_tasks, task_id=task_id,
-        n_concurrent=n_concurrent, n_attempts=n_attempts,
+        model_id,
+        out_dir,
+        dataset=dataset,
+        n_tasks=n_tasks,
+        task_id=task_id,
+        n_concurrent=n_concurrent,
+        n_attempts=n_attempts,
     )
     after = _balance_or_none()
     # Parse + WRITE the score first — a completed run's result is never lost to a
@@ -253,14 +267,22 @@ def _build_argparser() -> argparse.ArgumentParser:
         help="Comma-separated model ids. Default: the unbenched sysadmin cohort "
         f"({','.join(DEFAULT_MODELS)}); pass 'all' for every tool-capable OR model.",
     )
-    p.add_argument("--cost-cap", type=float, default=5.0, help="Per-model USD ceiling (default 5.0).")
+    p.add_argument(
+        "--cost-cap", type=float, default=5.0, help="Per-model USD ceiling (default 5.0)."
+    )
     p.add_argument("--dataset", default=TB_DATASET, help=f"tb dataset (default {TB_DATASET}).")
-    p.add_argument("--n-tasks", type=int, default=None, help="Limit tasks per model (default: full set).")
+    p.add_argument(
+        "--n-tasks", type=int, default=None, help="Limit tasks per model (default: full set)."
+    )
     p.add_argument("--task-id", default=None, help="Task id/glob to run (overrides --n-tasks).")
     p.add_argument("--n-concurrent", type=int, default=4, help="Concurrent trials (default 4).")
-    p.add_argument("--n-attempts", type=int, default=1, help="Attempts (trials) per task (default 1).")
+    p.add_argument(
+        "--n-attempts", type=int, default=1, help="Attempts (trials) per task (default 1)."
+    )
     p.add_argument("--force", action="store_true", help="Re-bench even if fresh.")
-    p.add_argument("--dry-run", action="store_true", help="Print the dispatch plan + estimate; call no model.")
+    p.add_argument(
+        "--dry-run", action="store_true", help="Print the dispatch plan + estimate; call no model."
+    )
     return p
 
 
@@ -283,8 +305,10 @@ def main(argv: list[str] | None = None) -> int:
 
         if args.dry_run:
             print(f"[dry-run] would bench {len(cohort)} model(s) on {args.dataset}")
-            print(f"[dry-run] agent={TB_AGENT} n_concurrent={args.n_concurrent} "
-                  f"n_attempts={args.n_attempts} cost_cap=${args.cost_cap:.2f}/model")
+            print(
+                f"[dry-run] agent={TB_AGENT} n_concurrent={args.n_concurrent} "
+                f"n_attempts={args.n_attempts} cost_cap=${args.cost_cap:.2f}/model"
+            )
             for m in cohort:
                 print(f"[dry-run]   {TB_CLI} run -a {TB_AGENT} -m openrouter/{m} -d {args.dataset}")
             print("[dry-run] no OpenRouter calls made.")
@@ -298,10 +322,14 @@ def main(argv: list[str] | None = None) -> int:
             print(f"[terminal-bench] benching {m} …")
             try:
                 score, spent = bench_model(
-                    conn, m,
-                    cost_cap=args.cost_cap, dataset=args.dataset,
-                    n_tasks=args.n_tasks, task_id=args.task_id,
-                    n_concurrent=args.n_concurrent, n_attempts=args.n_attempts,
+                    conn,
+                    m,
+                    cost_cap=args.cost_cap,
+                    dataset=args.dataset,
+                    n_tasks=args.n_tasks,
+                    task_id=args.task_id,
+                    n_concurrent=args.n_concurrent,
+                    n_attempts=args.n_attempts,
                 )
                 print(f"[terminal-bench] {m}: tbench={score:.1f} spent=${spent:.4f}")
             except RuntimeError as e:

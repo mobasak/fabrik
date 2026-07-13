@@ -63,8 +63,10 @@ def test_run_one_validates_before_dispatch(monkeypatch, tmp_path):
 # --- Behavior 2: cost cap aborts a runaway -----------------------------------
 def test_cost_cap_aborts_when_spend_exceeds(monkeypatch, tmp_path):
     conn = _mkdb(tmp_path)
-    conn.execute("INSERT INTO agents (id, via_openrouter, status, has_tools) VALUES (?,1,'active',1)",
-                 ("vendor/m1",))
+    conn.execute(
+        "INSERT INTO agents (id, via_openrouter, status, has_tools) VALUES (?,1,'active',1)",
+        ("vendor/m1",),
+    )
     conn.commit()
     monkeypatch.setattr(mt, "CACHE_DIR", tmp_path)
     # balance: 100 before, 90 after → spent 10 > cap 2
@@ -73,8 +75,16 @@ def test_cost_cap_aborts_when_spend_exceeds(monkeypatch, tmp_path):
     monkeypatch.setattr(mt, "run_one", lambda *a, **k: tmp_path)
     monkeypatch.setattr(mt, "parse_tbench_output", lambda d: 55.0)
     with pytest.raises(RuntimeError, match="cost cap breached"):
-        mt.bench_model(conn, "vendor/m1", cost_cap=2.0, dataset=mt.TB_DATASET,
-                       n_tasks=1, task_id=None, n_concurrent=1, n_attempts=1)
+        mt.bench_model(
+            conn,
+            "vendor/m1",
+            cost_cap=2.0,
+            dataset=mt.TB_DATASET,
+            n_tasks=1,
+            task_id=None,
+            n_concurrent=1,
+            n_attempts=1,
+        )
     # score still written before the raise
     row = conn.execute("SELECT tbench_accuracy FROM agents WHERE id='vendor/m1'").fetchone()
     assert row[0] == 55.0
@@ -84,8 +94,10 @@ def test_score_survives_balance_check_failure(monkeypatch, tmp_path):
     """core/58-resilience regression: a credits-API blip must NOT lose a
     completed, paid-for bench — the score is still written; cost-cap is skipped."""
     conn = _mkdb(tmp_path)
-    conn.execute("INSERT INTO agents (id, via_openrouter, status, has_tools) VALUES (?,1,'active',1)",
-                 ("vendor/m1",))
+    conn.execute(
+        "INSERT INTO agents (id, via_openrouter, status, has_tools) VALUES (?,1,'active',1)",
+        ("vendor/m1",),
+    )
     conn.commit()
     monkeypatch.setattr(mt, "CACHE_DIR", tmp_path)
 
@@ -95,8 +107,16 @@ def test_score_survives_balance_check_failure(monkeypatch, tmp_path):
     monkeypatch.setattr(mt, "openrouter_balance", boom)
     monkeypatch.setattr(mt, "run_one", lambda *a, **k: tmp_path)
     monkeypatch.setattr(mt, "parse_tbench_output", lambda d: 48.0)
-    score, spent = mt.bench_model(conn, "vendor/m1", cost_cap=0.01, dataset=mt.TB_DATASET,
-                                  n_tasks=1, task_id=None, n_concurrent=1, n_attempts=1)
+    score, spent = mt.bench_model(
+        conn,
+        "vendor/m1",
+        cost_cap=0.01,
+        dataset=mt.TB_DATASET,
+        n_tasks=1,
+        task_id=None,
+        n_concurrent=1,
+        n_attempts=1,
+    )
     assert score == 48.0  # score written despite balance failure
     assert spent == -1.0  # cost unknown → cap not enforced (no false breach)
     row = conn.execute("SELECT tbench_accuracy FROM agents WHERE id='vendor/m1'").fetchone()
@@ -105,16 +125,26 @@ def test_score_survives_balance_check_failure(monkeypatch, tmp_path):
 
 def test_cost_cap_ok_when_under(monkeypatch, tmp_path):
     conn = _mkdb(tmp_path)
-    conn.execute("INSERT INTO agents (id, via_openrouter, status, has_tools) VALUES (?,1,'active',1)",
-                 ("vendor/m1",))
+    conn.execute(
+        "INSERT INTO agents (id, via_openrouter, status, has_tools) VALUES (?,1,'active',1)",
+        ("vendor/m1",),
+    )
     conn.commit()
     monkeypatch.setattr(mt, "CACHE_DIR", tmp_path)
     balances = iter([100.0, 99.5])  # spent 0.5 < cap 2
     monkeypatch.setattr(mt, "openrouter_balance", lambda: next(balances))
     monkeypatch.setattr(mt, "run_one", lambda *a, **k: tmp_path)
     monkeypatch.setattr(mt, "parse_tbench_output", lambda d: 42.0)
-    score, spent = mt.bench_model(conn, "vendor/m1", cost_cap=2.0, dataset=mt.TB_DATASET,
-                                  n_tasks=1, task_id=None, n_concurrent=1, n_attempts=1)
+    score, spent = mt.bench_model(
+        conn,
+        "vendor/m1",
+        cost_cap=2.0,
+        dataset=mt.TB_DATASET,
+        n_tasks=1,
+        task_id=None,
+        n_concurrent=1,
+        n_attempts=1,
+    )
     assert score == 42.0
     assert round(spent, 2) == 0.5
 
@@ -131,7 +161,9 @@ def test_parse_tbench_output(tmp_path):
 def test_parse_tbench_output_partial(tmp_path):
     run = tmp_path / "run"
     run.mkdir()
-    (run / "results.json").write_text(json.dumps({"accuracy": 0.643, "n_resolved": 57, "n_unresolved": 32}))
+    (run / "results.json").write_text(
+        json.dumps({"accuracy": 0.643, "n_resolved": 57, "n_unresolved": 32})
+    )
     assert mt.parse_tbench_output(tmp_path) == pytest.approx(64.3)
 
 
@@ -158,7 +190,9 @@ def test_write_tbench_score_updates_only_that_column(tmp_path):
 # --- Behavior 5: --dry-run calls no model ------------------------------------
 def test_dry_run_calls_no_model(monkeypatch, tmp_path):
     conn = _mkdb(tmp_path)
-    conn.execute("INSERT INTO agents (id, via_openrouter, status, has_tools) VALUES ('vendor/m1',1,'active',1)")
+    conn.execute(
+        "INSERT INTO agents (id, via_openrouter, status, has_tools) VALUES ('vendor/m1',1,'active',1)"
+    )
     conn.commit()
     monkeypatch.setattr(mt.sqlite3, "connect", lambda *a, **k: conn)
     called = {"run": False, "bal": False}
@@ -176,9 +210,9 @@ def test_default_cohort_is_tool_capable_or_models(tmp_path):
     conn.executemany(
         "INSERT INTO agents (id, via_openrouter, status, has_tools) VALUES (?,?,?,?)",
         [
-            ("a/tool-or", 1, "active", 1),      # in
-            ("b/no-tools", 1, "active", 0),     # out (no tools)
-            ("c/not-or", 0, "active", 1),       # out (not OR)
+            ("a/tool-or", 1, "active", 1),  # in
+            ("b/no-tools", 1, "active", 0),  # out (no tools)
+            ("c/not-or", 0, "active", 1),  # out (not OR)
             ("d/inactive", 1, "discarded", 1),  # out (inactive)
         ],
     )
@@ -202,9 +236,15 @@ def test_is_fresh_uses_tbench_not_last_verified(tmp_path):
     conn = _mkdb(tmp_path)
     today = date.today().isoformat()
     # benched: has a tbench score → fresh (skip)
-    conn.execute("INSERT INTO agents (id, tbench_accuracy, last_verified) VALUES ('benched/m', 64.3, ?)", (today,))
+    conn.execute(
+        "INSERT INTO agents (id, tbench_accuracy, last_verified) VALUES ('benched/m', 64.3, ?)",
+        (today,),
+    )
     # never benched but recent last_verified (the price-scraper overload case) → NOT fresh
-    conn.execute("INSERT INTO agents (id, tbench_accuracy, last_verified) VALUES ('unbenched/m', NULL, ?)", (today,))
+    conn.execute(
+        "INSERT INTO agents (id, tbench_accuracy, last_verified) VALUES ('unbenched/m', NULL, ?)",
+        (today,),
+    )
     conn.commit()
     assert mt.is_fresh(conn, "benched/m") is True
     assert mt.is_fresh(conn, "unbenched/m") is False  # recent last_verified must NOT mark it fresh

@@ -33,9 +33,9 @@ def test_sql_desc_orders_null_after_real_zero():
         [("real50", 50.0), ("real0", 0.0), ("unbenched", None), ("real30", 30.0)],
     )
     conn.commit()
-    order = [r[0] for r in conn.execute(
-        "SELECT id FROM agents ORDER BY tbench_accuracy DESC"
-    ).fetchall()]
+    order = [
+        r[0] for r in conn.execute("SELECT id FROM agents ORDER BY tbench_accuracy DESC").fetchall()
+    ]
     assert order == ["real50", "real30", "real0", "unbenched"]
     assert order.index("real0") < order.index("unbenched")  # the specific bug
 
@@ -65,8 +65,20 @@ def test_testing_role_ranks_real_zero_above_unbenched():
     A measured-0 model must rank above an unmeasured (NULL) one."""
     models = [
         {"id": "real0", "has_tools": 1, "is_agentic": 1, "tbench_accuracy": 0.0, "arena_elo": 1000},
-        {"id": "unbenched", "has_tools": 1, "is_agentic": 1, "tbench_accuracy": None, "arena_elo": 1000},
-        {"id": "real40", "has_tools": 1, "is_agentic": 1, "tbench_accuracy": 40.0, "arena_elo": 1000},
+        {
+            "id": "unbenched",
+            "has_tools": 1,
+            "is_agentic": 1,
+            "tbench_accuracy": None,
+            "arena_elo": 1000,
+        },
+        {
+            "id": "real40",
+            "has_tools": 1,
+            "is_agentic": 1,
+            "tbench_accuracy": 40.0,
+            "arena_elo": 1000,
+        },
     ]
     order = ca.rank_testing_pool(models)
     assert order.index("real0") < order.index("unbenched")

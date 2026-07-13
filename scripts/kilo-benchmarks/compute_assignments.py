@@ -36,7 +36,10 @@ def rank_testing_pool(models):
     remaining = [m for m in pool if m not in top_2]
     remaining = sorted(
         remaining,
-        key=lambda x: (none_to_zero(x.get("perf_per_dollar")) > 500, _null_last(x.get("tbench_accuracy"))),
+        key=lambda x: (
+            none_to_zero(x.get("perf_per_dollar")) > 500,
+            _null_last(x.get("tbench_accuracy")),
+        ),
         reverse=True,
     )
     next_3 = remaining[:3]
