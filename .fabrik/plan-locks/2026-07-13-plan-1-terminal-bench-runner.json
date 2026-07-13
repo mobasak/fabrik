@@ -1,5 +1,5 @@
 {
-  "plan": "docs/development/plans/2026-07-13-plan-1-terminal-bench-runner.md",
+  "plan": "docs/development/plans/archived/2026-07-13-plan-1-terminal-bench-runner.md",
   "owned_paths": [
     "pyproject.toml",
     "scripts/kilo-benchmarks/microbench_terminal.py",
@@ -16,5 +16,7 @@
   ],
   "branch": "master",
   "started_at": "2026-07-13T04:21:24+03:00",
-  "status": "active"
+  "status": "released",
+  "completed_at": "2026-07-13",
+  "final_commit": "231d77da"
 }

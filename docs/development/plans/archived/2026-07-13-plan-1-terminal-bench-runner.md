@@ -1,6 +1,7 @@
 # Terminal-Bench runner — home-bench Linux-sysadmin capability into kilo-benchmarks
 
-**Status:** IN-PROGRESS
+**Status:** EXECUTED 2026-07-13
+**Executed:** 2026-07-13 — Phases A (`f7a335be`), B (`b5e07c53`), C (`5dc86e25`), format (`231d77da`). Fresh Tier-2 gate success; 30 tests green; whole-plan review no-op; all 8 behaviors covered; OpenRouter routing + writeback live-verified end-to-end.
 **Date:** 2026-07-13
 **Converged:** 2026-07-13 (`/fabrik-plan-review` — 2 passes to an edit-free md5-verified no-op; grounded all 4 `microbench_coding.py` path:lines + all 9 NULL-ranking sites' per-site classification, live-verified the OpenRouter `/api/v1/credits` cost-cap endpoint + surfaced the ~$0.19 balance precondition, corrected the pyproject Evidence quote; md5 `f4537bdf0a818879123244c6fce65b77`)
 **Design spec:** [docs/superpowers/specs/2026-07-13-terminal-bench-runner-design.md](../../superpowers/specs/2026-07-13-terminal-bench-runner-design.md) (CONVERGED, md5 `700978dd72c3076f0c958aeef9ef4458`)
