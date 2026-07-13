@@ -153,8 +153,8 @@ When passes → epic execution done.
 
 **Detect mismatch (escalate before completing):**
 
-- Outline says `Epic Flavor: Delta-feature` but no Epic Closure ticket in batch → ticket-breakdown bug; route back to `06-ticket-breakdown-command`.
-- Outline says `Epic Flavor: Retrofit` but ticket-breakdown emitted Epic Closure without justification → over-scoped Retrofit closure; route back to `06-ticket-breakdown-command` to re-evaluate Step 10 SKIP/INCLUDE criteria.
+- Ticket Title has no `Retrofit:` prefix (⇒ Delta-feature — `05` has **no** `Epic Flavor` field; the Title prefix is the sole carrier) but no Epic Closure ticket in batch → ticket-breakdown bug; route back to `06-ticket-breakdown-command`.
+- Ticket Title carries the `Retrofit:` prefix (⇒ Retrofit — `05` has **no** `Epic Flavor` field) but ticket-breakdown emitted Epic Closure without justification → over-scoped Retrofit closure; route back to `06-ticket-breakdown-command` to re-evaluate Step 10 SKIP/INCLUDE criteria.
 
 ### Step 7: Completion
 

@@ -136,7 +136,7 @@ Verify the contract flows correctly through the chain:
 | `Dark+Light` | Brief Metadata → Tech Plan § UI architecture (OS detection + toggle + persistence) → ticket ACs |
 | `Registrars` (Path B) | Brief Metadata → Deploy Plan Step 4 Registrar Surface Map → compose.yaml — verify cross-check rule from `04-deploy-plan-command` post-`3060147` |
 | `Universal categories` (Path B) | Brief Metadata → Tech Plan Architecture scope (per `03-tech-plan-command` Step 1 Path B branch post-`c41bb0b`) + Ticket Outline scope constraint (per `05-ticket-outline-command` Multi-epic dispatch mode post-`ff2c427`) |
-| `Epic Flavor` (Path B) | Brief Metadata → ettw/02 Core Flows scope-narrow + ettw/03 Tech Plan per-step targeting + ettw/04 Skip rule + ettw/05 Multi-epic dispatch + ettw/06 Mandate scoping + ettw/07 Epic Closure dispatch + ettw/08 validation thresholds + ettw/09 30% threshold + this Dimension 7 |
+| `Epic Flavor` (Path B) | Brief Metadata → ettw/02 Core Flows scope-narrow + ettw/03 Tech Plan per-step targeting + ettw/04 Skip rule + ettw/06 Mandate scoping + ettw/07 Epic Closure dispatch + ettw/08 validation thresholds + ettw/09 30% threshold + this Dimension 7 |
 | `Abuse Detection` (SaaS-conditional, both paths) | Brief Metadata → Tech Plan vendor selection (`fabrik-lib/abuse-prevention/`) → ticket ACs per `saas/87-abuse-detection.md` |
 | `Email` (SaaS-conditional, both paths) | Brief Metadata → Tech Plan vendor selection (`fabrik-lib/email-templates/`) → ticket ACs (two-stream separation per `core/86-email-templates.md`) |
 | `FINANCIALS` (SaaS-conditional, both paths) | Brief Metadata → `05-ticket-outline-command` Step 6b doc matrix → ticket assignment for `docs/FINANCIALS.md` per `saas/88-saas-launch-checklist.md` |

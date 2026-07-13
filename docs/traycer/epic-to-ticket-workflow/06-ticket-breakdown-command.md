@@ -309,7 +309,7 @@ User picks final dispatch. One local Ollama at a time.
 
 - The retrofit is scoped to one rule-pack area (e.g., `Retrofit: i18n`, `Retrofit: Resilience on one external API`, `Retrofit: Auth hardening`)
 - The parent project's last Delta-feature Epic Closure already covered the systemic gate (typically within the last 1-2 epics)
-- The retrofit doesn't change shape/compose/registrars (matches `ettw/04-deploy-plan-command` Skip rule at L33 post-`3060147`)
+- The retrofit doesn't change shape/compose/registrars (matches `ettw/04-deploy-plan-command` § Step 1 → Path B-specific deploy-plan rules post-`3060147`)
 
 INCLUDE Epic Closure for Retrofit when:
 
