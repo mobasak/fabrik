@@ -1,51 +1,93 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: docs/traycer/**  |  none
+# AFTER-EDIT: docs/traycer/** | none
 """Semantic detectors for the Traycer command chain.
 
-Three classes this review kept re-breaking, each guarded mechanically because
-grep-by-hand failed four times:
+Three defect classes that hand-grepping failed to eliminate four separate times.
+Each failure was in *what got scanned*, not in how carefully it was read:
 
-  A. Epic Closure asserted as unconditional. It is OPTIONAL for Retrofit epics.
-     Catches BOTH vocabularies: "Epic Closure" AND the bare "closure" stage.
-  B. Watchdog default claimed opt-in / default-off / kind-derived. The resolver
-     reads the raw dict (`watchdog_cfg.get("enabled", True)`) with NO kind test.
-     Scans TABLE CELLS, not lines — a cell hid behind its neighbour's text once.
-  C. Cross-file line anchors (`L<n>` / `file:NN`). They rot silently when the
-     target file shifts; use section refs.
+  A. Epic Closure asserted as unconditional. It is OPTIONAL for Retrofit epics
+     (05 section Step 2b, 06 section Step 10). A grep for "Epic Closure" missed a
+     line that said the "closure STAGE" instead, so this matches both vocabularies.
+     A tier claim ("Epic Closure always runs Tier 3") is not an existence claim
+     and is exempt.
+
+  B. The watchdog default claimed as opt-in / default-off / kind-derived. The
+     resolver reads the raw spec dict (watchdog_cfg.get("enabled", True),
+     infrastructure.py:314) and has NO shape.kind test. A line-oriented grep
+     missed a markdown TABLE CELL, so this splits rows into cells.
+
+  C. Cross-file line anchors. They rot silently when the target shifts: a file I
+     edited moved a citation in a file I never touched. Both spellings are caught
+     (`L<n>` and `file:NN`); use section refs instead.
 """
-import re, sys, glob
+
+import glob
+import re
+import sys
 
 DIRS = ("docs/traycer/mega-epic-breakdown", "docs/traycer/epic-to-ticket-workflow")
-FILES = sorted(f for d in DIRS for f in glob.glob(f"{d}/*.md"))
 
-BRANCH = re.compile(r"retrofit|optional|delta-feature|always runs \*\*tier 3\*\*|always runs tier 3", re.I)
+BRANCH = re.compile(r"retrofit|optional|delta-feature|always runs \*{0,2}tier 3", re.I)
 NEG = re.compile(r"\bno\b|\bnot\b|do not assume|operator discipline|never|except", re.I)
 
-# A — closure asserted unconditionally, in EITHER vocabulary
-A = re.compile(
+CLOSURE = re.compile(
     r"(epic closure[^.|\n]{0,50}?(always|mandatory|present as final|in final batch|last)"
     r"|(last batch|last ticket)[^.|\n]{0,30}?closure"
     r"|closure[^.|\n]{0,30}?(all covered|always)"
-    r"|\|\s*1 \(always last\))", re.I)
-# B — watchdog default misstated (per cell)
-B = re.compile(r"watchdog[^|\n]{0,70}?(opt-in|default(s)? (to )?off|default per [`']?kind|derived from [`']?shape\.kind)", re.I)
-# C — a line-number anchor pointing at a DIFFERENT file
-C = re.compile(r"`([^`]*(?:command|\.md))`[^.\n]{0,60}?\bL(\d+)|`([a-z0-9-]+-command)`?:(\d+)", re.I)
+    r"|\|\s*1 \(always last\))",
+    re.I,
+)
+WATCHDOG = re.compile(
+    r"watchdog[^|\n]{0,70}?"
+    r"(opt-in|default(s)? (to )?off|default per [`']?kind|derived from [`']?shape\.kind)",
+    re.I,
+)
+ANCHOR = re.compile(
+    r"`([^`]*(?:command|\.md))`[^.\n]{0,60}?\bL(\d+)|`([a-z0-9-]+-command)`?:(\d+)",
+    re.I,
+)
 
-fails = 0
-for p in FILES:
-    self_name = p.split("/")[-1].replace(".md", "")
-    for i, line in enumerate(open(p), 1):
-        if A.search(line) and not BRANCH.search(line):
-            print(f"  [A] {p}:{i} — Epic Closure asserted unconditionally (OPTIONAL for Retrofit)"); fails += 1
+
+def scan(path):
+    """Return one message per violation found in path."""
+    hits = []
+    own = path.split("/")[-1].replace(".md", "")
+    with open(path, encoding="utf-8") as handle:
+        lines = handle.readlines()
+    for num, line in enumerate(lines, 1):
+        if CLOSURE.search(line) and not BRANCH.search(line):
+            hits.append(
+                f"  [A] {path}:{num} - Epic Closure asserted unconditionally "
+                "(it is OPTIONAL for Retrofit epics)"
+            )
         cells = line.split("|") if line.strip().startswith("|") else [line]
-        for c in cells:
-            if B.search(c) and not NEG.search(c):
-                print(f"  [B] {p}:{i} — watchdog default misstated (it is opt-OUT, no kind test)"); fails += 1
-        for m in C.finditer(line):
-            tgt = m.group(1) or m.group(3) or ""
-            if tgt and tgt not in self_name:
-                print(f"  [C] {p}:{i} — cross-file line anchor into {tgt} (use a section ref)"); fails += 1
+        for cell in cells:
+            if WATCHDOG.search(cell) and not NEG.search(cell):
+                hits.append(
+                    f"  [B] {path}:{num} - watchdog default misstated "
+                    "(it is opt-OUT; the resolver has no shape.kind test)"
+                )
+        for match in ANCHOR.finditer(line):
+            target = match.group(1) or match.group(3) or ""
+            if target and target not in own:
+                hits.append(
+                    f"  [C] {path}:{num} - cross-file line anchor into {target} "
+                    "(use a section ref; line numbers rot)"
+                )
+    return hits
 
-print(f"\ncheck_traycer_chain: {'PASS — all 3 classes clean' if not fails else f'FAIL — {fails} violation(s)'}")
-sys.exit(1 if fails else 0)
+
+def main():
+    files = sorted(f for directory in DIRS for f in glob.glob(f"{directory}/*.md"))
+    violations = [msg for path in files for msg in scan(path)]
+    for msg in violations:
+        print(msg)
+    if violations:
+        print(f"\ncheck_traycer_chain: FAIL - {len(violations)} violation(s)")
+        return 1
+    print(f"check_traycer_chain: PASS - {len(files)} files, all 3 classes clean")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
