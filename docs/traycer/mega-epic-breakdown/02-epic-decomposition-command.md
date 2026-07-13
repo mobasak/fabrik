@@ -186,7 +186,7 @@ Before drafting Infrastructure Decisions, audit the candidate epic set against t
 | 4 | Workers | If pipeline/async work | `core/75-workers-jobs.md` (+ vendor the queue / pause-state primitives — resolve the current module from the fabrik-lib index) |
 | 5 | External integrations | Any upstream API use | `core/58-resilience.md` (+ vendor the circuit-breaker and upstream rate-limit/quota primitives — resolve the current modules from the fabrik-lib index) |
 | 6 | Self-healing | `shape.kind ∈ {service, worker}` (wordpress is out-of-scope for this workflow per `00-trigger-workflow-command` Step N3j — `Kind.WORDPRESS` exists in `spec_loader.py` for the standalone `/opt/wpf` project, never reaches 02 here) | `core/self-healing.md` |
-| 7 | Watchdog wiring | `watchdog.enabled` (default per `kind`) | `core/60-watchdog.md` |
+| 7 | Watchdog wiring | `watchdog.enabled` — **ON by default, opt-OUT**; there is **no** `kind` test in the resolver (`infrastructure.py:314`) | `core/60-watchdog.md` |
 | 8 | Observability | Always | `core/55-observability.md` |
 | 9 | Cost guardrails | Any LLM/paid-API use | `core/cost-budget.md` (+ vendor the cost-ledger module — resolve from the fabrik-lib index) |
 | 10 | Deployment | Always | `core/30-ops.md` |

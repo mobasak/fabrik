@@ -419,7 +419,7 @@ If specs inconsistent → suggest `cross-artifact-validation`.
 - DO NOT (3 verbatim + scaffold immutability + project-specific). Completion Self-Check. Governance Checklist.
 - Parallel map produced. Prerequisites verified.
 - Agents specific (from registries). User picks dispatch.
-- Epic Closure in final batch (Tier 3, verify, audit-registrars, doc completeness).
+- Epic Closure in final batch (Tier 3, verify, audit-registrars, doc completeness) — **delta-feature**; for **Retrofit** it is optional per § Step 10 (a skip requires the stated justification).
 - Every ticket passes isolation simulation.
 - Too-complex tickets auto-split into sub-tickets (T?a/T?b) with reason stated.
 - Batch progress stated.

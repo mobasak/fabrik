@@ -51,7 +51,7 @@ From user's argument (`Batch N`, `all`, or specific ticket):
 - Read tickets from ticket-breakdown output.
 - Build dependency-ordered batches (already done by ticket-outline — honor it).
 - Confirm prior batch dependencies are complete before starting.
-- Epic Closure always last.
+- Epic Closure last (delta-feature; **optional for Retrofit** — see Step 6's skip branch).
 
 Present the execution order:
 ```
@@ -210,5 +210,5 @@ When passes → epic execution done.
 - Same issue 3+ times → escalate as systemic.
 - Sequential merge + gate after batch.
 - `fabrik dev` sanity per batch.
-- Epic Closure (Tier 3 + verify + audit) last.
+- Epic Closure (Tier 3 + verify + audit) last — delta-feature; **optional for Retrofit**.
 - Batch progress reported. User involved only at boundaries.

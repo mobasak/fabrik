@@ -238,7 +238,7 @@ Rules:
 - **Maximize ⚡ (parallel) within each batch.** If a batch has 5 tickets and 4 are parallel → that's a 4x speedup.
 - Batch ordering respects dependencies (no batch references an undetailed ticket from a later batch).
 - First batch is always zero-dependency foundation (highest parallelism potential).
-- Last batch always contains Epic Closure.
+- Last batch contains Epic Closure — **delta-feature epics only**; for **Retrofit** epics Epic Closure is **OPTIONAL** (§ Step 2b / Step 10) and a correct Retrofit outline may have none.
 - State the **expected time savings** from parallelism: "Batch 2: 3 tickets ⚡ = ~1 ticket time instead of 3x."
 
 ### Step 6: Lifecycle Stage Distribution
@@ -250,7 +250,7 @@ Verify the tickets cover all applicable lifecycle stages:
 | Foundation | Schema, config, env, scaffold setup, i18n structure | 2-4 (usually all parallel) |
 | Implementation | Endpoints, business logic, UI components, workers | 5-12 (maximize parallel lanes) |
 | Integration | Wiring, compose, deploy config, end-to-end tests | 2-3 (some sequential) |
-| Closure | Epic Closure systemic gate | 1 (always last) |
+| Closure | Epic Closure systemic gate | 1 (last) for delta-feature; **0 permitted** for a Retrofit that skips closure (§ Step 2b) |
 
 If any stage has 0 tickets → flag as a gap (e.g. "no integration tickets means deploy config isn't explicitly ticketed — risk of it being forgotten").
 
@@ -323,6 +323,6 @@ Then instruct: *"Run `ticket-breakdown` for Batch 1 to get full detail. Batch 1 
 - Lessons Learnt triggers flagged on high-risk tickets.
 - CHANGELOG rule acknowledged (universal — `ticket-breakdown` enforces).
 - `revise-requirements` suggested if scope drifts during iteration.
-- Epic Closure ticket present as final.
+- Epic Closure ticket present as final — **delta-feature epics only**; for **Retrofit** epics Epic Closure is **OPTIONAL** (§ Step 2b / Step 10) and a correct Retrofit outline may have none.
 - Output ≤100 lines for outline table (excluding mermaid, Doc Sync Matrix, category check).
 - User explicitly confirms. Silence ≠ confirmation.
