@@ -94,7 +94,9 @@ def test_malformed_cohort_id_returns_2(monkeypatch, tmp_path):
     """A malformed DB-sourced model id surfaces as a config error (exit 2), not a
     silent per-model 'FAILED' skip masked by the MODEL_FAILURE(ValueError) catch."""
     seed = _mkdb(tmp_path)
-    seed.execute("INSERT INTO agents (id, via_openrouter, status, has_tools) VALUES ('foo bar',1,'active',1)")
+    seed.execute(
+        "INSERT INTO agents (id, via_openrouter, status, has_tools) VALUES ('foo bar',1,'active',1)"
+    )
     seed.commit()
     seed.close()
     monkeypatch.setattr(mt, "DB_PATH", tmp_path / "t.db")
@@ -345,10 +347,40 @@ def test_models_flag_overrides(tmp_path):
     assert mt.select_cohort(conn, ["x/y", "z/w"]) == ["x/y", "z/w"]
 
 
-def test_cohort_override_validates(tmp_path):
-    conn = _mkdb(tmp_path)
-    with pytest.raises(ValueError):
-        mt.select_cohort(conn, ["bad; rm"])
+def test_explicit_models_bad_id_returns_2_not_traceback(monkeypatch, tmp_path):
+    """A malformed --models id surfaces as a clean config error (exit 2) — same as
+    the DB path — not an uncaught ValueError traceback. (Validation is unified in
+    main; select_cohort no longer validates.)"""
+    _seed_main_db(tmp_path, ["vendor/ok"])
+    monkeypatch.setattr(mt, "DB_PATH", tmp_path / "t.db")
+    monkeypatch.setattr(mt.shutil, "which", lambda x: "/usr/bin/tb")
+    called = {"bench": False}
+    monkeypatch.setattr(mt, "bench_model", lambda *a, **k: called.__setitem__("bench", True))
+    rc = mt.main(["--models", "bad; rm", "--n-tasks", "1", "--force"])
+    assert rc == 2
+    assert called["bench"] is False
+
+
+def test_dry_run_rejects_malformed_id(monkeypatch, tmp_path):
+    """Validation runs BEFORE the dry-run block, so even a preview refuses a bad id
+    (exit 2) rather than printing it and exiting 0."""
+    _seed_main_db(tmp_path, ["vendor/ok"])
+    monkeypatch.setattr(mt, "DB_PATH", tmp_path / "t.db")
+    rc = mt.main(["--models", "bad|id", "--dry-run"])
+    assert rc == 2
+
+
+def test_cohort_deduped(monkeypatch, tmp_path):
+    """`--models m,m` benches m ONCE (dedup) — never double-runs + double-charges."""
+    _seed_main_db(tmp_path, ["vendor/m1"])
+    monkeypatch.setattr(mt, "DB_PATH", tmp_path / "t.db")
+    monkeypatch.setattr(mt.shutil, "which", lambda x: "/usr/bin/tb")
+    monkeypatch.setattr(mt, "openrouter_balance", lambda: 100.0)
+    benched = []
+    monkeypatch.setattr(mt, "bench_model", lambda conn, m, **k: benched.append(m) or 50.0)
+    rc = mt.main(["--models", "vendor/m1,vendor/m1", "--cost-cap", "9", "--n-tasks", "1", "--force"])
+    assert rc == 0
+    assert benched == ["vendor/m1"]  # deduped — benched once, not twice
 
 
 def test_all_keyword_any_case_or_mixed_selects_full_cohort(monkeypatch, tmp_path):

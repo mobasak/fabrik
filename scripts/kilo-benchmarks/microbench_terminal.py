@@ -113,13 +113,15 @@ def _balance_or_none() -> float | None:
 
 # --- DB cohort + writeback ---------------------------------------------------
 def select_cohort(conn, models: list[str] | None) -> list[str]:
-    """Return the model ids to bench.
+    """Return the model ids to bench (unvalidated — main validates the whole cohort
+    up front, so BOTH the explicit --models path and the DB path get one uniform
+    clean exit-2 on a malformed id, instead of this path raising an uncaught error).
 
     Default cohort = OpenRouter-routed, active, tool-capable (a sysadmin agent
-    must call tools). An explicit --models list overrides (each validated).
+    must call tools). An explicit --models list overrides.
     """
     if models:
-        return [_validate_model_id(m) for m in models]
+        return list(models)
     rows = conn.execute(
         "SELECT id FROM agents "
         "WHERE via_openrouter = 1 AND status = 'active' AND has_tools = 1 "
@@ -371,6 +373,20 @@ def main(argv: list[str] | None = None) -> int:
             cohort = select_cohort(conn, None)
         else:
             cohort = select_cohort(conn, raw or DEFAULT_MODELS)
+
+        # De-dup (preserve order) so `--models m,m` never double-runs + double-charges.
+        cohort = list(dict.fromkeys(cohort))
+
+        # Validate every id UP FRONT — before freshness/dry-run — so a malformed id
+        # (from --models OR the DB) surfaces as ONE uniform loud config error (exit 2),
+        # never an uncaught traceback or a masked per-model "FAILED" skip. This runs
+        # before --dry-run too, so a dry-run preview also refuses a bad id.
+        try:
+            cohort = [_validate_model_id(m) for m in cohort]
+        except ValueError as e:
+            print(f"error: malformed model id in cohort — {e}", file=sys.stderr)
+            return 2
+
         if not args.force:
             cohort = [m for m in cohort if not is_fresh(conn, m)]
 
@@ -389,17 +405,6 @@ def main(argv: list[str] | None = None) -> int:
         if not cohort:
             print("[terminal-bench] nothing to bench (all fresh; use --force).")
             return 0
-
-        # Validate every cohort id UP FRONT so a malformed DB-sourced id surfaces as a
-        # loud config error (exit 2) — not masked as a benign per-model "FAILED" skip by
-        # the MODEL_FAILURE(ValueError) catch, whose only in-loop ValueError source is
-        # then parse_tbench_output (a genuine per-model skip). (--models ids are already
-        # validated in select_cohort; this covers the default DB-cohort path.)
-        try:
-            cohort = [_validate_model_id(m) for m in cohort]
-        except ValueError as e:
-            print(f"error: malformed model id in cohort — {e}", file=sys.stderr)
-            return 2
 
         if args.n_tasks is None and args.task_id is None:
             print(
