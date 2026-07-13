@@ -12,7 +12,7 @@
 
 # Project Intake (Entrypoint — Vision for NEW, Continuation for EXISTING)
 
-This command is the **single entry point** for the `mega-epic-breakdown` workflow. It serves two modes — both produce a Vision Summary in the same shape so `02-epic-decomposition-command` consumes them identically.
+This command is the **single entry point** for the `mega-epic-breakdown` workflow. It serves two modes — both produce a Vision Summary whose **required core sections are identical**, so `02-epic-decomposition-command` consumes them identically. ⚠️ This twin **additionally** emits `## fabrik-lib Verdict` and `## Rejected Alternatives` (the output of the N3k live-research gate, which the Traycer twin has no tools to run) — `02` inherits them when present and runs the fabrik-lib ladder itself when they are absent.
 
 - **NEW mode** — green-field project, no code, just an idea or research. Produces a fresh Vision Summary.
 - **EXISTING mode** — running project, code exists, services may already be deployed. Produces a Vision Summary + Locked Decisions section + Compliance Report section (the deltas + retrofits driving epic decomposition).

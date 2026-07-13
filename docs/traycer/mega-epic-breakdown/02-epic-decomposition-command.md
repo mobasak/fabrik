@@ -37,14 +37,14 @@ This command produces the compact epic proposal + Infrastructure Decisions in co
 ## Input Contract
 
 **Required — from `00-trigger-workflow-command` (in conversation context):**
-- Confirmed Vision Summary with ALL sections:
+- Confirmed Vision Summary with ALL sections (⚠️ **`fabrik-lib Verdict`** and **`Rejected Alternatives`** are emitted by the tool-capable `00-trigger-fabrik` twin only — **inherit them if present; never re-litigate a Rejected Alternative.** The Traycer twin `00-trigger-workflow-command` omits both, in which case run the fabrik-lib ladder at 2f):
   - Product Vision (the 3–5 sentence framing — quoted verbatim into Epic 1's Summary if it's a delivery epic)
   - Personas, Value Streams
   - Full Feature Inventory (numbered, with complexity classification)
   - Backing Services + External Services
   - Technology Decisions (resolved — not re-decided here)
   - Constraints (all `all clear` or resolved)
-  - Out of Scope (vision-level — any feature here MUST NOT appear in any epic)
+  - `## Out of Scope (Vision Level)` — the **literal heading** 00 emits in both modes. Any feature listed there MUST NOT appear in any epic.
   - Open Questions (MUST be empty / all marked resolved or explicitly deferred — see Hard stop below)
   - Scale Assessment (multi-epic confirmed)
 
@@ -58,7 +58,7 @@ This command produces the compact epic proposal + Infrastructure Decisions in co
 **Hard stop if:** Vision Summary not confirmed by owner, OR Open Questions remain unresolved. Do not proceed with ambiguity.
 
 **Additionally read:**
-- `docs/operations/fabrik-lifecycle.md` — deploy/runtime behavior & data safety (lifecycle stages 3–4). Each epic must still pass all 4 lifecycle stages: scaffold → implement → register (`fabrik apply`) → verify (`fabrik verify`).
+- `docs/operations/fabrik-lifecycle.md` — deploy/runtime behavior & data safety (lifecycle stages 3–4). Each epic must still pass all 4 lifecycle stages: scaffold → implement → register (`fabrik apply`) → verify (`fabrik verify`). ⚠️ **Exception — Retrofit epics:** a Retrofit on an already-deployed service creates **no new deploy unit**, so it has no Stage-1/Stage-3 of its own; its stage-3 equivalent is `python scripts/final_gate.py --lean --json` green + the rule-pack gap moving to Compliant (per `03-expand-epic-files-command`). State this exception inline on any Retrofit epic.
 - `AGENTS.md` § Infrastructure Services — backing services available.
 - `AGENTS.md` § Planning Constraints — constraints still apply per epic.
 - `PORTS.md` — each epic's service needs a port. Check availability.
@@ -67,7 +67,7 @@ This command produces the compact epic proposal + Infrastructure Decisions in co
   - `mobile-app` → read `domain-modules/mobile-app.md`
   - `desktop-app` → read `domain-modules/desktop-app.md`
   - `chrome-extension` → read `domain-modules/chrome-ext.md`
-  - `wordpress` → read `domain-modules/wordpress.md` ONLY for projects under `/opt/wpf` — per `00-trigger-workflow-command` **§ Shape model**, WordPress is out-of-scope for the mega-epic-breakdown workflow; if a WordPress component reached 02, route it back to 00 for proper handling
+  - `wordpress` → **out of scope for this workflow** (per `00` § Shape model). Do **NOT** load `domain-modules/wordpress.md`. If a WordPress component reaches 02, route it back to 00 for the `/opt/wpf` handoff. — per `00-trigger-workflow-command` **§ Shape model**, WordPress is out-of-scope for the mega-epic-breakdown workflow; if a WordPress component reached 02, route it back to 00 for proper handling
   - If Vision Summary Technology Decisions includes **RAG pipeline** (any level) → read `domain-modules/rag.md`
   - Multi-scaffold vision (e.g., saas + mobile-app + chrome-extension) → read ALL matching modules. They inform epic patterns (mobile always has a "store submission" epic, SaaS always has "billing + tenant" epic, chrome-ext always has "backend API first, extension second" pattern, etc.). RAG module is additive — read it alongside scaffold modules when RAG is in scope.
 
@@ -100,6 +100,7 @@ State: "Vision Summary consumed. [N] features, [M] scaffold types, scale assessm
 - Each epic must produce a deployable, testable artifact
 
 **2b. Apply boundary rules:**
+- **Epic-count sanity band:** 3–7 epics is typical. **≥10** → re-examine the boundaries; you are almost certainly splitting by *layer*, not by *domain*. **≤2** → this vision probably belongs in `epic-to-ticket-workflow` directly. State the band verdict at the Checkpoint.
 - Every feature from the inventory maps to EXACTLY one epic. No feature in two epics. No feature orphaned.
 - Each epic targets 5–15 features. Fewer than 5 = merge with adjacent epic UNLESS one of these exceptions holds, document the justification inline: (a) the epic is a Retrofit epic (small retrofits permitted per 2b); (b) the Vision Summary's Scale Assessment routed to multi-epic with <8 total features (per `00-trigger-workflow-command` Step N3e, an 8-feature vision splits into 2–3 epics → 3–4 features each is permitted; forcing into single-epic would have been wrong for the complexity profile); (c) a scaffold-specific overlay mandates a small dedicated epic (e.g., mobile-app "store submission" epic). More than 15 = split.
 - Each epic has a clear scaffold type (from the Vision Summary's Technology Decisions § Scaffold types).
@@ -143,6 +144,8 @@ FAIL = fix `depends-on`, re-run the gate for that epic, confirm PASS before fina
 Do NOT present the proposal until every parallel-labeled epic has a PASS verdict on record.
 
 **2d. Order for value delivery:**
+- State the **CRITICAL PATH** — the longest sequential epic chain — as e.g. `Critical path: Epic 1 → Epic 3 → Epic 5 (3 deep)`. Present it at the Checkpoint.
+- For **each epic on that path**, state `SPLIT-CANDIDATE: yes (<how>) / no (<why>)`. A critical-path epic that can be split into a blocking half and a non-blocking half **MUST** be split — that is the only way to shorten delivery.
 - Epic 1 should deliver something the owner can SEE and USE — not just foundation.
 - If a foundation epic is unavoidable (e.g., shared DB schema + auth), make it SMALL and FAST so value-delivering epics start quickly.
 - After Epic 1, maximize parallel lanes. If Epic 2 and Epic 3 are independent, say so.
@@ -152,8 +155,10 @@ Do NOT present the proposal until every parallel-labeled epic has a PASS verdict
 - If yes → these become either a dedicated `file-worker` epic OR a background-processing slice within the backend epic. Rule: never run heavy processing (>10s) inline in API handlers — it must go through the PostgreSQL job queue (per `core/75-workers-jobs.md`).
 - If multiple heavy-processing features exist (e.g., transcription + image generation + report building), group them into a single "Worker Pipeline" epic rather than scattering across feature epics.
 
-**2f. fabrik-lib check:**
-- Before planning any new component from scratch, check `fabrik-lib/README.md` for a vendorable module that already solves it (copy, don't import). State: "fabrik-lib checked — [module used / no match]." If a module is used, add it to that epic's scope as a vendor step, not a build step.
+**2f. fabrik-lib inheritance (do NOT re-run the ladder):**
+- The Vision Summary from `00-trigger-fabrik` already ran the full **vendor→enhance→build ladder** per capability and recorded it as a **`## fabrik-lib Verdict`** table. **Inherit those rows** — copy each matching verdict into the owning epic's scope as a *vendor* step, not a *build* step. Do NOT re-litigate a row.
+- Run the ladder here **only** for a capability the Verdict table does not cover — and say which. ⚠️ If the Vision Summary came from the **Traycer twin** (`00-trigger-workflow-command`, which has no N3k gate and emits no Verdict table), run the ladder here for every capability.
+- Otherwise: check `fabrik-lib/README.md` for a vendorable module that already solves it (copy, don't import). State: "fabrik-lib checked — [module used / no match]." If a module is used, add it to that epic's scope as a vendor step, not a build step.
 
 **2g. Port allocation:**
 - Check `PORTS.md` for each epic's service.
@@ -201,9 +206,9 @@ Rule-pack paths above are cited directly. **fabrik-lib modules are resolved from
 
 **Overlay-merge rule — apply AFTER the 14 verdicts (handles scaffold-type overlays loaded per § Input Contract → **Domain modules**):**
 
-For each loaded scaffold overlay, walk its Mandatory Epic Coverage rows (e.g., `domain-modules/saas.md § Mandatory Epic Coverage`). For each overlay row:
+For each loaded scaffold overlay, walk its mandatory-coverage section — **`§ Mandatory Epic Coverage`** (`saas.md`, `mobile-app.md`), **`§ Mandatory Epic Patterns`** (`chrome-ext.md`, `desktop-app.md`), or **`§ Epic Patterns for Decomposition`** (`rag.md`). Every in-scope module has one under a different name; if you cannot find it, list the module's `##` headings and state which you used. Walk its rows (e.g., `domain-modules/saas.md § Mandatory Epic Coverage`). For each overlay row:
 
-- Identify which universal category(ies) the overlay row satisfies (e.g., "Billing + Gating" satisfies #4 Features AND #9 Cost Guardrails).
+- Identify which universal category(ies) the overlay row satisfies (e.g., "Billing + Gating" satisfies #2 Features AND #9 Cost Guardrails).
 - If the universal category was COVERED by a candidate epic in 2a–2g AND the overlay row matches the same epic → **merge**: cite both in that epic's compact entry. No new epic created.
 - If the universal category was COVERED by a different epic OR ABSORBED in Step 3 § X AND the overlay row demands its own epic → **add** the overlay's epic to the candidate set as a new entry; assign `Universal categories: <numbers>`; re-run 2c (dependency analysis) for the new epic before continuing.
 - If the universal category was N/A but the overlay demands the coverage → flip the category to COVERED by the overlay's epic; update the 2h verdict line.
@@ -286,17 +291,20 @@ Epic [N]: [Name]
   Features: [numbers from Feature Inventory, e.g., #1, #3, #7]
   Scaffold: [type]
   Depends on: [Epic X, Epic Y] or [none — root epic]
-  Parallel with: [Epic Z] or [sequential]
+  Parallel with: [Epic Z] or [sequential] — for each parallel pair you MUST be able to write: *"two separate agent teams could execute Epic X and Epic Y with zero mid-epic coordination, because they share no [artifacts]"*. If you cannot write that sentence, they are **not** parallel.
   Port: [assigned]
+  Target host: [`vps1` (hub, default) / `vps2` / `vps3` — carried from the Vision Summary § Technology Decisions → Target host; drives the spec's `target_vps:` field. ⚠️ A spoke-targeted service reaches shared infra over the mesh (`10.99.0.1`), NOT by Docker DNS — see `30-ops.md` § Multi-host targeting]
   Delivers: [what the owner can see/use after this epic ships]
+  Consumes: [artifacts this epic needs FROM prior epics — DB tables, API endpoints, env vars, middleware — or `none — root epic`]
+  Produces: [artifacts LATER epics consume — table names, endpoint paths, env var names. `Delivers:` is owner-visible value; this is the machine contract]
   Rule Packs: [IDs from .windsurf/rules/]
   HAS_USER_GUIDE: [true/false]
   Shape: [`kind` + the 8 canonical flags from the spec shape block: is_public, is_admin_dashboard, has_bearer_api, has_persistent_data, needs_database, has_search_feature, needs_cache, exposes_metrics — plus watchdog.enabled]
   Concurrency: [the mechanism this epic uses — e.g. the adaptive worker pool and/or a pause-state gate per `core/75-workers-jobs.md`, or `none` — derived from category 4 (Workers) coverage in 2h. Name the *mechanism*, not a fabrik-lib module; resolve any vendored module from the index.]
-  i18n: [en+tr | en-only | N/A — **feature-trigger per `00-trigger-workflow-command` § Rule-area applicability matrix**; N/A only when no HTML/native UI surface exists (pure JSON API, file-worker queue consumer). Inherited from saas overlay where applicable, but the underlying trigger is the GUI surface, NOT the scaffold type.]
+  i18n: [⚠️ if the GUI trigger fires but the epic's scaffold is NOT in `I18N_ENABLED_TYPES` (`saas-skeleton`, `static-site`, `desktop-app`, `mobile-app`, `docusaurus`), the epic MUST carry an explicit **vendor-the-i18n-kit** step (`templates/i18n-kit/` → `scripts/`) — otherwise its Done-When cites `scripts/validate_i18n.py`, a script that scaffold will never ship. | en+tr | en-only | N/A — **feature-trigger per `00-trigger-workflow-command` § Rule-area applicability matrix**; N/A only when no HTML/native UI surface exists (pure JSON API, file-worker queue consumer). Inherited from saas overlay where applicable, but the underlying trigger is the GUI surface, NOT the scaffold type.]
   Responsive: [375px–2560px mandatory — any scaffold with a web GUI surface incl. python-api/node-api/file-api when `shape.is_admin_dashboard: true` OR `shape.is_public: true` with HTML output (feature-trigger, NOT scaffold-typed). Carve-outs: chrome-extension popup (fixed 400px), mobile-app (native UI), desktop-app (electron window sizing) — all per `00-trigger-workflow-command` § Architectural Mandates. N/A only when no HTML/native UI surface exists.]
   Dark+Light: [mandatory — same feature-trigger as Responsive above / N/A — same exclusion (no HTML/native UI surface)]
-  Registrars: [which of the 10 fire for this epic's deploy unit(s) — the 9 shape-driven (postgres / redis / gatus / backrest / glitchtip / grafana / authelia / meilisearch / prometheus) + `watchdog` — derived from the shape block + `watchdog.enabled`]
+  Registrars: [which of the 10 fire for this epic's deploy unit(s) — **7 flag-driven** (postgres, redis, gatus, backrest, authelia, meilisearch, prometheus — ⚠️ gatus, authelia and prometheus **also require `spec.domain`**; the flag alone fires nothing) + **grafana** (always) + **glitchtip** (`shape.kind`) + `watchdog` — derived from the shape block + `watchdog.enabled`]
   Universal categories: [comma-separated numbers from 1–14 this epic owns, per 2h verdict block]
   Abuse Detection: [required (SaaS w/ free-tier signup) / N/A — not a free-tier signup surface]
   Email: [transactional / marketing / two-stream / none / N/A]
@@ -364,7 +372,7 @@ Iterate until the owner explicitly confirms:
 
 **Produced as Traycer specs (persisted in Traycer's spec store, readable via `read_spec`):**
 
-1. **Compact Epic Proposal** — one entry per epic (delta-feature epics + **Retrofit epics** if Existing mode) with: scope, features, scaffold, dependencies, parallel lanes, port, delivers, rule packs, HAS_USER_GUIDE.
+1. **Compact Epic Proposal** (**≤400 tokens per epic; ≤4,000 tokens total**) — one entry per epic (delta-feature epics + **Retrofit epics** if Existing mode) with: scope, features, scaffold, dependencies, parallel lanes, port, delivers, rule packs, HAS_USER_GUIDE.
 2. **Infrastructure Decisions** — shared across all epics. ≤5,000 tokens. In Existing mode, overlapping sections inherit Locked Decisions verbatim.
 3. **Dependency Graph** — mermaid diagram + execution order. Retrofit epics receive dependency analysis identical to delta epics.
 4. **Coverage Check** — every feature mapped to exactly one epic.
@@ -408,11 +416,11 @@ Iterate until the owner explicitly confirms:
 - Every "ABSORBED in Step 3 § X" verdict in 2h matches a sub-section actually drafted in Step 3.
 - Every "N/A" verdict in 2h carries an explicit trigger-not-met reason cited from the spec shape block or Vision Summary.
 - Overlay-merge rule applied: no overlay-mandated epic is duplicated by a universal-category epic, and no overlay-mandated coverage is dropped.
-- Each per-epic compact entry carries **19 indented fields** under the `Epic [N]: [Name]` heading, in four groups: (1) **9 epic-shape fields** — Scope, Features, Scaffold, Depends on, Parallel with, Port, Delivers, Rule Packs, HAS_USER_GUIDE; (2) **6 inheritance-metadata fields** — Shape, Concurrency, i18n, Responsive, Dark+Light, Registrars; (3) **Universal categories** (1 field); (4) **3 conditional fields** — Abuse Detection, Email, FINANCIALS (each carries the project-wide Infrastructure Decisions value or `N/A` per the trigger). 03's Metadata block consumes 14 of these (the 6 metadata + Scaffold + Port + Rule Packs + HAS_USER_GUIDE + Universal categories + the 3 conditionals); the remaining 5 (Scope, Features, Depends on, Parallel with, Delivers) become other sections in 03's ticket (Summary, Scope > In, Dependencies, Dependencies, Success Criteria respectively). See `03-expand-epic-files-command` Metadata block and `epic-to-ticket-workflow/01-epic-brief-command` § Metadata expectation.
+- Each per-epic compact entry carries **22 indented fields** under the `Epic [N]: [Name]` heading, in four groups: (1) **9 epic-shape fields** — Scope, Features, Scaffold, Depends on, Parallel with, Port, Delivers, Rule Packs, HAS_USER_GUIDE; (2) **6 inheritance-metadata fields** — Shape, Concurrency, i18n, Responsive, Dark+Light, Registrars; (3) **Universal categories** (1 field); (4) **3 conditional fields** — Abuse Detection, Email, FINANCIALS (each carries the project-wide Infrastructure Decisions value or `N/A` per the trigger). 03's Metadata block consumes 14 of these (the 6 metadata + Scaffold + Port + Rule Packs + HAS_USER_GUIDE + Universal categories + the 3 conditionals); the remaining 5 (Scope, Features, Depends on, Parallel with, Delivers) become other sections in 03's ticket (Summary, Scope > In, Dependencies, Dependencies, Success Criteria respectively). See `03-expand-epic-files-command` Metadata block and `epic-to-ticket-workflow/01-epic-brief-command` § Metadata expectation.
 - Owner explicitly confirms. Silence ≠ confirmation.
 
 **Existing mode adds:**
-- Locked Decisions consumed from Vision Summary and inherited verbatim into Infrastructure Decisions § Auth Strategy / § Database Strategy / § Frontend / § Billing / § Shared Shape Decisions. Not re-decided.
+- Locked Decisions consumed from Vision Summary and inherited verbatim into Infrastructure Decisions § Auth Strategy / § Database Strategy / § Shared Shape Decisions (frontend choices land in § Shared Shape Decisions; billing in § External Services — there is **no** § Frontend or § Billing section). Not re-decided.
 - Compliance Report consumed: one Retrofit epic emitted per `fix-now` row. Retrofit epics receive the same dependency analysis as delta-feature epics and pass through the parallel-classification gate.
 - `fix-later` and `accept-as-legacy` rows surfaced in the "Deferred Compliance" appendix — produce no epics.
 - Retrofit epic names prefixed `"Retrofit: "`.
