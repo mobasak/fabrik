@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Spoke deploys got unreachable `postgres-main`/`redis-main` DSNs (2026-07-13)
+
+A service targeted at a spoke (`target_vps` = vps2/vps3) with `needs_database: true` (or cache, or GlitchTip)
+was injected connection strings pointing at the vps1 Docker-DNS names `postgres-main:5432` / `redis-main:6379`
+/ `glitchtip-web:8000`. A vps1 container resolves those over the local `fabrik` bridge, but a **spoke** container
+cannot — WireGuard routes IP packets and carries no DNS, so the name **SERVFAILs**. The shared data plane is
+published mesh-only on vps1's WireGuard IP `10.99.0.1` (same ports), and the authoritative infra docs
+(`AGENTS.md`, `docs/infrastructure/vps-urls.md`, `vps-fleet-architecture.md`) already documented the mesh-IP
+requirement — only the registrar code (and one rule-pack line) hadn't implemented it. `_target_vps_env` only
+rewrites *where the deploy is routed*, never *what the app connects to*.
+
+Hasn't bitten yet only because the sole spoke spec on the fleet (`spoke-canary`) sets `needs_database: false`.
+
+`infrastructure.py` now rewrites the host to `10.99.0.1` for spoke targets at all five injection sites —
+`DATABASE_URL`, `WATCHDOG_DB_URL_RO/RW`, `SUBAGENT_RUNS_DSN`, `SENTRY_DSN`/`GLITCHTIP_DSN`, `REDIS_URL` — via a
+single `_rewrite_shared_infra_host` helper (no-op on vps1). Regression tests:
+`tests/orchestrator/test_spoke_dsn_mesh.py` (13, RED→GREEN). Corrected the false load-bearing claim in
+`.windsurf/rules/core/30-ops.md` ("connection strings stay identical — the mesh resolves them") to describe the
+actual host-swap.
+
 ### Fixed — Four deploy/watchdog-lifecycle code defects (2026-07-13-plan-1) (2026-07-13)
 
 Fixed the four proven defects filed in `docs/development/plans/2026-07-13-plan-1.md` — all fail-closed, each

@@ -41,6 +41,8 @@ Inside a container, `localhost` resolves to the container itself, NOT the host o
 | `DATABASE_URL` | `...@localhost:5432/...` | `...@postgres-main:5432/...` |
 | `REDIS_URL` | `redis://localhost:6379` | `redis://redis-main:6379` |
 
+`localhost` is always wrong inside a container. The `*-main` Docker-DNS names in the "Correct" column are the **hub (vps1)** form; for a **spoke** target (`--target-vps vps2/vps3`) the registrar injects vps1's **mesh IP** (`10.99.0.1:5432` / `:6379`) instead — WireGuard carries no DNS, so `postgres-main`/`redis-main` SERVFAIL on a spoke. The app writes neither by hand; the registrar picks the right host from `target_vps` (see § Multi-host targeting).
+
 **Verify before deploy:**
 
 ```bash
@@ -225,7 +227,7 @@ The fleet is a **vps1 hub + vps2/vps3 spokes**. `fabrik apply` / `plan` / `redep
 
 **Resolution order** (highest wins): `--target-vps` CLI flag > state file `.fabrik/state/<id>.json::target_vps` > spec `target_vps:` field > **vps1** default.
 
-Spokes are full deploy targets, not standby boxes — a spoke-targeted service runs its container on the spoke but **wires back to the shared vps1 data plane** (`postgres-main:5432`, `redis-main:6379`) over the WireGuard mesh. Those shared backing services always live on vps1 regardless of `target_vps`; only the app container moves. Compose connection strings stay identical (`postgres-main` / `redis-main` Docker DNS) — the mesh resolves them.
+Spokes are full deploy targets, not standby boxes — a spoke-targeted service runs its container on the spoke but **wires back to the shared vps1 data plane** over the WireGuard mesh. Those shared backing services always live on vps1 regardless of `target_vps`; only the app container moves. **The connection host differs by target — WireGuard routes IP packets but carries NO DNS, so the `*-main` Docker-DNS names SERVFAIL on a spoke:** a vps1 app reaches them by name (`postgres-main:5432`, `redis-main:6379`, `glitchtip-web:8000`) over the local `fabrik` bridge; a spoke app reaches them at vps1's **mesh IP** (`10.99.0.1:5432` / `:6379` / `:8000`, published mesh-only, same ports). The infra registrar picks the right host automatically from `target_vps` and injects it into `DATABASE_URL` / `REDIS_URL` / `SENTRY_DSN` — the app needs no special config. Source of truth: `docs/infrastructure/vps-urls.md` § Mesh URLs.
 
 ---
 
@@ -349,7 +351,7 @@ The VPS Traefik uses these entrypoint names:
 | Alpine base image | `slim-bookworm` / `bookworm-slim` (glibc, prebuilt wheels) |
 | `libpq-dev` / `libpq5` in Dockerfile | Omit — asyncpg needs no libpq (psycopg2-only; banned per `25-data-postgres.md`) |
 | `ports:` in compose / host-port binding | Traefik routing — only 80/443 bind host |
-| `localhost` in container connection strings | Docker DNS: `postgres-main`, `redis-main` |
+| `localhost` in container connection strings | Docker DNS `postgres-main` / `redis-main` on the hub — or vps1's mesh IP `10.99.0.1` on a spoke (registrar-injected; see § Multi-host targeting) |
 | Discrete `DB_HOST`/`DB_PORT`/`DB_NAME`/`DB_USER`/`DB_PASSWORD` for the app | Single `DATABASE_URL` (see `10-python.md` § Config) |
 | `depends_on: postgres-main` | None — DB is a separate shared container on the `fabrik` network |
 | `http` / `https` Traefik entrypoints | `web` / `websecure` (those entrypoints do not exist) |

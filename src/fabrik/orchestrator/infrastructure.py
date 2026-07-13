@@ -79,11 +79,57 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Any
+from typing import Any, overload
 
 from fabrik.orchestrator.context import DeploymentContext
 
 logger = logging.getLogger(__name__)
+
+# --------------------------------------------------------------------------- #
+# Shared-infra host resolution (hub vs. spoke)                                 #
+# --------------------------------------------------------------------------- #
+
+# vps1's WireGuard mesh IP. The shared data plane (postgres-main, redis-main,
+# glitchtip-web) lives on vps1 and is published mesh-only on this IP — at the
+# SAME port — so spoke (vps2/vps3) containers can reach it. A vps1 container
+# reaches those services by their Docker-DNS name over the local ``fabrik``
+# bridge; a spoke container CANNOT — WireGuard routes IP packets but carries no
+# DNS, so ``postgres-main``/``redis-main`` SERVFAIL on a spoke. The registrar
+# must therefore inject the mesh IP (not the Docker-DNS name) into a
+# spoke-targeted app's connection strings. Source of truth:
+# ``docs/infrastructure/vps-urls.md`` § Mesh URLs.
+_HUB_MESH_IP = "10.99.0.1"
+
+# vps1 Docker-DNS hostnames of the shared services whose ports are published on
+# ``_HUB_MESH_IP`` for spoke reach. Only these are rewritten; every other host
+# in a connection string is left untouched. (Meilisearch is absent by design —
+# it is not published on the mesh, so the registrar injects no meili host.)
+_SHARED_INFRA_HOSTS = ("postgres-main", "redis-main", "glitchtip-web")
+
+
+@overload
+def _rewrite_shared_infra_host(url: str, target_vps: str | None) -> str: ...
+@overload
+def _rewrite_shared_infra_host(url: None, target_vps: str | None) -> None: ...
+def _rewrite_shared_infra_host(url: str | None, target_vps: str | None) -> str | None:
+    """Swap a vps1 shared-infra Docker-DNS host for vps1's mesh IP on spokes.
+
+    No-op when the target is vps1 (the default) or ``url`` names no shared host
+    — a vps1 container resolves ``postgres-main``/``redis-main``/``glitchtip-web``
+    over the local bridge. For a spoke (``target_vps != "vps1"``) the host is
+    swapped to :data:`_HUB_MESH_IP`; port and path are unchanged (the same port
+    is published on the mesh). The match is anchored on the URL authority — after
+    ``@`` (userinfo present: postgres/glitchtip DSNs) or ``//`` (none:
+    ``redis://redis-main:...``) and the trailing ``:`` (port) — so a bare host
+    substring inside a path or db name is never touched.
+    """
+    if not url or (target_vps or "vps1") == "vps1":
+        return url
+    for host in _SHARED_INFRA_HOSTS:
+        url = url.replace(f"@{host}:", f"@{_HUB_MESH_IP}:")
+        url = url.replace(f"//{host}:", f"//{_HUB_MESH_IP}:")
+    return url
+
 
 # Registrars whose applicability should print in the resolved-infra summary.
 # Kept in the same order as Plan §Phase 7 for operator readability.
@@ -515,6 +561,9 @@ class InfrastructureProvisioner:
             password = result.get("password")
             if password and not dry_run:
                 database_url = f"postgresql://{db_user}:{password}@postgres-main:5432/{db_name}"  # noqa: password is a runtime CSPRNG value from create_database, not a hardcoded secret
+                database_url = _rewrite_shared_infra_host(
+                    database_url, getattr(ctx, "target_vps", None)
+                )
                 self.deployer.inject_env(ctx, {"DATABASE_URL": database_url})
                 logger.info("postgres: DATABASE_URL injected for role %s", db_user)
             # Watchdog per-project DB roles (fabrik-lib product-aware contract):
@@ -542,6 +591,12 @@ class InfrastructureProvisioner:
                             f"@postgres-main:5432/{db_name}"  # noqa: runtime CSPRNG password, not a hardcoded secret
                         )
                     if wd_env and not dry_run:
+                        wd_env = {
+                            k: _rewrite_shared_infra_host(
+                                v, getattr(ctx, "target_vps", None)
+                            )
+                            for k, v in wd_env.items()
+                        }
                         self.deployer.inject_env(ctx, wd_env)
                         logger.info(
                             "postgres: watchdog DSNs injected for %s (%s)",
@@ -588,9 +643,12 @@ class InfrastructureProvisioner:
                 sa = create_subagent_ins_role(sa_project_id, dry_run=dry_run)
                 sa_env: dict[str, str] = {"SUBAGENT_PROJECT": name}
                 if sa["ins"].get("password"):
-                    sa_env["SUBAGENT_RUNS_DSN"] = (
-                        f"postgresql://{sa['ins']['user']}:{sa['ins']['password']}"
-                        f"@postgres-main:5432/fabrik_analytics"  # noqa: runtime CSPRNG password, not a hardcoded secret
+                    sa_env["SUBAGENT_RUNS_DSN"] = _rewrite_shared_infra_host(
+                        (
+                            f"postgresql://{sa['ins']['user']}:{sa['ins']['password']}"
+                            f"@postgres-main:5432/fabrik_analytics"  # noqa: runtime CSPRNG password, not a hardcoded secret
+                        ),
+                        getattr(ctx, "target_vps", None),
                     )
                 # SUBAGENT_SELECTION_DOC = the governance-synced ranking doc. SINGLE
                 # path — the vendored subagents module's reader (`_synced_ranking()`
@@ -679,7 +737,9 @@ class InfrastructureProvisioner:
             )
 
             result = create_project(name, dry_run=dry_run)
-            dsn = result.get("dsn")
+            dsn = _rewrite_shared_infra_host(
+                result.get("dsn"), getattr(ctx, "target_vps", None)
+            )
 
             # Register the project for rollback regardless of the DSN path
             # below — if the DSN injection raises, rollback still finds it.
@@ -824,6 +884,9 @@ class InfrastructureProvisioner:
                     "deploy."
                 )
                 return
+            redis_url = _rewrite_shared_infra_host(
+                redis_url, getattr(ctx, "target_vps", None)
+            )
             self.deployer.inject_env(ctx, {"REDIS_URL": redis_url})
             logger.info("redis: REDIS_URL injected into .env and container restarted")
         except Exception as e:  # noqa: BLE001 — bounded non-fatal

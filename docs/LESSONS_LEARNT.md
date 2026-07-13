@@ -1,9 +1,21 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
-**Last Updated:** 2026-07-12 (Lesson 90 — Stop-hook DoD check is not plan-lock-aware: shared-tree false positives on a concurrent executor's WIP)
+**Last Updated:** 2026-07-13 (Lesson 91 — spoke deploys got unreachable `postgres-main` DSNs: authoritative docs documented the mesh-IP requirement the registrar never implemented)
 
 **Purpose:** CAPTURE TECHNICAL HURDLES, AI-SPECIFIC QUIRKS, AND ARCHITECTURAL DECISIONS TO PREVENT REGRESSION AS CODEBASES AND AI AGENTS EVOLVE.
+
+---
+
+# Lesson 91: A spoke-targeted deploy got unreachable `postgres-main` DSNs — the registrar hardcoded vps1 Docker-DNS hosts the authoritative docs already said must be the mesh IP
+
+**Context (2026-07-13):** The infra registrars (`orchestrator/infrastructure.py`) injected `postgres-main:5432` / `redis-main:6379` / `glitchtip-web:8000` into **every** deployed app's `DATABASE_URL` / `REDIS_URL` / `SENTRY_DSN` unconditionally. A vps1 container resolves those Docker-DNS names over the local `fabrik` bridge — but a **spoke** (vps2/vps3) container cannot: WireGuard routes IP packets and carries **no DNS**, so the name **SERVFAILs**. The shared data plane is published mesh-only on vps1's WireGuard IP `10.99.0.1` (same ports). `_target_vps_env` only swaps *where the deploy is routed* (`FABRIK_VPS_SSH_HOST`), never *what the app connects to*.
+
+**The tell — the docs already knew, the code didn't:** `AGENTS.md` ("From spokes: use the mesh IP `10.99.0.1:5432`"), `docs/infrastructure/vps-urls.md` § Mesh URLs, and `vps-fleet-architecture.md` all documented the mesh-IP requirement — and one synced rule-pack line (`30-ops.md`) actively *contradicted* it ("connection strings stay identical — the mesh resolves them"; false — the mesh carries no DNS). The code was the lone surface that never implemented the documented behaviour. Hadn't bitten only because the fleet's sole spoke spec (`spoke-canary`) sets `needs_database: false` — **the first DB-needing spoke would have been the one to find it.**
+
+**Method (reusable):** when an authoritative infra doc states a *requirement* ("spokes reach X via the mesh IP"), grep the code that should *implement* it — a documented invariant with no implementing branch is a latent deploy break. Enumerate ALL injection sites, not just the one reported: the fix here covered 5 (`DATABASE_URL`, `WATCHDOG_DB_URL_RO/RW`, `SUBAGENT_RUNS_DSN`, `SENTRY_DSN`/`GLITCHTIP_DSN`, `REDIS_URL`) — the bug report named only 2.
+
+**Fix:** a single `_rewrite_shared_infra_host(url, target_vps)` helper (no-op on vps1; swaps the three `*-main` hosts → `10.99.0.1` on a spoke), applied at all 5 sites; corrected the contradicting `30-ops.md` lines. Regression: `tests/orchestrator/test_spoke_dsn_mesh.py` (13, RED-proven by neutering the helper). Meilisearch is deliberately NOT rewritten — it is not published on the mesh, so the registrar injects no meili host (a separate known gap, not this class).
 
 ---
 
