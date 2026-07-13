@@ -300,6 +300,8 @@ class TestPhase4jEndToEndRollback:
             ("dns", "e2e-rollback-smoke.example.com"),
             ("compose", "smoke-app"),
             ("postgres", "e2e_rollback_smoke"),
+            ("watchdog-db-roles", "e2e_rollback_smoke"),
+            ("subagent-ins-role", "e2e-rollback-smoke"),
             ("gatus", "e2e-rollback-smoke"),
             ("backrest", "e2e-rollback-smoke-data"),
             ("glitchtip", "e2e-rollback-smoke"),

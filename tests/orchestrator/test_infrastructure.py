@@ -492,6 +492,8 @@ class TestProvisionDispatch:
         types = {r.resource_type for r in ctx.created_resources}
         assert types == {
             "postgres",
+            "watchdog-db-roles",
+            "subagent-ins-role",
             "gatus",
             "backrest",
             "glitchtip",
