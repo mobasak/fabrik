@@ -340,7 +340,7 @@ State explicitly in the Step 12 batch presentation: `Epic Closure: included | sk
 ### Step 11: Docs-Only Exception
 
 If every file in Scope is `docs/`, root `*.md`, or templates:
-- Gate **Tier**: 1 (coding-time). **Final Gate Instruction: `python scripts/final_gate.py --json`** (unchanged — `final_gate` already skips the static checks when only `.md` changed, so Tier-2 costs nothing here).
+- Gate **Tier**: 1 (coding-time). **Final Gate Instruction: `python scripts/final_gate.py --json`**.
 - No [PRIMARY PATH] test.
 - Doc Sync Matrix + Lessons Learnt still apply.
 

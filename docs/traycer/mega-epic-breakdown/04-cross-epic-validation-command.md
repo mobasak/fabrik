@@ -93,7 +93,7 @@ Read the Infrastructure Decisions spec and verify against epic tickets.
 
 | Check | PASS | FAIL |
 |---|---|---|
-| All shared decisions present | Per `02-epic-decomposition-command` Step 3 template: Database Strategy, Auth Strategy, Email Strategy, Background Processing, Embedding Model (if RAG features), Self-Healing Ladder (if `shape.kind ∈ {service, worker}`), Watchdog Wiring (default-on per `core/60-watchdog.md` matrix), Observability Defaults, Cost Guardrails (if any paid-API use), Backing Services, External Services, Domain Structure, Shared Environment Variables, Shared Shape Decisions | Missing section: [section name] |
+| All shared decisions present | Per `02-epic-decomposition-command` Step 3 template: Database Strategy, Auth Strategy, Email Strategy, Background Processing, Embedding Model (if RAG features), Self-Healing Ladder (if `shape.kind ∈ {service, worker}`), Watchdog Wiring (**ON by default** — the resolver reads the raw spec dict, `infrastructure.py:314`; ⚠️ the `shape.kind` matrix in `core/60-watchdog.md` is **operator discipline, NOT code-enforced** — a `static-site` gets a watchdog despite the matrix saying `off`), Observability Defaults, Cost Guardrails (if any paid-API use), Backing Services, External Services, Domain Structure, Shared Environment Variables, Shared Shape Decisions | Missing section: [section name] |
 | Epic tickets reference, not duplicate | Epics say "Inherited from Infrastructure Decisions spec" | Epic [N] re-defines [decision] differently |
 | No contradictions | Infrastructure Decisions consistent across all epic tickets | Epic [N] says [X], Infrastructure Decisions says [Y] |
 
