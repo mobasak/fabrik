@@ -49,7 +49,7 @@ Read in order:
 4. **Deploy Plan** (when present — may be SKIPPED entirely for code-only Retrofit epics per `04-deploy-plan-command` post-`3060147`) — registrar surface, compose contract, env vars
 5. **Ticket Outline** (when present) — batches, parallel groupings, categories, Doc Sync Matrix
 6. **Ticket Breakdown** (when present) — full tickets, [PRIMARY PATH] Index, Acceptance Criteria
-7. **INFRA-CHECK** — Path A: Scaffold, Port, Internal APIs, User Guide, Shape, Concurrency, i18n, Rule Packs (8 fields). Path B (multi-epic 15-field block per `ettw/00-trigger-workflow-command` § Entry Points → Multi-epic (consume mode) post-`5a48017` + `1eaf22a`): ALSO Responsive, Dark+Light, Registrars, Universal categories, Epic Flavor, Abuse Detection, Email, FINANCIALS.
+7. **INFRA-CHECK** — Path A (per `01-epic-brief-command:35`, the authority): Scaffold, Port, **target_vps**, User Guide, Shape, Concurrency, i18n, Responsive, Dark+Light, Rule Packs (**10 required**) + Abuse Detection, Email, FINANCIALS (**3 SaaS-conditional**) = **13 fields**. ⚠️ `Internal APIs` is **informational**, NOT propagated — do not validate it as a propagated field. Path B (multi-epic 15-field block per `ettw/00-trigger-workflow-command` § Entry Points → Multi-epic (consume mode) post-`5a48017` + `1eaf22a`): ALSO Responsive, Dark+Light, Registrars, Universal categories, Epic Flavor, Abuse Detection, Email, FINANCIALS.
 8. `docs/operations/fabrik-lifecycle.md` — which stage the epic is at
 9. `docs/LESSONS_LEARNT.md` — accumulated entries from prior execution
 
@@ -125,19 +125,21 @@ Verify the contract flows correctly through the chain:
 |---|---|
 | `HAS_USER_GUIDE` | Epic Brief Metadata → Tech Plan Component Architecture (`docs/user-guide/` surface) → ticket ACs |
 | `Scaffold` | Epic Brief → Tech Plan Stack → ticket category |
+| `target_vps` | Epic Brief Metadata → Tech Plan DB/cache host (`postgres-main` on vps1; `10.99.0.1` on a spoke) → Deploy Plan target host |
 | `Port` | Epic Brief → Tech Plan → compose.yaml → PORTS.md → data/projects.yaml |
-| `Internal APIs` | INFRA-CHECK → Tech Plan Component Architecture → ticket Steps |
+| `Internal APIs` *(informational — not a propagated field; check only if material)* | INFRA-CHECK → Tech Plan Component Architecture → ticket Steps |
+| `Rule Packs` | Epic Brief Metadata → Tech Plan → ticket Context Files (propagation only — this command does NOT validate pack CONTENT) |
 | `Shape` | Tech Plan Shape Block → Deploy Plan registrar surface → compose contract |
 | `Concurrency` | INFRA-CHECK → Tech Plan § Concurrency → ticket ACs (async/non-blocking) |
 | `i18n` | INFRA-CHECK → Tech Plan § i18n Architecture (Step 4d) → ticket ACs (locale keys) |
-| `Responsive` (Path B) | Brief Metadata → Tech Plan § UI architecture (Step 4d) → ticket ACs (375px–2560px) |
-| `Dark+Light` (Path B) | Brief Metadata → Tech Plan § UI architecture (OS detection + toggle + persistence) → ticket ACs |
+| `Responsive` | Brief Metadata → Tech Plan § UI architecture (Step 4d) → ticket ACs (375px–2560px) |
+| `Dark+Light` | Brief Metadata → Tech Plan § UI architecture (OS detection + toggle + persistence) → ticket ACs |
 | `Registrars` (Path B) | Brief Metadata → Deploy Plan Step 4 Registrar Surface Map → compose.yaml — verify cross-check rule from `04-deploy-plan-command` post-`3060147` |
 | `Universal categories` (Path B) | Brief Metadata → Tech Plan Architecture scope (per `03-tech-plan-command` Step 1 Path B branch post-`c41bb0b`) + Ticket Outline scope constraint (per `05-ticket-outline-command` Multi-epic dispatch mode post-`ff2c427`) |
 | `Epic Flavor` (Path B) | Brief Metadata → ettw/02 Core Flows scope-narrow + ettw/03 Tech Plan per-step targeting + ettw/04 Skip rule + ettw/05 Multi-epic dispatch + ettw/06 Mandate scoping + ettw/07 Epic Closure dispatch + ettw/08 validation thresholds + ettw/09 30% threshold + this Dimension 7 |
-| `Abuse Detection` (Path B SaaS-conditional) | Brief Metadata → Tech Plan vendor selection (`fabrik-lib/abuse-prevention/`) → ticket ACs per `saas/87-abuse-detection.md` |
-| `Email` (Path B SaaS-conditional) | Brief Metadata → Tech Plan vendor selection (`fabrik-lib/email-templates/`) → ticket ACs (two-stream separation per `core/86-email-templates.md`) |
-| `FINANCIALS` (Path B SaaS-conditional) | Brief Metadata → `05-ticket-outline-command` Step 6b doc matrix → ticket assignment for `docs/FINANCIALS.md` per `saas/88-saas-launch-checklist.md` |
+| `Abuse Detection` (SaaS-conditional, both paths) | Brief Metadata → Tech Plan vendor selection (`fabrik-lib/abuse-prevention/`) → ticket ACs per `saas/87-abuse-detection.md` |
+| `Email` (SaaS-conditional, both paths) | Brief Metadata → Tech Plan vendor selection (`fabrik-lib/email-templates/`) → ticket ACs (two-stream separation per `core/86-email-templates.md`) |
+| `FINANCIALS` (SaaS-conditional, both paths) | Brief Metadata → `05-ticket-outline-command` Step 6b doc matrix → ticket assignment for `docs/FINANCIALS.md` per `saas/88-saas-launch-checklist.md` |
 
 #### Dimension 7 — Ticket Structure (per ticket-breakdown contract)
 
@@ -244,7 +246,7 @@ Compare tickets against updated specs:
 
 - All artifact surfaces internalized (Brief, Flows, Tech Plan, Deploy Plan, Outline, Tickets, INFRA-CHECK, lifecycle, LESSONS_LEARNT).
 - All 8 dimensions analyzed. Findings classified by significance.
-- INFRA-CHECK propagation verified for all 8 Path A fields (Path A epic) OR all 15 Path B fields + Epic Flavor (Path B multi-epic dispatch per `ettw/00-trigger-workflow-command` § Entry Points → Multi-epic (consume mode) post-`5a48017`+`1eaf22a`).
+- INFRA-CHECK propagation verified for all **13** Path A fields (10 required + 3 SaaS-conditional) OR all **15** Path B fields + Epic Flavor (Path B multi-epic dispatch per `ettw/00-trigger-workflow-command` § Entry Points → Multi-epic (consume mode) post-`5a48017`+`1eaf22a`).
 - Ticket structure verified (Doc Sync Matrix, Final Gate, Lessons Learnt, first-output, no-git, [PRIMARY PATH], Epic Closure, parallelism budget).
 - LESSONS_LEARNT coherence verified (entries match, numbering sequential, no spec contradictions).
 - Findings presented: overall assessment → significant → minor (batched).
