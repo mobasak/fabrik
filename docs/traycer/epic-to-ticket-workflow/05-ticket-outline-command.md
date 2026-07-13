@@ -252,7 +252,7 @@ Verify the tickets cover all applicable lifecycle stages:
 | Integration | Wiring, compose, deploy config, end-to-end tests | 2-3 (some sequential) |
 | Closure | Epic Closure systemic gate | 1 (last) for delta-feature; **0 permitted** for a Retrofit that skips closure (§ Step 2b) |
 
-If any stage has 0 tickets → flag as a gap (e.g. "no integration tickets means deploy config isn't explicitly ticketed — risk of it being forgotten").
+If any stage has 0 tickets → flag as a gap — ⚠️ **except the Closure stage on a Retrofit epic**, where 0 is legal (Epic Closure is OPTIONAL for Retrofit, § Step 2b); state the skip justification instead (e.g. "no integration tickets means deploy config isn't explicitly ticketed — risk of it being forgotten").
 
 ### Step 6b: Documentation Assignment Matrix
 
