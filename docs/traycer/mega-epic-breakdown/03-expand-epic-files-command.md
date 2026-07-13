@@ -107,6 +107,7 @@ Epic N — [Name]
 ### Metadata
 - Scaffold: [type]
 - Port: [value]
+- target_vps: [`vps1` (hub, default) / `vps2` / `vps3` — carried verbatim from 02's `Target host:`. Drives the spec's `target_vps:` field, and epic-to-ticket re-checks it as overlay constraint #31. ⚠️ A spoke-targeted service reaches shared infra over the mesh (`10.99.0.1`), NOT by Docker DNS]
 - Shape: [registrar flags]
 - Concurrency: [mechanism]
 - i18n: [mechanism or N/A]

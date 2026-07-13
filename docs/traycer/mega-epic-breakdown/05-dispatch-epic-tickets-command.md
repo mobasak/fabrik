@@ -108,7 +108,7 @@ State dispatch instructions:
 Dispatch instructions presented in conversation (structure-bounded, not document-style — per `EVALUATION_CHECKLIST_FOR_MEGA_EPIC_COMMANDS.md` item 93). Format:
 
 1. **Phased execution order** — rendered using one of the 4 patterns in Step 2 (multi-phase / single-epic / fully-parallel / fully-sequential), inherited verbatim from `04-cross-epic-validation-command` Step 7 Recommended Execution Order when present; re-derived from the Dependency Graph spec only when 04's order is absent.
-2. **Per-epic dispatch instruction** — invokes `epic-to-ticket-workflow/00-trigger-workflow-command` in **consume mode** (per `epic-to-ticket-workflow/00-trigger-workflow-command` § Entry Points → Multi-epic (consume mode) Path B; reads the epic ticket's 14-field Metadata block as INFRA-CHECK). Identical procedure for delta-feature and Retrofit epics.
+2. **Per-epic dispatch instruction** — invokes `epic-to-ticket-workflow/00-trigger-workflow-command` in **consume mode** (per `epic-to-ticket-workflow/00-trigger-workflow-command` § Entry Points → Multi-epic (consume mode) Path B; reads the epic ticket's 15-field Metadata block as INFRA-CHECK). Identical procedure for delta-feature and Retrofit epics.
 3. **Post-execution routing** — instructs the owner to run `epic-to-ticket-workflow/08-implementation-validation-command` per epic to verify implementation after all dispatched epics complete.
 
 **Consumed by:** Owner — executes one epic at a time per phase order; within a Phase, epics with `⚡` can be worked in any order.

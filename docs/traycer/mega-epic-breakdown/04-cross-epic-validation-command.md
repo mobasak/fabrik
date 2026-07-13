@@ -72,7 +72,7 @@ For each epic ticket, verify:
 | Has resilience criterion | Delta-feature: states what happens when a dependency is down. Retrofit epic: this row is N/A iff the retrofit area is NOT resilience/external-call related (Title doesn't contain `Resilience` and Universal categories doesn't list #5 External integrations) | No resilience criterion AND the epic IS resilience-related (delta-feature OR retrofit on category #5) |
 | Has `### Out of Scope` | Present — names other epics, vision-level exclusions, OR explicit `- none — single-epic proposal` / `- none — no overlap with other epics` per 03 L88–94 | Missing, vague, OR fabricates `handled by Epic [N]` with non-existent Epic N |
 | Has `### Dependencies` | Section present AND all 4 sub-bullets present with content or explicit `none` reason — `Consumes from prior epics`, `Produces for later epics`, `Depends on`, `Parallel with` | Section missing OR any sub-bullet missing OR a sub-bullet present-but-empty (no value, no `none`) |
-| Has `### Metadata` with all 14 fields | Scaffold, Port, Shape, Concurrency, i18n, Responsive, Dark+Light, Rule Packs, HAS_USER_GUIDE, Registrars, Universal categories, Abuse Detection, Email, FINANCIALS (last 3 conditional — N/A allowed) | Missing field: [name] |
+| Has `### Metadata` with all 15 fields | Scaffold, Port, target_vps, Shape, Concurrency, i18n, Responsive, Dark+Light, Rule Packs, HAS_USER_GUIDE, Registrars, Universal categories, Abuse Detection, Email, FINANCIALS (last 3 conditional — N/A allowed) | Missing field: [name] |
 | Dependencies name specific artifacts | Tables, functions, endpoints, env vars named (or explicit `none` for atomic-root / terminal-output epics) | Vague references only (e.g., "Epic 1's infrastructure") |
 
 ### Step 4: Dependency Graph Check

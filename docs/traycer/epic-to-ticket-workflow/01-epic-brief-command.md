@@ -32,9 +32,9 @@ Product manager who digs into the "why" behind a project. You produce a deploy-r
 
 **Path B (multi-epic):** `00-trigger` ran in consume mode using an epic ticket from `mega-epic-breakdown/03-expand-epic-files-command`. INFRA-CHECK was emitted from that ticket's metadata. Also read the Infrastructure Decisions from the Vision Summary.
 
-**Required fields from Path A (single-epic INFRA-CHECK from `00-trigger-workflow-command`):** `Port`, `Scaffold`, `User Guide`, `Shape`, `Concurrency`, `i18n`, `Responsive`, `Dark+Light`, `Rule Packs` (9 required); `Abuse Detection`, `Email`, `FINANCIALS` (3 SaaS-conditional, `N/A` allowed).
+**Required fields from Path A (single-epic INFRA-CHECK from `00-trigger-workflow-command`):** `Port`, `target_vps`, `Scaffold`, `User Guide`, `Shape`, `Concurrency`, `i18n`, `Responsive`, `Dark+Light`, `Rule Packs` (10 required); `Abuse Detection`, `Email`, `FINANCIALS` (3 SaaS-conditional, `N/A` allowed).
 
-**Required fields from Path B (multi-epic 14-field block per `00-trigger-workflow-command` § Entry Points → Multi-epic (consume mode)):** the 12 Path A fields PLUS `Registrars`, `Universal categories`, `Epic Flavor` (`Delta-feature` | `Retrofit`) — total 15. Path B does NOT silently drop `Registrars` or `Universal categories`; both propagate into the Epic Brief Metadata block.
+**Required fields from Path B (multi-epic 15-field block per `00-trigger-workflow-command` § Entry Points → Multi-epic (consume mode)):** the 13 Path A fields PLUS `Registrars`, `Universal categories`, `Epic Flavor` (`Delta-feature` | `Retrofit`) — total 16. Path B does NOT silently drop `Registrars` or `Universal categories`; both propagate into the Epic Brief Metadata block.
 
 **Informational (surface if material — both paths):** `Duplicate`, `Internal APIs`, `Design System`, `Platform Debt`, `12-Factor`, `Vector DB`.
 
@@ -94,6 +94,7 @@ Sections in order — line budget varies by epic flavour:
 6. **Metadata** (carry forward from INFRA-CHECK verbatim):
    - `Scaffold: <type>`
    - `Port: <value>`
+   - `target_vps: vps1 | vps2 | vps3` — the deploy host. ⚠️ A **spoke** (`vps2`/`vps3`) reaches shared infra over the mesh (`10.99.0.1`), NOT by Docker DNS — the tech-plan MUST use the right host.
    - `HAS_USER_GUIDE: true/false`
    - `Shape: <flags>` — list every applicable true flag from the 8-flag canonical set: `is_public` (→ gatus), `is_admin_dashboard` (→ authelia), `has_bearer_api` (→ authelia `^/api/` bypass), `has_persistent_data` (→ backrest), `needs_database` (→ postgres), `needs_cache` (→ redis), `has_search_feature` (→ meilisearch), `exposes_metrics` (→ prometheus). Omitting a flag = the gated registrar will NOT fire.
    - `Concurrency: <mechanism>`
@@ -146,7 +147,7 @@ If scope changes during iteration → suggest `revise-requirements` rather than 
 
 ## Acceptance Criteria
 
-- INFRA-CHECK consumed; all propagated fields in Metadata. Path A: 9 required + 3 SaaS-conditional. Path B: 12 required + 3 SaaS-conditional (the full 14-field block per `ettw/00-trigger-workflow-command` § Entry Points → Multi-epic (consume mode) + `Epic Flavor` = 15 propagated fields; none silently dropped at the boundary).
+- INFRA-CHECK consumed; all propagated fields in Metadata. Path A: 10 required + 3 SaaS-conditional. Path B: 13 required + 3 SaaS-conditional (the full 15-field block per `ettw/00-trigger-workflow-command` § Entry Points → Multi-epic (consume mode) + `Epic Flavor` = 15 propagated fields; none silently dropped at the boundary).
 - Research re-read (same file as trigger_workflow); gaps/opportunities surfaced.
 - Assumptions surfaced with confidence ratings when input is thin.
 - Infrastructure grounded by consuming trigger findings, not re-running checks.

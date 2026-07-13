@@ -44,7 +44,7 @@ Read (in order):
 
 **Multi-epic dispatch mode (from `mega-epic-breakdown`):** If this command was invoked downstream of `mega-epic-breakdown/05-dispatch-epic-tickets-command` (i.e., `epic-to-ticket-workflow/00-trigger-workflow-command` ran in **consume mode** per its § Entry Points → Multi-epic (consume mode)), additional rules apply:
 
-- **14-field Metadata** is inherited verbatim from the dispatched epic ticket: Scaffold, Port, Shape, Concurrency, i18n, Responsive, Dark+Light, Rule Packs, HAS_USER_GUIDE, Registrars, Universal categories, Abuse Detection, Email, FINANCIALS. Carry forward to every ticket Metadata field; do NOT re-derive.
+- **15-field Metadata** is inherited verbatim from the dispatched epic ticket: Scaffold, Port, target_vps, Shape, Concurrency, i18n, Responsive, Dark+Light, Rule Packs, HAS_USER_GUIDE, Registrars, Universal categories, Abuse Detection, Email, FINANCIALS. Carry forward to every ticket Metadata field; do NOT re-derive.
 - **Universal categories** (1–14, comma-separated, inherited from the ticket's Metadata field per `mega-epic-breakdown/02-epic-decomposition-command` sub-step 2h) constrain the scope of THIS outline: only the categories this epic owns may yield tickets; categories owned by sibling epics are out-of-scope and become `Out of Scope` lines on every ticket that might touch them.
 - **Epic flavour** is determined by the ticket Title prefix from `mega-epic-breakdown/03-expand-epic-files-command`:
   - **Delta-feature epic** (Title `Epic N — <feature area>`) → default behaviour, target 8–12 tickets for a 5-8 Success Criteria epic.
