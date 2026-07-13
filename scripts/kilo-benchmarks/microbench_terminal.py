@@ -390,6 +390,17 @@ def main(argv: list[str] | None = None) -> int:
             print("[terminal-bench] nothing to bench (all fresh; use --force).")
             return 0
 
+        # Validate every cohort id UP FRONT so a malformed DB-sourced id surfaces as a
+        # loud config error (exit 2) — not masked as a benign per-model "FAILED" skip by
+        # the MODEL_FAILURE(ValueError) catch, whose only in-loop ValueError source is
+        # then parse_tbench_output (a genuine per-model skip). (--models ids are already
+        # validated in select_cohort; this covers the default DB-cohort path.)
+        try:
+            cohort = [_validate_model_id(m) for m in cohort]
+        except ValueError as e:
+            print(f"error: malformed model id in cohort — {e}", file=sys.stderr)
+            return 2
+
         if args.n_tasks is None and args.task_id is None:
             print(
                 f"[terminal-bench] ⚠ per-model task count is UNBOUNDED (full set) — a single "
@@ -408,12 +419,15 @@ def main(argv: list[str] | None = None) -> int:
         benched_ok = 0
         for m in cohort:
             if cohort_spent >= args.cost_cap:
+                # Budget exhausted — stop dispatching, but DON'T force exit 1: models already
+                # scored are real successes. Break and let the benched_ok check set the code
+                # (0 if any scored, 1 only if the run produced nothing).
                 print(
                     f"[terminal-bench] STOP — run budget reached: spent "
                     f"${cohort_spent:.4f} >= cap ${args.cost_cap:.2f} before {m}",
                     file=sys.stderr,
                 )
-                return 1
+                break
             print(f"[terminal-bench] benching {m} … (run spend so far ${cohort_spent:.4f})")
             before = _balance_or_none()
             score: float | None = None
@@ -431,7 +445,9 @@ def main(argv: list[str] | None = None) -> int:
                 )
             except MODEL_FAILURE as e:
                 # tb error / hang / no-results / malformed output → skip, don't crash cohort.
-                print(f"[terminal-bench] {m} FAILED ({type(e).__name__}) — skipping", file=sys.stderr)
+                print(
+                    f"[terminal-bench] {m} FAILED ({type(e).__name__}) — skipping", file=sys.stderr
+                )
             finally:
                 # Count spend whether the model succeeded OR failed-after-spending.
                 after = _balance_or_none()

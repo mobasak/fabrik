@@ -72,19 +72,38 @@ def _seed_main_db(tmp_path, ids):
 
 # --- Behavior 2: run (cohort) budget — main measures spend, counts it even on failure -
 def test_cohort_budget_stops_run_before_next_model(monkeypatch, tmp_path):
-    """main accumulates each model's measured spend (balance before/after the call)
-    and stops before the next model once the tally reaches the cap."""
+    """main accumulates each model's measured spend and stops before the next model
+    once the tally reaches the cap. A budget stop AFTER a model scored is a partial
+    SUCCESS → exit 0 (not a false failure)."""
     _seed_main_db(tmp_path, ["vendor/m1", "vendor/m2"])
     monkeypatch.setattr(mt, "DB_PATH", tmp_path / "t.db")
     monkeypatch.setattr(mt.shutil, "which", lambda x: "/usr/bin/tb")
     benched = []
     monkeypatch.setattr(mt, "bench_model", lambda conn, m, **k: benched.append(m) or 55.0)
-    # m1: before=100, after=97 → spent 3 → cohort_spent 3 >= cap 2 → STOP before m2.
+    # m1 scores; before=100, after=97 → spent 3 >= cap 2 → STOP before m2.
     balances = iter([100.0, 97.0])
     monkeypatch.setattr(mt, "openrouter_balance", lambda: next(balances))
-    rc = mt.main(["--models", "vendor/m1,vendor/m2", "--cost-cap", "2", "--n-tasks", "1", "--force"])
-    assert rc == 1
-    assert benched == ["vendor/m1"]
+    rc = mt.main(
+        ["--models", "vendor/m1,vendor/m2", "--cost-cap", "2", "--n-tasks", "1", "--force"]
+    )
+    assert rc == 0  # m1 scored → partial success, NOT a false failure exit
+    assert benched == ["vendor/m1"]  # m2 never dispatched — budget stopped the run
+
+
+def test_malformed_cohort_id_returns_2(monkeypatch, tmp_path):
+    """A malformed DB-sourced model id surfaces as a config error (exit 2), not a
+    silent per-model 'FAILED' skip masked by the MODEL_FAILURE(ValueError) catch."""
+    seed = _mkdb(tmp_path)
+    seed.execute("INSERT INTO agents (id, via_openrouter, status, has_tools) VALUES ('foo bar',1,'active',1)")
+    seed.commit()
+    seed.close()
+    monkeypatch.setattr(mt, "DB_PATH", tmp_path / "t.db")
+    monkeypatch.setattr(mt.shutil, "which", lambda x: "/usr/bin/tb")
+    called = {"bench": False}
+    monkeypatch.setattr(mt, "bench_model", lambda *a, **k: called.__setitem__("bench", True))
+    rc = mt.main(["--models", "all", "--n-tasks", "1", "--force"])
+    assert rc == 2  # surfaced up front
+    assert called["bench"] is False  # never started benching
 
 
 def test_spend_counted_even_when_model_fails(monkeypatch, tmp_path):
@@ -108,7 +127,9 @@ def test_spend_counted_even_when_model_fails(monkeypatch, tmp_path):
     # bad: before=100, after=96 → spent 4 counted DESPITE the failure → 4 >= cap 3 → STOP before m2
     balances = iter([100.0, 96.0])
     monkeypatch.setattr(mt, "openrouter_balance", lambda: next(balances))
-    rc = mt.main(["--models", "vendor/bad,vendor/m2", "--cost-cap", "3", "--n-tasks", "1", "--force"])
+    rc = mt.main(
+        ["--models", "vendor/bad,vendor/m2", "--cost-cap", "3", "--n-tasks", "1", "--force"]
+    )
     assert rc == 1
     assert benched == []  # m2 blocked by the FAILED model's counted spend
 
@@ -120,8 +141,12 @@ def test_cohort_budget_survives_unknown_spend(monkeypatch, tmp_path):
     monkeypatch.setattr(mt.shutil, "which", lambda x: "/usr/bin/tb")
     benched = []
     monkeypatch.setattr(mt, "bench_model", lambda conn, m, **k: benched.append(m) or 50.0)
-    monkeypatch.setattr(mt, "openrouter_balance", lambda: (_ for _ in ()).throw(mt.httpx.HTTPError("down")))
-    rc = mt.main(["--models", "vendor/m1,vendor/m2", "--cost-cap", "2", "--n-tasks", "1", "--force"])
+    monkeypatch.setattr(
+        mt, "openrouter_balance", lambda: (_ for _ in ()).throw(mt.httpx.HTTPError("down"))
+    )
+    rc = mt.main(
+        ["--models", "vendor/m1,vendor/m2", "--cost-cap", "2", "--n-tasks", "1", "--force"]
+    )
     assert rc == 0
     assert benched == ["vendor/m1", "vendor/m2"]  # no cap trip, no crash
 
@@ -141,7 +166,9 @@ def test_one_model_failure_does_not_kill_cohort(monkeypatch, tmp_path):
         return 60.0
 
     monkeypatch.setattr(mt, "bench_model", fake_bench)
-    rc = mt.main(["--models", "vendor/bad,vendor/good", "--cost-cap", "9", "--n-tasks", "1", "--force"])
+    rc = mt.main(
+        ["--models", "vendor/bad,vendor/good", "--cost-cap", "9", "--n-tasks", "1", "--force"]
+    )
     assert rc == 0
     assert benched == ["vendor/good"]
 
@@ -156,7 +183,9 @@ def test_all_models_fail_returns_nonzero(monkeypatch, tmp_path):
     monkeypatch.setattr(mt.shutil, "which", lambda x: "/usr/bin/tb")
     monkeypatch.setattr(mt, "openrouter_balance", lambda: 100.0)
     monkeypatch.setattr(
-        mt, "bench_model", lambda conn, m, **k: (_ for _ in ()).throw(_sp.CalledProcessError(1, ["tb"]))
+        mt,
+        "bench_model",
+        lambda conn, m, **k: (_ for _ in ()).throw(_sp.CalledProcessError(1, ["tb"])),
     )
     rc = mt.main(["--models", "vendor/a,vendor/b", "--cost-cap", "9", "--n-tasks", "1", "--force"])
     assert rc == 1
@@ -181,10 +210,19 @@ def test_bench_model_returns_score_and_writes(monkeypatch, tmp_path):
     monkeypatch.setattr(mt, "run_one", lambda *a, **k: tmp_path)
     monkeypatch.setattr(mt, "parse_tbench_output", lambda d: 42.0)
     score = mt.bench_model(
-        conn, "vendor/m1", dataset=mt.TB_DATASET, n_tasks=1, task_id=None, n_concurrent=1, n_attempts=1
+        conn,
+        "vendor/m1",
+        dataset=mt.TB_DATASET,
+        n_tasks=1,
+        task_id=None,
+        n_concurrent=1,
+        n_attempts=1,
     )
     assert score == 42.0
-    assert conn.execute("SELECT tbench_accuracy FROM agents WHERE id='vendor/m1'").fetchone()[0] == 42.0
+    assert (
+        conn.execute("SELECT tbench_accuracy FROM agents WHERE id='vendor/m1'").fetchone()[0]
+        == 42.0
+    )
 
 
 def test_stale_score_not_written_on_empty_rerun(monkeypatch, tmp_path):
@@ -204,10 +242,18 @@ def test_stale_score_not_written_on_empty_rerun(monkeypatch, tmp_path):
     monkeypatch.setattr(mt, "run_one", lambda *a, **k: k.get("out_dir") or a[1])
     with pytest.raises(FileNotFoundError):
         mt.bench_model(
-            conn, "vendor/m1", dataset=mt.TB_DATASET, n_tasks=1, task_id=None,
-            n_concurrent=1, n_attempts=1,
+            conn,
+            "vendor/m1",
+            dataset=mt.TB_DATASET,
+            n_tasks=1,
+            task_id=None,
+            n_concurrent=1,
+            n_attempts=1,
         )
-    assert conn.execute("SELECT tbench_accuracy FROM agents WHERE id='vendor/m1'").fetchone()[0] == 77.0
+    assert (
+        conn.execute("SELECT tbench_accuracy FROM agents WHERE id='vendor/m1'").fetchone()[0]
+        == 77.0
+    )
 
 
 # --- Behavior 3: pass-rate parse correct -------------------------------------
