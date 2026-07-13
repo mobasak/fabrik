@@ -62,25 +62,69 @@ def test_run_one_validates_before_dispatch(monkeypatch, tmp_path):
 
 # --- Behavior 2: run (cohort) budget stops the run BEFORE the next model ------
 def test_cohort_budget_stops_run_before_next_model(monkeypatch, tmp_path):
-    """--cost-cap is a run budget checked BEFORE each model: once cumulative
-    spend reaches the cap, the run stops before dispatching the next model.
-    (It is honestly NOT a per-model mid-flight interrupt — see the docstring.)"""
-    conn = _mkdb(tmp_path)
-    conn.executemany(
+    """--cost-cap is a run budget: main ACCUMULATES each model's measured spend and,
+    before each model, stops once the tally reaches the cap. (Honestly NOT a
+    per-model mid-flight interrupt — see the docstring.) Budget tracking uses the
+    per-model spend bench_model returns, NOT a fragile global-balance re-read."""
+    seed = _mkdb(tmp_path)
+    seed.executemany(
         "INSERT INTO agents (id, via_openrouter, status, has_tools) VALUES (?,1,'active',1)",
         [("vendor/m1",), ("vendor/m2",)],
     )
-    conn.commit()
-    monkeypatch.setattr(mt.sqlite3, "connect", lambda *a, **k: conn)
-    monkeypatch.setattr(mt, "CACHE_DIR", tmp_path)
-    # balances read: run_start=100; pre-m1=100 (spent 0 < cap); pre-m2=90 (spent 10 >= cap 2 → STOP)
-    balances = iter([100.0, 100.0, 90.0])
-    monkeypatch.setattr(mt, "openrouter_balance", lambda: next(balances))
+    seed.commit()
+    seed.close()
+    monkeypatch.setattr(mt, "DB_PATH", tmp_path / "t.db")
     benched = []
-    monkeypatch.setattr(mt, "bench_model", lambda conn, m, **k: benched.append(m) or (55.0, 10.0))
+    # m1 costs $3 → cohort_spent=3 >= cap 2 → m2 never dispatched.
+    monkeypatch.setattr(mt, "bench_model", lambda conn, m, **k: benched.append(m) or (55.0, 3.0))
     rc = mt.main(["--models", "vendor/m1,vendor/m2", "--cost-cap", "2", "--n-tasks", "1", "--force"])
     assert rc == 1  # stopped
-    assert benched == ["vendor/m1"]  # m2 never dispatched — budget stopped the run first
+    assert benched == ["vendor/m1"]  # m2 never dispatched — accumulated spend stopped the run
+
+
+def test_cohort_budget_survives_unknown_spend(monkeypatch, tmp_path):
+    """A model whose spend is unknown (None) does not add to the tally and does NOT
+    crash the accumulation — the run continues, bounded by known spends + --n-tasks."""
+    seed = _mkdb(tmp_path)
+    seed.executemany(
+        "INSERT INTO agents (id, via_openrouter, status, has_tools) VALUES (?,1,'active',1)",
+        [("vendor/m1",), ("vendor/m2",)],
+    )
+    seed.commit()
+    seed.close()
+    monkeypatch.setattr(mt, "DB_PATH", tmp_path / "t.db")
+    benched = []
+    monkeypatch.setattr(mt, "bench_model", lambda conn, m, **k: benched.append(m) or (50.0, None))
+    rc = mt.main(["--models", "vendor/m1,vendor/m2", "--cost-cap", "2", "--n-tasks", "1", "--force"])
+    assert rc == 0
+    assert benched == ["vendor/m1", "vendor/m2"]  # unknown spend never trips the cap, no crash
+
+
+def test_one_model_failure_does_not_kill_cohort(monkeypatch, tmp_path):
+    """A single model's tb failure (CalledProcessError) is logged and skipped;
+    the remaining models still run."""
+    import subprocess as _sp
+
+    seed = _mkdb(tmp_path)
+    seed.executemany(
+        "INSERT INTO agents (id, via_openrouter, status, has_tools) VALUES (?,1,'active',1)",
+        [("vendor/bad",), ("vendor/good",)],
+    )
+    seed.commit()
+    seed.close()
+    monkeypatch.setattr(mt, "DB_PATH", tmp_path / "t.db")
+    benched = []
+
+    def fake_bench(conn, m, **k):
+        if m == "vendor/bad":
+            raise _sp.CalledProcessError(1, ["tb"])
+        benched.append(m)
+        return (60.0, 0.1)
+
+    monkeypatch.setattr(mt, "bench_model", fake_bench)
+    rc = mt.main(["--models", "vendor/bad,vendor/good", "--cost-cap", "9", "--n-tasks", "1", "--force"])
+    assert rc == 0
+    assert benched == ["vendor/good"]  # bad skipped, good still benched
 
 
 def test_score_survives_balance_check_failure(monkeypatch, tmp_path):
@@ -138,6 +182,7 @@ def test_stale_score_not_written_on_empty_rerun(monkeypatch, tmp_path):
     )
     conn.commit()
     monkeypatch.setattr(mt, "CACHE_DIR", tmp_path)
+    monkeypatch.setattr(mt, "openrouter_balance", lambda: 100.0)  # no real network GET
     # seed a STALE prior run dir under the model's out_dir
     stale = tmp_path / "tb_run_vendor_m1" / "old-run"
     stale.mkdir(parents=True)

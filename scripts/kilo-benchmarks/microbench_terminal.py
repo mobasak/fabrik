@@ -167,13 +167,17 @@ def run_one(
     n_concurrent: int = 4,
     n_attempts: int = 1,
     agent_timeout_sec: float = 600.0,
+    run_timeout_sec: float | None = None,
 ) -> pathlib.Path:
     """Shell out to ``tb run`` for one model. Returns the run's output dir.
 
     argv list, never shell=True. model_id is validated before interpolation.
     ``agent_timeout_sec`` is passed to the harness (``--global-agent-timeout-sec``)
-    so a stuck agent loop is killed by ``tb`` instead of hanging the cohort
-    indefinitely (core/58-resilience).
+    so a stuck AGENT loop is killed by ``tb``. ``run_timeout_sec`` (optional) is a
+    HARD wall-clock cap on the whole ``tb`` PROCESS — catches a hang OUTSIDE the
+    agent loop (e.g. a stalled Docker pull) that the agent-timeout can't reach.
+    Left ``None`` by default because a full task set legitimately runs for hours;
+    the caller treats a ``TimeoutExpired`` as a model failure and continues.
     """
     _validate_model_id(model_id)
     argv = [
@@ -201,7 +205,9 @@ def run_one(
     elif n_tasks is not None:
         argv += ["--n-tasks", str(n_tasks)]
     env = {**os.environ}
-    subprocess.run(argv, check=True, env=env)  # noqa: S603 — argv list, validated model_id
+    subprocess.run(  # noqa: S603 — argv list, validated model_id
+        argv, check=True, env=env, timeout=run_timeout_sec
+    )
     return out_dir
 
 
@@ -233,6 +239,7 @@ def bench_model(
     n_concurrent: int,
     n_attempts: int,
     agent_timeout_sec: float = 600.0,
+    run_timeout_sec: float | None = None,
 ) -> tuple[float, float | None]:
     """Bench one model: balance-before → run → balance-after → parse → write.
 
@@ -261,6 +268,7 @@ def bench_model(
         n_concurrent=n_concurrent,
         n_attempts=n_attempts,
         agent_timeout_sec=agent_timeout_sec,
+        run_timeout_sec=run_timeout_sec,
     )
     after = _balance_or_none()
     # Parse + WRITE the score first — a completed run's result is never lost to a
@@ -314,6 +322,14 @@ def _build_argparser() -> argparse.ArgumentParser:
         help="Per-agent-run wall-clock cap in seconds (tb --global-agent-timeout-sec) so a "
         "stuck agent loop can't hang the cohort (default 600).",
     )
+    p.add_argument(
+        "--run-timeout",
+        type=float,
+        default=None,
+        help="Optional HARD wall-clock cap (seconds) on a single model's whole tb process — "
+        "catches a hang outside the agent loop (e.g. stalled Docker pull). Default: none "
+        "(a full task set runs for hours); a timeout is treated as a model failure + skipped.",
+    )
     p.add_argument("--force", action="store_true", help="Re-bench even if fresh.")
     p.add_argument(
         "--dry-run", action="store_true", help="Print the dispatch plan + estimate; call no model."
@@ -363,32 +379,39 @@ def main(argv: list[str] | None = None) -> int:
                 file=sys.stderr,
             )
 
+        # Budget is tracked by ACCUMULATING each model's measured spend (the before/after
+        # delta around THAT model's run) — not by re-reading the global balance, which
+        # fails open on any blip. `spent is None` (balance unreadable for a model) simply
+        # doesn't add to the tally: the known spends still bound the run, and the
+        # unmeasurable portion is bounded by --n-tasks / --run-timeout (documented).
         cohort_spent = 0.0
-        run_start_balance = _balance_or_none()
         for m in cohort:
-            # Cohort-budget PRE-CHECK: stop before starting a model once the run budget is spent.
-            if run_start_balance is not None:
-                now = _balance_or_none()
-                if now is not None:
-                    cohort_spent = run_start_balance - now
-                    if cohort_spent >= args.cost_cap:
-                        print(
-                            f"[terminal-bench] STOP — run budget reached: spent "
-                            f"${cohort_spent:.4f} >= cap ${args.cost_cap:.2f} before {m}",
-                            file=sys.stderr,
-                        )
-                        return 1
+            if cohort_spent >= args.cost_cap:
+                print(
+                    f"[terminal-bench] STOP — run budget reached: spent "
+                    f"${cohort_spent:.4f} >= cap ${args.cost_cap:.2f} before {m}",
+                    file=sys.stderr,
+                )
+                return 1
             print(f"[terminal-bench] benching {m} … (run spend so far ${cohort_spent:.4f})")
-            score, spent = bench_model(
-                conn,
-                m,
-                dataset=args.dataset,
-                n_tasks=args.n_tasks,
-                task_id=args.task_id,
-                n_concurrent=args.n_concurrent,
-                n_attempts=args.n_attempts,
-                agent_timeout_sec=args.agent_timeout,
-            )
+            try:
+                score, spent = bench_model(
+                    conn,
+                    m,
+                    dataset=args.dataset,
+                    n_tasks=args.n_tasks,
+                    task_id=args.task_id,
+                    n_concurrent=args.n_concurrent,
+                    n_attempts=args.n_attempts,
+                    agent_timeout_sec=args.agent_timeout,
+                    run_timeout_sec=args.run_timeout,
+                )
+            except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError) as e:
+                # One model failing (tb error / hang / no results) must not kill the cohort.
+                print(f"[terminal-bench] {m} FAILED ({type(e).__name__}) — skipping", file=sys.stderr)
+                continue
+            if spent is not None:
+                cohort_spent += max(0.0, spent)  # max() ignores a mid-run top-up (negative delta)
             spent_str = f"${spent:.4f}" if spent is not None else "unknown (balance unavailable)"
             print(f"[terminal-bench] {m}: tbench={score:.1f} spent={spent_str}")
         return 0
