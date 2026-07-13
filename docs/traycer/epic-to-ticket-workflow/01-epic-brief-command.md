@@ -71,7 +71,7 @@ Consume `trigger_workflow` findings — do not repeat its checks:
 Sections in order — line budget varies by epic flavour:
 
 - **Delta-feature epic** (default for Path A; Path B `Epic Flavor: Delta-feature`): target 50 lines total, soft cap 100.
-- **Retrofit epic** (Path B `Epic Flavor: Retrofit` only — Title prefix `Retrofit:` per `mega-epic-breakdown/03-expand-epic-files-command` L82-86): target **30 lines** total, soft cap 60. Retrofit briefs are naturally shorter — fewer features, focused scope, narrower Success Criteria.
+- **Retrofit epic** (Path B `Epic Flavor: Retrofit` only — Title prefix `Retrofit:` per `mega-epic-breakdown/03-expand-epic-files-command` **Step 2** — the two flavours and the `Retrofit:` Title prefix): target **30 lines** total, soft cap 60. Retrofit briefs are naturally shorter — fewer features, focused scope, narrower Success Criteria.
 
 1. **Summary** (3–8 sentences) — What, for whom, why. NOT how. NOT success criteria.
 
