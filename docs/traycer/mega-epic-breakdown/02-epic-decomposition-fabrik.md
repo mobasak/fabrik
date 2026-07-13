@@ -59,7 +59,7 @@ This command produces the compact epic proposal + Infrastructure Decisions in co
 **Hard stop if:** Vision Summary not confirmed by owner, OR Open Questions remain unresolved. Do not proceed with ambiguity.
 
 **Additionally read:**
-- `docs/operations/fabrik-lifecycle.md` — deploy/runtime behavior & data safety (lifecycle stages 3–4). Each epic must still pass all 4 lifecycle stages: scaffold → implement → register (`fabrik apply`) → verify (`fabrik verify`). ⚠️ **Exception — Retrofit epics:** a Retrofit on an already-deployed service creates **no new deploy unit**, so it has no Stage-1/Stage-3 of its own; its stage-3 equivalent is `python scripts/final_gate.py --lean --json` green + the rule-pack gap moving to Compliant (per `03-expand-epic-files-command`). State this exception inline on any Retrofit epic.
+- `docs/operations/fabrik-lifecycle.md` — deploy/runtime behavior & data safety (lifecycle stages 3–4). Each epic must still pass all 4 lifecycle stages: scaffold → implement → register (`fabrik apply`) → verify (`fabrik verify`). ⚠️ **Exception — Retrofit epics:** a Retrofit on an already-deployed service creates **no new deploy unit**, so it has no Stage-1/Stage-3 of its own; its stage-3 equivalent is `python scripts/final_gate.py --json` green (the FULL Tier-2 gate) + the rule-pack gap moving to Compliant (per `03-expand-epic-files-command`). State this exception inline on any Retrofit epic.
 - `agents-fabrik.md` § Infrastructure Services — backing services available.
 - `agents-fabrik.md` § Planning Constraints — constraints still apply per epic.
 - `PORTS.md` — each epic's service needs a port. Check availability.

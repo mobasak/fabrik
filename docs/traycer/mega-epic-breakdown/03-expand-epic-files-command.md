@@ -38,7 +38,7 @@ You are a ticket breakdown orchestrator. You read the confirmed compact epic pro
 - Infrastructure Decisions spec (from `02-epic-decomposition-command`) — confirmed
 - Dependency Graph (from `02-epic-decomposition-command`) — confirmed
 
-Additionally read: `docs/operations/fabrik-lifecycle.md` — a **delta-feature** epic ticket must pass all 4 lifecycle stages (scaffold → implement → `fabrik apply` → `fabrik verify`). ⚠️ **Retrofit exception:** a Retrofit on an already-deployed service creates **no new deploy unit** — it has no Stage-1/Stage-3 of its own; its Stage-3 equivalent is the gate + the compliance-row flip in Success Criteria #1.
+Additionally read: `docs/operations/fabrik-lifecycle.md` — ⚠️ it covers **only lifecycle stages 3–4** (deploy/runtime behaviour + data safety); it carries **no** stage model. The 4-stage model (scaffold → implement → `fabrik apply` → `fabrik verify`) is asserted by the command chain itself: a **delta-feature** epic ticket must pass all four. ⚠️ **Retrofit exception:** a Retrofit on an already-deployed service creates **no new deploy unit** — it has no Stage-1/Stage-3 of its own; its Stage-3 equivalent is the gate + the compliance-row flip in Success Criteria #1.
 
 **Hard stop if:** any of the above are missing or not confirmed by owner.
 
@@ -86,7 +86,7 @@ Epic N — [Name]
 - ...
 
 ### Success Criteria
-[5-8 measurable outcomes for delta-feature epics; 3-5 for Retrofit epics (a code-change retrofit may have fewer naturally testable criteria — document the justification inline). MUST include AT LEAST ONE deploy/gate-level criterion AND ONE feature/compliance-level criterion. Pick whichever variant of each fits the epic:]
+[5-8 measurable outcomes for delta-feature epics; 3-5 for Retrofit epics — ⚠️ criteria #3 and #4 below are **N/A for a code-only retrofit**, so #1 and #2 alone yield only 2: a Retrofit MUST add **at least one area-specific criterion** to reach the floor of 3 (otherwise `04-cross-epic-validation` fails it on 'below per-flavour minimum') (a code-change retrofit may have fewer naturally testable criteria — document the justification inline). MUST include AT LEAST ONE deploy/gate-level criterion AND ONE feature/compliance-level criterion. Pick whichever variant of each fits the epic:]
 1. Deploy/gate-level — delta-feature epic: `fabrik apply` succeeds; health endpoint returns 200. — Retrofit epic on existing service (no new deploy unit): `python scripts/final_gate.py --json` returns `"status":"success"` (the **FULL Tier-2** gate — mypy + bandit + semgrep; ⚠️ `--lean` is Tier-1, for iteration only, **never** an acceptance gate per `CLAUDE.md` § Completion Contract) for the modified scope, AND the rule pack's compliance check moves from Partial/Violates → Compliant (per the gap row in the Vision Summary's Compliance Report).
 2. Feature/compliance-level — delta-feature: [**the `Delivers:` value from 02's compact entry**, restated as an end-to-end user flow that proves the epic works. ⚠️ `Delivers` is the owner-visible outcome negotiated at 02's checkpoint — never drop it] — Retrofit: [the specific behaviour the rule pack mandates is now observable — e.g., `tr` locale renders for an i18n retrofit; rate-limit middleware blocks the test request for an abuse-detection retrofit].
 3. [Resilience criterion — what happens when a dependency is down] — N/A for Retrofit epics not touching external-call sites.
@@ -117,7 +117,7 @@ Epic N — [Name]
 - Dark+Light: [carry from compact entry verbatim — same feature-based trigger as Responsive above]
 - Rule Packs: [IDs]
 - HAS_USER_GUIDE: [true/false]
-- Registrars: [which of the **10** fire for this epic's deploy unit(s) — 7 flag-driven + grafana (always) + glitchtip (`shape.kind`) + watchdog (opt-OUT: fires unless `watchdog: {enabled: false}`). ⚠️ **gatus, authelia and prometheus ALSO require `spec.domain`** — the flag alone fires nothing (`infrastructure.py:214,256,293`). ⚠️ **Any** registrar — grafana included — can additionally be force-disabled by `infra: { <name>: false }` (`infrastructure.py::_enabled`)]
+- Registrars: [which of the **10** fire for this epic's deploy unit(s) — 7 flag-driven + grafana (always) + glitchtip (`shape.kind`) + watchdog (opt-OUT: fires unless `watchdog: {enabled: false}`). ⚠️ **gatus, authelia and prometheus ALSO require `spec.domain`** — the flag alone fires nothing (`infrastructure.py:214,255,293`). ⚠️ **Any** registrar — grafana included — can additionally be force-disabled by `infra: { <name>: false }` (`infrastructure.py::_enabled`)]
 - Universal categories: [comma-separated numbers from 1–14 this epic owns; copied verbatim from the per-epic compact entry produced by `02-epic-decomposition-command` sub-step 2h]
 - Abuse Detection: [required — SaaS scaffold with a free-tier signup surface (per `saas/87-abuse-detection.md`) / N/A — not a free-tier signup surface]
 - Email: [transactional / marketing / two-stream (both, separate subdomains per `core/86-email-templates.md`) / none — epic does not send email / N/A]
@@ -166,7 +166,7 @@ Total: [N] tickets. Each is dispatchable independently.
 **Produced as Traycer tickets (stored natively — no files written to disk):**
 
 - One ticket per epic
-- Title: `Epic N — [Name]`
+- Title: `Epic N — [Name]` (delta-feature) or `Epic N — Retrofit: [area]` (Retrofit)
 - Description: self-sufficient spec derived verbatim from 02's confirmed output
 - Status: TODO (ready for dispatch)
 

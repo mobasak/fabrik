@@ -93,7 +93,7 @@ Build a complete ticket the agent can execute without questions:
 **Agent context:** Read `docs/operations/fabrik-lifecycle.md` before executing.
 
 ### Pre-flight (verify before deploy)
-- [ ] Final gate passes: `python scripts/final_gate.py --lean --json` → status: success
+- [ ] Final gate passes: `python scripts/final_gate.py --json` (the FULL Tier-2 gate — never `--lean` for a deploy) → status: success
 - [ ] Local dev works: `fabrik dev -d && curl localhost:<PORT>/health` → 200
 - [ ] Code pushed: `git log origin/<branch> --oneline -1` matches local HEAD
 - [ ] If not pushed: `git push origin <branch>`

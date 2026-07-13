@@ -83,7 +83,7 @@ Sections in order — line budget varies by epic flavour:
    - Each either a concrete number or binary state.
    - MUST include at least one deploy/gate-level criterion:
      - **Delta-feature:** "`fabrik apply` succeeds, `/health` returns 200, `audit-registrars` reports present."
-     - **Retrofit** (no new deploy unit): `scripts/final_gate.py --lean --json` returns `"status":"success"` for the modified scope AND the rule pack's compliance check moves from Partial/Violates → Compliant (per the gap row in the Vision Summary's Compliance Report).
+     - **Retrofit** (no new deploy unit): `python scripts/final_gate.py --json` (the FULL Tier-2 gate — `--lean` is iteration-only) returns `"status":"success"` for the modified scope AND the rule pack's compliance check moves from Partial/Violates → Compliant (per the gap row in the Vision Summary's Compliance Report).
    - Design criteria to be decomposable into independent parallel work streams.
    - Anti-patterns: vague verbs (`improve`), implementation details (`uses Redis`), aspirations (`delight users`).
 
