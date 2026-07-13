@@ -292,7 +292,7 @@ If research direction is fundamentally wrong for Fabrik (e.g., AWS serverless wh
 7. **No Alpine** — bookworm-slim only (`30-ops.md`).
 8. **12-Factor compliance** — any architectural violations?
 9. **Solo dev capacity** — achievable by one person + AI agents?
-10. **Observability** — every **`kind: service` / `worker`** exposes `/health` (Gatus, testing ALL real deps) and `/metrics` (Prometheus)? ⚠️ Exposing `/metrics` **obliges** `shape.exposes_metrics: true` **+** a `spec.domain` — with either missing, `fabrik apply` silently skips the Prometheus registrar. **`kind: static`** (`static-site`, `docusaurus`): N/A — no app process.
+10. **Observability** — every **`kind: service` / `worker`** exposes `/health` (Gatus, testing ALL real deps) and `/metrics` (Prometheus)? ⚠️ Exposing `/metrics` **obliges** `shape.exposes_metrics: true` **+** a `spec.domain` — with either missing, `fabrik apply` silently skips the Prometheus registrar. **`kind: static`** (`static-site`, `docusaurus`): N/A — no app process **exposing these endpoints** (they do still serve HTTP; the compose healthcheck remains mandatory).
 11. **Vector DB ban** — Pinecone/Qdrant/Weaviate/Milvus = reject. pgvector on `postgres-main` only (`65-rag-search.md`).
 12. **Email streams** — if product sends email, transactional + marketing on separate streams/subdomains (`86-email-templates.md`).
 13. **Compose invariants** — every Fabrik-deployed service declares `container_name: <name>`, `deploy.resources.limits.memory`, `platform: linux/amd64`, no `ports:`, and joins the **`fabrik`** network (renamed from `coolify` 2026-05-31). ⚠️ **These are NOT reliably enforced:** `_validate_compose()` runs **only** on the template + docker-image deploy paths (`deployer_ssh.py:373,481`) — **`_deploy_git` never calls it** (`:404`), and even where it does run it never checks per-service network *membership* (it rejects only a stray legacy `coolify` key and a `fabrik` network that isn't `external: true`, `deployer_ssh.py:737-741`; a compose declaring **no** networks block passes). Since **git-sourced is the standard Fabrik deploy path**, the project must **self-enforce these in its own gate** — do not assume `fabrik apply` will catch a violation. See `30-ops.md`.
@@ -559,7 +559,7 @@ For each rule pack applicable to this scaffold type (per `agents-fabrik.md` § P
 
 | Rule area | Applies to (kind) |
 | --- | --- |
-| 12-Factor App, Resilience, Health endpoint, Structured logging, Shape contract, Observability, Compose invariants, Authelia bypass scope, Fabrik-synced files unmodified, Bootstrap scripts | every `service` + `worker` scaffold; `static` skips Health/Observability/Resilience (no app process) |
+| 12-Factor App, Resilience, Health endpoint, Structured logging, Shape contract, Observability, Compose invariants, Authelia bypass scope, Fabrik-synced files unmodified, Bootstrap scripts | every `service` + `worker` scaffold; `static` skips Health/Observability/Resilience (no app process **exposing those endpoints** — it still serves HTTP) |
 | asyncpg, UUIDv7 | every Python `service` + `worker` that touches Postgres |
 | Python version floor | every Python scaffold |
 | Node ESM mandate | every Node scaffold |
@@ -699,7 +699,7 @@ a memory-based claim is a defect. No entry ships without a cited source + fetch 
 - Email (marketing): [Resend Broadcasts → Listmonk+SES / none]
 - Background processing: [file-worker needed? what runs async]
 - Scaffold types: [any NEW scaffold types — e.g., adding mobile-app alongside existing saas-skeleton]
-- Watchdog sidecar + cost-budget: [**accept-defaults** ($5.00/day + 200 calls — what a delta silently inherits) / **raise** (state per-project `daily_budget_usd` + `daily_invocations_cap` per `cost-budget.md`) / **opt-out** (`watchdog: {enabled: false}`)] — ⚠️ state one of the three; "enable? yes/no" cannot express the accept-vs-raise distinction #28 requires.
+- Watchdog sidecar + cost-budget: [**accept-defaults** ($5.00/day + 200 calls — what a delta silently inherits) / **raise** (state per-project `daily_budget_usd` + `daily_invocations_cap` per `cost-budget.md`) / **opt-out** (`watchdog: {enabled: false}`)] — ⚠️ state one of the three; "enable? yes/no" cannot express the accept-vs-raise distinction constraint **#19** requires.
 - Target host (per new service, YAML `target_vps:`): [`vps1` (hub, default) / `vps2` / `vps3` (spoke)]
 - Deploy target: VPS via fabrik apply / SSH + Docker Compose (confirmed — same as existing services)
 - Domain structure: [any NEW subdomains needed for the new capability]
