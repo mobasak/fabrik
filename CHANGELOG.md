@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — microbench_terminal.py: home-run Terminal-Bench (Linux-sysadmin) scoring for OpenRouter models (2026-07-13)
+
+`scripts/kilo-benchmarks/microbench_terminal.py` — sibling of `microbench_coding.py`. Shells out to the
+official `terminal-bench` harness (`tb run -a terminus-2 -m openrouter/<id> -d terminal-bench-core==0.1.1`,
+Apache-2.0) against OpenRouter-routed models and writes the task-resolution pass-rate to
+`agents.tbench_accuracy` (`results.json.accuracy × 100`). Fills the gap where the public tbench.ai leaderboard
+has no score for newer models (minimax-m3, glm-5.2, deepseek-v4-pro). Cost is bounded per model via the
+OpenRouter balance-delta (`/api/v1/credits` — the harness's own token counts are 0) plus `--n-tasks`/`--cost-cap`;
+`--dry-run` calls no model. Shell-out is injection-guarded (validated model_id, argv never `shell=True`);
+freshness is keyed on `tbench_accuracy` presence (NOT the price-scraper-overloaded `last_verified`). On-demand
+only — NOT wired into `daily_refresh.sh`. Adds `terminal-bench>=0.2.18` to `pyproject.toml`.
+
 ### Fixed — Reconcile the veteran-sysadmin system prompt to reality (2026-07-13)
 
 `/fabrik-docs-review scripts/sysadmin/system-prompt.txt` — the 355-line prompt deployed to all 3 hosts'

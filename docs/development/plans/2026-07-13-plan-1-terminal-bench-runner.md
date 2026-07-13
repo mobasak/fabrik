@@ -115,7 +115,9 @@ Trivia skipped: argparse `--help`, docstring format, print wording.
 
 ---
 
-## Phase B — `microbench_terminal.py` (cohort → dispatch → parse → writeback + cost-cap + dry-run)
+## Phase B — `microbench_terminal.py` (cohort → dispatch → parse → writeback + cost-cap + dry-run) — ✅ EXECUTED 2026-07-13
+
+**Execution notes:** 24 behavior tests green. Live-verified end-to-end (deepseek-v4-pro, 2 tasks, $0.2051 < $2 cap → wrote tbench then reset the 2-task artifact to NULL to keep the catalog honest). **Two implementation-discovered corrections:** (1) freshness keys on `tbench_accuracy` presence, NOT `last_verified` — the latter is overloaded (price scrapers stamp it on 305 never-tbench'd OR models, which would wrongly skip them); (2) `openrouter_balance` failures are graceful (core/58-resilience) — a completed paid-for bench's score is never lost to a credits-API blip (regression test `test_score_survives_balance_check_failure`).
 
 **Deliverable:** a runnable, cost-capped, injection-safe adapter that benches a cohort and writes `tbench_accuracy`.
 
