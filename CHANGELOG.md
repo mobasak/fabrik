@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Reconcile the veteran-sysadmin system prompt to reality (2026-07-13)
+
+`/fabrik-docs-review scripts/sysadmin/system-prompt.txt` — the 355-line prompt deployed to all 3 hosts'
+AI sysadmins (+ the watchdog sidecar), where a stale factual claim makes the AI act on wrong assumptions.
+Converged over 3 passes (Pass 3 = 0 discrepancies / 0 edits, md5-stable). Fixed:
+
+- **Line 10 (OAuth 401 guidance) — WRONG on 3 counts, and it's exactly the failure that just hit prod:** the
+  cited keepalive cron `0 * * * * claude -p "ping"` never existed (real:
+  `<hash-min> * * * * ozgur /opt/fabrik/scripts/sysadmin/claude-keepalive-rotate.sh`); the 401-alert debounce is
+  **12h** not 24h (`claude_rotate.py:55`); and "the keepalive cron … is dead" is a misleading diagnosis — a 401
+  means the account **credentials** expired and rotation found no valid standby (rotating single-use refresh
+  tokens kill frozen snapshots), the cron runs fine. Rewritten to the accurate diagnosis.
+- **Line 59 — dead PromQL metric:** `container_restart_count` returns 0 series in this cadvisor setup (verified
+  live). Replaced with the working docker-native method (`docker inspect -f '{{.RestartCount}}'` /
+  `docker events --filter event=die`), consistent with the restart-loop playbook.
+- **Line 202 — DEAD service:** removed `image-broker` from the P2 tier (removed 2026-06-02, no spec/container/DNS).
+- **Line 47 — STALE count:** Gatus "21+ endpoints" → "31 endpoints (18 config files)".
+
+Verified-unchanged (native Opus + my checks): all 12 service ports, all 4 classification tiers + P0-P4 lists,
+audit scripts/prompts inventory, Lesson 75 citation, peer-protocol Phase-5 status, referenced file paths.
+⚠️ Takes effect on the fleet only after the prompt is re-synced to each host (`sync-vps-sysadmin.sh`).
+
 ### Changed — Fleet health/security re-audit + docs/infrastructure reconciliation (2026-07-13)
 
 Second `/fabrik-docs-review docs/infrastructure` with a full live fleet health + security sweep (converged over
