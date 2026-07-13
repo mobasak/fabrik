@@ -147,7 +147,7 @@ If scope changes during iteration → suggest `revise-requirements` rather than 
 
 ## Acceptance Criteria
 
-- INFRA-CHECK consumed; all propagated fields in Metadata. Path A: 10 required + 3 SaaS-conditional. Path B: 13 required + 3 SaaS-conditional (the full 15-field block per `ettw/00-trigger-workflow-command` § Entry Points → Multi-epic (consume mode) + `Epic Flavor` = 15 propagated fields; none silently dropped at the boundary).
+- INFRA-CHECK consumed; all propagated fields in Metadata. Path A: 10 required + 3 SaaS-conditional. Path B: 13 required + 3 SaaS-conditional (the full 15-field block per `ettw/00-trigger-workflow-command` § Entry Points → Multi-epic (consume mode) + `Epic Flavor` = 16 propagated fields; none silently dropped at the boundary).
 - Research re-read (same file as trigger_workflow); gaps/opportunities surfaced.
 - Assumptions surfaced with confidence ratings when input is thin.
 - Infrastructure grounded by consuming trigger findings, not re-running checks.

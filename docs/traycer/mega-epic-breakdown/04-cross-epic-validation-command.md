@@ -105,6 +105,7 @@ For each epic ticket, verify it can feed into `epic-to-ticket-workflow/01-epic-b
 |---|---|---|
 | Metadata has `Scaffold` | Present | Missing |
 | Metadata has `Port` | Present and valid | Missing or conflicting |
+| Metadata has `target_vps` | `vps1` / `vps2` / `vps3` | Missing — the tech plan cannot pick the DB host |
 | Metadata has `Shape` | Present | Missing |
 | Metadata has `Concurrency` | Present | Missing |
 | Metadata has `i18n` | Present or N/A stated | Missing |
