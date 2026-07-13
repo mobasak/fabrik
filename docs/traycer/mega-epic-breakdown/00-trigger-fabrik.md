@@ -395,7 +395,7 @@ across multiple lines.]
 - **RAG pipeline:** [none / search-only (embeddings + retriever) / search + classification / full intelligence (+ generator + summarizer) — state what corpus is being searched and what users need from it. See `domain-modules/rag.md` for component guide.]
 - **Background processing:** [file-worker needed? State what runs async: transcription, PDF gen, AI inference, batch imports, scheduled jobs / none]
 - **Consumed microservices:** [site-provisioner for DNS / none — image-broker is retired/not deployed]
-- **Watchdog sidecar + cost-budget:** [enabled (state per-project `daily_budget_usd` + `daily_invocations_cap` per `cost-budget.md`) / not needed (no paid AI APIs / no cost-sensitive ops) — ⚠️ `cost-budget.md:28` makes the **cost CAP** mandatory for any project that runs the watchdog (or calls paid AI APIs); it does **not** mandate the watchdog itself — and on the `fabrik apply` path the sidecar is **on by default** regardless, so the live question is the cap, not the sidecar. Without a cap a feedback loop (the sidecar diagnosing the sidecar) could empty the budget overnight]
+- **Watchdog sidecar + cost-budget:** [**accept-defaults** ($5.00/day + 200 calls) / **raise** (state the per-project `daily_budget_usd` + `daily_invocations_cap` per `cost-budget.md`) / **opt-out** (`watchdog: {enabled: false}` — no paid AI APIs / no cost-sensitive ops) — ⚠️ `cost-budget.md:28` makes the **cost CAP** mandatory for any project that runs the watchdog (or calls paid AI APIs); it does **not** mandate the watchdog itself — and on the `fabrik apply` path the sidecar is **on by default** regardless, so the live question is the cap, not the sidecar. Without a cap a feedback loop (the sidecar diagnosing the sidecar) could empty the budget overnight]
 - **Domain structure:** [subdomains needed, e.g., api.X, app.X, admin.X]
 - **Scaffold types:** [list all scaffold types this vision needs — each may become an epic. Valid: python-api, python-api-gpu, node-api, saas-skeleton, file-api, file-worker, docusaurus, chrome-extension, mobile-app, desktop-app, static-site. **wordpress is NOT valid here** — route any WordPress site requirement to the standalone `/opt/wpf` project.]
 - **Target host (per service, YAML field `target_vps:`):** [`vps1` (hub, default — shared infra here) / `vps2` or `vps3` (spoke — public Traefik only, reaches hub infra via `10.99.0.1:<port>`) — state per service. Hub = anything needing low-latency to postgres/redis/glitchtip/authelia; spoke = tenant-isolated, EU-proximate, or capacity-spillover.]
@@ -646,7 +646,7 @@ Wait for owner decisions. **STOP GENERATION HERE.** These decisions shape which 
 
 ### Step E5: Produce Vision Summary (EXISTING mode — with extra sections)
 
-A **superset** of the NEW-mode Vision Summary: identical title and identical required sections (so `02-epic-decomposition-command` consumes both identically), **plus** two EXISTING-only sections `02` simply ignores (`Locked Decisions`, `Compliance Report`). Artifact title is `Vision Summary` — not "Continuation Summary".
+A **superset** of the NEW-mode Vision Summary: identical **required sections**, so `02-epic-decomposition-command` consumes both identically. The H1 differs (`# Vision Summary: [Project Name] — [New Capability]` vs NEW-mode's `# Vision Summary: [Product Name]`), and there are two EXISTING-only sections `02` simply ignores (`Locked Decisions`, `Compliance Report`). Artifact title is `Vision Summary` — not "Continuation Summary".
 
 ```markdown
 # Vision Summary: [Project Name] — [New Capability]
