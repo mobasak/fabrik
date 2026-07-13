@@ -55,7 +55,7 @@ If any of the 3 checks fail, STOP. Do not proceed to Step 2.
 
 **Source-of-truth order:** PREFER the `Recommended Execution Order` already rendered by `04-cross-epic-validation-command` Step 7 in the conversation's most recent Validation Report — it's already topologically sorted into Phases. Only re-derive from the Dependency Graph spec if 04's order is absent.
 
-**Re-derivation path (if needed):** Read the Dependency Graph spec from `02-epic-decomposition-command` (mermaid format with `subgraph "Phase N"` blocks per `02-epic-decomposition-command` L300-311). Topologically sort: nodes with no incoming edges = Phase 1; remove them and repeat for Phase 2; continue until all nodes placed. Epics within a Phase have no mutual dependencies — render with `⚡` separator. This is the SAME terminology as 02 + 04 (`Phase`, not `Batch`) — keep it consistent so the owner sees one vocabulary across the chain.
+**Re-derivation path (if needed):** Read the Dependency Graph spec from `02-epic-decomposition-command` (mermaid format with `subgraph "Phase N"` blocks per `02-epic-decomposition-command` § Output Contract → 3. Dependency graph). Topologically sort: nodes with no incoming edges = Phase 1; remove them and repeat for Phase 2; continue until all nodes placed. Epics within a Phase have no mutual dependencies — render with `⚡` separator. This is the SAME terminology as 02 + 04 (`Phase`, not `Batch`) — keep it consistent so the owner sees one vocabulary across the chain.
 
 **Render the execution order to the owner using these patterns:**
 
