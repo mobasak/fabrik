@@ -362,6 +362,12 @@ def main(argv: list[str] | None = None) -> int:
     if args.cost_cap <= 0:
         print(f"error: --cost-cap must be > 0 (got {args.cost_cap})", file=sys.stderr)
         return 2
+    if args.agent_timeout <= 0:
+        print(f"error: --agent-timeout must be > 0 (got {args.agent_timeout})", file=sys.stderr)
+        return 2
+    if args.run_timeout is not None and args.run_timeout <= 0:
+        print(f"error: --run-timeout must be > 0 when set (got {args.run_timeout})", file=sys.stderr)
+        return 2
     # Pre-flight: a missing tb binary must surface as an infra error, not be masked
     # as N benign per-model "skips" with a success exit code (finding pass-3).
     if not args.dry_run and shutil.which(TB_CLI) is None:

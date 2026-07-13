@@ -193,6 +193,28 @@ def test_all_models_fail_returns_nonzero(monkeypatch, tmp_path):
     assert rc == 1
 
 
+@pytest.mark.parametrize(
+    "args",
+    [
+        ["--cost-cap", "0"],
+        ["--cost-cap", "-1"],
+        ["--agent-timeout", "0"],
+        ["--agent-timeout", "-5"],
+        ["--run-timeout", "0"],
+        ["--run-timeout", "-2"],
+    ],
+)
+def test_nonpositive_numeric_flags_return_2(args, tmp_path, monkeypatch):
+    """Invalid numeric caps/timeouts surface as a clean config error (exit 2) up front,
+    not masked as 'all models failed' (a bad timeout makes every tb run TimeoutExpired)."""
+    monkeypatch.setattr(mt, "DB_PATH", tmp_path / "t.db")  # unused — guard fires before DB open
+    called = {"bench": False}
+    monkeypatch.setattr(mt, "bench_model", lambda *a, **k: called.__setitem__("bench", True))
+    rc = mt.main(["--models", "vendor/m1", *args])
+    assert rc == 2
+    assert called["bench"] is False
+
+
 def test_missing_tb_binary_returns_2(monkeypatch, tmp_path):
     """A missing tb binary is an infra error (exit 2), not masked as benign skips."""
     _seed_main_db(tmp_path, ["vendor/m1"])
