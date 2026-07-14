@@ -60,17 +60,19 @@ A dimension belongs at intake **only if** getting it wrong is **irreversible** o
 
 #### 4. Product & Architecture (6 irreversibles)
 
-Reference `.windsurf/rules/saas/95-multi-tenant-saas.md` for implementation detail. At intake, force:
+⚠️ **This dimension forces a DECISION; it never states the implementation.** Each bullet names what intake must settle and **which pack owns the answer**. Do NOT copy values (thresholds, column names, provider configs) out of those packs into here — a second copy drifts, and that is precisely why the old `domain-modules/` was deleted. Read the pack.
 
-- **Tenancy:** shared postgres-main + `tenant_id` + Postgres RLS (`fabrik-lib/fastapi-user-auth` owns the `auth` schema natively — `auth.uid()` over the `request.jwt.claims` GUC). DB-per-tenant only if contractually required.
-- **Identity/org:** `fabrik-lib/fastapi-user-auth` (Pattern A — the app issues its own JWTs: Argon2, refresh-token rotation, `jti` denylist, tenant-isolation RLS) for users + org/role/invite model; Authelia for back-office only. Pattern A is THE default per `core/35-security-auth.md`; Supabase Auth is legacy/migration-only (see `AGENTS.md § Supabase`).
-- **Billing+gating:** plan-to-feature gating matrix exists *before* features. **Provider picked by target market** per `.windsurf/rules/core/85-payments-billing.md` (providers) + `.windsurf/rules/saas/88-saas-launch-checklist.md` § Payment Routing (⚠️ **BIN-based card routing lives in 88, NOT 85** — 85 contains no routing rules) § Payment Providers: **Paddle Billing v2 (MoR)** for international, **iyzico** for Turkish domestic, **both** when serving both markets (BIN-based card routing). Stripe is unavailable to a Turkey-resident entity — do NOT plan around it.
-- **Metering:** redis-main counters reconciled to postgres-main for billing-grade truth. Never bill off Redis alone.
-- **Isolation+audit:** RLS/tenant-scope enforced in one place; audit log + soft-delete + per-tenant export.
-- **Activation event:** the one action = "got value," instrumented from commit #1.
-- **Abuse prevention (LAUNCH-BLOCKING per `.windsurf/rules/saas/88-saas-launch-checklist.md` § Abuse Prevention + the full spec in `saas/87-abuse-detection.md`).** Free tiers attract abuse — without these, the free tier bleeds revenue. Phase 1 items are non-negotiable at launch: (1) store `registration_ip` (INET) + `registration_fingerprint` (VARCHAR 64) on the users table; (2) IP rate limit — max **2 registrations per IP / 24h**; (3) disposable-email blocklist (~5,000 domains, `data/disposable-email-domains.txt`) rejected on registration; (4) email verification required **before quota/credits activate** — never grant on signup alone; (5) progressive quota unlock (**30% immediate, 70% after 24h delay**) — defeats bot-farm automation; (6) client-side FingerprintJS open-source on registration, hash stored server-side. PLUS **per-tenant API rate limiting** (key by `tenant_id`, NOT user/IP; default limits in `plan_features` table; applied at middleware before business logic) — required to prevent noisy-neighbor.
+| Force at intake | Default | Pack that OWNS the implementation |
+|---|---|---|
+| **Tenancy** — shared-DB + `tenant_id` + RLS, or DB-per-tenant? | shared `postgres-main` + RLS. DB-per-tenant **only** if contractually required. | `saas/95-multi-tenant-saas.md` |
+| **Identity/org** — auth pattern + org/role/invite model | **Pattern A** (`fabrik-lib/fastapi-user-auth`, app issues its own JWTs); Authelia is back-office only. | `core/35-security-auth.md` |
+| **Billing + gating** — which provider(s), and does a plan→feature gating matrix exist *before* features? | Picked **by target market**. Stripe is unavailable to a Turkey-resident entity — do NOT plan around it. | providers → `core/85-payments-billing.md`; **card routing → `saas/88-saas-launch-checklist.md` § Payment Routing** (⚠️ routing is in **88**, not 85 — 85 has no routing rules) |
+| **Metering** — what is billing-grade truth? | Redis counters **reconciled to Postgres**. Never bill off Redis alone. | `saas/95-multi-tenant-saas.md` |
+| **Isolation + audit** — one enforcement point; audit log, soft-delete, per-tenant export | enforced in exactly one place | `saas/95-multi-tenant-saas.md` |
+| **Activation event** — the one action that means "got value" | instrumented from commit #1 | (intake-owned; no pack) |
+| **Abuse prevention** — free tier gating. **LAUNCH-BLOCKING.** | Free tiers get farmed; an ungated one bleeds revenue and API quota. Adopt the pack's Phase-1 layers **in full** — they are non-negotiable at launch. Plus per-tenant (not per-user/IP) API rate limiting to stop noisy-neighbor. | **full spec → `saas/87-abuse-detection.md`**; launch gate → `saas/88-saas-launch-checklist.md` § Abuse Prevention |
 
-**Why now:** each is irreversible at the schema/auth level — retrofit = rewrite. Abuse columns + rate-limit middleware in particular are launch-blocking; bolting them on after launch means rewriting registration and a quota-audit migration.
+**Why now:** each is irreversible at the schema/auth level — retrofit = rewrite. Abuse columns and rate-limit middleware especially: bolting them on post-launch means rewriting registration *and* running a quota-audit migration over real users.
 
 #### 5. Integrations / Ecosystem
 
