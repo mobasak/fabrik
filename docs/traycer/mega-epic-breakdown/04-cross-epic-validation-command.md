@@ -85,6 +85,8 @@ Read the Dependency Graph (from spec or conversation context) and cross-referenc
 | Graph matches epic tickets | All dependencies in graph match `### Dependencies` sections | Epic [N] depends on Epic [M] but graph doesn't show it |
 | Root epic(s) identified | Epic(s) with no upstream dependencies found | No root epic — everything depends on something |
 | Parallel lanes identified | Epics with no mutual dependencies marked parallel | [Specific issue] |
+| **Parallel epics have DISJOINT owned paths** | For every `Parallel with:` pair, intersect their `Owned paths:` — empty intersection | Epic [A] and Epic [B] are marked parallel but BOTH write `[glob]`. Two agents writing one file is a merge conflict by construction → re-cut the boundary or reclassify to sequential |
+| **At most ONE migration owner per parallel set** | Only one epic in any parallel set owns `alembic/versions/**` / `db/schema.sql` | Epic [A] and Epic [B] are parallel and BOTH own migrations. Concurrent Alembic heads race the version table and wedge the deploy (12-Factor XII) → the non-schema epic must `depends-on` the schema epic |
 | Produced artifacts consumed | Every "Produces for later epics" has a matching "Consumes from prior epics" — N/A for single-epic proposals (no later epics) and for terminal-output epics that legitimately produce end-user-visible output only (e.g., a marketing-page epic that produces a rendered site, consumed by humans not by a later epic) | Epic [A] produces [X] but no epic consumes it AND epic count > 1 AND [X] is an internal artifact (DB table, API endpoint, env var, queue) not end-user output |
 
 ### Step 5: Infrastructure Decisions Check

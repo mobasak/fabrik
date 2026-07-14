@@ -131,16 +131,30 @@ Retrofit epics ARE epics — they count toward the 5–15 features rule (a small
 - Does Epic B consume any shared service or infrastructure component (background processor, job queue, storage client, notification client, shared middleware, or any API module) that another epic scaffolds or creates? → B depends on THAT epic, regardless of where it sits in the draft execution order.
 - Do two epics share NO data, NO APIs, NO services, NO auth, NO infrastructure components? → They can run in parallel.
 
-**Parallel classification gate — run AFTER dependency detection, before finalizing any "parallel" label:**
-For EVERY epic marked "parallel," produce one explicit verdict line in the proposal:
+**Parallel classification gate — run AFTER dependency detection, before finalizing any "parallel" label.**
+
+⚠️ A `parallel` label is a **concurrency contract**, not a scheduling hint: it asserts that two agent teams could execute both epics **at the same time, in the same repo, without colliding**. Three checks must ALL pass. Historically only the first existed — which meant two "parallel" epics could be cleared to run while both rewrote `src/auth/` and both added an Alembic head.
+
+For EVERY epic marked `parallel`, emit **three** verdict lines:
 
 ```text
-[Epic N] parallel gate: PASS — consumes only [list artifacts] from [Epic X], which completes before this epic starts.
-[Epic N] parallel gate: FAIL — consumes [artifact] from [Epic Y], which runs AFTER this epic → reclassified to depends-on: Epic Y.
+[Epic N] parallel gate 1/3 — ARTIFACTS: PASS — consumes only [artifacts] from [Epic X], which completes before this epic starts.
+[Epic N] parallel gate 2/3 — FILE SCOPE: PASS — Owned paths {src/billing/**, tests/billing/**} are disjoint from every co-parallel epic's.
+[Epic N] parallel gate 3/3 — MIGRATIONS: PASS — this epic owns no migrations; Epic 1 is the sole migration owner in this parallel set.
 ```
 
-FAIL = fix `depends-on`, re-run the gate for that epic, confirm PASS before finalizing.
-Do NOT present the proposal until every parallel-labeled epic has a PASS verdict on record.
+**1/3 ARTIFACTS** (consumption) — FAIL if the epic consumes an artifact produced by an epic that runs *after* it → fix `depends-on`, re-run.
+
+**2/3 FILE SCOPE** (disjointness) — intersect this epic's `Owned paths:` with those of **every** epic it is `Parallel with:`. Any overlap → **FAIL**. Two agents writing one file is a merge conflict by construction, and the fact that neither consumes the other's *artifacts* does not save them.
+FAIL = either **re-cut the epic boundaries** so the paths are disjoint (preferred — an overlap usually means the boundary was drawn by layer, not by domain), or **reclassify to sequential**. Never "parallel with a note to be careful."
+
+**3/3 MIGRATIONS** (single owner) — at most **ONE** epic in any parallel set may own schema migrations (`alembic/versions/**`, `db/schema.sql`). Two epics landing concurrent Alembic heads race the version table and **wedge the deploy** — this is 12-Factor XII, and it is not a merge conflict you can see in a diff.
+FAIL = the epic that does not own the schema **depends-on** the one that does. There is no "we'll merge the migrations later."
+
+FAIL on ANY of the three = fix, re-run all three for that epic, confirm PASS.
+Do NOT present the proposal until every parallel-labeled epic has **three** PASS verdicts on record.
+
+> **Why this matters beyond planning:** the operator's requirement is to run *multiple agents in one project concurrently, on different scopes, without touching the same files* (`docs/traycer/00-autonomous-factory-north-star.md` R16). `Owned paths:` is what makes that checkable — and it is what the future driver will hand each worker as its `File Scope (owned paths)`. A `parallel` label with no disjointness proof is a promise the repo cannot keep.
 
 **2d. Order for value delivery:**
 - State the **CRITICAL PATH** — the longest sequential epic chain — as e.g. `Critical path: Epic 1 → Epic 3 → Epic 5 (3 deep)`. Present it at the Checkpoint.
@@ -306,6 +320,7 @@ Epic [N]: [Name]
   Delivers: [what the owner can see/use after this epic ships]
   Consumes: [artifacts this epic needs FROM prior epics — DB tables, API endpoints, env vars, middleware — or `none — root epic`]
   Produces: [artifacts LATER epics consume — table names, endpoint paths, env var names. `Delivers:` is owner-visible value; this is the machine contract]
+  Owned paths: [the file globs this epic WRITES — e.g. `src/billing/**`, `alembic/versions/**`, `tests/billing/**`. ⚠️ This is the CONCURRENCY CONTRACT: two epics may only be `Parallel with:` each other if their Owned paths are DISJOINT and at most ONE of them owns migrations. Read paths are not owned — only writes collide. `none` is not an acceptable value; every epic writes something]
   Rule Packs: [IDs from .windsurf/rules/]
   HAS_USER_GUIDE: [true/false]
   Shape: [`kind` + the 8 canonical flags from the spec shape block: is_public, is_admin_dashboard, has_bearer_api, has_persistent_data, needs_database, has_search_feature, needs_cache, exposes_metrics — plus watchdog.enabled]
@@ -381,7 +396,7 @@ Iterate until the owner explicitly confirms:
 
 **Produced as Traycer specs (persisted in Traycer's spec store, readable via `read_spec`):**
 
-1. **Compact Epic Proposal** (**≤400 tokens per epic; ≤4,000 tokens total**) — one entry per epic (delta-feature epics + **Retrofit epics** if Existing mode) with **all 22 fields per the template** (incl. Target host, Consumes, Produces — see the Acceptance Criteria for the five groups).
+1. **Compact Epic Proposal** (**≤400 tokens per epic; ≤4,000 tokens total**) — one entry per epic (delta-feature epics + **Retrofit epics** if Existing mode) with **all 23 fields per the template** (incl. Target host, Consumes, Produces — see the Acceptance Criteria for the five groups).
 2. **Infrastructure Decisions** — shared across all epics. ≤5,000 tokens. In Existing mode, overlapping sections inherit Locked Decisions verbatim.
 3. **Dependency Graph** — mermaid diagram + execution order. Retrofit epics receive dependency analysis identical to delta epics.
 4. **Coverage Check** — every feature mapped to exactly one epic.
@@ -410,7 +425,7 @@ Iterate until the owner explicitly confirms:
 - Vision Summary consumed from conversation — not re-derived.
 - Technology Decisions inherited — not re-decided.
 - Every feature from Feature Inventory assigned to exactly one epic. No orphans. No duplicates.
-- Each epic entry has **all 22 fields** of the Compact Epic Proposal template — including **Target host**, **Consumes** and **Produces**. (Enumerating a subset here is how fields get silently dropped: the template is the contract.)
+- Each epic entry has **all 23 fields** of the Compact Epic Proposal template — including **Target host**, **Consumes** and **Produces**. (Enumerating a subset here is how fields get silently dropped: the template is the contract.)
 - Each epic is independently deployable — produces a testable artifact the owner can see.
 - Epic boundaries drawn by domain, not by layer.
 - Dependencies between epics are explicit. No circular dependencies.
@@ -425,7 +440,7 @@ Iterate until the owner explicitly confirms:
 - Every "ABSORBED in Step 3 § X" verdict in 2h matches a sub-section actually drafted in Step 3.
 - Every "N/A" verdict in 2h carries an explicit trigger-not-met reason cited from the spec shape block or Vision Summary.
 - Overlay-merge rule applied: no overlay-mandated epic is duplicated by a universal-category epic, and no overlay-mandated coverage is dropped.
-- Each per-epic compact entry carries **22 indented fields** under the `Epic [N]: [Name]` heading, in **five** groups: (1) **9 epic-shape fields** — Scope, Features, Scaffold, Depends on, Parallel with, Port, Delivers, Rule Packs, HAS_USER_GUIDE; (2) **6 inheritance-metadata fields** — Shape, Concurrency, i18n, Responsive, Dark+Light, Registrars; (3) **Universal categories** (1 field); (4) **3 conditional fields** — Abuse Detection, Email, FINANCIALS (each carries the project-wide Infrastructure Decisions value or `N/A` per the trigger); (5) **3 cross-epic-contract fields** — **Target host**, **Consumes**, **Produces**. 03's Metadata block consumes **15** of these (the 6 metadata + Scaffold + Port + **Target host** + Rule Packs + HAS_USER_GUIDE + Universal categories + the 3 conditionals); **Consumes** and **Produces** feed `03-expand-epic-files-command` § Dependencies; the remaining 5 (Scope, Features, Depends on, Parallel with, Delivers) become other sections in 03's ticket (Summary, Scope > In, Dependencies, Dependencies, Success Criteria respectively). See `03-expand-epic-files-command` Metadata block and `epic-to-ticket-workflow/01-epic-brief-command` § Step 5 → Metadata.
+- Each per-epic compact entry carries **23 indented fields** under the `Epic [N]: [Name]` heading, in **five** groups: (1) **9 epic-shape fields** — Scope, Features, Scaffold, Depends on, Parallel with, Port, Delivers, Rule Packs, HAS_USER_GUIDE; (2) **6 inheritance-metadata fields** — Shape, Concurrency, i18n, Responsive, Dark+Light, Registrars; (3) **Universal categories** (1 field); (4) **3 conditional fields** — Abuse Detection, Email, FINANCIALS (each carries the project-wide Infrastructure Decisions value or `N/A` per the trigger); (5) **4 cross-epic-contract fields** — **Target host**, **Consumes**, **Produces**, **Owned paths** (the concurrency contract — see the parallel gate at 2c). 03's Metadata block consumes **15** of these (the 6 metadata + Scaffold + Port + **Target host** + Rule Packs + HAS_USER_GUIDE + Universal categories + the 3 conditionals); **Consumes** and **Produces** feed `03-expand-epic-files-command` § Dependencies; the remaining 5 (Scope, Features, Depends on, Parallel with, Delivers) become other sections in 03's ticket (Summary, Scope > In, Dependencies, Dependencies, Success Criteria respectively). See `03-expand-epic-files-command` Metadata block and `epic-to-ticket-workflow/01-epic-brief-command` § Step 5 → Metadata.
 - Owner explicitly confirms. Silence ≠ confirmation.
 
 **Existing mode adds:**

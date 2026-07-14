@@ -105,6 +105,7 @@ Epic N — [Name]
 - **Produces for later epics:** [specific artifacts this epic creates that others need — **carried verbatim from 02's `Produces:` field**. `Delivers:` is owner-visible value; this is the machine contract downstream epics consume]
 - **Depends on:** [Epic X (hard), Epic Y (soft)] or [none — root epic]
 - **Parallel with:** [Epic X] or [none]
+- **Owned paths:** [the file globs THIS epic writes — carried verbatim from 02's `Owned paths:`. ⚠️ **The concurrency contract.** Every epic named in `Parallel with:` must have DISJOINT owned paths, and at most one epic in a parallel set may own migrations (`alembic/versions/**`, `db/schema.sql`) — 02's parallel gate 2/3 + 3/3 proved this. The executing agent treats these as its **File Scope (owned paths)**: it writes here and nowhere else. A file outside this list showing up in the diff is a scope violation, not a bonus]
 
 ### Metadata
 - Scaffold: [one of the 11 scaffoldable types per `00-trigger-workflow-command` § Shape model — carried verbatim from 02's `Scaffold:`]
@@ -186,7 +187,7 @@ Total: [N] tickets. Each is dispatchable independently.
 - Each ticket title follows the format: `Epic N — [Name]` (delta-feature) **or** `Epic N — Retrofit: [area]` (Retrofit). ⚠️ The `Retrofit:` prefix is the **sole carrier** of the epic flavour downstream — `epic-to-ticket/00` string-parses the Title. A title like `Epic 4 — i18n Retrofit` silently classifies as Delta-feature.
 - Each ticket description is self-sufficient: a coding agent can run `epic-to-ticket-workflow/01-epic-brief-command` using only the ticket + Infrastructure Decisions spec.
 - Ticket length is **structure-bounded by the template** (no numeric token cap — per `EVALUATION_CHECKLIST_FOR_MEGA_EPIC_COMMANDS` item 93). A ticket that will not fit the template means the epic is **over-scoped** → route back to `02-epic-decomposition-command`.
-- Each ticket has ALL required sections: Summary, Scope (In/Out), Success Criteria (**5-8** measurable for delta-feature; **3-5** for Retrofit), Out of Scope, Dependencies (with specific artifacts), Metadata (**all 15 fields**: Scaffold, Port, target_vps, Shape, Concurrency, i18n, Responsive, Dark+Light, Rule Packs, HAS_USER_GUIDE, Registrars, Universal categories, Abuse Detection, Email, FINANCIALS), Infrastructure reference, Execution Order, Entry Point.
+- Each ticket has ALL required sections: Summary, Scope (In/Out), Success Criteria (**5-8** measurable for delta-feature; **3-5** for Retrofit), Out of Scope, Dependencies (with specific artifacts, incl. **Owned paths** — the concurrency contract), Metadata (**all 15 fields**: Scaffold, Port, target_vps, Shape, Concurrency, i18n, Responsive, Dark+Light, Rule Packs, HAS_USER_GUIDE, Registrars, Universal categories, Abuse Detection, Email, FINANCIALS), Infrastructure reference, Execution Order, Entry Point.
 - Success Criteria are testable — "user can do X", not "system supports X."
 - Dependencies name specific artifacts (tables, functions, endpoints, env vars), not vague references.
 - Scope boundaries unchanged from 02's confirmed proposal — no feature migration without routing back to 02.
