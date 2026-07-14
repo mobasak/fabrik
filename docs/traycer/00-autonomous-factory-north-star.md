@@ -20,6 +20,12 @@ and doc-update autonomously; **two human gates** (plan in, deploy out).
 
 **DONE** = built and in use · **PARTIAL** = built but not enforced end-to-end · **OPEN** = not built.
 
+> ⚠️ **Verification status (be honest about this).** The four **OPEN** rows and the cargo order were
+> verified against the repo on 2026-07-14 (`job-queue` is not wired into `fabrik`; `02`'s parallel gate
+> checks consumption only; plan-2 is archived as EXECUTED). The **DONE** rows were marked from working
+> knowledge of the command chain, **not** re-proven one by one. Treat a DONE as a claim to spot-check, not
+> as a gate result. If a requirement here matters for a decision, open the command file and read it.
+
 ### Goal
 
 | # | Requirement | State |
@@ -100,7 +106,8 @@ nothing tracked whether they stayed true. Recorded now, with their real state.
 - **D4** — The converger is executed **by the driver, in code** — not by asking an agent to loop (R8).
 - **D5** — Capacity from `job-queue/autoscale.py` (real cgroup numbers); fleet later via `postgres-main`.
 - **Zed** — dropped (no in-window multi-thread view).
-- **Vibe Kanban** — dropped as cockpit (parked systemd service on `localhost:57300`; leave-or-remove TBD).
+- **Vibe Kanban** — dropped as cockpit. ⚠️ **Still RUNNING** (verified 2026-07-14: listening on
+  `127.0.0.1:57300`, live pid). Decide: leave or remove — it is consuming a slot for nothing.
 - **Gate 2** — Telegram digest → review branches in VS Code Source Control diff → merge → manual `fabrik apply`.
 - **Epic ticket store (2026-07-14)** — our orchestrator has **no native ticket store** (Traycer does), so
   `03-expand-epic-files-fabrik` **writes one file per epic** to
@@ -111,8 +118,10 @@ nothing tracked whether they stayed true. Recorded now, with their real state.
 
 ## Cargo order
 
-1. **Shakedown:** plan-2 (`fabrik-capability-catalog`, CONVERGED 2026-07-12, execution-ready).
-2. **First mission:** the 4-stack customer-finding pipeline — whatsapp-agent · tryton-crm ·
+1. ~~**Shakedown:** plan-2 (`fabrik-capability-catalog`).~~ ✅ **DONE** — `Status: EXECUTED 2026-07-12`,
+   both phases shipped + reviewed to CLEAN, plan archived
+   (`docs/development/plans/archived/2026-07-12-plan-2-fabrik-capability-catalog.md`).
+2. **First mission (NEXT):** the 4-stack customer-finding pipeline — whatsapp-agent · tryton-crm ·
    trade-intelligence · tojlo-mail (wpf parked). Milestone = pipeline complete + deployed.
 3. **Then the queue opens:** youtube, calendar-orchestration-engine, brand-identity-creator,
    iterative-image-editor, … toward 50.
