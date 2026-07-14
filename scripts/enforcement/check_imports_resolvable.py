@@ -181,6 +181,8 @@ def _editable_roots() -> tuple[Path, ...]:
         sp = Path(entry)
         if sp.name not in {"site-packages", "dist-packages"} or not sp.is_dir():
             continue
+        # `glob` does not raise on an unreadable dir — pathlib swallows OSError and yields nothing
+        # (VERIFIED). The read_text below is what needs guarding.
         for f in (*sp.glob("*.pth"), *sp.glob("*.egg-link")):
             try:
                 for raw in f.read_text(errors="replace").splitlines():
@@ -521,9 +523,10 @@ def main() -> int:
             continue
         sink = errors if area in ERROR_AREAS else warnings
         for py in sorted(base.rglob("*.py")):
-            # ⚠️ `rglob("*.py")` also matches DIRECTORIES named `*.py`, and `_is_tracked`'s prefix scan
-            # says True for a dir with tracked children → `read_text` raises IsADirectoryError and the
-            # gate dies with a traceback, blocking the project. Skip non-files.
+            # `rglob("*.py")` also matches DIRECTORIES named `*.py` — `read_text` on one raises
+            # IsADirectoryError. (It does NOT raise on an unreadable dir: pathlib's glob swallows OSError
+            # and skips it — VERIFIED. An earlier "fix" hand-rolled a walker to guard a crash that cannot
+            # happen; a wrong fix to a non-finding is still a defect. Don't re-add it.)
             if not py.is_file():
                 continue
             rel = py.relative_to(ROOT)

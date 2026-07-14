@@ -316,6 +316,26 @@ def test_editable_install_of_an_outside_tree_is_still_a_phantom(
     assert rc == 1, f"an editable install of an OUTSIDE tree is not reproducible in CI:\n{out}"
 
 
+def test_an_unreadable_directory_does_not_crash_the_gate(repo: Path) -> None:
+    """REGRESSION — `rglob("*.py")` raises PermissionError mid-iteration on a directory it cannot list
+    (a `chmod 700` dir owned by someone else, a dead symlink, a vanished mount). That escaped as a
+    traceback and took the gate down. This is a SHOWSTOPPER check in 47 repos: it must skip what it
+    cannot see, never die on it."""
+    (repo / "src" / "pkg" / "app.py").write_text("import os\n")
+    _commit(repo, "src/pkg/app.py", "src/pkg/__init__.py")
+
+    locked = repo / "src" / "locked"
+    locked.mkdir()
+    (locked / "mod.py").write_text("x = 1\n")
+    locked.chmod(0o000)  # unlistable
+    try:
+        rc, out = _run_check(repo)
+        assert "Traceback" not in out, f"an unreadable dir must be skipped, not crash:\n{out}"
+        assert rc == 0, out
+    finally:
+        locked.chmod(0o755)  # so pytest can clean the tmpdir up
+
+
 def test_phantom_in_scripts_is_warn_not_error(repo: Path) -> None:
     """scripts/ is dev tooling, never deployed — a papercut, not an outage. It must not block the gate."""
     (repo / ".gitignore").write_text("libs/subagents/\n")
