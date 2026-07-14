@@ -27,6 +27,7 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import sys
 import tempfile
 from dataclasses import dataclass, field
@@ -57,6 +58,66 @@ _GITIGNORE_BLOCK_RE = re.compile(
     r"# =+\n# Fabrik-synced files.*?# End Fabrik-synced block\n# =+\n",
     re.DOTALL,
 )
+
+# The safety FLOOR every project's .gitignore must cover — secrets, virtualenvs, bytecode.
+# These are deliberately NOT part of the Fabrik-synced block: that block lists centrally-managed
+# FILES, whereas this is project hygiene. But the sync enforces the floor anyway, because a
+# .gitignore that has lost these rules is one `git add -A` away from committing a .env.
+_ESSENTIAL_IGNORES = """# Essential safety rules — restored by sync_enforcement_to_projects.py.
+# A .gitignore missing these is one `git add -A` away from committing secrets.
+.env
+.env.*
+!.env.example
+.venv/
+venv/
+__pycache__/
+*.pyc
+"""
+
+_ESSENTIAL_PATTERNS = (".env", ".venv/", "__pycache__/")
+
+
+def _covers_essentials(text: str) -> bool:
+    """True iff ``text`` literally lists the safety floor. TEXT-only — used by the tests.
+
+    ⚠️ Prefer :func:`_git_covers_essentials` for the real decision. This literal check cannot see
+    that ``.env*`` or ``venv/`` already protect ``.env``, so using it to gate the repair would
+    prepend redundant rules to healthy repos — churning 40 projects to fix 3. Git is the authority
+    on what is actually ignored; a hand-rolled glob matcher is not.
+    """
+    lines = {
+        ln.strip().rstrip("/")
+        for ln in text.splitlines()
+        if ln.strip() and not ln.lstrip().startswith("#")
+    }
+    return all(p.rstrip("/") in lines for p in _ESSENTIAL_PATTERNS)
+
+
+def _git_covers_essentials(project_dir: Path) -> bool:
+    """Ask GIT whether this project already ignores the safety floor. Authoritative.
+
+    Uses the project's real .gitignore semantics (globs, negations, nested ignore files, precedence)
+    instead of re-implementing them. Patching the Fabrik block never changes ``.env`` protection —
+    it only swaps a marked region — so evaluating the CURRENT tree is the correct gate: if git says
+    ``.env`` is already ignored, the project's own rules are intact and we must not touch them.
+
+    Fails CLOSED (returns False → repair) if git is unavailable, so an error can never leave a
+    ``.env`` exposed.
+    """
+    try:
+        for pattern in _ESSENTIAL_PATTERNS:
+            rc = subprocess.run(  # noqa: S603 — fixed argv, no shell
+                ["git", "check-ignore", "-q", pattern],
+                cwd=project_dir,
+                capture_output=True,
+                check=False,
+            ).returncode
+            if rc != 0:  # 0 = ignored; 1 = NOT ignored; 128 = not a repo
+                return False
+        return True
+    except (OSError, subprocess.SubprocessError):
+        return False
+
 
 FABRIK_ROOT = Path("/opt/fabrik")
 OPT_ROOT = Path("/opt")
@@ -421,6 +482,27 @@ def sync_scripts_to_project(
                     new = _GITIGNORE_BLOCK_RE.sub(lambda _m: block, content)
                 else:
                     new = content.rstrip("\n") + "\n\n" + block
+                # ⚠️ SAFETY NET — never leave a project without the essential ignores.
+                #
+                # The bug this repairs: if `content` was empty, the else-branch above produced
+                # "\n\n" + block — a .gitignore containing ONLY the Fabrik block. That state is
+                # SELF-PERPETUATING (the regex then matches forever, so the project's own rules
+                # never come back) and it leaves `.env`, `.venv/`, `__pycache__/` UNIGNORED —
+                # one `git add -A` away from committing secrets. Observed live in 3 repos.
+                #
+                # The Fabrik block lists only centrally-synced paths; it is deliberately NOT the
+                # project's ignore file. So if the result does not cover `.env`, the project's own
+                # rules are missing/damaged — prepend a minimal safety preamble and say so loudly.
+                # This also SELF-HEALS an already-damaged repo on the next sync.
+                # Ask GIT (authoritative) whether the project ALREADY protects .env. Evaluating the
+                # current tree is correct: swapping the Fabrik block never changes .env protection.
+                if not _git_covers_essentials(project_dir):
+                    new = _ESSENTIAL_IGNORES + "\n" + new.lstrip("\n")
+                    print(
+                        f"  ⚠️  {project_dir.name}: .gitignore did NOT ignore .env / .venv / "
+                        f"__pycache__ — safety preamble restored. The project's own ignore rules "
+                        f"appear to have been lost; review .gitignore."
+                    )
                 if new != content:
                     if not dry_run:
                         if backup:

@@ -4,6 +4,60 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the Terminal-Bench runner now runs the CURRENT benchmark: `tb` → `harbor` (2026-07-14)
+
+`microbench_terminal.py` shelled the **retired 1.x `tb` CLI**, whose newest dataset (`terminal-bench-core==0.1.1`)
+is the launch-era task set. Terminal-Bench 2.x lives in a **different package** — `harbor` — and a 1.x score
+cannot be compared to a single entry on today's public leaderboard. We paid for a full 80-task run before
+discovering that, and the freshness guard had (correctly) blocked the runner ever since. It now runs
+`terminal-bench/terminal-bench-2-1`: **89 tasks, 16 categories, 17 of them the sysadmin workload**.
+
+The whole layout was **learned from a real `oracle` run** — harbor's reference agent calls no LLM, so the
+invocation, the job/trial shapes, the resume semantics and the org-qualified task-id requirement were all
+grounded for **$0** instead of guessed. (Guessing is what cost money twice this week.)
+
+- `harbor run -d … -a terminus -m openrouter/<id> -k <k> -n <c> -o <jobs-dir> [-t terminal-bench/<task>]`
+- Job dir is `<jobs-dir>/<job-id>/`; harbor **names it itself** (no `--job-id` flag), `config.json` = started,
+  `result.json` = **completed**, `<task>__<hash>/result.json` = one trial.
+- Resume is `harbor job resume <job-dir>` — the **directory is the job's identity**.
+- Task metadata is **`task.toml`** (`[metadata] category`), not 1.x's `task.yaml`.
+- **One parser, two sources**: harbor's trial file is byte-compatible with the public leaderboard's, so
+  `parse_trial` reads both. An **errored** trial (sandbox died before the verifier ran) is excluded from the
+  pass-rate denominator rather than scored 0 — counting infra flakes as model failures deflates every model
+  unlucky enough to hit them.
+- Verified end-to-end with a free oracle run: run → parse → persist → category join, all consistent.
+
+**The freshness guard was over-corrected and is fixed.** It had started treating "a newer repo exists in the
+GitHub org" as "your pin is superseded" — and `terminal-bench-3`'s repo exists (76 tasks, active) while being
+**absent from harbor's registry**, so the guard refused `terminal-bench-2-1`: the only dataset that actually
+runs, and the one the leaderboard is measured on. A guard that blocks the only working option is worse than no
+guard. It now refuses a pin only when a newer generation is **runnable** (`harbor` can resolve it), and merely
+**warns** when one exists upstream but is unreleased — flipping to a refusal automatically the day TB3 ships.
+
+
+### Fixed — the sync could strip a project's `.gitignore` down to the Fabrik block, un-ignoring `.env` (2026-07-14)
+
+`sync_enforcement_to_projects.py` patches a marked "Fabrik-synced" block into each project's `.gitignore`.
+Its else-branch (`content.rstrip("\n") + "\n\n" + block`) produced, **when `content` was empty**, a
+`.gitignore` containing *only* the Fabrik block. Two failures compound:
+
+1. **Self-perpetuating.** Once block-only, the block regex matches forever, so every later sync merely swaps
+   the block and the project's own rules never come back.
+2. **The Fabrik block is not an ignore file.** It lists centrally-managed *files* — it does not ignore `.env`,
+   `.venv/` or `__pycache__/`. A block-only `.gitignore` therefore left a project **one `git add -A` away from
+   committing secrets.**
+
+Found live in **3 repos** (`captcha`, `fabrik-dr-store`, `Reference_Creator`). No `.env` file existed in any of
+them and none had `.env` committed, so **nothing leaked** — the exposure was latent.
+
+The sync now enforces a **safety floor** and **self-heals** a damaged repo on the next run. Crucially the gate
+is **git itself** (`git check-ignore`), not a hand-rolled matcher: a literal text check cannot see that `.env*`
+or `venv/` already protect `.env`, so gating on it would prepend redundant rules to ~40 healthy repos to fix 3
+— churning the fleet. It **fails closed** (repairs) if git cannot answer, so an error can never leave a `.env`
+exposed. Regression tests: `tests/test_sync_gitignore_safety.py` (8), including one that asserts the Fabrik
+block alone is *not* safe — if that ever flips, the block has silently taken on project-hygiene duties and this
+net needs rethinking.
+
 ### Fixed — review pass 2: a check that cannot run must say so (2026-07-14)
 
 Pass 1 fixed the false-confidence hole in `check_evalplus` and **left the identical hole next to it**. If
