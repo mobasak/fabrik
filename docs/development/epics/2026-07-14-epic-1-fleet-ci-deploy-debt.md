@@ -1,6 +1,53 @@
-# Epic — Fleet CI + deploy debt (phantom imports & lint)
+# Epic — Fleet CI + deploy debt (phantom imports & lint) + project-type / deployability audit
 
 **Status:** OPEN · **Opened:** 2026-07-14 · **Owner:** hub (fabrik), execution delegated per-repo
+
+---
+
+## PART 0 — Project type determination & deployability (2026-07-14)
+
+The 11 canonical scaffold types: `chrome-extension · desktop-app · docusaurus · file-api · file-worker ·
+mobile-app · node-api · python-api · python-api-gpu · saas-skeleton · static-site · wordpress`.
+
+**`project.yaml::type` cannot be trusted** — it is wrong or invalid in several repos. Types below are the
+**verified** ones (from README + entrypoint + dependency signals), not the declared ones.
+
+### ⛔ BLOCKER — 21 repos have `compose.yaml` + `Dockerfile` but NO hub spec
+
+`fabrik apply` acts on `specs/services/<id>.yaml`. **No spec = cannot deploy, at all.** This — not lint — is
+the real deployment blocker. Repos with Docker artifacts and no spec:
+`apidoccreator · brand-identiy-creator · candle · captcha · ComplianceOps · email-reader · exam-coach ·
+gmailaccountcreator · image-broker · image-generation · iterative_image_editor · llm_batch_processor ·
+marketing-argumant-generator · proxy · Reference_Creator · rnfinal · supplement-tracker-advisor ·
+trade-intelligence · ugc · web-scraper · wpf`
+
+### 🟥 NEEDS YOUR RULING (do not act until answered)
+
+| Repo | Declared | What it ACTUALLY is (verified) | Question |
+|---|---|---|---|
+| **8 scaffold-only repos**: `ComplianceOps`, `exam-coach`, `marketing-argumant-generator`, `Reference_Creator` (410 LOC each) · `gmailaccountcreator`, `image-generation`, `supplement-tracker-advisor`, `ugc` (432 LOC each) | `python-api` | **Zero product code.** The identical LOC fingerprint (410/432) IS the untouched scaffold boilerplate. README is literally "`<name> project`". No commits in 3 weeks. | **Delete, or keep dormant?** Speccing + deploying them is meaningless. |
+| **meb** | `mobile-app` ❌ | **A Python Anki-deck generator** — a personal local tool for kids (Turkish README: *"Kişisel araç… Anki deste hattı (CSV → ses/görsel)"*). Entry `build.py`/`card_text.py`. **No compose, no Dockerfile.** 4,459 LOC. Also holds the fleet's only **3 phantom imports** and 280 modified files. | Type is **wrong**. Is this a local tool (never deployed) or a real service? |
+| **tojlo-mail** | `saas` ❌ (not a valid type) | **A multi-service monorepo** — `web` + `worker` + `ai-document-service` + `image-proxy` + `apps/`, Next.js. 35,459 LOC. **No Outlook/Office manifest exists anywhere in it** — it is *not* an Outlook extension. | Is it `saas-skeleton`? Or a multi-service monorepo needing **several** specs (one per service)? |
+| **obsidian-agents** | `desktop-app` | An **Obsidian plugin** (`manifest.json` + `package.json`), 2,819 LOC. Not Docker-deployable. | Confirm it's out of scope for Docker deployment? |
+| **rn-kit-sandbox** | *(none)* | **React Native / Expo**, 13,354 LOC, no README. | A sandbox/experiment, or a real project needing a type? |
+| **rnfinal** | `mobile-app` | React Native / Expo, 6,686 LOC. | Mobile apps ship via **EAS build**, not Docker — confirm no hub spec is wanted? |
+
+### ✅ Type verified correct (python-api / FastAPI services, real code)
+
+`apidoccreator` · `brand-identiy-creator` · `candle` · `captcha` · `email-reader` · `fabrik-citation-verifier` ·
+`fabrik-claim-validator` · `image-broker` · `iterative_image_editor` · `job-agent` · `llm_batch_processor` ·
+`longephedia-vault` · `proposal-creator` · `proxy` · `seo` · `site-provisioner` · `trade-intelligence` ·
+`trading-core` · `triggered-content-orchestration` · `tryton-crm` · `web-scraper` · `whatsapp-agent` · `wpf`
+· `calendar-orchestration-engine` (node-api) · `youtube` (file-worker) · `transdoc` / `test-saas-platform` /
+`test-saas-scaffold` (saas-skeleton)
+
+### Not projects (infra/library — no type expected)
+
+`fabrik-lib` (shared module library — vendored, never deployed) · `fabrik-dr-store` (DR credential store)
+
+---
+
+## PART 1 — CI + deploy debt (original scope)
 
 ## Why this exists
 
@@ -18,10 +65,30 @@ Two independent defects made `final_gate` go green while CI and the deployed con
 
 ## ⚠️ Execution rule — do NOT sweep these from the hub
 
-Every repo has **uncommitted agent WIP** (`meb` alone: 280 modified + 518 untracked). A hub-side sweep would
-risk destroying it — including via the governance pre-commit hook, which stashes/restores unstaged files and
-can silently revert a sibling's whole uncommitted batch to HEAD. **Each fix below is done by that repo's own
-agent, in its own tree.** Cross-repo editing is a CLAUDE.md HARD STOP.
+**Operator decision (2026-07-14): the git dirt is cleared by EACH REPO'S OWN AGENT. The hub touches nothing
+cross-repo.** A hub-side sweep would risk destroying uncommitted work — including via the governance
+pre-commit hook, which stashes/restores unstaged files and can silently revert a sibling's whole uncommitted
+batch to HEAD. Cross-repo editing is a CLAUDE.md HARD STOP.
+
+### What the "git dirt" actually is (surveyed 2026-07-14)
+
+It is **mostly NOT agent WIP — it is sync churn**, and that is a **hub bug**:
+
+| Modified file | Repos affected | What it is |
+|---|---|---|
+| `.gitignore` | **41** | The sync **rewrites** it (patches in the generated "Fabrik-synced block"). Diff is real (e.g. captcha: −72/+29). |
+| `docs/workflows/kilo-consult-workflow.md` | **28** | Another **tracked** file the sync overwrites. |
+
+`sync_enforcement_to_projects.py` writes to **tracked** files, so **every project is left permanently dirty
+after every sync**. Genuine agent WIP is confined to ~5 repos (`meb` 280, `rn-kit-sandbox` 46,
+`site-provisioner` 16, `tojlo-mail` 13, plus a few real source files).
+
+**→ Backlog item (hub):** make the sync idempotent w.r.t. tracked files — either it must not rewrite tracked
+files, or it must commit what it rewrites. Until fixed, the dirt returns on the next sync and any per-repo
+cleanup is Sisyphean.
+
+**Per-repo agent task (all 41):** commit the sync churn (`.gitignore`, `docs/workflows/kilo-consult-workflow.md`)
+— it is machine-generated content, zero data-loss risk — and commit or stash your own WIP deliberately.
 
 ---
 
