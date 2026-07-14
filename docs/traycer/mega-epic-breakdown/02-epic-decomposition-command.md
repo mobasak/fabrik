@@ -66,7 +66,7 @@ This command produces the compact epic proposal + Infrastructure Decisions in co
   - `saas-skeleton` → `.windsurf/rules/saas/00-domain-saas.md` (17 vision-intake dimensions + epic coverage)
   - `mobile-app` → `.windsurf/rules/mobile-app/00-domain-mobile-app.md` (17 dimensions + attribution + the 3 forks)
   - `desktop-app` → `.windsurf/rules/desktop-app/72-desktop.md` § Epic Decomposition (the standalone-vs-connected mode fork is Epic 1)
-  - `chrome-extension` → `.windsurf/rules/chrome-ext/70-chrome-ext.md` § Epic Decomposition (backend API is always Epic 1)
+  - `chrome-extension` → `.windsurf/rules/chrome-ext/00-domain-chrome-ext.md` (vision intake + the permission-ceiling fork; backend API is always Epic 1)
   - `wordpress` → **out of scope for this workflow** — route to `/opt/wpf`. There is no pack and no module.
   - RAG / search in Technology Decisions → `.windsurf/rules/core/65-rag-search.md` § Epic Decomposition (⚠️ read its warning: **every RAG epic must carry its own `CREATE EXTENSION` + HNSW migration** — no registrar does it)
 
@@ -211,7 +211,7 @@ For each loaded **domain pack**, walk its mandatory-coverage section. The exact 
 |---|---|
 | `.windsurf/rules/saas/00-domain-saas.md` | `#### Mandatory Epic Coverage` |
 | `.windsurf/rules/mobile-app/00-domain-mobile-app.md` | `#### Mandatory Epic Coverage` |
-| `.windsurf/rules/chrome-ext/70-chrome-ext.md` | `## Mandatory Epic Patterns` |
+| `.windsurf/rules/chrome-ext/00-domain-chrome-ext.md` | `### Mandatory Epic Coverage` |
 | `.windsurf/rules/desktop-app/72-desktop.md` | `## Epic-Decomposition Defaults` |
 | `.windsurf/rules/core/65-rag-search.md` | `## Epic Decomposition` (its directives are inline — no separate coverage table) |
 
