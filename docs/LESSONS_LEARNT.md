@@ -1,9 +1,27 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
-**Last Updated:** 2026-07-13 (Lesson 91 — spoke deploys got unreachable `postgres-main` DSNs: authoritative docs documented the mesh-IP requirement the registrar never implemented)
+**Last Updated:** 2026-07-14 (Lesson 92 — a second source of truth always loses; and `git commit -- <dir>` is not the pathspec protection you think it is)
 
 **Purpose:** CAPTURE TECHNICAL HURDLES, AI-SPECIFIC QUIRKS, AND ARCHITECTURAL DECISIONS TO PREVENT REGRESSION AS CODEBASES AND AI AGENTS EVOLVE.
+
+---
+
+# Lesson 92: `docs/traycer/**/domain-modules/` was a second source of truth for facts `.windsurf/rules` already owned — every one of the 6 had drifted, 2 dangerously
+
+**Context (2026-07-14):** The mega-epic-breakdown workflow loaded 6 "domain modules" (1,471 lines) to teach a planning LLM about saas / mobile / chrome-ext / desktop / rag / wordpress. Every fact in them was **also** owned by a `.windsurf/rules` pack. A `/fabrik-docs-review` reconciliation against the packs + the code found the drift was **entirely one-directional**: each module was a snapshot of its pack taken at some past date, and the packs had since moved. A duplicate that no gate compares against its original does not stay in sync — it decays, silently, and the decay is invisible precisely because the duplicate still *reads* authoritative.
+
+**The two that could have shipped broken systems:**
+- `rag.md:141` told planners *"the registrar owns index/extension lifecycle. Never create indexes manually."* **False.** The `has_search_feature` registrar is `drivers/meilisearch.py`; its entire mutation surface is an HTTP POST to the Meili container. Executed: **`hnsw` appears ZERO times in `src/`**, and no registrar ever issues `CREATE EXTENSION vector`. A planner that believed this emitted a RAG pipeline **with no index at all** — and the failure surfaces at query time, in production, as "why is retrieval so slow."
+- `chrome-ext.md` inverted three defaults, incl. `@crxjs` as the build tool (the pack says "Default to WXT", the scaffold pins `wxt`, and a test asserts `vite.config.ts` is absent) and `@sentry/browser` in content scripts (the pack **bans** it — it hijacks the host page's errors).
+
+**Method (reusable):** to audit a duplicate, don't diff it against its source — **verify both against the code.** Diffing tells you they disagree; only the code tells you *which one is lying*, and it was consistently the copy. Then check whether the duplicate is even **wired**: `grep -rn 'domain-modules' epic-to-ticket-workflow/` returned **zero** — ~40% of those files (their "Part 2") had never been loaded by anything, and the files themselves admitted it in prose nobody had re-read.
+
+**Fix:** deleted all 6; promoted the genuinely non-duplicate content into the packs that should have owned it from the start (`mobile-app/00-domain-mobile-app.md`, `saas/00-domain-saas.md`, plus `§ Epic Decomposition` sections in `65-rag-search` / `70-chrome-ext` / `72-desktop`). The mobile promotion **resolved 5 pack references that had been dangling since before the file existed** — `80-mobile.md:18,:94,:356`, `81-mobile-billing.md:293`, `89-mobile-launch-checklist.md:237` all cited `00-domain-mobile-app.md` by name. The governance had a hole shaped exactly like the module sitting in the wrong directory. Net 1,471 → 502 lines. Detector: `scripts/enforcement/check_traycer_chain.py`.
+
+**Corollary — a scoped "no dangling refs" check is not a check.** After the deletion I verified zero live refs *in the files I had edited* and reported it as clean. A repo-wide `grep -rn 'domain-modules/'` then found **two real dangling pointers** I'd never looked at (`docs/reference/fabrik-cli-reference.md`, a research file's `Target:` header). **Scope the grep to the repo, never to your own diff** — the refs that break are the ones in files you didn't think about.
+
+**Corollary — `git commit -- <directory>` is NOT pathspec protection.** The shared-tree rule is "stage explicit paths only," and I used the pathspec form (`git commit -- .windsurf/rules/`) — but preceded it with `git add -A .windsurf/rules/`, and a **directory** pathspec matches whatever else lives under it. It swept in 8 `.windsurf/rules/ai/*.md` files the **daily kilo pipeline** had regenerated that morning, committing a fragment of one atomic refresh under an unrelated message. Nothing was destroyed (the content went in intact and the next daily run overwrites it), but the attribution is wrong and the pipeline's output is now split across a commit boundary. **The pathspec must be an explicit FILE LIST.** Tell: an auto-generated block (`<!-- ... auto-managed by <script>.py -->`) in a file you didn't touch means it isn't yours. `git status --short <dir>` before staging; anything already modified that you didn't write this turn belongs to someone else.
 
 ---
 
