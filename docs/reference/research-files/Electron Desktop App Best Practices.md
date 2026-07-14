@@ -150,7 +150,7 @@ The following document represents the structural domain module designed for cons
 
 # **Domain Module: Desktop Application Architecture**
 
-# **Target: `.windsurf/rules/desktop-app/72-desktop.md` § Epic Decomposition**
+# **Target: `.windsurf/rules/desktop-app/72-desktop.md`** (code-time facts) **· `.windsurf/rules/desktop-app/00-domain-desktop-app.md`** (planning/business facts)
 
 > Retargeted 2026-07-13. This research originally fed `domain-modules/desktop-app.md`, which drifted from the
 > pack and was deleted. The rule pack is now the single source of truth — land any change from this research there.

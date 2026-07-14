@@ -583,7 +583,7 @@ Wait for owner decisions. **STOP GENERATION HERE.** These decisions shape which 
 
 **Idea path:** interview the owner — What capability are you adding? Who uses it (existing/new persona)? How does it integrate with what's built? New tables/endpoints/workers needed? New scaffold type (e.g., adding mobile-app to existing SaaS)?
 
-**Load domain packs** — for each NEW capability read the matching **rule pack** (`.windsurf/rules/**` — the single source of truth; `domain-modules/` was deleted 2026-07-13): saas → `saas/00-domain-saas.md`; mobile → `mobile-app/00-domain-mobile-app.md`; desktop → `desktop-app/72-desktop.md` § Epic Decomposition; chrome-ext → `chrome-ext/00-domain-chrome-ext.md`; RAG/search → `core/65-rag-search.md` § Epic Decomposition. WordPress is out of scope (`/opt/wpf`).
+**Load domain packs** — for each NEW capability read the matching **rule pack** (`.windsurf/rules/**` — the single source of truth; `domain-modules/` was deleted 2026-07-13): saas → `saas/00-domain-saas.md`; mobile → `mobile-app/00-domain-mobile-app.md`; desktop → `desktop-app/00-domain-desktop-app.md`; chrome-ext → `chrome-ext/00-domain-chrome-ext.md`; RAG/search → `core/65-rag-search.md` § Epic Decomposition. WordPress is out of scope (`/opt/wpf`).
 
 **fabrik-lib check** — before designing any new component, check `fabrik-lib/README.md` for a vendorable module (copy, don't import). State: "fabrik-lib checked — [module used / no match]."
 
