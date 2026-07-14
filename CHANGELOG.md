@@ -4,6 +4,34 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — scrape the PER-TASK leaderboard: the category profile, for $0 (2026-07-14)
+
+Our 11 existing scrapers all store a single **aggregate** score — and the aggregate is the wrong number for
+hiring a model into a **role**. `scrape_tbench_task_results.py` pulls every trial result from the public
+Terminal-Bench 2.x leaderboard (33,047 `result.json` across 73 submissions) and joins each task to its
+`task.toml` **category**, producing a per-(model, category) capability matrix without spending a cent.
+
+It immediately inverted our own recommendation. `z-ai/glm-5` scores **72% on the sysadmin workload but 54%
+overall** — disproportionately *good* at the actual job. `minimax/minimax-m3` was the mirror image: 34% overall,
+**15%** at system-administration. The aggregate ranks those two 20 points apart; the sysadmin slice ranks them
+**57 points apart, in the opposite direction.** Every ranking we had was pointing at the wrong model.
+
+- **Fetch**: a **partial + sparse git clone** (`--filter=blob:none` + sparse-checkout of just `result.json` /
+  `metadata.yaml`, `GIT_LFS_SKIP_SMUDGE=1`) → **472 MB instead of 16 GB** for the identical file set. Both HF
+  paths were dead ends on this repo: `snapshot_download` resolves the full file list first and hangs 15+ min on
+  ~33k trial dirs, and the HTTP tree API pages 1,000 entries at a time emitting every *directory* before any
+  file (>11k dirs before the first `result.json`). Grounded live.
+- **An ERROR is not a FAILURE.** A trial whose verifier never ran (`verifier_result: null` — docker died) is
+  counted separately and **excluded from the pass-rate denominator**. Scoring it 0 would silently deflate every
+  model unlucky enough to hit flaky infra.
+- **New `tbench_leaderboard_results` table**, deliberately separate from `tbench_task_results` (our own runs):
+  a leaderboard row is keyed on *(agent + model)* with k≥5 trials, so its unit is a pass-*rate*, not our boolean.
+  Mixing third-party measurements into our measurement table would make one table mean two things (Lesson 92).
+- Only **34 distinct models** have per-task data. `deepseek-v4-pro` and `glm-5.2` have a headline leaderboard
+  score but **no per-task submission**, so no category profile exists for them — worth knowing before trusting
+  a top-line number.
+
+
 ### Added — `check_imports_resolvable.py`: the static gate now models the CLEAN CHECKOUT (2026-07-14)
 
 `final_gate` could not see deploy-breaking phantom imports **by construction**: it is a static check running in
