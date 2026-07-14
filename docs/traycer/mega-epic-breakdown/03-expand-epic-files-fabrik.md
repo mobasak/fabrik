@@ -27,7 +27,7 @@ You are a ticket breakdown orchestrator. You read the confirmed compact epic pro
   docs/development/epics/YYYY-MM-DD-epic-<n>-<slug>.md
   ```
 
-  (allowlisted in `CLAUDE.md` § HARD STOPS and matched by `scripts/enforcement/check_doc_sprawl.py`; the dated shape mirrors the plans convention deliberately). **Write the file — do not leave the ticket in conversation only.** A breakdown that lives in the context window dies with it, and `05-dispatch-epic-tickets-command` + `epic-to-ticket-workflow` must be able to read an epic back **on a cold context**, days later, without replaying this session. One epic per file: greppable, dispatchable, reviewable, and diffable.
+  (allowlisted in `CLAUDE.md` § HARD STOPS — NEVER and matched by `scripts/enforcement/check_doc_sprawl.py`; the dated shape mirrors the plans convention deliberately). **Write the file — do not leave the ticket in conversation only.** A breakdown that lives in the context window dies with it, and `05-dispatch-epic-tickets-command` + `epic-to-ticket-workflow` must be able to read an epic back **on a cold context**, days later, without replaying this session. One epic per file: greppable, dispatchable, reviewable, and diffable.
 
 - **Tool-capable — verify, don't assume.** Our orchestrator is Claude Code: it can **write files, run commands, and call MCP servers, skills, subagents and workflows.** Use that. Where a ticket asserts a port, a pack path, a `shape` flag, or a registrar, **ground it** — read `PORTS.md`, read the pack, read `spec_loader.py` — instead of copying an upstream claim you cannot see. The Traycer twin has to trust its inputs; **this one does not, so it must not.** A ticket citing a file that does not exist is a defect, not a formatting nit.
 - **Expand, don't re-derive.** Scope boundaries, dependencies, and scaffold type were decided in `02-epic-decomposition-fabrik`. This step fleshes out the detail within those boundaries — it does not change them.
@@ -173,7 +173,7 @@ Total: [N] tickets. Each is dispatchable independently.
 docs/development/epics/YYYY-MM-DD-epic-<n>-<slug>.md
 ```
 
-Allowlisted in `CLAUDE.md` § HARD STOPS; matched by `scripts/enforcement/check_doc_sprawl.py`. Each file is self-sufficient and readable on a **cold context** — that is the whole point.
+Allowlisted in `CLAUDE.md` § HARD STOPS — NEVER; matched by `scripts/enforcement/check_doc_sprawl.py`. Each file is self-sufficient and readable on a **cold context** — that is the whole point.
 
 - One ticket per epic
 - Title: `Epic N — [Name]` (delta-feature) or `Epic N — Retrofit: [area]` (Retrofit)
