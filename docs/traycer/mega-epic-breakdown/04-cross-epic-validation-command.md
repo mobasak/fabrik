@@ -71,7 +71,7 @@ For each epic ticket, verify:
 | Has deploy/gate-level criterion | Delta-feature: "`fabrik apply` succeeds" or "/health returns 200" found. Retrofit on existing service (no new deploy unit): `scripts/final_gate.py` success + Compliance Report gap moves Partial/Violates → Compliant per `03-expand-epic-files-command` § Success Criteria | No deploy/gate criterion of either flavour |
 | Has resilience criterion | Delta-feature: states what happens when a dependency is down. Retrofit epic: this row is N/A iff the retrofit area is NOT resilience/external-call related (Title doesn't contain `Resilience` and Universal categories doesn't list #5 External integrations) | No resilience criterion AND the epic IS resilience-related (delta-feature **OR** a retrofit whose Title contains `Resilience` **OR** a retrofit on category #5) |
 | Has `### Out of Scope` | Present — names other epics, vision-level exclusions, OR explicit `- none — single-epic proposal` / `- none — no overlap with other epics` per `03-expand-epic-files-command` § Scope → Out + § Out of Scope (Epic Level) | Missing, vague, OR fabricates `handled by Epic [N]` with non-existent Epic N |
-| Has `### Dependencies` | Section present AND all 4 sub-bullets present with content or explicit `none` reason — `Consumes from prior epics`, `Produces for later epics`, `Depends on`, `Parallel with` | Section missing OR any sub-bullet missing OR a sub-bullet present-but-empty (no value, no `none`) |
+| Has `### Dependencies` | Section present AND all **5** sub-bullets present with content or an explicit `none` reason — `Consumes from prior epics`, `Produces for later epics`, `Depends on`, `Parallel with`, **`Owned paths`**. ⚠️ **`Owned paths` is NOT optional and `none` is NOT a valid value** — every epic writes something, and this field is what Step 4's disjointness + migration-owner checks intersect. A ticket without it makes those checks unrunnable and the `Parallel with:` claim unverifiable | Section missing OR any sub-bullet missing OR a sub-bullet present-but-empty (no value, no `none`) OR `Owned paths` is absent/`none` |
 | Has `### Metadata` with all 15 fields | Scaffold, Port, target_vps, Shape, Concurrency, i18n, Responsive, Dark+Light, Rule Packs, HAS_USER_GUIDE, Registrars, Universal categories, Abuse Detection, Email, FINANCIALS (last 3 conditional — N/A allowed) | Missing field: [name] |
 | Dependencies name specific artifacts | Tables, functions, endpoints, env vars named (or explicit `none` for atomic-root / terminal-output epics) | Vague references only (e.g., "Epic 1's infrastructure") |
 
@@ -98,6 +98,7 @@ Read the Infrastructure Decisions spec and verify against epic tickets.
 | All shared decisions present | Per `02-epic-decomposition-command` Step 3 template: Database Strategy, Auth Strategy, Email Strategy, Background Processing, Embedding Model (if RAG features), Self-Healing Ladder (if `shape.kind ∈ {service, worker}`), Watchdog Wiring (**ON by default** — the resolver reads the raw spec dict, `infrastructure.py:314`; ⚠️ the `shape.kind` matrix in `core/60-watchdog.md` is **operator discipline, NOT code-enforced** — a `static-site` gets a watchdog despite the matrix saying `off`), Observability Defaults, Cost Guardrails (if any paid-API use), Backing Services, External Services, Domain Structure, Shared Environment Variables, Shared Shape Decisions | Missing section: [section name] |
 | Epic tickets reference, not duplicate | Epics say "Inherited from Infrastructure Decisions spec" | Epic [N] re-defines [decision] differently |
 | No contradictions | Infrastructure Decisions consistent across all epic tickets | Epic [N] says [X], Infrastructure Decisions says [Y] |
+| **Deferred Compliance appendix present** (EXISTING mode only) | If the Vision Summary's Compliance Report has any `fix-later` or `accept-as-legacy` row, a **"Deferred Compliance" appendix** exists listing every one of them (per `02-epic-decomposition-command` Step 2b — those rows emit **no epic**, so the appendix is their *only* carrier). N/A in NEW mode, or when every row is `fix-now` | A `fix-later` / `accept-as-legacy` row exists in the Compliance Report but appears in **no** epic and **no** appendix → the owner's deliberate deferral has been silently dropped. Route back to `02-epic-decomposition-command` Step 2b |
 
 ### Step 6: Handoff Readiness Check
 
@@ -186,7 +187,7 @@ For single-epic proposals: `Phase 1: Epic 1 — [name] (atomic — no phasing re
 
 ## Output Contract
 
-**Format:** Validation Report (markdown, structure from Step 7) — presented in conversation.
+**Format:** Validation Report (markdown, structure from Step 7) — presented in conversation. **Structure-bounded, NOT token-capped** (per `EVALUATION_CHECKLIST_FOR_MEGA_EPIC_COMMANDS` item 93 — a PASS/FAIL-row-per-check report is bounded by "fill this template once", so a numeric budget would only force harmful truncation of the failures the owner most needs to see). Do **not** add one.
 **Result:** PASS (ready for dispatch) or FAIL (route back to 02 or 03 for fixes).
 **Consumed by:** Owner — decides to dispatch tickets or fix issues.
 
