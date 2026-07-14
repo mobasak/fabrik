@@ -39,9 +39,44 @@ python microbench_terminal.py --models all --cost-cap 5
 ```
 
 Flags: `--models` (comma list, or `all`; default = the 3 unbenched sysadmin candidates) · `--cost-cap`
-(per-model USD ceiling; a breach stops the cohort) · `--n-tasks` / `--task-id` (bound the work per model) ·
-`--n-concurrent` (default 4) · `--n-attempts` (trials per task) · `--dataset` (default
-`terminal-bench-core==0.1.1`) · `--force` (re-bench already-scored models) · `--dry-run`.
+(total run/cohort budget) · `--n-tasks` / `--task-id` (bound the work per model) · `--category`
+(run only these task categories) · `--n-concurrent` (default 4) · `--n-attempts` (trials per task) ·
+`--dataset` (default `terminal-bench-core==0.1.1`) · `--force` (wipe + fresh; default RESUMES a partial run) ·
+`--report [model]` (print the per-category matrix, no benching) · `--dry-run`.
+
+## Resumable
+
+A killed or interrupted run (session restart, `Ctrl-C`, a crash) is **resumed automatically** on the next
+invocation — `microbench_terminal.py --models <same model>` detects the partial run and calls
+`tb runs resume`, which **skips completed tasks and re-runs only the incomplete ones — no OpenRouter credit is
+re-spent on finished work.** Use `--force` to discard the prior run and start fresh (this also re-enables the
+stale-score guard, since a fresh run can't read a prior results.json). Long runs should still be launched
+detached (`setsid nohup … &`) so a session teardown never kills them.
+
+## Per-task detail + category profile (the aggregate lies)
+
+The aggregate `tbench_accuracy` **hides the category profile** — minimax-m3 scored ~36% overall but only
+**10% at system-administration** (it fails `configure-git-webserver`, `cron-broken-network`, `fix-permissions`,
+`nginx-request-logging`, …). So a single number is misleading for role-specific selection.
+
+Every run persists one row per (model, task) to the **`tbench_task_results`** table — `category`, `difficulty`,
+`is_resolved`, `failure_mode` (`agent_timeout`/`parse_error`/`test_timeout`/…), `duration_s` — joined from each
+task's `task.yaml`. This survives re-runs and is comparable across models.
+
+- **`--report`** prints the per-category pass-rate matrix from the table:
+  ```bash
+  python microbench_terminal.py --report                    # all benched models
+  python microbench_terminal.py --report minimax/minimax-m3 # one model
+  ```
+- **`--category`** runs only the relevant subset (cheaper + on-workload):
+  ```bash
+  # sysadmin agent selection — 25 tasks (system-administration + security), not the full 80:
+  python microbench_terminal.py --models glm-5.2 --category sysadmin --cost-cap 5
+  ```
+  Real categories (task counts in terminal-bench-core 0.1.1): system-administration (13), security (12),
+  software-engineering (17), debugging (10), file-operations (8), data-science (8), model-training (7),
+  games (3), scientific-computing (2). The alias `sysadmin` = `system-administration,security`. Changing
+  `--category` on an already-run model needs `--force` (the per-model run dir resumes its original task set).
 
 ## How it works (grounded invocation)
 

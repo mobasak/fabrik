@@ -68,6 +68,46 @@ DEFAULT_MODELS = [
     "deepseek/deepseek-v4-pro",
 ]
 
+# The task categories that matter for a fleet-sysadmin agent — used by
+# --category sysadmin as a convenience alias for the on-workload subset.
+SYSADMIN_CATEGORIES = ("system-administration", "security")
+
+
+def _dataset_dir(dataset: str) -> pathlib.Path:
+    """Local task dir for a tb dataset: 'terminal-bench-core==0.1.1' →
+    ~/.cache/terminal-bench/terminal-bench-core/0.1.1 (tb downloads it there)."""
+    name, _, ver = dataset.partition("==")
+    return pathlib.Path.home() / ".cache" / "terminal-bench" / name / (ver or "head")
+
+
+def load_task_meta(dataset: str) -> dict[str, dict]:
+    """Map task_id → {'category', 'difficulty'} from each task's task.yaml.
+
+    Returns {} if the dataset isn't downloaded yet (tb fetches it on first run).
+    """
+    import yaml
+
+    meta: dict[str, dict] = {}
+    ddir = _dataset_dir(dataset)
+    if not ddir.exists():
+        return meta
+    for ty in ddir.glob("*/task.yaml"):
+        try:
+            y = yaml.safe_load(ty.read_text()) or {}
+            meta[ty.parent.name] = {
+                "category": y.get("category"),
+                "difficulty": y.get("difficulty"),
+            }
+        except (OSError, yaml.YAMLError):
+            meta[ty.parent.name] = {"category": None, "difficulty": None}
+    return meta
+
+
+def tasks_in_categories(dataset: str, categories: list[str]) -> list[str]:
+    """Task ids whose task.yaml category is in `categories` (for --category)."""
+    meta = load_task_meta(dataset)
+    return sorted(t for t, m in meta.items() if m.get("category") in set(categories))
+
 # Shell-injection guard: model_id is interpolated into a subprocess argv, so it
 # must be a safe vendor/name-tag. Mirror microbench_coding.py:_validate_model_id.
 _SAFE_MODEL_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9./_:-]*$")
@@ -168,53 +208,67 @@ def write_tbench_score(conn, model_id: str, score: float) -> None:
 
 
 # --- Harness dispatch + parse ------------------------------------------------
+def _find_resumable_run(out_dir: pathlib.Path) -> str | None:
+    """The newest run-id under out_dir that has a tb.lock (i.e. is resumable).
+
+    out_dir is per-model, so any run in it is THIS model's — resume is safe.
+    Returns the run-id (dir name) or None if there's nothing to resume.
+    """
+    if not out_dir.exists():
+        return None
+    runs = sorted(p.name for p in out_dir.iterdir() if p.is_dir() and (p / "tb.lock").exists())
+    return runs[-1] if runs else None
+
+
 def run_one(
     model_id: str,
     out_dir: pathlib.Path,
     *,
     dataset: str = TB_DATASET,
     n_tasks: int | None = None,
-    task_id: str | None = None,
+    task_ids: list[str] | None = None,
     n_concurrent: int = 4,
     n_attempts: int = 1,
     agent_timeout_sec: float = 600.0,
     run_timeout_sec: float | None = None,
+    resume: bool = True,
 ) -> pathlib.Path:
-    """Shell out to ``tb run`` for one model. Returns the run's output dir.
+    """Shell out to ``tb`` for one model. Returns the run's output dir.
 
     argv list, never shell=True. model_id is validated before interpolation.
-    ``agent_timeout_sec`` is passed to the harness (``--global-agent-timeout-sec``)
-    so a stuck AGENT loop is killed by ``tb``. ``run_timeout_sec`` (optional) is a
-    HARD wall-clock cap on the whole ``tb`` PROCESS — catches a hang OUTSIDE the
-    agent loop (e.g. a stalled Docker pull) that the agent-timeout can't reach.
-    Left ``None`` by default because a full task set legitimately runs for hours;
-    the caller treats a ``TimeoutExpired`` as a model failure and continues.
+    ``agent_timeout_sec`` → ``--global-agent-timeout-sec`` kills a stuck AGENT loop;
+    ``run_timeout_sec`` (optional) is a HARD wall-clock cap on the whole ``tb``
+    PROCESS (a hang outside the agent loop). Left ``None`` by default (a full task
+    set runs for hours); the caller treats a ``TimeoutExpired`` as a model failure.
+
+    ``resume=True`` (default): if a partial prior run exists in out_dir, resume it
+    via ``tb runs resume`` — completed tasks are skipped, incomplete ones re-run,
+    NO credit is re-spent on finished work. ``resume=False`` (the caller's --force
+    path, which wiped out_dir first) always starts fresh.
     """
     _validate_model_id(model_id)
-    argv = [
-        TB_CLI,
-        "run",
-        "-a",
-        TB_AGENT,
-        "-m",
-        f"openrouter/{model_id}",
-        "-d",
-        dataset,
-        "--n-concurrent",
-        str(n_concurrent),
-        "--n-attempts",
-        str(n_attempts),
-        "--global-agent-timeout-sec",
-        str(agent_timeout_sec),
-        "--output-path",
-        str(out_dir),
-        "--no-upload-results",
-        "--cleanup",
-    ]
-    if task_id:
-        argv += ["-t", task_id]
-    elif n_tasks is not None:
-        argv += ["--n-tasks", str(n_tasks)]
+    prior = _find_resumable_run(out_dir) if resume else None
+    if prior:
+        # Resume reuses the original run's tb.lock config (agent/model/dataset).
+        argv = [TB_CLI, "runs", "resume", "--run-id", prior, "--runs-dir", str(out_dir)]
+    else:
+        out_dir.mkdir(parents=True, exist_ok=True)
+        argv = [
+            TB_CLI, "run",
+            "-a", TB_AGENT,
+            "-m", f"openrouter/{model_id}",
+            "-d", dataset,
+            "--n-concurrent", str(n_concurrent),
+            "--n-attempts", str(n_attempts),
+            "--global-agent-timeout-sec", str(agent_timeout_sec),
+            "--output-path", str(out_dir),
+            "--no-upload-results",
+            "--cleanup",
+        ]
+        for t in task_ids or []:
+            argv += ["-t", t]
+        if not task_ids and n_tasks is not None:
+            argv += ["--n-tasks", str(n_tasks)]
     env = {**os.environ}
     subprocess.run(  # noqa: S603 — argv list, validated model_id
         argv, check=True, env=env, timeout=run_timeout_sec
@@ -255,6 +309,51 @@ MODEL_FAILURE = (
 )
 
 
+# --- Per-task persistence ----------------------------------------------------
+def _trial_duration_s(d: dict) -> float | None:
+    from datetime import datetime
+
+    s, e = d.get("trial_started_at"), d.get("trial_ended_at")
+    if not s or not e:
+        return None
+    try:
+        return (datetime.fromisoformat(e) - datetime.fromisoformat(s)).total_seconds()
+    except (ValueError, TypeError):
+        return None
+
+
+def persist_task_results(conn, model_id: str, out_dir: pathlib.Path, dataset: str, meta: dict) -> int:
+    """Write one row per task into tbench_task_results (category/difficulty/
+    failure_mode/duration), joining tb's per-task results with task.yaml metadata.
+    Returns the number of task rows written. INSERT OR REPLACE — idempotent."""
+    tops = sorted(out_dir.glob("*/results.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+    run_id = tops[0].parent.name if tops else None
+    today = date.today().isoformat()
+    rows = 0
+    for tr in out_dir.glob("*/*/*/results.json"):  # <run-id>/<task>/<trial>/results.json
+        try:
+            d = json.loads(tr.read_text())
+        except (OSError, json.JSONDecodeError):
+            continue
+        tid = d.get("task_id")
+        if not tid:
+            continue
+        m = meta.get(tid, {})
+        conn.execute(
+            "INSERT OR REPLACE INTO tbench_task_results "
+            "(model_id, task_id, dataset, category, difficulty, is_resolved, "
+            " failure_mode, duration_s, run_id, benched_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
+            (
+                model_id, tid, dataset, m.get("category"), m.get("difficulty"),
+                1 if d.get("is_resolved") else 0, d.get("failure_mode"),
+                _trial_duration_s(d), run_id, today,
+            ),
+        )
+        rows += 1
+    conn.commit()
+    return rows
+
+
 # --- Orchestration -----------------------------------------------------------
 def bench_model(
     conn,
@@ -262,49 +361,54 @@ def bench_model(
     *,
     dataset: str,
     n_tasks: int | None,
-    task_id: str | None,
+    task_ids: list[str] | None,
     n_concurrent: int,
     n_attempts: int,
     agent_timeout_sec: float = 600.0,
     run_timeout_sec: float | None = None,
+    force: bool = False,
+    task_meta: dict | None = None,
 ) -> float:
-    """Wipe out_dir → run → parse → write → return the score (0-100).
+    """Run (or RESUME) → parse → persist per-task → write aggregate → return score.
 
     Cost is NOT measured here — the CALLER (``main``) brackets each call with
-    balance reads, so a model that fails *after* spending credit still counts
-    toward the run budget.
+    balance reads, so a model that fails *after* spending credit still counts.
 
-    Two failure classes, deliberately handled differently:
-    - **Per-model** (``MODEL_FAILURE``: tb non-zero exit / hang / no-results /
-      malformed output) → raised here, the caller logs + SKIPS, cohort continues.
-    - **Systemic infra** (``OSError`` from the filesystem wipe, ``sqlite3.Error``
-      from the DB write) → deliberately NOT caught: a read-only disk or a
-      locked/corrupt DB affects EVERY model, so it propagates and halts the run
-      LOUDLY (like the tb-missing pre-flight) rather than being masked as N benign
-      per-model skips. Fail-loud on a broken environment is the intended behaviour.
+    Resumability: by default a partial prior run in out_dir is **resumed** (only
+    the incomplete tasks re-run, no credit re-spent on finished work). ``force``
+    wipes out_dir and starts fresh — the stale-score guard: after a wipe,
+    ``parse_tbench_output`` can only ever see THIS run's results.json, so a run
+    that produced nothing raises instead of persisting a prior score.
 
-    The output dir is wiped before the run so ``parse_tbench_output`` can only
-    ever see THIS run's results.json — a re-run that produces no fresh output
-    raises FileNotFoundError instead of writing a stale prior score.
+    Failure classes, handled differently:
+    - **Per-model** (``MODEL_FAILURE``) → raised, caller logs + SKIPS, cohort continues.
+    - **Systemic infra** (``OSError`` wipe, ``sqlite3.Error`` write) → NOT caught:
+      it affects every model, so it halts LOUDLY rather than masking as N skips.
     """
     safe = re.sub(r"[^A-Za-z0-9]+", "_", model_id)
     out_dir = CACHE_DIR / f"tb_run_{safe}"
-    if out_dir.exists():
+    if force and out_dir.exists():
         shutil.rmtree(out_dir)
-    out_dir.mkdir(parents=True, exist_ok=True)
     run_one(
         model_id,
         out_dir,
         dataset=dataset,
         n_tasks=n_tasks,
-        task_id=task_id,
+        task_ids=task_ids,
         n_concurrent=n_concurrent,
         n_attempts=n_attempts,
         agent_timeout_sec=agent_timeout_sec,
         run_timeout_sec=run_timeout_sec,
+        resume=not force,
     )
     score = parse_tbench_output(out_dir)
     write_tbench_score(conn, model_id, score)
+    # Per-task detail (category profile). Best-effort: a persistence hiccup must
+    # not discard the just-earned aggregate score.
+    try:
+        persist_task_results(conn, model_id, out_dir, dataset, task_meta or {})
+    except sqlite3.Error as e:
+        print(f"[terminal-bench] per-task persist failed for {model_id}: {e}", file=sys.stderr)
     return score
 
 
@@ -337,7 +441,16 @@ def _build_argparser() -> argparse.ArgumentParser:
         "with a cost-cap set, leaving this unbounded lets the first model run the whole "
         "set before the cohort budget can act — a warning is printed).",
     )
-    p.add_argument("--task-id", default=None, help="Task id/glob to run (overrides --n-tasks).")
+    p.add_argument("--task-id", default=None, help="Task id/glob to run (overrides --category/--n-tasks).")
+    p.add_argument(
+        "--category",
+        default=None,
+        help="Run only tasks in these task.yaml categories (comma list), e.g. "
+        "'system-administration,security'. Alias 'sysadmin' = those two (the "
+        f"{len(SYSADMIN_CATEGORIES)}-category on-workload subset). Real categories: "
+        "system-administration, security, software-engineering, debugging, "
+        "file-operations, data-science, model-training, games, scientific-computing.",
+    )
     p.add_argument("--n-concurrent", type=int, default=4, help="Concurrent trials (default 4).")
     p.add_argument(
         "--n-attempts", type=int, default=1, help="Attempts (trials) per task (default 1)."
@@ -359,11 +472,57 @@ def _build_argparser() -> argparse.ArgumentParser:
         "CAVEAT: a killed tb bypasses its own --cleanup, so a leaked task container may remain — "
         "the next tb run or a manual `docker container prune` clears it.",
     )
-    p.add_argument("--force", action="store_true", help="Re-bench even if fresh.")
+    p.add_argument(
+        "--force",
+        action="store_true",
+        help="Wipe the model's prior run and start FRESH (default: resume a partial "
+        "prior run — completed tasks skipped, no credit re-spent). Also bypasses the "
+        "already-benched freshness skip.",
+    )
+    p.add_argument(
+        "--report",
+        default=None,
+        const="__ALL__",
+        nargs="?",
+        help="Print the per-category capability matrix from tbench_task_results and exit "
+        "(no benching). Optionally pass a model id to report just that model.",
+    )
     p.add_argument(
         "--dry-run", action="store_true", help="Print the dispatch plan + estimate; call no model."
     )
     return p
+
+
+def report_matrix(conn, model_id: str | None = None) -> None:
+    """Print the per-(model, category) pass-rate matrix from tbench_task_results."""
+    where, params = "", []
+    if model_id and model_id != "__ALL__":
+        where, params = "WHERE model_id = ?", [model_id]
+    rows = conn.execute(
+        f"SELECT model_id, COALESCE(category,'(none)') AS category, "  # noqa: S608 — where is a fixed literal
+        f"SUM(is_resolved) AS passed, COUNT(*) AS total "
+        f"FROM tbench_task_results {where} "
+        f"GROUP BY model_id, category ORDER BY model_id, category",
+        params,
+    ).fetchall()
+    if not rows:
+        print("[report] no per-task results yet — run a bench first.")
+        return
+    cur = None
+    for mid, cat, passed, total in rows:
+        if mid != cur:
+            print(f"\n=== {mid} ===")
+            print(f"  {'category':<24} {'passed':>7} {'total':>6} {'rate':>6}")
+            cur = mid
+        rate = (passed / total * 100) if total else 0.0
+        print(f"  {cat:<24} {passed:>7} {total:>6} {rate:>5.0f}%")
+    # overall line per model
+    for mid, in {(r[0],) for r in rows}:
+        tot = conn.execute(
+            "SELECT SUM(is_resolved), COUNT(*) FROM tbench_task_results WHERE model_id=?", (mid,)
+        ).fetchone()
+        if tot and tot[1]:
+            print(f"  → {mid} OVERALL: {tot[0]}/{tot[1]} = {tot[0] / tot[1] * 100:.0f}%")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -388,8 +547,38 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 2
 
+    from add_tbench_task_results_table import ensure_tbench_task_results_table
+
+    ensure_tbench_task_results_table(DB_PATH)
+
     conn = sqlite3.connect(DB_PATH)
     try:
+        # --report: print the per-category matrix from tbench_task_results and exit.
+        if args.report is not None:
+            report_matrix(conn, None if args.report == "__ALL__" else args.report)
+            return 0
+
+        # Resolve --category → explicit task ids (needs the dataset downloaded).
+        task_ids: list[str] | None = None
+        if args.task_id:
+            task_ids = [args.task_id]
+        elif args.category:
+            cats = (
+                list(SYSADMIN_CATEGORIES)
+                if args.category.lower() == "sysadmin"
+                else [c.strip() for c in args.category.split(",") if c.strip()]
+            )
+            task_ids = tasks_in_categories(args.dataset, cats)
+            if not task_ids:
+                print(
+                    f"error: no tasks match category {cats} in {args.dataset} "
+                    f"(is the dataset downloaded? run one bench first, or check the name)",
+                    file=sys.stderr,
+                )
+                return 2
+            print(f"[terminal-bench] --category {cats} → {len(task_ids)} tasks", file=sys.stderr)
+        task_meta = load_task_meta(args.dataset)
+
         raw = [m.strip() for m in args.models.split(",") if m.strip()]
         # 'all' (any case, anywhere in the list) → the full tool-capable OR cohort.
         if any(m.lower() == "all" for m in raw):
@@ -421,18 +610,19 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 2
 
-        if not args.force:
+        # Freshness skip only on a FULL default run — a targeted --category/--task-id
+        # run always dispatches (resume then skips its already-completed tasks).
+        if not args.force and task_ids is None:
             cohort = [m for m in cohort if not is_fresh(conn, m)]
 
         if args.dry_run:
-            print(f"[dry-run] would bench {len(cohort)} model(s) on {args.dataset}")
-            print(
-                f"[dry-run] agent={TB_AGENT} n_concurrent={args.n_concurrent} "
-                f"n_attempts={args.n_attempts} run_budget=${args.cost_cap:.2f} "
-                f"n_tasks={args.n_tasks if args.n_tasks is not None else 'ALL'}"
+            scope = f"{len(task_ids)} tasks (subset)" if task_ids else (
+                f"n_tasks={args.n_tasks}" if args.n_tasks is not None else "ALL tasks"
             )
+            mode = "FRESH (--force)" if args.force else "resume-if-partial"
+            print(f"[dry-run] would bench {len(cohort)} model(s) on {args.dataset} · {scope} · {mode}")
             for m in cohort:
-                print(f"[dry-run]   {TB_CLI} run -a {TB_AGENT} -m openrouter/{m} -d {args.dataset}")
+                print(f"[dry-run]   {m}")
             print("[dry-run] no OpenRouter calls made.")
             return 0
 
@@ -440,7 +630,7 @@ def main(argv: list[str] | None = None) -> int:
             print("[terminal-bench] nothing to bench (all fresh; use --force).")
             return 0
 
-        if args.n_tasks is None and args.task_id is None:
+        if args.n_tasks is None and task_ids is None:
             print(
                 f"[terminal-bench] ⚠ per-model task count is UNBOUNDED (full set) — a single "
                 f"model may spend well before the ${args.cost_cap:.2f} run budget can stop the "
@@ -476,11 +666,13 @@ def main(argv: list[str] | None = None) -> int:
                     m,
                     dataset=args.dataset,
                     n_tasks=args.n_tasks,
-                    task_id=args.task_id,
+                    task_ids=task_ids,
                     n_concurrent=args.n_concurrent,
                     n_attempts=args.n_attempts,
                     agent_timeout_sec=args.agent_timeout,
                     run_timeout_sec=args.run_timeout,
+                    force=args.force,
+                    task_meta=task_meta,
                 )
             except MODEL_FAILURE as e:
                 # tb error / hang / no-results / malformed output → skip, don't crash cohort.

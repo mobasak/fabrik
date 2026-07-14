@@ -238,7 +238,7 @@ def test_bench_model_returns_score_and_writes(monkeypatch, tmp_path):
         "vendor/m1",
         dataset=mt.TB_DATASET,
         n_tasks=1,
-        task_id=None,
+        task_ids=None,
         n_concurrent=1,
         n_attempts=1,
     )
@@ -259,7 +259,8 @@ def test_stale_score_not_written_on_empty_rerun(monkeypatch, tmp_path):
     )
     conn.commit()
     monkeypatch.setattr(mt, "CACHE_DIR", tmp_path)
-    # seed a STALE prior run dir; bench_model wipes out_dir first, so parse finds nothing
+    # seed a STALE prior run dir; with --force, bench_model WIPES out_dir first, so a
+    # re-run that produces no fresh output raises instead of persisting the stale 0.99.
     stale = tmp_path / "tb_run_vendor_m1" / "old-run"
     stale.mkdir(parents=True)
     (stale / "results.json").write_text(json.dumps({"accuracy": 0.99}))
@@ -270,9 +271,10 @@ def test_stale_score_not_written_on_empty_rerun(monkeypatch, tmp_path):
             "vendor/m1",
             dataset=mt.TB_DATASET,
             n_tasks=1,
-            task_id=None,
+            task_ids=None,
             n_concurrent=1,
             n_attempts=1,
+            force=True,  # force wipes → stale-score guard active (default now resumes)
         )
     assert (
         conn.execute("SELECT tbench_accuracy FROM agents WHERE id='vendor/m1'").fetchone()[0]
@@ -475,3 +477,171 @@ def test_is_fresh_uses_tbench_not_last_verified(tmp_path):
     assert mt.is_fresh(conn, "benched/m") is True
     assert mt.is_fresh(conn, "unbenched/m") is False  # recent last_verified must NOT mark it fresh
     assert mt.is_fresh(conn, "absent/m") is False
+
+
+# ============================================================================
+# Granular features: category subset · resume · per-task persistence · report
+# ============================================================================
+import add_tbench_task_results_table as mig  # noqa: E402
+
+
+def _mkdb_full(tmp_path):
+    """agents table + the per-task results table (for the granular tests)."""
+    conn = sqlite3.connect(tmp_path / "t.db")
+    conn.execute(
+        "CREATE TABLE agents (id TEXT PRIMARY KEY, via_openrouter INTEGER, status TEXT, "
+        "has_tools INTEGER, tbench_accuracy REAL, last_verified TEXT)"
+    )
+    conn.commit()
+    mig.ensure_tbench_task_results_table(tmp_path / "t.db")
+    return conn
+
+
+def _fake_dataset(tmp_path, monkeypatch, tasks):
+    """Build a fake tb dataset dir (task_id → {category,difficulty}) + point the
+    runner's _dataset_dir at it. tasks = {tid: (category, difficulty)}."""
+    ds = tmp_path / "ds"
+    for tid, (cat, diff) in tasks.items():
+        d = ds / tid
+        d.mkdir(parents=True)
+        (d / "task.yaml").write_text(f"instruction: x\ncategory: {cat}\ndifficulty: {diff}\n")
+    monkeypatch.setattr(mt, "_dataset_dir", lambda dataset: ds)
+    return ds
+
+
+# --- migration idempotency ---------------------------------------------------
+def test_migration_idempotent(tmp_path):
+    conn = sqlite3.connect(tmp_path / "t.db")
+    conn.close()
+    assert mig.ensure_tbench_task_results_table(tmp_path / "t.db") is True  # created
+    assert mig.ensure_tbench_task_results_table(tmp_path / "t.db") is False  # already present
+
+
+# --- category → task ids -----------------------------------------------------
+def test_tasks_in_categories(tmp_path, monkeypatch):
+    _fake_dataset(tmp_path, monkeypatch, {
+        "fix-perms": ("system-administration", "easy"),
+        "crack-hash": ("security", "medium"),
+        "train-net": ("model-training", "hard"),
+    })
+    assert mt.tasks_in_categories("ds", ["system-administration", "security"]) == ["crack-hash", "fix-perms"]
+    assert mt.tasks_in_categories("ds", ["model-training"]) == ["train-net"]
+    assert mt.tasks_in_categories("ds", ["nonexistent"]) == []
+
+
+def test_load_task_meta_missing_dataset_returns_empty(tmp_path, monkeypatch):
+    monkeypatch.setattr(mt, "_dataset_dir", lambda d: tmp_path / "does-not-exist")
+    assert mt.load_task_meta("x") == {}
+
+
+# --- resume detection --------------------------------------------------------
+def test_find_resumable_run(tmp_path):
+    out = tmp_path / "tb_run_x"
+    assert mt._find_resumable_run(out) is None  # no dir
+    (out / "2026-01-01__run").mkdir(parents=True)
+    assert mt._find_resumable_run(out) is None  # dir but no tb.lock
+    (out / "2026-01-01__run" / "tb.lock").write_text("{}")
+    (out / "2026-01-02__run").mkdir()
+    (out / "2026-01-02__run" / "tb.lock").write_text("{}")
+    assert mt._find_resumable_run(out) == "2026-01-02__run"  # newest with a lock
+
+
+def test_run_one_resumes_when_prior_exists(monkeypatch, tmp_path):
+    out = tmp_path / "tb_run_x"
+    (out / "R1").mkdir(parents=True)
+    (out / "R1" / "tb.lock").write_text("{}")
+    captured = {}
+    monkeypatch.setattr(mt.subprocess, "run", lambda argv, **k: captured.update(argv=argv))
+    mt.run_one("vendor/m", out, resume=True)
+    assert captured["argv"][:3] == ["tb", "runs", "resume"]
+    assert "R1" in captured["argv"]
+
+
+def test_run_one_fresh_when_no_prior(monkeypatch, tmp_path):
+    out = tmp_path / "tb_run_x"
+    captured = {}
+    monkeypatch.setattr(mt.subprocess, "run", lambda argv, **k: captured.update(argv=argv))
+    mt.run_one("vendor/m", out, resume=True, task_ids=["fix-perms"])
+    assert captured["argv"][:2] == ["tb", "run"]
+    assert "-t" in captured["argv"] and "fix-perms" in captured["argv"]
+
+
+def test_run_one_force_never_resumes(monkeypatch, tmp_path):
+    out = tmp_path / "tb_run_x"
+    (out / "R1").mkdir(parents=True)
+    (out / "R1" / "tb.lock").write_text("{}")
+    captured = {}
+    monkeypatch.setattr(mt.subprocess, "run", lambda argv, **k: captured.update(argv=argv))
+    mt.run_one("vendor/m", out, resume=False)  # force path
+    assert captured["argv"][:2] == ["tb", "run"]  # fresh despite the prior run
+
+
+# --- per-task persistence ----------------------------------------------------
+def _write_task_result(out_dir, run_id, tid, resolved, failure_mode="unset"):
+    d = out_dir / run_id / tid / f"{tid}.1-of-1.{run_id}"
+    d.mkdir(parents=True)
+    (out_dir / run_id).mkdir(exist_ok=True)
+    (out_dir / run_id / "results.json").write_text(json.dumps({"accuracy": 0.5}))
+    (d / "results.json").write_text(json.dumps({
+        "task_id": tid, "is_resolved": resolved, "failure_mode": failure_mode,
+        "trial_started_at": "2026-07-13T10:00:00+00:00",
+        "trial_ended_at": "2026-07-13T10:05:00+00:00",
+    }))
+
+
+def test_persist_task_results_joins_category(tmp_path, monkeypatch):
+    conn = _mkdb_full(tmp_path)
+    out = tmp_path / "tb_run_vendor_m"
+    _write_task_result(out, "RID", "fix-perms", True)
+    _write_task_result(out, "RID", "crack-hash", False, "agent_timeout")
+    meta = {
+        "fix-perms": {"category": "system-administration", "difficulty": "easy"},
+        "crack-hash": {"category": "security", "difficulty": "medium"},
+    }
+    n = mt.persist_task_results(conn, "vendor/m", out, "ds==1", meta)
+    assert n == 2
+    rows = dict(conn.execute(
+        "SELECT task_id, category||'/'||is_resolved||'/'||COALESCE(failure_mode,'') "
+        "FROM tbench_task_results WHERE model_id='vendor/m'"
+    ).fetchall())
+    assert rows["fix-perms"] == "system-administration/1/unset"
+    assert rows["crack-hash"] == "security/0/agent_timeout"
+    # duration computed (5 min = 300s)
+    dur = conn.execute("SELECT duration_s FROM tbench_task_results WHERE task_id='fix-perms'").fetchone()[0]
+    assert dur == 300.0
+
+
+def test_persist_task_results_idempotent(tmp_path):
+    conn = _mkdb_full(tmp_path)
+    out = tmp_path / "tb_run_vendor_m"
+    _write_task_result(out, "RID", "fix-perms", True)
+    mt.persist_task_results(conn, "vendor/m", out, "ds==1", {})
+    mt.persist_task_results(conn, "vendor/m", out, "ds==1", {})  # re-run
+    cnt = conn.execute("SELECT COUNT(*) FROM tbench_task_results WHERE task_id='fix-perms'").fetchone()[0]
+    assert cnt == 1  # INSERT OR REPLACE — no dup
+
+
+# --- report ------------------------------------------------------------------
+def test_report_matrix(tmp_path, capsys):
+    conn = _mkdb_full(tmp_path)
+    conn.executemany(
+        "INSERT INTO tbench_task_results (model_id, task_id, dataset, category, is_resolved) "
+        "VALUES (?,?,?,?,?)",
+        [
+            ("vendor/m", "t1", "d", "system-administration", 1),
+            ("vendor/m", "t2", "d", "system-administration", 0),
+            ("vendor/m", "t3", "d", "security", 1),
+        ],
+    )
+    conn.commit()
+    mt.report_matrix(conn, "vendor/m")
+    out = capsys.readouterr().out
+    assert "system-administration" in out and "security" in out
+    assert "50%" in out  # 1/2 sysadmin
+    assert "OVERALL: 2/3" in out
+
+
+def test_report_empty(tmp_path, capsys):
+    conn = _mkdb_full(tmp_path)
+    mt.report_matrix(conn)
+    assert "no per-task results" in capsys.readouterr().out

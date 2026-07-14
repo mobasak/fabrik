@@ -4,6 +4,35 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Terminal-Bench runner: resumable + per-category granular results (2026-07-13)
+
+`microbench_terminal.py` gained three capabilities, driven by the discovery that a model's
+aggregate tbench hides its category profile (minimax-m3: 36% overall but **10%** at
+system-administration):
+- **Resumable.** A killed/interrupted run now resumes via `tb runs resume` (completed tasks
+  skipped, no credit re-spent) instead of the old `shutil.rmtree` wipe. `--force` still starts
+  fresh (keeps the stale-score guard). Fixes the case where a session restart killed a 74/89 run.
+- **Per-task persistence.** New `tbench_task_results` table (`add_tbench_task_results_table.py`
+  migration) stores one row per (model, task) with **category, difficulty, is_resolved,
+  failure_mode, duration** — joined from each task's `task.yaml`. Queryable + comparable across
+  models, survives re-runs.
+- **`--category` subset + `--report`.** `--category system-administration,security` (alias
+  `sysadmin`) runs only the on-workload subset (25 tasks vs 80 — ~3× cheaper/faster). `--report
+  [model]` prints the per-category capability matrix from the table.
+
+### Fixed — docs/infrastructure AI-ops reconciliation + stale aro-wake docstring (2026-07-13)
+
+`/fabrik-docs-review docs/infrastructure` reconciled the AI-ops docs to the live code. Headline: **aro-wake was
+mis-documented as a third "AI layer"** when it is a push *trigger* for the same host-sysadmin AI (same
+`--model opus`, same `system-prompt.txt`, same `claude_rotate` — it mirrors `bot.py::_run_claude`). Corrected
+`vps-ai-sysadmin.md` ("three AI layers" → two AIs + the host sysadmin's triggers; added the aro-wake path to the
+architecture diagram; fixed PATH 2 to native `telegram_configs`), `vps-fleet-architecture.md` (§6 two-vs-three
+contradiction), `vps-complete-inventory.md`, and `vps-status.md`. Also fixed grounded drift: `WatchdogConfig.enabled`
+class-default is **False** (not True), `deadman_timeout_seconds` **300s** (not 120s), 18 fields (not 13), driver
+~1284 lines (not 387), aro-wake **9** metrics / **5** routes, `watchdog_sidecar/` path, Alertmanager→aro-wake
+Phase 4 shipped. **Code:** `scripts/aro-wake/main.py` module docstring said "NEVER 0.0.0.0" but the service binds
+`0.0.0.0` (Phase 4, 2026-06-05) — corrected the docstring to match the actual bind + firewall rationale.
+
 ### Fixed — Spoke deploys got unreachable `postgres-main`/`redis-main` DSNs (2026-07-13)
 
 A service targeted at a spoke (`target_vps` = vps2/vps3) with `needs_database: true` (or cache, or GlitchTip)
