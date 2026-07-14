@@ -297,11 +297,13 @@ def test_bench_model_subset_does_not_write_aggregate(monkeypatch, tmp_path):
 
 
 def test_stale_score_not_written_on_empty_rerun(monkeypatch, tmp_path):
-    """A run whose fresh run-id produced NO results.json must NOT persist some OTHER
-    run's score. The guard is run-id SCOPING: parse reads <out>/<this run-id>/
-    results.json, so a stale sibling run's 0.99 — left sitting in the same out_dir —
-    is unreachable. Revert the scoping (newest-results.json-by-mtime) and this test
-    goes red: parse would find the stale 0.99 and overwrite the real 77.0."""
+    """A --force re-run that produces NO results.json must not persist a prior score.
+    --force wipes out_dir, so the stale 0.99 is gone and parse raises rather than
+    silently writing someone else's number over the real 77.0.
+
+    (Without --force a COMPLETED run in this dir is now deliberately REUSED — same model,
+    same config, so its score is valid and re-running it would just re-spend credit. That
+    path is covered by test_bench_model_reuses_a_completed_run_without_spending.)"""
     conn = _mkdb(tmp_path)
     conn.execute(
         "INSERT INTO agents (id, via_openrouter, status, has_tools, tbench_accuracy) "
@@ -310,12 +312,11 @@ def test_stale_score_not_written_on_empty_rerun(monkeypatch, tmp_path):
     conn.commit()
     monkeypatch.setattr(mt, "CACHE_DIR", tmp_path)
     out = mt.out_dir_for("vendor/m1", mt.TB_DATASET, None)
-    # A STALE prior run, WITH a score, deliberately left in place (no --force wipe).
+    # A STALE prior run WITH a score. --force WIPES out_dir, so this must be unreachable.
     stale = out / "2020-01-01__00-00-00-000000"
     stale.mkdir(parents=True)
     (stale / "results.json").write_text(json.dumps({"accuracy": 0.99}))
-    # THIS run's dir exists but tb wrote no results.json into it.
-    (out / "FRESH").mkdir(parents=True)
+    # The forced fresh run yields a run-id whose dir holds no results.json.
     monkeypatch.setattr(mt, "run_one", lambda *a, **k: "FRESH")
     with pytest.raises(FileNotFoundError):
         mt.bench_model(
@@ -326,6 +327,7 @@ def test_stale_score_not_written_on_empty_rerun(monkeypatch, tmp_path):
             task_ids=None,
             n_concurrent=1,
             n_attempts=1,
+            force=True,  # wipes → the stale 0.99 cannot be read
         )
     # the stale 0.99 was never read — the real prior aggregate stands
     assert (
@@ -1018,3 +1020,111 @@ def test_scope_key_is_unambiguous_under_delimiter_bearing_inputs(monkeypatch, tm
     assert mt.out_dir_for("vendor/m", mt.TB_DATASET, ["a,b"], None) != mt.out_dir_for(
         "vendor/m", mt.TB_DATASET, ["a", "b"], None
     )
+
+
+# --- A FINISHED run is READ, never re-run (this bug cost real money) ------------
+def test_completed_run_is_not_resumable(tmp_path):
+    """tb.lock is a PERSISTENT manifest — a finished run still has one. Keying
+    resumability on the lock alone is what re-dispatched a finished run's tasks and
+    re-spent credit. Resumable must mean 'has work left', i.e. no top-level results.json."""
+    out = tmp_path / "tb_run_x"
+    done = out / "2026-07-13__16-47-35"
+    done.mkdir(parents=True)
+    (done / "tb.lock").write_text("{}")
+    (done / "results.json").write_text(json.dumps({"accuracy": 0.338}))  # run COMPLETE
+    assert mt._find_resumable_run(out) is None  # nothing to resume
+    assert mt._find_complete_run(out) == "2026-07-13__16-47-35"  # but it IS readable
+
+    # a partial run (lock, no results.json) is still resumable
+    part = out / "2026-07-14__01-00-00"
+    part.mkdir()
+    (part / "tb.lock").write_text("{}")
+    assert mt._find_resumable_run(out) == "2026-07-14__01-00-00"
+
+
+def test_bench_model_reuses_a_completed_run_without_spending(monkeypatch, tmp_path):
+    """The real incident: tb FINISHED the run, but the runner process was killed before
+    it could write the score — so tbench_accuracy stayed NULL, the freshness guard did
+    not skip the model, and the next invocation resumed a finished run and burned ~3h of
+    credit for zero new results. A completed run must be parsed + persisted for $0, and
+    tb must never be invoked."""
+    conn = _mkdb_full(tmp_path)
+    conn.execute("INSERT INTO agents (id, status) VALUES ('vendor/m1','active')")  # NULL score
+    conn.commit()
+    monkeypatch.setattr(mt, "CACHE_DIR", tmp_path)
+    out = mt.out_dir_for("vendor/m1", "ds==1", None, None)
+    _write_task_result(out, "2026-07-13__16-47-35", "fix-perms", True)
+    run = out / "2026-07-13__16-47-35"
+    (run / "tb.lock").write_text("{}")
+    # AFTER the helper (which writes its own top-level results.json) — this is the
+    # run-complete marker carrying the real aggregate.
+    (run / "results.json").write_text(json.dumps({"accuracy": 0.338}))
+
+    spent = {"tb": False}
+    monkeypatch.setattr(mt, "run_one", lambda *a, **k: spent.__setitem__("tb", True) or "NEW")
+
+    score = mt.bench_model(
+        conn,
+        "vendor/m1",
+        dataset="ds==1",
+        n_tasks=None,
+        task_ids=None,
+        n_concurrent=1,
+        n_attempts=1,
+    )
+    assert spent["tb"] is False  # tb NEVER invoked → no credit spent
+    assert score == pytest.approx(33.8)
+    # the score the killed process failed to write is now persisted
+    assert conn.execute("SELECT tbench_accuracy FROM agents WHERE id='vendor/m1'").fetchone()[
+        0
+    ] == pytest.approx(33.8)
+    # and so is the per-task detail
+    assert (
+        conn.execute(
+            "SELECT COUNT(*) FROM tbench_task_results WHERE model_id='vendor/m1'"
+        ).fetchone()[0]
+        == 1
+    )
+
+
+def test_force_still_re_benches_a_completed_run(monkeypatch, tmp_path):
+    """--force must still wipe and re-run — reuse is the DEFAULT, not a trap."""
+    conn = _mkdb_full(tmp_path)
+    conn.execute("INSERT INTO agents (id, status) VALUES ('vendor/m1','active')")
+    conn.commit()
+    monkeypatch.setattr(mt, "CACHE_DIR", tmp_path)
+    out = mt.out_dir_for("vendor/m1", "ds==1", None, None)
+    run = out / "OLD"
+    run.mkdir(parents=True)
+    (run / "tb.lock").write_text("{}")
+    (run / "results.json").write_text(json.dumps({"accuracy": 0.99}))
+
+    spent = {"tb": False}
+    monkeypatch.setattr(mt, "run_one", lambda *a, **k: spent.__setitem__("tb", True) or "NEW")
+    monkeypatch.setattr(mt, "parse_tbench_output", lambda *a, **k: 50.0)
+    monkeypatch.setattr(mt, "persist_task_results", lambda *a, **k: 0)
+    score = mt.bench_model(
+        conn,
+        "vendor/m1",
+        dataset="ds==1",
+        n_tasks=None,
+        task_ids=None,
+        n_concurrent=1,
+        n_attempts=1,
+        force=True,
+    )
+    assert spent["tb"] is True  # re-benched, as asked
+    assert score == 50.0
+
+
+def test_parse_is_scoped_to_its_run_id_not_the_newest(tmp_path):
+    """Direct proof of run-id scoping: with several runs in one dir, parse(run_id) reads
+    EXACTLY that run — never the newest-by-mtime, which is how a stale score used to be
+    attributed to a fresh run."""
+    for rid, acc in (("2020-01-01__00-00-00-000000", 0.99), ("2026-07-13__16-47-35", 0.338)):
+        (tmp_path / rid).mkdir()
+        (tmp_path / rid / "results.json").write_text(json.dumps({"accuracy": acc}))
+    assert mt.parse_tbench_output(tmp_path, "2026-07-13__16-47-35") == pytest.approx(33.8)
+    assert mt.parse_tbench_output(tmp_path, "2020-01-01__00-00-00-000000") == pytest.approx(99.0)
+    with pytest.raises(FileNotFoundError):
+        mt.parse_tbench_output(tmp_path, "NEVER-RAN")

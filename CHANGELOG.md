@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Terminal-Bench runner: a FINISHED run is read, never re-run (2026-07-14)
+
+This one cost real money before it was caught. The m3 benchmark **finished** at 04:57 (all 80 tasks, top-level
+`results.json` written) — but its runner process was killed by a session teardown *before* it could write the
+score. `agents.tbench_accuracy` stayed `NULL`, so the freshness guard saw "not benched" and dispatched; and
+`_find_resumable_run` matched the completed run's still-present `tb.lock` and "resumed" it. The relaunch then
+re-dispatched finished tasks for **~3 hours and produced zero new results.**
+
+The hole is structural: completion is recorded in **two** places — `results.json` on disk (written by tb) and
+`tbench_accuracy` in the DB (written by the runner, *after*) — and a kill in the window between them leaves a
+complete run behind a NULL score. Neither guard asked the only authoritative question: *did this run already
+finish?* The filesystem knew; nothing consulted it.
+
+`<run>/results.json` is now treated as the run-complete marker. A finished run is **READ, never re-run** — the
+runner parses it, persists the score, and spends **$0**, making re-invocation idempotent. `_find_resumable_run`
+now means *has work left* (a lock **and** no `results.json`), not merely *has a lock*. `--force` still re-benches.
+
+Raised by an Opus finder during `/fabrik-review` and **wrongly refuted by me**: I proved `tb.lock` persists after
+completion and treated that as proof a resume would no-op — but the persistence of the lock is precisely what
+lets a finished run be picked up and re-dispatched. I proved the wrong half of the finding.
+See `docs/LESSONS_LEARNT.md` Lesson 94.
+
 ### Fixed — Terminal-Bench runner: a bounded run could silently bill as a full one (2026-07-14)
 
 `/fabrik-review` on `scripts/kilo-benchmarks/microbench_terminal.py`. `tb runs resume` replays the ORIGINAL

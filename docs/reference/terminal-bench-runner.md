@@ -52,6 +52,16 @@ invocation — `microbench_terminal.py --models <same model>` detects the partia
 re-spent on finished work.** Use `--force` to discard the prior run and start fresh. Long runs should still be
 launched detached (`setsid nohup … &`) so a session teardown never kills them.
 
+**A FINISHED run is read, never re-run.** tb writes `<run>/results.json` only when the whole run completes, so
+its presence is the run-complete marker. A finished run has nothing left to resume — resuming it anyway
+re-dispatches every task and re-spends credit for zero new results. Re-invoking on a completed run therefore
+costs **$0**: the runner parses the existing result and (re)persists the score. `--force` still re-benches.
+
+This is a *second* line of defence behind the freshness skip, and it exists because the first one has a hole:
+`tbench_accuracy` is written **after** tb finishes, so a run whose process is killed in between (a session
+teardown, a `Ctrl-C`) leaves a **complete run behind a NULL score**. Freshness can't see it; only the run dir
+can. That hole cost a real 3-hour re-run on 2026-07-14 — see `docs/LESSONS_LEARNT.md` Lesson 94.
+
 **What a run may resume into.** `tb runs resume` takes only `--run-id`/`--runs-dir` and rebuilds the harness
 from the original `tb.lock` — *"The resume command uses the original configuration from the run's tb.lock file"*
 (`terminal_bench/cli/tb/runs.py:793-804`). **Every flag on the resuming invocation is discarded.** So the run dir

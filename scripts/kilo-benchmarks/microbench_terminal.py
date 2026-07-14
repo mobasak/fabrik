@@ -312,15 +312,43 @@ def out_dir_for(
     return CACHE_DIR / f"tb_run_{safe}{tag}"
 
 
+def _find_complete_run(out_dir: pathlib.Path) -> str | None:
+    """The newest run-id under out_dir that is FINISHED — it has a top-level results.json.
+
+    tb writes ``<run>/results.json`` only when the whole run completes, so its presence is
+    the run-complete marker. A finished run has NOTHING left to resume, and resuming it
+    anyway re-dispatches its tasks and re-spends OpenRouter credit for zero new results.
+
+    This cost real money (2026-07-14): a run finished at 04:57 but its runner process was
+    killed before it could write the score, leaving ``tbench_accuracy`` NULL — so the
+    freshness guard didn't skip the model, ``_find_resumable_run`` matched the completed
+    run's still-present ``tb.lock``, and the relaunch re-ran finished tasks for ~3h and
+    produced not one new results.json. A completed run must be READ, never re-run.
+    """
+    if not out_dir.exists():
+        return None
+    done = sorted(p.name for p in out_dir.iterdir() if p.is_dir() and (p / "results.json").exists())
+    return done[-1] if done else None
+
+
 def _find_resumable_run(out_dir: pathlib.Path) -> str | None:
-    """The newest run-id under out_dir that has a tb.lock (i.e. is resumable).
+    """The newest run-id under out_dir that is resumable: it has a tb.lock AND is NOT
+    finished (no top-level results.json).
+
+    The tb.lock alone is NOT sufficient — it is a persistent manifest that outlives the
+    run, so a COMPLETED run still carries one. Keying resumability on the lock alone is
+    what re-ran a finished run (see ``_find_complete_run``). Resumable == has work left.
 
     out_dir is per-(model, scope), so any run in it shares this model+task-set —
     resume is safe. Returns the run-id (dir name) or None if nothing to resume.
     """
     if not out_dir.exists():
         return None
-    runs = sorted(p.name for p in out_dir.iterdir() if p.is_dir() and (p / "tb.lock").exists())
+    runs = sorted(
+        p.name
+        for p in out_dir.iterdir()
+        if p.is_dir() and (p / "tb.lock").exists() and not (p / "results.json").exists()
+    )
     return runs[-1] if runs else None
 
 
@@ -564,6 +592,35 @@ def bench_model(
     out_dir = out_dir_for(model_id, dataset, task_ids, n_tasks, n_attempts, agent_timeout_sec)
     if force and out_dir.exists():
         shutil.rmtree(out_dir)
+
+    # A FINISHED run is READ, never re-run. tb's own resume would re-dispatch its tasks
+    # and re-spend credit for zero new results. This is not hypothetical: it happened,
+    # for ~3h, because the aggregate write is what marks a model "fresh" — and a run
+    # whose process was killed AFTER tb finished but BEFORE the score was persisted
+    # leaves a complete run behind a NULL tbench_accuracy. The freshness guard can't see
+    # it; only the run dir can. Reading it here also makes the whole call idempotent:
+    # re-invoking on a finished run now costs $0 and simply (re)persists the score.
+    if not force:
+        done = _find_complete_run(out_dir)
+        if done:
+            score = parse_tbench_output(out_dir, done)
+            print(
+                f"[terminal-bench] {model_id}: run {done} already COMPLETE "
+                f"({score:.1f}) — reusing it, no credit spent (--force to re-bench).",
+                file=sys.stderr,
+            )
+            if task_ids is None and n_tasks is None:
+                write_tbench_score(conn, model_id, score)
+            try:
+                persist_task_results(conn, model_id, out_dir, dataset, done, task_meta)
+            except Exception as e:  # noqa: BLE001 — best-effort; the score must survive
+                print(
+                    f"[terminal-bench] per-task persist failed for {model_id} "
+                    f"({type(e).__name__}: {e}) — score kept",
+                    file=sys.stderr,
+                )
+            return score
+
     run_id = run_one(
         model_id,
         out_dir,

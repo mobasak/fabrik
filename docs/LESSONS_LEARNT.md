@@ -1,9 +1,54 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
-**Last Updated:** 2026-07-14 (Lesson 93 — when a resume replays a lock file, every flag you *didn't* put in the cache key is a flag you silently ignored)
+**Last Updated:** 2026-07-14 (Lesson 94 — I refuted a review finding by proving the wrong half of it, and it cost 3 hours of paid compute)
 
 **Purpose:** CAPTURE TECHNICAL HURDLES, AI-SPECIFIC QUIRKS, AND ARCHITECTURAL DECISIONS TO PREVENT REGRESSION AS CODEBASES AND AI AGENTS EVOLVE.
+
+---
+
+# Lesson 94: a refutation that proves the wrong half is not a refutation — and "done" written to disk is not "done" written to the DB
+
+**Context (2026-07-14):** During `/fabrik-review` of the Terminal-Bench runner, an Opus finder raised:
+
+> *re-running an already-fully-benched model … silently re-spending OpenRouter credit.*
+
+I marked it **REFUTED**, with this reasoning: *"`tb.lock` persists after completion (no `unlink` anywhere), so a
+resume finds it and re-runs nothing."* Hours later the runner re-ran a **completed** 80-task benchmark for
+**~3 hours**, produced **zero** new results, and burned real credit.
+
+**The refutation proved the wrong half.** The finding had two links: (1) does resume *find* a completed run, and
+(2) does resume then *no-op*? I proved (1) — the lock persists — and then simply *assumed* (2). The half I proved
+was the half that made the bug **more** likely, not less: the lock persisting is precisely what lets a finished
+run be picked up and re-dispatched. **Grep-depth evidence (`no unlink found`) is not behavioural evidence.** If a
+refutation's proof doesn't touch the step that actually causes the harm, it is a story, not a proof — and the
+review contract's "REFUTED requires proof, not a shrug" is exactly what I violated.
+
+**The underlying defect — a completion marker split across two systems.** The runner had one liveness signal for
+"has this model been benched?": `agents.tbench_accuracy IS NOT NULL`. But that column is written **after** `tb`
+exits. So the sequence is:
+
+```
+tb finishes → writes <run>/results.json   ← "done" on DISK
+     ↓  (process killed here: session teardown, Ctrl-C)
+runner writes tbench_accuracy             ← "done" in the DB  ✗ never happened
+```
+
+A kill in that window leaves a **complete run behind a NULL score**. The freshness guard sees NULL → "not
+benched" → dispatch. `_find_resumable_run` sees the (persistent) lock → "resumable" → resume. Both guards
+agreed, and both were wrong, because **neither asked the only authoritative question: did this run already
+finish?** The filesystem knew. Nothing consulted it.
+
+**The fix:** `results.json` at the run root *is* the run-complete marker. A finished run is **READ, never
+re-run** — parse it, persist the score, spend `$0`. `_find_resumable_run` now means *has work left* (lock AND no
+`results.json`), not merely *has a lock*.
+
+**The general rules:**
+1. When a long, **paid** job's completion is recorded in two places (disk and DB), the crash window between them
+   is not an edge case — it is the *expected* outcome of every interrupted run. Make the cheap, authoritative
+   artifact (the one the job itself wrote) the source of truth, and make re-invocation **idempotent and free**.
+2. Before killing a review finding, ask: *which link in its chain does my evidence actually break?* If the answer
+   is "not the one that causes the loss," you have not refuted it.
 
 ---
 
