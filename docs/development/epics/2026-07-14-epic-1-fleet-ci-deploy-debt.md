@@ -46,9 +46,25 @@ need a **re-scaffold under the correct type**.
 | `ugc` | `python-api` | **🗑️ DELETE** | Duplicate of `web-scraper` (which has real code). Kill the repo. | ☐ |
 | `image-generation` | `python-api` | **⏸️ LEAVE AS-IS** | Duplicate — operator will **merge it into `iterative_image_editor`** himself. Hub takes no action. | ☐ |
 
-⚠️ **Re-scaffolding is destructive + cross-repo** (`rm` the dir, then `fabrik scaffold --type <t> --github-create`).
-These repos have git history + GitHub remotes, but contain **zero product code** — only scaffold boilerplate — so
-nothing of value is lost. **Requires explicit operator go-ahead per repo before execution.**
+### ✅ SCAFFOLD WORK — DONE (2026-07-14, by the hub)
+
+**Nothing was deleted.** Every old dir was moved to `/opt/archived/` (policy: archive, never delete). All 5 had
+**no GitHub remote** and only 5–6 boilerplate commits, so nothing of value was lost.
+
+| Old | → New | Type | Spec | GitHub |
+|---|---|---|---|---|
+| `ComplianceOps` | **`compliance-ops`** *(renamed — scaffolder enforces kebab-case)* | `saas-skeleton` +db | ✅ `source=git` | `mobasak/compliance-ops` |
+| `exam-coach` | `exam-coach` | `saas-skeleton` +db | ✅ `source=git` | `mobasak/exam-coach` |
+| `gmailaccountcreator` | **`gmail-account-creator`** *(renamed — readability)* | `file-worker` +db | ✅ `source=git` | `mobasak/gmail-account-creator` |
+| `supplement-tracker-advisor` | same | `mobile-app` | ✅ `source=git` | `mobasak/supplement-tracker-advisor` |
+| `ugc` | **archived** (duplicate of `web-scraper`) | — | — | — |
+
+Archived at: `/opt/archived/{ugc-duplicate-of-web-scraper,ComplianceOps-pre-rescaffold-python-api,exam-coach-pre-rescaffold-python-api,gmailaccountcreator-pre-rescaffold-python-api,supplement-tracker-advisor-pre-rescaffold-python-api}-20260714`
+
+**Note:** `mobile-app` has no deploy template (expected — mobile ships via EAS build, not Docker).
+
+**⚠️ Naming violations still latent:** `Reference_Creator` (capitals + underscore) and `iterative_image_editor`
+(underscore) both violate the kebab-case rule the scaffolder enforces. They'd need renaming if ever re-scaffolded.
 
 ### ✅ Type verified correct (python-api / FastAPI services, real code)
 
