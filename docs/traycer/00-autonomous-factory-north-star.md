@@ -20,11 +20,12 @@ and doc-update autonomously; **two human gates** (plan in, deploy out).
 
 **DONE** = built and in use · **PARTIAL** = built but not enforced end-to-end · **OPEN** = not built.
 
-> ⚠️ **Verification status (be honest about this).** The four **OPEN** rows and the cargo order were
-> verified against the repo on 2026-07-14 (`job-queue` is not wired into `fabrik`; `02`'s parallel gate
-> checks consumption only; plan-2 is archived as EXECUTED). The **DONE** rows were marked from working
-> knowledge of the command chain, **not** re-proven one by one. Treat a DONE as a claim to spot-check, not
-> as a gate result. If a requirement here matters for a decision, open the command file and read it.
+> ✅ **Verification status — every row was mechanically checked against the repo on 2026-07-14.**
+> Each DONE row was proven by a command (does the file exist? does the command actually say it?), not
+> asserted from memory. One row (**R5**, Opus rationing) initially failed and turned out to be a bad grep,
+> not a missing requirement — `fabrik-review.md:110` mandates a native Opus reviewer for the
+> authoritative/high-risk pass. The OPEN rows were verified as genuinely open (`job-queue` is not wired
+> into `fabrik`; the driver does not exist).
 
 ### Goal
 
@@ -73,7 +74,7 @@ nothing tracked whether they stayed true. Recorded now, with their real state.
 
 | # | Requirement | State |
 |---|---|---|
-| **R16** | **Run multiple agents in one project concurrently, on different scopes, WITHOUT touching the same files.** | PARTIAL — plans declare `File Scope (owned paths)`, but **`02`'s epic parallel-gate never checks file/schema disjointness** (see § Still open) |
+| **R16** | **Run multiple agents in one project concurrently, on different scopes, WITHOUT touching the same files.** | ✅ **DONE 2026-07-14** — `02`'s parallel gate now emits 3 verdicts (artifacts · **file-scope disjointness** · **single migration owner**); the new `Owned paths:` field carries the contract through all 7 hops (02→03→04→05→the agent's `File Scope`) |
 | **R17** | Plan/spec creation must **ground 100 % truth** via exa / WebSearch / firecrawl — never training memory. | DONE (`/fabrik-spec`, `/fabrik-plan-after-chat`) |
 | **R18** | Enforce **doc updates** and the **full Tier-2 `final_gate.py`** — `--lean` is never an acceptance gate. | DONE (Doc Sync Matrix + gate) |
 | **R19** | Agents **consult `fabrik-lib`** before building any capability from scratch — vendor, don't rebuild. | DONE (Context Ledger) |
@@ -106,8 +107,11 @@ nothing tracked whether they stayed true. Recorded now, with their real state.
 - **D4** — The converger is executed **by the driver, in code** — not by asking an agent to loop (R8).
 - **D5** — Capacity from `job-queue/autoscale.py` (real cgroup numbers); fleet later via `postgres-main`.
 - **Zed** — dropped (no in-window multi-thread view).
-- **Vibe Kanban** — dropped as cockpit. ⚠️ **Still RUNNING** (verified 2026-07-14: listening on
-  `127.0.0.1:57300`, live pid). Decide: leave or remove — it is consuming a slot for nothing.
+- **Vibe Kanban** — ✅ **RETIRED 2026-07-14** (operator: "retire it and stop its service in wsl").
+  `systemctl stop` + `disable` on `vibe-kanban.service`; port 57300 free, 0 processes. Unit file and
+  `~/.vibe-kanban/` binary remain on disk but inert. *(For the record: it is an off-the-shelf board that
+  runs coding agents in git worktrees — genuinely adjacent to D3's driver — but it knows nothing about
+  `/fabrik-*`, the Tier-2 gate, or the rule packs, so it would run agents OUTSIDE the quality system.)*
 - **Gate 2** — Telegram digest → review branches in VS Code Source Control diff → merge → manual `fabrik apply`.
 - **Epic ticket store (2026-07-14)** — our orchestrator has **no native ticket store** (Traycer does), so
   `03-expand-epic-files-fabrik` **writes one file per epic** to
@@ -136,10 +140,6 @@ nothing tracked whether they stayed true. Recorded now, with their real state.
 - **R8 — the loops live in prose, not code.** Every `*-review` command *tells* an agent to converge to a
   no-op. A driver would *run* that loop. **Prose is not enforcement** — and that is the lesson the rest of
   this repo keeps re-learning.
-- **R16 — epic-level file/schema disjointness is unchecked.** `mega-epic-breakdown/02`'s parallel gate
-  verifies only artifact **consumption** ("does B consume what A produces?"). It never checks whether two
-  epics labelled *parallel* **write the same files or the same migration**. Harmless while epics run
-  sequentially; it bites the instant anything acts on a `parallel` label.
 - **Traycer evaluation** — retest; keep-as-GUI vs. finish our own twins (`04` and `05` still have none).
 - Phase-4 capacity measurement (real per-worker numbers).
 - Vibe Kanban parked service — leave or remove.
