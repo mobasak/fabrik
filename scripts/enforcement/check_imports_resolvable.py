@@ -205,6 +205,16 @@ def main() -> int:
         for py in sorted(base.rglob("*.py")):
             rel = py.relative_to(ROOT)
 
+            # ⚠️ Only scan TRACKED files — the same clean-checkout logic, applied to the SCANNER itself.
+            # A gitignored file is never checked out, so CI never imports it and its imports cannot break the
+            # build. This is not a convenience skip: without it the gate scans the Fabrik-SYNCED, gitignored
+            # `scripts/enforcement/` dir and reports every one of its internal relative imports (they resolve
+            # to `validate_conventions.py`, also synced and gitignored BY DESIGN) — dozens of findings about
+            # centrally-distributed code the project is forbidden to commit. That is textbook cry-wolf, and a
+            # gate people learn to ignore is worse than no gate.
+            if not _is_tracked(rel):
+                continue
+
             # (a) RELATIVE imports → a vendored-but-uncommitted sibling is the same outage.
             for tgt in sorted(_relative_import_targets(py)):
                 checked += 1
