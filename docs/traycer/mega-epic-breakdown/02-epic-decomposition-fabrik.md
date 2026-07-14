@@ -13,7 +13,7 @@
 
 ## Role
 
-You are an architect who takes the confirmed Vision Summary and splits it into independent epics — each with clear boundaries, dependencies, and enough context to create an epic ticket in `03-expand-epic-files-command`.
+You are an architect who takes the confirmed Vision Summary and splits it into independent epics — each with clear boundaries, dependencies, and enough context to create an epic ticket in `03-expand-epic-files-fabrik`.
 
 ## Goal
 
@@ -24,7 +24,7 @@ By the end of this command, the owner and our orchestrator agree on:
 - **WHAT EACH EPIC PRODUCES** that later epics consume (DB tables, API contracts, env vars)
 - **WHAT SHARED INFRASTRUCTURE** all epics inherit (Infrastructure Decisions document)
 
-This command produces the compact epic proposal + Infrastructure Decisions in conversation. `03-expand-epic-files-command` expands each epic into an epic ticket. `04-cross-epic-validation-command` validates cross-epic consistency. `05-dispatch-epic-tickets-command` dispatches tickets in dependency order.
+This command produces the compact epic proposal + Infrastructure Decisions in conversation. `03-expand-epic-files-fabrik` expands each epic into an epic ticket. `04-cross-epic-validation-command` validates cross-epic consistency. `05-dispatch-epic-tickets-command` dispatches tickets in dependency order.
 
 ## Core Philosophy
 
@@ -33,7 +33,7 @@ This command produces the compact epic proposal + Infrastructure Decisions in co
 - **Maximize parallelism between epics.** If two epics share no mutable state, they can run in parallel. Fewer sequential dependencies = faster delivery.
 - **Draw boundaries by DOMAIN, not by layer.** "User management" is an epic. "Database layer" is not. Each epic delivers a vertical slice — from DB to API to UI (if applicable).
 - **Plan for a solo dev + AI fleet.** One epic runs through epic-to-ticket-workflow at a time. Epics execute sequentially (owner can only orchestrate one epic-to-ticket-workflow cycle at a time), but WITHIN each epic, tickets are parallel.
-- **Token budget matters.** This command stays lean — compact proposal, not full epic files. Full expansion happens in `03-expand-epic-files-command` in controlled batches.
+- **Token budget matters.** This command stays lean — compact proposal, not full epic files. Full expansion happens in `03-expand-epic-files-fabrik` in controlled batches.
 
 ## Input Contract
 
@@ -59,7 +59,7 @@ This command produces the compact epic proposal + Infrastructure Decisions in co
 **Hard stop if:** Vision Summary not confirmed by owner, OR Open Questions remain unresolved. Do not proceed with ambiguity.
 
 **Additionally read:**
-- `docs/operations/fabrik-lifecycle.md` — deploy/runtime behavior & data safety (lifecycle stages 3–4). Each epic must still pass all 4 lifecycle stages: scaffold → implement → register (`fabrik apply`) → verify (`fabrik verify`). ⚠️ **Exception — Retrofit epics:** a Retrofit on an already-deployed service creates **no new deploy unit**, so it has no Stage-1/Stage-3 of its own; its stage-3 equivalent is `python scripts/final_gate.py --json` green (the FULL Tier-2 gate) + the rule-pack gap moving to Compliant (per `03-expand-epic-files-command`). State this exception inline on any Retrofit epic.
+- `docs/operations/fabrik-lifecycle.md` — deploy/runtime behavior & data safety (lifecycle stages 3–4). Each epic must still pass all 4 lifecycle stages: scaffold → implement → register (`fabrik apply`) → verify (`fabrik verify`). ⚠️ **Exception — Retrofit epics:** a Retrofit on an already-deployed service creates **no new deploy unit**, so it has no Stage-1/Stage-3 of its own; its stage-3 equivalent is `python scripts/final_gate.py --json` green (the FULL Tier-2 gate) + the rule-pack gap moving to Compliant (per `03-expand-epic-files-fabrik`). State this exception inline on any Retrofit epic.
 - `agents-fabrik.md` § Infrastructure Services — backing services available.
 - `agents-fabrik.md` § Planning Constraints — constraints still apply per epic.
 - `PORTS.md` — each epic's service needs a port. Check availability.
@@ -75,7 +75,7 @@ This command produces the compact epic proposal + Infrastructure Decisions in co
 
 This command has **one checkpoint** before the final confirmation:
 1. **After Step 3** — present compact epic proposal + Infrastructure Decisions + dependency graph. Owner confirms boundaries, shared decisions, and execution order. STOP and wait.
-2. **Step 4** — iterate if needed, then route to `03-expand-epic-files-command`.
+2. **Step 4** — iterate if needed, then route to `03-expand-epic-files-fabrik`.
 
 ### Step 1: Consume Vision Summary
 
@@ -376,7 +376,7 @@ Iterate until the owner explicitly confirms:
 - If the owner changes execution order → update dependency graph.
 - If the owner adjusts Infrastructure Decisions → update the document.
 
-**After confirmation:** "Epic proposal and Infrastructure Decisions confirmed. Proceed to `03-expand-epic-files-command` to create one epic ticket per epic."
+**After confirmation:** "Epic proposal and Infrastructure Decisions confirmed. Proceed to `03-expand-epic-files-fabrik` to create one epic ticket per epic."
 
 ## Output Contract
 
@@ -389,19 +389,19 @@ Iterate until the owner explicitly confirms:
 5. **Deferred Compliance appendix (Existing mode only)** — Compliance Report rows the owner classified as `fix-later` or `accept-as-legacy`. Surfaced for owner awareness; produces no epics.
 6. **Universal Coverage Check** — 14-line verdict block (one verdict per universal category from 2h) + overlay-merge summary if any scaffold overlays loaded. Stored as part of the proposal spec; consumed by the operator at the Checkpoint and by 03 implicitly via the per-epic `Universal categories` field in the Compact Epic Proposal.
 
-**NOT produced here (deferred to 03-expand-epic-files-command):**
+**NOT produced here (deferred to `03-expand-epic-files-fabrik`):**
 
 - Full epic tickets with detailed scope, success criteria, out-of-scope, dependencies listing specific artifacts, metadata blocks.
 
-**Consumed by:** `03-expand-epic-files-command` reads the compact proposal + Infrastructure Decisions via `read_spec` and expands each epic into an epic ticket.
+**Consumed by:** `03-expand-epic-files-fabrik` takes the compact proposal + Infrastructure Decisions from the conversation (no `read_spec` — that is Traycer's tool; our orchestrator reads them directly) and expands each epic into an epic ticket.
 
 ## Does NOT
 
 - Does NOT re-derive the vision, features, or technology decisions — consumes `00-trigger-fabrik`'s confirmed output.
-- Does NOT produce full epic tickets — that is `03-expand-epic-files-command`. This command produces the compact proposal only.
+- Does NOT produce full epic tickets — that is `03-expand-epic-files-fabrik`. This command produces the compact proposal only.
 - Does NOT produce ticket outlines or ticket breakdowns — that happens in `epic-to-ticket-workflow/05-ticket-outline-command` per epic.
 - Does NOT decide implementation details (API routes, DB schema columns, component names) — that is `epic-to-ticket-workflow/03-tech-plan-command` per epic.
-- Does NOT create tickets or write files to disk — tickets are created by `03-expand-epic-files-command`.
+- Does NOT create tickets or write files to disk — tickets are created by `03-expand-epic-files-fabrik`.
 - Does NOT design watchdog sidecar configuration — watchdog wiring is universal category #7 with an **opt-OUT** enabled flag (ON unless `watchdog: {enabled: false}`); the `watchdog` registrar runs at `fabrik apply` and reads `spec.watchdog.*` (per `core/60-watchdog.md`). This command only asserts coverage in the 2h audit and routes the epic that owns the spec to the Step 3 § Watchdog Wiring sub-section.
 - Does NOT design self-healing ladder — universal category #6 is satisfied by citing `core/self-healing.md` in the Step 3 § Self-Healing Ladder sub-section. Per-project ladder rows are written in the epic's `docs/RESILIENCE.md` per `core/58-resilience.md § Per-Project Contract` — that's a per-epic ticket concern (`epic-to-ticket-workflow/03-tech-plan-command`), not a 02 concern.
 - Does NOT design cost-budget caps — universal category #9 cites `core/cost-budget.md`; per-epic caps live in the spec's `watchdog:` block (deferred to epic-to-ticket-workflow tickets). 02 only asserts that the category's coverage is recorded in the 2h verdict block.
@@ -426,7 +426,7 @@ Iterate until the owner explicitly confirms:
 - Every "ABSORBED in Step 3 § X" verdict in 2h matches a sub-section actually drafted in Step 3.
 - Every "N/A" verdict in 2h carries an explicit trigger-not-met reason cited from the spec shape block or Vision Summary.
 - Overlay-merge rule applied: no overlay-mandated epic is duplicated by a universal-category epic, and no overlay-mandated coverage is dropped.
-- Each per-epic compact entry carries **22 indented fields** under the `Epic [N]: [Name]` heading, in **five** groups: (1) **9 epic-shape fields** — Scope, Features, Scaffold, Depends on, Parallel with, Port, Delivers, Rule Packs, HAS_USER_GUIDE; (2) **6 inheritance-metadata fields** — Shape, Concurrency, i18n, Responsive, Dark+Light, Registrars; (3) **Universal categories** (1 field); (4) **3 conditional fields** — Abuse Detection, Email, FINANCIALS (each carries the project-wide Infrastructure Decisions value or `N/A` per the trigger); (5) **3 cross-epic-contract fields** — **Target host**, **Consumes**, **Produces**. 03's Metadata block consumes **15** of these (the 6 metadata + Scaffold + Port + **Target host** + Rule Packs + HAS_USER_GUIDE + Universal categories + the 3 conditionals); **Consumes** and **Produces** feed `03-expand-epic-files-command` § Dependencies; the remaining 5 (Scope, Features, Depends on, Parallel with, Delivers) become other sections in 03's ticket (Summary, Scope > In, Dependencies, Dependencies, Success Criteria respectively). See `03-expand-epic-files-command` Metadata block and `epic-to-ticket-workflow/01-epic-brief-command` § Step 5 → Metadata.
+- Each per-epic compact entry carries **22 indented fields** under the `Epic [N]: [Name]` heading, in **five** groups: (1) **9 epic-shape fields** — Scope, Features, Scaffold, Depends on, Parallel with, Port, Delivers, Rule Packs, HAS_USER_GUIDE; (2) **6 inheritance-metadata fields** — Shape, Concurrency, i18n, Responsive, Dark+Light, Registrars; (3) **Universal categories** (1 field); (4) **3 conditional fields** — Abuse Detection, Email, FINANCIALS (each carries the project-wide Infrastructure Decisions value or `N/A` per the trigger); (5) **3 cross-epic-contract fields** — **Target host**, **Consumes**, **Produces**. 03's Metadata block consumes **15** of these (the 6 metadata + Scaffold + Port + **Target host** + Rule Packs + HAS_USER_GUIDE + Universal categories + the 3 conditionals); **Consumes** and **Produces** feed `03-expand-epic-files-fabrik` § Dependencies; the remaining 5 (Scope, Features, Depends on, Parallel with, Delivers) become other sections in 03's ticket (Summary, Scope > In, Dependencies, Dependencies, Success Criteria respectively). See `03-expand-epic-files-fabrik` Metadata block and `epic-to-ticket-workflow/01-epic-brief-command` § Step 5 → Metadata.
 - Owner explicitly confirms. Silence ≠ confirmation.
 
 **Existing mode adds:**

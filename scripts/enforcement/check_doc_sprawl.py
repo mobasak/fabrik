@@ -76,6 +76,14 @@ ALLOWED_PATTERNS = [
     # (docs/superpowers/plans/** · docs/superpowers/specs/**); this matcher keeps
     # the gate in lockstep with the contract so those artifacts don't red the gate.
     re.compile(r"^docs/superpowers/(plans|specs)/.+\.md$"),
+    # Epic tickets: docs/development/epics/YYYY-MM-DD-epic-<n>-<slug>.md
+    # Written by mega-epic-breakdown/03-expand-epic-files-fabrik, one file per epic.
+    # Unlike Traycer (which has a native ticket store), our orchestrator has none —
+    # disk IS the ticket store, so 05-dispatch and epic-to-ticket can read an epic
+    # back on a fresh context instead of losing the whole breakdown with the window.
+    # Same dated shape as the plans pattern above, deliberately: one artifact per file,
+    # greppable, and unambiguously distinct from a plan.
+    re.compile(r"^docs/development/epics/\d{4}-\d{2}-\d{2}-epic-\d+-.+\.md$"),
 ]
 
 

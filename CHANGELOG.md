@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Epic tickets get an on-disk store; `03-expand-epic-files-fabrik` twin (2026-07-14)
+
+Our orchestrator (Claude Code — files, Bash, MCP, skills, subagents, workflows) has **no native
+ticket store**, which is exactly the capability Traycer provides and we lacked. Epic tickets were
+therefore going to live only in the conversation — meaning a context turnover destroyed the whole
+epic breakdown, and `05-dispatch` had nothing durable to dispatch from.
+
+- **New allowlisted path** `docs/development/epics/YYYY-MM-DD-epic-<n>-<slug>.md` (`CLAUDE.md`
+  § HARD STOPS + a matching `ALLOWED_PATTERNS` regex in `scripts/enforcement/check_doc_sprawl.py`,
+  kept in lockstep). Dated shape mirrors the plans convention. Pattern is unit-tested against
+  positive and negative cases, not assumed.
+- **New** `docs/traycer/mega-epic-breakdown/03-expand-epic-files-fabrik.md` — our tool-capable twin
+  of the Traycer source. Writes one ticket file per epic and grounds its claims against the repo
+  rather than trusting upstream.
+- **Fixed a chain break in BOTH twins:** `03`'s Entry Point told the dispatcher to run
+  `epic-to-ticket/01-epic-brief` directly — but `ettw/00` still runs in multi-epic *consume* mode
+  and is the **only** command that emits INFRA-CHECK, which `01` § Path B and `03-tech-plan` both
+  depend on. Dispatching straight to `01` starved every downstream step of its propagated fields.
+- Rewired the fabrik chain to cite fabrik twins (`00-trigger-fabrik` → `02-epic-decomposition-fabrik`
+  → `03-expand-epic-files-fabrik`), and removed a leftover Traycer `read_spec` call from 02's twin.
+
 ### Fixed — Terminal-Bench runner: a FINISHED run is read, never re-run (2026-07-14)
 
 This one cost real money before it was caught. The m3 benchmark **finished** at 04:57 (all 80 tasks, top-level
