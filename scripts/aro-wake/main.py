@@ -15,10 +15,12 @@ Deferred (Phase 4):
 Calling convention: mirrors scripts/sysadmin/bot.py::_run_claude verbatim
 (operator's working production sysadmin pattern since 2026-05-29).
 
-Binding: 127.0.0.1:8201 (loopback) + 10.99.0.<host>:8201 (wg0 mesh).
-NEVER 0.0.0.0. Spokes have UFW rules allowing only :22, :80, :443, :51820
-inbound from public; UFW + DOCKER-USER prevent public reach to :8201 even
-if accidentally bound wider.
+Binding: 0.0.0.0:8201 (changed 2026-06-05 from mesh-IP-only so Alertmanager's
+docker container can reach the host from its own network namespace — see
+aro-wake.service.template). Public reach is blocked NOT by the bind but by the
+firewall: UFW default-deny opens only :22/:80/:443/:1194/:51820 publicly, and
+:8201 is allowed only from 10.0.0.0/8 (docker bridge) + 10.99.0.0/24 (wg0 mesh);
+DOCKER-USER blocks the rest.
 """
 
 from __future__ import annotations

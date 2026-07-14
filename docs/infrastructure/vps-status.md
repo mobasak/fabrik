@@ -181,7 +181,7 @@ All state in-memory; restart = reset = safe default. Verified live with 6 advers
 
 ### D — Prometheus SLI metrics SHIPPED on full fleet
 
-aro-wake exposes 8 metrics at `/metrics` on every host (counters: `aro_wake_requests_total{source,status}`, `aro_wake_cost_usd_total{source}`, `aro_wake_dedup_drops_total`, `aro_wake_hop_limit_exceeded_total`, `aro_wake_forward_suppressed_total{target_host,reason}`, `aro_wake_storm_breaker_trips_total{target_host}`; gauges: `aro_wake_pending_queue_size`, `aro_wake_active_sessions`). Reuses port 8201 — no new port allocated.
+aro-wake exposes 9 metrics at `/metrics` on every host (counters: `aro_wake_requests_total{source,status}`, `aro_wake_cost_usd_total{source}`, `aro_wake_dedup_drops_total`, `aro_wake_hop_limit_exceeded_total`, `aro_wake_forward_suppressed_total{target_host,reason}`, `aro_wake_storm_breaker_trips_total{target_host}`, `aro_wake_digest_input_total{from_host}` — the last added 2026-06-17; gauges: `aro_wake_pending_queue_size`, `aro_wake_active_sessions`). Reuses port 8201 — no new port allocated.
 
 Prometheus scrape job `aro-wake` in `configs/prometheus/prometheus.yml` covers all 3 hosts. vps1 via docker-bridge gateway `10.0.1.1:8201` (1.4ms scrape); vps2/vps3 via wg0 mesh `10.99.0.{2,3}:8201` (~270ms scrape). Cross-mesh container→host NAT path verified via tcpdump on vps2's wg0: Prometheus container's outbound SYN arrived with source `10.99.0.1.<port>` — docker MASQUERADE rewrites the source to vps1's wg0 IP, which the spokes' existing `from 10.99.0.0/24 to any port 8201` UFW rule already permits.
 

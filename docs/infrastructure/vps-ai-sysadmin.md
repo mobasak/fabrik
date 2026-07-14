@@ -1,6 +1,6 @@
 # VPS AI System Administrator — Reference
 
-**Last Updated:** 2026-07-12 (`/fabrik-docs-review` reconciliation vs live fleet: Alertmanager sends to Telegram **natively** — it does NOT route via Apprise; Prometheus is **15 active jobs / 20 targets / 20 up** with spoke federation LIVE; Backrest hook + Apprise `alerts` config **fixed** (Apprise was 204-ing every alert); `fabrik-compose-boot.service` reboot-race unit added fleet-wide; spoke `DOCKER-USER` drift recorded.) **Prior:** 2026-07-09 (**Unified Claude entrypoint `claude-run.sh` + fleet auto-rotation shipped 2026-07-08** — see the boxed *Unified Claude invocation* note below + the *Rollout runbook*; **rotation + alerting hardened via `/fabrik-review` 2026-07-09** — corrupt-snapshot install guard + Apprise `--network fabrik` delivery gating. Prior: Trio Phase 1+2+3+4 LIVE across the FULL FLEET since 2026-06-06; **Phase 5.1.a operator-reversal cron LIVE on full fleet 2026-06-07** via `detect_reversals.py` + `*/5 min` cron entry; **rate-limited 429 wakes now tracked** via `aro_wake_requests_total{status="rate_limited"}` + `AroWakeLowSuccessRate` denominator updated; **stale netdata scrape job removed** 2026-06-07 (caused overnight 24× Telegram flood); **6 bootstrap defenses shipped** including preflight SSH-user-transition trap detection in `bootstrap-vps.sh` + `bootstrap-hub.sh` + new rule pack `.windsurf/rules/core/90-bootstrap-scripts.md`; **DR drill MEASURED end-to-end 2026-06-07**: bootstrap-vps.sh → 3m 13s wall-clock, 9.3× under the ≤30 min target, 15/15 substantive end-state checks.)
+**Last Updated:** 2026-07-13 (`/fabrik-docs-review` — **aro-wake reframed as a push TRIGGER of the host sysadmin, NOT a third AI**: "Three AI layers" → two AIs (host sysadmin + per-project watchdog); the architecture diagram gains the aro-wake wake path and its PATH 2 corrected (Alertmanager → native `telegram_configs`, not Apprise); `watchdog/sidecar/` → `watchdog_sidecar/`; aro-wake **8 → 9** metrics; Step-3 scp list gains the rotation files; `claude-run.sh` manifest corrected (bot + aro-wake call `claude_rotate` directly).) **Prior:** 2026-07-12 (`/fabrik-docs-review` reconciliation vs live fleet: Alertmanager sends to Telegram **natively** — it does NOT route via Apprise; Prometheus is **15 active jobs / 20 targets / 20 up** with spoke federation LIVE; Backrest hook + Apprise `alerts` config **fixed** (Apprise was 204-ing every alert); `fabrik-compose-boot.service` reboot-race unit added fleet-wide; spoke `DOCKER-USER` drift recorded.) **Prior:** 2026-07-09 (**Unified Claude entrypoint `claude-run.sh` + fleet auto-rotation shipped 2026-07-08** — see the boxed *Unified Claude invocation* note below + the *Rollout runbook*; **rotation + alerting hardened via `/fabrik-review` 2026-07-09** — corrupt-snapshot install guard + Apprise `--network fabrik` delivery gating. Prior: Trio Phase 1+2+3+4 LIVE across the FULL FLEET since 2026-06-06; **Phase 5.1.a operator-reversal cron LIVE on full fleet 2026-06-07** via `detect_reversals.py` + `*/5 min` cron entry; **rate-limited 429 wakes now tracked** via `aro_wake_requests_total{status="rate_limited"}` + `AroWakeLowSuccessRate` denominator updated; **stale netdata scrape job removed** 2026-06-07 (caused overnight 24× Telegram flood); **6 bootstrap defenses shipped** including preflight SSH-user-transition trap detection in `bootstrap-vps.sh` + `bootstrap-hub.sh` + new rule pack `.windsurf/rules/core/90-bootstrap-scripts.md`; **DR drill MEASURED end-to-end 2026-06-07**: bootstrap-vps.sh → 3m 13s wall-clock, 9.3× under the ≤30 min target, 15/15 substantive end-state checks.)
 **Last probe report:** [`probe-reports/infra-probe-2026-06-07T20-20Z.yaml`](probe-reports/infra-probe-2026-06-07T20-20Z.yaml)
 **Status:** Live since 2026-05-20
 **Service:** `vps-sysadmin-bot.service` (systemd, `Restart=always`)
@@ -17,9 +17,9 @@ An on-demand AI system administrator. Not a monitoring tool — a thinking sysad
 
 **On-demand, not persistent.** Dormant 99% of the time. Zero tokens unless triggered. Session starts when you message or when a proactive check detects an anomaly. Session ends on "done" or 10 minutes of silence.
 
-### Three AI layers in the platform — do not confuse them
+### Two AIs on the fleet — and the host sysadmin's two triggers (do not confuse them)
 
-The platform now has **three** AI layers (was two before trio plan Phase 3, 2026-06-04). New readers conflate them; this section disambiguates.
+The platform has **two distinct AIs**: the **host-level sysadmin** and the **per-project watchdog sidecar**. What sometimes reads as a "third AI" — **aro-wake** — is NOT one: it is a second *trigger* for the SAME host sysadmin (it spawns the identical Claude — same `--model opus`, same `--system-prompt scripts/sysadmin/system-prompt.txt`, same `claude_rotate` wrapper — its code mirrors `bot.py::_run_claude` verbatim). So the host sysadmin has **two triggers**: the **Telegram bot** (pull — you message it) and **aro-wake** (push — an alert or a peer host wakes it on `POST :8201/wake`). The table below lists the three runtime *components*; rows 1–2 are **one AI reached two ways**, row 3 is **the other AI**.
 
 | Layer | Where it runs | Scope | Lifecycle | Auth | Status |
 | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -51,7 +51,7 @@ Per-project enablement is controlled by the `watchdog:` block in each spec (`src
 | Tier C code-fix proposals | Open a PR on `watchdog/<incident_id>` branch using `/var/lib/watchdog/proposed/<project_id>/` workspace. `Edit`/`Write` allowed in workspace; safe git subcommands allowed | NEVER push to `main`/`master`/`develop`/`staging`/`production`; force-push, reset, rebase, tag, config, remote — all denied. Operator reviews + merges. Opt-in per project via `propose_fix_prs: true`. |
 | Deadman timer | If Tier C escalation unresponded > 300s (default), `agent.py` restarts `<main_container>` as bleed-stop + re-alerts with `[DEADMAN-TIMEOUT]` prefix | Bleed-stop is read-only deescalation; no new permission needed. Timeout configurable via `WatchdogConfig.deadman_timeout_seconds` (60–3600s). |
 
-Full settings template lives at [`/opt/fabrik-lib/watchdog/sidecar/claude-settings.json.template`](../../../fabrik-lib/watchdog/sidecar/claude-settings.json.template) (200 lines, 50 allow / 55 deny / 12-line autoMode.environment / 11-line hardDeny / 29 allowed-domains).
+Full settings template lives at [`/opt/fabrik-lib/watchdog/watchdog_sidecar/claude-settings.json.template`](../../../fabrik-lib/watchdog/watchdog_sidecar/claude-settings.json.template) (200 lines, 50 allow / 55 deny / 12-line autoMode.environment / 11-line hardDeny / 29 allowed-domains).
 
 The rest of this document covers the **host-level layer only**.
 
@@ -69,10 +69,11 @@ The rest of this document covers the **host-level layer only**.
 │                          └──────────────┬────────────────┘  │
 │                                         │                    │
 │  PATH 2: Alert fires                    │                    │
-│  ┌──────────────┐  already   ┌─────────▼─────────┐         │
-│  │ Alertmanager │──works────▶│ Apprise→Telegram   │         │
-│  └──────────────┘            └───────────────────┘         │
+│  ┌──────────────┐  native    ┌─────────▼─────────┐         │
+│  │ Alertmanager │──telegram─▶│ Telegram           │         │
+│  └──────┬───────┘  configs   └───────────────────┘         │
 │  You reply to investigate → Path 1                          │
+│         └─ webhook (severity crit|warn) ─▶ aro-wake (PATH 4)│
 │                                                             │
 │  PATH 3: Proactive cron (every 15 min)                      │
 │  ┌───────────────────────────────────────────┐              │
@@ -80,6 +81,15 @@ The rest of this document covers the **host-level layer only**.
 │  │  Stage 1: bash curls Prometheus (free)    │              │
 │  │  Stage 2: claude -p (only if anomaly)     │              │
 │  │  → acts autonomously + reports to Telegram│              │
+│  └───────────────────────────────────────────┘              │
+│                                                             │
+│  PATH 4: aro-wake push-trigger — FastAPI :8201, POST /wake  │
+│  ┌───────────────────────────────────────────┐              │
+│  │  woken by: Alertmanager webhook + a peer  │              │
+│  │  host's consult over the mesh. Idle=sleep.│              │
+│  │  → spawns the SAME Claude brain as PATH 1 │              │
+│  │    (system-prompt.txt) — a 2nd TRIGGER,   │              │
+│  │    not a 2nd AI                           │              │
 │  └───────────────────────────────────────────┘              │
 │                                                             │
 │  Claude Code runs LOCALLY when triggered:                   │
@@ -338,7 +348,7 @@ sudo tail -20 /var/log/sysadmin-proactive.log
 
 ### SLI metrics (Prometheus, since 2026-06-06)
 
-aro-wake on every fleet host exposes 8 Prometheus metrics at `:8201/metrics` mapping to the `agent-sre` SLI framing from [`docs/reference/research-files/AI for Autonomous System Administration.md`](../reference/research-files/AI%20for%20Autonomous%20System%20Administration.md). Hub-side Prometheus scrapes all 3 hosts via job `aro-wake` in `configs/prometheus/prometheus.yml` — vps1 via docker-bridge gateway `10.0.1.1:8201`, spokes via wg0 mesh `10.99.0.{2,3}:8201`. The cross-mesh container→host path works because docker MASQUERADE on vps1 rewrites Prometheus container's outbound source IP to `10.99.0.1`, which the spokes' existing `from 10.99.0.0/24 to any port 8201 proto tcp` UFW rule already permits.
+aro-wake on every fleet host exposes 9 Prometheus metrics at `:8201/metrics` — the 8 `agent-sre` SLI series below plus `aro_wake_digest_input_total` (an operational counter added 2026-06-17, not part of the SLI framing) from [`docs/reference/research-files/AI for Autonomous System Administration.md`](../reference/research-files/AI%20for%20Autonomous%20System%20Administration.md). Hub-side Prometheus scrapes all 3 hosts via job `aro-wake` in `configs/prometheus/prometheus.yml` — vps1 via docker-bridge gateway `10.0.1.1:8201`, spokes via wg0 mesh `10.99.0.{2,3}:8201`. The cross-mesh container→host path works because docker MASQUERADE on vps1 rewrites Prometheus container's outbound source IP to `10.99.0.1`, which the spokes' existing `from 10.99.0.0/24 to any port 8201 proto tcp` UFW rule already permits.
 
 | Metric | Type | Labels | Maps to doc SLI |
 |---|---|---|---|
@@ -744,6 +754,10 @@ scp scripts/sysadmin/bot.py \
     scripts/sysadmin/detect_reversals.py \
     scripts/sysadmin/system-prompt.txt \
     scripts/sysadmin/peer-protocol.md \
+    scripts/sysadmin/claude-run.sh \
+    scripts/sysadmin/claude_rotate.py \
+    scripts/sysadmin/claude-keepalive-rotate.sh \
+    scripts/sysadmin/keepalive-status.sh \
     vps:/opt/fabrik/scripts/sysadmin/
 
 # Make executable
@@ -941,7 +955,7 @@ Everything needed to rebuild the sysadmin bot from scratch:
 |---|---|---|---|
 | `scripts/sysadmin/bot.py` | `/opt/fabrik/scripts/sysadmin/bot.py` | same | Telegram bot + session management |
 | `scripts/sysadmin/proactive-check.sh` | `/opt/fabrik/scripts/sysadmin/proactive-check.sh` | same | Two-stage cron script |
-| `scripts/sysadmin/claude-run.sh` | `/opt/fabrik/scripts/sysadmin/claude-run.sh` | same | **Unified Claude entrypoint (2026-07-08)** — drop-in for `claude`; routes every sysadmin call through `claude_rotate.py` as the operator account. The 4 root cron scripts + the bot invoke Claude via this. |
+| `scripts/sysadmin/claude-run.sh` | `/opt/fabrik/scripts/sysadmin/claude-run.sh` | same | **Unified Claude entrypoint (2026-07-08)** — drop-in for `claude`; routes every sysadmin call through `claude_rotate.py` as the operator account. The 4 root cron scripts invoke Claude via this; `bot.py` and `aro-wake/main.py` call `claude_rotate.run_claude` directly (already run as `ozgur`). |
 | `scripts/sysadmin/claude_rotate.py` | `/opt/fabrik/scripts/sysadmin/claude_rotate.py` | same | Rotation core — usage-limit auto-rotation across `manager-accounts/` snapshots (atomic 0600 swap, N-account walk, corrupt-snapshot guard) + the `--list`/`--switch`/`--next` CLI. Byte-identical twin at `scripts/aro-wake/claude_rotate.py`. |
 | `scripts/sysadmin/claude-keepalive-rotate.sh` | `/opt/fabrik/scripts/sysadmin/claude-keepalive-rotate.sh` | same | Hourly OAuth keepalive — pings Claude through rotation, writes the `KEEPALIVE_OK`/`KEEPALIVE_FAIL` content token. |
 | `scripts/sysadmin/system-prompt.txt` | `/opt/fabrik/scripts/sysadmin/system-prompt.txt` | same | Claude Code role + rules |
