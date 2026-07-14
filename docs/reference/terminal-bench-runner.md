@@ -6,114 +6,104 @@ Home-run [Terminal-Bench](https://www.tbench.ai/) scores for OpenRouter models �
 capability signal — instead of only scraping the public leaderboard. Sibling of `microbench_coding.py`.
 Writes the task-resolution pass-rate to `agents.tbench_accuracy`.
 
-## 🛑 BLOCKED: this runner is on the superseded 1.x benchmark
+## Runs Terminal-Bench 2.x via **harbor** (migrated 2026-07-14)
 
-**It refuses to run, by design.** It shells the legacy `tb` CLI against `terminal-bench-core==0.1.1` — the
-*launch-era* task set. Terminal-Bench has since moved to **2.x**, which lives in a **different package**
-(`harbor`, not `terminal-bench`) with its own dataset (`terminal-bench/terminal-bench-2-1`: **89 tasks, 16
-categories**, and harder: 30 hard / 55 medium / 4 easy). A 1.x score cannot be compared to any entry on the
-current public leaderboard — which is exactly what we discovered after paying for a full 80-task run.
-
-`scripts/kilo-benchmarks/dataset_freshness.py` now blocks it (exit 2, before any credit is spent). Every result
-we produced on 1.x has been discarded.
-
-**Always check the dataset is current before benching anything** — a version pin never tells you it has been
-superseded; you have to ask:
+Terminal-Bench 2.x lives in a **different package** from the retired 1.x `tb` CLI: **`harbor`**.
+This runner was migrated to it, because a 1.x score cannot be compared to a single entry on today's public
+leaderboard — we paid for a full 80-task run before discovering that.
 
 ```bash
-python scripts/kilo-benchmarks/dataset_freshness.py    # freshness report for all 3 datasets
+harbor run -d terminal-bench/terminal-bench-2-1 -a terminus -m openrouter/<id> \
+    -k <n_attempts> -n <n_concurrent> -o <jobs-dir> [-t terminal-bench/<task>]…
 ```
 
-**Next step — migrate this runner to `harbor run`.** That means: new CLI (`harbor run -d
-terminal-bench/terminal-bench-2-1 -a terminus -m openrouter/<id> -k N -n C -o <jobs-dir>`), a new job/output
-layout to parse, `task.toml` (TOML) instead of `task.yaml` for the category/difficulty metadata, and different
-resume semantics. Everything below this section describes the **legacy 1.x** behaviour and only applies behind
-`--allow-stale` (which exists solely to reproduce an old score on purpose, and says so loudly).
+Everything below was **learned from a real `oracle` run** (harbor's reference agent — it calls no LLM, so the
+layout was grounded for **$0** instead of guessed):
+
+| | |
+|---|---|
+| job dir | `<jobs-dir>/<job-id>/` — harbor names it `YYYY-MM-DD__HH-MM-SS`; there is **no `--job-id` flag** |
+| job started | `<job>/config.json` |
+| job **completed** | `<job>/result.json` ← the run-complete marker |
+| one trial | `<job>/<task>__<hash>/result.json` |
+| task metadata | `task.toml` (`[metadata] category`) — TB 2.x is TOML; 1.x was `task.yaml` |
+| resume | `harbor job resume <job-dir>` — the **directory is the job's identity** |
+| task ids | must be **org-qualified** (`terminal-bench/fix-perms`); a bare name is rejected |
+
+**One parser, two sources.** harbor's trial `result.json` is byte-compatible with the public leaderboard's, so
+`parse_trial` reads both our runs *and* the scraped leaderboard — same reward shape, same errored-vs-failed
+logic. A trial whose verifier never ran (sandbox died) is **excluded from the pass-rate denominator**, not
+scored 0: counting infra flakes as model failures deflates every model unlucky enough to hit them.
+
+**Terminal-Bench 3** exists upstream (76 tasks, active) but is **not in harbor's registry**, so it cannot be
+benched and the public leaderboard is still on 2.x. `dataset_freshness.py` warns about it and will start
+refusing 2-1 automatically the day 3 becomes runnable.
 
 ## What it measures
 
-Terminal-Bench drops an agent into a real Linux container per task and scores whether it completes the task
-(pass/fail → resolution rate). Categories include system administration, security, software engineering, ML,
-data science. `accuracy` (0.0–1.0) in the harness `results.json` × 100 = our `tbench_accuracy`.
+Terminal-Bench drops an agent into a real Linux container per task and scores pass/fail. TB 2.1 = **89 tasks,
+16 categories** (30 hard / 55 medium / 4 easy). The sysadmin workload — `system-administration` (9) +
+`security` (8) — is **17 tasks**.
 
 ## Prerequisites
 
-- `terminal-bench>=0.2.18` (in `pyproject.toml`) → the `tb` CLI. Hard deps: **Docker** + **uv** (both must be
-  on the host running the bench).
-- `OPENROUTER_API_KEY` in `/opt/fabrik/.env` (the harness routes models via LiteLLM `openrouter/<id>`).
-- **OpenRouter credit headroom** — a real run costs credit (agentic loops). Check `--dry-run` first; top up if low.
+- `harbor>=0.18.0` (in `pyproject.toml`) → the `harbor` CLI. Hard dep: **Docker**.
+- `OPENROUTER_API_KEY` in `/opt/fabrik/.env` (models route as `openrouter/<id>`).
+- **OpenRouter credit headroom** — a real run costs credit. `--dry-run` first.
+- Tasks: `harbor download terminal-bench/terminal-bench-2-1 -o ~/.cache/harbor/tasks`.
 
 ## Usage
 
 ```bash
 cd /opt/fabrik/scripts/kilo-benchmarks
-export PATH="/opt/fabrik/.venv/bin:$PATH"; set -a; source /opt/fabrik/.env; set +a
 
-# Preview (no model calls, no cost):
+# Preview — no model calls, no cost:
 python microbench_terminal.py --dry-run
 
-# Bench the default unbenched sysadmin cohort (minimax-m3, glm-5.2, deepseek-v4-pro), full task set:
-python microbench_terminal.py --cost-cap 5
+# The 17-task SYSADMIN subset (what you actually care about for a sysadmin agent):
+python microbench_terminal.py --models z-ai/glm-5 --category sysadmin --cost-cap 5
 
-# Bench specific models on a bounded task count (cheaper):
-python microbench_terminal.py --models deepseek/deepseek-v4-pro,z-ai/glm-5.2 --n-tasks 20 --cost-cap 3
+# Default cohort = the sub-$2 candidates with a TB2 score but no per-task profile:
+python microbench_terminal.py --category sysadmin --cost-cap 8
 
-# Every tool-capable OpenRouter model (expensive — use with care):
-python microbench_terminal.py --models all --cost-cap 5
+# Per-category capability matrix (no benching):
+python microbench_terminal.py --report
 ```
 
-Flags: `--models` (comma list, or `all`; default = the 3 unbenched sysadmin candidates) · `--cost-cap`
-(total run/cohort budget) · `--n-tasks` (must be `> 0`) / `--task-id` (bound the work per model) · `--category`
-(run only these task categories) · `--n-concurrent` (default 4) · `--n-attempts` (trials per task) ·
-`--dataset` (default `terminal-bench-core==0.1.1`) · `--force` (wipe + fresh; default RESUMES a partial run) ·
-`--report [model]` (print the per-category matrix, no benching) · `--dry-run`.
+Flags: `--models` (comma list, or `all`) · `--cost-cap` (cohort budget) · `--n-tasks` (`> 0`) / `--task-id` ·
+`--category` (`sysadmin` = system-administration + security) · `--n-concurrent` · `--n-attempts` (harbor `-k`) ·
+`--dataset` · `--force` · `--report [model]` · `--dry-run` · `--allow-stale`.
+
+**Runtime, from glm-5's real leaderboard trials:** median **5.6 min/task**, but one task takes **44 min** — the
+slowest task is the floor, so concurrency past ~4 buys nothing. Budget **~1 h** for the 17-task sysadmin subset
+at k=1 (~$2 at glm-5 prices).
 
 ## Resumable
 
-A killed or interrupted run (session restart, `Ctrl-C`, a crash) is **resumed automatically** on the next
-invocation — `microbench_terminal.py --models <same model>` detects the partial run and calls
-`tb runs resume`, which **skips completed tasks and re-runs only the incomplete ones — no OpenRouter credit is
-re-spent on finished work.** Use `--force` to discard the prior run and start fresh. Long runs should still be
-launched detached (`setsid nohup … &`) so a session teardown never kills them.
+An interrupted run resumes automatically: the runner finds the unfinished job (a `config.json` with no
+`result.json`) and calls `harbor job resume <job-dir>` — completed trials are not re-run, so **no credit is
+re-spent on finished work**. `--force` discards it and starts fresh. Launch long runs detached
+(`setsid nohup … &`) so a session teardown never kills them.
 
-**A FINISHED run is read, never re-run.** tb writes `<run>/results.json` only when the whole run completes, so
-its presence is the run-complete marker. A finished run has nothing left to resume — resuming it anyway
-re-dispatches every task and re-spends credit for zero new results. Re-invoking on a completed run therefore
-costs **$0**: the runner parses the existing result and (re)persists the score. `--force` still re-benches.
+**A FINISHED job is READ, never re-run.** harbor writes the job-level `result.json` only on completion, so its
+presence is the run-complete marker. Re-invoking on a completed job costs **$0** — the runner parses it and
+(re)persists the score. This is the second line of defence behind the freshness skip, and it exists because the
+first has a hole: `tbench_accuracy` is written *after* the run finishes, so a process killed in between leaves a
+**complete run behind a NULL score**. That hole cost a real 3-hour re-run — `docs/LESSONS_LEARNT.md` Lesson 94.
 
-This is a *second* line of defence behind the freshness skip, and it exists because the first one has a hole:
-`tbench_accuracy` is written **after** tb finishes, so a run whose process is killed in between (a session
-teardown, a `Ctrl-C`) leaves a **complete run behind a NULL score**. Freshness can't see it; only the run dir
-can. That hole cost a real 3-hour re-run on 2026-07-14 — see `docs/LESSONS_LEARNT.md` Lesson 94.
-
-**What a run may resume into.** `tb runs resume` takes only `--run-id`/`--runs-dir` and rebuilds the harness
-from the original `tb.lock` — *"The resume command uses the original configuration from the run's tb.lock file"*
-(`terminal_bench/cli/tb/runs.py:793-804`). **Every flag on the resuming invocation is discarded.** So the run dir
-is keyed on everything that changes a *result*: **(model, `--dataset`, task-set, `--n-tasks`, `--n-attempts`,
-`--agent-timeout`, agent)**. Change any of them and you get your own dir and a fresh run — never a silent re-run
-of something else. Concretely, this is what stops:
-
-- `--n-tasks 5` (after a full run completed) finding the full run's lock and resuming the **entire** task set —
-  a bounded sanity check that quietly bills as a full run;
-- `--n-attempts 3` over a locked `n_attempts=1` run silently benching **one** attempt;
-- `--agent-timeout 1200` failing to retry the timed-out tasks (they already wrote a `results.json` with
-  `failure_mode: agent_timeout`, so a resume counts them **done** and skips them).
-
-`--n-concurrent` is deliberately **not** in the key: it changes only how fast a run goes, never the result, so
-changing it must still be able to resume.
-
-Each run is also given an **explicit `--run-id`**, so the score and the per-task rows are scoped to exactly
-that run: a stale sibling run's `results.json` sitting in the same dir can never be read as this run's result.
+The run dir is keyed on **(model, dataset, task-set, n_tasks, n_attempts, agent-timeout, agent)** — everything
+that changes a *result* — so a changed flag never silently resumes a differently-configured run.
+`--n-concurrent` is deliberately excluded: it changes speed, not results.
 
 ## Per-task detail + category profile (the aggregate lies)
 
-The aggregate `tbench_accuracy` **hides the category profile** — minimax-m3 scored ~36% overall but only
-**10% at system-administration** (it fails `configure-git-webserver`, `cron-broken-network`, `fix-permissions`,
+The aggregate `tbench_accuracy` **hides the category profile** — minimax-m3 scored 34% overall but only
+**15% at system-administration**, while `z-ai/glm-5` scores **72% sysadmin vs 54% overall** (it fails `configure-git-webserver`, `cron-broken-network`, `fix-permissions`,
 `nginx-request-logging`, …). So a single number is misleading for role-specific selection.
 
 Every run persists one row per (model, task) to the **`tbench_task_results`** table — `category`, `difficulty`,
-`is_resolved`, `failure_mode` (`agent_timeout`/`parse_error`/`test_timeout`/…), `duration_s` — joined from each
-task's `task.yaml`. This survives re-runs and is comparable across models.
+`is_resolved`, `failure_mode` (`errored` when the sandbox died before the verifier ran), `duration_s` — joined
+from each task's `task.toml`. This survives re-runs and is comparable across models.
 
 - **`--report`** prints the per-category pass-rate matrix from the table:
   ```bash
@@ -125,35 +115,23 @@ task's `task.yaml`. This survives re-runs and is comparable across models.
   # sysadmin agent selection — 25 tasks (system-administration + security), not the full 80:
   python microbench_terminal.py --models glm-5.2 --category sysadmin --cost-cap 5
   ```
-  Real categories (task counts in terminal-bench-core 0.1.1): system-administration (13), security (12),
-  software-engineering (17), debugging (10), file-operations (8), data-science (8), model-training (7),
-  games (3), scientific-computing (2). The alias `sysadmin` = `system-administration,security`.
+  Real categories (TB 2.1, 89 tasks / 16 categories): software-engineering (26), system-administration (9),
+  scientific-computing (8), security (8), data-science (8), debugging (5), file-operations (5),
+  model-training (4), mathematics (4), data-processing (4), machine-learning (3), plus games,
+  personal-assistant, optimization, data-querying, video-processing (1 each).
+  The alias `sysadmin` = `system-administration,security` = **17 tasks**.
   A different `--category` is a different task-set, so it gets its own run dir automatically — no `--force`
   needed. `--n-tasks` **also bounds a `--category` run** (`--category sysadmin --n-tasks 5` runs 5 of the 25,
   not all 25): tb only honours `--n-tasks` when no `-t` list is passed, so the runner applies the bound to the
   task list itself.
 
-## How it works (grounded invocation)
-
-Per model: `tb run -a terminus-2 -m openrouter/<id> -d terminal-bench-core==0.1.1 --n-concurrent N
---output-path <dir> --no-upload-results --cleanup`. Reads `<dir>/<run-id>/results.json → accuracy × 100`,
-writes it to `agents.tbench_accuracy` + `last_verified`.
-
-- **Cost** is measured via the OpenRouter **balance-delta** (`GET /api/v1/credits` before/after) — the
-  harness's own `total_*_tokens` are `0`, so token counts are unusable. Graceful: a credits-API blip never
-  loses a completed run's score.
-- **Freshness** is keyed on `tbench_accuracy` *presence* (a model with a score is skipped unless `--force`) —
-  **not** `last_verified`, which the daily price scrapers overload on every active model.
-- **Shell-out safety**: the model_id is validated (`^[A-Za-z0-9][A-Za-z0-9./_:-]*$`) before it is interpolated
-  into the argv; the subprocess is never `shell=True`.
-
 ## ⚠️ Home score ≠ public leaderboard score
 
-Terminal-Bench scores an *agent* = model + harness. Our runs use `terminus-2` + `terminal-bench-core==0.1.1`
-under our own harness invocation, so the numbers are a **relative comparison across our candidates under one
-identical harness**, not byte-identical to `tbench.ai`'s leaderboard (which uses its own harness version/runs).
-Use home scores to rank *our* OpenRouter candidates against each other; use the scraped leaderboard
-(`scrape_benchmarks.py`) for the public frontier comparison.
+Terminal-Bench scores an *agent* = model + harness. Our runs use `terminus` under our own harbor invocation, so
+the numbers are a **relative comparison across our candidates under one identical harness** — not byte-identical
+to the public leaderboard, whose entries use bespoke tuned scaffolds (vix, LemonHarness, NexAU-AHE). Use home
+scores to rank *our* candidates against each other; use `scrape_tbench_task_results.py` for the public
+per-category matrix.
 
 ## Not a daily job
 

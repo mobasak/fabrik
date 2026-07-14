@@ -24,6 +24,60 @@ import microbench_terminal as mt  # noqa: E402
 FIXTURE = Path(__file__).parent / "fixtures" / "tb_output.json"
 
 
+# --- harbor layout helpers (grounded on a real `harbor run` oracle job) ---------
+#   <out>/<job-id>/config.json                    job started
+#   <out>/<job-id>/result.json                    job COMPLETED (the run-complete marker)
+#   <out>/<job-id>/<task>__<hash>/result.json     one TRIAL
+
+
+def _fake_dataset(tmp_path, monkeypatch, cats):
+    """A harbor task dir: <ds>/<task>/task.toml with [metadata] category (TB 2.x format)."""
+    ds = tmp_path / "ds"
+    for tid, val in cats.items():
+        cat, diff = val if isinstance(val, tuple) else (val, "medium")
+        t = ds / tid
+        t.mkdir(parents=True)
+        (t / "task.toml").write_text(f'[metadata]\ncategory = "{cat}"\ndifficulty = "{diff}"\n')
+    monkeypatch.setattr(mt, "_dataset_dir", lambda d: ds)
+    monkeypatch.setattr(mt, "_legacy_dataset_dir", lambda d: tmp_path / "nope")
+    mt._TASK_META_CACHE.clear()
+    return ds
+
+
+def _job(out, job_id, *, complete=True, started=True):
+    j = out / job_id
+    j.mkdir(parents=True, exist_ok=True)
+    if started:
+        (j / "config.json").write_text("{}")
+    if complete:
+        (j / "result.json").write_text(json.dumps({"id": job_id, "stats": {}}))
+    return j
+
+
+def _trial(out, job_id, tid, reward=1.0, *, errored=False):
+    """Write one harbor trial. reward=1.0 pass, 0.0 fail, errored -> verifier_result null."""
+    d = out / job_id / f"{tid}__abc"
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "result.json").write_text(
+        json.dumps(
+            {
+                "task_name": f"terminal-bench/{tid}",
+                "verifier_result": None if errored else {"rewards": {"reward": reward}},
+                "agent_result": {"cost_usd": 0.5},
+                "started_at": "2026-07-14T10:00:00Z",
+                "finished_at": "2026-07-14T10:01:40Z",
+            }
+        )
+    )
+    return d
+
+
+def _write_task_result(out_dir, run_id, tid, resolved, failure_mode=None):
+    """Back-compat shim for the older tests: a completed job with one trial."""
+    _job(out_dir, run_id)
+    _trial(out_dir, run_id, tid, reward=1.0 if resolved else 0.0, errored=bool(failure_mode))
+
+
 @pytest.fixture(autouse=True)
 def _stub_dataset_freshness(monkeypatch):
     """Neutralize the stale-dataset guard for the tests BELOW, which exercise cohort /
@@ -348,20 +402,18 @@ def test_stale_score_not_written_on_empty_rerun(monkeypatch, tmp_path):
 
 # --- Behavior 3: pass-rate parse correct -------------------------------------
 def test_parse_tbench_output(tmp_path):
-    run = tmp_path / "2026-07-13__run"
-    run.mkdir()
-    (run / "results.json").write_text(FIXTURE.read_text())
-    # fixture accuracy = 1.0 → 100.0
+    _job(tmp_path, "2026-07-13__run")
+    _trial(tmp_path, "2026-07-13__run", "t1", reward=1.0)
     assert mt.parse_tbench_output(tmp_path) == 100.0
 
 
 def test_parse_tbench_output_partial(tmp_path):
-    run = tmp_path / "run"
-    run.mkdir()
-    (run / "results.json").write_text(
-        json.dumps({"accuracy": 0.643, "n_resolved": 57, "n_unresolved": 32})
-    )
-    assert mt.parse_tbench_output(tmp_path) == pytest.approx(64.3)
+    _job(tmp_path, "run")
+    for i in range(2):
+        _trial(tmp_path, "run", f"p{i}", reward=1.0)
+    _trial(tmp_path, "run", "f0", reward=0.0)
+    _trial(tmp_path, "run", "e0", errored=True)  # unmeasured -> OUT of the denominator
+    assert mt.parse_tbench_output(tmp_path) == pytest.approx(2 / 3 * 100)
 
 
 @pytest.mark.parametrize("bad", [{"data": None}, {"data": {}}, {}, "not-a-dict"])
@@ -382,16 +434,13 @@ def test_balance_or_none_degrades_on_schema_drift(bad, monkeypatch):
 
 
 def test_parse_tbench_output_malformed_raises_valueerror(tmp_path):
-    """A present-but-malformed results.json → ValueError (a MODEL_FAILURE the
-    cohort loop catches), never an uncaught JSONDecodeError/KeyError crash."""
-    run = tmp_path / "run"
-    run.mkdir()
-    (run / "results.json").write_text("{not json")
+    """A present-but-unreadable trial -> ValueError (a MODEL_FAILURE the cohort skips)."""
+    _job(tmp_path, "run")
+    d = tmp_path / "run" / "bad__abc"
+    d.mkdir(parents=True)
+    (d / "result.json").write_text("{not json")
     with pytest.raises(ValueError):
-        mt.parse_tbench_output(tmp_path)
-    (run / "results.json").write_text(json.dumps({"no_accuracy_key": 1}))
-    with pytest.raises(ValueError):
-        mt.parse_tbench_output(tmp_path)
+        mt.parse_tbench_output(tmp_path, "run")
 
 
 def test_parse_tbench_output_missing_raises(tmp_path):
@@ -564,18 +613,6 @@ def _mkdb_full(tmp_path):
     return conn
 
 
-def _fake_dataset(tmp_path, monkeypatch, tasks):
-    """Build a fake tb dataset dir (task_id → {category,difficulty}) + point the
-    runner's _dataset_dir at it. tasks = {tid: (category, difficulty)}."""
-    ds = tmp_path / "ds"
-    for tid, (cat, diff) in tasks.items():
-        d = ds / tid
-        d.mkdir(parents=True)
-        (d / "task.yaml").write_text(f"instruction: x\ncategory: {cat}\ndifficulty: {diff}\n")
-    monkeypatch.setattr(mt, "_dataset_dir", lambda dataset: ds)
-    return ds
-
-
 # --- migration idempotency ---------------------------------------------------
 def test_migration_idempotent(tmp_path):
     conn = sqlite3.connect(tmp_path / "t.db")
@@ -612,37 +649,34 @@ def test_load_task_meta_missing_dataset_returns_empty(tmp_path, monkeypatch):
 def test_find_resumable_run(tmp_path):
     out = tmp_path / "tb_run_x"
     assert mt._find_resumable_run(out) is None  # no dir
-    (out / "2026-01-01__run").mkdir(parents=True)
+    out.mkdir(parents=True)
     assert mt._find_resumable_run(out) is None  # dir but no tb.lock
-    (out / "2026-01-01__run" / "tb.lock").write_text("{}")
-    (out / "2026-01-02__run").mkdir()
-    (out / "2026-01-02__run" / "tb.lock").write_text("{}")
-    assert mt._find_resumable_run(out) == "2026-01-02__run"  # newest with a lock
+    _job(out, "2026-01-01__run", complete=False)
+    _job(out, "2026-01-02__run", complete=False)
+    assert mt._find_resumable_run(out) == "2026-01-02__run"  # newest UNFINISHED job
 
 
 def _fake_tb(out: Path, captured: dict, *, creates_run_dir: bool = True):
-    """Stand-in for the `tb` binary: records argv and — like real tb — creates
-    <out>/<run-id> for the --run-id it was handed (harness.py:182)."""
+    """Stand-in for `harbor`: records argv and — like harbor — NAMES THE JOB DIR ITSELF
+    (there is no --run-id/--job-id flag), so the caller must detect which dir appeared."""
 
     def _run(argv, **kwargs):
         captured["argv"] = argv
-        if creates_run_dir and "--run-id" in argv:
-            rid = argv[argv.index("--run-id") + 1]
-            (out / rid).mkdir(parents=True, exist_ok=True)
+        if creates_run_dir and argv[1] == "run":
+            _job(out, "2026-07-14__12-00-00", complete=True)
 
     return _run
 
 
 def test_run_one_resumes_and_returns_the_prior_run_id(monkeypatch, tmp_path):
     out = tmp_path / "tb_run_x"
-    (out / "R1").mkdir(parents=True)
-    (out / "R1" / "tb.lock").write_text("{}")
+    _job(out, "R1", complete=False)  # started, unfinished -> resumable
     captured = {}
     monkeypatch.setattr(mt.subprocess, "run", _fake_tb(out, captured))
     run_id = mt.run_one("vendor/m", out, resume=True)
-    assert captured["argv"][:3] == ["tb", "runs", "resume"]
-    assert "R1" in captured["argv"]
-    assert run_id == "R1"  # the caller scopes parse/persist to the RESUMED run
+    assert captured["argv"][:3] == ["harbor", "job", "resume"]
+    assert str(out / "R1") in captured["argv"]  # resume takes the JOB DIR
+    assert run_id == "R1"  # the caller scopes parse/persist to the RESUMED job
 
 
 def test_run_one_fresh_returns_the_run_id_it_handed_tb(monkeypatch, tmp_path):
@@ -653,9 +687,10 @@ def test_run_one_fresh_returns_the_run_id_it_handed_tb(monkeypatch, tmp_path):
     monkeypatch.setattr(mt.subprocess, "run", _fake_tb(out, captured))
     run_id = mt.run_one("vendor/m", out, resume=True, task_ids=["fix-perms"])
     argv = captured["argv"]
-    assert argv[:2] == ["tb", "run"]
-    assert "-t" in argv and "fix-perms" in argv
-    assert argv[argv.index("--run-id") + 1] == run_id  # returned id IS the one tb got
+    assert argv[:2] == ["harbor", "run"]
+    # harbor REJECTS a bare task id — it must be org-qualified (grounded on a real failure)
+    assert "-t" in argv and "terminal-bench/fix-perms" in argv
+    assert run_id == "2026-07-14__12-00-00"  # the job dir that APPEARED
     assert (out / run_id).is_dir()
 
 
@@ -663,13 +698,11 @@ def test_fresh_run_never_attributes_a_stale_sibling_run(monkeypatch, tmp_path):
     """An out_dir holding an OLD run's dir must never have that old id returned for a
     fresh run. The pre-fix newest-by-mtime guess could; the run-id is an INPUT now."""
     out = tmp_path / "tb_run_x"
-    stale = out / "2020-01-01__00-00-00-000000"
-    stale.mkdir(parents=True)
-    (stale / "results.json").write_text(json.dumps({"accuracy": 0.99}))
+    stale = _job(out, "2020-01-01__00-00-00")  # an OLD completed job in the same dir
     captured = {}
     monkeypatch.setattr(mt.subprocess, "run", _fake_tb(out, captured))
     run_id = mt.run_one("vendor/m", out, resume=False)
-    assert run_id != stale.name
+    assert run_id != stale.name  # the stale sibling job is NOT attributed to this run
     assert (out / run_id).is_dir()
 
 
@@ -684,31 +717,14 @@ def test_run_one_returns_none_when_tb_creates_no_run_dir(monkeypatch, tmp_path):
 
 def test_run_one_force_never_resumes(monkeypatch, tmp_path):
     out = tmp_path / "tb_run_x"
-    (out / "R1").mkdir(parents=True)
-    (out / "R1" / "tb.lock").write_text("{}")
+    _job(out, "R1", complete=False)
     captured = {}
     monkeypatch.setattr(mt.subprocess, "run", lambda argv, **k: captured.update(argv=argv))
     mt.run_one("vendor/m", out, resume=False)  # force path
-    assert captured["argv"][:2] == ["tb", "run"]  # fresh despite the prior run
+    assert captured["argv"][:2] == ["harbor", "run"]  # fresh despite the prior job
 
 
 # --- per-task persistence ----------------------------------------------------
-def _write_task_result(out_dir, run_id, tid, resolved, failure_mode="unset"):
-    d = out_dir / run_id / tid / f"{tid}.1-of-1.{run_id}"
-    d.mkdir(parents=True)
-    (out_dir / run_id).mkdir(exist_ok=True)
-    (out_dir / run_id / "results.json").write_text(json.dumps({"accuracy": 0.5}))
-    (d / "results.json").write_text(
-        json.dumps(
-            {
-                "task_id": tid,
-                "is_resolved": resolved,
-                "failure_mode": failure_mode,
-                "trial_started_at": "2026-07-13T10:00:00+00:00",
-                "trial_ended_at": "2026-07-13T10:05:00+00:00",
-            }
-        )
-    )
 
 
 def test_persist_task_results_joins_category(tmp_path, monkeypatch):
@@ -728,13 +744,14 @@ def test_persist_task_results_joins_category(tmp_path, monkeypatch):
             "FROM tbench_task_results WHERE model_id='vendor/m'"
         ).fetchall()
     )
-    assert rows["fix-perms"] == "system-administration/1/unset"
-    assert rows["crack-hash"] == "security/0/agent_timeout"
+    assert rows["fix-perms"] == "system-administration/1/"  # harbor has no failure_mode
+    # harbor has no failure_mode taxonomy; an UNMEASURED trial is recorded as 'errored'
+    assert rows["crack-hash"] == "security/0/errored"
     # duration computed (5 min = 300s)
     dur = conn.execute(
         "SELECT duration_s FROM tbench_task_results WHERE task_id='fix-perms'"
     ).fetchone()[0]
-    assert dur == 300.0
+    assert dur == 100.0  # from harbor's started_at/finished_at (10:00:00 -> 10:01:40)
 
 
 def test_persist_task_results_idempotent(tmp_path):
@@ -993,7 +1010,9 @@ def test_task_meta_cache_does_not_pin_an_empty_read(monkeypatch, tmp_path):
     # dataset now on disk (as after tb's first-run download) → real read, and memoized
     d = tmp_path / "there" / "fix-perms"
     d.mkdir(parents=True)
-    (d / "task.yaml").write_text("category: system-administration\ndifficulty: easy\n")
+    (d / "task.toml").write_text(
+        '[metadata]\ncategory = "system-administration"\ndifficulty = "easy"\n'
+    )
     monkeypatch.setattr(mt, "_dataset_dir", lambda ds: tmp_path / "there")
     assert mt.load_task_meta("ds==1")["fix-perms"]["category"] == "system-administration"
     assert "ds==1" in mt._TASK_META_CACHE  # now memoized
@@ -1038,17 +1057,11 @@ def test_completed_run_is_not_resumable(tmp_path):
     resumability on the lock alone is what re-dispatched a finished run's tasks and
     re-spent credit. Resumable must mean 'has work left', i.e. no top-level results.json."""
     out = tmp_path / "tb_run_x"
-    done = out / "2026-07-13__16-47-35"
-    done.mkdir(parents=True)
-    (done / "tb.lock").write_text("{}")
-    (done / "results.json").write_text(json.dumps({"accuracy": 0.338}))  # run COMPLETE
+    _job(out, "2026-07-13__16-47-35")  # COMPLETE (has the job result.json)
     assert mt._find_resumable_run(out) is None  # nothing to resume
     assert mt._find_complete_run(out) == "2026-07-13__16-47-35"  # but it IS readable
 
-    # a partial run (lock, no results.json) is still resumable
-    part = out / "2026-07-14__01-00-00"
-    part.mkdir()
-    (part / "tb.lock").write_text("{}")
+    _job(out, "2026-07-14__01-00-00", complete=False)  # started, never finished
     assert mt._find_resumable_run(out) == "2026-07-14__01-00-00"
 
 
@@ -1063,12 +1076,7 @@ def test_bench_model_reuses_a_completed_run_without_spending(monkeypatch, tmp_pa
     conn.commit()
     monkeypatch.setattr(mt, "CACHE_DIR", tmp_path)
     out = mt.out_dir_for("vendor/m1", "ds==1", None, None)
-    _write_task_result(out, "2026-07-13__16-47-35", "fix-perms", True)
-    run = out / "2026-07-13__16-47-35"
-    (run / "tb.lock").write_text("{}")
-    # AFTER the helper (which writes its own top-level results.json) — this is the
-    # run-complete marker carrying the real aggregate.
-    (run / "results.json").write_text(json.dumps({"accuracy": 0.338}))
+    _write_task_result(out, "2026-07-13__16-47-35", "fix-perms", True)  # 1 passing trial
 
     spent = {"tb": False}
     monkeypatch.setattr(mt, "run_one", lambda *a, **k: spent.__setitem__("tb", True) or "NEW")
@@ -1082,12 +1090,12 @@ def test_bench_model_reuses_a_completed_run_without_spending(monkeypatch, tmp_pa
         n_concurrent=1,
         n_attempts=1,
     )
-    assert spent["tb"] is False  # tb NEVER invoked → no credit spent
-    assert score == pytest.approx(33.8)
+    assert spent["tb"] is False  # harbor NEVER invoked → no credit spent
+    assert score == pytest.approx(100.0)  # the one completed trial passed
     # the score the killed process failed to write is now persisted
     assert conn.execute("SELECT tbench_accuracy FROM agents WHERE id='vendor/m1'").fetchone()[
         0
-    ] == pytest.approx(33.8)
+    ] == pytest.approx(100.0)
     # and so is the per-task detail
     assert (
         conn.execute(
@@ -1131,11 +1139,13 @@ def test_parse_is_scoped_to_its_run_id_not_the_newest(tmp_path):
     """Direct proof of run-id scoping: with several runs in one dir, parse(run_id) reads
     EXACTLY that run — never the newest-by-mtime, which is how a stale score used to be
     attributed to a fresh run."""
-    for rid, acc in (("2020-01-01__00-00-00-000000", 0.99), ("2026-07-13__16-47-35", 0.338)):
-        (tmp_path / rid).mkdir()
-        (tmp_path / rid / "results.json").write_text(json.dumps({"accuracy": acc}))
-    assert mt.parse_tbench_output(tmp_path, "2026-07-13__16-47-35") == pytest.approx(33.8)
-    assert mt.parse_tbench_output(tmp_path, "2020-01-01__00-00-00-000000") == pytest.approx(99.0)
+    _job(tmp_path, "OLD")
+    _trial(tmp_path, "OLD", "t1", reward=1.0)  # OLD job: 100%
+    _job(tmp_path, "NEW")
+    _trial(tmp_path, "NEW", "t1", reward=1.0)  # NEW job: 50%
+    _trial(tmp_path, "NEW", "t2", reward=0.0)
+    assert mt.parse_tbench_output(tmp_path, "NEW") == pytest.approx(50.0)
+    assert mt.parse_tbench_output(tmp_path, "OLD") == pytest.approx(100.0)
     with pytest.raises(FileNotFoundError):
         mt.parse_tbench_output(tmp_path, "NEVER-RAN")
 

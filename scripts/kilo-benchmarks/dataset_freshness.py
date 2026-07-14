@@ -34,7 +34,9 @@ Sources of truth (fetched live; no hard-coded "latest"):
 
 from __future__ import annotations
 
+import pathlib
 import re
+import subprocess
 import sys
 
 import httpx
@@ -52,14 +54,17 @@ HARBOR_ORG_REPOS = "https://api.github.com/orgs/harbor-framework/repos?per_page=
 # The dataset each runner is CURRENTLY pinned to. One line to change when we upgrade —
 # and the check below is what makes forgetting to change it loud instead of silent.
 PINNED = {
-    # harbor. Bumped 2-1 -> 3 by the review: the org already published terminal-bench-3,
-    # and the guard's own generation check (check_terminal_bench) now refuses 2-1.
-    "terminal-bench": "terminal-bench/terminal-bench-3",
+    # harbor. terminal-bench-3 exists upstream (76 tasks) but is NOT in harbor's registry
+    # yet, so it cannot be benched and the public leaderboard is still on 2.x. 2-1 is the
+    # current RUNNABLE generation; check_terminal_bench warns when 3 becomes runnable.
+    "terminal-bench": "terminal-bench/terminal-bench-2-1",
     "humaneval": "HumanEvalPlus",  # version comes from the installed evalplus lib
     "mbpp": "MbppPlus",
 }
 
 _TIMEOUT = 20.0
+_RESOLVE_TIMEOUT = 120.0  # a harbor dataset resolve (cached after the first hit)
+HARBOR_TASKS_DIR = pathlib.Path.home() / ".cache" / "harbor" / "tasks"
 
 
 class StaleDatasetError(RuntimeError):
@@ -166,19 +171,41 @@ def latest_terminal_bench_dataset() -> str:
     return max(gens)[1]
 
 
+def harbor_can_run(dataset: str) -> bool:
+    """Can harbor actually RESOLVE this dataset — i.e. could we bench it today?
+
+    This is the question that matters, and it is NOT "does a repo exist on GitHub".
+    `harbor download` is the authoritative resolver (it hits harbor's own registry), so we
+    ask it. A hit is cached by harbor, so the probe is nearly free on the dataset we
+    already use.
+    """
+    try:
+        r = subprocess.run(  # noqa: S603
+            ["harbor", "download", dataset, "-o", str(HARBOR_TASKS_DIR)],  # noqa: S607
+            capture_output=True,
+            timeout=_RESOLVE_TIMEOUT,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return r.returncode == 0
+
+
 def check_terminal_bench(pinned: str) -> list[str]:
     """Fail conditions for the Terminal-Bench dataset pin.
 
-    TWO checks, because the first one alone is what let this module go stale about itself:
-
     1. **Wrong package** — a `terminal-bench-core==*` pin is the LEGACY 1.x task set, which
-       lives in the retired `tb` package. This is the failure that cost us a paid 80-task run.
-    2. **Superseded generation** — compare the pinned generation against the newest one the
-       harbor-framework org actually publishes, LIVE. The original version of this function
-       only did check 1, so it happily green-lit `terminal-bench-2-1` while
-       **`terminal-bench-3` already existed and had superseded it** — reproducing, one
-       generation later, the exact silent staleness the module was written to prevent. A
-       guard that only knows about yesterday's bump is not a guard.
+       lives in the retired `tb` package. This is the failure that cost a paid 80-task run.
+    2. **Superseded by a RUNNABLE generation** — the pin is refused only when a newer
+       generation exists *and harbor can actually resolve it*.
+
+    That second word is load-bearing, and getting it wrong is a bug in its own right. An
+    earlier version of this check treated "a newer repo exists in the GitHub org" as
+    "your pin is superseded" — and `terminal-bench-3`'s repo exists (76 tasks, active) while
+    being **absent from harbor's registry**, so the guard refused `terminal-bench-2-1`: the
+    only dataset that actually runs, and the one the public leaderboard is measured on. A
+    guard that blocks the only working option is worse than no guard. A newer generation
+    that isn't published yet is a **heads-up**, not a failure.
     """
     problems: list[str] = []
     if pinned.startswith("terminal-bench-core"):
@@ -193,19 +220,31 @@ def check_terminal_bench(pinned: str) -> list[str]:
     name = pinned.split("/")[-1]  # 'terminal-bench/terminal-bench-2-1' -> 'terminal-bench-2-1'
     pinned_gen = _parse_generation(name)
     if pinned_gen is None:
-        # We cannot even parse the pin, so we cannot say it is current. Saying nothing here
-        # would return an EMPTY problem list, which the caller prints as "current ✓" — the
-        # same false-confidence hole that check_evalplus had.
+        # We cannot even parse the pin, so we cannot say it is current. Returning an EMPTY
+        # problem list here would have the caller print "current ✓" — the same
+        # false-confidence hole check_evalplus had.
         raise UnverifiedError(f"unrecognized Terminal-Bench dataset pin {pinned!r}")
+
     latest = latest_terminal_bench_dataset()  # raises UnverifiedError if it cannot tell
     latest_gen = _parse_generation(latest)
-    if latest_gen and pinned_gen < latest_gen:
+    if not latest_gen or latest_gen <= pinned_gen:
+        return problems  # nothing newer upstream
+
+    if harbor_can_run(f"terminal-bench/{latest}"):
         problems.append(
-            f"{pinned} is SUPERSEDED: harbor-framework now publishes `{latest}` "
-            f"(https://github.com/harbor-framework/{latest}). A score measured on an older "
-            f"generation cannot be compared to the current leaderboard. Bench "
-            f"`terminal-bench/{latest}` via harbor, or pass --allow-stale to reproduce an "
-            f"old score on purpose."
+            f"{pinned} is SUPERSEDED: `{latest}` is published and runnable. A score measured "
+            f"on an older generation cannot be compared to the current leaderboard. Bench "
+            f"`terminal-bench/{latest}`, or pass --allow-stale to reproduce an old score."
+        )
+    else:
+        # Upstream is building the next generation but has not released it. Say so — the
+        # operator should know it is coming — but do NOT refuse the only runnable dataset.
+        print(
+            f"[dataset-freshness] heads-up: `{latest}` exists upstream "
+            f"(https://github.com/harbor-framework/{latest}) but is NOT yet in harbor's "
+            f"registry, so it cannot be benched. {pinned} remains the current runnable "
+            f"dataset — re-check when {latest} is published.",
+            file=sys.stderr,
         )
     return problems
 

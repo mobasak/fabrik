@@ -39,10 +39,10 @@ def test_every_legacy_core_pin_is_refused(pin):
 
 
 def test_superseded_generation_is_refused(monkeypatch):
-    """The guard must catch the NEXT bump, not just the 1.x->2.x one it was born from.
-    It didn't: it green-lit terminal-bench-2-1 while terminal-bench-3 already existed —
-    reproducing, one generation later, the exact silent staleness it exists to prevent."""
+    """The guard must catch the NEXT bump, not just the 1.x->2.x one it was born from —
+    but ONLY when the newer generation is actually RUNNABLE."""
     monkeypatch.setattr(df, "latest_terminal_bench_dataset", lambda: "terminal-bench-3")
+    monkeypatch.setattr(df, "harbor_can_run", lambda ds: True)  # published + resolvable
     with pytest.raises(df.StaleDatasetError) as e:
         df.check_dataset_fresh("terminal-bench", "terminal-bench/terminal-bench-2-1")
     assert "terminal-bench-3" in str(e.value)  # names what to bench instead
@@ -51,7 +51,22 @@ def test_superseded_generation_is_refused(monkeypatch):
 def test_current_generation_passes(monkeypatch):
     """The newest generation must NOT be refused, or the guard blocks all work."""
     monkeypatch.setattr(df, "latest_terminal_bench_dataset", lambda: "terminal-bench-3")
+    monkeypatch.setattr(df, "harbor_can_run", lambda ds: True)
     df.check_dataset_fresh("terminal-bench", "terminal-bench/terminal-bench-3")
+
+
+def test_unreleased_newer_generation_does_not_block_benching(monkeypatch, capsys):
+    """THE bug this guard nearly became. terminal-bench-3's repo exists (76 tasks, active)
+    but is NOT in harbor's registry, so it cannot be run. Treating 'a newer repo exists' as
+    'your pin is superseded' refused terminal-bench-2-1 — the ONLY dataset that actually
+    runs, and the one the public leaderboard is measured on. A guard that blocks the only
+    working option is worse than no guard: it must WARN, not fail."""
+    monkeypatch.setattr(df, "latest_terminal_bench_dataset", lambda: "terminal-bench-3")
+    monkeypatch.setattr(df, "harbor_can_run", lambda ds: False)  # exists, but unpublished
+    df.check_dataset_fresh("terminal-bench", "terminal-bench/terminal-bench-2-1")  # no raise
+    err = capsys.readouterr().err
+    assert "heads-up" in err and "terminal-bench-3" in err
+    assert "not yet in harbor" in err.lower() or "NOT yet in harbor" in err
 
 
 @pytest.mark.parametrize(

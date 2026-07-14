@@ -2,37 +2,41 @@
 # AFTER-EDIT: scripts/kilo-benchmarks/tests/test_microbench_terminal.py docs/reference/terminal-bench-runner.md
 """Home-run Terminal-Bench (Linux-sysadmin capability) scoring for OpenRouter models.
 
-Sibling of ``microbench_coding.py`` — where that runs EvalPlus and writes
-``humaneval_score``, this shells out to the official ``terminal-bench`` harness
-(``tb run``, Apache-2.0) against OpenRouter-routed models and writes the task
-resolution pass-rate to ``agents.tbench_accuracy``. Generates scores for models
-the public tbench.ai leaderboard has not covered (e.g. minimax-m3, glm-5.2,
-deepseek-v4-pro).
+Runs the **current** benchmark: Terminal-Bench 2.x via **harbor** — a DIFFERENT PACKAGE from
+the retired 1.x `tb` CLI this runner was originally built on. That migration is the whole
+point: a 1.x score cannot be compared to a single entry on today's public leaderboard, and
+we paid for a full 80-task run before discovering it.
 
-Grounded invocation (Phase A of 2026-07-13-plan-1-terminal-bench-runner):
-    tb run -a terminus-2 -m openrouter/<id> -d terminal-bench-core==0.1.1 \
-       --n-concurrent N [--n-tasks N | -t <glob>] --output-path <dir> \
-       --no-upload-results --cleanup
+Grounded invocation (verified live with a FREE `oracle` run — no LLM, no spend):
+    harbor run -d terminal-bench/terminal-bench-2-1 -a terminus -m openrouter/<id> \
+        -k <n_attempts> -n <n_concurrent> -o <jobs-dir> [-t terminal-bench/<task>]…
 
-Scoring: top-level ``<out>/<run-id>/results.json`` → ``accuracy`` (0.0-1.0) is
-the resolution pass-rate → ``tbench_accuracy = accuracy * 100``.
+Layout it produces (learned, not assumed):
+    <jobs-dir>/<job-id>/                     job-id = 'YYYY-MM-DD__HH-MM-SS' (harbor names it)
+        config.json                          job STARTED
+        result.json                          job COMPLETED  <- the run-complete marker
+        <task>__<hash>/result.json           one TRIAL
 
-Cost: the harness's per-trial ``total_*_tokens`` are 0 (terminus-2 does not
-populate them), so cost is measured via the OpenRouter balance-delta
-(``GET /api/v1/credits``), NOT token counts. ``--cost-cap`` is a **run (cohort)
-budget**, checked BEFORE each model — it stops the run once cumulative spend
-reaches the cap, but cannot interrupt a single ``tb run`` mid-flight, so the
-real **per-model** spend bound is ``--n-tasks``. On a shared OpenRouter key the
-balance-delta is best-effort (concurrent sibling spend perturbs it) — treat it
-as approximate and rely on ``--n-tasks`` for a hard per-model bound.
-``--agent-timeout`` caps a stuck agent loop. ``--dry-run`` calls no model.
+The TRIAL file is byte-compatible with the public leaderboard's, so ONE parser
+(`parse_trial`) reads both our runs and the scraped leaderboard — the same
+errored-vs-failed logic, the same reward shape.
 
-⚠️ Home scores use OUR harness run — they are a relative comparison across our
-candidates under one identical harness, NOT byte-identical to the public
-leaderboard (different harness version + runs). See docs/reference/terminal-bench-runner.md.
+Scoring: pass-rate over the trials that actually RAN. An **errored** trial (the sandbox died
+before the verifier ran) is excluded from the denominator rather than scored 0 — counting
+infra flakes as model failures deflates every model unlucky enough to hit them.
 
-Not wired into daily_refresh.sh — on-demand only (agentic loops cost minutes +
-credit per model).
+Cost: measured via the OpenRouter balance-delta (`GET /api/v1/credits`). `--cost-cap` is a
+**cohort** budget checked BEFORE each model; it cannot interrupt a model mid-flight, so the
+real per-model bound is `--n-tasks` / `--category`.
+
+Resume: `harbor job resume <job-dir>` — the job DIRECTORY is the job's identity (harbor has
+no --job-id flag). A FINISHED job is READ, never re-run.
+
+Dataset freshness is enforced before any model is dispatched (`dataset_freshness.py`): a
+superseded dataset is refused, because a score is only meaningful relative to the task set
+it was measured on.
+
+On-demand only — NOT in daily_refresh.sh (agentic loops cost minutes + credit per model).
 """
 
 from __future__ import annotations
@@ -46,6 +50,7 @@ import shutil
 import sqlite3
 import subprocess
 import sys
+import tomllib
 from datetime import date, datetime
 
 import httpx
@@ -56,17 +61,34 @@ SCRIPT_DIR = pathlib.Path(__file__).parent
 DB_PATH = SCRIPT_DIR / "kilo_agents.db"
 CACHE_DIR = SCRIPT_DIR / "cache"
 
-# --- Grounded constants (Phase A) -------------------------------------------
-TB_CLI = "tb"
-TB_AGENT = "terminus-2"
-TB_DATASET = "terminal-bench-core==0.1.1"
+# --- Grounded constants (harbor; verified live 2026-07-14 with a FREE oracle run) ------
+# Terminal-Bench 2.x is a DIFFERENT PACKAGE from the retired 1.x `tb` CLI: `harbor`.
+#   harbor run -d terminal-bench/terminal-bench-2-1 -a terminus -m openrouter/<id>
+#              -k <n_attempts> -n <n_concurrent> -o <jobs-dir> [-t terminal-bench/<task>]…
+# Layout it produces (learned from a real oracle run, not assumed):
+#   <jobs-dir>/<job-id>/                     job-id = 'YYYY-MM-DD__HH-MM-SS'
+#       result.json                          JOB-level: written only when the job COMPLETES
+#       <task>__<hash>/result.json           TRIAL-level
+# The TRIAL result.json is byte-compatible with the public leaderboard's, so
+# scrape_tbench_task_results.parse_trial() reads both — one parser, two sources.
+TB_CLI = "harbor"
+TB_AGENT = "terminus"
+TB_DATASET = "terminal-bench/terminal-bench-2-1"
 OPENROUTER_CREDITS_URL = "https://openrouter.ai/api/v1/credits"
 
-# The unbenched sysadmin candidates this runner exists to score first.
+# harbor writes result.json (SINGULAR) at both levels. The JOB-level one appears only when
+# the job COMPLETES, so it is the run-complete marker (the role tb's results.json played).
+JOB_RESULT = "result.json"
+
+# Where `harbor download` puts task definitions (they carry the category we slice on).
+HARBOR_TASKS_DIR = pathlib.Path.home() / ".cache" / "harbor" / "tasks"
+
+# The sub-$2 sysadmin candidates with a TB2 score but NO per-task profile — the ones a
+# bench actually teaches us something about (glm-5 is already measured at 72%).
 DEFAULT_MODELS = [
-    "minimax/minimax-m3",
-    "z-ai/glm-5.2",
+    "xiaomi/mimo-v2.5-pro",
     "deepseek/deepseek-v4-pro",
+    "xiaomi/mimo-v2.5",
 ]
 
 # The task categories that matter for a fleet-sysadmin agent — used by
@@ -75,8 +97,13 @@ SYSADMIN_CATEGORIES = ("system-administration", "security")
 
 
 def _dataset_dir(dataset: str) -> pathlib.Path:
-    """Local task dir for a tb dataset: 'terminal-bench-core==0.1.1' →
-    ~/.cache/terminal-bench/terminal-bench-core/0.1.1 (tb downloads it there)."""
+    """Local task dir for a harbor dataset: 'terminal-bench/terminal-bench-2-1' →
+    ~/.cache/harbor/tasks/terminal-bench-2-1 (where `harbor download -o` puts it)."""
+    return HARBOR_TASKS_DIR / dataset.split("/")[-1]
+
+
+def _legacy_dataset_dir(dataset: str) -> pathlib.Path:
+    """The retired `tb` 1.x layout — kept only for --allow-stale reproductions."""
     name, _, ver = dataset.partition("==")
     return pathlib.Path.home() / ".cache" / "terminal-bench" / name / (ver or "head")
 
@@ -85,35 +112,47 @@ _TASK_META_CACHE: dict[str, dict[str, dict]] = {}
 
 
 def load_task_meta(dataset: str) -> dict[str, dict]:
-    """Map task_id → {'category', 'difficulty'} from each task's task.yaml.
+    """Map task_id → {'category', 'difficulty'} from each task's manifest.
 
-    Returns {} if the dataset isn't downloaded yet (tb fetches it on first run).
+    Terminal-Bench 2.x ships **task.toml** (`[metadata] category`); the retired 1.x set
+    used task.yaml. Both are read, so an --allow-stale 1.x reproduction still slices by
+    category.
 
-    Memoized per dataset so an N-model cohort parses the ~80 task.yaml files once
-    instead of once per model. ⚠️ Only a NON-EMPTY result is cached: `{}` means the
-    dataset is not on disk YET (tb downloads it DURING the first run), so caching that
-    would pin every later persist to all-NULL categories — the exact bug the
-    load-meta-after-the-run change fixed. An empty read stays retryable.
+    Returns {} if the dataset isn't on disk yet (harbor fetches it on the first run).
+
+    Memoized per dataset so an N-model cohort parses the ~89 manifests once, not once per
+    model. ⚠️ Only a NON-EMPTY result is cached: `{}` means the dataset is not on disk YET
+    (it is downloaded DURING the first run), so caching that would pin every later persist
+    to all-NULL categories. An empty read stays retryable.
     """
     cached = _TASK_META_CACHE.get(dataset)
     if cached:
         return cached
 
-    import yaml
-
     meta: dict[str, dict] = {}
-    ddir = _dataset_dir(dataset)
-    if not ddir.exists():
-        return meta
-    for ty in ddir.glob("*/task.yaml"):
-        try:
-            y = yaml.safe_load(ty.read_text()) or {}
-            meta[ty.parent.name] = {
-                "category": y.get("category"),
-                "difficulty": y.get("difficulty"),
-            }
-        except (OSError, yaml.YAMLError):
-            meta[ty.parent.name] = {"category": None, "difficulty": None}
+    for ddir, pattern in (
+        (_dataset_dir(dataset), "*/task.toml"),
+        (_legacy_dataset_dir(dataset), "*/task.yaml"),
+    ):
+        if not ddir.exists():
+            continue
+        for tf in sorted(ddir.glob(pattern)):
+            try:
+                if tf.suffix == ".toml":
+                    m = tomllib.loads(tf.read_text()).get("metadata", {})
+                else:
+                    import yaml
+
+                    m = yaml.safe_load(tf.read_text()) or {}
+                meta[tf.parent.name] = {
+                    "category": m.get("category"),
+                    "difficulty": m.get("difficulty"),
+                }
+            except (OSError, ValueError, tomllib.TOMLDecodeError):
+                meta[tf.parent.name] = {"category": None, "difficulty": None}
+        if meta:
+            break
+
     if meta:
         _TASK_META_CACHE[dataset] = meta
     return meta
@@ -328,7 +367,7 @@ def _find_complete_run(out_dir: pathlib.Path) -> str | None:
     """
     if not out_dir.exists():
         return None
-    done = sorted(p.name for p in out_dir.iterdir() if p.is_dir() and (p / "results.json").exists())
+    done = sorted(p.name for p in out_dir.iterdir() if p.is_dir() and (p / JOB_RESULT).exists())
     return done[-1] if done else None
 
 
@@ -345,10 +384,12 @@ def _find_resumable_run(out_dir: pathlib.Path) -> str | None:
     """
     if not out_dir.exists():
         return None
+    # harbor writes no lock file; a job dir with a config.json but NO job-level result.json
+    # is one that started and did not finish — i.e. it has work left.
     runs = sorted(
         p.name
         for p in out_dir.iterdir()
-        if p.is_dir() and (p / "tb.lock").exists() and not (p / "results.json").exists()
+        if p.is_dir() and (p / "config.json").exists() and not (p / JOB_RESULT).exists()
     )
     return runs[-1] if runs else None
 
@@ -392,74 +433,116 @@ def run_one(
     ordered, which ``_find_resumable_run``'s sort relies on.
     """
     _validate_model_id(model_id)
-    prior = _find_resumable_run(out_dir) if resume else None
     env = {**os.environ}
+
+    # RESUME. `harbor job resume` takes the JOB DIRECTORY, so the directory IS the job's
+    # identity — there is no --job-id to hand it, and none to hand `harbor run` either.
+    # (The 1.x runner generated its own --run-id precisely so the id was an INPUT, never a
+    # guess; harbor removes that option, so instead we diff the dir listing — but ONLY
+    # around a fresh run we just started, and we return the dir that appeared.)
+    prior = _find_resumable_run(out_dir) if resume else None
     if prior:
-        # Resume reuses the original run's tb.lock config (agent/model/dataset/tasks).
-        argv = [TB_CLI, "runs", "resume", "--run-id", prior, "--runs-dir", str(out_dir)]
+        argv = [TB_CLI, "job", "resume", str(out_dir / prior)]
         subprocess.run(argv, check=True, env=env, timeout=run_timeout_sec)  # noqa: S603
         return prior
+
     out_dir.mkdir(parents=True, exist_ok=True)
-    run_id = datetime.now().strftime("%Y-%m-%d__%H-%M-%S-%f")
+    before = {p.name for p in out_dir.iterdir() if p.is_dir()}
     argv = [
         TB_CLI,
         "run",
+        "-d",
+        dataset,
         "-a",
         TB_AGENT,
         "-m",
         f"openrouter/{model_id}",
-        "-d",
-        dataset,
-        "--n-concurrent",
-        str(n_concurrent),
-        "--n-attempts",
+        "-k",
         str(n_attempts),
-        "--global-agent-timeout-sec",
-        str(agent_timeout_sec),
-        "--output-path",
+        "-n",
+        str(n_concurrent),
+        "-o",
         str(out_dir),
-        "--run-id",
-        run_id,
-        "--no-upload-results",
-        "--cleanup",
     ]
+    # harbor requires ORG-QUALIFIED task ids ('terminal-bench/fix-perms'), and rejects a
+    # bare name with a pydantic error — grounded by a real (failing) run, not assumed.
+    org = dataset.split("/")[0]
     for t in task_ids or []:
-        argv += ["-t", t]
+        argv += ["-t", t if "/" in t else f"{org}/{t}"]
     if not task_ids and n_tasks is not None:
         argv += ["--n-tasks", str(n_tasks)]
     subprocess.run(argv, check=True, env=env, timeout=run_timeout_sec)  # noqa: S603
-    # tb writes its run under <out_dir>/<run_id> (harness.py:182). A tb that exits 0
-    # without creating it produced nothing → None, which the caller turns into a
-    # per-model failure rather than reading some other run's results.
-    return run_id if (out_dir / run_id).is_dir() else None
+
+    # harbor names the job dir 'YYYY-MM-DD__HH-MM-SS' itself. Take the one that APPEARED —
+    # scoped to this call, so a stale sibling job in the same out_dir can never be
+    # mistaken for ours (that misattribution is what cost a 3-hour re-run on the 1.x path).
+    after = [p for p in out_dir.iterdir() if p.is_dir() and p.name not in before]
+    if not after:
+        return None  # harbor exited 0 but produced no job → a per-model failure
+    return max(after, key=lambda p: p.stat().st_mtime).name
+
+
+def parse_trial(d: dict) -> dict | None:
+    """One harbor/leaderboard trial result.json -> {task_id, passed, errored, cost_usd}.
+
+    harbor's trial file is byte-compatible with the public leaderboard's, so this is the
+    SAME parse the scraper uses — one code path, two sources.
+
+    An UNMEASURED trial is not a failed one: `verifier_result: null` (or any unusable
+    reward) means the sandbox died before the verifier ran, so we learned nothing about the
+    model. Those are marked errored and dropped from the pass-rate denominator; scoring them
+    0 would deflate every model that hit flaky infra.
+    """
+    task_id = (d.get("task_name") or "").split("/")[-1]
+    if not task_id:
+        return None
+    cost = (d.get("agent_result") or {}).get("cost_usd")
+    rewards = (d.get("verifier_result") or {}).get("rewards")
+    reward = rewards.get("reward") if isinstance(rewards, dict) else None
+    if not isinstance(reward, (int, float)) or isinstance(reward, bool):
+        return {"task_id": task_id, "passed": False, "errored": True, "cost_usd": cost}
+    return {
+        "task_id": task_id,
+        "passed": reward == 1.0,  # partial credit is not a pass on this benchmark
+        "errored": False,
+        "cost_usd": cost,
+    }
 
 
 def parse_tbench_output(out_dir: pathlib.Path, run_id: str | None = None) -> float:
-    """Read a run's top-level results.json → accuracy * 100 (0-100).
+    """Read a completed job -> pass-rate as 0-100.
 
-    When ``run_id`` is given, reads exactly ``<out_dir>/<run_id>/results.json`` — so
-    a re-run in a dir that also holds OLD run-id dirs can't read a stale prior
-    accuracy (the pre-run-id-scoping bug). When ``run_id`` is None, falls back to
-    the newest by mtime. Raises FileNotFoundError if the run produced no
-    results.json, or ValueError if it is present but malformed — the caller treats
-    both as a model failure (never crashes the cohort on a bad results.json).
+    Computed from the TRIALS rather than harbor's own summary block: the trial files are the
+    primary record and they carry the errored-vs-failed distinction, which the summary's
+    mean does not.
+
+    Requires the JOB-level result.json (harbor writes it only on completion). Raises
+    FileNotFoundError if the job never finished or produced no scored trials, ValueError if
+    a trial is unreadable — the caller treats both as a per-model failure, not a cohort crash.
     """
     if run_id is not None:
-        rj = out_dir / run_id / "results.json"
-        if not rj.exists():
-            raise FileNotFoundError(f"no results.json for run {run_id} under {out_dir}")
-        candidates = [rj]
+        job = out_dir / run_id
+        if not (job / JOB_RESULT).exists():
+            raise FileNotFoundError(f"job {run_id} has no {JOB_RESULT} (it did not finish)")
     else:
-        candidates = sorted(
-            out_dir.glob("*/results.json"), key=lambda p: p.stat().st_mtime, reverse=True
-        )
-        if not candidates:
-            raise FileNotFoundError(f"no run results.json under {out_dir}")
-    try:
-        data = json.loads(candidates[0].read_text())
-        return float(data["accuracy"]) * 100.0
-    except (json.JSONDecodeError, KeyError, TypeError, ValueError) as e:
-        raise ValueError(f"malformed results.json in {out_dir}: {e}") from e
+        jobs = sorted(out_dir.glob(f"*/{JOB_RESULT}"), key=lambda q: q.stat().st_mtime)
+        if not jobs:
+            raise FileNotFoundError(f"no completed job under {out_dir}")
+        job = jobs[-1].parent
+
+    passed = scored = 0
+    for tr in sorted(job.glob(f"*/{JOB_RESULT}")):  # <task>__<hash>/result.json
+        try:
+            t = parse_trial(json.loads(tr.read_text()))
+        except (OSError, json.JSONDecodeError) as e:
+            raise ValueError(f"unreadable trial {tr}: {e}") from e
+        if not t or t["errored"]:
+            continue  # unmeasured — excluded from the denominator, not scored 0
+        scored += 1
+        passed += bool(t["passed"])
+    if not scored:
+        raise FileNotFoundError(f"job {job.name} produced no scored trials")
+    return passed / scored * 100.0
 
 
 # The exception classes that mean "this model failed — skip it, don't crash the
@@ -474,13 +557,14 @@ MODEL_FAILURE = (
 
 # --- Per-task persistence ----------------------------------------------------
 def _trial_duration_s(d: dict) -> float | None:
-    from datetime import datetime
-
-    s, e = d.get("trial_started_at"), d.get("trial_ended_at")
+    s, e = d.get("started_at"), d.get("finished_at")  # harbor's field names
     if not s or not e:
         return None
     try:
-        return (datetime.fromisoformat(e) - datetime.fromisoformat(s)).total_seconds()
+        return (
+            datetime.fromisoformat(e.replace("Z", "+00:00"))
+            - datetime.fromisoformat(s.replace("Z", "+00:00"))
+        ).total_seconds()
     except (ValueError, TypeError):
         return None
 
@@ -508,14 +592,15 @@ def persist_task_results(
         meta = load_task_meta(dataset)
     today = date.today().isoformat()
     rows = 0
-    for tr in (out_dir / run_id).glob("*/*/results.json"):  # <task>/<trial>/results.json
+    for tr in sorted((out_dir / run_id).glob(f"*/{JOB_RESULT}")):  # <task>__<hash>/result.json
         try:
             d = json.loads(tr.read_text())
         except (OSError, json.JSONDecodeError):
             continue
-        tid = d.get("task_id")
-        if not tid:
+        t = parse_trial(d)
+        if not t:
             continue
+        tid = t["task_id"]
         m = meta.get(tid, {})
         conn.execute(
             "INSERT OR REPLACE INTO tbench_task_results "
@@ -527,8 +612,13 @@ def persist_task_results(
                 dataset,
                 m.get("category"),
                 m.get("difficulty"),
-                1 if d.get("is_resolved") else 0,
-                d.get("failure_mode"),
+                # From parse_trial, NOT d["is_resolved"]: that was tb's field and harbor has
+                # no such key, so reading it made every row silently resolved=0 — a persisted
+                # 0% while the parsed pass-rate said 100%.
+                1 if t["passed"] else 0,
+                # harbor has no failure_mode. An UNMEASURED trial is recorded as 'errored' so
+                # it can never be read back as a genuine failure.
+                "errored" if t["errored"] else None,
                 _trial_duration_s(d),
                 run_id,
                 today,
