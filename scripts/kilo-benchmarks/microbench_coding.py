@@ -32,6 +32,7 @@ sys.path.insert(0, str((SCRIPT_DIR / "libs").resolve()))
 sys.path.insert(0, str(SCRIPT_DIR))  # for openrouter_complete (uses `libs.subagents.*` imports)
 
 import openrouter_complete  # noqa: E402
+from dataset_freshness import StaleDatasetError, check_dataset_fresh  # noqa: E402
 from evalplus.data.humaneval import get_human_eval_plus  # noqa: E402
 from evalplus.data.mbpp import get_mbpp_plus  # noqa: E402
 from subagents import AgentSpec, run_agents  # noqa: E402, F401
@@ -298,6 +299,15 @@ def _build_argparser() -> argparse.ArgumentParser:
         default=60,
         help="Freshness window in days (default: 60).",
     )
+    p.add_argument(
+        "--allow-stale",
+        action="store_true",
+        help="Bench even though the DATASET has been superseded (evalplus pins its "
+        "HumanEval+/MBPP+ versions in-library, so a newer release means a newer dataset). "
+        "Only for deliberately reproducing an old score. Without this, a stale dataset is "
+        "refused before any credit is spent. NB: distinct from --ttl-days, which is about "
+        "how stale a MODEL's score may be, not the dataset.",
+    )
     return p
 
 
@@ -312,6 +322,18 @@ def main(argv: list[str] | None = None) -> int:
     exit_code = 0
     try:
         args = _build_argparser().parse_args(argv)
+
+        # ⚠️ ALWAYS check the dataset is the CURRENT one before benching anything.
+        # A score means nothing except relative to the dataset it was measured on, so a
+        # run against a superseded one yields an authoritative-looking number that
+        # compares to nothing. evalplus pins HumanEvalPlus/MbppPlus versions in-library,
+        # so a newer evalplus release IS a newer dataset — this asks PyPI, live, before a
+        # single model is dispatched (i.e. before any credit is spent).
+        try:
+            check_dataset_fresh("evalplus", allow_stale=args.allow_stale)
+        except StaleDatasetError as e:
+            print(f"error: {e}", file=sys.stderr)
+            return 1
 
         # Argparse-level positivity guards (F5 from Phase C review)
         if args.cost_cap <= 0:

@@ -4,6 +4,34 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — benchmarks: refuse to run against a STALE dataset; discard the 1.x results (2026-07-14)
+
+A benchmark score means nothing except *relative to the dataset it was measured on*. We were pinned to
+`terminal-bench-core==0.1.1` — the **launch-era 1.x** task set — long after Terminal-Bench had moved to **2.x**,
+which lives in a **different package entirely** (`harbor`, not `terminal-bench`) with its own dataset
+(`terminal-bench/terminal-bench-2-1`: 89 tasks, 16 categories, and markedly harder — 30 hard / 55 medium / 4 easy).
+So we paid for a full 80-task run and produced a number that could not be compared to a single entry on the
+current public leaderboard. Nothing warned us: the pin was valid, the download succeeded, the run passed.
+**A version pin never tells you it has been superseded — you have to go and ask.**
+
+- **New `scripts/kilo-benchmarks/dataset_freshness.py`** — asks, live, before a single model is dispatched.
+  A superseded dataset raises `StaleDatasetError` and the bench **does not run** (exit 2, zero credit spent).
+  Wired into both `microbench_terminal.py` and `microbench_coding.py` as the first thing `main()` does.
+  `--allow-stale` still permits reproducing an old score, but it must be passed **explicitly** — staleness is
+  now always a decision someone made, not a default someone inherited. A registry outage warns and proceeds
+  (fail-soft: a stale dataset is a correctness problem, not a security one — benching must not be hostage to
+  GitHub's uptime).
+- **Datasets brought current**: `harbor` + Terminal-Bench 2.1 installed (cached to `~/.cache/harbor/tasks`,
+  outside the repo). EvalPlus re-verified already-latest — `evalplus` 0.3.1 pins HumanEvalPlus **v0.1.10** (164
+  problems) and MbppPlus **v0.2.0** (378), which is what was on disk.
+- **Discarded our 1.x results**: minimax-m3's `tbench_accuracy` and all 80 `tbench_task_results` rows, plus
+  ~1.5 GB of stale run caches (DB backed up first). The 56 **scraped** public-leaderboard scores are untouched —
+  those are not our measurements.
+
+⚠️ `microbench_terminal.py` now **correctly refuses to run**: it still shells the legacy `tb` CLI, so the guard
+blocks it. Migrating the runner to `harbor run` (new CLI, job/output layout, `task.toml` instead of `task.yaml`,
+different resume semantics) is a real piece of work and is the next step — deliberately not bodged in.
+
 ### Added — Epic tickets get an on-disk store; `03-expand-epic-files-fabrik` twin (2026-07-14)
 
 Our orchestrator (Claude Code — files, Bash, MCP, skills, subagents, workflows) has **no native

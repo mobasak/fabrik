@@ -25,6 +25,16 @@ FIXTURE = Path(__file__).parent / "fixtures" / "tb_output.json"
 
 
 @pytest.fixture(autouse=True)
+def _stub_dataset_freshness(monkeypatch):
+    """Neutralize the stale-dataset guard for the tests BELOW, which exercise cohort /
+    budget / scope logic — not dataset freshness. The guard itself is covered by
+    tests/test_dataset_freshness.py, and main's refusal is covered explicitly by
+    test_main_refuses_a_stale_dataset / test_main_allow_stale_proceeds. Without this stub
+    every main() test would just re-assert 'the dataset is stale' and prove nothing else."""
+    monkeypatch.setattr(mt, "check_dataset_fresh", lambda *a, **k: None)
+
+
+@pytest.fixture(autouse=True)
 def _clear_task_meta_cache():
     """load_task_meta memoizes into a module-global dict. Without this, one test's
     dataset fixture leaks into another that reuses the same dataset string — the suite
@@ -1128,3 +1138,46 @@ def test_parse_is_scoped_to_its_run_id_not_the_newest(tmp_path):
     assert mt.parse_tbench_output(tmp_path, "2020-01-01__00-00-00-000000") == pytest.approx(99.0)
     with pytest.raises(FileNotFoundError):
         mt.parse_tbench_output(tmp_path, "NEVER-RAN")
+
+
+# --- The dataset guard, at the main() boundary (NOT stubbed here) ---------------
+def test_main_refuses_a_stale_dataset_before_spending(monkeypatch, tmp_path):
+    """A stale dataset must be refused BEFORE any model is dispatched — the whole point
+    is that no credit is spent producing a score that compares to nothing."""
+    _seed_main_db(tmp_path, ["vendor/m1"])
+    monkeypatch.setattr(mt, "DB_PATH", tmp_path / "t.db")
+    monkeypatch.setattr(mt.shutil, "which", lambda x: "/usr/bin/tb")
+    monkeypatch.setattr(
+        mt,
+        "check_dataset_fresh",
+        lambda *a, **k: (_ for _ in ()).throw(mt.StaleDatasetError("superseded")),
+    )
+    spent = {"bench": False, "balance": False}
+    monkeypatch.setattr(mt, "bench_model", lambda *a, **k: spent.__setitem__("bench", True))
+    monkeypatch.setattr(
+        mt, "openrouter_balance", lambda: spent.__setitem__("balance", True) or 100.0
+    )
+    rc = mt.main(["--models", "vendor/m1", "--n-tasks", "1"])
+    assert rc == 2
+    assert spent["bench"] is False  # no model dispatched
+    assert spent["balance"] is False  # not even a balance read — we stopped first
+
+
+def test_main_allow_stale_proceeds(monkeypatch, tmp_path):
+    """--allow-stale is threaded through, so an old score CAN be reproduced on purpose."""
+    _seed_main_db(tmp_path, ["vendor/m1"])
+    monkeypatch.setattr(mt, "DB_PATH", tmp_path / "t.db")
+    monkeypatch.setattr(mt.shutil, "which", lambda x: "/usr/bin/tb")
+    monkeypatch.setattr(mt, "openrouter_balance", lambda: 100.0)
+    seen = {}
+    monkeypatch.setattr(
+        mt,
+        "check_dataset_fresh",
+        lambda sys_, ds, **k: seen.update(allow_stale=k.get("allow_stale")),
+    )
+    benched = []
+    monkeypatch.setattr(mt, "bench_model", lambda conn, m, **k: benched.append(m) or 50.0)
+    rc = mt.main(["--models", "vendor/m1", "--n-tasks", "1", "--force", "--allow-stale"])
+    assert rc == 0
+    assert seen["allow_stale"] is True  # the flag reached the guard
+    assert benched == ["vendor/m1"]

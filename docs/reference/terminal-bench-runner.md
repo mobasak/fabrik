@@ -1,10 +1,34 @@
 # Terminal-Bench runner (`microbench_terminal.py`)
 
-**Last Updated:** 2026-07-13
+**Last Updated:** 2026-07-14
 
 Home-run [Terminal-Bench](https://www.tbench.ai/) scores for OpenRouter models — the sysadmin/terminal-agent
 capability signal — instead of only scraping the public leaderboard. Sibling of `microbench_coding.py`.
 Writes the task-resolution pass-rate to `agents.tbench_accuracy`.
+
+## 🛑 BLOCKED: this runner is on the superseded 1.x benchmark
+
+**It refuses to run, by design.** It shells the legacy `tb` CLI against `terminal-bench-core==0.1.1` — the
+*launch-era* task set. Terminal-Bench has since moved to **2.x**, which lives in a **different package**
+(`harbor`, not `terminal-bench`) with its own dataset (`terminal-bench/terminal-bench-2-1`: **89 tasks, 16
+categories**, and harder: 30 hard / 55 medium / 4 easy). A 1.x score cannot be compared to any entry on the
+current public leaderboard — which is exactly what we discovered after paying for a full 80-task run.
+
+`scripts/kilo-benchmarks/dataset_freshness.py` now blocks it (exit 2, before any credit is spent). Every result
+we produced on 1.x has been discarded.
+
+**Always check the dataset is current before benching anything** — a version pin never tells you it has been
+superseded; you have to ask:
+
+```bash
+python scripts/kilo-benchmarks/dataset_freshness.py    # freshness report for all 3 datasets
+```
+
+**Next step — migrate this runner to `harbor run`.** That means: new CLI (`harbor run -d
+terminal-bench/terminal-bench-2-1 -a terminus -m openrouter/<id> -k N -n C -o <jobs-dir>`), a new job/output
+layout to parse, `task.toml` (TOML) instead of `task.yaml` for the category/difficulty metadata, and different
+resume semantics. Everything below this section describes the **legacy 1.x** behaviour and only applies behind
+`--allow-stale` (which exists solely to reproduce an old score on purpose, and says so loudly).
 
 ## What it measures
 

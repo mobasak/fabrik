@@ -49,6 +49,7 @@ import sys
 from datetime import date, datetime
 
 import httpx
+from dataset_freshness import StaleDatasetError, check_dataset_fresh
 from dotenv import load_dotenv
 
 SCRIPT_DIR = pathlib.Path(__file__).parent
@@ -737,6 +738,13 @@ def _build_argparser() -> argparse.ArgumentParser:
     p.add_argument(
         "--dry-run", action="store_true", help="Print the dispatch plan + estimate; call no model."
     )
+    p.add_argument(
+        "--allow-stale",
+        action="store_true",
+        help="Bench even though the dataset has been SUPERSEDED. Only for deliberately "
+        "reproducing an old score — the result will not be comparable to the current "
+        "leaderboard. Without this, a stale dataset is refused before any credit is spent.",
+    )
     return p
 
 
@@ -775,6 +783,21 @@ def report_matrix(conn, model_id: str | None = None) -> None:
 def main(argv: list[str] | None = None) -> int:
     load_dotenv(SCRIPT_DIR.parent.parent / ".env")
     args = _build_argparser().parse_args(argv)
+
+    # ⚠️ ALWAYS check the dataset is the CURRENT one before benching anything.
+    # A score is only meaningful relative to its dataset, so a run against a superseded
+    # one produces a number that looks authoritative and compares to nothing. We shipped
+    # exactly that: pinned to terminal-bench-core==0.1.1 (the launch-era 1.x set) long
+    # after the benchmark moved to 2.x in a different package — and paid for a full
+    # 80-task run whose score matched no leaderboard on earth. A pin never tells you it
+    # has been superseded; you have to ASK, live, every time. This is that ask, and it
+    # runs BEFORE a single model is dispatched (i.e. before any credit is spent).
+    try:
+        check_dataset_fresh("terminal-bench", args.dataset, allow_stale=args.allow_stale)
+    except StaleDatasetError as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 2
+
     if args.cost_cap <= 0:
         print(f"error: --cost-cap must be > 0 (got {args.cost_cap})", file=sys.stderr)
         return 2

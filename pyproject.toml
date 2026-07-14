@@ -12,7 +12,14 @@ authors = [
 dependencies = [
     "click>=8.1.0",
     "evalplus>=0.3.0",
+    # Terminal-Bench 1.x (legacy `tb` CLI). Its newest dataset, terminal-bench-core==0.1.1,
+    # is SUPERSEDED — kept only so an old score can be reproduced with --allow-stale.
     "terminal-bench>=0.2.18",
+    # Terminal-Bench 2.x lives here, NOT in `terminal-bench`: a different package, CLI
+    # (`harbor run`) and dataset (terminal-bench/terminal-bench-2-1 — 89 tasks, 16
+    # categories). This is the CURRENT benchmark; scripts/kilo-benchmarks/dataset_freshness.py
+    # refuses to bench the 1.x set.
+    "harbor>=0.18.0",
     "fastapi>=0.115.0",
     "pyyaml>=6.0",
     "httpx>=0.25.0",
