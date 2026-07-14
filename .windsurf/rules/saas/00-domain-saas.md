@@ -1,18 +1,23 @@
 ---
-activation: glob
-globs: ["**/tenants/**", "**/billing/**", "**/plans/**", "**/subscription*/**", "**/pricing/**"]
-description: SaaS domain — PLANNING layer. The 17 vision-intake dimensions (ICP, pricing axis, GTM, COGS-per-tenant vs the single-VPS ceiling, risk register, dated kill criteria) and the epic-decomposition directives. Consumed by the mega-epic planner; the sibling packs (60/87/88/95) own the code-time discipline.
-trigger: glob
+activation: manual
+description: SaaS domain — PLANNING layer. Vision-intake dimensions (ICP, moat, pricing axis, GTM, COGS-per-tenant vs the single-VPS ceiling, risk register, dated kill criteria) + epic-decomposition directives. Business formation, not code discipline — 60/85/87/88/95 own every code-time fact.
+trigger: manual
 ---
+<!-- ⚠️ NOT glob-activated ON PURPOSE. Its questions ("who is the ICP?", "what is the kill criteria?")
+     belong at VISION INTAKE, not to an agent mid-edit in billing code. Its real consumers load it BY PATH:
+     docs/traycer/mega-epic-breakdown/00-trigger-*.md and 02-epic-decomposition-*.md. A glob on
+     **/billing/** would inject 187 lines of business-formation questions into every coding session that
+     touches a billing file — noise at exactly the wrong moment. Do not re-add one. -->
+
 <!-- CONSUMER: the mega-epic planner (vision intake + epic decomposition), and any agent scoping SaaS work.
-     GOAL: settle the IRREVERSIBLE, business-shaping decisions BEFORE epics exist. This is business formation,
-           not code discipline — 60-saas-ui.md, 87-abuse-detection.md, 88-saas-launch-checklist.md and
-           95-multi-tenant-saas.md own every code-time fact. Cite them; NEVER restate them.
-     PROVENANCE: promoted from docs/traycer/mega-epic-breakdown/domain-modules/saas.md (2026-07-13). That
-           module's Part 2 (per-epic implementation guidance) was ~90% a duplicate of the packs above AND
-           provably unwired — zero `domain-modules` references exist anywhere in epic-to-ticket-workflow/ —
-           so it was dropped, not migrated.
-     ⚠️ The 17 dimensions below have ZERO pack coverage and are the reason this file exists. -->
+     GOAL: settle the IRREVERSIBLE, business-shaping decisions BEFORE epics exist.
+     ⚠️ THE ONE RULE: this file FORCES A DECISION; it NEVER states an implementation. Zero values
+        (thresholds, column names, provider configs, page routes) may be copied in from a pack — a second
+        copy drifts, and that is exactly why docs/traycer/**/domain-modules/ was deleted 2026-07-13.
+        Cite the pack; never restate it. Every line here must be a question no pack answers.
+     OWNERS of the code-time facts: 95-multi-tenant-saas (tenancy/RLS/metering) · 35-security-auth (auth)
+        · 85-payments-billing (providers) · 88-saas-launch-checklist (payment routing, legal pages,
+        launch phases) · 87-abuse-detection (free-tier gating) · 60-saas-ui (UI). -->
 
 # SaaS Domain — Planning Layer (vision intake + epic decomposition)
 
@@ -24,217 +29,164 @@ trigger: glob
 
 ## Completeness Test (apply per dimension)
 
-A dimension belongs at intake **only if** getting it wrong is **irreversible** or **kills the business before build**. Everything else is downstream (`02`/`05`). Resolve each or log as Open Question. **No "TBD" survives confirmation.**
+A dimension belongs at intake **only if** getting it wrong is **irreversible** or **kills the business before build**. Everything else is downstream (`02`/`05`). Resolve each or log as an Open Question. **No "TBD" survives confirmation.**
 
 ---
 
-## Part 1 — Mega-Epic Decomposition Guidance
+## 1A. Vision Intake Dimensions
 
-*Consumed by `02-epic-decomposition-command` (and `00-trigger-workflow-command` Step E4 in EXISTING mode) to drive SaaS-specific epic patterns.*
+*Consumed by `02-epic-decomposition-command` and `00-trigger-workflow-command` Step E4 (EXISTING mode).*
 
-### 1A. Vision Intake Dimensions
+### 1. Market & Positioning
 
-#### 1. Market & Positioning
-
-**Force:** named ICP, the one painful workflow, 3-5 named competitors, positioning statement (`For [ICP] who [pain], X is a [category] that [benefit], unlike [alt]`), one-sentence moat.
-
-**Default:** vertical wedge with unfair depth (D2C beauty intel). Moat = domain depth + proprietary data, never features.
-
+**Force:** named ICP · the one painful workflow · 3–5 named competitors · positioning statement (`For [ICP] who [pain], X is a [category] that [benefit], unlike [alt]`) · one-sentence moat.
+**Default:** vertical wedge with unfair depth. Moat = domain depth + proprietary data, **never features**.
 **Why now:** positioning drives every word of pricing, marketing, onboarding. Wrong here = incoherent everywhere.
 
-#### 2. Geographic Market
+### 2. Geographic Market
 
-**Force:** Turkey-first vs international-first. Sets language, currency, compliance, channel.
-
-**Default:** **build international-grade (en-first), anchor in TR.** Rebul = anchor reference + Teknokent KDV billing; scale ICP/channel target the larger EN market.
-
+**Force:** Turkey-first vs international-first — sets language, currency, compliance, channel.
+**Default:** build **international-grade (en-first), anchor in TR**.
 **Why now:** retrofitting i18n, currency, and EN content onto a TR-only product is a rebuild.
 
-#### 3. B2B Buying Process
+### 3. B2B Buying Process
 
-**Force:** economic buyer vs champion vs end-user; security-review/procurement friction; sales-cycle length.
+**Force:** economic buyer vs champion vs end-user · security-review/procurement friction · sales-cycle length.
+**Default:** target a buyer who is also the user (PLG-compatible). Procurement-heavy ⇒ PLG breaks ⇒ reconsider.
+**Why now:** the buying committee decides whether self-serve works at all — i.e. whether you stay low-maintenance.
 
-**Default:** target a buyer who is also the user (PLG-compatible). If procurement-heavy, PLG breaks, reconsider.
+### 4. Product & Architecture (the irreversibles)
 
-**Why now:** the buying committee decides whether self-serve even works — i.e. whether you stay low-maintenance.
-
-#### 4. Product & Architecture (6 irreversibles)
-
-⚠️ **This dimension forces a DECISION; it never states the implementation.** Each bullet names what intake must settle and **which pack owns the answer**. Do NOT copy values (thresholds, column names, provider configs) out of those packs into here — a second copy drifts, and that is precisely why the old `domain-modules/` was deleted. Read the pack.
+⚠️ **Decisions only.** Each row is a question intake must answer; the pack owns the answer. Do **not** copy values back into this file.
 
 | Force at intake | Default | Pack that OWNS the implementation |
 |---|---|---|
 | **Tenancy** — shared-DB + `tenant_id` + RLS, or DB-per-tenant? | shared `postgres-main` + RLS. DB-per-tenant **only** if contractually required. | `saas/95-multi-tenant-saas.md` |
-| **Identity/org** — auth pattern + org/role/invite model | **Pattern A** (`fabrik-lib/fastapi-user-auth`, app issues its own JWTs); Authelia is back-office only. | `core/35-security-auth.md` |
-| **Billing + gating** — which provider(s), and does a plan→feature gating matrix exist *before* features? | Picked **by target market**. Stripe is unavailable to a Turkey-resident entity — do NOT plan around it. | providers → `core/85-payments-billing.md`; **card routing → `saas/88-saas-launch-checklist.md` § Payment Routing** (⚠️ routing is in **88**, not 85 — 85 has no routing rules) |
-| **Metering** — what is billing-grade truth? | Redis counters **reconciled to Postgres**. Never bill off Redis alone. | `saas/95-multi-tenant-saas.md` |
+| **Identity/org** — auth pattern + org/role/invite model | **Pattern A** (app issues its own JWTs). Authelia is back-office only. | `core/35-security-auth.md` |
+| **Billing + gating** — which provider(s)? does a plan→feature matrix exist *before* features? | Picked **by target market**. Stripe is unavailable to a Turkey-resident entity — do NOT plan around it. | providers → `core/85-payments-billing.md` · **card routing → `saas/88-saas-launch-checklist.md` § Payment Routing** (⚠️ routing is in **88**, not 85) |
+| **Metering** — what counts as billing-grade truth? | Redis counters **reconciled to Postgres**. Never bill off Redis alone. | `saas/95-multi-tenant-saas.md` |
 | **Isolation + audit** — one enforcement point; audit log, soft-delete, per-tenant export | enforced in exactly one place | `saas/95-multi-tenant-saas.md` |
-| **Activation event** — the one action that means "got value" | instrumented from commit #1 | (intake-owned; no pack) |
-| **Abuse prevention** — free tier gating. **LAUNCH-BLOCKING.** | Free tiers get farmed; an ungated one bleeds revenue and API quota. Adopt the pack's Phase-1 layers **in full** — they are non-negotiable at launch. Plus per-tenant (not per-user/IP) API rate limiting to stop noisy-neighbor. | **full spec → `saas/87-abuse-detection.md`**; launch gate → `saas/88-saas-launch-checklist.md` § Abuse Prevention |
+| **Activation event** — the one action that means "got value" | instrumented from commit #1 | *intake-owned; no pack* |
+| **Abuse prevention** — free-tier gating. **LAUNCH-BLOCKING.** | Adopt the pack's Phase-1 layers **in full**; they are non-negotiable at launch. Plus per-tenant (not per-user/IP) API rate limiting. | **`saas/87-abuse-detection.md`** · launch gate → `saas/88` § Abuse Prevention |
 
-**Why now:** each is irreversible at the schema/auth level — retrofit = rewrite. Abuse columns and rate-limit middleware especially: bolting them on post-launch means rewriting registration *and* running a quota-audit migration over real users.
+**Why now:** each is irreversible at the schema/auth level — retrofit = rewrite. Abuse columns and rate-limit middleware especially: bolting them on post-launch means rewriting registration *and* migrating a quota audit over real users.
 
-#### 5. Integrations / Ecosystem
+### 5. Integrations / Ecosystem
 
-**Force:** table-stakes integrations (the tool your data already lives in) vs the one integration that is a *distribution wedge*.
+**Force:** table-stakes integrations (where your data already lives) vs the one integration that is a *distribution wedge*.
+**Default:** ship the wedge integration first — it doubles as a channel (marketplace listing).
+**Why now:** in B2B the data lives elsewhere. No integration = no adoption. Affects scope *and* channel.
 
-**Default:** ship the wedge integration first; it doubles as a channel (marketplace listing).
-
-**Why now:** for B2B the data lives elsewhere — no integration = no adoption. Affects scope + channel.
-
-#### 6. Data Import / Migration
+### 6. Data Import / Migration
 
 **Force:** can a new user bring existing data in on day 1?
-
-**Default:** automated importer for the top source; CSV fallback. Export already covered (GDPR/KVKK).
-
+**Default:** automated importer for the top source; CSV fallback.
 **Why now:** import is the #1 conversion lever and a switching-cost moat. Missing = empty-state churn.
 
-#### 7. Pricing & Packaging
+### 7. Pricing & Packaging
 
-**Force:** pricing axis (seat/usage/flat/hybrid), 2-3 tiers + gating matrix, trial type, **expansion path** (what triggers upgrade), annual discount.
+**Force:** pricing axis (seat/usage/flat/hybrid) · 2–3 tiers + gating matrix · trial type · **expansion path** (what triggers the upgrade) · annual discount.
+**Default:** B2B $50–500/mo band; hard-quota free tier or card-required trial; annual = 2 months free.
+**Why now:** packaging shapes the data model *and* the funnel. You cannot market an undesigned price.
 
-**Default:** B2B $50-500/mo band; hard-quota free tier or card-required trial; annual = 2 months free.
+### 8. Distribution & GTM Motion
 
-**Why now:** packaging shapes the data model *and* the funnel; can't market an undesigned price.
+**Force the motion first:** PLG / sales-led / hybrid. Then force **ONE primary channel**.
+**Default:** **PLG + content/programmatic SEO** — compounding, set-and-forget, leverages AI tooling + domain depth. Outbound/paid = post-PMF only (high manual load or cash burn).
+**Channels to pick from:** marketplaces where the ICP already is (Shopify, Chrome Web Store, Zapier, Slack, AWS, AppExchange) · review/discovery sites (G2, Capterra, Product Hunt) · reseller/white-label (scale-phase only).
+**Affiliate/partner program:** **not a launch channel** — affiliates only promote a funnel that already converts. **But design-for-now, activate-later:** the data model must carry a `referral_source` from day 1; attribution cannot be retrofitted onto signups that already happened. Platform/commission/payout are scale-phase switches.
+**Why now:** "no channel decision" is the #1 SaaS killer.
 
-#### 8. Distribution & GTM Motion
+### 9. Marketing Engine
 
-**Force the motion first:** PLG / sales-led / hybrid. Then force **ONE primary channel.**
+**Force:** content/SEO **+ GEO/AI-answer optimization** (mandatory pairing — never SEO alone) · topic clusters + cadence · video as a repurposing channel · community/owned space · lifecycle email (onboarding/nurture/dunning/win-back/expansion) · social proof · **one** growth loop (invite/content/integration) · launch plan.
+**Default:** lifecycle fully automated.
+**Why now:** a growth loop and a content moat are designed at intake or absent forever.
 
-**Default:** **PLG + content/programmatic SEO** — compounding, set-and-forget, leverages your AI tooling + scraping + domain depth. Outbound/paid social (LinkedIn for B2B) + retargeting = post-PMF only; high manual load or cash burn, deprioritize pre-PMF.
+### 10. Onboarding, Retention & Support
 
-**SaaS marketplaces / directories:** Shopify App Store, Chrome Web Store, Zapier, Slack, AWS Marketplace, AppExchange — pick the one your ICP lives in; built-in buyers with purchase intent. **Review / discovery sites:** G2, Capterra, Product Hunt — credibility + inbound. **Reseller / white-label:** scale-phase only.
-
-**Affiliate / partner program** (recruit partners to sell your SaaS): platform (Rewardful / Tolt / FirstPromoter / PartnerStack), commission model (recurring vs one-time %), cookie window, attribution, payout, program terms, self-referral/fraud guard. **Default:** not a launch channel — affiliates only promote a funnel that already converts. Wire as a scale-phase channel once PMF + paid conversion are proven. **Design-for-now, activate-later:** the data model must allow a `referral_source` from day 1 — attribution can't be retrofitted onto signups that already happened. Everything else (platform, payouts) is a scale-phase switch you flip after conversion is proven.
-
-**Why now:** "no channel decision" is the #1 SaaS killer and your stated weak point.
-
-#### 9. Marketing Engine
-
-**Force:** content/SEO **+ GEO/AI-answer optimization** (mandatory pairing; never SEO alone) topic clusters + cadence (your unfair advantage — AI-assisted, vertical, scraped); video/YouTube as a content channel (repurpose written content, embed on-page); community/owned-space as a channel (Discord, Slack group, or forum — retention + feedback loop); lifecycle email sequences (onboarding/nurture/dunning/win-back/expansion); social proof (Rebul case study, reviews, PH launch); one growth loop (invite/content/integration); launch plan.
-
-**Default:** Ocoron Design System + "Engineer Who Ships" voice (Rebul never co-branded); lifecycle fully automated.
-
-**Why now:** a growth loop and content moat are designed at intake or absent forever.
-
-#### 10. Onboarding, Retention & Support
-
-**Force:** time-to-activation target, fully self-serve onboarding, low-touch support model (docs + in-app + email), churn-prevention triggers, NRR target.
-
+**Force:** time-to-activation target · fully self-serve onboarding · low-touch support model · churn-prevention triggers · NRR target.
 **Default:** automate onboarding end-to-end; human only for high-value accounts; churn-cause logged from commit #1.
+**Why now:** retention kills SaaS faster than slow growth, and support must stay near-zero against your hour budget.
 
-**Why now:** retention kills SaaS faster than slow growth; support must stay near-zero per your hour budget.
+### 11. Full-Funnel Analytics (AARRR)
 
-#### 11. Full-Funnel Analytics (AARRR)
-
-**Force:** instrument Acquisition-source, Activation, Retention-cohorts, Revenue (MRR/churn), Referral, with attribution.
-
+**Force:** instrument Acquisition-source · Activation · Retention-cohorts · Revenue (MRR/churn) · Referral — with attribution.
 **Default:** product + business events to Prometheus/dashboard; UTM/source captured at signup.
+**Why now:** you cannot optimize an untagged channel or fix uncohorted churn.
 
-**Why now:** can't optimize an untagged channel or fix uncohorted churn.
+### 12. Reliability & Status
 
-#### 12. Reliability & Status
+> Intake-owned — **no pack covers this.** `88 § Observability Baseline` is Phase 2 and carries only a synthetic probe + Gatus + alerting: **no SLA, no RPO/RTO, no backup target.**
 
-Reference `.windsurf/rules/saas/88-saas-launch-checklist.md` § Observability Baseline. ⚠️ **There is no `§ Reliability` section in 88** — and Observability Baseline is **Phase 2, not Phase 1**, carrying only a synthetic health probe + Gatus + 3-failure Apprise alerting. **No SLA, no RPO/RTO, no Backrest content exists there** — the items below are intake decisions this pack owns, not launch-checklist mandates. At intake, force:
+**Force:** SLA commitment? · public status page? · incident comms? · **DR target (RPO/RTO)**.
+**Default:** public Gatus status page; `/health` + `/metrics` mandatory; Backrest backups with a **stated** RPO.
+**Why now:** B2B buyers check the status/trust page before paying. An unstated RPO is an unbounded loss.
 
-**Force:** SLA commitment? public status page (Gatus)? incident comms? DR target (RPO/RTO).
+### 13. Legal, Compliance & Trust
 
-**Default:** public Gatus status page; `/health`+`/metrics` mandatory; Backrest backups with stated RPO.
+> The pages themselves — ToS, privacy, KVKK/GDPR, DPA, their routes and required content — are **fully owned by `saas/88-saas-launch-checklist.md` § Legal Pages**. Ship them from there; do not re-derive.
 
-**Why now:** B2B buyers check the trust/status page before paying; observability is pro-grade table-stakes.
-
-#### 13. Legal, Compliance & Trust
-
-Reference `.windsurf/rules/saas/88-saas-launch-checklist.md` § Legal Pages (Payment Processors Check These). At intake, force:
-
-**Force:** ToS, privacy, KVKK/GDPR, DPA + subprocessor list, data residency, security posture. Affiliate-program terms + payout tax handling + self-referral policy (if a program is planned).
-
-**Default:** Paddle handles tax/invoicing; you own data terms; Teknokent KDV 0% on Rebul billing.
-
+**Force (the part 88 does NOT decide):** data residency · subprocessor list · security posture you will publicly claim · affiliate-program terms + payout tax handling + self-referral policy (if a program is planned).
 **Why now:** missing trust artifacts block enterprise deals and create legal exposure.
 
-#### 14. Finance & Unit Economics
+### 14. Finance & Unit Economics
 
-**Force:** CAC target, LTV, payback <12mo, LTV:CAC >=3, **COGS per tenant** (single-VPS cost = margin + capacity ceiling), MRR milestones toward the $30k+/mo goal. Blended CAC including affiliate commissions; recurring-commission drag on LTV.
+**Force:** CAC target · LTV · payback <12mo · LTV:CAC ≥3 · **COGS per tenant** (single-VPS cost = margin **and** capacity ceiling) · MRR milestones. Blended CAC including affiliate commissions; recurring-commission drag on LTV.
+**Default:** price above per-tenant COGS with margin; **know the tenant count at which the VPS saturates**.
+**Why now:** COGS-per-tenant on one box is a hard ceiling. Underprice it and scale = loss.
 
-**Default:** price above per-tenant COGS with margin; know the tenant count where VPS1 saturates.
+### 15. Risk Register
 
-**Why now:** COGS-per-tenant on one box is a hard ceiling; underprice it and scale = loss.
+**Force:** top 5 concentration risks + mitigation — payment provider · shared `postgres-main` · single-VPS · single-channel · key-person.
+**Default:** a named owner-action per risk; revisit at every epic.
+**Why now:** this is where the *build-past-disproof* pattern hides (infra before revenue).
 
-#### 15. Risk Register
+### 16. Ops & Solo-Dev Load
 
-**Force:** top 5 concentration risks + mitigation — Paddle / shared postgres-main / single-VPS / single-channel / key-person.
-
-**Default:** named owner-actions per risk; revisit at each epic.
-
-**Why now:** this is where the Forex pattern hides (infra before revenue, betting past disproof).
-
-#### 16. Ops & Solo-Dev Load
-
-**Force:** what is fully automated (onboarding, billing, dunning, provisioning, alerting) vs needs you; max weekly maintenance hours; incident path.
-
-**Default:** anything recurring-manual gets automated or cut; set-and-forget bias; managed services over self-hosted.
-
+**Force:** what is fully automated (onboarding, billing, dunning, provisioning, alerting) vs what needs *you* · max weekly maintenance hours · incident path.
+**Default:** anything recurring-manual gets automated or cut. Set-and-forget bias; managed over self-hosted.
 **Why now:** your sustainability *is* the product's survival — manual ops scale to burnout, not revenue.
 
-#### 17. Sequencing & Kill Criteria
+### 17. Sequencing & Kill Criteria
 
-**Force:** pre-sell gate (>=5 paying commitments before full build), v1 = one workflow, explicit kill/pivot criteria **with a date**.
-
+**Force:** pre-sell gate (≥5 paying commitments before full build) · v1 = one workflow · explicit kill/pivot criteria **with a date**.
 **Default:** ship the wedge, validate, then expand.
+**Why now:** the only structural defense against building past the point of disproof.
 
-**Why now:** the only structural defense against the Forex pattern — building past the point of disproof.
+### Vision Summary Gate
 
-#### Vision Summary Gate
+Confirm the Vision Summary **only when all 17 are resolved or logged as Open Questions.** Decisions → `Technology Decisions` + `Value Streams`. Unresolved → `Open Questions` (blocks confirmation).
 
-Vision Summary may confirm only when **all 17 are resolved or logged as Open Questions**. Map intake outputs onward:
+---
 
-- Decisions to `Technology Decisions` + `Value Streams` sections.
-- Unresolved to `Open Questions` (block confirmation).
-- Scaffold signal: `saas-skeleton` (portal) + `python-api` (backend) = multi-epic, route to `02-epic-decomposition-command`.
+## 1B. Epic Decomposition Directives
 
-### 1B. Epic Decomposition Directives
-
-When decomposing a SaaS vision into epics, these dimensions shape boundaries:
-
-#### Mandatory Epic Coverage
+### Mandatory Epic Coverage
 
 Every SaaS mega-epic MUST have dedicated coverage for:
 
 | Dimension | Epic boundary rule |
-| --- | --- |
-| §4 Tenancy + Auth + Org model | Foundation epic (Epic 1) — schema, RLS, auth, org/invite. Everything else depends on this. |
-| §4 Billing + Gating | Own epic or explicitly assigned. Plan-to-feature matrix must exist before feature epics start. |
-| §5 Wedge integration | Own epic if complex; otherwise bundled with the core workflow epic. |
-| §6 Data import | Belongs in the epic that owns the data model it imports into. |
-| §9 Marketing engine | Separate epic if content/SEO site involved (docusaurus/static-site scaffold). Otherwise bundled with onboarding epic. |
-| §10 Onboarding | Belongs in the epic that owns signup flow. Never deferred past v1. |
-| §11 Analytics | Instrumentation belongs in each epic's tickets (not a separate epic). AARRR dashboard is its own ticket in the closure epic. |
+|---|---|
+| §4 Tenancy + Auth + Org model | **Foundation epic (Epic 1)** — schema, RLS, auth, org/invite. Everything depends on it. |
+| §4 Billing + Gating | Own epic, or explicitly assigned. The plan→feature matrix must exist **before** feature epics start. |
+| §5 Wedge integration | Own epic if complex; else bundled with the core-workflow epic. |
+| §6 Data import | Belongs to the epic that owns the data model it imports into. |
+| §9 Marketing engine | Separate epic if a content/SEO site is involved (docusaurus/static-site scaffold); else bundled with onboarding. |
+| §10 Onboarding | Belongs to the epic that owns the signup flow. **Never deferred past v1.** |
+| §11 Analytics | Instrumentation rides in each epic's tickets (not a separate epic). The AARRR dashboard is one ticket in the closure epic. |
 
-#### Parallel Lane Opportunities
+### Parallel Lane Opportunities
 
-SaaS projects naturally split into these parallel lanes after the foundation epic:
+After the foundation epic, SaaS splits naturally into: **core workflow** (independent of billing) · **billing + subscription** (independent of core workflow once the schema exists) · **integrations** (independent once API contracts exist) · **marketing site/content** (fully independent — different scaffold) · **admin dashboard** (independent once the tenant model exists).
 
-- **Core workflow** (the painful workflow you're solving) — independent of billing
-- **Billing + subscription** — independent of core workflow after schema exists
-- **Integrations** — independent after API contracts exist
-- **Marketing site / content** — fully independent (different scaffold)
-- **Admin dashboard** — independent after tenant model exists
+### Anti-Patterns
 
-#### Anti-Patterns
+- Do **NOT** create a "frontend epic" and a "backend epic" — split by **domain**, not layer.
+- Do **NOT** defer billing to "later" — the gating matrix shapes the data model.
+- Do **NOT** merge onboarding into a generic "UI epic" — the activation path is its own concern.
+- Do **NOT** skip analytics — "we'll add tracking later" = never.
 
-- Do NOT create a "frontend epic" and "backend epic" — split by domain, not layer.
-- Do NOT defer billing to "later" — gating matrix shapes the data model.
-- Do NOT merge onboarding into a generic "UI epic" — activation path is its own concern.
-- Do NOT skip the analytics dimension — "we'll add tracking later" = never.
+### Phase Mapping
 
-#### Phase Mapping
-
-Reference `.windsurf/rules/saas/88-saas-launch-checklist.md` phases:
-
-- **Phase 1 (blocks go-live):** must be covered by epics before launch.
-- **Phase 2 (first 30 days):** can be a dedicated post-launch epic.
-- **Phase 3 (scale):** deferred epic or out of scope for v1.
-
----
+Map epics onto the launch phases defined in `saas/88-saas-launch-checklist.md` (**88 owns the phase contents**): Phase 1 must be covered by epics **before** launch · Phase 2 may be a dedicated post-launch epic · Phase 3 is deferred or out of scope for v1.

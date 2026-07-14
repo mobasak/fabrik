@@ -1,9 +1,17 @@
 ---
-activation: glob
-globs: ["**/app/**", "**/src/app/**", "**/*.tsx", "**/app.json", "**/app.config.*", "**/eas.json"]
-description: Mobile domain — PLANNING layer. The 17 vision-intake dimensions, the 3 forks (billing/distribution/platform-dependency), the attribution stack, and the epic-decomposition directives. Consumed by the mega-epic planner; the sibling packs (80/81/89) own the code-time discipline.
-trigger: glob
+activation: manual
+description: Mobile domain — PLANNING layer. The 17 vision-intake dimensions, the 3 forks (billing/distribution/platform-dependency), the attribution stack, and the epic-decomposition directives. Business formation, not code discipline — the sibling packs (80/81/89) own every code-time fact.
+trigger: manual
 ---
+<!-- ⚠️ NOT glob-activated ON PURPOSE. It previously globbed `**/*.tsx`, which fires on EVERY React file in
+     the fleet — a saas-skeleton web dev editing a component was getting 264 lines of App Store / IAP / ATT
+     questions injected. Its questions ("who is the ICP?", "what is the kill criteria?") belong at VISION
+     INTAKE, not to an agent mid-edit. Real consumers load it BY PATH: docs/traycer/mega-epic-breakdown/
+     00-trigger-*.md and 02-epic-decomposition-*.md. Do not re-add a glob. -->
+<!-- ⚠️ THE ONE RULE: this file FORCES A DECISION; it NEVER states an implementation. No value (store-fee
+     percentages, SDK names, API config) may be copied in from 80/81/89 — a second copy drifts, and that is
+     exactly why docs/traycer/**/domain-modules/ was deleted 2026-07-13. Cite the pack; never restate it. -->
+
 <!-- CONSUMER: the mega-epic planner (vision intake + epic decomposition) and any agent scoping mobile work.
      GOAL: decide the irreversible, business-shaping things BEFORE epics exist. This pack is deliberately
            NOT code discipline — 80-mobile.md, 81-mobile-billing.md and 89-mobile-launch-checklist.md own that.
@@ -24,7 +32,7 @@ trigger: glob
 
 ## Mobile is not web — the 3 forks (do NOT inherit SaaS defaults here)
 
-1. **Billing is forced IAP** — Apple/Google mandate StoreKit/Play Billing for in-app digital goods (15-30% cut). **Paddle does NOT apply in-app.** Paddle only for physical goods/services consumed *outside* the app.
+1. **Billing is forced IAP** — Apple/Google mandate StoreKit/Play Billing for in-app digital goods, and the store takes a cut off the top. **Paddle does NOT apply in-app** — only to physical goods/services consumed *outside* the app. (Fee percentages, Small Business Program enrolment and the EU rules are owned by **`81-mobile-billing.md` § Store Fee Enrollment** — read them there; they change, and a copy here would rot.)
 2. **The app ships outside Fabrik** — the binary goes through EAS to stores, **not the VPS deploy pipeline**. Only the **backend** (python-api + postgres-main) follows the 4-stage VPS lifecycle. State this explicitly in the Vision Summary.
 3. **Platform dependency is existential** — Apple/Google can reject, delay, or remove you. This is the #1 mobile risk, not a footnote.
 
@@ -82,7 +90,9 @@ Reference `.windsurf/rules/mobile-app/81-mobile-billing.md` for full billing dis
 
 **Force:** IAP product types (consumable / subscription / one-time), tiers, trial, entitlement model.
 
-**Default:** **RevenueCat over StoreKit/Play Billing** — set-and-forget receipts, entitlements, cross-platform. Apple Small Business Program = 15% under $1M. **EU rule:** stay on SBP 15% IAP in the EU. Under the DMA the CTF was sunset (Jan 2026) and replaced by 5% CTC + Store Services + Initial Acquisition Fee — but for an **SBP member under $1M** that totals **15%: exactly equal to standard IAP, not worse** (`81-mobile-billing.md` § Store Fees). So there is **no cost advantage** to EU external link-out at your scale; the complexity is the cost. External web billing only pays off in US/unregulated regions at volume.
+**Default:** **RevenueCat over raw StoreKit/Play Billing** — set-and-forget receipts, entitlements, cross-platform.
+
+**EU external link-out — decide once, at intake: DON'T.** Under the DMA you *may* bill outside the store, but for a Small-Business-Program member below the $1M threshold the alternative terms come out to **the same effective rate as standard IAP — no cost advantage, only added complexity**. External web billing only pays off in unregulated regions at volume. ⚠️ The rates, thresholds and enrolment mechanics are owned by **`81-mobile-billing.md` § Store Fee Enrollment** — go read the numbers there, never from this file.
 
 **Turkey constraint:** Google Play Billing is mandatory for digital goods — Turkey is excluded from UCB and EOP. Paddle/iyzico/Stripe web-steer = instant rejection. See `mobile-app/81-mobile-billing.md`. Ad revenue is taxed separately from subscription revenue under Teknokent — maintain separate ledgers.
 
@@ -155,7 +165,11 @@ Reference `.windsurf/rules/mobile-app/80-mobile.md` § Lists, Styling, Accessibi
 
 **Force:** funnel events, install attribution, crash/ANR reporting.
 
-**Default:** product analytics + **Sentry/Crashlytics** (pro-grade). Attribution stack: **AdAttributionKit (AAK)** replaces SKAdNetwork (aggregate/coarse; Apple Search Ads now flows through AAK). **Android Install Referrer = deterministic; iOS = aggregate-only.** MMP (Tenjin) for paid-UA attribution and deep-link routing only — partner attribution comes from offer codes (§9), not the MMP. Never reference Firebase Dynamic Links (dead Aug 2025).
+**Default:** product analytics + **Sentry/Crashlytics** (pro-grade).
+
+**Attribution stack — the asymmetry is the decision:** **Android Install Referrer is deterministic; iOS is aggregate-only.** Build the model around that gap, not around a specific SDK. On iOS, **SKAdNetwork remains the working default** — Apple has announced **no deprecation timeline**, and AdAttributionKit, though the stated long-term direction, still has negligible adoption as of 2026 ([Kochava, 2026](https://www.kochava.com/blog/your-ios-attribution-strategy-2026-reality-check/); [Adjust](https://www.adjust.com/blog/adattributionkit/)). Adopt AAK when you ship into an EU alternative marketplace, where it is required — otherwise monitor it, don't chase it. The launch-time config is owned by **`89-mobile-launch-checklist.md` § Privacy Compliance**. An MMP (Tenjin) earns its keep only for paid-UA attribution and deep-link routing — **partner** attribution comes from offer codes (§9), never the MMP. Never reference Firebase Dynamic Links (dead Aug 2025).
+
+> ⚠️ Corrected 2026-07-14. This file previously asserted "AdAttributionKit **replaces** SKAdNetwork." That was false — inherited unverified from the retired `domain-modules/mobile-app.md`, and it contradicted `89:200`, which was right all along. Live-verify any store/platform API claim before writing it here; they move, and a synced pack propagates the error to every project.
 
 **Why now:** post-ATT attribution is hard and must be wired before spend; crashes you don't see, you can't fix.
 
@@ -163,7 +177,7 @@ Reference `.windsurf/rules/mobile-app/80-mobile.md` § Lists, Styling, Accessibi
 
 Reference `.windsurf/rules/mobile-app/80-mobile.md` § Compliance (Worldwide). At intake, force:
 
-**Force:** Apple privacy nutrition labels, ATT prompt, Play Data Safety form, **in-app account deletion (Apple-mandated)**, KVKK/GDPR.
+**Force (the intake decision):** what data you collect and what you will publicly claim about it — that choice is irreversible once shipped, and it drives the store forms. The forms and mechanics themselves (privacy nutrition labels, ATT prompt, Play Data Safety, in-app account deletion) are **owned by `89-mobile-launch-checklist.md` § Privacy Compliance + § Account Deletion & Restore** and are **store-blocking** — ship them from there.
 
 **Default:** the FastAPI backend owns data terms + the account-delete flow (hard-deletes rows on `postgres-main` and purges `fabrik-lib/storage` blobs); account-delete built in v1; honest data disclosures.
 
@@ -171,9 +185,9 @@ Reference `.windsurf/rules/mobile-app/80-mobile.md` § Compliance (Worldwide). A
 
 #### 14. Finance & Unit Economics
 
-**Force:** store-cut-adjusted LTV (15-30% off the top), CAC target, payback <12mo, LTV:CAC >=3, backend COGS. **Partner economics:** 15% store + 25% partner commission = approximately 60% gross margin, which then absorbs infra + LLM API costs + Turkey's 7.5% DST. Model before committing to any paid partner channel.
+**Force:** **store-cut-adjusted** LTV (the store takes its cut off the top — model net, never gross) · CAC target · payback <12mo · LTV:CAC ≥3 · backend COGS. **Partner economics:** store cut **+** partner commission compound, and what survives must still absorb infra, LLM API costs and Turkey's DST — model the stacked take-rate *before* committing to any paid partner channel, because a channel that looks profitable on gross revenue can be loss-making on net. Current rates: **`81-mobile-billing.md` § Store Fee Enrollment**.
 
-**Default:** price assuming 30% cut (15% if SBP-eligible); know the paid-UA payback before spending.
+**Default:** price against the **worst-case** store cut (assume you are not SBP-eligible until you have enrolled and confirmed it), and know the paid-UA payback before you spend a lira.
 
 **Why now:** the store cut materially changes the LTV math vs your SaaS/Paddle defaults.
 
