@@ -274,6 +274,48 @@ def test_escape_hatch_works_on_a_multiline_import(repo: Path, outside: Path, mon
     assert rc == 0, f"the marker anywhere in the import's span must exempt it:\n{out}"
 
 
+def test_self_editable_install_is_not_a_phantom(repo: Path) -> None:
+    """`pip install -e .` puts the project's OWN source on sys.path via a .pth. Reproducible in CI, and
+    the code is in the repo anyway — never a phantom."""
+    site = repo / ".venv" / "lib" / "python3.12" / "site-packages"
+    site.mkdir(parents=True)
+    (site / "__editable__.myproj.pth").write_text(f"{repo / 'src'}\n")
+
+    (repo / "src" / "pkg" / "lib.py").write_text("def go(): ...\n")
+    (repo / "src" / "pkg" / "app.py").write_text("from pkg.lib import go\n")
+    _commit(repo, "src/pkg/lib.py", "src/pkg/app.py", "src/pkg/__init__.py")
+
+    rc, out = _run_check(repo, extra_syspath=[str(repo / "src"), str(site)])
+    assert rc == 0, f"a self-editable install is not a phantom:\n{out}"
+
+
+def test_editable_install_of_an_OUTSIDE_tree_is_still_a_phantom(
+    repo: Path, outside: Path, monkeypatch
+) -> None:
+    """REGRESSION — the fix for the editable false-positive must NOT swallow the real bug.
+
+    `pip install -e /opt/fabrik` puts SOMEONE ELSE'S source tree on sys.path. That path does not exist in
+    CI or the container, and it is only reproducible if the distribution is DECLARED in requirements —
+    which this check deliberately does not verify. Blessing every editable root wholesale re-opened the
+    exact hole the gate exists to close: it is precisely how `wpf`'s test imports `fabrik` (absent from
+    its requirements) while its CI fails to collect the suite. Verified live: blessing them dropped wpf's
+    true positive to zero.
+    """
+    src = outside / "other_tree"
+    (src / "otherlib").mkdir(parents=True)
+    (src / "otherlib" / "__init__.py").write_text("def go(): ...\n")
+
+    site = outside / "venv" / "lib" / "python3.12" / "site-packages"
+    site.mkdir(parents=True)
+    (site / "__editable__.otherlib.pth").write_text(f"{src}\n")
+
+    (repo / "src" / "pkg" / "app.py").write_text("from otherlib import go\n")
+    _commit(repo, "src/pkg/app.py", "src/pkg/__init__.py")
+
+    rc, out = _run_check(repo, extra_syspath=[str(src), str(site)])
+    assert rc == 1, f"an editable install of an OUTSIDE tree is not reproducible in CI:\n{out}"
+
+
 def test_phantom_in_scripts_is_warn_not_error(repo: Path) -> None:
     """scripts/ is dev tooling, never deployed — a papercut, not an outage. It must not block the gate."""
     (repo / ".gitignore").write_text("libs/subagents/\n")

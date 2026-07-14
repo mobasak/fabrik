@@ -161,6 +161,41 @@ def _is_within(path: Path, root: Path) -> bool:
     return True
 
 
+@functools.lru_cache(maxsize=1)
+def _editable_roots() -> tuple[Path, ...]:
+    """Source directories that PIP put on `sys.path` via an EDITABLE install (`.pth` / `.egg-link`).
+
+    ⚠️ FALSE-POSITIVE GUARD, and the distinction is subtle. A traditional `pip install -e ../shared-lib`
+    (or `setup.py develop`) writes the SOURCE dir into a `.pth`/`.egg-link` under site-packages. The
+    module then resolves OUTSIDE the repo and OUTSIDE site-packages — so the outside-the-repo rule would
+    hard-ERROR a dependency that CI installs perfectly well from PyPI. Working on a library and its
+    consumer side by side is a normal workflow, and a gate that breaks it gets switched off.
+
+    The line to draw: a path PIP placed there is INSTALLED (CI reproduces it from requirements); a path
+    PYTHONPATH placed there is NOT (CI never sets it). That is precisely why we read the `.pth` files
+    rather than trusting `sys.path` wholesale — blessing all of `sys.path` would re-open the very
+    PYTHONPATH phantom this check exists to catch.
+    """
+    roots: list[Path] = []
+    for entry in sys.path:
+        sp = Path(entry)
+        if sp.name not in {"site-packages", "dist-packages"} or not sp.is_dir():
+            continue
+        for f in (*sp.glob("*.pth"), *sp.glob("*.egg-link")):
+            try:
+                for raw in f.read_text(errors="replace").splitlines():
+                    line = raw.strip()
+                    # `.pth` files may carry executable lines (`import ...`) — those add nothing here.
+                    if not line or line.startswith(("#", "import ", "import\t")):
+                        continue
+                    cand = Path(line) if Path(line).is_absolute() else (sp / line)
+                    if cand.is_dir():
+                        roots.append(cand.resolve())
+            except OSError:
+                continue
+    return tuple(roots)
+
+
 # ESCAPE HATCH. Without one, a legitimately-generated module — protobuf/gRPC `*_pb2.py`, an OpenAPI
 # client, anything gitignored by design and regenerated in the Dockerfile — is an UNFIXABLE hard ERROR.
 # That is precisely how a gate gets `# noqa`'d into uselessness fleet-wide. Mark the import line:
@@ -240,8 +275,28 @@ def _is_phantom(path: Path) -> bool:
         #
         # What CI actually receives is: the repo, plus pip-installed packages, plus the interpreter.
         # So a path outside ALL THREE is on this developer's machine and nowhere else — a phantom.
-        # stdlib / the venv itself → present in CI. Anything else out here is machine-local.
-        return not any(_is_within(resolved, root) for root in _INTERPRETER_ROOTS if root)
+        # stdlib / the venv itself → present in CI.
+        if any(_is_within(resolved, root) for root in _INTERPRETER_ROOTS if root):
+            return False
+
+        # ⚠️ EDITABLE INSTALLS — and the discriminator here is the whole point.
+        #
+        # `pip install -e .` (self-install) puts the project's OWN source on sys.path. Reproducible in
+        # CI, and the code is in the repo anyway → not a phantom.
+        #
+        # `pip install -e /opt/fabrik` puts SOMEONE ELSE'S source tree on sys.path. That path does not
+        # exist in CI or in the container, and it is only reproducible if the distribution is DECLARED in
+        # requirements — which this check deliberately does not verify (see SCOPE). Blessing it wholesale
+        # re-opens the exact hole this gate exists to close: it is precisely how `wpf`'s test imports
+        # `fabrik` (absent from its requirements) while its CI fails to collect the suite.
+        #
+        # So: an editable root INSIDE the repo is installed; one OUTSIDE it is a machine-local path.
+        # The residual false-positive — editable-installing a package that CI legitimately gets from
+        # PyPI — is real but rare, and has the `# phantom-ok` escape hatch. Erring toward reporting a
+        # deploy-breaker beats erring toward silence.
+        return not any(
+            _is_within(resolved, root) for root in _editable_roots() if _is_within(root, ROOT)
+        )
     return not _is_tracked(rel)
 
 
@@ -434,7 +489,9 @@ def _origin_of(mod: str) -> Path | None:
         # suffix probe almost never fired in the field, so the build-artifact exemption barely worked.
         if cand.parent.is_dir():
             for f in cand.parent.glob(cand.name + ".*"):
-                if f.suffix in {".so", ".pyd", ".dylib"} or f.name.endswith((".so", ".pyd", ".dylib")):
+                if f.suffix in {".so", ".pyd", ".dylib"} or f.name.endswith(
+                    (".so", ".pyd", ".dylib")
+                ):
                     return f
 
         if cand.with_suffix(".py").is_file():
