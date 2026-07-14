@@ -10,6 +10,11 @@
 
 # Project Intake (Entrypoint — Vision for NEW, Continuation for EXISTING)
 
+## Role
+
+You are a **project intake architect**. You take the owner's research (or an interview) and turn it into a Vision Summary that `02-epic-decomposition-command` can split into epics — grounding every feature, constraint and technology choice against what Fabrik actually is, and surfacing what the research MISSED rather than politely accepting it.
+
+
 This command is the **single entry point** for the `mega-epic-breakdown` workflow. It serves two modes — both produce a Vision Summary in the same shape so `02-epic-decomposition-command` consumes them identically.
 
 - **NEW mode** — green-field project, no code, just an idea or research. Produces a fresh Vision Summary.
@@ -71,7 +76,7 @@ These are **vision-level architectural commitments**. Every epic dispatched from
 | XII | Admin processes | One-off tasks run **against the same release + config**; admin code **ships with the app**. | Alembic migrations live in the repo and run against the **deployed release/env** — never from a laptop against prod. |
 
 - **Concurrency** — every service handles multiple simultaneous requests. Never single-threaded blocking.
-- **i18n** — every scaffold with a user/admin GUI surface (per the Rule-area applicability matrix at Step E3.B — **feature-trigger, NOT scaffold-type-gated**; includes python-api/node-api/file-api with `shape.is_admin_dashboard: true` OR `shape.is_public: true` + HTML output) supports multi-language from day one (en + tr minimum). Translation validated via `scripts/validate_i18n.py` (3-level: structural, back-translation, native-speaker critique). Adding a language = adding a locale file, zero code changes. ⚠️ **The scaffolder only ships `scripts/validate_i18n.py` to `saas-skeleton`, `static-site`, `desktop-app`, `mobile-app`, `docusaurus`** (`I18N_ENABLED_TYPES`, `scaffold.py:186`). A **`python-api` / `python-api-gpu` / `node-api` / `file-api` / `file-worker` / `chrome-extension`** epic that trips the i18n feature-trigger must therefore carry an explicit step to **vendor the kit** (`templates/i18n-kit/` → `scripts/`), or its Done-When cites a script the project will never have.
+- **i18n** — every scaffold with a user/admin GUI surface (per the **Rule-area applicability matrix** — mode-agnostic; sited under Step E3 but binding in BOTH modes — **feature-trigger, NOT scaffold-type-gated**; includes python-api/node-api/file-api with `shape.is_admin_dashboard: true` OR `shape.is_public: true` + HTML output) supports multi-language from day one (en + tr minimum). Translation validated via `scripts/validate_i18n.py` (3-level: structural, back-translation, native-speaker critique). Adding a language = adding a locale file, zero code changes. ⚠️ **The scaffolder only ships `scripts/validate_i18n.py` to `saas-skeleton`, `static-site`, `desktop-app`, `mobile-app`, `docusaurus`** (`I18N_ENABLED_TYPES`, `scaffold.py:186`). A **`python-api` / `python-api-gpu` / `node-api` / `file-api` / `file-worker` / `chrome-extension`** epic that trips the i18n feature-trigger must therefore carry an explicit step to **vendor the kit** (`templates/i18n-kit/` → `scripts/`), or its Done-When cites a script the project will never have.
 - **Responsive** — every scaffold with a web GUI surface (same feature-trigger as i18n) responsive from 375px to 2560px (RWD1–RWD10). No desktop-only layouts. See `docs/reference/mobile-responsive-testing-guide.md`. Carve-outs: chrome-extension (400px fixed popup/sidepanel), mobile-app (native UI, not web breakpoints), desktop-app (electron window sizing).
 - **Dark + light mode** — both mandatory for every scaffold with a GUI surface (same feature-trigger as i18n). OS preference detected, manual toggle, preference persists.
 - **Resilience** — every external call has timeout + retry with backoff + circuit-breaker + graceful fallback. `/health` tests ALL real deps. Rule pack: `.windsurf/rules/core/58-resilience.md`. Each project gets `docs/RESILIENCE.md` template at scaffold time — filled when external deps are added.
@@ -512,7 +517,7 @@ For each rule pack applicable to this scaffold type (per `AGENTS.md` § Project 
 - **Scaffold has NO domain pack** (python-api, **python-api-gpu**, node-api, file-api, file-worker, static-site, docusaurus) → build the table directly from the Rule Pack Index, scoped to the scaffold's Default Packs in `AGENTS.md` § Project Type → Default Packs. Use the applicability matrix below to decide which rows survive.
 - **WordPress projects are out of scope here** — delegate to `/opt/wpf`; do NOT build a Compliance table for WordPress sites under this workflow.
 
-**Rule-area applicability matrix** (use to scope rows in/out of the Compliance table for a given scaffold):
+**Rule-area applicability matrix** — ⚠️ **MODE-AGNOSTIC. This table is the single authority for which rule areas apply to which scaffold, in BOTH modes.** It is physically sited here because EXISTING mode uses it to scope rows in/out of the Compliance table — but it is **equally binding in NEW mode**, where `02-epic-decomposition-command`, `03-expand-epic-files-command` and `04-cross-epic-validation-command` all cite it by name to decide whether the GUI mandates (i18n / Responsive / Dark+Light) fire for a given epic. **A NEW-mode run never executes Step E3 — read this table anyway.** Getting it wrong is the `c2ef2ee` feature-vs-scaffold defect class (checklist anti-pattern 97), which has already been hit in 00, 03, 04 and ettw/05: the trigger is the **GUI SURFACE**, never the scaffold type.
 
 | Rule area | Applies to (kind) |
 | --- | --- |
