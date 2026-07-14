@@ -21,16 +21,34 @@ gmailaccountcreator · image-broker · image-generation · iterative_image_edito
 marketing-argumant-generator · proxy · Reference_Creator · rnfinal · supplement-tracker-advisor ·
 trade-intelligence · ugc · web-scraper · wpf`
 
-### 🟥 NEEDS YOUR RULING (do not act until answered)
+### ✅ OPERATOR RULINGS (2026-07-14)
 
-| Repo | Declared | What it ACTUALLY is (verified) | Question |
-|---|---|---|---|
-| **8 scaffold-only repos**: `ComplianceOps`, `exam-coach`, `marketing-argumant-generator`, `Reference_Creator` (410 LOC each) · `gmailaccountcreator`, `image-generation`, `supplement-tracker-advisor`, `ugc` (432 LOC each) | `python-api` | **Zero product code.** The identical LOC fingerprint (410/432) IS the untouched scaffold boilerplate. README is literally "`<name> project`". No commits in 3 weeks. | **Delete, or keep dormant?** Speccing + deploying them is meaningless. |
-| **meb** | `mobile-app` ❌ | **A Python Anki-deck generator** — a personal local tool for kids (Turkish README: *"Kişisel araç… Anki deste hattı (CSV → ses/görsel)"*). Entry `build.py`/`card_text.py`. **No compose, no Dockerfile.** 4,459 LOC. Also holds the fleet's only **3 phantom imports** and 280 modified files. | Type is **wrong**. Is this a local tool (never deployed) or a real service? |
-| **tojlo-mail** | `saas` ❌ (not a valid type) | **A multi-service monorepo** — `web` + `worker` + `ai-document-service` + `image-proxy` + `apps/`, Next.js. 35,459 LOC. **No Outlook/Office manifest exists anywhere in it** — it is *not* an Outlook extension. | Is it `saas-skeleton`? Or a multi-service monorepo needing **several** specs (one per service)? |
-| **obsidian-agents** | `desktop-app` | An **Obsidian plugin** (`manifest.json` + `package.json`), 2,819 LOC. Not Docker-deployable. | Confirm it's out of scope for Docker deployment? |
-| **rn-kit-sandbox** | *(none)* | **React Native / Expo**, 13,354 LOC, no README. | A sandbox/experiment, or a real project needing a type? |
-| **rnfinal** | `mobile-app` | React Native / Expo, 6,686 LOC. | Mobile apps ship via **EAS build**, not Docker — confirm no hub spec is wanted? |
+| Repo | Ruling | Action |
+|---|---|---|
+| **meb** | **Will become a mobile app WITH a backend.** APK first, Play Store later. So the declared `mobile-app` type is right *aspirationally* — but today the repo holds a **Python Anki-deck generator** (4,459 LOC, `build.py`/`card_text.py`, no Docker). | Keep `mobile-app`. Needs a **backend** service added (which *will* need a Dockerfile+compose+hub spec). **Fix the 3 phantom imports regardless** — they break it today. Its agent owns this (280 modified files in flight). |
+| **tojlo-mail** | **VERIFIED: not an Outlook add-in.** No `manifest.xml` exists anywhere (that is how Office add-ins declare themselves). It is a **Next.js SaaS web app that integrates Outlook via API** (`apps/web/utils/outlook`, `app/api/outlook/watch/*` — OAuth + mail-watch routes), forked from an AI email-assistant. **It DOES have a backend**: Next.js API routes + `apps/worker` + `db/` + `docker/` + `ai-document-service` + 2 image-proxy services. | `type: saas` ❌ → **`saas-skeleton`**. It already has a hub spec + compose → deploys as one stack. No extra specs needed. |
+| **obsidian-agents** · **rn-kit-sandbox** · **rnfinal** | **OUT OF SCOPE — sandboxes/experiments.** | No hub spec, no Docker work, no deployment. Excluded from all future audits. |
+| **8 empty scaffolds** | **Will be scaffolded properly.** Operator is being asked one-by-one what each should be. | See "Scaffold queue" below. |
+
+### 📋 Scaffold queue — 8 empty repos (zero product code; 410/432-LOC boilerplate fingerprint, untouched 3 weeks)
+
+**All 8 adjudicated by the operator (2026-07-14).** Every one currently declares `python-api` — 4 are wrong and
+need a **re-scaffold under the correct type**.
+
+| Repo | Declared | ✅ RULED type | Action | Done |
+|---|---|---|---|---|
+| `ComplianceOps` | `python-api` | **`saas-skeleton`** | **Re-scaffold** (type change). "Async compliance platform for HealthTech startups" — customer-facing, UI + auth. | ☐ |
+| `exam-coach` | `python-api` | **`saas-skeleton`** | **Re-scaffold** (type change). Will *also* become a mobile app later — **SaaS first**. | ☐ |
+| `gmailaccountcreator` | `python-api` | **`file-worker`** | **Re-scaffold** (type change). Background automation worker, no HTTP surface. | ☐ |
+| `supplement-tracker-advisor` | `python-api` | **`mobile-app`** | **Re-scaffold** (type change). Phone app. | ☐ |
+| `marketing-argumant-generator` | `python-api` | **`python-api`** ✓ | Type already correct — just needs building out. | ☐ |
+| `Reference_Creator` | `python-api` | **`python-api`** ✓ | Type already correct — just needs building out. Complements `fabrik-citation-verifier`. | ☐ |
+| `ugc` | `python-api` | **🗑️ DELETE** | Duplicate of `web-scraper` (which has real code). Kill the repo. | ☐ |
+| `image-generation` | `python-api` | **⏸️ LEAVE AS-IS** | Duplicate — operator will **merge it into `iterative_image_editor`** himself. Hub takes no action. | ☐ |
+
+⚠️ **Re-scaffolding is destructive + cross-repo** (`rm` the dir, then `fabrik scaffold --type <t> --github-create`).
+These repos have git history + GitHub remotes, but contain **zero product code** — only scaffold boilerplate — so
+nothing of value is lost. **Requires explicit operator go-ahead per repo before execution.**
 
 ### ✅ Type verified correct (python-api / FastAPI services, real code)
 
