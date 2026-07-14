@@ -28,7 +28,6 @@ def test_legacy_terminal_bench_core_pin_is_refused():
         df.check_dataset_fresh("terminal-bench", "terminal-bench-core==0.1.1")
     msg = str(e.value)
     assert "harbor" in msg  # tells you WHERE the benchmark actually lives now
-    assert "terminal-bench-2-1" in msg  # ...and WHAT to bench instead
 
 
 @pytest.mark.parametrize("pin", ["terminal-bench-core==0.1.0", "terminal-bench-core==head"])
@@ -39,9 +38,51 @@ def test_every_legacy_core_pin_is_refused(pin):
         df.check_dataset_fresh("terminal-bench", pin)
 
 
-def test_current_harbor_dataset_passes():
-    """The TB 2.1 pin is current — it must NOT be refused, or the guard blocks all work."""
-    df.check_dataset_fresh("terminal-bench", "terminal-bench/terminal-bench-2-1")
+def test_superseded_generation_is_refused(monkeypatch):
+    """The guard must catch the NEXT bump, not just the 1.x->2.x one it was born from.
+    It didn't: it green-lit terminal-bench-2-1 while terminal-bench-3 already existed —
+    reproducing, one generation later, the exact silent staleness it exists to prevent."""
+    monkeypatch.setattr(df, "latest_terminal_bench_dataset", lambda: "terminal-bench-3")
+    with pytest.raises(df.StaleDatasetError) as e:
+        df.check_dataset_fresh("terminal-bench", "terminal-bench/terminal-bench-2-1")
+    assert "terminal-bench-3" in str(e.value)  # names what to bench instead
+
+
+def test_current_generation_passes(monkeypatch):
+    """The newest generation must NOT be refused, or the guard blocks all work."""
+    monkeypatch.setattr(df, "latest_terminal_bench_dataset", lambda: "terminal-bench-3")
+    df.check_dataset_fresh("terminal-bench", "terminal-bench/terminal-bench-3")
+
+
+@pytest.mark.parametrize(
+    "name,expected",
+    [
+        ("terminal-bench-3", (3,)),
+        ("terminal-bench-2-1", (2, 1)),
+        ("terminal-bench", ()),
+        ("terminal-bench-core", None),
+        ("something-else", None),
+    ],
+)
+def test_generation_parsing(name, expected):
+    assert df._parse_generation(name) == expected
+
+
+def test_generation_ordering_is_numeric_not_lexicographic():
+    """'terminal-bench-10' must beat 'terminal-bench-9' — a string compare would invert it."""
+    assert df._parse_generation("terminal-bench-10") > df._parse_generation("terminal-bench-9")
+    assert df._parse_generation("terminal-bench-3") > df._parse_generation("terminal-bench-2-1")
+
+
+def test_evalplus_pypi_outage_is_unverified_not_current(monkeypatch, capsys):
+    """latest_pypi returning None (PyPI down) used to fall through the guard and print
+    'dataset pin is current ✓' — reporting a check it never performed. False confidence is
+    worse than no check, because nobody re-checks a green tick."""
+    monkeypatch.setattr(df, "latest_pypi", lambda pkg: None)
+    df.check_dataset_fresh("evalplus")  # must not raise...
+    err = capsys.readouterr().err
+    assert "UNVERIFIED" in err  # ...and must NOT claim it is current
+    assert "is current" not in err
 
 
 def test_allow_stale_is_an_explicit_escape_hatch(capsys):

@@ -9,6 +9,7 @@ The shapes here are copied from REAL records fetched from the live HF dataset on
 from __future__ import annotations
 
 import json
+import pathlib
 import sqlite3
 import sys
 from pathlib import Path
@@ -220,3 +221,119 @@ def test_load_task_meta_reads_toml_not_yaml(tmp_path):
         "category": "system-administration",
         "difficulty": "hard",
     }
+
+
+# --- REVIEW FIXES: a WRONG mapping is worse than no mapping --------------------
+def test_tail_match_refuses_to_guess_across_vendors():
+    """The tail after the last '/' DROPS the vendor — the identifying part. In our real
+    815-row catalog the tail 'v2' matches ideogram/kling/pika/recraft — four unrelated
+    models. Picking one would attribute another vendor's scores to the candidate being
+    hired. Ambiguous => None."""
+    catalog = ["ideogram/v2", "kling/v2", "pika/v2", "recraft/v2"]
+    assert st.map_model_id("someone/v2", catalog) is None
+    assert st.map_model_id("v2", catalog) is None
+    # same for one model hosted by several providers
+    llama = ["cerebras/llama-3.3-70b", "together/llama-3.3-70b"]
+    assert st.map_model_id("llama-3.3-70b", llama) is None
+
+
+def test_whole_id_match_beats_the_ambiguous_tail():
+    """A vendor-qualified raw string must match on the WHOLE id, so it is never dragged
+    into the ambiguous tail path."""
+    catalog = ["ideogram/v2", "kling/v2"]
+    assert st.map_model_id("kling/v2", catalog) == "kling/v2"
+    assert st.map_model_id("Kling/V2", catalog) == "kling/v2"  # punctuation/case drift
+
+
+def test_aliases_of_one_model_collapse_to_a_canonical_id():
+    """anthropic/claude-opus-4.7, claude-opus-4-7 and stealth/claude-opus-4.7 are the SAME
+    model. They were persisting under DIFFERENT model_id values, so GROUP BY model_id
+    under-counted it. All must resolve to the canonical vendor-prefixed id."""
+    catalog = ["anthropic/claude-opus-4.7", "claude-opus-4-7", "stealth/claude-opus-4.7"]
+    for raw in ("claude-opus-4-7", "claude-opus-4.7", "anthropic/claude-opus-4-7"):
+        assert st.map_model_id(raw, catalog) == "anthropic/claude-opus-4.7"
+
+
+def test_mapping_is_deterministic_regardless_of_catalog_order():
+    """`SELECT id FROM agents` has no ORDER BY, so an unsorted scan let SQLite's row order
+    decide the winner — the same input could map differently after a VACUUM."""
+    cat = ["anthropic/claude-opus-4.7", "claude-opus-4-7", "stealth/claude-opus-4.7"]
+    assert st.map_model_id("claude-opus-4-7", cat) == st.map_model_id(
+        "claude-opus-4-7", list(reversed(cat))
+    )
+
+
+# --- REVIEW FIX: two datasets must never pool into one number ------------------
+def test_trials_from_different_datasets_are_not_pooled(tmp_path):
+    """The real #1 leaderboard entry (NexAU-AHE__gpt-5.5) has 440 trials from
+    'terminal-bench' and 5 from 'terminal-bench-2'. Keying on task_id alone pooled them
+    into ONE pass_rate that mixed two task sets, then labelled it with whichever dataset
+    the first trial happened to have. One row per (task, dataset)."""
+    sub = tmp_path / "submissions" / "terminal-bench" / "2.0" / "A__M"
+    (sub / "job").mkdir(parents=True)
+    (sub / "metadata.yaml").write_text('agent_display_name: "A"\nmodels:\n  - model_name: "v/m"\n')
+    for i, (src, reward) in enumerate(
+        [("terminal-bench", 1.0), ("terminal-bench", 1.0), ("terminal-bench-2", 0.0)]
+    ):
+        d = sub / "job" / f"t__{i}"
+        d.mkdir()
+        (d / "result.json").write_text(
+            json.dumps(
+                {
+                    "task_name": "terminal-bench/t",
+                    "source": src,
+                    "verifier_result": {"rewards": {"reward": reward}},
+                }
+            )
+        )
+    rows = sorted(st.collect(tmp_path, {}), key=lambda r: r["dataset"])
+    assert len(rows) == 2  # NOT one merged row
+    assert rows[0]["dataset"] == "terminal-bench" and rows[0]["pass_rate"] == 1.0
+    assert rows[1]["dataset"] == "terminal-bench-2" and rows[1]["pass_rate"] == 0.0
+
+
+# --- REVIEW FIX: an unmeasured trial is not a failed one -----------------------
+@pytest.mark.parametrize(
+    "vr",
+    [
+        None,
+        {},
+        {"rewards": None},
+        {"rewards": {}},
+        {"rewards": {"reward": None}},
+        {"rewards": {"reward": "1.0"}},
+    ],
+)
+def test_any_unusable_reward_is_errored_not_failed(vr):
+    """`verifier_result: null` is the shape we grounded, but ANY missing/unusable reward
+    means the same thing: we learned nothing. Scoring those 0 deflates every model that hit
+    flaky infra — the exact bug this module claims to guard against."""
+    t = st.parse_trial({"task_name": "terminal-bench/x", "verifier_result": vr})
+    assert t["errored"] is True, f"{vr!r} must be errored (unknown), not a hard fail"
+
+
+def test_partial_credit_is_not_a_pass():
+    t = st.parse_trial(
+        {"task_name": "terminal-bench/x", "verifier_result": {"rewards": {"reward": 0.5}}}
+    )
+    assert t["passed"] is False and t["errored"] is False  # measured, but not a pass
+
+
+# --- REVIEW FIX: an interrupted clone must not be served as complete -----------
+def test_incomplete_clone_is_discarded_not_reused(tmp_path, monkeypatch):
+    """A run killed mid-`sparse-checkout` leaves a valid .git beside a HALF-materialized
+    tree. Reusing it would scrape a PARTIAL leaderboard and persist it as the whole thing —
+    and `main` only errors on ZERO rows, so it would pass silently."""
+    dest = tmp_path / "clone"
+    (dest / ".git").mkdir(parents=True)  # looks like a clone, but has NO completion marker
+    calls = []
+
+    def fake_git(argv, **k):
+        calls.append(argv[1])
+        if argv[1] == "clone":
+            pathlib.Path(argv[-1]).mkdir(parents=True, exist_ok=True)  # real git creates it
+
+    monkeypatch.setattr(st.subprocess, "run", fake_git)
+    st.fetch_submissions(dest=dest, git_url="https://example.invalid/x")
+    assert "clone" in calls  # re-fetched rather than trusted
+    assert (dest / ".fabrik-complete").exists()  # and marked complete only at the end

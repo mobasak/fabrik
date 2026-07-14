@@ -4,6 +4,41 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — review of the leaderboard scraper: six ways to a silently wrong number (2026-07-14)
+
+`/fabrik-review` (pool breadth + native Opus) on `scrape_tbench_task_results.py` +
+`dataset_freshness.py`. This code produces the numbers a model-selection decision is made on, so a
+plausible-but-wrong number is worse than a crash. Six confirmed defects, all of that class:
+
+- **`map_model_id` could attribute one vendor's scores to another.** It matched on the tail after the last
+  `/` — discarding the **vendor**, the identifying part. In our own 815-row catalog the tail `v2` matches
+  `ideogram/v2`, `kling/v2`, `pika/v2` **and** `recraft/v2` (four unrelated models); `llama3370b` matches four
+  providers. It now matches on the whole id first, and a tail match is taken **only** when it resolves to a
+  single vendor — otherwise it returns None rather than guess.
+- **The same model fragmented across several `model_id`s** (`anthropic/claude-opus-4.7` *and*
+  `claude-opus-4-7` were both persisted), so any `GROUP BY model_id` under-counted it. Aliases now collapse to
+  a canonical id. And `SELECT id FROM agents` has no `ORDER BY`, so the winner depended on SQLite's row order —
+  the catalog is now sorted, making the mapping deterministic.
+- **Trials from two different datasets pooled into one pass-rate.** The real #1 entry
+  (`NexAU-AHE__gpt-5.5`) has 440 trials from `terminal-bench` and 5 from `terminal-bench-2`; they were merged
+  and labelled with whichever dataset the *first* trial happened to have. Rows are now keyed on
+  **(task, dataset)** — which is what the table's PK was always for.
+- **A malformed `verifier_result` was scored as a hard FAIL.** Only `null` counted as errored; `{}` or
+  `rewards: null` were counted 0 — deflating any model that hit flaky infra, the exact bug the module claims
+  to guard against. Any unusable reward is now *unmeasured*, not *failed*.
+- **An interrupted clone was reused as if complete** — and since `main` only errors on *zero* rows, a partial
+  leaderboard would be persisted as the whole thing. A completion marker is now written last, and an unmarked
+  clone is discarded.
+- **The freshness guard was blind to the next bump.** It only knew the 1.x→2.x move it was born from, so it
+  green-lit `terminal-bench-2-1` while **`terminal-bench-3` already existed and had superseded it** —
+  reproducing, one generation later, the exact silent staleness it was written to prevent. It now compares the
+  pinned generation against the harbor-framework org's live repo list (there is no queryable registry API —
+  `hub.harborframework.com/api/*` 404s). The pin moves to `terminal-bench-3`.
+- **`check_evalplus` failed open with FALSE confidence**: on a PyPI outage `latest_pypi` returned None, fell
+  through the guard, and printed "dataset pin is current ✓" for a check it never performed. It now reports
+  UNVERIFIED. A green tick nobody re-checks is worse than no check.
+
+
 ### Added — scrape the PER-TASK leaderboard: the category profile, for $0 (2026-07-14)
 
 Our 11 existing scrapers all store a single **aggregate** score — and the aggregate is the wrong number for

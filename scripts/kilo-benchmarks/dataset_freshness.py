@@ -24,7 +24,9 @@ default someone inherited.
 
 Sources of truth (fetched live; no hard-coded "latest"):
     terminal-bench (legacy `tb`) → the laude-institute registry.json
-    terminal-bench 2.x (harbor)  → the harbor dataset registry
+    terminal-bench (harbor)      → the harbor-framework GitHub org's repo list (each
+                                   dataset generation is its own repo; there is no
+                                   queryable registry API — verified live)
     evalplus                     → the version the INSTALLED evalplus lib pins, vs PyPI's
                                    newest release (evalplus ships its dataset version as a
                                    constant, so a newer lib == a newer dataset)
@@ -32,6 +34,7 @@ Sources of truth (fetched live; no hard-coded "latest"):
 
 from __future__ import annotations
 
+import re
 import sys
 
 import httpx
@@ -41,11 +44,17 @@ TB_LEGACY_REGISTRY = (
     "https://raw.githubusercontent.com/laude-institute/terminal-bench/main/registry.json"
 )
 PYPI = "https://pypi.org/pypi/{pkg}/json"
+# No queryable harbor dataset registry exists (hub.harborframework.com/api/* 404s — checked
+# live 2026-07-14), so the org's repo list IS the source of truth for "what generation is
+# current": each ships as its own repo (terminal-bench-2, terminal-bench-2-1, terminal-bench-3).
+HARBOR_ORG_REPOS = "https://api.github.com/orgs/harbor-framework/repos?per_page=100"
 
 # The dataset each runner is CURRENTLY pinned to. One line to change when we upgrade —
 # and the check below is what makes forgetting to change it loud instead of silent.
 PINNED = {
-    "terminal-bench": "terminal-bench/terminal-bench-2-1",  # harbor; 89 tasks, 16 categories
+    # harbor. Bumped 2-1 -> 3 by the review: the org already published terminal-bench-3,
+    # and the guard's own generation check (check_terminal_bench) now refuses 2-1.
+    "terminal-bench": "terminal-bench/terminal-bench-3",
     "humaneval": "HumanEvalPlus",  # version comes from the installed evalplus lib
     "mbpp": "MbppPlus",
 }
@@ -80,6 +89,12 @@ def latest_tb_legacy_core() -> str | None:
 
 
 def latest_pypi(pkg: str) -> str | None:
+    """Newest released version of `pkg`, or None if PyPI could not be consulted.
+
+    ⚠️ None means **UNVERIFIED**, not "current". Callers must not treat it as a pass — see
+    `check_evalplus`, where swallowing it silently printed "dataset pin is current ✓" for a
+    check that never actually ran.
+    """
     try:
         return _get_json(PYPI.format(pkg=pkg))["info"]["version"]
     except (httpx.HTTPError, KeyError, ValueError):
@@ -94,21 +109,68 @@ def installed_evalplus_dataset_versions() -> dict[str, str]:
     return {"humaneval": HUMANEVAL_PLUS_VERSION, "mbpp": MBPP_PLUS_VERSION}
 
 
-def check_terminal_bench(pinned: str) -> list[str]:
-    """Warn/fail conditions for the Terminal-Bench dataset pin.
+def _parse_generation(name: str) -> tuple[int, ...] | None:
+    """'terminal-bench-2-1' -> (2, 1); 'terminal-bench-3' -> (3,); 'terminal-bench' -> ()."""
+    m = re.fullmatch(r"terminal-bench(?:-(\d+(?:-\d+)*))?", name)
+    if not m:
+        return None
+    return tuple(int(x) for x in m.group(1).split("-")) if m.group(1) else ()
 
-    The load-bearing check is NOT 'is 0.1.1 the newest 0.1.x' — it is 'does the benchmark
-    still LIVE in this package at all'. It didn't. That is the failure mode that cost us a
-    paid run, and a naive within-registry version compare would have said "you're current".
+
+def latest_terminal_bench_dataset() -> str | None:
+    """The newest Terminal-Bench dataset generation, from the harbor-framework GitHub org.
+
+    There is no queryable harbor dataset registry (`hub.harborframework.com/api/...` 404s —
+    checked live), so the org's own repo list IS the source of truth: each generation ships
+    as its own repo (`terminal-bench-2`, `terminal-bench-2-1`, `terminal-bench-3`, …).
+    Returns e.g. 'terminal-bench-3', or None if the API can't be reached.
+    """
+    repos = _get_json(HARBOR_ORG_REPOS)
+    gens = []
+    for r in repos:
+        g = _parse_generation(r.get("name", ""))
+        if g:  # non-empty: a real generation, not the bare 'terminal-bench' umbrella repo
+            gens.append((g, r["name"]))
+    return max(gens)[1] if gens else None
+
+
+def check_terminal_bench(pinned: str) -> list[str]:
+    """Fail conditions for the Terminal-Bench dataset pin.
+
+    TWO checks, because the first one alone is what let this module go stale about itself:
+
+    1. **Wrong package** — a `terminal-bench-core==*` pin is the LEGACY 1.x task set, which
+       lives in the retired `tb` package. This is the failure that cost us a paid 80-task run.
+    2. **Superseded generation** — compare the pinned generation against the newest one the
+       harbor-framework org actually publishes, LIVE. The original version of this function
+       only did check 1, so it happily green-lit `terminal-bench-2-1` while
+       **`terminal-bench-3` already existed and had superseded it** — reproducing, one
+       generation later, the exact silent staleness the module was written to prevent. A
+       guard that only knows about yesterday's bump is not a guard.
     """
     problems: list[str] = []
     if pinned.startswith("terminal-bench-core"):
         problems.append(
             f"{pinned} is the LEGACY Terminal-Bench 1.x task set (the `tb` package). "
-            f"Terminal-Bench has moved to 2.x, which lives in a DIFFERENT package "
-            f"(`harbor`) with its own dataset (terminal-bench/terminal-bench-2-1: 89 tasks, "
-            f"16 categories). A 1.x score cannot be compared to the current public "
-            f"leaderboard. Bench `terminal-bench/terminal-bench-2-1` via harbor."
+            f"Terminal-Bench has moved on, and lives in a DIFFERENT package (`harbor`) with "
+            f"its own datasets. A 1.x score cannot be compared to the current public "
+            f"leaderboard. Bench the current dataset via harbor."
+        )
+        return problems
+
+    name = pinned.split("/")[-1]  # 'terminal-bench/terminal-bench-2-1' -> 'terminal-bench-2-1'
+    pinned_gen = _parse_generation(name)
+    latest = latest_terminal_bench_dataset()
+    if not latest or pinned_gen is None:
+        return problems  # unrecognized pin or unreachable org — the caller warns, not fails
+    latest_gen = _parse_generation(latest)
+    if latest_gen and pinned_gen < latest_gen:
+        problems.append(
+            f"{pinned} is SUPERSEDED: harbor-framework now publishes `{latest}` "
+            f"(https://github.com/harbor-framework/{latest}). A score measured on an older "
+            f"generation cannot be compared to the current leaderboard. Bench "
+            f"`terminal-bench/{latest}` via harbor, or pass --allow-stale to reproduce an "
+            f"old score on purpose."
         )
     return problems
 
@@ -123,7 +185,13 @@ def check_evalplus() -> list[str]:
         return ["evalplus is not installed — cannot verify HumanEval+/MBPP+ dataset version"]
     installed = getattr(evalplus, "__version__", None)
     newest = latest_pypi("evalplus")
-    if installed and newest and installed != newest:
+    if not newest:
+        # PyPI unreachable. This MUST surface as UNVERIFIED, never as a pass: the old code
+        # let `newest is None` fall through the `if installed and newest and ...` guard and
+        # then printed "dataset pin is current ✓" — reporting a check it had not performed.
+        # False confidence is worse than no check, because nobody re-checks a green tick.
+        raise httpx.HTTPError("PyPI unreachable — evalplus dataset version NOT verified")
+    if installed and installed != newest:
         ds = installed_evalplus_dataset_versions()
         problems.append(
             f"evalplus {installed} is installed but {newest} is released. evalplus pins its "
