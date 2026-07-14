@@ -289,7 +289,7 @@ def test_self_editable_install_is_not_a_phantom(repo: Path) -> None:
     assert rc == 0, f"a self-editable install is not a phantom:\n{out}"
 
 
-def test_editable_install_of_an_OUTSIDE_tree_is_still_a_phantom(
+def test_editable_install_of_an_outside_tree_is_still_a_phantom(
     repo: Path, outside: Path, monkeypatch
 ) -> None:
     """REGRESSION — the fix for the editable false-positive must NOT swallow the real bug.
