@@ -35,6 +35,8 @@ Confirm that the mega-epic decomposition is ready for execution — every featur
 
 **Hard stop if:** any spec or ticket missing. State which and route back to the creating command.
 
+**Additionally read:** `docs/operations/fabrik-lifecycle.md` — ⚠️ it covers **only lifecycle stages 3–4** (deploy/runtime behaviour + data safety); it carries **no** stage model. The 4-stage model (scaffold → implement → `fabrik apply` → `fabrik verify`) is asserted by the command chain itself. A **delta-feature** epic must be able to pass all four; a **Retrofit** epic on an already-deployed service creates **no new deploy unit**, so it has no Stage-1/Stage-3 of its own — its Stage-3 equivalent is the gate + the compliance-row flip (per `03-expand-epic-files-command` § Success Criteria). Validate each epic against the stage set its **flavour** actually owns — not a blanket four.
+
 ## Processing User Request
 
 ### Step 1: Read All Artifacts
@@ -79,6 +81,10 @@ For each epic ticket, verify:
 
 Read the Dependency Graph (from spec or conversation context) and cross-reference with epic tickets' `### Dependencies` sections.
 
+**Graph form (checklist item 88):** `02-epic-decomposition-command` emits the graph as a **mermaid diagram with `subgraph "Phase N"` blocks**. If it is prose instead, the owner cannot see the shape of their own decomposition — route back to `02`. **Terminology is `Phase`, never `Batch`** (consistent across 02 + 04 + 05; anti-pattern 101).
+
+**Epic-count sanity (checklist item 51):** state the count and a one-line verdict — **3–7 is typical**; **10+** ⇒ say so and recommend re-examining the boundaries (likely split by layer, not domain); **2** ⇒ say so, the vision may not be "mega" enough to need this workflow at all. This is a **surfaced observation for the owner, not a hard FAIL** — an unusual count can be right, but it must never pass unremarked.
+
 | Check | PASS | FAIL |
 |---|---|---|
 | No circular dependencies | DAG validated | Cycle: Epic [A] → Epic [B] → Epic [A] |
@@ -88,6 +94,9 @@ Read the Dependency Graph (from spec or conversation context) and cross-referenc
 | **Parallel epics have DISJOINT owned paths** | For every `Parallel with:` pair, intersect their `Owned paths:` — empty intersection | Epic [A] and Epic [B] are marked parallel but BOTH write `[glob]`. Two agents writing one file is a merge conflict by construction → re-cut the boundary or reclassify to sequential |
 | **At most ONE migration owner per parallel set** | Only one epic in any parallel set owns `alembic/versions/**` / `db/schema.sql` | Epic [A] and Epic [B] are parallel and BOTH own migrations. Concurrent Alembic heads race the version table and wedge the deploy (12-Factor XII) → the non-schema epic must `depends-on` the schema epic |
 | Produced artifacts consumed | Every "Produces for later epics" has a matching "Consumes from prior epics" — N/A for single-epic proposals (no later epics) and for terminal-output epics that legitimately produce end-user-visible output only (e.g., a marketing-page epic that produces a rendered site, consumed by humans not by a later epic) | Epic [A] produces [X] but no epic consumes it AND epic count > 1 AND [X] is an internal artifact (DB table, API endpoint, env var, queue) not end-user output |
+| **CRITICAL PATH stated** | `02-epic-decomposition-command` sub-step **2d** emits `Critical path: Epic 1 → Epic 3 → Epic 5 (3 deep)` — the longest sequential chain. Confirm it is present **and matches the graph** you just validated | Missing, or contradicts the dependency graph. Route back to `02` sub-step 2d. ⚠️ Without it nobody knows what actually gates delivery — every other optimisation is guesswork |
+| **SPLIT-CANDIDATE verdict per critical-path epic** | Every epic ON the critical path carries `SPLIT-CANDIDATE: yes (<how>) / no (<why>)` per `02` sub-step 2d | Missing on any critical-path epic. Per `02`: a critical-path epic that CAN be split into a blocking half and a non-blocking half **MUST** be split — *"that is the only way to shorten delivery."* An unstated verdict means the decomposition never asked the one question that shortens the schedule |
+| **Graph is MINIMAL** (checklist item 16) | Every **sequential** pair has a *stated artifact reason* in `### Dependencies` (`Consumes:` names what Epic B takes from Epic A). If epics CAN be parallel they MUST be | Epic [B] `depends-on` Epic [A] but consumes **nothing** from it → an invented sequential edge that lengthens the critical path for free. Reclassify to parallel (then it must pass the disjointness + migration gates above) |
 
 ### Step 5: Infrastructure Decisions Check
 
@@ -107,7 +116,7 @@ For each epic ticket, verify it can feed into `epic-to-ticket-workflow/01-epic-b
 | Check | PASS | FAIL |
 |---|---|---|
 | Metadata has `Scaffold` | Present | Missing |
-| Metadata has `Port` | Present and valid | Missing or conflicting |
+| Metadata has `Port` | Present, and **not already allocated** — verify against `PORTS.md` (the allocation registry), not just "looks like a port" (checklist item 53) | Missing, OR the port is already taken in `PORTS.md`, OR two epics in this proposal claim the same port. Route back to `02-epic-decomposition-command` (it assigns ports from `PORTS.md`) |
 | Metadata has `target_vps` | `vps1` / `vps2` / `vps3` | Missing — the tech plan cannot pick the DB host |
 | Metadata has `Shape` | Present | Missing |
 | Metadata has `Concurrency` | Present | Missing |
@@ -116,7 +125,7 @@ For each epic ticket, verify it can feed into `epic-to-ticket-workflow/01-epic-b
 | Metadata has `Dark+Light` | Same feature-based trigger as Responsive above | Missing, OR `N/A` declared on a GUI-surface epic |
 | Metadata has `Rule Packs` | Present | Missing |
 | Metadata has `HAS_USER_GUIDE` | true or false | Missing |
-| Metadata has `Registrars` | Listed | Missing |
+| Metadata has `Registrars` | Listed **AND the list MATCHES the epic's `Shape`** — this is a semantic cross-check, not a presence check (anti-pattern 100). Every flag that fires a registrar must have that registrar listed: `needs_database` ⇒ postgres · `needs_cache` ⇒ redis · `has_persistent_data` ⇒ backrest · `has_search_feature` ⇒ meilisearch · `is_public` ⇒ gatus · `is_admin_dashboard` ⇒ authelia · `exposes_metrics` ⇒ prometheus. Plus **grafana** (always) and **watchdog** (opt-OUT — listed unless `watchdog: {enabled: false}`). ⚠️ gatus/authelia/prometheus **also require `spec.domain`** — a flag alone fires nothing (`infrastructure.py:214,255,293`) | Missing, **OR** the list contradicts `Shape` — e.g. `Shape: needs_database: true` but postgres absent from `Registrars`. **This is not a metadata gap; it is a silently-broken deploy**: `fabrik apply` skips the registrar and the service comes up without its database (CLAUDE.md § Spec contract awareness). Route back to `02-epic-decomposition-command` |
 | Metadata has `Universal categories` | Comma-separated 1–14 list (verbatim from 02 sub-step 2h) | Missing |
 | Metadata has `Abuse Detection` | `required` (SaaS w/ free tier) or `N/A` with reason | Missing |
 | Metadata has `Email` | `transactional` / `marketing` / `two-stream` / `none` / `N/A` | Missing |
