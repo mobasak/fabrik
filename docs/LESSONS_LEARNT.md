@@ -1,9 +1,49 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
-**Last Updated:** 2026-07-14 (Lesson 92 — a second source of truth always loses; and `git commit -- <dir>` is not the pathspec protection you think it is)
+**Last Updated:** 2026-07-14 (Lesson 93 — when a resume replays a lock file, every flag you *didn't* put in the cache key is a flag you silently ignored)
 
 **Purpose:** CAPTURE TECHNICAL HURDLES, AI-SPECIFIC QUIRKS, AND ARCHITECTURAL DECISIONS TO PREVENT REGRESSION AS CODEBASES AND AI AGENTS EVOLVE.
+
+---
+
+# Lesson 93: a resume that replays a lock file makes your cache key a *correctness* boundary, not an optimisation
+
+**Context (2026-07-14):** The Terminal-Bench runner (`scripts/kilo-benchmarks/microbench_terminal.py`) resumes an
+interrupted benchmark with `tb runs resume`. Its docstring is explicit — *"the resume command uses the original
+configuration from the run's tb.lock file"* (`terminal_bench/cli/tb/runs.py:793-804`) — and it accepts only
+`--run-id`/`--runs-dir`. **Every other flag you pass is discarded.** The runner keyed its per-run cache dir on the
+model alone, so *any* changed flag found the old run's lock and resumed it.
+
+**The failures, all silent, all in the direction that spends money:**
+
+| You typed | tb actually ran |
+|---|---|
+| `--n-tasks 5` (after a full run finished) | the **entire** task set — a bounded sanity check billed as a full run |
+| `--n-attempts 3` (over a locked `n_attempts=1`) | **one** attempt |
+| `--agent-timeout 1200` (to give a model more room) | the timed-out tasks **skipped** — they'd already written `results.json` with `failure_mode: agent_timeout`, so resume counts them *done* |
+| `--dataset <new>` | the **old** dataset, while every persisted row got labelled with the *new* dataset name |
+
+**The rule:** *when a resume rebuilds itself from a lock file, the cache key must contain every input that changes
+a RESULT — and nothing that doesn't.* Both halves bite:
+
+- **Too little in the key** → an illegitimate resume is *permitted*: you silently bench a config you didn't ask for.
+- **Too much in the key** → a legitimate resume is *refused*: I over-corrected and hashed `--n-tasks` even on
+  `--category` runs, where it never reaches tb at all (the runner only passes `--n-tasks` when there's no `-t` list).
+  Two byte-identical invocations landed in different dirs and refused to resume each other — re-billing the
+  completed tasks. **Key on what BINDS, not on what was typed.**
+- `--n-concurrent` is deliberately *out* of the key: it changes how fast a run goes, never the result.
+
+**The second-order trap (hit twice in one session):** changing the key **renames the cache dir**, which orphans
+every partial run created under the old key — so the next invocation starts *fresh* and re-spends the credit the
+resume feature existed to save. A key change is therefore a **data migration**, not a refactor. Migrate by reading
+each run's `tb.lock` (the authoritative record of what actually ran), never by *assuming* the old runs used
+today's defaults — one of the two existing runs turned out to have `global_agent_timeout_sec: None`, which
+assuming would have silently mis-filed.
+
+**Also:** hash the key from a JSON-encoded field list, not a `"|".join(...)` of raw strings. The fields are
+operator-supplied (`--dataset`, task ids); a value containing the delimiter can shift field boundaries and alias
+two different configs onto one dir.
 
 ---
 

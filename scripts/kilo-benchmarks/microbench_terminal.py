@@ -264,17 +264,30 @@ def _scope_tag(
     ``n_concurrent`` is deliberately NOT in the key — it changes only how FAST the run
     goes, never the result, so changing it must still be able to resume.
 
+    The key holds what BINDS, not what was merely typed. ``n_tasks`` only reaches tb when
+    there is no ``-t`` list (``run_one``: ``if not task_ids and n_tasks is not None``), and
+    on a subset run ``main`` has ALREADY folded the bound into ``task_ids`` by truncating
+    it. So with a task set, ``task_ids`` alone fully describes the run and ``n_tasks`` is
+    inert — keying on it anyway would split two byte-identical ``tb`` invocations
+    (``--category security --n-tasks 50`` vs ``100``, against a 3-task category) into
+    different dirs and make them REFUSE to resume each other: a legitimate resume denied,
+    credit re-spent. That is the same bug as an illegitimate resume permitted, just
+    pointing the other way.
+
     Same scope → same dir → resumable; different scope → its own dir, fresh run.
     """
     import hashlib
 
-    key = "|".join(
+    # json, not a "|".join of raw strings: the fields are operator-supplied (a --dataset
+    # or task id containing the delimiter could shift field boundaries and alias two
+    # different configs onto one key). JSON quotes/escapes, so the encoding is unambiguous.
+    key = json.dumps(
         [
             dataset,
-            ",".join(sorted(task_ids)) if task_ids else "",
-            str(n_tasks) if n_tasks is not None else "",
-            str(n_attempts),
-            str(agent_timeout_sec),
+            sorted(task_ids) if task_ids else None,
+            n_tasks if not task_ids else None,  # inert once a task set pins the run
+            n_attempts,
+            agent_timeout_sec,
             agent,
         ]
     )

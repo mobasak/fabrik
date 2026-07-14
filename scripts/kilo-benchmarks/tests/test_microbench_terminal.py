@@ -985,3 +985,36 @@ def test_task_meta_cache_does_not_pin_an_empty_read(monkeypatch, tmp_path):
     monkeypatch.setattr(mt, "_dataset_dir", lambda ds: tmp_path / "there")
     assert mt.load_task_meta("ds==1")["fix-perms"]["category"] == "system-administration"
     assert "ds==1" in mt._TASK_META_CACHE  # now memoized
+
+
+def test_inert_n_tasks_does_not_block_a_legitimate_resume(monkeypatch, tmp_path):
+    """n_tasks only reaches tb when there is NO -t list, and on a subset run main has
+    already folded the bound into task_ids. So with a task set the tb argv is identical
+    regardless of n_tasks — and the dir must be too, or a legitimate resume is refused
+    and the completed tasks are re-billed. (The mirror of letting a run resume into a
+    DIFFERENT config: here we'd refuse to resume the SAME one.)"""
+    monkeypatch.setattr(mt, "CACHE_DIR", tmp_path)
+    tasks = ["t1", "t2", "t3"]
+    # a non-binding bound (50 and 100 both exceed the 3-task set) → same run → same dir
+    a = mt.out_dir_for("vendor/m", mt.TB_DATASET, tasks, 50)
+    b = mt.out_dir_for("vendor/m", mt.TB_DATASET, tasks, 100)
+    c = mt.out_dir_for("vendor/m", mt.TB_DATASET, tasks, None)
+    assert a == b == c
+    # a FULL run (no task set) still keys on n_tasks — there it DOES reach tb
+    assert mt.out_dir_for("vendor/m", mt.TB_DATASET, None, 5) != mt.out_dir_for(
+        "vendor/m", mt.TB_DATASET, None, 10
+    )
+
+
+def test_scope_key_is_unambiguous_under_delimiter_bearing_inputs(monkeypatch, tmp_path):
+    """The key's fields are operator-supplied. A raw delimiter-join could let a value
+    containing the delimiter shift field boundaries and alias two DIFFERENT configs onto
+    one dir (→ one run resuming the other's). The encoding must keep them distinct."""
+    monkeypatch.setattr(mt, "CACHE_DIR", tmp_path)
+    assert mt.out_dir_for("vendor/m", "ds|x==1", None, None) != mt.out_dir_for(
+        "vendor/m", "ds", None, None
+    )
+    # task ids that embed the list separator must not collide with the 2-element list
+    assert mt.out_dir_for("vendor/m", mt.TB_DATASET, ["a,b"], None) != mt.out_dir_for(
+        "vendor/m", mt.TB_DATASET, ["a", "b"], None
+    )

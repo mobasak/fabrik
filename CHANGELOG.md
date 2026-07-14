@@ -29,10 +29,20 @@ a NULL category).
 negative value hit Python's slice semantics (`[:-1]` keeps `len-1` items), quietly turning a typo'd bound into
 a near-full run.
 
+The key holds what **binds**, not what was typed — the over-correction is its own bug. `--n-tasks` only reaches
+tb when there is no `-t` list, so on a `--category` run it is inert; hashing it anyway split two byte-identical
+invocations (`--category security --n-tasks 50` vs `100`, against a 3-task category) into different dirs that
+**refused to resume each other**, re-billing the completed tasks. A legitimate resume denied is the same bug as
+an illegitimate one permitted, pointing the other way. The key is now hashed from a JSON-encoded field list
+rather than a `"|".join` of raw strings, so an operator-supplied `--dataset`/task id containing the delimiter
+cannot alias two configs onto one dir. Existing cache dirs were migrated by reading each run's `tb.lock` (one
+turned out to have `global_agent_timeout_sec: None` — assuming today's defaults would have mis-filed it).
+
 Found by the pool breadth layer (`minimax/minimax-m3` caught the `--n-tasks` resume bug) plus the native Opus
 finders; refuted against the tb source (no change made): run-ids sort lexicographically = chronologically;
 `tb.lock` is a persistent manifest, so re-running a completed subset re-runs nothing; `FileNotFoundError` is in
 `MODEL_FAILURE`, so a model that produces no run dir is skipped rather than crashing the cohort.
+See `docs/LESSONS_LEARNT.md` Lesson 93.
 
 ### Changed — desktop-app template: Electron 28 → 30+, matching the rule pack (2026-07-14)
 
