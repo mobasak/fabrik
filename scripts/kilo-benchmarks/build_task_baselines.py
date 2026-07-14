@@ -1,0 +1,201 @@
+#!/usr/bin/env python3
+# AFTER-EDIT: scripts/kilo-benchmarks/rank_task_subagents.py libs/subagents/select.py
+"""Per-(model, task_type) quality PRIOR, derived from benchmarks that actually measure the task.
+
+The pool's ranking is `shrunk_q = (n·avg_q + K·tier_baseline) / (n + K)` — a blend of the
+flywheel (`avg_q`, per-task-type, from our own `set_quality` verdicts) and a **prior**
+(`tier_baseline`). The flywheel half is already task-aware. The prior half was **not**:
+it came from a single `agents.quality_tier` column, so a model carried the *same* prior
+whether it was being picked for `code`, `review` or `ops`. Since the prior dominates until
+n≈K(=10), a task type with few runs — `code` had **16** — was effectively being selected by
+a task-blind guess.
+
+This fills that gap, and ONLY where a benchmark genuinely measures the task:
+
+    ops   <- Terminal-Bench 2.x  system-administration + security   (17 tasks)
+    code  <- Terminal-Bench 2.x  software-engineering               (26 tasks)
+
+Everything else (`review`, `spec`, `plan`, `docs`, `docs-review`, `research`) gets **no row**.
+That is deliberate. The benchmarks that measure those tasks exist — SWE-PRBench (code review),
+SpecBench (design critique), CodeWiki (documentation) — but their published leaderboards score
+frontier models and cover only ~30-40% of the cheap OpenRouter pool we actually dispatch. A
+prior imported from models that were never tested is a fabricated number wearing a citation, and
+importing one is exactly the mistake that had us hire a model on an aggregate that hid its
+profile. Absent a row, `rank_task_subagents` falls back to the general `quality_tier` — the
+honest status quo — and the flywheel does the work.
+
+Coverage is REPORTED, never assumed: a model absent from the benchmark simply has no row.
+
+Source table: `tbench_leaderboard_results` (scraped by scrape_tbench_task_results.py).
+Scale: benchmark pass-rate (0-1) -> the 0-5 quality scale the shrinkage formula speaks.
+"""
+
+from __future__ import annotations
+
+import argparse
+import sqlite3
+import sys
+from datetime import date
+from pathlib import Path
+
+DB_PATH = Path(__file__).parent / "kilo_agents.db"
+
+# task_type -> the Terminal-Bench categories that actually measure it.
+# Only these two are honest; see the module docstring for why the rest are absent.
+TASK_CATEGORIES: dict[str, tuple[str, ...]] = {
+    "ops": ("system-administration", "security"),
+    "code": ("software-engineering",),
+}
+
+# A benchmark pass-rate is 0-1; the shrinkage prior is 0-5. Map linearly.
+# The quality gate sits at 2.5/5, i.e. a 50% pass-rate — a model that fails half the tasks
+# a benchmark says define its job does not deserve a passing prior.
+SCALE = 5.0
+
+# A k=1 submission over the 17-task sysadmin set is 17 trials — a real signal. Set the floor
+# below that, or every k=1 submission is silently discarded.
+MIN_TRIALS = 15
+
+_DDL = """
+CREATE TABLE IF NOT EXISTS model_task_baseline (
+    model_id   TEXT NOT NULL,
+    task_type  TEXT NOT NULL,
+    baseline   REAL NOT NULL,   -- 0-5, feeds shrunk_q's prior term
+    pass_rate  REAL NOT NULL,   -- 0-1, the raw benchmark number it came from
+    n_tasks    INTEGER,
+    n_trials   INTEGER,
+    source     TEXT NOT NULL,   -- exactly WHICH benchmark+categories produced this
+    built_at   TEXT,
+    PRIMARY KEY (model_id, task_type)
+);
+"""
+
+
+def ensure_table(db_path: Path = DB_PATH) -> None:
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute(_DDL)
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_mtb_task ON model_task_baseline(task_type)")
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def build(conn, task_type: str, categories: tuple[str, ...]) -> list[dict]:
+    """One row per model with enough benchmark trials in `categories` to be a real prior.
+
+    Aggregated as passed / trials-that-RAN — errored trials (the sandbox died before the
+    verifier ran) are excluded from the denominator, never scored 0. Counting infra flakes as
+    model failures would deflate every model unlucky enough to hit them.
+
+    A model with several leaderboard submissions (different agent scaffolds) is taken at its
+    BEST: the prior should reflect what the model can do when driven competently, not the
+    average of everyone's harness quality.
+    """
+    ph = ",".join("?" * len(categories))
+    rows = conn.execute(
+        f"""
+        SELECT model_id, submission,
+               1.0*SUM(n_passed) / NULLIF(SUM(n_trials - n_errored), 0) AS pass_rate,
+               COUNT(*)          AS n_tasks,
+               SUM(n_trials)     AS total_trials
+        FROM tbench_leaderboard_results
+        WHERE model_id IS NOT NULL AND category IN ({ph})
+        GROUP BY model_id, submission
+        -- `total_trials`, NOT `n_trials`: the SUM alias would collide with the raw column and
+        -- SQLite's HAVING binds the COLUMN (always 1-5), silently filtering out every group.
+        HAVING pass_rate IS NOT NULL AND total_trials >= ?
+        """,  # noqa: S608 — ph is a fixed count of bound placeholders
+        (*categories, MIN_TRIALS),
+    ).fetchall()
+
+    best: dict[str, dict] = {}
+    for model_id, _sub, pr, n_tasks, n_trials in rows:
+        if model_id not in best or pr > best[model_id]["pass_rate"]:
+            best[model_id] = {
+                "model_id": model_id,
+                "task_type": task_type,
+                "baseline": round(pr * SCALE, 3),
+                "pass_rate": round(pr, 4),
+                "n_tasks": n_tasks,
+                "n_trials": n_trials,
+                "source": f"terminal-bench-2.x:{'+'.join(categories)}",
+            }
+    return list(best.values())
+
+
+def persist(conn, rows: list[dict]) -> int:
+    today = date.today().isoformat()
+    for r in rows:
+        conn.execute(
+            "INSERT OR REPLACE INTO model_task_baseline "
+            "(model_id, task_type, baseline, pass_rate, n_tasks, n_trials, source, built_at) "
+            "VALUES (?,?,?,?,?,?,?,?)",
+            (
+                r["model_id"],
+                r["task_type"],
+                r["baseline"],
+                r["pass_rate"],
+                r["n_tasks"],
+                r["n_trials"],
+                r["source"],
+                today,
+            ),
+        )
+    conn.commit()
+    return len(rows)
+
+
+def main(argv: list[str] | None = None) -> int:
+    p = argparse.ArgumentParser(
+        prog="build_task_baselines",
+        description="Per-(model, task_type) benchmark prior for the subagent pool.",
+    )
+    p.add_argument("--report", action="store_true", help="Print the table; build nothing.")
+    args = p.parse_args(argv)
+
+    ensure_table(DB_PATH)
+    conn = sqlite3.connect(DB_PATH)
+    try:
+        if not args.report:
+            total = 0
+            for task_type, cats in TASK_CATEGORIES.items():
+                rows = build(conn, task_type, cats)
+                total += persist(conn, rows)
+                print(
+                    f"[baselines] {task_type:<6} <- {'+'.join(cats)}: {len(rows)} models",
+                    file=sys.stderr,
+                )
+            if not total:
+                print(
+                    "error: 0 baselines built — is tbench_leaderboard_results populated? "
+                    "run scrape_tbench_task_results.py first",
+                    file=sys.stderr,
+                )
+                return 1
+
+        print(f"\n{'model':<32}{'task':<7}{'prior/5':>8}{'pass':>7}{'trials':>8}")
+        print("-" * 64)
+        for m, t, b, pr, n in conn.execute(
+            "SELECT model_id, task_type, baseline, pass_rate, n_trials "
+            "FROM model_task_baseline ORDER BY task_type, baseline DESC"
+        ):
+            print(f"  {m[:30]:<32}{t:<7}{b:>8.2f}{pr * 100:>6.0f}%{n:>8}")
+
+        covered = conn.execute(
+            "SELECT COUNT(DISTINCT model_id) FROM model_task_baseline"
+        ).fetchone()[0]
+        pool = conn.execute(
+            "SELECT COUNT(*) FROM agents WHERE status='active' AND via_openrouter=1 AND has_tools=1"
+        ).fetchone()[0]
+        print(
+            f"\n  coverage: {covered} models have a benchmark prior, of {pool} tool-capable "
+            f"OR models. The rest keep the general quality_tier prior — reported, not faked."
+        )
+        return 0
+    finally:
+        conn.close()
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

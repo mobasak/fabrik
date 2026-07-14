@@ -34,6 +34,7 @@ import csv
 import io
 import math
 import os
+import sqlite3
 import subprocess
 import sys
 from datetime import date
@@ -67,15 +68,61 @@ QUALITY_GATE_MIN = 2.5  # drop anything below the T2-tier baseline after shrinka
 MIN_RUNS_TOP2 = 10  # slots #1-#2 require n≥10; lower-n rows sort below
 
 
-def _tier_baseline(quality_tier: int | None) -> float | None:
-    """Return the tier prior for the shrinkage formula, or None if the row has
-    no tier (caller will use raw avg_quality)."""
+def load_task_baselines(db_path: str | Path | None = None) -> dict[tuple[str, str], float]:
+    """(model_id, task_type) -> benchmark-derived prior, from `model_task_baseline`.
+
+    Built by `build_task_baselines.py` from Terminal-Bench's per-category results. Empty dict
+    if the table does not exist yet — this must degrade to the old behaviour, never crash the
+    ranker.
+    """
+    path = db_path or (Path(__file__).resolve().parent / "kilo_agents.db")
+    try:
+        with sqlite3.connect(f"file:{path}?mode=ro", uri=True) as conn:
+            return {
+                (m, t): float(b)
+                for m, t, b in conn.execute(
+                    "SELECT model_id, task_type, baseline FROM model_task_baseline"
+                )
+            }
+    except (sqlite3.Error, OSError):
+        return {}
+
+
+def _tier_baseline(
+    quality_tier: int | None,
+    model_id: str | None = None,
+    task_type: str | None = None,
+    task_baselines: dict[tuple[str, str], float] | None = None,
+) -> float | None:
+    """The prior for the shrinkage formula — task-specific when we have real evidence.
+
+    Precedence:
+      1. **A benchmark that measures THIS task for THIS model** (`model_task_baseline`).
+         Ground truth beats a guess: a model can be strong at code and weak at ops, and the
+         old single `quality_tier` could not express that. Today only `ops` and `code` have
+         such a benchmark (Terminal-Bench categories); the honest set, not the convenient one.
+      2. The general `quality_tier` prior — the status quo, for every (model, task) pair with
+         no benchmark. Left deliberately in place rather than back-filled with a proxy score:
+         an imported number from a benchmark that never tested this model is a fabrication.
+      3. None -> the caller falls back to raw avg_quality (no shrinkage).
+    """
+    if task_baselines and model_id and task_type:
+        specific = task_baselines.get((model_id, task_type))
+        if specific is not None:
+            return specific
     if quality_tier is None:
         return None
     return TIER_BASELINE.get(int(quality_tier))
 
 
-def _shrunk_quality(n: int, avg_quality: float, quality_tier: int | None) -> float:
+def _shrunk_quality(
+    n: int,
+    avg_quality: float,
+    quality_tier: int | None,
+    model_id: str | None = None,
+    task_type: str | None = None,
+    task_baselines: dict[tuple[str, str], float] | None = None,
+) -> float:
     """Blended prior + real-run signal: shrink avg_quality toward the tier
     baseline with K runs of prior weight. Rows without a tier get raw
     avg_quality (nothing to shrink toward — pick_models is on its own).
@@ -84,7 +131,7 @@ def _shrunk_quality(n: int, avg_quality: float, quality_tier: int | None) -> flo
     16 review runs) → (16·1.0 + 10·2.5) / (16+10) = 1.58 → below the 2.5
     gate → excluded, exactly as intended (the flywheel says T2 was too kind).
     """
-    prior = _tier_baseline(quality_tier)
+    prior = _tier_baseline(quality_tier, model_id, task_type, task_baselines)
     if prior is None:
         return float(avg_quality)
     return (n * avg_quality + SHRINKAGE_K * prior) / (n + SHRINKAGE_K)
@@ -407,6 +454,9 @@ def render(rows: list, state: str = "ok") -> str:
     # SUBAGENT_MIN_TIER. Empty dict on failure → blank tier cells (never blocks
     # doc regen).
     tiers = _load_quality_tiers()
+    # Benchmark priors, per (model, task_type). Empty dict if build_task_baselines.py has
+    # not run — the ranker then behaves exactly as before (quality_tier prior).
+    task_baselines = load_task_baselines()
 
     # CODING supplement: ALWAYS load the top benchmark-ranked models from
     # CODING_SUBAGENT_SELECTION.md — they're appended below any fleet rows in
@@ -437,7 +487,9 @@ def render(rows: list, state: str = "ok") -> str:
         for r in task_rows:
             _tt, model, n, avg_cost, avg_quality, _success = r
             tier = tiers.get(model)
-            shrunk_q = _shrunk_quality(n, avg_quality, tier)
+            # Pass the model + task so a BENCHMARK prior (model_task_baseline) can override
+            # the task-blind quality_tier where one exists. Today that is `ops` and `code`.
+            shrunk_q = _shrunk_quality(n, avg_quality, tier, model, _tt, task_baselines)
             if shrunk_q < QUALITY_GATE_MIN:
                 continue  # quality gate — a bad model is never in the usable top slots
             scored.append((r, shrunk_q))

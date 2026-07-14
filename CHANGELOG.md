@@ -4,6 +4,32 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — the subagent pool's quality prior is now TASK-AWARE (2026-07-14)
+
+The pool ranks models with `shrunk_q = (n·avg_q + K·tier_baseline) / (n + K)`. The flywheel half (`avg_q`)
+was already per-task-type. **The prior half was not** — it came from a single `agents.quality_tier` column, so
+a model carried the *same* prior whether it was being picked for `code`, `review` or ops. Since the prior
+dominates until n≈K(=10), a thin task type — `code` has **16** runs — was effectively being selected by a
+task-blind guess.
+
+- **New `model_task_baseline` table** + `build_task_baselines.py`: a per-(model, task_type) prior derived from
+  the benchmark that *actually measures that task*. **44 (model, task) pairs, 22 models.** `_tier_baseline` now
+  prefers it over the general tier. The same model can finally carry different priors for different jobs —
+  `z-ai/glm-5` is **3.70/5 at `ops`** but **2.27/5 at `code`**, which one number could never express.
+- **Two new `TaskKind`s**: **`ops`** (running commands on a machine — the only task type an external benchmark
+  measures end-to-end) and **`docs-review`** (verifying doc claims against code — it was *already* being
+  dispatched as `task_type="docs"` with `project="docs-review"`, 14 scored runs, so the work existed while the
+  label didn't; its runs were pooled with doc-*writing*).
+
+**Only `ops` and `code` get a benchmark prior, deliberately.** `review`/`spec`/`plan`/`docs`/`docs-review`/
+`research` keep the general tier and stay flywheel-primary. Benchmarks for those tasks do exist — SWE-PRBench
+(code review), SpecBench (design critique), CodeWiki (docs) — but their published leaderboards score frontier
+models and cover only ~30–40% of the cheap OpenRouter pool we dispatch. **A prior imported from models that were
+never tested is a fabricated number wearing a citation**, and importing one is precisely the mistake that had us
+ranking a sysadmin on an aggregate that hid its profile. Coverage is reported (22 of 267 tool-capable OR models),
+never faked; a missing table degrades to the previous behaviour rather than crashing the daily refresh.
+
+
 ### Changed — the Terminal-Bench runner now runs the CURRENT benchmark: `tb` → `harbor` (2026-07-14)
 
 `microbench_terminal.py` shelled the **retired 1.x `tb` CLI**, whose newest dataset (`terminal-bench-core==0.1.1`)

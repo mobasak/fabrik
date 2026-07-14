@@ -911,3 +911,49 @@ def test_sql_having_clause_enforces_min_runs_on_real_db() -> None:
     finally:
         # Always clean up, even if the assert failed.
         _psql(f"DELETE FROM subagent_runs WHERE project='{tag}'")
+
+
+# --- Phase 1: the prior is now TASK-AWARE where a benchmark measures the task ---
+def test_benchmark_prior_beats_the_task_blind_tier(monkeypatch):
+    """The gap this closes: `quality_tier` gave a model ONE prior for every task type, so a
+    model strong at ops and weak at code carried the same number into both. Since the prior
+    dominates until n≈K(=10), a thin task type (`code` had 16 runs) was being selected by a
+    task-blind guess."""
+    import rank_task_subagents as rt
+
+    tb = {("z-ai/glm-5", "ops"): 3.70, ("z-ai/glm-5", "code"): 2.27}
+    # SAME model, SAME tier — different prior, because the benchmark says so.
+    assert rt._tier_baseline(1, "z-ai/glm-5", "ops", tb) == 3.70
+    assert rt._tier_baseline(1, "z-ai/glm-5", "code", tb) == 2.27
+
+
+def test_no_benchmark_falls_back_to_the_general_tier_not_a_proxy():
+    """`review`/`spec`/`plan`/`docs`/`research` have NO benchmark covering our pool. They must
+    keep the general tier prior — NOT get a proxy score imported from a benchmark that never
+    tested this model. A fabricated number wearing a citation is worse than no number."""
+    import rank_task_subagents as rt
+
+    tb = {("z-ai/glm-5", "ops"): 3.70}
+    assert rt._tier_baseline(1, "z-ai/glm-5", "review", tb) == rt.TIER_BASELINE[1]
+    assert rt._tier_baseline(3, "z-ai/glm-5", "spec", tb) == rt.TIER_BASELINE[3]
+
+
+def test_missing_baseline_table_degrades_to_old_behaviour(tmp_path):
+    """If build_task_baselines.py has never run, the ranker must behave EXACTLY as before —
+    never crash the daily refresh on a missing table."""
+    import rank_task_subagents as rt
+
+    assert rt.load_task_baselines(tmp_path / "nonexistent.db") == {}
+    assert rt._tier_baseline(2, "any/model", "ops", {}) == rt.TIER_BASELINE[2]
+
+
+def test_shrinkage_uses_the_task_specific_prior():
+    """End-to-end: shrunk_q must blend toward the BENCHMARK prior, not the tier's."""
+    import rank_task_subagents as rt
+
+    tb = {("m/x", "ops"): 4.0}
+    # n=0 runs -> pure prior. tier=1 (prior 1.0) but the benchmark says 4.0.
+    q = rt._shrunk_quality(0, 0.0, 1, "m/x", "ops", tb)
+    assert q == 4.0, "with no runs the prior IS the score, and it must be the benchmark's"
+    # ...and with no benchmark for this task, it falls back to the tier's 1.0
+    assert rt._shrunk_quality(0, 0.0, 1, "m/x", "review", tb) == rt.TIER_BASELINE[1]
