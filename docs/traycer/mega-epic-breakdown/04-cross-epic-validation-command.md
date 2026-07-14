@@ -111,7 +111,9 @@ Read the Infrastructure Decisions spec and verify against epic tickets.
 
 ### Step 6: Handoff Readiness Check
 
-For each epic ticket, verify it can feed into `epic-to-ticket-workflow/01-epic-brief-command`:
+For each epic ticket, verify it can feed into **`epic-to-ticket-workflow/00-trigger-workflow-command` in multi-epic (consume) mode** — the real entry point, which reads this ticket's **15-field Metadata block as the INFRA-CHECK** and only then hands off to `01-epic-brief-command`.
+
+⚠️ **The entry point is `00`, not `01`** (same as `03-expand-epic-files-command` § Entry Point and `05-dispatch-epic-tickets-command` Step 2). `01` § Path B *assumes* the INFRA-CHECK already exists — and `00` is the only command that emits it. So "handoff readiness" means **ready for `00`'s consume-mode check**, which is precisely the 15-field Metadata audit below:
 
 | Check | PASS | FAIL |
 |---|---|---|
@@ -130,7 +132,7 @@ For each epic ticket, verify it can feed into `epic-to-ticket-workflow/01-epic-b
 | Metadata has `Abuse Detection` | `required` (SaaS w/ free tier) or `N/A` with reason | Missing |
 | Metadata has `Email` | `transactional` / `marketing` / `two-stream` / `none` / `N/A` | Missing |
 | Metadata has `FINANCIALS` | `required` (SaaS launch gate) or `N/A` with reason | Missing |
-| Epic ticket is self-sufficient | Can run `epic-to-ticket-workflow/01-epic-brief-command` with ONLY this ticket + Infrastructure Decisions spec | Requires additional context not in the ticket |
+| Epic ticket is self-sufficient | The whole `epic-to-ticket-workflow` chain — **`00-trigger` (consume mode) → `01-epic-brief`** — runs from ONLY this ticket + the Infrastructure Decisions spec. The ticket is the **sole source** of the INFRA-CHECK `00` emits and `01` § Path B consumes; nothing else is read | Requires additional context not in the ticket — e.g. a field `00`'s consume-mode check needs that only the Vision Summary carries |
 
 ### Step 7: Present Validation Report
 
@@ -214,7 +216,7 @@ For single-epic proposals: `Phase 1: Epic 1 — [name] (atomic — no phasing re
 - Epic ticket structure checked: every ticket has all required sections with content.
 - Dependency graph checked: no cycles, root epics identified, parallel lanes identified, produced artifacts consumed.
 - Infrastructure decisions checked: no contradictions, no missing sections, no duplication in epic tickets.
-- Handoff readiness checked: every epic ticket has complete Metadata matching `epic-to-ticket-workflow/01-epic-brief-command` expectations.
+- Handoff readiness checked: every epic ticket has the complete 15-field Metadata that **`epic-to-ticket-workflow/00-trigger-workflow-command` consume-mode** verifies and emits as the INFRA-CHECK — which `01-epic-brief-command` § Path B then consumes. `00` is the entry point, not `01`.
 - Every check is binary PASS/FAIL with specific evidence — no vague "looks good."
 - Validation report presented with recommended execution order.
 - ALL PASS → route to `05-dispatch-epic-tickets-command` (dispatch) with execution order.
