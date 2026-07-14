@@ -4,6 +4,37 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — `check_imports_resolvable.py`: the static gate now models the CLEAN CHECKOUT (2026-07-14)
+
+`final_gate` could not see deploy-breaking phantom imports **by construction**: it is a static check running in
+the developer's own `.venv`, where a gitignored module is physically present. **The local tree lies about what
+a clean checkout contains** — so shipped code importing `libs/subagents` (a Fabrik-synced, deliberately
+GITIGNORED dev-time module) went green locally and `ModuleNotFoundError`'d in CI and in the deployed container
+(the VPS `git pull`s — an untracked file never reaches it).
+
+New Tier-1 **showstopper** check (`scripts/enforcement/`, so it syncs to every existing and future project;
+wired into `final_gate.py` beside the Secrets checks). Git — not the filesystem — is the source of truth for
+what CI and Docker actually receive. An import is legal only if it resolves to a **tracked file**, a **declared
+dependency**, or the **stdlib**. It catches both phantom shapes:
+
+- **absolute** — `from libs.subagents.web_tools import …` resolving only via a gitignored path;
+- **relative** — `from .vendored import …` where the vendored sibling was never `git add`ed (the *half-done
+  vendor* — the very fix this check recommends, applied but not committed).
+
+Deliberate non-findings, each a cry-wolf guard that would otherwise get the gate `noqa`'d into uselessness:
+`try/except ImportError`-guarded imports (the optional-dependency pattern CLAUDE.md prescribes for the pool)
+are exempt; installed deps under `site-packages` are exempt (`.venv/` is itself gitignored, so a naive
+tracked-ness test flags every pip dependency); and frozen/built-in stdlib modules — whose pseudo-origin
+(`"frozen"`) is not a filesystem path — are exempt, or the gate would flag `import os`.
+
+Severity split: `src/`+`app/`+`tests/` → **ERROR** (an uncollectable test reds the whole suite);
+`scripts/` → **WARN** (dev tooling, never deployed). Adopted from `trade-intelligence`'s
+`check_phantom_imports.py`, which could not wire itself into the gate from inside a project (that path is
+synced and would be clobbered) — the hazard is universal, so it belongs in the hub. Fleet sweep on landing:
+41/42 repos clean; `meb` has 4 real phantom imports. Regression tests:
+`tests/enforcement/test_check_imports_resolvable.py` (6, each against a real throwaway git repo — tracked-ness
+is the thing under test and cannot be mocked).
+
 ### Changed — benchmarks: refuse to run against a STALE dataset; discard the 1.x results (2026-07-14)
 
 A benchmark score means nothing except *relative to the dataset it was measured on*. We were pinned to

@@ -643,6 +643,17 @@ def run_consistency_checks(
         results.append(
             run_optional_check("scripts/enforcement/check_env_vars.py", ".env Updates (Secrets)")
         )
+        # Phantom imports — shipped code importing a module that is NOT IN THE REPO (gitignored, or vendored
+        # but never `git add`ed). Green locally (the file sits on this disk), ModuleNotFoundError in CI and in
+        # the deployed container (the VPS `git pull`s — an untracked file never reaches it). A SHOWSTOPPER,
+        # and the reason this gate exists: a static check running in the developer's own .venv otherwise
+        # models the WRONG universe. It must model the CLEAN CHECKOUT — git is what CI and Docker receive.
+        results.append(
+            run_optional_check(
+                "scripts/enforcement/check_imports_resolvable.py",
+                "Imports Resolvable (clean checkout)",
+            )
+        )
         # Schema sync only if models or .sql changed
         if not changed or _has_extension(changed, ".py", ".sql"):
             results.append(
