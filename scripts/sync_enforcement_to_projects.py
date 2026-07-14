@@ -67,14 +67,35 @@ _ESSENTIAL_IGNORES = """# Essential safety rules — restored by sync_enforcemen
 # A .gitignore missing these is one `git add -A` away from committing secrets.
 .env
 .env.*
+# Sibling templates stay committable — `.env.*` would otherwise silently make a NEW
+# .env.sample / .env.template / .env.dist un-addable (`git add` no-ops, no error).
 !.env.example
+!.env.sample
+!.env.template
+!.env.dist
 .venv/
 venv/
 __pycache__/
 *.pyc
 """
 
+# ⚠️ ACCEPTED TRADEOFF. The floor is appended LAST, so its `.env.*` becomes the final match for any
+# `.env.<x>` a project deliberately tracks via its own negation (e.g. `!.env.ci`) — `git add .env.ci`
+# would then silently no-op. We re-include the four conventional templates below, but we cannot know a
+# project's bespoke ones. This is chosen knowingly: the floor only fires on a project that has ALREADY
+# lost its `.env` protection, and in that state "a template briefly needs re-negating" is a far cheaper
+# failure than "a secret is one `git add -A` from GitHub". Loud warning + non-zero exit tell the operator
+# to look.
 _ESSENTIAL_PATTERNS = (".env", ".venv/", "__pycache__/")
+
+# Idempotency marker — if this string is already in the file, the floor is present; never re-append.
+_ESSENTIAL_MARKER = "Essential safety rules"
+
+# Projects where the safety floor was written but git STILL reports .env unignored. The sync must
+# FAIL on these, not merely print: a mechanism that reports success while a secret stays committable
+# buys false confidence, which is worse than no mechanism. One line in a 47-project log is not
+# enforcement — the non-zero exit is.
+_SAFETY_FLOOR_FAILURES: list[str] = []
 
 
 def _covers_essentials(text: str) -> bool:
@@ -93,6 +114,83 @@ def _covers_essentials(text: str) -> bool:
     return all(p.rstrip("/") in lines for p in _ESSENTIAL_PATTERNS)
 
 
+def patched_gitignore(content: str, project_dir: Path) -> tuple[str, bool]:
+    """Return ``(new_gitignore_text, repaired)`` for a project's .gitignore.
+
+    THE single code path for this logic — the sync calls it and so do the tests. It is public and
+    extracted precisely because the tests previously re-implemented it in a local helper: they
+    validated a COPY, so the real code could drift and the suite would stay green. That is exactly
+    how the append-vs-prepend defect below survived its own "passing" tests.
+
+    Two jobs:
+
+    1. Replace the marked "Fabrik-synced" block (leaving the project's own entries alone), or append
+       it if absent.
+    2. Enforce the SAFETY FLOOR — if git says the project does not ignore ``.env`` / ``.venv/`` /
+       ``__pycache__/``, its own rules are missing or damaged, so add them back.
+
+    ⚠️ The floor is APPENDED, not prepended, and that is load-bearing: in .gitignore the LAST
+    matching rule wins. Prepending put the floor FIRST, so any later project rule (e.g. a stray
+    ``!.env``) silently overrode it — the "floor" was merely a suggestion. Appending makes it
+    actually win. (The caller still re-verifies with git afterwards, because a nested .gitignore
+    deeper in the tree can defeat even a last rule.)
+    """
+    block = gitignore_block_text()
+    if _GITIGNORE_BLOCK_RE.search(content):
+        new = _GITIGNORE_BLOCK_RE.sub(lambda _m: block, content)
+    else:
+        new = content.rstrip("\n") + "\n\n" + block
+
+    # A non-repo can never become "covered", so a fail-closed repair would fire on EVERY sync and the
+    # floor would stack without bound. It also has nothing to protect (CI and the VPS both get code via
+    # git). Skip it — see _is_git_repo.
+    if not _is_git_repo(project_dir):
+        return new, False
+
+    # Belt-and-braces against stacking: never append a floor that is already there. `_git_covers_
+    # essentials` should already prevent this, but it can legitimately still answer "not covered" after
+    # a repair (e.g. a nested `sub/.gitignore` with `!.env` defeats even a last-wins rule) — and in
+    # THAT case, appending again every sync would grow the file forever while never fixing anything.
+    if _ESSENTIAL_MARKER in new:
+        return new, False
+
+    # Ask GIT (authoritative) whether the project ALREADY protects .env. Evaluating the CURRENT tree
+    # is correct: swapping the Fabrik block never changes .env protection either way.
+    repaired = not _git_covers_essentials(project_dir)
+    if repaired:
+        new = new.rstrip("\n") + "\n\n" + _ESSENTIAL_IGNORES
+    return new, repaired
+
+
+def _is_git_repo(project_dir: Path) -> bool:
+    """Is this actually a git working tree?
+
+    ⚠️ Load-bearing for IDEMPOTENCY. `_git_covers_essentials` fails CLOSED — a non-repo makes
+    `check-ignore` return 128, which it reads as "not ignored" → repair. But a non-repo can never
+    BECOME covered, so it repaired on EVERY run and the floor stacked without bound (reproduced:
+    1 → 2 → 3 floors, the file growing each sync). `main()` discovers projects by `is_dir()` and does
+    NOT require `.git`, so plain directories under /opt are in the sync set today.
+
+    A non-repo also has nothing to protect: CI and the VPS both obtain code via `git`, so a directory
+    with no git has no clone to leak a `.env` into. Skipping it is correct, not merely convenient.
+    """
+    try:
+        return (
+            subprocess.run(  # noqa: S603 — fixed argv, no shell
+                ["git", "rev-parse", "--is-inside-work-tree"],
+                cwd=project_dir,
+                capture_output=True,
+                check=False,
+            ).returncode
+            == 0
+        )
+    except (OSError, subprocess.SubprocessError):
+        # git absent / not executable. Its sibling `_git_covers_essentials` guards this; without the
+        # same guard here a FileNotFoundError escaped `patched_gitignore` (which is PUBLIC and called by
+        # the tests) and every project got reported as failed.
+        return False
+
+
 def _git_covers_essentials(project_dir: Path) -> bool:
     """Ask GIT whether this project already ignores the safety floor. Authoritative.
 
@@ -106,13 +204,30 @@ def _git_covers_essentials(project_dir: Path) -> bool:
     """
     try:
         for pattern in _ESSENTIAL_PATTERNS:
-            rc = subprocess.run(  # noqa: S603 — fixed argv, no shell
-                ["git", "check-ignore", "-q", pattern],
+            proc = subprocess.run(  # noqa: S603 — fixed argv, no shell
+                ["git", "check-ignore", "-v", pattern],
                 cwd=project_dir,
                 capture_output=True,
+                text=True,
                 check=False,
-            ).returncode
-            if rc != 0:  # 0 = ignored; 1 = NOT ignored; 128 = not a repo
+            )
+            if proc.returncode != 0:  # 0 = ignored; 1 = NOT ignored; 128 = not a repo
+                return False
+            # ⚠️ FAIL-OPEN TRAP: `check-ignore` also honours `.git/info/exclude` and the user's GLOBAL
+            # `core.excludesFile` (~/.config/git/ignore). NEITHER travels with the repo. If a damaged
+            # project's `.env` were ignored only by the operator's personal global ignore, this would
+            # answer "safe", the repair would never fire, and every fresh clone — CI, a teammate, the
+            # VPS — would be UNPROTECTED. The rule must hold for the REPO, not for this machine.
+            #
+            # `-v` prints `<source>:<line>:<pattern>\t<path>`. Only a `.gitignore` that is part of the
+            # repo counts; a match sourced from `.git/info/exclude` or an absolute path outside the
+            # tree is a local-only rule and must NOT be trusted.
+            # Format: `<source>:<line>:<pattern>\t<pathname>`. The SOURCE path may itself contain
+            # colons, so a naive split(":", 1) mis-parses it and triggers a spurious repair. Take the
+            # left of the TAB, then strip the two rightmost `:`-delimited fields (line, pattern).
+            left = proc.stdout.split("\t", 1)[0]
+            source = left.rsplit(":", 2)[0].strip() if left.count(":") >= 2 else left.strip()
+            if not source.endswith(".gitignore") or source.startswith((".git/", "/")):
                 return False
         return True
     except (OSError, subprocess.SubprocessError):
@@ -474,33 +589,17 @@ def sync_scripts_to_project(
         # Only the marked block is replaced; the project's own .gitignore entries are
         # left untouched. (.gitignore itself is never overwritten wholesale.)
         gitignore = project_dir / ".gitignore"
-        if gitignore.exists():
+        # ⚠️ A repo with NO .gitignore is strictly MORE exposed than a block-only one, yet the net
+        # used to be gated on the existence of the very file whose absence is the hazard. Treat a
+        # missing file as empty content and create it.
+        if gitignore.exists() or _is_git_repo(project_dir):
             try:
-                content = gitignore.read_text()
-                block = gitignore_block_text()
-                if _GITIGNORE_BLOCK_RE.search(content):
-                    new = _GITIGNORE_BLOCK_RE.sub(lambda _m: block, content)
-                else:
-                    new = content.rstrip("\n") + "\n\n" + block
-                # ⚠️ SAFETY NET — never leave a project without the essential ignores.
-                #
-                # The bug this repairs: if `content` was empty, the else-branch above produced
-                # "\n\n" + block — a .gitignore containing ONLY the Fabrik block. That state is
-                # SELF-PERPETUATING (the regex then matches forever, so the project's own rules
-                # never come back) and it leaves `.env`, `.venv/`, `__pycache__/` UNIGNORED —
-                # one `git add -A` away from committing secrets. Observed live in 3 repos.
-                #
-                # The Fabrik block lists only centrally-synced paths; it is deliberately NOT the
-                # project's ignore file. So if the result does not cover `.env`, the project's own
-                # rules are missing/damaged — prepend a minimal safety preamble and say so loudly.
-                # This also SELF-HEALS an already-damaged repo on the next sync.
-                # Ask GIT (authoritative) whether the project ALREADY protects .env. Evaluating the
-                # current tree is correct: swapping the Fabrik block never changes .env protection.
-                if not _git_covers_essentials(project_dir):
-                    new = _ESSENTIAL_IGNORES + "\n" + new.lstrip("\n")
+                content = gitignore.read_text() if gitignore.exists() else ""
+                new, repaired = patched_gitignore(content, project_dir)
+                if repaired:
                     print(
                         f"  ⚠️  {project_dir.name}: .gitignore did NOT ignore .env / .venv / "
-                        f"__pycache__ — safety preamble restored. The project's own ignore rules "
+                        f"__pycache__ — safety floor appended. The project's own ignore rules "
                         f"appear to have been lost; review .gitignore."
                     )
                 if new != content:
@@ -508,6 +607,28 @@ def sync_scripts_to_project(
                         if backup:
                             create_backup(gitignore)
                         gitignore.write_text(new)
+                        # ⚠️ VERIFY THE REPAIR ACTUALLY HELD — do not merely assert it.
+                        # The floor is appended so it wins (gitignore: LAST match wins), but a
+                        # project could still defeat it (e.g. a trailing `!.env`, or a nested
+                        # .gitignore deeper in the tree). A safety mechanism that PRINTS
+                        # "restored" while .env is still exposed is worse than none — it buys
+                        # false confidence. So we re-ask git after writing and escalate loudly.
+                        # Verify UNCONDITIONALLY. Gating this on `repaired` made the escalation
+                        # ONE-SHOT: on the next sync the floor marker is already present, so
+                        # patched_gitignore early-returns `repaired=False`, this block never runs,
+                        # _SAFETY_FLOOR_FAILURES stays empty and main() exits 0 — permanently GREEN
+                        # over a still-exposed .env. The operator shrugs off one red run and the
+                        # mechanism goes quiet forever: exactly the false confidence it exists to
+                        # remove. The state of the tree, not what we happened to do this run, is
+                        # what must be asserted.
+                        if _is_git_repo(project_dir) and not _git_covers_essentials(project_dir):
+                            _SAFETY_FLOOR_FAILURES.append(project_dir.name)
+                            print(
+                                f"  ❌ {project_dir.name}: SAFETY FLOOR FAILED — .env is STILL not "
+                                f"ignored after repair. A project rule is overriding it (look for a "
+                                f"`!.env` negation or a nested .gitignore). FIX THIS BY HAND: a "
+                                f"`git add -A` here can commit secrets."
+                            )
                     file_results.append(
                         SyncResult("COPY", gitignore, gitignore, ".gitignore Fabrik-synced block")
                     )
@@ -612,6 +733,10 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> int:
+    # Reset the module-level tally. It is a mutable global; without this a second in-process call (a
+    # future test, a wrapper, a dry-run-then-real flow) inherits the previous run's failures and returns
+    # 1 forever.
+    _SAFETY_FLOOR_FAILURES.clear()
     """Sync scripts to all /opt projects (excluding _* folders)."""
     args = parse_args()
 
@@ -695,6 +820,15 @@ def main() -> int:
             fail_count += 1
 
     print()
+    if _SAFETY_FLOOR_FAILURES:
+        # FAIL the run. The floor was written and git still says `.env` is exposed — a project rule or a
+        # nested .gitignore is overriding it. Exiting 0 here would report success over a live secret-leak
+        # path, which is precisely the false confidence this whole mechanism exists to remove.
+        print(
+            f"\n❌ SAFETY FLOOR FAILED in {len(_SAFETY_FLOOR_FAILURES)} project(s): "
+            f"{', '.join(_SAFETY_FLOOR_FAILURES)} — .env is still committable there. Fix by hand."
+        )
+
     summary = f"Results: {success_count} projects synced, {fail_count} failed"
     summary += f" | Files: {total_copied} copied, {total_skipped} skipped"
     if total_warnings > 0:
@@ -704,7 +838,7 @@ def main() -> int:
     if args.dry_run:
         print("\nDRY-RUN: No files were modified")
 
-    return 0 if fail_count == 0 else 1
+    return 0 if (fail_count == 0 and not _SAFETY_FLOOR_FAILURES) else 1
 
 
 if __name__ == "__main__":

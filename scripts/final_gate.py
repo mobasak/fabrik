@@ -652,6 +652,12 @@ def run_consistency_checks(
             run_optional_check(
                 "scripts/enforcement/check_imports_resolvable.py",
                 "Imports Resolvable (clean checkout)",
+                # advisory=True preserves stdout on exit 0. Without it `run_optional_check` returns ""
+                # for a passing check, which SILENTLY DISCARDED the entire WARN tier — every phantom in
+                # `scripts/` printed a warning the operator never saw. The documented severity split
+                # (src/app/tests = ERROR, scripts/ = WARN) was dead code. ERRORs still fail the gate
+                # via the non-zero exit; this only stops the warnings evaporating.
+                advisory=True,
             )
         )
         # Schema sync only if models or .sql changed

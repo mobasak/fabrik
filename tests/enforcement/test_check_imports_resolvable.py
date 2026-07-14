@@ -8,12 +8,10 @@ check out?" cannot be faked with mocks.
 
 from __future__ import annotations
 
-import importlib.util
-import io
 import os
+import shutil
 import subprocess
 import sys
-from contextlib import redirect_stdout
 from pathlib import Path
 
 import pytest
@@ -21,32 +19,48 @@ import pytest
 CHECK = Path(__file__).resolve().parents[2] / "scripts" / "enforcement" / "check_imports_resolvable.py"
 
 
-def _run_check(root: Path) -> tuple[int, str]:
-    """Load the check with ROOT bound to `root` and run it, capturing stdout."""
-    spec = importlib.util.spec_from_file_location("chk_mod", CHECK)
-    assert spec and spec.loader
-    chk = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(chk)
-    chk.ROOT = root
-    cwd, saved_path, saved_argv = Path.cwd(), list(sys.path), list(sys.argv)
-    # ⚠️ Purge cached first-party packages. `find_spec("libs.subagents")` consults the ALREADY-IMPORTED
-    # parent's __path__, so a `libs` left in sys.modules by a previous test resolves against THAT repo and the
-    # check silently sees nothing. In production this cannot bite (the gate runs as a fresh subprocess), but
-    # in-process tests must isolate or they quietly assert on the wrong repo.
-    for name in [n for n in sys.modules if n.split(".")[0] in {"libs", "pkg", "src"}]:
-        del sys.modules[name]
-    importlib.invalidate_caches()
-    os.chdir(root)
-    sys.argv = ["chk"]
-    buf = io.StringIO()
-    try:
-        with redirect_stdout(buf):
-            rc = chk.main()
-    finally:
-        os.chdir(cwd)
-        sys.path[:] = saved_path
-        sys.argv = saved_argv
-    return rc, buf.getvalue()
+def _run_check(root: Path, extra_syspath: list[str] | None = None) -> tuple[int, str]:
+    """Run the check EXACTLY as production does: a fresh subprocess, rooted in the project.
+
+    ⚠️ This used to run in-process with `chk.ROOT` monkeypatched and a hardcoded `sys.modules` purge of
+    `{"libs","pkg","src"}`. That is a test-quality defect: production invokes it via
+    `final_gate.run_optional_check` → `run_cmd` → `subprocess.run([PYTHON, script])`. An in-process
+    harness proves something the shipped code never does — and the purge set was a crutch that would
+    silently leak state for any fixture using a different top-level package name, resolving against the
+    WRONG repo. Copy the check into the throwaway repo and shell out; ROOT then derives from `__file__`
+    exactly as it does in the field.
+    """
+    dest = root / "scripts" / "enforcement"
+    dest.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(CHECK, dest / CHECK.name)
+
+    env = dict(os.environ)
+    if extra_syspath:
+        env["PYTHONPATH"] = os.pathsep.join([*extra_syspath, env.get("PYTHONPATH", "")]).rstrip(
+            os.pathsep
+        )
+    proc = subprocess.run(
+        [sys.executable, str(dest / CHECK.name)],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        env=env,
+        check=False,
+    )
+    return proc.returncode, proc.stdout + proc.stderr
+
+
+@pytest.fixture
+def outside(tmp_path_factory) -> Path:
+    """A directory GENUINELY OUTSIDE the repo under test.
+
+    ⚠️ Do NOT build this from `tmp_path`: the `repo` fixture RETURNS `tmp_path`, so a test taking both
+    gets the SAME directory — `external` would land INSIDE the repo and the assertion would be satisfied
+    by the `_is_tracked` branch, never by the outside-the-repo logic it claims to cover. That is a test
+    that cannot fail when its fix is reverted (proven: reverting `_is_phantom`'s outside-repo branch
+    still passed). A separate factory dir is what makes the test real.
+    """
+    return tmp_path_factory.mktemp("outside")
 
 
 @pytest.fixture
@@ -107,6 +121,43 @@ def test_properly_vendored_and_committed_passes(repo: Path) -> None:
     assert rc == 0, out
 
 
+def test_phantom_inside_a_plain_if_block_is_caught(repo: Path) -> None:
+    """REGRESSION — a plain top-level `if:` is NOT a guard.
+
+    The original check walked only `tree.body`, so ANY import nested in an `if` / `with` / `for`
+    block was skipped as "guarded". But only `try/except ImportError` actually handles absence — a
+    plain `if` executes at import time and hard-fails. This exact shape passed the gate (exit 0) and
+    would ModuleNotFoundError in the container: a silent recall hole in a SHOWSTOPPER check.
+    """
+    (repo / ".gitignore").write_text("libs/subagents/\n")
+    (repo / "libs" / "subagents").mkdir(parents=True)
+    (repo / "libs" / "__init__.py").write_text("")
+    (repo / "libs" / "subagents" / "__init__.py").write_text("fanout = None\n")
+    (repo / "src" / "pkg" / "app.py").write_text(
+        'import os\nif os.getenv("FEATURE"):\n    from libs.subagents import fanout\n'
+    )
+    _commit(repo, ".gitignore", "libs/__init__.py", "src/pkg/app.py", "src/pkg/__init__.py")
+
+    rc, out = _run_check(repo)
+    assert rc == 1, f"a plain `if:` import is NOT guarded and must be caught:\n{out}"
+    assert "libs.subagents" in out
+
+
+def test_type_checking_import_is_exempt(repo: Path) -> None:
+    """`if TYPE_CHECKING:` never executes at runtime — flagging it would cry wolf."""
+    (repo / ".gitignore").write_text("libs/subagents/\n")
+    (repo / "libs" / "subagents").mkdir(parents=True)
+    (repo / "libs" / "__init__.py").write_text("")
+    (repo / "libs" / "subagents" / "__init__.py").write_text("")
+    (repo / "src" / "pkg" / "app.py").write_text(
+        "from typing import TYPE_CHECKING\n\nif TYPE_CHECKING:\n    from libs.subagents import fanout\n"
+    )
+    _commit(repo, ".gitignore", "libs/__init__.py", "src/pkg/app.py", "src/pkg/__init__.py")
+
+    rc, out = _run_check(repo)
+    assert rc == 0, f"TYPE_CHECKING imports are annotations-only and must NOT be flagged:\n{out}"
+
+
 def test_guarded_import_is_exempt(repo: Path) -> None:
     """A try/except-ImportError import is a deliberate optional dep — the pattern CLAUDE.md prescribes for
     the subagent pool. It degrades gracefully, so it must NOT fail the gate."""
@@ -132,6 +183,95 @@ def test_stdlib_and_installed_deps_are_not_phantoms(repo: Path) -> None:
 
     rc, out = _run_check(repo)
     assert rc == 0, out
+
+
+def test_a_raising_parent_package_does_not_crash_the_gate(repo: Path) -> None:
+    """REGRESSION — `find_spec` IMPORTS parent packages, executing arbitrary code at gate time.
+
+    A package whose `__init__.py` raises (config validation, a bare `raise`, `sys.exit()`) propagated
+    a RuntimeError straight out of the check and CRASHED it. This is a SYNCED Tier-1 gate: a crash
+    blocks `final_gate` in every project that merely *has* such a package. It must swallow and skip.
+    """
+    (repo / "badpkg").mkdir()
+    (repo / "badpkg" / "__init__.py").write_text('raise RuntimeError("import-time explosion")\n')
+    (repo / "src" / "pkg" / "app.py").write_text("from badpkg.sub import thing\n")
+    _commit(repo, "badpkg/__init__.py", "src/pkg/app.py", "src/pkg/__init__.py")
+
+    rc, out = _run_check(repo)  # must not raise
+    assert "Traceback" not in out
+    assert rc in (0, 1), f"gate must survive a raising parent package, got rc={rc}:\n{out}"
+
+
+def test_compiled_extension_is_not_a_phantom(repo: Path) -> None:
+    """A `.so` is a BUILD ARTIFACT, not source. Cython/cffi modules are routinely gitignored and
+    produced by the build — absent from the repo yet PRESENT in the container. Flagging one as
+    'will ModuleNotFoundError in the container' is exactly backwards and hard-ERRORs a valid project.
+    """
+    (repo / ".gitignore").write_text("*.so\n")
+    (repo / "src" / "_ext.so").write_bytes(b"\x7fELF")  # gitignored build artifact
+    (repo / "src" / "pkg" / "app.py").write_text("import _ext\n")
+    _commit(repo, ".gitignore", "src/pkg/app.py", "src/pkg/__init__.py")
+
+    rc, out = _run_check(repo)
+    assert rc == 0, f"a compiled build artifact must NOT be a phantom:\n{out}"
+
+
+def test_phantom_outside_the_repo_root_is_caught(repo: Path, outside: Path, monkeypatch) -> None:
+    """REGRESSION — the check used to BLESS every module outside the repo (`except ValueError: return
+    False`), which silently exempted the very bug class it exists to catch: put `libs/` on PYTHONPATH,
+    or `pip install -e /opt/fabrik-lib`, or symlink it, and the import resolves here but NOT in CI.
+
+    What CI actually receives is: the repo + pip-installed packages + the interpreter. A path outside
+    ALL THREE exists only on this developer's machine.
+    """
+    external = outside / "external"
+    (external / "extlib").mkdir(parents=True)
+    (external / "extlib" / "__init__.py").write_text("def go(): ...\n")
+
+    (repo / "src" / "pkg" / "app.py").write_text("from extlib import go\n")
+    _commit(repo, "src/pkg/app.py", "src/pkg/__init__.py")
+
+    monkeypatch.setenv("PYTHONPATH", str(external))
+    rc, out = _run_check(repo, extra_syspath=[str(external)])
+    assert rc == 1, f"a module CI will not have must be a phantom:\n{out}"
+    assert "extlib" in out
+
+
+def test_escape_hatch_exempts_generated_code(repo: Path, outside: Path, monkeypatch) -> None:
+    """Without an escape hatch, a module gitignored BY DESIGN and regenerated in the Dockerfile
+    (protobuf `*_pb2.py`, an OpenAPI client) is an UNFIXABLE hard ERROR — which is exactly how a gate
+    gets disabled fleet-wide. `# phantom-ok` keeps the gate trustworthy instead of discarded."""
+    external = outside / "external"
+    (external / "extlib").mkdir(parents=True)
+    (external / "extlib" / "__init__.py").write_text("def go(): ...\n")
+
+    (repo / "src" / "pkg" / "app.py").write_text(
+        "from extlib import go   # phantom-ok: generated in the Dockerfile\n"
+    )
+    _commit(repo, "src/pkg/app.py", "src/pkg/__init__.py")
+
+    monkeypatch.setenv("PYTHONPATH", str(external))
+    rc, out = _run_check(repo, extra_syspath=[str(external)])
+    assert rc == 0, f"an explicitly-exempted import must not fail the gate:\n{out}"
+
+
+def test_escape_hatch_works_on_a_multiline_import(repo: Path, outside: Path, monkeypatch) -> None:
+    """REGRESSION — the hatch checked only `node.lineno` (the `from` line), so a marker on the closing
+    paren of a parenthesised import was MISSED: the gate still errored while the author believed they
+    had opted out. A safety valve that silently fails to open is worse than none — it teaches people
+    the gate is broken, and that is how a gate gets deleted."""
+    external = outside / "external"
+    (external / "extlib").mkdir(parents=True)
+    (external / "extlib" / "__init__.py").write_text("a = 1\nb = 2\n")
+
+    (repo / "src" / "pkg" / "app.py").write_text(
+        "from extlib import (\n    a,\n    b,\n)  # phantom-ok: generated in the Dockerfile\n"
+    )
+    _commit(repo, "src/pkg/app.py", "src/pkg/__init__.py")
+
+    monkeypatch.setenv("PYTHONPATH", str(external))
+    rc, out = _run_check(repo, extra_syspath=[str(external)])
+    assert rc == 0, f"the marker anywhere in the import's span must exempt it:\n{out}"
 
 
 def test_phantom_in_scripts_is_warn_not_error(repo: Path) -> None:
