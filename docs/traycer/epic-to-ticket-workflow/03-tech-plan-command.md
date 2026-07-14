@@ -35,7 +35,7 @@ Read these in order; everything else builds on them:
    - **`Epic Flavor: Retrofit`** (Path B only) changes section targeting throughout this command:
      - **Step 4b 12-Factor** — re-verify ONLY the factor the retrofit touches (e.g., `Retrofit: i18n` → Factor III config + Factor V build only). Skip the full 12-factor sweep; state inherited compliance for untouched factors.
      - **Step 4c Concurrency** — Retrofit on non-concurrency areas → state "concurrency inherited from existing project" + skip new design.
-     - **Step 6 Architecture Design** — Retrofit target ≤100 lines total (vs Delta-feature ≤300 at L149). Single-subsystem focus.
+     - **Step 6 Architecture Design** — Retrofit target ≤100 lines total (vs Delta-feature ≤300 per Step 6 § Section length). Single-subsystem focus.
      - **Step 7 Shape Block Declaration** — Retrofit INHERITS the existing project's shape; do NOT declare new shape. State "inherited; no new shape flags required" unless the retrofit explicitly adds a registrar (e.g., `Retrofit: search` adds `has_search_feature: true`).
    - **`Registrars`** (Path B only) lists which of the **10** fire per `mega-epic-breakdown/00-trigger-workflow-command` § Orientation → Fabrik lifecycle: postgres, redis, gatus, backrest, glitchtip, authelia, meilisearch, prometheus, grafana, **watchdog** — Component Architecture (Step 6.C) MUST NOT contradict this list. If architecture needs a registrar not in the list, route back to `mega-epic-breakdown/02-epic-decomposition-command` to update the spec.
 
@@ -55,13 +55,15 @@ Read these in order; everything else builds on them:
    - `Email` — if `two-stream`, vendor `fabrik-lib/email-templates/` and confirm transactional/marketing separation on separate subdomains (authority: `core/86-email-templates.md`).
    - `Vector DB` — if `pgvector`, confirm pgvector self-hosted on postgres-main (`pgvector/pgvector:pg16` + `fabrik-lib/rag`; no external vector DBs, no Supabase).
    - `FINANCIALS` — if `required`, note that `docs/FINANCIALS.md` must be populated before launch (authority: `saas/88-saas-launch-checklist.md`).
-   - `x86_64`, `Deploy`, `Design System`, `Duplicate`, `Platform Debt` — consult; surface only if they materially shape the design.
+   - `LLM Gateway` — `openrouter` / `kilo-cli` / `contested-<vendor>` / `none`. **Architecture-shaping — never drop it.** It fixes HOW every AI call in Component Architecture (Step 6.C) is made. The rule is **domain-scoped**, not global: a RAG/search/embeddings pipeline is bound by `core/65-rag-search.md`; Node/TS code by `core/12-node.md`; every other AI category picks the cheapest gateway per model per `ai/00-ai-model-selection.md` — a direct-vendor gateway is VALID when the model is on neither Kilo nor OpenRouter. **Never wire a general-purpose vendor SDK (`openai`, `@anthropic-ai/sdk`) as the LLM path.** `contested-<vendor>` ⇒ resolve here, before architecture. `none` ⇒ N/A.
+   - `Watchdog` — `accept-defaults` / `raise` / `opt-out`. Decides whether the **watchdog sidecar registrar** fires, so it belongs in the Step 7 registrar surface. The sidecar is **opt-OUT** (absent config ⇒ it deploys). `raise` ⇒ state the new caps in the architecture; `opt-out` ⇒ state why.
+   - `x86_64`, `Design System`, `Duplicate`, `Platform Debt` — consult; surface only if they materially shape the design.
 3. **Core Flows** (only if scaffold's route included it) — Personas, Flow Index, `[PRIMARY PATH]` markers per flow. The `[PRIMARY PATH]` markers feed the Testability Gate (Step 7).
 4. **Pre-research file** if one was identified by `trigger_workflow` Step 3 — re-read for grounding.
 
 If a required upstream artifact is missing, pause and ask the user. Do not guess.
 
-**Defensive case (no core-flows):** For `python-api`, `node-api`, `file-api`, `file-worker`, `wordpress`, `docusaurus`, derive personas and primary paths directly from Epic Brief Success Criteria. Do not request core-flows retroactively.
+**Defensive case (no core-flows):** For `python-api`, `python-api-gpu`, `node-api`, `file-api`, `file-worker`, `docusaurus`, derive personas and primary paths directly from Epic Brief Success Criteria. Do not request core-flows retroactively. (`wordpress` is **not** in this workflow at all — it is not scaffoldable (`scaffold.py:5566`) and routes to `/opt/wpf`.)
 
 ### Step 2: Pre-Design Reference Reads
 
@@ -73,6 +75,10 @@ Tech-plan adds scaffold-aware reads:
 - **Database-backed scaffolds**: `.windsurf/rules/core/25-data-postgres.md` — PostgreSQL conventions, migration policy; host is `postgres-main` (self-host default per `AGENTS.md § Supabase` — Supabase only as a deliberate ADR-recorded exception for a project already on it).
 - **AI/ML projects**: `.windsurf/rules/ai/00-ai-model-selection.md` (+ matching category pack `10`–`90`) — confirm correct category + tool selection.
 - **All scaffolds**: `docs/operations/fabrik-lifecycle.md` — confirm architecture fits all 4 stages.
+- **All scaffolds**: `docs/reference/technology-stack-decision-guide.md` — the stack-choice authority alongside `AGENTS.md` § Tech Stack Defaults. *(There is no section called "external services decision matrix" — do not look for one.)*
+- **Any scaffold with a web GUI surface** (feature-trigger, see `Responsive` below): `docs/reference/mobile-responsive-testing-guide.md` — the RWD1–RWD10 authority the 375px floor is verified against.
+
+**⚠️ Reuse-before-build (do this BEFORE designing any component):** the VPS already runs shared services — **postgres-main, redis-main, MeiliSearch, Gotenberg** (PDF), **Browserless** (headless Chrome), **Apprise** (notifications), **n8n** (automation), **Backblaze B2** (object storage) — see `AGENTS.md` § Infrastructure Services. Check that table, then `fabrik-lib/README.md` (Step 6.C), before designing anything from scratch. A component that re-implements Gotenberg or Browserless is a **Most Important** issue, not a design choice. (Supabase is **not** a default — legacy/migration-only per `AGENTS.md` § Supabase.)
 
 ### Step 3: Read Scaffold-Specific Rule Packs
 
@@ -173,7 +179,7 @@ Work each section: think → clarify → document. Trace requests end-to-end. In
 - New entities and relationships.
 - Database schema (PostgreSQL on `postgres-main`).
 - Apply `core/25-data-postgres.md` conventions (PK, indexes, constraints).
-- **Redis usage**: cache keys, TTL, DB index from `redis-assignments.json`.
+- **Redis usage**: cache keys + TTL policy. ⚠️ **Do NOT pick a DB index.** The Redis registrar allocates the lowest free index (1–15; `0` is reserved for ad-hoc CLI) via `acquire_db_index()` at `fabrik apply` time, from the VPS-side registry `/opt/monitoring/configs/redis/assignments.json` (`src/fabrik/drivers/redis.py:56`). The architecture states *that* it needs a cache (⇒ `shape.needs_cache: true`), never *which* index.
 - **Meilisearch indexes** (if `shape.has_search_feature: true`).
 - If Commercial Mindset ON: apply `saas/95-multi-tenant-saas.md` (tenant_id, RLS, deletion).
 - N/A allowed for scaffolds with no DB — one-line reason required.
@@ -186,15 +192,13 @@ Work each section: think → clarify → document. Trace requests end-to-end. In
 - Clear boundaries and responsibilities.
 - Integration points and data flow.
 - **Resilience per external dependency:** Every call to an external service (Internal APIs, Backblaze B2, payment providers, email/SMS vendors) has: timeout (state ms value), retry with exponential backoff, circuit-breaker for repeated failures, graceful fallback. State per-dependency in a table.
-- **Deployment configuration:**
-  - `compose.yaml` with `deploy.resources.limits` (memory + cpus).
-  - `platform: linux/amd64` in compose.
-  - Traefik labels: `Host(...)` rule, `websecure` entrypoint, LetsEncrypt cert resolver.
-  - `healthcheck` with `start_period: 60s`. `/health` tests real deps: `SELECT 1`, Redis `PING`, consumed API connectivity.
-  - `networks: fabrik: external: true`. No host port bindings — all via Traefik.
-  - Admin dashboards: add `authelia-forward@docker` middleware in Traefik labels.
-  - `Dockerfile` multi-stage (builder → production). `slim-bookworm` base only.
-  - Environment variables (list all; reference `.env.example`).
+- **Deployment CONSTRAINTS the architecture must satisfy — state them; do NOT design the compose.**
+  ⚠️ The **Deploy Contract is owned by `04-deploy-plan-command` Step 3 (Compose Contract)** — resource limits, `platform`, `container_name`, the `healthcheck` stanza, `networks`, Traefik labels and the no-host-ports rule are **verified there, not designed here**. Duplicating them in the Tech Plan produces two drifting copies of one contract. What this command owns:
+  - **Environment variables** — list every var the architecture introduces (reference `.env.example`). These feed `04` Step 5's checklist and `docs/CONFIGURATION.md`. *(03 identifies them; 04 checklists them; values are never written in either.)*
+  - **`/health` semantics** — WHAT it must test: real dependencies (`SELECT 1`, Redis `PING`, consumed-API connectivity), never a static `200`. *(The compose `healthcheck` stanza and its `start_period` belong to `04` Step 3.)*
+  - **Base-image constraint** — `linux/amd64`, multi-stage `Dockerfile` (builder → production), **`slim-bookworm` only — no Alpine**.
+  - **Auth surface** — if the epic exposes an admin dashboard, state that it must sit behind Authelia forward-auth; the Traefik middleware label itself is confirmed at `04` Step 8.
+  - Note any architecture decision that would make the `04` contract **unsatisfiable** (e.g. a component that needs a host port). Surface it here rather than letting `04` discover it.
 - **i18n component** (from Step 4d): locale file location, loading mechanism, fallback chain.
 - **Observability:** `/metrics` endpoint (if `shape.exposes_metrics: true`), structured logging config.
 - If `HAS_USER_GUIDE: true`: `docs/user-guide/` surface included.
@@ -202,7 +206,7 @@ Work each section: think → clarify → document. Trace requests end-to-end. In
 - **fabrik-lib modules:** Before designing a component from scratch, check `fabrik-lib/README.md` for vendorable modules (abuse prevention, email templates, storage, credits, webhooks, etc.). Reference the module by name if applicable.
 - No code snippets except schemas and interfaces. No business logic.
 
-**Downstream doc feeds:** Tech Plan output informs `docs/CONFIGURATION.md` (env vars from Component Architecture), `docs/RESILIENCE.md` (timeout/retry/fallback per dep from resilience table), `docs/DATABASE_SCHEMA.md` (Data Model). Deploy Plan (04) informs `docs/DEPLOYMENT_ARCHITECTURE.md` (compose/Docker layout). The Documentation Assignment Matrix in `ticket-outline` assigns which ticket fills these.
+**Downstream doc feeds:** Tech Plan output informs `docs/CONFIGURATION.md` (env vars from Component Architecture), `docs/RESILIENCE.md` (timeout/retry/fallback per dep from the resilience table), and **`db/schema.sql` + the Alembic migration** (Data Model) — per CLAUDE.md's Doc Sync Matrix. ⚠️ There is **no `docs/DATABASE_SCHEMA.md`**: its template was archived (`templates/.archive/DATABASE_SCHEMA_TEMPLATE.md`) and the scaffolder does not emit it — do not create one. Deploy Plan (04) informs **`docs/DEPLOYMENT.md`** (the project deploy doc the scaffolder emits from `DEPLOYMENT_TEMPLATE.md`; `docs/DEPLOYMENT_ARCHITECTURE.md` is a **hub-only** doc — never a project's). The Documentation Assignment Matrix in `ticket-outline` assigns which ticket fills these.
 
 > **Drafting rules:**
 > - Cover A and C (mandatory) + B (mandatory or N/A with reason).
@@ -234,18 +238,24 @@ Stress-test against 8 dimensions:
 
 ```yaml
 shape:
-  needs_database: true/false
-  needs_cache: true/false
-  is_public: true/false
-  is_admin_dashboard: true/false
-  exposes_metrics: true/false
-  has_search_feature: true/false
-  has_persistent_data: true/false
+  kind: service|worker|static|wordpress   # drives the GlitchTip registrar
+  needs_database: true/false              # → postgres registrar
+  needs_cache: true/false                 # → redis registrar
+  is_public: true/false                   # → gatus + Traefik routing (needs spec.domain)
+  is_admin_dashboard: true/false          # → authelia forward-auth (needs spec.domain)
+  has_bearer_api: true/false              # machine-to-machine API surface (Authelia bypass regex)
+  exposes_metrics: true/false             # → prometheus registrar (needs spec.domain)
+  has_search_feature: true/false          # → meilisearch registrar
+  has_persistent_data: true/false         # → backrest registrar
 ```
 
-State which registrars will fire on `fabrik apply`. This shape becomes the `specs/services/<id>.yaml` contract at scaffold time.
+All **8** boolean flags plus `kind` (`src/fabrik/spec_loader.py`) — declare every one; an omitted flag defaults and silently skips its registrar.
+
+State which registrars will fire on `fabrik apply`. ⚠️ Three of them (**gatus, authelia, prometheus**) additionally require `spec.domain` — a flag alone does not fire them. **grafana** always fires; **watchdog** is opt-OUT (it fires unless disabled). This shape becomes the `specs/services/<id>.yaml` contract at scaffold time.
 
 **Issue classification:** Most Important → Significant → Moderate → Minor. Do not hand off with Most Important unresolved.
+
+**Quality gate (downstream):** the architecture must be implementable to a green `python scripts/final_gate.py --json` (the FULL Tier-2 gate — mypy + bandit + semgrep + schema/plan/docs checks; **never `--lean`**, which is the iteration subset, not the completion gate). If any design choice cannot pass it — an unavoidable `# noqa`, a hardcoded secret, a silent failure path — that is a **Most Important** issue: resolve it in the architecture, not with a suppression at code time.
 
 ### Step 8: Present and Iterate
 
@@ -258,7 +268,7 @@ If during iteration the user introduces a requirement change, suggest `revise-re
 - Does NOT enumerate user journeys / UX flow steps / UI states — that is `02-core-flows-command`.
 - Does NOT decompose into tickets — that is `05-ticket-outline-command`.
 - Does NOT write implementation code / pseudo-code / function bodies — Component Architecture (Step 6.C) names modules + responsibilities + public interfaces; literal implementation is `06-ticket-breakdown` + `07-execute`.
-- Does NOT design `compose.yaml` / Traefik labels / healthcheck / resource limits — that is `04-deploy-plan-command` Step 6 Deploy Contract.
+- Does NOT design `compose.yaml` / Traefik labels / the `healthcheck` stanza / resource limits — that is **`04-deploy-plan-command` Step 3 (Compose Contract)**. Step 6.C states the deployment *constraints* the architecture must satisfy (env vars, `/health` semantics, amd64 + `slim-bookworm`, the Authelia surface); it never writes the contract.
 - Does NOT write literal migration scripts — Data Model (Step 6.B) names tables + columns + constraints + indexes; migration file contents are `06-ticket-breakdown` per-ticket per `core/25-data-postgres.md`.
 - Does NOT re-derive INFRA-CHECK fields — consume from Epic Brief Metadata verbatim per Step 1. Path B fields (`Registrars`, `Universal categories`, `Epic Flavor`) MUST flow through; missing routes back to `00-trigger-workflow-command`.
 - Does NOT redeclare the Shape Block for Retrofit epics — Retrofit inherits the existing project's shape; only declare new shape flags when the retrofit explicitly adds a registrar (per Step 1 Path B Epic Flavor rules).
@@ -270,7 +280,7 @@ If during iteration the user introduces a requirement change, suggest `revise-re
 
 ## Acceptance Criteria
 
-- Upstream context consumed: Epic Brief, INFRA-CHECK. Path A: Concurrency, i18n, Shape, 12-Factor, Rule Packs, Responsive, Dark+Light, HAS_USER_GUIDE, Abuse Detection, Email, FINANCIALS, Vector DB. Path B adds: `Registrars`, `Universal categories`, `Epic Flavor` (Delta-feature | Retrofit) — none silently dropped at the boundary. Core Flows (when present), pre-research.
+- Upstream context consumed: Epic Brief, INFRA-CHECK. Path A: Concurrency, i18n, Shape, 12-Factor, Rule Packs, Responsive, Dark+Light, HAS_USER_GUIDE, Abuse Detection, Email, FINANCIALS, Vector DB, **LLM Gateway**, **Watchdog**. Path B adds: `Registrars`, `Universal categories`, `Epic Flavor` (Delta-feature | Retrofit) — none silently dropped at the boundary. Core Flows (when present), pre-research.
 - Defensive case handled: no retroactive core-flows request for skipped scaffolds.
 - Pre-design reference reads completed scaffold-aware (design system, 25-data-postgres, ai/ ruleset, lifecycle).
 - Rule packs read per INFRA-CHECK `Rule Packs` + domain overlays. Stated.
@@ -281,7 +291,11 @@ If during iteration the user introduces a requirement change, suggest `revise-re
 - Commercial Mindset ON/OFF decided; section present or omitted.
 - Architecture designed across A + C (mandatory) + B (mandatory or N/A).
 - Architectural Approach references Stack, Port, confirms amd64 (no Alpine), integrates concurrency model, 12-Factor, and structured logging.
-- Component Architecture reflects Internal APIs (with M2M auth pattern), resilience per external dep (timeout/retry/circuit-breaker/fallback), deployment contract (Traefik labels, healthcheck start_period 60s, fabrik network, no host ports, resource limits), i18n component, observability, fabrik-lib modules referenced where applicable.
+- Component Architecture reflects Internal APIs (with M2M auth pattern), resilience per external dep (timeout/retry/circuit-breaker/fallback), deployment **constraints** (env vars, `/health` tests real deps, amd64 + `slim-bookworm`, Authelia surface — the compose **contract** itself is `04` Step 3, not here), i18n component, observability, fabrik-lib modules referenced where applicable.
+- **Reuse-before-build applied:** shared VPS services (`AGENTS.md` § Infrastructure Services — Gotenberg, Browserless, Apprise, n8n, MeiliSearch, B2) and `fabrik-lib/README.md` both consulted before any component was designed from scratch.
+- **`LLM Gateway` consumed** (Step 1): every AI call in Component Architecture routes through the declared gateway; no general-purpose vendor SDK wired. `contested-<vendor>` resolved here.
+- **`Watchdog` consumed** (Step 1): its registrar reflected in the Step 7 surface (opt-OUT — absent config still deploys the sidecar).
+- Architecture is implementable to a green `final_gate.py --json` (Tier-2); no design choice requires a suppression.
 - Responsive (375px–2560px) + Dark+Light (mandatory) addressed in UI architecture for any scaffold with a GUI surface (feature-trigger per `mega-epic-breakdown/00-trigger-workflow-command` § Rule-area applicability matrix — NOT scaffold-type-gated; applies to python-api/node-api/file-api admin dashboards too).
 - Abuse Detection vendored from fabrik-lib when required. Email two-stream confirmed when applicable.
 - `fabrik apply` confirmed deployable end-to-end. Gaps stated if any.
