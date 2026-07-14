@@ -24,6 +24,16 @@ import microbench_terminal as mt  # noqa: E402
 FIXTURE = Path(__file__).parent / "fixtures" / "tb_output.json"
 
 
+@pytest.fixture(autouse=True)
+def _clear_task_meta_cache():
+    """load_task_meta memoizes into a module-global dict. Without this, one test's
+    dataset fixture leaks into another that reuses the same dataset string — the suite
+    would pass or fail on test ORDER, and a stale-meta bug would hide behind the cache."""
+    mt._TASK_META_CACHE.clear()
+    yield
+    mt._TASK_META_CACHE.clear()
+
+
 def _mkdb(tmp_path: Path) -> sqlite3.Connection:
     """Minimal agents table with the columns the runner reads/writes."""
     conn = sqlite3.connect(tmp_path / "t.db")
@@ -939,3 +949,39 @@ def test_n_attempts_and_agent_timeout_are_in_the_resume_scope(monkeypatch, tmp_p
     assert mt.out_dir_for("vendor/m", mt.TB_DATASET, None, None, 3, 600.0) != base  # n_attempts
     assert mt.out_dir_for("vendor/m", mt.TB_DATASET, None, None, 1, 1200.0) != base  # timeout
     assert mt.out_dir_for("vendor/m", mt.TB_DATASET, None, None, 1, 600.0) == base  # stable
+
+
+# --- --n-tasks must be a REAL bound: a bad one must never WIDEN the run ---------
+@pytest.mark.parametrize("bad", ["0", "-1"])
+def test_nonpositive_n_tasks_returns_2(monkeypatch, tmp_path, bad):
+    """Both bad values failed SILENTLY toward a BIGGER run, which is the dangerous
+    direction (it spends credit):
+      --n-tasks 0  → a --category set truncates to [], which bench_model reads as
+                     'no task filter' → the FULL dataset runs;
+      --n-tasks -1 → Python slice semantics ([:-1]) quietly keep len-1 tasks.
+    Neither may reach a model — surface as a config error, like the other bounds."""
+    _seed_main_db(tmp_path, ["vendor/m1"])
+    monkeypatch.setattr(mt, "DB_PATH", tmp_path / "t.db")
+    monkeypatch.setattr(mt.shutil, "which", lambda x: "/usr/bin/tb")
+    called = {"bench": False}
+    monkeypatch.setattr(mt, "bench_model", lambda *a, **k: called.__setitem__("bench", True))
+    rc = mt.main(["--models", "vendor/m1", "--category", "security", "--n-tasks", bad])
+    assert rc == 2
+    assert called["bench"] is False  # never dispatched, never spent
+
+
+def test_task_meta_cache_does_not_pin_an_empty_read(monkeypatch, tmp_path):
+    """{} means 'tb has not downloaded the dataset yet' (it fetches DURING the first
+    run) — caching that would pin every later persist to a NULL category. Only a
+    non-empty read is memoized, so the empty one stays retryable."""
+    monkeypatch.setattr(mt, "_dataset_dir", lambda ds: tmp_path / "missing")
+    assert mt.load_task_meta("ds==1") == {}
+    assert "ds==1" not in mt._TASK_META_CACHE  # NOT pinned
+
+    # dataset now on disk (as after tb's first-run download) → real read, and memoized
+    d = tmp_path / "there" / "fix-perms"
+    d.mkdir(parents=True)
+    (d / "task.yaml").write_text("category: system-administration\ndifficulty: easy\n")
+    monkeypatch.setattr(mt, "_dataset_dir", lambda ds: tmp_path / "there")
+    assert mt.load_task_meta("ds==1")["fix-perms"]["category"] == "system-administration"
+    assert "ds==1" in mt._TASK_META_CACHE  # now memoized

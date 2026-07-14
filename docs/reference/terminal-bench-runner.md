@@ -39,7 +39,7 @@ python microbench_terminal.py --models all --cost-cap 5
 ```
 
 Flags: `--models` (comma list, or `all`; default = the 3 unbenched sysadmin candidates) · `--cost-cap`
-(total run/cohort budget) · `--n-tasks` / `--task-id` (bound the work per model) · `--category`
+(total run/cohort budget) · `--n-tasks` (must be `> 0`) / `--task-id` (bound the work per model) · `--category`
 (run only these task categories) · `--n-concurrent` (default 4) · `--n-attempts` (trials per task) ·
 `--dataset` (default `terminal-bench-core==0.1.1`) · `--force` (wipe + fresh; default RESUMES a partial run) ·
 `--report [model]` (print the per-category matrix, no benching) · `--dry-run`.

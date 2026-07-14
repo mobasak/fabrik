@@ -528,10 +528,20 @@ def bench_model(
     overall score, so it must not overwrite the aggregate column (native #1). Subset
     runs still persist their per-task detail to tbench_task_results.
 
-    Failure classes, handled differently:
+    Failure classes, handled differently — the dividing line is *did we already pay for
+    a result*:
     - **Per-model** (``MODEL_FAILURE``) → raised, caller logs + SKIPS, cohort continues.
-    - **Systemic infra** (``OSError`` wipe, ``sqlite3.Error`` write) → NOT caught:
-      it affects every model, so it halts LOUDLY rather than masking as N skips.
+    - **Systemic infra, BEFORE the score exists** (``OSError`` from the ``--force`` wipe,
+      ``sqlite3.Error`` from the aggregate ``write_tbench_score``) → NOT caught: it
+      affects every model, so it halts LOUDLY rather than masking as N skips.
+    - **ANY failure of the per-task detail write, AFTER the score exists** → caught and
+      logged, never fatal. This is a deliberate asymmetry, not an oversight: by then the
+      score has cost real OpenRouter credit and is already persisted, and the per-task
+      table is *supplementary*. Letting an optional write destroy a paid-for result — or
+      abort every remaining model in the cohort — would be strictly worse than running on
+      without the category breakdown. The trade-off is that a genuine bug in
+      ``persist_task_results`` degrades to a loud stderr line per model instead of a
+      traceback; the tests, not the runtime, are what catch that.
     """
     # Normalize an empty list to None UP FRONT: `[]` is falsy (so it built a FULL-set
     # argv and hashed to the full-run dir) yet `[] is None` is False (so the aggregate
@@ -705,6 +715,14 @@ def main(argv: list[str] | None = None) -> int:
         print(
             f"error: --run-timeout must be > 0 when set (got {args.run_timeout})", file=sys.stderr
         )
+        return 2
+    # --n-tasks was the one bound left unvalidated, and both bad values fail SILENTLY
+    # rather than loudly: `--n-tasks 0` truncates a --category set to [], which
+    # bench_model then reads as "no task filter" and runs the FULL dataset; a negative
+    # value hits Python's slice semantics (`[:-1]` keeps len-1 items), quietly turning a
+    # bad bound into a near-full run. A bound you got wrong must never widen the run.
+    if args.n_tasks is not None and args.n_tasks <= 0:
+        print(f"error: --n-tasks must be > 0 when set (got {args.n_tasks})", file=sys.stderr)
         return 2
     # Pre-flight: a missing tb binary must surface as an infra error, not be masked
     # as N benign per-model "skips" with a success exit code (finding pass-3).

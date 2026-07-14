@@ -23,9 +23,16 @@ must never be discarded by an optional write. `load_task_meta` is memoized per d
 results only (an empty map means tb hasn't downloaded the dataset yet; caching it would pin every later row to
 a NULL category).
 
+`--n-tasks` is also now validated as `> 0`. It was the one bound left unchecked, and both bad values failed
+*silently toward a bigger run* — the dangerous direction, because it spends credit: `--n-tasks 0` truncated a
+`--category` set to `[]`, which `bench_model` reads as "no task filter" and runs the **full dataset**; a
+negative value hit Python's slice semantics (`[:-1]` keeps `len-1` items), quietly turning a typo'd bound into
+a near-full run.
+
 Found by the pool breadth layer (`minimax/minimax-m3` caught the `--n-tasks` resume bug) plus the native Opus
-finder; two candidates were refuted against the tb source (run-ids sort lexicographically = chronologically;
-`tb.lock` is a persistent manifest, so re-running a completed subset re-runs nothing).
+finders; refuted against the tb source (no change made): run-ids sort lexicographically = chronologically;
+`tb.lock` is a persistent manifest, so re-running a completed subset re-runs nothing; `FileNotFoundError` is in
+`MODEL_FAILURE`, so a model that produces no run dir is skipped rather than crashing the cohort.
 
 ### Changed — desktop-app template: Electron 28 → 30+, matching the rule pack (2026-07-14)
 
