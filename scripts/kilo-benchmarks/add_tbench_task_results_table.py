@@ -38,18 +38,24 @@ CREATE TABLE IF NOT EXISTS tbench_task_results (
 _INDEXES = [
     "CREATE INDEX IF NOT EXISTS idx_tbench_task_model ON tbench_task_results(model_id)",
     "CREATE INDEX IF NOT EXISTS idx_tbench_task_category ON tbench_task_results(category)",
+    # report_matrix does GROUP BY model_id, category — covering index.
+    "CREATE INDEX IF NOT EXISTS idx_tbench_task_model_cat ON tbench_task_results(model_id, category)",
 ]
 
 
 def ensure_tbench_task_results_table(db_path: Path = DB_PATH) -> bool:
     """Return True if the table was created, False if it already existed."""
-    with sqlite3.connect(db_path) as conn:
+    conn = sqlite3.connect(db_path)
+    try:
         existed = conn.execute(
             "SELECT 1 FROM sqlite_master WHERE type='table' AND name='tbench_task_results'"
         ).fetchone()
         conn.execute(_DDL)
         for idx in _INDEXES:
             conn.execute(idx)
+        conn.commit()
+    finally:
+        conn.close()
     return existed is None
 
 

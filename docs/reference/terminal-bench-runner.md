@@ -49,9 +49,27 @@ Flags: `--models` (comma list, or `all`; default = the 3 unbenched sysadmin cand
 A killed or interrupted run (session restart, `Ctrl-C`, a crash) is **resumed automatically** on the next
 invocation — `microbench_terminal.py --models <same model>` detects the partial run and calls
 `tb runs resume`, which **skips completed tasks and re-runs only the incomplete ones — no OpenRouter credit is
-re-spent on finished work.** Use `--force` to discard the prior run and start fresh (this also re-enables the
-stale-score guard, since a fresh run can't read a prior results.json). Long runs should still be launched
-detached (`setsid nohup … &`) so a session teardown never kills them.
+re-spent on finished work.** Use `--force` to discard the prior run and start fresh. Long runs should still be
+launched detached (`setsid nohup … &`) so a session teardown never kills them.
+
+**What a run may resume into.** `tb runs resume` takes only `--run-id`/`--runs-dir` and rebuilds the harness
+from the original `tb.lock` — *"The resume command uses the original configuration from the run's tb.lock file"*
+(`terminal_bench/cli/tb/runs.py:793-804`). **Every flag on the resuming invocation is discarded.** So the run dir
+is keyed on everything that changes a *result*: **(model, `--dataset`, task-set, `--n-tasks`, `--n-attempts`,
+`--agent-timeout`, agent)**. Change any of them and you get your own dir and a fresh run — never a silent re-run
+of something else. Concretely, this is what stops:
+
+- `--n-tasks 5` (after a full run completed) finding the full run's lock and resuming the **entire** task set —
+  a bounded sanity check that quietly bills as a full run;
+- `--n-attempts 3` over a locked `n_attempts=1` run silently benching **one** attempt;
+- `--agent-timeout 1200` failing to retry the timed-out tasks (they already wrote a `results.json` with
+  `failure_mode: agent_timeout`, so a resume counts them **done** and skips them).
+
+`--n-concurrent` is deliberately **not** in the key: it changes only how fast a run goes, never the result, so
+changing it must still be able to resume.
+
+Each run is also given an **explicit `--run-id`**, so the score and the per-task rows are scoped to exactly
+that run: a stale sibling run's `results.json` sitting in the same dir can never be read as this run's result.
 
 ## Per-task detail + category profile (the aggregate lies)
 
@@ -75,8 +93,11 @@ task's `task.yaml`. This survives re-runs and is comparable across models.
   ```
   Real categories (task counts in terminal-bench-core 0.1.1): system-administration (13), security (12),
   software-engineering (17), debugging (10), file-operations (8), data-science (8), model-training (7),
-  games (3), scientific-computing (2). The alias `sysadmin` = `system-administration,security`. Changing
-  `--category` on an already-run model needs `--force` (the per-model run dir resumes its original task set).
+  games (3), scientific-computing (2). The alias `sysadmin` = `system-administration,security`.
+  A different `--category` is a different task-set, so it gets its own run dir automatically — no `--force`
+  needed. `--n-tasks` **also bounds a `--category` run** (`--category sysadmin --n-tasks 5` runs 5 of the 25,
+  not all 25): tb only honours `--n-tasks` when no `-t` list is passed, so the runner applies the bound to the
+  task list itself.
 
 ## How it works (grounded invocation)
 

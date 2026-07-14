@@ -46,7 +46,7 @@ import shutil
 import sqlite3
 import subprocess
 import sys
-from datetime import date
+from datetime import date, datetime
 
 import httpx
 from dotenv import load_dotenv
@@ -80,11 +80,24 @@ def _dataset_dir(dataset: str) -> pathlib.Path:
     return pathlib.Path.home() / ".cache" / "terminal-bench" / name / (ver or "head")
 
 
+_TASK_META_CACHE: dict[str, dict[str, dict]] = {}
+
+
 def load_task_meta(dataset: str) -> dict[str, dict]:
     """Map task_id → {'category', 'difficulty'} from each task's task.yaml.
 
     Returns {} if the dataset isn't downloaded yet (tb fetches it on first run).
+
+    Memoized per dataset so an N-model cohort parses the ~80 task.yaml files once
+    instead of once per model. ⚠️ Only a NON-EMPTY result is cached: `{}` means the
+    dataset is not on disk YET (tb downloads it DURING the first run), so caching that
+    would pin every later persist to all-NULL categories — the exact bug the
+    load-meta-after-the-run change fixed. An empty read stays retryable.
     """
+    cached = _TASK_META_CACHE.get(dataset)
+    if cached:
+        return cached
+
     import yaml
 
     meta: dict[str, dict] = {}
@@ -100,6 +113,8 @@ def load_task_meta(dataset: str) -> dict[str, dict]:
             }
         except (OSError, yaml.YAMLError):
             meta[ty.parent.name] = {"category": None, "difficulty": None}
+    if meta:
+        _TASK_META_CACHE[dataset] = meta
     return meta
 
 
@@ -107,6 +122,7 @@ def tasks_in_categories(dataset: str, categories: list[str]) -> list[str]:
     """Task ids whose task.yaml category is in `categories` (for --category)."""
     meta = load_task_meta(dataset)
     return sorted(t for t, m in meta.items() if m.get("category") in set(categories))
+
 
 # Shell-injection guard: model_id is interpolated into a subprocess argv, so it
 # must be a safe vendor/name-tag. Mirror microbench_coding.py:_validate_model_id.
@@ -176,7 +192,10 @@ def _model_exists(conn, model_id: str) -> bool:
     """True iff the id is a row in agents. write_tbench_score's UPDATE is a silent
     no-op for an absent id, so main pre-checks existence to fail (before spending
     credit) rather than bench + report success + persist nothing."""
-    return conn.execute("SELECT 1 FROM agents WHERE id = ? LIMIT 1", (model_id,)).fetchone() is not None
+    return (
+        conn.execute("SELECT 1 FROM agents WHERE id = ? LIMIT 1", (model_id,)).fetchone()
+        is not None
+    )
 
 
 def is_fresh(conn, model_id: str) -> bool:
@@ -208,11 +227,83 @@ def write_tbench_score(conn, model_id: str, score: float) -> None:
 
 
 # --- Harness dispatch + parse ------------------------------------------------
+def _scope_tag(
+    dataset: str,
+    task_ids: list[str] | None,
+    n_tasks: int | None = None,
+    n_attempts: int = 1,
+    agent_timeout_sec: float = 600.0,
+    agent: str = TB_AGENT,
+) -> str:
+    """A short deterministic tag for every knob a resume would SILENTLY IGNORE.
+
+    ``tb runs resume`` takes only ``--run-id``/``--runs-dir`` and rebuilds the harness
+    from the original ``tb.lock`` — *"The resume command uses the original configuration
+    from the run's tb.lock file"* (terminal_bench/cli/tb/runs.py:793-804). So EVERY config
+    flag on the resuming invocation is discarded. A run may therefore only resume into a
+    run with the SAME config, or it silently benches something other than what was asked
+    for. In the key:
+
+    - **task set** — a subset (--category/--task-id) resuming a full run's dir would
+      re-run the WHOLE set.
+    - **dataset** — re-running a model on a new ``--dataset`` resumed the OLD dataset's
+      run while ``persist_task_results`` labelled every row with the NEW dataset name:
+      rows attributed to a dataset that was never benched.
+    - **n_tasks** — the one that bites hardest, because it costs money. After a full run,
+      ``--n-tasks 5`` has ``task_ids is None``, so it hashed to the FULL run's dir, found
+      its lock, and resumed it — re-running the ENTIRE task set. The operator asked for a
+      bounded 5-task sanity check and paid for a full run.
+    - **n_attempts** — same class: ``--n-attempts 3`` over a locked ``n_attempts=1`` run
+      silently benches ONE attempt (tb validates trial dirs against the lock's count,
+      run_lock.py:296-303 — the lock wins, not your flag).
+    - **agent + agent_timeout** — both change RESULTS. Raising ``--agent-timeout`` to give
+      a model more room does nothing on a resume: the timed-out tasks already wrote a
+      ``results.json`` (``failure_mode: agent_timeout``), so resume counts them DONE and
+      skips them. A different timeout is a different run.
+
+    ``n_concurrent`` is deliberately NOT in the key — it changes only how FAST the run
+    goes, never the result, so changing it must still be able to resume.
+
+    Same scope → same dir → resumable; different scope → its own dir, fresh run.
+    """
+    import hashlib
+
+    key = "|".join(
+        [
+            dataset,
+            ",".join(sorted(task_ids)) if task_ids else "",
+            str(n_tasks) if n_tasks is not None else "",
+            str(n_attempts),
+            str(agent_timeout_sec),
+            agent,
+        ]
+    )
+    digest = hashlib.sha1(key.encode()).hexdigest()[:8]  # noqa: S324 — dir tag, not security
+    return f"__{digest}"
+
+
+def out_dir_for(
+    model_id: str,
+    dataset: str,
+    task_ids: list[str] | None,
+    n_tasks: int | None = None,
+    n_attempts: int = 1,
+    agent_timeout_sec: float = 600.0,
+) -> pathlib.Path:
+    """Per-(model, run-config) dir — the exact key a resume is safe across. Anything
+    outside this key must never resume into it (see ``_scope_tag``)."""
+    safe = re.sub(
+        r"[^A-Za-z0-9]+", "_", model_id
+    )  # non-empty: _validate_model_id forces [A-Za-z0-9] first
+    tag = _scope_tag(dataset, task_ids, n_tasks, n_attempts, agent_timeout_sec)
+    return CACHE_DIR / f"tb_run_{safe}{tag}"
+
+
 def _find_resumable_run(out_dir: pathlib.Path) -> str | None:
     """The newest run-id under out_dir that has a tb.lock (i.e. is resumable).
 
-    out_dir is per-model, so any run in it is THIS model's — resume is safe.
-    Returns the run-id (dir name) or None if there's nothing to resume.
+    out_dir is per-(model, scope), so any run in it shares this model+task-set —
+    resume is safe. Returns the run-id (dir name) or None if nothing to resume.
     """
     if not out_dir.exists():
         return None
@@ -232,8 +323,9 @@ def run_one(
     agent_timeout_sec: float = 600.0,
     run_timeout_sec: float | None = None,
     resume: bool = True,
-) -> pathlib.Path:
-    """Shell out to ``tb`` for one model. Returns the run's output dir.
+) -> str | None:
+    """Shell out to ``tb`` for one model. Returns the RUN-ID it operated on (so the
+    caller scopes parse/persist to exactly this run, not the newest across all runs).
 
     argv list, never shell=True. model_id is validated before interpolation.
     ``agent_timeout_sec`` → ``--global-agent-timeout-sec`` kills a stuck AGENT loop;
@@ -243,55 +335,84 @@ def run_one(
 
     ``resume=True`` (default): if a partial prior run exists in out_dir, resume it
     via ``tb runs resume`` — completed tasks are skipped, incomplete ones re-run,
-    NO credit is re-spent on finished work. ``resume=False`` (the caller's --force
-    path, which wiped out_dir first) always starts fresh.
+    NO credit is re-spent on finished work (returns the resumed run-id). ``resume=
+    False`` (the caller's --force path, which wiped out_dir first) always starts
+    fresh (returns the newly-created run-id).
+
+    A fresh run is given an EXPLICIT ``--run-id`` we generate, rather than letting tb
+    default it and then guessing which dir appeared. Guessing (diff the dir listing
+    before/after, else newest-by-mtime) misattributes the run whenever tb writes any
+    other top-level dir, or when two runs share an out_dir — and it is untestable
+    without faking directory side-effects. Handing tb the id makes the run-id an
+    INPUT, so parse/persist scope to exactly this run by construction.
+    ``tb run --run-id`` is a real flag (terminal_bench/cli/tb/runs.py:164, default
+    ``YYYY-MM-DD__HH-MM-SS``); the microsecond suffix keeps ids unique + lexicographically
+    ordered, which ``_find_resumable_run``'s sort relies on.
     """
     _validate_model_id(model_id)
     prior = _find_resumable_run(out_dir) if resume else None
-    if prior:
-        # Resume reuses the original run's tb.lock config (agent/model/dataset).
-        argv = [TB_CLI, "runs", "resume", "--run-id", prior, "--runs-dir", str(out_dir)]
-    else:
-        out_dir.mkdir(parents=True, exist_ok=True)
-        argv = [
-            TB_CLI, "run",
-            "-a", TB_AGENT,
-            "-m", f"openrouter/{model_id}",
-            "-d", dataset,
-            "--n-concurrent", str(n_concurrent),
-            "--n-attempts", str(n_attempts),
-            "--global-agent-timeout-sec", str(agent_timeout_sec),
-            "--output-path", str(out_dir),
-            "--no-upload-results",
-            "--cleanup",
-        ]
-        for t in task_ids or []:
-            argv += ["-t", t]
-        if not task_ids and n_tasks is not None:
-            argv += ["--n-tasks", str(n_tasks)]
     env = {**os.environ}
-    subprocess.run(  # noqa: S603 — argv list, validated model_id
-        argv, check=True, env=env, timeout=run_timeout_sec
-    )
-    return out_dir
+    if prior:
+        # Resume reuses the original run's tb.lock config (agent/model/dataset/tasks).
+        argv = [TB_CLI, "runs", "resume", "--run-id", prior, "--runs-dir", str(out_dir)]
+        subprocess.run(argv, check=True, env=env, timeout=run_timeout_sec)  # noqa: S603
+        return prior
+    out_dir.mkdir(parents=True, exist_ok=True)
+    run_id = datetime.now().strftime("%Y-%m-%d__%H-%M-%S-%f")
+    argv = [
+        TB_CLI,
+        "run",
+        "-a",
+        TB_AGENT,
+        "-m",
+        f"openrouter/{model_id}",
+        "-d",
+        dataset,
+        "--n-concurrent",
+        str(n_concurrent),
+        "--n-attempts",
+        str(n_attempts),
+        "--global-agent-timeout-sec",
+        str(agent_timeout_sec),
+        "--output-path",
+        str(out_dir),
+        "--run-id",
+        run_id,
+        "--no-upload-results",
+        "--cleanup",
+    ]
+    for t in task_ids or []:
+        argv += ["-t", t]
+    if not task_ids and n_tasks is not None:
+        argv += ["--n-tasks", str(n_tasks)]
+    subprocess.run(argv, check=True, env=env, timeout=run_timeout_sec)  # noqa: S603
+    # tb writes its run under <out_dir>/<run_id> (harness.py:182). A tb that exits 0
+    # without creating it produced nothing → None, which the caller turns into a
+    # per-model failure rather than reading some other run's results.
+    return run_id if (out_dir / run_id).is_dir() else None
 
 
-def parse_tbench_output(out_dir: pathlib.Path) -> float:
-    """Read the newest top-level results.json under out_dir → accuracy * 100.
+def parse_tbench_output(out_dir: pathlib.Path, run_id: str | None = None) -> float:
+    """Read a run's top-level results.json → accuracy * 100 (0-100).
 
-    tb writes <out_dir>/<run-id>/results.json with an ``accuracy`` field
-    (0.0-1.0) = resolution pass-rate. Returns 0-100. Raises FileNotFoundError if
-    no results.json exists (a run that produced nothing), or ValueError if the
-    file is present but malformed — the caller treats BOTH as a model failure
-    (never crashes the cohort on a bad results.json).
+    When ``run_id`` is given, reads exactly ``<out_dir>/<run_id>/results.json`` — so
+    a re-run in a dir that also holds OLD run-id dirs can't read a stale prior
+    accuracy (the pre-run-id-scoping bug). When ``run_id`` is None, falls back to
+    the newest by mtime. Raises FileNotFoundError if the run produced no
+    results.json, or ValueError if it is present but malformed — the caller treats
+    both as a model failure (never crashes the cohort on a bad results.json).
     """
-    candidates = sorted(
-        out_dir.glob("*/results.json"),
-        key=lambda p: p.stat().st_mtime,
-        reverse=True,
-    )
-    if not candidates:
-        raise FileNotFoundError(f"no run results.json under {out_dir}")
+    if run_id is not None:
+        rj = out_dir / run_id / "results.json"
+        if not rj.exists():
+            raise FileNotFoundError(f"no results.json for run {run_id} under {out_dir}")
+        candidates = [rj]
+    else:
+        candidates = sorted(
+            out_dir.glob("*/results.json"), key=lambda p: p.stat().st_mtime, reverse=True
+        )
+        if not candidates:
+            raise FileNotFoundError(f"no run results.json under {out_dir}")
     try:
         data = json.loads(candidates[0].read_text())
         return float(data["accuracy"]) * 100.0
@@ -322,15 +443,30 @@ def _trial_duration_s(d: dict) -> float | None:
         return None
 
 
-def persist_task_results(conn, model_id: str, out_dir: pathlib.Path, dataset: str, meta: dict) -> int:
-    """Write one row per task into tbench_task_results (category/difficulty/
-    failure_mode/duration), joining tb's per-task results with task.yaml metadata.
-    Returns the number of task rows written. INSERT OR REPLACE — idempotent."""
-    tops = sorted(out_dir.glob("*/results.json"), key=lambda p: p.stat().st_mtime, reverse=True)
-    run_id = tops[0].parent.name if tops else None
+def persist_task_results(
+    conn,
+    model_id: str,
+    out_dir: pathlib.Path,
+    dataset: str,
+    run_id: str,
+    meta: dict | None = None,
+) -> int:
+    """Write one row per task into tbench_task_results for THIS run only.
+
+    Scoped to ``out_dir/run_id`` (NOT ``out_dir/*``) so accumulated OLD run-id dirs
+    can't leak stale rows or mislabel run_id (pool #2 / native #3). ``meta`` is
+    loaded here by default (``load_task_meta``) rather than passed from before the
+    run — on a first run tb downloads the dataset DURING the run, so meta captured
+    up front would be empty → all-NULL categories (native #2). INSERT OR REPLACE
+    keyed on (model_id, task_id, dataset). With ``--n-attempts > 1`` a task has
+    several trial results.json; the last one globbed wins (one row per task — the
+    per-attempt spread lives in the aggregate accuracy, not this table).
+    """
+    if meta is None:
+        meta = load_task_meta(dataset)
     today = date.today().isoformat()
     rows = 0
-    for tr in out_dir.glob("*/*/*/results.json"):  # <run-id>/<task>/<trial>/results.json
+    for tr in (out_dir / run_id).glob("*/*/results.json"):  # <task>/<trial>/results.json
         try:
             d = json.loads(tr.read_text())
         except (OSError, json.JSONDecodeError):
@@ -344,9 +480,16 @@ def persist_task_results(conn, model_id: str, out_dir: pathlib.Path, dataset: st
             "(model_id, task_id, dataset, category, difficulty, is_resolved, "
             " failure_mode, duration_s, run_id, benched_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
             (
-                model_id, tid, dataset, m.get("category"), m.get("difficulty"),
-                1 if d.get("is_resolved") else 0, d.get("failure_mode"),
-                _trial_duration_s(d), run_id, today,
+                model_id,
+                tid,
+                dataset,
+                m.get("category"),
+                m.get("difficulty"),
+                1 if d.get("is_resolved") else 0,
+                d.get("failure_mode"),
+                _trial_duration_s(d),
+                run_id,
+                today,
             ),
         )
         rows += 1
@@ -375,21 +518,30 @@ def bench_model(
     balance reads, so a model that fails *after* spending credit still counts.
 
     Resumability: by default a partial prior run in out_dir is **resumed** (only
-    the incomplete tasks re-run, no credit re-spent on finished work). ``force``
-    wipes out_dir and starts fresh — the stale-score guard: after a wipe,
-    ``parse_tbench_output`` can only ever see THIS run's results.json, so a run
-    that produced nothing raises instead of persisting a prior score.
+    the incomplete tasks re-run, no credit re-spent). ``force`` wipes out_dir and
+    starts fresh. out_dir is per-(model, dataset, task-scope) so a subset (--category)
+    run never resumes or clobbers the full run's dir. run_one returns the RUN-ID it
+    operated on; parse + persist are scoped to exactly that run (no stale-prior read).
+
+    The aggregate ``agents.tbench_accuracy`` is written ONLY on a full-set run
+    (``task_ids is None and n_tasks is None``) — a subset run's pass-rate is NOT the
+    overall score, so it must not overwrite the aggregate column (native #1). Subset
+    runs still persist their per-task detail to tbench_task_results.
 
     Failure classes, handled differently:
     - **Per-model** (``MODEL_FAILURE``) → raised, caller logs + SKIPS, cohort continues.
     - **Systemic infra** (``OSError`` wipe, ``sqlite3.Error`` write) → NOT caught:
       it affects every model, so it halts LOUDLY rather than masking as N skips.
     """
-    safe = re.sub(r"[^A-Za-z0-9]+", "_", model_id)
-    out_dir = CACHE_DIR / f"tb_run_{safe}"
+    # Normalize an empty list to None UP FRONT: `[]` is falsy (so it built a FULL-set
+    # argv and hashed to the full-run dir) yet `[] is None` is False (so the aggregate
+    # write was skipped) — a run that behaves full but scores as a subset. One
+    # canonical "no task filter" value keeps every downstream branch agreeing.
+    task_ids = task_ids or None
+    out_dir = out_dir_for(model_id, dataset, task_ids, n_tasks, n_attempts, agent_timeout_sec)
     if force and out_dir.exists():
         shutil.rmtree(out_dir)
-    run_one(
+    run_id = run_one(
         model_id,
         out_dir,
         dataset=dataset,
@@ -401,14 +553,27 @@ def bench_model(
         run_timeout_sec=run_timeout_sec,
         resume=not force,
     )
-    score = parse_tbench_output(out_dir)
-    write_tbench_score(conn, model_id, score)
-    # Per-task detail (category profile). Best-effort: a persistence hiccup must
-    # not discard the just-earned aggregate score.
+    if run_id is None:
+        raise FileNotFoundError(f"tb produced no run dir under {out_dir}")
+    score = parse_tbench_output(out_dir, run_id)
+    # Aggregate column reflects the OVERALL score only — never a subset pass-rate.
+    if task_ids is None and n_tasks is None:
+        write_tbench_score(conn, model_id, score)
+    # Per-task detail (category profile), scoped to this run. Best-effort, and that has
+    # to mean ANY failure: the score above cost real credit and is already earned, so
+    # nothing in the *optional* detail write may discard it or kill the cohort. Catching
+    # only sqlite3.Error did not deliver that — persist also reads the dataset from disk
+    # (load_task_meta), so an OSError from the glob, or a bad yaml import, escaped the
+    # guard, escaped MODEL_FAILURE, and aborted every remaining model. Broad by intent;
+    # loud, never silent.
     try:
-        persist_task_results(conn, model_id, out_dir, dataset, task_meta or {})
-    except sqlite3.Error as e:
-        print(f"[terminal-bench] per-task persist failed for {model_id}: {e}", file=sys.stderr)
+        persist_task_results(conn, model_id, out_dir, dataset, run_id, task_meta)
+    except Exception as e:  # noqa: BLE001 — best-effort by contract; the score must survive
+        print(
+            f"[terminal-bench] per-task persist failed for {model_id} "
+            f"({type(e).__name__}: {e}) — score kept, per-task detail skipped",
+            file=sys.stderr,
+        )
     return score
 
 
@@ -441,7 +606,9 @@ def _build_argparser() -> argparse.ArgumentParser:
         "with a cost-cap set, leaving this unbounded lets the first model run the whole "
         "set before the cohort budget can act — a warning is printed).",
     )
-    p.add_argument("--task-id", default=None, help="Task id/glob to run (overrides --category/--n-tasks).")
+    p.add_argument(
+        "--task-id", default=None, help="Task id/glob to run (overrides --category/--n-tasks)."
+    )
     p.add_argument(
         "--category",
         default=None,
@@ -517,7 +684,7 @@ def report_matrix(conn, model_id: str | None = None) -> None:
         rate = (passed / total * 100) if total else 0.0
         print(f"  {cat:<24} {passed:>7} {total:>6} {rate:>5.0f}%")
     # overall line per model
-    for mid, in {(r[0],) for r in rows}:
+    for (mid,) in {(r[0],) for r in rows}:
         tot = conn.execute(
             "SELECT SUM(is_resolved), COUNT(*) FROM tbench_task_results WHERE model_id=?", (mid,)
         ).fetchone()
@@ -535,7 +702,9 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: --agent-timeout must be > 0 (got {args.agent_timeout})", file=sys.stderr)
         return 2
     if args.run_timeout is not None and args.run_timeout <= 0:
-        print(f"error: --run-timeout must be > 0 when set (got {args.run_timeout})", file=sys.stderr)
+        print(
+            f"error: --run-timeout must be > 0 when set (got {args.run_timeout})", file=sys.stderr
+        )
         return 2
     # Pre-flight: a missing tb binary must surface as an infra error, not be masked
     # as N benign per-model "skips" with a success exit code (finding pass-3).
@@ -577,7 +746,23 @@ def main(argv: list[str] | None = None) -> int:
                 )
                 return 2
             print(f"[terminal-bench] --category {cats} → {len(task_ids)} tasks", file=sys.stderr)
-        task_meta = load_task_meta(args.dataset)
+
+        # --n-tasks is documented as "the real per-model spend bound", but tb only
+        # honours it when NO -t list is passed — so `--category sysadmin --n-tasks 5`
+        # silently ran the WHOLE category: an unbounded spend the operator believed was
+        # capped. Bound the subset here instead (deterministically), so --n-tasks means
+        # the same thing on every path. run_one then passes only -t (no --n-tasks), so
+        # the bound is applied exactly once.
+        if task_ids and args.n_tasks is not None and args.n_tasks < len(task_ids):
+            task_ids = sorted(task_ids)[: args.n_tasks]
+            print(
+                f"[terminal-bench] --n-tasks {args.n_tasks} → bounding the subset to "
+                f"{len(task_ids)} task(s)",
+                file=sys.stderr,
+            )
+        # NB: task metadata (category/difficulty) is loaded by persist_task_results
+        # AFTER each run — on a first run tb downloads the dataset DURING the run, so
+        # capturing meta here (before it exists) would persist all-NULL categories.
 
         raw = [m.strip() for m in args.models.split(",") if m.strip()]
         # 'all' (any case, anywhere in the list) → the full tool-capable OR cohort.
@@ -616,11 +801,15 @@ def main(argv: list[str] | None = None) -> int:
             cohort = [m for m in cohort if not is_fresh(conn, m)]
 
         if args.dry_run:
-            scope = f"{len(task_ids)} tasks (subset)" if task_ids else (
-                f"n_tasks={args.n_tasks}" if args.n_tasks is not None else "ALL tasks"
+            scope = (
+                f"{len(task_ids)} tasks (subset)"
+                if task_ids
+                else (f"n_tasks={args.n_tasks}" if args.n_tasks is not None else "ALL tasks")
             )
             mode = "FRESH (--force)" if args.force else "resume-if-partial"
-            print(f"[dry-run] would bench {len(cohort)} model(s) on {args.dataset} · {scope} · {mode}")
+            print(
+                f"[dry-run] would bench {len(cohort)} model(s) on {args.dataset} · {scope} · {mode}"
+            )
             for m in cohort:
                 print(f"[dry-run]   {m}")
             print("[dry-run] no OpenRouter calls made.")
@@ -672,7 +861,6 @@ def main(argv: list[str] | None = None) -> int:
                     agent_timeout_sec=args.agent_timeout,
                     run_timeout_sec=args.run_timeout,
                     force=args.force,
-                    task_meta=task_meta,
                 )
             except MODEL_FAILURE as e:
                 # tb error / hang / no-results / malformed output → skip, don't crash cohort.

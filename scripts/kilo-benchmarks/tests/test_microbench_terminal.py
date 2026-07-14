@@ -225,19 +225,22 @@ def test_missing_tb_binary_returns_2(monkeypatch, tmp_path):
 
 
 def test_bench_model_returns_score_and_writes(monkeypatch, tmp_path):
-    """bench_model runs → parses → writes → returns the float score (cost is the
-    caller's concern now, so bench_model no longer reads the balance)."""
+    """A FULL run (task_ids AND n_tasks both None) runs → parses → writes the
+    aggregate → returns the float score (cost is the caller's concern now, so
+    bench_model no longer reads the balance). run_one returns the run-id string;
+    parse + persist are scoped to it."""
     conn = _mkdb(tmp_path)
     conn.execute("INSERT INTO agents (id, status) VALUES ('vendor/m1','active')")
     conn.commit()
     monkeypatch.setattr(mt, "CACHE_DIR", tmp_path)
-    monkeypatch.setattr(mt, "run_one", lambda *a, **k: tmp_path)
-    monkeypatch.setattr(mt, "parse_tbench_output", lambda d: 42.0)
+    monkeypatch.setattr(mt, "run_one", lambda *a, **k: "RID")
+    monkeypatch.setattr(mt, "parse_tbench_output", lambda *a, **k: 42.0)
+    monkeypatch.setattr(mt, "persist_task_results", lambda *a, **k: 0)  # own tests cover it
     score = mt.bench_model(
         conn,
         "vendor/m1",
         dataset=mt.TB_DATASET,
-        n_tasks=1,
+        n_tasks=None,
         task_ids=None,
         n_concurrent=1,
         n_attempts=1,
@@ -249,9 +252,46 @@ def test_bench_model_returns_score_and_writes(monkeypatch, tmp_path):
     )
 
 
+def test_bench_model_subset_does_not_write_aggregate(monkeypatch, tmp_path):
+    """A SUBSET run (n_tasks set, or a --category task_ids list) must NOT overwrite
+    the aggregate tbench_accuracy — a partial pass-rate is not the overall score.
+    It still returns the score (for the caller) and persists per-task detail."""
+    conn = _mkdb(tmp_path)
+    conn.execute(
+        "INSERT INTO agents (id, status, tbench_accuracy) VALUES ('vendor/m1','active', 88.0)"
+    )
+    conn.commit()
+    monkeypatch.setattr(mt, "CACHE_DIR", tmp_path)
+    monkeypatch.setattr(mt, "run_one", lambda *a, **k: "RID")
+    monkeypatch.setattr(mt, "parse_tbench_output", lambda *a, **k: 12.0)
+    persisted = {"called": False}
+    monkeypatch.setattr(
+        mt, "persist_task_results", lambda *a, **k: persisted.__setitem__("called", True) or 0
+    )
+    score = mt.bench_model(
+        conn,
+        "vendor/m1",
+        dataset=mt.TB_DATASET,
+        n_tasks=5,  # subset → aggregate must stay untouched
+        task_ids=None,
+        n_concurrent=1,
+        n_attempts=1,
+    )
+    assert score == 12.0  # returned to the caller
+    assert persisted["called"] is True  # per-task detail still persisted
+    # aggregate column UNTOUCHED — still the prior full-run score, not the subset's 12.0
+    assert (
+        conn.execute("SELECT tbench_accuracy FROM agents WHERE id='vendor/m1'").fetchone()[0]
+        == 88.0
+    )
+
+
 def test_stale_score_not_written_on_empty_rerun(monkeypatch, tmp_path):
-    """A --force re-run where tb writes NO fresh results.json must NOT persist the
-    previous run's score — the wiped out_dir makes parse raise FileNotFoundError."""
+    """A run whose fresh run-id produced NO results.json must NOT persist some OTHER
+    run's score. The guard is run-id SCOPING: parse reads <out>/<this run-id>/
+    results.json, so a stale sibling run's 0.99 — left sitting in the same out_dir —
+    is unreachable. Revert the scoping (newest-results.json-by-mtime) and this test
+    goes red: parse would find the stale 0.99 and overwrite the real 77.0."""
     conn = _mkdb(tmp_path)
     conn.execute(
         "INSERT INTO agents (id, via_openrouter, status, has_tools, tbench_accuracy) "
@@ -259,23 +299,25 @@ def test_stale_score_not_written_on_empty_rerun(monkeypatch, tmp_path):
     )
     conn.commit()
     monkeypatch.setattr(mt, "CACHE_DIR", tmp_path)
-    # seed a STALE prior run dir; with --force, bench_model WIPES out_dir first, so a
-    # re-run that produces no fresh output raises instead of persisting the stale 0.99.
-    stale = tmp_path / "tb_run_vendor_m1" / "old-run"
+    out = mt.out_dir_for("vendor/m1", mt.TB_DATASET, None)
+    # A STALE prior run, WITH a score, deliberately left in place (no --force wipe).
+    stale = out / "2020-01-01__00-00-00-000000"
     stale.mkdir(parents=True)
     (stale / "results.json").write_text(json.dumps({"accuracy": 0.99}))
-    monkeypatch.setattr(mt, "run_one", lambda *a, **k: k.get("out_dir") or a[1])
+    # THIS run's dir exists but tb wrote no results.json into it.
+    (out / "FRESH").mkdir(parents=True)
+    monkeypatch.setattr(mt, "run_one", lambda *a, **k: "FRESH")
     with pytest.raises(FileNotFoundError):
         mt.bench_model(
             conn,
             "vendor/m1",
             dataset=mt.TB_DATASET,
-            n_tasks=1,
+            n_tasks=None,
             task_ids=None,
             n_concurrent=1,
             n_attempts=1,
-            force=True,  # force wipes → stale-score guard active (default now resumes)
         )
+    # the stale 0.99 was never read — the real prior aggregate stands
     assert (
         conn.execute("SELECT tbench_accuracy FROM agents WHERE id='vendor/m1'").fetchone()[0]
         == 77.0
@@ -304,6 +346,7 @@ def test_parse_tbench_output_partial(tmp_path):
 def test_balance_or_none_degrades_on_schema_drift(bad, monkeypatch):
     """_balance_or_none must NEVER crash the cohort (it runs in main's finally) — any
     OpenRouter schema drift (data:null, missing keys, non-dict) degrades to None."""
+
     class _Resp:
         def raise_for_status(self):
             pass
@@ -351,12 +394,12 @@ def test_write_tbench_score_updates_only_that_column(tmp_path):
 
 # --- Behavior 5: --dry-run calls no model ------------------------------------
 def test_dry_run_calls_no_model(monkeypatch, tmp_path):
-    conn = _mkdb(tmp_path)
-    conn.execute(
-        "INSERT INTO agents (id, via_openrouter, status, has_tools) VALUES ('vendor/m1',1,'active',1)"
-    )
-    conn.commit()
-    monkeypatch.setattr(mt.sqlite3, "connect", lambda *a, **k: conn)
+    # Use the real DB_PATH (not a monkeypatched singleton connect): main opens its own
+    # conn AND the migration opens+closes one — a shared fake conn would be closed under
+    # main. _seed_main_db writes a real t.db.
+    _seed_main_db(tmp_path, ["vendor/m1"])
+    monkeypatch.setattr(mt, "DB_PATH", tmp_path / "t.db")
+    monkeypatch.setattr(mt.shutil, "which", lambda x: "/usr/bin/tb")
     called = {"run": False, "bal": False}
     monkeypatch.setattr(mt, "run_one", lambda *a, **k: called.__setitem__("run", True))
     monkeypatch.setattr(mt, "openrouter_balance", lambda: called.__setitem__("bal", True) or 100.0)
@@ -431,7 +474,9 @@ def test_cohort_deduped(monkeypatch, tmp_path):
     monkeypatch.setattr(mt, "openrouter_balance", lambda: 100.0)
     benched = []
     monkeypatch.setattr(mt, "bench_model", lambda conn, m, **k: benched.append(m) or 50.0)
-    rc = mt.main(["--models", "vendor/m1,vendor/m1", "--cost-cap", "9", "--n-tasks", "1", "--force"])
+    rc = mt.main(
+        ["--models", "vendor/m1,vendor/m1", "--cost-cap", "9", "--n-tasks", "1", "--force"]
+    )
     assert rc == 0
     assert benched == ["vendor/m1"]  # deduped — benched once, not twice
 
@@ -519,12 +564,19 @@ def test_migration_idempotent(tmp_path):
 
 # --- category → task ids -----------------------------------------------------
 def test_tasks_in_categories(tmp_path, monkeypatch):
-    _fake_dataset(tmp_path, monkeypatch, {
-        "fix-perms": ("system-administration", "easy"),
-        "crack-hash": ("security", "medium"),
-        "train-net": ("model-training", "hard"),
-    })
-    assert mt.tasks_in_categories("ds", ["system-administration", "security"]) == ["crack-hash", "fix-perms"]
+    _fake_dataset(
+        tmp_path,
+        monkeypatch,
+        {
+            "fix-perms": ("system-administration", "easy"),
+            "crack-hash": ("security", "medium"),
+            "train-net": ("model-training", "hard"),
+        },
+    )
+    assert mt.tasks_in_categories("ds", ["system-administration", "security"]) == [
+        "crack-hash",
+        "fix-perms",
+    ]
     assert mt.tasks_in_categories("ds", ["model-training"]) == ["train-net"]
     assert mt.tasks_in_categories("ds", ["nonexistent"]) == []
 
@@ -546,24 +598,66 @@ def test_find_resumable_run(tmp_path):
     assert mt._find_resumable_run(out) == "2026-01-02__run"  # newest with a lock
 
 
-def test_run_one_resumes_when_prior_exists(monkeypatch, tmp_path):
+def _fake_tb(out: Path, captured: dict, *, creates_run_dir: bool = True):
+    """Stand-in for the `tb` binary: records argv and — like real tb — creates
+    <out>/<run-id> for the --run-id it was handed (harness.py:182)."""
+
+    def _run(argv, **kwargs):
+        captured["argv"] = argv
+        if creates_run_dir and "--run-id" in argv:
+            rid = argv[argv.index("--run-id") + 1]
+            (out / rid).mkdir(parents=True, exist_ok=True)
+
+    return _run
+
+
+def test_run_one_resumes_and_returns_the_prior_run_id(monkeypatch, tmp_path):
     out = tmp_path / "tb_run_x"
     (out / "R1").mkdir(parents=True)
     (out / "R1" / "tb.lock").write_text("{}")
     captured = {}
-    monkeypatch.setattr(mt.subprocess, "run", lambda argv, **k: captured.update(argv=argv))
-    mt.run_one("vendor/m", out, resume=True)
+    monkeypatch.setattr(mt.subprocess, "run", _fake_tb(out, captured))
+    run_id = mt.run_one("vendor/m", out, resume=True)
     assert captured["argv"][:3] == ["tb", "runs", "resume"]
     assert "R1" in captured["argv"]
+    assert run_id == "R1"  # the caller scopes parse/persist to the RESUMED run
 
 
-def test_run_one_fresh_when_no_prior(monkeypatch, tmp_path):
+def test_run_one_fresh_returns_the_run_id_it_handed_tb(monkeypatch, tmp_path):
+    """A fresh run HANDS tb an explicit --run-id and returns exactly that id, so
+    parse/persist scope to this run by construction — no dir guessing."""
     out = tmp_path / "tb_run_x"
     captured = {}
-    monkeypatch.setattr(mt.subprocess, "run", lambda argv, **k: captured.update(argv=argv))
-    mt.run_one("vendor/m", out, resume=True, task_ids=["fix-perms"])
-    assert captured["argv"][:2] == ["tb", "run"]
-    assert "-t" in captured["argv"] and "fix-perms" in captured["argv"]
+    monkeypatch.setattr(mt.subprocess, "run", _fake_tb(out, captured))
+    run_id = mt.run_one("vendor/m", out, resume=True, task_ids=["fix-perms"])
+    argv = captured["argv"]
+    assert argv[:2] == ["tb", "run"]
+    assert "-t" in argv and "fix-perms" in argv
+    assert argv[argv.index("--run-id") + 1] == run_id  # returned id IS the one tb got
+    assert (out / run_id).is_dir()
+
+
+def test_fresh_run_never_attributes_a_stale_sibling_run(monkeypatch, tmp_path):
+    """An out_dir holding an OLD run's dir must never have that old id returned for a
+    fresh run. The pre-fix newest-by-mtime guess could; the run-id is an INPUT now."""
+    out = tmp_path / "tb_run_x"
+    stale = out / "2020-01-01__00-00-00-000000"
+    stale.mkdir(parents=True)
+    (stale / "results.json").write_text(json.dumps({"accuracy": 0.99}))
+    captured = {}
+    monkeypatch.setattr(mt.subprocess, "run", _fake_tb(out, captured))
+    run_id = mt.run_one("vendor/m", out, resume=False)
+    assert run_id != stale.name
+    assert (out / run_id).is_dir()
+
+
+def test_run_one_returns_none_when_tb_creates_no_run_dir(monkeypatch, tmp_path):
+    """tb exiting 0 without creating its run dir produced nothing → None, which
+    bench_model turns into a per-model failure instead of reading another run."""
+    out = tmp_path / "tb_run_x"
+    captured = {}
+    monkeypatch.setattr(mt.subprocess, "run", _fake_tb(out, captured, creates_run_dir=False))
+    assert mt.run_one("vendor/m", out, resume=True) is None
 
 
 def test_run_one_force_never_resumes(monkeypatch, tmp_path):
@@ -582,11 +676,17 @@ def _write_task_result(out_dir, run_id, tid, resolved, failure_mode="unset"):
     d.mkdir(parents=True)
     (out_dir / run_id).mkdir(exist_ok=True)
     (out_dir / run_id / "results.json").write_text(json.dumps({"accuracy": 0.5}))
-    (d / "results.json").write_text(json.dumps({
-        "task_id": tid, "is_resolved": resolved, "failure_mode": failure_mode,
-        "trial_started_at": "2026-07-13T10:00:00+00:00",
-        "trial_ended_at": "2026-07-13T10:05:00+00:00",
-    }))
+    (d / "results.json").write_text(
+        json.dumps(
+            {
+                "task_id": tid,
+                "is_resolved": resolved,
+                "failure_mode": failure_mode,
+                "trial_started_at": "2026-07-13T10:00:00+00:00",
+                "trial_ended_at": "2026-07-13T10:05:00+00:00",
+            }
+        )
+    )
 
 
 def test_persist_task_results_joins_category(tmp_path, monkeypatch):
@@ -598,16 +698,20 @@ def test_persist_task_results_joins_category(tmp_path, monkeypatch):
         "fix-perms": {"category": "system-administration", "difficulty": "easy"},
         "crack-hash": {"category": "security", "difficulty": "medium"},
     }
-    n = mt.persist_task_results(conn, "vendor/m", out, "ds==1", meta)
+    n = mt.persist_task_results(conn, "vendor/m", out, "ds==1", "RID", meta)
     assert n == 2
-    rows = dict(conn.execute(
-        "SELECT task_id, category||'/'||is_resolved||'/'||COALESCE(failure_mode,'') "
-        "FROM tbench_task_results WHERE model_id='vendor/m'"
-    ).fetchall())
+    rows = dict(
+        conn.execute(
+            "SELECT task_id, category||'/'||is_resolved||'/'||COALESCE(failure_mode,'') "
+            "FROM tbench_task_results WHERE model_id='vendor/m'"
+        ).fetchall()
+    )
     assert rows["fix-perms"] == "system-administration/1/unset"
     assert rows["crack-hash"] == "security/0/agent_timeout"
     # duration computed (5 min = 300s)
-    dur = conn.execute("SELECT duration_s FROM tbench_task_results WHERE task_id='fix-perms'").fetchone()[0]
+    dur = conn.execute(
+        "SELECT duration_s FROM tbench_task_results WHERE task_id='fix-perms'"
+    ).fetchone()[0]
     assert dur == 300.0
 
 
@@ -615,9 +719,11 @@ def test_persist_task_results_idempotent(tmp_path):
     conn = _mkdb_full(tmp_path)
     out = tmp_path / "tb_run_vendor_m"
     _write_task_result(out, "RID", "fix-perms", True)
-    mt.persist_task_results(conn, "vendor/m", out, "ds==1", {})
-    mt.persist_task_results(conn, "vendor/m", out, "ds==1", {})  # re-run
-    cnt = conn.execute("SELECT COUNT(*) FROM tbench_task_results WHERE task_id='fix-perms'").fetchone()[0]
+    mt.persist_task_results(conn, "vendor/m", out, "ds==1", "RID", {})
+    mt.persist_task_results(conn, "vendor/m", out, "ds==1", "RID", {})  # re-run
+    cnt = conn.execute(
+        "SELECT COUNT(*) FROM tbench_task_results WHERE task_id='fix-perms'"
+    ).fetchone()[0]
     assert cnt == 1  # INSERT OR REPLACE — no dup
 
 
@@ -645,3 +751,191 @@ def test_report_empty(tmp_path, capsys):
     conn = _mkdb_full(tmp_path)
     mt.report_matrix(conn)
     assert "no per-task results" in capsys.readouterr().out
+
+
+# --- Scope key: a resume is only safe across the SAME (model, dataset, task-set) ---
+def test_out_dir_isolates_datasets(monkeypatch, tmp_path):
+    """`tb runs resume` reads the dataset from the ORIGINAL tb.lock and ignores
+    --dataset. If the out_dir key omitted the dataset, re-running the same model on a
+    NEW dataset would resume the OLD one while persisting rows labelled with the new
+    dataset name — rows attributed to a dataset that was never benched. Different
+    dataset ⇒ different dir ⇒ fresh run."""
+    monkeypatch.setattr(mt, "CACHE_DIR", tmp_path)
+    a = mt.out_dir_for("vendor/m", "terminal-bench-core==0.1.1", None)
+    b = mt.out_dir_for("vendor/m", "terminal-bench-core==0.2.0", None)
+    assert a != b
+    # ...and the same (model, dataset, scope) is STABLE, or nothing could ever resume
+    assert a == mt.out_dir_for("vendor/m", "terminal-bench-core==0.1.1", None)
+
+
+def test_out_dir_isolates_subset_from_full_run(monkeypatch, tmp_path):
+    """A --category subset must not resume (and thus re-run) the full set's dir."""
+    monkeypatch.setattr(mt, "CACHE_DIR", tmp_path)
+    full = mt.out_dir_for("vendor/m", mt.TB_DATASET, None)
+    subset = mt.out_dir_for("vendor/m", mt.TB_DATASET, ["fix-perms", "crack-hash"])
+    assert full != subset
+    # order-independent: the same task SET is the same scope
+    assert subset == mt.out_dir_for("vendor/m", mt.TB_DATASET, ["crack-hash", "fix-perms"])
+
+
+def test_empty_task_ids_is_the_same_scope_as_a_full_run(monkeypatch, tmp_path):
+    """`[]` means 'no task filter' — it must not be a THIRD scope distinct from None,
+    or a caller passing [] would run the full set into its own orphan dir."""
+    monkeypatch.setattr(mt, "CACHE_DIR", tmp_path)
+    assert mt.out_dir_for("vendor/m", mt.TB_DATASET, []) == mt.out_dir_for(
+        "vendor/m", mt.TB_DATASET, None
+    )
+
+
+def test_empty_task_ids_still_writes_the_aggregate(monkeypatch, tmp_path):
+    """bench_model normalizes [] → None, so an empty list behaves as the FULL run it
+    dispatches (rather than building a full-set argv but skipping the aggregate write
+    because `[] is None` is False)."""
+    conn = _mkdb(tmp_path)
+    conn.execute("INSERT INTO agents (id, status) VALUES ('vendor/m1','active')")
+    conn.commit()
+    monkeypatch.setattr(mt, "CACHE_DIR", tmp_path)
+    monkeypatch.setattr(mt, "run_one", lambda *a, **k: "RID")
+    monkeypatch.setattr(mt, "parse_tbench_output", lambda *a, **k: 42.0)
+    monkeypatch.setattr(mt, "persist_task_results", lambda *a, **k: 0)
+    mt.bench_model(
+        conn,
+        "vendor/m1",
+        dataset=mt.TB_DATASET,
+        n_tasks=None,
+        task_ids=[],  # empty == no filter == a full run
+        n_concurrent=1,
+        n_attempts=1,
+    )
+    assert (
+        conn.execute("SELECT tbench_accuracy FROM agents WHERE id='vendor/m1'").fetchone()[0]
+        == 42.0
+    )
+
+
+def test_n_tasks_bounds_a_category_subset(monkeypatch, tmp_path):
+    """--n-tasks is documented as the per-model spend bound, but tb only honours it
+    when no -t list is passed — so `--category X --n-tasks 5` silently ran the WHOLE
+    category (an uncapped spend the operator believed was bounded). main must bound
+    the subset itself."""
+    _seed_main_db(tmp_path, ["vendor/m1"])
+    monkeypatch.setattr(mt, "DB_PATH", tmp_path / "t.db")
+    monkeypatch.setattr(mt.shutil, "which", lambda x: "/usr/bin/tb")
+    monkeypatch.setattr(mt, "openrouter_balance", lambda: 100.0)
+    monkeypatch.setattr(
+        mt, "tasks_in_categories", lambda ds, cats: ["t1", "t2", "t3", "t4", "t5", "t6"]
+    )
+    seen = {}
+    monkeypatch.setattr(
+        mt, "bench_model", lambda conn, m, **k: seen.update(task_ids=k["task_ids"]) or 50.0
+    )
+    rc = mt.main(
+        ["--models", "vendor/m1", "--category", "security", "--n-tasks", "2", "--cost-cap", "5"]
+    )
+    assert rc == 0
+    assert seen["task_ids"] == ["t1", "t2"]  # bounded to 2, not all 6
+
+
+def test_n_tasks_run_never_resumes_the_full_runs_dir(monkeypatch, tmp_path):
+    """`tb runs resume` re-runs the ORIGINAL run's task set and ignores the resuming
+    invocation's flags. So `--n-tasks 5` (task_ids is None) MUST NOT land in the full
+    run's dir — it would find the full run's lock, resume it, and re-run the ENTIRE
+    task set: the operator asked for a bounded 5-task check and paid for a full run."""
+    monkeypatch.setattr(mt, "CACHE_DIR", tmp_path)
+    full = mt.out_dir_for("vendor/m", mt.TB_DATASET, None, None)
+    bounded = mt.out_dir_for("vendor/m", mt.TB_DATASET, None, 5)
+    assert full != bounded
+    # a different bound is again its own scope; the same bound is stable (resumable)
+    assert bounded != mt.out_dir_for("vendor/m", mt.TB_DATASET, None, 10)
+    assert bounded == mt.out_dir_for("vendor/m", mt.TB_DATASET, None, 5)
+
+
+def test_bench_model_n_tasks_gets_its_own_dir(monkeypatch, tmp_path):
+    """End-to-end: bench_model threads n_tasks into the scope, so a bounded run and a
+    full run of the same model never share an out_dir (and so never resume each other)."""
+    conn = _mkdb(tmp_path)
+    conn.execute("INSERT INTO agents (id, status) VALUES ('vendor/m1','active')")
+    conn.commit()
+    monkeypatch.setattr(mt, "CACHE_DIR", tmp_path)
+    monkeypatch.setattr(mt, "parse_tbench_output", lambda *a, **k: 1.0)
+    monkeypatch.setattr(mt, "persist_task_results", lambda *a, **k: 0)
+    seen = []
+    monkeypatch.setattr(mt, "run_one", lambda mid, out, **k: seen.append(out) or "RID")
+    for n in (None, 5):
+        mt.bench_model(
+            conn,
+            "vendor/m1",
+            dataset=mt.TB_DATASET,
+            n_tasks=n,
+            task_ids=None,
+            n_concurrent=1,
+            n_attempts=1,
+        )
+    assert seen[0] != seen[1]  # full run and the 5-task run are different dirs
+
+
+def test_persist_loads_meta_itself_when_not_given(tmp_path, monkeypatch):
+    """meta=None must lazy-load from disk. This is the whole point of loading AFTER the
+    run (tb downloads the dataset DURING the first run), and nothing covered it — the
+    bench_model tests monkeypatch persist away entirely."""
+    conn = _mkdb_full(tmp_path)
+    out = tmp_path / "tb_run_vendor_m"
+    _write_task_result(out, "RID", "fix-perms", True)
+    monkeypatch.setattr(
+        mt,
+        "load_task_meta",
+        lambda ds: {"fix-perms": {"category": "system-administration", "difficulty": "easy"}},
+    )
+    n = mt.persist_task_results(conn, "vendor/m", out, "ds==1", "RID")  # no meta arg
+    assert n == 1
+    row = conn.execute(
+        "SELECT category, difficulty FROM tbench_task_results WHERE task_id='fix-perms'"
+    ).fetchone()
+    assert row == ("system-administration", "easy")  # the lazy-loaded meta was joined
+
+
+def test_earned_score_survives_a_persist_blowup(monkeypatch, tmp_path):
+    """The score cost real credit. A failure in the OPTIONAL per-task detail write —
+    including a non-sqlite one from load_task_meta reading the dataset off disk — must
+    not discard it or abort the cohort."""
+    conn = _mkdb(tmp_path)
+    conn.execute("INSERT INTO agents (id, status) VALUES ('vendor/m1','active')")
+    conn.commit()
+    monkeypatch.setattr(mt, "CACHE_DIR", tmp_path)
+    monkeypatch.setattr(mt, "run_one", lambda *a, **k: "RID")
+    monkeypatch.setattr(mt, "parse_tbench_output", lambda *a, **k: 42.0)
+    monkeypatch.setattr(
+        mt,
+        "persist_task_results",
+        lambda *a, **k: (_ for _ in ()).throw(OSError("dataset dir vanished mid-glob")),
+    )
+    score = mt.bench_model(
+        conn,
+        "vendor/m1",
+        dataset=mt.TB_DATASET,
+        n_tasks=None,
+        task_ids=None,
+        n_concurrent=1,
+        n_attempts=1,
+    )
+    assert score == 42.0  # returned, not lost
+    assert (
+        conn.execute("SELECT tbench_accuracy FROM agents WHERE id='vendor/m1'").fetchone()[0]
+        == 42.0  # and the aggregate is persisted
+    )
+
+
+def test_n_attempts_and_agent_timeout_are_in_the_resume_scope(monkeypatch, tmp_path):
+    """`tb runs resume` rebuilds the harness from tb.lock and discards EVERY flag of the
+    resuming invocation (cli/tb/runs.py:793-804). So any knob that changes RESULTS must
+    key the dir, or asking for it silently gets the locked-in old value:
+      --n-attempts 3 over a locked n_attempts=1 run benches ONE attempt;
+      --agent-timeout 1200 does not retry the timed-out tasks (they already wrote a
+      results.json with failure_mode=agent_timeout, so resume counts them DONE).
+    n_concurrent is NOT in the key — it changes speed, never results, so bumping it must
+    still resume."""
+    monkeypatch.setattr(mt, "CACHE_DIR", tmp_path)
+    base = mt.out_dir_for("vendor/m", mt.TB_DATASET, None, None, 1, 600.0)
+    assert mt.out_dir_for("vendor/m", mt.TB_DATASET, None, None, 3, 600.0) != base  # n_attempts
+    assert mt.out_dir_for("vendor/m", mt.TB_DATASET, None, None, 1, 1200.0) != base  # timeout
+    assert mt.out_dir_for("vendor/m", mt.TB_DATASET, None, None, 1, 600.0) == base  # stable

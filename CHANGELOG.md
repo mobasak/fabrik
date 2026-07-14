@@ -4,6 +4,29 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Terminal-Bench runner: a bounded run could silently bill as a full one (2026-07-14)
+
+`/fabrik-review` on `scripts/kilo-benchmarks/microbench_terminal.py`. `tb runs resume` replays the ORIGINAL
+run's config from its `tb.lock` and **ignores the resuming invocation's flags** — but the run dir was keyed on
+the model (and task-set) only. So after a completed full run, `--n-tasks 5` hashed to that same dir, found its
+lock, and resumed the **entire** task set: the operator asked for a bounded 5-task sanity check and paid for a
+full run. The dir is now keyed on **(model, dataset, task-set, n_tasks)** — the exact tuple a resume is safe
+across. Same class, same root cause: a different `--dataset` also resumed the old dataset's run while every
+persisted row was labelled with the *new* dataset name (rows attributed to a dataset never benched).
+
+Also: `run_one` now hands tb an explicit `--run-id` instead of guessing which dir appeared (diff the listing
+before/after, else newest-by-mtime) — the guess could attribute a **stale sibling run's** `results.json` to a
+fresh run. `--n-tasks` now also bounds a `--category` subset (tb only honours the flag when no `-t` list is
+passed, so `--category sysadmin --n-tasks 5` had been running all 25). The per-task detail write is best-effort
+by contract, so it now survives *any* failure rather than only `sqlite3.Error` — a score that cost real credit
+must never be discarded by an optional write. `load_task_meta` is memoized per dataset, caching **non-empty**
+results only (an empty map means tb hasn't downloaded the dataset yet; caching it would pin every later row to
+a NULL category).
+
+Found by the pool breadth layer (`minimax/minimax-m3` caught the `--n-tasks` resume bug) plus the native Opus
+finder; two candidates were refuted against the tb source (run-ids sort lexicographically = chronologically;
+`tb.lock` is a persistent manifest, so re-running a completed subset re-runs nothing).
+
 ### Changed — desktop-app template: Electron 28 → 30+, matching the rule pack (2026-07-14)
 
 `templates/desktop-app/package.json` pinned `electron ^28.0.0` while `.windsurf/rules/desktop-app/72-desktop.md`
