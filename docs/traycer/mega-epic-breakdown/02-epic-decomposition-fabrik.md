@@ -206,7 +206,17 @@ Rule-pack paths above are cited directly. **fabrik-lib modules are resolved from
 
 **Overlay-merge rule — apply AFTER the 14 verdicts (handles scaffold-type overlays loaded per § Input Contract → **Domain modules**):**
 
-For each loaded **domain pack**, walk its mandatory-coverage section — **`§ Mandatory Epic Coverage`** (`saas.md`, `mobile-app.md`), **`§ Mandatory Epic Patterns`** (`chrome-ext.md`, `desktop-app.md`), or **`§ Epic Patterns for Decomposition`** (`rag.md`). Every in-scope module has one under a different name; if you cannot find it, list **all** the module's `##`/`###`/`####` headings (saas.md and mobile-app.md nest it at `####`) and state which you used. Walk its rows (e.g., `.windsurf/rules/saas/00-domain-saas.md § Mandatory Epic Coverage`). For each overlay row:
+For each loaded **domain pack**, walk its mandatory-coverage section. The exact heading per pack (verified 2026-07-14 — do NOT guess, and do not search for the retired `domain-modules/*.md` filenames):
+
+| Loaded pack | Walk this section |
+|---|---|
+| `.windsurf/rules/saas/00-domain-saas.md` | `#### Mandatory Epic Coverage` |
+| `.windsurf/rules/mobile-app/00-domain-mobile-app.md` | `#### Mandatory Epic Coverage` |
+| `.windsurf/rules/chrome-ext/70-chrome-ext.md` | `## Mandatory Epic Patterns` |
+| `.windsurf/rules/desktop-app/72-desktop.md` | `## Epic-Decomposition Defaults` |
+| `.windsurf/rules/core/65-rag-search.md` | `## Epic Decomposition` (its directives are inline — no separate coverage table) |
+
+If a heading above is not present in the pack you loaded, the pack has moved: STOP and report it rather than improvising a substitute. For each overlay row:
 
 - Identify which universal category(ies) the overlay row satisfies (e.g., "Billing + Gating" satisfies #2 Features AND #9 Cost Guardrails).
 - If the universal category was COVERED by a candidate epic in 2a–2g AND the overlay row matches the same epic → **merge**: cite both in that epic's compact entry. No new epic created.

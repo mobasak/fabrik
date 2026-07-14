@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — desktop-app template: Electron 28 → 30+, matching the rule pack (2026-07-14)
+
+`templates/desktop-app/package.json` pinned `electron ^28.0.0` while `.windsurf/rules/desktop-app/72-desktop.md`
+mandated **Electron 30+** in its description, its purpose line, and its stack table — governance and code had
+disagreed for months, and the deleted `domain-modules/desktop-app.md` had papered over it by *asserting* the
+scaffold already shipped 30+ (it didn't; it also claimed React 18 + Tailwind, neither of which is present or
+mandated). Operator ruled the pack correct: bumped to `^30.0.0`. `electron-builder` is deliberately decoupled
+from the Electron major (it packages whatever binary devDeps names), so its `^24.6.0` floor is unchanged.
+
+Also fixed the epic-decomposition instruction in both `02-epic-decomposition-*.md` twins, which still told the
+planner to find coverage sections in `chrome-ext.md` / `desktop-app.md` / `rag.md` — files deleted on 2026-07-13.
+Replaced the name-guessing fallback with a table naming the exact heading in each surviving rule pack.
+
 ### Added — Terminal-Bench runner: resumable + per-category granular results (2026-07-13)
 
 `microbench_terminal.py` gained three capabilities, driven by the discovery that a model's

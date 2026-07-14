@@ -153,9 +153,13 @@ The following document represents the structural domain module designed for cons
 # **Target: `.windsurf/rules/desktop-app/72-desktop.md` § Epic Decomposition**
 
 > Retargeted 2026-07-13. This research originally fed `domain-modules/desktop-app.md`, which drifted from the
-> pack (it claimed the scaffold ships "Electron 30+ / React 18 / Tailwind"; `templates/desktop-app/package.json`
-> ships `electron ^28` and neither React nor Tailwind) and was deleted. The rule pack is now the single source
-> of truth — land any change from this research there.
+> pack and was deleted. The rule pack is now the single source of truth — land any change from this research there.
+>
+> The drift it caused, and how it was resolved (2026-07-14): the module claimed the scaffold ships
+> "Electron 30+ / React 18 / Tailwind" while `templates/desktop-app/package.json` actually pinned
+> `electron ^28.0.0` with neither React nor Tailwind. Governance and code disagreed for months. The operator
+> ruled **Electron 30+ is correct** (matching `72-desktop.md`), so the template was bumped to `^30.0.0` — the
+> pack won, the code moved. React/Tailwind were never mandated by the pack and remain absent by design.
 
 ## **1\. Domain Description**
 
