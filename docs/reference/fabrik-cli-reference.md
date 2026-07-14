@@ -464,7 +464,7 @@ wpf wp verify <site-id>
 
 (Cache flushing is internal to `wpf wp apply`/`verify`, not a standalone `wpf wp flush` subcommand. The full `wp` group is `plan | apply | verify | create | preview | promote`.)
 
-See `/opt/wpf/AGENTS.md` and `/opt/wpf/docs/DEPLOYMENT.md` for the WP-specific architecture (golden Docker image, deployed via SSH + Docker Compose as a 4-container per-site stack — e.g. the live `ocoron-com-{wordpress,db,redis,nginx,backup}` containers; Coolify was decommissioned 2026-05-30 — `docs/traycer/mega-epic-breakdown/domain-modules/wordpress.md`).
+See `/opt/wpf/AGENTS.md` and `/opt/wpf/docs/DEPLOYMENT.md` for the WP-specific architecture (golden Docker image, deployed via SSH + Docker Compose as a 4-container per-site stack — e.g. the live `ocoron-com-{wordpress,db,redis,nginx,backup}` containers; Coolify was decommissioned 2026-05-30). WordPress is **out of scope for Fabrik planning** — `/opt/wpf` is the only source of truth (the former `domain-modules/wordpress.md` was deleted 2026-07-13 as fully dead: the scaffold and deploy paths both hard-error).
 
 ---
 

@@ -150,7 +150,12 @@ The following document represents the structural domain module designed for cons
 
 # **Domain Module: Desktop Application Architecture**
 
-# **Target: docs/traycer/mega-epic-breakdown/domain-modules/desktop-app.md**
+# **Target: `.windsurf/rules/desktop-app/72-desktop.md` § Epic Decomposition**
+
+> Retargeted 2026-07-13. This research originally fed `domain-modules/desktop-app.md`, which drifted from the
+> pack (it claimed the scaffold ships "Electron 30+ / React 18 / Tailwind"; `templates/desktop-app/package.json`
+> ships `electron ^28` and neither React nor Tailwind) and was deleted. The rule pack is now the single source
+> of truth — land any change from this research there.
 
 ## **1\. Domain Description**
 
