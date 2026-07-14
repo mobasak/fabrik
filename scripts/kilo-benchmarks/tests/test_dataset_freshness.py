@@ -142,3 +142,77 @@ def test_latest_tb_legacy_core_excludes_moving_head(monkeypatch):
         ],
     )
     assert df.latest_tb_legacy_core() == "0.1.1"
+
+
+# --- PASS-2 REVIEW: "I could not check" must NEVER print "current ✓" -----------
+def test_unknown_latest_is_unverified_not_current(monkeypatch, capsys):
+    """The false-confidence hole, in check_terminal_bench this time. If we cannot determine
+    the current generation, an EMPTY problem list is returned to check_dataset_fresh, which
+    prints 'dataset pin is current ✓' — reporting a check that never ran. (This is the same
+    hole the evalplus path had; fixing one and not the other was the asymmetry.)"""
+    monkeypatch.setattr(
+        df,
+        "latest_terminal_bench_dataset",
+        lambda: (_ for _ in ()).throw(df.UnverifiedError("org unreachable")),
+    )
+    df.check_dataset_fresh("terminal-bench", "terminal-bench/terminal-bench-2-1")  # no raise
+    err = capsys.readouterr().err
+    assert "UNVERIFIED" in err
+    assert "is current" not in err  # must NOT claim a pass it did not earn
+
+
+def test_unparseable_pin_is_unverified_not_current(capsys):
+    """A pin we cannot even parse cannot be declared current."""
+    df.check_dataset_fresh("terminal-bench", "some-other-benchmark/v9")
+    err = capsys.readouterr().err
+    assert "UNVERIFIED" in err and "is current" not in err
+
+
+def test_no_generation_repo_raises_unverified(monkeypatch):
+    """An org listing with no terminal-bench-<n> repo means we don't know the latest."""
+    monkeypatch.setattr(df.httpx, "get", lambda *a, **k: _FakeResp([{"name": "docs"}]))
+    with pytest.raises(df.UnverifiedError):
+        df.latest_terminal_bench_dataset()
+
+
+class _FakeResp:
+    def __init__(self, payload, link=""):
+        self._p, self.headers = payload, {"link": link}
+
+    def raise_for_status(self):
+        pass
+
+    def json(self):
+        return self._p
+
+
+# --- PASS-2 REVIEW: latest_terminal_bench_dataset had ZERO direct coverage ------
+def test_latest_generation_is_picked_numerically(monkeypatch):
+    """A lexicographic pick would call 'terminal-bench-9' newer than 'terminal-bench-10'."""
+    monkeypatch.setattr(
+        df.httpx,
+        "get",
+        lambda *a, **k: _FakeResp(
+            [
+                {"name": "terminal-bench"},  # umbrella repo — not a generation
+                {"name": "terminal-bench-2"},
+                {"name": "terminal-bench-9"},
+                {"name": "terminal-bench-10"},
+                {"name": "terminal-bench-docs"},  # not a generation
+            ]
+        ),
+    )
+    assert df.latest_terminal_bench_dataset() == "terminal-bench-10"
+
+
+def test_repo_list_is_paginated(monkeypatch):
+    """GitHub caps a page at 100. If the newest generation sits on page 2, a single-page
+    fetch returns a STALE 'latest' and the guard green-lights a superseded pin — the exact
+    bug this module exists to prevent, just at a higher repo count."""
+    pages = {
+        "p1": _FakeResp([{"name": "terminal-bench-2"}], link='<https://x/p2>; rel="next"'),
+        "https://x/p2": _FakeResp([{"name": "terminal-bench-3"}]),  # newest is on page 2
+    }
+    monkeypatch.setattr(df, "HARBOR_ORG_REPOS", "p1")
+    monkeypatch.setattr(df.httpx, "get", lambda url, **k: pages[url])
+    assert df.latest_terminal_bench_dataset() == "terminal-bench-3"

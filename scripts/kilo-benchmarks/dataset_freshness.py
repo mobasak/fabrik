@@ -67,6 +67,19 @@ class StaleDatasetError(RuntimeError):
     compares to nothing."""
 
 
+class UnverifiedError(RuntimeError):
+    """We could not determine what the current dataset IS, so the pin is UNVERIFIED.
+
+    This is NOT the same as "current", and conflating the two is the bug this class exists
+    to make impossible: a check that cannot run must say so, because a green tick is the one
+    thing nobody ever re-checks. Both fallible checks raise this rather than returning an
+    empty problem list — an empty list means "verified, and it's fine".
+
+    (It is also NOT an `httpx.HTTPError`: raising a transport exception for a logic
+    condition would mask a genuine network fault as a merely-unverified one.)
+    """
+
+
 def _get_json(url: str):
     r = httpx.get(url, timeout=_TIMEOUT, follow_redirects=True)
     r.raise_for_status()
@@ -117,21 +130,40 @@ def _parse_generation(name: str) -> tuple[int, ...] | None:
     return tuple(int(x) for x in m.group(1).split("-")) if m.group(1) else ()
 
 
-def latest_terminal_bench_dataset() -> str | None:
+def latest_terminal_bench_dataset() -> str:
     """The newest Terminal-Bench dataset generation, from the harbor-framework GitHub org.
 
     There is no queryable harbor dataset registry (`hub.harborframework.com/api/...` 404s —
     checked live), so the org's own repo list IS the source of truth: each generation ships
     as its own repo (`terminal-bench-2`, `terminal-bench-2-1`, `terminal-bench-3`, …).
-    Returns e.g. 'terminal-bench-3', or None if the API can't be reached.
+
+    **Paginated.** A single `per_page=100` page silently truncates once the org passes 100
+    repos, and the newest generation could sit on page 2 — which would make this function
+    return a stale "latest" and the guard green-light a superseded pin. That is the exact
+    bug class this module exists to prevent, so it follows GitHub's `Link: rel="next"`
+    rather than assuming one page is enough.
+
+    Raises `UnverifiedError` if no generation repo can be found — "I don't know what the
+    latest is" must never be reported to the caller as "your pin is fine".
     """
-    repos = _get_json(HARBOR_ORG_REPOS)
-    gens = []
-    for r in repos:
-        g = _parse_generation(r.get("name", ""))
-        if g:  # non-empty: a real generation, not the bare 'terminal-bench' umbrella repo
-            gens.append((g, r["name"]))
-    return max(gens)[1] if gens else None
+    gens: list[tuple[tuple[int, ...], str]] = []
+    url: str | None = HARBOR_ORG_REPOS
+    while url:
+        r = httpx.get(url, timeout=_TIMEOUT, follow_redirects=True)
+        r.raise_for_status()
+        for repo in r.json():
+            g = _parse_generation(repo.get("name", ""))
+            if g:  # non-empty: a real generation, not the bare 'terminal-bench' umbrella repo
+                gens.append((g, repo["name"]))
+        m = re.search(r'<([^>]+)>;\s*rel="next"', r.headers.get("link", ""))
+        url = m.group(1) if m else None
+
+    if not gens:
+        raise UnverifiedError(
+            "no terminal-bench-<n> repo found in the harbor-framework org — cannot "
+            "determine the current dataset generation"
+        )
+    return max(gens)[1]
 
 
 def check_terminal_bench(pinned: str) -> list[str]:
@@ -160,9 +192,12 @@ def check_terminal_bench(pinned: str) -> list[str]:
 
     name = pinned.split("/")[-1]  # 'terminal-bench/terminal-bench-2-1' -> 'terminal-bench-2-1'
     pinned_gen = _parse_generation(name)
-    latest = latest_terminal_bench_dataset()
-    if not latest or pinned_gen is None:
-        return problems  # unrecognized pin or unreachable org — the caller warns, not fails
+    if pinned_gen is None:
+        # We cannot even parse the pin, so we cannot say it is current. Saying nothing here
+        # would return an EMPTY problem list, which the caller prints as "current ✓" — the
+        # same false-confidence hole that check_evalplus had.
+        raise UnverifiedError(f"unrecognized Terminal-Bench dataset pin {pinned!r}")
+    latest = latest_terminal_bench_dataset()  # raises UnverifiedError if it cannot tell
     latest_gen = _parse_generation(latest)
     if latest_gen and pinned_gen < latest_gen:
         problems.append(
@@ -190,7 +225,7 @@ def check_evalplus() -> list[str]:
         # let `newest is None` fall through the `if installed and newest and ...` guard and
         # then printed "dataset pin is current ✓" — reporting a check it had not performed.
         # False confidence is worse than no check, because nobody re-checks a green tick.
-        raise httpx.HTTPError("PyPI unreachable — evalplus dataset version NOT verified")
+        raise UnverifiedError("PyPI unreachable — evalplus dataset version NOT verified")
     if installed and installed != newest:
         ds = installed_evalplus_dataset_versions()
         problems.append(
@@ -219,9 +254,9 @@ def check_dataset_fresh(
             problems = check_evalplus()
         else:
             raise ValueError(f"unknown benchmark system {system!r}")
-    except httpx.HTTPError as e:
+    except (httpx.HTTPError, UnverifiedError) as e:
         print(
-            f"[dataset-freshness] WARNING: could not reach the registry to verify "
+            f"[dataset-freshness] WARNING: could not verify "
             f"{system} ({e}) — proceeding UNVERIFIED. Re-check before trusting the score.",
             file=sys.stderr,
         )

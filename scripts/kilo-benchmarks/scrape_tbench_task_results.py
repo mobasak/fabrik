@@ -172,11 +172,22 @@ def map_model_id(model_raw: str, catalog: list[str]) -> str | None:
     """
     catalog = sorted(catalog)  # deterministic: the caller's SELECT has no ORDER BY
 
-    # 1+2: exact, then whole-id normalized (vendor INCLUDED) — a precise, unambiguous hit.
+    # 1. EXACT — checked on its own, and FIRST. It must not lose to a normalized match:
+    #    `openai/gpt-4.1` and `openai/gpt-41` both normalize to `openaigpt41`, so a single
+    #    loop testing `exact OR normalized` let the alphabetically-earlier `gpt-4.1` answer
+    #    a request for `gpt-41` — returning a DIFFERENT model than the one asked for.
+    if model_raw in catalog:
+        return _canonical_alias(model_raw, catalog)
+
+    # 2. Whole-id normalized (vendor INCLUDED). Only when it resolves to ONE id: if several
+    #    catalog entries normalize to the same string they are distinct models we cannot
+    #    tell apart, and picking one would mis-attribute.
     whole = _normalize(model_raw)
-    for cid in catalog:
-        if cid == model_raw or _normalize(cid) == whole:
-            return _canonical_alias(cid, catalog)
+    hits = [cid for cid in catalog if _normalize(cid) == whole]
+    if len(hits) == 1:
+        return _canonical_alias(hits[0], catalog)
+    if len(hits) > 1:
+        return None  # ambiguous — refuse to guess
 
     # 3: tail-only. The vendor is dropped here, so it is only safe when unambiguous.
     tail = _normalize(model_raw.split("/")[-1])
@@ -199,19 +210,24 @@ def _alias_pool(cands: list[str]) -> tuple[list[str], set[str]]:
 
 
 def _canonical_alias(cid: str, catalog: list[str]) -> str:
-    """Collapse a matched id onto the canonical id for that model.
+    """Collapse a matched id onto the canonical id for that model — but ONLY when that is
+    provably unambiguous.
 
     `anthropic/claude-opus-4.7`, `claude-opus-4-7` and `stealth/claude-opus-4.7` are all the
     same model, and each was persisting under its OWN ``model_id`` — so a ``GROUP BY
     model_id`` split one model's trials across three rows and under-counted every one.
 
-    If the tail is ambiguous across vendors (`kling/v2` vs `ideogram/v2` — different models),
-    the precisely-matched id is kept as-is: collapsing THOSE would be the mis-attribution
-    bug this whole function exists to prevent.
+    ``cid`` here was matched PRECISELY (exact or whole-id). Redirecting a precise match is
+    only safe when exactly ONE canonical candidate exists. Gating on "the tail spans one
+    vendor" was not enough: two DIFFERENT models from the SAME vendor can share a normalized
+    tail (`openai/gpt-4.1` and `openai/gpt-41` both normalize to `openaigpt41`), and that
+    rule would have quietly redirected one onto the other — mis-attributing a model's scores
+    to a different model, which is precisely the bug this file must never commit. When the
+    pool is ambiguous we keep the precise id we actually matched.
     """
     cands = [c for c in catalog if _normalize(c.split("/")[-1]) == _normalize(cid.split("/")[-1])]
-    pool, vendors = _alias_pool(cands)
-    return cid if len(vendors) > 1 else pool[0]
+    pool, _ = _alias_pool(cands)
+    return pool[0] if len(pool) == 1 else cid
 
 
 # --- Fetch --------------------------------------------------------------------

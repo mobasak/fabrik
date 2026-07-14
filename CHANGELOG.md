@@ -4,6 +4,29 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — review pass 2: a check that cannot run must say so (2026-07-14)
+
+Pass 1 fixed the false-confidence hole in `check_evalplus` and **left the identical hole next to it**. If
+`latest_terminal_bench_dataset()` could not determine the current generation, `check_terminal_bench` returned an
+*empty* problem list — which the caller prints as **"dataset pin is current ✓"**, reporting a check that never
+ran. A green tick is the one thing nobody re-checks, so false confidence is worse than no check at all. Both
+fallible checks now raise a dedicated `UnverifiedError` (not an `httpx.HTTPError` — raising a transport
+exception for a logic condition would mask a genuine network fault as a merely-unverified one), and the caller
+reports **UNVERIFIED**.
+
+- **`latest_terminal_bench_dataset` is now paginated.** `per_page=100` silently truncates once the org passes
+  100 repos, and the newest generation could sit on page 2 — a stale "latest", i.e. the exact bug this module
+  exists to prevent, just at a higher repo count. It follows GitHub's `Link: rel="next"`. It also had **zero**
+  direct test coverage (every test monkeypatched it away); it now has tests, including numeric-not-lexicographic
+  ordering (`terminal-bench-10` > `terminal-bench-9`).
+- **A precise model match could be redirected onto a different model.** Two models from the *same* vendor can
+  share a normalized tail (`openai/gpt-4.1` and `openai/gpt-41` → `openaigpt41`), and Pass 1's "collapse when the
+  tail spans one vendor" rule would have quietly aliased one onto the other. Worse, Pass 1's combined
+  `exact OR normalized` loop let the alphabetically-earlier `gpt-4.1` *answer a request for `gpt-41`*. Exact is
+  now matched first, in its own pass; a normalized match is taken only when it resolves to exactly one id;
+  and an alias is collapsed only when exactly one canonical candidate exists.
+
+
 ### Fixed — review of the leaderboard scraper: six ways to a silently wrong number (2026-07-14)
 
 `/fabrik-review` (pool breadth + native Opus) on `scrape_tbench_task_results.py` +

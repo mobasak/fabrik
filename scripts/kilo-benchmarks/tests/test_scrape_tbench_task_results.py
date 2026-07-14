@@ -337,3 +337,19 @@ def test_incomplete_clone_is_discarded_not_reused(tmp_path, monkeypatch):
     st.fetch_submissions(dest=dest, git_url="https://example.invalid/x")
     assert "clone" in calls  # re-fetched rather than trusted
     assert (dest / ".fabrik-complete").exists()  # and marked complete only at the end
+
+
+def test_precise_match_is_not_redirected_onto_a_same_vendor_collision():
+    """A precise (exact/whole-id) match must never be collapsed onto a DIFFERENT model.
+    Two models from the SAME vendor can share a normalized tail (openai/gpt-4.1 and
+    openai/gpt-41 both -> 'openaigpt41'). Gating only on 'the tail spans one vendor' would
+    have redirected one onto the other — mis-attributing a model's scores."""
+    catalog = ["openai/gpt-4.1", "openai/gpt-41"]
+    assert st.map_model_id("openai/gpt-4.1", catalog) == "openai/gpt-4.1"
+    assert st.map_model_id("openai/gpt-41", catalog) == "openai/gpt-41"
+
+
+def test_alias_collapse_still_works_when_unambiguous():
+    """The collapse must still happen where it is safe (one canonical candidate)."""
+    catalog = ["anthropic/claude-opus-4.7", "claude-opus-4-7", "stealth/claude-opus-4.7"]
+    assert st.map_model_id("claude-opus-4-7", catalog) == "anthropic/claude-opus-4.7"
