@@ -363,7 +363,7 @@ across multiple lines.]
 - **Notifications (internal/ops):** [Apprise (already deployed) / direct API / none]
 - **Email (transactional):** [Resend (default, 3k/mo free) / escalate to Postmark for critical auth mail — state what triggers emails]
 - **Email (marketing):** [Resend Broadcasts (start) / Listmonk + SES (at scale) / none — MUST be separate stream from transactional. See `core/86-email-templates.md`.]
-- **RAG pipeline:** [none / search-only (embeddings + retriever) / search + classification / full intelligence (+ generator + summarizer) — state what corpus is being searched and what users need from it. See `domain-modules/rag.md` for component guide.]
+- **RAG pipeline:** [none / search-only (embeddings + retriever) / search + classification / full intelligence (+ generator + summarizer) — state what corpus is being searched and what users need from it. See `.windsurf/rules/core/65-rag-search.md` § Epic Decomposition for component guide.]
 - **Background processing:** [file-worker needed? State what runs async: transcription, PDF gen, AI inference, batch imports, scheduled jobs / none]
 - **Consumed microservices:** [site-provisioner for DNS / none — image-broker is retired/not deployed]
 - **Watchdog sidecar + cost-budget:** [**accept-defaults** (state the values you are accepting — read them from `WatchdogConfig`) / **raise** (state the per-project `daily_budget_usd` + `daily_invocations_cap` per `cost-budget.md`) / **opt-out** (`watchdog: {enabled: false}` — no paid AI APIs / no cost-sensitive ops) — ⚠️ `cost-budget.md:28` makes the **cost CAP** mandatory for any project that runs the watchdog (or calls paid AI APIs); it does **not** mandate the watchdog itself — and on the `fabrik apply` path the sidecar is **on by default** regardless, so the live question is the cap, not the sidecar. Without a cap a feedback loop (the sidecar diagnosing the sidecar) could empty the budget overnight]
@@ -508,8 +508,8 @@ Report findings as a list of mechanical gaps with concrete locations.
 
 For each rule pack applicable to this scaffold type (per `AGENTS.md` § Project Type → Default Packs table; the Rule Pack Index above in the Input Contract section — ⚠️ that index is NOT exhaustive (it omits `core/62-using-subagents.md` and all 11 `ai/` packs); for the authoritative live set run `python scripts/select_rules.py`), evaluate the project against the pack's mandates. Example table below is for `saas-skeleton`; for other scaffold types build the equivalent table:
 
-- **Scaffold has a `domain-modules/<type>.md`** (chrome-ext, desktop-app, mobile-app, saas — plus the capability module `rag`, which is NOT a scaffold type) → use that as the structural starting point + add applicable rows from the Rule Pack Index.
-- **Scaffold has NO `domain-modules/<type>.md`** (python-api, **python-api-gpu**, node-api, file-api, file-worker, static-site, docusaurus) → build the table directly from the Rule Pack Index, scoped to the scaffold's Default Packs in `AGENTS.md` § Project Type → Default Packs. Use the applicability matrix below to decide which rows survive.
+- **Scaffold has a domain pack** (`.windsurf/rules/**`) (chrome-ext, desktop-app, mobile-app, saas — plus the capability module `rag`, which is NOT a scaffold type) → use that as the structural starting point + add applicable rows from the Rule Pack Index.
+- **Scaffold has NO domain pack** (python-api, **python-api-gpu**, node-api, file-api, file-worker, static-site, docusaurus) → build the table directly from the Rule Pack Index, scoped to the scaffold's Default Packs in `AGENTS.md` § Project Type → Default Packs. Use the applicability matrix below to decide which rows survive.
 - **WordPress projects are out of scope here** — delegate to `/opt/wpf`; do NOT build a Compliance table for WordPress sites under this workflow.
 
 **Rule-area applicability matrix** (use to scope rows in/out of the Compliance table for a given scaffold):
@@ -583,7 +583,7 @@ Wait for owner decisions. **STOP GENERATION HERE.** These decisions shape which 
 
 **Idea path:** interview the owner — What capability are you adding? Who uses it (existing/new persona)? How does it integrate with what's built? New tables/endpoints/workers needed? New scaffold type (e.g., adding mobile-app to existing SaaS)?
 
-**Load domain modules** — for each NEW capability, read the matching `domain-modules/` file: search/RAG → `rag.md`; mobile app → `mobile-app.md`; billing → `saas.md` (billing section); chrome extension → `chrome-ext.md`; desktop app → `desktop-app.md`. (WordPress site/theme work is delegated to `/opt/wpf` — do NOT load `domain-modules/wordpress.md` for new visions in this workflow.)
+**Load domain packs** — for each NEW capability read the matching **rule pack** (`.windsurf/rules/**` — the single source of truth; `domain-modules/` was deleted 2026-07-13): saas → `saas/00-domain-saas.md`; mobile → `mobile-app/00-domain-mobile-app.md`; desktop → `desktop-app/72-desktop.md` § Epic Decomposition; chrome-ext → `chrome-ext/70-chrome-ext.md` § Epic Decomposition; RAG/search → `core/65-rag-search.md` § Epic Decomposition. WordPress is out of scope (`/opt/wpf`).
 
 **fabrik-lib check** — before designing any new component, check `fabrik-lib/README.md` for a vendorable module (copy, don't import). State: "fabrik-lib checked — [module used / no match]."
 

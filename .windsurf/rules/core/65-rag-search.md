@@ -246,3 +246,36 @@ if token_count > budget:
 - [ ] Synonyms defined for domain terms; `typo` ranking rule retained.
 - [ ] Meili indexing and reindex run via background worker — API thread never blocked.
 - [ ] Meili + pgvector calls wrapped with timeout/retry per `58-resilience.md`.
+
+---
+
+## Epic Decomposition (PLANNING layer — read before any RAG epic exists)
+
+> Promoted from `docs/traycer/mega-epic-breakdown/domain-modules/rag.md` (2026-07-13), which has been deleted.
+> That module's two *unique* infrastructure claims were both **FALSE and dangerous** — see the warning below.
+
+**Planning consequence of § Choosing:** if the Vision Summary's search use case is **pure catalog / doc-site /
+faceted filtering / typo-tolerant keyword**, do **NOT** decompose into RAG epics at all — emit a **single
+MeiliSearch-integration epic** instead. RAG is for *keyword + meaning fused* retrieval. Decomposing a catalog
+search into embeddings / retriever / generator epics is the most expensive way to build a feature MeiliSearch
+gives you in one ticket.
+
+**Phase progression** — start at Phase 1; add a phase only when the product demands it:
+Phase 1 retrieval (embeddings + retriever) → Phase 2 + classifier/labels → Phase 3 + answer generator /
+summarizer. Each phase is its own epic; each later phase depends on the one before.
+
+> ### ⚠️ WHO CREATES THE pgvector EXTENSION AND THE HNSW INDEX — READ THIS
+>
+> **The registrar does NOT.** `shape.has_search_feature: true` provisions **MeiliSearch only**
+> (`src/fabrik/drivers/meilisearch.py` — `SHAPE_FLAG = "has_search_feature"`; its entire mutation surface is an
+> HTTP POST to the Meili container). Executed against the codebase: **`hnsw` appears ZERO times in `src/`**, and
+> no registrar issues `CREATE EXTENSION`.
+>
+> So **every RAG epic MUST carry its own migration** creating the extension and the index:
+> `CREATE EXTENSION IF NOT EXISTS vector;` (a **superuser, run-once** step — see `specs/services/youtube.yaml`)
+> and the HNSW index per § Vector Storage (`m=16, ef_construction=64`).
+>
+> The deleted `rag.md` told planners *"the registrar owns index/extension lifecycle — never create indexes
+> manually."* A planner that believed it emitted a RAG pipeline **with no index at all**. There is no shape flag
+> for pgvector; do not look for one.
+

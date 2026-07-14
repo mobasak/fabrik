@@ -549,7 +549,7 @@ Testing Trophy + Behavior Contract (per `45-testing-strategy.md`) — one integr
 - `core/45-testing-strategy.md` — Testing Trophy + Behavior Contract (integration/E2E primary per behavior; unit via vitest only for pure algorithms)
 - `core/ocoron-design-system.md` — color tokens, typography, spacing for the React UI
 - `core/cost-budget.md` — local LLM via Ollama as alternative to OpenRouter API spend
-- `docs/traycer/mega-epic-breakdown/domain-modules/desktop-app.md` — Traycer planning domain module (out of pack scope; for planning LLM)
+- Epic decomposition + the standalone-vs-connected mode fork: **§ Epic Decomposition** below (promoted into this pack 2026-07-13; `domain-modules/` is deleted).
 
 ---
 
@@ -584,3 +584,35 @@ Testing Trophy + Behavior Contract (per `45-testing-strategy.md`) — one integr
 - [ ] Spectron NOT used.
 - [ ] ASAR packing enabled with integrity validation; Bytenode adopted IF bundle obfuscation matters.
 - [ ] Ocoron design tokens used for ALL color/spacing/typography (no hardcoded hex or raw px).
+
+---
+
+## Epic Decomposition (PLANNING layer — read before any epic exists)
+
+> Promoted from `docs/traycer/mega-epic-breakdown/domain-modules/desktop-app.md` (2026-07-13). The rest of
+> that module restated this pack and has been deleted; **this pack is the single source of truth**.
+> ⚠️ Every *code-time* fact (process model, IPC, SQLCipher, signing, updater) is owned by the sections above —
+> cite them, never restate them. A second copy is exactly how the old module came to claim the scaffold ships
+> "React 18 + Tailwind" when `templates/desktop-app/package.json` ships **electron + typescript and nothing else**.
+
+## The 3 Forks (do NOT inherit SaaS or mobile defaults here)
+
+1. **Two-faced (when connected) or one-faced (when standalone)** — a desktop app is EITHER a fully standalone tool OR a desktop frontend to a Fabrik-deployed backend (python-api or node-api). The backend (if any) follows the full 4-stage Fabrik lifecycle. The desktop binary is NOT deployed via `fabrik apply` — it ships via direct download, store submission, or Linux package channels. **Decide standalone-vs-connected at intake; the architecture changes substantially.**
+2. **Distribution is signed-or-rejected** — Windows SmartScreen and macOS Gatekeeper actively block unsigned binaries. Code signing is non-optional for any non-internal app. The 2026 cost structure was rewritten by Azure Trusted Signing ($9.99/mo).
+3. **No responsive breakpoints** — desktop apps target windowed UI from ~800px to multi-monitor 5K. Ocoron design tokens apply, but RWD breakpoints from the web pack do NOT. Min window 800×600; design for resizable.
+
+## Epic-Decomposition Defaults
+
+When this domain module loads, Traycer's epic decomposition should default to:
+
+| Epic | Always required? | Notes |
+| --- | --- | --- |
+| Epic 1: Mode + Scaffold | Yes | Includes process-model security from day 1 |
+| Epic 2a: Standalone core (offline-first SQLite, license validation, optional Ollama) | If standalone | Skip if connected |
+| Epic 2b: Connected core (backend + OAuth + sync + real-time) | If connected | Skip if standalone |
+| Epic 3: Distribution + Signing + Auto-Update | Yes | Win + Mac + Linux unless explicitly scoped down |
+| Epic 4: Native integrations (deep-links, tray, autostart, dock badges) | If product needs them | Optional but cheap once Epic 1 is done |
+| Epic 5: Compliance (Apple Privacy Manifest, KVKK opt-in flows, store privacy declarations) | Yes if submitting to stores | Always if KVKK applies |
+| Epic 6: Testing (Playwright E2E + vitest unit) | Yes | Mock OS dialogs via `electronApp.evaluate()` |
+
+Single-epic visions are rare for desktop apps — Epic 1 + Epic 3 are nearly always separate.

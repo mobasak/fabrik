@@ -62,14 +62,13 @@ This command produces the compact epic proposal + Infrastructure Decisions in co
 - `AGENTS.md` § Infrastructure Services — backing services available.
 - `AGENTS.md` § Planning Constraints — constraints still apply per epic.
 - `PORTS.md` — each epic's service needs a port. Check availability.
-- **Domain modules** — for EACH scaffold type identified in the Vision Summary's Technology Decisions, read the matching file from `domain-modules/`:
-  - `saas-skeleton` → read `domain-modules/saas.md`
-  - `mobile-app` → read `domain-modules/mobile-app.md`
-  - `desktop-app` → read `domain-modules/desktop-app.md`
-  - `chrome-extension` → read `domain-modules/chrome-ext.md`
-  - `wordpress` → **out of scope for this workflow** (per `00` § Shape model). Do **NOT** load `domain-modules/wordpress.md`. If a WordPress component reaches 02, route it back to 00 for the `/opt/wpf` handoff.
-  - If Vision Summary Technology Decisions includes **RAG pipeline** (any level) → read `domain-modules/rag.md`
-  - Multi-scaffold vision (e.g., saas + mobile-app + chrome-extension) → read ALL matching modules. They inform epic patterns (mobile always has a "store submission" epic, SaaS always has "billing + tenant" epic, chrome-ext always has "backend API first, extension second" pattern, etc.). RAG module is additive — read it alongside scaffold modules when RAG is in scope.
+- **Domain packs** — for EACH scaffold type identified in the Vision Summary, read the matching **rule pack** (the single source of truth; `domain-modules/` was deleted 2026-07-13 after it drifted — it had inverted the chrome-ext build-tool default and told planners the registrar creates pgvector indexes, which it does not):
+  - `saas-skeleton` → `.windsurf/rules/saas/00-domain-saas.md` (17 vision-intake dimensions + epic coverage)
+  - `mobile-app` → `.windsurf/rules/mobile-app/00-domain-mobile-app.md` (17 dimensions + attribution + the 3 forks)
+  - `desktop-app` → `.windsurf/rules/desktop-app/72-desktop.md` § Epic Decomposition (the standalone-vs-connected mode fork is Epic 1)
+  - `chrome-extension` → `.windsurf/rules/chrome-ext/70-chrome-ext.md` § Epic Decomposition (backend API is always Epic 1)
+  - `wordpress` → **out of scope for this workflow** — route to `/opt/wpf`. There is no pack and no module.
+  - RAG / search in Technology Decisions → `.windsurf/rules/core/65-rag-search.md` § Epic Decomposition (⚠️ read its warning: **every RAG epic must carry its own `CREATE EXTENSION` + HNSW migration** — no registrar does it)
 
 ## Processing User Request
 
@@ -206,14 +205,14 @@ Rule-pack paths above are cited directly. **fabrik-lib modules are resolved from
 
 **Overlay-merge rule — apply AFTER the 14 verdicts (handles scaffold-type overlays loaded per § Input Contract → **Domain modules**):**
 
-For each loaded scaffold overlay, walk its mandatory-coverage section — **`§ Mandatory Epic Coverage`** (`saas.md`, `mobile-app.md`), **`§ Mandatory Epic Patterns`** (`chrome-ext.md`, `desktop-app.md`), or **`§ Epic Patterns for Decomposition`** (`rag.md`). Every in-scope module has one under a different name; if you cannot find it, list **all** the module's `##`/`###`/`####` headings (saas.md and mobile-app.md nest it at `####`) and state which you used. Walk its rows (e.g., `domain-modules/saas.md § Mandatory Epic Coverage`). For each overlay row:
+For each loaded **domain pack**, walk its mandatory-coverage section — **`§ Mandatory Epic Coverage`** (`saas.md`, `mobile-app.md`), **`§ Mandatory Epic Patterns`** (`chrome-ext.md`, `desktop-app.md`), or **`§ Epic Patterns for Decomposition`** (`rag.md`). Every in-scope module has one under a different name; if you cannot find it, list **all** the module's `##`/`###`/`####` headings (saas.md and mobile-app.md nest it at `####`) and state which you used. Walk its rows (e.g., `.windsurf/rules/saas/00-domain-saas.md § Mandatory Epic Coverage`). For each overlay row:
 
 - Identify which universal category(ies) the overlay row satisfies (e.g., "Billing + Gating" satisfies #2 Features AND #9 Cost Guardrails).
 - If the universal category was COVERED by a candidate epic in 2a–2g AND the overlay row matches the same epic → **merge**: cite both in that epic's compact entry. No new epic created.
 - If the universal category was COVERED by a different epic OR ABSORBED in Step 3 § X AND the overlay row demands its own epic → **add** the overlay's epic to the candidate set as a new entry; assign `Universal categories: <numbers>`; re-run 2c (dependency analysis) for the new epic before continuing.
 - If the universal category was N/A but the overlay demands the coverage → flip the category to COVERED by the overlay's epic; update the 2h verdict line.
 
-Loading is best-effort: if a scaffold type identified in the Vision Summary has no matching `domain-modules/<type>.md` file on disk (e.g., `docusaurus`, `static-site`), the read is a no-op — the universal-category check still runs (per the `core/60-watchdog.md` matrix, `watchdog` is N/A for the `static-site` and `docusaurus` **scaffold types**, i.e. `kind: static` — note that is operator discipline, not a resolver rule; see § Watchdog Wiring).
+Loading is best-effort: if a scaffold type identified in the Vision Summary has no matching its domain pack file on disk (e.g., `docusaurus`, `static-site`), the read is a no-op — the universal-category check still runs (per the `core/60-watchdog.md` matrix, `watchdog` is N/A for the `static-site` and `docusaurus` **scaffold types**, i.e. `kind: static` — note that is operator discipline, not a resolver rule; see § Watchdog Wiring).
 
 ### Step 3: Draft Infrastructure Decisions
 

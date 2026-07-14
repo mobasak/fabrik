@@ -1,17 +1,20 @@
-<!-- SaaS Domain Module — loaded by mega-epic-breakdown commands
-     when Vision Summary scaffold types include `saas-skeleton`:
-       • 02-epic-decomposition-command — drives SaaS-specific epic patterns
-         (tenant + auth foundation, billing + gating, marketing site, etc.).
-       • 00-trigger-workflow-command Step E4 (EXISTING mode) — drives delta
-         decisions when adding a SaaS capability (e.g., billing) to an
-         existing project.
-     Traycer reads this file from disk based on the Vision Summary's
-     Technology Decisions § Scaffold types — no manual paste needed.
-     Consumer: Traycer planning LLM (NOT coding agents).
-     Coding agents use .windsurf/rules/saas/88-saas-launch-checklist.md,
-     saas/95-multi-tenant-saas.md, saas/60-saas-ui.md instead. -->
+---
+activation: glob
+globs: ["**/tenants/**", "**/billing/**", "**/plans/**", "**/subscription*/**", "**/pricing/**"]
+description: SaaS domain — PLANNING layer. The 17 vision-intake dimensions (ICP, pricing axis, GTM, COGS-per-tenant vs the single-VPS ceiling, risk register, dated kill criteria) and the epic-decomposition directives. Consumed by the mega-epic planner; the sibling packs (60/87/88/95) own the code-time discipline.
+trigger: glob
+---
+<!-- CONSUMER: the mega-epic planner (vision intake + epic decomposition), and any agent scoping SaaS work.
+     GOAL: settle the IRREVERSIBLE, business-shaping decisions BEFORE epics exist. This is business formation,
+           not code discipline — 60-saas-ui.md, 87-abuse-detection.md, 88-saas-launch-checklist.md and
+           95-multi-tenant-saas.md own every code-time fact. Cite them; NEVER restate them.
+     PROVENANCE: promoted from docs/traycer/mega-epic-breakdown/domain-modules/saas.md (2026-07-13). That
+           module's Part 2 (per-epic implementation guidance) was ~90% a duplicate of the packs above AND
+           provably unwired — zero `domain-modules` references exist anywhere in epic-to-ticket-workflow/ —
+           so it was dropped, not migrated.
+     ⚠️ The 17 dimensions below have ZERO pack coverage and are the reason this file exists. -->
 
-# SaaS Domain Module (17 dimensions)
+# SaaS Domain — Planning Layer (vision intake + epic decomposition)
 
 ## Operating Lens (solo + AI fleet)
 
@@ -61,7 +64,7 @@ Reference `.windsurf/rules/saas/95-multi-tenant-saas.md` for implementation deta
 
 - **Tenancy:** shared postgres-main + `tenant_id` + Postgres RLS (`fabrik-lib/fastapi-user-auth` owns the `auth` schema natively — `auth.uid()` over the `request.jwt.claims` GUC). DB-per-tenant only if contractually required.
 - **Identity/org:** `fabrik-lib/fastapi-user-auth` (Pattern A — the app issues its own JWTs: Argon2, refresh-token rotation, `jti` denylist, tenant-isolation RLS) for users + org/role/invite model; Authelia for back-office only. Pattern A is THE default per `core/35-security-auth.md`; Supabase Auth is legacy/migration-only (see `AGENTS.md § Supabase`).
-- **Billing+gating:** plan-to-feature gating matrix exists *before* features. **Provider picked by target market** per `.windsurf/rules/core/85-payments-billing.md` § Payment Providers: **Paddle Billing v2 (MoR)** for international, **iyzico** for Turkish domestic, **both** when serving both markets (BIN-based card routing). Stripe is unavailable to a Turkey-resident entity — do NOT plan around it.
+- **Billing+gating:** plan-to-feature gating matrix exists *before* features. **Provider picked by target market** per `.windsurf/rules/core/85-payments-billing.md` (providers) + `.windsurf/rules/saas/88-saas-launch-checklist.md` § Payment Routing (⚠️ **BIN-based card routing lives in 88, NOT 85** — 85 contains no routing rules) § Payment Providers: **Paddle Billing v2 (MoR)** for international, **iyzico** for Turkish domestic, **both** when serving both markets (BIN-based card routing). Stripe is unavailable to a Turkey-resident entity — do NOT plan around it.
 - **Metering:** redis-main counters reconciled to postgres-main for billing-grade truth. Never bill off Redis alone.
 - **Isolation+audit:** RLS/tenant-scope enforced in one place; audit log + soft-delete + per-tenant export.
 - **Activation event:** the one action = "got value," instrumented from commit #1.
@@ -131,7 +134,7 @@ Reference `.windsurf/rules/saas/95-multi-tenant-saas.md` for implementation deta
 
 #### 12. Reliability & Status
 
-Reference `.windsurf/rules/saas/88-saas-launch-checklist.md` § Reliability. At intake, force:
+Reference `.windsurf/rules/saas/88-saas-launch-checklist.md` § Observability Baseline. ⚠️ **There is no `§ Reliability` section in 88** — and Observability Baseline is **Phase 2, not Phase 1**, carrying only a synthetic health probe + Gatus + 3-failure Apprise alerting. **No SLA, no RPO/RTO, no Backrest content exists there** — the items below are intake decisions this pack owns, not launch-checklist mandates. At intake, force:
 
 **Force:** SLA commitment? public status page (Gatus)? incident comms? DR target (RPO/RTO).
 
@@ -141,7 +144,7 @@ Reference `.windsurf/rules/saas/88-saas-launch-checklist.md` § Reliability. At 
 
 #### 13. Legal, Compliance & Trust
 
-Reference `.windsurf/rules/saas/88-saas-launch-checklist.md` § Legal. At intake, force:
+Reference `.windsurf/rules/saas/88-saas-launch-checklist.md` § Legal Pages (Payment Processors Check These). At intake, force:
 
 **Force:** ToS, privacy, KVKK/GDPR, DPA + subprocessor list, data residency, security posture. Affiliate-program terms + payout tax handling + self-referral policy (if a program is planned).
 
@@ -233,105 +236,3 @@ Reference `.windsurf/rules/saas/88-saas-launch-checklist.md` phases:
 - **Phase 3 (scale):** deferred epic or out of scope for v1.
 
 ---
-
-## Part 2 — Per-Epic Implementation Guidance
-
-*Reserved for future per-epic loading by `epic-to-ticket-workflow` command files (`01-epic-brief`, `02-core-flows`, `03-tech-plan`, `04-deploy-plan`, `05-ticket-outline`, `06-ticket-breakdown`). Not currently auto-wired — those command files do not yet `read domain-modules/saas.md`. Surfaced here so the patterns are co-located with Part 1; load order can be wired later.*
-
-These directives apply throughout all epic-to-ticket-workflow steps when the epic belongs to a SaaS project. Traycer carries them from epic-brief through ticket-breakdown and into execution plans.
-
-### 2A. Epic Brief (epic-to-ticket-workflow/01)
-
-When creating the epic brief for a SaaS epic:
-
-- State which of the 17 dimensions this epic addresses (by number).
-- Carry forward the resolved decisions from the Vision Summary — do not re-decide.
-- If this epic is the foundation epic (§4), the brief must include: tenancy model, auth provider, org/role model, billing provider, gating matrix shape. These are not "tech plan" decisions — they are epic-level constraints inherited from the mega-epic Vision Summary.
-- If this epic touches billing (§4/§7), the brief must include: pricing tiers, gating matrix, trial type, expansion triggers. The coding agent cannot design billing — it implements a decided design.
-- Success Criteria must include at least one criterion per dimension this epic addresses.
-
-### 2B. Core Flows (epic-to-ticket-workflow/02)
-
-When mapping core flows for a SaaS epic, include these SaaS-specific flows if the epic touches them:
-
-- **Signup-to-activation flow:** signup, email verification, org creation, onboarding wizard, activation event. Map the exact click path. Name the activation event.
-- **Billing lifecycle flow:** plan selection, payment, subscription active, upgrade/downgrade, cancellation, dunning (failed payment), win-back. Reference Paddle webhook events.
-- **Tenant management flow:** invite team member, assign role, remove member, transfer ownership, tenant settings.
-- **Data import flow:** select source, map fields, preview, confirm, progress, completion/rollback.
-- **Integration setup flow:** connect external service, authorize (OAuth/API key), configure sync, test connection, disconnect.
-
-Each flow must identify the `[PRIMARY PATH]` — the happy path a new user takes. These become integration test targets.
-
-**Page inventory:** `.windsurf/rules/saas/60-saas-ui.md` § Page Inventory lists the 20 mandatory pages every SaaS ships (one — `[Core feature pages]` — is a project-specific placeholder). Core-flows must map to these pages + derive any project-specific pages not in the inventory.
-
-### 2C. Tech Plan (epic-to-ticket-workflow/03)
-
-When creating the tech plan for a SaaS epic, enforce:
-
-- **Multi-tenancy architecture:** `tenant_id` on every tenant-scoped table. RLS policies per table. Tenant context propagation (middleware sets `current_tenant_id()`). Reference `.windsurf/rules/saas/95-multi-tenant-saas.md` for full patterns.
-- **Billing integration:** Paddle webhook endpoint, subscription state machine, plan-to-feature gating middleware, metering counters (Redis + postgres reconciliation). BIN-based card routing if dual-processor (reference `.windsurf/rules/saas/88-saas-launch-checklist.md` § Payment Routing).
-- **Org/role model:** organizations table, memberships table (user + org + role), invite flow, role-based access control middleware.
-- **Audit logging:** every tenant-data mutation writes to audit log (who, what, when, tenant_id). Soft-delete default on tenant-scoped tables.
-- **Analytics instrumentation:** product events to structured log (activation, feature usage, conversion). UTM/source capture at signup. AARRR stage tags on each event.
-- **Data isolation:** tenant-scoped queries enforced at the ORM/repository layer (not just RLS). Cross-tenant data access = security incident.
-
-### 2D. Ticket Outline (epic-to-ticket-workflow/05)
-
-When creating the ticket outline for a SaaS epic, verify coverage:
-
-- If this epic owns auth/tenancy: tickets for schema + RLS + middleware + org model + invite flow + activation event.
-- If this epic owns billing: tickets for Paddle integration + webhook handler + gating middleware + metering + subscription UI.
-- If this epic owns onboarding: tickets for signup flow + onboarding wizard + activation tracking + churn-cause logging.
-- If this epic owns data import: tickets for importer + field mapping + preview + progress + rollback.
-- If this epic owns integrations: tickets for OAuth/API key flow + sync config + webhook receiver + marketplace listing prep.
-- Every ticket that touches tenant data must have `95-multi-tenant-saas.md` in its Rule Packs.
-- Analytics instrumentation is NOT a separate ticket — it belongs inside each feature ticket as an AC.
-- The closure ticket must include AARRR dashboard verification — ⚠️ on a **Retrofit** epic that skips Epic Closure (`06-ticket-breakdown-command` § Step 10) there is no closure ticket: carry the AARRR check on the epic's final integration ticket instead.
-
-### 2E. Ticket Breakdown (epic-to-ticket-workflow/06)
-
-When Traycer creates full ticket specs and agent execution plans for a SaaS epic:
-
-#### Per-Ticket Injection Rules
-
-For every ticket, check which dimensions apply and inject into Acceptance Criteria and Context Files:
-
-| If ticket touches... | Inject |
-| --- | --- |
-| Database schema | `tenant_id` on every tenant-scoped table; RLS policy; reference `95-multi-tenant-saas.md` |
-| Auth / signup / registration | `fastapi-user-auth` (Pattern A) config; org/role/invite model; activation event instrumentation; **abuse-prevention Phase 1 (LAUNCH-BLOCKING)** — `registration_ip` + `registration_fingerprint` columns, IP rate limit (2/IP/24h), disposable-email blocklist, email verification before quota grant, progressive unlock (30% / 70% @ 24h), FingerprintJS open-source. Reference `87-abuse-detection.md` |
-| Any API endpoint | Tenant-scoped queries only (never cross-tenant); correlation IDs; **per-tenant** rate limiting (key by `tenant_id`, NOT user/IP; default limits in `plan_features`) |
-| Billing / subscription | Plan-to-feature gating check; Paddle webhook handler; BIN-based card routing (reference `88-saas-launch-checklist.md`) |
-| Usage metering | Redis counter + postgres-main reconciliation; never bill off Redis alone |
-| User-facing UI | 5 UI states; i18n (en + tr); Ocoron Design System; reference `60-saas-ui.md` |
-| Onboarding flow | Time-to-activation target in AC; self-serve end-to-end; churn-cause logging |
-| Data import | Importer for top source + CSV fallback; progress feedback; rollback on failure |
-| Analytics event | UTM/source capture; AARRR stage tag; Prometheus metric or structured log event |
-| Integration endpoint | Webhook signature verification; idempotency key; retry/backoff; marketplace listing prep |
-| Settings / admin | Per-tenant config isolation; soft-delete; audit log entry; export endpoint |
-| Legal / compliance | ToS acceptance gate; KVKK/GDPR consent capture; data deletion endpoint |
-| Email / push / notification template | MJML + Jinja2 pipeline; Ocoron brand partial; Resend ESP; reference `core/86-email-templates.md` |
-
-#### Agent Context Files
-
-Every SaaS ticket's Context Files section must include (in addition to category-specific rule packs):
-
-```text
-.windsurf/rules/saas/95-multi-tenant-saas.md    — tenant isolation patterns
-.windsurf/rules/saas/88-saas-launch-checklist.md — launch-blocking checks
-.windsurf/rules/saas/60-saas-ui.md              — UI patterns (if frontend ticket)
-.windsurf/rules/saas/87-abuse-detection.md      — 4-layer anti-abuse playbook (if ticket touches registration, auth, signup, or quota)
-.windsurf/rules/core/85-payments-billing.md     — Paddle/iyzico provider rules (if billing ticket)
-.windsurf/rules/core/86-email-templates.md      — email/push/notification templates (if ticket creates or edits templates)
-```
-
-#### Plan Directives for Coding Agents
-
-When Traycer creates the execution plan (the plan the coding agent follows), embed these constraints:
-
-1. **Every query is tenant-scoped.** No `SELECT * FROM table` without `WHERE tenant_id = current_tenant()`. RLS is the safety net, not the primary filter.
-2. **Every mutation is audited.** `INSERT`/`UPDATE`/`DELETE` on tenant data writes to the audit log.
-3. **Every feature checks the gating matrix.** Before exposing functionality, check `plan.features[feature_key]`. No ungated features in paid tiers.
-4. **Every external call has resilience.** Timeout + retry + circuit-breaker + graceful fallback. Reference `.windsurf/rules/core/58-resilience.md`.
-5. **Every user-facing string is in locale files.** No hardcoded text. `en.json` + `tr.json` minimum.
-6. **Every signup captures attribution.** UTM params, referral source, activation timestamp.

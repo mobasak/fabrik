@@ -1,15 +1,20 @@
-<!-- Mobile App Domain Module — loaded by mega-epic-breakdown commands
-     when Vision Summary scaffold types include `mobile-app`:
-       • 02-epic-decomposition-command — drives mobile-specific epic patterns
-         (store submission epic, IAP / RevenueCat epic, push permission epic, etc.).
-       • 00-trigger-workflow-command Step E4 (EXISTING mode) — drives delta
-         decisions when adding a mobile capability to an existing project.
-     Traycer reads this file from disk based on the Vision Summary's
-     Technology Decisions § Scaffold types — no manual paste needed.
-     Consumer: Traycer planning LLM (NOT coding agents).
-     Coding agents use .windsurf/rules/mobile-app/80-mobile.md instead. -->
+---
+activation: glob
+globs: ["**/app/**", "**/src/app/**", "**/*.tsx", "**/app.json", "**/app.config.*", "**/eas.json"]
+description: Mobile domain — PLANNING layer. The 17 vision-intake dimensions, the 3 forks (billing/distribution/platform-dependency), the attribution stack, and the epic-decomposition directives. Consumed by the mega-epic planner; the sibling packs (80/81/89) own the code-time discipline.
+trigger: glob
+---
+<!-- CONSUMER: the mega-epic planner (vision intake + epic decomposition) and any agent scoping mobile work.
+     GOAL: decide the irreversible, business-shaping things BEFORE epics exist. This pack is deliberately
+           NOT code discipline — 80-mobile.md, 81-mobile-billing.md and 89-mobile-launch-checklist.md own that.
+     PROVENANCE: promoted from docs/traycer/mega-epic-breakdown/domain-modules/mobile-app.md (2026-07-13).
+           80-mobile.md:18/:94/:356, 81-mobile-billing.md:293 and 89-mobile-launch-checklist.md:237 have
+           referenced this file by name since before it existed; this promotion resolves those 5 dangling refs.
+     ⚠️ SINGLE SOURCE OF TRUTH: every code-time fact (framework, router, auth, billing SDK, push, testing)
+           lives in 80/81/89. Cite them; never restate them here — a second copy is how the old domain-module
+           inverted its build-tool default and shipped a false EU fee number. -->
 
-# Mobile App Domain Module (17 dimensions)
+# Mobile Domain — Planning Layer (vision intake + epic decomposition)
 
 ## Operating Lens (solo + AI fleet)
 
@@ -77,7 +82,7 @@ Reference `.windsurf/rules/mobile-app/81-mobile-billing.md` for full billing dis
 
 **Force:** IAP product types (consumable / subscription / one-time), tiers, trial, entitlement model.
 
-**Default:** **RevenueCat over StoreKit/Play Billing** — set-and-forget receipts, entitlements, cross-platform. Apple Small Business Program = 15% under $1M. **EU rule:** stay on SBP 15% IAP in the EU — the 2026 Core Technology Commission makes EU external link-out approximately 18% effective, which is *worse*. External web billing only pays off in US/unregulated regions.
+**Default:** **RevenueCat over StoreKit/Play Billing** — set-and-forget receipts, entitlements, cross-platform. Apple Small Business Program = 15% under $1M. **EU rule:** stay on SBP 15% IAP in the EU. Under the DMA the CTF was sunset (Jan 2026) and replaced by 5% CTC + Store Services + Initial Acquisition Fee — but for an **SBP member under $1M** that totals **15%: exactly equal to standard IAP, not worse** (`81-mobile-billing.md` § Store Fees). So there is **no cost advantage** to EU external link-out at your scale; the complexity is the cost. External web billing only pays off in US/unregulated regions at volume.
 
 **Turkey constraint:** Google Play Billing is mandatory for digital goods — Turkey is excluded from UCB and EOP. Paddle/iyzico/Stripe web-steer = instant rejection. See `mobile-app/81-mobile-billing.md`. Ad revenue is taxed separately from subscription revenue under Teknokent — maintain separate ledgers.
 
@@ -257,119 +262,3 @@ After foundation:
 - **Public launch:** full store availability after retention validated.
 
 ---
-
-## Part 2 — Per-Epic Implementation Guidance
-
-*Reserved for future per-epic loading by `epic-to-ticket-workflow` command files (`01-epic-brief`, `02-core-flows`, `03-tech-plan`, `04-deploy-plan`, `05-ticket-outline`, `06-ticket-breakdown`). Not currently auto-wired — those command files do not yet `read domain-modules/mobile-app.md`. Surfaced here so the patterns are co-located with Part 1; load order can be wired later.*
-
-These directives apply throughout all epic-to-ticket-workflow steps when the epic belongs to a mobile app project. Traycer carries them from epic-brief through ticket-breakdown and into execution plans.
-
-### 2A. Epic Brief (epic-to-ticket-workflow/01)
-
-When creating the epic brief for a mobile epic:
-
-- State which of the 17 dimensions this epic addresses (by number).
-- Carry forward resolved decisions from the Vision Summary — do not re-decide.
-- **State the lane:** is this a backend epic, a client epic, or a cross-cutting epic? This determines the agent's working environment (VPS/Docker vs Expo/EAS).
-- If this epic is the foundation epic (§4), the brief must include: framework choice, postgres-main schema, auth provider (`fabrik-lib/fastapi-user-auth`, incl. Sign in with Apple mandate), API contract shape, navigation structure.
-- If this epic touches monetization (§5), the brief must include: IAP product types, RevenueCat offering IDs, entitlement gating matrix, pricing tiers. The coding agent implements a decided design.
-- If this epic touches compliance (§13), the brief must include: which privacy labels, which permissions, account deletion flow.
-
-### 2B. Core Flows (epic-to-ticket-workflow/02)
-
-When mapping core flows for a mobile epic, include these mobile-specific flows if the epic touches them:
-
-- **First-session flow:** app launch, permission priming, onboarding wizard (value before signup if possible), activation event. Map the exact screen sequence. Name the activation event.
-- **Monetization flow:** free experience, paywall trigger, plan selection, IAP purchase (StoreKit/Play Billing via RevenueCat), entitlement granted, subscription management.
-- **Push permission flow:** value moment reached, priming screen ("here's what you'll get"), OS prompt, opt-in/opt-out handling.
-- **Offline/reconnect flow:** cached data display, sync indicator, conflict resolution (if offline-write supported), reconnection sync.
-- **Update flow:** app version check, soft prompt for update, forced upgrade gate for breaking changes, OTA silent update for JS-only patches.
-- **Account deletion flow:** in-app Settings, confirm intent, data export option, deletion executed, confirmation (Apple-mandated).
-
-Each flow must identify the `[PRIMARY PATH]` — the happy path. These become Maestro E2E test targets.
-
-**Screen inventory:** `.windsurf/rules/mobile-app/80-mobile.md` § Screen Inventory lists the 17 mandatory screens every mobile app ships. Core-flows must map to these screens + derive any project-specific screens not in the inventory.
-
-### 2C. Tech Plan (epic-to-ticket-workflow/03)
-
-When creating the tech plan for a mobile epic, enforce:
-
-- **Two-lane architecture:** backend (python-api + postgres-main on VPS) and client (React Native + EAS) are separate build/deploy units. API contract is the bridge — define versioned endpoints.
-- **Auth architecture:** `fabrik-lib/fastapi-user-auth` (Pattern A) — the FastAPI backend issues its own JWTs; `expo-auth-session` for social-provider OAuth, `expo-secure-store` for tokens. Sign in with Apple mandatory if any social login offered on iOS. Reference `.windsurf/rules/mobile-app/80-mobile.md` § Backend Integration + `core/35-security-auth.md` Pattern A.
-- **State management:** React Query for server state, Zustand for UI state, MMKV for local persistence. Reference `.windsurf/rules/mobile-app/80-mobile.md` § State Management.
-- **Monetization architecture:** RevenueCat SDK, server-side entitlement verification via RevenueCat webhook to the FastAPI backend (persisted on postgres-main), paywall remote-configurable. Reference `.windsurf/rules/mobile-app/80-mobile.md` § Monetization.
-- **Push architecture:** `expo-notifications`, APNs/FCM via EAS credentials, device tokens in postgres-main, deep link payloads. Reference `.windsurf/rules/mobile-app/80-mobile.md` § Push Notifications.
-- **Offline architecture:** online-first + MMKV read cache. Full offline-write+sync only if Vision Summary explicitly required it (large maintenance cost).
-- **API versioning:** backend supports N and N-1 API versions simultaneously. Forced upgrade gate in client for breaking changes.
-- **Compliance architecture:** Privacy Manifest, ATT prompt before tracking, GDPR consent gate, account deletion endpoint. Reference `.windsurf/rules/mobile-app/80-mobile.md` § Compliance.
-
-### 2D. Ticket Outline (epic-to-ticket-workflow/05)
-
-When creating the ticket outline for a mobile epic, verify coverage:
-
-- If this epic owns auth: tickets for `fastapi-user-auth` setup (Pattern A) + Sign in with Apple + secure token storage + org model (if B2B).
-- If this epic owns the app skeleton: tickets for Expo config + navigation structure + design system (Ocoron via unistyles) + safe area handling.
-- If this epic owns monetization: tickets for RevenueCat integration + IAP product config + paywall UI + entitlement gating middleware + server-side verification.
-- If this epic owns push: tickets for `expo-notifications` setup + permission priming + token storage + deep link routing.
-- If this epic owns onboarding: tickets for first-session flow + permission priming + activation event tracking.
-- If this epic owns compliance: tickets for Privacy Manifest + ATT prompt + GDPR consent gate + account deletion + data export.
-- If this epic owns distribution: tickets for EAS profiles (dev/preview/prod) + CI/CD (GitHub Actions) + OTA channel config.
-- Analytics instrumentation is NOT a separate ticket — it belongs inside each feature ticket as an AC.
-- Every ticket that touches UI must have `80-mobile.md` in its Rule Packs.
-- E2E test target: every `[PRIMARY PATH]` flow gets a Maestro YAML (reference `mobile-app/80-mobile.md` § Testing).
-
-### 2E. Ticket Breakdown (epic-to-ticket-workflow/06)
-
-When Traycer creates full ticket specs and agent execution plans for a mobile epic:
-
-#### Per-Ticket Injection Rules
-
-For every ticket, check which dimensions apply and inject into Acceptance Criteria and Context Files:
-
-| If ticket touches... | Inject |
-|---|---|
-| postgres-main schema | RLS on every tenant table before any query; API types generated from the FastAPI OpenAPI schema and committed; clients never query the DB directly (no BaaS SDK); reference `80-mobile.md` § Backend |
-| Auth / signup | `fastapi-user-auth` (Pattern A) + `expo-secure-store`; Sign in with Apple if social login exists; activation event instrumented |
-| Any API endpoint | Versioned endpoint; backward-compat with N-1; correlation IDs; rate limiting |
-| Monetization / paywall | RevenueCat SDK; server-side entitlement check (not client-trusted); paywall remote-configurable; reference `80-mobile.md` § Monetization |
-| Push notifications | Permission priming before OS prompt; deep link payload; token stored in postgres-main; reference `80-mobile.md` § Push |
-| UI screen / component | React Native primitives (no DOM); Ocoron design system via unistyles; 44pt/48dp touch targets; accessibility labels; reference `80-mobile.md` § Styling + Accessibility |
-| List / scrolling | FlatList or FlashList (no ScrollView+map); stable keyExtractor; reference `80-mobile.md` § Lists |
-| Offline / caching | MMKV for read cache; sync indicator in UI; graceful offline UX |
-| Onboarding flow | First-session value; activation event tracked; D1 retention target in AC |
-| Analytics event | Funnel stage tag; attribution source captured; Sentry for crashes |
-| Permissions | Just-in-time with priming; privacy labels declared; minimal permissions |
-| Compliance | Privacy Manifest entry; ATT before tracking; account deletion reachable from Settings; reference `80-mobile.md` § Compliance |
-| Distribution / build | EAS profile used; OTA channel configured; CI/CD trigger defined |
-| Email / push / notification template | MJML + Jinja2 pipeline (backend email); push: FCM localized + deep-linked + PII-free; reference `core/86-email-templates.md` |
-
-#### Agent Context Files
-
-Every mobile ticket's Context Files section must include (in addition to category-specific rule packs):
-
-```text
-.windsurf/rules/mobile-app/80-mobile.md — mobile implementation patterns (architecture, styling, nav, monetization, compliance, i18n)
-```
-
-For backend tickets within a mobile project, also include:
-
-```text
-.windsurf/rules/core/15-api-contracts.md — API endpoint patterns
-.windsurf/rules/core/58-resilience.md   — timeout/retry/circuit-breaker
-.windsurf/rules/core/86-email-templates.md — email/push/notification templates (if ticket creates or edits templates)
-```
-
-#### Plan Directives for Coding Agents
-
-When Traycer creates the execution plan (the plan the coding agent follows), embed these constraints:
-
-1. **No web DOM elements.** `<View>`, `<Text>`, `<Pressable>`, `<Image>` only. No `<div>`, `<span>`, `<p>`, `<img>`.
-2. **Every table has RLS enabled.** No `postgres-main` table is reachable without RLS; clients reach data only through the FastAPI backend, never a direct DB or BaaS SDK. No exceptions.
-3. **Every token in secure storage.** JWTs in `expo-secure-store`, never AsyncStorage or MMKV.
-4. **Every paywalled feature checks entitlements.** RevenueCat server-side verification, not client-trusted state.
-5. **Every permission is just-in-time.** No permission requests at app launch. Prime, then prompt.
-6. **Every user-facing string is in locale files.** No hardcoded text. `en.json` + `tr.json` minimum. RTL-ready layouts.
-7. **Every external call has resilience.** Timeout + retry + graceful offline fallback. Reference `.windsurf/rules/core/58-resilience.md`.
-8. **Every screen meets touch targets.** 44pt (iOS) / 48dp (Android) minimum. `accessibilityLabel` on icon-only controls.
-9. **Every PRIMARY PATH has a Maestro flow.** E2E test YAML in `.maestro/` directory.
-10. **Backend supports old clients.** API versioned, N-1 backward-compat. Forced upgrade only for breaking changes.
