@@ -25,7 +25,15 @@ to backfill AND strictly better for fresh scaffolds:
   *rise*; a clean repo (baseline 0) is byte-for-byte zero-tolerance, so this is purely additive. Matches Axis B.
 - **install handles `requirements.txt` OR `pyproject.toml`** (`pip install -e .` fallback).
 - **pytest tolerates "no tests collected" (exit 5)** but still fails on genuine test failures.
-- `ci.yml` ↔ `scripts/ci_local.sh` parity preserved; 3 new behavior tests (15 total pass); valid YAML + `bash -n`.
+- `ci.yml` ↔ `scripts/ci_local.sh` parity preserved; valid YAML + `bash -n`.
+
+Three bugs were caught by validating the generated CI on a real repo via the `ci_local.sh` replica (not just
+unit tests) and fixed before any rollout: **(1)** ruff is now **version-pinned** (`RUFF_VERSION`) — an unpinned
+`pip install ruff` pulled a newer ruff whose extra rules would red a repo with zero code change; **(2)** the
+count uses `ruff check . **--exit-zero**` — ruff exits 1 on findings, so under `pipefail` the count pipeline's
+`|| echo 0` fallback fired and concatenated onto the real count (`"3"`→`"30"`); **(3)** install runs
+`pip install -e .` **in addition to** `requirements.txt` so a src-layout package is importable by its own
+tests. 17 behavior tests pass; a real python-api canary runs fully green (ruff ratchet + pytest).
 
 ### Fixed — Deploy hint strings hardcoded `origin main`; now branch-agnostic `origin HEAD` (2026-07-15)
 

@@ -153,3 +153,21 @@ def test_pytest_tolerates_no_tests_collected_only():
     wf = render_ci_workflow(CiConfig(test_cmd="python -m pytest -q"))
     assert '[ "$c" -eq 5 ]' in wf
     assert 'exit "$c"' in wf  # genuine failures still propagate
+
+
+def test_ruff_is_version_pinned():
+    # Unpinned ruff = a new release ships new rules = the ratchet reds a repo with zero code change.
+    # Both the workflow and the local replica must pin the exact version.
+    from fabrik.ci_scaffold import RUFF_VERSION
+
+    assert RUFF_VERSION and RUFF_VERSION[0].isdigit()
+    for text in (render_ci_workflow(CiConfig()), render_ci_local(CiConfig())):
+        assert f"ruff=={RUFF_VERSION}" in text
+
+
+def test_ruff_count_uses_exit_zero():
+    # ruff exits 1 when it finds errors; without --exit-zero the count pipeline "fails" under
+    # pipefail and the `|| echo 0` fallback appends "0" to the real count (3 -> "30"). --exit-zero
+    # makes ruff return 0 so we get the COUNT, not its verdict.
+    for text in (render_ci_workflow(CiConfig()), render_ci_local(CiConfig())):
+        assert "ruff check . --exit-zero --output-format=json" in text

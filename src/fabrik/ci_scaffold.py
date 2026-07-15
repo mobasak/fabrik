@@ -20,6 +20,11 @@ from dataclasses import dataclass, field
 # The plain URL CI uses — NOT `postgresql+asyncpg://…`. The driver is chosen by the
 # app at runtime; the test env var must be the bare libpq URL both here and in CI.
 TEST_DATABASE_URL = "postgresql://postgres:postgres@localhost:5432/postgres"  # noqa: throwaway CI/localhost container credential (postgres:postgres), not a real secret
+# Ruff MUST be pinned: the lint ratchet compares a live `ruff check .` count against a seeded
+# baseline, and a newer ruff ships new rules ⇒ a higher count ⇒ the ratchet reds a repo with ZERO
+# code change. Pin to the version that seeds baselines (the hub venv's ruff) so CI and the baseline
+# agree. Bump deliberately + re-seed baselines together. (scripts/backfill_ci.py asserts this matches.)
+RUFF_VERSION = "0.14.10"
 DEFAULT_TEST_CMD = "python -m pytest -q"
 _PG_PLAIN = "postgres:16"
 _PG_PGVECTOR = "pgvector/pgvector:pg16"  # postgres:16 + the vector extension
@@ -76,12 +81,14 @@ def render_ci_workflow(cfg: CiConfig) -> str:
         "      - name: install",
         "        run: |",
         "          python -m pip install --upgrade pip",
-        # Deps come from requirements.txt OR pyproject.toml — a project may use either.
-        "          if [ -f requirements.txt ]; then pip install -r requirements.txt; "
-        'elif [ -f pyproject.toml ]; then pip install -e .; fi',
+        # Deps from requirements.txt AND/OR the project package itself. Run BOTH (not either/or):
+        # requirements.txt pins deps; `pip install -e .` installs the package so its own tests can
+        # import it (a src-layout package is not importable without it).
+        "          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi",
+        "          if [ -f pyproject.toml ]; then pip install -e . || true; fi",
     ]
     # ruff is always installed (the ruff step below always runs); test deps appended.
-    lines.append(f"          pip install ruff {' '.join(cfg.extra_test_deps)}".rstrip())
+    lines.append(f"          pip install ruff=={RUFF_VERSION} {' '.join(cfg.extra_test_deps)}".rstrip())
     lines += [
         # RATCHET, not raw `ruff check .`: lint debt may not GROW, but existing debt does
         # not red the build. Baseline lives in the tracked .fabrik/lint-baseline.json (seeded
@@ -89,7 +96,7 @@ def render_ci_workflow(cfg: CiConfig) -> str:
         # has baseline 0, so this is byte-for-byte zero-tolerance there — strictly additive.
         '      - name: ruff (ratchet — lint debt may not grow)',
         "        run: |",
-        "          n=$(ruff check . --output-format=json 2>/dev/null | "
+        "          n=$(ruff check . --exit-zero --output-format=json 2>/dev/null | "
         "python -c 'import sys,json;sys.stdout.write(str(len(json.load(sys.stdin))))' || echo 0)",
         "          b=$(python -c \"import sys,json;sys.stdout.write(str(json.load("
         "open('.fabrik/lint-baseline.json'))['ruff_errors']))\" 2>/dev/null || echo \"$n\")",
@@ -155,18 +162,18 @@ def render_ci_local(cfg: CiConfig) -> str:
         'VENV="$(mktemp -d)/venv"',
         'python -m venv "$VENV"',
         '"$VENV/bin/pip" install --quiet --upgrade pip',
-        # Deps from requirements.txt OR pyproject.toml (mirrors ci.yml).
-        'if [ -f requirements.txt ]; then "$VENV/bin/pip" install --quiet -r requirements.txt; '
-        'elif [ -f pyproject.toml ]; then "$VENV/bin/pip" install --quiet -e .; fi',
+        # Deps + the project package itself (mirrors ci.yml): both, not either/or.
+        'if [ -f requirements.txt ]; then "$VENV/bin/pip" install --quiet -r requirements.txt; fi',
+        'if [ -f pyproject.toml ]; then "$VENV/bin/pip" install --quiet -e . || true; fi',
     ]
-    lines.append(f'"$VENV/bin/pip" install --quiet ruff {" ".join(cfg.extra_test_deps)}'.rstrip())
+    lines.append(f'"$VENV/bin/pip" install --quiet ruff=={RUFF_VERSION} {" ".join(cfg.extra_test_deps)}'.rstrip())
     # Prepend the fresh venv to PATH so `python`, `pytest`, `ruff` — however test_cmd is
     # spelled — resolve to the venv, never a system install. (The earlier per-command
     # "$VENV/bin/…" prefixing silently ran a bare `pytest`/`make` from the system PATH.)
     lines += [
         'export PATH="$VENV/bin:$PATH"',
         # RATCHET (mirrors ci.yml): lint debt may not grow; existing debt does not fail the run.
-        'n=$(ruff check . --output-format=json 2>/dev/null | '
+        'n=$(ruff check . --exit-zero --output-format=json 2>/dev/null | '
         "python -c 'import sys,json;sys.stdout.write(str(len(json.load(sys.stdin))))' || echo 0)",
         'b=$(python -c "import sys,json;sys.stdout.write(str(json.load('
         "open('.fabrik/lint-baseline.json'))['ruff_errors']))\" 2>/dev/null || echo \"$n\")",
