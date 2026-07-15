@@ -18,12 +18,18 @@ mobile-app · node-api · python-api · python-api-gpu · saas-skeleton · stati
 the real deployment blocker. **17 such repos remain** (down from 21: `compliance-ops` / `exam-coach` /
 `gmail-account-creator` got specs via the re-scaffold; `ugc` was archived). Disposition (2026-07-14):
 
-**🟢 12 real services — each needs a grounded `/fabrik-spec`** (do NOT hand-write a `shape:` block blind: a
-wrong shape ships a silently-broken deploy per CLAUDE.md — the spec must be grounded in the project's real
-DB/cache/search/metrics/auth usage):
-`trade-intelligence` (86k LOC) · `brand-identiy-creator` (29k) · `wpf` (20k) · `proxy` (14k) ·
-`apidoccreator` (10k) · `llm_batch_processor` (8.5k) · `iterative_image_editor` (5.8k) · `web-scraper` (4.6k) ·
-`image-broker` (4.4k) · `candle` (2k) · `captcha` (1.6k) · `email-reader` (1.4k).
+**🟢 12 real services — SPECS GENERATED for 10 (2026-07-14, `5caaa23b`).** Produced via the scaffold's own
+`generate_and_save_spec` (real source/branch + secrets/env read from each `.env.example`, resources, health) +
+three shape flags corrected from authoritative signals (active `.env.example` vars + real `/metrics`):
+`needs_database`, `needs_cache`, `exposes_metrics`. Judgment flags left conservative for operator review.
+Nothing auto-deploys — first-pass specs to verify before `fabrik apply`.
+  - **Deploy-ready** (`source=git`): `wpf` · `proxy` · `image-broker` · `captcha`.
+  - **Template-source** (valid spec, need a GitHub remote before deploy): `candle` · `email-reader`.
+  - **DB drafts** (`*.yaml.draft` — a not-yet-deployed project's local `.env` uses a dev DB name, so the
+    blocking `check_spec_db_match` trips until DATABASE_URL is repointed; rename `.draft`→`.yaml` at deploy):
+    `trade-intelligence` · `brand-identiy-creator` · `apidoccreator` · `web-scraper`.
+  - **Not generated (2) — blocked on rename:** `llm_batch_processor` + `iterative_image_editor` have UNDERSCORE
+    names → invalid spec id (must be kebab-case). Rename the repo first, then generate.
 
 **🟡 2 not-for-Docker-deploy** (correct their absence of a hub spec — they don't deploy as containers):
 `rnfinal` (mobile-app → ships via EAS build, not Docker) · `rn-kit-sandbox` (sandbox — out of scope).
