@@ -5,7 +5,7 @@
      -->
 
 <!-- ⚠️ QUALITY GATE: Any modification to this command file MUST be evaluated
-     against EVALUATION_CHECKLIST_FOR_EPIC_COMMANDS.md (131 items).
+     against EVALUATION_CHECKLIST_FOR_EPIC_COMMANDS.md (145 items).
      Every applicable item must pass. "N/A" is valid; forgetting to check is not. -->
 
 # Tech Plan
@@ -299,7 +299,7 @@ If during iteration the user introduces a requirement change, suggest `revise-re
 - Responsive (375px–2560px) + Dark+Light (mandatory) addressed in UI architecture for any scaffold with a GUI surface (feature-trigger per `mega-epic-breakdown/00-trigger-workflow-command` § Rule-area applicability matrix — NOT scaffold-type-gated; applies to python-api/node-api/file-api admin dashboards too).
 - Abuse Detection vendored from fabrik-lib when required. Email two-stream confirmed when applicable.
 - `fabrik apply` confirmed deployable end-to-end. Gaps stated if any.
-- Downstream doc feeds identified (CONFIGURATION, DEPLOYMENT, RESILIENCE, DATABASE_SCHEMA).
+- Downstream doc feeds identified (CONFIGURATION, DEPLOYMENT, RESILIENCE, `db/schema.sql` + Alembic — there is no DATABASE_SCHEMA.md).
 - Stress-tested against all 8 dimensions + Testability Gate (includes self-healing verification).
 - **Shape block declared** with registrar surface stated.
 - Length within targets (≤100/section, ≤300 total; overruns justified).
