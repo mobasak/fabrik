@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Removed the broken vestigial `stale.yml` from the mobile-app scaffold template (2026-07-15)
+
+The mobile-app template shipped `.github/workflows/stale.yml` pinned to `actions/stale@v1` (Node 12 — current
+GitHub runners hard-fail deprecated-Node actions), and its `permissions:` granted only `pull-requests: write`
+while the job marks *issues* stale (`stale-issue-*`), which additionally requires `issues: write`
+([actions/stale#840](https://github.com/actions/stale/issues/840)). The workflow therefore failed on every
+run (~8–10s) in every scaffolded mobile app (observed: `rnfulltest`, `supplement-tracker-advisor`) and had
+**never** functioned. It was also the only scaffold type carrying a stale bot — vestigial RN boilerplate, not
+a Fabrik-intentional workflow — so it was removed rather than upgraded (a working v10 stale bot would begin
+auto-closing a solo-dev's own issues/PRs after 14 days). 12 real workflows remain; `ci.yml` is generated
+separately. Existing repos: each project's agent runs `git rm .github/workflows/stale.yml`.
+
 ### Changed — Ocoron design system permits ReactBits-style decorative motion under a narrow carve-out (2026-07-15)
 
 - `.windsurf/rules/core/ocoron-design-system.md` § Motion Language: added a "Decorative motion (carve-out)" subsection. Ambient/decorative motion (particle backgrounds, animated backdrops, `reactbits.dev` components) is permitted on **marketing/landing surfaces only** — product/app surfaces stay bound by the 150ms functional-motion scale — and only when re-tokenized to Ocoron tokens, honoring `prefers-reduced-motion`, and passing the existing a11y/visual/token gate. ReactBits is copy-and-own (like shadcn/ui): not a dependency, not a fabrik-lib module.
