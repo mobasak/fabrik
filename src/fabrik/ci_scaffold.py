@@ -76,15 +76,29 @@ def render_ci_workflow(cfg: CiConfig) -> str:
         "      - name: install",
         "        run: |",
         "          python -m pip install --upgrade pip",
-        "          pip install -r requirements.txt",
+        # Deps come from requirements.txt OR pyproject.toml — a project may use either.
+        "          if [ -f requirements.txt ]; then pip install -r requirements.txt; "
+        'elif [ -f pyproject.toml ]; then pip install -e .; fi',
     ]
     # ruff is always installed (the ruff step below always runs); test deps appended.
     lines.append(f"          pip install ruff {' '.join(cfg.extra_test_deps)}".rstrip())
     lines += [
-        "      - name: ruff",
-        "        run: ruff check .",
+        # RATCHET, not raw `ruff check .`: lint debt may not GROW, but existing debt does
+        # not red the build. Baseline lives in the tracked .fabrik/lint-baseline.json (seeded
+        # at scaffold/backfill time); absent baseline ⇒ current count ⇒ pass. A clean repo
+        # has baseline 0, so this is byte-for-byte zero-tolerance there — strictly additive.
+        '      - name: ruff (ratchet — lint debt may not grow)',
+        "        run: |",
+        "          n=$(ruff check . --output-format=json 2>/dev/null | "
+        "python -c 'import sys,json;sys.stdout.write(str(len(json.load(sys.stdin))))' || echo 0)",
+        "          b=$(python -c \"import sys,json;sys.stdout.write(str(json.load("
+        "open('.fabrik/lint-baseline.json'))['ruff_errors']))\" 2>/dev/null || echo \"$n\")",
+        '          echo "ruff: $n errors (baseline $b)"',
+        '          [ "$n" -le "$b" ] || { echo "::error::ruff rose $b -> $n (new lint debt)"; exit 1; }',
+        # Genuine test failures still red; only "no tests collected" (pytest exit 5) is tolerated.
         "      - name: pytest",
-        f"        run: {cfg.test_cmd}",
+        f"        run: {cfg.test_cmd} || {{ c=$?; [ \"$c\" -eq 5 ] "
+        '&& echo "no tests collected — skipping" || exit "$c"; }',
     ]
     if cfg.needs_web:
         lines += [
@@ -141,7 +155,9 @@ def render_ci_local(cfg: CiConfig) -> str:
         'VENV="$(mktemp -d)/venv"',
         'python -m venv "$VENV"',
         '"$VENV/bin/pip" install --quiet --upgrade pip',
-        '"$VENV/bin/pip" install --quiet -r requirements.txt',
+        # Deps from requirements.txt OR pyproject.toml (mirrors ci.yml).
+        'if [ -f requirements.txt ]; then "$VENV/bin/pip" install --quiet -r requirements.txt; '
+        'elif [ -f pyproject.toml ]; then "$VENV/bin/pip" install --quiet -e .; fi',
     ]
     lines.append(f'"$VENV/bin/pip" install --quiet ruff {" ".join(cfg.extra_test_deps)}'.rstrip())
     # Prepend the fresh venv to PATH so `python`, `pytest`, `ruff` — however test_cmd is
@@ -149,8 +165,14 @@ def render_ci_local(cfg: CiConfig) -> str:
     # "$VENV/bin/…" prefixing silently ran a bare `pytest`/`make` from the system PATH.)
     lines += [
         'export PATH="$VENV/bin:$PATH"',
-        "ruff check .",
-        cfg.test_cmd,
+        # RATCHET (mirrors ci.yml): lint debt may not grow; existing debt does not fail the run.
+        'n=$(ruff check . --output-format=json 2>/dev/null | '
+        "python -c 'import sys,json;sys.stdout.write(str(len(json.load(sys.stdin))))' || echo 0)",
+        'b=$(python -c "import sys,json;sys.stdout.write(str(json.load('
+        "open('.fabrik/lint-baseline.json'))['ruff_errors']))\" 2>/dev/null || echo \"$n\")",
+        'echo "[ci_local] ruff: $n errors (baseline $b)"',
+        '[ "$n" -le "$b" ] || { echo "[ci_local] ruff rose $b -> $n (new lint debt)" >&2; exit 1; }',
+        f'{cfg.test_cmd} || {{ c=$?; [ "$c" -eq 5 ] && echo "[ci_local] no tests collected" || exit "$c"; }}',
         'echo "[ci_local] OK — matches CI"',
     ]
     return "\n".join(lines) + "\n"

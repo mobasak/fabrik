@@ -55,7 +55,10 @@ def test_local_runs_bare_test_cmd_via_venv_path():
     # the system — the PATH prepend guarantees it (finding E regression).
     local = render_ci_local(CiConfig(test_cmd="pytest -q"))
     assert 'export PATH="$VENV/bin:$PATH"' in local
-    assert "\npytest -q\n" in local  # verbatim, resolved via PATH
+    # The bare cmd still runs first via PATH; it is now wrapped so "no tests collected"
+    # (exit 5) doesn't fail the run, but genuine failures still propagate (exit "$c").
+    assert "\npytest -q ||" in local
+    assert 'exit "$c"' in local
 
 
 def test_ruff_always_installed_even_with_no_test_deps():
@@ -126,3 +129,27 @@ def test_workflow_is_valid_yaml():
     assert "jobs" in doc
     assert "python" in doc["jobs"]
     assert "web" in doc["jobs"]
+
+
+def test_ruff_is_a_ratchet_not_raw_check():
+    # Debt-tolerant: the ruff step reads the tracked baseline and fails only on a RISE,
+    # so backfilling CI onto a repo with existing lint debt doesn't red the build.
+    for text in (render_ci_workflow(CiConfig()), render_ci_local(CiConfig())):
+        assert ".fabrik/lint-baseline.json" in text
+        assert '[ "$n" -le "$b" ]' in text  # pass while count <= baseline
+
+
+def test_install_falls_back_to_pyproject_when_no_requirements():
+    # A project may declare deps in pyproject.toml instead of requirements.txt; CI must
+    # install either, or the install step reds every pyproject-only repo.
+    for text in (render_ci_workflow(CiConfig()), render_ci_local(CiConfig())):
+        assert "-e ." in text  # editable install of the pyproject project
+        assert "pyproject.toml" in text
+        assert "requirements.txt" in text  # still preferred when present
+
+
+def test_pytest_tolerates_no_tests_collected_only():
+    # "no tests collected" (pytest exit 5) must not fail the build; any real failure must.
+    wf = render_ci_workflow(CiConfig(test_cmd="python -m pytest -q"))
+    assert '[ "$c" -eq 5 ]' in wf
+    assert 'exit "$c"' in wf  # genuine failures still propagate

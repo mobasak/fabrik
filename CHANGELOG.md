@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Scaffolded CI is now debt-tolerant (ruff ratchet + pyproject/pytest robustness) (2026-07-15)
+
+A complete scaffold audit (every /opt project diffed against a fresh reference of its type) found **31
+deployable projects have no `.github/workflows/ci.yml`** — broken code ships silently (how `meb` shipped
+broken imports). Backfilling the *old* generated CI would have failed instantly on 25 of them, because it ran
+raw `ruff check .` (youtube 1,952 errors · llm_batch_processor 1,314 · …) and `pip install -r
+requirements.txt` (10 repos use `pyproject.toml`). `src/fabrik/ci_scaffold.py` now generates CI that is safe
+to backfill AND strictly better for fresh scaffolds:
+
+- **ruff is a RATCHET, not a raw check** — reads the tracked `.fabrik/lint-baseline.json` and fails only on a
+  *rise*; a clean repo (baseline 0) is byte-for-byte zero-tolerance, so this is purely additive. Matches Axis B.
+- **install handles `requirements.txt` OR `pyproject.toml`** (`pip install -e .` fallback).
+- **pytest tolerates "no tests collected" (exit 5)** but still fails on genuine test failures.
+- `ci.yml` ↔ `scripts/ci_local.sh` parity preserved; 3 new behavior tests (15 total pass); valid YAML + `bash -n`.
+
 ### Fixed — Deploy hint strings hardcoded `origin main`; now branch-agnostic `origin HEAD` (2026-07-15)
 
 The scaffolder intentionally puts each new project on a `mobasak/<name>` branch (`scaffold.py:1366`), which
