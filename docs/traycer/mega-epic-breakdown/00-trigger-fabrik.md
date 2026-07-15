@@ -448,7 +448,7 @@ If no open questions: state "None — research was comprehensive."]
 - Reasoning: [why this classification — based on feature count and complexity, NOT which features become which epics]
 - Next step:
   - If single-epic: "Proceed to epic-to-ticket-workflow/00-trigger-fabrik. Confirm?"
-  - If multi-epic: "Proceed to 02-epic-decomposition-command to define epic boundaries."
+  - If multi-epic: "Proceed to 02-epic-decomposition-fabrik to define epic boundaries."
 ```
 
 ### Step N5: Present and Iterate
@@ -462,7 +462,7 @@ Present the COMPLETE Vision Summary — the only user-facing output of NEW mode.
 
 **CRITICAL: STOP GENERATION after presenting.** Do NOT simulate the owner's response. Do NOT self-confirm. Silence ≠ confirmation.
 
-**Routing after confirmation:** single-epic → "Proceed to `epic-to-ticket-workflow/00-trigger-fabrik`." Multi-epic → "Proceed to `02-epic-decomposition-command` to define epic boundaries."
+**Routing after confirmation:** single-epic → "Proceed to `epic-to-ticket-workflow/00-trigger-fabrik`." Multi-epic → "Proceed to `02-epic-decomposition-fabrik` to define epic boundaries."
 
 ---
 
@@ -562,7 +562,7 @@ For each rule pack applicable to this scaffold type (per `agents-fabrik.md` § P
 - **Scaffold has NO domain pack** (python-api, **python-api-gpu**, node-api, file-api, file-worker, static-site, docusaurus) → build the table directly from the Rule Pack Index, scoped to the scaffold's Default Packs in `agents-fabrik.md` § Project Type → Default Packs. Use the applicability matrix below to decide which rows survive.
 - **WordPress projects are out of scope here** — delegate to `/opt/wpf`; do NOT build a Compliance table for WordPress sites under this workflow.
 
-**Rule-area applicability matrix** — ⚠️ **MODE-AGNOSTIC. This table is the single authority for which rule areas apply to which scaffold, in BOTH modes.** It is physically sited here because EXISTING mode uses it to scope rows in/out of the Compliance table — but it is **equally binding in NEW mode**, where `02-epic-decomposition-command`, `03-expand-epic-files-command` and `04-cross-epic-validation-command` all cite it by name to decide whether the GUI mandates (i18n / Responsive / Dark+Light) fire for a given epic. **A NEW-mode run never executes Step E3 — read this table anyway.** Getting it wrong is the `c2ef2ee` feature-vs-scaffold defect class (checklist anti-pattern 97), which has already been hit in 00, 03, 04 and ettw/05: the trigger is the **GUI SURFACE**, never the scaffold type.
+**Rule-area applicability matrix** — ⚠️ **MODE-AGNOSTIC. This table is the single authority for which rule areas apply to which scaffold, in BOTH modes.** It is physically sited here because EXISTING mode uses it to scope rows in/out of the Compliance table — but it is **equally binding in NEW mode**, where `02-epic-decomposition-fabrik`, `03-expand-epic-files-fabrik` and `04-cross-epic-validation-fabrik` all cite it by name to decide whether the GUI mandates (i18n / Responsive / Dark+Light) fire for a given epic. **A NEW-mode run never executes Step E3 — read this table anyway.** Getting it wrong is the `c2ef2ee` feature-vs-scaffold defect class (checklist anti-pattern 97), which has already been hit in 00, 03, 04 and ettw/05: the trigger is the **GUI SURFACE**, never the scaffold type.
 
 | Rule area | Applies to (kind) |
 | --- | --- |
@@ -768,7 +768,7 @@ epic re-litigates the same decision. Locked Decisions are NOT alternatives — t
 - Reasoning: [why this classification — based on feature + retrofit complexity, NOT which become which epics]
 - Next step:
   - If single-epic: "Proceed to `epic-to-ticket-workflow/00-trigger-fabrik`."
-  - If multi-epic: "Proceed to `02-epic-decomposition-command` to define epic boundaries."
+  - If multi-epic: "Proceed to `02-epic-decomposition-fabrik` to define epic boundaries."
 ```
 
 #### ── CHECKPOINT E-3: "Vision Summary complete (with Locked Decisions + Compliance Report sections). Confirm before proceeding to epic decomposition." ──
@@ -777,7 +777,7 @@ Wait for explicit confirmation. **STOP GENERATION HERE.** Silence ≠ confirmati
 
 **Routing after confirmation:**
 - Single-epic → "This fits a single epic. **Carry the confirmed Vision Summary into that run** — it satisfies the research-discovery step and pre-answers the base + overlay constraints; the epic-to-ticket run **re-verifies against the epic, it does not re-derive**. (Without this the ⛔BLOCKING live-research gate, the fabrik-lib ladder and the Rejected Alternatives are all thrown away and re-litigated, possibly differently.) Proceed to `epic-to-ticket-workflow/00-trigger-fabrik`."
-- Multi-epic → "Proceed to `02-epic-decomposition-command` to define epic boundaries."
+- Multi-epic → "Proceed to `02-epic-decomposition-fabrik` to define epic boundaries."
 
 ---
 

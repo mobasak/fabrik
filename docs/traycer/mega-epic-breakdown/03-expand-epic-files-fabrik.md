@@ -27,7 +27,7 @@ You are a ticket breakdown orchestrator. You read the confirmed compact epic pro
   docs/development/epics/YYYY-MM-DD-epic-<n>-<slug>.md
   ```
 
-  (allowlisted in `CLAUDE.md` § HARD STOPS — NEVER and matched by `scripts/enforcement/check_doc_sprawl.py`; the dated shape mirrors the plans convention deliberately). **Write the file — do not leave the ticket in conversation only.** A breakdown that lives in the context window dies with it, and `05-dispatch-epic-tickets-command` + `epic-to-ticket-workflow` must be able to read an epic back **on a cold context**, days later, without replaying this session. One epic per file: greppable, dispatchable, reviewable, and diffable.
+  (allowlisted in `CLAUDE.md` § HARD STOPS — NEVER and matched by `scripts/enforcement/check_doc_sprawl.py`; the dated shape mirrors the plans convention deliberately). **Write the file — do not leave the ticket in conversation only.** A breakdown that lives in the context window dies with it, and `05-dispatch-epic-tickets-fabrik` + `epic-to-ticket-workflow` must be able to read an epic back **on a cold context**, days later, without replaying this session. One epic per file: greppable, dispatchable, reviewable, and diffable.
 
 - **Tool-capable — verify, don't assume.** Our orchestrator is Claude Code: it can **write files, run commands, and call MCP servers, skills, subagents and workflows.** Use that. Where a ticket asserts a port, a pack path, a `shape` flag, or a registrar, **ground it** — read `PORTS.md`, read the pack, read `spec_loader.py` — instead of copying an upstream claim you cannot see. The Traycer twin has to trust its inputs; **this one does not, so it must not.** A ticket citing a file that does not exist is a defect, not a formatting nit.
 - **Expand, don't re-derive.** Scope boundaries, dependencies, and scaffold type were decided in `02-epic-decomposition-fabrik`. This step fleshes out the detail within those boundaries — it does not change them.
@@ -163,7 +163,7 @@ Total: [N] tickets. Each is dispatchable independently.
 
 ### Step 4: Route
 
-"All [N] epic tickets created. Run `04-cross-epic-validation-command` to validate cross-epic consistency before dispatching."
+"All [N] epic tickets created. Run `04-cross-epic-validation-fabrik` to validate cross-epic consistency before dispatching."
 
 ## Output Contract
 
@@ -187,8 +187,8 @@ Allowlisted in `CLAUDE.md` § HARD STOPS — NEVER; matched by `scripts/enforcem
 - Does NOT leave tickets in conversation only — **write each one to `docs/development/epics/`** (§ Output Contract). An epic that exists only in the context window is lost the moment the window turns over, and `05` cannot dispatch what it cannot read.
 - Does NOT write tickets anywhere else — the path is allowlisted; inventing a new location trips `check_doc_sprawl.py` and is a governance change, not this command's call.
 - Does NOT change epic boundaries or move features between epics — those were confirmed in `02-epic-decomposition-fabrik`. If boundaries need changing, route back to 02.
-- Does NOT validate cross-epic consistency — that is `04-cross-epic-validation-command`.
-- Does NOT dispatch tickets — that is `05-dispatch-epic-tickets-command` (dispatch step).
+- Does NOT validate cross-epic consistency — that is `04-cross-epic-validation-fabrik`.
+- Does NOT dispatch tickets — that is `05-dispatch-epic-tickets-fabrik` (dispatch step).
 
 ## Acceptance Criteria
 
@@ -201,4 +201,4 @@ Allowlisted in `CLAUDE.md` § HARD STOPS — NEVER; matched by `scripts/enforcem
 - Dependencies name specific artifacts (tables, functions, endpoints, env vars), not vague references.
 - Scope boundaries unchanged from 02's confirmed proposal — no feature migration without routing back to 02.
 - Ticket count matches epic count from the compact proposal.
-- Route to `04-cross-epic-validation-command` stated after confirmation.
+- Route to `04-cross-epic-validation-fabrik` stated after confirmation.

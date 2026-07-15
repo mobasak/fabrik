@@ -24,7 +24,7 @@ By the end of this command, the owner and our orchestrator agree on:
 - **WHAT EACH EPIC PRODUCES** that later epics consume (DB tables, API contracts, env vars)
 - **WHAT SHARED INFRASTRUCTURE** all epics inherit (Infrastructure Decisions document)
 
-This command produces the compact epic proposal + Infrastructure Decisions in conversation. `03-expand-epic-files-fabrik` expands each epic into an epic ticket. `04-cross-epic-validation-command` validates cross-epic consistency. `05-dispatch-epic-tickets-command` dispatches tickets in dependency order.
+This command produces the compact epic proposal + Infrastructure Decisions in conversation. `03-expand-epic-files-fabrik` expands each epic into an epic ticket. `04-cross-epic-validation-fabrik` validates cross-epic consistency. `05-dispatch-epic-tickets-fabrik` dispatches tickets in dependency order.
 
 ## Core Philosophy
 
