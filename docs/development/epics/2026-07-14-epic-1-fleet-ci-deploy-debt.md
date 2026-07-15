@@ -93,9 +93,16 @@ Two independent defects made `final_gate` go green while CI and the deployed con
 | **Content** | the working tree — incl. untracked/**gitignored** files on disk | a **clean checkout** (tracked only) | **phantom imports** |
 | **Scope** | only the files **the diff touched** | the **whole repo** | **accumulated lint debt** |
 
-**Axis A is FIXED** (`scripts/enforcement/check_imports_resolvable.py`, Tier-1 showstopper, wired into
-`final_gate.py`, synced to all 47 projects, in the scaffold for new ones — commits `fe3a3f07`, `bf59943a`).
-**Axis B is NOT built** — see the Backlog.
+**Axis A is FIXED + HARDENED** (`scripts/enforcement/check_imports_resolvable.py`, Tier-1 showstopper, wired
+into `final_gate.py`, synced to all 47 projects, in the scaffold for new ones). Built `fe3a3f07`, `bf59943a`;
+then a full `/fabrik-review` (2026-07-14, passes 1–4) surfaced **35 findings** in my own code and drove them
+to FIXED/REFUTED — commits `02e3a839`, `9ef037a1`, `d8eec3d2`, `4f651d65`. What the review caught: the check
+`find_spec`-imported parent packages (crashed on a raising `__init__.py`; 16 s→2.6 s once replaced with pure
+`sys.path` resolution), several fail-open paths (git-failure → "OK, 0 checked"), false-negatives (a phantom
+inside a plain `if:`; anything resolving *outside* the repo, which caught a real one in `wpf`), false-positives
+(`.so` build artifacts, git submodules, frozen stdlib) now guarded + an `# phantom-ok` escape hatch, and three
+**lying tests** (validated a copy of the logic; a regression test that didn't test its own fix). Fleet sweep:
+47 projects, **0 crashes, 0 false positives, 1 true positive** (`wpf`). **Axis B is NOT built** — see the Backlog.
 
 ## ⚠️ Execution rule — do NOT sweep these from the hub
 
@@ -104,25 +111,24 @@ cross-repo.** A hub-side sweep would risk destroying uncommitted work — includ
 pre-commit hook, which stashes/restores unstaged files and can silently revert a sibling's whole uncommitted
 batch to HEAD. Cross-repo editing is a CLAUDE.md HARD STOP.
 
-### What the "git dirt" actually is (surveyed 2026-07-14)
+### What the "git dirt" actually is (surveyed 2026-07-14; re-verified after the sync fix)
 
-It is **mostly NOT agent WIP — it is sync churn**, and that is a **hub bug**:
+Most of it is **not agent WIP — it is the sync's managed `.gitignore` block** being kept current (~38 repos
+have a dirty `.gitignore`). That is **tracked churn each repo's agent simply commits** — machine-generated, no
+data-loss risk. (The earlier claim that the sync also overwrites `docs/workflows/kilo-consult-workflow.md` was
+**wrong** — that file is not in the synced set and does not exist in the hub; its modification in ~28 repos has
+another origin, unrelated to this sync.) Genuine agent WIP is confined to ~5 repos (`meb`, `rn-kit-sandbox`,
+`site-provisioner`, `tojlo-mail`, plus a few real source files).
 
-| Modified file | Repos affected | What it is |
-|---|---|---|
-| `.gitignore` | **41** | The sync **rewrites** it (patches in the generated "Fabrik-synced block"). Diff is real (e.g. captcha: −72/+29). |
-| `docs/workflows/kilo-consult-workflow.md` | **28** | Another **tracked** file the sync overwrites. |
+**✅ The one real HUB BUG here is FIXED (commits `8f79f6f6`, `02e3a839`).** When a project's `.gitignore` was
+**empty**, the sync produced a `.gitignore` containing *only* the Fabrik block — which does not ignore `.env`
+/ `.venv/` / `__pycache__/`, leaving the repo one `git add -A` from committing secrets (found live in 3 repos:
+`captcha`, `fabrik-dr-store`, `Reference_Creator`; nothing had actually leaked). The sync now enforces a
+git-authoritative, fail-closed **safety floor** that self-heals a damaged repo, and **fails the run** (non-zero
+exit) if a repair does not hold. **Re-verified 2026-07-14: 0 repos expose `.env`** (was 3).
 
-`sync_enforcement_to_projects.py` writes to **tracked** files, so **every project is left permanently dirty
-after every sync**. Genuine agent WIP is confined to ~5 repos (`meb` 280, `rn-kit-sandbox` 46,
-`site-provisioner` 16, `tojlo-mail` 13, plus a few real source files).
-
-**→ Backlog item (hub):** make the sync idempotent w.r.t. tracked files — either it must not rewrite tracked
-files, or it must commit what it rewrites. Until fixed, the dirt returns on the next sync and any per-repo
-cleanup is Sisyphean.
-
-**Per-repo agent task (all 41):** commit the sync churn (`.gitignore`, `docs/workflows/kilo-consult-workflow.md`)
-— it is machine-generated content, zero data-loss risk — and commit or stash your own WIP deliberately.
+**Per-repo agent task:** commit the `.gitignore` block churn (machine-generated, zero-risk) and commit or stash
+your own WIP deliberately.
 
 ---
 
@@ -130,7 +136,7 @@ cleanup is Sisyphean.
 
 | Repo | Finding | Action | Done |
 |---|---|---|---|
-| **meb** | **3 phantom imports** — `src/export_app_data.py` imports `card_text` + `image_bg`, which resolve ONLY via **gitignored** `src/card_text.py` / `src/image_bg.py`. Container will `ImportError`. Has **no CI workflow**, so it never surfaced. | `git add` them if they're real source, else fix `.gitignore`. The new gate now **blocks** this repo (`exit=1`) — warn its agent first: it has 280 modified files in flight. | ☐ |
+| ~~**meb**~~ | ~~3 phantom imports (`src/export_app_data.py` → gitignored `card_text` / `image_bg`)~~ | **✅ FIXED by meb's own agent** (`738ede2`): both files are now TRACKED; the gate passes (0 errors) — re-verified 2026-07-14. Residual: ~280 uncommitted files still in its tree (its agent's to land). | ✅ |
 
 ## 🔴 P0 — CI is RED right now (their workflow runs `ruff check .`)
 
@@ -164,7 +170,9 @@ cleanup is Sisyphean.
 | Repo | Outcome |
 |---|---|
 | **trade-intelligence** | Diagnosed *and fixed by its own agent*: vendored `web_tools` into **tracked** source, committed `95c7a41`. Phantom imports 0, ruff 0. Its `scripts/check_phantom_imports.py` was **promoted into the hub** and synced back wired into `final_gate` — it should now **delete its local copy**. |
-| **hub** | `check_imports_resolvable.py` built, hardened (closed the relative-import + untracked-not-just-ignored holes; killed a frozen-stdlib and a synced-dir cry-wolf), 6 regression tests, wired into `final_gate` Tier 1, synced to 47 projects + scaffold. |
+| **hub — Axis A gate** | `check_imports_resolvable.py` built, then hardened through a full 4-pass `/fabrik-review` (35 findings, incl. 3 crash paths + 4 fail-opens + 3 lying tests). Pure `sys.path` resolution (no imports; 16 s→2.6 s), git-authoritative + fail-closed, `# phantom-ok` escape hatch. **29 import-gate tests** (4 provably fail on revert) + the sync suite. Wired into `final_gate` Tier 1, synced to all 47 (md5-identical) + scaffold. Fleet sweep: 0 crashes, 0 FPs, 1 TP (`wpf`). |
+| **hub — sync `.env` bug** | `sync_enforcement_to_projects.py` could strip a project's `.gitignore` to the Fabrik block, un-ignoring `.env` (3 repos, no leak). Fixed with a git-authoritative fail-closed safety floor that self-heals + fails the run if a repair doesn't hold (`8f79f6f6`, `02e3a839`). **0 repos expose `.env`** (was 3). |
+| **hub — scaffold cleanup** | 4 mis-typed empty repos re-scaffolded under correct types (`compliance-ops`/`exam-coach` saas-skeleton, `gmail-account-creator` file-worker, `supplement-tracker-advisor` mobile-app); `ugc` archived as a `web-scraper` duplicate. Nothing deleted — all in `/opt/archived/`. |
 
 ---
 
