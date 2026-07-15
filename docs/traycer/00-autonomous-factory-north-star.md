@@ -127,6 +127,22 @@ nothing tracked whether they stayed true. Recorded now, with their real state.
 
 ---
 
+## Command-chain build plan — the epic-to-ticket `-fabrik` twins (2026-07-15)
+
+The `epic-to-ticket-workflow/` twins are built on the decisions below (operator session 2026-07-15). They serve **R7** (converge-to-no-op), **R8** (control flow forced, not hoped-for), **R23** (subagent parallelism), and an explicit **anti-bloat / anti-content-poisoning** discipline.
+
+- **CC1 — Doer → review pairing.** Every doer command gets a **separate** review command that forces convergence to a no-op (the `/fabrik-spec` → `/fabrik-spec-review` pattern). A fresh-context review invocation converges better than a loop embedded in the doer's own blind-spot-sharing context. Review commands share **one lean template** (convergence contract + finder fan-out + checklist + gate), specialized per artifact — thin files, not ten more heavy ones.
+- **CC2 — Citation discipline: "self-sufficient at point of use."** Every reference is classified **PROVENANCE** (decision already inline → tag `[canonical: file §X]`, never opened) / **HOLLOW** (unactionable without opening → inline the minimal decision, then tag) / **DEPTH-POINTER** (optional detail → mark `(deeper, optional: …)`). Enforced by a **`Reads:` budget header** (a closed, **section-scoped** read-set) at the top of every twin + checklist **item 132**. Kills bloat AND content-poisoning **structurally** — the runtime agent acts from inline decisions and never ingests a referenced doc's other (stale / contradictory / adversarial) content.
+- **CC3 — Fold the data-contract freeze into `03-tech-plan`** (data-shaped epics); no separate command — keeps the doer chain lean.
+- **CC4 — `04` is deploy-*plan*; `11` is the deploy.**
+- **CC5 — `08`/`10` roles under CC1:** `08-implementation-validation` **is** `07-execute`'s review (code vs spec); `10-cross-artifact-validation` **is** the cross-cutting integration review (plan→execute boundary + `09-revise`'s review). Distinct jobs — **not** merged.
+- **CC6 — Per-command build pipeline (serial; one command fully before the next):** reconcile the Traycer source to a no-op (`/fabrik-docs-review`) + hollow-citation sweep → fix per the design critique + citation discipline + add the `Reads:` header → checklist-eval to **0 FAIL** (144 items) → build the tool-capable twin (embedded convergence terminal phase, fan-out on ground/validate, live-research on vendor-touch, disk-reads for epic files) → north-star check (R2/R3/R7/R8/R23) → gate + commit (explicit paths).
+- **CC7 — Template first:** `01-epic-brief-fabrik` + its `01-review` twin are built first as the reference pair; the operator reviews the pattern before it is replicated across `02`–`11`.
+
+Status: recorded; build pending — `00`/`01` sources reconciled, twins not yet built. The `01` template pair is next.
+
+---
+
 ## Cargo order
 
 1. ~~**Shakedown:** plan-2 (`fabrik-capability-catalog`).~~ ✅ **DONE** — `Status: EXECUTED 2026-07-12`,
