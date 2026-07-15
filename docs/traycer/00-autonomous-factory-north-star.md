@@ -104,7 +104,14 @@ nothing tracked whether they stayed true. Recorded now, with their real state.
 - **D3** — Driver = vendor `fabrik-lib/job-queue` + two `process_fn` handlers (producer = `claude -p`
   worktree worker; converger = in-code `fanout` review loop) + a transitions table + Telegram digest +
   a thin `fabrik factory` CLI.
+  → ✅ **CONVERGED design spec (2026-07-15):** `docs/superpowers/specs/2026-07-15-autonomous-factory-driver-design.md`
+  (scope = the WHOLE driver, not a harness fragment; **Opus 4.8 default orchestrator / Fable 5 opt-in** —
+  Fable is $10/$50, 2× Opus, metered since 07-07, so subscription-Opus is the default per R13; **episodic
+  memory wired to the orchestrator** — Opus + each `claude -p` producer inherit the user-scoped plugin and
+  search history before re-deriving). Build pending — after the epic-to-ticket-workflow command review.
 - **D4** — The converger is executed **by the driver, in code** — not by asking an agent to loop (R8).
+  → the spec above splits this correctly: `fanout` (single dispatch) is VENDOR; the **converge-to-no-op loop
+  around it is BUILD** — the R8/D4 core the driver exists to provide.
 - **D5** — Capacity from `job-queue/autoscale.py` (real cgroup numbers); fleet later via `postgres-main`.
 - **Zed** — dropped (no in-window multi-thread view).
 - **Vibe Kanban** — ✅ **RETIRED 2026-07-14** (operator: "retire it and stop its service in wsl").
@@ -134,11 +141,14 @@ nothing tracked whether they stayed true. Recorded now, with their real state.
 
 ## Still open — the distance between here and the top of this page
 
-- **R2 / R3 — the driver itself is NOT BUILT.** The autonomous, 24/7, queue-drained factory (D3) does not
-  exist. Today **the operator is still the loop**: every command is invoked by hand. This is the single
-  largest gap between where we are and this page.
-- **R8 — the loops live in prose, not code.** Every `*-review` command *tells* an agent to converge to a
-  no-op. A driver would *run* that loop. **Prose is not enforcement** — and that is the lesson the rest of
+- **R2 / R3 — the driver itself is NOT BUILT** (but now DESIGNED). The autonomous, 24/7, queue-drained
+  factory (D3) does not exist yet — today **the operator is still the loop**. ✅ **Its design is now a
+  CONVERGED spec** (`docs/superpowers/specs/2026-07-15-autonomous-factory-driver-design.md`, 2026-07-15);
+  **build pending** after the epic-to-ticket-workflow command review. Still the single largest gap — but the
+  path from here is now planned, not blank.
+- **R8 — the loops live in prose, not code** (design done). Every `*-review` command *tells* an agent to
+  converge to a no-op; a driver would *run* that loop. The CONVERGED driver spec designs exactly this (the
+  converge-to-no-op loop around vendored `fanout` = the BUILD core). **Prose is not enforcement** — and that is the lesson the rest of
   this repo keeps re-learning.
 - **Traycer evaluation** — retest; keep-as-GUI vs. finish our own twins (`04` and `05` still have none).
 - Phase-4 capacity measurement (real per-worker numbers).
