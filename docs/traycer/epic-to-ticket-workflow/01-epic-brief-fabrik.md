@@ -94,13 +94,13 @@ Sections in order — line budget varies by flavour:
 
 ### Step 7: Present and Iterate
 
-Present. Iterate until the user explicitly confirms — silence ≠ confirmation. If scope changes during iteration → route to `09-revise-requirements-fabrik`, don't silently absorb.
+Present. Iterate until the user explicitly confirms — silence ≠ confirmation. If scope changes during iteration → route to `09-revise-requirements-command`, don't silently absorb.
 
 ## Does NOT
 
-- Design data models / APIs / state machines — that is `03-tech-plan-fabrik`.
-- Enumerate user journeys / flow steps / UX states — that is `02-core-flows-fabrik`.
-- Decompose into tickets — that is `05-ticket-outline-fabrik`.
+- Design data models / APIs / state machines — that is `03-tech-plan-command`.
+- Enumerate user journeys / flow steps / UX states — that is `02-core-flows-command`.
+- Decompose into tickets — that is `05-ticket-outline-command`.
 - Re-derive INFRA-CHECK fields — consume from `00-trigger-fabrik` verbatim per Step 1.
 - Re-research the project — the research file was consumed by `00-trigger-fabrik`; re-read for grounding, don't re-discover.
 - Validate the brief against downstream commands — that is `08`/`10` (the cross-artifact reviews).
@@ -119,4 +119,4 @@ Present. Iterate until the user explicitly confirms — silence ≠ confirmation
 
 ---
 
-**Next (CC1 pairing, north star § Command-chain build plan):** converge this brief with `/fabrik-ettw-review <brief path> epic-brief` — it forces the no-op (fields present + INFRA-CHECK-consistent, Success-Criteria flavour-correct and non-aspirational, zero hollow citations) before anything consumes it. Then follow `00-trigger-fabrik`'s route (GUI scaffolds → `02-core-flows-fabrik`; headless → `03-tech-plan-fabrik`).
+**Next (CC1 pairing, north star § Command-chain build plan):** converge this brief with `/fabrik-ettw-review <brief path> epic-brief` — it forces the no-op (fields present + INFRA-CHECK-consistent, Success-Criteria flavour-correct and non-aspirational, zero hollow citations) before anything consumes it. Then follow `00-trigger-fabrik`'s route (GUI scaffolds → `02-core-flows-command`; headless → `03-tech-plan-command`). *(Downstream ettw twins are built incrementally; refs point to the live Traycer `-command` source and flip to `-fabrik` as each twin lands.)*
