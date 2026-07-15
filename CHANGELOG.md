@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Lint ratchet: repo-wide ruff debt can only go DOWN (Axis B) (2026-07-14)
+
+`final_gate` lints only the files the current diff TOUCHED, so **repo-wide lint debt is invisible to it** — a
+project accumulates thousands of ruff errors, every local gate run stays green, and its CI (`ruff check .`,
+whole repo) goes red. Fleet snapshot: **~5,045 ruff errors across ~30 repos**, none visible to a per-diff gate
+(`youtube` 1,952, `llm_batch_processor` 1,314, the hub itself 119).
+
+New Tier-1 check `scripts/enforcement/check_lint_ratchet.py` (synced to all 47; wired into `final_gate.py`
+beside the imports gate). A **ratchet, not a flag-day**: the first run in a repo SEEDS a per-repo baseline
+(`.fabrik/lint-baseline.json`, tracked) and passes — nothing is blocked; a later run that RAISES the count
+FAILS (an agent can never *add* a lint error); a run that LOWERS it tightens the baseline to the new floor
+(it can only shrink); at 0 it locks to zero-tolerance permanently. So zero-tolerance arrives per repo as each
+is cleaned — no coordinated cutover, no cross-repo editing. `--check` (CI/read-only) still fails a rise but
+never rewrites the baseline. CI-parity: runs `ruff check .` exactly as a project's `ci.yml` does (ruff respects
+`.gitignore`, so synced/vendored dirs — absent from CI's clean checkout — are excluded).
+
+Defensive: ruff unavailable → WARN + skip (CI still runs ruff); a gitignored baseline (e.g. a repo that
+wholesale-ignores `.fabrik/`) → WARN that the ratchet enforces locally but not in CI, rather than silently
+failing open. Fleet dry-run on landing: 43 repos, 0 crashes, 0 blocked. Regression tests:
+`tests/enforcement/test_check_lint_ratchet.py` (7, against real git repos with real ruff errors).
+
 ### Added — the subagent pool's quality prior is now TASK-AWARE (2026-07-14)
 
 The pool ranks models with `shrunk_q = (n·avg_q + K·tier_baseline) / (n + K)`. The flywheel half (`avg_q`)

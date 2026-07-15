@@ -617,7 +617,7 @@ def run_static_checks(
 
 
 def run_consistency_checks(
-    tier: int = 2, changed_files: set[str] | None = None
+    tier: int = 2, changed_files: set[str] | None = None, check_only: bool = False
 ) -> list[tuple[str, bool, str]]:
     """Run repo consistency checks, filtered by tier and changed files."""
     results = []
@@ -657,6 +657,19 @@ def run_consistency_checks(
                 # `scripts/` printed a warning the operator never saw. The documented severity split
                 # (src/app/tests = ERROR, scripts/ = WARN) was dead code. ERRORs still fail the gate
                 # via the non-zero exit; this only stops the warnings evaporating.
+                advisory=True,
+            )
+        )
+        # Lint ratchet — repo-wide ruff count may only go DOWN. final_gate lints only the diff, so
+        # accumulated repo-wide debt is invisible to it and surfaces as a red CI (`ruff check .`). The
+        # ratchet seeds a per-repo baseline on first run (never blocks), then FAILS any run that raises
+        # the count. `--check` (CI/read-only) still fails on a rise but never rewrites the baseline.
+        ratchet_args = ("--check",) if check_only else ()
+        results.append(
+            run_optional_check(
+                "scripts/enforcement/check_lint_ratchet.py",
+                "Lint Ratchet (repo-wide, no new debt)",
+                *ratchet_args,
                 advisory=True,
             )
         )
@@ -1341,7 +1354,9 @@ def run_iteration(
     # Phase 3: Consistency checks
     if not json_mode:
         print_header("PHASE 3: REPO CONSISTENCY")
-    results = run_consistency_checks(tier=tier, changed_files=changed_files)
+    results = run_consistency_checks(
+        tier=tier, changed_files=changed_files, check_only=check_only
+    )
     all_results.extend(results)
     if not json_mode:
         for name, passed, out in results:
