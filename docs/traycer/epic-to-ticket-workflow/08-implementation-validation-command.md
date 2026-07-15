@@ -5,7 +5,7 @@
      -->
 
 <!-- ⚠️ QUALITY GATE: Any modification to this command file MUST be evaluated
-     against EVALUATION_CHECKLIST_FOR_EPIC_COMMANDS.md (131 items).
+     against EVALUATION_CHECKLIST_FOR_EPIC_COMMANDS.md.
      Every applicable item must pass. "N/A" is valid; forgetting to check is not. -->
 
 # Implementation Validation
@@ -166,8 +166,8 @@ Read the scaffold docs and check they're FILLED (not empty templates):
 - `docs/CONFIGURATION.md` — every env var documented
 - `docs/FEATURES.md` — user-facing features described
 - `docs/RESILIENCE.md` — dependency inventory filled
-- `docs/DATABASE_SCHEMA.md` — tables/columns documented (if DB project)
-- `docs/DEPLOYMENT_ARCHITECTURE.md` — Docker/compose setup documented
+- `docs/data-contract.md` — frozen DB field/enum/model contract documented (if DB project)
+- `docs/DEPLOYMENT.md` — Docker/compose setup documented (deployed types)
 - `docs/LESSONS_LEARNT.md` — entries present where triggers fired, numbering sequential
 - **Per-ticket Lessons Learnt field** — every ticket's Completion Self-Check has `Lessons Learnt:` stated (entry or `none`). Silence = **Blocker**.
 
