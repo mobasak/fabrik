@@ -12,14 +12,28 @@ mobile-app · node-api · python-api · python-api-gpu · saas-skeleton · stati
 **`project.yaml::type` cannot be trusted** — it is wrong or invalid in several repos. Types below are the
 **verified** ones (from README + entrypoint + dependency signals), not the declared ones.
 
-### ⛔ BLOCKER — 21 repos have `compose.yaml` + `Dockerfile` but NO hub spec
+### ⛔ BLOCKER — repos with `compose.yaml` + `Dockerfile` but NO hub spec
 
 `fabrik apply` acts on `specs/services/<id>.yaml`. **No spec = cannot deploy, at all.** This — not lint — is
-the real deployment blocker. Repos with Docker artifacts and no spec:
-`apidoccreator · brand-identiy-creator · candle · captcha · ComplianceOps · email-reader · exam-coach ·
-gmailaccountcreator · image-broker · image-generation · iterative_image_editor · llm_batch_processor ·
-marketing-argumant-generator · proxy · Reference_Creator · rnfinal · supplement-tracker-advisor ·
-trade-intelligence · ugc · web-scraper · wpf`
+the real deployment blocker. **17 such repos remain** (down from 21: `compliance-ops` / `exam-coach` /
+`gmail-account-creator` got specs via the re-scaffold; `ugc` was archived). Disposition (2026-07-14):
+
+**🟢 12 real services — each needs a grounded `/fabrik-spec`** (do NOT hand-write a `shape:` block blind: a
+wrong shape ships a silently-broken deploy per CLAUDE.md — the spec must be grounded in the project's real
+DB/cache/search/metrics/auth usage):
+`trade-intelligence` (86k LOC) · `brand-identiy-creator` (29k) · `wpf` (20k) · `proxy` (14k) ·
+`apidoccreator` (10k) · `llm_batch_processor` (8.5k) · `iterative_image_editor` (5.8k) · `web-scraper` (4.6k) ·
+`image-broker` (4.4k) · `candle` (2k) · `captcha` (1.6k) · `email-reader` (1.4k).
+
+**🟡 2 not-for-Docker-deploy** (correct their absence of a hub spec — they don't deploy as containers):
+`rnfinal` (mobile-app → ships via EAS build, not Docker) · `rn-kit-sandbox` (sandbox — out of scope).
+
+**⚪ 3 empty scaffolds** (410–432-LOC boilerplate, no product code → nothing to deploy yet):
+`image-generation` (operator is merging it into `iterative_image_editor`) · `Reference_Creator` ·
+`marketing-argumant-generator`. These get a spec only once they have real code.
+
+The Docker artifacts on the 2 mobile/sandbox + 3 empty repos are scaffold leftovers; leaving them specless is
+correct, not a gap.
 
 ### ✅ OPERATOR RULINGS (2026-07-14)
 
@@ -176,18 +190,16 @@ your own WIP deliberately.
 
 ---
 
-## Backlog — Axis B: the lint ratchet (NOT built)
+## ✅ Axis B — the lint ratchet (BUILT 2026-07-14, `483ac729`)
 
-Repo-wide lint is invisible to `final_gate` because it lints **only the diff** (`final_gate.py:429`) — which is
-deliberate (don't red the gate on pre-existing or Fabrik-synced lines the change never touched, and in a project
-is *forbidden* to edit). Correct for the auto-**fixer**, wrong for a CI-parity **assertion**.
-
-**Proposed mechanism** (lands safely on all 47 today, no cross-repo editing):
-1. Commit a per-repo **lint baseline** (current repo-wide error count).
-2. Gate **FAILS if the count RISES** → no agent can ever add a new lint error again.
-3. When a repo's baseline hits **0**, the gate **auto-locks it to zero-tolerance** permanently.
-
-Zero-tolerance then arrives **per repo, as each is cleaned** — no flag day, no mass breakage.
+Repo-wide lint was invisible to `final_gate` (it lints **only the diff**) — deliberate for the auto-fixer, wrong
+for a CI-parity assertion. Now `scripts/enforcement/check_lint_ratchet.py` (Tier-1, synced to all 47, wired into
+`final_gate`): first run **seeds** a per-repo baseline (`.fabrik/lint-baseline.json`, tracked) + passes; a
+**rise FAILS**; a **drop tightens** the baseline (it can only shrink); at **0 it locks** to zero-tolerance.
+`--check` (CI) blocks a rise without rewriting. Lands safely — the seed run never blocks (fleet dry-run: 43
+repos, 0 crashes, 0 blocked). Zero-tolerance arrives **per repo, as each is cleaned** — no flag-day. Hub
+baseline seeded at 119. 7 regression tests. So the ~5,045-error fleet debt is now *ratcheted*: it can only ever
+shrink, and no agent can add to it.
 
 ## Also outstanding
 
@@ -197,3 +209,9 @@ Zero-tolerance then arrives **per repo, as each is cleaned** — no flag day, no
   source instead of reaching into a gitignored dir.
 - **CI coverage gap**: most repos have **no CI workflow at all** — which is why `meb` shipped broken silently.
   Worth deciding whether every deployed project should get a minimal `ci.yml`.
+- **Retired `docs/workflows/kilo-consult-workflow.md` orphans** (superseded by the OpenRouter pool 2026-07-11;
+  distributor archived). 7 **untracked** copies swept 2026-07-14. It remains **committed (tracked) in ~30
+  repos** — a harmless dead file; each repo's agent can `git rm docs/workflows/kilo-consult-workflow.md` when
+  convenient (a real tracked change, so not swept from the hub). Root confirmed: the project `.gitignore`
+  block is generated from the synced manifest, so **every governance file is auto-ignored and cannot drift**;
+  this orphan is unignored precisely because it was retired *out* of the manifest.
