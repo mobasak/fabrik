@@ -1,52 +1,34 @@
-id: trade-intelligence
+id: email-reader
 kind: service
 template: python-api
-domain: trade-intelligence.vps1.ocoron.com
+domain: email-reader.vps1.ocoron.com
 shape:
   kind: service
   is_public: true
   is_admin_dashboard: false
   has_bearer_api: false
   has_persistent_data: false
-  needs_database: true
+  needs_database: false
   has_search_feature: false
   needs_cache: false
-  exposes_metrics: true
+  exposes_metrics: false
 expose:
   http: true
   internal_only: false
 source:
-  type: git
-  repository: https://github.com/mobasak/trade-intelligence.git
-  branch: mobasak/trading-intelligence
-depends:
-  postgres: main
+  type: template
+  branch: main
+depends: {}
 infrastructure:
   database: local
   storage: local
   auth: none
-env:
-  PORT: ${PORT:-8022}
-  LOG_LEVEL: ${LOG_LEVEL:-INFO}
-  DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
-  JOB_POLL_INTERVAL_SECONDS: ${JOB_POLL_INTERVAL_SECONDS:-60}
-  JOB_MAX_CONCURRENT: ${JOB_MAX_CONCURRENT:-3}
-  EXPORT_STORAGE_PATH_PREFIX: ${EXPORT_STORAGE_PATH_PREFIX:-exports}
+env: {}
 secrets:
   required: []
   generate: []
   from_env:
-  - STORAGE_SECRET
-  - BOLDATA_API_KEY
-  - ZARI_API_KEY
-  - COMTRADE_SUBSCRIPTION_KEY
-  - NEXT_PUBLIC_PADDLE_CLIENT_TOKEN
-  - PADDLE_API_KEY
-  - PADDLE_WEBHOOK_SECRET
-  - MYEMAILVERIFIER_API_KEY
-  - ORBISEARCH_API_KEY
-  - APIFY_API_TOKEN
-  - INSTANTLY_API_KEY
+  - M365_CLIENT_SECRET
   from_file: {}
 resources:
   memory: 512M

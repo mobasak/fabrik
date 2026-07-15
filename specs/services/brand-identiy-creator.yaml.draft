@@ -1,7 +1,7 @@
-id: trade-intelligence
+id: brand-identiy-creator
 kind: service
 template: python-api
-domain: trade-intelligence.vps1.ocoron.com
+domain: brand-identiy-creator.vps1.ocoron.com
 shape:
   kind: service
   is_public: true
@@ -10,43 +10,51 @@ shape:
   has_persistent_data: false
   needs_database: true
   has_search_feature: false
-  needs_cache: false
+  needs_cache: true
   exposes_metrics: true
 expose:
   http: true
   internal_only: false
 source:
   type: git
-  repository: https://github.com/mobasak/trade-intelligence.git
-  branch: mobasak/trading-intelligence
+  repository: https://github.com/mobasak/brand-identity-creator.git
+  branch: master
 depends:
   postgres: main
+  redis: main
 infrastructure:
   database: local
   storage: local
   auth: none
 env:
-  PORT: ${PORT:-8022}
-  LOG_LEVEL: ${LOG_LEVEL:-INFO}
-  DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
-  JOB_POLL_INTERVAL_SECONDS: ${JOB_POLL_INTERVAL_SECONDS:-60}
-  JOB_MAX_CONCURRENT: ${JOB_MAX_CONCURRENT:-3}
-  EXPORT_STORAGE_PATH_PREFIX: ${EXPORT_STORAGE_PATH_PREFIX:-exports}
+  SERVICE_NAME: brand-identity
+  ENVIRONMENT: ${ENVIRONMENT:-production}
+  DATABASE_URL: ${DATABASE_URL}
+  REDIS_URL: ${REDIS_URL:-redis://redis-main:6379/1}
+  JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+  JWT_EXPIRE_MINUTES: ${JWT_EXPIRE_MINUTES:-15}
+  JWT_REFRESH_DAYS: ${JWT_REFRESH_DAYS:-7}
+  OPENROUTER_READ_TIMEOUT: ${OPENROUTER_READ_TIMEOUT:-120}
+  REPLICATE_READ_TIMEOUT: ${REPLICATE_READ_TIMEOUT:-120}
+  MAX_DAILY_GPU_COST: ${MAX_DAILY_GPU_COST:-5.00}
+  CORS_ORIGINS: ${CORS_ORIGINS}
+  GLITCHTIP_DSN: ${GLITCHTIP_DSN:-}
+  OUTPUT_BASE_PATH: ${OUTPUT_BASE_PATH:-/data/output}
 secrets:
   required: []
   generate: []
   from_env:
-  - STORAGE_SECRET
-  - BOLDATA_API_KEY
-  - ZARI_API_KEY
-  - COMTRADE_SUBSCRIPTION_KEY
-  - NEXT_PUBLIC_PADDLE_CLIENT_TOKEN
-  - PADDLE_API_KEY
-  - PADDLE_WEBHOOK_SECRET
-  - MYEMAILVERIFIER_API_KEY
-  - ORBISEARCH_API_KEY
-  - APIFY_API_TOKEN
-  - INSTANTLY_API_KEY
+  - JWT_SECRET_KEY
+  - ANTHROPIC_API_KEY
+  - OPENROUTER_API_KEY
+  - REPLICATE_API_TOKEN
+  - BFL_API_KEY
+  - PORKBUN_API_KEY
+  - PORKBUN_SECRET_KEY
+  - RESEND_API_KEY
+  - EXA_API_KEY
+  - FIRECRAWL_API_KEY
+  - SERVICE_INTERNAL_SECRET_KEY
   from_file: {}
 resources:
   memory: 512M

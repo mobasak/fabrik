@@ -1,24 +1,24 @@
-id: trade-intelligence
+id: proxy
 kind: service
 template: python-api
-domain: trade-intelligence.vps1.ocoron.com
+domain: proxy.vps1.ocoron.com
 shape:
   kind: service
   is_public: true
   is_admin_dashboard: false
   has_bearer_api: false
   has_persistent_data: false
-  needs_database: true
+  needs_database: false
   has_search_feature: false
   needs_cache: false
-  exposes_metrics: true
+  exposes_metrics: false
 expose:
   http: true
   internal_only: false
 source:
   type: git
-  repository: https://github.com/mobasak/trade-intelligence.git
-  branch: mobasak/trading-intelligence
+  repository: git@github.com:mobasak/proxy.git
+  branch: main
 depends:
   postgres: main
 infrastructure:
@@ -26,27 +26,23 @@ infrastructure:
   storage: local
   auth: none
 env:
-  PORT: ${PORT:-8022}
+  DB_HOST: ${DB_HOST:-postgres-main}
+  DB_PORT: ${DB_PORT:-5432}
+  DB_NAME: ${DB_NAME:-proxy_management}
+  DB_USER: ${DB_USER:?}
+  APP_GIT_SHA: ${GIT_SHA:-unknown}
+  SENTRY_DSN: ${SENTRY_DSN:-}
+  APP_ENV: ${APP_ENV:-production}
   LOG_LEVEL: ${LOG_LEVEL:-INFO}
-  DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
-  JOB_POLL_INTERVAL_SECONDS: ${JOB_POLL_INTERVAL_SECONDS:-60}
-  JOB_MAX_CONCURRENT: ${JOB_MAX_CONCURRENT:-3}
-  EXPORT_STORAGE_PATH_PREFIX: ${EXPORT_STORAGE_PATH_PREFIX:-exports}
 secrets:
   required: []
   generate: []
   from_env:
-  - STORAGE_SECRET
-  - BOLDATA_API_KEY
-  - ZARI_API_KEY
-  - COMTRADE_SUBSCRIPTION_KEY
-  - NEXT_PUBLIC_PADDLE_CLIENT_TOKEN
-  - PADDLE_API_KEY
-  - PADDLE_WEBHOOK_SECRET
-  - MYEMAILVERIFIER_API_KEY
-  - ORBISEARCH_API_KEY
+  - DB_PASSWORD
+  - WEBSHARE_API_KEY
   - APIFY_API_TOKEN
-  - INSTANTLY_API_KEY
+  - WEBSHARE_BACKBONE_PASSWORD
+  - SERVICE_INTERNAL_SECRET_KEY
   from_file: {}
 resources:
   memory: 512M

@@ -1,7 +1,7 @@
-id: trade-intelligence
+id: apidoccreator
 kind: service
 template: python-api
-domain: trade-intelligence.vps1.ocoron.com
+domain: apidoccreator.vps1.ocoron.com
 shape:
   kind: service
   is_public: true
@@ -10,43 +10,43 @@ shape:
   has_persistent_data: false
   needs_database: true
   has_search_feature: false
-  needs_cache: false
-  exposes_metrics: true
+  needs_cache: true
+  exposes_metrics: false
 expose:
   http: true
   internal_only: false
 source:
-  type: git
-  repository: https://github.com/mobasak/trade-intelligence.git
-  branch: mobasak/trading-intelligence
+  type: template
+  branch: main
 depends:
   postgres: main
+  redis: main
 infrastructure:
   database: local
   storage: local
   auth: none
 env:
-  PORT: ${PORT:-8022}
-  LOG_LEVEL: ${LOG_LEVEL:-INFO}
   DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
-  JOB_POLL_INTERVAL_SECONDS: ${JOB_POLL_INTERVAL_SECONDS:-60}
-  JOB_MAX_CONCURRENT: ${JOB_MAX_CONCURRENT:-3}
-  EXPORT_STORAGE_PATH_PREFIX: ${EXPORT_STORAGE_PATH_PREFIX:-exports}
+  PORT: ${PORT:-8302}
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  SERVICE_NAME: ${SERVICE_NAME:-docs-registry}
+  KILO_API_URL: ${KILO_API_URL:-https://api.kilo.ai/api/openrouter/v1/chat/completions}
+  LLM_DEFAULT_MODEL: ${LLM_DEFAULT_MODEL:-anthropic/claude-sonnet-4-5}
+  SCRAPE_CONCURRENCY: ${SCRAPE_CONCURRENCY:-5}
+  REFRESH_INTERVAL_DAYS: ${REFRESH_INTERVAL_DAYS:-7}
+  FRONTEND_DIST_PATH: ${FRONTEND_DIST_PATH:-/app/frontend/dist}
+  ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-*}
+  REDIS_URL: ${REDIS_URL:-redis://localhost:6379/0}
+  CRAWL4AI_URL: ${CRAWL4AI_URL:-http://crawl4ai:11235}
+  BROWSERLESS_URL: ${BROWSERLESS_URL:-}
 secrets:
   required: []
   generate: []
   from_env:
-  - STORAGE_SECRET
-  - BOLDATA_API_KEY
-  - ZARI_API_KEY
-  - COMTRADE_SUBSCRIPTION_KEY
-  - NEXT_PUBLIC_PADDLE_CLIENT_TOKEN
-  - PADDLE_API_KEY
-  - PADDLE_WEBHOOK_SECRET
-  - MYEMAILVERIFIER_API_KEY
-  - ORBISEARCH_API_KEY
-  - APIFY_API_TOKEN
-  - INSTANTLY_API_KEY
+  - KILO_API_KEY
+  - API_SECRET_KEY
+  - SERVICE_INTERNAL_SECRET_KEY
+  - EXA_API_KEY
   from_file: {}
 resources:
   memory: 512M
