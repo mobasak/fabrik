@@ -5,7 +5,7 @@
 ## Project Portfolio
 
 <!-- AUTO-GENERATED:PROJECTS:START -->
-<!-- Total projects: 47 -->
+<!-- Total projects: 46 -->
 
 ### Production Services (5 projects)
 
@@ -17,13 +17,16 @@
 | **site-provisioner** | Unified site provisioning API - domain registration, DNS, SSL, CDN, analytics, and webmaster to... | Python | ✅ Production | https://provision.vps1.ocoron.com | ✅ Current |
 | **youtube** | **Status:** Production Ready - Multi-Tenant SaaS ✅ | Python | ✅ Production | Multi-tenant SaaS | ✅ Current |
 
-### Active Development (21 projects)
+### Active Development (25 projects)
 
 | Project | Purpose | Stack | Status | URL | Scaffold |
 |---------|---------|-------|--------|-----|----------|
 | **calendar-orchestration-engine** | Event-intelligence and marketing-activity orchestration engine — ingests holidays/commerce/soci... | Python | 🔨 Development | https://calendar-orchestration-engine.vps1.ocoron.com | ✅ Current |
 | **candle** | FastAPI microservice project (in development). | FastAPI | 🔨 Development | - | ✅ Current |
+| **compliance-ops** | Async compliance service platform for HealthTech startups. | Node.js | 🔨 Development | - | ✅ Current |
+| **exam-coach** | AI-powered exam preparation and coaching assistant. | Node.js | 🔨 Development | - | ✅ Current |
 | **fabrik-claim-validator** | Multi-tradition claim validation + substance discovery service. Sibling to fabrik-citation-veri... | FastAPI | 🔨 Development | - | ✅ Current |
+| **gmail-account-creator** | Automated Gmail account creation and management worker. | Python | 🔨 Development | - | ✅ Current |
 | **job-agent** | AI agent orchestration and job processing system | FastAPI | 🔨 Development | https://job-agent.vps1.ocoron.com | ✅ Current |
 | **longephedia-vault** | Structured ontology + RAG over Longephedia constitution (12 themes, discipline rules, protocols... | FastAPI | 🔨 Development | - | ✅ Current |
 | **meb** | MEB curriculum flashcard app for the owner's kids. Phase 1: offline Expo/React Native/TS Androi... | React Native | 🔨 Development | - | ✅ Current |
@@ -32,6 +35,7 @@
 | **rn-kit-sandbox** | No description available | Python | 🔨 Development | - | ⚠️ No project.yaml |
 | **rnfinal** | Definitive flawless verification | Python | 🔨 Development | - | ✅ Current |
 | **seo** | SEO keyword research and long-tail keyword generation for AI content creation | FastAPI | 🔨 Development | https://seo.vps1.ocoron.com | ✅ Current |
+| **supplement-tracker-advisor** | Health supplement tracking and personalized advisory mobile app. | Python | 🔨 Development | - | ✅ Current |
 | **test-saas-platform** | Full-blown SaaS platform for testing mega-epic workflow | Node.js | 🔨 Development | - | ✅ Current |
 | **test-saas-scaffold** | Test SaaS scaffold project | Node.js | 🔨 Development | - | ✅ Current |
 | **tojlo-mail** | Multi-tenant AI mail-intelligence layer (inbox-zero fork -> Tryton CRM membrane) | Node.js | 🔨 Development | - | ✅ Current |
@@ -43,29 +47,24 @@
 | **whatsapp-agent** | WhatsApp channel agent for the tryton-crm bridge: FastAPI middleware (M2M to the CRM hub) + sel... | FastAPI | 🔨 Development | - | ✅ Current |
 | **wpf** | WordPress Factory — Python orchestrator (CLI now, FastAPI in Phase 3, Next.js wizard in Phase 4... | Python | 🔨 Development | - | ✅ Current |
 
-### Planning/Research (20 projects)
+### Planning/Research (15 projects)
 
 | Project | Purpose | Stack | Status | URL | Scaffold |
 |---------|---------|-------|--------|-----|----------|
-| **ComplianceOps** | Async compliance service platform for HealthTech startups. | Python | 🔨 Development | https://compliance-ops.vps1.ocoron.com | ✅ Current |
 | **Reference_Creator** | Automated reference document creator from source materials. | Python | 🔨 Development | https://reference-creator.vps1.ocoron.com | ✅ Current |
 | **apidoccreator** | External documentation registry. Scrapes, generates, stores and serves docs for AI agent consum... | FastAPI | 🔨 Development | - | ✅ Current |
 | **brand-identiy-creator** | AI-powered tool for creating comprehensive brand identities from customer inputs and existing m... | FastAPI | 🔨 Development | https://brand-identity-creator.vps1.ocoron.com | ✅ Current |
 | **email-reader** | A Python service to read Gmail and Microsoft 365 emails, extracting verification codes or login... | Python | 🔨 Development | https://email-reader.vps1.ocoron.com | ✅ Current |
 | **emailgateway** | No description available | Unknown | 🔨 Development | - | ⚠️ No project.yaml |
-| **exam-coach** | AI-powered exam preparation and coaching assistant. | Python | 🔨 Development | https://exam-coach.vps1.ocoron.com | ✅ Current |
 | **fabrik-dr-store** | Plain mirror of `/opt/fabrik/.env` from the dev WSL machine. | Unknown | 🔨 Development | - | ⚠️ No project.yaml |
 | **fabrik-lib-account** | Reference implementations of reusable modules at `/opt/fabrik-lib/`. Projects **vendor** (copy)... | Unknown | 🔨 Development | - | ⚠️ No project.yaml |
 | **fabrik-lib-review** | Reference implementations of reusable modules at `/opt/fabrik-lib/`. Projects **vendor** (copy)... | Unknown | 🔨 Development | - | ⚠️ No project.yaml |
-| **gmailaccountcreator** | Automated Gmail account creation and management tool. | Python | 🔨 Development | - | ✅ Current |
 | **image-generation** | Complete product photography system with platform-specific requirements and DIY setup guidance. | Python | 🔨 Development | - | ✅ Current |
 | **iterative_image_editor** | AI-powered product photography tool for automated background removal and scene placement. | Python | 🔨 Development | https://iterative-image-editor.vps1.ocoron.com | ✅ Current |
 | **llm_batch_processor** | A self-hosted automation tool for processing documents through Claude and ChatGPT web interface... | Python | 🔨 Development | - | ✅ Current |
 | **logo-export** | No description available | Unknown | 🔨 Development | - | ⚠️ No project.yaml |
 | **marketing-argumant-generator** | AI-powered marketing argument and copy generation tool. | Python | 🔨 Development | https://marketing-argument-generator.vps1.ocoron.com | ✅ Current |
-| **supplement-tracker-advisor** | Health supplement tracking and personalized advisory system. | Python | 🔨 Development | - | ✅ Current |
 | **test-saas-for-epic-wf** | No description available | Unknown | 🔨 Development | - | ⚠️ No project.yaml |
-| **ugc** | User-generated content data scraping system for social media platforms. | Python | 🔨 Development | - | ✅ Current |
 | **web-scraper** | Scrapy + Playwright web scraper extracting content for AI training pipelines. | Flask | 🔨 Development | - | ✅ Current |
 
 <!-- AUTO-GENERATED:PROJECTS:END -->
