@@ -5,7 +5,7 @@
      -->
 
 <!-- ⚠️ QUALITY GATE: Any modification to this command file MUST be evaluated
-     against EVALUATION_CHECKLIST_FOR_EPIC_COMMANDS.md (131 items).
+     against EVALUATION_CHECKLIST_FOR_EPIC_COMMANDS.md (145 items).
      Every applicable item must pass. "N/A" is valid; forgetting to check is not. -->
 
 # Deploy Plan
@@ -59,7 +59,7 @@ For each `true` field, confirm the code WILL satisfy the registrar's expectation
 - `is_public` → compose has Traefik labels for `<id>.vps1.ocoron.com`; `/health` endpoint exists
 - `is_admin_dashboard` → Authelia forward-auth middleware in compose labels
 - `exposes_metrics` → `/metrics` endpoint using prometheus-client / prom-client
-- `has_search_feature` → Meilisearch client connecting to `search.vps1.ocoron.com:7700`
+- `has_search_feature` → Meilisearch client using the registrar-injected URL (`https://search.vps1.ocoron.com` via Traefik→443; `:7700` is the internal container port, not exposed)
 
 ### Step 3: Compose Contract
 
@@ -68,7 +68,7 @@ Verify the planned `compose.yaml` will have:
 - [ ] `deploy.resources.limits.memory` + `cpus` (required per service — enforced fatally by `deployer_ssh._validate_compose()`)
 - [ ] `platform: linux/amd64`
 - [ ] `container_name: <id>`
-- [ ] `healthcheck` with `start_period: 60s` (grace for container boot + migrations before the healthcheck marks it unhealthy)
+- [ ] `healthcheck` with a `start_period` (scaffold/deployer emit ~10–20s — grace for boot + migrations; `_validate_compose` does not check the value)
 - [ ] `networks: fabrik: external: true`
 - [ ] Traefik labels (if `is_public`): `Host`, `websecure`, `letsencrypt`, hardcoded port
 - [ ] `restart: unless-stopped`
@@ -135,7 +135,7 @@ Present the deploy plan. User confirms shape + compose + registrars + env vars +
 
 If any mismatch found (e.g. code needs Redis but `shape.needs_cache: false`) → flag as a correction that must be resolved before `ticket-outline` begins.
 
-**Downstream doc feeds:** Deploy Plan output directly informs `docs/DEPLOYMENT_ARCHITECTURE.md` (compose contract, env vars, registrar surface). The Documentation Sync Matrix in `ticket-breakdown` assigns which ticket fills this.
+**Downstream doc feeds:** Deploy Plan output directly informs `docs/DEPLOYMENT.md` (compose contract, env vars, registrar surface) — ⚠️ NOT `docs/DEPLOYMENT_ARCHITECTURE.md`, which is hub-only. The Documentation Sync Matrix in `ticket-breakdown` assigns which ticket fills this.
 
 ## Does NOT
 
@@ -161,5 +161,5 @@ If any mismatch found (e.g. code needs Redis but `shape.needs_cache: false`) →
 - Destroy path verified: `fabrik destroy --use-state` reverses all registrations cleanly.
 - Authelia / security confirmation complete. `/health` not behind auth.
 - No shape ↔ architecture mismatches at handoff.
-- Downstream doc feed identified (DEPLOYMENT_ARCHITECTURE.md).
+- Downstream doc feed identified (`docs/DEPLOYMENT.md` — not DEPLOYMENT_ARCHITECTURE.md, which is hub-only).
 - User explicitly confirms. Silence ≠ confirmation.
