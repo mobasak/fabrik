@@ -11,8 +11,6 @@ import sqlite3
 import sys
 from pathlib import Path
 
-import pytest
-
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 
@@ -36,8 +34,13 @@ def _make_llm_db(tmp_path, rows):
             "input_cost_per_m, quality_elo, status, reachable_with_existing_keys) "
             "VALUES (?, ?, ?, ?, ?, ?, 'active', ?)",
             (
-                r["id"], r["provider"], "image_gen", "image",
-                r["cost"], r.get("quality_elo"), r["reach"],
+                r["id"],
+                r["provider"],
+                "image_gen",
+                "image",
+                r["cost"],
+                r.get("quality_elo"),
+                r["reach"],
             ),
         )
     conn.commit()
@@ -49,12 +52,25 @@ def test_upsell_prints_when_locked_out_row_beats_accessible_by_30pct(tmp_path, m
     """Accessible bfl@$3.00; locked-out hyperbolic@$1.50 — 50% cheaper.
     Same quality (both 1400). Expect: 💡 line, exit 0.
     """
-    db = _make_llm_db(tmp_path, [
-        {"id": "bfl-via-replicate/flux", "provider": "bfl-via-replicate",
-         "cost": 3.0 * 1_000_000, "quality_elo": 1400, "reach": 1},
-        {"id": "hyperbolic/flux-hyper", "provider": "hyperbolic",
-         "cost": 1.5 * 1_000_000, "quality_elo": 1400, "reach": 0},
-    ])
+    db = _make_llm_db(
+        tmp_path,
+        [
+            {
+                "id": "bfl-via-replicate/flux",
+                "provider": "bfl-via-replicate",
+                "cost": 3.0 * 1_000_000,
+                "quality_elo": 1400,
+                "reach": 1,
+            },
+            {
+                "id": "hyperbolic/flux-hyper",
+                "provider": "hyperbolic",
+                "cost": 1.5 * 1_000_000,
+                "quality_elo": 1400,
+                "reach": 0,
+            },
+        ],
+    )
     monkeypatch.setenv("KILO_DB", str(db))
     from suggest_model import main
 
@@ -66,12 +82,25 @@ def test_upsell_prints_when_locked_out_row_beats_accessible_by_30pct(tmp_path, m
 
 
 def test_strict_flag_suppresses_upsell(tmp_path, monkeypatch, capsys):
-    db = _make_llm_db(tmp_path, [
-        {"id": "bfl-via-replicate/flux", "provider": "bfl-via-replicate",
-         "cost": 3.0 * 1_000_000, "quality_elo": 1400, "reach": 1},
-        {"id": "hyperbolic/flux-hyper", "provider": "hyperbolic",
-         "cost": 1.5 * 1_000_000, "quality_elo": 1400, "reach": 0},
-    ])
+    db = _make_llm_db(
+        tmp_path,
+        [
+            {
+                "id": "bfl-via-replicate/flux",
+                "provider": "bfl-via-replicate",
+                "cost": 3.0 * 1_000_000,
+                "quality_elo": 1400,
+                "reach": 1,
+            },
+            {
+                "id": "hyperbolic/flux-hyper",
+                "provider": "hyperbolic",
+                "cost": 1.5 * 1_000_000,
+                "quality_elo": 1400,
+                "reach": 0,
+            },
+        ],
+    )
     monkeypatch.setenv("KILO_DB", str(db))
     from suggest_model import main
 
@@ -83,12 +112,25 @@ def test_strict_flag_suppresses_upsell(tmp_path, monkeypatch, capsys):
 
 def test_upsell_skipped_when_saving_below_threshold(tmp_path, monkeypatch, capsys):
     """Locked-out 20% cheaper — below UPSELL_MIN_SAVING_PCT=0.30. No 💡."""
-    db = _make_llm_db(tmp_path, [
-        {"id": "bfl-via-replicate/flux", "provider": "bfl-via-replicate",
-         "cost": 3.0 * 1_000_000, "quality_elo": 1400, "reach": 1},
-        {"id": "hyperbolic/flux-hyper", "provider": "hyperbolic",
-         "cost": 2.4 * 1_000_000, "quality_elo": 1400, "reach": 0},
-    ])
+    db = _make_llm_db(
+        tmp_path,
+        [
+            {
+                "id": "bfl-via-replicate/flux",
+                "provider": "bfl-via-replicate",
+                "cost": 3.0 * 1_000_000,
+                "quality_elo": 1400,
+                "reach": 1,
+            },
+            {
+                "id": "hyperbolic/flux-hyper",
+                "provider": "hyperbolic",
+                "cost": 2.4 * 1_000_000,
+                "quality_elo": 1400,
+                "reach": 0,
+            },
+        ],
+    )
     monkeypatch.setenv("KILO_DB", str(db))
     from suggest_model import main
 

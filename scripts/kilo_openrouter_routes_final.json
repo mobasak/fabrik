@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-07-13",
+  "generated_at": "2026-07-15",
   "categories": {
     "language": {
       "1": "openrouter/fusion",
@@ -7,9 +7,9 @@
       "3": "openai/gpt-oss-120b"
     },
     "code": {
-      "1": "openai/gpt-5.4",
-      "2": "google/gemini-3.1-pro-preview",
-      "3": "openai/gpt-5.3-codex"
+      "1": "openai/gpt-5.5",
+      "2": "openai/gpt-5.4",
+      "3": "anthropic/claude-opus-4.7"
     },
     "vision": {
       "1": "openrouter/auto",

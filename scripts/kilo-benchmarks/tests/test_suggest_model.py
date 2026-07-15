@@ -13,8 +13,6 @@ import sqlite3
 import sys
 from pathlib import Path
 
-import pytest
-
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 
@@ -75,8 +73,15 @@ def test_empty_pool_exits_1(tmp_path, monkeypatch, capsys):
 def test_missing_volume_flag_exits_2(tmp_path, monkeypatch, capsys):
     db = _make_db(
         tmp_path,
-        [{"id": "elevenlabs/tts", "provider": "elevenlabs", "service_type": "tts",
-          "pricing_unit": "M-chars", "input_cost_per_m": 15.0}],
+        [
+            {
+                "id": "elevenlabs/tts",
+                "provider": "elevenlabs",
+                "service_type": "tts",
+                "pricing_unit": "M-chars",
+                "input_cost_per_m": 15.0,
+            }
+        ],
     )
     monkeypatch.setenv("KILO_DB", str(db))
     from suggest_model import main
@@ -99,12 +104,22 @@ def test_mixed_pricing_unit_normalizes_across_image_gen(tmp_path, monkeypatch):
     db = _make_db(
         tmp_path,
         [
-            {"id": "bfl-via-replicate/flux-schnell", "provider": "bfl-via-replicate",
-             "service_type": "image_gen", "pricing_unit": "image",
-             "input_cost_per_m": 0.003 * 1_000_000, "quality_elo": 1400},
-            {"id": "google/gemini-3.1-flash-image", "provider": "google",
-             "service_type": "image_gen", "pricing_unit": "M-tokens",
-             "input_cost_per_m": 0.5, "quality_elo": 1230},
+            {
+                "id": "bfl-via-replicate/flux-schnell",
+                "provider": "bfl-via-replicate",
+                "service_type": "image_gen",
+                "pricing_unit": "image",
+                "input_cost_per_m": 0.003 * 1_000_000,
+                "quality_elo": 1400,
+            },
+            {
+                "id": "google/gemini-3.1-flash-image",
+                "provider": "google",
+                "service_type": "image_gen",
+                "pricing_unit": "M-tokens",
+                "input_cost_per_m": 0.5,
+                "quality_elo": 1230,
+            },
         ],
     )
     monkeypatch.setenv("KILO_DB", str(db))

@@ -1,6 +1,6 @@
 {
-  "timestamp": "2026-07-13T11:59:06.450167",
-  "total_models": 686,
+  "timestamp": "2026-07-15T03:29:26.697007",
+  "total_models": 687,
   "models": {
     "~anthropic/claude-fable-latest": {
       "id": "~anthropic/claude-fable-latest",
@@ -497,8 +497,18 @@
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
+    "kwaipilot/kat-coder-air-v2.5": {
+      "id": "kwaipilot/kat-coder-air-v2.5",
+      "url": "https://openrouter.ai/api/v1",
+      "npm": "@openrouter/ai-sdk-provider"
+    },
     "kwaipilot/kat-coder-pro-v2": {
       "id": "kwaipilot/kat-coder-pro-v2",
+      "url": "https://openrouter.ai/api/v1",
+      "npm": "@openrouter/ai-sdk-provider"
+    },
+    "kwaipilot/kat-coder-pro-v2.5": {
+      "id": "kwaipilot/kat-coder-pro-v2.5",
       "url": "https://openrouter.ai/api/v1",
       "npm": "@openrouter/ai-sdk-provider"
     },
@@ -551,6 +561,11 @@
       "id": "meta-llama/llama-guard-4-12b",
       "url": "https://openrouter.ai/api/v1",
       "npm": "@openrouter/ai-sdk-provider"
+    },
+    "meta/muse-spark-1.1": {
+      "id": "meta/muse-spark-1.1",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
     },
     "microsoft/phi-4": {
       "id": "microsoft/phi-4",
@@ -1452,11 +1467,6 @@
       "url": "https://openrouter.ai/api/v1",
       "npm": "@openrouter/ai-sdk-provider"
     },
-    "sao10k/l3.1-70b-hanami-x1": {
-      "id": "sao10k/l3.1-70b-hanami-x1",
-      "url": "https://openrouter.ai/api/v1",
-      "npm": "@openrouter/ai-sdk-provider"
-    },
     "sao10k/l3.1-euryale-70b": {
       "id": "sao10k/l3.1-euryale-70b",
       "url": "https://openrouter.ai/api/v1",
@@ -1484,6 +1494,11 @@
     },
     "stealth/claude-sonnet-4.6": {
       "id": "stealth/claude-sonnet-4.6",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "stealth/gpt-5.6-sol": {
+      "id": "stealth/gpt-5.6-sol",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
@@ -1750,16 +1765,6 @@
       "url": "https://openrouter.ai/api/v1",
       "npm": "@openrouter/ai-sdk-provider"
     },
-    "liquid/lfm-2.5-1.2b-instruct:free": {
-      "id": "liquid/lfm-2.5-1.2b-instruct:free",
-      "url": "https://openrouter.ai/api/v1",
-      "npm": "@openrouter/ai-sdk-provider"
-    },
-    "liquid/lfm-2.5-1.2b-thinking:free": {
-      "id": "liquid/lfm-2.5-1.2b-thinking:free",
-      "url": "https://openrouter.ai/api/v1",
-      "npm": "@openrouter/ai-sdk-provider"
-    },
     "meta-llama/llama-3.2-3b-instruct:free": {
       "id": "meta-llama/llama-3.2-3b-instruct:free",
       "url": "https://openrouter.ai/api/v1",
@@ -1802,11 +1807,6 @@
     },
     "openai/gpt-5.4-image-2": {
       "id": "openai/gpt-5.4-image-2",
-      "url": "https://openrouter.ai/api/v1",
-      "npm": "@openrouter/ai-sdk-provider"
-    },
-    "openai/gpt-oss-120b:free": {
-      "id": "openai/gpt-oss-120b:free",
       "url": "https://openrouter.ai/api/v1",
       "npm": "@openrouter/ai-sdk-provider"
     },

@@ -11,8 +11,6 @@ import sqlite3
 import sys
 from pathlib import Path
 
-import pytest
-
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 
@@ -92,12 +90,8 @@ def test_seed_quality_elo_only_touches_matching_ids(tmp_path):
 
     _seed_quality_elo(conn)
 
-    row = conn.execute(
-        "SELECT quality_elo FROM agents WHERE id='openai/gpt-image-2'"
-    ).fetchone()
+    row = conn.execute("SELECT quality_elo FROM agents WHERE id='openai/gpt-image-2'").fetchone()
     assert row[0] == 1339
-    unmatched = conn.execute(
-        "SELECT quality_elo FROM agents WHERE id='stability/sdxl'"
-    ).fetchone()
+    unmatched = conn.execute("SELECT quality_elo FROM agents WHERE id='stability/sdxl'").fetchone()
     assert unmatched[0] is None
     conn.close()
