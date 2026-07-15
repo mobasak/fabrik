@@ -1,13 +1,21 @@
 <!-- ⚠️ FABRIK FACTORY WORKFLOW — EPIC ENTRYPOINT (our own, tool-capable)
-     Run DIRECTLY by our orchestrator agent (Claude Code CLI, in Zed) — never pasted into a planner GUI.
-     TOOL-CAPABLE: it RUNS `python scripts/select_rules.py`, reads the files it cites, grounds external
-     facts LIVE via MCP (exa/brave/firecrawl/context7/github, cite URL + fetch date), and gates with
-     `python scripts/final_gate.py`. Orientation file to read FIRST: `agents-fabrik.md`.
+     Run DIRECTLY by our orchestrator agent (Claude Code CLI, in VS Code) — never pasted into a planner GUI.
+     TOOL-CAPABLE: it RUNS `python scripts/select_rules.py`, grounds external facts LIVE via MCP
+     (exa/brave/firecrawl/context7/github, cite URL + fetch date), and gates with `python scripts/final_gate.py`.
+
+     Reads (open NOTHING else to act — every other citation below is `[canonical: …]` provenance you act
+     on from the inline decision, or `(deeper, optional: …)` you may skip):
+       · the dispatched epic ticket file (Path B) — `docs/development/epics/<…>.md`
+       · `agents-fabrik.md` — § Planning Constraints · § MANDATORY ORCHESTRATOR PRE-FLIGHT
+         · § Project Type → Default Packs · § Fabrik Microservices · § Infrastructure Services
+       · `docs/operations/fabrik-lifecycle.md` (stages 3–4 only)
+       · the research file — `docs/preplans/*.md` OR `docs/development/plans/00-research.md`
+       · the Step-4a reference reads named inline · the design-system pack (GUI scaffolds only)
      -->
 
-<!-- ⚠️ QUALITY GATE: Any modification to this command file MUST be evaluated
-     against EVALUATION_CHECKLIST_FOR_EPIC_COMMANDS.md (131 items).
-     Every applicable item must pass. "N/A" is valid; forgetting to check is not. -->
+<!-- ⚠️ QUALITY GATE: any modification MUST pass EVALUATION_CHECKLIST_FOR_EPIC_COMMANDS.md
+     (every applicable item — N/A is valid; forgetting to check is not). No hard-coded item count here:
+     a number in this header only drifts (was `131`; the checklist is now 145 and will grow). -->
 
 # Trigger Workflow (Entrypoint)
 
@@ -38,7 +46,7 @@ Execution phase (execute onward): zero ambiguity. Agents execute tickets without
 - **Automation-first.** Prefer solutions that `fabrik apply` handles end-to-end. If it requires manual VPS steps, redesign until it doesn't.
 - **Self-healing.** Every service detects failures and recovers without human intervention. Health checks test real deps. Drift auto-alerts. Graceful degradation over crash-and-page.
 - **Error-free execution.** Tickets must be executable by agents WITHOUT errors, questions, or assumptions. Quality is non-negotiable.
-- **Versatility.** One workflow handles 11 fabrik-scaffolded types (`python-api` / `python-api-gpu` / `node-api` / `saas-skeleton` / `file-api` / `file-worker` / `static-site` / `docusaurus` / `chrome-extension` / `mobile-app` / `desktop-app` — per `mega-epic-breakdown/00-trigger-fabrik` § Shape model; WordPress is out-of-scope here, routed to standalone `/opt/wpf` via `wpf new <name>` + `wpf wp apply`). The routing table adapts; the principles don't change.
+- **Versatility.** One workflow handles 11 fabrik-scaffolded types (`python-api` / `python-api-gpu` / `node-api` / `saas-skeleton` / `file-api` / `file-worker` / `static-site` / `docusaurus` / `chrome-extension` / `mobile-app` / `desktop-app` `[canonical: mega/00 § Shape model]`; WordPress is out-of-scope here, routed to standalone `/opt/wpf` via `wpf new <name>` + `wpf wp apply`). The routing table adapts; the principles don't change.
 - **Solo dev + AI workforce.** One human orchestrating multiple AI agents in parallel. Fewer larger tickets. Maximize what ships per session. No over-engineering.
 - **Use what exists.** postgres-main, redis-main, MeiliSearch, Gotenberg, Browserless, Apprise, n8n, Backblaze B2 are all live self-hosted infra. NEVER build what's already deployed. Supabase is NOT a default — the org self-hosts every Supabase capability (auth → `fabrik-lib/fastapi-user-auth`, pgvector → `pgvector/pgvector:pg16` + `fabrik-lib/rag`, storage → `fabrik-lib/storage`/B2, realtime → `redis-main` pubsub); reach for Supabase only as a deliberate, ADR-recorded exception for a project already on it (`agents-fabrik.md § Supabase`). `/opt/fabrik-lib/` has vendorable modules (abuse prevention, API auth, billing, cookies, emails, file cache, GDPR, i18n, legal, MT routing, pause state, storage, webhooks, and more) — check `fabrik-lib/README.md` for the current table before planning custom implementations.
 - **The owner's workflow:** Research externally → drop file in project → trigger our orchestrator → our orchestrator reads + plans thoroughly → tickets dispatched to agents in parallel → `fabrik apply` → live.
@@ -58,7 +66,7 @@ If a project cannot pass through all 4 stages, state this explicitly and justify
 
 These are enforced at planning time. Violations block the workflow.
 
-- **12-Factor App — ALL TWELVE.** Every service satisfies **all 12** factors of [The Twelve-Factor App](https://12factor.net/). **The canonical per-factor table (each factor + its Fabrik binding, source re-verified 2026-07-12) is the single source of truth in `mega-epic-breakdown/00-trigger-fabrik.md` § Architectural Mandates** — read it; do not re-derive the factors from memory. Our orchestrator verifies the planned architecture against **all twelve** at Step 5; **violations are blockers.** The five traps this stack actually hits:
+- **12-Factor App — ALL TWELVE.** Every service satisfies **all 12** factors of [The Twelve-Factor App](https://12factor.net/). Verify the planned architecture against **all twelve** at Step 5; **violations are blockers.** Act on the **five traps this stack actually hits** (inline below) — the full per-factor Fabrik-binding table is `(deeper, optional: mega-epic-breakdown/00-trigger-fabrik.md § Architectural Mandates)`, not needed to run the Step-5 check:
   - **IX Disposability** — a worker must **return its in-flight job to the queue on SIGTERM**, and **every job must be idempotent/reentrant** (not merely "fast startup").
   - **X Dev/prod parity** — **never** use a different backing service in dev vs prod: no SQLite locally, no in-memory dict standing in for Redis.
   - **XI Logs** — the app **never writes or manages a logfile**; unbuffered `stdout` only (Promtail → Loki does the routing).
@@ -66,7 +74,7 @@ These are enforced at planning time. Violations block the workflow.
   - **VIII Concurrency** — **never daemonize, never write a PID file.**
 - **Concurrency** — every service handles multiple simultaneous requests. Never single-threaded blocking.
 - **i18n** — every GUI/user-facing service supports multi-language from day one (en + tr minimum). Translation validated via `scripts/validate_i18n.py` (3-level: structural, back-translation, native-speaker critique). Adding a language = adding a locale file, zero code changes. ⚠️ **The scaffolder only ships `scripts/validate_i18n.py` to `saas-skeleton`, `static-site`, `desktop-app`, `mobile-app`, `docusaurus`** (`I18N_ENABLED_TYPES`, `scaffold.py:186`). A **`python-api` / `python-api-gpu` / `node-api` / `file-api` / `file-worker` / `chrome-extension`** epic that trips the i18n feature-trigger must therefore carry an explicit step to **vendor the kit** (`templates/i18n-kit/` → `scripts/`), or its Done-When cites a script the project will never have.
-- **Responsive** — every scaffold with a web GUI surface (per `mega-epic-breakdown/00-trigger-fabrik` § Rule-area applicability matrix — **feature-trigger, NOT scaffold-type-gated**; includes python-api/node-api/file-api with `shape.is_admin_dashboard: true` OR `shape.is_public: true` + HTML output) responsive from 375px to 2560px (RWD1-RWD10). No desktop-only layouts. Carve-outs: chrome-extension popup (400px fixed), mobile-app (native UI), desktop-app (electron window sizing). See `docs/reference/mobile-responsive-testing-guide.md`.
+- **Responsive** — every scaffold with a web GUI surface (**feature-trigger, NOT scaffold-type-gated** `[canonical: mega/00 § Rule-area matrix]`: includes python-api/node-api/file-api with `shape.is_admin_dashboard: true` OR `shape.is_public: true` + HTML output) responsive from 375px to 2560px (RWD1-RWD10). No desktop-only layouts. Carve-outs: chrome-extension popup (400px fixed), mobile-app (native UI), desktop-app (electron window sizing). `(deeper, optional: docs/reference/mobile-responsive-testing-guide.md)`
 - **Dark + light mode** — both mandatory for every scaffold with a GUI surface (same feature-trigger as Responsive above). OS preference detected, manual toggle, preference persists.
 - **Resilience** — every external call has timeout + retry with backoff. Circuit-breaker for repeated failures. `/health` tests ALL real deps. Rule pack: `.windsurf/rules/core/58-resilience.md`. Each project gets `docs/RESILIENCE.md` template at scaffold time — filled when external deps are added.
 - **Abuse detection** — every SaaS with a free tier must implement registration gating (IP rate limit, disposable email block, progressive unlock). Rule pack: `.windsurf/rules/saas/87-abuse-detection.md`.
@@ -81,7 +89,7 @@ This command (`00-trigger`) is the **mandatory entry point** for every epic-to-t
 
 **Single-epic (standalone projects):** Full processing — scaffold detection, research discovery, all 31 constraints, INFRA-CHECK from scratch.
 
-**Multi-epic (dispatched from `mega-epic-breakdown`):** The epic ticket is a **FILE on disk** — `mega-epic-breakdown/03-expand-epic-files-fabrik` wrote it to `docs/development/epics/YYYY-MM-DD-epic-<n>-<slug>.md` (we have no Traycer store). `mega-epic-breakdown/05-dispatch-epic-tickets-fabrik` dispatches these **one epic at a time**; **read the dispatched ticket file** — it provides the starting context. Its `### Metadata` section contains the **full 15-field block** per `mega-epic-breakdown/03-expand-epic-files-fabrik` Metadata template + `mega-epic-breakdown/04-cross-epic-validation-fabrik` Step 6: scaffold, port, **target_vps**, shape, concurrency, i18n, responsive, dark+light, rule packs, HAS_USER_GUIDE, registrars, Universal categories, Abuse Detection, Email, FINANCIALS (last 3 conditional — N/A allowed). This command still runs but in **consume mode** — verify all 15 fields are present and consistent, run epic-level constraint checks (including the GUI-mandate feature-trigger validation per `mega-epic-breakdown/00-trigger-fabrik` § Rule-area applicability matrix for Responsive/Dark+Light/i18n, and the SaaS-conditional triggers for Abuse Detection/Email/FINANCIALS), confirm no conflicts with the specific epic's scope, and emit INFRA-CHECK. Steps 2 (scaffold detection) and 3 (research discovery) are abbreviated: scaffold comes from the ticket, research was done at vision level.
+**Multi-epic (dispatched from `mega-epic-breakdown`):** The epic ticket is a **FILE on disk** — `mega-epic-breakdown/03-expand-epic-files-fabrik` wrote it to `docs/development/epics/YYYY-MM-DD-epic-<n>-<slug>.md` (we have no Traycer store). `mega-epic-breakdown/05-dispatch-epic-tickets-fabrik` dispatches these **one epic at a time**; **read the dispatched ticket file** — it provides the starting context. Its `### Metadata` section contains the **full 15-field block** per `mega-epic-breakdown/03-expand-epic-files-fabrik` Metadata template + `mega-epic-breakdown/04-cross-epic-validation-fabrik` Step 6: scaffold, port, **target_vps**, shape, concurrency, i18n, responsive, dark+light, rule packs, HAS_USER_GUIDE, registrars, Universal categories, Abuse Detection, Email, FINANCIALS (last 3 conditional — N/A allowed). This command still runs but in **consume mode** — verify all 15 fields are present and consistent, run epic-level constraint checks (including the GUI-mandate feature-trigger validation `[canonical: mega/00 § Rule-area matrix]` for Responsive/Dark+Light/i18n, and the SaaS-conditional triggers for Abuse Detection/Email/FINANCIALS), confirm no conflicts with the specific epic's scope, and emit INFRA-CHECK. Steps 2 (scaffold detection) and 3 (research discovery) are abbreviated: scaffold comes from the ticket, research was done at vision level.
 
 **Epic-flavor detection (Path B only):** Inspect the dispatched epic ticket Title. Two flavors emitted by `mega-epic-breakdown/03-expand-epic-files-fabrik` Step 2:
 
@@ -279,3 +287,7 @@ User confirms. Proceed.
 - Route includes `deploy-plan` and `ticket-outline` in the sequence.
 - Route confirmed by user.
 - No unresolved conflicts at hand-off.
+
+---
+
+**Next (CC1 pairing, north star § Command-chain build plan):** converge this command's output with `/fabrik-ettw-review <emitted INFRA-CHECK> trigger` — it forces the no-op on the INFRA-CHECK (all fields present, valued, Path-A/B-consistent, no silent drops) before anything consumes it. Then hand the confirmed epic to `01-epic-brief-fabrik`.
