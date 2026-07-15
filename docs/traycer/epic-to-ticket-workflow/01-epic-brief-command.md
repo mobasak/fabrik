@@ -5,7 +5,7 @@
      -->
 
 <!-- ⚠️ QUALITY GATE: Any modification to this command file MUST be evaluated
-     against EVALUATION_CHECKLIST_FOR_EPIC_COMMANDS.md (131 items).
+     against EVALUATION_CHECKLIST_FOR_EPIC_COMMANDS.md (144 items).
      Every applicable item must pass. "N/A" is valid; forgetting to check is not. -->
 
 # Epic Brief
@@ -34,7 +34,7 @@ Product manager who digs into the "why" behind a project. You produce a deploy-r
 
 **Required fields from Path A (single-epic INFRA-CHECK from `00-trigger-workflow-command`):** `Port`, `target_vps`, `Scaffold`, `User Guide`, `Shape`, `Concurrency`, `i18n`, `Responsive`, `Dark+Light`, `Rule Packs` (10 required); `Abuse Detection`, `Email`, `FINANCIALS` (3 SaaS-conditional, `N/A` allowed).
 
-**Required fields from Path B (multi-epic 15-field block per `00-trigger-workflow-command` § Entry Points → Multi-epic (consume mode)):** the 13 Path A fields PLUS `Registrars`, `Universal categories`, `Epic Flavor` (`Delta-feature` | `Retrofit`) — total 16. Path B does NOT silently drop `Registrars` or `Universal categories`; both propagate into the Epic Brief Metadata block.
+**Required fields from Path B (multi-epic):** 01 consumes **16 fields** — the **15-field ticket Metadata block** (`mega-epic-breakdown/03-expand-epic-files-command` Metadata template = the 13 Path A fields [10 required + 3 SaaS-conditional] + `Registrars` + `Universal categories`) **plus `Epic Flavor`** (`Delta-feature` | `Retrofit`), which `00-trigger-workflow-command` **adds** during Path B flavour detection (§ Entry Points → Multi-epic (consume mode) + § Smart Route Presentation) — the block itself carries no `Epic Flavor`. Path B does NOT silently drop `Registrars` or `Universal categories`; both propagate into the Epic Brief Metadata block.
 
 **Informational (surface if material — both paths):** `Duplicate`, `Internal APIs`, `Design System`, `Platform Debt`, `12-Factor`, `Vector DB`.
 
@@ -141,7 +141,7 @@ If scope changes during iteration → suggest `revise-requirements` rather than 
 - Does NOT re-derive INFRA-CHECK fields — consume from `00-trigger-workflow-command` verbatim per the Path A / Path B field lists at Step 1.
 - Does NOT silently drop Path B fields — `Registrars`, `Universal categories`, and `Epic Flavor` MUST appear in the Epic Brief Metadata block when Path B is active; missing fields route back to `00-trigger-workflow-command`.
 - Does NOT re-research the project — the research file was already consumed by `trigger_workflow`. Re-read for grounding, do not re-discover.
-- Does NOT validate the Epic Brief against downstream commands — that is `04-deploy-plan` Step 7 + `08-implementation-validation` + `10-cross-artifact-validation`.
+- Does NOT validate the Epic Brief against downstream commands — that is `08-implementation-validation` + `10-cross-artifact-validation` (with `04-deploy-plan` Step 4 cross-checking the `Registrars` list against the brief).
 - Does NOT write Success Criteria as aspirations (`improve`, `delight`, `enable`) — every criterion is a concrete number or binary state per Step 5.3.
 - Does NOT propose `revise-requirements` mid-draft — that is the Step 7 iteration cycle's responsibility; the draft itself stays scoped to the confirmed input.
 
