@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — `scripts/backfill_ci.py`: safely backfill CI onto the 31 no-CI projects (2026-07-15)
+
+Backfills `.github/workflows/ci.yml` + `scripts/ci_local.sh` onto an existing project, seeding
+`.fabrik/lint-baseline.json` at its current ruff count so the ratchet CI lands GREEN rather than flooding red
+on legacy debt. Grounds `needs_database`/`needs_web` from the hub spec `shape` + `.env.example`. Dry-run by
+default; `--apply` writes to the working tree only (never commits/pushes across repos). Pairs with the
+debt-tolerant CI generator below.
+
 ### Changed — Scaffolded CI is now debt-tolerant (ruff ratchet + pyproject/pytest robustness) (2026-07-15)
 
 A complete scaffold audit (every /opt project diffed against a fresh reference of its type) found **31
