@@ -27,8 +27,15 @@ to backfill AND strictly better for fresh scaffolds:
 - **pytest tolerates "no tests collected" (exit 5)** but still fails on genuine test failures.
 - `ci.yml` ↔ `scripts/ci_local.sh` parity preserved; valid YAML + `bash -n`.
 
-Three bugs were caught by validating the generated CI on a real repo via the `ci_local.sh` replica (not just
-unit tests) and fixed before any rollout: **(1)** ruff is now **version-pinned** (`RUFF_VERSION`) — an unpinned
+A follow-up rollout across the fleet surfaced that `ci_local` is a faithful CI replica only in a *clean room*,
+which a shared dev box is not: (a) its throwaway Postgres hard-bound host port **5432**, colliding with the
+dev/shared Postgres → now binds a **free** host port (`-p 127.0.0.1::5432`, resolved via `docker port`); and
+(b) the *rollout gate* now runs `ci_local` inside a clean **`git worktree` at HEAD** (tracked files only), so a
+local `.env` / dirty WIP can't diverge the result from GitHub's `actions/checkout`. A DB-backed repo now gates
+green locally where it previously false-red.
+
+Three earlier bugs were caught by validating the generated CI on a real repo via the `ci_local.sh` replica (not
+just unit tests) and fixed before any rollout: **(1)** ruff is now **version-pinned** (`RUFF_VERSION`) — an unpinned
 `pip install ruff` pulled a newer ruff whose extra rules would red a repo with zero code change; **(2)** the
 count uses `ruff check . **--exit-zero**` — ruff exits 1 on findings, so under `pipefail` the count pipeline's
 `|| echo 0` fallback fired and concatenated onto the real count (`"3"`→`"30"`); **(3)** install runs

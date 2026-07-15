@@ -35,9 +35,20 @@ def test_plain_url_not_asyncpg_both_sides():
     cfg = CiConfig(needs_database=True)
     wf = render_ci_workflow(cfg)
     local = render_ci_local(cfg)
-    assert TEST_DATABASE_URL in wf and TEST_DATABASE_URL in local
+    assert TEST_DATABASE_URL in wf  # CI runner is clean -> the fixed :5432 URL
+    # local binds a FREE host port (no clash with a dev Postgres) but the URL stays plain libpq
+    assert "postgresql://postgres:postgres@localhost:$PGPORT/postgres" in local
     assert "+asyncpg" not in wf and "+asyncpg" not in local
     assert "postgres:16" in wf  # no pgvector requested -> plain image
+
+
+def test_local_postgres_uses_a_free_host_port():
+    # A hardcoded -p 5432:5432 collides with a dev/shared Postgres on the box and fails the replica
+    # for no real reason. Let docker assign a free host port, then read it back.
+    local = render_ci_local(CiConfig(needs_database=True))
+    assert "-p 127.0.0.1::5432" in local  # docker picks a free host port
+    assert 'docker port "$CID" 5432/tcp' in local  # resolve the assigned port
+    assert "-p 5432:5432" not in local
 
 
 def test_same_test_command_both_sides():

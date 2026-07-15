@@ -88,23 +88,25 @@ def render_ci_workflow(cfg: CiConfig) -> str:
         "          if [ -f pyproject.toml ]; then pip install -e . || true; fi",
     ]
     # ruff is always installed (the ruff step below always runs); test deps appended.
-    lines.append(f"          pip install ruff=={RUFF_VERSION} {' '.join(cfg.extra_test_deps)}".rstrip())
+    lines.append(
+        f"          pip install ruff=={RUFF_VERSION} {' '.join(cfg.extra_test_deps)}".rstrip()
+    )
     lines += [
         # RATCHET, not raw `ruff check .`: lint debt may not GROW, but existing debt does
         # not red the build. Baseline lives in the tracked .fabrik/lint-baseline.json (seeded
         # at scaffold/backfill time); absent baseline ⇒ current count ⇒ pass. A clean repo
         # has baseline 0, so this is byte-for-byte zero-tolerance there — strictly additive.
-        '      - name: ruff (ratchet — lint debt may not grow)',
+        "      - name: ruff (ratchet — lint debt may not grow)",
         "        run: |",
         "          n=$(ruff check . --exit-zero --output-format=json 2>/dev/null | "
         "python -c 'import sys,json;sys.stdout.write(str(len(json.load(sys.stdin))))' || echo 0)",
-        "          b=$(python -c \"import sys,json;sys.stdout.write(str(json.load("
+        '          b=$(python -c "import sys,json;sys.stdout.write(str(json.load('
         "open('.fabrik/lint-baseline.json'))['ruff_errors']))\" 2>/dev/null || echo \"$n\")",
         '          echo "ruff: $n errors (baseline $b)"',
         '          [ "$n" -le "$b" ] || { echo "::error::ruff rose $b -> $n (new lint debt)"; exit 1; }',
         # Genuine test failures still red; only "no tests collected" (pytest exit 5) is tolerated.
         "      - name: pytest",
-        f"        run: {cfg.test_cmd} || {{ c=$?; [ \"$c\" -eq 5 ] "
+        f'        run: {cfg.test_cmd} || {{ c=$?; [ "$c" -eq 5 ] '
         '&& echo "no tests collected — skipping" || exit "$c"; }',
     ]
     if cfg.needs_web:
@@ -145,7 +147,9 @@ def render_ci_local(cfg: CiConfig) -> str:
             f'PG_IMAGE="{cfg.pg_image()}"',
             'command -v docker >/dev/null || { echo "[ci_local] docker is required" >&2; exit 1; }',
             'echo "[ci_local] starting $PG_IMAGE"',
-            'CID=$(docker run -d --rm -e POSTGRES_PASSWORD=postgres -p 5432:5432 "$PG_IMAGE")',
+            # Bind to a FREE host port (docker assigns one) — a hardcoded 5432 collides with a
+            # dev/shared Postgres already on the box, which fails this replica for no real reason.
+            'CID=$(docker run -d --rm -e POSTGRES_PASSWORD=postgres -p 127.0.0.1::5432 "$PG_IMAGE")',
             "trap 'docker stop \"$CID\" >/dev/null 2>&1 || true' EXIT",
             # BOUNDED readiness wait — an unbounded `until` hangs forever if the container
             # dies or the image never becomes ready.
@@ -155,7 +159,9 @@ def render_ci_local(cfg: CiConfig) -> str:
             "  sleep 1",
             "done",
             '[ -n "$pg_ready" ] || { echo "[ci_local] postgres not ready after 60s" >&2; exit 1; }',
-            f'export TEST_DATABASE_URL="{TEST_DATABASE_URL}"',
+            # Resolve the assigned host port and point the app at it (mirrors CI's plain URL).
+            'PGPORT=$(docker port "$CID" 5432/tcp | head -1 | sed "s/.*://")',
+            'export TEST_DATABASE_URL="postgresql://postgres:postgres@localhost:$PGPORT/postgres"',  # noqa: throwaway CI/localhost container credential (postgres:postgres), not a real secret
             "",
         ]
     lines += [
@@ -166,14 +172,16 @@ def render_ci_local(cfg: CiConfig) -> str:
         'if [ -f requirements.txt ]; then "$VENV/bin/pip" install --quiet -r requirements.txt; fi',
         'if [ -f pyproject.toml ]; then "$VENV/bin/pip" install --quiet -e . || true; fi',
     ]
-    lines.append(f'"$VENV/bin/pip" install --quiet ruff=={RUFF_VERSION} {" ".join(cfg.extra_test_deps)}'.rstrip())
+    lines.append(
+        f'"$VENV/bin/pip" install --quiet ruff=={RUFF_VERSION} {" ".join(cfg.extra_test_deps)}'.rstrip()
+    )
     # Prepend the fresh venv to PATH so `python`, `pytest`, `ruff` — however test_cmd is
     # spelled — resolve to the venv, never a system install. (The earlier per-command
     # "$VENV/bin/…" prefixing silently ran a bare `pytest`/`make` from the system PATH.)
     lines += [
         'export PATH="$VENV/bin:$PATH"',
         # RATCHET (mirrors ci.yml): lint debt may not grow; existing debt does not fail the run.
-        'n=$(ruff check . --exit-zero --output-format=json 2>/dev/null | '
+        "n=$(ruff check . --exit-zero --output-format=json 2>/dev/null | "
         "python -c 'import sys,json;sys.stdout.write(str(len(json.load(sys.stdin))))' || echo 0)",
         'b=$(python -c "import sys,json;sys.stdout.write(str(json.load('
         "open('.fabrik/lint-baseline.json'))['ruff_errors']))\" 2>/dev/null || echo \"$n\")",
