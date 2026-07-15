@@ -1,3 +1,11 @@
+# ══════════════════════════════════════════════════════════════════════════════════
+# ⚠️  DEV-TIME ONLY — importing this from a project's src/ or tests/ breaks CI and the
+# deployed container. It is gitignored fleet-wide (Fabrik-synced VENDORED_DIRS). Vendor
+# what you need into tracked source; never import it from shipped code.
+#
+# Runtime web research is the one piece products legitimately want — vendor the
+# standalone `fabrik-lib/web-tools/` module instead; it drags none of this pool behind it.
+# ══════════════════════════════════════════════════════════════════════════════════
 """subagents — vendorable parallel-subagent runtime (OpenRouter-direct).
 
 Recruit and run N subagents in parallel via the OpenRouter API for coding /

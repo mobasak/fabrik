@@ -28,24 +28,14 @@ from datetime import date
 from pathlib import Path
 from typing import Literal
 
-TaskKind = Literal["spec", "plan", "code", "review", "docs", "docs-review", "research", "ops"]
+TaskKind = Literal["spec", "plan", "code", "review", "docs", "research"]
 TASK_KINDS: tuple[TaskKind, ...] = (
     "spec",
     "plan",
     "code",
     "review",
     "docs",
-    # Verifying doc CLAIMS against the code — the reconcile half of /fabrik-docs-review, as
-    # opposed to `docs` (writing/updating them). It was already being dispatched under
-    # task_type="docs" with project="docs-review" (14 scored runs), so the work existed while
-    # the label did not: its runs were pooled with doc-WRITING, and the ranker could not tell
-    # a model that reconciles well from one that merely writes well.
-    "docs-review",
     "research",
-    # Running commands on a real machine. This is the ONLY task type an external benchmark
-    # measures end-to-end (Terminal-Bench sysadmin+security, 17 tasks), so it is the one place
-    # the pool can be ranked on ground truth rather than on our own judgments.
-    "ops",
 )
 
 # Model registry: approximate OpenRouter OUTPUT price ($/M tokens), from the fleet's

@@ -288,7 +288,10 @@ def execute_web_tool(
         return ToolResult(ok=False, output="", error=f"unexpected error: {exc}")
     finally:
         if owns_client:
-            cli.close()
+            try:
+                cli.close()
+            except Exception:  # noqa: BLE001 — cleanup MUST be total: a raising close()
+                pass  # would replace the returned ToolResult with an exception (not "never raises")
 
 
 _STR = {"type": "string"}
