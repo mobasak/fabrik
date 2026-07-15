@@ -5,7 +5,7 @@
      -->
 
 <!-- ⚠️ QUALITY GATE: Any modification to this command file MUST be evaluated
-     against EVALUATION_CHECKLIST_FOR_EPIC_COMMANDS.md (131 items).
+     against EVALUATION_CHECKLIST_FOR_EPIC_COMMANDS.md (145 items).
      Every applicable item must pass. "N/A" is valid; forgetting to check is not. -->
 
 # Ticket Breakdown (Batched)
@@ -55,7 +55,7 @@ You are a technical project manager who expands the ticket-outline MAP into comp
 
 | Scaffold group | Also required | On missing |
 |---|---|---|
-| `python-api`, `node-api`, `file-api`, `file-worker` | Epic Brief + Tech Plan + Deploy Plan | Hard stop |
+| `python-api`, `python-api-gpu`, `node-api`, `file-api`, `file-worker` | Epic Brief + Tech Plan + Deploy Plan | Hard stop |
 | `saas-skeleton`, `static-site`, `chrome-extension`, `mobile-app`, `desktop-app` | Epic Brief + Core Flows + Tech Plan + Deploy Plan | Hard stop |
 | `wordpress`, `docusaurus` | Epic Brief + scaffold templates | Hard stop |
 | Feature for existing project | Epic Brief + rubric-produced specs | Hard stop on Brief |
@@ -109,7 +109,7 @@ These provide the CONTENT for writing Steps (function names, file paths, schemas
 ## T1 — Implement database schema and migrations
 
 **Scope:**
-- In: `src/myservice/models.py`, `db/migrations/`, `db/schema.sql`, `docs/DATABASE_SCHEMA.md`
+- In: `src/myservice/models.py`, `db/migrations/`, `db/schema.sql`
 - Out: API endpoints (T3), business logic (T4), deployment (T7)
 
 **DO NOT:**
@@ -137,7 +137,7 @@ These provide the CONTENT for writing Steps (function names, file paths, schemas
 3. RUN `alembic revision --autogenerate -m "initial_schema"` — generate migration from models.
 4. VERIFY migration applies cleanly: `alembic upgrade head` against local postgres.
 5. UPDATE `db/schema.sql` — paste current schema for reference (do not execute directly).
-6. UPDATE `docs/DATABASE_SCHEMA.md` — document all tables, columns, relationships, indexes.
+6. (no `docs/DATABASE_SCHEMA.md` — it does not exist; `db/schema.sql` is the schema reference)
 7. UPDATE `src/myservice/health.py` — add `SELECT 1` check to `/health` endpoint for the new DB connection.
 
 **Spec References:**
@@ -154,7 +154,7 @@ These provide the CONTENT for writing Steps (function names, file paths, schemas
 - [ ] All models have UUID PK, timestamps, soft-delete column.
 - [ ] Pydantic schemas validate sample payloads without error.
 - [ ] `/health` returns 200 with DB connectivity test passing.
-- [ ] `docs/DATABASE_SCHEMA.md` documents all tables with column types and relationships.
+- [ ] `db/schema.sql` reflects the current schema (there is NO `docs/DATABASE_SCHEMA.md`).
 - [ ] `CHANGELOG.md` entry under `## [Unreleased]`: "### Added — Database schema and migrations (2026-05-17)"
 - [ ] `INDEX.md` reflects new files.
 - [ ] `.env.example` has `DATABASE_URL` entry.
