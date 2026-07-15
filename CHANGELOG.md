@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Deploy hint strings hardcoded `origin main`; now branch-agnostic `origin HEAD` (2026-07-15)
+
+The scaffolder intentionally puts each new project on a `mobasak/<name>` branch (`scaffold.py:1366`), which
+`--github-create` pushes as the repo's default branch. The deploy pipeline handles this correctly end-to-end —
+`detect_git_source` records the real branch into the spec and the deployer `git clone -b {branch}` clones it —
+but two human-facing hint strings (`spec_generator.py:437`, `deployer_coolify.py:542`) told the operator to
+`git push -u origin main`, which is wrong for a `mobasak/<name>` (or `master`) repo. Changed to
+`git push -u origin HEAD` (pushes whatever the current branch is). No behavior change to the deploy path itself;
+the `mobasak/<name>` branch model is left intact (verified functionally correct — see epic PART 2).
+
 ### Fixed — Removed the broken vestigial `stale.yml` from the mobile-app scaffold template (2026-07-15)
 
 The mobile-app template shipped `.github/workflows/stale.yml` pinned to `actions/stale@v1` (Node 12 — current

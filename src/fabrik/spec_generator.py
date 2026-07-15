@@ -434,7 +434,7 @@ def generate_spec(
             "compose.yaml + .env to the VPS — the build context (source code) "
             "won't be present. Add a git remote so the spec becomes "
             "source.type=git and the VPS can `git clone` to build: "
-            "`git -C %s remote add origin <url> && git push -u origin main`",
+            "`git -C %s remote add origin <url> && git push -u origin HEAD`",
             project_path,
             project_path,
         )

@@ -162,8 +162,8 @@ your own WIP deliberately.
 
 | Repo | Finding | Action | Done |
 |---|---|---|---|
-| **tryton-crm** | **47 ruff errors** repo-wide. *This is the CI email.* Nothing to do with imports (its import check passes). | `ruff check . --fix`, then fix the rest by hand until `ruff check .` is clean. | ☐ |
-| **whatsapp-agent** | **2 ruff errors**; `ci.yml` runs `ruff check .` | `ruff check . --fix` | ☐ |
+| ~~**tryton-crm**~~ | ~~**47 ruff errors** repo-wide. *This is the CI email.*~~ | **✅ FIXED by its own agent** — re-verified **0 ruff** 2026-07-15. | ✅ |
+| ~~**whatsapp-agent**~~ | ~~**2 ruff errors**~~ | **✅ FIXED by its own agent** — re-verified **0 ruff** 2026-07-15. | ✅ |
 
 ## 🟡 P1 — Big debt, CI does *not* gate ruff (latent, not currently red)
 
@@ -221,3 +221,36 @@ shrink, and no agent can add to it.
   convenient (a real tracked change, so not swept from the hub). Root confirmed: the project `.gitignore`
   block is generated from the synced manifest, so **every governance file is auto-ignored and cannot drift**;
   this orphan is unignored precisely because it was retired *out* of the manifest.
+
+---
+
+## PART 2 — 2026-07-15 additions (CI-failure emails)
+
+### ✅ Broken `stale.yml` GitHub Action — FIXED
+
+The "Mark stale issues and pull requests" workflow failed on every run (~8–10 s) on `supplement-tracker-advisor`
++ `rnfulltest`. Root cause: the **mobile-app scaffold template** shipped `.github/workflows/stale.yml` on
+`actions/stale@v1` (Node 12 — current runners hard-fail deprecated-Node actions) with `permissions:` granting
+only `pull-requests: write` while the job marks *issues* stale (needs `issues: write` too). It had **never**
+worked; it was the only scaffold type carrying a stale bot (vestigial RN boilerplate).
+
+- **Template:** removed from `templates/mobile-app/.github/workflows/stale.yml` (`f521c3e2`) → future scaffolds clean.
+- **Live repos:** deleted `stale.yml` on both remotes via `gh` (`8bb5860d`, `46b1715`); verified 404.
+- **Fleet:** authoritative scan = **0/40** repos still carry it (an earlier "39 repos" reading was a scan bug —
+  `gh api --jq .sha` emits literal `null` on a 404). Only the two mobile-app scaffolds ever had it.
+
+### ✅ Default branch = `mobasak/<name>` — INVESTIGATED, non-issue, guidance corrected
+
+~15 recently-scaffolded repos have their default branch named `mobasak/<slug>` (not `main`/`master`); a few show
+older names (`trade-intelligence` → `mobasak/trading-intelligence`). Source: **intentional** —
+`scaffold.py:1366` does `branch_name = f"mobasak/{name}"` + `git checkout -b`, and `--github-create` pushes it as
+the sole branch → it becomes the GitHub default.
+
+**Verdict: functionally correct, left as-is.** The pipeline is internally consistent — `detect_git_source`
+(`spec_generator.py:326`) records the real branch into the spec (`branch: mobasak/<name>`), and the deployer
+(`deployer_ssh.py:446`) does `git clone -b {branch}` using that spec branch. Deploy/CI/watchdog all use the
+default branch, so nothing breaks. Switching the scaffolder to `master` would create a three-way fleet split
+(old `main`/`master` · these ~15 `mobasak/<name>` · future `master`) and the existing repos can't be easily
+renamed → **more** inconsistency. The only real defect was two stale human-facing hint strings hardcoding
+`git push -u origin main`; fixed to `git push -u origin HEAD` (branch-agnostic) in `spec_generator.py:437` +
+`deployer_coolify.py:542`.

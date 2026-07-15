@@ -539,7 +539,7 @@ class ServiceDeployer:
                 "consume — the build will never run. Either:\n"
                 "  1. Add a git remote and re-emit the spec:\n"
                 f"       git -C /opt/{spec.get('name')} remote add origin <url>\n"
-                f"       git -C /opt/{spec.get('name')} push -u origin main\n"
+                f"       git -C /opt/{spec.get('name')} push -u origin HEAD\n"
                 "       # then re-run the scaffolder spec emitter to refresh the spec\n"
                 "  2. Or rewrite the compose template to use `image:` from a registry."
             )
