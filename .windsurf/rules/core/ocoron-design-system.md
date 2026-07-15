@@ -400,6 +400,17 @@ I8. Icon-only buttons require `aria-label` for accessibility. No exceptions.
 
 Motion is functional, never decorative. Every animation communicates one of: state change, attention direction, system status, or progress. Motion that does none of those is removed.
 
+### Decorative motion (carve-out)
+
+Purely ambient motion — particle backgrounds, animated/gradient backdrops, text/cursor effects (e.g. components from [reactbits.dev](https://reactbits.dev)) — is exempt from the "functional only" rule above, but ONLY:
+
+1. **On marketing / landing surfaces only.** Never on product/app surfaces — those stay bound by the functional-motion scale below (interaction feedback tops out at `--motion-default: 150ms`).
+2. **Re-tokenized first.** No hardcoded colors, durations, or easings: the imported component must consume Ocoron design tokens — this is the existing "never invent colors/fonts" rule, restated for imported components.
+3. **`prefers-reduced-motion` honored.** A static or near-static fallback renders when the user requests reduced motion.
+4. **Gate-clean.** It passes the existing a11y/visual/token gate with no new contrast, focus, or motion-safety regressions.
+
+ReactBits is **copy-and-own** (like shadcn/ui): take the single component you need at point of use, paste it in, and re-tokenize it — it is NOT a dependency and NOT a fabrik-lib module (never add it to `package.json` or `fabrik-lib`).
+
 ### Duration Scale
 
 | Token | Value | Use |

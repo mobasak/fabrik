@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Ocoron design system permits ReactBits-style decorative motion under a narrow carve-out (2026-07-15)
+
+- `.windsurf/rules/core/ocoron-design-system.md` § Motion Language: added a "Decorative motion (carve-out)" subsection. Ambient/decorative motion (particle backgrounds, animated backdrops, `reactbits.dev` components) is permitted on **marketing/landing surfaces only** — product/app surfaces stay bound by the 150ms functional-motion scale — and only when re-tokenized to Ocoron tokens, honoring `prefers-reduced-motion`, and passing the existing a11y/visual/token gate. ReactBits is copy-and-own (like shadcn/ui): not a dependency, not a fabrik-lib module.
+- `/fabrik-ui-design` skill: one-line pointer telling the frozen `docs/ui-design.md` to record a project's decorative-component sources and cite the carve-out (no rule restatement). Scope: Ocoron only — Tojlo unchanged; the mobile design system untouched (ReactBits is web-only, marketing/landing surfaces are web).
+
 ### Added — Lint ratchet: repo-wide ruff debt can only go DOWN (Axis B) (2026-07-14)
 
 `final_gate` lints only the files the current diff TOUCHED, so **repo-wide lint debt is invisible to it** — a
