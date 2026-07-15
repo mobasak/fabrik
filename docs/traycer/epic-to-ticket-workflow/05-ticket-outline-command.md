@@ -5,7 +5,7 @@
      -->
 
 <!-- ⚠️ QUALITY GATE: Any modification to this command file MUST be evaluated
-     against EVALUATION_CHECKLIST_FOR_EPIC_COMMANDS.md (131 items).
+     against EVALUATION_CHECKLIST_FOR_EPIC_COMMANDS.md (145 items).
      Every applicable item must pass. "N/A" is valid; forgetting to check is not. -->
 
 # Ticket Outline
@@ -169,7 +169,7 @@ Rules:
 - **Parallel field is mandatory** — explicitly state which other tickets can run simultaneously.
 - Stage maps to lifecycle: foundation (Stage 1 setup), implementation (Stage 2 code), integration (Stage 3 deploy-ready), closure (Stage 4 validation).
 - Complexity hints at agent selection: simple → free/local agent (Kilo CLI, Windsurf local), complex → mid-tier (Windsurf Cascade), critical → premium (Claude Code Opus). User picks final assignment in `ticket-breakdown`.
-- **Docs field:** Each scaffolded doc template (CONFIGURATION, FEATURES, QUICKSTART, API_REFERENCE, DEPLOYMENT, RESILIENCE, DATABASE_SCHEMA, TROUBLESHOOTING, BUSINESS_MODEL) must be assigned to exactly one ticket. An empty template at epic end = governance failure.
+- **Docs field:** Each project doc (CONFIGURATION, FEATURES, QUICKSTART, API_REFERENCE, DEPLOYMENT, RESILIENCE, TROUBLESHOOTING, BUSINESS_MODEL — no DATABASE_SCHEMA.md) must be assigned to exactly one ticket. An empty template at epic end = governance failure.
 - Every Epic Brief Success Criterion maps to at least one ticket.
 - Every Tech Plan component maps to at least one ticket (or excluded with reason).
 - LAST ticket is "Epic Closure — Tier 3 systemic gate" for **delta-feature** epics. For **Retrofit** epics it is **OPTIONAL** — per § Step 2b's Epic Closure row; most retrofits inherit closure from the parent project's prior delta-feature closure.
@@ -264,9 +264,9 @@ Every scaffolded doc template MUST be assigned to exactly one ticket. Build the 
 | `docs/FEATURES.md` | T? | Core Flows |
 | `docs/QUICKSTART.md` | T? | Core Flows first-use journey |
 | `docs/API_REFERENCE.md` | T? | Tech Plan Component Architecture |
-| `docs/DEPLOYMENT_ARCHITECTURE.md` | T? | Deploy Plan |
+| `docs/DEPLOYMENT.md` | T? | Deploy Plan (⚠️ NOT DEPLOYMENT_ARCHITECTURE.md — hub-only) |
 | `docs/RESILIENCE.md` | T? | Tech Plan resilience table |
-| `docs/DATABASE_SCHEMA.md` | T? | Tech Plan Data Model |
+| `db/schema.sql` + Alembic | T? | Tech Plan Data Model (⚠️ no docs/DATABASE_SCHEMA.md) |
 | `docs/TROUBLESHOOTING.md` | T? | Closure ticket (Epic Closure for delta-feature epics; OR the specific deploy-integration ticket for Retrofit epics that skip Epic Closure) |
 | `docs/BUSINESS_MODEL.md` | T? | Epic Brief (only for commercial projects with per-project business model — distinct from FINANCIALS.md below) |
 | `docs/FINANCIALS.md` | T? | SaaS launch-gate doc per `saas/88-saas-launch-checklist.md` — required when `Metadata.FINANCIALS: required` (SaaS scaffold pre-launch); N/A otherwise. Filled by the ticket that wires the billing integration (Paddle / iyzico / RevenueCat). |
