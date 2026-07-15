@@ -5,7 +5,7 @@
      -->
 
 <!-- ⚠️ QUALITY GATE: Any modification to this command file MUST be evaluated
-     against EVALUATION_CHECKLIST_FOR_EPIC_COMMANDS.md (131 items).
+     against EVALUATION_CHECKLIST_FOR_EPIC_COMMANDS.md (145 items).
      Every applicable item must pass. "N/A" is valid; forgetting to check is not. -->
 
 # Core Flows
@@ -29,7 +29,7 @@ The goal is alignment, not artifacts. Flows must be discussed and agreed upon in
 
 `trigger_workflow` Step 6 already decided whether `core-flows` runs for this scaffold. Do not re-ask the user.
 
-- If routing skipped `core-flows` for this scaffold (`python-api`, `node-api`, `file-api`, `file-worker`, `wordpress`, `docusaurus`), this command should not have been triggered. Inform the user the route skipped this command, then stop.
+- If routing skipped `core-flows` for this scaffold (`python-api`, `python-api-gpu`, `node-api`, `file-api`, `file-worker`, `wordpress`, `docusaurus`), this command should not have been triggered. Inform the user the route skipped this command, then stop.
 - For multi-epic dispatches (Path B from `mega-epic-breakdown`): if the epic ticket's scaffold type is in the skip list above, this command should not run. If the epic touches UI (has user-facing flows), it runs regardless of backend scaffold. Additional Path B consumption:
   - Read `Universal categories` from Epic Brief Metadata (Path B only, per `01-epic-brief-command` Step 1 Path B field list). Core Flows scope is constrained to journeys serving the categories this epic owns. Categories owned by sibling epics → do NOT map flows for them; they appear as `Out of Scope` in this epic.
   - Read `Epic Flavor` from Epic Brief Metadata. If `Delta-feature`: default behavior (full Step 4 + Step 4b + Step 5). If `Retrofit`: scope-narrow Core Flows to ONLY the surface the retrofit touches — `Retrofit: i18n` → only locale-loading flows; `Retrofit: Resilience` → no new flows, only state-flag updates to existing flows; `Retrofit: <UI area>` → only that UI's flows. Skip Step 5 UX Alignment Dimensions for code-only retrofits where no new UI surface exists. Retrofit Core Flows target ≤100 lines total spec (vs Delta-feature's 200-line target at L151).
@@ -54,7 +54,7 @@ Look up the scaffold-specific UI rule pack from `AGENTS.md` § Project Type → 
 | `saas-skeleton`, `static-site` | `.windsurf/rules/saas/60-saas-ui.md` |
 | `chrome-extension` | `.windsurf/rules/chrome-ext/70-chrome-ext.md` |
 | `mobile-app` | `.windsurf/rules/mobile-app/80-mobile.md` + `.windsurf/rules/mobile-app/ocoron-mobile-design-system.md` |
-| `desktop-app` | `.windsurf/rules/core/20-typescript.md` (no UI-specific pack today; treat as desktop-app patterns) |
+| `desktop-app` | `.windsurf/rules/desktop-app/72-desktop.md` (+ `.windsurf/rules/core/20-typescript.md` for language conventions) |
 | `wordpress`, `docusaurus` | Not applicable — this command should have been skipped per Step 1 |
 
 Also read **only when the epic touches the relevant domain** (judged from Epic Brief):
