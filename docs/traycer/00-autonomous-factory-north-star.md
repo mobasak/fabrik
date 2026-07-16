@@ -113,7 +113,7 @@ nothing tracked whether they stayed true. Recorded now, with their real state.
 
 - **D1 / D6** — Cockpit + planning surface = **VS Code** for the **Traycer-managed** workflow (as used today); **Zed** for the **Fabrik-managed** workflow (via the ACP orchestration extension, D-Zed). Zed is Rust/GPUI, **not** Electron → it satisfies **R15** ("no Electron fleet-of-windows") better than VS Code, not worse.
 - **D2** — **RESOLVED 2026-07-16: BOTH workflows are kept** (no longer either/or). (1) **Traycer-managed** — Traycer stays the epic/ticket GUI for the `-command` files (its chat is **tool-less**: reads `AGENTS.md`, asks questions only — no shell / MCP / web). (2) **Fabrik-managed** — our own **tool-capable** front-end = the `-fabrik` twins, orchestrated by Opus over ACP in Zed (D-Zed). The two are the same pipeline, different orchestrators (see § The two-workflow factory).
-  → **In flight:** the `-fabrik` twins. **ettw `00`–`10` built + converged** (2026-07-16); `11-deploy` + the `mega` parity (a `/fabrik-mega-review` skill, `04` rebuilt to the review discipline, `00`/`02`/`03`/`05` brought to parity) remain — tracked in `docs/superpowers/{specs,plans}/2026-07-16-traycer-fabrik-twins-*`.
+  → **In flight:** the `-fabrik` twins. **ettw `00`–`10` built + converged** (2026-07-16); `11-deploy` + the `mega` parity (**extend** `/fabrik-ettw-review` → `/fabrik-workflow-review` (folder-neutral; a duplicate skill was rejected), `04` rebuilt to the review discipline, `00`/`02`/`03`/`05` brought to parity) remain — tracked in `docs/superpowers/{specs,plans}/2026-07-16-traycer-fabrik-twins-*`.
 - **D3** — Driver = vendor `fabrik-lib/job-queue` + two `process_fn` handlers (producer = `claude -p`
   worktree worker; converger = in-code `fanout` review loop) + a transitions table + Telegram digest +
   a thin `fabrik factory` CLI.
@@ -152,7 +152,7 @@ The `epic-to-ticket-workflow/` twins are built on the decisions below (operator 
 - **CC6 — Per-command build pipeline (serial; one command fully before the next):** reconcile the Traycer source to a no-op (`/fabrik-docs-review`) + hollow-citation sweep → fix per the design critique + citation discipline + add the `Reads:` header → checklist-eval to **0 FAIL** (144 items) → build the tool-capable twin (embedded convergence terminal phase, fan-out on ground/validate, live-research on vendor-touch, disk-reads for epic files) → north-star check (R2/R3/R7/R8/R23) → gate + commit (explicit paths).
 - **CC7 — Template first:** `01-epic-brief-fabrik` + its `01-review` twin are built first as the reference pair; the operator reviews the pattern before it is replicated across `02`–`11`.
 
-Status: **ettw `00`–`10` built + converged** (2026-07-16, each to an md5-stable no-op via its paired review — commits through `f1c246d9`); the shared `/fabrik-ettw-review` skill exists. Remaining: `11-deploy` + the `mega` parity (a `/fabrik-mega-review` skill; `04` rebuilt to the review discipline; `00`/`02`/`03`/`05` brought to parity). Tracked in `docs/superpowers/{specs,plans}/2026-07-16-traycer-fabrik-twins-*`.
+Status: **ettw `00`–`10` built + converged** (2026-07-16, each to an md5-stable no-op via its paired review — commits through `f1c246d9`); the shared `/fabrik-ettw-review` skill exists. Remaining: `11-deploy` + the `mega` parity (**extend** `/fabrik-ettw-review` → `/fabrik-workflow-review` (folder-neutral; a duplicate skill was rejected); `04` rebuilt to the review discipline; `00`/`02`/`03`/`05` brought to parity). Tracked in `docs/superpowers/{specs,plans}/2026-07-16-traycer-fabrik-twins-*`.
 
 ---
 
@@ -179,6 +179,6 @@ Status: **ettw `00`–`10` built + converged** (2026-07-16, each to an md5-stabl
   converge to a no-op; a driver would *run* that loop. The CONVERGED driver spec designs exactly this (the
   converge-to-no-op loop around vendored `fanout` = the BUILD core). **Prose is not enforcement** — and that is the lesson the rest of
   this repo keeps re-learning.
-- **Fabrik-managed twins + Zed extension** — finish the remaining twins (`11-deploy` + the `mega` parity: a `/fabrik-mega-review` skill, `04` rebuilt to the review discipline, `00`/`02`/`03`/`05` brought to parity), then build the Zed-ACP orchestration extension (D-Zed). *(No longer a keep-vs-replace evaluation — D2 is RESOLVED, both workflows kept.)*
+- **Fabrik-managed twins + Zed extension** — finish the remaining twins (`11-deploy` + the `mega` parity: **extend** `/fabrik-ettw-review` → `/fabrik-workflow-review` (folder-neutral; a duplicate skill was rejected), `04` rebuilt to the review discipline, `00`/`02`/`03`/`05` brought to parity), then build the Zed-ACP orchestration extension (D-Zed). *(No longer a keep-vs-replace evaluation — D2 is RESOLVED, both workflows kept.)*
 - Phase-4 capacity measurement (real per-worker numbers).
 - Vibe Kanban parked service — leave or remove.

@@ -31,7 +31,7 @@ The `-fabrik` twins are the **command layer of the Fabrik-managed workflow** —
 
 **Two orchestration modes (both kept — north-star D2):** **Traycer-managed** = the `-command` files in the Traycer GUI (a VS Code extension, tool-less chat, its own review workflow); **Fabrik-managed** = the `-fabrik` twins orchestrated by **Opus over ACP in Zed** — the front-end will be a **Zed extension** (analog of Traycer-in-VS-Code), built **after** both folders' commands are finalized (north-star D-Zed).
 
-**This spec's BUILD scope** = the Fabrik-managed workflow's **command twins** (both folders) + the `/fabrik-mega-review` skill. The front-door commands (`/fabrik-*`), `fabrik scaffold`, and `libs/subagents` **already exist** (reused, not built here); the **Zed extension is a later deliverable** — tracked, out of this spec's build scope.
+**This spec's BUILD scope** = the Fabrik-managed workflow's **command twins** (both folders) + **extending the shared artifact-convergence review skill to be folder-neutral** (`/fabrik-ettw-review` → `/fabrik-workflow-review`). The front-door commands (`/fabrik-*`), `fabrik scaffold`, and `libs/subagents` **already exist** (reused, not built here); the **Zed extension is a later deliverable** — tracked, out of this spec's build scope.
 
 ## Capability delta — Traycer incapability → Fabrik capability
 
@@ -67,15 +67,15 @@ The mega tier is **purely spec / plan / decompose / review / dispatch** — GUI 
 
 | Command | Role | Fabrik-command analog | Enforcement it must carry |
 |---|---|---|---|
-| ettw `00`–`06` | producers (trigger/spec/plan/deploy-plan/outline/breakdown) | `/fabrik-spec`, `/fabrik-plan-after-chat`, `/fabrik-data-contract` | CC2 + convergence via shared `/fabrik-ettw-review` |
+| ettw `00`–`06` | producers (trigger/spec/plan/deploy-plan/outline/breakdown) | `/fabrik-spec`, `/fabrik-plan-after-chat`, `/fabrik-data-contract` | CC2 + convergence via shared `/fabrik-workflow-review` |
 | ettw `07` | autonomous execution | `/fabrik-execute-plan` | dispatch + per-ticket converge; paired review = `08` |
 | ettw `08` | code-vs-spec review | `/fabrik-review` | pool+native, loop-to-no-op (CC5) |
 | ettw `09` | requirements revision | *(re-steer)* | operator decides + autonomous re-exec; paired review = `10` |
 | ettw `10` | spec-vs-spec cross-artifact review | `/fabrik-review`/`/fabrik-plan-review` | pool+native, loop-to-no-op (CC5) |
 | ettw `11` | deploy-out human gate | *(none — 2nd human gate, R14)* | **not** autonomous; different shape |
-| mega `00` | vision/intake + fabrik-lib verdict | **`/fabrik-spec`** | CC2 + convergence via `/fabrik-mega-review` + a BLOCKING live-research grounding gate |
-| mega `02` | decompose into epics | **`/fabrik-plan-after-chat`** | CC2 + convergence via `/fabrik-mega-review` |
-| mega `03` | produce epic-file specs | **`/fabrik-spec`** (spec/epic-brief role) | CC2 + convergence via `/fabrik-mega-review` |
+| mega `00` | vision/intake + fabrik-lib verdict | **`/fabrik-spec`** | CC2 + convergence via `/fabrik-workflow-review` + a BLOCKING live-research grounding gate |
+| mega `02` | decompose into epics | **`/fabrik-plan-after-chat`** | CC2 + convergence via `/fabrik-workflow-review` |
+| mega `03` | produce epic-file specs | **`/fabrik-spec`** (spec/epic-brief role) | CC2 + convergence via `/fabrik-workflow-review` |
 | mega `04` | cross-epic integration review | **`/fabrik-review`** | pool+native, loop-to-no-op |
 | mega `05` | dispatch epics to ettw | *(dispatcher)* | thin — reviews live downstream in ettw |
 
@@ -83,12 +83,15 @@ The mega tier is **purely spec / plan / decompose / review / dispatch** — GUI 
 
 - **ettw `00`–`10` `-fabrik`: DONE** — each grounded + converged to an md5-stable no-op, checklist + item-132 clean, gate green, committed (`de0fb8f1` 08 · `1fd8dfdb` 09 · `f1c246d9` 10, and earlier for 00–07). Shared review skill **`/fabrik-ettw-review`** exists.
 - **ettw `11-deploy`: NO twin yet** — remaining.
-- **mega `00`/`02`/`03`/`04`/`05` `-fabrik`: exist but PRE-discipline** — a scan shows **no** `Reads:` header, **zero** `[canonical:]` citations, **no** pool+native review floor, **no** termination contract; `04` is a single-pass "quality auditor", not a converging review. **No `/fabrik-mega-review` skill.**
+- **mega `00`/`02`/`03`/`04`/`05` `-fabrik`: exist but PRE-discipline** — a scan shows **no** `Reads:` header, **zero** `[canonical:]` citations, **no** pool+native review floor, **no** termination contract; `04` is a single-pass "quality auditor", not a converging review.
+- **No convergence review reaches mega** — the shared skill (`~/.claude/commands/fabrik-ettw-review.md`, 47 lines) is **ettw-scoped**: its frontmatter `description`, its L5 body framing, its `type` enum, its yardstick (`EVALUATION_CHECKLIST_FOR_EPIC_COMMANDS.md`, **132 items**), its hardcoded item refs (126/127/132) and its `project=` label all assume ettw. Its *loop machinery* is folder-neutral → **extend it, don't duplicate** (CC1: "one lean template … thin files, not ten more heavy ones").
+- **Mega checklist parity gap** — `EVALUATION_CHECKLIST_FOR_MEGA_EPIC_COMMANDS.md` (**101 items**) has **no hollow-citation item** (verified: ettw has 1, mega has 0), so CC2's item-132 discipline has no mega yardstick.
 
 ## Success criteria
 
 1. Every `-fabrik` twin in both folders is grounded (no stale anchor) and converged to an **md5-stable no-op** — doers via their paired review, review twins (`08`/`10`/mega `04`) via their own loop-to-no-op, the human-gated `11` and thin dispatcher `05` via a grounding+consistency pass — checklist 0-FAIL + item-132, gate green, committed with provenance trailers.
-2. Every mega **doer** has a convergence review — the shared **`/fabrik-mega-review <artifact> <type>`** skill (sibling of `/fabrik-ettw-review`) for `00`/`02`/`03`; `04` **is** the cross-epic review, rebuilt to the pool+native loop-to-no-op discipline.
+2. Every mega **doer** has a convergence review — via **`/fabrik-workflow-review <artifact> <type>`**: the existing `/fabrik-ettw-review` **EXTENDED to be folder-neutral and renamed**, *not* a second skill. It gains the mega types (`vision-summary`/`epic-decomposition`/`expanded-epic-files`), a **type-conditional yardstick** (ettw types → `EVALUATION_CHECKLIST_FOR_EPIC_COMMANDS.md`; mega types → `EVALUATION_CHECKLIST_FOR_MEGA_EPIC_COMMANDS.md` — by path, never a hard-coded item count), generalized item refs (no hardcoded 126/127/132), and a folder-derived `project=`. Its 8 existing callers are updated **two different ways**: the 7 ettw `00`–`06` footers by a **mechanical name swap**; the north star by a **semantic rewrite** (its status prose → past tense, dropping the now-false "the shared `/fabrik-ettw-review` skill exists" clause — a find-replace there would leave the canonical doc asserting a file that no longer exists). `04` **is** the cross-epic review, rebuilt to the pool+native loop-to-no-op discipline. **A duplicate `/fabrik-mega-review` is explicitly rejected** — ~83 % of the 47-line skill is folder-neutral machinery — only ~8 lines are ettw-bound (frontmatter `description`, the L5 body framing, the `Reads:` header, the `type` enum, the three item refs 126/127/132, the `project=` label); duplicating it to vary those violates CC1 + "extend, don't duplicate."
+2a. The **mega checklist gains a hollow-citation item** (the ettw-132 analog), closing the CC2 yardstick gap.
 3. Role-parity achieved: where a mega command's role matches a fabrik command, it carries the same enforcement (esp. mega `00` gets `/fabrik-spec`'s live-research gate).
 4. Traycer GUI path intact — each `-command` source's load-bearing stale anchors fixed in the grounding pass.
 5. **Capability delta closed** — each twin passes the § Capability-delta litmus: it actually USES every Fabrik capability its role requires (disk-reads; shell; live research where it touches external facts; subagent dispatch for its producing work per the decision above; convergence), not merely re-formatting the source.
