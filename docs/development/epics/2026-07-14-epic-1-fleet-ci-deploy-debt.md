@@ -254,3 +254,42 @@ default branch, so nothing breaks. Switching the scaffolder to `master` would cr
 renamed → **more** inconsistency. The only real defect was two stale human-facing hint strings hardcoding
 `git push -u origin main`; fixed to `git push -u origin HEAD` (branch-agnostic) in `spec_generator.py:437` +
 `deployer_coolify.py:542`.
+
+---
+
+## PART 3 — CI backfill + fleet compliance status (2026-07-16)
+
+### ✅ CI backfill — built, proven, debt-tolerant, DATA-SAFE
+The complete scaffold audit found **31 deployable repos with no `ci.yml`** → broken code ships silently.
+Built + shipped from the hub:
+- **Debt-tolerant CI generator** (`ci_scaffold.py`): ruff is a **ratchet** (pinned `0.14.10`, `--exit-zero` count,
+  fails only on a rise); install handles `requirements.txt` **and** `pyproject.toml` (`-e .`); pytest tolerates
+  "no tests collected". `ci_local` binds a **free** Postgres port (no clash with the dev PG). Commits:
+  `9019876e`, `a64d33d2`, `8d2f9069`. 18 tests.
+- **`scripts/backfill_ci.py`** (`818fad2a`): writes CI + seeds `.fabrik/lint-baseline.json` at the current count
+  so CI lands green; grounds `needs_database` from spec/`.env`. Dry-run default; never commits cross-repo.
+- **`scratchpad/rollout_ci.py`** (data-safe, gated): per repo → apply → gate via `ci_local` in a **clean
+  `git worktree` at HEAD** (no local `.env`/dirty-WIP leak) → **push only if green**; skips repos with
+  pre-existing CI files, unpushed commits (`AHEAD`), or divergence; explicit-path commits + `--no-verify`.
+- **Live + green:** `captcha`, `wpf` (real GitHub Actions `success`). 3 canary-caught bugs fixed pre-rollout.
+
+### 🔴 The gating reality — fleet is entangled with LIVE agent work
+The repos with debt are the repos with **live agents mid-work**: e.g. `iterative_image_editor` (2 plan-locks,
+32 uncommitted incl. `src/`), `tojlo-mail` (7 locks), plus 8 repos `AHEAD` (unpushed commits). **The hub cannot
+force-clean or push these without publishing/mixing another agent's work** (data loss). So compliance is
+**sequenced**: agents land their WIP → hub finalizes on the quiesced tree → the gates hold the line.
+
+### 📋 Fleet compliance punch-list — "done" = every remote+deployable row `CI:y · SPEC:yaml · DIRTY:0 · AHEAD:0 · KILO:-`
+- **CI:** only `captcha·wpf·trade-intelligence·tryton-crm·whatsapp-agent` have it. Re-run `rollout_ci.py` →
+  gates+pushes the ~6 safe DB repos (`calendar-orchestration-engine·compliance-ops·exam-coach·
+  fabrik-claim-validator·gmail-account-creator·image-broker`). 16 no-remote repos need a remote first; 8
+  `AHEAD` repos need their agent to push first.
+- **Specs:** `llm_batch_processor`+`iterative_image_editor` need kebab-rename (BLOCKED — land their WIP first, or
+  a rename destroys uncommitted work) → then generate specs.
+- **Git hygiene (per-repo agent):** ~28 track the retired `kilo-consult-workflow.md` (`git rm`); `.gitignore`
+  churn to commit; `tojlo-mail` type `saas`→`saas-skeleton`.
+
+### 🎫 Open ticket — brand-identiy-creator gate cleanup (its agent's job; hub delivered the grounded triage)
+65 mypy errors + 8 non-allowlisted root `.md`. Hub CANNOT land it (3 unpushed sibling commits + 6 uncommitted
+files + behavior-changing docx fixes + sibling-WIP `logo_selection.py`/`questionnaire.py`). Per-error ticket
+(safe-mechanical vs real-bug-needs-review vs sibling-WIP vs doc-moves) handed to its agent 2026-07-16.
