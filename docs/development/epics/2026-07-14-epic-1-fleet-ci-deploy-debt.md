@@ -305,3 +305,4 @@ created + pushed → Actions run verified green (no failure emails). Agents fini
 |---|---|---|---|---|---|---|
 | 1 | `trading-core` | ✅ | ✅ | ✅ `mobasak/trading-core` | ✅ Actions success | **Fixed real bug:** `ctrader-open-api>=2.0.0` pin never existed (→ `>=0.9.0`); 13 tests |
 | 2 | `longephedia-vault` | ✅ | ✅ | ✅ `mobasak/longephedia-vault` | ✅ Actions success | clean; 5 tests |
+| 3 | `fabrik-citation-verifier` | ✅ | ✅ (scaffold committed) | ⏸️ | ❌ | **AGENT-BLOCKED:** 34 test failures (pytest-httpx assertions vs httpx 0.36). Scaffold done; remote+CI held until its agent fixes the suite. |
