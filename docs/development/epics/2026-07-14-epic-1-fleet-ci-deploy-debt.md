@@ -306,3 +306,4 @@ created + pushed → Actions run verified green (no failure emails). Agents fini
 | 1 | `trading-core` | ✅ | ✅ | ✅ `mobasak/trading-core` | ✅ Actions success | **Fixed real bug:** `ctrader-open-api>=2.0.0` pin never existed (→ `>=0.9.0`); 13 tests |
 | 2 | `longephedia-vault` | ✅ | ✅ | ✅ `mobasak/longephedia-vault` | ✅ Actions success | clean; 5 tests |
 | 3 | `fabrik-citation-verifier` | ✅ | ✅ (scaffold committed) | ⏸️ | ❌ | **AGENT-BLOCKED:** 34 test failures (pytest-httpx assertions vs httpx 0.36). Scaffold done; remote+CI held until its agent fixes the suite. |
+| 4 | `job-agent` | ✅ | ✅ | ⛔ | ✅ (local, 3 tests) | **NAME COLLISION:** `mobasak/job-agent` on GitHub is an UNRELATED 4,783-file Kilo/CV project. Force-push would destroy it. Scaffold + CI done locally; needs an operator decision on the repo name before publishing. |
