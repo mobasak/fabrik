@@ -226,6 +226,17 @@ def check_structure(project_root: Path, files: list[str] | None = None) -> list[
         if parts and parts[0] == "libs":
             continue
 
+        # src/<pkg>/prompts/ and src/<pkg>/libs/ are code-adjacent RUNTIME ASSETS, not stray docs:
+        #   • prompts/ holds prompt TEMPLATES the app loads at runtime (e.g. services/bible.py reads
+        #     prompts/bible/*.md; prompts/generate_name.md, enhance_field.md).
+        #   • libs/ (nested) holds VENDORED fabrik-lib modules — same as the root libs/ carve-out
+        #     above, for projects that vendor into src/<pkg>/libs/ (each with its own README /
+        #     VENDORING.md / UPSTREAM_FEEDBACK.md).
+        # Same rationale as the scripts/sysadmin/ + root libs/ carve-outs. Scoped to under src/ so a
+        # stray top-level doc is still caught. (2026-07-16)
+        if parts and parts[0] == "src" and ("prompts" in parts or "libs" in parts):
+            continue
+
         # Flag forbidden directories as errors (not skip!)
         forbidden_dir = next((p for p in parts if p in NO_MD_DIRS), None)
         if forbidden_dir:

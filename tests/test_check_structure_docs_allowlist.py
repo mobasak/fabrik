@@ -94,3 +94,26 @@ def test_fallback_fires_when_registry_unimportable(monkeypatch):
     flagged = {Path(v["file"]).name for v in viols}
     assert "random.md" in flagged
     assert "SERVICES.md" not in flagged  # SERVICES.md is in the fallback set
+
+
+# --- runtime-asset carve-out (2026-07-16): src/**/prompts/ + src/**/libs/ are code-adjacent
+#     runtime assets, not stray docs — 30 prompt templates hard-failed Project Structure before.
+def _src_errors(paths):
+    viols = cs.check_structure(REPO_ROOT, files=list(paths))
+    return {v["file"] for v in viols if v["severity"] == "error"}
+
+
+def test_src_prompts_md_exempt_runtime_asset():
+    paths = ["src/brand_identity/prompts/generate_name.md", "src/app/prompts/bible/tone.md"]
+    assert not _src_errors(paths), "runtime prompt templates under src/**/prompts/ must not be flagged"
+
+
+def test_src_nested_libs_md_exempt_vendored():
+    paths = ["src/brand_identity/libs/mt_router/UPSTREAM_FEEDBACK.md", "src/pkg/libs/foo/VENDORING.md"]
+    assert not _src_errors(paths), "vendored-module docs under src/**/libs/ must not be flagged"
+
+
+def test_stray_src_md_outside_prompts_libs_still_flagged():
+    # scoped carve-out: a genuinely stray .md under src/ (not prompts/ or libs/) STILL errors
+    errs = _src_errors(["src/brand_identity/notes.md", "src/pkg/services/TODO.md"])
+    assert "src/brand_identity/notes.md" in errs and "src/pkg/services/TODO.md" in errs

@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — check_structure.py exempts `src/**/prompts/` + `src/**/libs/` runtime assets (2026-07-16)
+
+Project Structure hard-failed on legitimate code-adjacent runtime assets: `src/<pkg>/prompts/*.md` (prompt
+TEMPLATES the app loads at runtime — e.g. `services/bible.py` reads `prompts/bible/*.md`) and **nested**
+`src/<pkg>/libs/<module>/*.md` (VENDORED fabrik-lib modules' own README/VENDORING/UPSTREAM_FEEDBACK docs).
+`NO_MD_DIRS` contains `"src"`, so any `.md` under `src/` was flagged unless an earlier carve-out caught it —
+and the existing carve-outs (`scripts/sysadmin/`, **root** `libs/`) missed both cases. brand-identiy-creator
+alone had **29 prompt templates + 6 nested-libs docs** hard-failing. Added a carve-out mirroring the
+`scripts/sysadmin/` + root-`libs/` pattern, scoped to `parts[0]=="src" and ("prompts" in parts or "libs" in
+parts)` so a genuinely stray top-level doc is still caught. 3 regression tests (9 total pass). Synced enforcement
+check → propagates to all projects on re-sync.
+
 ### Added — `scripts/backfill_ci.py`: safely backfill CI onto the 31 no-CI projects (2026-07-15)
 
 Backfills `.github/workflows/ci.yml` + `scripts/ci_local.sh` onto an existing project, seeding
