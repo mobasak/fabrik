@@ -1,6 +1,6 @@
 # Design — Traycer workflow `-fabrik` twins (both folders)
 
-Status: CONVERGED (internal-tooling spec — the design is settled in the north-star § Command-chain build plan, CC1–CC7; this consolidates it + the cross-folder remaining work)
+Status: CONVERGED (via /fabrik-spec-review; re-converged after adding the Capability-delta dimension — pool + native Opus to an md5-stable no-op)
 Date: 2026-07-16
 Owner: ob@ocoron.com
 Governs: `docs/traycer/mega-epic-breakdown/**` + `docs/traycer/epic-to-ticket-workflow/**`
@@ -18,6 +18,21 @@ In the autonomous factory (north-star D3/D4/R14), the **driver (Opus 4.8) must R
 
 - Traycer is **not retired** (owner-confirmed) — the GUI path must keep working during the transition, so each twin's grounding pass also fixes the `-command` source's **load-bearing** stale anchors (near-free), without converging the source itself.
 - The twins are the **template the whole factory copies** — a defect in a converged twin propagates. Hence the convergence discipline is non-negotiable.
+
+## Capability delta — Traycer incapability → Fabrik capability
+
+The twin is not a re-format of the source; it exists to **do what Traycer structurally cannot**. Traycer is a GUI planner with **no tools** — it reads only pasted context, runs no shell, has no web access, dispatches nothing, and loops through a human copy-paste. Each twin closes a specific gap with a specific Fabrik capability. This is the *why* behind the enforcement bar below; no twin should ship without the capabilities its role needs.
+
+| Traycer incapability | Fabrik capability the twin adds | Which twins gain it |
+|---|---|---|
+| Can't read disk → cites `path:line` from pasted memory (ungrounded / hallucinated) | **Disk-reads** — grounds every anchor/count/trigger against the real file | **all** |
+| Can't run shell → no gate, no git, no inspection | **Shell** — `final_gate.py --check`, `git`, spec/compose inspection | **all** |
+| No web tools → external facts from training memory (stale by construction) | **Live research** — `fanout("research")` grounders (exa/brave/firecrawl/context7) re-verify each external fact/best-practice live | mega-`00` (its `/fabrik-spec` live-research gate); ettw `00`–`03` where the source touches a vendor |
+| Can't dispatch → serial, single-agent, no flywheel | **Subagent dispatch for the twin's own producing work** — pool `fanout` + native, records the flywheel | **producing**: ettw `06`/`07` (coders), review twins `08`/`10`/mega-`04` (finders), mega-`00` (research grounders), mega-`03` (one grounder per epic file). ⚠️ **Decision (this spec):** the mega doers dispatch subagents for the **grounding/research** legs only — the **synthesis/decision** (the decomposition, the epic-file content, the vision) stays the **driving Opus's**, exactly as `/fabrik-spec` and `/fabrik-plan-after-chat` do. mega-`02`'s decomposition is single-agent judgment (+ optional grounder fan-out for its consistency checks). |
+| No loop mechanism → one pass, human decides "good enough" | **Convergence-to-no-op** — pool+native finder loop, md5-stable | doers (paired review) / review twins (own loop) |
+| Human paste-loop between every step | **Autonomous driver** — Opus 4.8 runs the chain between the R14 two gates | the driver runs all; `11`/human gates excepted |
+
+**Litmus per twin:** *"which of these capabilities does this twin's role require, and does its `-fabrik` text actually use them?"* — the first five are text-encoded per twin; the sixth (autonomous-driver) is a property of the chain the driver runs, assessed at the chain level, not per-twin. A twin that merely re-formats the source (no disk-reads, no dispatch where its role needs it) has not closed the gap — it is not done.
 
 ## The enforcement bar (what "same detail as the fabrik commands" means)
 
@@ -62,6 +77,7 @@ The mega tier is **purely spec / plan / decompose / review / dispatch** — GUI 
 2. Every mega **doer** has a convergence review — the shared **`/fabrik-mega-review <artifact> <type>`** skill (sibling of `/fabrik-ettw-review`) for `00`/`02`/`03`; `04` **is** the cross-epic review, rebuilt to the pool+native loop-to-no-op discipline.
 3. Role-parity achieved: where a mega command's role matches a fabrik command, it carries the same enforcement (esp. mega `00` gets `/fabrik-spec`'s live-research gate).
 4. Traycer GUI path intact — each `-command` source's load-bearing stale anchors fixed in the grounding pass.
+5. **Capability delta closed** — each twin passes the § Capability-delta litmus: it actually USES every Fabrik capability its role requires (disk-reads; shell; live research where it touches external facts; subagent dispatch for its producing work per the decision above; convergence), not merely re-formatting the source.
 
 ## Out of scope
 

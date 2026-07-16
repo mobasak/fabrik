@@ -1,6 +1,6 @@
 # Plan — Traycer workflow `-fabrik` twins (both folders)
 
-Status: CONVERGED (via /fabrik-plan-review, 3 passes → md5-stable no-op; Phase 0 done, Phase A/B/C ready to execute)
+Status: CONVERGED (via /fabrik-plan-review; re-converged after inheriting the spec's Capability-delta dimension — pool + native Opus to an md5-stable no-op; Phase 0 done, Phase A/B/C ready to execute)
 Date: 2026-07-16
 Spec: `docs/superpowers/specs/2026-07-16-traycer-fabrik-twins-design.md`
 Governs: `docs/traycer/mega-epic-breakdown/**` + `docs/traycer/epic-to-ticket-workflow/**`
@@ -8,7 +8,7 @@ Governs: `docs/traycer/mega-epic-breakdown/**` + `docs/traycer/epic-to-ticket-wo
 ## The per-twin pipeline (revised CC6 — applied per twin, step 3's depth scaled to the twin's role)
 
 1. **Ground** — read the real code + cited files for every claim (anchors, counts, triggers). The stale `-command` source is a map of what to verify, not truth.
-2. **Write** the twin directly from that grounding — CC2 citations (provenance / inlined / zero hollow), a `Reads:` header, tool-capable, disk-reads. Accurate by construction.
+2. **Write** the twin directly from that grounding — CC2 citations (provenance / inlined / zero hollow), a `Reads:` header, tool-capable, disk-reads. Accurate by construction. **Close the capability delta** (spec § Capability-delta litmus): the twin must actually USE every Fabrik capability its role needs — disk-reads (all); shell/gate (all); **live research** (`fanout("research")`) where it touches external facts; **subagent dispatch where the role needs it** — the coders/finders that produce for ettw `06`/`07` and the review twins; for the **mega doers, the grounding/research legs only** (the synthesis stays the driving Opus's, per the spec's decision); convergence. A re-format with no dispatch/research where the role needs it is NOT done.
 3. **Converge to a no-op — depth scaled by role** (per the spec's role-parity matrix): a **doer** via its **paired review** (CC1: **pool `fanout("review")`** recording the flywheel **+ ≥1 native `fabrik-reviewer` on Opus**); a **review twin** (`08`/`10`/mega `04`) via its **own** finder loop-to-no-op (it has no downstream paired review); the human-gated `11` and thin dispatcher `05` via a **grounding+consistency pass** (pool + native Opus verifying accuracy/consistency, not the full doer loop). Every variant loops inside one invocation until a full pass changes nothing (Pass Ledger, `md5(start)==md5(end)`).
 4. **Checklist-eval** (0-FAIL) against the folder's checklist: **ettw** → `EVALUATION_CHECKLIST_FOR_EPIC_COMMANDS.md` (132 items, incl. the item-132 hollow-citation audit); **mega** → `EVALUATION_CHECKLIST_FOR_MEGA_EPIC_COMMANDS.md` (101 items, 102 after B1) — which currently has **no** hollow-citation item, so apply the CC2 hollow-citation discipline directly, and Phase B1 **adds** an equivalent item to the mega checklist (a parity gap) before the mega twins run their checklist-eval.
 5. **Gate + commit** — `final_gate.py --check` green; stage explicit paths; `git commit -- <paths>` with provenance trailers.
@@ -51,9 +51,9 @@ Every ettw doer/review twin from `00-trigger-fabrik` through `10-cross-artifact-
 
 Each brought to parity via the pipeline. The mega **doers** `00`/`02`/`03` converge via **`/fabrik-mega-review`**; `05` (thin dispatcher, C4) gets only a grounding+consistency pass (not a paired review):
 
-- **C1 — `00-trigger-fabrik`** (spec-role) — add the `/fabrik-spec` **BLOCKING live-research grounding gate** (external facts + best-practice, cited live) to its existing fabrik-lib verdict + rejected-alternatives; add `Reads:` + CC2; converge.
-- **C2 — `02-epic-decomposition-fabrik`** (plan-role) — add `Reads:` + CC2, the decomposition-consistency checks (owned-paths disjoint, Produces/Consumes, parallel budget), converge.
-- **C3 — `03-expand-epic-files-fabrik`** (spec/doc-role) — add `Reads:` + CC2, ground the epic-file field set against `01-epic-brief-fabrik`'s INFRA-CHECK canonical (Path A = 10 required + 3 SaaS-conditional; Path B = 16) — and resolve the `01` source's own line-90 double-count (`Path B 13 required + 3 SaaS-conditional`) in the pass, converge.
+- **C1 — `00-trigger-fabrik`** (spec-role) — add the `/fabrik-spec` **BLOCKING live-research grounding gate** to its existing fabrik-lib verdict + rejected-alternatives; add `Reads:` + CC2; converge. **Capability:** the live-research gate runs through **`fanout("research")`** grounders (parallel — one per external fact / best-practice, exa/brave/firecrawl/context7); the **vision synthesis stays the driving Opus's** (the Traycer twin can run neither).
+- **C2 — `02-epic-decomposition-fabrik`** (plan-role) — add `Reads:` + CC2, the decomposition-consistency checks (owned-paths disjoint, Produces/Consumes, parallel budget), converge. **Capability:** disk-reads the real vision/codebase for grounding; the **decomposition itself is single-agent Opus judgment** (like `/fabrik-plan-after-chat`), MAY fan out grounders for the consistency checks — no producing fan-out.
+- **C3 — `03-expand-epic-files-fabrik`** (spec/doc-role) — add `Reads:` + CC2, ground the epic-file field set against `01-epic-brief-fabrik`'s INFRA-CHECK canonical (Path A = 10 required + 3 SaaS-conditional; Path B = 16 — 13 required incl. Registrars/Universal-categories/Epic-Flavor + 3 SaaS-conditional; `01` line 90 states this consistently), converge. **Capability:** the epic files are independent units → **dispatch one grounder per epic file** (a genuine per-unit fan-out — like `/fabrik-spec`'s per-dep `fanout("research")`, not a single batched agent) for the per-epic field grounding; Opus synthesizes each file.
 - **C4 — `05-dispatch-epic-tickets-fabrik`** — the lightest grounding+consistency pass (step 3's `05` variant): a `Reads:` header + verify it correctly hands each epic to the ettw chain + a pool+native consistency check to a no-op — thin (no deep grounding), since its real reviews live downstream in ettw.
 - **Gate (per item):** `final_gate.py --check` → success; each Pass Ledger ends `found:0, fixed:0`, md5 stable; fix each `-command` anchor.
 
@@ -64,6 +64,7 @@ Each brought to parity via the pipeline. The mega **doers** `00`/`02`/`03` conve
 ## Self-audit
 
 - Every phase item names its real target file(s) and the pipeline step that proves completion (a converged Pass Ledger + gate green + commit SHA).
+- Every phase item passes the **capability-delta litmus** (spec § Capability-delta): it USES the Fabrik capabilities its role needs — the mega-doer subagent-dispatch decision is baked into C1 (research fan-out) / C2 (single-agent + optional grounder fan-out) / C3 (per-epic grounders).
 - GUI/coding are intentionally absent — the mega tier delegates them to the ettw per-epic chain (spec § Scope).
 - No hard-coded roster or checklist count enters any twin (spec § Residuals).
 
