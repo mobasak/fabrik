@@ -21,20 +21,20 @@ In the autonomous factory (north-star D3/D4/R14), the **driver (Opus 4.8) must R
 
 ## The enforcement bar (what "same detail as the fabrik commands" means)
 
-Every twin carries the same bar the `/fabrik-*` commands enforce, governed by CC1–CC7 `[canonical: docs/traycer/00-autonomous-factory-north-star.md § Command-chain build plan]`:
+Each twin carries the enforcement **appropriate to its role** (mapped in the parity matrix below — a human-gated `11` or a thin dispatcher `05` applies less than a full doer), drawn from the same discipline the `/fabrik-*` commands enforce: the north-star CC1–CC7 build principles `[canonical: docs/traycer/00-autonomous-factory-north-star.md § Command-chain build plan]`. That discipline set:
 
 1. **Grounding** — every claim (anchors, counts, triggers) verified against real `path:line`; the stale source is a map of what to verify, never truth.
 2. **CC2 citation discipline** — provenance-tagged `[canonical: …]` / inlined / zero hollow (checklist **item 132**), plus a `Reads:` budget header (anti-bloat, anti-poisoning).
 3. **Convergence-to-no-op via a SEPARATE fresh-context review (CC1)** — a doer produces; a *separate* review forces the fixed point, because "a fresh-context review converges better than a loop embedded in the doer's own blind-spot-sharing context." Proven by an **md5-stable no-op round** (Pass Ledger, `found:0, fixed:0`).
-4. **The pool + native-Opus review floor** `[canonical: .windsurf/rules/core/62-using-subagents.md § Dispatch policy]` — every review dispatches **both** the OpenRouter pool breadth (`fanout("review", …)`, records the flywheel via `set_quality`) **AND ≥1 native `fabrik-reviewer` on Opus** (the pool never runs `anthropic/*`). Evidence it earns its cost this build: the pool caught real defects native Opus missed on ettw `09`/`10`.
+4. **The pool + native-Opus review floor** `[canonical: .windsurf/rules/core/62-using-subagents.md § Dispatch policy]` — every review dispatches **both** the OpenRouter pool breadth (`fanout("review", …)`, records the flywheel via `set_quality`) **AND ≥1 native `fabrik-reviewer` on Opus** (the pool never runs `anthropic/*`). Evidence it earns its cost this build: the pool caught real defects native Opus missed on ettw `09` (recorded in the `1fd8dfdb` commit body) — complementary recall, not a reversal of the standing "native Opus catches what the pool misses" lesson.
 5. **Checklist yardstick** — `EVALUATION_CHECKLIST_FOR_EPIC_COMMANDS.md` (ettw) / `EVALUATION_CHECKLIST_FOR_MEGA_EPIC_COMMANDS.md` (mega), 0-FAIL.
 6. **Termination contract** — the review loops inside one invocation to the no-op; never hand back on a non-zero ledger row.
 
-The autonomous twins additionally encode: dispatch through `libs/subagents` (`pick_models`/`fanout`, live roster — never hard-coded), the coder tiers (`06-ticket-breakdown-fabrik` § Step 9: simple→pool `pick_models("code")` ≤$1.5; complex→mid pool or `claude -p sonnet`; critical→`claude -p opus`), and the **3 BLOCKED halt cases** `[canonical: CLAUDE.md § Behavior]` as the only non-autonomous stops.
+The autonomous twins additionally encode: dispatch through `libs/subagents` (`pick_models`/`fanout`, live roster — never hard-coded), the coder tiers (`06-ticket-breakdown-fabrik` § Step 9: simple→pool `pick_models("code")` ≤$1.5; complex→mid pool or `claude -p sonnet`; critical→`claude -p opus`), and the **3 BLOCKED halt cases** `[canonical: CLAUDE.md § Behavior]` as the only stops **within the autonomous execution loop** (a `09` operator scope-decision is a plan-level re-steer — a requirements change re-opening the plan-in gate — not an execution stop).
 
 ## Scope — role-parity across BOTH folders
 
-The mega tier is **purely spec / plan / decompose / review / dispatch** — GUI and coding are delegated *downward* to the per-epic ettw chain (`/fabrik-ui-design`, `07-execute`), so there is **no mega GUI or coding command** to build.
+The mega tier is **purely spec / plan / decompose / review / dispatch** — GUI and coding are delegated *downward* to the per-epic ettw chain (GUI to the design step — ettw `02-core-flows-fabrik` + the `/fabrik-ui-design` command; coding to ettw `07-execute-fabrik`), so there is **no mega GUI or coding command** to build.
 
 | Command | Role | Fabrik-command analog | Enforcement it must carry |
 |---|---|---|---|
@@ -44,9 +44,9 @@ The mega tier is **purely spec / plan / decompose / review / dispatch** — GUI 
 | ettw `09` | requirements revision | *(re-steer)* | operator decides + autonomous re-exec; paired review = `10` |
 | ettw `10` | spec-vs-spec cross-artifact review | `/fabrik-review`/`/fabrik-plan-review` | pool+native, loop-to-no-op (CC5) |
 | ettw `11` | deploy-out human gate | *(none — 2nd human gate, R14)* | **not** autonomous; different shape |
-| mega `00` | vision/intake + fabrik-lib verdict | **`/fabrik-spec`** | + BLOCKING live-research grounding gate |
-| mega `02` | decompose into epics | **`/fabrik-plan-after-chat`** | CC2 + convergence |
-| mega `03` | produce epic-file specs | **`/fabrik-spec`/epic-brief** | CC2 + convergence |
+| mega `00` | vision/intake + fabrik-lib verdict | **`/fabrik-spec`** | CC2 + convergence via `/fabrik-mega-review` + a BLOCKING live-research grounding gate |
+| mega `02` | decompose into epics | **`/fabrik-plan-after-chat`** | CC2 + convergence via `/fabrik-mega-review` |
+| mega `03` | produce epic-file specs | **`/fabrik-spec`** (spec/epic-brief role) | CC2 + convergence via `/fabrik-mega-review` |
 | mega `04` | cross-epic integration review | **`/fabrik-review`** | pool+native, loop-to-no-op |
 | mega `05` | dispatch epics to ettw | *(dispatcher)* | thin — reviews live downstream in ettw |
 
@@ -58,7 +58,7 @@ The mega tier is **purely spec / plan / decompose / review / dispatch** — GUI 
 
 ## Success criteria
 
-1. Every `-fabrik` twin in both folders is grounded (no stale anchor), converged to an **md5-stable no-op** via its paired review, checklist 0-FAIL + item-132, gate green, committed with provenance trailers.
+1. Every `-fabrik` twin in both folders is grounded (no stale anchor) and converged to an **md5-stable no-op** — doers via their paired review, review twins (`08`/`10`/mega `04`) via their own loop-to-no-op, the human-gated `11` and thin dispatcher `05` via a grounding+consistency pass — checklist 0-FAIL + item-132, gate green, committed with provenance trailers.
 2. Every mega **doer** has a convergence review — the shared **`/fabrik-mega-review <artifact> <type>`** skill (sibling of `/fabrik-ettw-review`) for `00`/`02`/`03`; `04` **is** the cross-epic review, rebuilt to the pool+native loop-to-no-op discipline.
 3. Role-parity achieved: where a mega command's role matches a fabrik command, it carries the same enforcement (esp. mega `00` gets `/fabrik-spec`'s live-research gate).
 4. Traycer GUI path intact — each `-command` source's load-bearing stale anchors fixed in the grounding pass.
