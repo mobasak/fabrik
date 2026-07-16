@@ -182,3 +182,10 @@ def test_ruff_count_uses_exit_zero():
     # makes ruff return 0 so we get the COUNT, not its verdict.
     for text in (render_ci_workflow(CiConfig()), render_ci_local(CiConfig())):
         assert "ruff check . --exit-zero --output-format=json" in text
+
+
+def test_install_pulls_dev_test_extras():
+    # A project's test deps (pytest-httpx, pytest-mock) often live in [project.optional-dependencies]
+    # dev/test — `pip install -e .` misses them and tests fail to collect. Install the extras.
+    for text in (render_ci_workflow(CiConfig()), render_ci_local(CiConfig())):
+        assert '-e ".[dev,test]"' in text

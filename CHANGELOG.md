@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Scaffolded CI installs the project's dev/test extras (2026-07-16)
+
+The generated CI ran `pip install -e .`, which skips `[project.optional-dependencies]` — so a project whose
+test deps (pytest-httpx, pytest-mock, …) live in a `dev`/`test` extra failed collection with ModuleNotFoundError
+(hit live on fabrik-citation-verifier: `pytest-httpx`). Now installs `-e ".[dev,test]"` (a missing extra just
+warns; base still installs), falling back to `-e .`. `ci.yml` ↔ `ci_local.sh` parity kept; 19 tests.
+
+
 ### Fixed — check_test_proposal is diff-scoped: a sibling's plan no longer fails your gate (2026-07-16)
 
 The Behavior-Contract structure gate checked `max(all plans by name)` — the globally-latest plan in

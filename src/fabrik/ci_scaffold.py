@@ -85,7 +85,9 @@ def render_ci_workflow(cfg: CiConfig) -> str:
         # requirements.txt pins deps; `pip install -e .` installs the package so its own tests can
         # import it (a src-layout package is not importable without it).
         "          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi",
-        "          if [ -f pyproject.toml ]; then pip install -e . || true; fi",
+        # `.[dev,test]` pulls the project's test extras (pytest-httpx, pytest-mock, …) if it declares
+        # them in [project.optional-dependencies]; a missing extra just warns, base still installs.
+        '          if [ -f pyproject.toml ]; then pip install -e ".[dev,test]" || pip install -e . || true; fi',
     ]
     # ruff is always installed (the ruff step below always runs); test deps appended.
     lines.append(
@@ -170,7 +172,8 @@ def render_ci_local(cfg: CiConfig) -> str:
         '"$VENV/bin/pip" install --quiet --upgrade pip',
         # Deps + the project package itself (mirrors ci.yml): both, not either/or.
         'if [ -f requirements.txt ]; then "$VENV/bin/pip" install --quiet -r requirements.txt; fi',
-        'if [ -f pyproject.toml ]; then "$VENV/bin/pip" install --quiet -e . || true; fi',
+        'if [ -f pyproject.toml ]; then "$VENV/bin/pip" install --quiet -e ".[dev,test]" '
+        '|| "$VENV/bin/pip" install --quiet -e . || true; fi',
     ]
     lines.append(
         f'"$VENV/bin/pip" install --quiet ruff=={RUFF_VERSION} {" ".join(cfg.extra_test_deps)}'.rstrip()
