@@ -293,3 +293,15 @@ force-clean or push these without publishing/mixing another agent's work** (data
 65 mypy errors + 8 non-allowlisted root `.md`. Hub CANNOT land it (3 unpushed sibling commits + 6 uncommitted
 files + behavior-changing docx fixes + sibling-WIP `logo_selection.py`/`questionnaire.py`). Per-error ticket
 (safe-mechanical vs real-bug-needs-review vs sibling-WIP vs doc-moves) handed to its agent 2026-07-16.
+
+---
+
+## PART 4 — One-by-one fleet completion log (2026-07-16)
+
+Per-project: scaffold complete → tree clean → real blockers fixed → CI gated green locally → GitHub remote
+created + pushed → Actions run verified green (no failure emails). Agents finish their own in-flight work as we go.
+
+| # | Project | Scaffold | Tree clean | Remote | CI green | Notes |
+|---|---|---|---|---|---|---|
+| 1 | `trading-core` | ✅ | ✅ | ✅ `mobasak/trading-core` | ✅ Actions success | **Fixed real bug:** `ctrader-open-api>=2.0.0` pin never existed (→ `>=0.9.0`); 13 tests |
+| 2 | `longephedia-vault` | ✅ | ✅ | ✅ `mobasak/longephedia-vault` | ✅ Actions success | clean; 5 tests |
