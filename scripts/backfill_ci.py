@@ -19,6 +19,7 @@ Usage:
 Commit is deliberately left to the caller (per-repo agent, or an explicit review) — this tool
 never commits or pushes across repos.
 """
+
 from __future__ import annotations
 
 import json
@@ -27,7 +28,26 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-from fabrik.ci_scaffold import CiConfig, ci_files  # noqa: E402
+from fabrik.ci_scaffold import RUFF_VERSION, CiConfig, ci_files  # noqa: E402
+
+
+def _assert_ruff_matches_pin() -> None:
+    """The baseline we seed must be counted by the SAME ruff CI pins, or the ratchet reds.
+
+    The generated CI installs ``ruff==RUFF_VERSION``; we seed the baseline with THIS interpreter's
+    ruff. If they differ, the counts differ and CI trips on the seeded floor. Fail loudly.
+    """
+    r = subprocess.run(
+        [sys.executable, "-m", "ruff", "--version"], capture_output=True, text=True, check=False
+    )
+    got = (r.stdout or "").strip().split()[-1] if r.stdout else "?"
+    if got != RUFF_VERSION:
+        sys.exit(
+            f"ABORT: this interpreter's ruff is {got} but the generated CI pins ruff=={RUFF_VERSION}. "
+            f"Seeding a baseline with a mismatched ruff would red CI. Install ruff=={RUFF_VERSION} in the "
+            "hub venv (or bump RUFF_VERSION in src/fabrik/ci_scaffold.py to match) before backfilling."
+        )
+
 
 OPT = Path("/opt")
 HUB_SPECS = Path(__file__).resolve().parents[1] / "specs" / "services"
@@ -36,6 +56,7 @@ WEB_TYPES = {"saas-skeleton", "saas"}
 
 def _read_yaml(p: Path) -> dict:
     import yaml
+
     try:
         return yaml.safe_load(p.read_text()) or {}
     except Exception:
@@ -45,7 +66,7 @@ def _read_yaml(p: Path) -> dict:
 def _spec_shape(name: str) -> dict | None:
     for cand in (HUB_SPECS / f"{name}.yaml", HUB_SPECS / f"{name}.yaml.draft"):
         if cand.exists():
-            return (_read_yaml(cand).get("shape") or {})
+            return _read_yaml(cand).get("shape") or {}
     return None
 
 
@@ -67,14 +88,19 @@ def _wants_pgvector(name: str, proj: Path) -> bool:
     for f in (proj / ".env.example", proj / "requirements.txt", proj / "pyproject.toml"):
         if f.exists():
             blob += f.read_text(errors="ignore").lower()
-    return "pgvector" in blob or "vector" in ((_spec_shape(name) or {}).get("search_backend", "") or "")
+    return "pgvector" in blob or "vector" in (
+        (_spec_shape(name) or {}).get("search_backend", "") or ""
+    )
 
 
 def _ruff_count(proj: Path) -> int | None:
     try:
         r = subprocess.run(
             [sys.executable, "-m", "ruff", "check", ".", "--output-format=json", "--quiet"],
-            cwd=proj, capture_output=True, text=True, check=False,
+            cwd=proj,
+            capture_output=True,
+            text=True,
+            check=False,
         )
     except OSError:
         return None
@@ -91,15 +117,23 @@ def plan(name: str) -> dict:
     proj = OPT / name
     if not (proj / "project.yaml").exists() and not proj.exists():
         return {"name": name, "error": "not found"}
-    ptype = (_read_yaml(proj / "project.yaml").get("type") or "unknown")
+    ptype = _read_yaml(proj / "project.yaml").get("type") or "unknown"
     shape = _spec_shape(name)
-    needs_db = bool(shape["needs_database"]) if shape and "needs_database" in shape else _env_has_database(proj)
+    needs_db = (
+        bool(shape["needs_database"])
+        if shape and "needs_database" in shape
+        else _env_has_database(proj)
+    )
     needs_web = (proj / "package.json").exists() and ptype in WEB_TYPES
     exts = ("pgvector",) if (needs_db and _wants_pgvector(name, proj)) else ()
     ruff = _ruff_count(proj)
     return {
-        "name": name, "type": ptype, "needs_db": needs_db, "needs_web": needs_web,
-        "exts": exts, "ruff": ruff,
+        "name": name,
+        "type": ptype,
+        "needs_db": needs_db,
+        "needs_web": needs_web,
+        "exts": exts,
+        "ruff": ruff,
         "has_ci": (proj / ".github/workflows/ci.yml").exists(),
         "baseline_exists": (proj / ".fabrik/lint-baseline.json").exists(),
     }
@@ -131,6 +165,7 @@ def main() -> int:
     if not args:
         print(__doc__)
         return 2
+    _assert_ruff_matches_pin()
     print(f"{'PROJECT':<30}{'TYPE':<14}{'DB':>3}{'WEB':>4}{'PGV':>4}{'RUFF':>6}  {'CI?':<5}ACTION")
     print("-" * 82)
     for name in args:
@@ -139,14 +174,22 @@ def main() -> int:
             print(f"{name:<30}{p['error']}")
             continue
         pgv = "y" if p["exts"] else "-"
-        act = "already has CI" if p["has_ci"] else (
-            f"WROTE {'+baseline@'+str(p['ruff']) if p['ruff'] is not None else '(no ruff)'}"
-            if do_apply else f"would seed baseline@{p['ruff']}")
+        act = (
+            "already has CI"
+            if p["has_ci"]
+            else (
+                f"WROTE {'+baseline@' + str(p['ruff']) if p['ruff'] is not None else '(no ruff)'}"
+                if do_apply
+                else f"would seed baseline@{p['ruff']}"
+            )
+        )
         if do_apply and not p["has_ci"]:
             apply(name, p)
-        print(f"{name:<30}{p['type']:<14}{'y' if p['needs_db'] else '-':>3}"
-              f"{'y' if p['needs_web'] else '-':>4}{pgv:>4}{str(p['ruff']):>6}  "
-              f"{'yes' if p['has_ci'] else 'NO':<5}{act}")
+        print(
+            f"{name:<30}{p['type']:<14}{'y' if p['needs_db'] else '-':>3}"
+            f"{'y' if p['needs_web'] else '-':>4}{pgv:>4}{str(p['ruff']):>6}  "
+            f"{'yes' if p['has_ci'] else 'NO':<5}{act}"
+        )
     if not do_apply:
         print("\n(DRY-RUN — nothing written. Re-run with --apply to write files + seed baselines.)")
     return 0
