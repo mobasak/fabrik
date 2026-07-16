@@ -5,7 +5,7 @@
      -->
 
 <!-- ⚠️ QUALITY GATE: Any modification to this command file MUST be evaluated
-     against EVALUATION_CHECKLIST_FOR_EPIC_COMMANDS.md (131 items).
+     against EVALUATION_CHECKLIST_FOR_EPIC_COMMANDS.md.
      Every applicable item must pass. "N/A" is valid; forgetting to check is not. -->
 
 # Cross-Artifact Validation
@@ -159,7 +159,7 @@ For every ticket, verify present:
 - **Core Flows absence (Dimensions 1 + 2):** if `02-core-flows-command` produced no flows for a code-only retrofit (post-`ee8792c` scope-narrow branch), Dimension 1 (Brief ↔ Flow traceability) and Dimension 2 (Flow ↔ Tech Plan) become N/A; do not flag missing flows as a finding.
 - **Mandate-scope expectation (Dimension 6 i18n/Responsive/Dark+Light rows):** for Retrofit tickets, mandate propagation chain applies ONLY to the target area per `06-ticket-breakdown` Step 4 Retrofit branch (`8dcdd2b`). E.g., `Retrofit: i18n` → verify i18n propagation; do NOT flag missing Responsive/Dark+Light propagation in non-i18n tickets.
 - **Success Criteria count expectation (Dimension 1):** Retrofit Brief is 3-5 SC per `mega-epic-breakdown/03-expand-epic-files-command` § Success Criteria; verify all 3-5 trace to tickets but do not flag SC count <5 as Significant.
-- **Compliance Report propagation (multi-epic existing mode):** for Retrofit epics emitted from `mega-epic-breakdown/02-epic-decomposition-command` Compliance Report fix-now rows, verify the gap row's authority pack appears in the Tech Plan + ticket `Rule Packs` lists. Cite the specific row (e.g., "Retrofit:i18n closes Compliance Report row for `core/86-i18n-validation`").
+- **Compliance Report propagation (multi-epic existing mode):** for Retrofit epics emitted from `mega-epic-breakdown/02-epic-decomposition-command` Compliance Report fix-now rows, verify the gap row's authority pack appears in the Tech Plan + ticket `Rule Packs` lists. Cite the specific row (e.g., "Retrofit: abuse-detection closes Compliance Report row for `saas/87-abuse-detection.md`").
 
 #### Dimension 8 — LESSONS_LEARNT.md Coherence
 
