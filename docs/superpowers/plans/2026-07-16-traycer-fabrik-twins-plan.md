@@ -1,9 +1,11 @@
 # Plan — Traycer workflow `-fabrik` twins (both folders)
 
-Status: CONVERGED (via /fabrik-plan-review; re-converged after inheriting the spec's Capability-delta dimension — pool + native Opus to an md5-stable no-op; Phase 0 done, Phase A/B/C ready to execute)
+Status: CONVERGED (via /fabrik-plan-review; re-converged after inheriting the spec's factory framing + adding Phase D — pool + native Opus to an md5-stable no-op; Phase 0 done, A/B/C ready, D deferred)
 Date: 2026-07-16
 Spec: `docs/superpowers/specs/2026-07-16-traycer-fabrik-twins-design.md`
 Governs: `docs/traycer/mega-epic-breakdown/**` + `docs/traycer/epic-to-ticket-workflow/**`
+
+**Factory context** `[canonical: docs/traycer/00-autonomous-factory-north-star.md § The two-workflow factory]`: this plan builds the **command layer of the Fabrik-managed workflow** (the twins in both folders) and **defers the Zed front-end to Phase D** (later). The front-door commands (`/fabrik-spec`/`-data-contract`/`-ui-design`/`-plan-after-chat`), `fabrik scaffold`, and `libs/subagents` **already exist** — reused, not built here. The **Zed-ACP orchestration extension** (the Fabrik front-end) is Phase D, built **after** both folders' commands are finalized (north-star D-Zed).
 
 ## The per-twin pipeline (revised CC6 — applied per twin, step 3's depth scaled to the twin's role)
 
@@ -57,13 +59,19 @@ Each brought to parity via the pipeline. The mega **doers** `00`/`02`/`03` conve
 - **C4 — `05-dispatch-epic-tickets-fabrik`** — the lightest grounding+consistency pass (step 3's `05` variant): a `Reads:` header + verify it correctly hands each epic to the ettw chain + a pool+native consistency check to a no-op — thin (no deep grounding), since its real reviews live downstream in ettw.
 - **Gate (per item):** `final_gate.py --check` → success; each Pass Ledger ends `found:0, fixed:0`, md5 stable; fix each `-command` anchor.
 
+## Phase D — Zed-ACP orchestration extension (LATER — after both folders' commands are finalized)
+
+The Fabrik-managed front-end: a **Zed extension speaking ACP** (the analog of Traycer-in-VS-Code) `[canonical: docs/traycer/00-autonomous-factory-north-star.md — the D-Zed decision]`. **Not built by Phases A–C** — it starts only once both folders' commands (the `-fabrik` twins **and** the Traycer `-command` sources) are finalized. Recorded here so the arc is visible; it gets its **own** `/fabrik-spec` → `/fabrik-plan-after-chat` cycle when it begins (it is a code project, not a command twin).
+
+- **D-scope (when it starts):** wire an Opus orchestrator over Zed's ACP (`agent_servers`/custom-agent config) to drive the coder/reviewer subagent threads (`claude -p` + `libs/subagents`); use the shipped `spawn_agent`/Threads-Sidebar primitives, layering the proposed `post_to_thread`/`wait_for_peer_replies` coordinator tools if still unshipped (north-star D-Zed § shipped-vs-proposed). Engine choice (reuse the D3 `job-queue` backend vs. ACP-native) settled then.
+
 ## Execution order + dependencies
 
-`A` (independent) → `B1` (blocks C — the review tool) → `B2` → `C1` → `C2` → `C3` → `C4`. `A` may run before or in parallel with `B`. Each item runs to its own no-op before the next starts (no partial twins).
+`A` (independent) → `B1` (blocks C — the review tool) → `B2` → `C1` → `C2` → `C3` → `C4`; then **`D` only after A–C are done AND the Traycer `-command` sources are finalized**. `A` may run before or in parallel with `B`. Each item runs to its own no-op before the next starts (no partial twins).
 
 ## Self-audit
 
-- Every phase item names its real target file(s) and the pipeline step that proves completion (a converged Pass Ledger + gate green + commit SHA).
+- Every **buildable** phase item (A–C) names its real target file(s) and the pipeline step that proves completion (a converged Pass Ledger + gate green + commit SHA); **Phase D is excepted** — a deferred future phase with its own later `/fabrik-spec`→`/fabrik-plan-after-chat` cycle, no target file yet.
 - Every phase item passes the **capability-delta litmus** (spec § Capability-delta): it USES the Fabrik capabilities its role needs — the mega-doer subagent-dispatch decision is baked into C1 (research fan-out) / C2 (single-agent + optional grounder fan-out) / C3 (per-epic grounders).
 - GUI/coding are intentionally absent — the mega tier delegates them to the ettw per-epic chain (spec § Scope).
 - No hard-coded roster or checklist count enters any twin (spec § Residuals).

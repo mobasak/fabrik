@@ -1,6 +1,6 @@
 # Autonomous Factory — The North Star
 
-**Status:** LIVING — **never archive** · **Owner:** operator · **Created:** 2026-07-12 · **Last updated:** 2026-07-14
+**Status:** LIVING — **never archive** · **Owner:** operator · **Created:** 2026-07-12 · **Last updated:** 2026-07-16
 
 > **This is the ultimate goal. Everything else in `docs/traycer/` exists to reach it.**
 >
@@ -13,6 +13,25 @@
 
 The idea→deploy autonomous pipeline: the operator specs & plans interactively; AI agents code, review
 and doc-update autonomously; **two human gates** (plan in, deploy out).
+
+---
+
+## The two-workflow factory (end-to-end) — added 2026-07-16
+
+Both `docs/traycer/` chains run the **same end-to-end pipeline**; they differ only in **who orchestrates**.
+
+**The pipeline (idea → deploy) — every step converged to a no-op by its paired review before the next starts (R7/CC1, extended across the whole factory):**
+
+1. **Front door** — a new *or existing* idea/plan → interactive Q&A → project **type · scope · requirements · data contract · GUI/screens · backend · frontend**. This IS the Fabrik pipeline: `/fabrik-spec` → `/fabrik-data-contract` → *(GUI)* `/fabrik-ui-design` → `/fabrik-plan-after-chat` — each grounded against the applicable `.windsurf/rules` packs + `AGENTS.md` + `CLAUDE.md`, and converged by its paired `-review`.
+2. **Epic decomposition** — on the operator's agreement, `mega-epic-breakdown/` splits the vision into independent epics (`00-trigger` → `02-epic-decomposition` → `03-expand-epic-files` → `04-cross-epic-validation` → `05-dispatch-epic-tickets`).
+3. **Scaffold** — create the scaffold project (`fabrik scaffold`, one of the 11 types) if it doesn't exist; if it does, **review it and bring it to 100 % compatible** with the agreed spec/`shape:`.
+4. **Per-epic → tickets** — each epic runs the `epic-to-ticket-workflow/` (`00-trigger` → `01-epic-brief` … `10-cross-artifact-validation` → `11-deploy`).
+5. **Per-ticket execution** — each ticket is executed by subagents (`claude -p` and the `libs/subagents` pool), coder + reviewer, converged per ticket.
+
+**Two orchestration modes (both KEPT — D2):**
+
+- **Traycer-managed** — the `-command` files, orchestrated in the **Traycer GUI** (a VS Code extension) with its **own** review workflow. Traycer's chat is **tool-less** (reads `AGENTS.md`, asks questions — no shell / MCP / web), so its accuracy ceiling is what the operator pastes.
+- **Fabrik-managed** — the `-fabrik` twins, orchestrated by **Opus over ACP inside Zed** (D-Zed, reconsidered 2026-07-16). The orchestration front-end will be a **Zed extension** — the Fabrik analog of Traycer-in-VS-Code — using Zed's Agent Client Protocol + the `spawn_agent` / `wait_for_peer_replies` coordinator primitives to drive the coder/reviewer subagent threads. **Built after both folders' commands are finalized.**
 
 ---
 
@@ -65,7 +84,7 @@ and doc-update autonomously; **two human gates** (plan in, deploy out).
 |---|---|---|
 | **R11** | Reuse what exists (`fabrik-lib/job-queue` = driver core; + `alerting`, `watchdog`, `subagents`/`fanout`, `claude_rotate`). | DONE (policy) |
 | **R13** | Cost-conscious: subscription + pool; **no compute rental**. | DONE |
-| **R15** | Lightweight cockpit — no Electron fleet-of-windows. | DONE (VS Code) |
+| **R15** | Lightweight cockpit — no Electron fleet-of-windows. | DONE (VS Code today, single-window; the Fabrik workflow's **Zed** cockpit — Rust/GPUI, not Electron — is planned, D-Zed, built later) |
 
 ### Working discipline — stated in chat, folded in 2026-07-14
 
@@ -92,15 +111,9 @@ nothing tracked whether they stayed true. Recorded now, with their real state.
 
 ## Decisions
 
-- **D1 / D6** — Cockpit + planning surface = **VS Code** (as used today).
-- **D2** — **Traycer: BEING EVALUATED — not dropped.** The operator's two-step workflow
-  (`mega-epic-breakdown` → `epic-to-ticket-workflow` → automated agent orchestration) is a candidate
-  front-end and **will not be dropped without retesting**. Known limitation to weigh: Traycer's planning
-  chat **cannot run commands or use our MCP/web-search tools** — it reads `AGENTS.md` and asks questions
-  only. Open evaluation: keep Traycer as the epic/ticket GUI, **or** build our own front-end on Claude
-  Code, which *does* have command + MCP + web access.
-  → **In flight:** the `-fabrik` twins (`00-trigger-fabrik`, `02-epic-decomposition-fabrik`,
-  `03-expand-epic-files-fabrik`) **are** that own front-end, built tool-capable. `04` and `05` have no twin yet.
+- **D1 / D6** — Cockpit + planning surface = **VS Code** for the **Traycer-managed** workflow (as used today); **Zed** for the **Fabrik-managed** workflow (via the ACP orchestration extension, D-Zed). Zed is Rust/GPUI, **not** Electron → it satisfies **R15** ("no Electron fleet-of-windows") better than VS Code, not worse.
+- **D2** — **RESOLVED 2026-07-16: BOTH workflows are kept** (no longer either/or). (1) **Traycer-managed** — Traycer stays the epic/ticket GUI for the `-command` files (its chat is **tool-less**: reads `AGENTS.md`, asks questions only — no shell / MCP / web). (2) **Fabrik-managed** — our own **tool-capable** front-end = the `-fabrik` twins, orchestrated by Opus over ACP in Zed (D-Zed). The two are the same pipeline, different orchestrators (see § The two-workflow factory).
+  → **In flight:** the `-fabrik` twins. **ettw `00`–`10` built + converged** (2026-07-16); `11-deploy` + the `mega` parity (a `/fabrik-mega-review` skill, `04` rebuilt to the review discipline, `00`/`02`/`03`/`05` brought to parity) remain — tracked in `docs/superpowers/{specs,plans}/2026-07-16-traycer-fabrik-twins-*`.
 - **D3** — Driver = vendor `fabrik-lib/job-queue` + two `process_fn` handlers (producer = `claude -p`
   worktree worker; converger = in-code `fanout` review loop) + a transitions table + Telegram digest +
   a thin `fabrik factory` CLI.
@@ -113,7 +126,7 @@ nothing tracked whether they stayed true. Recorded now, with their real state.
   → the spec above splits this correctly: `fanout` (single dispatch) is VENDOR; the **converge-to-no-op loop
   around it is BUILD** — the R8/D4 core the driver exists to provide.
 - **D5** — Capacity from `job-queue/autoscale.py` (real cgroup numbers); fleet later via `postgres-main`.
-- **Zed** — dropped (no in-window multi-thread view).
+- **D-Zed — RECONSIDERED 2026-07-16 (reversed).** Zed was dropped for "no in-window multi-thread view"; that reason is now **stale**. Grounded live 2026-07-16 (`zed.dev/acp`, `zed.dev/docs/ai/external-agents`, `github.com/zed-industries/zed` discussions #48304 + #55122): Zed shipped a **Threads Sidebar** (v0.233.5) with **parallel agent threads** + cross-thread **ACP coordinator primitives** (`create_thread`, `spawn_agent` — awaits its child, `post_to_thread`, `wait_for_peer_replies` — *"required for external-ACP coordinators"*), and **Claude Agent (Claude Code) runs on ACP in Zed** today. ⚠️ **Shipped vs. proposed:** the Threads Sidebar (v0.233.5), parallel agent threads, `create_thread`, and `spawn_agent` (which awaits its child) have **shipped**; the cross-thread coordinator tools an external-ACP orchestrator also needs (`post_to_thread`, `wait_for_peer_replies` — the latter *"required for external-ACP coordinators"*) are **proposed / in flight** (discussion #55122), so the extension may need to layer them. Decision: the **Fabrik-managed orchestration front-end = a Zed extension speaking ACP** (the analog of Traycer-in-VS-Code), driving the coder/reviewer subagent threads. **Built after both folders' commands are finalized**; its engine — reuse the D3 `job-queue` backend vs. ACP-native `spawn_agent` orchestration — is settled at extension-build time.
 - **Vibe Kanban** — ✅ **RETIRED 2026-07-14** (operator: "retire it and stop its service in wsl").
   `systemctl stop` + `disable` on `vibe-kanban.service`; port 57300 free, 0 processes. Unit file and
   `~/.vibe-kanban/` binary remain on disk but inert. *(For the record: it is an off-the-shelf board that
@@ -139,7 +152,7 @@ The `epic-to-ticket-workflow/` twins are built on the decisions below (operator 
 - **CC6 — Per-command build pipeline (serial; one command fully before the next):** reconcile the Traycer source to a no-op (`/fabrik-docs-review`) + hollow-citation sweep → fix per the design critique + citation discipline + add the `Reads:` header → checklist-eval to **0 FAIL** (144 items) → build the tool-capable twin (embedded convergence terminal phase, fan-out on ground/validate, live-research on vendor-touch, disk-reads for epic files) → north-star check (R2/R3/R7/R8/R23) → gate + commit (explicit paths).
 - **CC7 — Template first:** `01-epic-brief-fabrik` + its `01-review` twin are built first as the reference pair; the operator reviews the pattern before it is replicated across `02`–`11`.
 
-Status: recorded; build pending — `00`/`01` sources reconciled, twins not yet built. The `01` template pair is next.
+Status: **ettw `00`–`10` built + converged** (2026-07-16, each to an md5-stable no-op via its paired review — commits through `f1c246d9`); the shared `/fabrik-ettw-review` skill exists. Remaining: `11-deploy` + the `mega` parity (a `/fabrik-mega-review` skill; `04` rebuilt to the review discipline; `00`/`02`/`03`/`05` brought to parity). Tracked in `docs/superpowers/{specs,plans}/2026-07-16-traycer-fabrik-twins-*`.
 
 ---
 
@@ -166,6 +179,6 @@ Status: recorded; build pending — `00`/`01` sources reconciled, twins not yet 
   converge to a no-op; a driver would *run* that loop. The CONVERGED driver spec designs exactly this (the
   converge-to-no-op loop around vendored `fanout` = the BUILD core). **Prose is not enforcement** — and that is the lesson the rest of
   this repo keeps re-learning.
-- **Traycer evaluation** — retest; keep-as-GUI vs. finish our own twins (`04` and `05` still have none).
+- **Fabrik-managed twins + Zed extension** — finish the remaining twins (`11-deploy` + the `mega` parity: a `/fabrik-mega-review` skill, `04` rebuilt to the review discipline, `00`/`02`/`03`/`05` brought to parity), then build the Zed-ACP orchestration extension (D-Zed). *(No longer a keep-vs-replace evaluation — D2 is RESOLVED, both workflows kept.)*
 - Phase-4 capacity measurement (real per-worker numbers).
 - Vibe Kanban parked service — leave or remove.

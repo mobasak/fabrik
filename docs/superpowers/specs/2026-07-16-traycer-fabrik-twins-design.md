@@ -1,6 +1,6 @@
 # Design — Traycer workflow `-fabrik` twins (both folders)
 
-Status: CONVERGED (via /fabrik-spec-review; re-converged after adding the Capability-delta dimension — pool + native Opus to an md5-stable no-op)
+Status: CONVERGED (via /fabrik-spec-review; re-converged after situating the twins in the full end-to-end factory + two orchestration modes — pool + native Opus, no-op)
 Date: 2026-07-16
 Owner: ob@ocoron.com
 Governs: `docs/traycer/mega-epic-breakdown/**` + `docs/traycer/epic-to-ticket-workflow/**`
@@ -18,6 +18,20 @@ In the autonomous factory (north-star D3/D4/R14), the **driver (Opus 4.8) must R
 
 - Traycer is **not retired** (owner-confirmed) — the GUI path must keep working during the transition, so each twin's grounding pass also fixes the `-command` source's **load-bearing** stale anchors (near-free), without converging the source itself.
 - The twins are the **template the whole factory copies** — a defect in a converged twin propagates. Hence the convergence discipline is non-negotiable.
+
+## The end-to-end factory these twins serve `[canonical: docs/traycer/00-autonomous-factory-north-star.md § The two-workflow factory]`
+
+The `-fabrik` twins are the **command layer of the Fabrik-managed workflow** — one part of a larger idea→deploy factory. Both `docs/traycer/` chains run the **same pipeline**, differing only in **who orchestrates**. Each step is converged to a no-op by its paired review before the next starts:
+
+1. **Front door** — a new *or existing* idea/plan → interactive Q&A → project **type · scope · requirements · data contract · GUI/screens · backend · frontend**. This is the **existing** Fabrik pipeline: `/fabrik-spec` → `/fabrik-data-contract` → *(GUI)* `/fabrik-ui-design` → `/fabrik-plan-after-chat`, grounded against the applicable `.windsurf/rules` packs + `AGENTS.md` + `CLAUDE.md`.
+2. **Epic decomposition** — `mega-epic-breakdown/` splits the agreed vision into independent epics.
+3. **Scaffold** — `fabrik scaffold` (one of the 11 types) if the project doesn't exist; else **review it and bring it to 100 % compatible** with the agreed `shape:`.
+4. **Per-epic → tickets** — each epic runs `epic-to-ticket-workflow/` (`00-trigger` → `01-epic-brief` … → `11-deploy`).
+5. **Per-ticket execution** — subagents (`claude -p` + the `libs/subagents` pool), coder + reviewer, converged per ticket.
+
+**Two orchestration modes (both kept — north-star D2):** **Traycer-managed** = the `-command` files in the Traycer GUI (a VS Code extension, tool-less chat, its own review workflow); **Fabrik-managed** = the `-fabrik` twins orchestrated by **Opus over ACP in Zed** — the front-end will be a **Zed extension** (analog of Traycer-in-VS-Code), built **after** both folders' commands are finalized (north-star D-Zed).
+
+**This spec's BUILD scope** = the Fabrik-managed workflow's **command twins** (both folders) + the `/fabrik-mega-review` skill. The front-door commands (`/fabrik-*`), `fabrik scaffold`, and `libs/subagents` **already exist** (reused, not built here); the **Zed extension is a later deliverable** — tracked, out of this spec's build scope.
 
 ## Capability delta — Traycer incapability → Fabrik capability
 
@@ -78,11 +92,14 @@ The mega tier is **purely spec / plan / decompose / review / dispatch** — GUI 
 3. Role-parity achieved: where a mega command's role matches a fabrik command, it carries the same enforcement (esp. mega `00` gets `/fabrik-spec`'s live-research gate).
 4. Traycer GUI path intact — each `-command` source's load-bearing stale anchors fixed in the grounding pass.
 5. **Capability delta closed** — each twin passes the § Capability-delta litmus: it actually USES every Fabrik capability its role requires (disk-reads; shell; live research where it touches external facts; subagent dispatch for its producing work per the decision above; convergence), not merely re-formatting the source.
+6. **Factory-fit** — the converged twins slot into the end-to-end pipeline (§ The end-to-end factory): the mega chain consumes the front-door output and the ettw chain consumes each dispatched epic, so a full idea→deploy run is executable in the Fabrik-managed mode once `11-deploy` + the mega parity land (the Zed extension then makes it interactive — later).
 
 ## Out of scope
 
 - The Traycer `-command` sources' full convergence (legacy; only load-bearing anchor fixes).
 - The autonomous driver itself `[canonical: docs/superpowers/specs/2026-07-15-autonomous-factory-driver-design.md]`.
+- The **Zed-ACP orchestration extension** — the Fabrik-managed front-end (north-star D-Zed); built **after** both folders' commands are finalized, tracked here but not built by this spec.
+- The **front-door commands** (`/fabrik-spec`/`-data-contract`/`-ui-design`/`-plan-after-chat`), `fabrik scaffold`, and `libs/subagents` — they **already exist** and are reused, not (re)built here.
 - Any mega-tier GUI/coding command (delegated to the per-epic ettw chain).
 
 ## Residuals / risks
