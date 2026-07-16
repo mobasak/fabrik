@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — check_test_proposal is diff-scoped: a sibling's plan no longer fails your gate (2026-07-16)
+
+The Behavior-Contract structure gate checked `max(all plans by name)` — the globally-latest plan in
+`docs/development/plans/`, **regardless of who authored it**. On shared `master` that is often a *sibling's*
+draft (and archiving an EXECUTED plan exposes the next non-archived one), so an agent whose own change touches
+no plan still hard-failed on someone else's WIP (hit live by tryton-crm). Now it checks only plans **this change
+introduces** — basenames present now but absent at the baseline (`@{upstream}`, else `HEAD`); no new plan →
+skip. This also preserves the prior intent (editing an old plan isn't the target) and adds a git-unavailable
+fallback to the legacy behavior. 4 regression tests incl. the exact archive-exposes-sibling scenario (10 total).
+Synced enforcement check → propagates on re-sync.
+
 ### Fixed — check_structure.py exempts `src/**/prompts/` + `src/**/libs/` runtime assets (2026-07-16)
 
 Project Structure hard-failed on legitimate code-adjacent runtime assets: `src/<pkg>/prompts/*.md` (prompt

@@ -15,6 +15,7 @@ Exit codes:
 """
 
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -79,6 +80,42 @@ def evaluate_plan(content: str) -> tuple[bool, str]:
     return True, f"Behavior Contract OK — {detail}"
 
 
+def _baseline_ref() -> str | None:
+    """The ref to diff against: the pushed upstream if configured, else HEAD. None if not a git repo."""
+    up = subprocess.run(
+        ["git", "rev-parse", "--abbrev-ref", "@{upstream}"], capture_output=True, text=True, check=False
+    )
+    if up.returncode == 0 and up.stdout.strip():
+        return up.stdout.strip()
+    head = subprocess.run(["git", "rev-parse", "--verify", "HEAD"], capture_output=True, text=True, check=False)
+    return "HEAD" if head.returncode == 0 else None
+
+
+def _new_plans(plans_dir: Path) -> set[str] | None:
+    """Plan basenames present NOW but absent at the baseline (upstream, else HEAD) — i.e. the plans
+    THIS change introduces. Returns None if git is unavailable (caller falls back to legacy behavior).
+
+    Shared-tree fix: on one `master`, `max(all plans)` targets whatever plan sorts last — often a
+    *sibling's* draft the current agent never authored (esp. after archiving an EXECUTED plan exposes
+    the next one). Only a plan this change ADDS is this agent's proposal; editing an old plan or a
+    sibling's pre-existing plan is not.
+    """
+    ref = _baseline_ref()
+    if ref is None:
+        return None
+    r = subprocess.run(
+        ["git", "ls-tree", "-r", "--name-only", ref, "docs/development/plans/"],
+        capture_output=True, text=True, check=False,
+    )
+    if r.returncode != 0:
+        return None
+    baseline = {
+        Path(p).name for p in r.stdout.split() if p.endswith(".md") and "/archived/" not in p
+    }
+    current = {p.name for p in plans_dir.glob("*.md")}  # glob("*.md") excludes archived/ subdir
+    return current - baseline
+
+
 def check_proposal() -> bool:
     plans_dir = Path("docs/development/plans/")
     if not plans_dir.exists():
@@ -88,8 +125,33 @@ def check_proposal() -> bool:
     if not plans:
         print("INFO: No plan files found - skipping Behavior Contract check")
         return True
-    # Latest by filename date prefix (`YYYY-MM-DD-…`), NOT mtime: mtime makes any edit to an OLD plan
-    # (even a one-line link fix) the check target — a shared-master false-positive.
+
+    new_plans = _new_plans(plans_dir)
+    if new_plans is not None:
+        # DIFF-SCOPED (shared-tree correct): only plans THIS change introduces must carry a Behavior
+        # Contract. A sibling's pre-existing plan, and an edit to an old plan, are not this agent's
+        # proposal — so they never fail this agent's gate.
+        if not new_plans:
+            print("INFO: No new plan proposed in this change - skipping Behavior Contract check")
+            return True
+        all_ok = True
+        for name in sorted(new_plans):
+            path = plans_dir / name
+            if not path.exists():
+                continue
+            ok, msg = evaluate_plan(path.read_text())
+            print(f"{'PASS' if ok else 'FAIL'}: {name}: {msg}")
+            if not ok:
+                all_ok = False
+        if not all_ok:
+            print("\nBehavior Contract format:")
+            print("  ## Behavior Contract")
+            print("  - **Given** <state>, **When** <action>, **Then** <result>.   # one per behavior")
+            print("  - **Mocked:** [what is mocked vs. real]")
+        return all_ok
+
+    # Fallback (git unavailable): legacy latest-by-name behavior. Latest by filename date prefix
+    # (`YYYY-MM-DD-…`), NOT mtime, so a one-line edit to an old plan is not the target.
     latest_plan = max(plans, key=lambda p: p.name)
     ok, msg = evaluate_plan(latest_plan.read_text())
     if not ok:
