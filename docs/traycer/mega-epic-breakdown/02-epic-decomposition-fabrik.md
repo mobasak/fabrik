@@ -3,6 +3,42 @@
      It is TOOL-CAPABLE: it can read the repo, run commands, and fetch live sources.
      Keep it in lockstep with the Traycer twin; the ONLY intended differences are
      (a) the orchestrator framing and (b) the tool-capable inheritance from `00-trigger-fabrik`.
+
+     ⚠️ The decomposition JUDGMENT — where the epic boundaries fall — is SINGLE-AGENT Opus work: never
+     fan THAT out (the optional consistency-check fanout below is a different activity, and is allowed)
+     `[canonical: docs/superpowers/specs/2026-07-16-traycer-fabrik-twins-design.md § Capability delta —
+     "mega-02's decomposition is single-agent judgment (+ optional grounder fan-out for its consistency
+     checks)"]`. There is no research leg here: the Vision Summary arrives already live-grounded by
+     `00-trigger-fabrik`'s ⛔BLOCKING N3k gate. The 2h rule-pack citation audit MAY dispatch a read-only
+     `fanout("review", …, mode="read_only")` consistency check — optional, never owed; the verdicts stay yours.
+
+     Reads — this list is the ACTING set. Every other backticked path below is provenance for a decision
+     already stated inline: act on the inline statement, and open the source only if it is insufficient
+     (if it IS insufficient, that is a defect in this file — report it, don't quietly absorb the cost):
+       · the confirmed **Vision Summary** — from conversation context, not disk (Step 1)
+       · `agents-fabrik.md` § Infrastructure Services (backing services available) + § Planning Constraints
+         — all 12 still apply per epic `[canonical: agents-fabrik.md § Planning Constraints — the 12; 7 of
+         them are also N3i checks, see 00-trigger-fabrik]`
+       · `docs/operations/fabrik-lifecycle.md` — deploy/runtime behavior + data safety (it covers the
+         detail of stages 3–4; it carries no stage model of its own)
+       · `PORTS.md` — every epic's service needs a port (Step 2g)
+       · the **domain rule pack per scaffold type** the Vision Summary names — read BY PATH (full paths;
+         they are what you open): `.windsurf/rules/saas/00-domain-saas.md` ·
+         `.windsurf/rules/mobile-app/00-domain-mobile-app.md` ·
+         `.windsurf/rules/desktop-app/00-domain-desktop-app.md` ·
+         `.windsurf/rules/chrome-ext/00-domain-chrome-ext.md`.
+         ⚠️ All four are `activation: manual` with NO frontmatter `globs:`, and `select_rules.py` selects
+         on `globs:` ALONE — `:24-39` parses only `globs:`/`description:`, and `:108` branches on
+         `any(_glob_has_match(...))`, which is False for an empty glob list; `activation:` is never read.
+         So they are AVAILABLE forever and `select_rules.py` will NEVER surface them: open them by path
+         or silently miss them.
+       · `.windsurf/rules/core/65-rag-search.md` § Epic Decomposition — only when the vision names
+         RAG/search (this one IS glob-activated, so `select_rules.py` surfaces it on a matching project)
+       · `/opt/fabrik-lib/README.md` § Modules + each candidate module's own `README.md` — resolve modules
+         from the index, and read the module's README for its CURRENT API + cap defaults (never copy a
+         signature or a default value into an epic ticket; they drift)
+       · the CURRENT-VALUE live-reads (never quote a remembered number): `src/fabrik/spec_loader.py`
+         `WatchdogConfig` · `templates/<type>/defaults.yaml` (the `kind:` contract)
      -->
 
 <!-- ⚠️ QUALITY GATE: Any modification to this command file MUST be evaluated
@@ -50,7 +86,7 @@ This command produces the compact epic proposal + Infrastructure Decisions in co
   - Scale Assessment (multi-epic confirmed)
 
 **Additional required input when 00 was in EXISTING mode (Vision Summary has these extra sections):**
-- **Locked Decisions** — technology choices that cannot change (auth, database, frontend, billing, current shape block). These are inherited into Infrastructure Decisions § Auth Strategy / § Database Strategy / etc. **verbatim** — they are not re-decided here.
+- **Locked Decisions** — technology choices that cannot change (the four `00-trigger-fabrik` names by default — auth, database, frontend, current shape block — **plus** whatever its `[etc.]` bullet adds; the section is extensible, so read what actually arrived rather than assuming the four). These are inherited into Infrastructure Decisions **verbatim**: auth → § Auth Strategy, database → § Database Strategy, frontend + shape → § Shared Shape Decisions (there is no § Frontend section), billing → § External Services. See Step 3 for the full overlap rule — they are not re-decided here.
 - **Compliance Report** — gap-by-gap table with owner decisions:
   - `fix-now` rows → emit one **Retrofit epic** per row (handled in Step 2b "Existing mode addition" below).
   - `fix-later` rows → surfaced in a "Deferred Compliance" appendix in the proposal; no epic emitted.
@@ -63,7 +99,7 @@ This command produces the compact epic proposal + Infrastructure Decisions in co
 - `agents-fabrik.md` § Infrastructure Services — backing services available.
 - `agents-fabrik.md` § Planning Constraints — constraints still apply per epic.
 - `PORTS.md` — each epic's service needs a port. Check availability.
-- **Domain packs** — for EACH scaffold type identified in the Vision Summary, read the matching **rule pack** (the single source of truth; `domain-modules/` was deleted 2026-07-13 after it drifted — it had inverted the chrome-ext build-tool default and told planners the registrar creates pgvector indexes, which it does not):
+- **Domain packs** — for EACH scaffold type identified in the Vision Summary, read the matching **rule pack** (the single source of truth; `domain-modules/` was deleted 2026-07-14 after it drifted — it had inverted the chrome-ext build-tool default and told planners the registrar creates pgvector indexes, which it does not):
   - `saas-skeleton` → `.windsurf/rules/saas/00-domain-saas.md` (17 vision-intake dimensions + epic coverage)
   - `mobile-app` → `.windsurf/rules/mobile-app/00-domain-mobile-app.md` (17 dimensions + attribution + the 3 forks)
   - `desktop-app` → `.windsurf/rules/desktop-app/00-domain-desktop-app.md` (vision intake + the standalone-vs-connected fork, which decides whether revenue can be gated at all; Epic 1)
@@ -100,9 +136,9 @@ State: "Vision Summary consumed. [N] features, [M] scaffold types, scale assessm
 - Each epic must produce a deployable, testable artifact
 
 **2b. Apply boundary rules:**
-- **Epic-count sanity band:** 3–7 epics is typical. **≥10** → re-examine the boundaries; you are almost certainly splitting by *layer*, not by *domain*. **≤2** → this vision probably belongs in `epic-to-ticket-workflow` directly. State the band verdict at the Checkpoint.
+- **Epic-count sanity band:** 3–7 epics is typical. **≥10** → re-examine the boundaries; you are almost certainly splitting by *layer*, not by *domain*. **≤2** → this vision probably belongs in `epic-to-ticket-workflow` directly — **unless** N3e's under-8 band forced 2 epics because 2+ features are large, which is a legitimate 2-epic split, not a mis-split. State the band verdict at the Checkpoint.
 - Every feature from the inventory maps to EXACTLY one epic. No feature in two epics. No feature orphaned.
-- Each epic targets 5–15 features. Fewer than 5 = merge with adjacent epic UNLESS one of these exceptions holds, document the justification inline: (a) the epic is a Retrofit epic (small retrofits permitted per 2b); (b) the Vision Summary's Scale Assessment routed to multi-epic with <8 total features (per `00-trigger-fabrik` Step N3e, an 8-feature vision splits into 2–3 epics → 3–4 features each is permitted; forcing into single-epic would have been wrong for the complexity profile); (c) a scaffold-specific overlay mandates a small dedicated epic (e.g., mobile-app "store submission" epic). More than 15 = split.
+- Each epic targets 5–15 features. Fewer than 5 = merge with adjacent epic UNLESS one of these exceptions holds, document the justification inline: (a) the epic is a Retrofit epic (small retrofits permitted per 2b); (b) **the sub-5 epic is a real domain, not a residue** — answer the question the merge rule actually asks: *"why can't this live inside an adjacent epic?"* It earns (b) only if folding it into EVERY adjacent epic would either break that epic's domain coherence or push it past 15 features. ⚠️ Deliberately QUALITATIVE — no feature-count arithmetic can settle it: boundaries are drawn by DOMAIN, not by size (§ Core Philosophy), so every threshold is either gameable by re-slicing or punishes an honest domain split. (Note "has a deployable artifact" is NOT the test — 2a already requires that of every epic, so it discriminates nothing.) Worked: a 16-feature vision whose real domains are `7/4/3/2` keeps all four when the 2 is, say, a billing surface that fits inside none of the other three — an arithmetic rule would have force-merged it, and a "balance" rule would have rewarded re-cutting into a mechanical `4/4/4/4`, which is layer-slicing wearing a domain label. Conversely, in `5/5/5/1` where the 1 is a stray screen belonging to one of the 5s, it folds in; in `30 → 15/3/3/3/2/2/2` where the 3s and 2s are layers carved off the 15, they fold back. Sanity-check the epic count against N3e's routed band and say so if you deviate — the band is a signal, not a cap: **you** own the split; (c) a scaffold-specific overlay mandates a small dedicated epic (e.g., mobile-app "store submission" epic). More than 15 = split.
 - Each epic has a clear scaffold type (from the Vision Summary's Technology Decisions § Scaffold types).
 - Each epic has its own `fabrik apply` with its own shape block and registrars.
 
@@ -112,9 +148,9 @@ For every `fix-now` row in the Vision Summary's Compliance Report, emit one **Re
 - **Name:** prefix `"Retrofit: "` + the compliance area (e.g., `"Retrofit: i18n"`, `"Retrofit: Resilience on YouTube Data API"`).
 - **Scope:** implement the compliance gap per the rule pack cited.
 - **Features:** the corresponding `R<n>` rows from the Vision Summary's Feature Inventory (R1, R2, …).
-- **Scaffold:** same as the project being continued (inherited from Locked Decisions § scaffold type).
+- **Scaffold:** same as the project being continued. ⚠️ The Vision Summary carries **no** existing-scaffold-type field — Locked Decisions has none, and Technology Decisions § Scaffold types lists only the NEW types the capability adds. So: no new type named ⇒ the continued project's own type, unchanged. Do not invent a Locked Decisions § scaffold type.
 - **Rule packs:** the rule pack(s) cited in the gap (e.g., `core/86-email-templates.md`, `saas/87-abuse-detection.md`).
-- **HAS_USER_GUIDE:** inherited from the existing project (Locked Decisions).
+- **HAS_USER_GUIDE:** inherited from the existing project — a `03-expand-epic-files-fabrik` Metadata field, NOT a Locked Decision (00 emits no such field). A retrofit does not change it: carry the project's current value.
 
 Retrofit epics ARE epics — they count toward the 5–15 features rule (a small retrofit may be smaller; document the justification), they receive the **same dependency analysis** in 2c, and they pass through the **same parallel-classification gate** in 2c.
 
@@ -207,7 +243,7 @@ Before drafting Infrastructure Decisions, audit the candidate epic set against t
 | 11 | Documentation | Always | `core/40-documentation.md` |
 | 12 | Security | Always | `core/35-security-auth.md` + `saas/87-abuse-detection.md` (if signup) + `core/app-audit-log.md` |
 | 13 | Testing | Always | `core/45-testing-strategy.md` |
-| 14 | Retrofit | EXISTING mode only — one per `fix-now` Compliance Report row | Compliance Report from `00-trigger-fabrik` Step E5 (consumed in 2b above) |
+| 14 | Retrofit | EXISTING mode only — one per `fix-now` Compliance Report row | Compliance Report from `00-trigger-fabrik` (authored in Step E3.A–C; Step E5 only emits it) (consumed in 2b above) |
 
 Rule-pack paths above are cited directly. **fabrik-lib modules are resolved from the index** (`/opt/fabrik-lib/README.md` § Modules) — never from a name written here.
 
@@ -218,17 +254,17 @@ Rule-pack paths above are cited directly. **fabrik-lib modules are resolved from
 3. For each "ABSORBED in Step 3 § X" verdict: a stub-line in the Infrastructure Decisions document referencing the matching sub-section drafted in Step 3 (cross-link, not duplicate content).
 4. For each "N/A" verdict: a one-line note kept inside the `### Universal Coverage Check` block (audit trail; does not pollute the epic set).
 
-**Overlay-merge rule — apply AFTER the 14 verdicts (handles scaffold-type overlays loaded per § Input Contract → **Domain modules**):**
+**Overlay-merge rule — apply AFTER the 14 verdicts (handles scaffold-type overlays loaded per § Input Contract → **Domain packs**):**
 
 For each loaded **domain pack**, walk its mandatory-coverage section. The exact heading per pack (verified 2026-07-14 — do NOT guess, and do not search for the retired `domain-modules/*.md` filenames):
 
 | Loaded pack | Walk this section |
 |---|---|
-| `.windsurf/rules/saas/00-domain-saas.md` | `#### Mandatory Epic Coverage` |
+| `.windsurf/rules/saas/00-domain-saas.md` | `### Mandatory Epic Coverage` |
 | `.windsurf/rules/mobile-app/00-domain-mobile-app.md` | `#### Mandatory Epic Coverage` |
 | `.windsurf/rules/chrome-ext/00-domain-chrome-ext.md` | `### Mandatory Epic Coverage` |
 | `.windsurf/rules/desktop-app/00-domain-desktop-app.md` | `### Mandatory Epic Coverage` |
-| `.windsurf/rules/core/65-rag-search.md` | `## Epic Decomposition` (its directives are inline — no separate coverage table) |
+| `.windsurf/rules/core/65-rag-search.md` | `## Epic Decomposition (PLANNING layer — read before any RAG epic exists)` (its directives are inline — no separate coverage table) |
 
 If a heading above is not present in the pack you loaded, the pack has moved: STOP and report it rather than improvising a substitute. For each overlay row:
 
@@ -237,7 +273,7 @@ If a heading above is not present in the pack you loaded, the pack has moved: ST
 - If the universal category was COVERED by a different epic OR ABSORBED in Step 3 § X AND the overlay row demands its own epic → **add** the overlay's epic to the candidate set as a new entry; assign `Universal categories: <numbers>`; re-run 2c (dependency analysis) for the new epic before continuing.
 - If the universal category was N/A but the overlay demands the coverage → flip the category to COVERED by the overlay's epic; update the 2h verdict line.
 
-Loading is best-effort: if a scaffold type identified in the Vision Summary has no matching its domain pack file on disk (e.g., `docusaurus`, `static-site`), the read is a no-op — the universal-category check still runs (per the `core/60-watchdog.md` matrix, `watchdog` is N/A for the `static-site` and `docusaurus` **scaffold types**, i.e. `kind: static` — note that is operator discipline, not a resolver rule; see § Watchdog Wiring).
+Loading is best-effort: if a scaffold type identified in the Vision Summary has no matching domain pack file on disk (e.g., `docusaurus`, `static-site`), the read is a no-op — the universal-category check still runs (per the `core/60-watchdog.md` matrix, `watchdog` is N/A for the `static-site` and `docusaurus` **scaffold types**, i.e. `kind: static` — note that is operator discipline, not a resolver rule; see § Watchdog Wiring).
 
 ### Step 3: Draft Infrastructure Decisions
 
@@ -256,7 +292,7 @@ Do NOT re-decide in epic-to-ticket-workflow. Do NOT copy into epic files.]
 - [postgres-main (default) / Supabase (legacy — migration-only) / both — carried from Vision Summary]
 
 ## Auth Strategy
-- [carried from Vision Summary Technology Decisions — not re-derived]
+- [carried from the Vision Summary — not re-derived. NEW mode: Technology Decisions. EXISTING mode: **Locked Decisions**, inherited verbatim (see the Existing-mode overlap rule + its worked example directly above this template) — UNLESS the existing project had no auth at all, in which case the delta's auth is a NEW decision (Technology Decisions § New decisions) and defaults to `fabrik-lib/fastapi-user-auth` Pattern A, never Supabase]
 - **Universal category #12 — Security.** Sensitive ops (auth events, billing mutations, admin actions, GDPR data-rights flows, watchdog Tier B/C actions) MUST write to the hash-chained audit log per `core/app-audit-log.md` (vendor the audit-log module — resolve it from the fabrik-lib index). The Universal Coverage Check in 2h asserts both auth strategy and audit-log coverage; missing audit-log integration fails acceptance A1.
 
 ## Email Strategy
@@ -271,7 +307,7 @@ Do NOT re-decide in epic-to-ticket-workflow. Do NOT copy into epic files.]
 - [ONE model for the entire pipeline — both ingest and query. See `core/65-rag-search.md` § Embedding Models for current roster.]
 
 ## Self-Healing Ladder (if `shape.kind` ∈ `{service, worker}`)
-- [Universal category #6 — Self-healing. Each epic's `docs/RESILIENCE.md` carries one row per failure class drawn from `core/self-healing.md § The escalation ladder` (OOM, queue backlog, upstream rate-limit, upstream timeout, signup flood, DB connection-pool exhaustion, sustained 5xx burst, stuck row locks). Operators implement the ladder from the primitives already shipped in fabrik-lib (**resolve the current modules from the table in `/opt/fabrik-lib/README.md` — never from a hard-coded name**) plus Watchdog Tier A/B actions — this command does NOT design new primitives, only asserts coverage in 2h.]
+- [Universal category #6 — Self-healing. Each epic's `docs/RESILIENCE.md` carries one row per failure class drawn from `core/self-healing.md § The escalation ladder` (OOM, queue backlog, upstream rate-limit, upstream timeout, signup flood, DB connection-pool exhaustion, sustained 5xx burst, stuck row locks, code-level regression / new critical exception). Operators implement the ladder from the primitives already shipped in fabrik-lib (**resolve the current modules from the table in `/opt/fabrik-lib/README.md` — never from a hard-coded name**) plus Watchdog Tier A/B actions — this command does NOT design new primitives, only asserts coverage in 2h.]
 - [N/A only for `kind: static` — i.e. `static-site` and `docusaurus` (no app process to recover). ⚠️ `chrome-extension` / `mobile-app` / `desktop-app` are **`kind: service`** per `templates/<type>/defaults.yaml`: their companion backend DOES deploy and DOES carry the self-healing ladder — only the client artefact (CRX / store build / installer) ships separately.]
 
 ## Watchdog Wiring (**ON by default** — opt-OUT per spec; there is **no** `shape.kind` test in the resolver)
@@ -414,11 +450,11 @@ Iterate until the owner explicitly confirms:
 
 - Does NOT re-derive the vision, features, or technology decisions — consumes `00-trigger-fabrik`'s confirmed output.
 - Does NOT produce full epic tickets — that is `03-expand-epic-files-fabrik`. This command produces the compact proposal only.
-- Does NOT produce ticket outlines or ticket breakdowns — that happens in `epic-to-ticket-workflow/05-ticket-outline-command` per epic.
-- Does NOT decide implementation details (API routes, DB schema columns, component names) — that is `epic-to-ticket-workflow/03-tech-plan-command` per epic.
+- Does NOT produce ticket outlines or ticket breakdowns — that happens in `epic-to-ticket-workflow/05-ticket-outline-fabrik` per epic.
+- Does NOT decide implementation details (API routes, DB schema columns, component names) — that is `epic-to-ticket-workflow/03-tech-plan-fabrik` per epic.
 - Does NOT create tickets or write files to disk — tickets are created by `03-expand-epic-files-fabrik`.
 - Does NOT design watchdog sidecar configuration — watchdog wiring is universal category #7 with an **opt-OUT** enabled flag (ON unless `watchdog: {enabled: false}`); the `watchdog` registrar runs at `fabrik apply` and reads `spec.watchdog.*` (per `core/60-watchdog.md`). This command only asserts coverage in the 2h audit and routes the epic that owns the spec to the Step 3 § Watchdog Wiring sub-section.
-- Does NOT design self-healing ladder — universal category #6 is satisfied by citing `core/self-healing.md` in the Step 3 § Self-Healing Ladder sub-section. Per-project ladder rows are written in the epic's `docs/RESILIENCE.md` per `core/58-resilience.md § Per-Project Contract` — that's a per-epic ticket concern (`epic-to-ticket-workflow/03-tech-plan-command`), not a 02 concern.
+- Does NOT design self-healing ladder — universal category #6 is satisfied by citing `core/self-healing.md` in the Step 3 § Self-Healing Ladder sub-section. Per-project ladder rows are written in the epic's `docs/RESILIENCE.md` per `core/58-resilience.md § Per-Project Contract` — that's a per-epic ticket concern (`epic-to-ticket-workflow/03-tech-plan-fabrik`), not a 02 concern.
 - Does NOT design cost-budget caps — universal category #9 cites `core/cost-budget.md`; per-epic caps live in the spec's `watchdog:` block (deferred to epic-to-ticket-workflow tickets). 02 only asserts that the category's coverage is recorded in the 2h verdict block.
 
 ## Acceptance Criteria
@@ -441,7 +477,7 @@ Iterate until the owner explicitly confirms:
 - Every "ABSORBED in Step 3 § X" verdict in 2h matches a sub-section actually drafted in Step 3.
 - Every "N/A" verdict in 2h carries an explicit trigger-not-met reason cited from the spec shape block or Vision Summary.
 - Overlay-merge rule applied: no overlay-mandated epic is duplicated by a universal-category epic, and no overlay-mandated coverage is dropped.
-- Each per-epic compact entry carries **23 indented fields** under the `Epic [N]: [Name]` heading, in **five** groups: (1) **9 epic-shape fields** — Scope, Features, Scaffold, Depends on, Parallel with, Port, Delivers, Rule Packs, HAS_USER_GUIDE; (2) **6 inheritance-metadata fields** — Shape, Concurrency, i18n, Responsive, Dark+Light, Registrars; (3) **Universal categories** (1 field); (4) **3 conditional fields** — Abuse Detection, Email, FINANCIALS (each carries the project-wide Infrastructure Decisions value or `N/A` per the trigger); (5) **4 cross-epic-contract fields** — **Target host**, **Consumes**, **Produces**, **Owned paths** (the concurrency contract — see the parallel gate at 2c). 03's Metadata block consumes **15** of these (the 6 metadata + Scaffold + Port + **Target host** + Rule Packs + HAS_USER_GUIDE + Universal categories + the 3 conditionals); **Consumes**, **Produces** and **Owned paths** feed `03-expand-epic-files-fabrik` § Dependencies (⚠️ **the arithmetic must close: 15 + 3 + 5 = 23.** Every field has exactly one destination; a field with none is a field that gets silently dropped at the boundary); the remaining 5 (Scope, Features, Depends on, Parallel with, Delivers) become other sections in 03's ticket (Summary, Scope > In, Dependencies, Dependencies, Success Criteria respectively). See `03-expand-epic-files-fabrik` Metadata block and `epic-to-ticket-workflow/01-epic-brief-command` § Step 5 → Metadata.
+- Each per-epic compact entry carries **23 indented fields** under the `Epic [N]: [Name]` heading, in **five** groups: (1) **9 epic-shape fields** — Scope, Features, Scaffold, Depends on, Parallel with, Port, Delivers, Rule Packs, HAS_USER_GUIDE; (2) **6 inheritance-metadata fields** — Shape, Concurrency, i18n, Responsive, Dark+Light, Registrars; (3) **Universal categories** (1 field); (4) **3 conditional fields** — Abuse Detection, Email, FINANCIALS (each carries the project-wide Infrastructure Decisions value or `N/A` per the trigger); (5) **4 cross-epic-contract fields** — **Target host**, **Consumes**, **Produces**, **Owned paths** (the concurrency contract — see the parallel gate at 2c). 03's Metadata block consumes **15** of these (the 6 metadata + Scaffold + Port + **Target host** + Rule Packs + HAS_USER_GUIDE + Universal categories + the 3 conditionals); **Consumes**, **Produces** and **Owned paths** feed `03-expand-epic-files-fabrik` § Dependencies (⚠️ **the arithmetic must close: 15 + 3 + 5 = 23.** Every field has exactly one destination; a field with none is a field that gets silently dropped at the boundary); the remaining 5 (Scope, Features, Depends on, Parallel with, Delivers) become other sections in 03's ticket (Summary, Scope > In, Dependencies, Dependencies, Success Criteria respectively). See `03-expand-epic-files-fabrik` Metadata block and `epic-to-ticket-workflow/01-epic-brief-fabrik` § Step 5 → Metadata.
 - Owner explicitly confirms. Silence ≠ confirmation.
 
 **Existing mode adds:**

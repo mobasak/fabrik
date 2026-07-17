@@ -340,8 +340,8 @@ Derived from research — not invented.]
 ## Full Feature Inventory
 [Every feature the vision describes, numbered. This is the COMPLETE scope.
 Every feature from the research MUST appear here. Nothing silently dropped.]
-1. [Feature name] — [one-line description]
-2. [Feature name] — [one-line description]
+1. [Feature name] — [one-line description] (small/medium/large)
+2. [Feature name] — [one-line description] (small/medium/large)
 ...
 
 ## Backing Services (from VPS)
@@ -606,7 +606,7 @@ Wait for owner decisions. **STOP GENERATION HERE.** These decisions shape which 
 
 ### Step E5: Produce Vision Summary (EXISTING mode — with extra sections)
 
-A **superset** of the NEW-mode Vision Summary: identical **required sections**, so `02-epic-decomposition-command` consumes both identically. The H1 differs (`# Vision Summary: [Project Name] — [New Capability]` vs NEW-mode's `# Vision Summary: [Product Name]`), and there are two EXISTING-only sections `02` simply ignores (`Locked Decisions`, `Compliance Report`). Artifact title is `Vision Summary` — not "Continuation Summary".
+A **superset** of the NEW-mode Vision Summary: identical **required sections**, so `02-epic-decomposition-command` consumes both identically. The H1 differs (`# Vision Summary: [Project Name] — [New Capability]` vs NEW-mode's `# Vision Summary: [Product Name]`), and there are two EXISTING-only sections `02` additionally CONSUMES (`Locked Decisions` → inherited verbatim into its Infrastructure Decisions; `Compliance Report` → one Retrofit epic per `fix-now` row). Artifact title is `Vision Summary` — not "Continuation Summary".
 
 ```markdown
 # Vision Summary: [Project Name] — [New Capability]

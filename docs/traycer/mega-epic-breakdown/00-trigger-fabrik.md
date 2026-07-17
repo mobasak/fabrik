@@ -38,9 +38,10 @@
        · `/opt/fabrik-lib/README.md` + each candidate module's own README — the N3k-3 vendor ladder
        · the ACTIVE `.windsurf/rules` packs via `python scripts/select_rules.py` (run it against the
          PROJECT root) — PLUS the packs named by path that it will NEVER mark ACTIVE, which you must
-         therefore open deliberately or silently miss. The mechanism: `select_rules.py:24-42` selects on
-         frontmatter `globs:` ALONE — it never reads `activation:` — so a pack with no `globs:` key is
-         AVAILABLE forever, whatever its `activation:` says. Those are: `core/ocoron-design-system.md`
+         therefore open deliberately or silently miss. The mechanism: `select_rules.py` selects on frontmatter
+         `globs:` ALONE — `:24-39` parses only `globs:`/`description:`, and `:108` branches on
+         `any(_glob_has_match(...))`, which is False for an empty glob list. `activation:` is never read,
+         so a pack with no `globs:` key is AVAILABLE forever, whatever its `activation:` says. Those are: `core/ocoron-design-system.md`
          (no frontmatter at all), named in `agents-fabrik.md` § MANDATORY ORCHESTRATOR PRE-FLIGHT #5 which
          N1 orders you to run; `core/50-code-review.md` (`activation: model_decision`, no globs), named in
          the Rule pack index that Step E3.B consults; and Step E4's per-capability domain packs
@@ -67,7 +68,7 @@
 You are a **project intake architect**. You take the owner's research (or an interview) and turn it into a Vision Summary that `02-epic-decomposition-fabrik` can split into epics — grounding every feature, constraint and technology choice against what Fabrik actually is, and surfacing what the research MISSED rather than politely accepting it.
 
 
-This command is the **single entry point** for the `mega-epic-breakdown` workflow. It serves two modes — both produce a Vision Summary whose **required core sections are identical**, so `02-epic-decomposition-fabrik` consumes them identically. ⚠️ This twin **additionally** emits `## fabrik-lib Verdict` and `## Rejected Alternatives` (the output of the N3k live-research gate, which the Traycer twin has no tools to run) — `02-epic-decomposition-fabrik` inherits them, and on this path they are **always** present — the ⛔BLOCKING N3k gate emits both. If either is missing, that gate did not run: `02` **stops and says so** rather than re-deriving it `[canonical: 02-epic-decomposition-fabrik.md:174 — "the Traycer-twin fallback does not apply on this path"]`. Only the tool-less `02-epic-decomposition-command` runs the ladder itself.
+This command is the **single entry point** for the `mega-epic-breakdown` workflow. It serves two modes — both produce a Vision Summary whose **required core sections are identical**, so `02-epic-decomposition-fabrik` consumes them identically. ⚠️ This twin **additionally** emits `## fabrik-lib Verdict` and `## Rejected Alternatives` (the output of the N3k live-research gate, which the Traycer twin has no tools to run) — `02-epic-decomposition-fabrik` inherits them, and on this path they are **always** present — the ⛔BLOCKING N3k gate emits both. If either is missing, that gate did not run: `02` **stops and says so** rather than re-deriving it `[canonical: 02-epic-decomposition-fabrik.md § Step 2f, the fabrik-lib ladder bullet — "the Traycer-twin fallback does not apply on this path"]`. Only the tool-less `02-epic-decomposition-command` runs the ladder itself.
 
 - **NEW mode** — green-field project, no code, just an idea or research. Produces a fresh Vision Summary.
 - **EXISTING mode** — running project, code exists, services may already be deployed. Produces a Vision Summary + Locked Decisions section + Compliance Report section (the deltas + retrofits driving epic decomposition).
@@ -420,8 +421,8 @@ Derived from research — not invented.]
 ## Full Feature Inventory
 [Every feature the vision describes, numbered. This is the COMPLETE scope.
 Every feature from the research MUST appear here. Nothing silently dropped.]
-1. [Feature name] — [one-line description]
-2. [Feature name] — [one-line description]
+1. [Feature name] — [one-line description] (small/medium/large)
+2. [Feature name] — [one-line description] (small/medium/large)
 ...
 
 ## Backing Services (from VPS)
@@ -703,7 +704,7 @@ Wait for owner decisions. **STOP GENERATION HERE.** These decisions shape which 
 
 ### Step E5: Produce Vision Summary (EXISTING mode — with extra sections)
 
-A **superset** of the NEW-mode Vision Summary: identical **required sections**, so `02-epic-decomposition-fabrik` consumes both identically. The H1 differs (`# Vision Summary: [Project Name] — [New Capability]` vs NEW-mode's `# Vision Summary: [Product Name]`), and there are two EXISTING-only sections `02` simply ignores (`Locked Decisions`, `Compliance Report`). Artifact title is `Vision Summary` — not "Continuation Summary".
+A **superset** of the NEW-mode Vision Summary: identical **required sections**, so `02-epic-decomposition-fabrik` consumes both identically. The H1 differs (`# Vision Summary: [Project Name] — [New Capability]` vs NEW-mode's `# Vision Summary: [Product Name]`), and there are two EXISTING-only sections `02` additionally CONSUMES (`Locked Decisions` → inherited verbatim into its Infrastructure Decisions; `Compliance Report` → one Retrofit epic per `fix-now` row). Artifact title is `Vision Summary` — not "Continuation Summary".
 
 ```markdown
 # Vision Summary: [Project Name] — [New Capability]
