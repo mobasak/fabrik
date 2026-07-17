@@ -113,7 +113,7 @@ Read the Infrastructure Decisions spec and verify against epic tickets.
 
 For each epic ticket, verify it can feed into **`epic-to-ticket-workflow/00-trigger-workflow-command` in multi-epic (consume) mode** — the real entry point, which reads this ticket's **15-field Metadata block as the INFRA-CHECK** and only then hands off to `01-epic-brief-command`.
 
-⚠️ **The entry point is `00`, not `01`** (same as `03-expand-epic-files-command` § Entry Point and `05-dispatch-epic-tickets-command` Step 2). `01` § Path B *assumes* the INFRA-CHECK already exists — and `00` is the only command that emits it. So "handoff readiness" means **ready for `00`'s consume-mode check**, which is precisely the 15-field Metadata audit below:
+⚠️ **The entry point is `00`, not `01`** (same as `03-expand-epic-files-command` § Entry Point and `05-dispatch-epic-tickets-command` Step 3: Route to Dispatch). `01` § Path B *assumes* the INFRA-CHECK already exists — and `00` is the only command that emits it. So "handoff readiness" means **ready for `00`'s consume-mode check**, which is precisely the 15-field Metadata audit below:
 
 | Check | PASS | FAIL |
 |---|---|---|

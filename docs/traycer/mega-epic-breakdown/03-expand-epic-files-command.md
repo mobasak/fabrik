@@ -1,12 +1,3 @@
----
-description: Turn confirmed epic specs into actionable tickets. One ticket per epic.
-argumentHints:
-  - All epics, or specify epic numbers to ticket (e.g. "E1–E4")
-nextSteps:
-  - name: "04-cross-epic-validation"
-  - name: "execute"
----
-
 <!-- ⚠️ TRAYCER WORKFLOW SOURCE FILE
      Traycer does NOT read this file directly.
      After editing, copy-paste the content into Traycer workflow GUI.
@@ -37,6 +28,7 @@ You are a ticket breakdown orchestrator. You read the confirmed compact epic pro
 - Compact Epic Proposal (from `02-epic-decomposition-command`) — confirmed
 - Infrastructure Decisions spec (from `02-epic-decomposition-command`) — confirmed
 - Dependency Graph (from `02-epic-decomposition-command`) — confirmed
+- The confirmed **Vision Summary** (from `00-trigger-workflow-command`, in Traycer's store) — 02 does not restate it, and Step 2 cannot write a ticket without it: `## Full Feature Inventory` (Scope In must cite its feature IDs **and names** — 02's compact entry carries only the numbers), `## Out of Scope (Vision Level)` (vision-level exclusions), and — EXISTING mode — the `## Compliance Report` gap row each Retrofit epic's Success Criterion #1 hinges on
 
 Additionally read: `docs/operations/fabrik-lifecycle.md` — ⚠️ it covers **only lifecycle stages 3–4** (deploy/runtime behaviour + data safety); it carries **no** stage model. The 4-stage model (scaffold → implement → `fabrik apply` → `fabrik verify`) is asserted by the command chain itself: a **delta-feature** epic ticket must pass all four. ⚠️ **Retrofit exception:** a Retrofit on an already-deployed service creates **no new deploy unit** — it has no Stage-1/Stage-3 of its own; its Stage-3 equivalent is the gate + the compliance-row flip in Success Criteria #1.
 
@@ -46,7 +38,7 @@ Additionally read: `docs/operations/fabrik-lifecycle.md` — ⚠️ it covers **
 
 ### Step 1: Read All Epic Specs
 
-Call `read_spec` for every confirmed artifact from `02-epic-decomposition-command`.
+Call `read_spec` for every confirmed artifact from `02-epic-decomposition-command` **and for the Vision Summary from `00-trigger-workflow-command`**.
 
 Log each fetch: "Read: [spec title] — [N] characters."
 
@@ -54,7 +46,14 @@ Count: "Ready to ticket [N] epics."
 
 ### Step 2: Create One Ticket per Epic
 
-For each epic in the confirmed compact proposal, create a Traycer ticket. Two flavours from 02:
+⚠️ **Two modes.** *Full run* (the default): every epic below. *Repair run* — when `04` or `05` routes back naming specific tickets, act on ONLY those and leave every other ticket untouched:
+- **recreate** a named epic — create just that one, replacing any existing ticket for it (a `05` check-1 Deficit makes it *missing*; a boundary re-cut routed per `04-cross-epic-validation-command` makes an existing ticket *stale* — same action either way);
+- **renumber** a named mis-numbered ticket — fix its `Epic N — [Name]` **Title AND the Description's `## Epic N — [Name]` heading** in place (the ticket carries the epic string in both); do NOT create an additional ticket (that returns an Excess to `05` and loops);
+- **retitle** a named ticket whose Title violates `Epic N — [Name]` (em-dash, single spaces, optional `Retrofit:` prefix) — rewrite the **Title AND the Description's `## Epic N — [Name]` heading** in place; do NOT renumber it or rewrite the rest of the body;
+- **delete** a named orphan / redundant copy — delete exactly the ticket named, never one you inferred.
+Announce which mode you are in and which tickets it touches, then re-run `04-cross-epic-validation-command` before handing back: a repaired ticket has never been validated.
+
+For each epic in the confirmed compact proposal (full run) — or each named ticket (repair run) — create a Traycer ticket. Two flavours from 02:
 
 - **Delta-feature epic** — name like `User Management`, `Billing`, etc. Default template (Success Criteria 5–8).
 - **Retrofit epic** — name prefixed `Retrofit:` followed by the area (e.g. `Retrofit: i18n`, `Retrofit: Resilience on YouTube Data API`). Same template with the Retrofit-specific Success Criteria variants documented inline; 3–5 criteria permitted (a Retrofit has fewer naturally testable criteria than a delta-feature epic). ⚠️ **Not** conditional on being "code-only". The two N/A predicates are **independent**: **#3** is N/A only for a retrofit touching **no external-call sites** — a `Retrofit: Resilience …` epic **MUST keep #3** (`04-cross-epic-validation` § Step 3 fails it otherwise); **#4** is N/A only for one touching **no mutation surfaces**. When **both** are genuinely N/A, #1 and #2 alone yield 2, so the epic **MUST add at least one area-specific criterion** to reach the floor of 3 (`04` fails 'below per-flavour minimum' — no justification escape).
@@ -172,7 +171,7 @@ Total: [N] tickets. Each is dispatchable independently.
 - Description: self-sufficient spec derived verbatim from 02's confirmed output
 - Status: TODO (ready for dispatch)
 
-**Consumed by:** coding agents running `epic-to-ticket-workflow/01-epic-brief-command` when the ticket is dispatched.
+**Consumed by:** coding agents running `epic-to-ticket-workflow/00-trigger-workflow-command` in multi-epic (consume) mode when the ticket is dispatched — **not** `01` directly (see the Entry Point note in the template: only `00` emits the INFRA-CHECK that `01` § Path B expects). `01-epic-brief-command` then reads this same ticket directly (its Path B) — but only AFTER `00` has emitted the INFRA-CHECK.
 
 ## Does NOT
 
@@ -185,7 +184,7 @@ Total: [N] tickets. Each is dispatchable independently.
 
 - All epics from the confirmed proposal have a corresponding Traycer ticket.
 - Each ticket title follows the format: `Epic N — [Name]` (delta-feature) **or** `Epic N — Retrofit: [area]` (Retrofit). ⚠️ The `Retrofit:` prefix is the **sole carrier** of the epic flavour downstream — `epic-to-ticket/00` string-parses the Title. A title like `Epic 4 — i18n Retrofit` silently classifies as Delta-feature.
-- Each ticket description is self-sufficient: a coding agent can run `epic-to-ticket-workflow/01-epic-brief-command` using only the ticket + Infrastructure Decisions spec.
+- Each ticket description is self-sufficient: a coding agent can run `epic-to-ticket-workflow/00-trigger-workflow-command` in multi-epic (consume) mode — the chain's real entry point, never `01` directly — using only the ticket + Infrastructure Decisions spec.
 - Ticket length is **structure-bounded by the template** (no numeric token cap — per `EVALUATION_CHECKLIST_FOR_MEGA_EPIC_COMMANDS` item 93). A ticket that will not fit the template means the epic is **over-scoped** → route back to `02-epic-decomposition-command`.
 - Each ticket has ALL required sections: Summary, Scope (In/Out), Success Criteria (**5-8** measurable for delta-feature; **3-5** for Retrofit), Out of Scope, Dependencies (with specific artifacts, incl. **Owned paths** — the concurrency contract), Metadata (**all 15 fields**: Scaffold, Port, target_vps, Shape, Concurrency, i18n, Responsive, Dark+Light, Rule Packs, HAS_USER_GUIDE, Registrars, Universal categories, Abuse Detection, Email, FINANCIALS), Infrastructure reference, Execution Order, Entry Point.
 - Success Criteria are testable — "user can do X", not "system supports X."

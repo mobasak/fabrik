@@ -25,29 +25,31 @@ You are a dispatcher. You verify that all epic tickets from `03-expand-epic-file
 **Required — all in Traycer's store or conversation context:**
 
 - Epic tickets (from `03-expand-epic-files-command`) — one per epic
+- **Compact Epic Proposal** (from `02-epic-decomposition-command`) — in Traycer's spec store; fetch it with `read_spec`. Step 1's count-match and title-diff checks intersect exactly this artifact; without it check 1 reconstructs the count from the tickets themselves, which makes it tautological and lets the deficit/orphan case it exists to catch pass silently.
 - Dependency Graph spec (from `02-epic-decomposition-command`)
-- **Cross-Epic Validation Report with `Overall: PASS`** (from `04-cross-epic-validation-command`) — the most recent run in conversation context. The Report's "Recommended Execution Order" already gives the phased plan; 05 should PREFER consuming that over re-deriving from the graph (use re-derivation only if the Report is absent or stale).
+- **Cross-Epic Validation Report with `Overall: PASS`** (from `04-cross-epic-validation-command`) — the most recent run in conversation context. The Report's "Recommended Execution Order" already gives the phased plan; 05 should PREFER consuming that over re-deriving from the graph (use re-derivation only if the Report's Execution Order is absent — the Report itself being absent is a hard stop, below).
 
 **Hard stop if:**
 
 - 04 has not run, OR 04's last run was `Overall: FAIL`, OR the Report is not in the current conversation context. State: "05 cannot proceed without a confirmed `Overall: PASS` from `04-cross-epic-validation-command`. Run 04 first." Do NOT call `list_tickets`.
-- Dependency Graph spec is missing from Traycer's store AND the 04 Report's Execution Order is also absent. State: "Dispatch order cannot be derived — Dependency Graph spec missing and no 04 Report in context. Run `02-epic-decomposition-command` to re-emit the graph, then `04-cross-epic-validation-command`."
+- **Compact Epic Proposal is absent from BOTH Traycer's spec store (`read_spec`) and the conversation** — Step 1 check 1 cannot run; route back to `02-epic-decomposition-command` to re-emit it, then re-run `04-cross-epic-validation-command` before returning here (02's checkpoint can change the epic set 04 validated). ⚠️ Try `read_spec` FIRST: `02` persists it (§ Output Contract), so re-running 02 — and its owner checkpoint — to regenerate a spec the store already holds is the loop this chain exists to prevent.
+- Dependency Graph spec is missing from Traycer's store AND the 04 Report's Execution Order is also absent. State: "Dispatch order cannot be derived — Dependency Graph spec missing and the 04 Report carries no Recommended Execution Order. Run `02-epic-decomposition-command` to re-emit the graph, then `04-cross-epic-validation-command`."
 
 ## Processing User Request
 
 ### Step 1: List All Epic Tickets
 
-Call `list_tickets` to retrieve all tickets created in `03-expand-epic-files-command`.
+Call `read_spec` for the Compact Epic Proposal + Dependency Graph from `02-epic-decomposition-command` (persisted in Traycer's spec store per `02` § Output Contract), then call `list_tickets` to retrieve all tickets created in `03-expand-epic-files-command`.
 
 State: "Found [N] epic tickets: [list titles]."
 
 **Ticket-set integrity checks (all must pass — first failure halts dispatch):**
 
 1. **Count match** — `[N] == epic count from 02-epic-decomposition-command Compact Epic Proposal`. On mismatch:
-   - **Deficit** (fewer tickets than epics) — name the missing epic(s) by diffing `02` proposal titles against `list_tickets` titles. State: "Missing tickets: Epic [X] — [name], Epic [Y] — [name]. Re-run `03-expand-epic-files-command` to recreate ONLY the missing tickets (do NOT discard the existing ones). Then re-run `04-cross-epic-validation-command` before returning to 05."
-   - **Excess** (more tickets than epics) — name the orphan(s) by diffing the other direction. State: "Orphan tickets from a prior run: [titles]. Delete them in Traycer's UI, then re-run `04-cross-epic-validation-command`. Do NOT proceed with 05 — orphans can mask the dispatch intent."
+   - **Deficit** (fewer tickets than epics) — name the missing epic(s) by diffing `02`'s compact entries against the ticket titles on **epic number + name**. ⚠️ Never diff the literal title strings: the two formats differ by separator — 02 writes `Epic [N]: [Name]`, the tickets `Epic N — [Name]` — so a string diff mismatches on every epic and reports the whole set as both deficit and orphan. State: "Missing tickets: Epic [X] — [name], Epic [Y] — [name]. Re-run `03-expand-epic-files-command` to recreate ONLY the missing tickets (do NOT discard the existing ones). Then re-run `04-cross-epic-validation-command` before returning to 05."
+   - **Excess** (more tickets than epics) — name the orphan(s) by diffing the other direction. ⚠️ Two tickets can match the SAME entry (a stale in-range copy, e.g. `{1,2,3,3,4,5}` for 5 epics) — a set-diff then names ZERO orphans while the count says excess. So classify per ticket: matches no entry → orphan; two tickets match one entry → the earlier-created one is the stale copy → delete it in Traycer's store. State: "Orphan tickets from a prior run: [titles]. Delete them in Traycer's UI, then re-run `04-cross-epic-validation-command`. Do NOT proceed with 05 — orphans can mask the dispatch intent."
 2. **Title format match** — each ticket Title matches `Epic N — [Name]` (em-dash with single spaces; optional `Retrofit:` prefix in [Name]) per `03-expand-epic-files-command` Step 2. On any mismatch: "Ticket [actual title] does not match `Epic N — [Name]` format — 05 cannot map it to a dependency-graph node. Re-run `03-expand-epic-files-command` to fix the title."
-3. **Epic-number contiguity** — extracted epic numbers form `1..N` with no gaps. On gaps: state which numbers are missing; route to 03 for recreation.
+3. **Epic-number contiguity** — extracted epic numbers form `1..N` with no gaps. ⚠️ Check 1 has passed, so `N` tickets exist for `N` epics — a gap therefore proves a DUPLICATE or an out-of-range number — it does NOT prove nothing is missing (check 1 is count-only, so a deficit and an orphan can cancel out and reach here). Recreating the missing number blindly returns an Excess to check 1 and loops. Take every ticket whose number is duplicated or outside `1..N` and diff it against `02`'s compact entries on **epic NAME alone** — not the number (it is the thing under suspicion, so keying on it makes "mis-numbered" unmatchable), not the literal title (the separators differ, per check 1). Verdict per ticket: matches the entry for a number MISSING from the set → **mis-numbered**: route to `03-expand-epic-files-command` naming that ticket, to fix its number only — never create a new one. Matches an entry whose correctly-numbered ticket is a DIFFERENT ticket already in the set → **redundant copy**: delete it in Traycer's store; the missing number is then a genuine deficit → re-run `03` for ONLY it. Matches no entry → **orphan masking a deficit**: delete it, then re-run `03` for ONLY the missing ticket(s). Matches the entry its OWN number carries → **genuine, no action** — its co-numbered sibling is the copy. ⚠️ Where two tickets share a number, the **earlier-created** one (Traycer's ticket order/ID) is the stale copy: that is what makes "the correctly-numbered ticket" well-defined and what stops both copies being deleted. In every case re-run `04-cross-epic-validation-command` before returning to 05.
 
 If any of the 3 checks fail, STOP. Do not proceed to Step 2.
 
@@ -125,6 +127,7 @@ Dispatch instructions presented in conversation (structure-bounded, not document
 ## Acceptance Criteria
 
 - `list_tickets` confirms all epic tickets exist.
-- Ticket count matches epic count from `02-epic-decomposition-command`.
-- Dispatch order stated per Dependency Graph.
+- Ticket-set integrity confirmed: count matches `02-epic-decomposition-command`'s Compact Epic Proposal; every title matches `Epic N — [Name]`; epic numbers form `1..N` with no gaps.
+- Dispatch order stated — inherited from `04`'s Recommended Execution Order, or re-derived from the Dependency Graph ONLY when 04's order is absent.
+- Each epic's `Owned paths:` carried into its dispatch as the executing agent's file scope — drop it and the concurrency contract is decorative.
 - Route to `epic-to-ticket-workflow` implementation validation stated after execution.

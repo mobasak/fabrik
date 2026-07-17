@@ -431,14 +431,14 @@ Iterate until the owner explicitly confirms:
 
 ## Output Contract
 
-**Produced as spec artifacts (persisted by our orchestrator, readable on re-entry):**
+**Produced as CONVERSATION artifacts.** ⚠️ `02` writes nothing to disk (see § Does NOT below), so nothing here survives this session on its own: `03-expand-epic-files-fabrik` persists the **Infrastructure Decisions** (item 2) to `docs/superpowers/specs/` — carrying **item 5's Deferred Compliance appendix verbatim into it** as a `## Deferred Compliance (not actioned this run)` section — and that file IS cold-readable; it is what `04` reads. **Items 1, 3, 4 and 6 die with the session** (03 expands their content into the ticket files, but the artifacts themselves are not persisted), and a cold re-entry must RE-RUN `02`.
 
 1. **Compact Epic Proposal** (**≤400 tokens per epic; ≤4,000 tokens total**) — one entry per epic (delta-feature epics + **Retrofit epics** if Existing mode) with **all 23 fields per the template** (incl. Target host, Consumes, Produces — see the Acceptance Criteria for the five groups).
 2. **Infrastructure Decisions** — shared across all epics. ≤5,000 tokens. In Existing mode, overlapping sections inherit Locked Decisions verbatim.
 3. **Dependency Graph** — mermaid diagram + execution order. Retrofit epics receive dependency analysis identical to delta epics.
 4. **Coverage Check** — every feature mapped to exactly one epic.
-5. **Deferred Compliance appendix (Existing mode only)** — Compliance Report rows the owner classified as `fix-later` or `accept-as-legacy`. Surfaced for owner awareness; produces no epics.
-6. **Universal Coverage Check** — 14-line verdict block (one verdict per universal category from 2h) + overlay-merge summary if any scaffold overlays loaded. Stored as part of the proposal spec; consumed by the operator at the Checkpoint and by 03 implicitly via the per-epic `Universal categories` field in the Compact Epic Proposal.
+5. **Deferred Compliance appendix (Existing mode only)** — Compliance Report rows the owner classified as `fix-later` or `accept-as-legacy`. Surfaced for owner awareness; produces no epics — and because it produces none, no ticket can carry it: `03` persists it verbatim into the Infrastructure Decisions spec's `## Deferred Compliance (not actioned this run)` section, which is the only reason these rows survive the session.
+6. **Universal Coverage Check** — 14-line verdict block (one verdict per universal category from 2h) + overlay-merge summary if any scaffold overlays loaded. Stored under the `### Universal Coverage Check` heading on the compact proposal (per 2h); consumed by `03` via each epic's `Universal categories` field.
 
 **NOT produced here (deferred to `03-expand-epic-files-fabrik`):**
 

@@ -16,7 +16,10 @@
          Glob; the file count IS the epic count)
        · the **Vision Summary** (`00-trigger-fabrik` output — its `## Full Feature Inventory` and, in
          EXISTING mode, its `## Compliance Report`)
-       · the **Infrastructure Decisions** spec + the **Dependency Graph** (`02-epic-decomposition-fabrik`)
+       · the **Infrastructure Decisions** spec — content decided by `02`, PERSISTED by `03` to
+         `docs/superpowers/specs/YYYY-MM-DD-<project>-infrastructure-decisions.md`; read it from disk (every
+         ticket cites that path). It ALSO carries `## Deferred Compliance (not actioned this run)` — lens D's source for the
+         `fix-later`/`accept-as-legacy` rows, which emit no epic and live nowhere else — + the **Dependency Graph** (`02-epic-decomposition-fabrik`, in conversation)
        · `PORTS.md` — the port-allocation registry (a `Port` claim is checked against it, not eyeballed)
        · `src/fabrik/orchestrator/infrastructure.py` — the applicability matrix, to check `Registrars` ↔ `Shape`
        · `.windsurf/rules/**` — existence check only, to confirm a cited `Rule Packs` entry is real
@@ -48,7 +51,7 @@ The **cross-epic (epic-set) review orchestrator** — Opus 4.8, running the driv
 **Required** — hard requirements, not preferences; if any is absent this command does not review, it **routes back** (Step 1):
 
 - **Vision Summary** (`00-trigger-fabrik`) — its `## Full Feature Inventory` is lens A's yardstick; in EXISTING mode its `## Compliance Report` drives lens D's Deferred-Compliance check.
-- **Infrastructure Decisions** spec + **Dependency Graph** (`02-epic-decomposition-fabrik`) — lens D's and lens C's yardsticks.
+- **Infrastructure Decisions** spec (decided by `02`, persisted to disk by `03` at `docs/superpowers/specs/YYYY-MM-DD-<project>-infrastructure-decisions.md` — read it there; it also carries the `## Deferred Compliance (not actioned this run)` section lens D checks) + **Dependency Graph** (`02-epic-decomposition-fabrik`, in conversation) — lens D's and lens C's yardsticks.
 - **Epic ticket FILES** (`03-expand-epic-files-fabrik`) — one per epic under `docs/development/epics/`; enumerate with Glob, **the file count IS the epic count**.
 
 ## Output Contract
@@ -61,7 +64,7 @@ The **cross-epic (epic-set) review orchestrator** — Opus 4.8, running the driv
 
 ### Step 1: Read All Artifacts
 
-Glob `docs/development/epics/*.md` and read every ticket in full; read the Vision Summary + Infrastructure Decisions + Dependency Graph. **If any is missing, do not review — ROUTE BACK** (not a halt): state which, hand to the creating command (`00` for the Vision Summary, `02` for the decomposition specs, `03` for a ticket), and re-enter here once it re-emits. State: *"Read the Vision Summary + Infrastructure Decisions and [M] epic tickets."*
+Glob `docs/development/epics/*.md` and read every ticket in full; read the Vision Summary + Infrastructure Decisions + Dependency Graph. **If any is missing, do not review — ROUTE BACK** (not a halt): state which, hand to the creating command (`00` for the Vision Summary; `02` for the decomposition CONTENT; `03` for a ticket **or for the Infrastructure Decisions FILE** — `02` writes nothing to disk, so only `03` can re-emit a missing spec file), and re-enter here once it re-emits. State: *"Read the Vision Summary + Infrastructure Decisions and [M] epic tickets."*
 
 ### Step 2: Dispatch the Cross-Epic Review — reviewer agents (BOTH mechanisms)
 
@@ -119,7 +122,7 @@ Each reviewer commits to a lens before seeing the others; **you (Opus) refute/me
 | All shared decisions present | per `02` Step 3: Database · Auth · Email · Background Processing · Embedding Model (if RAG) · Self-Healing Ladder (if `shape.kind ∈ {service, worker}`) · Watchdog Wiring (**ON by default** — the resolver reads the raw spec dict `[canonical: src/fabrik/orchestrator/infrastructure.py — watchdog applies unless the spec sets watchdog enabled false]`; ⚠️ the `shape.kind` matrix in `core/60-watchdog.md` is **operator discipline, NOT code-enforced** — a `static-site` gets a watchdog despite the matrix saying `off`) · Observability Defaults · Cost Guardrails (any paid-API use) · Backing Services · External Services · Domain Structure · Shared Env Vars · Shared Shape Decisions | missing section: [name] |
 | Tickets reference, not duplicate | epics say "Inherited from Infrastructure Decisions" | Epic N re-defines [decision] differently |
 | No contradictions | consistent across all tickets | Epic N says X, the spec says Y |
-| **Deferred Compliance appendix** (EXISTING mode only) | if the Compliance Report has any `fix-later` / `accept-as-legacy` row, an appendix lists every one — those rows emit **no epic**, so the appendix is their only carrier `[canonical: 02-epic-decomposition-fabrik § Step 2b]`. N/A in NEW mode or when all rows are `fix-now` | such a row appears in no epic and no appendix → the owner's deliberate deferral was silently dropped → route to `02` 2b |
+| **Deferred Compliance appendix** (EXISTING mode only) | if the Compliance Report has any `fix-later` / `accept-as-legacy` row, an appendix lists every one — those rows emit **no epic**, so the appendix is their only carrier, and `03` persists it into the Infrastructure Decisions spec's `## Deferred Compliance (not actioned this run)` section — **read it there**, not from conversation `[canonical: 02-epic-decomposition-fabrik § Step 2b — fix-later/accept-as-legacy rows emit no epic]`. N/A in NEW mode or when all rows are `fix-now` | such a row appears in no epic and no appendix → the owner's deliberate deferral was silently dropped. ⚠️ Route by cause: present in the Compliance Report but missing from the spec's section → `03` (it didn't carry them); deferred by the owner but never surfaced by 02 → `02` 2b |
 
 **E. Handoff readiness** — each ticket must feed **`epic-to-ticket-workflow/00-trigger-fabrik` in multi-epic (consume) mode**, which reads the ticket's 15-field Metadata **as the INFRA-CHECK** and only then hands to `01-epic-brief-fabrik`. ⚠️ **The entry point is `00`, not `01`** — `01` § Path B *assumes* the INFRA-CHECK exists, and `00` is the only command that emits it.
 
@@ -137,7 +140,7 @@ Each reviewer commits to a lens before seeing the others; **you (Opus) refute/me
 Classify every surviving finding, then handle it autonomously — everything short of a BLOCKED case:
 
 - **Surgical ticket fix** (a missing Metadata field, a wrong title format, an absent `Owned paths`, an off-contract field value) → a **scoped fixup ticket** naming the finding's `path:line` + the required value, **dispatched** through `libs/subagents`: the pool `pick_models("docs")`/`pick_models("spec")` via `fanout` for an epic-file edit, or **`claude -p opus`** for a high-risk one (e.g. a migration-owner correction) `[canonical: 06-ticket-breakdown-fabrik § Step 9 — the coder tiers]`. Re-read + re-review to confirm. ⚠️ **NOT** a `Registrars`↔`Shape` mismatch — lens E routes that to `02` (a silently-broken deploy, not a metadata gap) and lens E is the authority on it.
-- **Boundary / scope change** (orphans, duplicates, phantoms, a wrong split, a port re-allocation, a missing Infrastructure-Decisions section) → **route back**: `02-epic-decomposition-fabrik` (boundaries, ports, Step 3 sections, sub-step 2h universal coverage), then `03-expand-epic-files-fabrik` to recreate the affected tickets. Never re-cut epics here.
+- **Boundary / scope change** (orphans, duplicates, phantoms, a wrong split, a port re-allocation, a missing Infrastructure-Decisions **section**) → **route back**: `02-epic-decomposition-fabrik` (boundaries, ports, Step 3 sections, sub-step 2h universal coverage) — ⚠️ but a missing Infrastructure-Decisions **FILE** is `03`'s (02 persists nothing), and a missing or incomplete `## Deferred Compliance (not actioned this run)` section inside it routes **by cause, per lens D — the authority on it**: rows present in the Compliance Report but absent from the spec → `03` didn't carry them; rows the owner deferred that `02` never surfaced → `02` 2b. Then `03-expand-epic-files-fabrik` to recreate the affected tickets. Never re-cut epics here.
 - **Vision Summary corrupted** (lens A's inventory missing/empty) → route to `00-trigger-fabrik`; do NOT continue.
 - **BLOCKED cases** — 3 consecutive same-test failures on one fixup → case 1 (Telegram, pause that thread, continue); missing infra → case 2; unresolvable spec contradiction → case 3.
 
