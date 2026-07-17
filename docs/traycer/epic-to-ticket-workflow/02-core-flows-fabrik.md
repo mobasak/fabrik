@@ -131,4 +131,4 @@ Present. Iterate until the user explicitly confirms flows are complete — silen
 
 ---
 
-**Next (CC1 pairing, north star § Command-chain build plan):** converge this Core Flows spec with `/fabrik-ettw-review <spec path> core-flows` — it forces the no-op (every Success Criterion covered, one `[PRIMARY PATH]` per flow, resilience + i18n + state flags present, no implementation detail, zero hollow citations) before anything consumes it. Then → `03-tech-plan-command`. *(Downstream ettw twins are built incrementally; refs point to the live Traycer `-command` source and flip to `-fabrik` as each twin lands.)*
+**Next (CC1 pairing, north star § Command-chain build plan):** converge this Core Flows spec with `/fabrik-workflow-review <spec path> core-flows` — it forces the no-op (every Success Criterion covered, one `[PRIMARY PATH]` per flow, resilience + i18n + state flags present, no implementation detail, zero hollow citations) before anything consumes it. Then → `03-tech-plan-command`. *(Downstream ettw twins are built incrementally; refs point to the live Traycer `-command` source and flip to `-fabrik` as each twin lands.)*

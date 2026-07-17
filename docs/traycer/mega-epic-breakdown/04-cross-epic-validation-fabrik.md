@@ -8,7 +8,7 @@
      -->
 
 <!-- ⚠️ QUALITY GATE: Any modification to this command file MUST be evaluated
-     against EVALUATION_CHECKLIST_FOR_MEGA_EPIC_COMMANDS.md (101 items).
+     against EVALUATION_CHECKLIST_FOR_MEGA_EPIC_COMMANDS.md.
      Every applicable item must pass. "N/A" is valid; forgetting to check is not. -->
 
 # Cross-Epic Validation

@@ -295,4 +295,4 @@ User confirms. Proceed.
 
 ---
 
-**Next (CC1 pairing, north star § Command-chain build plan):** converge this command's output with `/fabrik-ettw-review <emitted INFRA-CHECK> trigger` — it forces the no-op on the INFRA-CHECK (all fields present, valued, Path-A/B-consistent, no silent drops) before anything consumes it. Then hand the confirmed epic to `01-epic-brief-fabrik`.
+**Next (CC1 pairing, north star § Command-chain build plan):** converge this command's output with `/fabrik-workflow-review <emitted INFRA-CHECK> trigger` — it forces the no-op on the INFRA-CHECK (all fields present, valued, Path-A/B-consistent, no silent drops) before anything consumes it. Then hand the confirmed epic to `01-epic-brief-fabrik`.

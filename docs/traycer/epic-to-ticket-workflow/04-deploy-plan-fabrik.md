@@ -129,4 +129,4 @@ Present the deploy plan; the user confirms shape + compose + registrars + env va
 
 ---
 
-**Next (CC1 pairing, north star § Command-chain build plan):** converge this Deploy Plan with `/fabrik-ettw-review <spec path> deploy-plan` — it forces the no-op (all 8 shape flags mapped, all 10 registrars in the surface map, compose contract complete, destroy path reversible, `/health` not behind auth, zero hollow citations) before anything consumes it. Then → `05-ticket-outline-command`. *(Downstream ettw twins are built incrementally; refs point to the live Traycer `-command` source and flip to `-fabrik` as each twin lands.)*
+**Next (CC1 pairing, north star § Command-chain build plan):** converge this Deploy Plan with `/fabrik-workflow-review <spec path> deploy-plan` — it forces the no-op (all 8 shape flags mapped, all 10 registrars in the surface map, compose contract complete, destroy path reversible, `/health` not behind auth, zero hollow citations) before anything consumes it. Then → `05-ticket-outline-command`. *(Downstream ettw twins are built incrementally; refs point to the live Traycer `-command` source and flip to `-fabrik` as each twin lands.)*
