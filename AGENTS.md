@@ -44,9 +44,9 @@
 
 Two entry paths depending on scope:
 
-**Single-epic:** `docs/traycer/epic-to-ticket-workflow/` — `00-trigger` → `01-epic-brief` → `02-core-flows` → `03-tech-plan` → `04-deploy-plan` → `05-ticket-outline` → implementation (`06-07-08`) → validation (`09-11`).
+**Single-epic:** `docs/orchestrator/epic-to-ticket-workflow/` (the `-fabrik` files; Traycer `-command` twins are reference copies under `docs/traycer/`) — `00-trigger` → `01-epic-brief` → `02-core-flows` → `03-tech-plan` → `04-deploy-plan` → `05-ticket-outline` → implementation (`06-07-08`) → validation (`09-11`).
 
-**Multi-epic (large vision):** `docs/traycer/mega-epic-breakdown/` — `00-trigger` (vision intake + scale assessment) → `02-epic-decomposition` → `03-expand-epic-files` → `04-cross-epic-validation` → `05-dispatch`. Each dispatched epic then runs `epic-to-ticket-workflow` in consume mode (00-trigger reads the epic ticket's Metadata as its INFRA-CHECK input).
+**Multi-epic (large vision):** `docs/orchestrator/mega-epic-breakdown/` (the `-fabrik` files; Traycer `-command` twins under `docs/traycer/`) — `00-trigger` (vision intake + scale assessment) → `02-epic-decomposition` → `03-expand-epic-files` → `04-cross-epic-validation` → `05-dispatch`. Each dispatched epic then runs `epic-to-ticket-workflow` in consume mode (00-trigger reads the epic ticket's Metadata as its INFRA-CHECK input).
 
 **Existing project continuation:** use `mega-epic-breakdown/00-trigger-workflow-command` and declare **EXISTING mode** when prompted at Step 0. The command branches into the continuation path (project snapshot + Compliance Detection with mechanical / rule-pack / owner-decision sub-steps + delta scoping). Output is a Vision Summary in the same shape as new-mode + two extra sections (`Locked Decisions`, `Compliance Report`). `02-epic-decomposition` consumes the Vision Summary identically and emits **Retrofit epics** for every `fix-now` row in the Compliance Report alongside the delta-feature epics.
 
@@ -89,7 +89,8 @@ Traycer plans against `AGENTS.md`. Agent-execution contracts, rule packs, and wo
 | File / Path | Owner | Traycer May Edit? |
 |---|---|---|
 | `AGENTS.md` | Traycer (this file — planner context) | ✅ Yes |
-| `docs/traycer/epic-to-ticket-workflow/**` + `docs/traycer/mega-epic-breakdown/**` | Traycer (workflow definitions) | ✅ Yes |
+| `docs/orchestrator/epic-to-ticket-workflow/**` + `docs/orchestrator/mega-epic-breakdown/**` | OUR runnable `-fabrik` chain (workflow definitions) | ✅ Yes |
+| `docs/traycer/epic-to-ticket-workflow/**` + `docs/traycer/mega-epic-breakdown/**` | Traycer `-command` twins (reference; keep in factual lockstep with the `-fabrik` files) | ✅ Yes |
 | `docs/traycer/fabrik-workflow.md` | Reference copy (do not diverge from workflow definitions) | ✅ Yes |
 | `CLAUDE.md` | Claude Code bootstrap | ❌ No |
 | `.windsurfrules` | Windsurf Cascade bootstrap | ❌ No |
@@ -623,5 +624,5 @@ Traycer plans against these rules but does NOT inline them into tickets — the 
 | AI Agent Directives | `docs/reference/ai_agent_prompt_directives.md` | Copy-paste phrases for steering agent quality |
 | GPU Workers Guide | `.windsurf/rules/core/76-gpu-workers.md` | GPU cloud decisions — when to self-host vs managed API, provider selection |
 | Lessons Learnt | `docs/LESSONS_LEARNT.md` | Past incidents, decisions, anti-patterns |
-| epic-to-ticket-workflow | `docs/traycer/epic-to-ticket-workflow/` | Single-epic planning + execution (00-11); also the per-epic execution engine in mega-epic runs |
-| mega-epic-breakdown | `docs/traycer/mega-epic-breakdown/` | Large vision → epics → tickets → dispatch (5 commands); `00-trigger` is the single entry serving both new and existing projects (owner declares mode at Step 0) |
+| epic-to-ticket-workflow | `docs/orchestrator/epic-to-ticket-workflow/` (`-fabrik`; Traycer `-command` twins under `docs/traycer/`) | Single-epic planning + execution (00-11); also the per-epic execution engine in mega-epic runs |
+| mega-epic-breakdown | `docs/orchestrator/mega-epic-breakdown/` (`-fabrik`; Traycer `-command` twins under `docs/traycer/`) | Large vision → epics → tickets → dispatch (5 commands); `00-trigger` is the single entry serving both new and existing projects (owner declares mode at Step 0) |

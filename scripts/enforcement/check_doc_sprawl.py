@@ -84,6 +84,11 @@ ALLOWED_PATTERNS = [
     # Same dated shape as the plans pattern above, deliberately: one artifact per file,
     # greppable, and unambiguously distinct from a plan.
     re.compile(r"^docs/development/epics/\d{4}-\d{2}-\d{2}-epic-\d+-.+\.md$"),
+    # Orchestrator cockpit + our runnable workflow definitions: docs/orchestrator/**
+    # The `-fabrik` command files, their EVALUATION_CHECKLISTs, the north-star, and the
+    # cockpit design docs live here (moved out of docs/traycer/ 2026-07-17, which keeps
+    # the Traycer `-command` twins). Hub-only path; harmless on projects (dir absent).
+    re.compile(r"^docs/orchestrator/.+\.md$"),
 ]
 
 

@@ -59,7 +59,7 @@
      -->
 
 <!-- ⚠️ QUALITY GATE: Any modification MUST be evaluated against
-     docs/traycer/mega-epic-breakdown/EVALUATION_CHECKLIST_FOR_MEGA_EPIC_COMMANDS.md. -->
+     docs/orchestrator/mega-epic-breakdown/EVALUATION_CHECKLIST_FOR_MEGA_EPIC_COMMANDS.md. -->
 
 # Project Intake (Entrypoint — Vision for NEW, Continuation for EXISTING)
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: docs/traycer/** | none
+# AFTER-EDIT: docs/orchestrator/** docs/traycer/** | none
 """Semantic detectors for the Traycer command chain.
 
 Three defect classes that hand-grepping failed to eliminate four separate times.
@@ -25,7 +25,15 @@ import glob
 import re
 import sys
 
-DIRS = ("docs/traycer/mega-epic-breakdown", "docs/traycer/epic-to-ticket-workflow")
+# The `-fabrik` files (our runnable chain) moved to docs/orchestrator/ (2026-07-17);
+# the `-command`/`-workflow-command` Traycer twins stayed in docs/traycer/. Scan BOTH
+# roots so the A/B/C detectors keep guarding the -fabrik files they exist for.
+DIRS = (
+    "docs/orchestrator/mega-epic-breakdown",
+    "docs/orchestrator/epic-to-ticket-workflow",
+    "docs/traycer/mega-epic-breakdown",
+    "docs/traycer/epic-to-ticket-workflow",
+)
 
 BRANCH = re.compile(r"retrofit|optional|delta-feature|always runs \*{0,2}tier 3", re.I)
 NEG = re.compile(r"\bno\b|\bnot\b|do not assume|operator discipline|never|except", re.I)

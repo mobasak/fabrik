@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Our runnable `-fabrik` chain moved to docs/orchestrator/, split from the Traycer reference twins (2026-07-17)
+
+The operator is building their own orchestrator (fork agetor, D1), so the workflow content was reorganized to make ownership legible. Moved to `docs/orchestrator/`: the north-star, the three orchestrator-cockpit design docs, and every `-fabrik` command file + its EVALUATION_CHECKLIST (mega `00/02/03/04/05`, ettw `00`–`11`), keeping the `mega-epic-breakdown/` and `epic-to-ticket-workflow/` subfolder names. The Traycer `-command`/`-workflow-command` twins stay under `docs/traycer/` as reference. All full-path references repointed (north-star, both checklists, cockpit docs — across the specs, plan, AGENTS.md map, and the twin that cited the north-star); bare workflow-relative refs stayed valid since the tree moved intact. Two synced enforcement scripts updated: `check_traycer_chain.py` now scans both roots (else its A/B/C detectors would silently stop guarding the moved `-fabrik` files), and `check_doc_sprawl.py` allowlists `docs/orchestrator/**`.
+
+
 ### Changed — Mega-epic-breakdown twins converged; the 02→03→04→05 persistence contract closed (2026-07-17)
 
 All five `mega-epic-breakdown` `-fabrik` twins (`00`/`02`/`03`/`04`/`05`) now carry a `Reads:` budget + `[canonical:]` citations and are converged to md5-stable no-ops, with the Traycer twins kept in factual + logic lockstep. The shared review skill is folder-neutral (`/fabrik-workflow-review`, renamed from `/fabrik-ettw-review`) and the mega checklist gained its hollow-citation item (#102). `11-deploy-fabrik` completes the ettw chain as the deploy-out human gate.

@@ -154,7 +154,7 @@ FAIL = the epic that does not own the schema **depends-on** the one that does. T
 FAIL on ANY of the three = fix, re-run all three for that epic, confirm PASS.
 Do NOT present the proposal until every parallel-labeled epic has **three** PASS verdicts on record.
 
-> **Why this matters beyond planning:** the operator's requirement is to run *multiple agents in one project concurrently, on different scopes, without touching the same files* (`docs/traycer/00-autonomous-factory-north-star.md` R16). `Owned paths:` is what makes that checkable — and it is what the future driver will hand each worker as its `File Scope (owned paths)`. A `parallel` label with no disjointness proof is a promise the repo cannot keep.
+> **Why this matters beyond planning:** the operator's requirement is to run *multiple agents in one project concurrently, on different scopes, without touching the same files* (`docs/orchestrator/00-autonomous-factory-north-star.md` R16). `Owned paths:` is what makes that checkable — and it is what the future driver will hand each worker as its `File Scope (owned paths)`. A `parallel` label with no disjointness proof is a promise the repo cannot keep.
 
 **2d. Order for value delivery:**
 - State the **CRITICAL PATH** — the longest sequential epic chain — as e.g. `Critical path: Epic 1 → Epic 3 → Epic 5 (3 deep)`. Present it at the Checkpoint.

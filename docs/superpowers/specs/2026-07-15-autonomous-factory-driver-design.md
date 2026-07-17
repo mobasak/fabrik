@@ -2,7 +2,7 @@
 
 **Status:** CONVERGED · **Date:** 2026-07-15 · **Owner:** operator
 **Convergence (`/fabrik-spec-review`):** Pass 1 — 2 edits (split the over-claimed converger vendor row into `fanout`=VENDOR / the loop=BUILD; added the north-star row-map). Pass 2 — **0 edits, md5 `dfd9550a0329` stable** → the fixed point. External facts re-verified live this session (`claude -p` headless behaviour; Fable 5 $10/$50 metered-since-07-07; Opus $5/$25). Vendor verdict audited against the real modules (`job-queue` provides SKIP-LOCKED + fork + hard-timeout + crash-detect + autoscale + SIGTERM-requeue; `db-pool`/`alerting` confirmed; `fanout` is a single dispatch, so the converge-loop is BUILD not vendor). Axis-E constraint audit clean (no Stripe/Pinecone/Supabase/Alpine/direct-SDK; 12-Factor IX/IV/XI satisfied; cost-budget present).
-**North star:** [`docs/traycer/00-autonomous-factory-north-star.md`](../../traycer/00-autonomous-factory-north-star.md) — **this spec is the design for the north star's single largest open gap.** It directly fulfils, and on ship flips to DONE, these rows of that doc:
+**North star:** [`docs/orchestrator/00-autonomous-factory-north-star.md`](../../orchestrator/00-autonomous-factory-north-star.md) — **this spec is the design for the north star's single largest open gap.** It directly fulfils, and on ship flips to DONE, these rows of that doc:
 
 | North-star item | What it says | This spec |
 |---|---|---|

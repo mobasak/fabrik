@@ -19,7 +19,7 @@ In the autonomous factory (north-star D3/D4/R14), the **driver (Opus 4.8) must R
 - Traycer is **not retired** (owner-confirmed) — the GUI path must keep working during the transition, so each twin's grounding pass also fixes the `-command` source's **load-bearing** stale anchors (near-free), without converging the source itself.
 - The twins are the **template the whole factory copies** — a defect in a converged twin propagates. Hence the convergence discipline is non-negotiable.
 
-## The end-to-end factory these twins serve `[canonical: docs/traycer/00-autonomous-factory-north-star.md § The two-workflow factory]`
+## The end-to-end factory these twins serve `[canonical: docs/orchestrator/00-autonomous-factory-north-star.md § The two-workflow factory]`
 
 The `-fabrik` twins are the **command layer of the Fabrik-managed workflow** — one part of a larger idea→deploy factory. Both `docs/traycer/` chains run the **same pipeline**, differing only in **who orchestrates**. Each step is converged to a no-op by its paired review before the next starts:
 
@@ -50,7 +50,7 @@ The twin is not a re-format of the source; it exists to **do what Traycer struct
 
 ## The enforcement bar (what "same detail as the fabrik commands" means)
 
-Each twin carries the enforcement **appropriate to its role** (mapped in the parity matrix below — a human-gated `11` or a thin dispatcher `05` applies less than a full doer), drawn from the same discipline the `/fabrik-*` commands enforce: the north-star CC1–CC7 build principles `[canonical: docs/traycer/00-autonomous-factory-north-star.md § Command-chain build plan]`. That discipline set:
+Each twin carries the enforcement **appropriate to its role** (mapped in the parity matrix below — a human-gated `11` or a thin dispatcher `05` applies less than a full doer), drawn from the same discipline the `/fabrik-*` commands enforce: the north-star CC1–CC7 build principles `[canonical: docs/orchestrator/00-autonomous-factory-north-star.md § Command-chain build plan]`. That discipline set:
 
 1. **Grounding** — every claim (anchors, counts, triggers) verified against real `path:line`; the stale source is a map of what to verify, never truth.
 2. **CC2 citation discipline** — provenance-tagged `[canonical: …]` / inlined / zero hollow (checklist **item 132**), plus a `Reads:` budget header (anti-bloat, anti-poisoning).
