@@ -5,7 +5,7 @@
 ## Project Portfolio
 
 <!-- AUTO-GENERATED:PROJECTS:START -->
-<!-- Total projects: 46 -->
+<!-- Total projects: 47 -->
 
 ### Production Services (5 projects)
 
@@ -66,5 +66,11 @@
 | **marketing-argumant-generator** | AI-powered marketing argument and copy generation tool. | Python | 🔨 Development | https://marketing-argument-generator.vps1.ocoron.com | ✅ Current |
 | **test-saas-for-epic-wf** | No description available | Unknown | 🔨 Development | - | ⚠️ No project.yaml |
 | **web-scraper** | Scrapy + Playwright web scraper extracting content for AI training pipelines. | Flask | 🔨 Development | - | ✅ Current |
+
+### Shell Projects (1 projects)
+
+| Project | Purpose | Stack | Status | URL | Scaffold |
+|---------|---------|-------|--------|-----|----------|
+| **Traycer** | No description available | Unknown | 🔨 Development | - | ❌ No scaffold |
 
 <!-- AUTO-GENERATED:PROJECTS:END -->

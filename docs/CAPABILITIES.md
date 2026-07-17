@@ -134,6 +134,7 @@
 - [scripts/enforcement/check_spec_db_match.py](INDEX.md): Phase 1c (deploy-readiness-gaps): spec <-> project DB-name consistency.
 - [scripts/enforcement/check_synced_unmodified.py](INDEX.md): AFTER-EDIT: none
 - [scripts/enforcement/check_traefik_labels.py](INDEX.md): Tier 1 enforcement: every Traefik-enabled service declares the full §7 label set.
+- [scripts/enforcement/check_traycer_chain.py](INDEX.md): AFTER-EDIT: docs/traycer/** | none
 - [scripts/enforcement/check_user_guide.py](INDEX.md): Tier 2 enforcement: verifies docs/user-guide/ exists and contains at least one
 - [scripts/enforcement/check_vps_docs.py](INDEX.md): Check VPS documentation freshness.
 - [scripts/enforcement/validate_conventions.py](INDEX.md): Fabrik Convention Validator - Orchestrates all convention checks.
@@ -185,6 +186,7 @@
 - [app-audit-log](/opt/fabrik-lib/app-audit-log/README.md): app-audit-log
 - [async-http-client](/opt/fabrik-lib/async-http-client/README.md): fabrik-lib/async-http-client — Pooled AsyncClient + Asyncio Circuit Breaker
 - [captcha-solve](/opt/fabrik-lib/captcha-solve/README.md): captcha-solve — provider-pluggable captcha solving (reCAPTCHA / hCaptcha / Turnstile / image)
+- [chrome-ext-billing-kit](/opt/fabrik-lib/chrome-ext-billing-kit/README.md): chrome-ext-billing-kit
 - [claude-evaluator](/opt/fabrik-lib/claude-evaluator/README.md): claude-evaluator/
 - [concurrency-throttle](/opt/fabrik-lib/concurrency-throttle/README.md): concurrency-throttle
 - [cookie-consent](/opt/fabrik-lib/cookie-consent/README.md): cookie-consent
@@ -222,15 +224,16 @@
 - [revenuecat-entitlements](/opt/fabrik-lib/revenuecat-entitlements/README.md): revenuecat-entitlements
 - [rn-analytics-kit](/opt/fabrik-lib/rn-analytics-kit/README.md): rn-analytics-kit
 - [rn-auth-kit](/opt/fabrik-lib/rn-auth-kit/README.md): rn-auth-kit
-- [rn-billing-kit](#): vendor /opt/fabrik-lib/rn-billing-kit/
+- [rn-billing-kit](/opt/fabrik-lib/rn-billing-kit/README.md): rn-billing-kit
 - [rn-compliance-kit](/opt/fabrik-lib/rn-compliance-kit/README.md): rn-compliance-kit
-- [rn-media-kit](#): vendor /opt/fabrik-lib/rn-media-kit/
+- [rn-media-kit](/opt/fabrik-lib/rn-media-kit/README.md): rn-media-kit
 - [speech-detect](/opt/fabrik-lib/speech-detect/README.md): speech-detect
 - [storage](/opt/fabrik-lib/storage/README.md): fabrik-lib/storage — Unified File Storage
 - [subagents](/opt/fabrik-lib/subagents/README.md): subagents — vendorable parallel-subagent runtime (OpenRouter-direct)
 - [tenancy](/opt/fabrik-lib/tenancy/README.md): tenancy
 - [watchdog](/opt/fabrik-lib/watchdog/README.md): watchdog — per-project AI self-heal sidecar (poll → diagnose → act → escalate)
 - [web-scrape](/opt/fabrik-lib/web-scrape/README.md): web-scrape — deterministic scrape primitive: httpx for static, vps1 browserless for JS-rendered
+- [web-tools](/opt/fabrik-lib/web-tools/README.md): web-tools
 - [webhooks](/opt/fabrik-lib/webhooks/README.md): Webhooks
 - [xlsx-io](/opt/fabrik-lib/xlsx-io/README.md): xlsx-io — structure-preserving text extract/apply for spreadsheets
 
@@ -259,6 +262,7 @@
 - [ai/70-data-predictive.md](.windsurf/rules/ai/70-data-predictive.md): Data & Predictive AI (category 7) — analyze structured data, forecast, detect anomalies (DataRobot, H2O.ai, Vertex AI, SageMaker). Not covered by Kilo — use spe
 - [ai/80-specialized-domains.md](.windsurf/rules/ai/80-specialized-domains.md): Specialized AI domains (categories 8–15) — Robotics, Synthetic Data, Recommendation, Cybersecurity, Bio/Healthcare, Edge/Embedded, Governance/Trust/Safety, Gene
 - [ai/90-long-context.md](.windsurf/rules/ai/90-long-context.md): Long-Context AI (category 16) — process extremely long documents, codebases, or conversations. Claude Opus 4.8 (1M), Claude Fable 5 (1M), Gemini 2.5 Pro (1M), G
+- [chrome-ext/00-domain-chrome-ext.md](.windsurf/rules/chrome-ext/00-domain-chrome-ext.md): Chrome-extension domain — PLANNING layer. Vision-intake dimensions (ICP, the permission-ceiling fork, monetization with ZERO platform tax, browser scope, platfo
 - [chrome-ext/70-chrome-ext.md](.windsurf/rules/chrome-ext/70-chrome-ext.md): Chrome extension discipline — MV3, two-faced architecture, surfaces, distribution, auth, observability, design system
 - [core/10-python.md](.windsurf/rules/core/10-python.md): Python/FastAPI patterns, typing, environment handling
 - [core/12-node.md](.windsurf/rules/core/12-node.md): Node.js 22 production backend patterns (2026-current) — Fastify/Express, ESM, pino + ALS, graceful drain, npm hygiene, helmet, CVE-aware
@@ -288,12 +292,15 @@
 - [core/ocoron-design-system.md](.windsurf/rules/core/ocoron-design-system.md): <!-- CONSUMER: Coding agents building UI + Traycer (epic-brief for visual decisions)
 - [core/self-healing.md](.windsurf/rules/core/self-healing.md): Self-healing escalation ladder — orchestrates the primitives in 58-resilience, 60-watchdog, 75-workers-jobs into one ordered response per failure class
 - [core/tojlo-design-system.md](.windsurf/rules/core/tojlo-design-system.md): <!-- CONSUMER: Coding agents building Tojlo-branded UI
+- [desktop-app/00-domain-desktop-app.md](.windsurf/rules/desktop-app/00-domain-desktop-app.md): Desktop-app domain — PLANNING layer. Vision-intake dimensions (ICP, the standalone-vs-connected fork that decides whether revenue can be gated at all, zero-inte
 - [desktop-app/72-desktop.md](.windsurf/rules/desktop-app/72-desktop.md): Electron 30+ desktop app — process model, IPC zero-trust, code signing (Azure Trusted Signing / Apple notarization), R2 auto-update, native integrations, KVKK
+- [mobile-app/00-domain-mobile-app.md](.windsurf/rules/mobile-app/00-domain-mobile-app.md): Mobile domain — PLANNING layer. The 17 vision-intake dimensions, the 3 forks (billing/distribution/platform-dependency), the attribution stack, and the epic-dec
 - [mobile-app/80-mobile.md](.windsurf/rules/mobile-app/80-mobile.md): React Native mobile discipline — architecture, backend, navigation, performance, monetization, compliance, and i18n for worldwide shipping
 - [mobile-app/81-mobile-billing.md](.windsurf/rules/mobile-app/81-mobile-billing.md): Mobile billing discipline — Google Play Billing, RevenueCat entitlements, receipt validation, Turkey GPB-mandatory, Teknokent tax, launch checklist
 - [mobile-app/89-mobile-launch-checklist.md](.windsurf/rules/mobile-app/89-mobile-launch-checklist.md): Mobile app launch checklist — Turkish LLC, store compliance, Teknokent tax, staged rollout, beta testing, post-launch
 - [mobile-app/ocoron-mobile-design-system.md](.windsurf/rules/mobile-app/ocoron-mobile-design-system.md): Ocoron Mobile Design System — component patterns, navigation, interaction specs for React Native
 - [mobile-app/tojlo-mobile-design-system.md](.windsurf/rules/mobile-app/tojlo-mobile-design-system.md): Tojlo Mobile Design System — module-aware mobile component patterns extending ocoron-mobile-design-system.md
+- [saas/00-domain-saas.md](.windsurf/rules/saas/00-domain-saas.md): SaaS domain — PLANNING layer. Vision-intake dimensions (ICP, moat, pricing axis, GTM, COGS-per-tenant vs the single-VPS ceiling, risk register, dated kill crite
 - [saas/60-saas-ui.md](.windsurf/rules/saas/60-saas-ui.md): SaaS UI patterns — navigation, components, dashboards, performance, billing UI, tenant UI, i18n
 - [saas/87-abuse-detection.md](.windsurf/rules/saas/87-abuse-detection.md): Abuse detection discipline — registration gating, progressive unlock, fingerprinting, disposable email blocking for SaaS free tiers
 - [saas/88-saas-launch-checklist.md](.windsurf/rules/saas/88-saas-launch-checklist.md): SaaS product completeness — launch-blocking checklist, legal compliance, payment routing, KVKK/GDPR, abuse prevention, onboarding, tenant settings

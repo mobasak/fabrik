@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-07-15",
+  "generated_at": "2026-07-17",
   "assigned_by": "category_route_mapper",
   "categories": {
     "language": {
@@ -23,14 +23,14 @@
           "priority": 2,
           "id": "openai/gpt-oss-20b",
           "provider": "openai",
-          "input_cost_per_m": 0.029,
-          "output_cost_per_m": 0.14,
+          "input_cost_per_m": 0.03,
+          "output_cost_per_m": 0.13,
           "context_window_k": 131,
           "has_vision": false,
           "has_tools": true,
           "has_reasoning": true,
           "is_ga": true,
-          "score_used": 0.029,
+          "score_used": 0.03,
           "score_type": "input_cost_per_m",
           "reason": "Default LLM category. Free tier is included so the route ladder is\nP1=paid-mid, P2=paid-mid-cheaper, P3=free-fallback. Consumers decide\nto consume P3 or not via cost-budget.md per-project caps."
         },
@@ -38,14 +38,14 @@
           "priority": 3,
           "id": "openai/gpt-oss-120b",
           "provider": "openai",
-          "input_cost_per_m": 0.03,
-          "output_cost_per_m": 0.15,
+          "input_cost_per_m": 0.037,
+          "output_cost_per_m": 0.17,
           "context_window_k": 131,
           "has_vision": false,
           "has_tools": true,
           "has_reasoning": true,
           "is_ga": true,
-          "score_used": 0.03,
+          "score_used": 0.037,
           "score_type": "input_cost_per_m",
           "reason": "Default LLM category. Free tier is included so the route ladder is\nP1=paid-mid, P2=paid-mid-cheaper, P3=free-fallback. Consumers decide\nto consume P3 or not via cost-budget.md per-project caps."
         }

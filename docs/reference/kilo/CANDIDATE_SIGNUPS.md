@@ -1,4 +1,4 @@
-Last refresh: 2026-07-13
+Last refresh: 2026-07-17
 
 # Candidate Signups — Watch-list vendors not currently reachable
 

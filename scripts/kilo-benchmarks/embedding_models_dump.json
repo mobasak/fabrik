@@ -807,7 +807,7 @@
     "name": "BAAI: bge-m3",
     "created": 1763424372,
     "description": "The bge-m3 embedding model encodes sentences, paragraphs, and long documents into a 1024-dimensional dense vector space, delivering high-quality semantic embeddings optimized for multilingual retrieval, semantic search, and large-context applications.",
-    "context_length": 8192,
+    "context_length": 8194,
     "architecture": {
       "modality": "text->embeddings",
       "input_modalities": [
@@ -824,8 +824,8 @@
       "completion": "0"
     },
     "top_provider": {
-      "context_length": 8192,
-      "max_completion_tokens": null,
+      "context_length": 8194,
+      "max_completion_tokens": 8194,
       "is_moderated": false
     },
     "per_request_limits": null,
@@ -1036,7 +1036,9 @@
     },
     "pricing": {
       "prompt": "0.00000015",
-      "completion": "0"
+      "completion": "0",
+      "image": "0",
+      "audio": "0"
     },
     "top_provider": {
       "context_length": 20000,
@@ -1289,7 +1291,7 @@
     "name": "Qwen: Qwen3 Embedding 8B",
     "created": 1761680622,
     "description": "The Qwen3 Embedding model series is the latest proprietary model of the Qwen family, specifically designed for text embedding and ranking tasks. This series inherits the exceptional multilingual capabilities, long-text...",
-    "context_length": 32000,
+    "context_length": 32768,
     "architecture": {
       "modality": "text->embeddings",
       "input_modalities": [
@@ -1306,8 +1308,8 @@
       "completion": "0"
     },
     "top_provider": {
-      "context_length": 32000,
-      "max_completion_tokens": 32000,
+      "context_length": 32768,
+      "max_completion_tokens": null,
       "is_moderated": false
     },
     "per_request_limits": null,

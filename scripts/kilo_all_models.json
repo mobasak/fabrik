@@ -1,6 +1,6 @@
 {
-  "timestamp": "2026-07-15T03:29:26.697007",
-  "total_models": 687,
+  "timestamp": "2026-07-17T00:09:01.985911",
+  "total_models": 691,
   "models": {
     "~anthropic/claude-fable-latest": {
       "id": "~anthropic/claude-fable-latest",
@@ -44,6 +44,11 @@
     },
     "~openai/gpt-mini-latest": {
       "id": "~openai/gpt-mini-latest",
+      "url": "https://openrouter.ai/api/v1",
+      "npm": "@openrouter/ai-sdk-provider"
+    },
+    "~x-ai/grok-latest": {
+      "id": "~x-ai/grok-latest",
       "url": "https://openrouter.ai/api/v1",
       "npm": "@openrouter/ai-sdk-provider"
     },
@@ -179,11 +184,6 @@
     },
     "anthropic/claude-sonnet-5": {
       "id": "anthropic/claude-sonnet-5",
-      "url": "https://openrouter.ai/api/v1",
-      "npm": "@openrouter/ai-sdk-provider"
-    },
-    "arcee-ai/coder-large": {
-      "id": "arcee-ai/coder-large",
       "url": "https://openrouter.ai/api/v1",
       "npm": "@openrouter/ai-sdk-provider"
     },
@@ -512,6 +512,11 @@
       "url": "https://openrouter.ai/api/v1",
       "npm": "@openrouter/ai-sdk-provider"
     },
+    "kwaipilot/kat-coder-pro-v2.5:free": {
+      "id": "kwaipilot/kat-coder-pro-v2.5:free",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
     "mancer/weaver": {
       "id": "mancer/weaver",
       "url": "https://openrouter.ai/api/v1",
@@ -564,8 +569,8 @@
     },
     "meta/muse-spark-1.1": {
       "id": "meta/muse-spark-1.1",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
+      "url": "https://openrouter.ai/api/v1",
+      "npm": "@openrouter/ai-sdk-provider"
     },
     "microsoft/phi-4": {
       "id": "microsoft/phi-4",
@@ -739,6 +744,11 @@
     },
     "moonshotai/kimi-k2.7-code": {
       "id": "moonshotai/kimi-k2.7-code",
+      "url": "https://openrouter.ai/api/v1",
+      "npm": "@openrouter/ai-sdk-provider"
+    },
+    "moonshotai/kimi-k3": {
+      "id": "moonshotai/kimi-k3",
       "url": "https://openrouter.ai/api/v1",
       "npm": "@openrouter/ai-sdk-provider"
     },
@@ -1592,6 +1602,11 @@
       "url": "https://openrouter.ai/api/v1",
       "npm": "@openrouter/ai-sdk-provider"
     },
+    "x-ai/grok-4.5": {
+      "id": "x-ai/grok-4.5",
+      "url": "https://openrouter.ai/api/v1",
+      "npm": "@openrouter/ai-sdk-provider"
+    },
     "x-ai/grok-build-0.1": {
       "id": "x-ai/grok-build-0.1",
       "url": "https://openrouter.ai/api/v1",
@@ -1715,11 +1730,6 @@
       "id": "claude-sonnet-5",
       "npm": "@ai-sdk/anthropic"
     },
-    "~x-ai/grok-latest": {
-      "id": "~x-ai/grok-latest",
-      "url": "https://openrouter.ai/api/v1",
-      "npm": "@openrouter/ai-sdk-provider"
-    },
     "cognitivecomputations/dolphin-mistral-24b-venice-edition:free": {
       "id": "cognitivecomputations/dolphin-mistral-24b-venice-edition:free",
       "url": "https://openrouter.ai/api/v1",
@@ -1832,11 +1842,6 @@
     },
     "sakana/fugu-ultra": {
       "id": "sakana/fugu-ultra",
-      "url": "https://openrouter.ai/api/v1",
-      "npm": "@openrouter/ai-sdk-provider"
-    },
-    "x-ai/grok-4.5": {
-      "id": "x-ai/grok-4.5",
       "url": "https://openrouter.ai/api/v1",
       "npm": "@openrouter/ai-sdk-provider"
     }

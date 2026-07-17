@@ -2,7 +2,7 @@
 
 **Status:** LIVING — **never archive** · **Owner:** operator · **Created:** 2026-07-12 · **Last updated:** 2026-07-16
 
-> **This is the ultimate goal. Everything else in `docs/traycer/` exists to reach it.**
+> **This is the ultimate goal. Everything else in `docs/traycer/ or docs/orchestrator` exist to reach it.**
 >
 > The two workflow chains in this folder — `mega-epic-breakdown/` (vision → epics) and
 > `epic-to-ticket-workflow/` (epic → tickets → code) — are **being evaluated and hardened against the
@@ -48,64 +48,64 @@ Both `docs/traycer/` chains run the **same end-to-end pipeline**; they differ on
 
 ### Goal
 
-| # | Requirement | State |
-|---|---|---|
-| **R1** | Two phases: (a) operator + AI **spec & plan** interactively; (b) AIs **code → review → doc** autonomously. | PARTIAL |
-| **R2** | 24/7 unattended, headless; survives sleep/reboot. | **OPEN** |
-| **R3** | 50 concurrent projects = **queue depth**, drained continuously. *(~55 projects in `/opt`; ProArt = 24 cores / 47 GB.)* | **OPEN** |
-| **R10** | Whole lifecycle: spec · data-contract · ui-design · plan · execute · review · docs · deploy. **Producer** stages + **converger** stages. | DONE (commands exist) |
+| #             | Requirement                                                                                                                                                | State                 |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------- |
+| **R1**  | Two phases: (a) operator + AI**spec & plan** interactively; (b) AIs **code → review → doc** autonomously.                                    | PARTIAL               |
+| **R2**  | 24/7 unattended, headless; survives sleep/reboot.                                                                                                          | **OPEN**        |
+| **R3**  | 50 concurrent projects =**queue depth**, drained continuously. *(~55 projects in `/opt`; ProArt = 24 cores / 47 GB.)*                            | **OPEN**        |
+| **R10** | Whole lifecycle: spec · data-contract · ui-design · plan · execute · review · docs · deploy.**Producer** stages + **converger** stages. | DONE (commands exist) |
 
 ### Review / models
 
-| # | Requirement | State |
-|---|---|---|
-| **R4** | Cheap diverse pool (≤$1.5/Mtok, distinct families) does the bulk of review. | DONE (`fanout`) |
-| **R5** | Opus rationed: judge + high-risk escalation only. | DONE |
-| **R6** | Full coverage, token-efficient: lens-split over the whole diff; cheap models compress context for the judge. | DONE |
-| **R7** | **Converge-to-no-op loops**, never one shallow pass. | DONE (every `*-review` command) |
+| #            | Requirement                                                                                                  | State                            |
+| ------------ | ------------------------------------------------------------------------------------------------------------ | -------------------------------- |
+| **R4** | Cheap diverse pool (≤$1.5/Mtok, distinct families) does the bulk of review.                                 | DONE (`fanout`)                |
+| **R5** | Opus rationed: judge + high-risk escalation only.                                                            | DONE                             |
+| **R6** | Full coverage, token-efficient: lens-split over the whole diff; cheap models compress context for the judge. | DONE                             |
+| **R7** | **Converge-to-no-op loops**, never one shallow pass.                                                   | DONE (every`*-review` command) |
 
 ### Enforcement & learning
 
-| # | Requirement | State |
-|---|---|---|
-| **R8** | Control flow in **code, not prose**: the driver runs the loops and calls `fanout` itself. | **OPEN** — the loops still live in command prose |
-| **R9** | Flywheel: every pool run recorded; `pick_models` learns. | DONE (`check_subagent_flywheel.py`) |
+| #            | Requirement                                                                                      | State                                                   |
+| ------------ | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------- |
+| **R8** | Control flow in**code, not prose**: the driver runs the loops and calls `fanout` itself. | **OPEN** — the loops still live in command prose |
+| **R9** | Flywheel: every pool run recorded;`pick_models` learns.                                        | DONE (`check_subagent_flywheel.py`)                   |
 
 ### Human gates
 
-| # | Requirement | State |
-|---|---|---|
-| **R12** | Escalate only on genuine blockers (Apprise → Telegram). | PARTIAL |
-| **R14** | Exactly **two gates**: plan approval in, deploy approval out (deploy = manual `fabrik apply`). | DONE |
+| #             | Requirement                                                                                           | State   |
+| ------------- | ----------------------------------------------------------------------------------------------------- | ------- |
+| **R12** | Escalate only on genuine blockers (Apprise → Telegram).                                              | PARTIAL |
+| **R14** | Exactly**two gates**: plan approval in, deploy approval out (deploy = manual `fabrik apply`). | DONE    |
 
 ### Constraints
 
-| # | Requirement | State |
-|---|---|---|
-| **R11** | Reuse what exists (`fabrik-lib/job-queue` = driver core; + `alerting`, `watchdog`, `subagents`/`fanout`, `claude_rotate`). | DONE (policy) |
-| **R13** | Cost-conscious: subscription + pool; **no compute rental**. | DONE |
-| **R15** | Lightweight cockpit — no Electron fleet-of-windows. | DONE (VS Code today, single-window; the Fabrik workflow's **Zed** cockpit — Rust/GPUI, not Electron — is planned, D-Zed, built later) |
+| #             | Requirement                                                                                                                            | State                                                                                                                                        |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| **R11** | Reuse what exists (`fabrik-lib/job-queue` = driver core; + `alerting`, `watchdog`, `subagents`/`fanout`, `claude_rotate`). | DONE (policy)                                                                                                                                |
+| **R13** | Cost-conscious: subscription + pool;**no compute rental**.                                                                       | DONE                                                                                                                                         |
+| **R15** | Lightweight cockpit — no Electron fleet-of-windows.                                                                                   | DONE (VS Code today, single-window; the Fabrik workflow's**Zed** cockpit — Rust/GPUI, not Electron — is planned, D-Zed, built later) |
 
 ### Working discipline — stated in chat, folded in 2026-07-14
 
 These were operator requirements all along; they lived in the transcript instead of on this page, so
 nothing tracked whether they stayed true. Recorded now, with their real state.
 
-| # | Requirement | State |
-|---|---|---|
-| **R16** | **Run multiple agents in one project concurrently, on different scopes, WITHOUT touching the same files.** | ✅ **DONE 2026-07-14** — `02`'s parallel gate now emits 3 verdicts (artifacts · **file-scope disjointness** · **single migration owner**); the new `Owned paths:` field carries the contract through all 7 hops (02→03→04→05→the agent's `File Scope`) |
-| **R17** | Plan/spec creation must **ground 100 % truth** via exa / WebSearch / firecrawl — never training memory. | DONE (`/fabrik-spec`, `/fabrik-plan-after-chat`) |
-| **R18** | Enforce **doc updates** and the **full Tier-2 `final_gate.py`** — `--lean` is never an acceptance gate. | DONE (Doc Sync Matrix + gate) |
-| **R19** | Agents **consult `fabrik-lib`** before building any capability from scratch — vendor, don't rebuild. | DONE (Context Ledger) |
-| **R20** | `/fabrik-review` after **every phase**, iterated until a pass finds nothing and changes nothing. | DONE (execute-plan phase boundaries) |
-| **R21** | A finished plan is **archived only after it is 100 % verified**. | DONE (`/fabrik-execute-plan` Finish) |
-| **R22** | During spec/plan, agents **propose new `fabrik-lib` modules** when a capability is reusable. | DONE (🆕 fabrik-lib candidate) |
-| **R23** | **Every command's work is assignable to subagents; parallel where suitable.** Claude's own models first, then `minimax-m3`; cost-conservative. | DONE (`62-using-subagents.md`) |
-| **R24** | **All project docs kept up to date** — cheapest correct way; cheap pool models author the doc patches. | DONE (`/fabrik-docs-review`) |
-| **R25** | `/fabrik-spec-review` **stops for operator approval**; `/fabrik-plan-review` runs to no-op **autonomously** (never breaking the autonomous run). | DONE |
-| **R26** | A separate **UI-design command** — lean, minimal clicks, **design-system first**. | DONE (`/fabrik-ui-design`) |
-| **R27** | **Synced files carry a warning**: agents never edit them locally; they propose upstream only if the change is correct for ALL projects. | DONE (`check_synced_unmodified.py`) |
-| **R28** | A fix to a vendored `fabrik-lib` template leaves an **upstream note**, so every future project inherits it. | DONE (`UPSTREAM_FEEDBACK.md`) |
+| #             | Requirement                                                                                                                                                      | State                                                                                                                                                                                                                                                                                |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **R16** | **Run multiple agents in one project concurrently, on different scopes, WITHOUT touching the same files.**                                                 | ✅**DONE 2026-07-14** — `02`'s parallel gate now emits 3 verdicts (artifacts · **file-scope disjointness** · **single migration owner**); the new `Owned paths:` field carries the contract through all 7 hops (02→03→04→05→the agent's `File Scope`) |
+| **R17** | Plan/spec creation must**ground 100 % truth** via exa / WebSearch / firecrawl — never training memory.                                                    | DONE (`/fabrik-spec`, `/fabrik-plan-after-chat`)                                                                                                                                                                                                                                 |
+| **R18** | Enforce**doc updates** and the **full Tier-2 `final_gate.py`** — `--lean` is never an acceptance gate.                                          | DONE (Doc Sync Matrix + gate)                                                                                                                                                                                                                                                        |
+| **R19** | Agents**consult `fabrik-lib`** before building any capability from scratch — vendor, don't rebuild.                                                     | DONE (Context Ledger)                                                                                                                                                                                                                                                                |
+| **R20** | `/fabrik-review` after **every phase**, iterated until a pass finds nothing and changes nothing.                                                         | DONE (execute-plan phase boundaries)                                                                                                                                                                                                                                                 |
+| **R21** | A finished plan is**archived only after it is 100 % verified**.                                                                                            | DONE (`/fabrik-execute-plan` Finish)                                                                                                                                                                                                                                               |
+| **R22** | During spec/plan, agents**propose new `fabrik-lib` modules** when a capability is reusable.                                                              | DONE (🆕 fabrik-lib candidate)                                                                                                                                                                                                                                                       |
+| **R23** | **Every command's work is assignable to subagents; parallel where suitable.** Claude's own models first, then `minimax-m3`; cost-conservative.           | DONE (`62-using-subagents.md`)                                                                                                                                                                                                                                                     |
+| **R24** | **All project docs kept up to date** — cheapest correct way; cheap pool models author the doc patches.                                                    | DONE (`/fabrik-docs-review`)                                                                                                                                                                                                                                                       |
+| **R25** | `/fabrik-spec-review` **stops for operator approval**; `/fabrik-plan-review` runs to no-op **autonomously** (never breaking the autonomous run). | DONE                                                                                                                                                                                                                                                                                 |
+| **R26** | A separate**UI-design command** — lean, minimal clicks, **design-system first**.                                                                    | DONE (`/fabrik-ui-design`)                                                                                                                                                                                                                                                         |
+| **R27** | **Synced files carry a warning**: agents never edit them locally; they propose upstream only if the change is correct for ALL projects.                    | DONE (`check_synced_unmodified.py`)                                                                                                                                                                                                                                                |
+| **R28** | A fix to a vendored`fabrik-lib` template leaves an **upstream note**, so every future project inherits it.                                               | DONE (`UPSTREAM_FEEDBACK.md`)                                                                                                                                                                                                                                                      |
 
 ---
 
