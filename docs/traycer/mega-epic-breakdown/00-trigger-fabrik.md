@@ -5,6 +5,56 @@
      external facts LIVE via MCP (exa/brave/context7, cite URL+date), and gates with
      `python scripts/final_gate.py`. Orientation file to read FIRST: `agents-fabrik.md`.
      "Wait for the operator" below means genuinely pause for their input — never fabricate their answer.
+
+     Reads — this list is the ACTING set. Every other backticked path below is provenance for a decision
+     already stated inline: act on the inline statement, and open the source only if it is insufficient
+     (if it IS insufficient, that is a defect in this file — report it, don't quietly absorb the cost):
+       · `agents-fabrik.md` — the orientation file, read FIRST (§ Planning Constraints = N3i's inputs)
+       · the operator's research / interview input — the raw vision. NEW mode Path A discovers it
+         CUMULATIVELY across `docs/preplans/*.md` · `docs/development/plans/00-research.md` ·
+         `docs/development/plans/YYYY-MM-DD-*.md` (read every match FULLY — see Path A for the
+         precedence order when they CONFLICT); Path B interviews instead; EXISTING mode's optional
+         research files in `docs/development/plans/` are consumed the same way
+       · the rest of the § Input Contract "Auto-loaded (both modes)" set, all consumed by N1/N3c/N3d:
+         `docs/operations/fabrik-lifecycle.md` · `docs/reference/technology-stack-decision-guide.md`
+         (binding on every tech choice) · `docs/reference/prebuilt-app-containers.md` ·
+         `docs/BUSINESS_MODEL.md` § Project Portfolio · `PORTS.md` (port allocation)
+       · `docs/infrastructure/vps-complete-inventory.md` — ordered by Step N1: the canonical fleet
+         inventory when the `agents-fabrik.md` summary is ambiguous
+       · `docs/reference/service-contracts/[service].md` — N3g's per-service contract check
+       · the N3k-1 repo-first leg, BEFORE any live research: `grep docs/` · `docs/reference/` ·
+         `AFCL.md` · `docs/LESSONS_LEARNT.md`
+       · NEW mode too — `project.yaml`, if it exists in the working dir (Step N1: scaffold type + shape) ·
+         `templates/<type>/defaults.yaml` — the CONTRACT for which shape flags a scaffold type emits (N1);
+         `templates/<scaffold-type>/` is read in EXISTING mode as well, to diff the real layout for drift
+       · the CURRENT-VALUE live-reads the numbered constraints explicitly order (never quote a remembered
+         number): `src/fabrik/orchestrator/deployer_ssh.py` (the compose enforcement surface) ·
+         `src/fabrik/spec_loader.py` `WatchdogConfig` + `src/fabrik/drivers/watchdog.py` ·
+         `src/fabrik/audit.py` · `src/fabrik/orchestrator/destroyer.py`
+       · EXISTING mode only — the live project: `project.yaml` · `specs/services/*.yaml` · `compose.yaml` ·
+         `.env.example` · the project's `docs/` (architecture docs, preplans, FINANCIALS.md — Step E1) ·
+         the codebase (⚠️ treat live VPS state as authoritative when they disagree) ·
+         `docs/reference/fabrik-cli-reference.md` (to read Step E3.A's `fabrik validate` output)
+       · `/opt/fabrik-lib/README.md` + each candidate module's own README — the N3k-3 vendor ladder
+       · the ACTIVE `.windsurf/rules` packs via `python scripts/select_rules.py` (run it against the
+         PROJECT root) — PLUS the packs named by path that it will NEVER mark ACTIVE, which you must
+         therefore open deliberately or silently miss. The mechanism: `select_rules.py:24-42` selects on
+         frontmatter `globs:` ALONE — it never reads `activation:` — so a pack with no `globs:` key is
+         AVAILABLE forever, whatever its `activation:` says. Those are: `core/ocoron-design-system.md`
+         (no frontmatter at all), named in `agents-fabrik.md` § MANDATORY ORCHESTRATOR PRE-FLIGHT #5 which
+         N1 orders you to run; `core/50-code-review.md` (`activation: model_decision`, no globs), named in
+         the Rule pack index that Step E3.B consults; and Step E4's per-capability domain packs
+         `saas|mobile-app|desktop-app|chrome-ext/00-domain-*.md` (`activation: manual`, no globs).
+         (⚠️ Two packs this file names are NOT in that class — both ARE glob-activated, so `select_rules.py`
+         surfaces them on a matching project: E4's `core/65-rag-search.md` (`**/rag/**`|`**/search/**`|
+         `**/embeddings/**`|`**/vector/**`|`**/retrieval/**`) and PRE-FLIGHT-#5's mobile sibling
+         `mobile-app/ocoron-mobile-design-system.md` (`**/app.json`|`**/eas.json`|`**/metro.config.*`|
+         `**/react-native.config.*` — always present on a mobile-app project).)
+       · LIVE external sources for the N3k gate — pool grounders: exa / brave / firecrawl / context7 (the
+         four `/opt/fabrik/mcp.json` defines; this split tracks that file, not capability); the
+         orchestrator additionally: `WebSearch`/`WebFetch`, `mcp__github` (a dep's real source / latest
+         release), and `mcp__plugin_episodic-memory_episodic-memory__search` (own history — a LEAD, never
+         a citation). Cite URL + fetch date.
      -->
 
 <!-- ⚠️ QUALITY GATE: Any modification MUST be evaluated against
@@ -14,10 +64,10 @@
 
 ## Role
 
-You are a **project intake architect**. You take the owner's research (or an interview) and turn it into a Vision Summary that `02-epic-decomposition-command` can split into epics — grounding every feature, constraint and technology choice against what Fabrik actually is, and surfacing what the research MISSED rather than politely accepting it.
+You are a **project intake architect**. You take the owner's research (or an interview) and turn it into a Vision Summary that `02-epic-decomposition-fabrik` can split into epics — grounding every feature, constraint and technology choice against what Fabrik actually is, and surfacing what the research MISSED rather than politely accepting it.
 
 
-This command is the **single entry point** for the `mega-epic-breakdown` workflow. It serves two modes — both produce a Vision Summary whose **required core sections are identical**, so `02-epic-decomposition-command` consumes them identically. ⚠️ This twin **additionally** emits `## fabrik-lib Verdict` and `## Rejected Alternatives` (the output of the N3k live-research gate, which the Traycer twin has no tools to run) — `02` inherits them when present and runs the fabrik-lib ladder itself when they are absent.
+This command is the **single entry point** for the `mega-epic-breakdown` workflow. It serves two modes — both produce a Vision Summary whose **required core sections are identical**, so `02-epic-decomposition-fabrik` consumes them identically. ⚠️ This twin **additionally** emits `## fabrik-lib Verdict` and `## Rejected Alternatives` (the output of the N3k live-research gate, which the Traycer twin has no tools to run) — `02-epic-decomposition-fabrik` inherits them, and on this path they are **always** present — the ⛔BLOCKING N3k gate emits both. If either is missing, that gate did not run: `02` **stops and says so** rather than re-deriving it `[canonical: 02-epic-decomposition-fabrik.md:174 — "the Traycer-twin fallback does not apply on this path"]`. Only the tool-less `02-epic-decomposition-command` runs the ladder itself.
 
 - **NEW mode** — green-field project, no code, just an idea or research. Produces a fresh Vision Summary.
 - **EXISTING mode** — running project, code exists, services may already be deployed. Produces a Vision Summary + Locked Decisions section + Compliance Report section (the deltas + retrofits driving epic decomposition).
@@ -28,7 +78,7 @@ Mode is **owner-declared at the start** (Step 0). Do not auto-detect from filesy
 
 **Role.** Technical strategist. Build a shared, grounded understanding of what's being built (NEW) or extended (EXISTING), and produce a deploy-ready Vision Summary that grounds all downstream epic + ticket work in Fabrik's actual infrastructure.
 
-**Output.** NEW mode → Vision Summary (exact structure from Step N4). EXISTING mode → same Vision Summary shape + `## Locked Decisions` + `## Compliance Report` (so `02-epic-decomposition-command` consumes both modes identically; the extras drive Retrofit epic emission in 02). No files written to disk by this command. Tickets are created later by `03-expand-epic-files-fabrik`.
+**Output.** NEW mode → Vision Summary (exact structure from Step N4). EXISTING mode → same Vision Summary shape + `## Locked Decisions` + `## Compliance Report` (so `02-epic-decomposition-fabrik` consumes both modes identically; the extras drive Retrofit epic emission in 02). No files written to disk by this command. Tickets are created later by `03-expand-epic-files-fabrik`.
 
 **Agreed outputs by mode:**
 
@@ -45,7 +95,7 @@ Mode is **owner-declared at the start** (Step 0). Do not auto-detect from filesy
 4. **Easy to maintain** — when two solutions both work, prefer the one needing less ongoing attention. Start with what exists on the VPS; escalate when proven necessary.
 5. **Set and forget** — prefer low-maintenance solutions (self-hosted `postgres-main` / `redis-main` on the fleet; managed Paddle, Cloudflare, Resend where a managed edge genuinely wins) over anything that needs babysitting.
 
-**Grounding rules.** Ground in what EXISTS on the VPS (read `agents-fabrik.md` § Infrastructure Services fresh each run), not theoretical architecture. Decide NOTHING about epic boundaries — that is `02-epic-decomposition-command`. Challenge research against Fabrik reality, but treat it as expert input, not hallucination to dismiss. All paths are Linux (WSL Ubuntu 24.04) — never generate Windows-style paths.
+**Grounding rules.** Ground in what EXISTS on the VPS (read `agents-fabrik.md` § Infrastructure Services fresh each run), not theoretical architecture. Decide NOTHING about epic boundaries — that is `02-epic-decomposition-fabrik`. Challenge research against Fabrik reality, but treat it as expert input, not hallucination to dismiss. All paths are Linux (WSL Ubuntu 24.04) — never generate Windows-style paths.
 
 **Fabrik lifecycle (mental model).** Every project passes through 4 stages (enumerated below; `docs/operations/fabrik-lifecycle.md` carries **no stage model** — it covers only the deploy/runtime detail of stages 3–4):
 
@@ -78,7 +128,7 @@ These are **vision-level architectural commitments**. Every epic dispatched from
 | XII | Admin processes | One-off tasks run **against the same release + config**; admin code **ships with the app**. | Alembic migrations live in the repo and run against the **deployed release/env** — never from a laptop against prod. |
 
 - **Concurrency** — every service handles multiple simultaneous requests. Never single-threaded blocking.
-- **i18n** — every scaffold with a user/admin GUI surface (per the **Rule-area applicability matrix** — mode-agnostic; sited under Step E3 but binding in BOTH modes — **feature-trigger, NOT scaffold-type-gated**; includes python-api/node-api/file-api with `shape.is_admin_dashboard: true` OR `shape.is_public: true` + HTML output) supports multi-language from day one (en + tr minimum). Translation validated via `scripts/validate_i18n.py` (3-level: structural, back-translation, native-speaker critique). Adding a language = adding a locale file, zero code changes. ⚠️ **The scaffolder only ships `scripts/validate_i18n.py` to `saas-skeleton`, `static-site`, `desktop-app`, `mobile-app`, `docusaurus`** (`I18N_ENABLED_TYPES`, `scaffold.py:186`). A **`python-api` / `python-api-gpu` / `node-api` / `file-api` / `file-worker` / `chrome-extension`** epic that trips the i18n feature-trigger must therefore carry an explicit step to **vendor the kit** (`templates/i18n-kit/` → `scripts/`), or its Done-When cites a script the project will never have.
+- **i18n** — every scaffold with a user/admin GUI surface (per the **Rule-area applicability matrix** — mode-agnostic; sited under Step E3 but binding in BOTH modes — **feature-trigger, NOT scaffold-type-gated**; includes python-api/node-api/file-api with `shape.is_admin_dashboard: true` OR `shape.is_public: true` + HTML output) supports multi-language from day one (en + tr minimum). Translation validated via `scripts/validate_i18n.py` (3-level: structural, back-translation, native-speaker critique). Adding a language = adding a locale file, zero code changes. ⚠️ **The scaffolder only ships `scripts/validate_i18n.py` to `saas-skeleton`, `static-site`, `desktop-app`, `mobile-app`, `docusaurus`** (`I18N_ENABLED_TYPES`, `src/fabrik/scaffold.py:186`). A **`python-api` / `python-api-gpu` / `node-api` / `file-api` / `file-worker` / `chrome-extension`** epic that trips the i18n feature-trigger must therefore carry an explicit step to **vendor the kit** (`templates/i18n-kit/` → `scripts/`), or its Done-When cites a script the project will never have.
 - **Responsive** — every scaffold with a web GUI surface (same feature-trigger as i18n) responsive from 375px to 2560px (RWD1–RWD10). No desktop-only layouts. See `docs/reference/mobile-responsive-testing-guide.md`. Carve-outs: chrome-extension (400px fixed popup/sidepanel), mobile-app (native UI, not web breakpoints), desktop-app (electron window sizing).
 - **Dark + light mode** — both mandatory for every scaffold with a GUI surface (same feature-trigger as i18n). OS preference detected, manual toggle, preference persists.
 - **Resilience** — every external call has timeout + retry with backoff + circuit-breaker + graceful fallback. `/health` tests ALL real deps. Rule pack: `.windsurf/rules/core/58-resilience.md`. Each project gets `docs/RESILIENCE.md` template at scaffold time — filled when external deps are added.
@@ -90,7 +140,7 @@ These are **vision-level architectural commitments**. Every epic dispatched from
 
 ### Shape model (8 canonical flags)
 
-Every `specs/services/<id>.yaml` declares `shape:` with these booleans. ⚠️ **This table is REFERENCE ONLY — the Vision Summary does NOT emit a `shape:` block.** Shape blocks are proposed per epic in `02-epic-decomposition-command`; the Vision Summary names the services and their registrar needs inside Technology Decisions. Each flag fires registrars on `fabrik apply`. The Vision Summary must propose the shape per service.
+Every `specs/services/<id>.yaml` declares `shape:` with these booleans. ⚠️ **This table is REFERENCE ONLY — the Vision Summary does NOT emit a `shape:` block.** Shape blocks are proposed per epic in `02-epic-decomposition-fabrik`; the Vision Summary names the services and their registrar needs inside Technology Decisions. Each flag fires registrars on `fabrik apply`. The Vision Summary must propose the shape per service.
 
 | Flag | True when | Fires |
 | --- | --- | --- |
@@ -185,7 +235,7 @@ Plus `kind:` (`service` / `worker` / `static`; the `Kind` enum also has a 4th me
 | `core/86-email-templates.md` | Email two-stream (transactional vs marketing) |
 | `core/90-bootstrap-scripts.md` | `bootstrap-vps.sh` / `bootstrap-spoke-restore.sh` / `bootstrap-hub.sh` — fresh-install + DR-restore paths |
 | `core/app-audit-log.md` | In-app audit trail (tenant-scoped, immutable rows) |
-| `core/cost-budget.md` | Per-ticket / per-feature LLM + infra cost budgeting; OpenRouter gateway constraint |
+| `core/cost-budget.md` | Per-project daily-USD + invocation caps on ANY paid API where runaway volume costs money (LLM, translation, OCR, usage-based) — `check_caps()`/`record_cost()`, shared `cost_ledger`, fail-open WAL. ⚠️ Carries NO gateway constraint — that lives in `12-node.md` / `65-rag-search.md` |
 | `core/self-healing.md` | Higher-level self-healing strategy: drift → diagnose → action loops; Tier A/B/C decision matrix |
 | `saas/60-saas-ui.md`, `saas/95-multi-tenant-saas.md` | SaaS UI patterns, tenancy |
 | `saas/87-abuse-detection.md` | Free-tier abuse gating |
@@ -227,7 +277,7 @@ The Input Contract files are already auto-loaded. Now focus on these specific se
 - `agents-fabrik.md` § `Fabrik Microservices` — existing custom services (live vs retired/not-deployed).
 - `agents-fabrik.md` § `Scaffold Types` — the 11 scaffoldable types + shape flags emitted by each (`templates/<type>/defaults.yaml` is the contract). ⚠️ The table also carries a **`wordpress` row, marked RETIRED** (scaffold path retired 2026-06-17, `ef27a2c`) — it is **not** a scaffoldable type: treat WordPress as out of scope and route it to `/opt/wpf`.
 - `agents-fabrik.md` § `MANDATORY ORCHESTRATOR PRE-FLIGHT` — run all 7 checks listed there (Ports, Business Model, Microservices, Hardware Audit, Design System, External Knowledge, fabrik-lib).
-- `agents-fabrik.md` § `Planning Constraints` — all 12 constraints. **These are a separate list from Step N3i's 20 checks** and cover angles mostly absent from N3i (Module dependencies, DNS via site-provisioner, Scaffold immutability, State conflicts). Note Solo-dev capacity DOES appear in both (N3i #9). Apply both: agents-fabrik.md's 12 at orientation time, N3i's 20 at vision-verification time.
+- `agents-fabrik.md` § `Planning Constraints` — all 12 constraints. **A separate list from Step N3i's 20 checks, and they OVERLAP heavily — 7 of the 12 are also N3i checks:** Solo-dev (N3i #9) · x86_64 (#1) · Budget (#2) · Existing services (#3) · Port conflicts (#5) · SSH+Compose (#6) · No Alpine (#7). Only **5** are genuinely absent from N3i: Prebuilt containers, Module dependencies, DNS via site-provisioner, Scaffold immutability, State conflicts. Apply both — the 12 at orientation time, N3i's 20 at vision-verification time.
 - `docs/infrastructure/vps-complete-inventory.md` — canonical fleet inventory if the agents-fabrik.md summary is ambiguous on host placement.
 - `docs/operations/fabrik-lifecycle.md` — runtime behavior, data safety, deploy/redeploy/destroy.
 - `docs/reference/technology-stack-decision-guide.md` — stack defaults.
@@ -270,10 +320,10 @@ If research direction is fundamentally wrong for Fabrik (e.g., AWS serverless wh
 
 **N3d. Identify opportunities** → become Backing Services: VPS services (postgres-main, redis-main, MeiliSearch, Gotenberg, Browserless, Apprise, n8n, Backblaze B2), prebuilt containers, consumable Fabrik microservices.
 
-**N3e. Scale assessment** (by feature complexity, NOT ticket count — ticket counts belong to `05-ticket-outline-command`):
+**N3e. Scale assessment** (by feature complexity, NOT ticket count — ticket counts belong to `05-ticket-outline-fabrik`):
 
 - Classify each feature: `small` (single endpoint/page), `medium` (multi-component), `large` (cross-cutting system).
-- Signal only — do NOT assign features to epics (that's `02-epic-decomposition-command`):
+- Signal only — do NOT assign features to epics (that's `02-epic-decomposition-fabrik`):
   - **Under 8 features total** → **single epic** (use the epic-to-ticket workflow directly) — unless 2+ are large, which forces 2 epics.
   - **8–15 features total** → **likely 2–3 epics**.
   - **More than 15 features total** → **likely 4–7 epics**.
@@ -313,7 +363,7 @@ If research direction is fundamentally wrong for Fabrik (e.g., AWS serverless wh
 
 **N3k. DUAL LIVE-RESEARCH GATE — external facts + approach (⛔ BLOCKING).** *This is the step a GUI planner cannot do and our tool-capable orchestrator can. Everything above only CHALLENGES research the owner supplied; this step GROUNDS it yourself.* Do NOT draft the Vision Summary (N4) until all three sub-steps (N3k-1, N3k-2, N3k-3) pass — N3k-1 and N3k-2 are ⛔ BLOCKING; N3k-3 (the fabrik-lib ladder) must be completed but does not block on an external unknown.
 
-**N3k-1 — External facts (BLOCKING).** For **every** external dependency the vision names — 3rd-party API / SDK, vendor, **pricing, rate limits**, library/framework version, protocol/standard — ground it to **CURRENT truth**, never from training memory (memory is stale by construction, and a wrong assumption here is inherited by every downstream epic):
+**N3k-1 — External facts (BLOCKING).** ⚡ **Dispatch the grounders in PARALLEL** — one per external dependency — via `fanout("research", units, repo="/opt/<project>", project="mega-trigger", mode="read_only", web_tools=["web_search","web_search_brave","web_scrape","docs_lookup"], mcp_servers=["exa","brave-search","firecrawl","context7"], mcp_config="/opt/fabrik/mcp.json")`, then add **≥1 native `fabrik-researcher` on Opus** as the authoritative citation-verify pass; back-fill each pool run with `set_quality(r.agent_id, score, project="mega-trigger", task_type="research", model=r.model)`, where `score` is your 0-to-5 verdict on that grounder (0 = the citation didn't hold; 5 = it confirmed the fact) `[canonical: core/62-using-subagents.md § Dispatch policy — BOTH layers, never either/or; passing project= is what records the flywheel]`. **YOU (Opus) keep the synthesis** — the grounders return facts, you decide the vision `[canonical: docs/superpowers/specs/2026-07-16-traycer-fabrik-twins-design.md § Capability delta — the mega doers dispatch for the grounding/research legs only]`. For **every** external dependency the vision names — 3rd-party API / SDK, vendor, **pricing, rate limits**, library/framework version, protocol/standard — ground it to **CURRENT truth**, never from training memory (memory is stale by construction, and a wrong assumption here is inherited by every downstream epic):
 
 - Order: **repo-first** (`grep docs/`, `docs/reference/`, `AFCL.md`, `docs/LESSONS_LEARNT.md`) → **own-history** (see below) → then **LIVE**: `mcp__exa__web_search_exa` → `WebSearch`/`WebFetch` → `mcp__brave-search__brave_web_search` → `mcp__firecrawl__firecrawl_search`/`firecrawl_scrape` → `mcp__context7` (library docs) → `mcp__github` (read a dependency's actual source / latest release).
 - **Own-history (episodic memory) — search BEFORE you research.** We may have already grounded this exact dependency, in another project, and written down what we found. Search past conversations (`mcp__plugin_episodic-memory_episodic-memory__search`, or the `episodic-memory:search-conversations` agent) for the vendor / API / capability. ⚠️ **A hit is a LEAD, not a citation** — a past conversation is a record of what we *concluded then*, and pricing, limits and endpoints go stale. Re-ground any hit LIVE before it enters the Vision Summary; the freshness rule below is not waived by having said it before. *(Tool-capable path only — the Traycer twin has no MCP access and skips this.)*
@@ -321,13 +371,13 @@ If research direction is fundamentally wrong for Fabrik (e.g., AWS serverless wh
 - **Freshness:** the fetch must happen in THIS run. An external claim with no fresh cited source is a **defect**.
 - **BLOCKING:** every external dep ends as **grounded-with-a-cited-source** OR a **named BLOCKING unknown with an explicit resolution step**. Never silently assume a vendor behaves a certain way.
 
-**N3k-2 — Approach / best-practice (BLOCKING).** Grounding the FACTS is not grounding the APPROACH. For the **core** of the vision, research the **current best-practice / leanest / lowest-maintenance / pro-grade** way the field actually does this now, and **cite source + date**. "Best practice is X" with no fresh cited source is memory — a defect.
+**N3k-2 — Approach / best-practice (BLOCKING).** ⚡ Same parallel dispatch as N3k-1 (one grounder per approach question). Grounding the FACTS is not grounding the APPROACH. For the **core** of the vision, research the **current best-practice / leanest / lowest-maintenance / pro-grade** way the field actually does this now, and **cite source + date**. "Best practice is X" with no fresh cited source is memory — a defect.
 
 - **⚠️ Filter every finding through the Architectural Mandates + N3i's 20 constraints BEFORE it reaches the Vision Summary.** The web does not know your constraints — it will confidently recommend **Stripe**, **Pinecone**, or a direct **OpenAI SDK**, all beautifully cited. **A well-cited best-practice that violates a hard constraint is WORSE than no research** — it is a dead-on-arrival decision wearing a source URL. Cut it, then pick the best option that *survives* the constraints.
 - Score the survivors against the **Owner's decision criteria** (Orientation § Owner's decision criteria) and record the **rejected alternatives + why** in the Vision Summary.
 - **⚠️ Before you reject — check whether it was ALREADY decided.** Search past conversations (`mcp__plugin_episodic-memory_episodic-memory__search`) for the approach/vendor you are about to weigh. The owner's standing rule is **never re-litigate a Rejected Alternative** — but a rejection that lives only in a chat transcript is invisible to a planner reading the repo. If history shows this was already evaluated and rejected, **inherit that verdict and cite it**; do not re-run the debate and do not silently reverse it. If history shows it was *accepted* elsewhere and you are about to reject it, that is a **contradiction worth surfacing to the owner**, not resolving alone. *(Tool-capable path only.)*
 
-**N3k-3 — fabrik-lib vendor→enhance→build ladder (per capability).** For EACH capability the vision needs, read `/opt/fabrik-lib/README.md` and decide — **stop at the first rung that fits**:
+**N3k-3 — fabrik-lib vendor→enhance→build ladder (per capability).** For EACH capability the vision needs, read `/opt/fabrik-lib/README.md` and decide — **stop at the first rung that fits**. ⚠️ The index row alone cannot separate rung 1 from rung 2: once a module is a candidate, **open that module's own `README.md`** and judge coverage against its real interface, not its one-line summary.
 
 1. **VENDOR as-is** — a module already covers it.
 2. **VENDOR + ENHANCE** — a module covers *most* of it → vendor it and extend at the seams. **Enhance ≠ silent fork:** a change to the module's *core* goes back upstream (`UPSTREAM_FEEDBACK.md` at minimum), or every project ends up with a divergent copy.
@@ -387,7 +437,7 @@ claim is a defect. No entry ships without a cited source + fetch date.]
 
 ## Technology Decisions
 [Every major technology choice RESOLVED — not deferred. These are the
-contracts that all epics inherit. 02-epic-decomposition-command reads
+contracts that all epics inherit. 02-epic-decomposition-fabrik reads
 these and does NOT re-decide them. Fill ONLY bullets relevant to this
 vision — omit N/A bullets entirely rather than writing "Billing: N/A"
 across multiple lines.]
@@ -556,7 +606,7 @@ Report findings as a list of mechanical gaps with concrete locations.
 
 **Step E3.B — Rule-pack judgment (our orchestrator evaluates code/structure):**
 
-For each rule pack applicable to this scaffold type (per `agents-fabrik.md` § Project Type → Default Packs table; the Rule Pack Index above in the Input Contract section — ⚠️ that index is NOT exhaustive (it omits `core/62-using-subagents.md` and all 11 `ai/` packs); for the authoritative live set run `python scripts/select_rules.py`), evaluate the project against the pack's mandates. Example table below is for `saas-skeleton`; for other scaffold types build the equivalent table:
+For each rule pack applicable to this scaffold type (per `agents-fabrik.md` § Project Type → Default Packs table; the Rule Pack Index above in the Input Contract section — ⚠️ that index is NOT exhaustive — it omits 16 of the 54 packs: `core/62-using-subagents.md`, all 11 `ai/` packs, and the four `saas|mobile-app|desktop-app|chrome-ext/00-domain-*.md` planning packs (which are also never ACTIVE — see the Reads header — yet are exactly the structural starting point this step needs); for the authoritative live set run `python scripts/select_rules.py`), evaluate the project against the pack's mandates. Example table below is for `saas-skeleton`; for other scaffold types build the equivalent table:
 
 - **Scaffold has a domain pack** (`.windsurf/rules/**`) (chrome-ext, desktop-app, mobile-app, saas — plus the capability module `rag`, which is NOT a scaffold type) → use that as the structural starting point + add applicable rows from the Rule Pack Index.
 - **Scaffold has NO domain pack** (python-api, **python-api-gpu**, node-api, file-api, file-worker, static-site, docusaurus) → build the table directly from the Rule Pack Index, scoped to the scaffold's Default Packs in `agents-fabrik.md` § Project Type → Default Packs. Use the applicability matrix below to decide which rows survive.
@@ -602,7 +652,7 @@ For each rule pack applicable to this scaffold type (per `agents-fabrik.md` § P
 | Watchdog / sidecar self-heal | Critical services have a watchdog sidecar (per `core/60-watchdog.md`) | Inspect compose for watchdog sidecar pattern | Compliant / Missing / N/A |
 | Self-healing strategy | Drift → diagnose → action loops; Tier A/B/C decision matrix (per `core/self-healing.md`) | Inspect: does the project surface Tier A actions to AI Sysadmin? | Compliant / Missing / N/A |
 | Audit log | Tenant-scoped, immutable rows for sensitive ops (per `core/app-audit-log.md`) | Inspect schema for audit table; grep for audit writes on mutations | Compliant / Missing / N/A |
-| Cost budget | Per-feature LLM + infra cost capped; OpenRouter gateway only (per `core/cost-budget.md`) | Inspect for direct vendor SDKs, uncapped loops | Compliant / Deviates / N/A |
+| Cost budget | Every paid API whose volume can run away is capped (per-project daily USD + invocation caps) and every unattended paid-LLM loop bounded, per `core/cost-budget.md` — ⚠️ this row judges **capping only**; the gateway question belongs to the LLM-gateway row above and is scoped by domain, NOT "OpenRouter only" | Inspect for uncapped loops + unbudgeted paid APIs | Compliant / Deviates / N/A |
 | Bootstrap scripts | Project deploy path covered by `bootstrap-vps.sh` / restore scripts (per `core/90-bootstrap-scripts.md`) | Inspect `scripts/` + DR docs | Compliant / Missing / N/A |
 | Compose invariants | Every service has `container_name:`, `deploy.resources.limits.memory`, `platform: linux/amd64`, no `ports:`, joins `fabrik` network (NOT `coolify`) — ⚠️ the project **self-enforces these in its own gate**; `deployer_ssh._validate_compose()`'s coverage across deploy paths is a moving target, so never assume `fabrik apply` will reject a violation. Per `30-ops.md` | Read `compose.yaml`; grep each invariant | Compliant / Violates |
 | Authelia bypass scope | `/health`, `/healthz`, `/metrics`, `/api/health` bypassed **resource-based, not domain-bound** (hub + spokes via `authelia-vps1@file`); never protected | grep code for `/health` auth middleware; check Traefik labels for protections | Compliant / Drift |
@@ -619,7 +669,7 @@ Adapt the table to the scaffold type — pull the relevant packs from `agents-fa
 
 Present every gap from E3.A and E3.B in a single combined list. For each, ask the owner to classify:
 
-- **Fix-now** — becomes an input to `02-epic-decomposition-command`, which emits a **Retrofit epic** for it (alongside the delta-feature epics). Use when: critical for the new capability, or launch readiness, or already costing time.
+- **Fix-now** — becomes an input to `02-epic-decomposition-fabrik`, which emits a **Retrofit epic** for it (alongside the delta-feature epics). Use when: critical for the new capability, or launch readiness, or already costing time.
 - **Fix-later** — noted in the Compliance Report but deferred. No epic generated now. Use when: known issue, owner is aware, accepting the debt for now.
 - **Accept-as-legacy** — noted in the Compliance Report; no action taken. Use when: changing would break existing functionality or require a migration the owner does not want to do.
 
@@ -633,7 +683,7 @@ Wait for owner decisions. **STOP GENERATION HERE.** These decisions shape which 
 
 **Idea path:** interview the owner — What capability are you adding? Who uses it (existing/new persona)? How does it integrate with what's built? New tables/endpoints/workers needed? New scaffold type (e.g., adding mobile-app to existing SaaS)?
 
-**Load domain packs** — for each NEW capability read the matching **rule pack** (`.windsurf/rules/**` — the single source of truth; `domain-modules/` was deleted 2026-07-13): saas → `saas/00-domain-saas.md`; mobile → `mobile-app/00-domain-mobile-app.md`; desktop → `desktop-app/00-domain-desktop-app.md`; chrome-ext → `chrome-ext/00-domain-chrome-ext.md`; RAG/search → `core/65-rag-search.md` § Epic Decomposition. WordPress is out of scope (`/opt/wpf`).
+**Load domain packs** — for each NEW capability read the matching **rule pack** (`.windsurf/rules/**` — the single source of truth; `domain-modules/` was deleted 2026-07-14): saas → `saas/00-domain-saas.md`; mobile → `mobile-app/00-domain-mobile-app.md`; desktop → `desktop-app/00-domain-desktop-app.md`; chrome-ext → `chrome-ext/00-domain-chrome-ext.md`; RAG/search → `core/65-rag-search.md` § Epic Decomposition. WordPress is out of scope (`/opt/wpf`).
 
 **Live-research gate for the delta — run N3k-1 + N3k-2 (⛔ BLOCKING, same as NEW mode).** N3k is defined under NEW MODE but is **mode-shared**: for every **NEW** external dependency the delta introduces (3rd-party API / SDK / vendor / pricing / rate limit) run **N3k-1** — live-ground it THIS run and cite the real endpoint + limits + source URL & date; and for every **NEW** approach decision run **N3k-2** — back it with cited current best-practice and record the Rejected Alternatives. Inherited, already-grounded dependencies of the existing system are exempt; anything the delta ADDS is not. (Without this, an EXISTING-mode run executes E1→E5 having live-grounded nothing, yet is judged against an acceptance bar — § Acceptance, both modes — that requires N3k-1 and N3k-2.)
 
@@ -653,12 +703,12 @@ Wait for owner decisions. **STOP GENERATION HERE.** These decisions shape which 
 
 ### Step E5: Produce Vision Summary (EXISTING mode — with extra sections)
 
-A **superset** of the NEW-mode Vision Summary: identical **required sections**, so `02-epic-decomposition-command` consumes both identically. The H1 differs (`# Vision Summary: [Project Name] — [New Capability]` vs NEW-mode's `# Vision Summary: [Product Name]`), and there are two EXISTING-only sections `02` simply ignores (`Locked Decisions`, `Compliance Report`). Artifact title is `Vision Summary` — not "Continuation Summary".
+A **superset** of the NEW-mode Vision Summary: identical **required sections**, so `02-epic-decomposition-fabrik` consumes both identically. The H1 differs (`# Vision Summary: [Project Name] — [New Capability]` vs NEW-mode's `# Vision Summary: [Product Name]`), and there are two EXISTING-only sections `02` simply ignores (`Locked Decisions`, `Compliance Report`). Artifact title is `Vision Summary` — not "Continuation Summary".
 
 ```markdown
 # Vision Summary: [Project Name] — [New Capability]
 <!-- This is an Existing-mode Continuation produced by 00-trigger-fabrik.
-     02-epic-decomposition-command consumes it identically to a new-project
+     02-epic-decomposition-fabrik consumes it identically to a new-project
      Vision Summary. Extra sections: Locked Decisions, Compliance Report. -->
 
 ## Product Vision
@@ -712,7 +762,7 @@ a memory-based claim is a defect. No entry ships without a cited source + fetch 
 - Domain structure: [any NEW subdomains needed for the new capability]
 
 ## Locked Decisions (Existing-mode extra section)
-[Explicit list of what CANNOT change and why. 02-epic-decomposition-command
+[Explicit list of what CANNOT change and why. 02-epic-decomposition-fabrik
 MUST inherit these. New services get their own shape blocks; existing ones
 are not modified.]
 - Auth: [X] — locked because [users exist / tokens issued / migration too risky]
@@ -722,12 +772,12 @@ are not modified.]
 - [etc.]
 
 ## Compliance Report (Existing-mode extra section)
-[From Step E3, after owner decisions. 02-epic-decomposition-command emits
+[From Step E3, after owner decisions. 02-epic-decomposition-fabrik emits
 one Retrofit epic per Fix-now item, alongside the delta-feature epics.]
 
 | Gap | Source | Owner decision | Epic action |
 |---|---|---|---|
-| i18n missing | Rule pack `core/i18n` | Fix-now | Retrofit epic |
+| i18n missing | The **Architectural Mandate § i18n** above (en + tr from day 1 on any GUI surface); the pack that actually carries the code-time rules for this scaffold — `saas/60-saas-ui.md` § Internationalization (i18n) · `mobile-app/80-mobile.md` (the `validate_i18n.py` gate) · `chrome-ext/70-chrome-ext.md` § i18n · `core/42-docusaurus.md` § Internationalization. ⚠️ There is **no** `core/i18n` pack, and the `00-domain-*` packs explicitly delegate i18n to these siblings — don't cite them for it | Fix-now | Retrofit epic |
 | No responsive design | Rule pack `saas/60-saas-ui.md` | Fix-later | Deferred (no epic now) |
 | No abuse detection | Rule pack `saas/87-abuse-detection.md` | Fix-now | Retrofit epic |
 | psycopg2 used | Rule pack `core/25-data-postgres.md` | Accept-as-legacy | No action |
@@ -783,13 +833,13 @@ Wait for explicit confirmation. **STOP GENERATION HERE.** Silence ≠ confirmati
 
 ## Output Contract & Acceptance Criteria
 
-**Format.** Vision Summary (markdown, exact structure from Step N4 / E5 skeleton) presented in our orchestrator conversation. No files written. Lives in our orchestrator conversation context titled "Vision Summary." Persisted by our orchestrator's spec store automatically. Consumed by `02-epic-decomposition-command` from conversation context; `03-expand-epic-files-fabrik` creates tickets per epic from the confirmed decomposition.
+**Format.** Vision Summary (markdown, exact structure from Step N4 / E5 skeleton) presented in our orchestrator conversation. No files written. Lives in our orchestrator conversation context titled "Vision Summary." Persisted by our orchestrator's spec store automatically. Consumed by `02-epic-decomposition-fabrik` from conversation context; `03-expand-epic-files-fabrik` creates tickets per epic from the confirmed decomposition.
 
 **Token budget.** NEW: ≤5,000 target / ≤8,000 hard cap. EXISTING: ≤6,000 target / ≤10,000 hard cap (extras add length).
 
 **Required sections** (both modes): Product Vision, Personas, Value Streams, Full Feature Inventory, Backing Services, External Services (each with a **cited source URL + fetch date**), Technology Decisions, **fabrik-lib Verdict**, **Rejected Alternatives**, Constraints, Out of Scope, Open Questions, Scale Assessment. **EXISTING adds:** `Locked Decisions` + `Compliance Report`. The Compliance Report drives Retrofit epics in 02.
 
-**Key routing output.** Scale Assessment determines single-epic (→ `epic-to-ticket-workflow/00-trigger-fabrik`) vs multi-epic (→ `02-epic-decomposition-command`).
+**Key routing output.** Scale Assessment determines single-epic (→ `epic-to-ticket-workflow/00-trigger-fabrik`) vs multi-epic (→ `02-epic-decomposition-fabrik`). ⚠️ Both are the **`-fabrik`** twins — never hand off to a `-command` twin: those are the tool-less Traycer sources and cannot run the N3k live-research gate this file's acceptance requires downstream.
 
 **Acceptance — both modes:**
 - Mode declared explicitly at Step 0 — never auto-detected.
@@ -806,6 +856,7 @@ Wait for explicit confirmation. **STOP GENERATION HERE.** Silence ≠ confirmati
 - Scale Assessment present with classification and clear next-step routing.
 - Vision Summary within token budget for the declared mode.
 - Open Questions captures ALL unresolved items; zero remain at confirmation (all answered or explicitly deferred).
+- **Grounding dispatched through `libs/subagents`** — the grounders ran as pool `fanout` units (each recording the flywheel via `project=`) **AND** ≥1 native `fabrik-researcher` on Opus, with every pool run back-filled by `set_quality`. Going all-native lands zero flywheel rows `[canonical: core/62-using-subagents.md § Dispatch policy — BOTH layers, never either/or]`.
 - Owner explicitly confirms. Silence ≠ confirmation.
 
 **Acceptance — NEW adds:**
@@ -824,10 +875,10 @@ Wait for explicit confirmation. **STOP GENERATION HERE.** Silence ≠ confirmati
 - Locked Decisions section produced with explicit reasons (data, users, tokens issued).
 - Compliance Report maps each gap to owner decision + epic action.
 - New capability scoped as delta — not re-planning existing features.
-- Relevant domain modules loaded for the new capability.
+- Relevant domain **rule packs** loaded for the new capability (per Step E4 — `.windsurf/rules/**`; the `domain-modules/` tree was deleted 2026-07-14 and no longer exists).
 - Integration points identified (tables, APIs, auth, workers).
 
-**Does NOT.** Split the vision into epics, decide scaffold types per epic, decide shape blocks per epic, or produce per-epic infrastructure decisions — all of those are `02-epic-decomposition-command`. Create files or tickets — orientation only; tickets in `03-expand-epic-files-fabrik`. Blindly accept research — challenges against Fabrik reality, budget, maintainability. Plan refactoring of existing code — separate workflow. **EXISTING-specific:** does NOT re-derive the vision (reads from project) or re-decide locked tech choices (inherits them); does NOT auto-fix compliance gaps (owner decides per gap; auto-fix happens later as Retrofit epics in 02).
+**Does NOT.** Split the vision into epics, decide scaffold types per epic, decide shape blocks per epic, or produce per-epic infrastructure decisions — all of those are `02-epic-decomposition-fabrik`. Create files or tickets — orientation only; tickets in `03-expand-epic-files-fabrik`. Blindly accept research — challenges against Fabrik reality, budget, maintainability. Plan refactoring of existing code — separate workflow. **EXISTING-specific:** does NOT re-derive the vision (reads from project) or re-decide locked tech choices (inherits them); does NOT auto-fix compliance gaps (owner decides per gap; auto-fix happens later as Retrofit epics in 02).
 
 ## Examples
 
