@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Mega-epic-breakdown twins converged; the 02→03→04→05 persistence contract closed (2026-07-17)
+
+All five `mega-epic-breakdown` `-fabrik` twins (`00`/`02`/`03`/`04`/`05`) now carry a `Reads:` budget + `[canonical:]` citations and are converged to md5-stable no-ops, with the Traycer twins kept in factual + logic lockstep. The shared review skill is folder-neutral (`/fabrik-workflow-review`, renamed from `/fabrik-ettw-review`) and the mega checklist gained its hollow-citation item (#102). `11-deploy-fabrik` completes the ettw chain as the deploy-out human gate.
+
+Load-bearing fix: epic tickets promised cold-context self-sufficiency but referenced an Infrastructure Decisions spec that `02` never persists — it died with the session. `03` now writes it (plus 02's Deferred Compliance appendix) to `docs/superpowers/specs/`, cited by full path from every ticket; `04` reads it from disk. Also gave `03` the repair mode `04`/`05` were already routing to but which did not exist, and fixed `05`'s ticket-set integrity checks (a count-only check lets a deficit and an orphan cancel out).
+
 ### Fixed — Scaffolded CI installs the project's dev/test extras (2026-07-16)
 
 The generated CI ran `pip install -e .`, which skips `[project.optional-dependencies]` — so a project whose

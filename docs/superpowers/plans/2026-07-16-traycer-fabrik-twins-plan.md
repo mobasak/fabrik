@@ -26,7 +26,7 @@ Every ettw doer/review twin from `00-trigger-fabrik` through `10-cross-artifact-
 
 **Evidence:** `docs/traycer/epic-to-ticket-workflow/{00..10}-*-fabrik.md` all present; recent commits `de0fb8f1` (08), `1fd8dfdb` (09), `f1c246d9` (10), `2472ddb3`/`ed1fe896` (07), `2be6cea7` (06), earlier for 00–05. Each commit records its Pass Ledger + the source anchor fixes.
 
-## Phase A — ettw `11-deploy-fabrik` (the last ettw twin)
+## Phase A — ettw `11-deploy-fabrik` (the last ettw twin) — ✅ DONE (`1fd7d432`, 6 rounds, md5-stable no-op, gate green)
 
 `11-deploy-command` is the **deploy-out human gate** (R14's 2nd human gate) — so its twin is **deliberately NOT autonomous**; its shape differs from `07`–`10`. It runs `fabrik apply` under operator control.
 
@@ -37,7 +37,7 @@ Every ettw doer/review twin from `00-trigger-fabrik` through `10-cross-artifact-
 - **A5.** Gate + commit; fix the `11-command` load-bearing anchors.
 - **Gate:** `final_gate.py --check` → success; Pass Ledger ends `found:0, fixed:0`, md5 stable.
 
-## Phase B — mega review infrastructure
+## Phase B — mega review infrastructure — ✅ DONE (B1 `962fd46f`: skill renamed folder-neutral + mega #102 added + 7 footers + the north-star rewrite; B2 `c7c1ba05`: mega/04 rebuilt as a converging review, 15 defects)
 
 **B1 — EXTEND the shared review skill to be folder-neutral: `/fabrik-ettw-review` → `/fabrik-workflow-review <artifact-path> <type>`.** ⚠️ **NOT a new `/fabrik-mega-review`** — ~83 % of the existing 47-line skill (`~/.claude/commands/fabrik-ettw-review.md`) is folder-neutral machinery (termination contract, finder fan-out, pool+native floor, refute, md5 no-op, Pass Ledger, gate); only ~8 lines are ettw-bound (L2 frontmatter `description`, L5 body framing, L7 `Reads:` header, L15 `type` enum, L22/23/24 item refs, L36 `project=`). Duplicating it to vary those violates CC1 ("one lean template … thin files, not ten more heavy ones") + CLAUDE.md ("extend, don't duplicate").
 - **Extend in place** (the ~8 ettw-bound lines — incl. **L5's body framing** "Converge one ettw artifact… the ettw `-fabrik` doer commands", which the earlier enumeration omitted): add the mega types (`vision-summary` / `epic-decomposition` / `expanded-epic-files`) to the `type` enum alongside the ettw types; make the yardstick **type-conditional** — ettw types → `EVALUATION_CHECKLIST_FOR_EPIC_COMMANDS.md`, mega types → `EVALUATION_CHECKLIST_FOR_MEGA_EPIC_COMMANDS.md` (reference by **path only — never encode an item count**: B1 itself adds the mega hollow item, and a hard-coded count is the drift defect the spec residual forbids); **generalize the hardcoded item refs** (126/127/132) to "the applicable checklist's flavor / trigger-vs-value / hollow-citation items"; derive `project=` from the folder (`ettw-review` | `mega-review`).
@@ -53,7 +53,10 @@ Every ettw doer/review twin from `00-trigger-fabrik` through `10-cross-artifact-
 - Write it as the mega analog of ettw `10`: pool `fanout("review")` + native Opus finders across the cross-epic seams (owned-paths disjointness, Produces/Consumes contracts, parallel-set gates, Compliance-Report rows), surgical fixups vs route-to-re-decompose, loop-to-no-op, 3 BLOCKED halts.
 - Converge via its **own** finder loop-to-no-op (native Opus + pool on the twin's prose) — `04` is a review twin, so it self-converges (step 3's review-twin variant); it has no downstream paired review, and `/fabrik-workflow-review`'s type enum has no review-artifact slot. Checklist, gate, commit; fix the `04-command` anchors.
 
-## Phase C — mega doer parity (`00`/`02`/`03`, light `05`)
+## Phase C — mega doer parity (`00`/`02`/`03`, light `05`) — ✅ DONE (C1 `08b84c4a`, 15 rounds/16 defects · C2 `7b6c0584`, 14 rounds/~18 · C3+C4 `d87cab4c`, 30 rounds/~35 — C3 and C4 merged: 05's defects were reachable only through 03's contract)
+
+⚠️ **Two plan premises were wrong and the work corrected them.** (a) C1 assumed the BLOCKING live-research gate was missing from mega `00` — it already existed (N3k-1/-2/-3); the real gaps were the `Reads:` budget, CC2 citations, and parallel dispatch. (b) C4 was scoped "light" — it was not: the persistence contract 03 owns made 05's checks unrunnable, and 05's contiguity check alone took 6 revisions.
+
 
 Each brought to parity via the pipeline. The mega **doers** `00`/`02`/`03` converge via **`/fabrik-workflow-review`** (the B1-extended skill); `05` (thin dispatcher, C4) gets only a grounding+consistency pass (not a paired review):
 
@@ -63,7 +66,7 @@ Each brought to parity via the pipeline. The mega **doers** `00`/`02`/`03` conve
 - **C4 — `05-dispatch-epic-tickets-fabrik`** — the lightest grounding+consistency pass (step 3's `05` variant): a `Reads:` header + verify it correctly hands each epic to the ettw chain + a pool+native consistency check to a no-op — thin (no deep grounding), since its real reviews live downstream in ettw.
 - **Gate (per item):** `final_gate.py --check` → success; each Pass Ledger ends `found:0, fixed:0`, md5 stable; fix each `-command` anchor.
 
-## Phase D — Zed-ACP orchestration extension (LATER — after both folders' commands are finalized)
+## Phase D — Zed-ACP orchestration extension (DEFERRED — explicitly out of scope for this run) (LATER — after both folders' commands are finalized)
 
 The Fabrik-managed front-end: a **Zed extension speaking ACP** (the analog of Traycer-in-VS-Code) `[canonical: docs/traycer/00-autonomous-factory-north-star.md — the D-Zed decision]`. **Not built by Phases A–C** — it starts only once both folders' commands (the `-fabrik` twins **and** the Traycer `-command` sources) are finalized. Recorded here so the arc is visible; it gets its **own** `/fabrik-spec` → `/fabrik-plan-after-chat` cycle when it begins (it is a code project, not a command twin).
 

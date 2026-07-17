@@ -81,11 +81,12 @@ The mega tier is **purely spec / plan / decompose / review / dispatch** — GUI 
 
 ## Current state (grounded 2026-07-16)
 
-- **ettw `00`–`10` `-fabrik`: DONE** — each grounded + converged to an md5-stable no-op, checklist + item-132 clean, gate green, committed (`de0fb8f1` 08 · `1fd8dfdb` 09 · `f1c246d9` 10, and earlier for 00–07). Shared review skill **`/fabrik-ettw-review`** exists.
-- **ettw `11-deploy`: NO twin yet** — remaining.
-- **mega `00`/`02`/`03`/`04`/`05` `-fabrik`: exist but PRE-discipline** — a scan shows **no** `Reads:` header, **zero** `[canonical:]` citations, **no** pool+native review floor, **no** termination contract; `04` is a single-pass "quality auditor", not a converging review.
-- **No convergence review reaches mega** — the shared skill (`~/.claude/commands/fabrik-ettw-review.md`, 47 lines) is **ettw-scoped**: its frontmatter `description`, its L5 body framing, its `type` enum, its yardstick (`EVALUATION_CHECKLIST_FOR_EPIC_COMMANDS.md`, **132 items**), its hardcoded item refs (126/127/132) and its `project=` label all assume ettw. Its *loop machinery* is folder-neutral → **extend it, don't duplicate** (CC1: "one lean template … thin files, not ten more heavy ones").
-- **Mega checklist parity gap** — `EVALUATION_CHECKLIST_FOR_MEGA_EPIC_COMMANDS.md` (**101 items**) has **no hollow-citation item** (verified: ettw has 1, mega has 0), so CC2's item-132 discipline has no mega yardstick.
+- **ettw `00`–`11` `-fabrik`: DONE** — each grounded + converged to an md5-stable no-op, checklist clean, gate green, committed. `11-deploy-fabrik` landed this run (`1fd7d432`) as the deploy-out HUMAN gate: the driver prepares and verifies, the operator runs `fabrik apply`; the driver runs no `fabrik` command.
+- **mega `00`/`02`/`03`/`04`/`05` `-fabrik`: DONE** — all five now carry a `Reads:` budget + `[canonical:]` citations and are converged to md5-stable no-ops (`08b84c4a`, `7b6c0584`, `c7c1ba05`, `d87cab4c`). Dispatch per § Capability delta: `00` fans out research grounders, `03` one adjudicator per epic file, `04` the review finders; `02` is correctly single-agent (its decomposition is judgment, and the Vision Summary arrives pre-grounded). Both Traycer twins were kept in factual + logic lockstep throughout.
+- **The convergence review reaches mega** — `~/.claude/commands/fabrik-workflow-review.md` (renamed from `fabrik-ettw-review`, `962fd46f`) is folder-neutral: the `type` argument selects the yardstick by PATH, never a count. It serves the producer doers only — ettw `00`–`06` and mega `00`/`02`/`03`; `07`→`08` and `09`→`10` have dedicated paired reviews and `11` is a human gate.
+- **Mega checklist parity closed** — `EVALUATION_CHECKLIST_FOR_MEGA_EPIC_COMMANDS.md` is now **102 items**; the hollow-citation item (#102) was added to match ettw's #132.
+- **The 02→03→04→05 persistence contract is closed** (`d87cab4c`) — `02` decides and persists nothing; `03` writes the tickets to `docs/development/epics/` AND the Infrastructure Decisions spec (carrying 02's Deferred Compliance appendix) to `docs/superpowers/specs/`; `04` reads that spec from disk; `05` dispatches. Before this, every ticket referenced a spec that died with the session, so the cold-context promise was false.
+
 
 ## Success criteria
 
