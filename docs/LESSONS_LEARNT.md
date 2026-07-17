@@ -1,11 +1,28 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
-**Last Updated:** 2026-07-14 (Lesson 94 — I refuted a review finding by proving the wrong half of it, and it cost 3 hours of paid compute)
+**Last Updated:** 2026-07-17 (Lesson 95 — arithmetic cannot settle a domain question; assume your own fix is defective) (Lesson 94 — I refuted a review finding by proving the wrong half of it, and it cost 3 hours of paid compute)
 
 **Purpose:** CAPTURE TECHNICAL HURDLES, AI-SPECIFIC QUIRKS, AND ARCHITECTURAL DECISIONS TO PREVENT REGRESSION AS CODEBASES AND AI AGENTS EVOLVE.
 
 ---
+
+# Lesson 95: arithmetic cannot settle a domain question — and on a governance doc, the fix introduces the next defect more often than not
+
+**Context (2026-07-17):** Converging the `mega-epic-breakdown` twins. Two patterns dominated ~60 pool+native review rounds, and both cost far more than the original defects.
+
+**1. Eight revisions of one rule, because I kept reaching for arithmetic.** `02`'s "an epic under 5 features must merge UNLESS…" exception went: a fixed `<8` cap (stranded the 8–15 band) → `≤15` (stranded 16–19) → `min(K,J)` (degenerates to K-alone at J≥K) → `N < 5×J` (gameable by over-splitting) → a balance test (**perverse**: "fewest sub-5 epics" prefers `5/5/5/1` over `4/4/4/4` — it actively selects the junk epic the rule exists to kill, and boxes an honest `7/4/3/2` domain split with no legal landing). The file's own § Core Philosophy said it all along: *"Draw boundaries by DOMAIN, not by layer."* No threshold can decide a domain question — every one is either gameable by re-slicing or punishes an honest split. The rule that finally held is qualitative and asks what the merge rule actually asks: *"why can't this live inside an adjacent epic?"*
+
+**The tell:** when fix N+1 to the same line opens a fresh hole, stop fixing the line and ask whether the *kind* of rule is wrong.
+
+**2. On a governance doc, assume your fix is defective.** A near-total hit rate: a Reads-budget "fix" quoted MCP server names where `web_tools` names belong (grounders would run with **zero tools** on a ⛔BLOCKING gate — silently answering from memory, the exact defect the gate exists to prevent); "fixing" that to `mode="write"` was worse (a HEAD worktree, and `PORTS.md` + `.windsurf/` are **gitignored in projects**, so the grounders would see neither); persisting a spec as `epic-0` in the ticket dir would have had `05` `rm` it as an orphan; renaming `Step 2`→`2a/2b` dangled **10** sibling citations; a `[canonical: file.md:174]` rotted the moment my own header shifted that file's lines. Each was caught only because the loop kept running with an explicit *"assume my fixes introduced one"* instruction.
+
+**What to do differently:**
+- **Anchor citations to sections, never line numbers** — your own edit shifts them.
+- **Cite by value, not by count** — "the 5 `I18N_ENABLED_TYPES`" is unactionable; name them.
+- **Ground the mechanism, not the name** — `select_rules.py` selects on `globs:` alone and never reads `activation:`; two of my confident claims about it were wrong in opposite directions.
+- **Keep running the loop.** Rounds 20–30 found the deepest defects (a diff key that made "mis-numbered" unsatisfiable *by construction*; a route-back to a `03` repair mode that did not exist; tickets promising cold-context self-sufficiency while referencing a spec that died with the session). A 3-round review would have shipped every one of them.
+- **The pool earns its slot.** Two pool models independently caught a bare-vs-full rule-pack path native missed, and minimax found an Acceptance-vs-template contradiction native missed twice. Native caught the code-grounded ones. Neither layer alone was sufficient — which is exactly what `62-using-subagents.md` § Dispatch policy already mandates.
 
 # Lesson 94: a refutation that proves the wrong half is not a refutation — and "done" written to disk is not "done" written to the DB
 
