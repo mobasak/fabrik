@@ -5,7 +5,7 @@
      -->
 
 <!-- ⚠️ QUALITY GATE: Any modification to this command file MUST be evaluated
-     against EVALUATION_CHECKLIST_FOR_EPIC_COMMANDS.md (131 items).
+     against EVALUATION_CHECKLIST_FOR_EPIC_COMMANDS.md.
      Every applicable item must pass. "N/A" is valid; forgetting to check is not. -->
 
 # Deploy
@@ -20,7 +20,7 @@ Traycer:
   2. Reads the spec file → knows shape, registrars, port, domain
   3. Reads deploy-plan (04) if it ran, OR derives from tech-plan + spec
   4. Constructs a deploy ticket (pre-flight → push → apply → verify → report)
-  5. Dispatches to Claude Code (first-ever deploy) or Kilo CLI (redeploy)
+  5. Dispatches to a coder agent per `06-ticket-breakdown` Step 9 (the OpenRouter pool via pick_models("code"), or `claude -p`) — first-ever deploys operator-supervised
   6. Agent SSHs to VPS and executes the commands
   7. Traycer receives result: registrars present? Health 200?
   8. Reports success or failure with next steps
@@ -57,7 +57,7 @@ Read the spec file. Extract: `id`, `domain`, `shape`, `port`, `kind`.
 
 **Retrofit-epic adjustments (when current epic Title prefix is `Retrofit:` per `mega-epic-breakdown/03-expand-epic-files-command` § Step 2):**
 
-- **First-ever-deploy vs redeploy distinction:** Retrofit deploys are ALWAYS redeploys (the existing project's compose unchanged for code-only retrofits per `04-deploy-plan-command` post-`3060147` Skip rule). Default dispatch target is **Kilo CLI** (redeploy path per L23).
+- **First-ever-deploy vs redeploy distinction:** Retrofit deploys are ALWAYS redeploys (the existing project's compose unchanged for code-only retrofits per `04-deploy-plan-command` post-`3060147` Skip rule). Default dispatch target is a **pool coder** (`pick_models("code")`) or `claude -p` (redeploy path per L23).
 - **Deploy Plan absence:** if `04-deploy-plan-command` was SKIPPED entirely per its Retrofit Skip rule, derive from tech-plan + existing project spec. State explicitly in the deploy ticket: `Deploy Plan: skipped per Retrofit branch; derived from existing project spec`.
 - **Shape Block (pre-flight):** Retrofit epics INHERIT the existing project's shape; do NOT verify new shape flags unless the retrofit explicitly adds a registrar (e.g., `Retrofit: search` adds `has_search_feature` + meilisearch; `Retrofit: backup` adds `has_persistent_data` + backrest).
 - **Compose verification:** for code-only retrofits (e.g., `Retrofit: i18n`, `Retrofit: Resilience` on existing external calls, `Retrofit: Auth hardening`), `compose.yaml` is UNCHANGED — pre-flight verifies invariants still hold but does NOT expect new content.
@@ -143,7 +143,7 @@ On failure: paste error logs (`fabrik logs <id> --tail 50`).
 | Situation | Agent |
 |---|---|
 | First-ever deploy of this service | Claude Code (operator presence recommended) |
-| Routine redeploy (code pushed, same service) | Kilo CLI or Claude Code |
+| Routine redeploy (code pushed, same service) | a pool coder (`pick_models("code")`) or `claude -p` — per `06-ticket-breakdown-command` Step 9 |
 
 Agent receives the full ticket. It SSHs to VPS and executes commands in order. Standard Fabrik deployment flow — the agent doesn't need special VPS access beyond what `ssh vps` provides (already configured in every Fabrik project).
 
@@ -188,7 +188,7 @@ On failure:
 - Does NOT bypass the lifecycle contract — every deploy follows `docs/operations/fabrik-lifecycle.md` (register via `fabrik apply` + verify via `fabrik verify`). Manual `docker compose up` on the VPS = the deploy is invalid and the state file becomes stale.
 - Does NOT use `FABRIK_EXEC_MODE=local` — that mode is for crons/watchdog running ON the VPS already; ettw/11 dispatches an agent that SSHes FROM WSL TO the VPS. The two modes are not interchangeable (per L41).
 - Does NOT skip pre-flight verification — every deploy ticket includes the full pre-flight checklist (L84-93). Skipping pre-flight = deploy may fail mid-flight with no rollback path.
-- Does NOT enforce first-ever-deploy ticket template on Retrofit epics — per Step 1 Retrofit branch, Retrofit deploys are ALWAYS redeploys (dispatch to Kilo CLI by default; verify-only pre-flight for code-only retrofits).
+- Does NOT enforce first-ever-deploy ticket template on Retrofit epics — per Step 1 Retrofit branch, Retrofit deploys are ALWAYS redeploys (dispatch to a pool coder / `claude -p` by default; verify-only pre-flight for code-only retrofits).
 - Does NOT verify Shape Block new flags for Retrofit epics — per Step 1 Retrofit branch, shape is INHERITED from existing project unless the retrofit explicitly adds a registrar.
 - Does NOT block `fabrik apply` on a Retrofit epic's absent Deploy Plan — per Step 1 Retrofit branch, derive from tech-plan + spec when `04-deploy-plan-command` SKIPPED entirely (post-`3060147`).
 - Does NOT run `git commit` or modify code in the deploy ticket — code is already merged pre-deploy per `07-execute-command` Step 5 Merge. Deploy ticket commands are infrastructure-only (`git push`, `fabrik apply`, `fabrik verify`, `fabrik audit-registrars`).
