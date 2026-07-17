@@ -59,7 +59,7 @@ You are a ticket breakdown orchestrator. You read the confirmed compact epic pro
 
   Every ticket **references** that spec rather than duplicating it (the ticket's `### Infrastructure` section; `04` enforces "reference, not duplicate"), and `02` writes **nothing** to disk — so if you persist only the tickets, the spec dies with this session and the cold-context promise below is false: the ticket alone is not enough, and re-running `02` is exactly the "replaying this session" the file store exists to avoid. Write it ONCE, before the tickets, and cite its full path from every ticket's `### Infrastructure` section.
 
-  ⚠️ **Do NOT put it under `docs/development/epics/`.** That directory's allowlist regex is `epic-<n>-<slug>` (`check_doc_sprawl.py`), so a spec there would have to masquerade as `epic-0` — and `04`/`05` glob the whole directory and treat every hit as a ticket (counting it, title-checking it, demanding contiguous `1..N`, and `rm`-ing the excess as an orphan). `docs/superpowers/specs/**` is allowlisted with free naming, cannot collide with any ticket glob, and is where this chain's canon already lives. A breakdown that lives in the context window dies with it, and `05-dispatch-epic-tickets-fabrik` + `epic-to-ticket-workflow` must be able to read an epic back **on a cold context**, days later, without replaying this session. One epic per file: greppable, dispatchable, reviewable, and diffable.
+  ⚠️ **Do NOT put it under `docs/development/epics/`.** That directory's allowlist regex is `epic-<n>-<slug>` (`check_doc_sprawl.py`), so a spec there would have to masquerade as `epic-0` — and `04` (via `epic_order.py`) globs the whole directory and treats every hit as a ticket (counting it, title-checking it, demanding contiguous `1..N`, and flagging the excess as an orphan). `docs/superpowers/specs/**` is allowlisted with free naming, cannot collide with any ticket glob, and is where this chain's canon already lives. A breakdown that lives in the context window dies with it, and `04-cross-epic-validation-fabrik` + the cockpit/driver + `epic-to-ticket-workflow` must be able to read an epic back **on a cold context**, days later, without replaying this session. One epic per file: greppable, dispatchable, reviewable, and diffable.
 
 - **Tool-capable — verify, don't assume.** Our orchestrator is Claude Code: it can **write files, run commands, and call MCP servers, skills, subagents and workflows.** Use that. Where a ticket asserts a port, a pack path, a `shape` flag, or a registrar, **ground it** — read `PORTS.md`, read the pack, read `spec_loader.py` — instead of copying an upstream claim you cannot see. The Traycer twin has to trust its inputs; **this one does not, so it must not.** A ticket citing a file that does not exist is a defect, not a formatting nit.
 - **Expand, don't re-derive.** Scope boundaries, dependencies, and scaffold type were decided in `02-epic-decomposition-fabrik`. This step fleshes out the detail within those boundaries — it does not change them.
@@ -117,9 +117,9 @@ Write it to `docs/superpowers/specs/YYYY-MM-DD-<project>-infrastructure-decision
 
 ⚠️ **EXISTING mode — carry 02's Deferred Compliance appendix into that same file**, verbatim, under a `## Deferred Compliance (not actioned this run)` section (02 surfaces it even when empty). Those `fix-later` / `accept-as-legacy` rows emit **no** epic, so no ticket can carry them — this file is the only thing that keeps them alive past this session, and `04`'s lens D checks them there.
 
-**2c. Write the tickets.** ⚠️ **Two modes.** *Full run* (the default): every epic below. *Repair run* — when `04` or `05` routes back naming specific files, act on ONLY those and leave every other ticket untouched:
-- **recreate** a named epic — write just that one, overwriting any existing file at its path. (A `05` check-1 Deficit makes it *missing*; a boundary re-cut routed per `04-cross-epic-validation-fabrik` makes an existing ticket *stale* — same action either way.)
-- **renumber** a named mis-numbered file — rewrite its `Epic N — [Name]` **Title line AND the Description's `## Epic N — [Name]` heading** (the file carries the epic string in both) and rename the file to the right `epic-<n>-<slug>`, **reusing its original date prefix**; do NOT write an additional file (that returns an Excess to `05` and loops);
+**2c. Write the tickets.** ⚠️ **Two modes.** *Full run* (the default): every epic below. *Repair run* — when `04` routes back naming specific files (`04` now owns the integrity gate the retired `05` used to run), act on ONLY those and leave every other ticket untouched:
+- **recreate** a named epic — write just that one, overwriting any existing file at its path. (A `04` integrity-gate Deficit — `epic_order.py --check` — makes it *missing*; a boundary re-cut routed per `04-cross-epic-validation-fabrik` makes an existing ticket *stale* — same action either way.)
+- **renumber** a named mis-numbered file — rewrite its `Epic N — [Name]` **Title line AND the Description's `## Epic N — [Name]` heading** (the file carries the epic string in both) and rename the file to the right `epic-<n>-<slug>`, **reusing its original date prefix**; do NOT write an additional file (that returns an Excess to `04`'s integrity gate and loops);
 - **retitle** a named ticket whose Title violates `Epic N — [Name]` (em-dash, single spaces, optional `Retrofit:` prefix) — rewrite the Title line and heading IN PLACE; do NOT renumber it, rename the file, or rewrite the body;
 - **delete** a named orphan / redundant copy — `rm` exactly the file named, never one you inferred.
 Announce which mode you are in and which files it touches, then re-run `04-cross-epic-validation-fabrik` before handing back: a repaired ticket has never been validated.
@@ -137,9 +137,24 @@ Both flavours produce identical ticket structure — the Retrofit prefix carries
 Epic N — [Name]
 ```
 
-**Ticket Description:**
+**Ticket Frontmatter (REQUIRED — Traycer-ready `[canonical: EPIC-ARTIFACT-SCHEMA.md]`):** every epic file MUST open with the typed frontmatter block below, then the prose body. It is the ONE data model (D10): `scripts/epic_order.py` reads `epic_n`/`depends_on`/`parallel_with`/`owned_paths` for integrity + phased ordering (the code that replaced `05`), and `scripts/traycer_mirror.py` reads `kind`/`title`/`status` for the Traycer card render. ⚠️ `depends_on`/`parallel_with`/`owned_paths` are the **machine form** of the `### Dependencies` prose below — keep them identical (a mismatch is a defect `04` flags).
+
+**Ticket Description (frontmatter block, then the body):**
 
 ```markdown
+---
+kind: story
+title: "Epic N — [Name]"
+status: 0
+epic_n: N
+slug: [slug]
+depends_on: []          # hard-dep epic numbers (verbatim from 02's Depends on:)
+parallel_with: []       # co-phase epic numbers (verbatim from 02's Parallel with:)
+owned_paths: [...]       # verbatim from 02's Owned paths: — the concurrency contract
+scaffold: [type]
+port: [n]
+target_vps: [vps]
+---
 ## Epic N — [Name]
 
 ### Summary
@@ -215,6 +230,17 @@ Infrastructure Decisions spec provides the shared infra context.
 
 **Write each ticket file as you go** — do not batch all epics before writing. A partial run then still leaves every completed epic durable on disk.
 
+**2d. Mirror each written file into the Traycer store — DETERMINISTIC, call the script (do NOT hand-write the mirror).** `[canonical: EPIC-ARTIFACT-SCHEMA.md; north-star R8/D4 — the projection is code, not prose]` After each epic file lands on disk, and once for the Infrastructure Decisions spec, run:
+
+```bash
+python /opt/fabrik/scripts/traycer_mirror.py --src docs/development/epics/YYYY-MM-DD-epic-<n>-<slug>.md \
+       --name epic-<n> --kind story --title "Epic <n> — <Name>" --status 0 --embed
+python /opt/fabrik/scripts/traycer_mirror.py --src docs/superpowers/specs/YYYY-MM-DD-<project>-infrastructure-decisions.md \
+       --name infra-decisions --kind spec --title "Infrastructure Decisions — <project>" --embed
+```
+
+⚠️ **This does not change the store of record.** DISK stays source-of-truth (D8). The script writes `~/.traycer/epics/$TRAYCER_EPIC_ID/artifacts/<name>/index.md` ONLY when `$TRAYCER_EPIC_ID` is set (i.e. running inside Traycer) — so the cockpit renders every epic as a card; it is a **NO-OP headless** (the driver run is untouched). The SAME command therefore works in any `/opt` project, in Traycer or headless.
+
 ### Step 3: Confirm
 
 After all tickets are written, list them **with their paths** — and confirm each file exists on disk (`ls docs/development/epics/` **and** `ls docs/superpowers/specs/` — the spec lives in a different tree), don't assert it:
@@ -244,7 +270,7 @@ docs/development/epics/YYYY-MM-DD-epic-<n>-<slug>.md                    <- one p
 docs/superpowers/specs/YYYY-MM-DD-<project>-infrastructure-decisions.md <- the spec every ticket cites
 ```
 
-Both allowlisted in `CLAUDE.md` § HARD STOPS — NEVER; matched by `scripts/enforcement/check_doc_sprawl.py`. The spec lives in the SPEC store precisely so it never lands in `04`/`05`'s ticket glob. Each ticket is readable on a **cold context** — that is the whole point — and self-sufficient **together with the Infrastructure Decisions spec** it cites by full path. That pair, on disk, is the complete dispatch unit; nothing else from this session survives.
+Both allowlisted in `CLAUDE.md` § HARD STOPS — NEVER; matched by `scripts/enforcement/check_doc_sprawl.py`. The spec lives in the SPEC store precisely so it never lands in `04`'s ticket glob. Each ticket is readable on a **cold context** — that is the whole point — and self-sufficient **together with the Infrastructure Decisions spec** it cites by full path. That pair, on disk, is the complete dispatch unit; nothing else from this session survives.
 
 - One ticket per epic
 - Title: `Epic N — [Name]` (delta-feature) or `Epic N — Retrofit: [area]` (Retrofit)
@@ -255,17 +281,17 @@ Both allowlisted in `CLAUDE.md` § HARD STOPS — NEVER; matched by `scripts/enf
 
 ## Does NOT
 
-- Does NOT leave tickets in conversation only — **write each one to `docs/development/epics/`** (§ Output Contract). An epic that exists only in the context window is lost the moment the window turns over, and `05` cannot dispatch what it cannot read.
+- Does NOT leave tickets in conversation only — **write each one to `docs/development/epics/`** (§ Output Contract). An epic that exists only in the context window is lost the moment the window turns over, and the cockpit/driver cannot dispatch what it cannot read.
 - Does NOT write tickets anywhere else — the path is allowlisted; inventing a new location trips `check_doc_sprawl.py` and is a governance change, not this command's call.
 - Does NOT change epic boundaries or move features between epics — those were confirmed in `02-epic-decomposition-fabrik`. If boundaries need changing, route back to 02.
 - Does NOT validate cross-epic consistency — that is `04-cross-epic-validation-fabrik`.
-- Does NOT dispatch tickets — that is `05-dispatch-epic-tickets-fabrik` (dispatch step).
+- Does NOT dispatch tickets — dispatch is the cockpit epic-card click / the driver's phase queue (`05-dispatch` retired; ordering via `scripts/epic_order.py`, integrity + order emitted by `04`).
 
 ## Acceptance Criteria
 
 - **Cross-field adjudication dispatched through `libs/subagents`** (Step 2, sub-step 2a) — YOU ground (`PORTS.md` + the pack `ls`) and inline the findings; one pool `fanout("review", …, project="mega-expand", mode="read_only")` unit per epic, each with the facts inlined, recording the flywheel via `project=` **AND** ≥1 native `fabrik-reviewer` on Opus for the `Owned paths:` seam, with every pool run back-filled by `set_quality`. Going all-native lands zero flywheel rows `[canonical: core/62-using-subagents.md § Dispatch policy — BOTH layers, never either/or]`.
 - The Infrastructure Decisions spec is persisted ONCE to `docs/superpowers/specs/YYYY-MM-DD-<project>-infrastructure-decisions.md` before the tickets — carrying 02's **Deferred Compliance** appendix verbatim as a section (EXISTING mode; those rows emit no epic, so nothing else preserves them) — and every ticket's `### Infrastructure` section cites its full path — without it the tickets reference a spec that died with this session, and the cold-context promise is false.
-- All epics from the confirmed proposal have a corresponding epic ticket, and **each is a FILE on disk** at `docs/development/epics/YYYY-MM-DD-epic-<n>-<slug>.md` — verified by listing the directory, not asserted. A ticket left in conversation only is a **failed run**: `05-dispatch` and `epic-to-ticket` must be able to read it on a cold context.
+- All epics from the confirmed proposal have a corresponding epic ticket, and **each is a FILE on disk** at `docs/development/epics/YYYY-MM-DD-epic-<n>-<slug>.md` — verified by listing the directory, not asserted. A ticket left in conversation only is a **failed run**: `04`, the cockpit/driver, and `epic-to-ticket` must be able to read it on a cold context.
 - Each ticket title follows the format: `Epic N — [Name]` (delta-feature) **or** `Epic N — Retrofit: [area]` (Retrofit). ⚠️ The `Retrofit:` prefix is the **sole carrier** of the epic flavour downstream — `epic-to-ticket/00` string-parses the Title. A title like `Epic 4 — i18n Retrofit` silently classifies as Delta-feature.
 - Each ticket description is self-sufficient: a coding agent can run `epic-to-ticket-workflow/00-trigger-fabrik` in multi-epic (consume) mode — the chain's real entry point, never `01` directly — using only the ticket + Infrastructure Decisions spec.
 - Ticket length is **structure-bounded by the template** (no numeric token cap — per `EVALUATION_CHECKLIST_FOR_MEGA_EPIC_COMMANDS` item 93). A ticket that will not fit the template means the epic is **over-scoped** → route back to `02-epic-decomposition-fabrik`.

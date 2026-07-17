@@ -834,7 +834,21 @@ Wait for explicit confirmation. **STOP GENERATION HERE.** Silence ≠ confirmati
 
 ## Output Contract & Acceptance Criteria
 
-**Format.** Vision Summary (markdown, exact structure from Step N4 / E5 skeleton) presented in our orchestrator conversation. No files written. Lives in our orchestrator conversation context titled "Vision Summary." Persisted by our orchestrator's spec store automatically. Consumed by `02-epic-decomposition-fabrik` from conversation context; `03-expand-epic-files-fabrik` creates tickets per epic from the confirmed decomposition.
+**Format.** Vision Summary (markdown, exact structure from Step N4 / E5 skeleton) presented in our orchestrator conversation, **then PERSISTED on confirm** — the old "persisted automatically" claim was false; it wrote nothing, so a cold re-entry lost it `[canonical: north-star D6 — persist on confirm; do NOT leave load-bearing artifacts chat-only]`.
+
+**Persist on confirm (after CHECKPOINT N-5 / E-3).** The moment the owner confirms the Vision Summary:
+
+```bash
+# 1. write it to disk (already-allowlisted specs tree; free naming, matched by check_doc_sprawl.py)
+#    (paste the confirmed Vision Summary markdown into this file)
+$EDITOR docs/superpowers/specs/YYYY-MM-DD-<project>-vision.md
+# 2. mirror it as a Traycer artifact so the cockpit's "Vision" cell renders (no-op headless)
+python /opt/fabrik/scripts/traycer_mirror.py \
+       --src docs/superpowers/specs/YYYY-MM-DD-<project>-vision.md \
+       --name vision --kind spec --title "Vision Summary — <project>" --status 1 --embed
+```
+
+DISK is source of truth (D8); the mirror is an env-guarded projection (`$TRAYCER_EPIC_ID`) `[canonical: EPIC-ARTIFACT-SCHEMA.md]`. **Consumed by** `02-epic-decomposition-fabrik` (multi-epic) or `epic-to-ticket-workflow/00-trigger-fabrik` (single-epic) — from the persisted file OR conversation; `03-expand-epic-files-fabrik` creates tickets per epic from the confirmed decomposition.
 
 **Token budget.** NEW: ≤5,000 target / ≤8,000 hard cap. EXISTING: ≤6,000 target / ≤10,000 hard cap (extras add length).
 

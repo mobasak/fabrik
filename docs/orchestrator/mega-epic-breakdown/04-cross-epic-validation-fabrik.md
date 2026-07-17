@@ -58,13 +58,32 @@ The **cross-epic (epic-set) review orchestrator** — Opus 4.8, running the driv
 
 **Format:** the Cross-Epic Validation Report (markdown, structure in Step 4), posted to the Telegram digest at the no-op. **Structure-bounded, NOT token-capped** `[canonical: EVALUATION_CHECKLIST_FOR_MEGA_EPIC_COMMANDS.md — item 93]`: a PASS/FAIL-row-per-check report is already bounded by "fill this template once", so a numeric budget would only force harmful truncation of exactly the failures the owner most needs to see. **Do not add one.**
 **Result:** the converged verdict — `found:0, fixed:0` with the fixup count and any route-backs; never a bare defect list.
-**Consumed by:** `05-dispatch-epic-tickets-fabrik` (the execution order), or `02`/`03`/`00` on a route-back.
+**Consumed by:** the cockpit (epic cards → GUI card-click dispatch) / the driver (`epic_order.py --json` → phase queue); or `02`/`03`/`00` on a route-back. (`05-dispatch` retired — dispatch is code + GUI, not a command.)
 
 ## Processing User Request
 
 ### Step 1: Read All Artifacts
 
 Glob `docs/development/epics/*.md` and read every ticket in full; read the Vision Summary + Infrastructure Decisions + Dependency Graph. **If any is missing, do not review — ROUTE BACK** (not a halt): state which, hand to the creating command (`00` for the Vision Summary; `02` for the decomposition CONTENT; `03` for a ticket **or for the Infrastructure Decisions FILE** — `02` writes nothing to disk, so only `03` can re-emit a missing spec file), and re-enter here once it re-emits. State: *"Read the Vision Summary + Infrastructure Decisions and [M] epic tickets."*
+
+### Step 1.5: Ticket-Set Integrity — run in CODE (folded from the retired `05`)
+
+`[canonical: north-star R8/D4 — control flow in code, not prose]` The ticket-set integrity that `05-dispatch` used to do by hand — count-match against `02`'s proposal, epic-number contiguity, duplicate/orphan detection, and the parallel-set disjointness / single-migration-owner proof — is now the deterministic gate `scripts/epic_order.py`, run over the typed frontmatter (`[canonical: EPIC-ARTIFACT-SCHEMA.md]`). **`05` no longer exists; this leg absorbs its Step 1.**
+
+```bash
+python /opt/fabrik/scripts/epic_order.py --check --expected-count <N from 02's Compact Epic Proposal> \
+       --epics-dir docs/development/epics
+```
+
+- **PASS (exit 0)** → continue to Step 2.
+- **FAIL (exit 1)** → the script prints each finding. Route by cause, exactly as `05` did — but now off a machine verdict, not a hand diff:
+  - *count mismatch / missing number* (deficit) → `03-expand-epic-files-fabrik` to recreate ONLY the named epic(s); do not discard the rest.
+  - *duplicate epic number* (stale/redundant copy) → the older date-prefix file is stale → `rm` it, then re-enter.
+  - *no frontmatter / bad title / bad `epic_n`* → `03` (it must emit the epic-artifact schema).
+  - *shared `owned_paths` or two migration owners in a parallel set* → boundary re-cut → `02-epic-decomposition-fabrik` (then `03`).
+  Re-run this gate after any fix — a recreated ticket has never passed integrity.
+
+⚠️ This closes the gap that made `04` unable to catch a deficit: it previously took the Glob file count AS the epic count. The `--expected-count` from `02`'s proposal is now the chain's count-match, in code.
 
 ### Step 2: Dispatch the Cross-Epic Review — reviewer agents (BOTH mechanisms)
 
@@ -164,7 +183,19 @@ Phase 1 (root): Epic 1 ⚡ Epic 2   Phase 2: Epic 3   …
 (single-epic: `Phase 1: Epic 1 — [name] (atomic — no phasing required).`)
 ```
 
-Then hand off: the next step is **`05-dispatch-epic-tickets-fabrik`**, dispatching in that order. A route-back instead hands to `02`/`03`/`00` and re-enters here after they re-emit.
+⚠️ **Generate the `## Recommended Execution Order` in CODE, do not hand-derive it** `[canonical: north-star R8/D4]` — the topological phases come from the same script that gated integrity:
+
+```bash
+python /opt/fabrik/scripts/epic_order.py --json --epics-dir docs/development/epics
+```
+
+Paste its `phases` into the report verbatim. It is deterministic over `depends_on`/`parallel_with`, so the order is reproducible and driver-consumable — not a per-run judgement.
+
+**Hand off — `05-dispatch` is RETIRED.** At the no-op, dispatch is no longer a command that renders instructions; it is:
+- **In Traycer / the cockpit** — the operator **clicks an epic card** (mirrored by `03` via `traycer_mirror.py`), which opens the epic-to-ticket workflow for that epic in `consume` mode. The card carries the epic's `owned_paths` as the executing agent's File Scope.
+- **Headless / the driver** — the driver reads `epic_order.py --json` and enqueues each phase in order (parallel `⚡` epics concurrently), running `epic-to-ticket-workflow/00-trigger-fabrik` (consume mode) per epic.
+
+A route-back instead hands to `02`/`03`/`00` and re-enters here after they re-emit.
 
 ## Does NOT
 
@@ -173,7 +204,7 @@ Then hand off: the next step is **`05-dispatch-epic-tickets-fabrik`**, dispatchi
 - **Stop and wait for the owner on a finding** — the operator agreed to the decomposition at `02`; drift is handled by fixup + re-dispatch + re-review. Only the 3 BLOCKED cases pause a thread (via Telegram).
 - **Take a ticket's word** — every PASS is grounded in the real repo (`PORTS.md`, `infrastructure.py`, the rule packs), never the ticket's own claim.
 - **Rely on conversation memory or a Traycer store** — tickets are FILES; read them fresh with Glob/Read. There is no `read_spec`/`read_ticket` here.
-- **Dispatch the epics** — that is `05-dispatch-epic-tickets-fabrik`, after this converges.
+- **Dispatch the epics** — dispatch is the cockpit card-click / the driver's phase queue (`05-dispatch` retired); this command only converges the set and emits the code-generated order.
 - **Validate rule-pack CONTENT** — it verifies the `Rule Packs` field propagates and that a cited pack exists; the pack semantics are the producer commands' job.
 - **Apply a blanket 4-stage expectation to a Retrofit epic** — a Retrofit on a deployed service owns no Stage-1/Stage-3 (Core Philosophy).
 - **Run `git commit` / `push`** — `scripts/final_gate.py` auto-stages on success (CLAUDE.md HARD STOPS).
@@ -185,8 +216,9 @@ Then hand off: the next step is **`05-dispatch-epic-tickets-fabrik`**, dispatchi
 - Feature coverage (delta + `R`-prefixed alike), ticket structure (incl. all 5 `Dependencies` sub-bullets with a real `Owned paths`), graph (cycles, roots, **disjoint parallel paths**, **single migration owner**, consumed artifacts, critical path + SPLIT-CANDIDATE, minimality), Infrastructure Decisions (+ the Deferred Compliance appendix in EXISTING mode), and handoff readiness (15 fields; **`Registrars` ↔ `Shape`**; `Port` free in `PORTS.md`) all verified — each binary with `path:line` evidence.
 - Findings handled **autonomously**: surgical fixups dispatched (pool `pick_models("docs"/"spec")` or `claude -p`), re-reviewed, **looping until `found:0, fixed:0`**; boundary/scope changes routed to `02`/`03`; a corrupted Vision Summary to `00`; only the 3 BLOCKED cases pause (Telegram).
 - Epic-count sanity surfaced (3–7 typical; 10+ or 2 remarked, never a silent pass).
-- The no-op report hands off to `05-dispatch-epic-tickets-fabrik` with the topological execution order.
+- Ticket-set integrity gated in code (`epic_order.py --check --expected-count`, folded from retired `05`) before the review lenses run.
+- The no-op report emits the code-generated topological execution order (`epic_order.py --json`) for the cockpit (card-click) / driver (phase queue) to dispatch — `05-dispatch` retired.
 
 ---
 
-**Next (CC1 pairing, north star § Command-chain build plan):** `04` **is** the mega chain's cross-epic review — the analog of ettw `10` `[canonical: north star § Command-chain build plan — CC5, "10-cross-artifact-validation is the cross-cutting integration review"]`. It is a review twin, so it has **no downstream paired review**: it self-converges via its own finder loop (which is also why it is not a `type` in `/fabrik-workflow-review`, whose types are the producer doers). At the no-op → `05-dispatch-epic-tickets-fabrik`; a route-back re-enters via `02`/`03`/`00`.
+**Next (CC1 pairing, north star § Command-chain build plan):** `04` **is** the mega chain's cross-epic review — the analog of ettw `10` `[canonical: north star § Command-chain build plan — CC5, "10-cross-artifact-validation is the cross-cutting integration review"]`. It is a review twin, so it has **no downstream paired review**: it self-converges via its own finder loop (which is also why it is not a `type` in `/fabrik-workflow-review`, whose types are the producer doers). It also **absorbs the retired `05`**: ticket-set integrity (Step 1.5) + the code-generated execution order (Step 4) are now `04`'s, run via `scripts/epic_order.py`. At the no-op → cockpit card-click / driver phase-queue dispatch; a route-back re-enters via `02`/`03`/`00`.

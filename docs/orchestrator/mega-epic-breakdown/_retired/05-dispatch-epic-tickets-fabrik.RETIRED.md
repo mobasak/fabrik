@@ -1,3 +1,10 @@
+<!-- ⛔ RETIRED 2026-07-18 — 05-dispatch is no longer a command.
+     Its two jobs moved to CODE + GUI (north-star R8/D4):
+       · ticket-set integrity  → scripts/epic_order.py --check  (folded into 04 Step 1.5)
+       · phased execution order → scripts/epic_order.py --json   (emitted by 04 Step 4)
+       · dispatch action        → cockpit epic-card click / driver phase-queue
+     Kept for history only. Do NOT wire it back as a command. -->
+
 <!-- ⚠️ FABRIK ORCHESTRATOR COMMAND — OUR OWN TWIN OF `05-dispatch-epic-tickets-command.md`
      Unlike the Traycer source, our orchestrator READS THIS FILE DIRECTLY — no GUI copy-paste.
      It is TOOL-CAPABLE: it reads the epic-ticket FILES from disk and dispatches them itself.
