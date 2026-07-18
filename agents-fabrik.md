@@ -1,14 +1,13 @@
-# AGENTS-FABRIK.md — Fabrik Identity & Knowledge (autonomous factory)
+# AGENTS-FABRIK.md — Fabrik Identity & Knowledge (canonical agents doc)
 
-**Last Updated:** 2026-07-12
-**Read by:** the factory's planning + coding agents (Claude Code CLI, in Zed). This is the canonical infra + codebase map — ground every plan in it, don't guess.
+> One canonical agents doc (spec 2026-07-18 § AGENTS.md resolution, option b). `AGENTS.md` is a stub
+> pointing here; the high-frequency core is `agents-fabrik-core.md`, `@import`-ed into `CLAUDE.md`.
+
+**Read by:** Traycer (ticket planning — Claude-Max-powered, tool-capable) **and any agent planning or
+making non-trivial changes directly** (Claude Code / Cascade / Kilo). This is the canonical infra +
+codebase map — ground every plan in it, don't guess.
 **Our agents are tool-capable — orient, then act:** run `python scripts/select_rules.py` to load the ACTIVE rule packs; open every file/symbol you cite (`path:line`); ground external facts **live via MCP** (`exa` → `brave-search` → `context7`, cite URL + date, never from memory); gate with `python scripts/final_gate.py`. Enumerations here are copied from the live registry (`scaffold.py::SCAFFOLD_TYPES`, `.windsurf/rules/**`, `fabrik-lib/README.md`, `spec_loader.py::Shape`) — if a count disagrees with the registry, the registry wins.
-**Coding agents:** Claude Code reads `CLAUDE.md`; the rule packs live in `.windsurf/rules/**`. This file is the shared infra map; `CLAUDE.md` is the per-agent bootstrap.
-**Deployment references (canonical):** [`docs/DEPLOYMENT_ARCHITECTURE.md`](docs/DEPLOYMENT_ARCHITECTURE.md) — code-level map of every file on the deploy path · [`docs/operations/deployment.md`](docs/operations/deployment.md) — procedures (apply/redeploy/destroy) · [`docs/operations/fabrik-lifecycle.md`](docs/operations/fabrik-lifecycle.md) — runtime behavior & data safety · [`docs/infrastructure/vps-complete-inventory.md`](docs/infrastructure/vps-complete-inventory.md) — canonical live-state inventory of every container, port, and mesh IP across the 3-host fleet. Supersede any narrative pasted into individual tickets.
-**Deploy method:** SSH + Docker Compose, direct to VPS — **no intermediary platform** (Coolify decommissioned 2026-05-30; `fabrik` Docker network — renamed from `coolify` 2026-05-31; `fabrik apply` rejects composes still declaring the `coolify` network).
-**Fleet shape:** 3 permanent hosts — **vps1 (LA, hub)** + **vps2 (Coventry UK, spoke)** + **vps3 (Coventry UK, spoke)** connected by a WireGuard mesh (`10.99.0.0/24`, hub-and-spoke). Spokes run only public Traefik + monitoring agents (node-exporter, cadvisor, promtail, aro-wake) over the mesh; shared infra (postgres-main, redis-main, glitchtip, authelia, loki) lives only on the hub and is reachable from spokes via `10.99.0.1:<port>`. Spoke Prometheus jobs federated to hub (2026-06-17, commit `8342ef1`).
-
----
+**Coding agents:** Claude Code reads `CLAUDE.md` (which `@import`s `agents-fabrik-core.md`); Windsurf Cascade reads `.windsurfrules`; Kilo CLI reads `AGENTS-compact.md` (via `opencode.json`). Rule packs live in `.windsurf/rules/**` — canonical; at review time `scripts/review_rubric.py` injects them.
 
 ## Platform at a Glance
 
@@ -16,10 +15,10 @@
 | --- | --------------------- | -------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 1   | **CLI**               | `fabrik` (50+ subcommands)                                                                   | scaffold, apply (single deploy entry — `deploy` removed/folded in), redeploy, destroy, verify, audit, dev, review, logs, domain, seo, ai                                                                                |
 | 2   | **Scaffolding**       | `scaffold.py`                                                                                | Creates projects with governance + infra wiring (12 types)                                                                                                                                                             |
-| 3   | **Planning**          | mega-epic-breakdown (5 commands: 00-trigger, 02-05)                                          | Large vision → epics → tickets → dispatch. `00-trigger` is a single entry point serving both new and existing projects via owner-declared mode (Step 0).                                                                |
+| 3   | **Planning**          | mega-epic-breakdown (4 active commands: 00-trigger, 02, 03, 04 — 05 retired; dispatch is code + GUI)                                          | Large vision → epics → tickets → dispatch. `00-trigger` is a single entry point serving both new and existing projects via owner-declared mode (Step 0).                                                                |
 | 4   | **Planning**          | epic-to-ticket-workflow (00-11)                                                                          | Single-epic planning + execution. Also the execution engine per epic after mega-epic dispatch.                                                                                                                          |
 | 5   | **Governance**        | `AGENTS.md` / `CLAUDE.md` / `.windsurfrules` / `AGENTS-compact.md` / `opencode.json`        | Agent bootstraps (5 files)                                                                                                                                                                                             |
-| 6   | **Rules**             | `.windsurf/rules/**/*.md`                                                                    | 50 packs (28 `core/` · 4 `saas/` · 5 `mobile-app/` · 1 `chrome-ext/` · 1 `desktop-app/` · 11 `ai/`)                                                                                                              |
+| 6   | **Rules**             | `.windsurf/rules/**/*.md`                                                                    | 55 packs (28 `core/` · 5 `saas/` · 6 `mobile-app/` · 3 `chrome-ext/` · 2 `desktop-app/` · 11 `ai/`)                                                                                                              |
 | 7   | **Enforcement**       | `final_gate.py` + 43 checks in `enforcement/`                                               | Task completion + structural validation                                                                                                                                                                                |
 | 8   | **Dispatch**          | `kilo_dispatch.py` + kilo pipeline (15 scripts)                                              | Agent routing, model selection, benchmarks                                                                                                                                                                             |
 | 9   | **Sync**              | `sync_enforcement_to_projects.py`                                                            | Pushes governance to all projects. These files are **centrally managed** (canonical list: `/opt/fabrik/scripts/fabrik_synced_manifest.py`) — never plan tickets that edit a synced copy in a project; it's overwritten on the next sync (gate-enforced by `scripts/enforcement/check_synced_unmodified.py`). Changes go upstream in `/opt/fabrik`, and ONLY if correct for ALL projects.                                                                                                                                                                                      |
@@ -28,10 +27,10 @@
 | 10  | **Specs**             | `specs/services/<id>.yaml`                                                                   | Shape contract → registrars                                                                                                                                                                                            |
 | 11  | **Orchestrator**      | `src/fabrik/orchestrator/` (10 registrars incl. `watchdog` — **opt-OUT: it fires for every spec unless disabled with `watchdog: { enabled: false }`** — + 27 drivers)                                      | postgres/redis/gatus/backrest/glitchtip/grafana/authelia/meilisearch/prometheus/watchdog. Active deployer: `deployer_ssh.py`; archived: `deployer_coolify.py` + `coolify_alias.py` (off the active path, kept for reference) |
 | 12  | **AI Sysadmin**       | `scripts/sysadmin/` — `bot.py` (Telegram FastAPI), `proactive-check.sh` (every 15 min via cron), `daily-digest.sh` (09:XX UTC hash-slotted), `morning-report.sh`, `weekly-security.sh`, `weekly-maintenance.sh`, `monthly-backup-verify.sh`, `detect_reversals.py` (`*/5 min`), `send-telegram.sh`, `system-prompt.txt` | **Deployed on ALL 3 hosts** (vps1 hub + vps2 + vps3 spokes). Telegram ↔ Claude Code on each host; on-host `aro-wake.service` (FastAPI :8201 with `/metrics`). Proactive checks now include Authelia + GlitchTip + GlitchTip-worker probes (2026-06-17). System prompt instructs LESSONS_LEARNT.md consultation (75+ incidents, ~250KB) before deciding fixes. Peer protocol `consult` verb LIVE since 2026-06-06 (loop-prevention guards: trace_id dedup, hop cap, forward intersection, storm breaker). Stage 2 hourly rate-limited. |
-| 13  | **VPS Infra**         | Hub: ~31 services (vps1) · Spokes: 5 each (vps2, vps3)                                       | **Hub (vps1)** — Traefik (standalone proxy on 80/443), PG (postgres-main), Redis (redis-main), Gatus, GlitchTip (web + worker), Grafana, Prometheus, Loki, Alertmanager, n8n, Apprise, Authelia, MeiliSearch, Backrest, Gotenberg, Browserless, cAdvisor, node-exporter, postgres-exporter, redis-exporter, Pushgateway, Promtail, watchdog-test + sidecar, aro-wake, vps-sysadmin-bot, plus shared infra exposed on `10.99.0.1:<port>` for mesh access. **Spokes (vps2, vps3)** — Traefik (public TLS for `*.vpsN.ocoron.com`), node-exporter, cadvisor, promtail, aro-wake. (Coolify fully decommissioned 2026-05-30; Docker network renamed `coolify` → `fabrik` on 2026-05-31. `fabrik apply` now rejects any compose still declaring the `coolify` network.) |
+| 13  | **VPS Infra**         | Hub (vps1): ~27 services — count drifts; canonical: `docs/infrastructure/vps-complete-inventory.md` (registry wins) · Spokes (vps2, vps3): 5 each                                       | **Hub (vps1)** — Traefik (standalone proxy on 80/443), PG (postgres-main), Redis (redis-main), Gatus, GlitchTip (web + worker), Grafana, Prometheus, Loki, Alertmanager, n8n, Apprise, Authelia, MeiliSearch, Backrest, Gotenberg, Browserless, cAdvisor, node-exporter, postgres-exporter, redis-exporter, Pushgateway, Promtail, watchdog-test + sidecar, aro-wake, vps-sysadmin-bot, plus shared infra exposed on `10.99.0.1:<port>` for mesh access. **Spokes (vps2, vps3)** — Traefik (public TLS for `*.vpsN.ocoron.com`), node-exporter, cadvisor, promtail, aro-wake. (Coolify fully decommissioned 2026-05-30; Docker network renamed `coolify` → `fabrik` on 2026-05-31. `fabrik apply` now rejects any compose still declaring the `coolify` network.) |
 | 14  | **Microservices**     | site-provisioner (live); others retired/not-deployed                                         | **Live:** site-provisioner (`provision.vps1.ocoron.com`). **Retired / not deployed (no container, no router):** Captcha, Translator, Proxy, File API, Image Broker, Email Gateway, File Worker — code may exist but none are running on the fleet                                                                                            |
 | 15  | **Alerting**          | Prometheus → Alertmanager → Telegram (native `telegram_configs`) + Gatus → Apprise → Telegram | Multi-path alerting chain. Pushgateway-fed `fabrik_audit_drift_total{spec_id,registrar}` gauge has its own alert + Telegram route                                                                                       |
-| 16  | **VPS Daemons**       | `vps-sysadmin-bot.service` + `aro-wake.service` (per host), iptables-docker-user persistence | Systemd services. **Removed 2026-06-xx:** `coolify-alias-watcher.service` + `/opt/coolify-alias-watcher/` — obsolete under stable `container_name:` from compose; the watcher is no longer loaded and the directory is gone. |
+| 16  | **VPS Daemons**       | `vps-sysadmin-bot.service` + `aro-wake.service` (per host), iptables-docker-user persistence | Systemd services. **Removed 2026-06-18:** `coolify-alias-watcher.service` + `/opt/coolify-alias-watcher/` — obsolete under stable `container_name:` from compose; the watcher is no longer loaded and the directory is gone. |
 | 17  | **Cron/Scheduled**    | Hourly drift audit, daily morning report, weekly security/maintenance, monthly backup verify | Automated ops                                                                                                                                                                                                          |
 | 18  | **WSL Startup**       | `wsl_startup_hook.sh` (8-step pipeline)                                                     | Env watcher, registry sync, health summary, Kilo agent refresh                                                                                                                                                         |
 | 19  | **Local LLM**         | 4 Ollama agents (coder/reviewer/fixer/docs)                                                  | Offline AI for quick tasks                                                                                                                                                                                             |
@@ -41,17 +40,32 @@
 
 ---
 
-## Workflow (mandatory)
+## Workflow (mandatory) — three tiers by scale
 
-Two entry paths depending on scope:
+**Front door — the distinguishing test, once:** *does it need tickets and dispatched agents, or is it one
+plan an operator session can carry?* Routing is symmetric (`/fabrik-spec` up-routes; ettw-00 mirrors) — no
+entry point is "wrong."
 
-**Single-epic:** `docs/traycer/epic-to-ticket-workflow/` — `00-trigger` → `01-epic-brief` → `02-core-flows` → `03-tech-plan` → `04-deploy-plan` → `05-ticket-outline` → implementation (`06-07-08`) → validation (`09-11`).
+**Feature-scale** (one operator-carried plan): `/fabrik-spec` → `/fabrik-data-contract` → *(GUI)*
+`/fabrik-ui-design` → `/fabrik-plan-after-chat` → `/fabrik-execute-plan` — completes at execute.
 
-**Multi-epic (large vision):** `docs/traycer/mega-epic-breakdown/` — `00-trigger` (vision intake + scale assessment) → `02-epic-decomposition` → `03-expand-epic-files` → `04-cross-epic-validation` → `05-dispatch`. Each dispatched epic then runs `epic-to-ticket-workflow` in consume mode (00-trigger reads the epic ticket's Metadata as its INFRA-CHECK input).
+**Single-epic:** `docs/orchestrator/epic-to-ticket-workflow/` (the `-fabrik` files — the ONE runnable chain;
+the tool-less twins were archived 2026-07-18, north-star D2) — `00-trigger` → `01-epic-brief` →
+`02-core-flows` → `03-tech-plan` → `04-deploy-plan` → `05-ticket-outline` → implementation (`06-07-08`) →
+validation (`09-11`).
 
-**Existing project continuation:** use `mega-epic-breakdown/00-trigger-workflow-command` and declare **EXISTING mode** when prompted at Step 0. The command branches into the continuation path (project snapshot + Compliance Detection with mechanical / rule-pack / owner-decision sub-steps + delta scoping). Output is a Vision Summary in the same shape as new-mode + two extra sections (`Locked Decisions`, `Compliance Report`). `02-epic-decomposition` consumes the Vision Summary identically and emits **Retrofit epics** for every `fix-now` row in the Compliance Report alongside the delta-feature epics.
+**Multi-epic (large vision):** `docs/orchestrator/mega-epic-breakdown/` (the `-fabrik` files) —
+`00-trigger` (spec-grade vision intake + scale assessment) → `02-epic-decomposition` →
+`03-expand-epic-files` → `04-cross-epic-validation`; dispatch is code + GUI (`05` retired). Each dispatched
+epic then runs `epic-to-ticket-workflow` in consume mode (00-trigger reads the epic ticket's Metadata as
+its INFRA-CHECK input).
 
-**Scale decision:** `00-trigger` (mega-epic) decides single vs multi-epic based on feature count and complexity. Single-epic routes directly to `epic-to-ticket-workflow`. Multi-epic routes to `02-epic-decomposition`.
+**Existing project continuation:** enter at `docs/orchestrator/mega-epic-breakdown/00-trigger-fabrik.md`
+and declare **EXISTING mode** at Step 0 (project snapshot + Compliance Detection + delta scoping; output =
+Vision Summary + `Locked Decisions` + `Compliance Report`; `02` emits **Retrofit epics** for `fix-now` rows).
+
+**Scale decision:** mega-`00`'s Scale Assessment routes single-epic → `epic-to-ticket-workflow/00-trigger-fabrik`
+directly; multi-epic → `02-epic-decomposition`.
 
 **Pre-research drop point:** `docs/development/plans/00-research.md` (the owner drops external research from ChatGPT/Claude/Gemini here before planning).
 
@@ -90,7 +104,8 @@ Our planning agents ground against this file. Agent-execution contracts, rule pa
 | File / Path | Owner | Planner May Edit? |
 |---|---|---|
 | `agents-fabrik.md` | the planning agent (this file — planner context) | ✅ Yes |
-| `docs/traycer/epic-to-ticket-workflow/**` + `docs/traycer/mega-epic-breakdown/**` | Traycer (workflow definitions) | ✅ Yes |
+| `docs/orchestrator/epic-to-ticket-workflow/**` + `docs/orchestrator/mega-epic-breakdown/**` | the runnable `-fabrik` chain (workflow definitions) | ✅ Yes |
+| `docs/traycer/{epic-to-ticket-workflow,mega-epic-breakdown}/**` | ARCHIVED tool-less twins (north-star D2) — reference only, NOT kept in lockstep | ❌ No |
 | `docs/traycer/fabrik-workflow.md` | Reference copy (do not diverge from workflow definitions) | ✅ Yes |
 | `CLAUDE.md` | Claude Code bootstrap | ❌ No |
 | `.windsurfrules` | Windsurf Cascade bootstrap | ❌ No |
@@ -138,7 +153,7 @@ Ollama on localhost:11434. Full setup: `docs/reference/LOCAL_LLM_INFRASTRUCTURE.
 
 ## File & Folder Naming
 
-kebab-case. Exceptions: `README.md`, `CHANGELOG.md`, `INDEX.md`, `PORTS.md`, `AGENTS.md`, `AGENTS-compact.md`, `LESSONS_LEARNT.md`, `CLAUDE.md`, `Makefile`, `Dockerfile`; Python packages use snake_case per PEP 8; auto-generated files (migrations, lock files, `__pycache__/`, `__init__.py`); dotfiles and dotdirs. Documentation files follow kebab-case too.
+Kebab-case everywhere, with the canonical exception list `[canonical: CLAUDE.md § Pointers — Naming]`.
 
 ## Tech Stack Defaults
 
@@ -356,155 +371,14 @@ Before creating any plan, verify:
 
 ---
 
-## Rule-Pack Injection (our agents load these via `select_rules.py`)
+## Rule Packs (canonical discipline — never restated here)
 
-Our agents load rule-pack guidance via `python scripts/select_rules.py` based on `project.yaml::type` + ticket scope, then read the full pack files they match.
-
-### Pack Registry (39 scaffold/type packs listed below; the `ai/` folder adds 11 more → 50 total in `.windsurf/rules/**/*.md`)
-
-Organized by folder:
-
-**`core/` — shared across all scaffolds (28 packs)**
-
-| Pack ID | File | Category |
-|---|---|---|
-| `PY_CORE` | `core/10-python.md` | Backend |
-| `NODE_CORE` | `core/12-node.md` | Backend |
-| `API_CONTRACTS` | `core/15-api-contracts.md` | Backend |
-| `TS_CORE` | `core/20-typescript.md` | Frontend |
-| `DATA_PG` | `core/25-data-postgres.md` | Backend |
-| `OPS` | `core/30-ops.md` | Infrastructure |
-| `SECURITY` | `core/35-security-auth.md` | Infrastructure |
-| `DOCUMENTATION` | `core/40-documentation.md` | Process |
-| `DOCUSAURUS` | `core/42-docusaurus.md` | Platform |
-| `TESTING` | `core/45-testing-strategy.md` | Process |
-| `CODE_REVIEW` | `core/50-code-review.md` | Process |
-| `OBSERVABILITY` | `core/55-observability.md` | Infrastructure |
-| `RESILIENCE` | `core/58-resilience.md` | Backend |
-| `WATCHDOG` | `core/60-watchdog.md` | Infrastructure |
-| `SUBAGENTS` | `core/62-using-subagents.md` | Process |
-| `RAG_SEARCH` | `core/65-rag-search.md` | Domain |
-| `RAG_CHUNKING` | `core/66-rag-chunking.md` | Domain |
-| `FILE_API` | `core/67-file-api.md` | Domain |
-| `WORKERS` | `core/75-workers-jobs.md` | Backend |
-| `GPU_WORKERS` | `core/76-gpu-workers.md` | Domain |
-| `PAYMENTS` | `core/85-payments-billing.md` | Domain |
-| `EMAIL_TEMPLATES` | `core/86-email-templates.md` | Domain |
-| `BOOTSTRAP_SCRIPTS` | `core/90-bootstrap-scripts.md` | Infrastructure |
-| `APP_AUDIT_LOG` | `core/app-audit-log.md` | Backend |
-| `COST_BUDGET` | `core/cost-budget.md` | Process |
-| `SELF_HEALING` | `core/self-healing.md` | Infrastructure |
-| `DESIGN_SYSTEM` | `core/ocoron-design-system.md` | Cross-cutting |
-| `TOJLO_DESIGN` | `core/tojlo-design-system.md` | Cross-cutting |
-
-**`saas/` — SaaS skeleton specific (4 packs)**
-
-| Pack ID | File | Category |
-|---|---|---|
-| `SAAS_UI` | `saas/60-saas-ui.md` | Frontend |
-| `ABUSE_DETECTION` | `saas/87-abuse-detection.md` | Domain |
-| `SAAS_LAUNCH` | `saas/88-saas-launch-checklist.md` | Domain |
-| `MULTI_TENANT` | `saas/95-multi-tenant-saas.md` | Domain |
-
-**`mobile-app/` — React Native mobile (5 packs)**
-
-| Pack ID | File | Category |
-|---|---|---|
-| `MOBILE_UI` | `mobile-app/80-mobile.md` | Frontend |
-| `MOBILE_BILLING` | `mobile-app/81-mobile-billing.md` | Domain |
-| `MOBILE_LAUNCH` | `mobile-app/89-mobile-launch-checklist.md` | Domain |
-| `MOBILE_DESIGN` | `mobile-app/ocoron-mobile-design-system.md` | Cross-cutting |
-| `TOJLO_MOBILE_DESIGN` | `mobile-app/tojlo-mobile-design-system.md` | Cross-cutting |
-
-**`chrome-ext/` — Chrome extension (1 pack)**
-
-| Pack ID | File | Category |
-|---|---|---|
-| `CHROME_MV3` | `chrome-ext/70-chrome-ext.md` | Frontend |
-
-**`desktop-app/` — Electron desktop apps (1 pack)**
-
-| Pack ID | File | Category |
-|---|---|---|
-| `DESKTOP_APP` | `desktop-app/72-desktop.md` | Frontend |
-
-> `90-automation.md` removed (2026-05-18) — redundant Cascade routing table.
-> `62-wordpress.md` removed — WordPress projects use scaffold defaults + `30-ops`.
-
-### Project Type → Default Packs
-
-| Project Type | Default Packs |
-|---|---|
-| `python-api` | `PY_CORE` |
-| `node-api` | `NODE_CORE` |
-| `saas-skeleton` | `TS_CORE`, `SAAS_UI`, `DESIGN_SYSTEM` |
-| `chrome-extension` | `PY_CORE`, `TS_CORE`, `CHROME_MV3`, `DESIGN_SYSTEM` |
-| `mobile-app` | `TS_CORE`, `MOBILE_UI`, `MOBILE_BILLING`, `MOBILE_DESIGN` |
-| `desktop-app` | `NODE_CORE`, `TS_CORE`, `DESKTOP_APP`, `DESIGN_SYSTEM` |
-| `file-api` | `NODE_CORE`, `FILE_API` |
-| `file-worker` | `PY_CORE`, `WORKERS` |
-| `wordpress` | `TS_CORE`, `DESIGN_SYSTEM` (Fabrik-side scaffolding retired 2026-06-17 → `/opt/wpf`; no dedicated WordPress pack — `30-ops.md` + scaffold defaults cover the deploy/shape side) |
-| `docusaurus` | `DOCUSAURUS`, `DESIGN_SYSTEM` |
-| `static-site` | `TS_CORE`, `SAAS_UI`, `DESIGN_SYSTEM` |
-
-> `node-api` and `file-api` scaffolds are JavaScript-based (Node 22+ / Express); they get `NODE_CORE` (covering runtime, framework, error handling, structured logging, graceful shutdown, npm hygiene). `file-api` additionally gets `FILE_API` for storage routing (B2 / R2 / Supabase), presigned URLs, multipart streaming, MIME validation, dedup, AV scan, image-broker delegation. If a JS project adopts TypeScript, `TS_CORE` auto-loads via its `.ts` glob; don't manually inject. `chrome-extension` includes `PY_CORE` because the backend companion service is Python. `docusaurus` is for dev/team-authored content; `static-site` for owner-controlled landing pages. Decision guide: `docs/reference/scaffold-type-decision-guide.md`. All UI scaffolds get `DESIGN_SYSTEM` for visual/verbal identity.
-
-### Feature-Based Overlay Packs
-
-| Pack | Inject When Ticket Involves |
-|---|---|
-| `API_CONTRACTS` | API endpoints, routes, request/response schemas |
-| `DATA_PG` | Database queries, migrations, schema changes |
-| `SECURITY` | Auth, sessions, CORS, secrets, CSP, sensitive files |
-| `RESILIENCE` | External service calls, circuit breakers, retry/backoff, self-healing |
-| `WATCHDOG` | Sidecar/auto-recovery patterns, Claude-Code-driven container self-heal (watchdog-test pattern). **Tier-D autonomous code-fix is wired deploy-side** (`drivers/watchdog.py` renders a consumer bootstrap → `configure()` 4 planes; spec opt-in `auto_code_fix`/`code_fix_window_sec`) but **off by default + enabled on no project yet** — needs a stable deployed git-sourced target w/ HEALTHCHECK; enablement runbook in `docs/development/plans/2026-06-29-plan-watchdog-deploy-side.md` §9. **Product-aware DB access (2026-07-05):** when `shape.needs_database` AND the watchdog is applicable, the postgres registrar auto-mints two per-project roles on the app DB — `{db}_wd_ro` (SELECT-only → `WATCHDOG_DB_URL_RO`, sidecar default diagnosis lane) + `{db}_wd_rw` (DML-only, no DDL/DROP → `WATCHDOG_DB_URL_RW`, Tier-C write lane). Passwords mint on fresh create, preserve on re-apply (like `DATABASE_URL`); `drop_database` cleans them up; per-project isolation. Impl: `drivers/postgres.py::create_watchdog_roles` |
-| `SELF_HEALING` | Higher-level self-healing strategy: drift → diagnose → action loops; Tier A/B/C decision matrix |
-| `BOOTSTRAP_SCRIPTS` | `bootstrap-vps.sh` / `bootstrap-spoke-restore.sh` / `bootstrap-hub.sh` — fresh-install + DR-restore paths |
-| `APP_AUDIT_LOG` | In-app audit trail (who-did-what tables, tenant-scoped, immutable rows) |
-| `COST_BUDGET` | Per-ticket / per-feature LLM + infra cost budgeting; OpenRouter gateway constraint |
-| `TESTING` | Always — universal overlay, injected for every ticket |
-| `OBSERVABILITY` | Health endpoints, logging, monitoring, Gatus |
-| `RAG_SEARCH` | Embeddings, retrieval, vector search, LLM context |
-| `RAG_CHUNKING` | Document ingestion, chunking pipelines, knowledge base indexing |
-| `GPU_WORKERS` | GPU cloud provisioning, inference serving, training, model quantization |
-| `PAYMENTS` | Paddle, subscriptions, billing, entitlements (SaaS web) |
-| `MOBILE_BILLING` | RevenueCat, Google Play Billing, App Store IAP, Turkey GPB-mandatory |
-| `MOBILE_LAUNCH` | Mobile app go-to-market — store accounts, legal, tax, review traps, staged rollout |
-| `EMAIL_TEMPLATES` | Email/push/notification templates, MJML, Listmonk, SES, deliverability |
-| `SAAS_LAUNCH` | SaaS product planning — legal pages, payment routing, GDPR/KVKK, onboarding, org settings, abuse prevention |
-| `MULTI_TENANT` | Tenant isolation, RLS, tenant-scoped queries |
-
-### Planning Protocol (epic-brief, decomposition, expand)
-
-During **planning** — `epic-to-ticket-workflow/01-epic-brief`, `mega-epic-breakdown/02-epic-decomposition`, `mega-epic-breakdown/03-expand-epic-files` — the planning agent must **read the full `.windsurf/rules/**/<file>.md`** for every applicable pack. Rule pack mandates are constraints on the plan. A plan that violates a rule pack mandate is wrong.
-
-**Which packs to read during planning:**
-
-1. **Universal (always):** `OPS`, `SECURITY`, `DOCUMENTATION`, `TESTING`, `OBSERVABILITY` — every project needs these.
-2. **Scaffold-specific:** match `project.yaml::type` to the Default Packs table below.
-3. **Feature-based:** match the project's features (from Vision Summary or epic scope) to the Overlay Packs table below. If the project has billing → read `PAYMENTS` + `SAAS_LAUNCH`. If it has tenant isolation → read `MULTI_TENANT`. Etc.
-
-Read the FULL file — not just the registry entry. The mandates, banned patterns, and done-when checklists inside each pack inform epic boundaries, success criteria, and scope.
-
-### Ticket Injection Policy (coding-agent execution)
-
-During **ticket execution** — when dispatching work to coding agents (Claude Code, Windsurf, Kilo) — inject a condensed version:
-
-1. Read `project.yaml::type` → default packs → add feature overlays based on ticket scope keywords.
-2. Injection format into execution prompt:
-   ```
-   ## Rule Packs Active
-   [PACK_ID] .windsurf/rules/<file>
-   - <rule line 1>
-   - <rule line 2>
-   (max 6 lines per pack)
-   ```
-3. Total injected guidance must not exceed **40 lines**. If exceeded, drop feature overlays first; keep project-type defaults.
-4. Injection is performed at query-construction time. Agents do NOT self-select packs.
-5. `AGENTS-compact.md` is the Kilo CLI bootstrap — self-contained, carries the always-on cross-cutting rules (Doc Sync Matrix, Cross-Cutting, Security & Data, Docker & Deploy, HARD STOPS) because Kilo's dispatcher does not auto-load packs.
-6. `final_gate.py` handles objective checks only; packs are enforced via injection, not by the gate.
-
----
+The 55 packs under `.windsurf/rules/**` ARE the discipline base `[canonical: the packs themselves]`.
+Delivery is never "read this doc": **plan-time** — `python scripts/select_rules.py` prints the ACTIVE set
+(glob-matched) + AVAILABLE; **review-time** — `python scripts/review_rubric.py --changed <paths>` injects
+the matched mandates + the mandatory-core floor (`35-security-auth` + `25-data-postgres` + `30-ops` + the
+twelve 12-Factor axes — not a pack; `review_rubric.py` emits them directly) into every finder (north-star § Enforcement Model). A pack fact quoted anywhere else is a copy —
+the pack wins.
 
 ## Scaffold Types
 
@@ -532,7 +406,7 @@ Canonical entry point: `fabrik scaffold <name> --type <type>`. Creates the proje
 - **Postgres allocation registry (T4-01 G-J4):** `/opt/monitoring/configs/postgres/allocations.json` is the source of truth for "who owns each postgres DB on `postgres-main`" — `owner ∈ {fabrik, manual, infrastructure}`, `spec_id`, `user`, `notes`. Written atomically by `drivers/postgres.register_allocation` from `create_database` (and the symmetric `unregister_allocation` from `drop_database`). `audit_postgres` cross-references the registry against live `pg_database`, returning `status: drift` (new `AuditStatus` value) when registry and live state disagree. When planning a ticket that creates / renames / drops a postgres DB out-of-band, instruct the executor to update `allocations.json` (typically via `fabrik destroy --partial postgres` + `fabrik apply` rather than direct SQL).
 - **State-driven destroy (T4-02 G-F4):** `fabrik destroy <spec> --use-state [-y] [--drop-data] [--keep-dns] [--keep-files] [--dry-run]` replays the registrar list from `.fabrik/state/<id>.json` (T2-01) instead of the current spec's shape. Three phases: (0) data-bearing guard refuses without `--drop-data` if state has any postgres/redis/meilisearch entry; (1) reverse `_REGISTRAR_ORDER` dispatch via T2-02's `HANDLER_FUNCS`+`HANDLER_ARGS` — `prometheus → meilisearch → authelia → glitchtip → backrest → gatus → redis → postgres` (grafana skipped); (2) compose app (`docker compose down` + `rm -rf /opt/<name>`) + dns (gated by `--keep-dns` + domain) + files (gated by `--keep-files`). On success, state archived to `_destroyed/<id>.json.<ts>`. **Mutually exclusive with `--partial`**. Use when planning teardown of a service whose spec has drifted between apply and destroy — the only way to guarantee no orphan registrars (e.g. meilisearch index after `has_search_feature` flipped to false). Function: `fabrik.orchestrator.destroyer.destroy_from_state`.
 - **Cross-VPS portability bundle (T4-03 G-J2):** `fabrik export [-o|--out|--output <path>] [--include-data] [--skip-remote]` writes a tarball containing every resource the current VPS's `fabrik apply` ever registered — specs, `.fabrik/state/`, the per-service `/opt/<name>/{compose.yaml,.env-key-list}` (legacy builds also captured any residual Coolify Applications/Services/Projects with UUIDs recursively stripped), monitoring configs (prometheus/alertmanager/grafana dashboards/redis-assignments/postgres-allocations), Authelia + Backrest configs, redacted `.env` key list (key NAMES only — never values), and a restore README. `fabrik import <bundle> [--apply]` parses the bundle and emits a restore plan (default dry-run); `--apply` is honoured but the real-run API-write path is a documented stub — roundtrip was deferred at the time of write and is now superseded by the bootstrap-restore path (`bootstrap-spoke-restore.sh` + `bootstrap-hub.sh`, validated live across hub + spoke + spoke-restore drills 2026-06-15/16; see `docs/infrastructure/vps-complete-inventory.md`). Module: `src/fabrik/portability.py`. Security invariants (test-enforced in `tests/test_portability.py`): NO plaintext secrets, NO Coolify UUIDs, NO private-key references. When planning a portability or DR ticket, surface this command and the manual follow-ups it doesn't automate (LetsEncrypt re-issue, DNS re-bind, OAuth re-create, secrets re-populate).
-- **Per-registrar drift alerting (T4-04 G-G5):** hourly WSL crontab runs `scripts/audit_all_registrars.py` → walks every spec → calls `fabrik.audit.audit_all` → emits Prom-text `fabrik_audit_drift_total{spec_id, registrar}` gauge to the VPS-local pushgateway (`prom/pushgateway:v1.9.0` at `127.0.0.1:9091` — NOT publicly exposed). Prometheus scrapes pushgateway (`honor_labels: true`); rule file `rules/fabrik-drift.yml` (alert `FabrikRegistrarDrift`, `for: 10m`, label `alert_class: registrar_drift`) → Alertmanager route under `route.routes:` matches that label → existing `telegram` receiver (NO new receiver — pack v3.2 V2-S4 rejected the proliferation). When planning tickets that touch any of the 9 registrars (postgres / redis / gatus / backrest / glitchtip / grafana / authelia / meilisearch / prometheus) drift detection auto-fires within ~1 hour. Companion `fabrik_audit_status{spec_id, registrar, status}` gauge for Grafana per-status charts.
+- **Per-registrar drift alerting (T4-04 G-G5):** hourly WSL crontab runs `scripts/audit_all_registrars.py` → walks every spec → calls `fabrik.audit.audit_all` → emits Prom-text `fabrik_audit_drift_total{spec_id, registrar}` gauge to the VPS-local pushgateway (`prom/pushgateway:v1.9.0` at `127.0.0.1:9091` — NOT publicly exposed). Prometheus scrapes pushgateway (`honor_labels: true`); rule file `rules/fabrik-drift.yml` (alert `FabrikRegistrarDrift`, `for: 10m`, label `alert_class: registrar_drift`) → Alertmanager route under `route.routes:` matches that label → existing `telegram` receiver (NO new receiver — pack v3.2 V2-S4 rejected the proliferation). When planning tickets that touch any of the 9 drift-audited registrars (postgres / redis / gatus / backrest / glitchtip / grafana / authelia / meilisearch / prometheus — all of the 10 except `watchdog`, which carries no registrar state to drift) drift detection auto-fires within ~1 hour. Companion `fabrik_audit_status{spec_id, registrar, status}` gauge for Grafana per-status charts.
 - **SSH deploy mechanics (replaces the old Coolify v4 workarounds):** the active deployer is `orchestrator/deployer_ssh.py`. It writes `compose.yaml` + `.env` to `/opt/<name>/` via SCP (scp-to-tmp-then-`sudo mv`), then runs `sudo docker compose up -d --wait` (git sources also run `sudo docker compose build` first). Git-sourced redeploys capture the current commit and auto-revert via `git reset --hard` on health-check failure; non-git sources fail loudly with no auto-revert. No PaaS grace period — first-deploy time is just `git clone` + image build. The legacy `deployer_coolify.py` (SSH-fallback-build, `.env` pre-seed, `get_deployments` workarounds for Coolify v4.0.0-beta.459 bugs) is archived and off the active path.
 
 | Type | Template | Stack | shape.kind | shape flags (true only) |
@@ -548,9 +422,9 @@ Canonical entry point: `fabrik scaffold <name> --type <type>`. Creates the proje
 | chrome-extension | `templates/chrome-extension/` | Chrome extension + Python backend | service | (none true; Python backend deploys, CRX ships separately) |
 | mobile-app | `templates/mobile-app/` | React Native | service | (none true; companion backend deploys, app ships via stores) |
 | desktop-app | `templates/desktop-app/` | Electron | service | (none true; companion backend deploys, installer ships separately) |
-| static-site | `templates/saas-skeleton/` | Next.js / static HTML | static | is_public |
+| static-site | `templates/static-site/` | Next.js / static HTML | static | is_public |
 
-> Each scaffold propagates `.windsurfrules`, `.windsurf/rules/` (with subdirectory structure: `core/`, `saas/`, `mobile-app/`, `chrome-ext/`), and `.windsurf/workflows/` to generated projects automatically.
+> Each scaffold propagates `.windsurfrules`, `.windsurf/rules/` (with subdirectory structure: `core/`, `saas/`, `mobile-app/`, `chrome-ext/`, `desktop-app/`, `ai/` (all six registry subdirs)), and `.windsurf/workflows/` to generated projects automatically.
 > **Authoritative shape matrix:** `src/fabrik/spec_loader.py::Shape` docstring. Change it there, then run the full scaffold suite — divergence from `templates/<type>/defaults.yaml` is a failing test (`tests/test_spec_generator.py`).
 > **Registrar applicability matrix:** `src/fabrik/orchestrator/infrastructure.py` docstring + `resolve_applicability()`. Source of truth for which of (postgres / redis / gatus / backrest / glitchtip / grafana / authelia / meilisearch / prometheus) runs for a given `shape:` block.
 
@@ -571,13 +445,7 @@ If a ticket appears to need these, the existing scaffolded code already covers i
 
 ## Quality Gates
 
-| Gate | Script | Purpose |
-|---|---|---|
-| Final Gate (Tier 1 — lean) | `scripts/final_gate.py --lean` | Default during coding |
-| Final Gate (Tier 2 — full) | `scripts/final_gate.py` | At milestone closure |
-| Final Gate (Tier 3 — systemic) | `scripts/final_gate.py --systemic` | On-demand repo health |
-| Kilo Review (optional) | `scripts/kilo_code_review.py` | High-risk manual audits |
-| Documentator (optional) | `scripts/kilo_docs_enforcer.py` | Bulk documentation work |
+`python scripts/final_gate.py --json` (Tier-2 FULL) is the completion gate; `--lean` is iteration-only `[canonical: CLAUDE.md § Completion Contract · docs/workflows/FINAL_GATE_WORKFLOW.md]`.
 
 ## Implementation Detail Pointers
 
@@ -624,5 +492,5 @@ Our agents plan against these rules but do NOT inline them into tickets — the 
 | AI Agent Directives | `docs/reference/ai_agent_prompt_directives.md` | Copy-paste phrases for steering agent quality |
 | GPU Workers Guide | `.windsurf/rules/core/76-gpu-workers.md` | GPU cloud decisions — when to self-host vs managed API, provider selection |
 | Lessons Learnt | `docs/LESSONS_LEARNT.md` | Past incidents, decisions, anti-patterns |
-| epic-to-ticket-workflow | `docs/traycer/epic-to-ticket-workflow/` | Single-epic planning + execution (00-11); also the per-epic execution engine in mega-epic runs |
-| mega-epic-breakdown | `docs/traycer/mega-epic-breakdown/` | Large vision → epics → tickets → dispatch (5 commands); `00-trigger` is the single entry serving both new and existing projects (owner declares mode at Step 0) |
+| epic-to-ticket-workflow | `docs/orchestrator/epic-to-ticket-workflow/` (`-fabrik` files; `docs/traycer/` twins are ARCHIVED reference) | Single-epic planning + execution (00-11); also the per-epic execution engine in mega-epic runs |
+| mega-epic-breakdown | `docs/orchestrator/mega-epic-breakdown/` (`-fabrik` files; `docs/traycer/` twins are ARCHIVED reference) | Large vision → epics → tickets → dispatch (4 active commands — 05 retired); `00-trigger` is the single entry serving both new and existing projects (owner declares mode at Step 0) |

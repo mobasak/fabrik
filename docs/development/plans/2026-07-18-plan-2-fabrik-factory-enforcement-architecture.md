@@ -1,6 +1,6 @@
 # Fabrik Factory — Enforcement Architecture Rollout
 
-**Status:** CONVERGED
+**Status:** IN-PROGRESS
 **Spec:** `docs/superpowers/specs/2026-07-18-fabrik-factory-architecture-design.md` (CONVERGED) — the source of truth.
 **Nature:** docs + command-file change. **No deployed service, no scaffold, no `shape:` flags, no `fabrik apply`.**
 
@@ -83,7 +83,7 @@ glue over the existing `select_rules.py`, not a generic reusable module → **pr
 
 ---
 
-## Phase A — Bake the governing law into the north-star (WS-C)
+## Phase A — Bake the governing law into the north-star (WS-C)  — ✅ EXECUTED 2026-07-19 (review no-op R1:2/2 R2:1/1 R3:0/0)
 
 **Responsibility:** make the reliability-ladder law the design-time source everything else is authored against.
 **Files:** `docs/orchestrator/00-autonomous-factory-north-star.md` (edit).
@@ -114,7 +114,7 @@ glue over the existing `select_rules.py`, not a generic reusable module → **pr
 
 ---
 
-## Phase B — Collapse the agents docs + slim CLAUDE.md + `@import` (WS-A)
+## Phase B — Collapse the agents docs + slim CLAUDE.md + `@import` (WS-A)  — ✅ EXECUTED 2026-07-19 (review no-op R1:9/7 R2:3/3 R3:1/1 R4:2/2 R5:1/1 R6:0/0; B6 sentinel smoke PASS; core=26 lines @imported, full map 496 lines Reads-fetched, stub bridges)
 
 **Responsibility:** one canonical agents doc (live platform facts only), compiled into the one auto-loaded file.
 **Files:** `agents-fabrik.md` (becomes canonical, stripped), `AGENTS.md` (retire → stub pointer), `CLAUDE.md` (slim +
@@ -166,7 +166,7 @@ the stripped agents doc.
 
 ---
 
-## Phase C — Rubric extractor + arm the review commands (WS-B, the core enforcement)
+## Phase C — Rubric extractor + arm the review commands (WS-B, the core enforcement)  — ✅ EXECUTED 2026-07-18 (review no-op R1:10/7 R2:3/3 R3:0/0; 11 tests; C2b fleet-sync at Finish post-merge; whole-plan review CORRECTED C4's premise — mega-04/ettw-08/10 review runtime PRODUCTS, not command files, so their ARM blocks carry NO --workflow (the checklist injects only when the review subject IS a command file); --workflow itself stays for command-file reviews)
 
 **Responsibility:** turn Tier-3 reviews from "reviewer reads the packs" into "the matched rule rubric is injected."
 **Files:** `scripts/review_rubric.py` (new), `~/.claude/commands/fabrik-review.md`,
@@ -232,7 +232,7 @@ mandates ALWAYS** (the code-review rubric — L3 core, never un-armed); `EVALUAT
 
 ---
 
-## Phase D — service_catalog.json mechanical step in 00-trigger (WS-D)
+## Phase D — service_catalog.json mechanical step in 00-trigger (WS-D)  — ✅ EXECUTED 2026-07-19 (review no-op R1:1/1 R2:1/1 R3:0/0; owned-first + LEAD-not-guarantee)
 
 **Responsibility:** make the procurement discipline checkable — consult owned services before proposing a paid one.
 **Files:** `docs/orchestrator/mega-epic-breakdown/00-trigger-fabrik.md`. **Interfaces — Consumes:**

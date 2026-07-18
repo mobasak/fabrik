@@ -87,6 +87,19 @@ python /opt/fabrik/scripts/epic_order.py --check --expected-count <N from 02's C
 
 ### Step 2: Dispatch the Cross-Epic Review — reviewer agents (BOTH mechanisms)
 
+**ARM every reviewer FIRST (spec G5/G6 — an un-armed reviewer measured ~0–22% defect recall):** run
+`python /opt/fabrik/scripts/review_rubric.py --changed <the epic files under review>` and
+**inject its output into every reviewer agent's prompt** as the rubric they hunt against. The rubric
+carries two layers: **(1) the mandatory-core floor** — `core/35-security-auth` +
+`core/25-data-postgres` + `core/30-ops` + all twelve 12-Factor axes — always injected regardless of glob
+and never skippable, so the review is never un-armed on the high-blast-radius rules; **(2)** every pack
+whose glob matches a changed path (mandate lines only). (No `--workflow` here: this command reviews the
+chain's runtime PRODUCTS — epics / artifacts / implemented code — not the 00-N command files themselves;
+the `EVALUATION_CHECKLIST_*` authoring-QA injects only when a review's subject IS a command file, e.g.
+`/fabrik-workflow-review`.) The whole rubric is computed fresh by the script; nothing is inherited from
+the doer. Honesty (L1): the injection STEP is maximally enforced (the rubric is always injected); this
+raises compliance probability — it does **not** make compliance guaranteed.
+
 Dispatch through the **`libs/subagents` module** — **BOTH** layers, never either/or `[canonical: core/62-using-subagents.md § Dispatch policy]`:
 
 - **Pool breadth** — `fanout("review", units, repo=…, project="mega-review", mode="read_only")` picks family-diverse review models under the ≤$1.5/Mtok cap and auto-records each run to the flywheel. ⚠️ **Passing `project=` is what makes it record** — omit it and you land zero flywheel rows `[canonical: libs/subagents/agent.py — fanout records only when project is set]`. After you adjudicate, back-fill your 0–5 verdict with `set_quality(r.agent_id, score, project="mega-review", task_type="review", model=r.model)` `[canonical: libs/subagents/pg_ledger.py — set_quality]` (an unscored row teaches the flywheel nothing; ⚠️ never hand-roll run_agents + record_run — it no-ops).

@@ -982,6 +982,8 @@ def check_symlinks() -> tuple[bool, str]:
     # Governance files to validate
     governance_files = [
         "AGENTS.md",
+        "agents-fabrik.md",  # canonical agents doc (synced 2026-07-19)
+        "agents-fabrik-core.md",  # @import-ed platform core (synced 2026-07-19)
         "AGENTS-compact.md",
         "opencode.json",
         ".windsurfrules",

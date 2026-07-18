@@ -4,6 +4,44 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — ONE agents doc + CLAUDE.md @imports the platform core (bootstrap surgery) (2026-07-19)
+
+Plan-2 Phase B (option b, spec § AGENTS.md resolution). `agents-fabrik.md` is now the ONE canonical agents
+doc (628 → 496 lines: § Rule-Pack Injection's 150-line restatement → an 8-line pointer to
+`select_rules.py`/`review_rubric.py`; naming + quality-gates → tagged one-liners; § Workflow rewritten to
+the three-tier front door with the archived `-command` twins purged — `workflow-command|command twins` grep
+= 0). `AGENTS.md` = 7-line stub (cross-tool discovery only). NEW `agents-fabrik-core.md` (26 lines, the
+high-frequency facts) is `@import`-ed by `CLAUDE.md` — the spec's frequency-of-need criterion applied: the
+full map stays a plan-time `Reads:` reference, only the core taxes every turn. U1 resolved empirically: a
+sentinel `@import` smoke test PASSED (`claude -p` echoed the token). Both new targets added to
+`fabrik_synced_manifest.py` GOVERNANCE_FILES — the stub would otherwise strand 46 project planners whose
+synced `AGENTS.md` pointed at an unsynced file. Review-hardened over 6 rounds (pool + native Opus fleet-lens): the stub carries `Last Updated:` (docs_updater MANUAL_DOCS would have failed fleet-wide without it), `check_symlinks` + the structure allowlist know both new files, CLAUDE.md's 4 internal refs point at the canonical doc, pack/registrar/scaffold/mega-count facts registry-corrected. Known follow-up (outside this plan's scope): 18 `AGENTS.md § X` cross-refs in 12 synced packs still route via the stub's pointer — functional, one extra hop; a dedicated sweep can retarget them.
+
+### Changed — mega-00: procurement discipline made mechanical (service_catalog consult) (2026-07-18)
+
+Plan-2 Phase D. `00-trigger-fabrik` now consults `scripts/service_catalog.json` mechanically: a new
+"Already OWNED?" check in N3c's 6-check (use an active provider before proposing a new paid one, prefer
+free/freemium), an **owned-first** step heading N3k-1's grounding order, and the catalog forced into the
+`Reads:` header. Metadata-only — `all-envs.env` is never read at planning time.
+
+### Changed — North-star: Enforcement Model (the governing law) + three-tier front door (2026-07-18)
+
+Plan-2 Phase A. The north-star now carries the reliability ladder as § Enforcement Model (gate / compiled
+context / armed review, with the L1 honesty bound and the drain-Tier-3-into-Tier-1 standing direction) +
+decision D-Enforce. The § two-workflow "front door" self-contradiction is resolved to the three-tier model
+(feature-scale → `/fabrik-spec` pipeline · epic → ettw-00 · multi-epic vision → mega-00, one distinguishing
+test, symmetric routing) and § Which workflow aligned to the same tiers.
+
+### Added — Armed-review rubric injection: review_rubric.py + 4 review commands wired (2026-07-18)
+
+Plan-2 Phase C (WS-B, the core enforcement). New fleet-synced, stdlib-only `scripts/review_rubric.py` —
+`--changed <paths> [--workflow mega|ettw]` emits the finder rubric: mandatory-core floor
+(`35-security-auth` + `25-data-postgres` + `30-ops` + all 12 Factor axes, ALWAYS — spec L3's fix for the
+shared-glob blind spot) + glob-matched pack mandates + workflow checklist items (only with `--workflow`) +
+a `# promote-to-check_*` greppable-candidates byproduct (Tier-1 drain direction). Wired into
+`~/.claude/commands/fabrik-review.md` (backup taken), mega-`04`, ettw-`08`, ettw-`10` — each states the L1
+honesty bound (probabilistic, not a guarantee). Added to `fabrik_synced_manifest.py` CORE_SCRIPTS; fleet
+sync runs post-merge (FABRIK_ROOT-anchored source). TDD: 11 behavior tests green (`tests/test_review_rubric.py` + `_edges.py` — the edge file pool-authored via /fabrik-generate-tests, mutation-verified). Phase-boundary review round 1 hardened: frontmatter never mandate-scanned, wildcard-only glob = match-all (arming errs safe), `NEVER`/`Do not` mandates captured, L1 wording de-ambiguated in all 4 wired commands. Whole-plan cross-phase review then fixed 4 seams: the 6 dangling refs to the retired § Project Type → Default Packs table (→ select_rules.py, incl. checklist item 28), the stub's resolve-all over-claim (scoped honestly), the fleet-synced core's hub-only catalog pointer (scoped), and C4's category error — mega-04/ettw-08/10 review runtime products, so their ARM blocks drop `--workflow` (authoring-QA checklists inject only when the subject IS a command file).
 ### Fixed — /fabrik-review hardening of the review-eligibility gate + benchmark (2026-07-18)
 
 Adversarial review (2 finder passes + a confirming pass) of the review-benchmark/gate work fixed a

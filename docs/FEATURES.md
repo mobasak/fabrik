@@ -37,6 +37,17 @@ led at A/4.21 (73% recall, 100% precision, $0.22/1k, 1.6s); the precision term c
 `qwen3-coder-flash` (86% recall but 12% precision — a flag-everything model) to a D. `--smoke` /
 `--all [--direct] [--models …]` / `--report`.
 
+## Armed adversarial review — rubric injection (Tier 3 of the reliability ladder) (2026-07-18)
+
+Every review boundary now ARMS its finders instead of hoping they read the rules: `scripts/review_rubric.py`
+(fleet-synced, stdlib-only) emits an injectable rubric — the **mandatory-core floor** (`core/35-security-auth`
++ `core/25-data-postgres` + `core/30-ops` + all twelve 12-Factor axes, always injected regardless of glob, so
+a review is never un-armed) plus every pack whose glob matches a changed path (mandate lines only), plus —
+only for command-chain reviews (`--workflow mega|ettw`) — the authoring-QA checklist items. Wired into
+`/fabrik-review`, mega-`04`, ettw-`08`/`10`. Byproduct: a `# promote-to-check_*` candidate list feeding the
+drain-Tier-3-into-Tier-1 direction. Honest bound (spec L1): injection raises compliance probability — it is
+maximally-enforced, not a guarantee. Design: `docs/superpowers/specs/2026-07-18-fabrik-factory-architecture-design.md`.
+
 ## Coding microbench — live pass@1 for the coding-subagent ranking (2026-07-11)
 
 `scripts/kilo-benchmarks/microbench_coding.py` runs a live 3-step pipeline per `(model, dataset)` unit — `openrouter_complete.generate_samples` (via the vendored `libs.subagents._transport` primitive) → `evalplus.sanitize` (tree-sitter extracts Python from prose + fenced code) → `evalplus.evaluate --samples` (sandboxed pass@1 grading) — and writes real `agents.humaneval_score` + `agents.coding_score` for OpenRouter LLMs. Samples + eval_results persist under `scripts/kilo-benchmarks/.microbench_cache/<UTC-stamp>-pid<pid>/` so a downstream sanitize/evaluate failure is $0-recoverable (the $-cost sits entirely in the shim step). Outer serial × shim inner-8 concurrent → 8 in-flight OR calls, not 64. `TOTAL_SPEND_USD: {n.nn}` on the last stdout line; typical run cost ~$1.20 per 4-model × 2-dataset unit set (HumanEval+ 164 + MBPP+ 378 = 542 problems per model).

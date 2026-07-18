@@ -33,6 +33,7 @@ CORE_SCRIPTS = [
     "update_agents_toc.py",
     "health_checker.py",
     "select_rules.py",  # plan-time: lists applicable .windsurf/rules packs
+    "review_rubric.py",  # armed-review rubric extractor — /fabrik-review injects its output into finders
 ]
 
 # Long Command Monitoring System → project ``scripts/`` (sourced from
@@ -57,6 +58,8 @@ RUN_SCRIPTS = [
 # .pre-commit-config.yaml is tech-stack specific (not synced).
 GOVERNANCE_FILES = [
     "AGENTS.md",
+    "agents-fabrik.md",  # canonical agents doc (AGENTS.md is a stub pointing here)
+    "agents-fabrik-core.md",  # high-frequency core @import-ed by CLAUDE.md — must exist fleet-wide
     "AGENTS-compact.md",
     "CLAUDE.md",
     "opencode.json",

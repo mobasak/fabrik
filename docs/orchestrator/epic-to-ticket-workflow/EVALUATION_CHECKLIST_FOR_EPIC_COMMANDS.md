@@ -62,7 +62,7 @@ Every workflow command (00-11) must be evaluated against this list before it's c
 25. Does it reference the Documentation Sync Matrix (which docs to update per change)?
 26. Does it enforce CHANGELOG + INDEX updates?
 27. Does it reference the applicable `.windsurf/rules/` packs?
-28. Does it know which rule packs apply per scaffold type (from `AGENTS.md` § Project Type → Default Packs)?
+28. Does it know which rule packs apply per scaffold type (via `python scripts/select_rules.py` (the retired AGENTS.md pack table's mechanical successor))?
 28b. Does it inject rule packs from 05's category table into ticket Context Files? (e.g., Search category → `core/65-rag-search` + `core/66-rag-chunking`)
 29. Does it enforce Lessons Learnt when trigger conditions fire?
 30. Does it enforce the Completion Self-Check + Governance Checklist?
