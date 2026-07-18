@@ -1,6 +1,6 @@
 # Fabrik Factory — Enforcement Architecture Rollout
 
-**Status:** CONVERGED
+**Status:** IN-PROGRESS
 **Spec:** `docs/superpowers/specs/2026-07-18-fabrik-factory-architecture-design.md` (CONVERGED) — the source of truth.
 **Nature:** docs + command-file change. **No deployed service, no scaffold, no `shape:` flags, no `fabrik apply`.**
 
