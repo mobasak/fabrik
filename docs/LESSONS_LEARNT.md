@@ -19,6 +19,14 @@
 
 ---
 
+# Lesson 97: a twice-converged plan carried a false premise that only the WHOLE-PLAN seam review could see — and my fix of it regressed, caught only by the confirming round
+
+**Context (2026-07-19):** Executing plan-2 (enforcement architecture). The plan — converged to md5-verified no-ops by TWO independent review loops — stated as its C4 premise that mega-`04`/ettw-`08`/`10` "review command-chain *files*", so their ARM blocks should inject the authoring-QA checklist via `--workflow`. The whole-plan cross-phase review (Finish step 1) proved the premise false: those commands review the chain's runtime PRODUCTS (epics, artifacts, implemented code), not the 00-N command files — the checklist was noise injected into every code review. No per-phase review could see it: each phase's diff looked locally consistent with the plan.
+
+**Then the fix regressed:** my repair of the dangling pack-table refs was a blind string substitution that renamed the dead anchor to the LIVE section's name and called it "retired" — a new defect in the same class. The continuing reviewer (same agent, context intact via SendMessage) caught it in round 2 and the precise rewrite passed round 3.
+
+**The rules:** (1) plan-convergence proves the plan is grounded against the repo, not that its own premises are true at the seams — the whole-plan review over the CUMULATIVE diff is a distinct, non-skippable net, not a formality. (2) A fix is a fresh diff: never blind-substitute into converged prose — rewrite the sentence; and the confirming round after a fix is for the FIXER's errors as much as the finder's misses. (3) Continuing the SAME reviewer agent (SendMessage) for confirm rounds beats fresh dispatch: it verifies its own findings' fixes with full context at a fraction of the cost.
+
 # Lesson 96: the gate blamed a sibling's untracked WIP on my session — a "CI-parity" check that counts untracked files isn't parity, and the fix is scope, not noqa
 
 **Context (2026-07-18):** Mid-session, the stop-hook DoD failed my turn on 2 new ruff errors (`119 → 121`). Every file I authored passed clean; the errors were in `scripts/kilo-benchmarks/microbench_review.py` — an **untracked** file a sibling agent had created **minutes earlier** and was still actively editing (it grew to 4 errors during diagnosis).
