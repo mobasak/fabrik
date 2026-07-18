@@ -1,0 +1,25 @@
+{
+  "plan": "docs/development/plans/archived/2026-07-18-plan-2-fabrik-factory-enforcement-architecture.md",
+  "owned_paths": [
+    "docs/orchestrator/00-autonomous-factory-north-star.md",
+    "agents-fabrik.md",
+    "AGENTS.md",
+    "CLAUDE.md",
+    "scripts/review_rubric.py",
+    "tests/test_review_rubric.py",
+    "scripts/fabrik_synced_manifest.py",
+    "docs/orchestrator/mega-epic-breakdown/00-trigger-fabrik.md",
+    "docs/orchestrator/mega-epic-breakdown/04-cross-epic-validation-fabrik.md",
+    "docs/orchestrator/epic-to-ticket-workflow/08-implementation-validation-fabrik.md",
+    "docs/orchestrator/epic-to-ticket-workflow/10-cross-artifact-validation-fabrik.md",
+    "docs/FEATURES.md",
+    "INDEX.md",
+    "CHANGELOG.md"
+  ],
+  "branch": "plan2-exec",
+  "started_at": "2026-07-18T21:30:00+03:00",
+  "status": "released",
+  "note": "orchestrator worktree isolation \u2014 sibling has uncommitted staged edits in CHANGELOG/INDEX/FEATURES",
+  "completed_at": "2026-07-19T02:30:00+03:00",
+  "final_commit": "5a5184a2"
+}
