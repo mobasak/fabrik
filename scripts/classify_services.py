@@ -99,6 +99,9 @@ def main() -> int:
     ap.add_argument(
         "--apply", action="store_true", help="write identified providers into the catalog"
     )
+    ap.add_argument(
+        "--only", help="comma-separated provider names to classify (default: all flagged)"
+    )
     args = ap.parse_args()
 
     if not ALL_ENVS.exists():
@@ -106,6 +109,9 @@ def main() -> int:
         return 1
 
     provs = flagged_providers(ALL_ENVS)
+    if args.only:  # the re-bill guard: classify ONLY the named (new) providers, not all flagged
+        wanted = {x.strip() for x in args.only.split(",") if x.strip()}
+        provs = {p: v for p, v in provs.items() if p in wanted}
     if not provs:
         print("No category=? providers to classify — nothing to do.")
         return 0

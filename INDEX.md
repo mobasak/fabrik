@@ -718,6 +718,9 @@ the `wordpress` **scaffold type** (`fabrik scaffold --type wordpress`).
 - `scripts/credit_fetchers/` - Phase C: per-provider account balance/usage fetchers (apify/deepl live; resilient, timeout+retry, None on failure)
 - `scripts/declare_subscription.py` - Declare renewal/price/account-email for a service → `subscriptions` (manual half of the hybrid registry)
 - `scripts/tests/test_credit_fetchers.py` - Behavior-Contract tests for the fetchers + declare
+- `scripts/refresh_service_inventory.py` - Phase D: cron orchestrator (flock + new-provider detect + cost-budget + alerting)
+- `scripts/tests/test_refresh.py` - Behavior-Contract tests for the refresh re-bill guard
+- `libs/alerting/` + `libs/cost_budget.py` - vendored fabrik-lib (send_alert / check_caps) for the unattended paid-LLM loop
 - `scripts/kilo-benchmarks/` - Benchmark-driven agent-selection subsystem (`agent_selector.py`, `compute_assignments.py`, `db_models.py`, embedding assignment, OpenRouter category routing: `classify_ai_category.py`, `category_selector.py`, `category_route_mapper.py`, `category_export_markdown.py`, `update_gateway_counts.py`, `seed_direct_vendors.py` + `ai_category_configs.yaml`). Direct-vendor pricing plan also lives here: `direct_vendor_parsers/` (vendor-specific HTML parsers — assemblyai, anthropic, cartesia, deepgram, openai, soniox, speechmatics, subscription_monitor), `direct_vendor_pricing_registry.yaml`, `fetch_direct_vendor_prices.py` orchestrator, `audit_direct_vendor_freshness.py` quarterly helper.
 
 ### Data Files (AUTHORITATIVE)

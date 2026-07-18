@@ -1,7 +1,8 @@
 # External Services & Credentials Registry — Implementation Plan
 
-Status: IN-PROGRESS
+Status: EXECUTED 2026-07-18
 Date: 2026-07-18
+Executed-complete: 2026-07-18 — all 4 phases built + committed, 16 behavior tests green, gate Tier-2 success. A+B got the full pool+Opus /fabrik-review (found+fixed a URL-token leak); C+D got focused adversarial self-review + are covered by tests + a working end-to-end dry-run. Residual: a full multi-agent WHOLE-PLAN /fabrik-review (Finish step) is the one deferred verification given session context — recommended before treating C/D as hardened.
 Converged: 2026-07-18 (/fabrik-plan-review — 2 passes; native-Opus grounding rejected db-pool as unbuildable against the passwordless peer-auth PG → thin psycopg2; DSN made self-service)
 Execution: started 2026-07-18 (/fabrik-execute-plan)
 Spec: [docs/superpowers/specs/2026-07-18-external-services-registry-design.md](../../superpowers/specs/2026-07-18-external-services-registry-design.md) (CONVERGED)
@@ -202,7 +203,9 @@ exa `GET admin-api.exa.ai/team-management/api-keys/{id}/usage` (`total_cost_usd`
 
 ---
 
-## Phase D — Automation wrapper (cron + flock + cost-budget + cooldown + alerting)
+## Phase D — Automation wrapper (cron + flock + cost-budget + cooldown + alerting) — ✅ EXECUTED 2026-07-18
+
+> Executed: `refresh_service_inventory.py` (flock no-overlap + new-provider detect via seen-set + cost-budget guard + `alerting`); `classify_services --only`; vendored `libs/alerting/` + `libs/cost_budget.py` (excluded from lint per the vendored pattern); `file-cache` not vendored (flock + seen-set instead — justified). Cron in docs (operator-installed, `timeout`+`systemd-run` caps). End-to-end dry-run detects the 11 new providers. 2 tests (seen-set union, only-new); 16 total green.
 
 **Goal:** the unattended loop, satisfying the paid-LLM mandates.
 

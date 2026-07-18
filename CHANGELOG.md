@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — External-services registry: cron automation (flock + cost-budget + alerting) (2026-07-18)
+
+Phase D (final) of the External Services & Credentials Registry (plan 2026-07-18-plan-1). `scripts/refresh_service_inventory.py` is the cron entry-point: under a `flock` (no overlap), it refreshes the consolidation, classifies **only genuinely-new** flagged providers (a seen-set so stuck unknowns are never re-billed) guarded by `cost-budget`, syncs the registry + credits, and alerts on new-found/failure via `alerting`. `classify_services.py` gains `--only`. Vendored `libs/alerting/` (`send_alert`) + `libs/cost_budget.py` (`check_caps`/`record_cost`) — the fabrik mandates for an unattended paid-LLM loop. `libs/file-cache` not vendored (its lock is internal to `cleanup()`, not a run-lock — `flock` used instead; cooldown is a lean seen-set). Cron documented in docs/OPERATIONS.md (operator-installed, `timeout` + `systemd-run --scope` caps). 2 behavior tests (seen-set union, only-new-targeted); 16 total green.
+
 ### Added — External-services registry: hybrid credit fetchers + declared subscriptions (2026-07-18)
 
 Phase C of the External Services & Credentials Registry (plan 2026-07-18-plan-1). Adds `scripts/credit_fetchers/` (per-provider account balance/usage via each vendor's live-verified API — apify `/v2/users/me/usage/monthly`, deepl `/v2/usage`; exa/replicate return None pending a key-id lookup / no balance endpoint), each **resilient** (timeout + retry, returns `None` on any failure, never raises — the real key is sent only to the vendor's own API). `registry_sync.py` gains an opt-in `fetch_credits` that writes `credit_snapshots`. `scripts/declare_subscription.py` is the manual half (renewal date / price / account-email → `subscriptions`, upsert). Behavior tests: fetch-failure→None, parse correctness, declare persists.
