@@ -31,7 +31,9 @@ def test_fetcher_failure_returns_none(monkeypatch):
 
 def test_apify_parses_used(monkeypatch):
     """Given a sample Apify usage response, When parsed, Then balance + unit are extracted."""
-    monkeypatch.setattr(cf, "_get_json", lambda url, headers: {"data": {"totalUsageCreditsUsd": 42.5}})
+    monkeypatch.setattr(
+        cf, "_get_json", lambda url, headers: {"data": {"totalUsageCreditsUsd": 42.5}}
+    )
     snap = cf.fetch_apify("k")
     assert snap is not None
     assert snap.balance == 42.5
@@ -72,8 +74,14 @@ def test_declare_subscription_persists(monkeypatch):
                 "ON CONFLICT (provider) DO NOTHING",
                 (prov,),
             )
-        ds.declare(prov, plan="default", price=49, currency="USD",
-                   renews_on="2026-08-01", account_email="ob@ocoron.com")
+        ds.declare(
+            prov,
+            plan="default",
+            price=49,
+            currency="USD",
+            renews_on="2026-08-01",
+            account_email="ob@ocoron.com",
+        )
         with conn, conn.cursor() as cur:
             cur.execute(
                 "SELECT renews_on, account_email FROM subscriptions s JOIN services v "

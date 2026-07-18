@@ -82,7 +82,8 @@ def run(dry: bool = False) -> int:
         else:
             subprocess.run(
                 [PY, "scripts/classify_services.py", "--apply", "--only", ",".join(new)],
-                cwd=REPO, check=False,
+                cwd=REPO,
+                check=False,
             )
             subprocess.run([PY, "scripts/gather_envs.py", "--apply"], cwd=REPO, check=False)
             _mark_seen(new)
@@ -91,14 +92,18 @@ def run(dry: bool = False) -> int:
         print(f"[dry-run] {len(new)} new flagged providers would be classified: {new}")
         return 0
     stats = registry_sync.sync_registry(fetch_credits=True)
-    print(f"refresh: {len(new)} new flagged | synced {stats['services']} services, "
-          f"{stats['credit_snapshots']} credit snapshots")
+    print(
+        f"refresh: {len(new)} new flagged | synced {stats['services']} services, "
+        f"{stats['credit_snapshots']} credit snapshots"
+    )
     return 0
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--dry-run", action="store_true", help="detect only; write nothing, classify nothing")
+    ap.add_argument(
+        "--dry-run", action="store_true", help="detect only; write nothing, classify nothing"
+    )
     args = ap.parse_args()
     LOCK.parent.mkdir(parents=True, exist_ok=True)
     with open(LOCK, "w", encoding="utf-8") as lf:

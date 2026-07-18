@@ -24,7 +24,7 @@ from credit_fetchers import fetch_balance  # noqa: E402
 
 ALL_ENVS = REPO / "secrets" / "all-envs.env"
 SVC_RE = re.compile(
-    r'#svc name=(?P<name>\S+) category=(?P<category>\S+) cost=(?P<cost>\S+) '
+    r"#svc name=(?P<name>\S+) category=(?P<category>\S+) cost=(?P<cost>\S+) "
     r'capability="(?P<capability>[^"]*)" url=(?P<url>\S+) status=(?P<status>\S+)'
     r"(?: used_by=(?P<used_by>\S*))?"
 )
