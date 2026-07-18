@@ -75,6 +75,16 @@ Read the **implementation**: every file in each ticket's Scope (critical tickets
 
 ### Step 3: Dispatch the Epic-Level Review — reviewer agents (BOTH mechanisms)
 
+**ARM every reviewer FIRST (spec G5/G6 — an un-armed reviewer measured ~0–22% defect recall):** run
+`python scripts/review_rubric.py --changed <the epic's implemented diff paths> --workflow ettw` and **inject its output into every
+reviewer agent's prompt** as the rubric they hunt against. It carries the mandatory-core floor
+(`core/35-security-auth` + `core/25-data-postgres` + `core/30-ops` + all twelve 12-Factor axes — always
+injected regardless of glob, so the review is never un-armed and the reviewer's pack selection is
+independent of the doer's), every pack whose glob matches a changed path (mandate lines only), **and — via
+`--workflow ettw` — the ettw command-chain checklist items** (this command reviews command-chain files, so
+the authoring QA rubric injects too). Honesty (L1): injection *raises* compliance probability —
+maximally-enforced, **not** a compliance guarantee.
+
 Dispatch the review across the implemented epic through the **`libs/subagents` module** — **BOTH** layers, never either/or `[canonical: core/62-using-subagents.md § Dispatch policy]`:
 
 - **Pool breadth** — `fanout("review", …, mode="read_only")` `[canonical: libs/subagents/agent.py — fanout]` picks family-diverse review models under the ≤$1.5/Mtok cap (`pick_models("review")`) and **auto-records each run to the flywheel**; after you adjudicate, back-fill your 0–5 verdict with `set_quality(r.agent_id, score, project="impl-validation", task_type="review", model=r.model)` `[canonical: libs/subagents/pg_ledger.py — set_quality]` (a `fanout` row left unscored teaches the flywheel nothing; ⚠️ never hand-roll `run_agents`+`record_run` — it no-ops).

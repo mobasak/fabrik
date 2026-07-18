@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Armed-review rubric injection: review_rubric.py + 4 review commands wired (2026-07-18)
+
+Plan-2 Phase C (WS-B, the core enforcement). New fleet-synced, stdlib-only `scripts/review_rubric.py` —
+`--changed <paths> [--workflow mega|ettw]` emits the finder rubric: mandatory-core floor
+(`35-security-auth` + `25-data-postgres` + `30-ops` + all 12 Factor axes, ALWAYS — spec L3's fix for the
+shared-glob blind spot) + glob-matched pack mandates + workflow checklist items (only with `--workflow`) +
+a `# promote-to-check_*` greppable-candidates byproduct (Tier-1 drain direction). Wired into
+`~/.claude/commands/fabrik-review.md` (backup taken), mega-`04`, ettw-`08`, ettw-`10` — each states the L1
+honesty bound (probabilistic, not a guarantee). Added to `fabrik_synced_manifest.py` CORE_SCRIPTS; fleet
+sync runs post-merge (FABRIK_ROOT-anchored source). TDD: 3 behavior tests green (`tests/test_review_rubric.py`).
+
 ### Fixed — select_rules.py hub-hang: one pruned walk replaces per-glob rglob (2026-07-18)
 
 `select_rules.py` effectively hung at `/opt/fabrik` (repeated 2-minute timeouts, proven live): its per-glob `rglob` cannot prune, so it re-walked the ENTIRE tree — including ~80 full repo copies under `.tmp/subagents/` worktrees — once per glob per pack (~165 full traversals). Rewritten to a single `os.walk` with `_EXCLUDE` pruned **during** descent (`.tmp` added) + cached path list + rglob-equivalent tail matching in memory. Hub runtime 2-min-timeout → ~2.4s; output identical (19 ACTIVE + 36 AVAILABLE, `--json` and the relative `pack` field unchanged). Synced file — propagates to projects on next sync run. Found by /fabrik-plan-review's pass-2 native grounder (a plan gate that shells select_rules would have stalled execution). Also: spec G4 citation de-hallucinated ("circular…" quote wasn't on the cited page — reworded to the page's verbatim fit-test + labeled inference) and plan-2 hardened with 9 review edits (Phase-D gate `_README` filter, bounded-sync sentinel gate, atomic B9 swap, fleet-propagation R1 correction).
