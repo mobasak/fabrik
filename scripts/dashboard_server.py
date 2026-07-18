@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import http.server
 import json
+import os
 import socketserver
 import sys
 from pathlib import Path
@@ -22,6 +23,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import gen_dashboard  # noqa: E402 - reuse CSS + the live DB query (load)
 
 PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8770
+# Bind all interfaces by default so a Windows browser reaches the WSL server (a 127.0.0.1-only
+# bind is often unreachable through WSL2 NAT). Override with DASHBOARD_HOST=127.0.0.1 to restrict.
+HOST = os.getenv("DASHBOARD_HOST", "0.0.0.0")  # noqa: S104 - metadata-only, single-operator dev box
 
 PAGE = """<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -101,15 +105,19 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if self.path.startswith("/api/services"):
                 self._send(json.dumps(gen_dashboard.load()).encode("utf-8"), "application/json")
             else:
-                self._send(PAGE.replace("__CSS__", gen_dashboard.CSS).encode("utf-8"),
-                           "text/html; charset=utf-8")
+                self._send(
+                    PAGE.replace("__CSS__", gen_dashboard.CSS).encode("utf-8"),
+                    "text/html; charset=utf-8",
+                )
         except Exception as exc:  # noqa: BLE001 - never crash the server on one bad request
             self.send_error(500, str(exc)[:120])
 
 
 def main() -> int:
-    with socketserver.TCPServer(("127.0.0.1", PORT), Handler) as srv:  # noqa - localhost-only by design
-        print(f"Live dashboard: http://127.0.0.1:{PORT}  (Ctrl-C to stop)")  # noqa - localhost by design
+    socketserver.TCPServer.allow_reuse_address = True
+    with socketserver.TCPServer((HOST, PORT), Handler) as srv:
+        url = f"http://localhost:{PORT}"  # noqa - user-facing message, not a backing-service host
+        print(f"Live dashboard on {HOST}:{PORT} — open {url}  (Ctrl-C to stop)")
         try:
             srv.serve_forever()
         except KeyboardInterrupt:

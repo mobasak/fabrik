@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added — External-services registry: HTML dashboard (live server + static) (2026-07-18)
 
-Two views of the `fabrik_services` registry, both **zero-secret** (metadata + a `value_sha256` count only): `scripts/dashboard_server.py` is a **LIVE** localhost server (`http://127.0.0.1:8770`) that queries the registry on every load (auto-refresh 30s); `scripts/gen_dashboard.py` renders a static self-contained HTML snapshot. Both show every external service by capability category — cost tier, credit balance, renewal date, price, account-email, which projects use it, key count — sortable/filterable, dark+light themes, semantic cost/status pills.
+Two views of the `fabrik_services` registry, both **zero-secret** (metadata + a `value_sha256` count only): `scripts/dashboard_server.py` is a **LIVE** server (binds `0.0.0.0` so a Windows browser reaches the WSL host; `http://localhost:8770`) that queries the registry on every load (auto-refresh 30s); `scripts/gen_dashboard.py` renders a static self-contained HTML snapshot. Both show every external service by capability category — cost tier, credit balance, renewal date, price, account-email, which projects use it, key count — sortable/filterable, dark+light themes, semantic cost/status pills.
 
 ### Added — External-services registry: cron automation (flock + cost-budget + alerting) (2026-07-18)
 
