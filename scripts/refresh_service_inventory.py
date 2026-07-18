@@ -75,18 +75,39 @@ def run(dry: bool = False) -> int:
         batch = new[:MAX_NEW_PER_RUN]  # bound the paid run
         cp = subprocess.run(
             [PY, "scripts/classify_services.py", "--apply", "--only", ",".join(batch)],
-            cwd=REPO, check=False,
+            cwd=REPO,
+            check=False,
         )
         if cp.returncode == 0:  # mark seen ONLY on success — a crashed classify retries next tick
             subprocess.run([PY, "scripts/gather_envs.py", "--apply"], cwd=REPO, check=False)
             _mark_seen(batch)
-            _alert("service-registry: new providers", f"classified {len(batch)}: {', '.join(batch)}")
+            _alert(
+                "service-registry: new providers", f"classified {len(batch)}: {', '.join(batch)}"
+            )
         else:
-            _alert("service-registry: classify FAILED",
-                   f"exit {cp.returncode}; {len(batch)} providers left for retry")
-    stats = registry_sync.sync_registry(fetch_credits=True)
-    print(f"refresh: {len(new)} new flagged | synced {stats['services']} services, "
-          f"{stats['credit_snapshots']} credit snapshots")
+            _alert(
+                "service-registry: classify FAILED",
+                f"exit {cp.returncode}; {len(batch)} providers left for retry",
+            )
+    # prune=True is deliberate: the hourly job keeps the registry consistent with all-envs.env
+    # (orphans from renamed providers deleted). Safe: gather writes atomically (os.replace) and
+    # this whole run holds the flock, so a partial file is never observable.
+    try:
+        stats = registry_sync.sync_registry(fetch_credits=True, prune=True)
+    except Exception as exc:  # noqa: BLE001 - the cron must ALERT, not die silently every hour
+        # Most likely the bounded-prune refusal (a legitimate >20% recatalog trips it too).
+        # Alert the operator with the escape hatch instead of wedging quietly in a logfile.
+        _alert(
+            "service-registry: sync FAILED",
+            f"{exc} — if this is a legitimate mass recatalog, re-run once with "
+            "REGISTRY_PRUNE_FORCE=1 python scripts/registry_sync.py",
+        )
+        print(f"sync FAILED: {exc}")
+        return 1
+    print(
+        f"refresh: {len(new)} new flagged | synced {stats['services']} services, "
+        f"{stats['credit_snapshots']} credit snapshots"
+    )
     return 0
 
 

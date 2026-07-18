@@ -1149,9 +1149,18 @@ def get_changed_files() -> set[str]:
     """Get set of changed file paths from git.
 
     The change set = everything this session will PUSH: committed-but-unpushed
-    (`base...HEAD`) PLUS the working tree (staged + unstaged + untracked). Used to
-    scope the fixers and static checks so the gate never touches or reds a file the
-    change didn't touch — the shared-master invariant.
+    (`base...HEAD`) PLUS the working tree (staged + unstaged-modifications-to-tracked).
+    Used to scope the fixers and static checks so the gate never touches or reds a file
+    the change didn't touch — the shared-master invariant.
+
+    ⚠️ Untracked-UNSTAGED files are deliberately EXCLUDED (2026-07-18): they cannot be
+    pushed, so they are not part of "what this session will push" — and on a shared tree
+    they are typically a SIBLING agent's in-progress work, which the gate must neither
+    red-flag against this session nor (worse) auto-fix/auto-stage. Authorship = staging:
+    `git add` a new file of YOURS to bring it into gate scope (the completion contract
+    stages explicit paths anyway, so an authored file is always in scope by gate time).
+    Live incident: a sibling's minutes-old untracked scratch red-flagged an unrelated
+    session's gate and was one bare run away from being auto-staged into its commit.
     """
     changed: set[str] = set()
     # Committed but not yet pushed (the session's own commits) — see _diff_base.
@@ -1160,19 +1169,50 @@ def get_changed_files() -> set[str]:
         code, out = run_cmd(["git", "diff", "--name-only", f"{base}...HEAD"])
         if code == 0 and out:
             changed.update(f for f in out.strip().split("\n") if f)
-    # Staged changes
+    # Staged changes (includes staged-NEW files — the authored path for new files)
     code, out = run_cmd(["git", "diff", "--name-only", "--cached"])
     if code == 0 and out:
         changed.update(f for f in out.strip().split("\n") if f)
-    # Unstaged changes
+    # Unstaged changes (modifications to tracked files)
     code, out = run_cmd(["git", "diff", "--name-only"])
     if code == 0 and out:
         changed.update(f for f in out.strip().split("\n") if f)
-    # Untracked files
-    code, out = run_cmd(["git", "ls-files", "--others", "--exclude-standard"])
-    if code == 0 and out:
-        changed.update(f for f in out.strip().split("\n") if f)
     return changed
+
+
+def _warn_untracked_sources(emit: bool = True) -> str | None:
+    """Advisory (never fails) about untracked source files outside gate scope.
+
+    Untracked-unstaged files are excluded from the change set (they can't be pushed, and
+    on a shared tree they're typically a sibling's WIP the gate must not touch). The
+    fail-open corner of that rule: an agent's OWN new file, authored but never `git add`ed,
+    would sail through a green gate unscanned and only red in CI after push. This advisory
+    makes that corner impossible to miss: if any of these are YOURS, `git add` them and
+    re-run the gate; if they're a sibling's, leave them alone.
+
+    Returns the plain-text message (or None). Prints it only when `emit` — in --json mode
+    the caller passes emit=False and routes the message into the JSON `warnings` array
+    instead (a bare print there would corrupt the JSON stream agents parse).
+    """
+    code, out = run_cmd(["git", "ls-files", "--others", "--exclude-standard"])
+    if code != 0 or not out:
+        return None
+    src = [
+        f
+        for f in out.strip().split("\n")
+        # The gate's own scannable surface: lint/fix targets (_FIXABLE_TEXT_EXTS) + node/sql sources.
+        if f.endswith((".py", ".js", ".ts", ".tsx", ".sql", ".sh", ".md", ".yaml", ".yml", ".json"))
+    ]
+    if not src:
+        return None
+    msg = (
+        f"⚠ {len(src)} untracked source file(s) NOT in gate scope (unstaged → unscanned): "
+        f"{', '.join(src[:6])}{' …' if len(src) > 6 else ''} — if yours: `git add` them and "
+        f"RE-RUN the gate (they ship unlinted otherwise); if a sibling's: leave them."
+    )
+    if emit:
+        print(f"  {YELLOW}{msg}{RESET}")
+    return msg
 
 
 # File extensions the whitespace/EOF fixers operate on (mirrors the git ls-files
@@ -1354,9 +1394,7 @@ def run_iteration(
     # Phase 3: Consistency checks
     if not json_mode:
         print_header("PHASE 3: REPO CONSISTENCY")
-    results = run_consistency_checks(
-        tier=tier, changed_files=changed_files, check_only=check_only
-    )
+    results = run_consistency_checks(tier=tier, changed_files=changed_files, check_only=check_only)
     all_results.extend(results)
     if not json_mode:
         for name, passed, out in results:
@@ -1379,6 +1417,7 @@ def main() -> int:
 
     # Get changed files for diff-sensing
     changed_files = get_changed_files()
+    untracked_warn = _warn_untracked_sources(emit=not args.json)
 
     # Snapshot the index NOW, before any fixers run, so auto-stage at the end
     # re-stages only the agent's own (already-staged) files — never a blanket
@@ -1493,7 +1532,12 @@ def main() -> int:
                 {"check": name, "output": output[:500]}
                 for name, ok, output in all_results
                 if ok and output and output.lstrip().startswith("⚠")
-            ],
+            ]
+            + (
+                [{"check": "untracked sources (advisory)", "output": untracked_warn[:500]}]
+                if untracked_warn
+                else []
+            ),
         }
         print(json.dumps(result, indent=2))
         return 0 if not failed else 1

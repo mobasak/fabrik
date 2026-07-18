@@ -4,9 +4,30 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Code-review quality benchmark for the subagent pool (accuracy + speed) (2026-07-18)
+
+`scripts/kilo-benchmarks/microbench_review.py` — measures a model's code-**review** ability against
+GROUND TRUTH instead of the circular flywheel self-score. Corpus = deterministic AST mutation of 8
+self-contained victim functions (the mutmut operator classes: comparison flip, arithmetic swap,
+boolean and/or flip) → 22 planted defects each at a known line + 8 clean controls; every mutant is
+verified to change **exactly** its labeled line. Dispatch reuses the existing pool
+(`libs.subagents.run_agents` + `pick_models`, single-shot `read_only`); the reviewer returns JSON
+`{line, bug}` findings, graded for **recall** (planted defects caught) AND **precision** (controls left
+un-flagged — a "flag everything" model scores F1=0). `score/5 = F1 × 5` persists to
+`model_task_baseline(task_type='review')`, which `rank_task_subagents._tier_baseline` already prefers
+as the per-task prior → flows to `TASK_SUBAGENT_SELECTION.md` → `pick_models`. Speed (`latency_s`,
+`out_tokens`, `cost_usd`) comes free from `AgentResult`. Each run also back-fills the flywheel via
+`record_agent_run(quality_score=...)`. Single-turn → ~pennies/model (no agentic loop); `--smoke` /
+`--all --models …` / `--report`. Test: `scripts/kilo-benchmarks/tests/test_microbench_review.py`
+(11 tests — corpus integrity, grader, F1/precision penalty).
+
+### Fixed — Gate change-set + lint-ratchet no longer count untracked sibling WIP (2026-07-18)
+
+Shared-tree misattribution fix, both layers. `check_lint_ratchet.py` now counts ruff diagnostics in **tracked files only** (`git ls-files`; raw-count fallback without git) — true CI-parity, since CI's clean checkout never contains untracked files (live incident: a sibling's untracked scratch raised the local count 119→121 and failed an unrelated session's DoD). `final_gate.get_changed_files()` now excludes **untracked-unstaged** files from the change set, matching its own contract ("everything this session will PUSH") — this also stops fix-mode from auto-fixing/auto-staging a sibling's mid-write file. Authorship = staging: `git add` your new file to bring it into gate scope. Docs: FINAL_GATE_WORKFLOW § Overview + TROUBLESHOOTING § Common Error Messages; Lesson 96.
+
 ### Added — Chrome-extension launch checklist pack + /fabrik-release command (2026-07-18)
 
-Closes the ship-to-users gap for the non-VPS surfaces. New rules pack `.windsurf/rules/chrome-ext/89-extension-launch-checklist.md` (55th pack) — Web Store launch-blocking gates grounded live against developer.chrome.com (fetched 2026-07-18): $5 one-time dev account + 2SV + 20-item limit, MV3/no-secrets/no-remote-code/permission-minimization bundle hygiene, exact listing asset sizes, the four privacy-practices answers (rejection trap #1), review-latency expectations, staged rollout, post-launch. New user command `~/.claude/commands/fabrik-release.md` (outside the repo): surface-aware release runner — reads `project.yaml::type`, dispatches VPS → readiness-verify + hand to hub `fabrik apply`; mobile → EAS path per `mobile-app/80-mobile.md` + its launch checklist; chrome-extension → zip/validate/privacy-answers prep per the new pack; desktop → minimal pass (no pack yet, flagged). Every verdict is evidence-cited; the command ALWAYS stops at the human Gate 2 (R14) — it never deploys, submits, or publishes.
+Closes the ship-to-users gap for the non-VPS surfaces. New rules pack `.windsurf/rules/chrome-ext/89-extension-launch-checklist.md` (55th pack) — Web Store launch-blocking gates grounded live against developer.chrome.com (fetched 2026-07-18): $5 one-time dev account + 2SV + dashboard item-cap check, MV3/no-secrets/no-remote-code/permission-minimization bundle hygiene, exact listing asset sizes, the four privacy-practices answers (rejection trap #1), review-latency expectations, staged rollout, post-launch. New user command `~/.claude/commands/fabrik-release.md` (outside the repo): surface-aware release runner — reads `project.yaml::type`, dispatches VPS → readiness-verify + hand to hub `fabrik apply`; mobile → EAS path per `mobile-app/80-mobile.md` + its launch checklist; chrome-extension → zip/validate/privacy-answers prep per the new pack; desktop → minimal pass (no pack yet, flagged). Every verdict is evidence-cited; the command ALWAYS stops at the human Gate 2 (R14) — it never deploys, submits, or publishes.
 
 ### Fixed — External-services registry: catalog all 90 providers + prune stale-rename orphans (2026-07-18)
 

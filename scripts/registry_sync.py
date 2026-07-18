@@ -73,6 +73,12 @@ def sync_registry(dsn: str | None = None, fetch_credits: bool = False, prune: bo
     conn = registry_db.connect()
     try:
         with conn, conn.cursor() as cur:
+            # Bounded-prune denominator: the PRE-EXISTING registry size, captured BEFORE the
+            # upserts below insert this file's providers — else a corrupt file that ADDS many
+            # bogus rows inflates the denominator and a mass real-provider delete slips under
+            # the cap (the exact irreversible outcome the bound exists to prevent).
+            cur.execute("SELECT count(*) FROM services")
+            preexisting_total = cur.fetchone()[0]
             for p in provs:
                 meta = p["meta"]
                 ub = meta.get("used_by") or ""
@@ -109,12 +115,32 @@ def sync_registry(dsn: str | None = None, fetch_credits: bool = False, prune: bo
                     to_fetch.append((sid, meta["name"], first_value))  # fetch AFTER commit
             # Prune orphans: services no longer in all-envs.env (e.g. a provider recatalogued
             # under a new match prefix leaves its old `?` row behind). Children cascade-delete.
-            # GUARD: never prune when the parse yielded nothing — an empty/corrupt file must not
+            # GUARD 1: never prune when the parse yielded nothing — an empty/corrupt file must not
             # wipe the whole registry. `prune=False` is for callers syncing a PARTIAL file (e.g.
             # tests with a one-provider fixture) that must not delete the rest of the registry.
+            # GUARD 2 (bounded prune): a mass-delete means the FILE is wrong (corrupted #svc lines
+            # dropping providers from `seen`), not the registry — cascade-deleting credit_snapshots
+            # history is irreversible, so refuse loudly instead of pruning silently. Cap: roughly
+            # >20% of the registry (integer //5, min 5) aborts the whole transaction (upserts
+            # included — sync fails loud).
             seen = [p["meta"]["name"] for p in provs]
             if prune and seen:
                 cur.execute("DELETE FROM services WHERE provider <> ALL(%s)", (seen,))
+                allowed = max(5, preexisting_total // 5)
+                # Explicit truthy values ONLY — a conventional "0"/"false"/"no" must NOT
+                # silently disable a data-loss guard (any-non-empty truthiness would).
+                force = os.getenv("REGISTRY_PRUNE_FORCE", "").strip().lower() in (
+                    "1",
+                    "true",
+                    "yes",
+                )
+                if cur.rowcount > allowed and not force:
+                    raise RuntimeError(
+                        f"bounded prune: refusing to delete {cur.rowcount}/{preexisting_total} "
+                        f"services (> {allowed} allowed) — all-envs.env is likely corrupt/"
+                        "truncated; no changes applied (transaction rolled back). If this is a "
+                        "LEGITIMATE mass recatalog, re-run once with REGISTRY_PRUNE_FORCE=1."
+                    )
                 stats["pruned"] = cur.rowcount
     finally:
         conn.close()

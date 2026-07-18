@@ -251,6 +251,7 @@ If issues persist:
 | Error | Cause | Solution |
 |-------|-------|----------|
 | `ECONNREFUSED` | Service not running | Start the service |
+| `lint-ratchet — ruff errors ROSE N → M` (but *your* files pass `ruff` clean) | Before 2026-07-18: a **sibling agent's untracked WIP** raised the working-tree count (CI-parity defect — CI only sees tracked files) | Fixed: the ratchet + `final_gate` change-set now count **tracked/staged files only**. If it still fires, the new errors are in files you staged — fix those |
 | `401 Unauthorized` | Invalid API token | Regenerate token |
 | `DNS_PROBE_FINISHED_NXDOMAIN` | DNS not propagated | Wait or check records |
 | `ERR_CERT_DATE_INVALID` | SSL not issued | Check ports 80/443 |

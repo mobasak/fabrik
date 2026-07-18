@@ -25,6 +25,14 @@
 
 `final_gate.py` provides **deterministic quality checks** that catch formatting, syntax, and convention errors before expensive LLM review. It validates both code quality and documentation completeness.
 
+**Change-set scope (shared-tree invariant, 2026-07-18):** the gate scopes fixers + static checks to *what
+this session will push* — committed-but-unpushed + staged + unstaged modifications to tracked files.
+**Untracked-unstaged files are excluded**: they cannot be pushed, and on a shared tree they are typically a
+sibling agent's in-progress work (which the gate must neither red-flag against your session nor auto-fix /
+auto-stage). Authorship = staging: `git add` your new file to bring it into gate scope. The lint-ratchet
+(`check_lint_ratchet.py`) applies the same rule — its repo-wide count includes **tracked files only**, which
+is also true CI-parity (CI's clean checkout has no untracked files).
+
 ### Key Features
 
 1. **Auto-fix formatting** — Repairs whitespace, EOF newlines, Python formatting

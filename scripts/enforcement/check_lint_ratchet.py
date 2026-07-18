@@ -24,7 +24,10 @@ repo — CI, a teammate, and every agent see the same floor.
 CI-PARITY. We run `ruff check .` exactly as a project's `ci.yml` does. Ruff respects `.gitignore` by
 default, so the Fabrik-synced / vendored dirs (which are gitignored in a project and therefore absent from
 CI's clean checkout) are excluded automatically — the count reflects the project's OWN code, which is what
-CI grades.
+CI grades. Diagnostics in UNTRACKED files are excluded for the same reason: CI's clean checkout contains
+only tracked files, so an untracked file (e.g. a sibling agent's in-progress scratch on a shared tree) can
+never raise CI's count — counting it locally breaks parity and blames the wrong session (live incident
+2026-07-18: a sibling's untracked WIP raised the local count 119→121 while CI would still see 119).
 """
 
 from __future__ import annotations
@@ -61,9 +64,45 @@ def _ruff_count() -> int | None:
         # cannot interpret as a count. Distinguish: a clean repo really is 0.
         return 0 if proc.returncode == 0 else None
     try:
-        return len(json.loads(out))
+        diags = json.loads(out)
     except (json.JSONDecodeError, TypeError):
         return None
+    if not isinstance(diags, list):  # a future ruff JSON shape change must not crash the gate
+        return None
+    tracked = _tracked_files()
+    if tracked is None:  # git unavailable → fall back to the raw working-tree count
+        return len(diags)
+    # CI-parity: count only diagnostics in TRACKED files — CI's clean checkout has no untracked file,
+    # so an untracked file (a sibling agent's WIP on a shared tree) can never raise CI's count.
+    # Compare RESOLVED-absolute to RESOLVED-absolute so a symlinked repo root / symlinked path
+    # can't silently drop a tracked diagnostic (undercount → spurious RISE on a later run).
+    tracked_abs = {str((ROOT / p).resolve()) for p in tracked}
+    n = 0
+    for d in diags:
+        fn = d.get("filename")
+        if not fn:
+            n += 1  # unattributable diagnostic — count it (fail-closed)
+            continue
+        if str(Path(fn).resolve()) in tracked_abs:
+            n += 1
+    return n
+
+
+def _tracked_files() -> set[str] | None:
+    """Set of git-tracked paths (repo-relative, POSIX), or None if git can't answer."""
+    try:
+        proc = subprocess.run(  # noqa: S603 — fixed argv, no shell
+            ["git", "ls-files", "-z"],  # noqa: S607 — git resolved from PATH, standard tooling
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError:
+        return None
+    if proc.returncode != 0:
+        return None
+    return {p for p in proc.stdout.split("\0") if p}
 
 
 def _baseline_is_gitignored() -> bool:
@@ -75,15 +114,18 @@ def _baseline_is_gitignored() -> bool:
     cannot add debt and pass their own gate — but CI stops backstopping). We surface that loudly rather
     than let it fail open silently.
     """
-    return (
-        subprocess.run(  # noqa: S603 — fixed argv, no shell
-            ["git", "check-ignore", "-q", str(BASELINE.relative_to(ROOT))],
-            cwd=ROOT,
-            capture_output=True,
-            check=False,
-        ).returncode
-        == 0
-    )
+    try:
+        return (
+            subprocess.run(  # noqa: S603 — fixed argv, no shell
+                ["git", "check-ignore", "-q", str(BASELINE.relative_to(ROOT))],
+                cwd=ROOT,
+                capture_output=True,
+                check=False,
+            ).returncode
+            == 0
+        )
+    except OSError:  # git missing → can't tell; don't crash the whole ratchet over a warning
+        return False
 
 
 def _read_baseline() -> int | None:
@@ -100,12 +142,15 @@ def _write_baseline(count: int) -> None:
     BASELINE.write_text(json.dumps({"ruff_errors": count}) + "\n", encoding="utf-8")
     # Stage it so the tightened floor rides along with the change that lowered it. Best-effort: if git is
     # unavailable the write still stands and `final_gate`'s own auto-stage covers it.
-    subprocess.run(  # noqa: S603 — fixed argv, no shell
-        ["git", "add", "--", str(BASELINE.relative_to(ROOT))],
-        cwd=ROOT,
-        capture_output=True,
-        check=False,
-    )
+    try:
+        subprocess.run(  # noqa: S603 — fixed argv, no shell
+            ["git", "add", "--", str(BASELINE.relative_to(ROOT))],
+            cwd=ROOT,
+            capture_output=True,
+            check=False,
+        )
+    except OSError:  # git missing — the baseline file write above still stands
+        pass
 
 
 def main() -> int:
@@ -150,7 +195,9 @@ def main() -> int:
             _write_baseline(current)
             print(f"lint-ratchet: ratcheted DOWN {baseline} → {current}. New floor committed.")
         else:
-            print(f"lint-ratchet: OK — {current} ≤ baseline {baseline} (would tighten to {current}).")
+            print(
+                f"lint-ratchet: OK — {current} ≤ baseline {baseline} (would tighten to {current})."
+            )
         return 0
 
     lock = " — zero-tolerance LOCKED" if baseline == 0 else ""

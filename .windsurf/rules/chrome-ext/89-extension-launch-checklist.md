@@ -20,7 +20,8 @@ The human operator clicks **Submit for Review** — that is Gate 2 (R14); no age
 
 - Chrome Web Store developer account registered, **one-time $5 USD fee** paid.
 - **2-Step Verification ON** for the publishing Google account (account takeover = every user compromised).
-- Account limit: **20 extensions per account** — check remaining slots before assuming this account publishes it.
+- Account item cap: the dashboard enforces a per-account published-item limit (the official docs state no
+  number — verify a free slot in YOUR dashboard before assuming this account publishes it).
 - Publisher email verified; contact email set in the dashboard (Google notifies rejections there).
 
 **Done When:** dashboard reachable, fee paid, 2SV on, a free item slot exists, contact email verified.
@@ -31,8 +32,10 @@ The human operator clicks **Submit for Review** — that is Gate 2 (R14); no age
 - **No secrets in the bundle** — an extension zip is readable by anyone who installs it; every secret lives in
   the backend `[canonical: chrome-ext/00-domain-chrome-ext.md § backend is Epic 1]`.
 - **No remote-hosted code** — MV3 bans executing code fetched at runtime; all logic ships in the zip.
-- **Permissions minimized** — every `permissions` / `host_permissions` entry is USED by shipped code (grep for
-  its API call); unused or broad host permissions (`<all_urls>`) are the #1 in-depth-review trigger.
+- **Permissions minimized** — every `permissions` / `host_permissions` entry maps to shipped code that needs
+  it (the `chrome.*` API surface or host it gates — cite the `path:line` that uses it; permissions are not
+  1:1 with single calls, so map by capability); unused or broad host permissions (`<all_urls>`) are the #1
+  in-depth-review trigger.
 - **No obfuscation.** Minification is allowed; obfuscated code triggers deep review and rejection risk.
 - `version` bumped (the store rejects a re-upload of the same version); semver, matches CHANGELOG.
 - Zip contains only the built extension (no sourcemaps, no `.env`, no dev artifacts) and stays within

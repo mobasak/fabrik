@@ -93,12 +93,22 @@ glue over the existing `select_rules.py`, not a generic reusable module → **pr
    (L1–L4). Keep it lean (≤~30 lines) — it is intent, not the full spec.
 2. Add one decision-log line under `## Decisions`: *"D-Enforce (2026-07-18): the reliability ladder is the factory's
    compliance model — see § Enforcement Model + spec 2026-07-18-fabrik-factory-architecture-design."*
-3. **Gate:** `grep -c 'Enforcement Model' docs/orchestrator/00-autonomous-factory-north-star.md` → ≥1; and the
-   section states the law + L1 honesty bound (`grep -q 'probabilistic'`). Expected: both present.
-4. `python scripts/enforcement/check_doc_sync.py` (if it flags the north-star) → resolve; no other doc triggers (this
+3. **Fix the front-door self-contradiction (owner-directed fold-in, 2026-07-18).** North-star `:60` (§ two-workflow
+   factory, step 1) claims `/fabrik-spec` is the universal front door; `:48` (§ Which workflow) already states the
+   scale-routed model — they contradict. Rewrite step 1 of § two-workflow to the **three-tier front-door model**:
+   **feature-scale** (one plan an operator session carries) → `/fabrik-spec` → data-contract → *(GUI)* ui-design →
+   plan → execute · **epic** (needs a ticket store + dispatched agents) → `ettw-00` directly · **multi-epic vision**
+   → `mega-00` (spec-grade intake — its Required sections carry everything `/fabrik-spec` produces; Scale Assessment
+   down-routes). State the distinguishing test once: *does it need tickets and dispatched agents, or is it one plan
+   an operator session can carry?* Routing is symmetric both ways (the `/fabrik-spec` up-route + ettw-00 mirror
+   shipped 2026-07-18, outside this plan's scope). Align `:48` wording to the same three tiers.
+4. **Gate:** `grep -c 'Enforcement Model' docs/orchestrator/00-autonomous-factory-north-star.md` → ≥1; the
+   section states the law + L1 honesty bound (`grep -q 'probabilistic'`); and the three-tier front door is stated
+   (`grep -q 'three-tier\|feature-scale' docs/orchestrator/00-autonomous-factory-north-star.md`). Expected: all present.
+5. `python scripts/enforcement/check_doc_sync.py` (if it flags the north-star) → resolve; no other doc triggers (this
    is an intent doc, not a feature/API/env change → Doc Sync Matrix: none beyond CHANGELOG).
-5. **`/fabrik-review`** on the north-star diff — looped to a no-op (zero CONFIRMED/PLAUSIBLE; each finding FIXED/REFUTED).
-6. Commit (`docs/orchestrator/00-autonomous-factory-north-star.md`, provenance trailer).
+6. **`/fabrik-review`** on the north-star diff — looped to a no-op (zero CONFIRMED/PLAUSIBLE; each finding FIXED/REFUTED).
+7. Commit (`docs/orchestrator/00-autonomous-factory-north-star.md`, provenance trailer).
 
 ---
 
@@ -115,6 +125,18 @@ the stripped agents doc.
    A, postgres-main, Stripe-ban, 12-Factor…) → a **tagged one-liner** (`[canonical: pack §X]`) or delete. Keep ONLY
    live platform facts rules don't carry (VPS hosts/IPs, ports, service topology, project list, fleet mesh). Target: a
    genuinely small doc (spec § AGENTS.md resolution — "small" is by content, not by the import mechanism).
+2b. **While stripping, rewrite § Workflow to the three-tier front-door model + purge the archived-twin references
+   (owner-directed fold-in, 2026-07-18).** The current § Workflow is stale a layer deeper than the rule-restatements:
+   `AGENTS.md:47/:49/:93/:627-628` still describe the `-command` twins as live ("reference copies… keep in factual
+   lockstep") and `:51` routes the EXISTING-mode user to `00-trigger-workflow-command` — the **retired tool-less
+   twin**, which mega-00 itself forbids handing off to (its § routing: "never hand off to a `-command` twin") and
+   which D2 archived. In the KEPT doc: (a) rewrite § Workflow to the same three-tier model Phase A puts in the
+   north-star (feature → `/fabrik-spec` · epic → `ettw-00` · vision → `mega-00`, one distinguishing test, symmetric
+   routing); (b) purge/correct **every** `-command` twin reference — EXISTING mode enters at
+   `mega-epic-breakdown/00-trigger-fabrik` in EXISTING mode. **Gate:** `grep -cE 'workflow-command|command twins?'
+   agents-fabrik.md` → 0 (and the AGENTS.md stub carries none). ⚠️ Deliberately NOT a bare `-command` grep — that
+   would false-positive on legitimate text (e.g. `AGENTS.md:99` "Cascade slash-command workflows", which stays).
+   Expected: 0.
 3. **Retire `AGENTS.md`** → replace its body with a one-line stub: *"Canonical agents doc is `agents-fabrik.md`,
    `@import`-ed into `CLAUDE.md`. (AGENTS.md retained only for cross-tool discovery.)"* — OR `ln -s agents-fabrik.md
    AGENTS.md` if the sprawl gate allows a symlink (decide by whether `check_doc_sprawl.py` accepts it; default = stub).
@@ -264,6 +286,9 @@ project) before Phase B; per its File-Ownership row it is the Claude bootstrap (
 
 - **Coverage:** every "What we agreed" item maps to a phase — governing law→A; AGENTS.md option (b)→B; armed review
   (Tier 3, L2/L3)→C; procurement/catalog→D; L1 honesty→enforced in A+C text; L4→the 4 independently-committable phases.
+  **Owner fold-in (2026-07-18):** the front-door reconciliation rides A3 (north-star `:48`-vs-`:60` → three-tier
+  model) + B2b (§ Workflow rewrite + archived-twin purge); the `/fabrik-spec` up-route + ettw-00 mirror shipped
+  directly the same day (outside this plan's File Scope — no double-touch).
 - **Cross-phase consistency:** Phase A's `## Enforcement Model` name is referenced by B/C/D text; `review_rubric.py`'s
   interface (`--changed <paths>`) is consumed identically in C's four wirings.
 - **Fresh-eyes gap check:** the only code artifact is `review_rubric.py` (tested, gated); everything else is

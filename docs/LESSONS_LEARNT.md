@@ -1,9 +1,21 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
-**Last Updated:** 2026-07-17 (Lesson 95 — arithmetic cannot settle a domain question; assume your own fix is defective) (Lesson 94 — I refuted a review finding by proving the wrong half of it, and it cost 3 hours of paid compute)
+**Last Updated:** 2026-07-18 (Lesson 96 — the gate counted a sibling's untracked WIP as this session's debt; "CI-parity" that includes untracked files isn't parity) (Lesson 95 — arithmetic cannot settle a domain question; assume your own fix is defective)
 
 **Purpose:** CAPTURE TECHNICAL HURDLES, AI-SPECIFIC QUIRKS, AND ARCHITECTURAL DECISIONS TO PREVENT REGRESSION AS CODEBASES AND AI AGENTS EVOLVE.
+
+---
+
+# Lesson 96: the gate blamed a sibling's untracked WIP on my session — a "CI-parity" check that counts untracked files isn't parity, and the fix is scope, not noqa
+
+**Context (2026-07-18):** Mid-session, the stop-hook DoD failed my turn on 2 new ruff errors (`119 → 121`). Every file I authored passed clean; the errors were in `scripts/kilo-benchmarks/microbench_review.py` — an **untracked** file a sibling agent had created **minutes earlier** and was still actively editing (it grew to 4 errors during diagnosis).
+
+**Root cause (two layers):** (1) `check_lint_ratchet.py` ran `ruff check .` over the **working tree**, but its own claim is CI-parity — and CI's clean checkout contains only **tracked** files, so untracked sibling WIP inflated a count CI would never see. (2) `final_gate.get_changed_files()` unconditionally added **all untracked files** to "this session's change set" — misattributing sibling files, and one bare (fix-mode) run away from **auto-fixing and auto-staging a sibling's mid-write file into my commit** (the exact cross-agent data-loss the shared-tree rules exist to prevent).
+
+**The fix (upstream, in the checks — never in the sibling's file):** the ratchet now counts diagnostics in **tracked files only** (`git ls-files`, fallback to raw count if git is unavailable); `get_changed_files()` now excludes untracked-unstaged files — the set matches its own docstring, "everything this session will PUSH" (an unstaged-untracked file can't be pushed). Authorship = staging: `git add` brings YOUR new file into gate scope; the completion contract stages explicit paths anyway. Verified live: with the sibling's red files still in the tree, ratchet = `119 == baseline`, lean gate = success.
+
+**The rule:** when a gate reds on a file you did not author this turn, the defect is in the **gate's scope**, not the file — fix the check upstream (precedent: d6cb963d, `check_synced_unmodified` vs git HEAD; Lesson 90, plan-lock-blind DoD). Touching the sibling's file — even for a one-line `zip(strict=)` — is the trap: it edits another agent's mid-write WIP to silence your own gate. And any scope definition on a shared tree must answer one question precisely: *what will THIS session push?*
 
 ---
 
