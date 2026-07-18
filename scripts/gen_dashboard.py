@@ -177,8 +177,7 @@ def render(rows: list[dict]) -> str:
     ]
     statcards = "".join(f'<div class="stat"><div class="n">{v}</div><div class="l">{html.escape(lbl)}</div></div>' for v, lbl in stats)
     cat_opts = "".join(f'<option value="{html.escape(c)}">{html.escape(c)}</option>' for c in cats)
-    head = f"""<style>{CSS}</style>
-<div class="wrap">
+    body = f"""<div class="wrap">
   <header><h1>External Services &amp; Credentials</h1>
     <span class="sub">{len(rows)} providers · {nproj} projects · generated {now}</span></header>
   <div class="stats">{statcards}</div>
@@ -196,7 +195,13 @@ def render(rows: list[dict]) -> str:
     <th data-k="projects">Used by</th></tr></thead><tbody id="tb"></tbody></table></div>
   <footer>Read-only view of the fabrik_services registry · no secret values (metadata + key hashes only)</footer>
 </div>"""
-    return head + SCRIPT.replace("__DATA__", json.dumps(rows, ensure_ascii=False))
+    script = SCRIPT.replace("__DATA__", json.dumps(rows, ensure_ascii=False))
+    return (
+        '<!DOCTYPE html>\n<html lang="en"><head><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width,initial-scale=1">'
+        "<title>External Services &amp; Credentials</title>\n"
+        f"<style>{CSS}</style></head>\n<body>\n{body}\n{script}\n</body></html>"
+    )
 
 
 def main() -> int:
