@@ -836,6 +836,13 @@ Wait for explicit confirmation. **STOP GENERATION HERE.** Silence ≠ confirmati
 
 **Format.** Vision Summary (markdown, exact structure from Step N4 / E5 skeleton) presented in our orchestrator conversation, **then PERSISTED on confirm** — the old "persisted automatically" claim was false; it wrote nothing, so a cold re-entry lost it `[canonical: north-star D6 — persist on confirm; do NOT leave load-bearing artifacts chat-only]`.
 
+**Pre-confirmation self-audit (run ONCE, both modes, BEFORE you present at CHECKPOINT N-5 / E-3).** `[canonical: the light half of the sibling convergence discipline — a fresh-eyes pass, NOT a freeze loop. There is no convergence twin above `00`; this pass is what stops an ungrounded or incomplete Vision Summary reaching the owner's confirm.]` You are your own first reviewer: re-walk the finished Vision Summary against its own Acceptance Criteria (below) with fresh eyes, and report the result inline at the top of the presentation (`Self-audit: grounding ✓ · features ✓ · constraints ✓ · resolution ✓ · [N] edits forced`). If any check forces an edit, apply it, re-check that item, and present the corrected Summary — never the pre-audit draft. This is a single pass (there is no loop-to-a-no-op here), and it does NOT waive any ⛔BLOCKING N3k gate — a gate failure is a hard stop, not a self-audit edit. Audit all four:
+
+1. **Grounding closure** — every External Services entry carries a cited source URL + fetch date (N3k-1); the chosen approach carries cited current best-practice + date (N3k-2); the fabrik-lib Verdict table is complete, one row per capability (N3k-3). Any external fact without a fresh cited source is a **named BLOCKING unknown**, never a silent memory-based claim.
+2. **Feature closure** — every feature from the research/interview appears in the Full Feature Inventory (nothing silently dropped); every persona is named (not "users"); every value stream stated. In EXISTING mode, every Compliance Report gap carries an owner decision (`fix-now` / `fix-later` / `accept-as-legacy`) and the Locked Decisions section is present. (`00` records the decision; `02` is what turns `fix-now` rows into Retrofit epics — do not emit epics here.)
+3. **Constraint closure** — all 20 N3i constraints carry a verdict (`all clear` / `conflict` / `unknown` — no silent unknown), and no cited best-practice that violates a hard constraint (Stripe / managed vector DB / direct vendor LLM SDK) survived into the Summary.
+4. **Resolution closure** — zero Open Questions remain unresolved (answered or explicitly deferred); the mode was declared at Step 0 (not auto-detected); the Summary is within its mode's token budget.
+
 **Persist on confirm (after CHECKPOINT N-5 / E-3).** The moment the owner confirms the Vision Summary:
 
 ```bash
@@ -872,6 +879,8 @@ DISK is source of truth (D8); the mirror is an env-guarded projection (`$TRAYCER
 - Vision Summary within token budget for the declared mode.
 - Open Questions captures ALL unresolved items; zero remain at confirmation (all answered or explicitly deferred).
 - **Grounding dispatched through `libs/subagents`** — the grounders ran as pool `fanout` units (each recording the flywheel via `project=`) **AND** ≥1 native `fabrik-researcher` on Opus, with every pool run back-filled by `set_quality`. Going all-native lands zero flywheel rows `[canonical: core/62-using-subagents.md § Dispatch policy — BOTH layers, never either/or]`.
+- **Pre-confirmation self-audit ran** (grounding closure · feature closure · constraint closure · resolution closure) and its result was stated at the top of the presentation before the owner confirmed — `clean, 0 edits` or the edits it forced, re-checked.
+- **No § Guardrails prohibition tripped** — the run violates none of the hard prohibitions listed there.
 - Owner explicitly confirms. Silence ≠ confirmation.
 
 **Acceptance — NEW adds:**
@@ -894,6 +903,20 @@ DISK is source of truth (D8); the mirror is an env-guarded projection (`$TRAYCER
 - Integration points identified (tables, APIs, auth, workers).
 
 **Does NOT.** Split the vision into epics, decide scaffold types per epic, decide shape blocks per epic, or produce per-epic infrastructure decisions — all of those are `02-epic-decomposition-fabrik`. Create files or tickets — orientation only; tickets in `03-expand-epic-files-fabrik`. Blindly accept research — challenges against Fabrik reality, budget, maintainability. Plan refactoring of existing code — separate workflow. **EXISTING-specific:** does NOT re-derive the vision (reads from project) or re-decide locked tech choices (inherits them); does NOT auto-fix compliance gaps (owner decides per gap; auto-fix happens later as Retrofit epics in 02).
+
+## Guardrails — never
+
+`Does NOT` above draws the SCOPE boundary (what `02`/`03` own). These are the hard PROHIBITIONS — a run that trips one is defective regardless of scope:
+
+- **Never draft the Vision Summary (N4/E5) before the ⛔BLOCKING N3k gate passes** — N3k-1 (external facts) and N3k-2 (approach) each end grounded-with-a-cited-source or as a named BLOCKING unknown; N3k-3 (the fabrik-lib ladder) is complete. Drafting on an ungrounded fact poisons every downstream epic.
+- **Never let a memory-based external fact into the Summary** — every External Services entry, price, limit, and version carries a cited URL + fetch date fetched THIS run, or it is a named BLOCKING unknown. Freshness is not waived by "we said it before" (re-ground an episodic-memory hit live).
+- **Never spec a cited best-practice that violates a hard constraint** — Stripe for a TR entity, a managed vector DB, a direct vendor LLM SDK: cut it and pick the survivor. A well-cited dead-on-arrival decision is worse than no research.
+- **Never skip the fabrik-lib vendor→enhance→build ladder** ("Didn't check fabrik-lib" = defect), and **never write into `/opt/fabrik-lib`** from here — propose a `🆕 fabrik-lib candidate`, the hub creates it (cross-repo HARD STOP).
+- **Never quote a remembered number where a live read exists** — watchdog/cost caps from `WatchdogConfig` (`src/fabrik/spec_loader.py`) + the driver's raw-dict reads (`src/fabrik/drivers/watchdog.py`); compose-enforcement surface from `src/fabrik/orchestrator/deployer_ssh.py`; audit/destroy surface from `src/fabrik/audit.py` + `destroyer.py`. Read them at the source; they have drifted before.
+- **Never auto-detect the mode** — Step 0 is an explicit owner declaration; **never proceed past a checkpoint with unresolved Open Questions** or self-confirm on owner silence.
+- **Never go all-native on grounding** — the N3k grounders run as pool `fanout` units (recording the flywheel via `project=`) **plus** ≥1 native `fabrik-researcher` on Opus, every pool run back-filled by `set_quality`. All-native lands zero flywheel rows.
+- **Never split into epics or decide per-epic scaffold/shape/infra** — that is `02`; `00` is orientation only. **Never persist outside the allowlisted `specs/` tree**, and DISK stays source-of-truth — the Traycer mirror is an env-guarded projection, never the store of record.
+
 
 ## Examples
 

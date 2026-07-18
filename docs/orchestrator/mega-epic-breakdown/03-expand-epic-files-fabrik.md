@@ -241,9 +241,19 @@ python /opt/fabrik/scripts/traycer_mirror.py --src docs/superpowers/specs/YYYY-M
 
 ⚠️ **This does not change the store of record.** DISK stays source-of-truth (D8). The script writes `~/.traycer/epics/$TRAYCER_EPIC_ID/artifacts/<name>/index.md` ONLY when `$TRAYCER_EPIC_ID` is set (i.e. running inside Traycer) — so the cockpit renders every epic as a card; it is a **NO-OP headless** (the driver run is untouched). The SAME command therefore works in any `/opt` project, in Traycer or headless.
 
-### Step 3: Confirm
+### Step 3: Pre-handoff self-audit + Confirm
 
-After all tickets are written, list them **with their paths** — and confirm each file exists on disk (`ls docs/development/epics/` **and** `ls docs/superpowers/specs/` — the spec lives in a different tree), don't assert it:
+`[canonical: the light half of the sibling convergence discipline — a fresh-eyes pass, NOT a freeze loop. `03` has no owner checkpoint (it is a transform), so this pass runs before routing to `04`; the heavy loop-to-a-no-op is `04`'s job. It catches the integrity defects `04`'s `epic_order.py` gate would bounce back — cheaper to catch here than to round-trip.]`
+
+Before routing to `04`, re-walk everything you just wrote with fresh eyes — you are your own first reviewer. Report the result inline (`Self-audit: files ✓ · frontmatter ✓ · machine==prose ✓ · titles ✓ · infra-cite ✓ · [N] edits forced`). If any check forces an edit, apply it (it is your own output — fix it now), re-check that item, then route. Audit all five:
+
+1. **File + count closure** — `ls docs/development/epics/` **and** `ls docs/superpowers/specs/` (the spec lives in a different tree); **confirm each file exists on disk, don't assert it**. Every epic in 02's confirmed proposal has exactly one file, epic numbers are contiguous `1..N`, and the count matches — no missing, no excess, no orphan (the same integrity `04`'s `epic_order.py --check` will gate; catch it here first).
+2. **Frontmatter completeness** — every epic file opens with the full typed block (`kind`/`title`/`status`/`epic_n`/`slug`/`depends_on`/`parallel_with`/`owned_paths`/`scaffold`/`port`/`target_vps`) per `EPIC-ARTIFACT-SCHEMA.md`; the Infrastructure Decisions spec is under `docs/superpowers/specs/`, NOT `docs/development/epics/` (a spec in the ticket tree is counted as an orphan ticket by `epic_order.py`).
+3. **Machine form == prose** — each file's `depends_on` / `parallel_with` / `owned_paths` frontmatter is identical to its `### Dependencies` bullets (Depends on / Parallel with / Owned paths). A divergence is the exact defect `04` flags — reconcile it now.
+4. **Title + flavour + floor** — every Title is `Epic N — [Name]` or `Epic N — Retrofit: [area]` (the `Retrofit:` prefix is the SOLE downstream flavour carrier — `epic-to-ticket/00` string-parses it), carried verbatim from 02; Success Criteria meet the per-flavour floor (5–8 delta / 3–5 Retrofit, with the area-specific criterion added where both #3 and #4 are N/A).
+5. **Infra citation** — every ticket's `### Infrastructure` section cites the real `docs/superpowers/specs/…-infrastructure-decisions.md` path (reference, not duplicate), and that spec file exists.
+
+Then list the tickets **with their paths**:
 
 ```text
 Written:
@@ -287,6 +297,20 @@ Both allowlisted in `CLAUDE.md` § HARD STOPS — NEVER; matched by `scripts/enf
 - Does NOT validate cross-epic consistency — that is `04-cross-epic-validation-fabrik`.
 - Does NOT dispatch tickets — dispatch is the cockpit epic-card click / the driver's phase queue (`05-dispatch` retired; ordering via `scripts/epic_order.py`, integrity + order emitted by `04`).
 
+## Guardrails — never
+
+`Does NOT` above draws the SCOPE boundary (what `02`/`04` own). These are the hard PROHIBITIONS — a run that trips one is defective regardless of scope. (`03` has no owner checkpoint, so there is no Question bar — the analogue is the Step 3 self-audit before routing.)
+
+- **Never leave a ticket in conversation only** — write the FILE to `docs/development/epics/`. An epic that lives only in the window dies with it, and the cockpit/driver cannot dispatch what it cannot read.
+- **Never write an epic file without the full typed frontmatter block**, and **never let `depends_on`/`parallel_with`/`owned_paths` diverge from the `### Dependencies` prose** — they are the machine form of the same contract (a mismatch is a defect `04` flags).
+- **Never persist the Infrastructure Decisions spec under `docs/development/epics/`** — it goes to `docs/superpowers/specs/`, or `04`'s `epic_order.py` glob counts it as an orphan ticket. Never write to any location outside the two allowlisted trees.
+- **Never change an epic boundary or migrate a feature between epics** — those were confirmed in `02`; if a boundary is wrong, route back to `02`, do not silently re-cut it here.
+- **Never emit Success Criteria below the per-flavour floor** — 5–8 delta / 3–5 Retrofit; when both #3 (resilience) and #4 (audit) are genuinely N/A, add an area-specific criterion to reach 3 rather than leaving `04` to invent it.
+- **Never use a Title other than `Epic N — [Name]` / `Epic N — Retrofit: [area]`** — the `Retrofit:` prefix is the sole flavour carrier `epic-to-ticket/00` string-parses; `Epic 4 — i18n Retrofit` silently classifies as delta-feature.
+- **Never copy a remembered port / pack path / shape flag / registrar** — ground each: read `PORTS.md`, `ls` the pack, read `spec_loader.py`. A ticket citing a file that does not exist is a defect, not a formatting nit.
+- **Never go all-native on the 2a adjudication** — pool `fanout("review", …, project="mega-expand", mode="read_only")` (one unit per epic, facts inlined) **plus** ≥1 native `fabrik-reviewer` on Opus, every pool run back-filled by `set_quality`. Never let a grounder return Success Criteria or Scope — the epic-file CONTENT stays single-agent Opus.
+- **Never hand-write the Traycer mirror** — call `scripts/traycer_mirror.py` (the projection is code, not prose); DISK stays source-of-truth, the mirror is a NO-OP headless projection.
+
 ## Acceptance Criteria
 
 - **Cross-field adjudication dispatched through `libs/subagents`** (Step 2, sub-step 2a) — YOU ground (`PORTS.md` + the pack `ls`) and inline the findings; one pool `fanout("review", …, project="mega-expand", mode="read_only")` unit per epic, each with the facts inlined, recording the flywheel via `project=` **AND** ≥1 native `fabrik-reviewer` on Opus for the `Owned paths:` seam, with every pool run back-filled by `set_quality`. Going all-native lands zero flywheel rows `[canonical: core/62-using-subagents.md § Dispatch policy — BOTH layers, never either/or]`.
@@ -300,4 +324,6 @@ Both allowlisted in `CLAUDE.md` § HARD STOPS — NEVER; matched by `scripts/enf
 - Dependencies name specific artifacts (tables, functions, endpoints, env vars), not vague references.
 - Scope boundaries unchanged from 02's confirmed proposal — no feature migration without routing back to 02.
 - Ticket count matches epic count from the compact proposal.
+- **Step 3 pre-handoff self-audit ran** (file+count closure · frontmatter completeness · machine-form == prose · title/flavour/floor · infra citation) and its result was stated before routing — `clean, 0 edits` or the edits it forced, re-checked.
+- **No § Guardrails prohibition tripped** — the run violates none of the hard prohibitions listed there.
 - Route to `04-cross-epic-validation-fabrik` stated after confirmation.
