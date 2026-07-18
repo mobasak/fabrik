@@ -19,6 +19,7 @@
          `docs/operations/fabrik-lifecycle.md` · `docs/reference/technology-stack-decision-guide.md`
          (binding on every tech choice) · `docs/reference/prebuilt-app-containers.md` ·
          `docs/BUSINESS_MODEL.md` § Project Portfolio · `PORTS.md` (port allocation)
+         · `scripts/service_catalog.json` — the owned external-services inventory (N3c § Already OWNED + N3k-1's owned-first order; secret-free)
        · `docs/infrastructure/vps-complete-inventory.md` — ordered by Step N1: the canonical fleet
          inventory when the `agents-fabrik.md` summary is ambiguous
        · `docs/reference/service-contracts/[service].md` — N3g's per-service contract check
@@ -313,6 +314,16 @@ Synthesize answers into the same internal structure (vision, personas, features,
 - **Expensive where free exists?** Research proposes paid service → check if a VPS service already solves it (Apprise, Gotenberg, MeiliSearch, Backrest, n8n — all deployed, all free). State: "Research suggests [X] but [Y] is already deployed on VPS at zero cost."
 - **Complex where simple exists?** K8s/microservice mesh/custom auth proposed → SSH+Docker Compose + Authelia + single-container deploys handle it. Fabrik uses `fabrik apply`, not Helm.
 - **Build where consume exists?** Check prebuilt containers, existing Fabrik microservices (site-provisioner — the only one live on the fleet; image-broker and the rest are retired/not deployed), VPS services, `/opt/fabrik-lib/` vendorable modules (see `fabrik-lib/README.md` for the module table).
+- **Already OWNED? (mechanical, not judgment)** — read `scripts/service_catalog.json` (the secret-free
+  inventory of every provisioned external service: `category · cost · capability · url · status · used_by`).
+  If a `status=active` provider already covers the capability, **prefer it** — `cost=free|freemium`
+  first; research NEW providers only if nothing owned fits (that is N3k-1's provider-SEARCH leg —
+  its fact-GROUNDING leg still applies to whichever provider is chosen, owned or new). ⚠️ An owned hit is a **LEAD for
+  wiring, not a liveness guarantee** — the catalog can lag a decommission, so any fact you STATE about the
+  provider (limits, pricing, endpoint) still needs N3k-1's fresh grounding, and its keys are verified at
+  execution, not assumed here. `used_by` shows which projects already
+  wired it. ⚠️ The catalog is metadata-only — never read `secrets/all-envs.env` at planning time, and never
+  inline a credential into a plan/ticket/doc.
 - **High-maintenance where set-and-forget exists?** Prefer solutions that auto-heal/auto-backup/auto-monitor via the existing Prometheus/Gatus/Backrest stack.
 - **Incompatible with Fabrik infra?** Port conflicts (`PORTS.md`), Alpine images (bookworm-slim only), `localhost` assumptions (use `postgres-main:5432`), x86_64 issues, 12-Factor violations.
 - **Duplicate functionality?** Check `docs/BUSINESS_MODEL.md` § Portfolio + `agents-fabrik.md` § Microservices.
@@ -366,7 +377,7 @@ If research direction is fundamentally wrong for Fabrik (e.g., AWS serverless wh
 
 **N3k-1 — External facts (BLOCKING).** ⚡ **Dispatch the grounders in PARALLEL** — one per external dependency — via `fanout("research", units, repo="/opt/<project>", project="mega-trigger", mode="read_only", web_tools=["web_search","web_search_brave","web_scrape","docs_lookup"], mcp_servers=["exa","brave-search","firecrawl","context7"], mcp_config="/opt/fabrik/mcp.json")`, then add **≥1 native `fabrik-researcher` on Opus** as the authoritative citation-verify pass; back-fill each pool run with `set_quality(r.agent_id, score, project="mega-trigger", task_type="research", model=r.model)`, where `score` is your 0-to-5 verdict on that grounder (0 = the citation didn't hold; 5 = it confirmed the fact) `[canonical: core/62-using-subagents.md § Dispatch policy — BOTH layers, never either/or; passing project= is what records the flywheel]`. **YOU (Opus) keep the synthesis** — the grounders return facts, you decide the vision `[canonical: docs/superpowers/specs/2026-07-16-traycer-fabrik-twins-design.md § Capability delta — the mega doers dispatch for the grounding/research legs only]`. For **every** external dependency the vision names — 3rd-party API / SDK, vendor, **pricing, rate limits**, library/framework version, protocol/standard — ground it to **CURRENT truth**, never from training memory (memory is stale by construction, and a wrong assumption here is inherited by every downstream epic):
 
-- Order: **repo-first** (`grep docs/`, `docs/reference/`, `AFCL.md`, `docs/LESSONS_LEARNT.md`) → **own-history** (see below) → then **LIVE**: `mcp__exa__web_search_exa` → `WebSearch`/`WebFetch` → `mcp__brave-search__brave_web_search` → `mcp__firecrawl__firecrawl_search`/`firecrawl_scrape` → `mcp__context7` (library docs) → `mcp__github` (read a dependency's actual source / latest release).
+- Order: **owned-first** (`scripts/service_catalog.json` — an already-provisioned `status=active` provider beats researching a NEW one; a hit is a LEAD, its stated facts still need fresh grounding — N3c § Already OWNED) → **repo-first** (`grep docs/`, `docs/reference/`, `AFCL.md`, `docs/LESSONS_LEARNT.md`) → **own-history** (see below) → then **LIVE**: `mcp__exa__web_search_exa` → `WebSearch`/`WebFetch` → `mcp__brave-search__brave_web_search` → `mcp__firecrawl__firecrawl_search`/`firecrawl_scrape` → `mcp__context7` (library docs) → `mcp__github` (read a dependency's actual source / latest release).
 - **Own-history (episodic memory) — search BEFORE you research.** We may have already grounded this exact dependency, in another project, and written down what we found. Search past conversations (`mcp__plugin_episodic-memory_episodic-memory__search`, or the `episodic-memory:search-conversations` agent) for the vendor / API / capability. ⚠️ **A hit is a LEAD, not a citation** — a past conversation is a record of what we *concluded then*, and pricing, limits and endpoints go stale. Re-ground any hit LIVE before it enters the Vision Summary; the freshness rule below is not waived by having said it before. *(Tool-capable path only — the Traycer twin has no MCP access and skips this.)*
 - Capture the **real** endpoint / auth model / limits / **pricing**, and **cite the source URL + the date you fetched it** in the Vision Summary's External Services section.
 - **Freshness:** the fetch must happen in THIS run. An external claim with no fresh cited source is a **defect**.

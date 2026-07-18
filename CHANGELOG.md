@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — mega-00: procurement discipline made mechanical (service_catalog consult) (2026-07-18)
+
+Plan-2 Phase D. `00-trigger-fabrik` now consults `scripts/service_catalog.json` mechanically: a new
+"Already OWNED?" check in N3c's 6-check (use an active provider before proposing a new paid one, prefer
+free/freemium), an **owned-first** step heading N3k-1's grounding order, and the catalog forced into the
+`Reads:` header. Metadata-only — `all-envs.env` is never read at planning time.
+
 ### Changed — North-star: Enforcement Model (the governing law) + three-tier front door (2026-07-18)
 
 Plan-2 Phase A. The north-star now carries the reliability ladder as § Enforcement Model (gate / compiled
