@@ -16,6 +16,41 @@ and doc-update autonomously; **two human gates** (plan in, deploy out).
 
 ---
 
+## Owner Working Model (how the factory is actually run — added 2026-07-18)
+
+*The stable foundation. The commands, skills, docs and workflow below all exist to serve this. If a command contradicts this section, the command is wrong.*
+
+**Owner.** Solo dev, ~50 focused h/week. Budget: free/cheap-but-good, **subscription-first, no compute rental** (R13). Philosophy: **fast but pro — ship → iterate → automate, no over-engineering.**
+
+**The engine + tools — ONE tool-capable engine throughout.**
+
+- **Traycer (desktop app)** — the planning/orchestration **layer**: the chat surface, the epic/ticket/spec **artifact store**, and the GUI. Traycer is **not an AI**; it is a harness that needs one connected to do anything.
+- **Claude Max = the connected engine** (Claude Code + `claude -p`) — powers Traycer **and** is the orchestrator during coding. Because Claude Code drives Traycer, **the Traycer path has FULL tools** — shell, MCP, web, subagents. *(This very file is being edited by that engine, running inside Traycer.)* Claude Max brings its own native subagents (**haiku · sonnet · opus · fable**), Opus rationed to judgment / high-risk (R5).
+- **`fabrik-lib/subagents` — the OpenRouter accompaniment.** Access to *all* OpenRouter models for any task (spec / plan / code / review / doc-review), used to **accompany** Claude Code, never replace it: (a) **different eyes** — diverse-family recall a single engine misses; (b) **cost control** — Claude Max is finite, so push cheap-but-capable models where they suffice, `set_quality`-scored to the flywheel (R4 / R9 / R23). This is the single lever for "more coverage without burning the subscription."
+
+**Procurement discipline — best-in-class at the lowest viable cost.** For every capability a project needs, the order is **free / open-source → cheapest capable paid → build only if nothing fits.** Prefer existing libraries, packages, templates, toolsets, premade solutions, APIs, scrapers, automation tools — **vendor / integrate / use, don't rebuild** (R11 / R19). The `fabrik-lib` vendor→enhance→build ladder is the *internal-module* case of this rule; `00-trigger`'s 6-check research challenge (expensive-where-free-exists · complex-where-simple-exists · build-where-consume-exists · high-maintenance-where-set-and-forget-exists · incompatible · duplicate) is the *external* case.
+
+**What I already have — check BEFORE proposing anything new.** A large stock of external services / APIs is already provisioned; credentials live in **`secrets/all-envs.env`** (~178 providers / 542 vars, spanning AI/LLM · search · scrape · captcha · proxy · domains · email · storage · research-data · media · infra). **Planning MUST consult this inventory and never propose a new paid service for a capability already covered here** — this is the procurement discipline made checkable. `00-trigger`'s External-Services grounding + the 6-check both read it. ⚠️ **Secrets safety:** planning consults a **keys-only inventory** (variable names + provider, no values); the raw `secrets/all-envs.env` is touched only at runtime/deploy, and a credential value is **never** inlined into a plan, ticket, or doc.
+
+**Interaction model.** The owner works **entirely through the chat window — never hand-edits a file.** Reworking a decomposition, turning epics into tickets, correcting scope — all **conversational**. Consequence for every command: it must be **fully driveable from chat** and must **persist its own artifacts** (the owner will not open a file to save them — persist-on-confirm, D6).
+
+**The loop (idea → deploy) — two human gates (R14).**
+```
+idea ─▶ [full/large vision] mega-epic-breakdown ─▶ N epic files (each often 20+ tickets)
+                                        │  ⟨GATE 1: owner confirms the decomposition, in chat⟩
+      rework each epic CONVERSATIONALLY ◀┘  (no hand-editing — chat only)
+                                        │
+      per epic ─▶ epic-to-ticket-workflow ─▶ tickets ─▶ execute (coder + reviewer subagents, converged)
+                                        │  ⟨GATE 2: manual `fabrik apply` — hub owns deploy execution⟩
+                                     review ─▶ deploy
+```
+
+**Which workflow.** Full / large vision → `mega-epic-breakdown` (vision → epics). Single epic → `epic-to-ticket-workflow` directly. Existing project → mega `00` in **EXISTING mode**.
+
+**One command set.** The runnable chain is the tool-capable **`-fabrik`** files under `docs/orchestrator/**`. The old `docs/traycer/{mega-epic-breakdown,epic-to-ticket-workflow}/` **`-command` twins were a tool-less mirror** premised on a now-false "Traycer can't use tools" assumption — **archived 2026-07-18** (D2 corrected). No two-set lockstep tax.
+
+---
+
 ## The two-workflow factory (end-to-end) — added 2026-07-16
 
 Both `docs/traycer/` chains run the **same end-to-end pipeline**; they differ only in **who orchestrates**.
@@ -28,10 +63,12 @@ Both `docs/traycer/` chains run the **same end-to-end pipeline**; they differ on
 4. **Per-epic → tickets** — each epic runs the `epic-to-ticket-workflow/` (`00-trigger` → `01-epic-brief` … `10-cross-artifact-validation` → `11-deploy`).
 5. **Per-ticket execution** — each ticket is executed by subagents (`claude -p` and the `libs/subagents` pool), coder + reviewer, converged per ticket.
 
-**Two orchestration modes (both KEPT — D2):**
+**One tool-capable engine — the front-end is interchangeable (D2 corrected 2026-07-18):**
 
-- **Traycer-managed** — the `-command` files, orchestrated in the **Traycer GUI** (a VS Code extension) with its **own** review workflow. Traycer's chat is **tool-less** (reads `AGENTS.md`, asks questions — no shell / MCP / web), so its accuracy ceiling is what the operator pastes.
-- **Fabrik-managed** — the `-fabrik` twins, orchestrated by **Opus over ACP inside Zed** (D-Zed, reconsidered 2026-07-16). The orchestration front-end will be a **Zed extension** — the Fabrik analog of Traycer-in-VS-Code — using Zed's Agent Client Protocol + the `spawn_agent` / `wait_for_peer_replies` coordinator primitives to drive the coder/reviewer subagent threads. **Built after both folders' commands are finalized.**
+The engine is **Claude Max behind Traycer** (see § Owner Working Model) and it runs the single tool-capable **`-fabrik`** command set. What can change is only the *front-end shell*:
+
+- **Traycer desktop (current)** — the planning/ticket GUI + artifact store, powered by Claude Code with **full tools**. This replaced the old "tool-less Traycer / `-command` twins" model — that assumption was false, and the `docs/traycer/**` `-command` mirror is **retired**.
+- **Zed extension (future, D-Zed)** — the Fabrik analog of Traycer, Claude/Opus over ACP using `spawn_agent` / `wait_for_peer_replies` to drive coder/reviewer threads. Built later; **same pipeline, same `-fabrik` commands, different shell** — not a second command set.
 
 ---
 
@@ -111,9 +148,9 @@ nothing tracked whether they stayed true. Recorded now, with their real state.
 
 ## Decisions
 
-- **D1 / D6** — Cockpit + planning surface = **VS Code** for the **Traycer-managed** workflow (as used today); **Zed** for the **Fabrik-managed** workflow (via the ACP orchestration extension, D-Zed). Zed is Rust/GPUI, **not** Electron → it satisfies **R15** ("no Electron fleet-of-windows") better than VS Code, not worse.
-- **D2** — **RESOLVED 2026-07-16: BOTH workflows are kept** (no longer either/or). (1) **Traycer-managed** — Traycer stays the epic/ticket GUI for the `-command` files (its chat is **tool-less**: reads `AGENTS.md`, asks questions only — no shell / MCP / web). (2) **Fabrik-managed** — our own **tool-capable** front-end = the `-fabrik` twins, orchestrated by Opus over ACP in Zed (D-Zed). The two are the same pipeline, different orchestrators (see § The two-workflow factory).
-  → **In flight:** the `-fabrik` twins. **The ettw chain is COMPLETE — `00`–`11` built + converged** (2026-07-16), and the shared review skill was **extended folder-neutral + renamed → `/fabrik-workflow-review`** (a duplicate `/fabrik-mega-review` was rejected: ~83 % of it was already folder-neutral machinery, so CC1's "one lean template" applied). Remaining: the **`mega` parity** — `04` rebuilt to the review discipline, `00`/`02`/`03`/`05` brought to parity — tracked in `docs/superpowers/{specs,plans}/2026-07-16-traycer-fabrik-twins-*`.
+- **D1 / D6 — updated 2026-07-18.** Current cockpit + planning surface = the **Traycer desktop app** (tool-capable, Claude-Max-powered — Traycer is now its own desktop app, no longer a VS Code extension). Planned future **alternative** front-end = a **Zed/ACP extension** (D-Zed) driving the *same* `-fabrik` chain — Rust/GPUI, not Electron, satisfying **R15** ("no Electron fleet-of-windows"). **One workflow, interchangeable front-end** — not two "managed" workflows.
+- **D2 — CORRECTED 2026-07-18: ONE tool-capable command set; Traycer is NOT tool-less.** The earlier "two workflows — tool-less Traycer (`-command`) vs tool-capable Fabrik (`-fabrik`)" split rested on a false premise. **Traycer's desktop app is powered by Claude Max (Claude Code), so it has full tools** (shell / MCP / web / subagents) — this file is edited by exactly that engine, running inside Traycer. So there is **one runnable, tool-capable chain: the `-fabrik` files in `docs/orchestrator/**`** (the single source of truth). The `docs/traycer/{mega-epic-breakdown,epic-to-ticket-workflow}/` `-command` twins (a tool-less mirror) were **archived 2026-07-18** — no lockstep tax. The *front-end* stays interchangeable (Traycer desktop today; a Zed/ACP extension later, D-Zed), but both drive the same `-fabrik` commands. See § Owner Working Model.
+  → **Status:** ettw `00`–`11` built + converged (2026-07-16); **mega `00`/`02`/`03` brought to the enforcement bar, `04` is the convergence twin, `05` retired (2026-07-18)**. Shared review skill = `/fabrik-workflow-review` (folder-neutral; a duplicate `/fabrik-mega-review` was rejected per CC1's "one lean template"). Design history: `docs/superpowers/{specs,plans}/2026-07-16-traycer-fabrik-twins-*`.
 - **D3** — Driver = vendor `fabrik-lib/job-queue` + two `process_fn` handlers (producer = `claude -p`
   worktree worker; converger = in-code `fanout` review loop) + a transitions table + Telegram digest +
   a thin `fabrik factory` CLI.
