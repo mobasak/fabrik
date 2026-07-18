@@ -114,7 +114,7 @@ glue over the existing `select_rules.py`, not a generic reusable module → **pr
 
 ---
 
-## Phase B — Collapse the agents docs + slim CLAUDE.md + `@import` (WS-A)
+## Phase B — Collapse the agents docs + slim CLAUDE.md + `@import` (WS-A)  — ✅ EXECUTED 2026-07-19 (review no-op R1:9/7 R2:3/3 R3:1/1 R4:2/2 R5:1/1 R6:0/0; B6 sentinel smoke PASS; core=26 lines @imported, full map 496 lines Reads-fetched, stub bridges)
 
 **Responsibility:** one canonical agents doc (live platform facts only), compiled into the one auto-loaded file.
 **Files:** `agents-fabrik.md` (becomes canonical, stripped), `AGENTS.md` (retire → stub pointer), `CLAUDE.md` (slim +

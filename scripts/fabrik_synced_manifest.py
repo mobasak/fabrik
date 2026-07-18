@@ -58,6 +58,8 @@ RUN_SCRIPTS = [
 # .pre-commit-config.yaml is tech-stack specific (not synced).
 GOVERNANCE_FILES = [
     "AGENTS.md",
+    "agents-fabrik.md",  # canonical agents doc (AGENTS.md is a stub pointing here)
+    "agents-fabrik-core.md",  # high-frequency core @import-ed by CLAUDE.md — must exist fleet-wide
     "AGENTS-compact.md",
     "CLAUDE.md",
     "opencode.json",

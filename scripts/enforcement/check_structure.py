@@ -24,6 +24,9 @@ ALLOWED_ROOT_MD = {
     # same architectural decision as AGENTS.md/CLAUDE.md below. Permissive entry:
     # projects without the file are unaffected.
     "agents-fabrik.md",
+    # agents-fabrik-core.md (2026-07-19): the high-frequency platform core @import-ed by
+    # CLAUDE.md — a root governance file synced fleet-wide (fabrik_synced_manifest GOVERNANCE_FILES).
+    "agents-fabrik-core.md",
     "PORTS.md",
     "LICENSE.md",
     # T1-02 (2026-05-14): CLAUDE.md is Claude Code's per-project bootstrap;

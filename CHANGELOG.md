@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — ONE agents doc + CLAUDE.md @imports the platform core (bootstrap surgery) (2026-07-19)
+
+Plan-2 Phase B (option b, spec § AGENTS.md resolution). `agents-fabrik.md` is now the ONE canonical agents
+doc (628 → 496 lines: § Rule-Pack Injection's 150-line restatement → an 8-line pointer to
+`select_rules.py`/`review_rubric.py`; naming + quality-gates → tagged one-liners; § Workflow rewritten to
+the three-tier front door with the archived `-command` twins purged — `workflow-command|command twins` grep
+= 0). `AGENTS.md` = 7-line stub (cross-tool discovery only). NEW `agents-fabrik-core.md` (26 lines, the
+high-frequency facts) is `@import`-ed by `CLAUDE.md` — the spec's frequency-of-need criterion applied: the
+full map stays a plan-time `Reads:` reference, only the core taxes every turn. U1 resolved empirically: a
+sentinel `@import` smoke test PASSED (`claude -p` echoed the token). Both new targets added to
+`fabrik_synced_manifest.py` GOVERNANCE_FILES — the stub would otherwise strand 46 project planners whose
+synced `AGENTS.md` pointed at an unsynced file. Review-hardened over 6 rounds (pool + native Opus fleet-lens): the stub carries `Last Updated:` (docs_updater MANUAL_DOCS would have failed fleet-wide without it), `check_symlinks` + the structure allowlist know both new files, CLAUDE.md's 4 internal refs point at the canonical doc, pack/registrar/scaffold/mega-count facts registry-corrected. Known follow-up (outside this plan's scope): 18 `AGENTS.md § X` cross-refs in 12 synced packs still route via the stub's pointer — functional, one extra hop; a dedicated sweep can retarget them.
+
 ### Changed — mega-00: procurement discipline made mechanical (service_catalog consult) (2026-07-18)
 
 Plan-2 Phase D. `00-trigger-fabrik` now consults `scripts/service_catalog.json` mechanically: a new
