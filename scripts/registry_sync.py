@@ -69,6 +69,7 @@ def sync_registry(dsn: str | None = None, fetch_credits: bool = False) -> dict:
         os.environ["SERVICES_REGISTRY_DSN"] = dsn
     provs = parse(ALL_ENVS)
     stats = {"services": 0, "api_keys": 0, "credit_snapshots": 0}
+    to_fetch: list[tuple[int, str, str]] = []
     conn = registry_db.connect()
     try:
         with conn, conn.cursor() as cur:
@@ -104,19 +105,27 @@ def sync_registry(dsn: str | None = None, fetch_credits: bool = False) -> dict:
                         (sid, digest, aliases, key_used),
                     )
                     stats["api_keys"] += 1
-                # Hybrid credit: fetch the account balance where a provider API exposes it.
-                # Resilient — fetch_balance returns None on any failure, so a dead vendor never
-                # sinks the sync. The REAL key stays host-side (sent only to the vendor's API).
                 if fetch_credits and first_value:
-                    snap = fetch_balance(meta["name"], first_value)
-                    if snap is not None:
+                    to_fetch.append((sid, meta["name"], first_value))  # fetch AFTER commit
+    finally:
+        conn.close()
+    # Hybrid credit: fetch balances OUTSIDE the upsert transaction — network I/O must never hold
+    # the services/api_keys row locks. fetch_balance never raises (guarded); a dead vendor => no
+    # snapshot. The REAL key stays host-side (sent only to the vendor's own API).
+    if to_fetch:
+        conn2 = registry_db.connect()
+        try:
+            for sid, name, value in to_fetch:
+                snap = fetch_balance(name, value)
+                if snap is not None:
+                    with conn2, conn2.cursor() as cur:
                         cur.execute(
                             "INSERT INTO credit_snapshots (service_id, balance, unit) VALUES (%s,%s,%s)",
                             (sid, snap.balance, snap.unit),
                         )
-                        stats["credit_snapshots"] += 1
-    finally:
-        conn.close()
+                    stats["credit_snapshots"] += 1
+        finally:
+            conn2.close()
     return stats
 
 

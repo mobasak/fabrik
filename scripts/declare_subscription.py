@@ -35,14 +35,19 @@ def declare(
             cur.execute("SELECT id FROM services WHERE provider=%s", (provider,))
             row = cur.fetchone()
             if not row:
-                raise SystemExit(f"unknown provider '{provider}' — run registry_sync.py first")
+                raise ValueError(f"unknown provider '{provider}' — run registry_sync.py first")
+            # COALESCE: a re-declare that omits a field keeps the stored value (never NULLs a
+            # previously-set renewal date / price — the exact data this manual half exists to hold).
             cur.execute(
                 """INSERT INTO subscriptions
                      (service_id, plan, price, currency, billing_cycle, renews_on, account_email)
                    VALUES (%s,%s,%s,%s,%s,%s,%s)
-                   ON CONFLICT (service_id, plan) DO UPDATE SET price=EXCLUDED.price,
-                     currency=EXCLUDED.currency, billing_cycle=EXCLUDED.billing_cycle,
-                     renews_on=EXCLUDED.renews_on, account_email=EXCLUDED.account_email""",
+                   ON CONFLICT (service_id, plan) DO UPDATE SET
+                     price=COALESCE(EXCLUDED.price, subscriptions.price),
+                     currency=COALESCE(EXCLUDED.currency, subscriptions.currency),
+                     billing_cycle=COALESCE(EXCLUDED.billing_cycle, subscriptions.billing_cycle),
+                     renews_on=COALESCE(EXCLUDED.renews_on, subscriptions.renews_on),
+                     account_email=COALESCE(EXCLUDED.account_email, subscriptions.account_email)""",
                 (row[0], plan, price, currency, cycle, renews_on, account_email),
             )
     finally:

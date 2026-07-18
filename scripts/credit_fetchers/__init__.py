@@ -79,6 +79,14 @@ FETCHERS: dict[str, Callable[[str], CreditSnapshot | None]] = {
 
 
 def fetch_balance(provider: str, api_key: str) -> CreditSnapshot | None:
-    """Fetch the account balance/usage for a provider, or None (no fetcher / fetch failed)."""
+    """Fetch the account balance/usage for a provider, or None (no fetcher / fetch failed).
+
+    Final guard: catches ANY exception (e.g. a malformed vendor field crashing `float()`) → None,
+    so a bad response can never propagate out and abort the caller's DB transaction."""
     fn = FETCHERS.get(provider)
-    return fn(api_key) if fn else None
+    if not fn:
+        return None
+    try:
+        return fn(api_key)
+    except Exception:  # noqa: BLE001 - the "never raises" contract; a bad vendor field => no snapshot
+        return None

@@ -44,3 +44,26 @@ def test_only_new_providers_are_targeted(tmp_path, monkeypatch, capsys):
     assert "1 new" in out
     assert "'c'" in out
     assert "'a'" not in out and "'b'" not in out
+
+
+def test_mark_seen_only_on_classify_success(tmp_path, monkeypatch):
+    """Given classify FAILS (returncode != 0), When run(dry=False), Then the provider is NOT
+    marked seen (it retries next tick — the fix for the permanent-drop bug); on success it IS."""
+    seen = tmp_path / "seen.json"
+    monkeypatch.setattr(rsi, "SEEN", seen)
+    monkeypatch.setattr(rsi, "flagged_providers", lambda _p: {"foo": {}})
+    monkeypatch.setattr(
+        rsi.registry_sync, "sync_registry", lambda **k: {"services": 0, "credit_snapshots": 0}
+    )
+
+    class _CP:
+        def __init__(self, rc):
+            self.returncode = rc
+
+    rc = {"v": 1}
+    monkeypatch.setattr(rsi.subprocess, "run", lambda *a, **k: _CP(rc["v"]))
+    rsi.run(dry=False)
+    assert rsi._seen() == set()  # classify failed -> NOT seen -> will retry
+    rc["v"] = 0
+    rsi.run(dry=False)
+    assert rsi._seen() == {"foo"}  # classify succeeded -> seen

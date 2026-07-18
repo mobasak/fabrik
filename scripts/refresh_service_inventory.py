@@ -3,7 +3,7 @@
 """Automation orchestrator for the External Services Registry (Phase D) — the cron entry-point.
 
 Under a flock (no overlapping runs): refresh the consolidation (cheap, always), classify ONLY
-genuinely-NEW flagged providers (paid — cost-budget-guarded + a seen-set so stuck unknowns are
+genuinely-NEW flagged providers (paid — batch-bounded per run + a seen-set so stuck unknowns are
 never re-billed), sync the registry (+ credits), and alert on new-found / failure. Idempotent +
 resilient. Cron (documented, operator-installed — NOT auto-installed):
 
@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 import fcntl
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -31,14 +32,14 @@ LOCK = REPO / ".tmp" / "refresh-services.lock"
 SEEN = REPO / "secrets" / ".classified-seen.json"
 PY = str(REPO / ".venv" / "bin" / "python")
 
+MAX_NEW_PER_RUN = 10  # bound the paid classify per tick; with the pool's per-unit max_cost_usd
+#                       ($0.20) this caps spend at ~$2/run — the real budget bound (the vendored
+#                       cost-budget module needs a wal_path + caps not provisioned for this host tool).
+
 try:
     from libs.alerting import send_alert
 except Exception:  # noqa: BLE001 - alerting is best-effort
     send_alert = None
-try:
-    from libs.cost_budget import check_caps
-except Exception:  # noqa: BLE001
-    check_caps = None
 
 
 def _seen() -> set[str]:
@@ -50,7 +51,9 @@ def _seen() -> set[str]:
 
 def _mark_seen(names: list[str]) -> None:
     SEEN.parent.mkdir(parents=True, exist_ok=True)
-    SEEN.write_text(json.dumps(sorted(_seen() | set(names))), encoding="utf-8")
+    tmp = SEEN.with_name(SEEN.name + ".tmp")  # atomic write
+    tmp.write_text(json.dumps(sorted(_seen() | set(names))), encoding="utf-8")
+    os.replace(tmp, SEEN)
 
 
 def _alert(title: str, body: str) -> None:
@@ -61,41 +64,29 @@ def _alert(title: str, body: str) -> None:
             pass
 
 
-def _over_budget() -> bool:
-    """Defensive cost-budget probe — over only if check_caps clearly says so; else proceed
-    (each classify run is independently hard-bounded by the pool's max_cost_usd)."""
-    if not check_caps:
-        return False
-    try:
-        res = check_caps(project="service-catalog", pg_conn=None)
-        return bool(res and getattr(res, "over_cap", getattr(res, "over", False)))
-    except Exception:  # noqa: BLE001
-        return False
-
-
 def run(dry: bool = False) -> int:
-    subprocess.run([PY, "scripts/gather_envs.py", "--apply"], cwd=REPO, check=False)
+    if not dry:  # --dry-run must NOT mutate all-envs.env — detect against the existing file
+        subprocess.run([PY, "scripts/gather_envs.py", "--apply"], cwd=REPO, check=False)
     new = sorted(set(flagged_providers(ALL_ENVS)) - _seen())
-    if new and not dry:
-        if _over_budget():
-            _alert("service-registry: budget cap", f"skipped classify of {len(new)} new providers")
-        else:
-            subprocess.run(
-                [PY, "scripts/classify_services.py", "--apply", "--only", ",".join(new)],
-                cwd=REPO,
-                check=False,
-            )
-            subprocess.run([PY, "scripts/gather_envs.py", "--apply"], cwd=REPO, check=False)
-            _mark_seen(new)
-            _alert("service-registry: new providers", f"classified {len(new)}: {', '.join(new)}")
     if dry:
         print(f"[dry-run] {len(new)} new flagged providers would be classified: {new}")
         return 0
+    if new:
+        batch = new[:MAX_NEW_PER_RUN]  # bound the paid run
+        cp = subprocess.run(
+            [PY, "scripts/classify_services.py", "--apply", "--only", ",".join(batch)],
+            cwd=REPO, check=False,
+        )
+        if cp.returncode == 0:  # mark seen ONLY on success — a crashed classify retries next tick
+            subprocess.run([PY, "scripts/gather_envs.py", "--apply"], cwd=REPO, check=False)
+            _mark_seen(batch)
+            _alert("service-registry: new providers", f"classified {len(batch)}: {', '.join(batch)}")
+        else:
+            _alert("service-registry: classify FAILED",
+                   f"exit {cp.returncode}; {len(batch)} providers left for retry")
     stats = registry_sync.sync_registry(fetch_credits=True)
-    print(
-        f"refresh: {len(new)} new flagged | synced {stats['services']} services, "
-        f"{stats['credit_snapshots']} credit snapshots"
-    )
+    print(f"refresh: {len(new)} new flagged | synced {stats['services']} services, "
+          f"{stats['credit_snapshots']} credit snapshots")
     return 0
 
 

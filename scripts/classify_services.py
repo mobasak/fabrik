@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -177,9 +178,9 @@ def main() -> int:
             "status": v.get("status", "active"),
             "match": [root],
         }
-    CATALOG_PATH.write_text(
-        json.dumps(catalog, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
-    )
+    tmp = CATALOG_PATH.with_name(CATALOG_PATH.name + ".tmp")  # atomic: no torn/corrupt JSON
+    tmp.write_text(json.dumps(catalog, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    os.replace(tmp, CATALOG_PATH)
     print(
         f"\nWrote {len(identified)} providers into {CATALOG_PATH}. "
         "Re-run scripts/gather_envs.py --apply to refresh all-envs.env."

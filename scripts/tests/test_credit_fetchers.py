@@ -96,3 +96,10 @@ def test_declare_subscription_persists(monkeypatch):
         with conn, conn.cursor() as cur:
             cur.execute("DELETE FROM services WHERE provider=%s", (prov,))
         conn.close()
+
+
+def test_fetch_balance_never_raises_on_malformed_field(monkeypatch):
+    """Given a present-but-non-numeric field, When fetch_balance runs, Then None (never raises —
+    so a bad vendor response can't abort the sync transaction)."""
+    monkeypatch.setattr(cf, "_get_json", lambda url, headers: {"data": {"totalUsageCreditsUsd": "NaN-ish"}})
+    assert cf.fetch_balance("apify", "k") is None
