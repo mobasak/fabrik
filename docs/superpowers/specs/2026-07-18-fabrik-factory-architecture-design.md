@@ -99,7 +99,7 @@ mitigates them; it does not eliminate them. Stating them is what keeps the desig
 ```
 DESIGN-TIME SOURCES  — we (owner + Claude) read these to AUTHOR the factory; runtime agents do NOT
   · north-star + § Owner Working Model    = intent, decisions, this governing law
-  · .windsurf/rules/** (54 packs)          = THE discipline base (planning + code + domain) — canonical
+  · .windsurf/rules/** (55 packs)          = THE discipline base (planning + code + domain) — canonical
   · ONE agents doc (agents-fabrik.md)      = live platform facts ONLY (hosts/ports/services/projects) — rule-restatements stripped
   · service_catalog.json (+ gather_envs.py)= machine inventory of owned external services
         │  compiled at authoring time ↓            fetched fresh at review time ↓
