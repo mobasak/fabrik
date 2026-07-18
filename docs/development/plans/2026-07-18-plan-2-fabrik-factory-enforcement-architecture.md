@@ -166,7 +166,7 @@ the stripped agents doc.
 
 ---
 
-## Phase C — Rubric extractor + arm the review commands (WS-B, the core enforcement)  — ✅ EXECUTED 2026-07-18 (review no-op R1:10/7 R2:3/3 R3:0/0; 11 tests; C2b fleet-sync at Finish post-merge)
+## Phase C — Rubric extractor + arm the review commands (WS-B, the core enforcement)  — ✅ EXECUTED 2026-07-18 (review no-op R1:10/7 R2:3/3 R3:0/0; 11 tests; C2b fleet-sync at Finish post-merge; whole-plan review CORRECTED C4's premise — mega-04/ettw-08/10 review runtime PRODUCTS, not command files, so their ARM blocks carry NO --workflow (the checklist injects only when the review subject IS a command file); --workflow itself stays for command-file reviews)
 
 **Responsibility:** turn Tier-3 reviews from "reviewer reads the packs" into "the matched rule rubric is injected."
 **Files:** `scripts/review_rubric.py` (new), `~/.claude/commands/fabrik-review.md`,

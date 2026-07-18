@@ -56,16 +56,17 @@ Build the mental model: Success Criteria ↔ flows ↔ components ↔ tickets �
 ### Step 2: Dispatch the Cross-Artifact Review — reviewer agents (BOTH mechanisms)
 
 **ARM every reviewer FIRST (spec G5/G6 — an un-armed reviewer measured ~0–22% defect recall):** run
-`python scripts/review_rubric.py --changed <the artifact paths under review> --workflow ettw` and
+`python scripts/review_rubric.py --changed <the artifact paths under review>` and
 **inject its output into every reviewer agent's prompt** as the rubric they hunt against. The rubric
-carries three layers: **(1) the mandatory-core floor** — `core/35-security-auth` +
+carries two layers: **(1) the mandatory-core floor** — `core/35-security-auth` +
 `core/25-data-postgres` + `core/30-ops` + all twelve 12-Factor axes — always injected regardless of glob
 and never skippable, so the review is never un-armed on the high-blast-radius rules; **(2)** every pack
-whose glob matches a changed path (mandate lines only); **(3)** — because THIS review command audits
-command-chain files — the ettw authoring-QA checklist items, added by `--workflow ettw`. The whole rubric
-is computed fresh by the script; nothing is inherited from the doer. Honesty (L1): the injection STEP is
-maximally enforced (the rubric is always injected); this raises compliance probability — it does **not**
-make compliance guaranteed.
+whose glob matches a changed path (mandate lines only). (No `--workflow` here: this command reviews the
+chain's runtime PRODUCTS — epics / artifacts / implemented code — not the 00-N command files themselves;
+the `EVALUATION_CHECKLIST_*` authoring-QA injects only when a review's subject IS a command file, e.g.
+`/fabrik-workflow-review`.) The whole rubric is computed fresh by the script; nothing is inherited from
+the doer. Honesty (L1): the injection STEP is maximally enforced (the rubric is always injected); this
+raises compliance probability — it does **not** make compliance guaranteed.
 
 Dispatch the review across the artifact seams through the **`libs/subagents` module** — **BOTH** layers, never either/or `[canonical: core/62-using-subagents.md § Dispatch policy]`:
 

@@ -23,4 +23,4 @@ facts needed in most turns (spec 2026-07-18 § Constraints: @import criterion = 
   mandatory-core floor); completion `python scripts/final_gate.py --json`.
 - **Full map (plan-time read, not auto-loaded):** `agents-fabrik.md` — topology detail, services,
   microservices, active projects, scaffold types, planning constraints. Ports: `PORTS.md`. Owned external
-  services: `scripts/service_catalog.json` (secret-free).
+  services (HUB-side planning only — not synced to projects): `/opt/fabrik/scripts/service_catalog.json` (secret-free).

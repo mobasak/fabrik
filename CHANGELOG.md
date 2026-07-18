@@ -41,7 +41,7 @@ shared-glob blind spot) + glob-matched pack mandates + workflow checklist items 
 a `# promote-to-check_*` greppable-candidates byproduct (Tier-1 drain direction). Wired into
 `~/.claude/commands/fabrik-review.md` (backup taken), mega-`04`, ettw-`08`, ettw-`10` — each states the L1
 honesty bound (probabilistic, not a guarantee). Added to `fabrik_synced_manifest.py` CORE_SCRIPTS; fleet
-sync runs post-merge (FABRIK_ROOT-anchored source). TDD: 11 behavior tests green (`tests/test_review_rubric.py` + `_edges.py` — the edge file pool-authored via /fabrik-generate-tests, mutation-verified). Phase-boundary review round 1 hardened: frontmatter never mandate-scanned, wildcard-only glob = match-all (arming errs safe), `NEVER`/`Do not` mandates captured, L1 wording de-ambiguated in all 4 wired commands.
+sync runs post-merge (FABRIK_ROOT-anchored source). TDD: 11 behavior tests green (`tests/test_review_rubric.py` + `_edges.py` — the edge file pool-authored via /fabrik-generate-tests, mutation-verified). Phase-boundary review round 1 hardened: frontmatter never mandate-scanned, wildcard-only glob = match-all (arming errs safe), `NEVER`/`Do not` mandates captured, L1 wording de-ambiguated in all 4 wired commands. Whole-plan cross-phase review then fixed 4 seams: the 6 dangling refs to the retired § Project Type → Default Packs table (→ select_rules.py, incl. checklist item 28), the stub's resolve-all over-claim (scoped honestly), the fleet-synced core's hub-only catalog pointer (scoped), and C4's category error — mega-04/ettw-08/10 review runtime products, so their ARM blocks drop `--workflow` (authoring-QA checklists inject only when the subject IS a command file).
 
 ### Fixed — select_rules.py hub-hang: one pruned walk replaces per-glob rglob (2026-07-18)
 

@@ -88,16 +88,17 @@ python /opt/fabrik/scripts/epic_order.py --check --expected-count <N from 02's C
 ### Step 2: Dispatch the Cross-Epic Review — reviewer agents (BOTH mechanisms)
 
 **ARM every reviewer FIRST (spec G5/G6 — an un-armed reviewer measured ~0–22% defect recall):** run
-`python /opt/fabrik/scripts/review_rubric.py --changed <the epic files under review> --workflow mega` and
+`python /opt/fabrik/scripts/review_rubric.py --changed <the epic files under review>` and
 **inject its output into every reviewer agent's prompt** as the rubric they hunt against. The rubric
-carries three layers: **(1) the mandatory-core floor** — `core/35-security-auth` +
+carries two layers: **(1) the mandatory-core floor** — `core/35-security-auth` +
 `core/25-data-postgres` + `core/30-ops` + all twelve 12-Factor axes — always injected regardless of glob
 and never skippable, so the review is never un-armed on the high-blast-radius rules; **(2)** every pack
-whose glob matches a changed path (mandate lines only); **(3)** — because THIS review command audits
-command-chain files — the mega authoring-QA checklist items, added by `--workflow mega`. The whole rubric
-is computed fresh by the script; nothing is inherited from the doer. Honesty (L1): the injection STEP is
-maximally enforced (the rubric is always injected); this raises compliance probability — it does **not**
-make compliance guaranteed.
+whose glob matches a changed path (mandate lines only). (No `--workflow` here: this command reviews the
+chain's runtime PRODUCTS — epics / artifacts / implemented code — not the 00-N command files themselves;
+the `EVALUATION_CHECKLIST_*` authoring-QA injects only when a review's subject IS a command file, e.g.
+`/fabrik-workflow-review`.) The whole rubric is computed fresh by the script; nothing is inherited from
+the doer. Honesty (L1): the injection STEP is maximally enforced (the rubric is always injected); this
+raises compliance probability — it does **not** make compliance guaranteed.
 
 Dispatch through the **`libs/subagents` module** — **BOTH** layers, never either/or `[canonical: core/62-using-subagents.md § Dispatch policy]`:
 
