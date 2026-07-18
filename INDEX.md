@@ -721,6 +721,7 @@ the `wordpress` **scaffold type** (`fabrik scaffold --type wordpress`).
 - `scripts/refresh_service_inventory.py` - Phase D: cron orchestrator (flock + new-provider detect + cost-budget + alerting)
 - `scripts/tests/test_refresh.py` - Behavior-Contract tests for the refresh re-bill guard
 - `libs/alerting/` + `libs/cost_budget.py` - vendored fabrik-lib (send_alert / check_caps) for the unattended paid-LLM loop
+- `scripts/gen_dashboard.py` - Render the external-services registry as a self-contained HTML dashboard (sortable/filterable, zero secrets)
 - `scripts/kilo-benchmarks/` - Benchmark-driven agent-selection subsystem (`agent_selector.py`, `compute_assignments.py`, `db_models.py`, embedding assignment, OpenRouter category routing: `classify_ai_category.py`, `category_selector.py`, `category_route_mapper.py`, `category_export_markdown.py`, `update_gateway_counts.py`, `seed_direct_vendors.py` + `ai_category_configs.yaml`). Direct-vendor pricing plan also lives here: `direct_vendor_parsers/` (vendor-specific HTML parsers — assemblyai, anthropic, cartesia, deepgram, openai, soniox, speechmatics, subscription_monitor), `direct_vendor_pricing_registry.yaml`, `fetch_direct_vendor_prices.py` orchestrator, `audit_direct_vendor_freshness.py` quarterly helper.
 
 ### Data Files (AUTHORITATIVE)
