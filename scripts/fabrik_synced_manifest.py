@@ -256,8 +256,7 @@ def synced_project_paths(fabrik_root: Path = FABRIK_ROOT) -> list[str]:
     """
     probe = Path("/__project__")
     return sorted(
-        str(dst.relative_to(probe))
-        for _src, dst in iter_synced_pairs(probe, fabrik_root)
+        str(dst.relative_to(probe)) for _src, dst in iter_synced_pairs(probe, fabrik_root)
     )
 
 
