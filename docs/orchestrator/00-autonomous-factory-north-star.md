@@ -198,15 +198,22 @@ Status: **the ettw chain is COMPLETE — `00`–`11` built + converged** (2026-0
 1. ~~**Shakedown:** plan-2 (`fabrik-capability-catalog`).~~ ✅ **DONE** — `Status: EXECUTED 2026-07-12`,
    both phases shipped + reviewed to CLEAN, plan archived
    (`docs/development/plans/archived/2026-07-12-plan-2-fabrik-capability-catalog.md`).
-2. **Factory hardening (infra — NEXT, makes the missions run *autonomously*):**
-   (a) execute the CONVERGED **enforcement-architecture** plan (`plan-2`, 2026-07-18) — arms every review with the
-       matched rule rubric + mandatory-core floor, one tool-capable command set, compiled context; then
-   (b) build the **driver** (D3 / R8·D4 — the CONVERGED 2026-07-15 spec) so the converge-to-no-op loops run in **code**,
-       not prose, and drain the queue headless.
-   Until (b), the operator is still the loop — the missions below run operator-in-the-loop, not yet autonomously.
-3. **First mission:** the 4-stack customer-finding pipeline — whatsapp-agent · tryton-crm ·
-   trade-intelligence · tojlo-mail (wpf parked). Milestone = pipeline complete + deployed.
-4. **Then the queue opens:** youtube, calendar-orchestration-engine, brand-identity-creator,
+2. **Enforcement rollout (infra — NEXT, the keystone; quick):** execute the CONVERGED **enforcement-architecture**
+   plan (`plan-2`, 2026-07-18) — arms every review with the matched rule rubric + mandatory-core floor, one
+   tool-capable command set, compiled context.
+3. **First mission — operator-in-the-loop (the shakedown, BEFORE the driver):** the 4-stack customer-finding
+   pipeline — whatsapp-agent · tryton-crm · trade-intelligence · tojlo-mail (wpf parked). Run it **by hand** first:
+   (a) shakes the chains down on real multi-project work; (b) produces the **real per-worker capacity numbers**
+   (Phase-4 measurement, still open) the driver's autoscaling needs as *input, not guess*; (c) ships the
+   revenue-relevant pipeline months earlier. Milestone = pipeline complete + deployed. *(Ship → iterate → automate:
+   one car by hand before the conveyor belt.)*
+4. **Build the driver (D3 / R8·D4) — LAST, and reconciled:** the CONVERGED 2026-07-15 spec, but ⚠️ **reconcile it
+   against the enforcement architecture FIRST.** Its in-code converger predates `review_rubric.py`, so as-spec'd it
+   would run **un-armed reviews** (the ~20%-recall failure enforcement exists to kill). The converger MUST call
+   `review_rubric.py` and inject its output into every finder prompt **in code** — which moves rubric injection from
+   command prose (Tier 2, skimmable) into driver code (**Tier 1, can't be skimmed**): the drain-Tier-3-into-Tier-1
+   direction applied to the enforcement mechanism itself. Feed it the mission's real capacity numbers.
+5. **Then the queue opens:** youtube, calendar-orchestration-engine, brand-identity-creator,
    iterative-image-editor, … toward 50.
 
 ---
@@ -216,8 +223,11 @@ Status: **the ettw chain is COMPLETE — `00`–`11` built + converged** (2026-0
 - **R2 / R3 — the driver itself is NOT BUILT** (but now DESIGNED). The autonomous, 24/7, queue-drained
   factory (D3) does not exist yet — today **the operator is still the loop**. ✅ **Its design is now a
   CONVERGED spec** (`docs/superpowers/specs/2026-07-15-autonomous-factory-driver-design.md`, 2026-07-15);
-  **build pending** after the epic-to-ticket-workflow command review. Still the single largest gap — but the
-  path from here is now planned, not blank.
+  **build pending.** Still the single largest gap — but the path from here is now planned, not blank. ⚠️ **Build it
+  AFTER the first mission** (which yields the real capacity numbers its autoscaling needs), and **reconcile it
+  against the enforcement architecture FIRST** — its 07-15 converger predates `review_rubric.py`, so as-spec'd it
+  would run **un-armed reviews**; the converger MUST call `review_rubric.py` in code (Cargo order #4 — the biggest
+  synergy: rubric injection lands in Tier-1 code, not Tier-2 prose).
 - **R8 — the loops live in prose, not code** (design done). Every `*-review` command *tells* an agent to
   converge to a no-op; a driver would *run* that loop. The CONVERGED driver spec designs exactly this (the
   converge-to-no-op loop around vendored `fanout` = the BUILD core). **Prose is not enforcement** — and that is the lesson the rest of

@@ -132,7 +132,11 @@ the stripped agents doc.
    owner check. Record the result either way.
 7. Doc-sync: update `INDEX.md` (AGENTS.md retired/stubbed) + `CHANGELOG.md`.
 8. **`/fabrik-review`** on the `CLAUDE.md` + `agents-fabrik.md` + `AGENTS.md` diff — no-op loop.
-9. Commit.
+9. **Commit — ONE atomic commit, in a quiet window.** `CLAUDE.md` is the bootstrap **every concurrent agent
+   auto-loads**; on this shared tree with Traycer + the pipeline active, land B's `CLAUDE.md` / `agents-fabrik.md` /
+   `AGENTS.md` edits as a **single atomic commit** and never leave steps 1–4 half-applied in the working tree — a
+   sibling turn must never start against a half-rewritten bootstrap. (The C→A→D→B order already lands B last; this is
+   the extra care B specifically needs.)
 
 ---
 
@@ -169,7 +173,11 @@ mandates ALWAYS** (the code-review rubric — L3 core, never un-armed); `EVALUAT
    (one line), and run `python scripts/sync_enforcement_to_projects.py` (or the sync path the manifest drives) so it
    propagates. **Gate:** `grep -q review_rubric scripts/fabrik_synced_manifest.py`. This is why step 2 mandates
    stdlib-only.
-3. **Wire injection into `/fabrik-review`:** replace the *"READ `.windsurf/rules/**` as BINDING CONTEXT"* step
+3. **Back up the out-of-repo file FIRST (no git rollback — R2):** `cp ~/.claude/commands/fabrik-review.md
+   ~/.claude/commands/fabrik-review.md.bak-$(date +%Y%m%d-%H%M%S)`. It lives outside the repo, so there is no
+   `git checkout` to undo a bad edit — the timestamped backup is the rollback (the CLAUDE.md credentials-change
+   backup pattern applied to the one un-versioned file in scope). Then **wire injection into `/fabrik-review`:**
+   replace the *"READ `.windsurf/rules/**` as BINDING CONTEXT"* step
    (`:72`, the migration target) with *"run `python scripts/review_rubric.py --changed <diff paths>` and inject its
    output into every finder's prompt as the rubric they hunt against (G5/G6)."* Keep the static 12-Factor/test-quality
    hunt-lists (belt-and-suspenders).
