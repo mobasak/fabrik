@@ -15,7 +15,10 @@ project.yaml::type for context. Usage: python scripts/select_rules.py [--project
 from __future__ import annotations
 
 import argparse
+import fnmatch
+import functools
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -57,6 +60,8 @@ _EXCLUDE = {
     "backups",
     ".droid",
     "docs-site",
+    ".tmp",  # subagent worktrees (full repo copies under .tmp/subagents/) — traversing them
+    #          made rglob effectively HANG at the hub (~80 tree copies; proven live 2026-07-18)
 }
 
 
@@ -69,6 +74,33 @@ def _expand_braces(pat: str) -> list[str]:
     return [pre + opt.strip() + post for opt in m.group(1).split(",") if opt.strip()]
 
 
+@functools.lru_cache(maxsize=4)
+def _tree_paths(root: Path) -> tuple[str, ...]:
+    """Every file AND directory path under root (relative, posix), with `_EXCLUDE` dirs pruned
+    DURING the walk. One pruned walk replaces per-glob `rglob` traversals: `rglob` cannot prune,
+    so it re-walked the ENTIRE tree (incl. `.tmp/subagents/` worktree copies — ~80 full repo
+    trees at the hub) once per glob per pack, which effectively hung the script (proven live
+    2026-07-18: repeated 2-minute timeouts at `/opt/fabrik`)."""
+    out: list[str] = []
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = [d for d in dirnames if d not in _EXCLUDE]
+        rel = os.path.relpath(dirpath, root)
+        base = "" if rel == "." else rel.replace(os.sep, "/") + "/"
+        out.extend(base + d for d in dirnames)
+        out.extend(base + f for f in filenames)
+    return tuple(out)
+
+
+def _tail_matches(relpath: str, pat: str) -> bool:
+    """rglob-equivalent match: do the TRAILING segments of relpath match pat segment-wise?
+    (`root.rglob("a/b.py")` hits any path whose last two components match `a`/`b.py`.)"""
+    psegs = [p for p in pat.replace("**/", "").replace("**", "*").split("/") if p]
+    rsegs = relpath.split("/")
+    if not psegs or len(psegs) > len(rsegs):
+        return False
+    return all(fnmatch.fnmatch(r, p) for r, p in zip(rsegs[-len(psegs) :], psegs, strict=True))
+
+
 def _glob_has_match(root: Path, glob: str) -> bool:
     """Best-effort: does an existing file in the project's OWN source match this glob?"""
     pat = glob.strip().lstrip("/")
@@ -78,14 +110,11 @@ def _glob_has_match(root: Path, glob: str) -> bool:
         pat = pat[:-3]
     if not pat:
         return False
-    for expanded in _expand_braces(pat):
-        try:
-            for hit in root.rglob(expanded):
-                if not (set(hit.relative_to(root).parts) & _EXCLUDE):
-                    return True
-        except (ValueError, OSError):
-            continue
-    return False
+    try:
+        paths = _tree_paths(root)
+    except OSError:
+        return False
+    return any(_tail_matches(rel, expanded) for expanded in _expand_braces(pat) for rel in paths)
 
 
 def _project_type(root: Path) -> str:

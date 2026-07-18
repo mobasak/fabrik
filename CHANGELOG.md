@@ -4,22 +4,61 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — select_rules.py hub-hang: one pruned walk replaces per-glob rglob (2026-07-18)
+
+`select_rules.py` effectively hung at `/opt/fabrik` (repeated 2-minute timeouts, proven live): its per-glob `rglob` cannot prune, so it re-walked the ENTIRE tree — including ~80 full repo copies under `.tmp/subagents/` worktrees — once per glob per pack (~165 full traversals). Rewritten to a single `os.walk` with `_EXCLUDE` pruned **during** descent (`.tmp` added) + cached path list + rglob-equivalent tail matching in memory. Hub runtime 2-min-timeout → ~2.4s; output identical (19 ACTIVE + 36 AVAILABLE, `--json` and the relative `pack` field unchanged). Synced file — propagates to projects on next sync run. Found by /fabrik-plan-review's pass-2 native grounder (a plan gate that shells select_rules would have stalled execution). Also: spec G4 citation de-hallucinated ("circular…" quote wasn't on the cited page — reworded to the page's verbatim fit-test + labeled inference) and plan-2 hardened with 9 review edits (Phase-D gate `_README` filter, bounded-sync sentinel gate, atomic B9 swap, fleet-propagation R1 correction).
+
+### Added — Permanent review-eligibility gate, wired into both subagent-selection docs (2026-07-18)
+
+The operator's review-selection constraints are now enforced and fed into the ranker automatically.
+`build_task_baselines.py` gains the single source of truth: `REVIEW_MIN_PRECISION=0.99`,
+`REVIEW_MAX_COST_PER_1K=0.70`, `REVIEW_MAX_P50_S=10.0` + `load_review_metrics()` / `review_eligible()`
+(reads `model_review_metrics`; fail-soft → empty set when the benchmark hasn't run, so the gate is
+simply inactive rather than blocking). Wiring: **`rank_task_subagents.py`** gates the `review`
+task_type — only gate-eligible models survive in `### review`, and eligible benchmark models are
+appended (mirroring the existing `code` benchmark-fallback) so `pick_models("review")` sees them
+before any fleet review runs; **`rank_coding_subagents.py`** feeds the MEASURED review grade
+(`microbench_review`) into its `Doc↔Code` column, marked `†`, overriding the heuristic when present
+(the review constraints are NOT applied to coding selection — a strong generator that's a weak
+reviewer stays a coding candidate). 13 models currently clear the gate (the 14 precision+cost
+passers minus `xiaomi/mimo-v2.5`, dropped by p50). Tests: `tests/test_review_eligibility.py`
+(6 new) + isolation mocks added to 4 existing `rank_task_subagents` tests; 95 pass.
+
+### Added — Real OpenRouter-billed cost + direct dispatch in the review benchmark (2026-07-18)
+
+`microbench_review.py` now records cost from OpenRouter's actual `usage.cost` (via
+`"usage": {"include": true}`) instead of a `tokens × list-price` estimate, and adds a `--direct`
+dispatch mode (bare `/chat/completions` call) that reaches models the pool 404s with
+`"no endpoints found that satisfy"`. Graded 57 candidate models (both operator tables + the
+review-viable $3–6/M band) at a real billed cost of $3.28; `qwen/qwen3-max` leads the gate-eligible
+set (A, 100% precision, $0.165/1k, 1.9s). `out_price_mtok` persisted beside the real `$/1k` in
+`model_review_metrics`.
+
 ### Added — Code-review quality benchmark for the subagent pool (accuracy + speed) (2026-07-18)
 
 `scripts/kilo-benchmarks/microbench_review.py` — measures a model's code-**review** ability against
 GROUND TRUTH instead of the circular flywheel self-score. Corpus = deterministic AST mutation of 8
 self-contained victim functions (the mutmut operator classes: comparison flip, arithmetic swap,
 boolean and/or flip) → 22 planted defects each at a known line + 8 clean controls; every mutant is
-verified to change **exactly** its labeled line. Dispatch reuses the existing pool
-(`libs.subagents.run_agents` + `pick_models`, single-shot `read_only`); the reviewer returns JSON
-`{line, bug}` findings, graded for **recall** (planted defects caught) AND **precision** (controls left
-un-flagged — a "flag everything" model scores F1=0). `score/5 = F1 × 5` persists to
-`model_task_baseline(task_type='review')`, which `rank_task_subagents._tier_baseline` already prefers
-as the per-task prior → flows to `TASK_SUBAGENT_SELECTION.md` → `pick_models`. Speed (`latency_s`,
-`out_tokens`, `cost_usd`) comes free from `AgentResult`. Each run also back-fills the flywheel via
-`record_agent_run(quality_score=...)`. Single-turn → ~pennies/model (no agentic loop); `--smoke` /
-`--all --models …` / `--report`. Test: `scripts/kilo-benchmarks/tests/test_microbench_review.py`
-(11 tests — corpus integrity, grader, F1/precision penalty).
+verified to change **exactly** its labeled line. The reviewer returns JSON `{line, bug}` findings,
+graded for **recall** (planted defects caught) AND **precision** (controls left un-flagged — a "flag
+everything" model scores F1=0; e.g. `qwen3-coder-flash` hit 86% recall / 12% precision → correctly a
+D, not a top rank). `score/5 = F1 × 5` persists to `model_task_baseline(task_type='review')`, which
+`rank_task_subagents._tier_baseline` prefers as the per-task prior → `TASK_SUBAGENT_SELECTION.md` →
+`pick_models`. Cost + speed persist to a new `model_review_metrics` table + a `review_metrics_<date>.json`
+artifact: **cost is OpenRouter's REAL billed `usage.cost`** (via `"usage": {"include": true}`) as `$/1k`
+reviews — not a `tokens × list-price` estimate — with the `out $/M` list price kept beside it; the gap
+between them is verbosity, so `$/1k` (real spend) is the cost number to rank on. Speed = p50 `latency_s`
++ `tok/s`. **Two dispatch modes:** the
+pool (`libs.subagents.run_agents`, `--all`) for pool-eligible models; a **direct OpenRouter call**
+(`--direct`) that reaches EVERY model — the pool attaches provider constraints that 404 some models
+(`"no endpoints found that satisfy"`) even though they answer a plain request, so a *benchmark* (which
+must reach a specific model, not route around it) uses direct dispatch. **Errored/empty calls are
+excluded** from recall/precision (never scored as a "miss") and a mostly-failed model is flagged
+UNMEASURED, never persisted as a 0 prior — the bug that first mislabeled `glm-5`/`kimi-k2.5`/
+`qwen3.7-max` (all actually A/B+ reviewers) as "F". `--smoke` / `--all [--direct] [--models …]` /
+`--report`. Test: `scripts/kilo-benchmarks/tests/test_microbench_review.py` (14 tests — corpus
+integrity, grader, F1/precision penalty, errored-call exclusion, UNMEASURED gating).
 
 ### Fixed — Gate change-set + lint-ratchet no longer count untracked sibling WIP (2026-07-18)
 
