@@ -1,7 +1,7 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
-**Last Updated:** 2026-07-18 (Lesson 97 — a production work-dispatcher is the wrong instrument to measure the models it dispatches; direct-dispatch a benchmark, and an errored call is a non-result not a wrong answer) (Lesson 96 — the gate counted a sibling's untracked WIP as this session's debt; "CI-parity" that includes untracked files isn't parity) (Lesson 95 — arithmetic cannot settle a domain question; assume your own fix is defective)
+**Last Updated:** 2026-07-19 (Lesson 98 — a twice-converged plan still carried a false premise only visible at the cross-phase seam; the confirming round exists for the FIXER too) (Lesson 97 — a production work-dispatcher is the wrong instrument to measure the models it dispatches; direct-dispatch a benchmark, and an errored call is a non-result not a wrong answer) (Lesson 96 — the gate counted a sibling's untracked WIP as this session's debt; "CI-parity" that includes untracked files isn't parity) (Lesson 95 — arithmetic cannot settle a domain question; assume your own fix is defective)
 
 **Purpose:** CAPTURE TECHNICAL HURDLES, AI-SPECIFIC QUIRKS, AND ARCHITECTURAL DECISIONS TO PREVENT REGRESSION AS CODEBASES AND AI AGENTS EVOLVE.
 
@@ -19,7 +19,7 @@
 
 ---
 
-# Lesson 97: a twice-converged plan carried a false premise that only the WHOLE-PLAN seam review could see — and my fix of it regressed, caught only by the confirming round
+# Lesson 98: a twice-converged plan carried a false premise that only the WHOLE-PLAN seam review could see — and my fix of it regressed, caught only by the confirming round
 
 **Context (2026-07-19):** Executing plan-2 (enforcement architecture). The plan — converged to md5-verified no-ops by TWO independent review loops — stated as its C4 premise that mega-`04`/ettw-`08`/`10` "review command-chain *files*", so their ARM blocks should inject the authoring-QA checklist via `--workflow`. The whole-plan cross-phase review (Finish step 1) proved the premise false: those commands review the chain's runtime PRODUCTS (epics, artifacts, implemented code), not the 00-N command files — the checklist was noise injected into every code review. No per-phase review could see it: each phase's diff looked locally consistent with the plan.
 
