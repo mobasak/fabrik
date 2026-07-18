@@ -31,18 +31,28 @@ Formula: shrunk_q = (n·avg_q + 10·tier_baseline) / (n+10); quality-gate at shr
 |---:|---|---:|---:|---:|---:|:-:|---:|
 | 1 | `deepseek/deepseek-v4-pro` | 3.30 | 0.96 | $0.0161 | 3.05 | 3 | 28 |
 
-### research (n_total=60)
+### research (n_total=115)
 | rank | model | shrunk_q | success | avg_cost | avg_quality | quality_tier | n |
 |---:|---|---:|---:|---:|---:|:-:|---:|
-| 1 | `minimax/minimax-m3` | 2.84 | 0.67 | $0.0069 | 3.12 | 2 | 12 |
-| 2 | `deepseek/deepseek-v4-pro` | 4.38 | 0.56 | $0.0125 | 4.45 | 3 | 48 |
+| 1 | `minimax/minimax-m3` | 2.66 | 0.64 | $0.0061 | 2.78 | 2 | 14 |
+| 2 | `deepseek/deepseek-v4-pro` | 3.88 | 0.53 | $0.0070 | 3.87 | 3 | 98 |
 
-### review (n_total=829)
+### review (n_total=4459)
 | rank | model | shrunk_q | success | avg_cost | avg_quality | quality_tier | n |
 |---:|---|---:|---:|---:|---:|:-:|---:|
-| 1 | `deepseek/deepseek-v4-pro` | 3.54 | 0.73 | $0.0193 | 3.52 | 3 | 262 |
-| 2 | `minimax/minimax-m3` | 3.53 | 0.73 | $0.0212 | 3.56 | 2 | 312 |
-| 3 | `deepseek/deepseek-v4-flash` | 2.70 | 0.60 | $0.0011 | 3.10 | 2 | 5 |
+| 1 | `tencent/hy3` | 2.64 | 0.38 | $0.0001 | 2.67 | 2 | 80 |
+| 2 | `deepseek/deepseek-v3.2-exp` | 2.90 | 0.33 | $0.0001 | 2.83 | 3 | 90 |
+| 3 | `google/gemini-3-flash-preview` | 3.71 | 0.33 | $0.0002 | 3.67 | 3 | 90 |
+| 4 | `openai/gpt-5.1-codex-mini` | 3.50 | 0.33 | $0.0004 | 3.50 | 2 | 90 |
+| 5 | `deepseek/deepseek-v4-flash` | 3.16 | 0.06 | $0.0005 | 3.07 | 2 | 67 |
+| 6 | `z-ai/glm-5.2` | 3.85 | 0.34 | $0.0006 | 3.82 | 3 | 91 |
+| 7 | `deepseek/deepseek-v4-pro` | 3.48 | 0.62 | $0.0137 | 3.50 | 3 | 379 |
+| 8 | `qwen/qwen3-max` | [benchmark] | — | — | — | 2 | 0 |
+| 9 | `writer/palmyra-x5` | [benchmark] | — | — | — | 2 | 0 |
+| 10 | `qwen/qwen3-max-thinking` | [benchmark] | — | — | — | 1 | 0 |
+| 11 | `openai/gpt-5.4-mini` | [benchmark] | — | — | — | 2 | 0 |
+| 12 | `qwen/qwen3-coder-next` | [benchmark] | — | — | — | 1 | 0 |
+| 13 | `nousresearch/hermes-4-405b` | [benchmark] | — | — | — | 1 | 0 |
 
 ### spec (n_total=155)
 | rank | model | shrunk_q | success | avg_cost | avg_quality | quality_tier | n |
