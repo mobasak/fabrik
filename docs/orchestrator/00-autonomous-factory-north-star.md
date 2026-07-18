@@ -1,6 +1,6 @@
 # Autonomous Factory — The North Star
 
-**Status:** LIVING — **never archive** · **Owner:** operator · **Created:** 2026-07-12 · **Last updated:** 2026-07-16
+**Status:** LIVING — **never archive** · **Owner:** operator · **Created:** 2026-07-12 · **Last updated:** 2026-07-18
 
 > **This is the ultimate goal. Everything else in `docs/traycer/ or docs/orchestrator` exist to reach it.**
 >
@@ -198,9 +198,15 @@ Status: **the ettw chain is COMPLETE — `00`–`11` built + converged** (2026-0
 1. ~~**Shakedown:** plan-2 (`fabrik-capability-catalog`).~~ ✅ **DONE** — `Status: EXECUTED 2026-07-12`,
    both phases shipped + reviewed to CLEAN, plan archived
    (`docs/development/plans/archived/2026-07-12-plan-2-fabrik-capability-catalog.md`).
-2. **First mission (NEXT):** the 4-stack customer-finding pipeline — whatsapp-agent · tryton-crm ·
+2. **Factory hardening (infra — NEXT, makes the missions run *autonomously*):**
+   (a) execute the CONVERGED **enforcement-architecture** plan (`plan-2`, 2026-07-18) — arms every review with the
+       matched rule rubric + mandatory-core floor, one tool-capable command set, compiled context; then
+   (b) build the **driver** (D3 / R8·D4 — the CONVERGED 2026-07-15 spec) so the converge-to-no-op loops run in **code**,
+       not prose, and drain the queue headless.
+   Until (b), the operator is still the loop — the missions below run operator-in-the-loop, not yet autonomously.
+3. **First mission:** the 4-stack customer-finding pipeline — whatsapp-agent · tryton-crm ·
    trade-intelligence · tojlo-mail (wpf parked). Milestone = pipeline complete + deployed.
-3. **Then the queue opens:** youtube, calendar-orchestration-engine, brand-identity-creator,
+4. **Then the queue opens:** youtube, calendar-orchestration-engine, brand-identity-creator,
    iterative-image-editor, … toward 50.
 
 ---
@@ -216,6 +222,7 @@ Status: **the ettw chain is COMPLETE — `00`–`11` built + converged** (2026-0
   converge to a no-op; a driver would *run* that loop. The CONVERGED driver spec designs exactly this (the
   converge-to-no-op loop around vendored `fanout` = the BUILD core). **Prose is not enforcement** — and that is the lesson the rest of
   this repo keeps re-learning.
-- **Fabrik-managed twins + Zed extension** — the ettw chain (`00`–`11`) and the folder-neutral `/fabrik-workflow-review` skill are **done**; what remains is the **`mega` parity** (`04` rebuilt to the review discipline; `00`/`02`/`03`/`05` brought to parity), then build the Zed-ACP orchestration extension (D-Zed) once both folders' commands are finalized. *(No longer a keep-vs-replace evaluation — D2 is RESOLVED, both workflows kept.)*
+- **Fabrik-managed twins + Zed extension** — the ettw chain (`00`–`11`), the folder-neutral `/fabrik-workflow-review` skill, **and now the `mega` parity are DONE** (2026-07-18: `00`/`02`/`03` brought to the enforcement bar, `04` is the convergence twin, `05` retired, and — **D2 corrected** — the tool-less `-command` twins were **archived** since Traycer-desktop is Claude-Max-powered and tool-capable; there is now **ONE tool-capable `-fabrik` command set**). What remains here is only building the **Zed-ACP orchestration extension** (D-Zed) as the alternative front-end — Traycer-desktop is the current cockpit.
+- **Enforcement architecture (the reliability ladder) — DESIGNED + PLANNED, execution pending (2026-07-18).** The keystone that makes autonomy *trustworthy*: mechanical gates (Tier 1) · self-sufficient compiled commands (Tier 2) · armed adversarial review injected with the matched rule rubric (Tier 3), with the honest bound that Tier 3 raises compliance *probability*, not certainty (**L1**) — which is *why the two human gates stay*. CONVERGED spec (`docs/superpowers/specs/2026-07-18-fabrik-factory-architecture-design.md`) + CONVERGED plan (`docs/development/plans/2026-07-18-plan-2-fabrik-factory-enforcement-architecture.md`); **not yet executed.** Standing direction: *drain Tier 3 into Tier 1* — every grep-able mandate migrates to a `check_*` gate over time, so the ladder gets sounder. Directly serves **R7/R8** (converge-to-no-op; prose→enforcement).
 - Phase-4 capacity measurement (real per-worker numbers).
 - Vibe Kanban parked service — leave or remove.
