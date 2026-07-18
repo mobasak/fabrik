@@ -197,6 +197,8 @@ Plus `kind:` (`service` / `worker` / `static`; the `Kind` enum also has a 4th me
 
 This command has a mode declaration at the start, then a series of checkpoints depending on the mode. Do NOT silently proceed past a checkpoint.
 
+**⚠️ Question bar — a checkpoint is NOT a licence to ask trivia.** Ask the owner ONLY when a question clears BOTH tests: (1) the answer **materially changes the vision or the epic boundaries** (not cosmetic, not trivially reversible), AND (2) you **genuinely cannot resolve it** from a convention, `AGENTS.md`, the codebase, the rule packs, or an obvious default. Otherwise **decide it, apply the default, and record it in ONE line** the owner can override. **Never interrupt for:** folder / file / variable / table / endpoint names, field ordering, formatting, test placement, obvious version pins, or any Fabrik-conventioned choice (kebab-case; auth = Pattern A; DB host = `postgres-main`). **Do interrupt for:** ambiguous scope, a product/behaviour decision with no default, a data-model or security tradeoff, conflicting requirements, or anything irreversible. Batch the real questions rather than dripping one at a time. A run that stalls asking "what should I name this?" is the defect this bar exists to prevent.
+
 **Owner non-responsive at a checkpoint** — if the owner stops replying mid-run, the partial Vision Summary persists in Traycer's conversation context (no files written by this command). To resume: the owner re-enters the conversation and Traycer picks up at the last unresolved checkpoint. **Do NOT** time out and self-confirm; **do NOT** start over from Step 0 unless the owner explicitly says "restart". Silence ≠ confirmation; silence = "session paused, waiting for owner".
 
 ### Step 0: Mode Declaration
@@ -723,6 +725,13 @@ Wait for explicit confirmation. **STOP GENERATION HERE.** Silence ≠ confirmati
 
 **Format.** Vision Summary (markdown, exact structure from Step N4 / E5 skeleton) presented in Traycer conversation. No files written. Lives in Traycer conversation context titled "Vision Summary." Persisted by Traycer's spec store automatically. Consumed by `02-epic-decomposition-command` from conversation context; `03-expand-epic-files-command` creates tickets per epic from the confirmed decomposition.
 
+**Pre-confirmation self-audit (run ONCE, both modes, BEFORE you present the Vision Summary for confirmation — NEW: Step N5 · EXISTING: CHECKPOINT E-3).** You are your own first reviewer: re-walk the finished Vision Summary against its own Acceptance Criteria (below) with fresh eyes, and report the result inline at the top of the presentation (`Self-audit: external ✓ · features ✓ · constraints ✓ · resolution ✓ · [N] edits forced`). If any check forces an edit, apply it, re-check that item, and present the corrected Summary — never the pre-audit draft. This is a single pass (there is no loop-to-a-no-op here). Audit all four:
+
+1. **External-services closure** — every external service is grounded in the owner's research or the VPS inventory (`AGENTS.md` § Infrastructure Services) with a cost tier stated. ⚠️ This twin has **no live-research tools** — an external fact the research never established is a **named Open Question for the owner**, never a value guessed from memory.
+2. **Feature closure** — every feature from the research/interview appears in the Full Feature Inventory (nothing silently dropped); every persona is named (not "users"); every value stream stated. In EXISTING mode, every Compliance Report gap carries an owner decision (`fix-now` / `fix-later` / `accept-as-legacy`) and the Locked Decisions section is present.
+3. **Constraint closure** — all 20 N3i constraints carry a verdict (`all clear` / `conflict` / `unknown` — no silent unknown), and no research recommendation that violates a hard constraint (Stripe / managed vector DB / direct vendor LLM SDK) survived into the Summary.
+4. **Resolution closure** — zero Open Questions remain unresolved (answered or explicitly deferred); the mode was declared at Step 0 (not auto-detected); the Summary is within its mode's token budget.
+
 **Token budget.** NEW: ≤5,000 target / ≤8,000 hard cap. EXISTING: ≤6,000 target / ≤10,000 hard cap (extras add length).
 
 **Required sections** (both modes): Product Vision, Personas, Value Streams, Full Feature Inventory, Backing Services, External Services, Technology Decisions, Constraints, Out of Scope, Open Questions, Scale Assessment. **EXISTING adds:** `Locked Decisions` + `Compliance Report`. The Compliance Report drives Retrofit epics in 02.
@@ -762,6 +771,17 @@ Wait for explicit confirmation. **STOP GENERATION HERE.** Silence ≠ confirmati
 - Integration points identified (tables, APIs, auth, workers).
 
 **Does NOT.** Split the vision into epics, decide scaffold types per epic, decide shape blocks per epic, or produce per-epic infrastructure decisions — all of those are `02-epic-decomposition-command`. Create files or tickets — orientation only; tickets in `03-expand-epic-files-command`. Blindly accept research — challenges against Fabrik reality, budget, maintainability. Plan refactoring of existing code — separate workflow. **EXISTING-specific:** does NOT re-derive the vision (reads from project) or re-decide locked tech choices (inherits them); does NOT auto-fix compliance gaps (owner decides per gap; auto-fix happens later as Retrofit epics in 02).
+
+## Guardrails — never
+
+`Does NOT` above draws the SCOPE boundary (what `02`/`03` own). These are the hard PROHIBITIONS — a run that trips one is defective regardless of scope:
+
+- **Never let a feature from the research/interview silently drop** — every one appears in the Full Feature Inventory; every persona is named, every value stream stated.
+- **Never let a memory-based external fact into the Summary** — this twin has no live-research tools, so an external service, price, or limit the research never established is a **named Open Question for the owner**, not a guessed value.
+- **Never carry a research recommendation that violates a hard constraint** — Stripe for a TR entity, a managed vector DB, a direct vendor LLM SDK: cut it and challenge it against Fabrik reality (N3c), never spec it.
+- **Never auto-detect the mode** — Step 0 is an explicit owner declaration; **never proceed past a checkpoint with unresolved Open Questions** or self-confirm on owner silence.
+- **Never split the vision into epics or decide per-epic scaffold / shape / infra** — that is `02`; `00` is orientation only, and writes no files or tickets.
+- **Never re-decide a Locked tech choice in EXISTING mode** (inherit it) or auto-fix a compliance gap (the owner decides per gap; `02` emits the Retrofit epics).
 
 ## Examples
 

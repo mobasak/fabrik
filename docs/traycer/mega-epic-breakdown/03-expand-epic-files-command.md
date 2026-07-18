@@ -144,9 +144,16 @@ Infrastructure Decisions spec provides the shared infra context.
 
 Create each ticket as you go — do not batch all epics before creating.
 
-### Step 3: Confirm
+### Step 3: Pre-handoff self-audit + Confirm
 
-After all tickets are created, list them:
+`03` has no owner checkpoint (it is a transform), so this fresh-eyes pass runs before routing to `04` — it catches the integrity defects `04` would otherwise bounce back. Report the result inline (`Self-audit: coverage ✓ · deps ✓ · titles ✓ · sections ✓ · [N] edits forced`). If any check forces an edit, apply it (it is your own output — fix it now), re-check that item, then route. Audit all four:
+
+1. **Coverage + count** — every epic in 02's confirmed proposal has exactly one Traycer ticket, epic numbers are contiguous `1..N`, and the count matches — no missing, no excess, no orphan (the same integrity `04-cross-epic-validation-command` will check; catch it here first).
+2. **Dependencies completeness + consistency** — every ticket's `Dependencies` carries all five sub-bullets (Consumes / Produces / Depends on / Parallel with / **Owned paths**); every epic named in `Parallel with:` has DISJOINT Owned paths and at most one owns migrations (carried verbatim from 02's parallel gate 2/3 + 3/3).
+3. **Title + flavour + floor** — every Title is `Epic N — [Name]` or `Epic N — Retrofit: [area]` (the `Retrofit:` prefix is the SOLE downstream flavour carrier — `epic-to-ticket/00` string-parses it), carried verbatim from 02; Success Criteria meet the per-flavour floor (5–8 delta / 3–5 Retrofit, with the area-specific criterion added where both #3 and #4 are N/A).
+4. **Sections + infra reference** — every ticket has all required sections incl. the **15-field Metadata** block, and cites the Infrastructure Decisions spec (reference, not duplicate).
+
+Then list the tickets:
 
 ```text
 Tickets created:
@@ -179,6 +186,17 @@ Total: [N] tickets. Each is dispatchable independently.
 - Does NOT change epic boundaries or move features between epics — those were confirmed in `02-epic-decomposition-command`. If boundaries need changing, route back to 02.
 - Does NOT validate cross-epic consistency — that is `04-cross-epic-validation-command`.
 - Does NOT dispatch tickets — that is `05-dispatch-epic-tickets-command` (dispatch step).
+
+## Guardrails — never
+
+`Does NOT` above draws the SCOPE boundary (what `02`/`04` own). These are the hard PROHIBITIONS — a run that trips one is defective regardless of scope. (`03` has no owner checkpoint, so there is no Question bar — the analogue is the Step 3 self-audit before routing.)
+
+- **Never leave a ticket incomplete** — every epic in the confirmed proposal becomes a full Traycer ticket with all required sections; a half-written ticket is a failed run.
+- **Never change an epic boundary or migrate a feature between epics** — those were confirmed in `02`; if a boundary is wrong, route back to `02`, do not silently re-cut it here.
+- **Never emit Success Criteria below the per-flavour floor** — 5–8 delta / 3–5 Retrofit; when both #3 (resilience) and #4 (audit) are genuinely N/A, add an area-specific criterion to reach 3 rather than leaving `04` to fail it.
+- **Never use a Title other than `Epic N — [Name]` / `Epic N — Retrofit: [area]`** — the `Retrofit:` prefix is the sole flavour carrier `epic-to-ticket/00` string-parses; `Epic 4 — i18n Retrofit` silently classifies as delta-feature.
+- **Never omit the `Owned paths` sub-bullet or the Infrastructure Decisions reference** — Owned paths is the concurrency contract the executing agent treats as its File Scope; the infra reference is how a dispatched ticket finds the shared decisions.
+- **Never quote a remembered port / pack path / shape flag** — read `PORTS.md`, the pack, the spec's shape block. A ticket citing a value that does not resolve is a defect, not a formatting nit.
 
 ## Acceptance Criteria
 

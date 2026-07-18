@@ -70,6 +70,12 @@ This command produces the compact epic proposal + Infrastructure Decisions in co
   - `wordpress` → **out of scope for this workflow** — route to `/opt/wpf`. There is no pack and no module.
   - RAG / search in Technology Decisions → `.windsurf/rules/core/65-rag-search.md` § Epic Decomposition (⚠️ read its warning: **every RAG epic must carry its own `CREATE EXTENSION` + HNSW migration** — no registrar does it)
 
+## ⚠️ Question bar — decide, don't drip
+
+The owner's checkpoint (after Step 3) is the ONE place you hand decisions back — so it must carry only the calls that are genuinely theirs. Take a boundary/scope/order question to the owner ONLY when it clears BOTH: (1) the answer **materially changes the decomposition** — an epic boundary, a domain split, the execution order, or a scope line the vision left genuinely ambiguous — AND (2) you **cannot resolve it** from the confirmed Vision Summary, a `.windsurf/rules` pack, `AGENTS.md`, `PORTS.md`, or a Fabrik convention. Otherwise **decide it, apply the convention, and note it in one line** the owner can override at the checkpoint.
+
+**Never interrupt for** a port number (assign from `PORTS.md`), an epic slug, an obvious scaffold pick (it's in the Vision's Technology Decisions), a registrar list (derive it from the shape block), or anything Locked Decisions / an inherited fabrik-lib Verdict already pin. **Do** surface a real boundary you'd draw two defensible ways, an epic the owner may consider too big/small, an execution order with a genuine tradeoff, or a feature whose home epic is ambiguous. Batch these into the checkpoint's `Questions for owner` block — do not drip them one at a time, and do not pad it with questions you already answered. A checkpoint that asks the owner to re-pick a port or confirm a slug is the exact defect this bar prevents; a checkpoint that hides a genuine two-way boundary call behind a silent guess is the mirror-image defect.
+
 ## Processing User Request
 
 This command has **one checkpoint** before the final confirmation:
@@ -306,6 +312,17 @@ Do NOT re-decide in epic-to-ticket-workflow. Do NOT copy into epic files.]
 - [which registrars each epic will activate]
 ```
 
+### Step 3.5: Pre-checkpoint self-audit (fresh eyes, before you present)
+
+Before presenting, re-walk the finished decomposition ONCE with fresh eyes — you are your own first reviewer. The spirit is *"the pass that changed something is never the last pass"*: if this audit forces any edit, re-run the check(s) it touched, then present. Do not iterate to a no-op here (that is `04-cross-epic-validation-command`'s cross-epic review) — run it once, fix what it finds, state what it found. Report the result inline at the top of the checkpoint (`Self-audit: coverage ✓ · parallel gates ✓ · categories ✓ · field/graph ✓ · [N] edits forced`). Audit all four:
+
+1. **Coverage round-trip** — walk EVERY item in the Vision's Full Feature Inventory and point to the exactly-one epic that owns it; then walk every epic and confirm no feature is duplicated or orphaned. A feature with zero or two homes is an edit you owe now.
+2. **Parallel-gate completeness** — every epic labelled `Parallel with:` has **three** PASS verdict lines (ARTIFACTS · FILE SCOPE · MIGRATIONS) actually on record from 2c. A `parallel` label with a missing verdict line is not presentable — go back to 2c.
+3. **Category closure** — all 14 universal categories have a 2h verdict, every `COVERED by Epic X` names an epic that exists in the proposal, every `ABSORBED in Step 3 § X` names a sub-section that was actually drafted, every `N/A` cites its trigger-not-met reason. Any dangling verdict is an edit.
+4. **Field/graph consistency** — each epic's `Depends on:` / `Parallel with:` / `Owned paths:` agree with the mermaid Dependency Graph (a dependency in prose but not the graph, or vice-versa, is a defect `04` would flag — reconcile it now); and no epic entry is missing one of its 23 fields.
+
+If all four pass with zero edits, say so (`Self-audit: clean, 0 edits`) and present. If any forced an edit, apply it, re-run that check, and present the corrected proposal — never the pre-audit draft.
+
 ### ── CHECKPOINT: Present Epic Proposal + Infrastructure Decisions ──
 
 Present to the owner:
@@ -375,13 +392,7 @@ graph TD
 
 Surface this even when empty (`"All compliance gaps actioned as Retrofit epics; nothing deferred."`) so the owner has explicit visibility.
 
-**7. Questions for owner:**
-- Any boundary you disagree with?
-- Any epic too big or too small?
-- Execution order acceptable?
-- Infrastructure Decisions complete?
-- (Existing mode) Retrofit-epic scope and ordering acceptable?
-- (Existing mode) Deferred Compliance list accurate?
+**7. Questions for owner** — per the § Question bar, list ONLY the calls that clear BOTH tests (materially changes the decomposition AND you couldn't resolve it yourself). Present each as the decision you *made* plus the alternative, so the owner confirms or overrides in one line — not as an open prompt you could have answered. Typical bar-clearing calls: a boundary you'd defensibly draw two ways; an epic the owner may size differently; an execution-order tradeoff; an ambiguous feature home; (Existing mode) Retrofit-epic scope/ordering or the Deferred Compliance classification. **Do NOT** ask the owner to confirm a port, a slug, a scaffold pick, a registrar list, or anything Locked Decisions already pin — those you decided and noted. If nothing clears the bar, say so: *"No open boundary calls — confirm to proceed."*
 
 **CRITICAL: STOP GENERATION HERE.** Do NOT simulate the owner's response. Wait for explicit confirmation. Silence ≠ confirmation.
 
@@ -422,6 +433,20 @@ Iterate until the owner explicitly confirms:
 - Does NOT design watchdog sidecar configuration — watchdog wiring is universal category #7 with an **opt-OUT** enabled flag (ON unless `watchdog: {enabled: false}`); the `watchdog` registrar runs at `fabrik apply` and reads `spec.watchdog.*` (per `core/60-watchdog.md`). This command only asserts coverage in the 2h audit and routes the epic that owns the spec to the Step 3 § Watchdog Wiring sub-section.
 - Does NOT design self-healing ladder — universal category #6 is satisfied by citing `core/self-healing.md` in the Step 3 § Self-Healing Ladder sub-section. Per-project ladder rows are written in the epic's `docs/RESILIENCE.md` per `core/58-resilience.md § Per-Project Contract` — that's a per-epic ticket concern (`epic-to-ticket-workflow/03-tech-plan-command`), not a 02 concern.
 - Does NOT design cost-budget caps — universal category #9 cites `core/cost-budget.md`; per-epic caps live in the spec's `watchdog:` block (deferred to epic-to-ticket-workflow tickets). 02 only asserts that the category's coverage is recorded in the 2h verdict block.
+
+## Guardrails — never
+
+`Does NOT` above draws the SCOPE boundary (what later commands own). These are the hard PROHIBITIONS — a run that trips one is defective regardless of scope:
+
+- **Never present a `parallel` label without three PASS verdict lines** (ARTIFACTS · FILE SCOPE · MIGRATIONS) on record from 2c. "Parallel with a note to be careful" is not a thing — disjoint `Owned paths` + single migration owner, or reclassify to sequential.
+- **Never let a feature land in two epics or in zero.** Every Feature-Inventory item maps to exactly one epic; the Step 3.5 coverage round-trip must close before the checkpoint.
+- **Never emit an epic for a `fix-later` or `accept-as-legacy` Compliance row** — only `fix-now` rows become Retrofit epics; the other two go to the Deferred Compliance appendix and nowhere else.
+- **Never quote a remembered value where a read exists** — port availability from `PORTS.md`, a rule-pack path from the pack itself, a shape flag from the spec's shape block. Read it, or leave it out.
+- **Never guess a new external fact** the Vision Summary did not establish — if a capability needs an endpoint / limit / price the vision never grounded and no fabrik-lib module covers it, **flag it as an Open Question for the owner** (this twin has no live-research tools; do not invent the value from memory).
+- **Never re-litigate an inherited Rejected Alternative** — if the tool-capable `00` twin supplied a `fabrik-lib Verdict` / `Rejected Alternatives`, inherit them; only run the fabrik-lib ladder (2f) for a capability the Verdict does not cover.
+- **Never proceed past 2h with an unassigned universal category, or past 3.5 with a forced edit un-re-checked.** An incomplete audit is not a presentable proposal.
+- **Never simulate the owner's confirmation.** The checkpoint STOPs; silence ≠ confirmation.
+- **Never write tickets or files to disk** — this command produces Traycer specs only (`read_spec`-readable); `03-expand-epic-files-command` creates the per-epic Traycer tickets.
 
 ## Acceptance Criteria
 
