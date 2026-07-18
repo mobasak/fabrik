@@ -117,19 +117,22 @@ def test_classify_input_has_no_secret_values(tmp_path):
     """Given a flagged provider block, When flagged_providers parses it, Then only var NAMES
     (and public URL values) are collected — never a secret value (no leak to the pool)."""
     all_envs = tmp_path / "all-envs.env"
+    bar = "═" * 20  # PRODUCTION uses Unicode ═, not ASCII = — the boundary check keys on "# ═"
     all_envs.write_text(
-        "# " + "=" * 20 + " NEEDS-TRIAGE (category=?) " + "=" * 20 + "\n"
-        "#svc name=zari category=? cost=? capability=\"?\" url=? status=?\n"
+        f"# {bar} NEEDS-TRIAGE (category=?) {bar}\n"
+        '#svc name=zari category=? cost=? capability="?" url=? status=?\n'
         "ZARI_API_KEY=super-secret-value-xyz   # used by: trade-intelligence\n"
-        "ZARI_API_URL=https://api.zari.example/v1   # used by: trade-intelligence\n"
-        "# " + "=" * 20 + " internal-config (NOT a service) " + "=" * 20 + "\n"
+        "ZARI_API_URL=https://api.zari.example/v1/sometoken   # used by: trade-intelligence\n"
+        f"# {bar} internal-config (NOT a service) {bar}\n"
         "PORT=8000\n",
         encoding="utf-8",
     )
     provs = cs.flagged_providers(all_envs)
     assert "zari" in provs
     assert "ZARI_API_KEY" in provs["zari"]["names"]
-    # The secret VALUE must never be captured — only names + the public URL.
+    # The section boundary MUST be honored — the internal-config PORT is NOT captured under zari.
+    assert "PORT" not in provs["zari"]["names"]
     blob = repr(provs["zari"])
-    assert "super-secret-value-xyz" not in blob
-    assert any("api.zari.example" in u for u in provs["zari"]["urls"])
+    assert "super-secret-value-xyz" not in blob  # secret value never captured
+    assert "sometoken" not in blob  # only scheme+host sent — the URL path token must NOT leak
+    assert provs["zari"]["urls"] == ["https://api.zari.example"]

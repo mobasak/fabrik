@@ -46,12 +46,20 @@ def parse(path: Path) -> list[dict]:
         kv = KV_RE.match(line)
         if cur is not None and kv:
             key, rest = kv.group(1), kv.group(2)
-            value = rest.split("   #", 1)[0].strip()
+            # "   # " (3-space-hash-SPACE) is gather_envs' exact note delimiter; splitting on it
+            # (not "   #") avoids truncating a value that merely contains "   #".
+            value = rest.split("   # ", 1)[0].strip()
             aliases: list[str] = []
-            if "aliases:" in rest:
-                seg = rest.split("aliases:", 1)[1].split("·")[0]
-                aliases = [a.strip() for a in seg.split(",") if a.strip()]
-            cur["keys"].append((key, value, aliases))
+            per_key_used: list[str] = []
+            if "   # " in rest:
+                note = rest.split("   # ", 1)[1]
+                if "aliases:" in note:
+                    seg = note.split("aliases:", 1)[1].split("·")[0]
+                    aliases = [a.strip() for a in seg.split(",") if a.strip()]
+                if "used by:" in note:
+                    seg = note.split("used by:", 1)[1]
+                    per_key_used = [p.strip() for p in seg.split(",") if p.strip()]
+            cur["keys"].append((key, value, aliases, per_key_used))
     return provs
 
 
@@ -77,17 +85,20 @@ def sync_registry(dsn: str | None = None) -> dict:
                 )
                 sid = cur.fetchone()[0]
                 stats["services"] += 1
-                for _key, value, aliases in p["keys"]:
+                for _key, value, aliases, per_key_used in p["keys"]:
                     if not value:
                         continue
                     digest = hashlib.sha256(value.encode("utf-8")).hexdigest()
+                    # per-key attribution when present (a multi-key provider's keys differ),
+                    # else the provider-wide union from the #svc used_by= field.
+                    key_used = per_key_used or used_by
                     cur.execute(
                         """INSERT INTO api_keys (service_id, value_sha256, aliases, used_by_projects)
                            VALUES (%s,%s,%s,%s)
                            ON CONFLICT (service_id, value_sha256)
                            DO UPDATE SET last_seen=now(), aliases=EXCLUDED.aliases,
                              used_by_projects=EXCLUDED.used_by_projects""",
-                        (sid, digest, aliases, used_by),
+                        (sid, digest, aliases, key_used),
                     )
                     stats["api_keys"] += 1
     finally:

@@ -5,13 +5,14 @@
 db-pool was rejected at plan-review: it requires DB_PASSWORD (hard-fails without it) and offers
 no DSN / peer-auth path, and a ThreadedConnectionPool is overkill for one sequential cron.
 This is the lean replacement — a plain psycopg2 connection over SERVICES_REGISTRY_DSN
-(default: the local peer-auth unix-socket DSN, passwordless) + a small execute-with-retry.
+(default: the local peer-auth unix-socket DSN, passwordless). The whole sync is one short
+transaction; a lost-connection retry would need a fresh connect() (not a same-cursor re-execute),
+so it is NOT provided here — the caller simply re-runs the (idempotent) sync on the next cron tick.
 """
 
 from __future__ import annotations
 
 import os
-import time
 
 import psycopg2
 
@@ -25,16 +26,3 @@ def dsn() -> str:
 def connect():
     """Open a psycopg2 connection to the registry DB (peer-auth socket by default)."""
     return psycopg2.connect(dsn())
-
-
-def execute_with_retry(cur, query, params=None, retries=3):
-    """Run a query, retrying on a transient OperationalError with linear backoff."""
-    last: Exception | None = None
-    for attempt in range(retries):
-        try:
-            cur.execute(query, params)
-            return cur
-        except psycopg2.OperationalError as exc:
-            last = exc
-            time.sleep(0.5 * (attempt + 1))
-    raise last  # type: ignore[misc]

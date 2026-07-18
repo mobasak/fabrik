@@ -19,6 +19,7 @@ import json
 import re
 import sys
 from pathlib import Path
+from urllib.parse import urlsplit
 
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
@@ -56,10 +57,12 @@ def flagged_providers(path: Path) -> dict[str, dict]:
         if cur and m:
             key, rest = m.group(1), m.group(2)
             provs[cur]["names"].append(key)
-            if URL_KEY_RE.search(key):  # a URL value is a PUBLIC endpoint -> safe + identifying
-                val = rest.split("   #", 1)[0].strip()
-                if val.startswith("http"):
-                    provs[cur]["urls"].append(val)
+            if URL_KEY_RE.search(key):  # a URL identifies the provider — send ONLY scheme://host,
+                val = rest.split("   # ", 1)[0].strip()  # never the path/query (may embed a token)
+                if val.lower().startswith("http"):
+                    parts = urlsplit(val)
+                    if parts.hostname:
+                        provs[cur]["urls"].append(f"{parts.scheme}://{parts.hostname}")
     return provs
 
 

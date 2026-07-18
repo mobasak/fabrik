@@ -289,7 +289,8 @@ def load_catalog() -> tuple[dict, list[tuple[str, str]]]:
 def match_provider(key: str, matchers: list[tuple[str, str]]) -> str | None:
     up = key.upper()
     for prefix, provider in matchers:
-        if up.startswith(prefix):
+        # token-boundary match: BRAVE matches BRAVE_API_KEY but NOT BRAVERY_API_KEY
+        if up == prefix or up.startswith(prefix if prefix.endswith("_") else prefix + "_"):
             return provider
     return None
 
@@ -306,12 +307,17 @@ def derive_provider(key: str) -> str:
 
 
 def svc_line(name: str, meta: dict, used_by: set[str]) -> str:
-    cap = str(meta.get("capability", "?")).replace('"', "'")  # keep the #svc line parseable
+    cap = str(meta.get("capability") or "?").replace('"', "'")  # keep the #svc line parseable
     ub = ",".join(sorted(used_by)) if used_by else "-"
+    # `or "?"` (not .get default) so an EMPTY catalog field still emits a \S+ token — else the
+    # consumer regex (registry_sync.SVC_RE) fails to match and the whole service is dropped.
+    cat = meta.get("category") or "?"
+    cost = meta.get("cost") or "?"
+    url = meta.get("url") or "?"
+    status = meta.get("status") or "?"
     return (
-        f"#svc name={name} category={meta.get('category', '?')} "
-        f'cost={meta.get("cost", "?")} capability="{cap}" '
-        f"url={meta.get('url', '?')} status={meta.get('status', '?')} used_by={ub}"
+        f"#svc name={name} category={cat} cost={cost} "
+        f'capability="{cap}" url={url} status={status} used_by={ub}'
     )
 
 
