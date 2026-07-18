@@ -1,5 +1,48 @@
 [
   {
+    "id": "nvidia/nemotron-3-embed-1b:free",
+    "canonical_slug": "nvidia/nemotron-3-embed-1b-20260716",
+    "hugging_face_id": null,
+    "name": "NVIDIA: Nemotron 3 Embed 1B (free)",
+    "created": 1784203294,
+    "description": "NVIDIA Nemotron 3 Embed 1B is an open text embedding model from NVIDIA, optimized for high-throughput, low-latency retrieval. It is suited for enterprise search, RAG, code retrieval, and agentic retrieval...",
+    "context_length": 16384,
+    "architecture": {
+      "modality": "text->embeddings",
+      "input_modalities": [
+        "text"
+      ],
+      "output_modalities": [
+        "embeddings"
+      ],
+      "tokenizer": "Other",
+      "instruct_type": null
+    },
+    "pricing": {
+      "prompt": "0",
+      "completion": "0"
+    },
+    "top_provider": {
+      "context_length": 16384,
+      "max_completion_tokens": null,
+      "is_moderated": false
+    },
+    "per_request_limits": null,
+    "supported_parameters": [
+      "max_tokens",
+      "seed",
+      "temperature",
+      "top_p"
+    ],
+    "default_parameters": {},
+    "supported_voices": null,
+    "knowledge_cutoff": null,
+    "expiration_date": null,
+    "links": {
+      "details": "/api/v1/models/nvidia/nemotron-3-embed-1b-20260716/endpoints"
+    }
+  },
+  {
     "id": "google/gemini-embedding-2",
     "canonical_slug": "google/gemini-embedding-2",
     "hugging_face_id": null,

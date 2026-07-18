@@ -1,6 +1,6 @@
 # Kilo Agents Master Table
 
-**Last Updated:** 2026-07-17T06:00:58.733222
+**Last Updated:** 2026-07-18T06:00:50.748846
 **Source:** [openlm.ai/chatbot-arena](https://openlm.ai/chatbot-arena/) | [tbench.ai](https://www.tbench.ai/leaderboard/terminal-bench/2.0)
 
 ## Top 60 Agents Ranked by Chatbot Arena Elo
@@ -33,7 +33,7 @@
 | 24 | **gemini-2.5-pro-preview** | google | 1465 | 32.6 | $1.25 | $10.00 | 1048K | ✓ | ✓ | ✓ | 3 | 188 | ✅ |
 | 25 | **gpt-5.2** | openai | 1465 | 64.9 | $1.75 | $14.00 | 400K | ✓ | ✓ | ✓ | 3 | 134 | ✅ |
 | 26 | **claude-sonnet-4.5** | anthropic | 1464 | 46.5 | $3.00 | $15.00 | 1000K | ✓ | ✓ | ✓ | 3 | 122 | ✅ |
-| 27 | **qwen3.5-397b-a17b** | qwen | 1463 | ~ | $0.45 | $3.00 | 262K | ✓ | ✓ | ✓ | 2 | 619 | ✅ |
+| 27 | **qwen3.5-397b-a17b** | qwen | 1463 | ~ | $0.39 | $2.34 | 262K | ✓ | ✓ | ✓ | 2 | 790 | ✅ |
 | 28 | **gemma-4-31b-it** | google | 1462 | ~ | $0.22 | $0.55 | 262K | ✓ | ✓ | ✓ | 1 | 3127 | ✅ |
 | 29 | **gemma-4-31b-it:free** | google | 1462 | ~ | $0 | $0 | 262K | ✓ | ✓ | ✓ | 1 | 1462 | ✅ |
 | 30 | **glm-5** | z-ai | 1461 | 52.4 | $0.95 | $3.15 | 202K |  | ✓ | ✓ | 2 | 562 | ✅ |
@@ -51,7 +51,7 @@
 | 42 | **mistral-large-2512** | mistralai | 1450 | ~ | $0.50 | $1.50 | 262K | ✓ | ✓ |  | 2 | 1160 | ✅ |
 | 43 | **kimi-k2-thinking** | moonshotai | 1450 | 35.7 | $0.60 | $2.50 | 262K |  | ✓ | ✓ | 2 | 716 | ✅ |
 | 44 | **gpt-5.1** | openai | 1450 | 47.6 | $1.25 | $10.00 | 400K | ✓ | ✓ | ✓ | 3 | 186 | ✅ |
-| 45 | **minimax-m2.7** | minimax | 1448 | 45.1 | $0.30 | $1.20 | 204K |  | ✓ | ✓ | 2 | 1485 | ✅ |
+| 45 | **minimax-m2.7** | minimax | 1448 | 45.1 | $0.25 | $1.00 | 204K |  | ✓ | ✓ | 2 | 1782 | ✅ |
 | 46 | **glm-4.5** | z-ai | 1448 | ~ | $0.60 | $2.20 | 131K |  | ✓ | ✓ | 2 | 804 | ✅ |
 | 47 | **qwen3-235b-a22b-thinking-2507** | qwen | 1442 | ~ | $0.15 | $1.50 | 262K |  | ✓ | ✓ | 2 | 1245 | ✅ |
 | 48 | **claude-haiku-4.5** | anthropic | 1436 | 35.5 | $1.00 | $5.00 | 200K | ✓ | ✓ | ✓ | 2 | 359 | ✅ |
@@ -80,4 +80,4 @@
 - **Agentic**: Has reasoning/thinking capabilities
 - **Tier**: 1=cheap, 2=balanced, 3=heavy
 - **$/Perf**: Performance per dollar (Elo / blended cost)
-- **2026-07-17:** Auto-updated from benchmarks
+- **2026-07-18:** Auto-updated from benchmarks

@@ -134,10 +134,11 @@
 - [scripts/enforcement/check_spec_db_match.py](INDEX.md): Phase 1c (deploy-readiness-gaps): spec <-> project DB-name consistency.
 - [scripts/enforcement/check_synced_unmodified.py](INDEX.md): AFTER-EDIT: none
 - [scripts/enforcement/check_traefik_labels.py](INDEX.md): Tier 1 enforcement: every Traefik-enabled service declares the full §7 label set.
-- [scripts/enforcement/check_traycer_chain.py](INDEX.md): AFTER-EDIT: docs/traycer/** | none
+- [scripts/enforcement/check_traycer_chain.py](INDEX.md): AFTER-EDIT: docs/orchestrator/** docs/traycer/** | none
 - [scripts/enforcement/check_user_guide.py](INDEX.md): Tier 2 enforcement: verifies docs/user-guide/ exists and contains at least one
 - [scripts/enforcement/check_vps_docs.py](INDEX.md): Check VPS documentation freshness.
 - [scripts/enforcement/validate_conventions.py](INDEX.md): Fabrik Convention Validator - Orchestrates all convention checks.
+- [scripts/epic_order.py](INDEX.md): epic_order.py — deterministic epic integrity + phased-ordering over the epic
 - [scripts/final_gate.py](INDEX.md): AFTER-EDIT: docs/workflows/FINAL_GATE_WORKFLOW.md
 - [scripts/generate_capability_index.py](INDEX.md): Generate the Fabrik capability catalog — capabilities.json + docs/CAPABILITIES.md.
 - [scripts/generate_kilo_agents.py](INDEX.md): Generate Kilo CLI Agent Scripts from kilo_agents.db
@@ -168,6 +169,7 @@
 - [scripts/sync_schema_to_projects.py](INDEX.md): Sync db/schema.sql to all /opt projects that don't have it.
 - [scripts/sysadmin/ensure-apprise-alerts-config.sh](INDEX.md): ensure-apprise-alerts-config.sh — guarantee Apprise's stateful "alerts" config exists. Idempotent.
 - [scripts/traycer_agent_review.py](INDEX.md): Traycer Agent Auto-Review Wrapper
+- [scripts/traycer_mirror.py](INDEX.md): traycer_mirror.py — mirror a disk artifact into the Traycer store so the
 - [scripts/traycer_write_report.py](INDEX.md): Traycer Report Writer
 - [scripts/update_agents_toc.py](INDEX.md): Update AGENTS.md Table of Contents
 - [scripts/update_vps_docs.py](INDEX.md): update_vps_docs.py — regenerate dynamic sections of VPS documentation.
@@ -251,7 +253,7 @@
 - [static-site](docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md): project scaffold
 
 ## rules-pack
-- [ai/00-ai-model-selection.md](.windsurf/rules/ai/00-ai-model-selection.md): AI model & tool selection INDEX — match the task to one of 16 categories, prefer specialized vendors over general LLMs, pick the cheapest gateway (Kilo CLI and
+- [ai/00-ai-model-selection.md](.windsurf/rules/ai/00-ai-model-selection.md): AI model & tool selection INDEX — match the task to one of 16 categories, prefer specialized vendors over general LLMs, pick the cheapest gateway (Kilo CLI and 
 - [ai/10-speech-audio.md](.windsurf/rules/ai/10-speech-audio.md): Speech & Audio AI (category 1) — transcription (Soniox/Whisper), TTS (Soniox default for multilingual/faithful, ElevenLabs for expressive), voice cloning, audio
 - [ai/20-vision.md](.windsurf/rules/ai/20-vision.md): Vision AI (category 2) — image gen (Recraft v4.1 for branded/recurring-style/vector, FLUX-schnell for bulk illustration, FLUX/BFL for photoreal, Replicate as ho
 - [ai/25-3d-generation.md](.windsurf/rules/ai/25-3d-generation.md): 3D asset generation — automated zero-edit mesh/asset pipeline (GLB/FBX/OBJ/STL/USDZ). Provider routing by asset type (Meshy/Tripo/Rodin/TRELLIS 2), mandatory he

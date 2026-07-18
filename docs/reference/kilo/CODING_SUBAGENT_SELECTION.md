@@ -1,6 +1,6 @@
 # Coding subagent selection
 
-**Generated:** 2026-07-17 · **Source:** `scripts/kilo-benchmarks/kilo_agents.db` · **Generator:** `scripts/kilo-benchmarks/rank_coding_subagents.py`
+**Generated:** 2026-07-18 · **Source:** `scripts/kilo-benchmarks/kilo_agents.db` · **Generator:** `scripts/kilo-benchmarks/rank_coding_subagents.py`
 
 Ranked candidates for coding-subagent dispatch across the GLM (z-ai), Kimi (moonshotai), Minimax, and DeepSeek families. Regenerated daily by `scripts/kilo-benchmarks/daily_refresh.sh` after pricing and microbench data refreshes.
 
@@ -22,20 +22,20 @@ Auto tier — OpenRouter output ≤ $1.5/Mtok. `pick_models` auto-selects freely
 | 2 | `deepseek/deepseek-v3.2` | ✅ | StreamLake | ✅ | — | 63 | 0.269 | 0.400 | 70.0 | 70.2 | — | 1431 | 163k | **B** | 0.551 |
 | 3 | `bytedance-seed/seed-2.0-mini` | ✅ | Seed | ✅ | ✅ | 135 | 0.100 | 0.400 | — | — | — | — | 262k | **C+** | 0.474 |
 | 4 | `bytedance-seed/seed-1.6-flash` | ✅ | Seed | ✅ | ✅ | 132 | 0.075 | 0.300 | — | — | — | — | 262k | **C+** | 0.464 |
-| 5 | `qwen/qwen3-coder-30b-a3b-instruct` | ✅ | INVALID_ID_7079 | — | ✅ | 104 | 0.070 | 0.270 | — | — | — | — | 160k | **C** | 0.458 |
+| 5 | `qwen/qwen3-coder-30b-a3b-instruct` | ✅ | Novita | — | ✅ | 104 | 0.070 | 0.270 | — | — | — | — | 160k | **C** | 0.458 |
 | 6 | `qwen/qwen3-coder-flash` | ✅ | Alibaba | — | ✅ | 123 | 0.195 | 0.975 | — | — | — | — | 1000k | **B** | 0.452 |
 | 7 | `minimax/minimax-m2` | ✅ | Minimax | ✅ | — | 54 | 0.255 | 1.020 | 61.0 | — | — | — | 204k | **C+** | 0.440 |
-| 8 | `minimax/minimax-m3` | ✅ | Minimax | ✅ | — | 84 | 0.300 | 1.200 | — | — | 44 | 1485 | 1048k | **A+** | 0.419 |
+| 8 | `minimax/minimax-m3` | ✅ | Minimax | ✅ | — | 83 | 0.300 | 1.200 | — | — | 44 | 1485 | 1048k | **A+** | 0.419 |
 | 9 | `z-ai/glm-4.7-flash` | ✅ | DeepInfra | ✅ | ✅ | 54 | 0.060 | 0.400 | — | — | — | — | 200k | **C+** | 0.413 |
-| 10 | `deepseek/deepseek-v4-flash` | ✅ | DeepInfra | ✅ | — | 106 | 0.098 | 0.196 | — | — | 40 | 1460 | 1048k | **A** | 0.402 |
-| 11 | `minimax/minimax-m2.7` | ✅ | Mara | ✅ | — | 60 | 0.300 | 1.200 | — | — | 38 | 1448 | 204k | **B-** | 0.365 |
+| 10 | `deepseek/deepseek-v4-flash` | ✅ | DeepInfra | ✅ | — | 108 | 0.098 | 0.196 | — | — | 40 | 1460 | 1048k | **A** | 0.402 |
+| 11 | `minimax/minimax-m2.7` | ✅ | Mara | ✅ | — | 60 | 0.250 | 1.000 | — | — | 38 | 1448 | 204k | **B-** | 0.367 |
 | 12 | `deepseek/deepseek-v4-pro` | ✅ | DeepSeek | ✅ | — | 61 | 0.435 | 0.870 | — | — | 44 | — | 1048k | **A** | 0.315 |
-| 13 | `qwen/qwen3-coder-next` | ✅ | Parasail | — | — | 99 | 0.110 | 0.800 | — | — | 21 | — | 262k | **C+** | 0.249 |
+| 13 | `qwen/qwen3-coder-next` | ✅ | Ionstream | — | — | 101 | 0.110 | 0.800 | — | — | 21 | — | 262k | **C+** | 0.249 |
 | 14 | `minimax/minimax-m2.1` | ✅ | Minimax | ✅ | — | 61 | 0.300 | 1.200 | — | — | — | 1430 | 204k | **B-** | 0.225 |
-| 15 | `z-ai/glm-4.5-air` | ✅ | SiliconFlow | ✅ | — | 105 | 0.130 | 0.850 | — | — | — | 1410 | 131k | **C+** | 0.224 |
+| 15 | `z-ai/glm-4.5-air` | ✅ | Novita | ✅ | — | 105 | 0.130 | 0.850 | — | — | — | 1410 | 131k | **C+** | 0.224 |
 | 16 | `deepseek/deepseek-v3.2-exp` | ✅ | Novita | ✅ | — | 35 | 0.270 | 0.410 | — | — | — | 1431 | 163k | **C+** | 0.224 |
 | 17 | `deepseek/deepseek-chat-v3.1` | ✅ | DeepInfra | ✅ | — | 23 | 0.250 | 0.950 | — | — | — | 1430 | 163k | **C+** | 0.210 |
-| 18 | `deepseek/deepseek-chat-v3-0324` | ✅ | SiliconFlow | — | — | 27 | 0.270 | 1.120 | — | — | — | 1391 | 163k | **C** | 0.182 |
+| 18 | `deepseek/deepseek-chat-v3-0324` | ✅ | DeepInfra | — | — | 27 | 0.270 | 1.120 | — | — | — | 1391 | 163k | **C** | 0.182 |
 | 19 | `minimax/minimax-m2-her` | ✅ | Minimax | — | — | 87 | 0.300 | 1.200 | — | — | — | — | 65k | **C** | 0.172 |
 | 20 | `deepseek/deepseek-r1-distill-llama-70b` | ✅ | Novita | ✅ | — | 45 | 0.800 | 0.800 | — | — | — | — | 128k | **C** | 0.163 |
 | 21 | `deepseek/deepseek-chat` | ✅ | StreamLake | — | — | 42 | 0.200 | 0.800 | — | — | — | 1337 | 131k | **C** | 0.162 |
@@ -53,14 +53,14 @@ On-request tier — OpenRouter output > $1.5/Mtok. Operator opt-in only: `pick_m
 | 2 | `z-ai/glm-4.6` | ✅ | Venice | ✅ | — | 68 | 0.500 | 2.000 | 68.2 | — | — | 1458 | 202k | **B** | 0.547 |
 | 3 | `z-ai/glm-4.5` | ✅ | Z.AI | ✅ | — | 69 | 0.600 | 2.200 | 64.2 | — | — | 1448 | 131k | **C+** | 0.520 |
 | 4 | `deepseek/deepseek-r1` | ✅ | Novita | ✅ | — | 18 | 0.700 | 2.500 | — | 71.4 | — | 1382 | 163k | **B** | 0.475 |
-| 5 | `moonshotai/kimi-k2.5` | ✅ | ModelRun | ✅ | — | 46 | 0.570 | 2.850 | 70.8 | — | — | — | 262k | **B+** | 0.462 |
+| 5 | `moonshotai/kimi-k2.5` | ✅ | DigitalOcean | ✅ | — | 46 | 0.570 | 2.850 | 70.8 | — | — | — | 262k | **B+** | 0.462 |
 | 6 | `bytedance-seed/seed-2.0-lite` | ✅ | Seed | ✅ | ✅ | 73 | 0.250 | 2.000 | — | — | — | — | 262k | **C+** | 0.450 |
 | 7 | `moonshotai/kimi-k2` | ✅ | Novita | — | — | 37 | 0.570 | 2.300 | — | 59.1 | — | 1402 | 131k | **C+** | 0.450 |
 | 8 | `bytedance-seed/seed-1.6` | ✅ | Seed | ✅ | ✅ | 48 | 0.250 | 2.000 | — | — | — | — | 262k | **C+** | 0.443 |
-| 9 | `z-ai/glm-5.1` | ✅ | StreamLake | ✅ | — | 57 | 0.966 | 3.036 | — | — | 40 | 1506 | 202k | **B** | 0.395 |
-| 10 | `z-ai/glm-5.2` | ✅ | DeepInfra | ✅ | — | 120 | 0.934 | 2.935 | — | — | 42 | — | 1048k | **A** | 0.301 |
-| 11 | `moonshotai/kimi-k2.6` | ✅ | Inceptron | ✅ | — | 46 | 0.950 | 4.000 | — | — | 44 | — | 262k | **B** | 0.278 |
-| 12 | `moonshotai/kimi-k2.7-code` | ✅ | Inceptron | ✅ | — | 46 | 0.750 | 3.500 | — | — | 42 | — | 262k | **B** | 0.276 |
+| 9 | `z-ai/glm-5.1` | ✅ | StreamLake | ✅ | — | 56 | 0.966 | 3.036 | — | — | 40 | 1506 | 202k | **B** | 0.395 |
+| 10 | `z-ai/glm-5.2` | ✅ | StreamLake | ✅ | — | 119 | 0.937 | 2.944 | — | — | 42 | — | 1048k | **A** | 0.301 |
+| 11 | `moonshotai/kimi-k2.6` | ✅ | Inceptron | ✅ | — | 47 | 0.950 | 4.000 | — | — | 44 | — | 262k | **B** | 0.278 |
+| 12 | `moonshotai/kimi-k2.7-code` | ✅ | Inceptron | ✅ | — | 50 | 0.750 | 3.500 | — | — | 42 | — | 262k | **B** | 0.278 |
 | 13 | `z-ai/glm-4.7` | ✅ | DeepInfra | ✅ | — | 70 | 0.400 | 1.750 | — | — | — | 1460 | 202k | **B** | 0.245 |
 | 14 | `deepseek/deepseek-r1-0528` | ✅ | DeepInfra | ✅ | — | 16 | 0.500 | 2.150 | — | — | — | 1436 | 163k | **C+** | 0.196 |
 | 15 | `moonshotai/kimi-k2-0905` | ✅ | Novita | — | — | 38 | 0.600 | 2.500 | — | — | — | 1403 | 262k | **B-** | 0.183 |

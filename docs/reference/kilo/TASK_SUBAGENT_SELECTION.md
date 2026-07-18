@@ -1,4 +1,4 @@
-Last refresh: 2026-07-17
+Last refresh: 2026-07-18
 Formula: shrunk_q = (n·avg_q + 10·tier_baseline) / (n+10); quality-gate at shrunk_q ≥ 2.5; then cost-asc among survivors; top-2 slots require n ≥ 10 | tier_baseline T1=1.0, T2=2.5, T3=4.0 | Window: 90 days | Min runs: 3
 
 
@@ -37,13 +37,12 @@ Formula: shrunk_q = (n·avg_q + 10·tier_baseline) / (n+10); quality-gate at shr
 | 1 | `minimax/minimax-m3` | 2.84 | 0.67 | $0.0069 | 3.12 | 2 | 12 |
 | 2 | `deepseek/deepseek-v4-pro` | 4.38 | 0.56 | $0.0125 | 4.45 | 3 | 48 |
 
-### review (n_total=632)
+### review (n_total=829)
 | rank | model | shrunk_q | success | avg_cost | avg_quality | quality_tier | n |
 |---:|---|---:|---:|---:|---:|:-:|---:|
-| 1 | `deepseek/deepseek-v3.2` | 2.55 | 0.70 | $0.0058 | 2.34 | 3 | 71 |
-| 2 | `minimax/minimax-m3` | 3.52 | 0.70 | $0.0192 | 3.56 | 2 | 264 |
-| 3 | `deepseek/deepseek-v4-pro` | 3.54 | 0.70 | $0.0196 | 3.52 | 3 | 214 |
-| 4 | `deepseek/deepseek-v4-flash` | 2.70 | 0.60 | $0.0011 | 3.10 | 2 | 5 |
+| 1 | `deepseek/deepseek-v4-pro` | 3.54 | 0.73 | $0.0193 | 3.52 | 3 | 262 |
+| 2 | `minimax/minimax-m3` | 3.53 | 0.73 | $0.0212 | 3.56 | 2 | 312 |
+| 3 | `deepseek/deepseek-v4-flash` | 2.70 | 0.60 | $0.0011 | 3.10 | 2 | 5 |
 
 ### spec (n_total=155)
 | rank | model | shrunk_q | success | avg_cost | avg_quality | quality_tier | n |
