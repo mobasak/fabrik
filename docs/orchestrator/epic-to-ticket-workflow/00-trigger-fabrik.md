@@ -9,7 +9,7 @@
      anti-drift reads, not bloat):
        · the dispatched epic ticket file (Path B) — `docs/development/epics/<…>.md`
        · `agents-fabrik.md` — § Planning Constraints · § MANDATORY ORCHESTRATOR PRE-FLIGHT
-         · § Rule Packs (select_rules.py is the mechanical pack selector) · § Fabrik Microservices · § Infrastructure Services
+         · § Rule Packs (delivery pointers; `select_rules.py` is the mechanical selector) · § Fabrik Microservices · § Infrastructure Services
        · `docs/operations/fabrik-lifecycle.md` (stages 3–4 only)
        · the research file — `docs/preplans/*.md` OR `docs/development/plans/00-research.md`
        · `docs/BUSINESS_MODEL.md` § Project Portfolio (the duplicate-project check, constraint #13)
@@ -171,7 +171,7 @@ State which source(s) read (or `none — interview-only`).
 - `docs/reference/prebuilt-app-containers.md` — off-the-shelf solutions.
 - `.windsurf/rules/ai/00-ai-model-selection.md` (+ matching category pack) — if AI/ML project, identify correct category + tool.
 - `docs/operations/fabrik-lifecycle.md` — confirm project fits the deploy/runtime stages; identify registrars.
-- `.windsurf/rules/` (subdirectories: `core/`, `saas/`, `mobile-app/`, `chrome-ext/`, `desktop-app/`, `ai/` — all six; omitting `desktop-app/` or `ai/` means those packs are never injected into tickets) — identify applicable packs using `python scripts/select_rules.py` (mechanical — prints ACTIVE + AVAILABLE packs for this tree; the old § Rule Packs (select_rules.py is the mechanical pack selector) table is retired). These pack IDs are injected into each ticket's Context Files during `ticket-breakdown`.
+- `.windsurf/rules/` (subdirectories: `core/`, `saas/`, `mobile-app/`, `chrome-ext/`, `desktop-app/`, `ai/` — all six; omitting `desktop-app/` or `ai/` means those packs are never injected into tickets) — identify applicable packs using `python scripts/select_rules.py` (mechanical — prints ACTIVE + AVAILABLE packs for this tree; the retired *Project Type → Default Packs* table's successor). These pack IDs are injected into each ticket's Context Files during `ticket-breakdown`.
 - `docs/traycer/kilo_selected_agents.md` — Kilo CLI agent rankings (Elo + pricing + capabilities).
 - `docs/reference/kilo/KILO_USE_CASES.md` — Kilo CLI for **NON-CODING** work (data extraction, content generation, batch processing, research). State the finding if the epic has such a task.
 - `docs/reference/MD/ai-prompt-templates.md` — read **IF** the epic designs prompts, skills, or agent definitions.
