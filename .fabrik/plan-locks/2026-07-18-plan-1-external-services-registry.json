@@ -1,0 +1,24 @@
+{
+  "plan": "docs/development/plans/2026-07-18-plan-1-external-services-registry.md",
+  "owned_paths": [
+    "scripts/gather_envs.py",
+    "scripts/classify_services.py",
+    "scripts/service_catalog.json",
+    "scripts/registry_sync.py",
+    "scripts/registry_db.py",
+    "scripts/declare_subscription.py",
+    "scripts/refresh_service_inventory.py",
+    "scripts/credit_fetchers/**",
+    "scripts/tests/test_gather_envs.py",
+    "scripts/tests/test_registry_sync.py",
+    "scripts/tests/test_credit_fetchers.py",
+    "scripts/tests/test_refresh.py",
+    "libs/cost_budget.py",
+    "libs/alerting.py",
+    "libs/file_cache.py",
+    "db/services_registry_schema.sql"
+  ],
+  "branch": "master",
+  "started_at": "2026-07-18",
+  "status": "active"
+}

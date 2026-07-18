@@ -707,6 +707,10 @@ the `wordpress` **scaffold type** (`fabrik scaffold --type wordpress`).
 - `scripts/generate_kilo_agents.py` - Generates tier-based agent scripts from the agent manifest
 - `scripts/kilo_code_review.py` - Code review (Step 4 in the workflow)
 - `scripts/kilo_model_sync.py` - Syncs the model catalog + pricing
+- `scripts/gather_envs.py` - External Services Registry Phase 1: consolidate all `/opt/*/.env` → `secrets/all-envs.env` (dedup-by-value, `#svc`-annotated by category from `service_catalog.json`, idempotent)
+- `scripts/classify_services.py` - Web-grounds uncatalogued (`category=?`) providers via the OpenRouter pool (names + public URLs only), merges into `service_catalog.json`
+- `scripts/service_catalog.json` - Durable non-secret service catalog (provider → category/cost/capability/url/status/match) injected into `all-envs.env`
+- `scripts/tests/test_gather_envs.py` - Behavior-Contract regression tests for the consolidator + classifier
 - `scripts/kilo-benchmarks/` - Benchmark-driven agent-selection subsystem (`agent_selector.py`, `compute_assignments.py`, `db_models.py`, embedding assignment, OpenRouter category routing: `classify_ai_category.py`, `category_selector.py`, `category_route_mapper.py`, `category_export_markdown.py`, `update_gateway_counts.py`, `seed_direct_vendors.py` + `ai_category_configs.yaml`). Direct-vendor pricing plan also lives here: `direct_vendor_parsers/` (vendor-specific HTML parsers — assemblyai, anthropic, cartesia, deepgram, openai, soniox, speechmatics, subscription_monitor), `direct_vendor_pricing_registry.yaml`, `fetch_direct_vendor_prices.py` orchestrator, `audit_direct_vendor_freshness.py` quarterly helper.
 
 ### Data Files (AUTHORITATIVE)

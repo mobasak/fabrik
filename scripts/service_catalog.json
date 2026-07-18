@@ -1,0 +1,100 @@
+{
+  "_README": "Durable service catalog for scripts/gather_envs.py. NON-SECRET metadata only (no values). Each entry: category, cost (free|freemium|paid|self-host), capability (one line), url, status (active|testing|unused|retiring), match (env-var name PREFIXES that identify this provider; longest match wins). gather_envs.py injects a `#svc` annotation line above each provider's vars in all-envs.env, on every regeneration, so hand-edits are never needed and never lost. Providers not listed here are auto-flagged `category=? capability=\"?\"` in the output for later confirmation. Categories: ai-llm ai-image ai-audio ai-translate search scrape captcha proxy domains email storage backup research-data media-stock infra-platform comms payments dev-tools internal-config.",
+
+  "openrouter":     {"category": "ai-llm", "cost": "paid", "capability": "all LLMs + embeddings via one API", "url": "https://openrouter.ai", "status": "active", "match": ["OPENROUTER", "WATCHDOG_OPENROUTER"]},
+  "dashscope":      {"category": "ai-llm", "cost": "freemium", "capability": "Alibaba Qwen models + qwen-mt translation", "url": "https://dashscope.aliyun.com", "status": "active", "match": ["DASHSCOPE"]},
+  "deepinfra":      {"category": "ai-llm", "cost": "paid", "capability": "hosted open-model inference", "url": "https://deepinfra.com", "status": "active", "match": ["DEEPINFRA"]},
+  "siliconflow":    {"category": "ai-llm", "cost": "freemium", "capability": "open-model inference gateway", "url": "https://siliconflow.cn", "status": "active", "match": ["SILICONFLOW"]},
+  "modelscope":     {"category": "ai-llm", "cost": "freemium", "capability": "Alibaba model hub + inference", "url": "https://modelscope.cn", "status": "active", "match": ["MODELSCOPE"]},
+  "huggingface":    {"category": "ai-llm", "cost": "freemium", "capability": "model hub + inference API", "url": "https://huggingface.co", "status": "active", "match": ["HF_TOKEN", "HF_"]},
+
+  "bfl":            {"category": "ai-image", "cost": "paid", "capability": "Black Forest Labs FLUX image generation", "url": "https://blackforestlabs.ai", "status": "active", "match": ["BFL"]},
+  "fal":            {"category": "ai-image", "cost": "paid", "capability": "fast image/video model inference", "url": "https://fal.ai", "status": "active", "match": ["FAL_KEY", "FAL_"]},
+  "replicate":      {"category": "ai-image", "cost": "paid", "capability": "run open ML models via API", "url": "https://replicate.com", "status": "active", "match": ["REPLICATE"]},
+  "recraft":        {"category": "ai-image", "cost": "paid", "capability": "vector + raster image generation", "url": "https://recraft.ai", "status": "active", "match": ["RECRAFT"]},
+  "stability":      {"category": "ai-image", "cost": "paid", "capability": "Stable Diffusion image generation", "url": "https://stability.ai", "status": "active", "match": ["STABILITY"]},
+
+  "elevenlabs":     {"category": "ai-audio", "cost": "paid", "capability": "text-to-speech / voice", "url": "https://elevenlabs.io", "status": "active", "match": ["ELEVENLABS"]},
+  "soniox":         {"category": "ai-audio", "cost": "paid", "capability": "speech-to-text", "url": "https://soniox.com", "status": "active", "match": ["SONIOX"]},
+
+  "deepl":          {"category": "ai-translate", "cost": "freemium", "capability": "machine translation", "url": "https://deepl.com", "status": "active", "match": ["DEEPL"]},
+  "azure-translator": {"category": "ai-translate", "cost": "freemium", "capability": "Microsoft Translator", "url": "https://azure.microsoft.com/products/ai-services/ai-translator", "status": "active", "match": ["AZURE_TRANSLATOR"]},
+
+  "brave":          {"category": "search", "cost": "freemium", "capability": "web search API", "url": "https://brave.com/search/api", "status": "active", "match": ["BRAVE"]},
+  "exa":            {"category": "search", "cost": "paid", "capability": "neural web search", "url": "https://exa.ai", "status": "active", "match": ["EXA_API", "EXA_"]},
+  "openpagerank":   {"category": "search", "cost": "free", "capability": "domain page-rank metric", "url": "https://www.domcop.com/openpagerank", "status": "active", "match": ["OPENPAGERANK"]},
+  "bing-webmaster": {"category": "search", "cost": "free", "capability": "Bing webmaster/index API", "url": "https://www.bing.com/webmasters", "status": "active", "match": ["BING_WEBMASTER"]},
+  "google-safe-browsing": {"category": "search", "cost": "free", "capability": "URL threat lookup", "url": "https://developers.google.com/safe-browsing", "status": "active", "match": ["GOOGLE_SAFE_BROWSING"]},
+  "rapidapi":       {"category": "search", "cost": "freemium", "capability": "API marketplace gateway", "url": "https://rapidapi.com", "status": "active", "match": ["RAPIDAPI"]},
+
+  "firecrawl":      {"category": "scrape", "cost": "freemium", "capability": "web scraping to markdown", "url": "https://firecrawl.dev", "status": "active", "match": ["FIRECRAWL"]},
+  "apify":          {"category": "scrape", "cost": "freemium", "capability": "web scraping / automation actors", "url": "https://apify.com", "status": "active", "match": ["APIFY"]},
+  "scrapingdog":    {"category": "scrape", "cost": "paid", "capability": "scraping + SERP API", "url": "https://scrapingdog.com", "status": "active", "match": ["SCRAPINGDOG"]},
+  "dataforseo":     {"category": "scrape", "cost": "paid", "capability": "SEO SERP + keyword data", "url": "https://dataforseo.com", "status": "active", "match": ["DATAFORSEO"]},
+
+  "anticaptcha":    {"category": "captcha", "cost": "paid", "capability": "captcha solving", "url": "https://anti-captcha.com", "status": "active", "match": ["ANTICAPTCHA"]},
+
+  "webshare":       {"category": "proxy", "cost": "paid", "capability": "proxy network", "url": "https://webshare.io", "status": "active", "match": ["WEBSHARE"]},
+  "iproyal":        {"category": "proxy", "cost": "paid", "capability": "residential proxies", "url": "https://iproyal.com", "status": "active", "match": ["IPROYAL"]},
+
+  "namecheap":      {"category": "domains", "cost": "paid", "capability": "domain registrar + API", "url": "https://namecheap.com", "status": "active", "match": ["NAMECHEAP"]},
+  "namesilo":       {"category": "domains", "cost": "paid", "capability": "domain registrar + API", "url": "https://namesilo.com", "status": "active", "match": ["NAMESILO"]},
+  "dynadot":        {"category": "domains", "cost": "paid", "capability": "domain registrar + API", "url": "https://dynadot.com", "status": "active", "match": ["DYNADOT"]},
+  "porkbun":        {"category": "domains", "cost": "paid", "capability": "domain registrar + API", "url": "https://porkbun.com", "status": "active", "match": ["PORKBUN"]},
+  "sedo":           {"category": "domains", "cost": "paid", "capability": "domain marketplace", "url": "https://sedo.com", "status": "active", "match": ["SEDO"]},
+  "whoisfreaks":    {"category": "domains", "cost": "paid", "capability": "whois + domain data", "url": "https://whoisfreaks.com", "status": "active", "match": ["WHOISFREAKS"]},
+  "whoisjson":      {"category": "domains", "cost": "freemium", "capability": "whois API", "url": "https://whoisjson.com", "status": "active", "match": ["WHOISJSON"]},
+  "whoxy":          {"category": "domains", "cost": "paid", "capability": "whois + reverse whois", "url": "https://whoxy.com", "status": "active", "match": ["WHOXY"]},
+  "abstract":       {"category": "domains", "cost": "freemium", "capability": "email/phone/domain validation APIs", "url": "https://abstractapi.com", "status": "active", "match": ["ABSTRACT_API"]},
+
+  "resend":         {"category": "email", "cost": "freemium", "capability": "transactional email", "url": "https://resend.com", "status": "active", "match": ["RESEND"]},
+  "instantly":      {"category": "email", "cost": "paid", "capability": "cold-email outreach", "url": "https://instantly.ai", "status": "active", "match": ["INSTANTLY"]},
+  "aws-ses":        {"category": "email", "cost": "paid", "capability": "AWS SES email sending", "url": "https://aws.amazon.com/ses", "status": "active", "match": ["SES_SMTP"]},
+  "myemailverifier": {"category": "email", "cost": "paid", "capability": "email address verification", "url": "https://myemailverifier.com", "status": "active", "match": ["MYEMAILVERIFIER"]},
+
+  "backblaze-b2":   {"category": "storage", "cost": "paid", "capability": "S3-compatible object storage", "url": "https://backblaze.com/cloud-storage", "status": "active", "match": ["B2_"]},
+  "cloudflare-r2":  {"category": "storage", "cost": "paid", "capability": "S3-compatible object storage", "url": "https://cloudflare.com/products/r2", "status": "active", "match": ["R2_"]},
+  "aws":            {"category": "storage", "cost": "paid", "capability": "AWS S3 + services", "url": "https://aws.amazon.com", "status": "active", "match": ["AWS_"]},
+  "minio":          {"category": "storage", "cost": "self-host", "capability": "self-hosted S3 object storage", "url": "https://min.io", "status": "active", "match": ["MINIO"]},
+  "supabase":       {"category": "storage", "cost": "freemium", "capability": "Postgres + auth + storage (RETIRING org-wide)", "url": "https://supabase.com", "status": "retiring", "match": ["SUPABASE", "NEXT_PUBLIC_SUPABASE"]},
+
+  "backrest":       {"category": "backup", "cost": "self-host", "capability": "restic backup orchestration UI", "url": "https://github.com/garethgeorge/backrest", "status": "active", "match": ["BACKREST"]},
+  "restic":         {"category": "backup", "cost": "self-host", "capability": "encrypted backup tool", "url": "https://restic.net", "status": "active", "match": ["RESTIC"]},
+  "duplicati":      {"category": "backup", "cost": "self-host", "capability": "encrypted backup tool", "url": "https://duplicati.com", "status": "active", "match": ["DUPLICATI"]},
+
+  "scopus":         {"category": "research-data", "cost": "paid", "capability": "academic citation database", "url": "https://dev.elsevier.com", "status": "active", "match": ["SCOPUS"]},
+  "ncbi":           {"category": "research-data", "cost": "free", "capability": "PubMed / NCBI E-utilities", "url": "https://www.ncbi.nlm.nih.gov/home/develop/api", "status": "active", "match": ["NCBI"]},
+  "core":           {"category": "research-data", "cost": "free", "capability": "open-access research papers", "url": "https://core.ac.uk", "status": "active", "match": ["CORE_API"]},
+  "comtrade":       {"category": "research-data", "cost": "freemium", "capability": "UN international trade data", "url": "https://comtradeplus.un.org", "status": "active", "match": ["COMTRADE"]},
+  "fred":           {"category": "research-data", "cost": "free", "capability": "US Federal Reserve economic data", "url": "https://fred.stlouisfed.org/docs/api", "status": "active", "match": ["FRED"]},
+  "evds":           {"category": "research-data", "cost": "free", "capability": "Turkey CBRT economic data", "url": "https://evds2.tcmb.gov.tr", "status": "active", "match": ["EVDS"]},
+
+  "pexels":         {"category": "media-stock", "cost": "free", "capability": "stock photos + video", "url": "https://pexels.com/api", "status": "active", "match": ["PEXELS"]},
+  "pixabay":        {"category": "media-stock", "cost": "free", "capability": "stock images + video", "url": "https://pixabay.com/api/docs", "status": "active", "match": ["PIXABAY"]},
+
+  "cloudflare":     {"category": "infra-platform", "cost": "freemium", "capability": "DNS / CDN / zones", "url": "https://cloudflare.com", "status": "active", "match": ["CLOUDFLARE"]},
+  "coolify":        {"category": "infra-platform", "cost": "self-host", "capability": "self-hosted PaaS / deploy", "url": "https://coolify.io", "status": "active", "match": ["COOLIFY"]},
+  "n8n":            {"category": "infra-platform", "cost": "self-host", "capability": "workflow automation", "url": "https://n8n.io", "status": "active", "match": ["N8N"]},
+  "gotenberg":      {"category": "infra-platform", "cost": "self-host", "capability": "HTML/office to PDF", "url": "https://gotenberg.dev", "status": "active", "match": ["GOTENBERG"]},
+  "browserless":    {"category": "infra-platform", "cost": "self-host", "capability": "headless Chrome API", "url": "https://browserless.io", "status": "active", "match": ["BROWSERLESS"]},
+  "meilisearch":    {"category": "infra-platform", "cost": "self-host", "capability": "search engine", "url": "https://meilisearch.com", "status": "active", "match": ["MEILI", "MEILISEARCH"]},
+  "grafana":        {"category": "infra-platform", "cost": "self-host", "capability": "metrics dashboards", "url": "https://grafana.com", "status": "active", "match": ["GRAFANA"]},
+  "glitchtip":      {"category": "infra-platform", "cost": "self-host", "capability": "error tracking (Sentry-compatible)", "url": "https://glitchtip.com", "status": "active", "match": ["GLITCHTIP"]},
+  "sentry":         {"category": "infra-platform", "cost": "freemium", "capability": "error tracking (DSN ingest)", "url": "https://sentry.io", "status": "active", "match": ["SENTRY"]},
+  "uptime-kuma":    {"category": "infra-platform", "cost": "self-host", "capability": "uptime monitoring", "url": "https://uptime.kuma.pet", "status": "active", "match": ["UPTIME_KUMA"]},
+  "netdata":        {"category": "infra-platform", "cost": "freemium", "capability": "real-time metrics monitoring", "url": "https://netdata.cloud", "status": "active", "match": ["NETDATA"]},
+  "docker-hub":     {"category": "infra-platform", "cost": "freemium", "capability": "container registry", "url": "https://hub.docker.com", "status": "active", "match": ["DOCKER_HUB"]},
+  "github":         {"category": "infra-platform", "cost": "freemium", "capability": "git hosting + API", "url": "https://github.com", "status": "active", "match": ["GITHUB"]},
+  "greencloud":     {"category": "infra-platform", "cost": "paid", "capability": "VPS hosting", "url": "https://greencloudvps.com", "status": "active", "match": ["GREENCLOUDVPS"]},
+  "postman":        {"category": "dev-tools", "cost": "freemium", "capability": "API platform", "url": "https://postman.com", "status": "active", "match": ["POSTMAN"]},
+  "semgrep":        {"category": "dev-tools", "cost": "freemium", "capability": "static analysis (SAST)", "url": "https://semgrep.dev", "status": "active", "match": ["SEMGREP"]},
+  "context7":       {"category": "dev-tools", "cost": "freemium", "capability": "up-to-date library docs for LLMs", "url": "https://context7.com", "status": "active", "match": ["CONTEXT7"]},
+  "kilo":           {"category": "dev-tools", "cost": "paid", "capability": "kilocode coding-agent gateway", "url": "https://kilocode.ai", "status": "active", "match": ["KILO_API", "KILO_"]},
+
+  "google-cloud":   {"category": "infra-platform", "cost": "freemium", "capability": "Google Cloud / OAuth", "url": "https://cloud.google.com", "status": "active", "match": ["GOOGLE_APPLICATION", "GOOGLE_CLIENT", "GOOGLE_PROJECT"]},
+  "microsoft-365":  {"category": "infra-platform", "cost": "paid", "capability": "Microsoft 365 / Graph API", "url": "https://learn.microsoft.com/graph", "status": "active", "match": ["M365", "MICROSOFT_CLIENT"]},
+  "youtube":        {"category": "research-data", "cost": "freemium", "capability": "YouTube Data API", "url": "https://developers.google.com/youtube", "status": "active", "match": ["YOUTUBE_API"]},
+
+  "telegram":       {"category": "comms", "cost": "free", "capability": "bot messaging", "url": "https://core.telegram.org/bots", "status": "active", "match": ["TELEGRAM"]},
+  "apprise":        {"category": "comms", "cost": "self-host", "capability": "multi-service notification gateway", "url": "https://github.com/caronc/apprise", "status": "active", "match": ["APPRISE"]}
+}
