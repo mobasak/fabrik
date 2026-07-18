@@ -352,6 +352,8 @@
   .doc-code-badge.grade-Bminus { background: #302a4a; border-color: #4a4080; color: #b8b0d0; }
   .doc-code-badge.grade-Cplus  { background: #3a2a1a; border-color: #6b5033; color: #d6b088; }
   .doc-code-badge.grade-C      { background: #3a1f1a; border-color: #7a4030; color: #ee9c88; }
+  .doc-code-badge.grade-D      { background: #401a1a; border-color: #8a3030; color: #f0857a; }
+  .doc-code-badge.grade-F      { background: #4a1414; border-color: #992525; color: #ff7a7a; }
   .doc-code-badge.grade-na     { color: var(--muted); border: none; padding: 0; background: transparent; }
   .code-warn-badge {
     margin-left: 4px; padding: 0 4px; border-radius: 3px;
@@ -686,7 +688,7 @@
           <th data-tabs="overview reasoning coding translation" title="Capability flags (badges, brightened when on). V=vision input · T=tools / function calling · A=agentic (Kilo-confirmed) · R=reasoning model · S=speech-to-text capable · Tr=translation-scored on the fabrik bake-off · GA=generally available (not preview/beta). Not sortable — use the Model flags chips in the sidebar to filter.">Caps</th>
           <th data-sort="_best_code_score" data-tabs="coding" title="Best-available coding signal per row, max'd across SWE-bench Verified + SWE-bench Multilingual, then falling back through Aider Polyglot > weighted_coding (BenchLM) > design_arena_coding ELO normalized to 0-100. CAVEAT: scores from different sources aren't strictly comparable (a SWE 75 ≠ an Aider 75 ≠ a DA 1280). Hover any cell to see which source drove the number. Click to sort descending; toggle 'has Best Code' chip in the sidebar to hide rows without any explicit coding signal.">Best Code</th>
           <th data-sort="code_fit_score" data-tabs="overview reasoning coding translation" title="Composite coding-subagent fit score (0-1). 45% max(SWE, Aider) + 20% AA idx + 15% Arena ELO + 10% speed + 10% cost-inverse. Populated only for the GLM / Kimi / Minimax / DeepSeek subagent pool (~38 rows). Empty on rows outside that scope. See docs/reference/kilo/CODING_SUBAGENT_SELECTION.md.">Code Fit</th>
-          <th data-sort="doc_code_grade" data-tabs="overview reasoning coding translation" title="Doc↔Code review grade (A+/A/B+/B/B-/C+/C). Measures ability to compare documentation against implementation across a whole service — composite of context size + verified code-understanding + Arena/AA intelligence. Populated only for the coding-subagent pool. Sortable by grade rank, not alphabetical.">Doc↔Code</th>
+          <th data-sort="doc_code_grade" data-tabs="overview reasoning coding translation" title="Doc↔Code review grade (A+/A/B+/B/B-/C+/C/D/F). Review capability: either MEASURED by microbench_review on a ground-truth planted-bug corpus (recall × precision) where available, else a heuristic composite of context size + verified code-understanding + Arena/AA intelligence. The measured-vs-heuristic source (a `†`) is shown in CODING_SUBAGENT_SELECTION.md, not here. Populated only for the coding-subagent pool. Sortable by grade rank, not alphabetical.">Doc↔Code</th>
           <th data-sort="arena_elo" data-tabs="overview reasoning translation" title="Chatbot Arena ELO (LMSys / openlm.ai)">Arena</th>
           <th data-sort="tbench_accuracy" data-tabs="reasoning" title="Terminal Bench 2.0 % (tbench.ai)">TBench</th>
           <th data-sort="aa_intelligence_index" data-tabs="overview reasoning coding translation" title="Artificial Analysis Intelligence Index (artificialanalysis.ai)">AA</th>
@@ -1190,11 +1192,14 @@ function fmtSource(m) {
   return parts.join("");
 }
 
-// Grade sort order: A+ > A > B+ > B > B- > C+ > C. `null` sorts to bottom.
+// Grade sort order: A+ > A > B+ > B > B- > C+ > C > D > F. `null` sorts to bottom.
 // String.localeCompare on the raw grades puts B- ABOVE B (wrong) — this
 // mapping ensures the sortable column reflects semantic rank.
+// D and F are reachable via the MEASURED review grade (microbench_review), which — unlike the
+// heuristic that only emitted A+..C — can score a genuine bad reviewer D/F. Omitting them made
+// docCodeGradeSortValue return null (== "ungraded"), conflating "worst reviewer" with "no grade".
 const DOC_CODE_GRADE_RANK = {
-  "A+": 7, "A": 6, "B+": 5, "B": 4, "B-": 3, "C+": 2, "C": 1,
+  "A+": 9, "A": 8, "B+": 7, "B": 6, "B-": 5, "C+": 4, "C": 3, "D": 2, "F": 1,
 };
 function docCodeGradeSortValue(row) {
   const g = row.doc_code_grade;

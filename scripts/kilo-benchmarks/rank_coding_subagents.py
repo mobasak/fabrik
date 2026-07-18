@@ -313,20 +313,35 @@ def _rows_from_db(db_path: Path | None = None) -> list[dict]:
             """,
             FAMILIES,
         ).fetchall()
+    # Measured review grade (microbench_review -> model_review_metrics), keyed by model id.
+    # Where a model was benchmarked we use the REAL grade for Doc↔Code; else the heuristic below.
+    try:
+        from build_task_baselines import load_review_metrics
+
+        measured_review = load_review_metrics(db_path if db_path is not None else DB_PATH)
+    except Exception:  # never let a missing/locked benchmark table block the daily coding doc
+        measured_review = {}
     out = []
     for r in rows:
         d = dict(r)
         if d["id"] in EXCLUDE_MODELS:
             continue
         d["score"] = _compose_score(d)
-        d["doc_grade"] = _grade_doc_review(
-            d.get("ctx_k") or 0,
-            d.get("swe") or 0,
-            d.get("aider") or 0,
-            d.get("aa_idx") or 0,
-            d.get("arena") or 0,
-            d.get("coding_s") or 0,
-        )
+        m = measured_review.get(d["id"])
+        if m and m.get("grade"):
+            # ground-truth: measured on planted-bug corpus (recall/precision), not inferred
+            d["doc_grade"] = m["grade"]
+            d["doc_grade_measured"] = True
+        else:
+            d["doc_grade"] = _grade_doc_review(
+                d.get("ctx_k") or 0,
+                d.get("swe") or 0,
+                d.get("aider") or 0,
+                d.get("aa_idx") or 0,
+                d.get("arena") or 0,
+                d.get("coding_s") or 0,
+            )
+            d["doc_grade_measured"] = False
         out.append(d)
     out.sort(key=lambda x: (-x["score"], x["id"]))
     return out
@@ -370,7 +385,7 @@ def _render(rows: list[dict]) -> str:
         "",
         "> **Score composition**: 45% best-verified code score (max of SWE-bench-Verified and Aider-Polyglot; falls back to our own live HumanEval+/MBPP+ `coding_score` × 0.7 when neither external benchmark is populated) · 20% AA intelligence index · 15% Arena ELO · 10% output tok/s · 10% cost-inverse. Every component normalized to [0,1] before its weight is applied. Higher = better fit.",
         "",
-        "> **Doc↔Code grade**: composite of context size (fits code + docs together), verified code-understanding score, and general intelligence — measures ability to spot drift between documentation and implementation.",
+        "> **Doc↔Code grade**: review capability. `†` = MEASURED by `scripts/kilo-benchmarks/microbench_review.py` (real grade on a ground-truth planted-bug corpus — recall × precision); unmarked = the heuristic composite of context size + verified code-understanding score + general intelligence. A measured grade always wins over the heuristic when present.",
         "",
         '> **Column key** — `Reason` = native reasoning / thinking capability (may need `reasoning={"exclude":true}` in the request body for pure code — see API recipes). `Bench` = ✅ if `scripts/kilo-benchmarks/microbench_coding.py` has run our own live HumanEval+/MBPP+ pass_at_1 on this model (`humaneval_score` populated); `—` = external benchmarks only, our own live signal is not yet available. Un-benched candidates worth prioritizing are listed under **Candidates not yet benched by us** below.',
         "",
@@ -435,7 +450,9 @@ def _render(rows: list[dict]) -> str:
             aa=_fmt_or_dash(r.get("aa_idx"), "{:.0f}"),
             arena=_fmt_or_dash(r.get("arena"), "{:.0f}"),
             ctx=_fmt_or_dash(r.get("ctx_k"), "{:.0f}k"),
-            grade=r["doc_grade"],
+            # `†` marks a grade MEASURED by microbench_review (ground-truth planted-bug corpus);
+            # unmarked = the heuristic composite below.
+            grade=r["doc_grade"] + ("†" if r.get("doc_grade_measured") else ""),
             score=f"{r['score']:.3f}",
         )
 

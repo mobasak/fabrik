@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: scripts/kilo-benchmarks/rank_task_subagents.py libs/subagents/select.py
+# AFTER-EDIT: scripts/kilo-benchmarks/rank_task_subagents.py scripts/kilo-benchmarks/rank_coding_subagents.py libs/subagents/select.py
 """Per-(model, task_type) quality PRIOR, derived from benchmarks that actually measure the task.
 
 The pool's ranking is `shrunk_q = (n·avg_q + K·tier_baseline) / (n + K)` — a blend of the
@@ -79,6 +79,83 @@ def ensure_table(db_path: Path = DB_PATH) -> None:
         conn.commit()
     finally:
         conn.close()
+
+
+# =================================================================================================
+# REVIEW-subagent eligibility gate — the OPERATOR'S PERMANENT constraints.
+#
+# A model may be dispatched as a REVIEW subagent only if the ground-truth benchmark
+# (microbench_review -> model_review_metrics) shows it clears ALL THREE. This is the single source
+# of truth consumed by BOTH rank_task_subagents (gates the `review` task_type) and
+# rank_coding_subagents (feeds the measured Doc↔Code grade). Change a threshold HERE, once.
+# =================================================================================================
+REVIEW_MIN_PRECISION = (
+    0.99  # never flags correct code (100% precision in practice); trust its flags
+)
+REVIEW_MAX_COST_PER_1K = (
+    0.70  # real OpenRouter-billed $ per 1000 reviews (usage.cost, not estimate)
+)
+REVIEW_MAX_P50_S = (
+    10.0  # median call latency; consistently-slow models excluded (coarse — see the note)
+)
+# A reviewer must catch at least ONE planted defect. Without this, a model that always answers `[]`
+# ("no bugs") scores recall=0 AND precision=1.0 (it never flags a control either) and would clear
+# the precision/cost/p50 gate — an "eligible" reviewer that catches nothing. This is the floor, not a
+# quality bar; the operator may raise it (recall differentiation among survivors is the ranking's job).
+REVIEW_MIN_RECALL = 0.0  # strict `>`: recall must exceed this (catch ≥1 defect)
+
+
+def load_review_metrics(db_path: Path = DB_PATH) -> dict[str, dict]:
+    """model_id -> the LATEST-build review metrics, or {} if the table isn't populated yet.
+
+    Fail-soft: a missing table (benchmark never run) returns {} so the ranker falls back to its
+    prior behaviour rather than crashing the daily pipeline.
+    """
+    conn = sqlite3.connect(db_path)
+    try:
+        if not conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='model_review_metrics'"
+        ).fetchone():
+            return {}
+        # LATEST-PER-MODEL, not the latest GLOBAL build: a partial re-run (`--models X` on a new
+        # date) must update only X and keep every other model's most-recent metrics — else the
+        # eligible set silently collapses to just the re-run models and the fleet review doc drops
+        # everyone else. (Correlated MAX per model_id.)
+        rows = conn.execute(
+            "SELECT m.model_id, m.grade, m.score5, m.recall, m.precision, m.cost_per_1k, "
+            "m.p50_latency_s FROM model_review_metrics m "
+            "JOIN (SELECT model_id, MAX(built_at) AS mb FROM model_review_metrics GROUP BY model_id) t "
+            "ON m.model_id=t.model_id AND m.built_at=t.mb"
+        ).fetchall()
+    finally:
+        conn.close()
+    return {
+        r[0]: {
+            "grade": r[1],
+            "score5": r[2],
+            "recall": r[3],
+            "precision": r[4],
+            "cost_per_1k": r[5],
+            "p50_latency_s": r[6],
+        }
+        for r in rows
+    }
+
+
+def review_eligible(db_path: Path = DB_PATH) -> set[str]:
+    """Models that clear the permanent review gate (precision, real $/1k, p50 latency).
+
+    Empty set if the benchmark hasn't run — callers treat "no benchmark data" as "gate not active"
+    (fall back to prior behaviour) rather than "nothing eligible".
+    """
+    return {
+        m
+        for m, d in load_review_metrics(db_path).items()
+        if (d["precision"] or 0) >= REVIEW_MIN_PRECISION
+        and (d["recall"] or 0) > REVIEW_MIN_RECALL  # must catch ≥1 defect (not a do-nothing model)
+        and (d["cost_per_1k"] if d["cost_per_1k"] is not None else 1e9) <= REVIEW_MAX_COST_PER_1K
+        and (d["p50_latency_s"] if d["p50_latency_s"] is not None else 1e9) <= REVIEW_MAX_P50_S
+    }
 
 
 def build(conn, task_type: str, categories: tuple[str, ...]) -> list[dict]:

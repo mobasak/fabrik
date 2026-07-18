@@ -1,9 +1,21 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
-**Last Updated:** 2026-07-18 (Lesson 96 — the gate counted a sibling's untracked WIP as this session's debt; "CI-parity" that includes untracked files isn't parity) (Lesson 95 — arithmetic cannot settle a domain question; assume your own fix is defective)
+**Last Updated:** 2026-07-18 (Lesson 97 — a production work-dispatcher is the wrong instrument to measure the models it dispatches; direct-dispatch a benchmark, and an errored call is a non-result not a wrong answer) (Lesson 96 — the gate counted a sibling's untracked WIP as this session's debt; "CI-parity" that includes untracked files isn't parity) (Lesson 95 — arithmetic cannot settle a domain question; assume your own fix is defective)
 
 **Purpose:** CAPTURE TECHNICAL HURDLES, AI-SPECIFIC QUIRKS, AND ARCHITECTURAL DECISIONS TO PREVENT REGRESSION AS CODEBASES AND AI AGENTS EVOLVE.
+
+---
+
+# Lesson 97: a production work-dispatcher is the wrong instrument to MEASURE the models it dispatches — and an errored call is a non-result, never a wrong answer
+
+**Context (2026-07-18):** Building `microbench_review.py` to grade 35 models' code-review quality, I ran them through the subagent **pool** (`run_agents` — the same path production review uses). Three strong models (`glm-5`, `kimi-k2.5`, `qwen3.7-max`) came back scored **F / 0.00**, and those 0.0 priors were persisted to `model_task_baseline(review)` — which would have taught `pick_models` to never pick them.
+
+**Root cause (two independent faults):** (1) **Wrong instrument.** The pool is a *work dispatcher*: it attaches provider/parameter constraints, and for those models OpenRouter returned `HTTP 404 "no endpoints found that satisfy"` — the router excluded them. A plain direct call returns answers fine (they later graded A+/A/B+). The pool's job is "get this done by whatever suitable model," which is *allowed to route around* a model; a benchmark's job is the opposite — "reach THIS exact model and report whether it answered." You cannot measure a model with a tool designed to avoid unsuitable ones. (2) **A non-result scored as a wrong answer.** The grader counted a 404/empty response as `recall = 0` ("reviewed it, missed every bug") instead of *excluding* it — manufacturing fake F grades and poisoning the priors.
+
+**The fix:** a `--direct` dispatch (`run_direct()`) that calls OpenRouter's `/chat/completions` with the barest body (`{model, messages, max_tokens}`) + generous token budget for reasoning models — reaches all 35. And errored/empty calls are now **excluded** from recall/precision (never a "miss"); a mostly-failed model is flagged **UNMEASURED** and never persisted as a 0 prior (the same discipline `build_task_baselines` uses to drop errored benchmark trials). The pool stays correct for review *work*; direct dispatch is correct for *measuring*.
+
+**Takeaway:** when you benchmark models, dispatch them the most direct way possible — every abstraction between you and the model call (routing, caps, provider filters) is a confound that can silently drop a model and read as "it failed." And always separate *the model gave a wrong answer* from *we failed to get an answer* — conflating them fabricates data and poisons every downstream ranking.
 
 ---
 

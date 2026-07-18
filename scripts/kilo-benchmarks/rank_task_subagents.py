@@ -406,6 +406,50 @@ def _load_coding_fallback(path: Path = CODING_FALLBACK_PATH) -> list[str]:
     return models
 
 
+def _review_benchmark_models() -> list[str]:
+    """Review models that cleared the PERMANENT eligibility gate, ranked best-first.
+
+    Source: `microbench_review` -> `model_review_metrics`, gated by
+    `build_task_baselines.review_eligible` (precision ≥ 99% · real $/1k ≤ 0.70 · p50 ≤ 10s — the
+    operator's constraints, defined once in build_task_baselines). Ordered by measured grade
+    (score5 desc) then real cost asc. This is the benchmark analog of `_load_coding_fallback` for
+    the `review` task_type: it both GATES the fleet review rows (only these ids survive) and
+    SUPPLIES benchmark-ranked review candidates so `pick_models("review")` sees them before any
+    fleet review runs accumulate. Empty list if the benchmark hasn't run → the review section
+    behaves exactly as before. Never raises."""
+    try:
+        from build_task_baselines import load_review_metrics, review_eligible
+
+        metrics = load_review_metrics()
+        elig = review_eligible()
+    except Exception:
+        return []
+
+    def _cost(m: str) -> float:
+        c = metrics[m]["cost_per_1k"]
+        return (
+            c if c is not None else 1e9
+        )  # NOT `c or 1e9`: a legit free model (0.0) must sort cheap
+
+    return sorted(
+        (m for m in metrics if m in elig),
+        key=lambda m: (-(metrics[m]["score5"] or 0), _cost(m), m),
+    )
+
+
+def _review_bench_ran() -> bool:
+    """Has the review benchmark produced ANY metrics? Distinguishes 'benchmark never ran' (gate
+    inactive → prior behaviour) from 'benchmark ran but nobody cleared the gate' (gate ACTIVE →
+    ineligible fleet review rows are dropped, i.e. fail-CLOSED — never fail-open past the operator's
+    permanent constraint). Never raises."""
+    try:
+        from build_task_baselines import load_review_metrics
+
+        return bool(load_review_metrics())
+    except Exception:
+        return False
+
+
 def render(rows: list, state: str = "ok") -> str:
     """Emit the ranked markdown from aggregated rows.
 
@@ -466,7 +510,18 @@ def render(rows: list, state: str = "ok") -> str:
     # no benchmark analog.
     coding_fallback_models: list[str] = _load_coding_fallback()
 
-    if not kept and not coding_fallback_models:
+    # REVIEW gate + supplement — the operator's permanent constraints (precision ≥ 99% · real
+    # $/1k ≤ 0.70 · p50 ≤ 10s) applied to the `review` task_type. `review_benchmark` is the
+    # eligible set ranked best-first; `review_gate` filters fleet review rows to only these ids.
+    # Both empty when the benchmark hasn't run → review behaves as before (no gate).
+    review_benchmark: list[str] = _review_benchmark_models()
+    review_gate: set[str] = set(review_benchmark)
+    # Gate is active whenever the benchmark RAN — even if zero models cleared it (fail-closed: drop
+    # the ineligible fleet review rows rather than pass them through). Inactive only when the
+    # benchmark has never run (no data → don't blank the section).
+    review_bench_ran: bool = _review_bench_ran()
+
+    if not kept and not coding_fallback_models and not review_benchmark:
         return header + (
             "No aggregated runs yet — `pick_models` continues to use vendored `_TABLE` default at "
             "`/opt/fabrik-lib/subagents/subagents/select.py:58`.\n"
@@ -478,7 +533,14 @@ def render(rows: list, state: str = "ok") -> str:
     emitted_task_types: set[str] = set()
     for task_type in sorted(by_task):
         task_rows = by_task[task_type]
+        # n_total is the FULL fleet total for this task (computed BEFORE the review gate) so it means
+        # the same thing in every section — "total observed fleet calls", not "calls among survivors".
         n_total = sum(r[2] for r in task_rows)
+        # Permanent review gate: only benchmark-eligible models survive in `review`. Active whenever
+        # the benchmark RAN — fail-CLOSED even if zero models cleared it (drop ineligible rows rather
+        # than pass them through); inactive only when the benchmark has never run (no data).
+        if task_type == "review" and review_bench_ran:
+            task_rows = [r for r in task_rows if r[1] in review_gate]
         # Fabrik-lib 2026-07-11 contract — the doc's rank order IS the
         # contract. Compute shrunk_q per row, apply the quality gate, then
         # sort survivors by (top-2-eligible desc, cost asc, model asc). Model
@@ -512,7 +574,9 @@ def render(rows: list, state: str = "ok") -> str:
         )
         out.append("|---:|---|---:|---:|---:|---:|:-:|---:|")
         emitted_code_models: set[str] = set()
+        emitted_review_models: set[str] = set()
         code_last_rank = 0
+        review_last_rank = 0
         for rank, (r, shrunk_q) in enumerate(scored, start=1):
             out.append(
                 f"| {rank} | `{r[1]}` | {shrunk_q:.2f} | {r[5]:.2f} | ${r[3]:.4f} | {r[4]:.2f} | "
@@ -521,6 +585,9 @@ def render(rows: list, state: str = "ok") -> str:
             if task_type == "code":
                 emitted_code_models.add(r[1])
                 code_last_rank = rank
+            elif task_type == "review":
+                emitted_review_models.add(r[1])
+                review_last_rank = rank
 
         # CODING supplement (inline mode a): append benchmark-ranked models
         # from CODING_SUBAGENT_SELECTION.md below the fleet rows in this
@@ -540,6 +607,16 @@ def render(rows: list, state: str = "ok") -> str:
                 out.append(
                     f"| {i} | `{model}` | [benchmark] | — | — | — | {_fmt_tier(tiers, model)} | 0 |"
                 )
+        # REVIEW supplement — same shape: append gate-eligible benchmark models below the fleet
+        # review rows so pick_models("review") sees a benched-but-not-yet-fleet-used reviewer.
+        if task_type == "review" and review_benchmark:
+            for i, model in enumerate(
+                [m for m in review_benchmark if m not in emitted_review_models],
+                start=review_last_rank + 1,
+            ):
+                out.append(
+                    f"| {i} | `{model}` | [benchmark] | — | — | — | {_fmt_tier(tiers, model)} | 0 |"
+                )
         out.append("")
         emitted_task_types.add(task_type)
 
@@ -554,6 +631,22 @@ def render(rows: list, state: str = "ok") -> str:
         )
         out.append("|---:|---|---:|---:|---:|---:|:-:|---:|")
         for rank, model in enumerate(coding_fallback_models, start=1):
+            out.append(
+                f"| {rank} | `{model}` | [benchmark] | — | — | — | {_fmt_tier(tiers, model)} | 0 |"
+            )
+        out.append("")
+
+    # REVIEW fallback — mode (b): no fleet `review` rows cleared the gate above, so emit a
+    # dedicated section from the gate-eligible benchmark so pick_models("review") still has a list.
+    if "review" not in emitted_task_types and review_benchmark:
+        # n_eligible_fleet=0 (not n_total=0): fleet review calls may exist but none cleared the gate;
+        # this section lists the gate-eligible benchmark models so pick_models("review") has a list.
+        out.append("### review (n_eligible_fleet=0, gated benchmark from model_review_metrics)")
+        out.append(
+            "| rank | model | shrunk_q | success | avg_cost | avg_quality | quality_tier | n |"
+        )
+        out.append("|---:|---|---:|---:|---:|---:|:-:|---:|")
+        for rank, model in enumerate(review_benchmark, start=1):
             out.append(
                 f"| {rank} | `{model}` | [benchmark] | — | — | — | {_fmt_tier(tiers, model)} | 0 |"
             )

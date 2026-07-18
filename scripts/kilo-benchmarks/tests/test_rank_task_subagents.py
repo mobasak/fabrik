@@ -66,6 +66,8 @@ def test_empty_input_emits_stub_content(monkeypatch) -> None:
     import rank_task_subagents
 
     monkeypatch.setattr(rank_task_subagents, "_load_coding_fallback", lambda *_a, **_k: [])
+    monkeypatch.setattr(rank_task_subagents, "_review_benchmark_models", lambda *_a, **_k: [])
+    monkeypatch.setattr(rank_task_subagents, "_review_bench_ran", lambda *_a, **_k: False)
     md = rank_task_subagents.render([])
     assert "No aggregated runs yet" in md
     assert md.startswith("Last refresh:")
@@ -259,6 +261,10 @@ def test_glm_4_5_air_style_demotion(monkeypatch) -> None:
         "rank_task_subagents._load_quality_tiers",
         lambda: {"z-ai/glm-4.5-air": 2},
     )
+    # isolate from the real review-eligibility gate — this test exercises the quality-gate
+    # demotion logic on the `review` task_type, not the benchmark supplement.
+    monkeypatch.setattr("rank_task_subagents._review_benchmark_models", lambda *_a, **_k: [])
+    monkeypatch.setattr("rank_task_subagents._review_bench_ran", lambda *_a, **_k: False)
     rows = [
         ("review", "z-ai/glm-4.5-air", 16, 0.002, 1.0, 0.81),  # → 1.58 shrunk_q
         ("review", "keeper/model", 50, 0.005, 3.5, 0.9),
@@ -595,6 +601,8 @@ def test_error_state_emits_distinct_stub_with_failure_banner(monkeypatch) -> Non
     import rank_task_subagents
 
     monkeypatch.setattr(rank_task_subagents, "_load_coding_fallback", lambda *_a, **_k: [])
+    monkeypatch.setattr(rank_task_subagents, "_review_benchmark_models", lambda *_a, **_k: [])
+    monkeypatch.setattr(rank_task_subagents, "_review_bench_ran", lambda *_a, **_k: False)
     md_ok = rank_task_subagents.render([], state="ok")
     md_err = rank_task_subagents.render([], state="error")
 
@@ -626,6 +634,8 @@ def test_main_exit_code_reflects_state(monkeypatch, tmp_path) -> None:
     out_path = tmp_path / "TASK_SUBAGENT_SELECTION.md"
     monkeypatch.setattr(rank_task_subagents, "OUTPUT_PATH", out_path)
     monkeypatch.setattr(rank_task_subagents, "_load_coding_fallback", lambda *_a, **_k: [])
+    monkeypatch.setattr(rank_task_subagents, "_review_benchmark_models", lambda *_a, **_k: [])
+    monkeypatch.setattr(rank_task_subagents, "_review_bench_ran", lambda *_a, **_k: False)
 
     monkeypatch.setattr(rank_task_subagents, "_query_rows", lambda: ("ok", []))
     assert rank_task_subagents.main() == 0

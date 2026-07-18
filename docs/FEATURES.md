@@ -1,6 +1,41 @@
 # Fabrik — Features
 
-**Last Updated:** 2026-07-11
+**Last Updated:** 2026-07-18
+
+## Review microbench — ground-truth code-review quality for the subagent pool (2026-07-18)
+
+`scripts/kilo-benchmarks/microbench_review.py` scores a model's ability to **catch bugs in a review**,
+against ground truth — not the circular flywheel self-score. The corpus is deterministic AST mutation
+of 8 self-contained victim functions (the mutmut operator classes — comparison flip, arithmetic swap,
+boolean and/or flip): 22 planted defects, each at a known line, plus 8 un-mutated controls. Every model
+in the pool reviews every item (single-shot `read_only` via the existing `libs.subagents.run_agents` +
+`pick_models`), returning JSON `{line, bug}`. Two numbers, both mandatory:
+
+- **recall** — planted defects caught / total (accuracy),
+- **precision** — 1 − (controls falsely flagged / controls) (noise; a "flag-everything" model has perfect
+  recall and `F1 = 0`).
+
+`score/5 = F1(recall, precision) × 5` writes to `model_task_baseline(task_type='review')`, which
+`rank_task_subagents._tier_baseline` already prefers as the per-task prior → `TASK_SUBAGENT_SELECTION.md`
+→ `pick_models`. **Cost + speed** are reported and persisted alongside in the `model_review_metrics`
+table + a dated JSON artifact: **cost is OpenRouter's REAL billed charge** (`usage.cost`, requested via
+`"usage": {"include": true}`) normalized to `$/1k` reviews — not a `tokens × list-price` estimate, so it
+reflects caching/BYOK/rounding/provider rate; `out $/M` (the list output price) is kept beside it for
+reference. Speed = p50 `latency_s` + `tok/s`. The gap between `out $/M` and `$/1k` is **verbosity** — a
+model billed at $2/M that emits ~950 tokens/review costs ~10× one billed at $3/M that emits ~90
+(measured: `seed-2.0-lite` vs `gemini-3-flash-preview`), so `$/1k` (real spend) is the number to rank on,
+never the per-token sticker price.
+
+**Two dispatch modes.** `--all` uses the pool (`run_agents`) for pool-eligible models. `--direct` calls
+OpenRouter directly (`run_direct()`) and reaches **every** model — the pool attaches provider constraints
+that 404 some models (`"no endpoints found that satisfy"`) even though they answer a plain request. A
+benchmark must *reach a specific model*, not route around it, so `--direct` is the correct mode for
+grading a candidate list; the pool remains correct for real review *work*. Errored/empty calls are
+excluded from recall/precision (a 404 is never a "miss") and mostly-failed models are flagged UNMEASURED,
+never persisted as a 0 prior. First full run (2026-07-18) graded 35 candidate models — `gemini-3-flash-preview`
+led at A/4.21 (73% recall, 100% precision, $0.22/1k, 1.6s); the precision term correctly sank
+`qwen3-coder-flash` (86% recall but 12% precision — a flag-everything model) to a D. `--smoke` /
+`--all [--direct] [--models …]` / `--report`.
 
 ## Coding microbench — live pass@1 for the coding-subagent ranking (2026-07-11)
 

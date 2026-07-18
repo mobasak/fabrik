@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — /fabrik-review hardening of the review-eligibility gate + benchmark (2026-07-18)
+
+Adversarial review (2 finder passes + a confirming pass) of the review-benchmark/gate work fixed a
+batch of real defects. **build_task_baselines:** `load_review_metrics` now takes the latest row
+**per model** (was global `MAX(built_at)`) — a partial `--models X` re-run on a new date no longer
+collapses the eligible set to just X and drops every other model fleet-wide; `review_eligible` now
+also requires **recall > 0** (a model that always answers `[]` scored precision 1.0 / recall 0 and
+cleared the gate despite catching nothing). **rank_task_subagents:** the review gate is now
+fail-**closed** — active whenever the benchmark RAN (even if zero models cleared it), not fail-open
+when the eligible set is empty; the free-model (`cost 0.0`) sort no longer ranks worst via `or 1e9`;
+`n_total` is the full fleet total (pre-gate), consistent across sections. **microbench_review:**
+`truth_line` is derived from the unparsed diff (robust to any future multi-line victim); an
+empty-content response is excluded (not scored as a missed bug); `_or_pricing` is fail-soft and the
+API key is fetched with a clear message, not a bare `KeyError`. **models_browser:** the Doc↔Code
+grade-rank map + legend include D/F (now reachable via the measured grade). +6 regression tests; 56 pass.
+
 ### Fixed — select_rules.py hub-hang: one pruned walk replaces per-glob rglob (2026-07-18)
 
 `select_rules.py` effectively hung at `/opt/fabrik` (repeated 2-minute timeouts, proven live): its per-glob `rglob` cannot prune, so it re-walked the ENTIRE tree — including ~80 full repo copies under `.tmp/subagents/` worktrees — once per glob per pack (~165 full traversals). Rewritten to a single `os.walk` with `_EXCLUDE` pruned **during** descent (`.tmp` added) + cached path list + rglob-equivalent tail matching in memory. Hub runtime 2-min-timeout → ~2.4s; output identical (19 ACTIVE + 36 AVAILABLE, `--json` and the relative `pack` field unchanged). Synced file — propagates to projects on next sync run. Found by /fabrik-plan-review's pass-2 native grounder (a plan gate that shells select_rules would have stalled execution). Also: spec G4 citation de-hallucinated ("circular…" quote wasn't on the cited page — reworded to the page's verbatim fit-test + labeled inference) and plan-2 hardened with 9 review edits (Phase-D gate `_README` filter, bounded-sync sentinel gate, atomic B9 swap, fleet-propagation R1 correction).

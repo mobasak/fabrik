@@ -24,7 +24,7 @@ def test_rank_all_returns_list_of_dicts_with_score_and_grade():
         assert isinstance(r, dict), r
         assert "id" in r
         assert "score" in r and 0.0 <= r["score"] <= 1.0, r
-        assert r["doc_grade"] in {"A+", "A", "B+", "B", "B-", "C+", "C"}, r["doc_grade"]
+        assert r["doc_grade"] in {"A+", "A", "B+", "B", "B-", "C+", "C", "D", "F"}, r["doc_grade"]
 
 
 def test_public_aliases_match_private_originals():
@@ -82,7 +82,7 @@ def test_export_payload_carries_coding_fields():
     assert len(candidates) >= 30
     for c in candidates:
         assert 0 <= c["code_fit_score"] <= 1
-        assert c["doc_code_grade"] in {"A+", "A", "B+", "B", "B-", "C+", "C"}
+        assert c["doc_code_grade"] in {"A+", "A", "B+", "B", "B-", "C+", "C", "D", "F"}
 
     # kimi-k2-thinking is excluded → candidate=False + excluded_reason non-empty
     exc = [m for m in chat if m["id"] == "moonshotai/kimi-k2-thinking"]
