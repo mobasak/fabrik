@@ -56,14 +56,16 @@ Build the mental model: Success Criteria ↔ flows ↔ components ↔ tickets �
 ### Step 2: Dispatch the Cross-Artifact Review — reviewer agents (BOTH mechanisms)
 
 **ARM every reviewer FIRST (spec G5/G6 — an un-armed reviewer measured ~0–22% defect recall):** run
-`python scripts/review_rubric.py --changed <the artifact paths under review> --workflow ettw` and **inject its output into every
-reviewer agent's prompt** as the rubric they hunt against. It carries the mandatory-core floor
-(`core/35-security-auth` + `core/25-data-postgres` + `core/30-ops` + all twelve 12-Factor axes — always
-injected regardless of glob, so the review is never un-armed and the reviewer's pack selection is
-independent of the doer's), every pack whose glob matches a changed path (mandate lines only), **and — via
-`--workflow ettw` — the ettw command-chain checklist items** (this command reviews command-chain files, so
-the authoring QA rubric injects too). Honesty (L1): injection *raises* compliance probability —
-maximally-enforced, **not** a compliance guarantee.
+`python scripts/review_rubric.py --changed <the artifact paths under review> --workflow ettw` and
+**inject its output into every reviewer agent's prompt** as the rubric they hunt against. The rubric
+carries three layers: **(1) the mandatory-core floor** — `core/35-security-auth` +
+`core/25-data-postgres` + `core/30-ops` + all twelve 12-Factor axes — always injected regardless of glob
+and never skippable, so the review is never un-armed on the high-blast-radius rules; **(2)** every pack
+whose glob matches a changed path (mandate lines only); **(3)** — because THIS review command audits
+command-chain files — the ettw authoring-QA checklist items, added by `--workflow ettw`. The whole rubric
+is computed fresh by the script; nothing is inherited from the doer. Honesty (L1): the injection STEP is
+maximally enforced (the rubric is always injected); this raises compliance probability — it does **not**
+make compliance guaranteed.
 
 Dispatch the review across the artifact seams through the **`libs/subagents` module** — **BOTH** layers, never either/or `[canonical: core/62-using-subagents.md § Dispatch policy]`:
 

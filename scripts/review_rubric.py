@@ -64,7 +64,7 @@ TWELVE_FACTOR = (
     "XII admin: migrations/one-offs run against the deployed release, never startup",
 )
 
-_MANDATE = re.compile(r"MUST|⚠️|\bnever\b|\bNever\b|BANNED|HARD STOP")
+_MANDATE = re.compile(r"MUST|⚠️|\bnever\b|\bNever\b|\bNEVER\b|\bDo not\b|\bdo NOT\b|BANNED|HARD STOP")
 _CHECK_ITEM = re.compile(r"^\s*\d+\.\s+\S")
 _GREPPABLE = re.compile(r"`[^`]+`")
 
@@ -92,7 +92,10 @@ def _packs(root: Path) -> list[tuple[str, list[str], str]]:
         for pack in sorted(rules_dir.rglob("*.md")):
             text = pack.read_text(encoding="utf-8", errors="replace")
             globs, _desc = select_rules._parse_frontmatter(text)
-            packs.append((pack.relative_to(rules_dir).as_posix(), globs, text))
+            # Strip the YAML frontmatter before mandate-scanning: a description like
+            # "tokens MUST rotate" is metadata, not a mandate — scanning it injects noise.
+            body = select_rules._FM.sub("", text, count=1)
+            packs.append((pack.relative_to(rules_dir).as_posix(), globs, body))
     return packs
 
 
@@ -105,7 +108,9 @@ def _glob_matches_path(changed: str, glob: str) -> bool:
     if pat.endswith("/**"):
         pat = pat[:-3]
     if not pat:
-        return False
+        # a wildcard-only glob (`**/`, `/**`) means match-everything; arming errs SAFE
+        # (deliberate divergence from select_rules, where empty = not-ACTIVE)
+        return True
     rel = changed.strip().lstrip("/")
     return any(
         select_rules._tail_matches(prefix, expanded)

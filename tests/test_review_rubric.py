@@ -91,14 +91,50 @@ def test_mandatory_core_floor_always_emitted(tmp_path):
     assert "core/99-zzz-test.md" not in out
 
 
+def test_dir_glob_matches_via_ancestor_prefixes(tmp_path):
+    """A directory glob (`**/uploads/**`) must match a file INSIDE that directory via the
+    ancestor-prefix logic (_prefixes) — the one integration seam select_rules' tree-matching
+    can't provide for single-path matching — and must NOT match a sibling directory."""
+    _mk_tree(tmp_path)
+    _mk_pack(
+        tmp_path,
+        "core/98-dirglob.md",
+        ["**/uploads/**"],
+        ["- Uploaded files MUST be virus-scanned."],
+    )
+    rr = _load()
+    hit = rr.build_rubric(["src/uploads/x.py"], workflow=None, root=tmp_path)
+    assert "core/98-dirglob.md" in hit
+    assert "virus-scanned" in hit
+    miss = rr.build_rubric(["src/other/x.py"], workflow=None, root=tmp_path)
+    assert "core/98-dirglob.md" not in miss
+
+
+def test_frontmatter_never_scanned_for_mandates(tmp_path):
+    """A MUST inside YAML frontmatter (e.g. the description) is metadata, not a mandate —
+    it must NOT be injected into the rubric (regression: frontmatter contamination)."""
+    _mk_tree(tmp_path)
+    p = tmp_path / ".windsurf" / "rules" / "core" / "97-fmtrap.md"
+    p.write_text(
+        "---\nactivation: glob\nglobs: [\"**/*.zzz\"]\n"
+        "description: tokens MUST rotate every 90 days\n---\n\n# fmtrap\n\nBody with no mandates.\n",
+        encoding="utf-8",
+    )
+    rr = _load()
+    out = rr.build_rubric(["src/thing.zzz"], workflow=None, root=tmp_path)
+    assert "rotate every 90 days" not in out  # frontmatter line never injected
+
+
 def test_workflow_flag_gates_checklist(tmp_path):
     """(c) `--workflow ettw` ADDITIONALLY emits the ettw checklist items; without
     `--workflow`, NO checklist content is emitted (packs only)."""
     _mk_tree(tmp_path)
     rr = _load()
     bare = rr.build_rubric(["src/thing.zzz"], workflow=None, root=tmp_path)
-    assert "4-stage lifecycle" not in bare
-    assert "CHECKLIST" not in bare.upper() or "WORKFLOW CHECKLIST" not in bare
+    # real leak-guards: neither checklist's content nor the section header may appear bare
+    assert "WORKFLOW CHECKLIST" not in bare
+    assert "4-stage lifecycle" not in bare  # ettw item
+    assert "mega lifecycle" not in bare  # mega item
     ettw = rr.build_rubric(["src/thing.zzz"], workflow="ettw", root=tmp_path)
     assert "4-stage lifecycle" in ettw
     assert "INFRA-CHECK" in ettw
