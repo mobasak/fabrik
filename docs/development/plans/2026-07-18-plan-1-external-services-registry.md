@@ -163,7 +163,9 @@ billing_cycle,renews_on,account_email)`; env var `SERVICES_REGISTRY_DSN`; fn `sy
 
 ---
 
-## Phase C — Hybrid credit fetchers + declared metadata
+## Phase C — Hybrid credit fetchers + declared metadata — ✅ EXECUTED 2026-07-18
+
+> Executed: `credit_fetchers/` (apify + deepl live-verified fetchers, resilient timeout+retry→None; exa/replicate return None — key-id/no-balance residual noted); `registry_sync` opt-in `fetch_credits` → `credit_snapshots`; `declare_subscription.py` CLI → `subscriptions`. 5 behavior tests green (14 total). Focused adversarial self-review (resilience + the real-key-only-to-vendor path verified); full multi-agent review folded into the Finish whole-plan review.
 
 **Goal:** populate `credit_snapshots` (auto where an API exists) + `subscriptions` (declared).
 

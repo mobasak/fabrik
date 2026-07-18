@@ -20,6 +20,7 @@ REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import registry_db  # noqa: E402
+from credit_fetchers import fetch_balance  # noqa: E402
 
 ALL_ENVS = REPO / "secrets" / "all-envs.env"
 SVC_RE = re.compile(
@@ -63,11 +64,11 @@ def parse(path: Path) -> list[dict]:
     return provs
 
 
-def sync_registry(dsn: str | None = None) -> dict:
+def sync_registry(dsn: str | None = None, fetch_credits: bool = False) -> dict:
     if dsn:
         os.environ["SERVICES_REGISTRY_DSN"] = dsn
     provs = parse(ALL_ENVS)
-    stats = {"services": 0, "api_keys": 0}
+    stats = {"services": 0, "api_keys": 0, "credit_snapshots": 0}
     conn = registry_db.connect()
     try:
         with conn, conn.cursor() as cur:
@@ -85,9 +86,11 @@ def sync_registry(dsn: str | None = None) -> dict:
                 )
                 sid = cur.fetchone()[0]
                 stats["services"] += 1
+                first_value = None
                 for _key, value, aliases, per_key_used in p["keys"]:
                     if not value:
                         continue
+                    first_value = first_value or value
                     digest = hashlib.sha256(value.encode("utf-8")).hexdigest()
                     # per-key attribution when present (a multi-key provider's keys differ),
                     # else the provider-wide union from the #svc used_by= field.
@@ -101,6 +104,17 @@ def sync_registry(dsn: str | None = None) -> dict:
                         (sid, digest, aliases, key_used),
                     )
                     stats["api_keys"] += 1
+                # Hybrid credit: fetch the account balance where a provider API exposes it.
+                # Resilient — fetch_balance returns None on any failure, so a dead vendor never
+                # sinks the sync. The REAL key stays host-side (sent only to the vendor's API).
+                if fetch_credits and first_value:
+                    snap = fetch_balance(meta["name"], first_value)
+                    if snap is not None:
+                        cur.execute(
+                            "INSERT INTO credit_snapshots (service_id, balance, unit) VALUES (%s,%s,%s)",
+                            (sid, snap.balance, snap.unit),
+                        )
+                        stats["credit_snapshots"] += 1
     finally:
         conn.close()
     return stats

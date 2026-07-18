@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — External-services registry: hybrid credit fetchers + declared subscriptions (2026-07-18)
+
+Phase C of the External Services & Credentials Registry (plan 2026-07-18-plan-1). Adds `scripts/credit_fetchers/` (per-provider account balance/usage via each vendor's live-verified API — apify `/v2/users/me/usage/monthly`, deepl `/v2/usage`; exa/replicate return None pending a key-id lookup / no balance endpoint), each **resilient** (timeout + retry, returns `None` on any failure, never raises — the real key is sent only to the vendor's own API). `registry_sync.py` gains an opt-in `fetch_credits` that writes `credit_snapshots`. `scripts/declare_subscription.py` is the manual half (renewal date / price / account-email → `subscriptions`, upsert). Behavior tests: fetch-failure→None, parse correctness, declare persists.
+
 ### Added — External-services registry: local Postgres schema + sync (2026-07-18)
 
 Phase B of the External Services & Credentials Registry (plan 2026-07-18-plan-1). Adds `db/services_registry_schema.sql` (4 tables — `services`, `api_keys`, `credit_snapshots`, `subscriptions` — in the local `fabrik_services` Postgres, applied via one-off `psql`, idempotent), a thin `scripts/registry_db.py` (`psycopg2.connect(SERVICES_REGISTRY_DSN)` + retry — db-pool was rejected at plan-review for requiring `DB_PASSWORD` with no peer-auth path), and `scripts/registry_sync.py` which parses `secrets/all-envs.env`'s `#svc` blocks into the registry storing **`value_sha256` — never the raw secret**. New env var `SERVICES_REGISTRY_DSN` (default: passwordless peer-auth socket). Behavior tests: sha256-not-raw, internal-config excluded, idempotent re-sync.
