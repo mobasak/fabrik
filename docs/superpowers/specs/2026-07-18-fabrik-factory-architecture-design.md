@@ -47,7 +47,7 @@ Three delivery tiers, most-reliable first. Each catches a different violation cl
 |---|---|---|---|
 | **1 — Mechanical gate** | `final_gate.py` (Tier-2: ruff/mypy/bandit/semgrep/…), `epic_order.py`, `scaffold.py`, `check_*` suite, Claude Code **hooks** | Mechanical/structural violations (types, secrets, schema-sync, counts, ports, sprawl). Deterministic — **can't be skimmed.** | G1 (Anthropic: for must-run, use enforcement/hooks, not prose) |
 | **2 — Compiled context** | Self-sufficient **command/skill files** (decisions inlined at authoring time; progressive disclosure) + the **one auto-loaded file `CLAUDE.md`** | The agent skipping context — it's *in* the execution window. | G2/G3 (Anthropic context-engineering: high-signal governance "dropped into context up front"; Skills compile rules at build time) |
-| **3 — Armed adversarial review** | `/fabrik-review`, mega-`04`, ettw-`08`/`10`: a **separate** reviewer **injected** with `select_rules.py`'s matched packs **+ the `EVALUATION_CHECKLIST` items as a discrete rubric**, looped to a **no-op** with a **refute step + oscillation guard** | **Semantic** violations a script cannot ("this design ignores the auth rule"). **This is the compliance engine.** | G4/G5/G6 |
+| **3 — Armed adversarial review** | `/fabrik-review`, mega-`04`, ettw-`08`/`10`: a **separate** reviewer **injected** with a rubric = `select_rules.py`'s glob-matched packs **+ a mandatory-core floor** (high-blast-radius packs, always — L3); the `EVALUATION_CHECKLIST` adds **only** for command-chain reviews (`--workflow`). Looped to a **no-op** with a **refute step + oscillation guard**. | **Semantic** violations a script cannot ("this design ignores the auth rule"). The compliance engine — but **probabilistic** (L1). | G4/G5/G6 |
 
 **The load-bearing consequence:** semantic "rules obeyed" is driven primarily at **Tier 3** — a fresh reviewer armed
 with the exact rule excerpts hunts the doer's output; the doer need not have read the rule. Tier 1 covers mechanics;
@@ -68,6 +68,12 @@ mitigates them; it does not eliminate them. Stating them is what keeps the desig
   (`fanout`), and multiple rounds — but does not make it certain. "Rules obeyed" (Goal §2) is **probabilistic, not
   sound.** *Mitigation, not cure:* inject the rubric that covers the violation classes; diversify finders; keep the
   mechanical gates (Tier 1) as the sound floor for everything they *can* check.
+  - **Standing direction (the real L1 response — drain Tier 3 into Tier 1).** The highest-leverage improvement is not a
+    better reviewer but *fewer semantic checks*: every mandate expressible as a deterministic `grep` (`postgres-main`
+    not `localhost`; no host `ports:`; `deploy.resources.limits.memory` present) should **migrate from the probabilistic
+    Tier-3 rubric to a `check_*` Tier-1 gate** — converting "probably caught" into "can't be skimmed." `review_rubric.py`
+    emits a **"mechanically-checkable → promote to `check_*`" candidate list** as a byproduct, feeding this migration over
+    time. This is the ongoing direction, not a one-time rollout step; the ladder gets *sounder* as Tier 1 grows.
 - **L2 — Residual "obey in-context" dependency (not eliminated, reduced).** Tier 3 replaces *"hope the doer reads the
   doc"* with *"the reviewer obeys the injected rubric"* — a **weaker** version of the same dependency the governing law
   distrusts (G1: even loaded context is "no guarantee"). The design's real claim is a **reduction ladder**: injection >
@@ -75,10 +81,13 @@ mitigates them; it does not eliminate them. Stating them is what keeps the desig
   favorable form; it does not remove it.
 - **L3 — Pack-selection blind spot.** Tier 3 is armed by `select_rules.py`, which activates packs by **glob match on
   existing files**. For a greenfield/design-time artifact (few files), the ACTIVE set is near-empty and packs are
-  chosen *proactively* — if the doer chose the wrong packs, an armed reviewer that inherits the same selection is
-  **blind to the same rule** (the shared-blind-spot failure the design claims to fix). *Mitigation:* the reviewer must
-  select packs **independently of the doer** (description-based, err toward a superset), and the `EVALUATION_CHECKLIST`
-  rubric is **always injected** regardless of glob — so at least the chain's own discipline is never un-armed.
+  chosen *proactively* — and "select packs *independently of the doer*" is hollow if the reviewer runs the **same glob
+  algorithm on the same near-empty file set** (identical function → identical blindness; not independence). *Real
+  mitigation — a **mandatory-core floor**:* `review_rubric.py` **always injects the high-blast-radius packs** —
+  `core/35-security-auth`, `core/25-data-postgres`, `core/30-ops` + the 12-Factor mandates — **regardless of glob**, so
+  a review is never un-armed on the rules that hurt most; glob-matched packs are added on top. (The `EVALUATION_CHECKLIST`
+  is **command-authoring QA, not a code rubric** — injected only when reviewing a command-chain file via `--workflow`,
+  never as the always-on floor.)
 - **L4 — This is 3–4 independently-shippable workstreams, not one build.** (a) collapse+`@import` the agents doc,
   (b) wire `select_rules`+rubric injection into the review commands, (c) bake the governing law into the north-star,
   (d) the `service_catalog.json` mechanical step. Shared philosophy, **disjoint blast radii** — (a) and (b) can ship
@@ -95,8 +104,8 @@ DESIGN-TIME SOURCES  — we (owner + Claude) read these to AUTHOR the factory; r
   · service_catalog.json (+ gather_envs.py)= machine inventory of owned external services
         │  compiled at authoring time ↓            fetched fresh at review time ↓
 COMPILED PROGRAMS (self-sufficient)          ARMED REVIEW (Tier 3)
-  · mega-epic-breakdown 00→02→03→04           · select_rules.py → matched packs' mandates
-  · epic-to-ticket-workflow 00→…→11           · EVALUATION_CHECKLIST items = discrete rubric
+  · mega-epic-breakdown 00→02→03→04           · select_rules → matched packs + mandatory-core floor (always)
+  · epic-to-ticket-workflow 00→…→11           · EVALUATION_CHECKLIST = command-review only (--workflow)
   · ~/.claude/commands /fabrik-*              · injected into finder prompts; loop to no-op
         │                                     ↑ enforces the rules the doer may not have read
 MECHANICAL GATES (Tier 1, deterministic)     BOOTSTRAP (the only auto-loaded file)
@@ -181,8 +190,10 @@ governs how *other* projects are built.
 - **The two human gates are preserved** (decomposition-in, `fabrik apply`-out).
 - **`CLAUDE.md` stays small** — it is the one auto-loaded file; it holds hard-stops + the gate contract + `@import` +
   pointers, not the full discipline (that's the packs, fetched at review time). ⚠️ Because `@import` loads the target
-  **in full** (G2), "small" is achieved by **content-stripping the imported agents doc** (§ AGENTS.md resolution), not
-  by the import mechanism — an import of a large doc is not small.
+  **in full** (G2) into **every** hub turn — including the thousands of routine coding turns that never need VPS
+  topology — the criterion for what gets `@import`-ed is **frequency-of-need, not line count**: a rarely-needed doc is
+  a permanent per-turn tax at *any* size. Only the **high-frequency** facts are imported; rarely-needed platform detail
+  (full VPS topology, the service list) → a **`Reads:`-fetched Tier-2 reference**, not the auto-load.
 - **Secrets never inlined** into any command/plan/prompt; live data reaches a command via a mechanical step, not a
   "read the secrets file" instruction.
 
@@ -212,8 +223,9 @@ governs how *other* projects are built.
   Constraints). → **Resolve:** one scratch-`CLAUDE.md` smoke test before the real edit. *(Not blocking the spec.)*
 - **U2 — injection format.** The exact shape of "select_rules output + checklist items → finder prompt rubric" is a
   design detail. → **Resolve:** prototype in ONE review command (`/fabrik-review`), review quality, then replicate.
-- **U3 — `service_catalog.json` status.** Created by the fabrik-AI; owner hasn't fully endorsed it as canonical. →
-  **Resolve:** owner decision (keep as the mechanical inventory source, or replace).
+- **U3 — `service_catalog.json` status (RESOLVED 2026-07-18, endorsement-by-use).** The owner actively used *and
+  corrected* the catalog this session (brought it to 90 services, 0 triage) — that is endorsement. It is the canonical
+  secret-free inventory; the owner overrides by editing it. No longer open.
 
 Not "zero unknowns."
 

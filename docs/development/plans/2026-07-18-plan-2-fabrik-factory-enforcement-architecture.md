@@ -29,6 +29,12 @@ independently-shippable workstreams).
 
 **Branch: RICH** — the CONVERGED spec pins goal + approach; no brainstorming. Straight to grounding + phasing.
 
+**⚠️ Execution order = C → A → D → B** (phase *labels* are by workstream, not sequence). L4 says the four are
+disjoint blast radii, so order by risk/value: **C first** (the core enforcement — `review_rubric.py` + arming the
+reviews; highest value, isolated, no dependency on B), then **A** (cheap — the law) and **D** (cheap — the catalog
+step), and **B LAST** (it rewrites `CLAUDE.md`, the shared auto-loaded bootstrap — the riskiest surgery, so it lands
+only after everything else is proven). Nothing in C/A/D depends on B.
+
 ---
 
 ## Context Ledger
@@ -38,11 +44,11 @@ independently-shippable workstreams).
 | Spec (CONVERGED) | goal, governing law, AGENTS.md option (b), L1–L4 bounds | `docs/superpowers/specs/2026-07-18-fabrik-factory-architecture-design.md` |
 | `scripts/select_rules.py` | pack selection primitive; emits ACTIVE/AVAILABLE pack **paths + descriptions** (has `--json`) | `scripts/select_rules.py:104-133` — prints packs, not bodies → the injector must read pack bodies |
 | `scripts/final_gate.py` | mechanical gate (Tier-1 showstoppers / Tier-3 repo health; static tools apply to any new `.py`) | `scripts/final_gate.py:11-28` |
-| `/opt/fabrik-lib/subagents/` | `fanout` + `set_quality` (finder breadth + flywheel) — **vendor, don't build** | `/opt/fabrik-lib/subagents/subagents/agent.py` (`def fanout`, `def set_quality`) |
+| `/opt/fabrik-lib/subagents/` | `fanout` + `set_quality` (finder breadth + flywheel) — **vendor, don't build** | `fanout` at `subagents/agent.py:710`; `set_quality` at `subagents/pg_ledger.py:269`; both re-exported by `subagents/__init__.py` → `from libs.subagents import fanout, set_quality` |
 | `/fabrik-review.md:72` | current review **reads** `.windsurf/rules` as binding context — the WS-C migration target | `~/.claude/commands/fabrik-review.md:72` |
 | north-star | design-time intent doc — where the governing law is baked | `docs/orchestrator/00-autonomous-factory-north-star.md` |
 | `CLAUDE.md` (161 lines, no `@import`) | the ONE auto-loaded file → the bootstrap; `@import` loads target **in full** (spec G2) | `CLAUDE.md` |
-| `scripts/service_catalog.json` | secret-free owned-service inventory (91 svcs) for the 00-trigger procurement step | `scripts/service_catalog.json` |
+| `scripts/service_catalog.json` | secret-free owned-service inventory (90 svcs, 0 triage) for the 00-trigger procurement step | `scripts/service_catalog.json` |
 
 **fabrik-lib consult:** the only capability with a code artifact is the WS-C **rubric extractor** — checked
 `fabrik-lib/README.md`: no module extracts "select_rules → pack mandates → review rubric"; it's factory-command-local
@@ -70,7 +76,8 @@ glue over the existing `select_rules.py`, not a generic reusable module → **pr
   **independent** → apply + review them as a **parallel fan-out** (one unit per command file, disjoint `owned_paths`),
   merged before the phase gate. The `review_rubric.py` per-behavior tests are authored via **`/fabrik-generate-tests`**
   (cheap pool authors → you curate).
-- **Sequential only on true data dependency:** A → B → C → D (each references the prior); within a phase, fan out.
+- **Sequential only on true data dependency:** the four phases are **L4-disjoint** → execution order is **C → A → D → B**
+  (§ top: B last, riskiest bootstrap surgery); within a phase, fan out the independent units.
 
 ---
 
@@ -114,12 +121,15 @@ the stripped agents doc.
 4. **Slim `CLAUDE.md` to a bootstrap** + add `@agents-fabrik.md`: keep hard-stops + the gate contract + the Doc-Sync
    Matrix + pointers; move any long prose out to its canonical home; append the `@agents-fabrik.md` import line.
 5. **Gate (mechanical):** `python scripts/select_rules.py >/dev/null` still runs (rules untouched);
-   `python scripts/enforcement/check_doc_sprawl.py --check` passes (no un-allowlisted file); `grep -q '@agents-fabrik'
-   CLAUDE.md`. Expected: all pass.
-6. **Gate (functional smoke — the U1 resolution step):** `claude` is present (`which claude` → OK, verified
-   2026-07-18). In a throwaway dir, write a scratch `CLAUDE.md` containing only `@agents-fabrik.md` (copy the stripped
-   doc beside it), run `claude -p 'quote one line from your imported agents context'`, and confirm the output reflects
-   a line from the stripped doc. Expected: the imported line appears. Record the output.
+   `python scripts/enforcement/check_doc_sprawl.py` exits 0 (no un-allowlisted file; the script has no argparse — no
+   flag); `grep -q '@agents-fabrik' CLAUDE.md`. Expected: all pass.
+6. **Gate (functional smoke — the U1 resolution step, DETERMINISTIC):** `claude` is present (`which claude` → OK,
+   verified 2026-07-18). In a throwaway dir, plant a rare sentinel line (e.g. `SENTINEL-IMPORT-OK-7f3a`) into a copy of
+   the stripped doc, write a scratch `CLAUDE.md` containing only `@<that-copy>`, then run
+   `claude -p 'output only the exact SENTINEL token in your imported context' | grep -q SENTINEL-IMPORT-OK-7f3a` →
+   exit 0. ⚠️ This is a **smoke test (spec U1), advisory — not a hard correctness gate**: if `claude -p` is flaky in the
+   env, fall back to asserting the `@import` syntax against the cited memory-doc example and record it as a one-line
+   owner check. Record the result either way.
 7. Doc-sync: update `INDEX.md` (AGENTS.md retired/stubbed) + `CHANGELOG.md`.
 8. **`/fabrik-review`** on the `CLAUDE.md` + `agents-fabrik.md` + `AGENTS.md` diff — no-op loop.
 9. Commit.
@@ -132,28 +142,47 @@ the stripped agents doc.
 **Files:** `scripts/review_rubric.py` (new), `~/.claude/commands/fabrik-review.md`,
 `docs/orchestrator/mega-epic-breakdown/04-cross-epic-validation-fabrik.md`,
 `docs/orchestrator/epic-to-ticket-workflow/{08-implementation-validation,10-cross-artifact-validation}-fabrik.md`.
-**Interfaces — Consumes:** `select_rules.py --json` (pack paths). **Produces:** `review_rubric.py --changed <paths>` →
-emits the injectable rubric (matched-pack mandates + relevant `EVALUATION_CHECKLIST` items).
+**Interfaces — Consumes:** `select_rules.py --json` (relative pack paths). **Produces:**
+`review_rubric.py --changed <paths> [--workflow {mega,ettw}]` → emits the injectable rubric: **matched rule-pack
+mandates ALWAYS** (the code-review rubric — L3 core, never un-armed); `EVALUATION_CHECKLIST` items **only** when
+`--workflow` names a command-chain review (the checklists are command-authoring QA, *not* a code rubric).
 
-1. **Highest-risk behavior FIRST (TDD).** Write `tests/test_review_rubric.py` asserting: given a changed path under a
-   glob a pack matches, `review_rubric.py` emits that pack's mandate lines; and it **always** emits the
-   `EVALUATION_CHECKLIST` rubric regardless of glob (L3 mitigation — never un-armed). Run it → RED for the right reason.
-2. **Build `scripts/review_rubric.py`** (small, stdlib + reuse `select_rules.py`'s frontmatter parser): input = changed
-   paths (+ optional workflow type for the ettw/mega checklists); runs `select_rules.py --json`, reads the matched pack
-   **bodies**, extracts their mandate/`⚠️`/`MUST` lines, unions the applicable `EVALUATION_CHECKLIST_*` items, prints a
-   compact rubric. **L3:** pack selection is done **by this script independently of the doer**, description-based, erring
-   to a superset; the checklist rubric is unconditional. Run test → GREEN.
+1. **Highest-risk behavior FIRST (TDD).** Write `tests/test_review_rubric.py` asserting: (a) a changed path under a
+   pack's glob → that pack's mandate lines are emitted; (b) **the mandatory-core floor packs (`core/35-security-auth`,
+   `core/25-data-postgres`, `core/30-ops` + the 12-Factor mandates) are ALWAYS emitted regardless of glob** — even for a
+   path matching no pack (L3 — never un-armed on the high-blast-radius rules); (c) `--workflow ettw` *additionally* emits
+   the ettw checklist items, and **without `--workflow` NO checklist is emitted** (packs only). Run it → RED.
+2. **Build `scripts/review_rubric.py`** — **stdlib-only** (it will be synced project-side per step 3, so no hub-only
+   deps) + reuse `select_rules.py`'s frontmatter parser. Interface `--changed <paths> [--workflow {mega,ettw}]`: runs
+   `select_rules.py --json`, **joins each returned *relative* pack path to `.windsurf/rules/`** (the `--json` `pack`
+   field is `pack.relative_to(rules_dir)`) to read the pack **body**, extracts its mandate lines (`MUST` / `⚠️` /
+   `never`). **L3 — mandatory-core floor:** the script **always injects the high-blast-radius packs**
+   (`core/35-security-auth`, `core/25-data-postgres`, `core/30-ops`, 12-Factor) **regardless of glob**; glob-matched
+   packs add on top. ("Independent selection" of the *same* glob function isn't independence — the floor is what
+   guarantees a review is never un-armed.) The `EVALUATION_CHECKLIST_*` items are **command-authoring QA, not a code
+   rubric** — unioned **only** with `--workflow` (`mega`/`ettw`). As a **byproduct**, emit a
+   `# promote-to-check_*:` line listing any injected mandate that is a deterministic grep (feeds the spec's Tier-1
+   promotion direction). Run test → GREEN.
+2b. **Sync `review_rubric.py` project-side (BLOCKING — else it FileNotFoundErrors in every project review).**
+   `/fabrik-review` runs *inside each project*, and calls `review_rubric.py` there — exactly why `select_rules.py` +
+   `final_gate.py` are already in the sync manifest. Add `scripts/review_rubric.py` to `scripts/fabrik_synced_manifest.py`
+   (one line), and run `python scripts/sync_enforcement_to_projects.py` (or the sync path the manifest drives) so it
+   propagates. **Gate:** `grep -q review_rubric scripts/fabrik_synced_manifest.py`. This is why step 2 mandates
+   stdlib-only.
 3. **Wire injection into `/fabrik-review`:** replace the *"READ `.windsurf/rules/**` as BINDING CONTEXT"* step
    (`:72`, the migration target) with *"run `python scripts/review_rubric.py --changed <diff paths>` and inject its
    output into every finder's prompt as the rubric they hunt against (G5/G6)."* Keep the static 12-Factor/test-quality
    hunt-lists (belt-and-suspenders).
-4. **Wire the same injection step** into mega-`04` and ettw-`08`/`10` review commands (their finder-dispatch step),
-   pointing each at the workflow-appropriate `EVALUATION_CHECKLIST`.
+4. **Wire the same injection step** into mega-`04` (`--workflow mega`) and ettw-`08`/`10` (`--workflow ettw`) — these
+   review command-chain *files*, so they inject **both** the rule-pack mandates AND their workflow checklist. Generic
+   `/fabrik-review` (step 3) passes **no** `--workflow` → rule-pack mandates only (a code diff has no command checklist).
 5. **Honesty (L1/L2):** each edited review command states, once, that the loop is *maximally-enforced, probabilistic —
    not a compliance guarantee* (spec § Known limitations), and that the reviewer selects packs independently of the doer
    (L3). No overclaim.
-6. **Gate (functional):** `python scripts/review_rubric.py --changed scripts/final_gate.py` prints a non-empty rubric
-   including `.windsurf/rules/core/…` mandates + checklist items. Expected: non-empty, contains a pack path.
+6. **Gate (functional):** (a) `python scripts/review_rubric.py --changed scripts/final_gate.py` → non-empty, contains
+   `.windsurf/rules/core/…` mandate lines and **no** checklist items (no `--workflow`); (b) `python scripts/review_rubric.py
+   --changed docs/orchestrator/mega-epic-breakdown/02-epic-decomposition-fabrik.md --workflow mega` → *also* contains
+   items from `EVALUATION_CHECKLIST_FOR_MEGA_EPIC_COMMANDS.md`. Expected: both as stated.
 7. **Gate (mechanical):** `python scripts/final_gate.py --check --json` on the new script → `"status":"success"`
    (ruff/mypy/bandit on `review_rubric.py`); `pytest tests/test_review_rubric.py -q` green.
 8. **Checklist eval:** each edited command file re-evaluated against its `EVALUATION_CHECKLIST_*` (mega/ettw) → 0 FAIL.
@@ -175,7 +204,9 @@ Services grounding.
    `cost=free|freemium`; only live-research a NEW provider if nothing owned fits."* Add `scripts/service_catalog.json`
    to 00's `Reads:` header (so the read is forced, not assumed — Tier-2 compiled).
 2. **Gate (functional):** `python -c "import json; d=json.load(open('scripts/service_catalog.json')); print(len(d))"`
-   → ≥80 (catalog loads). And `grep -q 'service_catalog.json' docs/orchestrator/mega-epic-breakdown/00-trigger-fabrik.md`.
+   → **== 90 services, 0 triage** (catalog loads clean; verified this session — a 0-unknown catalog is a materially
+   stronger mechanical input than the plan first assumed). And `grep -q 'service_catalog.json'
+   docs/orchestrator/mega-epic-breakdown/00-trigger-fabrik.md`.
 3. **Checklist eval:** 00-trigger re-evaluated against `EVALUATION_CHECKLIST_FOR_MEGA_EPIC_COMMANDS.md` → 0 FAIL.
 4. Doc-sync: `CHANGELOG.md`.
 5. **`/fabrik-review`** on the 00-trigger diff — no-op loop.
@@ -201,6 +232,7 @@ AGENTS.md
 CLAUDE.md
 scripts/review_rubric.py
 tests/test_review_rubric.py
+scripts/fabrik_synced_manifest.py   ⚠️ Phase C step 2b adds review_rubric.py here so it propagates project-side
 docs/orchestrator/mega-epic-breakdown/00-trigger-fabrik.md
 docs/orchestrator/mega-epic-breakdown/04-cross-epic-validation-fabrik.md
 docs/orchestrator/epic-to-ticket-workflow/08-implementation-validation-fabrik.md
@@ -217,7 +249,7 @@ project) before Phase B; per its File-Ownership row it is the Claude bootstrap (
 - Phase A: north-star has `## Owner Working Model` + `## Decisions` (read this session) → the law section slots beside them.
 - Phase B: `CLAUDE.md` = 161 lines, no `@import` (`grep` this session); `AGENTS.md`≈`agents-fabrik.md` = 42 diff lines.
 - Phase C: `select_rules.py:104-133` prints packs+descriptions (has `--json`) → extractor reads bodies; `fabrik-review.md:72` = the "READ rules" migration target; `/opt/fabrik-lib/subagents/subagents/agent.py` defines `fanout`/`set_quality`.
-- Phase D: `service_catalog.json` = 91 services (this session); 00-trigger has the N3c 6-check + External-Services grounding (read this session).
+- Phase D: `service_catalog.json` = 90 services, 0 triage (verified this session); 00-trigger has the N3c 6-check + External-Services grounding (read this session).
 - External grounding inherited from the CONVERGED spec (G1–G7, re-verified 2026-07-18); not re-fetched here.
 
 ## Self-audit
@@ -233,12 +265,17 @@ project) before Phase B; per its File-Ownership row it is the Claude bootstrap (
 
 - **Resolved:** `@import` loads-in-full + depth-capped (spec G2); catalog is secret-free (this session); all targets
   exist; **R1 — CLAUDE.md is hub-editable** (regular file, hub-owned, not in any project `synced.lock` — verified
-  2026-07-18); toolchain (`python3`/`pytest`/`ruff`/`git`/`claude`) all present; `select_rules.py` has `--json`.
+  2026-07-18); toolchain (`python3`/`pytest`/`ruff`/`git`/`claude`) all present; `select_rules.py` has `--json`;
+  **catalog endorsed by use** (spec U3 resolved — owner used + corrected it to 90/0-triage this session).
 - **Still-open (both self-service — no execution stall):**
   - **R2 — `~/.claude/commands/fabrik-review.md` is outside the fabrik repo.** **Self-service:** Phase C edits it in
     place (a user-command-dir file, not a repo commit) and lists it in the handoff; it is NOT under the repo File-Scope
     lock. The mega/ettw review commands ARE in-repo. No decision owed — the executor just edits it.
-  - **R3 — stripped agents-doc size.** **Self-service with a default:** Phase B step 4 measures the stripped
-    `agents-fabrik.md` line count; **if > ~300 lines**, split the rarely-needed part into a `Reads:`-fetched reference
-    and `@import` only the high-frequency core (spec § Constraints); else `@import` whole. The executor applies the
-    threshold without asking.
+  - **R3 — what to `@import` vs `Reads:`-fetch.** **Self-service, criterion = frequency-of-need, NOT size** (spec §
+    Constraints): Phase B step 4 `@import`s only the **high-frequency** facts (needed most hub turns); rarely-needed
+    platform detail (full VPS topology, the service list) → a `Reads:`-fetched Tier-2 reference — because `@import`
+    taxes *every* turn at any size. A ~200-line doc needed 5% of turns still doesn't belong in the auto-load. The
+    executor sorts by frequency, not line count.
+  - **R4 — pack-count drift (nit, pre-existing, out of scope).** The north-star/spec say "54 packs" (correct — 54 `.md`
+    files), `fabrik-review.md:68` + `CLAUDE.md` still say "50"; this plan doesn't own that reconciliation. **Self-service:**
+    if Phase B/C is already editing the file that carries a stale count, align it to 54; else leave it (not this plan's scope).
