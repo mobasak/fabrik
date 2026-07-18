@@ -62,7 +62,7 @@ def fixture_env(tmp_path, monkeypatch):
 def test_value_sha256_never_raw(fixture_env):
     """Given a fixture with a known secret, When synced, Then api_keys holds the SHA-256 (not
     the raw secret), and the internal-config PORT is not a service."""
-    rs.sync_registry()
+    rs.sync_registry(prune=False)  # partial fixture — must NOT wipe the real registry
     conn = rdb.connect()
     with conn, conn.cursor() as cur:
         cur.execute(
@@ -83,8 +83,8 @@ def test_value_sha256_never_raw(fixture_env):
 
 def test_sync_idempotent(fixture_env):
     """Given unchanged input, When synced twice, Then no duplicate api_keys row appears."""
-    rs.sync_registry()
-    rs.sync_registry()
+    rs.sync_registry(prune=False)
+    rs.sync_registry(prune=False)
     conn = rdb.connect()
     with conn, conn.cursor() as cur:
         cur.execute(
@@ -93,4 +93,37 @@ def test_sync_idempotent(fixture_env):
             (TEST_PROVIDER,),
         )
         assert cur.fetchone()[0] == 1
+    conn.close()
+
+
+def test_prune_removes_orphans():
+    """Given an orphan service absent from all-envs.env, When synced with prune=True (the CLI
+    default, against the REAL file), Then the orphan is deleted and the real registry survives.
+
+    Uses the real ALL_ENVS (not the one-provider fixture) precisely because a global prune against
+    a partial file would wipe everything — the guard this test also proves is load-bearing.
+    """
+    try:
+        rdb.connect().close()
+    except Exception:  # noqa: BLE001
+        pytest.skip("local fabrik_services PG not reachable")
+    if not rs.ALL_ENVS.exists():
+        pytest.skip("secrets/all-envs.env not present — run gather_envs.py --apply first")
+    orphan = "test_zzz_orphan_prune"
+    conn = rdb.connect()
+    with conn, conn.cursor() as cur:
+        cur.execute(
+            "INSERT INTO services (provider, category, cost_tier, url, status) "
+            "VALUES (%s,'?','?','?','?') ON CONFLICT (provider) DO NOTHING",
+            (orphan,),
+        )
+    conn.close()
+    stats = rs.sync_registry()  # prune=True default, REAL file → all real providers preserved
+    assert stats["pruned"] >= 1
+    conn = rdb.connect()
+    with conn, conn.cursor() as cur:
+        cur.execute("SELECT count(*) FROM services WHERE provider=%s", (orphan,))
+        assert cur.fetchone()[0] == 0  # orphan pruned
+        cur.execute("SELECT count(*) FROM services")
+        assert cur.fetchone()[0] >= 50  # real registry intact — NOT wiped by the global prune
     conn.close()

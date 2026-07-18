@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — External-services registry: catalog all 90 providers + prune stale-rename orphans (2026-07-18)
+
+Catalogued the 10 remaining `?` providers (zari + boldata = customs/trade-intelligence, plus tco, dna, orbisearch, seo, puter, captcha, translator, factory) in `scripts/service_catalog.json` — the dashboard now shows **zero `?` triage rows**. Root-caused two lingering `category='?'` rows (`dna_test`, `puter_auth`) to a real bug: `registry_sync.sync_registry` upserted but never pruned, so a provider recatalogued under a new match-prefix left its old row behind forever. Added a **guarded global prune** (`prune=True` default for the CLI; skipped when the parse is empty so a corrupt file can't wipe the registry, and `prune=False` for partial-file callers like the fixture tests). 1 new behavior test (orphan pruned, real registry survives); partial-fixture tests pinned to `prune=False`. Credits confirmed live-fetching where a balance API exists (deepl: 500k chars remaining).
+
 ### Added — External-services registry: HTML dashboard (live server + static) (2026-07-18)
 
 Two views of the `fabrik_services` registry, both **zero-secret** (metadata + a `value_sha256` count only): `scripts/dashboard_server.py` is a **LIVE** server (binds `0.0.0.0` so a Windows browser reaches the WSL host; `http://localhost:8770`) that queries the registry on every load (auto-refresh 30s); `scripts/gen_dashboard.py` renders a static self-contained HTML snapshot. Both show every external service by capability category — cost tier, credit balance, renewal date, price, account-email, which projects use it, key count — sortable/filterable, dark+light themes, semantic cost/status pills.

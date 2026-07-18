@@ -64,11 +64,11 @@ def parse(path: Path) -> list[dict]:
     return provs
 
 
-def sync_registry(dsn: str | None = None, fetch_credits: bool = False) -> dict:
+def sync_registry(dsn: str | None = None, fetch_credits: bool = False, prune: bool = True) -> dict:
     if dsn:
         os.environ["SERVICES_REGISTRY_DSN"] = dsn
     provs = parse(ALL_ENVS)
-    stats = {"services": 0, "api_keys": 0, "credit_snapshots": 0}
+    stats = {"services": 0, "api_keys": 0, "credit_snapshots": 0, "pruned": 0}
     to_fetch: list[tuple[int, str, str]] = []
     conn = registry_db.connect()
     try:
@@ -107,6 +107,15 @@ def sync_registry(dsn: str | None = None, fetch_credits: bool = False) -> dict:
                     stats["api_keys"] += 1
                 if fetch_credits and first_value:
                     to_fetch.append((sid, meta["name"], first_value))  # fetch AFTER commit
+            # Prune orphans: services no longer in all-envs.env (e.g. a provider recatalogued
+            # under a new match prefix leaves its old `?` row behind). Children cascade-delete.
+            # GUARD: never prune when the parse yielded nothing — an empty/corrupt file must not
+            # wipe the whole registry. `prune=False` is for callers syncing a PARTIAL file (e.g.
+            # tests with a one-provider fixture) that must not delete the rest of the registry.
+            seen = [p["meta"]["name"] for p in provs]
+            if prune and seen:
+                cur.execute("DELETE FROM services WHERE provider <> ALL(%s)", (seen,))
+                stats["pruned"] = cur.rowcount
     finally:
         conn.close()
     # Hybrid credit: fetch balances OUTSIDE the upsert transaction — network I/O must never hold
