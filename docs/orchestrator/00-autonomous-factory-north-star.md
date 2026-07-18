@@ -45,19 +45,46 @@ idea ─▶ [full/large vision] mega-epic-breakdown ─▶ N epic files (each of
                                      review ─▶ deploy
 ```
 
-**Which workflow.** Full / large vision → `mega-epic-breakdown` (vision → epics). Single epic → `epic-to-ticket-workflow` directly. Existing project → mega `00` in **EXISTING mode**.
+**Which workflow — three tiers.** Feature-scale (one operator-carried plan) → the `/fabrik-spec` pipeline. Epic → `epic-to-ticket-workflow` directly. Full / large vision → `mega-epic-breakdown` (vision → epics). Existing project → mega `00` in **EXISTING mode**. Test: needs tickets + dispatched agents ⇒ epic/vision; one operator-carried plan ⇒ feature-scale.
 
 **One command set.** The runnable chain is the tool-capable **`-fabrik`** files under `docs/orchestrator/**`. The old `docs/traycer/{mega-epic-breakdown,epic-to-ticket-workflow}/` **`-command` twins were a tool-less mirror** premised on a now-false "Traycer can't use tools" assumption — **archived 2026-07-18** (D2 corrected). No two-set lockstep tax.
 
 ---
 
-## The two-workflow factory (end-to-end) — added 2026-07-16
+## Enforcement Model (the governing law) — added 2026-07-18
 
-Both `docs/traycer/` chains run the **same end-to-end pipeline**; they differ only in **who orchestrates**.
+> **Nothing is ambient. Every load-bearing constraint reaches the acting agent through one of three delivery
+> tiers — mechanical gate, compiled context, or armed review — never by an agent voluntarily reading a
+> governance doc.**
+
+The reliability ladder (full design + honest bounds: spec `docs/superpowers/specs/2026-07-18-fabrik-factory-architecture-design.md`):
+
+| Tier | Mechanism | Catches |
+|---|---|---|
+| **1 — Mechanical gate** | `final_gate.py` (Tier-2) · `check_*` suite · `epic_order.py` · hooks | Deterministic violations — can't be skimmed |
+| **2 — Compiled context** | self-sufficient command files (decisions inlined at authoring time) + the one auto-loaded `CLAUDE.md` | The agent skipping context — it's in the window |
+| **3 — Armed review** | `review_rubric.py` injects the matched packs + a mandatory-core floor into every finder; looped to a no-op | Semantic violations a script can't catch |
+
+Honesty bound (spec § Known limitations L1–L4): Tier 3 is **probabilistic** — injection raises compliance
+probability, it does not prove it. Standing direction: **drain Tier 3 into Tier 1** — every mandate
+expressible as a deterministic grep migrates to a `check_*` gate (`review_rubric.py` emits promote
+candidates as a byproduct), so the ladder gets sounder over time.
+
+## The two-workflow factory (end-to-end) — added 2026-07-16 · front door widened to THREE tiers 2026-07-18
+
+The two orchestrator chains (mega + ettw) run the **same end-to-end pipeline** and differ only in **who orchestrates**; since 2026-07-18 the front door is **three-tiered by scale** (step 1) — the feature-scale `/fabrik-spec` pipeline is the third entry, not a chain of its own.
 
 **The pipeline (idea → deploy) — every step converged to a no-op by its paired review before the next starts (R7/CC1, extended across the whole factory):**
 
-1. **Front door** — a new *or existing* idea/plan → interactive Q&A → project **type · scope · requirements · data contract · GUI/screens · backend · frontend**. This IS the Fabrik pipeline: `/fabrik-spec` → `/fabrik-data-contract` → *(GUI)* `/fabrik-ui-design` → `/fabrik-plan-after-chat` — each grounded against the applicable `.windsurf/rules` packs + `AGENTS.md` + `CLAUDE.md`, and converged by its paired `-review`.
+1. **Front door — three tiers by scale, symmetric routing.** **Feature-scale** (one plan an operator
+   session carries) → `/fabrik-spec` → `/fabrik-data-contract` → *(GUI)* `/fabrik-ui-design` →
+   `/fabrik-plan-after-chat` → execute — each grounded against the applicable `.windsurf/rules` packs and
+   converged by its paired `-review`. **Epic** (needs a ticket store + dispatched agents) →
+   `epic-to-ticket-workflow/00-trigger-fabrik` directly. **Multi-epic vision** →
+   `mega-epic-breakdown/00-trigger-fabrik` (spec-grade intake — its Required sections carry everything
+   `/fabrik-spec` produces; its Scale Assessment down-routes). The distinguishing test, once: *does it need
+   tickets and dispatched agents, or is it one plan an operator session can carry?* Routing is symmetric —
+   `/fabrik-spec` up-routes and ettw-00 mirrors (shipped 2026-07-18), so no entry point is "wrong." (Existing project → mega-00 in **EXISTING mode** — see § Which workflow.) ⚠️ A feature-scale entry **completes at its `execute`** — steps 2–5 below are the epic/vision tiers' path, not a continuation of feature-scale work.
 2. **Epic decomposition** — on the operator's agreement, `mega-epic-breakdown/` splits the vision into independent epics (`00-trigger` → `02-epic-decomposition` → `03-expand-epic-files` → `04-cross-epic-validation` → `05-dispatch-epic-tickets`).
 3. **Scaffold** — create the scaffold project (`fabrik scaffold`, one of the 11 types) if it doesn't exist; if it does, **review it and bring it to 100 % compatible** with the agreed spec/`shape:`.
 4. **Per-epic → tickets** — each epic runs the `epic-to-ticket-workflow/` (`00-trigger` → `01-epic-brief` … `10-cross-artifact-validation` → `11-deploy`).
@@ -148,6 +175,7 @@ nothing tracked whether they stayed true. Recorded now, with their real state.
 
 ## Decisions
 
+- **D-Enforce (2026-07-18):** the reliability ladder is the factory's compliance model — see § Enforcement Model + spec 2026-07-18-fabrik-factory-architecture-design.
 - **D1 / D6 — updated 2026-07-18.** Current cockpit + planning surface = the **Traycer desktop app** (tool-capable, Claude-Max-powered — Traycer is now its own desktop app, no longer a VS Code extension). Planned future **alternative** front-end = a **Zed/ACP extension** (D-Zed) driving the *same* `-fabrik` chain — Rust/GPUI, not Electron, satisfying **R15** ("no Electron fleet-of-windows"). **One workflow, interchangeable front-end** — not two "managed" workflows.
 - **D2 — CORRECTED 2026-07-18: ONE tool-capable command set; Traycer is NOT tool-less.** The earlier "two workflows — tool-less Traycer (`-command`) vs tool-capable Fabrik (`-fabrik`)" split rested on a false premise. **Traycer's desktop app is powered by Claude Max (Claude Code), so it has full tools** (shell / MCP / web / subagents) — this file is edited by exactly that engine, running inside Traycer. So there is **one runnable, tool-capable chain: the `-fabrik` files in `docs/orchestrator/**`** (the single source of truth). The `docs/traycer/{mega-epic-breakdown,epic-to-ticket-workflow}/` `-command` twins (a tool-less mirror) were **archived 2026-07-18** — no lockstep tax. The *front-end* stays interchangeable (Traycer desktop today; a Zed/ACP extension later, D-Zed), but both drive the same `-fabrik` commands. See § Owner Working Model.
   → **Status:** ettw `00`–`11` built + converged (2026-07-16); **mega `00`/`02`/`03` brought to the enforcement bar, `04` is the convergence twin, `05` retired (2026-07-18)**. Shared review skill = `/fabrik-workflow-review` (folder-neutral; a duplicate `/fabrik-mega-review` was rejected per CC1's "one lean template"). Design history: `docs/superpowers/{specs,plans}/2026-07-16-traycer-fabrik-twins-*`.

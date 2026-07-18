@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — North-star: Enforcement Model (the governing law) + three-tier front door (2026-07-18)
+
+Plan-2 Phase A. The north-star now carries the reliability ladder as § Enforcement Model (gate / compiled
+context / armed review, with the L1 honesty bound and the drain-Tier-3-into-Tier-1 standing direction) +
+decision D-Enforce. The § two-workflow "front door" self-contradiction is resolved to the three-tier model
+(feature-scale → `/fabrik-spec` pipeline · epic → ettw-00 · multi-epic vision → mega-00, one distinguishing
+test, symmetric routing) and § Which workflow aligned to the same tiers.
+
 ### Added — Armed-review rubric injection: review_rubric.py + 4 review commands wired (2026-07-18)
 
 Plan-2 Phase C (WS-B, the core enforcement). New fleet-synced, stdlib-only `scripts/review_rubric.py` —

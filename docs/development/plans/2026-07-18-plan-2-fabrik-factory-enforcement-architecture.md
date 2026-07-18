@@ -83,7 +83,7 @@ glue over the existing `select_rules.py`, not a generic reusable module → **pr
 
 ---
 
-## Phase A — Bake the governing law into the north-star (WS-C)
+## Phase A — Bake the governing law into the north-star (WS-C)  — ✅ EXECUTED 2026-07-19 (review no-op R1:2/2 R2:1/1 R3:0/0)
 
 **Responsibility:** make the reliability-ladder law the design-time source everything else is authored against.
 **Files:** `docs/orchestrator/00-autonomous-factory-north-star.md` (edit).
