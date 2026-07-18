@@ -116,7 +116,9 @@ capability,url,status,match[]}}`. **Consumes:** nothing (foundation).
 
 ---
 
-## Phase B — Postgres registry schema + `registry_sync`
+## Phase B — Postgres registry schema + `registry_sync` — ✅ EXECUTED 2026-07-18
+
+> Executed: `fabrik_services` DB created (peer-auth); 4-table schema applied; thin `registry_db.py` (db-pool rejected → `psycopg2.connect(DSN)`); `registry_sync.py` synced 91 services / 247 api_keys (real run) storing `value_sha256` only; 2 behavior tests green (sha256-not-raw, idempotent). Focused adversarial self-review; full multi-agent `/fabrik-review` deferred to a resumed run (context budget).
 
 **Goal:** the local-Postgres source of truth for services/keys, loaded from `all-envs.env`.
 

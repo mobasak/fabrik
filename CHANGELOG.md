@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — External-services registry: local Postgres schema + sync (2026-07-18)
+
+Phase B of the External Services & Credentials Registry (plan 2026-07-18-plan-1). Adds `db/services_registry_schema.sql` (4 tables — `services`, `api_keys`, `credit_snapshots`, `subscriptions` — in the local `fabrik_services` Postgres, applied via one-off `psql`, idempotent), a thin `scripts/registry_db.py` (`psycopg2.connect(SERVICES_REGISTRY_DSN)` + retry — db-pool was rejected at plan-review for requiring `DB_PASSWORD` with no peer-auth path), and `scripts/registry_sync.py` which parses `secrets/all-envs.env`'s `#svc` blocks into the registry storing **`value_sha256` — never the raw secret**. New env var `SERVICES_REGISTRY_DSN` (default: passwordless peer-auth socket). Behavior tests: sha256-not-raw, internal-config excluded, idempotent re-sync.
+
 ### Added — External-services consolidator + pool classifier, with regression tests (2026-07-18)
 
 Phase A of the External Services & Credentials Registry (spec/plan 2026-07-18). `scripts/gather_envs.py` consolidates every `/opt/*/.env` into `secrets/all-envs.env` (gitignored, chmod 600) — deduped **by value** (same credential under different names collapses; distinct values kept), grouped by capability category with a machine-parseable `#svc name/category/cost/capability/url/status/used_by` line per provider injected from the durable `scripts/service_catalog.json`; idempotent (no-op when unchanged). `scripts/classify_services.py` web-grounds uncatalogued (`category=?`) providers via the OpenRouter pool (`libs/subagents.fanout`, names + public URLs only — never a secret value), returning `?` rather than inventing. `scripts/tests/test_gather_envs.py` guards the two bugs that slipped (empty-value false-merge, idempotency-compare) + the core behaviors. Flywheel note: run recording lands in the jsonl ledger, but the pg-mirror + `set_quality` target `fabrik_analytics.subagent_runs`, on which the `ozgur` peer-auth role lacks grants — a one-time operator `GRANT` (shared infra), not a code gap.

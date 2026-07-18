@@ -699,6 +699,15 @@ APPRISE_STATELESS_URLS=tgram://BOTTOKEN/CHATID  # set in /opt/apprise/.env
 
 ---
 
+## External Services Registry (host-side tooling)
+
+- `SERVICES_REGISTRY_DSN` — Postgres DSN for the local external-services registry
+  (`services`/`api_keys`/`credit_snapshots`/`subscriptions`). Default
+  `postgresql:///fabrik_services` (passwordless unix-socket peer auth). This is host-side
+  operator tooling, **not** a deployed container — `localhost`/socket is correct here, not
+  `postgres-main`. One-time provisioning: `sudo -u postgres createdb -O <user> fabrik_services`,
+  then `psql "$SERVICES_REGISTRY_DSN" -f db/services_registry_schema.sql`.
+
 ## See Also
 
 - [.env.example](../.env.example) - Complete list of all environment variables

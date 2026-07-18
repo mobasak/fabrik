@@ -711,6 +711,10 @@ the `wordpress` **scaffold type** (`fabrik scaffold --type wordpress`).
 - `scripts/classify_services.py` - Web-grounds uncatalogued (`category=?`) providers via the OpenRouter pool (names + public URLs only), merges into `service_catalog.json`
 - `scripts/service_catalog.json` - Durable non-secret service catalog (provider → category/cost/capability/url/status/match) injected into `all-envs.env`
 - `scripts/tests/test_gather_envs.py` - Behavior-Contract regression tests for the consolidator + classifier
+- `scripts/registry_db.py` - Thin sync Postgres connector for the services registry (`SERVICES_REGISTRY_DSN`, peer-auth default)
+- `scripts/registry_sync.py` - Phase B: parse `secrets/all-envs.env` → upsert the local `fabrik_services` registry (stores `value_sha256`, never the raw secret)
+- `scripts/tests/test_registry_sync.py` - Behavior-Contract tests for the registry sync (sha256-not-raw, idempotent)
+- `db/services_registry_schema.sql` - 4-table schema (`services`/`api_keys`/`credit_snapshots`/`subscriptions`) for the local services registry
 - `scripts/kilo-benchmarks/` - Benchmark-driven agent-selection subsystem (`agent_selector.py`, `compute_assignments.py`, `db_models.py`, embedding assignment, OpenRouter category routing: `classify_ai_category.py`, `category_selector.py`, `category_route_mapper.py`, `category_export_markdown.py`, `update_gateway_counts.py`, `seed_direct_vendors.py` + `ai_category_configs.yaml`). Direct-vendor pricing plan also lives here: `direct_vendor_parsers/` (vendor-specific HTML parsers — assemblyai, anthropic, cartesia, deepgram, openai, soniox, speechmatics, subscription_monitor), `direct_vendor_pricing_registry.yaml`, `fetch_direct_vendor_prices.py` orchestrator, `audit_direct_vendor_freshness.py` quarterly helper.
 
 ### Data Files (AUTHORITATIVE)
