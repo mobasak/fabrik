@@ -202,8 +202,8 @@ cat > /etc/docker/daemon.json <<'EOF'
 EOF
 systemctl restart docker
 
-# Create the shared bridge network Fabrik expects
-docker network create coolify   # named "coolify" for historical compat; pure Docker bridge now
+# Create the shared bridge network Fabrik expects (every service joins it; Traefik routes)
+docker network create fabrik
 ```
 
 ### Step 4 — (Coolify install — REMOVED. Step intentionally blank to keep step numbering stable with prior versions of this doc.)
@@ -260,8 +260,7 @@ SNAPSHOT_ID=$(restic snapshots --tag docker-volumes --json | python3 -c 'import 
 # Restore to /var/restore/docker-volumes
 restic restore $SNAPSHOT_ID --target /var/restore
 
-# Recreate volumes + copy data in (SKIP the legacy/orphan ones)
-SKIP="coolify-db coolify-redis"
+# Recreate volumes + copy data in
 for vol in postgres-data redis_redis-data meilisearch-data n8n-data apprise-config \
            monitoring_prometheus-data monitoring_grafana-data monitoring_loki-data \
            monitoring_alertmanager-data monitoring_promtail-positions \
@@ -388,7 +387,7 @@ PATH B (B2 cold restore):
 [ ] restic + rclone installed, B2 configured
 [ ] B2 access key + secret + restic password recovered from your password manager
 [ ] /opt/* configs restored from `opt-configs` snapshot
-[ ] Docker volumes restored from `docker-volumes` snapshot (skip coolify-db/coolify-redis)
+[ ] Docker volumes restored from `docker-volumes` snapshot
 [ ] postgres-dumps snapshot restored (safety layer)
 [ ] All layers started in order (traefik → infra → monitoring → alerting → backrest → auth → apps → tenants)
 [ ] Cloudflare A record updated to NEW_VPS_IP

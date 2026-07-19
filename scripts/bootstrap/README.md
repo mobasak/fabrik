@@ -63,4 +63,4 @@ The mesh is the trust boundary. Anything reachable on the mesh IP (postgres, red
 
 If a spoke's Wireguard private key is compromised, the attacker gains mesh access. Rotation procedure: regenerate the spoke's keypair, run `add-mesh-peer.sh --rotate` from the dev machine.
 
-See `docs/operations/multi-host-deployment.md` (created later in W-Multi M9) for the full operations manual.
+See `docs/operations/fabrik-lifecycle.md` § "Targeting a host — `--target-vps` (multi-host)" for the multi-host operations detail.

@@ -1,6 +1,6 @@
 # WSL environment — operations runbook
 
-Owner: ozgur · Last reviewed: 2026-06-30
+Owner: ozgur · Last reviewed: 2026-07-19 (crontab inventory reconciled vs live `crontab -l` — 6 entries added since the prior review)
 
 This is the WSL-side counterpart to [deployment.md](deployment.md) (VPS) and [fabrik-lifecycle.md](fabrik-lifecycle.md) (runtime behavior). It documents everything that runs on your local Windows-WSL2 development host — crontab, bashrc-sourced startup chain, lockfile and PID conventions, project-cron lifecycle policy, recovery.
 
@@ -30,6 +30,8 @@ Run `crontab -l` to view. Every entry is documented below. **Schedule cell shows
 | `@reboot` (+60s sleep) | `/opt/fabrik/scripts/dr_env_backup.sh` | Catch-up DR backup after WSL boots. |
 | `0 4 * * 0` (Sun 04:00) | `/opt/fabrik/scripts/dr_env_recovery_test.sh` | Weekly self-test: reads `/opt/fabrik-dr-store/env/latest`, extracts restic + B2 creds, confirms B2 restic repo is readable via Backrest's in-container restic. |
 | `59 11 * * *` (11:59 daily) | `cd /opt/fabrik && python3 scripts/kilo_model_sync.py --sync` | Daily Kilo model sync (added 2026-03-09). |
+| `0 3 * * 0` (Sun 03:00) | `/home/ozgur/.local/bin/cache-prune.sh` | Weekly cache cap — clears regenerable download/build caches only when they exceed a threshold; never touches `~/.local` or source/data. |
+| `17 5 * * *` | `find ~/.claude-youtube-headless/projects -type f -mtime +1 -delete` | Prunes headless-Claude session files older than 1 day. |
 
 ### Project-owned (will move to project's VPS deployment when deployed)
 
@@ -47,6 +49,10 @@ These run on WSL today because the projects are pre-deploy. **Lifecycle policy: 
 | `0 4 * * *` | `/opt/site-provisioner/scripts/drop_feed.py` | site-provisioner | Daily drop-feed scrape. Move to VPS when deployed. |
 | `0 20 * * *` | `/opt/site-provisioner/scripts/drop_feed.py` | site-provisioner | Evening catch-up drop scrape. Move to VPS when deployed. |
 | `0 * * * *` | `/opt/site-provisioner/scripts/dns_recheck.py` | site-provisioner | Hourly DNS availability recheck. Move to VPS when deployed. |
+| `30 3 * * *` | `/opt/youtube/scripts/rag_daily_index.py --limit 2500 --source-type transcripts` | youtube | Daily RAG transcript indexing. Will move to VPS when youtube deploys. |
+| `0 * * * *` | `/opt/youtube/scripts/rag_claim_index.py --limit 42` | youtube | Hourly RAG claim indexing. Will move to VPS when youtube deploys. |
+| `*/5 * * * *` | `/opt/youtube/scripts/start_all.sh ensure` | youtube | Keeps the 7 youtube services up (restart-if-dead sweep). Will move to VPS when youtube deploys. |
+| `30 5 * * *` | `/opt/trade-intelligence/scripts/gtip/run_refresh_once.sh` | trade-intelligence | Daily single-pass GTIP tax refresh against the self-hosted `trade_intelligence` Postgres. Move to VPS when deployed. |
 
 ### Removed cleanup (2026-06-30)
 

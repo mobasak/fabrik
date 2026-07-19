@@ -4,7 +4,7 @@ Owner: ozgur · Last reviewed: 2026-06-30 (Phase 5 + Pass-8 review of the direct
 
 ## What this runbook covers
 
-The AI Models Browser at [scripts/kilo-benchmarks/models_browser.html](../../scripts/kilo-benchmarks/models_browser.html) is regenerated daily by [scripts/kilo-benchmarks/daily_refresh.sh](../../scripts/kilo-benchmarks/daily_refresh.sh) (cron `0 6 * * *` UTC). This doc explains how to operate the direct-vendor pricing scraper that was shipped in the converged plan [docs/development/plans/2026-06-29-plan-direct-vendor-pricing.md](../development/plans/2026-06-29-plan-direct-vendor-pricing.md).
+The AI Models Browser at [scripts/kilo-benchmarks/models_browser.html](../../scripts/kilo-benchmarks/models_browser.html) is regenerated daily by [scripts/kilo-benchmarks/daily_refresh.sh](../../scripts/kilo-benchmarks/daily_refresh.sh) (cron `0 6 * * *` UTC). This doc explains how to operate the direct-vendor pricing scraper that was shipped in the converged plan [docs/development/plans/archived/2026-06-29-plan-direct-vendor-pricing.md](../development/plans/archived/2026-06-29-plan-direct-vendor-pricing.md).
 
 ## Current scraper coverage (2026-06-30)
 

@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — docs/operations currency sweep + broken vps-docs auto-updater (2026-07-19)
+
+All 11 `docs/operations/` runbooks audited (hand-authored; no generator — the sprawl gate blocks new
+files there; `update_vps_docs.py` writes only `docs/infrastructure/*`). Fixed what the sweep proved
+stale: `disaster-recovery.md` now creates network `fabrik` (was `coolify` — `fabrik apply` rejects that
+name; bootstrap scripts create `fabrik`) + dropped the nonexistent coolify-db/redis volume skips
+(verified against live `docker volume ls`; the 14-volume restore list matches live exactly);
+`wsl-environment.md` crontab inventory reconciled vs live `crontab -l` (6 undocumented entries added:
+cache-prune, headless-session prune, youtube rag×2 + ensure-sweep, trade-intelligence gtip refresh);
+`AI_MODELS_BROWSER_OPS.md` dead plan link → archived path; `scripts/bootstrap/README.md` pointer to the
+never-created `multi-host-deployment.md` → `fabrik-lifecycle.md` § --target-vps. **Bug fix:**
+`update_vps_docs.py` read/wrote `vps-status.md` + `vps-urls.md` under `docs/operations/` (files live in
+`docs/infrastructure/` per its own docstring) — the post-deploy hook has been crashing since the move;
+repointed to `DOCS_INFRA`, proven by `--dry-run`. Verified-accurate, no change needed: `deployment.md`'s
+"reconcile-all broken (CoolifyClient import)" claim (still true at `cli.py:1498`), the supabase-keepalive
+removal claim, credential-recovery/restore-inventory script cross-refs.
+
 ### Changed — Archive docs/examples (redundant health-checker demo) (2026-07-19)
 
 `docs/examples/health_check_usage.py` → `docs/archive/examples/` — a March hand-written usage demo

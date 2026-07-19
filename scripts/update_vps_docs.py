@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# AFTER-EDIT: none
 """
 update_vps_docs.py — regenerate dynamic sections of VPS documentation.
 
@@ -34,7 +35,6 @@ from dotenv import load_dotenv
 load_dotenv("/opt/fabrik/.env")
 
 REPO = Path("/opt/fabrik")
-DOCS_OPS = REPO / "docs/operations"
 DOCS_INFRA = REPO / "docs/infrastructure"
 
 # ── Sentinel comments that wrap dynamic sections ─────────────────────────────
@@ -133,7 +133,7 @@ def collect_ufw() -> list[dict]:
 
 def collect_traefik_middlewares() -> list[dict]:
     raw = _ssh(
-        "sudo docker exec traefik wget -qO- http://localhost:8080/api/http/middlewares 2>/dev/null",
+        "sudo docker exec traefik wget -qO- http://localhost:8080/api/http/middlewares 2>/dev/null",  # noqa: E501 — localhost IS the traefik container (docker exec)
         timeout=20,
     )
     import json
@@ -309,7 +309,7 @@ def main() -> int:
     changed = 0
 
     # ── vps-status.md ────────────────────────────────────────────────────────
-    path = DOCS_OPS / "vps-status.md"
+    path = DOCS_INFRA / "vps-status.md"
     content = path.read_text()
     content = update_section(
         content, "system_overview", render_system_overview(disk, mem, uptime_str, containers)
@@ -325,7 +325,7 @@ def main() -> int:
         changed += 1
 
     # ── vps-urls.md ──────────────────────────────────────────────────────────
-    path = DOCS_OPS / "vps-urls.md"
+    path = DOCS_INFRA / "vps-urls.md"
     content = path.read_text()
     content = update_section(content, "coolify_apps", render_coolify_apps(apps))
     content = update_timestamp(content)
