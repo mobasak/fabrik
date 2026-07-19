@@ -4,10 +4,10 @@
 > pointing here; the high-frequency core is `agents-fabrik-core.md`, `@import`-ed into `CLAUDE.md`.
 
 **Read by:** Traycer (ticket planning — Claude-Max-powered, tool-capable) **and any agent planning or
-making non-trivial changes directly** (Claude Code / Cascade / Kilo). This is the canonical infra +
+making non-trivial changes directly** (Claude Code — Max OAuth — plus the OpenRouter subagent pool; Windsurf Cascade + Kilo CLI RETIRED 2026-07-19). This is the canonical infra +
 codebase map — ground every plan in it, don't guess.
 **Our agents are tool-capable — orient, then act:** run `python scripts/select_rules.py` to load the ACTIVE rule packs; open every file/symbol you cite (`path:line`); ground external facts **live via MCP** (`exa` → `brave-search` → `context7`, cite URL + date, never from memory); gate with `python scripts/final_gate.py`. Enumerations here are copied from the live registry (`scaffold.py::SCAFFOLD_TYPES`, `.windsurf/rules/**`, `fabrik-lib/README.md`, `spec_loader.py::Shape`) — if a count disagrees with the registry, the registry wins.
-**Coding agents:** Claude Code reads `CLAUDE.md` (which `@import`s `agents-fabrik-core.md`); Windsurf Cascade reads `.windsurfrules`; Kilo CLI reads `AGENTS-compact.md` (via `opencode.json`). Rule packs live in `.windsurf/rules/**` — canonical; at review time `scripts/review_rubric.py` injects them.
+**Coding agents:** Claude Code reads `CLAUDE.md` (which `@import`s `agents-fabrik-core.md`). ⚠️ Windsurf Cascade + Kilo CLI are **RETIRED (2026-07-19)** — their bootstrap files (`.windsurfrules`, `AGENTS-compact.md` via `opencode.json`) remain synced only until removed. Rule packs live in `.windsurf/rules/**` — canonical; at review time `scripts/review_rubric.py` injects them.
 
 ## Platform at a Glance
 
@@ -80,7 +80,7 @@ Full lifecycle from vision to running service — what is automated vs what requ
 2. Our agents run `mega-epic-breakdown` or `epic-to-ticket-workflow` to produce epic tickets.
 3. Owner confirms decomposition and dispatches epic tickets. **Human gate: epic confirmation.**
 
-**Phase 2 — Implementation (coding agents: Claude Code / Windsurf / Kilo):**
+**Phase 2 — Implementation (coding agents: Claude Code + the OpenRouter subagent pool):**
 4. Each epic ticket runs `epic-to-ticket-workflow` (00-trigger consume mode → 01-epic-brief → ... → 09-11).
 5. Coding agent implements, passes `scripts/final_gate.py`, stages changes.
 6. Owner reviews gate output and commits + pushes. **Human gate: commit/push decision.**
