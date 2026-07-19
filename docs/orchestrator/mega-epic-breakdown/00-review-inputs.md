@@ -22,6 +22,8 @@ here FIRST, then implemented into the command file.** One row per input; status 
 
 | 13 | 2026-07-19 | "Why is `/opt/wpf` still in my 00 file?" — `/opt/wpf` does not belong in the commands at all | Every `/opt/wpf` / `wpf` mention purged from BOTH chains (mega + ettw incl. route tables, skip lists, checklists); websites route to `/opt/web-ecommerce-factory`, stated present-tense | ✅ this commit |
 
+| 14 | 2026-07-19 | External systems are stored in `secrets/all-envs.env` — is the tech-stack guide reference stale? Is the env fully up to date, how often refreshed? | Commands now ALSO read `scripts/service_catalog.json` (the secret-free projection of `all-envs.env` — the only form agents may read; the guide reference stays for stack DEFAULTS). Freshness verified: consolidation current (zero `/opt/*/.env` newer than it); refresh is ON-DEMAND via `refresh_service_inventory.py` (built as a cron entry-point but NOT scheduled) | ✅ this commit · ⏳ operator call: schedule the cron |
+
 ## Prior inputs that shaped both `00`s (context)
 
 - Decisions must never live only in chat → `00`s are chat-only; persistence lives in `01-decisions-lock`

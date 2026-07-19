@@ -162,7 +162,7 @@ Plus `kind:` (`service` / `worker` / `static`; the `Kind` enum also has a 4th me
 **Auto-loaded (both modes):**
 - `agents-fabrik.md` — full project context, infrastructure services, microservices table, planning constraints (our tool-capable orientation file).
 - `docs/operations/fabrik-lifecycle.md` — deploy/runtime behavior, data safety.
-- `docs/reference/technology-stack-decision-guide.md` — stack defaults and decision flowchart.
+- `docs/reference/technology-stack-decision-guide.md` — stack defaults and decision flowchart. **Owned external services** (which vendors/APIs we already have accounts + keys for) = `/opt/fabrik/scripts/service_catalog.json` (secret-free registry; creds live in `secrets/all-envs.env` — never read or inline them).
 - `docs/reference/prebuilt-app-containers.md` — off-the-shelf solutions that eliminate custom work.
 - `docs/BUSINESS_MODEL.md` § Project Portfolio — duplicate check.
 - `PORTS.md` — port allocations.
@@ -282,7 +282,7 @@ The Input Contract files are already auto-loaded. Now focus on these specific se
 - `agents-fabrik.md` § `Planning Constraints` — all 12 constraints. **A separate list from Step N3i's 20 checks, and they OVERLAP heavily — 7 of the 12 are also N3i checks:** Solo-dev (N3i #9) · x86_64 (#1) · Budget (#2) · Existing services (#3) · Port conflicts (#5) · SSH+Compose (#6) · No Alpine (#7). Only **5** are genuinely absent from N3i: Prebuilt containers, Module dependencies, DNS via site-provisioner, Scaffold immutability, State conflicts. Apply both — the 12 at orientation time, N3i's 20 at vision-verification time.
 - `docs/infrastructure/vps-complete-inventory.md` — canonical fleet inventory if the agents-fabrik.md summary is ambiguous on host placement.
 - `docs/operations/fabrik-lifecycle.md` — runtime behavior, data safety, deploy/redeploy/destroy.
-- `docs/reference/technology-stack-decision-guide.md` — stack defaults.
+- `docs/reference/technology-stack-decision-guide.md` — stack defaults; owned external services = `scripts/service_catalog.json`.
 - `docs/reference/prebuilt-app-containers.md` — off-the-shelf solutions.
 - `docs/BUSINESS_MODEL.md` § Project Portfolio — duplicate check.
 - `PORTS.md` — port allocations.

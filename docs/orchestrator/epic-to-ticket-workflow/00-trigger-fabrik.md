@@ -167,7 +167,7 @@ State which source(s) read (or `none — interview-only`).
 
 **4a. Always-run reference reads:**
 
-- `docs/reference/technology-stack-decision-guide.md` — Fabrik stack overrides + existing services + decision flowchart.
+- `docs/reference/technology-stack-decision-guide.md` — Fabrik stack overrides + decision flowchart. **Owned external services** (which vendors/APIs we already have accounts + keys for) = `/opt/fabrik/scripts/service_catalog.json` (secret-free registry; creds live in `secrets/all-envs.env` — never read or inline them).
 - `docs/reference/prebuilt-app-containers.md` — off-the-shelf solutions.
 - `.windsurf/rules/ai/00-ai-model-selection.md` (+ matching category pack) — if AI/ML project, identify correct category + tool.
 - `docs/operations/fabrik-lifecycle.md` — confirm project fits the deploy/runtime stages; identify registrars.

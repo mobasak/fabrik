@@ -9,7 +9,7 @@
        · the **LOCKED** Decisions Lock (`01-decisions-lock-fabrik` output, locked by `01R` — never consume a `DRAFT`) · the `00-trigger-fabrik` INFRA-CHECK · Core Flows
          (`02-core-flows-fabrik` output, if the route ran it) · the pre-research file (grounding)
        · `agents-fabrik.md` — § Tech Stack Defaults · § Infrastructure Services · § Supabase
-       · `docs/reference/technology-stack-decision-guide.md` (stack-choice authority)
+       · `docs/reference/technology-stack-decision-guide.md` (stack-choice authority) · `scripts/service_catalog.json` (owned external services — secret-free)
        · `docs/operations/fabrik-lifecycle.md` (4-stage fit)
        · the INFRA-CHECK `Rule Packs` + the Step-3 overlay packs the epic's domain triggers
        · scaffold-aware packs: `core/ocoron-design-system.md` (UI) · `core/25-data-postgres.md` (DB) ·
